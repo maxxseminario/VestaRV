@@ -19,10 +19,11 @@ begin
     byte_data <= read_data(7 downto 0);
     half_data <= read_data(15 downto 0);
 
-    -- Select output based on funct3
+    -- Replicate the store data across the bus so the byte lanes select the slice.
+    -- The active-low WEn lanes pick which copy actually lands in memory.
     with funct3 select
-        extended_data <= 
-            byte_data & byte_data & byte_data & byte_data when "000", --SB
-            half_data & half_data when "001", -- SH
-            read_data when others;
+        extended_data <=
+            byte_data & byte_data & byte_data & byte_data when "000", -- SB: byte copied into all four lanes
+            half_data & half_data when "001", -- SH: halfword copied into both halves
+            read_data when others; -- SW and anything else: pass the word through unchanged
 end Behavioral;

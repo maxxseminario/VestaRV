@@ -1,41 +1,26 @@
 -- =============================================================================
 -- pwr_ctrl_tb.vhd  (DP-S3)
 -- =============================================================================
--- Unit proof for the reworked power controller: the M17 per-tile MTCMOS
--- sequencers PLUS the DP-S3 PGOOD/field boot gate + strap self-arm. Drives the
--- arbiter slave port directly (en = one-cycle strobe, we = active-high lanes,
--- addr = word offset, 1-cycle registered read valid the cycle after the
--- strobe) and drives the three async pad inputs (pgood_pad/strap_pad/
--- field_detect) which are 2-FF synchronized inside the DUT.
+-- Unit proof for the reworked power controller: the M17 per-tile MTCMOS sequencers plus the DP-S3 PGOOD/field boot gate and strap self-arm.
+-- It drives the arbiter slave port directly: en is a one-cycle strobe, we is the active-high lane vector, addr is a word offset, and the registered read is valid the cycle after the strobe.
+-- It also drives the three async pad inputs (pgood_pad, strap_pad, field_detect), which are 2-FF synchronized inside the DUT.
 --
--- Checks (self-checking; prints ALL TESTS PASSED / TB FAILED):
---   1. M17 backward-compat: reset NO-OP + tile-1 gate->OFF->wake->ON sequence
---      with the pd_* controls asserted/released in order; PWRSTS/PWRWAKE sane.
---   2. strap sample, latch-once: harvested board self-arms and holds on !PGOOD;
---      strap is a one-shot (mid-run pad change ignored).
---   3. self-arm release + brownout re-hold (strap ORs REHOLD).
---   4. software-arm path (no strap): arm+RLS_PGOOD holds, PGOOD releases,
---      one-shot latch survives the PGOOD drop (RLS_LATCHED).
---   5. negctrl: a DISABLED wake source (field, RLS_FIELD off) does not release;
---      enabling RLS_FIELD then releases on the same field level.
---   6. negctrl: an armed gate with NO release source holds through live PGOOD
---      AND field; SW_RELEASE releases (pgood_rstn is load-bearing).
---   7. PWRWAKE readback (only bits 4:0 stick) + reserved words 7..15 read 0 +
---      PWRSR word above NSRW reads 0.
---   8. independence: with the boot gate armed-and-released, the tile MTCMOS
---      sequencer still gates/wakes tile 1 (the two FSMs are independent).
---   9. EVFAB task-wake tap (event_fabric_spec.md 2026-07-24): W_TASKWKM
---      (word 7) RW readback (walking-1 over NHARTS-1:1, bit 0 + OOR bits
---      read 0, reset 0); a task_wake pulse clears gate_req where task_wkm=1
---      and the FSM sequences rail-up exactly like a register-cleared gate;
---      mask=0 pulse is a no-op; selectivity across two gated tiles; a
---      coincident PWRCR write + task_wake pulse in the same cycle merges
---      (task's masked bit ends 0, other bits take the CPU value); the DP-S3
---      boot gate (pgood_rstn/rls_latch) is untouched by task_wake pulses.
+-- Checks, all self-checking; the bench prints ALL TESTS PASSED or TB FAILED:
+--   1. M17 backward-compat: reset is a NO-OP, then tile 1 gates to OFF and wakes back to ON with the pd_* controls asserted and released in order, and PWRSTS/PWRWAKE stay sane.
+--   2. Strap sample, latch-once: a harvested board self-arms and holds while PGOOD is low, and the strap is a one-shot, so a mid-run pad change is ignored.
+--   3. Self-arm release then brownout re-hold, since the strap ORs REHOLD.
+--   4. Software-arm path with no strap: arm plus RLS_PGOOD holds, PGOOD releases, and the one-shot latch survives the PGOOD drop (RLS_LATCHED).
+--   5. Negative control: a DISABLED wake source (field, with RLS_FIELD off) does not release, and enabling RLS_FIELD then releases on that same field level.
+--   6. Negative control: an armed gate with NO release source holds through live PGOOD AND field, and SW_RELEASE releases it, so pgood_rstn is load-bearing.
+--   7. PWRWAKE readback where only bits 4:0 stick, reserved words 7 to 15 read 0, and the PWRSR word above NSRW reads 0.
+--   8. Independence: with the boot gate armed and released, the tile MTCMOS sequencer still gates and wakes tile 1, so the two FSMs are independent.
+--   9. EVFAB task-wake tap (event_fabric_spec.md 2026-07-24): W_TASKWKM (word 7) RW readback, walking-1 over NHARTS-1:1 with bit 0 and out-of-range bits reading 0 and reset 0.
+--      A task_wake pulse clears gate_req wherever task_wkm=1 and the FSM sequences rail-up exactly like a register-cleared gate; a mask=0 pulse is a no-op; selectivity is proven across two gated tiles.
+--      A coincident PWRCR write and task_wake pulse in the same cycle merges: the task's masked bit ends 0 while the other bits take the CPU value.
+--      The DP-S3 boot gate (pgood_rstn and rls_latch) is untouched by task_wake pulses.
 --
--- Run: xcelium/mp_test/run_pwr_ctrl.sh (compiles this against
--- hdl/common/pwr_ctrl.vhd only — no other DUT dependencies). Small delay
--- generics (T_SEQ=2, T_RAIL=8, STRAP_SETTLE=8) keep the sim short.
+-- Run: xcelium/mp_test/run_pwr_ctrl.sh, which compiles this against hdl/common/pwr_ctrl.vhd only, with no other DUT dependencies.
+-- The small delay generics (T_SEQ=2, T_RAIL=8, STRAP_SETTLE=8) keep the sim short.
 -- =============================================================================
 
 library IEEE;
@@ -69,26 +54,25 @@ architecture tb of pwr_ctrl_tb is
     signal pd_sleep  : std_logic_vector(NHARTS-1 downto 1);
     signal pd_rstn   : std_logic_vector(NHARTS-1 downto 1);
 
-    signal pgood_pad    : std_logic := '1';   -- unused-tie default
+    signal pgood_pad    : std_logic := '1';   -- default tie for the unused-feature config
     signal strap_pad    : std_logic := '0';
     signal field_detect : std_logic := '0';
     signal pgood_rstn   : std_logic;
 
-    -- EVFAB task-wake tap (event_fabric_spec.md 2026-07-24): one-mclk pulse,
-    -- default inert like the DUT port default.
+    -- EVFAB task-wake tap (event_fabric_spec.md 2026-07-24): a one-mclk pulse, inert by default like the DUT port default.
     signal task_wake : std_logic := '0';
 
-    signal done  : boolean := false;
-    signal fails : integer := 0;
+    signal done  : boolean := false;   -- stops the clock once the verdict is printed
+    signal fails : integer := 0;       -- failed-check tally driving the verdict
 
-    -- register word offsets (mirror the DUT map)
+    -- Register word offsets, mirroring the DUT map.
     constant PWRCR    : natural := 0;
     constant PWRSR0   : natural := 1;
     constant PWRWAKE  : natural := 5;
     constant PWRSTS   : natural := 6;
     constant TASKWKM  : natural := 7;
 
-    -- PWRWAKE bits
+    -- PWRWAKE bit masks (boot-gate arm and release-source enables).
     constant GATE_EN    : std_logic_vector(31 downto 0) := x"00000001";
     constant RLS_PGOOD  : std_logic_vector(31 downto 0) := x"00000002";
     constant RLS_FIELD  : std_logic_vector(31 downto 0) := x"00000004";
@@ -103,10 +87,11 @@ architecture tb of pwr_ctrl_tb is
     constant B_BOOT_HOLD   : natural := 4;
     constant B_RLS_LATCHED : natural := 5;
 
-    -- PWRSR nibble values
+    -- PWRSR per-tile state nibbles.
     constant N_ON  : std_logic_vector(3 downto 0) := x"0";
     constant N_OFF : std_logic_vector(3 downto 0) := x"3";
 
+    -- Number of live PWRSR words: 8 tile nibbles per 32-bit word.
     constant NSRW : natural := (NHARTS + 7) / 8;
 
 begin
@@ -147,7 +132,7 @@ begin
             end loop;
         end procedure;
 
-        -- one-cycle strobe; registered read sampled the cycle after
+        -- One-cycle strobe; the registered read is sampled the cycle after it.
         procedure bus_read(waddr : natural;
                            variable v : out std_logic_vector(31 downto 0)) is
         begin
@@ -161,6 +146,7 @@ begin
             v := rdata;
         end procedure;
 
+        -- One-cycle write strobe with an explicit byte-lane mask.
         procedure bus_write(waddr : natural;
                             v : std_logic_vector(31 downto 0);
                             lanes : std_logic_vector(3 downto 0)) is
@@ -176,8 +162,7 @@ begin
             wait until rising_edge(clk);
         end procedure;
 
-        -- one-mclk task_wake pulse (same idiom as bus_write: asserted after
-        -- one clock edge, sampled by the DUT at the next, deasserted after).
+        -- One-mclk task_wake pulse, using the bus_write idiom: asserted after one clock edge, sampled by the DUT at the next, then deasserted.
         procedure pulse_task_wake is
         begin
             wait until rising_edge(clk);
@@ -187,6 +172,7 @@ begin
             wait until rising_edge(clk);
         end procedure;
 
+        -- Record a failed expectation and keep going, so one run reports every defect.
         procedure check(cond : boolean; msg : string) is
         begin
             if not cond then
@@ -196,8 +182,8 @@ begin
             end if;
         end procedure;
 
-        -- pulse reset; pad inputs must already be set by the caller. Waits
-        -- past the strap-settle window so the boot gate has resolved on return.
+        -- Pulse reset; the caller must already have set the pad inputs.
+        -- It waits past the strap-settle window, so the boot gate has resolved by the time it returns.
         procedure do_reset is
         begin
             resetn <= '0';
@@ -207,7 +193,7 @@ begin
             tick(STRAP_SETTLE + 6);
         end procedure;
 
-        -- poll PWRSR until hart's nibble hits target (or give up)
+        -- Poll PWRSR until that hart's nibble reaches the target, giving up after a bounded number of reads.
         procedure poll_nibble(hart : natural;
                               target : std_logic_vector(3 downto 0);
                               variable ok : out boolean) is
@@ -234,7 +220,7 @@ begin
         variable wv  : std_logic_vector(31 downto 0);
         variable exp : std_logic_vector(31 downto 0);
     begin
-        -- initial pad ties for case 1 (unused-feature config)
+        -- Initial pad ties for case 1, the unused-feature config.
         pgood_pad    <= '1';
         strap_pad    <= '0';
         field_detect <= '0';
@@ -252,14 +238,14 @@ begin
         check(rd(B_STRAP_VALID) = '1', "1: STRAP_VALID not set after settle");
         check(rd(B_BOOT_HOLD)   = '0', "1: BOOT_HOLD set with no arm");
 
-        -- gate tile 1
+        -- Gate tile 1 and check the OFF-state controls.
         bus_write(PWRCR, x"00000002", "1111");
         poll_nibble(1, N_OFF, ok);
         check(ok, "1: tile 1 did not reach OFF");
         check(pd_iso_en(1) = '1', "1: pd_iso_en(1) not asserted in OFF");
         check(pd_sleep(1)  = '1', "1: pd_sleep(1) not asserted in OFF");
         check(pd_rstn(1)   = '0', "1: pd_rstn(1) not held in OFF");
-        -- wake tile 1
+        -- Wake tile 1 again and check every control is released.
         bus_write(PWRCR, x"00000000", "1111");
         poll_nibble(1, N_ON, ok);
         check(ok, "1: tile 1 did not wake to ON");
@@ -277,7 +263,7 @@ begin
         check(rd(B_STRAP_VALID) = '1', "2: STRAP_VALID not set");
         check(rd(B_BOOT_HOLD)   = '1', "2: BOOT_HOLD not set (self-arm)");
         check(pgood_rstn = '0', "2: pgood_rstn not held (self-arm on !PGOOD)");
-        -- one-shot: dropping the pad must not clear the latched strap
+        -- One-shot: dropping the pad must not clear the latched strap.
         strap_pad <= '0';
         tick(6);
         bus_read(PWRSTS, rd);
@@ -285,12 +271,12 @@ begin
         check(rd(B_BOOT_HOLD) = '1', "2: BOOT_HOLD released without PGOOD");
 
         -- === 3. self-arm release + brownout re-hold ==========================
-        pgood_pad <= '1';          -- PGOOD arrives
+        pgood_pad <= '1';          -- PGOOD arrives, so the self-armed gate should release
         tick(6);
         bus_read(PWRSTS, rd);
         check(rd(B_BOOT_HOLD) = '0', "3: BOOT_HOLD not released on PGOOD");
         check(pgood_rstn = '1', "3: pgood_rstn not released on PGOOD");
-        pgood_pad <= '0';          -- brownout
+        pgood_pad <= '0';          -- brownout: the strap ORs REHOLD, so the gate must come back
         tick(6);
         bus_read(PWRSTS, rd);
         check(rd(B_BOOT_HOLD) = '1', "3: BOOT_HOLD did not re-hold on brownout");
@@ -305,7 +291,7 @@ begin
         pgood_pad    <= '0';
         field_detect <= '0';
         do_reset;
-        bus_write(PWRWAKE, GATE_EN or RLS_PGOOD, "1111");   -- arm, wait on PGOOD
+        bus_write(PWRWAKE, GATE_EN or RLS_PGOOD, "1111");   -- arm the gate and wait on PGOOD
         tick(2);
         bus_read(PWRSTS, rd);
         check(rd(B_BOOT_HOLD)   = '1', "4: BOOT_HOLD not set on SW arm");
@@ -315,7 +301,7 @@ begin
         bus_read(PWRSTS, rd);
         check(rd(B_BOOT_HOLD)   = '0', "4: BOOT_HOLD not released on PGOOD");
         check(rd(B_RLS_LATCHED) = '1', "4: RLS_LATCHED not set after release");
-        pgood_pad <= '0';          -- drop; REHOLD=0 -> one-shot, stays released
+        pgood_pad <= '0';          -- drop PGOOD; with REHOLD=0 the release is a one-shot and stays released
         tick(6);
         bus_read(PWRSTS, rd);
         check(rd(B_BOOT_HOLD)   = '0', "4: one-shot re-held on PGOOD drop");
@@ -326,13 +312,13 @@ begin
         pgood_pad    <= '0';
         field_detect <= '0';
         do_reset;
-        bus_write(PWRWAKE, GATE_EN or RLS_PGOOD, "1111");   -- RLS_FIELD NOT set
-        field_detect <= '1';                                -- assert the source
+        bus_write(PWRWAKE, GATE_EN or RLS_PGOOD, "1111");   -- RLS_FIELD deliberately NOT set
+        field_detect <= '1';                                -- assert the disabled source
         tick(10);
         bus_read(PWRSTS, rd);
         check(rd(B_FIELD_LIVE) = '1', "5: FIELD_LIVE not synced");
         check(rd(B_BOOT_HOLD)  = '1', "5: disabled field released the gate");
-        -- now enable RLS_FIELD: the same field level must release
+        -- Now enable RLS_FIELD: the same held field level must release the gate.
         bus_write(PWRWAKE, GATE_EN or RLS_PGOOD or RLS_FIELD, "1111");
         tick(4);
         bus_read(PWRSTS, rd);
@@ -343,8 +329,8 @@ begin
         pgood_pad    <= '0';
         field_detect <= '0';
         do_reset;
-        bus_write(PWRWAKE, GATE_EN, "1111");                -- arm, no release src
-        pgood_pad    <= '1';                                -- both live inputs high
+        bus_write(PWRWAKE, GATE_EN, "1111");                -- arm with no release source enabled
+        pgood_pad    <= '1';                                -- drive both live inputs high
         field_detect <= '1';
         tick(18);
         bus_read(PWRSTS, rd);
@@ -352,7 +338,7 @@ begin
         check(rd(B_FIELD_LIVE) = '1', "6: FIELD_LIVE not high");
         check(rd(B_BOOT_HOLD)  = '1', "6: gate released with no enabled source");
         check(pgood_rstn = '0', "6: pgood_rstn released with no enabled source");
-        bus_write(PWRWAKE, GATE_EN or SW_RELEASE, "1111");  -- forced proceed
+        bus_write(PWRWAKE, GATE_EN or SW_RELEASE, "1111");  -- forced proceed, the software override
         tick(4);
         bus_read(PWRSTS, rd);
         check(rd(B_BOOT_HOLD) = '0', "6: SW_RELEASE did not release");
@@ -362,21 +348,21 @@ begin
         strap_pad <= '0';
         pgood_pad <= '1';
         do_reset;
-        bus_write(PWRWAKE, x"0000001F", "1111");            -- all 5 live bits
+        bus_write(PWRWAKE, x"0000001F", "1111");            -- all five live bits
         bus_read(PWRWAKE, rd);
         check(rd = x"0000001F", "7: PWRWAKE 5-bit readback wrong");
         bus_write(PWRWAKE, x"FFFFFFFF", "1111");            -- upper bits must not stick
         bus_read(PWRWAKE, rd);
         check(rd = x"0000001F", "7: PWRWAKE stored bits above 4:0");
-        bus_write(PWRWAKE, x"00000000", "1111");            -- disarm for cleanliness
-        -- reserved words 7..15 read 0
+        bus_write(PWRWAKE, x"00000000", "1111");            -- disarm again to leave a clean state
+        -- Reserved words 7 to 15 must read 0.
         bus_read(7, rd);
         check(rd = x"00000000", "7: word 7 not 0");
         bus_read(10, rd);
         check(rd = x"00000000", "7: word 10 not 0");
         bus_read(15, rd);
         check(rd = x"00000000", "7: word 15 not 0");
-        -- PWRSR word above the live array reads 0 (guarded: keep below PWRWAKE)
+        -- A PWRSR word above the live array reads 0; the guard keeps the probe below PWRWAKE.
         if NSRW + 1 < PWRWAKE then
             bus_read(NSRW + 1, rd);
             check(rd = x"00000000", "7: PWRSR word above NSRW not 0");
@@ -387,13 +373,13 @@ begin
         pgood_pad    <= '1';
         field_detect <= '0';
         do_reset;
-        -- arm AND immediately release via SW_RELEASE (one-shot)
+        -- Arm AND immediately release through SW_RELEASE, a one-shot.
         bus_write(PWRWAKE, GATE_EN or SW_RELEASE, "1111");
         tick(4);
         bus_read(PWRSTS, rd);
         check(rd(B_BOOT_HOLD)   = '0', "8: boot gate not released");
         check(rd(B_RLS_LATCHED) = '1', "8: boot gate release not latched");
-        -- with the boot gate settled, the tile sequencer must still work
+        -- With the boot gate settled, the tile sequencer must still work.
         bus_write(PWRCR, x"00000002", "1111");
         poll_nibble(1, N_OFF, ok);
         check(ok, "8: tile 1 did not gate while boot gate released");
@@ -402,7 +388,7 @@ begin
         poll_nibble(1, N_ON, ok);
         check(ok, "8: tile 1 did not wake while boot gate released");
         check(pd_rstn(1) = '1', "8: pd_rstn(1) not released after wake (indep)");
-        -- boot gate must be untouched by the tile activity
+        -- The boot gate must be untouched by that tile activity.
         bus_read(PWRSTS, rd);
         check(rd(B_BOOT_HOLD) = '0', "8: tile activity disturbed the boot gate");
 
@@ -413,7 +399,7 @@ begin
         task_wake    <= '0';
         do_reset;
 
-        -- --- 9a. W_TASKWKM RW readback: reset 0, walking-1, bit0 + OOR RO 0
+        -- --- 9a. W_TASKWKM RW readback: reset 0, walking-1, with bit 0 and out-of-range bits read-only 0.
         bus_read(TASKWKM, rd);
         check(rd = x"00000000", "9a: TASKWKM not 0 at reset");
         for h in 1 to NHARTS-1 loop
@@ -423,17 +409,17 @@ begin
             bus_read(TASKWKM, rd);
             check(rd = wv, "9a: TASKWKM walking-1 bit " & integer'image(h) & " readback wrong");
         end loop;
-        -- bit 0 (hart 0, always-on) has no storage -> RO 0
+        -- Bit 0 is hart 0, always-on, so it has no storage and reads back 0.
         bus_write(TASKWKM, x"00000001", "1111");
         bus_read(TASKWKM, rd);
         check(rd = x"00000000", "9a: TASKWKM bit 0 not RO 0");
-        -- out-of-range bit (just above NHARTS-1) has no storage -> RO 0
+        -- The out-of-range bit just above NHARTS-1 has no storage either, so it reads back 0.
         wv := (others => '0');
         wv(NHARTS) := '1';
         bus_write(TASKWKM, wv, "1111");
         bus_read(TASKWKM, rd);
         check(rd = x"00000000", "9a: TASKWKM out-of-range bit not RO 0");
-        -- all-ones write: only NHARTS-1:1 sticks
+        -- All-ones write: only bits NHARTS-1 down to 1 stick.
         bus_write(TASKWKM, x"FFFFFFFF", "1111");
         exp := (others => '0');
         exp(NHARTS-1 downto 1) := (others => '1');
@@ -441,13 +427,13 @@ begin
         check(rd = exp, "9a: TASKWKM all-ones write did not mask to NHARTS-1:1");
         bus_write(TASKWKM, x"00000000", "1111");   -- clean up
 
-        -- --- 9b. task wake basics: gate tile 1, mask tile 1, pulse -> wakes
+        -- --- 9b. Task-wake basics: gate tile 1, mask tile 1, and a pulse must wake it.
         bus_write(PWRCR, x"00000002", "1111");      -- gate tile 1
         poll_nibble(1, N_OFF, ok);
         check(ok, "9b: tile 1 did not reach OFF before task-wake");
         wv := (others => '0');
         wv(1) := '1';
-        bus_write(TASKWKM, wv, "1111");             -- mask selects tile 1
+        bus_write(TASKWKM, wv, "1111");             -- the mask selects tile 1
         pulse_task_wake;
         bus_read(PWRCR, rd);
         check(rd(1) = '0', "9b: task_wake did not clear gate_req(1)");
@@ -458,28 +444,28 @@ begin
         check(pd_rstn(1)   = '1', "9b: pd_rstn(1) not released after task-wake");
         bus_write(TASKWKM, x"00000000", "1111");    -- clean up
 
-        -- --- 9c. mask=0: pulse changes nothing
+        -- --- 9c. With mask=0 a pulse must change nothing.
         bus_write(PWRCR, x"00000002", "1111");      -- gate tile 1 again
         poll_nibble(1, N_OFF, ok);
         check(ok, "9c: tile 1 did not reach OFF before mask=0 pulse");
-        pulse_task_wake;                            -- task_wkm still all-0
+        pulse_task_wake;                            -- task_wkm is still all zeros
         tick(4);
         bus_read(PWRCR, rd);
         check(rd(1) = '1', "9c: mask=0 task_wake cleared gate_req(1)");
         bus_read(PWRSR0, sr);
         check(sr(4*1+3 downto 4*1) = N_OFF, "9c: mask=0 task_wake moved tile 1 out of OFF");
-        -- wake tile 1 back the ordinary way, ready for the next check
+        -- Wake tile 1 the ordinary way again, ready for the next check.
         bus_write(PWRCR, x"00000000", "1111");
         poll_nibble(1, N_ON, ok);
         check(ok, "9c: tile 1 did not wake via PWRCR after mask=0 pulse check");
 
-        -- --- 9d. selectivity: two tiles gated, mask selects only tile 1
+        -- --- 9d. Selectivity: two tiles gated, and the mask selects only tile 1.
         bus_write(PWRCR, x"00000006", "1111");      -- gate tiles 1 and 2
         poll_nibble(1, N_OFF, ok);
         poll_nibble(2, N_OFF, ok2);
         check(ok  and ok2, "9d: tiles 1/2 did not both reach OFF");
         wv := (others => '0');
-        wv(1) := '1';                                -- mask: tile 1 only
+        wv(1) := '1';                                -- mask covers tile 1 only
         bus_write(TASKWKM, wv, "1111");
         pulse_task_wake;
         bus_read(PWRCR, rd);
@@ -491,15 +477,14 @@ begin
         check(sr(4*2+3 downto 4*2) = N_OFF, "9d: unmasked tile 2 left OFF");
         check(pd_rstn(2) = '0', "9d: unmasked tile 2 pd_rstn disturbed");
         bus_write(TASKWKM, x"00000000", "1111");
-        bus_write(PWRCR, x"00000000", "1111");       -- clean up: wake tile 2 too
+        bus_write(PWRCR, x"00000000", "1111");       -- cleanup: wake tile 2 as well
         poll_nibble(2, N_ON, ok2);
         check(ok2, "9d: tile 2 did not wake on cleanup");
 
-        -- --- 9e. merge/precedence: coincident PWRCR write + task_wake pulse.
-        -- Both tiles are ON here. task_wkm still selects tile 1 (set below).
-        -- The CPU write asks to gate BOTH tiles 1 and 2 in the same cycle the
-        -- task_wake pulse fires; the masked bit (tile 1) must end 0 (task
-        -- wins) while the unmasked bit (tile 2) takes the CPU value (1).
+        -- --- 9e. Merge and precedence for a coincident PWRCR write and task_wake pulse.
+        -- Both tiles are ON here, and task_wkm still selects tile 1, set just below.
+        -- The CPU write asks to gate BOTH tiles 1 and 2 in the same cycle the task_wake pulse fires.
+        -- The masked bit, tile 1, must end 0 because the task wins, while the unmasked bit, tile 2, takes the CPU value of 1.
         wv := (others => '0');
         wv(1) := '1';
         bus_write(TASKWKM, wv, "1111");
@@ -507,9 +492,9 @@ begin
         en    <= '1';
         we    <= "1111";
         addr  <= conv_std_logic_vector(PWRCR, 4);
-        wdata <= x"00000006";                        -- CPU asks: gate 1 and 2
-        task_wake <= '1';                             -- coincident pulse
-        wait until rising_edge(clk);                  -- DUT samples both this edge
+        wdata <= x"00000006";                        -- the CPU asks to gate tiles 1 and 2
+        task_wake <= '1';                             -- coincident task pulse
+        wait until rising_edge(clk);                  -- the DUT samples both on this edge
         en        <= '0';
         we        <= "0000";
         task_wake <= '0';
@@ -522,21 +507,20 @@ begin
         bus_read(PWRSR0, sr);
         check(sr(4*1+3 downto 4*1) = N_ON, "9e: masked tile 1 was gated despite task_wake clearing its bit");
         bus_write(TASKWKM, x"00000000", "1111");
-        bus_write(PWRCR, x"00000000", "1111");        -- clean up: wake tile 2
+        bus_write(PWRCR, x"00000000", "1111");        -- cleanup: wake tile 2
         poll_nibble(2, N_ON, ok2);
         check(ok2, "9e: tile 2 did not wake on cleanup");
 
-        -- --- 9f. boot-gate isolation: task_wake pulses during normal-on
-        -- state must not perturb pgood_rstn / PWRSTS (rls_latch/boot_hold).
+        -- --- 9f. Boot-gate isolation: task_wake pulses in the normal-on state must not perturb pgood_rstn or PWRSTS, i.e. rls_latch and boot_hold.
         strap_pad    <= '0';
         pgood_pad    <= '1';
         field_detect <= '0';
-        do_reset;                                     -- normal-on: gate released
+        do_reset;                                     -- normal-on state, with the gate released
         bus_read(PWRSTS, rd);
         check(pgood_rstn      = '1', "9f: pgood_rstn not released before task_wake probing");
         check(rd(B_BOOT_HOLD) = '0', "9f: BOOT_HOLD set before task_wake probing");
         wv := (others => '0');
-        wv(NHARTS-1 downto 1) := (others => '1');      -- mask = every tile
+        wv(NHARTS-1 downto 1) := (others => '1');      -- mask covers every tile
         bus_write(TASKWKM, wv, "1111");
         pulse_task_wake;
         pulse_task_wake;

@@ -10,7 +10,7 @@ entity MCU is
    port (
 
         -- Resetn Pad
-        resetn_in	: in	std_logic;	-- '0' <= resetn, '1' <= system running
+        resetn_in	: in	std_logic;	-- '0' = reset asserted, '1' = system running
 		resetn_out	: out	std_logic;	-- Don't care
 		resetn_dir	: out	std_logic;	-- Must be set to input mode
 		resetn_ren	: out	std_logic;	-- Set to enable pullup resistor
@@ -64,17 +64,11 @@ end entity;
 
 architecture behav of MCU is
 
-    -- M13 TILE EXTRACTION: the vesta core, its adddec and its private TCM no
-    -- longer appear inline here — hart 0 is now the SAME hart_tile entity as
-    -- harts 1-3 (hdl/common/hart_tile.vhd), and the four tile instances are
-    -- STRUCTURALLY IDENTICAL (one netlist -> one hardened tile in M14).
-    -- Every per-instance difference is wiring only: hart_id (mhartid port),
-    -- hart 0's flash/XIP + sleep hookup to SPI0 and the TCM PGEN (BLOCKPWR
-    -- on hart 0). M19: the IRQ interface is IDENTICAL on every hart —
-    -- msip/mtip from the CLINT + one meip wire from the irq_router's
-    -- claim/complete stage (SYSTEM0's vectored path is retired). The vesta
-    -- and adddec component declarations went with the inline hart-0
-    -- machinery.
+    -- M13 TILE EXTRACTION: the vesta core, its adddec and its private TCM no longer appear inline here.
+    -- Hart 0 is now the SAME hart_tile entity as harts 1-3 (hdl/common/hart_tile.vhd), and the tile instances are STRUCTURALLY IDENTICAL (one netlist, one hardened tile in M14).
+    -- Every per-instance difference is wiring only: hart_id (mhartid port), hart 0's flash/XIP + sleep hookup to SPI0 and the TCM PGEN (BLOCKPWR on hart 0).
+    -- M19: the IRQ interface is IDENTICAL on every hart, msip/mtip from the CLINT plus one meip wire from the irq_router's claim/complete stage (SYSTEM0's vectored path is retired).
+    -- The vesta and adddec component declarations went with the inline hart-0 machinery.
 
     ----------------------------------- Peripherals --------------------------------------------------
 
@@ -92,8 +86,7 @@ architecture behav of MCU is
             resetn_por      : in  std_logic;
             resetn_sys      : out std_logic;
 
-            -- Interrupt Signals (M19: WDT only — the vectored controller is
-            -- retired; routing/delivery live in the irq_router)
+            -- Interrupt Signals (M19: WDT only; the vectored controller is retired and routing/delivery live in the irq_router)
             irq_sys_wdt     : out std_logic;
             wdt_irq_routed   : in  std_logic := '0';
             wdt_irq_complete : in  std_logic := '0';
@@ -159,8 +152,8 @@ architecture behav of MCU is
             PxSEL_out		: out	std_logic_vector(num_pins - 1 downto 0);
             PxAFS_out		: out	std_logic_vector(3 * num_pins - 1 downto 0);
 
-            -- GPIO_NUM_AFS flattened alternate-function planes: plane k, pin i
-            -- at bit (k * num_pins + i). Plane 0 = the legacy AF0 functions.
+            -- GPIO_NUM_AFS flattened alternate-function planes: plane k, pin i at bit (k * num_pins + i).
+            -- Plane 0 = the legacy AF0 functions.
             alt_func_out_in		: in	slv(GPIO_NUM_AFS * num_pins - 1 downto 0);
             alt_func_dir_in		: in	slv(GPIO_NUM_AFS * num_pins - 1 downto 0);
             alt_func_ren_in		: in	slv(GPIO_NUM_AFS * num_pins - 1 downto 0)
@@ -364,9 +357,8 @@ architecture behav of MCU is
         signal resetn           : std_logic;
         signal resetn_por       : std_logic;
         signal resetn_sys       : std_logic;
-        -- M19: SYSTEM0's vectored IRQ fabric (irq_en/irq_priority/isr_ret/
-        -- irq_recursion_en) is RETIRED — delivery is the irq_router's
-        -- per-hart meip wires (claim/complete), declared at meip-decl below.
+        -- M19: SYSTEM0's vectored IRQ fabric (irq_en/irq_priority/isr_ret/irq_recursion_en) is RETIRED.
+        -- Delivery is the irq_router's per-hart meip wires (claim/complete), declared at meip-decl below.
         signal irq_tielow       : std_logic; -- Tielo cell for unused glitch filter inputs
         signal sleep_cpu        : std_logic;
         signal PGENROM          : std_logic; -- Active low power rom power gating
@@ -377,10 +369,8 @@ architecture behav of MCU is
         signal clk_hfxt         : std_logic; -- Gated hfxt clock from system
         signal clk_osc_dco0     : std_logic; -- DCO0 Clock directly from oscillator
         signal clk_osc_dco1     : std_logic; -- DCO1 Clock directly from oscillator
-        -- M13: clk_cpu / boot_fetched / resetn_core and the M2 wait-injector
-        -- back-pressure (core_mem_ready) are tile-internal now; wait_inj0 is
-        -- RETIRED (M10 proved the protocol's latency tolerance, the M12 boot
-        -- fetch exercises it every run).
+        -- M13: clk_cpu / boot_fetched / resetn_core and the M2 wait-injector back-pressure (core_mem_ready) are tile-internal now.
+        -- wait_inj0 is RETIRED (M10 proved the protocol's latency tolerance, and the M12 boot fetch exercises it every run).
 
         -- IRQ Signal Declarations
         --@GEN:irq-signal-decls@
@@ -388,16 +378,13 @@ architecture behav of MCU is
         --@GEN:irq-gf-decls@
 
 
-        -- M13: the RISCV core interface signals (read_data/write_word/
-        -- data_addr/wen_*) moved into hart_tile with the core.
+        -- M13: the RISCV core interface signals (read_data/write_word/data_addr/wen_*) moved into hart_tile with the core.
 
         --@GEN:sh-window-const@
-        -- M13: the hart-0 master-side handshake state (sh_sel/sh_acked/
-        -- sh_rdata_reg/sh_rdata_cpu/...) moved into hart_tile — all four
-        -- masters now carry identical tile-internal copies of it.
+        -- M13: the hart-0 master-side handshake state (sh_sel/sh_acked/sh_rdata_reg/sh_rdata_cpu/...) moved into hart_tile, so every master now carries an identical tile-internal copy of it.
         -- M4b: global LR/SC reservation unit
         --@GEN:arb-fabric-decls@
-        -- arbiter <-> shared slave side (RAM + CLINT sub-decoded below, M5b)
+        -- Arbiter to shared-slave side (RAM + CLINT sub-decoded below, M5b)
         signal sh_en            : std_logic;
         signal sh_we            : std_logic_vector(3 downto 0);
         signal sh_addr          : std_logic_vector(SH_AW-1 downto 0);
@@ -410,8 +397,7 @@ architecture behav of MCU is
         signal sh_rdata_mux     : std_logic_vector(31 downto 0); -- into arbiter s_rdata
         signal clint_rdata      : std_logic_vector(31 downto 0);
         --@GEN:clint-irq-decls@
-        -- M6: shared UART0 (console) — M11: window slot 4 @0x4400 (its
-        -- ORIGINAL private address, live again for all 4 harts)
+        -- M6: shared UART0 (console). M11: window slot 4 @0x4400, its ORIGINAL private address, live again for all harts
         signal shslv_uart0_sel  : std_logic;
         signal shslv_uart0_en   : std_logic;
         signal shslv_rd_uart0   : std_logic := '0'; -- registered: last access was UART0
@@ -425,40 +411,26 @@ architecture behav of MCU is
         signal shslv_rd_irtr    : std_logic := '0'; -- registered: last access was irq_router
         signal irtr_rdata       : std_logic_vector(31 downto 0);
         --@GEN:meip-decl@
-        -- M17: pwr_ctrl, the MTCMOS power controller — a NATIVE slave in
-        -- window slot 11 @0x4B00 (vacated by SARADC0). Its pd_* rows drive
-        -- the tile power domains: pd_rstn folds into each tile's resetn
-        -- (cold-gate: the reset IS what functional sims observe), pd_sleep/
-        -- pd_iso_en go to the tiles' CPF-hook ports (HEAD switch SLEEP
-        -- chain + A2ISO clamp enable in the physical flow). Hart 0 has no
-        -- row: always-on by construction.
+        -- M17: pwr_ctrl, the MTCMOS power controller, is a NATIVE slave in window slot 11 @0x4B00 (vacated by SARADC0).
+        -- Its pd_* rows drive the tile power domains: pd_rstn folds into each tile's resetn (cold-gate: the reset IS what functional sims observe), and pd_sleep/pd_iso_en go to the tiles' CPF-hook ports (HEAD switch SLEEP chain + A2ISO clamp enable in the physical flow).
+        -- Hart 0 has no row: always-on by construction.
         signal shslv_pwr_sel    : std_logic;
         signal shslv_pwr_en     : std_logic;
         signal shslv_rd_pwr     : std_logic := '0'; -- registered: last access was pwr_ctrl
         signal pwr_rdata        : std_logic_vector(31 downto 0);
         --@GEN:pd-decls@
-        -- M17 isolation: the tile outputs land on these _raw nets and are
-        -- AND-clamped LOW onto the arbiter/observation buses by pd_iso_en —
-        -- the EXPLICIT always-on-side isolation cells (electrically the
-        -- same structure as the pmk A2ISO: an AND on AO power with the
-        -- possibly-floating tile pin on one input). Clamp-low == the
-        -- boundary registers' reset values, so a clamped master looks
-        -- exactly like a reset one to the arbiter (no M5a-class hazard).
+        -- M17 isolation: the tile outputs land on these _raw nets and are AND-clamped LOW onto the arbiter/observation buses by pd_iso_en.
+        -- Those AND gates ARE the explicit always-on-side isolation cells (electrically the same structure as the pmk A2ISO: an AND on AO power with the possibly-floating tile pin on one input).
+        -- Clamp-low == the boundary registers' reset values, so a clamped master looks exactly like a reset one to the arbiter (no M5a-class hazard).
         --@GEN:tile-raw-decls@
         --@GEN:mover-fabric-decls@
         --@GEN:i2c-fabric-decls@
         --@GEN:npu-fabric-decls@
-        -- M11 movers: the last three private peripherals join the window —
-        -- SYSTEM0 (slot 9 @0x4900), GPIO0 (slot 0 @0x4000), SPI0 (slot 2
-        -- @0x4200). All
-        -- three register their reads on clk_mem (M11 audit) -> plain polarity
-        -- shims, no bridge. The private peripheral page is GONE — hart 0's
-        -- adddec no longer decodes region 001 at all. NOTE the SYSTEM0
-        -- clock-reconfig contract: SYS_CLK_CR/SYS_CLK_DIV_CR reconfigure
-        -- MCLK ITSELF; reconfiguring while other masters have in-flight
-        -- shared transactions is a SOFTWARE contract violation (management
-        -- hart quiesces the others first — the glitch-free muxes keep the
-        -- domain safe, but smclk-domain peripherals mid-frame are not).
+        -- M11 movers: the last three private peripherals join the window, SYSTEM0 (slot 9 @0x4900), GPIO0 (slot 0 @0x4000) and SPI0 (slot 2 @0x4200).
+        -- All three register their reads on clk_mem (M11 audit), so they take plain polarity shims, no bridge.
+        -- The private peripheral page is GONE: hart 0's adddec no longer decodes region 001 at all.
+        -- NOTE the SYSTEM0 clock-reconfig contract: SYS_CLK_CR/SYS_CLK_DIV_CR reconfigure MCLK ITSELF, so reconfiguring while other masters have in-flight shared transactions is a SOFTWARE contract violation.
+        -- The management hart quiesces the others first: the glitch-free muxes keep the clock domain safe, but smclk-domain peripherals mid-frame are not.
         signal shslv_sys_sel,   shslv_sys_en    : std_logic;
         signal shslv_gpio0_sel, shslv_gpio0_en  : std_logic;
         signal shslv_spi0_sel,  shslv_spi0_en   : std_logic;
@@ -472,11 +444,10 @@ architecture behav of MCU is
         signal sys_sh_rdata     : std_logic_vector(31 downto 0);
         signal gpio0_sh_rdata   : std_logic_vector(31 downto 0);
         signal spi0_sh_rdata    : std_logic_vector(31 downto 0);
-        -- M7c LOCKING: HW mutex bank (M11: window page 2 @0x6000). READ =
-        -- atomic return-old-and-claim, WRITE 0 = release; atomic because the
-        -- arbiter serializes whole transactions. sh_master is the arbiter's
-        -- granted-master index (mp_arbiter s_master port) — attributes the
-        -- claim-read to a hart. Registered read, resv-gated we (contract).
+        -- M7c LOCKING: HW mutex bank (M11: window page 2 @0x6000).
+        -- READ = atomic return-old-and-claim, WRITE 0 = release; atomic because the arbiter serializes whole transactions.
+        -- sh_master is the arbiter's granted-master index (mp_arbiter s_master port) and attributes the claim-read to a hart.
+        -- Registered read, resv-gated we (contract).
         signal shslv_mtx_sel,   shslv_mtx_en    : std_logic;
         signal shslv_rd_mtx     : std_logic := '0';
         signal mtx_rdata        : std_logic_vector(31 downto 0);
@@ -517,15 +488,13 @@ architecture behav of MCU is
         signal reset_dco       : std_logic; --special reset for DCO to ensure proper startup
 
     -- Multi-AF plumbing (shared by all four ports) ---------------------------------------
-        -- Each GPIO port takes GPIO_NUM_AFS flattened alternate-function
-        -- planes (plane k, pin i at bit k*8+i). The per-plane afuncN_* /
-        -- afuncN_afK_* vectors below are concatenated into afuncN_all_*.
-        -- An unassigned plane slice behaves as a high-impedance input:
-        -- out='0', dir='0' (input), ren='0' (pull disabled) — pre-polarity.
+        -- Each GPIO port takes GPIO_NUM_AFS flattened alternate-function planes (plane k, pin i at bit k*8+i).
+        -- The per-plane afuncN_* / afuncN_afK_* vectors below are concatenated into afuncN_all_*.
+        -- An unassigned plane slice behaves as a high-impedance input: out='0', dir='0' (input), ren='0' (pull disabled), all pre-polarity.
         constant afunc_none				: std_logic_vector(7 downto 0) := (others => '0');
 
-    -- Multi-AF output-function spread planes (v1): shared timer/UART/SPI
-    -- outputs fanned across all four ports. Dormant at reset (PxAFS=0).
+    -- Multi-AF output-function spread planes (v1): shared timer/UART/SPI outputs fanned across all four ports.
+    -- Dormant at reset (PxAFS=0).
         -- GPIO0 (port 1) planes AF1-AF7
         signal afunc1_af1_out		: std_logic_vector(7 downto 0);
         signal afunc1_af1_dir		: std_logic_vector(7 downto 0);
@@ -619,7 +588,7 @@ architecture behav of MCU is
         signal afunc1_all_dir			: std_logic_vector(GPIO_NUM_AFS * 8 - 1 downto 0);
         signal afunc1_all_ren			: std_logic_vector(GPIO_NUM_AFS * 8 - 1 downto 0);
 
-        -- -- P1.0: cs_flash (output only)
+        -- P1.0: cs_flash (output only)
         signal cs_flash_in              : std_logic;
         signal cs_flash_ren_in         : std_logic; -- Read Enable for CS 
         -- For extended flash memory support
@@ -883,13 +852,10 @@ begin
         --@GEN:spi1-input-taps@
 
         -- GPIO1 Connections (UART0)
-        -- Multi-AF input routing: a relocated function reads its alternate pad
-        -- when that pin's PxAFS field selects the function's plane (keyed on
-        -- PxAFS only — peripheral inputs stay always-visible, like the direct
-        -- taps they replace); otherwise it reads its home pad. The peripheral
-        -- ren_in (user pull preference) follows the same selection. RX0's v2
-        -- pad is P4.5 at AF2 (a spread io slot — literal index, no pnum; pairs
-        -- with TX0 on P4.4 AF2); fixed priority: v2 pad > AF1 pad > home.
+        -- Multi-AF input routing: a relocated function reads its alternate pad when that pin's PxAFS field selects the function's plane, otherwise it reads its home pad.
+        -- The selection is keyed on PxAFS only, so peripheral inputs stay always-visible, like the direct taps they replace.
+        -- The peripheral ren_in (user pull preference) follows the same selection.
+        -- RX0's v2 pad is P4.5 at AF2 (a spread io slot: literal index, no pnum; pairs with TX0 on P4.4 AF2), with fixed priority v2 pad, then AF1 pad, then home.
         tx0_ren_in <= p3_ren(pnum_gpio2_af1_tx0)
                       when p3_afs((3 * pnum_gpio2_af1_tx0) + 2 downto 3 * pnum_gpio2_af1_tx0) = "001"
                       else p2_ren(pnum_gpio1_tx0);
@@ -973,12 +939,8 @@ begin
             s_rdata => sh_rdata_mux
         );
 
-    -- M4b: global LR/SC reservation unit — snoops every granted shared txn,
-    -- places reservations on LR reads, kills them on writes, adjudicates SC
-    -- writes IN THE ARBITER'S SERIALIZATION ORDER (a dead SC's write is
-    -- suppressed via sh_we and its fail verdict returns with done). This is
-    -- what makes cross-hart LR/SC sound: two harts SC-ing the same word both
-    -- pass their core-LOCAL checks, and only this unit can order them.
+    -- M4b: global LR/SC reservation unit, snoops every granted shared txn, places reservations on LR reads, kills them on writes, and adjudicates SC writes IN THE ARBITER'S SERIALIZATION ORDER (a dead SC's write is suppressed via sh_we and its fail verdict returns with done).
+    -- This is what makes cross-hart LR/SC sound: two harts SC-ing the same word both pass their core-LOCAL checks, and only this unit can order them.
     resv0: entity work.resv_unit
         --@GEN:resv-generic@
         port map (
@@ -1011,12 +973,11 @@ begin
 
     --@GEN:irq-router-instance@
 
-    -- M7c LOCKING: HW mutex bank @0x13000 (page-3 slot 0). READ = atomic
-    -- return-old-and-claim (1-instruction acquire; the arbiter's whole-txn
-    -- serialization IS the atomicity), WRITE 0 = release. sh_master tells it
-    -- WHICH hart's claim-read this is. Resets all-free -> provable NO-OP.
-    -- ADVISORY by design decision: no bus-enforced locking (no core bus-error
-    -- path; stall-until-release would be a deadlock generator).
+    -- M7c LOCKING: HW mutex bank @0x13000 (page-3 slot 0).
+    -- READ = atomic return-old-and-claim (1-instruction acquire; the arbiter's whole-txn serialization IS the atomicity), WRITE 0 = release.
+    -- sh_master tells it WHICH hart's claim-read this is.
+    -- Resets all-free, so it is a provable NO-OP.
+    -- ADVISORY by design decision: no bus-enforced locking (no core bus-error path; stall-until-release would be a deadlock generator).
     --@GEN:mutex-instance@
     --@GEN:i3c-instance@
     --@GEN:nfc-instance@
@@ -1029,56 +990,41 @@ begin
     --@GEN:evfab-instance@
 
     -- M17: MTCMOS power controller (window slot 11 @0x4B00, ex-SARADC0).
-    -- One gate bit per tile hart; a per-tile FSM sequences the domain
-    -- controls in the only legal order (iso -> rst -> rail off; rail on ->
-    -- settle -> un-iso -> un-rst). COLD-GATE: pd_rstn folds into the tile's
-    -- resetn below, so a wake IS an M12 cold boot (shared-ROM fetch, WFI
-    -- park, loader relaunch) — and the reset also makes the functional sims
-    -- honest, since reset values equal the A2ISO clamp-0 values on every
-    -- outbound tile signal. Resets all-ON -> provable NO-OP until software
-    -- gates a tile. Software contract: gate only parked/quiesced tiles.
+    -- One gate bit per tile hart; a per-tile FSM sequences the domain controls in the only legal order: iso, then rst, then rail off for a gate; rail on, then settle, then un-iso, then un-rst for a wake.
+    -- COLD-GATE: pd_rstn folds into the tile's resetn below, so a wake IS an M12 cold boot (shared-ROM fetch, WFI park, loader relaunch).
+    -- That reset also makes the functional sims honest, since reset values equal the A2ISO clamp-0 values on every outbound tile signal.
+    -- Resets all-ON, so it is a provable NO-OP until software gates a tile.
+    -- Software contract: gate only parked/quiesced tiles.
     --@GEN:pwr-instance@
     --@GEN:debug-instance@
 
     --@GEN:slot12-instances@
 
-    -- M17: the cold-gate reset — a gated (or waking) tile is held in reset,
-    -- which is also what keeps it bus-silent at the arbiter (sh_req is
-    -- qualified by the tile's resetn since M12).
+    -- M17: the cold-gate reset. A gated (or waking) tile is held in reset, which is also what keeps it bus-silent at the arbiter (sh_req is qualified by the tile's resetn since M12).
     --@GEN:tile-rstn@
 
-    -- M17 isolation clamps (see the _raw signal comment): every outbound
-    -- tile signal is forced to its reset value while pd_iso_en(h) is high,
-    -- so the arbiter and the tb never sample a floating pin of a dark
-    -- domain. These gates synthesize into the ALWAYS-ON control plane.
+    -- M17 isolation clamps (see the _raw signal comment): every outbound tile signal is forced to its reset value while pd_iso_en(h) is high, so the arbiter and the tb never sample a floating pin of a dark domain.
+    -- These gates synthesize into the ALWAYS-ON control plane.
     --@GEN:iso-clamps@
 
     --@GEN:shared-ram-banks@
 
-    -- M3b: harts 1-3 as PRIVATE-MEMORY tiles (hdl/common/hart_tile.vhd). Each
-    -- tile is a full vesta + its own adddec + private TCM (RAM0, 0x8000).
-    -- M12: tiles reset to PC 0x0 like hart 0 and fetch the SHARED boot ROM
-    -- through the arbiter — the M3b-M11 preloaded-TCM boot (PC_RST_VAL
-    -- 0x8200 + RAM0_INIT_FILE image) is retired; the bootrom's mhartid
-    -- dispatch parks them (WFI) until hart 0 loads/ignites them via the
-    -- CLINT msip + boot-mailbox protocol. Distinct hart_id per core (M13: a
-    -- PORT — all four tile instances are one identical netlist). No
-    -- cross-hart hazard (each tile is unchanged single-core logic). M11
-    -- retired the tiles' dead boot ROMs and private RAM1s (0xC000 = the
-    -- shared NPU staging RAM now).
+    -- M3b: harts 1-3 as PRIVATE-MEMORY tiles (hdl/common/hart_tile.vhd).
+    -- Each tile is a full vesta + its own adddec + private TCM (RAM0, 0x8000).
+    -- M12: tiles reset to PC 0x0 like hart 0 and fetch the SHARED boot ROM through the arbiter, retiring the M3b-M11 preloaded-TCM boot (PC_RST_VAL 0x8200 + RAM0_INIT_FILE image).
+    -- The bootrom's mhartid dispatch parks them (WFI) until hart 0 loads/ignites them via the CLINT msip + boot-mailbox protocol.
+    -- Distinct hart_id per core (M13: a PORT, since all tile instances are one identical netlist).
+    -- No cross-hart hazard (each tile is unchanged single-core logic).
+    -- M11 retired the tiles' dead boot ROMs and private RAM1s (0xC000 is the shared NPU staging RAM now).
     --
-    -- M3c.4: each tile is now also a REAL arbiter master (1-3) of the shared
-    -- window — its sh_* port maps straight onto that master's slice
-    -- of the flattened arb_* buses. Each hart's a0 is brought out (a0_1/2/3);
-    -- the tb latches pass AND fail, so a post-PASS corruption still fails
-    -- the run. M13: sleep/flash/tcm_pgen ride their entity defaults here —
-    -- only hart 0 wires them. M19: the IRQ interface (msip/mtip/meip) is
-    -- identical on every hart.
+    -- M3c.4: each tile is now also a REAL arbiter master (1-3) of the shared window, its sh_* port mapping straight onto that master's slice of the flattened arb_* buses.
+    -- Each hart's a0 is brought out (a0_1/2/3); the tb latches pass AND fail, so a post-PASS corruption still fails the run.
+    -- M13: sleep/flash/tcm_pgen ride their entity defaults here, only hart 0 wires them.
+    -- M19: the IRQ interface (msip/mtip/meip) is identical on every hart.
     --@GEN:tile-instances@
     --@GEN:tcm-apertures@
 
-    -- System Peripheral (M19: the vectored IRQ controller is retired — only
-    -- the WDT level source + the D2 router hooks remain on the IRQ side)
+    -- System Peripheral (M19: the vectored IRQ controller is retired; only the WDT level source + the D2 router hooks remain on the IRQ side)
     system0: SYSTEM
         port map (
             clk_lfxt_in   => lfxt_in,
@@ -1110,9 +1056,7 @@ begin
             PGEN_mem      => pgen_mem
     );
 
-    -- M13: hart 0's adddec moved into the hart0 tile (its >=0x20000
-    -- extended-flash decode drives the tile's flash ports, wired to SPI0
-    -- above; the M11-dead private peripheral bus is tied off inside).
+    -- M13: hart 0's adddec moved into the hart0 tile: its >=0x20000 extended-flash decode drives the tile's flash ports, wired to SPI0 above, and the M11-dead private peripheral bus is tied off inside.
 
     -- GPIO0 (SPI0, CLKLFXT, CLKHFXT, TRAP, BOOT)
     gpio0: GPIO
@@ -1152,8 +1096,8 @@ begin
     );
 
     -- GPIO1 (SPI1, UART0, UART1)
-    -- M7b: register bus moved onto the mp_arbiter (page-3 slot 1 @0x13100,
-    -- all 4 harts); pads/alt-func/IRQ wiring unchanged. Old 0x4100 reads 0.
+    -- M7b: register bus moved onto the mp_arbiter (page-3 slot 1 @0x13100, all harts); pads/alt-func/IRQ wiring unchanged.
+    -- The old 0x4100 window reads 0.
     gpio1: GPIO
         generic map (
             num_pins        => 8,
@@ -1265,6 +1209,7 @@ begin
 
     --@GEN:gpio5-instance@
 
+    -- SPI0 (window slot 2 @0x4200): the boot/XIP flash master, so it is the one SPI built with ENABLE_EXTENDED_MEM
     spi0: SPI
         generic map (
             ENABLE_EXTENDED_MEM => true
@@ -1313,10 +1258,9 @@ begin
 
     --@GEN:spi1-instance@
 
-    -- M6: UART0 is the SHARED console UART on the mp_arbiter slave port (all
-    -- 4 harts). M11 moved its window from 0x12000 back to its ORIGINAL 0x4400
-    -- slot in the shared peripheral window. Core clock (smclk), pads and IRQ
-    -- wiring (-> hart 0's SYSTEM only) are unchanged.
+    -- M6: UART0 is the SHARED console UART on the mp_arbiter slave port (all harts).
+    -- M11 moved its window from 0x12000 back to its ORIGINAL 0x4400 slot in the shared peripheral window.
+    -- Core clock (smclk), pads and IRQ wiring (to hart 0's SYSTEM only) are unchanged.
     uart0: UART
         port map (
             -- System Signals
@@ -1344,6 +1288,7 @@ begin
 
     --@GEN:uart1-instance@
 
+    -- I2C0 (window slot 14 @0x4E00): home pads P4.0/P4.1, combinational read bridged on the slave side
     i2c0: I2C
         generic map (
             default_SAD => i2c0_default_SAD
@@ -1386,6 +1331,7 @@ begin
 
     --@GEN:i2c1-instance@
 
+    -- TIMER0 (window slot 6 @0x4600): home compare/capture pads on P3.0-3, clocked from the glitch-free source mux
     timer0 : TIMER
         port map (
             -- System Signals
@@ -1437,15 +1383,11 @@ begin
     -- =============================================================================
     -- Memory Blocks
     -- =============================================================================
-    -- M12: THE shared boot ROM (page 000, 0x0-0x3FFF) — hart 0's private
-    -- boot ROM promoted to an ARBITER SLAVE, like the bulk banks: CEN
-    -- sampled with the address at the s_en cycle's ending edge on the
-    -- free-running mclk, Q valid the next cycle (the macro IS the 1-cycle
-    -- registered read). Read-only: no WEN pin — a write transaction to this
-    -- page completes at the arbiter but is discarded. All four harts reset
-    -- to PC 0x0 and fetch their first instruction from here through the
-    -- arbiter (see hart_tile.vhd's core_rst_stretch). BLOCKPWR's ROMOFF bit
-    -- keeps gating the macro (pgen_mem(0)).
+    -- M12: THE shared boot ROM (page 000, 0x0-0x3FFF) is hart 0's private boot ROM promoted to an ARBITER SLAVE, like the bulk banks.
+    -- CEN is sampled with the address at the s_en cycle's ending edge on the free-running mclk and Q is valid the next cycle (the macro IS the 1-cycle registered read).
+    -- Read-only: there is no WEN pin, so a write transaction to this page completes at the arbiter but is discarded.
+    -- Every hart resets to PC 0x0 and fetches its first instruction from here through the arbiter (see hart_tile.vhd's core_rst_stretch).
+    -- BLOCKPWR's ROMOFF bit keeps gating the macro (pgen_mem(0)).
     rom0: entity work.rom_hvt_pg
         port map (
             Q    => rom_q,
@@ -1456,9 +1398,7 @@ begin
             PGEN => pgen_mem(0)
     );
 
-    -- M13: hart 0's TCM macro (ram0) moved into the hart0 tile with its
-    -- adddec — BLOCKPWR's RAMOFF gating survives via the tile's tcm_pgen
-    -- port (pgen_mem(1), wired at the hart0 instance).
+    -- M13: hart 0's TCM macro (ram0) moved into the hart0 tile with its adddec; BLOCKPWR's RAMOFF gating survives via the tile's tcm_pgen port (pgen_mem(1), wired at the hart0 instance).
 
     --@GEN:npuram-instance@
 
@@ -1477,8 +1417,8 @@ begin
 
     --@GEN:irq-gf-instances@
 
-    -- This tie-low cell is instantiated because, for some reason, Genus won't route tie cells to any of the analog blocks, instead directly connecting the pins to VSS (or VDD)
-	-- This tie-low cell buries a constant 0 one level down in the hierarchy, which tricks Genus into using an actual tie-low cell from the standard cell library and connecting it to all the constant '0' inputs to the glitch filter
+    -- This tie-low cell exists because Genus will not route tie cells into the analog blocks, connecting their pins straight to VSS (or VDD) instead
+	-- Burying a constant 0 one level down in the hierarchy makes Genus use a real tie-low cell from the standard cell library and connect it to every constant '0' glitch-filter input
 	-- WARNING: The fan-out for the tie cell should be checked
 	IrqGlitchyZeroTieLow: entity work.TieLow
 	port map

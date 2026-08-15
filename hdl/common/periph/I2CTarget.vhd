@@ -4,81 +4,49 @@ use ieee.std_logic_arith.all;
 use ieee.std_logic_unsigned.all;
 
 -- ===========================================================================
--- I2CTarget: hardware-autonomous I2C TARGET (slave) -- 7-bit address match +
--- mask wildcard + general call, byte-at-a-time RX/TX with ready/empty status,
--- clock stretching for lossless flow control, START/STOP/repeated-START/NACK
--- framing flags, and a stuck-SCL watchdog. Two open-drain pins (SDA/SCL,
--- DIR-only -- OUT tied '0' at MCU, no REN). Two combined IRQs: 122 = I2CT0_AE
--- (address/error), 123 = I2CT0_DATA (tx-ready/rx-full). One instance I2CT0.
--- Base 0x6A00. Shares the SDA0/SCL0 pad planes with I2C0 via a wired-AND DIR
--- merge (host-side loopback self-test).
--- FROZEN design: ~/vesta_docs/digperiphs/i2ct_design.md (decisions D1-D20,
--- Fable adjudication 2026-07-22 -- ALL BINDING). Structural template = the
--- 1-Wire master (OneWire.vhd): a fully mclk-synchronous, D4-clean engine --
--- 2-FF pad sync, edge detection by registered prev-sample compare, NO
--- falling_edge of anything, NO flop clocked by a bus pin. Semantic precedent =
--- I2C.vhd's slave engine (match+mask, general-call, stretch, direction/NACK/
--- overrun flags) -- its SCL-pad-clocked implementation is the BANNED
--- anti-pattern and is copied for NOTHING here. Peripheral of the digital-
--- peripherals program.
--- -V200X only: NO VHDL-2008 (no to_hstring, no process(all), no unary reduce,
--- no reading of out ports). Every process infers exactly ONE edge of ONE
--- clock; every synchronizer is single-edge (Genus VHDL-601 discipline). NO
--- falling_edge of anything, anywhere (specifically NOT of EnMemPeriph). NO
--- process sensitive to SDA_IN/SCL_IN -- they are PURE DATA through the 2-FF
--- syncs (the deliberate contrast with I2C.vhd's rising/falling_edge(SCL_IN)).
+-- I2CTarget: hardware-autonomous I2C TARGET (slave).
+-- 7-bit address match with mask wildcard and general call, byte-at-a-time RX/TX with ready/empty status, clock stretching for lossless flow control, START/STOP/repeated-START/NACK framing flags, and a stuck-SCL watchdog.
+-- Two open-drain pins (SDA/SCL, DIR-only: OUT is tied '0' at the MCU, no REN).
+-- Two combined IRQs: 122 = I2CT0_AE (address/error), 123 = I2CT0_DATA (tx-ready/rx-full).
+-- One instance, I2CT0, base 0x6A00.
+-- Shares the SDA0/SCL0 pad planes with I2C0 via a wired-AND DIR merge (host-side loopback self-test).
+-- FROZEN design: ~/vesta_docs/digperiphs/i2ct_design.md (decisions D1-D20, adjudicated 2026-07-22, ALL BINDING).
+-- Structural template = the 1-Wire master (OneWire.vhd): a fully mclk-synchronous, D4-clean engine with 2-FF pad sync and edge detection by registered prev-sample compare, NO falling_edge of anything and NO flop clocked by a bus pin.
+-- Semantic precedent = I2C.vhd's slave engine (match+mask, general-call, stretch, direction/NACK/overrun flags), but its SCL-pad-clocked implementation is the BANNED anti-pattern and is copied for NOTHING here.
+-- Peripheral of the digital-peripherals program.
+-- -V200X only: NO VHDL-2008 (no to_hstring, no process(all), no unary reduce, no reading of out ports).
+-- Every process infers exactly ONE edge of ONE clock; every synchronizer is single-edge (Genus VHDL-601 discipline).
+-- NO falling_edge of anything, anywhere, and specifically NOT of EnMemPeriph.
+-- NO process is sensitive to SDA_IN/SCL_IN: they are PURE DATA through the 2-FF syncs (the deliberate contrast with I2C.vhd's rising/falling_edge(SCL_IN)).
 --
--- D1/D2 -- ONE clock family: the whole target FSM is mclk-synchronous. The
--- 2-FF SDA/SCL synchronizers, the edge detectors, START/STOP/repeated-START
--- detection, the bit shift registers, the address matcher, the RX/TX byte
--- engines, the clock-stretch driver, the sticky W1C flags, BUSY/TM, the
--- watchdog, and the IRQ combiners ALL ride the free-running `clk` (MCLK at
--- integration). The register file rides the gated `ClkMem` (the same mclk net
--- at integration -- not an independent domain). Every ClkMem<->clk hand-off is
--- a TOGGLE or a HELD/quasi-static LEVEL (kept standalone-honest per the RTC/OW
--- precedent). Edge detection = registered prev-sample compare on the
--- SYNCHRONIZED signals. NO second clock domain, NO async FIFO.
+-- D1/D2, ONE clock family: the whole target FSM is mclk-synchronous.
+-- The 2-FF SDA/SCL synchronizers, the edge detectors, START/STOP/repeated-START detection, the bit shift registers, the address matcher, the RX/TX byte engines, the clock-stretch driver, the sticky W1C flags, BUSY/TM, the watchdog, and the IRQ combiners ALL ride the free-running `clk` (MCLK at integration).
+-- The register file rides the gated `ClkMem`, the same mclk net at integration and not an independent domain.
+-- Every hand-off between ClkMem and clk is a TOGGLE or a HELD/quasi-static LEVEL (kept standalone-honest per the RTC/OW precedent).
+-- Edge detection = registered prev-sample compare on the SYNCHRONIZED signals.
+-- NO second clock domain, NO async FIFO.
 --
--- D4 -- all bus-facing capture is synchronous to ClkMem RISING edge,
--- EnMemPeriph-qualified as an active-low LEVEL only (address decode + write-
--- enable + read-mux gate) -- never a clock, never an edge, no
--- falling_edge(EnMemPeriph) pre-latch. The read mux REGISTERS on rising ClkMem
--- over data already coincident with the bus domain (D17) -- no combinational
--- read, no MCU-side bridge. Status -> IRQ is (flag AND enable) combinational,
--- never latched (D16). W1C status flags, RSVD reads 0, slots >=5 read 0.
+-- D4: all bus-facing capture is synchronous to the ClkMem RISING edge, EnMemPeriph-qualified as an active-low LEVEL only (address decode, write enable, read-mux gate), never a clock, never an edge, and with no falling_edge(EnMemPeriph) pre-latch.
+-- The read mux REGISTERS on rising ClkMem over data already coincident with the bus domain (D17), so there is no combinational read and no MCU-side bridge.
+-- Status feeding IRQ is (flag AND enable) combinational, never latched (D16).
+-- W1C status flags, RSVD reads 0, slots >=5 read 0.
 --
 -- CDC CROSSING INVENTORY (toggle / held-level only, no async FIFO):
---   1. TX LAUNCH  ClkMem->clk (D10): a lane-0 I2CTTX write captures the byte
---      into tx_byte and flips tx_load_tgl. clk 2-FFs tx_load_tgl, edge-detects
---      it, and on the edge co-samples the (quasi-static) tx_byte into tx_hold
---      + sets tx_loaded -- data-before-flag, no async FIFO (OW D8 idiom).
---   2. TXE COVER  ClkMem read (D10-cover, OneWire A6 class): tx_load_pending =
---      (tx_load_tgl /= deepest clk-synced stage), high from the I2CTTX write
---      until the FSM consumes the launch. SR-read TXE = TXE_clk AND NOT
---      tx_load_pending, so a poll right after an I2CTTX write never reads
---      stale-empty.
---   3. W1C  ClkMem->clk (D17): a lane-0 SR write of 1 to a W1C bit flips
---      clr_<flag>_tgl. clk 2-FFs + edge-detects each into a one-cycle clear
---      pulse, applied in the SAME process that owns the flag; SET WINS over a
---      coincident CLEAR (default-clear then case-set order -- RTC D10 / OW D12).
---   4. STATUS  clk->ClkMem (D17): all sticky flags + BUSY/TM/TXE are clk-domain
---      levels sampled DIRECTLY by the ClkMem read mux (coincident nets at
---      integration -- the RTC/OW busy-raw-read fix). The ClkMem registration IS
---      the synchronization. No pre-latch, no bridge (D4).
---   5. SDA/SCL  pad->clk (D6): SDA_IN/SCL_IN each 2-FF synchronized (two
---      independent chains) then prev-registered for edge detect. PURE DATA,
---      never a clock. Framing events qualified on SCL confirmed-high >=2
---      samples (the ~1-clk skew hazard guard).
---   6. CR fields  ClkMem->clk (D7): EN/GCEN/CSEN/SAD/SADM/WDTO are quasi-static
---      rw levels read DIRECTLY by the clk FSM/matcher/watchdog (coincident nets
---      at integration; the match is combinational, D7).
---   7. RESET (D18): resetn (chip async, active-low) applied DIRECTLY to both the
---      clk and ClkMem processes -- no reset synchronizer (clk and ClkMem are
---      the same mclk family, D1/D2; OneWire D14).
---   8. IRQ (D16): irq_ae = (AMF|GCF|OVF|NACKF|STOPF|RSTARTF|ERRF) and AEIE;
---      irq_data = (RXF|TXE) and DATAIE -- combinational, never latched.
+--   1. TX LAUNCH, ClkMem into clk (D10): a lane-0 I2CTTX write captures the byte into tx_byte and flips tx_load_tgl.
+--      clk 2-FFs tx_load_tgl, edge-detects it, and on the edge co-samples the (quasi-static) tx_byte into tx_hold and sets tx_loaded: data before flag, no async FIFO (OW D8 idiom).
+--   2. TXE COVER, ClkMem read (D10-cover, OneWire A6 class): tx_load_pending = (tx_load_tgl /= deepest clk-synced stage), high from the I2CTTX write until the FSM consumes the launch.
+--      SR-read TXE = TXE_clk AND NOT tx_load_pending, so a poll right after an I2CTTX write never reads stale-empty.
+--   3. W1C, ClkMem into clk (D17): a lane-0 SR write of 1 to a W1C bit flips clr_<flag>_tgl.
+--      clk 2-FFs and edge-detects each into a one-cycle clear pulse, applied in the SAME process that owns the flag; SET WINS over a coincident CLEAR (default-clear then case-set order, RTC D10 / OW D12).
+--   4. STATUS, clk into ClkMem (D17): all sticky flags plus BUSY/TM/TXE are clk-domain levels sampled DIRECTLY by the ClkMem read mux (coincident nets at integration, the RTC/OW busy-raw-read fix).
+--      The ClkMem registration IS the synchronization: no pre-latch, no bridge (D4).
+--   5. SDA/SCL, pad into clk (D6): SDA_IN/SCL_IN are each 2-FF synchronized on two independent chains, then prev-registered for edge detect.
+--      PURE DATA, never a clock. Framing events are qualified on SCL confirmed high for >=2 samples (the roughly 1-clk skew hazard guard).
+--   6. CR fields, ClkMem into clk (D7): EN/GCEN/CSEN/SAD/SADM/WDTO are quasi-static rw levels read DIRECTLY by the clk FSM, matcher and watchdog (coincident nets at integration; the match is combinational, D7).
+--   7. RESET (D18): resetn (chip async, active-low) is applied DIRECTLY to both the clk and ClkMem processes, with no reset synchronizer, because clk and ClkMem are the same mclk family (D1/D2; OneWire D14).
+--   8. IRQ (D16): irq_ae = (AMF|GCF|OVF|NACKF|STOPF|RSTARTF|ERRF) and AEIE; irq_data = (RXF|TXE) and DATAIE, combinational and never latched.
 --
--- Register map (D5; base 0x6A00, slot n @ 0x6A00 + 4n, decoded off
+-- Register map (D5; base 0x6A00, slot n at 0x6A00 + 4n, decoded off
 -- MABPart(7:2); slots >=5 read 0):
 --   0 I2CTCR  : [0]EN [1]GCEN [2]CSEN [3]AEIE [4]DATAIE, [14:8]SAD[6:0],
 --               [22:16]SADM[6:0]; rest reserved read 0.
@@ -88,37 +56,29 @@ use ieee.std_logic_unsigned.all;
 --   2 I2CTTX  : [7:0] next transmit byte; a lane-0 write loads the buffer
 --               (sets tx_loaded, clears TXE, D10). Reads back last value.
 --   3 I2CTRX  : [7:0] last received byte, side-effect-free read (D9).
---   4 I2CTWDG : [15:0] WDTO -- SCL-low watchdog timeout in units of 256 clk;
---               0 = disabled (D13, reset value -> default-off, identity-safe).
+--   4 I2CTWDG : [15:0] WDTO, the SCL-low watchdog timeout in units of 256 clk;
+--               0 = disabled (D13; the reset value is default-off, identity-safe).
 --
--- FSM (single FSM + a bit counter + a 2-bit ACK sub-phase):
---   T_IDLE     -> on START (D6): BUSY<=1, T_ADDR.
---   T_ADDR     -- shift 8 bits MSB-first; on bit 8, match (D7) -> T_ACK_ADDR
---                 (ACK) or T_IGNORE (silent, no ACK).
---   T_ACK_ADDR -- drive address ACK; trailing fall branch on TM: T_RX_DATA
---                 (host write) or T_TX_LOAD (host read).
---   T_RX_DATA  -- shift 8 bits; on bit 8, accept/NACK (D9) -> T_ACK_RX.
---   T_ACK_RX   -- drive RX ACK/NACK; deliver byte; trailing fall RX-stretch if
---                 CSEN & RXF, else T_RX_DATA (next byte).
---   T_TX_LOAD  -- if tx_loaded -> T_TX_DATA; else raise TXE, TX-stretch if
---                 CSEN, else send 0xFF (D10).
---   T_TX_DATA  -- shift out 8 bits MSB-first; -> T_TX_ACK.
---   T_TX_ACK   -- sample host ACK/NACK: NACK -> NACKF, wait STOP/Sr; ACK ->
---                 TXE / T_TX_LOAD.
---   T_IGNORE   -- address mismatch (or post-NACK read done): release, wait
---                 STOP / repeated-START.
---   Global (any state): STOP -> STOPF, BUSY<=0, release, T_IDLE; repeated-START
---   -> RSTARTF, release, T_ADDR (BUSY holds); watchdog expiry -> ERRF, BUSY<=0,
---   release, T_IDLE. EN=0 forces the FSM idle with SDA/SCL released,
---   flags/RX preserved.
+-- FSM (one FSM plus a bit counter and a 2-bit ACK sub-phase):
+--   T_IDLE     : wait for START (D6); on START set BUSY and go to T_ADDR.
+--   T_ADDR     : shift 8 bits MSB-first; on bit 8 the match test (D7) selects T_ACK_ADDR (ACK) or T_IGNORE (silent, no ACK).
+--   T_ACK_ADDR : drive the address ACK; on the trailing fall branch on TM to T_RX_DATA (host write) or T_TX_LOAD (host read).
+--   T_RX_DATA  : shift 8 bits; on bit 8 accept or NACK (D9), then T_ACK_RX.
+--   T_ACK_RX   : drive the RX ACK/NACK and deliver the byte; the trailing fall holds the RX stretch if CSEN and RXF, else returns to T_RX_DATA for the next byte.
+--   T_TX_LOAD  : if tx_loaded, go to T_TX_DATA; else raise TXE and TX-stretch if CSEN, else send 0xFF (D10).
+--   T_TX_DATA  : shift out 8 bits MSB-first, then T_TX_ACK.
+--   T_TX_ACK   : sample the host ACK/NACK; a NACK sets NACKF and waits for STOP or Sr, an ACK raises TXE and returns to T_TX_LOAD.
+--   T_IGNORE   : address mismatch, or a read finished after a NACK: release and wait for STOP or repeated-START.
+--   Global, any state: a STOP sets STOPF, clears BUSY, releases the bus and returns to T_IDLE.
+--   Global, any state: a repeated-START sets RSTARTF, releases the bus and returns to T_ADDR with BUSY held.
+--   Global, any state: watchdog expiry sets ERRF, clears BUSY, releases the bus and returns to T_IDLE.
+--   EN=0 forces the FSM idle with SDA/SCL released and the flags and RX byte preserved.
 -- ===========================================================================
 
 entity I2CTarget is
     port (
         clk         : in  std_logic;                     -- free-running MCLK at integration (D2).
-                                                         -- Hosts the whole target FSM, the SDA/SCL
-                                                         -- 2-FF synchronizers, the sticky W1C flags,
-                                                         -- BUSY/TM, the watchdog, and the IRQ combiners.
+                                                         -- Hosts the whole target FSM, the SDA/SCL 2-FF synchronizers, the sticky W1C flags, BUSY/TM, the watchdog, and the IRQ combiners.
         resetn      : in  std_logic;                     -- chip reset, active-low (async)
         irq_ae      : out std_logic;                     -- address/error IRQ, vector 122 (status AND enable)
         irq_data    : out std_logic;                     -- tx-ready/rx-full IRQ, vector 123 (status AND enable)
@@ -129,14 +89,12 @@ entity I2CTarget is
         wdata       : in  std_logic_vector(31 downto 0);
         rdata_out   : out std_logic_vector(31 downto 0); -- registered read (no bridge, D4)
         SDA_IN      : in  std_logic;                     -- SDA pad input; 2-FF synced in clk (D6). PURE DATA.
-        SDA_DIR     : out std_logic;                     -- '1' drives SDA low (ACK / '0' data bit);
-                                                         -- '0' releases Hi-Z. NEVER driven high (D8).
+        SDA_DIR     : out std_logic;                     -- '1' drives SDA low (an ACK or a '0' data bit), '0' releases to Hi-Z; NEVER driven high (D8)
         SCL_IN      : in  std_logic;                     -- SCL pad input; 2-FF synced in clk (D6). PURE DATA.
         SCL_DIR     : out std_logic;                     -- '1' holds SCL low (clock stretch, D11); '0' releases
 
-        -- EVFAB tap (event fabric, event_fabric_spec.md 2026-07-24): registered
-        -- one-clk pulse at the amf SET site (address match incl. general call),
-        -- pre-IE. P-mode producer EV14.
+        -- EVFAB tap (event fabric, event_fabric_spec.md 2026-07-24): a registered one-clk pulse at the amf SET site, i.e. an address match including a general call, taken pre-IE.
+        -- P-mode producer EV14.
         evt_amf     : out std_logic
     );
 end I2CTarget;
@@ -187,7 +145,7 @@ architecture behavioral of I2CTarget is
     signal txl_c1, txl_c2, txl_prev : std_logic;         -- D10 tx_load_tgl sync + edge
     signal tx_load_pulse            : std_logic;         -- D10 one-clk launch pulse (comb)
     signal tx_load_pending          : std_logic;         -- D10-cover: ClkMem-read TXE mask (comb)
-    -- W1C toggle syncs (ClkMem->clk, 2-FF + prev, D17)
+    -- W1C toggle syncs (ClkMem into clk, 2-FF plus prev, D17)
     signal camf_c1, camf_c2, camf_p         : std_logic;
     signal cgcf_c1, cgcf_c2, cgcf_p         : std_logic;
     signal crxf_c1, crxf_c2, crxf_p         : std_logic;
@@ -226,32 +184,29 @@ begin
     -- slot decode (EnMemPeriph-qualified LEVEL, D4; never an edge).
     i2ct_slot <= conv_integer(MABPart) when EnMemPeriph = '0' else 0;
 
-    -- pad drive (D8/D11/D19): open-drain, DIR-only; NEVER driven high. The MCU
-    -- ties SDA0/SCL0 OUT to '0' and wired-AND-merges these DIR planes with I2C0.
+    -- pad drive (D8/D11/D19): open-drain, DIR-only, NEVER driven high.
+    -- The MCU ties SDA0/SCL0 OUT to '0' and wired-AND-merges these DIR planes with I2C0.
     SDA_DIR <= sda_drv;
     SCL_DIR <= scl_hold;
 
-    -- synchronized bus levels + edges (D6). PURE DATA, never a clock. Two
-    -- independent 2-FF chains, so at a real SCL edge the sampled SDA/SCL phases
-    -- can differ by 1 clk -- the framing qualifier below guards that hazard.
+    -- synchronized bus levels and edges (D6): PURE DATA, never a clock.
+    -- Two independent 2-FF chains, so at a real SCL edge the sampled SDA and SCL phases can differ by 1 clk; the framing qualifier below guards that hazard.
     sda_sync <= sda_s2;
     scl_sync <= scl_s2;
     scl_rise <= scl_sync and not scl_prev;
     scl_fall <= (not scl_sync) and scl_prev;
     sda_rise <= sda_sync and not sda_prev;
     sda_fall <= (not sda_sync) and sda_prev;
-    -- START = SDA falls while SCL stably high (>=2 samples); STOP = SDA rises
-    -- while SCL stably high (D6 hazard guard: a normal data transition moves SDA
-    -- while SCL is LOW and can never masquerade as a framing event).
+    -- START = SDA falls while SCL is stably high (>=2 samples); STOP = SDA rises while SCL is stably high.
+    -- D6 hazard guard: a normal data transition moves SDA while SCL is LOW, so it can never masquerade as a framing event.
     start_evt <= '1' when (sda_fall = '1' and scl_sync = '1' and scl_prev = '1') else '0';
     stop_evt  <= '1' when (sda_rise = '1' and scl_sync = '1' and scl_prev = '1') else '0';
 
     -- D10 TX launch pulse: edge of the 2-FF-synced tx_load_tgl.
     tx_load_pulse <= '1' when (txl_c2 /= txl_prev) else '0';
-    -- D10-cover (OneWire A6 class): RAW ClkMem-domain tx_load_tgl vs its deepest
-    -- clk-synced stage (txl_prev). High from the I2CTTX write until the FSM
-    -- consumes the launch, so a poll of TXE right after an I2CTTX write never
-    -- reads stale-empty. Read by the ClkMem SR mux only.
+    -- D10-cover (OneWire A6 class): the RAW ClkMem-domain tx_load_tgl compared against its deepest clk-synced stage, txl_prev.
+    -- High from the I2CTTX write until the FSM consumes the launch, so a poll of TXE right after an I2CTTX write never reads stale-empty.
+    -- Read by the ClkMem SR mux only.
     tx_load_pending <= '1' when (tx_load_tgl /= txl_prev) else '0';
 
     -- W1C one-clk clear pulses (edge of each 2-FF-synced clr toggle, D17).
@@ -264,22 +219,22 @@ begin
     crstf_pulse  <= '1' when (crstf_c2  /= crstf_p)  else '0';
     cerrf_pulse  <= '1' when (cerrf_c2  /= cerrf_p)  else '0';
 
-    -- D10 raw TXE: high only in the transmit-needs-data phase with no byte
-    -- staged. Read raw by the SR mux (with the D10-cover mask) and feeds
-    -- irq_data. Pure clk-domain (state + tx_loaded).
+    -- D10 raw TXE: high only in the transmit-needs-data phase with no byte staged.
+    -- Read raw by the SR mux (with the D10-cover mask) and also feeds irq_data.
+    -- Pure clk-domain, from state and tx_loaded only.
     tx_e_level <= '1' when (state = T_TX_LOAD and tx_loaded = '0') else '0';
 
-    -- D16 combined IRQs = (status and enable), combinational, never latched.
-    -- AEIE/DATAIE are quasi-static ClkMem CR bits, read directly.
+    -- D16 combined IRQs = (status and enable), combinational and never latched.
+    -- AEIE and DATAIE are quasi-static ClkMem CR bits, read directly.
     irq_ae   <= (amf or gcf or ovf or nackf or stopf or rstartf or errf) and cr_aeie;
     irq_data <= (rxf or tx_e_level) and cr_dataie;
 
     -- ------------------------- B1: register write (ClkMem) --------------------
     -- Rising ClkMem, EnMemPeriph='0' qualified, lane-0 (WEn(0)='0') writes (D4).
-    -- I2CTCR loads all fields on a lane-0 word write (the RTC/OW CR idiom; the
-    -- bench packs CR as a full word). I2CTTX captures the byte AND flips
-    -- tx_load_tgl (the TX launch, D10). SR lane-0 writes of 1 to a W1C bit flip
-    -- the matching clr_<flag>_tgl (W1C-CDC, D17). Reset via resetn (bus domain).
+    -- I2CTCR loads all fields on a lane-0 word write (the RTC/OW CR idiom; the bench packs CR as a full word).
+    -- I2CTTX captures the byte AND flips tx_load_tgl (the TX launch, D10).
+    -- An SR lane-0 write of 1 to a W1C bit flips the matching clr_<flag>_tgl (W1C-CDC, D17).
+    -- Reset comes from resetn in the bus domain.
     reg_write: process(resetn, ClkMem)
     begin
         if resetn = '0' then
@@ -315,8 +270,7 @@ begin
                             cr_sadm   <= wdata(22 downto 16);
                         end if;
                     when SLOT_SR =>
-                        -- W1C: writing 1 flips the clear toggle; BUSY(0)/TM(1)/
-                        -- TXE(5) are read-only, ignored.
+                        -- W1C: writing 1 flips the clear toggle; BUSY(0), TM(1) and TXE(5) are read-only and ignored.
                         if WEn(0) = '0' then
                             if wdata(2)  = '1' then clr_amf_tgl     <= not clr_amf_tgl;     end if;
                             if wdata(3)  = '1' then clr_gcf_tgl     <= not clr_gcf_tgl;     end if;
@@ -328,8 +282,7 @@ begin
                             if wdata(10) = '1' then clr_errf_tgl    <= not clr_errf_tgl;    end if;
                         end if;
                     when SLOT_TX =>
-                        -- I2CTTX write loads the buffer + LAUNCHES (D10): capture
-                        -- the byte and flip tx_load_tgl (data-before-flag).
+                        -- An I2CTTX write both loads the buffer and LAUNCHES (D10): capture the byte, then flip tx_load_tgl, data before flag.
                         if WEn(0) = '0' then
                             tx_byte     <= wdata(7 downto 0);
                             tx_load_tgl <= not tx_load_tgl;
@@ -346,12 +299,10 @@ begin
     end process;
 
     -- ------------------------- B1: register read (ClkMem) ---------------------
-    -- Registered read mux on rising ClkMem. The sticky flags + BUSY/TM/TXE are
-    -- read RAW from the clk domain (coincident nets at integration -- the OW/RTC
-    -- busy-raw-read discipline; the ClkMem registration IS the synchronization,
-    -- D17). SR-read TXE applies the D10-cover (mask by tx_load_pending) so a poll
-    -- immediately after an I2CTTX write never sees stale-empty. No pre-latch, no
-    -- bridge (D4). Reserved bits read 0, slots >=5 read 0.
+    -- Registered read mux on rising ClkMem.
+    -- The sticky flags plus BUSY/TM/TXE are read RAW from the clk domain (coincident nets at integration, the OW/RTC busy-raw-read discipline; the ClkMem registration IS the synchronization, D17).
+    -- SR-read TXE applies the D10-cover, masking by tx_load_pending, so a poll immediately after an I2CTTX write never sees stale-empty.
+    -- No pre-latch, no bridge (D4). Reserved bits read 0, slots >=5 read 0.
     reg_read: process(ClkMem)
     begin
         if rising_edge(ClkMem) then
@@ -375,10 +326,9 @@ begin
     end process;
 
     -- ------------------------- B2: clk-domain sync / CDC (D6/D10/D17) ----------
-    -- Two independent SDA/SCL 2-FF synchronizers + one-clk prev copies for edge
-    -- detect; 2-FF + prev of the tx_load_tgl launch toggle and of every W1C
-    -- clr_<flag>_tgl. Single edge (rising clk) only. Reset via resetn. SDA/SCL
-    -- are PURE DATA here -- never a clock (the deliberate contrast with I2C.vhd).
+    -- Two independent SDA/SCL 2-FF synchronizers plus one-clk prev copies for edge detect, and a 2-FF plus prev of the tx_load_tgl launch toggle and of every W1C clr_<flag>_tgl.
+    -- Single edge (rising clk) only, reset from resetn.
+    -- SDA and SCL are PURE DATA here, never a clock: the deliberate contrast with I2C.vhd.
     bus_sync: process(resetn, clk)
     begin
         if resetn = '0' then
@@ -394,12 +344,12 @@ begin
             crstf_c1 <= '0'; crstf_c2 <= '0'; crstf_p <= '0';
             cerrf_c1 <= '0'; cerrf_c2 <= '0'; cerrf_p <= '0';
         elsif rising_edge(clk) then
-            -- D6 pad synchronizers + prev (edge detect off the SYNCHRONIZED nets)
+            -- D6 pad synchronizers plus prev (edge detect off the SYNCHRONIZED nets)
             sda_s1 <= SDA_IN; sda_s2 <= sda_s1; sda_prev <= sda_s2;
             scl_s1 <= SCL_IN; scl_s2 <= scl_s1; scl_prev <= scl_s2;
-            -- D10 TX launch toggle 2-FF + prev
+            -- D10 TX launch toggle, 2-FF plus prev
             txl_c1 <= tx_load_tgl; txl_c2 <= txl_c1; txl_prev <= txl_c2;
-            -- D17 W1C toggles 2-FF + prev
+            -- D17 W1C toggles, 2-FF plus prev
             camf_c1   <= clr_amf_tgl;     camf_c2   <= camf_c1;   camf_p   <= camf_c2;
             cgcf_c1   <= clr_gcf_tgl;     cgcf_c2   <= cgcf_c1;   cgcf_p   <= cgcf_c2;
             crxf_c1   <= clr_rxf_tgl;     crxf_c2   <= crxf_c1;   crxf_p   <= crxf_c2;
@@ -412,15 +362,11 @@ begin
     end process;
 
     -- ------------------------- B3: target FSM (clk, D7-D13) --------------------
-    -- The whole autonomous target engine on the free-running clk: drives the
-    -- REGISTERED sda_drv/scl_hold (never a combinational mux off a bus edge, D8),
-    -- owns the sticky W1C flags, BUSY/TM, the shift registers, and the watchdog.
-    -- The FSM only ever changes SDA AFTER scl_fall (SCL confirmed low through the
-    -- sync, which lags the real edge) so it can never glitch a false START/STOP.
-    -- Sample bits on scl_rise, drive on scl_fall. CR fields (EN/GCEN/CSEN/SAD/
-    -- SADM) + WDTO are quasi-static ClkMem levels read directly (D1/D7).
-    -- Set-wins ordering: the default W1C clears run FIRST, the FSM/framing SETs
-    -- run LATER and override a coincident clear (RTC D10 / OW D12 discipline).
+    -- The whole autonomous target engine on the free-running clk: it drives the REGISTERED sda_drv and scl_hold (never a combinational mux off a bus edge, D8) and owns the sticky W1C flags, BUSY/TM, the shift registers and the watchdog.
+    -- The FSM only ever changes SDA AFTER scl_fall, i.e. with SCL confirmed low through the sync, which lags the real edge, so it can never glitch a false START or STOP.
+    -- Sample bits on scl_rise, drive on scl_fall.
+    -- The CR fields EN/GCEN/CSEN/SAD/SADM and WDTO are quasi-static ClkMem levels read directly (D1/D7).
+    -- Set-wins ordering: the default W1C clears run FIRST, and the FSM and framing SETs run LATER and override a coincident clear (RTC D10 / OW D12 discipline).
     fsm: process(resetn, clk)
         variable full   : std_logic_vector(7 downto 0);
         variable addr7  : std_logic_vector(6 downto 0);
@@ -456,10 +402,8 @@ begin
             evt_amf   <= '0';
         elsif rising_edge(clk) then
 
-            -- EVFAB tap (event_fabric_spec.md 2026-07-24): registered one-clk
-            -- event pulse, default-cleared every cycle, set ONLY at the amf SET
-            -- site below -- fires on every address match (even when amf was
-            -- already sticky-set), pre-IE (cr_aeie never touches it).
+            -- EVFAB tap (event_fabric_spec.md 2026-07-24): a registered one-clk event pulse, default-cleared every cycle and set ONLY at the amf SET site below.
+            -- It fires on every address match, even when amf was already sticky-set, and is pre-IE: cr_aeie never touches it.
             evt_amf <= '0';
 
             -- (1) W1C default clears (SET below wins over a coincident clear).
@@ -472,17 +416,15 @@ begin
             if crstf_pulse  = '1' then rstartf <= '0'; end if;
             if cerrf_pulse  = '1' then errf    <= '0'; end if;
 
-            -- (2) TX launch capture (D10): co-sample the quasi-static tx_byte
-            -- into tx_hold on the launch edge and stage it. data-before-flag.
+            -- (2) TX launch capture (D10): co-sample the quasi-static tx_byte into tx_hold on the launch edge and stage it, data before flag.
             if tx_load_pulse = '1' then
                 tx_hold   <= tx_byte;
                 tx_loaded <= '1';
             end if;
 
             if cr_en = '0' then
-                -- EN=0 (D5/CR): FSM forced idle, SDA/SCL released; flags + RX
-                -- preserved (W1C clears above still apply; a byte can still be
-                -- W1C-cleared while disabled). tx_loaded/tm preserved.
+                -- EN=0 (D5/CR): the FSM is forced idle with SDA and SCL released, and the flags and RX byte are preserved.
+                -- The W1C clears above still apply, so a flag can still be W1C-cleared while disabled; tx_loaded and tm are preserved too.
                 state     <= T_IDLE;
                 busy      <= '0';
                 sda_drv   <= '0';
@@ -492,9 +434,8 @@ begin
                 wdg_cnt   <= (others => '0');
             else
 
-                -- (3) per-state FSM. Registered outputs HOLD between the edges
-                -- that change them (no default assignment at the top -- a driven
-                -- ACK must survive until its trailing fall).
+                -- (3) per-state FSM.
+                -- Registered outputs HOLD between the edges that change them, so there is no default assignment at the top: a driven ACK must survive until its trailing fall.
                 case state is
 
                     when T_IDLE =>
@@ -531,8 +472,7 @@ begin
                         end if;
 
                     when T_ACK_ADDR =>
-                        -- drive the address ACK (D8): pull SDA low on the scl_fall
-                        -- after bit 8; release + branch on the next scl_fall.
+                        -- drive the address ACK (D8): pull SDA low on the scl_fall after bit 8, then release and branch on the next scl_fall.
                         if scl_fall = '1' then
                             if ack_phase = 0 then
                                 sda_drv   <= '1';   -- ACK = drive low
@@ -575,12 +515,10 @@ begin
                         end if;
 
                     when T_ACK_RX =>
-                        -- drive RX ACK/NACK (D8/D9); on the trailing fall, hold
-                        -- the RX stretch (D11) if CSEN & byte still unread, else
-                        -- proceed to the next byte.
+                        -- drive the RX ACK/NACK (D8/D9); on the trailing fall hold the RX stretch (D11) if CSEN is set and the byte is still unread, else proceed to the next byte.
                         if ack_phase = 2 then
-                            -- RX stretch wait (D11): release SCL once RXF clears
-                            -- (firmware read + W1C). Synchronous release is fine.
+                            -- RX stretch wait (D11): release SCL once RXF clears, i.e. after the firmware read and its W1C.
+                            -- A synchronous release is fine here.
                             if rxf = '0' then
                                 scl_hold   <= '0';
                                 ack_phase <= 0;
@@ -605,9 +543,7 @@ begin
                         end if;
 
                     when T_TX_LOAD =>
-                        -- SCL-low wait state (not edge-gated, D10): present the
-                        -- staged byte as soon as one is available; otherwise raise
-                        -- TXE (tx_e_level) and, with CSEN, hold the TX stretch.
+                        -- SCL-low wait state, not edge-gated (D10): present the staged byte as soon as one is available, otherwise raise TXE (tx_e_level) and, with CSEN set, hold the TX stretch.
                         if tx_loaded = '1' then
                             sda_drv   <= not tx_hold(7);          -- present bit 7
                             tx_shift  <= tx_hold(6 downto 0) & '0';
@@ -628,9 +564,8 @@ begin
                         end if;
 
                     when T_TX_DATA =>
-                        -- shift out the remaining bits MSB-first on scl_fall; the
-                        -- host samples each on scl_rise. After 8 bits, release for
-                        -- the host ACK/NACK slot.
+                        -- shift out the remaining bits MSB-first on scl_fall; the host samples each one on scl_rise.
+                        -- After 8 bits, release the line for the host ACK/NACK slot.
                         if scl_fall = '1' then
                             if bit_cnt = 8 then
                                 sda_drv   <= '0';   -- release for host ACK
@@ -644,8 +579,7 @@ begin
                         end if;
 
                     when T_TX_ACK =>
-                        -- sample the host ACK/NACK on the 9th scl_rise (D10); on
-                        -- the trailing fall, continue (ACK) or wait STOP/Sr (NACK).
+                        -- sample the host ACK/NACK on the 9th scl_rise (D10); on the trailing fall either continue (ACK) or wait for STOP or Sr (NACK).
                         if ack_phase = 0 then
                             if scl_rise = '1' then
                                 if sda_sync = '1' then
@@ -668,18 +602,16 @@ begin
                         end if;
 
                     when T_IGNORE =>
-                        null;   -- address mismatch / read done: wait STOP or Sr
+                        null;   -- address mismatch or read done: wait for STOP or Sr
 
                     when others =>
-                        state <= T_IDLE;
+                        state <= T_IDLE;   -- unreachable; recover to idle
 
                 end case;
 
-                -- (4) framing overrides (D6/D12) -- run AFTER the case so a
-                -- START/STOP/Sr at ANY bus phase wins. Any framing event releases
-                -- SDA_DIR and drops the stretch so the target never holds the bus
-                -- across a boundary. STOP and START are mutually exclusive (SDA
-                -- cannot both rise and fall in one cycle).
+                -- (4) framing overrides (D6/D12), run AFTER the case so a START, STOP or Sr at ANY bus phase wins.
+                -- Any framing event releases SDA_DIR and drops the stretch, so the target never holds the bus across a boundary.
+                -- STOP and START are mutually exclusive: SDA cannot both rise and fall in one cycle.
                 if stop_evt = '1' then
                     stopf     <= '1';
                     busy      <= '0';
@@ -689,8 +621,8 @@ begin
                     state     <= T_IDLE;   -- a STOP mid-byte discards the partial
                 end if;
                 if start_evt = '1' then
-                    -- START while BUSY = repeated-START (re-address, BUSY holds);
-                    -- START while idle = initial START (D6/D12).
+                    -- A START while BUSY is a repeated-START: re-address, and BUSY holds.
+                    -- A START while idle is an initial START (D6/D12).
                     if busy = '1' then
                         rstartf <= '1';
                     else
@@ -704,9 +636,8 @@ begin
                     state     <= T_ADDR;
                 end if;
 
-                -- (5) watchdog (D13): count SCL-low duration while BUSY in units
-                -- of 256 clk; reset when not BUSY or SCL not low; WDTO=0 disables.
-                -- On expiry: ERRF, drop BUSY, release, T_IDLE (overrides the FSM).
+                -- (5) watchdog (D13): count the SCL-low duration while BUSY, in units of 256 clk, resetting whenever BUSY is low or SCL is not low; WDTO=0 disables it.
+                -- On expiry it sets ERRF, drops BUSY, releases the bus and forces T_IDLE, overriding the FSM.
                 if busy = '0' or scl_sync = '1' then
                     wdg_pre <= (others => '0');
                     wdg_cnt <= (others => '0');

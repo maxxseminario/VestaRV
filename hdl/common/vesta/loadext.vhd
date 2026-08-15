@@ -1,3 +1,6 @@
+-- loadext.vhd
+-- Load-data alignment and extension: picks the addressed byte or halfword out of the 32-bit word and sign- or zero-extends it according to funct3.
+-- The byte-select mask is latched on the rising edge because the data phase arrives one cycle after the address.
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;
@@ -6,8 +9,8 @@ use work.constants.all;
 entity loadext is
     port (
         clk        : in STD_LOGIC;
-        funct3     : in  STD_LOGIC_VECTOR(2 downto 0);
-        mask       : in  STD_LOGIC_VECTOR(1 downto 0);
+        funct3     : in  STD_LOGIC_VECTOR(2 downto 0);   -- load width and signedness
+        mask       : in  STD_LOGIC_VECTOR(1 downto 0);   -- byte offset within the addressed word
         read_data   : in  STD_LOGIC_VECTOR(XLEN-1 downto 0);
         extended_data : out STD_LOGIC_VECTOR(XLEN-1 downto 0)
     );
@@ -20,7 +23,7 @@ architecture Behavioral of loadext is
     -- signal mask_intermediate : STD_LOGIC_VECTOR(1 downto 0);
 begin
 
-    -- This is causing an error post genus - timing. Changed to falling edge
+    -- This was causing a post-genus timing error, so it was changed to the falling edge.
 
     -- latch_mask_int: process(clk) 
     -- begin
@@ -29,6 +32,7 @@ begin
     --     end if;
     -- end process;
 
+    -- Hold the byte offset from the address phase so it lines up with the returning data.
     latch_mask: process(clk) 
     begin
         if rising_edge(clk) then 
@@ -37,7 +41,7 @@ begin
         end if;
     end process;
 
-    -- Extract byte based on mask
+    -- Select the addressed byte lane.
     with mask_latched select
         byte_data <= read_data(7 downto 0)   when "00",
                      read_data(15 downto 8)  when "01",
@@ -45,24 +49,24 @@ begin
                      read_data(31 downto 24) when "11",
                      (others => '0')        when others;
 
-    -- Extract halfword based on mask(1)
+    -- Select the addressed halfword; only the upper mask bit matters.
     half_data <= read_data(15 downto 0) when mask_latched(1) = '0' else
                  read_data(31 downto 16);
 
-    -- Select output based on funct3
+    -- Pick the width and extension the load asked for.
     with funct3 select
         extended_data <= 
-            -- LB: Load Byte, Sign-Extended
+            -- LB: load byte, sign-extended
             (XLEN-1 downto 8 => byte_data(7)) & byte_data when "000",
-            -- LH: Load Half-Word, Sign-Extended
+            -- LH: load halfword, sign-extended
             (XLEN-1 downto 16 => half_data(15)) & half_data when "001",
-            -- LW: Load Word (no extension needed)
+            -- LW: load word, no extension needed
             read_data when "010",
-            -- LBU: Load Byte, Zero-Extended
+            -- LBU: load byte, zero-extended
             (XLEN-1 downto 8 => '0') & byte_data when "100",
-            -- LHU: Load Half-Word, Zero-Extended
+            -- LHU: load halfword, zero-extended
             (XLEN-1 downto 16 => '0') & half_data when "101",
-            -- Default case
+            -- Any other funct3 passes the raw word through.
             -- x"00000000" when others;
             read_data when others;
 end Behavioral;

@@ -72,17 +72,15 @@ entity TIMER is
         -- ==========================================
         -- EVFAB taps (event fabric, event_fabric_spec.md 2026-07-24)
         -- ==========================================
-        -- Producer TOGGLES (T-mode: flip once per event in the timer_clock
-        -- domain; the fabric's front-end does the 2-FF + XOR edge into mclk).
-        -- Derived from the flags' SET conditions, never the post-mask IRQs;
-        -- kept in their OWN process so the flags' async W1C clears never
-        -- touch them. TIMER0 wires EV4/EV5, TIMER1 wires EV6.
+        -- Producer TOGGLES, T-mode: flip once per event in the timer_clock domain, and the fabric's front-end does the 2-FF plus XOR edge into mclk.
+        -- Derived from the flags' SET conditions, never the post-mask IRQs.
+        -- Kept in their OWN process so the flags' async W1C clears never touch them.
+        -- TIMER0 wires EV4/EV5, TIMER1 wires EV6.
         evt_compare0 : out std_logic;                      -- flips at timer_value = compare0
         evt_overflow : out std_logic;                      -- flips at overflow
-        -- Consumer TASKS (one-mclk pulses from the fabric, clk_mem domain =
-        -- free-running mclk at integration). Idempotent OR into CR bit 6,
-        -- placed AFTER the register case: a task wins its bit on a coincident
-        -- CPU write; STOP is evaluated after START (stop wins, safe direction).
+        -- Consumer TASKS: one-mclk pulses from the fabric in the clk_mem domain, which is free-running mclk at integration.
+        -- Idempotent OR into CR bit 6, placed AFTER the register case, so a task wins its bit on a coincident CPU write.
+        -- STOP is evaluated after START, so a same-cycle start and stop resolves to STOP (the safe direction).
         task_start   : in  std_logic := '0';               -- T2: set CR(6)
         task_stop    : in  std_logic := '0'                -- T3: clear CR(6)
     );
@@ -238,7 +236,7 @@ begin
     )
     port map (
         resetn      => resetn,
-        Sel         => clock_source_select, -- Look into delaying this a half cycle to avoid glitches? As if we are selecting mclk, this may be on same edge 
+        Sel         => clock_source_select, -- Look into delaying this a half cycle to avoid glitches: when mclk is the selected source, the change can land on the same edge.
         ClkIn(0)    => smclk,
         ClkIn(1)    => mclk,
         ClkIn(2)    => clk_lfxt,
@@ -268,6 +266,7 @@ begin
     -- ==========================================
     -- Clock Divider Counter
     -- ==========================================
+    -- Prescaler count, held cleared while the timer is off or the divider is bypassed.
     divider_process: process(resetn, divider_input, timer_enable, clock_divider)
     begin
         if (resetn = '0') or (timer_enable = '0') or (clock_divider = "0000") then
@@ -299,13 +298,14 @@ begin
     -- ==========================================
     -- Timer Counter
     -- ==========================================
+    -- Counter with an async load: reset wins, then a register write, then the counted edge.
     timer_counter: process(resetn, timer_clock, latch_timer_value, timer_value_write)
     begin
         if resetn = '0' then
             timer_value <= (others => '0');
         elsif latch_timer_value = '1' then
-            -- Load new value from register write 
-            -- timer_value_write is latched here - from memory write process
+            -- Load the new value from a register write.
+            -- timer_value_write is latched here, sourced from the memory write process.
             timer_value <= timer_value_write;
         elsif rising_edge(timer_clock) then
             if clear_timer_value = '1' then
@@ -323,6 +323,7 @@ begin
     capture0_clock <= '0' when capture0_enable = '0' else 
                      cap0_in xor capture0_fall_edge;
 
+    -- Snapshot the counter on the selected edge and raise the capture 0 flag.
     capture0_process: process(resetn, clear_capture0_flag, capture0_clock)
     begin
         if resetn = '0' then
@@ -343,6 +344,7 @@ begin
     capture1_clock <= '0' when capture1_enable = '0' else 
                      cap1_in xor capture1_fall_edge;
 
+    -- Snapshot the counter on the selected edge and raise the capture 1 flag.
     capture1_process: process(resetn, clear_capture1_flag, capture1_clock)
     begin
         if resetn = '0' then
@@ -361,6 +363,7 @@ begin
     -- ==========================================
     timer_overflowing <= '1' when timer_value = X"FFFFFFFF" else '0';
 
+    -- Sticky overflow flag, cleared by reset or by a status-register write.
     overflow_process: process(resetn, timer_clock, clear_overflow_flag)
     begin
         if resetn = '0' or clear_overflow_flag = '1' then
@@ -373,11 +376,9 @@ begin
     end process;
 
     -- ==========================================
-    -- EVFAB producer toggles (timer_clock domain, resetn-only async -- the
-    -- flags' clear_* async terms must never touch these). One flip per event
-    -- occurrence: value=compare0 is true for exactly one timer_clock period
-    -- (counter advances), overflow likewise; a gated-off timer_clock means no
-    -- edges, so a paused timer produces no phantom flips.
+    -- EVFAB producer toggles in the timer_clock domain, resetn-only async: the flags' clear_* async terms must never touch these.
+    -- One flip per event occurrence, because value=compare0 holds for exactly one timer_clock period as the counter advances, and overflow likewise.
+    -- A gated-off timer_clock means no edges, so a paused timer produces no phantom flips.
     -- ==========================================
     evfab_tgl_process: process(resetn, timer_clock)
     begin
@@ -399,6 +400,7 @@ begin
     -- ==========================================
     -- Compare Match and PWM Generation
     -- ==========================================
+    -- Compare 0/1 match flags plus their toggling outputs; the outputs return to their configured init level on reset, on a timer clear and on overflow.
     compare_process: process(resetn, timer_clock, clear_compare0_flag, clear_compare1_flag, 
                            timer_value, timer_enable, compare0_init_level)
     begin
@@ -441,6 +443,7 @@ begin
     -- Reset timer when it matches compare2 register (if enabled)
     clear_timer_value <= '1' when (compare2_reset_en = '1' and timer_value = compare2_reg) else '0';
 
+    -- Compare 2 flag: set on the auto-reset match, cleared by reset, a status write, or a disabled timer.
     compare2_process: process(resetn, timer_clock, clear_compare2_flag, timer_enable, timer_value)
     begin
         if resetn = '0' or clear_compare2_flag = '1' or timer_enable = '0' then
@@ -471,6 +474,7 @@ begin
     -- ==========================================
     -- Register Synchronization for Memory Read
     -- ==========================================
+    -- Falling en_mem snapshots the free-running status/count/capture values for the read mux; they are stored inverted and re-inverted on read.
     reg_sync: process(en_mem)
     begin
         if falling_edge(en_mem) then
@@ -550,15 +554,12 @@ begin
                         if wen(3) = '0' then compare2_reg(31 downto 24) <= write_data(31 downto 24); end if;
                     
                     when others =>
-                        null;
+                        null;   -- unmapped slot: write ignored
                 end case;
             end if;
 
-            -- EVFAB consumer tasks (event fabric): idempotent OR terms on
-            -- CR(6), OUTSIDE the en_mem gate (clk_mem free-runs at
-            -- integration) and AFTER the register case -- a task wins its bit
-            -- on a coincident CPU CR write; STOP is evaluated after START so
-            -- a same-cycle start+stop resolves to STOP (safe direction).
+            -- EVFAB consumer tasks (event fabric): idempotent OR terms on CR(6), OUTSIDE the en_mem gate because clk_mem free-runs at integration, and AFTER the register case so a task wins its bit on a coincident CPU CR write.
+            -- STOP is evaluated after START, so a same-cycle start and stop resolves to STOP (the safe direction).
             if task_start = '1' then
                 control_reg(6) <= '1';
             end if;
@@ -567,7 +568,7 @@ begin
             end if;
         end if;
 
-        -- Clear control signals when not active
+        -- Drop the one-shot clear/load strobes whenever the peripheral is not selected.
         if resetn = '0' or en_mem = '1' then
             clear_compare0_flag <= '0';
             clear_compare1_flag <= '0';
@@ -582,6 +583,7 @@ begin
     -- ==========================================
     -- Register Read Process
     -- ==========================================
+    -- Registered read mux over the decoded slot; SR and the capture/value snapshots come from the inverted latches.
     reg_read_proc: process(clk_mem)
     begin
         if rising_edge(clk_mem) then

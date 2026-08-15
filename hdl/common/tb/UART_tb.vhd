@@ -1,38 +1,24 @@
 -------------------------------------------------------------------------------
 -- UART_tb.vhd
 -------------------------------------------------------------------------------
--- Standalone, self-checking testbench for the UART peripheral
--- (hdl/common/periph/UART.vhd -- moved here 2026-07-24 from the Myshkin
--- original; hdl/common's UART forked off with the ROOT-2 flag-CDC rework
--- (2026-07-20, digperiphs xcollapse_findings) and now also carries the
--- EVFAB evt_rx producer tap, GROUP EV below).
+-- Standalone, self-checking testbench for the UART peripheral (hdl/common/periph/UART.vhd), moved here 2026-07-24 from the Myshkin original.
+-- hdl/common's UART forked off with the ROOT-2 flag-CDC rework (2026-07-20, digperiphs xcollapse_findings) and now also carries the EVFAB evt_rx producer tap, GROUP EV below.
 --
--- Uses the shared support packages: tb/periph_tb_pkg.vhd (scoreboard +
--- register-bus BFM) and tb/uart_bfm_pkg.vhd (pad-level TX capture / RX drive).
+-- Uses the shared support packages: tb/periph_tb_pkg.vhd (scoreboard and register-bus BFM) and tb/uart_bfm_pkg.vhd (pad-level TX capture and RX drive).
 --
--- Instantiates the UART entity directly and drives its peripheral memory bus +
--- RX pad while observing the TX pad, status flags and interrupt lines. A running
--- error counter (the scoreboard) prints a single PASS/FAIL banner at the end.
+-- Instantiates the UART entity directly and drives its peripheral memory bus and RX pad while observing the TX pad, status flags and interrupt lines.
+-- A running error counter (the scoreboard) prints a single PASS/FAIL banner at the end.
 --
 -- Bus contract recap (see periph/UART.vhd):
---   * en_mem / wen ACTIVE-LOW ; SR and RX read back a snapshot taken on the
---     falling edge of en_mem
---   * Reading the RX slot also clears the RX status flags (OVF/FEF/PEF/RCIF)
+--   * en_mem and wen are ACTIVE-LOW; SR and RX read back a snapshot taken on the falling edge of en_mem.
+--   * Reading the RX slot also clears the RX status flags (OVF/FEF/PEF/RCIF).
 -- Baud timing: one UART bit lasts 16*(BR+1) core-clock periods.
 --
--- clk_mem (2026-07-24, DUT-swap note): the ROOT-2 rework moved ALL of UART's
--- flag/status logic into the clk_mem domain, synchronizing the serial-side
--- events in from clk_baud/clk_tx via toggle + 3-stage synchronizer (see
--- UART.vhd's flags_cdc_proc) -- exactly the "clk_mem = free-running mclk at
--- integration" the EVFAB tap comment documents. The legacy
--- `clk_mem <= clk when en_mem = '0' else '0'` idiom (fine for the old
--- Myshkin UART, and still fine for RTC/PWM below) starves that synchronizer
--- almost completely here -- empirically it regresses 18 of this bench's
--- pre-existing checks (TX byte corruption, RCIF/irq_rc never seen, framing/
--- parity/overflow flags never observed) the moment the DUT is pointed at
--- hdl/common/periph/UART.vhd. clk_mem is free-running below instead, which
--- restores every pre-existing check but one (GROUP 6, fixed inline with a
--- one-cycle settle -- see its comment) -- a bench-only fix, no RTL touched.
+-- clk_mem (2026-07-24, DUT-swap note): the ROOT-2 rework moved ALL of UART's flag/status logic into the clk_mem domain, synchronizing the serial-side events in from clk_baud/clk_tx through a toggle plus 3-stage synchronizer (see UART.vhd's flags_cdc_proc).
+-- That is exactly the "clk_mem = free-running mclk at integration" the EVFAB tap comment documents.
+-- The legacy gated idiom (clk_mem driven by clk only while en_mem = '0') is fine for the old Myshkin UART and still fine for RTC/PWM below, but here it starves that synchronizer almost completely.
+-- Measured: it regresses 18 of this bench's pre-existing checks (TX byte corruption, RCIF/irq_rc never seen, framing/parity/overflow flags never observed) the moment the DUT is pointed at hdl/common/periph/UART.vhd.
+-- clk_mem is free-running below instead, which restores every pre-existing check but one (GROUP 6, fixed inline with a one-cycle settle, see its comment): a bench-only fix, no RTL touched.
 -------------------------------------------------------------------------------
 
 library ieee;
@@ -95,14 +81,11 @@ architecture sim of UART_tb is
     signal evt_rx : std_logic;
 
     -- ---- EVFAB pulse monitor (checker independence, GROUP EV) -------------
-    -- Continuous background tracker of evt_rx: counts pulse STARTS (rising
-    -- transitions) and total HIGH samples, both at clk_mem rising edges,
-    -- since the last evt_mon_clear pulse -- mirrors PWM_tb's evt_mon_proc
-    -- (same idiom, ported to the domain evt_rx actually lives in). A run of
-    -- exactly N one-clk_mem-wide pulses satisfies starts=N AND highs=N
-    -- simultaneously. NEVER reads a DUT internal -- only the exported evt_rx
-    -- port. Also tracks whether irq_rc was EVER seen high in the window
-    -- (GROUP EV-b's masked-IRQ discipline check), same window discipline.
+    -- Continuous background tracker of evt_rx: counts pulse STARTS (rising transitions) and total HIGH samples, both at clk_mem rising edges, since the last evt_mon_clear pulse.
+    -- Mirrors PWM_tb's evt_mon_proc, the same idiom ported to the domain evt_rx actually lives in.
+    -- A run of exactly N one-clk_mem-wide pulses satisfies starts=N AND highs=N simultaneously.
+    -- NEVER reads a DUT internal: only the exported evt_rx port.
+    -- Also tracks whether irq_rc was EVER seen high in the window (GROUP EV-b's masked-IRQ discipline check), on the same window discipline.
     signal evt_rx_starts, evt_rx_highs : natural := 0;
     signal evt_rx_prev   : std_logic := '0';
     signal evt_mon_clear : std_logic := '0';
@@ -113,9 +96,8 @@ architecture sim of UART_tb is
 begin
 
     -----------------------------------------------------------------------
-    -- Clocks. clk_mem is free-running (see the file-header note): the
-    -- ROOT-2 flag-CDC rework needs a live clk_mem to synchronize serial-side
-    -- events in, matching "clk_mem = free-running mclk at integration".
+    -- Clocks: clk_mem is free-running (see the file-header note).
+    -- The ROOT-2 flag-CDC rework needs a live clk_mem to synchronize serial-side events in, matching "clk_mem = free-running mclk at integration".
     -----------------------------------------------------------------------
     clk     <= not clk after CLK_PERIOD / 2;
     clk_mem <= clk;
@@ -129,11 +111,13 @@ begin
         if rising_edge(clk_mem) then
             r_lvl := to_X01(evt_rx);
             if evt_mon_clear = '1' then
+                -- Start a fresh window: zero the tallies, re-baseline the level and the irq_rc sighting.
                 evt_rx_starts    <= 0;
                 evt_rx_highs     <= 0;
                 evt_rx_prev      <= r_lvl;
                 irq_rc_seen_high <= false;
             else
+                -- Accumulate: every high sample counts, and a low-to-high step counts as a pulse start.
                 if r_lvl = '1' then
                     evt_rx_highs <= evt_rx_highs + 1;
                     if evt_rx_prev /= '1' then
@@ -193,9 +177,8 @@ begin
         end procedure;
 
         -- ---- GROUP EV helper (EVFAB tap) -----------------------------------
-        -- Clear the evt_rx pulse monitor's accumulators (see the
-        -- signal-declaration comment: mirrors PWM_tb's mon_reset/
-        -- evt_mon_reset exactly). Call only outside a timing-critical window.
+        -- Clear the evt_rx pulse monitor's accumulators; see the signal-declaration comment, this mirrors PWM_tb's mon_reset/evt_mon_reset exactly.
+        -- Call only outside a timing-critical window.
         procedure evt_mon_reset is
         begin
             wait until clk_mem = '0';
@@ -347,13 +330,9 @@ begin
         sb.check_bit("irq_rc asserted (RCIF & CIE)", irq_rc, '1');
         bus_read(clk, pbus, read_data, RegSlotUARTxRX, rdw);
         sb.check_slv("RX byte 0x5A received", rdw(7 downto 0), x"5A");
-        -- ROOT-2 note (2026-07-24 DUT swap): clr_SR_RX is itself a registered
-        -- clk_mem pulse (set the edge the RX read lands on, consumed the
-        -- FOLLOWING clk_mem edge by flags_cdc_proc -- see UART.vhd), so
-        -- USR_RCIF/irq_rc clear one clk_mem cycle later than the read that
-        -- triggers it. A settle wait here (bench-only; same latency GROUP 9's
-        -- "dummy access: retire clr_SR_RX" comment already documents) lets
-        -- that clear land before the check -- no RTL touched.
+        -- ROOT-2 note (2026-07-24 DUT swap): clr_SR_RX is itself a registered clk_mem pulse, set on the edge the RX read lands on and consumed by flags_cdc_proc on the FOLLOWING clk_mem edge (see UART.vhd).
+        -- USR_RCIF and irq_rc therefore clear one clk_mem cycle after the read that triggers them.
+        -- The settle wait here lets that clear land before the check: bench-only, no RTL touched, and it is the same latency GROUP 9's "dummy access: retire clr_SR_RX" comment already documents.
         wait for 2 * CLK_PERIOD;
         sb.check_bit("irq_rc deasserted after RX read", irq_rc, '0');
 
@@ -376,29 +355,28 @@ begin
         ----------------------------------------------------------------
         report "=== GROUP 8: parity ===" severity note;
 
-        -- TX even parity: parity bit = XOR of data bits
+        -- TX even parity: the parity bit is the XOR of the data bits.
         bus_write_small(RegSlotUARTxCR, CR_EN_EVEN);
-        bus_write_small(RegSlotUARTxTX, x"C5");          -- popcount(0xC5)=4 -> even par=0
+        bus_write_small(RegSlotUARTxTX, x"C5");          -- popcount(0xC5)=4, so even parity bit = 0
         uart_capture_tx(BIT_PERIOD, TX_OUT, true, cap_data, cap_par, cap_stop);
         sb.check_slv("TX(even) data 0xC5", cap_data, x"C5");
         sb.check_bit("TX(even) parity bit for 0xC5", cap_par, '0');
         sb.check_bit("TX(even) stop bit",  cap_stop, '1');
 
-        bus_write_small(RegSlotUARTxTX, x"07");          -- popcount=3 -> even par=1
+        bus_write_small(RegSlotUARTxTX, x"07");          -- popcount=3, so even parity bit = 1
         uart_capture_tx(BIT_PERIOD, TX_OUT, true, cap_data, cap_par, cap_stop);
         sb.check_slv("TX(even) data 0x07", cap_data, x"07");
         sb.check_bit("TX(even) parity bit for 0x07", cap_par, '1');
 
-        -- RX even parity, correct. Use 0x07 (odd # of ones) so the parity
-        -- bit is DECISIVE.
+        -- RX even parity, correct: use 0x07 (an odd number of ones) so the parity bit is DECISIVE.
         uart_drive_rx(BIT_PERIOD, clk, RX_IN, x"07", true, '0', false, true);
         bus_read(clk, pbus, read_data, RegSlotUARTxSR, rdw);
         sb.check_bit("RX(even) good parity -> PEF=0", rdw(4), '0');
         bus_read(clk, pbus, read_data, RegSlotUARTxRX, rdw);
         sb.check_slv("RX(even) data 0x07", rdw(7 downto 0), x"07");
 
-        -- RX even parity, corrupted -> parity error flag. Reset the UART first
-        -- (disable->enable) so this frame is judged from a clean state.
+        -- RX even parity, corrupted: expect the parity error flag.
+        -- Reset the UART first (disable, then enable) so this frame is judged from a clean state.
         bus_write_small(RegSlotUARTxCR, "000000");
         wait for 2 * CLK_PERIOD;
         bus_write_small(RegSlotUARTxCR, CR_EN_EVEN);
@@ -410,7 +388,7 @@ begin
         bus_read(clk, pbus, read_data, RegSlotUARTxSR, rdw);
         sb.check_bit("PEF cleared by RX read", rdw(4), '0');
 
-        -- RX odd parity, correct -> no parity error
+        -- RX odd parity, correct: expect no parity error.
         bus_write_small(RegSlotUARTxCR, CR_EN_ODD);
         uart_drive_rx(BIT_PERIOD, clk, RX_IN, x"3C", true, '1', false, true);
         bus_read(clk, pbus, read_data, RegSlotUARTxSR, rdw);
@@ -419,22 +397,21 @@ begin
         sb.check_slv("RX(odd) data 0x3C", rdw(7 downto 0), x"3C");
 
         ----------------------------------------------------------------
-        -- GROUP 9: RX overflow (two frames, first never read)
-        --   Receiving a second byte before the first is read sets the overflow
-        --   flag (SR bit3). clr_SR_RX (from reading RX) is a gated pulse that
-        --   sticks until the next UART access, so a dummy non-RX access is
-        --   issued to retire it before setting up the overflow. See tb/CLAUDE.md.
+        -- GROUP 9: RX overflow (two frames, the first never read).
+        --   Receiving a second byte before the first is read sets the overflow flag (SR bit3).
+        --   clr_SR_RX (from reading RX) is a gated pulse that sticks until the next UART access, so a dummy non-RX access retires it before the overflow is set up.
+        --   See the tb/ bench notes.
         ----------------------------------------------------------------
         report "=== GROUP 9: RX overflow ===" severity note;
 
-        -- (a) Two unread RX bytes -> overflow.
+        -- (a) Two unread RX bytes must raise overflow.
         bus_write_small(RegSlotUARTxCR, "000000");
         wait for 2 * CLK_PERIOD;
         bus_write_small(RegSlotUARTxCR, CR_EN_NOPAR);
         bus_read(clk, pbus, read_data, RegSlotUARTxRX, rdw);   -- clear stale RX flags
         bus_read(clk, pbus, read_data, RegSlotUARTxCR, rdw);   -- dummy access: retire clr_SR_RX
         uart_drive_rx(BIT_PERIOD, clk, RX_IN, x"11", false, '0', false, true);   -- byte A, unread
-        uart_drive_rx(BIT_PERIOD, clk, RX_IN, x"22", false, '0', false, true);   -- byte B -> overflow
+        uart_drive_rx(BIT_PERIOD, clk, RX_IN, x"22", false, '0', false, true);   -- byte B, causes overflow
         bus_read(clk, pbus, read_data, RegSlotUARTxSR, rdw);
         sb.check_bit("overflow flag set on unread 2nd byte", rdw(3), '1');
         sb.check_bit("RCIF still set during overflow",       rdw(2), '1');
@@ -442,8 +419,7 @@ begin
         bus_read(clk, pbus, read_data, RegSlotUARTxSR, rdw);
         sb.check_bit("overflow cleared by RX read", rdw(3), '0');
 
-        -- (b) Regression guard: a TX completion sets UTCIF; a subsequent SINGLE
-        --     (non-overrunning) RX must NOT raise OVF.
+        -- (b) Regression guard: a TX completion sets UTCIF, and a subsequent SINGLE (non-overrunning) RX must NOT raise OVF.
         bus_write_small(RegSlotUARTxCR, CR_EN_NOPAR);
         bus_write_small(RegSlotUARTxTX, x"5A");          -- sets UTCIF on completion
         uart_capture_tx(BIT_PERIOD, TX_OUT, false, cap_data, cap_par, cap_stop);
@@ -467,23 +443,16 @@ begin
         sb.check_bit("irq_tc low when disabled",   irq_tc, '0');
 
         ----------------------------------------------------------------
-        -- GROUP EV: EVFAB tap (evt_rx, event_fabric_spec.md 2026-07-24)
-        -- evt_rx is documented (UART.vhd port comment) as the RCIF SET
-        -- condition itself (rx_done_s2 /= rx_done_s3 in flags_cdc_proc),
-        -- PRE-MASK -- fires every received frame regardless of CIE, and
-        -- fires AGAIN on an overrun (the set is unconditional even when
-        -- RCIF was already 1). Exactly one clk_mem pulse per set edge.
-        -- Proven with the background evt_mon_proc pulse monitor (checker
-        -- independence: it only samples the exported evt_rx/irq_rc ports,
-        -- never a DUT internal), windowed via evt_mon_reset the same way
-        -- PWM_tb's GROUP G-EV is windowed via its own evt_mon_reset.
+        -- GROUP EV: EVFAB tap (evt_rx, event_fabric_spec.md 2026-07-24).
+        -- UART.vhd's port comment documents evt_rx as the RCIF SET condition itself (rx_done_s2 /= rx_done_s3 in flags_cdc_proc), PRE-MASK.
+        -- It fires on every received frame regardless of CIE, and fires AGAIN on an overrun (the set is unconditional even when RCIF was already 1), exactly one clk_mem pulse per set edge.
+        -- Proven with the background evt_mon_proc pulse monitor, which samples only the exported evt_rx/irq_rc ports and never a DUT internal.
+        -- The window is bounded by evt_mon_reset, the same way PWM_tb's GROUP G-EV is windowed by its own evt_mon_reset.
         ----------------------------------------------------------------
         report "=== GROUP EV: EVFAB tap (evt_rx) ===" severity note;
 
-        -- EV-a: three clean frames, each read (and its clr_SR_RX pulse
-        -- retired via a dummy CR access, the GROUP 9 idiom) before the next
-        -- frame arrives -- no overrun. Exactly 3 evt_rx pulse starts, each
-        -- one clk_mem wide; RCIF/RX readback behave exactly like GROUP 5/6.
+        -- EV-a: three clean frames, each read (and its clr_SR_RX pulse retired by a dummy CR access, the GROUP 9 idiom) before the next frame arrives, so no overrun.
+        -- Expect exactly 3 evt_rx pulse starts, each one clk_mem wide, with RCIF and RX readback behaving exactly as in GROUPs 5 and 6.
         bus_write_small(RegSlotUARTxCR, "000000");
         wait for 2 * CLK_PERIOD;
         bus_write_small(RegSlotUARTxCR, CR_EN_NOPAR);
@@ -517,10 +486,9 @@ begin
         sb.check_true("EV-a5: every evt_rx pulse is exactly one clk_mem wide (highs = starts)",
                       evt_rx_highs = evt_rx_starts);
 
-        -- EV-b: THE DISCIPLINE CHECK. RCIE masked (CR_EN_NOPAR = EN=1,
-        -- CIE=0) -- evt_rx must STILL pulse (the tap sits pre-mask, ahead of
-        -- the CIE gate that drives irq_rc), and irq_rc must never be seen
-        -- high across the whole frame.
+        -- EV-b: THE DISCIPLINE CHECK, with the RX interrupt masked (CR_EN_NOPAR is EN=1, CIE=0).
+        -- evt_rx must STILL pulse, because the tap sits pre-mask, ahead of the CIE gate that drives irq_rc.
+        -- irq_rc must never be seen high across the whole frame.
         bus_write_small(RegSlotUARTxCR, "000000");
         wait for 2 * CLK_PERIOD;
         bus_write_small(RegSlotUARTxCR, CR_EN_NOPAR);          -- EN=1, CIE=0 (masked)
@@ -540,12 +508,9 @@ begin
         sb.check_slv("EV-b4: RX byte 0x44 received", rdw(7 downto 0), x"44");
         bus_read(clk, pbus, read_data, RegSlotUARTxCR, rdw);   -- retire clr_SR_RX
 
-        -- EV-c: overrun. First frame left UNREAD (RCIF stays set); a second
-        -- frame arrives before the first is read -> the RCIF SET condition
-        -- fires AGAIN (UART.vhd: "if USR_RCIF='1' then USR_OVF<='1'; end if;
-        -- USR_RCIF<='1';" -- the set itself is unconditional) -- evt_rx must
-        -- pulse a SECOND time, and OVF sets exactly per pre-existing
-        -- (pre-EVFAB) GROUP 9 behavior.
+        -- EV-c: overrun, with the first frame left UNREAD so RCIF stays set.
+        -- A second frame arriving before the first is read makes the RCIF SET condition fire AGAIN, because in UART.vhd the set itself is unconditional (it raises USR_OVF when USR_RCIF is already 1, then sets USR_RCIF anyway).
+        -- So evt_rx must pulse a SECOND time, and OVF must set exactly per the pre-existing (pre-EVFAB) GROUP 9 behavior.
         bus_write_small(RegSlotUARTxCR, "000000");
         wait for 2 * CLK_PERIOD;
         bus_write_small(RegSlotUARTxCR, CR_EN_NOPAR);
@@ -554,7 +519,7 @@ begin
 
         evt_mon_reset;
         uart_drive_rx(BIT_PERIOD, clk, RX_IN, x"55", false, '0', false, true);   -- byte A, unread
-        uart_drive_rx(BIT_PERIOD, clk, RX_IN, x"66", false, '0', false, true);   -- byte B -> overrun
+        uart_drive_rx(BIT_PERIOD, clk, RX_IN, x"66", false, '0', false, true);   -- byte B, causes the overrun
         bus_read(clk, pbus, read_data, RegSlotUARTxSR, rdw);
         sb.check_bit("EV-c1: overflow flag set on unread 2nd byte (unchanged by the tap)",
                      rdw(3), '1');
@@ -568,7 +533,7 @@ begin
         bus_read(clk, pbus, read_data, RegSlotUARTxSR, rdw);
         sb.check_bit("EV-c5: overflow cleared by RX read (unchanged by the tap)", rdw(3), '0');
 
-        -- EV-d: quiet window, no RX traffic at all -> evt_rx never pulses.
+        -- EV-d: a quiet window with no RX traffic at all, where evt_rx must never pulse.
         evt_mon_reset;
         wait for 40 * CLK_PERIOD;   -- bounded quiet window, no stimulus
         sb.check_true("EV-d1: evt_rx never pulses during a quiet window (no RX traffic)",

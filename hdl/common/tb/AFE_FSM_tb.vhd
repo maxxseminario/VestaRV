@@ -1,3 +1,7 @@
+-- AFE_FSM_tb: directed bench for the dual-slope AFE conversion FSM.
+-- It runs two conversions: one ended by the comparator (cmp_out) and one left to time out, so both exit paths are exercised.
+-- There is no self-checking here; read done, count, sw and result_latch in the waveform.
+
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
@@ -27,7 +31,7 @@ architecture sim of AFE_FSM_tb is
 begin
 
     -------------------------------------------------------------------
-    -- Clock generator
+    -- Clock generator: free-running 25 MHz that stops at 300 us so the run ends on its own.
     -------------------------------------------------------------------
     clk_process : process
     begin
@@ -70,7 +74,7 @@ begin
         enable <= '1';
 
         -- Configure integration cycles
-        cycle_set <= std_logic_vector(to_unsigned(2047, 12)); -- e.g. 11 bits
+        cycle_set <= std_logic_vector(to_unsigned(2047, 12)); -- 2047 counts, an 11-bit integration window
         wait for 100 ns;
 
         -- Trigger start
@@ -78,24 +82,24 @@ begin
         wait for CLK_PERIOD;
         start <= '0';
 
-        -- Let FSM go through RESET + INTEGRATE
+        -- Let the FSM work through RESET and INTEGRATE.
         wait for 90 us;
 
-        -- Toggle cmp_out to emulate comparator triggering end of deintegration
+        -- Pulse cmp_out to emulate the comparator ending deintegration.
         cmp_out <= '1';
         wait for CLK_PERIOD;
         cmp_out <= '0';
 
-        -- Observe done + result latch
+        -- Settle time to observe done and the latched result.
         wait for 500 ns;
 
-        -- Another conversion
+        -- Second conversion, with a shorter integration window and no comparator event.
         cycle_set <= std_logic_vector(to_unsigned(1023, 12));
         start <= '1';
         wait for CLK_PERIOD;
         start <= '0';
 
-	-- Let FSM timeout
+	-- Let the FSM reach its timeout instead.
         wait for 90 us;
 
         -- Finish simulation

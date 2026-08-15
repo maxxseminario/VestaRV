@@ -1,57 +1,31 @@
 -------------------------------------------------------------------------------
 -- st25dv_model_tb.vhd
 -------------------------------------------------------------------------------
--- Standalone, self-checking testbench for tb/st25dv_model.vhd (the behavioral
--- ST25DV64KC dynamic NFC tag model). Structurally mirrors tb/I2CTarget_tb.vhd
--- and tb/I3C_tb.vhd: named GROUPs, the shared tb/periph_tb_pkg.vhd scoreboard,
--- and a mandatory NEGATIVE CONTROL so a run reports "ALL CHECKS PASSED" only
--- alongside EXACTLY ONE expected failure.
+-- Standalone, self-checking testbench for tb/st25dv_model.vhd, the behavioral ST25DV64KC dynamic NFC tag model.
+-- Structurally mirrors tb/I2CTarget_tb.vhd and tb/I3C_tb.vhd: named GROUPs, the shared tb/periph_tb_pkg.vhd scoreboard, and a mandatory NEGATIVE CONTROL so a run reports "ALL CHECKS PASSED" only alongside EXACTLY ONE expected failure.
 --
--- ROLE INVERSION vs I2CTarget_tb: here the BENCH is the I2C CONTROLLER
--- (Castalia's I2C0/I2C1 is the master on a real board) and the MODEL is the
--- slave. The controller is bit-banged in this file rather than reusing
--- tb/i2c_host_model.vhd, because that model's per-segment cfg_go handshake caps
--- a segment at I2CT_MODEL_MAX_BYTES = 8 bytes while the ST25DV needs frames of
--- 2 address bytes + up to 17 data bytes (the present-password command) and a
--- device-select-only ACK probe for write-cycle polling.
+-- ROLE INVERSION against I2CTarget_tb: here the BENCH is the I2C CONTROLLER (Castalia's I2C0/I2C1 is the master on a real board) and the MODEL is the slave.
+-- The controller is bit-banged in this file rather than reusing tb/i2c_host_model.vhd, because that model's per-segment cfg_go handshake caps a segment at I2CT_MODEL_MAX_BYTES = 8 bytes while the ST25DV needs frames of 2 address bytes + up to 17 data bytes (the present-password command) and a device-select-only ACK probe for write-cycle polling.
 --
--- OPEN-DRAIN BUS: SCL, SDA and GPO each carry a weak 'H' pull in this bench;
--- the master pulls low through m_scl_oe / m_sda_oe and the model through its
--- own sda_oe / gpo_oe. NOBODY drives an active high. Every sample of a
--- resolved net is to_X01-normalized.
+-- OPEN-DRAIN BUS: SCL, SDA and GPO each carry a weak 'H' pull in this bench; the master pulls low through m_scl_oe / m_sda_oe and the model through its own sda_oe / gpo_oe.
+-- NOBODY drives an active high.
+-- Every sample of a resolved net is to_X01-normalized.
 --
--- SCL TIMING: T_HALF = 500 ns half period plus a T_Q = 125 ns tail after every
--- SCL falling edge, so SDA never changes in the same delta as an SCL edge (a
--- coincident change would be mis-parsed as START/STOP by any edge-triggered
--- slave). One SCL bit = 1.125 us, i.e. ~890 kHz -- inside the datasheet's
--- 1 MHz ceiling and fast enough that the whole suite (which really does wait
--- out six 5 ms EEPROM write cycles) finishes in seconds of wall clock.
+-- SCL TIMING: T_HALF = 500 ns half period plus a T_Q = 125 ns tail after every SCL falling edge, so SDA never changes in the same delta as an SCL edge (a coincident change would be mis-parsed as START/STOP by any edge-triggered slave).
+-- One SCL bit = 1.125 us, i.e. ~890 kHz, inside the datasheet's 1 MHz ceiling and fast enough that the whole suite (which really does wait out six 5 ms EEPROM write cycles) finishes in seconds of wall clock.
 --
--- WHAT IS BEING PROVEN (all of it against DS13519 Rev 2 behavior, see the
--- model header for section references):
+-- WHAT IS BEING PROVEN (all of it against DS13519 Rev 2 behavior, see the model header for section references):
 --   G-INIT  reset/boot state
---   G-ADDR  BOTH device select codes ACK (A6h/A7h user, AEh/AFh system) and
---           the near-miss codes NACK (A2h RFSwitchOff disabled, A4h wrong E0,
---           B6h wrong device code)
+--   G-ADDR  BOTH device select codes ACK (A6h/A7h user, AEh/AFh system) and the near-miss codes NACK (A2h RFSwitchOff disabled, A4h wrong E0, B6h wrong device code)
 --   G-SYSRD read-only system/device-parameter registers
---   G-PWD   system-area write inhibited without a security session, the I2C
---           present-password command (wrong then right), a real configuration
---           write, and a write to a read-only register
---   G-EE    user EEPROM byte + sequential write, the tW write cycle observed
---           as a run of device-select NACKs (ACK polling), read-back, and an
---           unmapped read returning FFh
---   G-MB    FTM mailbox: enable, EEPROM write inhibition while FTM is active,
---           RF-to-I2C message with the GPO interrupt asserting and clearing,
---           IT_STS_Dyn clear-on-read, MB_CTRL_Dyn/MB_LEN_Dyn state machine,
---           I2C-to-RF message, mailbox-busy NACK, wrong-start-address NACK
+--   G-PWD   system-area write inhibited without a security session, the I2C present-password command (wrong then right), a real configuration write, and a write to a read-only register
+--   G-EE    user EEPROM byte + sequential write, the tW write cycle observed as a run of device-select NACKs (ACK polling), read-back, and an unmapped read returning FFh
+--   G-MB    FTM mailbox: enable, EEPROM write inhibition while FTM is active, RF-to-I2C message with the GPO interrupt asserting and clearing, IT_STS_Dyn clear-on-read, MB_CTRL_Dyn/MB_LEN_Dyn state machine, I2C-to-RF message, mailbox-busy NACK, wrong-start-address NACK
 --   G-GPO   GPO_CTRL_Dyn gating of the field-change interrupt
---   G-EH    energy harvesting: boot strategy from EH_MODE, EH_CTRL_Dyn EH_EN,
---           V_EH delivery only with EH enabled AND an RF field present
+--   G-EH    energy harvesting: boot strategy from EH_MODE, EH_CTRL_Dyn EH_EN, V_EH delivery only with EH enabled AND an RF field present
 --   G-NEG   the single deliberate failure
 --
--- NOT PROVEN HERE (because the model does not implement it -- see the model
--- header): the RF/ISO-15693 side, user-memory area protection, the FTM
--- watchdog, and any AC timing other than tW.
+-- NOT PROVEN HERE, because the model does not implement it (see the model header): the RF/ISO-15693 side, user-memory area protection, the FTM watchdog, and any AC timing other than tW.
 -------------------------------------------------------------------------------
 
 library ieee;
@@ -62,8 +36,8 @@ use work.periph_tb_pkg.all;
 
 entity st25dv_model_tb is
     generic (
-        -- 1 = inject the deliberate wrong expectation (the negative control is
-        -- ALWAYS present; this generic only exists to document/park it).
+        -- 1 = inject the deliberate wrong expectation.
+        -- The negative control is ALWAYS present; this generic only exists to document and park it.
         NEGCTRL : integer := 1
     );
 end entity st25dv_model_tb;
@@ -71,8 +45,7 @@ end entity st25dv_model_tb;
 architecture sim of st25dv_model_tb is
 
     ---------------------------------------------------------------------------
-    -- bench-local byte container (deliberately not pulled from i2ct_bfm_pkg:
-    -- that package's I2CT_MODEL_MAX_BYTES=8 shape does not fit these frames)
+    -- Bench-local byte container, deliberately not pulled from i2ct_bfm_pkg: that package's I2CT_MODEL_MAX_BYTES=8 shape does not fit these frames.
     ---------------------------------------------------------------------------
     type byte_arr is array (natural range <>) of std_logic_vector(7 downto 0);
 
@@ -127,21 +100,21 @@ architecture sim of st25dv_model_tb is
         );
     end component;
 
-    -- master drive-enables (open drain)
+    -- Master drive-enables (open drain).
     signal m_scl_oe : std_logic := '0';
     signal m_sda_oe : std_logic := '0';
 
-    -- model drive-enables
+    -- Model drive-enables.
     signal d_sda_oe : std_logic;
     signal d_gpo_oe : std_logic;
     signal d_sda_out, d_gpo_out : std_logic;
 
-    -- resolved nets (weak 'H' pull-ups)
+    -- Resolved nets (weak 'H' pull-ups).
     signal scl : std_logic;
     signal sda : std_logic;
     signal gpo : std_logic;
 
-    -- power / RF stimulus
+    -- Power and RF stimulus.
     signal resetn      : std_logic := '0';
     signal vcc_on      : std_logic := '1';
     signal rf_field    : std_logic := '0';
@@ -152,7 +125,7 @@ architecture sim of st25dv_model_tb is
     signal rf_write_ee : std_logic := '0';
     signal cfg_veh_ua  : natural   := 250;
 
-    -- model observations
+    -- Model observations.
     signal eh_enabled   : std_logic;
     signal veh_active   : std_logic;
     signal veh_avail_ua : natural;
@@ -168,8 +141,7 @@ architecture sim of st25dv_model_tb is
     signal obs_i2c_sso     : std_logic;
     signal obs_rf_off      : std_logic;
 
-    -- GPO edge monitor (checker independence: counts falling edges off the
-    -- RESOLVED net, never off a model internal)
+    -- GPO edge monitor, checker independence: counts falling edges off the RESOLVED net, never off a model internal.
     signal gpo_rst   : std_logic := '0';
     signal gpo_falls : natural   := 0;
 
@@ -180,7 +152,7 @@ architecture sim of st25dv_model_tb is
 begin
 
     ---------------------------------------------------------------------------
-    -- open-drain wired-AND with weak pull-ups
+    -- Open-drain wired-AND with weak pull-ups.
     ---------------------------------------------------------------------------
     scl <= '0' when m_scl_oe = '1' else 'H';
     sda <= '0' when (m_sda_oe = '1' or d_sda_oe = '1') else 'H';
@@ -225,7 +197,7 @@ begin
         );
 
     ---------------------------------------------------------------------------
-    -- GPO falling-edge monitor
+    -- GPO falling-edge monitor: gpo_rst clears the count, every falling edge on the resolved net adds one.
     ---------------------------------------------------------------------------
     gpo_mon : process (gpo, gpo_rst)
     begin
@@ -260,7 +232,7 @@ begin
         begin
             sda_rel;  wait for T_Q;      -- bus idle high
             scl_rel;  wait for T_HALF;
-            sda_low;  wait for T_HALF;   -- SDA falls while SCL high => START
+            sda_low;  wait for T_HALF;   -- SDA falls while SCL is high, a START
             scl_low;  wait for T_Q;
         end procedure;
 
@@ -277,7 +249,7 @@ begin
         begin
             sda_low;  wait for T_HALF;   -- SCL low here
             scl_rel;  wait for T_HALF;
-            sda_rel;  wait for T_HALF;   -- SDA rises while SCL high => STOP
+            sda_rel;  wait for T_HALF;   -- SDA rises while SCL is high, a STOP
         end procedure;
 
         -- ---- bit slots -----------------------------------------------------
@@ -311,7 +283,7 @@ begin
             acked := not lv;
         end procedure;
 
-        -- do_ack = '1' -> master ACKs (continue), '0' -> master NACKs (last).
+        -- do_ack = '1' makes the master ACK (continue), '0' makes it NACK (last byte).
         procedure rd_byte(do_ack : in std_logic;
                           d      : out std_logic_vector(7 downto 0)) is
             variable lv : std_logic;
@@ -326,10 +298,9 @@ begin
         end procedure;
 
         -- ---- transactions --------------------------------------------------
-        -- Device-select-only ACK probe. A read device select is followed by one
-        -- consumed byte so the slave releases SDA before the STOP (otherwise
-        -- the slave would still be sourcing a data bit and the STOP could not
-        -- be generated -- a real I2C rule, not a model artefact).
+        -- Device-select-only ACK probe.
+        -- A read device select is followed by one consumed byte so the slave releases SDA before the STOP.
+        -- Otherwise the slave would still be sourcing a data bit and the STOP could not be generated: a real I2C rule, not a model artefact.
         procedure dev_probe(dsel : in std_logic_vector(7 downto 0);
                             acked : out boolean) is
             variable a : std_logic;
@@ -344,6 +315,7 @@ begin
             acked := (a = '1');
         end procedure;
 
+        -- Byte or sequential write: device select, the 2 address bytes, then n data bytes, counting every NACK seen.
         procedure mem_write(dsel    : in  std_logic_vector(7 downto 0);
                             addr    : in  natural;
                             d       : in  byte_arr;
@@ -372,8 +344,7 @@ begin
             nacks   := c;
         end procedure;
 
-        -- Random address read (DS 6.5.1): dummy write of the 2 address bytes,
-        -- repeated START, read device select, n bytes, master NACKs the last.
+        -- Random address read (DS 6.5.1): dummy write of the 2 address bytes, repeated START, read device select, n bytes, master NACKs the last.
         procedure mem_read(dw, dr : in  std_logic_vector(7 downto 0);
                            addr   : in  natural;
                            n      : in  natural;
@@ -421,8 +392,7 @@ begin
             tries := c;
         end procedure;
 
-        -- I2C present/write password command (DS 6.6.1 / Figure 35):
-        -- AEh, 09h, 00h, PWD[8], validation code, PWD[8].
+        -- I2C present/write password command (DS 6.6.1 / Figure 35): AEh, 09h, 00h, PWD[8], validation code, PWD[8].
         procedure pwd_cmd(p       : in  byte_arr;
                           code    : in  std_logic_vector(7 downto 0);
                           all_ack : out boolean) is
@@ -435,6 +405,7 @@ begin
             mem_write(DS_SW, 16#0900#, dat, 17, all_ack, c);
         end procedure;
 
+        -- Zero the GPO falling-edge counter before a timed observation.
         procedure gpo_mon_reset is
         begin
             gpo_rst <= '1';
@@ -463,7 +434,7 @@ begin
 
         ------------------------------------------------------------------
         -- GROUP G-ADDR: BOTH device select codes, plus the near misses.
-        -- DS Table 88 / Table 263: 1010 E2 E1 E0 R/notW.
+        -- The code layout is DS Table 88 / Table 263: 1010 E2 E1 E0 R/notW.
         ------------------------------------------------------------------
         report "=== GROUP G-ADDR: device select codes ===" severity note;
 
@@ -487,8 +458,7 @@ begin
         sb.check_true("G-ADDR 8: 50h (an unrelated EEPROM address) NACKs", not okv);
 
         ------------------------------------------------------------------
-        -- GROUP G-SYSRD: read-only device parameter registers (no session
-        -- needed for reads -- DS 6.5).
+        -- GROUP G-SYSRD: read-only device parameter registers (no session needed for reads, DS 6.5).
         ------------------------------------------------------------------
         report "=== GROUP G-SYSRD: system read-only registers ===" severity note;
 
@@ -498,19 +468,19 @@ begin
         mem_read(DS_SW, DS_SR, 16#0016#, 1, rd, okv);
         sb.check_slv("G-SYSRD 2: BLK_SIZE (0016h) = 03h", rd(0), x"03");
 
-        -- sequential read across two bytes: MEM_SIZE = 07FFh (LSB first)
+        -- Sequential read across two bytes: MEM_SIZE = 07FFh, LSB first.
         mem_read(DS_SW, DS_SR, 16#0014#, 2, rd, okv);
         sb.check_slv("G-SYSRD 3: MEM_SIZE LSB (0014h) = FFh", rd(0), x"FF");
         sb.check_slv("G-SYSRD 4: MEM_SIZE MSB (0015h) = 07h (2048 blocks = 64 Kbit)",
                      rd(1), x"07");
 
-        -- UID bytes 5..7 are datasheet-defined (51h 02h E0h)
+        -- UID bytes 5 to 7 are datasheet-defined: 51h 02h E0h.
         mem_read(DS_SW, DS_SR, 16#001D#, 3, rd, okv);
         sb.check_slv("G-SYSRD 5: UID byte 5 (ST product code) = 51h", rd(0), x"51");
         sb.check_slv("G-SYSRD 6: UID byte 6 (IC mfg code) = 02h", rd(1), x"02");
         sb.check_slv("G-SYSRD 7: UID byte 7 = E0h", rd(2), x"E0");
 
-        -- factory GPO1 / GPO2 / EH_MODE / FTM
+        -- Factory values of GPO1, GPO2, EH_MODE and FTM.
         mem_read(DS_SW, DS_SR, 16#0000#, 2, rd, okv);
         sb.check_slv("G-SYSRD 8: GPO1 factory = 11h (GPO_EN + FIELD_CHANGE_EN)", rd(0), x"11");
         sb.check_slv("G-SYSRD 9: GPO2 factory = 0Ch (IT_TIME = 011b)", rd(1), x"0C");
@@ -525,8 +495,7 @@ begin
         ------------------------------------------------------------------
         report "=== GROUP G-PWD: security session / configuration write ===" severity note;
 
-        -- (a) system write with the session CLOSED: device select + both
-        -- address bytes ACK, the DATA byte is NACKed (DS Table 274).
+        -- (a) System write with the session CLOSED: device select and both address bytes ACK, the DATA byte is NACKed (DS Table 274).
         wd(0) := x"71";
         mem_write(DS_SW, 16#0000#, wd, 1, okv, nk);
         sb.check_true("G-PWD 1: system write with session closed is NACKed", not okv);
@@ -535,7 +504,7 @@ begin
         mem_read(DS_SW, DS_SR, 16#0000#, 1, rd, okv);
         sb.check_slv("G-PWD 3: GPO1 unchanged after the inhibited write", rd(0), x"11");
 
-        -- (b) present a WRONG password -> session stays closed
+        -- (b) Present a WRONG password: the session stays closed.
         pw := (others => x"00");
         pw(0) := x"DE";
         pwd_cmd(pw, x"09", okv);
@@ -543,11 +512,11 @@ begin
         wait for 1 us;
         sb.check_bit("G-PWD 5a: wrong password leaves the session CLOSED (obs)",
                      to_X01(obs_i2c_sso), '0');
-        -- I2C_SSO_Dyn is a DYNAMIC register: E2=0 (A6h/A7h), not the system code
+        -- I2C_SSO_Dyn is a DYNAMIC register: E2=0 (A6h/A7h), not the system code.
         mem_read(DS_UW, DS_UR, 16#2004#, 1, rd, okv);
         sb.check_slv("G-PWD 5b: I2C_SSO_Dyn (2004h) reads 00h", rd(0), x"00");
 
-        -- (c) present the FACTORY password (all zeros) -> session opens
+        -- (c) Present the FACTORY password (all zeros): the session opens.
         pw := (others => x"00");
         pwd_cmd(pw, x"09", okv);
         sb.check_true("G-PWD 6: present-password frame is fully ACKed", okv);
@@ -557,8 +526,7 @@ begin
         mem_read(DS_UW, DS_UR, 16#2004#, 1, rd, okv);
         sb.check_slv("G-PWD 8: I2C_SSO_Dyn (2004h, device select A7h) reads 01h", rd(0), x"01");
 
-        -- (d) real configuration write: GPO1 = 71h (GPO_EN + FIELD_CHANGE +
-        -- RF_PUT_MSG + RF_GET_MSG), then poll out the tW write cycle.
+        -- (d) Real configuration write: GPO1 = 71h (GPO_EN + FIELD_CHANGE + RF_PUT_MSG + RF_GET_MSG), then poll out the tW write cycle.
         wd(0) := x"71";
         mem_write(DS_SW, 16#0000#, wd, 1, okv, nk);
         sb.check_true("G-PWD 9: system write with session open is ACKed", okv);
@@ -568,15 +536,14 @@ begin
         mem_read(DS_SW, DS_SR, 16#0000#, 1, rd, okv);
         sb.check_slv("G-PWD 12: GPO1 reads back 71h", rd(0), x"71");
 
-        -- (e) write to a READ-ONLY system register -> NACK even with the
-        -- session open (DS 6.4.1)
+        -- (e) A write to a READ-ONLY system register is NACKed even with the session open (DS 6.4.1).
         wd(0) := x"AA";
         mem_write(DS_SW, 16#0017#, wd, 1, okv, nk);
         sb.check_true("G-PWD 13: write to IC_REF (read-only) is NACKed", not okv);
         mem_read(DS_SW, DS_SR, 16#0017#, 1, rd, okv);
         sb.check_slv("G-PWD 14: IC_REF unchanged", rd(0), x"51");
 
-        -- (f) more than ONE byte in the system area is inhibited (DS 6.4.2)
+        -- (f) More than ONE byte in the system area is inhibited (DS 6.4.2).
         wd(0) := x"0C"; wd(1) := x"01";
         mem_write(DS_SW, 16#0001#, wd, 2, okv, nk);
         sb.check_true("G-PWD 15: second byte of a system-area sequential write is NACKed",
@@ -593,11 +560,11 @@ begin
         mem_read(DS_UW, DS_UR, 16#0100#, 1, rd, okv);
         sb.check_slv("G-EE 1: virgin user memory reads 00h", rd(0), x"00");
 
-        -- (a) byte write + ACK polling
+        -- (a) Byte write followed by ACK polling.
         wd(0) := x"5A";
         mem_write(DS_UW, 16#0100#, wd, 1, okv, nk);
         sb.check_true("G-EE 2: user byte write is ACKed", okv);
-        -- the device must be UNRESPONSIVE immediately after the STOP
+        -- The device must be UNRESPONSIVE immediately after the STOP.
         dev_probe(DS_UW, okv);
         sb.check_true("G-EE 3: device select NACKs during the internal write cycle", not okv);
         poll_ready(DS_UW, 2000, tries, okv);
@@ -607,7 +574,7 @@ begin
         mem_read(DS_UW, DS_UR, 16#0100#, 1, rd, okv);
         sb.check_slv("G-EE 6: byte reads back as 5Ah", rd(0), x"5A");
 
-        -- (b) sequential write of 4 bytes inside one 16-byte row
+        -- (b) Sequential write of 4 bytes inside one 16-byte row.
         wd(0) := x"11"; wd(1) := x"22"; wd(2) := x"33"; wd(3) := x"44";
         mem_write(DS_UW, 16#0200#, wd, 4, okv, nk);
         sb.check_true("G-EE 7: 4-byte sequential write is fully ACKed", okv);
@@ -619,7 +586,7 @@ begin
         sb.check_slv("G-EE 11: sequential read byte 2", rd(2), x"33");
         sb.check_slv("G-EE 12: sequential read byte 3", rd(3), x"44");
 
-        -- (c) current-address read continues from the internal counter
+        -- (c) A current-address read continues from the internal counter.
         i2c_start;
         wr_byte(DS_UR, ak);
         sb.check_bit("G-EE 13: current-address read device select ACKs", ak, '1');
@@ -628,8 +595,7 @@ begin
         sb.check_slv("G-EE 14: current-address read returns 0204h (counter advanced past the 4 bytes)",
                      b, x"00");
 
-        -- (d) an unmapped E2=0 address reads FFh (DS 6.5 "read is not
-        -- successful -> the host reads FFh")
+        -- (d) An unmapped E2=0 address reads FFh (DS 6.5: when the read is not successful the host reads FFh).
         mem_read(DS_UW, DS_UR, 16#3000#, 1, rd, okv);
         sb.check_slv("G-EE 15: unmapped address 3000h reads FFh", rd(0), x"FF");
 
@@ -638,21 +604,21 @@ begin
         ------------------------------------------------------------------
         report "=== GROUP G-MB: fast transfer mode mailbox ===" severity note;
 
-        -- (a) MB_EN cannot be set while FTM.MB_MODE is 0 (DS Table 18 note 1)
+        -- (a) MB_EN cannot be set while FTM.MB_MODE is 0 (DS Table 18 note 1).
         wd(0) := x"01";
         mem_write(DS_UW, 16#2006#, wd, 1, okv, nk);
         sb.check_true("G-MB 1: MB_CTRL_Dyn write is ACKed (dynamic register)", okv);
         mem_read(DS_UW, DS_UR, 16#2006#, 1, rd, okv);
         sb.check_slv("G-MB 2: MB_EN stays 0 while FTM.MB_MODE = 0", rd(0), x"00");
 
-        -- (b) authorize FTM in the system area (needs the open session)
+        -- (b) Authorize FTM in the system area; this needs the open session.
         wd(0) := x"01";
         mem_write(DS_SW, 16#000D#, wd, 1, okv, nk);
         sb.check_true("G-MB 3: FTM register write is ACKed", okv);
         poll_ready(DS_SW, 2000, tries, okv);
         sb.check_true("G-MB 4: FTM write cycle completes", okv);
 
-        -- (c) now MB_EN sticks, and it is IMMEDIATE (no tW, no polling)
+        -- (c) Now MB_EN sticks, and it is IMMEDIATE: no tW, no polling.
         wd(0) := x"01";
         mem_write(DS_UW, 16#2006#, wd, 1, okv, nk);
         dev_probe(DS_UW, okv);
@@ -661,13 +627,13 @@ begin
         mem_read(DS_UW, DS_UR, 16#2006#, 1, rd, okv);
         sb.check_slv("G-MB 6: MB_CTRL_Dyn = 01h (MB_EN set, mailbox empty)", rd(0), x"01");
 
-        -- (d) with FTM active, user-EEPROM writes are inhibited (DS 6.4 caution)
+        -- (d) With FTM active, user-EEPROM writes are inhibited (DS 6.4 caution).
         wd(0) := x"99";
         mem_write(DS_UW, 16#0300#, wd, 1, okv, nk);
         sb.check_true("G-MB 7: user EEPROM write is NACKed while FTM is active",
                       (not okv) and nk = 1);
 
-        -- (e) an RF reader puts an 8-byte message in the mailbox
+        -- (e) An RF reader puts an 8-byte message in the mailbox.
         gpo_mon_reset;
         rf_put_len  <= 8;
         rf_put_seed <= x"40";
@@ -678,7 +644,7 @@ begin
                      to_X01(gpo), '0');
         sb.check_true("G-MB 9: exactly one GPO falling edge", gpo_falls = 1);
         rf_put_msg <= '0';
-        -- IT pulse = 301 us - 3*37.65 us = 188.05 us; well clear by 260 us
+        -- IT pulse = 301 us - 3*37.65 us = 188.05 us, well clear by 260 us.
         wait for 260 us;
         sb.check_bit("G-MB 10: GPO pulse has expired (interrupt self-clears)",
                      to_X01(gpo), '1');
@@ -694,8 +660,7 @@ begin
         mem_read(DS_UW, DS_UR, 16#2007#, 1, rd, okv);
         sb.check_slv("G-MB 14: MB_LEN_Dyn = 07h (message length minus 1)", rd(0), x"07");
 
-        -- (f) read the message out; RF_PUT_MSG clears at the STOP after the
-        -- last message byte (DS 5.1.2)
+        -- (f) Read the message out; RF_PUT_MSG clears at the STOP after the last message byte (DS 5.1.2).
         mem_read(DS_UW, DS_UR, 16#2008#, 8, rd, okv);
         sb.check_slv("G-MB 15: mailbox byte 0", rd(0), x"40");
         sb.check_slv("G-MB 16: mailbox byte 3", rd(3), x"43");
@@ -704,11 +669,11 @@ begin
         sb.check_slv("G-MB 18: MB_CTRL_Dyn = 81h after the I2C read (RF_PUT_MSG cleared)",
                      rd(0), x"81");
 
-        -- (g) past the end of the message the mailbox reads FFh (no rollover)
+        -- (g) Past the end of the message the mailbox reads FFh, with no rollover.
         mem_read(DS_UW, DS_UR, 16#2010#, 1, rd, okv);
         sb.check_slv("G-MB 19: mailbox read past the message end returns FFh", rd(0), x"FF");
 
-        -- (h) I2C puts a 4-byte message for the RF side
+        -- (h) I2C puts a 4-byte message for the RF side.
         wd(0) := x"C0"; wd(1) := x"C1"; wd(2) := x"C2"; wd(3) := x"C3";
         mem_write(DS_UW, 16#2008#, wd, 4, okv, nk);
         sb.check_true("G-MB 20: I2C mailbox write is fully ACKed", okv);
@@ -718,19 +683,19 @@ begin
         mem_read(DS_UW, DS_UR, 16#2007#, 1, rd, okv);
         sb.check_slv("G-MB 22: MB_LEN_Dyn = 03h", rd(0), x"03");
 
-        -- (i) the mailbox is now BUSY: a second put is NACKed
+        -- (i) The mailbox is now BUSY: a second put is NACKed.
         wd(0) := x"EE";
         mem_write(DS_UW, 16#2008#, wd, 1, okv, nk);
         sb.check_true("G-MB 23: mailbox write while a message is pending is NACKed",
                       (not okv) and nk = 1);
 
-        -- (j) a mailbox write must start at 2008h (DS 5.1.2)
+        -- (j) A mailbox write must start at 2008h (DS 5.1.2).
         wd(0) := x"EE";
         mem_write(DS_UW, 16#2009#, wd, 1, okv, nk);
         sb.check_true("G-MB 24: mailbox write not starting at 2008h is NACKed",
                       (not okv) and nk = 1);
 
-        -- (k) the RF side collects the message -> HOST_PUT_MSG clears, GPO pulses
+        -- (k) The RF side collects the message: HOST_PUT_MSG clears and GPO pulses.
         gpo_mon_reset;
         rf_get_msg <= '1';
         wait for 20 us;
@@ -744,7 +709,7 @@ begin
         mem_read(DS_UW, DS_UR, 16#2005#, 1, rd, okv);
         sb.check_slv("G-MB 28: IT_STS_Dyn reports RF_GET_MSG (bit 6)", rd(0), x"40");
 
-        -- (l) turn FTM back off so the EEPROM groups below can write again
+        -- (l) Turn FTM back off so the EEPROM groups below can write again.
         wd(0) := x"00";
         mem_write(DS_UW, 16#2006#, wd, 1, okv, nk);
         mem_read(DS_UW, DS_UR, 16#2006#, 1, rd, okv);
@@ -755,7 +720,7 @@ begin
         ------------------------------------------------------------------
         report "=== GROUP G-GPO: GPO output control ===" severity note;
 
-        -- (a) field change with the output ENABLED
+        -- (a) Field change with the output ENABLED.
         gpo_mon_reset;
         rf_field <= '1';
         wait for 20 us;
@@ -765,8 +730,7 @@ begin
         mem_read(DS_UW, DS_UR, 16#2005#, 1, rd, okv);
         sb.check_slv("G-GPO 3: IT_STS_Dyn reports FIELD_RISING (bit 4)", rd(0), x"10");
 
-        -- (b) disable the GPO PIN via GPO_CTRL_Dyn; events must STILL be
-        -- recorded in IT_STS_Dyn (DS Table 36 note)
+        -- (b) Disable the GPO PIN via GPO_CTRL_Dyn; events must STILL be recorded in IT_STS_Dyn (DS Table 36 note).
         wd(0) := x"00";
         mem_write(DS_UW, 16#2000#, wd, 1, okv, nk);
         sb.check_true("G-GPO 4: GPO_CTRL_Dyn write is ACKed", okv);
@@ -779,7 +743,7 @@ begin
         sb.check_slv("G-GPO 7: FIELD_FALLING (bit 3) still recorded in IT_STS_Dyn",
                      rd(0), x"08");
 
-        -- (c) re-enable
+        -- (c) Re-enable the GPO pin.
         wd(0) := x"01";
         mem_write(DS_UW, 16#2000#, wd, 1, okv, nk);
         gpo_mon_reset;
@@ -805,8 +769,7 @@ begin
         mem_read(DS_UW, DS_UR, 16#2005#, 1, rd, okv);
         sb.check_slv("G-GPO 12: IT_STS_Dyn reports RF_WRITE (bit 7)", rd(0), x"80");
 
-        -- (e) I2C_WRITE interrupt source (GPO2 b0): fires at the END of the
-        -- internal write cycle, not at the STOP (DS Table 32).
+        -- (e) I2C_WRITE interrupt source (GPO2 b0): fires at the END of the internal write cycle, not at the STOP (DS Table 32).
         wd(0) := x"0D";                                  -- IT_TIME=011b + I2C_WRITE_EN
         mem_write(DS_SW, 16#0001#, wd, 1, okv, nk);
         poll_ready(DS_SW, 2000, tries, okv);
@@ -823,7 +786,7 @@ begin
         sb.check_true("G-GPO 16: exactly one GPO pulse once the tW window closes",
                       gpo_falls = 1);
         wait for 300 us;
-        -- restore GPO2 so the remaining EEPROM writes do not raise interrupts
+        -- Restore GPO2 so the remaining EEPROM writes do not raise interrupts.
         wd(0) := x"0C";
         mem_write(DS_SW, 16#0001#, wd, 1, okv, nk);
         poll_ready(DS_SW, 2000, tries, okv);
@@ -831,12 +794,11 @@ begin
 
         ------------------------------------------------------------------
         -- GROUP G-EH: energy harvesting.
-        -- Reminder (model header A8): V_EH has NO datasheet digital level
-        -- encoding -- veh_avail_ua only echoes the bench's cfg_veh_ua.
+        -- Reminder (model header A8): V_EH has NO datasheet digital level encoding, so veh_avail_ua only echoes the bench's cfg_veh_ua.
         ------------------------------------------------------------------
         report "=== GROUP G-EH: energy harvesting ===" severity note;
 
-        -- rf_field is currently '1' but EH_EN is still 0 (EH_MODE = 01h)
+        -- rf_field is currently '1' but EH_EN is still 0 (EH_MODE = 01h).
         sb.check_bit("G-EH 1: RF field present but EH disabled -> V_EH High-Z",
                      to_X01(veh_active), '0');
         sb.check_true("G-EH 2: no harvested current advertised while High-Z",
@@ -845,7 +807,7 @@ begin
         sb.check_slv("G-EH 3: EH_CTRL_Dyn = 0Ch (FIELD_ON + VCC_ON, EH_EN/EH_ON = 0)",
                      rd(0), x"0C");
 
-        -- enable EH on demand through the dynamic register
+        -- Enable EH on demand through the dynamic register.
         wd(0) := x"01";
         mem_write(DS_UW, 16#2002#, wd, 1, okv, nk);
         sb.check_true("G-EH 4: EH_CTRL_Dyn write is ACKed", okv);
@@ -858,7 +820,7 @@ begin
         sb.check_slv("G-EH 7: EH_CTRL_Dyn = 0Fh (EH_EN + EH_ON + FIELD_ON + VCC_ON)",
                      rd(0), x"0F");
 
-        -- remove the field: V_EH goes High-Z but EH_EN stays set
+        -- Remove the field: V_EH goes High-Z but EH_EN stays set.
         rf_field <= '0';
         wait for 400 us;                    -- let the field-change pulse expire
         sb.check_bit("G-EH 8: no RF field -> V_EH High-Z again", to_X01(veh_active), '0');
@@ -868,7 +830,7 @@ begin
         sb.check_slv("G-EH 10: EH_CTRL_Dyn = 0Bh (EH_EN + EH_ON + VCC_ON, FIELD_ON clear)",
                      rd(0), x"0B");
 
-        -- EH_MODE = 0 forces EH_EN to 1 (DS 5.5.2)
+        -- EH_MODE = 0 forces EH_EN to 1 (DS 5.5.2).
         wd(0) := x"00";
         mem_write(DS_UW, 16#2002#, wd, 1, okv, nk);   -- clear EH_EN first
         wait for 1 us;
@@ -881,7 +843,7 @@ begin
         sb.check_bit("G-EH 14: writing 0 into EH_MODE forces EH_EN to 1",
                      to_X01(eh_enabled), '1');
 
-        -- and a fresh boot now enables EH straight away
+        -- A fresh boot now enables EH straight away.
         resetn <= '0';
         wait for 2 us;
         resetn <= '1';
@@ -894,9 +856,8 @@ begin
         sb.check_slv("G-EE/POR: user EEPROM is nonvolatile across POR", rd(0), x"5A");
 
         ------------------------------------------------------------------
-        -- GROUP G-NEG: NEGATIVE CONTROL (mandatory, LAST). Exactly ONE
-        -- deliberately-wrong expected value, so a healthy run reports
-        -- "ALL CHECKS PASSED" only when sb.errors is EXACTLY 1.
+        -- GROUP G-NEG: NEGATIVE CONTROL (mandatory, LAST).
+        -- Exactly ONE deliberately-wrong expected value, so a healthy run reports "ALL CHECKS PASSED" only when sb.errors is EXACTLY 1.
         ------------------------------------------------------------------
         report "=== GROUP G-NEG: NEGATIVE CONTROL ===" severity note;
         mem_read(DS_SW, DS_SR, 16#0017#, 1, rd, okv);

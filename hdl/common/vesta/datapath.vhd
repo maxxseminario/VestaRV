@@ -4,9 +4,10 @@ use IEEE.NUMERIC_STD.ALL;
 library work;
 use work.constants.ALL;
 
+-- Vesta datapath: register file, immediate extender, ALU, load/store formatting, the AMO/CAS staging registers, and the optional Zfinx FP units.
 entity datapath is
     generic (
-        -- Core ISA feature switches — passed straight through to the ALU.
+        -- Core ISA feature switches, passed straight through to the ALU.
         ENABLE_MUL      : boolean := true;
         ENABLE_DIV      : boolean := true;
         ENABLE_ATOMICS  : boolean := true;
@@ -18,10 +19,9 @@ entity datapath is
         ENABLE_ZBKX     : boolean := false;
         ENABLE_ZKN      : boolean := false;
         ENABLE_ZFINX    : boolean := false;
-        -- V1 lockstep tracer: gates the read-only trc_* taps below. Default
-        -- FALSE so the OFF netlist is identical BY CONSTRUCTION (not by relying
-        -- on the optimiser to strip unloaded logic) -- the same discipline
-        -- gen_pmp / gen_fpu / gen_trapcsr_wb already use.
+        -- V1 lockstep tracer: gates the read-only trc_* taps below.
+        -- Default FALSE so the OFF netlist is identical BY CONSTRUCTION, not by relying on the optimiser to strip unloaded logic.
+        -- Same discipline gen_pmp / gen_fpu / gen_trapcsr_wb already use.
         TRACE_ENABLE    : boolean := false
     );
     port (
@@ -58,18 +58,12 @@ entity datapath is
         -- ==========================================
         -- X3 Zcmp/Zcmt sequencer regfile steering
         -- ==========================================
-        -- Mirror of the X2 Zacas rf_a2_addr precedent: the push/pop/move/table-jump
-        -- FSM drives the regfile ports from REGISTERED sequencer state (indices),
-        -- never re-reading a live instruction field mid-sequence. All default
-        -- inactive so non-Zcm instantiations and the OFF build are bit-identical
-        -- (the muxes fold to the original instr-field addressing).
-        --   zcm_rs_sel/addr : steer the rs1 read port (a1) -> src_a/rs1_value is
-        --     then reg[zcm_rs_addr] (push store data; a0<-x0 & ret read x1).
-        --   zcm_rd_sel/addr : steer the write port (a3) -> the pop-loaded word or
-        --     a move result lands in reg[zcm_rd_addr].
+        -- Mirror of the X2 Zacas rf_a2_addr precedent: the push/pop/move/table-jump FSM drives the regfile ports from REGISTERED sequencer state (indices), never re-reading a live instruction field mid-sequence.
+        -- All default inactive so non-Zcm instantiations and the OFF build are bit-identical (the muxes fold to the original instr-field addressing).
+        --   zcm_rs_sel/addr : steer the rs1 read port (a1) so src_a/rs1_value becomes reg[zcm_rs_addr] (push store data; a0 takes x0, and ret reads x1).
+        --   zcm_rd_sel/addr : steer the write port (a3) so the pop-loaded word or a move result lands in reg[zcm_rd_addr].
         --   zcm_move_sel    : Result = src_a (reg-reg move: cm.mvsa01/mva01s, a0=0).
-        --   zcm_loadwb_sel  : Result = read_data (cm.pop raw loaded word; word
-        --     access, so identical to loadext's funct3=010 passthrough).
+        --   zcm_loadwb_sel  : Result = read_data (cm.pop raw loaded word; word access, so identical to loadext's funct3=010 passthrough).
         zcm_rs_addr  : in  std_logic_vector(4 downto 0) := "00000";
         zcm_rs_sel   : in  std_logic := '0';
         zcm_rd_addr  : in  std_logic_vector(4 downto 0) := "00000";
@@ -110,40 +104,33 @@ entity datapath is
         csr_wdata   : out std_logic_vector(XLEN-1 downto 0);      -- Data to write to CSR
 
         -- ==========================================
-        -- X4 Zfinx FPU control / status (all default inert; the whole FP datapath
-        -- is behind gen_fpu, so an OFF build is bit-identical to base).
+        -- X4 Zfinx FPU control / status, all default inert.
+        -- The whole FP datapath is behind gen_fpu, so an OFF build is bit-identical to base.
         -- ==========================================
         fp_op_latch  : in  std_logic := '0';                   -- EXECUTE-dispatch strobe: latch rs1/rs2
-        fp_fetch3    : in  std_logic := '0';                   -- FPU_FETCH3: steer a2 -> rs3, latch rs3
-        fpu_start    : in  std_logic := '0';                   -- FPU_WAIT: run the multi-cycle unit (§C1)
+        fp_fetch3    : in  std_logic := '0';                   -- FPU_FETCH3: steer a2 to rs3, latch rs3
+        fpu_start    : in  std_logic := '0';                   -- FPU_WAIT: run the multi-cycle unit (section C1)
         frm_value    : in  std_logic_vector(2 downto 0) := "000"; -- current frm (dynamic-rm resolution)
         fpu_done     : out std_logic;                          -- multi-cycle FP complete (like alu_done)
         fp_flags     : out std_logic_vector(4 downto 0);       -- flags of the completing FP op (mc at FPU_DONE / sc in EXECUTE)
 
 
         -- ==========================================
-        -- V1 LOCKSTEP TRACER TAPS (read-only; §2.1/§7-B of
-        -- ~/vesta_docs/lockstep/v1_retire_enumeration.md rev 2)
+        -- V1 LOCKSTEP TRACER TAPS (read-only; sections 2.1 and 7-B of ~/vesta_docs/lockstep/v1_retire_enumeration.md rev 2)
         -- ==========================================
-        -- The regfile's committed MAIN write port has three nets. TWO of them
-        -- are invisible from vesta and are exported here; the THIRD needs no
-        -- port at all, and neither does the sp port -- they are already vesta
-        -- signals wired straight through to the regfile pins with zero
-        -- intervening logic:
-        --     we3      <= reg_write     (datapath INPUT port, driven by
-        --                                vesta's reg_write_dp)
-        --     sp_write <= sp_write_en   (datapath INPUT port)
-        --     sp_in    <= sp_in         (datapath INPUT port, driven by
-        --                                vesta's sp_write_data)
-        -- Exporting those three as outputs as well would be redundant: same
-        -- net, no logic. Hence exactly TWO new ports (Fable's §7-B ruling).
-        -- Both are pure taps on nets that already drive the regfile, so the
-        -- TRACE_ENABLE=false netlist is unchanged (nothing reads them there).
+        -- The regfile's committed MAIN write port has three nets.
+        -- TWO of them are invisible from vesta and are exported here; the THIRD needs no port at all, and neither does the sp port, because those are already vesta signals wired straight through to the regfile pins with zero intervening logic:
+        --     we3      = reg_write     (datapath INPUT port, driven by vesta's reg_write_dp)
+        --     sp_write = sp_write_en   (datapath INPUT port)
+        --     sp_in    = sp_in         (datapath INPUT port, driven by vesta's sp_write_data)
+        -- Exporting those three as outputs as well would be redundant: same net, no logic.
+        -- Hence exactly TWO new ports, per the section 7-B ruling.
+        -- Both are pure taps on nets that already drive the regfile, so the TRACE_ENABLE=false netlist is unchanged (nothing reads them there).
         trc_rd_addr  : out std_logic_vector(4 downto 0);           -- = a3  (rf_a3_addr)
         trc_rd_data  : out std_logic_vector(XLEN-1 downto 0);      -- = wd3 (Result)
 
         -- ==========================================
-        -- Test Output - Stores pass /fail result of instruction tests
+        -- Test output: stores the pass/fail result of instruction tests
         -- ==========================================
         a0           : out std_logic_vector(XLEN-1 downto 0)       -- Register x10 (a0) value for testing
     );
@@ -224,8 +211,8 @@ architecture struct of datapath is
         );
     end component;
 
-    -- X4 Zfinx FP units (interfaces FROZEN by Stage-1 §C2/§C3; Stage-2b
-    -- instantiates them behind gen_fpu; Stage-2a provides the real datapath).
+    -- X4 Zfinx FP units: interfaces FROZEN by Stage-1 sections C2 and C3.
+    -- Stage-2b instantiates them behind gen_fpu; Stage-2a provides the real datapath.
     component fpu
         port (
             clk       : in  std_logic;
@@ -280,14 +267,9 @@ architecture struct of datapath is
     signal amo_read_data_reg  : std_logic_vector(XLEN-1 downto 0);  -- Saved read data for AMO
     signal amo_rs2_reg        : std_logic_vector(XLEN-1 downto 0);  -- X2 Zabha F2: latched rs2 (alias-proof AMO compute operand)
     -- X2 Zacas: the compare value is the ORIGINAL rd (rd is a SOURCE for CAS).
-    -- rd is clobbered with the old memory value at the AMO_WRITEBACK edge, so the
-    -- compare value must be captured no later than that edge from a NON-clobbered
-    -- regfile read. amo_cmp_reg latches rf[rd] via the rs2 read port, steered to
-    -- the rd index during AMO_WRITEBACK (amo_phase="110"); the same edge writes rd,
-    -- and the async read presents the PRE-write value to the latch (standard
-    -- synchronous capture). cas_match_reg is the phase-independent compare verdict,
-    -- latched at AMO_COMPUTE from two registered operands (no phase-dependent
-    -- compare).
+    -- rd is clobbered with the old memory value at the AMO_WRITEBACK edge, so the compare value must be captured no later than that edge from a NON-clobbered regfile read.
+    -- amo_cmp_reg latches rf[rd] via the rs2 read port, steered to the rd index during AMO_WRITEBACK (amo_phase="110"); the same edge writes rd, and the async read presents the PRE-write value to the latch (standard synchronous capture).
+    -- cas_match_reg is the phase-independent compare verdict, latched at AMO_COMPUTE from two registered operands (no phase-dependent compare).
     signal amo_cmp_reg        : std_logic_vector(XLEN-1 downto 0);  -- X2 Zacas: latched original rd (compare value)
     signal amo_cmp_ext        : std_logic_vector(XLEN-1 downto 0);  -- X2 Zacas: amo_cmp_reg sign-extended to the AMO width
     signal cas_match_comb     : std_logic;                      -- X2 Zacas: combinational compare of two registered operands
@@ -298,11 +280,9 @@ architecture struct of datapath is
 
     signal rd_amo            : std_logic_vector(XLEN-1 downto 0);  -- Data read during AMO operations
 
-    -- X4 Zfinx FP signals. The registered operand copies are the ONLY thing the
-    -- multi-cycle unit consumes across FPU_WAIT (regfile-port audit): rs1/rs2
-    -- latched at EXECUTE dispatch (pre-writeback), rs3 latched in FPU_FETCH3 from
-    -- the steered rs2 read port. Declared at architecture level so the Result mux
-    -- can reference them; driven in gen_fpu, tied to 0 in gen_no_fpu.
+    -- X4 Zfinx FP signals.
+    -- The registered operand copies are the ONLY thing the multi-cycle unit consumes across FPU_WAIT (regfile-port audit): rs1/rs2 latched at EXECUTE dispatch (pre-writeback), rs3 latched in FPU_FETCH3 from the steered rs2 read port.
+    -- Declared at architecture level so the Result mux can reference them; driven in gen_fpu, tied to 0 in gen_no_fpu.
     signal fp_rs1_reg   : std_logic_vector(31 downto 0);
     signal fp_rs2_reg   : std_logic_vector(31 downto 0);
     signal fp_rs3_reg   : std_logic_vector(31 downto 0);
@@ -320,7 +300,7 @@ begin
     -- ==========================================
     -- AMO Data Registers
     -- ==========================================
-    -- Save address and read data during AMO operations
+    -- Save address, memory data and the CAS operands across the AMO phases.
     amo_reg_proc: process(clk, resetn)
     begin
         if resetn = '0' then
@@ -337,62 +317,54 @@ begin
                 amo_rs2_reg <= write_data_reg_val;  -- X2 F2: latch original rs2 (alias-proof)
             end if;
 
-            -- X2 Zacas: capture the ORIGINAL rd (compare value) at the AMO_WRITEBACK
-            -- edge, one edge before it is consumed in AMO_COMPUTE. The rs2 read port
-            -- is steered to the rd index this cycle (rf_a2_addr), so write_data_reg_val
-            -- = rf[rd]; the async read is the PRE-write value even though rd is written
-            -- on this same edge. amo_rs2_reg (the swap value) was already latched at
-            -- AMO_READ from the un-steered port, so both operands are alias-proof.
+            -- X2 Zacas: capture the ORIGINAL rd (compare value) at the AMO_WRITEBACK edge, one edge before it is consumed in AMO_COMPUTE.
+            -- The rs2 read port is steered to the rd index this cycle (rf_a2_addr), so write_data_reg_val is rf[rd]; the async read is the PRE-write value even though rd is written on this same edge.
+            -- amo_rs2_reg (the swap value) was already latched at AMO_READ from the un-steered port, so both operands are alias-proof.
             if amo_phase = "110" and cas_op = '1' then  -- AMO_WRITEBACK, CAS only
                 amo_cmp_reg <= write_data_reg_val;
             end if;
 
-            -- X2 Zacas: register the compare verdict at AMO_COMPUTE so it is stable
-            -- and phase-independent when it gates the write in AMO_WRITE. Both compare
-            -- inputs (rd_amo, amo_cmp_ext) are registered signals.
+            -- X2 Zacas: register the compare verdict at AMO_COMPUTE so it is stable and phase-independent when it gates the write in AMO_WRITE.
+            -- Both compare inputs (rd_amo, amo_cmp_ext) are registered signals.
             if amo_phase = "010" and cas_op = '1' then  -- AMO_COMPUTE, CAS only
                 cas_match_reg <= cas_match_comb;
             end if;
 
-            rd_amo <= Result; -- clock cycle delayed version of Result for AMO COMPUTE
+            rd_amo <= Result; -- Result delayed one clock cycle, consumed by AMO_COMPUTE
         end if;
 
     end process;
 
-    -- X2 Zabha F1: alias-proof byte-lane select source (registered at AMO_READ,
-    -- one cycle before the AMO_WRITEBACK rd write, so a rd==rs1 AMO cannot corrupt it).
+    -- X2 Zabha F1: alias-proof byte-lane select source, registered at AMO_READ one cycle before the AMO_WRITEBACK rd write, so a rd==rs1 AMO cannot corrupt it.
     amo_addr_low <= amo_addr_reg(1 downto 0);
 
-    -- X2 Zacas: rs2 read-port address. Normally rs2 (instr[24:20]); steered to the
-    -- rd index (instr[11:7]) ONLY during the CAS AMO_WRITEBACK cycle so amo_cmp_reg
-    -- can capture the original rd (the compare value) before rd is overwritten. All
-    -- other cycles (and every non-CAS AMO) keep rs2 -- bit-identical to pre-X2.
-    -- X4 Zfinx: during FPU_FETCH3 steer the rs2 read port to the FMA rs3 index
-    -- (instr[31:27]) so fp_rs3_reg captures reg[rs3] with NO third read port
-    -- (the Zacas rf_a2_addr idiom). ENABLE_ZFINX-gated -> folds away in OFF.
+    -- X2 Zacas: rs2 read-port address, normally rs2 (instr[24:20]).
+    -- Steered to the rd index (instr[11:7]) ONLY during the CAS AMO_WRITEBACK cycle so amo_cmp_reg can capture the original rd (the compare value) before rd is overwritten.
+    -- All other cycles, and every non-CAS AMO, keep rs2: bit-identical to pre-X2.
+    -- X4 Zfinx: during FPU_FETCH3 steer the rs2 read port to the FMA rs3 index (instr[31:27]) so fp_rs3_reg captures reg[rs3] with NO third read port (the Zacas rf_a2_addr idiom).
+    -- ENABLE_ZFINX-gated, so it folds away in the OFF build.
     rf_a2_addr <= instr(31 downto 27) when (ENABLE_ZFINX and fp_fetch3 = '1') else
                   instr(11 downto 7)  when (cas_op = '1' and amo_phase = "110") else
                   instr(24 downto 20);
 
-    -- X2 Zacas: sign-extend the captured compare value to the AMO width, matching
-    -- the sign-extended old sub-word that loadext places on rd_amo. Equality is
-    -- extension-invariant; sign-extending BOTH sides keeps the compare consistent
-    -- (word CAS keeps the full 32-bit value).
+    -- X2 Zacas: sign-extend the captured compare value to the AMO width, matching the sign-extended old sub-word that loadext places on rd_amo.
+    -- Equality is extension-invariant, so sign-extending BOTH sides keeps the compare consistent (word CAS keeps the full 32-bit value).
     amo_cmp_ext <= (31 downto 8 => amo_cmp_reg(7)) & amo_cmp_reg(7 downto 0)   when funct3 = "000" else
                    (31 downto 16 => amo_cmp_reg(15)) & amo_cmp_reg(15 downto 0) when funct3 = "001" else
                    amo_cmp_reg;
 
-    -- X2 Zacas: the compare. rd_amo carries the old memory value (sign-extended to
-    -- the sub-word width by loadext) during AMO_COMPUTE; amo_cmp_ext is the original
-    -- rd extended the same way. Both are REGISTERED (no phase-dependent compare).
+    -- X2 Zacas: the compare itself.
+    -- rd_amo carries the old memory value (sign-extended to the sub-word width by loadext) during AMO_COMPUTE; amo_cmp_ext is the original rd extended the same way.
+    -- Both are REGISTERED, so there is no phase-dependent compare.
     cas_match_comb <= '1' when rd_amo = amo_cmp_ext else '0';
 
     -- X2 Zacas: export the registered verdict to vesta for the amo_wen gating.
     cas_match <= cas_match_reg;
 
     -- ==========================================
-    -- CSR Data - TODO: This can be better abstracted !
+    -- CSR write data. TODO: this could be better abstracted.
     -- ==========================================
+    -- CSRxI forms take the zero-extended 5-bit uimm from instr[19:15]; the register forms take rs1.
     csr_wdata <= (XLEN-1 downto 5 => '0') & instr(19 downto 15) when (csr_valid = '1' and funct3(2) = '1') else
                 src_a;  -- rs1 value       
     
@@ -410,22 +382,20 @@ begin
     -- ==========================================
     -- Register File Instance
     -- ==========================================
-    -- 32 general-purpose registers with special stack pointer handling
-    -- X3 Zcmp: steer the rs1 read port (a1) and the write port (a3) to the
-    -- sequencer's REGISTERED reg index during a push/pop/move step; otherwise the
-    -- normal instruction-field addressing (both selects fold to constant '0' when
-    -- the Zcm generics are off, so this is bit-identical to the base there).
+    -- 32 general-purpose registers with special stack pointer handling.
+    -- X3 Zcmp: steer the rs1 read port (a1) and the write port (a3) to the sequencer's REGISTERED reg index during a push/pop/move step, otherwise use the normal instruction-field addressing.
+    -- Both selects fold to constant '0' when the Zcm generics are off, so this is bit-identical to the base there.
     rf_a1_addr <= zcm_rs_addr when zcm_rs_sel = '1' else instr(19 downto 15);
     rf_a3_addr <= zcm_rd_addr when zcm_rd_sel = '1' else instr(11 downto 7);
 
-    -- V1 lockstep tracer taps: the two committed-write-port nets that are not
-    -- visible from vesta (see the port-list comment). READ-ONLY -- these drive
-    -- nothing inside datapath and add no logic. Behind a generate so an OFF
-    -- build carries not even the tap (invariant 2: identical by construction).
+    -- V1 lockstep tracer taps: the two committed-write-port nets that are not visible from vesta (see the port-list comment).
+    -- READ-ONLY: these drive nothing inside datapath and add no logic.
+    -- Behind a generate so an OFF build carries not even the tap (invariant 2: identical by construction).
     gen_trc: if TRACE_ENABLE generate
         trc_rd_addr <= rf_a3_addr;
         trc_rd_data <= Result;
     end generate;
+    -- Tracer OFF: drive the taps to zero so the ports are never left dangling.
     gen_trc_off: if not TRACE_ENABLE generate
         trc_rd_addr <= (others => '0');
         trc_rd_data <= (others => '0');
@@ -476,13 +446,10 @@ begin
              amo_addr_reg    when amo_phase = "011" else  -- AMO_WRITE: use saved address
              src_a;
 
-    -- ALU input B selection based on AMO phase
-    -- X2 Zabha: sign-extend rs2 low byte/half for sub-word AMO compute so the
-    -- ALU min/max compares (and add/logical, truncated on write) see the sub-
-    -- word operand, not the full register. Sign-extension also serves the
-    -- unsigned min/max forms: sext is monotonic in the unsigned sub-word value,
-    -- so unsigned(sext(x)) ordering == unsigned(x) ordering. Word AMOs and every
-    -- non-AMO op keep the full register (bit-identical).
+    -- ALU input B selection based on AMO phase.
+    -- X2 Zabha: sign-extend rs2 low byte/half for sub-word AMO compute so the ALU min/max compares (and add/logical, truncated on write) see the sub-word operand, not the full register.
+    -- Sign-extension also serves the unsigned min/max forms: sext is monotonic in the unsigned sub-word value, so unsigned(sext(x)) ordering == unsigned(x) ordering.
+    -- Word AMOs and every non-AMO op keep the full register (bit-identical).
     amo_b_ext <= (31 downto 8 => amo_rs2_reg(7)) & amo_rs2_reg(7 downto 0)   when funct3 = "000" else
                  (31 downto 16 => amo_rs2_reg(15)) & amo_rs2_reg(15 downto 0) when funct3 = "001" else
                  amo_rs2_reg;
@@ -527,25 +494,19 @@ begin
     -- Output ALU result
     ALU_result <= ALU_result_internal;
 
-    -- M4b: rs1 straight from the regfile — the SC/LR address WITHOUT the
-    -- amo_phase-dependent ALU_B mux (ALU_result = rs1 + 0/1 during SC_CHECK
-    -- depending on the pass/fail phase, so comparing reservation_addr against
-    -- ALU_result there forms a combinational loop with two stable solutions).
+    -- M4b: rs1 straight from the regfile, the SC/LR address WITHOUT the amo_phase-dependent ALU_B mux.
+    -- ALU_result is rs1 + 0/1 during SC_CHECK depending on the pass/fail phase, so comparing reservation_addr against ALU_result there forms a combinational loop with two stable solutions.
     rs1_value <= src_a;
 
     -- ==========================================
     -- Result Source Multiplexer
     -- ==========================================
-    -- Select the final result to write back to register file
-    -- For SC, need to write success (0) or failure (1) based on reservation check
-    -- X3 Zcmp/Zcmt sequencer write sources (highest priority; both selects fold to
-    -- '0' when the generics are off, leaving the base result mux untouched):
-    --   zcm_move_sel   : reg-reg move (cm.mvsa01/mva01s) and popretz a0=0 (src=x0);
-    --                    src_a = reg[steered a1] (or 0 when a1 steered to x0).
-    --   zcm_loadwb_sel : cm.pop loaded word, raw from memory (word access, so
-    --                    equal to loadext funct3=010 -- avoids the sentinel's
-    --                    funct3 mis-selecting a sub-word extension).
-    Result <= src_a               when zcm_move_sel   = '1' else  -- X3 Zcmp reg-reg move / a0<-x0
+    -- Select the final result to write back to the register file.
+    -- For SC, write success (0) or failure (1) based on the reservation check.
+    -- X3 Zcmp/Zcmt sequencer write sources take highest priority; both selects fold to '0' when the generics are off, leaving the base result mux untouched.
+    --   zcm_move_sel   : reg-reg move (cm.mvsa01/mva01s) and popretz a0=0 (src=x0); src_a is reg[steered a1], or 0 when a1 is steered to x0.
+    --   zcm_loadwb_sel : cm.pop loaded word, raw from memory (word access, so equal to loadext funct3=010, which avoids the sentinel's funct3 mis-selecting a sub-word extension).
+    Result <= src_a               when zcm_move_sel   = '1' else  -- X3 Zcmp reg-reg move, a0 takes x0
               read_data           when zcm_loadwb_sel = '1' else  -- X3 Zcmp pop: raw loaded word
               ALU_result_internal when result_Src = "000" else  -- ALU operation result
             extended_data       when result_Src = "001" else  -- Load from memory
@@ -581,14 +542,14 @@ begin
         );
 
     -- ==========================================
-    -- X4 Zfinx FP datapath (behind gen_fpu -> 100% pruned in the OFF build)
+    -- X4 Zfinx FP datapath, behind gen_fpu so it is 100% pruned in the OFF build
     -- ==========================================
     gen_fpu: if ENABLE_ZFINX generate
         -- Effective rounding mode: instruction rm, or frm when rm=111 (dynamic).
         eff_rm <= frm_value when instr(14 downto 12) = FRM_DYN else instr(14 downto 12);
 
-        -- Multi-cycle op decode (fp_op[3:0], constants FPOP_*). imm12-equivalent
-        -- rs2 field = instr[24:20]; funct7 = instr[31:25].
+        -- Multi-cycle op decode (fp_op[3:0], constants FPOP_*).
+        -- imm12-equivalent rs2 field is instr[24:20]; funct7 is instr[31:25].
         fp_op <= FPOP_FADD     when (instr(6 downto 0) = OPFP_OPCODE and instr(31 downto 25) = FADD_FN7) else
                  FPOP_FSUB     when (instr(6 downto 0) = OPFP_OPCODE and instr(31 downto 25) = FSUB_FN7) else
                  FPOP_FMUL     when (instr(6 downto 0) = OPFP_OPCODE and instr(31 downto 25) = FMUL_FN7) else
@@ -616,10 +577,9 @@ begin
                    FPSOP_FCLASS when (instr(31 downto 25) = FCLASS_FN7  and instr(14 downto 12) = "001") else
                    FPSOP_FSGNJ;
 
-        -- Operand latches. rs1/rs2 captured at the EXECUTE dispatch edge from the
-        -- live read ports (src_a=rd1, write_data_reg_val=rd2), consumed pre-
-        -- writeback that cycle; rs3 captured in FPU_FETCH3 from the rs2 port
-        -- steered to instr[31:27]. NOTHING reads a live port across FPU_WAIT.
+        -- Operand latches.
+        -- rs1/rs2 are captured at the EXECUTE dispatch edge from the live read ports (src_a=rd1, write_data_reg_val=rd2) and consumed pre-writeback that cycle; rs3 is captured in FPU_FETCH3 from the rs2 port steered to instr[31:27].
+        -- NOTHING reads a live port across FPU_WAIT.
         fp_lat_proc: process(clk, resetn)
         begin
             if resetn = '0' then
@@ -664,6 +624,7 @@ begin
             );
     end generate;
 
+    -- Zfinx OFF: tie every FP signal inert so the Result mux and the status outputs fold away.
     gen_no_fpu: if not ENABLE_ZFINX generate
         fp_op        <= (others => '0');
         fp_s_op      <= (others => '0');
@@ -678,10 +639,9 @@ begin
         fpu_done_i   <= '0';
     end generate;
 
-    -- FP status to vesta. fpu_done paces the FPU_WAIT->FPU_DONE transition. The
-    -- flag bus presents the single-cycle op's flags when a single-cycle FP op is
-    -- retiring (result_Src=110), else the multi-cycle op's flags (valid at
-    -- FPU_DONE, result_Src=111); vesta's fp_flags_we picks the commit cycle.
+    -- FP status to vesta.
+    -- fpu_done paces the FPU_WAIT to FPU_DONE transition.
+    -- The flag bus presents the single-cycle op's flags when a single-cycle FP op is retiring (result_Src=110), else the multi-cycle op's flags (valid at FPU_DONE, result_Src=111); vesta's fp_flags_we picks the commit cycle.
     fpu_done <= fpu_done_i;
     fp_flags <= fp_s_flags when result_Src = RSRC_FP_SINGLE else fp_flags_mc;
 

@@ -1,10 +1,8 @@
 -- =============================================================================
--- fpu.vhd  (X4 Zfinx, Stage 2a)  -- iterative multi-cycle single-precision FPU
+-- fpu.vhd  (X4 Zfinx, Stage 2a): iterative multi-cycle single-precision FPU
 -- =============================================================================
--- Shared FMA-based backend (fadd/fsub/fmul + fmadd/fmsub/fnmsub/fnmadd), a
--- separate radix-2 iterative div/sqrt engine, and unpack-only fcvt, all feeding
--- ONE shared normalize+round back-end (single rounding, G/R/S, all 5 modes,
--- full subnormal support both directions, UF = tininess-after-rounding AND NX).
+-- Shared FMA-based backend (fadd/fsub/fmul + fmadd/fmsub/fnmsub/fnmadd), a separate radix-2 iterative div/sqrt engine, and unpack-only fcvt, all feeding ONE shared normalize+round back-end.
+-- That back-end does single rounding, G/R/S, all 5 modes, full subnormal support in both directions, and UF = tininess-after-rounding AND NX.
 --
 -- Interface is EXACT per proposal section 7 + corrections C1/C3:
 --   fp_op[3:0] : 0 FADD 1 FSUB 2 FMUL 3 FDIV 4 FSQRT 5 FMADD 6 FMSUB
@@ -14,15 +12,14 @@
 --   fp_flags   : {NV,DZ,OF,UF,NX}
 --
 -- BUG-CLASS COMPLIANCE (proposal section 10):
---   Operands fp_a/fp_b/fp_c are LATCHED into a_lat/b_lat/c_lat at the start edge
---   (div.vhd start_reg idiom) and the whole run consumes ONLY those registered
---   copies -- never a live port mid-run (the base div.vhd live-port anti-pattern
---   is NOT transcribed). fpu_done + result/flags hold stable until the next start.
+--   Operands fp_a/fp_b/fp_c are LATCHED into a_lat/b_lat/c_lat at the start edge (div.vhd start_reg idiom) and the whole run consumes ONLY those registered copies, never a live port mid-run.
+--   The base div.vhd live-port anti-pattern is NOT transcribed here.
+--   fpu_done + result/flags hold stable until the next start.
 --
 -- FMA math: full 48-bit product, wide (128-bit) aligner/accumulator, ONE round.
--- Div/sqrt: <=1 radix-2 step per cycle (no combinational division).
--- Registered stage boundaries: unpack | product | align-add | normalize | round
--- (no unpack->mul->align->normalize->round comb chain).  Compile: -V200X.
+-- Div/sqrt: at most one radix-2 step per cycle (no combinational division).
+-- Registered stage boundaries: unpack | product | align-add | normalize | round, so there is no combinational chain running from unpack through mul, align, normalize and round.
+-- Compile: -V200X.
 -- =============================================================================
 library IEEE;
 use IEEE.STD_LOGIC_1164.all;
@@ -65,8 +62,8 @@ architecture rtl of fpu is
 
     subtype  exp_t is integer range -8192 to 8192;
 
-    -- unpacked / normalized operand:  value = (mant/2^23) * 2^exp  (mant bit23=1
-    -- for nonzero finite; subnormals pre-normalized).  class flags exclusive.
+    -- unpacked / normalized operand: value = (mant/2^23) * 2^exp, with mant bit23=1 for nonzero finites and subnormals pre-normalized.
+    -- The class flags are mutually exclusive.
     type unpacked_t is record
         sign    : std_logic;
         exp     : exp_t;
@@ -165,8 +162,7 @@ architecture rtl of fpu is
         return n;
     end function;
 
-    -- shared normalize+round back-end (single rounding, all 5 modes, subnormals,
-    -- overflow-per-mode, UF = tiny-after-rounding AND inexact).
+    -- shared normalize+round back-end: single rounding, all 5 modes, subnormals, overflow-per-mode, UF = tiny-after-rounding AND inexact.
     function round_pack(sign : std_logic; exp_unb : exp_t; sig : unsigned(47 downto 0);
                         sticky_in : std_logic; rm : std_logic_vector(2 downto 0))
         return round_out_t is
@@ -226,9 +222,9 @@ architecture rtl of fpu is
             be := 1;
         end if;
 
-        if be >= 255 then                 -- overflow -> inf/max per mode
+        if be >= 255 then                 -- overflow: inf or max, per mode
             case rm is
-                when "001" =>                                    -- RTZ -> max
+                when "001" =>                                    -- RTZ gives max
                     r.packed := sign & "11111110" & "11111111111111111111111";
                 when "010" =>                                    -- RDN
                     if sign = '1' then
@@ -242,7 +238,7 @@ architecture rtl of fpu is
                     else
                         r.packed := sign & "11111110" & "11111111111111111111111";
                     end if;
-                when others =>                                   -- RNE, RMM -> inf
+                when others =>                                   -- RNE, RMM give inf
                     r.packed := sign & "11111111" & "00000000000000000000000";
             end case;
             r.of_f := '1';
@@ -303,11 +299,9 @@ architecture rtl of fpu is
 
     constant NQ  : integer := 27;                  -- div quotient bits / iterations
     constant SQS : integer := 14;                  -- sqrt guard bits
-    constant SQIT: integer := 28;                  -- sqrt iterations (2 rad bits each,
-                                                   -- full 56-bit radicand = 28 pairs)
+    constant SQIT: integer := 28;                  -- sqrt iterations: 2 radicand bits each, so the full 56-bit radicand is 28 pairs
 
-    -- unsigned range bounds (VHDL integer is 32-bit signed; 2^31 and 2^32-1
-    -- overflow an integer literal, so build them as unsigned constants)
+    -- unsigned range bounds: VHDL integer is 32-bit signed, so 2^31 and 2^32-1 overflow an integer literal and are built as unsigned constants instead
     constant BND_2P31M1 : unsigned(63 downto 0) := x"000000007FFFFFFF";  -- 2^31-1
     constant BND_2P31   : unsigned(63 downto 0) := x"0000000080000000";  -- 2^31
     constant BND_2P32M1 : unsigned(63 downto 0) := x"00000000FFFFFFFF";  -- 2^32-1
@@ -366,8 +360,7 @@ begin
         variable msb    : integer;
         variable sgnbit : std_logic;
 
-        -- helper: place a 48-bit value at bit position pos in 128-bit acc,
-        -- capturing bits shifted below bit0 as a sticky.
+        -- helper: place a 48-bit value at bit position pos in the 128-bit accumulator, capturing bits shifted below bit0 as a sticky.
         procedure place48(v : in unsigned(47 downto 0); pos : in integer;
                           placed : out unsigned(127 downto 0); lost : out std_logic) is
             variable kk : integer;
@@ -400,6 +393,7 @@ begin
             case state is
 
                 -- ---------------------------------------------------------
+                -- wait for a start pulse, then latch operands, op and rm for the whole run
                 when S_IDLE =>
                     if fpu_start = '1' and start_reg = '0' then
                         a_lat  <= fp_a;
@@ -474,14 +468,12 @@ begin
                             elsif m1.is_zero or m2.is_zero then         -- product = zero(ps)
                                 spec := true;
                                 if op_lat = OP_FMUL then
-                                    -- fmul: sign of a zero product is purely the
-                                    -- product sign (the injected +0 addend must
-                                    -- NOT trigger the sum-of-zeros rule)
+                                    -- fmul: the sign of a zero product is purely the product sign, since the injected +0 addend must NOT trigger the sum-of-zeros rule
                                     sres := ps & "0000000000000000000000000000000";
                                 elsif ad.is_zero then
                                     if ps = as then
                                         zsgn := ps;
-                                    elsif rm_lat = "010" then           -- RDN -> -0
+                                    elsif rm_lat = "010" then           -- RDN gives -0
                                         zsgn := '1';
                                     else
                                         zsgn := '0';
@@ -529,9 +521,7 @@ begin
                                 done_r   <= '1';
                                 state <= S_DONE;
                             else
-                                -- reduce initial remainder below the divisor and
-                                -- seed the quotient integer bit, so the loop keeps
-                                -- rem < divisor (restoring-division invariant).
+                                -- reduce the initial remainder below the divisor and seed the quotient integer bit, so the loop keeps rem < divisor (restoring-division invariant).
                                 if ua.mant >= ub.mant then
                                     drem_r  <= resize(ua.mant - ub.mant, 27);
                                     dquot_r <= to_unsigned(1, 32);
@@ -584,6 +574,7 @@ begin
                         when OP_FCVT_W_S | OP_FCVT_WU_S | OP_FCVT_S_W | OP_FCVT_S_WU =>
                             state <= S_CVT;
 
+                        -- unrecognised opcode: return zero with no flags rather than hang
                         when others =>
                             result_r <= (others => '0'); flags_r <= (others => '0');
                             done_r   <= '1';
@@ -642,7 +633,7 @@ begin
                         is_zero_res := (accv = 0) and (stpre = '0');
                     end if;
 
-                    -- exact-cancellation zero sign: +0 except RDN -> -0
+                    -- exact-cancellation zero sign: +0, except under RDN where it is -0
                     if rm_lat = "010" then zsgn := '1'; else zsgn := '0'; end if;
 
                     acc_r     <= accv;
@@ -744,7 +735,7 @@ begin
                     start_reg <= fpu_start;
                     sflags := (others => '0');
                     if op_lat = OP_FCVT_S_W or op_lat = OP_FCVT_S_WU then
-                        ---------------------------------------------- int -> float
+                        ---------------------------------------------- int to float
                         signed_in := (op_lat = OP_FCVT_S_W);
                         neg := signed_in and (a_lat(31) = '1');
                         if neg then
@@ -773,7 +764,7 @@ begin
                             state    <= S_DONE;
                         end if;
                     else
-                        ---------------------------------------------- float -> int
+                        ---------------------------------------------- float to int
                         signed_in := (op_lat = OP_FCVT_W_S);
                         uc := unpack(a_lat);
                         if uc.is_nan then
@@ -798,14 +789,13 @@ begin
                                 if uc.exp - 23 <= 40 then
                                     mag64 := resize(shift_left(resize(uc.mant, 64), uc.exp - 23), 64);
                                 else
-                                    mag64 := (others => '1');   -- huge -> overflow
+                                    mag64 := (others => '1');   -- huge: saturate so the range check below flags overflow
                                 end if;
                             else
                                 shr := 23 - uc.exp;
                                 if shr <= 40 then
                                     mag64 := resize(shift_right(resize(uc.mant, 64), shr), 64);
-                                    -- guard = bit(shr-1) of mant (0 if above the
-                                    -- 24-bit mantissa); sticky = OR of bits below
+                                    -- guard = bit(shr-1) of mant, taken as 0 if that index is above the 24-bit mantissa; sticky = OR of the bits below it
                                     if (shr - 1) <= 23 then
                                         gbit := uc.mant(shr - 1);
                                     else
@@ -822,12 +812,13 @@ begin
                             end if;
                             if (mag64(0) = '1') then lbit := '1'; else lbit := '0'; end if;
                             rup := '0';
+                            -- same rounding decision as round_pack, applied to the integer magnitude
                             case rm_lat is
-                                when "000" => if gbit = '1' and (sbit = '1' or lbit = '1') then rup := '1'; end if;
-                                when "001" => rup := '0';
-                                when "010" => if uc.sign = '1' and (gbit = '1' or sbit = '1') then rup := '1'; end if;
-                                when "011" => if uc.sign = '0' and (gbit = '1' or sbit = '1') then rup := '1'; end if;
-                                when "100" => if gbit = '1' then rup := '1'; end if;
+                                when "000" => if gbit = '1' and (sbit = '1' or lbit = '1') then rup := '1'; end if;   -- RNE
+                                when "001" => rup := '0';                                                            -- RTZ
+                                when "010" => if uc.sign = '1' and (gbit = '1' or sbit = '1') then rup := '1'; end if; -- RDN
+                                when "011" => if uc.sign = '0' and (gbit = '1' or sbit = '1') then rup := '1'; end if; -- RUP
+                                when "100" => if gbit = '1' then rup := '1'; end if;                                 -- RMM
                                 when others => rup := '0';
                             end case;
                             if rup = '1' then mag64 := mag64 + 1; end if;
@@ -853,8 +844,7 @@ begin
                             else
                                 if uc.sign = '1' then
                                     if mag64 = 0 then
-                                        -- negative value rounding to 0: in range,
-                                        -- inexact if the input was nonzero
+                                        -- negative value rounding to 0: in range, inexact if the input was nonzero
                                         result_r <= x"00000000";
                                         flags_r  <= (0 => (gbit or sbit), others => '0');
                                     else
@@ -876,10 +866,12 @@ begin
                     end if;
 
                 -- ---------------------------------------------------------
+                -- one drain cycle: result/flags already hold, so just return to idle
                 when S_DONE =>
                     start_reg <= fpu_start;
                     state <= S_IDLE;
 
+                -- unreachable state encoding: recover to idle
                 when others =>
                     state <= S_IDLE;
             end case;

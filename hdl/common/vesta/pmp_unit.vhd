@@ -1,60 +1,44 @@
 -- =============================================================================
--- pmp_unit.vhd  (P3 — RISC-V physical memory protection, Smpmp)
+-- pmp_unit.vhd  (P3: RISC-V physical memory protection, Smpmp)
 -- =============================================================================
 -- PURE COMBINATIONAL match / priority / permission decode for the PMP bank.
--- No clock, no reset, no state: the sixteen cfg bytes and sixteen 30-bit
--- addresses arrive flattened from csr_unit (which owns the STORAGE, WARL and
--- LOCK semantics), and this file answers exactly two questions per cycle —
--- "may this fetch address be executed?" and "may this data address be
--- read/written?" — at the privilege each access is checked with.
+-- No clock, no reset, no state: the sixteen cfg bytes and sixteen 30-bit addresses arrive flattened from csr_unit, which owns the STORAGE, WARL and LOCK semantics.
+-- This file answers exactly two questions per cycle, at the privilege each access is checked with: "may this fetch address be executed?" and "may this data address be read or written?".
 --
--- Ports, generics and semantics are FROZEN by
--- ~/vesta_docs/priv_arch/p0_specs.md 4.1. The three-way split is:
---   csr_unit  : pmpcfg0-3 / pmpaddr0-15 storage + WARL + lock (Agent A)
---   pmp_unit  : THIS FILE — match, priority, permission (Agent A)
---   vesta     : the D5 strict-pre-issue check points, fault causes 1/5/7,
---               and the "a denied access issues NO transaction" guarantee
---               (Agent B). vesta instantiates this unit inside
---               `gen_pmp: if ENABLE_PMP generate` and ties both grants to '1'
---               in the else branch, so an OFF build's netlist folds to today's.
+-- Ports, generics and semantics are FROZEN by ~/vesta_docs/priv_arch/p0_specs.md 4.1.
+-- The three-way split is:
+--   csr_unit  : pmpcfg0-3 / pmpaddr0-15 storage, WARL and lock (Agent A)
+--   pmp_unit  : THIS FILE, match, priority, permission (Agent A)
+--   vesta     : the D5 strict-pre-issue check points, fault causes 1/5/7, and the "a denied access issues NO transaction" guarantee (Agent B).
+--               vesta instantiates this unit inside `gen_pmp: if ENABLE_PMP generate` and ties both grants to '1' in the else branch, so an OFF build's netlist folds to today's.
 --
 -- DECODE RULES (p0_specs.md 4.1, spec-collapsed under this core's alignment):
---   * GRANULARITY. Every access this core makes is <= 4 B and never crosses a
---     word boundary (loadext / store-lane construction), and every PMP region
---     boundary is word-aligned (pmpaddr encodes address bits 31:2; NA4 is the
---     G=0 minimum). The spec's byte-span rule therefore collapses to: an access
---     matches iff its WORD ADDRESS (addr 31:2) lies in the region.
+--   * GRANULARITY. Every access this core makes is 4 bytes or fewer and never crosses a word boundary (loadext and store-lane construction), and every PMP region boundary is word-aligned (pmpaddr encodes address bits 31:2, and NA4 is the G=0 minimum).
+--     The spec's byte-span rule therefore collapses to: an access matches iff its WORD ADDRESS (addr 31:2) lies in the region.
 --   * A = OFF   : never matches.
---   * A = TOR   : pmpaddr[i-1] <= a < pmpaddr[i]. Entry 0's lower bound is 0.
---                 The LIVE pmpaddr[i-1] VALUE is used even when entry i-1 is
---                 OFF (spec rule — the predecessor's A field is irrelevant).
---                 An empty/inverted range (hi <= lo) matches nothing.
---   * A = NA4   : a = pmpaddr[i].
---   * A = NAPOT : mask taken from the LOWEST CLEAR BIT of pmpaddr[i]; an
---                 all-ones pmpaddr is the whole address space.
---   * PRIORITY  : the LOWEST-NUMBERED matching entry decides ALONE — a
---                 higher-numbered entry never rescues a denial and never
---                 revokes a grant. (Negative control: priority inverted.)
---   * MATCHED   : privilege M with L=0 -> grant unconditionally (locked
---                 entries DO enforce on M — that is the whole point of L);
---                 otherwise grant iff every needed permission bit is set.
---   * NO MATCH  : M grants, U denies (the spec rule once PMP is implemented).
+--   * A = TOR   : matches when pmpaddr[i-1] <= a < pmpaddr[i], and entry 0's lower bound is 0.
+--                 The LIVE pmpaddr[i-1] VALUE is used even when entry i-1 is OFF; by spec rule the predecessor's A field is irrelevant.
+--                 An empty or inverted range (hi <= lo) matches nothing.
+--   * A = NA4   : matches when a equals pmpaddr[i].
+--   * A = NAPOT : mask taken from the LOWEST CLEAR BIT of pmpaddr[i], and an all-ones pmpaddr is the whole address space.
+--   * PRIORITY  : the LOWEST-NUMBERED matching entry decides ALONE; a higher-numbered entry never rescues a denial and never revokes a grant.
+--                 Negative control for this rule: priority inverted.
+--   * MATCHED   : privilege M with L=0 grants unconditionally, but locked entries DO enforce on M, which is the whole point of L.
+--                 Otherwise grant iff every needed permission bit is set.
+--   * NO MATCH  : M grants, U denies, the spec rule once PMP is implemented.
 --
 -- The needed permissions are the caller's, not this file's policy:
---   fetch      -> X
---   plain load -> R
---   plain store-> W
---   LR/SC/AMO  -> R and W together (the frozen 4 rule; vesta drives both)
+--   fetch       needs X
+--   plain load  needs R
+--   plain store needs W
+--   LR/SC/AMO   needs R and W together, the frozen 4 rule; vesta drives both
 --
--- ENABLE_PMP = false: BOTH grants are constant '1' (and vesta does not even
--- instantiate the unit) — the OFF polarity is bit-identical to a pre-P3 chip.
--- PMP_ENTRIES < 16: entries at/above the count are never examined; csr_unit
--- also holds their storage at zero, so the fold is doubly safe.
+-- ENABLE_PMP = false: BOTH grants are constant '1' and vesta does not even instantiate the unit, so the OFF polarity is bit-identical to a pre-P3 chip.
+-- PMP_ENTRIES < 16: entries at or above the count are never examined, and csr_unit also holds their storage at zero, so the fold is doubly safe.
 --
 -- Compile is -V200X: VHDL-93 only, no VHDL-2008 constructs anywhere.
 --
--- Unit proof: xcelium/mp_test/run_pmp_unit.sh (drives hdl/common/tb/
--- pmp_unit_tb.vhd against this file alone — no other DUT dependencies).
+-- Unit proof: xcelium/mp_test/run_pmp_unit.sh drives hdl/common/tb/pmp_unit_tb.vhd against this file alone, with no other DUT dependencies.
 -- =============================================================================
 
 library IEEE;
@@ -64,31 +48,29 @@ use work.constants.all;
 
 entity pmp_unit is
     generic (
-        -- Mirrors the csr_unit / vesta generics of the same names. With
-        -- ENABLE_PMP false every output folds to '1' (grant everything).
+        -- Mirrors the csr_unit / vesta generics of the same names.
+        -- With ENABLE_PMP false every output folds to '1', granting everything.
         ENABLE_PMP  : boolean := false;
-        -- {8, 16}. Entries at/above the count never match (their storage is
-        -- held at zero by csr_unit, i.e. A = OFF).
+        -- Legal values are 8 and 16.
+        -- Entries at or above the count never match, because csr_unit holds their storage at zero, i.e. A = OFF.
         PMP_ENTRIES : integer := 16
     );
     port (
         -- The bank, flattened by csr_unit:
         --   entry i cfg byte = pmp_cfg_flat(8*i+7  downto 8*i)
-        --   entry i pmpaddr  = pmp_addr_flat(30*i+29 downto 30*i)  (phys 31:2)
+        --   entry i pmpaddr  = pmp_addr_flat(30*i+29 downto 30*i), physical address bits 31:2
         pmp_cfg_flat  : in  std_logic_vector(127 downto 0);
         pmp_addr_flat : in  std_logic_vector(479 downto 0);
 
         -- Fetch port: X permission at the CURRENT privilege (priv_mode).
-        -- f_addr is the word-aligned address of the instruction-fetch bus
-        -- transaction; a 32-bit instruction straddling two words is two
-        -- separately checked fetches (vesta's concern, not this file's).
+        -- f_addr is the word-aligned address of the instruction-fetch bus transaction.
+        -- A 32-bit instruction straddling two words is two separately checked fetches, which is vesta's concern and not this file's.
         f_addr        : in  std_logic_vector(31 downto 0);
         f_priv_m      : in  std_logic;
         f_grant       : out std_logic;
 
-        -- Data port: R/W permission at the EFFECTIVE DATA privilege
-        -- (csr_unit's data_priv_m — mstatus.MPRV-redirected, so an M-mode
-        -- access with MPRV=1 and MPP=U is checked as U).
+        -- Data port: R/W permission at the EFFECTIVE DATA privilege, csr_unit's data_priv_m.
+        -- That privilege is mstatus.MPRV-redirected, so an M-mode access with MPRV=1 and MPP=U is checked as U.
         d_addr        : in  std_logic_vector(31 downto 0);
         d_priv_m      : in  std_logic;
         d_read        : in  std_logic;
@@ -109,9 +91,8 @@ architecture behave of pmp_unit is
     constant PMP_WORD_ZERO : pmp_word_t := (others => '0');
 
     -- ----------------------------------------------------------------------
-    -- Slice helpers. Written as functions rather than inline slices so every
-    -- index arithmetic appears exactly once (an off-by-one in the flattening
-    -- would silently shift the WHOLE bank and every match with it).
+    -- Slice helpers, written as functions rather than inline slices so every piece of index arithmetic appears exactly once.
+    -- An off-by-one in the flattening would silently shift the WHOLE bank and every match with it.
     -- ----------------------------------------------------------------------
     function cfg_of(flat : std_logic_vector(127 downto 0);
                     i    : integer) return std_logic_vector is
@@ -126,13 +107,11 @@ architecture behave of pmp_unit is
     end function;
 
     -- ----------------------------------------------------------------------
-    -- NAPOT don't-care mask. pmpaddr = y..y 0 1..1 with the lowest CLEAR bit
-    -- at position j; the region compares bits above j and ignores bits j..0.
-    --   P xor (P+1) sets exactly bits j downto 0  (P+1 clears the low run of
-    --   ones and sets bit j), so it IS the don't-care mask.
-    -- All-ones P: P+1 wraps to 0, P xor (P+1) = all ones -> nothing is
-    -- compared -> the region is the entire address space, exactly the frozen
-    -- "all-ones = full span" rule. No special case needed.
+    -- NAPOT don't-care mask.
+    -- pmpaddr has the form y..y 0 1..1 with the lowest CLEAR bit at position j, and the region compares bits above j while ignoring bits j downto 0.
+    -- P xor (P+1) sets exactly bits j downto 0, because P+1 clears the low run of ones and sets bit j, so it IS the don't-care mask.
+    -- For an all-ones P, P+1 wraps to 0 and P xor (P+1) is all ones, so nothing is compared and the region becomes the entire address space, exactly the frozen "all-ones is full span" rule.
+    -- No special case is needed.
     -- ----------------------------------------------------------------------
     function napot_dontcare(p : pmp_word_t) return pmp_word_t is
     begin
@@ -140,9 +119,8 @@ architecture behave of pmp_unit is
     end function;
 
     -- ----------------------------------------------------------------------
-    -- Does entry i match word address `a`? `lo` is the TOR lower bound the
-    -- caller supplies (0 for entry 0, else the LIVE pmpaddr[i-1] regardless of
-    -- entry i-1's A field).
+    -- Does entry i match word address `a`?
+    -- `lo` is the TOR lower bound the caller supplies: 0 for entry 0, otherwise the LIVE pmpaddr[i-1] regardless of entry i-1's A field.
     -- ----------------------------------------------------------------------
     function pmp_match(cfgv : std_logic_vector(7 downto 0);
                        hi   : pmp_word_t;
@@ -151,22 +129,21 @@ architecture behave of pmp_unit is
         variable dc : pmp_word_t;
     begin
         case cfgv(4 downto 3) is
-            when PMP_A_TOR =>
+            when PMP_A_TOR =>       -- Top of range: half-open interval from the predecessor's value.
                 return (a >= lo) and (a < hi);
-            when PMP_A_NA4 =>
+            when PMP_A_NA4 =>       -- Naturally aligned single word.
                 return a = hi;
-            when PMP_A_NAPOT =>
+            when PMP_A_NAPOT =>     -- Power-of-two region: compare only the bits above the don't-care run.
                 dc := napot_dontcare(hi);
                 return ((a xor hi) and (not dc)) = PMP_WORD_ZERO;
-            when others =>          -- PMP_A_OFF: a null region, never matches
+            when others =>          -- PMP_A_OFF: a null region, never matches.
                 return false;
         end case;
     end function;
 
     -- ----------------------------------------------------------------------
-    -- THE check. Walks entries 0..PMP_ENTRIES-1 in order, stops at the FIRST
-    -- match (lowest-numbered wins, alone), and applies the permission rule.
-    -- No match: M grants, U denies.
+    -- THE check: walks entries 0 to PMP_ENTRIES-1 in order, stops at the FIRST match so the lowest-numbered entry decides alone, and applies the permission rule.
+    -- With no match at all, M grants and U denies.
     -- ----------------------------------------------------------------------
     function pmp_check(cfg_flat  : std_logic_vector(127 downto 0);
                        addr_flat : std_logic_vector(479 downto 0);
@@ -193,9 +170,9 @@ architecture behave of pmp_unit is
                 cfgv := cfg_of(cfg_flat, i);
                 hi   := addr_of(addr_flat, i);
                 if i = 0 then
-                    lo := PMP_WORD_ZERO;                 -- entry 0's TOR base is 0
+                    lo := PMP_WORD_ZERO;                 -- Entry 0's TOR base is 0.
                 else
-                    lo := addr_of(addr_flat, i-1);       -- LIVE predecessor value
+                    lo := addr_of(addr_flat, i-1);       -- LIVE predecessor value.
                 end if;
                 if pmp_match(cfgv, hi, lo, a) then
                     hit     := true;
@@ -209,12 +186,12 @@ architecture behave of pmp_unit is
             return priv_m;
         end if;
 
-        -- Matched. An UNLOCKED entry does not constrain M-mode at all; a
-        -- LOCKED entry enforces its R/W/X on M exactly as it does on U.
+        -- Matched: an UNLOCKED entry does not constrain M-mode at all, while a LOCKED entry enforces its R/W/X on M exactly as it does on U.
         if priv_m = '1' and hit_cfg(7) = '0' then
             return '1';
         end if;
 
+        -- Grant only if every permission the caller asked for is present in the matching entry.
         g := '1';
         if need_r = '1' and hit_cfg(0) = '0' then g := '0'; end if;
         if need_w = '1' and hit_cfg(1) = '0' then g := '0'; end if;
@@ -224,14 +201,14 @@ architecture behave of pmp_unit is
 
 begin
 
-    -- Fetch: X permission at priv_mode. With ENABLE_PMP false the condition is
-    -- generic-static, so the whole comparator tree constant-folds away.
+    -- Fetch: X permission at priv_mode.
+    -- With ENABLE_PMP false the condition is generic-static, so the whole comparator tree constant-folds away.
     f_grant <= '1' when not ENABLE_PMP else
                pmp_check(pmp_cfg_flat, pmp_addr_flat, f_addr, f_priv_m,
                          '0', '0', '1', PMP_ENTRIES);
 
-    -- Data: R and/or W at the effective data privilege. vesta drives
-    -- d_read = d_write = '1' for LR/SC/AMO (the frozen R&W rule).
+    -- Data: R and/or W at the effective data privilege.
+    -- vesta drives d_read = d_write = '1' for LR/SC/AMO, the frozen R-and-W rule.
     d_grant <= '1' when not ENABLE_PMP else
                pmp_check(pmp_cfg_flat, pmp_addr_flat, d_addr, d_priv_m,
                          d_read, d_write, '0', PMP_ENTRIES);

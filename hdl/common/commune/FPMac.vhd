@@ -7,14 +7,14 @@ library work;
 -- Synthesizable Fixed Point libraries created by David Bishop for VHDL 2008
 -- User Guide: https://freemodelfoundry.com/fphdl/Fixed_ug.pdf
 -- Repository: https://github.com/FPHDL/fphdl/blob/master/fixed_pkg_c.vhdl / https://github.com/ghdl/ghdl/blob/master/libraries/ieee2008/fixed_generic_pkg-body.vhdl
--- The library files here were pulled from following path: /opt/cadence/XCELIUM2009/tools/xcelium/files/IEEE_PROPOSED.src
+-- The library files here were pulled from /opt/cadence/XCELIUM2009/tools/xcelium/files/IEEE_PROPOSED.src
 use work.fixed_float_types.all;
 use work.fixed_pkg.all;
 
--- Fixed-Point Multiply and Accumulator
+-- Fixed-point multiply and accumulate: Y is the fresh sum YAcc + A*B, YAcc is that sum registered on Clk.
 entity FPMac is
     generic(
-		-- Fixed-Point M and N Bits for inputs and accumulator (product)
+		-- Fixed-point integer (M) and fraction (N) bit counts for the inputs and for the accumulator (the product).
         A_M_BITS		: integer;
         B_M_BITS		: integer;
 		ACC_M_BITS		: integer;
@@ -32,13 +32,13 @@ end FPMac;
 
 architecture behavioral of FPMac is
 	signal YInt			: sfixed(ACC_M_BITS downto (-N_BITS));
-	-- Cannot have register of sfixed type as .sdf file cannot deal with negative indexes.
+	-- The accumulator register is slv, not sfixed: an .sdf file cannot deal with the negative indexes of an sfixed range.
 	signal YAccInt		: std_logic_vector((ACC_M_BITS + N_BITS) downto 0);
 begin
 	----- Combinational Logic -----
-	-- MAC Logic
+	-- MAC logic: multiply A by B, add the held accumulator, resize back to the accumulator format.
 	YInt 	<= resize(((to_sfixed(YAccInt, ACC_M_BITS, -N_BITS)) + (to_sfixed(A, A_M_BITS, -N_BITS) * to_sfixed(B, B_M_BITS, -N_BITS))), YInt'high, YInt'low);
-	-- Tieing internal accumulator outputs to actual outputs
+	-- Drive the ports from the internal nodes: Y is this cycle's sum, YAcc is the value held in the register.
 	Y		<= to_slv(YInt);
 	YAcc <= YAccInt;
 

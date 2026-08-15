@@ -1,16 +1,13 @@
 -------------------------------------------------------------------------------
 -- uart_bfm_pkg.vhd
 -------------------------------------------------------------------------------
--- Bus-functional model for the UART peripheral's pad-level serial lines:
--- capture a frame off the TX pad and drive a frame onto the RX pad. These are
--- the pad-level counterparts to tb/TestbenchLibrary.vhd's UART helpers (which
--- work over the full-MCU external TX/RX with an activity flag); use these when
--- driving the peripheral's TX_OUT / RX_IN directly.
+-- Bus-functional model for the UART peripheral's pad-level serial lines: capture a frame off the TX pad, drive a frame onto the RX pad.
+-- These are the pad-level counterparts to tb/TestbenchLibrary.vhd's UART helpers, which work over the full-MCU external TX/RX with an activity flag.
+-- Use these when driving the peripheral's TX_OUT / RX_IN directly.
 --
--- `bit_period` is one UART bit time (= 16*(BR+1) core clocks for this UART). For
--- drive_rx, `clk` is the core clock the frame is aligned to (start on a falling
--- edge); parity is computed as psel XOR all data bits (corrupt_parity / good_stop
--- inject error conditions).
+-- `bit_period` is one UART bit time, 16*(BR+1) core clocks for this UART.
+-- For drive_rx, `clk` is the core clock the frame is aligned to (the start bit begins on a falling edge).
+-- Parity is computed as psel XOR all data bits; corrupt_parity and good_stop inject error conditions.
 -------------------------------------------------------------------------------
 
 library ieee;
@@ -18,8 +15,8 @@ use ieee.std_logic_1164.all;
 
 package uart_bfm_pkg is
 
-    -- Capture one frame off the TX pad. Self-syncs on the start bit, samples
-    -- each bit at its centre. Works for 8N1 and 8-data+parity.
+    -- Capture one frame off the TX pad.
+    -- Self-syncs on the start bit and samples each bit at its centre; works for 8N1 and 8-data+parity.
     procedure uart_capture_tx(constant bit_period : in  time;
                               signal   tx         : in  std_logic;
                               parity_en : in  boolean;
@@ -50,7 +47,7 @@ package body uart_bfm_pkg is
                               stop_o    : out std_logic) is
         variable d : std_logic_vector(7 downto 0);
     begin
-        wait until tx = '0';                        -- start bit (mark->space)
+        wait until tx = '0';                        -- start bit (mark falls to space)
         wait for bit_period + bit_period / 2;       -- centre of data bit 0
         for i in 0 to 7 loop                        -- LSB first
             d(i) := tx;
@@ -64,8 +61,7 @@ package body uart_bfm_pkg is
         end if;
         stop_o := tx;
         data_o := d;
-        -- Wait past the TX-complete/flag settling (~one bit period after the
-        -- stop bit begins) so a following SR read sees the settled state.
+        -- Wait past the TX-complete flag settling, about one bit period after the stop bit begins, so a following SR read sees the settled state.
         wait for 2 * bit_period;
     end procedure;
 
@@ -79,6 +75,7 @@ package body uart_bfm_pkg is
                             good_stop      : in boolean) is
         variable p : std_logic;
     begin
+        -- Parity bit: the select value XORed with every data bit.
         p := psel;
         for i in 0 to 7 loop
             p := p xor data(i);

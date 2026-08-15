@@ -4,12 +4,12 @@ use work.constants.all;
 
 entity controller is
     generic (
-        -- Core ISA feature switches — passed straight through to maindec.
+        -- Core ISA feature switches, passed straight through to maindec.
         ENABLE_MUL      : boolean := true;
         ENABLE_DIV      : boolean := true;
         ENABLE_ATOMICS  : boolean := true;
         ENABLE_BITMANIP : boolean := true;
-        -- X0 scaffolding: passed straight through to maindec (default false)
+        -- X0 scaffolding, passed straight through to maindec; default false.
         ENABLE_ZICOND   : boolean := false;
         ENABLE_ZIMOP    : boolean := false;
         ENABLE_ZIHINT   : boolean := false;
@@ -24,12 +24,12 @@ entity controller is
         ENABLE_ZBKX     : boolean := false;
         ENABLE_ZKN      : boolean := false;
         ENABLE_ZFINX    : boolean := false;
-        -- P0 privileged-architecture scaffolding: passed straight through to
-        -- maindec (default false; no decode consumes them yet)
-        ENABLE_TRAPCSR  : boolean := false;  -- P1 (trap CSRs + MRET/ECALL/EBREAK/WFI)
-        ENABLE_UMODE    : boolean := false;  -- P2 (U-mode privileged-access gating)
-        ENABLE_PMP      : boolean := false;  -- P3 (PMP/Smpmp)
-        ENABLE_DEBUG    : boolean := false   -- D1 (debug mode: 0x7Bx CSRs + DRET)
+        -- P0 privileged-architecture scaffolding, passed straight through to maindec.
+        -- Default false, and no decode here consumes them directly.
+        ENABLE_TRAPCSR  : boolean := false;  -- P1: trap CSRs plus MRET/ECALL/EBREAK/WFI.
+        ENABLE_UMODE    : boolean := false;  -- P2: U-mode privileged-access gating.
+        ENABLE_PMP      : boolean := false;  -- P3: PMP/Smpmp.
+        ENABLE_DEBUG    : boolean := false   -- D1: debug mode, the 0x7Bx CSRs and DRET.
     );
     port(
         -- ==========================================
@@ -40,109 +40,100 @@ entity controller is
         -- ==========================================
         -- Instruction Fields
         -- ==========================================
-        op               : in  std_logic_vector(6 downto 0);   -- Opcode field
-        funct3           : in  std_logic_vector(2 downto 0);   -- Function field (3-bit)
-        funct7           : in  std_logic_vector(6 downto 0);   -- Function field (7-bit)
-        imm12            : in  std_logic_vector(11 downto 0);  -- Immediate field (12-bit)
-        mask             : in  std_logic_vector(1 downto 0);   -- Address alignment for load/store
+        op               : in  std_logic_vector(6 downto 0);   -- Opcode field.
+        funct3           : in  std_logic_vector(2 downto 0);   -- 3-bit function field.
+        funct7           : in  std_logic_vector(6 downto 0);   -- 7-bit function field.
+        imm12            : in  std_logic_vector(11 downto 0);  -- 12-bit immediate field.
+        mask             : in  std_logic_vector(1 downto 0);   -- Address alignment for load/store.
         
         -- ==========================================
         -- ALU Status Input
         -- ==========================================
-        Zero             : in  std_logic;                      -- ALU zero flag for branches
+        Zero             : in  std_logic;                      -- ALU zero flag, used for branches.
         
         -- ==========================================
         -- Datapath Control Outputs
         -- ==========================================
-        result_src       : out std_logic_vector(2 downto 0);   -- Result source mux control
-        WEN              : out std_logic_vector(XLEN_BYTES-1 downto 0);   -- Memory write enable (byte enables)
-        pc_src           : out std_logic;                      -- PC source selection (sequential/branch)
-        ALU_src          : out std_logic;                      -- ALU source B selection
-        div_op           : out std_logic;                      -- Division operation flag
-        reg_write        : out std_logic;                      -- Register file write enable
-        jump             : out std_logic;                      -- Jump instruction indicator
-        jalr             : out std_logic;                      -- JALR instruction indicator
-        imm_src          : out std_logic_vector(2 downto 0);   -- Immediate type selector
-        alu_control      : out std_logic_vector(6 downto 0);   -- ALU operation selector
-        mem_access_instr : out std_logic;                      -- Memory access instruction flag
+        result_src       : out std_logic_vector(2 downto 0);   -- Result source mux control.
+        WEN              : out std_logic_vector(XLEN_BYTES-1 downto 0);   -- Memory write enables, one per byte lane.
+        pc_src           : out std_logic;                      -- PC source selection: sequential or branch target.
+        ALU_src          : out std_logic;                      -- ALU source B selection.
+        div_op           : out std_logic;                      -- Division operation flag.
+        reg_write        : out std_logic;                      -- Register file write enable.
+        jump             : out std_logic;                      -- Jump instruction indicator.
+        jalr             : out std_logic;                      -- JALR instruction indicator.
+        imm_src          : out std_logic_vector(2 downto 0);   -- Immediate type selector.
+        alu_control      : out std_logic_vector(6 downto 0);   -- ALU operation selector.
+        mem_access_instr : out std_logic;                      -- Memory access instruction flag.
         
         -- ==========================================
         -- Custom Instruction Outputs
         -- ==========================================
-        sleep_rq         : out std_logic;                      -- Sleep request
-        wake_rq          : out std_logic;                      -- Wake request
-        wrs_op           : out std_logic;                      -- X1 Zawrs: wrs.nto/wrs.sto
-        wrs_sto          : out std_logic;                      -- X1 Zawrs: timeout variant
-        isr_ret          : out std_logic;                      -- ISR return instruction
+        sleep_rq         : out std_logic;                      -- Sleep request.
+        wake_rq          : out std_logic;                      -- Wake request.
+        wrs_op           : out std_logic;                      -- X1 Zawrs: wrs.nto or wrs.sto.
+        wrs_sto          : out std_logic;                      -- X1 Zawrs: the timeout variant.
+        isr_ret          : out std_logic;                      -- ISR return instruction.
 
-        -- P1 standard SYSTEM/PRIV decode (all statically '0' unless ENABLE_TRAPCSR)
-        ecall_op         : out std_logic;                      -- ECALL  (SYSTEM f3=000 funct12=0x000)
-        ebreak_op        : out std_logic;                      -- EBREAK (SYSTEM f3=000 funct12=0x001)
-        mret_op          : out std_logic;                      -- MRET   (SYSTEM f3=000 funct12=0x302)
-        wfi_op           : out std_logic;                      -- P2 WFI (SYSTEM f3=000 funct12=0x105)
-        dret_op          : out std_logic;                      -- D1 DRET (SYSTEM f3=000 funct12=0x7B2)
+        -- P1 standard SYSTEM/PRIV decode, all statically '0' unless ENABLE_TRAPCSR.
+        ecall_op         : out std_logic;                      -- ECALL  (SYSTEM f3=000 funct12=0x000).
+        ebreak_op        : out std_logic;                      -- EBREAK (SYSTEM f3=000 funct12=0x001).
+        mret_op          : out std_logic;                      -- MRET   (SYSTEM f3=000 funct12=0x302).
+        wfi_op           : out std_logic;                      -- P2 WFI (SYSTEM f3=000 funct12=0x105).
+        dret_op          : out std_logic;                      -- D1 DRET (SYSTEM f3=000 funct12=0x7B2).
 
-        -- D1 debug-mode decode input, straight through to maindec. Default '0'
-        -- is the RESTRICTIVE direction on purpose (see maindec's port comment):
-        -- an unconnected instantiation is "not in debug mode", so the 0x7Bx
-        -- block stays denied and DRET stays illegal.
+        -- D1 debug-mode decode input, straight through to maindec.
+        -- Default '0' is the RESTRICTIVE direction on purpose (see maindec's port comment): an unconnected instantiation is "not in debug mode", so the 0x7Bx block stays denied and DRET stays illegal.
         debug_mode       : in  std_logic := '0';
 
-        -- P2 U-mode decode inputs, straight through to maindec (inert defaults:
-        -- M-mode / TW=0 / no counter enables — an ENABLE_UMODE=false build and
-        -- any instantiation that leaves them unconnected see today's behaviour)
-        priv_m           : in  std_logic := '1';                        -- '1'=M, '0'=U
-        status_tw        : in  std_logic := '0';                        -- mstatus.TW
-        mcounteren_bits  : in  std_logic_vector(4 downto 0) := "00000"; -- {HPM4,HPM3,IR,TM,CY}
+        -- P2 U-mode decode inputs, straight through to maindec.
+        -- The defaults are inert (M-mode, TW=0, no counter enables), so an ENABLE_UMODE=false build and any instantiation that leaves them unconnected see today's behaviour.
+        priv_m           : in  std_logic := '1';                        -- '1'=M, '0'=U.
+        status_tw        : in  std_logic := '0';                        -- mstatus.TW.
+        mcounteren_bits  : in  std_logic_vector(4 downto 0) := "00000"; -- {HPM4,HPM3,IR,TM,CY}.
 
-        -- F10 (fix pass W4): the CSR instruction's rs1/uimm FIELD is zero, i.e.
-        -- this is a read-only instruction form. Straight through to maindec,
-        -- where it qualifies the read-only-CSR illegal-instruction trap. That
-        -- trap is UNGATED -- it applies in EVERY build, not just knobs-on ones
-        -- -- so this port is load-bearing in the shipping configuration.
-        -- Default '1' (= read-only form) is a FAIL-SAFE, not an identity: an
-        -- unconnected instantiation traps nothing, rather than trapping every
-        -- read of a read-only CSR. It does not preserve pre-fix behaviour.
+        -- F10 (fix pass W4): the CSR instruction's rs1/uimm FIELD is zero, i.e. this is a read-only instruction form.
+        -- It goes straight through to maindec, where it qualifies the read-only-CSR illegal-instruction trap.
+        -- That trap is UNGATED and applies in EVERY build, not just knobs-on ones, so this port is load-bearing in the shipping configuration.
+        -- Default '1', the read-only form, is a FAIL-SAFE and not an identity: an unconnected instantiation traps nothing, rather than trapping every read of a read-only CSR.
+        -- It does not preserve pre-fix behaviour.
         csr_rs1_zero     : in  std_logic := '1';
 
-        -- F-BV1 (K5): the R-type rs2 FIELD is zero. Straight through to
-        -- maindec, where it qualifies the Zbb ZEXT.H decode row -- `zext.h
-        -- rd,rs1` IS the rs2=x0 point of Zbkb `pack rd,rs1,rs2`, and without
-        -- this bit the whole pack space aliased onto zext.h on every Zbkb-off
-        -- build. Default '0' (= NOT zero) is a fail-safe: an unconnected
-        -- instantiation makes zext.h illegal (loud) rather than silently
-        -- reinstating the alias. It does not preserve pre-fix behaviour.
+        -- F-BV1 (K5): the R-type rs2 FIELD is zero.
+        -- It goes straight through to maindec, where it qualifies the Zbb ZEXT.H decode row: `zext.h rd,rs1` IS the rs2=x0 point of Zbkb `pack rd,rs1,rs2`, and without this bit the whole pack space aliased onto zext.h on every Zbkb-off build.
+        -- Default '0', meaning NOT zero, is a fail-safe: an unconnected instantiation makes zext.h illegal, which is loud, rather than silently reinstating the alias.
+        -- It does not preserve pre-fix behaviour.
         rs2_zero         : in  std_logic := '0';
 
         -- ==========================================
         -- Atomic Memory Operation Outputs
         -- ==========================================
-        amo_op           : out std_logic;                      -- Atomic memory operation indicator
-        lr_op            : out std_logic;                      -- Load-reserved operation indicator
-        sc_op            : out std_logic;                      -- Store-conditional operation indicator
-        fence_op         : out std_logic;                      -- FENCE instruction indicator
-        cboz_op          : out std_logic;                      -- X3 Zicboz: cbo.zero block-zero
-        zcm_op           : out std_logic;                      -- X3 Zcmp/Zcmt: cm.* sequencer trigger
-        pause_hint       : out std_logic;                      -- X1 Zihintpause: exact PAUSE hint (fence w,0)
+        amo_op           : out std_logic;                      -- Atomic memory operation indicator.
+        lr_op            : out std_logic;                      -- Load-reserved operation indicator.
+        sc_op            : out std_logic;                      -- Store-conditional operation indicator.
+        fence_op         : out std_logic;                      -- FENCE instruction indicator.
+        cboz_op          : out std_logic;                      -- X3 Zicboz: cbo.zero block-zero.
+        zcm_op           : out std_logic;                      -- X3 Zcmp/Zcmt: cm.* sequencer trigger.
+        pause_hint       : out std_logic;                      -- X1 Zihintpause: the exact PAUSE hint, fence w,0.
 
         -- ==========================================
         -- CSR instruction outputs
         -- ==========================================
-        csr_op           : out STD_LOGIC_VECTOR(2 downto 0);
-        csr_valid        : out std_logic;
+        csr_op           : out STD_LOGIC_VECTOR(2 downto 0);   -- CSR access type.
+        csr_valid        : out std_logic;                      -- CSR instruction decoded and legal.
 
         -- ==========================================
-        -- X4 Zfinx FP decode outputs / input
+        -- X4 Zfinx FP decode outputs and input
         -- ==========================================
-        is_fp_singlecycle : out std_logic;                     -- single-cycle FP (EXECUTE retire via fpu_simple)
-        is_fp_multicycle  : out std_logic;                     -- multi-cycle FP (-> FPU_WAIT)
-        is_fp_fma         : out std_logic;                     -- FMA (-> FPU_FETCH3)
-        frm_valid         : in  std_logic := '1';              -- current frm validity (dynamic-rm legality)
+        is_fp_singlecycle : out std_logic;                     -- Single-cycle FP, retired in EXECUTE via fpu_simple.
+        is_fp_multicycle  : out std_logic;                     -- Multi-cycle FP, the core goes to FPU_WAIT.
+        is_fp_fma         : out std_logic;                     -- FMA, the core goes to FPU_FETCH3.
+        frm_valid         : in  std_logic := '1';              -- Current frm validity, for dynamic rounding-mode legality.
 
         -- ==========================================
         -- Exception Handling
         -- ==========================================
-        trap             : out std_logic                       -- Invalid instruction trap
+        trap             : out std_logic                       -- Invalid instruction trap.
     );
 end controller;
 
@@ -152,14 +143,14 @@ architecture struct of controller is
     -- Component Declarations
     -- ==========================================
     
-    -- Main instruction decoder
+    -- Main instruction decoder.
     component maindec
         generic (
             ENABLE_MUL      : boolean := true;
             ENABLE_DIV      : boolean := true;
             ENABLE_ATOMICS  : boolean := true;
             ENABLE_BITMANIP : boolean := true;
-            -- X0 scaffolding (default false)
+            -- X0 scaffolding, default false.
             ENABLE_ZICOND   : boolean := false;
             ENABLE_ZIMOP    : boolean := false;
             ENABLE_ZIHINT   : boolean := false;
@@ -174,7 +165,7 @@ architecture struct of controller is
             ENABLE_ZBKX     : boolean := false;
             ENABLE_ZKN      : boolean := false;
             ENABLE_ZFINX    : boolean := false;
-            -- P0 privileged-architecture scaffolding (default false)
+            -- P0 privileged-architecture scaffolding, default false.
             ENABLE_TRAPCSR  : boolean := false;
             ENABLE_UMODE    : boolean := false;
             ENABLE_PMP      : boolean := false;
@@ -188,7 +179,7 @@ architecture struct of controller is
             mask             : in  std_logic_vector(1 downto 0);
             imm12            : in  STD_LOGIC_VECTOR(11 downto 0);
 
-            -- Control outputs
+            -- Control outputs.
             result_src       : out std_logic_vector(2 downto 0);
             WEN              : out std_logic_vector(XLEN_BYTES-1 downto 0);
             branch           : out std_logic;
@@ -201,30 +192,30 @@ architecture struct of controller is
             alu_control      : out std_logic_vector(6 downto 0);
             mem_access_instr : out std_logic;
 
-            -- Custom instruction outputs
+            -- Custom instruction outputs.
             isr_ret          : out std_logic;
             sleep_rq         : out std_logic;
             wake_rq          : out std_logic;
-            -- P1 standard SYSTEM/PRIV decode ('0' unless ENABLE_TRAPCSR)
+            -- P1 standard SYSTEM/PRIV decode, '0' unless ENABLE_TRAPCSR.
             ecall_op         : out std_logic;
             ebreak_op        : out std_logic;
             mret_op          : out std_logic;
-            -- P2 WFI decode + the U-mode decode inputs
+            -- P2 WFI decode plus the U-mode decode inputs.
             wfi_op           : out std_logic;
-            -- D1 DRET decode + the debug-mode decode input (default '0' = denied)
+            -- D1 DRET decode plus the debug-mode decode input; default '0' denies it.
             dret_op          : out std_logic;
             debug_mode       : in  std_logic := '0';
             priv_m           : in  std_logic := '1';
             status_tw        : in  std_logic := '0';
             mcounteren_bits  : in  std_logic_vector(4 downto 0) := "00000";
-            -- F10 (fix pass W4): rs1/uimm-field-is-zero, straight through
+            -- F10 (fix pass W4): rs1/uimm field is zero, straight through.
             csr_rs1_zero     : in  std_logic := '1';
-            -- F-BV1 (K5): R-type rs2-field-is-zero, straight through
+            -- F-BV1 (K5): R-type rs2 field is zero, straight through.
             rs2_zero         : in  std_logic := '0';
             wrs_op           : out std_logic;
             wrs_sto          : out std_logic;
 
-            -- Atomic memory operation outputs
+            -- Atomic memory operation outputs.
             amo_op           : out std_logic;
             lr_op            : out std_logic;
             sc_op            : out std_logic;
@@ -233,22 +224,22 @@ architecture struct of controller is
             zcm_op           : out std_logic;
             pause_hint       : out std_logic;
 
-            -- CSR instruction outputs
+            -- CSR instruction outputs.
             csr_op           : out STD_LOGIC_VECTOR(2 downto 0);
             csr_valid        : out std_logic;
 
-            -- X4 Zfinx FP decode
+            -- X4 Zfinx FP decode.
             is_fp_singlecycle : out std_logic;
             is_fp_multicycle  : out std_logic;
             is_fp_fma         : out std_logic;
             frm_valid         : in  std_logic := '1';
 
-            -- Exception handling
+            -- Exception handling.
             trap             : out std_logic
         );
     end component;
 
-    -- Branch condition evaluator
+    -- Branch condition evaluator.
     component branch_valid is
         port(
             Zero             : in  std_logic;
@@ -260,16 +251,16 @@ architecture struct of controller is
     -- ==========================================
     -- Internal Signal Declarations
     -- ==========================================
-    signal branch         : std_logic;      -- Branch instruction decoded
-    signal brnch_cond_met : std_logic;      -- Branch condition satisfied
-    signal jump_sig       : std_logic;      -- Jump instruction decoded
+    signal branch         : std_logic;      -- Branch instruction decoded.
+    signal brnch_cond_met : std_logic;      -- Branch condition satisfied.
+    signal jump_sig       : std_logic;      -- Jump instruction decoded.
 
 begin
 
     -- ==========================================
     -- Main Decoder Instance
     -- ==========================================
-    -- Decodes instruction opcode and function fields to generate control signals
+    -- Decodes the opcode and function fields into the datapath control signals.
     md: maindec
         generic map(
             ENABLE_MUL      => ENABLE_MUL,
@@ -303,20 +294,20 @@ begin
             mask             => mask,
             imm12            => imm12,  
 
-            -- Control outputs
+            -- Control outputs.
             result_src       => result_src,
             WEN              => WEN,
-            branch           => branch,          -- Internal branch signal
+            branch           => branch,          -- Internal branch signal.
             ALU_src          => ALU_src,
             div_op           => div_op,
             reg_write        => reg_write,
-            jump             => jump_sig,        -- Internal jump signal
+            jump             => jump_sig,        -- Internal jump signal.
             jalr             => jalr,
             imm_src          => imm_src,
             alu_control      => alu_control,
             mem_access_instr => mem_access_instr,
 
-            -- Custom instruction outputs
+            -- Custom instruction outputs.
             isr_ret          => isr_ret,
             sleep_rq         => sleep_rq,
             wake_rq          => wake_rq,
@@ -334,7 +325,7 @@ begin
             wrs_op           => wrs_op,
             wrs_sto          => wrs_sto,
                    
-            -- Atomic memory operation outputs
+            -- Atomic memory operation outputs.
             amo_op           => amo_op,
             lr_op            => lr_op,
             sc_op            => sc_op,
@@ -357,24 +348,24 @@ begin
     -- ==========================================
     -- Branch Validator Instance
     -- ==========================================
-    -- Evaluates branch conditions based on ALU flags and branch type
+    -- Evaluates the branch condition from the ALU flags and the branch type.
     bval: branch_valid
         port map(
-            Zero           => Zero,              -- ALU zero flag
-            funct3         => funct3,            -- Branch type (BEQ, BNE, BLT, etc.)
-            brnch_cond_met => brnch_cond_met    -- Branch taken signal
+            Zero           => Zero,              -- ALU zero flag.
+            funct3         => funct3,            -- Branch type: BEQ, BNE, BLT and so on.
+            brnch_cond_met => brnch_cond_met    -- Branch taken signal.
         );
 
     -- ==========================================
     -- PC Source Control Logic
     -- ==========================================
-    -- PC updates to target address when:
-    -- 1. Branch instruction AND condition is met, OR
-    -- 2. Unconditional jump (JAL/JALR)
+    -- The PC takes the target address when either:
+    -- 1. the instruction is a branch AND its condition is met, or
+    -- 2. the instruction is an unconditional jump (JAL/JALR).
     pc_src <= (branch and brnch_cond_met) or jump_sig;
     
 
-    -- Pass through jump signal to CPU for state machine control
+    -- Pass the jump signal out to the CPU state machine.
     jump <= jump_sig;
 
 end struct;

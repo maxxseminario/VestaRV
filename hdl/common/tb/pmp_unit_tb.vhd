@@ -1,27 +1,22 @@
 -- =============================================================================
--- pmp_unit_tb.vhd  (P3 — PMP match/priority/permission unit proof)
+-- pmp_unit_tb.vhd (P3: PMP match/priority/permission unit proof)
 -- =============================================================================
--- Self-checking bench for hdl/common/vesta/pmp_unit.vhd. The DUT is PURE
--- COMBINATIONAL, so there is no clock: the bench drives the flat cfg/addr bank
--- exactly as csr_unit exports it, waits a delta-settling delay, and asserts the
--- two grant outputs.
+-- Self-checking bench for hdl/common/vesta/pmp_unit.vhd.
+-- The DUT is PURE COMBINATIONAL, so there is no clock: the bench drives the flat cfg/addr bank exactly as csr_unit exports it, waits a delta-settling delay, and asserts the two grant outputs.
 --
--- THREE DUT instances share one stimulus bank, which is what makes the
--- generic-fold claims testable in a single run:
+-- THREE DUT instances share one stimulus bank, which is what makes the generic-fold claims testable in a single run:
 --   dut16  ENABLE_PMP = true,  PMP_ENTRIES = 16   -- the product shape
 --   dut8   ENABLE_PMP = true,  PMP_ENTRIES = 8    -- upper half must be DEAD
 --   dutoff ENABLE_PMP = false                     -- both grants stuck '1'
 --
 -- Coverage (p0_specs.md 4.1):
 --   P0  empty bank: M grants, U denies (the no-match rule)
---   P1  TOR: entry-0 lower bound 0, a deny region, an OFF-PREDECESSOR TOR base
---       (the live pmpaddr[i-1] is used even when entry i-1 is A=OFF)
+--   P1  TOR: entry-0 lower bound 0, a deny region, an OFF-PREDECESSOR TOR base (the live pmpaddr[i-1] is used even when entry i-1 is A=OFF)
 --   P2  NA4: exact word equality, neighbours excluded
 --   P3  NAPOT: size decode at 8 B / 16 B / 4 KB and the all-ones full span
 --   P4a lowest-match priority, DENY under a later GRANT (no rescue)
 --   P4b lowest-match priority, GRANT under a later DENY (no revoke)
---   P5  M-mode: unlocked match grants unconditionally; the SAME entry with
---       L=1 DENIES M (locked entries enforce on M)
+--   P5  M-mode: unlocked match grants unconditionally; the SAME entry with L=1 DENIES M (locked entries enforce on M)
 --   P6  R / W / X selectivity, incl. the LR/SC/AMO R&W-together shape
 --   P7  PMP_ENTRIES: entries 8 and 12 are live on dut16 and DEAD on dut8
 --   P8  ENABLE_PMP=false: both grants '1' against a bank that denies everything
@@ -39,9 +34,11 @@ end entity;
 
 architecture tb of pmp_unit_tb is
 
+    -- The flat 16-entry cfg/addr bank, shared by all three DUT instances.
     signal cfg_flat  : std_logic_vector(127 downto 0) := (others => '0');
     signal addr_flat : std_logic_vector(479 downto 0) := (others => '0');
 
+    -- Fetch and data access requests presented to every instance.
     signal f_addr    : std_logic_vector(31 downto 0) := (others => '0');
     signal f_priv_m  : std_logic := '1';
     signal d_addr    : std_logic_vector(31 downto 0) := (others => '0');
@@ -49,15 +46,18 @@ architecture tb of pmp_unit_tb is
     signal d_read    : std_logic := '0';
     signal d_write   : std_logic := '0';
 
+    -- Fetch/data grants, one pair per instance.
     signal f16, d16  : std_logic;
     signal f8,  d8   : std_logic;
     signal foff, doff: std_logic;
 
+    -- Score, mirrored out of the stimulus process so it is visible in a waveform.
     signal errors    : integer := 0;
     signal checks    : integer := 0;
 
 begin
 
+    -- The product shape: 16 entries, PMP enabled.
     dut16 : entity work.pmp_unit
         generic map (ENABLE_PMP => true, PMP_ENTRIES => 16)
         port map (
@@ -66,6 +66,7 @@ begin
             d_addr => d_addr, d_priv_m => d_priv_m,
             d_read => d_read, d_write => d_write, d_grant => d16);
 
+    -- Half bank: entries 8 and above must be dead here.
     dut8 : entity work.pmp_unit
         generic map (ENABLE_PMP => true, PMP_ENTRIES => 8)
         port map (
@@ -74,6 +75,7 @@ begin
             d_addr => d_addr, d_priv_m => d_priv_m,
             d_read => d_read, d_write => d_write, d_grant => d8);
 
+    -- PMP folded away: both grants must be constant '1'.
     dutoff : entity work.pmp_unit
         generic map (ENABLE_PMP => false, PMP_ENTRIES => 16)
         port map (
@@ -82,15 +84,14 @@ begin
             d_addr => d_addr, d_priv_m => d_priv_m,
             d_read => d_read, d_write => d_write, d_grant => doff);
 
+    -- Single stimulus process: it walks the phases in order and tallies the checks.
     stim : process
         variable errs : integer := 0;
         variable nchk : integer := 0;
 
         -- ------------------------------------------------------------------
-        -- Bank helpers. The bench writes the flat vectors DIRECTLY (it is not
-        -- testing csr_unit's WARL/lock filtering here — that is privpmpcs's
-        -- job) so it can plant a locked entry, or an R=0/W=1 combination, that
-        -- the CSR write path would never let software create.
+        -- Bank helpers.
+        -- The bench writes the flat vectors DIRECTLY, since it is not testing csr_unit's WARL/lock filtering here (that is privpmpcs's job), so it can plant a locked entry, or an R=0/W=1 combination, that the CSR write path would never let software create.
         -- ------------------------------------------------------------------
         procedure clear_bank is
         begin
@@ -109,8 +110,7 @@ begin
         end procedure;
 
         -- pmpaddr for a TOR/NA4 boundary: the WORD address of a byte address.
-        -- (The intermediate variable is deliberate: -V200X is VHDL-93/2002, and
-        -- slicing a FUNCTION CALL directly is a VHDL-2008-only construct.)
+        -- The intermediate variable is deliberate: -V200X is VHDL-93/2002, and slicing a FUNCTION CALL directly is a VHDL-2008-only construct.
         function wa(byte_addr : integer) return unsigned is
             variable t : unsigned(31 downto 0);
         begin
@@ -118,24 +118,26 @@ begin
             return t(31 downto 2);
         end function;
 
-        -- pmpaddr for a NAPOT region of `size` bytes (size >= 8, power of two)
-        -- based at `base`:  base/4 + (size/8 - 1).
+        -- pmpaddr for a NAPOT region of `size` bytes (size >= 8, power of two) based at `base`: base/4 + (size/8 - 1).
         function napot(base : integer; size : integer) return unsigned is
         begin
             return to_unsigned(base/4 + (size/8 - 1), 30);
         end function;
 
+        -- The all-ones NAPOT encoding: a region covering the whole address space.
         constant NAPOT_ALL : unsigned(29 downto 0) := (others => '1');
 
         -- ------------------------------------------------------------------
-        -- Stimulus + check helpers. Every check carries a name so a failure is
-        -- localisable straight out of the log.
+        -- Stimulus and check helpers.
+        -- Every check carries a name so a failure is localisable straight out of the log.
         -- ------------------------------------------------------------------
+        -- Let the combinational DUTs re-evaluate before any grant is sampled.
         procedure settle is
         begin
             wait for 1 ns;
         end procedure;
 
+        -- Count one check and report the named mismatch if the grant is wrong.
         procedure expect(name : string; got : std_logic; exp : std_logic) is
         begin
             nchk := nchk + 1;
@@ -148,7 +150,7 @@ begin
             end if;
         end procedure;
 
-        -- A DATA access: priv, R/W request, address -> expected dut16 grant.
+        -- A DATA access: privilege, R/W request and address in, expected dut16 grant out.
         procedure dchk(name : string; priv : std_logic;
                        rd : std_logic; wr : std_logic;
                        byte_addr : integer; exp : std_logic) is
@@ -204,8 +206,8 @@ begin
         report "=== pmp_unit_tb start ===";
 
         -- ==================================================================
-        -- P0 — empty bank (the reset state): no entry can match.
-        --      No match: M grants, U denies.
+        -- P0: empty bank (the reset state), so no entry can match.
+        -- With no match, M grants and U denies.
         -- ==================================================================
         clear_bank; settle;
         dchk("P0.M.read",   '1', '1', '0', 16#00008000#, '1');
@@ -216,12 +218,11 @@ begin
         fchk("P0.U.fetch",  '0',           16#00008000#, '0');
 
         -- ==================================================================
-        -- P1 — TOR.
-        --   e0: A=TOR RWX, pmpaddr0 = 0x1000/4   -> [0x0000, 0x1000)
-        --   e1: A=TOR ---, pmpaddr1 = 0x2000/4   -> [0x1000, 0x2000) deny
-        --   e2: A=OFF    , pmpaddr2 = 0x3000/4   -> never matches, but its
-        --                                           VALUE is e3's TOR base
-        --   e3: A=TOR R-X, pmpaddr3 = 0x4000/4   -> [0x3000, 0x4000)
+        -- P1: TOR.
+        --   e0: A=TOR RWX, pmpaddr0 = 0x1000/4   covers [0x0000, 0x1000)
+        --   e1: A=TOR ---, pmpaddr1 = 0x2000/4   covers [0x1000, 0x2000), deny
+        --   e2: A=OFF    , pmpaddr2 = 0x3000/4   never matches, but its VALUE is e3's TOR base
+        --   e3: A=TOR R-X, pmpaddr3 = 0x4000/4   covers [0x3000, 0x4000)
         -- ==================================================================
         clear_bank; settle;
         set_cfg(0, x"0F"); set_addr(0, wa(16#00001000#));   -- TOR, R|W|X
@@ -230,28 +231,28 @@ begin
         set_cfg(3, x"0D"); set_addr(3, wa(16#00004000#));   -- TOR, R|X (no W)
         settle;
 
-        -- entry 0's lower bound really is 0
+        -- Entry 0's lower bound really is 0.
         dchk("P1.tor0.base0",   '0', '1', '0', 16#00000000#, '1');
         dchk("P1.tor0.inside",  '0', '1', '0', 16#00000FFC#, '1');
-        -- the boundary belongs to the NEXT region, not this one
+        -- The boundary belongs to the NEXT region, not this one.
         dchk("P1.tor1.deny",    '0', '1', '0', 16#00001000#, '0');
         dchk("P1.tor1.deny.hi", '0', '1', '0', 16#00001FFC#, '0');
-        -- a matched but UNLOCKED entry never constrains M
+        -- A matched but UNLOCKED entry never constrains M.
         dchk("P1.tor1.M",       '1', '1', '0', 16#00001000#, '1');
-        -- the hole between 0x2000 and 0x3000: no entry matches
+        -- The hole between 0x2000 and 0x3000: no entry matches.
         dchk("P1.hole.U",       '0', '1', '0', 16#00002000#, '0');
         dchk("P1.hole.M",       '1', '1', '0', 16#00002000#, '1');
-        -- OFF-PREDECESSOR TOR BASE: e3's region starts at e2's pmpaddr VALUE
+        -- OFF-PREDECESSOR TOR BASE: e3's region starts at e2's pmpaddr VALUE.
         dchk("P1.tor3.base",    '0', '1', '0', 16#00003000#, '1');
         dchk("P1.tor3.top",     '0', '1', '0', 16#00003FFC#, '1');
         dchk("P1.tor3.above",   '0', '1', '0', 16#00004000#, '0');
         dchk("P1.tor3.below",   '0', '1', '0', 16#00002FFC#, '0');
-        -- e3 is R|X, not W
+        -- e3 is R|X, not W.
         dchk("P1.tor3.write",   '0', '0', '1', 16#00003000#, '0');
         fchk("P1.tor3.fetch",   '0',           16#00003000#, '1');
 
         -- ==================================================================
-        -- P2 — NA4: exact word equality only.
+        -- P2: NA4, exact word equality only.
         --   e0: A=NA4, R|W, pmpaddr0 = 0x8000/4
         -- ==================================================================
         clear_bank; settle;
@@ -261,13 +262,13 @@ begin
         dchk("P2.na4.hit.wr",   '0', '0', '1', 16#00008000#, '1');
         dchk("P2.na4.next",     '0', '1', '0', 16#00008004#, '0');
         dchk("P2.na4.prev",     '0', '1', '0', 16#00007FFC#, '0');
-        -- word granularity: every byte of the word is the same word address
+        -- Word granularity: every byte of the word is the same word address.
         dchk("P2.na4.byte3",    '0', '1', '0', 16#00008003#, '1');
-        -- X is clear -> a fetch of the very same word is denied
+        -- X is clear, so a fetch of the very same word is denied.
         fchk("P2.na4.fetch",    '0',           16#00008000#, '0');
 
         -- ==================================================================
-        -- P3 — NAPOT size decode.
+        -- P3: NAPOT size decode.
         -- ==================================================================
         clear_bank; settle;
         set_cfg(0, x"1F");                                  -- NAPOT, R|W|X
@@ -302,8 +303,7 @@ begin
         report "=== pmp_unit_tb: phases P0-P3 done ===";
 
         -- ==================================================================
-        -- P4a — LOWEST-numbered match decides ALONE: a later GRANT must not
-        --       rescue an earlier DENY.
+        -- P4a: the LOWEST-numbered match decides ALONE, so a later GRANT must not rescue an earlier DENY.
         --   e0: NAPOT 4 KB @0x30000, NO permissions  (deny)
         --   e1: NAPOT full span, R|W|X               (would grant everything)
         -- ==================================================================
@@ -314,11 +314,11 @@ begin
         dchk("P4a.inside.deny", '0', '1', '0', 16#00030000#, '0');
         dchk("P4a.inside.top",  '0', '1', '0', 16#00030FFC#, '0');
         fchk("P4a.inside.fetch",'0',           16#00030000#, '0');
-        -- outside e0, e1 is the lowest match and grants
+        -- Outside e0, e1 is the lowest match and grants.
         dchk("P4a.outside",     '0', '1', '0', 16#00040000#, '1');
 
         -- ==================================================================
-        -- P4b — the mirror: a later DENY must not revoke an earlier GRANT.
+        -- P4b: the mirror case, a later DENY must not revoke an earlier GRANT.
         --   e0: NA4 @0x50000, R|W                    (grant)
         --   e1: NAPOT full span, NO permissions      (would deny everything)
         -- ==================================================================
@@ -328,14 +328,14 @@ begin
         settle;
         dchk("P4b.hit.grant",   '0', '1', '0', 16#00050000#, '1');
         dchk("P4b.hit.write",   '0', '0', '1', 16#00050000#, '1');
-        -- one word away e0 no longer matches, so the deny-all entry rules
+        -- One word away e0 no longer matches, so the deny-all entry rules.
         dchk("P4b.next.deny",   '0', '1', '0', 16#00050004#, '0');
 
         -- ==================================================================
-        -- P5 — M-mode and the LOCK bit.
-        --   The SAME region, unlocked then locked. Unlocked: M is not
-        --   constrained at all. Locked: the entry enforces on M exactly as on
-        --   U (that is the whole point of L).
+        -- P5: M-mode and the LOCK bit.
+        --   The SAME region, unlocked then locked.
+        --   Unlocked, M is not constrained at all.
+        --   Locked, the entry enforces on M exactly as on U, which is the whole point of L.
         -- ==================================================================
         clear_bank; settle;
         set_cfg(0, x"18"); set_addr(0, napot(16#00060000#, 4096));  -- NAPOT, --- , L=0
@@ -350,19 +350,18 @@ begin
         dchk("P5.locked.Mw",    '1', '0', '1', 16#00060000#, '0');
         fchk("P5.locked.Mf",    '1',           16#00060000#, '0');
         dchk("P5.locked.U",     '0', '1', '0', 16#00060000#, '0');
-        -- a LOCKED entry constrains only its OWN region; no-match still grants M
+        -- A LOCKED entry constrains only its OWN region; no match still grants M.
         dchk("P5.locked.Mout",  '1', '1', '0', 16#00070000#, '1');
 
-        -- a LOCKED entry WITH permissions grants M through the permission path
+        -- A LOCKED entry WITH permissions grants M through the permission path.
         set_cfg(0, x"99");                                          -- L=1, NAPOT, R
         settle;
         dchk("P5.lockedR.Mr",   '1', '1', '0', 16#00060000#, '1');
         dchk("P5.lockedR.Mw",   '1', '0', '1', 16#00060000#, '0');
 
         -- ==================================================================
-        -- P6 — R / W / X selectivity, on a locked full-span entry so BOTH
-        --      privileges take the permission path.
-        --      d_read = d_write = '1' is the LR/SC/AMO shape (needs R AND W).
+        -- P6: R / W / X selectivity, on a locked full-span entry so BOTH privileges take the permission path.
+        -- d_read = d_write = '1' is the LR/SC/AMO shape, which needs R AND W.
         -- ==================================================================
         clear_bank; settle;
         set_addr(0, NAPOT_ALL);
@@ -395,9 +394,8 @@ begin
         report "=== pmp_unit_tb: phases P4-P6 done ===";
 
         -- ==================================================================
-        -- P7 — PMP_ENTRIES. Entries 8 and 12 are LIVE on dut16 and DEAD on
-        --      dut8 (its check loop never reaches them), so the identical bank
-        --      grants U on dut16 and denies U on dut8.
+        -- P7: PMP_ENTRIES.
+        -- Entries 8 and 12 are LIVE on dut16 and DEAD on dut8 (its check loop never reaches them), so the identical bank grants U on dut16 and denies U on dut8.
         -- ==================================================================
         clear_bank; settle;
         set_cfg(8, x"1F"); set_addr(8, NAPOT_ALL);                  -- NAPOT full span, RWX
@@ -412,7 +410,7 @@ begin
         dchk ("P7.e12.dut16.U", '0', '1', '0', 16#00008000#, '1');
         dchk8("P7.e12.dut8.U",  '0', '1', '0', 16#00008000#, '0');
 
-        -- a LOW entry is live on both shapes (proves dut8 is not simply dead)
+        -- A LOW entry is live on both shapes, which proves dut8 is not simply dead.
         clear_bank; settle;
         set_cfg(0, x"1F"); set_addr(0, NAPOT_ALL);
         settle;
@@ -420,9 +418,8 @@ begin
         dchk8("P7.e0.dut8.U",   '0', '1', '0', 16#00008000#, '1');
 
         -- ==================================================================
-        -- P8 — ENABLE_PMP = false: BOTH grants are constant '1' even against a
-        --      bank that denies U everything, and even in U-mode with an empty
-        --      bank (the no-match-U-denies rule must not exist there either).
+        -- P8: ENABLE_PMP = false.
+        -- BOTH grants are constant '1' even against a bank that denies U everything, and even in U-mode with an empty bank (the no-match-U-denies rule must not exist there either).
         -- ==================================================================
         clear_bank; settle;
         set_cfg(0, x"98"); set_addr(0, NAPOT_ALL);                  -- L=1, NAPOT, ---
@@ -435,6 +432,7 @@ begin
         offchk("P8.empty.M",   '1', '0', '1', 16#00008000#);
 
         -- ==================================================================
+        -- Publish the tallies and report the verdict.
         errors <= errs;
         checks <= nchk;
         settle;

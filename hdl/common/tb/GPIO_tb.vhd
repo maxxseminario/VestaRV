@@ -1,42 +1,23 @@
 -------------------------------------------------------------------------------
 -- GPIO_tb.vhd
 -------------------------------------------------------------------------------
--- Standalone, self-checking testbench for the GPIO peripheral
--- (hdl/common/periph/GPIO.vhd). GPIO predates the bench ritual (it was
--- proved only at ISA level) -- this bench is deliberately MINIMAL and
--- TAP-FOCUSED: it exists to prove the EVFAB taps Fable's RTL edit added
--- (event_fabric_spec.md 2026-07-24), not to re-verify the whole peripheral
--- (PxSEL/PxAFS alt-function muxing and the PxIE/PxIF edge-interrupt
--- machinery are unchanged and out of scope here). Follows the house style of
--- tb/TIMER_tb.vhd (component DUT so this bench compiles standalone,
--- work.periph_tb_pkg's scoreboard + register-bus BFM, G-NEG last).
+-- Standalone, self-checking testbench for the GPIO peripheral (hdl/common/periph/GPIO.vhd).
+-- GPIO predates the bench ritual and was proved only at ISA level, so this bench is deliberately MINIMAL and TAP-FOCUSED.
+-- It exists to prove the EVFAB taps added by the event-fabric RTL edit (event_fabric_spec.md 2026-07-24), not to re-verify the whole peripheral: PxSEL/PxAFS alt-function muxing and the PxIE/PxIF edge-interrupt machinery are unchanged and out of scope here.
+-- It follows the house style of tb/TIMER_tb.vhd: a component DUT so the bench compiles standalone, work.periph_tb_pkg's scoreboard and register-bus BFM, and G-NEG last.
 --
--- LIBRARY NOTE: GPIO.vhd needs work.MemoryMap.RegSlotPxAFS and
--- work.MemoryMap.GPIO_NUM_AFS (multi-AF support, predates the EVFAB taps),
--- which hdl/myshkin's MemoryMap package (the `work` library shared by most
--- of this suite -- needed by the still-myshkin SYSTEM/I2C/SPI/UART benches)
--- does not carry. This bench therefore compiles into its OWN library,
--- "gpio_lib" (cell_list_gpio, xrun_parallel), alongside hdl/common's
--- constants/MemoryMap/ClkGate/GPIO -- same arrangement as the NPU family.
+-- LIBRARY NOTE: GPIO.vhd needs work.MemoryMap.RegSlotPxAFS and work.MemoryMap.GPIO_NUM_AFS (multi-AF support, which predates the EVFAB taps), and hdl/myshkin's MemoryMap package does not carry them.
+-- That package is the `work` library shared by most of this suite, needed by the still-myshkin SYSTEM/I2C/SPI/UART benches.
+-- This bench therefore compiles into its OWN library, "gpio_lib" (cell_list_gpio, xrun_parallel), alongside hdl/common's constants, MemoryMap, ClkGate and GPIO, the same arrangement as the NPU family.
 --
--- EVFAB taps under test (see hdl/common/periph/GPIO.vhd's EVFAB comment
--- block):
---   evt_edge_raw -- the PRE-MASK edge-select comb vector (prt_in xor
---     PxIES), purely combinational, PxIE NEVER consulted. Sampled straight
---     off the DUT's exported port after a settle delay -- never a DUT
---     internal.
---   task_outset / task_outclr -- one-clk_mem consumer TASK pulses that set/
---     clear the PxTASK-selected PxOUT bits OUTSIDE the en gate (clk_mem
---     free-runs at integration -- so this bench ties clk_mem directly to
---     the free-running reference clock, matching TIMER_tb's idiom, not the
---     `clk_mem <= clk when en='0' else '0'` gating some older benches use).
---     CLR wins a same-cycle set+clr overlap; a task wins its PxTASK pins
---     over a coincident CPU PxOUT write (case-statement write lands first
---     in RTL program order, the task blocks execute after and overwrite
---     only their own pins -- see GPIO.vhd's own EVFAB comment).
---   PxTASK -- new RW register (LOCAL slot 12 -- NOT yet exported via
---     MemoryMap.vhd, see GPIO.vhd's own comment -- this bench hardcodes the
---     slot number too), one bit per pin, resets to 0.
+-- EVFAB taps under test (see hdl/common/periph/GPIO.vhd's EVFAB comment block):
+--   evt_edge_raw: the PRE-MASK edge-select comb vector (prt_in xor PxIES), purely combinational, with PxIE NEVER consulted.
+--     It is sampled straight off the DUT's exported port after a settle delay, never off a DUT internal.
+--   task_outset / task_outclr: one-clk_mem consumer TASK pulses that set or clear the PxTASK-selected PxOUT bits OUTSIDE the en gate.
+--     clk_mem free-runs at integration, so this bench ties clk_mem directly to the free-running reference clock, matching TIMER_tb's idiom rather than the `clk_mem <= clk when en='0' else '0'` gating some older benches use.
+--     CLR wins a same-cycle set-plus-clear overlap, and a task wins its PxTASK pins over a coincident CPU PxOUT write: the case-statement write lands first in RTL program order and the task blocks execute after it, overwriting only their own pins (see GPIO.vhd's own EVFAB comment).
+--   PxTASK: new RW register at LOCAL slot 12, one bit per pin, resetting to 0.
+--     The slot is NOT yet exported via MemoryMap.vhd (see GPIO.vhd's own comment), so this bench hardcodes the number too.
 -------------------------------------------------------------------------------
 
 library ieee;
@@ -54,14 +35,11 @@ architecture sim of GPIO_tb is
     constant PERIOD   : time    := 20 ns;   -- free-running reference clock
     constant NUM_PINS : natural := 8;
 
-    -- EVFAB TASKPINS slot is a GPIO-local constant (not yet exported via
-    -- MemoryMap.vhd -- see GPIO.vhd's own comment), so the bench hardcodes
-    -- it too.
+    -- The EVFAB TASKPINS slot is a GPIO-local constant, not yet exported via MemoryMap.vhd (see GPIO.vhd's own comment), so the bench hardcodes it too.
     constant RegSlotPxTASK : natural := 12;
 
-    -- FROZEN DUT entity (hdl/common/periph/GPIO.vhd), declared as a
-    -- component so default binding resolves it once GPIO.vhd is analyzed
-    -- into `gpio_lib` -- Fable owns the RTL, never edited here.
+    -- FROZEN DUT entity (hdl/common/periph/GPIO.vhd), declared as a component so default binding resolves it once GPIO.vhd is analyzed into `gpio_lib`.
+    -- The RTL is owned elsewhere and is never edited from this bench.
     component GPIO is
         generic (
             num_pins       : natural;
@@ -106,16 +84,16 @@ architecture sim of GPIO_tb is
         );
     end component;
 
-    -- ---- clocks / reset ----------------------------------------------------
+    -- ---- clocks and reset --------------------------------------------------
     signal clk     : std_logic := '0';
-    signal clk_mem : std_logic;   -- free-running (task_outset/clr act outside en)
+    signal clk_mem : std_logic;   -- free-running, since task_outset/task_outclr act outside en
     signal resetn  : std_logic := '0';
 
-    -- ---- register bus -------------------------------------------------------
+    -- ---- register bus ------------------------------------------------------
     signal pbus      : periph_bus_t := PERIPH_BUS_IDLE;
     signal read_data : std_logic_vector(31 downto 0);
 
-    -- ---- interrupts / pads ---------------------------------------------------
+    -- ---- interrupts and pads -----------------------------------------------
     signal irq         : std_logic_vector(NUM_PINS - 1 downto 0);
     signal prt_in       : std_logic_vector(NUM_PINS - 1 downto 0) := (others => '0');
     signal prt_out_out  : std_logic_vector(NUM_PINS - 1 downto 0);
@@ -128,9 +106,7 @@ architecture sim of GPIO_tb is
     signal PxSEL_out : std_logic_vector(NUM_PINS - 1 downto 0);
     signal PxAFS_out : std_logic_vector(3 * NUM_PINS - 1 downto 0);
 
-    -- Alt-function planes -- tied to zero (tap-focused bench; PxSEL is never
-    -- asserted here, so the AF mux is never exercised -- out of scope, see
-    -- the file header).
+    -- Alt-function planes, tied to zero: this is a tap-focused bench and PxSEL is never asserted here, so the AF mux is never exercised (out of scope, see the file header).
     signal alt_func_out_in : std_logic_vector(GPIO_NUM_AFS * NUM_PINS - 1 downto 0) := (others => '0');
     signal alt_func_dir_in : std_logic_vector(GPIO_NUM_AFS * NUM_PINS - 1 downto 0) := (others => '0');
     signal alt_func_ren_in : std_logic_vector(GPIO_NUM_AFS * NUM_PINS - 1 downto 0) := (others => '0');
@@ -142,13 +118,13 @@ architecture sim of GPIO_tb is
 
     signal tb_done : boolean := false;
 
+    -- Scoreboard shared by the stimulus process and the final verdict.
     shared variable sb : scoreboard;
 
 begin
 
     ----------------------------------------------------------------------------
-    -- clocks: one free-running reference drives clk_mem directly (task
-    -- pulses must be observed even with the bus idle -- see header).
+    -- Clocks: one free-running reference drives clk_mem directly, since task pulses must be observed even with the bus idle (see the header).
     ----------------------------------------------------------------------------
     clk     <= not clk after PERIOD / 2;
     clk_mem <= clk;
@@ -212,7 +188,7 @@ begin
     end process;
 
     ----------------------------------------------------------------------------
-    -- stimulus
+    -- Stimulus: the groups run in order, with the negative control last.
     ----------------------------------------------------------------------------
     stim_proc : process
         variable rdw : std_logic_vector(31 downto 0);
@@ -231,8 +207,7 @@ begin
             wait for 4 * PERIOD;
         end procedure;
 
-        -- Drive `sig` high across exactly one clk_mem rising edge, then drop
-        -- it -- the one-clk_mem task-pulse idiom (TIMER_tb's pulse1).
+        -- Drive `sig` high across exactly one clk_mem rising edge, then drop it: the one-clk_mem task-pulse idiom (TIMER_tb's pulse1).
         procedure pulse1(signal sig : out std_logic) is
         begin
             wait until clk = '0';
@@ -242,8 +217,7 @@ begin
             sig <= '0';
         end procedure;
 
-        -- Pulse task_outset AND task_outclr across the SAME clk_mem rising
-        -- edge (the "same-cycle set+clr" corner).
+        -- Pulse task_outset AND task_outclr across the SAME clk_mem rising edge: the "same-cycle set plus clear" corner.
         procedure pulse_both_tasks is
         begin
             wait until clk = '0';
@@ -255,10 +229,8 @@ begin
             task_outclr <= '0';
         end procedure;
 
-        -- CPU PxOUT write coincident with a task pulse, landing on the SAME
-        -- clk_mem rising edge. Mirrors periph_tb_pkg.bus_write's exact
-        -- timing, with task_outset/task_outclr asserted across the same
-        -- capture edge.
+        -- CPU PxOUT write coincident with a task pulse, landing on the SAME clk_mem rising edge.
+        -- It mirrors periph_tb_pkg.bus_write's exact timing, with task_outset and task_outclr asserted across the same capture edge.
         procedure coincident_out_write_task(out_word       : std_logic_vector(31 downto 0);
                                              do_set, do_clr : std_logic) is
         begin
@@ -284,8 +256,7 @@ begin
         reset_pulse;
 
         ------------------------------------------------------------------
-        -- GROUP G1: minimal existing-behavior regression -- PxOUT write/
-        -- readback, PxDIR, and an input-latch (PxIN) read.
+        -- GROUP G1: minimal existing-behavior regression, covering PxOUT write and readback, PxDIR, and an input-latch (PxIN) read.
         ------------------------------------------------------------------
         report "=== GROUP G1: PxOUT / PxDIR / PxIN regression ===" severity note;
         bus_write(clk, pbus, RegSlotPxOUT, x"000000A5");
@@ -307,8 +278,7 @@ begin
         wait for 2 * PERIOD;
 
         ------------------------------------------------------------------
-        -- GROUP G2: PxTASK register -- RW walking-1 at slot 12, reset 0,
-        -- readback.
+        -- GROUP G2: PxTASK register, an RW walking-1 at slot 12, reset value 0, plus readback.
         ------------------------------------------------------------------
         report "=== GROUP G2: PxTASK register (RW walking-1) ===" severity note;
         bus_read(clk, pbus, read_data, RegSlotPxTASK, rdw);
@@ -325,12 +295,11 @@ begin
         bus_write(clk, pbus, RegSlotPxTASK, x"00000000");
 
         ------------------------------------------------------------------
-        -- GROUP G3: task_outset / task_outclr basic operation -- PxTASK=
-        -- 0x0F, set pulses PxOUT(3:0), clear pulses them back down;
-        -- PxOUT(7:4) (outside PxTASK) is untouched throughout.
+        -- GROUP G3: task_outset and task_outclr basic operation with PxTASK=0x0F, where set pulses PxOUT(3:0) and clear pulses them back down.
+        -- PxOUT(7:4), outside PxTASK, must stay untouched throughout.
         ------------------------------------------------------------------
         report "=== GROUP G3: task_outset / task_outclr basic ===" severity note;
-        bus_write(clk, pbus, RegSlotPxOUT, x"000000B0");   -- preload 7:4 pattern (B), 3:0=0
+        bus_write(clk, pbus, RegSlotPxOUT, x"000000B0");   -- preload 7:4 with pattern B, 3:0 cleared
         bus_write(clk, pbus, RegSlotPxTASK, x"0000000F");  -- task owns pins 0-3
 
         pulse1(task_outset);
@@ -344,7 +313,7 @@ begin
                      rdw(7 downto 0), x"B0");
 
         ------------------------------------------------------------------
-        -- GROUP G4: same-cycle task_outset + task_outclr -> CLR wins.
+        -- GROUP G4: same-cycle task_outset plus task_outclr, where CLR must win.
         ------------------------------------------------------------------
         report "=== GROUP G4: same-cycle set+clr -- CLR wins ===" severity note;
         bus_write(clk, pbus, RegSlotPxOUT, x"000000BF");   -- 3:0 pre-set so a no-op clear would be masked
@@ -354,21 +323,18 @@ begin
                      rdw(7 downto 0), x"B0");
 
         ------------------------------------------------------------------
-        -- GROUP G5: coincident CPU PxOUT write + task pulse -- the task
-        -- wins its PxTASK pins, the CPU value lands on the others. Both
-        -- directions (set and clear) exercised.
+        -- GROUP G5: coincident CPU PxOUT write and task pulse, where the task wins its PxTASK pins and the CPU value lands on the others.
+        -- Both directions, set and clear, are exercised.
         ------------------------------------------------------------------
         report "=== GROUP G5: coincident CPU write + task pulse ===" severity note;
-        bus_write(clk, pbus, RegSlotPxOUT, x"00000000");   -- baseline: all clear
-        -- CPU writes PxOUT=0x50 (7:4=5,3:0=0) while task_outset pulses on
-        -- the SAME edge -> 3:0 forced to 1 (task wins), 7:4 = CPU's 5.
+        bus_write(clk, pbus, RegSlotPxOUT, x"00000000");   -- baseline: all bits clear
+        -- The CPU writes PxOUT=0x50 (7:4 = 5, 3:0 = 0) while task_outset pulses on the SAME edge, so 3:0 is forced to 1 by the task and 7:4 keeps the CPU's 5.
         coincident_out_write_task(x"00000050", '1', '0');
         bus_read(clk, pbus, read_data, RegSlotPxOUT, rdw);
         sb.check_slv("G5a: coincident write(0x50)+task_outset -> 0x5F (task wins the set)",
                      rdw(7 downto 0), x"5F");
 
-        -- CPU writes PxOUT=0xFF while task_outclr pulses on the SAME edge
-        -- -> 3:0 forced to 0 (task wins), 7:4 = CPU's F.
+        -- The CPU writes PxOUT=0xFF while task_outclr pulses on the SAME edge, so 3:0 is forced to 0 by the task and 7:4 keeps the CPU's F.
         coincident_out_write_task(x"000000FF", '0', '1');
         bus_read(clk, pbus, read_data, RegSlotPxOUT, rdw);
         sb.check_slv("G5b: coincident write(0xFF)+task_outclr -> 0xF0 (task wins the clear)",
@@ -378,8 +344,7 @@ begin
         bus_write(clk, pbus, RegSlotPxOUT,  x"00000000");
 
         ------------------------------------------------------------------
-        -- GROUP G6: evt_edge_raw = prt_in xor PxIES, combinationally, and
-        -- independent of PxIE.
+        -- GROUP G6: evt_edge_raw = prt_in xor PxIES, combinationally and independently of PxIE.
         ------------------------------------------------------------------
         report "=== GROUP G6: evt_edge_raw (pre-mask edge-select tap) ===" severity note;
         bus_write(clk, pbus, RegSlotPxIES, x"00000000");   -- rising-edge select, all pins
@@ -398,8 +363,7 @@ begin
         sb.check_slv("G6c: evt_edge_raw follows a prt_in change (3C xor FF = C3)",
                      evt_edge_raw, x"C3");
 
-        -- Discipline: PxIE is never consulted -- toggling it (either
-        -- direction) leaves evt_edge_raw exactly where it was.
+        -- Discipline: PxIE is never consulted, so toggling it in either direction leaves evt_edge_raw exactly where it was.
         bus_write(clk, pbus, RegSlotPxIE, x"00000000");    -- all masked
         wait for 2 * PERIOD;
         sb.check_slv("G6d: evt_edge_raw unaffected by PxIE=0x00 (masked)",
@@ -415,9 +379,8 @@ begin
         wait for 2 * PERIOD;
 
         ------------------------------------------------------------------
-        -- GROUP G-NEG: NEGATIVE CONTROL (mandatory, LAST) -- exactly ONE
-        -- deliberately-wrong expected value so the scoreboard proves it can
-        -- fail.
+        -- GROUP G-NEG: NEGATIVE CONTROL, mandatory and LAST.
+        -- Exactly ONE deliberately wrong expected value, so the scoreboard proves it can fail.
         ------------------------------------------------------------------
         report "=== GROUP G-NEG: NEGATIVE CONTROL ===" severity note;
         bus_write(clk, pbus, RegSlotPxOUT,  x"00000000");
@@ -425,7 +388,7 @@ begin
         pulse1(task_outset);
         bus_read(clk, pbus, read_data, RegSlotPxOUT, rdw);
         sb.check_slv("NEGATIVE CONTROL: wrong expected PxOUT after task_outset (must FAIL)",
-                     rdw(7 downto 0), x"00");   -- actual is 0x0F -- deliberately wrong
+                     rdw(7 downto 0), x"00");   -- the actual value is 0x0F, so this expectation is deliberately wrong
 
         ------------------------------------------------------------------
         -- Final verdict: sb.errors must be EXACTLY 1 (the negative control).

@@ -5,6 +5,9 @@ use ieee.numeric_std.all;
 library work;
 use work.Constants.all;
 
+-- Combinational logistic sigmoid approximation: Q16.15 input, unsigned Q0.15 output.
+-- Only the positive half is evaluated; the negative half comes from the symmetry sigmoid(-x) = 1 - sigmoid(x).
+-- Magnitudes past ~4.0 (131071 in Q16.15) saturate to the 1.0 or 0.0 endpoint.
 entity LogisticSigmoidApprox is
 	port
 	(
@@ -36,13 +39,14 @@ begin
 	InputIsNegative <= InputQ16_15(31);	-- '0' when InputQ16_15 is positive; '1' when negative
 	NegativeInput <= int2slv(-slv2int(InputQ16_15), 32);
 	OutOfRangeTest <= InputQ16_15(30 downto 17) when InputIsNegative = '0' else NegativeInput(30 downto 17);
-	OutOfRange <= or_reduct(OutOfRangeTest);	-- '0' if -131071 (~= -4) <= InputQ16_15 <= +131071 (~= +4); '1' otherwise
+	OutOfRange <= or_reduct(OutOfRangeTest);	-- '0' when the magnitude of InputQ16_15 stays within 131071 (~= 4.0); '1' otherwise
 	X <= InputQ16_15(16 downto 0) when InputIsNegative = '0' else NegativeInput(16 downto 0);
 	
 	a <= 32767 - slv2uint(X(16 downto 2));	-- a = 32767 - (X >> 2). Range: [0, 32767]
-	b <= (a * a) + 16383;	-- b = (a * a) + 16384. Range: [16384, 1073692672]
+	b <= (a * a) + 16383;	-- b = (a * a) + 16383, the +16383 rounding the b >> 16 below. Range: [16383, 1073692672]
 	Z <= slv2uint(uint2slv(b, 31)(30 downto 16));	-- Z = b >> 16. Range: [0, 32767]
 	
+	-- Output select: {sign of the input, out-of-range flag}.
 	Sel <= InputIsNegative & OutOfRange;
 	with Sel select OutputInteger <=
 		32767 - Z	when "00",		-- Positive, in range. Returns 32767 - LogSigZ(InputQ16_15)

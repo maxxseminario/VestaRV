@@ -5,15 +5,13 @@ use work.constants.all;
 
 entity c_dec is
     generic (
-        -- X0 ISA-extension scaffolding (default false; the new quadrant
-        -- expansions are added by the named phase -- unused here for now).
+        -- X0 ISA-extension scaffolding, default false: the new quadrant expansions are added by the named phase and are unused here for now.
         ENABLE_ZCB   : boolean := false;  -- X1 (Zcb): consumed from phase X1 on; scaffolded X0
         ENABLE_ZIMOP : boolean := false;  -- X1 (Zcmop c.mop): consumed from phase X1 on; scaffolded X0
-        -- X3 Zcmp/Zcmt: the C2 funct3=101 slot (c.fsdsp on an F/D core; free here).
-        -- When either is on, c_dec emits a fixed 32-bit SENTINEL for a LEGAL cm.*
-        -- (see constants.vhd ZCM_*). Both OFF -> the slot stays reserved/illegal =
-        -- bit-identical to the base. Push/pop/moves need ENABLE_ZCMP; jt/jalt need
-        -- ENABLE_ZCMT (each sub-encoding gated on its OWN generic below).
+        -- X3 Zcmp/Zcmt: the C2 funct3=101 slot (c.fsdsp on an F/D core, free here).
+        -- When either is on, c_dec emits a fixed 32-bit SENTINEL for a LEGAL cm.* (see constants.vhd ZCM_*).
+        -- Both OFF leaves the slot reserved/illegal, i.e. bit-identical to the base.
+        -- Push/pop/moves need ENABLE_ZCMP, jt/jalt need ENABLE_ZCMT: each sub-encoding is gated on its OWN generic below.
         ENABLE_ZCMP  : boolean := false;  -- X3 (Zcmp): compressed push/pop + reg-moves
         ENABLE_ZCMT  : boolean := false   -- X3 (Zcmt): compressed table jump (cm.jt/jalt)
     );
@@ -35,6 +33,7 @@ architecture rtl of c_dec is
 
 begin
 
+    -- Combinational RVC expander: a 16-bit instruction becomes its 32-bit equivalent, a 32-bit word passes through untouched.
     decompress_proc: process(instr_in, resetn)
         variable instr16 : std_logic_vector(15 downto 0);
         variable is_compressed_var : std_logic;
@@ -59,6 +58,7 @@ begin
         dec := (others => '0');
         is_compressed_var := '0';
         
+        -- Reset forces a clean all-zero output rather than a decoded stale word.
         if resetn = '0' then
             instr_out <= (others => '0');
             is_compressed <= '0';
@@ -76,7 +76,7 @@ begin
                     -- ========== QUADRANT 0 (00) ==========
                     when "00" =>
                         case funct3 is
-                            -- C.ADDI4SPN -> addi rd', sp, nzuimm[9:2]
+                            -- C.ADDI4SPN expands to addi rd', sp, nzuimm[9:2].
                             when "000" =>
                                 rd_p := instr16(4 downto 2);
                                 rd := "01" & rd_p;  -- x8-x15
@@ -101,7 +101,7 @@ begin
                                     dec(31 downto 20) := imm(11 downto 0);
                                 end if;
                                 
-                            -- C.LW -> lw rd', offset[6:2](rs1')
+                            -- C.LW expands to lw rd', offset[6:2](rs1').
                             when "010" =>
                                 rd_p := instr16(4 downto 2);
                                 rs1_p := instr16(9 downto 7);
@@ -122,7 +122,7 @@ begin
                                 dec(19 downto 15) := rs1;
                                 dec(31 downto 20) := imm(11 downto 0);
                                 
-                            -- C.SW -> sw rs2', offset[6:2](rs1')
+                            -- C.SW expands to sw rs2', offset[6:2](rs1').
                             when "110" =>
                                 rs1_p := instr16(9 downto 7);
                                 rs2_p := instr16(4 downto 2);
@@ -145,8 +145,7 @@ begin
                                 dec(31 downto 25) := imm(11 downto 5);
 
                             -- Zcb byte/halfword loads and stores (funct3=100).
-                            -- Reserved on this core unless ENABLE_ZCB (off ->
-                            -- dec:=0 -> illegal, i.e. today's behavior).
+                            -- Reserved on this core unless ENABLE_ZCB: off leaves dec:=0, i.e. illegal, today's behavior.
                             when "100" =>
                                 if ENABLE_ZCB then
                                     rs1_p := instr16(9 downto 7);
@@ -217,7 +216,7 @@ begin
                                             dec := (others => '0');  -- reserved
                                     end case;
                                 else
-                                    dec := (others => '0');  -- Zcb off -> illegal
+                                    dec := (others => '0');  -- Zcb off: illegal
                                 end if;
 
                             when others =>
@@ -227,7 +226,7 @@ begin
                     -- ========== QUADRANT 1 (01) ==========
                     when "01" =>
                         case funct3 is
-                            -- C.NOP / C.ADDI -> addi rd, rd, nzimm[5:0]
+                            -- C.NOP / C.ADDI expands to addi rd, rd, nzimm[5:0].
                             when "000" =>
                                 rd := instr16(11 downto 7);
                                 
@@ -244,7 +243,7 @@ begin
                                 dec(19 downto 15) := rd;
                                 dec(31 downto 20) := imm(11 downto 0);
                                 
-                            -- C.JAL -> jal x1, offset[11:1] (RV32 only)
+                            -- C.JAL expands to jal x1, offset[11:1] (RV32 only).
                             when "001" =>
                                 -- offset[11|4|9:8|10|6|7|3:1|5] = inst[12|11|10:9|8|7|6|5:3|2]
                                 imm_sign := instr16(12);
@@ -267,7 +266,7 @@ begin
                                 dec(30 downto 21) := imm(10 downto 1);
                                 dec(31)           := imm(20);
                                 
-                            -- C.LI -> addi rd, x0, imm[5:0]
+                            -- C.LI expands to addi rd, x0, imm[5:0].
                             when "010" =>
                                 rd := instr16(11 downto 7);
                                 
@@ -289,7 +288,7 @@ begin
                                 rd := instr16(11 downto 7);
                                 
                                 if rd = "00010" then
-                                    -- C.ADDI16SP -> addi sp, sp, nzimm[9:4]
+                                    -- C.ADDI16SP expands to addi sp, sp, nzimm[9:4].
                                     -- nzimm[9|4|6|8:7|5] = inst[12|6|5|4:3|2]
                                     imm_sign := instr16(12);
                                     imm := (others => imm_sign);
@@ -311,7 +310,7 @@ begin
                                         dec(31 downto 20) := imm(11 downto 0);
                                     end if;
                                 else
-                                    -- C.LUI -> lui rd, nzimm[17:12]
+                                    -- C.LUI expands to lui rd, nzimm[17:12].
                                     -- nzimm[17|16:12] = inst[12|6:2]
                                     imm_sign := instr16(12);
                                     imm := (others => imm_sign);
@@ -319,20 +318,15 @@ begin
                                     imm(16 downto 12) := instr16(6 downto 2);
                                     
                                     if rd = "00000" or unsigned(imm(17 downto 12)) = 0 then
-                                        -- Reserved region of C.LUI (rd=x0, or the
-                                        -- nzimm=0 hole). Zcmop (X1) lives in the
-                                        -- odd-rd slots of the nzimm=0 hole:
-                                        -- c.mop.N (N in 1,3,5,7,9,11,13,15) =
-                                        -- 15..13=011, 12=0, 11..7=N (odd => bit7=1),
-                                        -- 6..2=00000, 1..0=01. Expand to a canonical
-                                        -- 32-bit nop (addi x0,x0,0) => pure nop, no
-                                        -- register/memory change, PC+2. Gated by
-                                        -- ENABLE_ZIMOP; when off this stays the
-                                        -- all-zero reserved word (illegal-instruction).
+                                        -- Reserved region of C.LUI: rd=x0, or the nzimm=0 hole.
+                                        -- Zcmop (X1) lives in the odd-rd slots of the nzimm=0 hole.
+                                        -- c.mop.N (N in 1,3,5,7,9,11,13,15) = 15..13=011, 12=0, 11..7=N (odd, so bit7=1), 6..2=00000, 1..0=01.
+                                        -- Expand to a canonical 32-bit nop (addi x0,x0,0): a pure nop, no register/memory change, PC+2.
+                                        -- Gated by ENABLE_ZIMOP; when off this stays the all-zero reserved word (illegal-instruction).
                                         if ENABLE_ZIMOP and instr16(7) = '1' and
                                            instr16(6 downto 2) = "00000" and
                                            instr16(12) = '0' then
-                                            dec := x"00000013";  -- c.mop.N -> nop
+                                            dec := x"00000013";  -- c.mop.N becomes nop
                                         else
                                             dec := (others => '0');  -- Reserved
                                         end if;
@@ -351,7 +345,7 @@ begin
                                 rs1 := "01" & rs1_p;  -- x8-x15
                                 
                                 case funct2 is
-                                    -- C.SRLI -> srli rd', rd', shamt[5:0]
+                                    -- C.SRLI expands to srli rd', rd', shamt[5:0].
                                     when "00" =>
                                         -- shamt[5:0] = inst[12,6:2]
                                         imm := (others => '0');
@@ -366,7 +360,7 @@ begin
                                         dec(24 downto 20) := imm(4 downto 0);
                                         dec(31 downto 25) := "0000000";
                                         
-                                    -- C.SRAI -> srai rd', rd', shamt[5:0]
+                                    -- C.SRAI expands to srai rd', rd', shamt[5:0].
                                     when "01" =>
                                         -- shamt[5:0] = inst[12,6:2]
                                         imm := (others => '0');
@@ -381,7 +375,7 @@ begin
                                         dec(24 downto 20) := imm(4 downto 0);
                                         dec(31 downto 25) := "0100000";
                                         
-                                    -- C.ANDI -> andi rd', rd', imm[5:0]
+                                    -- C.ANDI expands to andi rd', rd', imm[5:0].
                                     when "10" =>
                                         -- imm[5:0] = inst[12,6:2]
                                         imm_sign := instr16(12);
@@ -401,14 +395,11 @@ begin
                                         rs2_p := instr16(4 downto 2);
                                         rs2 := "01" & rs2_p;  -- x8-x15
 
-                                        -- inst[12] splits funct6: 100011 = base
-                                        -- RVC reg-reg (SUB/XOR/OR/AND); 100111 =
-                                        -- Zcb unary ops + C.MUL (RV64 SUBW/ADDW
-                                        -- reserved on RV32). rs1 (== rd'/rs1') is
-                                        -- already set above for this funct3 arm.
+                                        -- inst[12] splits funct6: 100011 = base RVC reg-reg (SUB/XOR/OR/AND), 100111 = Zcb unary ops plus C.MUL (RV64 SUBW/ADDW reserved on RV32).
+                                        -- rs1 (same as rd'/rs1') is already set above for this funct3 arm.
                                         if instr16(12) = '0' then
                                           case instr16(6 downto 5) is
-                                            -- C.SUB -> sub rd', rd', rs2'
+                                            -- C.SUB expands to sub rd', rd', rs2'.
                                             when "00" =>
                                                 dec(6 downto 0)   := "0110011";  -- SUB
                                                 dec(11 downto 7)  := rs1;
@@ -417,7 +408,7 @@ begin
                                                 dec(24 downto 20) := rs2;
                                                 dec(31 downto 25) := "0100000";
 
-                                            -- C.XOR -> xor rd', rd', rs2'
+                                            -- C.XOR expands to xor rd', rd', rs2'.
                                             when "01" =>
                                                 dec(6 downto 0)   := "0110011";  -- XOR
                                                 dec(11 downto 7)  := rs1;
@@ -426,7 +417,7 @@ begin
                                                 dec(24 downto 20) := rs2;
                                                 dec(31 downto 25) := "0000000";
 
-                                            -- C.OR -> or rd', rd', rs2'
+                                            -- C.OR expands to or rd', rd', rs2'.
                                             when "10" =>
                                                 dec(6 downto 0)   := "0110011";  -- OR
                                                 dec(11 downto 7)  := rs1;
@@ -435,7 +426,7 @@ begin
                                                 dec(24 downto 20) := rs2;
                                                 dec(31 downto 25) := "0000000";
 
-                                            -- C.AND -> and rd', rd', rs2'
+                                            -- C.AND expands to and rd', rd', rs2'.
                                             when "11" =>
                                                 dec(6 downto 0)   := "0110011";  -- AND
                                                 dec(11 downto 7)  := rs1;
@@ -450,10 +441,8 @@ begin
                                         elsif ENABLE_ZCB then
                                           -- ==== Zcb (funct6 = 100111) ====
                                           case instr16(6 downto 5) is
-                                            -- C.MUL rd', rd', rs2'  (gated by
-                                            -- ENABLE_MUL at the base MUL op: when
-                                            -- MUL is off maindec traps this as
-                                            -- illegal, giving both-polarity cover)
+                                            -- C.MUL rd', rd', rs2', gated by ENABLE_MUL at the base MUL op.
+                                            -- With MUL off maindec traps this as illegal, giving both-polarity cover.
                                             when "10" =>
                                                 dec(6 downto 0)   := "0110011";  -- OP (MUL)
                                                 dec(11 downto 7)  := rs1;
@@ -465,15 +454,14 @@ begin
                                             -- unary ops, selected by inst[4:2]
                                             when "11" =>
                                                 case instr16(4 downto 2) is
-                                                    -- C.ZEXT.B -> andi rd',rd',0xff
+                                                    -- C.ZEXT.B expands to andi rd',rd',0xff.
                                                     when "000" =>
                                                         dec(6 downto 0)   := "0010011";  -- ANDI
                                                         dec(11 downto 7)  := rs1;
                                                         dec(14 downto 12) := "111";
                                                         dec(19 downto 15) := rs1;
                                                         dec(31 downto 20) := x"0FF";
-                                                    -- C.SEXT.B -> sext.b rd',rd' (Zbb;
-                                                    -- base op traps when BITMANIP off)
+                                                    -- C.SEXT.B expands to sext.b rd',rd' (Zbb; the base op traps when BITMANIP is off).
                                                     when "001" =>
                                                         dec(6 downto 0)   := "0010011";  -- OP-IMM
                                                         dec(11 downto 7)  := rs1;
@@ -481,8 +469,7 @@ begin
                                                         dec(19 downto 15) := rs1;
                                                         dec(24 downto 20) := "00100";
                                                         dec(31 downto 25) := "0110000";
-                                                    -- C.ZEXT.H -> zext.h rd',rd' (Zbb,
-                                                    -- RV32 pack form)
+                                                    -- C.ZEXT.H expands to zext.h rd',rd' (Zbb, RV32 pack form).
                                                     when "010" =>
                                                         dec(6 downto 0)   := "0110011";  -- OP
                                                         dec(11 downto 7)  := rs1;
@@ -490,7 +477,7 @@ begin
                                                         dec(19 downto 15) := rs1;
                                                         dec(24 downto 20) := "00000";
                                                         dec(31 downto 25) := "0000100";
-                                                    -- C.SEXT.H -> sext.h rd',rd' (Zbb)
+                                                    -- C.SEXT.H expands to sext.h rd',rd' (Zbb).
                                                     when "011" =>
                                                         dec(6 downto 0)   := "0010011";  -- OP-IMM
                                                         dec(11 downto 7)  := rs1;
@@ -498,27 +485,24 @@ begin
                                                         dec(19 downto 15) := rs1;
                                                         dec(24 downto 20) := "00101";
                                                         dec(31 downto 25) := "0110000";
-                                                    -- C.NOT -> xori rd',rd',-1
+                                                    -- C.NOT expands to xori rd',rd',-1.
                                                     when "101" =>
                                                         dec(6 downto 0)   := "0010011";  -- XORI
                                                         dec(11 downto 7)  := rs1;
                                                         dec(14 downto 12) := "100";
                                                         dec(19 downto 15) := rs1;
                                                         dec(31 downto 20) := x"FFF";
-                                                    -- "100" = C.ZEXT.W (RV64 only,
-                                                    -- excluded); "110"/"111" reserved
+                                                    -- "100" = C.ZEXT.W (RV64 only, excluded), "110"/"111" reserved.
                                                     when others =>
                                                         dec := (others => '0');
                                                 end case;
 
-                                            -- "00"/"01" = C.SUBW/C.ADDW (RV64) —
-                                            -- reserved on RV32
+                                            -- "00"/"01" = C.SUBW/C.ADDW (RV64), reserved on RV32.
                                             when others =>
                                                 dec := (others => '0');
                                           end case;
                                         else
-                                          -- Zcb disabled: funct6=100111 space is
-                                          -- reserved -> illegal instruction.
+                                          -- Zcb disabled: the funct6=100111 space stays reserved, so illegal instruction.
                                           dec := (others => '0');
                                         end if;
                                         
@@ -526,7 +510,7 @@ begin
                                         dec := (others => '0');
                                 end case;
                                 
-                            -- C.J -> jal x0, offset[11:1]
+                            -- C.J expands to jal x0, offset[11:1].
                             when "101" =>
                                 -- offset[11|4|9:8|10|6|7|3:1|5] = inst[12|11|10:9|8|7|6|5:3|2]
                                 imm_sign := instr16(12);
@@ -549,7 +533,7 @@ begin
                                 dec(30 downto 21) := imm(10 downto 1);
                                 dec(31)           := imm(20);
                                 
-                            -- C.BEQZ -> beq rs1', x0, offset[8:1]
+                            -- C.BEQZ expands to beq rs1', x0, offset[8:1].
                             when "110" =>
                                 rs1_p := instr16(9 downto 7);
                                 rs1 := "01" & rs1_p;  -- x8-x15
@@ -574,7 +558,7 @@ begin
                                 dec(30 downto 25) := imm(10 downto 5);
                                 dec(31)           := imm(12);
                                 
-                            -- C.BNEZ -> bne rs1', x0, offset[8:1]
+                            -- C.BNEZ expands to bne rs1', x0, offset[8:1].
                             when "111" =>
                                 rs1_p := instr16(9 downto 7);
                                 rs1 := "01" & rs1_p;  -- x8-x15
@@ -606,7 +590,7 @@ begin
                     -- ========== QUADRANT 2 (10) ==========
                     when "10" =>
                         case funct3 is
-                            -- C.SLLI -> slli rd, rd, shamt[5:0]
+                            -- C.SLLI expands to slli rd, rd, shamt[5:0].
                             when "000" =>
                                 rd := instr16(11 downto 7);
                                 
@@ -623,7 +607,7 @@ begin
                                 dec(24 downto 20) := imm(4 downto 0);
                                 dec(31 downto 25) := "0000000";
                                 
-                            -- C.LWSP -> lw rd, offset[7:2](sp)
+                            -- C.LWSP expands to lw rd, offset[7:2](sp).
                             when "010" =>
                                 rd := instr16(11 downto 7);
                                 
@@ -652,7 +636,7 @@ begin
                                 
                                 if instr16(12) = '0' then
                                     if rs2 = "00000" then
-                                        -- C.JR -> jalr x0, 0(rs1)
+                                        -- C.JR expands to jalr x0, 0(rs1).
                                         if rd = "00000" then
                                             dec := (others => '0');  -- Reserved
                                         else
@@ -663,7 +647,7 @@ begin
                                             dec(31 downto 20) := (others => '0');
                                         end if;
                                     else
-                                        -- C.MV -> add rd, x0, rs2
+                                        -- C.MV expands to add rd, x0, rs2.
                                         dec(6 downto 0)   := "0110011";  -- ADD
                                         dec(11 downto 7)  := rd;
                                         dec(14 downto 12) := "000";
@@ -676,14 +660,14 @@ begin
                                         -- C.EBREAK
                                         dec := x"00100073";
                                     elsif rs2 = "00000" then
-                                        -- C.JALR -> jalr x1, 0(rs1)
+                                        -- C.JALR expands to jalr x1, 0(rs1).
                                         dec(6 downto 0)   := "1100111";  -- JALR
                                         dec(11 downto 7)  := "00001";    -- x1
                                         dec(14 downto 12) := "000";
                                         dec(19 downto 15) := rd;         -- rs1
                                         dec(31 downto 20) := (others => '0');
                                     else
-                                        -- C.ADD -> add rd, rd, rs2
+                                        -- C.ADD expands to add rd, rd, rs2.
                                         dec(6 downto 0)   := "0110011";  -- ADD
                                         dec(11 downto 7)  := rd;
                                         dec(14 downto 12) := "000";
@@ -693,7 +677,7 @@ begin
                                     end if;
                                 end if;
                                 
-                            -- C.SWSP -> sw rs2, offset[7:2](sp)
+                            -- C.SWSP expands to sw rs2, offset[7:2](sp).
                             when "110" =>
                                 rs2 := instr16(6 downto 2);
                                 
@@ -712,18 +696,11 @@ begin
                                 dec(31 downto 25) := imm(11 downto 5);
 
                             -- ==== X3 Zcmp / Zcmt (C2 funct3=101) ====
-                            -- The c.fsdsp slot on an F/D core; reserved (illegal)
-                            -- on this core at the base. cm.push/pop/popret[z],
-                            -- cm.mvsa01/mva01s (Zcmp) and cm.jt/cm.jalt (Zcmt) all
-                            -- live here. c_dec does NOT expand them to a single
-                            -- 32-bit insn (each is multi-write / a memory burst /
-                            -- a redirect): it emits the fixed ZCM SENTINEL that
-                            -- maindec+vesta's FSM consume. A LEGAL, enabled cm.*
-                            -- sets dec; every illegal pattern (and both generics
-                            -- off) leaves dec = all-zero = illegal-instruction
-                            -- (base behavior -> OFF build bit-identical). The
-                            -- embedded instr16 (dec(31:16)) carries the operand
-                            -- fields at their spec bit positions.
+                            -- The c.fsdsp slot on an F/D core, reserved (illegal) on this core at the base.
+                            -- cm.push/pop/popret[z], cm.mvsa01/mva01s (Zcmp) and cm.jt/cm.jalt (Zcmt) all live here.
+                            -- c_dec does NOT expand them to a single 32-bit insn (each is multi-write, a memory burst, or a redirect): it emits the fixed ZCM SENTINEL that maindec and vesta's FSM consume.
+                            -- A LEGAL, enabled cm.* sets dec; every illegal pattern, and both generics off, leaves dec all-zero, i.e. illegal-instruction, so an OFF build is bit-identical to the base.
+                            -- The embedded instr16 (dec(31:16)) carries the operand fields at their spec bit positions.
                             when "101" =>
                                 if ENABLE_ZCMP or ENABLE_ZCMT then
                                     if instr16(12) = '0' then
@@ -736,8 +713,7 @@ begin
                                             end if;
                                         elsif instr16(11 downto 10) = "11" then
                                             -- cm.mvsa01 (6:5=01) / cm.mva01s (6:5=11).
-                                            -- r1s' /= r2s' required (specifiers differ;
-                                            -- the sreg map is injective).
+                                            -- r1s' /= r2s' is required: the specifiers must differ, and the sreg map is injective.
                                             if ENABLE_ZCMP and
                                                instr16(9 downto 7) /= instr16(4 downto 2) then
                                                 if instr16(6 downto 5) = "01" then
@@ -751,12 +727,10 @@ begin
                                                 end if;
                                             end if;
                                         end if;
-                                        -- bits(11:10) = 01/10 with bit12=0 reserved -> illegal
+                                        -- bits(11:10) = 01/10 with bit12=0 is reserved, so illegal
                                     else
-                                        -- bit12=1: push/pop family (Zcmp). Require
-                                        -- bit11=1, bit8=0, rlist(7:4) >= 4 (0-3 illegal).
-                                        -- bits(10:9): 00 push / 01 pop / 10 popretz /
-                                        -- 11 popret.
+                                        -- bit12=1: push/pop family (Zcmp), requiring bit11=1, bit8=0, rlist(7:4) >= 4 (0-3 illegal).
+                                        -- bits(10:9): 00 push / 01 pop / 10 popretz / 11 popret.
                                         if ENABLE_ZCMP and instr16(11) = '1' and instr16(8) = '0'
                                            and unsigned(instr16(7 downto 4)) >= 4 then
                                             dec(6 downto 0)   := ZCM_SENTINEL_OP;
@@ -776,12 +750,13 @@ begin
                                 dec := (others => '0');
                         end case;
 
+                    -- Quadrant 3 (11) is the uncompressed encoding and is filtered out above, so this arm is unreachable.
                     when others =>
                         dec := (others => '0');
                 end case;
                 
             else
-                -- Not compressed - pass through
+                -- Not compressed: pass the 32-bit word straight through.
                 is_compressed_var := '0';
                 dec := instr_in;
             end if;

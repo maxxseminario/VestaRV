@@ -20,22 +20,19 @@ use work.fixed_pkg.all;
 	--							Number of neurons/outputs (NPUNN + 1)
 	--							Starting NPU (NPUTHINK)
 	--							Think-Done Interrupt Enable (NPUCR.TDIE, bit 19)
-	--							Datapath Mode Select (NPUCR.MODE, bits 22:20 — P4.1 family; 0 = legacy MLP)
-	--							Activation Select (NPUCR.ACTF, bits 25:23 — P4.4: 0=sigmoid(legacy) 1=ReLU 2=tanh 3=clamp 4=exp-approx; 5-7 reserved, act as 0)
+	--							Datapath Mode Select (NPUCR.MODE, bits 22:20; P4.1 family, 0 = legacy MLP)
+	--							Activation Select (NPUCR.ACTF, bits 25:23; P4.4: 0=sigmoid(legacy) 1=ReLU 2=tanh 3=clamp 4=exp-approx; 5-7 reserved, act as 0)
 	--							Per-Mode Config Words (NPUCFG1 @5, NPUCFG2 @6; offsets 7-15 reserved read-0)
 	--							SRAM Start Address For Inputs (NPUIVSAR)
 	--							SRAM Weight Address For Inputs (NPUWVSAR)
 	--							SRAM Output Address For Inputs (NPUOVSAR)
 	--
-	-- DP-SG think-done IRQ (2026-07-22, npu_irq_spec.md — irq_router source 120):
-	-- NPUSR (MmrAddrNPUSR=4) bit 0 THINKDONE sets on the NpuDone completion pulse
-	-- (once per THINK), sticky, W1C via a bit-0 write of '1' (set-dominant on a
-	-- same-cycle set/W1C collision). ThinkDoneIrq = THINKDONE and TDIE, one output
-	-- flop on the free-running Clk (NOT NpuClk — the gate is off between THINKs).
-	-- CONSTRAINT: MabMmrCLK and Clk must be the SAME clock (true in MCU_MP: both
-	-- mclk) — the W1C decode is sampled on Clk. Reset default TDIE=0 keeps legacy
-	-- polling firmware unaffected; the staging-RAM contract (poll NPUCR.16 before
-	-- touching 0xC000+) is unchanged by the IRQ.
+	-- DP-SG think-done IRQ (2026-07-22, npu_irq_spec.md, irq_router source 120).
+	-- NPUSR (MmrAddrNPUSR=4) bit 0 THINKDONE sets on the NpuDone completion pulse (once per THINK), sticky, W1C via a bit-0 write of '1' (set-dominant on a same-cycle set/W1C collision).
+	-- ThinkDoneIrq = THINKDONE and TDIE, one output flop on the free-running Clk, NOT NpuClk: that gate is off between THINKs.
+	-- CONSTRAINT: MabMmrCLK and Clk must be the SAME clock (true in MCU_MP: both mclk), because the W1C decode is sampled on Clk.
+	-- Reset default TDIE=0 keeps legacy polling firmware unaffected.
+	-- The staging-RAM contract (poll NPUCR.16 before touching 0xC000+) is unchanged by the IRQ.
 entity NPU is
     generic(
 		-- Fixed-Point M and N Bits for inputs, weights, and outputs
@@ -81,10 +78,8 @@ entity NPU is
 		-- NPU Interrupt Signal
 		ThinkDoneIrq	: out	std_logic;						-- Think-Done IRQ (registered level, irq_router source 120)
 
-		-- EVFAB task (event fabric, event_fabric_spec.md 2026-07-24): one-mclk
-		-- fabric pulse starting a THINK on the pre-programmed descriptor
-		-- (T6). The fabric's task_busy tap is the EXISTING NpuActive output
-		-- (NPUTHINK or NpuMuxSel) -- no new busy port.
+		-- EVFAB task (event fabric, event_fabric_spec.md 2026-07-24): a one-mclk fabric pulse that starts a THINK on the pre-programmed descriptor (T6).
+		-- The fabric's task_busy tap is the EXISTING NpuActive output (NPUTHINK or NpuMuxSel), so no new busy port is needed.
 		task_think		: in	std_logic := '0'
     );
 end NPU;
@@ -97,13 +92,9 @@ architecture behavioral of NPU is
 
 
 	----- Memory Mapped Registers & Bits
-	-- P4.1 (npu_family_spec.md, 2026-07-23): NPUCR grows the family fields
-	-- MODE [22:20] (0 = legacy MLP, reset default) and ACTF [25:23]
-	-- (activation select; only 0 = sigmoid is implemented until P4.4), and the
-	-- MMR bus widens 3->4 bits: NPUCFG1/NPUCFG2 land at word offsets 5/6
-	-- (per-mode configuration), offsets 7-15 are reserved and read 0. The
-	-- reset-0 register image is byte-behavior-identical to the legacy MLP
-	-- block (the shnpu.S compatibility gate).
+	-- P4.1 (npu_family_spec.md, 2026-07-23): NPUCR grows the family fields MODE [22:20] (0 = legacy MLP, reset default) and ACTF [25:23] (activation select; only 0 = sigmoid is implemented until P4.4).
+	-- The MMR bus widens from 3 bits to 4: NPUCFG1/NPUCFG2 land at word offsets 5/6 (per-mode configuration), offsets 7-15 are reserved and read 0.
+	-- The reset-0 register image is byte-behavior-identical to the legacy MLP block (the shnpu.S compatibility gate).
 	signal NPUCR		: std_logic_vector(25 downto 0);		-- NPU Control Register
 		signal NPUBEN	: std_logic;								-- NPU Bias Input Enable Bit (Enabled For First Layer)
 		signal NPUAEN	: std_logic;								-- NPU Activation Function Enable Bit (Disabled for Last Layer)
@@ -125,7 +116,7 @@ architecture behavioral of NPU is
 	signal NpuSramCLK	: std_logic;							-- MCU To NPU DP SRAM - Clock				(Combinational)
 	signal NpuSramCEN	: std_logic;							-- MCU To NPU DP SRAM - Chip Enable 		(Flip-Flop)
 	signal NpuSramGWEN	: std_logic;							-- MCU To NPU DP SRAM - Global Write Enable	(Combinational)
-	signal NpuSramWEN	: std_logic_vector(3 downto 0);			-- MCU To NPU DP SRAM - Write Enable		(Conbinational)
+	signal NpuSramWEN	: std_logic_vector(3 downto 0);			-- MCU To NPU DP SRAM - Write Enable		(Combinational)
 
 	----- NPU Internal Signals
 	-- Registers & Flip Flops
@@ -158,14 +149,13 @@ architecture behavioral of NPU is
 	signal CurrYAddr	: unsigned(11 downto 0);				-- Current Output's Address (0-4095)
 	signal MacOut 		: std_logic_vector
 			((Y_M_BITS+N_BITS) downto 0);						-- MAC Combinational Output
-	signal Decision		: std_logic_vector(N_BITS downto 0); 	-- Decision Signal (Output Of Activation Fucntion)
-	signal MabMmrAInt	: natural range 0 to 63;
+	signal Decision		: std_logic_vector(N_BITS downto 0); 	-- Decision Signal (Output Of Activation Function)
+	signal MabMmrAInt	: natural range 0 to 63;			-- MMR word offset as an integer (0 when the block is not selected)
 	signal NpuMuxSel	: std_logic;							-- SRAM-port mux select = NPUTHINK registered on Clk (M7d)
 
 	----- P4.1 CONV1D mode (npu_conv_design.md D1/D2/D4/D5) -----
-	-- Run shadows, latched at NPU_BEGIN (D4): a mid-THINK MODE/CFG write is
-	-- benign — the in-flight run keys off these frozen copies. mode_run resets
-	-- to 0 (MLP) so every conv term below is dead at reset and in mode 0.
+	-- Run shadows, latched at NPU_BEGIN (D4): a mid-THINK MODE/CFG write is benign, since the in-flight run keys off these frozen copies.
+	-- mode_run resets to 0 (MLP) so every conv term below is dead at reset and in mode 0.
 	constant MODE_CONV	: std_logic_vector(2 downto 0) := "001";
 	signal mode_run		: std_logic_vector(2 downto 0);			-- MODE shadow (0 = MLP legacy)
 	signal S_run		: unsigned(3 downto 0);					-- stride shadow  (CFG1 3:0)
@@ -184,13 +174,8 @@ architecture behavioral of NPU is
 	signal filter_base	: unsigned(11 downto 0);				-- current filter's weight-block base
 
 	----- P4.2 XNOR/popcount mode (npu_xnor_design.md D1-D6) -----
-	-- Addressing is byte-for-byte the as-built MLP walk (the KEY FINDING):
-	-- CurrXIndex = packed-word counter, CurrYIndex = neuron, CurrWAddr's
-	-- running +1 lands on each neuron-major weight block with no reload.
-	-- Everything below is additive-to-new-registers; the only shared-
-	-- expression edits are the NpuSramD override (D1 tp1) and the
-	-- adjudicated MacClkEn gate (D2 overrule) — both vacuously
-	-- as-built in modes 0/1.
+	-- Addressing is byte-for-byte the as-built MLP walk (the KEY FINDING): CurrXIndex = packed-word counter, CurrYIndex = neuron, and CurrWAddr's running +1 lands on each neuron-major weight block with no reload.
+	-- Everything below is additive to new registers; the only shared-expression edits are the NpuSramD override (D1 tp1) and the adjudicated MacClkEn gate (D2 overrule), both vacuously as-built in modes 0/1.
 	constant MODE_XNOR	: std_logic_vector(2 downto 0) := "010";
 	signal xnor_aw		: std_logic_vector(31 downto 0);		-- packed activation word (GET_INPUT capture)
 	signal xnor_ww		: std_logic_vector(31 downto 0);		-- packed weight word (GET_WEIGHT capture)
@@ -198,25 +183,19 @@ architecture behavioral of NPU is
 	signal K_run		: unsigned(12 downto 0);				-- exact K shadow (CFG2 12:0)
 	signal last_mask_run: std_logic_vector(31 downto 0);		-- tail mask for the LAST word (D3)
 	signal pop_acc		: unsigned(12 downto 0);				-- per-neuron popcount accumulator
-	signal xnor_outword	: std_logic_vector(31 downto 0);		-- +-1.0 Q7.24 result (MAC->SET_OUTPUT lifetime)
+	signal xnor_outword	: std_logic_vector(31 downto 0);		-- +-1.0 Q7.24 result (lives from MAC to SET_OUTPUT)
 	-- combinational cloud (D2/D3/D4)
 	signal xnor_masked	: std_logic_vector(31 downto 0);		-- tail-masked per-bit XNOR
 	signal xnor_pop6	: unsigned(5 downto 0);					-- popcount of the current word (0..32)
-	signal xnor_total	: unsigned(13 downto 0);				-- pop_acc + current word (comb, <= K)
+	signal xnor_total	: unsigned(13 downto 0);				-- pop_acc + current word (comb, never exceeds K)
 	signal xnor_value	: signed(31 downto 0);					-- 2*pop_total - K
 	signal xnor_fireword: std_logic_vector(31 downto 0);		-- +1.0 / -1.0 select
 	signal mlp_conv_sramd : std_logic_vector(31 downto 0);		-- the as-built NPUAEN write-data select
 
 	----- P4.3 GEMM mode (npu_gemm_design.md D1-D5) -----
-	-- GEMM = M as-built MLP THINKs (the KEY FINDING): the n-loop IS the
-	-- neuron loop (CurrYIndex, bound NPUNN=N-1), the k-loop IS the input
-	-- loop (CurrXIndex, bound NPUNI=K-1); m is the added super-outer row
-	-- loop (M-1 = NPUCFG1[7:0], latched at BEGIN). B column-major makes
-	-- the weight walk the as-built running +1 across abutting columns,
-	-- reloaded to the CONSTANT WVSAR once per row (conv's filter_base
-	-- reload simplified: no snapshot, M reloads total). Three shared-
-	-- expression edits (the CurrXAddr/CurrYAddr GEMM arms + the
-	-- SET_OUTPUT elsif); everything else is additive-to-new-registers.
+	-- GEMM = M as-built MLP THINKs (the KEY FINDING): the n-loop IS the neuron loop (CurrYIndex, bound NPUNN=N-1), the k-loop IS the input loop (CurrXIndex, bound NPUNI=K-1), and m is the added super-outer row loop (M-1 = NPUCFG1[7:0], latched at BEGIN).
+	-- B column-major makes the weight walk the as-built running +1 across abutting columns, reloaded to the CONSTANT WVSAR once per row (conv's filter_base reload simplified: no snapshot, M reloads total).
+	-- Three shared-expression edits (the CurrXAddr/CurrYAddr GEMM arms plus the SET_OUTPUT elsif); everything else is additive to new registers.
 	constant MODE_GEMM	: std_logic_vector(2 downto 0) := "011";
 	signal M_m1_run		: unsigned(7 downto 0);					-- M-1 shadow (CFG1 7:0)
 	signal gemm_m		: unsigned(7 downto 0);					-- output row m (0..M-1)
@@ -224,13 +203,10 @@ architecture behavioral of NPU is
 	signal gemm_yptr	: unsigned(11 downto 0);				-- flat C write pointer (row-major)
 
 	----- P4.4 ACTF activation mux (npu_actf_design.md D1-D8) -----
-	-- Every activation is a shift-and-add wrapper around the ONE existing
-	-- combinational FPSigmoid, selected BELOW the XNOR NpuSramD override
-	-- (mode 2 never reads it). actf_run=0 collapses act_out to the as-built
-	-- Decision arm and sig_in to AccOutLtchd — the ACTF=0 compatibility
-	-- invariant holds by inspection. NPUAEN stays the LIVE master enable
-	-- (AEN=0 = passthrough, ACTF don't-care). All nets generic-parametric:
-	-- the legacy NPU_tb still binds the DEFAULT generics.
+	-- Every activation is a shift-and-add wrapper around the ONE existing combinational FPSigmoid, selected BELOW the XNOR NpuSramD override (mode 2 never reads it).
+	-- actf_run=0 collapses act_out to the as-built Decision arm and sig_in to AccOutLtchd, so the ACTF=0 compatibility invariant holds by inspection.
+	-- NPUAEN stays the LIVE master enable (AEN=0 = passthrough, ACTF don't-care).
+	-- All nets are generic-parametric: the legacy NPU_tb still binds the DEFAULT generics.
 	constant ACTF_SIG	: std_logic_vector(2 downto 0) := "000";	-- sigmoid (legacy)
 	constant ACTF_RELU	: std_logic_vector(2 downto 0) := "001";
 	constant ACTF_TANH	: std_logic_vector(2 downto 0) := "010";	-- 2*sigma(2x)-1
@@ -248,7 +224,7 @@ architecture behavioral of NPU is
 	signal exp_word		: std_logic_vector(31 downto 0);
 	signal act_out		: std_logic_vector(31 downto 0);		-- ACTF-selected activated word
 
-	-- D2: plain loop-sum — Genus infers the ~6-level compressor tree.
+	-- D2: a plain loop-sum; Genus infers the roughly 6-level compressor tree.
 	function popcount32(v : std_logic_vector(31 downto 0)) return unsigned is
 		variable a : unsigned(5 downto 0);
 	begin
@@ -259,8 +235,8 @@ architecture behavioral of NPU is
 		return a;
 	end popcount32;
 
-	-- D3: tail mask from K mod 32 (CFG2 4:0). Kmod=0 = a 32-aligned last
-	-- word, every bit real -> all-ones; else only the low Kmod bits count.
+	-- D3: tail mask from K mod 32 (CFG2 4:0).
+	-- Kmod=0 means a 32-aligned last word with every bit real, so the mask is all-ones; otherwise only the low Kmod bits count.
 	function tail_mask(kmod : std_logic_vector(4 downto 0)) return std_logic_vector is
 		variable m : std_logic_vector(31 downto 0);
 		variable n : integer;
@@ -281,15 +257,10 @@ begin
 	----------------------------------------------
 	----- Muxed SRAM Memory Bus Multiplexer ------
 	----------------------------------------------
-	-- M7d: the select is NPUTHINK REGISTERED on the free-running Clk
-	-- (NpuMuxSel), not raw NPUTHINK. With the MMRs behind the multi-hart
-	-- arbiter, ANY hart can set THINK at an mclk edge where the CPU that owns
-	-- this SRAM port has an access in flight; switching the port on the raw
-	-- bit could eat that access (corrupted load / dropped store). NpuActive
-	-- (-> the owner CPU's sleep) is raw-OR-delayed, so the CPU is stopped one
-	-- full cycle BEFORE the port switches to the NPU and resumes one full
-	-- cycle AFTER it switches back; the NPU FSM's first SRAM access is
-	-- several NpuClk cycles after THINK, well past the switch.
+	-- M7d: the select is NPUTHINK REGISTERED on the free-running Clk (NpuMuxSel), not raw NPUTHINK.
+	-- With the MMRs behind the multi-hart arbiter, ANY hart can set THINK at an mclk edge where the CPU owning this SRAM port has an access in flight; switching the port on the raw bit could eat that access (corrupted load or dropped store).
+	-- NpuActive, which drives the owner CPU's sleep, is the raw bit ORed with the delayed one, so the CPU is stopped one full cycle BEFORE the port switches to the NPU and resumes one full cycle AFTER it switches back.
+	-- The NPU FSM's first SRAM access is several NpuClk cycles after THINK, well past the switch.
 	NpuSramA_out 	<= SramA_in when (NpuMuxSel = '0') else NpuSramA;
 	NpuSramD_out 	<= SramD_in when (NpuMuxSel = '0') else NpuSramD;
 	NpuSramCLK_out 	<= SramCLK_in when (NpuMuxSel = '0') else NpuSramCLK;
@@ -297,6 +268,7 @@ begin
 	NpuSramGWEN_out <= SramGWEN_in when (NpuMuxSel = '0') else NpuSramGWEN;
 	NpuSramWEN_out 	<= SramWEN_in when (NpuMuxSel = '0') else NpuSramWEN;
 
+	-- SRAM port select: NPUTHINK delayed by one free-running Clk edge.
 	NPU_MUXSEL_REG: process(Clk, ResetN)
 	begin
 		if (ResetN = '0') then
@@ -361,17 +333,13 @@ begin
 	--------------------------------------
 	----- NPU Internal Functionality -----
 	--------------------------------------
-	-- M7d: raw OR delayed — the owner CPU sleeps from the THINK write until
-	-- one cycle AFTER the SRAM port has switched back (see mux comment)
+	-- M7d: raw ORed with delayed, so the owner CPU sleeps from the THINK write until one cycle AFTER the SRAM port has switched back (see the mux comment above).
 	NpuActive <= NPUTHINK or NpuMuxSel;
 
-	-- DP-SG think-done flag + registered IRQ level. Lives on the FREE-RUNNING
-	-- Clk, not NpuClk: the gated clock stops between THINKs, so a NpuClk flop
-	-- could never take the W1C reliably. NpuDone is registered on NpuClk (edges
-	-- aligned with Clk, and NpuClkEn = NpuThink or NpuDone keeps the gate open
-	-- through the pulse), so this process samples it exactly once per THINK.
-	-- Set-dominant: the NpuDone assignment is last, so a W1C landing on the
-	-- exact completion edge keeps the flag (a completion is never lost).
+	-- DP-SG think-done flag plus the registered IRQ level.
+	-- Lives on the FREE-RUNNING Clk, not NpuClk: the gated clock stops between THINKs, so a NpuClk flop could never take the W1C reliably.
+	-- NpuDone is registered on NpuClk (edges aligned with Clk, and NpuClkEn = NpuThink or NpuDone keeps the gate open through the pulse), so this process samples it exactly once per THINK.
+	-- Set-dominant: the NpuDone assignment is last, so a W1C landing on the exact completion edge keeps the flag and a completion is never lost.
 	THINKDONE_SEQ: process(Clk, ResetN)
 	begin
 		if (ResetN = '0') then
@@ -405,8 +373,8 @@ begin
 			CurrWAddr	<= unsigned(NPUWVSAR);
 			CurrXIndex	<= (others =>'0');
 			CurrYIndex	<= (others =>'0');
-			-- P4.1: conv shadows/walkers all reset (X-collapse discipline);
-			-- mode_run=0 keeps every conv term dead until a CONV THINK latches it
+			-- P4.1: conv shadows and walkers all reset (X-collapse discipline).
+			-- mode_run=0 keeps every conv term dead until a CONV THINK latches it.
 			mode_run	<= (others => '0');
 			S_run		<= (others => '0');
 			D_run		<= (others => '0');
@@ -447,8 +415,7 @@ begin
 					CurrXIndex	<= (others =>'0');
 					CurrYIndex	<= (others =>'0');
 					CurrWAddr	<= unsigned(NPUWVSAR);
-					-- P4.1 D4: latch the run shadows (mode + conv shape) at the
-					-- first NpuClk edge of every THINK; D2: reset the walkers.
+					-- P4.1 D4: latch the run shadows (mode and conv shape) at the first NpuClk edge of every THINK; D2 resets the walkers.
 					mode_run	<= NPUCR(22 downto 20);
 					-- P4.4 D1/TP3: the ACTF latch the conv doc deferred
 					actf_run	<= NPUCR(25 downto 23);
@@ -475,8 +442,7 @@ begin
 					gemm_m		<= (others => '0');
 					mK			<= (others => '0');
 					gemm_yptr	<= unsigned(NPUOVSAR);
-					-- D10 G3 (FROZEN): conv with Lout=0 = zero outputs,
-					-- immediate done — never hangs, never touches the RAM.
+					-- D10 G3 (FROZEN): conv with Lout=0 produces zero outputs and finishes immediately; it never hangs and never touches the RAM.
 					if ((NPUCR(22 downto 20) = MODE_CONV) and (unsigned(NPUCFG2) = 0)) then
 						NpuState	<= NPU_FINISH;
 					else
@@ -498,8 +464,8 @@ begin
 						-- Weight address will be incremented after MAC
 						-- Update State
 						if ((NPUBEN = '1') and (BiasDone = '0')) then
-							-- If Bias is enabled but not been completed this is bias weight, CurrX will be set to 1.
-							-- No need to get weight from SRAM so can skip straight to NPU_MAC.
+							-- Bias enabled and not yet done, so this is the bias weight and CurrX is set to 1.
+							-- No input fetch from SRAM is needed, so skip straight to NPU_MAC.
 							CurrX		<= to_slv(to_sfixed(1, X_M_BITS, -N_BITS));
 							NpuState	<= NPU_MAC;			
 						else
@@ -521,17 +487,16 @@ begin
 						CurrX		<= SramQ_in((X_M_BITS + N_BITS) downto 0);
 						xnor_aw		<= SramQ_in;	-- P4.2: full-width packed capture (additive)
 						-- Input index will be incremented after MAC
-						-- Update State - Time to MAC (~￣3￣)~
+						-- Update state: time to MAC.
 						NpuState	<= NPU_MAC;
 						-- Reset MemReady Signal
 						MemReady	<= '0';
 					end if;
 				when NPU_MAC =>
 					-- 1 Cycle Runtime
-					-- After last clock cycle the input and weight should have both been set...
-					-- properly for the MAC. MAC Clk was also enabled and this clock cycle the 
-					-- result would have been ready and latched in accumulator. If moving on to save
-					-- ouput, then accumalator output is latched and fed to sigmoid approximator.
+					-- The input and weight were both set properly for the MAC last clock cycle.
+					-- MacClk was also enabled, so this clock cycle the result is ready and latched in the accumulator.
+					-- If moving on to save the output, the accumulator output is latched and fed to the sigmoid approximator.
 					if ((NeuronDone = '1')) then
 						-- Neuron Done update state
 						AccOutLtchd	<= MacOut;
@@ -542,11 +507,8 @@ begin
 						NpuState	<= NPU_GET_WEIGHT;
 						MemReady	<= '0'; -- Memory not ready for read
 					end if;
-					-- P4.2 D2/D4: XNOR accumulate + decision (dead in modes
-					-- 0/1). pop_acc registers this word's count on this edge;
-					-- the NeuronDone decision therefore uses the COMBINATIONAL
-					-- total (pop_acc + this word) — xnor_fireword — latched
-					-- with the same lifetime as AccOutLtchd.
+					-- P4.2 D2/D4: XNOR accumulate and decision (dead in modes 0/1).
+					-- pop_acc registers this word's count on this edge, so the NeuronDone decision uses the COMBINATIONAL total (pop_acc plus this word), namely xnor_fireword, latched with the same lifetime as AccOutLtchd.
 					if (mode_run = MODE_XNOR) then
 						pop_acc <= pop_acc + xnor_pop6;
 						if (NeuronDone = '1') then
@@ -560,11 +522,8 @@ begin
 					else
 						-- Bias is either not enabled or already completed so increase input index.
 						CurrXIndex	<= CurrXIndex + 1;
-						-- P4.1 D2: conv tap/channel walk (dead in MLP). At the
-						-- channel boundary (k = K-1) the tap index wraps and,
-						-- unless this was the last channel (NeuronDone case —
-						-- SET_OUTPUT resets everything), c advances with its
-						-- running c*L stride.
+						-- P4.1 D2: conv tap and channel walk (dead in MLP).
+						-- At the channel boundary (k = K-1) the tap index wraps and, unless this was the last channel (the NeuronDone case, where SET_OUTPUT resets everything), c advances with its running c*L stride.
 						if (mode_run = MODE_CONV) then
 							kD			<= kD + D_run;
 							if (CurrXIndex = unsigned(NPUNI)) then
@@ -581,17 +540,13 @@ begin
 					CurrWAddr	<= CurrWAddr + 1;
 				when NPU_SET_OUTPUT =>
 					-- 1 Cycle Runtime
-					-- After last clock cycle MAC output was lached into AccOutLtchd and Decision should be calculated by now.
-					-- SRAM was enabled and current output address was also set last clock cycle.
-					-- This clock cycle SRAM will write output to SRAM and will move to either getting next weight or finishing...
-					-- thus MemReady = 0.
+					-- The MAC output was latched into AccOutLtchd last clock cycle and Decision is calculated by now.
+					-- SRAM was enabled and the current output address was also set last clock cycle.
+					-- This clock cycle SRAM writes the output and the FSM moves on to either the next weight or finish, so MemReady = 0.
 					if (mode_run = MODE_CONV) then
-						-- P4.1 D1/D2/D5: conv output bookkeeping. Within a
-						-- filter the weight block is REUSED: reload CurrWAddr
-						-- to filter_base (bias re-fetched per output, D5). At
-						-- the filter boundary CurrWAddr sits one past the
-						-- block, so filter_base <= CurrWAddr snapshots the
-						-- next filter's base with no multiply (D2).
+						-- P4.1 D1/D2/D5: conv output bookkeeping.
+						-- Within a filter the weight block is REUSED: reload CurrWAddr to filter_base (bias re-fetched per output, D5).
+						-- At the filter boundary CurrWAddr sits one past the block, so loading filter_base from CurrWAddr snapshots the next filter's base with no multiply (D2).
 						conv_yptr	<= conv_yptr + 1;
 						conv_c		<= (others => '0');
 						cL			<= (others => '0');
@@ -612,13 +567,10 @@ begin
 							end if;
 						end if;
 					elsif (mode_run = MODE_GEMM) then
-						-- P4.3 D2/D4 (TP3): row-major C via the running
-						-- flat pointer. Within a row CurrWAddr keeps its
-						-- running +1 across the abutting column-major B
-						-- columns (no per-column reload); at the row
-						-- boundary it reloads to the CONSTANT WVSAR (B
-						-- reused across rows) and the input row base mK
-						-- advances by K = NPUNI+1. Dead in modes 0/1/2.
+						-- P4.3 D2/D4 (TP3): row-major C via the running flat pointer.
+						-- Within a row CurrWAddr keeps its running +1 across the abutting column-major B columns, with no per-column reload.
+						-- At the row boundary it reloads to the CONSTANT WVSAR (B is reused across rows) and the input row base mK advances by K = NPUNI+1.
+						-- Dead in modes 0/1/2.
 						gemm_yptr	<= gemm_yptr + 1;
 						if (CurrYIndex = unsigned(NPUNN)) then
 							CurrYIndex	<= (others => '0');
@@ -645,8 +597,7 @@ begin
 						end if;
 						CurrYIndex	<= CurrYIndex + 1;
 					end if;
-					-- Reset states for next neuron (all modes; pop_acc is a
-					-- P4.2-only register no other mode reads — additive)
+					-- Reset state for the next neuron (all modes; pop_acc is a P4.2-only register that no other mode reads, so it is additive).
 					BiasDone	<= '0';
 					CurrXIndex	<= (others => '0');
 					pop_acc		<= (others => '0');
@@ -656,9 +607,9 @@ begin
 					MemReady <= '0';
 				when NPU_FINISH =>
 					-- 2 Cycle Runtime
-					-- NpuDone gets set to 1  on first cycle indicating NPU Finished. As soon as this happens NPUTHINK is reset.
-					-- Next cycle NpuDone is reset and FSM state is returned to NPU_BEGIN. Without second cycle, NPUTHINK would 
-					-- be reset immediately upon next cycle.
+					-- NpuDone is set on the first cycle to indicate the NPU finished, and NPUTHINK is reset as soon as that happens.
+					-- On the next cycle NpuDone is cleared and the FSM returns to NPU_BEGIN.
+					-- Without that second cycle NPUTHINK would be reset immediately on the next cycle.
 					if (NpuDone = '0') then
 						NpuDone		<= '1';
 					else
@@ -668,9 +619,9 @@ begin
 			end case;
 		end if;
 	end process NPU_FSM_SEQ;
-	-- NPU SRAM Chip Enable Control
-	-- Signal use to be controlled by combinational logic of NpuState and MemReady but this produced timing violations
-	-- This was implemented for cleaner control. CEN is now asserted/deasserted on falling edges when necessary.
+	-- NPU SRAM Chip Enable Control.
+	-- This used to be combinational logic on NpuState and MemReady, which produced timing violations.
+	-- CEN is now asserted and deasserted on falling edges when necessary, which gives cleaner control.
 	NPU_RAM_SEQ: process(NpuClk, ResetN)
 	begin
 		if (ResetN = '0') then
@@ -681,12 +632,14 @@ begin
 				when NPU_BEGIN =>
 					NpuSramCEN	<= MEM_DEASSERT;
 				when NPU_GET_WEIGHT =>
+					-- Assert for the fetch cycle, release once the weight is on Q.
 					if (MemReady = '0')  then
 						NpuSramCEN	<= MEM_ASSERT;
 					else
 						NpuSramCEN	<= MEM_DEASSERT;
 					end if ;
 				when NPU_GET_INPUT =>
+					-- Assert for the fetch cycle, release once the input is on Q.
 					if (MemReady = '0')  then
 						NpuSramCEN	<= MEM_ASSERT;
 					else
@@ -695,6 +648,7 @@ begin
 				when NPU_MAC =>
 					NpuSramCEN	<= MEM_DEASSERT;
 				when NPU_SET_OUTPUT =>
+					-- Assert for the write cycle; NPU_MAC set MemReady on entry.
 					if (MemReady = '1')  then
 						NpuSramCEN	<= MEM_ASSERT;
 					else
@@ -709,21 +663,15 @@ begin
 	----- Combinational Logic
 	-- Clock Gate Enables
 	NpuClkEn 	<=	NpuThink or NpuDone;
-	-- P4.2 D2 (adjudicated overrule): the FPMac accumulator clock is gated
-	-- OFF in XNOR mode — the mode's datapath never reads MacOut, and letting
-	-- the multiplier's accumulate-feedback loop churn garbage every MAC
-	-- cycle wastes the exact energy this mode exists to save. The added term
-	-- is vacuously true in modes 0/1 (as-built behavior bit-identical).
+	-- P4.2 D2 (adjudicated overrule): the FPMac accumulator clock is gated OFF in XNOR mode, because that datapath never reads MacOut and letting the multiplier's accumulate-feedback loop churn garbage every MAC cycle wastes the exact energy this mode exists to save.
+	-- The added term is vacuously true in modes 0/1, so as-built behavior is bit-identical.
 	MacClkEn	<=	'1'	when ((NpuState = NPU_MAC) and (mode_run /= MODE_XNOR)) 	else
 					'0';
 
 	-- Combinational NPU Signals
-	-- P4.1 D2: 2-way mode muxes. In conv the input address is the
-	-- multiplier-free 4-input add IVSAR + c*L + j*S + k*D (running registers)
-	-- and the output address is the flat running pointer; in MLP (mode_run=0,
-	-- also the reset state) both collapse to the as-built expressions.
-	-- P4.3 D4 (TP1/TP2): GEMM arms — input = IVSAR + m*K + k (3-input add,
-	-- mK is the running row base), output = the flat row-major pointer.
+	-- P4.1 D2: 2-way mode muxes.
+	-- In conv the input address is the multiplier-free 4-input add IVSAR + c*L + j*S + k*D (running registers) and the output address is the flat running pointer; in MLP (mode_run=0, also the reset state) both collapse to the as-built expressions.
+	-- P4.3 D4 (TP1/TP2): the GEMM arms take input = IVSAR + m*K + k (3-input add, mK is the running row base) and output = the flat row-major pointer.
 	-- Modes 0/2 fall through to the as-built else arms unchanged.
 	CurrXAddr	<= (unsigned(NPUIVSAR) + cL + jS + kD) when (mode_run = MODE_CONV) else
 				   (unsigned(NPUIVSAR) + mK + ("0000" & CurrXIndex)) when (mode_run = MODE_GEMM) else
@@ -731,9 +679,7 @@ begin
 	CurrYAddr	<= conv_yptr when (mode_run = MODE_CONV) else
 				   gemm_yptr when (mode_run = MODE_GEMM) else
 				   (unsigned(NPUOVSAR) + CurrYIndex);
-	-- P4.1 D1 touch point 2: in conv the accumulation for one output is done
-	-- only on the LAST channel's last tap — the added term is vacuously true
-	-- in MLP.
+	-- P4.1 D1 touch point 2: in conv the accumulation for one output is done only on the LAST channel's last tap, and the added term is vacuously true in MLP.
 	NeuronDone	<= 	'1' when ( (CurrXIndex = unsigned(NPUNI)) and ((BiasDone = '1') or (NPUBEN = '0'))
 						and ((mode_run /= MODE_CONV) or (conv_c = Cin_m1_run)) )	else
 					'0';
@@ -749,32 +695,26 @@ begin
 						std_logic_vector(CurrXAddr) when NPU_GET_INPUT,
 						std_logic_vector(CurrYAddr) when NPU_SET_OUTPUT,
 		(others => '-')	when others;
-	-- P4.4 activation cloud (D2-D5). All combinational on the SET_OUTPUT
-	-- write path (one full NpuClk cycle to settle, D7). Encoding contract
-	-- (D8): sigmoid/exp are non-negative ZERO-extended; tanh/clamp are
-	-- signed SIGN-extended (a zero-extended negative reads as a huge
-	-- positive word); ReLU keeps the full passthrough shape.
-	-- TP2 (D3): the tanh pre-shift MUST SATURATE — a plain drop-MSB shift
-	-- sign-flips for |x| in the top half of the accumulator range and lands
-	-- FPSigmoid in the wrong out-of-range branch. scalb(+1) + saturating
-	-- resize; it only ever ACTS for |x| >= 2^(Y_M_BITS-1), deep inside the
-	-- sigmoid's saturated zone, so tanh's active region is untouched.
+	-- P4.4 activation cloud (D2-D5), all combinational on the SET_OUTPUT write path with one full NpuClk cycle to settle (D7).
+	-- Encoding contract (D8): sigmoid and exp are non-negative and ZERO-extended; tanh and clamp are signed and SIGN-extended (a zero-extended negative reads as a huge positive word); ReLU keeps the full passthrough shape.
+	-- TP2 (D3): the tanh pre-shift MUST SATURATE, because a plain drop-MSB shift sign-flips for |x| in the top half of the accumulator range and lands FPSigmoid in the wrong out-of-range branch.
+	-- It is scalb(+1) plus a saturating resize, and it only ever ACTS for |x| >= 2^(Y_M_BITS-1), deep inside the sigmoid's saturated zone, so tanh's active region is untouched.
 	tanh_pre	<= AccOutLtchd((Y_M_BITS+N_BITS-1) downto 0) & '0'
 					when (AccOutLtchd(Y_M_BITS+N_BITS) = AccOutLtchd(Y_M_BITS+N_BITS-1)) else
 				   '0' & ((Y_M_BITS+N_BITS-1) downto 0 => '1')
 					when (AccOutLtchd(Y_M_BITS+N_BITS) = '0') else
 				   '1' & ((Y_M_BITS+N_BITS-1) downto 0 => '0');
 	sig_in		<= tanh_pre when (actf_run = ACTF_TANH) else AccOutLtchd;
-	-- the as-built AEN=1 arm, now named (zero-extended sigmoid word)
+	-- The as-built AEN=1 arm, now named: the zero-extended sigmoid word.
 	sig_word	<= (31 downto (N_BITS+1) => '0') & Decision;
 	-- D2 ReLU: sign mux on the accumulator, full Q(Y_M).(N) passthrough shape
 	relu_word	<= (31 downto (Y_M_BITS+N_BITS+1) => '0') & AccOutLtchd
 					when (AccOutLtchd(Y_M_BITS+N_BITS) = '0') else
 				   (others => '0');
-	-- D3 tanh = 2*sigma(2x) - 1: exact double + subtract 1.0, sign-extended
+	-- D3 tanh = 2*sigma(2x) - 1: exact double then subtract 1.0, sign-extended.
 	tanh_q		<= signed('0' & Decision & '0') - to_signed(2**N_BITS, N_BITS+3);
 	tanh_word	<= std_logic_vector(resize(tanh_q, 32));
-	-- D4 clamp/hardtanh: saturate Q(Y_M).(N) -> Q0.(N), sign-extended.
+	-- D4 clamp/hardtanh: saturate Q(Y_M).(N) down to Q0.(N), sign-extended.
 	-- In [-1,1) iff the integer bits are pure sign extension.
 	clamp_q		<= to_signed(2**N_BITS - 1, N_BITS+1)
 					when ((AccOutLtchd(Y_M_BITS+N_BITS) = '0') and
@@ -784,13 +724,11 @@ begin
 						  (unsigned(not AccOutLtchd((Y_M_BITS+N_BITS-1) downto N_BITS)) /= 0)) else
 				   signed(AccOutLtchd(N_BITS downto 0));
 	clamp_word	<= std_logic_vector(resize(clamp_q, 32));
-	-- D5 exp-approx = 2*sigma(x), Q1.(N) in [0,2), zero-extended. Decision's
-	-- top bit is structurally '0' (sigma < 1.0 always), so the double is the
-	-- low N bits shifted left one.
+	-- D5 exp-approx = 2*sigma(x), Q1.(N) in [0,2), zero-extended.
+	-- Decision's top bit is structurally '0' (sigma < 1.0 always), so the double is just the low N bits shifted left one.
 	exp_word	<= (31 downto (N_BITS+1) => '0') & Decision((N_BITS-1) downto 0) & '0';
-	-- D1/D6: the ACTF select; reserved codes 5-7 act as sigmoid. Choices are
-	-- string LITERALS (array constants are not locally static in VHDL-93 —
-	-- the ACTF_* constants above are for the conditional tests only).
+	-- D1/D6: the ACTF select; reserved codes 5-7 act as sigmoid.
+	-- The choices are string LITERALS because array constants are not locally static in VHDL-93; the ACTF_* constants above serve the conditional tests only.
 	with actf_run select
 		act_out		<= sig_word		when "000",		-- ACTF_SIG (legacy)
 					   relu_word	when "001",		-- ACTF_RELU
@@ -798,24 +736,17 @@ begin
 					   clamp_word	when "011",		-- ACTF_CLAMP
 					   exp_word		when "100",		-- ACTF_EXP
 					   sig_word		when others;	-- reserved 5-7 + metavalues
-	-- TP1 (adjudication amendment A1): the OUTER select keeps the as-built
-	-- 3-arm NPUAEN shape — arm '1' and the metavalue OTHERS arm both take
-	-- the activated word (at actf_run=0 act_out = sig_word = the as-built
-	-- Decision arm, so the whole select is byte-identical to legacy in all
-	-- nine std_logic values of NPUAEN).
+	-- TP1 (adjudication amendment A1): the OUTER select keeps the as-built 3-arm NPUAEN shape, so arm '1' and the metavalue OTHERS arm both take the activated word.
+	-- At actf_run=0, act_out = sig_word = the as-built Decision arm, so the whole select is byte-identical to legacy in all nine std_logic values of NPUAEN.
 	with NPUAEN	select																	-- NPU SRAM D (Data Input) Selection (MLP/CONV/GEMM)
 		mlp_conv_sramd	<= 	act_out												when '1', 	-- Activation Function Enabled (ACTF-selected)
 						(31 downto (Y_M_BITS+N_BITS+1) => '0') & AccOutLtchd	when '0', 	-- Pass Through
 						act_out												when others;-- Assumed Activation Function Enabled
-	-- P4.2 D1 touch point 1 (the ONE shared-expression edit): in XNOR mode
-	-- the write data is the +-1.0 decision word; in modes 0/1 the else arm
-	-- is the as-built NPUAEN select, bit-identical.
+	-- P4.2 D1 touch point 1 (the ONE shared-expression edit): in XNOR mode the write data is the +-1.0 decision word; in modes 0/1 the else arm is the as-built NPUAEN select, bit-identical.
 	NpuSramD	<= xnor_outword when (mode_run = MODE_XNOR) else mlp_conv_sramd;
 
-	-- P4.2 D2/D3/D4 combinational cloud: tail-masked XNOR -> popcount ->
-	-- running total -> 2*pop - K -> signed >= THRESH -> +-1.0 Q7.24 literal
-	-- (exact at the MCU generics; deliberately NOT to_sfixed — the input-side
-	-- to_sfixed(1) quirk must not touch the output encoding).
+	-- P4.2 D2/D3/D4 combinational cloud: tail-masked XNOR, then popcount, then running total, then 2*pop - K, then a signed compare against THRESH, then the +-1.0 Q7.24 literal.
+	-- The literal is exact at the MCU generics and is deliberately NOT to_sfixed: the input-side to_sfixed(1) quirk must not touch the output encoding.
 	xnor_masked	<= (xnor_aw xnor xnor_ww) and last_mask_run when (CurrXIndex = unsigned(NPUNI)) else
 				   (xnor_aw xnor xnor_ww);
 	xnor_pop6	<= popcount32(xnor_masked);
@@ -827,8 +758,7 @@ begin
 	----- Memory Mapped Register Interface -----
 	--------------------------------------------
 	----- Memory Mapped Register - Bit-Field Mapping
-	-- NPUCR(25 downto 0) — [25:23] ACTF and [22:20] MODE are stored here
-	-- (P4.1); the sequencer/activation muxes tap them where each mode lands.
+	-- NPUCR(25 downto 0): [25:23] ACTF and [22:20] MODE are stored here (P4.1), and the sequencer and activation muxes tap them where each mode lands.
 	TDIE		<= NPUCR(19);
 	NPUBEN		<= NPUCR(18);
 	NPUAEN		<= NPUCR(17);
@@ -856,6 +786,7 @@ begin
 			if (MabMmrCEN = MEM_ASSERT) then
 				case MabMmrAInt is
 					when MmrAddrNPUCR =>
+						-- NPUTHINK is a separate flop, so byte lane 2 splits around bit 16.
 						if MabMmrWEN(0) = MEM_ASSERT then NPUCR(7 downto 0) <= MabMmrD(7 downto 0); end if;
 						if MabMmrWEN(1) = MEM_ASSERT then NPUCR(15 downto 8) <= MabMmrD(15 downto 8); end if;
 						if MabMmrWEN(2) = MEM_ASSERT then
@@ -869,11 +800,13 @@ begin
 						if MabMmrWEN(2) = MEM_ASSERT then NPUCFG1(23 downto 16) <= MabMmrD(23 downto 16); end if;
 						if MabMmrWEN(3) = MEM_ASSERT then NPUCFG1(31 downto 24) <= MabMmrD(31 downto 24); end if;
 					when MmrAddrNPUCFG2 =>
+						-- Only 16 bits are implemented, so the upper two byte lanes are dropped.
 						if MabMmrWEN(0) = MEM_ASSERT then NPUCFG2(7 downto 0) <= MabMmrD(7 downto 0); end if;
 						if MabMmrWEN(1) = MEM_ASSERT then NPUCFG2(15 downto 8) <= MabMmrD(15 downto 8); end if;
 						if MabMmrWEN(2) = MEM_ASSERT then null; end if;
 						if MabMmrWEN(3) = MEM_ASSERT then null; end if;
 					when MmrAddrNPUIVSAR =>
+						-- 12-bit staging-RAM word index; the upper two byte lanes are dropped (same for WVSAR and OVSAR below).
 						if MabMmrWEN(0) = MEM_ASSERT then NPUIVSAR(7 downto 0) <= MabMmrD(7 downto 0); end if;
 						if MabMmrWEN(1) = MEM_ASSERT then NPUIVSAR(11 downto 8) <= MabMmrD(11 downto 8); end if;
 						if MabMmrWEN(2) = MEM_ASSERT then null; end if;
@@ -889,35 +822,29 @@ begin
 						if MabMmrWEN(2) = MEM_ASSERT then null; end if;
 						if MabMmrWEN(3) = MEM_ASSERT then null; end if;
 					when others =>
+						-- Reserved word offsets 7-15: writes are ignored.
 						null;
 				end case;
 			end if;
 
-			-- EVFAB task (event fabric, event_fabric_spec.md 2026-07-24):
-			-- pulse-only THINK start, OUTSIDE the CEN qualifier (fires with the
-			-- bus idle) and AFTER the register case (task wins a coincident
-			-- NPUCR write's bit 16). The trailing NpuDone/reset clear below
-			-- still wins over BOTH paths -- a task THINK is indistinguishable
-			-- from a register THINK, incl. the D4 run-shadow latch at
-			-- NPU_BEGIN. SOFTWARE CONTRACT (TRM): no hart touches the staging
-			-- RAM 0xC000-0xFFFF while a fabric THINK may fire.
+			-- EVFAB task (event fabric, event_fabric_spec.md 2026-07-24): a pulse-only THINK start, placed OUTSIDE the CEN qualifier so it fires with the bus idle, and AFTER the register case so a task wins a coincident NPUCR write of bit 16.
+			-- The trailing NpuDone and reset clear below still wins over BOTH paths, and a task THINK is indistinguishable from a register THINK, including the D4 run-shadow latch at NPU_BEGIN.
+			-- SOFTWARE CONTRACT (TRM): no hart touches the staging RAM 0xC000-0xFFFF while a fabric THINK may fire.
 			if task_think = '1' then
 				NPUTHINK <= '1';
 			end if;
 		end if;
 
 		if (NpuDone = '1') or (resetn = '0') then
-			-- Unset NNTHINK to indcate that NPU is done
+			-- Clear NPUTHINK to indicate the NPU is done.
 			-- NPUCR(16) <= '0';
 			NPUTHINK	<= '0';
 		end if;
 	end process MMR_WRITE;
 
 	----- MMR Reads
-	-- NPUTHINK is stored separately from NPUCR (set from MabMmrD(16), cleared by
-	-- NpuDone) so it must be re-inserted at bit 16 of the NPUCR readback -- else
-	-- bit 16 reads the dead NPUCR(16) and software (and the TB) can never observe
-	-- the NPU finishing (NPUTHINK 1->0).
+	-- NPUTHINK is stored separately from NPUCR (set from MabMmrD(16), cleared by NpuDone), so it must be re-inserted at bit 16 of the NPUCR readback.
+	-- Otherwise bit 16 reads the dead NPUCR(16) and neither software nor the TB can ever observe the NPU finishing, i.e. NPUTHINK falling from 1 to 0.
 	with MabMmrAInt select
 		MabMmrQ <=	(31 downto 26 => '0') & NPUCR(25 downto 17) & NPUTHINK & NPUCR(15 downto 0)	when MmrAddrNPUCR,
 					(31 downto 12 => '0') & NPUIVSAR	when MmrAddrNPUIVSAR,

@@ -1,7 +1,7 @@
 -- MemoryMap.vhd
 -- Memory map VHDL package
--- Defines the memory map of the MCU, including which RAM and peripheral slots are activated, as well as which slot each peripheral is allocated to, and the slot each register within each peripheral is allocated to
--- Generated on 2026/08/15 at 09:41:07 with the MemoryMap.py memory map generator
+-- Defines the MCU memory map: which RAM and peripheral slots are active, which slot each peripheral occupies, and which slot each register occupies inside its peripheral
+-- Generated on 2026/08/15 at 16:10:53 with the MemoryMap.py memory map generator
 -- WARNING: Do not edit or modify this file!
 -- 	If you need to change it, use the MemoryMap.py memory map generator tool
 
@@ -90,11 +90,9 @@ package MemoryMap is
 	constant RegSlotPxAFS			: natural := 11;	-- offset = 44 bytes
 	constant RegSlotPxTASK			: natural := 12;	-- offset = 48 bytes
 
-	-- Number of alternate-function planes per GPIO pin (AF0..AF7). PxSEL picks
-	-- GPIO vs alternate mode; the pin's PxAFS field (one nibble per pin, low
-	-- 3 bits used) picks WHICH alternate function drives the pad. AF0 is the
-	-- legacy single alternate function, so PxAFS=0 reproduces the historic
-	-- behavior and PxSEL-only software is unaffected.
+	-- Number of alternate-function planes per GPIO pin (AF0..AF7).
+	-- PxSEL picks GPIO vs alternate mode; the pin's PxAFS field (one nibble per pin, low 3 bits used) picks WHICH alternate function drives the pad.
+	-- AF0 is the legacy single alternate function, so PxAFS=0 reproduces the historic behavior and PxSEL-only software is unaffected.
 	constant GPIO_NUM_AFS			: natural := 8;
 
 	-- SPIx
@@ -1017,9 +1015,8 @@ package MemoryMap is
 
 
 	---------- MCU_MP Compatibility ----------
-	-- Constants the hand-written hdl/common/MemoryMap.vhd defines beyond the sections
-	-- above. Emitted so this generated package is a drop-in replacement for that file;
-	-- transcribed values cite it as their source.
+	-- Constants the hand-written hdl/common/MemoryMap.vhd defines beyond the sections above.
+	-- Emitted so this generated package is a drop-in replacement for that file; transcribed values cite it as their source.
 
 	-- Memory Block Memory Slot Assignments
 	constant MemSlotROM				: natural := 00;						-- base address = 0x00000
@@ -1027,8 +1024,7 @@ package MemoryMap is
 	constant MemSlotRAM1			: natural := 02;						-- base address = 0x0C000
 	constant MemSlotPeriph			: natural := 04;						-- base address = 0x04000
 
-	-- Peripheral legacy slot numbers (RTL spelling; slots of moved peripherals are
-	-- still used to zero their dead 0x4000-page windows)
+	-- Peripheral legacy slot numbers (RTL spelling; slots of moved peripherals are still used to zero their dead 0x4000-page windows)
 	constant PeriphSlotGPIO0		: natural := 00;						-- base address = 0x4000 (legacy; peripheral now at 0x4000)
 	constant PeriphSlotGPIO1		: natural := 01;						-- base address = 0x4100 (legacy; peripheral now at 0x4100)
 	constant PeriphSlotSPI0			: natural := 02;						-- base address = 0x4200 (legacy; peripheral now at 0x4200)

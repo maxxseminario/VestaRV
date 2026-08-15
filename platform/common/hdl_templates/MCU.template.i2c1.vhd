@@ -1,9 +1,7 @@
 -- MCU.template.i2c1.vhd -- I2C1-conditional verbatim blocks (G1a, 2026-07-11).
--- Spliced into MCU.template.vhd by python/mcu_vhd.py ONLY when the config has
--- peripherals.i2c1=true (the Castalia default). Same mechanism as the NPU side
--- template: @I2C1BLOCK:<name>@ markers delimit the blocks; with i2c1 absent the
--- markers in the main template emit nothing (slot 15 reads zero via the mux
--- fall-through, vectors 70-82 become IRQB_RSVD*, the SDA1/SCL1 planes go hi-Z).
+-- Spliced into MCU.template.vhd by python/mcu_vhd.py ONLY when the config has peripherals.i2c1=true (the Castalia default).
+-- Same mechanism as the NPU side template: @I2C1BLOCK:<name>@ markers delimit the blocks.
+-- With i2c1 absent the markers in the main template emit nothing: slot 15 reads zero via the mux fall-through, vectors 70-82 become IRQB_RSVD*, the SDA1/SCL1 planes go hi-Z.
 
 --@I2C1BLOCK:i2c1-pad-decls@
         -- P4.2: SDA1 (input and output)

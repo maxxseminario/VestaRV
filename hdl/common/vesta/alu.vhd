@@ -5,16 +5,13 @@ use work.constants.all;
 
 entity alu is
     generic (
-        -- Core ISA feature switches. Decode already traps disabled extensions
-        -- upstream (maindec); these additionally prune the execution hardware
-        -- (multipliers, the iterative divider, AMO min/max, Zb* logic) so a
-        -- disabled extension costs no area at synthesis.
+        -- Core ISA feature switches.
+        -- Decode already traps disabled extensions upstream (maindec); these switches additionally prune the execution hardware (multipliers, the iterative divider, AMO min/max, Zb* logic) so a disabled extension costs no area at synthesis.
         ENABLE_MUL      : boolean := true;
         ENABLE_DIV      : boolean := true;
         ENABLE_ATOMICS  : boolean := true;
         ENABLE_BITMANIP : boolean := true;
-        -- X0 ISA-extension scaffolding (default false; the arithmetic/crypto
-        -- op cases are added by the named phase -- these arrive unused for now).
+        -- X0 ISA-extension scaffolding (default false): the arithmetic and crypto op cases are added by the named phase, so these generics arrive unused for now.
         ENABLE_ZICOND   : boolean := false;  -- X1 (Zicond): consumed from phase X1 on; scaffolded X0
         ENABLE_ZBKB     : boolean := false;  -- X3 (Zbkb): consumed from phase X3 on; scaffolded X0
         ENABLE_ZBKC     : boolean := false;  -- X3 (Zbkc): consumed from phase X3 on; scaffolded X0
@@ -29,13 +26,10 @@ entity alu is
         alu_control : in  std_logic_vector(6 downto 0);
         bs          : in  std_logic_vector(1 downto 0);   -- X3 Zknd/Zkne AES byte-select (instr[31:30]); only used by the aes32* arms
         div_start   : in  std_logic;  -- Start signal from CPU to initiate division
-        -- K5 defect B: the ONE cycle in which the core is really dispatching a
-        -- DIV/DIVU/REM/REMU.  This is a POSITIVE qualification supplied by the
-        -- core FSM, and it replaces the local combinational decode that used to
-        -- arm the divide FSM below.  It must NOT be re-derived from alu_control:
-        -- alu_control is a decode of instr_curr, which in the compressed
-        -- split-fetch bubble (and in IRQ_SV / IRQ_JUMP / TRAP_STATE) is NOT the
-        -- instruction the hart is dispatching.  See vesta.vhd's div_dispatch.
+        -- K5 defect B: the ONE cycle in which the core is really dispatching a DIV/DIVU/REM/REMU.
+        -- This is a POSITIVE qualification supplied by the core FSM, and it replaces the local combinational decode that used to arm the divide FSM below.
+        -- It must NOT be re-derived from alu_control: alu_control is a decode of instr_curr, which in the compressed split-fetch bubble (and in IRQ_SV / IRQ_JUMP / TRAP_STATE) is NOT the instruction the hart is dispatching.
+        -- See vesta.vhd's div_dispatch.
         div_dispatch : in  std_logic;
         ALU_result  : out std_logic_vector(XLEN-1 downto 0);
         alu_done    : out std_logic;
@@ -61,7 +55,7 @@ architecture behav of alu is
     end component;
 
 
-    -- Function for carry-less multiplication
+    -- Carry-less (GF(2)) multiply of two XLEN-bit words, returning the full 2*XLEN-bit product.
     function clmul_64(op1 : std_logic_vector(XLEN-1 downto 0); 
                       op2 : std_logic_vector(XLEN-1 downto 0)) 
                       return std_logic_vector is
@@ -79,7 +73,7 @@ architecture behav of alu is
         return result;
     end function;
 
-    -- Function to count leading zeros
+    -- Count leading zeros; an all-zero word returns XLEN.
     function count_leading_zeros(input : std_logic_vector(XLEN-1 downto 0)) return integer is
         variable count : integer := 0;
     begin
@@ -93,7 +87,7 @@ architecture behav of alu is
         return XLEN;
     end function;
 
-    -- Function to count trailing zeros
+    -- Count trailing zeros; an all-zero word returns XLEN.
     function count_trailing_zeros(input : std_logic_vector(XLEN-1 downto 0)) return integer is
         variable count : integer := 0;
     begin
@@ -107,7 +101,7 @@ architecture behav of alu is
         return XLEN;
     end function;
 
-    -- Function to count set bits (population count)
+    -- Count set bits (population count).
     function count_ones(input : std_logic_vector(XLEN-1 downto 0)) return integer is
         variable count : integer := 0;
     begin
@@ -143,12 +137,9 @@ architecture behav of alu is
     -- ==========================================================================
     -- X3 Zknd/Zkne AES-32 shared crypto primitives
     -- --------------------------------------------------------------------------
-    -- ONE forward S-box (256 B) and ONE inverse S-box (256 B), shared across all
-    -- four aes32* ops (esi/esmi use FWD; dsi/dsmi use INV), plus the GF(2^8)
-    -- MixColumn terms computed combinationally. NOT four table copies -- a single
-    -- aes32_datapath() function body handles all four ops, byte-steered by bs.
-    -- Everything below is pure combinational (fixed latency, data-independent
-    -- timing) so the constant-time / future-Zkt invariant holds.
+    -- ONE forward S-box (256 B) and ONE inverse S-box (256 B), shared across all four aes32* ops (esi/esmi use FWD, dsi/dsmi use INV), plus the GF(2^8) MixColumn terms computed combinationally.
+    -- NOT four table copies: a single aes32_datapath() function body handles all four ops, byte-steered by bs.
+    -- Everything below is pure combinational (fixed latency, data-independent timing) so the constant-time, future-Zkt invariant holds.
     type aes_sbox_t is array (0 to 255) of std_logic_vector(7 downto 0);
 
     constant AES_SBOX_FWD : aes_sbox_t := (
@@ -200,8 +191,7 @@ architecture behav of alu is
         return r;
     end function;
 
-    -- GF(2^8) multiply of x by a small constant y (2,3,9,b,d,e) via peasant
-    -- multiplication over xtime -- ONE routine covers every MixColumn term.
+    -- GF(2^8) multiply of x by a small constant y (2, 3, 9, b, d, e) via peasant multiplication over xtime: ONE routine covers every MixColumn term.
     function aes_gfmul(x : std_logic_vector(7 downto 0);
                        y : std_logic_vector(3 downto 0)) return std_logic_vector is
         variable acc : std_logic_vector(7 downto 0) := (others => '0');
@@ -217,8 +207,8 @@ architecture behav of alu is
         return acc;
     end function;
 
-    -- Shared aes32 datapath. rs1=a_in, rs2=b_in, byte-select bs. Decrypt selects
-    -- the inverse S-box + inverse MixColumn constants; mix adds the MixColumn.
+    -- Shared aes32 datapath, with rs1 = a_in, rs2 = b_in and byte-select bs.
+    -- decrypt selects the inverse S-box and the inverse MixColumn constants; mix adds the MixColumn step.
     --   si = byte bs of rs2 ; so = SBOX(si)
     --   x  = MixColumn(so) (or zext(so) for the *si ops)
     --   rd = rs1 XOR rol32(x, 8*bs)
@@ -266,21 +256,18 @@ architecture behav of alu is
     signal div_operation : std_logic;
     signal ResultSignal : std_logic_vector(XLEN-1 downto 0);
 
-    -- XLEN-wide zero (comparison constant; slv "=" on unequal lengths is
-    -- silently false, so never compare against a literal of another width)
+    -- XLEN-wide zero, used as a comparison constant: an slv equality on unequal lengths is silently false, so never compare against a literal of another width.
     constant ALU_ZERO_X : std_logic_vector(XLEN-1 downto 0) := (others => '0');
 
-    -- Divider Signals 
+    -- Divider interface signals
     signal div_sel_signed   : std_logic;
     signal div_sel_rem      : std_logic;
     signal div_result       : std_logic_vector(XLEN-1 downto 0);
     signal div_complete     : std_logic;
     signal div_rdy          : std_logic;
-    -- K5 defect B: `div_start_rq` is DELETED.  Its only consumer was the
-    -- ALU_IDLE arm above, and it was that arm's unqualified decode that WAS the
-    -- defect; the core's div_dispatch replaces it.  (`div_operation`, `div_rq`
-    -- and `clr_div_start_rq` in this file were already dead before this change
-    -- and are deliberately left alone -- not this finding.)
+    -- K5 defect B: `div_start_rq` is DELETED.
+    -- Its only consumer was the ALU_IDLE arm below, and it was that arm's unqualified decode that WAS the defect; the core's div_dispatch replaces it.
+    -- `div_operation`, `div_rq` and `clr_div_start_rq` in this file were already dead before this change and are deliberately left alone, not part of this finding.
 
     signal div_rq : std_logic;
 
@@ -293,7 +280,8 @@ architecture behav of alu is
 
 begin
 
-    -- Detect division operations (updated for 6-bit control)
+    -- Detect a divide op from alu_control (DIV/DIVU/REM/REMU, codes 0010000 to 0010011).
+    -- Dead since K5 defect B: nothing consumes div_operation, see the note on its declaration.
     div_operation <= '1' when (alu_control = "0010000" or alu_control = "0010001" or 
                               alu_control = "0010010" or alu_control = "0010011") else '0';
 
@@ -302,11 +290,12 @@ begin
     unsigned_a <= unsigned(a);
     unsigned_b <= unsigned(b);
 
+    -- The ALU retires in one cycle except while the iterative divider is running, so alu_done is high in ALU_IDLE and again on the divider's completion cycle.
     alu_done <= '1' when alu_state = ALU_IDLE else
                 '1' when div_complete = '1' else
                 '0';
 
-    -- ALU FSM
+    -- ALU FSM: idle unless an iterative divide is in flight, and it latches the divider's selects at dispatch.
     fsm: process(clk, resetn)
     begin
         if resetn = '0' then
@@ -317,21 +306,10 @@ begin
         elsif rising_edge(clk) then
             case alu_state is
                 when ALU_IDLE =>
-                    -- K5 defect B, THE FIX SITE.  This guard was
-                    -- `div_start_rq = '1'`, a pure combinational decode of
-                    -- alu_control with no dispatch qualification, so it also
-                    -- fired in the shape-E split-fetch bubble -- the EXECUTE
-                    -- cycle where instr_curr is HELD at the PREVIOUS
-                    -- instruction (vesta.vhd:1777).  When that held encoding
-                    -- was a divide, the FSM latched the PREVIOUS divide's
-                    -- selects and then STUCK in ALU_DIV_WAIT (the arm below is
-                    -- suppressed there and only div_complete leaves the state),
-                    -- so the NEXT divide -- at any distance, and whatever its
-                    -- own alignment -- ran under the wrong opcode's selects.
-                    -- div_dispatch is asserted only in the real dispatch cycle,
-                    -- which is also the cycle this arm always fired in on the
-                    -- correct path, so the timing of the latch is UNCHANGED and
-                    -- alu_done's ALU_IDLE term still holds off DIV_WAIT.
+                    -- K5 defect B, THE FIX SITE.
+                    -- This guard was `div_start_rq = '1'`, a pure combinational decode of alu_control with no dispatch qualification, so it also fired in the shape-E split-fetch bubble: the EXECUTE cycle where instr_curr is HELD at the PREVIOUS instruction (vesta.vhd:1777).
+                    -- When that held encoding was a divide, the FSM latched the PREVIOUS divide's selects and then STUCK in ALU_DIV_WAIT (the arm below is suppressed there and only div_complete leaves the state), so the NEXT divide, at any distance and whatever its own alignment, ran under the wrong opcode's selects.
+                    -- div_dispatch is asserted only in the real dispatch cycle, which is also the cycle this arm always fired in on the correct path, so the timing of the latch is UNCHANGED and alu_done's ALU_IDLE term still holds off DIV_WAIT.
                     if div_dispatch = '1' and div_rdy = '1' then
                         div_rq <= '1';
                         case alu_control is
@@ -347,24 +325,28 @@ begin
                             when "0010011" => -- REMU
                                 div_sel_signed <= '0';
                                 div_sel_rem <= '1';
-                            when others =>
+                            when others =>  -- not one of the four divide codes: leave the selects as they are
                         end case;
                         alu_state <= ALU_DIV_WAIT;
                     end if;
                     
+                -- Stall here for the whole iterative divide; only div_complete leaves this state.
                 when ALU_DIV_WAIT =>
                     if div_complete = '1' then
                         alu_state <= ALU_DIV_DONE;
                         div_rq <= '0';
                     end if;
+                -- One cycle for the result mux to hand div_result to writeback, then back to idle.
                 when ALU_DIV_DONE =>
                     alu_state <= ALU_IDLE;
+                -- Unreachable state encoding: recover to idle.
                 when others =>
                     alu_state <= ALU_IDLE;
             end case;
         end if;
     end process;
 
+    -- Combinational result mux: one arm per alu_control code, defaulting to zero so an unused arm never latches.
     process(a, b, bs, alu_control, div_rdy, div_complete, alu_state, div_result, resetn)
         variable mult_result : std_logic_vector(2*XLEN-1 downto 0);
         variable shift_amount : integer;
@@ -383,7 +365,7 @@ begin
 
             case alu_control is
                 -- ==========================================
-                -- Original RV32I Instructions (6-bit encoding)
+                -- Base RV32I operations (7-bit alu_control encoding)
                 -- ==========================================
                 when "0000000" => -- Addition
                     ResultSignal <= std_logic_vector(unsigned(a) + unsigned(b));
@@ -415,7 +397,7 @@ begin
                     ResultSignal <= a;
 
                 -- ==========================================
-                -- RV32M Multiply/Divide Extensions (6-bit encoding)
+                -- RV32M multiply/divide operations (7-bit alu_control encoding)
                 -- ==========================================
                 when "0001100" => -- MUL (signed * signed, low 32 bits)
                     if ENABLE_MUL then
@@ -439,10 +421,8 @@ begin
                     end if;
                 when "0010000" | "0010001" | "0010010" | "0010011" => -- Division operations
                     if ENABLE_DIV then
-                        -- Result capture only.  The dispatch request that used
-                        -- to be raised here is gone (see div_dispatch); this arm
-                        -- now does exactly one thing, which is hand the
-                        -- divider's answer to the writeback at DIV_DONE.
+                        -- Result capture only: the dispatch request that used to be raised here is gone (see div_dispatch).
+                        -- This arm now does exactly one thing, which is hand the divider's answer to the writeback at DIV_DONE.
                         if alu_state = ALU_DIV_WAIT or alu_state = ALU_DIV_DONE then
                             if div_complete = '1' then
                                 ResultSignal <= div_result;
@@ -451,7 +431,7 @@ begin
                     end if;
                     
                 -- ==========================================
-                -- RV32A Atomic MIN/MAX operations (6-bit encoding)
+                -- RV32A atomic MIN/MAX operations (7-bit alu_control encoding)
                 -- ==========================================
                 when "0010100" => -- AMOMIN (signed)
                     if ENABLE_ATOMICS then
@@ -499,9 +479,8 @@ begin
 
                 when "0011001" => -- SH2ADD: rd = (rs1 << 2) + rs2
                     if ENABLE_BITMANIP then
-                        -- std_logic_vector' qualification: the bare string literal made the
-                        -- "&" overload ambiguous under GHDL --std=08 once aes_sbox_t (X3) and
-                        -- word_array/halfword_array became visible. No logic change.
+                        -- The std_logic_vector' qualification is needed because the bare string literal made the concatenation overload ambiguous under GHDL --std=08 once aes_sbox_t (X3) and word_array/halfword_array became visible.
+                        -- No logic change.
                         ResultSignal <= std_logic_vector(unsigned(std_logic_vector'(a(XLEN-3 downto 0) & "00")) + unsigned(b));
                     end if;
 
@@ -576,11 +555,11 @@ begin
                 -- when "0100011" => -- ROR/RORI: rotate right
                 --     shift_amount := to_integer(unsigned(b(4 downto 0)));
                 --     ResultSignal <= ror32(a, shift_amount);
-                -- In the rotate operations section:
+                -- Live rotate arms: numeric_std rotate_left/rotate_right replace the hand-written helper functions kept commented out above.
                 when "0100010" => -- ROL: rotate left (Zbb or Zbkb-shared)
                     if ENABLE_BITMANIP or ENABLE_ZBKB then
                         shift_amount := to_integer(unsigned(b(SHAMT_W-1 downto 0)));
-                        ResultSignal <= std_logic_vector(rotate_left(unsigned(a), shift_amount)); -- ieee_numeric_std has rotate_left function
+                        ResultSignal <= std_logic_vector(rotate_left(unsigned(a), shift_amount)); -- numeric_std supplies rotate_left
                     end if;
 
                 when "0100011" => -- ROR/RORI: rotate right (Zbb or Zbkb-shared)
@@ -679,20 +658,20 @@ begin
                 -- ==========================================
                 -- RV32 Zbc Carry-less Multiplication Instructions
                 -- ==========================================
-                when "0110000" => -- CLMUL: Carry-less multiply (low part) -- Zbc or Zbkc
+                when "0110000" => -- CLMUL: carry-less multiply, low half (Zbc or Zbkc)
                     if ENABLE_BITMANIP or ENABLE_ZBKC then
                         mult_result := clmul_64(a, b);
                         ResultSignal <= mult_result(XLEN-1 downto 0);
                     end if;
 
-                when "0110001" => -- CLMULH: Carry-less multiply (high part) -- Zbc or Zbkc
+                when "0110001" => -- CLMULH: carry-less multiply, high half (Zbc or Zbkc)
                     if ENABLE_BITMANIP or ENABLE_ZBKC then
                         mult_result := clmul_64(a, b);
                         ResultSignal <= mult_result(2*XLEN-1 downto XLEN);
                     end if;
 
-                when "0110010" => -- CLMULR: Carry-less multiply (reversed)
-                    -- Reverse operand order for polynomial reduction
+                when "0110010" => -- CLMULR: carry-less multiply, reversed (Zbc only)
+                    -- Take the middle 32 bits of the 64-bit product, which is the bit-reversed form the spec defines.
                     if ENABLE_BITMANIP then
                         mult_result := clmul_64(a, b);
                         ResultSignal <= mult_result(2*XLEN-2 downto XLEN-1);
@@ -721,9 +700,9 @@ begin
                     end if;
 
                 -- ==========================================
-                -- RV32 Zknd/Zkne AES-32 Instructions (X3)
-                -- Single-cycle combinational; shared S-box + GF MixColumn terms.
-                -- a = rs1, b = rs2, bs = instr[31:30] (separate ALU input).
+                -- RV32 Zknd/Zkne AES-32 instructions (X3)
+                -- Single-cycle combinational, sharing one S-box pair and the GF MixColumn terms.
+                -- a = rs1, b = rs2, bs = instr[31:30] (a separate ALU input).
                 -- ==========================================
                 when "0111100" => -- aes32esi:  encrypt, SubBytes only
                     if ENABLE_ZKN then
@@ -742,12 +721,11 @@ begin
                         ResultSignal <= aes32_datapath(a, b, bs, true, true);
                     end if;
 
-                -- RV32 Zknh SHA-256 / SHA-512 sigma & sum (X3 Stage B)
-                -- Pure combinational xor/rotate/shift trees -- single-cycle,
-                -- constant-time (Zkt-safe). a = rs1, b = rs2. Rotate/shift
-                -- amounts transcribed from the ratified Zknh spec pseudocode.
+                -- RV32 Zknh SHA-256 and SHA-512 sigma/sum ops (X3 Stage B)
+                -- Pure combinational xor/rotate/shift trees: single-cycle and constant-time (Zkt-safe), with a = rs1 and b = rs2.
+                -- Rotate and shift amounts are transcribed from the ratified Zknh spec pseudocode.
                 -- ==========================================
-                -- SHA-256 (unary; operate on rs1 = a only).
+                -- SHA-256 (unary: operate on rs1 = a only).
                 when "1000000" => -- sha256sig0: ror(a,7) ^ ror(a,18) ^ (a>>3)
                     if ENABLE_ZKN then
                         ResultSignal <= std_logic_vector(
@@ -777,7 +755,7 @@ begin
                             rotate_right(unsigned(a), 25));
                     end if;
 
-                -- SHA-512 (binary; combine rs1=a and rs2=b halves -> one 32-bit half).
+                -- SHA-512 (binary: combine the rs1 = a and rs2 = b halves into one 32-bit half).
                 when "1000100" => -- sha512sig0l: (a>>1)^(a>>7)^(a>>8) ^ (b<<31)^(b<<25)^(b<<24)
                     if ENABLE_ZKN then
                         ResultSignal <= std_logic_vector(
@@ -863,22 +841,22 @@ begin
                 when "0111000" => -- ZIP: interleave low/high halves (RV32 shuffle)
                     if ENABLE_ZBKB then
                         for i in 0 to 15 loop
-                            ResultSignal(2*i)     <= a(i);       -- low half -> even bits
-                            ResultSignal(2*i + 1) <= a(i + 16);  -- high half -> odd bits
+                            ResultSignal(2*i)     <= a(i);       -- low half into the even bits
+                            ResultSignal(2*i + 1) <= a(i + 16);  -- high half into the odd bits
                         end loop;
                     end if;
 
                 when "0111001" => -- UNZIP: de-interleave (inverse of ZIP)
                     if ENABLE_ZBKB then
                         for i in 0 to 15 loop
-                            ResultSignal(i)      <= a(2*i);      -- even bits -> low half
-                            ResultSignal(i + 16) <= a(2*i + 1);  -- odd bits  -> high half
+                            ResultSignal(i)      <= a(2*i);      -- even bits into the low half
+                            ResultSignal(i + 16) <= a(2*i + 1);  -- odd bits into the high half
                         end loop;
                     end if;
 
                 -- ==========================================
                 -- X3 Zbkx crossbar permute (fixed mux tree, single-cycle)
-                -- rd.byte/nibble[i] = (idx < lanes) ? rs1.byte/nibble[idx] : 0
+                -- Each result byte/nibble i takes rs1's byte/nibble at the index in rs2, or zero when that index is out of range.
                 -- ==========================================
                 when "0111010" => -- XPERM8: byte crossbar (index rs2.byte[i], <4)
                     if ENABLE_ZBKX then
@@ -916,15 +894,14 @@ begin
                         end loop;
                     end if;
 
+                -- Unassigned alu_control code: return zero rather than hold a stale result.
                 when others =>
                     ResultSignal <= (others => '0');
             end case;
         end if;
     end process;
 
-    -- The iterative divider only exists when the DIV feature is enabled; with
-    -- it disabled the decode traps DIV/DIVU/REM/REMU upstream and these ports
-    -- are tied to benign idle values (rdy='1' keeps the ALU FSM sane).
+    -- The iterative divider only exists when the DIV feature is enabled; with it disabled the decode traps DIV/DIVU/REM/REMU upstream and these ports are tied to benign idle values (rdy='1' keeps the ALU FSM sane).
     gen_div: if ENABLE_DIV generate
         divider : div
         port map (
@@ -941,6 +918,7 @@ begin
         );
     end generate;
 
+    -- DIV disabled: tie the divider interface off so the FSM sees a permanently ready, never-completing divider.
     gen_no_div: if not ENABLE_DIV generate
         div_result   <= (others => '0');
         div_complete <= '0';
@@ -949,6 +927,7 @@ begin
 
     ALU_result <= ResultSignal; 
     
+    -- Zero flag for the branch comparators: high when the whole result is zero.
     checkZero: process(ResultSignal)
     begin
         if ResultSignal = ALU_ZERO_X then

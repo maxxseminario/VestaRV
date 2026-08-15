@@ -1,10 +1,7 @@
 -- MCU.template.spi1.vhd -- SPI1-conditional verbatim blocks (G1b, 2026-07-11).
--- Spliced into MCU.template.vhd by python/mcu_vhd.py ONLY when the config has
--- peripherals.spi1=true (the Castalia default). Same mechanism as the I2C1
--- side template: @SPI1BLOCK:<name>@ markers delimit the blocks; with spi1
--- absent the markers in the main template emit nothing (window slot 3 reads
--- zero via the mux fall-through, vectors 11-12 become IRQB_RSVD*, the
--- CS1/MISO1/MOSI1/SCK1 pad planes go hi-Z and P2.0-3 revert to plain GPIO8-11).
+-- Spliced into MCU.template.vhd by python/mcu_vhd.py ONLY when the config has peripherals.spi1=true (the Castalia default).
+-- Same mechanism as the I2C1 side template: @SPI1BLOCK:<name>@ markers delimit the blocks.
+-- With spi1 absent the markers in the main template emit nothing: window slot 3 reads zero via the mux fall-through, vectors 11-12 become IRQB_RSVD*, the CS1/MISO1/MOSI1/SCK1 pad planes go hi-Z and P2.0-3 revert to plain GPIO8-11.
 
 --@SPI1BLOCK:spi1-pad-decls@
         -- P2.0: cs1 

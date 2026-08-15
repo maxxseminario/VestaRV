@@ -1,51 +1,37 @@
 -- =============================================================================
--- dbg_tap_tb.vhd -- D3 acceptance instrument J3: THE JTAG PORT BENCH.
+-- dbg_tap_tb.vhd: D3 acceptance instrument J3, the JTAG port bench.
 --
--- BLIND-AUTHORED 2026-08-06 against d3_spec.md sections 0-2 and
--- d3_cdc_spec.md section 3 (both FROZEN) by an agent that has not seen and
--- will never see the D3 implementation.  At authoring time (HEAD f3d5172) no
--- JTAG port exists anywhere in hdl/common, hdl/argus or platform/common --
--- verified by grep, not assumed -- so this bench DOES NOT ELABORATE on the
--- tracked tree.  That is its part-1 seen-to-FAIL leg and it is deliberate:
--- the errors name the five missing formals on entity MCU.  DO NOT "FIX" IT BY
--- DELETING THEM.  (Precedent: dbg_dmi_tb.vhd, instrument J1, whose eight
--- *E,FMLUNK errors were the same demonstration one phase earlier.)
+-- BLIND-AUTHORED 2026-08-06 against d3_spec.md sections 0-2 and d3_cdc_spec.md section 3 (both FROZEN), by an author who has not seen and will never see the D3 implementation.
+-- At authoring time (HEAD f3d5172) no JTAG port exists anywhere in hdl/common, hdl/argus or platform/common, verified by grep and not assumed, so this bench DOES NOT ELABORATE on the tracked tree.
+-- That is its part-1 seen-to-FAIL leg and it is deliberate: the errors name the five missing formals on entity MCU.
+-- DO NOT "FIX" IT BY DELETING THEM.
+-- Precedent: dbg_dmi_tb.vhd, instrument J1, whose eight *E,FMLUNK errors were the same demonstration one phase earlier.
 --
 -- WHAT THIS FILE DOES THAT NO tcl HARNESS CAN
---   1. It NAMES the five JTAG formals in VHDL, so a missing, renamed or
---      mis-typed port is a COMPILE-TIME failure rather than a runtime poll
---      that times out and gets misattributed.
---   2. It names the EIGHT dmi_* formals in the same port map.  d3_cdc_spec 7
---      RETAINS the external DMI ports and merges them with the DTM by
---      OR-composition; a build that quietly repurposed them would pass every
---      TAP check in the D3 tcl family and fail to elaborate here.  The two
---      port groups are asserted together, in one place, on purpose.
---   3. IT DRIVES THE TAP WHILE THE CHIP IS HELD IN RESET.  d3_cdc_spec 3
---      says "The TAP is NOT reset by system resetn (a debugger must be
---      attachable while the chip is held in reset -- the halt-on-reset
---      story)".  riscv_tb releases reset within microseconds of time zero and
---      a tcl harness cannot easily get in front of it; this bench simply does
---      not release reset until check J5.  That clause has no other instrument.
+--   1. It NAMES the five JTAG formals in VHDL, so a missing, renamed or mis-typed port is a COMPILE-TIME failure rather than a runtime poll that times out and gets misattributed.
+--   2. It names the EIGHT dmi_* formals in the same port map.
+--      d3_cdc_spec 7 RETAINS the external DMI ports and merges them with the DTM by OR-composition; a build that quietly repurposed them would pass every TAP check in the D3 tcl family and fail to elaborate here.
+--      The two port groups are asserted together, in one place, on purpose.
+--   3. IT DRIVES THE TAP WHILE THE CHIP IS HELD IN RESET.
+--      d3_cdc_spec 3 says "The TAP is NOT reset by system resetn (a debugger must be attachable while the chip is held in reset, the halt-on-reset story)".
+--      riscv_tb releases reset within microseconds of time zero and a tcl harness cannot easily get in front of it; this bench simply does not release reset until check J5.
+--      That clause has no other instrument.
 --
 -- USAGE
 --   tools/cosim/gate/mp_test/run_dbg_tap.sh [<rcf-basename>]
 --   NHARTS_G=18 ./run_dbg_tap.sh              -- the N=18 shape of this file
 --
 -- PASS iff the log prints "ALL CHECKS PASSED" and contains no "CHECK FAILED".
--- Severity is `warning` on a failed check, never `error`, so the run
--- continues: a bench that stops at the first failure can never tell you
--- whether the rest would also have failed.
+-- Severity is `warning` on a failed check, never `error`, so the run continues: a bench that stops at the first failure can never tell you whether the rest would also have failed.
 --
 -- THE TAP PIN PROTOCOL, and why it is written this way
 --   d3_spec 1: TMS sampled on TCK rising, TDO changes on falling, LSB-first.
---   So tck_cycle presents TMS/TDI while TCK is low, waits a setup window,
---   raises TCK, waits, lowers it, and waits again for TDO to settle.  TDO for
---   bit k is therefore READ BEFORE the k-th cycle is issued.  Driving TMS and
---   TCK in the same delta would be a race against the DUT's own edge process.
+--   So tck_cycle presents TMS/TDI while TCK is low, waits a setup window, raises TCK, waits, lowers it, and waits again for TDO to settle.
+--   TDO for bit k is therefore READ BEFORE the k-th cycle is issued.
+--   Driving TMS and TCK in the same delta would be a race against the DUT's own edge process.
 --
--- -V200X: no VHDL-2008 anywhere in this file (no to_hstring, no
--- unary-and); values are reported with integer'image of an integer built by
--- hand.  That restriction is a repo rule, not a preference.
+-- -V200X: no VHDL-2008 anywhere in this file (no to_hstring, no unary-and); values are reported with integer'image of an integer built by hand.
+-- That restriction is a repo rule, not a preference.
 -- =============================================================================
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
@@ -60,8 +46,7 @@ entity dbg_tap_tb is
     generic (
         -- Any real image: this bench asserts nothing about what hart 0 runs.
         TEST_FILE : string(1 to 29) := "../rcf/xxxrv32ui-p-simple.rcf";
-        -- Selects the expected IDCODE (R-DD4(1)) as well as the hart count,
-        -- so the same file grades Castalia (4) and Argus (18).
+        -- Selects the expected IDCODE (R-DD4(1)) as well as the hart count, so the same file grades Castalia (4) and Argus (18).
         NHARTS_G  : integer := 4
     );
 end entity;
@@ -69,12 +54,11 @@ end entity;
 architecture sim of dbg_tap_tb is
 
     constant clk_hfxt_delay  : time := (0.5 sec) / 24000000;   -- 24 MHz
-    constant clk_lfxt_delay  : time := (0.5 sec) / 32768;
+    constant clk_lfxt_delay  : time := (0.5 sec) / 32768;      -- 32.768 kHz
     constant clk_hfxt_period : time := clk_hfxt_delay * 2;
     constant clk_lfxt_period : time := clk_lfxt_delay * 2;
 
-    -- TCK timing.  ~7.1 MHz against mclk's 24 MHz: a ratio a real debugger
-    -- would use, and nothing in this bench depends on it.
+    -- TCK timing, about 7.1 MHz against mclk's 24 MHz: a ratio a real debugger would use, and nothing in this bench depends on it.
     constant tck_setup : time := 20 ns;
     constant tck_half  : time := 60 ns;
 
@@ -92,19 +76,18 @@ architecture sim of dbg_tap_tb is
     constant IR_BYPASS : std_logic_vector(4 downto 0) := "11111";
     constant DR_DMI_LEN : integer := 41;   -- abits 7 + 34
 
-    -- The USER's IDCODEs (R-DD4(1)).  version 1, partnum 0xCA57 / 0xA265,
-    -- manufid 0x777, LSB 1.
+    -- The USER's IDCODEs (R-DD4(1)): version 1, partnum 0xCA57 / 0xA265, manufid 0x777, LSB 1.
     constant IDCODE_CASTALIA : std_logic_vector(31 downto 0) := x"1CA57EEF";
     constant IDCODE_ARGUS    : std_logic_vector(31 downto 0) := x"1A265EEF";
 
+    -- DMI request ops and response codes (d3_spec section 2).
     constant OP_READ  : std_logic_vector(1 downto 0) := "01";
     constant OP_WRITE : std_logic_vector(1 downto 0) := "10";
     constant RSP_SUCCESS : std_logic_vector(1 downto 0) := "00";
     constant RSP_FAILED  : std_logic_vector(1 downto 0) := "10";
 
-    -- Bounded everywhere.  A bench that can hang promises evidence that
-    -- cannot occur (method rule 9), and the 1-minute rule makes a hung sim a
-    -- wasted licence seat.
+    -- Bounded everywhere.
+    -- A bench that can hang promises evidence that cannot occur (method rule 9), and the 1-minute rule makes a hung sim a wasted licence seat.
     constant W_XACT   : integer := 400;   -- mclk cycles per raw DMI phase
     constant N_IDLE   : integer := 16;    -- TCK cycles parked in Run-Test/Idle
     constant N_RETRY  : integer := 8;     -- TAP DMI attempts before giving up
@@ -117,7 +100,7 @@ architecture sim of dbg_tap_tb is
     signal checks  : integer := 0;
     signal dmi_dead : boolean := false;
 
-    -- the frozen D2 DMI port (d2_spec section 2) -- NAMED HERE ON PURPOSE
+    -- The frozen D2 DMI port (d2_spec section 2), NAMED HERE ON PURPOSE.
     signal dmi_req_valid : std_logic := '0';
     signal dmi_req_op    : std_logic_vector(1 downto 0) := "00";
     signal dmi_req_addr  : std_logic_vector(6 downto 0) := (others => '0');
@@ -127,16 +110,15 @@ architecture sim of dbg_tap_tb is
     signal dmi_rsp_data  : std_logic_vector(31 downto 0);
     signal dmi_rsp_op    : std_logic_vector(1 downto 0);
 
-    -- the D3 JTAG port (d3_spec section 0).  trstn starts LOW: that is the
-    -- fail-safe condition the spec names (TAP held in reset => inert), and
-    -- this bench is the thing that plugs a debugger in.
+    -- The D3 JTAG port (d3_spec section 0).
+    -- trstn starts LOW: that is the fail-safe condition the spec names (a TAP held in reset is inert), and this bench is the thing that plugs a debugger in.
     signal tck   : std_logic := '0';
     signal tms   : std_logic := '1';
     signal tdi   : std_logic := '0';
     signal trstn : std_logic := '0';
     signal tdo   : std_logic;
 
-    -- pads / chip plumbing (the riscv_tb shape, reduced to what boots)
+    -- Pads and chip plumbing: the riscv_tb shape, reduced to what boots.
     signal resetn_pad : std_logic;
     signal resetn_in, resetn_out, resetn_dir, resetn_ren : std_logic;
     signal prt1 : std_logic_vector(7 downto 0);
@@ -174,8 +156,9 @@ architecture sim of dbg_tap_tb is
 begin
 
     -- ---------------------------------------------------------------------
-    -- clocks, pads, flash: copied in SHAPE from dbg_dmi_tb.vhd / riscv_tb.vhd.
+    -- Clocks, pads, flash: copied in SHAPE from dbg_dmi_tb.vhd and riscv_tb.vhd.
     -- ---------------------------------------------------------------------
+    -- Free-running 24 MHz system clock; it stops once the check sequence is done.
     ProcClkHFXT: process
     begin
         if done then wait; end if;
@@ -183,6 +166,7 @@ begin
         mclk <= '1'; wait for clk_hfxt_period / 2;
     end process;
 
+    -- Free-running 32.768 kHz slow clock, driven onto the LFXT pad.
     ProcClkLFXT: process
     begin
         if done then wait; end if;
@@ -212,6 +196,7 @@ begin
     prt5_in <= (others => '0');
     prt6_in <= (others => '0');
 
+    -- boot_done_flag latches when the flash goes back to sleep: the SPI boot copy is over.
     process(resetn, flash_awake)
     begin
         if resetn = '0' then
@@ -223,6 +208,7 @@ begin
 
     cs_flash <= prt1(pnum_gpio0_cs_flash) when boot_done_flag = '0' else '1';
 
+    -- Sticky evidence that the flash was ever driven, i.e. that hart 0 really booted.
     boot_watch: process(mclk)
     begin
         if rising_edge(mclk) then
@@ -230,6 +216,7 @@ begin
         end if;
     end process;
 
+    -- 60 ms backstop: log a failed check and abort if the sequence never finishes.
     watchdog: process
     begin
         wait for 60 ms;
@@ -253,9 +240,8 @@ begin
                   RAM_FILE_PATH => ram_file_name);
 
     -- ---------------------------------------------------------------------
-    -- THE DUT.  `entity work.MCU`, not the riscv_tb COMPONENT, precisely so
-    -- the JTAG and DMI formals can be NAMED -- which is what makes this
-    -- file's FAIL leg an elaboration error rather than a silent pass.
+    -- THE DUT.
+    -- `entity work.MCU`, not the riscv_tb COMPONENT, precisely so the JTAG and DMI formals can be NAMED, which is what makes this file's FAIL leg an elaboration error rather than a silent pass.
     -- ---------------------------------------------------------------------
     dut: entity work.MCU
         port map (
@@ -297,6 +283,7 @@ begin
         variable ok   : boolean;
         variable i    : integer;
 
+        -- Record one check: a note on pass, a warning on fail, never an error, so the run continues.
         procedure chk(cond : boolean; msg : string) is
         begin
             checks <= checks + 1;
@@ -309,8 +296,8 @@ begin
             wait for 0 ns;
         end procedure;
 
-        -- ONE TCK cycle.  TCK is low on entry and on exit; TDO is settled and
-        -- readable on exit.  See the header for why the setup window exists.
+        -- ONE TCK cycle: TCK is low on entry and on exit, and TDO is settled and readable on exit.
+        -- See the header for why the setup window exists.
         procedure tck_cycle(tms_v : std_logic; tdi_v : std_logic) is
         begin
             tms <= tms_v;
@@ -326,9 +313,10 @@ begin
         procedure tap_tlr is
         begin
             for k in 0 to 4 loop tck_cycle('1', '0'); end loop;
-            tck_cycle('0', '0');          -- -> Run-Test/Idle
+            tck_cycle('0', '0');          -- one more cycle lands in Run-Test/Idle
         end procedure;
 
+        -- Park in Run-Test/Idle for n TCK cycles.
         procedure tap_idle(n : integer) is
         begin
             for k in 1 to n loop tck_cycle('0', '0'); end loop;
@@ -342,13 +330,13 @@ begin
             tck_cycle('0', '0');          -- Capture-IR
             tck_cycle('0', '0');          -- Shift-IR
             for k in 0 to 3 loop tck_cycle('0', v(k)); end loop;
-            tck_cycle('1', v(4));         -- last bit -> Exit1-IR
+            tck_cycle('1', v(4));         -- last bit, leaves for Exit1-IR
             tck_cycle('1', '0');          -- Update-IR
             tck_cycle('0', '0');          -- Run-Test/Idle
         end procedure;
 
         -- Shift a 32-bit DR from Run-Test/Idle, ending back in Run-Test/Idle.
-        -- LSB-first; TDO is sampled BEFORE each cycle.
+        -- LSB-first, and TDO is sampled BEFORE each cycle.
         procedure scan_dr32(vout : std_logic_vector(31 downto 0);
                             vin  : out std_logic_vector(31 downto 0)) is
             variable c : std_logic_vector(31 downto 0);
@@ -370,6 +358,7 @@ begin
             vin := c;
         end procedure;
 
+        -- Same scan as scan_dr32 for the 41-bit DMI DR.
         procedure scan_dr41(vout : std_logic_vector(40 downto 0);
                             vin  : out std_logic_vector(40 downto 0)) is
             variable c : std_logic_vector(40 downto 0);
@@ -391,7 +380,7 @@ begin
             vin := c;
         end procedure;
 
-        -- build a 41-bit dmi DR word: op[1:0], data[33:2], address[40:34]
+        -- Build a 41-bit dmi DR word: op[1:0], data[33:2], address[40:34].
         function dmi_word(op : std_logic_vector(1 downto 0);
                           dat : std_logic_vector(31 downto 0);
                           adr : integer) return std_logic_vector is
@@ -404,8 +393,8 @@ begin
             return w;
         end function;
 
-        -- ONE logical DMI transaction over the TAP: arm, dwell, NOP-capture,
-        -- retry through dmireset on busy.  Bounded by N_RETRY.
+        -- ONE logical DMI transaction over the TAP: arm, dwell, NOP-capture, retry through dmireset on busy.
+        -- Bounded by N_RETRY.
         procedure tap_dmi(op : std_logic_vector(1 downto 0);
                           adr : integer;
                           dat : std_logic_vector(31 downto 0);
@@ -428,9 +417,8 @@ begin
                 tap_idle(N_IDLE);
                 scan_dr41(dmi_word("00", (others => '0'), 0), cap);
                 if cap(1 downto 0) = "11" then
-                    -- busy: clear the sticky flag and re-issue.  dmireset also
-                    -- abandons the outstanding transaction (d3_spec 2), so the
-                    -- whole request has to be presented again.
+                    -- Busy: clear the sticky flag and re-issue.
+                    -- dmireset also abandons the outstanding transaction (d3_spec 2), so the whole request has to be presented again.
                     scan_ir(IR_DTMCS);
                     dc := (others => '0');
                     dc(16) := '1';                 -- dmireset
@@ -440,6 +428,7 @@ begin
                     rdat_o := cap(33 downto 2);
                     finished := true;
                     if cap(1 downto 0) = RSP_FAILED then
+                        -- FAILED is sticky too: clear it so the next transaction starts clean.
                         scan_ir(IR_DTMCS);
                         dc := (others => '0');
                         dc(16) := '1';
@@ -449,8 +438,7 @@ begin
             end loop;
         end procedure;
 
-        -- ONE raw DMI transaction on the frozen D2 port (the dbg_dmi_tb
-        -- shape), so this bench can also assert the OR-merge at run time.
+        -- ONE raw DMI transaction on the frozen D2 port (the dbg_dmi_tb shape), so this bench can also assert the OR-merge at run time.
         procedure raw_dmi(op : std_logic_vector(1 downto 0);
                           adr : integer;
                           dat : std_logic_vector(31 downto 0);
@@ -468,6 +456,7 @@ begin
             dmi_req_valid <= '1';
             got := false;
             n := 0;
+            -- Request phase: hold valid until the DM accepts, bounded by W_XACT.
             while (not got) and (n < W_XACT) loop
                 wait until rising_edge(mclk);
                 n := n + 1;
@@ -476,11 +465,13 @@ begin
             dmi_req_valid <= '0';
             dmi_req_op <= "00";
             if not got then
+                -- Never handshook: mark the raw port dead so later calls return at once.
                 dmi_dead <= true;
                 return;
             end if;
             got := false;
             n := 0;
+            -- Response phase: wait for dmi_rsp_valid, bounded by W_XACT.
             while (not got) and (n < W_XACT) loop
                 wait until rising_edge(mclk);
                 n := n + 1;
@@ -493,6 +484,7 @@ begin
         end procedure;
 
     begin
+        -- The hart count picks the chip, and the chip picks the expected IDCODE.
         if NHARTS_G = 18 then
             idcode_exp := IDCODE_ARGUS;
         else
@@ -500,12 +492,10 @@ begin
         end if;
 
         -- =================================================================
-        -- PHASE 1 -- THE CHIP IS HELD IN RESET.  resetn has never been
-        -- released; mclk is running but the design is in reset.  Everything
-        -- in this phase tests d3_cdc_spec 3's promise that the TAP is a
-        -- separate reset domain.  IF THE TAP ONLY WORKS AFTER BOOT, THE
-        -- HALT-ON-RESET STORY IS UNREACHABLE FROM A DEBUGGER and this phase
-        -- is the only place in the whole D3 instrument set that says so.
+        -- PHASE 1: THE CHIP IS HELD IN RESET.
+        -- resetn has never been released; mclk is running but the design is in reset.
+        -- Everything in this phase tests d3_cdc_spec 3's promise that the TAP is a separate reset domain.
+        -- IF THE TAP ONLY WORKS AFTER BOOT, THE HALT-ON-RESET STORY IS UNREACHABLE FROM A DEBUGGER, and this phase is the only place in the whole D3 instrument set that says so.
         -- =================================================================
         wait for 20 * clk_hfxt_period;
         trstn <= '0';
@@ -520,13 +510,10 @@ begin
           & "(the TAP is not in the resetn domain -- d3_cdc_spec 3)");
         chk(dr32(0) = '1', "J2: IDCODE bit 0 = 1 (1149.1 mandatory)");
         chk(dr32(31 downto 28) = "0001", "J3a: IDCODE version = 1");
-        -- manufid 0x777 in 11 bits is "11101110111".  The first cut wrote
-        -- "01110111011" (= 0x3BB) -- a mis-transcribed literal, instrument
-        -- defect I-5.  T2's G5 asks the same question ARITHMETICALLY
-        -- ([d2_fld $id 11 1] == 0x777) and passed on the same IDCODE in the
-        -- same session: two independent instruments disagreed and the
-        -- arithmetic one was right.  That is the argument for expressing a
-        -- constant as a number wherever the language allows it.
+        -- manufid 0x777 in 11 bits is "11101110111".
+        -- The first cut wrote "01110111011" (0x3BB), a mis-transcribed literal, instrument defect I-5.
+        -- T2's G5 asks the same question ARITHMETICALLY ([d2_fld $id 11 1] == 0x777) and passed on the same IDCODE in the same session: two independent instruments disagreed and the arithmetic one was right.
+        -- That is the argument for expressing a constant as a number wherever the language allows it.
         chk(dr32(11 downto 1) = "11101110111",
             "J3b: IDCODE manufid = 0x777 (R-DD4(1))");
         if NHARTS_G = 18 then
@@ -542,8 +529,9 @@ begin
         chk(dr32(11 downto 10) = "00", "J4c: dtmcs.dmistat = 0 at rest");
 
         -- =================================================================
-        -- PHASE 2 -- release reset, boot, and use the TAP for real.
+        -- PHASE 2: release reset, boot, and use the TAP for real.
         -- =================================================================
+        -- A long release to boot the chip, then a short pulse the TAP must survive.
         resetn <= '0';
         wait for 40 * clk_hfxt_period;
         resetn <= '1';
@@ -585,9 +573,8 @@ begin
           & "(the same question dbg_conf's K11 asks over the raw port)");
 
         -- =================================================================
-        -- PHASE 3 -- the OR-merge, at run time.  The eight dmi_* formals are
-        -- associated in this bench's port map, so this is family B driving
-        -- the DM directly while the DTM sits idle beside it.
+        -- PHASE 3: the OR-merge, at run time.
+        -- The eight dmi_* formals are associated in this bench's port map, so this is family B driving the DM directly while the DTM sits idle beside it.
         -- =================================================================
         raw_dmi(OP_READ, A_DMSTATUS, x"00000000", rop, rdat);
         chk((not dmi_dead) and rop = RSP_SUCCESS and rdat(3 downto 0) = "0011",

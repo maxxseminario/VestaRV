@@ -1,39 +1,24 @@
 -------------------------------------------------------------------------------
 -- SPI_flash_tb.vhd
 -------------------------------------------------------------------------------
--- Standalone, self-checking testbench for the SPI peripheral's EXTENDED-MEMORY
--- (SPI-flash XIP) path -- hdl/common/periph/SPI.vhd built with
--- ENABLE_EXTENDED_MEM = true, wired to the AT45DB021E behavioral flash model
--- (hdl/common/tb/serial_flash.vhd). The RISC-V core is NOT in this bench: the
--- testbench itself plays the role of the tile's adddec, driving the flash
--- request interface (en_mem_flash / clk_mem_flash / mab) and consuming
--- rdata_flash / disable_clk_cpu exactly the way adddec.vhd does for a
--- data_addr >= 0x20000 access.
+-- Standalone, self-checking testbench for the SPI peripheral's EXTENDED-MEMORY path, i.e. SPI-flash XIP.
+-- The DUT is hdl/common/periph/SPI.vhd built with ENABLE_EXTENDED_MEM = true, wired to the AT45DB021E behavioral flash model in hdl/common/tb/serial_flash.vhd.
+-- The RISC-V core is NOT in this bench: the testbench itself plays the role of the tile's adddec, driving the flash request interface (en_mem_flash, clk_mem_flash, mab) and consuming rdata_flash and disable_clk_cpu exactly the way adddec.vhd does for a data_addr at or above 0x20000.
 --
--- What it exercises (none of which the ISA/behavioral regressions touch, since
--- those tests run entirely from TCM and never fetch across the XIP boundary):
+-- What it exercises, none of which the ISA or behavioral regressions touch, since those tests run entirely from TCM and never fetch across the XIP boundary:
 --
---   * The deep-power-down wake-up handshake: the flash model boots asleep and
---     only honours reads after a correctly CS-framed 0xAB (resume) opcode +
---     tRDPD (35 us). The bench issues that wake as a normal 8-bit master
---     transfer (spi_fen = 0), then waits on the model's `awake` output.
---   * The XIP read FSM: on a flash request it drives CS low, streams opcode
---     0x0B (Continuous Array Read, High-Frequency), a 24-bit address =
---     mab(23:0)+SPIxFOS, a dummy byte, then clocks a 32-bit word back.
---   * SPIxFOS (flash address offset register): programmed to 0xFE0000 so a
---     realistic XIP address 0x20000+4*i maps to flash word i (0x020000 +
---     0xFE0000 wraps to 0x000000 in the 24-bit adder).
---   * The 32-bit read data alignment (SPIxCR rx-swap-bytes + MSB-first + 32-bit
---     length) that turns the MISO byte stream back into the stored little-
---     endian word, checked against a known flash image.
---   * disable_clk_cpu asserting for the duration of every access (the core
---     stall) and returning low when the word is ready.
+--   * The deep-power-down wake-up handshake: the flash model boots asleep and only honours reads after a correctly CS-framed 0xAB resume opcode plus tRDPD, 35 us.
+--     The bench issues that wake as a normal 8-bit master transfer with spi_fen = 0, then waits on the model's awake output.
+--   * The XIP read FSM: on a flash request it drives CS low, streams opcode 0x0B (Continuous Array Read, High-Frequency), a 24-bit address of mab(23:0) plus SPIxFOS, a dummy byte, then clocks a 32-bit word back.
+--   * SPIxFOS, the flash address offset register, programmed to 0xFE0000 so a realistic XIP address 0x20000+4*i maps to flash word i (0x020000 plus 0xFE0000 wraps to 0x000000 in the 24-bit adder).
+--   * The 32-bit read data alignment (SPIxCR rx-swap-bytes, MSB-first, 32-bit length) that turns the MISO byte stream back into the stored little-endian word, checked against a known flash image.
+--   * disable_clk_cpu, the core stall, asserting for the duration of every access and returning low when the word is ready.
 --
--- Flash image: ../rcf/spiflash_xiptest_a.rcf (32 binary chars per line, one
--- 32-bit word MSB-first). Word i == expected XIP read at 0x20000+4*i.
+-- Flash image: ../rcf/spiflash_xiptest_a.rcf, 32 binary chars per line, one 32-bit word MSB-first.
+-- Word i is the expected XIP read at 0x20000+4*i.
 --
--- Support: tb/periph_tb_pkg.vhd (scoreboard + register-bus BFM). The register
--- bus contract (en_mem/wen active-low, gated clk_mem) is the same as SPI_tb.
+-- Support: tb/periph_tb_pkg.vhd, the scoreboard and the register-bus BFM.
+-- The register bus contract (en_mem and wen active-low, gated clk_mem) is the same as SPI_tb.
 -------------------------------------------------------------------------------
 
 library ieee;
@@ -49,24 +34,23 @@ end entity SPI_flash_tb;
 
 architecture sim of SPI_flash_tb is
 
-    constant SM_PERIOD : time := 100 ns;    -- smclk period (SPI core + baud)
-    constant MC_PERIOD : time :=  40 ns;    -- mclk period (flash-clear synchronizer)
+    constant SM_PERIOD : time := 100 ns;    -- smclk period, clocking the SPI core and its baud generator.
+    constant MC_PERIOD : time :=  40 ns;    -- mclk period, clocking the flash-clear synchronizer.
 
-    -- clocks / reset
+    -- Clocks and reset.
     signal smclk   : std_logic := '0';
     signal mclk    : std_logic := '0';
     signal clk_mem : std_logic := '0';
-    signal resetn  : std_logic := '1';      -- starts HIGH so the 1->0 edge below
-                                            -- gives serial_flash a clean mem_reset
+    signal resetn  : std_logic := '1';      -- Starts HIGH so the falling edge in the stimulus gives serial_flash a clean mem_reset.
 
-    -- interrupts (observed, not central here)
+    -- Interrupt lines, observed but not central here.
     signal irq_tc, irq_te : std_logic;
 
-    -- register bus (BFM record + observed read_data)
+    -- Register bus: BFM record and the observed read_data.
     signal pbus      : periph_bus_t := PERIPH_BUS_IDLE;
     signal read_data : std_logic_vector(31 downto 0);
 
-    -- SPI pads
+    -- SPI pad signals: each direction bundle as the peripheral presents it.
     signal cs_in    : std_logic := '1';
     signal sck_out, sck_dir, sck_ren : std_logic;
     signal sck_ren_in : std_logic := '0';
@@ -76,25 +60,25 @@ architecture sim of SPI_flash_tb is
     signal miso_out, miso_dir, miso_ren : std_logic;
     signal miso_ren_in : std_logic := '0';
 
-    -- SPI-flash XIP request interface (this bench == adddec)
-    signal en_mem_flash     : std_logic := '1';   -- active-low request
+    -- SPI-flash XIP request interface, driven here exactly as adddec would drive it.
+    signal en_mem_flash     : std_logic := '1';   -- Active-low request.
     signal en_clk_mem_flash : std_logic;
     signal clk_mem_flash    : std_logic;
     signal mab              : std_logic_vector(31 downto 0) := (others => '0');
     signal rdata_flash      : std_logic_vector(31 downto 0);
     signal disable_clk_cpu  : std_logic;
 
-    -- SPI-flash chip-select (driven by the FSM during XIP)
+    -- SPI-flash chip select, driven by the XIP FSM.
     signal cs_flash_out, cs_flash_dir, cs_flash_ren : std_logic;
 
-    -- flash model pins
+    -- Flash model pins.
     signal flash_csb   : std_logic;
-    signal tb_flash_csn : std_logic := '1';   -- TB-driven CS for the wake frame
+    signal tb_flash_csn : std_logic := '1';   -- TB-driven CS, used only to frame the wake opcode.
     signal flash_miso  : std_logic;
     signal flash_awake : std_logic;
     signal mem_reset   : std_logic;
 
-    -- expected image (mirror of the .rcf, word i == addr 0x20000+4*i)
+    -- Expected image, a mirror of the .rcf: word i is the content at XIP address 0x20000+4*i.
     type img_t is array (natural range <>) of std_logic_vector(31 downto 0);
     constant IMG : img_t := (
         0 => x"03020100", 1 => x"07060504", 2 => x"DEADBEEF", 3 => x"CAFEBABE",
@@ -109,34 +93,31 @@ architecture sim of SPI_flash_tb is
 begin
 
     ----------------------------------------------------------------------------
-    -- clock / reset infrastructure
+    -- Clock and reset infrastructure.
     ----------------------------------------------------------------------------
     smclk   <= not smclk after SM_PERIOD / 2;
     mclk    <= not mclk  after MC_PERIOD / 2;
     clk_mem <= smclk when pbus.en_mem = '0' else '0';
 
-    -- serial_flash reloads its image on the RISING edge of mem_reset; resetn
-    -- starts HIGH and drops to '0' in the stimulus, so mem_reset (= not resetn)
-    -- sees a clean 0->1 edge while the DUT is held in reset.
+    -- serial_flash reloads its image on the RISING edge of mem_reset.
+    -- resetn starts HIGH and drops to '0' in the stimulus, so mem_reset, which is its inverse, sees a clean rising edge while the DUT is held in reset.
     mem_reset <= not resetn;
 
-    -- flash SCK/MOSI come from the SPI master; MISO goes back into the core.
+    -- Flash SCK and MOSI come from the SPI master, and MISO goes back into the core.
     miso_in <= flash_miso;
 
-    -- Flash CS: during the wake frame (spi_fen=0) the FSM parks cs_flash_out
-    -- high, and the TB pulls tb_flash_csn low to frame the 0xAB. During XIP the
-    -- TB releases tb_flash_csn high and the FSM's cs_flash_out owns the pin.
-    -- Wired-AND (active-low): either driver can select the device.
+    -- Flash CS: during the wake frame (spi_fen=0) the FSM parks cs_flash_out high and the TB pulls tb_flash_csn low to frame the 0xAB.
+    -- During XIP the TB releases tb_flash_csn high and the FSM's cs_flash_out owns the pin.
+    -- The wired-AND is active-low, so either driver can select the device.
     flash_csb <= cs_flash_out and tb_flash_csn;
 
-    -- clk_mem_flash: mirror adddec.vhd exactly (glitch-free gate off `not smclk`,
-    -- enabled while a flash request is asserted).
+    -- clk_mem_flash mirrors adddec.vhd exactly: a glitch-free gate off the inverted smclk, enabled while a flash request is asserted.
     en_clk_mem_flash <= '1' when en_mem_flash = '0' else '0';
     cg_flash : entity work.ClkGate
         port map (ClkIn => not smclk, En => en_clk_mem_flash, ClkOut => clk_mem_flash);
 
     ----------------------------------------------------------------------------
-    -- DUT: SPI with the extended-memory (flash XIP) path compiled in
+    -- DUT: the SPI peripheral with the extended-memory flash XIP path compiled in.
     ----------------------------------------------------------------------------
     dut : entity work.SPI
         generic map ( ENABLE_EXTENDED_MEM => true )
@@ -179,12 +160,12 @@ begin
         );
 
     ----------------------------------------------------------------------------
-    -- AT45DB021E behavioral flash model
+    -- AT45DB021E behavioral flash model, loaded from the .rcf image at reset.
     ----------------------------------------------------------------------------
     flash : entity work.serial_flash
         generic map (
             ProgramAddress       => 16#0000#,
-            RamSizeBytes         => 16#400#,     -- 256 words
+            RamSizeBytes         => 16#400#,     -- 256 words.
             SwapBytesIn32BitWord => false
         )
         port map (
@@ -198,7 +179,7 @@ begin
         );
 
     ----------------------------------------------------------------------------
-    -- stimulus
+    -- Stimulus: reset, wake the flash, configure XIP, then read the image back.
     ----------------------------------------------------------------------------
     stim_proc : process
         variable rdw : std_logic_vector(31 downto 0);
@@ -216,9 +197,8 @@ begin
             end loop;
         end procedure;
 
-        -- One XIP read: present a flash address the way adddec does, wait for the
-        -- access to start (disable_clk_cpu high) and finish (low), sample the
-        -- word. `started` reports whether the stall actually asserted.
+        -- One XIP read: present a flash address the way adddec does, wait for the access to start (disable_clk_cpu high) and finish (low), then sample the word.
+        -- started reports whether the stall actually asserted.
         procedure xip_read(addr    : in  unsigned(31 downto 0);
                            result  : out std_logic_vector(31 downto 0);
                            started : out boolean) is
@@ -226,7 +206,7 @@ begin
         begin
             mab          <= std_logic_vector(addr);
             en_mem_flash <= '0';
-            -- wait until the XIP engine asserts the core stall
+            -- Wait, bounded, until the XIP engine asserts the core stall.
             guard := 0; started := false;
             loop
                 wait until rising_edge(mclk);
@@ -234,7 +214,7 @@ begin
                 guard := guard + 1;
                 exit when guard > 200000;
             end loop;
-            -- wait until the word has been clocked in and the stall releases
+            -- Wait until the word has been clocked in and the stall releases.
             guard := 0;
             loop
                 wait until rising_edge(mclk);
@@ -244,13 +224,13 @@ begin
             end loop;
             result := rdata_flash;
             en_mem_flash <= '1';
-            wait for 20 * SM_PERIOD;   -- let the FSM settle back to CS-high/idle
+            wait for 20 * SM_PERIOD;   -- Let the FSM settle back to CS-high idle.
         end procedure;
 
         variable started : boolean;
     begin
         ----------------------------------------------------------------
-        -- Reset (drops resetn 1->0 to trigger the flash image load)
+        -- Reset: dropping resetn low triggers the flash image load.
         ----------------------------------------------------------------
         resetn       <= '1';
         pbus         <= PERIPH_BUS_IDLE;
@@ -258,33 +238,33 @@ begin
         tb_flash_csn <= '1';
         cs_in        <= '1';
         wait for 4 * SM_PERIOD;
-        resetn <= '0';                 -- assert reset + load flash image
+        resetn <= '0';                 -- Assert reset and load the flash image.
         wait for 4 * SM_PERIOD;
         resetn <= '1';
         wait for 4 * SM_PERIOD;
 
         ----------------------------------------------------------------
-        -- GROUP 1: flash boots ASLEEP; XIP before wake returns no data
+        -- GROUP 1: the flash boots ASLEEP, so an XIP read before the wake returns no data.
         ----------------------------------------------------------------
         report "=== GROUP 1: pre-wake (deep power-down) ===" severity note;
         sb.check_bit("flash asleep at reset", flash_awake, '0');
 
         ----------------------------------------------------------------
-        -- GROUP 2: wake-up handshake (0xAB, CS-framed, as a normal transfer)
+        -- GROUP 2: wake-up handshake, a CS-framed 0xAB sent as a normal transfer.
         ----------------------------------------------------------------
         report "=== GROUP 2: deep-power-down wake-up ===" severity note;
 
-        -- normal 8-bit master, MSB-first, mode 0 (spi_fen = 0)
+        -- Normal 8-bit master, MSB-first, mode 0, with spi_fen = 0.
         bus_write(smclk, pbus, RegSlotSPIxCR, x"000000C0");
-        tb_flash_csn <= '0';                              -- frame the opcode
+        tb_flash_csn <= '0';                              -- Frame the opcode.
         wait for 2 * SM_PERIOD;
-        bus_write(smclk, pbus, RegSlotSPIxTX, x"000000AB"); -- resume opcode
+        bus_write(smclk, pbus, RegSlotSPIxTX, x"000000AB"); -- Resume opcode.
         wait_master_done;
         wait for 2 * SM_PERIOD;
-        tb_flash_csn <= '1';                              -- CS rising => wake takes effect
-        bus_write(smclk, pbus, RegSlotSPIxCR, x"00000000"); -- park SPI
+        tb_flash_csn <= '1';                              -- The CS rising edge is what makes the wake take effect.
+        bus_write(smclk, pbus, RegSlotSPIxCR, x"00000000"); -- Park the SPI master.
 
-        -- tRDPD: model asserts `awake` 35 us after the CS rising edge
+        -- tRDPD: the model asserts awake 35 us after the CS rising edge.
         wait until flash_awake = '1' for 60 us;
         sb.check_bit("flash awake after 0xAB + tRDPD", flash_awake, '1');
 
@@ -293,14 +273,13 @@ begin
         ----------------------------------------------------------------
         report "=== GROUP 3: enable XIP ===" severity note;
 
-        -- SPIxFOS so that XIP 0x20000 -> flash word 0
+        -- Program SPIxFOS so that XIP address 0x20000 lands on flash word 0.
         bus_write(smclk, pbus, RegSlotSPIxFOS, FOS_VAL);
         bus_read(smclk, pbus, read_data, RegSlotSPIxFOS, rdw);
         sb.check_slv("SPIxFOS readback", rdw(23 downto 0), FOS_VAL(23 downto 0));
 
-        -- CR: spi_fen(19)=1, rx_swap(16)=1, en(7)=1, msb(6)=1, dl(3:2)=32-bit,
-        -- master, mode 0.  This alignment turns the flash MISO byte stream back
-        -- into the stored little-endian word.
+        -- CR: spi_fen(19)=1, rx_swap(16)=1, en(7)=1, msb(6)=1, dl(3:2) selects 32-bit, master, mode 0.
+        -- This alignment turns the flash MISO byte stream back into the stored little-endian word.
         bus_write(smclk, pbus, RegSlotSPIxCR, x"000900C8");
         sb.check_bit("no XIP stall while idle", disable_clk_cpu, '0');
 
@@ -316,14 +295,14 @@ begin
         end loop;
 
         ----------------------------------------------------------------
-        -- GROUP 5: re-read is deterministic (word 2 again)
+        -- GROUP 5: re-reading word 2 must return the same value, so the read is deterministic.
         ----------------------------------------------------------------
         report "=== GROUP 5: deterministic re-read ===" severity note;
         xip_read(XIP_BASE + to_unsigned(8, 32), rdw, started);
         sb.check_slv("XIP re-read word 2 stable", rdw, IMG(2));
 
         ----------------------------------------------------------------
-        -- GROUP 6: non-zero-offset scan (out-of-order addresses)
+        -- GROUP 6: out-of-order addresses, proving each access re-issues its own opcode and address.
         ----------------------------------------------------------------
         report "=== GROUP 6: out-of-order reads ===" severity note;
         xip_read(XIP_BASE + to_unsigned(4 * 5, 32), rdw, started);
@@ -334,7 +313,7 @@ begin
         sb.check_slv("XIP read word 9 (out of order)", rdw, IMG(9));
 
         ----------------------------------------------------------------
-        -- Final verdict
+        -- Final verdict: settle, print the scoreboard summary, then stop.
         ----------------------------------------------------------------
         wait for 1 us;
         sb.report_summary("SPI FLASH XIP TB");

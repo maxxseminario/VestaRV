@@ -1,10 +1,7 @@
 -- MCU.template.uart1.vhd -- UART1-conditional verbatim blocks (G1b, 2026-07-11).
--- Spliced into MCU.template.vhd by python/mcu_vhd.py ONLY when the config has
--- peripherals.uart1=true (the Castalia default). Same mechanism as the I2C1
--- side template: @UART1BLOCK:<name>@ markers delimit the blocks; with uart1
--- absent the markers in the main template emit nothing (window slot 5 reads
--- zero via the mux fall-through, vectors 52-54 become IRQB_RSVD*, the TX1/RX1
--- pad planes go hi-Z and P2.6/7 revert to plain GPIO14/15).
+-- Spliced into MCU.template.vhd by python/mcu_vhd.py ONLY when the config has peripherals.uart1=true (the Castalia default).
+-- Same mechanism as the I2C1 side template: @UART1BLOCK:<name>@ markers delimit the blocks.
+-- With uart1 absent the markers in the main template emit nothing: window slot 5 reads zero via the mux fall-through, vectors 52-54 become IRQB_RSVD*, the TX1/RX1 pad planes go hi-Z and P2.6/7 revert to plain GPIO14/15.
 
 --@UART1BLOCK:uart1-pad-decls@
         -- P2.6: TX1

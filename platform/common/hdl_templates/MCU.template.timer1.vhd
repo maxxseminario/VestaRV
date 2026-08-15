@@ -1,11 +1,7 @@
 -- MCU.template.timer1.vhd -- TIMER1-conditional verbatim blocks (G1b, 2026-07-11).
--- Spliced into MCU.template.vhd by python/mcu_vhd.py ONLY when the config has
--- peripherals.timer1=true (the Castalia default). Same mechanism as the I2C1
--- side template: @TIMER1BLOCK:<name>@ markers delimit the blocks; with timer1
--- absent the markers in the main template emit nothing (window slot 7 reads
--- zero via the mux fall-through, vectors 22-27 become IRQB_RSVD*, the
--- T1CMP0/T1CMP1/T1CAP0/T1CAP1 pad planes go hi-Z and P3.4-7 revert to plain
--- GPIO20-23).
+-- Spliced into MCU.template.vhd by python/mcu_vhd.py ONLY when the config has peripherals.timer1=true (the Castalia default).
+-- Same mechanism as the I2C1 side template: @TIMER1BLOCK:<name>@ markers delimit the blocks.
+-- With timer1 absent the markers in the main template emit nothing: window slot 7 reads zero via the mux fall-through, vectors 22-27 become IRQB_RSVD*, the T1CMP0/T1CMP1/T1CAP0/T1CAP1 pad planes go hi-Z and P3.4-7 revert to plain GPIO20-23.
 
 --@TIMER1BLOCK:timer1-pad-decls@
         -- P3.4: T1_CMP0 (output)

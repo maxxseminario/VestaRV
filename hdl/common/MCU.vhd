@@ -1,12 +1,9 @@
 -- MCU.vhd
 -- Castalia MCU top-level integration layer (5 harts, MCU_MP)
--- Golden-master templated from the verified hdl/common/MCU.vhd: the fixed
--- 	boilerplate comes from hdl_templates/MCU.template.vhd; the description-
--- 	driven sections are generated from python/generate.py
--- Generated on 2026/08/15 at 09:41:07 with the generate.py chip generator
+-- Golden-master templated from the verified hdl/common/MCU.vhd: the fixed boilerplate comes from hdl_templates/MCU.template.vhd, the description-driven sections are generated from python/generate.py
+-- Generated on 2026/08/15 at 16:10:53 with the generate.py chip generator
 -- WARNING: Do not edit or modify this file!
--- 	Edit hdl_templates/MCU.template.vhd (fixed regions) or python/generate.py
--- 	+ python/mcu_vhd.py (generated regions), then re-run make chip
+-- 	Edit hdl_templates/MCU.template.vhd (fixed regions) or python/generate.py + python/mcu_vhd.py (generated regions), then re-run make chip
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -20,7 +17,7 @@ entity MCU is
    port (
 
         -- Resetn Pad
-        resetn_in	: in	std_logic;	-- '0' <= resetn, '1' <= system running
+        resetn_in	: in	std_logic;	-- '0' = reset asserted, '1' = system running
 		resetn_out	: out	std_logic;	-- Don't care
 		resetn_dir	: out	std_logic;	-- Must be set to input mode
 		resetn_ren	: out	std_logic;	-- Set to enable pullup resistor
@@ -76,17 +73,11 @@ end entity;
 
 architecture behav of MCU is
 
-    -- M13 TILE EXTRACTION: the vesta core, its adddec and its private TCM no
-    -- longer appear inline here — hart 0 is now the SAME hart_tile entity as
-    -- harts 1-3 (hdl/common/hart_tile.vhd), and the four tile instances are
-    -- STRUCTURALLY IDENTICAL (one netlist -> one hardened tile in M14).
-    -- Every per-instance difference is wiring only: hart_id (mhartid port),
-    -- hart 0's flash/XIP + sleep hookup to SPI0 and the TCM PGEN (BLOCKPWR
-    -- on hart 0). M19: the IRQ interface is IDENTICAL on every hart —
-    -- msip/mtip from the CLINT + one meip wire from the irq_router's
-    -- claim/complete stage (SYSTEM0's vectored path is retired). The vesta
-    -- and adddec component declarations went with the inline hart-0
-    -- machinery.
+    -- M13 TILE EXTRACTION: the vesta core, its adddec and its private TCM no longer appear inline here.
+    -- Hart 0 is now the SAME hart_tile entity as harts 1-3 (hdl/common/hart_tile.vhd), and the tile instances are STRUCTURALLY IDENTICAL (one netlist, one hardened tile in M14).
+    -- Every per-instance difference is wiring only: hart_id (mhartid port), hart 0's flash/XIP + sleep hookup to SPI0 and the TCM PGEN (BLOCKPWR on hart 0).
+    -- M19: the IRQ interface is IDENTICAL on every hart, msip/mtip from the CLINT plus one meip wire from the irq_router's claim/complete stage (SYSTEM0's vectored path is retired).
+    -- The vesta and adddec component declarations went with the inline hart-0 machinery.
 
     ----------------------------------- Peripherals --------------------------------------------------
 
@@ -104,8 +95,7 @@ architecture behav of MCU is
             resetn_por      : in  std_logic;
             resetn_sys      : out std_logic;
 
-            -- Interrupt Signals (M19: WDT only — the vectored controller is
-            -- retired; routing/delivery live in the irq_router)
+            -- Interrupt Signals (M19: WDT only; the vectored controller is retired and routing/delivery live in the irq_router)
             irq_sys_wdt     : out std_logic;
             wdt_irq_routed   : in  std_logic := '0';
             wdt_irq_complete : in  std_logic := '0';
@@ -170,8 +160,8 @@ architecture behav of MCU is
             PxSEL_out		: out	std_logic_vector(num_pins - 1 downto 0);
             PxAFS_out		: out	std_logic_vector(3 * num_pins - 1 downto 0);
 
-            -- GPIO_NUM_AFS flattened alternate-function planes: plane k, pin i
-            -- at bit (k * num_pins + i). Plane 0 = the legacy AF0 functions.
+            -- GPIO_NUM_AFS flattened alternate-function planes: plane k, pin i at bit (k * num_pins + i).
+            -- Plane 0 = the legacy AF0 functions.
             alt_func_out_in		: in	slv(GPIO_NUM_AFS * num_pins - 1 downto 0);
             alt_func_dir_in		: in	slv(GPIO_NUM_AFS * num_pins - 1 downto 0);
             alt_func_ren_in		: in	slv(GPIO_NUM_AFS * num_pins - 1 downto 0)
@@ -420,9 +410,8 @@ architecture behav of MCU is
         signal resetn           : std_logic;
         signal resetn_por       : std_logic;
         signal resetn_sys       : std_logic;
-        -- M19: SYSTEM0's vectored IRQ fabric (irq_en/irq_priority/isr_ret/
-        -- irq_recursion_en) is RETIRED — delivery is the irq_router's
-        -- per-hart meip wires (claim/complete), declared at meip-decl below.
+        -- M19: SYSTEM0's vectored IRQ fabric (irq_en/irq_priority/isr_ret/irq_recursion_en) is RETIRED.
+        -- Delivery is the irq_router's per-hart meip wires (claim/complete), declared at meip-decl below.
         signal irq_tielow       : std_logic; -- Tielo cell for unused glitch filter inputs
         signal sleep_cpu        : std_logic;
         signal PGENROM          : std_logic; -- Active low power rom power gating
@@ -433,10 +422,8 @@ architecture behav of MCU is
         signal clk_hfxt         : std_logic; -- Gated hfxt clock from system
         signal clk_osc_dco0     : std_logic; -- DCO0 Clock directly from oscillator
         signal clk_osc_dco1     : std_logic; -- DCO1 Clock directly from oscillator
-        -- M13: clk_cpu / boot_fetched / resetn_core and the M2 wait-injector
-        -- back-pressure (core_mem_ready) are tile-internal now; wait_inj0 is
-        -- RETIRED (M10 proved the protocol's latency tolerance, the M12 boot
-        -- fetch exercises it every run).
+        -- M13: clk_cpu / boot_fetched / resetn_core and the M2 wait-injector back-pressure (core_mem_ready) are tile-internal now.
+        -- wait_inj0 is RETIRED (M10 proved the protocol's latency tolerance, and the M12 boot fetch exercises it every run).
 
         -- IRQ Signal Declarations
         signal irq_sys_wdt      : std_logic;  -- Watchdog Timer Interrupt
@@ -501,20 +488,17 @@ architecture behav of MCU is
         signal gf_out           : std_logic_vector(127 downto 0);
 
 
-        -- M13: the RISCV core interface signals (read_data/write_word/
-        -- data_addr/wen_*) moved into hart_tile with the core.
+        -- M13: the RISCV core interface signals (read_data/write_word/data_addr/wen_*) moved into hart_tile with the core.
 
-        -- M3c.2: shared window behind mp_arbiter on mclk. M5b widened SH_AW
-        -- 8 -> 12 (whole pre-M11 region 4). M11 memory-map rework: SH_AW
-        -- 12 -> 16 — the arbiter word address now covers ALL of
-        -- 0x00000-0x3FFFF (word addr = data_addr(17:2)) and the slave
-        -- sub-decode selects on s_addr(15:12):
-        --   0000 = boot ROM 0x0-0x3FFF (M12: THE shared boot ROM — one
+        -- M3c.2: shared window behind mp_arbiter on mclk.
+        -- M5b widened SH_AW from 8 to 12 (the whole pre-M11 region 4).
+        -- M11 memory-map rework took SH_AW from 12 to 16, so the arbiter word address now covers ALL of 0x00000-0x3FFFF (word addr = data_addr(17:2)) and the slave sub-decode selects on s_addr(15:12):
+        --   0000 = boot ROM 0x0-0x3FFF (M12: THE shared boot ROM, one
         --          rom_hvt_pg, read-only slave; all five harts reset here)
         --   0001 = peripheral window 0x4000-0x7FFF (page 0 = 16 x 256B slots
         --          at the LEGACY slot numbering, page 1 = CLINT @0x5000,
         --          page 2 = MUTEX bank @0x6000, page 3 = IRQ router @0x7000)
-        --   0010 = dead (TCM region — tile-private, never arrives here)
+        --   0010 = dead (TCM region: tile-private, never arrives here)
         --   0011 = NPU staging RAM 0xC000-0xFFFF (one sram1p16k, NPU-muxed)
         --   0100-0111 = shared bulk RAM 0x10000-0x1FFFF (4 x sram1p16k banks,
         --               bank = s_addr(13:12))
@@ -523,9 +507,7 @@ architecture behav of MCU is
         --               read-only, a gated tile completes with zeros)
         --   1101-1111 = unmapped (window power-of-two round-up gap; reads zero)
         constant SH_AW : natural := 16;                -- shared-window word-address width
-        -- M13: the hart-0 master-side handshake state (sh_sel/sh_acked/
-        -- sh_rdata_reg/sh_rdata_cpu/...) moved into hart_tile — all four
-        -- masters now carry identical tile-internal copies of it.
+        -- M13: the hart-0 master-side handshake state (sh_sel/sh_acked/sh_rdata_reg/sh_rdata_cpu/...) moved into hart_tile, so every master now carries an identical tile-internal copy of it.
         -- M4b: global LR/SC reservation unit
         signal arb_lrsc         : std_logic_vector(5*2-1 downto 0);
         signal arb_scfail       : std_logic_vector(4 downto 0);
@@ -534,32 +516,27 @@ architecture behav of MCU is
         -- arbiter master buses (master 0 = the orchestrator hart; masters 1-4 = hart tiles).
         -- we = 4 active-high byte-lane strobes per master (M4a).
         signal arb_req, arb_gnt, arb_done : std_logic_vector(4 downto 0);
-        -- M8: per-master grant-lock (cores' amo_lock) — pins the arbiter to a
-        -- master across its AMO read+write transaction pair (cross-hart AMO
-        -- atomicity).
+        -- M8: per-master grant-lock (cores' amo_lock) pins the arbiter to a master across its AMO read+write transaction pair (cross-hart AMO atomicity).
         signal arb_lock         : std_logic_vector(4 downto 0);
         signal arb_we           : std_logic_vector(5*4-1 downto 0);
         signal arb_addr         : std_logic_vector(5*SH_AW-1 downto 0);
         signal arb_wdata        : std_logic_vector(5*32-1 downto 0);
         signal arb_rdata        : std_logic_vector(31 downto 0);
-        -- arbiter <-> shared slave side (RAM + CLINT sub-decoded below, M5b)
+        -- Arbiter to shared-slave side (RAM + CLINT sub-decoded below, M5b)
         signal sh_en            : std_logic;
         signal sh_we            : std_logic_vector(3 downto 0);
         signal sh_addr          : std_logic_vector(SH_AW-1 downto 0);
         signal sh_wdata         : std_logic_vector(31 downto 0);
-        -- M11 slave fabric: page select on s_addr(15:12) (see the SH_AW
-        -- comment above for the map). The peripheral window sub-decodes on
-        -- s_addr(11:10) into 4 pages; page 0 = 16 x 256B slots at the LEGACY
-        -- 0x4000 slot numbering (slot = s_addr(9:6)) — every peripheral is
-        -- back at its original Myshkin address, now shared by all 5 harts.
-        signal shslv_rom_sel    : std_logic;   -- 0000 -> shared boot ROM 0x0-0x3FFF (M12)
-        signal shslv_perwin_sel : std_logic;   -- 0001 -> peripheral window 0x4000-0x7FFF
-        signal shslv_pg0_sel    : std_logic;   -- window page 0 -> the 16 slots
-        signal shslv_npuram_sel : std_logic;   -- 0011 -> NPU staging RAM 0xC000-0xFFFF
-        signal shslv_bank0_sel  : std_logic;   -- 0100 -> bulk RAM bank 0 (0x10000)
-        signal shslv_bank1_sel  : std_logic;   -- 0101 -> bulk RAM bank 1 (0x14000)
-        signal shslv_bank2_sel  : std_logic;   -- 0110 -> bulk RAM bank 2 (0x18000)
-        signal shslv_bank3_sel  : std_logic;   -- 0111 -> bulk RAM bank 3 (0x1C000)
+        -- M11 slave fabric: page select on s_addr(15:12) (see the SH_AW comment above for the map).
+        -- The peripheral window sub-decodes on s_addr(11:10) into 4 pages; page 0 = 16 x 256B slots at the LEGACY 0x4000 slot numbering (slot = s_addr(9:6)), so every peripheral is back at its original Myshkin address, now shared by all 5 harts.
+        signal shslv_rom_sel    : std_logic;   -- 0000 = shared boot ROM 0x0-0x3FFF (M12)
+        signal shslv_perwin_sel : std_logic;   -- 0001 = peripheral window 0x4000-0x7FFF
+        signal shslv_pg0_sel    : std_logic;   -- window page 0 = the 16 slots
+        signal shslv_npuram_sel : std_logic;   -- 0011 = NPU staging RAM 0xC000-0xFFFF
+        signal shslv_bank0_sel  : std_logic;   -- 0100 = bulk RAM bank 0 (0x10000)
+        signal shslv_bank1_sel  : std_logic;   -- 0101 = bulk RAM bank 1 (0x14000)
+        signal shslv_bank2_sel  : std_logic;   -- 0110 = bulk RAM bank 2 (0x18000)
+        signal shslv_bank3_sel  : std_logic;   -- 0111 = bulk RAM bank 3 (0x1C000)
         signal shslv_rom_en     : std_logic;
         signal shslv_npuram_en  : std_logic;
         signal shslv_bank0_en   : std_logic;
@@ -572,10 +549,8 @@ architecture behav of MCU is
         signal shslv_rd_bank1   : std_logic := '0';
         signal shslv_rd_bank2   : std_logic := '0';
         signal shslv_rd_bank3   : std_logic := '0';
-        -- boot ROM + bulk RAM banks + NPU staging RAM are hard macros: their
-        -- Q is the 1-cycle registered read the arbiter's slave model
-        -- expects, so the macro output IS the rdata (no extra register).
-        -- Enables/WEN are ACTIVE-LOW at the macro — shims below.
+        -- boot ROM + bulk RAM banks + NPU staging RAM are hard macros: their Q is the 1-cycle registered read the arbiter's slave model expects, so the macro output IS the rdata (no extra register).
+        -- Enables/WEN are ACTIVE-LOW at the macro; see the shims below.
         signal rom_q            : std_logic_vector(31 downto 0);
         signal bank0_q          : std_logic_vector(31 downto 0);
         signal bank1_q          : std_logic_vector(31 downto 0);
@@ -591,40 +566,26 @@ architecture behav of MCU is
         signal shmem_gwen_n     : std_logic;   -- shared-macro global write enable (active-low)
 
         -- =====================================================================
-        -- CPR3/R3: READ-ONLY TCM APERTURES. One 16 KiB window per hart at
-        -- 0x20000 + 0x4000*h (h = 0..4), through which the MANAGEMENT HART
-        -- — hart 0, the orchestrator — reads any hart's PRIVATE TCM. The
-        -- aperture address is a TCM WORD index, sh_addr(11:0), so window word i
-        -- is that hart's byte address 0x8000 + 4*i.
+        -- CPR3/R3: READ-ONLY TCM APERTURES. One 16 KiB window per hart at 0x20000 + 0x4000*h (h = 0..4), through which the MANAGEMENT HART (hart 0, the orchestrator) reads any hart's PRIVATE TCM.
+        -- The aperture address is a TCM WORD index, sh_addr(11:0), so window word i is that hart's byte address 0x8000 + 4*i.
         --
-        -- THREE GATES, and all three answer with ZERO rather than a bus error,
-        -- a stall or a hang (the afe_stub idiom, implemented here rather than by
-        -- instantiating afe_stub — this is a sequencer, not a register file):
+        -- THREE GATES, and all three answer with ZERO rather than a bus error, a stall or a hang (the afe_stub idiom, implemented here rather than by instantiating afe_stub, because this is a sequencer, not a register file):
         --   * NOT THE MANAGEMENT HART (sh_master /= 0): denied, reads 0.
-        --   * A WRITE: dropped. The windows are READ-ONLY (CPR1 R4): a write
-        --     path into a live core's memory is a coherence hazard the
-        --     architecture refuses. The tile's port has no write side at all.
+        --   * A WRITE: dropped. The windows are READ-ONLY (CPR1 R4): a write path into a live core's memory is a coherence hazard the architecture refuses.
+        --     The tile's port has no write side at all.
         --   * THE TARGET TILE IS DARK (R4-A2): completes IMMEDIATELY with zeros.
-        --     This is the mandatory one. A gated tile's iso clamp zeroes its
-        --     tcm_ext_done as well as its rdata, so a slave that simply waited
-        --     for done would stall the shared bus forever with the management
-        --     hart parked on it. Software still checks PWRSR before trusting a
-        --     window — zeros are a legal TCM value — but the BUS never hangs.
+        --     This is the mandatory one: a gated tile's iso clamp zeroes its tcm_ext_done as well as its rdata, so a slave that simply waited for done would stall the shared bus forever with the management hart parked on it.
+        --     Software still checks PWRSR before trusting a window (zeros are a legal TCM value), but the BUS never hangs.
         --
-        -- WHY THIS SLAVE STALLS THE ARBITER AND NOTHING ELSE DOES: a tcm_ext
-        -- read is 6 mclk request-to-done (CPR2 R4), and mp_arbiter's transaction
-        -- is a fixed IDLE/LATCH/DATA three-cycle walk built for a 1-cycle
-        -- registered-read slave. Completing on cycle 3 would hand the management
-        -- hart a fabricated word, so the aperture holds s_stall for the duration
-        -- (mp_arbiter s_stall, default '0' everywhere else). The grant was
-        -- already pinned to this master for the transaction, so nothing else is
-        -- delayed that was not already waiting.
+        -- WHY THIS SLAVE STALLS THE ARBITER AND NOTHING ELSE DOES: a tcm_ext read is 6 mclk request-to-done (CPR2 R4), and mp_arbiter's transaction is a fixed IDLE/LATCH/DATA three-cycle walk built for a 1-cycle registered-read slave.
+        -- Completing on cycle 3 would hand the management hart a fabricated word, so the aperture holds s_stall for the duration (mp_arbiter s_stall, default '0' everywhere else).
+        -- The grant was already pinned to this master for the transaction, so nothing else is delayed that was not already waiting.
         -- =====================================================================
-        signal shslv_tcmw0_sel  : std_logic;   -- 1000 -> TCM aperture, hart 0 (0x20000)
-        signal shslv_tcmw1_sel  : std_logic;   -- 1001 -> TCM aperture, hart 1 (0x24000)
-        signal shslv_tcmw2_sel  : std_logic;   -- 1010 -> TCM aperture, hart 2 (0x28000)
-        signal shslv_tcmw3_sel  : std_logic;   -- 1011 -> TCM aperture, hart 3 (0x2C000)
-        signal shslv_tcmw4_sel  : std_logic;   -- 1100 -> TCM aperture, hart 4 (0x30000)
+        signal shslv_tcmw0_sel  : std_logic;   -- 1000 = TCM aperture, hart 0 (0x20000)
+        signal shslv_tcmw1_sel  : std_logic;   -- 1001 = TCM aperture, hart 1 (0x24000)
+        signal shslv_tcmw2_sel  : std_logic;   -- 1010 = TCM aperture, hart 2 (0x28000)
+        signal shslv_tcmw3_sel  : std_logic;   -- 1011 = TCM aperture, hart 3 (0x2C000)
+        signal shslv_tcmw4_sel  : std_logic;   -- 1100 = TCM aperture, hart 4 (0x30000)
         signal shslv_tcmw0_en   : std_logic;
         signal shslv_tcmw1_en   : std_logic;
         signal shslv_tcmw2_en   : std_logic;
@@ -636,20 +597,17 @@ architecture behav of MCU is
         signal shslv_rd_tcmw3   : std_logic := '0';
         signal shslv_rd_tcmw4   : std_logic := '0';
         signal tcmw_rdata       : std_logic_vector(31 downto 0);
-        -- the aperture sequencer. ONE of it: the arbiter serializes, so exactly
-        -- one aperture transaction can be in flight.
+        -- The aperture sequencer, and there is exactly ONE of it: the arbiter serializes, so only one aperture transaction can be in flight.
         signal tcmw_busy        : std_logic := '0';
         signal tcmw_en_any      : std_logic;   -- any aperture addressed this cycle
         signal tcmw_launch      : std_logic;   -- ...and it is a permitted read of a LIVE tile
-        signal tcmw_stall       : std_logic;   -- -> mp_arbiter s_stall
+        signal tcmw_stall       : std_logic;   -- drives mp_arbiter s_stall
         signal tcmw_target      : std_logic_vector(4 downto 0);   -- one-hot addressed aperture
         signal tcmw_dark        : std_logic_vector(4 downto 0);   -- R4-A2: tile h cannot complete
         signal tcmw_done_any    : std_logic;   -- the in-flight tile completed
         signal tcmw_abort       : std_logic;   -- ...or went dark under us
         signal tcmw_q           : std_logic_vector(31 downto 0);   -- rdata of the in-flight tile
-        -- tile-facing port nets. addr is ONE bus fanned to every tile (only the
-        -- tile whose req is high samples it); rdata/done arrive per hart, and for
-        -- harts 1..4 they arrive through the M17 isolation clamps.
+        -- Tile-facing port nets: addr is ONE bus fanned to every tile (only the tile whose req is high samples it); rdata/done arrive per hart, and for harts 1..4 they arrive through the M17 isolation clamps.
         signal tcm_ext_req      : std_logic_vector(4 downto 0);
         signal tcm_ext_addr     : std_logic_vector(11 downto 0);
         signal tcm_ext_rdata    : std_logic_vector(159 downto 0);
@@ -662,8 +620,7 @@ architecture behav of MCU is
         signal clint_rdata      : std_logic_vector(31 downto 0);
         signal clint_msip       : std_logic_vector(4 downto 0);
         signal clint_mtip       : std_logic_vector(4 downto 0);
-        -- M6: shared UART0 (console) — M11: window slot 4 @0x4400 (its
-        -- ORIGINAL private address, live again for all 4 harts)
+        -- M6: shared UART0 (console). M11: window slot 4 @0x4400, its ORIGINAL private address, live again for all harts
         signal shslv_uart0_sel  : std_logic;
         signal shslv_uart0_en   : std_logic;
         signal shslv_rd_uart0   : std_logic := '0'; -- registered: last access was UART0
@@ -679,13 +636,9 @@ architecture behav of MCU is
         signal meip             : std_logic_vector(4 downto 0);
         signal wdt_irq_routed   : std_logic;   -- irq_router: source 0 enabled in some row
         signal wdt_irq_complete : std_logic;   -- irq_router: COMPLETE(0) pulse (WDT EOI)
-        -- M17: pwr_ctrl, the MTCMOS power controller — a NATIVE slave in
-        -- window slot 11 @0x4B00 (vacated by SARADC0). Its pd_* rows drive
-        -- the tile power domains: pd_rstn folds into each tile's resetn
-        -- (cold-gate: the reset IS what functional sims observe), pd_sleep/
-        -- pd_iso_en go to the tiles' CPF-hook ports (HEAD switch SLEEP
-        -- chain + A2ISO clamp enable in the physical flow). Hart 0 has no
-        -- row: always-on by construction.
+        -- M17: pwr_ctrl, the MTCMOS power controller, is a NATIVE slave in window slot 11 @0x4B00 (vacated by SARADC0).
+        -- Its pd_* rows drive the tile power domains: pd_rstn folds into each tile's resetn (cold-gate: the reset IS what functional sims observe), and pd_sleep/pd_iso_en go to the tiles' CPF-hook ports (HEAD switch SLEEP chain + A2ISO clamp enable in the physical flow).
+        -- Hart 0 has no row: always-on by construction.
         signal shslv_pwr_sel    : std_logic;
         signal shslv_pwr_en     : std_logic;
         signal shslv_rd_pwr     : std_logic := '0'; -- registered: last access was pwr_ctrl
@@ -696,13 +649,9 @@ architecture behav of MCU is
         signal tile_rstn        : std_logic_vector(4 downto 1);
         signal pgood_rstn       : std_logic := '1';
         signal hart0_rstn       : std_logic;
-        -- M17 isolation: the tile outputs land on these _raw nets and are
-        -- AND-clamped LOW onto the arbiter/observation buses by pd_iso_en —
-        -- the EXPLICIT always-on-side isolation cells (electrically the
-        -- same structure as the pmk A2ISO: an AND on AO power with the
-        -- possibly-floating tile pin on one input). Clamp-low == the
-        -- boundary registers' reset values, so a clamped master looks
-        -- exactly like a reset one to the arbiter (no M5a-class hazard).
+        -- M17 isolation: the tile outputs land on these _raw nets and are AND-clamped LOW onto the arbiter/observation buses by pd_iso_en.
+        -- Those AND gates ARE the explicit always-on-side isolation cells (electrically the same structure as the pmk A2ISO: an AND on AO power with the possibly-floating tile pin on one input).
+        -- Clamp-low == the boundary registers' reset values, so a clamped master looks exactly like a reset one to the arbiter (no M5a-class hazard).
         signal tile1_req_raw    : std_logic;
         signal tile2_req_raw    : std_logic;
         signal tile3_req_raw    : std_logic;
@@ -773,12 +722,9 @@ architecture behav of MCU is
         signal shslv_uart1_en_q : std_logic;   -- (snapshot capture clocks)
         signal spi1_sh_rdata    : std_logic_vector(31 downto 0);
         signal uart1_sh_rdata   : std_logic_vector(31 downto 0);
-        -- M7c.2 movers: I2C0/I2C1 (M11: window slots 14/15). I2C's register
-        -- READ is COMBINATIONAL (rdata_out collapses to register 0 the moment
-        -- EnMemPeriph deasserts), so the bridge REGISTERS it at the
-        -- LATCH->DATA edge (i2c*_sh_rdata below) — reproducing exactly the
-        -- old adddec timing the I2C.vhd comment assumes ("EnMemPeriph has a
-        -- leading edge exactly one clock cycle before rdata latches").
+        -- M7c.2 movers: I2C0/I2C1 (M11: window slots 14/15).
+        -- I2C's register READ is COMBINATIONAL (rdata_out collapses to register 0 the moment EnMemPeriph deasserts), so the bridge REGISTERS it at the latch-to-data edge (i2c*_sh_rdata below).
+        -- That reproduces exactly the old adddec timing the I2C.vhd comment assumes: EnMemPeriph has a leading edge exactly one clock cycle before rdata latches.
         signal shslv_i2c0_sel,  shslv_i2c0_en   : std_logic;
         signal shslv_i2c1_sel,  shslv_i2c1_en   : std_logic;
         signal shslv_rd_i2c0    : std_logic := '0';
@@ -791,29 +737,20 @@ architecture behav of MCU is
         signal i2c1_sh_rdata_c  : std_logic_vector(31 downto 0);
         signal i2c0_sh_rdata    : std_logic_vector(31 downto 0) := (others => '0'); -- bridge-registered
         signal i2c1_sh_rdata    : std_logic_vector(31 downto 0) := (others => '0');
-        -- M7d mover: NPU register bus (M11: window slot 10 @0x4A00). Its MMR
-        -- read is COMBINATIONAL like I2C's -> same bridge register. The NPU's
-        -- DATA now lives in the shared NPU staging RAM at 0xC000 (bank above)
-        -- — the SRAM-port mux is fed by the slave fabric, and hart 0 no
-        -- longer sleeps during THINK (the staging RAM is not its private
-        -- memory any more; "don't touch 0xC000-0xFFFF during a THINK" is a
-        -- software contract, poll NPUCR bit 16).
+        -- M7d mover: NPU register bus (M11: window slot 10 @0x4A00).
+        -- Its MMR read is COMBINATIONAL like I2C's, so it takes the same bridge register.
+        -- The NPU's DATA now lives in the shared NPU staging RAM at 0xC000 (bank above): the SRAM-port mux is fed by the slave fabric, and hart 0 no longer sleeps during THINK.
+        -- The staging RAM is not hart 0's private memory any more; "don't touch 0xC000-0xFFFF during a THINK" is a software contract, poll NPUCR bit 16.
         signal shslv_npu_sel,   shslv_npu_en    : std_logic;
         signal shslv_rd_npu     : std_logic := '0';
         signal npu_sh_en_n      : std_logic;
         signal npu_sh_rdata_c   : std_logic_vector(31 downto 0); -- combinational, from the instance
         signal npu_sh_rdata     : std_logic_vector(31 downto 0) := (others => '0'); -- bridge-registered
-        -- M11 movers: the last three private peripherals join the window —
-        -- SYSTEM0 (slot 9 @0x4900), GPIO0 (slot 0 @0x4000), SPI0 (slot 2
-        -- @0x4200). All
-        -- three register their reads on clk_mem (M11 audit) -> plain polarity
-        -- shims, no bridge. The private peripheral page is GONE — hart 0's
-        -- adddec no longer decodes region 001 at all. NOTE the SYSTEM0
-        -- clock-reconfig contract: SYS_CLK_CR/SYS_CLK_DIV_CR reconfigure
-        -- MCLK ITSELF; reconfiguring while other masters have in-flight
-        -- shared transactions is a SOFTWARE contract violation (management
-        -- hart quiesces the others first — the glitch-free muxes keep the
-        -- domain safe, but smclk-domain peripherals mid-frame are not).
+        -- M11 movers: the last three private peripherals join the window, SYSTEM0 (slot 9 @0x4900), GPIO0 (slot 0 @0x4000) and SPI0 (slot 2 @0x4200).
+        -- All three register their reads on clk_mem (M11 audit), so they take plain polarity shims, no bridge.
+        -- The private peripheral page is GONE: hart 0's adddec no longer decodes region 001 at all.
+        -- NOTE the SYSTEM0 clock-reconfig contract: SYS_CLK_CR/SYS_CLK_DIV_CR reconfigure MCLK ITSELF, so reconfiguring while other masters have in-flight shared transactions is a SOFTWARE contract violation.
+        -- The management hart quiesces the others first: the glitch-free muxes keep the clock domain safe, but smclk-domain peripherals mid-frame are not.
         signal shslv_sys_sel,   shslv_sys_en    : std_logic;
         signal shslv_gpio0_sel, shslv_gpio0_en  : std_logic;
         signal shslv_spi0_sel,  shslv_spi0_en   : std_logic;
@@ -827,20 +764,18 @@ architecture behav of MCU is
         signal sys_sh_rdata     : std_logic_vector(31 downto 0);
         signal gpio0_sh_rdata   : std_logic_vector(31 downto 0);
         signal spi0_sh_rdata    : std_logic_vector(31 downto 0);
-        -- M7c LOCKING: HW mutex bank (M11: window page 2 @0x6000). READ =
-        -- atomic return-old-and-claim, WRITE 0 = release; atomic because the
-        -- arbiter serializes whole transactions. sh_master is the arbiter's
-        -- granted-master index (mp_arbiter s_master port) — attributes the
-        -- claim-read to a hart. Registered read, resv-gated we (contract).
+        -- M7c LOCKING: HW mutex bank (M11: window page 2 @0x6000).
+        -- READ = atomic return-old-and-claim, WRITE 0 = release; atomic because the arbiter serializes whole transactions.
+        -- sh_master is the arbiter's granted-master index (mp_arbiter s_master port) and attributes the claim-read to a hart.
+        -- Registered read, resv-gated we (contract).
         signal shslv_mtx_sel,   shslv_mtx_en    : std_logic;
         signal shslv_rd_mtx     : std_logic := '0';
         signal mtx_rdata        : std_logic_vector(31 downto 0);
 
-        -- CQ2a: AFE digital register stubs (four 64 B sub-slots of page-0 slot
-        -- 12 @0x4C00/40/80/C0) + the shared EIS engine stub (carved from the
-        -- IRQ-router page top quarter @0x7C00-0x7FFF). Each is an afe_stub
-        -- with an s_master ownership gate; the EIS block is hart-0-only.
-        -- Reads are REGISTERED (no bridge). See afe_stub.vhd.
+        -- CQ2a: AFE digital register stubs (four 64 B sub-slots of page-0 slot 12 @0x4C00/40/80/C0) + the shared EIS engine stub (carved from the IRQ-router page top quarter @0x7C00-0x7FFF).
+        -- Each is an afe_stub with an s_master ownership gate; the EIS block is hart-0-only.
+        -- Reads are REGISTERED (no bridge).
+        -- See afe_stub.vhd.
         signal shslv_afe_sel    : std_logic;   -- page-0 slot 12 (0x4C00) hit
         signal shslv_afe0_sel,  shslv_afe0_en  : std_logic;
         signal shslv_afe1_sel,  shslv_afe1_en  : std_logic;
@@ -857,21 +792,16 @@ architecture behav of MCU is
         signal afe2_rdata       : std_logic_vector(31 downto 0);
         signal afe3_rdata       : std_logic_vector(31 downto 0);
         signal eis_rdata        : std_logic_vector(31 downto 0);
-        -- CQ2a: level IRQ from each stub's IF word. NOT yet routed to the
-        -- irq_router (the frozen 85-source map has only 2 reserved slots for 5
-        -- needed sources — see the CQ2a report); aggregated here for a clean
-        -- future hookup and observability.
+        -- CQ2a: level IRQ from each stub's IF word.
+        -- NOT yet routed to the irq_router (the frozen 85-source map has only 2 reserved slots for 5 needed sources; see the CQ2a report), so it is aggregated here for a clean future hookup and observability.
         signal afe_eis_irq      : std_logic_vector(4 downto 0);
         signal sh_master        : std_logic_vector(2 downto 0);
         -- signal inst_retired     : std_logic; -- Instruction Retired Signal from Core
         -- signal mem_access       : std_logic; -- High when memory access is occurring
 
         -- Memory and RAM Control Signals
-        -- (M13: hart 0's adddec<->TCM bus moved into hart_tile; pgen_mem
-        -- stays — SYSTEM0's BLOCKPWR gates rom0 (0), hart 0's TCM via the
-        -- tile's tcm_pgen port (1) and npuram0 (2).)
-        -- DP-S3 3b: bits 6:3 gate the shared bulk-RAM banks shbank0-3
-        -- (per-bank, reset ON; contents LOST on gate — see SYSTEM.vhd).
+        -- (M13: hart 0's adddec-to-TCM bus moved into hart_tile; pgen_mem stays, so SYSTEM0's BLOCKPWR gates rom0 (0), hart 0's TCM via the tile's tcm_pgen port (1) and npuram0 (2).)
+        -- DP-S3 3b: bits 6:3 gate the shared bulk-RAM banks shbank0-3 (per-bank, reset ON; contents LOST on gate, see SYSTEM.vhd).
         signal RAM_Dout         : std_logic_vector(31 downto 0);
         signal pgen_mem         : std_logic_vector(6 downto 0);
 
@@ -901,15 +831,13 @@ architecture behav of MCU is
         signal reset_dco       : std_logic; --special reset for DCO to ensure proper startup
 
     -- Multi-AF plumbing (shared by all four ports) ---------------------------------------
-        -- Each GPIO port takes GPIO_NUM_AFS flattened alternate-function
-        -- planes (plane k, pin i at bit k*8+i). The per-plane afuncN_* /
-        -- afuncN_afK_* vectors below are concatenated into afuncN_all_*.
-        -- An unassigned plane slice behaves as a high-impedance input:
-        -- out='0', dir='0' (input), ren='0' (pull disabled) — pre-polarity.
+        -- Each GPIO port takes GPIO_NUM_AFS flattened alternate-function planes (plane k, pin i at bit k*8+i).
+        -- The per-plane afuncN_* / afuncN_afK_* vectors below are concatenated into afuncN_all_*.
+        -- An unassigned plane slice behaves as a high-impedance input: out='0', dir='0' (input), ren='0' (pull disabled), all pre-polarity.
         constant afunc_none				: std_logic_vector(7 downto 0) := (others => '0');
 
-    -- Multi-AF output-function spread planes (v1): shared timer/UART/SPI
-    -- outputs fanned across all four ports. Dormant at reset (PxAFS=0).
+    -- Multi-AF output-function spread planes (v1): shared timer/UART/SPI outputs fanned across all four ports.
+    -- Dormant at reset (PxAFS=0).
         -- GPIO0 (port 1) planes AF1-AF7
         signal afunc1_af1_out		: std_logic_vector(7 downto 0);
         signal afunc1_af1_dir		: std_logic_vector(7 downto 0);
@@ -1003,7 +931,7 @@ architecture behav of MCU is
         signal afunc1_all_dir			: std_logic_vector(GPIO_NUM_AFS * 8 - 1 downto 0);
         signal afunc1_all_ren			: std_logic_vector(GPIO_NUM_AFS * 8 - 1 downto 0);
 
-        -- -- P1.0: cs_flash (output only)
+        -- P1.0: cs_flash (output only)
         signal cs_flash_in              : std_logic;
         signal cs_flash_ren_in         : std_logic; -- Read Enable for CS 
         -- For extended flash memory support
@@ -1259,9 +1187,9 @@ architecture behav of MCU is
 
     -- GPIO4 / GPIO5 (Mission B) declarative regions -------------------------------------
         -- Mission B: GPIO4 (port 5), MUTEX-page sub-slot 3 @0x6300.
-        -- Registered-read native slave with its own active-low en shim (like
-        -- I3C0/NFC0). AF0 = plain GPIO on every pin; AF1 carries the QSPI0 (P5.0-5) + I3C0 (P5.6/7)
-        -- pin functions when present, Hi-Z otherwise. Per-pin IRQs -> vectors 98-105.
+        -- Registered-read native slave with its own active-low en shim (like I3C0/NFC0).
+        -- AF0 = plain GPIO on every pin; AF1 carries the QSPI0 (P5.0-5) + I3C0 (P5.6/7) pin functions when present, Hi-Z otherwise.
+        -- Per-pin IRQs drive vectors 98-105.
         signal shslv_gpio4_sel, shslv_gpio4_en : std_logic;
         signal shslv_rd_gpio4   : std_logic := '0';
         signal gpio4_sh_rdata   : std_logic_vector(31 downto 0);
@@ -1275,9 +1203,9 @@ architecture behav of MCU is
         signal afunc5_all_ren   : std_logic_vector(GPIO_NUM_AFS * 8 - 1 downto 0);
 
         -- Mission B: GPIO5 (port 6), MUTEX-page sub-slot 4 @0x6400.
-        -- Registered-read native slave with its own active-low en shim (like
-        -- I3C0/NFC0). AF0 = plain GPIO on every pin; AF1 carries the NFC0 digital-AFE (P6.0-5)
-        -- pin functions when present, Hi-Z otherwise. Per-pin IRQs -> vectors 106-113.
+        -- Registered-read native slave with its own active-low en shim (like I3C0/NFC0).
+        -- AF0 = plain GPIO on every pin; AF1 carries the NFC0 digital-AFE (P6.0-5) pin functions when present, Hi-Z otherwise.
+        -- Per-pin IRQs drive vectors 106-113.
         signal shslv_gpio5_sel, shslv_gpio5_en : std_logic;
         signal shslv_rd_gpio5   : std_logic := '0';
         signal gpio5_sh_rdata   : std_logic_vector(31 downto 0);
@@ -1358,8 +1286,7 @@ begin
 
         );
 
-        -- Flattened AF planes (7 downto 1 unassigned, plane 0 = AF0): the
-        -- boot/flash/clock port keeps exactly one alternate function per pin.
+        -- Flattened AF planes (7 downto 1 unassigned, plane 0 = AF0): the boot/flash/clock port keeps exactly one alternate function per pin.
         -- GPIO0 AF output-function spread: aggregates + 8-plane flatten
         afunc1_af1_out <= (
             7 => mosi1_out,
@@ -1577,8 +1504,7 @@ begin
 
     -- GPIO1 Connections (SPI1, UART0, UART1) ---------------------------------------
         cs1_in   <= prt2_in(pnum_gpio1_cs1);
-        -- MISO1 relocates to P4.6 (AF7, v2 spread slot — literal index, no pnum;
-        -- completes a full SPI1 on P4.4/5/6 at AF7); home pad is the default
+        -- MISO1 relocates to P4.6 (AF7, v2 spread slot: literal index, no pnum; completes a full SPI1 on P4.4/5/6 at AF7); home pad is the default
         miso1_in <= prt4_in(6)
                     when p4_afs((3 * 6) + 2 downto 3 * 6) = "111"
                     else prt2_in(pnum_gpio1_miso1);
@@ -1592,13 +1518,10 @@ begin
         -- cs1_ren_in <= p2_ren(pnum_gpio1_cs1);
 
         -- GPIO1 Connections (UART0)
-        -- Multi-AF input routing: a relocated function reads its alternate pad
-        -- when that pin's PxAFS field selects the function's plane (keyed on
-        -- PxAFS only — peripheral inputs stay always-visible, like the direct
-        -- taps they replace); otherwise it reads its home pad. The peripheral
-        -- ren_in (user pull preference) follows the same selection. RX0's v2
-        -- pad is P4.5 at AF2 (a spread io slot — literal index, no pnum; pairs
-        -- with TX0 on P4.4 AF2); fixed priority: v2 pad > AF1 pad > home.
+        -- Multi-AF input routing: a relocated function reads its alternate pad when that pin's PxAFS field selects the function's plane, otherwise it reads its home pad.
+        -- The selection is keyed on PxAFS only, so peripheral inputs stay always-visible, like the direct taps they replace.
+        -- The peripheral ren_in (user pull preference) follows the same selection.
+        -- RX0's v2 pad is P4.5 at AF2 (a spread io slot: literal index, no pnum; pairs with TX0 on P4.4 AF2), with fixed priority v2 pad, then AF1 pad, then home.
         tx0_ren_in <= p3_ren(pnum_gpio2_af1_tx0)
                       when p3_afs((3 * pnum_gpio2_af1_tx0) + 2 downto 3 * pnum_gpio2_af1_tx0) = "001"
                       else p2_ren(pnum_gpio1_tx0);
@@ -1657,8 +1580,8 @@ begin
         );
 
         -- AF1 plane: TIMER0/1 compare (PWM) outputs on P2.0-3 (the SPI1 pins),
-        -- I2C1 relocation on P2.4/5 (v2), I2C0 relocation on P2.6/7 (the UART1 pins)
-        -- — both I2C buses land on this port at AF1.
+        -- I2C1 relocation on P2.4/5 (v2), I2C0 relocation on P2.6/7 (the UART1 pins),
+        -- so both I2C buses land on this port at AF1.
         afunc2_af1_out <= (
             pnum_gpio1_af1_scl0 => scl0_out,        -- GPIO1 pin 7
             pnum_gpio1_af1_sda0 => sda0_out,        -- GPIO1 pin 6
@@ -1959,9 +1882,7 @@ begin
             pnum_gpio2_t0_cmp0 => t0_cmp0_ren  -- GPIO2 pin 0
         );
 
-        -- AF1 plane: UART1 relocation on P3.0/1, I2C1 relocation on P3.2/3,
-        -- UART0 relocation on P3.4/5, I2C0 relocation on P3.6/7 (v2) — the
-        -- full serial-relocation row (both UARTs + both I2C buses).
+        -- AF1 plane: UART1 relocation on P3.0/1, I2C1 relocation on P3.2/3, UART0 relocation on P3.4/5, I2C0 relocation on P3.6/7 (v2): the full serial-relocation row (both UARTs + both I2C buses).
         afunc3_af1_out <= (
             pnum_gpio2_af1_scl0 => scl0_out,    -- GPIO2 pin 7
             pnum_gpio2_af1_sda0 => sda0_out,    -- GPIO2 pin 6
@@ -2184,7 +2105,7 @@ begin
     -- GPIO3 Connections (I2C0, I2C1, DTP) ------------------------------------------------------------
 
         -- Resistor Enables (I2C0 relocates to P2.6/7 or P3.6/7 (v2), I2C1 to
-        -- P3.2/3 or P2.4/5 (v2) — the peripheral ren_in follows the same AF
+        -- P3.2/3 or P2.4/5 (v2) and the peripheral ren_in follows the same AF
         -- selection as the inputs below, fixed priority: v2 pad > AF1 pad > home)
         sda0_ren_in <= p3_ren(pnum_gpio2_af1_sda0)
                        when p3_afs((3 * pnum_gpio2_af1_sda0) + 2 downto 3 * pnum_gpio2_af1_sda0) = "001"
@@ -2585,9 +2506,7 @@ begin
             IRQB_GPIO5_B6   => irq_gpio5(6),
             IRQB_GPIO5_B7   => irq_gpio5(7),
             IRQB_NPU0_TD    => irq_npu0_td,
-            -- M19: the CLINT slots (83/84) fall through to irq_tielow — every
-            -- hart gets its own msip/mtip on dedicated wires; the source
-            -- vector feeds ONLY the irq_router (meip claim/complete delivery)
+            -- M19: the CLINT slots (83/84) fall through to irq_tielow, because every hart gets its own msip/mtip on dedicated wires and the source vector feeds ONLY the irq_router (meip claim/complete delivery)
             others          => irq_tielow
         );
 
@@ -2596,49 +2515,31 @@ begin
     -- =============================================================================
     -- Component Instantiations
     -- =============================================================================
-    -- M11: npu0_active no longer sleeps hart 0 — the NPU's vectors live in
-    -- the SHARED staging RAM at 0xC000 (an arbiter slave), not in hart 0's
-    -- private RAM1 (retired). The sleep existed to keep hart 0's un-stallable
-    -- private RAM1 accesses from colliding with the NPU's port mux; shared
-    -- accesses have arbiter back-pressure and "no 0xC000-0xFFFF access during
-    -- a THINK" is the software contract (poll NPUCR bit 16, shnpu.S).
+    -- M11: npu0_active no longer sleeps hart 0, because the NPU's vectors live in the SHARED staging RAM at 0xC000 (an arbiter slave), not in hart 0's retired private RAM1.
+    -- The sleep existed to keep hart 0's un-stallable private RAM1 accesses from colliding with the NPU's port mux.
+    -- Shared accesses have arbiter back-pressure, and "no 0xC000-0xFFFF access during a THINK" is the software contract (poll NPUCR bit 16, shnpu.S).
     sleep_cpu <= flash_ext_meming; -- Sleep while an external flash memory access is occurring
 
     -- =========================================================================
-    -- CPR3/R2 ORCHESTRATOR HART (hart 0). Same core, same ISA, same generic
-    -- associations as the tiles (CP1 D5) — but SOFT logic in the centre
-    -- band instead of a hardened corner macro, so it is instantiated through
-    -- the orch_tile wrapper (CP1 D6: no module name may be shared between the
-    -- tile netlist and the orchestrator netlist, or the assembly strip step
-    -- deletes this subtree and gate sim sees two definitions of one module).
-    -- It keeps EVERY hart-0 wiring special below, unchanged: the flash/XIP
-    -- quartet and sleep_cpu, the GPIO0 trap pin, the tb pass/fail a0 gate,
-    -- pgen_mem(1), arbiter master slice 0 with no isolation clamps, and the
-    -- DP-S3 boot-gate reset. It is the BOOT MASTER, as hart 0 always was.
+    -- CPR3/R2 ORCHESTRATOR HART (hart 0).
+    -- Same core, same ISA, same generic associations as the tiles (CP1 D5), but SOFT logic in the centre band instead of a hardened corner macro, so it is instantiated through the orch_tile wrapper (CP1 D6: no module name may be shared between the tile netlist and the orchestrator netlist, or the assembly strip step deletes this subtree and gate sim sees two definitions of one module).
+    -- It keeps EVERY hart-0 wiring special below, unchanged: the flash/XIP quartet and sleep_cpu, the GPIO0 trap pin, the tb pass/fail a0 gate, pgen_mem(1), arbiter master slice 0 with no isolation clamps, and the DP-S3 boot-gate reset.
+    -- It is the BOOT MASTER, as hart 0 always was.
     -- =========================================================================
-    -- M13 TILE EXTRACTION: hart 0 is the SAME tile logic as harts 1-4 — the
-    -- inline core/adddec/TCM/shared-window machinery that used to live here
-    -- (and that hart_tile mirrored since M3c) is folded into the tile. The
-    -- M12 wait-for-boot-fetch reset release, the M4b/M10 qualified ack, the
-    -- M10 clk_cpu-staged consumption register and the M9b nop-force all
-    -- live in hart_tile.vhd now — see the rationale there. Hart 0's
-    -- remaining specials are pure WIRING on the identical tile:
-    --   * sleep + flash ports -> SPI0 (XIP; tiles have no SPI0 behind them),
-    --   * tcm_pgen -> pgen_mem(1) (BLOCKPWR RAM gating),
-    --   * trap_flag -> the GPIO0 trap pin; a0 -> the tb pass/fail gate.
-    -- M19: the IRQ interface is IDENTICAL on every hart — msip/mtip from
-    -- the CLINT + this hart's meip row from the irq_router (SYSTEM0's
-    -- vectored path and the hw_clint_en strap are retired).
-    -- The M2 wait_inj0 stall exerciser is RETIRED (M10 proved latency
-    -- insensitivity at boundary depths 0/1/2; the boot fetch through the
-    -- arbiter exercises the stall path on every run).
+    -- M13 TILE EXTRACTION: hart 0 is the SAME tile logic as harts 1-4, so the inline core/adddec/TCM/shared-window machinery that used to live here (and that hart_tile mirrored since M3c) is folded into the tile.
+    -- The M12 wait-for-boot-fetch reset release, the M4b/M10 qualified ack, the M10 clk_cpu-staged consumption register and the M9b nop-force all live in hart_tile.vhd now; see the rationale there.
+    -- Hart 0's remaining specials are pure WIRING on the identical tile:
+    --   * sleep + flash ports go to SPI0 (XIP; tiles have no SPI0 behind them),
+    --   * tcm_pgen takes pgen_mem(1) (BLOCKPWR RAM gating),
+    --   * trap_flag drives the GPIO0 trap pin, and a0 drives the tb pass/fail gate.
+    -- M19: the IRQ interface is IDENTICAL on every hart: msip/mtip from the CLINT + this hart's meip row from the irq_router (SYSTEM0's vectored path and the hw_clint_en strap are retired).
+    -- The M2 wait_inj0 stall exerciser is RETIRED (M10 proved latency insensitivity at boundary depths 0/1/2; the boot fetch through the arbiter exercises the stall path on every run).
     -- =========================================================================
     hart0: entity work.orch_tile
         generic map (
             PC_RST_VAL     => x"00000000",
             SH_AW          => SH_AW,
-            -- Core ISA features (config-driven, work.MemoryMap; MUST be
-            -- identical on all five tiles -- one hardened netlist)
+            -- Core ISA features (config-driven, work.MemoryMap; MUST be identical on all five tiles, one hardened netlist)
             ENABLE_MUL        => CORE_ENABLE_MUL,
             ENABLE_DIV        => CORE_ENABLE_DIV,
             ENABLE_ATOMICS    => CORE_ENABLE_ATOMICS,
@@ -2669,9 +2570,7 @@ begin
         )
         port map (
             clk       => mclk,
-            -- DP-S3: the PGOOD boot gate folds into hart 0 too (hart0_rstn
-            -- = resetn and pgood_rstn; stuck at resetn when the gate is
-            -- unarmed/tied — see the tile_rstn fold)
+            -- DP-S3: the PGOOD boot gate folds into hart 0 too (hart0_rstn = resetn and pgood_rstn; stuck at resetn when the gate is unarmed or tied, see the tile_rstn fold)
             resetn    => hart0_rstn,
             sleep     => sleep_cpu,
             hart_id   => x"00000000",
@@ -2700,8 +2599,7 @@ begin
             tcm_ext_addr  => tcm_ext_addr,
             tcm_ext_rdata => tcm_ext_rdata(31 downto 0),
             tcm_ext_done  => tcm_ext_done(0),
-            -- M17: hart 0 is ALWAYS-ON — its domain controls are strapped
-            -- inactive (explicit, per the M14 netlist-boundary rule)
+            -- M17: hart 0 is ALWAYS-ON, so its domain controls are strapped inactive (explicit, per the M14 netlist-boundary rule)
             pd_sleep  => '0',
             pd_iso_en => '0',
             trap_flag => trap_out,
@@ -2730,12 +2628,8 @@ begin
             s_rdata => sh_rdata_mux
         );
 
-    -- M4b: global LR/SC reservation unit — snoops every granted shared txn,
-    -- places reservations on LR reads, kills them on writes, adjudicates SC
-    -- writes IN THE ARBITER'S SERIALIZATION ORDER (a dead SC's write is
-    -- suppressed via sh_we and its fail verdict returns with done). This is
-    -- what makes cross-hart LR/SC sound: two harts SC-ing the same word both
-    -- pass their core-LOCAL checks, and only this unit can order them.
+    -- M4b: global LR/SC reservation unit, snoops every granted shared txn, places reservations on LR reads, kills them on writes, and adjudicates SC writes IN THE ARBITER'S SERIALIZATION ORDER (a dead SC's write is suppressed via sh_we and its fail verdict returns with done).
+    -- This is what makes cross-hart LR/SC sound: two harts SC-ing the same word both pass their core-LOCAL checks, and only this unit can order them.
     resv0: entity work.resv_unit
         generic map (N => 5, ADDR_WIDTH => SH_AW)
         port map (
@@ -2752,29 +2646,22 @@ begin
         );
 
     -- =========================================================================
-    -- M5b/M11/M12: slave-side sub-decode of the shared window. The arbiter
-    -- serializes ALL masters onto ONE slave port; the 16-bit word address
-    -- then selects which physical slave this transaction hits (s_addr(15:12)
-    -- pages, see the SH_AW comment):
-    --   0x00000-0x03FFF -> THE shared boot ROM (M12: one rom_hvt_pg,
-    --                      read-only — writes complete but are discarded)
-    --   0x04000-0x07FFF -> peripheral window: page 0 = 16 x 256B slots at
+    -- M5b/M11/M12: slave-side sub-decode of the shared window.
+    -- The arbiter serializes ALL masters onto ONE slave port; the 16-bit word address then selects which physical slave this transaction hits (s_addr(15:12) pages, see the SH_AW comment):
+    --   0x00000-0x03FFF = THE shared boot ROM (M12: one rom_hvt_pg,
+    --                      read-only, so writes complete but are discarded)
+    --   0x04000-0x07FFF = peripheral window: page 0 = 16 x 256B slots at
     --                      the LEGACY slot numbering (every peripheral back
     --                      at its Myshkin address, shared by all 5 harts),
     --                      page 1 = CLINT, page 2 = MUTEX, page 3 = router
-    --   0x0C000-0x0FFFF -> NPU staging RAM (sram1p16k, NPU-port-muxed)
-    --   0x10000-0x1FFFF -> bulk RAM banks 0-3 (4 x sram1p16k)
-    --   everything else -> no slave (reads return 0)
-    -- Every slave obeys the same 1-cycle registered-read contract (the SRAM
-    -- macros natively; peripherals via their clk_mem-registered reads), so
-    -- the arbiter's IDLE->LATCH->DATA timing is untouched; the shslv_rd_*
-    -- selects are registered at the access cycle and steer s_rdata during
-    -- DATA. resv_unit still snoops every transaction (its s_we_gated drives
-    -- ALL slaves: a suppressed SC write must not touch a peripheral either).
+    --   0x0C000-0x0FFFF = NPU staging RAM (sram1p16k, NPU-port-muxed)
+    --   0x10000-0x1FFFF = bulk RAM banks 0-3 (4 x sram1p16k)
+    --   everything else = no slave (reads return 0)
+    -- Every slave obeys the same 1-cycle registered-read contract (the SRAM macros natively; peripherals via their clk_mem-registered reads), so the arbiter's IDLE, LATCH, DATA timing is untouched; the shslv_rd_* selects are registered at the access cycle and steer s_rdata during DATA.
+    -- resv_unit still snoops every transaction (its s_we_gated drives ALL slaves: a suppressed SC write must not touch a peripheral either).
     -- =========================================================================
-    -- M11/M12: page select on s_addr(15:12). Page 0000 is the shared boot
-    -- ROM (M12 — the single rom_hvt_pg all five harts reset into);
-    -- 0010 is the TCM region (tile-private, never arrives here).
+    -- M11/M12: page select on s_addr(15:12).
+    -- Page 0000 is the shared boot ROM (M12: the single rom_hvt_pg all five harts reset into); page 0010 is the TCM region (tile-private, never arrives here).
     shslv_rom_sel    <= '1' when sh_addr(15 downto 12) = "0000" else '0';
     shslv_perwin_sel <= '1' when sh_addr(15 downto 12) = "0001" else '0';
     shslv_npuram_sel <= '1' when sh_addr(15 downto 12) = "0011" else '0';
@@ -2782,34 +2669,26 @@ begin
     shslv_bank1_sel  <= '1' when sh_addr(15 downto 12) = "0101" else '0';
     shslv_bank2_sel  <= '1' when sh_addr(15 downto 12) = "0110" else '0';
     shslv_bank3_sel  <= '1' when sh_addr(15 downto 12) = "0111" else '0';
-    -- CPR3/R3: the read-only TCM apertures, one page each at 0x20000 +
-    -- 0x4000*h. Access control (management hart only, reads only, dark-tile
-    -- zero-completion) lives in the sequencer below, not in this decode.
+    -- CPR3/R3: the read-only TCM apertures, one page each at 0x20000 + 0x4000*h.
+    -- Access control (management hart only, reads only, dark-tile zero-completion) lives in the sequencer below, not in this decode.
     shslv_tcmw0_sel  <= '1' when sh_addr(15 downto 12) = "1000" else '0';
     shslv_tcmw1_sel  <= '1' when sh_addr(15 downto 12) = "1001" else '0';
     shslv_tcmw2_sel  <= '1' when sh_addr(15 downto 12) = "1010" else '0';
     shslv_tcmw3_sel  <= '1' when sh_addr(15 downto 12) = "1011" else '0';
     shslv_tcmw4_sel  <= '1' when sh_addr(15 downto 12) = "1100" else '0';
-    -- peripheral-window pages on sh_addr(11:10): page 0 = the 16 slots,
-    -- page 1 = CLINT, page 2 = MUTEX bank, page 3 = IRQ router
+    -- peripheral-window pages on sh_addr(11:10): page 0 = the 16 slots, page 1 = CLINT, page 2 = MUTEX bank, page 3 = IRQ router
     shslv_pg0_sel    <= shslv_perwin_sel when sh_addr(11 downto 10) = "00" else '0';
     shslv_clint_sel  <= shslv_perwin_sel when sh_addr(11 downto 10) = "01" else '0';
-    -- Mission B: page-2 (MUTEX/0x6000) carved into 256 B sub-slots on
-    -- sh_addr(9:6). Mutex bank = sub-slot 0 (0x6000-0x60FF); I3C0 sub-slot 1
-    -- (0x6100), NFC0 sub-slot 2 (0x6200), GPIO4 sub-slot 3 (0x6300), GPIO5
-    -- sub-slot 4 (0x6400). Tightening the mutex decode retires the aliased
-    -- CLAIM side effect (all 16 mutexes live below 0x6040 = behaviorally safe).
+    -- Mission B: page-2 (MUTEX/0x6000) carved into 256 B sub-slots on sh_addr(9:6).
+    -- Mutex bank = sub-slot 0 (0x6000-0x60FF); I3C0 sub-slot 1 (0x6100), NFC0 sub-slot 2 (0x6200), GPIO4 sub-slot 3 (0x6300), GPIO5 sub-slot 4 (0x6400).
+    -- Tightening the mutex decode retires the aliased CLAIM side effect (all 16 mutexes live below 0x6040, so this is behaviorally safe).
     shslv_mtx_sel    <= shslv_perwin_sel when sh_addr(11 downto 10) = "10" and sh_addr(9 downto 6) = "0000" else '0';
     shslv_gpio4_sel  <= shslv_perwin_sel when sh_addr(11 downto 10) = "10" and sh_addr(9 downto 6) = "0011" else '0';
     shslv_gpio5_sel  <= shslv_perwin_sel when sh_addr(11 downto 10) = "10" and sh_addr(9 downto 6) = "0100" else '0';
-    -- CQ2a: page-3 sub-decode — irq_router keeps 0x7000-0x7BFF; the shared
-    -- EIS engine stub owns the top quarter 0x7C00-0x7FFF (irq_router ADDR_W=10
-    -- decode is inert above word 522, so this removes only never-used aliased space).
+    -- CQ2a: page-3 sub-decode. irq_router keeps 0x7000-0x7BFF; the shared EIS engine stub owns the top quarter 0x7C00-0x7FFF (irq_router ADDR_W=10 decode is inert above word 522, so this removes only never-used aliased space).
     shslv_irtr_sel   <= shslv_perwin_sel when sh_addr(11 downto 10) = "11" and sh_addr(9 downto 8) /= "11" else '0';
     shslv_eis_sel    <= shslv_perwin_sel when sh_addr(11 downto 10) = "11" and sh_addr(9 downto 8) = "11" else '0';
-    -- page-0 slots (slot = sh_addr(9:6)) at the LEGACY 0x4000 numbering —
-    -- every peripheral back at its original Myshkin address, shared by
-    -- all 5 harts
+    -- page-0 slots (slot = sh_addr(9:6)) at the LEGACY 0x4000 numbering: every peripheral back at its original Myshkin address, shared by all 5 harts
     shslv_gpio0_sel  <= shslv_pg0_sel when sh_addr(9 downto 6) = "0000" else '0';
     shslv_gpio1_sel  <= shslv_pg0_sel when sh_addr(9 downto 6) = "0001" else '0';
     shslv_spi0_sel   <= shslv_pg0_sel when sh_addr(9 downto 6) = "0010" else '0';
@@ -2824,12 +2703,9 @@ begin
     shslv_gpio3_sel  <= shslv_pg0_sel when sh_addr(9 downto 6) = "1101" else '0';
     shslv_i2c0_sel   <= shslv_pg0_sel when sh_addr(9 downto 6) = "1110" else '0';
     shslv_i2c1_sel   <= shslv_pg0_sel when sh_addr(9 downto 6) = "1111" else '0';
-    -- M17: the power controller is a NATIVE slave IN a page-0 slot (11,
-    -- 0x4B00 — vacated by SARADC0): slot-decoded like the peripherals
-    -- above, but it speaks the arbiter protocol directly (no shim).
+    -- M17: the power controller is a NATIVE slave IN a page-0 slot (11, 0x4B00, vacated by SARADC0): slot-decoded like the peripherals above, but it speaks the arbiter protocol directly (no shim).
     shslv_pwr_sel    <= shslv_pg0_sel when sh_addr(9 downto 6) = "1011" else '0';
-    -- CQ2a: AFE stubs subdivide page-0 slot 12 (0x4C00) into four 64 B
-    -- sub-slots on sh_addr(5:4); the s_master ownership gate is inside afe_stub.
+    -- CQ2a: AFE stubs subdivide page-0 slot 12 (0x4C00) into four 64 B sub-slots on sh_addr(5:4); the s_master ownership gate is inside afe_stub.
     shslv_afe_sel    <= shslv_pg0_sel when sh_addr(9 downto 6) = "1100" else '0';
     shslv_afe0_sel   <= shslv_afe_sel when sh_addr(5 downto 4) = "00" else '0';
     shslv_afe1_sel   <= shslv_afe_sel when sh_addr(5 downto 4) = "01" else '0';
@@ -2953,11 +2829,8 @@ begin
         end if;
     end process;
 
-    -- M7c.2: I2C read-bridge registers — capture the I2C's COMBINATIONAL
-    -- rdata at the LATCH->DATA edge (while its one-cycle en strobe is high
-    -- and MABPart still selects the addressed register), so the arbiter's
-    -- end-of-DATA capture sees the right value. Every other slave registers
-    -- its own read; I2C.vhd's collapses to register 0 when en deasserts.
+    -- M7c.2: I2C read-bridge registers capture the I2C's COMBINATIONAL rdata at the latch-to-data edge (while its one-cycle en strobe is high and MABPart still selects the addressed register), so the arbiter's end-of-DATA capture sees the right value.
+    -- Every other slave registers its own read; I2C.vhd's collapses to register 0 when en deasserts.
     i2c_rdata_bridge: process(mclk, resetn)
     begin
         if resetn = '0' then
@@ -3016,18 +2889,9 @@ begin
                     eis_rdata      when shslv_rd_eis     = '1' else
                     (others => '0');  -- no slave (TCM page, unmapped)
 
-    -- X-collapse fix (2026-07-20): SPI/UART/TIMER/I2C (and QSPI when
-    -- configured) CLOCK their status/RX snapshot registers on en_mem's
-    -- FALLING EDGE (the falling_edge(en_mem) idiom inside the
-    -- peripherals). sh_en/sh_addr are registered arbiter outputs, so the
-    -- combinational en AND decode below glitches only in the skew window
-    -- right after each rising mclk edge — and a glitch there is a
-    -- spurious capture-clock edge racing its own D (the gate-level
-    -- X-collapse; root cause + proof: digperiphs xcollapse_findings).
-    -- Those shims therefore take a FALLING-MCLK re-registered strobe:
-    -- half a cycle later the decode has long settled, and every other
-    -- en_mem consumer samples on rising mclk edges, for which the
-    -- registered strobe is indistinguishable from the raw one.
+    -- X-collapse fix (2026-07-20): SPI/UART/TIMER/I2C (and QSPI when configured) CLOCK their status/RX snapshot registers on en_mem's FALLING EDGE (the falling_edge(en_mem) idiom inside the peripherals).
+    -- sh_en/sh_addr are registered arbiter outputs, so the combinational en AND decode below glitches only in the skew window right after each rising mclk edge, and a glitch there is a spurious capture-clock edge racing its own D (the gate-level X-collapse; root cause + proof: digperiphs xcollapse_findings).
+    -- Those shims therefore take a FALLING-MCLK re-registered strobe: half a cycle later the decode has long settled, and every other en_mem consumer samples on rising mclk edges, for which the registered strobe is indistinguishable from the raw one.
     snapshot_strobe_reg: process(mclk)
     begin
         if falling_edge(mclk) then
@@ -3043,50 +2907,31 @@ begin
     end process;
 
     -- M6: bridge the arbiter slave port onto UART0's adddec-style register bus.
-    -- UART.vhd already obeys the 1-cycle registered-read contract
-    -- (reg_read_proc) and qualifies every write by en_mem='0', so the bridge is
-    -- pure polarity/width adaptation: en_mem is the active-LOW one-cycle access
-    -- strobe, wen the active-LOW byte lanes (from the resv-GATED sh_we — a
-    -- suppressed SC write must not touch the UART), and clk_mem is the
-    -- free-running mclk (the gated-clock "stuck clear-pulse" behaviour of the
-    -- old private periph bus disappears: clr_* become true one-cycle pulses,
-    -- consumed asynchronously by the TX/RX FSMs).
+    -- UART.vhd already obeys the 1-cycle registered-read contract (reg_read_proc) and qualifies every write by en_mem='0', so the bridge is pure polarity/width adaptation.
+    -- en_mem is the active-LOW one-cycle access strobe, wen the active-LOW byte lanes (from the resv-GATED sh_we, so a suppressed SC write cannot touch the UART), and clk_mem is the free-running mclk.
+    -- The old private periph bus stuck-clear-pulse behaviour is gone with the gated clock: clr_* become true one-cycle pulses, consumed asynchronously by the TX/RX FSMs.
     uart0_sh_en_n  <= not shslv_uart0_en_q;
     sh_wen_n <= not sh_we;
 
-    -- M7b: same polarity shim for the moved TIMER/GPIO blocks (active-LOW
-    -- one-cycle en strobes; they share sh_wen_n's active-low lanes —
-    -- all from the resv-GATED sh_we, so a suppressed SC write can't touch
-    -- any shared peripheral). clk_mem = free-running mclk everywhere; the
-    -- M7b audit found TIMER and GPIO both already en-qualify every write and
-    -- register every read (UART-class movers) — their un-en-qualified logic
-    -- (timer core, pin IRQ flags) runs on its OWN muxed/pin clocks, not
-    -- clk_mem, so the gated->free-running change is invariant for them.
+    -- M7b: same polarity shim for the moved TIMER/GPIO blocks (active-LOW one-cycle en strobes; they share sh_wen_n's active-low lanes, all from the resv-GATED sh_we, so a suppressed SC write cannot touch any shared peripheral).
+    -- clk_mem = free-running mclk everywhere.
+    -- The M7b audit found TIMER and GPIO both already en-qualify every write and register every read (UART-class movers), and their un-en-qualified logic (timer core, pin IRQ flags) runs on its OWN muxed/pin clocks, not clk_mem, so the move from gated to free-running is invariant for them.
     tim0_sh_en_n  <= not shslv_tim0_en_q;
     tim1_sh_en_n  <= not shslv_tim1_en_q;
     gpio1_sh_en_n <= not shslv_gpio1_en;
     gpio2_sh_en_n <= not shslv_gpio2_en;
     gpio3_sh_en_n <= not shslv_gpio3_en;
-    -- M7c: SPI1 + UART1 (audited clean; SPI1's flash FSM is compiled out by
-    -- ENABLE_EXTENDED_MEM=false, and its baud core runs on smclk — the
-    -- SYS_CLK_CR=0 rule applies to SPI software too)
+    -- M7c: SPI1 + UART1 (audited clean; SPI1's flash FSM is compiled out by ENABLE_EXTENDED_MEM=false, and its baud core runs on smclk, so the SYS_CLK_CR=0 rule applies to SPI software too)
     spi1_sh_en_n  <= not shslv_spi1_en_q;
     uart1_sh_en_n <= not shslv_uart1_en_q;
-    -- M7c.2: I2C0/I2C1 (combinational read handled by i2c_rdata_bridge above;
-    -- writes/snapshot-latches audit clean — single en-qualified ClkMem
-    -- process, core FSMs on smclk/pin edges)
+    -- M7c.2: I2C0/I2C1 (combinational read handled by i2c_rdata_bridge above; writes and snapshot latches audit clean: one en-qualified ClkMem process, core FSMs on smclk/pin edges)
     i2c0_sh_en_n  <= not shslv_i2c0_en_q;
     i2c1_sh_en_n  <= not shslv_i2c1_en_q;
-    -- M7d: NPU register bus (MabMmrCEN was HARDWIRED '0' on the old gated
-    -- bus — the clk_periph pulse was the only write qualifier; on the
-    -- free-running mclk this strobe IS the qualifier)
+    -- M7d: NPU register bus (MabMmrCEN was HARDWIRED '0' on the old gated bus, where the clk_periph pulse was the only write qualifier; on the free-running mclk this strobe IS the qualifier)
     npu_sh_en_n   <= not shslv_npu_en;
-    -- M11: the last three private peripherals join the window (the private
-    -- peripheral page is GONE). Audited: all five register their reads on
-    -- clk_mem — UART-class movers, plain shims, no bridge. SYSTEM0 note:
-    -- SYS_CLK_CR/SYS_CLK_DIV_CR reconfigure MCLK ITSELF — reconfiguring
-    -- with other masters mid-transaction is a software-contract violation
-    -- (management hart quiesces the others first).
+    -- M11: the last three private peripherals join the window (the private peripheral page is GONE).
+    -- Audited: all five register their reads on clk_mem, so they are UART-class movers, plain shims, no bridge.
+    -- SYSTEM0 note: SYS_CLK_CR/SYS_CLK_DIV_CR reconfigure MCLK ITSELF, so reconfiguring with other masters mid-transaction is a software-contract violation (the management hart quiesces the others first).
     sys_sh_en_n   <= not shslv_sys_en;
     gpio0_sh_en_n <= not shslv_gpio0_en;
     spi0_sh_en_n  <= not shslv_spi0_en_q;
@@ -3105,14 +2950,11 @@ begin
             mtip   => clint_mtip
         );
 
-    -- M19 PLIC-lite: THE peripheral interrupt controller — per-hart routing
-    -- rows (any hart programs any row through the arbiter; resv-gated sh_we
-    -- like the CLINT) + CLAIM/COMPLETE delivery @0x7800. The deglitched
-    -- source vector TERMINATES here; delivery to harts 0-4 is the one
-    -- registered meip wire each (IVT slot 85). sh_master attributes claim
-    -- reads (the mutex-bank idiom). Resets all-masked, so this block is a
-    -- provable NO-OP until software routes an IRQ. The wdt_* hooks carry
-    -- the D2 watchdog contract into SYSTEM0 (source 0's routed/EOI state).
+    -- M19 PLIC-lite: THE peripheral interrupt controller, with per-hart routing rows (any hart programs any row through the arbiter; resv-gated sh_we like the CLINT) + CLAIM/COMPLETE delivery @0x7800.
+    -- The deglitched source vector TERMINATES here; delivery to harts 0-4 is the one registered meip wire each (IVT slot 85).
+    -- sh_master attributes claim reads (the mutex-bank idiom).
+    -- Resets all-masked, so this block is a provable NO-OP until software routes an IRQ.
+    -- The wdt_* hooks carry the D2 watchdog contract into SYSTEM0 (source 0's routed/EOI state).
     irtr0: entity work.irq_router
         generic map (NHARTS => 5, NUM_SRCS => NUM_IRQ_SRCS, MW => 3)
         port map (
@@ -3130,12 +2972,11 @@ begin
             wdt_complete => wdt_irq_complete
         );
 
-    -- M7c LOCKING: HW mutex bank @0x13000 (page-3 slot 0). READ = atomic
-    -- return-old-and-claim (1-instruction acquire; the arbiter's whole-txn
-    -- serialization IS the atomicity), WRITE 0 = release. sh_master tells it
-    -- WHICH hart's claim-read this is. Resets all-free -> provable NO-OP.
-    -- ADVISORY by design decision: no bus-enforced locking (no core bus-error
-    -- path; stall-until-release would be a deadlock generator).
+    -- M7c LOCKING: HW mutex bank @0x13000 (page-3 slot 0).
+    -- READ = atomic return-old-and-claim (1-instruction acquire; the arbiter's whole-txn serialization IS the atomicity), WRITE 0 = release.
+    -- sh_master tells it WHICH hart's claim-read this is.
+    -- Resets all-free, so it is a provable NO-OP.
+    -- ADVISORY by design decision: no bus-enforced locking (no core bus-error path; stall-until-release would be a deadlock generator).
     mtx0: entity work.mutex_bank
         generic map (NMUTEX => 16, MW => 3)
         port map (
@@ -3150,14 +2991,11 @@ begin
         );
 
     -- M17: MTCMOS power controller (window slot 11 @0x4B00, ex-SARADC0).
-    -- One gate bit per tile hart; a per-tile FSM sequences the domain
-    -- controls in the only legal order (iso -> rst -> rail off; rail on ->
-    -- settle -> un-iso -> un-rst). COLD-GATE: pd_rstn folds into the tile's
-    -- resetn below, so a wake IS an M12 cold boot (shared-ROM fetch, WFI
-    -- park, loader relaunch) — and the reset also makes the functional sims
-    -- honest, since reset values equal the A2ISO clamp-0 values on every
-    -- outbound tile signal. Resets all-ON -> provable NO-OP until software
-    -- gates a tile. Software contract: gate only parked/quiesced tiles.
+    -- One gate bit per tile hart; a per-tile FSM sequences the domain controls in the only legal order: iso, then rst, then rail off for a gate; rail on, then settle, then un-iso, then un-rst for a wake.
+    -- COLD-GATE: pd_rstn folds into the tile's resetn below, so a wake IS an M12 cold boot (shared-ROM fetch, WFI park, loader relaunch).
+    -- That reset also makes the functional sims honest, since reset values equal the A2ISO clamp-0 values on every outbound tile signal.
+    -- Resets all-ON, so it is a provable NO-OP until software gates a tile.
+    -- Software contract: gate only parked/quiesced tiles.
     pwr0: entity work.pwr_ctrl
         generic map (NHARTS => 5, T_SEQ => 4, T_RAIL => 256)
         port map (
@@ -3171,10 +3009,8 @@ begin
             pd_iso_en => pd_iso_en,
             pd_sleep  => pd_sleep,
             pd_rstn   => pd_rstn,
-            -- DP-S3 supervision inputs: PGOOD P6.7 + harvested-boot strap
-            -- P6.6 as DIRECT pad taps (always readable — the gate must work
-            -- before any software runs); field level tied '0' (no NFC). 2-FF
-            -- synchronized inside pwr_ctrl.
+            -- DP-S3 supervision inputs: PGOOD P6.7 + harvested-boot strap P6.6 as DIRECT pad taps (always readable, because the gate must work before any software runs); field level tied '0' (no NFC).
+            -- All three are 2-FF synchronized inside pwr_ctrl.
             pgood_pad    => prt6_in(7),
             strap_pad    => prt6_in(6),
             field_detect => '0',
@@ -3183,14 +3019,10 @@ begin
 
     -- =========================================================================
     -- CQ2a: AFE digital register stubs + shared EIS engine stub.
-    -- Four AFE sites subdivide page-0 slot 12 (0x4C00) into 64 B sub-slots
-    -- (sub-slot = sh_addr(5:4)); each answers only for its owner TILE hart (1-4) OR hart 0, the orchestrator
-    -- (mp_arbiter s_master gate, inside afe_stub). The EIS engine lives in the
-    -- IRQ-router page top quarter (0x7C00-0x7FFF, carved in the sub-decode
-    -- above — irq_router's ADDR_W=10 decode is inert there) and is hart-0-only (the orchestrator)
-    -- (OWNER_HART=0). Reads are registered; denied reads return 0, denied
-    -- writes drop — no bus error, no stall, no arbiter-contract change. Every
-    -- stub resets all-zero -> a provable NO-OP (irq low) until software writes.
+    -- Four AFE sites subdivide page-0 slot 12 (0x4C00) into 64 B sub-slots (sub-slot = sh_addr(5:4)); each answers only for its owner TILE hart (1-4) OR hart 0, the orchestrator (mp_arbiter s_master gate, inside afe_stub).
+    -- The EIS engine lives in the IRQ-router page top quarter (0x7C00-0x7FFF, carved in the sub-decode above, where irq_router's ADDR_W=10 decode is inert) and is hart-0-only (the orchestrator) (OWNER_HART=0).
+    -- Reads are registered; denied reads return 0 and denied writes drop, with no bus error, no stall and no arbiter-contract change.
+    -- Every stub resets all-zero, a provable NO-OP (irq low) until software writes.
     -- =========================================================================
     afe0: entity work.afe_stub
         generic map (OWNER_HART => 1)   -- 0x4C00: tile hart 1 or hart 0
@@ -3218,23 +3050,17 @@ begin
             we => sh_we, addr => sh_addr(3 downto 0), wdata => sh_wdata,
             master => sh_master, rdata => eis_rdata, irq => afe_eis_irq(4));
 
-    -- M17: the cold-gate reset — a gated (or waking) tile is held in reset,
-    -- which is also what keeps it bus-silent at the arbiter (sh_req is
-    -- qualified by the tile's resetn since M12).
+    -- M17: the cold-gate reset. A gated (or waking) tile is held in reset, which is also what keeps it bus-silent at the arbiter (sh_req is qualified by the tile's resetn since M12).
     tile_rstn(1) <= resetn and pd_rstn(1) and pgood_rstn;
     tile_rstn(2) <= resetn and pd_rstn(2) and pgood_rstn;
     tile_rstn(3) <= resetn and pd_rstn(3) and pgood_rstn;
     tile_rstn(4) <= resetn and pd_rstn(4) and pgood_rstn;
-    -- DP-S3 + CPR3/R2: hart 0 has no pd_rstn row (always-on domain) —
-    -- only the boot gate. That is true of the ORCHESTRATOR for the same
-    -- reason it was true of hart 0: there is no power intent in the centre
-    -- band, so there is no row to fold in.
+    -- DP-S3 + CPR3/R2: hart 0 has no pd_rstn row (always-on domain), only the boot gate.
+    -- That is true of the ORCHESTRATOR for the same reason it was true of hart 0: there is no power intent in the centre band, so there is no row to fold in.
     hart0_rstn <= resetn and pgood_rstn;
 
-    -- M17 isolation clamps (see the _raw signal comment): every outbound
-    -- tile signal is forced to its reset value while pd_iso_en(h) is high,
-    -- so the arbiter and the tb never sample a floating pin of a dark
-    -- domain. These gates synthesize into the ALWAYS-ON control plane.
+    -- M17 isolation clamps (see the _raw signal comment): every outbound tile signal is forced to its reset value while pd_iso_en(h) is high, so the arbiter and the tb never sample a floating pin of a dark domain.
+    -- These gates synthesize into the ALWAYS-ON control plane.
     arb_req(1)              <= tile1_req_raw     when pd_iso_en(1) = '0' else '0';
     arb_we(7 downto 4)      <= tile1_we_raw      when pd_iso_en(1) = '0' else (others => '0');
     arb_addr(2*SH_AW-1 downto SH_AW) <= tile1_addr_raw when pd_iso_en(1) = '0' else (others => '0');
@@ -3277,15 +3103,10 @@ begin
 
     -- =========================================================================
     -- M11: shared bulk RAM = 4 x sram1p16k macros (64 KB, 0x10000-0x1FFFF),
-    -- replacing the M3c 256-word behavioral array. The macro IS the arbiter's
-    -- slave model: CEN sampled with the address at the s_en cycle's ending
-    -- edge, Q valid the next cycle (1-cycle registered read). Enables/WEN are
-    -- ACTIVE-LOW at the macro — inverted from the arbiter's active-high
-    -- strobes; WEN comes from the resv-GATED sh_we (a suppressed SC write
-    -- must not touch memory), per-byte lanes (M4a). No INIT: power-up
-    -- contents are undefined on silicon — the write-before-read contract
-    -- (mailbox zeroing) is an M12 bootrom obligation; behavioral models
-    -- zero-fill, the gate flow deposits zeros.
+    -- replacing the M3c 256-word behavioral array.
+    -- The macro IS the arbiter's slave model: CEN sampled with the address at the s_en cycle's ending edge, Q valid the next cycle (1-cycle registered read).
+    -- Enables/WEN are ACTIVE-LOW at the macro, inverted from the arbiter's active-high strobes; WEN comes from the resv-GATED sh_we (a suppressed SC write must not touch memory), per-byte lanes (M4a).
+    -- No INIT: power-up contents are undefined on silicon, so the write-before-read contract (mailbox zeroing) is an M12 bootrom obligation; behavioral models zero-fill, the gate flow deposits zeros.
     -- =========================================================================
     bank0_cen_n  <= not shslv_bank0_en;
     bank1_cen_n  <= not shslv_bank1_en;
@@ -3351,31 +3172,23 @@ begin
             PGEN  => pgen_mem(6)  -- DP-S3 3b: BLOCKPWR SYSSHB3OFF
         );
 
-    -- M3b: harts 1-3 as PRIVATE-MEMORY tiles (hdl/common/hart_tile.vhd). Each
-    -- tile is a full vesta + its own adddec + private TCM (RAM0, 0x8000).
-    -- M12: tiles reset to PC 0x0 like hart 0 and fetch the SHARED boot ROM
-    -- through the arbiter — the M3b-M11 preloaded-TCM boot (PC_RST_VAL
-    -- 0x8200 + RAM0_INIT_FILE image) is retired; the bootrom's mhartid
-    -- dispatch parks them (WFI) until hart 0 loads/ignites them via the
-    -- CLINT msip + boot-mailbox protocol. Distinct hart_id per core (M13: a
-    -- PORT — all four tile instances are one identical netlist). No
-    -- cross-hart hazard (each tile is unchanged single-core logic). M11
-    -- retired the tiles' dead boot ROMs and private RAM1s (0xC000 = the
-    -- shared NPU staging RAM now).
+    -- M3b: harts 1-3 as PRIVATE-MEMORY tiles (hdl/common/hart_tile.vhd).
+    -- Each tile is a full vesta + its own adddec + private TCM (RAM0, 0x8000).
+    -- M12: tiles reset to PC 0x0 like hart 0 and fetch the SHARED boot ROM through the arbiter, retiring the M3b-M11 preloaded-TCM boot (PC_RST_VAL 0x8200 + RAM0_INIT_FILE image).
+    -- The bootrom's mhartid dispatch parks them (WFI) until hart 0 loads/ignites them via the CLINT msip + boot-mailbox protocol.
+    -- Distinct hart_id per core (M13: a PORT, since all tile instances are one identical netlist).
+    -- No cross-hart hazard (each tile is unchanged single-core logic).
+    -- M11 retired the tiles' dead boot ROMs and private RAM1s (0xC000 is the shared NPU staging RAM now).
     --
-    -- M3c.4: each tile is now also a REAL arbiter master (1-3) of the shared
-    -- window — its sh_* port maps straight onto that master's slice
-    -- of the flattened arb_* buses. Each hart's a0 is brought out (a0_1/2/3);
-    -- the tb latches pass AND fail, so a post-PASS corruption still fails
-    -- the run. M13: sleep/flash/tcm_pgen ride their entity defaults here —
-    -- only hart 0 wires them. M19: the IRQ interface (msip/mtip/meip) is
-    -- identical on every hart.
+    -- M3c.4: each tile is now also a REAL arbiter master (1-3) of the shared window, its sh_* port mapping straight onto that master's slice of the flattened arb_* buses.
+    -- Each hart's a0 is brought out (a0_1/2/3); the tb latches pass AND fail, so a post-PASS corruption still fails the run.
+    -- M13: sleep/flash/tcm_pgen ride their entity defaults here, only hart 0 wires them.
+    -- M19: the IRQ interface (msip/mtip/meip) is identical on every hart.
     hart1: entity work.hart_tile
         generic map (
             PC_RST_VAL     => x"00000000",
             SH_AW          => SH_AW,
-            -- Core ISA features (config-driven, work.MemoryMap; MUST be
-            -- identical on all five tiles -- one hardened netlist)
+            -- Core ISA features (config-driven, work.MemoryMap; MUST be identical on all five tiles, one hardened netlist)
             ENABLE_MUL        => CORE_ENABLE_MUL,
             ENABLE_DIV        => CORE_ENABLE_DIV,
             ENABLE_ATOMICS    => CORE_ENABLE_ATOMICS,
@@ -3406,16 +3219,13 @@ begin
         )
         port map (
             clk       => mclk,
-            -- M17: pwr_ctrl's cold-gate reset folds in (tile_rstn = resetn
-            -- and pd_rstn) — a gated/waking tile is held in reset
+            -- M17: pwr_ctrl's cold-gate reset folds in (tile_rstn = resetn and pd_rstn), so a gated or waking tile is held in reset
             resetn    => tile_rstn(1),
             sleep     => '0',
             hart_id   => x"00000001",
             msip_in   => clint_msip(1),
             mtip_in   => clint_mtip(1),
-            -- M19: ONE external-IRQ wire per tile — the irq_router's
-            -- registered claim/complete output (routing/masking lives in
-            -- the router rows; the tile hardwires its three live slots)
+            -- M19: ONE external-IRQ wire per tile, the irq_router's registered claim/complete output (routing/masking lives in the router rows; the tile hardwires its three live slots)
             meip_in   => meip(1),
             -- M17: outbound signals land on _raw and pass the iso clamps
             sh_req    => tile1_req_raw,
@@ -3429,12 +3239,9 @@ begin
             sh_scfail => arb_scfail(1),
             sh_resv_valid => arb_resvvld(1),
             sh_lock   => tile1_lock_raw,
-            -- M17: the tile's TCM macro is on the ALWAYS-ON rail but rides
-            -- its own native PGEN power-down whenever the domain gates —
-            -- tcm_pgen is a straight wire to ram0's PGEN pin (was '0')
+            -- M17: the tile's TCM macro is on the ALWAYS-ON rail but rides its own native PGEN power-down whenever the domain gates, so tcm_pgen is a straight wire to ram0's PGEN pin (was '0')
             tcm_pgen  => pd_sleep(1),
-            -- PG1 F2: retention strapped OFF from the ALWAYS-ON top (the macro
-            -- RETN receiver is AO — an in-tile tie was a dying-rail driver)
+            -- PG1 F2: retention strapped OFF from the ALWAYS-ON top (the macro RETN receiver is AO, and an in-tile tie was a dying-rail driver)
             tcm_retn  => '1',
             -- CPR3/R3: read-only TCM aperture port (window 0x24000)
             tcm_ext_req   => tcm_ext_req(1),
@@ -3452,8 +3259,7 @@ begin
         generic map (
             PC_RST_VAL     => x"00000000",
             SH_AW          => SH_AW,
-            -- Core ISA features (config-driven, work.MemoryMap; MUST be
-            -- identical on all five tiles -- one hardened netlist)
+            -- Core ISA features (config-driven, work.MemoryMap; MUST be identical on all five tiles, one hardened netlist)
             ENABLE_MUL        => CORE_ENABLE_MUL,
             ENABLE_DIV        => CORE_ENABLE_DIV,
             ENABLE_ATOMICS    => CORE_ENABLE_ATOMICS,
@@ -3484,8 +3290,7 @@ begin
         )
         port map (
             clk       => mclk,
-            -- M17: pwr_ctrl's cold-gate reset folds in (tile_rstn = resetn
-            -- and pd_rstn) — a gated/waking tile is held in reset
+            -- M17: pwr_ctrl's cold-gate reset folds in (tile_rstn = resetn and pd_rstn), so a gated or waking tile is held in reset
             resetn    => tile_rstn(2),
             sleep     => '0',
             hart_id   => x"00000002",
@@ -3504,12 +3309,9 @@ begin
             sh_scfail => arb_scfail(2),
             sh_resv_valid => arb_resvvld(2),
             sh_lock   => tile2_lock_raw,
-            -- M17: the tile's TCM macro is on the ALWAYS-ON rail but rides
-            -- its own native PGEN power-down whenever the domain gates —
-            -- tcm_pgen is a straight wire to ram0's PGEN pin (was '0')
+            -- M17: the tile's TCM macro is on the ALWAYS-ON rail but rides its own native PGEN power-down whenever the domain gates, so tcm_pgen is a straight wire to ram0's PGEN pin (was '0')
             tcm_pgen  => pd_sleep(2),
-            -- PG1 F2: retention strapped OFF from the ALWAYS-ON top (the macro
-            -- RETN receiver is AO — an in-tile tie was a dying-rail driver)
+            -- PG1 F2: retention strapped OFF from the ALWAYS-ON top (the macro RETN receiver is AO, and an in-tile tie was a dying-rail driver)
             tcm_retn  => '1',
             -- CPR3/R3: read-only TCM aperture port (window 0x28000)
             tcm_ext_req   => tcm_ext_req(2),
@@ -3527,8 +3329,7 @@ begin
         generic map (
             PC_RST_VAL     => x"00000000",
             SH_AW          => SH_AW,
-            -- Core ISA features (config-driven, work.MemoryMap; MUST be
-            -- identical on all five tiles -- one hardened netlist)
+            -- Core ISA features (config-driven, work.MemoryMap; MUST be identical on all five tiles, one hardened netlist)
             ENABLE_MUL        => CORE_ENABLE_MUL,
             ENABLE_DIV        => CORE_ENABLE_DIV,
             ENABLE_ATOMICS    => CORE_ENABLE_ATOMICS,
@@ -3559,8 +3360,7 @@ begin
         )
         port map (
             clk       => mclk,
-            -- M17: pwr_ctrl's cold-gate reset folds in (tile_rstn = resetn
-            -- and pd_rstn) — a gated/waking tile is held in reset
+            -- M17: pwr_ctrl's cold-gate reset folds in (tile_rstn = resetn and pd_rstn), so a gated or waking tile is held in reset
             resetn    => tile_rstn(3),
             sleep     => '0',
             hart_id   => x"00000003",
@@ -3579,12 +3379,9 @@ begin
             sh_scfail => arb_scfail(3),
             sh_resv_valid => arb_resvvld(3),
             sh_lock   => tile3_lock_raw,
-            -- M17: the tile's TCM macro is on the ALWAYS-ON rail but rides
-            -- its own native PGEN power-down whenever the domain gates —
-            -- tcm_pgen is a straight wire to ram0's PGEN pin (was '0')
+            -- M17: the tile's TCM macro is on the ALWAYS-ON rail but rides its own native PGEN power-down whenever the domain gates, so tcm_pgen is a straight wire to ram0's PGEN pin (was '0')
             tcm_pgen  => pd_sleep(3),
-            -- PG1 F2: retention strapped OFF from the ALWAYS-ON top (the macro
-            -- RETN receiver is AO — an in-tile tie was a dying-rail driver)
+            -- PG1 F2: retention strapped OFF from the ALWAYS-ON top (the macro RETN receiver is AO, and an in-tile tie was a dying-rail driver)
             tcm_retn  => '1',
             -- CPR3/R3: read-only TCM aperture port (window 0x2C000)
             tcm_ext_req   => tcm_ext_req(3),
@@ -3602,8 +3399,7 @@ begin
         generic map (
             PC_RST_VAL     => x"00000000",
             SH_AW          => SH_AW,
-            -- Core ISA features (config-driven, work.MemoryMap; MUST be
-            -- identical on all five tiles -- one hardened netlist)
+            -- Core ISA features (config-driven, work.MemoryMap; MUST be identical on all five tiles, one hardened netlist)
             ENABLE_MUL        => CORE_ENABLE_MUL,
             ENABLE_DIV        => CORE_ENABLE_DIV,
             ENABLE_ATOMICS    => CORE_ENABLE_ATOMICS,
@@ -3634,8 +3430,7 @@ begin
         )
         port map (
             clk       => mclk,
-            -- M17: pwr_ctrl's cold-gate reset folds in (tile_rstn = resetn
-            -- and pd_rstn) — a gated/waking tile is held in reset
+            -- M17: pwr_ctrl's cold-gate reset folds in (tile_rstn = resetn and pd_rstn), so a gated or waking tile is held in reset
             resetn    => tile_rstn(4),
             sleep     => '0',
             hart_id   => x"00000004",
@@ -3654,12 +3449,9 @@ begin
             sh_scfail => arb_scfail(4),
             sh_resv_valid => arb_resvvld(4),
             sh_lock   => tile4_lock_raw,
-            -- M17: the tile's TCM macro is on the ALWAYS-ON rail but rides
-            -- its own native PGEN power-down whenever the domain gates —
-            -- tcm_pgen is a straight wire to ram0's PGEN pin (was '0')
+            -- M17: the tile's TCM macro is on the ALWAYS-ON rail but rides its own native PGEN power-down whenever the domain gates, so tcm_pgen is a straight wire to ram0's PGEN pin (was '0')
             tcm_pgen  => pd_sleep(4),
-            -- PG1 F2: retention strapped OFF from the ALWAYS-ON top (the macro
-            -- RETN receiver is AO — an in-tile tie was a dying-rail driver)
+            -- PG1 F2: retention strapped OFF from the ALWAYS-ON top (the macro RETN receiver is AO, and an in-tile tie was a dying-rail driver)
             tcm_retn  => '1',
             -- CPR3/R3: read-only TCM aperture port (window 0x30000)
             tcm_ext_req   => tcm_ext_req(4),
@@ -3674,8 +3466,7 @@ begin
         );
 
     -- =========================================================================
-    -- CPR3/R3: READ-ONLY TCM APERTURE SEQUENCER (see the declarations above
-    -- for the map, the three gates and the s_stall argument).
+    -- CPR3/R3: READ-ONLY TCM APERTURE SEQUENCER (see the declarations above for the map, the three gates and the s_stall argument).
     -- =========================================================================
     tcmw_target(0)   <= shslv_tcmw0_en;
     tcmw_target(1)   <= shslv_tcmw1_en;
@@ -3683,29 +3474,22 @@ begin
     tcmw_target(3)   <= shslv_tcmw3_en;
     tcmw_target(4)   <= shslv_tcmw4_en;
     tcmw_en_any      <= '1' when tcmw_target /= "00000" else '0';
-    -- R4-A2: "dark" = exactly the state the isolation clamps key on, which is
-    -- also exactly what dbg_unavail asks about -- clamps asserted, or the tile
-    -- held in reset (pd_rstn, the DP-S3 boot gate or chip reset). Hart 0 has
-    -- no domain and is never dark.
+    -- R4-A2: "dark" = exactly the state the isolation clamps key on, which is also exactly what dbg_unavail asks about: clamps asserted, or the tile held in reset (pd_rstn, the DP-S3 boot gate or chip reset).
+    -- Hart 0 has no domain and is never dark.
     tcmw_dark(0)     <= '0';
     tcmw_dark(1)     <= pd_iso_en(1) or not tile_rstn(1);
     tcmw_dark(2)     <= pd_iso_en(2) or not tile_rstn(2);
     tcmw_dark(3)     <= pd_iso_en(3) or not tile_rstn(3);
     tcmw_dark(4)     <= pd_iso_en(4) or not tile_rstn(4);
-    -- LAUNCH = addressed AND the management hart AND a read AND the target is
-    -- alive. Anything else is answered with zero in the same three cycles
-    -- every other slave takes.
+    -- LAUNCH = addressed AND the management hart AND a read AND the target is alive.
+    -- Anything else is answered with zero in the same three cycles every other slave takes.
     tcmw_launch      <= tcmw_en_any when sh_we = "0000"
                        and conv_integer(sh_master) = 0
                        and (tcmw_target and tcmw_dark) = "00000"
                        else '0';
-    -- The stall must already be asserted in the cycle the enable strobe
-    -- occupies (the arbiter samples s_stall at the edge that would otherwise
-    -- take it to DATA), so it is COMBINATIONAL on launch and registered only
-    -- afterwards, through busy.
+    -- The stall must already be asserted in the cycle the enable strobe occupies (the arbiter samples s_stall at the edge that would otherwise take it to DATA), so it is COMBINATIONAL on launch and registered only afterwards, through busy.
     tcmw_stall       <= tcmw_launch or tcmw_busy;
-    -- completion / abort of the IN-FLIGHT transaction (tcm_ext_req is one-hot
-    -- while busy, so these are single-term ORs, not priority chains).
+    -- Completion / abort of the IN-FLIGHT transaction (tcm_ext_req is one-hot while busy, so these are single-term ORs, not priority chains).
     tcmw_done_any    <= '1' when (tcm_ext_req and tcm_ext_done) /= "00000" else '0';
     tcmw_abort       <= '1' when (tcm_ext_req and tcmw_dark) /= "00000" else '0';
     tcmw_q           <= tcm_ext_rdata(31 downto 0) when tcm_ext_req(0) = '1' else
@@ -3726,9 +3510,7 @@ begin
             if tcmw_busy = '0' then
                 if tcmw_en_any = '1' then
                     -- One decision per access, taken in the enable-strobe cycle.
-                    -- The zeroing is the DENIED/DROPPED/DARK answer and it is
-                    -- unconditional: a refused access must never return the
-                    -- previous window's word.
+                    -- The zeroing is the DENIED/DROPPED/DARK answer and it is unconditional: a refused access must never return the previous window's word.
                     tcm_ext_addr <= sh_addr(11 downto 0);
                     tcmw_rdata   <= (others => '0');
                     if tcmw_launch = '1' then
@@ -3742,9 +3524,8 @@ begin
                     tcm_ext_req <= (others => '0');
                     tcmw_busy   <= '0';
                 elsif tcmw_abort = '1' then
-                    -- R4-A2 again, for the race the static gate cannot cover: the
-                    -- tile was gated WHILE its transaction was in flight, so its
-                    -- done is now clamped and will never arrive. Complete it here.
+                    -- R4-A2 again, for the race the static gate cannot cover: the tile was gated WHILE its transaction was in flight, so its done is now clamped and will never arrive.
+                    -- Complete it here.
                     tcmw_rdata  <= (others => '0');
                     tcm_ext_req <= (others => '0');
                     tcmw_busy   <= '0';
@@ -3753,8 +3534,7 @@ begin
         end if;
     end process;
 
-    -- System Peripheral (M19: the vectored IRQ controller is retired — only
-    -- the WDT level source + the D2 router hooks remain on the IRQ side)
+    -- System Peripheral (M19: the vectored IRQ controller is retired; only the WDT level source + the D2 router hooks remain on the IRQ side)
     system0: SYSTEM
         port map (
             clk_lfxt_in   => lfxt_in,
@@ -3770,7 +3550,7 @@ begin
             wdt_irq_routed   => wdt_irq_routed,
             wdt_irq_complete => wdt_irq_complete,
 
-            -- Memory Bus (arbiter slave side, M11 — window slot 9 @0x04900)
+            -- Memory Bus (arbiter slave side, M11, window slot 9 @0x04900)
             clk_mem       => mclk,
             en_mem        => sys_sh_en_n,
             wen           => sh_wen_n,
@@ -3792,9 +3572,7 @@ begin
             PGEN_mem      => pgen_mem
     );
 
-    -- M13: hart 0's adddec moved into the hart0 tile (its >=0x20000
-    -- extended-flash decode drives the tile's flash ports, wired to SPI0
-    -- above; the M11-dead private peripheral bus is tied off inside).
+    -- M13: hart 0's adddec moved into the hart0 tile: its >=0x20000 extended-flash decode drives the tile's flash ports, wired to SPI0 above, and the M11-dead private peripheral bus is tied off inside.
 
     -- GPIO0 (SPI0, CLKLFXT, CLKHFXT, TRAP, BOOT)
     gpio0: GPIO
@@ -3813,7 +3591,7 @@ begin
             resetn           => resetn, 
             irq              => irq_gpio0,
 
-            -- Memory Bus (arbiter slave side, M11 — window slot 0 @0x04000)
+            -- Memory Bus (arbiter slave side, M11, window slot 0 @0x04000)
             clk_mem         => mclk,
             en              => gpio0_sh_en_n,
             wen             => sh_wen_n,
@@ -3839,8 +3617,8 @@ begin
     );
 
     -- GPIO1 (SPI1, UART0, UART1)
-    -- M7b: register bus moved onto the mp_arbiter (page-3 slot 1 @0x13100,
-    -- all 4 harts); pads/alt-func/IRQ wiring unchanged. Old 0x4100 reads 0.
+    -- M7b: register bus moved onto the mp_arbiter (page-3 slot 1 @0x13100, all harts); pads/alt-func/IRQ wiring unchanged.
+    -- The old 0x4100 window reads 0.
     gpio1: GPIO
         generic map (
             num_pins        => 8,
@@ -3966,8 +3744,9 @@ begin
 
     -- =========================================================================
     -- GPIO4 (Mission B): general-purpose I/O port 5, MUTEX-page sub-slot 3 @0x6300.
-    -- Registered read; own active-low one-cycle en shim. AF0 = plain GPIO; AF1 =
-    -- QSPI0/I3C0 pin functions (Hi-Z when absent). Per-pin IRQs -> vectors 98-105.
+    -- Registered read; own active-low one-cycle en shim.
+    -- AF0 = plain GPIO; AF1 = QSPI0/I3C0 pin functions (Hi-Z when absent).
+    -- Per-pin IRQs drive vectors 98-105.
     -- =========================================================================
     gpio4_sh_en_n <= not shslv_gpio4_en;
     -- AF0 plane = plain-GPIO passthrough (AF0 == GPIO for every pin)
@@ -4020,8 +3799,9 @@ begin
 
     -- =========================================================================
     -- GPIO5 (Mission B): general-purpose I/O port 6, MUTEX-page sub-slot 4 @0x6400.
-    -- Registered read; own active-low one-cycle en shim. AF0 = plain GPIO; AF1 =
-    -- NFC0 digital-AFE pins (Hi-Z when absent). Per-pin IRQs -> vectors 106-113.
+    -- Registered read; own active-low one-cycle en shim.
+    -- AF0 = plain GPIO; AF1 = NFC0 digital-AFE pins (Hi-Z when absent).
+    -- Per-pin IRQs drive vectors 106-113.
     -- =========================================================================
     gpio5_sh_en_n <= not shslv_gpio5_en;
     -- AF0 plane = plain-GPIO passthrough (AF0 == GPIO for every pin)
@@ -4071,6 +3851,7 @@ begin
             alt_func_ren_in => afunc6_all_ren
     );
 
+    -- SPI0 (window slot 2 @0x4200): the boot/XIP flash master, so it is the one SPI built with ENABLE_EXTENDED_MEM
     spi0: SPI
         generic map (
             ENABLE_EXTENDED_MEM => true
@@ -4082,7 +3863,7 @@ begin
             irq_tc          => irq_spi0_tc,
             irq_te          => irq_spi0_te,
 
-            -- Memory Bus (arbiter slave side, M11 — window slot 2 @0x04200)
+            -- Memory Bus (arbiter slave side, M11, window slot 2 @0x04200)
             clk_mem         => mclk,
             en_mem          => spi0_sh_en_n,
             wen             => sh_wen_n,
@@ -4135,7 +3916,7 @@ begin
             irq_tc          => irq_spi1_tc,
             irq_te          => irq_spi1_te,
 
-            -- Memory Bus (arbiter slave side, M7c — window slot 3 @0x04300)
+            -- Memory Bus (arbiter slave side, M7c, window slot 3 @0x04300)
             clk_mem         => mclk,
             en_mem          => spi1_sh_en_n,
             wen             => sh_wen_n,
@@ -4175,10 +3956,9 @@ begin
 
     );
 
-    -- M6: UART0 is the SHARED console UART on the mp_arbiter slave port (all
-    -- 4 harts). M11 moved its window from 0x12000 back to its ORIGINAL 0x4400
-    -- slot in the shared peripheral window. Core clock (smclk), pads and IRQ
-    -- wiring (-> hart 0's SYSTEM only) are unchanged.
+    -- M6: UART0 is the SHARED console UART on the mp_arbiter slave port (all harts).
+    -- M11 moved its window from 0x12000 back to its ORIGINAL 0x4400 slot in the shared peripheral window.
+    -- Core clock (smclk), pads and IRQ wiring (to hart 0's SYSTEM only) are unchanged.
     uart0: UART
         port map (
             -- System Signals
@@ -4190,7 +3970,7 @@ begin
             irq_te       => irq_uart0_te,
             irq_tc       => irq_uart0_tc,
 
-            -- Memory Bus (arbiter slave side, M6 — window slot 4 @0x04400)
+            -- Memory Bus (arbiter slave side, M6, window slot 4 @0x04400)
             clk_mem     => mclk,
             en_mem      => uart0_sh_en_n,
             wen         => sh_wen_n,
@@ -4220,7 +4000,7 @@ begin
             irq_te       => irq_uart1_te,
             irq_tc       => irq_uart1_tc,
 
-            -- Memory Bus (arbiter slave side, M7c — window slot 5 @0x04500)
+            -- Memory Bus (arbiter slave side, M7c, window slot 5 @0x04500)
             clk_mem     => mclk,
             en_mem      => uart1_sh_en_n,
             wen         => sh_wen_n,
@@ -4239,6 +4019,7 @@ begin
             RX_REN      => rx1_ren
     );
 
+    -- I2C0 (window slot 14 @0x4E00): home pads P4.0/P4.1, combinational read bridged on the slave side
     i2c0: I2C
         generic map (
             default_SAD => i2c0_default_SAD
@@ -4263,8 +4044,7 @@ begin
             irq_snr			=> irq_i2c0_snr,
             irq_sxc			=> irq_i2c0_sxc,
             
-            -- Memory Bus (arbiter slave side, M7c.2 — window slot 14 @0x04E00;
-            -- rdata_out is COMBINATIONAL, registered by i2c_rdata_bridge)
+            -- Memory Bus (arbiter slave side, M7c.2, window slot 14 @0x04E00; rdata_out is COMBINATIONAL, registered by i2c_rdata_bridge)
             ClkMem			=> mclk,
             EnMemPeriph		=> i2c0_sh_en_n,
             WEn				=> sh_wen_n,
@@ -4310,8 +4090,7 @@ begin
             irq_snr			=> irq_i2c1_snr,
             irq_sxc			=> irq_i2c1_sxc,
             
-            -- Memory Bus (arbiter slave side, M7c.2 — window slot 15 @0x04F00;
-            -- rdata_out is COMBINATIONAL, registered by i2c_rdata_bridge)
+            -- Memory Bus (arbiter slave side, M7c.2, window slot 15 @0x04F00; rdata_out is COMBINATIONAL, registered by i2c_rdata_bridge)
             ClkMem			=> mclk,
             EnMemPeriph		=> i2c1_sh_en_n,
             WEn				=> sh_wen_n,
@@ -4333,6 +4112,7 @@ begin
             SDA_REN			=> sda1_ren
 	);
 
+    -- TIMER0 (window slot 6 @0x4600): home compare/capture pads on P3.0-3, clocked from the glitch-free source mux
     timer0 : TIMER
         port map (
             -- System Signals
@@ -4350,7 +4130,7 @@ begin
             irq_cmp1     => irq_tim0_cmp1,
             irq_cmp2     => irq_tim0_cmp2,
 
-            -- Memory Bus (arbiter slave side, M7b — window slot 6 @0x04600)
+            -- Memory Bus (arbiter slave side, M7b, window slot 6 @0x04600)
             clk_mem      => mclk,
             en_mem       => tim0_sh_en_n,
             wen          => sh_wen_n,
@@ -4397,7 +4177,7 @@ begin
             irq_cmp1     => irq_tim1_cmp1,
             irq_cmp2     => irq_tim1_cmp2,
 
-            -- Memory Bus (arbiter slave side, M7b — window slot 7 @0x04700)
+            -- Memory Bus (arbiter slave side, M7b, window slot 7 @0x04700)
             clk_mem      => mclk,
             en_mem       => tim1_sh_en_n,
             wen          => sh_wen_n,
@@ -4440,8 +4220,7 @@ begin
             clk         => mclk,  
             resetn      => resetn,
 
-            -- Memory Bus Signals (arbiter slave side, M7d — window slot 10
-            -- @0x04A00; MabMmrQ is COMBINATIONAL, registered by the bridge)
+            -- Memory Bus Signals (arbiter slave side, M7d, window slot 10 @0x04A00; MabMmrQ is COMBINATIONAL, registered by the bridge)
             MabMmrA     => sh_addr(3 downto 0),
             MabMmrD     => sh_wdata,
             MabMmrCLK   => mclk,
@@ -4449,10 +4228,8 @@ begin
             MabMmrWEN   => sh_wen_n,
             MabMmrQ     => npu_sh_rdata_c,
 
-            -- MUXed SRAM Inputs — M11: the staging RAM's bus side is the
-            -- ARBITER SLAVE fabric (0xC000-0xFFFF page), not hart 0's adddec:
-            -- any hart stages vectors through the shared window. Active-low
-            -- strobes shimmed exactly like the bulk RAM banks.
+            -- MUXed SRAM inputs (M11): the staging RAM's bus side is the ARBITER SLAVE fabric (0xC000-0xFFFF page), not hart 0's adddec, so any hart stages vectors through the shared window.
+            -- Active-low strobes shimmed exactly like the bulk RAM banks.
             SramQ_in      => npuram_q,
             SramA_in      => sh_addr(11 downto 0),
             SramD_in      => sh_wdata,
@@ -4470,15 +4247,13 @@ begin
             NpuSramWEN_out  => npu0_mux_wen,
 
             NpuActive       => npu0_active,
-            -- DP-SG (2026-07-22): think-done IRQ, irq_router source 120
-            -- (registered level in NPU.vhd; W1C via NPUSR.0, IE = NPUCR.19)
+            -- DP-SG (2026-07-22): think-done IRQ, irq_router source 120 (registered level in NPU.vhd; W1C via NPUSR.0, IE = NPUCR.19)
             ThinkDoneIrq    => irq_npu0_td
     );
 
-    -- AFE / SARADC removed (digital-only Castalia). Peripheral-window slots
-    -- 11/12 (0x4B00/0x4C00) and IRQ vectors 55/56 are reserved gaps (read 0,
-    -- tied low). Tie off the GPIO alt-function outputs the two analog blocks
-    -- used to drive so those pins act as plain GPIO:
+    -- AFE / SARADC removed (digital-only Castalia).
+    -- Peripheral-window slots 11/12 (0x4B00/0x4C00) and IRQ vectors 55/56 are reserved gaps (read 0, tied low).
+    -- Tie off the GPIO alt-function outputs the two analog blocks used to drive, so those pins act as plain GPIO:
     --   GPIO2 pins 3/7 (T0/T1 CAP1 out, formerly SARADC DTP0/1)
     --   GPIO3 pins 4-7 (formerly AFE DTP0-3)
     t0_cap1_out <= '0';
@@ -4491,15 +4266,11 @@ begin
     -- =============================================================================
     -- Memory Blocks
     -- =============================================================================
-    -- M12: THE shared boot ROM (page 000, 0x0-0x3FFF) — hart 0's private
-    -- boot ROM promoted to an ARBITER SLAVE, like the bulk banks: CEN
-    -- sampled with the address at the s_en cycle's ending edge on the
-    -- free-running mclk, Q valid the next cycle (the macro IS the 1-cycle
-    -- registered read). Read-only: no WEN pin — a write transaction to this
-    -- page completes at the arbiter but is discarded. All four harts reset
-    -- to PC 0x0 and fetch their first instruction from here through the
-    -- arbiter (see hart_tile.vhd's core_rst_stretch). BLOCKPWR's ROMOFF bit
-    -- keeps gating the macro (pgen_mem(0)).
+    -- M12: THE shared boot ROM (page 000, 0x0-0x3FFF) is hart 0's private boot ROM promoted to an ARBITER SLAVE, like the bulk banks.
+    -- CEN is sampled with the address at the s_en cycle's ending edge on the free-running mclk and Q is valid the next cycle (the macro IS the 1-cycle registered read).
+    -- Read-only: there is no WEN pin, so a write transaction to this page completes at the arbiter but is discarded.
+    -- Every hart resets to PC 0x0 and fetches its first instruction from here through the arbiter (see hart_tile.vhd's core_rst_stretch).
+    -- BLOCKPWR's ROMOFF bit keeps gating the macro (pgen_mem(0)).
     rom0: entity work.rom_hvt_pg
         port map (
             Q    => rom_q,
@@ -4510,16 +4281,12 @@ begin
             PGEN => pgen_mem(0)
     );
 
-    -- M13: hart 0's TCM macro (ram0) moved into the hart0 tile with its
-    -- adddec — BLOCKPWR's RAMOFF gating survives via the tile's tcm_pgen
-    -- port (pgen_mem(1), wired at the hart0 instance).
+    -- M13: hart 0's TCM macro (ram0) moved into the hart0 tile with its adddec; BLOCKPWR's RAMOFF gating survives via the tile's tcm_pgen port (pgen_mem(1), wired at the hart0 instance).
 
-    -- M11: NPU staging RAM @0xC000-0xFFFF (hart 0's retired private RAM1
-    -- macro, promoted to an ARBITER SLAVE). The NPU's internal port mux
-    -- (NpuMuxSel) still owns these pins: bus side = the shared-slave fabric
-    -- (see the NPU instance's Sram*_in), NPU side during a THINK. Q feeds
-    -- both the slave read mux (npuram_q) and the NPU's SramQ_in. BLOCKPWR's
-    -- RAM1OFF bit keeps gating this macro (pgen_mem(2)).
+    -- M11: NPU staging RAM @0xC000-0xFFFF (hart 0's retired private RAM1 macro, promoted to an ARBITER SLAVE).
+    -- The NPU's internal port mux (NpuMuxSel) still owns these pins: bus side = the shared-slave fabric (see the NPU instance's Sram*_in), NPU side during a THINK.
+    -- Q feeds both the slave read mux (npuram_q) and the NPU's SramQ_in.
+    -- BLOCKPWR's RAM1OFF bit keeps gating this macro (pgen_mem(2)).
     npuram0: entity work.sram1p16k_hvt_pg
         port map (
             Q     => npuram_q,
@@ -4574,8 +4341,8 @@ begin
 	);
     irq_deglitch <= gf_out(NUM_IRQ_SRCS-1 downto 0);
 
-    -- This tie-low cell is instantiated because, for some reason, Genus won't route tie cells to any of the analog blocks, instead directly connecting the pins to VSS (or VDD)
-	-- This tie-low cell buries a constant 0 one level down in the hierarchy, which tricks Genus into using an actual tie-low cell from the standard cell library and connecting it to all the constant '0' inputs to the glitch filter
+    -- This tie-low cell exists because Genus will not route tie cells into the analog blocks, connecting their pins straight to VSS (or VDD) instead
+	-- Burying a constant 0 one level down in the hierarchy makes Genus use a real tie-low cell from the standard cell library and connect it to every constant '0' glitch-filter input
 	-- WARNING: The fan-out for the tie cell should be checked
 	IrqGlitchyZeroTieLow: entity work.TieLow
 	port map

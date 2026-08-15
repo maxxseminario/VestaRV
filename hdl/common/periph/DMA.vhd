@@ -4,139 +4,103 @@ use ieee.std_logic_arith.all;
 use ieee.std_logic_unsigned.all;
 
 -- ===========================================================================
--- DMA: configurable multi-channel single-shot DMA controller with peripheral
--- pacing + CRC16-CDMA2000 ride-along. Base 0x6800 (mutex-page sub-slot 8).
--- Two peripherals fused: an arbiter SLAVE (register file on gated ClkMem,
--- D4-xcollapse-clean like RTC/PWM/OW) and an arbiter MASTER (the transfer
--- engine on free-running clk = MCLK, slice 4 of arb_*). Zero pins. TWO IRQs:
--- irq_done (combined channels-done, vector 118), irq_err (vector 119).
--- FROZEN design: ~/vesta_docs/digperiphs/dma_design.md (decisions D1-D21,
--- orchestrator adjudications A1-A19 -- ALL BINDING; An overrides any
--- conflicting Dn prose). Peripheral #7 of the digital-peripherals program.
--- -V200X only: NO VHDL-2008 (no to_hstring, no process(all), no unary reduce,
--- no reading of out ports). Every process infers exactly ONE edge of ONE
--- clock; every synchronizer is single-edge (Genus VHDL-601 discipline). NO
--- falling_edge of anything (specifically NOT of EnMemPeriph). NO clock gates,
--- NO generated clocks (the engine is a plain FSM + counters on clk).
+-- DMA: configurable multi-channel single-shot DMA controller with peripheral pacing and a CRC16-CDMA2000 ride-along.
+-- Base 0x6800 (mutex-page sub-slot 8).
+-- Two peripherals fused: an arbiter SLAVE (register file on gated ClkMem, D4-xcollapse-clean like RTC/PWM/OW) and an arbiter MASTER (the transfer engine on free-running clk = MCLK, slice 4 of arb_*).
+-- Zero pins.
+-- TWO IRQs: irq_done (combined channels-done, vector 118) and irq_err (vector 119).
+-- FROZEN design: ~/vesta_docs/digperiphs/dma_design.md (decisions D1-D21, orchestrator adjudications A1-A19).
+-- All of those are BINDING, and an An adjudication overrides any conflicting Dn prose.
+-- Peripheral #7 of the digital-peripherals program.
+-- -V200X only: NO VHDL-2008 (no to_hstring, no process(all), no unary reduce, no reading of out ports).
+-- Every process infers exactly ONE edge of ONE clock, and every synchronizer is single-edge (Genus VHDL-601 discipline).
+-- NO falling_edge of anything, specifically NOT of EnMemPeriph.
+-- NO clock gates and NO generated clocks: the engine is a plain FSM plus counters on clk.
 --
 -- ------------------------------------------------------------------------
--- D1 -- ONE clock family. The master-port FSM, the per-channel SRC/DST/LEN
--- working counters, the RR+priority picker, the CRC datapath, the pacing
--- edge-detectors, the sticky W1C flags (CHnDONE/CHnERR), BUSY/ACTIVECH and
--- the IRQ combiner all ride free-running `clk` (= MCLK at integration). The
--- register file (CR/CFG/SRC/DST/LEN/CRC stores, the launch/W1C toggles, the
--- registered read mux) rides gated `ClkMem`. The engine CANNOT ride ClkMem
--- (which ticks only during a bus access) -- it must advance autonomously
--- while the bus is idle. At integration clk and ClkMem are the SAME physical
--- mclk net (RTC A2 / PWM D1 precedent) so there is NO metastability CDC
--- between the engine and the arbiter (mclk<->mclk, exactly like the harts).
--- The ONLY true CDC is the three trigger inputs (2-FF synced, D9). Every
--- ClkMem<->clk hand-off below is a toggle or a held/quasi-static level, kept
--- standalone-honest so the block is correct even under a bench clk/ClkMem
--- skew.
+-- D1, ONE clock family.
+-- The master-port FSM, the per-channel SRC/DST/LEN working counters, the RR+priority picker, the CRC datapath, the pacing edge-detectors, the sticky W1C flags (CHnDONE/CHnERR), BUSY/ACTIVECH and the IRQ combiner all ride free-running `clk` (MCLK at integration).
+-- The register file (CR/CFG/SRC/DST/LEN/CRC stores, the launch/W1C toggles, the registered read mux) rides gated `ClkMem`.
+-- The engine CANNOT ride ClkMem, which ticks only during a bus access: it must advance autonomously while the bus is idle.
+-- At integration clk and ClkMem are the SAME physical mclk net (RTC A2 / PWM D1 precedent), so there is NO metastability CDC between the engine and the arbiter (mclk against mclk, exactly like the harts).
+-- The ONLY true CDC is the three trigger inputs (2-FF synced, D9).
+-- Every ClkMem/clk hand-off below is a toggle or a held quasi-static level, kept standalone-honest so the block is correct even under a bench clk/ClkMem skew.
 --
 -- MASTER-PORT HANDSHAKE (D2 + A1, the VERBATIM arb_lat_master.txn contract):
---   raise m_req with m_we/m_addr/m_wdata stable -> HOLD all stable through the
---   m_done cycle -> capture m_rdata ON the m_done cycle -> drop m_req via an
---   acked flop ONE clk AFTER m_done -> >=1 arbiter-observed m_req-low cycle
---   before any re-request (the need_release / WAIT-FOR-RELEASE contract; a
---   continuously-high m_req across two words is an M5a stale ghost that
---   corrupts the arbiter IDLE pick). Boundary depth 0 (the DMA lives inside
---   MCU fabric on mclk, NOT behind a tile boundary). FSM (single rising-clk
---   process, distinct states, NO counters):
---     M_IDLE   -- pick next serviceable channel (D7); deny-guard (D12) is
---                 evaluated HERE, the cycle BEFORE m_req; a denied read never
---                 asserts m_req.
---     M_RD_REQ -- m_req='1', m_we="0000", m_addr=src_word; wait m_done. On the
---                 m_done edge: data_hold<=m_rdata, fold CRC (D14) -> M_RD_CAP.
---     M_RD_CAP -- the ONE stale-req cycle (m_req still '1'); drop m_req.
---     M_RD_GAP -- m_req='0' for exactly 1 observed-low cycle.
---     M_WR_REQ -- m_req='1', m_we="1111", m_addr=dst_word, m_wdata=data_hold.
---     M_WR_CAP -- stale-req cycle; drop m_req.
---     M_WR_GAP -- 1 observed-low cycle; advance ptr/LEN (D11); LEN=0 -> CHnDONE
---                 + drop busy (D16); if the paced source needs a flag clear
---                 (D10) launch M_CLR, else -> M_IDLE. (Reused for the M_CLR
---                 write's own CAP/GAP via in_clr.)
---     M_CLR    -- (paced only) one WRITE txn W1C-ing the source data-ready flag
---                 (QSPI0 RXFULL every word / NFC0 frame ack at LEN=0), same
---                 verbatim handshake; completes through M_WR_CAP/M_WR_GAP.
---   A1 cycle accounting: m_done sampled at the edge ENDING the DATA cycle,
---   m_rdata captured AT that edge; CAP = the ONE stale-req cycle; req drops at
---   CAP->GAP; each GAP is exactly 1 observed-low cycle at depth 0 --
---   cycle-identical to arb_lat_master.txn (+2 re-request).
+--   Raise m_req with m_we/m_addr/m_wdata stable, then HOLD all of them stable through the m_done cycle, then capture m_rdata ON the m_done cycle, then drop m_req via an acked flop ONE clk AFTER m_done.
+--   At least one arbiter-observed m_req-low cycle must pass before any re-request (the need_release / WAIT-FOR-RELEASE contract).
+--   A continuously-high m_req across two words is an M5a stale ghost that corrupts the arbiter IDLE pick.
+--   Boundary depth 0: the DMA lives inside MCU fabric on mclk, NOT behind a tile boundary.
+--   FSM (single rising-clk process, distinct states, NO counters):
+--     M_IDLE   : pick the next serviceable channel (D7); the deny-guard (D12) is evaluated HERE, the cycle BEFORE m_req, so a denied read never asserts m_req.
+--     M_RD_REQ : m_req='1', m_we="0000", m_addr=src_word; wait for m_done. On the m_done edge data_hold takes m_rdata and the CRC folds (D14), then go to M_RD_CAP.
+--     M_RD_CAP : the ONE stale-req cycle (m_req still '1'); drop m_req.
+--     M_RD_GAP : m_req='0' for exactly 1 observed-low cycle.
+--     M_WR_REQ : m_req='1', m_we="1111", m_addr=dst_word, m_wdata=data_hold.
+--     M_WR_CAP : stale-req cycle; drop m_req.
+--     M_WR_GAP : 1 observed-low cycle; advance ptr/LEN (D11); LEN=0 sets CHnDONE and drops busy (D16); if the paced source needs a flag clear (D10) launch M_CLR, else return to M_IDLE. Reused for the M_CLR write's own CAP/GAP via in_clr.
+--     M_CLR    : paced only, one WRITE txn W1C-ing the source data-ready flag (QSPI0 RXFULL every word, NFC0 frame ack at LEN=0), same verbatim handshake; completes through M_WR_CAP/M_WR_GAP.
+--   A1 cycle accounting: m_done is sampled at the edge ENDING the DATA cycle and m_rdata is captured AT that edge; CAP is the ONE stale-req cycle; req drops on the CAP to GAP transition; each GAP is exactly 1 observed-low cycle at depth 0.
+--   That is cycle-identical to arb_lat_master.txn (+2 re-request).
 --
--- M_CLR ADDRESS DERIVATION (D10; Fable R3 correction of the first cut): the
--- source SR word to W1C is the channel's SRC 256B peripheral window base plus
--- a PER-SOURCE SR slot offset -- the two paced W1C sources do NOT share one:
---     QSPI (TRIG=2): QSPI.vhd SLOT_SR = 5 (+0x14)  -> m_addr = src(16:8)&"000101"
+-- M_CLR ADDRESS DERIVATION (D10; the R3 review correction of the first cut).
+-- The source SR word to W1C is the channel's SRC 256B peripheral window base plus a PER-SOURCE SR slot offset, and the two paced W1C sources do NOT share one:
+--     QSPI (TRIG=2): QSPI.vhd SLOT_SR = 5 (+0x14), m_addr = src(16:8)&"000101"
 --                    (slot 1 there is SLOT_CMD, whose lane-0 write LAUNCHES a
---                    transaction -- the original one-formula "+0x04" cut would
+--                    transaction, so the original one-formula "+0x04" cut would
 --                    have fired spurious QSPI commands)
---     NFC  (TRIG=3): NFC.vhd  SLOT_SR = 1 (+0x04)  -> m_addr = src(16:8)&"000001"
--- Verified against QSPI.vhd:50-55 (SLOT_* constants) and NFC.vhd:90-97. The
--- clear write drives m_wdata = 0x00000004 (ONLY SR bit 2 set; W1C-per-bit
--- clears nothing else -- A11).
+--     NFC  (TRIG=3): NFC.vhd  SLOT_SR = 1 (+0x04), m_addr = src(16:8)&"000001"
+-- Verified against QSPI.vhd:50-55 (SLOT_* constants) and NFC.vhd:90-97.
+-- The clear write drives m_wdata = 0x00000004: ONLY SR bit 2 set, and W1C-per-bit clears nothing else (A11).
 --
--- DENY TABLE (D12 + A5, read-only guard; generated READ word address checked
--- the cycle before m_req; a hit sets CHnERR + aborts the channel, no txn):
---   * mutex sub-slot window: byte 0x6000-0x60FF (src_work(16:8)="001100000")
---     -- the WHOLE window (A5: NMUTEX=16 aliases within it, deny it all); a
---     read is an atomic sh_master-attributed mutex CLAIM.
---   * irq_router CLAIM word: byte 0x7800 EXACTLY (word 0x1E00,
---     src_word="001111000000000") -- a read is an atomic lowest-ID claim.
---     PENDL/M/U, INSVCL/M/U and the HhEN rows are side-effect-free and NOT
---     denied (A5).
--- Write-side side effects (mutex release / router COMPLETE via a DST) are a
--- SOFTWARE contract this phase (A13) -- NOT guarded in hardware.
+-- DENY TABLE (D12 + A5, read-only guard).
+-- The generated READ word address is checked the cycle before m_req; a hit sets CHnERR and aborts the channel, with no txn issued.
+--   * mutex sub-slot window: byte 0x6000-0x60FF (src_work(16:8)="001100000"), the WHOLE window (A5: NMUTEX=16 aliases within it, so deny all of it).
+--     A read there is an atomic sh_master-attributed mutex CLAIM.
+--   * irq_router CLAIM word: byte 0x7800 EXACTLY (word 0x1E00, src_word="001111000000000"), where a read is an atomic lowest-ID claim.
+--     PENDL/M/U, INSVCL/M/U and the HhEN rows are side-effect-free and NOT denied (A5).
+-- Write-side side effects (mutex release, router COMPLETE via a DST) are a SOFTWARE contract this phase (A13), NOT guarded in hardware.
 --
--- ERROR MODEL (D13 + A18, reject-at-GO, A16): CHnERR (W1C) sets on (a) a deny
--- hit (D12, mid-flight abort); or at GO on (b) LEN=0; (c) SRC or DST
--- misaligned (bits 1:0 /= "00"); (d) SRC or DST out-of-window (byte >= 0x20000
--- i.e. bits 31:17 /= 0); (e) SRC or DST in the TCM HOLE 0x8000-0xBFFF (bits
--- 16:14 = "010", A18 -- tile-private space excluded from every sh_sel). A
--- reject-at-GO channel never runs (busy never rises); a deny hit aborts
--- mid-flight; irq_err asserts if ERRIE=1. Abort (D15/A15) sets NEITHER
--- CHnDONE nor CHnERR.
+-- ERROR MODEL (D13 + A18, reject-at-GO, A16).
+-- CHnERR (W1C) sets on (a) a deny hit (D12, mid-flight abort), or at GO on (b) LEN=0, (c) SRC or DST misaligned (bits 1:0 /= "00"), (d) SRC or DST out-of-window (byte 0x20000 or above, i.e. bits 31:17 /= 0), (e) SRC or DST in the TCM HOLE 0x8000-0xBFFF (bits 16:14 = "010", A18: tile-private space excluded from every sh_sel).
+-- A reject-at-GO channel never runs (busy never rises); a deny hit aborts mid-flight; irq_err asserts if ERRIE=1.
+-- Abort (D15/A15) sets NEITHER CHnDONE nor CHnERR.
 --
--- A8 IE-GATE DRIVER CONTRACT (integration, informational): the trigger taps
--- carry the source peripheral's EXISTING IE-gated irq_* level (trig_uart0_rc
--- <- irq_uart0_rc, trig_qspi0_rxf <- QSPI0 irq_rxf, trig_nfc0_rxf <- NFC0
--- irq_rxf -- NONE export a raw flag port). So pacing REQUIRES the source's IE
--- bit set (UCR_CIE / QSPIxIE.RXFIE / NFCxIE RXFIE); routing that vector to a
--- hart is independent and optional (an enabled-but-unrouted source pending in
--- the router is benign). The D10 flag-clear sequences are unchanged (the IE
--- gate is transparent to them).
+-- A8 IE-GATE DRIVER CONTRACT (integration, informational).
+-- The trigger taps carry the source peripheral's EXISTING IE-gated irq_* level: trig_uart0_rc comes from irq_uart0_rc, trig_qspi0_rxf from QSPI0 irq_rxf, trig_nfc0_rxf from NFC0 irq_rxf, and NONE of them export a raw flag port.
+-- So pacing REQUIRES the source's IE bit set (UCR_CIE / QSPIxIE.RXFIE / NFCxIE RXFIE); routing that vector to a hart is independent and optional (an enabled-but-unrouted source pending in the router is benign).
+-- The D10 flag-clear sequences are unchanged, since the IE gate is transparent to them.
 --
--- CDC CROSSING INVENTORY (matches the design-doc table crossing-for-crossing;
--- the ONLY true metastability CDC is #1-3, the trigger inputs):
---   1. trig_uart0_rc  mclk(UART idx13) -> clk : 2-FF + rising-edge (D9).
---   2. trig_qspi0_rxf smclk/clk_baud    -> clk : 2-FF + rising-edge (D9) async.
---   3. trig_nfc0_rxf  smclk(NFC)         -> clk : 2-FF + rising-edge (D9) async.
---   4. go_tgl/abort_tgl ClkMem -> clk : toggle + edge-detect (D8/D15); single
+-- CDC CROSSING INVENTORY (matches the design-doc table crossing-for-crossing).
+-- The ONLY true metastability CDC is #1-3, the trigger inputs.
+--   1. trig_uart0_rc  mclk(UART idx13) into clk : 2-FF + rising-edge (D9).
+--   2. trig_qspi0_rxf smclk/clk_baud    into clk : 2-FF + rising-edge (D9) async.
+--   3. trig_nfc0_rxf  smclk(NFC)         into clk : 2-FF + rising-edge (D9) async.
+--   4. go_tgl/abort_tgl ClkMem into clk : toggle + edge-detect (D8/D15), single
 --      mclk family at integration (PWM D2).
---   5. clr_done_tgl/clr_err_tgl (W1C) ClkMem -> clk : toggle + edge-detect,
+--   5. clr_done_tgl/clr_err_tgl (W1C) ClkMem into clk : toggle + edge-detect,
 --      cleared in the flag's own clk process, SET WINS over CLEAR (D16).
---   6. crc_wr_tgl (seed commit) ClkMem -> clk : toggle + edge-detect, loads
---      crc_acc (RTC write-commit idiom -- one owner of crc_acc, the clk FSM).
---   7. BUSY/ACTIVECH/CHnDONE/CHnERR/DMA0CRC/LEN clk -> ClkMem : held levels
+--   6. crc_wr_tgl (seed commit) ClkMem into clk : toggle + edge-detect, loads
+--      crc_acc (RTC write-commit idiom, one owner of crc_acc: the clk FSM).
+--   7. BUSY/ACTIVECH/CHnDONE/CHnERR/DMA0CRC/LEN clk into ClkMem : held levels
 --      sampled by the registered read mux (D4).
---   8. busy(ch) clk -> ClkMem : 2-FF busy_sync, the launch-suppress qualifier.
---   9. master port m_* <-> arb_*(4) : NOT a CDC (same free-running mclk,
+--   8. busy(ch) clk into ClkMem : 2-FF busy_sync, the launch-suppress qualifier.
+--   9. master port m_* against arb_*(4) : NOT a CDC (same free-running mclk,
 --      depth-0 registered handshake, D2).
 --
--- Register map (D5; base 0x6800, slot n @ 0x6800 + 4n, off MABPart(7:2);
--- 4-channel SUPERSET, absent channels (ch>=NCH) read 0 / ignore writes, D6):
+-- Register map (D5; base 0x6800, slot n at 0x6800 + 4n, decoded off MABPart(7:2)).
+-- The map is the 4-channel SUPERSET; absent channels (ch>=NCH) read 0 and ignore writes (D6).
 --   0  DMA0CR  : [0]DMAEN [4:1]CHnGO(w1 self-clearing, rd0) [8:5]CHnABORT(w1
 --                self-clearing, rd0) [12]DONEIE [13]ERRIE, rest rsvd rd0.
 --   1  DMA0SR  : [0]BUSY ro [4:1]CHnDONE W1C [8:5]CHnERR W1C [11:9]ACTIVECH ro.
 --   2..5   CH0 {SRC,DST,LEN,CFG};  6..9 CH1; 10..13 CH2; 14..17 CH3.
---     DMA0CnSRC/DST rw byte addr [16:0] (word-aligned); full written value
+--     DMA0CnSRC/DST rw byte addr [16:0] (word-aligned), full written value
 --       read back. DMA0CnLEN rw words, reads CURRENT REMAINING (the working
---       counter; 0 until the first GO). DMA0CnCFG: [0]SINC [1]DINC [5:2]TRIG
+--       counter, 0 until the first GO). DMA0CnCFG: [0]SINC [1]DINC [5:2]TRIG
 --       (0 mem2mem/1 UART0-RC/2 QSPI0-RXFULL/3 NFC0-frame) [6]PRIO [7]CRCEN.
---   18 DMA0CRC : rw [15:0] CRC16-CDMA2000 accumulator, reset 0xFFFF (seed via
---                write before GO, result read after DONE; engine folds in clk).
---   19 DMA0DESC: reserved -- reads 0, writes ignored. Slots >=20 read 0.
+--   18 DMA0CRC : rw [15:0] CRC16-CDMA2000 accumulator, reset 0xFFFF (seed by
+--                write before GO, result read after DONE; the engine folds it in clk).
+--   19 DMA0DESC: reserved, reads 0 and writes ignored. Slots >=20 read 0.
 -- ===========================================================================
 
 entity DMA is
@@ -145,9 +109,9 @@ entity DMA is
         AW  : natural := 15   -- master-port word-address width (SH_AW; D19)
     );
     port (
-        clk         : in  std_logic;                     -- free-running MCLK at integration (D1):
-                                                         -- master-port FSM, channel engine, CRC,
-                                                         -- pacing sync, sticky flags, IRQ combiner
+        clk         : in  std_logic;                     -- free-running MCLK at integration (D1), clocking the
+                                                         -- master-port FSM, channel engine, CRC, pacing sync,
+                                                         -- sticky flags and IRQ combiner
         resetn      : in  std_logic;                     -- chip reset, active-low (async)
 
         -- register-file slave port (RTC/PWM/OW house idiom, D4)
@@ -177,14 +141,10 @@ entity DMA is
         irq_err     : out std_logic;                     -- error (vector 119)
 
         -- EVFAB taps (event fabric, event_fabric_spec.md 2026-07-24).
-        -- task_go: one-clk fabric pulses (T0/T1 wire bits 0/1); consumed at the
-        -- SAME arm site as go_pulse -> reject-at-GO, busy suppression and
-        -- pacing arm behave IDENTICALLY to a register GO (frozen D8/D13
-        -- semantics). DMAEN is re-applied at the tap (the ClkMem-side wdata(0)
-        -- qualifier does not see task GOs). busy_any/BUSY covers a task GO the
-        -- same cycle it arrives (no blind window vs the register path's
-        -- go_pending). evt_done/evt_err: registered one-clk pulses at the
-        -- flags' SET sites (pre-IE; abort sets NEITHER, by D15 design).
+        -- task_go: one-clk fabric pulses (T0/T1 wire bits 0/1), consumed at the SAME arm site as go_pulse, so reject-at-GO, busy suppression and pacing arm behave IDENTICALLY to a register GO (frozen D8/D13 semantics).
+        -- DMAEN is re-applied at the tap, because the ClkMem-side wdata(0) qualifier does not see task GOs.
+        -- busy_any/BUSY covers a task GO the same cycle it arrives, so there is no blind window like the register path's go_pending.
+        -- evt_done/evt_err: registered one-clk pulses at the flags' SET sites, pre-IE; abort sets NEITHER, by D15 design.
         -- ch_busy: per-channel engaged levels for the fabric's OVR input.
         task_go     : in  std_logic_vector(3 downto 0) := (others => '0');
         evt_done    : out std_logic_vector(3 downto 0); -- EV10/EV11 wire bits 0/1
@@ -256,7 +216,7 @@ architecture behavioral of DMA is
     -- ---- B4 engine working state (clk domain) -----------------------------
     signal src_work : slv17_arr;                           -- 17-bit byte working SRC ptr
     signal dst_work : slv17_arr;                           -- 17-bit byte working DST ptr
-    signal len_work : slv32_arr;                           -- remaining LEN (words) -- SR readback
+    signal len_work : slv32_arr;                           -- remaining LEN in words, the SR readback
     signal cfg_work : slv8_arr;                            -- latched CFG (SINC/DINC/TRIG/PRIO/CRCEN)
     signal busy      : sl_arr;                             -- per-channel armed+busy (clk)
     signal pace_go   : sl_arr;                             -- paced event authorization
@@ -270,26 +230,19 @@ architecture behavioral of DMA is
     signal rr_ptr    : natural range 0 to 3;               -- D7 round-robin pointer
     signal activech  : std_logic_vector(2 downto 0);       -- SR.ACTIVECH (0 when idle)
     signal in_clr    : std_logic;                          -- M_CLR-write routing flag (CAP/GAP reuse)
-    signal data_hold : std_logic_vector(31 downto 0);      -- read->write word hold
+    signal data_hold : std_logic_vector(31 downto 0);      -- word held between the read and the write
     signal crc_acc   : std_logic_vector(15 downto 0);      -- DMA0CRC accumulator (clk owner)
 
     -- ---- B4 registered master-port outputs --------------------------------
     signal m_req_r   : std_logic;
     signal m_we_r    : std_logic_vector(3 downto 0);
-    -- CPR3/R3: the DMA's OWN address space is fixed at 17 bits (byte pointers
-    -- 0x00000-0x1FFFF: shared ROM, the peripheral window and the bulk RAM),
-    -- which is what every check and slice below is written against, and which
-    -- is still exactly the region a DMA has any business in. The MASTER PORT is
-    -- AW = SH_AW bits wide, and SH_AW became 16 on the orchestrator configs
-    -- (the read-only TCM apertures live at 0x20000+, deliberately out of the
-    -- DMA's reach). So the register stays 15 bits and the port is ZERO-EXTENDED
-    -- on the way out. Before this the register was declared AW-wide and every
-    -- assignment fed it a 15-bit value -- fine at AW=15, a shape mismatch that
-    -- kills the sim at the first descriptor fetch at AW=16 (measured: TRASMM at
-    -- DMA.vhd:688 on config/penta_wound.json).
+    -- CPR3/R3: the DMA's OWN address space is fixed at 17 bits (byte pointers 0x00000-0x1FFFF: shared ROM, the peripheral window and the bulk RAM).
+    -- That is what every check and slice below is written against, and it is still exactly the region a DMA has any business in.
+    -- The MASTER PORT is AW = SH_AW bits wide, and SH_AW became 16 on the orchestrator configs (the read-only TCM apertures live at 0x20000 and above, deliberately out of the DMA's reach).
+    -- So the register stays 15 bits and the port is ZERO-EXTENDED on the way out.
+    -- Before this the register was declared AW-wide while every assignment fed it a 15-bit value: fine at AW=15, but a shape mismatch that kills the sim at the first descriptor fetch at AW=16 (measured: TRASMM at DMA.vhd:688 on config/penta_wound.json).
     signal m_addr_r  : std_logic_vector(14 downto 0);
-    -- NULL RANGE when AW = 15, so the concatenation below is the identity and
-    -- every pre-CPR3 configuration is bit-identical.
+    -- NULL RANGE when AW = 15, so the concatenation below is the identity and every pre-CPR3 configuration is bit-identical.
     constant M_ADDR_PAD : std_logic_vector(AW-1 downto 15) := (others => '0');
     signal m_wdata_r : std_logic_vector(31 downto 0);
 
@@ -311,15 +264,14 @@ begin
     m_addr  <= M_ADDR_PAD & m_addr_r;
     m_wdata <= m_wdata_r;
 
-    -- BUSY same-cycle (D8/D16): any channel busy OR any GO pending (go_pending
-    -- asserts the instant the CHnGO write lands, clears when the engine has
-    -- observed the launch) -- no assert blind window for a write-then-poll.
+    -- BUSY same-cycle (D8/D16): any channel busy OR any GO pending.
+    -- go_pending asserts the instant the CHnGO write lands and clears once the engine has observed the launch, so a write-then-poll has no blind window.
     busy_any <= (busy(0) or go_pending(0) or task_go_eff(0))
              or (busy(1) or go_pending(1) or task_go_eff(1))
              or (busy(2) or go_pending(2) or task_go_eff(2))
              or (busy(3) or go_pending(3) or task_go_eff(3));
 
-    -- combined done/err (ch>=NCH flags never driven -> read 0, D6).
+    -- combined done/err (flags for ch>=NCH are never driven and read 0, D6).
     done_any <= done_flag(0) or done_flag(1) or done_flag(2) or done_flag(3);
     err_any  <= err_flag(0)  or err_flag(1)  or err_flag(2)  or err_flag(3);
 
@@ -327,24 +279,22 @@ begin
     irq_done <= done_any and doneie;
     irq_err  <= err_any  and errie;
 
-    -- B5 CRC chain: fold the READ word bytes b0->b3 (little-endian first, D14);
-    -- CrcOld starts from crc_acc, crc4 is registered on the M_RD_REQ->M_RD_CAP
-    -- (done) edge for CRCEN channels. Combinational, driven from m_rdata (valid
-    -- on the done cycle) so the folded word matches the captured data_hold.
+    -- B5 CRC chain: fold the READ word bytes b0 through b3, little-endian first (D14).
+    -- CrcOld starts from crc_acc, and crc4 is registered on the M_RD_REQ to M_RD_CAP (done) edge for CRCEN channels.
+    -- The chain is combinational and driven from m_rdata (valid on the done cycle), so the folded word matches the captured data_hold.
     u_crc0: CRC16 port map (DataIn => m_rdata(7  downto 0),  CrcOld => crc_acc, CrcOut => crc1);
     u_crc1: CRC16 port map (DataIn => m_rdata(15 downto 8),  CrcOld => crc1,    CrcOut => crc2);
     u_crc2: CRC16 port map (DataIn => m_rdata(23 downto 16), CrcOld => crc2,    CrcOut => crc3);
     u_crc3: CRC16 port map (DataIn => m_rdata(31 downto 24), CrcOld => crc3,    CrcOut => crc4);
 
     -- ------------------------- B1: register write (ClkMem, D4/D5/D8) ----------
-    -- Rising ClkMem, EnMemPeriph='0' qualified. CR/SR/CRC and per-channel
-    -- writes are lane-0 qualified (WEn(0)='0' -- a normal word/low store asserts
-    -- lane 0). A CHnGO=1 in DMA0CR flips go_tgl(ch) UNLESS DMAEN=0 or the channel
-    -- is already busy (busy_sync, D8) -- the descriptor (SRC/DST/LEN/CFG stores)
-    -- is quasi-static and sampled by the clk engine on the go edge. CHnABORT=1
-    -- flips abort_tgl(ch) unconditionally (D15). SR lane-0 W1C writes flip the
-    -- clr_*_tgl toggles (D16). DMA0CRC stages the seed + flips crc_wr_tgl (D14).
-    -- ch>=NCH writes are dropped (D6). Reset via resetn (bus domain).
+    -- Rising ClkMem, qualified by EnMemPeriph='0'.
+    -- CR/SR/CRC and per-channel writes are lane-0 qualified (WEn(0)='0'; a normal word or low store asserts lane 0).
+    -- A CHnGO=1 in DMA0CR flips go_tgl(ch) UNLESS DMAEN=0 or the channel is already busy (busy_sync, D8); the descriptor stores (SRC/DST/LEN/CFG) are quasi-static and sampled by the clk engine on the go edge.
+    -- CHnABORT=1 flips abort_tgl(ch) unconditionally (D15).
+    -- SR lane-0 W1C writes flip the clr_*_tgl toggles (D16).
+    -- DMA0CRC stages the seed and flips crc_wr_tgl (D14).
+    -- Writes to ch>=NCH are dropped (D6). Reset via resetn (bus domain).
     reg_write: process(resetn, ClkMem)
         variable ch  : integer;
         variable fld : integer;
@@ -425,11 +375,9 @@ begin
     end process;
 
     -- ------------------------- B1: register read (ClkMem, D4/D6) --------------
-    -- Registered read mux on rising ClkMem over data ALREADY in the mclk domain
-    -- (register stores + clk-domain flags/counters). No pre-latch, no bridge.
-    -- CHnGO/CHnABORT read 0 (self-clearing commands). LEN reads the WORKING
-    -- remaining counter (len_work). ch>=NCH channel slots read 0 (D6). Slots
-    -- >=20 and DESC read 0.
+    -- Registered read mux on rising ClkMem over data ALREADY in the mclk domain (register stores plus clk-domain flags and counters).
+    -- No pre-latch, no bridge.
+    -- CHnGO/CHnABORT read 0 (self-clearing commands), LEN reads the WORKING remaining counter (len_work), channel slots for ch>=NCH read 0 (D6), and DESC plus slots >=20 read 0.
     reg_read: process(ClkMem)
         variable ch  : integer;
         variable fld : integer;
@@ -465,8 +413,7 @@ begin
     end process;
 
     -- ------------------------- B8: busy 2-FF into ClkMem (D8) -----------------
-    -- Per-channel engine busy synchronized into ClkMem -- the launch-suppress
-    -- qualifier in reg_write (a GO to a busy channel must not flip go_tgl).
+    -- Per-channel engine busy synchronized into ClkMem: the launch-suppress qualifier in reg_write, since a GO to a busy channel must not flip go_tgl.
     busy_sync_proc: process(resetn, ClkMem)
     begin
         if resetn = '0' then
@@ -480,9 +427,9 @@ begin
     busy_sync <= busy_c2;
 
     -- ------------------------- B2/B3: clk-domain CDC (D8/D9/D15/D16) ----------
-    -- 2-FF + edge-detect every ClkMem->clk toggle (go/abort/W1C done/W1C err/
-    -- crc seed commit); 2-FF + rising-edge every trigger input (the ONLY true
-    -- metastability CDC). Single edge (rising clk) only. Reset via resetn.
+    -- 2-FF plus edge-detect on every ClkMem toggle crossing into clk (go, abort, W1C done, W1C err, crc seed commit).
+    -- 2-FF plus rising-edge on every trigger input, the ONLY true metastability CDC.
+    -- Single edge (rising clk) only. Reset via resetn.
     clk_cdc: process(resetn, clk)
     begin
         if resetn = '0' then
@@ -506,9 +453,8 @@ begin
         end if;
     end process;
 
-    -- EVFAB task GO: DMAEN re-applied clk-side (quasi-static level, crosses
-    -- bare per D4) -- a task GO with DMAEN=0 is completely inert, matching the
-    -- register path's ClkMem-side wdata(0) suppression.
+    -- EVFAB task GO: DMAEN is re-applied clk-side (quasi-static level, crosses bare per D4).
+    -- A task GO with DMAEN=0 is completely inert, matching the register path's ClkMem-side wdata(0) suppression.
     task_gates: for i in 0 to 3 generate
         task_go_eff(i) <= task_go(i) and dmaen;
         ch_busy(i)     <= busy(i) or go_pending(i) or task_go_eff(i);
@@ -516,14 +462,13 @@ begin
     end generate;
     evt_err  <= evt_err_p;
 
-    -- one-clk edge pulses (toggle: any change; trigger: RISING only, D9).
+    -- One-clk edge pulses: any change on a toggle, RISING only on a trigger (D9).
     go_edges: for i in 0 to 3 generate
         go_pulse(i)       <= '1' when (go_c2(i) /= go_prev(i)) else '0';
         abort_pulse(i)    <= '1' when (ab_c2(i) /= ab_prev(i)) else '0';
         clr_done_pulse(i) <= '1' when (cd_c2(i) /= cd_prev(i)) else '0';
         clr_err_pulse(i)  <= '1' when (ce_c2(i) /= ce_prev(i)) else '0';
-        -- D8 same-cycle BUSY cover: raw ClkMem toggle vs deepest clk-synced
-        -- stage -- high from the CHnGO write until the engine consumes it.
+        -- D8 same-cycle BUSY cover: raw ClkMem toggle against the deepest clk-synced stage, high from the CHnGO write until the engine consumes it.
         go_pending(i)     <= '1' when (go_tgl(i) /= go_prev(i)) else '0';
     end generate;
     crc_wr_pulse <= '1' when (crcw_c2 /= crcw_prev) else '0';
@@ -532,12 +477,9 @@ begin
     evt_nfc  <= '1' when (tn2 = '1' and tn_prev = '0') else '0';
 
     -- ------------------------- B4/B5/B6: channel engine + master FSM (clk) -----
-    -- Single rising-clk process (D2/A1). Owns: the SRC/DST/LEN working counters,
-    -- the RR+PRIO picker, the verbatim master-port handshake, the deny-guard, the
-    -- reject-at-GO error setter, the paced-source M_CLR, the CRC accumulator
-    -- (crc_acc, single owner), and the sticky CHnDONE/CHnERR flags (W1C clears
-    -- applied first, engine SETs override -> SET WINS, D16). NO counters for the
-    -- GAPs -- distinct states. Reset via resetn.
+    -- Single rising-clk process (D2/A1).
+    -- Owns the SRC/DST/LEN working counters, the RR+PRIO picker, the verbatim master-port handshake, the deny-guard, the reject-at-GO error setter, the paced-source M_CLR, the CRC accumulator (crc_acc, single owner), and the sticky CHnDONE/CHnERR flags (W1C clears applied first, engine SETs override, so SET WINS, D16).
+    -- NO counters for the GAPs: distinct states instead. Reset via resetn.
     engine: process(resetn, clk)
         variable selv    : integer range 0 to 3;
         variable idx     : integer range 0 to 3;
@@ -576,14 +518,13 @@ begin
             m_wdata_r <= (others => '0');
         elsif rising_edge(clk) then
 
-            -- (a) W1C flag clears (default; engine SETs below override -> SET wins)
+            -- (a) W1C flag clears; the engine SETs below override them, so SET wins
             for ch in 0 to 3 loop
                 if clr_done_pulse(ch) = '1' then done_flag(ch) <= '0'; end if;
                 if clr_err_pulse(ch)  = '1' then err_flag(ch)  <= '0'; end if;
             end loop;
 
-            -- EVFAB event pulses: default-cleared every cycle, set ONLY at the
-            -- done/err SET sites below -> registered one-clk pulses, pre-IE.
+            -- EVFAB event pulses: default-cleared every cycle and set ONLY at the done/err SET sites below, giving registered one-clk pulses, pre-IE.
             evt_done_p <= (others => '0');
             evt_err_p  <= '0';
 
@@ -592,7 +533,7 @@ begin
                 crc_acc <= crc_seed_reg;
             end if;
 
-            -- (c) paced event -> pace_go set; abort request latch (per channel)
+            -- (c) a paced event sets pace_go; abort requests are latched, per channel
             for ch in 0 to 3 loop
                 if ch < NCH then
                     if busy(ch) = '1' then
@@ -609,8 +550,7 @@ begin
                 end if;
             end loop;
 
-            -- (d) GO arm / reject-at-GO (D8/D13/A18): sample the programmed
-            -- stores on the go edge (quasi-static, data-before-flag).
+            -- (d) GO arm and reject-at-GO (D8/D13/A18): sample the programmed stores on the go edge (quasi-static, data before flag).
             for ch in 0 to 3 loop
                 if ch < NCH and (go_pulse(ch) = '1' or task_go_eff(ch) = '1') then
                     if (len_reg(ch) = X"00000000")
@@ -623,19 +563,15 @@ begin
                         err_flag(ch) <= '1';               -- channel never runs
                         evt_err_p    <= '1';               -- EVFAB EV12 set site
                     elsif busy(ch) = '0' then
-                        -- Fable R2 fix: exact clk-domain re-launch suppression.
-                        -- The ClkMem-side busy_sync qualifier has a 2-gated-edge
-                        -- blind window; a GO landing inside it must NOT reload
-                        -- the working registers of an in-flight channel.
+                        -- R2 review fix: exact clk-domain re-launch suppression.
+                        -- The ClkMem-side busy_sync qualifier has a 2-gated-edge blind window, and a GO landing inside it must NOT reload the working registers of an in-flight channel.
                         busy(ch)      <= '1';
                         src_work(ch)  <= src_reg(ch)(16 downto 0);
                         dst_work(ch)  <= dst_reg(ch)(16 downto 0);
                         len_work(ch)  <= len_reg(ch);
                         cfg_work(ch)  <= cfg_reg(ch);
-                        -- Fable R1 fix: a data-ready LEVEL already high at GO
-                        -- produces no new rising edge — arm pace_go from the
-                        -- CURRENT synced level so a pre-GO pending word/frame
-                        -- is serviced immediately (edge-detect covers the rest).
+                        -- R1 review fix: a data-ready LEVEL already high at GO produces no new rising edge.
+                        -- Arm pace_go from the CURRENT synced level so a word or frame pending before GO is serviced immediately; edge-detect covers the rest.
                         case cfg_reg(ch)(5 downto 2) is
                             when "0001" => pace_go(ch) <= tu2;
                             when "0010" => pace_go(ch) <= tq2;
@@ -704,6 +640,7 @@ begin
                         end if;
                     end if;
 
+                -- read txn in flight: capture the word and fold its CRC on the done cycle
                 when M_RD_REQ =>
                     if m_done = '1' then
                         data_hold <= m_rdata;
@@ -717,6 +654,7 @@ begin
                     m_req_r <= '0';                            -- acked flop drop
                     dstate  <= M_RD_GAP;
 
+                -- the observed-low cycle: abort here, or issue the paired write
                 when M_RD_GAP =>
                     if abort_req(cur_ch) = '1' then
                         busy(cur_ch)      <= '0';             -- read txn done, stop (no done)
@@ -730,6 +668,7 @@ begin
                         dstate    <= M_WR_REQ;
                     end if;
 
+                -- write txn in flight
                 when M_WR_REQ =>
                     if m_done = '1' then
                         dstate <= M_WR_CAP;
@@ -739,6 +678,7 @@ begin
                     m_req_r <= '0';                            -- acked flop drop
                     dstate  <= M_WR_GAP;
 
+                -- observed-low cycle after a write: retire the word, or close out the M_CLR write
                 when M_WR_GAP =>
                     if in_clr = '1' then
                         in_clr <= '0';                        -- M_CLR write's gap
@@ -768,11 +708,11 @@ begin
                             if needclr then
                                 m_req_r   <= '1';
                                 m_we_r    <= "1111";
-                                -- Fable R3 fix: the SR slot DIFFERS per source —
+                                -- R3 review fix: the SR slot DIFFERS per source.
                                 -- QSPI SLOT_SR = 5 (+0x14; slot 1 is CMD, whose
-                                -- lane-0 write LAUNCHES a transaction!), NFC
+                                -- lane-0 write LAUNCHES a transaction), NFC
                                 -- SLOT_SR = 1 (+0x04). Verified against
-                                -- QSPI.vhd:50-55 / NFC.vhd:90-97.
+                                -- QSPI.vhd:50-55 and NFC.vhd:90-97.
                                 if trg = "0010" then
                                     m_addr_r <= src_work(cur_ch)(16 downto 8) & "000101";
                                 else
@@ -787,11 +727,13 @@ begin
                         end if;
                     end if;
 
+                -- paced-source flag clear in flight (D10)
                 when M_CLR =>
                     if m_done = '1' then
                         dstate <= M_WR_CAP;                    -- reuse CAP/GAP (in_clr routes)
                     end if;
 
+                -- unreachable, kept so the state register always recovers
                 when others =>
                     dstate <= M_IDLE;
 

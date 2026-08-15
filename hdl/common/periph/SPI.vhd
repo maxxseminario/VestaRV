@@ -9,7 +9,7 @@ use work.MemoryMap.all;
 entity SPI is
     generic
     (
-        ENABLE_EXTENDED_MEM : boolean := false  
+        ENABLE_EXTENDED_MEM : boolean := false  -- true instantiates the SPI flash XIP core  
     );
     port
     (
@@ -21,6 +21,7 @@ entity SPI is
         irq_tc      : out std_logic;
         irq_te      : out std_logic;
 
+        -- Peripheral register bus: clk_mem is the gated bus clock, wen is active low per byte lane
         clk_mem      : in std_logic; 
         en_mem       : in std_logic; 
         wen          : in std_logic_vector(3 downto 0); 
@@ -81,14 +82,14 @@ architecture behavioral of SPI is
     -- SPIxCR Bit Fields
     signal spi_fen : std_logic; -- SPI Flash extended memory enable (bit 19)
     signal spi_mode : std_logic; -- 0 = Master, 1 = Slave (bit 18)
-    signal spi_tx_sb : std_logic; -- Transmit swap bytes. '0' <= no byte swap; '1' <= bytes swapped
-    signal spi_rx_sb : std_logic; -- Receive swap bytes. '0' <= no byte swap; '1' <= bytes swapped
+    signal spi_tx_sb : std_logic; -- Transmit swap bytes: '0' = no byte swap, '1' = bytes swapped
+    signal spi_rx_sb : std_logic; -- Receive swap bytes: '0' = no byte swap, '1' = bytes swapped
     signal spi_br : std_logic_vector(7 downto 0); -- Baud Rate. Baud rate = SMCLK / (2 * (1 + SCBR))
     signal spi_en : std_logic; -- Enable SPI. '0' = disabled, '1' = enabled
     signal spi_msb : std_logic; -- MSB first. '0' = LSB first, '1' = MSB first
     signal spi_tcie : std_logic; -- Transmit Complete Interrupt Enable. '0' = disabled, '1' = enabled
     signal spi_teie : std_logic; -- Transmit Buffer Empty Interrupt Enable. '0' = disabled, '1' = enabled
-    signal spi_dl : std_logic_vector(1 downto 0); -- Data length. "00" <= 8 bit transfers; "01" <= 16-bit transfers; "10" <= 32-bit transfers; "11" <= reserved
+    signal spi_dl : std_logic_vector(1 downto 0); -- Data length: "00" = 8-bit transfers, "01" = 16-bit, "10" = 32-bit, "11" = reserved
     signal spi_cpol : std_logic; -- Clock polarity. '0' = low when idle, '1' = high when idle
     signal spi_cpha : std_logic; -- Clock phase. '0' = data sampled on first edge, '1' = data sampled on second edge (master only)
 
@@ -109,7 +110,7 @@ architecture behavioral of SPI is
     signal start_tx : std_logic; -- Start Transmit
     signal clr_start_tx : std_logic; -- Clear Start Transmit
     signal tx_in_progress : std_logic; -- Transmit in Progress
-    signal m_counter : std_logic_vector(5 downto 0); --Dictates data length of system 
+    signal m_counter : std_logic_vector(5 downto 0); -- Master bit counter, dictates the data length of the transfer 
     signal m_spi_tcif : std_logic; -- Master SPI Transmit Complete Interrupt Flag
     signal m_spi_teif : std_logic; -- Master SPI Transmit Empty Interrupt Flag
     signal m_tx_sreg : std_logic_vector(31 downto 0); -- Master Tx Shift Reg
@@ -150,7 +151,7 @@ architecture behavioral of SPI is
     signal StartTXFlash     : std_logic;
     signal FlashActive      : std_logic;
     signal ClearFlashActive : std_logic;
-    signal FlashDL          : std_logic;   -- '0' <= 8 bits, '1' <= 32 bits
+    signal FlashDL          : std_logic;   -- '0' = 8-bit transfer, '1' = 32-bit transfer
     signal TXDataFlash      : std_logic_vector(31 downto 0);
     signal TXDataFlash_reversed : std_logic_vector(31 downto 0);
     signal mab_top          : std_logic_vector(23 downto 2);
@@ -211,6 +212,7 @@ begin
             else s_SPIxRX; 
         
         -- Interrupt Signal Routing
+        -- Master is busy while a transfer is pending or running; slave is busy while CS is asserted.
         spi_busy <= (tx_in_progress or start_tx or StartTXFlash) when spi_mode = '0' else not cs_in; 
 
         spi_tcif <= m_spi_tcif or s_spi_tcif;
@@ -227,20 +229,11 @@ begin
 
     ---------------------End Signal Routing ---------------------
 
-    -- VERDICT (S9, was "!! JUST CHANGED THIS TO NOT [clk]"): the `not clk` here
-    -- and on cg_clk_baud below is NOT the SPI protocol clock polarity -- it
-    -- selects which edge of the smclk-domain peripheral clock the baud counter
-    -- and the master shift FSM advance on. CPOL/CPHA are handled separately
-    -- (spi_cpol sets the idle sck and the sck_slave xor; spi_cpha toggles sck at
-    -- transfer start). Both baud gates use `not clk` so the counter
-    -- (clk_baud_src) and the one-shot clk_baud share the SAME edge family: the
-    -- en_clk_baud enable (combinational off baud_counter=0, registered on
-    -- clk_baud_src) is stable before clk_baud's active edge, so there is no
-    -- half-cycle skew / double-count. Proven correct three ways: Myshkin taped
-    -- out with identical `not clk`; the multicore boot reads its image from SPI0
-    -- flash by XIP (wrong shift/sck timing would corrupt the boot copy, yet all
-    -- 117 behavioral_mp tests boot); and SPI_flash_tb + SPI_tb pass. Left as-is
-    -- (flipping to `clk` would be a speculative change with no failing test).
+    -- VERDICT (S9, was "!! JUST CHANGED THIS TO NOT [clk]"): the `not clk` here and on cg_clk_baud below is NOT the SPI protocol clock polarity; it selects which edge of the smclk-domain peripheral clock the baud counter and the master shift FSM advance on.
+    -- CPOL/CPHA are handled separately: spi_cpol sets the idle sck and the sck_slave xor, spi_cpha toggles sck at transfer start.
+    -- Both baud gates use `not clk` so the counter (clk_baud_src) and the one-shot clk_baud share the SAME edge family: the en_clk_baud enable (combinational off baud_counter=0, registered on clk_baud_src) is stable before clk_baud's active edge, so there is no half-cycle skew or double-count.
+    -- Proven correct three ways: Myshkin taped out with identical `not clk`; the multicore boot reads its image from SPI0 flash by XIP (wrong shift/sck timing would corrupt the boot copy, yet all 117 behavioral_mp tests boot); and SPI_flash_tb + SPI_tb pass.
+    -- Left as-is, since flipping to `clk` would be a speculative change with no failing test.
     cg_clk_baud_src: entity work.ClkGate
         port map (
             ClkIn   => not clk, -- baud/shift-clock edge; see VERDICT above (not CPOL)
@@ -350,7 +343,7 @@ begin
                 s_rx_sreg_rev(7 downto 0) & s_rx_sreg_rev(15 downto 8) & s_rx_sreg_rev(23 downto 16) & s_rx_sreg_rev(31 downto 24) when "1110", -- Byte swap, MSB first, 32-bit
                 s_rx_sreg_rev(7 downto 0) & s_rx_sreg_rev(15 downto 8) & s_rx_sreg_rev(23 downto 16) & s_rx_sreg_rev(31 downto 24) when others; -- Byte swap, MSB first, 32-bit
 
-    -- SPI Master FSM
+    -- SPI Master FSM: loads tx_data_align, toggles sck and shifts one bit per clk_baud edge
     process(resetn, clk_baud, spi_en, spi_mode, tx_in_progress, start_tx, StartTXFlash, clr_spi_teif, clr_spi_tcif, spi_cpol, spi_fen)
     begin
         if resetn = '0' or spi_en = '0' or spi_mode = '1' then
@@ -475,7 +468,7 @@ begin
 
 
 
-    -- SPI Slave FSM (Update Phase - Leading Edge of spi_clk_in)
+    -- SPI Slave FSM, update phase on the leading edge of sck_slave
     sck_slave <= sck_in xor spi_cpol; -- Invert SCK for Slave if CPOL is set
     process(resetn, spi_mode, spi_en, cs_in, sck_slave, clr_spi_teif, tx_data_align, s_counter)
     begin
@@ -483,11 +476,11 @@ begin
             -- Reset State
             s_tx_sreg <= (others => '0');
         elsif s_counter = "000000" then
-            -- asynchronous latch s_tx_sreg
+            -- Asynchronously reload the slave shift register between transfers
             s_tx_sreg <= tx_data_align; -- Load Tx Data
             s_spi_teif <= '1'; -- Set Transmit Empty Interrupt Flag
 
-        elsif rising_edge(sck_slave) then --leading edge of sck_slave (update phase)
+        elsif rising_edge(sck_slave) then -- Leading edge of sck_slave: update phase
                 -- Shift Data 
                 s_tx_sreg <= '0' & s_tx_sreg(31 downto 1); -- Shift out data
         end if;
@@ -499,7 +492,7 @@ begin
 
     s_SPIxRX <= s_rx_data_align when s_counter = "000000" else s_SPIxRX; -- Assign Slave Receive Register
 
-    -- SPI_Slave FSM (Sample Phase - Trailing Edge of spi_clk_in)
+    -- SPI Slave FSM, sample phase on the trailing edge of sck_slave
     process(resetn, sck_slave, spi_en, spi_mode, cs_in, clr_spi_tcif)
     begin 
         if resetn = '0' or spi_en = '0' or spi_mode = '0' or cs_in = '1' then
@@ -507,7 +500,7 @@ begin
             s_counter <= (others => '0');
             s_rx_sreg <= (others => '0');
 
-        elsif falling_edge(sck_slave) then --Sample Phase
+        elsif falling_edge(sck_slave) then -- Sample phase
             s_counter <= s_counter + 1; -- Increment counter
             
             -- Transaction Complete Check
@@ -565,7 +558,7 @@ begin
         -- Use the pulse for ClearFlashActive in mclk domain
         ClearFlashActive <= ClearFlashActive_pulse;
 
-        -- Activity monitor 
+        -- Activity monitor: a flash fetch on clk_mem_flash raises FlashActive until the FSM clears it
         process (resetn, spi_en, spi_fen, ClearFlashActive, clk_mem_flash, mclk)
         begin
             if resetn = '0' or spi_en = '0' or spi_fen = '0' or ClearFlashActive = '1' then
@@ -588,7 +581,7 @@ begin
             ClkOut  => ClkFlash
         );
 
-        -- State machine 
+        -- Flash read FSM: CS-high delay, then command, address, data word, then idle
         process (resetn, spi_en, spi_fen, ClkFlash, clr_start_tx)
         begin
             if resetn = '0' or spi_en = '0' or spi_fen = '0' then
@@ -606,7 +599,7 @@ begin
 
                 case FlashState is
                     when FlashStateCSHigh =>
-                        -- Set CS high and wait for the delay time (4 cycles of lfxt as smclk !)
+                        -- Hold CS high for the flash deselect delay: 4 ClkFlash cycles, i.e. 4 lfxt cycles when smclk is lfxt
                         FlashDelay <= FlashDelay + 1;
 
                         if FlashDelay = "11" then
@@ -638,10 +631,10 @@ begin
                             NextMAB <= NextMAB + 1;
                         end if;
                     when FlashStateIdle1 =>
-                        -- This is simply a 1 clock cycle buffer to set ClearFlashActive_smclk back to '0' before Idle2
+                        -- One clock cycle of slack so ClearFlashActive_smclk is back at '0' before Idle2
                         FlashState <= FlashStateIdle2;
                     when FlashStateIdle2 =>
-                        -- 
+                        -- If the CPU wants the word this stream is already positioned on, keep reading; otherwise raise CS and restart the command.
                         if mab(23 downto 2) = NextMAB then
                             StartTXFlash <= '1';
                             FlashState <= FlashStateRead;
@@ -691,6 +684,7 @@ begin
 
 
     -- Register Synchronization Process
+    -- RX and SR are latched INVERTED at the end of the bus access and inverted again on read, so a read returns the value sampled when en_mem fell.
     reg_sync: process(en_mem, SPIxRX, SPIxSR)
     begin
         if falling_edge(en_mem) then 

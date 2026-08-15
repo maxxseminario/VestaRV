@@ -1,14 +1,12 @@
 -------------------------------------------------------------------------------
 -- st25r3916_model_tb.vhd
 -------------------------------------------------------------------------------
--- Standalone self-checking bench for tb/st25r3916_model.vhd -- the behavioral
--- model of the ST ST25R3916 used as Castalia's off-die NFC AFE (see that file's
--- header for the datasheet citations [S1].. and the assumption list [A1]..).
+-- Standalone self-checking bench for tb/st25r3916_model.vhd, the behavioral model of the ST ST25R3916 used as Castalia's off-die NFC AFE.
+-- See that file's header for the datasheet citations [S1].. and the assumption list [A1]..
 --
--- WHAT IS UNDER TEST. Not the RF protocol: tb/nfc_reader_model.vhd owns that
--- and is instantiated here only as a REALISTIC RF STIMULUS SOURCE for the last
--- functional group. What this bench proves is the ST25R3916's own SPI register
--- front end and, above all, the TWO-DIRECTIONAL transparent-mode gate:
+-- WHAT IS UNDER TEST.
+-- Not the RF protocol: tb/nfc_reader_model.vhd owns that and is instantiated here only as a REALISTIC RF STIMULUS SOURCE for the last functional group.
+-- What this bench proves is the ST25R3916's own SPI register front end and, above all, the TWO-DIRECTIONAL transparent-mode gate:
 --     * RF passes through the part ONLY while it is in transparent mode
 --       (G-GATE-RF proves the negative: envelope edges are counted as blocked,
 --        MISO stays tristate);
@@ -16,39 +14,25 @@
 --       (G-GATE-SPI proves the negative: SCLK edges with BSS high change no
 --        register and complete no frame, they only bump the ignored-edge
 --        counter).
--- Those two negatives are the deliverable; the register/command groups exist to
--- make the positive side credible.
+-- Those two negatives are the deliverable; the register/command groups exist to make the positive side credible.
 --
 -- BENCH-SIDE WIRING NOTES.
---   * MISO is a tristate pin, so the bench resolves it exactly like QSPI_tb /
---     I3C_tb do: miso_net <= pin_miso when pin_miso_oe = '1' else 'Z'. A 'Z'
---     reading in a check is therefore a real, meaningful "the AFE is not
---     driving this wire" result, not an X-propagation accident.
---   * rf_env_in / rf_field_in are multiplexed (sel_reader) between bench-driven
---     levels and the nfc_reader_model outputs, so the directed groups can step
---     the envelope one edge at a time while the last group hands the model a
---     real modified-Miller frame.
---   * mcu_rf_tx_en is held high during the reader groups. It is the model's
---     clearly-labelled BENCH-ONLY port (NFC0's rf_tx_en has no ST25R3916 pin);
---     driving it high simply lets nfc_reader_model's decoder open its response
---     window promptly instead of burning its full bounded FDT guard.
+--   * MISO is a tristate pin, so the bench resolves it exactly like QSPI_tb / I3C_tb do: miso_net gets pin_miso when pin_miso_oe is '1', else 'Z'.
+--     A 'Z' reading in a check is therefore a real, meaningful "the AFE is not driving this wire" result, not an X-propagation accident.
+--   * rf_env_in / rf_field_in are multiplexed (sel_reader) between bench-driven levels and the nfc_reader_model outputs, so the directed groups can step the envelope one edge at a time while the last group hands the model a real modified-Miller frame.
+--   * mcu_rf_tx_en is held high during the reader groups.
+--     It is the model's clearly-labelled BENCH-ONLY port (NFC0's rf_tx_en has no ST25R3916 pin); driving it high simply lets nfc_reader_model's decoder open its response window promptly instead of burning its full bounded FDT guard.
 --
--- SPI MASTER TIMING. CPOL = 0 / CPHA = 1 per DS12484 Sect. 4.3.3: the bench
--- presents MOSI before the rising edge (the model samples on the FALLING edge)
--- and samples MISO at the end of the SCLK high phase (the model updates MISO on
--- the RISING edge). MSB first. No setup/hold margin is being characterized --
--- this is a functional bench (model assumption [A10]).
+-- SPI MASTER TIMING.
+-- CPOL = 0 / CPHA = 1 per DS12484 Sect. 4.3.3: the bench presents MOSI before the rising edge (the model samples on the FALLING edge) and samples MISO at the end of the SCLK high phase (the model updates MISO on the RISING edge).
+-- MSB first.
+-- No setup/hold margin is being characterized; this is a functional bench (model assumption [A10]).
 --
--- NEGATIVE CONTROL. Guarded by the NEGCTRL generic (default true): the normal
--- run ends with one deliberately wrong expectation, so a healthy result is
--- "ALL CHECKS PASSED" plus EXACTLY ONE failure. NEGCTRL=>"false" gives a clean
--- zero-failure run -- note the QUOTED literal, see the entity's generic comment
--- for the Xcelium *W,EVBBOL silent-ignore trap.
+-- NEGATIVE CONTROL.
+-- Guarded by the NEGCTRL generic (default true): the normal run ends with one deliberately wrong expectation, so a healthy result is "ALL CHECKS PASSED" plus EXACTLY ONE failure.
+-- Setting NEGCTRL false gives a clean zero-failure run; note that the override literal must be QUOTED, see the entity's generic comment for the Xcelium *W,EVBBOL silent-ignore trap.
 --
--- NOT CHECKED HERE (because the model does not implement it -- see its "WHAT
--- THIS MODEL DOES NOT IMPLEMENT" list): analog measurement commands, framing /
--- CRC / anticollision, timers, PT_memory, I2C, stream modes, test registers,
--- MCU_CLK division ratios, and any real-silicon timing.
+-- NOT CHECKED HERE, because the model does not implement it (see its "WHAT THIS MODEL DOES NOT IMPLEMENT" list): analog measurement commands, framing / CRC / anticollision, timers, PT_memory, I2C, stream modes, test registers, MCU_CLK division ratios, and any real-silicon timing.
 -------------------------------------------------------------------------------
 
 library ieee;
@@ -60,19 +44,13 @@ use work.nfc_bfm_pkg.all;
 
 entity st25r3916_model_tb is
     generic (
-        -- Mandatory negative control (house rule: a bench that cannot fail
-        -- proves nothing). With NEGCTRL = true -- the DEFAULT, and the way this
-        -- bench is normally run -- one deliberately wrong expectation is
-        -- checked at the very end, so a healthy run reports EXACTLY ONE
-        -- failure and the banner reads "PASS (1 expected negative-control
-        -- failure)". Override to false for a clean zero-failure run.
+        -- Mandatory negative control (house rule: a bench that cannot fail proves nothing).
+        -- With NEGCTRL = true, the DEFAULT and the way this bench is normally run, one deliberately wrong expectation is checked at the very end, so a healthy run reports EXACTLY ONE failure and the banner reads "PASS (1 expected negative-control failure)".
+        -- Override to false for a clean zero-failure run.
         --
-        -- OVERRIDE GOTCHA (Xcelium 20.09): a BARE VHDL boolean generic
-        -- override is SILENTLY IGNORED -- xmelab emits only a *W,EVBBOL
-        -- warning and keeps the default, producing a fake green. The literal
-        -- must be QUOTED: -gpg "st25r3916_model_tb.NEGCTRL=>\"false\"".
-        -- xrun.sh in xcelium/cots_test/st25r3916/ does this and treats EVBBOL
-        -- as fatal so a mis-specified override cannot pass unnoticed.
+        -- OVERRIDE GOTCHA (Xcelium 20.09): a BARE VHDL boolean generic override is SILENTLY IGNORED, xmelab emits only a *W,EVBBOL warning and keeps the default, producing a fake green.
+        -- The value inside the -gpg generic association for st25r3916_model_tb.NEGCTRL must be the QUOTED (escaped) literal \"false\", never a bare false.
+        -- xrun.sh in xcelium/cots_test/st25r3916/ does this and treats EVBBOL as fatal so a mis-specified override cannot pass unnoticed.
         NEGCTRL : boolean := true
     );
 end entity st25r3916_model_tb;
@@ -222,8 +200,8 @@ begin
         );
 
     ---------------------------------------------------------------------------
-    -- The RF world. nfc_reader_model is the EXISTING ISO-14443A reader model;
-    -- nothing of its protocol logic is duplicated here or in the AFE model.
+    -- The RF world.
+    -- nfc_reader_model is the EXISTING ISO-14443A reader model; nothing of its protocol logic is duplicated here or in the AFE model.
     ---------------------------------------------------------------------------
     rdr : entity work.nfc_reader_model
         generic map (RF_HALF => RF_HALF)
@@ -273,6 +251,7 @@ begin
     ---------------------------------------------------------------------------
     -- Monitors: transition counters the checks sample as before/after deltas.
     ---------------------------------------------------------------------------
+    -- counts every transition of the resolved MISO wire
     miso_mon : process (miso_net)
         variable n : natural := 0;
     begin
@@ -282,6 +261,7 @@ begin
         end if;
     end process miso_mon;
 
+    -- counts every transition of the MCU_CLK output, so the gating checks can compare deltas
     mclk_mon : process (pin_mcu_clk)
         variable n : natural := 0;
     begin
@@ -292,7 +272,8 @@ begin
     end process mclk_mon;
 
     ---------------------------------------------------------------------------
-    -- STIMULUS
+    -- STIMULUS.
+    -- One sequential program: the functional groups run in order and score into sb.
     ---------------------------------------------------------------------------
     stim_proc : process
 
@@ -308,6 +289,7 @@ begin
         variable ok            : boolean;
 
         -- ---- raw SPI master (CPOL=0 / CPHA=1, MSB first) ------------------
+        -- start a frame: park SCLK low, then pull BSS low
         procedure spi_open is
         begin
             sclk  <= '0';
@@ -316,6 +298,7 @@ begin
             wait for TCS;
         end procedure;
 
+        -- end a frame: release BSS high (the model acts on this rising edge)
         procedure spi_close is
         begin
             wait for TCS;
@@ -323,6 +306,7 @@ begin
             wait for TCS;
         end procedure;
 
+        -- shift one byte in both directions, MSB first
         procedure spi_byte(din : in std_logic_vector(7 downto 0);
                            dout : out std_logic_vector(7 downto 0)) is
             variable acc : std_logic_vector(7 downto 0);
@@ -340,6 +324,7 @@ begin
         end procedure;
 
         -- ---- ST25R3916 SPI operation modes (Table 11) --------------------
+        -- single register write: "00" mode prefix, address, one data byte
         procedure reg_wr(a : natural; d : std_logic_vector(7 downto 0)) is
         begin
             spi_open;
@@ -348,6 +333,7 @@ begin
             spi_close;
         end procedure;
 
+        -- three-byte write from one address, exercising the auto-increment
         procedure reg_wr3(a : natural; da, db, dc : std_logic_vector(7 downto 0)) is
         begin
             spi_open;
@@ -358,6 +344,7 @@ begin
             spi_close;
         end procedure;
 
+        -- single register read: "01" mode prefix, address, one dummy byte clocked out
         procedure reg_rd(a : natural; d : out std_logic_vector(7 downto 0)) is
             variable acc : std_logic_vector(7 downto 0);
         begin
@@ -368,6 +355,7 @@ begin
             d := acc;
         end procedure;
 
+        -- three-byte read from one address, exercising the auto-increment
         procedure reg_rd3(a : natural;
                           da, db, dc : out std_logic_vector(7 downto 0)) is
             variable acc : std_logic_vector(7 downto 0);
@@ -380,6 +368,7 @@ begin
             spi_close;
         end procedure;
 
+        -- one-byte direct command frame (Table 13)
         procedure direct_cmd(c : std_logic_vector(7 downto 0)) is
         begin
             spi_open;
@@ -387,7 +376,7 @@ begin
             spi_close;
         end procedure;
 
-        -- space-B access = direct command 0xFB chained ahead of the frame
+        -- space-B access is direct command 0xFB chained ahead of the frame
         procedure regb_wr(a : natural; d : std_logic_vector(7 downto 0)) is
         begin
             spi_open;
@@ -397,6 +386,7 @@ begin
             spi_close;
         end procedure;
 
+        -- space-B register read behind the same 0xFB prefix
         procedure regb_rd(a : natural; d : out std_logic_vector(7 downto 0)) is
             variable acc : std_logic_vector(7 downto 0);
         begin
@@ -408,6 +398,7 @@ begin
             d := acc;
         end procedure;
 
+        -- FIFO load: 0x80 prefix then three data bytes
         procedure fifo_wr3(da, db, dc : std_logic_vector(7 downto 0)) is
         begin
             spi_open;
@@ -418,6 +409,7 @@ begin
             spi_close;
         end procedure;
 
+        -- FIFO read: 0x9F prefix then three dummy bytes to clock the data out
         procedure fifo_rd3(da, db, dc : out std_logic_vector(7 downto 0)) is
             variable acc : std_logic_vector(7 downto 0);
         begin
@@ -429,7 +421,7 @@ begin
             spi_close;
         end procedure;
 
-        -- ---- reader-model frame launch (bounded, never hangs) ------------
+        -- ---- reader-model frame launch: bounded wait, never hangs --------
         procedure reader_frame(done_ok : out boolean) is
             variable start_n : natural;
         begin
@@ -619,7 +611,7 @@ begin
         n1 := mclk_edges;
         sb.check_true("G-CLK: carrier clock present on MCU_CLK with en = 1", n1 > n0);
 
-        reg_wr(A_IO_CONF1, x"06");         -- out_cl<1:0> = 11 -> output disabled
+        reg_wr(A_IO_CONF1, x"06");         -- out_cl<1:0> = 11 disables the output
         wait for 500 ns;
         n0 := mclk_edges;
         wait for 2 us;
@@ -628,7 +620,7 @@ begin
         sb.check_bit("G-CLK: MCU_CLK level is low when disabled", pin_mcu_clk, '0');
 
         reg_wr(A_IO_CONF1, x"00");         -- re-enable
-        reg_wr(A_OP_CTRL, x"03");          -- en = 0 (keep en_fd_c) -> LF clock
+        reg_wr(A_OP_CTRL, x"03");          -- en = 0 (keep en_fd_c) selects the LF clock
         wait for 500 ns;
         n0 := mclk_edges;
         wait for 4 us;
@@ -763,8 +755,7 @@ begin
         sb.check_bit("G-EXIT: the read above already left transparent mode",
                      transparent_mode, '0');
 
-        -- re-enter, then prove the exit happens ON the BSS falling edge and
-        -- that the very frame which caused it is parsed as ordinary SPI
+        -- re-enter, then prove the exit happens ON the BSS falling edge and that the very frame which caused it is parsed as ordinary SPI
         direct_cmd(x"DC");
         sb.check_bit("G-EXIT: re-entered transparent mode", transparent_mode, '1');
         sclk <= '0';
@@ -797,8 +788,7 @@ begin
 
         ----------------------------------------------------------------
         -- G-RDR: composition with the existing ISO-14443A reader model.
-        -- nfc_reader_model drives a real modified-Miller REQA short frame at
-        -- the antenna; the AFE must relay it to MISO only while transparent.
+        -- nfc_reader_model drives a real modified-Miller REQA short frame at the antenna; the AFE must relay it to MISO only while transparent.
         ----------------------------------------------------------------
         report "=== G-RDR: composition with nfc_reader_model ===" severity note;
         sel_reader <= '1';
@@ -843,8 +833,8 @@ begin
         wait for 500 ns;
 
         ----------------------------------------------------------------
-        -- GROUP-NEG: NEGATIVE CONTROL (mandatory, LAST) -- one deliberately
-        -- wrong expectation, so the scoreboard proves it can fail.
+        -- GROUP-NEG: NEGATIVE CONTROL (mandatory, LAST).
+        -- One deliberately wrong expectation, so the scoreboard proves it can fail.
         ----------------------------------------------------------------
         if NEGCTRL then
             report "=== GROUP-NEG: NEGATIVE CONTROL ===" severity note;
@@ -856,8 +846,7 @@ begin
         end if;
 
         ----------------------------------------------------------------
-        -- Final verdict: sb.errors must be EXACTLY the negative control
-        -- (1 when NEGCTRL is on, 0 when it is off).
+        -- Final verdict: sb.errors must be EXACTLY the negative control (1 when NEGCTRL is on, 0 when it is off).
         ----------------------------------------------------------------
         wait for 1 us;
         sb.report_summary("ST25R3916 MODEL TB");

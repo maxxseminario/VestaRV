@@ -1,7 +1,6 @@
--- MCU.template.npu.vhd — the NPU-conditional blocks of MCU.template.vhd
--- (A2/Argus: carved out so a config with peripherals.npu=false emits an
--- MCU.vhd with no NPU, no staging RAM and no 0xC000 window). Each block
--- is spliced verbatim at its @GEN marker when the NPU is present.
+-- MCU.template.npu.vhd: the NPU-conditional blocks of MCU.template.vhd.
+-- A2/Argus: carved out so a config with peripherals.npu=false emits an MCU.vhd with no NPU, no staging RAM and no 0xC000 window.
+-- Each block is spliced verbatim at its @GEN marker when the NPU is present.
 
 --@NPUBLOCK:npu-component@
     -- NPUx
@@ -53,13 +52,10 @@
         );
     end component;
 --@NPUBLOCK:npu-fabric-decls@
-        -- M7d mover: NPU register bus (M11: window slot 10 @0x4A00). Its MMR
-        -- read is COMBINATIONAL like I2C's -> same bridge register. The NPU's
-        -- DATA now lives in the shared NPU staging RAM at 0xC000 (bank above)
-        -- — the SRAM-port mux is fed by the slave fabric, and hart 0 no
-        -- longer sleeps during THINK (the staging RAM is not its private
-        -- memory any more; "don't touch 0xC000-0xFFFF during a THINK" is a
-        -- software contract, poll NPUCR bit 16).
+        -- M7d mover: NPU register bus (M11: window slot 10 @0x4A00).
+        -- Its MMR read is COMBINATIONAL like I2C's, so it takes the same bridge register.
+        -- The NPU's DATA now lives in the shared NPU staging RAM at 0xC000 (bank above): the SRAM-port mux is fed by the slave fabric, and hart 0 no longer sleeps during THINK.
+        -- The staging RAM is not hart 0's private memory any more; "don't touch 0xC000-0xFFFF during a THINK" is a software contract, poll NPUCR bit 16.
         signal shslv_npu_sel,   shslv_npu_en    : std_logic;
         signal shslv_rd_npu     : std_logic := '0';
         signal npu_sh_en_n      : std_logic;
@@ -76,12 +72,9 @@
         signal npu0_mux_ram_clk     : std_logic;
         signal npu0_active          : std_logic;
 --@NPUBLOCK:npu-sleep-comment@
-    -- M11: npu0_active no longer sleeps hart 0 — the NPU's vectors live in
-    -- the SHARED staging RAM at 0xC000 (an arbiter slave), not in hart 0's
-    -- private RAM1 (retired). The sleep existed to keep hart 0's un-stallable
-    -- private RAM1 accesses from colliding with the NPU's port mux; shared
-    -- accesses have arbiter back-pressure and "no 0xC000-0xFFFF access during
-    -- a THINK" is the software contract (poll NPUCR bit 16, shnpu.S).
+    -- M11: npu0_active no longer sleeps hart 0, because the NPU's vectors live in the SHARED staging RAM at 0xC000 (an arbiter slave), not in hart 0's retired private RAM1.
+    -- The sleep existed to keep hart 0's un-stallable private RAM1 accesses from colliding with the NPU's port mux.
+    -- Shared accesses have arbiter back-pressure, and "no 0xC000-0xFFFF access during a THINK" is the software contract (poll NPUCR bit 16, shnpu.S).
 --@NPUBLOCK:npu-instance@
     npu0: entity work.NPU
         generic map(
@@ -98,10 +91,8 @@
 
             --@GEN:bus:npu0@
 
-            -- MUXed SRAM Inputs — M11: the staging RAM's bus side is the
-            -- ARBITER SLAVE fabric (0xC000-0xFFFF page), not hart 0's adddec:
-            -- any hart stages vectors through the shared window. Active-low
-            -- strobes shimmed exactly like the bulk RAM banks.
+            -- MUXed SRAM inputs (M11): the staging RAM's bus side is the ARBITER SLAVE fabric (0xC000-0xFFFF page), not hart 0's adddec, so any hart stages vectors through the shared window.
+            -- Active-low strobes shimmed exactly like the bulk RAM banks.
             SramQ_in      => npuram_q,
             SramA_in      => sh_addr(11 downto 0),
             SramD_in      => sh_wdata,
@@ -120,17 +111,14 @@
 
             NpuActive       => npu0_active,
             --@GEN:evfab-taps:npu0@
-            -- DP-SG (2026-07-22): think-done IRQ, irq_router source 120
-            -- (registered level in NPU.vhd; W1C via NPUSR.0, IE = NPUCR.19)
+            -- DP-SG (2026-07-22): think-done IRQ, irq_router source 120 (registered level in NPU.vhd; W1C via NPUSR.0, IE = NPUCR.19)
             ThinkDoneIrq    => irq_npu0_td
     );
 --@NPUBLOCK:npuram-instance@
-    -- M11: NPU staging RAM @0xC000-0xFFFF (hart 0's retired private RAM1
-    -- macro, promoted to an ARBITER SLAVE). The NPU's internal port mux
-    -- (NpuMuxSel) still owns these pins: bus side = the shared-slave fabric
-    -- (see the NPU instance's Sram*_in), NPU side during a THINK. Q feeds
-    -- both the slave read mux (npuram_q) and the NPU's SramQ_in. BLOCKPWR's
-    -- RAM1OFF bit keeps gating this macro (pgen_mem(2)).
+    -- M11: NPU staging RAM @0xC000-0xFFFF (hart 0's retired private RAM1 macro, promoted to an ARBITER SLAVE).
+    -- The NPU's internal port mux (NpuMuxSel) still owns these pins: bus side = the shared-slave fabric (see the NPU instance's Sram*_in), NPU side during a THINK.
+    -- Q feeds both the slave read mux (npuram_q) and the NPU's SramQ_in.
+    -- BLOCKPWR's RAM1OFF bit keeps gating this macro (pgen_mem(2)).
     npuram0: entity work.sram1p16k_hvt_pg
         port map (
             Q     => npuram_q,

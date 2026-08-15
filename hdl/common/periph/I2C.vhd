@@ -65,64 +65,74 @@ architecture behavioral of I2C is
 	signal I2CxCR		: std_logic_vector(21 downto 0);	-- I2C control register
 	--signal I2CxFCR		: std_logic_vector();	-- I2C flow control register
 	signal I2CxSR		: std_logic_vector(15 downto 0);	-- I2C status register
-	signal I2CxSRLat	: std_logic_vector(15 downto 0);
+	signal I2CxSRLat	: std_logic_vector(15 downto 0);	-- Inverted latched copy of I2CxSR for the memory read path
 	signal I2CxMTX		: std_logic_vector(7 downto 0);	-- I2C master mode transmit register
 	signal I2CxMRX		: std_logic_vector(7 downto 0);	-- I2C master mode receive register
 	signal I2CxSTX		: std_logic_vector(7 downto 0);	-- I2C slave mode transmit register
 	signal I2CxSRX		: std_logic_vector(7 downto 0);	-- I2C slave mode receive register
-	signal I2CxSRXLat	: std_logic_vector(7 downto 0);
+	signal I2CxSRXLat	: std_logic_vector(7 downto 0);	-- Inverted latched copy of I2CxSRX for the memory read path
 	signal I2CxAR		: std_logic_vector(6 downto 0);	-- I2C slave address register for this device
-	signal I2CxAMR		: std_logic_vector(6 downto 0);	-- I2C slave address mask. Any bits that are a '1' in this register cause the same bits in the slave address register to accept both '0's and '1's when listening for the slave address
+	-- I2C slave address mask.
+	-- A '1' bit here makes the matching bit of the slave address register accept both '0' and '1' when listening for the slave address.
+	signal I2CxAMR		: std_logic_vector(6 downto 0);
 
 	-- I2CxCR
-	signal I2CSTRIE		: std_logic;	-- I2C start received interrupt enable. '0' <= interrupt disabled; '1' <= interrupt enabled
-	signal I2CSPRIE		: std_logic;	-- I2C stop received interrupt enable. '0' <= interrupt disabled; '1' <= interrupt enabled
-	signal I2CMSTSIE	: std_logic;	-- I2C master mode start condition sent interrupt enable. '0' <= interrupt disabled; '1' <= interrupt enabled
-	signal I2CMSPSIE	: std_logic;	-- I2C master mode stop condition sent interrupt enable. '0' <= interrupt disabled; '1' <= interrupt enabled
-	signal I2CMARBIE	: std_logic;	-- I2C master mode arbitration error interrupt enable. '0' <= interrupt disabled; '1' <= interrupt enabled
-	signal I2CMTXEIE	: std_logic;	-- I2C master transmit register empty interrupt enable. '0' <= interrupt disabled; '1' <= interrupt enabled
-	signal I2CMNRIE		: std_logic;	-- I2C master mode NACK received interrupt enable. '0' <= interrupt disabled; '1' <= interrupt enabled
-	signal I2CMXCIE		: std_logic;	-- I2C master transfer complete interrupt enable. '0' <= interrupt disabled; '1' <= interrupt enabled
-	signal I2CSAIE		: std_logic;	-- I2C slave mode addressed interrupt enable. '0' <= interrupt disabled; '1' <= interrupt enabled
-	signal I2CSTXEIE	: std_logic;	-- I2C slave transmit register empty interrupt enable. '0' <= interrupt disabled; '1' <= interrupt enabled
-	signal I2CSOVFIE	: std_logic;	-- I2C slave receive register overflow interrupt enable. '0' <= interrupt disabled; '1' <= interrupt enabled
-	signal I2CSNRIE		: std_logic;	-- I2C slave mode NACK received from master interrupt enable. '0' <= interrupt disabled; '1' <= interrupt enabled
-	signal I2CSXCIE		: std_logic;	-- I2C slave mode transfer complete interrupt enable. '0' <= interrupt disabled; '1' <= interrupt enabled
-	signal I2CMDIV		: std_logic_vector(3 downto 0);	-- I2C master mode clock divider. The master mode finite state machine clock source is smclk, which is divided by a factor of 4 * 2^I2CMDIV
-	signal I2CGCE		: std_logic;	-- I2C slave general call enable. When enabled, this slave will be addressed if a global call is issued for slave receiver mode. '0' <= disabled; '1' <= enabled
-	signal I2CSN		: std_logic;	-- I2C slave NACK next byte received. When this slave receives its address or a data byte from the master, send a NACK in reply. '0' <= send an ACK; '1' <= send a NAKC
-	signal I2CSCS		: std_logic;	-- I2C slave clock stretching enable. When enabled, the slave will hold the SCL line low during the slave ACK states. '0' <= SCL forced to '0' while in slave ACK state; '1' <= SCL released to '1' during all slave states
-	signal I2CSEN		: std_logic;	-- I2C slave enable. When enabled, this device behaves as an I2C slave and begins listening for its address. If master mode is also enabled on this device, then this device will act as a slave until commanded to send a start condition with I2CMST, whereupon it will begin acting as a master. Once the master transfer is complete, it will resume acting as a slave. '0' <= disabled; '1' <= enabled.
-	signal I2CMEN		: std_logic;	-- I2C master enable. When enabled, this device awaits a command to send a start condition with I2CMST, and then begins acting as a master until commanded to send a stop condition with I2CMSP. If master mode is also enabled on this device, then this device will act as a slave until commanded to send a start condition with I2CMST, whereupon it will begin acting as a master. Once the master transfer is complete, it will resume acting as a slave. '0' <= disabled; '1' <= enabled.
+	signal I2CSTRIE		: std_logic;	-- I2C start received interrupt enable ('0' = disabled, '1' = enabled)
+	signal I2CSPRIE		: std_logic;	-- I2C stop received interrupt enable ('0' = disabled, '1' = enabled)
+	signal I2CMSTSIE	: std_logic;	-- I2C master mode start condition sent interrupt enable ('0' = disabled, '1' = enabled)
+	signal I2CMSPSIE	: std_logic;	-- I2C master mode stop condition sent interrupt enable ('0' = disabled, '1' = enabled)
+	signal I2CMARBIE	: std_logic;	-- I2C master mode arbitration error interrupt enable ('0' = disabled, '1' = enabled)
+	signal I2CMTXEIE	: std_logic;	-- I2C master transmit register empty interrupt enable ('0' = disabled, '1' = enabled)
+	signal I2CMNRIE		: std_logic;	-- I2C master mode NACK received interrupt enable ('0' = disabled, '1' = enabled)
+	signal I2CMXCIE		: std_logic;	-- I2C master transfer complete interrupt enable ('0' = disabled, '1' = enabled)
+	signal I2CSAIE		: std_logic;	-- I2C slave mode addressed interrupt enable ('0' = disabled, '1' = enabled)
+	signal I2CSTXEIE	: std_logic;	-- I2C slave transmit register empty interrupt enable ('0' = disabled, '1' = enabled)
+	signal I2CSOVFIE	: std_logic;	-- I2C slave receive register overflow interrupt enable ('0' = disabled, '1' = enabled)
+	signal I2CSNRIE		: std_logic;	-- I2C slave mode NACK received from master interrupt enable ('0' = disabled, '1' = enabled)
+	signal I2CSXCIE		: std_logic;	-- I2C slave mode transfer complete interrupt enable ('0' = disabled, '1' = enabled)
+	signal I2CMDIV		: std_logic_vector(3 downto 0);	-- I2C master mode clock divider: the master FSM clock is smclk divided by 4 * 2^I2CMDIV
+	signal I2CGCE		: std_logic;	-- I2C slave general call enable: when enabled, this slave is addressed by a global call issued for slave receiver mode ('0' = disabled, '1' = enabled)
+	signal I2CSN		: std_logic;	-- I2C slave NACK next byte received: reply with a NACK when this slave receives its address or a data byte from the master ('0' = send an ACK, '1' = send a NACK)
+	signal I2CSCS		: std_logic;	-- I2C slave clock stretching enable: when enabled, the slave holds SCL low during the slave ACK states ('0' = SCL forced to '0' while in the slave ACK state, '1' = SCL released to '1' during all slave states)
+	-- I2C slave enable ('0' = disabled, '1' = enabled).
+	-- When enabled, this device behaves as an I2C slave and begins listening for its address.
+	-- If master mode is also enabled, the device acts as a slave until commanded to send a start condition with I2CMST, whereupon it begins acting as a master.
+	-- Once the master transfer is complete it resumes acting as a slave.
+	signal I2CSEN		: std_logic;
+	-- I2C master enable ('0' = disabled, '1' = enabled).
+	-- When enabled, this device awaits a command to send a start condition with I2CMST, then acts as a master until commanded to send a stop condition with I2CMSP.
+	-- If slave mode is also enabled, the device acts as a slave until commanded to send a start condition with I2CMST, whereupon it begins acting as a master.
+	-- Once the master transfer is complete it resumes acting as a slave.
+	signal I2CMEN		: std_logic;
 
 	-- I2CxFCR (everything in this register is write-1 only, and reads as all '0's)
-	signal I2CSC		: std_logic;	-- I2C slave continue. When clock stretching is enabled, set this bit to tell the slave to continue with the ACK/NACK phase of the transfer by releasing SCL.
-	signal I2CMRB		: std_logic;	-- I2C master read byte. Enter master receiver mode and begin reading a byte from the slave.
+	signal I2CSC		: std_logic;	-- I2C slave continue: with clock stretching enabled, set this bit to make the slave release SCL and continue with the ACK/NACK phase of the transfer.
+	signal I2CMRB		: std_logic;	-- I2C master read byte: enter master receiver mode and begin reading a byte from the slave.
 	signal I2CMSP		: std_logic;	-- I2C master send stop condition.
-	signal I2CMST		: std_logic;	-- I2C master send start condition. This should be the ONLY way to send a START condition.
+	signal I2CMST		: std_logic;	-- I2C master send start condition; this must be the ONLY way a START condition is sent.
 
 	-- I2CxSR
-	signal I2CSTR		: std_logic;	-- I2C start received interrupt flag. '0' <= no pending interrupt; '1' <= pending interrupt
-	signal I2CSPR		: std_logic;	-- I2C stop received interrupt flag. '0' <= no pending interrupt; '1' <= pending interrupt
-	signal I2CMXC		: std_logic;	-- I2C master transfer complete interrupt flag. '0' <= no pending interrupt; '1' <= pending interrupt
+	signal I2CSTR		: std_logic;	-- I2C start received interrupt flag ('0' = none pending, '1' = pending)
+	signal I2CSPR		: std_logic;	-- I2C stop received interrupt flag ('0' = none pending, '1' = pending)
+	signal I2CMXC		: std_logic;	-- I2C master transfer complete interrupt flag ('0' = none pending, '1' = pending)
 	signal I2CMNR		: std_logic;	-- I2C master mode NACK received interrupt flag.
-	signal I2CMTXE		: std_logic;	-- I2C master transmit register empty interrupt flag. Indicates that the transmit register is ready to accept another byte. '0' <= no pending interrupt; '1' <= pending interrupt
-	signal I2CMARB		: std_logic;	-- I2C master mode arbitration error interrupt flag. '0' <= no arbitration error; '1' <= arbitration error
-	signal I2CMSPS		: std_logic;	-- I2C master mode stop condition sent interrupt flag. '0' <= no pending interrupt; '1' <= pending interrupt
-	signal I2CMSTS		: std_logic;	-- I2C master mode start condition sent interrupt flag. '0' <= no pending interrupt; '1' <= pending interrupt
+	signal I2CMTXE		: std_logic;	-- I2C master transmit register empty interrupt flag: the transmit register is ready to accept another byte ('0' = none pending, '1' = pending)
+	signal I2CMARB		: std_logic;	-- I2C master mode arbitration error interrupt flag ('0' = no arbitration error, '1' = arbitration error)
+	signal I2CMSPS		: std_logic;	-- I2C master mode stop condition sent interrupt flag ('0' = none pending, '1' = pending)
+	signal I2CMSTS		: std_logic;	-- I2C master mode start condition sent interrupt flag ('0' = none pending, '1' = pending)
 
-	signal I2CSXC		: std_logic;	-- I2C slave mode transfer complete interrupt flag. '0' <= no pending interrupt; '1' <= pending interrupt
-	signal I2CSNR		: std_logic;	-- I2C slave mode NACK received from master interrupt flag. '0' <= NACK not received; '1' <= NACK received (interrupt pending)
-	signal I2CSOVF		: std_logic;	-- I2C slave receive register overflow interrupt flag. Indicates that this slave has failed to read one or more bytes from the I2CxSRX register before they were overwritten. '0' <= no interrupt pending; '1' <= interrupt pending
-	signal I2CSTXE		: std_logic;	-- I2C slave transmit register empty interrupt flag. Indicates that the transmit register is ready to accept another byte. '0' <= no pending interrupt; '1' <= pending interrupt
-	signal I2CSA		: std_logic;	-- I2C slave mode addressed interrupt flag, indicates that this slave has been addressed. '0' <= no pending interrupt; '1' <= pending interrupt
-	signal I2CSTM		: std_logic;	-- I2C slave transmitter mode. Indicates that the slave has been addressed for slave transmitter mode. Only valid if I2CSA = '1'. '0' <= slave receiver mode (read bit was '0'); '1' <= slave transmitter mode (read bit was '1')
-	signal I2CMCB		: std_logic;	-- I2C master controls bus flag. '0' <= this master is not in currenlty in control of the bus; '1' <= this master controls the bus
-	signal I2CBS		: std_logic;	-- I2C bus state. '0' <= bus is idle; '1' <= bus is active
+	signal I2CSXC		: std_logic;	-- I2C slave mode transfer complete interrupt flag ('0' = none pending, '1' = pending)
+	signal I2CSNR		: std_logic;	-- I2C slave mode NACK received from master interrupt flag ('0' = no NACK received, '1' = NACK received, interrupt pending)
+	signal I2CSOVF		: std_logic;	-- I2C slave receive register overflow interrupt flag: this slave failed to read one or more bytes from I2CxSRX before they were overwritten ('0' = none pending, '1' = pending)
+	signal I2CSTXE		: std_logic;	-- I2C slave transmit register empty interrupt flag: the transmit register is ready to accept another byte ('0' = none pending, '1' = pending)
+	signal I2CSA		: std_logic;	-- I2C slave mode addressed interrupt flag: this slave has been addressed ('0' = none pending, '1' = pending)
+	signal I2CSTM		: std_logic;	-- I2C slave transmitter mode: the slave has been addressed for slave transmitter mode, valid only if I2CSA = '1' ('0' = slave receiver mode, read bit was '0'; '1' = slave transmitter mode, read bit was '1')
+	signal I2CMCB		: std_logic;	-- I2C master controls bus flag ('0' = this master does not currently control the bus, '1' = this master controls the bus)
+	signal I2CBS		: std_logic;	-- I2C bus state ('0' = bus idle, '1' = bus active)
 
 
 	---------- Memory Bus Signal Declarations ----------
-	signal MABPartInteger	: natural range 0 to 63;
+	signal MABPartInteger	: natural range 0 to 63;			-- Register slot number decoded from MABPart (0 when this peripheral is not selected)
 	signal rdataPart		: std_logic_vector(21 downto 0);	-- The part of rdata_out that the registers use
 	
 
@@ -131,20 +141,24 @@ architecture behavioral of I2C is
 	type MasterState_t is (MasterStateStart1, MasterStateStart2, MasterStateDataTransmitter1, MasterStateDataTransmitter2, MasterStateDataTransmitter3, MasterStateDataTransmitter4, MasterStateAckTransmitter1, MasterStateAckTransmitter2, MasterStateAckTransmitter3, MasterStateAckTransmitter4, MasterStateDataReceiver1, MasterStateDataReceiver2, MasterStateDataReceiver3, MasterStateDataReceiver4, MasterStateAckReceiver1, MasterStateAckReceiver2, MasterStateAckReceiver3, MasterStateAckReceiver4, MasterStateStop1, MasterStateStop2, MasterStateStop3);
 	type SlaveState_t is (SlaveStateAddr, SlaveStateAck, SlaveStateReceiver, SlaveStateTransmitter, SlaveStateNotAddressed);
 	
-	signal StartSlaveRX			: std_logic;	-- Indicates a start condition was just received. Signals the slave process to awaken.
-	signal ClearStartSlaveRX	: std_logic;
+	signal StartSlaveRX			: std_logic;	-- A start condition was just received; this signals the slave process to awaken
+	signal ClearStartSlaveRX	: std_logic;	-- Clears StartSlaveRX one SCL falling edge after it is set
 	
-	signal MasterSDA			: std_logic;	-- The desired value of SDA while in Master mode. Write to this what you want the actual value of SDA to be ('0' for pulled low, '1' for released high). Do not pay attention to what the value of SDA_DIR should be when setting this.
-	signal MasterSCL			: std_logic;	-- The desired value of SCL while in Master mode. Write to this what you want the actual value of SCL to be ('0' for pulled low, '1' for released high). Do not pay attention to what the value of SCL_DIR should be when setting this.
+	-- The desired value of SDA and SCL while in Master mode.
+	-- Write the value the line should actually take ('0' for pulled low, '1' for released high); the SDA_DIR and SCL_DIR polarity is handled elsewhere, so ignore it here.
+	signal MasterSDA			: std_logic;
+	signal MasterSCL			: std_logic;
 	signal ClkMaster			: std_logic;	-- The clock for the Master mode FSM
-	signal EnClkMaster			: std_logic;
+	signal EnClkMaster			: std_logic;	-- Enable for the master clock divider (a transfer is pending or in progress)
 	signal MasterState			: MasterState_t;	-- The state of the master FSM
 	signal MasterBit			: std_logic_vector(2 downto 0);	-- The master mode bit number to transfer next
 	signal MasterData			: std_logic_vector(7 downto 0);	-- The data being sent/received in Master mode
+	-- Clear requests for the write-1-only flow control bits, raised by the FSM that consumes each command.
 	signal ClearI2CMST			: std_logic;
 	signal ClearI2CMSP			: std_logic;
 	signal ClearI2CMRB			: std_logic;
 
+	-- Clear requests for the status flags, raised by a write-1 to the matching I2CxSR bit.
 	signal ClearI2CSPR			: std_logic;
 	signal ClearI2CSTR			: std_logic;
 
@@ -161,19 +175,21 @@ architecture behavioral of I2C is
 	signal ClearI2CSTXE			: std_logic;
 	signal ClearI2CSA			: std_logic;
 
-	signal MasterWrite			: std_logic;	-- Indicates that the master should enter master transmitter mode and begin sending a byte to the slave
-	signal ClearMasterWrite		: std_logic;
+	signal MasterWrite			: std_logic;	-- The master should enter master transmitter mode and begin sending a byte to the slave
+	signal ClearMasterWrite		: std_logic;	-- Clear request for MasterWrite, raised once the byte has been taken
 
-	signal SlaveSDA				: std_logic;	-- The desired value of SDA while in Slave mode. Write to this what you want the actual value of SDA to be ('0' for pulled low, '1' for released high). Do not pay attention to what the value of SDA_DIR should be when setting this.
-	signal SlaveFsmSDA			: std_logic;	-- The value of SDA as dictated by the slave FSM, which is used whenever the slave is not ACKing/NACKing
-	signal SlaveSCL				: std_logic;	-- The desired value of SCL while in Slave mode. Write to this what you want the actual value of SCL to be ('0' for pulled low, '1' for released high). Do not pay attention to what the value of SCL_DIR should be when setting this.
+	-- The desired value of SDA and SCL while in Slave mode.
+	-- Write the value the line should actually take ('0' for pulled low, '1' for released high); the SDA_DIR and SCL_DIR polarity is handled elsewhere, so ignore it here.
+	signal SlaveSDA				: std_logic;
+	signal SlaveFsmSDA			: std_logic;	-- The value of SDA dictated by the slave FSM, used whenever the slave is not ACKing or NACKing
+	signal SlaveSCL				: std_logic;
 	signal SlaveState			: SlaveState_t;	-- The state of the slave FSM
 	signal SDA_LAT				: std_logic;	-- A sampled value of SDA on the rising edge of SCL, for use in the slave FSM
 	signal SlaveBit				: std_logic_vector(2 downto 0);	-- The slave mode bit number to receive next
 	signal SlaveData			: std_logic_vector(7 downto 0);	-- The slave data
 	--signal SlaveAddressed		: std_logic;	-- Indicates that this slave has been addressed (this is different than the slave addressed interrupt flag, which can be cleared in the status register)
-	signal SlaveJustAddressed	: std_logic;	-- Indicates that the slave was just addressed, and no bytes have been sent/received in the current transmission
-	signal ClearI2CSC			: std_logic;
+	signal SlaveJustAddressed	: std_logic;	-- The slave was just addressed and no bytes have been sent or received yet in the current transmission
+	signal ClearI2CSC			: std_logic;	-- Clear request for I2CSC, held asserted except while a slave ACK state may consume it
 	
 begin
 
@@ -227,6 +243,8 @@ begin
 
 	---------- I2C Core ----------
 	-- Signal Routing
+	-- The pads are open-drain: the output data is tied low and the direction pin does the driving, so a released line floats up to the bus pull-up.
+	-- Whoever owns the bus, master or slave, supplies the desired line level through I2CMCB.
 	SDA_OUT <= '0';
 	SCL_OUT <= '0';
 	SDA_REN <= SDA_REN_in;
@@ -272,17 +290,19 @@ begin
 		end if;
 	end process;
 
+	-- Retire the start flag one SCL falling edge after the start condition was seen.
 	process (resetn, I2CMEN, I2CSEN, SCL_IN)
 	begin
 		if resetn = '0' or (I2CMEN = '0' and I2CSEN = '0') then
 			ClearStartSlaveRX <= '0';
 		elsif falling_edge(SCL_IN) then
 			-- Clear the start slave RX line
-			-- There is one major issue with doing it this way: if there is a start condition immediately followed by a stop condition (i.e. no data sent, so no SCL clock transistions), it will fail to recognize the stop condition.
+			-- One known limitation: a start condition immediately followed by a stop condition (no data sent, so no SCL transitions) is not recognized as a stop.
 			ClearStartSlaveRX <= StartSlaveRX;
 		end if;
 	end process;
 
+	-- Bus busy tracking and the stop-received flag.
 	process (resetn, I2CMEN, I2CSEN, StartSlaveRX, ClearI2CSPR, SDA_IN)
 	begin
 		-- Watch for a stop condition, which happens when SDA has a rising edge while SCL is stable on '1'
@@ -311,7 +331,7 @@ begin
 	CGMaster: entity work.ClkDivPower2
 	generic map
 	(
-		nbits	=> 4	-- 4 bits => 16 selections => max divider of 2^15 (32768)
+		nbits	=> 4	-- 4 bits gives 16 selections, so a maximum divider of 2^15 (32768)
 	)
 	port map
 	(
@@ -344,16 +364,18 @@ begin
 			
 			case MasterState is
 				when MasterStateStart1 =>
-					-- This state is responsible for first checking if the bus is available and, if so, generating the first part of the start condition: the falling edge of SDA. If the bus is not available, it waits until the bus is available and then generates a start condition.
+					-- This state checks whether the bus is available and, if so, generates the first part of the start condition: the falling edge of SDA.
+					-- If the bus is not available it waits here until it is, then generates the start condition.
 					ClearI2CMST <= '1';
 					MasterBit <= "111";
 					
 					-- Ensure SCL is not asserted
 					MasterSCL <= '1';
 
-					-- Check the bus state if this master is not already in control of the bus (aka, check unless this is a repeated start)
+					-- Check the bus state unless this master already controls the bus, i.e. unless this is a repeated start.
 					if (I2CMCB = '1' or I2CBS = '0') and MasterSCL = '1' then
-						-- The bus is (probably) idle. Indicate that this master has control of the bus and create a falling edge of SDA to begin the start condition.
+						-- The bus is (probably) idle.
+						-- Claim control of the bus and create a falling edge of SDA to begin the start condition.
 						I2CMSTS <= '1';
 						I2CMCB <= '1';
 						MasterSDA <= '0';
@@ -371,7 +393,8 @@ begin
 						MasterState <= MasterStateDataTransmitter1;
 					end if;
 				
-				-- These next master transmitter states are responsible for sending a byte of data. They also watch for arbitration errors and slaves that stretch the clock.
+				-- These next master transmitter states send a byte of data.
+				-- They also watch for arbitration errors and for slaves that stretch the clock.
 				when MasterStateDataTransmitter1 =>
 					-- This state configures SDA with the data to be sent
 					-- Send the next data bit on SDA, MSB first
@@ -393,9 +416,10 @@ begin
 					-- This state watches for loss of arbitration and clock stretching
 					-- Wait until SCL is '1' in case the slave employs clock stretching
 					if SCL_IN = '1' then
-						-- The slave has released the clock. Check for a loss of arbitration
+						-- The slave has released the clock, so check for a loss of arbitration.
 						if SDA_IN /= MasterSDA then
-							-- Arbitration lost. Give up control of the bus by releasing SDA (SCL is already '1' at this point)
+							-- Arbitration lost.
+							-- Give up control of the bus by releasing SDA (SCL is already '1' at this point).
 							I2CMARB <= '1';
 							MasterSDA <= '1';
 							MasterState <= MasterStateStop1;
@@ -477,7 +501,8 @@ begin
 						MasterState <= MasterStateDataReceiver4;
 					end if;
 				when MasterStateDataReceiver4 =>
-					-- This state causes the falling edge of SCL. If this is the last byte, then it latches the new receive register, sets the transfer complete flag, and waits for a command to read another byte or send a stop condition.
+					-- This state causes the falling edge of SCL.
+					-- If this is the last bit it latches the new receive register, sets the transfer complete flag, and waits for a command to read another byte or send a stop condition.
 					MasterSCL <= '0';
 					MasterBit <= MasterBit - 1;	-- Might get overridden below, this is intentional
 
@@ -504,7 +529,7 @@ begin
 				when MasterStateAckReceiver1 =>
 					-- This state sets SDA so that the master can either ACK to tell the slave that it wants to send another byte, or NACK to tell the slave that the transaction is done.
 					if I2CMSP = '1' or I2CMST = '1' then
-						-- The master either wishes to end the transaction with a stop condition or begin a brand new transaction. Either way, send a NACK
+						-- The master wants to end the transaction with a stop condition or begin a brand new one; either way, send a NACK.
 						MasterSDA <= '1';
 					else
 						-- The master wishes to receive another byte, so send an ACK
@@ -601,6 +626,7 @@ begin
 
 
 	-- Slave Mode FSM
+	-- Sample SDA on each SCL rising edge; the FSM below consumes SDA_LAT, not the live pin.
 	process (resetn, I2CSEN, I2CBS, I2CMCB, SCL_IN)
 	begin
 		if resetn = '0' or I2CSEN = '0' or I2CBS = '0' or I2CMCB = '1' then
@@ -610,9 +636,13 @@ begin
 		end if;
 	end process;
 
-	SlaveSDA <= I2CSN when (SlaveJustAddressed = '1' or I2CSTM = '0') and SlaveState = SlaveStateAck else SlaveFsmSDA;	-- SDA is ordinarily controlled by the slave FSM, except for when the slave ACKs/NACKs after receiving its address or after receiving a data byte from the master
-	SlaveSCL <= '0' when I2CSCS = '1' and I2CSC = '0' and SlaveState = SlaveStateAck else '1';	-- The slave usually does not assert SCL, except for when it wants to stretch the clock. In this implementation, the only (optional, when I2CSCS = '1') clock stretching done is during the ACK/NACK phase to allow this slave to prepare for the next byte transfer.
+	-- SDA is ordinarily controlled by the slave FSM, except while the slave ACKs or NACKs after receiving its address or a data byte from the master.
+	SlaveSDA <= I2CSN when (SlaveJustAddressed = '1' or I2CSTM = '0') and SlaveState = SlaveStateAck else SlaveFsmSDA;
+	-- The slave usually does not assert SCL, except when it wants to stretch the clock.
+	-- The only clock stretching in this implementation is optional (I2CSCS = '1') and happens during the ACK/NACK phase, to let the slave prepare for the next byte transfer.
+	SlaveSCL <= '0' when I2CSCS = '1' and I2CSC = '0' and SlaveState = SlaveStateAck else '1';
 
+	-- Slave transfer sequencer: address match, ACK/NACK, then receiver or transmitter.
 	process (resetn, I2CSEN, I2CBS, StartSlaveRX, I2CMCB, ClearI2CSXC, ClearI2CSNR, ClearI2CSOVF, ClearI2CSTXE, ClearI2CSA, SCL_IN)
 	begin
 		if resetn = '0' or I2CSEN = '0' or I2CBS = '0' or StartSlaveRX = '1' or I2CMCB = '1' then
@@ -627,7 +657,7 @@ begin
 			SlaveJustAddressed <= '0';
 			ClearI2CSC <= '1';
 			
-			-- Decrement the slave bit by defalut
+			-- Decrement the slave bit by default
 			SlaveBit <= SlaveBit - 1;
 				
 			-- Latch the next bit from SDA by default
@@ -658,11 +688,12 @@ begin
 							I2CSTM <= SDA_LAT;
 
 							-- Prepare for the ACK state
-							SlaveFsmSDA <= '1';	-- Release SDA. The actual ACK/NACK logic will be performed by combinatorial logic outside the FSM
+							SlaveFsmSDA <= '1';	-- Release SDA; the actual ACK/NACK is driven by combinational logic outside the FSM
 							SlaveJustAddressed <= '1';
 							ClearI2CSC <= '0';	-- Allow I2CSC to be set
 							SlaveState <= SlaveStateAck;
 						else
+							-- The address did not match, so ignore the rest of this transaction.
 							SlaveState <= SlaveStateNotAddressed;
 						end if;
 					end if;
@@ -678,7 +709,8 @@ begin
 						SlaveData <= I2CxSTX(6 downto 0) & '0';
 						I2CSTXE <= '1';
 
-						-- If an ACK was received from the master, begin sending the next byte of data. If a NACK was received, release SDA
+						-- If an ACK was received from the master, begin sending the next byte of data.
+						-- If a NACK was received, release SDA instead.
 						if SDA_LAT = '1' then
 							-- NACK received, release SDA so the master can send a stop condition
 							SlaveFsmSDA <= '1';
@@ -711,7 +743,7 @@ begin
 						I2CSXC <= '1';
 
 						-- Prepare for the ACK state
-						SlaveFsmSDA <= '1';	-- Release SDA. The actual ACK/NACK logic will be performed by combinatorial logic outside the FSM
+						SlaveFsmSDA <= '1';	-- Release SDA; the actual ACK/NACK is driven by combinational logic outside the FSM
 						ClearI2CSC <= '0';	-- Allow I2CSC to be set
 						SlaveState <= SlaveStateAck;
 					end if;
@@ -772,9 +804,11 @@ begin
 
 
 	---------- Register Synchronizer ----------
-	-- Synchronizes the asynchronous register signals
-	-- Only sample the registers when the processor accesses the peripheral's memory space
-	-- This is safe because EnMemPeriph has a leading edge exactly one clock cycle before rdata latches a register. Also, the double NOT gates reduce the chance of a undefined bit
+	-- Synchronizes the asynchronous register signals.
+	-- The registers are sampled only when the processor accesses this peripheral's memory space.
+	-- That is safe because EnMemPeriph has a leading edge exactly one clock cycle before rdata latches a register.
+	-- The double NOT gates also reduce the chance of an undefined bit.
+	-- One generate arm per EnMemPeriph polarity; only the mem_assert one is elaborated.
 	GenRegSync0: if mem_assert = '0' generate
 		process (EnMemPeriph)
 		begin
@@ -798,6 +832,7 @@ begin
 
 
 	---------- Register Memory Interface ----------
+	-- Decode the register slot only while this peripheral is selected; otherwise read slot 0.
 	MABPartInteger <= slv2uint(MABPart) when (EnMemPeriph = mem_assert) else 0;
 	
 	-- Register Write
@@ -826,6 +861,8 @@ begin
 					if WEn(1) = mem_assert then I2CxCR(15 downto 08) <= wdata(15 downto 08); end if;
 					if WEn(2) = mem_assert then I2CxCR(21 downto 16) <= wdata(21 downto 16); end if;
 				when RegSlotI2CxFCR =>
+					-- Flow control is write-1-only: a '1' raises the command, and the consuming FSM clears it.
+					-- The stop and read-byte commands are accepted only while this master controls the bus.
 					if WEn(0) = mem_assert then
 						if wdata(3) = '1' then
 							I2CSC <= '1';
@@ -841,6 +878,7 @@ begin
 						end if;
 					end if;
 				when RegSlotI2CxSR =>
+					-- Status flags are write-1-to-clear; each bit raises the matching clear request below.
 					if WEn(0) = mem_assert then
 						if wdata(0) = '1' then ClearI2CSPR <= '1'; end if;
 						if wdata(1) = '1' then ClearI2CSTR <= '1'; end if;
@@ -871,6 +909,7 @@ begin
 				when RegSlotI2CxAMR =>
 					if WEn(0) = mem_assert then I2CxAMR <= wdata(06 downto 00); end if;
 				when others =>
+					-- Unmapped register slots ignore writes.
 					null;
 				end case;
 			end if;
@@ -897,6 +936,7 @@ begin
 			I2CSC <= '0';
 		end if;
 
+		-- The status clear requests last only as long as the memory access that raised them.
 		if (resetn = '0') or (EnMemPeriph /= mem_assert) then
 			ClearI2CSPR		<= '0';
 			ClearI2CSTR		<= '0';
@@ -915,6 +955,7 @@ begin
 	end process;
 	
 	-- Register Read
+	-- I2CxSR and I2CxSRX come back through their inverted latches, so they are re-inverted here.
 	with MABPartInteger select rdataPart <=
 								I2CxCR				when RegSlotI2CxCR,
 		(21 downto 16 => '0') &	(not I2CxSRLat)		when RegSlotI2CxSR,

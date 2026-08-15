@@ -1,3 +1,5 @@
+-- aludec.vhd
+-- ALU control decoder: turns the main decoder's ALU_op class plus the instruction's funct3 and funct7 bit 5 into the ALU's 5-bit operation code.
 library IEEE;
 use IEEE.STD_LOGIC_1164.all;
 use work.constants.all;
@@ -5,10 +7,10 @@ use IEEE.NUMERIC_STD.all;
 
 entity aludec is
    port(
-       opb5:           in    STD_LOGIC;
-       funct3:         in    STD_LOGIC_VECTOR(2 downto 0); --states which funct to execute for R Type instructions
-       funct7b5:       in    STD_LOGIC; --TRUE for R and I type subtractions
-       ALU_op:          in    STD_LOGIC_VECTOR(1 downto 0); --used for ALU control for non-R-type instructions
+       opb5:           in    STD_LOGIC; -- opcode bit 5: set for R-type, clear for I-type
+       funct3:         in    STD_LOGIC_VECTOR(2 downto 0); -- selects which operation to run for R-type instructions
+       funct7b5:       in    STD_LOGIC; -- set for R-type and I-type subtract and arithmetic shift
+       ALU_op:          in    STD_LOGIC_VECTOR(1 downto 0); -- ALU class from the main decoder, for non-R-type instructions
        ALU_control:     out   STD_LOGIC_VECTOR(4 downto 0)
    );
 end aludec;
@@ -16,14 +18,17 @@ end aludec;
 architecture behave of aludec is
     signal RtypeSub: STD_LOGIC;
 begin
-    RtypeSub <= funct7b5 and opb5; -- TRUE for R–type subtract
+    RtypeSub <= funct7b5 and opb5; -- Set for an R-type subtract
 
+    -- Combinational decode of the ALU operation.
     process(opb5, funct3, funct7b5, ALU_op, RtypeSub) begin
         case ALU_op is
+            -- Address or offset arithmetic: loads, stores, jumps.
             when "00" =>
                 ALU_control <= "00000"; -- addition
-            when "01" =>    --B-type instruction
-                case funct3(2 downto 1) is  -- R–type or I–type ALU
+            -- B-type: the branch comparison the ALU must perform.
+            when "01" =>
+                case funct3(2 downto 1) is  -- top two funct3 bits pick the comparison
                     when BEQ_TOP_FN3 =>
                         ALU_control <= "00001";    --subtraction
                     when BCOMP_TOP_FN3 =>
@@ -33,10 +38,12 @@ begin
                     when others =>
                         -- ALU_control <= "----"; -- unknown
                 end case;
+            -- LUI: pass the immediate straight through.
             when "11" =>
-                ALU_control <= "01010"; --pass b (for lui)
+                ALU_control <= "01010"; -- pass b, used by lui
+            -- R-type and I-type ALU operations, decoded from funct3.
             when others =>
-                case funct3 is  -- R–type or I–type ALU
+                case funct3 is
                     when ADD_FN3 =>
                         if RtypeSub = '1' then
                             ALU_control <= "00001"; -- sub
@@ -52,7 +59,8 @@ begin
                     when XOR_FN3 =>
                         ALU_control <= "00100"; -- xor
                     when SRL_FN3 =>
-                        if funct7b5 = '1' then  --indicating sub for R and I type (Note, maybe RtypeSub ... want to include SRAI as well )
+                        -- funct7 bit 5 selects arithmetic over logical, and it is tested directly rather than through RtypeSub so that SRAI is covered too.
+                        if funct7b5 = '1' then
                             ALU_control <= "01000"; -- sra
                         else
                             ALU_control <= "00111"; -- srl

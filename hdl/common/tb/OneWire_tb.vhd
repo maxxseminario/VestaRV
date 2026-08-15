@@ -1,63 +1,32 @@
 -------------------------------------------------------------------------------
 -- OneWire_tb.vhd
 -------------------------------------------------------------------------------
--- Standalone, self-checking testbench for the 1-Wire master peripheral
--- (hdl/common/periph/OneWire.vhd), written AGAINST THE FROZEN ENTITY +
--- REGISTER MAP (~/vesta_docs/digperiphs/onewire_design.md, D1-D16 +
--- orchestrator A1-A5) while the RTL is written in parallel. The DUT is
--- declared as a COMPONENT (not an entity instantiation) so this bench
--- compiles standalone with xmvhdl before OneWire.vhd exists -- I3C_tb/RTC_tb
--- discipline; VHDL default binding resolves it to the entity of the same
--- name once OneWire.vhd is analyzed into the work library.
+-- Standalone, self-checking testbench for the 1-Wire master peripheral (hdl/common/periph/OneWire.vhd), written AGAINST THE FROZEN ENTITY + REGISTER MAP (~/vesta_docs/digperiphs/onewire_design.md, D1-D16 + orchestrator A1-A5) while the RTL is written in parallel.
+-- The DUT is declared as a COMPONENT, not an entity instantiation, so this bench compiles standalone with xmvhdl before OneWire.vhd exists: the I3C_tb/RTC_tb discipline.
+-- VHDL default binding resolves it to the entity of the same name once OneWire.vhd is analyzed into the work library.
 --
--- Uses periph_tb_pkg.vhd (scoreboard + register-bus BFM), onewire_bfm_pkg.vhd
--- (slot/CR/CMD/SR constants, ow_mk_cmd/ow_mk_cr packers, the bounded SR polls
--- ow_wait_busy_clear/ow_wait_flag, and the D7/A1 timing-window constants),
--- and onewire_target_model.vhd (the 1-Wire target responder + timing checker).
+-- Uses periph_tb_pkg.vhd (scoreboard + register-bus BFM), onewire_bfm_pkg.vhd (slot/CR/CMD/SR constants, ow_mk_cmd/ow_mk_cr packers, the bounded SR polls ow_wait_busy_clear/ow_wait_flag, and the D7/A1 timing-window constants), and onewire_target_model.vhd (the 1-Wire target responder + timing checker).
 --
--- ONE clock family (design doc D1/D2): `clk` (bound to MCLK at integration)
--- hosts the whole protocol engine; `ClkMem` is the gated bus clock, driven
--- clk when b.en_mem = '0' else '0' exactly like RTC_tb/NFC_tb/I3C_tb. There
--- is no second (lfxt-class) domain here, unlike RTC.
+-- ONE clock family (design doc D1/D2): clk, bound to MCLK at integration, hosts the whole protocol engine; ClkMem is the gated bus clock, driven clk when b.en_mem = '0' else '0' exactly like RTC_tb/NFC_tb/I3C_tb.
+-- There is no second (lfxt-class) domain here, unlike RTC.
 --
--- COMPRESSION: OW0DIV is left at its POR default (0, D5 reset value), which
--- is D6's own frozen bench-fast minimum ("0 => tick every clk cycle") -- the
--- bench never writes OW0DIV. One tick = one `clk` period (PERIOD = 20 ns
--- below), so the target model's cfg_tick_period is simply PERIOD throughout
--- (never re-derived per group). A full standard reset (the D7/A1-doubled
--- FSM count: 960 tRSTL + 140 tPRES + 1 sample + 960 tRSTH ~= 2061 ticks) is
--- therefore ~41.2 us of sim time; the whole suite (all groups, both speeds)
--- stays well under 1 ms.
+-- COMPRESSION: the bench programs OW0DIV itself to OW0DIV_VAL after the G0 reset-default checks, so one tick is OW0DIV_VAL+1 clk periods (see that constant's own comment for why it must stay non-zero).
+-- The target model's cfg_tick_period is TICKP throughout, never re-derived per group.
+-- A full standard reset (the D7/A1-doubled FSM count: 960 tRSTL + 140 tPRES + 1 sample + 960 tRSTH ~= 2061 ticks) is therefore ~165 us of sim time, and the whole suite (all groups, both speeds) stays well inside the 20 ms watchdog.
 --
--- PULSE-WIDTH MEASUREMENT: the target model times the master's driven-low
--- pulses off `dut_dq_dir` (the DUT's own OW_DQ_DIR port, wired to the
--- model's mon_dir input) rather than off the resolved multi-driver DQ net --
--- see onewire_target_model.vhd's header for why (READ slots are ambiguous
--- once the model itself may also be driving). OW_DQ_DIR is an ordinary,
--- frozen D3 port (the pad-drive-enable), not an internal signal.
+-- PULSE-WIDTH MEASUREMENT: the target model times the master's driven-low pulses off dut_dq_dir (the DUT's own OW_DQ_DIR port, wired to the model's mon_dir input) rather than off the resolved multi-driver DQ net.
+-- See onewire_target_model.vhd's header for why: READ slots are ambiguous once the model itself may also be driving.
+-- OW_DQ_DIR is an ordinary, frozen D3 port (the pad-drive-enable), not an internal signal.
 --
--- BUS RESOLUTION (design doc "Bench plan"): the DUT drives dq_bus low via
--- OW_DQ_DIR (OW_DQ_OUT is fixed '0', D11), the model drives via its own
--- dq_oe/dq_out, and a weak 'H' pull idles the net high (open-drain
--- wired-AND) -- the exact I3C_tb.vhd sda_bus/scl_bus pattern, extended with
--- the "H" release level QSPI's push-pull-only bus didn't need.
+-- BUS RESOLUTION (design doc "Bench plan"): the DUT drives dq_bus low via OW_DQ_DIR (OW_DQ_OUT is fixed '0', D11), the model drives via its own dq_oe/dq_out, and a weak 'H' pull idles the net high (open-drain wired-AND).
+-- That is the exact I3C_tb.vhd sda_bus/scl_bus pattern, extended with the "H" release level QSPI's push-pull-only bus did not need.
 --
--- DEVIATIONS / scope notes (flagged, not silently resolved -- see the bench
--- author's final report for the full list):
---   * The design doc's Stage-1 self-check also lists "launch ignored while
---     BUSY" (a second CMD write attempted mid-transaction). This bench
---     proves "launch ignored while OWEN=0" (G1, content always captured,
---     D8) but does NOT additionally exercise the while-BUSY leg -- verifying
---     it robustly from outside requires inferring a negative ("nothing
---     happened") from indirect side effects and was judged lower-value than
---     the explicit OWEN=0 leg for a first bench pass. Flagged for the RTL
---     author / a follow-up bench revision.
---   * G6's SHORT leg uses the target model's cfg_stuck_low (delayed-onset
---     stuck-low, timed to land after the tPRES sample window closes but
---     before tRSTH's recovery check) to hit exactly the ADJUDICATION A5
---     scenario ("SHORT wins", NOPRES suppressed) rather than a bus stuck low
---     from t=0 (which would instead read PRES=1 at the sample point per the
---     literal D12 rule, a different and less interesting corner).
+-- DEVIATIONS and scope notes, flagged rather than silently resolved (the bench author's final report has the full list):
+--   * The design doc's Stage-1 self-check also lists "launch ignored while BUSY" (a second CMD write attempted mid-transaction).
+--     This bench proves "launch ignored while OWEN=0" (G1, content always captured, D8) but does NOT additionally exercise the while-BUSY leg: verifying it robustly from outside requires inferring a negative ("nothing happened") from indirect side effects and was judged lower-value than the explicit OWEN=0 leg for a first bench pass.
+--     Flagged for the RTL author or a follow-up bench revision.
+--   * G6's SHORT leg uses the target model's cfg_stuck_low (delayed-onset stuck-low, timed to land after the tPRES sample window closes but before tRSTH's recovery check) to hit exactly the ADJUDICATION A5 scenario ("SHORT wins", NOPRES suppressed).
+--     A bus stuck low from t=0 would instead read PRES=1 at the sample point per the literal D12 rule, a different and less interesting corner.
 -------------------------------------------------------------------------------
 
 library ieee;
@@ -74,21 +43,15 @@ architecture sim of OneWire_tb is
 
     constant PERIOD : time := 20 ns;   -- clk / bus reference (free-running ref, D2)
 
-    -- COMPRESSION divisor. Must stay small (fast bench) but NON-ZERO: at
-    -- OW0DIV=0 one tick = one clk, so the DUT's fixed 2-FF DQ synchronizer
-    -- (D10, 2 clk) equals a full 2 ticks -- a gross distortion of the silicon
-    -- ratio (OW0DIV=11 => 1 tick = 12 clk, sync ~0.17 tick). At that
-    -- distortion an OVERDRIVE read samples tMSR=3 ticks BEFORE the master's own
-    -- tRL=2-tick drive-low has even cleared the synchronizer, so every OD read
-    -- bit reads the master's own low (0). OW0DIV=3 keeps 1 tick = 4 clk (sync =
-    -- 0.5 tick, sub-tick like silicon) while a full STD reset (~2060 ticks) is
-    -- still only ~165 us -- the whole suite stays well under the 20 ms watchdog.
+    -- COMPRESSION divisor: must stay small (fast bench) but NON-ZERO.
+    -- At OW0DIV=0 one tick is one clk, so the DUT's fixed 2-FF DQ synchronizer (D10, 2 clk) costs a full 2 ticks, a gross distortion of the silicon ratio (at OW0DIV=11 one tick is 12 clk and the sync is ~0.17 tick).
+    -- At that distortion an OVERDRIVE read samples tMSR=3 ticks BEFORE the master's own tRL=2-tick drive-low has even cleared the synchronizer, so every OD read bit reads the master's own low (0).
+    -- OW0DIV=3 keeps one tick at 4 clk (sync = 0.5 tick, sub-tick like silicon) while a full STD reset (~2060 ticks) is still only ~165 us, so the whole suite stays well under the 20 ms watchdog.
     -- cfg_tick_period tracks this so every model window scales transparently.
     constant OW0DIV_VAL : natural := 3;
     constant TICKP      : time    := (OW0DIV_VAL + 1) * PERIOD;
 
-    -- FROZEN DUT entity (design doc D3), declared as a component so the
-    -- bench compiles standalone before hdl/common/periph/OneWire.vhd exists.
+    -- FROZEN DUT entity (design doc D3), declared as a component so the bench compiles standalone before hdl/common/periph/OneWire.vhd exists.
     component OneWire is
         port (
             clk         : in  std_logic;
@@ -128,24 +91,24 @@ architecture sim of OneWire_tb is
         );
     end component;
 
-    -- clocks / reset
+    -- Clocks and reset.
     signal clk    : std_logic := '0';
     signal ClkMem : std_logic := '0';
     signal resetn : std_logic := '0';
 
-    -- interrupt
+    -- Interrupt output.
     signal irq_ow : std_logic;
 
-    -- register bus
+    -- Register bus.
     signal pbus      : periph_bus_t := PERIPH_BUS_IDLE;
     signal rdata_out : std_logic_vector(31 downto 0);
 
-    -- DQ pad (DUT side) + resolved shared net
+    -- DQ pad (DUT side) plus the resolved shared net.
     signal dut_dq_out, dut_dq_dir : std_logic;
     signal dq_bus                 : std_logic;
     signal dq_bus_x01             : std_logic;   -- resolved net, to_X01-normalized (design doc bench plan)
 
-    -- target-model drive + per-op config
+    -- Target-model drive plus its per-operation config.
     signal model_dq_out, model_dq_oe : std_logic;
     signal cfg_op             : std_logic_vector(2 downto 0) := OW_OP_RESET;
     signal cfg_ods            : std_logic                    := '0';
@@ -155,7 +118,7 @@ architecture sim of OneWire_tb is
     signal cfg_corrupt_window : boolean                       := false;
     signal cfg_arm            : std_logic                     := '0';
 
-    -- target-model observations
+    -- Target-model observations.
     signal obs_wbyte     : std_logic_vector(7 downto 0);
     signal obs_wbits     : natural;
     signal obs_viol_rstl : std_logic;
@@ -170,23 +133,20 @@ architecture sim of OneWire_tb is
 begin
 
     ----------------------------------------------------------------------------
-    -- clock / gated register-bus clock (mirrors RTC_tb / NFC_tb / I3C_tb)
+    -- Free-running clock and the gated register-bus clock (mirrors RTC_tb / NFC_tb / I3C_tb).
     ----------------------------------------------------------------------------
     clk    <= not clk after PERIOD / 2;
     ClkMem <= clk when pbus.en_mem = '0' else '0';
 
     ----------------------------------------------------------------------------
-    -- dq_bus resolution: DUT drives when OW_DQ_DIR='1' (OW_DQ_OUT is fixed
-    -- '0', D11), the model drives when its own dq_oe='1', otherwise a weak
-    -- 'H' pull (open-drain wired-AND: any '0' wins) -- I3C_tb.vhd pattern.
+    -- dq_bus resolution: the DUT drives when OW_DQ_DIR='1' (OW_DQ_OUT is fixed '0', D11), the model drives when its own dq_oe='1', otherwise a weak 'H' pull holds the net (open-drain wired-AND: any '0' wins).
+    -- This is the I3C_tb.vhd pattern.
     ----------------------------------------------------------------------------
     dq_bus <= dut_dq_out   when dut_dq_dir = '1' else 'Z';
     dq_bus <= model_dq_out when model_dq_oe = '1' else 'Z';
     dq_bus <= 'H';
-    -- The DUT samples the resolved node to_X01-normalized (design doc bench
-    -- plan: "The DUT's OW_DQ_IN is the resolved node, to_X01-sampled"). Without
-    -- this the idle weak-'H' pull is stored verbatim into the DUT's rx_shift
-    -- ('H' converts to a numeric 1 but fails an exact std_logic '1' compare).
+    -- The DUT samples the resolved node to_X01-normalized (design doc bench plan: "The DUT's OW_DQ_IN is the resolved node, to_X01-sampled").
+    -- Without this the idle weak-'H' pull is stored verbatim into the DUT's rx_shift ('H' converts to a numeric 1 but fails an exact std_logic '1' compare).
     dq_bus_x01 <= to_X01(dq_bus);
 
     ----------------------------------------------------------------------------
@@ -209,8 +169,7 @@ begin
         );
 
     ----------------------------------------------------------------------------
-    -- 1-Wire target model: pulse-width reference is the DUT's own OW_DQ_DIR
-    -- (mon_dir), NOT the resolved bus (see file header + model header).
+    -- 1-Wire target model: the pulse-width reference is the DUT's own OW_DQ_DIR (mon_dir), NOT the resolved bus (see the file header and the model header).
     ----------------------------------------------------------------------------
     model : component OneWire_target_model
         port map (
@@ -234,9 +193,8 @@ begin
         );
 
     ----------------------------------------------------------------------------
-    -- Watchdog: abort with a FAIL banner if the stimulus ever hangs. Expected
-    -- sim time is well under 1 ms (see file header); this fires only on a
-    -- true hang.
+    -- Watchdog: abort with a FAIL banner if the stimulus ever hangs.
+    -- The expected sim time is a small fraction of this budget (see the COMPRESSION note in the file header), so it fires only on a true hang.
     ----------------------------------------------------------------------------
     watchdog : process
     begin
@@ -253,14 +211,14 @@ begin
     end process;
 
     ----------------------------------------------------------------------------
-    -- stimulus
+    -- Stimulus and checks: one thread, groups G0 through G-NEG in order.
     ----------------------------------------------------------------------------
     stim_proc : process
         variable rdw     : std_logic_vector(31 downto 0);
         variable ok      : boolean;
 
-        -- (Re)arm the target model for the operation about to be launched.
-        -- Held stable until the next arm (D8 latch-at-launch precedent).
+        -- Re-arm the target model for the operation about to be launched.
+        -- The configuration is held stable until the next arm (D8 latch-at-launch precedent).
         procedure ow_arm(op      : std_logic_vector(2 downto 0);
                          ods      : std_logic;
                          present  : boolean;
@@ -287,13 +245,13 @@ begin
             bus_write(clk, pbus, OW_SLOT_CMD, ow_mk_cmd(op, bitval));
         end procedure;
 
+        -- Program OW0CR: enable, overdrive select and the two interrupt enables.
         procedure ow_set_cr(owen, ods, tcie, errie : std_logic) is
         begin
             bus_write(clk, pbus, OW_SLOT_CR, ow_mk_cr(owen, ods, '0', tcie, errie));
         end procedure;
 
-        -- W1C the given SR mask; wait out the clr_*_tgl 2-FF sync + edge
-        -- detect (D12) before the caller relies on the flag being clear.
+        -- W1C the given SR mask, then wait out the clr_*_tgl 2-FF sync and edge detect (D12) before the caller relies on the flag being clear.
         procedure ow_w1c(mask : std_logic_vector(31 downto 0)) is
         begin
             bus_write(clk, pbus, OW_SLOT_SR, mask);
@@ -312,7 +270,7 @@ begin
         wait for 8 * PERIOD;
 
         ------------------------------------------------------------------
-        -- GROUP G0: reset defaults (design doc G0)
+        -- GROUP G0: reset defaults (design doc G0).
         ------------------------------------------------------------------
         report "=== GROUP G0: reset defaults ===" severity note;
         bus_read(clk, pbus, rdata_out, OW_SLOT_CR, rdw);
@@ -329,21 +287,17 @@ begin
         sb.check_slv("G0: slot 7 reads 0", rdw, x"00000000");
         sb.check_bit("G0: irq_ow = 0 out of reset", to_X01(irq_ow), '0');
 
-        -- Program the compression divisor (see OW0DIV_VAL comment). Done AFTER
-        -- the G0 reset-default checks (which verify DIV powers up at 0) and
-        -- before any protocol op, so every tick below is OW0DIV_VAL+1 clk and
-        -- the DUT's 2-FF DQ sync stays sub-tick (silicon-faithful) even in OD.
+        -- Program the compression divisor (see the OW0DIV_VAL comment).
+        -- Done AFTER the G0 reset-default checks, which verify DIV powers up at 0, and before any protocol op, so every tick below is OW0DIV_VAL+1 clk and the DUT's 2-FF DQ sync stays sub-tick (silicon-faithful) even in OD.
         bus_write(clk, pbus, OW_SLOT_DIV, std_logic_vector(to_unsigned(OW0DIV_VAL, 32)));
 
         ------------------------------------------------------------------
-        -- GROUP G1: reset / presence (design doc G1)
-        -- Also proves the D8 launch-suppress contract: content always
-        -- captured, launch (BUSY) suppressed while OWEN=0.
+        -- GROUP G1: reset / presence (design doc G1).
+        -- Also proves the D8 launch-suppress contract: content always captured, launch (BUSY) suppressed while OWEN=0.
         ------------------------------------------------------------------
         report "=== GROUP G1: reset / presence ===" severity note;
 
-        -- OWEN=0: launch a distinctive WRBIT(1) command; content captured,
-        -- but no launch (no BUSY, no bus activity).
+        -- OWEN=0: launch a distinctive WRBIT(1) command; the content is captured but nothing launches, so no BUSY and no bus activity.
         ow_set_cr('0', '0', '0', '0');
         ow_launch(OW_OP_WRBIT, '1');
         wait for 4 * PERIOD;
@@ -354,7 +308,7 @@ begin
         sb.check_slv("G1: OW0CMD content always captured even when OWEN=0 (D8)",
                      rdw, ow_mk_cmd(OW_OP_WRBIT, '1'));
 
-        -- Enable, then RESET with the model present.
+        -- Enable the master, then RESET with the model present.
         ow_set_cr('1', '0', '0', '0');
         ow_arm(OW_OP_RESET, '0', true, false, x"00", false);
         ow_launch(OW_OP_RESET, '0');
@@ -384,9 +338,8 @@ begin
         ow_w1c(x"0000000A");   -- W1C TCIF|NOPRES
 
         ------------------------------------------------------------------
-        -- GROUP G2: write byte (design doc G2)
-        -- Asymmetric byte 0x0F proves LSB-first order (a reversed capture
-        -- would read back 0xF0).
+        -- GROUP G2: write byte (design doc G2).
+        -- The asymmetric byte 0x0F proves LSB-first order: a reversed capture would read back 0xF0.
         ------------------------------------------------------------------
         report "=== GROUP G2: write byte ===" severity note;
         bus_write(clk, pbus, OW_SLOT_TX, x"0000000F");
@@ -404,8 +357,8 @@ begin
         ow_w1c(x"00000002");
 
         ------------------------------------------------------------------
-        -- GROUP G3: read byte (design doc G3)
-        -- Asymmetric pattern 0x3C proves LSB-first assembly.
+        -- GROUP G3: read byte (design doc G3).
+        -- The asymmetric pattern 0x3C proves LSB-first assembly.
         ------------------------------------------------------------------
         report "=== GROUP G3: read byte ===" severity note;
         ow_arm(OW_OP_RDBYTE, '0', true, false, x"3C", false);
@@ -420,11 +373,11 @@ begin
         ow_w1c(x"00000002");
 
         ------------------------------------------------------------------
-        -- GROUP G4: bit ops (design doc G4)
+        -- GROUP G4: bit ops (design doc G4).
         ------------------------------------------------------------------
         report "=== GROUP G4: bit ops ===" severity note;
 
-        -- WRBIT 0 / WRBIT 1
+        -- WRBIT 0 then WRBIT 1.
         ow_arm(OW_OP_WRBIT, '0', true, false, x"00", false);
         ow_launch(OW_OP_WRBIT, '0');
         ow_wait_busy_clear(clk, pbus, rdata_out, ok);
@@ -441,7 +394,7 @@ begin
         sb.check_bit("G4: WRBIT(1) pulse in the standard tW1L window", to_X01(obs_viol_w1l), '0');
         ow_w1c(x"00000002");
 
-        -- RDBIT 0 / RDBIT 1
+        -- RDBIT against a 0 pattern then a 1 pattern.
         ow_arm(OW_OP_RDBIT, '0', true, false, x"00", false);
         ow_launch(OW_OP_RDBIT, '0');
         ow_wait_busy_clear(clk, pbus, rdata_out, ok);
@@ -459,7 +412,7 @@ begin
         ow_w1c(x"00000002");
 
         ------------------------------------------------------------------
-        -- GROUP G5: overdrive re-run (design doc G5)
+        -- GROUP G5: overdrive re-run (design doc G5).
         ------------------------------------------------------------------
         report "=== GROUP G5: overdrive re-run ===" severity note;
         ow_set_cr('1', '1', '0', '0');   -- ODS=1, latched at the next launch (D7)
@@ -495,12 +448,11 @@ begin
         ow_set_cr('1', '0', '0', '0');   -- back to STD for the remaining groups
 
         ------------------------------------------------------------------
-        -- GROUP G6: error / short (design doc G6; ADJUDICATION A5)
+        -- GROUP G6: error / short (design doc G6, ADJUDICATION A5).
         ------------------------------------------------------------------
         report "=== GROUP G6: error / short ===" severity note;
 
-        -- SHORT (A5: onset after the tPRES sample window closes, before
-        -- tRSTH's recovery check -- SHORT sets, NOPRES is suppressed).
+        -- SHORT (A5): onset after the tPRES sample window closes but before tRSTH's recovery check, so SHORT sets and NOPRES is suppressed.
         ow_arm(OW_OP_RESET, '0', false, true, x"00", false);
         ow_launch(OW_OP_RESET, '0');
         ow_wait_busy_clear(clk, pbus, rdata_out, ok);
@@ -512,8 +464,7 @@ begin
         sb.check_bit("G6: TCIF=1 at completion (SHORT leg)", to_X01(rdw(OW_SR_TCIF)), '1');
         ow_w1c(x"00000012");   -- W1C TCIF|SHORT
 
-        -- Corrupt-window self-test: proves the model's checker flag path
-        -- fires (a genuinely in-spec pulse, deliberately mis-flagged).
+        -- Corrupt-window self-test: proves the model's checker flag path fires, using a genuinely in-spec pulse that is deliberately mis-flagged.
         ow_arm(OW_OP_RESET, '0', true, false, x"00", true);
         ow_launch(OW_OP_RESET, '0');
         ow_wait_busy_clear(clk, pbus, rdata_out, ok);
@@ -526,7 +477,7 @@ begin
         ow_w1c(x"00000002");
 
         ------------------------------------------------------------------
-        -- GROUP G7: IRQ demux / W1C (design doc G7)
+        -- GROUP G7: IRQ demux / W1C (design doc G7).
         -- irq_ow = (TCIF & TCIE) or ((NOPRES|SHORT) & ERRIE), combinational (D13).
         ------------------------------------------------------------------
         report "=== GROUP G7: IRQ demux / W1C ===" severity note;
@@ -581,9 +532,8 @@ begin
         ow_w1c(x"0000000A");
 
         ------------------------------------------------------------------
-        -- GROUP G-NEG: NEGATIVE CONTROL (mandatory, LAST) -- exactly ONE
-        -- deliberately-wrong expected value: expect PRES at the wrong
-        -- polarity after a clean, present RESET (doc's own suggested example).
+        -- GROUP G-NEG: NEGATIVE CONTROL (mandatory, LAST).
+        -- Exactly ONE deliberately-wrong expected value: PRES at the wrong polarity after a clean, present RESET (the design doc's own suggested example).
         ------------------------------------------------------------------
         report "=== GROUP G-NEG: NEGATIVE CONTROL ===" severity note;
         ow_set_cr('1', '0', '0', '0');

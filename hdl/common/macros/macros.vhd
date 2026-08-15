@@ -12,7 +12,7 @@ package macros is
 	-- General attributes and useful macros
 	----------------------------------------------------------------------------
 
-	-- Shortcuts for common data types
+	-- Shortcuts for the data types used all over this design.
 	subtype sl			is std_logic;
 	subtype slv			is std_logic_vector;
 	subtype word		is slv(31 downto 0);
@@ -22,18 +22,18 @@ package macros is
 	type word_array		is array (natural range <>) of word;
 	type halfword_array	is array (natural range <>) of halfword;
 	
-	-- Peripheral Memory Address Bus Partition
+	-- Peripheral memory address bus partition: the word-slot field of a peripheral address.
 	subtype PeriphMABPart	is slv(7 downto 2);
 	
-	-- Reset Standards
+	-- Reset polarity standard: reset is active low chip-wide.
 	constant rst_assert		: sl	:= '0';
 	constant rst_deassert	: sl	:= '1';
 	
-	-- Memory Assert Standards
-	constant mem_assert		: sl	:= '0';	-- The SRAM and ROM IPs use active low signals to select them, so the peripherals were standardized to use the same convention
+	-- Memory select polarity standard.
+	constant mem_assert		: sl	:= '0';	-- The SRAM and ROM IPs are selected by active-low signals, so every peripheral was standardized on the same convention.
 	constant mem_deassert	: sl	:= '1';
 
-	-- Useful helper functions
+	-- Helper functions; bodies and their descriptions are below in the package body.
 	function ceil_log2 (value : positive) return natural;
 	function int2slv(x : integer; num_bits : integer) return std_logic_vector;
 	function uint2slv(x : integer; num_bits : integer) return std_logic_vector;
@@ -51,7 +51,7 @@ package macros is
 	function expandZeros(num_bits : integer range 1 to 32; vector : slv) return slv;
 	function to_hex(SlvIn : std_logic_vector) return string;
 
-	-- Attributes
+	-- Attribute declarations; each is applied at its point of use.
 	attribute keep : boolean;
 
 end macros;
@@ -60,28 +60,27 @@ end macros;
 package body macros is
 
 	----------------------------------------------------------------------------
-	-- Converts a std_logic_vector to a hexidecimal string. 
+	-- Converts a std_logic_vector to a hexadecimal string.
 	----------------------------------------------------------------------------
 	function to_hex(SlvIn : std_logic_vector) return string is
-		variable L : LINE;  -- LINE is a pointer to a dynamically allocated string
-		variable result : string(1 to (SlvIn'length + 3)/4);  -- Prevents memory issues
+		variable L : LINE;  -- LINE is a pointer to a dynamically allocated string.
+		variable result : string(1 to (SlvIn'length + 3)/4);  -- Exactly one character per hex digit, so the copy below cannot overrun.
 	begin
-		-- Write the hex value into the LINE buffer
+		-- Write the hex value into the LINE buffer.
 		hwrite(L, SlvIn);
 		
-		-- Extract the string content (L.all) and store it in 'result'
+		-- Copy the buffer contents (L.all) into 'result'.
 		result := L.all;
 		
-		-- Deallocate the LINE to prevent memory leaks
+		-- Deallocate the LINE to prevent a memory leak, since this function is called repeatedly.
 		DEALLOCATE(L);
 		
-		-- Return the hex string
 		return result;
 	end function to_hex;
 
 
 	----------------------------------------------------------------------------
-	-- Finds the MSbit index required to represent a given positive number.
+	-- Returns the number of bits needed to represent a given positive value, i.e. ceil(log2(value)).
 	----------------------------------------------------------------------------
 	function ceil_log2 (value : positive) return natural is
 		variable result : natural;
@@ -94,7 +93,7 @@ package body macros is
 	end function ceil_log2;
 
 	----------------------------------------------------------------------------
-	-- Converts a signed integer into a standard logic vector (uses numeric_std)
+	-- Converts a signed integer into a standard logic vector, using numeric_std.
 	----------------------------------------------------------------------------
 	function int2slv(x : integer; num_bits : integer) return std_logic_vector is
 	begin
@@ -102,7 +101,7 @@ package body macros is
 	end int2slv;
 
 	----------------------------------------------------------------------------
-	-- Converts an unsigned integer into a standard logic vector (uses numeric_std)
+	-- Converts an unsigned integer into a standard logic vector, using numeric_std.
 	----------------------------------------------------------------------------
 	function uint2slv(x : integer; num_bits : integer) return std_logic_vector is
 	begin
@@ -110,7 +109,7 @@ package body macros is
 	end uint2slv;
 
 	----------------------------------------------------------------------------
-	-- Converts a standard logic vector into a signed integer (uses numeric_std)
+	-- Converts a standard logic vector into a signed integer, using numeric_std.
 	----------------------------------------------------------------------------
 	function slv2int(x: slv) return integer is
 	begin
@@ -118,7 +117,7 @@ package body macros is
 	end slv2int;
 
 	----------------------------------------------------------------------------
-	-- Converts a standard logic vector into an unsigned integer (uses numeric_std)
+	-- Converts a standard logic vector into an unsigned integer, using numeric_std.
 	----------------------------------------------------------------------------
 	function slv2uint(x: slv) return integer is
 	begin
@@ -126,7 +125,7 @@ package body macros is
 	end slv2uint;
 
 	----------------------------------------------------------------------------
-	-- Converts a boolean into a std_logic
+	-- Converts a boolean into a std_logic.
 	----------------------------------------------------------------------------
 	function bool2sl(x : boolean) return sl is
 	begin
@@ -138,7 +137,7 @@ package body macros is
 	end bool2sl;
 
 	----------------------------------------------------------------------------
-	-- Converts a bit into a std_logic
+	-- Converts a bit into a std_logic.
 	----------------------------------------------------------------------------
 	function bit2sl(x : bit) return sl is
 	begin
@@ -150,7 +149,7 @@ package body macros is
 	end bit2sl;
 
 	----------------------------------------------------------------------------
-	-- Converts a std_logic into a bit
+	-- Converts a std_logic into a bit; anything other than '1' becomes '0'.
 	----------------------------------------------------------------------------
 	function sl2bit(x : sl) return bit is
 	begin
@@ -162,7 +161,7 @@ package body macros is
 	end sl2bit;
 
 	----------------------------------------------------------------------------
-	-- Converts a bit_vector into a std_logic_vector
+	-- Converts a bit_vector into a std_logic_vector, bit by bit.
 	----------------------------------------------------------------------------
 	function bitv2slv(x : bit_vector) return slv is
 		variable ret_val : slv(x'high downto x'low);
@@ -174,7 +173,7 @@ package body macros is
 	end bitv2slv;
 
 	----------------------------------------------------------------------------
-	-- Converts a std_logic_vector into a bit_vector
+	-- Converts a std_logic_vector into a bit_vector, bit by bit.
 	----------------------------------------------------------------------------
 	function slv2bitv(x : slv) return bit_vector is
 		variable ret_val : bit_vector(x'high downto x'low);
@@ -186,7 +185,7 @@ package body macros is
 	end slv2bitv;
 	
 	----------------------------------------------------------------------------
-	-- ORs all bits in a std_logic_vector together
+	-- ORs all bits of a std_logic_vector together.
 	----------------------------------------------------------------------------
 	function or_reduct(x : slv) return sl is
 		variable ret_val : sl := '0';
@@ -199,7 +198,7 @@ package body macros is
 	end or_reduct;
 	
 	----------------------------------------------------------------------------
-	-- ANDs all bits in a std_logic_vector together
+	-- ANDs all bits of a std_logic_vector together.
 	----------------------------------------------------------------------------
 	function and_reduct(x : slv) return sl is
 		variable ret_val : sl := '1';
@@ -211,7 +210,7 @@ package body macros is
 	end and_reduct;
 	
 	----------------------------------------------------------------------------
-	-- Reverses the ordering of the bits in a standard logic vector
+	-- Reverses the bit order of a standard logic vector.
 	----------------------------------------------------------------------------
 	function reverse_slv_order(x : slv) return slv is
 		variable result : slv(x'high downto x'low);
@@ -223,7 +222,7 @@ package body macros is
 	end reverse_slv_order;
 
 	----------------------------------------------------------------------------
-	-- Duplicates a bit into an SLV (for sign extension)
+	-- Replicates one bit across an SLV of the requested width, used for sign extension.
 	----------------------------------------------------------------------------
 	function duplicate_bit(x : sl; num_bits : integer) return slv is
 		variable result : slv(num_bits - 1 downto 0);
@@ -235,7 +234,7 @@ package body macros is
 	end duplicate_bit;
 
 	----------------------------------------------------------------------------
-	-- Expands a slv to the desired number of bits, padding with '0's if necessary
+	-- Expands an SLV to the requested width, zero-padding the high bits when it is narrower.
 	----------------------------------------------------------------------------
 	function expandZeros(num_bits : integer range 1 to 32; vector : slv) return slv is
 		variable vector_num_bits : integer;

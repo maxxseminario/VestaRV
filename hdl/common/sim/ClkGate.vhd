@@ -12,7 +12,8 @@ entity ClkGate is
 	);
 end ClkGate;
 
--- For simulation and FPGA design ONLY
+-- Behavioral clock gate: qualifies ClkIn with En without emitting a runt pulse.
+-- For simulation and FPGA design ONLY, synthesis infers the technology gating cell.
 
 architecture behavioral of ClkGate is
 
@@ -20,6 +21,7 @@ architecture behavioral of ClkGate is
 
 begin
 	
+	-- Level-sensitive latch: En is sampled only while ClkIn is low, so it never moves near the active edge.
 	process (ClkIn, En)
 	begin
 		if ClkIn = '0' then
@@ -27,6 +29,7 @@ begin
 		end if;
 	end process;
 	
+	-- Gated output: the latched enable passes the high phase of ClkIn through whole or not at all.
 	ClkOut <= ClkSync and ClkIn;
 	
 end behavioral;

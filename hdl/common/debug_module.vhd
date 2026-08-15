@@ -1,208 +1,118 @@
 -- =============================================================================
 -- debug_module.vhd  (D2)
 -- =============================================================================
--- THE DEBUG MODULE. One per chip, assembly level, always-on mclk domain, never
--- inside a tile. Frozen contract: ~/vesta_docs/d_series/d2_spec.md 2-5, as
--- amended by R-D2-2; run-control wire reconciliation R-D1-2(1b)/R-D2-1(6);
--- shared-window debug entry R-DD3/R-DD12.
+-- THE DEBUG MODULE.
+-- One per chip, assembly level, always-on mclk domain, never inside a tile.
+-- Frozen contract: ~/vesta_docs/d_series/d2_spec.md 2-5, as amended by R-D2-2; run-control wire reconciliation R-D1-2(1b)/R-D2-1(6); shared-window debug entry R-DD3/R-DD12.
 --
 -- WHAT IT IS AND IS NOT AT D2.
---   IS : a DMI-addressed debug module -- run control (halt/resume/halt-on-reset),
---        dmstatus truth-telling against PWRCTRL, abstract access-register
---        commands, a 2-word program buffer with an implicit third word, halt
---        groups, hartsel/haltsum at N=4 AND N=18, and -- since D4 -- the
---        SELF-PLANT of the 40-word entry trampoline (the TRAMP table and
---        S_TRAMP below; d4_spec 1, R-DD5 option B).  There is no debug ROM
---        macro and there never will be: 24 of the entry page's 64 words are
---        DM-written at runtime and MUST stay writable (d4_probe C1).
---   NOT: DTM/TAP/pads (D3 drives this same port unchanged -- that is why the
---        port is frozen now), triggers (D6), gdb (D5),
---        System Bus Access (R-DD2: never this programme -- there is no
---        raw-memory DMI path here BY DESIGN; memory access is progbuf lw/sw
---        through the hart, which is DD5's answer).
---        D5 NOTE, because A_SBCS now appears in the address list below and a
---        reader will otherwise draw the wrong conclusion: `sbcs` (0x38) is
---        ANSWERED, with all-zeros, and answering zeros is not SBA. Zeros are
---        the encoding for "sbversion 0, sbasize 0, no sbaccess width
---        supported" -- i.e. the register whose whole content is the sentence
---        "this DM has no system bus". No sbaddress and no sbdata register
---        exists, at any address, and 0x39-0x3F still answer `failed`. The
---        R-DD2 / d4_spec 1.5 NOT-SBA ruling is untouched by that reply.
+--   IS : a DMI-addressed debug module: run control (halt/resume/halt-on-reset), dmstatus truth-telling against PWRCTRL, abstract access-register commands, a 2-word program buffer with an implicit third word, halt groups, hartsel/haltsum at N=4 AND N=18, and, since D4, the SELF-PLANT of the 40-word entry trampoline (the TRAMP table and S_TRAMP below; d4_spec 1, R-DD5 option B).
+--        There is no debug ROM macro and there never will be: 24 of the entry page's 64 words are DM-written at runtime and MUST stay writable (d4_probe C1).
+--   NOT: DTM/TAP/pads (D3 drives this same port unchanged, which is why the port is frozen now), triggers (D6), gdb (D5), System Bus Access (R-DD2: never this programme, because there is no raw-memory DMI path here BY DESIGN; memory access is progbuf lw/sw through the hart, which is DD5's answer).
+--        D5 NOTE, because A_SBCS now appears in the address list below and a reader will otherwise draw the wrong conclusion: `sbcs` (0x38) is ANSWERED, with all-zeros, and answering zeros is not SBA.
+--        Zeros are the encoding for "sbversion 0, sbasize 0, no sbaccess width supported", i.e. the register whose whole content is the sentence "this DM has no system bus".
+--        No sbaddress and no sbdata register exists, at any address, and 0x39-0x3F still answer `failed`.
+--        The R-DD2 / d4_spec 1.5 NOT-SBA ruling is untouched by that reply.
 --
 -- WHY THE DM IS AN ARBITER MASTER, and why that is not optional.
--- A tile's TCM is UNREACHABLE from the shared bus (d2_probe P5, four proofs):
--- hart_tile's every bus port is outbound, the TCM macro's only client is its
--- own core, and the arbiter's slave map has no TCM page. An abstract
--- access-register is a CODE-EXECUTION mechanism -- Spike's own debug_module.cc
--- synthesises instructions and lets the halted hart execute them -- so the DM
--- must be able to PLACE INSTRUCTIONS WHERE THE TARGET HART FETCHES THEM and to
--- READ BACK what the hart stored. The shared bulk RAM is the only such place,
--- so the DM is a master on mp_arbiter, exactly as DMA0 is (generate.py's dma
--- schema doc is the precedent for the fabric widening).
+-- A tile's TCM is UNREACHABLE from the shared bus (d2_probe P5, four proofs): hart_tile's every bus port is outbound, the TCM macro's only client is its own core, and the arbiter's slave map has no TCM page.
+-- An abstract access-register is a CODE-EXECUTION mechanism (Spike's own debug_module.cc synthesises instructions and lets the halted hart execute them), so the DM must be able to PLACE INSTRUCTIONS WHERE THE TARGET HART FETCHES THEM and to READ BACK what the hart stored.
+-- The shared bulk RAM is the only such place, so the DM is a master on mp_arbiter, exactly as DMA0 is (generate.py's dma schema doc is the precedent for the fabric widening).
 --
--- THE MASTER-PORT CONTRACT IS COPIED VERBATIM FROM DMA.vhd, and it is not
--- decoration: mp_arbiter runs WAIT-FOR-RELEASE (mp_arbiter.vhd's `need_release`
--- -- a served master stays masked until its req is OBSERVED low). A master that
--- holds req continuously across two words is an M5a stale ghost and gets
--- starved. So: raise m_req with m_we/m_addr/m_wdata stable -> HOLD all stable
--- through the m_done cycle -> capture m_rdata ON the m_done cycle -> drop m_req
--- via an acked flop ONE clk AFTER m_done -> guarantee >= 1 arbiter-observed
--- m_req-low cycle. MS_CAP and MS_GAP below are the states that manufacture it.
+-- THE MASTER-PORT CONTRACT IS COPIED VERBATIM FROM DMA.vhd, and it is not decoration: mp_arbiter runs WAIT-FOR-RELEASE (mp_arbiter.vhd's `need_release`, where a served master stays masked until its req is OBSERVED low).
+-- A master that holds req continuously across two words is an M5a stale ghost and gets starved.
+-- So: raise m_req with m_we/m_addr/m_wdata stable, HOLD all of them stable through the m_done cycle, capture m_rdata ON the m_done cycle, drop m_req via an acked flop ONE clk AFTER m_done, and so guarantee at least one arbiter-observed m_req-low cycle.
+-- MS_CAP and MS_GAP below are the states that manufacture it.
 --
 -- THE MUTEX-PAGE GUARD, likewise copied from DMA.vhd:81-84 and NOT optional.
--- A read of the mutex bank (0x6000-0x6FFF) has a SIDE EFFECT: it atomically
--- claims the mutex for whoever the arbiter says is reading. The DM appears at
--- s_master as index numHarts (or numHarts+1 beside the DMA) -- a NON-HART
--- value that mutex_bank, irq_router's CLAIM and the afe_stub ownership gate all
--- interpret as a hart index. The DM therefore never issues a transaction
--- outside its own claimed band, and a computed address outside it is a FATAL
--- assertion rather than a silent stray claim.
+-- A read of the mutex bank (0x6000-0x6FFF) has a SIDE EFFECT: it atomically claims the mutex for whoever the arbiter says is reading.
+-- The DM appears at s_master as index numHarts (or numHarts+1 beside the DMA), a NON-HART value that mutex_bank, irq_router's CLAIM and the afe_stub ownership gate all interpret as a hart index.
+-- The DM therefore never issues a transaction outside its own claimed band, and a computed address outside it is a FATAL assertion rather than a silent stray claim.
 --
--- CLAIMED SHARED BAND (CLAUDE.md ledger, d2_spec 1; claim /= use):
---   0x10680           DATA0     -- the abstract data word (DATA0_ADDR).
---                                  NOT `hartinfo.dataaddr` any more: since D5
---                                  hartinfo is the null claim and advertises
---                                  no address at all. This word is the DM's
---                                  OWN master-engine target and nothing else.
---   0x10684           PROGBUF0  -- DMI-proxied
---   0x10688           PROGBUF1  -- DMI-proxied
---   0x1068C           IMPLICIT  -- the third progbuf word (impebreak = 1);
---                                  DM-written `jal x0, EPILOGUE`
---   0x10690-0x106EC   reserved for DM use (v2)
---   0x106F0/0x106F4   MIRROR0/MIRROR1 -- the halted session's saved s0/s1.
---                                  Written and read by the TRAMPOLINE, never
---                                  by the DM; see dbg_trampoline.S. They are
---                                  what makes an exception inside an abstract
---                                  command survivable.
---   0x10700 + 4h      FLAGS[h]  -- the per-hart DM<->hart handshake word
+-- CLAIMED SHARED BAND (repo shared-word ledger, d2_spec 1; claim /= use):
+--   0x10680           DATA0     the abstract data word (DATA0_ADDR).
+--                                  NOT `hartinfo.dataaddr` any more: since D5 hartinfo is the null claim and advertises no address at all.
+--                                  This word is the DM's OWN master-engine target and nothing else.
+--   0x10684           PROGBUF0  DMI-proxied.
+--   0x10688           PROGBUF1  DMI-proxied.
+--   0x1068C           IMPLICIT  the third progbuf word (impebreak = 1); DM-written `jal x0, EPILOGUE`.
+--   0x10690-0x106EC   reserved for DM use (v2).
+--   0x106F0/0x106F4   MIRROR0/MIRROR1, the halted session's saved s0/s1.
+--                                  Written and read by the TRAMPOLINE, never by the DM; see dbg_trampoline.S.
+--                                  They are what makes an exception inside an abstract command survivable.
+--   0x10700 + 4h      FLAGS[h]  the per-hart handshake word between DM and hart.
 --   0x10780 + 4n      the entry page, 64 words:
---                       n =  0..39  TRAMPOLINE  (DM-PLANTED since D4 -- the
---                                   constant TRAMP table below, streamed by
---                                   S_TRAMP; see THE PLANT further down)
+--                       n =  0..39  TRAMPOLINE  (DM-PLANTED since D4: the constant TRAMP table below, streamed by S_TRAMP; see THE PLANT further down)
 --                       n = 40..47  ABSTRACT BODY   (DM-written per command)
 --                       n = 48..56  EPILOGUE        (DM-written once)
 --                       n = 57..63  spare (v2)
--- EVERY DM-WRITTEN *DATA* WORD IS BELOW 0x10800, i.e. inside the bootrom's
--- zero range (it zeroes 0x10000-0x107FF at every boot), so the
--- write-before-read contract holds without the DM initialising anything. The
--- only words at or above 0x10800 are the trampoline's own tail (words 32..39)
--- and the EPILOGUE, both pure CODE the DM writes before anything can read them
--- -- exactly the rule R-D2-2(3) attached to the enlarged page.
+-- EVERY DM-WRITTEN *DATA* WORD IS BELOW 0x10800, i.e. inside the bootrom's zero range (it zeroes 0x10000-0x107FF at every boot), so the write-before-read contract holds without the DM initialising anything.
+-- The only words at or above 0x10800 are the trampoline's own tail (words 32..39) and the EPILOGUE, both pure CODE the DM writes before anything can read them, which is exactly the rule R-D2-2(3) attached to the enlarged page.
 --
 -- THE HANDSHAKE, and why the hart polls rather than the DM interrupting it.
--- A halted hart runs the trampoline, which parks in a backed-off poll of its
--- own FLAGS[h] word. The DM drives that word:
---   FLAGS = TOK_GO      -> run the abstract body, then the epilogue
---   FLAGS = TOK_RESUME  -> restore s0/s1 and `dret`
--- and the trampoline writes back TOK_HALTED on entry and TOK_DONE from the
--- epilogue. THE DONE TOKEN IS THE EXCEPTION DETECTOR: the epilogue stores it
--- BEFORE its terminating `ebreak`, so a body that does not reach the epilogue
--- cannot have stored DONE -- which is how `cmderr` becomes EXCEPTION with the
--- hart still halted and NOT wedged. There is no new core signal for it and
--- there does not need to be.
+-- A halted hart runs the trampoline, which parks in a backed-off poll of its own FLAGS[h] word.
+-- The DM drives that word:
+--   FLAGS = TOK_GO      means run the abstract body, then the epilogue
+--   FLAGS = TOK_RESUME  means restore s0/s1 and `dret`
+-- and the trampoline writes back TOK_HALTED on entry and TOK_DONE from the epilogue.
+-- THE DONE TOKEN IS THE EXCEPTION DETECTOR: the epilogue stores it BEFORE its terminating `ebreak`, so a body that does not reach the epilogue cannot have stored DONE, which is how `cmderr` becomes EXCEPTION with the hart still halted and NOT wedged.
+-- There is no new core signal for it and there does not need to be.
 --
--- CORRECTED 2026-08-10 (R-DD8 rider, method rule 12). This paragraph used to
--- say the re-entry left "the token still reading TOK_GO". That was never
--- measured, and it is wrong. TOK_DONE IS TRANSIENT: the epilogue stores it,
--- the hart re-enters the trampoline, and the trampoline's entry publishes
--- TOK_HALTED over it. So what a reader sees in FLAGS[h] depends on WHEN they
--- look, and the DM's verdict is taken from the window in between.
+-- CORRECTED 2026-08-10 (R-DD8 rider, method rule 12).
+-- This paragraph used to say the re-entry left "the token still reading TOK_GO", which was never measured and is wrong.
+-- TOK_DONE IS TRANSIENT: the epilogue stores it, the hart re-enters the trampoline, and the trampoline's entry publishes TOK_HALTED over it.
+-- So what a reader sees in FLAGS[h] depends on WHEN they look, and the DM's verdict is taken from the window in between.
 --
--- Measured, two samples per leg on a halted hart that stayed halted and
--- healthy throughout:
---   * a program returning through the EPILOGUE: FLAGS[h] reads TOK_DONE (12)
---     immediately, and TOK_HALTED (1) once the hart has re-entered.
---   * pre-fix, a debugger's own `ebreak`: TOK_HALTED (1) ALREADY at the early
---     sample -- it re-entered sooner precisely because it skipped the epilogue,
---     which is the same fact the cmderr=EXCEPTION was reporting.
--- The two readings that first looked contradictory were one sampling instant
--- apart. `cmderr` does not depend on any of this: it reports EXCEPTION for
--- anything that did not store DONE.
--- The SECOND half of that story lives in the trampoline, not here, and it was
--- a measured defect (J3's A10, 2026-08-06): the exception re-entry re-runs the
--- trampoline's entry save with the FAULTING code's s0/s1, so without a repair
--- it destroys the debugger's own registers and every command after the
--- exception returns garbage. The trampoline now mirrors the saved pair at
--- dispatch and puts it back on re-entry, keyed off FLAGS[h]'s bit 2. The DM is
--- deliberately ignorant of the mirror -- it never reads or writes those two
--- words -- so nothing here depends on it beyond the token encoding below.
+-- Measured, two samples per leg on a halted hart that stayed halted and healthy throughout:
+--   * a program returning through the EPILOGUE: FLAGS[h] reads TOK_DONE (12) immediately, and TOK_HALTED (1) once the hart has re-entered.
+--   * pre-fix, a debugger's own `ebreak`: TOK_HALTED (1) ALREADY at the early sample, because it re-entered sooner precisely by skipping the epilogue, which is the same fact the cmderr=EXCEPTION was reporting.
+-- The two readings that first looked contradictory were one sampling instant apart.
+-- `cmderr` does not depend on any of this: it reports EXCEPTION for anything that did not store DONE.
+-- The SECOND half of that story lives in the trampoline, not here, and it was a measured defect (J3's A10, 2026-08-06): the exception re-entry re-runs the trampoline's entry save with the FAULTING code's s0/s1, so without a repair it destroys the debugger's own registers and every command after the exception returns garbage.
+-- The trampoline now mirrors the saved pair at dispatch and puts it back on re-entry, keyed off FLAGS[h]'s bit 2.
+-- The DM is deliberately ignorant of the mirror (it never reads or writes those two words), so nothing here depends on it beyond the token encoding below.
 --
 -- THE PLANT (D4, d4_spec 1; USER decision DD13 = R-DD5 option B).
--- Before D4 the entry page was populated by a tcl `force` in every debug
--- harness -- a testbench fiction with no silicon counterpart, and the DM could
--- not have written it even if it wanted to, because a forced word is read-only.
--- The DM now plants the 40-word trampoline itself, out of the constant TRAMP
--- table below, through THE SAME master engine and the SAME `step`/`m_go_*`
--- idiom that already streams EPILOGUE(0 to 8) in S_EPI. Nothing about the
--- mechanism is new; only the table is bigger and the trigger is different.
+-- Before D4 the entry page was populated by a tcl `force` in every debug harness, a testbench fiction with no silicon counterpart, and the DM could not have written it even if it wanted to, because a forced word is read-only.
+-- The DM now plants the 40-word trampoline itself, out of the constant TRAMP table below, through THE SAME master engine and the SAME `step`/`m_go_*` idiom that already streams EPILOGUE(0 to 8) in S_EPI.
+-- Nothing about the mechanism is new; only the table is bigger and the trigger is different.
 --
 -- TWO TRIGGERS, and they are deliberately serviced differently:
 --
---   (1) dmactive 0 -> 1  -- an EAGER plant, taken from S_IDLE the moment the
---       rise is seen. It has to be eager: at attach no hart need ever halt and
---       no command need ever be written, so there is no later event to hang it
---       on, and `setresethaltreq` can halt a hart at a reset release the DM
---       does not schedule. It is a rise, NOT every dmcontrol write -- every
---       status poll writes dmcontrol, and re-planting on each would leave the
---       master engine permanently busy.
+--   (1) dmactive rising from 0 to 1: an EAGER plant, taken from S_IDLE the moment the rise is seen.
+--       It has to be eager: at attach no hart need ever halt and no command need ever be written, so there is no later event to hang it on, and `setresethaltreq` can halt a hart at a reset release the DM does not schedule.
+--       It is a rise, NOT every dmcontrol write: every status poll writes dmcontrol, and re-planting on each would leave the master engine permanently busy.
 --
---   (2) any hart's dbg_halted RISING EDGE -- a LAZY plant, taken immediately
---       before the DM would WAIT ON that hart's TOK_HALTED, i.e. on the way
---       into S_WAITH from either of its two entries (the abstract-command path
---       out of S_BODY, and the queued-resume arm in S_IDLE). d4_spec 1.2 states
---       the requirement as an ORDERING -- "re-streams the trampoline BEFORE
---       consuming that hart's TOK_HALTED (before any S_WAITH wait on it, before
---       any GO/RESUME write)" -- and this is that ordering, discharged at the
---       last possible moment rather than the first.
---       WHY LAZY AND NOT EAGER, measured 2026-08-07 before this code existed:
---       a plant is ~40 arbiter round trips, and while it runs the sequencer is
---       not S_IDLE, which is a busy window. Today's busy windows answer a
---       data0/progbuf proxy access with rsp_data = 0x00000000, rsp_op = OK and
---       cmderr = BUSY, and a `command` write with cmderr = BUSY (measured, both
---       with busy_r = '1' and with busy_r = '0' on the resume path). An eager
---       on-halt plant therefore drops a fresh ~13 us busy window directly on
---       top of the first thing every debugger does after a halt. Servicing it
---       on the way into S_WAITH puts the whole stream INSIDE the busy window
---       the command already owns, so the plant adds no DMI-visible window at
---       all on the halt path -- and it still precedes the token wait, which is
---       the only thing the clause asks for.
+--   (2) any hart's dbg_halted RISING EDGE: a LAZY plant, taken immediately before the DM would WAIT ON that hart's TOK_HALTED, i.e. on the way into S_WAITH from either of its two entries (the abstract-command path out of S_BODY, and the queued-resume arm in S_IDLE).
+--       d4_spec 1.2 states the requirement as an ORDERING, "re-streams the trampoline BEFORE consuming that hart's TOK_HALTED (before any S_WAITH wait on it, before any GO/RESUME write)", and this is that ordering, discharged at the last possible moment rather than the first.
+--       WHY LAZY AND NOT EAGER, measured 2026-08-07 before this code existed: a plant is about 40 arbiter round trips, and while it runs the sequencer is not S_IDLE, which is a busy window.
+--       Today's busy windows answer a data0/progbuf proxy access with rsp_data = 0x00000000, rsp_op = OK and cmderr = BUSY, and a `command` write with cmderr = BUSY (measured, both with busy_r = '1' and with busy_r = '0' on the resume path).
+--       An eager on-halt plant therefore drops a fresh ~13 us busy window directly on top of the first thing every debugger does after a halt.
+--       Servicing it on the way into S_WAITH puts the whole stream INSIDE the busy window the command already owns, so the plant adds no DMI-visible window at all on the halt path, and it still precedes the token wait, which is the only thing the clause asks for.
 --
--- SELF-HEALING, which is why DD13 chose the on-halt variant. A hart that halts
--- into a corrupted page takes an illegal-instruction exception, re-enters at
--- DEBUG_ENTRY_ADDR through the F-D2-0 rider and spins with ZERO retires. It
--- cannot publish TOK_HALTED, so a DM that planted only AFTER seeing the token
--- would deadlock. Planting first breaks that: the page is repaired, the next
--- re-entry executes real code, and the debugger gets its answer with no DMI
--- action beyond the halt it already asked for. Re-streaming identical content
--- under a hart already executing from the page is harmless by identity.
+-- SELF-HEALING, which is why DD13 chose the on-halt variant.
+-- A hart that halts into a corrupted page takes an illegal-instruction exception, re-enters at DEBUG_ENTRY_ADDR through the F-D2-0 rider and spins with ZERO retires.
+-- It cannot publish TOK_HALTED, so a DM that planted only AFTER seeing the token would deadlock.
+-- Planting first breaks that: the page is repaired, the next re-entry executes real code, and the debugger gets its answer with no DMI action beyond the halt it already asked for.
+-- Re-streaming identical content under a hart already executing from the page is harmless by identity.
 --
--- THE PLANT-OWED STATE CLEARS ON dmactive -> 0 (the d4_probe C4 named edit), so
--- toggling dmactive is a real re-plant and not a no-op. `epi_done` JOINS that
--- clear -- see its declaration for the reasoning and the priced consequence.
+-- THE PLANT-OWED STATE CLEARS WHEN dmactive FALLS TO 0 (the d4_probe C4 named edit), so toggling dmactive is a real re-plant and not a no-op.
+-- `epi_done` JOINS that clear; see its declaration for the reasoning and the priced consequence.
 --
--- IT IS NOT SYSTEM BUS ACCESS (R-DD2 boundary, stated so it need not be
--- re-argued). The content is fixed at synthesis, the addresses are fixed at
--- synthesis, no DMI register exposes an arbitrary address or an arbitrary data
--- path to memory, and every plant write lies inside [W_BAND_LO, W_BAND_HI] and
--- is checked by the same mutex-page assertion as every other DM transaction.
+-- IT IS NOT SYSTEM BUS ACCESS (R-DD2 boundary, stated so it need not be re-argued).
+-- The content and the addresses are fixed at synthesis, no DMI register exposes an arbitrary address or an arbitrary data path to memory, and every plant write lies inside [W_BAND_LO, W_BAND_HI] and is checked by the same mutex-page assertion as every other DM transaction.
 --
--- WIRE CONTRACT (R-D1-2(1b) reconciled by R-D2-1(6)/R-D2-2(5)). D1's core
--- collapses a HELD dbg_haltreq to exactly one entry (wait-for-release,
--- release-wins, raw-port clear, free-running clk). So the DM drives each
--- dbg_haltreq(h) as a RE-ARMED level:
+-- WIRE CONTRACT (R-D1-2(1b) reconciled by R-D2-1(6)/R-D2-2(5)).
+-- D1's core collapses a HELD dbg_haltreq to exactly one entry (wait-for-release, release-wins, raw-port clear, free-running clk).
+-- So the DM drives each dbg_haltreq(h) as a RE-ARMED level:
 --        haltreq_wire(h) = want(h) AND NOT halted(h)
--- One expression, and every required behaviour falls out of it: it asserts
--- until the hart halts, deasserts for the whole halted interval (which is what
--- lets the core's mask clear), and RE-ASSERTS the moment the hart resumes while
--- the debugger still wants it halted -- a fresh edge, a fresh entry. That is
--- R-D2-2(5)'s DEFINED semantics: a resumereq under a held haltreq makes the
--- hart resume (resumeack sets) and then re-halt with no further DMI write. The
--- core flop stays as belt and is NOT modified.
+-- One expression, and every required behaviour falls out of it: it asserts until the hart halts, deasserts for the whole halted interval (which is what lets the core's mask clear), and RE-ASSERTS the moment the hart resumes while the debugger still wants it halted, giving a fresh edge and a fresh entry.
+-- That is R-D2-2(5)'s DEFINED semantics: a resumereq under a held haltreq makes the hart resume (resumeack sets) and then re-halt with no further DMI write.
+-- The core flop stays as belt and is NOT modified.
 --
--- FAIL-SAFE POLARITY. Every generic defaults to the OFF/harmless value and
--- ENABLE_DEBUG defaults false (rule 15; policed by check_entity_defaults.py).
--- With ENABLE_DEBUG false the whole block folds: no master requests, no halt
--- requests, dmi_req_ready low, no flops that any downstream cone can reach.
+-- FAIL-SAFE POLARITY.
+-- Every generic defaults to the OFF/harmless value and ENABLE_DEBUG defaults false (rule 15; policed by check_entity_defaults.py).
+-- With ENABLE_DEBUG false the whole block folds: no master requests, no halt requests, dmi_req_ready low, no flops that any downstream cone can reach.
 -- =============================================================================
 
 library IEEE;
@@ -214,15 +124,13 @@ entity debug_module is
     generic (
         -- Fail-safe OFF at every declaration site (rule 15).
         ENABLE_DEBUG : boolean := false;
-        -- Hart count. The clint/irq_router idiom -- N flows from the
-        -- generator's numHarts, never from a MemoryMap constant (there is no
-        -- NHARTS constant in MemoryMap.vhd and the DM must not invent one).
+        -- Hart count, following the clint/irq_router idiom: N flows from the generator's numHarts, never from a MemoryMap constant.
+        -- There is no NHARTS constant in MemoryMap.vhd and the DM must not invent one.
         NHARTS       : natural := 4;
         -- Shared-window word-address width (MCU's SH_AW). word = byte(16:2).
         SH_AW        : natural := 15;
-        -- The claimed band, as BYTE addresses. Defaults are the d2_spec 1
-        -- values; they are generics so a bench can re-aim the whole block the
-        -- way dbg_iface_tb re-aims DEBUG_ENTRY_ADDR.
+        -- The claimed band, as BYTE addresses. Defaults are the d2_spec 1 values.
+        -- They are generics so a bench can re-aim the whole block the way dbg_iface_tb re-aims DEBUG_ENTRY_ADDR.
         DATA0_ADDR   : std_logic_vector(31 downto 0) := x"00010680";
         FLAGS_ADDR   : std_logic_vector(31 downto 0) := x"00010700";
         ENTRY_ADDR   : std_logic_vector(31 downto 0) := x"00010780"
@@ -232,9 +140,7 @@ entity debug_module is
         resetn : in  std_logic;
 
         -- ---- DMI (frozen at D2; D3's DTM drives this unchanged) ----------
-        -- Every INPUT is defaulted so an MCU that does not connect them stays
-        -- legal -- the same trick D1 used on the three tile ports, reused on
-        -- purpose (d2_probe finding 12).
+        -- Every INPUT is defaulted so an MCU that does not connect them stays legal: the same trick D1 used on the three tile ports, reused on purpose (d2_probe finding 12).
         dmi_req_valid : in  std_logic := '0';
         dmi_req_op    : in  std_logic_vector(1 downto 0) := "00";  -- 01=read 10=write
         dmi_req_addr  : in  std_logic_vector(6 downto 0) := (others => '0');
@@ -248,18 +154,15 @@ entity debug_module is
         dbg_haltreq      : out std_logic_vector(NHARTS-1 downto 0);
         dbg_resethaltreq : out std_logic_vector(NHARTS-1 downto 0);
         dbg_halted       : in  std_logic_vector(NHARTS-1 downto 0) := (others => '0');
-        -- unavail(h): the hart exists but the DM cannot reach it. Computed at
-        -- the instantiation site from the power-control state that already
-        -- exists there (d2_spec 5): pd_iso_en(h) or not tile_rstn(h) for
-        -- h >= 1, and `not hart0_rstn` for hart 0 -- hart 0 is NOT immune, the
-        -- DP-S3 boot gate can hold it in reset. Defaulted all-zeros so an
-        -- unconnected instance reports every hart available rather than every
-        -- hart missing.
+        -- unavail(h): the hart exists but the DM cannot reach it.
+        -- Computed at the instantiation site from the power-control state that already exists there (d2_spec 5): pd_iso_en(h) or not tile_rstn(h) for h >= 1, and `not hart0_rstn` for hart 0.
+        -- Hart 0 is NOT immune: the DP-S3 boot gate can hold it in reset.
+        -- Defaulted all-zeros so an unconnected instance reports every hart available rather than every hart missing.
         hart_unavail : in  std_logic_vector(NHARTS-1 downto 0) := (others => '0');
 
         -- ---- shared-bus MASTER port (one mp_arbiter master slice) --------
-        -- Same shape and same protocol as DMA.vhd's. m_we is 4 ACTIVE-HIGH
-        -- byte-lane strobes ("0000" = read), matching mp_arbiter's master side.
+        -- Same shape and same protocol as DMA.vhd's.
+        -- m_we is 4 ACTIVE-HIGH byte-lane strobes ("0000" = read), matching mp_arbiter's master side.
         m_req   : out std_logic;
         m_we    : out std_logic_vector(3 downto 0);
         m_addr  : out std_logic_vector(SH_AW-1 downto 0);
@@ -273,9 +176,10 @@ end entity;
 architecture rtl of debug_module is
 
     -- ------------------------------------------------------------------
-    -- Layout constants, all derived from the generics so a re-aimed block
-    -- stays self-consistent. WORD addresses (the arbiter's unit).
+    -- Layout constants, all derived from the generics so a re-aimed block stays self-consistent.
+    -- These are WORD addresses, the arbiter's unit.
     -- ------------------------------------------------------------------
+    -- Byte address to shared-window word address.
     function w(a : std_logic_vector(31 downto 0)) return integer is
     begin
         return conv_integer(a(SH_AW+1 downto 2));
@@ -285,65 +189,44 @@ architecture rtl of debug_module is
     constant W_PROGBUF0 : integer := w(DATA0_ADDR) + 1;      -- 0x10684
     constant W_PROGBUF1 : integer := w(DATA0_ADDR) + 2;      -- 0x10688
     constant W_IMPLICIT : integer := w(DATA0_ADDR) + 3;      -- 0x1068C
-    -- F-D5-2 (R-DD9): the program-buffer stubs, inside the band the ledger
-    -- already reserves for DM use (0x10690-0x106FC) and clear of MIRROR0/1 at
-    -- 0x106F0/F4.  PB_ENTER is 3 words and PB_LEAVE is 11 (it grew by the two
-    -- restore words the blind detector forced -- see PB_LEAVE below), so the
-    -- pair occupies 0x10690-0x106C4 and leaves 0x106C8-0x106EC still free.
-    -- PBSTUB_WORDS below is the ONE number S_EPI streams from; keep the three
-    -- in step, and note the arithmetic is checked by nothing but this comment.
+    -- F-D5-2 (R-DD9): the program-buffer stubs, inside the band the ledger already reserves for DM use (0x10690-0x106FC) and clear of MIRROR0/1 at 0x106F0/F4.
+    -- PB_ENTER is 3 words and PB_LEAVE is 11 (it grew by the two restore words the blind detector forced; see PB_LEAVE below), so the pair occupies 0x10690-0x106C4 and leaves 0x106C8-0x106EC still free.
+    -- PBSTUB_WORDS below is the ONE number S_EPI streams from; keep the three in step, and note the arithmetic is checked by nothing but this comment.
     constant W_PBSTUB   : integer := w(DATA0_ADDR) + 4;      -- 0x10690
     constant W_PB_LEAVE : integer := W_PBSTUB + 3;           -- 0x1069C
     constant PBSTUB_WORDS : integer := 14;                   -- 3 + 11
     constant W_FLAGS0   : integer := w(FLAGS_ADDR);          -- 0x10700
     constant W_ENTRY    : integer := w(ENTRY_ADDR);          -- 0x10780
-    -- THE TRAMPOLINE'S OWN LENGTH IS THE COUPLING. It occupies words 0..39
-    -- since it gained the session-mirror repair for the F-D2-0 exception
-    -- re-entry (software/dbg_trampoline/dbg_trampoline.S, 2026-08-06), and its
-    -- dispatch ends in `jal x0, _start + 4*40`, so W_ABST is 40 and not a free
-    -- choice. Changing either without the other silently jumps into the wrong
-    -- code; the .S header and the Makefile both say so.
-    -- ...so the length is written ONCE and W_ABST is derived from it. Before
-    -- D4 the 40 lived in this expression and again in the .S and again in the
-    -- Makefile; the table below makes it a fourth site, so it is named here and
-    -- the other three are mechanised against it by check_dbg_trampoline.py.
+    -- THE TRAMPOLINE'S OWN LENGTH IS THE COUPLING.
+    -- It occupies words 0..39 since it gained the session-mirror repair for the F-D2-0 exception re-entry (software/dbg_trampoline/dbg_trampoline.S, 2026-08-06), and its dispatch ends in `jal x0, _start + 4*40`, so W_ABST is 40 and not a free choice.
+    -- Changing either without the other silently jumps into the wrong code; the .S header and the Makefile both say so.
+    -- So the length is written ONCE and W_ABST is derived from it.
+    -- Before D4 the 40 lived in this expression and again in the .S and again in the Makefile; the table below makes it a fourth site, so it is named here and the other three are mechanised against it by check_dbg_trampoline.py.
     constant TRAMP_WORDS: integer := 40;
     constant W_ABST     : integer := W_ENTRY + TRAMP_WORDS;  -- 0x10820
     constant W_EPILOG   : integer := W_ENTRY + 48;           -- 0x10840
 
-    -- The band the mutex-page guard checks against: everything the DM may
-    -- ever touch lies in [W_DATA0 .. W_ENTRY+63].
+    -- The band the mutex-page guard checks against: everything the DM may ever touch lies in [W_DATA0 .. W_ENTRY+63].
     constant W_BAND_LO  : integer := W_DATA0;
     constant W_BAND_HI  : integer := W_ENTRY + 63;
 
     -- ------------------------------------------------------------------
-    -- FLAGS[] tokens. Implementer latitude (d2_spec 1), single-writer-per-
-    -- state: the DM writes GO and RESUME, the hart writes HALTED and DONE.
-    -- No instrument encodes these values -- everything is checked through DMI
-    -- responses and through architectural effects the victim itself reports.
-    -- Chosen as small positive immediates so the trampoline can compare them
-    -- with `addi` against x0 and needs no second scratch register, and so that
-    -- BIT 2 IS SET IN EXACTLY THE TWO VALUES FLAGS CAN HOLD WHEN THE HART
-    -- RE-ENTERS THE TRAMPOLINE -- GO (an exception before the epilogue) and
-    -- DONE (the epilogue's own ebreak) -- and clear in the two it can hold at a
-    -- FIRST entry, 0 (the bootrom's zeroing) and RESUME (left by the previous
-    -- session; the hart cannot leave debug mode by any other route). That one
-    -- bit is what lets the trampoline repair its own dscratch save on a
-    -- re-entry with a single `andi` and no second scratch register. Changing
-    -- these values without changing dbg_trampoline.S breaks the handshake.
+    -- FLAGS[] tokens.
+    -- Implementer latitude (d2_spec 1), single-writer-per-state: the DM writes GO and RESUME, the hart writes HALTED and DONE.
+    -- No instrument encodes these values; everything is checked through DMI responses and through architectural effects the victim itself reports.
+    -- Chosen as small positive immediates so the trampoline can compare them with `addi` against x0 and needs no second scratch register.
+    -- Chosen also so that BIT 2 IS SET IN EXACTLY THE TWO VALUES FLAGS CAN HOLD WHEN THE HART RE-ENTERS THE TRAMPOLINE, namely GO (an exception before the epilogue) and DONE (the epilogue's own ebreak), and clear in the two it can hold at a FIRST entry, 0 (the bootrom's zeroing) and RESUME (left by the previous session; the hart cannot leave debug mode by any other route).
+    -- That one bit is what lets the trampoline repair its own dscratch save on a re-entry with a single `andi` and no second scratch register.
+    -- Changing these values without changing dbg_trampoline.S breaks the handshake.
     -- ------------------------------------------------------------------
     constant TOK_HALTED : integer := 1;
     constant TOK_RESUME : integer := 2;
     constant TOK_GO     : integer := 4;
     constant TOK_DONE   : integer := 12;
-    -- F-D5-2 (R-DD9): the PROGRAM-BUFFER completion token. 8 is chosen for one
-    -- reason and it is the whole trick: BIT 2 IS CLEAR. The trampoline's
-    -- re-entry test is `andi s1,s1,REENTRY_BIT(4)` -- set in GO(4) and
-    -- DONE(12), clear in 0/1/2 -- so a bit-2-clear token takes the FIRST-ENTRY
-    -- path, where the tentative `dscratch <- s0/s1` save at trampoline words
-    -- 0..1 STANDS instead of being repaired from the mirror. That is exactly
-    -- "adopt the values the program buffer left", obtained with no new branch
-    -- and WITHOUT CHANGING ONE OF THE 40 TRAMPOLINE WORDS.
+    -- F-D5-2 (R-DD9): the PROGRAM-BUFFER completion token.
+    -- 8 is chosen for one reason and it is the whole trick: BIT 2 IS CLEAR.
+    -- The trampoline's re-entry test is `andi s1,s1,REENTRY_BIT(4)`, set in GO(4) and DONE(12) and clear in 0/1/2, so a bit-2-clear token takes the FIRST-ENTRY path, where the tentative dscratch save of s0/s1 at trampoline words 0..1 STANDS instead of being repaired from the mirror.
+    -- That is exactly "adopt the values the program buffer left", obtained with no new branch and WITHOUT CHANGING ONE OF THE 40 TRAMPOLINE WORDS.
     constant TOK_PBDONE : integer := 8;
 
     -- ------------------------------------------------------------------
@@ -374,9 +257,7 @@ architecture rtl of debug_module is
     constant ERR_HALTRES : std_logic_vector(2 downto 0) := "100";
     constant ERR_OTHER   : std_logic_vector(2 downto 0) := "111";
 
-    -- ~65k mclk at 24 MHz is ~2.7 ms, comfortably inside the 100 ms testbench
-    -- watchdog and far longer than any real abstract sequence (a few hundred
-    -- mclk including the hart's own shared fetches).
+    -- ~65k mclk at 24 MHz is ~2.7 ms, comfortably inside the 100 ms testbench watchdog and far longer than any real abstract sequence (a few hundred mclk including the hart's own shared fetches).
     constant POLL_LIMIT : integer := 65535;
 
     -- ------------------------------------------------------------------
@@ -390,7 +271,7 @@ architecture rtl of debug_module is
     signal havereset_r: std_logic_vector(NHARTS-1 downto 0);
     signal cmderr_r   : std_logic_vector(2 downto 0);
     signal busy_r     : std_logic;
-    -- halt groups: 3 bits per hart => 8 groups, group 0 = "no group" = reset.
+    -- halt groups: 3 bits per hart gives 8 groups, group 0 = "no group" = reset value.
     type grp_t is array (0 to NHARTS-1) of std_logic_vector(2 downto 0);
     signal grp_r      : grp_t;
     signal grp_pend   : std_logic_vector(NHARTS-1 downto 0);
@@ -430,77 +311,41 @@ architecture rtl of debug_module is
     type s_state_t is (S_IDLE,
                        S_PROXY,        -- a data0/progbuf DMI access in flight
                        S_PROXY_RSP,
-                       -- THE PLANT (D4). Streams the constant TRAMP table to
-                       -- W_ENTRY+0..39. Entered from three places and it knows
-                       -- where to go back WITHOUT a return-state flop: a plant
-                       -- that was owed to a TOK_HALTED wait is always entered
-                       -- with busy_r = '1' (the command path) or res_busy = '1'
-                       -- (the queued-resume path), and the eager dmactive-rise
-                       -- plant is by construction entered from an S_IDLE where
-                       -- both are '0' -- a command cannot have started (its
-                       -- accept requires mst_free, i.e. S_IDLE) and no resume
-                       -- flow can be in progress (every path that clears
-                       -- res_busy returns to S_IDLE in the same cycle).
+                       -- THE PLANT (D4), which streams the constant TRAMP table to W_ENTRY+0..39.
+                       -- Entered from three places and it knows where to go back WITHOUT a return-state flop: a plant that was owed to a TOK_HALTED wait is always entered with busy_r = '1' (the command path) or res_busy = '1' (the queued-resume path).
+                       -- The eager dmactive-rise plant is by construction entered from an S_IDLE where both are '0': a command cannot have started (its accept requires mst_free, i.e. S_IDLE) and no resume flow can be in progress (every path that clears res_busy returns to S_IDLE in the same cycle).
                        S_TRAMP,
                        S_EPI,          -- write the constant epilogue (once)
                        S_BODY,         -- write the synthesized abstract body
                        S_IMPL,         -- write the implicit progbuf word
-                       S_GO,           -- FLAGS[h] <- TOK_GO
+                       S_GO,           -- write TOK_GO into FLAGS[h]
                        S_POLL,         -- read FLAGS[h] until DONE / not GO
-                       S_FIN,
-                       -- THE HANDOFF WAIT. The DM must OBSERVE FLAGS[h] =
-                       -- TOK_HALTED before it writes GO or RESUME.
-                       -- WHY: dmstatus.halted follows `debug_mode`, which sets
-                       -- at DBG_SV -- but the trampoline needs a dozen more
-                       -- shared accesses to reach its own `sw TOK_HALTED`. A DM
-                       -- that writes the token as soon as it sees `halted` has
-                       -- its write OVERWRITTEN by the hart moments later, and
-                       -- the hart then polls forever. That is a single-writer-
-                       -- per-state violation at the handoff, and it is
-                       -- invisible whenever the hart has been halted for a
-                       -- while -- which is why the plain resume (J2's H6)
-                       -- passed while the back-to-back one (R2) did not.
+                       S_FIN,          -- retire the command: clear busy, back to S_IDLE
+                       -- THE HANDOFF WAIT. The DM must OBSERVE FLAGS[h] = TOK_HALTED before it writes GO or RESUME.
+                       -- WHY: dmstatus.halted follows `debug_mode`, which sets at DBG_SV, but the trampoline needs a dozen more shared accesses to reach its own `sw TOK_HALTED`.
+                       -- A DM that writes the token as soon as it sees `halted` has its write OVERWRITTEN by the hart moments later, and the hart then polls forever.
+                       -- That is a single-writer-per-state violation at the handoff, and it is invisible whenever the hart has been halted for a while, which is why the plain resume (J2's H6) passed while the back-to-back one (R2) did not.
                        S_WAITH,
-                       S_RESUME,       -- FLAGS[h] <- TOK_RESUME
+                       S_RESUME,       -- write TOK_RESUME into FLAGS[h]
                        -- HOLD THE ENGINE UNTIL THE DISPATCHED RESUME IS TAKEN.
-                       -- MEASURED DEFECT, 2026-08-06 (found by the J4 timeline
-                       -- probe, seen to fail and to pass): S_RESUME used to
-                       -- clear res_busy on the token WRITE, while resume_pend
-                       -- is only cleared on the hart's halted FALLING edge --
-                       -- so in the window between the two (the three shared
-                       -- instructions the trampoline needs to reach its `dret`)
-                       -- S_IDLE's arm condition was true AGAIN and re-armed the
-                       -- SAME resume, parking the DM in S_WAITH for the full
-                       -- POLL_LIMIT. Two consequences, both measured: a hart
-                       -- that halted again inside that window (halt group,
-                       -- re-armed haltreq) had the stale S_WAITH observe its
-                       -- TOK_HALTED and fire a SPURIOUS, DMI-unrequested
-                       -- resume; and `mst_free` (S_IDLE only) stayed low for
-                       -- 2.75 ms after EVERY resume, so every data0/progbuf
-                       -- proxy read answered 0 with cmderr = BUSY.
+                       -- MEASURED DEFECT, 2026-08-06 (found by the J4 timeline probe, seen to fail and to pass): S_RESUME used to clear res_busy on the token WRITE, while resume_pend is only cleared on the hart's halted FALLING edge.
+                       -- In the window between the two (the three shared instructions the trampoline needs to reach its `dret`) S_IDLE's arm condition was true AGAIN and re-armed the SAME resume, parking the DM in S_WAITH for the full POLL_LIMIT.
+                       -- Two consequences, both measured: a hart that halted again inside that window (halt group, re-armed haltreq) had the stale S_WAITH observe its TOK_HALTED and fire a SPURIOUS, DMI-unrequested resume; and `mst_free` (S_IDLE only) stayed low for 2.75 ms after EVERY resume, so every data0/progbuf proxy read answered 0 with cmderr = BUSY.
                        S_RESWAIT);
     signal s_state : s_state_t;
     signal step    : integer range 0 to 63;
-    -- WRITE-ONCE for the epilogue, and it now JOINS the dmactive -> 0 clear
-    -- (d4_spec 1.3 leaves the choice to the implementer and requires it to be
-    -- stated and its consequence measured). Chosen so that a dmactive toggle is
-    -- a COMPLETE recovery of everything the DM owns in the page rather than a
-    -- partial one: the trampoline would be re-planted and the epilogue would
-    -- not, which is the more surprising of the two behaviours and the harder
-    -- one to diagnose from a debugger. It is also the fail-safe direction
-    -- (rule 15) -- the cost of being wrong is nine shared writes, and the cost
-    -- of the other choice is an unrecoverable epilogue. PRICED CONSEQUENCE: the
-    -- FIRST abstract command after any dmactive toggle now takes the S_EPI path
-    -- again (9 extra master writes, ~45 mclk) instead of going straight to
-    -- S_IMPL. Measured green by dbg_trprep's R6, which exists for this clause.
+    -- WRITE-ONCE for the epilogue, and it now JOINS the clear taken when dmactive falls to 0 (d4_spec 1.3 leaves the choice to the implementer and requires it to be stated and its consequence measured).
+    -- Chosen so that a dmactive toggle is a COMPLETE recovery of everything the DM owns in the page rather than a partial one: otherwise the trampoline would be re-planted and the epilogue would not, which is the more surprising of the two behaviours and the harder one to diagnose from a debugger.
+    -- It is also the fail-safe direction (rule 15): the cost of being wrong is nine shared writes, and the cost of the other choice is an unrecoverable epilogue.
+    -- PRICED CONSEQUENCE: the FIRST abstract command after any dmactive toggle now takes the S_EPI path again (9 extra master writes, ~45 mclk) instead of going straight to S_IMPL.
+    -- Measured green by dbg_trprep's R6, which exists for this clause.
     signal epi_done: std_logic;
-    -- THE TWO PLANT-OWED BITS (D4). See THE PLANT in the header for why the two
-    -- triggers are not merged into one: they are serviced at different moments,
-    -- so one bit cannot represent both without making the on-halt plant eager.
+    -- THE TWO PLANT-OWED BITS (D4).
+    -- See THE PLANT in the header for why the two triggers are not merged into one: they are serviced at different moments, so one bit cannot represent both without making the on-halt plant eager.
     signal tramp_arm : std_logic;   -- dmactive rose: plant NOW, from S_IDLE
     signal tramp_halt: std_logic;   -- a hart halted: plant before its TOK_HALTED
-    signal cmd_r   : std_logic_vector(31 downto 0);
-    signal cmd_hart: integer range 0 to 1023;
+    signal cmd_r   : std_logic_vector(31 downto 0);   -- the accepted `command` word
+    signal cmd_hart: integer range 0 to 1023;         -- the hart it was aimed at, latched at accept
 
     -- DMI front end
     signal rsp_valid_r : std_logic;
@@ -508,58 +353,32 @@ architecture rtl of debug_module is
     signal rsp_op_r    : std_logic_vector(1 downto 0);
     signal ready_r     : std_logic;
     signal mst_free    : std_logic;
-    -- ONE ACCEPT PER ASSERTION OF dmi_req_valid.  MEASURED before this existed:
-    -- both BFMs raise req_valid and HOLD it until they sample req_ready high
-    -- (their documented shape, and the legal one under R-D2-2(7)), so a DM that
-    -- simply accepts on `valid and ready` accepts the SAME request on every
-    -- cycle ready stays high -- issuing several responses for one request and
-    -- sliding the master's request/response pairing by one for the rest of the
-    -- run.  The symptom is not a wrong answer, it is the PREVIOUS answer, which
-    -- is far worse to read.
-    -- WHAT ACTUALLY IMPLEMENTS THE LOCKOUT, corrected at D3 (d3_spec 3; the
-    -- text this replaces described an observed-low discipline through a signal
-    -- name THAT DOES NOT EXIST IN THIS FILE).  The guard is a TIMER:
-    -- `rsp_hold = 0 and rsp_arm = '0'` on the accept below.  ready_r pulses for
-    -- one cycle at the capture; rsp_arm blocks the next cycle; rsp_hold blocks
-    -- the following RSP_HOLD_CYCLES.  So the accept window RE-OPENS 9 mclk
-    -- after a capture, and NOTHING here depends on dmi_req_valid having been
-    -- seen low.  A master that holds valid high for >= 9 mclk after the
-    -- acknowledge therefore earns a DUPLICATE ACCEPT of the same request --
-    -- which is precisely why d3_cdc_spec 2 makes the DTM's mclk-side master a
-    -- ONE-SHOT that retires on ready (jtag_dtm.vhd), and why both tcl and VHDL
-    -- BFMs drop valid the instant they sample the acknowledge.
-    -- How long the response is HELD. See the ready/rsp comment below: the
-    -- masters that drive this port sample at 10 ns against an mclk period of
-    -- 41.667 ns and drop their request the instant they see the acknowledge, so
-    -- a one-cycle response pulse is a race they lose about as often as they win.
-    -- 7 mclk (~292 ns) is far longer than any master's sampling interval and far
-    -- shorter than any inter-transaction gap, and it doubles as the re-capture
-    -- lockout that stops ONE held assertion of valid producing TWO accepts.
+    -- ONE ACCEPT PER ASSERTION OF dmi_req_valid.
+    -- MEASURED before this existed: both BFMs raise req_valid and HOLD it until they sample req_ready high (their documented shape, and the legal one under R-D2-2(7)), so a DM that simply accepts on `valid and ready` accepts the SAME request on every cycle ready stays high, issuing several responses for one request and sliding the master's request/response pairing by one for the rest of the run.
+    -- The symptom is not a wrong answer, it is the PREVIOUS answer, which is far worse to read.
+    -- WHAT ACTUALLY IMPLEMENTS THE LOCKOUT, corrected at D3 (d3_spec 3; the text this replaces described an observed-low discipline through a signal name THAT DOES NOT EXIST IN THIS FILE).
+    -- The guard is a TIMER: `rsp_hold = 0 and rsp_arm = '0'` on the accept below.
+    -- ready_r pulses for one cycle at the capture; rsp_arm blocks the next cycle; rsp_hold blocks the following RSP_HOLD_CYCLES.
+    -- So the accept window RE-OPENS 9 mclk after a capture, and NOTHING here depends on dmi_req_valid having been seen low.
+    -- A master that holds valid high for 9 mclk or more after the acknowledge therefore earns a DUPLICATE ACCEPT of the same request, which is precisely why d3_cdc_spec 2 makes the DTM's mclk-side master a ONE-SHOT that retires on ready (jtag_dtm.vhd), and why both tcl and VHDL BFMs drop valid the instant they sample the acknowledge.
+    -- How long the response is HELD, per the ready/rsp comment below: the masters that drive this port sample at 10 ns against an mclk period of 41.667 ns and drop their request the instant they see the acknowledge, so a one-cycle response pulse is a race they lose about as often as they win.
+    -- 7 mclk (~292 ns) is far longer than any master's sampling interval and far shorter than any inter-transaction gap, and it doubles as the re-capture lockout that stops ONE held assertion of valid producing TWO accepts.
     constant RSP_HOLD_CYCLES : integer := 7;
     signal rsp_hold    : integer range 0 to RSP_HOLD_CYCLES;
-    -- The response is ARMED at capture and ASSERTED ONE CYCLE LATER, so
-    -- rsp_data/rsp_op are provably settled before rsp_valid ever rises.
-    -- Without the separation a master sampling finely enough catches rsp_valid
-    -- in the same cycle the answer is still being computed and reads the
-    -- PREVIOUS transaction's data -- measured, and it surfaces as a plausible
-    -- wrong value rather than as a protocol error, which is the worse failure.
+    -- The response is ARMED at capture and ASSERTED ONE CYCLE LATER, so rsp_data/rsp_op are provably settled before rsp_valid ever rises.
+    -- Without the separation a master sampling finely enough catches rsp_valid in the same cycle the answer is still being computed and reads the PREVIOUS transaction's data: measured, and it surfaces as a plausible wrong value rather than as a protocol error, which is the worse failure.
     signal rsp_arm     : std_logic;
-    signal pend_wr     : std_logic;
-    -- The hart a resume was aimed at, latched so S_RESUME cannot be re-pointed
-    -- by a hartsel write that lands while the FLAGS store is still in flight.
+    signal pend_wr     : std_logic;   -- the accepted access was a write, so the proxy answers zeros
+    -- The hart a resume was aimed at, latched so S_RESUME cannot be re-pointed by a hartsel write that lands while the FLAGS store is still in flight.
     signal res_hart    : integer range 0 to 1023;
-    -- A queued resume. R-D2-5(2): a DM that silently DROPS resumereq because
-    -- its master engine is busy is wrong against the W1 semantics of spec 4
-    -- regardless of any instrument, so the request is latched and serviced
-    -- when the engine frees. res_busy stops the queue re-triggering the flow
-    -- while one is already in progress.
+    -- A queued resume.
+    -- R-D2-5(2): a DM that silently DROPS resumereq because its master engine is busy is wrong against the W1 semantics of spec 4 regardless of any instrument, so the request is latched and serviced when the engine frees.
+    -- res_busy stops the queue re-triggering the flow while one is already in progress.
     signal res_busy    : std_logic;
-    -- what S_WAITH runs on to next
+    -- what S_WAITH runs on to next: '1' for the command path (S_GO), '0' for the resume path (S_RESUME)
     signal waith_go    : std_logic;
-    -- S_POLL bound. A hart that never reports (a wedged trampoline, an
-    -- unplanted entry page) must not pin `busy` forever -- an instrument would
-    -- hang instead of failing, and a bounded retry that trips inside the tb
-    -- watchdog is the house rule.
+    -- S_POLL bound.
+    -- A hart that never reports (a wedged trampoline, an unplanted entry page) must not pin `busy` forever: an instrument would hang instead of failing, and a bounded retry that trips inside the tb watchdog is the house rule.
     signal poll_to     : integer range 0 to POLL_LIMIT;
 
     -- ------------------------------------------------------------------
@@ -573,6 +392,7 @@ architecture rtl of debug_module is
     constant CSR_DSCRATCH1 : integer := 16#7B3#;
     constant CSR_MHARTID   : integer := 16#F14#;
 
+    -- Unsigned field packers for the instruction encoders below.
     function u5(n : integer) return std_logic_vector is
     begin
         return conv_std_logic_vector(n, 5);
@@ -640,11 +460,11 @@ architecture rtl of debug_module is
     begin
         return u12(csr) & u5(rs1) & "001" & u5(0) & "1110011";
     end function;
+    -- ebreak, the 32-bit encoding (the entry page is norvc).
     constant I_EBREAK : std_logic_vector(31 downto 0) := x"00100073";
 
-    -- The base the trampoline and the emitted code address everything from:
-    -- lui s0/s1, HI20 gives 0x00010000, and every DM word below 0x10800 is
-    -- then reachable with a 12-bit unsigned load/store displacement.
+    -- The base the trampoline and the emitted code address everything from.
+    -- `lui s0/s1, HI20` gives 0x00010000, and every DM word below 0x10800 is then reachable with a 12-bit unsigned load/store displacement.
     constant HI20     : integer := conv_integer(DATA0_ADDR(31 downto 12));
     constant OFF_BASE : integer := conv_integer(DATA0_ADDR(31 downto 12)) * 4096;
     constant O_DATA0  : integer := conv_integer(DATA0_ADDR) - OFF_BASE;
@@ -681,79 +501,49 @@ architecture rtl of debug_module is
         7 => i_csrr(R_S0, CSR_DSCRATCH0),
         8 => I_EBREAK);
 
-    -- The implicit third program-buffer word (impebreak = 1). It is a jump to
-    -- the epilogue rather than a bare ebreak, so that a postexec sequence
-    -- still stores its DONE token: "implicit ebreak" is what the DEBUGGER
-    -- sees, and the epilogue's own ebreak is what actually terminates.
+    -- The implicit third program-buffer word (impebreak = 1).
+    -- It is a jump to the epilogue rather than a bare ebreak, so that a postexec sequence still stores its DONE token: "implicit ebreak" is what the DEBUGGER sees, and the epilogue's own ebreak is what actually terminates.
     constant I_IMPLICIT : std_logic_vector(31 downto 0) :=
         i_jal(0, (W_PB_LEAVE - W_IMPLICIT) * 4);
 
     -- ------------------------------------------------------------------
     -- F-D5-1 (R-DD8): THE SUBSTITUTED PROGRAM-BUFFER TERMINATORS.
     --
-    -- A debugger writing its OWN `ebreak` into the program buffer is legal and
-    -- routine: riscv_program_ebreak() relies on impebreak only when the program
-    -- FILLS the buffer, so stock OpenOCD appends one to every program shorter
-    -- than progbufsize -- which is every memory access it makes (one real
-    -- instruction in a two-word buffer).  That ebreak terminates execution
-    -- WITHOUT passing through the epilogue, so the DONE token is never stored
-    -- and the DM reports cmderr = EXCEPTION for a command that in fact
-    -- completed.  Measured 2026-08-10 in a real OpenOCD 0.12.0-7 + gdb 13.2
-    -- session: every memory access failed at every address class, while the
-    -- data itself MOVED correctly (0x00000000 -> 0xD5B7EA11 with cmderr=3).
-    -- Reported-and-recoverable, not terminal -- and fatal to gdb anyway, since
-    -- SBA is out by design and cmdtype 2 answers NOT_SUPPORTED, so the program
-    -- buffer is the only memory path there is.
+    -- A debugger writing its OWN `ebreak` into the program buffer is legal and routine: riscv_program_ebreak() relies on impebreak only when the program FILLS the buffer, so stock OpenOCD appends one to every program shorter than progbufsize, which is every memory access it makes (one real instruction in a two-word buffer).
+    -- That ebreak terminates execution WITHOUT passing through the epilogue, so the DONE token is never stored and the DM reports cmderr = EXCEPTION for a command that in fact completed.
+    -- Measured 2026-08-10 in a real OpenOCD 0.12.0-7 + gdb 13.2 session: every memory access failed at every address class, while the data itself MOVED correctly (0x00000000 became 0xD5B7EA11 with cmderr=3).
+    -- Reported-and-recoverable, not terminal, and fatal to gdb anyway, since SBA is out by design and cmdtype 2 answers NOT_SUPPORTED, so the program buffer is the only memory path there is.
     --
-    -- The substitution below stores a POSITION-CORRECT jump to the epilogue in
-    -- place of that ebreak, so the debugger's program terminates the way the
-    -- implicit third word already does.  PER-SLOT, not a shared constant: both
-    -- jals must land on the SAME absolute word (W_EPILOG), so their offsets
-    -- differ by exactly the 4 bytes between the two slots.
+    -- The substitution below stores a POSITION-CORRECT jump to the epilogue in place of that ebreak, so the debugger's program terminates the way the implicit third word already does.
+    -- PER-SLOT, not a shared constant: both jals must land on the SAME absolute word (W_EPILOG), so their offsets differ by exactly the 4 bytes between the two slots.
     -- ------------------------------------------------------------------
     -- ------------------------------------------------------------------
     -- F-D5-2 (R-DD9): THE TWO PROGRAM-BUFFER STUBS.
     --
-    -- They live in the DM-reserved band at 0x10690 rather than in the entry
-    -- page, and that is forced rather than chosen: the page's 64 words are
-    -- trampoline 0..39, abstract body 40..44, EPILOGUE 48..56, leaving only
-    -- ten free words in two non-adjacent runs -- not enough for both stubs.
-    -- 0x10690 is already claimed "reserved for DM use" and is clear of
-    -- MIRROR0/1 at 0x106F0/F4.  Everything below 0x10800 stays reachable from
-    -- a `lui 0x10` base with a 12-bit displacement, which is why the whole
-    -- band was placed there.
+    -- They live in the DM-reserved band at 0x10690 rather than in the entry page, and that is forced rather than chosen: the page's 64 words are trampoline 0..39, abstract body 40..44 and EPILOGUE 48..56, leaving only ten free words in two non-adjacent runs, not enough for both stubs.
+    -- 0x10690 is already claimed "reserved for DM use" and is clear of MIRROR0/1 at 0x106F0/F4.
+    -- Everything below 0x10800 stays reachable from a `lui 0x10` base with a 12-bit displacement, which is why the whole band was placed there.
     --
-    -- PB_ENTER -- restore the debugger's s0/s1 before the program buffer runs.
-    -- It is reached from the abstract body's TAIL, i.e. strictly AFTER the
-    -- body's transfer work, so a `transfer+postexec` command's freshly written
-    -- dscratch is what gets restored.  Without it the program buffer runs on
-    -- whatever scratch the DM's own body happened to leave in s0/s1.
+    -- PB_ENTER restores the debugger's s0/s1 before the program buffer runs.
+    -- It is reached from the abstract body's TAIL, i.e. strictly AFTER the body's transfer work, so a `transfer+postexec` command's freshly written dscratch is what gets restored.
+    -- Without it the program buffer runs on whatever scratch the DM's own body happened to leave in s0/s1.
     constant PB_ENTER : word_arr(0 to 2) := (
         0 => i_csrr(R_S0, CSR_DSCRATCH0),
         1 => i_csrr(R_S1, CSR_DSCRATCH1),
         2 => i_jal (0, (W_PROGBUF0 - (W_PBSTUB + 2)) * 4));
 
-    -- PB_LEAVE -- adopt what the program buffer computed, then publish PBDONE.
+    -- PB_LEAVE adopts what the program buffer computed, then publishes PBDONE.
     --
     -- THE ORDER OF THE FIRST TWO WORDS IS LOAD-BEARING AND LOOKS SWAPPABLE.
-    -- The stub must publish a per-hart FLAGS word, which means recomputing the
-    -- row base from mhartid -- and that needs a scratch register, which can
-    -- only be s0/s1, the very pair it exists to preserve.  So it SAVES FIRST
-    -- and MARKS SECOND: once dscratch holds the adopted values, s0/s1 are free
-    -- to be destroyed.  Marking first would leave nothing to adopt.
+    -- The stub must publish a per-hart FLAGS word, which means recomputing the row base from mhartid, and that needs a scratch register, which can only be s0/s1, the very pair it exists to preserve.
+    -- So it SAVES FIRST and MARKS SECOND: once dscratch holds the adopted values, s0/s1 are free to be destroyed.
+    -- Marking first would leave nothing to adopt.
     --
-    -- It deliberately does NOT fall into EPILOGUE: the epilogue restores s0/s1
-    -- FROM dscratch before its ebreak, which would overwrite the program
-    -- buffer's results with the pre-command values -- the exact interaction
-    -- that makes the naive version of this fix a no-op.
-    -- WORDS 9..10 ARE NOT OPTIONAL, and leaving them out is a mistake this
-    -- file's author actually made and the blind detector caught (C2/A1/E2 stayed
-    -- red while C1/B1 went green).  Words 2..7 CLOBBER s0/s1 to compute the
-    -- per-hart FLAGS address -- and the trampoline's re-entry begins with a
-    -- TENTATIVE `dscratch <- s0/s1` save.  Ebreak-ing with clobbered registers
-    -- therefore writes `&FLAGS[h]` and the token straight over the values just
-    -- adopted.  Restoring from dscratch first makes that tentative save a
-    -- no-op, which is exactly why EPILOGUE ends the same way.
+    -- It deliberately does NOT fall into EPILOGUE: the epilogue restores s0/s1 FROM dscratch before its ebreak, which would overwrite the program buffer's results with the pre-command values, the exact interaction that makes the naive version of this fix a no-op.
+    -- WORDS 9..10 ARE NOT OPTIONAL, and leaving them out is a mistake this file's author actually made and the blind detector caught (C2/A1/E2 stayed red while C1/B1 went green).
+    -- Words 2..7 CLOBBER s0/s1 to compute the per-hart FLAGS address, and the trampoline's re-entry begins with a TENTATIVE dscratch save of s0/s1.
+    -- Ebreak-ing with clobbered registers therefore writes `&FLAGS[h]` and the token straight over the values just adopted.
+    -- Restoring from dscratch first makes that tentative save a no-op, which is exactly why EPILOGUE ends the same way.
     constant PB_LEAVE : word_arr(0 to 10) := (
         0 => i_csrw(CSR_DSCRATCH0, R_S0),     -- adopt s0
         1 => i_csrw(CSR_DSCRATCH1, R_S1),     -- adopt s1  (now free to clobber)
@@ -767,38 +557,29 @@ architecture rtl of debug_module is
         9 => i_csrr(R_S0, CSR_DSCRATCH0),     --   the arch regs before ebreak
        10 => I_EBREAK);
 
+    -- The per-slot replacements for a debugger-written ebreak (F-D5-1 above).
     constant I_PB0_JAL : std_logic_vector(31 downto 0) :=
         i_jal(0, (W_PB_LEAVE - W_PROGBUF0) * 4);
     constant I_PB1_JAL : std_logic_vector(31 downto 0) :=
         i_jal(0, (W_PB_LEAVE - W_PROGBUF1) * 4);
 
     -- ------------------------------------------------------------------
-    -- THE TRAMPOLINE (D4). The entry code every halted hart executes, held as
-    -- a constant instruction table and streamed to W_ENTRY+0..39 by S_TRAMP.
+    -- THE TRAMPOLINE (D4).
+    -- The entry code every halted hart executes, held as a constant instruction table and streamed to W_ENTRY+0..39 by S_TRAMP.
     --
-    -- THIS TABLE IS A COPY, AND THE COPY IS MECHANISED, NOT TRUSTED. The
-    -- original is software/dbg_trampoline/dbg_trampoline.S, built to
-    -- bin/dbg_trampoline.words; the words below are that artifact, word for
-    -- word. Two sources of truth for the same 40 words is a defect waiting to
-    -- happen, so `tools/cosim/check_dbg_trampoline.py` compares them and is a
-    -- standing gate. DO NOT hand-edit either side: change the .S, rebuild
-    -- (`make -C software/dbg_trampoline`), paste the new words here, and prove
-    -- the checker exits 0. The content did NOT change at D4 and a change to it
-    -- is out of D4's scope entirely (d4_spec 4).
+    -- THIS TABLE IS A COPY, AND THE COPY IS MECHANISED, NOT TRUSTED.
+    -- The original is software/dbg_trampoline/dbg_trampoline.S, built to bin/dbg_trampoline.words; the words below are that artifact, word for word.
+    -- Two sources of truth for the same 40 words is a defect waiting to happen, so `tools/cosim/check_dbg_trampoline.py` compares them and is a standing gate.
+    -- DO NOT hand-edit either side: change the .S, rebuild (`make -C software/dbg_trampoline`), paste the new words here, and prove the checker exits 0.
+    -- The content did NOT change at D4 and a change to it is out of D4's scope entirely (d4_spec 4).
     --
-    -- NOT synthesized from the i_* encoders above, deliberately. Those encoders
-    -- exist so the DM's OWN emitted code has no magic hex; this table is not
-    -- the DM's code, it is a compiled artifact that a separate toolchain owns,
-    -- and re-deriving it here would create a THIRD spelling of it whose
-    -- agreement with the ELF nobody checks. The disassembly is carried as
-    -- comments so the table stays readable; the checker is what makes it true.
+    -- NOT synthesized from the i_* encoders above, deliberately.
+    -- Those encoders exist so the DM's OWN emitted code has no magic hex; this table is not the DM's code, it is a compiled artifact that a separate toolchain owns, and re-deriving it here would create a THIRD spelling of it whose agreement with the ELF nobody checks.
+    -- The disassembly is carried as comments so the table stays readable; the checker is what makes it true.
     --
-    -- POSITION-DEPENDENT. It was linked at 0x00010780 and addresses FLAGS, the
-    -- mirrors and the abstract area with absolute `lui`/displacement pairs, and
-    -- word 31's `j` is the coupling to W_ABST = W_ENTRY + TRAMP_WORDS. An
-    -- instance that re-aims DATA0_ADDR/ENTRY_ADDR (dbg_iface_tb does) must
-    -- rebuild the trampoline for the new aim -- exactly as the tcl force it
-    -- replaces always had to.
+    -- POSITION-DEPENDENT.
+    -- It was linked at 0x00010780 and addresses FLAGS, the mirrors and the abstract area with absolute `lui`/displacement pairs, and word 31's `j` is the coupling to W_ABST = W_ENTRY + TRAMP_WORDS.
+    -- An instance that re-aims DATA0_ADDR/ENTRY_ADDR (dbg_iface_tb does) must rebuild the trampoline for the new aim, exactly as the tcl force it replaces always had to.
     -- ------------------------------------------------------------------
     constant TRAMP : word_arr(0 to TRAMP_WORDS-1) := (
         --  entry: save the scratch pair tentatively
@@ -809,7 +590,7 @@ architecture rtl of debug_module is
          3 => x"00249493",   -- slli   s1, s1, 2
          4 => x"00010437",   -- lui    s0, 0x10
          5 => x"00940433",   -- add    s0, s0, s1
-        --  bit 2 of FLAGS[h] set <=> this is a RE-ENTRY (GO or DONE)
+        --  bit 2 of FLAGS[h] set means this is a RE-ENTRY (GO or DONE)
          6 => x"70042483",   -- lw     s1, 1792(s0)      # FLAGS[h]
          7 => x"0044F493",   -- andi   s1, s1, 4
          8 => x"00048E63",   -- beqz   s1, halted
@@ -851,15 +632,14 @@ architecture rtl of debug_module is
         38 => x"00000013",   -- nop
         39 => x"00000013");  -- nop
 
+    -- The abstract command body, re-synthesized combinationally from `command`.
     signal body_w : word_arr(0 to 7);
 
 begin
 
     -- ==================================================================
-    -- KNOB-OFF FOLD. Everything below lives inside gen_dm; the else arm
-    -- ties every output to its fail-safe value so a knob-OFF instantiation
-    -- (which the generator never emits, but a hand instantiation might)
-    -- carries no state at all.
+    -- KNOB-OFF FOLD.
+    -- Everything below lives inside gen_dm; the else arm ties every output to its fail-safe value so a knob-OFF instantiation (which the generator never emits, but a hand instantiation might) carries no state at all.
     -- ==================================================================
     gen_dm_off: if not ENABLE_DEBUG generate
         dmi_req_ready    <= '0';
@@ -877,45 +657,31 @@ begin
     gen_dm: if ENABLE_DEBUG generate
 
         -- ---- selected-hart decode ------------------------------------
-        -- OUT-OF-RANGE hartsel selects a NONEXISTENT hart and is REPORTED as
-        -- such. Spike CLAMPS to nprocs()-1 (debug_module.cc:1046) and that is
-        -- the one reference behaviour d2_spec 3 forbids copying: a debugger's
-        -- hart-count discovery probe writes all-ones and reads back
-        -- anynonexistent, which a clamp makes impossible.
+        -- OUT-OF-RANGE hartsel selects a NONEXISTENT hart and is REPORTED as such.
+        -- Spike CLAMPS to nprocs()-1 (debug_module.cc:1046) and that is the one reference behaviour d2_spec 3 forbids copying: a debugger's hart-count discovery probe writes all-ones and reads back anynonexistent, which a clamp makes impossible.
         sel_idx    <= conv_integer(hartsel_r);
         sel_exists <= '1' when sel_idx < NHARTS else '0';
-        -- sel_safe exists because VHDL's `and` is NOT short-circuit: writing
-        -- `sel_idx < NHARTS and hart_unavail(sel_idx) = '1'` evaluates the
-        -- index unconditionally and is an out-of-range fault the moment a
-        -- debugger probes hartsel with all-ones -- which is exactly the
-        -- discovery probe NONEXISTENT exists to serve.
+        -- sel_safe exists because VHDL's `and` is NOT short-circuit: writing `sel_idx < NHARTS and hart_unavail(sel_idx) = '1'` evaluates the index unconditionally and is an out-of-range fault the moment a debugger probes hartsel with all-ones, which is exactly the discovery probe NONEXISTENT exists to serve.
         sel_safe   <= sel_idx when sel_idx < NHARTS else 0;
         sel_unavail <= hart_unavail(sel_safe) and sel_exists;
-        -- DM-visible state precedence, d2_spec 5: nonexistent -> unavail ->
-        -- halted -> running. unavail is consulted BEFORE halted precisely so
-        -- that a clamped-'0' dbg_halted from a power-gated tile can never read
-        -- as either "halted" or "running".
+        -- DM-visible state precedence, d2_spec 5: nonexistent, then unavail, then halted, then running.
+        -- unavail is consulted BEFORE halted precisely so that a clamped-'0' dbg_halted from a power-gated tile can never read as either "halted" or "running".
         sel_halted  <= sel_exists and not sel_unavail and dbg_halted(sel_safe);
         sel_running <= sel_exists and not sel_unavail and not dbg_halted(sel_safe);
 
         -- ---- THE RE-ARMED HALT WIRE ---------------------------------
-        -- See the header. One expression; the re-halt-on-resume-under-held-
-        -- haltreq behaviour is a consequence of it, not a state machine.
-        -- THE SELECTED-HART ARM **ORS** THE GROUP TERM, it does not replace it
-        -- (review finding R1, R-D2-8(1)). The earlier form
+        -- See the header: one expression, and the re-halt-on-resume-under-held-haltreq behaviour is a consequence of it, not a state machine.
+        -- THE SELECTED-HART ARM **ORS** THE GROUP TERM, it does not replace it (review finding R1, R-D2-8(1)).
+        -- The earlier form
         --     (haltreq_r and dmactive) when h = sel_idx else grp_pend(h)
-        -- made a pending group halt VANISH the moment the debugger selected
-        -- that hart with haltreq low -- and selecting a member to look at it is
-        -- exactly what a debugger does after a group broadcast fires. The
-        -- pending request is still latched in grp_pend(h) (it is only cleared
-        -- by that hart's own halted rising edge), so the halt was lost for as
-        -- long as the selection held and then re-appeared: a silent, selection-
-        -- dependent drop. ORing keeps the two requests independent, which is
-        -- what they are. Zero flops -- still one combinational expression.
+        -- made a pending group halt VANISH the moment the debugger selected that hart with haltreq low, and selecting a member to look at it is exactly what a debugger does after a group broadcast fires.
+        -- The pending request is still latched in grp_pend(h) (it is only cleared by that hart's own halted rising edge), so the halt was lost for as long as the selection held and then re-appeared: a silent, selection-dependent drop.
+        -- ORing keeps the two requests independent, which is what they are, and it costs zero flops: still one combinational expression.
         gen_hw: for h in 0 to NHARTS-1 generate
             want_halt(h) <= ((haltreq_r and dmactive) or grp_pend(h))
                             when (h = sel_idx) else grp_pend(h);
         end generate;
+        -- The re-armed level itself: request until the hart halts, then release.
         gen_hq: for h in 0 to NHARTS-1 generate
             dbg_haltreq(h) <= want_halt(h) and not dbg_halted(h);
         end generate;
@@ -927,6 +693,7 @@ begin
         m_addr  <= m_addr_r;
         m_wdata <= m_wd_r;
 
+        -- One shared-bus transaction at a time, sequenced to the wait-for-release contract.
         master_proc: process(clk, resetn)
         begin
             if resetn = '0' then
@@ -940,13 +707,11 @@ begin
             elsif rising_edge(clk) then
                 m_ack <= '0';
                 case m_state is
+                    -- MS_IDLE: wait for the sequencer's start pulse, then launch the request.
                     when MS_IDLE =>
                         if m_start = '1' then
-                            -- THE MUTEX-PAGE GUARD (DMA.vhd:81-84's idea). The
-                            -- DM must never issue a transaction outside its own
-                            -- claimed band: a read of the mutex page CLAIMS a
-                            -- mutex for whatever s_master reports, and the DM's
-                            -- master index is not a hart.
+                            -- THE MUTEX-PAGE GUARD (DMA.vhd:81-84's idea).
+                            -- The DM must never issue a transaction outside its own claimed band: a read of the mutex page CLAIMS a mutex for whatever s_master reports, and the DM's master index is not a hart.
                             assert (m_go_a >= W_BAND_LO and m_go_a <= W_BAND_HI)
                                 report "debug_module: master address outside the "
                                      & "claimed debug band -- ABORTING THE "
@@ -964,21 +729,19 @@ begin
                             m_req_r  <= '1';
                             m_state  <= MS_REQ;
                         end if;
+                    -- MS_REQ: HOLD everything stable through the done cycle, and capture rdata ON it.
                     when MS_REQ =>
-                        -- HOLD everything stable through the done cycle, and
-                        -- capture rdata ON it.
                         if m_done = '1' then
                             m_rd_r  <= m_rdata;
                             m_state <= MS_CAP;
                         end if;
+                    -- MS_CAP: drop req exactly ONE clk after done (the acked flop).
                     when MS_CAP =>
-                        -- Drop req exactly ONE clk after done (the acked flop).
                         m_req_r <= '0';
                         m_state <= MS_GAP;
+                    -- MS_GAP: one arbiter-OBSERVED req-low cycle before the next request.
+                    -- Without it the arbiter's need_release never clears and the DM is starved (M5a ghost txn).
                     when MS_GAP =>
-                        -- One arbiter-OBSERVED req-low cycle before the next
-                        -- request. Without this the arbiter's need_release
-                        -- never clears and the DM is starved (M5a ghost txn).
                         m_ack   <= '1';
                         m_state <= MS_IDLE;
                 end case;
@@ -986,12 +749,9 @@ begin
         end process;
 
         -- ---- the abstract body, synthesized from `command` ------------
-        -- Spike's shape (debug_module.cc:748-886) adapted to VestaRV's
-        -- trampoline, which already owns dscratch0/1. Because s0/s1 are
-        -- already saved there, the body may use both freely and needs no
-        -- save/restore of its own; a request for s0 or s1 themselves is
-        -- serviced through the dscratch copy so the debugger sees the
-        -- interrupted value, not the trampoline's working value.
+        -- Spike's shape (debug_module.cc:748-886) adapted to VestaRV's trampoline, which already owns dscratch0/1.
+        -- Because s0/s1 are already saved there, the body may use both freely and needs no save/restore of its own.
+        -- A request for s0 or s1 themselves is serviced through the dscratch copy so the debugger sees the interrupted value, not the trampoline's working value.
         body_proc: process(cmd_r)
             variable regno : integer;
             variable isgpr : boolean;
@@ -1004,23 +764,22 @@ begin
             regno := conv_integer(cmd_r(15 downto 0));
             isgpr := (regno >= 16#1000# and regno <= 16#101F#);
             n     := regno - 16#1000#;
-            -- postexec -> jump to the program buffer, whose implicit third
-            -- word jumps on to the epilogue; else straight to the epilogue.
+            -- With postexec set, the body tail jumps to the program buffer, whose implicit third word jumps on to the epilogue; otherwise it goes straight to the epilogue.
             if cmd_r(18) = '1' then
                 tail := i_jal(0, (W_PBSTUB - (W_ABST + 4)) * 4);
             else
                 tail := i_jal(0, (W_EPILOG   - (W_ABST + 4)) * 4);
             end if;
             if cmd_r(17) = '0' then
-                -- transfer = 0: postexec only. (`when/else` inside a process is
-                -- VHDL-2008 and this tree compiles -V200X, so it is an if.)
+                -- transfer = 0: postexec only.
+                -- (`when/else` inside a process is VHDL-2008 and this tree compiles -V200X, so it is an if.)
                 if cmd_r(18) = '1' then
                     body_w(0) <= i_jal(0, (W_PBSTUB - W_ABST) * 4);
                 else
                     body_w(0) <= i_jal(0, (W_EPILOG - W_ABST) * 4);
                 end if;
             elsif cmd_r(16) = '0' then
-                -- READ reg -> data0
+                -- transfer, write = 0: read the register into data0.
                 if isgpr and n = R_S0 then
                     body_w(0) <= i_csrr(R_S0, CSR_DSCRATCH0);
                     body_w(1) <= i_lui (R_S1, HI20);
@@ -1041,7 +800,7 @@ begin
                 body_w(3) <= i_addi(0, 0, 0);
                 body_w(4) <= tail;
             else
-                -- WRITE data0 -> reg
+                -- transfer, write = 1: write data0 into the register.
                 if isgpr and n = R_S0 then
                     body_w(0) <= i_lui (R_S1, HI20);
                     body_w(1) <= i_lw  (R_S0, R_S1, O_DATA0);
@@ -1068,33 +827,22 @@ begin
         end process;
 
         -- ---- the DMI front end + the command sequencer ---------------
-        -- READY IS AN ACKNOWLEDGE, AND IT IDLES LOW. R-D2-2(7) PERMITS an
-        -- idle-high ready; it does not require one, and an idle-high ready is
-        -- unusable against the masters that actually drive this port. MEASURED:
-        -- both BFMs raise req_valid, poll every 10 ns until they SEE req_ready
-        -- high, and drop req_valid immediately on seeing it. mclk's period is
-        -- 41.667 ns, so against an idle-high ready the master takes its request
-        -- down ~10 ns after raising it -- usually before any rising edge falls
-        -- inside the window -- and the request is simply never sampled. The
-        -- observed symptom was XACT_NO_RSP on some transactions and, worse, the
-        -- PREVIOUS transaction's data on the rest.
-        -- Idling low and raising ready the cycle a request is CAPTURED satisfies
-        -- the same ruling ("a request transfers on the cycle valid and ready")
-        -- and works for both master shapes: a master that holds valid until it
-        -- sees ready, and one that drops it the moment it does.
-        -- NOTE ready is NOT held low for the whole abstract command: the command
-        -- runs in the background behind `busy`, because a debugger MUST be able
-        -- to poll abstractcs.busy while it is in flight.
-        -- The master engine has ONE owner at a time. A DMI access that needs
-        -- it while the sequencer already does gets cmderr = BUSY rather than
-        -- a silently interleaved transaction -- which is also the debug spec's
-        -- own answer for touching data0/progbuf while an abstract command runs.
+        -- READY IS AN ACKNOWLEDGE, AND IT IDLES LOW.
+        -- R-D2-2(7) PERMITS an idle-high ready; it does not require one, and an idle-high ready is unusable against the masters that actually drive this port.
+        -- MEASURED: both BFMs raise req_valid, poll every 10 ns until they SEE req_ready high, and drop req_valid immediately on seeing it.
+        -- mclk's period is 41.667 ns, so against an idle-high ready the master takes its request down ~10 ns after raising it, usually before any rising edge falls inside the window, and the request is simply never sampled.
+        -- The observed symptom was XACT_NO_RSP on some transactions and, worse, the PREVIOUS transaction's data on the rest.
+        -- Idling low and raising ready the cycle a request is CAPTURED satisfies the same ruling ("a request transfers on the cycle valid and ready") and works for both master shapes: a master that holds valid until it sees ready, and one that drops it the moment it does.
+        -- NOTE ready is NOT held low for the whole abstract command: the command runs in the background behind `busy`, because a debugger MUST be able to poll abstractcs.busy while it is in flight.
+        -- The master engine has ONE owner at a time.
+        -- A DMI access that needs it while the sequencer already does gets cmderr = BUSY rather than a silently interleaved transaction, which is also the debug spec's own answer for touching data0/progbuf while an abstract command runs.
         mst_free      <= '1' when s_state = S_IDLE else '0';
         dmi_req_ready <= ready_r;
         dmi_rsp_valid <= rsp_valid_r;
         dmi_rsp_data  <= rsp_data_r;
         dmi_rsp_op    <= rsp_op_r;
 
+        -- The DM register file, the DMI accept/response timing and the command sequencer, all in one clocked process.
         main_proc: process(clk, resetn)
             variable a   : std_logic_vector(6 downto 0);
             variable d   : std_logic_vector(31 downto 0);
@@ -1159,37 +907,21 @@ begin
 
                 -- ---- per-hart edge bookkeeping -----------------------
                 for i in 0 to NHARTS-1 loop
-                    -- a hart that HALTS clears its group-broadcast request and
-                    -- (if it was the one we asked to resume) closes the resume.
+                    -- A hart that HALTS clears its group-broadcast request and, if it was the one we asked to resume, closes the resume.
                     if dbg_halted(i) = '1' and halted_d(i) = '0' then
                         grp_pend(i) <= '0';
-                        -- D4: a NEW halt owes a plant. It is not taken here --
-                        -- see THE PLANT in the header for why an eager plant on
-                        -- this edge would drop a busy window on top of the first
-                        -- thing a debugger does. The bit is consumed on the way
-                        -- into S_WAITH, which is the moment the ordering clause
-                        -- actually names.
+                        -- D4: a NEW halt owes a plant, which is NOT taken here.
+                        -- See THE PLANT in the header for why an eager plant on this edge would drop a busy window on top of the first thing a debugger does.
+                        -- The bit is consumed on the way into S_WAITH, which is the moment the ordering clause actually names.
                         tramp_halt <= '1';
-                        -- HALT GROUPS: when any member of a non-zero group
-                        -- halts, every OTHER member is asked to halt too. One
-                        -- re-armed pulse each -- grp_pend is cleared by that
-                        -- hart's own halt, above.
+                        -- HALT GROUPS: when any member of a non-zero group halts, every OTHER member is asked to halt too.
+                        -- One re-armed pulse each; grp_pend is cleared by that hart's own halt, above.
                         if grp_r(i) /= "000" then
                             for j in 0 to NHARTS-1 loop
-                                -- ...but ONLY to a member that is not ALREADY
-                                -- halted. MEASURED DEFECT, 2026-08-06, and it
-                                -- was masked by the S_RESWAIT one so the two
-                                -- cancelled: `grp_pend` is cleared by its
-                                -- hart's own halted RISING edge, so a request
-                                -- raised at a hart that is already halted is
-                                -- never consumed -- it sits there and RE-HALTS
-                                -- that hart the moment the debugger resumes it
-                                -- and hartsel moves elsewhere (want_halt falls
-                                -- back to grp_pend for a non-selected hart).
-                                -- The group condition "when any member halts,
-                                -- every other member halts" is satisfied by a
-                                -- hart that is already halted; the request is
-                                -- vacuous and must not be latched.
+                                -- ...but ONLY to a member that is not ALREADY halted.
+                                -- MEASURED DEFECT, 2026-08-06, and it was masked by the S_RESWAIT one so the two cancelled: `grp_pend` is cleared by its hart's own halted RISING edge, so a request raised at a hart that is already halted is never consumed.
+                                -- It sits there and RE-HALTS that hart the moment the debugger resumes it and hartsel moves elsewhere (want_halt falls back to grp_pend for a non-selected hart).
+                                -- The group condition "when any member halts, every other member halts" is satisfied by a hart that is already halted; the request is vacuous and must not be latched.
                                 if j /= i and grp_r(j) = grp_r(i)
                                    and dbg_halted(j) = '0' then
                                     grp_pend(j) <= '1';
@@ -1197,9 +929,8 @@ begin
                             end loop;
                         end if;
                     end if;
-                    -- resumeack sets on the halted FALLING edge attributable to
-                    -- a resumereq, and stays set until the next resumereq write
-                    -- (d2_spec 4). It is a level, not a pulse: J2 reads it twice.
+                    -- resumeack sets on the halted FALLING edge attributable to a resumereq, and stays set until the next resumereq write (d2_spec 4).
+                    -- It is a level, not a pulse: J2 reads it twice.
                     if dbg_halted(i) = '0' and halted_d(i) = '1'
                        and resume_pend(i) = '1' then
                         resumeack_r(i) <= '1';
@@ -1213,21 +944,12 @@ begin
                 -- ==========================================================
                 case s_state is
 
+                    -- S_IDLE: nothing in flight, so take an owed eager plant or a queued resume.
                     when S_IDLE =>
-                        -- D4: THE EAGER PLANT, taken first. dmactive has just
-                        -- risen and nothing else can be in flight in S_IDLE, so
-                        -- there is no ordering question here -- a queued resume
-                        -- is not dropped, only delayed by the stream (the
-                        -- R-D2-5(2) prohibition is on silent DROPS, and this is
-                        -- neither silent nor a drop: the DM returns to S_IDLE
-                        -- and picks the resume up on the next visit).
-                        -- tramp_arm is cleared by S_TRAMP itself and not here,
-                        -- so that a command accepted in the very same cycle --
-                        -- which overrides s_state further down this process --
-                        -- DEFERS the plant instead of losing it. That race is
-                        -- unreachable in practice (the accept that set dmactive
-                        -- arms rsp_hold, which blocks the next accept for eight
-                        -- cycles) but the cheap ordering is the honest one.
+                        -- D4: THE EAGER PLANT, taken first.
+                        -- dmactive has just risen and nothing else can be in flight in S_IDLE, so there is no ordering question here: a queued resume is not dropped, only delayed by the stream (the R-D2-5(2) prohibition is on silent DROPS, and this is neither silent nor a drop, since the DM returns to S_IDLE and picks the resume up on the next visit).
+                        -- tramp_arm is cleared by S_TRAMP itself and not here, so that a command accepted in the very same cycle (which overrides s_state further down this process) DEFERS the plant instead of losing it.
+                        -- That race is unreachable in practice, because the accept that set dmactive arms rsp_hold, which blocks the next accept for eight cycles, but the cheap ordering is the honest one.
                         if tramp_arm = '1' and dmactive = '1' then
                             step    <= 0;
                             s_state <= S_TRAMP;
@@ -1240,22 +962,13 @@ begin
                                     res_busy <= '1';
                                     waith_go <= '0';
                                     step     <= 0;
-                                    -- RESET THE BOUND ON ARM (review finding R2,
-                                    -- R-D2-8(2)). poll_to is shared by S_WAITH,
-                                    -- S_POLL and S_RESWAIT and is zeroed only on
-                                    -- the COMMAND path (the A_COMMAND accept and
-                                    -- S_GO). A resume arms S_WAITH with whatever
-                                    -- the previous flow left behind -- at or near
-                                    -- POLL_LIMIT after any completed command --
-                                    -- and the wait then expires before the hart
-                                    -- can possibly publish TOK_HALTED. Zero
-                                    -- flops: poll_to already exists.
+                                    -- RESET THE BOUND ON ARM (review finding R2, R-D2-8(2)).
+                                    -- poll_to is shared by S_WAITH, S_POLL and S_RESWAIT and is zeroed only on the COMMAND path (the A_COMMAND accept and S_GO).
+                                    -- A resume arms S_WAITH with whatever the previous flow left behind, at or near POLL_LIMIT after any completed command, and the wait then expires before the hart can possibly publish TOK_HALTED.
+                                    -- Zero flops: poll_to already exists.
                                     poll_to  <= 0;
-                                    -- D4: the LAZY plant. This arm is one of
-                                    -- exactly two entries into the TOK_HALTED
-                                    -- wait, and d4_spec 1.2 puts the re-stream
-                                    -- ahead of both ("before any S_WAITH wait
-                                    -- on it, before any GO/RESUME write").
+                                    -- D4: the LAZY plant.
+                                    -- This arm is one of exactly two entries into the TOK_HALTED wait, and d4_spec 1.2 puts the re-stream ahead of both ("before any S_WAITH wait on it, before any GO/RESUME write").
                                     if tramp_halt = '1' then
                                         s_state <= S_TRAMP;
                                     else
@@ -1266,10 +979,12 @@ begin
                         end if;
 
                     -- ---- data0 / progbuf proxy read or write -----------
+                    -- S_PROXY: wait for the backing-word transaction to retire.
                     when S_PROXY =>
                         if m_ack = '1' then
                             s_state <= S_PROXY_RSP;
                         end if;
+                    -- S_PROXY_RSP: answer the DMI access, with read data for a read and zeros for a write.
                     when S_PROXY_RSP =>
                         rsp_arm     <= '1';
                         rsp_op_r    <= OP_OK;
@@ -1281,28 +996,15 @@ begin
                         s_state <= S_IDLE;
 
                     -- ---- D4: stream the trampoline into the entry page ----
-                    -- Structurally S_EPI with a longer table and a computed
-                    -- exit. Same `step`, same m_go_*/m_start handshake, same
-                    -- one-word-per-m_ack cadence; `step` is already `range 0 to
-                    -- 63` and 40 <= 63, so nothing widens.
+                    -- Structurally S_EPI with a longer table and a computed exit: same `step`, same m_go_*/m_start handshake, same one-word-per-m_ack cadence.
+                    -- `step` is already `range 0 to 63` and 40 fits, so nothing widens.
                     when S_TRAMP =>
                         if m_ack = '1' or step = 0 then
                             if step <= TRAMP_WORDS-1 then
                                 if step = 0 then
-                                    -- BOTH owed-bits clear as the stream
-                                    -- STARTS, not as it finishes. A hart that
-                                    -- halts DURING the stream therefore keeps
-                                    -- its own claim on a later plant, which is
-                                    -- the direction that cannot lose one: the
-                                    -- words it fetches while the stream is
-                                    -- mid-flight may still be stale, and the
-                                    -- F-D2-0 re-entry spin is what carries it
-                                    -- to the next plant. (A hart that halts in
-                                    -- this exact cycle loses the race by one
-                                    -- clock and is covered by the same spin --
-                                    -- the stream it is racing began at or after
-                                    -- its own halt, so the page is repaired
-                                    -- either way.)
+                                    -- BOTH owed-bits clear as the stream STARTS, not as it finishes.
+                                    -- A hart that halts DURING the stream therefore keeps its own claim on a later plant, which is the direction that cannot lose one: the words it fetches while the stream is mid-flight may still be stale, and the F-D2-0 re-entry spin is what carries it to the next plant.
+                                    -- A hart that halts in this exact cycle loses the race by one clock and is covered by the same spin, because the stream it is racing began at or after its own halt, so the page is repaired either way.
                                     tramp_arm  <= '0';
                                     tramp_halt <= '0';
                                 end if;
@@ -1313,9 +1015,8 @@ begin
                                 step    <= step + 1;
                             else
                                 step <= 0;
-                                -- Where to go back. See S_TRAMP's declaration:
-                                -- these two are the signature of a plant that
-                                -- was owed to a TOK_HALTED wait.
+                                -- Where to go back.
+                                -- See S_TRAMP's declaration: these two are the signature of a plant that was owed to a TOK_HALTED wait.
                                 if busy_r = '1' or res_busy = '1' then
                                     s_state <= S_WAITH;
                                 else
@@ -1325,6 +1026,7 @@ begin
                         end if;
 
                     -- ---- abstract command: write the epilogue once ----
+                    -- Streams EPILOGUE(0 to 8) and then the two program-buffer stubs, one word per m_ack.
                     when S_EPI =>
                         if m_ack = '1' or step = 0 then
                             if step <= 8 then
@@ -1334,12 +1036,8 @@ begin
                                 m_start <= '1';
                                 step    <= step + 1;
                             elsif step <= 8 + PBSTUB_WORDS then
-                                -- F-D5-2 (R-DD9): the two program-buffer stubs
-                                -- ride the SAME stream, deliberately.  A new
-                                -- plant state would have widened the state
-                                -- encoding and put the zero-flop claim at risk
-                                -- for no benefit; `step` is already `range 0 to
-                                -- 63` and 8 + 12 = 20 fits with room to spare.
+                                -- F-D5-2 (R-DD9): the two program-buffer stubs ride the SAME stream, deliberately.
+                                -- A new plant state would have widened the state encoding and put the zero-flop claim at risk for no benefit; `step` is already `range 0 to 63` and 8 + 12 = 20 fits with room to spare.
                                 m_go_we <= "1111";
                                 if step <= 11 then
                                     m_go_a <= W_PBSTUB + (step - 9);
@@ -1357,6 +1055,7 @@ begin
                             end if;
                         end if;
 
+                    -- S_IMPL: write the implicit third program-buffer word, the jump into PB_LEAVE.
                     when S_IMPL =>
                         if m_ack = '1' or step = 0 then
                             if step = 0 then
@@ -1371,6 +1070,7 @@ begin
                             end if;
                         end if;
 
+                    -- S_BODY: stream the eight synthesized abstract-body words into the entry page.
                     when S_BODY =>
                         if m_ack = '1' or step = 0 then
                             if step <= 7 then
@@ -1382,18 +1082,9 @@ begin
                             else
                                 step     <= 0;
                                 waith_go <= '1';
-                                -- D4: the LAZY plant, the other of the two
-                                -- entries into the TOK_HALTED wait. It sits
-                                -- here rather than at the command accept on
-                                -- purpose: the whole stream then runs INSIDE
-                                -- the busy window this command already owns,
-                                -- so it costs the debugger no window of its
-                                -- own. It is also after S_BODY and not before
-                                -- it, so the abstract area (words 40..47) and
-                                -- the trampoline (words 0..39) are written in
-                                -- an order that leaves both correct -- they do
-                                -- not overlap, but a reader should not have to
-                                -- re-derive that.
+                                -- D4: the LAZY plant, the other of the two entries into the TOK_HALTED wait.
+                                -- It sits here rather than at the command accept on purpose: the whole stream then runs INSIDE the busy window this command already owns, so it costs the debugger no window of its own.
+                                -- It is also after S_BODY and not before it, so the abstract area (words 40..47) and the trampoline (words 0..39) are written in an order that leaves both correct; they do not overlap, but a reader should not have to re-derive that.
                                 if tramp_halt = '1' then
                                     s_state <= S_TRAMP;
                                 else
@@ -1419,25 +1110,15 @@ begin
                                 step <= 0;
                             end if;
                         elsif poll_to >= POLL_LIMIT then
-                            -- bounded: fail the command rather than hang
+                            -- Bounded: fail the command rather than hang.
                             if waith_go = '1' then
                                 cmderr_r <= ERR_OTHER;
                                 s_state  <= S_FIN;
                             else
-                                -- CLEAR THE PEND ON THE RESUME-PATH TIMEOUT TOO
-                                -- (review finding R3, R-D2-8(3)), exactly as
-                                -- S_RESWAIT's timeout below already does.
-                                -- Without it the DM returns to S_IDLE with
-                                -- resume_pend(res_hart) still set and the hart
-                                -- still halted -- which is S_IDLE's arm
-                                -- condition -- so the wait re-arms forever and
-                                -- mst_free never rises again: every data0/
-                                -- progbuf proxy answers cmderr = BUSY from then
-                                -- on. The drop is BOUNDED and VISIBLE
-                                -- (resumeack stays 0, so a debugger polling
-                                -- dmstatus sees the resume did not happen); it
-                                -- is not the silent-drop class R-D2-5(2)
-                                -- prohibits. Zero flops.
+                                -- CLEAR THE PEND ON THE RESUME-PATH TIMEOUT TOO (review finding R3, R-D2-8(3)), exactly as S_RESWAIT's timeout below already does.
+                                -- Without it the DM returns to S_IDLE with resume_pend(res_hart) still set and the hart still halted, which is S_IDLE's arm condition, so the wait re-arms forever and mst_free never rises again: every data0/progbuf proxy answers cmderr = BUSY from then on.
+                                -- The drop is BOUNDED and VISIBLE (resumeack stays 0, so a debugger polling dmstatus sees the resume did not happen); it is not the silent-drop class R-D2-5(2) prohibits.
+                                -- Zero flops.
                                 resume_pend(res_hart) <= '0';
                                 res_busy <= '0';
                                 s_state  <= S_IDLE;
@@ -1454,6 +1135,7 @@ begin
                             step    <= 1;
                         end if;
 
+                    -- S_GO: dispatch the body by writing TOK_GO into the target hart's FLAGS word.
                     when S_GO =>
                         if m_ack = '1' or step = 0 then
                             if step = 0 then
@@ -1470,12 +1152,8 @@ begin
                         end if;
 
                     when S_POLL =>
-                        -- Read FLAGS[h] back until the hart reports. TOK_DONE
-                        -- = the sequence ran to its end. ANY OTHER value once
-                        -- the hart is halted again and no longer GO -- i.e.
-                        -- TOK_HALTED, written by the trampoline on re-entry --
-                        -- means the sequence did NOT reach its epilogue, which
-                        -- is exactly the F-D2-0 exception re-entry.
+                        -- Read FLAGS[h] back until the hart reports: TOK_DONE means the sequence ran to its end.
+                        -- Any other value once the hart is halted again and no longer GO, i.e. TOK_HALTED written by the trampoline on re-entry, means the sequence did NOT reach its epilogue, which is exactly the F-D2-0 exception re-entry.
                         if poll_to < POLL_LIMIT then
                             poll_to <= poll_to + 1;
                         end if;
@@ -1484,12 +1162,9 @@ begin
                                 cmderr_r <= ERR_NONE;
                                 s_state  <= S_FIN;
                             elsif m_rd_r = conv_std_logic_vector(TOK_PBDONE, 32) then
-                                -- F-D5-2: a PROGRAM-BUFFER completion.  It is
-                                -- accepted exactly where DONE is and nowhere
-                                -- else -- never as a halt publication (that is
-                                -- HALTED) and never as a dispatch token
-                                -- (GO/RESUME are DM->hart).  It is as TRANSIENT
-                                -- as DONE, which this poll already handles.
+                                -- F-D5-2: a PROGRAM-BUFFER completion.
+                                -- It is accepted exactly where DONE is and nowhere else: never as a halt publication (that is HALTED) and never as a dispatch token (GO and RESUME are written by the DM for the hart).
+                                -- It is as TRANSIENT as DONE, which this poll already handles.
                                 cmderr_r <= ERR_NONE;
                                 s_state  <= S_FIN;
                             elsif m_rd_r = conv_std_logic_vector(TOK_HALTED, 32) then
@@ -1499,8 +1174,7 @@ begin
                                 step <= 0;
                             end if;
                         elsif poll_to >= POLL_LIMIT then
-                            -- The hart never reported. Bounded, so an
-                            -- instrument FAILS instead of hanging.
+                            -- The hart never reported. Bounded, so an instrument FAILS instead of hanging.
                             cmderr_r <= ERR_OTHER;
                             s_state  <= S_FIN;
                         elsif step = 0 then
@@ -1511,11 +1185,13 @@ begin
                             step    <= 1;
                         end if;
 
+                    -- S_FIN: the command is over, whatever cmderr says. Drop busy and idle.
                     when S_FIN =>
                         busy_r  <= '0';
                         step    <= 0;
                         s_state <= S_IDLE;
 
+                    -- S_RESUME: write TOK_RESUME into the target hart's FLAGS word.
                     when S_RESUME =>
                         if m_ack = '1' then
                             -- res_busy STAYS SET: see S_RESWAIT's declaration.
@@ -1531,18 +1207,10 @@ begin
                         end if;
 
                     when S_RESWAIT =>
-                        -- The resume has been DISPATCHED; hold the engine until
-                        -- it has been TAKEN. The exit condition is
-                        -- resume_pend(res_hart) going low, which the per-hart
-                        -- bookkeeping above does on the attributable halted
-                        -- FALLING edge -- an edge detector, so a resume that is
-                        -- immediately followed by a re-halt (the R-D2-2(5)
-                        -- re-armed-wire case, where the hart runs for only a
-                        -- handful of instructions) cannot be missed the way a
-                        -- level test of dbg_halted could.
-                        -- BOUNDED, like every other wait here: a hart that
-                        -- never leaves debug mode must FAIL a debugger's
-                        -- expectation, never wedge the DM.
+                        -- The resume has been DISPATCHED; hold the engine until it has been TAKEN.
+                        -- The exit condition is resume_pend(res_hart) going low, which the per-hart bookkeeping above does on the attributable halted FALLING edge.
+                        -- That is an edge detector, so a resume immediately followed by a re-halt (the R-D2-2(5) re-armed-wire case, where the hart runs for only a handful of instructions) cannot be missed the way a level test of dbg_halted could.
+                        -- BOUNDED, like every other wait here: a hart that never leaves debug mode must FAIL a debugger's expectation, never wedge the DM.
                         if poll_to < POLL_LIMIT then
                             poll_to <= poll_to + 1;
                         end if;
@@ -1557,42 +1225,20 @@ begin
                 end case;
 
                 -- ==========================================================
-                -- DMI request acceptance. ONE REQUEST IN FLIGHT, ACK-STYLE
-                -- HANDSHAKE (R-D2-4(2), which SUPERSEDES R-D2-2(7)'s "ready may
-                -- idle high" -- an idle-high ready loses the request against the
-                -- masters that actually drive this port). ready_r idles LOW and
-                -- pulses for exactly ONE cycle on the cycle the request is
-                -- CAPTURED: one accept per assertion of dmi_req_valid, with
-                -- rsp_hold / rsp_arm as the re-capture lockout. The response is
-                -- armed here and asserted one cycle later, then held
-                -- RSP_HOLD_CYCLES. See the ready/rsp commentary above the
-                -- process for the measurements behind each of those three.
+                -- DMI request acceptance. ONE REQUEST IN FLIGHT, ACK-STYLE HANDSHAKE.
+                -- R-D2-4(2) SUPERSEDES R-D2-2(7)'s "ready may idle high", because an idle-high ready loses the request against the masters that actually drive this port.
+                -- ready_r idles LOW and pulses for exactly ONE cycle on the cycle the request is CAPTURED: one accept per assertion of dmi_req_valid, with rsp_hold / rsp_arm as the re-capture lockout.
+                -- The response is armed here and asserted one cycle later, then held RSP_HOLD_CYCLES.
+                -- See the ready/rsp commentary above the process for the measurements behind each of those three.
                 --
-                -- S_TRAMP JOINS S_PROXY/S_PROXY_RSP IN THE EXCLUSION, and this
-                -- is a MEASURED correction, not a precaution (2026-08-07).
-                -- The plant is an internal, bounded, ATOMIC multi-word
-                -- operation that owns the master engine -- the same class as a
-                -- proxy access, which is why the same answer applies: the DM
-                -- simply does not raise `ready` while it runs, and the master
-                -- waits. It is over in ~40 arbiter round trips (~13 us), far
-                -- less than one JTAG DMI round trip.
-                -- WHAT HAPPENS WITHOUT IT, measured on the existing D1/D2/D3
-                -- instrument matrix: the attach-time plant fires on the first
-                -- dmcontrol write, and a debugger that issues an abstract
-                -- command a few microseconds later -- which is what every one
-                -- of them does -- is told cmderr = BUSY for something it did
-                -- nothing to deserve. cmderr is STICKY and `command` writes are
-                -- ignored while it is set, so ONE such answer at attach
-                -- silently disables every abstract command for the rest of the
-                -- session: dbg_abs went 10-of-13 red, dbg_conf 5-of-38,
-                -- dbg_prv 4-of-6. The control that named the cause is
-                -- dbg_tapreplay, which runs dbg_conf's SAME 38 checks over the
-                -- TAP and passed 38/38 -- slow transport, no collision.
-                -- This does not redefine any busy semantic: the two windows
-                -- that existed before D4 (busy_r = '1' under a command, and the
-                -- resume path's S_WAITH with busy_r = '0') still answer exactly
-                -- as they were measured to. The plant is simply not a
-                -- DMI-visible window at all, which is what `ready` is for.
+                -- S_TRAMP JOINS S_PROXY/S_PROXY_RSP IN THE EXCLUSION, and this is a MEASURED correction, not a precaution (2026-08-07).
+                -- The plant is an internal, bounded, ATOMIC multi-word operation that owns the master engine, the same class as a proxy access, which is why the same answer applies: the DM simply does not raise `ready` while it runs, and the master waits.
+                -- It is over in about 40 arbiter round trips (~13 us), far less than one JTAG DMI round trip.
+                -- WHAT HAPPENS WITHOUT IT, measured on the existing D1/D2/D3 instrument matrix: the attach-time plant fires on the first dmcontrol write, and a debugger that issues an abstract command a few microseconds later, which is what every one of them does, is told cmderr = BUSY for something it did nothing to deserve.
+                -- cmderr is STICKY and `command` writes are ignored while it is set, so ONE such answer at attach silently disables every abstract command for the rest of the session: dbg_abs went 10-of-13 red, dbg_conf 5-of-38, dbg_prv 4-of-6.
+                -- The control that named the cause is dbg_tapreplay, which runs dbg_conf's SAME 38 checks over the TAP and passed 38/38: slow transport, no collision.
+                -- This does not redefine any busy semantic: the two windows that existed before D4 (busy_r = '1' under a command, and the resume path's S_WAITH with busy_r = '0') still answer exactly as they were measured to.
+                -- The plant is simply not a DMI-visible window at all, which is what `ready` is for.
                 -- ==========================================================
                 if dmi_req_valid = '1' and rsp_hold = 0 and rsp_arm = '0'
                    and s_state /= S_PROXY and s_state /= S_PROXY_RSP
@@ -1610,70 +1256,56 @@ begin
                         pend_wr <= '0';
                     end if;
 
-                    -- default: answer NEXT cycle, then hold for RSP_HOLD_CYCLES
+                    -- Default: answer NEXT cycle, then hold for RSP_HOLD_CYCLES.
                     rsp_arm     <= '1';
                     rsp_op_r    <= OP_OK;
 
+                    -- dmcontrol (0x10): dmactive, haltreq, hartsel, resumereq, ackhavereset, set/clrresethaltreq.
                     if a = A_DMCONTROL then
                         if wr then
                             dmactive  <= d(0);
                             if d(0) = '0' then
-                                -- dmactive low resets the DM's own state, per
-                                -- the debug spec; it does NOT reset the harts
-                                -- (ndmreset is read-zero WARL at D2).
+                                -- dmactive low resets the DM's own state, per the debug spec.
+                                -- It does NOT reset the harts (ndmreset is read-zero WARL at D2).
                                 haltreq_r   <= '0';
                                 rsthalt_r   <= (others => '0');
                                 grp_pend    <= (others => '0');
                                 resume_pend <= (others => '0');
                                 busy_r      <= '0';
                                 cmderr_r    <= ERR_NONE;
-                                -- D4 (the d4_probe C4 named edit). The
-                                -- plant-owed bits and the epilogue's write-once
-                                -- latch all clear here, so a dmactive toggle
-                                -- really does re-plant everything the DM owns
-                                -- in the page. Before D4 epi_done cleared ONLY
-                                -- on resetn, which made "toggle dmactive to
-                                -- recover" a no-op; see epi_done's declaration
-                                -- for the priced consequence of adding it.
+                                -- D4 (the d4_probe C4 named edit).
+                                -- The plant-owed bits and the epilogue's write-once latch all clear here, so a dmactive toggle really does re-plant everything the DM owns in the page.
+                                -- Before D4 epi_done cleared ONLY on resetn, which made "toggle dmactive to recover" a no-op; see epi_done's declaration for the priced consequence of adding it.
                                 tramp_arm   <= '0';
                                 tramp_halt  <= '0';
                                 epi_done    <= '0';
                             else
-                                -- THE RISE, and only the rise. Every dmstatus
-                                -- poll writes dmcontrol with dmactive set, so a
-                                -- plant armed on the LEVEL would re-arm forever
-                                -- and pin the master engine.
+                                -- THE RISE, and only the rise.
+                                -- Every dmstatus poll writes dmcontrol with dmactive set, so a plant armed on the LEVEL would re-arm forever and pin the master engine.
                                 if dmactive = '0' then
                                     tramp_arm <= '1';
                                 end if;
                                 haltreq_r <= d(31);
                                 hartsel_r <= d(25 downto 16);
                                 hs := conv_integer(d(25 downto 16));
-                                -- resumereq is W1 and only means anything for a
-                                -- HALTED, existing, available hart. NESTED ifs,
-                                -- not one `and` chain: VHDL does not
-                                -- short-circuit, so `hs < NHARTS and
-                                -- dbg_halted(hs)` would index out of range on
-                                -- the very probe (hartsel = all ones) that
-                                -- NONEXISTENT exists to answer.
+                                -- resumereq is W1 and only means anything for a HALTED, existing, available hart.
+                                -- NESTED ifs, not one `and` chain: VHDL does not short-circuit, so `hs < NHARTS and dbg_halted(hs)` would index out of range on the very probe (hartsel = all ones) that NONEXISTENT exists to answer.
                                 if hs < NHARTS then
                                     if d(30) = '1' and dbg_halted(hs) = '1'
                                        and hart_unavail(hs) = '0' then
-                                        -- QUEUE it (R-D2-5(2)); the sequencer
-                                        -- picks it up from S_IDLE. Never
-                                        -- refused, never dropped.
+                                        -- QUEUE it (R-D2-5(2)); the sequencer picks it up from S_IDLE.
+                                        -- Never refused, never dropped.
                                         resume_pend(hs) <= '1';
                                         resumeack_r(hs) <= '0';
                                     end if;
+                                    -- ackhavereset clears the selected hart's havereset bit.
                                     if d(28) = '1' then
                                         havereset_r(hs) <= '0';
                                     end if;
                                 end if;
-                                -- setresethaltreq / clrresethaltreq. NO Spike
-                                -- reference exists for these (it implements
-                                -- neither, and reports hasresethaltreq = 0);
-                                -- spec text only, and VestaRV reports 1
-                                -- because D1 shipped the wire.
+                                -- setresethaltreq / clrresethaltreq.
+                                -- NO Spike reference exists for these: it implements neither and reports hasresethaltreq = 0.
+                                -- Spec text only, and VestaRV reports 1 because D1 shipped the wire.
                                 if hs < NHARTS then
                                     if d(3) = '1' then
                                         rsthalt_r(hs) <= '1';
@@ -1692,16 +1324,14 @@ begin
                             rsp_data_r <= rsp;
                         end if;
 
+                    -- dmstatus (0x11): read-only status of the selected hart plus the DM's own capability bits.
                     elsif a = A_DMSTATUS then
-                        -- version = 3 (1.0). Spike reports 2 (0.13) and
-                        -- d2_spec 3 forbids copying that.
+                        -- version = 3 (1.0). Spike reports 2 (0.13) and d2_spec 3 forbids copying that.
                         rsp(3 downto 0) := "0011";
                         rsp(7)  := '1';                 -- authenticated
                         rsp(5)  := '1';                 -- hasresethaltreq
                         rsp(22) := '1';                 -- impebreak
-                        -- With hasel dropped, both bits of every any/all pair
-                        -- mirror the selected hart -- and BOTH must be driven
-                        -- or OpenOCD misreads them.
+                        -- With hasel dropped, both bits of every any/all pair mirror the selected hart, and BOTH must be driven or OpenOCD misreads them.
                         rsp(9)  := sel_halted;   rsp(8)  := sel_halted;
                         rsp(11) := sel_running;  rsp(10) := sel_running;
                         rsp(13) := sel_unavail;  rsp(12) := sel_unavail;
@@ -1716,110 +1346,64 @@ begin
 
                     elsif a = A_HARTINFO then
                         -- ==================================================
-                        -- hartinfo (0x12): THE NULL CLAIM. All four fields
-                        -- read zero -- nscratch = 0, dataaccess = 0,
-                        -- datasize = 0, dataaddr = 0 -- which says "I make no
-                        -- claim about scratch registers or a shadowed data
-                        -- region; use the program buffer." That is the path
-                        -- this design intends (DD5) and the only one it has.
+                        -- hartinfo (0x12): THE NULL CLAIM.
+                        -- All four fields read zero (nscratch = 0, dataaccess = 0, datasize = 0, dataaddr = 0), which says "I make no claim about scratch registers or a shadowed data region; use the program buffer."
+                        -- That is the path this design intends (DD5) and the only one it has.
                         --
-                        -- It replaces a claim that was measured to be wrong in
-                        -- BOTH halves, and each half is worth stating because
-                        -- either alone would have justified this:
+                        -- It replaces a claim that was measured to be wrong in BOTH halves, and each half is worth stating because either alone would have justified this:
                         --
-                        --  (1) THE ADDRESS WAS NEVER 0x10680. dataaddr is 12
-                        --      bits and was driven from DATA0_ADDR(11:0), so
-                        --      the wire carried 0x680. The debug spec
-                        --      SIGN-EXTENDS dataaddr; bit 11 of 0x680 is 0, so
-                        --      a debugger obtains the positive address 0x680 --
-                        --      not a truncation it could detect, but a real,
-                        --      resolvable, WRONG address that lands inside the
-                        --      shared boot ROM (0x0-0x3FFF, a READ-ONLY
-                        --      arbiter slave). A debugger trusting it writes
-                        --      nothing and reads ROM. R-D2-8 R6 feared the
-                        --      encoding; the measurement found the encoding
-                        --      names somewhere else that exists.
+                        --  (1) THE ADDRESS WAS NEVER 0x10680.
+                        --      dataaddr is 12 bits and was driven from DATA0_ADDR(11:0), so the wire carried 0x680.
+                        --      The debug spec SIGN-EXTENDS dataaddr; bit 11 of 0x680 is 0, so a debugger obtains the positive address 0x680.
+                        --      That is not a truncation it could detect, but a real, resolvable, WRONG address that lands inside the shared boot ROM (0x0-0x3FFF, a READ-ONLY arbiter slave), so a debugger trusting it writes nothing and reads ROM.
+                        --      R-D2-8 R6 feared the encoding; the measurement found the encoding names somewhere else that exists.
                         --
-                        --  (2) NOBODY WAS EVER GOING TO READ IT ANYWAY -- and
-                        --      that is why this is the fix rather than a wider
-                        --      dataaddr field. OpenOCD consumes dataaddr in
-                        --      exactly one place, scratch_reserve(), and only
-                        --      under `if (info->dataaccess == 1)`
-                        --      (riscv-013.c:1147). Clearing that ONE BIT makes
-                        --      the 12-bit problem evaporate instead of being
-                        --      tolerated: the consumer is never reached, so
-                        --      R-D2-8 R6 closes by EMISSION, not by a
-                        --      debugger's forbearance.
+                        --  (2) NOBODY WAS EVER GOING TO READ IT ANYWAY, and that is why this is the fix rather than a wider dataaddr field.
+                        --      OpenOCD consumes dataaddr in exactly one place, scratch_reserve(), and only when dataaccess is 1 (riscv-013.c:1147).
+                        --      Clearing that ONE BIT makes the 12-bit problem evaporate instead of being tolerated: the consumer is never reached, so R-D2-8 R6 closes by EMISSION, not by a debugger's forbearance.
                         --
-                        -- nscratch = 0 belongs with it. The old pairing
-                        -- (nscratch 0 WITH dataaccess 1) told a debugger "no
-                        -- scratch GPRs, but shadowed data RAM over there",
-                        -- which is precisely the input that steers
-                        -- scratch_reserve() at the memory option. Zero and
-                        -- zero together steer it at progbuf/work-area scratch.
+                        -- nscratch = 0 belongs with it.
+                        -- The old pairing (nscratch 0 WITH dataaccess 1) told a debugger "no scratch GPRs, but shadowed data RAM over there", which is precisely the input that steers scratch_reserve() at the memory option.
+                        -- Zero and zero together steer it at progbuf/work-area scratch.
                         --
-                        -- DATA0_ADDR the generic is deliberately NOT touched:
-                        -- the DM's own master engine still targets that word.
+                        -- DATA0_ADDR the generic is deliberately NOT touched: the DM's own master engine still targets that word.
                         -- What changes is that the DM no longer ADVERTISES it.
                         -- ==================================================
                         rsp_data_r <= (others => '0');
 
+                    -- haltsum0 (0x40): one bit per hart, set when that hart is halted and reachable.
                     elsif a = A_HALTSUM0 then
-                        -- One 32-bit register covers both chips (4 <= 32,
-                        -- 18 <= 32). Spike implements NEITHER haltsum, so this
-                        -- is spec-text only (d2_probe P6/P10).
+                        -- One 32-bit register covers both chips (4 and 18 harts both fit in 32).
+                        -- Spike implements NEITHER haltsum, so this is spec-text only (d2_probe P6/P10).
                         for i in 0 to NHARTS-1 loop
                             rsp(i) := dbg_halted(i) and not hart_unavail(i);
                         end loop;
                         rsp_data_r <= rsp;
 
                     elsif a = A_HALTSUM1 then
-                        -- reads zero SUCCESS, stated in d2_spec 2 because a
-                        -- debugger probes it and Spike answers `failed`.
+                        -- haltsum1 (0x13) reads zero with SUCCESS, stated in d2_spec 2 because a debugger probes it and Spike answers `failed`.
                         rsp_data_r <= (others => '0');
 
                     elsif a = A_SBCS then
                         -- ==================================================
-                        -- sbcs (0x38): READ-ZERO-SUCCESS, WRITES IGNORED-
-                        -- SUCCESS. This is the haltsum1 carve-out directly
-                        -- above, extended for the same reason -- except that
-                        -- here the reason was MEASURED, not anticipated, and
-                        -- it is the difference between a chip gdb attaches to
-                        -- and one it does not.
+                        -- sbcs (0x38): READ-ZERO-SUCCESS, WRITES IGNORED-SUCCESS.
+                        -- This is the haltsum1 carve-out directly above, extended for the same reason, except that here the reason was MEASURED, not anticipated, and it is the difference between a chip gdb attaches to and one it does not.
                         --
-                        -- OpenOCD's examine() reads this address ONCE PER HART
-                        -- and a failed read ABORTS EXAMINATION:
-                        --     riscv-013.c:1653-1654
-                        --       if (dmi_read(target, &info->sbcs, DM_SBCS)
-                        --               != ERROR_OK)
-                        --           return ERROR_FAIL;
-                        -- There is no `sba`-absent guard around it and NO .cfg
-                        -- knob that suppresses it (d5_toolchain_probe claim 20,
-                        -- measured: 1 read of 0x38 at N=1, 4 at N=4). Note this
-                        -- is CONTROL FLOW, not transport state -- so it is a
-                        -- different problem from the DTM's sticky gate, which
-                        -- OpenOCD does recover from automatically by writing
-                        -- dtmcs.dmireset (probe claim 22). Only one of the two
-                        -- was ever survivable, and it was not this one.
+                        -- OpenOCD's examine() reads this address ONCE PER HART and a failed read ABORTS EXAMINATION: at riscv-013.c:1653-1654 a dmi_read of DM_SBCS that does not return ERROR_OK makes examine() return ERROR_FAIL.
+                        -- There is no `sba`-absent guard around it and NO .cfg knob that suppresses it (d5_toolchain_probe claim 20, measured: 1 read of 0x38 at N=1, 4 at N=4).
+                        -- Note this is CONTROL FLOW, not transport state, so it is a different problem from the DTM's sticky gate, which OpenOCD does recover from automatically by writing dtmcs.dmireset (probe claim 22).
+                        -- Only one of the two was ever survivable, and it was not this one.
                         --
-                        -- Zeros are the honest answer, not a placation:
-                        -- sbversion = 0, sbasize = 0, and every sbaccess*
-                        -- width bit clear is the debug spec's own encoding for
-                        -- "no system bus access", and it is what Spike itself
-                        -- returns at --dm-sba=0 (measured: `sbcs -> 0x0`).
-                        -- R-DD2 / d4_spec 1.5 stand: answering zeros is not
-                        -- SBA. 0x39-0x3F remain unimplemented and still answer
-                        -- `failed`.
+                        -- Zeros are the honest answer, not a placation: sbversion = 0, sbasize = 0, and every sbaccess width bit clear is the debug spec's own encoding for "no system bus access", and it is what Spike itself returns at --dm-sba=0 (measured: sbcs reads 0x0).
+                        -- R-DD2 / d4_spec 1.5 stand: answering zeros is not SBA.
+                        -- 0x39-0x3F remain unimplemented and still answer `failed`.
                         --
-                        -- A write completes SUCCESS and has NO effect: there
-                        -- is no state behind this address to write. Both
-                        -- halves matter -- OpenOCD writes sbcs to clear
-                        -- sberror, and a FAILED write would be one more
-                        -- gratuitous sticky event on a transport that has a
-                        -- uniform drop-while-sticky gate.
+                        -- A write completes SUCCESS and has NO effect: there is no state behind this address to write.
+                        -- Both halves matter, because OpenOCD writes sbcs to clear sberror, and a FAILED write would be one more gratuitous sticky event on a transport that has a uniform drop-while-sticky gate.
                         -- ==================================================
                         rsp_data_r <= (others => '0');
 
+                    -- abstractcs (0x16): progbufsize, datacount, busy and the sticky cmderr.
                     elsif a = A_ABSTRACTCS then
                         if wr then
                             -- cmderr is W1C.
@@ -1834,13 +1418,14 @@ begin
                             rsp_data_r <= rsp;
                         end if;
 
+                    -- abstractauto (0x18) is not implemented at D2 and reads zero (D6 owns it).
                     elsif a = A_ABSTAUTO then
                         rsp_data_r <= (others => '0');      -- read-zero
 
+                    -- dmcs2 (0x32): the halt-group assignment of the selected hart.
                     elsif a = A_DMCS2 then
                         if wr then
-                            -- hgselect = 0 (harts) only; hgwrite commits the
-                            -- group of the SELECTED hart. grouptype 0.
+                            -- hgselect = 0 (harts) only; hgwrite commits the group of the SELECTED hart. grouptype 0.
                             if d(0) = '0' and d(1) = '1' and sel_idx < NHARTS then
                                 grp_r(sel_idx) <= d(4 downto 2);
                             end if;
@@ -1851,42 +1436,25 @@ begin
                             rsp_data_r <= rsp;
                         end if;
 
+                    -- command (0x17): accept and launch one abstract command.
                     elsif a = A_COMMAND then
                         if wr then
-                            -- NO ABSTRACT COMMAND STARTS WHILE cmderr IS SET
-                            -- (review finding R5, R-D2-8(5)). The debug spec's
-                            -- `command` register text is three sentences, and
-                            -- the last two decide this precedence:
-                            --   "Writing this register while an abstract
-                            --    command is executing causes cmderr to be set
-                            --    to 1 (busy) IF IT IS 0."
-                            --   "If cmderr is non-zero, writes to this register
-                            --    are ignored."
-                            -- Both point the same way, which is why the guard
-                            -- goes FIRST and not after the busy check: the busy
-                            -- rule is itself qualified by "if it is 0", so a
-                            -- write that arrives busy AND with cmderr already
-                            -- set must NOT overwrite the standing error with
-                            -- BUSY, and the second sentence makes the whole
-                            -- write a no-op anyway. With cmderr = 0 the busy
-                            -- check below is reached unchanged and still answers
-                            -- ERR_BUSY. Ignored means IGNORED: no start, no
-                            -- cmderr change, no NEW error raised -- the debugger
-                            -- clears the standing one with the abstractcs W1C
-                            -- and writes `command` again. Before this guard, a
-                            -- command written with a standing cmderr both ran
-                            -- and CLEARED the error on the way past (the success
-                            -- arm assigns ERR_NONE), destroying the diagnosis a
-                            -- debugger had not yet read. Zero flops.
+                            -- NO ABSTRACT COMMAND STARTS WHILE cmderr IS SET (review finding R5, R-D2-8(5)).
+                            -- The debug spec's `command` register text is three sentences, and the last two decide this precedence:
+                            --   "Writing this register while an abstract command is executing causes cmderr to be set to 1 (busy) IF IT IS 0."
+                            --   "If cmderr is non-zero, writes to this register are ignored."
+                            -- Both point the same way, which is why the guard goes FIRST and not after the busy check: the busy rule is itself qualified by "if it is 0", so a write that arrives busy AND with cmderr already set must NOT overwrite the standing error with BUSY, and the second sentence makes the whole write a no-op anyway.
+                            -- With cmderr = 0 the busy check below is reached unchanged and still answers ERR_BUSY.
+                            -- Ignored means IGNORED: no start, no cmderr change, no NEW error raised; the debugger clears the standing one with the abstractcs W1C and writes `command` again.
+                            -- Before this guard, a command written with a standing cmderr both ran and CLEARED the error on the way past (the success arm assigns ERR_NONE), destroying the diagnosis a debugger had not yet read.
+                            -- Zero flops.
                             if cmderr_r /= ERR_NONE then
                                 null;
                             elsif busy_r = '1' then
                                 cmderr_r <= ERR_BUSY;
                             elsif d(31 downto 24) /= x"00" then
-                                -- cmdtype 2 (access memory) -> NOT_SUPPORTED.
-                                -- THAT IS DD5's memory answer: the debugger
-                                -- falls back to progbuf lw/sw through the hart,
-                                -- which exercises the real bus path.
+                                -- cmdtype 2 (access memory) answers NOT_SUPPORTED.
+                                -- THAT IS DD5's memory answer: the debugger falls back to progbuf lw/sw through the hart, which exercises the real bus path.
                                 cmderr_r <= ERR_NOTSUP;
                             elsif d(22 downto 20) /= "010" then
                                 cmderr_r <= ERR_NOTSUP;     -- aarsize /= 32 bit
@@ -1895,10 +1463,7 @@ begin
                             elsif mst_free = '0' then
                                 cmderr_r <= ERR_BUSY;
                             else
-                                -- The command WRITE completes NOW (ready stays
-                                -- high); the command itself runs in the
-                                -- background behind `busy`, which is what the
-                                -- debugger polls.
+                                -- The command WRITE completes NOW (ready stays high); the command itself runs in the background behind `busy`, which is what the debugger polls.
                                 cmd_r    <= d;
                                 cmd_hart <= sel_safe;
                                 busy_r   <= '1';
@@ -1915,20 +1480,12 @@ begin
                             rsp_data_r <= (others => '0');  -- command reads 0
                         end if;
 
+                    -- data0 (0x04) and progbuf0/1 (0x20/0x21): PROXIED to the backing word through a master access.
                     elsif a = A_DATA0 or a = A_PROGBUF0 or a = A_PROGBUF1 then
-                        -- PROXIED to the backing word through a master access.
-                        -- Multi-cycle: ready is a REGISTERED one-cycle pulse
-                        -- (dmi_req_ready <= ready_r) that has already fired for
-                        -- this request, the accept guard above excludes S_PROXY
-                        -- / S_PROXY_RSP so no further request is taken, and the
-                        -- response is issued by S_PROXY_RSP.  (Corrected at D3,
-                        -- d3_spec 3: this comment used to call ready
-                        -- "combinational from s_state".  It never was.)
+                        -- Multi-cycle: ready is a REGISTERED one-cycle pulse (dmi_req_ready is driven from ready_r) that has already fired for this request, the accept guard above excludes S_PROXY and S_PROXY_RSP so no further request is taken, and the response is issued by S_PROXY_RSP.
+                        -- (Corrected at D3, d3_spec 3: this comment used to call ready "combinational from s_state". It never was.)
                         if mst_free = '0' then
-                            -- Touching data0/progbuf while the master engine is
-                            -- busy is an ERROR the debug spec already names:
-                            -- report cmderr = BUSY, answer the DMI access now,
-                            -- and never interleave a second master transaction.
+                            -- Touching data0/progbuf while the master engine is busy is an ERROR the debug spec already names: report cmderr = BUSY, answer the DMI access now, and never interleave a second master transaction.
                             cmderr_r   <= ERR_BUSY;
                             rsp_data_r <= (others => '0');
                         else
@@ -1945,26 +1502,10 @@ begin
                             end if;
                             if wr then
                                 m_go_we <= "1111";
-                                -- F-D5-1 (R-DD8): a debugger's own 32-bit
-                                -- ebreak becomes the position-correct jump to
-                                -- the epilogue.  SCOPE, and every clause of it
-                                -- is deliberate: progbuf0/1 PROXY WRITES only
-                                -- (data0 is untouched -- it carries operands,
-                                -- not instructions); EXACT 32-bit encoding
-                                -- only, so a word one bit away stores verbatim
-                                -- and a compressed c.ebreak pair is out of
-                                -- scope by construction (the entry page is
-                                -- norvc and OpenOCD emits the 32-bit form);
-                                -- and the substituted word is what a readback
-                                -- returns, because there is no shadow of the
-                                -- original anywhere -- the honest answer, and
-                                -- the .cfg comments and the TRM say so.
-                                -- What this does NOT touch: the exception
-                                -- detector.  A program that genuinely traps
-                                -- still never reaches the epilogue, still
-                                -- leaves the token /= DONE, and still reports
-                                -- EXCEPTION.  Only the debugger's own
-                                -- terminator changes meaning.
+                                -- F-D5-1 (R-DD8): a debugger's own 32-bit ebreak becomes the position-correct jump to the epilogue.
+                                -- SCOPE, and every clause of it is deliberate: progbuf0/1 PROXY WRITES only (data0 is untouched, since it carries operands, not instructions); EXACT 32-bit encoding only, so a word one bit away stores verbatim and a compressed c.ebreak pair is out of scope by construction (the entry page is norvc and OpenOCD emits the 32-bit form); and the substituted word is what a readback returns, because there is no shadow of the original anywhere, which is the honest answer and what the .cfg comments and the TRM say.
+                                -- What this does NOT touch is the exception detector: a program that genuinely traps still never reaches the epilogue, still leaves the token different from DONE, and still reports EXCEPTION.
+                                -- Only the debugger's own terminator changes meaning.
                                 if a = A_PROGBUF0 and d = I_EBREAK then
                                     m_go_d <= I_PB0_JAL;
                                 elsif a = A_PROGBUF1 and d = I_EBREAK then
@@ -1981,7 +1522,7 @@ begin
                         end if;
 
                     else
-                        -- Unimplemented DMI address -> failed (d2_spec 2).
+                        -- Unimplemented DMI address: answer `failed` (d2_spec 2).
                         rsp_op_r   <= OP_FAIL;
                         rsp_data_r <= (others => '0');
                     end if;

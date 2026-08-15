@@ -1,44 +1,32 @@
 -- =============================================================================
 -- clint.vhd  (M5b)
 -- =============================================================================
--- Minimal real CLINT for the 4-hart MCU_MP: per-hart software interrupts
--- (msip, the IPI mechanism) + a shared 64-bit mtime with per-hart mtimecmp
--- (timer interrupts). Replaces nothing: the M5a soft-CLINT mailboxes in the
--- shared RAM stay as-is (they gate the regression); this block adds REAL
--- interrupt delivery so parked harts can SLEEP/WFI instead of poll.
+-- Minimal real CLINT for the multi-hart MCU_MP: per-hart software interrupts (msip, the IPI mechanism) plus a shared 64-bit mtime with per-hart mtimecmp for timer interrupts.
+-- It replaces nothing: the M5a soft-CLINT mailboxes in the shared RAM stay as they are, since they gate the regression, and this block adds REAL interrupt delivery so parked harts can sleep in WFI instead of polling.
 --
--- PLACEMENT: second slave behind mp_arbiter in the shared window (region 4),
--- at 0x11000-0x11FFF (word-address bits 11:10 = "01"; the shared RAM keeps
--- 0x10000-0x103FF). All four harts reach it through their existing shared-
--- window master ports -- no new interconnect. Runs on the free-running mclk
--- (same clock as the arbiter and every vesta's irq_handler -> no CDC).
+-- PLACEMENT: second slave behind mp_arbiter in the shared window (region 4), at 0x11000-0x11FFF, word-address bits 11:10 = "01", with the shared RAM keeping 0x10000-0x103FF.
+-- Every hart reaches it through its existing shared-window master port, so there is no new interconnect.
+-- It runs on the free-running mclk, the same clock as the arbiter and every vesta's irq_handler, so there is no clock-domain crossing.
 --
--- REGISTER MAP (byte address = block base + 4*word; only addr(ADDR_W-1:0)
--- decoded, so the block aliases every 2**ADDR_W words through its page).
--- A1 N-HART FORMULA (Argus generalization; see ~/vesta_docs/argus): with
+-- REGISTER MAP: byte address is block base + 4*word, and only addr(ADDR_W-1:0) is decoded, so the block aliases every 2**ADDR_W words through its page.
+-- A1 N-HART FORMULA (Argus generalization; see ~/vesta_docs/argus), with:
 --   MTIME_W = roundup16(4*NHARTS)/4   (mtime word index)
 --   CMP_W   = MTIME_W + 4             (first mtimecmp word index)
---   word 0..NHARTS-1      : msip[h], bit 0 (1 = raise IPI to hart h, 0 = clear)
---   word MTIME_W/+1       : mtime lo/hi (free-running +1 per mclk; writable,
---                           a write to either lane-merges that half)
+--   word 0..NHARTS-1      : msip[h], bit 0 (1 raises the IPI to hart h, 0 clears it)
+--   word MTIME_W and +1   : mtime lo and hi (free-running, +1 per mclk; writable, and a write lane-merges that half)
 --   word MTIME_W+2..CMP_W-1 : reserved (read 0)
---   word CMP_W+2h         : mtimecmp[h] lo  } mtip(h) = (mtime >= mtimecmp[h]),
---   word CMP_W+2h+1       : mtimecmp[h] hi  } registered. Resets ALL-ONES -> mtip=0.
--- At NHARTS=4 / ADDR_W=4 this reproduces the original M5b layout EXACTLY
--- (msip words 0-3, mtime 4/5, reserved 6/7, mtimecmp 8+2h/9+2h, aliasing
--- every 16 words) -- proven byte-identical decode, the Castalia shape.
--- ADDR_W must satisfy 2**ADDR_W >= CMP_W + 2*NHARTS (asserted below);
--- the chip generator (platform/common/python/mcu_vhd.py) computes it.
+--   word CMP_W+2h         : mtimecmp[h] lo  } mtip(h) is (mtime >= mtimecmp[h]),
+--   word CMP_W+2h+1       : mtimecmp[h] hi  } registered. Resets ALL-ONES, so mtip starts low.
+-- At NHARTS=4 and ADDR_W=4 this reproduces the original M5b layout EXACTLY: msip words 0-3, mtime 4 and 5, reserved 6 and 7, mtimecmp 8+2h and 9+2h, aliasing every 16 words.
+-- That decode was proven byte-identical, and it is the Castalia shape.
+-- ADDR_W must satisfy 2**ADDR_W >= CMP_W + 2*NHARTS (asserted below); the chip generator (platform/common/python/mcu_vhd.py) computes it.
 --
--- IRQ OUTPUTS: msip(h)/mtip(h) are level signals into hart h's irq_vector
--- (slots IRQB_CLINT_MSIP / IRQB_CLINT_MTIP, MemoryMap.vhd). The ISR clears
--- the level by writing msip[h]=0 / advancing mtimecmp[h] BEFORE iret, or the
--- irq_handler re-triggers.
+-- IRQ OUTPUTS: msip(h) and mtip(h) are level signals into hart h's irq_vector (slots IRQB_CLINT_MSIP and IRQB_CLINT_MTIP, MemoryMap.vhd).
+-- The ISR clears the level by writing msip[h]=0, or by advancing mtimecmp[h], BEFORE iret, otherwise the irq_handler re-triggers.
 --
--- BUS CONTRACT (matches mp_arbiter's slave model / the behavioral shared RAM):
--- active-high en, 4 active-high byte-lane strobes we (already resv_unit-gated
--- in MCU.vhd -- a suppressed SC write must not touch the CLINT either), 1-cycle
--- registered read: address at cycle T, rdata valid at T+1. Writes lane-merge.
+-- BUS CONTRACT, matching mp_arbiter's slave model and the behavioral shared RAM: active-high en, 4 active-high byte-lane strobes on we, and a 1-cycle registered read with the address at cycle T and rdata valid at T+1.
+-- The strobes are already resv_unit-gated in MCU.vhd, because a suppressed SC write must not touch the CLINT either.
+-- Writes lane-merge.
 -- =============================================================================
 
 library IEEE;
@@ -49,15 +37,15 @@ use IEEE.STD_LOGIC_UNSIGNED.ALL;
 entity clint is
     generic (
         NHARTS : natural := 4;
-        -- word-address width; must cover the whole register file (see the
-        -- formula in the header). 4 = the Castalia NHARTS=4 shape.
+        -- Word-address width; it must cover the whole register file (see the formula in the header).
+        -- 4 is the Castalia NHARTS=4 shape.
         ADDR_W : natural := 4
     );
     port (
         clk    : in  std_logic;   -- free-running mclk
         resetn : in  std_logic;
 
-        -- slave port (behind mp_arbiter; enables active-high)
+        -- Slave port behind mp_arbiter; enables are active-high
         en     : in  std_logic;
         we     : in  std_logic_vector(3 downto 0);
         addr   : in  std_logic_vector(ADDR_W-1 downto 0);   -- word offset within block
@@ -72,8 +60,8 @@ end entity;
 
 architecture behav of clint is
 
-    -- A1 layout formula (header): mtime lo at MTIME_W, mtimecmp[0] lo at
-    -- CMP_W. At NHARTS=4 these are 4 and 8 -- the original M5b layout.
+    -- A1 layout formula from the header: mtime lo sits at MTIME_W and mtimecmp[0] lo at CMP_W.
+    -- At NHARTS=4 these are 4 and 8, the original M5b layout.
     constant MTIME_W : natural := ((4*NHARTS + 15) / 16) * 4;
     constant CMP_W   : natural := MTIME_W + 4;
 
@@ -85,7 +73,7 @@ architecture behav of clint is
     signal mtip_reg  : std_logic_vector(NHARTS-1 downto 0);
     signal rdata_reg : std_logic_vector(31 downto 0);
 
-    -- lane-merge helper result
+    -- Merge the enabled write lanes of wd into cur and return the result
     function lane_merge(cur   : std_logic_vector(31 downto 0);
                         wd    : std_logic_vector(31 downto 0);
                         lanes : std_logic_vector(3 downto 0))
@@ -103,7 +91,7 @@ architecture behav of clint is
 
 begin
 
-    -- the address port must reach every register of the parameterized layout
+    -- The address port must reach every register of the parameterized layout
     assert 2**ADDR_W >= CMP_W + 2*NHARTS
         report "clint: ADDR_W too small for NHARTS (see the layout formula)"
         severity failure;
@@ -112,6 +100,7 @@ begin
     mtip  <= mtip_reg;
     rdata <= rdata_reg;
 
+    -- Register file, mtime counter and the per-hart timer compares, all on mclk
     clint_proc: process(clk, resetn)
         variable widx   : integer range 0 to 2**ADDR_W - 1;
         variable hidx   : integer range 0 to NHARTS-1;
@@ -121,18 +110,18 @@ begin
         if resetn = '0' then
             msip_reg  <= (others => '0');
             mtime     <= (others => '0');
-            mtimecmp  <= (others => (others => '1'));  -- all-ones: mtip quiet
+            mtimecmp  <= (others => (others => '1'));  -- All-ones keeps mtip quiet
             mtip_reg  <= (others => '0');
             rdata_reg <= (others => '0');
         elsif rising_edge(clk) then
-            -- mtime free-runs; a same-cycle write wins (below)
+            -- mtime free-runs, but a same-cycle write to it wins (see the write section below)
             mtime_next := mtime + 1;
 
             if en = '1' then
                 widx := conv_integer(addr);
                 rd   := (others => '0');
 
-                -- ---- read mux (registered; valid next cycle, arbiter DATA) --
+                -- ---- Read mux; registered here and valid next cycle, which is the arbiter's DATA state
                 if widx < NHARTS then                                -- msip[h]
                     rd(0) := msip_reg(widx);
                 elsif widx = MTIME_W then                            -- mtime lo
@@ -149,10 +138,10 @@ begin
                 end if;
                 rdata_reg <= rd;
 
-                -- ---- lane-merged writes --------------------------------------
+                -- ---- Lane-merged writes; an undecoded word silently drops the write
                 if we /= "0000" then
                     if widx < NHARTS then
-                        if we(0) = '1' then          -- msip is bit 0 (lane 0)
+                        if we(0) = '1' then          -- msip lives in bit 0, so only lane 0 can write it
                             msip_reg(widx) <= wdata(0);
                         end if;
                     elsif widx = MTIME_W then
@@ -176,7 +165,7 @@ begin
 
             mtime <= mtime_next;
 
-            -- ---- registered timer compares (level mtip) ----------------------
+            -- ---- Registered 64-bit timer compares driving the mtip levels ----
             for h in 0 to NHARTS-1 loop
                 if mtime >= mtimecmp(h) then
                     mtip_reg(h) <= '1';
