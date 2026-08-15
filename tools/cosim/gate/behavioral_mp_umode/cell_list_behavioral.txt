@@ -59,6 +59,7 @@ umode_hdl/MemoryMap.vhd
 ../../../hdl/common/resv_unit.vhd
 ../../../hdl/common/hart_tile.vhd
 ../../../hdl/common/afe_stub.vhd
+../../../hdl/common/orch_tile.vhd
 ../../../hdl/common/MCU.vhd
 ../../../hdl/common/tb/tb_defs.vhd
 ../../../hdl/common/tb/riscv_tb.vhd

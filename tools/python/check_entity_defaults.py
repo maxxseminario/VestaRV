@@ -55,8 +55,7 @@ Deliberately NOT keyed on the trapCsr DISAGREEMENT (method rule 11: an
 instrument keyed on a defect reports success the day the defect is fixed).
 The disagreement is REPORTED, loudly, and never graded.
 
-THE SECOND AXIS: MGMT_HART (CP6, and it is a PICKUP -- this checker did not
-catch the defect class it was built for).
+THE SECOND AXIS: MGMT_HART -- REBASED AT CPR3, AND THE INVARIANT INVERTED.
 ---------------------------------------------------------------------------
 Everything above is about a DECLARATION drifting.  CP3 found the other half of
 the same class, and this instrument was blind to it: an INSTANTIATION that
@@ -66,34 +65,38 @@ being built.  ``afe_stub.vhd`` declares
     OWNER_HART : natural := 0;
     MGMT_HART  : natural := 0;      -- CP1 D4
 
-and its access gate is ``master = OWNER_HART or master = MGMT_HART``.  The
-Castalia-Penta emitter (``mcu_vhd.py`` ``afeStubsWithMgmt``) rewrote the EIS
-engine's association to ``OWNER_HART => 4`` and left ``MGMT_HART`` OMITTED, so
-the gate elaborated as ``{4, 0}`` and **hart 0 silently kept the EIS access D4
-had moved to the orchestrator**.  Every gate stayed green -- the RTL compiled,
-the golden master was byte-identical (the association is emitted only off the
-default path), and the generated MCU.vhd read plausibly.  It was found only by
-``shorch``'s negative control, i.e. by a test that happened to look.
+and its access gate is ``master = OWNER_HART or master = MGMT_HART``.  The CP2
+emitter (``mcu_vhd.py`` ``afeStubsWithMgmt``) rewrote the EIS engine's
+association to ``OWNER_HART => 4`` and left ``MGMT_HART`` OMITTED, so the gate
+elaborated as ``{4, 0}`` and **hart 0 silently kept the EIS access D4 had moved
+to the orchestrator**.  Every gate stayed green; only ``shorch``'s negative
+control found it.
 
-So the MGMT_HART audit grades the PAIRING, in three places, and it is
-two-sided on purpose (the OFF polarity is a real contract too -- an emitted
-MGMT_HART association on the default path would break golden-master
-byte-identity):
+**CPR3/R1 RETIRED THE MOVE ITSELF, so this axis now grades the OPPOSITE
+POLARITY.**  The orchestrator was renumbered to hart 0, which means the
+management hart is hart 0 in BOTH shapes -- the historical four-tile chip and
+the penta chip alike.  There is therefore no configuration in which
+``MGMT_HART`` should be anything but its entity default, and the generator has
+no business ever emitting the association.  A named MGMT_HART in 2026-08+ RTL
+does not merely differ from the default; it is evidence that something is
+re-deriving the CP2 index arithmetic that R1 deleted.
 
-    DECL   ``afe_stub.vhd`` declares MGMT_HART, and its default must be 0
-           (that default is exactly what makes the default build's OMISSION
-           correct, so it is the hinge of the whole scheme)
-    MAP    an ``afe_stub`` instantiation / emitted line naming MGMT_HART
-    OMIT   one that does not -- a DECISION, correct on the mgmtHart=0 path
-           and a DEFECT on an orchestrator path
+The generic STAYS on the entity: it is the documented seam (CPR1 R1 says so in
+as many words), and a future chip that really does move the privilege off hart 0
+needs it there.  What is graded is that nobody uses it.
+
+    DECL   ``afe_stub.vhd`` declares MGMT_HART, and its default must be 0.
+           This is now load-bearing on EVERY configuration, not just the
+           default one -- there is no override anywhere to correct it.
+    OMIT   an ``afe_stub`` instantiation that does NOT name MGMT_HART.  This
+           is the required state, everywhere.
+    MAP    one that DOES -- a VIOLATION now, on any path, in any file.
     EMIT   the generator-side emission sites, split into the VERBATIM class
-           (module-scope golden-master text: must NEVER name MGMT_HART) and
-           the ORCHESTRATOR class (a function whose body knows about the
-           management hart: must ALWAYS name it -- this is the eis0 site)
-
-and the VHDL rule is per-file ALL-OR-NONE: within one MCU.vhd, either every
-``afe_stub`` instantiation names MGMT_HART or none does.  A MIXED file is the
-eis0 shape exactly, and is reported site by site.
+           (module-scope golden-master text) and the ORCHESTRATOR class (a
+           function whose body knows about the orchestrator).  BOTH must omit
+           MGMT_HART; the orchestrator class is still counted separately so a
+           restructured emitter that stops producing orchestrator text at all
+           cannot pass as clean.
 
 USAGE
     /usr/bin/python3.6 tools/python/check_entity_defaults.py               # ENABLE_DEBUG D1 contract + the MGMT_HART axis
@@ -195,8 +198,12 @@ AFE_EMIT_FILES = [
 # Measured floors, so a restructured emitter cannot pass by emitting NOTHING.
 # VERBATIM = the five golden-master `generic map (OWNER_HART => n)` lines in the
 # module-scope AFE_SLOT12_INSTANCES table.  ORCHESTRATOR = the emission sites
-# (branches, NOT instances) inside afeStubsWithMgmt: one for the EIS engine,
-# one for the four AFE sites.  Both counts are measured on the current tree.
+# (branches, NOT instances) inside `afeStubsOrchOwners`: one for the EIS engine,
+# one for the four AFE sites.  REBASED at CPR3 and DELIBERATELY UNCHANGED in
+# value: the CP2 emitter had the same two branches, and the eis0 branch survived
+# the rewrite precisely so this floor keeps its teeth (its OWNER_HART => 0 line
+# could have been left to fall through unchanged, which would have dropped the
+# count to 1 and quietly halved the audit).
 MGMT_MIN_VERBATIM_EMITS = 5
 MGMT_MIN_ORCH_EMITS = 2
 
@@ -306,7 +313,12 @@ def scan_mgmt_emitters(root, files):
                 cls = "VERBATIM"
             else:
                 body = bodies.get(sc, "")
-                cls = ("ORCH" if ("MGMT_HART" in body or "mgmtHart" in body)
+                # CPR3: orchestrator-awareness can no longer be detected by
+                # "does this function mention MGMT_HART" -- the correct
+                # orchestrator emitter mentions it only to say it does not use
+                # it.  Key on the orchestrator vocabulary instead.
+                cls = ("ORCH" if ("MGMT_HART" in body or "mgmtHart" in body
+                                  or "OrchOwners" in body or "self.orch" in body)
                        else "PLAIN")
             named = "MGMT_HART" in line
             out.append(("EMIT", rel, num, sc, cls,
@@ -472,7 +484,7 @@ def audit_mgmt_hart(root, report_only=False):
     that produces no matches must not read as "clean").
     """
     print()
-    print("== MGMT_HART (afe_stub ownership gate; CP1 D4 / the CP3 eis0 pickup) ==")
+    print("== MGMT_HART (afe_stub ownership gate; CPR3/R1: never overridden) ==")
 
     rc = 0
 
@@ -498,29 +510,22 @@ def audit_mgmt_hart(root, report_only=False):
     if [r for r in decls if r[0] == "MISSING"]:
         rc = 1
 
-    # ---- 2. the VHDL instantiations: per-file ALL-OR-NONE ------------------
-    print("   -- afe_stub instantiations (per file: all name MGMT_HART, or none)")
+    # ---- 2. the VHDL instantiations: MGMT_HART MUST NEVER BE NAMED ---------
+    print("   -- afe_stub instantiations (CPR3: every one must INHERIT MGMT_HART)")
     rows = (scan_afe_insts(root, AFE_INST_FILES)
             + scan_afe_insts(root, AFE_INST_OPTIONAL, optional=True))
-    perfile = {}
     for kind, rel, num, unit, val in rows:
         print("   %-8s %-52s:%-5s %-22s %s" %
               (kind, rel, num or "-", unit or "", val or ""))
-        if kind in ("MAP", "OMIT"):
-            perfile.setdefault(rel, []).append((kind, num, unit, val))
+        if kind == "MAP":
+            print("FAIL: %s:%s (%s) NAMES MGMT_HART.  CPR3/R1 made hart 0 the "
+                  "management hart on EVERY configuration, so the association "
+                  "has no correct value to carry and no emitter should produce "
+                  "it -- this is CP2 index arithmetic that R1 deleted, coming "
+                  "back.  %s" % (rel, num, unit, val))
+            rc = 1
         elif kind == "MISSING":
             print("   MISSING FILE: %s -- the audit is INCOMPLETE" % rel)
-            rc = 1
-    for rel in sorted(perfile):
-        kinds = set(k for k, _, _, _ in perfile[rel])
-        if len(kinds) > 1:
-            print("FAIL: %s MIXES named and inherited MGMT_HART across its "
-                  "afe_stub instantiations -- this is the eis0 shape (an owner "
-                  "moved, the management hart did not).  The omitting site(s):"
-                  % rel)
-            for kind, num, unit, val in perfile[rel]:
-                if kind == "OMIT":
-                    print("        %s:%s  %s  (%s)" % (rel, num, unit, val))
             rc = 1
 
     # ---- 3. the GENERATOR emission sites ----------------------------------
@@ -538,17 +543,18 @@ def audit_mgmt_hart(root, report_only=False):
             nverb += 1
             if "names MGMT_HART" in val:
                 print("FAIL: %s:%s emits MGMT_HART from the VERBATIM golden-master "
-                      "table -- the default (mgmtHart=0) build would stop being "
-                      "byte-identical to hdl/common/MCU.vhd." % (rel, num))
+                      "table -- the default build would stop being byte-identical "
+                      "to hdl/common/MCU.vhd." % (rel, num))
                 rc = 1
         elif cls == "ORCH":
             norch += 1
-            if "OMITS MGMT_HART" in val:
-                print("FAIL: %s:%s (in %s) emits an OWNER_HART association with NO "
-                      "MGMT_HART.  On an orchestrator config that site elaborates "
-                      "with MGMT_HART = the entity default 0, so hart 0 keeps an "
-                      "access CP1 D4 moved to the management hart.  THIS IS THE "
-                      "eis0 DEFECT." % (rel, num, scope))
+            if "names MGMT_HART" in val:
+                print("FAIL: %s:%s (in %s) emits an MGMT_HART association from the "
+                      "orchestrator emitter.  CPR3/R1 put the orchestrator ON hart "
+                      "0, so the management hart is hart 0 everywhere and the "
+                      "entity default is correct in every configuration -- naming "
+                      "it means someone re-derived the retired CP2 index."
+                      % (rel, num, scope))
                 rc = 1
 
     print()
@@ -569,9 +575,10 @@ def audit_mgmt_hart(root, report_only=False):
     if report_only:
         return 0
     if rc == 0:
-        print("PASS: MGMT_HART is declared with default 0, every afe_stub "
-              "instantiation file is all-or-none, and every orchestrator "
-              "emission site pairs OWNER_HART with MGMT_HART.")
+        print("PASS: MGMT_HART is declared with default 0, no afe_stub "
+              "instantiation names it, and no emission site -- verbatim or "
+              "orchestrator -- produces it.  The management hart is hart 0 in "
+              "every shape (CPR3/R1), which is what makes the default correct.")
     return rc
 
 

@@ -71,14 +71,17 @@ cd "$(dirname "$0")"
 # --- rcf/ TRANSIT PROTECTION (K1, from the K0 harness probe's G4 finding) -----
 # The build TRANSITS through rcf/: the Makefile's *-flash recipes write there
 # unconditionally. So an OUT-OF-TREE build (e.g. the Argus N=18 set staged into
-# rcf_argus/) used to leave rcf/ holding N!=4 images AND stamped rcf/.nharts
-# with $NH -- poisoning the Castalia 136-suite, both lockstep gates and the
-# course runner until a manual rebuild (M19b war story; harness probe G4).
+# rcf_argus/) used to leave rcf/ holding foreign-N images AND stamped
+# rcf/.nharts with $NH -- poisoning the Castalia suite, both lockstep gates and
+# the course runner until a manual rebuild (M19b war story; harness probe G4).
+# CPR8/R7: the canonical set is NHARTS=5 now (the shipped five-hart
+# orchestrator chip); it was 4 until 2026-08-15.
 # We now snapshot rcf/ BEFORE the build and restore it after staging, so an
 # out-of-tree build is a NO-OP on rcf/ -- images AND stamp. The restore also
 # runs on an aborted build (EXIT trap) and is proved by a read-back assertion.
 # DESIGN NOTE (fail-safe direction): we deliberately restore the IMAGES too.
-# Restoring only the stamp would leave rcf/.nharts=4 sitting over N!=4 images
+# Restoring only the stamp would leave the canonical rcf/.nharts sitting over
+# foreign-N images
 # -- the runners' guards would then PASS on poisoned images, which is strictly
 # worse than the old loud refusal. Stamp and images move together or not at all.
 # EDGE: if rcf/ did not exist before the run, the "pre-state" is an empty
@@ -198,7 +201,7 @@ fi
 if [ "$RB_FAIL" != 0 ]; then
     echo "FATAL: build_mp_images.sh read-back assertion FAILED — image dirs may be" >&2
     echo "       poisoned. Rebuild the canonical set before ANY Castalia sim:" >&2
-    echo "       ./build_mp_images.sh 4 ../../xcelium/riscv_test/rcf" >&2
+    echo "       ./build_mp_images.sh 5 ../../xcelium/riscv_test/rcf" >&2
     exit 2
 fi
 GOT_IMGSET="$(cat "$DEST/.imgset" 2>/dev/null || echo "<absent>")"

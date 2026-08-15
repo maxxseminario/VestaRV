@@ -24,6 +24,7 @@ rv32ui_sc_tests = \
 	shpwr \
 	shafe \
 	shorch \
+	shtcm \
 	shdma \
 	shevfab \
 	wperiph \

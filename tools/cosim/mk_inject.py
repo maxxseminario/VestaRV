@@ -199,6 +199,54 @@ def _vhdl_natural(path, name, decl="constant"):
     return None
 
 
+def _hart_tile_sh_aw_binding(mcu_path):
+    """(instances, bound) -- how many hart_tile/orch_tile instances MCU.vhd has,
+    and how many of them BIND the SH_AW generic explicitly.
+
+    CPR8/R7. The SH_AW cross-check below used to demand that MCU.vhd's
+    `constant SH_AW` equal hart_tile.vhd's GENERIC DEFAULT, on the reasoning
+    that a silently-diverged default is how a mis-derived window goes
+    unnoticed. That reasoning only holds while the default is what the build
+    USES. It is not: every generated MCU.vhd binds `SH_AW => SH_AW` on every
+    hart instance, so the MCU constant is the authority and the entity default
+    is a fail-safe for a hypothetical unbound instantiation.
+
+    The promotion made that distinction load-bearing rather than academic: the
+    shipped default is now the orchestrator chip at SH_AW=16 (memory map v2)
+    while `config/castalia4.json` still emits an MCU.vhd at SH_AW=15, and one
+    entity default cannot equal both. So the check inverts: PROVE the binding
+    exists on every instance (a strictly stronger assertion than the equality
+    it replaces), and only fall back to demanding equality when some instance
+    leaves the generic unbound -- which is the only case in which the default
+    could ever reach the RTL.
+
+    oracle_isa.py carries the identical reader for the identical reason; the
+    two parsers stay parallel, as they already were for `_vhdl_natural`.
+    """
+    inst = re.compile(r'entity\s+work\.(?:hart_tile|orch_tile)\b', re.I)
+    bind = re.compile(r'\bSH_AW\s*=>')
+    endg = re.compile(r'\bport\s+map\b', re.I)
+    instances = 0
+    bound = 0
+    try:
+        with open(mcu_path) as fh:
+            lines = fh.readlines()
+    except IOError:
+        return 0, 0
+    for i, line in enumerate(lines):
+        if not inst.search(line):
+            continue
+        instances += 1
+        # the generic map runs from here to this instance's `port map`
+        for j in range(i + 1, min(i + 200, len(lines))):
+            if bind.search(lines[j]):
+                bound += 1
+                break
+            if endg.search(lines[j]):
+                break
+    return instances, bound
+
+
 def derive_plant_window(root):
     """(base, size) of the SHARED-AND-WRITABLE window, DERIVED from the RTL.
 
@@ -237,11 +285,19 @@ def derive_plant_window(root):
     if missing:
         raise ValueError("--plant auto: cannot derive %s from %s / %s"
                          % (", ".join(missing), mm, mcu))
-    if sh_aw_tile is not None and sh_aw_tile != sh_aw:
-        raise ValueError("--plant auto: SH_AW disagrees between MCU.vhd (%d) and "
-                         "hart_tile.vhd's generic default (%d) -- refusing to "
+    # CPR8/R7: the MCU constant is authoritative WHEN every hart instance binds
+    # the generic. Prove that; only an unbound instance can let the entity
+    # default reach the RTL, and only then does it have to agree.
+    _inst, _bound = _hart_tile_sh_aw_binding(mcu)
+    if _inst == 0:
+        raise ValueError("--plant auto: no hart_tile/orch_tile instance found in %s "
+                         "-- refusing to guess how SH_AW reaches the tiles" % mcu)
+    if _bound != _inst and sh_aw_tile is not None and sh_aw_tile != sh_aw:
+        raise ValueError("--plant auto: %d of %d hart instances in MCU.vhd leave the "
+                         "SH_AW generic UNBOUND, and SH_AW disagrees between MCU.vhd "
+                         "(%d) and hart_tile.vhd's generic default (%d) -- refusing to "
                          "guess which one the build used"
-                         % (sh_aw, sh_aw_tile))
+                         % (_inst - _bound, _inst, sh_aw, sh_aw_tile))
     base = ram_start + ram_size
     top = 1 << (sh_aw + 2)
     if top <= base:

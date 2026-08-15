@@ -1,7 +1,7 @@
 -- MemoryMap.vhd
 -- Memory map VHDL package
 -- Defines the memory map of the MCU, including which RAM and peripheral slots are activated, as well as which slot each peripheral is allocated to, and the slot each register within each peripheral is allocated to
--- Generated on 2026/08/05 at 15:30:24 with the MemoryMap.py memory map generator
+-- Generated on 2026/08/15 at 09:41:07 with the MemoryMap.py memory map generator
 -- WARNING: Do not edit or modify this file!
 -- 	If you need to change it, use the MemoryMap.py memory map generator tool
 
@@ -165,16 +165,19 @@ package MemoryMap is
 	constant RegSlotMSIP1			: natural := 01;	-- offset = 4 bytes
 	constant RegSlotMSIP2			: natural := 02;	-- offset = 8 bytes
 	constant RegSlotMSIP3			: natural := 03;	-- offset = 12 bytes
-	constant RegSlotMTIMEL			: natural := 04;	-- offset = 16 bytes
-	constant RegSlotMTIMEH			: natural := 05;	-- offset = 20 bytes
-	constant RegSlotMTIMECMP0L		: natural := 08;	-- offset = 32 bytes
-	constant RegSlotMTIMECMP0H		: natural := 09;	-- offset = 36 bytes
-	constant RegSlotMTIMECMP1L		: natural := 10;	-- offset = 40 bytes
-	constant RegSlotMTIMECMP1H		: natural := 11;	-- offset = 44 bytes
-	constant RegSlotMTIMECMP2L		: natural := 12;	-- offset = 48 bytes
-	constant RegSlotMTIMECMP2H		: natural := 13;	-- offset = 52 bytes
-	constant RegSlotMTIMECMP3L		: natural := 14;	-- offset = 56 bytes
-	constant RegSlotMTIMECMP3H		: natural := 15;	-- offset = 60 bytes
+	constant RegSlotMSIP4			: natural := 04;	-- offset = 16 bytes
+	constant RegSlotMTIMEL			: natural := 08;	-- offset = 32 bytes
+	constant RegSlotMTIMEH			: natural := 09;	-- offset = 36 bytes
+	constant RegSlotMTIMECMP0L		: natural := 12;	-- offset = 48 bytes
+	constant RegSlotMTIMECMP0H		: natural := 13;	-- offset = 52 bytes
+	constant RegSlotMTIMECMP1L		: natural := 14;	-- offset = 56 bytes
+	constant RegSlotMTIMECMP1H		: natural := 15;	-- offset = 60 bytes
+	constant RegSlotMTIMECMP2L		: natural := 16;	-- offset = 64 bytes
+	constant RegSlotMTIMECMP2H		: natural := 17;	-- offset = 68 bytes
+	constant RegSlotMTIMECMP3L		: natural := 18;	-- offset = 72 bytes
+	constant RegSlotMTIMECMP3H		: natural := 19;	-- offset = 76 bytes
+	constant RegSlotMTIMECMP4L		: natural := 20;	-- offset = 80 bytes
+	constant RegSlotMTIMECMP4H		: natural := 21;	-- offset = 84 bytes
 
 	-- MUTEX
 	constant RegSlotMUTEX0			: natural := 00;	-- offset = 0 bytes
@@ -211,6 +214,10 @@ package MemoryMap is
 	constant RegSlotH3ENM			: natural := 13;	-- offset = 52 bytes
 	constant RegSlotH3ENU			: natural := 14;	-- offset = 56 bytes
 	constant RegSlotH3ENX			: natural := 15;	-- offset = 60 bytes
+	constant RegSlotH4ENL			: natural := 16;	-- offset = 64 bytes
+	constant RegSlotH4ENM			: natural := 17;	-- offset = 68 bytes
+	constant RegSlotH4ENU			: natural := 18;	-- offset = 72 bytes
+	constant RegSlotH4ENX			: natural := 19;	-- offset = 76 bytes
 	constant RegSlotCLAIM			: natural := 512;	-- offset = 2048 bytes
 	constant RegSlotPENDL			: natural := 516;	-- offset = 2064 bytes
 	constant RegSlotPENDM			: natural := 517;	-- offset = 2068 bytes
@@ -655,11 +662,13 @@ package MemoryMap is
 
 	------ PWRCTRL
 	-- PWRCR
-	constant PWRGATE_MSB			: natural := 03;
+	constant PWRGATE_MSB			: natural := 04;
 	constant PWRGATE_LSB			: natural := 01;
 	constant PWRH0_LSB				: natural := 00;
 
 	-- PWRSR
+	constant PWRST4_MSB				: natural := 19;
+	constant PWRST4_LSB				: natural := 16;
 	constant PWRST3_MSB				: natural := 15;
 	constant PWRST3_LSB				: natural := 12;
 	constant PWRST2_MSB				: natural := 11;
@@ -770,6 +779,9 @@ package MemoryMap is
 	-- MSIP3
 	constant CLINTMSIPH3_LSB		: natural := 00;
 
+	-- MSIP4
+	constant CLINTMSIPH4_LSB		: natural := 00;
+
 	-- MTIMEL
 	constant CLINTMTIMEL_MSB		: natural := 31;
 	constant CLINTMTIMEL_LSB		: natural := 00;
@@ -809,6 +821,14 @@ package MemoryMap is
 	-- MTIMECMP3H
 	constant CLINTMTIMECMP3H_MSB	: natural := 31;
 	constant CLINTMTIMECMP3H_LSB	: natural := 00;
+
+	-- MTIMECMP4L
+	constant CLINTMTIMECMP4L_MSB	: natural := 31;
+	constant CLINTMTIMECMP4L_LSB	: natural := 00;
+
+	-- MTIMECMP4H
+	constant CLINTMTIMECMP4H_MSB	: natural := 31;
+	constant CLINTMTIMECMP4H_LSB	: natural := 00;
 
 
 	------ MUTEX
@@ -941,6 +961,22 @@ package MemoryMap is
 	-- H3ENX
 	constant IRQRH3ENX_MSB			: natural := 24;
 	constant IRQRH3ENX_LSB			: natural := 00;
+
+	-- H4ENL
+	constant IRQRH4ENL_MSB			: natural := 31;
+	constant IRQRH4ENL_LSB			: natural := 00;
+
+	-- H4ENM
+	constant IRQRH4ENM_MSB			: natural := 31;
+	constant IRQRH4ENM_LSB			: natural := 00;
+
+	-- H4ENU
+	constant IRQRH4ENU_MSB			: natural := 31;
+	constant IRQRH4ENU_LSB			: natural := 00;
+
+	-- H4ENX
+	constant IRQRH4ENX_MSB			: natural := 24;
+	constant IRQRH4ENX_LSB			: natural := 00;
 
 	-- CLAIM
 	constant IRQRCLAIM_MSB			: natural := 31;

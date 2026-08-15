@@ -55,22 +55,26 @@
 #                  the bound once to ncmp*4+100000 before it is believed.
 #   SPIKE_MAX      hard cap on --instructions (default 4000000)
 #   COSIM_HARTS    which harts to TRACE and COMPARE, whitespace-separated
-#                  decimals from 0..3 (default "0" = hart 0 only, exactly the
+#                  decimals from 0..4 (default "0" = hart 0 only, exactly the
 #                  V3 behaviour). Hart 0 must always be present: it is the
 #                  a0 gate and the launch-race reference. One elaboration +
 #                  ONE simulation still serves every selected hart; the trace,
 #                  the injection list, the reference run and the comparator
 #                  verdict are PER (test,hart).
-#   MULTIHART=1    shorthand for COSIM_HARTS="0 1 2 3" (V4). An explicitly set
-#                  COSIM_HARTS WINS over it. Harts 1-3 are the tiles: they only
+#   MULTIHART=1    shorthand for COSIM_HARTS="0 1 2 3 4" (V4; CPR8/R7 widened it
+#                  from "0 1 2 3" when the five-hart orchestrator chip became
+#                  the shipped default). An explicitly set
+#                  COSIM_HARTS WINS over it. Harts 1-4 are the tiles: they only
 #                  ever execute the SHARED BOOT ROM before the test launches
 #                  them, so they are ALWAYS compared boot-inclusive and always
 #                  --stop-before-sleep (see compare_hart) — regardless of
 #                  COSIM_BOOT, which keeps governing hart 0 alone. They are also
 #                  ALWAYS bracketed: see bracket_on / Amendment A11.
 #   PLANT_WIN      V4/A13 shared-and-writable window served by POKING reference
-#                  RAM, `base:size` hex (default 0xC000:0x14000 = [0xC000,0x20000)
-#                  for the base N=4 config). `auto` asks mk_inject.py to derive it
+#                  RAM, `base:size` hex (the pre-CPR8 literal 0xC000:0x14000 =
+#                  [0xC000,0x20000) was the base N=4 config; the shipped N=5
+#                  chip derives 0xC000:0x34000 = [0xC000,0x40000)). `auto` asks
+#                  mk_inject.py to derive it
 #                  from MemoryMap.vhd; `off` emits no plants at all (a negative
 #                  control). Only meaningful where the bracket script exists —
 #                  the P records ride it — i.e. harts != 0, or BRACKET_ISR=1.
@@ -89,7 +93,7 @@
 #
 # NOTE on the per-hart artifact naming: hart 0 is NOT special-cased. Every
 # per-hart file carries its own `h<HH>` (hart 0 included), because one naming
-# rule for four harts is far less error-prone than three suffixed names plus a
+# rule for N harts is far less error-prone than N-1 suffixed names plus a
 # bare one — and the bare names are exactly what a stale-artifact bug would
 # reuse. Per-TEST artifacts (elab/sim log, image log, make log) keep their old
 # unsuffixed names: there is one elaboration and one simulation per test.
@@ -289,7 +293,7 @@ BOOT_ROM="${BOOT_ROM:-$HOME/vestarv/software/bootrom_mp/bin/rom.rcf}"
 # is therefore dead on any run that reaches here. Kept as the documented shape
 # and as the fallback for an explicit `BOOT_MEM=` override, NOT as a value the
 # script chooses for itself.
-BOOT_MEM=${BOOT_MEM:-0x0:0x20000}
+BOOT_MEM=${BOOT_MEM:-0x0:0x40000}
 BOOT_ENTRY=0x00000000
 # Amendment A9 / ruling A2: the two known benign boot X-reads. '*' = the FIRST
 # x-tainted record at that address; a second one is still refused.
@@ -303,7 +307,25 @@ BOOT_ENTRY=0x00000000
 # pins are UNCHANGED by the correction (104/1, md5 21aa28ec..., 4,668,509,
 # #38140), i.e. the fabricated bit was never consumed differently by the
 # reference -- harmless, and silent for two phases.
-BOOT_ALLOW_X_1=${BOOT_ALLOW_X_1:-'*:00004000:000000b1'}
+#
+# CPR8/R7 RE-PIN (2026-08-15): 0xb1 -> 0xa1, and the reason is NOT a design
+# change. This record is the bootrom's `lw` of GPIO0 P0IN at pc=0x70, and
+# P0.4 IS `clk_lfxt` -- riscv_tb.vhd:423 wires the free-running 32.768 kHz tb
+# oscillator straight onto that pad, so bit 4 of this word is a CLOCK PHASE
+# SAMPLE, not a design constant. Promoting the shipped chip from four harts to
+# five moved hart 0's boot fetches through a five-master arbiter round, shifting
+# the absolute time of this one instruction across an LFXT edge: driven bits
+# went 0x...b1 (bit4=1) -> 0x...a1 (bit4=0). Bit 1 (P0.1 = flash MISO) is still
+# the only UNDRIVEN bit and is still filled with 0.
+# MEASURED, not inferred: 78 of 78 fresh N=5 hart-0 traces read `000000ax` with
+# `# XBITS ... data 00000002 000000a1`; the single `000000bx` left in
+# cosim_work/traces/ was a stale 2026-08-13 N=4 file.
+# CONSEQUENCE FOR THE FUTURE: this pin is TIMING-SENSITIVE by construction. Any
+# change that moves boot timing (hart count, arbiter depth, ROM contents) can
+# flip bit 4 again, and mk_inject will REFUSE loudly rather than fabricate --
+# which is the guard working. Re-read the driven bits off a fresh trace's
+# `# XBITS` line and re-pin; never widen the guard to make it stop complaining.
+BOOT_ALLOW_X_1=${BOOT_ALLOW_X_1:-'*:00004000:000000a1'}
 BOOT_ALLOW_X_2=${BOOT_ALLOW_X_2:-'*:0000420c:00000000'}
 XALLOW="${XALLOW:-$HERE/cosim_xallow.txt}"
 ALLOWX_DIR="${ALLOWX_DIR:-$HERE/cosim_allowx}"
@@ -379,8 +401,9 @@ realign_on() {
 # into a callback region throws trap_load_access_fault and an `sc.w` throws
 # trap_store_access_fault — and LR/SC on the shared window is the entire subject
 # of shcount/shspin/shlrsc/shlock. Planting keeps the region real RAM.
-# Default = the base-N=4 complement of {boot ROM, MMIO page, own TCM} inside
-# --mem 0x0:0x20000, i.e. NPU staging RAM + shared bulk RAM = [0xC000,0x20000).
+# Default = the complement of {boot ROM, MMIO page, own TCM} inside --mem, i.e.
+# NPU staging RAM + shared bulk RAM. CPR8/R7: on the shipped N=5 chip (memory
+# map v2, SH_AW=16) that is [0xC000,0x40000); it was [0xC000,0x20000) at N=4.
 #   PLANT_WIN=auto  -> ask mk_inject.py to DERIVE it from MemoryMap.vhd (A13's
 #                      "never hardcoded twice" rule; needs --hdl-root)
 #   PLANT_WIN=off   -> no plants at all (V3 behaviour; a negative control)
@@ -410,19 +433,21 @@ die() { echo "FATAL: $*" >&2; exit 1; }
 # ---------------------------------------------------------------------------
 MULTIHART=${MULTIHART:-0}
 if [ -z "${COSIM_HARTS+x}" ]; then
-    if [ "$MULTIHART" = 1 ]; then COSIM_HARTS="0 1 2 3"; else COSIM_HARTS="0"; fi
+    if [ "$MULTIHART" = 1 ]; then COSIM_HARTS="0 1 2 3 4"; else COSIM_HARTS="0"; fi
 fi
 # Normalise (collapse whitespace, sort ascending) so the cell order, the status
 # keys and the banner are deterministic whatever order the user typed.
 COSIM_HARTS="$(printf '%s\n' $COSIM_HARTS | sort -n | tr '\n' ' ')"
 COSIM_HARTS="${COSIM_HARTS%" "}"
-[ -n "$COSIM_HARTS" ] || die "COSIM_HARTS is empty (want a subset of '0 1 2 3', hart 0 mandatory)"
+[ -n "$COSIM_HARTS" ] || die "COSIM_HARTS is empty (want a subset of '0 1 2 3 4', hart 0 mandatory)"
 _seen0=0; _prev=""
 for _h in $COSIM_HARTS; do
     case "$_h" in
-        0|1|2|3) ;;
-        *) die "COSIM_HARTS='$COSIM_HARTS': '$_h' is not a decimal hart id in 0..3
-       (the N=4 build has exactly four harts: tb_cosim.uut.dut.hart{0,1,2,3}.core)" ;;
+        0|1|2|3|4) ;;
+        *) die "COSIM_HARTS='$COSIM_HARTS': '$_h' is not a decimal hart id in 0..4
+       (the shipped N=5 build has five harts: tb_cosim.uut.dut.hart{0,1,2,3,4}
+        -- hart 0 is the orch_tile orchestrator, so its core is at hart0.tile.core;
+        harts 1-4 are the channel tiles at hart<h>.core)" ;;
     esac
     [ "$_h" = "$_prev" ] && die "COSIM_HARTS='$COSIM_HARTS': hart $_h listed twice
        (a duplicate would double-count cells and clobber its own status row)"
@@ -518,10 +543,51 @@ fi
 grep -q 'vesta_tracer.vhd' "$CELL_LIST" \
     || die "$CELL_LIST has no vesta_tracer.vhd — the V1 tracer is
        not staged in this flow, so TRACE_ENABLE would silently do nothing."
+# ── CPR8/R7: WHERE EACH HART'S CORE ACTUALLY LIVES ───────────────────────────
+# The tracer generics are pushed in by HIERARCHICAL PATH, so the path has to be
+# right or `xmelab` accepts the override, applies it to nothing, and every cell
+# comes back INFRA-FAIL(no-trace) with a0=PASSED -- measured, on the first N=5
+# sweep, before this block existed.
+#
+# On an ORCHESTRATOR chip hart 0 is not a `hart_tile`: MCU.vhd instantiates
+# `entity work.orch_tile`, a thin wrapper whose whole architecture is ONE
+# instance labelled `tile` (orch_tile.vhd:175). So hart 0's core is one level
+# deeper -- `…hart0.tile.core` -- while harts 1..N-1 keep `…hart<h>.core`. On a
+# non-orchestrator chip (config/castalia4.json) hart 0 is a plain hart_tile and
+# nothing moves.
+#
+# DERIVED from the MCU.vhd this run compiles, never assumed: the cell list names
+# the file, and the file says which entity each hartN label instantiates. A
+# wrong guess here is silent, so it is read rather than hardcoded.
+CORE_MCU_VHD="$(grep -m1 -E '(^|/)MCU\.vhd$' "$CELL_LIST")"
+case "$CORE_MCU_VHD" in
+    /*) ;;
+    *)  CORE_MCU_VHD="$(dirname "$CELL_LIST")/$CORE_MCU_VHD" ;;
+esac
+[ -f "$CORE_MCU_VHD" ] || die "cannot find the MCU.vhd named by $CELL_LIST
+       (resolved to '$CORE_MCU_VHD') -- refusing to guess the tracer hierarchy."
+# hart_core_path <hart-id> -> the full instance path of that hart's vesta core.
+hart_core_path() {
+    local _h="$1" _ent
+    _ent="$(sed -n "s/^[[:space:]]*hart${_h}[[:space:]]*:[[:space:]]*entity[[:space:]]*work\.\([A-Za-z_0-9]*\).*/\1/p" \
+             "$CORE_MCU_VHD" | head -1)"
+    case "$_ent" in
+        orch_tile) printf 'tb_cosim.uut.dut.hart%s.tile.core' "$_h" ;;
+        hart_tile) printf 'tb_cosim.uut.dut.hart%s.core' "$_h" ;;
+        *) die "MCU.vhd ($CORE_MCU_VHD) has no hart${_h} instance (found '${_ent:-<none>}')
+       -- the tracer path cannot be derived, and a wrong one fails SILENTLY." ;;
+    esac
+}
+# Prove the derivation for every selected hart BEFORE any simulation, so a bad
+# path is a startup FATAL and not 107 identical INFRA-FAILs.
+for _h in $COSIM_HARTS; do
+    hart_core_path "$_h" >/dev/null
+done
+
 if [ -f "$RCF_DIR/.nharts" ]; then
     NH="$(cat "$RCF_DIR/.nharts")"
-    [ "$NH" = "4" ] || die "$COSIM_RCF_LINK/.nharts = $NH (expected 4). Rebuild with
-       verification/isa/build_mp_images.sh 4 ../../xcelium/riscv_test/rcf"
+    [ "$NH" = "5" ] || die "$COSIM_RCF_LINK/.nharts = $NH (expected 5). Rebuild with
+       verification/isa/build_mp_images.sh 5 ../../xcelium/riscv_test/rcf"
 fi
 # K2 acceptance B: THE RESOLVED CONFIG IS A GLOBAL SLOT WITH NO LOCK.
 # platform/common/config/ChipConfig.resolved.json holds whatever the LAST
@@ -532,10 +598,10 @@ fi
 # both cheap, both fatal:
 CFG_NHARTS="$("$PY36" -c 'import json,sys; print(json.load(open(sys.argv[1]))["numHarts"])' \
               "$COSIM_CONFIG" 2>/dev/null)" || die "cannot read numHarts from $COSIM_CONFIG"
-[ "$CFG_NHARTS" = "4" ] || die "the resolved config at
+[ "$CFG_NHARTS" = "5" ] || die "the resolved config at
        $COSIM_CONFIG
-       has numHarts=$CFG_NHARTS, but this gate runs the N=4 image set and is
-       nailed to four harts. The reference recipe would describe a DIFFERENT
+       has numHarts=$CFG_NHARTS, but this gate runs the N=5 image set and is
+       nailed to five harts (CPR8/R7). The reference recipe would describe a DIFFERENT
        CHIP from the one being simulated. Re-run \`make -C platform/common
        generate\` (no CONFIG=) to restore the default, or point COSIM_CONFIG at
        the right resolved config."
@@ -571,7 +637,7 @@ if [ -f "$RCF_DIR/.imgset" ]; then
     IMG_DEFINES="${IMGSET_HAVE#*DEFINES=}"
     [ "$IMG_DEFINES" = "(none)" ] && IMG_DEFINES=""
 else
-    IMGSET_HAVE="NHARTS=4 DEFINES=(none)   [ASSERTED: no .imgset stamp in $COSIM_RCF_LINK/]"
+    IMGSET_HAVE="NHARTS=5 DEFINES=(none)   [ASSERTED: no .imgset stamp in $COSIM_RCF_LINK/]"
 fi
 # knob-name view of the image side: "-DCORE_ENABLE_ZICBOZ" -> "ZICBOZ"
 for _d in $IMG_DEFINES; do
@@ -691,14 +757,14 @@ PY
 #
 # `ensure_elf` used to invoke `make build/<suite>/<test>` with no
 # RISCV_GCC_OPTS, i.e. the Makefile's default: no -DNHARTS, no -DCORE_ENABLE_*.
-# For the default N=4 no-knob row that is right by accident. For any other row
+# For the default no-knob row that is right by accident. For any other row
 # it means the reference executes the OTHER arm of every #ifdef from the DUT.
 # The authority for the polarity is the IMAGE SET'S OWN STAMP -- not a
 # re-derivation from a config -- because the images' stamp is the truth about
 # the images, and the reference must follow the images.
-REF_GCC_OPTS="-static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -DNHARTS=4"
+REF_GCC_OPTS="-static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -DNHARTS=5"
 [ -n "$IMG_DEFINES" ] && REF_GCC_OPTS="$REF_GCC_OPTS $IMG_DEFINES"
-REF_IMGSET="NHARTS=4 DEFINES=${IMG_DEFINES:-(none)}"
+REF_IMGSET="NHARTS=5 DEFINES=${IMG_DEFINES:-(none)}"
 #
 # THE ELF CACHE IS POLARITY-BLIND, and that is a hazard with teeth. All ELFs
 # live in ONE `verification/isa/build/` with no per-polarity keying, and
@@ -1308,8 +1374,10 @@ run_one() {
     local gen=(-generic "tb_cosim.uut:TEST_FILE=>\"$rcfpath\"")
     local h
     for h in $COSIM_HARTS; do
-        gen+=(-generic "tb_cosim.uut.dut.hart${h}.core:TRACE_ENABLE=>\"true\"")
-        gen+=(-generic "tb_cosim.uut.dut.hart${h}.core:TRACE_FILE=>\"$trace_base\"")
+        local hcp
+        hcp="$(hart_core_path "$h")"
+        gen+=(-generic "${hcp}:TRACE_ENABLE=>\"true\"")
+        gen+=(-generic "${hcp}:TRACE_FILE=>\"$trace_base\"")
     done
     rm -f "$TRACE_DIR/${test}"_h??.trace "$sim_log"
     t0=$(date +%s%N)
@@ -1818,7 +1886,7 @@ link_latest
 # ---------------------------------------------------------------------------
 # LEGACY-ARTIFACT QUARANTINE (V4/C2). Every per-hart artifact this runner writes
 # carries an `.hNN.` infix -- hart 0 included, deliberately, because one naming
-# rule for four harts is far less error-prone than three suffixed names plus a
+# rule for N harts is far less error-prone than N-1 suffixed names plus a
 # bare one. V3 wrote the BARE names (`<test>.cmp.log`, `<test>.spike.log`,
 # `<test>.inject.log`), and those files are never touched again by this runner, so
 # they sit in cosim_work/logs/ looking exactly like current evidence.

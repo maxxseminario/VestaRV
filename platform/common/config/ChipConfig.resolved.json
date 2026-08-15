@@ -2,9 +2,8 @@
   "_comment": "Resolved chip configuration \u2014 written by make chip (platform/common/python/generate.py). Inputs follow the CONFIG= JSON schema (docs/chip_configurator.html emits it); everything under \"derived\" is computed, not configurable.",
   "configFile": null,
   "chipName": "Castalia",
-  "numHarts": 4,
-  "managementHart": 0,
-  "powerGatedHarts": 4,
+  "numHarts": 5,
+  "orchestrator": true,
   "numMutexes": 16,
   "registerFileDualPort": true,
   "isa": {
@@ -74,18 +73,25 @@
   },
   "derived": {
     "isaString": "rv32imac_zba_zbb_zbs_zbc",
-    "sharedWindowAddrWidth": 15,
+    "sharedWindowAddrWidth": 16,
     "sharedRamBanks": 4,
-    "flashBaseAddress": "0x20000",
+    "flashBaseAddress": "0x40000",
     "sharedRamEndAddress": "0x1FFFF",
+    "tcmWindowAddresses": [
+      "0x20000",
+      "0x24000",
+      "0x28000",
+      "0x2C000",
+      "0x30000"
+    ],
     "vectorsCount": 121,
     "meipVector": 85,
     "clintMsipVector": 83,
     "clintMtipVector": 84,
     "clintLayout": {
       "msipAddress": "0x5000 + 4*hartid",
-      "mtimeAddress": "0x5010",
-      "mtimecmpBaseAddress": "0x5020"
+      "mtimeAddress": "0x5020",
+      "mtimecmpBaseAddress": "0x5030"
     },
     "bootromLoaderRowBase": "0x10500 + 0x10*hartid",
     "stackPointerInit": "0xC000",

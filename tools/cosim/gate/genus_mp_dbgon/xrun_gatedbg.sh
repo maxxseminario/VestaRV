@@ -67,12 +67,26 @@ if [ ${#RCF} -ne 29 ]; then
 fi
 
 # NHARTS interlock, same shape as every other MCU_MP runner (M19c/K1): the
-# dbgon netlist is a 4-hart assembly and an N=18 image set transiting through
-# ../rcf must never be simulated against it.
+# dbgon netlist is a 4-hart assembly and an image set at any other N transiting
+# through ../rcf must never be simulated against it.
+#
+# CPR8/R7 CONTRADICTION, deliberately NOT resolved by flipping this number.
+# The promotion made the CANONICAL ../rcf set N=5 (five-hart orchestrator
+# chip), so this guard now refuses on every default tree -- correctly. This
+# flow's netlist is `genus/MCU_MP/out/MCU_MP.genus.dbgon.v`, measured to carry
+# exactly hart0..hart3 and SH_AW=15 (`adddec_..._SH_AW15`, `clint_NHARTS4`).
+# Raising the guard to 5 would let five-hart images run against a four-hart
+# netlist -- precisely the poisoning this interlock exists to stop. The flow is
+# unblocked by re-synthesizing the dbgon netlist on the shipped config, or by
+# pointing it at an explicit N=4 image set built from config/castalia4.json.
+# It is NOT in the standing gate set, so nothing here depends on it.
 NH="$(cat ../rcf/.nharts 2>/dev/null)"
 if [ "$NH" != "4" ]; then
-    echo "FATAL: ../rcf/.nharts = '${NH}' (expected 4). Rebuild with"
-    echo "  verification/isa/build_mp_images.sh 4 ../../xcelium/riscv_test/rcf"
+    echo "FATAL: ../rcf/.nharts = '${NH}' (expected 4 -- this flow's dbgon netlist"
+    echo "       is a FOUR-hart SH_AW=15 assembly; the canonical rcf/ set is N=5"
+    echo "       since CPR8). Re-synthesize the dbgon netlist on the shipped"
+    echo "       config, or stage an N=4 set:"
+    echo "  verification/isa/build_mp_images.sh 4 <an out-of-tree rcf dir>"
     exit 2
 fi
 export D2_NHARTS=4

@@ -8,9 +8,19 @@
 # scratchpad outside the repo, which is how it rotted: it hard-coded the
 # pre-A10 substitution `00004000:000000b0`, and W5 MEASURED that it no longer
 # runs at all -- mk_inject exits 5 (EXIT_REFUSED) because 0xb0 contradicts
-# bit 0, which the RTL actually drives. Corrected to 0xb1 below, and tracked
+# bit 0, which the RTL actually drives. Corrected to 0xb1 then, and tracked
 # here so a `git clean -xdf` cannot take the programme's central soundness
 # control with it. A negative control that cannot execute is not a control.
+#
+# CPR8/R7 (2026-08-15): 0xb1 -> 0xa1 and --mem 0x0:0x20000 -> 0x0:0x40000, both
+# following the promotion of the shipped chip to five harts. The x-substitution
+# moved because P0.4 IS the tb's free-running 32.768 kHz `clk_lfxt` oscillator
+# (riscv_tb.vhd:423), so bit 4 of that PxIN word is a CLOCK PHASE SAMPLE and the
+# five-master arbiter round shifted this boot instruction across an LFXT edge --
+# see the long note at xrun_cosim.sh's BOOT_ALLOW_X_1. The memory window moved
+# because memory map v2 widened SH_AW 15 -> 16. THIS FILE ROTS THE SAME WAY IT
+# rotted before if either is left stale, and the symptom is identical: rc=5,
+# EXIT_REFUSED, a control that does not run.
 # See tools/cosim/check_gate_files.py.
 #
 # Proves that a single absent A13 PLANT record cannot slip through as PASS: the
@@ -67,7 +77,7 @@ run_ref() {   # run_ref <bracket> <commitlog> <stdoutlog>
       ./cosim_work/vesta_ref cosim \
         --rom "$HOME/vestarv/software/bootrom_mp/bin/rom.rcf" \
         --rom-base 0x0 --rom-format rcf --pc 0x0 \
-        --mem 0x0:0x20000 --mmio 0x4000:0x4000 \
+        --mem 0x0:0x40000 --mmio 0x4000:0x4000 \
         --isa rv32imac_zicsr_zba_zbb_zbs_zbc --priv m --hartid 0 \
         --instructions 70944 --inject "$3" --bracket "$1" --log "$2" ) > "$4" 2>&1
 }
@@ -84,7 +94,7 @@ verdict() {   # verdict <commitlog> <cmplog> -> prints "exit=N"; TWO PASSES, alw
 echo "########## A. GOLD: the full plant set ##########"
 "$PY" "$MK" --rtl "$TRACE" -o "$HERE/gold.inject" --bracket-out "$HERE/gold.bracket" \
     --mmio 0x4000:0x4000 --plant auto --hdl-root "$HOME/vestarv/hdl/common" \
-    --allow-x '*:00004000:000000b1' --allow-x '*:0000420c:00000000' 2>&1 | grep -E 'plants=|plant window'
+    --allow-x '*:00004000:000000a1' --allow-x '*:0000420c:00000000' 2>&1 | grep -E 'plants=|plant window'
 run_ref "$HERE/gold.bracket" "$HERE/gold.spike.log" "$HERE/gold.inject" "$HERE/gold.ref.out"
 grep -oE 'plants=[0-9]+/[0-9]+' "$HERE/gold.ref.out"
 echo -n "  GOLD verdict:  "; verdict "$HERE/gold.spike.log" "$HERE/gold.cmp.log"
@@ -94,7 +104,7 @@ echo "########## B. PERTURBED: drop exactly one plant ##########"
 "$PY" "$MK" --rtl "$TRACE" -o "$HERE/nc.inject" --bracket-out "$HERE/nc.bracket" \
     --mmio 0x4000:0x4000 --plant auto --hdl-root "$HOME/vestarv/hdl/common" \
     --drop-plant "$DROP" \
-    --allow-x '*:00004000:000000b1' --allow-x '*:0000420c:00000000' 2>&1 \
+    --allow-x '*:00004000:000000a1' --allow-x '*:0000420c:00000000' 2>&1 \
     | grep -E 'NEGATIVE CONTROL LANDED|plants=|-> '
 
 echo "  --- PROVE THE PERTURBATION LANDED (the house rule) ---"

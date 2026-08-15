@@ -786,16 +786,24 @@ class McuVhdEmitter():
 		# presence drive the memory-slave regions. Castalia defaults.
 		geo = getattr(gen, 'McuMpGeometry', None) or {}
 		self.shAw = geo.get('shAw', 15)
-		# CP2 (Castalia-Penta): the MANAGEMENT / ORCHESTRATOR hart index. 0 =
-		# no orchestrator, and EVERY CP2 emitter degenerates to its pre-CP2
-		# form (check_mcu_vhd.py STRICT is the bar). Non-zero = hart mgmtHart
-		# (== numHarts-1, validated in generate.py) is the always-on soft
-		# orchestrator: emitted as `entity work.orch_tile`, wired hart-0-style
-		# for power/reset and tile-style for boot/IRQ, excluded from pwr_ctrl's
-		# rows and from the isolation clamps, and passed as afe_stub's
-		# MGMT_HART. self.orchHart is the ONE place the index lives here.
-		self.mgmtHart = geo.get('mgmtHart', 0)
-		self.orch = (self.mgmtHart != 0)
+		# CPR3/R1 (Castalia-Penta rework): the ORCHESTRATOR PRESENCE flag.
+		# False = no orchestrator, and EVERY orchestrator-aware emitter
+		# degenerates to its pre-CP form (check_mcu_vhd.py STRICT is the bar).
+		# True = HART 0 is the always-on soft orchestrator: the SAME hart-0
+		# instance region, the SAME wiring bundle (flash quartet, sleep_cpu,
+		# trap_out, pgen_mem(1), a0, arbiter slice 0, no pd_* row, no clamps),
+		# but bound to `entity work.orch_tile` instead of `hart_tile` -- and
+		# harts 1..numHarts-1 become fully uniform channel tiles. There is no
+		# index to carry any more, which is the whole point of R1/R2: the CP2
+		# knob was an index whose OFF sentinel was 0, so it could not express
+		# "the orchestrator is hart 0" at all.
+		self.orch = bool(geo.get('orchestrator', False))
+		# CPR3/R3: the read-only TCM apertures -- byte base per hart, [] when
+		# there are none. Their presence is what widens SH_AW to 16 and what
+		# adds the five aperture slaves; keying the emitters on THIS list
+		# rather than on self.orch keeps "is there an aperture fabric" one
+		# question with one answer.
+		self.tcmWindows = list(geo.get('tcmWindows', []))
 		self.banks = geo.get('sharedRamBanks', 4)
 		self.npu = geo.get('npu', True)
 		self.npuBlocks = npuBlocks or {}
@@ -935,6 +943,15 @@ class McuVhdEmitter():
 			self.memslv['npuram'] = 'npuram_q'
 		for b in range(self.banks):
 			self.memslv['bank' + str(b)] = 'bank' + str(b) + '_q'
+		# CPR3/R3: the five READ-ONLY TCM APERTURES join the MEMORY-slave family
+		# (rom / npuram / banks), which is what puts them through the standard
+		# machinery for free: the page sub-decode loop, the `shslv_<sel>_en`
+		# loop, the registered `shslv_rd_<sel>` process and the sh_rdata_mux all
+		# iterate enOrder/rdOrder. Every aperture reads the SAME rdata register
+		# -- the arbiter serializes, so only one aperture transaction exists at
+		# a time, and the FSM zeroes that register on any access it refuses.
+		for h in range(len(self.tcmWindows)):
+			self.memslv['tcmw' + str(h)] = 'tcmw_rdata'
 		if not self.npu:
 			del self.shslv['NPU']
 			self.pg0SelOrder.remove('NPU')
@@ -1092,6 +1109,7 @@ class McuVhdEmitter():
 		self.enOrder = ['rom'] \
 			+ (['npuram'] if self.npu else []) \
 			+ ['bank' + str(b) for b in range(self.banks)] \
+			+ ['tcmw' + str(h) for h in range(len(self.tcmWindows))] \
 			+ nativeOrder + self.pg0SelOrder
 		self.rdOrder = list(self.enOrder)
 
@@ -1319,6 +1337,13 @@ class McuVhdEmitter():
 		for b in range(self.banks):
 			lines.append(ind + ('shslv_bank' + str(b) + '_sel').ljust(16) + ' <= \'1\' when ' + psl + ' = "'
 				+ self.pageBits(4 + b) + '" else \'0\';')
+		for h in range(len(self.apertures())):
+			if h == 0:
+				lines.append(ind + '-- CPR3/R3: the read-only TCM apertures, one page each at 0x20000 +')
+				lines.append(ind + '-- 0x4000*h. Access control (management hart only, reads only, dark-tile')
+				lines.append(ind + '-- zero-completion) lives in the sequencer below, not in this decode.')
+			lines.append(ind + ('shslv_tcmw' + str(h) + '_sel').ljust(16) + ' <= \'1\' when ' + psl
+				+ ' = "' + self.pageBits(8 + h) + '" else \'0\';')
 		lines.append(ind + '-- peripheral-window pages on sh_addr(11:10): page 0 = the 16 slots,')
 		lines.append(ind + '-- page 1 = CLINT, page 2 = MUTEX bank, page 3 = IRQ router')
 		lines.append(ind + 'shslv_pg0_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "00" else \'0\';')
@@ -1513,16 +1538,18 @@ class McuVhdEmitter():
 		'''digperiphs #1: page-0 slot 12 (0x4C00) instance region. AFE + EIS
 		stubs (default, VERBATIM) OR the QSPI0 controller, else nothing.
 
-		CP2/D4: with a management hart the five generic maps are rewritten —
-		AFE0-3 KEEP OWNER_HART 0..3 and GAIN `MGMT_HART => <m>`, and eis0
-		becomes OWNER_HART => <m> (the orchestrator owns the EIS engine). The
-		association is OMITTED entirely at management hart 0, so the default
-		build is the verbatim golden-master text (STRICT byte-identity), which
-		is also why afe_stub.vhd defaults MGMT_HART to 0.'''
+		CPR3/R2: with an orchestrator the four AFE sites follow the TILES, so
+		their OWNER_HART literals shift +1 (harts 1..4 own AFE0..AFE3), and
+		eis0 stays exactly as written -- OWNER_HART => 0, the management hart,
+		which is hart 0 in both shapes. MGMT_HART is never named anywhere any
+		more: it was the CP2 way of moving the management privilege OFF hart 0,
+		and R1 moved the orchestrator ONTO hart 0 instead. Its entity default 0
+		is therefore correct on every configuration -- which is what
+		check_entity_defaults.py's MGMT_HART axis now grades.'''
 		if self.afeStubs:
 			if not self.orch:
 				return list(AFE_SLOT12_INSTANCES)
-			return self.afeStubsWithMgmt()
+			return self.afeStubsOrchOwners()
 		if self.qspi:
 			return [
 				'    -- =========================================================================',
@@ -1554,44 +1581,45 @@ class McuVhdEmitter():
 			]
 		return []
 
-	def afeStubsWithMgmt(self):
-		'''CP2/D4: the AFE/EIS instance block with the management-hart generic.
+	def afeStubsOrchOwners(self):
+		'''CPR3/R2: the AFE/EIS instance block on an orchestrator config.
 		DEGRADES THE VERBATIM TEXT LINE BY LINE (the G1a idiom) rather than
 		re-transcribing it, so the two versions cannot drift: only the five
-		`generic map (...)` lines and the two narrative comment lines that name
-		hart 0 as the manager are touched.'''
-		m = str(self.mgmtHart)
+		`generic map (...)` lines and the narrative comment lines that name the
+		owners are touched.
+
+		THE DECISION ON eis0, stated because it is a choice and not a
+		default-fallout: its line is re-emitted UNCHANGED, `OWNER_HART => 0`,
+		explicitly rather than by omission. Explicit costs nothing (the
+		non-orchestrator build never reaches this function, so byte-identity is
+		untouched either way) and it obeys the M14 netlist-boundary rule that
+		burned the hw_clint_en silicon bug -- an ownership that matters should
+		be written down, not inherited. It is also re-emitted through its OWN
+		branch rather than falling through, so this function keeps two
+		orchestrator emission sites for check_entity_defaults.py to find.'''
 		out = []
 		for ln in AFE_SLOT12_INSTANCES:
-			s = ln.strip()
-			if s.startswith('generic map (OWNER_HART =>'):
-				# '        generic map (OWNER_HART => N)   -- comment'
-				owner = s.split('=>')[1].split(')')[0].strip()
-				isEis = 'EIS' in ln
-				if isEis:
-					# The EIS engine follows the MANAGER, not hart 0 (D4). BOTH
-					# generics must be given: MGMT_HART's entity DEFAULT is 0, so
-					# `OWNER_HART => m` alone leaves the gate at {m, 0} and hart 0
-					# keeps the EIS access D4 moved to the orchestrator -- the
-					# comment on this very line would then be false. Found at CP3
-					# by shorch's negative control (hart 0 read a seeded EIS word
-					# it must not see); the emitted text and the RTL agree only
-					# when the association is explicit.
-					out.append('        generic map (OWNER_HART => ' + m + ', MGMT_HART => ' + m + ')'
-						+ '   -- 0x7C00: EIS engine, management hart ' + m + ' only')
+			t = ln.strip()
+			if t.startswith('generic map (OWNER_HART =>'):
+				owner = int(t.split('=>')[1].split(')')[0].strip())
+				if 'EIS' in ln:
+					# The EIS engine is MANAGEMENT-HART-only, and the management
+					# hart is hart 0 in both shapes -- so this line does not
+					# move. Emitted here, not inherited (see the docstring).
+					out.append('        generic map (OWNER_HART => 0)'
+						+ '   -- 0x7C00: EIS engine, management hart 0 only')
 				else:
 					site = ln.split('--')[1].split(':')[0].strip()
-					out.append('        generic map (OWNER_HART => ' + owner + ', MGMT_HART => ' + m + ')'
-						+ '   -- ' + site + ': hart ' + owner + ' or hart ' + m)
+					n = owner + 1
+					out.append('        generic map (OWNER_HART => ' + str(n) + ')'
+						+ '   -- ' + site + ': tile hart ' + str(n) + ' or hart 0')
 				continue
 			if 'each answers only for its owner hart OR hart 0' in ln:
-				out.append(ln.replace('OR hart 0', 'OR the CP2 management hart ' + m))
+				out.append(ln.replace('its owner hart OR hart 0',
+					'its owner TILE hart (1-4) OR hart 0, the orchestrator'))
 				continue
 			if 'is hart-0-only' in ln:
-				out.append(ln.replace('is hart-0-only', 'is management-hart-only'))
-				continue
-			if ln.strip().startswith('-- (OWNER_HART=0).'):
-				out.append(ln.replace('(OWNER_HART=0)', '(OWNER_HART=' + m + ')'))
+				out.append(ln.replace('is hart-0-only', 'is hart-0-only (the orchestrator)'))
 				continue
 			out.append(ln)
 		return out
@@ -2930,32 +2958,29 @@ class McuVhdEmitter():
 		numHarts when dma is off (byte-identical default; Argus is unaffected).'''
 		return self.nHarts() + (1 if self.dma else 0) + (1 if self.debug else 0)
 
-	def orchHart(self):
-		'''CP2: the orchestrator hart's index, or None when there is none. The
-		ONE place the index is decided on the emitter side (the dmMasterIndex()
-		rule: two independent computations of one index is how the fabric gets
-		two masters on one slice).'''
-		if not self.orch:
-			return None
-		n = self.nHarts()
-		if self.mgmtHart != n - 1:
-			raise Exception('MCU.vhd emitter: managementHart ' + str(self.mgmtHart)
-				+ ' must be the LAST hart index (' + str(n - 1) + ') ' + EMDASH
-				+ ' pwr_ctrl keeps rows for the gateable tiles 1..N-2 only (CP1 D2)')
-		return self.mgmtHart
-
 	def pwrHarts(self):
-		'''CP2: the hart count pwr_ctrl sees. The orchestrator has NO power
-		domain (no chip-level power intent exists in the centre band), so it is
-		excluded HERE AND NOWHERE ELSE — the CLINT, the irq_router, the Debug
-		Module and every arbiter master index stay on the full nHarts().'''
-		return self.nHarts() - (1 if self.orch else 0)
+		'''The hart count pwr_ctrl sees, and CPR3/R2 makes it nHarts() in BOTH
+		shapes. The CP2 special case is DELETED: back then the orchestrator was
+		the LAST hart and had no power-domain row, so pwr_ctrl saw nHarts()-1
+		and PWRCR was missing its top bit. With the orchestrator renumbered to
+		hart 0 the always-on hart is the one that never had a row anyway, and
+		every hart 1..N-1 is a gateable channel tile -- so at numHarts=5 PWRCR
+		GAINS bit 4 and PWRSR gains nibble 4. Kept as a named method rather
+		than inlined because this is where a reader following emitPwrInstance
+		needs to land.'''
+		return self.nHarts()
 
 	def tileTop(self):
 		'''Exclusive upper bound of the hart_tile TILE loops (1..tileTop()-1).
-		Equals nHarts() without an orchestrator; one less with one, because the
-		orchestrator is emitted separately as an orch_tile.'''
-		return self.pwrHarts()
+		CPR3/R2: nHarts() in both shapes -- no hart is missing from the tile
+		range any more, because the orchestrator IS hart 0 and hart 0 was never
+		in this range.'''
+		return self.nHarts()
+
+	def apertures(self):
+		'''CPR3/R3: the read-only TCM aperture bases, index = hart. [] = no
+		aperture fabric, and every aperture emitter folds to nothing.'''
+		return self.tcmWindows
 
 	def hartsWord(self):
 		'''Count prose for "identical on all <N> tiles".'''
@@ -3010,12 +3035,12 @@ class McuVhdEmitter():
 		lines.append(self.sigDecl('arb_resvvld', 'std_logic_vector(' + Mm1 + ' downto 0);  -- X1 Zawrs: per-master reservation-valid level'))
 		lines.append(self.sigDecl('sh_we_raw', 'std_logic_vector(3 downto 0);  -- arbiter s_we, pre resv gating'))
 		if self.orch:
-			# CP2: the orchestrator is master nHarts-1, so the TILE range stops
-			# one short and the orchestrator is named separately (it is not a
-			# hart_tile and has no pd_*/clamp row).
-			masterComment = (' ' * 8 + '-- arbiter master buses (master 0 = hart 0; masters 1-'
-				+ str(self.tileTop() - 1) + ' = hart tiles; master ' + str(self.orchHart())
-				+ ' = the orchestrator')
+			# CPR3/R2: master 0 is the orchestrator (an orch_tile, not a
+			# hart_tile) and every other master slice is an ordinary corner
+			# tile. The SLICE LAYOUT is unchanged -- that is the point of
+			# renumbering to 0 rather than to N-1.
+			masterComment = (' ' * 8 + '-- arbiter master buses (master 0 = the orchestrator hart; masters 1-'
+				+ nm1 + ' = hart tiles')
 		else:
 			masterComment = ' ' * 8 + '-- arbiter master buses (master 0 = hart 0; masters 1-' + nm1 + ' = hart tiles'
 		if self.dma:
@@ -3049,26 +3074,21 @@ class McuVhdEmitter():
 			self.sigDecl('wdt_irq_complete', 'std_logic;   -- irq_router: COMPLETE(0) pulse (WDT EOI)')]
 
 	def emitPdDecls(self):
-		# CP2: the power-domain vectors span the GATEABLE tiles only, so an
-		# orchestrator shortens them by one (pwrHarts) — it has no pd_* row.
+		# The power-domain vectors span the GATEABLE tiles 1..N-1. CPR3/R2: that
+		# is EVERY hart but hart 0 in both shapes now -- the orchestrator is
+		# hart 0, which has no domain, and the CP2 shortening is gone.
 		rng = 'std_logic_vector(' + str(self.pwrHarts() - 1) + ' downto 1);'
 		lines = [self.sigDecl(nm, rng) for nm in ('pd_iso_en', 'pd_sleep', 'pd_rstn', 'tile_rstn')]
 		# DP-S3: the HOLD-IN-RESET boot gate (pwr0 output, reset '1' = release)
 		# and hart 0's folded reset (hart 0 never had a fold before the gate).
 		lines.append(self.sigDecl('pgood_rstn', "std_logic := '1';"))
 		lines.append(self.sigDecl('hart0_rstn', 'std_logic;'))
-		if self.orch:
-			o = str(self.orchHart())
-			lines.append(' ' * 8 + '-- CP2: the orchestrator takes hart 0\'s reset shape exactly '
-				+ '(resetn and the')
-			lines.append(' ' * 8 + '-- DP-S3 boot gate) ' + EMDASH + ' it is ALWAYS-ON and has no pd_rstn row.')
-			lines.append(self.sigDecl('hart' + o + '_rstn', 'std_logic;'))
 		return lines
 
 	def emitTileRawDecls(self):
-		# CP2: _raw nets exist to pass the M17 isolation clamps, so they cover
-		# the CLAMPED tiles only — the orchestrator drives the arbiter and the
-		# a0_N monitor directly, exactly as hart 0 does.
+		# _raw nets exist to pass the M17 isolation clamps, so they cover the
+		# CLAMPED tiles 1..N-1 only — hart 0 (the orchestrator on an
+		# orchestrator config) drives the arbiter and the tb directly.
 		n = self.tileTop()
 		lines = []
 		for kind, rng in [('req', 'std_logic;'), ('we', 'std_logic_vector(3 downto 0);'),
@@ -3076,6 +3096,13 @@ class McuVhdEmitter():
 				('lrsc', 'std_logic_vector(1 downto 0);'), ('lock', 'std_logic;')]:
 			for h in range(1, n):
 				lines.append(self.sigDecl('tile' + str(h) + '_' + kind + '_raw', rng))
+		# CPR3/R3: the TCM aperture port's two OUTPUTS cross the power boundary
+		# like every other tile output and get the same clamp treatment. R4-A2
+		# is the consequence, spelled out at the clamp itself.
+		for h in range(1, n):
+			if self.apertures():
+				lines.append(self.sigDecl('tile' + str(h) + '_tcmrd_raw', 'std_logic_vector(31 downto 0);'))
+				lines.append(self.sigDecl('tile' + str(h) + '_tcmdone_raw', 'std_logic;'))
 		for h in range(1, n):
 			lines.append(self.sigDecl('a0_' + str(h) + '_raw', 'std_logic_vector(31 downto 0);'))
 		return lines
@@ -3141,10 +3168,35 @@ class McuVhdEmitter():
 		return lines
 
 	def emitHart0Instance(self):
+		'''Hart 0. CPR3/R2 gave this ONE emitter a second binding instead of a
+		second emitter: on an orchestrator config hart 0 is instantiated from
+		`entity work.orch_tile` rather than `entity work.hart_tile`, and every
+		other line of the region is the same. That is the renumber in one
+		sentence -- the orchestrator INHERITS hart 0's wiring bundle wholesale
+		(flash quartet, sleep => sleep_cpu, trap_flag => trap_out, tcm_pgen =>
+		pgen_mem(1), a0 => the tb gate, arbiter slice 0 direct with no clamps,
+		hart0_rstn) instead of being a separate always-on special case bolted
+		on at index N-1. The CP2 emitOrchInstance and its --@GEN:orch-instance@
+		region are RETIRED with it.'''
 		nm1 = str(self.nHarts() - 1)
+		ent = 'orch_tile' if self.orch else 'hart_tile'
 		lines = []
 		lines.append('    -- =========================================================================')
-		lines.append('    -- M13 TILE EXTRACTION: hart 0 is the SAME hart_tile as harts 1-' + nm1 + ' ' + EMDASH + ' the')
+		if self.orch:
+			lines.append('    -- CPR3/R2 ORCHESTRATOR HART (hart 0). Same core, same ISA, same generic')
+			lines.append('    -- associations as the tiles (CP1 D5) ' + EMDASH + ' but SOFT logic in the centre')
+			lines.append('    -- band instead of a hardened corner macro, so it is instantiated through')
+			lines.append('    -- the orch_tile wrapper (CP1 D6: no module name may be shared between the')
+			lines.append('    -- tile netlist and the orchestrator netlist, or the assembly strip step')
+			lines.append('    -- deletes this subtree and gate sim sees two definitions of one module).')
+			lines.append('    -- It keeps EVERY hart-0 wiring special below, unchanged: the flash/XIP')
+			lines.append('    -- quartet and sleep_cpu, the GPIO0 trap pin, the tb pass/fail a0 gate,')
+			lines.append('    -- pgen_mem(1), arbiter master slice 0 with no isolation clamps, and the')
+			lines.append('    -- DP-S3 boot-gate reset. It is the BOOT MASTER, as hart 0 always was.')
+			lines.append('    -- =========================================================================')
+		lines.append('    -- M13 TILE EXTRACTION: hart 0 is the SAME '
+			+ ('tile logic as' if self.orch else 'hart_tile as')
+			+ ' harts 1-' + nm1 + ' ' + EMDASH + ' the')
 		lines.append('    -- inline core/adddec/TCM/shared-window machinery that used to live here')
 		lines.append('    -- (and that hart_tile mirrored since M3c) is folded into the tile. The')
 		lines.append('    -- M12 wait-for-boot-fetch reset release, the M4b/M10 qualified ack, the')
@@ -3161,7 +3213,7 @@ class McuVhdEmitter():
 		lines.append('    -- insensitivity at boundary depths 0/1/2; the boot fetch through the')
 		lines.append('    -- arbiter exercises the stall path on every run).')
 		lines.append('    -- =========================================================================')
-		lines.append('    hart0: entity work.hart_tile')
+		lines.append('    hart0: entity work.' + ent)
 		lines.append('        generic map (')
 		lines.append('            PC_RST_VAL     => x"00000000",')
 		lines.append('            SH_AW          => SH_AW,')
@@ -3203,6 +3255,7 @@ class McuVhdEmitter():
 		lines.append('            sh_lock   => arb_lock(0),')
 		lines.append('            tcm_pgen  => pgen_mem(1),')
 		lines.append("            tcm_retn  => '1',")
+		lines.extend(self.tcmExtPortLines(0))
 		lines.append('            -- M17: hart 0 is ALWAYS-ON ' + EMDASH + ' its domain controls are strapped')
 		lines.append('            -- inactive (explicit, per the M14 netlist-boundary rule)')
 		lines.append("            pd_sleep  => '0',")
@@ -3323,8 +3376,9 @@ class McuVhdEmitter():
 			self.sigDecl('dbg_haltreq', 'std_logic_vector(' + nm1 + ' downto 0);'),
 			self.sigDecl('dbg_resethaltreq', 'std_logic_vector(' + nm1 + ' downto 0);'),
 			self.sigDecl('dbg_halted', 'std_logic_vector(' + nm1 + ' downto 0);'),
-			# CP2: only the CLAMPED tiles need a _raw halted wire; hart 0 and
-			# the always-on orchestrator connect straight to the DM.
+			# Only the CLAMPED tiles need a _raw halted wire; hart 0 (which is
+			# the orchestrator on an orchestrator config) connects straight to
+			# the DM -- it is always-on in both shapes.
 			self.sigDecl('dbg_halted_raw', 'std_logic_vector(' + str(self.tileTop() - 1) + ' downto 1);'),
 			self.sigDecl('dbg_unavail', 'std_logic_vector(' + nm1 + ' downto 0);'),
 			'',
@@ -3377,12 +3431,6 @@ class McuVhdEmitter():
 			hs = str(h)
 			lines.append('    dbg_unavail(' + hs + ') <= pd_iso_en(' + hs
 				+ ') or not tile_rstn(' + hs + ');')
-		if self.orch:
-			# CP2: the orchestrator is debuggable and has no domain to be
-			# isolated, so its availability is exactly hart 0's question --
-			# is the boot gate holding it in reset?
-			o = str(self.orchHart())
-			lines.append('    dbg_unavail(' + o + ') <= not hart' + o + '_rstn;')
 		lines += [
 			'',
 			'    dm0: entity work.debug_module',
@@ -4021,7 +4069,18 @@ class McuVhdEmitter():
 			bankCode = self.pageBits(4) + '-' + self.pageBits(4 + self.banks - 1)
 		lines.append(ind + '--   ' + bankCode + ' = shared bulk RAM 0x10000-0x%05X (%d x sram1p16k banks,' % (self.banksTop(), self.banks))
 		lines.append(ind + '--   ' + ' ' * len(bankCode) + '   bank = s_addr(' + str(11 + bankBits) + ':12))')
-		if 4 + self.banks < (1 << pw):
+		apx = self.apertures()
+		if apx:
+			# CPR3/R3: the aperture pages sit in what used to be the round-up
+			# gap, and the REST of that gap stays unmapped.
+			lines.append(ind + '--   ' + self.pageBits(8) + '-' + self.pageBits(8 + len(apx) - 1)
+				+ ' = READ-ONLY TCM APERTURES 0x%05X-0x%05X (one 16 KiB window' % (apx[0], apx[-1] + 0x3FFF))
+			lines.append(ind + '--   ' + ' ' * (2 * pw + 1) + '   per hart at 0x20000 + 0x4000*h; management hart 0 only,')
+			lines.append(ind + '--   ' + ' ' * (2 * pw + 1) + '   read-only, a gated tile completes with zeros)')
+			if 8 + len(apx) < (1 << pw):
+				lines.append(ind + '--   ' + self.pageBits(8 + len(apx)) + '-' + self.pageBits((1 << pw) - 1)
+					+ ' = unmapped (window power-of-two round-up gap; reads zero)')
+		elif 4 + self.banks < (1 << pw):
 			lines.append(ind + '--   ' + self.pageBits(4 + self.banks) + '-' + self.pageBits((1 << pw) - 1)
 				+ ' = unmapped (window power-of-two round-up gap; reads zero)')
 		lines.append((ind + 'constant SH_AW : natural := ' + str(self.shAw) + ';').ljust(55)
@@ -4082,6 +4141,73 @@ class McuVhdEmitter():
 		for b in range(self.banks):
 			lines.append(decl('bank' + str(b) + '_cen_n'))
 		lines.append(ind + 'signal ' + 'shmem_gwen_n'.ljust(17) + ': std_logic;   -- shared-macro global write enable (active-low)')
+		lines.extend(self.emitTcmApertureDecls())
+		return lines
+
+	def emitTcmApertureDecls(self):
+		'''CPR3/R3: the declarative half of the read-only TCM apertures.'''
+		apx = self.apertures()
+		if not apx:
+			return []
+		ind = ' ' * 8
+		n = len(apx)
+		lines = ['']
+		lines.append(ind + '-- =====================================================================')
+		lines.append(ind + '-- CPR3/R3: READ-ONLY TCM APERTURES. One 16 KiB window per hart at')
+		lines.append(ind + '-- 0x20000 + 0x4000*h (h = 0..' + str(n - 1) + '), through which the MANAGEMENT HART')
+		lines.append(ind + '-- ' + EMDASH + ' hart 0, the orchestrator ' + EMDASH + ' reads any hart\'s PRIVATE TCM. The')
+		lines.append(ind + '-- aperture address is a TCM WORD index, sh_addr(11:0), so window word i')
+		lines.append(ind + "-- is that hart's byte address 0x8000 + 4*i.")
+		lines.append(ind + '--')
+		lines.append(ind + '-- THREE GATES, and all three answer with ZERO rather than a bus error,')
+		lines.append(ind + '-- a stall or a hang (the afe_stub idiom, implemented here rather than by')
+		lines.append(ind + '-- instantiating afe_stub ' + EMDASH + ' this is a sequencer, not a register file):')
+		lines.append(ind + '--   * NOT THE MANAGEMENT HART (sh_master /= 0): denied, reads 0.')
+		lines.append(ind + '--   * A WRITE: dropped. The windows are READ-ONLY (CPR1 R4): a write')
+		lines.append(ind + '--     path into a live core\'s memory is a coherence hazard the')
+		lines.append(ind + "--     architecture refuses. The tile's port has no write side at all.")
+		lines.append(ind + '--   * THE TARGET TILE IS DARK (R4-A2): completes IMMEDIATELY with zeros.')
+		lines.append(ind + '--     This is the mandatory one. A gated tile\'s iso clamp zeroes its')
+		lines.append(ind + '--     tcm_ext_done as well as its rdata, so a slave that simply waited')
+		lines.append(ind + '--     for done would stall the shared bus forever with the management')
+		lines.append(ind + '--     hart parked on it. Software still checks PWRSR before trusting a')
+		lines.append(ind + '--     window ' + EMDASH + ' zeros are a legal TCM value ' + EMDASH + ' but the BUS never hangs.')
+		lines.append(ind + '--')
+		lines.append(ind + '-- WHY THIS SLAVE STALLS THE ARBITER AND NOTHING ELSE DOES: a tcm_ext')
+		lines.append(ind + '-- read is 6 mclk request-to-done (CPR2 R4), and mp_arbiter\'s transaction')
+		lines.append(ind + '-- is a fixed IDLE/LATCH/DATA three-cycle walk built for a 1-cycle')
+		lines.append(ind + '-- registered-read slave. Completing on cycle 3 would hand the management')
+		lines.append(ind + '-- hart a fabricated word, so the aperture holds s_stall for the duration')
+		lines.append(ind + '-- (mp_arbiter s_stall, default \'0\' everywhere else). The grant was')
+		lines.append(ind + '-- already pinned to this master for the transaction, so nothing else is')
+		lines.append(ind + '-- delayed that was not already waiting.')
+		lines.append(ind + '-- =====================================================================')
+		for h in range(n):
+			lines.append(ind + 'signal ' + ('shslv_tcmw' + str(h) + '_sel').ljust(17)
+				+ ': std_logic;   -- ' + self.pageBits(8 + h) + ' -> TCM aperture, hart %d (0x%05X)' % (h, apx[h]))
+		for h in range(n):
+			lines.append(ind + 'signal ' + ('shslv_tcmw' + str(h) + '_en').ljust(17) + ': std_logic;')
+		for h in range(n):
+			lines.append(ind + 'signal ' + ('shslv_rd_tcmw' + str(h)).ljust(17) + ": std_logic := '0';")
+		lines.append(ind + 'signal ' + 'tcmw_rdata'.ljust(17) + ': std_logic_vector(31 downto 0);')
+		lines.append(ind + '-- the aperture sequencer. ONE of it: the arbiter serializes, so exactly')
+		lines.append(ind + '-- one aperture transaction can be in flight.')
+		lines.append(ind + 'signal ' + 'tcmw_busy'.ljust(17) + ": std_logic := '0';")
+		lines.append(ind + 'signal ' + 'tcmw_en_any'.ljust(17) + ': std_logic;   -- any aperture addressed this cycle')
+		lines.append(ind + 'signal ' + 'tcmw_launch'.ljust(17) + ': std_logic;   -- ...and it is a permitted read of a LIVE tile')
+		lines.append(ind + 'signal ' + 'tcmw_stall'.ljust(17) + ": std_logic;   -- -> mp_arbiter s_stall")
+		lines.append(ind + 'signal ' + 'tcmw_target'.ljust(17) + ': std_logic_vector(' + str(n - 1) + ' downto 0);   -- one-hot addressed aperture')
+		lines.append(ind + 'signal ' + 'tcmw_dark'.ljust(17) + ': std_logic_vector(' + str(n - 1) + ' downto 0);   -- R4-A2: tile h cannot complete')
+		lines.append(ind + 'signal ' + 'tcmw_done_any'.ljust(17) + ': std_logic;   -- the in-flight tile completed')
+		lines.append(ind + 'signal ' + 'tcmw_abort'.ljust(17) + ': std_logic;   -- ...or went dark under us')
+		lines.append(ind + 'signal ' + 'tcmw_q'.ljust(17) + ': std_logic_vector(31 downto 0);   -- rdata of the in-flight tile')
+		lines.append(ind + '-- tile-facing port nets. addr is ONE bus fanned to every tile (only the')
+		lines.append(ind + '-- tile whose req is high samples it); rdata/done arrive per hart, and for')
+		lines.append(ind + '-- harts 1..' + str(n - 1) + ' they arrive through the M17 isolation clamps.')
+		lines.append(ind + 'signal ' + 'tcm_ext_req'.ljust(17) + ': std_logic_vector(' + str(n - 1) + ' downto 0);')
+		lines.append(ind + 'signal ' + 'tcm_ext_addr'.ljust(17) + ': std_logic_vector(11 downto 0);')
+		lines.append(ind + 'signal ' + 'tcm_ext_rdata'.ljust(17) + ': std_logic_vector(' + str(32 * n - 1) + ' downto 0);')
+		lines.append(ind + 'signal ' + 'tcm_ext_done'.ljust(17) + ': std_logic_vector(' + str(n - 1) + ' downto 0);')
 		return lines
 
 	def emitPgenDecls(self):
@@ -4127,6 +4253,116 @@ class McuVhdEmitter():
 		lines.append(ind + '-- selects are registered at the access cycle and steer s_rdata during')
 		lines.append(ind + '-- DATA. resv_unit still snoops every transaction (its s_we_gated drives')
 		lines.append(ind + '-- ALL slaves: a suppressed SC write must not touch a peripheral either).')
+		return lines
+
+	def emitArbStall(self):
+		'''CPR3/R3: the ONE extra association on the mp_arbiter port map, and
+		it emits nothing without an aperture fabric -- which is what keeps the
+		golden master byte-identical while the port itself (default \'0\')
+		keeps every other instantiation legal.'''
+		if not self.apertures():
+			return []
+		return ['            s_stall => tcmw_stall,   -- CPR3/R3: TCM aperture read in flight']
+
+	def emitTcmApertures(self):
+		'''CPR3/R3: the read-only TCM aperture sequencer (the behavioural half;
+		the declarations and the whole rationale are in emitTcmApertureDecls).
+
+		SHIM CLASS, and why it is not one of the existing ones: the shared
+		banks and the registered-read peripherals are ONE-CYCLE slaves -- CEN
+		and address at the s_en cycle, Q valid the next cycle, done on the
+		third. That model has no room for a 6-mclk tile-side transaction, and
+		there is no combinational-read bridge trick available either (the I2C
+		bridge solves the opposite problem: data arriving too EARLY and
+		collapsing). So this is a THIRD class: a stalling sequencer. It keeps
+		the one-cycle enable strobe every other slave sees, and extends the
+		arbiter\'s LATCH bubble instead of the strobe.
+
+		THE ONE-SHOT REARM (CPR2 R4): tcm_ext_req is raised at launch, HELD
+		until the tile\'s done pulse, and dropped on the same edge that consumes
+		it. The tile rearms on req low, and the next aperture access cannot
+		arrive for at least three mclk (the arbiter still owes this transaction
+		a DATA cycle and a done cycle), so the >= 1 idle cycle the port demands
+		is structural, not a timing hope.'''
+		apx = self.apertures()
+		if not apx:
+			return []
+		ind = ' ' * 4
+		n = len(apx)
+		zeros = "(others => '0')"
+		lines = ['']
+		lines.append(ind + '-- =========================================================================')
+		lines.append(ind + '-- CPR3/R3: READ-ONLY TCM APERTURE SEQUENCER (see the declarations above')
+		lines.append(ind + '-- for the map, the three gates and the s_stall argument).')
+		lines.append(ind + '-- =========================================================================')
+		for h in range(n):
+			lines.append(ind + ('tcmw_target(' + str(h) + ')').ljust(16) + ' <= shslv_tcmw' + str(h) + '_en;')
+		lines.append(ind + 'tcmw_en_any'.ljust(16) + ' <= \'1\' when tcmw_target /= "' + '0' * n + '" else \'0\';')
+		lines.append(ind + '-- R4-A2: "dark" = exactly the state the isolation clamps key on, which is')
+		lines.append(ind + '-- also exactly what dbg_unavail asks about -- clamps asserted, or the tile')
+		lines.append(ind + '-- held in reset (pd_rstn, the DP-S3 boot gate or chip reset). Hart 0 has')
+		lines.append(ind + '-- no domain and is never dark.')
+		lines.append(ind + 'tcmw_dark(0)'.ljust(16) + " <= '0';")
+		for h in range(1, n):
+			lines.append(ind + ('tcmw_dark(' + str(h) + ')').ljust(16) + ' <= pd_iso_en(' + str(h)
+				+ ') or not tile_rstn(' + str(h) + ');')
+		lines.append(ind + '-- LAUNCH = addressed AND the management hart AND a read AND the target is')
+		lines.append(ind + '-- alive. Anything else is answered with zero in the same three cycles')
+		lines.append(ind + '-- every other slave takes.')
+		lines.append(ind + 'tcmw_launch'.ljust(16) + ' <= tcmw_en_any when sh_we = "0000"')
+		lines.append(ind + ' ' * 16 + '   and conv_integer(sh_master) = 0')
+		lines.append(ind + ' ' * 16 + '   and (tcmw_target and tcmw_dark) = "' + '0' * n + '"')
+		lines.append(ind + ' ' * 16 + "   else '0';")
+		lines.append(ind + '-- The stall must already be asserted in the cycle the enable strobe')
+		lines.append(ind + '-- occupies (the arbiter samples s_stall at the edge that would otherwise')
+		lines.append(ind + '-- take it to DATA), so it is COMBINATIONAL on launch and registered only')
+		lines.append(ind + '-- afterwards, through busy.')
+		lines.append(ind + 'tcmw_stall'.ljust(16) + ' <= tcmw_launch or tcmw_busy;')
+		lines.append(ind + '-- completion / abort of the IN-FLIGHT transaction (tcm_ext_req is one-hot')
+		lines.append(ind + '-- while busy, so these are single-term ORs, not priority chains).')
+		lines.append(ind + 'tcmw_done_any'.ljust(16) + ' <= \'1\' when (tcm_ext_req and tcm_ext_done) /= "' + '0' * n + '" else \'0\';')
+		lines.append(ind + 'tcmw_abort'.ljust(16) + ' <= \'1\' when (tcm_ext_req and tcmw_dark) /= "' + '0' * n + '" else \'0\';')
+		lines.append(ind + 'tcmw_q'.ljust(16) + ' <= ' + ('\n' + ind + ' ' * 19).join(
+			['tcm_ext_rdata(' + str(32 * h + 31) + ' downto ' + str(32 * h) + ') when tcm_ext_req(' + str(h) + ") = '1' else"
+				for h in range(n)] + [zeros + ';']))
+		lines.append('')
+		lines.append(ind + 'tcm_aperture: process(mclk, resetn)')
+		lines.append(ind + 'begin')
+		lines.append(ind * 2 + "if resetn = '0' then")
+		lines.append(ind * 3 + 'tcm_ext_req  <= ' + zeros + ';')
+		lines.append(ind * 3 + 'tcm_ext_addr <= ' + zeros + ';')
+		lines.append(ind * 3 + "tcmw_busy    <= '0';")
+		lines.append(ind * 3 + 'tcmw_rdata   <= ' + zeros + ';')
+		lines.append(ind * 2 + 'elsif rising_edge(mclk) then')
+		lines.append(ind * 3 + "if tcmw_busy = '0' then")
+		lines.append(ind * 4 + "if tcmw_en_any = '1' then")
+		lines.append(ind * 5 + '-- One decision per access, taken in the enable-strobe cycle.')
+		lines.append(ind * 5 + '-- The zeroing is the DENIED/DROPPED/DARK answer and it is')
+		lines.append(ind * 5 + '-- unconditional: a refused access must never return the')
+		lines.append(ind * 5 + '-- previous window\'s word.')
+		lines.append(ind * 5 + 'tcm_ext_addr <= sh_addr(11 downto 0);')
+		lines.append(ind * 5 + 'tcmw_rdata   <= ' + zeros + ';')
+		lines.append(ind * 5 + "if tcmw_launch = '1' then")
+		lines.append(ind * 6 + 'tcm_ext_req <= tcmw_target;')
+		lines.append(ind * 6 + "tcmw_busy   <= '1';")
+		lines.append(ind * 5 + 'end if;')
+		lines.append(ind * 4 + 'end if;')
+		lines.append(ind * 3 + 'else')
+		lines.append(ind * 4 + "if tcmw_done_any = '1' then")
+		lines.append(ind * 5 + 'tcmw_rdata  <= tcmw_q;')
+		lines.append(ind * 5 + 'tcm_ext_req <= ' + zeros + ';')
+		lines.append(ind * 5 + "tcmw_busy   <= '0';")
+		lines.append(ind * 4 + "elsif tcmw_abort = '1' then")
+		lines.append(ind * 5 + '-- R4-A2 again, for the race the static gate cannot cover: the')
+		lines.append(ind * 5 + '-- tile was gated WHILE its transaction was in flight, so its')
+		lines.append(ind * 5 + '-- done is now clamped and will never arrive. Complete it here.')
+		lines.append(ind * 5 + 'tcmw_rdata  <= ' + zeros + ';')
+		lines.append(ind * 5 + 'tcm_ext_req <= ' + zeros + ';')
+		lines.append(ind * 5 + "tcmw_busy   <= '0';")
+		lines.append(ind * 4 + 'end if;')
+		lines.append(ind * 3 + 'end if;')
+		lines.append(ind * 2 + 'end if;')
+		lines.append(ind + 'end process;')
 		return lines
 
 	def emitSharedRamBanks(self):
@@ -4286,18 +4522,21 @@ class McuVhdEmitter():
 		# unless a strap/software arms the gate — every normal boot unperturbed.
 		lines = ['    tile_rstn(' + str(h) + ') <= resetn and pd_rstn(' + str(h) + ') and pgood_rstn;'
 			for h in range(1, self.tileTop())]
-		lines.append('    -- DP-S3: hart 0 has no pd_rstn row (always-on domain) ' + EMDASH + ' only the boot gate')
-		lines.append('    hart0_rstn <= resetn and pgood_rstn;')
 		if self.orch:
-			o = str(self.orchHart())
-			lines.append('    -- CP2: neither has the orchestrator ' + EMDASH + ' same always-on shape, same fold.')
-			lines.append('    hart' + o + '_rstn <= resetn and pgood_rstn;')
+			lines.append('    -- DP-S3 + CPR3/R2: hart 0 has no pd_rstn row (always-on domain) ' + EMDASH)
+			lines.append('    -- only the boot gate. That is true of the ORCHESTRATOR for the same')
+			lines.append('    -- reason it was true of hart 0: there is no power intent in the centre')
+			lines.append('    -- band, so there is no row to fold in.')
+		else:
+			lines.append('    -- DP-S3: hart 0 has no pd_rstn row (always-on domain) ' + EMDASH + ' only the boot gate')
+		lines.append('    hart0_rstn <= resetn and pgood_rstn;')
 		return lines
 
 	def emitIsoClamps(self):
-		# CP2: clamps exist per POWER DOMAIN, so the orchestrator (always-on,
-		# no domain) has no clamp row — its outputs reach the arbiter and the
-		# tb directly, the hart-0 shape.
+		# Clamps exist per POWER DOMAIN, so hart 0 has no clamp row — its
+		# outputs reach the arbiter and the tb directly. CPR3/R2: on an
+		# orchestrator config hart 0 IS the orchestrator, so that sentence
+		# needs no exception any more.
 		n = self.tileTop()
 		lines = []
 		for h in range(1, n):
@@ -4320,6 +4559,17 @@ class McuVhdEmitter():
 			# and why the DM consults it BEFORE halted (d2_spec 5).
 			if self.debug:
 				rows.append(('dbg_halted(' + hs + ')', 'dbg_halted_raw(' + hs + ')', "'0'", False))
+			# CPR3/R3: the TCM aperture port's outputs. THE CLAMP ON
+			# tcm_ext_done IS THE WHOLE OF R4-A2: it is correct (a dark tile
+			# must not drive the always-on fabric) and it means a gated tile
+			# can never complete a transaction that was initiated from OUTSIDE
+			# it. The aperture FSM therefore synthesizes its own
+			# completion-with-zeros off the same pd_iso_en/tile_rstn state,
+			# and never waits on this wire for a tile it knows is dark.
+			if self.apertures():
+				rows.append(('tcm_ext_rdata(' + str(32 * h + 31) + ' downto ' + str(32 * h) + ')',
+					'tile' + hs + '_tcmrd_raw', "(others => '0')", True))
+				rows.append(('tcm_ext_done(' + hs + ')', 'tile' + hs + '_tcmdone_raw', "'0'", False))
 			# golden-master columns: short lines pad the LHS to 24 and the RHS
 			# to 16; the long addr/wdata pair aligns to itself with 1 space
 			lhsPad, rhsPad, longPad = 24, 16, 0
@@ -4387,6 +4637,7 @@ class McuVhdEmitter():
 		lines.append('            -- PG1 F2: retention strapped OFF from the ALWAYS-ON top (the macro')
 		lines.append('            -- RETN receiver is AO ' + EMDASH + ' an in-tile tie was a dying-rail driver)')
 		lines.append("            tcm_retn  => '1',")
+		lines.extend(self.tcmExtPortLines(h))
 		lines.append('            -- M17: MTCMOS domain controls (CPF hooks; see hart_tile.vhd)')
 		lines.append('            pd_sleep  => pd_sleep(' + hs + '),')
 		lines.append('            pd_iso_en => pd_iso_en(' + hs + '),')
@@ -4396,9 +4647,11 @@ class McuVhdEmitter():
 		return lines
 
 	def emitTileInstances(self):
-		# CP2: hart_tile instances are the GATEABLE tiles only; the
-		# orchestrator is an orch_tile emitted by emitOrchInstance (its own
-		# --@GEN:orch-instance@ region, immediately below this one).
+		# The hart_tile instances are the gateable tiles 1..N-1. CPR3/R2: that
+		# is EVERY hart but hart 0 in both shapes -- the orchestrator is hart 0
+		# and rides the hart0-instance region (bound to orch_tile there), so
+		# this loop no longer stops short of anything and the CP2
+		# --@GEN:orch-instance@ region is retired.
 		lines = []
 		for h in range(1, self.tileTop()):
 			if h > 1:
@@ -4406,101 +4659,35 @@ class McuVhdEmitter():
 			lines.extend(self.tileInstance(h))
 		return lines
 
-	def emitOrchInstance(self):
-		'''CP2 (Castalia-Penta): the ORCHESTRATOR hart — the third hart-instance
-		emitter, beside emitHart0Instance and tileInstance. Emits NOTHING when
-		the config names no management hart, so check_mcu_vhd.py STRICT sees no
-		trace of it at the N=4 default.
+	def tcmExtPortLines(self, h):
+		'''CPR3/R3: the four tcm_ext_* associations on hart h's instance, or
+		nothing at all when the config has no aperture fabric (which keeps the
+		N=4 golden master byte-identical -- the ports carry fail-safe defaults
+		precisely so an unwired instance is unchanged, CPR2 R4).
 
-		WIRING, and every line of it is a decision:
-		  * ENTITY is `orch_tile`, not `hart_tile` (D6) — the soft core needs a
-		    module namespace disjoint from the hardened tile netlist. It is a
-		    bare wrapper, so the two are behaviourally identical.
-		  * POWER/RESET is HART 0's, not the tiles': resetn = hartN_rstn
-		    (resetn and the DP-S3 boot gate), NO pwr_ctrl row, NO isolation
-		    clamps, sh_* straight onto its arbiter slice, pd_sleep/pd_iso_en
-		    strapped '0'. The centre band has no chip-level power intent, so a
-		    gateable-in-RTL orchestrator would be a hardware lie (D2).
-		  * BOOT/IRQ is the TILES': hart_id = the index, msip/mtip from the
-		    CLINT and meip from the router row N, so it parks in the shared ROM
-		    and is ignited through the ordinary loader row + msip protocol
-		    (D3 — boot mastership stays on hart 0).
-		  * sleep '0' and the flash quartet OPEN: the flash/XIP pins belong to
-		    hart 0's tile. An orchestrator access >= 0x20000 reads zeros and
-		    never stalls, the same "undefined on unmapped" class as a tile.
-		  * tcm_pgen '0' / tcm_retn '1': its own TCM is never gated.
-		  * trap_flag open (hart 0 owns the GPIO0 trap pin); a0 straight to the
-		    a0_N observation port — MONITORED, never the pass/fail gate, which
-		    stays hart 0 (D8).'''
-		o = self.orchHart()
-		if o is None:
+		Hart 0 (the orchestrator) drives the aperture nets DIRECTLY, exactly as
+		it drives arb_req(0) directly: it is always-on, there is no domain and
+		no clamp. Every tile drives tile<h>_tcmrd_raw / tile<h>_tcmdone_raw and
+		passes the M17 isolation clamps with its other outputs -- which is the
+		mechanism R4-A2 warns about, because a clamped tcm_ext_done means a dark
+		tile NEVER completes and the aperture FSM must synthesize the
+		completion itself.'''
+		if not self.apertures():
 			return []
-		os_ = str(o)
-		lines = ['']
-		lines.append('    -- =========================================================================')
-		lines.append('    -- CP2 ORCHESTRATOR HART (hart ' + os_ + '). Same core, same ISA, same 24 generic')
-		lines.append('    -- associations as the tiles (D5) ' + EMDASH + ' but SOFT logic in the centre band')
-		lines.append('    -- instead of a hardened corner macro, so it is instantiated through the')
-		lines.append('    -- orch_tile wrapper (D6: no module name may be shared between the tile')
-		lines.append('    -- netlist and the orchestrator netlist, or the assembly strip step')
-		lines.append('    -- deletes this subtree and gate sim sees two definitions of one module).')
-		lines.append('    -- It is ALWAYS-ON: hart 0\'s reset/power wiring, NOT the tiles\' ' + EMDASH + ' no')
-		lines.append('    -- pwr_ctrl row, no iso clamps, sh_* direct into arbiter slice ' + os_ + '. Its')
-		lines.append('    -- boot is the tiles\': park in the shared ROM, ignited by loader row')
-		lines.append('    -- 0x10500+0x10*' + os_ + ' + msip[' + os_ + ']. a0 is OBSERVED only (hart 0 stays the gate).')
-		lines.append('    -- =========================================================================')
-		lines.append('    hart' + os_ + ': entity work.orch_tile')
-		lines.append('        generic map (')
-		lines.append('            PC_RST_VAL     => x"00000000",')
-		lines.append('            SH_AW          => SH_AW,')
-		lines.append('            -- Core ISA features (config-driven, work.MemoryMap; IDENTICAL to')
-		lines.append('            -- the tiles by construction ' + EMDASH + ' the orchestrator is not a')
-		lines.append('            -- different core, only a differently-implemented one)')
-		lines.extend(self.coreGenericLines())
-		lines.append('        )')
-		lines.append('        port map (')
-		lines.append('            clk       => mclk,')
-		lines.append('            -- CP2/D2: hart-0-style reset (resetn and the DP-S3 boot gate).')
-		lines.append('            -- There is deliberately no pd_rstn term: no power domain exists')
-		lines.append('            -- for this hart, so there is nothing to hold it for.')
-		lines.append('            resetn    => hart' + os_ + '_rstn,')
-		lines.append("            -- No SPI0/XIP behind the orchestrator (D3: the flash quartet is")
-		lines.append('            -- physically hart 0\'s), so sleep is strapped and the flash ports')
-		lines.append('            -- are left open at their entity defaults.')
-		lines.append("            sleep     => '0',")
-		lines.append('            hart_id   => x"' + format(o, '08x') + '",')
-		lines.append('            msip_in   => clint_msip(' + os_ + '),')
-		lines.append('            mtip_in   => clint_mtip(' + os_ + '),')
-		lines.append('            meip_in   => meip(' + os_ + '),')
-		if self.debug:
-			lines.append('            -- D2: always-on domain ' + EMDASH + ' no clamp, straight to the DM.')
-			lines.append('            dbg_haltreq      => dbg_haltreq(' + os_ + '),')
-			lines.append('            dbg_resethaltreq => dbg_resethaltreq(' + os_ + '),')
-			lines.append('            dbg_halted       => dbg_halted(' + os_ + '),')
-		lines.append('            sh_req    => arb_req(' + os_ + '),')
-		lines.append('            sh_we     => arb_we(' + str(4 * o + 3) + ' downto ' + str(4 * o) + '),')
-		lines.append('            sh_addr   => arb_addr(' + str(o + 1) + '*SH_AW-1 downto ' + os_ + '*SH_AW),')
-		lines.append('            sh_wdata  => arb_wdata(' + str(o + 1) + '*32-1 downto ' + os_ + '*32),')
-		lines.append('            sh_gnt    => arb_gnt(' + os_ + '),')
-		lines.append('            sh_done   => arb_done(' + os_ + '),')
-		lines.append('            sh_rdata  => arb_rdata,')
-		lines.append('            sh_lrsc   => arb_lrsc(' + str(2 * o + 1) + ' downto ' + str(2 * o) + '),')
-		lines.append('            sh_scfail => arb_scfail(' + os_ + '),')
-		lines.append('            sh_resv_valid => arb_resvvld(' + os_ + '),')
-		lines.append('            sh_lock   => arb_lock(' + os_ + '),')
-		lines.append('            -- CP2: the orchestrator TCM is never gated (no domain to gate it')
-		lines.append('            -- with) and never in retention ' + EMDASH + ' a future knob if that changes.')
-		lines.append("            tcm_pgen  => '0',")
-		lines.append("            tcm_retn  => '1',")
-		lines.append('            -- CP2: MTCMOS controls strapped inactive, EXPLICITLY, per the M14')
-		lines.append('            -- netlist-boundary rule (an omitted generic/port default is how a')
-		lines.append('            -- silicon bug of the hw_clint_en class gets in).')
-		lines.append("            pd_sleep  => '0',")
-		lines.append("            pd_iso_en => '0',")
-		lines.append('            trap_flag => open,')
-		lines.append('            a0        => a0_' + os_)
-		lines.append('        );')
-		return lines
+		hs = str(h)
+		if h == 0:
+			rd = 'tcm_ext_rdata(31 downto 0)'
+			dn = 'tcm_ext_done(0)'
+		else:
+			rd = 'tile' + hs + '_tcmrd_raw'
+			dn = 'tile' + hs + '_tcmdone_raw'
+		return [
+			'            -- CPR3/R3: read-only TCM aperture port (window 0x%05X)' % self.apertures()[h],
+			'            tcm_ext_req   => tcm_ext_req(' + hs + '),',
+			'            tcm_ext_addr  => tcm_ext_addr,',
+			'            tcm_ext_rdata => ' + rd + ',',
+			'            tcm_ext_done  => ' + dn + ',',
+		]
 
 	def busComment(self, instKey, spec):
 		name = spec['periph']
@@ -4669,8 +4856,10 @@ class McuVhdEmitter():
 			return self.emitIsoClamps()
 		if name == 'tile-instances':
 			return self.emitTileInstances()
-		if name == 'orch-instance':
-			return self.emitOrchInstance()
+		if name == 'arb-stall':
+			return self.emitArbStall()
+		if name == 'tcm-apertures':
+			return self.emitTcmApertures()
 		if name == 'irq-signal-decls':
 			return self.emitIrqSignalDecls()
 		if name == 'irq-comb':
@@ -4862,9 +5051,12 @@ def generateMcuVhd(gen, templatePath, outPath):
 		'tile-raw-decls', 'sh-master-decl', 'hart0-instance', 'arb-generic', 'resv-generic',
 		'clint-instance', 'irq-router-instance', 'mutex-instance', 'pwr-instance',
 		'tile-rstn', 'iso-clamps', 'tile-instances',
-		# CP2 (Castalia-Penta): the orchestrator hart instance. Emits NOTHING
-		# without a management hart, so the N=4 golden master is untouched.
-		'orch-instance',
+		# CPR3/R3: the read-only TCM aperture fabric -- the arbiter's s_stall
+		# association and the sequencer. Both emit NOTHING without an
+		# orchestrator, so the N=4 golden master is untouched. (The CP2
+		# 'orch-instance' region is RETIRED: the orchestrator is hart 0 now and
+		# rides the hart0-instance region.)
+		'arb-stall', 'tcm-apertures',
 		# A2 geometry / NPU-conditional regions
 		'sh-window-const', 'memslv-decls', 'pgen-decls', 'shslv-banner', 'shared-ram-banks',
 		'npu-component', 'npu-fabric-decls', 'npu-mux-decls', 'npu-sleep-comment',

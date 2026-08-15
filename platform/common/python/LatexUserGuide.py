@@ -445,16 +445,21 @@ class LatexUserGuide():
 		s += '\\newif\\ifdebugenable\n'
 		s += ('\\debugenabletrue' if getattr(self.Gen, 'ENABLE_DEBUG', False)
 			else '\\debugenablefalse') + '\n'
-		# CP6 (Castalia-Penta): the soft ORCHESTRATOR hart. False at the
-		# defaults, so every orchestrator sentence in the multi-core chapter
+		# CPR3/R1 (Castalia-Penta rework): the soft ORCHESTRATOR hart. False at
+		# the defaults, so every orchestrator sentence in the multi-core chapter
 		# folds away and the default TRM is byte-identical — the same
 		# "inert unless declared" discipline as \ifcqanalog above.
 		# \OrchHartIndex is defined UNCONDITIONALLY (the \PmpEntries precedent)
-		# so the macro can never dangle inside a folded branch.
-		_mgmtHart = getattr(self.Gen, 'MgmtHart', 0)
-		s += '\\newcommand{\\OrchHartIndex}{' + str(_mgmtHart) + '}\n'
+		# so the macro can never dangle inside a folded branch, and it is now the
+		# CONSTANT 0: the orchestrator IS hart 0 (R2). That also retires a latent
+		# defect in the CP6 form — `\orchpresenttrue if _mgmtHart` was a
+		# TRUTHINESS test on an index, so index 0 (exactly the shape CPR asks
+		# for) would have read as "no orchestrator". A boolean knob cannot have
+		# that bug.
+		_orch = bool(getattr(self.Gen, 'Orchestrator', False))
+		s += '\\newcommand{\\OrchHartIndex}{0}\n'
 		s += '\\newif\\iforchpresent\n'
-		s += ('\\orchpresenttrue' if _mgmtHart else '\\orchpresentfalse') + '\n'
+		s += ('\\orchpresenttrue' if _orch else '\\orchpresentfalse') + '\n'
 
 		if not os.path.isdir(self.IncludeDirectory):
 			os.makedirs(self.IncludeDirectory)
@@ -913,7 +918,7 @@ class LatexUserGuide():
 		# at the pre-X-series key set, so X-series ISA, priv, newer-peripheral and
 		# package knobs never appeared in the TRM config table). Keep in sync with
 		# generate.py _CONFIG_SCHEMA — grouped: core, isa, priv, memory, periph, pkg.
-		keyOrder = ['chipName', 'numHarts', 'managementHart', 'numMutexes', 'registerFileDualPort',
+		keyOrder = ['chipName', 'numHarts', 'orchestrator', 'numMutexes', 'registerFileDualPort',
 			'isa.mul', 'isa.fastMul', 'isa.div', 'isa.atomics', 'isa.compressed',
 			'isa.bitmanip', 'isa.counters', 'isa.counters64',
 			'isa.zicond', 'isa.zcb', 'isa.zimop', 'isa.zihint', 'isa.zihpm',

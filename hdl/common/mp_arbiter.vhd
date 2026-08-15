@@ -20,6 +20,10 @@
 -- address+enable presented on cycle T, read data valid on T+1 (matches the
 -- sram1p16k behaviour). s_en/s_we are ACTIVE-HIGH here (arbiter-internal
 -- convention); invert at the boundary when driving the active-low SRAM macro.
+-- CPR3/R3 added ONE optional escape from that model: `s_stall` (default '0'),
+-- which extends the LATCH bubble for a slave that genuinely cannot answer in
+-- one cycle. It exists for the read-only TCM apertures and nothing else; see
+-- the port comment for the two properties that keep it from being a deadlock.
 --
 -- HANDSHAKE (per master i):
 --   req(i)   in : master i wants the slave; HELD until it sees done(i).
@@ -83,6 +87,25 @@ entity mp_arbiter is
         -- claim-read needs to know WHO is reading). Width = the MW generic
         -- (A2: was fixed 2, N <= 4).
         s_en     : out std_logic;
+        -- =====================================================================
+        -- CPR3/R3: SLAVE-SIDE STALL. Defaults '0', so every existing
+        -- instantiation (hdl/argus/MCU.vhd, the four testbenches, every
+        -- non-orchestrator MCU.vhd) is bit-identical and this port need not be
+        -- named. Held HIGH during the LATCH cycle, it keeps the arbiter in
+        -- LATCH: grant stays pinned to the current master, s_addr/s_wdata stay
+        -- presented, and done/rdata are simply deferred. It exists because the
+        -- CPR3 TCM apertures are the FIRST slave that cannot answer in the
+        -- one-cycle registered-read model everything else here obeys: a
+        -- tcm_ext read of a tile's TCM is 6 mclk request-to-done (CPR2 R4), and
+        -- without this the arbiter would complete the transaction on cycle 3
+        -- with whatever was on s_rdata and hand the management hart a
+        -- fabricated word. Two properties make it safe rather than a deadlock
+        -- risk: (a) nothing else can be granted while we wait -- the serializer
+        -- was already going to hold the bus for this transaction -- and (b) the
+        -- only slave that asserts it MUST synthesize its own completion when
+        -- its tile is dark (R4-A2), which is the requirement the aperture FSM
+        -- is built around. NEVER wire this to a slave that can wait forever.
+        s_stall  : in  std_logic := '0';
         s_master : out std_logic_vector(MW-1 downto 0);
         s_we    : out std_logic_vector(3 downto 0);
         s_addr  : out std_logic_vector(ADDR_WIDTH-1 downto 0);
@@ -223,7 +246,14 @@ begin
                     -- this state; s_rdata is valid during this cycle. Hold grant.
                     gnt      <= (others => '0');
                     gnt(cur) <= '1';
-                    state    <= DATA;
+                    -- CPR3/R3: a stalling slave (the TCM apertures) holds us
+                    -- here. s_en has already self-cleared, so the slave still
+                    -- sees exactly the one-cycle enable strobe it always did;
+                    -- only the completion moves. Every other slave leaves
+                    -- s_stall at its '0' default and this is a no-op.
+                    if s_stall = '0' then
+                        state <= DATA;
+                    end if;
 
                 when DATA =>
                     -- capture read data and complete the transaction.
