@@ -4,11 +4,11 @@ gen_power_dashboard.py — regenerate power_dashboard.html from the NEWEST
 post-genus and post-innovus power reports on disk.
 
 Sources scanned (nothing is rerun — this only scrapes existing reports):
-  genus/rpt/<block>.genus.power.rpt            report_power -by_hierarchy -levels 4 (units W)
-  innovus/common/timingReports/<design>_postCTS.power / _postRoute.power
+  genus/<BLOCK>/rpt/<block>.genus.power.rpt            report_power -by_hierarchy -levels 4 (units W)
+  innovus/common/<BLOCK>/timingReports/<design>_postCTS.power / _postRoute.power
                                                report_power [-leakage]      (units mW)
-  innovus/common/rpt/<tag>_era/power_all.rpt   full report_power at signoff (units mW)
-  innovus/common/rpt/<tag>_era/inst_power.rpt  report_power -instances      (units mW)
+  innovus/common/<BLOCK>/rpt/<tag>_era/power_all.rpt   full report_power at signoff (units mW)
+  innovus/common/<BLOCK>/rpt/<tag>_era/inst_power.rpt  report_power -instances      (units mW)
 
 Usage:
   python3 tools/python/gen_power_dashboard.py [-o power_dashboard.html]
@@ -29,8 +29,24 @@ import sys
 import time
 
 REPO = os.path.expanduser(os.environ.get("VESTA_ROOT", "~/vestarv"))
-GENUS_RPT = os.path.join(REPO, "genus", "rpt")
 INNOVUS = os.path.join(REPO, "innovus", "common")
+
+# Per-block layout (2026-07-27): genus/<BLOCK>/rpt and
+# innovus/common/<BLOCK>/{timingReports,rpt}. Scan every block dir; skip the
+# shared/attic dirs (attic holds pre-reorg flat-layout leftovers).
+_NONBLOCK = {"attic", "shared", "common"}
+
+def _block_subdirs(root, sub):
+    """All <root>/<BLOCK>/<sub> dirs that exist, oldest-name order."""
+    out = []
+    if os.path.isdir(root):
+        for d in sorted(os.listdir(root)):
+            if d in _NONBLOCK or d.startswith("."):
+                continue
+            p = os.path.join(root, d, sub)
+            if os.path.isdir(p):
+                out.append(p)
+    return out
 
 # genus report basename -> (family, human label). Basenames not listed are
 # shown under "Other"; Myshkin's frozen MCU synth report is skipped outright.
@@ -257,13 +273,13 @@ def scan():
     def fam(name):
         return families.setdefault(name, {"genus": [], "innovus": {}, "era": []})
 
-    if os.path.isdir(GENUS_RPT):
-        for fn in sorted(os.listdir(GENUS_RPT)):
+    for genus_rpt in _block_subdirs(os.path.join(REPO, "genus"), "rpt"):
+        for fn in sorted(os.listdir(genus_rpt)):
             m = re.match(r"(.+)\.genus\.power\.rpt$", fn)
             if not m or m.group(1) in GENUS_SKIP:
                 continue
             base = m.group(1)
-            rpt = parse_genus(os.path.join(GENUS_RPT, fn))
+            rpt = parse_genus(os.path.join(genus_rpt, fn))
             if not rpt:
                 continue
             family, label = GENUS_BLOCKS.get(base, ("Other", base))
@@ -271,9 +287,8 @@ def scan():
             rpt["label"] = label
             fam(family)["genus"].append(rpt)
 
-    tr = os.path.join(INNOVUS, "timingReports")
-    if os.path.isdir(tr):
-        cands = {}   # (design, stage) -> {is_full: rpt}
+    cands = {}   # (design, stage) -> {is_full: rpt}; newest wins across blocks
+    for tr in _block_subdirs(INNOVUS, "timingReports"):
         for fn in sorted(os.listdir(tr)):
             m = re.match(r"(.+)_(postCTS|postRoute)(_full)?\.power$", fn)
             if not m:
@@ -281,7 +296,10 @@ def scan():
             design, stage, is_full = m.group(1), m.group(2), bool(m.group(3))
             rpt = parse_innovus_power(os.path.join(tr, fn))
             rpt["stage"] = stage
-            cands.setdefault((design, stage), {})[is_full] = rpt
+            slot = cands.setdefault((design, stage), {})
+            if is_full not in slot or rpt["mtime"] > slot[is_full]["mtime"]:
+                slot[is_full] = rpt
+    if cands:
         for (design, stage), c in cands.items():
             # a full report and its leakage-only twin come from the same run;
             # prefer the full one unless the leakage-only file is decisively
@@ -299,8 +317,7 @@ def scan():
             rpt["label"] = label
             fam(family)["innovus"].setdefault(design, {})[stage] = rpt
 
-    rptdir = os.path.join(INNOVUS, "rpt")
-    if os.path.isdir(rptdir):
+    for rptdir in _block_subdirs(INNOVUS, "rpt"):
         for tag in sorted(os.listdir(rptdir)):
             if tag not in ERA_DIRS:
                 continue
