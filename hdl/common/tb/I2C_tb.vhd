@@ -1,22 +1,15 @@
 -------------------------------------------------------------------------------
 -- I2C_tb.vhd
 -------------------------------------------------------------------------------
--- Standalone, self-checking testbench for the I2C peripheral
--- (hdl/myshkin/periph/I2C.vhd).
+-- Standalone, self-checking testbench for the I2C peripheral (hdl/myshkin/periph/I2C.vhd).
 --
--- Uses the shared support packages: tb/periph_tb_pkg.vhd (scoreboard +
--- register-bus BFM) and tb/i2c_bfm_pkg.vhd (I2C external-master driver).
+-- Uses the shared support packages: tb/periph_tb_pkg.vhd (scoreboard and register-bus BFM) and tb/i2c_bfm_pkg.vhd (I2C external-master driver).
 --
--- The SDA/SCL bus is modelled as a real open-drain wired-AND: a line reads '0'
--- when EITHER the DUT drives it (its *_DIR output = '1') or the master BFM pulls
--- it (i2cm.*_low = '1'), and floats to '1' (pull-up) otherwise.
+-- The SDA/SCL bus is modelled as a real open-drain wired-AND: a line reads '0' when EITHER the DUT drives it (its *_DIR output is '1') or the master BFM pulls it (i2cm.*_low is '1'), and floats to '1' through the pull-up otherwise.
 --
--- Coverage: register R/W + reset values, START/STOP detection, slave receive
--- (address + data byte, ACK, flags, SRX capture), slave-not-addressed, interrupt
--- flag/enable/clear, and a master transmit (START, byte, absent-slave NACK, STOP).
+-- Coverage: register R/W and reset values, START/STOP detection, slave receive (address and data byte, ACK, flags, SRX capture), slave-not-addressed, interrupt flag/enable/clear, and a master transmit (START, byte, absent-slave NACK, STOP).
 --
--- Bus contract (see tb/CLAUDE.md): en_mem active-low, wen active-low per byte
--- lane, SR/SRX read a snapshot latched on the falling edge of en_mem.
+-- Bus contract: en_mem is active-low, wen is active-low per byte lane, and SR/SRX read a snapshot latched on the falling edge of en_mem.
 -------------------------------------------------------------------------------
 
 library ieee;
@@ -65,12 +58,15 @@ architecture sim of I2C_tb is
 begin
 
     smclk  <= not smclk after PERIOD / 2;
+
+    -- Register-bus clock runs only while the peripheral is selected (en_mem is active-low)
     ClkMem <= smclk when pbus.en_mem = '0' else '0';
 
     -- Open-drain wired-AND with pull-up
     SDA_IN <= '0' when (SDA_DIR = '1' or i2cm.sda_low = '1') else '1';
     SCL_IN <= '0' when (SCL_DIR = '1' or i2cm.scl_low = '1') else '1';
 
+    -- DUT with a zero power-on slave address; GROUP 2 programs the real one into AR
     dut : entity work.I2C
         generic map ( default_SAD => "0000000" )
         port map (
@@ -88,6 +84,7 @@ begin
             SCL_REN_in => SCL_REN_in, SCL_REN => SCL_REN
         );
 
+    -- Directed stimulus: seven check groups, then the scoreboard verdict
     stim_proc : process
         variable rdw    : std_logic_vector(31 downto 0);
         variable ackbit : std_logic;
@@ -163,7 +160,7 @@ begin
         bus_read(smclk, pbus, rdata_out, RegSlotI2CxSR, rdw);
         sb.check_bit("STOP received flag (SPR)", rdw(0), '1');
         sb.check_bit("bus state idle (BS)",      rdw(15), '0');
-        -- clear STR/SPR
+        -- Clear STR and SPR by writing ones back to them
         bus_write(smclk, pbus, RegSlotI2CxSR, x"00000003");
         bus_read(smclk, pbus, rdata_out, RegSlotI2CxSR, rdw);
         sb.check_bit("STR cleared", rdw(1), '0');
@@ -193,8 +190,8 @@ begin
         bus_read(smclk, pbus, rdata_out, RegSlotI2CxSRX, rdw);
         sb.check_slv("slave received data 0x5A", rdw(7 downto 0), x"5A");
         i2c_stop(i2cm, T);
-        -- clear slave flags
-        bus_write(smclk, pbus, RegSlotI2CxSR, x"00001100");           -- clear SXC(8) + SA(12)
+        -- Clear the slave flags before the next group
+        bus_write(smclk, pbus, RegSlotI2CxSR, x"00001100");           -- clears SXC (bit 8) and SA (bit 12)
         bus_write(smclk, pbus, RegSlotI2CxCR, x"00000000");
 
         ----------------------------------------------------------------
@@ -218,7 +215,7 @@ begin
         ----------------------------------------------------------------
         report "=== GROUP 6: interrupts ===" severity note;
 
-        -- STRIE = CR bit1; enable it, generate a START, expect irq_str
+        -- STRIE is CR bit 1: enable it, generate a START, and expect irq_str
         bus_write(smclk, pbus, RegSlotI2CxCR, x"00100002");           -- SEN + STRIE
         i2c_start(i2cm, T);
         sb.check_bit("irq_str asserted (STR & STRIE)", irq_str, '1');
@@ -235,7 +232,7 @@ begin
 
         i2cm <= I2C_MASTER_IDLE;                          -- TB stays off the bus
         bus_write(smclk, pbus, RegSlotI2CxCR, x"00200000");           -- MEN=1, MDIV=0
-        bus_write(smclk, pbus, RegSlotI2CxFCR, x"00000004");          -- I2CMST = send START
+        bus_write(smclk, pbus, RegSlotI2CxFCR, x"00000004");          -- I2CMST: send START
         wait for 40 * PERIOD;
         bus_read(smclk, pbus, rdata_out, RegSlotI2CxSR, rdw);
         sb.check_bit("master controls bus (MCB)", rdw(14), '1');
@@ -247,7 +244,7 @@ begin
         sb.check_bit("master transfer complete (MXC)", rdw(2), '1');
         sb.check_bit("master saw NACK (no slave)",     rdw(3), '1');
 
-        bus_write(smclk, pbus, RegSlotI2CxFCR, x"00000002");          -- I2CMSP = send STOP
+        bus_write(smclk, pbus, RegSlotI2CxFCR, x"00000002");          -- I2CMSP: send STOP
         wait for 60 * PERIOD;
         bus_read(smclk, pbus, rdata_out, RegSlotI2CxSR, rdw);
         sb.check_bit("master STOP sent (MSPS)", rdw(6), '1');

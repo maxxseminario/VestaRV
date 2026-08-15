@@ -1,6 +1,10 @@
+-- Behavioural stand-ins for the three ARM tsmc65_hvt_sc_adv10 cells the glitch-free clock mux instantiates by name.
+-- Simulation only; synthesis binds the real library cells.
+
 library ieee;
 use ieee.std_logic_1164.all;
 
+-- D flip-flop with an active-low asynchronous SET, so it powers up and resets to '1'.
 entity DFFSQ is
 	port
 	(
@@ -28,6 +32,7 @@ end behavioral;
 library ieee;
 use ieee.std_logic_1164.all;
 
+-- D flip-flop with an active-high asynchronous RESET, so it clears to '0'.
 entity DFFRPQ is
 	port
 	(
@@ -55,6 +60,8 @@ end behavioral;
 library ieee;
 use ieee.std_logic_1164.all;
 
+-- Integrated clock gate: the enable is latched while CK is low, so ECK never chops a pulse.
+-- SE is the scan/test enable, which forces the gate open.
 entity PREICG is
 	port
 	(
@@ -89,10 +96,8 @@ use ieee.math_real.all;
 
 -- For the TSMC cmn65gp process using the ARM standard cell library tsmc65_hvt_sc_adv10
 
--- This was originally set up with unconstrained ports, but NCVHDL assumed the
--- inputs were in ascending bit order while Sel was in descending bit order.
--- To avoid confusion in a critical block , explicit generic parameters are now
--- used.
+-- This was originally set up with unconstrained ports, but NCVHDL assumed the inputs were in ascending bit order while Sel was in descending bit order.
+-- To avoid confusion in a critical block, explicit generic parameters are now used.
 entity ClockMuxGlitchFree is
 	generic
 	(
@@ -155,20 +160,18 @@ architecture behavioral of ClockMuxGlitchFree is
 
 begin
 	
-	-- Reset positive logic line
+	-- Active-high copy of the reset for the cells that need it
 	resetp <= not resetn;
-	
-	-- All synchronization slice outputs are ORed together to get final clock.
+
+	-- All synchronization slice outputs are ORed together to get the final clock; at most one slice is ever gated on, so this is a mux.
 	-- This used VHDL 2008 syntax.
 	ClkOut <= or_reduce(ClkGated);
 
-	-- Enable a given clock if it is selected or if its enable signal hasn't
-	-- cleared the synchronization DFF chain.
+	-- Enable a given clock if it is selected, or if its enable signal has not yet cleared the synchronization DFF chain.
 	ClkEn <= En or EnQQQ;
 
-	-- Create enable signals based on enabled status of all clock outputs.  AND
-	-- together the "not enabled" signals of all other slices with this slice's
-	-- "enable" signal.
+	-- Create the enable signals from the enabled status of all clock outputs.
+	-- AND together the "not enabled" signals of all other slices with this slice's "enable" signal, so two slices can never be enabled at once.
 	process (ClkSel, EnQQQN)
 		variable temp : std_logic;
 	begin
@@ -183,25 +186,25 @@ begin
 		end loop;
 	end process;
 
-	-- Create clock source select decoder.
+	-- Clock source select decoder: one-hot ClkSel from the binary Sel input.
 	process (Sel)
 	begin
 		ClkSel <= (others=>'0');
 		ClkSel(to_integer(unsigned(Sel))) <= '1';
 	end process;
 
-	-- Generate inverted outputs of all DFFs
+	-- Inverted copies of the DFF outputs, used by the mutual-exclusion AND above
 	--EnQN   <= not EnQ;
 	--EnQQN  <= not EnQQ;
 	EnQQQN <= not EnQQQ;
 
-	-- Generate the synchronization slices.  The default slice is selected/set
-	-- on reset, while the other slices are deselected/reset on reset.  Note
-	-- the ARM 65 nm cells are not entirely symmetric between set/reset.  Set
-	-- is active low while reset is active high.
+	-- Generate the synchronization slices.
+	-- The default slice comes out of reset selected (set), while every other slice comes out deselected (reset).
+	-- Note that the ARM 65 nm cells are not entirely symmetric between set and reset: set is active low, reset is active high.
 
 	MuxGen: for i in 0 to CLK_COUNT-1 generate
 
+		-- Default slice: set-on-reset flops, so this clock is the one running out of reset
 		DefaultSlice: if i = CLK_DEFAULT generate
 
 			SYNCDFF0: DFFSQ
@@ -222,12 +225,9 @@ begin
 				Q  => EnQQ(i)
 			);
 
-			-- This delays the enable signal by one clock, which ensures that the
-			-- current clock is no longer oscillating when the next clock is
-			-- enabled.  This overcomes the small 1/2 cycle lag between the
-			-- enabling being deasserted and the clock gate stopping oscillation.
-			-- This also keep the chip-level oscillator powered long enough to
-			-- drive the clock mux.
+			-- This delays the enable signal by one clock, which ensures the current clock is no longer oscillating when the next clock is enabled.
+			-- It covers the small half-cycle lag between the enable being deasserted and the clock gate stopping oscillation.
+			-- It also keeps the chip-level oscillator powered long enough to drive the clock mux.
 
 			DLYDFF0: DFFSQ
 			port map
@@ -240,6 +240,7 @@ begin
 
 		end generate;
 
+		-- Every other slice: reset-on-reset flops, so these clocks start disabled
 		OtherSlice: if i /= CLK_DEFAULT generate
 
 			SYNCDFF0: DFFRPQ
@@ -260,12 +261,9 @@ begin
 				Q  => EnQQ(i)
 			);
 
-			-- This delays the enable signal by one clock, which ensures that the
-			-- current clock is no longer oscillating when the next clock is
-			-- enabled.  This overcomes the small 1/2 cycle lag between the
-			-- enabling being deasserted and the clock gate stopping oscillation.
-			-- This also keeps the chip-level oscillator powered long enough to
-			-- drive the clock mux.
+			-- This delays the enable signal by one clock, which ensures the current clock is no longer oscillating when the next clock is enabled.
+			-- It covers the small half-cycle lag between the enable being deasserted and the clock gate stopping oscillation.
+			-- It also keeps the chip-level oscillator powered long enough to drive the clock mux.
 
 			DLYDFF0: DFFRPQ
 			port map
@@ -278,6 +276,7 @@ begin
 
 		end generate;
 
+		-- Gate this slice's input clock with the twice-synchronized enable
 		CG1: PREICG
 		port map
 		(

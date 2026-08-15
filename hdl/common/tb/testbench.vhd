@@ -18,10 +18,10 @@ architecture test of testbench is
 
    signal WriteData, DataAdr: STD_LOGIC_VECTOR(31 downto 0);
    signal clk, clkhf, reset, MemWrite, CEN: STD_LOGIC;
-   signal check_flag: boolean := false;  -- Flag to control when to perform mem_check
+   signal check_flag: boolean := false;  -- Holds mem_check off until the startup delay has elapsed.
 
 begin
-   -- instantiate device to be tested
+   -- Device under test.
    dut: MCU
        port map (
            clk => clk,
@@ -32,9 +32,9 @@ begin
            MemWrite => MemWrite
        );
 
-    CEN <= '0'; --enable chip (active low)
+    CEN <= '0'; -- Enable the chip; CEN is active low.
 
-   -- Generate clock with 10 ns period
+   -- Free-running clock, 10 ns period.
    clk_gen: process
    begin
         clk <= '1';
@@ -44,7 +44,7 @@ begin
    end process clk_gen;
 
 
-   -- Generate reset for first two clock cycles
+   -- Hold reset over the first two clock cycles.
    reset_gen: process
    begin
        reset <= '1';
@@ -53,11 +53,11 @@ begin
        wait;
    end process reset_gen;
 
- -- Delay execution of mem_check until after delay
+ -- Give the program 1000 ns to run before mem_check is allowed to judge a write.
  mem_check_delay: process
  begin
      wait for 1000 ns;
-     check_flag <= true;  -- Set flag to true after delay
+     check_flag <= true;  -- Release the checker once the delay has expired.
  end process mem_check_delay;
 
 -- For Behav and Genus
@@ -77,7 +77,8 @@ begin
 --     end process;
 
 -- For Behav and Innovus
-   -- check that value gets written to address 100 at end of program
+   -- Pass condition: the program writes 260 to address 100 at the end of the run.
+   -- Address 96 is the expected intermediate store and is ignored; any other write fails the run.
     process(clk) begin
         if(clk'event and clk = '1' and MemWrite = '1' and check_flag = true) then
             if( to_integer(DataAdr) = 100 and to_integer(Writedata) = 260) then

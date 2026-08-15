@@ -1,4 +1,4 @@
--- RISC-V Testbench Definitions and Functions Package
+-- Shared definitions and helper functions for the RISC-V testbenches.
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.std_logic_arith.all;
@@ -9,15 +9,15 @@ use std.textio.all;
 
 package tb_defs is
 
-    -- Note: All instruction tests passed compressed post genus 
-    -- Note: All Peripheral Tests pass uncompressed post genus except SPI and SPISR - HF glitch on SCK in TB
-    -- Note: All periph test pass compressed post Innovus 
+    -- Note: all instruction tests passed compressed post genus.
+    -- Note: all peripheral tests pass uncompressed post genus except SPI and SPISR, which see an HF glitch on SCK in the TB.
+    -- Note: all peripheral tests pass compressed post Innovus.
 
     
 
 
 
-    -- Function declarations
+    -- Substring probes over the test-file name, plus the pass banner and a file-existence check.
     function contains_gpio1(s : string) return boolean;
     function contains_gpio2(s : string) return boolean;
     function contains_spi(s : string) return boolean;
@@ -35,7 +35,7 @@ end package tb_defs;
 
 package body tb_defs is
 
-    -- Peripheral detection functions - for external MCU routing in TB
+    -- Peripheral detection functions: the TB uses them to pick the external MCU routing for the test being run.
 
     function contains_spifem(s : string) return boolean is
         constant substr : string := "SPIFM";
@@ -134,6 +134,7 @@ package body tb_defs is
     end function; 
 
 
+    -- Probe for a file by opening it read-only, then closing it again if the open succeeded.
     procedure check_file_exists(
             constant filename : in string;
             variable exists : out boolean
@@ -152,6 +153,7 @@ package body tb_defs is
 
 
     
+    -- Banner printed once when a whole run passes.
     function get_pass_logo return string is
     begin
         return LF & 

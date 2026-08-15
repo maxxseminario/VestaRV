@@ -17,19 +17,20 @@ entity CRC16 is
 end CRC16;
 
 architecture behavioral of CRC16 is
-	-- Default uses CRC16_CDMA2000 standard (polynomial = 0xC857, initial CRC value = 0xFFFF, no final XOR (= 0x0000), no data reflection, no output reflection)
-	-- You need to feed the initial value into CrcOld manually
-	-- Does not support input data reflection
-	-- Does not support output data reflection
-	-- Does not support final output XOR
+	-- Default configuration is the CRC16_CDMA2000 standard: polynomial 0xC857, initial CRC 0xFFFF, final XOR 0x0000, no data reflection, no output reflection.
+	-- The initial value must be fed into CrcOld by the caller.
+	-- Input data reflection, output data reflection and a nonzero final output XOR are not supported.
 begin
 
+	-- Combinational byte-wide CRC step: eight LFSR shifts per input byte.
 	process (CrcOld, DataIn)
 		variable LFSR	: std_logic_vector(15 downto 0);
 	begin
+		-- Fold the new byte into the high half of the running CRC.
 		LFSR := (CrcOld(15 downto 8) xor DataIn) & CrcOld(7 downto 0);
 
 		for i in 0 to 7 loop
+			-- Shift left, and subtract the polynomial whenever the bit shifted out was set.
 			if LFSR(15) = '1' then
 				LFSR := (LFSR(14 downto 0) & '0') xor POLYNOMIAL;
 			else

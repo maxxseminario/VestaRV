@@ -1936,7 +1936,7 @@ class ChipGenerator():
 		# Create the preamble
 		s += '-- MemoryMap.vhd\n'
 		s += '-- Memory map VHDL package\n'
-		s += '-- Defines the memory map of the MCU, including which RAM and peripheral slots are activated, as well as which slot each peripheral is allocated to, and the slot each register within each peripheral is allocated to\n'
+		s += '-- Defines the MCU memory map: which RAM and peripheral slots are active, which slot each peripheral occupies, and which slot each register occupies inside its peripheral\n'
 		s += '-- Generated on ' + datetime.datetime.now().strftime('%Y/%m/%d at %H:%M:%S') + ' with the MemoryMap.py memory map generator\n'
 		s += '-- WARNING: Do not edit or modify this file!\n'
 		s += '-- \tIf you need to change it, use the MemoryMap.py memory map generator tool\n'
@@ -2029,11 +2029,9 @@ class ChipGenerator():
 				t.AddRow(['constant RegSlot' + rt.NameTemplate, ': natural := ' + self.fmtint(rt.RegisterMemorySlot) + ';', '-- offset = ' + str(rt.RegisterMemorySlot * 4) + ' bytes'], prefixTabs=1)
 			if pt.NameTemplate == 'GPIOx':
 				t.AddBlankLine()
-				t.AddLine('-- Number of alternate-function planes per GPIO pin (AF0..AF' + str(self.GpioNumAfs - 1) + '). PxSEL picks', prefixTabs=1)
-				t.AddLine('-- GPIO vs alternate mode; the pin\'s PxAFS field (one nibble per pin, low', prefixTabs=1)
-				t.AddLine('-- 3 bits used) picks WHICH alternate function drives the pad. AF0 is the', prefixTabs=1)
-				t.AddLine('-- legacy single alternate function, so PxAFS=0 reproduces the historic', prefixTabs=1)
-				t.AddLine('-- behavior and PxSEL-only software is unaffected.', prefixTabs=1)
+				t.AddLine('-- Number of alternate-function planes per GPIO pin (AF0..AF' + str(self.GpioNumAfs - 1) + ').', prefixTabs=1)
+				t.AddLine('-- PxSEL picks GPIO vs alternate mode; the pin\'s PxAFS field (one nibble per pin, low 3 bits used) picks WHICH alternate function drives the pad.', prefixTabs=1)
+				t.AddLine('-- AF0 is the legacy single alternate function, so PxAFS=0 reproduces the historic behavior and PxSEL-only software is unaffected.', prefixTabs=1)
 				t.AddRow(['constant GPIO_NUM_AFS', ': natural := ' + str(self.GpioNumAfs) + ';'], prefixTabs=1)
 			t.AddBlankLine()
 		t.AddBlankLines(2)
@@ -2228,9 +2226,8 @@ class ChipGenerator():
 		c = self.McuMpCompat
 		t = TabbedTable()
 		t.AddLine('---------- MCU_MP Compatibility ----------', prefixTabs=1)
-		t.AddLine('-- Constants the hand-written ' + c['sourceFile'] + ' defines beyond the sections', prefixTabs=1)
-		t.AddLine('-- above. Emitted so this generated package is a drop-in replacement for that file;', prefixTabs=1)
-		t.AddLine('-- transcribed values cite it as their source.', prefixTabs=1)
+		t.AddLine('-- Constants the hand-written ' + c['sourceFile'] + ' defines beyond the sections above.', prefixTabs=1)
+		t.AddLine('-- Emitted so this generated package is a drop-in replacement for that file; transcribed values cite it as their source.', prefixTabs=1)
 		t.AddBlankLine()
 
 		# Memory block slot assignments
@@ -2250,8 +2247,7 @@ class ChipGenerator():
 					raise Exception('MCU_MP compat: legacy slot ' + str(p.LegacySlot) + ' claimed by both ' + periphBySlot[p.LegacySlot].Name + ' and ' + p.Name)
 				periphBySlot[p.LegacySlot] = p
 
-		t.AddLine('-- Peripheral legacy slot numbers (RTL spelling; slots of moved peripherals are', prefixTabs=1)
-		t.AddLine('-- still used to zero their dead 0x4000-page windows)', prefixTabs=1)
+		t.AddLine('-- Peripheral legacy slot numbers (RTL spelling; slots of moved peripherals are still used to zero their dead 0x4000-page windows)', prefixTabs=1)
 		spelling = c['periphSlotSpelling']
 		rtlSlotNames = {}	# slot -> RTL constant-name suffix
 		for i in range(self.PeripheralMemorySlotCount):

@@ -1,4 +1,8 @@
 
+-- irq_handler: the vesta core's vectored interrupt controller.
+-- It picks the highest-priority enabled request, runs the context save handshake with the core, hands over the IVT entry address, and runs the restore handshake at end of interrupt.
+-- Priority is the irq_pri bit first (1 beats 0), then the lower source index.
+-- Recursion (preemption of a running ISR by a higher-priority source) is enabled by irq_recursion_en; with it low, one ISR runs to completion before any other is admitted.
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
@@ -24,7 +28,7 @@ entity irq_handler is
         irq             : in  std_logic_vector(NUM_IRQS-1 downto 0);  -- Interrupt request lines
         irq_en          : in  std_logic_vector(NUM_IRQS-1 downto 0);  -- Interrupt enable mask
         irq_pri         : in  std_logic_vector(NUM_IRQS-1 downto 0);  -- Priority (1=high, 0=low)
-        irq_recursion_en: in  std_logic;                              -- Enable interrupt recursion (1=enabled, 0=disabled)
+        irq_recursion_en: in  std_logic;                              -- Enable interrupt recursion, i.e. preemption (1=enabled, 0=disabled)
         
         -- ==========================================
         -- CPU Interface
@@ -55,7 +59,7 @@ architecture behavioral of irq_handler is
         IRQ_REST,          -- Begin context restore
         WAIT_RESTORE_ACK,  -- Wait for CPU to acknowledge restore
         DECIDE_NEXT,       -- Determine next action after restore
-        DIRECT_JUMP        -- Direct jump to next IRQ (unused in current logic)
+        DIRECT_JUMP        -- Direct jump to the next IRQ without a restore; unreachable in the current next-state logic
     );
     
     -- ==========================================
@@ -110,11 +114,11 @@ architecture behavioral of irq_handler is
         return std_logic_vector(to_unsigned(val, width));
     end function;
     
-    -- Check if IRQ A has higher priority than IRQ B
-    -- Returns true if A has higher priority (considers priority bit and index)
+    -- Returns true when IRQ A outranks IRQ B, comparing the priority bit first and then the source index.
     function has_higher_priority(irq_a : integer; irq_b : integer; 
                                  pri_vec : std_logic_vector) return boolean is
     begin
+        -- NUM_IRQS is the "no IRQ" sentinel, so an out-of-range index never outranks anything.
         if irq_a >= NUM_IRQS or irq_b >= NUM_IRQS then
             return false;
         end if;
@@ -129,7 +133,7 @@ architecture behavioral of irq_handler is
         end if;
     end function;
     
-    -- Count number of '1's in a vector
+    -- Count the '1' bits in a vector, used for the in-service nesting depth.
     function count_ones(vec : std_logic_vector) return integer is
         variable count : integer := 0;
     begin
@@ -150,7 +154,7 @@ begin
     process(irq, irq_en, irqs_in_service, irq_recursion_en, single_isr_active)
     begin
         if irq_recursion_en = '1' then
-            -- Recursive mode: original behavior - mask out IRQs that are already being serviced
+            -- Recursive mode: mask out only the IRQs already being serviced.
             pending_irqs_comb <= irq and irq_en and (not irqs_in_service);
         else
             -- Non-recursive mode: mask all IRQs if any ISR is active
@@ -188,8 +192,7 @@ begin
         is_servicing := (current_state = WAIT_EOI or current_state = CHECK_NESTED) 
                        and latched_irq < NUM_IRQS;
         
-        -- First pass: Find highest priority pending interrupt
-        -- Priority 1: Check high priority interrupts (pri bit = 1)
+        -- First pass, part 1: take the lowest-index pending source whose priority bit is 1.
         for i in 0 to NUM_IRQS-1 loop
             if pending_irqs_comb(i) = '1' and irq_pri(i) = '1' and not found then
                 temp_irq := i;
@@ -197,7 +200,7 @@ begin
             end if;
         end loop;
         
-        -- Priority 2: Check normal priority interrupts if no high priority found
+        -- First pass, part 2: fall back to the lowest-index pending source of normal priority.
         if not found then
             for i in 0 to NUM_IRQS-1 loop
                 if pending_irqs_comb(i) = '1' and not found then
@@ -207,23 +210,23 @@ begin
             end loop;
         end if;
         
-        -- Second pass: Check if found IRQ can preempt current ISR
+        -- Second pass: decide whether the winner may preempt the ISR already running.
         if found and is_servicing then
             if irq_recursion_en = '1' then
-                -- Recursive mode: check for higher priority
+                -- Recursive mode: only a strictly higher priority source preempts.
                 if has_higher_priority(temp_irq, latched_irq, irq_pri) then
                     higher_priority_pending <= '1';
                 else
-                    -- Don't report lower/equal priority IRQs while servicing
+                    -- Lower or equal priority is not reported while an ISR is running.
                     if not is_servicing then
                         null;  -- Keep the found interrupt
                     else
-                        temp_irq := NUM_IRQS;  -- Ignore lower/equal priority
+                        temp_irq := NUM_IRQS;  -- Ignore lower or equal priority
                         found := false;
                     end if;
                 end if;
             else
-                -- Non-recursive mode: no preemption allowed
+                -- Non-recursive mode: no preemption allowed.
                 temp_irq := NUM_IRQS;
                 found := false;
             end if;
@@ -232,7 +235,7 @@ begin
         highest_priority_irq_comb <= temp_irq;
     end process;
 
-    -- IRQ found indicator
+    -- IRQ found indicator: MAX_IRQ_VALUE is the "nothing selected" sentinel.
     irq_found <= '0' when highest_priority_irq_comb = MAX_IRQ_VALUE else '1';
     
     -- ==========================================
@@ -289,7 +292,7 @@ begin
                     end if;
                     
                 when JUMP_TO_IVT =>
-                    -- Jump cycle - no special action needed
+                    -- Jump cycle: the output logic drives ivt_jump, nothing to latch here.
                     null;
                     
                 when CHECK_NESTED =>
@@ -298,7 +301,7 @@ begin
                         latched_irq <= highest_priority_irq_reg;
                         irqs_in_service(highest_priority_irq_reg) <= '1';
                         nesting_count <= nesting_count + 1;
-                        context_saved <= '0';  -- Need new context save
+                        context_saved <= '0';  -- The preempting ISR needs its own context save
                     end if;
                     
                 when WAIT_EOI =>
@@ -340,26 +343,26 @@ begin
                         single_isr_active <= '0';  -- Clear ISR active flag
                     end if;
                     
-                when DIRECT_JUMP =>  
-                    -- Direct jump to next IRQ (currently unused path)
+                when DIRECT_JUMP =>
+                    -- Direct jump to the next IRQ; unreachable path, kept for completeness.
                     if highest_priority_irq_reg < NUM_IRQS then
                         latched_irq <= highest_priority_irq_reg;
                         irqs_in_service(highest_priority_irq_reg) <= '1';
                     end if;
                     
                 when others =>
+                    -- No latched action in the remaining states.
                     null;
             end case;
-            
-            -- Handle End-Of-Interrupt
+
+            -- End of interrupt: the core executed an ISR return.
             if current_state = WAIT_EOI and isr_ret = '1' then
-                -- Clear the in-service flag for completed IRQ
+                -- Clear the in-service flag for the completed IRQ.
                 if latched_irq < NUM_IRQS then
                     irqs_in_service(latched_irq) <= '0';
                 end if;
                 
-                -- In non-recursive mode, clear active flag only when no more interrupts
-                -- This will be properly handled in DECIDE_NEXT state
+                -- In non-recursive mode the active flag is cleared only when nothing is left pending, which DECIDE_NEXT handles.
             end if;
         end if;
     end process;
@@ -377,7 +380,7 @@ begin
     begin
         next_state <= current_state;  -- Default: stay in current state
         
-        -- Check for any unserviced pending IRQs
+        -- Look for a pending IRQ that is not already in service.
         any_irq_pending := false;
         for i in 0 to NUM_IRQS-1 loop
             if pending_irqs_reg(i) = '1' and irqs_in_service(i) = '0' then
@@ -385,7 +388,7 @@ begin
             end if;
         end loop;
         
-        -- Count active interrupt services
+        -- Current nesting depth, i.e. how many ISRs are open.
         in_service_count := count_ones(irqs_in_service);
         
         case current_state is
@@ -396,7 +399,7 @@ begin
                 end if;
 
             when ISR_TRIGGERED =>
-                -- Initiate context save
+                -- Drive the context-save request and wait for the core to acknowledge.
                 if irq_save_ack = '1' then
                     next_state <= JUMP_TO_IVT;
                 elsif context_saved = '0' then
@@ -416,7 +419,7 @@ begin
                 next_state <= WAIT_EOI;
                 
             when CHECK_NESTED =>
-                -- Handle nested interrupts (only if recursion enabled)
+                -- Admit the preempting source, or fall back to waiting on the current ISR.
                 if irq_recursion_en = '1' and higher_priority_pending = '1' and irq_found_reg = '1' then
                     next_state <= ISR_TRIGGERED;
                 else
@@ -426,7 +429,7 @@ begin
             when WAIT_EOI =>
                 -- Wait for ISR completion or preemption
                 if irq_recursion_en = '1' and higher_priority_pending = '1' and irq_found_reg = '1' then
-                    -- Higher priority interrupt arrived (recursive mode only)
+                    -- A higher priority interrupt arrived; recursive mode only.
                     next_state <= CHECK_NESTED;
                 elsif isr_ret = '1' then
                     -- ISR completed
@@ -446,23 +449,24 @@ begin
                 end if;
                 
             when DECIDE_NEXT =>
-                -- Determine next action - same logic for both modes
+                -- Same decision in both modes: resume the outer ISR, or go back to IDLE.
                 if in_service_count > 1 then
-                    -- Return to previous nested ISR (only happens in recursive mode)
+                    -- Return to the ISR we preempted; recursive mode only.
                     next_state <= WAIT_EOI;
                 elsif any_irq_pending then
-                    -- Service next interrupt (return to IDLE to allow one instruction)
+                    -- Service the next interrupt, via IDLE so the core retires one instruction first.
                     next_state <= IDLE;
                 else
-                    -- All interrupts complete
+                    -- All interrupts complete.
                     next_state <= IDLE;
                 end if;
-                
-            when DIRECT_JUMP =>  
-                -- Direct jump path (currently unused)
+
+            when DIRECT_JUMP =>
+                -- Direct jump path, unreachable in the current logic.
                 next_state <= JUMP_TO_IVT;
-                
+
             when others =>
+                -- Any undefined state falls back to IDLE.
                 next_state <= IDLE;
         end case;
     end process;
@@ -483,7 +487,7 @@ begin
     ivt_jump <= '1' when (current_state = JUMP_TO_IVT or 
                          current_state = DIRECT_JUMP) else '0';
     
-    -- Calculate interrupt vector address
+    -- IVT entry address: one 4-byte slot per source, off IVT_BASE_ADDR.
     ivt_entry <= int_to_slv(IVT_BASE_ADDR + (latched_irq * 4), 32) 
                 when latched_irq < NUM_IRQS else (others => '0');
     

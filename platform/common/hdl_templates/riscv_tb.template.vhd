@@ -14,9 +14,8 @@ use work.tb_defs.all;
 
 entity riscv_tb is
     generic (
-        -- M12: the tile-TCM preload (HART_RAM0_INIT) is retired — every hart
-        -- boots from the shared ROM like silicon; tests load tiles through
-        -- the bootrom's msip loader mailboxes.
+        -- M12: the tile-TCM preload (HART_RAM0_INIT) is retired, every hart boots from the shared ROM like silicon.
+        -- Tests load tiles through the bootrom's msip loader mailboxes.
         TEST_FILE : string(1 to 29) := "../rcf/xxxrv32ui-p-simple.rcf"
     );
 end riscv_tb;
@@ -26,7 +25,7 @@ architecture behavioral of riscv_tb is
         port (
             
             -- Resetn Pad
-            resetn_in	: in	std_logic;	-- '0' <= resetn, '1' <= system running
+            resetn_in	: in	std_logic;	-- '0' = reset asserted, '1' = system running
             resetn_out	: out	std_logic;	-- Don't care
             resetn_dir	: out	std_logic;	-- Must be set to input mode
             resetn_ren	: out	std_logic;	-- Set to enable pullup resistor
@@ -81,10 +80,8 @@ end component;
     constant clk_lfxt_delay : time := (0.5 sec) / 32768;	-- 32.768 kHz
     constant clk_hfxt_period : time := clk_hfxt_delay * 2;
     constant clk_lfxt_period : time := clk_lfxt_delay * 2;
-    -- Watchdog: a test that never writes CAFEBABE/DEADBEEF to a0 (e.g. traps on an
-    -- unimplemented instruction and spins) is failed when this fires. Longest known
-    -- legit passing test is ~13.7 ms sim-time, so 100 ms gives ~7x headroom while
-    -- failing tests give up ~100x sooner than the old 10 s value.
+    -- Watchdog: a test that never writes CAFEBABE/DEADBEEF to a0 (e.g. traps on an unimplemented instruction and spins) is failed when this fires.
+    -- The longest known legit passing test is ~13.7 ms sim-time, so 100 ms gives ~7x headroom while failing tests give up ~100x sooner than the old 10 s value.
     constant SIMULATION_TIMEOUT : time := 100000 us;
     
     -- Test control addresses
@@ -270,8 +267,7 @@ end component;
         --@GEN:tb-a0-portmap@
     );
 
-    -- Mission B: GPIO4/GPIO5 (prt5/prt6) have no package pads in this testbench;
-    -- drive their inputs idle-low (benign) — the outputs are left unobserved.
+    -- Mission B: GPIO4/GPIO5 (prt5/prt6) have no package pads in this testbench, so their inputs are driven idle-low (benign) and their outputs are left unobserved.
     prt5_in <= (others => '0');
     prt6_in <= (others => '0');
 
@@ -405,7 +401,7 @@ end component;
     Prt1(pnum_gpio0_lfxt) <= clk_lfxt;
 
     -- SPI Short Connections for testing 
-    -- Should potenitally provide shorts between GPIO0(3 downto 0) and GPIO1 (3 downto 0)
+    -- Should potentially provide shorts between GPIO0(3 downto 0) and GPIO1 (3 downto 0)
     spi_test <= '1' when contains_spi(ram_file_name) else '0';
     uart_test <= '1' when contains_uart(ram_file_name) else '0';
     timer_test <= '1' when contains_timer(ram_file_name) else '0';
@@ -446,9 +442,9 @@ end component;
             end if;
         end loop;
 
-        -- UART Short Connections for testing (pins 4<->7 and 5<->6)
+        -- UART Short Connections for testing (pin 4 shorted to 7, pin 5 shorted to 6)
         if uart_test = '1' and flash_awake = '0' then
-            -- P2.4 <-> P2.7
+            -- P2.4 shorted to P2.7
             if prt2_dir(4) = '0' and prt2_dir(7) = '1' then
                 gpio1_drv_sig(7) <= prt2(4);
                 gpio1_oe_sig(7)  <= '1';
@@ -466,7 +462,7 @@ end component;
                 gpio1_oe_sig(7)  <= '0';
             end if;
 
-            -- P2.5 <-> P2.6
+            -- P2.5 shorted to P2.6
             if prt2_dir(5) = '0' and prt2_dir(6) = '1' then
                 gpio1_drv_sig(6) <= prt2(5);
                 gpio1_oe_sig(6)  <= '1';
@@ -486,7 +482,7 @@ end component;
         end if;
 
         if timer_test = '1' and flash_awake = '0' then
-            -- P2.X <-> P3.X
+            -- P2.X shorted to P3.X
             for i in 0 to 7 loop
                 if prt2_dir(i) = '1' and prt3_dir(i) = '0' then
                     gpio1_drv_sig(i) <= prt3(i);
@@ -508,7 +504,7 @@ end component;
         end if;
 
         if gpio2_test = '1' and flash_awake = '0' then
-            -- P3.X <-> P4.X
+            -- P3.X shorted to P4.X
             for i in 0 to 7 loop
                 if prt3_dir(i) = '1' and prt4_dir(i) = '0' then
                     gpio2_drv_sig(i) <= prt4(i);
@@ -530,7 +526,7 @@ end component;
         end if;
 
         if gpio1_test = '1' and flash_awake = '0' then
-            -- P3.X <-> P2.X
+            -- P3.X shorted to P2.X
             for i in 0 to 7 loop
                 if prt2_dir(i) = '1' and prt3_dir(i) = '0' then
                     gpio1_drv_sig(i) <= prt3(i);
@@ -565,21 +561,15 @@ end component;
         prt4(i) <=  gpio3_drv_sig(i) when gpio3_oe_sig(i) = '1' and (gpio2_test = '1') else 'Z';
     end generate;
 
-    -- I2CT0 loopback (wi2ct): weak 'H' pull-ups on the shared I2C0 home pads
-    -- P4.0 (SDA0) and P4.1 (SCL0) so the open-drain bus idles high, mirroring a
-    -- board's I2C pull-ups. Weak 'H' resolves against the DUT's open-drain
-    -- strong '0' lows; the Verilog pad model's buf() normalizes the weak-high to
-    -- a clean '1' at the MCU input. P4.0/P4.1 only -- every other pad/test is
-    -- untouched (afsel drives P4.0 as a strong GPIO output, which overrides 'H').
+    -- I2CT0 loopback (wi2ct): weak 'H' pull-ups on the shared I2C0 home pads P4.0 (SDA0) and P4.1 (SCL0) so the open-drain bus idles high, mirroring a board's I2C pull-ups.
+    -- Weak 'H' resolves against the DUT's open-drain strong '0' lows, and the Verilog pad model's buf() normalizes the weak-high to a clean '1' at the MCU input.
+    -- P4.0/P4.1 only: every other pad/test is untouched (afsel drives P4.0 as a strong GPIO output, which overrides 'H').
     prt4(0) <= 'H';
     prt4(1) <= 'H';
 
-    -- OW0 DQ bench level (Stage H re-pin, 2026-07-26): OW0's 1-Wire DQ moved
-    -- P6.6 -> P4.7/GPIO31 AF2, and P4.7 is a REAL pad (pad_prt4_gen), so an
-    -- undriven line floats X and only creeps weak-'1' after the vendor model's
-    -- 100 us PullTime. A weak 'L' (never a strong '0' -- it must yield to the
-    -- pad's own driver; never 'H' -- that flips to NOPRES/0xFF) reproduces the
-    -- stuck-low bus wow.S contracts on: presence-always, RX == 0x00.
+    -- OW0 DQ bench level (Stage H re-pin, 2026-07-26): OW0's 1-Wire DQ moved from P6.6 to P4.7/GPIO31 AF2, and P4.7 is a REAL pad (pad_prt4_gen), so an undriven line floats X and only creeps weak-'1' after the vendor model's 100 us PullTime.
+    -- A weak 'L' reproduces the stuck-low bus wow.S contracts on: presence-always, RX == 0x00.
+    -- Never a strong '0' (it must yield to the pad's own driver) and never 'H' (that flips to NOPRES/0xFF).
     prt4(7) <= 'L';
 
     -- Main test sequence
@@ -609,12 +599,9 @@ end component;
 
         wait until (a0_reached_fail or a0_reached_pass or simulation_timeout_flag);
 
-        -- M12: report the tile harts (1-3). They boot from the SHARED ROM and
-        -- park in WFI; ordinary single-hart tests leave them parked (never
-        -- pass NOR fail — expected silence). Multi-hart tests ignite them via
-        -- the bootrom loader mailboxes; hart 0 remains the pass/fail gate and
-        -- a tile FAIL always fails the run (latched — post-PASS corruption
-        -- still counts).
+        -- M12: report the tile harts. They boot from the SHARED ROM and park in WFI, so ordinary single-hart tests leave them parked, neither passing nor failing (expected silence).
+        -- Multi-hart tests ignite them via the bootrom loader mailboxes.
+        -- Hart 0 remains the pass/fail gate and a tile FAIL always fails the run; the verdict is latched, so post-PASS corruption still counts.
         --@GEN:tb-hart-report@
 
         if a0_reached_pass then
@@ -647,8 +634,8 @@ end component;
         end if;
     end process;
 
-    -- M3b/M12: monitor the 3 tile harts. Since M12 they boot from the shared
-    -- ROM and park in WFI until ignited through the bootrom loader mailboxes.
+    -- M3b/M12: monitor the tile harts.
+    -- Since M12 they boot from the shared ROM and park in WFI until ignited through the bootrom loader mailboxes.
     -- Latched so the end-of-test report can confirm pass AND catch any fail.
     monitor_harts: process(resetn, clk)
     begin

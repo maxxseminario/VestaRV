@@ -6,20 +6,17 @@ use ieee.math_real.log2;
 
 package constants is
 
-    -- Core width parameterization (2026-07-18). XLEN is the vesta DATAPATH
-    -- width: registers, ALU operands, addresses, PC, CSR values. ILEN is the
-    -- INSTRUCTION word width — a separate constant because on RV64 it stays 32
-    -- while XLEN doubles; every core width reference is categorized against one
-    -- of these (or a derived width below), never a bare 32. Only XLEN=32 is
-    -- implemented/verified: the SoC fabric (arbiter, tile boundary, peripherals,
-    -- SRAMs) is a fixed 32-bit bus, and the RV64-only instructions/CSR layouts
-    -- do not exist yet. Changing XLEN here is a starting point, not a knob.
+    -- Core width parameterization (2026-07-18).
+    -- XLEN is the vesta DATAPATH width: registers, ALU operands, addresses, PC, CSR values.
+    -- ILEN is the INSTRUCTION word width, a separate constant because on RV64 it stays 32 while XLEN doubles; every core width reference is categorized against one of these (or a derived width below), never a bare 32.
+    -- Only XLEN=32 is implemented and verified: the SoC fabric (arbiter, tile boundary, peripherals, SRAMs) is a fixed 32-bit bus, and the RV64-only instructions and CSR layouts do not exist yet.
+    -- Changing XLEN here is a starting point, not a knob.
     constant XLEN       : natural := 32;              -- datapath/register width
     constant ILEN       : natural := 32;              -- instruction word width (32 even on RV64)
     constant XLEN_BYTES : natural := XLEN / 8;        -- bus byte lanes (wen width)
     constant SHAMT_W    : natural := 5;               -- shift-amount width = ceil_log2(XLEN)
 
-    --Define clock speed (for testing)
+    -- Define clock speed (for testing)
     constant clk_hz : integer := 100e6; --100 MHz
     constant clk_period : time := 1 sec / clk_hz; --10ns
 
@@ -83,19 +80,14 @@ package constants is
 	constant FENCE_FN3       : std_logic_vector(2 downto 0) := "000"; -- FENCE
 	constant FENCE_I_FN3     : std_logic_vector(2 downto 0) := "001"; -- FENCE.I (instruction fence)
 
-    -- X1 Zihintpause: PAUSE = `fence w,0` = 0x0100000F. Its FENCE immediate
-    -- field instr[31:20] = fm(0) | pred(W=0001) | succ(0000) = 0x010. maindec
-    -- detects the exact PAUSE hint on (FENCE_OPCODE, FENCE_FN3, imm12=PAUSE_IMM12)
-    -- gated by ENABLE_ZIHINT; every other FENCE encoding stays an ordering nop.
+    -- X1 Zihintpause: PAUSE = `fence w,0` = 0x0100000F.
+    -- Its FENCE immediate field instr[31:20] = fm(0) | pred(W=0001) | succ(0000) = 0x010.
+    -- maindec detects the exact PAUSE hint on (FENCE_OPCODE, FENCE_FN3, imm12=PAUSE_IMM12) gated by ENABLE_ZIHINT; every other FENCE encoding stays an ordering nop.
     constant PAUSE_IMM12     : std_logic_vector(11 downto 0) := "000000010000"; -- 0x010
 
-    -- X1 Zihintpause side-effect window (decision D6): when ENABLE_ZIHINT, a
-    -- retiring PAUSE holds this hart OUT of the shared-bus request contest for
-    -- this many clk_cpu cycles (its arbiter req stays low while it waits in the
-    -- PAUSE_WAIT state), long enough for a competing hart to win arbitration
-    -- and far below any timeout scale. 0 = no side-effect (PAUSE is a plain
-    -- fence-nop) -- the value the negative-control seed forces to prove the
-    -- directed mp latency test actually observes the window.
+    -- X1 Zihintpause side-effect window (decision D6): when ENABLE_ZIHINT, a retiring PAUSE holds this hart OUT of the shared-bus request contest for this many clk_cpu cycles, its arbiter req staying low while it waits in the PAUSE_WAIT state.
+    -- That is long enough for a competing hart to win arbitration and far below any timeout scale.
+    -- 0 means no side-effect, i.e. PAUSE is a plain fence-nop: the value the negative-control seed forces to prove the directed mp latency test actually observes the window.
     constant PAUSE_WINDOW_CYCLES : natural := 16;
 
     -- Function 7 codes for ALU
@@ -137,64 +129,48 @@ package constants is
     constant AMOMAXU_FN5 : std_logic_vector(4 downto 0) := "11100"; -- Atomic MAX (unsigned)
     constant CAS_FN5     : std_logic_vector(4 downto 0) := "00101"; -- X2 Zacas: Compare-and-Swap (amocas.w/.b/.h)
 
-    -- X1 Zawrs (Wait-on-Reservation-Set). SYSTEM opcode (1110011), funct3=000,
-    -- rs1=x0, rd=x0; distinguished by the 12-bit funct12 (imm12) field. These
-    -- are currently-illegal SYSTEM encodings when ENABLE_ZAWRS is false.
+    -- X1 Zawrs (Wait-on-Reservation-Set): SYSTEM opcode (1110011), funct3=000, rs1=x0, rd=x0, distinguished by the 12-bit funct12 (imm12) field.
+    -- These are currently-illegal SYSTEM encodings when ENABLE_ZAWRS is false.
     constant WRS_NTO_IMM12 : std_logic_vector(11 downto 0) := x"00D"; -- wrs.nto (wait, no timeout)
     constant WRS_STO_IMM12 : std_logic_vector(11 downto 0) := x"01D"; -- wrs.sto (wait, short timeout)
     -- (wrs.sto short-timeout count lives as WRS_TIMEOUT_CYCLES in vesta.vhd.)
 
-    -- X3 Zicboz (cache-block zero — cbo.zero). MISC-MEM/FENCE opcode (0001111),
-    -- funct3=010 (CBO_FN3), rd-field=00000; the imm12 field selects the op:
+    -- X3 Zicboz (cache-block zero, i.e. cbo.zero): MISC-MEM/FENCE opcode (0001111), funct3=010 (CBO_FN3), rd-field=00000, and the imm12 field selects the op:
     --   cbo.zero  = 0x004  (legal only under ENABLE_ZICBOZ)
-    --   cbo.clean = 0x001 / cbo.flush = 0x002 / cbo.inval = 0x000 -> ALWAYS
-    --   ILLEGAL in both polarities (D4; otherwise-reserved MISC-MEM funct3=010).
-    -- Effective address = X[rs1] (no offset); cbo.zero writes 0x00000000 to the
-    -- 16 words of the naturally-aligned CBOZ_BLOCK_SIZE-byte block containing it.
+    --   cbo.clean = 0x001 / cbo.flush = 0x002 / cbo.inval = 0x000 are ALWAYS ILLEGAL in both polarities (D4; otherwise-reserved MISC-MEM funct3=010).
+    -- The effective address is X[rs1] with no offset, and cbo.zero writes 0x00000000 to the 16 words of the naturally-aligned CBOZ_BLOCK_SIZE-byte block containing it.
     constant CBO_FN3         : std_logic_vector(2 downto 0)  := "010";  -- cbo.* funct3 (MISC-MEM)
     constant CBOZ_IMM12      : std_logic_vector(11 downto 0) := x"004"; -- cbo.zero imm[11:0]
-    -- Spec-fixed granule (x35_specs.md §X3.5.1): a future bump is a one-line
-    -- change here (cboz_idx range + base mask in vesta.vhd derive from these).
+    -- Spec-fixed granule (x35_specs.md section X3.5.1): a future bump is a one-line change here, since the cboz_idx range and base mask in vesta.vhd derive from these.
     constant CBOZ_BLOCK_SIZE : natural := 64;                    -- bytes (16 words)
     constant CBOZ_WORDS      : natural := CBOZ_BLOCK_SIZE / 4;   -- word stores per cbo.zero
 
     -- ==========================================================================
     -- X3 Zcmp / Zcmt (compressed push/pop + table jump)
     -- ==========================================================================
-    -- These live in the C2 quadrant funct3=101 slot (the c.fsdsp slot, free on
-    -- this no-F/D core). c_dec.vhd recognises the compressed encodings and, for a
-    -- LEGAL cm.* (generic on + valid fields), emits a fixed-shape 32-bit SENTINEL
-    -- word (below); an illegal cm.* pattern or generic-off leaves dec=0 (illegal),
-    -- so the OFF build is bit-identical. The sentinel is consumed by maindec
-    -- (op = ZCM_SENTINEL_OP -> zcm_op, valid) and by vesta's push/pop/move/jump
-    -- SEQUENCER. All six push/pop/move insns and cm.jt/cm.jalt need multiple
-    -- register writes / a memory burst / a control-flow redirect, so none can be a
-    -- single expanded 32-bit instruction (unlike Zcb) -- they run in the FSM.
+    -- These live in the C2 quadrant funct3=101 slot (the c.fsdsp slot, free on this no-F/D core).
+    -- c_dec.vhd recognises the compressed encodings and, for a LEGAL cm.* (generic on and valid fields), emits the fixed-shape 32-bit SENTINEL word described below; an illegal cm.* pattern or generic-off leaves dec=0 (illegal), so the OFF build is bit-identical.
+    -- The sentinel is consumed by maindec, which turns op = ZCM_SENTINEL_OP into zcm_op plus valid, and by vesta's push/pop/move/jump SEQUENCER.
+    -- All six push/pop/move insns and cm.jt/cm.jalt need multiple register writes, a memory burst, or a control-flow redirect, so none can be a single expanded 32-bit instruction the way a Zcb op is: they run in the FSM.
     --
-    -- Sentinel opcode: bits(1:0) = "10" so NO real decompressed instruction (which
-    -- always ends "11") and no reserved-compressed hole (dec = all-zero, op
-    -- "0000000") can ever collide with it. The ONLY producer of this op pattern is
-    -- c_dec's sentinel synthesis, itself gated on ENABLE_ZCMP/ENABLE_ZCMT -- so a
-    -- raw 32-bit word can never be mistaken for a cm.* (a raw custom-opcode word
-    -- keeps trapping illegal exactly as in the base).
+    -- Sentinel opcode: bits(1:0) = "10" so NO real decompressed instruction (which always ends "11") and no reserved-compressed hole (dec = all-zero, op "0000000") can ever collide with it.
+    -- The ONLY producer of this op pattern is c_dec's sentinel synthesis, itself gated on ENABLE_ZCMP/ENABLE_ZCMT, so a raw 32-bit word can never be mistaken for a cm.* (a raw custom-opcode word keeps trapping illegal exactly as in the base).
     constant ZCM_SENTINEL_OP : std_logic_vector(6 downto 0) := "0101010"; -- Zcmp/Zcmt sentinel opcode (bits 1:0 = 10)
     -- Sub-op selector, carried in sentinel bits(14:12) (the funct3 field position):
     constant ZCM_SUB_PUSH    : std_logic_vector(2 downto 0) := "000"; -- cm.push
     constant ZCM_SUB_POP     : std_logic_vector(2 downto 0) := "001"; -- cm.pop
     constant ZCM_SUB_POPRET  : std_logic_vector(2 downto 0) := "010"; -- cm.popret
     constant ZCM_SUB_POPRETZ : std_logic_vector(2 downto 0) := "011"; -- cm.popretz
-    constant ZCM_SUB_MVSA01  : std_logic_vector(2 downto 0) := "100"; -- cm.mvsa01 (a0/a1 -> s-regs)
-    constant ZCM_SUB_MVA01S  : std_logic_vector(2 downto 0) := "101"; -- cm.mva01s (s-regs -> a0/a1)
+    constant ZCM_SUB_MVSA01  : std_logic_vector(2 downto 0) := "100"; -- cm.mvsa01 (a0/a1 into the s-regs)
+    constant ZCM_SUB_MVA01S  : std_logic_vector(2 downto 0) := "101"; -- cm.mva01s (s-regs into a0/a1)
     constant ZCM_SUB_TABJUMP : std_logic_vector(2 downto 0) := "110"; -- cm.jt / cm.jalt (index selects)
-    -- The original 16-bit compressed instruction is embedded in sentinel(31:16),
-    -- so vesta slices the operand fields directly at their spec bit positions:
+    -- The original 16-bit compressed instruction is embedded in sentinel(31:16), so vesta slices the operand fields directly at their spec bit positions:
     --   rlist = i16(7:4)  = sentinel(23:20)     spimm = i16(3:2) = sentinel(19:18)
     --   sreg1 = i16(9:7)  = sentinel(25:23)     sreg2 = i16(4:2) = sentinel(20:18)
     --   index = i16(9:2)  = sentinel(25:18)
-    -- rlist -> reg count (Zcmp): rlist 4..14 -> rlist-3 regs; rlist 15 -> 13 regs
-    -- (adds s10+s11); rlist 0..3 are reserved (c_dec emits illegal). stack_adj =
-    -- stack_adj_base + spimm*16; base 16 (rlist 4-7) / 32 (8-11) / 48 (12-14) /
-    -- 64 (15). Zcmt table = 256 x 32b at {jvt[31:6],6'b0}; target = mem[base+idx*4].
+    -- rlist gives the Zcmp reg count: rlist 4..14 means rlist-3 regs, rlist 15 means 13 regs (it adds s10 and s11), and rlist 0..3 are reserved (c_dec emits illegal).
+    -- stack_adj = stack_adj_base + spimm*16, with base 16 (rlist 4-7) / 32 (8-11) / 48 (12-14) / 64 (15).
+    -- The Zcmt table is 256 x 32b at {jvt[31:6],6'b0}; target = mem[base+idx*4].
 
 
 	-- RV32 Zba (Bit Manipulation - Address Generation) constants (R-type instructions)
@@ -259,7 +235,7 @@ package constants is
     constant PACK_FN7    : std_logic_vector(6 downto 0)  := "0000100";      -- pack / packh (R-type)
     constant PACK_FN3    : std_logic_vector(2 downto 0)  := "100";          -- pack
     constant PACKH_FN3   : std_logic_vector(2 downto 0)  := "111";          -- packh
-    -- brev8/zip/unzip are OP-IMM (funct7+rs2 fixed -> imm12 = instr[31:20]).
+    -- brev8/zip/unzip are OP-IMM: funct7 and rs2 are fixed, so imm12 = instr[31:20].
     constant BREV8_IMM12 : std_logic_vector(11 downto 0) := "011010000111"; -- brev8 (0x687: funct7=0110100,rs2=00111,funct3=101)
     constant ZIP_IMM12   : std_logic_vector(11 downto 0) := "000010001111"; -- zip   (0x08F: funct7=0000100,rs2=01111,funct3=001)
     constant UNZIP_IMM12 : std_logic_vector(11 downto 0) := "000010001111"; -- unzip (0x08F: funct7=0000100,rs2=01111,funct3=101)
@@ -275,11 +251,9 @@ package constants is
     constant CZERO_EQZ_FN3 : std_logic_vector(2 downto 0) := "101";     -- czero.eqz: rd = (rs2==0) ? 0 : rs1
     constant CZERO_NEZ_FN3 : std_logic_vector(2 downto 0) := "111";     -- czero.nez: rd = (rs2!=0) ? 0 : rs1
 
-    -- RV32 Zknd/Zkne (AES-32) constants (X3). OP opcode 0110011, funct3=000, with
-    -- instruction bits 31..30 = bs (the byte-select, a SEPARATE ALU input) and
-    -- bits 29..25 = funct5 (funct7(4 downto 0)). All four ops share funct3=000; the
-    -- funct5 field selects the operation and bs is a don't-care in decode (all four
-    -- bs values legal). Authoritative from riscv-opcodes rv32_zknd / rv32_zkne.
+    -- RV32 Zknd/Zkne (AES-32) constants (X3): OP opcode 0110011, funct3=000, with instruction bits 31..30 = bs (the byte-select, a SEPARATE ALU input) and bits 29..25 = funct5 (funct7(4 downto 0)).
+    -- All four ops share funct3=000, the funct5 field selects the operation, and bs is a don't-care in decode, so all four bs values are legal.
+    -- Authoritative from riscv-opcodes rv32_zknd / rv32_zkne.
     constant AES_FN3       : std_logic_vector(2 downto 0) := "000";     -- funct3 for all aes32* ops
     constant AES32ESI_FN5  : std_logic_vector(4 downto 0) := "10001";   -- aes32esi  (encrypt, SubBytes only)
     constant AES32ESMI_FN5 : std_logic_vector(4 downto 0) := "10011";   -- aes32esmi (encrypt, SubBytes + MixColumns)
@@ -288,11 +262,9 @@ package constants is
     -- ==========================================
     -- RV32 Zknh (SHA-256 / SHA-512) scalar-crypto constants (X3 Stage B)
     -- ==========================================
-    -- SHA-256 sigma/sum: UNARY, OP-IMM opcode (I_ARITH_OPCODE), funct3=001,
-    -- bits[31:25]=0001000 (SHA256_FN7); the rs2-field (imm12[4:0]) selects the op.
-    -- Encoded here as the full 12-bit funct12 (imm12 = 0001000_<rs2field>) so the
-    -- alu_control emitter can match it exactly (and take priority over SLLI).
-    -- Authoritative: riscv-opcodes rv32_zknh / ratified Zknh spec.
+    -- SHA-256 sigma/sum: UNARY, OP-IMM opcode (I_ARITH_OPCODE), funct3=001, bits[31:25]=0001000 (SHA256_FN7), and the rs2-field (imm12[4:0]) selects the op.
+    -- Encoded here as the full 12-bit funct12 (imm12 = 0001000_<rs2field>) so the alu_control emitter can match it exactly and take priority over SLLI.
+    -- Authoritative: riscv-opcodes rv32_zknh and the ratified Zknh spec.
     constant SHA256_FN3       : std_logic_vector(2 downto 0)  := "001";           -- OP-IMM funct3 for sha256*
     constant SHA256_FN7       : std_logic_vector(6 downto 0)  := "0001000";       -- bits[31:25] for sha256*
     constant SHA256SUM0_IMM12 : std_logic_vector(11 downto 0) := "000100000000";  -- rs2field=00000
@@ -300,8 +272,8 @@ package constants is
     constant SHA256SIG0_IMM12 : std_logic_vector(11 downto 0) := "000100000010";  -- rs2field=00010
     constant SHA256SIG1_IMM12 : std_logic_vector(11 downto 0) := "000100000011";  -- rs2field=00011
 
-    -- SHA-512 sigma/sum (RV32): BINARY, OP opcode (R_OPCODE), funct3=000, full
-    -- funct7 selects the op (bits[31:30]=01). rs1,rs2 supply the two 32-bit halves.
+    -- SHA-512 sigma/sum (RV32): BINARY, OP opcode (R_OPCODE), funct3=000, and the full funct7 selects the op (bits[31:30]=01).
+    -- rs1 and rs2 supply the two 32-bit halves.
     constant SHA512_FN3       : std_logic_vector(2 downto 0)  := "000";           -- OP funct3 for sha512*
     constant SHA512SUM0R_FN7  : std_logic_vector(6 downto 0)  := "0101000";       -- funct5=01000
     constant SHA512SUM1R_FN7  : std_logic_vector(6 downto 0)  := "0101001";       -- funct5=01001
@@ -320,13 +292,11 @@ package constants is
     constant CSRRSI_FN3  : std_logic_vector(2 downto 0) := "110"; -- CSR Read and Set Immediate
     constant CSRRCI_FN3  : std_logic_vector(2 downto 0) := "111"; -- CSR Read and Clear Immediate
 
-    -- Zimop may-be-operations (mop.r.N / mop.rr.N) share this SYSTEM funct3;
-    -- it is not a CSR/PRIV funct3, so it is a decode hole today (X1 Zimop).
-    -- Authoritative encoding (riscv-opcodes rv_zimop): SYSTEM opcode, funct3=100,
-    -- bit31=1, bits29..28=00, bit25=0 -> mop.r (bits25..22=0111), bit25=1 -> mop.rr.
+    -- Zimop may-be-operations (mop.r.N / mop.rr.N) share this SYSTEM funct3; it is not a CSR or PRIV funct3, so it is a decode hole today (X1 Zimop).
+    -- Authoritative encoding (riscv-opcodes rv_zimop): SYSTEM opcode, funct3=100, bit31=1, bits29..28=00, and bit25 picks the form, 0 giving mop.r (bits25..22=0111) and 1 giving mop.rr.
     constant MOP_FN3     : std_logic_vector(2 downto 0) := "100"; -- Zimop mop.r/mop.rr funct3
     
-    -- Minimal CSR addresses - only performance counters
+    -- Minimal CSR addresses: only performance counters
     -- Machine Information Registers (Read-only)
     constant CSR_MHARTID    : std_logic_vector(11 downto 0) := x"F14"; -- Hart ID (0 in single-core; unique per hart in MCU_MP)
     -- ID3: the rest of the machine-information block; all four read ZERO (R-DID1).
@@ -349,11 +319,9 @@ package constants is
     constant CSR_TIMEH      : std_logic_vector(11 downto 0) := x"C81"; -- Timer high (often memory-mapped)
     constant CSR_INSTRETH   : std_logic_vector(11 downto 0) := x"C82"; -- Instructions retired high
 
-    -- X1 Zihpm: hardware performance-monitor CSRs. Counters 3/4 are real 64-bit
-    -- event counters when ENABLE_ZIHPM; counters 5-31 are hardwired zero. The
-    -- full ranges (0xB03-0xB1F/0xB83-0xB9F machine, 0x323-0x33F event selectors,
-    -- 0xC03-0xC1F/0xC83-0xC9F user-view) are LEGAL CSR addresses (csr_valid map)
-    -- so unimplemented indices read-zero/write-ignore WITHOUT an illegal trap.
+    -- X1 Zihpm: hardware performance-monitor CSRs.
+    -- Counters 3 and 4 are real 64-bit event counters when ENABLE_ZIHPM; counters 5-31 are hardwired zero.
+    -- The full ranges (0xB03-0xB1F/0xB83-0xB9F machine, 0x323-0x33F event selectors, 0xC03-0xC1F/0xC83-0xC9F user-view) are LEGAL CSR addresses in the csr_valid map, so unimplemented indices read zero and ignore writes WITHOUT an illegal trap.
     constant CSR_MCOUNTINHIBIT : std_logic_vector(11 downto 0) := x"320"; -- Counter-inhibit (bits 3/4 gate hpm3/4; 0/2 gate mcycle/minstret)
     constant CSR_MCOUNTEREN    : std_logic_vector(11 downto 0) := x"306"; -- Counter-enable (M-mode-only core: read-zero/write-ignore)
     constant CSR_MHPMEVENT3    : std_logic_vector(11 downto 0) := x"323"; -- Event selector for mhpmcounter3
@@ -367,21 +335,17 @@ package constants is
     constant CSR_HPMCOUNTER3H  : std_logic_vector(11 downto 0) := x"C83"; -- User-view perf counter 3 high
     constant CSR_HPMCOUNTER4H  : std_logic_vector(11 downto 0) := x"C84"; -- User-view perf counter 4 high
 
-    -- X3 Zcmt: jump-vector-table base CSR. Address 0x017, permission URW. On this
-    -- M-mode-only core URW = accessible. WARL: mode = bits(5:0) pinned 0 (only Jump
-    -- Table Mode), base = bits(31:6) writable (64-byte aligned table). Routed
-    -- through the csr_valid map so a read/write is illegal when ENABLE_ZCMT is off.
+    -- X3 Zcmt: jump-vector-table base CSR at address 0x017, permission URW, which on this M-mode-only core means accessible.
+    -- WARL: mode = bits(5:0) pinned 0 (only Jump Table Mode), base = bits(31:6) writable (64-byte aligned table).
+    -- Routed through the csr_valid map so a read or write is illegal when ENABLE_ZCMT is off.
     constant CSR_JVT           : std_logic_vector(11 downto 0) := x"017"; -- Zcmt jump-vector-table base (URW)
 
     -- ==========================================================================
     -- P1 privileged architecture: standard M-mode trap CSRs (ENABLE_TRAPCSR)
     -- ==========================================================================
-    -- LEGAL only when ENABLE_TRAPCSR (maindec csr_addr_valid gates all ten);
-    -- otherwise every one of these addresses is an unknown CSR -> illegal
-    -- instruction, the OFF polarity the P0 privprobe poisons pin. Field/WARL
-    -- behaviour is frozen in ~/vesta_docs/priv_arch/p0_specs.md 2.1 and
-    -- implemented in csr_unit.vhd. mtrapctl is the custom M-mode R/W CSR that
-    -- selects legacy (irq_handler/IVT) vs standard (mtvec) trap delivery.
+    -- LEGAL only when ENABLE_TRAPCSR (maindec csr_addr_valid gates all ten); otherwise every one of these addresses is an unknown CSR and traps illegal instruction, the OFF polarity the P0 privprobe poisons pin.
+    -- Field and WARL behaviour is frozen in ~/vesta_docs/priv_arch/p0_specs.md 2.1 and implemented in csr_unit.vhd.
+    -- mtrapctl is the custom M-mode R/W CSR that selects legacy (irq_handler/IVT) against standard (mtvec) trap delivery.
     constant CSR_MSTATUS   : std_logic_vector(11 downto 0) := x"300"; -- MIE(3)/MPIE(7)/MPP(12:11) WARL {11}; other bits read 0
     constant CSR_MSTATUSH  : std_logic_vector(11 downto 0) := x"310"; -- RV32 high half: legal, read-zero / write-ignore
     constant CSR_MTVEC     : std_logic_vector(11 downto 0) := x"305"; -- BASE(31:2) R/W; MODE(1:0) WARL {00} (direct only)
@@ -396,16 +360,11 @@ package constants is
     -- ==========================================================================
     -- D1 debug mode: the Debug-Mode CSR block 0x7B0-0x7B3 (ENABLE_DEBUG)
     -- ==========================================================================
-    -- ACCESSIBLE ONLY IN DEBUG MODE. Two asymmetric rules implement that, and
-    -- the asymmetry is deliberate (d1_spec.md 1, D0/P2 1.4):
-    --   ADMIT NARROW -- maindec's csr_addr_valid names these FOUR addresses as
-    --     explicit equalities under ENABLE_DEBUG, so 0x7B4-0x7BF keep trapping
-    --     in every build (the ID3 identity-CSR precedent).
-    --   DENY WIDE -- maindec's dbg_csr_denied blocks the WHOLE imm12(11:4)=0x7B
-    --     nibble whenever debug_mode = '0', UNGATED by ENABLE_DEBUG, so a
-    --     future fifth debug CSR cannot be admitted without also being denied.
-    -- The denial is purely combinational: it adds no state and therefore cannot
-    -- move the genus `sequential` pin in either knob polarity.
+    -- ACCESSIBLE ONLY IN DEBUG MODE.
+    -- Two asymmetric rules implement that, and the asymmetry is deliberate (d1_spec.md 1, D0/P2 1.4):
+    --   ADMIT NARROW: maindec's csr_addr_valid names these FOUR addresses as explicit equalities under ENABLE_DEBUG, so 0x7B4-0x7BF keep trapping in every build (the ID3 identity-CSR precedent).
+    --   DENY WIDE: maindec's dbg_csr_denied blocks the WHOLE imm12(11:4)=0x7B nibble whenever debug_mode = '0', UNGATED by ENABLE_DEBUG, so a future fifth debug CSR cannot be admitted without also being denied.
+    -- The denial is purely combinational: it adds no state and therefore cannot move the genus `sequential` pin in either knob polarity.
     constant CSR_DCSR      : std_logic_vector(11 downto 0) := x"7B0"; -- xdebugver(31:28)=4 RO, ebreakm(15), ebreaku(12), cause(8:6) RO, step(2), prv(1:0)
     constant CSR_DPC       : std_logic_vector(11 downto 0) := x"7B1"; -- bit0 always 0; bit1 writable iff ENABLE_COMPRESSED (the mepc WARL shape)
     constant CSR_DSCRATCH0 : std_logic_vector(11 downto 0) := x"7B2"; -- full 32-bit R/W scratch (debug mode only)
@@ -414,25 +373,15 @@ package constants is
     -- ==========================================================================
     -- P3 privileged architecture: PMP (Smpmp) CSR bank (ENABLE_PMP)
     -- ==========================================================================
-    -- LEGAL only when ENABLE_PMP (maindec csr_addr_valid admits 0x3A0-0x3A3 and
-    -- 0x3B0-0x3BF as one gated range pair); otherwise every one of these twenty
-    -- addresses is an unknown CSR -> illegal instruction, the OFF polarity.
-    -- Field/WARL/lock behaviour is frozen in
-    -- ~/vesta_docs/priv_arch/p0_specs.md 4/4.1 and implemented in csr_unit.vhd:
-    --   pmpcfg<n> packs FOUR entry cfg bytes (entry 4n+j = bits 8j+7 downto 8j);
-    --   cfg byte = R(0) W(1) X(2) A(4:3) L(7), bits 6:5 WARL 0, W pinned 0 when
-    --   R=0, A in {OFF=00, TOR=01, NA4=10, NAPOT=11} (G=0, all four legal).
-    --   pmpaddr<i> stores bits 29:0 only (= physical address 31:2); bits 31:30
-    --   are WARL 0 (they would name phys bits 33:32, beyond this 32-bit fabric).
-    --   L=1 makes that entry's cfg byte AND pmpaddr<i> write-ignored until
-    --   reset; an entry i locked with A=TOR also write-locks pmpaddr<i-1>.
-    -- With PMP_ENTRIES = 8 the upper half (pmpcfg2/3, pmpaddr8-15) stays LEGAL
-    -- but has no storage: WARL all-zero, write-ignore.
-    -- The ADDRESSES ARE CONTIGUOUS BY CONSTRUCTION (0x3A0+n, 0x3B0+i) -- the
-    -- csr_addr_valid map uses unsigned range compares over these endpoints,
-    -- while the csr_unit WRITE arms are EXACTLY decoded, one arm per constant
-    -- (p0_specs.md 4.1: the csr_valid AND csr_addr_valid gate is
-    -- defense-in-depth, never license for a wide write-arm decode).
+    -- LEGAL only when ENABLE_PMP (maindec csr_addr_valid admits 0x3A0-0x3A3 and 0x3B0-0x3BF as one gated range pair); otherwise every one of these twenty addresses is an unknown CSR and traps illegal instruction, the OFF polarity.
+    -- Field, WARL and lock behaviour is frozen in ~/vesta_docs/priv_arch/p0_specs.md 4/4.1 and implemented in csr_unit.vhd:
+    --   pmpcfg<n> packs FOUR entry cfg bytes (entry 4n+j = bits 8j+7 downto 8j).
+    --   cfg byte = R(0) W(1) X(2) A(4:3) L(7), bits 6:5 WARL 0, W pinned 0 when R=0, A in {OFF=00, TOR=01, NA4=10, NAPOT=11} (G=0, all four legal).
+    --   pmpaddr<i> stores bits 29:0 only, which are physical address bits 31:2; bits 31:30 are WARL 0 (they would name phys bits 33:32, beyond this 32-bit fabric).
+    --   L=1 makes that entry's cfg byte AND pmpaddr<i> write-ignored until reset; an entry i locked with A=TOR also write-locks pmpaddr<i-1>.
+    -- With PMP_ENTRIES = 8 the upper half (pmpcfg2/3, pmpaddr8-15) stays LEGAL but has no storage: WARL all-zero, write-ignore.
+    -- The ADDRESSES ARE CONTIGUOUS BY CONSTRUCTION (0x3A0+n, 0x3B0+i), so the csr_addr_valid map uses unsigned range compares over these endpoints while the csr_unit WRITE arms are EXACTLY decoded, one arm per constant.
+    -- p0_specs.md 4.1: the csr_valid AND csr_addr_valid gate is defense-in-depth, never license for a wide write-arm decode.
     constant CSR_PMPCFG0   : std_logic_vector(11 downto 0) := x"3A0"; -- entries 0-3   cfg bytes
     constant CSR_PMPCFG1   : std_logic_vector(11 downto 0) := x"3A1"; -- entries 4-7   cfg bytes
     constant CSR_PMPCFG2   : std_logic_vector(11 downto 0) := x"3A2"; -- entries 8-11  cfg bytes
@@ -454,47 +403,36 @@ package constants is
     constant CSR_PMPADDR14 : std_logic_vector(11 downto 0) := x"3BE";
     constant CSR_PMPADDR15 : std_logic_vector(11 downto 0) := x"3BF"; -- entry 15 address
 
-    -- PMP cfg-byte field encodings (shared by csr_unit's WARL masking and
-    -- pmp_unit's match decode -- one source of truth for the A field).
+    -- PMP cfg-byte field encodings, shared by csr_unit's WARL masking and pmp_unit's match decode: one source of truth for the A field.
     constant PMP_A_OFF     : std_logic_vector(1 downto 0) := "00";  -- null region (never matches)
     constant PMP_A_TOR     : std_logic_vector(1 downto 0) := "01";  -- top of range: pmpaddr[i-1] <= a < pmpaddr[i]
     constant PMP_A_NA4     : std_logic_vector(1 downto 0) := "10";  -- naturally aligned 4-byte
     constant PMP_A_NAPOT   : std_logic_vector(1 downto 0) := "11";  -- naturally aligned power-of-two >= 8
 
-    -- P1/P2 SYSTEM/PRIV encodings (funct3 = 000; the funct12 selects the op).
-    -- LEGAL only when ENABLE_TRAPCSR (maindec's SYSTEM valid_funct arm); with the
-    -- generic off all four stay illegal instructions -- the OFF polarity pinned by
-    -- the P0 privecal/privebrk/privmret/privwfi poisons.
-    -- P2 (2026-07-28): WFI (0x105) JOINS the legal set when ENABLE_TRAPCSR (spec
-    -- 3: "WFI decodes from P2 iff ENABLE_TRAPCSR"). It is legal in M-mode always
-    -- and in U-mode iff mstatus.TW = 0 -- the TW denial is a DECODE illegal
-    -- (cause 2). privwfi's #ifdef CORE_ENABLE_TRAPCSR arm is the positive proof;
-    -- its #else poison still pins the OFF polarity on the stripped build.
+    -- P1/P2 SYSTEM/PRIV encodings: funct3 = 000, and the funct12 selects the op.
+    -- LEGAL only when ENABLE_TRAPCSR (maindec's SYSTEM valid_funct arm); with the generic off all four stay illegal instructions, the OFF polarity pinned by the P0 privecal/privebrk/privmret/privwfi poisons.
+    -- P2 (2026-07-28): WFI (0x105) JOINS the legal set when ENABLE_TRAPCSR (spec 3: "WFI decodes from P2 iff ENABLE_TRAPCSR").
+    -- It is legal in M-mode always and in U-mode iff mstatus.TW = 0; the TW denial is a DECODE illegal, cause 2.
+    -- privwfi's #ifdef CORE_ENABLE_TRAPCSR arm is the positive proof, and its #else poison still pins the OFF polarity on the stripped build.
     constant PRIV_FN3      : std_logic_vector(2 downto 0)  := "000";  -- SYSTEM privileged/system funct3
     constant ECALL_IMM12   : std_logic_vector(11 downto 0) := x"000"; -- ECALL  (0x00000073)
     constant EBREAK_IMM12  : std_logic_vector(11 downto 0) := x"001"; -- EBREAK (0x00100073)
     constant MRET_IMM12    : std_logic_vector(11 downto 0) := x"302"; -- MRET   (0x30200073)
     constant WFI_IMM12     : std_logic_vector(11 downto 0) := x"105"; -- WFI    (0x10500073)
-    -- D1 (2026-08-05): DRET (0x7B200073) joins the legal set when ENABLE_DEBUG,
-    -- and ONLY in debug mode -- outside it the encoding falls to the PRIV arm's
-    -- `else valid_funct <= '0'` and is an illegal instruction, which is what
-    -- dbgdenymp.S's hart 2 pins. NOTE the funct12 0x7B2 collides numerically
-    -- with the dscratch0 CSR ADDRESS above: the two never meet, because a CSR
-    -- instruction has funct3 /= PRIV_FN3 by construction (is_csr_instr).
+    -- D1 (2026-08-05): DRET (0x7B200073) joins the legal set when ENABLE_DEBUG, and ONLY in debug mode; outside it the encoding falls to the PRIV arm's `else valid_funct <= '0'` and is an illegal instruction, which is what dbgdenymp.S's hart 2 pins.
+    -- NOTE the funct12 0x7B2 collides numerically with the dscratch0 CSR ADDRESS above: the two never meet, because a CSR instruction has funct3 /= PRIV_FN3 by construction (is_csr_instr).
     constant DRET_IMM12    : std_logic_vector(11 downto 0) := x"7B2"; -- DRET   (0x7B200073)
 
     -- ==========================================================================
     -- X4 Zfinx (single-precision FP in x-registers) constants
     -- ==========================================================================
-    -- FP status CSRs. LEGAL only when ENABLE_ZFINX (csr_addr_valid gates them);
-    -- otherwise these three addresses are unknown CSRs -> illegal instruction.
+    -- FP status CSRs, LEGAL only when ENABLE_ZFINX (csr_addr_valid gates them); otherwise these three addresses are unknown CSRs and trap illegal instruction.
     constant CSR_FFLAGS  : std_logic_vector(11 downto 0) := x"001"; -- accrued flags {NV,DZ,OF,UF,NX}
     constant CSR_FRM     : std_logic_vector(11 downto 0) := x"002"; -- dynamic rounding mode [2:0]
     constant CSR_FCSR    : std_logic_vector(11 downto 0) := x"003"; -- frm[7:5] | fflags[4:0]
 
     -- OP-FP and FMA opcodes (RV32F encodings, reused by Zfinx on x-registers).
-    -- fmv.w.x / fmv.x.w are DELIBERATELY absent (no separate F regfile in Zfinx),
-    -- so their funct7 codes never appear in the legal decode -> stay illegal.
+    -- fmv.w.x and fmv.x.w are DELIBERATELY absent (no separate F regfile in Zfinx), so their funct7 codes never appear in the legal decode and stay illegal.
     constant OPFP_OPCODE   : std_logic_vector(6 downto 0) := "1010011"; -- 0x53 OP-FP
     constant FMADD_OPCODE  : std_logic_vector(6 downto 0) := "1000011"; -- 0x43 FMADD
     constant FMSUB_OPCODE  : std_logic_vector(6 downto 0) := "1000111"; -- 0x47 FMSUB
@@ -518,10 +456,11 @@ package constants is
     constant FP_RS2_W    : std_logic_vector(4 downto 0) := "00000"; -- .w  / sqrt rs2
     constant FP_RS2_WU   : std_logic_vector(4 downto 0) := "00001"; -- .wu
 
-    -- Dynamic rounding-mode selector in funct3 (rm=111 -> use frm).
+    -- Dynamic rounding-mode selector in funct3: rm=111 means use frm.
     constant FRM_DYN     : std_logic_vector(2 downto 0) := "111";
 
-    -- FPU op encodings (Stage-1 §C3, FROZEN). Multi-cycle unit fp_op[3:0]:
+    -- FPU op encodings (Stage-1 section C3, FROZEN).
+    -- Multi-cycle unit fp_op[3:0]:
     constant FPOP_FADD     : std_logic_vector(3 downto 0) := "0000"; -- 0
     constant FPOP_FSUB     : std_logic_vector(3 downto 0) := "0001"; -- 1
     constant FPOP_FMUL     : std_logic_vector(3 downto 0) := "0010"; -- 2
@@ -547,8 +486,8 @@ package constants is
     constant FPSOP_FMAX    : std_logic_vector(3 downto 0) := "0111"; -- 7
     constant FPSOP_FCLASS  : std_logic_vector(3 downto 0) := "1000"; -- 8
 
-    -- FP writeback result_src codes (110 = single-cycle fpu_simple result in
-    -- EXECUTE; 111 = multi-cycle fpu result at FPU_DONE). 101 is taken by Zimop.
+    -- FP writeback result_src codes: 110 is the single-cycle fpu_simple result in EXECUTE, 111 is the multi-cycle fpu result at FPU_DONE.
+    -- 101 is taken by Zimop.
     constant RSRC_FP_SINGLE : std_logic_vector(2 downto 0) := "110";
     constant RSRC_FP_MULTI  : std_logic_vector(2 downto 0) := "111";
 

@@ -1,24 +1,17 @@
 -------------------------------------------------------------------------------
 -- SPI_tb.vhd
 -------------------------------------------------------------------------------
--- Standalone, self-checking testbench for the SPI peripheral
--- (hdl/myshkin/periph/SPI.vhd) in its BASE configuration (ENABLE_EXTENDED_MEM =
--- false). The SPI-flash extended-memory path is intentionally NOT exercised
--- here; the flash ports are tied off inactive.
+-- Standalone, self-checking testbench for the SPI peripheral (hdl/myshkin/periph/SPI.vhd) in its BASE configuration (ENABLE_EXTENDED_MEM = false).
+-- The SPI-flash extended-memory path is intentionally NOT exercised here; the flash ports are tied off inactive.
 --
--- Uses the shared support packages: tb/periph_tb_pkg.vhd (scoreboard +
--- register-bus BFM) and tb/spi_bfm_pkg.vhd (external-master byte driver).
+-- Uses the shared support packages: tb/periph_tb_pkg.vhd (scoreboard and register-bus BFM) and tb/spi_bfm_pkg.vhd (external-master byte driver).
 --
--- Coverage: register R/W, master-mode transfers at 8/16/32-bit lengths verified
--- by MISO<-MOSI loopback, MSB-/LSB-first ordering, CPOL idle level, busy/TC/TE
--- flags + interrupt lines + clear paths, and a basic slave-mode receive.
+-- Coverage: register R/W, master-mode transfers at 8/16/32-bit lengths verified by MISO-driven-from-MOSI loopback, MSB-first and LSB-first ordering, CPOL idle level, busy/TC/TE flags with their interrupt lines and clear paths, and a basic slave-mode receive.
 --
--- Clocking: one free-running clock (smclk) drives both the SPI core (port clk)
--- and the gated register bus (clk_mem = smclk while en_mem='0').
+-- Clocking: one free-running clock (smclk) drives both the SPI core (port clk) and the gated register bus (clk_mem = smclk while en_mem='0').
 --
--- Bus contract (see tb/CLAUDE.md): en_mem active-low, wen active-low per byte
--- lane, SR/RX read a snapshot latched on the falling edge of en_mem; reading
--- the RX slot also clears the transmit-complete flag.
+-- Bus contract: en_mem is active-low, wen is active-low per byte lane, and SR/RX read a snapshot latched on the falling edge of en_mem.
+-- Reading the RX slot also clears the transmit-complete flag.
 -------------------------------------------------------------------------------
 
 library ieee;
@@ -77,11 +70,14 @@ architecture sim of SPI_tb is
 begin
 
     smclk   <= not smclk after PERIOD / 2;
+
+    -- Register-bus clock runs only while the peripheral is selected (en_mem is active-low)
     clk_mem <= smclk when pbus.en_mem = '0' else '0';
 
     -- MISO loopback for master tests
     miso_in <= mosi_out when mloop = '1' else miso_drv;
 
+    -- DUT in base configuration; the flash-side ports are held inactive
     dut : entity work.SPI
         generic map ( ENABLE_EXTENDED_MEM => false )
         port map (
@@ -122,6 +118,7 @@ begin
             cs_flash_ren    => cs_flash_ren
         );
 
+    -- Directed stimulus: eight check groups, then the scoreboard verdict
     stim_proc : process
         variable rdw : std_logic_vector(31 downto 0);
 

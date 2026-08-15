@@ -1,25 +1,18 @@
 -------------------------------------------------------------------------------
 -- periph_tb_pkg.vhd
 -------------------------------------------------------------------------------
--- Shared support for the VestaRV peripheral testbenches (standalone benches in
--- tb/ and, going forward, the full-MCU / integration tests). Collects the parts
--- that were copy-pasted into every standalone bench:
+-- Shared support for the VestaRV peripheral testbenches: the standalone benches in tb/ and, going forward, the full-MCU integration tests.
+-- Collects the parts that were copy-pasted into every standalone bench:
 --
---   * img / crc16_byte          -- SLV formatting + CRC16 reference model
---   * scoreboard (protected type) -- self-checking check_bit/check_slv/check_true
---                                    with an internal error tally + PASS/FAIL banner
---   * periph_bus_t + BFM         -- the narrow peripheral register bus
---                                    (en_mem/wen active-low, word-slot addr)
+--   * img / crc16_byte            : SLV formatting and the CRC16 reference model
+--   * scoreboard (protected type) : self-checking check_bit/check_slv/check_true with an internal error tally and a PASS/FAIL banner
+--   * periph_bus_t + BFM          : the narrow peripheral register bus, en_mem/wen active-low, word-slot address
 --
--- The gated memory-bus clock stays in each TB architecture (it depends on that
--- bench's reference clock), driven from the record's select line:
+-- The gated memory-bus clock stays in each TB architecture because it depends on that bench's reference clock, and is driven from the record's select line:
 --     clk_mem <= clk when b.en_mem = '0' else '0';
--- and the record members map onto the DUT's bus ports (whose names vary per
--- peripheral): en_mem => b.en_mem, wen => b.wen, addr_periph => b.addr_periph,
--- write_data => b.write_data, read_data => read_data.
+-- The record members map onto the DUT's bus ports, whose names vary per peripheral: b.en_mem drives en_mem, b.wen drives wen, b.addr_periph drives addr_periph, b.write_data drives write_data, and read_data is observed directly.
 --
--- See tb/CLAUDE.md for the sharp edges of this bus (gated clk_mem, snapshot-on-
--- select SR reads, clear-pulses that stick until the next access).
+-- Sharp edges of this bus, all of which have caught a bench before: the gated clk_mem, SR reads that snapshot on select, and clear pulses that stick until the next access.
 -------------------------------------------------------------------------------
 
 library ieee;
@@ -30,19 +23,20 @@ package periph_tb_pkg is
 
     -- ---- formatting / reference models -----------------------------------
     -- Decimal image of an SLV, or "X" if it holds metavalues.
+    -- Keep doctor and expect words below 0x80000000: a bit-31-set value overflows the integer conversion and aborts the run.
     function img(v : std_logic_vector) return string;
 
-    -- One byte through the CRC16 engine in commune/CRC16.vhd (MSB-first, no
-    -- reflection, no final xor). Default polynomial matches the SYSTEM block.
+    -- One byte through the CRC16 engine in commune/CRC16.vhd: MSB-first, no reflection, no final xor.
+    -- The default polynomial matches the SYSTEM block.
     function crc16_byte(d       : std_logic_vector(7 downto 0);
                         crc_old : std_logic_vector(15 downto 0);
                         poly    : std_logic_vector(15 downto 0) := x"C857")
         return std_logic_vector;
 
     -- ---- self-checking scoreboard ----------------------------------------
-    -- Encapsulates the running error count. Failures report severity WARNING
-    -- (so the whole suite runs); the tally drives one PASS/FAIL banner at the
-    -- end. Declare one per bench: `shared variable sb : scoreboard;`.
+    -- Encapsulates the running error count.
+    -- Failures report at severity WARNING so the whole suite still runs, and the tally drives one PASS/FAIL banner at the end.
+    -- Declare one per bench: `shared variable sb : scoreboard;`.
     type scoreboard is protected
         procedure check_bit (tag : in string; got : in std_logic;        exp : in std_logic);
         procedure check_slv (tag : in string; got : in std_logic_vector; exp : in std_logic_vector);
@@ -52,8 +46,8 @@ package periph_tb_pkg is
     end protected scoreboard;
 
     -- ---- peripheral register-bus BFM -------------------------------------
-    -- TB-driven side of the bus (all active-low; addr_periph is the word-slot
-    -- index, bits 7..2). read_data is observed separately (DUT drives it).
+    -- TB-driven side of the bus: all strobes active-low, addr_periph is the word-slot index, bits 7 downto 2.
+    -- read_data is observed separately because the DUT drives it.
     type periph_bus_t is record
         en_mem      : std_logic;
         wen         : std_logic_vector(3 downto 0);
@@ -65,25 +59,21 @@ package periph_tb_pkg is
         (en_mem => '1', wen => (others => '1'),
          addr_periph => (others => '0'), write_data => (others => '0'));
 
-    -- Single-cycle write: select on a falling clk, capture on the rising clk,
-    -- deselect on the next falling clk.
+    -- Single-cycle write: select on a falling clk, capture on the rising clk, deselect on the next falling clk.
     procedure bus_write(signal clk : in    std_logic;
                         signal b   : inout periph_bus_t;
                         slot : in natural;
                         data : in std_logic_vector(31 downto 0));
 
-    -- Read: select, let read_data register on the rising clk, sample after the
-    -- following falling clk so it has settled.
+    -- Read: select, let read_data register on the rising clk, then sample after the following falling clk so it has settled.
     procedure bus_read (signal clk       : in    std_logic;
                         signal b         : inout periph_bus_t;
                         signal read_data : in    std_logic_vector(31 downto 0);
                         slot : in  natural;
                         data : out std_logic_vector(31 downto 0));
 
-    -- Multi-cycle write: holds the select low across `ncyc` bus clocks. Needed
-    -- to clear flags whose clear pulse is consumed synchronously on a different
-    -- (peripheral) clock and must overlap one of its edges -- e.g. SYSTEM's
-    -- wdt_if. See tb/CLAUDE.md.
+    -- Multi-cycle write: holds the select low across `ncyc` bus clocks.
+    -- Needed to clear flags whose clear pulse is consumed synchronously on a different peripheral clock and must overlap one of its edges, for example SYSTEM's wdt_if.
     procedure bus_write_hold(signal clk : in    std_logic;
                              signal b   : inout periph_bus_t;
                              slot : in natural;
@@ -116,7 +106,7 @@ package body periph_tb_pkg is
     end function;
 
     type scoreboard is protected body
-        variable err : natural := 0;
+        variable err : natural := 0;   -- Running failure tally for this bench.
 
         procedure check_bit(tag : in string; got : in std_logic; exp : in std_logic) is
         begin
@@ -154,6 +144,7 @@ package body periph_tb_pkg is
             return err;
         end function;
 
+        -- End-of-bench banner: one loud block whose severity encodes the verdict.
         procedure report_summary(name : in string) is
         begin
             if err = 0 then
@@ -173,11 +164,9 @@ package body periph_tb_pkg is
 
     end protected body scoreboard;
 
-    -- NOTE: these use value-based waits (`wait until clk = '0'/'1'`) rather than
-    -- rising_edge/falling_edge. For a clean 2-value TB clock they are equivalent,
-    -- but they avoid a signal-parameter 'event/'last_value attribute quirk seen in
-    -- Xcelium 20.09 where falling_edge(<in signal param>) as a process's first
-    -- edge-wait after resuming off the clock grid never fires.
+    -- NOTE: these procedures use value-based waits (`wait until clk = '0'/'1'`) rather than rising_edge/falling_edge.
+    -- For a clean two-value TB clock the two forms are equivalent, but the value-based wait avoids a signal-parameter 'event/'last_value attribute quirk in Xcelium 20.09.
+    -- In that quirk, falling_edge on an `in` signal parameter never fires when it is a process's first edge-wait after resuming off the clock grid.
 
     procedure bus_write(signal clk : in    std_logic;
                         signal b   : inout periph_bus_t;

@@ -1,12 +1,10 @@
 -- =============================================================================
 -- fpu_tb.vhd  (X4 Zfinx, Stage 2a)  -- self-checking unit testbench
 -- =============================================================================
--- Drives fpu.vhd (multi-cycle) and fpu_simple.vhd (combinational) against
--- reference vectors produced by fpu_vec_gen.c (correction C4: x86 SSE single
--- precision + glibc fmaf). Reads $VECFILE (default ../fpu_vectors.txt), checks
--- BOTH result and flags on EVERY vector, verifies per-op done-latency and that
--- fpu_done/result hold stable until the next start. FAILS BOUNDED with a named
--- mismatch report; never hangs (per-vector done watchdog).
+-- Drives fpu.vhd (multi-cycle) and fpu_simple.vhd (combinational) against reference vectors produced by fpu_vec_gen.c (correction C4: x86 SSE single precision plus glibc fmaf).
+-- Reads $VECFILE (default ../fpu_vectors.txt) and checks BOTH result and flags on EVERY vector.
+-- It also verifies per-op done-latency and that fpu_done/result hold stable until the next start.
+-- Failures are bounded and named in a mismatch report; the per-vector done watchdog means it never hangs.
 --
 -- PASS banner (grepped by run_fpu.sh): "ALL CHECKS PASSED".
 -- Compile: -V200X (no VHDL-2008).
@@ -19,7 +17,7 @@ use STD.TEXTIO.all;
 entity fpu_tb is
     generic (
         VECFILE  : string  := "fpu_vectors.txt";
-        MAX_SHOW : integer := 50            -- max mismatch lines to print
+        MAX_SHOW : integer := 50            -- Cap on mismatch lines printed
     );
 end entity;
 
@@ -44,7 +42,7 @@ architecture tb of fpu_tb is
 
     signal sim_done : boolean := false;
 
-    -- op names for reports
+    -- Op names for reports, indexed by the vector file's op field
     type name_arr is array(0 to 12) of string(1 to 10);
     constant MNAMES : name_arr := (
         "FADD      ","FSUB      ","FMUL      ","FDIV      ","FSQRT     ",
@@ -55,9 +53,11 @@ architecture tb of fpu_tb is
         "FSGNJ   ","FSGNJN  ","FSGNJX  ","FEQ     ","FLT     ",
         "FLE     ","FMIN    ","FMAX    ","FCLASS  ");
 
+    -- Per-op cycle-count bookkeeping, one entry per multi-cycle op
     type int13  is array(0 to 12) of integer;
     type bool13 is array(0 to 12) of boolean;
 
+    -- Text helpers for parsing the vector file and formatting reports
     function hexc(c : character) return integer is
     begin
         case c is
@@ -89,7 +89,7 @@ architecture tb of fpu_tb is
 
     function dec2(s : string(1 to 2)) return integer is
     begin
-        return hexc(s(1)) * 10 + hexc(s(2));   -- fields are 00..12 decimal
+        return hexc(s(1)) * 10 + hexc(s(2));   -- These fields are decimal 00 to 12
     end function;
 
     function hx(v : std_logic_vector) return string is
@@ -141,7 +141,7 @@ begin
     dut_simple : fpu_simple
         port map (fp_s_op, fp_s_a, fp_s_b, fp_s_result, fp_s_flags);
 
-    -- clock
+    -- 100 MHz free-running clock, stopped when the stimulus process finishes
     clkgen : process
     begin
         while not sim_done loop
@@ -151,6 +151,7 @@ begin
         wait;
     end process;
 
+    -- Read the vector file line by line and check each vector against the matching DUT
     stim : process
         file vf         : text;
         variable fstatus: file_open_status;
@@ -176,12 +177,13 @@ begin
             report "FPU_TB: cannot open vector file '" & VECFILE & "'" severity failure;
         end if;
 
-        -- reset
+        -- Release reset asynchronously to the clock edge, then sync up
         resetn <= '0';
         wait for 23 ns;
         resetn <= '1';
         wait until rising_edge(clk);
 
+        -- One vector per line: kind, op, rounding mode, a, b, c, expected result, expected flags
         while not endfile(vf) loop
             readline(vf, L);
             read(L, kc); read(L, sp);
@@ -203,6 +205,7 @@ begin
             expf := hex2(fh)(4 downto 0);
             nvec := nvec + 1;
 
+            -- kind 1 is a fpu_simple vector: apply the operands and sample after settling
             if kind = 1 then
                 ------------------------------------------------ combinational
                 fp_s_op <= std_logic_vector(to_unsigned(opv, 4));
@@ -223,6 +226,7 @@ begin
                     end if;
                 end if;
 
+            -- Otherwise it is a multi-cycle vector: pulse start, count edges to done, then check stability
             else
                 ------------------------------------------------ multi-cycle
                 fp_op <= std_logic_vector(to_unsigned(opv, 4));
@@ -244,12 +248,12 @@ begin
                 gotv := fp_result;
                 gotf := fp_flags;
                 fpu_start <= '0';
-                -- stability: result must hold after done, before next start
+                -- Stability check: the result must hold after done and before the next start
                 wait until rising_edge(clk);
                 stabv := fp_result;
                 wait until rising_edge(clk);
 
-                -- per-op cycle bookkeeping
+                -- Track the min and max done latency seen for this op
                 if not cinit(opv) then
                     cmin(opv) := cyc; cmax(opv) := cyc; cinit(opv) := true;
                 else
@@ -274,7 +278,7 @@ begin
 
         file_close(vf);
 
-        -- per-op done-latency table + bound check
+        -- Per-op done-latency table, plus the 80-edge bound check
         report "---- per-op done-latency (clk edges start->done) ----";
         for i in 0 to 12 loop
             if cinit(i) then
@@ -287,6 +291,7 @@ begin
             end if;
         end loop;
 
+        -- Final tally and PASS banner
         report "FPU_TB: vectors=" & integer'image(nvec) &
                " failures=" & integer'image(nfail);
         if nfail = 0 then

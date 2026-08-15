@@ -10,17 +10,20 @@ end entity;
 
 architecture sim of AFE_tb is
 
-    -- DUT signals
+    -- Standalone bench for the AFE peripheral: writes every BIAS register over the peripheral bus and checks the exported bias outputs, then runs one single-shot ADC conversion.
+
+    -- DUT bus and control signals.
     signal clk, clk_mem     : std_logic := '0';
     signal resetn           : std_logic := '0';
     signal irq              : std_logic;
 
-    signal en_mem           : std_logic := '1';  -- inactive high
+    signal en_mem           : std_logic := '1';  -- Peripheral chip select, active low.
     signal wen              : std_logic_vector(3 downto 0) := (others => '1');
     signal addr_periph      : std_logic_vector(7 downto 2) := (others => '0');
     signal write_data       : std_logic_vector(31 downto 0) := (others => '0');
     signal read_data        : std_logic_vector(31 downto 0);
 
+    -- Four digital test pins: input value plus the pin's ren/dir/out drive from the AFE.
     signal dtp0_ren_in : std_logic;
     signal dtp0_ren    : std_logic;
     signal dtp0_dir    : std_logic;
@@ -41,13 +44,13 @@ architecture sim of AFE_tb is
     signal dtp3_dir    : std_logic;
     signal dtp3_out    : std_logic;
 
-    -- AFE I/O
+    -- Analog front-end interface: comparator return plus the ADC/test-path controls.
     signal cmp_out          : std_logic := '0';
     signal adc_clk, adc_en          : std_logic;
     signal adc_switch       : std_logic_vector(2 downto 0);
     signal adc_ext_in, atp_en, atp_sel, adc_sel, dac_en : std_logic;
 
-    -- Bias outputs to observe
+    -- Bias outputs observed by the checks below.
     signal use_bias_dac, en_bias_buf, en_bias_gen : std_logic;
     signal BIAS_ADJ        : std_logic_vector(5 downto 0);
     signal BIAS_DBP        : std_logic_vector(13 downto 0);
@@ -66,13 +69,13 @@ architecture sim of AFE_tb is
 
 begin
     -------------------------------------------------------------------
-    -- Clock generation
+    -- Clock generation.
     -------------------------------------------------------------------
-    clk     <= not clk after 25 ns;   -- 40 MHz
-    clk_mem <= clk when en_mem = '0'; 
+    clk     <= not clk after 25 ns;   -- 40 MHz core clock.
+    clk_mem <= clk when en_mem = '0'; -- Register clock is gated by the chip select.
 
     -------------------------------------------------------------------
-    -- DUT instantiation
+    -- DUT instantiation.
     -------------------------------------------------------------------
     dut: entity work.AFE
         port map (
@@ -133,7 +136,7 @@ begin
         );
 
     -------------------------------------------------------------------
-    -- Stimulus
+    -- Stimulus: reset, register writes with read-back checks, then one ADC conversion.
     -------------------------------------------------------------------
     stim_proc: process
     begin
@@ -141,12 +144,13 @@ begin
 	dtp1_ren_in <= '0';
 	dtp2_ren_in <= '0';
 	dtp3_ren_in <= '0';
-        -- Apply reset
+        -- Apply reset.
         resetn <= '0';
         wait for 100 ns;
         resetn <= '1';
 
-	-- Map: dtp0=data_rdy_if (1), dtp1=ovf_if (2), dtp2=adc_done (3), dtp3=adc_active (0)
+	-- Program the test-pin routing register TPR.
+	-- Map: dtp0=data_rdy_if (1), dtp1=ovf_if (2), dtp2=adc_done (3), dtp3=adc_active (0).
 	wait until falling_edge(clk);
 	en_mem <= '0';
 	addr_periph <= std_logic_vector(to_unsigned(RegSlotAFE_TPR, 6));
@@ -159,13 +163,13 @@ begin
 	en_mem <= '1';
 
 	----------------------------------------------------------------
-        -- Test single-bit signals via BIAS_CR
+        -- Test the single-bit bias enables via BIAS_CR.
         ----------------------------------------------------------------
 	wait until falling_edge(clk);
         en_mem <= '0';
-        wen <= "1110";  -- write low byte
+        wen <= "1110";  -- Write the low byte only, wen is active low per lane.
         addr_periph <= std_logic_vector(to_unsigned(RegSlotBIAS_CR, 6));
-        write_data(4 downto 2) <= "101";  -- example: set some bits
+        write_data(4 downto 2) <= "101";  -- use_bias_dac=1, en_bias_buf=0, en_bias_gen=1.
         wait until rising_edge(clk_mem);
 
         wen <= (others => '1');
@@ -180,9 +184,9 @@ begin
         wait for 100 ns;
 
         ----------------------------------------------------------------
-        -- Test 6-bit / 8-bit BIAS registers
+        -- Test the 6-bit and 8-bit BIAS registers: write, then check the exported value.
         ----------------------------------------------------------------
-        -- BIAS_TC_POT------------------------
+        -- BIAS_TC_POT
 	wait until falling_edge(clk);
         en_mem <= '0'; wen <= "1110";
         addr_periph <= std_logic_vector(to_unsigned(RegSlotBIAS_TC_POT, 6));
@@ -198,7 +202,7 @@ begin
 
         wait for 100 ns;
 
-        -- BIAS_LC_POT------------------------
+        -- BIAS_LC_POT
 	wait until falling_edge(clk);
         en_mem <= '0'; wen <= "1110";
         addr_periph <= std_logic_vector(to_unsigned(RegSlotBIAS_LC_POT, 6));
@@ -214,7 +218,7 @@ begin
 
         wait for 100 ns;
 
-        -- BIAS_TC_DSADC------------------------
+        -- BIAS_TC_DSADC
 	wait until falling_edge(clk);
         en_mem <= '0'; wen <= "1110";
         addr_periph <= std_logic_vector(to_unsigned(RegSlotBIAS_TC_DSADC, 6));
@@ -230,7 +234,7 @@ begin
 
         wait for 100 ns;
 
-        -- BIAS_LC_DSADC------------------------
+        -- BIAS_LC_DSADC
 	wait until falling_edge(clk);
         en_mem <= '0'; wen <= "1110";
         addr_periph <= std_logic_vector(to_unsigned(RegSlotBIAS_LC_DSADC, 6));
@@ -246,7 +250,7 @@ begin
 
         wait for 100 ns;
 
-        -- BIAS_RIN_DSADC------------------------
+        -- BIAS_RIN_DSADC
 	wait until falling_edge(clk);
         en_mem <= '0'; wen <= "1110";
         addr_periph <= std_logic_vector(to_unsigned(RegSlotBIAS_RIN_DSADC, 6));
@@ -262,7 +266,7 @@ begin
 
         wait for 100 ns;
 
-        -- BIAS_RFB_DSADC------------------------
+        -- BIAS_RFB_DSADC
 	wait until falling_edge(clk);
         en_mem <= '0'; wen <= "1110";
         addr_periph <= std_logic_vector(to_unsigned(RegSlotBIAS_RFB_DSADC, 6));
@@ -278,7 +282,7 @@ begin
 
         wait for 100 ns;
 
-        -- BIAS_ADJ (6-bit)------------------------
+        -- BIAS_ADJ (6-bit)
 	wait until falling_edge(clk);
         en_mem <= '0'; wen <= "1110";
         addr_periph <= std_logic_vector(to_unsigned(RegSlotBIAS_ADJ, 6));
@@ -313,7 +317,7 @@ begin
 
         -- wait for 100 ns;
 
-        -- BIAS_REV_POT------------------------
+        -- BIAS_REV_POT: 14-bit register, written as two byte lanes.
 	wait until falling_edge(clk);
         en_mem <= '0'; wen <= "1100";
 	addr_periph <= std_logic_vector(to_unsigned(RegSlotBIAS_REV_POT, 6));
@@ -329,7 +333,7 @@ begin
 
         wait for 100 ns;
 
-	-- BIAS_DSADC_VCM------------------------
+	-- BIAS_DSADC_VCM
 	wait until falling_edge(clk);
         en_mem <= '0'; wen <= "1100";
 	addr_periph <= std_logic_vector(to_unsigned(RegSlotBIAS_DSADC_VCM, 6));
@@ -345,7 +349,7 @@ begin
 
         wait for 100 ns;
 
-	-- BIAS_DBP------------------------
+	-- BIAS_DBP
 	wait until falling_edge(clk);
         en_mem <= '0'; wen <= "1100";
 	addr_periph <= std_logic_vector(to_unsigned(RegSlotBIAS_DBP, 6));
@@ -361,7 +365,7 @@ begin
 
         wait for 100 ns;
 	
-	-- BIAS_DBPC------------------------
+	-- BIAS_DBPC
 	wait until falling_edge(clk);
         en_mem <= '0'; wen <= "1100"; 
 	addr_periph <= std_logic_vector(to_unsigned(RegSlotBIAS_DBPC, 6));
@@ -377,7 +381,7 @@ begin
 
         wait for 100 ns;
 
-	-- BIAS_DBN------------------------
+	-- BIAS_DBN
         wait until falling_edge(clk);
         en_mem <= '0'; wen <= "1100"; 
 	addr_periph <= std_logic_vector(to_unsigned(RegSlotBIAS_DBN, 6));
@@ -393,7 +397,7 @@ begin
 
         wait for 100 ns;
 
-	-- BIAS_DBNC------------------------
+	-- BIAS_DBNC
         wait until falling_edge(clk);
         en_mem <= '0'; wen <= "1100"; 
 	addr_periph <= std_logic_vector(to_unsigned(RegSlotBIAS_DBNC, 6));
@@ -409,9 +413,9 @@ begin
 
         wait for 100 ns;
 
-        -- Kick Off ADC Conversion------------------------
-	-- Set adc_en = afe_en = adc_data_rdy_ie = adc_ext_in = atp_en = atp_sel = '1'
-	-- Set adc_ramp_num = 0xFFF (4095)
+        -- Kick off an ADC conversion.
+	-- AFE_CR sets adc_en = afe_en = adc_data_rdy_ie = adc_ext_in = atp_en = atp_sel = '1'.
+	-- It also sets adc_ramp_num = 0xFFF (4095).
 	wait until falling_edge(clk);
 	en_mem <= '0'; wen <= "1000";
 	addr_periph <= std_logic_vector(to_unsigned(RegSlotAFE_CR, 6));
@@ -422,7 +426,7 @@ begin
 	wait until falling_edge(clk);
 	en_mem <= '1';
 
-	-- Start conversion (single-shot): write AFE_ADC_VAL (any value)
+	-- Start the single-shot conversion: any write to AFE_ADC_VAL triggers it.
 	wait until falling_edge(clk);
 	en_mem <= '0'; wen <= "1110"; 
 	addr_periph <= std_logic_vector(to_unsigned(RegSlotAFE_ADC_VAL, 6));
@@ -434,13 +438,13 @@ begin
 	en_mem <= '1';
 
 
-        -- Simulate comparator end of deintegration
+        -- Simulate the comparator flagging the end of deintegration.
         wait for 90 us;
         cmp_out <= '1';
         wait for 60 ns;
         cmp_out <= '0';
 
-	-- now read the result
+	-- Read the conversion result back.
 	wait until falling_edge(clk);
 	en_mem      <= '0';
 	addr_periph <= std_logic_vector(to_unsigned(RegSlotAFE_ADC_VAL, 6));
@@ -455,10 +459,10 @@ begin
 
 	
 
-	--wait some time before clearing irq
+	-- Let the interrupt stay asserted for a while before clearing it.
 	wait for 3 us;
 
-	-- clear data-ready for the next conversion
+	-- Clear the data-ready flag in AFE_SR so the next conversion can run.
 	wait until falling_edge(clk);
 	en_mem <= '0'; wen <= "1110";
 	addr_periph <= std_logic_vector(to_unsigned(RegSlotAFE_SR, 6));

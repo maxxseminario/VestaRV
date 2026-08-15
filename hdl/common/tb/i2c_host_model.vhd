@@ -1,39 +1,21 @@
 -------------------------------------------------------------------------------
 -- i2c_host_model.vhd
 -------------------------------------------------------------------------------
--- Bit-banged I2C CONTROLLER (master) model for the I2C TARGET peripheral
--- testbench (tb/I2CTarget_tb.vhd). This is the ROLE-INVERSE of
--- i3c_target_model.vhd: there the model was the addressed target reacting to a
--- controller's SCL; here the model IS the controller -- it generates
--- START/STOP/repeated-START, drives SCL at a bench-chosen period, drives/samples
--- SDA open-drain, sends address+RnW, writes bytes, reads bytes (ACK/NACK per its
--- config), and honours the target's clock stretch.
+-- Bit-banged I2C CONTROLLER (master) model for the I2C TARGET peripheral testbench (tb/I2CTarget_tb.vhd).
+-- This is the ROLE-INVERSE of i3c_target_model.vhd: there the model was the addressed target reacting to a controller's SCL, here the model IS the controller.
+-- It generates START/STOP/repeated-START, drives SCL at a bench-chosen period, drives and samples SDA open-drain, sends address plus RnW, writes bytes, reads bytes (ACK/NACK per its config), and honours the target's clock stretch.
 --
--- CHECKER INDEPENDENCE (mandatory, the task's binding instruction): every SCL
--- half-period / setup / sample point is derived from the TB's OWN clk period
--- (cfg_tick_period) times the frozen-doc-derived tick constants in
--- i2ct_bfm_pkg -- NEVER from the DUT's SDA_DIR/SCL_DIR or any internal state.
--- The model measures the DUT's driven levels (address ACK, per-byte ACK, TX
--- data) off the RESOLVED bus at its OWN mid-SCL-high sample point, to_X01
--- normalized, and exposes them as obs_* for the TB scoreboard to judge. Its one
--- internal checker (obs_viol) flags a DUT level that is unstable across the
--- SCL-high sample window; cfg_corrupt forces that flag high as a self-test that
--- proves the checker path fires (the OneWire cfg_corrupt_window idiom).
+-- CHECKER INDEPENDENCE (mandatory, the task's binding instruction): every SCL half-period, setup point and sample point is derived from the TB's OWN clk period (cfg_tick_period) times the frozen-doc-derived tick constants in i2ct_bfm_pkg, NEVER from the DUT's SDA_DIR/SCL_DIR or any internal state.
+-- The model measures the DUT's driven levels (address ACK, per-byte ACK, TX data) off the RESOLVED bus at its OWN mid-SCL-high sample point, to_X01 normalized, and exposes them as obs_* for the TB scoreboard to judge.
+-- Its one internal checker (obs_viol) flags a DUT level that is unstable across the SCL-high sample window; cfg_corrupt forces that flag high as a self-test that proves the checker path fires (the OneWire cfg_corrupt_window idiom).
 --
--- OPEN-DRAIN BUS: sda_out/scl_out are fixed '0'; only sda_oe/scl_oe toggle
--- ('1' = pull that net low, '0' = release to the bench's weak 'H' pull). The
--- model NEVER drives either net high. Clock stretch is honoured by
--- scl_release_wait: after releasing SCL the model SAMPLES the resolved net and
--- waits for it to actually rise (the DUT may be holding it low, D11), with a
--- bounded guard that raises obs_timeout rather than hanging.
+-- OPEN-DRAIN BUS: sda_out/scl_out are fixed '0'; only sda_oe/scl_oe toggle, where '1' pulls that net low and '0' releases it to the bench's weak 'H' pull.
+-- The model NEVER drives either net high.
+-- Clock stretch is honoured by scl_release_wait: after releasing SCL the model SAMPLES the resolved net and waits for it to actually rise (the DUT may be holding it low, D11), with a bounded guard that raises obs_timeout rather than hanging.
 --
--- HANDSHAKE: a rising edge on cfg_go launches ONE framed segment against the
--- captured cfg_* descriptor; obs_count increments when the segment completes.
--- A segment with cfg_stop='false' ends by LEAVING SCL held low (this model's
--- scl_oe stays '1') so a following cfg_sr='true' segment can issue a genuine
--- repeated-START -- the classic write-then-read direction reversal (G5). While
--- the model is blocked on a genuine target stretch, obs_wait_scl='1' so the TB
--- can service the DUT (load I2CTTX / read+W1C I2CTRX) exactly during the stall.
+-- HANDSHAKE: a rising edge on cfg_go launches ONE framed segment against the captured cfg_* descriptor, and obs_count increments when the segment completes.
+-- A segment with cfg_stop='false' ends by LEAVING SCL held low (this model's scl_oe stays '1') so a following cfg_sr='true' segment can issue a genuine repeated-START: the classic write-then-read direction reversal (G5).
+-- While the model is blocked on a genuine target stretch, obs_wait_scl='1' so the TB can service the DUT (load I2CTTX, read and W1C I2CTRX) exactly during the stall.
 -------------------------------------------------------------------------------
 
 library ieee;
@@ -80,8 +62,7 @@ entity i2c_host_model is
 end entity i2c_host_model;
 
 architecture behavioral of i2c_host_model is
-    -- SCL-low ticks past the immediate release before the model calls it a
-    -- genuine stretch (a normal release resolves to 'H' within ~1 tick).
+    -- SCL-low ticks past the immediate release before the model calls it a genuine stretch; a normal release resolves to 'H' within about one tick.
     constant STRETCH_THRESH : natural := 4;
 begin
 
@@ -89,6 +70,7 @@ begin
     sda_out <= '0';
     scl_out <= '0';
 
+    -- Controller sequencer: one framed segment per rising edge of cfg_go.
     ctrl : process
         variable tickp       : time := 40 ns;
         variable addr_byte   : std_logic_vector(7 downto 0);
@@ -108,9 +90,8 @@ begin
         procedure sda_rel is begin sda_oe <= '0'; end procedure;
         procedure scl_low is begin scl_oe <= '1'; end procedure;
 
-        -- Release SCL and wait for it to ACTUALLY rise (honour DUT stretch, D11)
-        -- off the RESOLVED net, to_X01-normalized. Bounded: raises timeout_v (=>
-        -- obs_timeout => a scoreboard error) rather than hanging.
+        -- Release SCL and wait for it to ACTUALLY rise, honouring a DUT stretch (D11), measured off the RESOLVED net and to_X01-normalized.
+        -- Bounded: it raises timeout_v, hence obs_timeout and a scoreboard error, rather than hanging.
         procedure scl_release_wait is
             variable g : natural := 0;
         begin
@@ -130,8 +111,7 @@ begin
         end procedure;
 
         -- ---- bit slots -------------------------------------------------
-        -- Drive one bit the HOST sources (address / write data / host-ACK):
-        -- set SDA while SCL is low, pulse SCL high then low.
+        -- Drive one bit the HOST sources (address, write data, host ACK): set SDA while SCL is low, then pulse SCL high and back low.
         procedure wr_bit(level : std_logic) is
         begin
             if level = '1' then sda_rel; else sda_low; end if;
@@ -141,9 +121,7 @@ begin
             scl_low;                       -- SCL low
         end procedure;
 
-        -- Read one bit the DUT drives (address ACK / per-byte ACK / TX data):
-        -- release SDA so the DUT owns it, pulse SCL, sample at mid-high, and
-        -- re-sample at end-of-high for the stability (out-of-window) check.
+        -- Read one bit the DUT drives (address ACK, per-byte ACK, TX data): release SDA so the DUT owns it, pulse SCL, sample at mid-high, and re-sample at end-of-high for the stability check.
         procedure rd_bit(bitval : out std_logic) is
             variable s1, s2 : std_logic;
         begin
@@ -164,15 +142,17 @@ begin
         end procedure;
 
         -- ---- framing ---------------------------------------------------
+        -- START: from a fully released bus, drop SDA while SCL is high.
         procedure do_start is
         begin
             sda_rel; scl_release_wait;     -- both released high
             tk(I2CT_SCL_HALF_TICKS);
-            sda_low;                       -- SDA falls while SCL high => START
+            sda_low;                       -- SDA falls while SCL is high: START
             tk(I2CT_SCL_HALF_TICKS);
             scl_low;                       -- SCL low, ready for the address
         end procedure;
 
+        -- Repeated-START: re-arm SDA while SCL is low, raise SCL, then drop SDA.
         procedure do_rstart is
         begin
             -- bus currently held low by us (SCL low from the prior segment)
@@ -180,18 +160,19 @@ begin
             tk(I2CT_SCL_HALF_TICKS);
             scl_release_wait;              -- SCL high
             tk(I2CT_SCL_HALF_TICKS);
-            sda_low;                       -- SDA falls while SCL high => repeated-START
+            sda_low;                       -- SDA falls while SCL is high: repeated-START
             tk(I2CT_SCL_HALF_TICKS);
             scl_low;
         end procedure;
 
+        -- STOP: with SCL low, pull SDA low, raise SCL, then release SDA.
         procedure do_stop is
         begin
             sda_low;                       -- SCL low here; pull SDA low first
             tk(I2CT_SCL_HALF_TICKS);
             scl_release_wait;              -- SCL high, SDA still low
             tk(I2CT_SCL_HALF_TICKS);
-            sda_rel;                       -- SDA rises while SCL high => STOP
+            sda_rel;                       -- SDA rises while SCL is high: STOP
             tk(I2CT_SCL_HALF_TICKS);
         end procedure;
 
@@ -210,14 +191,12 @@ begin
         obs_rdata     <= (others => (others => '0'));
 
         if cfg_op = I2CT_OP_WDOG then
-            -- START + address(write) so the DUT enters BUSY and ACKs, then hold
-            -- SCL low past WDTO (the DUT's watchdog counts SCL-low while BUSY),
-            -- then STOP (D13 stimulus).
+            -- D13 stimulus: START plus a write address so the DUT enters BUSY and ACKs, then hold SCL low past WDTO (the DUT's watchdog counts SCL-low while BUSY), then STOP.
             do_start;
             addr_byte := cfg_addr & '0';
             for i in 7 downto 0 loop wr_bit(addr_byte(i)); end loop;
             rd_bit(got);
-            obs_addr_ack <= not got;               -- '0' bus level = ACK => obs '1'
+            obs_addr_ack <= not got;               -- a '0' bus level is an ACK, so obs reads '1'
             scl_low;                               -- hold SCL low ...
             tk(cfg_hold);                          -- ... past the watchdog timeout
             do_stop;
@@ -231,7 +210,7 @@ begin
             obs_addr_ack <= not got;               -- address ACK
 
             if cfg_rnw = '0' then
-                -- HOST WRITE: drive cfg_nbytes bytes, sample the DUT's ACK each
+                -- HOST WRITE: drive cfg_nbytes bytes, sampling the DUT's ACK after each one.
                 for k in 0 to cfg_nbytes - 1 loop
                     wb := cfg_wdata(k);
                     for i in 7 downto 0 loop wr_bit(wb(i)); end loop;  -- MSB-first
@@ -239,8 +218,7 @@ begin
                     obs_wr_ack(k) <= not got;
                 end loop;
             else
-                -- HOST READ: sample cfg_nbytes bytes MSB-first, then drive the
-                -- host ACK/NACK per cfg_rd_ack (D10 host handshake).
+                -- HOST READ: sample cfg_nbytes bytes MSB-first, then drive the host ACK/NACK per cfg_rd_ack (D10 host handshake).
                 for k in 0 to cfg_nbytes - 1 loop
                     rb := (others => '0');
                     for i in 7 downto 0 loop
@@ -248,15 +226,14 @@ begin
                         rb(i) := got;              -- MSB-first assembly
                     end loop;
                     obs_rdata(k) <= rb;
-                    wr_bit(not cfg_rd_ack(k));     -- '1'=ACK => drive low; '0'=NACK => release
+                    wr_bit(not cfg_rd_ack(k));     -- '1' means ACK, so drive low; '0' means NACK, so release
                 end loop;
             end if;
 
             if cfg_stop then
                 do_stop;
             else
-                -- leave SCL held low for a following repeated-START (G5); the
-                -- next cfg_sr segment picks the bus up from here.
+                -- Leave SCL held low for a following repeated-START (G5); the next cfg_sr segment picks the bus up from here.
                 sda_rel;
                 scl_low;
             end if;

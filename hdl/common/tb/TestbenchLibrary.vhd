@@ -1,3 +1,5 @@
+-- Shared testbench helper procedures: memory access, clock waiting, and UART character/string traffic.
+-- Simulation only, never synthesized.
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.std_logic_arith.all;
@@ -156,7 +158,7 @@ package body TestbenchLibrary is
 		MAB(31 downto 2) <= int2slv(WordAddress, 30);
 		MAB(1 downto 0) <= "00";
 		wdata <= wdata_in;
-		WEn <= (others => mem_assert);	-- Enables writing to all bits
+		WEn <= (others => mem_assert);	-- Enable writing on all byte lanes
 		EnMem <= mem_assert;
 		wait until rising_edge(Clk);
 
@@ -178,6 +180,7 @@ package body TestbenchLibrary is
 		signal		Clk		: in	sl
 	) is
 	begin
+		-- Consume the requested number of rising edges, then return
 		for i in 1 to Edges loop
 			wait until rising_edge(Clk);
 		end loop;
@@ -193,9 +196,12 @@ package body TestbenchLibrary is
 	) is
 		variable tmp : slv(7 downto 0) := (others => '0');
 	begin
+		-- Wait for the start bit, then skip to the middle of bit 0
 		wait until TX = '0';
 		TXing <= '1';
 		wait for 1.5 * baudratePeriod;
+
+		-- Sample eight data bits, LSB first, shifting them in from the top
 		for i in 0 to 7 loop
 			tmp := TX & tmp(7 downto 1);
 			wait for baudratePeriod;
@@ -298,6 +304,7 @@ package body TestbenchLibrary is
 	) is
 		variable RXChar : character;
 	begin
+		-- Send the first NumChars characters back to back, one UART frame each
 		for i in 1 to NumChars loop
 			RXChar := RXStr(i);
 			UartSendCharToRX(baudratePeriod, RX, RXing, RXChar);
@@ -313,6 +320,7 @@ package body TestbenchLibrary is
 	) is
 		variable RXChar : character;
 	begin
+		-- Whole string: same as UartSendStrNToRX over its full length
 		UartSendStrNToRX(baudratePeriod, RXStr'length, RX, RXing, RXStr);
 	end procedure;
 

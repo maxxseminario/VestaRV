@@ -1,75 +1,58 @@
 -- =============================================================================
--- dma_arb_tb.vhd  (digperiphs Phase 3) -- DMA ARBITER-INTEGRATION proof
+-- dma_arb_tb.vhd (digperiphs Phase 3): DMA ARBITER-INTEGRATION proof
 -- =============================================================================
--- Integration proof (b) of ~/vesta_docs/digperiphs/dma_design.md: the REAL
--- work.DMA engine is the FIFTH master (index 4) on the widened shared fabric
--- (mp_arbiter N=5/MW=3 + resv_unit N=5 + mutex_bank MW=3), contending with four
--- arb_lat_master BFMs (indices 0-3) for one serialized single-port shared RAM.
--- A sibling of arb_lat_tb.vhd (NOT a modification of it) -- the DMA is a real
--- entity, not a BFM, so it cannot be arb_lat_tb at N_MASTERS=5.
+-- Integration proof (b) of ~/vesta_docs/digperiphs/dma_design.md: the REAL work.DMA engine is the FIFTH master (index 4) on the widened shared fabric (mp_arbiter N=5/MW=3, resv_unit N=5, mutex_bank MW=3), contending with four arb_lat_master BFMs (indices 0-3) for one serialized single-port shared RAM.
+-- A sibling of arb_lat_tb.vhd, NOT a modification of it: the DMA is a real entity, not a BFM, so it cannot be arb_lat_tb at N_MASTERS=5.
 --
--- BOUNDARY: the four BFMs sit behind the M13 N_DELAY registered tile boundary
--- (generic 0/1/2, one wide reg per direction, BREAK_MODE=2 skew preserved).
--- The DMA connects at DEPTH 0 (D2/Q-B: it lives inside MCU fabric on mclk like
--- mp_arbiter itself, NOT behind a tile boundary) -- its master-port signals
--- slice DIRECTLY into the arb_*(4) slices with NO pipe. DMA slice ties per D18:
--- arb_lrsc(9:8)="00", arb_lock(4)='0'; the DMA never LR/SCs or grant-locks.
+-- BOUNDARY: the four BFMs sit behind the M13 N_DELAY registered tile boundary (generic 0/1/2, one wide reg per direction, BREAK_MODE=2 skew preserved).
+-- The DMA connects at DEPTH 0 (D2/Q-B: it lives inside MCU fabric on mclk like mp_arbiter itself, NOT behind a tile boundary), so its master-port signals slice DIRECTLY into the arb_*(4) slices with NO pipe.
+-- DMA slice ties per D18: arb_lrsc(9:8)="00" and arb_lock(4)='0', since the DMA never LR/SCs or grant-locks.
 --
--- ADDRESS MAPPING (documented per the task; connect m_addr(11:0) to the slice):
+-- ADDRESS MAPPING (m_addr(11:0) connects to the slice):
 --   The tb arbiter/RAM ADDR_WIDTH is 12 (template convention: a 4096-word RAM).
---   The DMA presents AW=15-bit WORD addresses, m_addr = byte_ptr(16:2), and its
---   GO-time checks act on 17-bit FIRMWARE BYTE pointers (D13/A18: reject byte >=
---   0x20000, TCM hole 0x8000-0xBFFF, misaligned). We choose all DMA SRC/DST byte
---   pointers word-aligned and < 0x4000 -- LEGAL under every DMA check (byte <
---   0x20000, none in 0x8000-0xBFFF, none in the deny windows word 0x1800-0x183F
---   / 0x1E00) -- so m_addr(14:12)=0 and the low 12 bits m_addr(11:0)=byte_ptr(13:2)
---   are the EXACT truncation (no information lost). We wire m_addr(11:0) into the
---   arbiter's 12-bit slice-4 address; m_addr(14:12) are dropped and are provably 0
---   for the chosen range. Byte->word map (byte_ptr(13:2) = tb word index):
---     SRC_A  byte 0x1000 -> word 0x400   SRC_B  byte 0x1400 -> word 0x500
---     DST    byte 0x1800 -> word 0x600   SENT   byte 0x1C00 -> word 0x700
---     LRSC   byte 0x3800 -> word 0xE00  (== arb_lat_master's LRSC_ADDR)
---   All disjoint from the BFM private ranges (words 0x00-0x3F) and the contended
---   words CTR=0xF00 / LRSC=0xE00 / PROT=0xD00 / MTX=0xC00-0xC3F, EXCEPT the
---   deliberate LRSC-kill target 0xE00 (see below).
+--   The DMA presents AW=15-bit WORD addresses, m_addr = byte_ptr(16:2), and its GO-time checks act on 17-bit FIRMWARE BYTE pointers (D13/A18: reject byte 0x20000 or above, the TCM hole 0x8000-0xBFFF, and misaligned pointers).
+--   All DMA SRC/DST byte pointers here are word-aligned and below 0x4000, LEGAL under every DMA check (byte below 0x20000, none in 0x8000-0xBFFF, none in the deny windows word 0x1800-0x183F or 0x1E00).
+--   So m_addr(14:12)=0 and the low 12 bits m_addr(11:0)=byte_ptr(13:2) are the EXACT truncation, with no information lost.
+--   m_addr(11:0) is wired into the arbiter's 12-bit slice-4 address; m_addr(14:12) are dropped and are provably 0 for the chosen range.
+--   Byte to word map (byte_ptr(13:2) = tb word index):
+--     SRC_A  byte 0x1000 = word 0x400   SRC_B  byte 0x1400 = word 0x500
+--     DST    byte 0x1800 = word 0x600   SENT   byte 0x1C00 = word 0x700
+--     LRSC   byte 0x3800 = word 0xE00  (same as arb_lat_master's LRSC_ADDR)
+--   All disjoint from the BFM private ranges (words 0x00-0x3F) and from the contended words CTR=0xF00, LRSC=0xE00, PROT=0xD00, MTX=0xC00-0xC3F, EXCEPT the deliberate LRSC-kill target 0xE00 (see below).
 --
 -- CHECKERS:
---   Inherited from arb_lat_tb (over 5 masters): grant mutual exclusion, locked-
---   pair critical section, BFM ghost-done, AMO-LOCKED counter (0xF00 == NB*N_RMW),
---   mutex-protected counter (0xD00 == NB*N_MTX). NB = 4 BFMs (the DMA does no
---   AMO/mutex/LR-SC, so those totals use NB=4, not N=5). The LR/SC value-equality
---   check on 0xE00 is REPLACED (the DMA corrupts that word -- see LR/SC kill).
+--   Inherited from arb_lat_tb, over 5 masters: grant mutual exclusion, locked-pair critical section, BFM ghost-done, AMO-LOCKED counter (0xF00 = NB*N_RMW), mutex-protected counter (0xD00 = NB*N_MTX).
+--   NB = 4 BFMs: the DMA does no AMO, mutex or LR/SC work, so those totals use NB=4, not N=5.
+--   The LR/SC value-equality check on 0xE00 is REPLACED, because the DMA corrupts that word (see the LR/SC kill pass).
 --   DMA-specific:
 --     (a) DMA ghost-done: arb_done(4)/m_done pulsing while the DMA has no txn in
---         flight is a FAIL. In-flight derived (A1 shape) from a monitor on m_req:
---         busy from req-rise to one cycle after done.
---     (b) DMA protocol monitor: m_addr/m_we/m_wdata stable while m_req high, and
---         m_req observed low >= 1 cycle between every txn.
+--         flight is a FAIL. In-flight is derived (A1 shape) from a monitor on
+--         m_req: busy from req-rise to one cycle after done.
+--     (b) DMA protocol monitor: m_addr/m_we/m_wdata stable while m_req is high,
+--         and m_req observed low for at least 1 cycle between every txn.
 --     (c) DMA slave-port functional check: each launched mem-to-mem copy lands the
---         right words at dst (tb reads shram directly) and CHnDONE sets + W1C via
---         the slave port.
+--         right words at dst (the tb reads shram directly), CHnDONE sets, and it
+--         W1Cs through the slave port.
 --
--- LR/SC-KILL PASS (directed, per the orchestrator's pre-made design decision):
---   arb_lat_master is NOT modified. The DMA's stimulus copies a SENTINEL word
---   ONTO LRSC_ADDR (word 0xE00) as a plain WRITE, repeatedly, while the BFMs' LR/SC
---   pass (pass 5) is still running. resv_unit(N=5) sees cur=4, a plain write, and
---   kills every matching reservation (D18) -- so a BFM whose LR preceded the DMA
---   write gets a FAILED SC. Because the DMA sentinel corrupts the counter word, the
---   inherited LR/SC value-equality check is dropped and replaced by:
+-- LR/SC-KILL PASS (directed, per the pre-made design decision):
+--   arb_lat_master is NOT modified.
+--   The DMA's stimulus copies a SENTINEL word ONTO LRSC_ADDR (word 0xE00) as a plain WRITE, repeatedly, while the BFMs' LR/SC pass (pass 5) is still running.
+--   resv_unit(N=5) sees cur=4, a plain write, and kills every matching reservation (D18), so a BFM whose LR preceded the DMA write gets a FAILED SC.
+--   Because the DMA sentinel corrupts the counter word, the inherited LR/SC value-equality check is dropped and replaced by:
 --     (i)  LOAD-BEARING: every BFM completed its N_LRSC successful SCs within its
---          retry budget (m_err=0 + watchdog) -> no livelock/deadlock with a DMA
---          present, and SCs that succeeded really serialized.
+--          retry budget (m_err=0 plus watchdog), proving no livelock or deadlock
+--          with a DMA present, and that the SCs which succeeded really serialized.
 --     (ii) A tb-side scoreboard (shadowing resv_unit's kill rule on LRSC_ADDR)
 --          proves at least ONE BFM SC FAILED with its reservation last killed by
---          the DMA's write (attributed via the granted-master index on the slave
---          bus + the resv-gated lanes). If no such overlap occurs naturally within
---          the bounded sentinel-write budget, (ii) is WAIVED with a loud report
---          line (NOT a failure) -- (i) is the load-bearing property.
+--          the DMA's write, attributed via the granted-master index on the slave
+--          bus and the resv-gated lanes. If no such overlap occurs naturally
+--          within the bounded sentinel-write budget, (ii) is WAIVED with a loud
+--          report line and NOT a failure, since (i) is the load-bearing property.
 --
--- NEGATIVE CONTROLS (inherited, via BREAK_MODE): 1 = BFM master 0 drops lock EARLY
---   in the AMO pass -> AMO counter (0xF00, DMA-untouched) mismatch => FAIL; 2 = the
---   BFM boundary skews req one stage shallower than addr/wdata (N_DELAY>0) =>
---   scoreboard FAIL. The DMA never skews (depth 0).
+-- NEGATIVE CONTROLS (inherited, via BREAK_MODE):
+--   1 = BFM master 0 drops lock EARLY in the AMO pass, so the AMO counter (0xF00, DMA-untouched) mismatches and the run FAILs.
+--   2 = the BFM boundary skews req one stage shallower than addr/wdata (N_DELAY>0), so the scoreboard FAILs.
+--   The DMA never skews (depth 0).
 --
 -- PASS banner: "ALL CHECKS PASSED" (grepped by xcelium/mp_test/run_dma_arb.sh).
 -- =============================================================================
@@ -198,7 +181,7 @@ architecture sim of dma_arb_tb is
     signal dma_wdata_s : std_logic_vector(31 downto 0) := (others => '0');
     signal dma_rdata_s : std_logic_vector(31 downto 0);
 
-    -- arbiter <-> slaves
+    -- arbiter slave-side bus (RAM and mutex bank)
     signal s_en      : std_logic;
     signal s_master  : std_logic_vector(MW-1 downto 0);
     signal s_we      : std_logic_vector(3 downto 0);
@@ -261,9 +244,8 @@ architecture sim of dma_arb_tb is
     constant LRSC_ADDR_I : natural := 16#E00#;
     constant PROT_ADDR_I : natural := 16#D00#;
 
-    -- The DUT engine as a COMPONENT (I3C_tb discipline: this tb ANALYZES before
-    -- DMA.vhd exists; the entity binds at ELABORATION). Ports/generics VERBATIM
-    -- from the FROZEN entity in dma_design.md.
+    -- The DUT engine as a COMPONENT, the I3C_tb discipline: this tb ANALYZES before DMA.vhd exists and the entity binds at ELABORATION.
+    -- Ports and generics are VERBATIM from the FROZEN entity in dma_design.md.
     component DMA is
         generic (
             NCH : natural := 4;
@@ -328,6 +310,7 @@ begin
     ib0 <= arb_gnt(NB-1 downto 0) & arb_done(NB-1 downto 0)
            & arb_scfail(NB-1 downto 0) & arb_rdata;
 
+    -- two register stages per direction; N_DELAY selects which one the arbiter sees
     pipes: process(clk, resetn)
     begin
         if resetn = '0' then
@@ -358,8 +341,8 @@ begin
     mb_scfail <= ib_t(IB_SCF+NB-1  downto IB_SCF);
     mb_rdata  <= ib_t(IB_RDA+DW-1  downto IB_RDA);
 
-    -- assemble the N=5 arbiter-side buses: DMA (index 4) is the TOP slice, wired
-    -- DIRECTLY (depth 0). Ties per D18: arb_lock(4)='0', arb_lrsc(9:8)="00".
+    -- Assemble the N=5 arbiter-side buses: the DMA (index 4) is the TOP slice, wired DIRECTLY at depth 0.
+    -- Ties per D18: arb_lock(4)='0', arb_lrsc(9:8)="00".
     a_req   <= dma_req & ab_req;
     a_lock  <= '0' & ab_lock;
     a_lrsc  <= "00" & ab_lrsc;
@@ -426,6 +409,7 @@ begin
         end if;
     end process;
 
+    -- remember which slave answered, so the read mux returns its data the next cycle
     rd_sel: process(clk, resetn)
     begin
         if resetn = '0' then
@@ -439,8 +423,8 @@ begin
     s_rdata <= mtx_rdata when rd_mtx = '1' else ram_rdata;
 
     -- ===== the REAL DMA engine, index 4, DEPTH 0 =====================
-    -- clk and ClkMem bound to the SAME mclk net (D1). Triggers tied '0'
-    -- (mem-to-mem, TRIG=0). Master port slices into arb_*(4) (assembled above).
+    -- clk and ClkMem are bound to the SAME mclk net (D1) and the triggers are tied '0' (mem-to-mem, TRIG=0).
+    -- The master port slices into arb_*(4), assembled above.
     dma0: DMA
         generic map (NCH => 4, AW => AWD)
         port map (
@@ -455,10 +439,8 @@ begin
         );
 
     -- ===== DMA slave-port register-bus stimulus =======================
-    -- Programs + launches mem-to-mem copies through channel 0 for the whole
-    -- run (hammering the shared RAM), verifies each copy's dest + W1Cs CHnDONE,
-    -- then repeatedly writes a sentinel onto LRSC_ADDR to interfere with the
-    -- BFMs' LR/SC pass (the directed LR/SC-kill pass).
+    -- Programs and launches mem-to-mem copies through channel 0 for the whole run, hammering the shared RAM, verifying each copy's destination and W1C-ing CHnDONE.
+    -- It also repeatedly writes a sentinel onto LRSC_ADDR to interfere with the BFMs' LR/SC pass, which is the directed LR/SC-kill pass.
     dma_stim: process
         -- slot numbers (word slot in the 0x6800 window = MABPart)
         constant SLOT_CR    : natural := 0;
@@ -537,17 +519,17 @@ begin
         wait until rising_edge(clk);
         reg_write(SLOT_CR, DMAEN);                 -- DMAEN=1
 
-        -- ONE interleaved loop for the WHOLE BFM run (so it overlaps pass 5, the
-        -- BFMs' LR/SC pass, wherever it falls). Each iteration:
-        --  1) a DENSE sentinel interference copy: fixed src / fixed dst, LEN=16 =>
+        -- ONE interleaved loop for the WHOLE BFM run, so it overlaps pass 5, the BFMs' LR/SC pass, wherever that falls.
+        -- Each iteration does:
+        --  1) a DENSE sentinel interference copy, fixed src and fixed dst, LEN=16:
         --     the engine issues 16 back-to-back plain WRITES to LRSC_ADDR, so the
         --     DMA has a 0xE00 write pending for a large fraction of the time and is
-        --     very likely to slip one into some BFM's LR->SC arbiter-serialization
-        --     gap (resv_unit(N=5) then kills that reservation => the SC fails).
-        --  2) a functional verified mem-to-mem copy (alternating A/B so a stale
-        --     dest is caught), confirming correct copies + CHnDONE W1C under
-        --     contention. The loop runs until every BFM finishes (or the K_MAX
-        --     safety budget), guaranteeing temporal overlap with pass 5.
+        --     very likely to slip one into some BFM's LR-to-SC arbiter-serialization
+        --     gap, where resv_unit(N=5) then kills that reservation and the SC fails.
+        --  2) a functional verified mem-to-mem copy, alternating A and B so a stale
+        --     destination is caught, confirming correct copies and CHnDONE W1C under
+        --     contention. The loop runs until every BFM finishes, or until the K_MAX
+        --     safety budget, guaranteeing temporal overlap with pass 5.
         it := 0;
         while (mb_finished /= (mb_finished'range => '1')) and it < K_MAX loop
             -- (1) dense interference: 16 plain writes onto LRSC_ADDR
@@ -574,8 +556,8 @@ begin
     end process;
 
     -- ===== DMA-specific monitors ======================================
-    -- (a) derived in-flight (A1 shape): busy from m_req rise to one cycle after
-    -- m_done; a done with no txn in flight is a ghost-done FAIL.
+    -- (a) derived in-flight state (A1 shape): busy from the m_req rise to one cycle after m_done.
+    -- A done with no txn in flight is a ghost-done FAIL.
     dma_busy_mon: process(clk, resetn)
         variable done_d : std_logic;
     begin
@@ -602,8 +584,7 @@ begin
         end if;
     end process;
 
-    -- (b) protocol monitor: m_addr/m_we/m_wdata stable while m_req high; >=1
-    -- observed-low cycle between txns (the WAIT-FOR-RELEASE contract, D2).
+    -- (b) protocol monitor: m_addr/m_we/m_wdata stable while m_req is high, and at least 1 observed-low cycle between txns (the WAIT-FOR-RELEASE contract, D2).
     dma_proto_chk: process(clk, resetn)
         variable prev_req  : std_logic;
         variable gap_ok    : boolean;
@@ -640,9 +621,8 @@ begin
         end if;
     end process;
 
-    -- (c) LR/SC-kill scoreboard: shadow resv_unit's kill rule on LRSC_ADDR only,
-    -- attributing each FAILED BFM SC to the master that LAST killed its resv.
-    -- If that killer is the DMA (index 4), (ii) is OBSERVED.
+    -- (c) LR/SC-kill scoreboard: shadow resv_unit's kill rule on LRSC_ADDR only, attributing each FAILED BFM SC to the master that LAST killed its reservation.
+    -- If that killer is the DMA (index 4), property (ii) is OBSERVED.
     lrsc_kill_chk: process(clk, resetn)
         type killer_arr is array(0 to NB-1) of integer range -1 to N-1;
         variable resv_open : std_logic_vector(NB-1 downto 0);
@@ -692,6 +672,7 @@ begin
     end process;
 
     -- ===== inherited checkers (over all 5 masters) ====================
+    -- grant mutual exclusion: at most one arb_gnt may be high in any cycle
     mutex_chk: process(clk)
         variable cnt : natural;
     begin
@@ -784,9 +765,8 @@ begin
                    integer'image(NB*N_MTX) & " got " & integer'image(v)
                 severity failure;
         end if;
-        -- LR/SC value-equality check on 0xE00 DROPPED: the DMA sentinel corrupts
-        -- the word by design. (i) starvation-freedom is proven below by m_err=0 +
-        -- the watchdog (every BFM did its N_LRSC successful SCs with a DMA present).
+        -- The LR/SC value-equality check on 0xE00 is DROPPED: the DMA sentinel corrupts the word by design.
+        -- Property (i), starvation-freedom, is proven below by m_err=0 plus the watchdog, i.e. every BFM did its N_LRSC successful SCs with a DMA present.
 
         report "LR/SC-KILL (i): all BFMs completed N_LRSC SCs (starvation-free)"
             severity note;

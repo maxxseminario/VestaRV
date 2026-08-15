@@ -6,6 +6,8 @@ library work;
 use work.constants.all;
 use work.MemoryMap.all;
 
+-- AFE.vhd: the analog front end control peripheral.
+-- It holds the memory-mapped control/status/bias registers, gates the AFE clock, drives the DSADC conversion FSM, and muxes internal signals out to the digital test ports.
 entity AFE is
     port
     (
@@ -44,9 +46,9 @@ entity AFE is
         dtp3_out    : out std_logic;
 
         -- Bias Signals
-	    use_bias_dac	: out	std_logic;	-- Switches between using the bias generator voltages or bias DACs for the global bias voltages. '0' <= Uses bias generator; '1' <= Uses DACs
-        en_bias_buf		: out	std_logic;	-- Enables/disables buffers on the internal global bias voltages. '0' <= Disabled; '1' <= Enabled
-	    en_bias_gen		: out	std_logic;	-- Enables/disables the internal bias generator. '0' <= Disabled; '1' <= Enabled
+	    use_bias_dac	: out	std_logic;	-- Selects the source of the global bias voltages: '0' uses the bias generator, '1' uses the bias DACs.
+        en_bias_buf		: out	std_logic;	-- Enables the buffers on the internal global bias voltages: '0' disabled, '1' enabled.
+	    en_bias_gen		: out	std_logic;	-- Enables the internal bias generator: '0' disabled, '1' enabled.
 
         -- Central Bias Generator
         BIAS_ADJ		: out	std_logic_vector(5 downto 0);	-- Internal bias generator adjustment vector. Higher vector codes produce smaller currents. The nominal vector is decimal 37.
@@ -65,7 +67,7 @@ entity AFE is
         BIAS_TC_DSADC   : out std_logic_vector(5 downto 0);    -- Bias Current BTS - DSADC
         BIAS_LC_DSADC   : out std_logic_vector(5 downto 0);    -- LC Resistor      - DSADC
         BIAS_RIN_DSADC  : out std_logic_vector(5 downto 0);    -- Input Resistor   - DSADC
-        BIAS_RFB_DSADC  : out std_logic_vector(5 downto 0);    -- Feedback Resistor- DSADC
+        BIAS_RFB_DSADC  : out std_logic_vector(5 downto 0);    -- Feedback Resistor - DSADC
         BIAS_DSADC_VCM  : out std_logic_vector(13 downto 0);   -- DSADC VCM Voltage (DAC)
 
         -- DSADC Outputs Signals 
@@ -73,11 +75,11 @@ entity AFE is
         adc_en          : out std_logic;
         adc_clk         : out std_logic;
         adc_switch      : out std_logic_vector(2 downto 0);
-        adc_ext_in      : out std_logic; -- '1' => adc's input is from potentiostat pad, '0' => external signal
-        atp_en          : out std_logic; -- '1' => ATP enabled, '0' => ATP disabled
-        atp_sel         : out std_logic; -- '1' => atp input is from DSADC, '0' => atp input is from Potentiostat
-        adc_sel         : out std_logic;  -- '1' => adc to use is SARADC, '0' => adc input is from DSADC
-        dac_en          : out std_logic   -- '1' => Dac enable for both DSADC VCM and Potentiostat RE Voltage
+        adc_ext_in      : out std_logic; -- '1' takes the ADC input from the potentiostat pad, '0' takes it from an external signal.
+        atp_en          : out std_logic; -- '1' enables the analog test port, '0' disables it.
+        atp_sel         : out std_logic; -- '1' takes the ATP input from the DSADC, '0' takes it from the potentiostat.
+        adc_sel         : out std_logic;  -- '1' selects the SARADC, '0' selects the DSADC.
+        dac_en          : out std_logic   -- '1' enables the DACs for both the DSADC VCM and the potentiostat RE voltage.
 
     );
 end AFE;
@@ -98,7 +100,7 @@ architecture Behavioral of AFE is
     signal afe_en : std_logic; -- AFE Enable bit
     signal adc_ramp_num : std_logic_vector(11 downto 0); -- Number of periods for ADC ramp
     signal adc_data_rdy_ie : std_logic; -- Data Ready Interrupt Enable bit
-    signal adc_cont_meas : std_logic; -- '1' -> ADC Running as fast as possible, '0' -> single measurement
+    signal adc_cont_meas : std_logic; -- '1' runs the ADC as fast as possible, '0' takes a single measurement.
 
     -- Clear Signals 
     signal clr_adc_data_rdy_if : std_logic;
@@ -110,7 +112,7 @@ architecture Behavioral of AFE is
     
     --AFE_SR Signals 
     signal adc_active : std_logic; -- ADC Active bit
-    signal adc_done : std_logic; -- ADC Done bit - high for one cycle when conversion is done
+    signal adc_done : std_logic; -- ADC Done bit, high for one cycle when the conversion finishes
     signal adc_data_rdy_if : std_logic; -- ADC Data Ready bit
     signal adc_ovf_if : std_logic; -- Indicates ADC_VAL has been overwritten.
     
@@ -119,7 +121,7 @@ architecture Behavioral of AFE is
     signal clr_adc_ovf_if : std_logic;
     signal adc_data_read : std_logic;
 
-    -- NOTE: Digital Values from SR can be outputted digitally via dtp
+    -- NOTE: digital values from the status register can be driven out on the digital test ports.
     --AFE_TPR
     signal dtp0_sel : std_logic_vector(4 downto 0); -- Data Test Port 0 Select bits
     signal dtp1_sel : std_logic_vector(4 downto 0); -- Data Test Port 1 Select bits
@@ -155,6 +157,7 @@ architecture Behavioral of AFE is
 
 begin
     
+    -- Drive the outputs from their readable internal copies.
     adc_en <= adc_en_int;
     adc_clk <= adc_clk_int;
     adc_switch <= adc_switch_int;
@@ -174,7 +177,7 @@ begin
     BIAS_RFB_DSADC <= BIAS_RFB_DSADC_int; 
 
 
-    --AFE_CR Routing 
+    -- AFE_CR routing: unpack the control register into its named bit fields.
     adc_ramp_num        <= AFE_CR(23 downto 12);
     adc_sel		        <= AFE_CR(11);
     atp_sel             <= AFE_CR(10);
@@ -187,7 +190,7 @@ begin
     adc_en_int          <= AFE_CR(0);
 
 
-    --AFE_SR Routing TODO: Update 
+    -- AFE_SR routing: pack the status flags into the status register. TODO: update.
     AFE_SR <= (
         0        => adc_active,
         1        => adc_data_rdy_if,
@@ -196,13 +199,13 @@ begin
     );
 
 
-    -- BIAS_CR Routing 
+    -- BIAS_CR routing: unpack the bias control register.
     use_bias_dac    <= BIAS_CR(4);
     en_bias_buf     <= BIAS_CR(3);
     en_bias_gen     <= BIAS_CR(2);
 
 
-    --AFE_DTP Routing 
+    -- AFE_TPR routing: the four digital test port select fields.
     dtp0_sel       <= AFE_TPR(4 downto 0);
     dtp1_sel       <= AFE_TPR(9 downto 5);
     dtp2_sel       <= AFE_TPR(14 downto 10);
@@ -212,6 +215,7 @@ begin
     -- irq <= '1' when (adc_data_rdy_if  = '1' and adc_data_rdy_ie = '1') else '0';
     irq <= adc_data_rdy_if  and adc_data_rdy_ie;
 
+    -- The pad pull enables pass straight through; all four test ports are always outputs.
     dtp0_ren <= dtp0_ren_in;
     dtp1_ren <= dtp1_ren_in;
     dtp2_ren <= dtp2_ren_in;
@@ -229,7 +233,7 @@ begin
     -- =============================================================================
 
 
-    -- Register Synchronization Process
+    -- Register synchronization: latch the inverted status register at the end of a bus access so a read returns a stable snapshot.
     reg_sync: process(en_mem, AFE_SR_ltch, AFE_SR, rst_int)
     begin
 	if rst_int = '1' then
@@ -239,6 +243,7 @@ begin
         end if;
     end process;
     
+    -- The AFE core clock is gated by the AFE enable bit.
     cg_clk_afe: entity work.ClkGate
 	port map
 	(
@@ -248,7 +253,8 @@ begin
 	);
 
 
-    -- TODO: Seth's ADC Controller /FSM Here
+    -- DSADC conversion controller: ramps, drives the ADC clock and switches, and latches the result.
+    -- TODO: Seth's ADC controller/FSM goes here.
     adc_fsm: entity work.AFE_FSM
     port map (
         clk => clk_afe,
@@ -259,20 +265,20 @@ begin
         cmp_out => adc_conv_done, 
         cycle_set => adc_ramp_num,
         clk_adc => adc_clk_int, 
-        count => DSADC_CNT, --input
+        count => DSADC_CNT, -- input
         sw => adc_switch_int(2 downto 0),
 
-        done => adc_done, --high for one cycle 
+        done => adc_done, -- high for one cycle
         result_latch => AFE_ADC_VAL(11 downto 0),
 	busy => adc_active
 
     );
 
-    -- If continuous measure mode, then feed clk as adc_start, else only start when adc_val is written to
+    -- In continuous measurement mode the start stays asserted; otherwise a conversion starts only when AFE_ADC_VAL is written.
     adc_start <= '1' when adc_cont_meas = '1' else adc_val_written; 
 
 
-    -- TODO: Digital Test Port Logic of signals we would like to see on output pins
+    -- TODO: digital test port vector, the internal signals we would like to see on output pins.
     dtp_vect <= (
         31 => DSADC_CNT(11),
         30 => DSADC_CNT(10),
@@ -314,7 +320,7 @@ begin
     dtp2_out <= dtp_vect(slv2uint(dtp2_sel));
     dtp3_out <= dtp_vect(slv2uint(dtp3_sel));
 
-    -- Interrupt Flag Generation Logic
+    -- Interrupt flag generation: set data-ready on every conversion, and set overflow when the previous result was never read.
     adc_rdy_if_gen: process(resetn, adc_done, clr_adc_data_rdy_if, clr_adc_ovf_if, clk)
     begin
         if resetn = '0' then 
@@ -345,20 +351,20 @@ begin
     -- Memory-Mapped Register Interface
     -- =============================================================================
     
-    -- Address decoding
+    -- Address decoding: the register slot is only presented while the bus enable is active low.
     en_addr_periph <= slv2uint(addr_periph) when en_mem = '0' else 0;
 
 
-    -- Register Write Process 
+    -- Register write process: bus writes, the reset values, and the one-cycle interrupt-flag clear pulses.
     reg_write_proc: process(resetn, clk_mem, en_mem)
     begin
 
         clr_adc_data_rdy <= '0'; -- default value
 
         if resetn = '0' then
-            -- TODO: Make these reset values generics 
-            -- TODO: For future instantiates of AFEs, global bias should be handled in antoher periheral, only local afe signals in afe peripheral. 
-	        --Register Resets 
+            -- TODO: make these reset values generics.
+            -- TODO: for future AFE instances, global bias should be handled in another peripheral, leaving only local AFE signals here.
+	        -- Register resets.
             -- AFE_CR              <= x"0FF71F";
             AFE_CR              <= x"000000";
             AFE_TPR             <= (others => '0');
@@ -409,7 +415,7 @@ begin
                     when RegSlotAFE_SR =>
                             -- Writing to SR will clear interrupt flags
                             if wen(0) = '0' then
-                                -- Bit 0 - ADC active, no clearing neccesary 
+                                -- Bit 0 is ADC active and read-only, so nothing to clear.
                                 if write_data(1) = '1' then
                                     clr_adc_data_rdy_if <= '1';
                                 end if;
@@ -512,7 +518,7 @@ begin
             end if;
         end if;
 
-        --Handle clear signals 
+        -- Drop the clear pulses out of reset and whenever the bus is idle.
         if resetn = '0' or en_mem = '1' then
             clr_adc_data_rdy_if <= '0';
             clr_adc_ovf_if <= '0';
@@ -521,7 +527,7 @@ begin
     end process;
 
 
-    -- Register Read Process 
+    -- Register read process: registered read data, zero-extended, with zeros for unmapped slots.
     reg_read_proc: process(clk_mem)
     begin
         if rising_edge(clk_mem) then

@@ -28,7 +28,8 @@ end serial_flash;
 
 architecture behavioral of serial_flash is
 
-	-- Automatically offset code from RCF file to match the memory map of the MCU. This will be handled by the linker script in the actual hardware.
+	-- Automatically offset the code from the RCF file to match the MCU memory map.
+	-- In the real hardware the linker script does this.
 
 	constant RamSizeWords : natural := RamSizeBytes / 4;
 
@@ -39,24 +40,20 @@ architecture behavioral of serial_flash is
 	signal bitcount : natural range 0 to 8;
 	signal RXSr : std_logic_vector(7 downto 0);
 	signal TXSr : std_logic_vector(7 downto 0);
-	-- Power-state model of the AT45DB021E (DataFlash family). The device is
-	-- modeled as starting in deep power-down, forcing the boot code to issue a
-	-- correctly framed ABh wake-up. On the real chip the ABh (resume) and B9h
-	-- (deep power-down) opcodes take effect only on the RISING edge of CSb after
-	-- the opcode is shifted in; the wake-up timer (tRDPD) starts at that CSb
-	-- edge. The pre-2026-07 model woke up as soon as the 8th bit of ABh arrived,
-	-- which hid the CS-framing bug in the myshkin-2025-11 boot ROM.
+	-- Power-state model of the AT45DB021E (DataFlash family).
+	-- The device is modeled as starting in deep power-down, forcing the boot code to issue a correctly framed ABh wake-up.
+	-- On the real chip the ABh (resume) and B9h (deep power-down) opcodes take effect only on the RISING edge of CSb after the opcode is shifted in, and the wake-up timer (tRDPD) starts at that CSb edge.
+	-- The pre-2026-07 model woke up as soon as the 8th bit of ABh arrived, which hid the CS-framing bug in the myshkin-2025-11 boot ROM.
 	signal PowerOn : boolean := false;
 	signal WakePending : boolean := false;
 	signal SleepPending : boolean := false;
 	signal ReadyBit : std_logic := '0';
 begin
 
-	-- Maxx Seminario 05/19/2025 - rcf is read each time flash is reset. This does not reflect
-	-- the physical flash chip, rather, it is for simulation purposes. 
-	-- Read the flash data image at the start of simulation.  This is only 
-	-- updated once.  This expects the flash contents as 16 bit binary
-	-- ASCII strings with one word per line.
+	-- Maxx Seminario 05/19/2025: the rcf is re-read every time the flash is reset.
+	-- That does not reflect the physical flash chip; it is a simulation convenience.
+	-- The flash data image is read at the start of simulation and updated only once.
+	-- It expects the flash contents as binary ASCII strings, one word per line.
 	read_file: process(mem_reset)
     file ROM_File : text;
     variable ROM_File_line : LINE;
@@ -110,6 +107,7 @@ begin
     end if;
 end process read_file;
 
+	-- SPI slave shift engine: samples MOSI on the rising SPCLK edge, drives MISO on the falling edge, and runs the opcode/address/read state machine.
 	process(CSb, SPCLK)
 		-- The memory map address.
 		variable Address : std_logic_vector(23 downto 0) := (others=>'0');
@@ -123,8 +121,7 @@ end process read_file;
 				bitcount <= bitcount + 1;
 				RXSr <= RXSr(6 downto 0) & MOSI;
 
-				-- Once a power-mode opcode has been latched, the real device
-				-- ignores everything else on the bus until CSb is deasserted.
+				-- Once a power-mode opcode has been latched, the real device ignores everything else on the bus until CSb is deasserted.
 				if state = Idle and bitcount = 7 and (WakePending or SleepPending) then
 					if RXSr(6 downto 0) & MOSI = X"03" or RXSr(6 downto 0) & MOSI = X"0B"
 							or RXSr(6 downto 0) & MOSI = X"D7" then
@@ -135,14 +132,13 @@ end process read_file;
 					end if;
 				elsif state = Idle and bitcount = 7 then
 					if RXSr(6 downto 0) & MOSI = X"AB" then
-						-- Resume from Deep Power-Down. Takes effect only after
-						-- CSb deassertion (see the CSb = '1' branch below).
+						-- Resume from Deep Power-Down, taking effect only after CSb deassertion (see the CSb = '1' branch below).
 						WakePending <= true;
 					elsif RXSr(6 downto 0) & MOSI = X"B9" then
 						-- Deep Power-Down. Also deferred until CSb deassertion.
 						SleepPending <= true;
 					elsif RXSr(6 downto 0) & MOSI = X"D7" and PowerOn then
-						-- This is the status register read command
+						-- Status register read command (D7h).
 						state <= ReadStatus;
 					elsif (RXSr(6 downto 0) & MOSI = X"03" or RXSr(6 downto 0) & MOSI = X"0B"
 							or RXSr(6 downto 0) & MOSI = X"D7") and not PowerOn then
@@ -157,7 +153,7 @@ end process read_file;
 					bitcount <= 0;
 					if PowerOn and ReadyBit = '1' then
 						if state = Idle then
-							if (RXSr = X"03") or (RXSr = X"0B") then	-- Look for the Read Low Frequency or Read High Frequency commands
+							if (RXSr = X"03") or (RXSr = X"0B") then	-- Read Low Frequency or Read High Frequency command
 								state <= RXAdd1;
 							end if;
 						elsif state = RXAdd1 then
@@ -203,8 +199,7 @@ end process read_file;
 			end if;
 		else
 			-- CSb deasserted: a pending power-mode opcode takes effect NOW.
-			-- For a wake-up this is the point where the real part starts its
-			-- tRDPD timer (the ReadyBit process below adds that delay).
+			-- For a wake-up this is the point where the real part starts its tRDPD timer, and the ReadyBit process below adds that delay.
 			if WakePending then
 				PowerOn <= true;
 				WakePending <= false;
@@ -217,8 +212,9 @@ end process read_file;
 			bitcount <= 0;
 		end if;
 	end process;
-	MISO <= TXSr(7);
+	MISO <= TXSr(7);   -- MISO is the top bit of the transmit shift register
 
+	-- tRDPD wake-up timer: the device only answers reads once this delay has elapsed after the resume took effect.
 	process
 	begin
 		ReadyBit <= '0';
