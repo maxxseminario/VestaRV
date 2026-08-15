@@ -1,0 +1,42 @@
+%% maestro2tex -- generated figure; do not edit by hand.
+\providecommand{\MaestroRoot}{include/analog/}
+\begin{figure}[htbp]
+  \centering
+  {\pgfplotsset{compat=1.18}%
+  \begin{tikzpicture}
+    \begin{axis}[
+      width=0.82\linewidth, height=6.2cm,
+      xlabel={Frequency~[\si{\hertz}]}, ylabel={Loop gain $|T|$~[\si{\decibel}]},
+      grid=both,
+      major grid style={line width=0.2pt, draw=black!14},
+      minor grid style={line width=0.2pt, draw=black!7},
+      minor tick num=1,
+      axis line style={line width=0.4pt, draw=black!45},
+      tick style={line width=0.4pt, draw=black!45},
+      tick align=outside,
+      label style={font=\small}, tick label style={font=\small},
+      enlarge x limits=0.02, enlarge y limits=0.10,
+      every axis plot/.append style={line join=round, no marks},
+      legend style={font=\footnotesize, draw=black!25, fill=white,
+                    fill opacity=0.9, text opacity=1, row sep=1pt},
+      legend cell align=left, legend pos=south west,
+      xmode=log,
+      scaled y ticks=false,
+      y tick label style={/pgf/number format/fixed,
+                          /pgf/number format/precision=0}
+    ]
+      \addplot[mtxA, line width=1.1pt, solid] table {\MaestroRoot data/tia_cl_loopgain_00.dat};
+      \addlegendentry{tt}
+      \addplot[mtxB, line width=1.1pt, dashed] table {\MaestroRoot data/tia_cl_loopgain_01.dat};
+      \addlegendentry{ff}
+      \addplot[mtxC, line width=1.1pt, dotted] table {\MaestroRoot data/tia_cl_loopgain_02.dat};
+      \addlegendentry{fs}
+      \addplot[mtxD, line width=1.1pt, dashdotted] table {\MaestroRoot data/tia_cl_loopgain_03.dat};
+      \addlegendentry{sf}
+      \addplot[mtxE, line width=1.1pt, densely dashed] table {\MaestroRoot data/tia_cl_loopgain_04.dat};
+      \addlegendentry{ss}
+    \end{axis}
+  \end{tikzpicture}}
+  \caption[{Transimpedance loop gain at maximum gain, by \texttt{stb} through the \texttt{IPRB\_F} probe, over the five\,\dots}]{Transimpedance loop gain at maximum gain, by \texttt{stb} through the \texttt{IPRB\_F} probe, over the five process corners. $R_f = \SI{560}{\kilo\ohm}$, $C_f = \SI{22}{\pico\farad}$, electrode \texttt{randles\_cell} with $R_s = \SI{100}{\ohm}$, $R_{\mathrm{ct}} = \SI{1}{\mega\ohm}$, $C_{\mathrm{dl}} = \SI{100}{\nano\farad}$, \SI{25}{\celsius}. DC loop gain is \SIrange{76.5}{78.0}{\decibel} and crossover \SIrange{6.3}{6.7}{\kilo\hertz}. The electrode's solution resistance bounds the noise gain at $1 + R_f/R_s$, so the loop closes at \SI{20}{\decibel} per decade rather than the \SI{40}{\decibel} of the earlier bare-capacitor bench (Section~\ref{sss:tia-loop}).}
+  \label{fig:tia-cl-loopgain}
+\end{figure}

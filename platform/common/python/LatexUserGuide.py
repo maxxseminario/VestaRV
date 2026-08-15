@@ -1,4 +1,4 @@
-import datetime, os, pathlib
+import datetime, os, pathlib, re
 from shutil import copyfile, rmtree
 
 def copytree(src, dst, dirs_exist_ok=True):
@@ -23,6 +23,12 @@ def fmthex(num:int, minDigits:int=4, usePrefix:bool=True):
 	if usePrefix:
 		s = '0x' + s
 	return s
+
+def _numberWord(n:int):
+	'''Small counts spelled out, for figure banner text ("four hardened channel
+	   tiles"). Same table \\NumHartsWord uses; anything larger stays a numeral.'''
+	return {1: 'one', 2: 'two', 3: 'three', 4: 'four', 5: 'five', 6: 'six',
+		7: 'seven', 8: 'eight'}.get(n, str(n))
 
 def fmtbin(num:int, minDigits:int=8, usePrefix:bool=True):
 	fmtstr = '{:0' + str(minDigits) + 'b}'
@@ -74,11 +80,19 @@ class LatexUserGuide():
 		self.GenerateAddressSpaceDiagram()
 		self.GenerateChipConfigurationSection()
 		self.GenerateSystemBlockDiagram()
+		# CPR3/R3 mechanism figure. Emitted unconditionally (the D-series
+		# precedent): the multi-core chapter \input{}s it inside its own
+		# \iforchpresent, so the gating rule lives in exactly one place.
+		self.GenerateTcmApertureDiagram()
 		self.GenerateBootFlowDiagram()
 		self.GenerateSyncPrimitiveDecisionTree()
 		self.GenerateTimerRolloverDiagram()
 		self.GenerateTimerOutputCompareDiagram()
 		self.GenerateArbiterHandshakeDiagram()
+		# CPR3/R3 companion waveform: the same pins, stalled. Emitted
+		# unconditionally like the aperture mechanism figure above; the
+		# chapter's \input sits inside \iforchpresent.
+		self.GenerateArbiterStallDiagram()
 		self.GenerateSpiTimingDiagram()
 		self.GenerateSpiByteOrderingDiagram()
 		self.GenerateSpiBitOrderingDiagram()
@@ -325,6 +339,9 @@ class LatexUserGuide():
 		# The master template selected by the chip config references only the defines its
 		# configuration provides (e.g. a single-core template never uses \SharedWindow*).
 		hartWords = {1: 'one', 2: 'two', 3: 'three', 4: 'four', 5: 'five', 6: 'six', 7: 'seven', 8: 'eight'}
+		# Reset/boot address: every hart resets into the shared boot ROM, so the
+		# address-space prose quotes this rather than a literal 0x00000.
+		defines['RomStartAddress'] = fmthex(self.Gen.RomStartAddress, minDigits=5)
 		defines['NumHarts'] = str(self.Gen.NumHarts)
 		defines['NumHartsWord'] = hartWords.get(self.Gen.NumHarts, str(self.Gen.NumHarts))
 		defines['MaxHartIndex'] = str(self.Gen.NumHarts - 1)
@@ -460,6 +477,14 @@ class LatexUserGuide():
 		s += '\\newcommand{\\OrchHartIndex}{0}\n'
 		s += '\\newif\\iforchpresent\n'
 		s += ('\\orchpresenttrue' if _orch else '\\orchpresentfalse') + '\n'
+		# Base of the read-only TCM aperture band (TCMWIN[0]), taken from the
+		# resolved config's derived tcmWindowAddresses so the address-space
+		# prose quotes the same arithmetic the figure draws. Defined
+		# UNCONDITIONALLY (the \OrchHartIndex precedent) so it cannot dangle
+		# inside a folded \iforchpresent branch; without an orchestrator there
+		# are no apertures and nothing references it.
+		_tcmWindows = ((getattr(self.Gen, 'ResolvedConfig', None) or {}).get('derived') or {}).get('tcmWindowAddresses') or []
+		s += '\\newcommand{\\FirstTcmWindowAddress}{' + (str(_tcmWindows[0]) if _tcmWindows else '--') + '}\n'
 
 		if not os.path.isdir(self.IncludeDirectory):
 			os.makedirs(self.IncludeDirectory)
@@ -793,96 +818,212 @@ class LatexUserGuide():
 			f.write(s)
 		return
 
+	# ------------------------------------------------------------------
+	# Address-space figure (TRM Section \ref{s:addressSpace}).
+	#
+	# THE MAP IS TWO OVERLAPPING VIEWS, and the figure draws them as ONE
+	# monotonically increasing column with the views told apart by their
+	# group braces:
+	#   * the SHARED WINDOW 0x0..2^(SH_AW+2)-1, which every hart reaches
+	#     through the mp_arbiter — hart_tile.vhd's sh_sel decode:
+	#         sh_sel <= '1' when data_addr(31 downto SH_AW+2) = SH_WIN_ZERO
+	#                        and not (data_addr(SH_AW+1 downto 16) = SH_TCM_ZERO
+	#                                 and data_addr(15 downto 14) = "10")
+	#   * the PRIVATE TCM band, which that same decode carves OUT of the
+	#     window (the "10" region term), so at those addresses each hart
+	#     sees its own RAM0 instead of the shared bus.
+	# Above the window, extended flash decodes at exactly 2^(SH_AW+2) —
+	# the STRICT COMPLEMENT of sh_sel (adddec.vhd gen_flash_detect:
+	# data_addr(31 downto SH_AW+2) /= FLASH_ZERO; the M3c.3 double-claim
+	# lesson) — and only hart 0 has that path.
+	#
+	# Everything drawn is DERIVED: the shared rows from
+	# Gen.SharedWindowSections (including the per-hart TCM apertures),
+	# ROM/peripheral/TCM geometry from the ChipGenerator memory objects,
+	# the flash base from McuMpGeometry['shAw'] (same expression the
+	# SPI_FLASH_MEM_ADDRESS header define uses). No literal addresses.
+	#
+	# THE DEFECT THIS STRUCTURE MAKES IMPOSSIBLE: the figure used to be
+	# emitted as two independent columns (the private map, then the shared
+	# sections) with the second one continuing from the FIRST one's running
+	# end, so it shipped rows like \memsection{0x0C000}{0x04FFF} — start
+	# above end — and printed 0x05000 and 0x08000 twice. The rows are now
+	# built as one gapless, strictly increasing tiling of the whole 32-bit
+	# space, and _AssertAddressSpaceTex() re-walks the EMITTED tex (not the
+	# model that produced it) and raises before the file is written.
+	# ------------------------------------------------------------------
+
+	# Access-class labels for the figure's group braces. Each brace is one
+	# access class, so the private carve-out visibly interrupts the shared
+	# window instead of being hidden inside it.
+	_ADDR_GROUP_SHARED = 'Shared window\\\\(all harts, arbitrated)'
+	_ADDR_GROUP_PRIVATE = 'Private to each hart\\\\(not arbitrated)'
+	_ADDR_GROUP_APERTURE = 'Shared window\\\\(hart 0\'s read-only view\\\\of each hart\'s TCM)'
+	_ADDR_GROUP_FLASH = 'External SPI flash\\\\(hart 0 only)'
+	_ADDR_TOP = 0xFFFFFFFF
+
+	def _AddressSpaceSizeString(self, size):
+		for unit, div in (('MiB', 1024 * 1024), ('KiB', 1024)):
+			if size >= div and (size % div) == 0:
+				return str(size // div) + ' ' + unit
+		return str(size) + ' B'
+
+	def _AddressSpaceRows(self):
+		'''Build the figure's rows: an ordered list of (start, end, group, lines)
+		   that TILES the 32-bit space — gapless, strictly increasing, by
+		   construction. group is a brace label or None (no brace).'''
+		gen = self.Gen
+		unmappedLines = ['\\textit{\\color{lightgray}Unmapped}', '\\textit{\\color{lightgray}(reads zero)}']
+
+		# --- which shared sections are the per-hart TCM apertures ----------
+		# Read off the resolved config's derived geometry rather than matching
+		# section names, so the classification follows the generator's own
+		# arithmetic (0x20000 + 0x4000*h) and degrades to "no apertures" for
+		# every non-orchestrator configuration.
+		apertureStarts = set()
+		rc = getattr(gen, 'ResolvedConfig', None) or {}
+		for a in ((rc.get('derived') or {}).get('tcmWindowAddresses') or []):
+			apertureStarts.add(int(str(a), 16))
+
+		# --- the mapped regions, each from its generator object ------------
+		regions = []
+		regions.append((gen.RomStartAddress, gen.RomEndAddress, self._ADDR_GROUP_SHARED,
+			['Boot ROM', 'Size = ' + self._AddressSpaceSizeString(1 + gen.RomEndAddress - gen.RomStartAddress)]))
+		regions.append((gen.PeripheralMemoryStartAddress, gen.PeripheralMemoryEndAddress, self._ADDR_GROUP_SHARED,
+			['Peripheral registers', 'Size = ' + self._AddressSpaceSizeString(gen.PeripheralMemorySize)]))
+		for name, startAddr, endAddr, desc in (gen.SharedWindowSections or []):
+			group = self._ADDR_GROUP_APERTURE if startAddr in apertureStarts else self._ADDR_GROUP_SHARED
+			regions.append((startAddr, endAddr, group,
+				[name, 'Size = ' + self._AddressSpaceSizeString(1 + endAddr - startAddr)]))
+
+		# The private band: the ChipGenerator "RAM" object IS the per-hart TCM
+		# on this chip (one slot per used SRAM), and it is the only private
+		# region in the map.
+		firstRamSlot = min(gen.RamMemorySlotsAvailable)	# same formula as generateMemoryX; the old hardcoded (ramSlot - 2) drew the RAM at the wrong addresses
+		multiSlot = len(gen.RamMemorySlotsUsed) > 1
+		for i, ramSlot in enumerate(gen.RamMemorySlotsUsed):
+			if i == (len(gen.RamMemorySlotsUsed) - 1):
+				thisSlotSize = gen.LastRamMemorySlotSize
+			else:
+				thisSlotSize = gen.RamMemorySlotSize
+			addr = gen.RamStartAddress + ((ramSlot - firstRamSlot) * gen.RamMemorySlotSize)
+			title = 'Private TCM'
+			if multiSlot:
+				title += ' (SRAM{:02d})'.format(ramSlot)
+			lines = [title, 'Size = ' + self._AddressSpaceSizeString(thisSlotSize) + ' per hart']
+			if ramSlot in gen.RamMemorySlotsMuxed:
+				muxNote = '\\textit{Multiplexed'
+				if type(gen.RamMemorySlotsMuxed) == dict:
+					muxNote += ' with ' + gen.RamMemorySlotsMuxed[ramSlot]
+				lines.append(muxNote + '}')
+			regions.append((addr, addr + thisSlotSize - 1, self._ADDR_GROUP_PRIVATE, lines))
+
+		# --- the window top and the flash base, both from SH_AW ------------
+		flashRead = bool(gen.NativeSpiFlashMemoryReadAccess)
+		flashWrite = bool(gen.NativeSpiFlashMemoryWriteAccess)
+		geo = getattr(gen, 'McuMpGeometry', None)
+		if geo:
+			flashBase = 1 << (geo['shAw'] + 2)
+		elif flashRead or flashWrite:
+			raise Exception('AddressSpaceDiagram: the extended-flash window is enabled but the '
+				'configuration has no McuMpGeometry to derive its base (2^(shAw+2)) from')
+		else:
+			flashBase = max([r[1] for r in regions]) + 1
+		windowTop = flashBase - 1
+
+		# --- assemble: sort, check, fill every gap -------------------------
+		regions.sort(key=lambda r: r[0])
+		rows = []
+		cursor = 0
+		for (start, end, group, lines) in regions:
+			if end < start:
+				raise Exception('AddressSpaceDiagram: region ' + lines[0] + ' has start 0x{:X} above end 0x{:X}'.format(start, end))
+			if start < cursor:
+				raise Exception('AddressSpaceDiagram: region ' + lines[0] + ' at 0x{:X} overlaps the region below it (which ends at 0x{:X})'.format(start, cursor - 1))
+			if end > windowTop:
+				raise Exception('AddressSpaceDiagram: region ' + lines[0] + ' ends at 0x{:X}, above the shared-window top 0x{:X}'.format(end, windowTop))
+			if start > cursor:
+				rows.append((cursor, start - 1, None, unmappedLines))
+			rows.append((start, end, group, lines))
+			cursor = end + 1
+		if cursor <= windowTop:
+			rows.append((cursor, windowTop, None, unmappedLines))
+			cursor = windowTop + 1
+
+		# --- above the window: the extended-flash window, or nothing -------
+		if flashRead or flashWrite:
+			flashLines = ['SPI flash (XIP)']
+			if flashRead and not flashWrite:
+				flashLines.append('\\textit{read only}')
+			flashLines.append('\\textit{(addr + SPI0FOS) mod $2^{24}$}')
+			rows.append((flashBase, self._ADDR_TOP, self._ADDR_GROUP_FLASH, flashLines))
+		else:
+			rows.append((cursor, self._ADDR_TOP, None, unmappedLines))
+		return rows
+
+	def _AssertAddressSpaceTex(self, tex):
+		'''E17-style build-time assertion. Walks the rows the emitter ACTUALLY
+		   drew — parsed back out of the emitted tex, not out of the model that
+		   produced them — and raises unless they are a gapless, strictly
+		   increasing tiling of the whole 32-bit space. An inverted or repeated
+		   address column now fails `make generate` instead of shipping.'''
+		pairs = re.findall(r'\\memsection\{0x([0-9A-Fa-f]+)\}\{0x([0-9A-Fa-f]+)\}', tex)
+		if not pairs:
+			raise Exception('AddressSpaceDiagram: no \\memsection rows were emitted')
+		prevEnd = -1
+		for i, (a, b) in enumerate(pairs):
+			start = int(a, 16)
+			end = int(b, 16)
+			if end < start:
+				raise Exception('AddressSpaceDiagram: drawn row {} runs BACKWARDS: start 0x{:X} is above end 0x{:X}'.format(i, start, end))
+			if start != prevEnd + 1:
+				raise Exception('AddressSpaceDiagram: drawn row {} starts at 0x{:X} but the row above it ended at 0x{:X}'
+					' — the drawn column must be gapless and strictly increasing'.format(i, start, prevEnd))
+			prevEnd = end
+		if prevEnd != self._ADDR_TOP:
+			raise Exception('AddressSpaceDiagram: the drawn column ends at 0x{:X}, not at the top of the 32-bit space 0x{:X}'.format(prevEnd, self._ADDR_TOP))
+
 	def GenerateAddressSpaceDiagram(self):
-		# (Slot name (None if unused section), SRAM slot number (None if not SRAM), start address, end address)
-		slots = [('ROM', None, self.Gen.RomStartAddress, self.Gen.RomEndAddress)]
+		rows = self._AddressSpaceRows()
 
-		if self.Gen.PeripheralMemoryStartAddress - self.Gen.RomEndAddress != 1:
-			slots += [(None, None, self.Gen.RomEndAddress + 1, self.Gen.PeripheralMemoryStartAddress - 1)]
-		
-		slots += [('Peripherals', None, self.Gen.PeripheralMemoryStartAddress, self.Gen.PeripheralMemoryEndAddress)]
-
-		if self.Gen.RamStartAddress - self.Gen.PeripheralMemoryStartAddress != 1:
-			slots += [(None, None, self.Gen.PeripheralMemoryEndAddress + 1, self.Gen.RamStartAddress - 1)]
-		
-		firstRamSlot = min(self.Gen.RamMemorySlotsAvailable)	# same formula as generateMemoryX; the old hardcoded (ramSlot - 2) drew the RAM at the wrong addresses
-		for i, ramSlot in enumerate(self.Gen.RamMemorySlotsUsed):
-			if i == (len(self.Gen.RamMemorySlotsUsed) - 1):
-				thisSlotSize = self.Gen.LastRamMemorySlotSize
-			else:
-				thisSlotSize = self.Gen.RamMemorySlotSize
-			addr = self.Gen.RamStartAddress + ((ramSlot - firstRamSlot) * self.Gen.RamMemorySlotSize)
-			slots += [('SRAM{:02d}'.format(ramSlot), ramSlot, addr, addr + thisSlotSize - 1)]
-		
-		# Create the memory map diagram tex file
+		# Emit one bytefield column, merging adjacent rows of the same access
+		# class into a single right-hand brace.
 		s = '\\begin{bytefield}{8}\n'
-		
-		startedRAM = False
-		for slot in slots:
-			name = slot[0]
-			sramSlotNum = slot[1]
-			startAddr = slot[2]
-			endAddr = slot[3]
-			size = 1 + slot[3] - slot[2]
-			if name is None:
-				s += '\\memsection{' + fmthex(startAddr, minDigits=5) + '}{' + fmthex(endAddr, minDigits=5) + '}{3}{\\textit{\\color{lightgray}Unused}} \\\\\n'
+		i = 0
+		while i < len(rows):
+			group = rows[i][2]
+			j = i
+			if group is not None:
+				while (j + 1) < len(rows) and rows[j + 1][2] == group:
+					j += 1
+			body = []
+			for (start, end, g, lines) in rows[i:j + 1]:
+				height = '4' if len(lines) >= 3 else '3'
+				body.append('\\memsection{' + fmthex(start, minDigits=5) + '}{' + fmthex(end, minDigits=5)
+					+ '}{' + height + '}{' + ' \\\\ '.join(lines) + '}')
+			if group is None:
+				for b in body:
+					s += b + ' \\\\\n'
 			else:
-				if (sramSlotNum is not None) and (not startedRAM):
-					s += '\\begin{rightwordgroup}{RAM (Total size = ' + str(self.Gen.RamSize // 1024) + ' KiB)}\n'
-					startedRAM = True
-				height = '3'
-				if sramSlotNum in self.Gen.RamMemorySlotsMuxed:
-					height = '4'
-				s += '\\memsection{' + fmthex(startAddr, minDigits=5) + '}{' + fmthex(endAddr, minDigits=5) + '}{' + height + '}{' + name + ' \\\\ Size = ' + str(size // 1024) + ' KiB'
-				if sramSlotNum in self.Gen.RamMemorySlotsMuxed:
-					s += ' \\\\ \\textit{Multiplexed'
-					if type(self.Gen.RamMemorySlotsMuxed) == dict:
-						s +=' with ' + self.Gen.RamMemorySlotsMuxed[sramSlotNum]
-					s += '}'
-				s += '}\\\\\n'
-		s = s[:-3] + '\n'
-		s += '\\end{rightwordgroup}\n'
-
-		# Add the multi-core shared window sections (if any)
-		lastUsedAddress = slots[-1][3]
-		if self.Gen.SharedWindowSections is not None and len(self.Gen.SharedWindowSections) > 0:
-			s += '\\\\\n'
-			s += '\\begin{rightwordgroup}{Shared window\\\\(all harts, arbitrated)}\n'
-			prevEnd = slots[-1][3]
-			for name, startAddr, endAddr, desc in self.Gen.SharedWindowSections:
-				if startAddr - prevEnd != 1:
-					s += '\\memsection{' + fmthex(prevEnd + 1, minDigits=5) + '}{' + fmthex(startAddr - 1, minDigits=5) + '}{3}{\\textit{\\color{lightgray}Reserved}} \\\\\n'
-				size = 1 + endAddr - startAddr
-				if size >= 1024:
-					sizeStr = str(size // 1024) + ' KiB'
-				else:
-					sizeStr = str(size) + ' B'
-				s += '\\memsection{' + fmthex(startAddr, minDigits=5) + '}{' + fmthex(endAddr, minDigits=5) + '}{3}{' + name + ' \\\\ Size = ' + sizeStr + '} \\\\\n'
-				prevEnd = endAddr
-			s = s[:-3] + '\n'
-			s += '\\end{rightwordgroup}\n'
-			lastUsedAddress = prevEnd
-
-		if self.Gen.NativeSpiFlashMemoryReadAccess and not self.Gen.NativeSpiFlashMemoryWriteAccess:
-			s += '\\\\\n'
-			s += '\\memsection{' + fmthex(lastUsedAddress + 1, minDigits=7) + '}{' + fmthex(0x0FFFFFF, minDigits=7) + '}{3}{\\textit{\\color{lightgray}Unused}} \\\\\n'
-			s += '\\memsection{' + fmthex(0x1000000) + '}{' + fmthex(0x1FFFFFF) + '}{4}{SPI Flash Native\\\\Memory Access\\\\\\textit{(read only)}} \\\\\n'
-		elif self.Gen.NativeSpiFlashMemoryReadAccess and self.Gen.NativeSpiFlashMemoryWriteAccess:
-			s += '\\\\\n'
-			s += '\\memsection{' + fmthex(lastUsedAddress + 1, minDigits=7) + '}{' + fmthex(0x0FFFFFF, minDigits=7) + '}{3}{\\textit{\\color{lightgray}Unused}} \\\\\n'
-			s += '\\memsection{' + fmthex(0x1000000) + '}{' + fmthex(0x1FFFFFF) + '}{3}{SPI Flash Native\\\\Memory Access} \\\\\n'
-		
+				s += '\\begin{rightwordgroup}{' + group + '}\n'
+				s += ' \\\\\n'.join(body) + '\n'
+				s += '\\end{rightwordgroup}\n'
+				if (j + 1) < len(rows):
+					s += '\\\\\n'
+			i = j + 1
 		s += '\\end{bytefield}\n'
-	
+
+		self._AssertAddressSpaceTex(s)
+
 		if not os.path.isdir(self.IncludeDirectory):
 			os.makedirs(self.IncludeDirectory)
-		
+
 		path = self.IncludeDirectory + '/AddressSpaceDiagram.tex'
 		with open(path, 'w') as f:
 			f.write(s)
-		
+
 		return
-	
+
 	# -----------------------------------------------------------------
 	# Unified-configuration section + generated diagrams (2026-07-11).
 	# All of these render from the SAME records generate.py builds for
@@ -1008,21 +1149,113 @@ class LatexUserGuide():
 			f.write(s)
 		return
 
-	def GenerateSystemBlockDiagram(self):
-		'''include/SystemBlockDiagram.tex — configuration-driven top-level block
-		   diagram: N hart tiles over the registered boundary, the serializing
-		   round-robin arbiter, and the shared-window slaves.'''
-		N = self.Gen.NumHarts
-		geo = getattr(self.Gen, 'McuMpGeometry', None) or {'shAw': 15, 'sharedRamBanks': 4, 'npu': True}
-		banks = geo['sharedRamBanks']
-		npu = geo['npu']
-		flashBase = fmthex(1 << (geo['shAw'] + 2))
+	# ------------------------------------------------------------------
+	# The top-level block diagram. TWO SHAPES, because the chip has two,
+	# and the figure must not tell the wrong one:
+	#
+	#   * orchestrator OFF (castalia4, every Argus configuration) — N
+	#     interchangeable hart tiles in a row over one registered
+	#     boundary. This is the historical drawing, kept VERBATIM: it is
+	#     the true picture of those chips, and the N > 5 elision path is
+	#     what keeps the 18-hart Argus manual honest.
+	#   * orchestrator ON (the shipped default since CPR8) — hart 0 is
+	#     NOT one more tile. It is soft logic in the always-on centre
+	#     band; harts 1..N-1 are hardened macros on switched rails with
+	#     their own PWRCR gate bits. Drawing five identical boxes there
+	#     asserts a chip that does not exist, so this shape gets its own
+	#     drawing: two banded regions (always-on vs gateable), the
+	#     registered boundary around the TILES only, and the read-only
+	#     TCM apertures drawn as what they are — a shared-window slave
+	#     that reaches BACK into the tiles.
+	# ------------------------------------------------------------------
+
+	def _SystemBlockSlaves(self, geo, nMtx):
+		'''The shared-window slave boxes, as (label, width) pairs, DERIVED —
+		   the aperture box comes from McuMpGeometry['tcmWindows'] cross-checked
+		   against Gen.SharedWindowSections, never from a literal. Returns
+		   (slaves, apertureIndex); apertureIndex is None without apertures.'''
 		romKiB = self.Gen.RomSize // 1024
 		tcmKiB = self.Gen.RamMemorySlotSize // 1024
+		banks = geo['sharedRamBanks']
+		slaves = [
+			('Boot ROM\\\\ \\texttt{0x0} (' + str(romKiB) + '\\,KiB)\\\\ all harts reset here', 2.9),
+			('Peripherals \\texttt{0x4000}\\\\ 16 slots $+$ CLINT\\\\ ' + str(nMtx) + ' mutexes $+$ IRQ router', 3.6),
+		]
+		if geo['npu']:
+			slaves.append(('NPU staging RAM\\\\ \\texttt{0xC000} (16\\,KiB)', 2.9))
+		slaves.append(('Shared RAM \\texttt{0x10000}\\\\ ' + str(banks) + ' $\\times$ 16\\,KiB banks', 3.3))
+
+		apertureIndex = None
+		windows = self._TcmApertureWindows()
+		if windows:
+			apertureIndex = len(slaves)
+			slaves.append(('TCM apertures \\texttt{' + fmthex(windows[0]) + '}\\\\ '
+				+ str(len(windows)) + ' $\\times$ ' + str(tcmKiB) + '\\,KiB, read-only\\\\ hart 0 only', 3.6))
+		return slaves, apertureIndex
+
+	def _TcmApertureWindows(self):
+		'''The read-only TCM aperture bases, [] when the configuration has none.
+
+		   E17-style: the geometry list (generate.py's tcmWindows, which is what
+		   mcu_vhd.py decodes) and the address-space model (SharedWindowSections,
+		   which is what the memory-map figure draws) are INDEPENDENT products of
+		   the same arithmetic. Any figure that draws the apertures cross-checks
+		   them here and raises, so a map change that misses one of the two fails
+		   `make generate` instead of shipping a figure that disagrees with the
+		   memory map two pages later.'''
+		geo = getattr(self.Gen, 'McuMpGeometry', None) or {}
+		windows = list(geo.get('tcmWindows') or [])
+		sections = [sec for sec in (self.Gen.SharedWindowSections or [])
+			if str(sec[0]).startswith('TCM aperture')]
+		if [sec[1] for sec in sections] != windows:
+			raise Exception('TCM apertures: McuMpGeometry tcmWindows %s do not match the '
+				'SharedWindowSections aperture rows %s — the block diagram and the address-space '
+				'figure would disagree.' % ([hex(w) for w in windows], [hex(sec[1]) for sec in sections]))
+		tcmBytes = self.Gen.RamMemorySlotSize
+		for h, (start, end) in enumerate((sec[1], sec[2]) for sec in sections):
+			if end - start + 1 != tcmBytes:
+				raise Exception('TCM aperture %d spans 0x%X bytes but a TCM is 0x%X'
+					% (h, end - start + 1, tcmBytes))
+			if start != windows[0] + h * tcmBytes:
+				raise Exception('TCM aperture %d is at 0x%X, not the uniform 0x%X + %d*0x%X'
+					% (h, start, windows[0], h, tcmBytes))
+		return windows
+
+	def GenerateSystemBlockDiagram(self):
+		'''include/SystemBlockDiagram.tex — configuration-driven top-level block
+		   diagram. Orchestrator configurations get the centre-band/corner-tile
+		   drawing; every other configuration gets the uniform-tile row.'''
+		geo = getattr(self.Gen, 'McuMpGeometry', None)
+		if geo is None:
+			# There is no sensible fallback: the flash base, the bank count and
+			# the aperture list all come from here, and the placeholder this
+			# used to carry ({'shAw': 15, ...}) had been wrong for every shipped
+			# configuration since CPR8 — it would have drawn a 0x20000 flash
+			# window on a chip whose flash starts at 0x40000.
+			raise Exception('SystemBlockDiagram: the configuration has no McuMpGeometry; '
+				'generate.py must set it before the TRM is written.')
 		nMtx = 0
 		for p in self.Gen.Peripherals:
 			if p.Name == 'MUTEX':
 				nMtx = len(p.Registers)
+		if geo.get('orchestrator') and self._TcmApertureWindows():
+			s = self._SystemBlockDiagramOrchestrator(geo, nMtx)
+		else:
+			s = self._SystemBlockDiagramUniform(geo, nMtx)
+		self._writeInclude('SystemBlockDiagram.tex', s)
+		return
+
+	def _SystemBlockDiagramUniform(self, geo, nMtx):
+		'''The historical drawing: N interchangeable hart tiles in a row over one
+		   registered boundary, the serializing arbiter, and the shared-window
+		   slaves. This is the true picture of every configuration WITHOUT an
+		   orchestrator (castalia4, and all three Argus configurations, where the
+		   N > 5 elision keeps an 18-hart manual honest).'''
+		N = self.Gen.NumHarts
+		banks = geo['sharedRamBanks']
+		npu = geo['npu']
+		flashBase = fmthex(1 << (geo['shAw'] + 2))
+		tcmKiB = self.Gen.RamMemorySlotSize // 1024
 
 		# Tiles to draw: all of them up to 5, else 0,1,2,...,N-1 with an ellipsis
 		if N <= 5:
@@ -1070,12 +1303,7 @@ class LatexUserGuide():
 			s += '\\draw[bus] (' + '%.2f' % cx + ', 3.60) -- (' + '%.2f' % cx + ', 2.88);\n'
 
 		# Shared-window slaves
-		slaves = []
-		slaves.append(('Boot ROM\\\\ \\texttt{0x0} (' + str(romKiB) + '\\,KiB)\\\\ all harts reset here', 2.9))
-		slaves.append(('Peripherals \\texttt{0x4000}\\\\ 16 slots $+$ CLINT\\\\ ' + str(nMtx) + ' mutexes $+$ IRQ router', 3.6))
-		if npu:
-			slaves.append(('NPU staging RAM\\\\ \\texttt{0xC000} (16\\,KiB)', 2.9))
-		slaves.append(('Shared RAM \\texttt{0x10000}\\\\ ' + str(banks) + ' $\\times$ 16\\,KiB banks', 3.3))
+		slaves, _ = self._SystemBlockSlaves(geo, nMtx)
 		sTotal = sum(w for _, w in slaves) + gap * (len(slaves) - 1)
 		sx = (totalW - sTotal) / 2.0
 		for txt, w in slaves:
@@ -1088,9 +1316,327 @@ class LatexUserGuide():
 		s += '\\node[blk, dashed, minimum width=2.9cm, minimum height=1.25cm] (flash) at (-2.15, 4.55) {SPI flash (XIP)\\\\ $\\geq$ \\texttt{' + flashBase + '}\\\\ \\scriptsize hart 0 only};\n'
 		s += '\\draw[bus, dashed] (flash.east) -- (tile0.west);\n'
 		s += '\\end{tikzpicture}\n'
+		return s
 
-		with open(self.IncludeDirectory + '/SystemBlockDiagram.tex', 'w') as f:
-			f.write(s)
+	def _SystemBlockDiagramOrchestrator(self, geo, nMtx):
+		'''The five-core orchestrator chip. Two banded regions say the thing the
+		   old uniform row could not: hart 0 is soft, central and always on
+		   (generate.py orchestrator=True emits it as entity work.orch_tile, with
+		   no pwr_ctrl row and no isolation clamps — MCU.vhd hart0: pd_sleep =>
+		   '0', pd_iso_en => '0'), while harts 1..N-1 are copies of ONE hardened
+		   hart_tile macro on switched rails, each with its own PWRCR gate bit
+		   (PWRGATE_MASK 0x1E at N=5). The registered boundary is drawn around
+		   the TILE band only, because that is where it is: hart 0's soft logic
+		   sits inside the always-on fabric, not behind a macro boundary.
+
+		   The fifth slave is the read-only TCM aperture band (MCU.vhd:592-656
+		   + :3676-3755), and it is the one slave that reaches BACK across the
+		   boundary — drawn as one summarising arrow into the tiles' TCM read
+		   port, not as five wires.'''
+		N = self.Gen.NumHarts
+		banks = geo['sharedRamBanks']
+		npu = geo['npu']
+		flashBase = fmthex(1 << (geo['shAw'] + 2))
+		tcmKiB = self.Gen.RamMemorySlotSize // 1024
+		windows = self._TcmApertureWindows()
+
+		def P(v):
+			return '%.2f' % v
+
+		# Channel tiles are harts 1..N-1. Draw them all up to four, else elide —
+		# the same honesty rule the uniform drawing follows.
+		tiles = list(range(1, N))
+		if len(tiles) > 4:
+			shown = [tiles[0], tiles[1], None, tiles[-1]]
+		else:
+			shown = tiles
+		tileW, gap = 2.60, 0.42
+
+		# ---- geometry, in cm (everything below derives from these anchors)
+		aX0, aX1 = 0.00, 4.60          # band A: the always-on centre band
+		bX0 = 5.10                     # band B: the hardened channel tiles
+		x = bX0
+		xs = []
+		for t in shown:
+			w = 0.90 if t is None else tileW
+			xs.append((t, x + w / 2.0, w))
+			x += w + gap
+		bX1 = x - gap
+
+		yTop = 9.00                    # top of both bands
+		yBan = 8.05                    # banner strip floor
+		yBnd = 4.00                    # band floor == the registered boundary
+		yPort0, yPort1 = 7.05, 7.55    # the tiles' TCM read-port strip
+		yTile, tileH = 5.75, 2.30      # tile row (4.60 .. 6.90)
+		yArb, arbH = 2.85, 0.90        # arbiter bar (2.40 .. 3.30)
+		ySlv, slvH = 1.15, 1.40        # slave row (0.45 .. 1.85)
+		yH0, h0H = 5.40, 2.30          # hart 0 (4.25 .. 6.55)
+		yFls, flsH = 7.35, 0.78        # the flash box (6.96 .. 7.74)
+		riserX = bX1 + 0.74            # the aperture read-back riser
+
+		s = ('% Generated system block diagram — ORCHESTRATOR shape (numHarts=' + str(N)
+			+ ', banks=' + str(banks) + ', npu=' + str(npu) + ', apertures=' + str(len(windows)) + ')\n')
+		s += '\\begin{tikzpicture}[\n'
+		s += '\tblk/.style={draw, thick, align=center, fill=white, font=\\sffamily\\small},\n'
+		s += '\ttile/.style={blk, fill=black!6},\n'
+		s += '\torch/.style={blk, fill=black!12, line width=1.1pt},\n'
+		s += '\tslave/.style={blk, fill=black!8},\n'
+		s += '\tbus/.style={<->, >=Stealth, thick},\n'
+		s += '\tsig/.style={->, >=Stealth, thick},\n'
+		s += '\tban/.style={font=\\sffamily\\scriptsize\\bfseries, black!65, align=center},\n'
+		s += '\tnote/.style={font=\\sffamily\\scriptsize, align=left},\n'
+		s += '\tlab/.style={font=\\sffamily\\scriptsize, align=center}]\n'
+
+		# ---- the two banded regions, drawn first so everything sits on top
+		s += '\\fill[black!4] (' + P(aX0) + ', ' + P(yBnd) + ') rectangle (' + P(aX1) + ', ' + P(yTop) + ');\n'
+		s += '\\fill[black!9] (' + P(bX0 - 0.20) + ', ' + P(yBnd) + ') rectangle (' + P(bX1 + 0.20) + ', ' + P(yTop) + ');\n'
+		s += '\\fill[black!14] (' + P(aX0) + ', ' + P(yBan) + ') rectangle (' + P(aX1) + ', ' + P(yTop) + ');\n'
+		s += '\\fill[black!20] (' + P(bX0 - 0.20) + ', ' + P(yBan) + ') rectangle (' + P(bX1 + 0.20) + ', ' + P(yTop) + ');\n'
+		s += ('\\node[ban, text width=' + P(aX1 - aX0 - 0.30) + 'cm] at (' + P((aX0 + aX1) / 2.0) + ', '
+			+ P((yBan + yTop) / 2.0) + ') {the centre band\\\\ always on};\n')
+		s += ('\\node[ban, text width=' + P(bX1 - bX0 - 0.30) + 'cm] at (' + P((bX0 + bX1) / 2.0) + ', '
+			+ P((yBan + yTop) / 2.0) + ') {' + _numberWord(N - 1) + ' hardened channel tiles\\\\'
+			+ ' switched rails, each with its own \\register{PWRCR} gate bit};\n')
+
+		# ---- band A: the flash the orchestrator alone reaches, and hart 0
+		s += ('\\node[blk, dashed, minimum width=4.10cm, minimum height=' + P(flsH) + 'cm] (flash) at ('
+			+ P((aX0 + aX1) / 2.0) + ', ' + P(yFls) + ') {\\scriptsize external SPI flash (XIP) $\\geq$ \\texttt{' + flashBase + '}};\n')
+		s += ('\\node[orch, minimum width=4.20cm, minimum height=' + P(h0H) + 'cm] (h0) at ('
+			+ P((aX0 + aX1) / 2.0) + ', ' + P(yH0) + ') {\\textbf{hart 0} --- orchestrator\\\\ \\scriptsize soft logic, always on\\\\'
+			+ ' \\scriptsize VestaRV core $+$ ' + str(tcmKiB) + '\\,KiB TCM\\\\ \\scriptsize boots the chip, manages it};\n')
+		s += '\\draw[sig] (flash.south) -- (h0.north);\n'
+
+		# ---- band B: the tiles, and the read port the apertures come back through
+		for t, cx, w in xs:
+			if t is None:
+				s += '\\node[font=\\sffamily\\Large] at (' + P(cx) + ', ' + P(yTile) + ') {$\\cdots$};\n'
+				continue
+			s += ('\\node[tile, minimum width=' + P(w) + 'cm, minimum height=' + P(tileH) + 'cm] (t' + str(t)
+				+ ') at (' + P(cx) + ', ' + P(yTile) + ') {\\textbf{hart ' + str(t) + '}\\\\ \\scriptsize channel tile\\\\'
+				+ ' \\scriptsize VestaRV core $+$\\\\ \\scriptsize ' + str(tcmKiB) + '\\,KiB TCM\\\\ \\scriptsize gateable};\n')
+		s += ('\\node[blk, fill=black!18, minimum width=' + P(bX1 - bX0) + 'cm, minimum height=' + P(yPort1 - yPort0)
+			+ 'cm, font=\\sffamily\\scriptsize] (port) at (' + P((bX0 + bX1) / 2.0) + ', ' + P((yPort0 + yPort1) / 2.0)
+			+ ') {read-only TCM read port on every tile};\n')
+
+		# ---- the registered boundary: around the TILES, and nothing else
+		s += '\\draw[dashed, thick] (' + P(bX0 - 0.20) + ', ' + P(yBnd) + ') -- (' + P(bX1 + 0.20) + ', ' + P(yBnd) + ');\n'
+		bndX = (xs[0][1] + xs[1][1]) / 2.0 if len(xs) > 1 else (bX0 + bX1) / 2.0
+		s += ('\\node[lab, fill=white, inner sep=1.5pt] at (' + P(bndX) + ', ' + P((yBnd + yArb + arbH / 2.0) / 2.0)
+			+ ') {registered tile boundary\\\\ (1 cycle each way)};\n')
+
+		# ---- the arbiter, and the five masters on it
+		s += ('\\node[blk, fill=black!15, minimum width=' + P(bX1 - aX0) + 'cm, minimum height=' + P(arbH)
+			+ 'cm] (arb) at (' + P((aX0 + bX1) / 2.0) + ', ' + P(yArb) + ') {\\textbf{mp\\_arbiter} --- serializing round-robin, '
+			+ str(N) + ' masters, grant-locked AMOs};\n')
+		s += ('\\draw[bus] (' + P((aX0 + aX1) / 2.0) + ', ' + P(yH0 - h0H / 2.0) + ') -- ('
+			+ P((aX0 + aX1) / 2.0) + ', ' + P(yArb + arbH / 2.0) + ');\n')
+		for t, cx, w in xs:
+			if t is None:
+				continue
+			s += ('\\draw[bus] (' + P(cx) + ', ' + P(yTile - tileH / 2.0) + ') -- (' + P(cx) + ', '
+				+ P(yArb + arbH / 2.0) + ');\n')
+
+		# ---- the shared-window slaves
+		slaves, apIdx = self._SystemBlockSlaves(geo, nMtx)
+		sTotal = sum(w for _, w in slaves) + gap * (len(slaves) - 1)
+		sx = (aX0 + bX1 - sTotal) / 2.0
+		apCx, apX1 = None, None
+		for i, (txt, w) in enumerate(slaves):
+			cx = sx + w / 2.0
+			s += ('\\node[slave, minimum width=' + P(w) + 'cm, minimum height=' + P(slvH) + 'cm] at ('
+				+ P(cx) + ', ' + P(ySlv) + ') {' + txt + '};\n')
+			s += ('\\draw[bus] (' + P(cx) + ', ' + P(yArb - arbH / 2.0) + ') -- (' + P(cx) + ', '
+				+ P(ySlv + slvH / 2.0) + ');\n')
+			if i == apIdx:
+				apCx, apX1 = cx, sx + w
+			sx += w + gap
+
+		# ---- the aperture's reach: ONE arrow, with a verb. The slave answers
+		# a management-hart read by driving the addressed tile's own read port
+		# (MCU.vhd tcm_ext_req/addr -> tcm_ext_rdata/done), so the arrow leaves
+		# the slave, climbs clear of the fabric and comes back INTO the tiles.
+		s += ('\\draw[sig, rounded corners=4pt, line width=1.1pt] (' + P(apX1) + ', ' + P(ySlv) + ') -- ('
+			+ P(riserX) + ', ' + P(ySlv) + ') -- (' + P(riserX) + ', ' + P((yPort0 + yPort1) / 2.0) + ') -- ('
+			+ P(bX1 + 0.02) + ', ' + P((yPort0 + yPort1) / 2.0) + ');\n')
+		s += ('\\node[note, anchor=west] at (' + P(riserX + 0.18) + ', ' + P(yTile - 0.30)
+			+ ') {\\textbf{reads back} any hart\'s\\\\ private TCM through that\\\\ tile\'s own read port ---\\\\'
+			+ ' hart 0 only, never writes,\\\\ and a gated tile reads zero};\n')
+		s += '\\end{tikzpicture}\n'
+		return s
+
+	def GenerateTcmApertureDiagram(self):
+		'''include/TcmApertureDiagram.tex — what ONE read through a TCM aperture
+		   actually does. Emitted unconditionally (the DEBUG-figure precedent);
+		   the multi-core chapter \\input{}s it inside its own \\iforchpresent, so
+		   a configuration without apertures never renders it. Three bands,
+		   left to right, because that is the direction the transaction travels:
+		   the shared fabric | the tile boundary | inside the tile.
+
+		   DRAWN FROM THE RTL, with the lines it was transcribed from:
+		     * the aperture slave and its three gates, the s_stall argument and
+		       the dark-tile self-completion — hdl/common/MCU.vhd:592-656 (the
+		       declaration block that states the contract) and :3676-3755 (the
+		       decode, the launch term and the tcm_aperture process).
+		     * s_stall itself — hdl/common/mp_arbiter.vhd:95-108 (the port and
+		       why it exists) and :244-256 (LATCH holds while it is high).
+		     * the tile-side port: 6 mclk request-to-done, the four-state
+		       sequencer, the SRAM pin mux with its write side tied off, and the
+		       Q shadow that covers the frozen core — hdl/common/hart_tile.vhd:
+		       78-124 (the contract), :285-322 (the port + protocol), :1063-1180
+		       (the sequencer and its cycle table), :1240-1355 (the Q shadow).
+		     * the isolation clamp that zeroes rdata AND done — MCU.vhd:3245-3276.'''
+		windows = self._TcmApertureWindows()
+		tcmKiB = self.Gen.RamMemorySlotSize // 1024
+		if not windows:
+			# No apertures in this configuration. The chapter's \input sits
+			# inside \iforchpresent so TeX never reaches it, but a stub keeps
+			# the include set the same shape in both polarities.
+			self._writeInclude('TcmApertureDiagram.tex',
+				'% This configuration has no TCM apertures (no orchestrator).\n')
+			return
+
+		def P(v):
+			return '%.2f' % v
+
+		# ---- the window key, and the E17 assertion over it. Enumerable content
+		# gets drawn AND checked: the pairs are parsed back out of the emitted
+		# node, so a map change the key does not follow fails `make generate`.
+		if len(windows) <= 5:
+			keyHarts = list(range(len(windows)))
+		else:
+			keyHarts = [0, 1, None, len(windows) - 1]
+		keyParts = []
+		for h in keyHarts:
+			if h is None:
+				keyParts.append('$\\cdots$')
+				continue
+			keyParts.append('hart~' + str(h) + '~\\texttt{' + fmthex(windows[h]) + '}')
+		keyTex = ('\\textbf{the ' + _numberWord(len(windows)) + ' windows, one per hart}\\\\ '
+			+ ' \\quad '.join(keyParts))
+		drawn = [(int(a), int(b, 16)) for a, b in re.findall(r'hart~(\d+)~\\texttt\{(0x[0-9A-F]+)\}', keyTex)]
+		expected = [(h, windows[h]) for h in keyHarts if h is not None]
+		if drawn != expected:
+			raise Exception('TcmApertureDiagram: the drawn window key %s is not the configuration\'s '
+				'aperture list %s' % (drawn, expected))
+
+		# ---- geometry, in cm
+		fX0, fX1 = 0.00, 9.20          # band 1: the shared fabric
+		wX0, wX1 = 9.20, 12.00         # band 2: the tile boundary
+		iX0, iX1 = 12.00, 21.40        # band 3: inside the tile
+		yBot, yTop = -2.40, 9.95
+		yBan = 9.10                    # banner strip floor
+		fCx = (fX0 + fX1) / 2.0
+		yKey, keyH = 8.30, 0.90
+		yH0, h0H = 7.00, 1.05
+		yArb, arbH = 5.40, 1.20
+		ySlv, slvH = 3.30, 1.65
+		yZero, zeroH = 0.70, 1.35
+		xAcc, xStall = 6.20, 2.40      # the two arrows between arbiter and slave
+		xDenied, xDark = 2.30, 6.50    # the two branches into the zero answer
+		yReq, yRsp = 3.80, 2.80        # the two crossings
+		clCx, clW, clH = 10.60, 1.80, 0.95
+		seqCx, ySeq, seqW, seqH = 15.30, 3.30, 5.60, 1.90
+		muxCx, yMux, muxW, muxH = 16.00, 0.45, 7.20, 1.70
+		yLeaf, leafH = -1.65, 0.95
+
+		s = ('% Generated TCM aperture mechanism figure (' + str(len(windows))
+			+ ' windows of ' + str(tcmKiB) + ' KiB from ' + fmthex(windows[0]) + ')\n')
+		s += '\\begin{tikzpicture}[\n'
+		s += '\tblk/.style={draw, thick, align=center, fill=white, font=\\sffamily\\small},\n'
+		s += '\tunit/.style={blk, fill=black!12},\n'
+		s += '\tzero/.style={blk, fill=black!20},\n'
+		s += '\tsig/.style={->, >=Stealth, thick},\n'
+		s += '\tbus/.style={<->, >=Stealth, thick},\n'
+		s += '\tcross/.style={->, >=Stealth, line width=1.5pt},\n'
+		s += '\tban/.style={font=\\sffamily\\scriptsize\\bfseries, black!65, align=center},\n'
+		s += '\tlab/.style={font=\\sffamily\\scriptsize, align=center},\n'
+		s += '\tnote/.style={font=\\sffamily\\scriptsize, align=left}]\n'
+
+		# ---- the three bands
+		s += '\\fill[black!4] (' + P(fX0) + ', ' + P(yBot) + ') rectangle (' + P(fX1) + ', ' + P(yTop) + ');\n'
+		s += '\\fill[black!11] (' + P(wX0) + ', ' + P(yBot) + ') rectangle (' + P(wX1) + ', ' + P(yTop) + ');\n'
+		s += '\\fill[black!6] (' + P(iX0) + ', ' + P(yBot) + ') rectangle (' + P(iX1) + ', ' + P(yTop) + ');\n'
+		s += '\\fill[black!14] (' + P(fX0) + ', ' + P(yBan) + ') rectangle (' + P(fX1) + ', ' + P(yTop) + ');\n'
+		s += '\\fill[black!22] (' + P(wX0) + ', ' + P(yBan) + ') rectangle (' + P(wX1) + ', ' + P(yTop) + ');\n'
+		s += '\\fill[black!18] (' + P(iX0) + ', ' + P(yBan) + ') rectangle (' + P(iX1) + ', ' + P(yTop) + ');\n'
+		s += ('\\node[ban, text width=' + P(fX1 - fX0 - 0.30) + 'cm] at (' + P(fCx) + ', ' + P((yBan + yTop) / 2.0)
+			+ ') {the shared fabric --- always on};\n')
+		s += ('\\node[ban, text width=' + P(wX1 - wX0 - 0.30) + 'cm] at (' + P((wX0 + wX1) / 2.0) + ', '
+			+ P((yBan + yTop) / 2.0) + ') {the registered tile boundary};\n')
+		s += ('\\node[ban, text width=' + P(iX1 - iX0 - 0.30) + 'cm] at (' + P((iX0 + iX1) / 2.0) + ', '
+			+ P((yBan + yTop) / 2.0) + ') {inside hart $h$\'s tile};\n')
+
+		# ---- band 1: who asks, what carries it, and what the slave decides
+		s += ('\\node[lab, draw, thick, fill=white, minimum width=' + P(fX1 - fX0 - 0.60) + 'cm, minimum height='
+			+ P(keyH) + 'cm, text width=' + P(fX1 - fX0 - 0.90) + 'cm] at (' + P(fCx) + ', ' + P(yKey) + ') {' + keyTex + '};\n')
+		s += ('\\node[unit, minimum width=7.20cm, minimum height=' + P(h0H) + 'cm] (h0) at (' + P(fCx) + ', '
+			+ P(yH0) + ') {\\textbf{hart 0}, the management hart\\\\ \\scriptsize \\texttt{lw} from window $h$, word $i$};\n')
+		s += ('\\node[unit, minimum width=8.60cm, minimum height=' + P(arbH) + 'cm] (arb) at (' + P(fCx) + ', '
+			+ P(yArb) + ') {\\textbf{mp\\_arbiter}\\\\ \\scriptsize \\textit{IDLE} $\\to$ \\textit{LATCH} $\\to$ \\textit{DATA}, the grant pinned to hart 0};\n')
+		s += '\\draw[sig] (' + P(fCx) + ', ' + P(yH0 - h0H / 2.0) + ') -- (' + P(fCx) + ', ' + P(yArb + arbH / 2.0) + ');\n'
+		s += ('\\node[lab, anchor=west, fill=black!4, inner sep=1pt] at (' + P(fCx + 0.18) + ', '
+			+ P((yH0 - h0H / 2.0 + yArb + arbH / 2.0) / 2.0) + ') {one ordinary shared-window load};\n')
+		s += ('\\node[blk, minimum width=8.60cm, minimum height=' + P(slvH) + 'cm] (slv) at (' + P(fCx) + ', '
+			+ P(ySlv) + ') {\\textbf{the aperture slave}\\\\ \\scriptsize is the reader hart 0? is it a read?\\\\'
+			+ ' \\scriptsize is the addressed tile awake?};\n')
+		yMid1 = (yArb - arbH / 2.0 + ySlv + slvH / 2.0) / 2.0
+		s += '\\draw[sig] (' + P(xAcc) + ', ' + P(yArb - arbH / 2.0) + ') -- (' + P(xAcc) + ', ' + P(ySlv + slvH / 2.0) + ');\n'
+		s += ('\\node[lab, fill=white, inner sep=1.5pt] at (' + P(xAcc) + ', ' + P(yMid1) + ') {the access};\n')
+		s += '\\draw[sig] (' + P(xStall) + ', ' + P(ySlv + slvH / 2.0) + ') -- (' + P(xStall) + ', ' + P(yArb - arbH / 2.0) + ');\n'
+		s += ('\\node[lab, fill=white, inner sep=1.5pt] at (' + P(xStall) + ', ' + P(yMid1)
+			+ ') {\\textbf{hold everything still} (\\register{s\\_stall})};\n')
+
+		# ---- the two answers the slave gives itself, each a real branch
+		s += ('\\node[zero, minimum width=8.60cm, minimum height=' + P(zeroH) + 'cm] (zro) at (' + P(fCx) + ', '
+			+ P(yZero) + ') {\\textbf{the slave answers zeros itself}\\\\ \\scriptsize in the same three cycles every other slave takes,\\\\'
+			+ ' \\scriptsize so the bus never waits on a word that is not coming};\n')
+		yMid2 = (ySlv - slvH / 2.0 + yZero + zeroH / 2.0) / 2.0
+		s += '\\draw[sig] (' + P(xDenied) + ', ' + P(ySlv - slvH / 2.0) + ') -- (' + P(xDenied) + ', ' + P(yZero + zeroH / 2.0) + ');\n'
+		s += ('\\node[lab, fill=white, inner sep=1.5pt, text width=2.90cm] at (' + P(xDenied) + ', ' + P(yMid2)
+			+ ') {another hart asks, or it is a write};\n')
+		s += '\\draw[sig] (' + P(xDark) + ', ' + P(ySlv - slvH / 2.0) + ') -- (' + P(xDark) + ', ' + P(yZero + zeroH / 2.0) + ');\n'
+		s += ('\\node[lab, fill=white, inner sep=1.5pt, text width=2.90cm] at (' + P(xDark) + ', ' + P(yMid2)
+			+ ') {the \\textbf{target tile is powered off}};\n')
+
+		# ---- band 2: the crossings, and the clamp that makes the branch real
+		s += '\\draw[cross] (' + P(fX1 - 0.60) + ', ' + P(yReq) + ') -- (' + P(seqCx - seqW / 2.0) + ', ' + P(yReq) + ');\n'
+		s += ('\\node[lab, fill=black!11, inner sep=2pt, text width=2.55cm] at (' + P((wX0 + wX1) / 2.0) + ', '
+			+ P(yReq + 0.70) + ') {\\register{tcm\\_ext\\_req} and a 12-bit TCM word index};\n')
+		s += '\\draw[cross] (' + P(seqCx - seqW / 2.0) + ', ' + P(yRsp) + ') -- (' + P(clCx + clW / 2.0) + ', ' + P(yRsp) + ');\n'
+		s += ('\\node[unit, minimum width=' + P(clW) + 'cm, minimum height=' + P(clH) + 'cm, font=\\sffamily\\scriptsize] (clamp) at ('
+			+ P(clCx) + ', ' + P(yRsp) + ') {isolation\\\\ clamp};\n')
+		s += '\\draw[cross] (' + P(clCx - clW / 2.0) + ', ' + P(yRsp) + ') -- (' + P(fX1 - 0.60) + ', ' + P(yRsp) + ');\n'
+		s += ('\\node[lab, fill=black!11, inner sep=2pt, text width=2.55cm] at (' + P((wX0 + wX1) / 2.0) + ', '
+			+ P(yRsp - 1.40) + ') {the word, six \\register{mclk} later --- or nothing at all, because this clamp zeroes a dark tile\'s \\register{tcm\\_ext\\_done} too};\n')
+
+		# ---- band 3: the port, the pins it borrows, and the memory
+		s += ('\\node[unit, minimum width=' + P(seqW) + 'cm, minimum height=' + P(seqH) + 'cm] (seq) at ('
+			+ P(seqCx) + ', ' + P(ySeq) + ') {\\textbf{the tile\'s own TCM read port}\\\\ \\scriptsize four states, one SRAM read:\\\\'
+			+ ' \\scriptsize \\textit{SETTLE} $\\to$ \\textit{READ} $\\to$ \\textit{LATCH},\\\\'
+			+ ' \\scriptsize then one \\register{mclk} of \\register{tcm\\_ext\\_done}\\\\ \\scriptsize with the word riding on it};\n')
+		s += ('\\node[blk, minimum width=' + P(muxW) + 'cm, minimum height=' + P(muxH) + 'cm, text width='
+			+ P(muxW - 0.40) + 'cm] (mux) at ('
+			+ P(muxCx) + ', ' + P(yMux) + ') {\\textbf{either the core or the port drives the TCM\'s pins --- never both}\\\\'
+			+ ' \\scriptsize the port\'s side of the mux holds the write strobes off, so no state of it can write};\n')
+		s += '\\draw[sig] (' + P(seqCx) + ', ' + P(ySeq - seqH / 2.0) + ') -- (' + P(seqCx) + ', ' + P(yMux + muxH / 2.0) + ');\n'
+		s += ('\\node[note, anchor=west] at (' + P(seqCx + 0.18) + ', '
+			+ P((ySeq - seqH / 2.0 + yMux + muxH / 2.0) / 2.0) + ') {takes the pins, and\\\\ stops the core\'s clock};\n')
+		s += ('\\node[blk, minimum width=3.60cm, minimum height=' + P(leafH) + 'cm] (tcm) at (13.90, ' + P(yLeaf)
+			+ ') {' + str(tcmKiB) + '\\,KiB TCM\\\\ \\scriptsize \\texttt{0x8000}--\\texttt{0xBFFF}};\n')
+		s += ('\\node[blk, minimum width=3.20cm, minimum height=' + P(leafH) + 'cm] (cre) at (18.10, ' + P(yLeaf)
+			+ ') {the VestaRV core};\n')
+		s += '\\draw[bus] (13.90, ' + P(yMux - muxH / 2.0) + ') -- (13.90, ' + P(yLeaf + leafH / 2.0) + ');\n'
+		s += ('\\node[lab, anchor=east] at (13.72, ' + P((yMux - muxH / 2.0 + yLeaf + leafH / 2.0) / 2.0)
+			+ ') {one read};\n')
+		s += '\\draw[bus] (18.10, ' + P(yLeaf + leafH / 2.0) + ') -- (18.10, ' + P(yMux - muxH / 2.0) + ');\n'
+		s += ('\\node[lab, anchor=west] at (18.28, ' + P((yMux - muxH / 2.0 + yLeaf + leafH / 2.0) / 2.0)
+			+ ') {its own loads\\\\ and stores};\n')
+		s += ('\\node[note, text width=12.60cm, align=center] at (' + P((fX0 + iX1) / 2.0) + ', ' + P(yBot - 0.50)
+			+ ') {\\textit{While the port has those pins the core\'s clock is gated off for seven edges, and the'
+			+ ' Q shadow keeps showing it the word it last read --- so the frozen core can never mistake'
+			+ ' the aperture\'s word for its own.}};\n')
+		s += '\\end{tikzpicture}\n'
+		self._writeInclude('TcmApertureDiagram.tex', s)
 		return
 
 	def GenerateBootFlowDiagram(self):
@@ -1322,6 +1868,278 @@ class LatexUserGuide():
 		s = '% Generated mp_arbiter handshake diagram\n'
 		s += self._cycleFigure('1.30cm', rows, 6, ann, shade=('5', '6'))
 		self._writeInclude('ArbiterHandshakeDiagram.tex', s)
+		return
+
+	# =====================================================================
+	# THE STALLED TRANSACTION (CPR3/R3). The companion to the handshake
+	# figure above: the SAME pins, on the one slave in the design that cannot
+	# answer in the three-cycle walk that figure draws.
+	#
+	# THE CYCLE TABLE BELOW IS A TRANSCRIPTION, and every row of it cites the
+	# line that produced it. Cycles are mclk cycles, numbered as the figure
+	# draws them (cycle c occupies x = c .. c+1); a signal listed in cycle c is
+	# what the pin CARRIES during c, i.e. it was registered at the edge
+	# ENTERING c. That is the same convention the handshake figure uses, and it
+	# is the one thing to get right: s_en is registered at the edge LEAVING
+	# IDLE (mp_arbiter.vhd:229-241), so it is high in the FIRST LATCH cycle,
+	# not in the IDLE one.
+	#
+	#  c  state  what the RTL does at the edge ENTERING this cycle    source
+	#  -- ------ ---------------------------------------------------- ------
+	#  0  IDLE   nothing yet; req(0) rises during c0                  arbiter:216
+	#  1  IDLE   the pick runs on this cycle's req                    arbiter:219-228
+	#  2  LATCH  gnt(0)/s_en/s_addr/s_master registered here;         arbiter:229-241
+	#            the decode is combinational on s_addr+s_en, so
+	#            tcmw_launch — and therefore s_stall — is ALREADY
+	#            high in this cycle, which is what the arbiter
+	#            samples at the edge that would have taken it to
+	#            DATA                                                 MCU:3696-3706
+	#  3  LATCH  tcm_ext_req <= tcmw_target, tcmw_busy <= '1',        MCU:3720-3736
+	#            tcmw_rdata <= 0 (the unconditional zeroing);
+	#            s_stall now rides on busy, not on launch
+	#  4  LATCH  the tile's inbound boundary register takes the       hart_tile:767-774
+	#            request — THIS EDGE IS "E" in hart_tile's own
+	#            cycle table (:1067-1080); tx_state still IDLE
+	#  5  LATCH  tx_state = SETTLE  (E+1): the SRAM pin mux moves     hart_tile:1160-1165
+	#  6  LATCH  tx_state = READ    (E+2): tx_cen low, the single     hart_tile:1166-1169
+	#            tx_ext_clk pulse happens at the edge LEAVING c6
+	#  7  LATCH  tx_state = LATCH   (E+3): Q is valid                 hart_tile:1170-1177
+	#  8  LATCH  tcm_ext_done pulses for exactly one mclk with        hart_tile:1174-1176,
+	#            tcm_ext_rdata valid ON it (E+4, one edge, both       :1357-1358
+	#            outputs — that is what makes it value-with-pulse)
+	#  9  LATCH  the aperture slave captured the word (E+5):          MCU:3738-3742
+	#            tcmw_rdata <= tcmw_q, tcm_ext_req <= 0,
+	#            tcmw_busy <= '0' — so s_stall is LOW during c9 and
+	#            s_rdata carries the word. Six mclk of tcm_ext_req
+	#            (c3..c8) = the "6 mclk request-to-done" of
+	#            hart_tile:1082-1086 counted from the drive edge.
+	# 10  DATA   the arbiter left LATCH at the edge entering c10      arbiter:250-256
+	# 11  IDLE   done(0) pulses, rdata <= s_rdata, grant held         arbiter:258-268
+	#            through the done cycle
+	# 12  IDLE   grant released; req(0) is still stale-high (the
+	#            ghost window the handshake figure annotates)         arbiter:150-172
+	#
+	# The 4-state tile sequencer is NOT drawn as its own row: at this xunit a
+	# one-cycle D{} cell cannot hold the word "SETTLE" (tikz-timing does not
+	# shrink cell text — the I2C figure's note), and the aperture mechanism
+	# figure already draws that sequencer. It is named in the span annotation
+	# instead.
+	# =====================================================================
+	_ARB_STALL_NCYC = 13          # cycles drawn, c0..c12
+	_ARB_STALL_LATCH = (2, 9)     # first/last cycle the arbiter is held in LATCH
+	_ARB_STALL_SSTALL = (2, 8)    # first/last cycle s_stall is high
+	_ARB_STALL_EXTREQ = (3, 8)    # first/last cycle tcm_ext_req is high
+	_ARB_STALL_EXTDONE = 8        # the one-cycle tcm_ext_done pulse
+	_ARB_STALL_REQSEEN = 1        # the cycle the pick runs on
+	_ARB_STALL_DONE = 11          # the done(0) pulse
+	# An unstalled transaction is three mclk from an observed req to done —
+	# mp_arbiter_tb.vhd:308-311 (BASE_LAT) and the handshake figure above.
+	_ARB_BASE_LATENCY = 3
+	# hart_tile.vhd:1082-1086: six mclk from the requester's own drive edge to
+	# the edge it samples tcm_ext_done on.
+	_TCM_EXT_LATENCY = 6
+
+	@staticmethod
+	def _timingRow(cells):
+		'''Run-length-encode a per-cycle token list into a tikz-timing string.
+		   Tokens are 'L', 'H', 'U' or ('D', text). Writing the rows this way
+		   (rather than as literal char strings) is what lets the assertions
+		   below check the DRAWN waveform against the transcribed cycle table
+		   instead of checking a copy of itself.'''
+		out = []
+		for cell in cells:
+			if out and out[-1][0] == cell:
+				out[-1][1] += 1
+			else:
+				out.append([cell, 1])
+		parts = []
+		for cell, n in out:
+			pre = '' if n == 1 else str(n)
+			if isinstance(cell, tuple):
+				parts.append(pre + 'D{' + cell[1] + '}')
+			else:
+				parts.append(pre + cell)
+		return ' '.join(parts)
+
+	@staticmethod
+	def _timingUnits(chars):
+		'''How many cycles a tikz-timing row actually draws. Used by the
+		   assertions below: splitting on spaces does NOT work, because a D{}
+		   cell may contain spaces and braces of its own.'''
+		units, i, n = 0.0, 0, len(chars)
+		while i < n:
+			if chars[i] == ' ':
+				i += 1
+				continue
+			m = re.match(r'\d*', chars[i:])
+			mult = int(m.group(0)) if m.group(0) else 1
+			i += len(m.group(0))
+			if i >= n:
+				break
+
+			def skipBraces(j):
+				depth = 0
+				while j < n:
+					if chars[j] == '{':
+						depth += 1
+					elif chars[j] == '}':
+						depth -= 1
+						if depth == 0:
+							return j + 1
+					j += 1
+				return j
+
+			if chars[i] == '{':
+				# a repeated GROUP, as in the clock row's 26{0.5C}
+				body = chars[i + 1:skipBraces(i) - 1]
+				per = 0.0
+				for tok in body.split():
+					mm = re.match(r'^([\d.]*)', tok)
+					per += float(mm.group(1)) if mm.group(1) else 1.0
+				units += mult * per
+				i = skipBraces(i)
+			else:
+				i += 1
+				if i < n and chars[i] == '{':
+					i = skipBraces(i)
+				units += mult
+		return units
+
+	def GenerateArbiterStallDiagram(self):
+		'''include/ArbiterStallDiagram.tex — the SAME arbiter pins as the
+		   handshake figure, on the one slave that stalls them. Emitted
+		   unconditionally (the D-series/aperture precedent): the multi-core
+		   chapter \\input{}s it inside its own \\iforchpresent, so a
+		   configuration without apertures never renders it.
+
+		   Drawn from hdl/common/mp_arbiter.vhd (the FSM and the s_stall port),
+		   hdl/common/MCU.vhd (the aperture decode and its sequencer) and
+		   hdl/common/hart_tile.vhd (the tile-side read port) — the cycle-by-
+		   cycle transcription, with a line citation per cycle, is the comment
+		   block above this method. Nothing here is remembered: if any of those
+		   three FSMs changes, this figure must change with it.'''
+		windows = self._TcmApertureWindows()
+		if not windows:
+			# No apertures in this configuration, so no slave asserts s_stall
+			# and there is nothing to draw. The chapter's \input sits inside
+			# \iforchpresent so TeX never reaches this, but a stub keeps the
+			# include set the same shape in both polarities.
+			self._writeInclude('ArbiterStallDiagram.tex',
+				'% This configuration has no TCM apertures (no orchestrator), so no\n'
+				'% slave ever asserts the arbiter\'s s_stall input.\n')
+			return
+
+		N = self._ARB_STALL_NCYC
+		lat0, lat1 = self._ARB_STALL_LATCH
+		st0, st1 = self._ARB_STALL_SSTALL
+		rq0, rq1 = self._ARB_STALL_EXTREQ
+		# The window drawn is a CHANNEL tile's where there is one (hart 1), so
+		# the figure shows the boundary crossing it is about; a one-window
+		# configuration falls back to hart 0's own.
+		h = 1 if len(windows) > 1 else 0
+		addrTex = '\\texttt{' + fmthex(windows[h]) + '}'
+
+		def span(a, b, hi='H', lo='L'):
+			return [hi if a <= c <= b else lo for c in range(N)]
+
+		state = []
+		for c in range(N):
+			if c < lat0:
+				state.append(('D', 'IDLE'))
+			elif c <= lat1:
+				state.append(('D', '\\textit{LATCH} --- held while \\register{s\\_stall} is high'))
+			elif c == lat1 + 1:
+				state.append(('D', 'DATA'))
+			else:
+				state.append(('D', 'IDLE'))
+		rows = [
+			('%d{0.5C}' % (2 * N),                            '\\register{mclk}'),
+			# req is HELD until done and drops one mclk later (the ack flop):
+			# mp_arbiter.vhd:132-150. The figure ends inside that tail.
+			(self._timingRow(span(self._ARB_STALL_REQSEEN, N - 1)),
+			                                                  '\\register{req(0)}'),
+			# grant pinned from the pick to the done cycle inclusive:
+			# mp_arbiter.vhd:229-241 (IDLE), :245-247 (LATCH), :266-267 (DATA).
+			(self._timingRow(span(lat0, self._ARB_STALL_DONE)), '\\register{gnt(0)}'),
+			(self._timingRow(state),                          '\\textit{state}'),
+			# one-cycle enable strobe, self-clearing: mp_arbiter.vhd:205-206.
+			(self._timingRow(span(lat0, lat0)),               '\\register{s\\_en}'),
+			(self._timingRow([('D', addrTex) if c >= lat0 else 'U' for c in range(N)]),
+			                                                  '\\register{s\\_addr}'),
+			# MCU.vhd:3706 — combinational on launch, then registered via busy.
+			(self._timingRow(span(st0, st1)),                 '\\register{s\\_stall}'),
+			# MCU.vhd:3730-3741 (raised in the sequencer, dropped on done).
+			(self._timingRow(span(rq0, rq1)),                 '\\register{tcm\\_ext\\_req}'),
+			# hart_tile.vhd:1174-1176 — one mclk, rdata valid with it.
+			(self._timingRow(span(self._ARB_STALL_EXTDONE, self._ARB_STALL_EXTDONE)),
+			                                                  '\\register{tcm\\_ext\\_done}'),
+			# The slave's read bus: zeroed at the edge entering c3 (MCU.vhd:
+			# 3726-3728, the unconditional zeroing) and the word from c9
+			# (MCU.vhd:3738-3739 through the registered select, MCU.vhd:2922).
+			(self._timingRow(['U' if c < rq0 else
+			                  ('D', '0') if c <= rq1 else
+			                  ('D', 'the TCM word') for c in range(N)]),
+			                                                  '\\register{s\\_rdata}'),
+			(self._timingRow(span(self._ARB_STALL_DONE, self._ARB_STALL_DONE)),
+			                                                  '\\register{done(0)}'),
+			# two cells wide only, so this one carries the SHORT spelling of the
+			# same value — a D{} cell does not shrink its text to fit.
+			(self._timingRow(['U' if c < self._ARB_STALL_DONE else ('D', 'the word')
+			                  for c in range(N)]),            '\\register{rdata}'),
+		]
+
+		# ---- E17-style build assertions over the DRAWN waveform. Two things
+		# are enumerable here and both are checked, so a change to either the
+		# map or the transcribed cycle table fails `make generate` rather than
+		# shipping a figure that disagrees with the RTL:
+		#   (a) the address in the s_addr cell IS this configuration's window;
+		#   (b) the spans drawn add up to the two latencies the RTL states in
+		#       words — six mclk of tcm_ext_req (hart_tile.vhd:1082-1086) and
+		#       an unstalled walk lengthened by exactly the stall
+		#       (mp_arbiter_tb.vhd's S1 property, :33-35).
+		drawn = re.findall(r'D\{\\texttt\{(0x[0-9A-F]+)\}\}', rows[5][0])
+		if len(drawn) != 1 or int(drawn[0], 16) != windows[h]:
+			raise Exception('ArbiterStallDiagram: the drawn s_addr %s is not hart %d\'s '
+				'aperture window %s' % (drawn, h, fmthex(windows[h])))
+		for chars, label in rows:
+			units = self._timingUnits(chars)
+			if units != N:
+				raise Exception('ArbiterStallDiagram: row %s draws %g cycles, not %d'
+					% (label, units, N))
+		if rq1 - rq0 + 1 != self._TCM_EXT_LATENCY:
+			raise Exception('ArbiterStallDiagram: tcm_ext_req is drawn for %d mclk, but the '
+				'tile port takes %d' % (rq1 - rq0 + 1, self._TCM_EXT_LATENCY))
+		stallCycles = st1 - st0 + 1
+		total = self._ARB_STALL_DONE - self._ARB_STALL_REQSEEN
+		if total != self._ARB_BASE_LATENCY + stallCycles:
+			raise Exception('ArbiterStallDiagram: %d mclk drawn from req to done, but an '
+				'unstalled walk is %d and the stall is %d cycles'
+				% (total, self._ARB_BASE_LATENCY, stallCycles))
+		if lat1 - lat0 + 1 != stallCycles + 1:
+			raise Exception('ArbiterStallDiagram: LATCH is drawn for %d cycles, but a stall of '
+				'%d holds it for %d' % (lat1 - lat0 + 1, stallCycles, stallCycles + 1))
+
+		ann = ''
+		# where an UNSTALLED transaction would have completed: the pick in c1,
+		# LATCH in c2, DATA in c3, done in c4 — on the zero s_rdata is holding.
+		unst = self._ARB_STALL_REQSEEN + self._ARB_BASE_LATENCY
+		ann += '\\draw[gray!65] (%d,\\YTOP) -- (%d,{\\YTOP+0.40});\n' % (unst, unst)
+		ann += ('\\node[ann, above] at (%d,{\\YTOP+0.38}) {without \\register{s\\_stall} the arbiter '
+			'would complete here --- on that zero};\n' % unst)
+		ann += '\\draw[<->, >=Stealth] (%d,{\\YBOT-0.45}) -- (%d,{\\YBOT-0.45});\n' % (st0, st1 + 1)
+		ann += ('\\node[ann, below] at (%.1f,{\\YBOT-0.47}) {\\register{s\\_stall} --- the tile read '
+			'runs here: \\textit{SETTLE}, \\textit{READ}, \\textit{LATCH}, then one \\register{mclk} '
+			'of \\register{tcm\\_ext\\_done} with the word on it};\n' % ((st0 + st1 + 1) / 2.0))
+		ann += '\\draw[<->, >=Stealth] (%d,{\\YBOT-1.25}) -- (%d,{\\YBOT-1.25});\n' % (
+			self._ARB_STALL_REQSEEN, self._ARB_STALL_DONE)
+		ann += ('\\node[ann, below] at (%.1f,{\\YBOT-1.27}) {%d \\register{mclk} at the arbiter pins '
+			'--- every other shared-window slave still completes in %d};\n'
+			% ((self._ARB_STALL_REQSEEN + self._ARB_STALL_DONE) / 2.0, total,
+			   self._ARB_BASE_LATENCY))
+		s = '%% Generated mp_arbiter stalled-transaction diagram (TCM aperture, window %s)\n' % fmthex(windows[h])
+		s += self._cycleFigure('0.95cm', rows, N - 1, ann,
+			shade=(str(lat0), str(lat1 + 1)))
+		self._writeInclude('ArbiterStallDiagram.tex', s)
 		return
 
 	# House style for the tikztimingtable-based figures (SPI/UART/I2C). These
@@ -1673,6 +2491,18 @@ class LatexUserGuide():
 		   master on mp_arbiter, and it plants its own trampoline into the
 		   debug program page (D4, debug_module.vhd, THE PLANT).'''
 		N = self.Gen.NumHarts
+		# CPR8: on an orchestrator configuration hart 0 is NOT one of the
+		# interchangeable tiles -- it is the always-on management hart, and the
+		# debugger's view of the chip is the first place that asymmetry shows
+		# (it is the hart that is still there to be attached to when every
+		# other one is gated off). Same condition the system block diagram
+		# splits on, so the two figures can never disagree about which chip
+		# they are drawing. MINIMAL by intent: this figure's subject is the
+		# debug stack, so hart 0 gets a wider box, a distinguishing fill and a
+		# name -- and nothing else here changes. Without an orchestrator every
+		# byte below is what it was.
+		geo = getattr(self.Gen, 'McuMpGeometry', None) or {}
+		orch = bool(geo.get('orchestrator')) and bool(self._TcmApertureWindows())
 		# Draw every tile up to five; only elide beyond that (Argus is 18). At
 		# N=4 all four are drawn -- an elided four-hart chip would be a picture
 		# of a chip that does not exist.
@@ -1709,10 +2539,11 @@ class LatexUserGuide():
 		trunkX = 6.05                  # the halt/resume trunk's riser
 		yTrunk = -0.55                 # the halt/resume trunk, below the tiles
 
+		orchW = tileW + 0.55        # the orchestrator's box carries one more line
 		x = fabX0
 		xs = []
 		for t in shown:
-			w = 0.90 if t is None else tileW
+			w = 0.90 if t is None else (orchW if (orch and t == 0) else tileW)
 			xs.append((t, x + w / 2.0, w))
 			x += w + tileGap
 		tilesX1 = x - tileGap
@@ -1729,6 +2560,10 @@ class LatexUserGuide():
 		s += '\\begin{tikzpicture}[\n'
 		s += '\tblk/.style={draw, thick, align=center, fill=white, font=\\sffamily\\small},\n'
 		s += '\ttile/.style={blk, fill=black!6},\n'
+		if orch:
+			# emitted only where it is used, so a configuration without an
+			# orchestrator keeps a byte-identical include
+			s += '\torch/.style={blk, fill=black!14},\n'
 		s += '\tunit/.style={blk, fill=black!12},\n'
 		s += '\tpage/.style={blk, fill=black!25, font=\\sffamily\\scriptsize},\n'
 		s += '\tbus/.style={<->, >=Stealth, thick},\n'
@@ -1790,7 +2625,12 @@ class LatexUserGuide():
 			if t is None:
 				s += '\\node[font=\\sffamily\\Large] at (' + P(tcx) + ', ' + P(yTile) + ') {$\\cdots$};\n'
 				continue
-			s += '\\node[tile, minimum width=' + P(w) + 'cm, minimum height=' + P(tileH) + 'cm, font=\\sffamily\\scriptsize] (t' + str(t) + ') at (' + P(tcx) + ', ' + P(yTile) + ') {\\textbf{hart ' + str(t) + '}\\\\ core $+$ TCM};\n'
+			body = '{\\textbf{hart ' + str(t) + '}\\\\ core $+$ TCM}'
+			style = 'tile'
+			if orch and t == 0:
+				body = '{\\textbf{hart 0}\\\\ the orchestrator\\\\ core $+$ TCM}'
+				style = 'orch'
+			s += '\\node[' + style + ', minimum width=' + P(w) + 'cm, minimum height=' + P(tileH) + 'cm, font=\\sffamily\\scriptsize] (t' + str(t) + ') at (' + P(tcx) + ', ' + P(yTile) + ') ' + body + ';\n'
 			s += '\\draw[bus] (' + P(tcx) + ', ' + P(yTile + tileH / 2.0) + ') -- (' + P(tcx) + ', ' + P(yArb - arbH / 2.0) + ');\n'
 			s += '\\draw[bus] (' + P(tcx) + ', ' + P(yTrunk) + ') -- (' + P(tcx) + ', ' + P(yTile - tileH / 2.0) + ');\n'
 		s += '\\node[blk, fill=black!8, minimum width=' + P(ramW) + 'cm, minimum height=1.75cm] (ram) at (' + P(ramCx) + ', 1.03) {};\n'

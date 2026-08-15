@@ -1,0 +1,244 @@
+{
+  "block": "TiaAmpMC",
+  "tex_root": "include/analog/",
+  "monte_carlo": true,
+  "emit_master": false,
+  "emit_corner_table": false,
+  "supply_var": "VDD25",
+  "_note": [
+    "Monte Carlo companion for the transimpedance stage. Contributes fragments only;",
+    "the master file and the corner fragments come from anatop_tb_tia.json.",
+    "block is TiaAmpMC, NOT TiaAmp -- the block name keys data/raw/corners_<Block>.json",
+    "and data/extract_<Block>.ocn, which the configs would otherwise clobber.",
+    "",
+    "SOURCE: Plan.3.Run.0 (2026-08-15), 200 samples, lds, seed 12345,",
+    "variations=all (castalia_pm_25 = PROCESS AND MISMATCH), 37 degC.",
+    "",
+    "The two tests are NOT two Maestro tests. Maestro writes one mcdata per test",
+    "containing every design point pooled, so the 35k and 560k gain taps land in one",
+    "file and maestro2tex would average them together into nonsense. scratchpad/",
+    "split_mc.py splits them into TiaFbTB35k__mc.csv / TiaFbTB560k__mc.csv and drops",
+    "the 48 of 400 samples that did not converge. Render with --no-extract; there is",
+    "no live run to extract from and the CSVs are self-describing.",
+    "",
+    "PUBLISHABLE OUTPUTS ONLY. Every DC-sweep-derived output (gain_err, inl_lsb,",
+    "tue_lsb, f3db, x_src_lim) is deliberately absent: they degrade on the same",
+    "samples as the 48 non-converged ones and are under investigation. Do not add",
+    "them back without resolving that."
+  ],
+  "tests": {
+    "TiaFbTB35k": {
+      "signals": {
+        "stb_pm": {
+          "label": "Phase margin",
+          "unit_tex": "\\si{\\degree}",
+          "scale": 1.0,
+          "digits": 1
+        },
+        "peaking_db": {
+          "label": "Gain peaking",
+          "unit_tex": "\\si{\\decibel}",
+          "scale": 1.0,
+          "digits": 2
+        },
+        "stb_aol_db": {
+          "label": "Loop gain at DC",
+          "unit_tex": "\\si{\\decibel}",
+          "scale": 1.0,
+          "digits": 1
+        },
+        "voff": {
+          "label": "Input offset",
+          "unit_tex": "\\si{\\milli\\volt}",
+          "scale": 1000.0,
+          "digits": 2
+        },
+        "in_rms_100": {
+          "label": "Input current noise, \\SIrange{0.1}{100}{\\hertz}",
+          "unit_tex": "\\si{\\pico\\ampere}",
+          "scale": 1000000000000.0,
+          "digits": 0
+        },
+        "i_src_lim": {
+          "label": "Source-limited current",
+          "unit_tex": "\\si{\\micro\\ampere}",
+          "scale": 1000000.0,
+          "digits": 2
+        }
+      }
+    },
+    "TiaFbTB560k": {
+      "signals": {
+        "stb_pm": {
+          "label": "Phase margin",
+          "unit_tex": "\\si{\\degree}",
+          "scale": 1.0,
+          "digits": 1
+        },
+        "peaking_db": {
+          "label": "Gain peaking",
+          "unit_tex": "\\si{\\decibel}",
+          "scale": 1.0,
+          "digits": 2
+        },
+        "stb_aol_db": {
+          "label": "Loop gain at DC",
+          "unit_tex": "\\si{\\decibel}",
+          "scale": 1.0,
+          "digits": 1
+        },
+        "voff": {
+          "label": "Input offset",
+          "unit_tex": "\\si{\\milli\\volt}",
+          "scale": 1000.0,
+          "digits": 2
+        },
+        "in_rms_100": {
+          "label": "Input current noise, \\SIrange{0.1}{100}{\\hertz}",
+          "unit_tex": "\\si{\\pico\\ampere}",
+          "scale": 1000000000000.0,
+          "digits": 0
+        },
+        "i_src_lim": {
+          "label": "Source-limited current",
+          "unit_tex": "\\si{\\micro\\ampere}",
+          "scale": 1000000.0,
+          "digits": 2
+        }
+      }
+    }
+  },
+  "figures": [
+    {
+      "id": "tia_mc_pm560k",
+      "kind": "histogram",
+      "test": "TiaFbTB560k",
+      "signals": [
+        "stb_pm"
+      ],
+      "bins": 30,
+      "spec_span": 1.5,
+      "spec_lo_label": "floor \\SI{45}{\\degree}",
+      "width": "0.86\\linewidth",
+      "height": "6.0cm",
+      "xlabel": "Phase margin~[\\si{\\degree}]",
+      "ylabel": "Samples",
+      "caption": "Transimpedance loop phase margin at maximum gain over 179 converged samples of 200 (process and mismatch), \\SI{37}{\\celsius}. Every converged sample clears the \\SI{45}{\\degree} floor, the worst at \\SI{46.6}{\\degree}, which is what validates $C_f = \\SI{22}{\\pico\\farad}$ --- the corner run behind Table~\\ref{tab:tia-cl-stability} gave \\SIrange{61.2}{64.9}{\\degree} and carries no mismatch at all. The distribution is right-skewed, so \\(p_1\\)/\\(p_{99}\\) and worst case are quoted rather than mean \\(\\pm\\,3\\sigma\\). 48 of 400 samples did not converge and are excluded (Section~\\ref{sss:tia-mc})."
+    },
+    {
+      "id": "tia_mc_peak560k",
+      "kind": "histogram",
+      "test": "TiaFbTB560k",
+      "signals": [
+        "peaking_db"
+      ],
+      "bins": 30,
+      "spec_span": 1.5,
+      "spec_hi_label": "criterion \\SI{2}{\\decibel}",
+      "width": "0.86\\linewidth",
+      "height": "6.0cm",
+      "xlabel": "Gain peaking~[\\si{\\decibel}]",
+      "ylabel": "Samples",
+      "caption": "Closed-loop gain peaking at maximum gain, same 179 samples. \\SI{87.7}{\\percent} sit below the \\SI{2}{\\decibel} criterion, worst case \\SI{2.61}{\\decibel}. Peaking fails before phase margin does because it responds to the same mismatch with less headroom against its limit; at $R_f = \\SI{35}{\\kilo\\ohm}$ it is identically zero across every sample."
+    },
+    {
+      "id": "tia_mc_voff",
+      "kind": "histogram",
+      "test": "TiaFbTB560k",
+      "signals": [
+        "voff"
+      ],
+      "bins": 30,
+      "spec_span": 1.5,
+      "spec_lo_label": "\\SI{-5}{\\milli\\volt}",
+      "spec_hi_label": "\\SI{+5}{\\milli\\volt}",
+      "width": "0.86\\linewidth",
+      "height": "6.0cm",
+      "xlabel": "Input offset~[\\si{\\milli\\volt}]",
+      "ylabel": "Samples",
+      "caption": "Input offset at maximum gain, 179 converged samples of 200 (process and mismatch). \\(\\sigma = \\SI{7.09}{\\milli\\volt}\\) against a \\(\\pm\\SI{5}{\\milli\\volt}\\) budget gives \\SI{54.7}{\\percent} per-channel yield and, over four identical channels, roughly \\SI{9}{\\percent} of chips with all four in budget. This is the block's binding limitation and it is a mismatch quantity, so no corner run bounds it. The control amplifier fails the same way (Section~\\ref{ss:controlamp})."
+    }
+  ],
+  "tables": [
+    {
+      "id": "tia_mc_stab35k",
+      "type": "mcstats",
+      "test": "TiaFbTB35k",
+      "signals": [
+        "stb_pm",
+        "peaking_db",
+        "stb_aol_db"
+      ],
+      "stats": [
+        "n",
+        "mean",
+        "sigma",
+        "p1",
+        "p99",
+        "worst",
+        "spec",
+        "yield",
+        "yield_chip"
+      ],
+      "channels": 4,
+      "digits": 2,
+      "caption": "Monte Carlo stability at minimum gain, $R_f = \\SI{35}{\\kilo\\ohm}$. \\textbf{Process and mismatch} (\\texttt{castalia\\_pm\\_25}), \\SI{37}{\\celsius}, 200 samples, seed 12345, LDS sampling, $C_f = \\SI{22}{\\pico\\farad}$, electrode \\texttt{randles\\_cell} with $R_s = \\SI{100}{\\ohm}$, $R_{\\mathrm{ct}} = \\SI{1}{\\mega\\ohm}$, $C_{\\mathrm{dl}} = \\SI{100}{\\nano\\farad}$. The \\(N\\) column is the converged sample count: 27 of 200 did not converge and are excluded, for the reason given in Section~\\ref{sss:tia-mc}. \\(\\sigma\\) here is die-to-die and channel-to-channel combined; it is not comparable with a mismatch-only \\(\\sigma\\)."
+    },
+    {
+      "id": "tia_mc_stab560k",
+      "type": "mcstats",
+      "test": "TiaFbTB560k",
+      "signals": [
+        "stb_pm",
+        "peaking_db",
+        "stb_aol_db"
+      ],
+      "stats": [
+        "n",
+        "mean",
+        "sigma",
+        "p1",
+        "p99",
+        "worst",
+        "spec",
+        "yield",
+        "yield_chip"
+      ],
+      "channels": 4,
+      "digits": 2,
+      "caption": "Monte Carlo stability at maximum gain, $R_f = \\SI{560}{\\kilo\\ohm}$, conditions otherwise as Table~\\ref{tab:tia-mc-stab35k}. This is the binding gain setting: phase margin still clears the \\SI{45}{\\degree} floor on every converged sample, but peaking passes on only \\SI{87.7}{\\percent}. 21 of 200 samples did not converge and are excluded."
+    },
+    {
+      "id": "tia_mc_offset",
+      "type": "mcstats",
+      "test": "TiaFbTB560k",
+      "signals": [
+        "voff",
+        "in_rms_100"
+      ],
+      "stats": [
+        "n",
+        "mean",
+        "sigma",
+        "min",
+        "max",
+        "mean_3s",
+        "spec",
+        "yield",
+        "yield_chip"
+      ],
+      "channels": 4,
+      "digits": 2,
+      "caption": "Monte Carlo offset and input-referred noise at maximum gain, conditions as Table~\\ref{tab:tia-mc-stab560k}. Offset is close to Gaussian, so mean \\(\\pm\\,3\\sigma\\) is meaningful here; it is not quoted for the skewed stability quantities. At $R_f = \\SI{35}{\\kilo\\ohm}$ the same measurement gives \\(\\sigma = \\SI{4.68}{\\milli\\volt}\\) and \\SI{74.0}{\\percent} yield, so offset degrades with gain because the electrode's DC noise gain multiplies it. The four-channel column assumes the four channels are independent draws, which a process-and-mismatch run overstates --- a \\texttt{castalia\\_mm\\_25} re-run would separate die-to-die from within-die."
+    }
+  ],
+  "order": [
+    "note_tia_mc",
+    "fig_tia_mc_pm560k",
+    "tab_tia_mc_stab35k",
+    "tab_tia_mc_stab560k",
+    "fig_tia_mc_peak560k",
+    "fig_tia_mc_voff",
+    "tab_tia_mc_offset"
+  ]
+}

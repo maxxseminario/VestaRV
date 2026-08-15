@@ -1,0 +1,16 @@
+%% maestro2tex -- generated table; do not edit by hand.
+\begin{table}[htbp]
+  \centering
+  \caption[{Monte Carlo stability at minimum gain, $R_f = \SI{35}{\kilo\ohm}$.}]{Monte Carlo stability at minimum gain, $R_f = \SI{35}{\kilo\ohm}$. \textbf{Process and mismatch} (\texttt{castalia\_pm\_25}), \SI{37}{\celsius}, 200 samples, seed 12345, LDS sampling, $C_f = \SI{22}{\pico\farad}$, electrode \texttt{randles\_cell} with $R_s = \SI{100}{\ohm}$, $R_{\mathrm{ct}} = \SI{1}{\mega\ohm}$, $C_{\mathrm{dl}} = \SI{100}{\nano\farad}$. The \(N\) column is the converged sample count: 27 of 200 did not converge and are excluded, for the reason given in Section~\ref{sss:tia-mc}. \(\sigma\) here is die-to-die and channel-to-channel combined; it is not comparable with a mismatch-only \(\sigma\).}
+  \label{tab:tia-mc-stab35k}
+  \footnotesize
+  \begin{tabular}{lrrrrrrrrrr}
+    \toprule
+    Parameter & Unit & $N$ & Mean & $\sigma$ & $p_{1}$ & $p_{99}$ & Worst & Spec & Yield & 4\,ch \\
+    \midrule
+    Phase margin & \si{\degree} & 173 & 96.89 & 6.31 & 84.44 & 113.12 & 84.22 & $\geq 45.00$ & 100.0 & 100.0 \\
+    Gain peaking & \si{\decibel} & 173 & 0.00 & 0.00 & 0.00 & 0.00 & 0.00 & $\leq 2.00$ & 100.0 & 100.0 \\
+    Loop gain at DC & \si{\decibel} & 173 & 78.44 & 5.67 & 60.04 & 82.48 & 22.59 & $\geq 60.00$ & 98.8 & 95.5 \\
+    \bottomrule
+  \end{tabular}
+\end{table}

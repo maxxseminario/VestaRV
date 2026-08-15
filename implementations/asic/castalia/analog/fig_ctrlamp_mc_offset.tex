@@ -36,6 +36,6 @@
         node[above, font=\footnotesize, inner sep=1pt] {$+1$\,\si{\milli\volt}};
     \end{axis}
   \end{tikzpicture}}
-  \caption[{Input-referred offset, mismatch only (\texttt{castalia\_mm\_25}, process fixed at typical).}]{Input-referred offset, mismatch only (\texttt{castalia\_mm\_25}, process fixed at typical). The distribution is Gaussian with \(\sigma = \SI{4.82}{\milli\volt}\) against a \(\sigma \leq \SI{2}{\milli\volt}\) budget; 37 of 200 samples fall inside the \(\pm\SI{1}{\milli\volt}\) rules shown. Offset lands directly on the commanded electrode potential and is the dominant accuracy term at low cell current.}
+  \caption[{Input-referred offset.}]{Input-referred offset. \textbf{Process and mismatch} (\texttt{castalia\_pm\_25}), \SI{37}{\celsius} --- die-to-die spread, not the within-die channel-to-channel term, for which no mismatch-only run of this design exists. The distribution is Gaussian with \(\sigma = \SI{4.82}{\milli\volt}\) against a \(\sigma \leq \SI{2}{\milli\volt}\) budget; 37 of 200 samples fall inside the \(\pm\SI{1}{\milli\volt}\) rules shown, which are the limits entered on the test. Offset lands directly on the commanded electrode potential and is the dominant accuracy term at low cell current.}
   \label{fig:ctrlamp-mc-offset}
 \end{figure}

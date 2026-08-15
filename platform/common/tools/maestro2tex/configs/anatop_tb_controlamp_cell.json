@@ -231,11 +231,13 @@
     "fig_ctrlamp_mc_celldrive",
     "tab_ctrlamp_mc_celldrive",
     "fig_ctrlamp_mc_offset",
+    "tab_ctrlamp_mc_offset",
     "fig_ctrlamp_mc_pm",
     "tab_ctrlamp_mc_stability",
     "tab_ctrlamp_mc_noise",
     "fig_ctrlamp_mc_slew",
     "tab_ctrlamp_mc_step",
+    "fig_ctrlamp_mc_bias",
     "tab_ctrlamp_mc_bias"
   ],
   "corner_labels": {
