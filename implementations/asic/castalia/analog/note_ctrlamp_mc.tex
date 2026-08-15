@@ -14,10 +14,12 @@ channels is what sets chip yield. This section reports a 200-sample Monte Carlo 
 the same testbench cell, seed 12345, low-discrepancy sampling. All tests run at
 \SI{37}{\celsius}, the on-body operating temperature.
 
-Variation type differs by test and is named in every caption. The offset test varies
-mismatch only, with the process fixed at typical: its spread is the channel-to-channel
-spread within one die. Every other test varies process and mismatch together, giving
-die-to-die spread. The two are not comparable and are never combined here.
+Every test in this run varies process and mismatch together (\texttt{castalia\_pm\_25},
+\texttt{variations=all}), so every $\sigma$ below is die-to-die and is an upper bound on
+the within-die channel-to-channel spread. That distinction matters for the four-channel
+columns, which assume the channels vary independently; a mismatch-only
+(\texttt{castalia\_mm\_25}) companion run is needed to separate the two terms and does
+not yet exist for this design. Variation type is named in every caption.
 
 Gaussian quantities are reported as mean $\pm\,3\sigma$; clipped or skewed ones ---
 the margins and the drive currents --- as 1st and 99th percentiles with the worst
@@ -25,7 +27,7 @@ sample. Yield is given per channel and, where a specification exists, for the
 four-channel chip. Chip yield is approximately $p^4$, so \SI{95}{\percent} of chips
 requires \SI{98.7}{\percent} of channels, near \(2.5\sigma\) rather than \(3\sigma\).
 
-Four results follow.
+Five results follow.
 
 \begin{enumerate}
 \item \textbf{Drive is symmetric but \SI{30}{\percent} short.} Source and sink match to
@@ -38,11 +40,12 @@ of 6 at the present tail current reaches \SI{33}{\micro\ampere} for
 \SI{38.5}{\micro\ampere} of supply.
 
 \item \textbf{Offset is the dominant accuracy term and misses its budget.}
-\(\sigma = \SI{4.82}{\milli\volt}\) from mismatch alone, against
-\(\sigma \leq \SI{2}{\milli\volt}\). A current-mirror amplifier adds mirror mismatch to
-input-pair mismatch, so this is worse than the \SI{3.07}{\milli\volt} of the
-folded-cascode design it replaced --- the cost of the symmetry. It appears directly on
-the commanded electrode potential and needs trimming or chopping.
+\(\sigma = \SI{4.82}{\milli\volt}\) against \(\sigma \leq \SI{2}{\milli\volt}\), process
+and mismatch together. A current-mirror amplifier adds mirror mismatch to input-pair
+mismatch, which is the expected cost of the symmetry; the \SI{3.07}{\milli\volt} measured
+on the folded-cascode design it replaced was a mismatch-only figure and is not a like-for-like
+comparison. Offset appears directly on the commanded electrode potential and needs
+trimming or chopping either way.
 
 \item \textbf{Phase margin is the binding small-signal specification.} Against the
 \SI{10}{\pico\farad} test load, 29 of 200 samples fall below the \SI{60}{\degree}
@@ -56,6 +59,15 @@ amplifier's own gain.} The cell reduces loop gain to \SI{7.9}{\decibel}, a facto
 \SI{-48}{\milli\volt} of electrode-potential error at \SI{10}{\micro\ampere} of cell
 current, against \SI{0.1}{\milli\volt} at zero current. Any accuracy requirement on the
 commanded potential under load has to be met by adding gain, not by trimming.
+
+\item \textbf{Corner analysis under-reports the bias spread tenfold.} The bias generator's
+supply current varies \SI{1.2}{\percent} across the five process corners and
+\SI{12.5}{\percent} across the Monte Carlo population. A self-biased loop sets its current
+by a ratio that a global corner shift preserves, so the corner run is blind to the term
+that actually dominates: at \SI{12.5}{\percent}, the shared bias explains most of the
+\SI{14.5}{\percent} spread in A1's peak drive current and the \SI{12.4}{\percent} in its
+unity-gain frequency. Because the generator is shared, this term is common-mode across the
+four channels --- it widens the chip-to-chip envelope without degrading channel matching.
 \end{enumerate}
 
 The bias generator is a separate netlist from the amplifier testbench. The two runs

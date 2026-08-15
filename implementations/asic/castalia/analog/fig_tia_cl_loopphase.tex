@@ -1,0 +1,42 @@
+%% maestro2tex -- generated figure; do not edit by hand.
+\providecommand{\MaestroRoot}{include/analog/}
+\begin{figure}[htbp]
+  \centering
+  {\pgfplotsset{compat=1.18}%
+  \begin{tikzpicture}
+    \begin{axis}[
+      width=0.82\linewidth, height=6.2cm,
+      xlabel={Frequency~[\si{\hertz}]}, ylabel={Loop phase~[\si{\degree}]},
+      grid=both,
+      major grid style={line width=0.2pt, draw=black!14},
+      minor grid style={line width=0.2pt, draw=black!7},
+      minor tick num=1,
+      axis line style={line width=0.4pt, draw=black!45},
+      tick style={line width=0.4pt, draw=black!45},
+      tick align=outside,
+      label style={font=\small}, tick label style={font=\small},
+      enlarge x limits=0.02, enlarge y limits=0.10,
+      every axis plot/.append style={line join=round, no marks},
+      legend style={font=\footnotesize, draw=black!25, fill=white,
+                    fill opacity=0.9, text opacity=1, row sep=1pt},
+      legend cell align=left, legend pos=south west,
+      xmode=log,
+      scaled y ticks=false,
+      y tick label style={/pgf/number format/fixed,
+                          /pgf/number format/precision=0}
+    ]
+      \addplot[mtxA, line width=1.1pt, solid] table {\MaestroRoot data/tia_cl_loopphase_00.dat};
+      \addlegendentry{tt}
+      \addplot[mtxB, line width=1.1pt, dashed] table {\MaestroRoot data/tia_cl_loopphase_01.dat};
+      \addlegendentry{ff}
+      \addplot[mtxC, line width=1.1pt, dotted] table {\MaestroRoot data/tia_cl_loopphase_02.dat};
+      \addlegendentry{fs}
+      \addplot[mtxD, line width=1.1pt, dashdotted] table {\MaestroRoot data/tia_cl_loopphase_03.dat};
+      \addlegendentry{sf}
+      \addplot[mtxE, line width=1.1pt, densely dashed] table {\MaestroRoot data/tia_cl_loopphase_04.dat};
+      \addlegendentry{ss}
+    \end{axis}
+  \end{tikzpicture}}
+  \caption[{Loop phase for the same five runs.}]{Loop phase for the same five runs. In this convention \SI{0}{\degree} is the instability point, so the phase at crossover is the phase margin directly: \SIrange{61.2}{64.9}{\degree}. Cadence's \texttt{phaseMargin()} returns exactly \SI{180}{\degree} less on this result and is not used here or in Section~\ref{ss:controlamp}.}
+  \label{fig:tia-cl-loopphase}
+\end{figure}

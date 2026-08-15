@@ -57,7 +57,7 @@ Block & Section & Benches & Monte Carlo & Principal open item \\
 \midrule
 Bias generator        & \ref{ss:biasgen-local} & 2 & ---      & no mismatch data \\
 Control amplifier     & \ref{ss:controlamp}    & 4 & \checkmark & drive \SI{30}{\percent} short; offset over budget \\
-Transimpedance stage  & \ref{ss:tiaamp}        & 5 & ---      & loop peaking; sourcing limit at low gain \\
+Transimpedance stage  & \ref{ss:tiaamp}        & 5 & \checkmark & offset \(\sigma\) over budget; sourcing limit at low gain \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -76,13 +76,26 @@ characterised against process but not against mismatch.
 against a \SI{33}{\micro\ampere} target, and offset is \(\sigma =
 \SI{4.82}{\milli\volt}\) from mismatch alone against a \SI{2}{\milli\volt} budget. Both
 are quantified in Section~\ref{ss:controlamp} with the routes to closing them.
-\item \textbf{Transimpedance stage} --- four items, all in Section~\ref{ss:tiaamp}: the
-closed loop peaks \SIrange{5.0}{6.4}{\decibel} and the feedback capacitor that would
-flatten it is impractically large; the class-A output cannot source the full-scale
-current at the minimum gain setting; only the maximum gain setting was simulated, with
-an ideal feedback resistor rather than the 16-tap string; and no Monte Carlo exists.
-Its closed-loop bench also loads the electrode with a bare capacitance rather than the
-cell model of Section~\ref{ss:analog-models}, so its peaking is an upper bound.
+\item \textbf{Transimpedance stage} --- three items, all in Section~\ref{ss:tiaamp}.
+\emph{Loop stability is closed:} with the cell model of
+Section~\ref{ss:analog-models} and \SI{22}{\pico\farad} of feedback capacitance the loop
+holds \SIrange{61.2}{64.9}{\degree} of phase margin and
+\SIrange{1.2}{1.5}{\decibel} of peaking. The previous revision of this chapter reported
+\SIrange{5.0}{6.4}{\decibel} and an impractical \SI{200}{\pico\farad} remedy; that came
+from a bench that loaded the electrode with a bare capacitance, and
+Section~\ref{sss:tia-loop} explains why the load model decided the answer. What remains
+open is: \emph{offset}. Monte Carlo over process and mismatch
+(Section~\ref{sss:tia-mc}) gives \(\sigma(v_{\mathrm{off}}) = \SI{7.09}{\milli\volt}\) at
+maximum gain against a \(\pm\SI{5}{\milli\volt}\) budget --- \SI{54.7}{\percent} of
+channels, and roughly \SI{9}{\percent} of four-channel parts. Phase margin, by contrast,
+passes on \SI{100}{\percent} of samples at both taps, so the \SI{22}{\pico\farad}
+compensation is confirmed rather than merely plausible. Also open: a charge-transfer
+resistance of \SI{10}{\kilo\ohm} leaves only \SIrange{41.9}{44.3}{\decibel} of loop gain;
+the class-A output cannot source the full-scale current at the minimum gain setting; and
+only two gain taps were simulated, with an ideal feedback resistor rather than the 16-tap
+string. \SI{12}{\percent} of Monte Carlo samples did not converge and are excluded from
+every statistic --- see Section~\ref{sss:tia-mc}, which also lists the DC-derived results
+withheld for the same reason.
 \end{itemize}
 
 % ---------------------------------------------------------------------

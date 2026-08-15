@@ -117,6 +117,13 @@ def main():
         # CSRs and RTL signal names (the macro is only a monospace wrapper)
         'mhartid', 'mtime', 'mclk', 'req', 'done', 'rdata', 'meip', 'msip', 'mtip',
         's_en', 's_addr', 's_rdata', 'gnt', 'level', 'in_service', 'need_release',
+        # CPR3/R3 TCM apertures (MULTICORE chapter, 2026-08). RTL signal names,
+        # same class as the arbiter's s_* group above: the tile's external TCM
+        # read port (hart_tile.vhd:319-322) and the arbiter's stall input
+        # (mp_arbiter.vhd:108). Verified free of collision with every generated
+        # name at the time of writing; the chapter uses tcm_ext_done and s_stall
+        # today and the rest of the port is listed with them.
+        'tcm_ext_req', 'tcm_ext_addr', 'tcm_ext_rdata', 'tcm_ext_done', 's_stall',
         # deliberate references to RETIRED registers (M19 killed the SYSTEM
         # vectored controller; the prose names them to say they are gone)
         'IRQENU', 'IRQENx', 'IRQPRIx', 'IRQCR',

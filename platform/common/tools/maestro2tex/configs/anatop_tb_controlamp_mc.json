@@ -262,7 +262,7 @@
       "height": "5.6cm",
       "xlabel": "Input-referred offset $V_{\\mathrm{OS}}$~[\\si{\\milli\\volt}]",
       "ylabel": "Samples",
-      "caption": "Input-referred offset, mismatch only (\\texttt{castalia\\_mm\\_25}, process fixed at typical). The distribution is Gaussian with \\(\\sigma = \\SI{4.82}{\\milli\\volt}\\) against a \\(\\sigma \\leq \\SI{2}{\\milli\\volt}\\) budget; 37 of 200 samples fall inside the \\(\\pm\\SI{1}{\\milli\\volt}\\) rules shown. Offset lands directly on the commanded electrode potential and is the dominant accuracy term at low cell current."
+      "caption": "Input-referred offset. \\textbf{Process and mismatch} (\\texttt{castalia\\_pm\\_25}), \\SI{37}{\\celsius} --- die-to-die spread, not the within-die channel-to-channel term, for which no mismatch-only run of this design exists. The distribution is Gaussian with \\(\\sigma = \\SI{4.82}{\\milli\\volt}\\) against a \\(\\sigma \\leq \\SI{2}{\\milli\\volt}\\) budget; 37 of 200 samples fall inside the \\(\\pm\\SI{1}{\\milli\\volt}\\) rules shown, which are the limits entered on the test. Offset lands directly on the commanded electrode potential and is the dominant accuracy term at low cell current."
     },
     {
       "id": "ctrlamp_mc_pm",
@@ -293,9 +293,48 @@
       "xlabel": "Slew rate~[\\si{\\volt\\per\\micro\\second}]",
       "ylabel": "Samples",
       "caption": "Slew rate on both edges of a \\SI{1}{\\volt} step into \\SI{10}{\\pico\\farad}. Rising and falling averages are \\SI{1.74}{\\volt\\per\\micro\\second} and \\SI{1.65}{\\volt\\per\\micro\\second}, a \\SI{5}{\\percent} imbalance: the tail current is steered into one input device and mirrored to the output, so the slewing current is equal in both directions by construction."
+    },
+    {
+      "id": "ctrlamp_mc_bias",
+      "kind": "histogram",
+      "test": "mc_bias",
+      "signals": [
+        "idd"
+      ],
+      "bins": 30,
+      "spec_hi": 2.3467e-05,
+      "spec_hi_label": "tt corner",
+      "width": "0.80\\linewidth",
+      "height": "5.6cm",
+      "xlabel": "Bias generator supply current $I_{\\mathrm{DD}}$~[\\si{\\micro\\ampere}]",
+      "ylabel": "Samples",
+      "caption": "Supply current of the local bias generator over 200 process-and-mismatch samples, with the \\texttt{tt} corner at the same trim code marked. Monte Carlo gives \\(\\sigma/\\mu = \\SI{12.5}{\\percent}\\), \\(17.7\\)--\\SI{33.1}{\\micro\\ampere}, where the five process corners span \\SI{1.2}{\\percent}, \\(23.25\\)--\\SI{23.52}{\\micro\\ampere} (Table~\\ref{tab:biasgen-dcop}, interpolated to \\texttt{BiasAdj}~=~37); the corner sweep is at \\SI{27}{\\celsius} against \\SI{37}{\\celsius} here, which accounts for the \\SI{0.45}{\\micro\\ampere} of mean offset and not for the width. A self-biased loop fixes its current by a device-ratio and resistor balance that a global corner shift leaves intact but local mismatch does not, so corner analysis under-reports this term tenfold. It is the largest single contributor to A1's own spread --- peak cell current \\SI{14.5}{\\percent}, \\(f_{\\mathrm{u}}\\) \\SI{12.4}{\\percent} --- leaving roughly \\SI{7}{\\percent} in quadrature for the amplifier's own devices. This is a separate netlist and a separate draw, so sample \\(n\\) here is not sample \\(n\\) in the A1 tests and the two must not be paired."
     }
   ],
   "tables": [
+    {
+      "id": "ctrlamp_mc_offset",
+      "type": "mcstats",
+      "test": "mc_offset",
+      "stats": [
+        "n",
+        "mean",
+        "sigma",
+        "min",
+        "max",
+        "mean_3s",
+        "spec",
+        "yield",
+        "yield_chip",
+        "cpk"
+      ],
+      "channels": 4,
+      "digits": 2,
+      "caption": "Offset statistics. \\textbf{Process and mismatch} (\\texttt{castalia\\_pm\\_25}), \\SI{37}{\\celsius}, \\texttt{BiasAdj}~=~37, 200 samples, seed 12345, LDS sampling. The distribution is Gaussian, so mean $\\pm\\,3\\sigma$ is meaningful here and is not quoted for the clipped quantities in the tables that follow. Spec and yield are the \\(\\pm\\SI{1}{\\milli\\volt}\\) limits entered on the test --- the fraction of uncalibrated channels within \\(\\pm\\SI{1}{\\milli\\volt}\\); the \\(\\sigma \\leq \\SI{2}{\\milli\\volt}\\) design budget is a separate criterion and is also missed, by \\num{2.4}$\\times$. This run varies process as well as mismatch, so \\(\\sigma\\) is die-to-die and is an upper bound on the within-die channel-to-channel offset that the four-channel column assumes; a \\texttt{castalia\\_mm\\_25} re-run is needed to separate the two.",
+      "signals": [
+        "V_InPOffset"
+      ]
+    },
     {
       "id": "ctrlamp_mc_celldrive",
       "type": "mcstats",

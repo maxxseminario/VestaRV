@@ -1,0 +1,15 @@
+%% maestro2tex -- generated table; do not edit by hand.
+\begin{table}[htbp]
+  \centering
+  \caption[{Monte Carlo offset and input-referred noise at maximum gain, conditions as Table~\ref{tab:tia-mc-stab560k}.}]{Monte Carlo offset and input-referred noise at maximum gain, conditions as Table~\ref{tab:tia-mc-stab560k}. Offset is close to Gaussian, so mean \(\pm\,3\sigma\) is meaningful here; it is not quoted for the skewed stability quantities. At $R_f = \SI{35}{\kilo\ohm}$ the same measurement gives \(\sigma = \SI{4.68}{\milli\volt}\) and \SI{74.0}{\percent} yield, so offset degrades with gain because the electrode's DC noise gain multiplies it. The four-channel column assumes the four channels are independent draws, which a process-and-mismatch run overstates --- a \texttt{castalia\_mm\_25} re-run would separate die-to-die from within-die.}
+  \label{tab:tia-mc-offset}
+  \footnotesize
+  \begin{tabular}{lrrrrrrrrrr}
+    \toprule
+    Parameter & Unit & $N$ & Mean & $\sigma$ & Min & Max & Mean $\pm\,3\sigma$ & Spec & Yield & 4\,ch \\
+    \midrule
+    Input offset & \si{\milli\volt} & 179 & 0.14 & 7.09 & $-17.00$ & 19.43 & 0.14\,$\pm$\,21.26 & $\pm5.00$ & 54.7 & 9.0 \\
+    Input current noise, \SIrange{0.1}{100}{\hertz} & \si{\pico\ampere} & 179 & 259.99 & 136.44 & 69.23 & 1276.45 & 259.99\,$\pm$\,409.33 & $\leq 2000.00$ & 100.0 & 100.0 \\
+    \bottomrule
+  \end{tabular}
+\end{table}

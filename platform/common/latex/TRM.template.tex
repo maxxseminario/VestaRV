@@ -72,7 +72,10 @@ The microcontroller (MCU) described in this document is a \NumHartsWord-hart (\N
 \begin{figure}[h]
 	\centering
 	\resizebox{\linewidth}{!}{\input{include/SystemBlockDiagram.tex}}
-	\caption[{\AsicNameForUserGuide{} top-level block diagram}]{\AsicNameForUserGuide{} top-level block diagram (generated from this configuration: \NumHarts{} harts, \SharedRamSizeKiB\,KiB shared RAM). Every hart tile couples an unmodified VestaRV core with its private TCM; everything else is reached through the serializing round-robin arbiter.}
+	\caption[{\AsicNameForUserGuide{} top-level block diagram}]{\AsicNameForUserGuide{} top-level block diagram (generated from this configuration: \NumHarts{} harts, \SharedRamSizeKiB\,KiB shared RAM). Every hart couples an unmodified VestaRV core with its own private TCM, and everything else is reached through the serializing round-robin arbiter.
+	\iforchpresent
+	The \NumHartsWord{} harts are not \NumHartsWord{} of a kind: hart 0 is the orchestrator, soft logic in the always-on centre band, while harts 1--\MaxHartIndex{} are copies of one hardened tile macro sitting on switched rails, each with its own gate bit --- so the dashed registered boundary belongs to the tiles and not to hart 0. The last slave is the read-only TCM aperture band, the one shared-window device that reaches back across that boundary: hart 0 reads any hart's private memory there, a gated tile answers zeros, and nothing writes (Section~\ref{s:multicore}).
+	\fi}
 	\label{fig:system-block-diagram}
 \end{figure}
 
@@ -141,12 +144,16 @@ When a pin is in alternate function (peripheral) mode (its \register{PxSEL} bit 
 
 The 32-bit memory bus on the MCU is in the von Neumann architecture. All addressable memory elements (i.e. the ROM, RAM, and memory mapped registers) are all located on a single bus. A pointer can access any of these locations in memory.
 
-The ROM cell contains boot code, which is read-only. Each SRAM cell can be read or written to, and may contain both program and variable information. The chip does not contain programmable non-volatile memory (e.g. flash memory), so the program must be entirely stored in RAM along with all runtime memory. Each SRAM and ROM cell can be individually powered off or on using the \peripheral{SYSTEM} peripheral. When powered off, the cells use less power and cannot be read or written to. SRAM cells that are powered off do not retain their previous data, and the data becomes undefined.
+The ROM cell contains boot code, which is read-only. Each SRAM cell can be read or written to, and may contain both program and variable information. The chip carries no on-die non-volatile memory: it boots from an \emph{external} SPI flash device, and hart 0 --- and only hart 0 --- can additionally read that flash directly, and execute in place from it, through the extended-flash window at \texttt{\FlashBaseAddress} and above (the last region in the figure; see Section \ref{ss:spi-flash-xip}). At reset every hart fetches from the boot ROM at \texttt{\RomStartAddress} and dispatches on its hart ID: hart 0 copies the application image out of the flash into memory and enters it, and the remaining harts park until hart 0 loads and launches them (Section \ref{ss:multicore-boot}). Each SRAM and ROM cell can be individually powered off or on using the \peripheral{SYSTEM} peripheral. When powered off, the cells use less power and cannot be read or written to. SRAM cells that are powered off do not retain their previous data, and the data becomes undefined.
 
 
 The interrupt vector table (IVT) begins at address \texttt{\VectorsStartAddress} and contains jump instructions to the interrupt service routines (ISRs). When an interrupt occurs, the CPU directly vectors to the corresponding entry in the IVT, which then jumps to the appropriate ISR. Each IVT entry is 4 bytes and typically contains a RISC-V jump instruction (e.g., \asminline{j handler}). The IVT can be initialized and configured in software, allowing flexible interrupt routing and handler assignment at runtime.
 
-The address space above is the view from hart 0. Harts 1--\MaxHartIndex{} see their own private RAM at the same addresses and share the window at \texttt{\SharedWindowStartAddress}--\texttt{\SharedWindowEndAddress} with all other harts; see Section~\ref{s:multicore}.
+The figure is a single address column drawn for all \NumHartsWord{} harts, and its braces name who reaches each region. Everything below \texttt{\FlashBaseAddress} other than the private band is the \emph{shared window}: every hart reaches it through the arbiter, and all \NumHartsWord{} harts see the same memory there (Section~\ref{s:multicore}). The private band is the exception --- at those addresses a hart reaches its own tightly-coupled memory (TCM) instead of the shared bus, so the same address names a different \TcmSizeKiB{} KiB of RAM in each hart, and no hart can reach another's directly.
+\iforchpresent
+The TCM apertures are the one sanctioned way across that line: hart 0, the orchestrator, reads hart $h$'s private TCM through the aperture at \texttt{\FirstTcmWindowAddress}${} + h \times{}$\TcmSizeKiB{} KiB. The apertures are read-only, and any other hart reading them gets zeros (Section~\ref{s:multicore}).
+\fi
+The extended-flash window is likewise hart 0's alone; the other harts' accesses in that range read zeros without stalling.
 
 \newpage
 
