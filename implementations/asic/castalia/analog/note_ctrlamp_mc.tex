@@ -11,14 +11,12 @@
 The corner data above gives performance at five process points. It does not give the
 fraction of a population that meets a specification, which for four nominally identical
 channels is what sets chip yield. This section reports a 200-sample Monte Carlo run of
-the same testbench cell, seed 12345, low-discrepancy sampling. All tests run at
+the same testbench. All tests run at
 \SI{37}{\celsius}, the on-body operating temperature.
 
-Every test in this run varies process and mismatch together (\texttt{castalia\_pm\_25},
-\texttt{variations=all}), so every $\sigma$ below is die-to-die and is an upper bound on
+Every test in this run varies process and mismatch together, so every $\sigma$ below is die-to-die and is an upper bound on
 the within-die channel-to-channel spread. That distinction matters for the four-channel
-columns, which assume the channels vary independently; a mismatch-only
-(\texttt{castalia\_mm\_25}) companion run is needed to separate the two terms and does
+columns, which assume the channels vary independently; a mismatch-only companion run is needed to separate the two terms and does
 not yet exist for this design. Variation type is named in every caption.
 
 Gaussian quantities are reported as mean $\pm\,3\sigma$; clipped or skewed ones
