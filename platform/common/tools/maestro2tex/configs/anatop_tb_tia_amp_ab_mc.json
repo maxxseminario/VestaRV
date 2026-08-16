@@ -82,25 +82,25 @@
           "digits": 2
         },
         "vn_out": {
-          "label": "Output noise, \\SIrange{0.1}{1000}{\\hertz}",
+          "label": "Output noise, \\SI{0.1}{\\hertz}--\\SI{1}{\\kilo\\hertz}",
           "unit_tex": "\\si{\\milli\\volt}",
           "scale": 1000.0,
           "digits": 3
         },
         "in_rms_10": {
-          "label": "Input current noise, \\SIrange{0.1}{10}{\\hertz}",
+          "label": "Input noise, \\SI{0.1}{\\hertz}--\\SI{10}{\\hertz}",
           "unit_tex": "\\si{\\pico\\ampere}",
           "scale": 1000000000000.0,
           "digits": 1
         },
         "in_rms_100": {
-          "label": "Input current noise, \\SIrange{0.1}{100}{\\hertz}",
+          "label": "Input noise, \\SI{0.1}{\\hertz}--\\SI{100}{\\hertz}",
           "unit_tex": "\\si{\\pico\\ampere}",
           "scale": 1000000000000.0,
           "digits": 1
         },
         "in_rms_1k": {
-          "label": "Input current noise, \\SIrange{0.1}{1000}{\\hertz}",
+          "label": "Input noise, \\SI{0.1}{\\hertz}--\\SI{1}{\\kilo\\hertz}",
           "unit_tex": "\\si{\\nano\\ampere}",
           "scale": 1000000000.0,
           "digits": 3

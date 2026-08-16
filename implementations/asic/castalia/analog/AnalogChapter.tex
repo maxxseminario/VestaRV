@@ -39,10 +39,10 @@ results database rather than transcribed by hand.
 
 The analog front end is being brought up incrementally. The electrochemical models
 the benches use are defined once in Section~\ref{ss:analog-models}. This revision documents
-the local bias generator, the potentiostat control amplifier it biases, and the
-class-AB amplifier that serves as both the channel's transimpedance amplifier (A2)
-and its control amplifier (A1); the reference DAC and the data converters will be
-added to this chapter as their benches are closed.
+the local bias generator and the class-AB amplifier that serves as both the
+channel's transimpedance amplifier (A2) and its potentiostat control amplifier
+(A1); the reference DAC and the data converters will be added to this chapter as
+their benches are closed.
 
 \subsection*{Characterisation coverage}
 
@@ -52,7 +52,6 @@ added to this chapter as their benches are closed.
 Block & Section & Benches & Corners & Monte Carlo \\
 \midrule
 Bias generator        & \ref{ss:biasgen-local} & 2 & \checkmark & n/a \\
-Control amplifier     & \ref{ss:controlamp}    & 4 & \checkmark & \checkmark \\
 Class-AB amplifier    & \ref{ss:ampab}         & 6 & \checkmark & \checkmark \\
 \bottomrule
 \end{tabular}
@@ -61,19 +60,15 @@ Class-AB amplifier    & \ref{ss:ampab}         & 6 & \checkmark & \checkmark \\
 \noindent Corner runs cover process, temperature and supply at the five points listed in
 each block section. Monte Carlo runs cover process and mismatch together; a corner figure
 and a Monte Carlo \(\sigma\) are different quantities and are reported separately
-throughout. Load conditions are not common between blocks: the control amplifier's
-small-signal and step figures are taken into \SI{10}{\pico\farad} and the transimpedance
-amplifier's into \SI{5}{\pico\farad}, so bandwidth and drive figures are not
-directly comparable between Sections~\ref{ss:controlamp} and~\ref{ss:ampab}. Design
+throughout. Design
 targets, where quoted alongside a measurement, are stated in the block section that
 reports the measurement.
 
 % ---------------------------------------------------------------------
 % Generated block sections. Each is produced by tools/maestro2tex from a
 % Maestro run; see that tool's README for how to regenerate or add one.
-% Keep a block after whatever it depends on: the control amplifier's operating
-% point quotes the bias rails that the bias generator section defines, and
-% refers to that section by \ref.
+% Keep a block after whatever it depends on: the amplifier section quotes the
+% bias rails that the bias generator section defines, and refers to it by \ref.
 % ---------------------------------------------------------------------
 
 \input{include/analog/note_models.tex}
@@ -81,5 +76,4 @@ reports the measurement.
 \input{include/analog/sch_models_electrode.tex}
 
 \input{include/analog/BiasGenCascWideSwing.tex}
-\input{include/analog/ControlAmp.tex}
 \input{include/analog/AmpAB.tex}

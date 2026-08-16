@@ -156,13 +156,13 @@
           "digits": 3
         },
         "re_err_0": {
-          "label": "Tracking error at zero cell current",
+          "label": "Zero-current error",
           "unit_tex": "\\si{\\milli\\volt}",
           "scale": 1000.0,
           "digits": 3
         },
         "re_err_max": {
-          "label": "Worst tracking error over the window",
+          "label": "Worst error in window",
           "unit_tex": "\\si{\\milli\\volt}",
           "scale": 1000.0,
           "digits": 3
@@ -175,7 +175,7 @@
         },
         "re_reg_p10": {
           "derive": "re_err_p10 - re_err_0",
-          "label": "Regulation error at \\SI{+10}{\\micro\\ampere}",
+          "label": "Regulation at \\SI{+10}{\\micro\\ampere}",
           "unit_tex": "\\si{\\micro\\volt}",
           "scale": 1000000.0,
           "digits": 2,
@@ -184,7 +184,7 @@
         },
         "re_reg_n10": {
           "derive": "re_err_n10 - re_err_0",
-          "label": "Regulation error at \\SI{-10}{\\micro\\ampere}",
+          "label": "Regulation at \\SI{-10}{\\micro\\ampere}",
           "unit_tex": "\\si{\\micro\\volt}",
           "scale": 1000000.0,
           "digits": 2,
