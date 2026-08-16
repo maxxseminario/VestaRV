@@ -54,9 +54,6 @@
 \def\yABP{9.4}  \def\yABN{4.6}  \def\yAB{7.0}  \def\ynS{8.2}
 \def\yout{7.0}  \def\ycct{14.5} \def\yccb{-0.5}
 
-% ---- cell boundary --------------------------------------------------------
-\draw[grp] (-4.4,-3.0) rectangle (\xbox,15.9);
-\node[ilab, anchor=south west, text=black!55] at (-4.4,15.95) {\texttt{anatop\_tia\_amp\_ab}};
 
 % ---- supply rails ---------------------------------------------------------
 \draw[thick] (-5.0,\yvdd) -- (\xend,\yvdd) node[right]{\texttt{inh\_vdd}};
@@ -233,6 +230,6 @@
 
 \end{circuitikz}
   }
-  \caption[{Signal-path topology of the class-AB amplifier \texttt{anatop\_tia\_amp\_ab}.}]{Signal-path topology of the class-AB amplifier \texttt{anatop\_tia\_amp\_ab}, drawn from its netlist. The complementary pairs M1/M2 (NMOS, tail M0) and M1L/M1R (PMOS, tail M6) fold into two cascode branches; the \texttt{InM} side terminates in the diode-connected branch M12--M11--M8--M5, whose summing node \texttt{net026} sets M13, which restates that current into the \texttt{InP} branch, and the floating pair M54/M61 holds \texttt{ABP} above \texttt{ABN} so both output devices M15 and M14 are actively driven. \texttt{C1} and \texttt{C2} are the common source nodes of the PMOS cascodes M10/M3 and of the NMOS cascodes M9/M3R, brought out as pins; the two \texttt{cc\_ab} capacitors that return them to \texttt{Out} sit outside the cell boundary (dashed) in the testbench, \SI{500}{\femto\farad} per side. Simplified: the enable switch and its four power-down devices, and the bias generator that develops \texttt{DiodeN}/\texttt{DiodeP}, are omitted, so 22 of the cell's 34 transistors are drawn; \texttt{BP}/\texttt{BPC}/\texttt{BN}/\texttt{BNC} are the enable-gated forms of the \texttt{bp!}/\texttt{bpc!}/\texttt{bn!}/\texttt{bnc!} globals and device dimensions are not shown. Identically labelled nets are connected; wires crossing without a filled dot are not.}
+  \caption[{Signal-path topology of the class-AB amplifier \texttt{anatop\_tia\_amp\_ab}.}]{Signal-path topology of the class-AB amplifier \texttt{anatop\_tia\_amp\_ab}, drawn from its netlist. The complementary pairs M1/M2 (NMOS, tail M0) and M1L/M1R (PMOS, tail M6) fold into two cascode branches; the \texttt{InM} side terminates in the diode-connected branch M12--M11--M8--M5, whose summing node \texttt{net026} sets M13, which restates that current into the \texttt{InP} branch, and the floating pair M54/M61 holds \texttt{ABP} above \texttt{ABN} so both output devices M15 and M14 are actively driven. \texttt{C1} and \texttt{C2} are the common source nodes of the PMOS cascodes M10/M3 and of the NMOS cascodes M9/M3R, brought out as pins; the two \texttt{cc\_ab} capacitors that return them to \texttt{Out} are testbench components outside the cell, \SI{500}{\femto\farad} per side. Simplified: the enable switch and its four power-down devices, and the bias generator that develops \texttt{DiodeN}/\texttt{DiodeP}, are omitted, so 22 of the cell's 34 transistors are drawn; \texttt{BP}/\texttt{BPC}/\texttt{BN}/\texttt{BNC} are the enable-gated forms of the \texttt{bp!}/\texttt{bpc!}/\texttt{bn!}/\texttt{bnc!} globals and device dimensions are not shown. Identically labelled nets are connected; wires crossing without a filled dot are not.}
   \label{fig:tiaampab-topology}
 \end{figure}
