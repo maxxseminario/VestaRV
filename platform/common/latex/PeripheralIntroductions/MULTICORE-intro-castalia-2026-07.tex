@@ -133,7 +133,7 @@ All \NumHartsWord{} harts come out of reset at PC \texttt{0x0} and fetch the sha
 % Generated boot flow chart (make chip)
 \begin{figure}[h]
 	\centering
-	\resizebox{0.95\linewidth}{!}{\input{include/BootFlowDiagram.tex}}
+	\input{include/BootFlowDiagram.tex}
 	\caption[{Boot and tile-loading flow.}]{Boot and tile-loading flow. All harts execute the same shared boot ROM; hart 0 runs the legacy SPI-flash boot while every other hart parks in low-power sleep until it is loaded and released through its loader mailbox row and a \peripheral{CLINT} software interrupt.}
 	\label{fig:boot-flow}
 \end{figure}
