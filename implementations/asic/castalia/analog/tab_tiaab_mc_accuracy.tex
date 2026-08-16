@@ -1,0 +1,18 @@
+%% maestro2tex -- generated table; do not edit by hand.
+\begin{table}[htbp]
+  \centering
+  \caption[{Monte Carlo transfer accuracy, conditions as Table~\ref{tab:tiaab-mc-offset}.}]{Monte Carlo transfer accuracy, conditions as Table~\ref{tab:tiaab-mc-offset}. Gain error, INL and total unadjusted error are evaluated over the central \(\pm 0.9\) of the full-scale input-current range and the two LSB rows are referred to the \SI{2.441}{\milli\volt} ADC LSB. Total unadjusted error correlates with \(|V_{\mathrm{OS}}|\) at \(r = +1.000\) across the 200 samples: at this gain tap it is the offset of Table~\ref{tab:tiaab-mc-offset} expressed in LSB, not an independent result, and its \num{4}~LSB limit corresponds to an offset of about \SI{9.8}{\milli\volt}, which is why its yield is not the offset yield. Gain error and INL are set by the amplifier and pass on every sample; the feedback resistor is an ideal element here and contributes no tolerance. Percentiles and worst case are quoted rather than \(\pm 3\sigma\) because INL and total unadjusted error are right-skewed.}
+  \label{tab:tiaab-mc-accuracy}
+  \footnotesize
+  \begin{tabular}{lrrrrrrrrrr}
+    \toprule
+    Parameter & Unit & $N$ & Mean & $\sigma$ & $p_{1}$ & $p_{99}$ & Worst & Spec & Yield & 4\,ch \\
+    \midrule
+    Gain error & ppm & 200 & $-171.7$ & 23.1 & $-235.5$ & $-128.0$ & 249.3 & $\pm2000.0$ & 100.0 & 100.0 \\
+    Transimpedance at \SI{1}{\hertz} & \si{\kilo\ohm} & 200 & 559.93 & 0.01 & 559.91 & 559.95 & -- & -- & -- & -- \\
+    Deviation from $R_f$ & ppm & 200 & $-121.3$ & 17.4 & $-165.2$ & $-89.2$ & -- & -- & -- & -- \\
+    Integral non-linearity & LSB & 200 & 0.022 & 0.006 & 0.012 & 0.040 & 0.051 & $\leq 0.500$ & 100.0 & 100.0 \\
+    Total unadjusted error & LSB & 200 & 2.90 & 2.34 & 0.14 & 10.62 & 11.72 & $\leq 4.00$ & 75.0 & 31.6 \\
+    \bottomrule
+  \end{tabular}
+\end{table}

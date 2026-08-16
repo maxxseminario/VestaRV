@@ -1,0 +1,39 @@
+%% maestro2tex -- generated Monte Carlo histogram; do not edit by hand.
+\providecommand{\MaestroRoot}{include/analog/}
+\begin{figure}[htbp]
+  \centering
+  {\pgfplotsset{compat=1.18}%
+  \begin{tikzpicture}
+    \begin{axis}[
+      width=0.86\linewidth, height=6.0cm,
+      xlabel={Amplifier dissipation~[\si{\micro\watt}]}, ylabel={Samples},
+      grid=both,
+      major grid style={line width=0.2pt, draw=black!14},
+      minor grid style={line width=0.2pt, draw=black!7},
+      minor tick num=1,
+      axis line style={line width=0.4pt, draw=black!45},
+      tick style={line width=0.4pt, draw=black!45},
+      tick align=outside,
+      label style={font=\small}, tick label style={font=\small},
+      enlarge x limits=0.02, enlarge y limits=0.10,
+      every axis plot/.append style={line join=round, no marks},
+      legend style={font=\footnotesize, draw=none, fill=none,
+                    at={(0.5,1.02)}, anchor=south, legend columns=-1,
+                    /tikz/every even column/.append style={column sep=9pt}},
+      legend cell align=left,
+      scaled y ticks=false, scaled x ticks=false,
+      y tick label style={/pgf/number format/fixed,
+                          /pgf/number format/precision=0},
+      ymin=0, ymax=40.3,
+      enlarge x limits=0.04, enlarge y limits=false,
+      area legend
+    ]
+      \addplot[ybar interval, draw=mtxA, fill=mtxA!25, line width=0.7pt] table {\MaestroRoot data/tiaab_mc_power_00.dat};
+      \addlegendentry{Amplifier dissipation}
+      \draw[black!70, line width=1.0pt, densely dashed] ({axis cs:300,0}|-{rel axis cs:0,0}) -- ({axis cs:300,0}|-{rel axis cs:0,0.90})
+        node[above left, font=\footnotesize, inner sep=1pt] {limit \SI{300}{\micro\watt}};
+    \end{axis}
+  \end{tikzpicture}}
+  \caption[{Amplifier dissipation at the DC operating point.}]{Amplifier dissipation at the DC operating point. \textbf{Process and mismatch} (\texttt{castalia\_pm\_25}), \SI{25}{\celsius}, 200 samples, seed 12345, LDS sampling, \texttt{BiasAdj}~=~37, \SI{2.5}{\volt}, both inputs at $v_{\mathrm{cm}}$, no load current; at this open-loop operating point the output rests near \texttt{vss}. The distribution is bimodal: 187 of 200 samples lie between \SI{75}{\micro\watt} and \SI{170}{\micro\watt} (median \SI{111.8}{\micro\watt}) and 13 converge to a second DC solution branch of the degenerate open-loop operating point, up to the worst sample at \SI{302.5}{\micro\watt} against the \SI{300}{\micro\watt} limit entered on the test. Mean \(\pm\,3\sigma\) is not meaningful for this shape and is not quoted. The figure is the amplifier instance alone and excludes the shared bias generator.}
+  \label{fig:tiaab-mc-power}
+\end{figure}

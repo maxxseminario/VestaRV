@@ -1,0 +1,14 @@
+%% maestro2tex -- generated table; do not edit by hand.
+\begin{table}[htbp]
+  \centering
+  \caption[{Monte Carlo amplifier dissipation at the DC operating point.}]{Monte Carlo amplifier dissipation at the DC operating point. \textbf{Process and mismatch} (\texttt{castalia\_pm\_25}), \SI{25}{\celsius}, 200 samples, seed 12345, LDS sampling, \texttt{BiasAdj}~=~37, \SI{2.5}{\volt}, both inputs at $v_{\mathrm{cm}}$, no load current; at this open-loop operating point the output rests near \texttt{vss}. The distribution is bimodal (Figure~\ref{fig:tiaab-mc-power}): the open-loop operating point is degenerate and 13 of 200 samples converge to a second DC solution branch at roughly twice the median dissipation, so the median, percentiles and worst sample are quoted and mean \(\pm\,3\sigma\) is not. One sample of 200 exceeds the \SI{300}{\micro\watt} limit entered on the test. The figure is the amplifier instance alone; the local bias generator that sets this current is shared by all four channels, so its contribution is common-mode and does not average out between them.}
+  \label{tab:tiaab-mc-power}
+  \footnotesize
+  \begin{tabular}{lrrrrrrrrrrr}
+    \toprule
+    Parameter & Unit & $N$ & Mean & $\sigma$ & Median & $p_{1}$ & $p_{99}$ & Worst & Spec & Yield & 4\,ch \\
+    \midrule
+    Amplifier dissipation & \si{\micro\watt} & 200 & 120.9 & 41.5 & 111.7 & 78.2 & 278.3 & 302.5 & $\leq 300.0$ & 99.5 & 98.0 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
