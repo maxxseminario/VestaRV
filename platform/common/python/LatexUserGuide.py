@@ -1414,7 +1414,8 @@ class LatexUserGuide():
 		ySlv, slvH = 1.15, 1.40        # slave row (0.45 .. 1.85)
 		yH0, h0H = 5.40, 2.30          # hart 0 (4.25 .. 6.55)
 		yFls, flsH = 7.35, 0.78        # the flash box (6.96 .. 7.74)
-		riserX = bX1 + 0.74            # the aperture read-back riser
+		# riserX (the aperture read-back riser) is NOT derivable from the tile band
+		# alone and is computed after the slave row is laid out — see below.
 
 		s = ('% Generated system block diagram — ORCHESTRATOR shape (numHarts=' + str(N)
 			+ ', banks=' + str(banks) + ', npu=' + str(npu) + ', apertures=' + str(len(windows)) + ')\n')
@@ -1497,6 +1498,15 @@ class LatexUserGuide():
 		# a management-hart read by driving the addressed tile's own read port
 		# (MCU.vhd tcm_ext_req/addr -> tcm_ext_rdata/done), so the arrow leaves
 		# the slave, climbs clear of the fabric and comes back INTO the tiles.
+		#
+		# THE RISER MUST CLEAR THE WIDEST THING BELOW THE TILES, not just the tile
+		# band. The slave row is centred on the band but is WIDER than it (at N=5
+		# the aperture box ends at x=17.37 against a band edge of 16.76), so a
+		# riser pinned to the band alone (bX1 + 0.74 = 17.50) climbed 0.13 cm off
+		# that box's right border — reading, correctly, as a line drawn ON the
+		# slave it is supposed to leave. Anchor it to whichever edge is further
+		# right and give it a real clearance.
+		riserX = max(bX1 + 0.20, apX1) + 0.60
 		s += ('\\draw[sig, rounded corners=4pt, line width=1.1pt] (' + P(apX1) + ', ' + P(ySlv) + ') -- ('
 			+ P(riserX) + ', ' + P(ySlv) + ') -- (' + P(riserX) + ', ' + P((yPort0 + yPort1) / 2.0) + ') -- ('
 			+ P(bX1 + 0.02) + ', ' + P((yPort0 + yPort1) / 2.0) + ');\n')
@@ -1572,7 +1582,12 @@ class LatexUserGuide():
 		yH0, h0H = 7.00, 1.05
 		yArb, arbH = 5.40, 1.20
 		ySlv, slvH = 3.30, 1.65
-		yZero, zeroH = 0.70, 1.35
+		yZero, zeroH = 0.15, 1.35      # dropped 0.55 cm: the two branch labels had
+		                               # 0.15 cm of air above this box, and band 1's
+		                               # bottom was dead space anyway
+		xLoad = 3.60                   # the hart-0 -> arbiter arrow. NOT fCx: its label
+		                               # is 4.4 cm wide and anchors east of the line, so
+		                               # on the centre line it ran off the end of band 1.
 		xAcc, xStall = 6.20, 2.40      # the two arrows between arbiter and slave
 		xDenied, xDark = 2.30, 6.50    # the two branches into the zero answer
 		yReq, yRsp = 3.80, 2.80        # the two crossings
@@ -1615,8 +1630,8 @@ class LatexUserGuide():
 			+ P(yH0) + ') {\\textbf{hart 0}, the management hart\\\\ \\scriptsize \\texttt{lw} from window $h$, word $i$};\n')
 		s += ('\\node[unit, minimum width=8.60cm, minimum height=' + P(arbH) + 'cm] (arb) at (' + P(fCx) + ', '
 			+ P(yArb) + ') {\\textbf{mp\\_arbiter}\\\\ \\scriptsize \\textit{IDLE} $\\to$ \\textit{LATCH} $\\to$ \\textit{DATA}, the grant pinned to hart 0};\n')
-		s += '\\draw[sig] (' + P(fCx) + ', ' + P(yH0 - h0H / 2.0) + ') -- (' + P(fCx) + ', ' + P(yArb + arbH / 2.0) + ');\n'
-		s += ('\\node[lab, anchor=west, fill=black!4, inner sep=1pt] at (' + P(fCx + 0.18) + ', '
+		s += '\\draw[sig] (' + P(xLoad) + ', ' + P(yH0 - h0H / 2.0) + ') -- (' + P(xLoad) + ', ' + P(yArb + arbH / 2.0) + ');\n'
+		s += ('\\node[lab, anchor=west, fill=black!4, inner sep=1pt] at (' + P(xLoad + 0.18) + ', '
 			+ P((yH0 - h0H / 2.0 + yArb + arbH / 2.0) / 2.0) + ') {one ordinary shared-window load};\n')
 		s += ('\\node[blk, minimum width=8.60cm, minimum height=' + P(slvH) + 'cm] (slv) at (' + P(fCx) + ', '
 			+ P(ySlv) + ') {\\textbf{the aperture slave}\\\\ \\scriptsize is the reader hart 0? is it a read?\\\\'
@@ -1642,14 +1657,22 @@ class LatexUserGuide():
 
 		# ---- band 2: the crossings, and the clamp that makes the branch real
 		s += '\\draw[cross] (' + P(fX1 - 0.60) + ', ' + P(yReq) + ') -- (' + P(seqCx - seqW / 2.0) + ', ' + P(yReq) + ');\n'
-		s += ('\\node[lab, fill=black!11, inner sep=2pt, text width=2.55cm] at (' + P((wX0 + wX1) / 2.0) + ', '
-			+ P(yReq + 0.70) + ') {\\register{tcm\\_ext\\_req} and a 12-bit TCM word index};\n')
+		# Both band-2 captions are anchored to the EDGE they must clear, never
+		# centred on a guessed midpoint: a centred node's height is whatever the
+		# wrapped text turns out to be, and the response caption's fill=black!11
+		# used to reach 0.05 cm INTO the clamp — repainting the band colour over
+		# its bottom border and shipping a three-sided box. anchor=north/south
+		# makes the clearance the thing that is specified.
+		s += ('\\node[lab, fill=black!11, inner sep=2pt, text width=2.55cm, anchor=south] at ('
+			+ P((wX0 + wX1) / 2.0) + ', ' + P(yReq + 0.30)
+			+ ') {\\register{tcm\\_ext\\_req} and a 12-bit TCM word index};\n')
 		s += '\\draw[cross] (' + P(seqCx - seqW / 2.0) + ', ' + P(yRsp) + ') -- (' + P(clCx + clW / 2.0) + ', ' + P(yRsp) + ');\n'
 		s += ('\\node[unit, minimum width=' + P(clW) + 'cm, minimum height=' + P(clH) + 'cm, font=\\sffamily\\scriptsize] (clamp) at ('
 			+ P(clCx) + ', ' + P(yRsp) + ') {isolation\\\\ clamp};\n')
 		s += '\\draw[cross] (' + P(clCx - clW / 2.0) + ', ' + P(yRsp) + ') -- (' + P(fX1 - 0.60) + ', ' + P(yRsp) + ');\n'
-		s += ('\\node[lab, fill=black!11, inner sep=2pt, text width=2.55cm] at (' + P((wX0 + wX1) / 2.0) + ', '
-			+ P(yRsp - 1.40) + ') {the word, six \\register{mclk} later --- or nothing at all, because this clamp zeroes a dark tile\'s \\register{tcm\\_ext\\_done} too};\n')
+		s += ('\\node[lab, fill=black!11, inner sep=2pt, text width=2.55cm, anchor=north] at ('
+			+ P((wX0 + wX1) / 2.0) + ', ' + P(yRsp - clH / 2.0 - 0.35)
+			+ ') {the word, six \\register{mclk} later --- or nothing at all, because this clamp zeroes a dark tile\'s \\register{tcm\\_ext\\_done} too};\n')
 
 		# ---- band 3: the port, the pins it borrows, and the memory
 		s += ('\\node[unit, minimum width=' + P(seqW) + 'cm, minimum height=' + P(seqH) + 'cm] (seq) at ('
@@ -1817,15 +1840,37 @@ class LatexUserGuide():
 	_LABEL_FONT = '\\sffamily\\small'
 	_NOTE_FONT = '\\sffamily\\footnotesize'
 
-	def _timingPreamble(self, xunit, extra=''):
-		'''Shared tikzpicture options for the generated waveform figures.'''
+	# THE TWO ARBITER FIGURES ARE ONE PAIR AND ARE SIZED AS ONE (2026-08-15,
+	# USER review). At the house geometry each of them owned a whole page, and
+	# figure 5's caption asks the reader to compare it PIN BY PIN with figure 4
+	# — which only works if a row of one reads like a row of the other. So both
+	# take the same reduced row height, row pitch and type sizes, and differ
+	# only in xunit, because one draws 7 cycles and the other 13. The floor on
+	# xunit is the widest single-cell string each figure has to hold (`LATCH`
+	# in figure 4), not a width budget: a D{} cell clips nothing and shrinks
+	# nothing, it just overflows its own outline.
+	_ARB_ROW_H = '0.74cm'
+	_ARB_ROW_PITCH = 1.11
+	_ARB_FONTS = ('\\sffamily\\footnotesize', '\\sffamily\\footnotesize',
+	              '\\sffamily\\scriptsize')
+
+	def _timingPreamble(self, xunit, extra='', rowH=None, fonts=None):
+		'''Shared tikzpicture options for the generated waveform figures.
+		   rowH/fonts default to the house geometry above; a figure that needs
+		   to be smaller than the house size passes its OWN pair (the two
+		   arbiter figures do — see _ARB_ROW_H). Sizing goes through here, never
+		   through a \\resizebox around the \\input: a resizebox scales the
+		   drawn strokes AND the type, and on a figure narrower than the text
+		   block it scales it UP (the Agent-C lesson).'''
+		rowH = rowH or self._ROW_H
+		cellFont, labelFont, noteFont = fonts or (self._CELL_FONT, self._LABEL_FONT, self._NOTE_FONT)
 		s = '\\begin{tikzpicture}[\n'
 		s += '\tx=' + xunit + ', y=1cm,\n'
-		s += '\tlbl/.style={font=' + self._LABEL_FONT + ', anchor=east},\n'
+		s += '\tlbl/.style={font=' + labelFont + ', anchor=east},\n'
 		s += '\tguide/.style={densely dotted, gray!65},\n'
-		s += '\tann/.style={font=' + self._NOTE_FONT + ', inner sep=1.5pt},\n'
-		s += '\ttim/.style={timing/xunit=' + xunit + ', timing/yunit=' + self._ROW_H + ', semithick,\n'
-		s += '\t            timing/d/text/.style={font=' + self._CELL_FONT + '}}' + extra + ']\n'
+		s += '\tann/.style={font=' + noteFont + ', inner sep=1.5pt},\n'
+		s += '\ttim/.style={timing/xunit=' + xunit + ', timing/yunit=' + rowH + ', semithick,\n'
+		s += '\t            timing/d/text/.style={font=' + cellFont + '}}' + extra + ']\n'
 		return s
 
 	def GenerateTimerRolloverDiagram(self):
@@ -1921,12 +1966,23 @@ class LatexUserGuide():
 		ann = ''
 		ann += '\\draw[<->, >=Stealth] (1,{\\YBOT-0.45}) -- (4,{\\YBOT-0.45});\n'
 		ann += '\\node[ann, below] at (2.5,{\\YBOT-0.47}) {3 \\register{mclk}, arbiter pins (uncontended)};\n'
-		ann += '\\node[ann, align=left, anchor=north west] at (6.15,{\\YBOT-0.30})\n'
-		ann += '\t{\\textit{ghost window:} \\register{req} is stale-high for one\\\\[-2pt]\n'
-		ann += '\t cycle after \\register{done} --- masked by \\register{need\\_release}};\n'
-		ann += '\\draw[gray!65] (5.5,\\YBOT) -- (5.5,{\\YBOT-0.42}) -- (6.1,{\\YBOT-0.42});\n'
+		# THE GHOST NOTE HANGS UNDER THE FIGURE, NOT OFF ITS RIGHT EDGE, AND
+		# THAT IS WHAT CENTRES THE FIGURE (2026-08-15, USER: "centred on the
+		# page"). \centering centres the tikzpicture's BOUNDING BOX, and this
+		# note used to be a ~5 cm block anchored north WEST at x=6.15 — outside
+		# the 7 cycles the waveform draws — so the box reached ~4 cm further
+		# right than anything visible, and centring the box pushed the visible
+		# waveform left of the text block by half of that. The note is now
+		# centred on the figure's own mid-cycle on a second annotation row,
+		# with a leader dropping from the shaded cycle it describes, so the box
+		# is symmetric about the drawing and \centering does what it says.
+		ann += '\\draw[gray!65] (5.5,\\YBOT) -- (5.5,{\\YBOT-0.95});\n'
+		ann += '\\node[ann, align=center, anchor=north] at (3.5,{\\YBOT-0.97})\n'
+		ann += '\t{\\textit{ghost window:} \\register{req} is stale-high for one cycle\\\\[-2pt]\n'
+		ann += '\t after \\register{done} --- masked by \\register{need\\_release}};\n'
 		s = '% Generated mp_arbiter handshake diagram\n'
-		s += self._cycleFigure('1.30cm', rows, 6, ann, shade=('5', '6'))
+		s += self._cycleFigure('1.15cm', rows, 6, ann, shade=('5', '6'),
+			rowH=self._ARB_ROW_H, pitch=self._ARB_ROW_PITCH, fonts=self._ARB_FONTS)
 		self._writeInclude('ArbiterHandshakeDiagram.tex', s)
 		return
 
@@ -2197,8 +2253,9 @@ class LatexUserGuide():
 			% ((self._ARB_STALL_REQSEEN + self._ARB_STALL_DONE) / 2.0, total,
 			   self._ARB_BASE_LATENCY))
 		s = '%% Generated mp_arbiter stalled-transaction diagram (TCM aperture, window %s)\n' % fmthex(windows[h])
-		s += self._cycleFigure('0.95cm', rows, N - 1, ann,
-			shade=(str(lat0), str(lat1 + 1)))
+		s += self._cycleFigure('0.84cm', rows, N - 1, ann,
+			shade=(str(lat0), str(lat1 + 1)),
+			rowH=self._ARB_ROW_H, pitch=self._ARB_ROW_PITCH, fonts=self._ARB_FONTS)
 		self._writeInclude('ArbiterStallDiagram.tex', s)
 		return
 
@@ -2414,22 +2471,31 @@ class LatexUserGuide():
 		self._writeInclude('I2cTransactionDiagram.tex', s)
 		return
 
-	def _cycleFigure(self, xunit, rows, guides, annotations, shade=None):
+	def _cycleFigure(self, xunit, rows, guides, annotations, shade=None,
+	                 rowH=None, pitch=None, fonts=None):
 		'''Shared shape for the cycle-level contract waveforms (arbiter, IRQ
 		   claim/complete, mutex, capture). rows = list of (chars, label), TOP
 		   FIRST; the y of each row is COMPUTED from _ROW_PITCH rather than
 		   written per figure, so changing the waveform height does not silently
 		   overlap rows or strand the annotations. The figure exports \\YTOP and
 		   \\YBOT so annotations can hang off the grid instead of hardcoding
-		   coordinates that go stale with the geometry.'''
-		pitch = self._ROW_PITCH
+		   coordinates that go stale with the geometry.
+
+		   rowH/pitch/fonts override the house geometry for ONE figure. They
+		   move together on purpose: the row pitch must stay clear of the row
+		   height, and the D-cell font sets the floor on how narrow xunit can
+		   go (a D{} cell does not shrink its text to fit). Callers that pass
+		   nothing are unaffected, which is what keeps a resize of one figure
+		   out of the other five.'''
+		pitch = pitch or self._ROW_PITCH
+		rowH = rowH or self._ROW_H
 		ybot = -pitch * (len(rows) - 1)
-		s = self._timingPreamble(xunit)
-		s += '\\def\\YTOP{%.2f}\\def\\YBOT{%.2f}\n' % (float(self._ROW_H[:-2]) + 0.14, ybot - 0.14)
+		s = self._timingPreamble(xunit, rowH=rowH, fonts=fonts)
+		s += '\\def\\YTOP{%.2f}\\def\\YBOT{%.2f}\n' % (float(rowH[:-2]) + 0.14, ybot - 0.14)
 		if shade:
 			s += '\\fill[black!7] (' + shade[0] + ',\\YTOP) rectangle (' + shade[1] + ',\\YBOT);\n'
 		s += '\\foreach \\k in {1,...,' + str(guides) + '} { \\draw[guide] (\\k,\\YTOP) -- (\\k,\\YBOT); }\n'
-		half = float(self._ROW_H[:-2]) / 2.0
+		half = float(rowH[:-2]) / 2.0
 		for i, (chars, label) in enumerate(rows):
 			y = -pitch * i
 			s += '\\timing[tim] at (0,' + ('%.2f' % y) + ') {' + chars + '};\n'
@@ -3058,14 +3124,35 @@ class LatexUserGuide():
 		   Update->Run-Test/Idle returns along the bottom. Edge labels are
 		   placed at computed points rather than by `pos=', so no label ever
 		   lands on another edge.'''
-		HW, HH = 1.35, 0.36            # half width / half height of a state box
+		# THE COORDINATES BELOW ARE PRINTED CENTIMETRES, AND THAT IS THE POINT
+		# (2026-08-15, USER: smaller, with the states further apart so the
+		# arrows between them are clearly visible). The chapter used to wrap
+		# this figure in \resizebox{\linewidth}, which made every number here a
+		# RATIO — the drawing was authored at ~21.5 units and squeezed to the
+		# 16.5 cm text block, so the boxes, the type and the gaps between the
+		# boxes all shrank together and a wider layout bought no extra air, it
+		# only scaled itself away. The \resizebox is gone; these numbers now
+		# land on the page as written, and the two halves of the USER's
+		# constraint are set independently: the BOX is 1.75 x 0.44 cm at 6.5 pt
+		# (it printed 2.07 x 0.55 at ~7.7 pt through the resizebox), while the
+		# row pitch leaves 0.55 cm of clear vertical air between one box and
+		# the next (it printed 0.48 cm) and the inner skip channels stand
+		# 0.58 cm off the boxes they run past (0.31 cm). Total: 14.7 x 9.0 cm
+		# against 16.5 x 10.1 --- about 11 % smaller in BOTH dimensions with
+		# more air on every edge channel, which is the pair of things that
+		# cannot be had at once from a single scale factor.
+		# FLOORS, so a future edit does not squeeze this back: the box width is
+		# set by `Test-Logic-Reset` at the state font (~1.7 cm of type), and
+		# the outer flank must clear the self-loop bulge, which reaches about
+		# 0.8 cm past the node.
+		HW, HH = 0.875, 0.22           # half width / half height of a state box
 		TOP = 0.00                     # the top row
-		xTLR, xRTI = 0.00, 3.80
-		cx = {'dr': 7.90, 'ir': 14.40}
-		rows = [-1.75, -3.10, -4.45, -5.80, -7.15, -8.50]   # capture .. update
-		yWrapT, yWrapS = 1.60, 2.60    # the two returns over the top
-		yRetD, yRetI = -9.80, -10.60   # the two returns along the bottom
-		xRiseD, xRiseI = 11.05, 18.45  # the two Update -> Select-DR risers
+		xTLR, xRTI = 0.00, 2.60
+		cx = {'dr': 5.60, 'ir': 10.20}
+		rows = [-1.00, -1.99, -2.98, -3.97, -4.96, -5.95]   # capture .. update
+		yWrapT, yWrapS = 0.85, 1.45    # the two returns over the top
+		yRetD, yRetI = -6.85, -7.55    # the two returns along the bottom
+		xRiseD, xRiseI = 7.80, 12.95   # the two Update -> Select-DR risers
 
 		pos = {0: (xTLR, TOP), 1: (xRTI, TOP), 2: (cx['dr'], TOP), 9: (cx['ir'], TOP)}
 		for k, st in enumerate([3, 4, 5, 6, 7, 8]):
@@ -3078,13 +3165,19 @@ class LatexUserGuide():
 
 		s = '% Generated TAP state graph (edges transcribed from jtag_dtm.vhd TAP_NEXT)\n'
 		s += '\\begin{tikzpicture}[\n'
-		s += '\tst/.style={draw, thick, rounded corners=2pt, align=center, font=\\sffamily\\small, minimum width=' + P(2 * HW) + 'cm, minimum height=' + P(2 * HH) + 'cm, fill=black!4},\n'
+		# Type sizes are absolute here for the same reason the coordinates are:
+		# nothing scales this figure after the fact, so what is written is what
+		# prints. The state font is the one that had to come down for the boxes
+		# to come down with it; the edge labels are single digits and go a step
+		# smaller still so a `0' sitting on a channel never reads as loud as a
+		# state name.
+		s += '\tst/.style={draw, thick, rounded corners=2pt, align=center, font=\\sffamily\\fontsize{6.5}{7.5}\\selectfont, inner sep=1.0pt, minimum width=' + P(2 * HW) + 'cm, minimum height=' + P(2 * HH) + 'cm, fill=black!4},\n'
 		s += '\ttlr/.style={st, fill=black!18, very thick},\n'
 		s += '\ttms0/.style={->, >=Stealth, semithick},\n'
 		s += '\ttms1/.style={->, >=Stealth, semithick, densely dashed},\n'
-		s += '\tel/.style={font=\\sffamily\\scriptsize, inner sep=1.5pt, fill=white},\n'
-		s += '\tkey/.style={font=\\sffamily\\small, align=left, text width=4.0cm},\n'
-		s += '\tkeylab/.style={font=\\sffamily\\small, anchor=west}]\n'
+		s += '\tel/.style={font=\\sffamily\\fontsize{5.5}{6.5}\\selectfont, inner sep=1.0pt, fill=white},\n'
+		s += '\tkey/.style={font=\\sffamily\\scriptsize, align=left, text width=2.95cm},\n'
+		s += '\tkeylab/.style={font=\\sffamily\\scriptsize, anchor=west}]\n'
 		for i, name in enumerate(self._TAP_STATES):
 			style = 'tlr' if i == 0 else 'st'
 			s += '\\node[' + style + '] (s' + str(i) + ') at (' + P(pos[i][0]) + ', ' + P(pos[i][1]) + ') {' + name + '};\n'
@@ -3110,7 +3203,7 @@ class LatexUserGuide():
 			out, inn = (340, 20) if sgn > 0 else (200, 160)
 			x, y = pos[src]
 			s_ = '\\draw[' + sty + '] (s' + str(src) + ') to[loop, out=' + str(out) + ', in=' + str(inn) + ', looseness=6] (s' + str(src) + ');\n'
-			s_ += '\\node[el] at (' + P(x + sgn * (HW + 0.95)) + ', ' + P(y) + ') {' + str(tms) + '};\n'
+			s_ += '\\node[el] at (' + P(x + sgn * (HW + 0.72)) + ', ' + P(y) + ') {' + str(tms) + '};\n'
 			return s_
 
 		# ---- the top row ------------------------------------------------
@@ -3132,8 +3225,12 @@ class LatexUserGuide():
 		for lobe, sgn, base in (('dr', -1.0, 3), ('ir', +1.0, 10)):
 			c = cx[lobe]
 			cap, shf, ex1, pau, ex2, upd = [base + k for k in range(6)]
-			xOut = c + sgn * (HW + 1.50)      # Exit2 -> Shift, on the outside
-			xIn = c - sgn * (HW + 0.80)       # the two forward skips, inside
+			# Both flank channels are quoted as clearance FROM THE BOX EDGE, so
+			# they hold their air when the box changes size: 0.62 cm for the
+			# inner skips (it was 0.31 cm on the page) and 1.35 cm for the outer
+			# retry path, which also has to clear the self-loop bulge.
+			xOut = c + sgn * (HW + 1.20)      # Exit2 -> Shift, on the outside
+			xIn = c - sgn * (HW + 0.58)       # the two forward skips, inside
 			aOut = 'west' if sgn < 0 else 'east'
 			aIn = 'east' if sgn < 0 else 'west'
 
@@ -3177,12 +3274,15 @@ class LatexUserGuide():
 
 		# The key lives in the one large empty region the layout leaves: below
 		# Test-Logic-Reset, inside the two bottom returns' risers.
-		kx = xTLR - HW - 0.70
-		s += '\\draw[tms0] (' + P(kx) + ', -2.40) -- (' + P(kx + 0.90) + ', -2.40);\n'
-		s += '\\node[keylab] at (' + P(kx + 1.05) + ', -2.40) {\\pin{TMS} sampled \\textbf{0}};\n'
-		s += '\\draw[tms1] (' + P(kx) + ', -3.15) -- (' + P(kx + 0.90) + ', -3.15);\n'
-		s += '\\node[keylab] at (' + P(kx + 1.05) + ', -3.15) {\\pin{TMS} sampled \\textbf{1}};\n'
-		s += '\\node[key, anchor=north west] at (' + P(kx) + ', -4.05) {\\textbf{Five} \\pin{TMS}$=$\\textbf{1} clocks reach Test-Logic-Reset from \\textit{any} state in the graph --- the recovery a debugger uses when it has lost track of the machine.};\n'
+		# The key's own right edge is a real constraint, not a taste: the
+		# Update-IR -> Run-Test/Idle return rises at x = xRTI - HW, and the key
+		# text block is sized and placed to stay clear of that riser.
+		kx = xTLR - HW - 0.80
+		s += '\\draw[tms0] (' + P(kx) + ', -1.70) -- (' + P(kx + 0.72) + ', -1.70);\n'
+		s += '\\node[keylab] at (' + P(kx + 0.84) + ', -1.70) {\\pin{TMS} sampled \\textbf{0}};\n'
+		s += '\\draw[tms1] (' + P(kx) + ', -2.30) -- (' + P(kx + 0.72) + ', -2.30);\n'
+		s += '\\node[keylab] at (' + P(kx + 0.84) + ', -2.30) {\\pin{TMS} sampled \\textbf{1}};\n'
+		s += '\\node[key, anchor=north west] at (' + P(kx) + ', -2.90) {\\textbf{Five} \\pin{TMS}$=$\\textbf{1} clocks reach Test-Logic-Reset from \\textit{any} state in the graph --- the recovery a debugger uses when it has lost track of the machine.};\n'
 		s += '\\end{tikzpicture}\n'
 		self._writeInclude('TapStateDiagram.tex', s)
 		return
