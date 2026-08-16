@@ -1,0 +1,14 @@
+%% maestro2tex -- generated table; do not edit by hand.
+\begin{table}[htbp]
+  \centering
+  \caption[{Monte Carlo input offset voltage.}]{Monte Carlo input offset voltage. \textbf{Process and mismatch}, \SI{37}{\celsius}, 200 samples, \SI{2.5}{\volt} supply, $C_L = \SI{5}{\pico\farad}$, $C_c = \SI{500}{\femto\farad}$, a \SI{5}{\pico\farad} load. The distribution is symmetric (Figure~\ref{fig:ampab-mc-voffset}), so mean \(\pm\,3\sigma\) is quoted here and not for the skewed quantities in the tables that follow. Spec and yield are the \(\pm\SI{1}{\milli\volt}\) limits entered on the test; the four-channel column assumes independent channels. This run varies process as well as mismatch, so \(\sigma\) is die-to-die and is an upper bound on the within-die channel-to-channel term. The same offset appears at the reference electrode as the zero-current tracking error of Table~\ref{tab:ampab-mc-tracking}.}
+  \label{tab:ampab-mc-offset}
+  \footnotesize
+  \begin{tabular}{lrrrrrrrrrr}
+    \toprule
+    Parameter & Unit & $N$ & Mean & $\sigma$ & Mean $\pm\,3\sigma$ & Min & Max & Spec & Yield & 4\,ch \\
+    \midrule
+    Input offset voltage & \si{\milli\volt} & 200 & 0.583 & 5.201 & 0.583\,$\pm$\,15.604 & $-14.130$ & 15.709 & $\pm1.000$ & 12.0 & 0.0 \\
+    \bottomrule
+  \end{tabular}
+\end{table}

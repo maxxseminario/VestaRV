@@ -1,0 +1,16 @@
+%% maestro2tex -- generated table; do not edit by hand.
+\begin{table}[htbp]
+  \centering
+  \caption[{Monte Carlo control-loop stability driving an electrochemical cell.}]{Monte Carlo control-loop stability driving an electrochemical cell. \textbf{Process and mismatch}, \SI{37}{\celsius}, 200 samples, cell-drive bench (Figure~\ref{fig:tb-celldrive}) with a Randles cell of $R_{\mathrm{CE}} = \SI{1}{\kilo\ohm}$, $R_u = \SI{1}{\kilo\ohm}$, $R_{\mathrm{ct}} = \SI{10}{\kilo\ohm}$, $C_{\mathrm{dl}} = \SI{1}{\micro\farad}$, working electrode at \SI{1.25}{\volt}, $C_L = \SI{5}{\pico\farad}$, $C_c = \SI{500}{\femto\farad}$, \SI{2.5}{\volt} supply. The probe sits in the reference-electrode sense wire, so this loop includes the cell and is not comparable with Table~\ref{tab:ampab-mc-unity}. All 200 samples clear the phase-margin limit entered on the test with better than \SI{20}{\degree} to spare, and margin is better with the cell attached than without it: the resistive load costs \SI{10}{\decibel} of gain, crossover falls to half the unloaded value. Loop gain and crossover were not graded. Percentiles and the extreme sample are quoted rather than \(\pm 3\sigma\); the crossover distribution is right-skewed.}
+  \label{tab:ampab-mc-cellstab}
+  \footnotesize
+  \begin{tabular}{lrrrrrrrrrr}
+    \toprule
+    Parameter & Unit & $N$ & Mean & $\sigma$ & $p_{1}$ & $p_{99}$ & Worst & Spec & Yield & 4\,ch \\
+    \midrule
+    Loop gain at DC & \si{\decibel} & 200 & 72.13 & 1.27 & 68.67 & 74.79 & -- & -- & -- & -- \\
+    Phase margin & \si{\degree} & 200 & 81.88 & 0.57 & 80.55 & 83.02 & 80.13 & $\geq 60.00$ & 100.0 & 100.0 \\
+    Loop crossover & \si{\mega\hertz} & 200 & 10.497 & 1.523 & 7.649 & 14.203 & -- & -- & -- & -- \\
+    \bottomrule
+  \end{tabular}
+\end{table}

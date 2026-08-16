@@ -1,0 +1,518 @@
+{
+  "block": "AmpABMC",
+  "tex_root": "include/analog/",
+  "monte_carlo": true,
+  "emit_master": false,
+  "emit_corner_table": false,
+  "supply_var": "VDD25",
+  "tests": {
+    "cab_mc_unity": {
+      "dir": "UnityFeedbackTB",
+      "signals": {
+        "aol_db": {
+          "label": "Open-loop gain $A_{\\mathrm{OL}}$",
+          "unit_tex": "\\si{\\decibel}",
+          "scale": 1.0,
+          "digits": 2
+        },
+        "pm": {
+          "label": "Phase margin",
+          "unit_tex": "\\si{\\degree}",
+          "scale": 1.0,
+          "digits": 2
+        },
+        "gm": {
+          "label": "Gain margin",
+          "unit_tex": "\\si{\\decibel}",
+          "scale": 1.0,
+          "digits": 2
+        },
+        "vn_rms": {
+          "label": "Output noise, \\SI{0.1}{\\hertz} to \\SI{100}{\\kilo\\hertz}",
+          "unit_tex": "\\si{\\micro\\volt}",
+          "scale": 1000000.0,
+          "digits": 2
+        }
+      }
+    },
+    "cab_mc_openloop": {
+      "dir": "TypOpenLoopTB",
+      "signals": {
+        "GainLogOL": {
+          "label": "Open-loop gain $A_{\\mathrm{OL}}$",
+          "unit_tex": "\\si{\\decibel}",
+          "scale": 1.0,
+          "digits": 2
+        },
+        "PhaseMargin": {
+          "label": "Phase margin",
+          "unit_tex": "\\si{\\degree}",
+          "scale": 1.0,
+          "digits": 2
+        },
+        "Bandwidth3dB": {
+          "label": "Dominant pole $f_{-3\\,\\mathrm{dB}}$",
+          "unit_tex": "\\si{\\kilo\\hertz}",
+          "scale": 0.001,
+          "digits": 3
+        },
+        "BandwidthUnity": {
+          "label": "Gain-bandwidth product",
+          "unit_tex": "\\si{\\mega\\hertz}",
+          "scale": 1e-06,
+          "digits": 3
+        },
+        "I_Total": {
+          "label": "Supply current",
+          "unit_tex": "\\si{\\micro\\ampere}",
+          "scale": 1000000.0,
+          "digits": 2
+        },
+        "P_Total": {
+          "label": "Dissipation",
+          "unit_tex": "\\si{\\micro\\watt}",
+          "scale": 1000000.0,
+          "digits": 1
+        }
+      }
+    },
+    "cab_mc_offset": {
+      "dir": "OffsetCalTB",
+      "signals": {
+        "V_InPOffset": {
+          "label": "Input offset voltage",
+          "unit_tex": "\\si{\\milli\\volt}",
+          "scale": 1000.0,
+          "digits": 3
+        }
+      }
+    },
+    "cab_mc_drive": {
+      "dir": "DriveTB",
+      "signals": {
+        "i_src_50m": {
+          "label": "Load current, sourcing",
+          "unit_tex": "\\si{\\milli\\ampere}",
+          "scale": 1000.0,
+          "digits": 3
+        },
+        "i_sink_50m": {
+          "label": "Load current, sinking",
+          "unit_tex": "\\si{\\milli\\ampere}",
+          "scale": 1000.0,
+          "digits": 3
+        },
+        "Rout_cl": {
+          "label": "Output resistance",
+          "unit_tex": "\\si{\\ohm}",
+          "scale": 1.0,
+          "digits": 3
+        }
+      }
+    },
+    "cab_mc_cell": {
+      "dir": "CellDriveTB",
+      "signals": {
+        "aol_db": {
+          "label": "Loop gain at DC",
+          "unit_tex": "\\si{\\decibel}",
+          "scale": 1.0,
+          "digits": 2
+        },
+        "pm": {
+          "label": "Phase margin",
+          "unit_tex": "\\si{\\degree}",
+          "scale": 1.0,
+          "digits": 2
+        },
+        "ugf": {
+          "label": "Loop crossover",
+          "unit_tex": "\\si{\\mega\\hertz}",
+          "scale": 1e-06,
+          "digits": 3
+        },
+        "ce_hi": {
+          "label": "Counter-electrode ceiling",
+          "unit_tex": "\\si{\\volt}",
+          "scale": 1.0,
+          "digits": 4
+        },
+        "ce_lo": {
+          "label": "Counter-electrode floor",
+          "unit_tex": "\\si{\\milli\\volt}",
+          "scale": 1000.0,
+          "digits": 2
+        },
+        "i_src_max": {
+          "label": "Cell current delivered, anodic",
+          "unit_tex": "\\si{\\micro\\ampere}",
+          "scale": 1000000.0,
+          "digits": 3
+        },
+        "i_sink_max": {
+          "label": "Cell current delivered, cathodic",
+          "unit_tex": "\\si{\\micro\\ampere}",
+          "scale": 1000000.0,
+          "digits": 3
+        },
+        "re_err_0": {
+          "label": "Tracking error at zero cell current",
+          "unit_tex": "\\si{\\milli\\volt}",
+          "scale": 1000.0,
+          "digits": 3
+        },
+        "re_err_max": {
+          "label": "Worst tracking error over the window",
+          "unit_tex": "\\si{\\milli\\volt}",
+          "scale": 1000.0,
+          "digits": 3
+        },
+        "re_err_slope": {
+          "label": "Worst tracking-error slope",
+          "unit_tex": "\\si{\\milli\\volt\\per\\volt}",
+          "scale": 1000.0,
+          "digits": 2
+        },
+        "re_reg_p10": {
+          "derive": "re_err_p10 - re_err_0",
+          "label": "Regulation error at \\SI{+10}{\\micro\\ampere}",
+          "unit_tex": "\\si{\\micro\\volt}",
+          "scale": 1000000.0,
+          "digits": 2,
+          "spec_lo": -0.001,
+          "spec_hi": 0.001
+        },
+        "re_reg_n10": {
+          "derive": "re_err_n10 - re_err_0",
+          "label": "Regulation error at \\SI{-10}{\\micro\\ampere}",
+          "unit_tex": "\\si{\\micro\\volt}",
+          "scale": 1000000.0,
+          "digits": 2,
+          "spec_lo": -0.001,
+          "spec_hi": 0.001
+        }
+      }
+    }
+  },
+  "figures": [
+    {
+      "id": "ampab_mc_voffset",
+      "kind": "histogram",
+      "test": "cab_mc_offset",
+      "signals": [
+        "V_InPOffset"
+      ],
+      "bins": 30,
+      "spec_span": 1.5,
+      "spec_lo_label": "$-1$\\,\\si{\\milli\\volt}",
+      "spec_hi_label": "$+1$\\,\\si{\\milli\\volt}",
+      "width": "0.86\\linewidth",
+      "height": "6.0cm",
+      "xlabel": "Input offset voltage~[\\si{\\milli\\volt}]",
+      "ylabel": "Samples",
+      "caption": "Input offset voltage of the amplifier. \\textbf{Process and mismatch}, \\SI{37}{\\celsius}, 200 samples, \\SI{2.5}{\\volt} supply, $C_L = \\SI{5}{\\pico\\farad}$, $C_c = \\SI{500}{\\femto\\farad}$, a \\SI{5}{\\pico\\farad} load, differential input swept about mid-supply. The distribution is symmetric about \\SI{+0.58}{\\milli\\volt}, so the systematic term of Table~\\ref{tab:ampab-offset} is small against the random one, and the \\(\\pm\\SI{1}{\\milli\\volt}\\) rules are the limits entered on the test; 24 of 200 samples fall inside them. Statistics are in Table~\\ref{tab:ampab-mc-offset}."
+    },
+    {
+      "id": "ampab_mc_power",
+      "kind": "histogram",
+      "test": "cab_mc_openloop",
+      "signals": [
+        "P_Total"
+      ],
+      "bins": 30,
+      "width": "0.86\\linewidth",
+      "height": "6.0cm",
+      "xlabel": "Dissipation~[\\si{\\micro\\watt}]",
+      "ylabel": "Samples",
+      "caption": "Quiescent dissipation of one channel's control amplifier and its local bias generator together. \\textbf{Process and mismatch}, \\SI{37}{\\celsius}, 200 samples, \\SI{2.5}{\\volt} supply, both inputs at mid-supply, no load. The distribution is unimodal and right-skewed, the tail belonging to the fast-process samples in which every bias branch runs harder; no limit was entered on this output, so none is drawn. The measurement is taken at the supply terminal of the bench, so it is the per-channel budget and not the amplifier alone."
+    },
+    {
+      "id": "ampab_mc_cellaol",
+      "kind": "histogram",
+      "test": "cab_mc_cell",
+      "signals": [
+        "aol_db"
+      ],
+      "bins": 30,
+      "width": "0.86\\linewidth",
+      "height": "6.0cm",
+      "xlabel": "Control-loop gain at DC~[\\si{\\decibel}]",
+      "ylabel": "Samples",
+      "caption": "DC gain of the control loop closed around an electrochemical cell. \\textbf{Process and mismatch}, \\SI{37}{\\celsius}, 200 samples, cell-drive bench (Figure~\\ref{fig:tb-celldrive}) with a Randles cell of $R_{\\mathrm{CE}} = \\SI{1}{\\kilo\\ohm}$, $R_u = \\SI{1}{\\kilo\\ohm}$, $R_{\\mathrm{ct}} = \\SI{10}{\\kilo\\ohm}$, $C_{\\mathrm{dl}} = \\SI{1}{\\micro\\farad}$, working electrode at \\SI{1.25}{\\volt}, $C_L = \\SI{5}{\\pico\\farad}$, $C_c = \\SI{500}{\\femto\\farad}$, \\SI{2.5}{\\volt} supply. The loop is measured through the reference-electrode sense wire and therefore includes the cell, whose \\SI{12}{\\kilo\\ohm} loads an open-loop output resistance of about \\SI{25}{\\kilo\\ohm} and is \\SI{10}{\\decibel} below the unity-feedback gain of Table~\\ref{tab:ampab-mc-unity}. The spread is \\SI{7}{\\decibel} peak to peak and no sample falls below \\SI{67}{\\decibel}. No limit was entered on this output."
+    }
+  ],
+  "tables": [
+    {
+      "id": "ampab_mc_offset",
+      "type": "mcstats",
+      "test": "cab_mc_offset",
+      "signals": [
+        "V_InPOffset"
+      ],
+      "stats": [
+        "n",
+        "mean",
+        "sigma",
+        "mean_3s",
+        "min",
+        "max",
+        "spec",
+        "yield",
+        "yield_chip"
+      ],
+      "channels": 4,
+      "caption": "Monte Carlo input offset voltage. \\textbf{Process and mismatch}, \\SI{37}{\\celsius}, 200 samples, \\SI{2.5}{\\volt} supply, $C_L = \\SI{5}{\\pico\\farad}$, $C_c = \\SI{500}{\\femto\\farad}$, a \\SI{5}{\\pico\\farad} load. The distribution is symmetric (Figure~\\ref{fig:ampab-mc-voffset}), so mean \\(\\pm\\,3\\sigma\\) is quoted here and not for the skewed quantities in the tables that follow. Spec and yield are the \\(\\pm\\SI{1}{\\milli\\volt}\\) limits entered on the test; the four-channel column assumes independent channels. This run varies process as well as mismatch, so \\(\\sigma\\) is die-to-die and is an upper bound on the within-die channel-to-channel term. The same offset appears at the reference electrode as the zero-current tracking error of Table~\\ref{tab:ampab-mc-tracking}."
+    },
+    {
+      "id": "ampab_mc_unity",
+      "type": "mcstats",
+      "test": "cab_mc_unity",
+      "signals": [
+        "aol_db",
+        "pm",
+        "gm",
+        "vn_rms"
+      ],
+      "stats": [
+        "n",
+        "mean",
+        "sigma",
+        "p1",
+        "p99",
+        "worst",
+        "spec",
+        "yield",
+        "yield_chip"
+      ],
+      "channels": 4,
+      "caption": "Monte Carlo amplifier stability and noise in unity-gain feedback. \\textbf{Process and mismatch}, \\SI{37}{\\celsius}, 200 samples, $v_{\\mathrm{cm}} = \\SI{1.25}{\\volt}$, $C_L = \\SI{5}{\\pico\\farad}$, $C_c = \\SI{500}{\\femto\\farad}$, \\SI{2.5}{\\volt} supply. This is the amplifier alone, with no application network in the loop, and is not comparable with Table~\\ref{tab:ampab-mc-cellstab}. Every sample clears all three stability limits entered on the test. Percentiles and the extreme sample are quoted rather than \\(\\pm 3\\sigma\\) because the margins are not normally distributed. The noise row is the output noise of this configuration integrated \\SI{0.1}{\\hertz} to \\SI{100}{\\kilo\\hertz}, within the \\SI{0.1}{\\hertz} to \\SI{100}{\\mega\\hertz} span of the analysis."
+    },
+    {
+      "id": "ampab_mc_openloop",
+      "type": "mcstats",
+      "test": "cab_mc_openloop",
+      "signals": [
+        "GainLogOL",
+        "PhaseMargin",
+        "Bandwidth3dB",
+        "BandwidthUnity"
+      ],
+      "stats": [
+        "n",
+        "mean",
+        "sigma",
+        "p1",
+        "p99",
+        "worst",
+        "spec",
+        "yield",
+        "yield_chip"
+      ],
+      "channels": 4,
+      "caption": "Monte Carlo open-loop response. \\textbf{Process and mismatch}, \\SI{37}{\\celsius}, 200 samples, amplifier driven differentially about mid-supply with no feedback, $C_L = \\SI{5}{\\pico\\farad}$, $C_c = \\SI{500}{\\femto\\farad}$, \\SI{2.5}{\\volt} supply. The input offset is nulled per sample from the offset measurement of the same run, leaving the DC operating point linear on every sample; all four quantities are measurable on all 200. Only gain and phase margin carry limits; the two bandwidth rows were not graded and their spec, yield and worst-case columns are therefore empty. Gain agrees with the unity-feedback loop gain of Table~\\ref{tab:ampab-mc-unity} to within \\SI{0.5}{\\decibel} of mean. Percentiles are quoted rather than \\(\\pm 3\\sigma\\): the two bandwidth distributions are right-skewed, both being inversely proportional to a transconductance."
+    },
+    {
+      "id": "ampab_mc_power",
+      "type": "mcstats",
+      "test": "cab_mc_openloop",
+      "signals": [
+        "I_Total",
+        "P_Total"
+      ],
+      "stats": [
+        "n",
+        "mean",
+        "sigma",
+        "median",
+        "p1",
+        "p99",
+        "min",
+        "max"
+      ],
+      "caption": "Monte Carlo quiescent supply current and dissipation. \\textbf{Process and mismatch}, \\SI{37}{\\celsius}, 200 samples, \\SI{2.5}{\\volt} supply, both inputs at mid-supply, no load. The figure covers one channel's control amplifier together with the local bias generator that feeds it, measured at the supply terminal of the bench; at the typical point the amplifier draws \\SI{97}{\\micro\\ampere} of the \\SI{121}{\\micro\\ampere} total and the bias generator the remainder. Both distributions are the same measurement and are right-skewed (Figure~\\ref{fig:ampab-mc-power}), so the median and percentiles are quoted and mean \\(\\pm\\,3\\sigma\\) is not. No limit was entered on either output, so the spec and yield columns are omitted rather than left blank."
+    },
+    {
+      "id": "ampab_mc_drive",
+      "type": "mcstats",
+      "test": "cab_mc_drive",
+      "signals": [
+        "i_src_50m",
+        "i_sink_50m",
+        "Rout_cl"
+      ],
+      "stats": [
+        "n",
+        "mean",
+        "sigma",
+        "mean_3s",
+        "min",
+        "max",
+        "spec",
+        "yield",
+        "yield_chip"
+      ],
+      "channels": 4,
+      "caption": "Monte Carlo output drive. \\textbf{Process and mismatch}, \\SI{37}{\\celsius}, 200 samples, amplifier in unity-gain feedback at $v_{\\mathrm{cm}} = \\SI{1.25}{\\volt}$, $C_L = \\SI{5}{\\pico\\farad}$, $C_c = \\SI{500}{\\femto\\farad}$, \\SI{2.5}{\\volt} supply, load current swept \\SIrange{-10}{10}{\\milli\\ampere}. The first two entries are the load current at which the output departs from $v_{\\mathrm{cm}}$ by \\SI{50}{\\milli\\volt}, not a hard current limit; load current is signed positive out of the amplifier, so the sinking entry is negative. All three distributions are symmetric, so mean \\(\\pm\\,3\\sigma\\) applies.  Every sample clears the sourcing limit entered on the test; the other two rows were not graded."
+    },
+    {
+      "id": "ampab_mc_cellstab",
+      "type": "mcstats",
+      "test": "cab_mc_cell",
+      "signals": [
+        "aol_db",
+        "pm",
+        "ugf"
+      ],
+      "stats": [
+        "n",
+        "mean",
+        "sigma",
+        "p1",
+        "p99",
+        "worst",
+        "spec",
+        "yield",
+        "yield_chip"
+      ],
+      "channels": 4,
+      "caption": "Monte Carlo control-loop stability driving an electrochemical cell. \\textbf{Process and mismatch}, \\SI{37}{\\celsius}, 200 samples, cell-drive bench (Figure~\\ref{fig:tb-celldrive}) with a Randles cell of $R_{\\mathrm{CE}} = \\SI{1}{\\kilo\\ohm}$, $R_u = \\SI{1}{\\kilo\\ohm}$, $R_{\\mathrm{ct}} = \\SI{10}{\\kilo\\ohm}$, $C_{\\mathrm{dl}} = \\SI{1}{\\micro\\farad}$, working electrode at \\SI{1.25}{\\volt}, $C_L = \\SI{5}{\\pico\\farad}$, $C_c = \\SI{500}{\\femto\\farad}$, \\SI{2.5}{\\volt} supply. The probe sits in the reference-electrode sense wire, so this loop includes the cell and is not comparable with Table~\\ref{tab:ampab-mc-unity}. All 200 samples clear the phase-margin limit entered on the test with better than \\SI{20}{\\degree} to spare, and margin is better with the cell attached than without it: the resistive load costs \\SI{10}{\\decibel} of gain, crossover falls to half the unloaded value. Loop gain and crossover were not graded. Percentiles and the extreme sample are quoted rather than \\(\\pm 3\\sigma\\); the crossover distribution is right-skewed."
+    },
+    {
+      "id": "ampab_mc_tracking",
+      "type": "mcstats",
+      "test": "cab_mc_cell",
+      "signals": [
+        "re_err_0",
+        "re_err_max"
+      ],
+      "stats": [
+        "n",
+        "mean",
+        "sigma",
+        "median",
+        "p1",
+        "p99",
+        "worst",
+        "spec",
+        "yield",
+        "yield_chip"
+      ],
+      "channels": 4,
+      "caption": "Monte Carlo reference-potential tracking, conditions as Table~\\ref{tab:ampab-mc-cellstab}. Tracking error is the reference-electrode potential minus the commanded value; the first row is that error at zero cell current, the second its worst magnitude over the fixed \\SIrange{0.4}{2.1}{\\volt} command window. Both are offset-inclusive, and the worst-error row tracks the magnitude of the zero-current row at $r = 0.986$ across the 200 samples: what is measured here is the amplifier's input offset carried to the electrode, not a gain error, and calibrating the offset removes almost all of it. Load regulation with that offset taken out is Table~\\ref{tab:ampab-mc-regulation}. The window is frozen at the same two voltages for every sample, so a weak sample cannot report better accuracy over a narrower range. Both distributions are right-skewed, so the median, percentiles and worst sample are quoted and mean \\(\\pm\\,3\\sigma\\) is not."
+    },
+    {
+      "id": "ampab_mc_regulation",
+      "type": "mcstats",
+      "test": "cab_mc_cell",
+      "signals": [
+        "re_reg_p10",
+        "re_reg_n10"
+      ],
+      "stats": [
+        "n",
+        "mean",
+        "sigma",
+        "mean_3s",
+        "min",
+        "max",
+        "spec",
+        "yield",
+        "yield_chip"
+      ],
+      "channels": 4,
+      "caption": "Monte Carlo load regulation of the reference potential, conditions as Table~\\ref{tab:ampab-mc-cellstab}. Each entry is the tracking error at \\SI{\\pm 10}{\\micro\\ampere} of cell current with the same sample's zero-current error subtracted, so it is the change the loop allows when the cell starts to draw current and carries no offset term. Both distributions are symmetric, so mean \\(\\pm\\,3\\sigma\\) applies, and their means are of opposite sign: the reference potential droops under anodic current and rises under cathodic current, by about \\SI{2.3}{\\micro\\volt} per microamp of cell current. All 200 samples lie inside \\(\\pm\\SI{1}{\\milli\\volt}\\), the worst by a factor of six; that limit is stated here for the derived quantity because the run graded only the offset-inclusive error. Regulation is more than two hundred times smaller than the raw tracking error of Table~\\ref{tab:ampab-mc-tracking}."
+    },
+    {
+      "id": "ampab_mc_compliance",
+      "type": "mcstats",
+      "test": "cab_mc_cell",
+      "signals": [
+        "ce_hi",
+        "ce_lo",
+        "i_src_max",
+        "i_sink_max"
+      ],
+      "stats": [
+        "n",
+        "mean",
+        "sigma",
+        "mean_3s",
+        "min",
+        "max"
+      ],
+      "caption": "Monte Carlo counter-electrode compliance and delivered cell current, conditions as Table~\\ref{tab:ampab-mc-cellstab}. The first two rows are the extremes of the counter-electrode potential over the full \\SIrange{0}{2.5}{\\volt} command sweep, measured at the electrode itself and therefore independent of the loop offset; this is the published compliance figure. Headroom is under \\SI{35}{\\milli\\volt} to the upper rail and under \\SI{29}{\\milli\\volt} to the lower one, and each spreads under \\SI{7}{\\milli\\volt} across the 200 samples: compliance is set by the output stage's saturation and is almost insensitive to matching. The current rows are the largest anodic and cathodic currents reached in the same sweep; with \\SI{12}{\\kilo\\ohm} between the counter and working electrodes they are the compliance limits divided by that resistance and do not transfer to another electrode. All four distributions are symmetric. No limit was entered on any of them, so the spec and yield columns are omitted."
+    }
+  ],
+  "_note": [
+    "Monte Carlo companion for castalia/anatop_tia_amp_ab in its CONTROL-AMPLIFIER",
+    "role. Contributes fragments only: the master file and the section order come from",
+    "anatop_tb_ctrl_amp_ab_corners.json (block AmpAB), whose `order` names every",
+    "fragment below. This config deliberately has no `order` of its own -- adding one",
+    "would emit a second, competing section.",
+    "",
+    "block is AmpABMC, distinct from AmpAB / TiaAmpAB / TiaAmpABMC / TiaAmp /",
+    "ControlAmp / ControlAmpMonteCarlo / BiasGenCascWideSwing. Test names are prefixed",
+    "cab_ because data/raw/<test>__mc.csv is a namespace shared by every block",
+    "rendering into one outdir.",
+    "",
+    "SOURCE: .../tb_anatop_ctrl_amp_ab/maestro/results/maestro/Plan.1.Run.0",
+    "200 samples, variations=all (PROCESS AND MISMATCH together), statistical section",
+    "at 25 C nominal. Point the tool at Plan.1.Run.0 itself; the per-sample scalars are",
+    "in psf/<test>/monteCarlo/{mcdata,mcparam} and no OCEAN licence is needed.",
+    "",
+    "TEMPERATURE IS UNIFORM: every test in this run is netlisted at 37 C. Verified in",
+    "psf/<test>/netlist/input.scs for all five published tests.",
+    "",
+    "Every signal name below is copied verbatim from the run's own mcparam files; a",
+    "name that is not in mcparam is silently dropped from the table with only a log",
+    "line. Note UnityFeedbackTB and CellDriveTB both name outputs pm/aol_db/ugf -- they",
+    "are different loops and are kept in separate logical tests.",
+    "",
+    "DERIVED SIGNALS. re_reg_p10 and re_reg_n10 have no mcparam row. They are built by",
+    "the `derive` key, which subtracts two mcdata columns per sample; the config",
+    "supplies their +/-1 mV limits because the run never graded them. The raw",
+    "re_err_p10/re_err_n10 the run DID grade are offset-inclusive: they correlate with",
+    "re_err_0 at r = 1.000 and only 23 and 25 of 200 meet the entered limits, so they",
+    "measure the amplifier's offset and not the loop's load regulation. Once the",
+    "zero-current error is removed per sample the same data gives mean -22.2 uV,",
+    "sigma 27.3 uV and mean +24.0 uV, sigma 34.4 uV, 200/200 inside +/-1 mV. Publish",
+    "the derived pair; do not publish the raw pair and do not caption around it.",
+    "",
+    "OTHER DELIBERATE EXCLUSIONS:",
+    "  CellDriveTB vref_lo_meas / vref_hi_meas / vref_range -- thresholded on the same",
+    "    offset-inclusive error and just as bimodal (vref_lo_meas median 0.118 V, p99",
+    "    2.35 V). Compliance is published from ce_hi/ce_lo, which are measured directly",
+    "    at the electrode and carry no offset.",
+    "  CellDriveTB re_err_slope_at -- locates the worst slope, and lands on one of the",
+    "    two window edges in every one of the 200 samples. It restates the window.",
+    "  CellDriveTB head_hi/head_lo/rail_hi/rail_lo/fpc/i_tot -- restatements of ce_hi,",
+    "    ce_lo and the supply current already published.",
+    "  DriveTB i_src_1m/i_sink_1m -- the 1 mV threshold sits well inside the offset",
+    "    distribution (sigma 5.2 mV), so on 42 of 200 samples the output never comes",
+    "    within 1 mV of vcm and there is no crossing, and on the other 158 the crossing",
+    "    is at offset/Rout, spanning -2.35 mA to +2.20 mA and correlating with the",
+    "    offset at r = 0.85. They measure offset divided by output resistance, not",
+    "    drive. The 50 mV pair is unaffected (r = -0.03 with offset) and is published",
+    "    instead. If a tight-error drive figure is wanted, re-run the threshold at",
+    "    3 sigma of offset or measure it after offset calibration.",
+    "  DriveTB voff and TypOpenLoopTB V_InPOffset -- the same offset as",
+    "    OffsetCalTB V_InPOffset. DriveTB voff is its negation (r = -1.000) and the",
+    "    TypOpenLoopTB column is bit-identical. Published once, from OffsetCalTB.",
+    "  TypOpenLoopTB GainLinearOL -- GainLogOL is the same number in dB.",
+    "  TypOpenLoopTB GainMargin -- gainMargin() returns a negative number on this",
+    "    setup; the unity-feedback gain margin is the same quantity on a closed loop.",
+    "  UnityFeedbackTB fpc / vn_lf / vn_1k / vn_floor -- bench instrumentation and",
+    "    spot-noise readings; vn_rms is the integrated figure that matters.",
+    "  SlewOpenLoopTB and StepUnityFeedbackTB -- nothing. Their outputs carry no spec",
+    "    limits and were not graded; publishing them would imply slew and settling",
+    "    were.",
+    "",
+    "DISTRIBUTION SHAPES, measured on this run (Fisher skew over the valid samples),",
+    "which is what decides mean+/-3sigma against percentiles in each table:",
+    "  near-symmetric: V_InPOffset +0.05, i_src_50m +0.09, i_sink_50m -0.16,",
+    "    Rout_cl +0.43, ce_hi -0.02, ce_lo +0.07, i_src_max -0.02, i_sink_max -0.07,",
+    "    re_reg_p10 +0.34, re_reg_n10 +0.19",
+    "  skewed: re_err_max +1.56, re_err_slope +1.92, I_Total/P_Total +0.60,",
+    "    Bandwidth3dB +0.66, BandwidthUnity +0.50, cell ugf +0.55, re_err_0 -0.30"
+  ]
+}

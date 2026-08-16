@@ -1,0 +1,41 @@
+%% maestro2tex -- generated Monte Carlo histogram; do not edit by hand.
+\providecommand{\MaestroRoot}{include/analog/}
+\begin{figure}[htbp]
+  \centering
+  {\pgfplotsset{compat=1.18}%
+  \begin{tikzpicture}
+    \begin{axis}[
+      width=0.86\linewidth, height=6.0cm,
+      xlabel={Input offset voltage~[\si{\milli\volt}]}, ylabel={Samples},
+      grid=both,
+      major grid style={line width=0.2pt, draw=black!14},
+      minor grid style={line width=0.2pt, draw=black!7},
+      minor tick num=1,
+      axis line style={line width=0.4pt, draw=black!45},
+      tick style={line width=0.4pt, draw=black!45},
+      tick align=outside,
+      label style={font=\small}, tick label style={font=\small},
+      enlarge x limits=0.02, enlarge y limits=0.10,
+      every axis plot/.append style={line join=round, no marks},
+      legend style={font=\footnotesize, draw=none, fill=none,
+                    at={(0.5,1.02)}, anchor=south, legend columns=-1,
+                    /tikz/every even column/.append style={column sep=9pt}},
+      legend cell align=left,
+      scaled y ticks=false, scaled x ticks=false,
+      y tick label style={/pgf/number format/fixed,
+                          /pgf/number format/precision=0},
+      ymin=0, ymax=23.4,
+      enlarge x limits=0.04, enlarge y limits=false,
+      area legend
+    ]
+      \addplot[ybar interval, draw=mtxA, fill=mtxA!25, line width=0.7pt] table {\MaestroRoot data/ampab_mc_voffset_00.dat};
+      \addlegendentry{Input offset voltage}
+      \draw[black!70, line width=1.0pt, densely dashed] ({axis cs:-1,0}|-{rel axis cs:0,0}) -- ({axis cs:-1,0}|-{rel axis cs:0,0.90})
+        node[above, font=\footnotesize, inner sep=1pt] {$-1$\,\si{\milli\volt}};
+      \draw[black!70, line width=1.0pt, densely dashed] ({axis cs:1,0}|-{rel axis cs:0,0}) -- ({axis cs:1,0}|-{rel axis cs:0,0.90})
+        node[above, font=\footnotesize, inner sep=1pt] {$+1$\,\si{\milli\volt}};
+    \end{axis}
+  \end{tikzpicture}}
+  \caption[{Input offset voltage of the amplifier.}]{Input offset voltage of the amplifier. \textbf{Process and mismatch}, \SI{37}{\celsius}, 200 samples, \SI{2.5}{\volt} supply, $C_L = \SI{5}{\pico\farad}$, $C_c = \SI{500}{\femto\farad}$, a \SI{5}{\pico\farad} load, differential input swept about mid-supply. The distribution is symmetric about \SI{+0.58}{\milli\volt}, so the systematic term of Table~\ref{tab:ampab-offset} is small against the random one, and the \(\pm\SI{1}{\milli\volt}\) rules are the limits entered on the test; 24 of 200 samples fall inside them. Statistics are in Table~\ref{tab:ampab-mc-offset}.}
+  \label{fig:ampab-mc-voffset}
+\end{figure}

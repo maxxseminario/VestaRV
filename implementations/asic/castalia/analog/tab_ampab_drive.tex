@@ -1,0 +1,15 @@
+%% maestro2tex -- generated table; do not edit by hand.
+\begin{table}[htbp]
+  \centering
+  \caption[{Output drive by process corner.}]{Output drive by process corner. The amplifier is in unity-gain feedback at $v_{\mathrm{cm}} = \SI{1.25}{\volt}$ with $C_L = \SI{5}{\pico\farad}$, $C_c = \SI{500}{\femto\farad}$, \SI{2.5}{\volt} supply and the load current swept \SIrange{-10}{10}{\milli\ampere}; the typical point is at \SI{37}{\celsius} and the four skew corners at \SI{25}{\celsius}. The first two entries are the load current at which the output departs from $v_{\mathrm{cm}}$ by \SI{50}{\milli\volt}, not a hard current limit; load current is signed positive out of the amplifier, so the sinking entry is negative. Output resistance is the slope of the same curve at zero load and is the quantity that sets load regulation in Table~\ref{tab:ampab-tracking}.}
+  \label{tab:ampab-drive}
+  \begin{tabular}{lrrrrrrr}
+    \toprule
+    Parameter & Unit & tt & ff & fs & sf & ss & Spread \\
+    \midrule
+    Load current at \SI{50}{\milli\volt} error, sourcing & \si{\milli\ampere} & 2.224 & 2.564 & 2.239 & 2.331 & 2.051 & 0.513 \\
+    Load current at \SI{50}{\milli\volt} error, sinking & \si{\milli\ampere} & $-2.159$ & $-2.551$ & $-2.334$ & $-2.099$ & $-1.908$ & 0.643 \\
+    Closed-loop output resistance & \si{\ohm} & 1.811 & 1.646 & 1.862 & 1.484 & 1.612 & 0.378 \\
+    \bottomrule
+  \end{tabular}
+\end{table}

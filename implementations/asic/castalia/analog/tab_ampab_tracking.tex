@@ -1,0 +1,16 @@
+%% maestro2tex -- generated table; do not edit by hand.
+\begin{table}[htbp]
+  \centering
+  \caption[{Reference-potential tracking by process corner, conditions as Table~\ref{tab:ampab-cellstab}.}]{Reference-potential tracking by process corner, conditions as Table~\ref{tab:ampab-cellstab}. Tracking error is the reference-electrode potential minus the commanded value. The first row is that error at zero cell current and is the loop's DC offset; the second is its worst magnitude over the fixed \SIrange{0.4}{2.1}{\volt} command window, offset-inclusive. The last two rows are the load-regulation error at \SI{\pm 10}{\micro\ampere} of cell current with the zero-current error subtracted at the same corner, which is the quantity a differential measurement sees; they are two orders of magnitude smaller than the offset that dominates the rows above. The window is fixed for every corner and every sample, so a weak corner cannot report better accuracy over a narrower range.}
+  \label{tab:ampab-tracking}
+  \begin{tabular}{lrrrrrrr}
+    \toprule
+    Parameter & Unit & tt & ff & fs & sf & ss & Spread \\
+    \midrule
+    Tracking error at zero cell current & \si{\micro\volt} & $-619.5$ & $-676.9$ & $-632.9$ & $-533.2$ & $-488.1$ & 188.7 \\
+    Worst tracking error over the window & \si{\micro\volt} & 771.5 & 838.8 & 794.8 & 667.8 & 715.9 & 171.0 \\
+    Regulation error at \SI{+10}{\micro\ampere} & \si{\micro\volt} & $-23.00$ & $-24.25$ & $-23.01$ & $-19.60$ & $-18.22$ & 6.04 \\
+    Regulation error at \SI{-10}{\micro\ampere} & \si{\micro\volt} & 22.63 & 23.52 & 22.81 & 19.08 & 18.31 & 5.20 \\
+    \bottomrule
+  \end{tabular}
+\end{table}

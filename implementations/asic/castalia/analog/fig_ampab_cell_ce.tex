@@ -1,0 +1,41 @@
+%% maestro2tex -- generated figure; do not edit by hand.
+\providecommand{\MaestroRoot}{include/analog/}
+\begin{figure}[htbp]
+  \centering
+  {\pgfplotsset{compat=1.18}%
+  \begin{tikzpicture}
+    \begin{axis}[
+      width=0.82\linewidth, height=6.2cm,
+      xlabel={Commanded reference potential~[\si{\volt}]}, ylabel={Counter-electrode potential~[\si{\volt}]},
+      grid=both,
+      major grid style={line width=0.2pt, draw=black!14},
+      minor grid style={line width=0.2pt, draw=black!7},
+      minor tick num=1,
+      axis line style={line width=0.4pt, draw=black!45},
+      tick style={line width=0.4pt, draw=black!45},
+      tick align=outside,
+      label style={font=\small}, tick label style={font=\small},
+      enlarge x limits=0.02, enlarge y limits=0.10,
+      every axis plot/.append style={line join=round, no marks},
+      legend style={font=\footnotesize, draw=black!25, fill=white,
+                    fill opacity=0.9, text opacity=1, row sep=1pt},
+      legend cell align=left, legend pos=south east,
+      scaled y ticks=false, scaled x ticks=false,
+      y tick label style={/pgf/number format/fixed,
+                          /pgf/number format/precision=2}
+    ]
+      \addplot[mtxA, line width=1.1pt, solid] table {\MaestroRoot data/ampab_cell_ce_00.dat};
+      \addlegendentry{tt}
+      \addplot[mtxB, line width=1.1pt, dashed] table {\MaestroRoot data/ampab_cell_ce_01.dat};
+      \addlegendentry{ff}
+      \addplot[mtxC, line width=1.1pt, dotted] table {\MaestroRoot data/ampab_cell_ce_02.dat};
+      \addlegendentry{fs}
+      \addplot[mtxD, line width=1.1pt, dashdotted] table {\MaestroRoot data/ampab_cell_ce_03.dat};
+      \addlegendentry{sf}
+      \addplot[mtxE, line width=1.1pt, densely dashed] table {\MaestroRoot data/ampab_cell_ce_04.dat};
+      \addlegendentry{ss}
+    \end{axis}
+  \end{tikzpicture}}
+  \caption[{Counter-electrode potential against commanded reference potential over five process corners, cell-drive bench\,\dots}]{Counter-electrode potential against commanded reference potential over five process corners, cell-drive bench (Figure~\ref{fig:tb-celldrive}). The amplifier drives a Randles cell with $R_{\mathrm{CE}} = \SI{1}{\kilo\ohm}$, $R_u = \SI{1}{\kilo\ohm}$, $R_{\mathrm{ct}} = \SI{10}{\kilo\ohm}$, $C_{\mathrm{dl}} = \SI{1}{\micro\farad}$ with the working electrode held at \SI{1.25}{\volt}, $C_L = \SI{5}{\pico\farad}$, $C_c = \SI{500}{\femto\farad}$, \SI{2.5}{\volt} supply; the typical point is at \SI{37}{\celsius} and the four skew corners at \SI{25}{\celsius}. The central segment rises with slope $12/11$, the divider between the \SI{1}{\kilo\ohm} counter-electrode branch and the \SI{11}{\kilo\ohm} remainder of the cell; the flat ends are the amplifier against its rails, and their heights are the compliance limits tabulated in Table~\ref{tab:ampab-compliance}. Over the whole central segment the cell current is set by the cell resistance and the commanded potential, not by the amplifier.}
+  \label{fig:ampab-cell-ce}
+\end{figure}
