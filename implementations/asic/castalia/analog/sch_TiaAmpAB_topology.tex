@@ -34,6 +34,7 @@
     netlab/.style={font=\scriptsize, inner sep=1.5pt, fill=white},
     devlab/.style={font=\scriptsize, text=black!60, inner sep=1pt},
     ilab/.style={font=\scriptsize, align=center, inner sep=2pt, text=black!60},
+    stagelab/.style={font=\LARGE, align=center, inner sep=2pt, text=black!60},
     railnode/.style={circle, fill=black, inner sep=1.05pt},
     grp/.style={draw=black!45, dashed, line width=0.6pt, rounded corners=4pt},
   ]
@@ -224,11 +225,11 @@
 \node[ilab, anchor=west, text=black!75] at (\xcc+0.35,3.25){\texttt{cc\_ab}\\\SI{500}{\femto\farad}};
 
 % ===== group annotations ================================================
-\node[ilab, anchor=north] at (0.4,\yvss-0.9) {complementary input pairs\\and their cascodes};
-\node[ilab, anchor=north] at (6.6,\yvss-0.9) {diode-connected\\summing branch};
-\node[ilab, anchor=north] at (10.0,\yvss-0.9) {class-AB drive};
-\node[ilab, anchor=north] at (14.3,\yvss-0.9) {output};
-\node[ilab, anchor=north] at (16.9,\yvss-0.9) {testbench\\compensation};
+\node[stagelab, anchor=north] at (0.4,\yvss-0.9) {complementary\\input pairs and\\their cascodes};
+\node[stagelab, anchor=north] at (6.4,\yvss-0.9) {diode-connected\\summing branch};
+\node[stagelab, anchor=north] at (10.1,\yvss-0.9) {class-AB\\drive};
+\node[stagelab, anchor=north] at (14.0,\yvss-0.9) {output};
+\node[stagelab, anchor=north] at (17.1,\yvss-0.9) {testbench\\compensation};
 
 \end{circuitikz}
   }

@@ -11,49 +11,7 @@
   "corner_labels": {
     "pt1": "tt"
   },
-  "_note": [
-    "SECTION MASTER for the class-AB transimpedance amplifier castalia/anatop_tia_amp_ab.",
-    "Its `order` places every fragment of the published section, including the ones",
-    "contributed by anatop_tb_tia_amp_ab_mc.json (block TiaAmpABMC) and the hand-written",
-    "note_*/sch_* files. Fragments named in `order` that do not exist are skipped silently.",
-    "",
-    "SOURCE: .../tb_anatop_tia_amp_ab/maestro/results/maestro/Interactive.14",
-    "5 points x 6 tests. Point 1 = castalia_pm_25 (the MC process section at zero",
-    "statistical offset); points 2-5 = ff / fs / sf / ss. Point 1's netlist has no",
-    "cor_std_mos.scs, so _corner_from_modelfiles cannot name it -- hence corner_labels.",
-    "",
-    "TEMPERATURE IS NOT UNIFORM ACROSS TESTS. Verified in every point's spectre.out:",
-    "  TiaFbTB            37 C at point 1, 25 C at points 2-5",
-    "  SlewOpenLoopTB     37 C at point 1, 25 C at points 2-5",
-    "  DriveTB, TypOpenLoopTB, UnityFeedbackTB, StepUnityFeedbackTB: 25 C everywhere",
-    "The generated corner legend reads its temperature from the alphabetically first",
-    "test (DriveTB) and therefore prints 25 C at all five points; the legend caption",
-    "carries the exception. Do not let a caption claim 37 C for an open-loop table.",
-    "",
-    "Block name TiaAmpAB is distinct from TiaAmp / TiaAmpCL / TiaAmpMC / ControlAmp /",
-    "ControlAmpMonteCarlo / BiasGenCascWideSwing: the block keys data/raw/corners_<Block>.json",
-    "and data/extract_<Block>.ocn, which colliding blocks would clobber. Test names are",
-    "prefixed ab_ for the same reason -- raw CSVs are named <test>__<corner>__<signal>.csv",
-    "and all blocks share data/raw/.",
-    "",
-    "Every expression below was evaluated against this run with OCEAN (ocean -nograph)",
-    "before the config was written; each returned a number on all five points. The DC/AC/",
-    "stb/noise expressions are character-for-character the ones in the run's own",
-    "psf/<test>/monteCarlo/mcparam, so the corner table and the Monte Carlo table measure",
-    "the same quantity. DriveTB's mcparam expressions reference the Assembler output",
-    "`verr`, which is not visible to OCEAN; it is expanded here to its definition,",
-    "(VS(\"/V_OutOL\") - VAR(\"V_CM\")), taken from the testbench active.state.",
-    "",
-    "Only the rf = 560 kOhm feedback tap is simulated in this run.",
-    "",
-    "NO corner power table. The TypOpenLoopTB open-loop bench has a degenerate DC",
-    "operating point with more than one solution branch: the Monte Carlo p_opamp is",
-    "bimodal (187 samples 75-170 uW, ~13 at 230-300 uW) and the deterministic corner",
-    "run converges to the HIGH branch at all five points (190-319 uW) despite nominal",
-    "statistics -- a corner row would publish the branch, not a process trend. Only the",
-    "Monte Carlo p_opamp is published, with the bimodality stated in its captions."
-  ],
-  "corner_table_caption": "Process, temperature and supply points simulated for the class-AB transimpedance amplifier. Point 1 is the Monte Carlo process section \\texttt{castalia\\_pm\\_25} evaluated with zero statistical offset; points 2--5 are the imported foundry skew corners. The temperature column reads \\SI{25}{\\celsius} at every point, which is correct for the open-loop benches; the closed-loop bench \\texttt{TiaFbTB} runs point 1 at \\SI{37}{\\celsius} and the four skew corners at \\SI{25}{\\celsius}, and each table below names the temperature that applies to it. Every figure and table in this section is schematic-level and covers only the $R_f = \\SI{560}{\\kilo\\ohm}$ feedback tap; nothing here characterises the other fifteen taps of the gain string.",
+  "corner_table_caption": "Process, temperature and supply points simulated for the class-AB transimpedance amplifier. Point 1 is the typical statistical process point, evaluated with zero statistical offset; points 2--5 are the imported foundry skew corners. The temperature column reads \\SI{25}{\\celsius} at every point, which is correct for the open-loop benches; the closed-loop transimpedance bench runs point 1 at \\SI{37}{\\celsius} and the four skew corners at \\SI{25}{\\celsius}, and each table below names the temperature that applies to it. Every figure and table in this section is schematic-level and covers only the $R_f = \\SI{560}{\\kilo\\ohm}$ feedback tap; nothing here characterises the other fifteen taps of the gain string.",
   "tests": {
     "ab_tiafb_dc": {
       "dir": "TiaFbTB",
@@ -296,7 +254,7 @@
       "yprec": 0,
       "legendpos": "south west",
       "ylabel": "Loop gain $|T|$~[\\si{\\decibel}]",
-      "caption": "Transimpedance loop gain over five process corners, by \\texttt{stb} analysis through the \\texttt{IPRB\\_F} probe in series with the feedback network. $R_f = \\SI{560}{\\kilo\\ohm}$, $C_f = \\SI{22}{\\pico\\farad}$, $C_L = \\SI{5}{\\pico\\farad}$, $C_c = \\SI{500}{\\femto\\farad}$, \\texttt{BiasAdj}~=~37, \\SI{2.5}{\\volt}, electrode \\texttt{randles\\_cell} with $R_s = \\SI{100}{\\ohm}$, $R_{\\mathrm{ct}} = \\SI{1}{\\mega\\ohm}$, $C_{\\mathrm{dl}} = \\SI{100}{\\nano\\farad}$. \\texttt{tt} is at \\SI{37}{\\celsius}, the four skew corners at \\SI{25}{\\celsius}. This is the loop around the amplifier, the feedback network and the electrode together, not the amplifier's own gain; the two are tabulated separately in Tables~\\ref{tab:tiaab-stability} and~\\ref{tab:tiaab-unity}."
+      "caption": "Transimpedance loop gain over five process corners, measured through a probe in series with the feedback network (Figure~\\ref{fig:tb-tiafb}). $R_f = \\SI{560}{\\kilo\\ohm}$, $C_f = \\SI{22}{\\pico\\farad}$, $C_L = \\SI{5}{\\pico\\farad}$, $C_c = \\SI{500}{\\femto\\farad}$, \\texttt{BiasAdj}~=~37, \\SI{2.5}{\\volt}, Randles electrode with $R_s = \\SI{100}{\\ohm}$, $R_{\\mathrm{ct}} = \\SI{1}{\\mega\\ohm}$, $C_{\\mathrm{dl}} = \\SI{100}{\\nano\\farad}$. \\texttt{tt} is at \\SI{37}{\\celsius}, the four skew corners at \\SI{25}{\\celsius}. This is the loop around the amplifier, the feedback network and the electrode together, not the amplifier's own gain; the two are tabulated separately in Tables~\\ref{tab:tiaab-stability} and~\\ref{tab:tiaab-unity}."
     },
     {
       "id": "tiaab_zt",
@@ -327,7 +285,7 @@
         "gain_err",
         "inl_lsb"
       ],
-      "caption": "DC accuracy by process corner. Bench \\texttt{TiaFbTB}: $R_f = \\SI{560}{\\kilo\\ohm}$, $C_f = \\SI{22}{\\pico\\farad}$, $C_L = \\SI{5}{\\pico\\farad}$, $C_c = \\SI{500}{\\femto\\farad}$, \\texttt{BiasAdj}~=~37, $v_{\\mathrm{cm}} = \\SI{1.25}{\\volt}$, \\SI{2.5}{\\volt} supply, electrode \\texttt{randles\\_cell} with $R_s = \\SI{100}{\\ohm}$, $R_{\\mathrm{ct}} = \\SI{1}{\\mega\\ohm}$, $C_{\\mathrm{dl}} = \\SI{100}{\\nano\\farad}$. Point \\texttt{tt} is \\texttt{castalia\\_pm\\_25} at \\SI{37}{\\celsius}; the four skew corners are at \\SI{25}{\\celsius}. Gain error and INL are evaluated over the central \\(\\pm 0.9\\) of the full-scale input-current range and are referred to the \\SI{2.441}{\\milli\\volt} ADC LSB. These are corner figures with zero statistical offset: the offset a manufactured channel carries is the Monte Carlo result of Table~\\ref{tab:tiaab-mc-offset}."
+      "caption": "DC accuracy by process corner. Closed transimpedance loop bench (Figure~\\ref{fig:tb-tiafb}): $R_f = \\SI{560}{\\kilo\\ohm}$, $C_f = \\SI{22}{\\pico\\farad}$, $C_L = \\SI{5}{\\pico\\farad}$, $C_c = \\SI{500}{\\femto\\farad}$, \\texttt{BiasAdj}~=~37, $v_{\\mathrm{cm}} = \\SI{1.25}{\\volt}$, \\SI{2.5}{\\volt} supply, Randles electrode with $R_s = \\SI{100}{\\ohm}$, $R_{\\mathrm{ct}} = \\SI{1}{\\mega\\ohm}$, $C_{\\mathrm{dl}} = \\SI{100}{\\nano\\farad}$. Point \\texttt{tt} is the typical statistical point at \\SI{37}{\\celsius}; the four skew corners are at \\SI{25}{\\celsius}. Gain error and INL are evaluated over the central \\(\\pm 0.9\\) of the full-scale input-current range and are referred to the \\SI{2.441}{\\milli\\volt} ADC LSB. These are corner figures with zero statistical offset: the offset a manufactured channel carries is the Monte Carlo result of Table~\\ref{tab:tiaab-mc-offset}."
     },
     {
       "id": "tiaab_transfer",
@@ -357,7 +315,7 @@
         "stb_pm",
         "stb_gm"
       ],
-      "caption": "Transimpedance loop stability by process corner, conditions as Table~\\ref{tab:tiaab-accuracy}. Measured by \\texttt{stb} analysis through the \\texttt{IPRB\\_F} probe, so the loop includes the amplifier, the feedback network and the electrode; the amplifier's own margins are in Table~\\ref{tab:tiaab-unity}. Gain margin is read at the first crossing of zero loop phase above the unity-gain frequency."
+      "caption": "Transimpedance loop stability by process corner, conditions as Table~\\ref{tab:tiaab-accuracy}. Measured through the feedback probe of Figure~\\ref{fig:tb-tiafb}, so the loop includes the amplifier, the feedback network and the electrode; the amplifier's own margins are in Table~\\ref{tab:tiaab-unity}. Gain margin is read at the first crossing of zero loop phase above the unity-gain frequency."
     },
     {
       "id": "tiaab_noise",
@@ -387,7 +345,7 @@
         "uf_pm",
         "uf_gm"
       ],
-      "caption": "Amplifier stability in unity-gain feedback by process corner. Bench \\texttt{UnityFeedbackTB} at \\SI{25}{\\celsius} at all five points, $C_L = \\SI{5}{\\pico\\farad}$, $C_c = \\SI{500}{\\femto\\farad}$, \\texttt{BiasAdj}~=~37, \\SI{2.5}{\\volt} supply. This is the amplifier alone, with neither the feedback network nor the electrode in the loop, and is not comparable with Table~\\ref{tab:tiaab-stability}."
+      "caption": "Amplifier stability in unity-gain feedback by process corner. Unity-feedback bench (Figure~\\ref{fig:tb-unityfb}) at \\SI{25}{\\celsius} at all five points, $C_L = \\SI{5}{\\pico\\farad}$, $C_c = \\SI{500}{\\femto\\farad}$, \\texttt{BiasAdj}~=~37, \\SI{2.5}{\\volt} supply. This is the amplifier alone, with neither the feedback network nor the electrode in the loop, and is not comparable with Table~\\ref{tab:tiaab-stability}."
     },
     {
       "id": "tiaab_drive",
@@ -400,13 +358,15 @@
         "i_src_50m",
         "i_sink_50m"
       ],
-      "caption": "Output drive by process corner. Bench \\texttt{DriveTB} at \\SI{25}{\\celsius} at all five points: the amplifier in unity-gain feedback at $v_{\\mathrm{cm}} = \\SI{1.25}{\\volt}$ with $C_L = \\SI{5}{\\pico\\farad}$, \\texttt{BiasAdj}~=~37, \\SI{2.5}{\\volt} supply, load current swept \\SIrange{-10}{10}{\\milli\\ampere}. Each entry is the load current at which the output departs from $v_{\\mathrm{cm}}$ by \\SI{50}{\\milli\\volt}, not a hard current limit."
+      "caption": "Output drive by process corner. Drive bench (Figure~\\ref{fig:tb-unityfb}, with the swept load current) at \\SI{25}{\\celsius} at all five points: the amplifier in unity-gain feedback at $v_{\\mathrm{cm}} = \\SI{1.25}{\\volt}$ with $C_L = \\SI{5}{\\pico\\farad}$, \\texttt{BiasAdj}~=~37, \\SI{2.5}{\\volt} supply, load current swept \\SIrange{-10}{10}{\\milli\\ampere}. Each entry is the load current at which the output departs from $v_{\\mathrm{cm}}$ by \\SI{50}{\\milli\\volt}, not a hard current limit."
     }
   ],
   "order": [
     "note_tiaampab_intro",
     "sch_TiaAmpAB_topology",
     "tab_TiaAmpAB_corners",
+    "sch_tb_tiafb",
+    "sch_tb_unityfb",
     "tab_tiaab_accuracy",
     "fig_tiaab_zt",
     "tab_tiaab_transfer",
@@ -428,5 +388,47 @@
     "tab_tiaab_mc_drive",
     "fig_tiaab_mc_power",
     "tab_tiaab_mc_power"
+  ],
+  "_note": [
+    "SECTION MASTER for the class-AB transimpedance amplifier castalia/anatop_tia_amp_ab.",
+    "Its `order` places every fragment of the published section, including the ones",
+    "contributed by anatop_tb_tia_amp_ab_mc.json (block TiaAmpABMC) and the hand-written",
+    "note_*/sch_* files. Fragments named in `order` that do not exist are skipped silently.",
+    "",
+    "SOURCE: .../tb_anatop_tia_amp_ab/maestro/results/maestro/Interactive.14",
+    "5 points x 6 tests. Point 1 = castalia_pm_25 (the MC process section at zero",
+    "statistical offset); points 2-5 = ff / fs / sf / ss. Point 1's netlist has no",
+    "cor_std_mos.scs, so _corner_from_modelfiles cannot name it -- hence corner_labels.",
+    "",
+    "TEMPERATURE IS NOT UNIFORM ACROSS TESTS. Verified in every point's spectre.out:",
+    "  TiaFbTB            37 C at point 1, 25 C at points 2-5",
+    "  SlewOpenLoopTB     37 C at point 1, 25 C at points 2-5",
+    "  DriveTB, TypOpenLoopTB, UnityFeedbackTB, StepUnityFeedbackTB: 25 C everywhere",
+    "The generated corner legend reads its temperature from the alphabetically first",
+    "test (DriveTB) and therefore prints 25 C at all five points; the legend caption",
+    "carries the exception. Do not let a caption claim 37 C for an open-loop table.",
+    "",
+    "Block name TiaAmpAB is distinct from TiaAmp / TiaAmpCL / TiaAmpMC / ControlAmp /",
+    "ControlAmpMonteCarlo / BiasGenCascWideSwing: the block keys data/raw/corners_<Block>.json",
+    "and data/extract_<Block>.ocn, which colliding blocks would clobber. Test names are",
+    "prefixed ab_ for the same reason -- raw CSVs are named <test>__<corner>__<signal>.csv",
+    "and all blocks share data/raw/.",
+    "",
+    "Every expression below was evaluated against this run with OCEAN (ocean -nograph)",
+    "before the config was written; each returned a number on all five points. The DC/AC/",
+    "stb/noise expressions are character-for-character the ones in the run's own",
+    "psf/<test>/monteCarlo/mcparam, so the corner table and the Monte Carlo table measure",
+    "the same quantity. DriveTB's mcparam expressions reference the Assembler output",
+    "`verr`, which is not visible to OCEAN; it is expanded here to its definition,",
+    "(VS(\"/V_OutOL\") - VAR(\"V_CM\")), taken from the testbench active.state.",
+    "",
+    "Only the rf = 560 kOhm feedback tap is simulated in this run.",
+    "",
+    "NO corner power table. The TypOpenLoopTB open-loop bench has a degenerate DC",
+    "operating point with more than one solution branch: the Monte Carlo p_opamp is",
+    "bimodal (187 samples 75-170 uW, ~13 at 230-300 uW) and the deterministic corner",
+    "run converges to the HIGH branch at all five points (190-319 uW) despite nominal",
+    "statistics -- a corner row would publish the branch, not a process trend. Only the",
+    "Monte Carlo p_opamp is published, with the bimodality stated in its captions."
   ]
 }

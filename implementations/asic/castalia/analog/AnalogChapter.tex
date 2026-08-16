@@ -52,7 +52,6 @@ Block & Section & Benches & Corners & Monte Carlo \\
 \midrule
 Bias generator        & \ref{ss:biasgen-local} & 2 & \checkmark & n/a \\
 Control amplifier     & \ref{ss:controlamp}    & 4 & \checkmark & \checkmark \\
-Transimpedance stage  & \ref{ss:tiaamp}        & 5 & \checkmark & \checkmark \\
 Class-AB TIA amplifier & \ref{ss:tiaampab}      & 4 & \checkmark & \checkmark \\
 \bottomrule
 \end{tabular}
@@ -63,8 +62,8 @@ each block section. Monte Carlo runs cover process and mismatch together; a corn
 and a Monte Carlo \(\sigma\) are different quantities and are reported separately
 throughout. Load conditions are not common between blocks: the control amplifier's
 small-signal and step figures are taken into \SI{10}{\pico\farad} and the transimpedance
-amplifier's into \SI{5}{\pico\farad}, so bandwidth, slew and settling figures are not
-directly comparable between Sections~\ref{ss:controlamp} and~\ref{ss:tiaamp}. Design
+amplifier's into \SI{5}{\pico\farad}, so bandwidth and drive figures are not
+directly comparable between Sections~\ref{ss:controlamp} and~\ref{ss:tiaampab}. Design
 targets, where quoted alongside a measurement, are stated in the block section that
 reports the measurement.
 
@@ -82,5 +81,4 @@ reports the measurement.
 
 \input{include/analog/BiasGenCascWideSwing.tex}
 \input{include/analog/ControlAmp.tex}
-\input{include/analog/TiaAmp.tex}
 \input{include/analog/TiaAmpAB.tex}

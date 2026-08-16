@@ -12,9 +12,15 @@
 
 \subsection{Class-AB Transimpedance Amplifier}\label{ss:tiaampab}
 
-\texttt{anatop\_tia\_amp\_ab} is the amplifier of the transimpedance stage of
-Section~\ref{ss:tiaamp}. The cell contains 34 devices and carries schematic, symbol,
-layout and \texttt{av\_extracted} views; every figure and table in this section is
+\texttt{anatop\_tia\_amp\_ab} is amplifier A2 of the potentiostat. The
+transimpedance stage holds the working electrode (WE) at $v_{\mathrm{cm}}$ on its
+inverting input and converts the electrode current to a voltage through the feedback
+resistor, $V_{\mathrm{OUT}} = v_{\mathrm{cm}} - I_{\mathrm{WE}} R_f$; both current
+directions pass through $R_f$, so the ADC sees offset binary around the
+$v_{\mathrm{cm}}$ code. In the assembled channel $R_f$ is a 16-tap string,
+\SIrange{35}{560}{\kilo\ohm}, and all four channels share the bias generator of
+Section~\ref{ss:biasgen-local}. The cell contains 34 devices and carries schematic,
+symbol, layout and extracted views; every figure and table in this section is
 schematic-level, taken with no extracted parasitics.
 
 The input stage is complementary and rail-to-rail: an NMOS and a PMOS differential
@@ -41,8 +47,8 @@ $C_{\mathrm{dl}} = \SI{100}{\nano\farad}$. Only the \SI{560}{\kilo\ohm} tap of t
 \SIrange{35}{560}{\kilo\ohm} programmable feedback string is characterised, and every
 figure and table in this section is at that tap.
 
-Coverage is five process points: the typical statistical section
-\texttt{castalia\_pm\_25} at nominal, and ff, fs, sf and ss at \SI{25}{\celsius}.
+Coverage is five process points: a typical statistical point at nominal, and
+ff, fs, sf and ss at \SI{25}{\celsius}.
 Temperature is not uniform across benches. The closed-loop transimpedance bench runs
 at \SI{37}{\celsius} at the typical point and in Monte Carlo, and at
 \SI{25}{\celsius} at the four skew corners; the unity-gain, drive and power benches
