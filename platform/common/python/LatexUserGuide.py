@@ -76,6 +76,7 @@ class LatexUserGuide():
 		self.GenerateSystemConfigurationListFile()
 		self.GenerateFeaturesList()
 		self.GenerateExtraIntroChapters()
+		self.GenerateAfeSystemDiagram()
 		self.GenerateCqAnalogChapter()
 		self.GenerateAddressSpaceDiagram()
 		self.GenerateChipConfigurationSection()
@@ -721,6 +722,251 @@ class LatexUserGuide():
 
 		return
 
+	def GenerateAfeSystemDiagram(self):
+		'''include/AfeSystemDiagram.tex — the analog-front-end companion to the
+		   system block diagram (Figure \\ref{fig:system-block-diagram}), drawn
+		   ONLY where the AFE bank exists (the CQ package model declares
+		   DocSubSlotBlocks; \\ifcqanalog gates the chapter that \\inputs this).
+
+		   IT IS THE SAME SHAPE AS FIGURE 1 ON PURPOSE — the same two banded
+		   regions, the same five hart boxes, the same arbiter bar across the
+		   bottom of them — because the reader has already learnt to read that
+		   picture. What changes is the row UNDER the arbiter: instead of the
+		   memory system it carries the five analog register sites, one per
+		   column, so the ownership is a straight vertical column and needs no
+		   arrow of its own. The memory-side slaves are simply not drawn; this
+		   figure's subject is who reaches which front end, and what leaves the
+		   die.
+
+		   THREE THINGS IT IS CAREFUL NOT TO OVERCLAIM (the chapter's own
+		   framing, Section \\ref{s:cqanalog}): what is on the die today is the
+		   DIGITAL access path — a register stub per site — so every analog
+		   stage is drawn in a DASHED compartment that says so; the ownership
+		   gate is a comparison against the arbiter\'s granted-master index and
+		   not a wire, so it is written in the box that enforces it; and the
+		   electrode pads are real (the CQ pad ring bonds four per site), so
+		   they are drawn crossing the boundary as solid pads.'''
+		if not os.path.isdir(self.IncludeDirectory):
+			os.makedirs(self.IncludeDirectory)
+		path = self.IncludeDirectory + '/AfeSystemDiagram.tex'
+		blocks = getattr(self.Gen, 'DocSubSlotBlocks', None)
+		if not blocks:
+			with open(path, 'w') as f:
+				f.write('% No analog front-end sub-slot blocks in this configuration (guarded by \\ifcqanalog).\n')
+			return
+
+		afe = [b for b in blocks if b['name'].startswith('AFE')]
+		eis = [b for b in blocks if b['name'] == 'EIS']
+		N = self.Gen.NumHarts
+
+		# ---- E17-STYLE BUILD ASSERTIONS -------------------------------------
+		# Everything enumerable in this drawing (four bases, five owners, twelve
+		# electrode pads) is re-derived here from the two INDEPENDENT products
+		# that hold it — the doc sub-slot block list and the package pin list —
+		# so a map or pad-ring change that this layout does not cover fails
+		# `make generate` instead of shipping a picture that disagrees with the
+		# table on the facing page.
+		if len(afe) != 4 or len(eis) != 1:
+			raise Exception('AfeSystemDiagram: this drawing has one column per AFE site plus '
+				'the EIS engine, and the configuration declares %d AFE blocks and %d EIS blocks'
+				% (len(afe), len(eis)))
+		for i, b in enumerate(afe):
+			if b['base'] != 0x4C00 + 0x40 * i:
+				raise Exception('AfeSystemDiagram: %s is based at 0x%X, not the uniform '
+					'0x4C00 + %d*0x40 the figure draws' % (b['name'], b['base'], i))
+		owners = [b['ownerHart'] for b in afe]
+		if len(set(owners)) != len(owners):
+			raise Exception('AfeSystemDiagram: two AFE sites name the same owner hart (%s); '
+				'the figure draws one owning hart per column' % str(owners))
+		for b in afe + eis:
+			if not (0 <= b['ownerHart'] < N):
+				raise Exception('AfeSystemDiagram: %s is owned by hart %d, which does not exist '
+					'in a %d-hart configuration' % (b['name'], b['ownerHart'], N))
+		if eis[0]['ownerHart'] != 0:
+			raise Exception('AfeSystemDiagram: the EIS engine is drawn as the management hart\'s '
+				'alone, but this configuration gives it to hart %d' % eis[0]['ownerHart'])
+		# The three-electrode group this figure draws per site, plus the fourth
+		# pad it does NOT draw (RE2, the optional four-electrode/Kelvin sense
+		# named in the caption): all four must be bonded by the package model,
+		# or the figure is drawing pads this chip does not have.
+		pinNames = set(p.Name for p in self.Gen.Package.Pins)
+		electrodes = [('WE', 'working'), ('RE', 'reference'), ('CE', 'counter')]
+		missing = [e + '_' + str(i) for i in range(4)
+			for e in ('WE', 'RE', 'CE', 'RE2') if (e + '_' + str(i)) not in pinNames]
+		if missing:
+			raise Exception('AfeSystemDiagram: the package model does not bond the electrode '
+				'pads %s that this figure draws crossing the chip boundary' % str(missing))
+
+		def P(v):
+			return '%.2f' % v
+
+		# ---- geometry, in cm; the top half is Figure 1's, to the millimetre
+		# where it can be (band edges, tile width, the boundary/arbiter stack),
+		# because the two figures are meant to be read as one drawing.
+		aX0, aX1 = 0.00, 4.60          # band A: the always-on centre band
+		bX0 = 5.10                     # band B: the hardened channel tiles
+		tileW, gap = 2.75, 0.42
+		col = [bX0 + tileW / 2.0 + i * (tileW + gap) for i in range(4)]
+		bX1 = bX0 + 4 * tileW + 3 * gap
+		mgmtX = (aX0 + aX1) / 2.0
+		mgmtW = 4.20
+		reachX = -0.85                 # the management reach, down the margin
+		# EVERY BOX SETS `text width', NOT JUST `minimum width'. A minimum width
+		# is a floor: a node whose contents are wider simply grows, and in a row
+		# of five columns that is not a cosmetic problem, it is an overlap — the
+		# first cut of this figure put `AFE0 register site' on one line at
+		# \small, which is 2.8 cm of type in a 2.55 cm column, so each box grew
+		# into its neighbour and the render showed clipped titles.
+		siteTW = tileW - 0.25
+		mgmtTW = mgmtW - 0.25
+
+		yTop, yBan = 9.55, 8.85        # band top / banner strip floor
+		yHart, hartH = 7.75, 1.80      # the hart row
+		yBnd = 6.60                    # the registered tile boundary
+		yArb, arbH = 5.65, 0.85        # the arbiter bar
+		# The analog row's heights are TYPE HEIGHTS, not guesses: a TikZ node with
+		# a `minimum height' smaller than its wrapped contents does not clip, it
+		# SPILLS, and the first cuts of this figure spilled the gate line of every
+		# site box straight through the dashed compartment underneath it. The
+		# arithmetic is baselineskip x lines + 2 x inner sep: a site box is one
+		# \small line (0.39) and three \scriptsize (0.33 each) = 1.38 + 0.24, so
+		# it gets 1.70; a dashed compartment is three \scriptsize = 0.99 + 0.24,
+		# so it gets 1.30. Height is the cheap axis here — the chapter scales
+		# this drawing to the text WIDTH, so a taller figure costs nothing but
+		# page height, while an overflowing box costs the reader the figure.
+		bandT, bandB = 5.05, 0.70      # the analog row's own band
+		regT, regB = 4.90, 3.20        # register-site boxes
+		anaT, anaB = 3.20, 1.90        # the dashed analog compartments
+		yRed = 0.32                    # the chip boundary
+		yPad = 0.52                    # pad names, just above it
+		cellT, cellB = -0.18, -1.08
+		cellW = tileW
+		dx = 0.92                      # electrode pitch within a site
+
+		s = ('% Generated AFE connectivity diagram (sites=' + str(len(afe))
+			+ ', owners=' + str(owners) + ', harts=' + str(N) + ')\n')
+		s += '\\begin{tikzpicture}[\n'
+		s += '\tblk/.style={draw, thick, align=center, fill=white, font=\\sffamily\\small},\n'
+		s += '\ttile/.style={blk, fill=black!6},\n'
+		s += '\torch/.style={blk, fill=black!12, line width=1.1pt},\n'
+		s += '\tsite/.style={blk, fill=black!8},\n'
+		s += '\tana/.style={draw, densely dashed, align=center, fill=white, font=\\sffamily\\scriptsize},\n'
+		s += '\tbus/.style={<->, >=Stealth, thick},\n'
+		s += '\treach/.style={->, >=Stealth, line width=1.3pt},\n'
+		s += '\twire/.style={semithick},\n'
+		s += '\tban/.style={font=\\sffamily\\scriptsize\\bfseries, black!65, align=center},\n'
+		s += '\tnote/.style={font=\\sffamily\\scriptsize, align=left},\n'
+		s += '\tlab/.style={font=\\sffamily\\scriptsize, align=center},\n'
+		s += '\tpadlab/.style={font=\\sffamily\\tiny, align=center},\n'
+		s += '\tredlab/.style={font=\\sffamily\\scriptsize\\bfseries, red!70!black, align=left}]\n'
+
+		# ---- the two banded regions of Figure 1, and their banners
+		s += '\\fill[black!4] (' + P(aX0) + ', ' + P(yBnd) + ') rectangle (' + P(aX1) + ', ' + P(yTop) + ');\n'
+		s += '\\fill[black!9] (' + P(bX0 - 0.20) + ', ' + P(yBnd) + ') rectangle (' + P(bX1 + 0.20) + ', ' + P(yTop) + ');\n'
+		s += '\\fill[black!14] (' + P(aX0) + ', ' + P(yBan) + ') rectangle (' + P(aX1) + ', ' + P(yTop) + ');\n'
+		s += '\\fill[black!20] (' + P(bX0 - 0.20) + ', ' + P(yBan) + ') rectangle (' + P(bX1 + 0.20) + ', ' + P(yTop) + ');\n'
+		s += ('\\node[ban, text width=' + P(aX1 - aX0 - 0.30) + 'cm] at (' + P(mgmtX) + ', '
+			+ P((yBan + yTop) / 2.0) + ') {the management hart\\\\ reaches every site};\n')
+		s += ('\\node[ban, text width=' + P(bX1 - bX0 - 0.30) + 'cm] at (' + P((bX0 + bX1) / 2.0) + ', '
+			+ P((yBan + yTop) / 2.0) + ') {the four channel harts, one analog site each};\n')
+
+		# ---- the hart row: Figure 1's five boxes, told what they own here
+		s += ('\\node[orch, text width=' + P(mgmtTW) + 'cm, minimum width=' + P(mgmtW)
+			+ 'cm, minimum height=' + P(hartH) + 'cm] (h0) at ('
+			+ P(mgmtX) + ', ' + P(yHart) + ') {\\textbf{hart 0}: orchestrator\\\\ \\scriptsize soft logic, always on\\\\'
+			+ ' \\scriptsize the management hart\\\\ \\scriptsize boots the chip, manages it};\n')
+		for i, b in enumerate(afe):
+			s += ('\\node[tile, text width=' + P(siteTW) + 'cm, minimum width=' + P(tileW)
+				+ 'cm, minimum height=' + P(hartH)
+				+ 'cm] (t' + str(i) + ') at (' + P(col[i]) + ', ' + P(yHart) + ') {\\textbf{hart '
+				+ str(b['ownerHart']) + '}\\\\ \\scriptsize channel tile\\\\ \\scriptsize VestaRV core\\\\'
+				+ ' \\scriptsize \\textbf{owns ' + b['name'] + '}};\n')
+
+		# ---- the registered tile boundary and the arbiter, exactly as Figure 1
+		s += '\\draw[dashed, thick] (' + P(bX0 - 0.20) + ', ' + P(yBnd) + ') -- (' + P(bX1 + 0.20) + ', ' + P(yBnd) + ');\n'
+		# \tiny, and that is a clearance decision, not a taste one: this label sits
+		# in the lane between two masters' bus arrows (2.85 cm apart), and at
+		# \scriptsize its white fill reached to within a millimetre of both.
+		s += ('\\node[lab, font=\\sffamily\\tiny, fill=white, inner sep=1.5pt] at ('
+			+ P((col[0] + col[1]) / 2.0) + ', '
+			+ P((yBnd + yArb + arbH / 2.0) / 2.0) + ') {registered tile boundary\\\\ (1 cycle each way)};\n')
+		s += ('\\node[blk, fill=black!15, minimum width=' + P(bX1 - aX0) + 'cm, minimum height=' + P(arbH)
+			+ 'cm] (arb) at (' + P((aX0 + bX1) / 2.0) + ', ' + P(yArb)
+			+ ') {\\textbf{mp\\_arbiter}: one transaction at a time; the granted master\'s index \\textbf{is} \\texttt{s\\_master}};\n')
+
+		# ---- the analog row's band: one region, so hart 0's reach into ALL of
+		# it is a property of the drawing rather than five more arrows.
+		s += ('\\draw[fill=black!5, draw=black!45, thick, rounded corners=3pt] (' + P(reachX + 0.60) + ', '
+			+ P(bandB) + ') rectangle (' + P(bX1 + 0.20) + ', ' + P(bandT) + ');\n')
+
+		# the five masters onto the bar, the five column drops off it, and the
+		# five register sites. THE COLUMN IS THE OWNERSHIP: site i sits directly
+		# under the hart that owns it, so `hart 2 reaches AFE1' needs no arrow of
+		# its own -- which matters, because there is no such wire. Every one of
+		# these accesses is a shared-window transaction through the bar, and the
+		# gate that admits it is a comparison inside the slave (printed in it).
+		for x in [mgmtX] + col:
+			s += ('\\draw[bus] (' + P(x) + ', ' + P(yHart - hartH / 2.0) + ') -- ('
+				+ P(x) + ', ' + P(yArb + arbH / 2.0) + ');\n')
+
+		def busDrop(x, yTo):
+			return ('\\draw[bus] (' + P(x) + ', ' + P(yArb - arbH / 2.0) + ') -- ('
+				+ P(x) + ', ' + P(yTo) + ');\n')
+
+		def siteBox(x, w, tw, yb, title, base, gateLine):
+			return ('\\node[site, text width=' + P(tw) + 'cm, minimum width=' + P(w)
+				+ 'cm, minimum height=' + P(regT - yb) + 'cm, anchor=north] at (' + P(x) + ', '
+				+ P(regT) + ') {' + title + '\\\\ \\scriptsize \\texttt{' + fmthex(base)
+				+ '}, 64\\,B\\\\ \\scriptsize ' + gateLine + '};\n')
+
+		def anaBox(x, w, tw, body):
+			return ('\\node[ana, text width=' + P(tw) + 'cm, minimum width=' + P(w)
+				+ 'cm, minimum height=' + P(anaT - anaB) + 'cm, anchor=north] at (' + P(x) + ', '
+				+ P(anaT) + ') {' + body + '};\n')
+
+		for i, b in enumerate(afe):
+			s += busDrop(col[i], regT)
+			s += siteBox(col[i], tileW, siteTW, regB, '\\textbf{' + b['name'] + '} site', b['base'],
+				'gate:\\\\ \\texttt{s\\_master} = ' + str(b['ownerHart']) + ' \\emph{or} 0')
+			s += anaBox(col[i], tileW, siteTW, 'potentiostat\\\\ TIA $+$ ADC\\\\ \\textit{not integrated}')
+		s += busDrop(mgmtX, regT)
+		s += siteBox(mgmtX, mgmtW, mgmtTW, regB, '\\textbf{' + eis[0]['name'] + '} sweep-engine site',
+			eis[0]['base'], 'gate:\\\\ \\texttt{s\\_master} = 0 \\emph{only}')
+		s += anaBox(mgmtX, mgmtW, mgmtTW, 'EIS sweep engine\\\\ $+$ analog multiplexer\\\\ \\textit{not integrated}')
+
+		# ---- hart 0's reach: ONE arrow with a verb, into the row it opens. It
+		# is deliberately not five arrows: the privilege is not five wires, it is
+		# one comparison that every gate on the row makes.
+		s += ('\\draw[reach] (h0.west) -- (' + P(reachX) + ', ' + P(yHart) + ') -- (' + P(reachX) + ', '
+			+ P((regT + regB) / 2.0) + ') -- (' + P(reachX + 0.60) + ', ' + P((regT + regB) / 2.0) + ');\n')
+		s += ('\\node[note, anchor=north west, text width=' + P(mgmtTW + 0.15) + 'cm] at ('
+			+ P(aX0 + 0.10) + ', ' + P(anaB - 0.14)
+			+ ') {\\textbf{Hart 0 reaches every block on this row}: \\texttt{s\\_master} = 0 '
+			+ 'opens every gate.};\n')
+
+		# ---- the chip boundary, the electrode pads, and the cells
+		s += ('\\draw[red, densely dotted, line width=1.1pt] (' + P(reachX - 0.10) + ', ' + P(yRed)
+			+ ') -- (' + P(bX1 + 0.40) + ', ' + P(yRed) + ');\n')
+		s += ('\\node[redlab, anchor=north west, text width=4.60cm] at (' + P(aX0 + 0.10) + ', ' + P(yRed - 0.14)
+			+ ') {chip boundary: twelve electrode pads, three per site, leave the die here};\n')
+		for i, b in enumerate(afe):
+			c = col[i]
+			s += ('\\draw[thick, rounded corners=3pt, fill=black!3] (' + P(c - cellW / 2.0) + ', ' + P(cellB)
+				+ ') rectangle (' + P(c + cellW / 2.0) + ', ' + P(cellT) + ');\n')
+			s += ('\\node[lab, anchor=south, text width=' + P(cellW - 0.30) + 'cm] at (' + P(c) + ', '
+				+ P(cellB + 0.05) + ') {three-electrode cell};\n')
+			for k, (e, _long) in enumerate(electrodes):
+				x = c + (k - 1) * dx
+				s += '\\draw[wire] (' + P(x) + ', ' + P(anaB) + ') -- (' + P(x) + ', ' + P(cellB + 0.52) + ');\n'
+				s += '\\draw[wire, line width=1.2pt] (' + P(x - 0.15) + ', ' + P(cellB + 0.52) + ') -- (' + P(x + 0.15) + ', ' + P(cellB + 0.52) + ');\n'
+				s += ('\\fill[red!70!black] (' + P(x - 0.07) + ', ' + P(yRed - 0.07) + ') rectangle ('
+					+ P(x + 0.07) + ', ' + P(yRed + 0.07) + ');\n')
+				s += ('\\node[padlab, fill=white, inner sep=0.8pt] at (' + P(x) + ', ' + P(yPad)
+					+ ') {\\texttt{' + fmttex(e + '_' + str(i)) + '}};\n')
+		s += '\\end{tikzpicture}\n'
+		self._writeInclude('AfeSystemDiagram.tex', s)
+		return
+
 	def GenerateCqAnalogChapter(self):
 		# Config-gated chapter for the CQ analog front-end (AFE0-3 + EIS). Rendered
 		# ONLY when the config declares DocSubSlotBlocks (the CQ package model); the
@@ -759,6 +1005,28 @@ class LatexUserGuide():
 			'analog blocks; the stubs hold placeholder storage and drive their interrupt '
 			'from a software-settable flag until the analog IP replaces them.\n\n')
 
+		# The connectivity figure. Its \label AND every \ref to it live inside
+		# this generated chapter, which the master template \inputs only under
+		# \ifcqanalog, so the two polarities cannot disagree and trm-lint never
+		# sees a dangling reference (the both-polarity \ref rule).
+		s += ('Figure \\ref{fig:afe-system-diagram} is the arrangement: the same five harts '
+			'and the same arbiter as Figure \\ref{fig:system-block-diagram}, with the analog '
+			'register sites in the row underneath and the electrodes leaving the die at the '
+			'bottom.\n\n')
+		s += '\\begin{figure}[htpb]\n\t\\centering\n'
+		s += '\t\\resizebox{\\linewidth}{!}{\\input{include/AfeSystemDiagram.tex}}\n'
+		s += ('\t\\caption[{Analog front-end connectivity: who reaches which site, and what leaves the die.}]'
+			'{Analog front-end connectivity: who reaches which site, and what leaves the die. Each channel '
+			'hart owns exactly one measurement site and reaches no other; hart 0, the orchestrator, opens '
+			'every gate in the row, because the gate compares the arbiter\'s granted-master index against a '
+			'single owner and against 0. The analog stages are drawn dashed because they are not yet '
+			'integrated: what the chip carries today is the digital register site in front of each one '
+			'(and the pads behind them). Each site brings out a three-electrode cell: \\texttt{WE} the '
+			'working electrode, \\texttt{RE} the reference, \\texttt{CE} the counter. A fourth pad per site, '
+			'\\texttt{RE2}\\textsubscript{$h$}, is bonded as well and is not drawn: it is the second sense '
+			'electrode of the optional four-terminal (Kelvin) configuration.}\n')
+		s += '\t\\label{fig:afe-system-diagram}\n\\end{figure}\n\n'
+
 		# --- Address map + ownership table -------------------------------------
 		s += '\\subsection{Blocks, addresses, and ownership} \\label{ss:cqanalog-map}\n\n'
 		s += ('The five blocks live in otherwise-reserved shared-window space, so they '
@@ -783,8 +1051,15 @@ class LatexUserGuide():
 
 		# --- Ownership / gating semantics --------------------------------------
 		s += '\\subsection{Ownership gating} \\label{ss:cqanalog-gate}\n\n'
-		s += ('Each AFE site is owned by the hart of its quadrant: site \\texttt{AFE}$h$ '
-			'answers only when \\texttt{s\\_master} = $h$ \\emph{or} \\texttt{s\\_master} = 0. '
+		# The owner mapping is READ OUT OF THE BLOCK DATA, never spelt as
+		# "site AFE h answers hart h": on an orchestrator configuration hart 0 is
+		# the orchestrator and the owners are the four CHANNEL harts, so the site
+		# index and the owning hart differ by one (generate.py derives it from the
+		# same knob mcu_vhd.afeStubsOrchOwners() does).
+		ownerPairs = ', '.join('\\texttt{' + b['name'] + '} to hart ' + str(b['ownerHart'])
+			for b in afeBlocks)
+		s += ('Each AFE site is owned by one hart (' + ownerPairs + '), and it '
+			'answers only when \\texttt{s\\_master} is that hart \\emph{or} \\texttt{s\\_master} = 0. '
 			'Hart 0 is the management hart, so it reaches every site (this is what lets it '
 			'demultiplex the shared interrupt, below); every other hart sees only its own '
 			'site. The EIS engine is instantiated hart-0-only (\\texttt{s\\_master} = 0), so '
@@ -3134,34 +3409,40 @@ class LatexUserGuide():
 		   placed at computed points rather than by `pos=', so no label ever
 		   lands on another edge.'''
 		# THE COORDINATES BELOW ARE PRINTED CENTIMETRES, AND THAT IS THE POINT
-		# (2026-08-15, USER: smaller, with the states further apart so the
-		# arrows between them are clearly visible). The chapter used to wrap
-		# this figure in \resizebox{\linewidth}, which made every number here a
-		# RATIO — the drawing was authored at ~21.5 units and squeezed to the
-		# 16.5 cm text block, so the boxes, the type and the gaps between the
-		# boxes all shrank together and a wider layout bought no extra air, it
-		# only scaled itself away. The \resizebox is gone; these numbers now
-		# land on the page as written, and the two halves of the USER's
-		# constraint are set independently: the BOX is 1.75 x 0.44 cm at 6.5 pt
-		# (it printed 2.07 x 0.55 at ~7.7 pt through the resizebox), while the
-		# row pitch leaves 0.55 cm of clear vertical air between one box and
-		# the next (it printed 0.48 cm) and the inner skip channels stand
-		# 0.58 cm off the boxes they run past (0.31 cm). Total: 14.7 x 9.0 cm
-		# against 16.5 x 10.1 --- about 11 % smaller in BOTH dimensions with
-		# more air on every edge channel, which is the pair of things that
-		# cannot be had at once from a single scale factor.
+		# (2026-08-15, USER, twice: smaller type and smaller boxes, with the
+		# states FURTHER APART, so that every arrow between them can be traced
+		# individually). The chapter used to wrap this figure in
+		# \resizebox{\linewidth}, which made every number here a RATIO: the
+		# drawing was authored at ~21.5 units and squeezed to the 16.5 cm text
+		# block, so the boxes, the type and the gaps between the boxes all
+		# shrank together and a wider layout bought no extra air, it only
+		# scaled itself away. The \resizebox is gone; these numbers land on the
+		# page as written, and the two halves of the USER's constraint are set
+		# independently, which is the pair of things that cannot be had at once
+		# from a single scale factor:
+		#
+		#            box          state font   vert. air   inner channel   total
+		#   resized  2.07x0.55    ~7.7 pt      0.48 cm     0.31 cm         16.5x10.1
+		#   round 1  1.75x0.44    6.5 pt       0.55 cm     0.58 cm         14.7x9.0
+		#   round 2  1.56x0.35    5.0 pt       0.71 cm     0.60 cm         14.6x8.9
+		#
+		# So round 2 takes another 11 % off the box, drops the type to \tiny,
+		# and spends every millimetre it frees on AIR: +29 % between rows,
+		# +22 % between the two lobe columns, +22 % between Test-Logic-Reset
+		# and Run-Test/Idle, inside a figure that is smaller in both dimensions
+		# than the one it replaces.
 		# FLOORS, so a future edit does not squeeze this back: the box width is
-		# set by `Test-Logic-Reset` at the state font (~1.7 cm of type), and
+		# set by `Test-Logic-Reset` at the state font (~1.4 cm of type), and
 		# the outer flank must clear the self-loop bulge, which reaches about
-		# 0.8 cm past the node.
-		HW, HH = 0.875, 0.22           # half width / half height of a state box
+		# 0.6 cm past the node.
+		HW, HH = 0.78, 0.175           # half width / half height of a state box
 		TOP = 0.00                     # the top row
 		xTLR, xRTI = 0.00, 2.60
-		cx = {'dr': 5.60, 'ir': 10.20}
-		rows = [-1.00, -1.99, -2.98, -3.97, -4.96, -5.95]   # capture .. update
-		yWrapT, yWrapS = 0.85, 1.45    # the two returns over the top
-		yRetD, yRetI = -6.85, -7.55    # the two returns along the bottom
-		xRiseD, xRiseI = 7.80, 12.95   # the two Update -> Select-DR risers
+		cx = {'dr': 5.45, 'ir': 10.45}
+		rows = [-0.95 - 1.06 * k for k in range(6)]         # capture .. update
+		yWrapT, yWrapS = 1.02, 1.45    # the two returns over the top
+		yRetD, yRetI = -6.87, -7.45    # the two returns along the bottom
+		xRiseD, xRiseI = 7.95, 13.05   # the two Update -> Select-DR risers
 
 		pos = {0: (xTLR, TOP), 1: (xRTI, TOP), 2: (cx['dr'], TOP), 9: (cx['ir'], TOP)}
 		for k, st in enumerate([3, 4, 5, 6, 7, 8]):
@@ -3180,13 +3461,13 @@ class LatexUserGuide():
 		# to come down with it; the edge labels are single digits and go a step
 		# smaller still so a `0' sitting on a channel never reads as loud as a
 		# state name.
-		s += '\tst/.style={draw, thick, rounded corners=2pt, align=center, font=\\sffamily\\fontsize{6.5}{7.5}\\selectfont, inner sep=1.0pt, minimum width=' + P(2 * HW) + 'cm, minimum height=' + P(2 * HH) + 'cm, fill=black!4},\n'
-		s += '\ttlr/.style={st, fill=black!18, very thick},\n'
-		s += '\ttms0/.style={->, >=Stealth, semithick},\n'
-		s += '\ttms1/.style={->, >=Stealth, semithick, densely dashed},\n'
-		s += '\tel/.style={font=\\sffamily\\fontsize{5.5}{6.5}\\selectfont, inner sep=1.0pt, fill=white},\n'
-		s += '\tkey/.style={font=\\sffamily\\scriptsize, align=left, text width=2.95cm},\n'
-		s += '\tkeylab/.style={font=\\sffamily\\scriptsize, anchor=west}]\n'
+		s += '\tst/.style={draw, semithick, rounded corners=1.5pt, align=center, font=\\sffamily\\fontsize{5.0}{6.0}\\selectfont, inner sep=0.8pt, minimum width=' + P(2 * HW) + 'cm, minimum height=' + P(2 * HH) + 'cm, fill=black!4},\n'
+		s += '\ttlr/.style={st, fill=black!18, thick},\n'
+		s += '\ttms0/.style={->, >=Stealth, thin},\n'
+		s += '\ttms1/.style={->, >=Stealth, thin, densely dashed},\n'
+		s += '\tel/.style={font=\\sffamily\\fontsize{5.0}{6.0}\\selectfont, inner sep=0.8pt, fill=white},\n'
+		s += '\tkey/.style={font=\\sffamily\\fontsize{6.0}{7.0}\\selectfont, align=left, text width=2.60cm},\n'
+		s += '\tkeylab/.style={font=\\sffamily\\fontsize{6.0}{7.0}\\selectfont, anchor=west}]\n'
 		for i, name in enumerate(self._TAP_STATES):
 			style = 'tlr' if i == 0 else 'st'
 			s += '\\node[' + style + '] (s' + str(i) + ') at (' + P(pos[i][0]) + ', ' + P(pos[i][1]) + ') {' + name + '};\n'
@@ -3205,14 +3486,22 @@ class LatexUserGuide():
 			return s_
 
 		def loop(src, tms, sgn):
-			'''A self-loop on the OUTWARD-facing side of the node.'''
+			'''A self-loop on the OUTWARD-facing side of the node.
+
+			   THE ANGULAR SPREAD IS 32 DEGREES, NOT 40 (round 2), and the whole
+			   loop is tipped 12 degrees UP. The loop's vertical reach is (its
+			   length) x sin(half-spread), and the box is now 0.35 cm tall: at
+			   the old spread the Shift loop bulged BELOW the box, straight
+			   across the horizontal run of the Exit2 -> Shift retry arrow, which
+			   enters that same box's outward bottom corner. Narrowing and
+			   tipping the loop leaves that corner to the retry alone.'''
 			dst = self._TAP_NEXT[src][tms]
 			edges.append((src, dst))
 			sty = 'tms1' if tms else 'tms0'
-			out, inn = (340, 20) if sgn > 0 else (200, 160)
+			out, inn = (356, 28) if sgn > 0 else (184, 152)
 			x, y = pos[src]
 			s_ = '\\draw[' + sty + '] (s' + str(src) + ') to[loop, out=' + str(out) + ', in=' + str(inn) + ', looseness=6] (s' + str(src) + ');\n'
-			s_ += '\\node[el] at (' + P(x + sgn * (HW + 0.72)) + ', ' + P(y) + ') {' + str(tms) + '};\n'
+			s_ += '\\node[el] at (' + P(x + sgn * (HW + 0.60)) + ', ' + P(y + 0.10) + ') {' + str(tms) + '};\n'
 			return s_
 
 		# ---- the top row ------------------------------------------------
@@ -3220,11 +3509,15 @@ class LatexUserGuide():
 		s += emit(0, 0, '(s0.east) -- (s1.west)', (xTLR + HW + xRTI - HW) / 2.0, TOP)
 		s += '\\draw[tms0] (s1) to[loop, out=115, in=65, looseness=6] (s1);\n'
 		edges.append((1, self._TAP_NEXT[1][0]))
-		s += '\\node[el] at (' + P(xRTI) + ', ' + P(TOP + 0.98) + ') {0};\n'
+		# The apex label of Run-Test/Idle's own loop is the ONE label with a
+		# through-edge over it (the Select-IR -> Test-Logic-Reset wrap runs the
+		# width of the figure at yWrapT), so it is placed low enough to leave
+		# 0.22 cm between its top and that line.
+		s += '\\node[el] at (' + P(xRTI) + ', ' + P(TOP + 0.68) + ') {0};\n'
 		s += emit(1, 1, '(s1.east) -- (s2.west)', (xRTI + HW + cx['dr'] - HW) / 2.0, TOP)
-		s += emit(2, 0, '(s2.south) -- (s3.north)', cx['dr'], (TOP - HH + rows[0] + HH) / 2.0)
+		s += emit(2, 0, '(s2.south) -- (s3.north)', cx['dr'] - 0.20, (TOP - HH + rows[0] + HH) / 2.0)
 		s += emit(2, 1, '(s2.east) -- (s9.west)', (cx['dr'] + HW + cx['ir'] - HW) / 2.0 + 1.00, TOP)
-		s += emit(9, 0, '(s9.south) -- (s10.north)', cx['ir'], (TOP - HH + rows[0] + HH) / 2.0)
+		s += emit(9, 0, '(s9.south) -- (s10.north)', cx['ir'] + 0.20, (TOP - HH + rows[0] + HH) / 2.0)
 		# Select-IR on a 1 is the last hop of the five-ones recovery.
 		s += emit(9, 1, '(s9.north) -- (' + P(cx['ir']) + ', ' + P(yWrapT) + ') -- (' + P(xTLR) + ', ' + P(yWrapT) + ') -- (s0.north)',
 			(cx['ir'] + xTLR) / 2.0 + 2.60, yWrapT)
@@ -3234,29 +3527,45 @@ class LatexUserGuide():
 		for lobe, sgn, base in (('dr', -1.0, 3), ('ir', +1.0, 10)):
 			c = cx[lobe]
 			cap, shf, ex1, pau, ex2, upd = [base + k for k in range(6)]
-			# Both flank channels are quoted as clearance FROM THE BOX EDGE, so
-			# they hold their air when the box changes size: 0.62 cm for the
-			# inner skips (it was 0.31 cm on the page) and 1.35 cm for the outer
-			# retry path, which also has to clear the self-loop bulge.
+			# Every flank channel is quoted as clearance FROM THE BOX EDGE, so
+			# it holds its air when the box changes size.
+			#
+			# THE TWO FORWARD SKIPS GET A CHANNEL EACH (round 2). They used to
+			# share one: Capture -> Exit1 ran down x=xIn from row 0 to row 2 and
+			# Exit1 -> Update ran down THE SAME x from row 2 to row 5, so the two
+			# were collinear and read on the page as a single long edge from
+			# Capture straight past Exit1 to Update, an edge this machine does
+			# not have. Splitting them (the shorter skip inboard at 0.60 cm, the
+			# longer one outboard at 1.15 cm) makes the step at Exit1 visible and
+			# leaves both individually traceable, which is the whole point of the
+			# spacing pass.
 			xOut = c + sgn * (HW + 1.20)      # Exit2 -> Shift, on the outside
-			xIn = c - sgn * (HW + 0.58)       # the two forward skips, inside
+			xInA = c - sgn * (HW + 0.60)      # Capture -> Exit1, inside, near
+			xInB = c - sgn * (HW + 1.15)      # Exit1 -> Update, inside, far
 			aOut = 'west' if sgn < 0 else 'east'
 			aIn = 'east' if sgn < 0 else 'west'
 
-			# straight down the spine
-			s += emit(cap, 0, '(s%d.south) -- (s%d.north)' % (cap, shf), c, (rows[0] - HH + rows[1] + HH) / 2.0)
-			s += emit(shf, 1, '(s%d.south) -- (s%d.north)' % (shf, ex1), c, (rows[1] - HH + rows[2] + HH) / 2.0)
-			s += emit(ex1, 0, '(s%d.south) -- (s%d.north)' % (ex1, pau), c, (rows[2] - HH + rows[3] + HH) / 2.0)
-			s += emit(pau, 1, '(s%d.south) -- (s%d.north)' % (pau, ex2), c, (rows[3] - HH + rows[4] + HH) / 2.0)
-			s += emit(ex2, 1, '(s%d.south) -- (s%d.north)' % (ex2, upd), c, (rows[4] - HH + rows[5] + HH) / 2.0)
+			# Straight down the spine. THE SPINE LABEL SITS BESIDE ITS ARROW, NOT
+			# ON IT (0.20 cm to the outward side): a `1' is a bare vertical stroke,
+			# and a white-filled `1' centred on a dashed vertical line reads as one
+			# more dash. Three of the five spine edges are TMS=1, so on the page
+			# the ladder had three invisible labels. A `0' survives being centred
+			# (it punches a round hole), but the two are set the same way so the
+			# reader never has to work out which convention is in force.
+			lx = c + sgn * 0.20
+			s += emit(cap, 0, '(s%d.south) -- (s%d.north)' % (cap, shf), lx, (rows[0] - HH + rows[1] + HH) / 2.0)
+			s += emit(shf, 1, '(s%d.south) -- (s%d.north)' % (shf, ex1), lx, (rows[1] - HH + rows[2] + HH) / 2.0)
+			s += emit(ex1, 0, '(s%d.south) -- (s%d.north)' % (ex1, pau), lx, (rows[2] - HH + rows[3] + HH) / 2.0)
+			s += emit(pau, 1, '(s%d.south) -- (s%d.north)' % (pau, ex2), lx, (rows[3] - HH + rows[4] + HH) / 2.0)
+			s += emit(ex2, 1, '(s%d.south) -- (s%d.north)' % (ex2, upd), lx, (rows[4] - HH + rows[5] + HH) / 2.0)
 			# the two self-loops, outward
 			s += loop(shf, 0, sgn)
 			s += loop(pau, 0, sgn)
 			# Capture -> Exit1 and Exit1 -> Update: forward skips, inner flank
 			s += emit(cap, 1, '(s%d.%s) -- (%s, %s) -- (%s, %s) -- (s%d.north %s)'
-				% (cap, aIn, P(xIn), P(rows[0]), P(xIn), P(rows[2] + HH), ex1, aIn), xIn, (rows[0] + rows[2]) / 2.0)
+				% (cap, aIn, P(xInA), P(rows[0]), P(xInA), P(rows[2] + HH), ex1, aIn), xInA, (rows[0] + rows[2]) / 2.0)
 			s += emit(ex1, 1, '(s%d.south %s) -- (%s, %s) -- (%s, %s) -- (s%d.north %s)'
-				% (ex1, aIn, P(xIn), P(rows[2] - HH), P(xIn), P(rows[5] + HH), upd, aIn), xIn, (rows[2] + rows[5]) / 2.0)
+				% (ex1, aIn, P(xInB), P(rows[2] - HH), P(xInB), P(rows[5] + HH), upd, aIn), xInB, (rows[2] + rows[5]) / 2.0)
 			# Exit2 -> Shift: the retry path, outer flank, clear of the loops
 			s += emit(ex2, 0, '(s%d.%s) -- (%s, %s) -- (%s, %s) -- (s%d.south %s)'
 				% (ex2, aOut, P(xOut), P(rows[4]), P(xOut), P(rows[1] - HH), shf, aOut), xOut, (rows[1] + rows[4]) / 2.0)
@@ -3265,7 +3574,12 @@ class LatexUserGuide():
 		# Update-DR -> Run-Test/Idle, and Update-DR -> Select-DR up the middle
 		s += emit(8, 0, '(s8.south) -- (' + P(cx['dr']) + ', ' + P(yRetD) + ') -- (' + P(xRTI) + ', ' + P(yRetD) + ') -- (s1.south)',
 			xRTI, (yRetD + TOP) / 2.0 + 1.20)
-		s += emit(8, 1, '(s8.east) -- (' + P(xRiseD) + ', ' + P(rows[5]) + ') -- (' + P(xRiseD) + ', ' + P(TOP - HH) + ') -- (s2.south east)',
+		# Update-DR's riser leaves the BOTTOM-outer corner, not the east face. The
+		# DR lobe's inner flank and this riser are on the same side of the lobe, so
+		# an east-face departure ran horizontally 0.175 cm under the Exit1 -> Update
+		# arrow arriving at the north-east corner: two dashed edges in one lane.
+		# Dropping it to the south-east corner puts 0.35 cm between them.
+		s += emit(8, 1, '(s8.south east) -- (' + P(xRiseD) + ', ' + P(rows[5] - HH) + ') -- (' + P(xRiseD) + ', ' + P(TOP - HH) + ') -- (s2.south east)',
 			xRiseD, (rows[5] + TOP) / 2.0)
 		# Update-IR -> Run-Test/Idle, and Update-IR -> Select-DR over the top
 		s += emit(15, 0, '(s15.south) -- (' + P(cx['ir']) + ', ' + P(yRetI) + ') -- (' + P(xRTI - HW) + ', ' + P(yRetI) + ') -- (s1.south west)',
@@ -3286,12 +3600,12 @@ class LatexUserGuide():
 		# The key's own right edge is a real constraint, not a taste: the
 		# Update-IR -> Run-Test/Idle return rises at x = xRTI - HW, and the key
 		# text block is sized and placed to stay clear of that riser.
-		kx = xTLR - HW - 0.80
-		s += '\\draw[tms0] (' + P(kx) + ', -1.70) -- (' + P(kx + 0.72) + ', -1.70);\n'
-		s += '\\node[keylab] at (' + P(kx + 0.84) + ', -1.70) {\\pin{TMS} sampled \\textbf{0}};\n'
-		s += '\\draw[tms1] (' + P(kx) + ', -2.30) -- (' + P(kx + 0.72) + ', -2.30);\n'
-		s += '\\node[keylab] at (' + P(kx + 0.84) + ', -2.30) {\\pin{TMS} sampled \\textbf{1}};\n'
-		s += '\\node[key, anchor=north west] at (' + P(kx) + ', -2.90) {\\textbf{Five} \\pin{TMS}$=$\\textbf{1} clocks reach Test-Logic-Reset from \\textit{any} state in the graph, the recovery a debugger uses when it has lost track of the machine.};\n'
+		kx = xTLR - HW - 0.72
+		s += '\\draw[tms0] (' + P(kx) + ', -1.60) -- (' + P(kx + 0.62) + ', -1.60);\n'
+		s += '\\node[keylab] at (' + P(kx + 0.74) + ', -1.60) {\\pin{TMS} sampled \\textbf{0}};\n'
+		s += '\\draw[tms1] (' + P(kx) + ', -2.15) -- (' + P(kx + 0.62) + ', -2.15);\n'
+		s += '\\node[keylab] at (' + P(kx + 0.74) + ', -2.15) {\\pin{TMS} sampled \\textbf{1}};\n'
+		s += '\\node[key, anchor=north west] at (' + P(kx) + ', -2.70) {\\textbf{Five} \\pin{TMS}$=$\\textbf{1} clocks reach Test-Logic-Reset from \\textit{any} state in the graph, the recovery a debugger uses when it has lost track of the machine.};\n'
 		s += '\\end{tikzpicture}\n'
 		self._writeInclude('TapStateDiagram.tex', s)
 		return
