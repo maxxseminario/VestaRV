@@ -16,18 +16,25 @@
   ]
   \node[op amp] (B) at (0,0) {};
   \node at (B.center) {\footnotesize A2};
-  \draw (B.+) -- (-1.6,-0.3);
-  \draw (-1.6,-0.3) to[V, l_=$V_{\mathrm{CM}}$, invert] (-1.6,-2.8) node[ground]{};
-  \draw (B.-) -- (-3.0,0.3);
-  \node[railnode] at (-3.0,0.3){};
-  \node[nlab, above=3pt] at (-3.0,0.3){\texttt{WE}};
-  \draw (-3.0,0.3) to[I, l_=$i_{\mathrm{we}}$] (-3.0,-2.8) node[ground]{};
-  \draw (-3.0,0.3) -- (-4.6,0.3);
-  \draw (-4.6,0.3) to[generic, l_=$Z_{\mathrm{cell}}$] (-4.6,-2.4);
+  %% Input pins leave horizontally; every branch that meets them is placed at the
+  %% pin height with (x,0 |- pin) so no run is ever diagonal.
+  \coordinate (Bp) at (B.+);
+  \coordinate (Bm) at (B.-);
+  \coordinate (VCM) at (-1.6,0 |- Bp);
+  \coordinate (WE)  at (-3.0,0 |- Bm);
+  \coordinate (ZC)  at (-4.6,0 |- Bm);
+  \draw (B.+) -- (VCM);
+  \draw (VCM) to[V, l_=$V_{\mathrm{CM}}$, invert] (-1.6,-2.8) node[ground]{};
+  \draw (B.-) -- (WE);
+  \node[railnode] at (WE){};
+  \node[nlab, above left=3pt and 1pt] at (WE){\texttt{WE}};
+  \draw (WE) to[I, l_=$i_{\mathrm{we}}$] (-3.0,-2.8) node[ground]{};
+  \draw (WE) -- (ZC);
+  \draw (ZC) to[generic, l_=$Z_{\mathrm{cell}}$] (-4.6,-2.4);
   \node[nlab, below] at (-4.6,-2.45) {$v_{\mathrm{cm}}$};
-  \draw (-3.0,0.3) -- (-3.0,2.2);
-  \draw (-3.0,2.2) -- (-2.3,2.2);
+  \draw (WE) -- (-3.0,2.2);
   \node[prb] (PB) at (-2.0,2.2) {};
+  \draw (-3.0,2.2) -- (PB.west);
   \node[nlab, above=2pt] at (PB.north) {probe};
   \draw (PB.east) -- (-1.2,2.2);
   \draw (-1.2,2.2) to[R, l=$R_f$] (1.6,2.2);

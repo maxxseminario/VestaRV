@@ -16,13 +16,18 @@
   ]
   \node[op amp] (C) at (0,0) {};
   \node at (C.center) {\footnotesize A2};
-  \draw (C.-) -- (-4.6,0.3);
-  \node[railnode] at (-3.0,0.3){};
-  \node[nlab, above=3pt] at (-3.0,0.3){\texttt{V\_InM}};
-  \draw (-4.6,0.3) to[V, l_=$V_{\mathrm{CM}}$, invert] (-4.6,-2.6) node[ground]{};
-  \draw (-3.0,0.3) to[V, l_=pulse, invert] (-3.0,-1.5);
-  \draw (-3.0,-1.5) -- (-1.6,-1.5) -- (-1.6,-0.3);
-  \draw (-1.6,-0.3) -- (C.+);
+  %% Input pins leave horizontally; every branch that meets them is placed at the
+  %% pin height with (x,0 |- pin) so no run is ever diagonal.
+  \coordinate (Cp) at (C.+);
+  \coordinate (Cm) at (C.-);
+  \coordinate (VINM) at (-3.0,0 |- Cm);
+  \coordinate (VCM)  at (-4.6,0 |- Cm);
+  \draw (C.-) -- (VCM);
+  \node[railnode] at (VINM){};
+  \node[nlab, above=3pt] at (VINM){\texttt{V\_InM}};
+  \draw (VCM) to[V, l_=$V_{\mathrm{CM}}$, invert] (-4.6,-2.6) node[ground]{};
+  \draw (VINM) to[V, l_=pulse, invert] (-3.0,-1.5);
+  \draw (-3.0,-1.5) -- (-1.6,-1.5) -- (-1.6,0 |- Cp) -- (C.+);
   \draw (C.out) -- (1.6,0);
   \node[railnode] at (1.6,0){};
   \node[nlab, below right] at (1.7,-0.05){\texttt{V\_OutOL}};
