@@ -1,0 +1,17 @@
+%% maestro2tex -- generated table; do not edit by hand.
+\begin{table}[htbp]
+  \centering
+  \caption[{Monte Carlo noise of the transimpedance stage, conditions as Table~\ref{tab:tiaab-mc-offset}.}]{Monte Carlo noise of the transimpedance stage, conditions as Table~\ref{tab:tiaab-mc-offset}. The noise analysis runs \SI{0.1}{\hertz} to \SI{10}{\kilo\hertz} at 20 points per decade; the three input-referred rows are the output noise integrated to \SI{10}{\hertz}, \SI{100}{\hertz} and \SI{1}{\kilo\hertz} and divided by $R_f$, and no figure is integrated beyond the analysis stop frequency. All four distributions are symmetric, so mean \(\pm\,3\sigma\) applies. The input-referred rows scale inversely with the selected gain tap; the \SI{2}{\nano\ampere} entry on the \SI{100}{\hertz} row is the channel budget.}
+  \label{tab:tiaab-mc-noise}
+  \footnotesize
+  \begin{tabular}{lrrrrrrrrrr}
+    \toprule
+    Parameter & Unit & $N$ & Mean & $\sigma$ & Mean $\pm\,3\sigma$ & Min & Max & Spec & Yield & 4\,ch \\
+    \midrule
+    Output noise, \SIrange{0.1}{1000}{\hertz} & \si{\milli\volt} & 200 & 1.696 & 0.055 & 1.696\,$\pm$\,0.165 & 1.539 & 1.874 & -- & -- & -- \\
+    Input current noise, \SIrange{0.1}{10}{\hertz} & \si{\pico\ampere} & 200 & 68.5 & 2.2 & 68.5\,$\pm$\,6.7 & 62.2 & 75.8 & -- & -- & -- \\
+    Input current noise, \SIrange{0.1}{100}{\hertz} & \si{\pico\ampere} & 200 & 341.5 & 11.0 & 341.5\,$\pm$\,33.0 & 310.1 & 377.2 & $\leq 2000.0$ & 100.0 & 100.0 \\
+    Input current noise, \SIrange{0.1}{1000}{\hertz} & \si{\nano\ampere} & 200 & 3.029 & 0.098 & 3.029\,$\pm$\,0.294 & 2.749 & 3.346 & -- & -- & -- \\
+    \bottomrule
+  \end{tabular}
+\end{table}

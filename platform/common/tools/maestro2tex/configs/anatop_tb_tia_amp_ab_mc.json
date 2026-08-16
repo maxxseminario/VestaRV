@@ -1,0 +1,468 @@
+{
+  "block": "TiaAmpABMC",
+  "tex_root": "include/analog/",
+  "monte_carlo": true,
+  "emit_master": false,
+  "emit_corner_table": false,
+  "supply_var": "VDD25",
+  "_note": [
+    "Monte Carlo companion for the class-AB transimpedance amplifier",
+    "castalia/anatop_tia_amp_ab. Contributes fragments only: the master file and the",
+    "section order come from anatop_tb_tia_amp_ab_corners.json (block TiaAmpAB), whose",
+    "`order` names every fragment below. This config deliberately has no `order` of its",
+    "own -- adding one would emit a second, competing section.",
+    "",
+    "block is TiaAmpABMC, distinct from TiaAmpAB / TiaAmp / TiaAmpCL / TiaAmpMC /",
+    "ControlAmp / ControlAmpMonteCarlo / BiasGenCascWideSwing. The block name keys",
+    "data/raw/corners_<Block>.json and data/extract_<Block>.ocn; the test names key",
+    "data/raw/<test>__mc.csv. Both namespaces are shared by every block rendering into",
+    "one outdir, hence the ab_ prefix on the test names.",
+    "",
+    "SOURCE: .../tb_anatop_tia_amp_ab/maestro/results/maestro/Plan.1.Run.1",
+    "200 samples, seed 12345, sampling=lds, variations=all, section castalia_pm_25",
+    "(PROCESS AND MISMATCH together). Point the tool at Plan.1.Run.1 itself; the",
+    "per-sample scalars are in psf/<test>/monteCarlo/{mcdata,mcparam} and no OCEAN",
+    "licence is needed.",
+    "",
+    "TEMPERATURE IS NOT UNIFORM ACROSS TESTS, verified in each test's netlist/input.scs:",
+    "  TiaFbTB 37 C; DriveTB, TypOpenLoopTB, UnityFeedbackTB 25 C.",
+    "Every caption below names the temperature that applies to its own table.",
+    "",
+    "Every signal name below is copied verbatim from the run's own mcparam files;",
+    "a name that is not in mcparam is silently dropped from the table with only a log",
+    "line. Note UnityFeedbackTB names its open-loop gain aol_db, not aol.",
+    "",
+    "PUBLISHABLE OUTPUTS ONLY. Deliberate exclusions:",
+    "  TypOpenLoopTB: only p_opamp is used. GainLogOL/GainLinearOL are not defined in",
+    "    this run at all, and V_InPOffset, PhaseMargin, GainMargin, Bandwidth3dB and",
+    "    BandwidthUnity are measured at a railed DC operating point -- PhaseMargin and",
+    "    BandwidthUnity return the sentinel on 177 of 200 samples. None of them is a",
+    "    result; do not publish them, and do not caption around them.",
+    "  SlewOpenLoopTB and StepUnityFeedbackTB: nothing. Their outputs carry no spec",
+    "    limits and were not graded; publishing them would imply slew and settling were.",
+    "  No noise figure integrated beyond 10 kHz: the TiaFbTB noise analysis stops at",
+    "    10 kHz and the UnityFeedbackTB one at 100 kHz. vn_out is 0.1 Hz-1 kHz.",
+    "  TiaFbTB vcm, x_lim, ioff, vout_max, vout_min, fpc_g are bench instrumentation.",
+    "",
+    "Accuracy window: inl_lsb, tue_lsb and gain_err are evaluated over the central",
+    "+/-0.9 of full scale. The expressions reach that number by different routes --",
+    "x_lim uses min(0.9, 3.3e-5*rf/vfs) while the three accuracy outputs embed 8e-06 --",
+    "and both evaluate to exactly 0.9 at rf = 560 kOhm, so the numbers here are",
+    "unaffected. Captions state the window as +/-0.9 of full scale and never as the",
+    "internal constants, which would be wrong at another gain tap.",
+    "",
+    "tue_lsb correlates with |voff| at r = +1.000 over the 200 samples: at this tap",
+    "total unadjusted error is offset, not an independent result. Said once, in the",
+    "accuracy table caption.",
+    "",
+    "stb_gm has N = 167/200. The 33 held-out samples are sentinels because the loop",
+    "phase never reaches the critical value, so no gain margin exists for them. They",
+    "are not failures and must not be reported as any."
+  ],
+  "tests": {
+    "ab_mc_tiafb": {
+      "dir": "TiaFbTB",
+      "signals": {
+        "voff": {
+          "label": "Output offset at zero current",
+          "unit_tex": "\\si{\\milli\\volt}",
+          "scale": 1000.0,
+          "digits": 2
+        },
+        "gain_err": {
+          "label": "Gain error",
+          "unit_tex": "ppm",
+          "scale": 1000000.0,
+          "digits": 1
+        },
+        "inl_lsb": {
+          "label": "Integral non-linearity",
+          "unit_tex": "LSB",
+          "scale": 1.0,
+          "digits": 3
+        },
+        "tue_lsb": {
+          "label": "Total unadjusted error",
+          "unit_tex": "LSB",
+          "scale": 1.0,
+          "digits": 2
+        },
+        "zt0": {
+          "label": "Transimpedance at \\SI{1}{\\hertz}",
+          "unit_tex": "\\si{\\kilo\\ohm}",
+          "scale": 0.001,
+          "digits": 2
+        },
+        "zt_err": {
+          "label": "Deviation from $R_f$",
+          "unit_tex": "ppm",
+          "scale": 1000000.0,
+          "digits": 1
+        },
+        "stb_aol_db": {
+          "label": "Loop gain at DC",
+          "unit_tex": "\\si{\\decibel}",
+          "scale": 1.0,
+          "digits": 2
+        },
+        "stb_pm": {
+          "label": "Phase margin",
+          "unit_tex": "\\si{\\degree}",
+          "scale": 1.0,
+          "digits": 1
+        },
+        "stb_gm": {
+          "label": "Gain margin",
+          "unit_tex": "\\si{\\decibel}",
+          "scale": 1.0,
+          "digits": 2
+        },
+        "stb_fx": {
+          "label": "Loop crossover",
+          "unit_tex": "\\si{\\kilo\\hertz}",
+          "scale": 0.001,
+          "digits": 2
+        },
+        "f3db": {
+          "label": "Signal bandwidth $f_{-3\\,\\mathrm{dB}}$",
+          "unit_tex": "\\si{\\kilo\\hertz}",
+          "scale": 0.001,
+          "digits": 2
+        },
+        "peaking_db": {
+          "label": "Gain peaking",
+          "unit_tex": "\\si{\\decibel}",
+          "scale": 1.0,
+          "digits": 2
+        },
+        "vn_out": {
+          "label": "Output noise, \\SIrange{0.1}{1000}{\\hertz}",
+          "unit_tex": "\\si{\\milli\\volt}",
+          "scale": 1000.0,
+          "digits": 3
+        },
+        "in_rms_10": {
+          "label": "Input current noise, \\SIrange{0.1}{10}{\\hertz}",
+          "unit_tex": "\\si{\\pico\\ampere}",
+          "scale": 1000000000000.0,
+          "digits": 1
+        },
+        "in_rms_100": {
+          "label": "Input current noise, \\SIrange{0.1}{100}{\\hertz}",
+          "unit_tex": "\\si{\\pico\\ampere}",
+          "scale": 1000000000000.0,
+          "digits": 1
+        },
+        "in_rms_1k": {
+          "label": "Input current noise, \\SIrange{0.1}{1000}{\\hertz}",
+          "unit_tex": "\\si{\\nano\\ampere}",
+          "scale": 1000000000.0,
+          "digits": 3
+        }
+      }
+    },
+    "ab_mc_unity": {
+      "dir": "UnityFeedbackTB",
+      "signals": {
+        "pm": {
+          "label": "Phase margin",
+          "unit_tex": "\\si{\\degree}",
+          "scale": 1.0,
+          "digits": 1
+        },
+        "gm": {
+          "label": "Gain margin",
+          "unit_tex": "\\si{\\decibel}",
+          "scale": 1.0,
+          "digits": 2
+        },
+        "aol_db": {
+          "label": "Open-loop gain $A_{\\mathrm{OL}}$",
+          "unit_tex": "\\si{\\decibel}",
+          "scale": 1.0,
+          "digits": 2
+        },
+        "vn_rms": {
+          "label": "Output noise, \\SI{0.1}{\\hertz} to \\SI{100}{\\kilo\\hertz}",
+          "unit_tex": "\\si{\\micro\\volt}",
+          "scale": 1000000.0,
+          "digits": 2
+        }
+      }
+    },
+    "ab_mc_drive": {
+      "dir": "DriveTB",
+      "signals": {
+        "i_src_50m": {
+          "label": "Sourced current at \\SI{50}{\\milli\\volt} error",
+          "unit_tex": "\\si{\\milli\\ampere}",
+          "scale": 1000.0,
+          "digits": 3
+        }
+      }
+    },
+    "ab_mc_power": {
+      "dir": "TypOpenLoopTB",
+      "signals": {
+        "p_opamp": {
+          "label": "Amplifier dissipation",
+          "unit_tex": "\\si{\\micro\\watt}",
+          "scale": 1000000.0,
+          "digits": 1
+        }
+      }
+    }
+  },
+  "figures": [
+    {
+      "id": "tiaab_mc_voff",
+      "kind": "histogram",
+      "test": "ab_mc_tiafb",
+      "signals": [
+        "voff"
+      ],
+      "bins": 30,
+      "spec_span": 1.5,
+      "spec_lo_label": "$-5$\\,\\si{\\milli\\volt}",
+      "spec_hi_label": "$+5$\\,\\si{\\milli\\volt}",
+      "width": "0.86\\linewidth",
+      "height": "6.0cm",
+      "xlabel": "Output offset at zero current~[\\si{\\milli\\volt}]",
+      "ylabel": "Samples",
+      "caption": "Output offset at zero electrode current, referred to $v_{\\mathrm{cm}}$. \\textbf{Process and mismatch} (\\texttt{castalia\\_pm\\_25}), \\SI{37}{\\celsius}, 200 samples, seed 12345, LDS sampling, $R_f = \\SI{560}{\\kilo\\ohm}$, $C_f = \\SI{22}{\\pico\\farad}$, $C_L = \\SI{5}{\\pico\\farad}$, $C_c = \\SI{500}{\\femto\\farad}$, \\texttt{BiasAdj}~=~37, \\SI{2.5}{\\volt}. The rules are the \\(\\pm\\SI{5}{\\milli\\volt}\\) limits entered on the test. \\(\\sigma = \\SI{8.91}{\\milli\\volt}\\) (sample deviation, as in every table of this section); 96 of 200 samples lie within the limits, \\SI{5.3}{\\percent} across four independent channels. Statistics are in Table~\\ref{tab:tiaab-mc-offset}."
+    },
+    {
+      "id": "tiaab_mc_pm",
+      "kind": "histogram",
+      "test": "ab_mc_tiafb",
+      "signals": [
+        "stb_pm"
+      ],
+      "bins": 30,
+      "spec_span": 1.5,
+      "spec_lo_label": "criterion \\SI{45}{\\degree}",
+      "width": "0.86\\linewidth",
+      "height": "6.0cm",
+      "xlabel": "Transimpedance loop phase margin~[\\si{\\degree}]",
+      "ylabel": "Samples",
+      "caption": "Phase margin of the transimpedance loop, conditions as Figure~\\ref{fig:tiaab-mc-voff}. The loop is measured by \\texttt{stb} through the \\texttt{IPRB\\_F} probe and includes the amplifier, the feedback network and the \\texttt{randles\\_cell} electrode ($R_s = \\SI{100}{\\ohm}$, $R_{\\mathrm{ct}} = \\SI{1}{\\mega\\ohm}$, $C_{\\mathrm{dl}} = \\SI{100}{\\nano\\farad}$). All 200 samples clear the \\SI{45}{\\degree} criterion, minimum \\SI{64.7}{\\degree}. The distribution is right-skewed, so percentiles and the extreme sample are quoted in Table~\\ref{tab:tiaab-mc-stability} rather than \\(\\pm 3\\sigma\\)."
+    },
+    {
+      "id": "tiaab_mc_inoise",
+      "kind": "histogram",
+      "test": "ab_mc_tiafb",
+      "signals": [
+        "in_rms_100"
+      ],
+      "bins": 30,
+      "spec_span": 1.5,
+      "spec_hi_label": "budget \\SI{2}{\\nano\\ampere}",
+      "width": "0.86\\linewidth",
+      "height": "6.0cm",
+      "xlabel": "Input current noise, \\SIrange{0.1}{100}{\\hertz}~[\\si{\\pico\\ampere}]",
+      "ylabel": "Samples",
+      "caption": "Input-referred current noise integrated \\SIrange{0.1}{100}{\\hertz}, conditions as Figure~\\ref{fig:tiaab-mc-voff}. Output noise divided by $R_f$, from a noise analysis that runs \\SI{0.1}{\\hertz} to \\SI{10}{\\kilo\\hertz} at 20 points per decade. The \\SI{2}{\\nano\\ampere} budget entered on the test is about six times the measured value and is annotated at the axis edge rather than drawn, so that the \\SIrange{310}{377}{\\pico\\ampere} spread stays legible. The figure scales inversely with the selected gain tap."
+    },
+    {
+      "id": "tiaab_mc_power",
+      "kind": "histogram",
+      "test": "ab_mc_power",
+      "signals": [
+        "p_opamp"
+      ],
+      "bins": 30,
+      "spec_span": 1.5,
+      "spec_hi_label": "limit \\SI{300}{\\micro\\watt}",
+      "width": "0.86\\linewidth",
+      "height": "6.0cm",
+      "xlabel": "Amplifier dissipation~[\\si{\\micro\\watt}]",
+      "ylabel": "Samples",
+      "caption": "Amplifier dissipation at the DC operating point. \\textbf{Process and mismatch} (\\texttt{castalia\\_pm\\_25}), \\SI{25}{\\celsius}, 200 samples, seed 12345, LDS sampling, \\texttt{BiasAdj}~=~37, \\SI{2.5}{\\volt}, both inputs at $v_{\\mathrm{cm}}$, no load current; at this open-loop operating point the output rests near \\texttt{vss}. The distribution is bimodal: 187 of 200 samples lie between \\SI{75}{\\micro\\watt} and \\SI{170}{\\micro\\watt} (median \\SI{111.8}{\\micro\\watt}) and 13 converge to a second DC solution branch of the degenerate open-loop operating point, up to the worst sample at \\SI{302.5}{\\micro\\watt} against the \\SI{300}{\\micro\\watt} limit entered on the test. Mean \\(\\pm\\,3\\sigma\\) is not meaningful for this shape and is not quoted. The figure is the amplifier instance alone and excludes the shared bias generator."
+    }
+  ],
+  "tables": [
+    {
+      "id": "tiaab_mc_offset",
+      "type": "mcstats",
+      "test": "ab_mc_tiafb",
+      "signals": [
+        "voff"
+      ],
+      "stats": [
+        "n",
+        "mean",
+        "sigma",
+        "mean_3s",
+        "min",
+        "max",
+        "spec",
+        "yield",
+        "yield_chip"
+      ],
+      "channels": 4,
+      "caption": "Monte Carlo output offset at zero electrode current. \\textbf{Process and mismatch} (\\texttt{castalia\\_pm\\_25}), \\SI{37}{\\celsius}, 200 samples, seed 12345, LDS sampling, $R_f = \\SI{560}{\\kilo\\ohm}$, $C_f = \\SI{22}{\\pico\\farad}$, $C_L = \\SI{5}{\\pico\\farad}$, $C_c = \\SI{500}{\\femto\\farad}$, \\texttt{BiasAdj}~=~37, \\SI{2.5}{\\volt}, electrode \\texttt{randles\\_cell} with $R_s = \\SI{100}{\\ohm}$, $R_{\\mathrm{ct}} = \\SI{1}{\\mega\\ohm}$, $C_{\\mathrm{dl}} = \\SI{100}{\\nano\\farad}$. The distribution is approximately Gaussian, so mean \\(\\pm\\,3\\sigma\\) is quoted here and not for the skewed quantities in the tables that follow; the worst sample, \\SI{-28.5}{\\milli\\volt}, lies just outside it. Spec and yield are the \\(\\pm\\SI{5}{\\milli\\volt}\\) limits entered on the test; the four-channel column assumes independent channels. This run varies process as well as mismatch, so \\(\\sigma\\) is die-to-die and is an upper bound on the within-die channel-to-channel term."
+    },
+    {
+      "id": "tiaab_mc_accuracy",
+      "type": "mcstats",
+      "test": "ab_mc_tiafb",
+      "signals": [
+        "gain_err",
+        "zt0",
+        "zt_err",
+        "inl_lsb",
+        "tue_lsb"
+      ],
+      "stats": [
+        "n",
+        "mean",
+        "sigma",
+        "p1",
+        "p99",
+        "worst",
+        "spec",
+        "yield",
+        "yield_chip"
+      ],
+      "channels": 4,
+      "caption": "Monte Carlo transfer accuracy, conditions as Table~\\ref{tab:tiaab-mc-offset}. Gain error, INL and total unadjusted error are evaluated over the central \\(\\pm 0.9\\) of the full-scale input-current range and the two LSB rows are referred to the \\SI{2.441}{\\milli\\volt} ADC LSB. Total unadjusted error correlates with \\(|V_{\\mathrm{OS}}|\\) at \\(r = +1.000\\) across the 200 samples: at this gain tap it is the offset of Table~\\ref{tab:tiaab-mc-offset} expressed in LSB, not an independent result, and its \\num{4}~LSB limit corresponds to an offset of about \\SI{9.8}{\\milli\\volt}, which is why its yield is not the offset yield. Gain error and INL are set by the amplifier and pass on every sample; the feedback resistor is an ideal element here and contributes no tolerance. Percentiles and worst case are quoted rather than \\(\\pm 3\\sigma\\) because INL and total unadjusted error are right-skewed."
+    },
+    {
+      "id": "tiaab_mc_stability",
+      "type": "mcstats",
+      "test": "ab_mc_tiafb",
+      "signals": [
+        "stb_aol_db",
+        "stb_pm",
+        "stb_gm",
+        "stb_fx"
+      ],
+      "stats": [
+        "n",
+        "mean",
+        "sigma",
+        "p1",
+        "p99",
+        "worst",
+        "spec",
+        "yield",
+        "yield_chip"
+      ],
+      "channels": 4,
+      "caption": "Monte Carlo transimpedance loop stability, conditions as Table~\\ref{tab:tiaab-mc-offset}. Measured by \\texttt{stb} through the \\texttt{IPRB\\_F} probe, so the loop includes the amplifier, the feedback network and the electrode. Gain margin reports $N = 167/200$ because the loop phase never reaches the critical value on the other 33 samples and no gain margin exists for them; those samples are held out of the statistics and are not failures. Percentiles and worst case are quoted rather than \\(\\pm 3\\sigma\\) for the margins, which are not normally distributed."
+    },
+    {
+      "id": "tiaab_mc_unity",
+      "type": "mcstats",
+      "test": "ab_mc_unity",
+      "signals": [
+        "aol_db",
+        "pm",
+        "gm",
+        "vn_rms"
+      ],
+      "stats": [
+        "n",
+        "mean",
+        "sigma",
+        "p1",
+        "p99",
+        "worst",
+        "spec",
+        "yield",
+        "yield_chip"
+      ],
+      "channels": 4,
+      "caption": "Monte Carlo amplifier stability and noise in unity-gain feedback. \\textbf{Process and mismatch} (\\texttt{castalia\\_pm\\_25}), \\SI{25}{\\celsius}, 200 samples, seed 12345, LDS sampling, $C_L = \\SI{5}{\\pico\\farad}$, $C_c = \\SI{500}{\\femto\\farad}$, \\texttt{BiasAdj}~=~37, \\SI{2.5}{\\volt}. This is the amplifier alone, with neither the feedback network nor the electrode in the loop, and is not comparable with Table~\\ref{tab:tiaab-mc-stability}. The noise row is the output noise of this configuration integrated \\SI{0.1}{\\hertz} to \\SI{100}{\\kilo\\hertz} against the \\SI{1.22}{\\milli\\volt} limit entered on the test; the transimpedance noise that reaches the ADC is in Table~\\ref{tab:tiaab-mc-noise}."
+    },
+    {
+      "id": "tiaab_mc_bandwidth",
+      "type": "mcstats",
+      "test": "ab_mc_tiafb",
+      "signals": [
+        "f3db",
+        "peaking_db"
+      ],
+      "stats": [
+        "n",
+        "mean",
+        "sigma",
+        "mean_3s",
+        "min",
+        "max",
+        "spec",
+        "yield",
+        "yield_chip"
+      ],
+      "channels": 4,
+      "caption": "Monte Carlo closed-loop bandwidth and gain peaking, conditions as Table~\\ref{tab:tiaab-mc-offset}. Both are read from the transimpedance magnitude with a \\SI{1}{\\ampere} AC current into the working electrode; peaking is referred to $Z_t(\\SI{1}{\\hertz})$. Both distributions are symmetric, so mean \\(\\pm\\,3\\sigma\\) applies. Every sample meets the \\SI{1}{\\kilo\\hertz} bandwidth floor and the \\SI{2}{\\decibel} peaking ceiling entered on the test."
+    },
+    {
+      "id": "tiaab_mc_noise",
+      "type": "mcstats",
+      "test": "ab_mc_tiafb",
+      "signals": [
+        "vn_out",
+        "in_rms_10",
+        "in_rms_100",
+        "in_rms_1k"
+      ],
+      "stats": [
+        "n",
+        "mean",
+        "sigma",
+        "mean_3s",
+        "min",
+        "max",
+        "spec",
+        "yield",
+        "yield_chip"
+      ],
+      "channels": 4,
+      "caption": "Monte Carlo noise of the transimpedance stage, conditions as Table~\\ref{tab:tiaab-mc-offset}. The noise analysis runs \\SI{0.1}{\\hertz} to \\SI{10}{\\kilo\\hertz} at 20 points per decade; the three input-referred rows are the output noise integrated to \\SI{10}{\\hertz}, \\SI{100}{\\hertz} and \\SI{1}{\\kilo\\hertz} and divided by $R_f$, and no figure is integrated beyond the analysis stop frequency. All four distributions are symmetric, so mean \\(\\pm\\,3\\sigma\\) applies. The input-referred rows scale inversely with the selected gain tap; the \\SI{2}{\\nano\\ampere} entry on the \\SI{100}{\\hertz} row is the channel budget."
+    },
+    {
+      "id": "tiaab_mc_drive",
+      "type": "mcstats",
+      "test": "ab_mc_drive",
+      "signals": [
+        "i_src_50m"
+      ],
+      "stats": [
+        "n",
+        "mean",
+        "sigma",
+        "mean_3s",
+        "min",
+        "max",
+        "spec",
+        "yield",
+        "yield_chip"
+      ],
+      "channels": 4,
+      "caption": "Monte Carlo output drive, sourcing. \\textbf{Process and mismatch} (\\texttt{castalia\\_pm\\_25}), \\SI{25}{\\celsius}, 200 samples, seed 12345, LDS sampling, amplifier in unity-gain feedback at $v_{\\mathrm{cm}} = \\SI{1.25}{\\volt}$, $C_L = \\SI{5}{\\pico\\farad}$, $C_c = \\SI{500}{\\femto\\farad}$, \\texttt{BiasAdj}~=~37, \\SI{2.5}{\\volt}, load current swept \\SIrange{-10}{10}{\\milli\\ampere}. The entry is the load current at which the output departs from $v_{\\mathrm{cm}}$ by \\SI{50}{\\milli\\volt}, not a hard current limit. The distribution is symmetric. The \\SI{40}{\\micro\\ampere} sweep step quantises the entry, and is about half of \\(\\sigma\\). All 200 samples clear the \\SI{10}{\\micro\\ampere} floor entered on the test."
+    },
+    {
+      "id": "tiaab_mc_power",
+      "type": "mcstats",
+      "test": "ab_mc_power",
+      "signals": [
+        "p_opamp"
+      ],
+      "stats": [
+        "n",
+        "mean",
+        "sigma",
+        "median",
+        "p1",
+        "p99",
+        "worst",
+        "spec",
+        "yield",
+        "yield_chip"
+      ],
+      "channels": 4,
+      "caption": "Monte Carlo amplifier dissipation at the DC operating point. \\textbf{Process and mismatch} (\\texttt{castalia\\_pm\\_25}), \\SI{25}{\\celsius}, 200 samples, seed 12345, LDS sampling, \\texttt{BiasAdj}~=~37, \\SI{2.5}{\\volt}, both inputs at $v_{\\mathrm{cm}}$, no load current; at this open-loop operating point the output rests near \\texttt{vss}. The distribution is bimodal (Figure~\\ref{fig:tiaab-mc-power}): the open-loop operating point is degenerate and 13 of 200 samples converge to a second DC solution branch at roughly twice the median dissipation, so the median, percentiles and worst sample are quoted and mean \\(\\pm\\,3\\sigma\\) is not. One sample of 200 exceeds the \\SI{300}{\\micro\\watt} limit entered on the test. The figure is the amplifier instance alone; the local bias generator that sets this current is shared by all four channels, so its contribution is common-mode and does not average out between them."
+    }
+  ]
+}

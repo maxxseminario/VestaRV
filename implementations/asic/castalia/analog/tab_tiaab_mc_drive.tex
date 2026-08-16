@@ -1,0 +1,14 @@
+%% maestro2tex -- generated table; do not edit by hand.
+\begin{table}[htbp]
+  \centering
+  \caption[{Monte Carlo output drive, sourcing.}]{Monte Carlo output drive, sourcing. \textbf{Process and mismatch} (\texttt{castalia\_pm\_25}), \SI{25}{\celsius}, 200 samples, seed 12345, LDS sampling, amplifier in unity-gain feedback at $v_{\mathrm{cm}} = \SI{1.25}{\volt}$, $C_L = \SI{5}{\pico\farad}$, $C_c = \SI{500}{\femto\farad}$, \texttt{BiasAdj}~=~37, \SI{2.5}{\volt}, load current swept \SIrange{-10}{10}{\milli\ampere}. The entry is the load current at which the output departs from $v_{\mathrm{cm}}$ by \SI{50}{\milli\volt}, not a hard current limit. The distribution is symmetric. The \SI{40}{\micro\ampere} sweep step quantises the entry, and is about half of \(\sigma\). All 200 samples clear the \SI{10}{\micro\ampere} floor entered on the test.}
+  \label{tab:tiaab-mc-drive}
+  \footnotesize
+  \begin{tabular}{lrrrrrrrrrr}
+    \toprule
+    Parameter & Unit & $N$ & Mean & $\sigma$ & Mean $\pm\,3\sigma$ & Min & Max & Spec & Yield & 4\,ch \\
+    \midrule
+    Sourced current at \SI{50}{\milli\volt} error & \si{\milli\ampere} & 200 & 2.285 & 0.086 & 2.285\,$\pm$\,0.259 & 2.099 & 2.517 & $\geq 0.010$ & 100.0 & 100.0 \\
+    \bottomrule
+  \end{tabular}
+\end{table}

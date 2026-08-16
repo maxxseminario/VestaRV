@@ -1,0 +1,42 @@
+%% maestro2tex -- generated figure; do not edit by hand.
+\providecommand{\MaestroRoot}{include/analog/}
+\begin{figure}[htbp]
+  \centering
+  {\pgfplotsset{compat=1.18}%
+  \begin{tikzpicture}
+    \begin{axis}[
+      width=0.82\linewidth, height=6.2cm,
+      xlabel={Frequency~[\si{\hertz}]}, ylabel={Loop gain $|T|$~[\si{\decibel}]},
+      grid=both,
+      major grid style={line width=0.2pt, draw=black!14},
+      minor grid style={line width=0.2pt, draw=black!7},
+      minor tick num=1,
+      axis line style={line width=0.4pt, draw=black!45},
+      tick style={line width=0.4pt, draw=black!45},
+      tick align=outside,
+      label style={font=\small}, tick label style={font=\small},
+      enlarge x limits=0.02, enlarge y limits=0.10,
+      every axis plot/.append style={line join=round, no marks},
+      legend style={font=\footnotesize, draw=black!25, fill=white,
+                    fill opacity=0.9, text opacity=1, row sep=1pt},
+      legend cell align=left, legend pos=south west,
+      xmode=log,
+      scaled y ticks=false,
+      y tick label style={/pgf/number format/fixed,
+                          /pgf/number format/precision=0}
+    ]
+      \addplot[mtxA, line width=1.1pt, solid] table {\MaestroRoot data/tiaab_loopgain_00.dat};
+      \addlegendentry{tt}
+      \addplot[mtxB, line width=1.1pt, dashed] table {\MaestroRoot data/tiaab_loopgain_01.dat};
+      \addlegendentry{ff}
+      \addplot[mtxC, line width=1.1pt, dotted] table {\MaestroRoot data/tiaab_loopgain_02.dat};
+      \addlegendentry{fs}
+      \addplot[mtxD, line width=1.1pt, dashdotted] table {\MaestroRoot data/tiaab_loopgain_03.dat};
+      \addlegendentry{sf}
+      \addplot[mtxE, line width=1.1pt, densely dashed] table {\MaestroRoot data/tiaab_loopgain_04.dat};
+      \addlegendentry{ss}
+    \end{axis}
+  \end{tikzpicture}}
+  \caption[{Transimpedance loop gain over five process corners, by \texttt{stb} analysis through the \texttt{IPRB\_F}\,\dots}]{Transimpedance loop gain over five process corners, by \texttt{stb} analysis through the \texttt{IPRB\_F} probe in series with the feedback network. $R_f = \SI{560}{\kilo\ohm}$, $C_f = \SI{22}{\pico\farad}$, $C_L = \SI{5}{\pico\farad}$, $C_c = \SI{500}{\femto\farad}$, \texttt{BiasAdj}~=~37, \SI{2.5}{\volt}, electrode \texttt{randles\_cell} with $R_s = \SI{100}{\ohm}$, $R_{\mathrm{ct}} = \SI{1}{\mega\ohm}$, $C_{\mathrm{dl}} = \SI{100}{\nano\farad}$. \texttt{tt} is at \SI{37}{\celsius}, the four skew corners at \SI{25}{\celsius}. This is the loop around the amplifier, the feedback network and the electrode together, not the amplifier's own gain; the two are tabulated separately in Tables~\ref{tab:tiaab-stability} and~\ref{tab:tiaab-unity}.}
+  \label{fig:tiaab-loopgain}
+\end{figure}

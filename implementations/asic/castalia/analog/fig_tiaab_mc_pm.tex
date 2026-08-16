@@ -1,0 +1,39 @@
+%% maestro2tex -- generated Monte Carlo histogram; do not edit by hand.
+\providecommand{\MaestroRoot}{include/analog/}
+\begin{figure}[htbp]
+  \centering
+  {\pgfplotsset{compat=1.18}%
+  \begin{tikzpicture}
+    \begin{axis}[
+      width=0.86\linewidth, height=6.0cm,
+      xlabel={Transimpedance loop phase margin~[\si{\degree}]}, ylabel={Samples},
+      grid=both,
+      major grid style={line width=0.2pt, draw=black!14},
+      minor grid style={line width=0.2pt, draw=black!7},
+      minor tick num=1,
+      axis line style={line width=0.4pt, draw=black!45},
+      tick style={line width=0.4pt, draw=black!45},
+      tick align=outside,
+      label style={font=\small}, tick label style={font=\small},
+      enlarge x limits=0.02, enlarge y limits=0.10,
+      every axis plot/.append style={line join=round, no marks},
+      legend style={font=\footnotesize, draw=none, fill=none,
+                    at={(0.5,1.02)}, anchor=south, legend columns=-1,
+                    /tikz/every even column/.append style={column sep=9pt}},
+      legend cell align=left,
+      scaled y ticks=false, scaled x ticks=false,
+      y tick label style={/pgf/number format/fixed,
+                          /pgf/number format/precision=0},
+      ymin=0, ymax=48.1,
+      enlarge x limits=0.04, enlarge y limits=false,
+      area legend
+    ]
+      \addplot[ybar interval, draw=mtxA, fill=mtxA!25, line width=0.7pt] table {\MaestroRoot data/tiaab_mc_pm_00.dat};
+      \addlegendentry{Phase margin}
+      \draw[black!70, line width=1.0pt, densely dashed] ({axis cs:45,0}|-{rel axis cs:0,0}) -- ({axis cs:45,0}|-{rel axis cs:0,0.90})
+        node[above right, font=\footnotesize, inner sep=1pt] {criterion \SI{45}{\degree}};
+    \end{axis}
+  \end{tikzpicture}}
+  \caption[{Phase margin of the transimpedance loop, conditions as Figure~\ref{fig:tiaab-mc-voff}.}]{Phase margin of the transimpedance loop, conditions as Figure~\ref{fig:tiaab-mc-voff}. The loop is measured by \texttt{stb} through the \texttt{IPRB\_F} probe and includes the amplifier, the feedback network and the \texttt{randles\_cell} electrode ($R_s = \SI{100}{\ohm}$, $R_{\mathrm{ct}} = \SI{1}{\mega\ohm}$, $C_{\mathrm{dl}} = \SI{100}{\nano\farad}$). All 200 samples clear the \SI{45}{\degree} criterion, minimum \SI{64.7}{\degree}. The distribution is right-skewed, so percentiles and the extreme sample are quoted in Table~\ref{tab:tiaab-mc-stability} rather than \(\pm 3\sigma\).}
+  \label{fig:tiaab-mc-pm}
+\end{figure}

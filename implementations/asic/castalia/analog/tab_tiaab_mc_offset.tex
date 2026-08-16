@@ -1,0 +1,14 @@
+%% maestro2tex -- generated table; do not edit by hand.
+\begin{table}[htbp]
+  \centering
+  \caption[{Monte Carlo output offset at zero electrode current.}]{Monte Carlo output offset at zero electrode current. \textbf{Process and mismatch} (\texttt{castalia\_pm\_25}), \SI{37}{\celsius}, 200 samples, seed 12345, LDS sampling, $R_f = \SI{560}{\kilo\ohm}$, $C_f = \SI{22}{\pico\farad}$, $C_L = \SI{5}{\pico\farad}$, $C_c = \SI{500}{\femto\farad}$, \texttt{BiasAdj}~=~37, \SI{2.5}{\volt}, electrode \texttt{randles\_cell} with $R_s = \SI{100}{\ohm}$, $R_{\mathrm{ct}} = \SI{1}{\mega\ohm}$, $C_{\mathrm{dl}} = \SI{100}{\nano\farad}$. The distribution is approximately Gaussian, so mean \(\pm\,3\sigma\) is quoted here and not for the skewed quantities in the tables that follow; the worst sample, \SI{-28.5}{\milli\volt}, lies just outside it. Spec and yield are the \(\pm\SI{5}{\milli\volt}\) limits entered on the test; the four-channel column assumes independent channels. This run varies process as well as mismatch, so \(\sigma\) is die-to-die and is an upper bound on the within-die channel-to-channel term.}
+  \label{tab:tiaab-mc-offset}
+  \footnotesize
+  \begin{tabular}{lrrrrrrrrrr}
+    \toprule
+    Parameter & Unit & $N$ & Mean & $\sigma$ & Mean $\pm\,3\sigma$ & Min & Max & Spec & Yield & 4\,ch \\
+    \midrule
+    Output offset at zero current & \si{\milli\volt} & 200 & $-1.08$ & 8.91 & $-1.08$\,$\pm$\,26.72 & $-28.46$ & 25.28 & $\pm5.00$ & 48.0 & 5.3 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
