@@ -1,12 +1,12 @@
--------------------------------------------------------------------------------
--- i3c_bfm_pkg.vhd
--------------------------------------------------------------------------------
--- Bench helpers for the I3C peripheral testbench and its target-responder model.
--- Slot numbers and field packers are LOCAL to this bench; MemoryMap.vhd carries no I3C constants.
--- Word slots: 0 I3CxCR, 1 I3CxCMD, 2 I3CxTX, 3 I3CxRX, 4 I3CxSR, 5 I3CxDAT, 6 I3CxDATPID, 7 I3CxDATINFO, 8 I3CxIBI, 9 reserved.
--- i3c_parity() and i3c_read_pattern() are the T-bit and read-data reference formulas, shared by the target model that drives them and the tb that expects them.
--- The shared pattern formula is not independently derived, so the tb also checks at least one hand-computed literal.
--------------------------------------------------------------------------------
+/* -----------------------------------------------------------------------------
+   i3c_bfm_pkg.vhd
+   -----------------------------------------------------------------------------
+   Bench helpers for the I3C peripheral testbench and its target-responder model.
+   Slot numbers and field packers are LOCAL to this bench; MemoryMap.vhd carries no I3C constants.
+   Word slots: 0 I3CxCR, 1 I3CxCMD, 2 I3CxTX, 3 I3CxRX, 4 I3CxSR, 5 I3CxDAT, 6 I3CxDATPID, 7 I3CxDATINFO, 8 I3CxIBI, 9 reserved.
+   i3c_parity() and i3c_read_pattern() are the T-bit and read-data reference formulas, shared by the target model that drives them and the tb that expects them.
+   The shared pattern formula is not independently derived, so the tb also checks at least one hand-computed literal.
+   ----------------------------------------------------------------------------- */
 
 library ieee;
 use ieee.std_logic_1164.all;

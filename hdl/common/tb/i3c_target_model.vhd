@@ -1,8 +1,8 @@
--- Behavioral I3C/legacy-I2C TARGET responder for the I3C testbench: the TB states the shape of each transaction through cfg_* inputs held stable across one START..STOP frame.
--- Bus traffic is parsed as 9-edge groups off a single SCL rising-edge counter: group 0 is 7 address bits MSB-first plus RnW plus the ACK slot, and each later group is 8 data bits plus an ACK/T slot.
--- Sampling happens on the SCL rising edge and this model's drive setup on the falling edge; a START or repeated START always resets the counter and restarts the address group.
--- The model is open-drain throughout and NEVER drives an active high: a released bit relies on the bench's weak 'H' pull, and sda_oe/scl_oe = '1' means this model drives the matching *_out.
--- DAA and IBI are modelled, HDR modes are not, and the legacy-only SCL stretch after the address ACK is an illustrative fixed hold that exercises the scl_oe wiring, not a modelled processing delay.
+/* Behavioral I3C/legacy-I2C TARGET responder for the I3C testbench: the TB states the shape of each transaction through cfg_* inputs held stable across one START..STOP frame.
+   Bus traffic is parsed as 9-edge groups off a single SCL rising-edge counter: group 0 is 7 address bits MSB-first plus RnW plus the ACK slot, and each later group is 8 data bits plus an ACK/T slot.
+   Sampling happens on the SCL rising edge and this model's drive setup on the falling edge; a START or repeated START always resets the counter and restarts the address group.
+   The model is open-drain throughout and NEVER drives an active high: a released bit relies on the bench's weak 'H' pull, and sda_oe/scl_oe = '1' means this model drives the matching *_out.
+   DAA and IBI are modelled, HDR modes are not, and the legacy-only SCL stretch after the address ACK is an illustrative fixed hold that exercises the scl_oe wiring, not a modelled processing delay. */
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -97,9 +97,9 @@ begin
         variable g, bp, byte_idx : natural;     -- group index, bit position in group, data-byte index
         variable pat : std_logic_vector(7 downto 0);  -- generated read-pattern byte
 
-        -- ---- DAA state ------------------------------------------------
-        -- `assigned` persists once this device wins an ENTDAA round: it then NACKs further 7E+R headers and ACKs its adopted dynamic address, while the per-round state resets on every START/Sr.
-        -- daa_id = {PID[47:0], BCR, DCR} is the 64-bit value streamed MSB-first under open-drain arbitration.
+        /* ---- DAA state ------------------------------------------------
+           `assigned` persists once this device wins an ENTDAA round: it then NACKs further 7E+R headers and ACKs its adopted dynamic address, while the per-round state resets on every START/Sr.
+           daa_id = {PID[47:0], BCR, DCR} is the 64-bit value streamed MSB-first under open-drain arbitration. */
         variable assigned    : boolean := false;
         variable daa_dynaddr : std_logic_vector(6 downto 0) := (others => '0');
         variable daa_round   : boolean := false;   -- participating in this 7E+R round
@@ -110,10 +110,10 @@ begin
         variable k           : natural;            -- bit index within the 64-bit arbitration ID
         variable par_v       : std_logic;          -- locally recomputed assign parity
 
-        -- ---- IBI initiator state --------------------------------------
-        -- in_ibi spans the START..STOP of a model-initiated IBI; ibi_fall counts SCL falling edges since that START and selects the bit set up for the next sample, with the ACK sampled at ibi_fall=9:
-        --   k=0..6 address MSB-first, k=7 RnW=1, k=8 ACK slot (controller drives),
-        --   k=9..16 MDB MSB-first, k=17 T slot, k=18 and beyond released.
+        /* ---- IBI initiator state --------------------------------------
+           in_ibi spans the START..STOP of a model-initiated IBI; ibi_fall counts SCL falling edges since that START and selects the bit set up for the next sample, with the ACK sampled at ibi_fall=9:
+             k=0..6 address MSB-first, k=7 RnW=1, k=8 ACK slot (controller drives),
+             k=9..16 MDB MSB-first, k=17 T slot, k=18 and beyond released. */
         variable in_ibi      : boolean := false;
         variable ibi_fall    : natural := 0;
         variable ibi_acked_v : boolean := false;
@@ -169,9 +169,9 @@ begin
                 scl_oe  <= '0'; scl_out <= '0';
             end if;
 
-        ------------------------------------------------------------------
-        -- START, repeated-START and STOP detection: SDA transitions while SCL is high.
-        -- Every sda and scl sample is normalized through to_X01, so a released wired-AND 'H' reads as '1'.
+        /* ----------------------------------------------------------------
+           START, repeated-START and STOP detection: SDA transitions while SCL is high.
+           Every sda and scl sample is normalized through to_X01, so a released wired-AND 'H' reads as '1'. */
         elsif sda_in'event and to_X01(scl) = '1' then
             if to_X01(sda_in) = '0' then
                 -- START, or a repeated START: resynchronize the frame from bit 0.

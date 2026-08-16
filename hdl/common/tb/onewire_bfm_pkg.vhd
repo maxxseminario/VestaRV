@@ -1,10 +1,10 @@
--------------------------------------------------------------------------------
--- onewire_bfm_pkg.vhd: bench-support helpers for the 1-Wire master peripheral testbench.
--- The slot numbers, CR/CMD/SR field positions and timing-window constants here are LOCAL to this bench and are NOT shared MemoryMap.vhd constants; OW0 lives at 0x6700.
--- CHECKER INDEPENDENCE: this package provides only bus-level plumbing, register-map constants and timing windows taken from the 1-Wire specification, never anything read out of OneWire.vhd.
--- Time base is 0.5 us per tick (OW0DIV=11 at 24 MHz nominal), so every slot-timing count here is DOUBLE the spec table's raw microsecond figure; the target model converts ticks to simulation time with the bench's own tick_period, which is the OW0DIV the TB programs, left at its power-on default 0, hence one clk period.
--- Bounded polls take (signal clk, signal b, signal read_data, [args], done_ok : out boolean), and the caller turns done_ok into a scoreboard pass/fail, so a poll that never satisfies its condition FAILS the run instead of hanging.
--------------------------------------------------------------------------------
+/* -----------------------------------------------------------------------------
+   onewire_bfm_pkg.vhd: bench-support helpers for the 1-Wire master peripheral testbench.
+   The slot numbers, CR/CMD/SR field positions and timing-window constants here are LOCAL to this bench and are NOT shared MemoryMap.vhd constants; OW0 lives at 0x6700.
+   CHECKER INDEPENDENCE: this package provides only bus-level plumbing, register-map constants and timing windows taken from the 1-Wire specification, never anything read out of OneWire.vhd.
+   Time base is 0.5 us per tick (OW0DIV=11 at 24 MHz nominal), so every slot-timing count here is DOUBLE the spec table's raw microsecond figure; the target model converts ticks to simulation time with the bench's own tick_period, which is the OW0DIV the TB programs, left at its power-on default 0, hence one clk period.
+   Bounded polls take (signal clk, signal b, signal read_data, [args], done_ok : out boolean), and the caller turns done_ok into a scoreboard pass/fail, so a poll that never satisfies its condition FAILS the run instead of hanging.
+   ----------------------------------------------------------------------------- */
 
 library ieee;
 use ieee.std_logic_1164.all;

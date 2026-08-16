@@ -1,9 +1,9 @@
--- =============================================================================
--- GlitchFilter_behav.vhd
--- =============================================================================
--- Behavioral stand-in for the analog GlitchFilter macro on the 32 IRQ lines.
--- The real cell swallows pulses narrower than minPulseWidth; this model does not filter at all.
--- =============================================================================
+/* =============================================================================
+   GlitchFilter_behav.vhd
+   =============================================================================
+   Behavioral stand-in for the analog GlitchFilter macro on the 32 IRQ lines.
+   The real cell swallows pulses narrower than minPulseWidth; this model does not filter at all.
+   ============================================================================= */
 
 library ieee;
 use ieee.std_logic_1164.all;

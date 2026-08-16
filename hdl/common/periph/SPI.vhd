@@ -173,9 +173,9 @@ architecture behavioral of SPI is
 begin
 
 
-    --------------------- Signal Routing ---------------------
-        -- Register Signal Routing 
-        -- SPIxCR Bit Field Assignments
+    /* ------------------- Signal Routing ---------------------
+       Register Signal Routing
+       SPIxCR Bit Field Assignments */
         spi_fen     <= SPIxCR(19) when ENABLE_EXTENDED_MEM else '0';
         spi_mode    <= SPIxCR(18);
         spi_tx_sb   <= SPIxCR(17);

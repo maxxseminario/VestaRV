@@ -587,7 +587,7 @@ class LatexUserGuide():
 			config += ['Supports the RISC-V Zabha extension, adding byte (.b) and halfword (.h) atomic memory operations for all AMO functions; sub-word AMOs are globally coherent across the shared window like their word counterparts (LR/SC remain word-only)']
 
 		if self.Gen.ENABLE_ATOMICS and self.Gen.ENABLE_ZACAS:
-			config += ['Supports the RISC-V Zacas extension, adding word compare-and-swap (amocas.w), and — when Zabha is also present — byte/halfword compare-and-swap (amocas.b/.h); the CAS is a single globally-coherent read-compare-conditional-write transaction on the shared window (amocas.d is unsupported on RV32)']
+			config += ['Supports the RISC-V Zacas extension, adding word compare-and-swap (amocas.w), and, when Zabha is also present, byte/halfword compare-and-swap (amocas.b/.h); the CAS is a single globally-coherent read-compare-conditional-write transaction on the shared window (amocas.d is unsupported on RV32)']
 
 		if self.Gen.ENABLE_ZICBOZ:
 			config += ['Supports the RISC-V Zicboz extension, adding the cbo.zero instruction, which zeroes the naturally-aligned 64-byte block containing the addressed byte (16 word stores through the memory path); the cbo.clean/flush/inval management encodings are unsupported and trap illegal']
@@ -707,7 +707,7 @@ class LatexUserGuide():
 		# Input list for the hand-written extra chapters (ChipGenerator.ExtraLatexIntroFiles,
 		# e.g. the Multi-Core Architecture chapter). The master template inputs this file so
 		# chapter filenames/revisions live in the chip description, not in the template.
-		s = '% Generated from ChipGenerator.ExtraLatexIntroFiles — do not edit\n'
+		s = '% Generated from ChipGenerator.ExtraLatexIntroFiles, do not edit\n'
 		if self.Gen.ExtraLatexIntroFiles is not None:
 			for fileName in self.Gen.ExtraLatexIntroFiles:
 				s += '\\input{include/' + fileName + '}\n'
@@ -742,16 +742,16 @@ class LatexUserGuide():
 		afeBlocks = [b for b in blocks if b['name'].startswith('AFE')]
 		eisBlocks = [b for b in blocks if b['name'] == 'EIS']
 
-		s = '% Generated from ChipGenerator.DocSubSlotBlocks — do not edit. Rendered only under \\ifcqanalog.\n'
+		s = '% Generated from ChipGenerator.DocSubSlotBlocks, do not edit. Rendered only under \\ifcqanalog.\n'
 		s += '\\section{Analog Front-End Subsystem} \\label{s:cqanalog}\n\n'
 		s += ('This chip carries a bipolar-potentiostat analog front-end (AFE) for '
 			'electrochemical impedance measurement, organised as four per-quadrant '
 			'measurement \\emph{sites} plus one shared electrochemical-impedance-'
 			'spectroscopy (EIS) sweep engine. Each site drives its own electrode group '
 			'(counter/working/reference/RE2) brought out on the package (Section '
-			'\\ref{s:pinsConfig}). The analog blocks themselves --- the potentiostat, '
-			'the transimpedance ADC path, and the shared EIS engine + analog multiplexer '
-			'--- are analog IP that is not yet integrated; what \\emph{is} present is the '
+			'\\ref{s:pinsConfig}). The analog blocks themselves (the potentiostat, '
+			'the transimpedance ADC path, and the shared EIS engine + analog multiplexer'
+			') are analog IP that is not yet integrated; what \\emph{is} present is the '
 			'complete \\emph{digital access path}: a register stub for each site and for '
 			'the EIS engine, each a fully-functional shared-window arbiter slave with the '
 			'ownership gate and interrupt path described below. Software (and the '
@@ -775,7 +775,7 @@ class LatexUserGuide():
 				+ str(b['irqSource']) + ' & ' + b['gate'] + ' \\\\\n\\hline\n')
 		s += '\\end{tabularx}\n\n'
 		s += ('Here \\texttt{s\\_master} is the granted-master (hart) index that the '
-			'multi-core arbiter attributes to the in-flight transaction --- the same '
+			'multi-core arbiter attributes to the in-flight transaction, the same '
 			'attribution the hardware mutex bank and the IRQ-router CLAIM use. Because '
 			'each block decodes only its low four address bits, its 16 words fill its '
 			'64-byte sub-slot exactly; the EIS block additionally aliases across the '
@@ -790,7 +790,7 @@ class LatexUserGuide():
 			'site. The EIS engine is instantiated hart-0-only (\\texttt{s\\_master} = 0), so '
 			'other harts request a sweep through a software mailbox convention rather than '
 			'touching it directly. The gate is hardware-enforced inside the slave and keys '
-			'off \\texttt{s\\_master} alone --- there is no way to forge ownership, and no '
+			'off \\texttt{s\\_master} alone: there is no way to forge ownership, and no '
 			'cross-hart data leaks. A \\emph{denied} read returns 0 and a \\emph{denied} '
 			'write is silently dropped: no bus error, no stall, no change to the arbiter '
 			'contract. All registers reset to 0, so a block is a provable no-op (interrupt '
@@ -838,7 +838,7 @@ class LatexUserGuide():
 			+ ' (formerly the AFE0 vector), and the EIS engine drives source '
 			+ str(eisSrc) + ' (formerly the SARADC0 vector). Both are delivered through '
 			'the IRQ router (Section \\ref{peripheralIRQROUTER}) like any other peripheral '
-			'source, and both are routed --- by software convention in the routing rows --- '
+			'source, and both are routed, by software convention in the routing rows, '
 			'to \\emph{hart 0 only}.\n\n')
 		s += ('Routing source ' + str(afeSrc) + ' to hart 0 is forced, not merely chosen: '
 			'because the ownership gate lets only hart 0 read all four AFE flag registers, '
@@ -1088,7 +1088,16 @@ class LatexUserGuide():
 			return node
 
 		def texdesc(s):
-			return fmttex(s.replace('—', '---'))
+			# NO EM-DASHES IN THE TRM (user directive 2026-08-15). This used to
+			# silently rewrite U+2014 into the LaTeX `---` ligature, which meant a
+			# schema description string could reintroduce a rendered em-dash without
+			# anyone noticing. Fail the build loudly instead; reword the offending
+			# _CONFIG_SCHEMA description with a comma, colon or parentheses.
+			if '—' in s or '---' in s:
+				raise ValueError(
+					'em-dash in a TRM schema description string (no em-dashes in '
+					'the TRM: reword with a comma, colon or parentheses): ' + repr(s))
+			return fmttex(s)
 
 		def fmtval(dotted, v):
 			if isinstance(v, bool):
@@ -1171,7 +1180,7 @@ class LatexUserGuide():
 			('Stack pointer at reset', '\\texttt{' + fmttex(str(drv.get('stackPointerInit'))) + '}', 'Top of each hart\'s private TCM, growing down'),
 			('Peripheral count', '\\texttt{' + str(drv.get('peripheralCount')) + '}', 'Instantiated peripherals (including CLINT/MUTEX/IRQROUTER)'),
 		]
-		s += '% Derived geometry — computed by generate.py, NOT configurable\n'
+		s += '% Derived geometry: computed by generate.py, NOT configurable\n'
 		s += '\\begin{longtable}[c]{ l l p{6.6cm} }\n'
 		s += '\\caption{Derived geometry of this configuration (computed, not configurable)} \\label{t:chip-config-derived} \\\\\n'
 		s += '\\hline \\textbf{Derived value} & \\textbf{This build} & \\textbf{Notes} \\\\ \\hline \\endfirsthead\n'
@@ -1338,7 +1347,7 @@ class LatexUserGuide():
 		s += '\\node[note, anchor=west] at (' + '%.2f' % (totalW + 0.5) + ', 3.30) {registered tile boundary\\\\ (1 cycle each way)};\n'
 
 		# Arbiter
-		s += '\\node[blk, fill=black!15, minimum width=' + '%.2f' % totalW + 'cm, minimum height=0.85cm] (arb) at (' + '%.2f' % (totalW / 2.0) + ', 2.45) {\\textbf{mp\\_arbiter} --- serializing round-robin, ' + str(N) + ' masters, grant-locked AMOs};\n'
+		s += '\\node[blk, fill=black!15, minimum width=' + '%.2f' % totalW + 'cm, minimum height=0.85cm] (arb) at (' + '%.2f' % (totalW / 2.0) + ', 2.45) {\\textbf{mp\\_arbiter}: serializing round-robin, ' + str(N) + ' masters, grant-locked AMOs};\n'
 		for t, cx, w in xs:
 			if t is None:
 				continue
@@ -1417,7 +1426,7 @@ class LatexUserGuide():
 		# riserX (the aperture read-back riser) is NOT derivable from the tile band
 		# alone and is computed after the slave row is laid out — see below.
 
-		s = ('% Generated system block diagram — ORCHESTRATOR shape (numHarts=' + str(N)
+		s = ('% Generated system block diagram: ORCHESTRATOR shape (numHarts=' + str(N)
 			+ ', banks=' + str(banks) + ', npu=' + str(npu) + ', apertures=' + str(len(windows)) + ')\n')
 		s += '\\begin{tikzpicture}[\n'
 		s += '\tblk/.style={draw, thick, align=center, fill=white, font=\\sffamily\\small},\n'
@@ -1445,7 +1454,7 @@ class LatexUserGuide():
 		s += ('\\node[blk, dashed, minimum width=4.10cm, minimum height=' + P(flsH) + 'cm] (flash) at ('
 			+ P((aX0 + aX1) / 2.0) + ', ' + P(yFls) + ') {\\scriptsize external SPI flash (XIP) $\\geq$ \\texttt{' + flashBase + '}};\n')
 		s += ('\\node[orch, minimum width=4.20cm, minimum height=' + P(h0H) + 'cm] (h0) at ('
-			+ P((aX0 + aX1) / 2.0) + ', ' + P(yH0) + ') {\\textbf{hart 0} --- orchestrator\\\\ \\scriptsize soft logic, always on\\\\'
+			+ P((aX0 + aX1) / 2.0) + ', ' + P(yH0) + ') {\\textbf{hart 0}: orchestrator\\\\ \\scriptsize soft logic, always on\\\\'
 			+ ' \\scriptsize VestaRV core $+$ ' + str(tcmKiB) + '\\,KiB TCM\\\\ \\scriptsize boots the chip, manages it};\n')
 		s += '\\draw[sig] (flash.south) -- (h0.north);\n'
 
@@ -1469,7 +1478,7 @@ class LatexUserGuide():
 
 		# ---- the arbiter, and the five masters on it
 		s += ('\\node[blk, fill=black!15, minimum width=' + P(bX1 - aX0) + 'cm, minimum height=' + P(arbH)
-			+ 'cm] (arb) at (' + P((aX0 + bX1) / 2.0) + ', ' + P(yArb) + ') {\\textbf{mp\\_arbiter} --- serializing round-robin, '
+			+ 'cm] (arb) at (' + P((aX0 + bX1) / 2.0) + ', ' + P(yArb) + ') {\\textbf{mp\\_arbiter}: serializing round-robin, '
 			+ str(N) + ' masters, grant-locked AMOs};\n')
 		s += ('\\draw[bus] (' + P((aX0 + aX1) / 2.0) + ', ' + P(yH0 - h0H / 2.0) + ') -- ('
 			+ P((aX0 + aX1) / 2.0) + ', ' + P(yArb + arbH / 2.0) + ');\n')
@@ -1511,7 +1520,7 @@ class LatexUserGuide():
 			+ P(riserX) + ', ' + P(ySlv) + ') -- (' + P(riserX) + ', ' + P((yPort0 + yPort1) / 2.0) + ') -- ('
 			+ P(bX1 + 0.02) + ', ' + P((yPort0 + yPort1) / 2.0) + ');\n')
 		s += ('\\node[note, anchor=west] at (' + P(riserX + 0.18) + ', ' + P(yTile - 0.30)
-			+ ') {\\textbf{reads back} any hart\'s\\\\ private TCM through that\\\\ tile\'s own read port ---\\\\'
+			+ ') {\\textbf{reads back} any hart\'s\\\\ private TCM through that\\\\ tile\'s own read port:\\\\'
 			+ ' hart 0 only, never writes,\\\\ and a gated tile reads zero};\n')
 		s += '\\end{tikzpicture}\n'
 		return s
@@ -1617,7 +1626,7 @@ class LatexUserGuide():
 		s += '\\fill[black!22] (' + P(wX0) + ', ' + P(yBan) + ') rectangle (' + P(wX1) + ', ' + P(yTop) + ');\n'
 		s += '\\fill[black!18] (' + P(iX0) + ', ' + P(yBan) + ') rectangle (' + P(iX1) + ', ' + P(yTop) + ');\n'
 		s += ('\\node[ban, text width=' + P(fX1 - fX0 - 0.30) + 'cm] at (' + P(fCx) + ', ' + P((yBan + yTop) / 2.0)
-			+ ') {the shared fabric --- always on};\n')
+			+ ') {the shared fabric, always on};\n')
 		s += ('\\node[ban, text width=' + P(wX1 - wX0 - 0.30) + 'cm] at (' + P((wX0 + wX1) / 2.0) + ', '
 			+ P((yBan + yTop) / 2.0) + ') {the registered tile boundary};\n')
 		s += ('\\node[ban, text width=' + P(iX1 - iX0 - 0.30) + 'cm] at (' + P((iX0 + iX1) / 2.0) + ', '
@@ -1672,7 +1681,7 @@ class LatexUserGuide():
 		s += '\\draw[cross] (' + P(clCx - clW / 2.0) + ', ' + P(yRsp) + ') -- (' + P(fX1 - 0.60) + ', ' + P(yRsp) + ');\n'
 		s += ('\\node[lab, fill=black!11, inner sep=2pt, text width=2.55cm, anchor=north] at ('
 			+ P((wX0 + wX1) / 2.0) + ', ' + P(yRsp - clH / 2.0 - 0.35)
-			+ ') {the word, six \\register{mclk} later --- or nothing at all, because this clamp zeroes a dark tile\'s \\register{tcm\\_ext\\_done} too};\n')
+			+ ') {the word, six \\register{mclk} later, or nothing at all, because this clamp zeroes a dark tile\'s \\register{tcm\\_ext\\_done} too};\n')
 
 		# ---- band 3: the port, the pins it borrows, and the memory
 		s += ('\\node[unit, minimum width=' + P(seqW) + 'cm, minimum height=' + P(seqH) + 'cm] (seq) at ('
@@ -1681,7 +1690,7 @@ class LatexUserGuide():
 			+ ' \\scriptsize then one \\register{mclk} of \\register{tcm\\_ext\\_done}\\\\ \\scriptsize with the word riding on it};\n')
 		s += ('\\node[blk, minimum width=' + P(muxW) + 'cm, minimum height=' + P(muxH) + 'cm, text width='
 			+ P(muxW - 0.40) + 'cm] (mux) at ('
-			+ P(muxCx) + ', ' + P(yMux) + ') {\\textbf{either the core or the port drives the TCM\'s pins --- never both}\\\\'
+			+ P(muxCx) + ', ' + P(yMux) + ') {\\textbf{either the core or the port drives the TCM\'s pins, never both}\\\\'
 			+ ' \\scriptsize the port\'s side of the mux holds the write strobes off, so no state of it can write};\n')
 		s += '\\draw[sig] (' + P(seqCx) + ', ' + P(ySeq - seqH / 2.0) + ') -- (' + P(seqCx) + ', ' + P(yMux + muxH / 2.0) + ');\n'
 		s += ('\\node[note, anchor=west] at (' + P(seqCx + 0.18) + ', '
@@ -1698,7 +1707,7 @@ class LatexUserGuide():
 			+ ') {its own loads\\\\ and stores};\n')
 		s += ('\\node[note, text width=12.60cm, align=center] at (' + P((fX0 + iX1) / 2.0) + ', ' + P(yBot - 0.50)
 			+ ') {\\textit{While the port has those pins the core\'s clock is gated off for seven edges, and the'
-			+ ' Q shadow keeps showing it the word it last read --- so the frozen core can never mistake'
+			+ ' Q shadow keeps showing it the word it last read, so the frozen core can never mistake'
 			+ ' the aperture\'s word for its own.}};\n')
 		s += '\\end{tikzpicture}\n'
 		self._writeInclude('TcmApertureDiagram.tex', s)
@@ -1728,13 +1737,13 @@ class LatexUserGuide():
 		# Hart 0 branch (left)
 		s += '\\node[stp] (h0a) at (2.6, 7.1) {Configure \\peripheral{GPIO0}/\\peripheral{SPI0}, read the BOOT strap pin};\n'
 		s += '\\node[stp] (h0b) at (2.6, 5.5) {Copy the program from SPI flash to \\texttt{0x8000}--\\texttt{0xFFFC}; zero the mailbox region \\texttt{0x10000}--\\texttt{0x107FF}};\n'
-		s += '\\node[term] (h0c) at (2.6, 3.9) {Jump to \\texttt{\\SpiFlashProgramAddress} --- application runs on hart 0};\n'
+		s += '\\node[term] (h0c) at (2.6, 3.9) {Jump to \\texttt{\\SpiFlashProgramAddress}: application runs on hart 0};\n'
 		s += '\\node[stp, dashed] (launch) at (2.6, 1.9) {\\textbf{Launching a tile $h$:} stage its image in shared RAM, write \\register{SRC[h]}/\\register{LEN[h]}/\\register{ENTRY[h]} at \\texttt{\\BootMailboxBase}$+16h$, then write $1$ to \\register{MSIPx} (\\texttt{0x5000}$+4h$)};\n'
 		# Tile branch (right)
 		s += '\\node[stp] (t1) at (9.4, 7.1) {Set $\\mathtt{sp}$ to the top of the private TCM; arm the software-interrupt vector};\n'
 		s += '\\node[term] (t2) at (9.4, 5.5) {\\textbf{Park}: low-power sleep, waiting for a \\peripheral{CLINT} software interrupt};\n'
 		s += '\\node[stp] (t3) at (9.4, 3.6) {ROM loader: clear the \\register{MSIPx} level, read \\register{SRC}/\\register{LEN}/\\register{ENTRY} at \\texttt{\\BootMailboxBase}$+16h$, copy \\register{LEN} words into the TCM at \\texttt{0x8000}};\n'
-		s += '\\node[term] (t4) at (9.4, 1.9) {Enter \\register{ENTRY} with $\\mathtt{sp}$ at the top of the TCM --- tile runs};\n'
+		s += '\\node[term] (t4) at (9.4, 1.9) {Enter \\register{ENTRY} with $\\mathtt{sp}$ at the top of the TCM: tile runs};\n'
 		# Edges
 		s += '\\draw[flow] (rst) -- (who);\n'
 		# The naming costs width: at pos=0.25 the label sits on the horizontal run
@@ -1791,7 +1800,7 @@ class LatexUserGuide():
 		s += '\\node[dec] (q2) at (9.7, 6.6) {Guarding a multi-word\\\\critical section?};\n'
 		s += '\\node[dec] (q3) at (5.9, 4.1) {Hardware mutex free?\\\\[1pt](\\NumMutexes{} in the bank)};\n'
 		s += '\\node[leaf] (lrfree) at (13.5, 4.1) {\\textbf{LR/SC} retry loop\\\\[1pt]lock-free structures; failed \\asminline{SC} never writes};\n'
-		s += '\\node[leaf] (mtx) at (2.4, 1.6) {\\textbf{Hardware mutex}\\\\(preferred)\\\\[1pt]\\asminline{lw} claims (0 $=$ yours), \\asminline{sw 0} releases --- one instruction, no retry state};\n'
+		s += '\\node[leaf] (mtx) at (2.4, 1.6) {\\textbf{Hardware mutex}\\\\(preferred)\\\\[1pt]\\asminline{lw} claims (0 $=$ yours), \\asminline{sw 0} releases: one instruction, no retry state};\n'
 		s += '\\node[leaf] (lrlock) at (9.3, 1.6) {\\textbf{LR/SC spinlock}\\\\in shared RAM\\\\[1pt]reservation-based lock};\n'
 		# Each branch is an explicit two-segment path (out of the vertex, then down)
 		# so the label sits on the horizontal run, clear of both shapes.
@@ -1803,7 +1812,7 @@ class LatexUserGuide():
 		s += '\\draw[flow] (q3.east) -- node[nolab] {no} (lrlock.north |- q3.east) -- (lrlock.north);\n'
 		s += '\\node[draw, semithick, dashed, align=left, font=\\sffamily\\scriptsize, text width=14.9cm, inner sep=5pt] at (7.75, -0.6) {'
 		s += '\\textbf{Rules that apply to every branch:} never use \\asminline{LR}/\\asminline{SC} or AMO instructions on \\peripheral{MUTEX} bank addresses (the claim-on-read side effect fires); '
-		s += 'every retry loop needs a hart-scaled backoff ($\\mathtt{delay} \\propto \\register{mhartid}+1$) and a bounded retry count --- identical harts on the fair round-robin arbiter can otherwise livelock.};\n'
+		s += 'every retry loop needs a hart-scaled backoff ($\\mathtt{delay} \\propto \\register{mhartid}+1$) and a bounded retry count, because identical harts on the fair round-robin arbiter can otherwise livelock.};\n'
 		s += '\\end{tikzpicture}\n'
 		with open(self.IncludeDirectory + '/SyncPrimitiveDecisionTree.tex', 'w') as f:
 			f.write(s)
@@ -1979,7 +1988,7 @@ class LatexUserGuide():
 		ann += '\\draw[gray!65] (5.5,\\YBOT) -- (5.5,{\\YBOT-0.95});\n'
 		ann += '\\node[ann, align=center, anchor=north] at (3.5,{\\YBOT-0.97})\n'
 		ann += '\t{\\textit{ghost window:} \\register{req} is stale-high for one cycle\\\\[-2pt]\n'
-		ann += '\t after \\register{done} --- masked by \\register{need\\_release}};\n'
+		ann += '\t after \\register{done}, masked by \\register{need\\_release}};\n'
 		s = '% Generated mp_arbiter handshake diagram\n'
 		s += self._cycleFigure('1.15cm', rows, 6, ann, shade=('5', '6'),
 			rowH=self._ARB_ROW_H, pitch=self._ARB_ROW_PITCH, fonts=self._ARB_FONTS)
@@ -2163,7 +2172,7 @@ class LatexUserGuide():
 			if c < lat0:
 				state.append(('D', 'IDLE'))
 			elif c <= lat1:
-				state.append(('D', '\\textit{LATCH} --- held while \\register{s\\_stall} is high'))
+				state.append(('D', '\\textit{LATCH}, held while \\register{s\\_stall} is high'))
 			elif c == lat1 + 1:
 				state.append(('D', 'DATA'))
 			else:
@@ -2241,15 +2250,15 @@ class LatexUserGuide():
 		unst = self._ARB_STALL_REQSEEN + self._ARB_BASE_LATENCY
 		ann += '\\draw[gray!65] (%d,\\YTOP) -- (%d,{\\YTOP+0.40});\n' % (unst, unst)
 		ann += ('\\node[ann, above] at (%d,{\\YTOP+0.38}) {without \\register{s\\_stall} the arbiter '
-			'would complete here --- on that zero};\n' % unst)
+			'would complete here, on that zero};\n' % unst)
 		ann += '\\draw[<->, >=Stealth] (%d,{\\YBOT-0.45}) -- (%d,{\\YBOT-0.45});\n' % (st0, st1 + 1)
-		ann += ('\\node[ann, below] at (%.1f,{\\YBOT-0.47}) {\\register{s\\_stall} --- the tile read '
+		ann += ('\\node[ann, below] at (%.1f,{\\YBOT-0.47}) {\\register{s\\_stall}, the tile read '
 			'runs here: \\textit{SETTLE}, \\textit{READ}, \\textit{LATCH}, then one \\register{mclk} '
 			'of \\register{tcm\\_ext\\_done} with the word on it};\n' % ((st0 + st1 + 1) / 2.0))
 		ann += '\\draw[<->, >=Stealth] (%d,{\\YBOT-1.25}) -- (%d,{\\YBOT-1.25});\n' % (
 			self._ARB_STALL_REQSEEN, self._ARB_STALL_DONE)
 		ann += ('\\node[ann, below] at (%.1f,{\\YBOT-1.27}) {%d \\register{mclk} at the arbiter pins '
-			'--- every other shared-window slave still completes in %d};\n'
+			'while every other shared-window slave still completes in %d};\n'
 			% ((self._ARB_STALL_REQSEEN + self._ARB_STALL_DONE) / 2.0, total,
 			   self._ARB_BASE_LATENCY))
 		s = '%% Generated mp_arbiter stalled-transaction diagram (TCM aperture, window %s)\n' % fmthex(windows[h])
@@ -2526,7 +2535,7 @@ class LatexUserGuide():
 		]
 		ann = ''
 		ann += '\\draw[<->, >=Stealth] (5,{\\YBOT-0.55}) -- (11,{\\YBOT-0.55});\n'
-		ann += '\\node[ann, below] at (8,{\\YBOT-0.58}) {source masked on every hart --- exactly-once delivery};\n'
+		ann += '\\node[ann, below] at (8,{\\YBOT-0.58}) {source masked on every hart: exactly-once delivery};\n'
 		ann += '\\node[ann, align=left, anchor=north west] at (0,{\\YBOT-1.15})\n'
 		ann += '\t{The handler clears the level at the peripheral \\emph{before} the dispatcher completes;\\\\[-2pt]\n'
 		ann += '\t if the level is still high at COMPLETE the source simply re-pends.\\\\[-2pt]\n'
@@ -2566,7 +2575,7 @@ class LatexUserGuide():
 		ann = ''
 		ann += '\\node[ann, align=left, anchor=north west] at (0,{\\YBOT-0.35})\n'
 		ann += '\t{\\textbf{0} = the mutex was free and is now yours. A non-zero result is the holder\'s\\\\[-2pt]\n'
-		ann += '\t \\register{mhartid}$+1$ --- hart ' + hiS + ' must back off and retry. Release with \\asminline{sw x0}.};\n'
+		ann += '\t \\register{mhartid}$+1$, so hart ' + hiS + ' must back off and retry. Release with \\asminline{sw x0}.};\n'
 		s = '% Generated MUTEX claim/release diagram\n'
 		s += self._cycleFigure('1.15cm', rows, 8, ann)
 		self._writeInclude('MutexClaimDiagram.tex', s)
@@ -2624,7 +2633,7 @@ class LatexUserGuide():
 			# Degrade, never raise: a single-hart build has no switched domain to
 			# draw. The chapter's \input still resolves.
 			self._writeInclude('PowerDomainDiagram.tex',
-				'% numHarts=' + str(N) + ': no switchable tile domains — figure suppressed.\n')
+				'% numHarts=' + str(N) + ': no switchable tile domains, figure suppressed.\n')
 			return
 		orch = bool((getattr(self.Gen, 'McuMpGeometry', None) or {}).get('orchestrator'))
 		apertures = bool(self._TcmApertureWindows())
@@ -2744,9 +2753,9 @@ class LatexUserGuide():
 		s += '\\fill[black!3] (0, ' + P(ySwB) + ') rectangle (' + P(W) + ', ' + P(yBnd) + ');\n'
 		s += '\\fill[black!10] (0, ' + P(ySwB) + ') rectangle (' + P(W) + ', ' + P(ySwBan) + ');\n'
 		s += '\\node[ban] at (' + P(W / 2.0) + ', ' + P((yBan + yTop) / 2.0) + ') '
-		s += '{the always-on domain --- \\texttt{VDD}, never switched};\n'
+		s += '{the always-on domain: \\texttt{VDD}, never switched};\n'
 		s += '\\node[ban] at (' + P(W / 2.0) + ', ' + P((ySwB + ySwBan) / 2.0) + ') '
-		s += '{' + _numberWord(len(tiles)) + ' switched tile rails --- \\texttt{VDD\\_SW}, '
+		s += '{' + _numberWord(len(tiles)) + ' switched tile rails: \\texttt{VDD\\_SW}, '
 		s += 'one per channel tile, each gated on its own};\n'
 		# THE boundary: a real line, labelled, with the one true claim on it
 		s += '\\draw[line width=1.4pt, black!60] (0, ' + P(yBnd) + ') -- (' + P(W) + ', ' + P(yBnd) + ');\n'
@@ -2756,12 +2765,12 @@ class LatexUserGuide():
 		# ---- band A: hart 0, the fabric it shares, and the controller
 		h0W = xLab1 - xLab0
 		if orch:
-			h0 = ('{\\textbf{hart 0} --- the orchestrator\\\\[2pt] soft core $+$ '
+			h0 = ('{\\textbf{hart 0}: the orchestrator\\\\[2pt] soft core $+$ '
 				+ str(tcmKiB) + '\\,KiB TCM,\\\\ in the always-on centre band\\\\[3pt] '
 				'\\scriptsize no header switches exist\\\\ \\scriptsize for it: no gate bit, '
 				'no clamps,\\\\ \\scriptsize no sequencer row}')
 		else:
-			h0 = ('{\\textbf{hart 0} --- the management hart\\\\[2pt] the same hart tile as the '
+			h0 = ('{\\textbf{hart 0}: the management hart\\\\[2pt] the same hart tile as the '
 				'others,\\\\ wired always-on\\\\[3pt] \\scriptsize its \\texttt{pd\\_*} controls '
 				'are tied\\\\ \\scriptsize inactive and \\texttt{pwr\\_ctrl}\\\\ '
 				'\\scriptsize gives it no row}')
@@ -2802,7 +2811,7 @@ class LatexUserGuide():
 		s += '\\node[lab, anchor=west, text width=' + P(noteW) + 'cm] at ('
 		s += P(xStrip0 + stripW + 0.30) + ', ' + P(yStrip) + ') '
 		s += '{\\register{PWRCR}: bits 1--' + str(N - 1) + ' (mask \\texttt{'
-		s += fmthex(drawnMask, minDigits=2) + '}) request a gate; bit 0 is read-only 0 --- '
+		s += fmthex(drawnMask, minDigits=2) + '}) request a gate; bit 0 is read-only 0, because '
 		s += 'hart 0 has no domain to switch.};\n'
 
 		# ---- the left label column: what each layer IS, at that layer's height
@@ -2816,12 +2825,12 @@ class LatexUserGuide():
 			'A \\texttt{HEADBUF16} chain carries \\texttt{VDD} to the tile\'s \\texttt{VDD\\_SW}.')
 		s += leftLabel(yCoT, yCoB, '\\register{pd\\_rstn}$(h)$ \\textbf{holds it in reset.} '
 			'\\register{tile\\_rstn}$(h)$ = \\register{resetn} AND \\register{pd\\_rstn}$(h)$ AND '
-			'the field-power boot gate --- asserted \\emph{before} the rail goes, released '
+			'the field-power boot gate, asserted \\emph{before} the rail goes, released '
 			'\\emph{after} it is back.')
 		tcmText = ('\\register{tcm\\_pgen} \\textbf{gates the macro.} The TCM runs off the same '
 			'\\register{pd\\_sleep}$(h)$, so it dies with the rail: a wake is a cold boot.')
 		if apertures:
-			tcmText += (' Its aperture then reads \\emph{zeros} --- check \\register{PWRSR} first.')
+			tcmText += (' Its aperture then reads \\emph{zeros}, so check \\register{PWRSR} first.')
 		s += leftLabel(yTcT, yTcB, tcmText)
 
 		# ---- the sequencer key, in the dead space under the hart-0 box
@@ -3034,7 +3043,7 @@ class LatexUserGuide():
 		s += '\\fill[black!18] (' + P(aX0) + ', ' + P(yBan) + ') rectangle (' + P(aX1) + ', ' + P(yTop) + ');\n'
 		s += '\\fill[black!12] (' + P(wX1) + ', ' + P(yBan) + ') rectangle (' + P(bX1) + ', ' + P(yTop) + ');\n'
 		s += '\\node[ban] at (' + P(aCx) + ', ' + P((yBan + yTop) / 2.0) + ') {the \\register{TCK} side};\n'
-		s += '\\node[ban] at (' + P((wX1 + bX1) / 2.0) + ', ' + P((yBan + yTop) / 2.0) + ') {the chip --- everything here runs on \\register{mclk}};\n'
+		s += '\\node[ban] at (' + P((wX1 + bX1) / 2.0) + ', ' + P((yBan + yTop) / 2.0) + ') {the chip: everything here runs on \\register{mclk}};\n'
 		s += '\\node[ban, rotate=90] at (' + P((wX0 + wX1) / 2.0) + ', 1.30) {clock-domain crossing};\n'
 
 		# ---- band A: the probe, its five pins, and the transport
@@ -3042,7 +3051,7 @@ class LatexUserGuide():
 		s += '\\node[unit, minimum width=4.1cm, minimum height=3.10cm] (dtm) at (' + P(aCx) + ', 4.55) {\\textbf{dtm0}\\\\ TAP $+$ transport\\\\[2pt] \\scriptsize the sixteen-state port,\\\\ \\scriptsize the instruction register,\\\\ \\scriptsize and the \\register{dmi} shift register};\n'
 		s += '\\draw[bus] (probe.south) -- (dtm.north);\n'
 		s += '\\node[lab, fill=black!8, inner sep=2pt] at (' + P(aCx) + ', 7.05) {\\textbf{5 pins}\\\\ \\pin{TCK} \\pin{TMS} \\pin{TDI}\\\\ \\pin{TDO} \\pin{TRSTn}};\n'
-		s += '\\node[lab] at (' + P(aCx) + ', 1.30) {\\textit{on the chip, but clocked by}\\\\ \\textit{the probe --- nothing in this}\\\\ \\textit{band moves unless \\pin{TCK} does}};\n'
+		s += '\\node[lab] at (' + P(aCx) + ', 1.30) {\\textit{on the chip, but clocked by}\\\\ \\textit{the probe: nothing in this}\\\\ \\textit{band moves unless \\pin{TCK} does}};\n'
 
 		# ---- the two crossings: one toggle each way, payload held still
 		s += '\\draw[cross] (' + P(dtmX1) + ', ' + P(yReq) + ') -- (' + P(junX0) + ', ' + P(yReq) + ');\n'
@@ -3059,7 +3068,7 @@ class LatexUserGuide():
 		s += '\\draw[cross] (jun.east) -- (dm.west);\n'
 
 		# ---- the fabric: one arbiter, N tiles, the shared RAM, the page
-		s += '\\node[blk, fill=black!15, minimum width=' + P(arbX1 - arbX0) + 'cm, minimum height=' + P(arbH) + 'cm] (arb) at (' + P((arbX0 + arbX1) / 2.0) + ', ' + P(yArb) + ') {\\textbf{mp\\_arbiter} --- ' + str(N) + ' harts and \\textbf{dm0}, all masters on one shared bus};\n'
+		s += '\\node[blk, fill=black!15, minimum width=' + P(arbX1 - arbX0) + 'cm, minimum height=' + P(arbH) + 'cm] (arb) at (' + P((arbX0 + arbX1) / 2.0) + ', ' + P(yArb) + ') {\\textbf{mp\\_arbiter}: ' + str(N) + ' harts and \\textbf{dm0}, all masters on one shared bus};\n'
 		for t, tcx, w in xs:
 			if t is None:
 				s += '\\node[font=\\sffamily\\Large] at (' + P(tcx) + ', ' + P(yTile) + ') {$\\cdots$};\n'
@@ -3080,7 +3089,7 @@ class LatexUserGuide():
 		# ---- dm0's three reaches, each an arm of its own, each a verb
 		# 1. run control: direct wires, down the outside and along under the tiles
 		s += '\\draw[thick, rounded corners] (' + P(dmCx + 0.10) + ', ' + P(yDmBot) + ') -- (' + P(dmCx + 0.10) + ', 3.45) -- (' + P(trunkX) + ', 3.45) -- (' + P(trunkX) + ', ' + P(yTrunk) + ') -- (' + P(xs[-1][1]) + ', ' + P(yTrunk) + ');\n'
-		s += '\\node[lab, anchor=west] at (' + P(trunkX) + ', ' + P(yTrunk - 0.62) + ') {\\textbf{halts and resumes} every hart --- \\register{haltreq} / \\register{resumereq} out, \\register{halted} / \\register{unavail} back, on direct wires};\n'
+		s += '\\node[lab, anchor=west] at (' + P(trunkX) + ', ' + P(yTrunk - 0.62) + ') {\\textbf{halts and resumes} every hart: \\register{haltreq} / \\register{resumereq} out, \\register{halted} / \\register{unavail} back, on direct wires};\n'
 		# 2. memory: one more master on the arbiter
 		s += '\\draw[bus] (' + P(dmCx + 1.10) + ', ' + P(yDmBot) + ') -- (' + P(dmCx + 1.10) + ', ' + P(yArb + arbH / 2.0) + ');\n'
 		s += '\\node[vrb, anchor=west] at (' + P(dmCx + 1.25) + ', 4.15) {\\textbf{reads and writes memory}\\\\ as one more master on the bus};\n'
@@ -3282,7 +3291,7 @@ class LatexUserGuide():
 		s += '\\node[keylab] at (' + P(kx + 0.84) + ', -1.70) {\\pin{TMS} sampled \\textbf{0}};\n'
 		s += '\\draw[tms1] (' + P(kx) + ', -2.30) -- (' + P(kx + 0.72) + ', -2.30);\n'
 		s += '\\node[keylab] at (' + P(kx + 0.84) + ', -2.30) {\\pin{TMS} sampled \\textbf{1}};\n'
-		s += '\\node[key, anchor=north west] at (' + P(kx) + ', -2.90) {\\textbf{Five} \\pin{TMS}$=$\\textbf{1} clocks reach Test-Logic-Reset from \\textit{any} state in the graph --- the recovery a debugger uses when it has lost track of the machine.};\n'
+		s += '\\node[key, anchor=north west] at (' + P(kx) + ', -2.90) {\\textbf{Five} \\pin{TMS}$=$\\textbf{1} clocks reach Test-Logic-Reset from \\textit{any} state in the graph, the recovery a debugger uses when it has lost track of the machine.};\n'
 		s += '\\end{tikzpicture}\n'
 		self._writeInclude('TapStateDiagram.tex', s)
 		return
@@ -3346,11 +3355,11 @@ class LatexUserGuide():
 		ann = ''
 		# the one-shot, and why it is one
 		ann += '\\draw[<->, >=Stealth] (4,{\\YTOP+0.45}) -- (6,{\\YTOP+0.45});\n'
-		ann += '\\node[ann, above] at (5,{\\YTOP+0.47}) {\\register{valid} high exactly \\textbf{2} \\register{mclk} --- retired on the \\emph{registered} \\register{ready}};\n'
+		ann += '\\node[ann, above] at (5,{\\YTOP+0.47}) {\\register{valid} high exactly \\textbf{2} \\register{mclk}, retired on the \\emph{registered} \\register{ready}};\n'
 		ann += '\\node[ann, align=left, anchor=north west] at (0,{\\YBOT-0.35})\n'
 		ann += '\t{The Debug Module\'s re-accept lockout is a \\textbf{timer}, not a handshake: it reopens\\\\[-2pt]\n'
 		ann += '\t 9 \\register{mclk} after a capture. A master that held \\register{valid} until its response came back would\\\\[-2pt]\n'
-		ann += '\t still be asserting it then and would earn a \\textbf{second, duplicate accept} --- two responses for\\\\[-2pt]\n'
+		ann += '\t still be asserting it then and would earn a \\textbf{second, duplicate accept}: two responses for\\\\[-2pt]\n'
 		ann += '\t one request, sliding every later pair by one. The symptom is not a wrong answer; it is\\\\[-2pt]\n'
 		ann += '\t the \\emph{previous} answer. Two cycles leaves seven inside the window.};\n'
 		ann += '\\node[ann, align=left, anchor=north west] at (0,{\\YBOT-2.55})\n'
@@ -3425,8 +3434,8 @@ class LatexUserGuide():
 		   drawn for legibility, not to scale -- the bit numbers carry the
 		   truth, and saying so in the caption is cheaper than a 41-cell bar.'''
 		fields = [
-			(3.4, '\\register{address}', '40:34', '7 bits --- the DMI address'),
-			(6.4, '\\register{data}', '33:2', '32 bits --- read result or write value'),
+			(3.4, '\\register{address}', '40:34', '7 bits: the DMI address'),
+			(6.4, '\\register{data}', '33:2', '32 bits: read result or write value'),
 			(2.6, '\\register{op}', '1:0', '2 bits'),
 		]
 		s = '% Generated 41-bit DMI data-register field bar\n'
@@ -3458,12 +3467,12 @@ class LatexUserGuide():
 		   the page -- above it every word is DM-written CODE.'''
 		# (height, addr label, contents, fill)
 		segs = [
-			(0.62, '\\texttt{0x10680}', '\\register{data0} --- the abstract data word', 'black!14'),
+			(0.62, '\\texttt{0x10680}', '\\register{data0}: the abstract data word', 'black!14'),
 			(0.62, '\\texttt{0x10684}', '\\register{progbuf0}, \\register{progbuf1}, implicit third word', 'black!10'),
 			(0.62, '\\texttt{0x10690}', 'reserved for the Debug Module', 'black!4'),
-			(0.62, '\\texttt{0x106F0}', 'saved \\asminline{s0} / \\asminline{s1} --- written by the stub, never by the DM', 'black!10'),
+			(0.62, '\\texttt{0x106F0}', 'saved \\asminline{s0} / \\asminline{s1}, written by the stub, never by the DM', 'black!10'),
 			(0.82, '\\texttt{0x10700}', 'per-hart handshake word \\ \\texttt{0x10700}$+4h$', 'black!14'),
-			(1.05, '\\texttt{0x10780}', '\\textbf{trampoline}, 40 words --- \\emph{planted by the Debug Module}', 'black!20'),
+			(1.05, '\\texttt{0x10780}', '\\textbf{trampoline}, 40 words, \\emph{planted by the Debug Module}', 'black!20'),
 			(0.62, '\\texttt{0x10820}', 'abstract command body (DM-written per command)', 'black!10'),
 			(0.62, '\\texttt{0x10840}', 'epilogue (DM-written once)', 'black!10'),
 			(0.52, '\\texttt{0x10864}', 'spare', 'black!4'),
@@ -3498,9 +3507,9 @@ class LatexUserGuide():
 		xNote = W / 2.0 + 0.20
 		s += '\\draw[very thick, densely dashed] (' + '%.2f' % (-W / 2.0 - 0.05) + ', ' + '%.2f' % yBoundary + ') -- (' + '%.2f' % (W / 2.0 + 6.6) + ', ' + '%.2f' % yBoundary + ');\n'
 		# anchored ACROSS the line, so the two blocks cannot overprint
-		s += '\\node[note, anchor=south west] at (' + '%.2f' % xNote + ', ' + '%.2f' % (yBoundary + 0.10) + ') {\\textbf{\\texttt{0x10800}} --- above this line the boot ROM does \\emph{not}\\\\ zero-fill. Everything up here is CODE the Debug Module\\\\ writes before anything reads it: the trampoline\'s last\\\\ eight words, the command body and the epilogue.};\n'
+		s += '\\node[note, anchor=south west] at (' + '%.2f' % xNote + ', ' + '%.2f' % (yBoundary + 0.10) + ') {\\textbf{\\texttt{0x10800}}: above this line the boot ROM does \\emph{not}\\\\ zero-fill. Everything up here is CODE the Debug Module\\\\ writes before anything reads it: the trampoline\'s last\\\\ eight words, the command body and the epilogue.};\n'
 		s += '\\node[note, anchor=north west] at (' + '%.2f' % xNote + ', ' + '%.2f' % (yBoundary - 0.10) + ') {Below \\texttt{0x10800} the boot ROM zeroes \\texttt{0x10000}--\\texttt{0x107FF}\\\\ at every boot, so every DM-written \\emph{data} word starts\\\\ from a known value.};\n'
-		s += '\\node[note, anchor=north west] at (' + '%.2f' % (-W / 2.0) + ', ' + '%.2f' % (y - 0.40) + ') {The whole span \\texttt{0x10680}--\\texttt{0x1087F} is reserved. It is ordinary shared RAM --- it cannot be read-only,\\\\ because the Debug Module rewrites the command body at every abstract command.};\n'
+		s += '\\node[note, anchor=north west] at (' + '%.2f' % (-W / 2.0) + ', ' + '%.2f' % (y - 0.40) + ') {The whole span \\texttt{0x10680}--\\texttt{0x1087F} is reserved. It is ordinary shared RAM, and it cannot be read-only,\\\\ because the Debug Module rewrites the command body at every abstract command.};\n'
 		s += '\\end{tikzpicture}\n'
 		self._writeInclude('DebugPageDiagram.tex', s)
 		return
@@ -3522,10 +3531,10 @@ class LatexUserGuide():
 		s += '\tnote/.style={font=\\sffamily\\scriptsize, align=left}]\n'
 		s += '\\node[run] (run) at (0, 3.2) {\\textbf{running}\\\\ \\scriptsize M-mode or U-mode};\n'
 		s += '\\node[dbg] (dbg) at (0, 0) {\\textbf{debug mode}\\\\ \\scriptsize executing the stub at\\\\ \\scriptsize \\texttt{0x00010780}};\n'
-		s += '\\draw[flow] (-1.15, 2.58) -- node[el, anchor=east, xshift=-3pt] {\\textbf{entry} --- taken at an instruction\\\\ boundary; \\register{dpc} and \\register{dcsr}.\\bitfield{cause}\\\\ are written, then the hart jumps} (-1.15, 0.62);\n'
-		s += '\\draw[flow] (1.15, 0.62) -- node[el, anchor=west, xshift=3pt] {\\asminline{dret} --- \\register{dpc} restores the\\\\ program counter, \\register{dcsr}.\\bitfield{prv} the\\\\ privilege level} (1.15, 2.58);\n'
+		s += '\\draw[flow] (-1.15, 2.58) -- node[el, anchor=east, xshift=-3pt] {\\textbf{entry}: taken at an instruction\\\\ boundary; \\register{dpc} and \\register{dcsr}.\\bitfield{cause}\\\\ are written, then the hart jumps} (-1.15, 0.62);\n'
+		s += '\\draw[flow] (1.15, 0.62) -- node[el, anchor=west, xshift=3pt] {\\asminline{dret}: \\register{dpc} restores the\\\\ program counter, \\register{dcsr}.\\bitfield{prv} the\\\\ privilege level} (1.15, 2.58);\n'
 		s += '\\node[note, anchor=north west, align=left] at (5.9, 3.55) {\\textbf{Four ways in}, each recorded in \\register{dcsr}.\\bitfield{cause}:\\\\[3pt]\n'
-		s += '\t\\texttt{3} \\ a halt request from the Debug Module ---\\\\ \\hspace*{1.1em}unmaskable, and recognised even in the\\\\ \\hspace*{1.1em}terminal trap state\\\\[2pt]\n'
+		s += '\t\\texttt{3} \\ a halt request from the Debug Module,\\\\ \\hspace*{1.1em}unmaskable, and recognised even in the\\\\ \\hspace*{1.1em}terminal trap state\\\\[2pt]\n'
 		s += '\t\\texttt{1} \\ an \\asminline{EBREAK}, when \\register{dcsr}.\\bitfield{ebreakm} is set\\\\[2pt]\n'
 		s += '\t\\texttt{4} \\ one instruction retired with \\register{dcsr}.\\bitfield{step}\\\\[2pt]\n'
 		s += '\t\\texttt{5} \\ halt-on-reset, sampled once as the hart\\\\ \\hspace*{1.1em}leaves reset};\n'
@@ -3559,7 +3568,7 @@ class LatexUserGuide():
 		s += '\\begin{tikzpicture}[x=10mm, y=10mm]\n'
 		s += '\\draw[thick] (' + '%.3f' % -half + ',' + '%.3f' % -half + ') rectangle (' + '%.3f' % half + ',' + '%.3f' % half + ');\n'
 		# Center annotation
-		s += '\\node[align=center, font=\\sffamily] at (0,0) {\\textbf{\\AsicNameForUserGuide}\\\\ ' + pkg.PackageType + '-' + str(pkg.PinCount) + ' --- top view\\\\ \\footnotesize ' + str(pkg.Dimensions[0]) + '$\\times$' + str(pkg.Dimensions[1]) + '\\,' + pkg.Units + ', ' + str(pkg.PinPitch) + '\\,' + pkg.Units + ' pitch};\n'
+		s += '\\node[align=center, font=\\sffamily] at (0,0) {\\textbf{\\AsicNameForUserGuide}\\\\ ' + pkg.PackageType + '-' + str(pkg.PinCount) + ', top view\\\\ \\footnotesize ' + str(pkg.Dimensions[0]) + '$\\times$' + str(pkg.Dimensions[1]) + '\\,' + pkg.Units + ', ' + str(pkg.PinPitch) + '\\,' + pkg.Units + ' pitch};\n'
 		# Pin-1 dot
 		s += '\\fill (' + '%.3f' % (-half + 0.55) + ',' + '%.3f' % (half - 0.55) + ') circle (0.09);\n'
 

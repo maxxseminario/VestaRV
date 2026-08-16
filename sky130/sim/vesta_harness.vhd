@@ -1,7 +1,7 @@
--- Smoke harness for the `vesta` core (RV32IMAC+Zb*, multicycle, single unified bus): the testbench drives only clk/resetn and observes a0/trap_flag/clk_cpu.
--- The core decodes read_data combinationally in its EXECUTE cycle and has no fetch-wait state, so memory MUST return the word exactly one clock after the address; a behavioral RAM clocked in-domain gives that timing where a Python model would race it.
--- The wiring mirrors a hart tile's core, address decoder and TCM, minus flash/XIP, power gates, the shared window and the SRAM macro.
--- mask = data_addr(1:0), mem_ready tied '1' (single master), 1-cycle registered word reads, byte-masked writes on wen (active-LOW per lane, matching maindec's WEN encoding).
+/* Smoke harness for the `vesta` core (RV32IMAC+Zb*, multicycle, single unified bus): the testbench drives only clk/resetn and observes a0/trap_flag/clk_cpu.
+   The core decodes read_data combinationally in its EXECUTE cycle and has no fetch-wait state, so memory MUST return the word exactly one clock after the address; a behavioral RAM clocked in-domain gives that timing where a Python model would race it.
+   The wiring mirrors a hart tile's core, address decoder and TCM, minus flash/XIP, power gates, the shared window and the SRAM macro.
+   mask = data_addr(1:0), mem_ready tied '1' (single master), 1-cycle registered word reads, byte-masked writes on wen (active-LOW per lane, matching maindec's WEN encoding). */
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -26,10 +26,10 @@ architecture sim of vesta_harness is
     signal read_data  : std_logic_vector(31 downto 0);
     signal mask       : std_logic_vector(1 downto 0);
 
-    -- 64-word (256 B) behavioral RAM preloaded with the smoke program (PC_RST_VAL = 0):
-    --   0x00: CAFEB537  lui  a0, 0xCAFEB      ; a0 = 0xCAFEB000
-    --   0x04: 0BA50513  addi a0, a0, 0x0BA    ; a0 = 0xCAFEB0BA  (magic)
-    --   0x08: 0000006F  jal  x0, 0            ; self-loop (halt)
+    /* 64-word (256 B) behavioral RAM preloaded with the smoke program (PC_RST_VAL = 0):
+         0x00: CAFEB537  lui  a0, 0xCAFEB      ; a0 = 0xCAFEB000
+         0x04: 0BA50513  addi a0, a0, 0x0BA    ; a0 = 0xCAFEB0BA  (magic)
+         0x08: 0000006F  jal  x0, 0            ; self-loop (halt) */
     constant DEPTH : natural := 64;
     type ram_t is array (0 to DEPTH-1) of std_logic_vector(31 downto 0);
     signal ram : ram_t := (

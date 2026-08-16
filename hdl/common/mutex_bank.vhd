@@ -1,15 +1,15 @@
--- =============================================================================
--- mutex_bank.vhd
--- =============================================================================
--- Hardware mutex bank: 1-instruction cross-hart mutual exclusion, atomic because mp_arbiter serializes whole transactions.
---   READ  mutex[i] : returns 0 and claims it for the reading master (owner := master+1) if free, else returns the holder's hartid+1 and leaves it undisturbed.
---   WRITE 0        : release, owner-unqualified so a supervisory hart can force-release a dead hart's mutex.
---   WRITE nonzero  : ignored, so ownership can never be forged.
--- Software acquires with `lw t0, (MUTEXi)` (t0 = 0 means you hold it), releases with `sw x0, (MUTEXi)`, and spins with hartid-scaled backoff; the locks are ADVISORY, since stall-until-release would be a deadlock generator.
--- Never LR/SC or AMO a mutex address: a reservation-failed SC arrives with its lanes suppressed by resv_unit and is indistinguishable from a claim-read.
--- Bus contract: active-high one-cycle en strobe, 4 active-high byte-lane strobes we (resv-gated in MCU.vhd), read registered one mclk after the strobe, free-running mclk.
--- `master` is the arbiter's granted-master index, valid whenever en is strobed, and it is what makes the claim-read attributable.
--- =============================================================================
+/* =============================================================================
+   mutex_bank.vhd
+   =============================================================================
+   Hardware mutex bank: 1-instruction cross-hart mutual exclusion, atomic because mp_arbiter serializes whole transactions.
+     READ  mutex[i] : returns 0 and claims it for the reading master (owner := master+1) if free, else returns the holder's hartid+1 and leaves it undisturbed.
+     WRITE 0        : release, owner-unqualified so a supervisory hart can force-release a dead hart's mutex.
+     WRITE nonzero  : ignored, so ownership can never be forged.
+   Software acquires with `lw t0, (MUTEXi)` (t0 = 0 means you hold it), releases with `sw x0, (MUTEXi)`, and spins with hartid-scaled backoff; the locks are ADVISORY, since stall-until-release would be a deadlock generator.
+   Never LR/SC or AMO a mutex address: a reservation-failed SC arrives with its lanes suppressed by resv_unit and is indistinguishable from a claim-read.
+   Bus contract: active-high one-cycle en strobe, 4 active-high byte-lane strobes we (resv-gated in MCU.vhd), read registered one mclk after the strobe, free-running mclk.
+   `master` is the arbiter's granted-master index, valid whenever en is strobed, and it is what makes the claim-read attributable.
+   ============================================================================= */
 
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;

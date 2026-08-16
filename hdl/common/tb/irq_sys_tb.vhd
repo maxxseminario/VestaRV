@@ -1,10 +1,10 @@
--- =============================================================================
--- irq_sys_tb.vhd: self-checking unit testbench for clint.vhd, the per-hart msip IPIs plus the 64-bit mtime/mtimecmp mtip levels.
--- The CLINT sits behind mp_arbiter in the real system, so here the tb drives its slave port directly with the shared-bus contract: a one-cycle active-high en strobe, four active-high byte-lane strobes, and a registered read with the address at T and rdata at T+1.
--- Checks: reset state (msip/mtip low, mtimecmp all-ones); msip set/clear with bit-0, lane-0-only write decode; mtime free-running, lo/hi writable, lane-merge; mtip not before and at the programmed count, the ISR clear contract, a lo-only write that must not fire, and a true 64-bit compare across the 2^32 boundary.
--- The interrupt router is a separate DUT with its own testbench, irq_router_tb.vhd.
--- The runner script greps the pass banner "ALL CHECKS PASSED".
--- =============================================================================
+/* =============================================================================
+   irq_sys_tb.vhd: self-checking unit testbench for clint.vhd, the per-hart msip IPIs plus the 64-bit mtime/mtimecmp mtip levels.
+   The CLINT sits behind mp_arbiter in the real system, so here the tb drives its slave port directly with the shared-bus contract: a one-cycle active-high en strobe, four active-high byte-lane strobes, and a registered read with the address at T and rdata at T+1.
+   Checks: reset state (msip/mtip low, mtimecmp all-ones); msip set/clear with bit-0, lane-0-only write decode; mtime free-running, lo/hi writable, lane-merge; mtip not before and at the programmed count, the ISR clear contract, a lo-only write that must not fire, and a true 64-bit compare across the 2^32 boundary.
+   The interrupt router is a separate DUT with its own testbench, irq_router_tb.vhd.
+   The runner script greps the pass banner "ALL CHECKS PASSED".
+   ============================================================================= */
 
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;

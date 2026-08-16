@@ -1,12 +1,12 @@
--------------------------------------------------------------------------------
--- onewire_target_model.vhd
--------------------------------------------------------------------------------
--- Behavioral 1-Wire target of the DS18B20/iButton class: the responder for the OneWire master peripheral testbench.
--- The cfg_* inputs, held stable across one launched OW0CMD operation, select the shape to expect: RESET / write-N-bits / read-N-bits, speed, presence, read pattern, stuck-low injection and a timing-corruption self-test.
--- Pulse widths are measured off mon_dir, bound to the DUT's OW_DQ_DIR port: OW_DQ_OUT is fixed '0', so DIR high is the whole drive-low action and its edges bound the master's own driven-low interval even while this model drives the shared net.
--- Every expected window is a tick-count constant from onewire_bfm_pkg scaled by cfg_tick_period, which the TB computes from its own OW0DIV programming; this model never reads the DUT's divider, FSM state or registers.
--- Open-drain only: dq_out is permanently '0' and dq_oe '1' drives it, so the line rises only when this model releases it to the bench's weak 'H' pull.
--------------------------------------------------------------------------------
+/* -----------------------------------------------------------------------------
+   onewire_target_model.vhd
+   -----------------------------------------------------------------------------
+   Behavioral 1-Wire target of the DS18B20/iButton class: the responder for the OneWire master peripheral testbench.
+   The cfg_* inputs, held stable across one launched OW0CMD operation, select the shape to expect: RESET / write-N-bits / read-N-bits, speed, presence, read pattern, stuck-low injection and a timing-corruption self-test.
+   Pulse widths are measured off mon_dir, bound to the DUT's OW_DQ_DIR port: OW_DQ_OUT is fixed '0', so DIR high is the whole drive-low action and its edges bound the master's own driven-low interval even while this model drives the shared net.
+   Every expected window is a tick-count constant from onewire_bfm_pkg scaled by cfg_tick_period, which the TB computes from its own OW0DIV programming; this model never reads the DUT's divider, FSM state or registers.
+   Open-drain only: dq_out is permanently '0' and dq_oe '1' drives it, so the line rises only when this model releases it to the bench's weak 'H' pull.
+   ----------------------------------------------------------------------------- */
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -76,10 +76,10 @@ begin
         variable thresh, phold      : time;
         variable rhold, sdelay      : time;
     begin
-        ------------------------------------------------------------------
-        -- ARM: capture the TB's config for the upcoming op, reset the per-op state, and release any drive left over from a prior op.
-        -- Assigning dq_oe here cancels any pending presence, stuck or read-hold waveform, since this process is its only driver.
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           ARM: capture the TB's config for the upcoming op, reset the per-op state, and release any drive left over from a prior op.
+           Assigning dq_oe here cancels any pending presence, stuck or read-hold waveform, since this process is its only driver.
+           ---------------------------------------------------------------- */
         if cfg_arm'event and to_X01(cfg_arm) = '1' then
             case cfg_op is
                 when OW_OP_RESET  => mode := M_RESET; nbits := 1;
@@ -105,16 +105,16 @@ begin
             obs_viol_rl   <= '0';
             dq_oe <= '0';
 
-        ------------------------------------------------------------------
-        -- mon_dir RISING: the master starts driving DQ low, so just note the start time.
-        -- Every decision happens on the matching release.
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           mon_dir RISING: the master starts driving DQ low, so just note the start time.
+           Every decision happens on the matching release.
+           ---------------------------------------------------------------- */
         elsif mon_dir'event and to_X01(mon_dir) = '1' then
             t_fall := now;
 
-        ------------------------------------------------------------------
-        -- mon_dir FALLING: the master releases, so low_dur is its own driven-low interval, uncontaminated by this model's drive, which never starts before this point.
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           mon_dir FALLING: the master releases, so low_dur is its own driven-low interval, uncontaminated by this model's drive, which never starts before this point.
+           ---------------------------------------------------------------- */
         elsif mon_dir'event and to_X01(mon_dir) = '0' then
             low_dur := now - t_fall;
 

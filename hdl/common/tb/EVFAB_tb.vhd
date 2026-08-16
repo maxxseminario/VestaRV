@@ -1,8 +1,8 @@
--- EVFAB_tb.vhd: standalone, self-checking testbench for the EVFAB0 event/trigger fabric.
--- The DUT is declared as a COMPONENT rather than an entity instantiation, so this bench compiles standalone; default binding resolves it once EVFAB.vhd is analyzed into work.
--- Uses periph_tb_pkg (scoreboard and register-bus BFM) and evfab_bfm_pkg (slot/register constants, evfab_mk_cfg, evfab_settle, bounded polls and the independent TB SHADOW MODEL).
--- ONE clock family: `clk` hosts the whole fabric, while `ClkMem` is the gated bus clock driven `clk when pbus.en_mem='0' else '0'`, the harder case for the autonomy leg since integration's free-running ClkMem is a strict superset of edges.
--- The DUT generics are the v1 defaults, of which EV_MODE_TGL/LVL are copied INDEPENDENTLY in evfab_bfm_pkg: change one without the other and the mode-dependent stimulus and latency checks silently stop matching the DUT.
+/* EVFAB_tb.vhd: standalone, self-checking testbench for the EVFAB0 event/trigger fabric.
+   The DUT is declared as a COMPONENT rather than an entity instantiation, so this bench compiles standalone; default binding resolves it once EVFAB.vhd is analyzed into work.
+   Uses periph_tb_pkg (scoreboard and register-bus BFM) and evfab_bfm_pkg (slot/register constants, evfab_mk_cfg, evfab_settle, bounded polls and the independent TB SHADOW MODEL).
+   ONE clock family: `clk` hosts the whole fabric, while `ClkMem` is the gated bus clock driven `clk when pbus.en_mem='0' else '0'`, the harder case for the autonomy leg since integration's free-running ClkMem is a strict superset of edges.
+   The DUT generics are the v1 defaults, of which EV_MODE_TGL/LVL are copied INDEPENDENTLY in evfab_bfm_pkg: change one without the other and the mode-dependent stimulus and latency checks silently stop matching the DUT. */
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -223,9 +223,9 @@ begin
             gpio0_evin(g) <= '0';
         end procedure;
 
-        -- SAMPLE-POINT CONTRACT, which every task_pulse check in this bench depends on: `wait until clk = '1'` resumes in the SAME delta cycle as the edge, BEFORE the DUT applies its scheduled updates, so a registered output read right after it still carries its PRE-edge value.
-        -- The edge at which a pulse becomes OBSERVABLE here is therefore ONE later than the worked latency number: P latency 1 is observed at edge 2, T and L latency 3 at edge 4, and evfab_bfm_pkg's shadow model encodes the same lag.
-        -- fire_event and fire_gpio fire one event and leave this process parked ON that observation edge, deasserting a P-mode drive at the latency edge to keep the input a ONE-clk pulse; T, L and GPIO clears are no-ops.
+        /* SAMPLE-POINT CONTRACT, which every task_pulse check in this bench depends on: `wait until clk = '1'` resumes in the SAME delta cycle as the edge, BEFORE the DUT applies its scheduled updates, so a registered output read right after it still carries its PRE-edge value.
+           The edge at which a pulse becomes OBSERVABLE here is therefore ONE later than the worked latency number: P latency 1 is observed at edge 2, T and L latency 3 at edge 4, and evfab_bfm_pkg's shadow model encodes the same lag.
+           fire_event and fire_gpio fire one event and leave this process parked ON that observation edge, deasserting a P-mode drive at the latency edge to keep the input a ONE-clk pulse; T, L and GPIO clears are no-ops. */
         procedure fire_event(e : natural) is
         begin
             drive_event(e);

@@ -1,28 +1,28 @@
--------------------------------------------------------------------------------
--- QSPI_tb.vhd
--------------------------------------------------------------------------------
--- Standalone, self-checking testbench for the QSPI peripheral, driven entirely through its entity and register map.
--- The DUT is declared as a COMPONENT, so this bench compiles standalone and VHDL default binding resolves it once QSPI.vhd is analyzed into the work library.
--- Support: periph_tb_pkg (shared scoreboard and register-bus BFM), qspi_bfm_pkg (slot constants, CR/CMD packing, the deterministic read-pattern formula, a bounded BUSY poll), and QSPI_flash_model as the generic-configured responder.
--- Bus contract: EnMemPeriph active-low, WEn active-low per byte lane, MABPart(7:2) is the word-slot address, and ClkMem is GATED so it ticks only while EnMemPeriph='0'.
--- A one-cycle W1C clear pulse can stick until the next selected access, so every W1C here is followed by a dummy CR read before SR is re-read.
---
--- Register map (word slots; bit-packing helpers in qspi_bfm_pkg.vhd):
---   Slot 0 CR : [0]QSPIEN [2:1]CMDW [4:3]ADRW [6:5]DATW (00=1b,01=2b,10=4b)
---               [7]CPOL [8]CPHA [10:9]AWID (00=none,01=24b,10=32b)
---               [15:11]DUMMY edges [18:16]CSSEL(write 0) [26:19]BR
---               [27]TCIE [28]RXFIE
---   Slot 1 CMD: [7:0]opcode [9:8]DLEN(00=none,01=8b,10=16b,11=32b) [10]DIR
---               (0=write,1=read). Writing this slot LAUNCHES (ignored if
---               QSPIEN=0 or BUSY=1).
---   Slot 2 ADR: 32-bit address, MSB-first (low 24 bits when AWID=01).
---   Slot 3 TX : 32-bit write payload, no trigger.
---   Slot 4 RX : read-only snapshot; reading clears nothing.
---   Slot 5 SR : [0]BUSY RO [1]TXEIF W1C [2]RXFULL W1C [3]TCIF W1C.
---
--- Contract points the register map leaves open, and what this bench assumes about each: the "11" width encoding is undefined and never driven; DUMMY is counted in the responder model's own edge units.
--- RX/TX payloads narrower than 32 bits are taken as right-justified; CS is taken as active-low with cs_dir/sck_dir not consulted; DUMMY is programmed 0 on write and command-only transactions.
--------------------------------------------------------------------------------
+/* -----------------------------------------------------------------------------
+   QSPI_tb.vhd
+   -----------------------------------------------------------------------------
+   Standalone, self-checking testbench for the QSPI peripheral, driven entirely through its entity and register map.
+   The DUT is declared as a COMPONENT, so this bench compiles standalone and VHDL default binding resolves it once QSPI.vhd is analyzed into the work library.
+   Support: periph_tb_pkg (shared scoreboard and register-bus BFM), qspi_bfm_pkg (slot constants, CR/CMD packing, the deterministic read-pattern formula, a bounded BUSY poll), and QSPI_flash_model as the generic-configured responder.
+   Bus contract: EnMemPeriph active-low, WEn active-low per byte lane, MABPart(7:2) is the word-slot address, and ClkMem is GATED so it ticks only while EnMemPeriph='0'.
+   A one-cycle W1C clear pulse can stick until the next selected access, so every W1C here is followed by a dummy CR read before SR is re-read.
+
+   Register map (word slots; bit-packing helpers in qspi_bfm_pkg.vhd):
+     Slot 0 CR : [0]QSPIEN [2:1]CMDW [4:3]ADRW [6:5]DATW (00=1b,01=2b,10=4b)
+                 [7]CPOL [8]CPHA [10:9]AWID (00=none,01=24b,10=32b)
+                 [15:11]DUMMY edges [18:16]CSSEL(write 0) [26:19]BR
+                 [27]TCIE [28]RXFIE
+     Slot 1 CMD: [7:0]opcode [9:8]DLEN(00=none,01=8b,10=16b,11=32b) [10]DIR
+                 (0=write,1=read). Writing this slot LAUNCHES (ignored if
+                 QSPIEN=0 or BUSY=1).
+     Slot 2 ADR: 32-bit address, MSB-first (low 24 bits when AWID=01).
+     Slot 3 TX : 32-bit write payload, no trigger.
+     Slot 4 RX : read-only snapshot; reading clears nothing.
+     Slot 5 SR : [0]BUSY RO [1]TXEIF W1C [2]RXFULL W1C [3]TCIF W1C.
+
+   Contract points the register map leaves open, and what this bench assumes about each: the "11" width encoding is undefined and never driven; DUMMY is counted in the responder model's own edge units.
+   RX/TX payloads narrower than 32 bits are taken as right-justified; CS is taken as active-low with cs_dir/sck_dir not consulted; DUMMY is programmed 0 on write and command-only transactions.
+   ----------------------------------------------------------------------------- */
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -100,25 +100,25 @@ architecture sim of QSPI_tb is
 
 begin
 
-    ----------------------------------------------------------------------------
-    -- clock / gated register-bus clock
-    ----------------------------------------------------------------------------
+    /* --------------------------------------------------------------------------
+       clock / gated register-bus clock
+       -------------------------------------------------------------------------- */
     clk    <= not clk after PERIOD / 2;
     ClkMem <= clk when pbus.en_mem = '0' else '0';
 
-    ----------------------------------------------------------------------------
-    -- io_bus resolution: the DUT drives io_out(i) when io_dir(i)='1', otherwise the flash model drives when it owns that bit (model_io_oe(i)='1'), otherwise the line is released (weak 'H').
-    -- Both DUT and model see the SAME resolved bus on their io_in ports.
-    ----------------------------------------------------------------------------
+    /* --------------------------------------------------------------------------
+       io_bus resolution: the DUT drives io_out(i) when io_dir(i)='1', otherwise the flash model drives when it owns that bit (model_io_oe(i)='1'), otherwise the line is released (weak 'H').
+       Both DUT and model see the SAME resolved bus on their io_in ports.
+       -------------------------------------------------------------------------- */
     io_res : for i in 0 to 3 generate
         io_bus(i) <= dut_io_out(i) when dut_io_dir(i) = '1' else
                      model_io_out(i) when model_io_oe(i) = '1' else
                      'H';
     end generate io_res;
 
-    ----------------------------------------------------------------------------
-    -- DUT
-    ----------------------------------------------------------------------------
+    /* --------------------------------------------------------------------------
+       DUT
+       -------------------------------------------------------------------------- */
     dut : component QSPI
         port map (
             clk         => clk,
@@ -140,9 +140,9 @@ begin
             io_dir      => dut_io_dir
         );
 
-    ----------------------------------------------------------------------------
-    -- Flash-responder model: cs/sck wired straight from cs_out/sck_out with the dir signals not consulted, per the active-low CS assumption in the header.
-    ----------------------------------------------------------------------------
+    /* --------------------------------------------------------------------------
+       Flash-responder model: cs/sck wired straight from cs_out/sck_out with the dir signals not consulted, per the active-low CS assumption in the header.
+       -------------------------------------------------------------------------- */
     flash : entity work.QSPI_flash_model
         port map (
             cs              => cs_out,
@@ -168,9 +168,9 @@ begin
             obs_txn_count   => obs_txn_count
         );
 
-    ----------------------------------------------------------------------------
-    -- stimulus
-    ----------------------------------------------------------------------------
+    /* --------------------------------------------------------------------------
+       stimulus
+       -------------------------------------------------------------------------- */
     stim_proc : process
         variable rdw     : std_logic_vector(31 downto 0);
         variable done_ok : boolean;
@@ -242,9 +242,9 @@ begin
         end procedure;
 
     begin
-        ----------------------------------------------------------------
-        -- Reset
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           Reset
+           -------------------------------------------------------------- */
         resetn <= '0';
         pbus   <= PERIPH_BUS_IDLE;
         wait for 4 * PERIOD;
@@ -252,9 +252,9 @@ begin
         resetn <= '1';
         wait for 4 * PERIOD;
 
-        ----------------------------------------------------------------
-        -- GROUP 0: reset defaults
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           GROUP 0: reset defaults
+           -------------------------------------------------------------- */
         report "=== GROUP 0: reset defaults ===" severity note;
 
         bus_read(clk, pbus, rdata_out, SlotQSPIxSR, rdw);
@@ -262,9 +262,9 @@ begin
         bus_read(clk, pbus, rdata_out, SlotQSPIxRX, rdw);
         sb.check_slv("RX resets to 0", rdw, x"00000000");
 
-        ----------------------------------------------------------------
-        -- GROUP 1: single-mode (1-1-1) 8-bit READ, AWID=24, DUMMY=0
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           GROUP 1: single-mode (1-1-1) 8-bit READ, AWID=24, DUMMY=0
+           -------------------------------------------------------------- */
         report "=== GROUP 1: single-mode 8-bit READ ===" severity note;
 
         qspi_launch(cmdw => "00", adrw => "00", datw => "00", awid => "01", dlen => "01",
@@ -301,9 +301,9 @@ begin
         bus_read(clk, pbus, rdata_out, SlotQSPIxSR, rdw);
         sb.check_bit("GROUP1: TCIF cleared", rdw(3), '0');
 
-        ----------------------------------------------------------------
-        -- GROUP 2: 1-1-1 32-bit WRITE
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           GROUP 2: 1-1-1 32-bit WRITE
+           -------------------------------------------------------------- */
         report "=== GROUP 2: single-mode 32-bit WRITE ===" severity note;
 
         qspi_launch(cmdw => "00", adrw => "00", datw => "00", awid => "01", dlen => "11",
@@ -323,9 +323,9 @@ begin
         bus_read(clk, pbus, rdata_out, SlotQSPIxSR, rdw);
         sb.check_slv("GROUP2: SR flags cleared", rdw(3 downto 1), "000");
 
-        ----------------------------------------------------------------
-        -- GROUP 3: command-only (DLEN=00, AWID=00)
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           GROUP 3: command-only (DLEN=00, AWID=00)
+           -------------------------------------------------------------- */
         report "=== GROUP 3: command-only ===" severity note;
 
         qspi_launch(cmdw => "00", adrw => "00", datw => "00", awid => "00", dlen => "00",
@@ -339,9 +339,9 @@ begin
         sb.check_bit("GROUP3: TCIF set", rdw(3), '1');
         qspi_w1c_clear(x"0000000E");
 
-        ----------------------------------------------------------------
-        -- GROUP 4: quad-lane READs (DUMMY=8)
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           GROUP 4: quad-lane READs (DUMMY=8)
+           -------------------------------------------------------------- */
         report "=== GROUP 4: quad-lane READ (1-1-4 and 4-4-4) ===" severity note;
 
         -- 4a: 1-1-4, single-lane cmd/addr with quad-lane 32-bit data.
@@ -369,9 +369,9 @@ begin
         sb.check_slv("GROUP4b (4-4-4): RX word matches pattern", rdw, expected_word);
         qspi_w1c_clear(x"0000000E");
 
-        ----------------------------------------------------------------
-        -- GROUP 5: dual-lane (DATW=2-bit) 16-bit READ, DUMMY=2
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           GROUP 5: dual-lane (DATW=2-bit) 16-bit READ, DUMMY=2
+           -------------------------------------------------------------- */
         report "=== GROUP 5: dual-lane 16-bit READ ===" severity note;
 
         qspi_launch(cmdw => "00", adrw => "00", datw => "01", awid => "01", dlen => "10",
@@ -385,9 +385,9 @@ begin
         sb.check_slv("GROUP5: RX halfword matches pattern", rdw(15 downto 0), expected_word(31 downto 16));
         qspi_w1c_clear(x"0000000E");
 
-        ----------------------------------------------------------------
-        -- GROUP 6: CPOL=1 / CPHA=1 (repeat of GROUP 1's shape)
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           GROUP 6: CPOL=1 / CPHA=1 (repeat of GROUP 1's shape)
+           -------------------------------------------------------------- */
         report "=== GROUP 6: CPOL=1/CPHA=1 ===" severity note;
 
         qspi_launch(cmdw => "00", adrw => "00", datw => "00", awid => "01", dlen => "01",
@@ -404,9 +404,9 @@ begin
         sb.check_bit("GROUP6: TCIF set (CPOL=1/CPHA=1)", rdw(3), '1');
         qspi_w1c_clear(x"0000000E");
 
-        ----------------------------------------------------------------
-        -- GROUP 7: launch guards
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           GROUP 7: launch guards
+           -------------------------------------------------------------- */
         report "=== GROUP 7: launch guards ===" severity note;
 
         -- (a) QSPIEN=0: a CMD write must not launch anything.
@@ -433,9 +433,9 @@ begin
         sb.check_true("GROUP7b: exactly one transaction ran", obs_txn_count = txn_before + 1);
         qspi_w1c_clear(x"0000000E");
 
-        ----------------------------------------------------------------
-        -- GROUP 8: interrupts
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           GROUP 8: interrupts
+           -------------------------------------------------------------- */
         report "=== GROUP 8: interrupts ===" severity note;
 
         -- (a) TCIE=1: irq_tc rises with TCIF, falls after W1C.
@@ -470,10 +470,10 @@ begin
         sb.check_bit("GROUP8c: irq_rxf cleared after RXFULL W1C", irq_rxf, '0');
         qspi_w1c_clear(x"0000000E");
 
-        ----------------------------------------------------------------
-        -- GROUP 8d: DIRECTED literal check, for checker independence: every other RX check compares against qspi_read_pattern(), the same function the model uses to DRIVE the data, so a bug in it could self-certify.
-        -- Hand-computed expectation: a 1-1-4 32-bit read from 0x00000000 with seed 0xA5 gives MSB-first byte i = 0xA5 xor i, i.e. 0xA5A4A7A6.
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           GROUP 8d: DIRECTED literal check, for checker independence: every other RX check compares against qspi_read_pattern(), the same function the model uses to DRIVE the data, so a bug in it could self-certify.
+           Hand-computed expectation: a 1-1-4 32-bit read from 0x00000000 with seed 0xA5 gives MSB-first byte i = 0xA5 xor i, i.e. 0xA5A4A7A6.
+           -------------------------------------------------------------- */
         report "=== GROUP 8d: DIRECTED literal RX check ===" severity note;
 
         qspi_launch(cmdw => "00", adrw => "00", datw => "10", awid => "01", dlen => "11",
@@ -486,10 +486,10 @@ begin
                      rdw, x"A5A4A7A6");
         qspi_w1c_clear(x"0000000E");
 
-        ----------------------------------------------------------------
-        -- GROUP 9: NEGATIVE CONTROL (mandatory, last), a deliberately wrong expectation that MUST report a mismatch, proving the checkers can fail.
-        -- Counted as exactly 1 expected failure in the final banner.
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           GROUP 9: NEGATIVE CONTROL (mandatory, last), a deliberately wrong expectation that MUST report a mismatch, proving the checkers can fail.
+           Counted as exactly 1 expected failure in the final banner.
+           -------------------------------------------------------------- */
         report "=== GROUP 9: NEGATIVE CONTROL ===" severity note;
 
         qspi_launch(cmdw => "00", adrw => "00", datw => "00", awid => "01", dlen => "01",
@@ -504,9 +504,9 @@ begin
                      rdw(7 downto 0), std_logic_vector(unsigned(expected_byte) + 1));
         qspi_w1c_clear(x"0000000E");
 
-        ----------------------------------------------------------------
-        -- Final verdict: sb.errors must be EXACTLY 1 (the negative control above) for an overall PASS.
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           Final verdict: sb.errors must be EXACTLY 1 (the negative control above) for an overall PASS.
+           -------------------------------------------------------------- */
         wait for 1 us;
         sb.report_summary("QSPI TB");
 

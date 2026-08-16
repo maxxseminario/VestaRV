@@ -1,22 +1,22 @@
--- =============================================================================
--- irq_router.vhd: THE peripheral interrupt controller, per-hart routing rows plus PLIC-style CLAIM/COMPLETE delivery, living at page 3 of the shared peripheral window (0x7000) as a native arbiter slave on the free-running mclk, so meip can wake a hart whose gated clk_cpu is off.
--- Delivery is ONE registered wire per hart: meip(h) = OR over peripheral sources i of ( level(i) AND en[h](i) AND NOT in_service(i) ), every row live including row 0, and the CLINT source IDs excluded because msip and mtip are per-hart hardwired wires (their row bits are writable but inert).
--- CLAIM (read 0x7800) atomically returns the lowest pending source ID enabled for the READING hart, attributed by the arbiter's granted master, and sets in_service(id) so the source leaves EVERY hart's meip until completed, giving exactly-once delivery; with nothing pending it returns CLAIM_NONE (0xFFFFFFFF), which the dispatcher treats as spurious, and priority is fixed lowest-ID, so a chatty low-ID source can starve higher IDs on the same hart; COMPLETE (write the ID to 0x7800) clears in_service(id), is owner-UNQUALIFIED so any hart can recover a hung hart's claim, ignores IDs at or above NUM_SRCS so a stashed CLAIM_NONE is a no-op, and re-pends the source if its level is still high.
--- =============================================================================
+/* =============================================================================
+   irq_router.vhd: THE peripheral interrupt controller, per-hart routing rows plus PLIC-style CLAIM/COMPLETE delivery, living at page 3 of the shared peripheral window (0x7000) as a native arbiter slave on the free-running mclk, so meip can wake a hart whose gated clk_cpu is off.
+   Delivery is ONE registered wire per hart: meip(h) = OR over peripheral sources i of ( level(i) AND en[h](i) AND NOT in_service(i) ), every row live including row 0, and the CLINT source IDs excluded because msip and mtip are per-hart hardwired wires (their row bits are writable but inert).
+   CLAIM (read 0x7800) atomically returns the lowest pending source ID enabled for the READING hart, attributed by the arbiter's granted master, and sets in_service(id) so the source leaves EVERY hart's meip until completed, giving exactly-once delivery; with nothing pending it returns CLAIM_NONE (0xFFFFFFFF), which the dispatcher treats as spurious, and priority is fixed lowest-ID, so a chatty low-ID source can starve higher IDs on the same hart; COMPLETE (write the ID to 0x7800) clears in_service(id), is owner-UNQUALIFIED so any hart can recover a hung hart's claim, ignores IDs at or above NUM_SRCS so a stashed CLAIM_NONE is a no-op, and re-pends the source if its level is still high.
+   ============================================================================= */
 
--- REGISTER MAP, byte address = 0x7000 + 4*word, ADDR_W=10 decoding the full page:
---   word 4h+0 : HhENL = en[h](31:0)    for hart h  (h = 0..NHARTS-1)  RW
---   word 4h+1 : HhENM = en[h](63:32)                                  RW
---   word 4h+2 : HhENU = en[h](84:64)   (bits 20:0; CONTIGUOUS packing
---               both ways; bits 19 and 20 are the CLINT slots, inert)  RW
---   word 4h+3 : HhENX = en[h](NUM_SRCS-1:96) when NUM_SRCS > 96,
---               otherwise reserved and reads 0.  NUM_EN_WORDS =
---               ceil(NUM_SRCS/32) words per hart.                     RW
---   word 512  : 0x7800 CLAIM (read, SIDE EFFECT) or COMPLETE (write)
---   word 516-519 : 0x7810/14/18/1C PENDL/M/U/X  = raw deglitched levels RO
---   word 520-523 : 0x7820/24/28/2C INSVCL/M/U/X = in_service bits       RO
---   Everything else reads 0 and ignores writes, as do row indices at or above NHARTS.
--- =============================================================================
+/* REGISTER MAP, byte address = 0x7000 + 4*word, ADDR_W=10 decoding the full page:
+     word 4h+0 : HhENL = en[h](31:0)    for hart h  (h = 0..NHARTS-1)  RW
+     word 4h+1 : HhENM = en[h](63:32)                                  RW
+     word 4h+2 : HhENU = en[h](84:64)   (bits 20:0; CONTIGUOUS packing
+                 both ways; bits 19 and 20 are the CLINT slots, inert)  RW
+     word 4h+3 : HhENX = en[h](NUM_SRCS-1:96) when NUM_SRCS > 96,
+                 otherwise reserved and reads 0.  NUM_EN_WORDS =
+                 ceil(NUM_SRCS/32) words per hart.                     RW
+     word 512  : 0x7800 CLAIM (read, SIDE EFFECT) or COMPLETE (write)
+     word 516-519 : 0x7810/14/18/1C PENDL/M/U/X  = raw deglitched levels RO
+     word 520-523 : 0x7820/24/28/2C INSVCL/M/U/X = in_service bits       RO
+     Everything else reads 0 and ignores writes, as do row indices at or above NHARTS.
+   ============================================================================= */
 
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;

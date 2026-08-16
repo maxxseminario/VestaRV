@@ -2,13 +2,13 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
--- ===========================================================================
--- EVFAB: event/trigger fabric, a PPI-style crossbar; ONE instance, EVFAB0 @ 0x6B00, zero pins, vectorless (irq_evfab is a hard constant '0').
--- TWO CLOCKS, ONE FAMILY: free-running `clk` (mclk) hosts the front-ends, the crossbar, the output register, the stickies and the action path, while `ClkMem` hosts ONLY the register-file storage and the registered read mux.
--- ClkMem's edges are a SUBSET of clk's at the same phase (they are the same net at integration), so every hand-off between the two is a bare held level, never a toggle and never a 2-FF sync.
--- EVFAB0 sits in the always-on shared domain: WFI keeps mclk alive, field power only slows it and the power controller never gates it, so chains fire with the bus idle, which is the point of the block.
--- -V200X only: no VHDL-2008, every process infers exactly ONE edge of ONE clock, no latch, no clock gate, no falling_edge of anything (least of all EnMemPeriph), and no async clear other than `resetn`.
--- ===========================================================================
+/* ===========================================================================
+   EVFAB: event/trigger fabric, a PPI-style crossbar; ONE instance, EVFAB0 @ 0x6B00, zero pins, vectorless (irq_evfab is a hard constant '0').
+   TWO CLOCKS, ONE FAMILY: free-running `clk` (mclk) hosts the front-ends, the crossbar, the output register, the stickies and the action path, while `ClkMem` hosts ONLY the register-file storage and the registered read mux.
+   ClkMem's edges are a SUBSET of clk's at the same phase (they are the same net at integration), so every hand-off between the two is a bare held level, never a toggle and never a 2-FF sync.
+   EVFAB0 sits in the always-on shared domain: WFI keeps mclk alive, field power only slows it and the power controller never gates it, so chains fire with the bus idle, which is the point of the block.
+   -V200X only: no VHDL-2008, every process infers exactly ONE edge of ONE clock, no latch, no clock gate, no falling_edge of anything (least of all EnMemPeriph), and no async clear other than `resetn`.
+   =========================================================================== */
 
 entity EVFAB is
     generic (
@@ -54,24 +54,24 @@ architecture behavioral of EVFAB is
     constant EVSEL_W   : natural := 5;
     constant TASKSEL_W : natural := 4;
 
-    -- ---- word-slot map (base 0x6B00, slot n @ 0x6B00 + 4n, off MABPart(7:2))
-    --    0 EVFCR       rw  [0] EN global kill (reset 0); 31:1 reserved r0
-    --    1 EVFSR       ro  [0] FIREDIF = OR(FIRED); [1] OVRIF = OR(OVR); 31:2 r0
-    --    2 EVFIE       reserved: reads 0, writes ignored (vectorless)
-    --    3 EVFCAP      ro  [7:0] N_CH [15:8] N_EV [23:16] N_TASK [31:24] VER
-    --    4 EVFCHEN     rw  [N_CH-1:0] channel enables (reset 0)
-    --    5 EVFCHENSET  w1s, READS CHEN     6 EVFCHENCLR  w1c, READS CHEN
-    --    7 EVFCHTRIG   w1-inject at the CHANNEL, honors EN+CHEN; reads 0
-    --    8 EVFFIRED    W1C sticky "channel n fired"            (set wins)
-    --    9 EVFOVR      W1C sticky overrun                      (set wins)
-    --   10 EVFEVSTAT   W1C sticky raw-event record, UNGATED by EN/CHEN
-    --   11 EVFEVTRIG   w1-inject a RAW EVENT; reads 0
-    --   12-14 reserved r0 (earmarked TKSTAT / FIREDIE / OVRIE)
-    --   15 EVFGPIOMASK rw  [7:0] per-bit enable for the GPIO0 edge path
-    --   16+n EVFCHnCFG rw  [4:0] EVSEL (31 = NONE); [11:8] TASKSEL;
-    --                      [31] ENR = RO mirror of CHEN(n); other bits r0
-    --   32-63 reserved r0
-    -- Every write is lane-0 qualified (WEn(0)='0'); reserved bits ignore writes and read 0; CHnCFG slots with n >= N_CH read 0 and ignore writes; EVSTAT bits >= N_EV read 0.
+    /* ---- word-slot map (base 0x6B00, slot n @ 0x6B00 + 4n, off MABPart(7:2))
+          0 EVFCR       rw  [0] EN global kill (reset 0); 31:1 reserved r0
+          1 EVFSR       ro  [0] FIREDIF = OR(FIRED); [1] OVRIF = OR(OVR); 31:2 r0
+          2 EVFIE       reserved: reads 0, writes ignored (vectorless)
+          3 EVFCAP      ro  [7:0] N_CH [15:8] N_EV [23:16] N_TASK [31:24] VER
+          4 EVFCHEN     rw  [N_CH-1:0] channel enables (reset 0)
+          5 EVFCHENSET  w1s, READS CHEN     6 EVFCHENCLR  w1c, READS CHEN
+          7 EVFCHTRIG   w1-inject at the CHANNEL, honors EN+CHEN; reads 0
+          8 EVFFIRED    W1C sticky "channel n fired"            (set wins)
+          9 EVFOVR      W1C sticky overrun                      (set wins)
+         10 EVFEVSTAT   W1C sticky raw-event record, UNGATED by EN/CHEN
+         11 EVFEVTRIG   w1-inject a RAW EVENT; reads 0
+         12-14 reserved r0 (earmarked TKSTAT / FIREDIE / OVRIE)
+         15 EVFGPIOMASK rw  [7:0] per-bit enable for the GPIO0 edge path
+         16+n EVFCHnCFG rw  [4:0] EVSEL (31 = NONE); [11:8] TASKSEL;
+                            [31] ENR = RO mirror of CHEN(n); other bits r0
+         32-63 reserved r0
+       Every write is lane-0 qualified (WEn(0)='0'); reserved bits ignore writes and read 0; CHnCFG slots with n >= N_CH read 0 and ignore writes; EVSTAT bits >= N_EV read 0. */
     constant SLOT_CR       : natural := 0;
     constant SLOT_SR       : natural := 1;
     constant SLOT_IE       : natural := 2;
@@ -163,9 +163,9 @@ begin
     -- Vectorless: the IRQ net is a hard constant; spending a vector later means implementing slot 2 (IE), driving this net and sweeping the router.
     irq_evfab <= '0';
 
-    -- ------------------------- register write (ClkMem) ----------------------
-    -- Rising ClkMem, EnMemPeriph='0' AND lane-0 qualified; EVERY slot handled here is IDEMPOTENT (plain store / w1s / w1c), so the repeated edges of a held select window are harmless, and that is the whole reason these stay out of the clk action path.
-    -- Slots 7-11 (the action set) and 1/2/3/12/13/14/32-63 fall through as no-ops here; CHnCFG slots with n >= N_CH match nothing and are ignored.
+    /* ------------------------- register write (ClkMem) ----------------------
+       Rising ClkMem, EnMemPeriph='0' AND lane-0 qualified; EVERY slot handled here is IDEMPOTENT (plain store / w1s / w1c), so the repeated edges of a held select window are harmless, and that is the whole reason these stay out of the clk action path.
+       Slots 7-11 (the action set) and 1/2/3/12/13/14/32-63 fall through as no-ops here; CHnCFG slots with n >= N_CH match nothing and are ignored. */
     reg_write : process(resetn, ClkMem)
     begin
         if resetn = '0' then
@@ -203,9 +203,9 @@ begin
         end if;
     end process reg_write;
 
-    -- ------------------------- register read (ClkMem) -----------------------
-    -- Registered read mux on rising ClkMem; the clk-domain flags (FIRED / OVR / EVSTAT and the SR reductions) are sampled BARE, which is a plain timed path and not a CDC because ClkMem and clk are the same net at integration.
-    -- Reserved slots and bits read 0; CHENSET/CHENCLR both mirror CHEN; CHTRIG/EVTRIG read 0; no read has any side effect.
+    /* ------------------------- register read (ClkMem) -----------------------
+       Registered read mux on rising ClkMem; the clk-domain flags (FIRED / OVR / EVSTAT and the SR reductions) are sampled BARE, which is a plain timed path and not a CDC because ClkMem and clk are the same net at integration.
+       Reserved slots and bits read 0; CHENSET/CHENCLR both mirror CHEN; CHTRIG/EVTRIG read 0; no read has any side effect. */
     reg_read : process(resetn, ClkMem)
         variable rd : std_logic_vector(31 downto 0);
     begin
@@ -247,15 +247,15 @@ begin
         end if;
     end process reg_read;
 
-    -- ------------------------- ACTION path (clk) ----------------------------
-    -- Slots 7-11 are NON-IDEMPOTENT, so one write must produce EXACTLY ONE injection or clear however long the select is held, which is why they are decoded here in the free-running clk domain instead of on ClkMem.
-    -- An arm flop on ClkMem could not re-arm between two back-to-back writes to the same slot, since no ClkMem edge exists while deselected, and would silently swallow the second one.
-    -- The decoded-write LEVEL is pure DATA: combinational, EnMemPeriph-and-lane-0 qualified, and NEVER used as a clock or an edge; a read leaves WEn = "1111" so reads never enter this path.
+    /* ------------------------- ACTION path (clk) ----------------------------
+       Slots 7-11 are NON-IDEMPOTENT, so one write must produce EXACTLY ONE injection or clear however long the select is held, which is why they are decoded here in the free-running clk domain instead of on ClkMem.
+       An arm flop on ClkMem could not re-arm between two back-to-back writes to the same slot, since no ClkMem edge exists while deselected, and would silently swallow the second one.
+       The decoded-write LEVEL is pure DATA: combinational, EnMemPeriph-and-lane-0 qualified, and NEVER used as a clock or an edge; a read leaves WEn = "1111" so reads never enter this path. */
     bus_wr_lvl <= '1' when (EnMemPeriph = '0' and WEn(0) = '0') else '0';
 
-    -- ONE shared bus snapshot plus ONE rising-edge detector, giving exactly one action per select window: a held write is one action however long the level holds, and back-to-back writes in SEPARATE accesses are one action each because the level drops while deselected and clk keeps running.
-    -- PAYLOAD BEFORE FLAG: the snapshot is taken at the FIRST clk edge that sees the level and the pulse arrives two edges later, so an action never samples a raw `wdata` the arbiter has already re-driven for the next master.
-    -- Hence the visible latency is 3 clk edges from the opening of the select window, and a read issued sooner sees STALE state; two writes with NO intervening deselect would collapse to one action carrying the last payload, which the MCU fabric never produces.
+    /* ONE shared bus snapshot plus ONE rising-edge detector, giving exactly one action per select window: a held write is one action however long the level holds, and back-to-back writes in SEPARATE accesses are one action each because the level drops while deselected and clk keeps running.
+       PAYLOAD BEFORE FLAG: the snapshot is taken at the FIRST clk edge that sees the level and the pulse arrives two edges later, so an action never samples a raw `wdata` the arbiter has already re-driven for the next master.
+       Hence the visible latency is 3 clk edges from the opening of the select window, and a read issued sooner sees STALE state; two writes with NO intervening deselect would collapse to one action carrying the last payload, which the MCU fabric never produces. */
     action_path : process(resetn, clk)
     begin
         if resetn = '0' then
@@ -298,9 +298,9 @@ begin
         clr_evstat(e) <= act_evstat and bus_wdata_q(e);
     end generate gen_act_ev;
 
-    -- ------------------------- input front-ends (clk) -----------------------
-    -- ONE uniform 3-flop chain per event input AND per GPIO0 pad bit, with no if-generate on mode; ev_in/gpio0_evin are PURE DATA here, never a clock and never an async clear.
-    -- All chains reset to 0, so a T input already HIGH at reset release produces NO phantom pulse: s2 = prev = 0 makes the XOR 0, and the first genuine flip fires.
+    /* ------------------------- input front-ends (clk) -----------------------
+       ONE uniform 3-flop chain per event input AND per GPIO0 pad bit, with no if-generate on mode; ev_in/gpio0_evin are PURE DATA here, never a clock and never an async clear.
+       All chains reset to 0, so a T input already HIGH at reset release produces NO phantom pulse: s2 = prev = 0 makes the XOR 0, and the first genuine flip fires. */
     front_end : process(resetn, clk)
     begin
         if resetn = '0' then
@@ -329,11 +329,11 @@ begin
     -- Any masked-in GPIO0 edge becomes the single internal event line.
     gp_event <= or_red(gp_masked);
 
-    -- Mode select, elaboration-static: EV_MODE_TGL(e)/EV_MODE_LVL(e) with `e` a generate constant is a globally static condition, so exactly one arm survives per index at synthesis.
-    --   T: one pulse per FLIP, both directions (XOR of the last two samples)
-    --   L: one pulse on the RISING edge only; a level that stays high forever fires exactly once
-    --   P: pass-through, NO flop, latency 1 preserved; a P input MUST be a ONE-mclk pulse in the clk domain, because a 2-cycle P input fires its channels twice by design
-    -- TGL wins over LVL if a bit is set in both, which is an illegal configuration and is not checked; index EV_GPIO_IDX is overridden by the GPIO0 path above and its ev_in bit is ignored entirely.
+    /* Mode select, elaboration-static: EV_MODE_TGL(e)/EV_MODE_LVL(e) with `e` a generate constant is a globally static condition, so exactly one arm survives per index at synthesis.
+         T: one pulse per FLIP, both directions (XOR of the last two samples)
+         L: one pulse on the RISING edge only; a level that stays high forever fires exactly once
+         P: pass-through, NO flop, latency 1 preserved; a P input MUST be a ONE-mclk pulse in the clk domain, because a 2-cycle P input fires its channels twice by design
+       TGL wins over LVL if a bit is set in both, which is an illegal configuration and is not checked; index EV_GPIO_IDX is overridden by the GPIO0 path above and its ev_in bit is ignored entirely. */
     gen_front : for e in 0 to N_EV-1 generate
         -- The internally generated GPIO0 event replaces its tap entirely.
         gen_gpio_ev : if e = EV_GPIO_IDX generate
@@ -351,10 +351,10 @@ begin
     -- That makes the whole matrix testable from firmware with no producer hardware.
     ev_eff <= ev_front or ev_inject;
 
-    -- ------------------------- crossbar (clk) -------------------------------
-    -- ONE-HOT EQUALITY DECODE plus AND-OR reduction throughout, NEVER a `case` or an integer index on EVSEL/TASKSEL, and that is an X-safety decision: VHDL '=' on a metavalue returns FALSE, so an X in EVSEL/TASKSEL yields an all-zero one-hot (the channel goes inert, with no index range error and no X on task_pulse) and an X on an unselected input line is killed by the AND before it reaches the OR tree.
-    -- EVSEL=31 (NONE), reserved EVSEL 16..30 and TASKSEL >= N_TASK need no special case: they structurally match nothing, and the `inrange` term is why an out-of-range TASKSEL still sets FIRED but raises no pulse and no phantom OVR.
-    -- Input-side gating: ch_arm = CR.EN and CHEN(n) is applied BEFORE the task OR and before FIRED/OVR, so a disabled channel is COMPLETELY inert; EVSTAT is upstream of this gate and still records, and CHTRIG enters INSIDE it so a CHTRIG fire is indistinguishable downstream from an event fire.
+    /* ------------------------- crossbar (clk) -------------------------------
+       ONE-HOT EQUALITY DECODE plus AND-OR reduction throughout, NEVER a `case` or an integer index on EVSEL/TASKSEL, and that is an X-safety decision: VHDL '=' on a metavalue returns FALSE, so an X in EVSEL/TASKSEL yields an all-zero one-hot (the channel goes inert, with no index range error and no X on task_pulse) and an X on an unselected input line is killed by the AND before it reaches the OR tree.
+       EVSEL=31 (NONE), reserved EVSEL 16..30 and TASKSEL >= N_TASK need no special case: they structurally match nothing, and the `inrange` term is why an out-of-range TASKSEL still sets FIRED but raises no pulse and no phantom OVR.
+       Input-side gating: ch_arm = CR.EN and CHEN(n) is applied BEFORE the task OR and before FIRED/OVR, so a disabled channel is COMPLETELY inert; EVSTAT is upstream of this gate and still records, and CHTRIG enters INSIDE it so a CHTRIG fire is indistinguishable downstream from an event fire. */
     crossbar : process(cr_en, chen, cfg_evsel, cfg_tasksel, ev_eff,
                        chtrig_pulse, task_busy)
         variable ev_hit_v  : std_logic;
@@ -410,9 +410,9 @@ begin
         task_hit <= hit_v;
     end process crossbar;
 
-    -- ------------------------- output register (clk) ------------------------
-    -- THE single flop between ev_eff and the consumer: in-fabric latency is exactly 1 mclk and task_pulse is a registered one-mclk pulse BY CONSTRUCTION, so consumers for which a held level is hazardous are protected structurally rather than by contract.
-    -- NO second stage, NO handshake, NO rate limit, NEVER a bus master.
+    /* ------------------------- output register (clk) ------------------------
+       THE single flop between ev_eff and the consumer: in-fabric latency is exactly 1 mclk and task_pulse is a registered one-mclk pulse BY CONSTRUCTION, so consumers for which a held level is hazardous are protected structurally rather than by contract.
+       NO second stage, NO handshake, NO rate limit, NEVER a bus master. */
     out_reg : process(resetn, clk)
     begin
         if resetn = '0' then
@@ -422,10 +422,10 @@ begin
         end if;
     end process out_reg;
 
-    -- ------------------------- sticky flags (clk) ---------------------------
-    -- SET WINS over the W1C clear, and the clear is the one-cycle action pulse in the domain that OWNS the flop, never an async clear from a decode.
-    -- Comparing against '1' rather than OR-ing the term in keeps a metavalue on an unselected input line from ever poisoning a flag.
-    -- FIRED/OVR are gated by ch_arm; EVSTAT is UNGATED by EN/CHEN and records every raw event, which is what makes a post-mask tap violation testable.
+    /* ------------------------- sticky flags (clk) ---------------------------
+       SET WINS over the W1C clear, and the clear is the one-cycle action pulse in the domain that OWNS the flop, never an async clear from a decode.
+       Comparing against '1' rather than OR-ing the term in keeps a metavalue on an unselected input line from ever poisoning a flag.
+       FIRED/OVR are gated by ch_arm; EVSTAT is UNGATED by EN/CHEN and records every raw event, which is what makes a post-mask tap violation testable. */
     stickies : process(resetn, clk)
     begin
         if resetn = '0' then

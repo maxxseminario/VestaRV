@@ -1,12 +1,12 @@
--- =============================================================================
--- dbg_dmi_tb.vhd
--- =============================================================================
--- Debug Module register-map conformance bench: it drives the MCU's DMI port and grades dmstatus, hartinfo, abstractcs, hartsel WARL, haltsum0/1, data0, cmderr, abstractauto and dmcs2.
--- The DUT is entity work.MCU rather than the riscv_tb component so the DMI formals are NAMED here, which turns a missing DMI port into an elaboration error instead of a silent pass.
--- Assumed handshake, legal under either reading of the port contract: one request in flight, req_valid held until req_ready is sampled high, rsp_valid one-shot per request.
--- Out of scope: resume, register transfers, progbuf/postexec, halt groups and dcsr.prv all need a trampoline deposited at DEBUG_ENTRY_ADDR, so they belong to the in-band instruments.
--- Run xcelium/mp_test/run_dbg_dmi.sh; PASS iff the log prints "ALL CHECKS PASSED" and contains no "CHECK FAILED".
--- =============================================================================
+/* =============================================================================
+   dbg_dmi_tb.vhd
+   =============================================================================
+   Debug Module register-map conformance bench: it drives the MCU's DMI port and grades dmstatus, hartinfo, abstractcs, hartsel WARL, haltsum0/1, data0, cmderr, abstractauto and dmcs2.
+   The DUT is entity work.MCU rather than the riscv_tb component so the DMI formals are NAMED here, which turns a missing DMI port into an elaboration error instead of a silent pass.
+   Assumed handshake, legal under either reading of the port contract: one request in flight, req_valid held until req_ready is sampled high, rsp_valid one-shot per request.
+   Out of scope: resume, register transfers, progbuf/postexec, halt groups and dcsr.prv all need a trampoline deposited at DEBUG_ENTRY_ADDR, so they belong to the in-band instruments.
+   Run xcelium/mp_test/run_dbg_dmi.sh; PASS iff the log prints "ALL CHECKS PASSED" and contains no "CHECK FAILED".
+   ============================================================================= */
 
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;

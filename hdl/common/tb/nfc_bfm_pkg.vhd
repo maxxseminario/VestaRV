@@ -1,11 +1,11 @@
--------------------------------------------------------------------------------
--- nfc_bfm_pkg.vhd
--------------------------------------------------------------------------------
--- Bench helpers for the NFC ISO 14443A card-emulation peripheral testbench and its behavioral reader model.
--- Slot numbers, field packers and SR bit positions are LOCAL to this bench: NFC0 lives at 0x6200 and MemoryMap.vhd carries no NFC constants.
--- Only the spec-literal utilities nfc_crc_a, nfc_parity and nfc_bcc are shared with the reader model.
--- Miller encode and Manchester decode stay inside the reader model so its decode and the tb's expectations cannot collapse onto one shared codec.
--------------------------------------------------------------------------------
+/* -----------------------------------------------------------------------------
+   nfc_bfm_pkg.vhd
+   -----------------------------------------------------------------------------
+   Bench helpers for the NFC ISO 14443A card-emulation peripheral testbench and its behavioral reader model.
+   Slot numbers, field packers and SR bit positions are LOCAL to this bench: NFC0 lives at 0x6200 and MemoryMap.vhd carries no NFC constants.
+   Only the spec-literal utilities nfc_crc_a, nfc_parity and nfc_bcc are shared with the reader model.
+   Miller encode and Manchester decode stay inside the reader model so its decode and the tb's expectations cannot collapse onto one shared codec.
+   ----------------------------------------------------------------------------- */
 
 library ieee;
 use ieee.std_logic_1164.all;

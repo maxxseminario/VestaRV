@@ -1,4 +1,4 @@
-The NFC controller (\peripheral{NFCx}) is an ISO/IEC 14443 Type A (14443A) tag / card-emulation digital protocol engine. It emulates a passive contactless tag to an external reader: it recovers the reader-to-tag frames, runs the tag transaction state machine, and load-modulates the tag's response. The 13.56\,MHz RF analog front-end is \emph{off-die} --- this block is strictly digital and presents only a small digital interface to an external AFE (a demodulated receive envelope, a field-detect level, an AFE-derived carrier clock, and the load-modulation drive / listen-enable outputs). The register read path is registered with no read side effects. The main features of the NFC controller are listed below:
+The NFC controller (\peripheral{NFCx}) is an ISO/IEC 14443 Type A (14443A) tag / card-emulation digital protocol engine. It emulates a passive contactless tag to an external reader: it recovers the reader-to-tag frames, runs the tag transaction state machine, and load-modulates the tag's response. The 13.56\,MHz RF analog front-end is \emph{off-die}: this block is strictly digital and presents only a small digital interface to an external AFE (a demodulated receive envelope, a field-detect level, an AFE-derived carrier clock, and the load-modulation drive / listen-enable outputs). The register read path is registered with no read side effects. The main features of the NFC controller are listed below:
 
 \begin{itemize}
 	\item ISO 14443A tag emulation: REQA / WUPA to ATQA, bit-frame anticollision by 4-byte UID to SAK, then a Type-2 READ that auto-answers from a firmware-filled payload window (\register{NFCAUTOREAD})
@@ -6,7 +6,7 @@ The NFC controller (\peripheral{NFCx}) is an ISO/IEC 14443 Type A (14443A) tag /
 	\item Byte framing with odd parity and the ISO 14443A CRC\_A (reflected \texttt{0x8408}, init \texttt{0x6363})
 	\item A provisioned 4-byte UID (\register{NFCxUID}), programmable ATQA and SAK (\register{NFCxCFG}), and hardware BCC derivation
 	\item Two 64-byte indexed windows behind one index / data pair (\register{NFCxIDX}, \register{NFCxDATA}): the payload window the reader collects (firmware-filled) and the raw received-frame buffer (firmware-read)
-	\item Register-programmable protocol timing (\register{NFCxTIM}): the bit-period ETU, the subcarrier divisor, and the Frame Delay Time --- a bench compresses all three for fast simulation
+	\item Register-programmable protocol timing (\register{NFCxTIM}): the bit-period ETU, the subcarrier divisor, and the Frame Delay Time; a bench compresses all three for fast simulation
 	\item Registered read path: register reads have \emph{no} side effects
 	\item Four interrupt sources: RF field detected, reader frame received, tag response transmit done, and RX CRC / parity error
 \end{itemize}

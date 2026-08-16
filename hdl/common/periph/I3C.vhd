@@ -5,9 +5,9 @@ use ieee.std_logic_unsigned.all;
 library work;
 use work.constants.all;
 
--- I3C: MIPI I3C Basic controller peripheral, SDR private read/write plus legacy-I2C.
--- Contains the register file, baud generator, bit engine and framer FSM, the dynamic-address (DAA) engine with its DAT, the in-band-interrupt (IBI) monitor and the combinational pad-drive mux.
--- House style: registered read, two chained ClkGates for the baud divider, W1C clear pulses, and a transaction descriptor latched at launch.
+/* I3C: MIPI I3C Basic controller peripheral, SDR private read/write plus legacy-I2C.
+   Contains the register file, baud generator, bit engine and framer FSM, the dynamic-address (DAA) engine with its DAT, the in-band-interrupt (IBI) monitor and the combinational pad-drive mux.
+   House style: registered read, two chained ClkGates for the baud divider, W1C clear pulses, and a transaction descriptor latched at launch. */
 
 entity I3C is
     port (
@@ -133,9 +133,9 @@ architecture behavioral of I3C is
     -- ---- async target-START / IBI sensor ---------------------------------
     -- Observes an external START (SDA fall while SCL is high) on the resolved bus; the only consumer is the IBI request below.
 
-    -- ---- DAA engine + DAT register file (4 entries) ----------------------
-    -- Slots 5/6/7 are an indexed window onto the entry selected by IDX.
-    -- One process (dat_proc) on the free-running clk owns the DAT storage: firmware writes and the DAA-run captures from the clk_baud domain need a single driver per signal.
+    /* ---- DAA engine + DAT register file (4 entries) ----------------------
+       Slots 5/6/7 are an indexed window onto the entry selected by IDX.
+       One process (dat_proc) on the free-running clk owns the DAT storage: firmware writes and the DAA-run captures from the clk_baud domain need a single driver per signal. */
     type dat_addr_arr is array (0 to 3) of std_logic_vector(6 downto 0);
     type dat_pid_arr  is array (0 to 3) of std_logic_vector(47 downto 0);
     type dat_byte_arr is array (0 to 3) of std_logic_vector(7 downto 0);
@@ -396,9 +396,9 @@ begin
         end if;
     end process;
 
-    ---------- DAT register file storage (free-running clk domain) ----------
-    -- Single driver for all DAT entries: firmware writes to slots 5/6/7 land on rising_edge(clk) under EnMemPeriph='0' (ClkMem=clk while selected), DAA-run commits arrive as edge-detected handshakes from the clk_baud FSM.
-    -- Disable (q_en=0) does not wipe the table: entries persist across frames and across disable.
+    /* -------- DAT register file storage (free-running clk domain) ----------
+       Single driver for all DAT entries: firmware writes to slots 5/6/7 land on rising_edge(clk) under EnMemPeriph='0' (ClkMem=clk while selected), DAA-run commits arrive as edge-detected handshakes from the clk_baud FSM.
+       Disable (q_en=0) does not wipe the table: entries persist across frames and across disable. */
     dat_proc: process(clk, resetn)
         variable idx_sel : natural range 0 to 7;
     begin
@@ -453,9 +453,9 @@ begin
         end if;
     end process;
 
-    ---------- baud generator (two chained ClkGates) ------------------------
-    -- Reload is muxed by the latched phase drive-mode pp_rate: open-drain phases reload ODBR, push-pull data phases reload PPBR, and pp_rate flips only on phase boundaries so it cannot glitch mid-bit.
-    -- baud_counter is held cleared while idle so the first clk_baud edge after a launch, or after an ibi_req wake, is prompt and BUSY rises within a couple of clk cycles.
+    /* -------- baud generator (two chained ClkGates) ------------------------
+       Reload is muxed by the latched phase drive-mode pp_rate: open-drain phases reload ODBR, push-pull data phases reload PPBR, and pp_rate flips only on phase boundaries so it cannot glitch mid-bit.
+       baud_counter is held cleared while idle so the first clk_baud edge after a launch, or after an ibi_req wake, is prompt and BUSY rises within a couple of clk cycles. */
     en_clk_baud_src <= q_en and (busy or i3c_launch or ibi_req);
 
     cg_clk_baud_src: entity work.ClkGate
@@ -491,10 +491,10 @@ begin
             ClkOut => clk_baud
         );
 
-    ---------- bit engine + framer FSM (clk_baud domain) --------------------
-    -- One bit occupies a full 4-sub-state SCL cycle; sample slots (address ACK, read data, non-final read T, legacy write ACK) release SDA and read SDA_IN at sub2.
-    -- Drive policy: address header and START/Sr/STOP SDA are open-drain (drive a 0, release a 1 to the wired-AND 'H'), SDR write data and the write-T are push-pull, and legacy-I2C mode is open-drain in every phase.
-    -- An I3C frame carries exactly ONE address-header ACK and no per-byte ACK: a write drives an odd-parity T, a read samples the T handshake and drives it low on the final byte.
+    /* -------- bit engine + framer FSM (clk_baud domain) --------------------
+       One bit occupies a full 4-sub-state SCL cycle; sample slots (address ACK, read data, non-final read T, legacy write ACK) release SDA and read SDA_IN at sub2.
+       Drive policy: address header and START/Sr/STOP SDA are open-drain (drive a 0, release a 1 to the wired-AND 'H'), SDR write data and the write-T are push-pull, and legacy-I2C mode is open-drain in every phase.
+       An I3C frame carries exactly ONE address-header ACK and no per-byte ACK: a write drives an odd-parity T, a read samples the T handshake and drives it low on the final byte. */
     fsm_proc: process(resetn, clk_baud, q_en, i3c_launch,
                       clr_tcif, clr_rxfull, clr_txeif, clr_anack, clr_eodf, clr_arblost,
                       clr_daadone, clr_daafull, clr_ibip)
@@ -608,9 +608,9 @@ begin
                         when others => scl_r <= '0'; sub <= 0; ph <= P_ADDR;
                     end case;
 
-                ------------------------------------------------------------
-                -- Address header (7 address bits then RnW), open-drain: release on a 1, drive a 0.
-                -- The sub2 compare (drove a 1 but read a 0) is the arbitration-lost detect; with no competing controller it never fires.
+                /* ----------------------------------------------------------
+                   Address header (7 address bits then RnW), open-drain: release on a 1, drive a 0.
+                   The sub2 compare (drove a 1 but read a 0) is the arbitration-lost detect; with no competing controller it never fires. */
                 when P_ADDR =>
                     case sub is
                         when 0 => scl_r <= '0'; sda_pp <= '0'; sda_release <= '0';
@@ -773,9 +773,9 @@ begin
                         bitno <= 0; sub <= 0; ph <= P_RDATA;
                     end if;
 
-                ------------------------------------------------------------
-                -- STOP: SDA driven low open-drain, SCL high, then SDA released so it rises to the wired-AND 'H', which is the STOP edge.
-                -- It relies on the target having released SDA after its final read T.
+                /* ----------------------------------------------------------
+                   STOP: SDA driven low open-drain, SCL high, then SDA released so it rises to the wired-AND 'H', which is the STOP edge.
+                   It relies on the target having released SDA after its final read T. */
                 when P_STOP =>
                     case sub is
                         when 0 => scl_r <= '0'; sda_pp <= '0'; sda_release <= '0';
@@ -792,10 +792,10 @@ begin
                     dat_cap_req <= '0'; dat_dv_req <= '0';
                     ph <= P_IDLE;
 
-                ------------------------------------------------------------
-                -- CCC/DAA sub-sequencer: drives the same bit engine and pad mux as the framer.
-                ------------------------------------------------------------
-                -- CCC opcode byte: 8 bits push-pull SDR, the same shape as P_WDATA.
+                /* ----------------------------------------------------------
+                   CCC/DAA sub-sequencer: drives the same bit engine and pad mux as the framer.
+                   ----------------------------------------------------------
+                   CCC opcode byte: 8 bits push-pull SDR, the same shape as P_WDATA. */
                 when P_CCCOP =>
                     case sub is
                         when 0 => scl_r <= '0'; sda_pp <= '1'; sda_release <= '0';
@@ -845,11 +845,11 @@ begin
                             end if;
                     end case;
 
-                ------------------------------------------------------------
-                -- ENTDAA rounds (CMD.DAARUN).
-                -- Each round runs Sr, the 0x7E+R header, the ACK (a NACK means no more devices, so DAADONE), a 64-bit open-drain arbitration capture, the assignment of a 7-bit dynamic address plus parity (push-pull), and a final ACK.
-                ------------------------------------------------------------
-                -- Repeated START before the 0x7E+R header.
+                /* ----------------------------------------------------------
+                   ENTDAA rounds (CMD.DAARUN).
+                   Each round runs Sr, the 0x7E+R header, the ACK (a NACK means no more devices, so DAADONE), a 64-bit open-drain arbitration capture, the assignment of a 7-bit dynamic address plus parity (push-pull), and a final ACK.
+                   ----------------------------------------------------------
+                   Repeated START before the 0x7E+R header. */
                 when P_DAA_SR =>
                     case sub is
                         when 0 => scl_r <= '0'; sda_pp <= '0'; sda_release <= '1'; sub <= 1;
@@ -948,11 +948,11 @@ begin
                             end if;
                     end case;
 
-                ------------------------------------------------------------
-                -- SETDASA (CMD.DASA): direct CCC 0x87.
-                -- After the opcode it runs Sr, the static address plus W, the ACK, then one data byte (dyn addr << 1) from the matching DAT entry, which is marked DYNVALID on that ACK.
-                ------------------------------------------------------------
-                -- Repeated START ahead of the static address.
+                /* ----------------------------------------------------------
+                   SETDASA (CMD.DASA): direct CCC 0x87.
+                   After the opcode it runs Sr, the static address plus W, the ACK, then one data byte (dyn addr << 1) from the matching DAT entry, which is marked DYNVALID on that ACK.
+                   ----------------------------------------------------------
+                   Repeated START ahead of the static address. */
                 when P_DASA_SR =>
                     case sub is
                         when 0 => scl_r <= '0'; sda_pp <= '0'; sda_release <= '1'; sub <= 1;
@@ -1021,11 +1021,11 @@ begin
                                   if t_stopen = '1' then ph <= P_STOP; else ph <= P_DONE; end if;
                     end case;
 
-                ------------------------------------------------------------
-                -- IBI monitor, bus-available path only.
-                -- The target has already driven the START, so the controller provides SCL, releases and samples the 7 address bits plus RnW, then ACKs or NACKs per IBIEN.
-                ------------------------------------------------------------
-                -- IBI header: 8 bits (addr[6:0] then RnW), sampled open-drain.
+                /* ----------------------------------------------------------
+                   IBI monitor, bus-available path only.
+                   The target has already driven the START, so the controller provides SCL, releases and samples the 7 address bits plus RnW, then ACKs or NACKs per IBIEN.
+                   ----------------------------------------------------------
+                   IBI header: 8 bits (addr[6:0] then RnW), sampled open-drain. */
                 when P_IBI_HDR =>
                     case sub is
                         when 0 => scl_r <= '0'; sda_release <= '1'; sda_pp <= '0'; sub <= 1;
@@ -1139,9 +1139,9 @@ begin
         end if;
     end process;
 
-    ---------- async target-START / IBI sensor ------------------------------
-    -- START is SDA falling while SCL is high; one seen while the controller is idle and enabled is a target-driven IBI, so ibi_req wakes the framer and clr_ibi_req retires it at service entry (controller STARTs run with busy=1 and never latch it).
-    -- Keep the single-edge shape (async reset/retire plus one falling_edge(SDA_IN) set clause): synthesis rejects a process referencing two clock edges, and SDA_IN is this flop's clock pin, so it needs its own async SDC group.
+    /* -------- async target-START / IBI sensor ------------------------------
+       START is SDA falling while SCL is high; one seen while the controller is idle and enabled is a target-driven IBI, so ibi_req wakes the framer and clr_ibi_req retires it at service entry (controller STARTs run with busy=1 and never latch it).
+       Keep the single-edge shape (async reset/retire plus one falling_edge(SDA_IN) set clause): synthesis rejects a process referencing two clock edges, and SDA_IN is this flop's clock pin, so it needs its own async SDC group. */
     ibi_sensor: process(resetn, SDA_IN, clr_ibi_req)
     begin
         if resetn = '0' or clr_ibi_req = '1' then

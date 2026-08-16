@@ -5,9 +5,9 @@ use ieee.numeric_std.all;
 library work;
 use work.Constants.all;
 
--- Combinational logistic sigmoid approximation: Q16.15 input, unsigned Q0.15 output.
--- Only the positive half is evaluated; the negative half comes from the symmetry sigmoid(-x) = 1 - sigmoid(x).
--- Magnitudes past ~4.0 (131071 in Q16.15) saturate to the 1.0 or 0.0 endpoint.
+/* Combinational logistic sigmoid approximation: Q16.15 input, unsigned Q0.15 output.
+   Only the positive half is evaluated; the negative half comes from the symmetry sigmoid(-x) = 1 - sigmoid(x).
+   Magnitudes past ~4.0 (131071 in Q16.15) saturate to the 1.0 or 0.0 endpoint. */
 entity LogisticSigmoidApprox is
 	port
 	(

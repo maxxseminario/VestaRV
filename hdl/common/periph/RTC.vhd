@@ -3,23 +3,23 @@ use ieee.std_logic_1164.all;
 use ieee.std_logic_arith.all;
 use ieee.std_logic_unsigned.all;
 
--- RTC: 32.768 kHz always-on wall clock with a one-shot alarm and a recurring periodic tick, behind one combined IRQ (vector 114).
--- Three clocks: ungated lfxt_in (counter, alarm, tick, commit apply), free-running clk (LFXT-into-bus synchronizers, sticky flags, IRQ), gated ClkMem (register file).
--- clk must free-run so ALMF, TICKF and irq_rtc set with no bus access in flight; lfxt_in is always on, and neither firmware nor PWRCTRL can stop it.
--- Every domain hand-off is a toggle or a held quasi-static level: no async clear ever crosses a domain, and no clock is gated, divided or generated in this block.
--- EnMemPeriph is an active-low level qualifier only, never a clock and never an edge; reads are registered on rising ClkMem over already-synchronized data, so no read bridge is needed.
+/* RTC: 32.768 kHz always-on wall clock with a one-shot alarm and a recurring periodic tick, behind one combined IRQ (vector 114).
+   Three clocks: ungated lfxt_in (counter, alarm, tick, commit apply), free-running clk (LFXT-into-bus synchronizers, sticky flags, IRQ), gated ClkMem (register file).
+   clk must free-run so ALMF, TICKF and irq_rtc set with no bus access in flight; lfxt_in is always on, and neither firmware nor PWRCTRL can stop it.
+   Every domain hand-off is a toggle or a held quasi-static level: no async clear ever crosses a domain, and no clock is gated, divided or generated in this block.
+   EnMemPeriph is an active-low level qualifier only, never a clock and never an edge; reads are registered on rising ClkMem over already-synchronized data, so no read bridge is needed. */
 
--- Register map (base 0x6500, slot n at 0x6500 + 4n, decoded off MABPart(7:2)):
---   0 RTC0CR   : [0]RTCEN [1]ALMEN [2]TICKEN [3]ALMIE [4]TICKIE, 31:5 rsvd read 0.
---   1 RTC0SEC  : read returns the coherent snapshot snap_sync[46:15]; write stages SEC and
---                commits {SEC,SUB} atomically (SR.SYNC busy), lane-0 qualified.
---   2 RTC0SUB  : read returns snap_sync[14:0] zero-extended, the SAME instant as SEC; write
---                stages only and is committed by the following SEC write, lane-0 qualified.
---   3 RTC0ALM  : read returns the mclk staging readback (no CDC); write stages and commits ALM.
---   4 RTC0PER  : [15:0] reload; read returns the staging readback, write stages and commits PER.
---                Tick every per_live+1 lfxt ticks, so about 2 s maximum interval.
---   5 RTC0SR   : [0]SYNC ro, [1]ALMF W1C, [2]TICKF W1C, 31:3 rsvd read 0.
---   6 RTC0TRIM : reserved: reads 0, writes ignored. Slots 7 and above read 0.
+/* Register map (base 0x6500, slot n at 0x6500 + 4n, decoded off MABPart(7:2)):
+     0 RTC0CR   : [0]RTCEN [1]ALMEN [2]TICKEN [3]ALMIE [4]TICKIE, 31:5 rsvd read 0.
+     1 RTC0SEC  : read returns the coherent snapshot snap_sync[46:15]; write stages SEC and
+                  commits {SEC,SUB} atomically (SR.SYNC busy), lane-0 qualified.
+     2 RTC0SUB  : read returns snap_sync[14:0] zero-extended, the SAME instant as SEC; write
+                  stages only and is committed by the following SEC write, lane-0 qualified.
+     3 RTC0ALM  : read returns the mclk staging readback (no CDC); write stages and commits ALM.
+     4 RTC0PER  : [15:0] reload; read returns the staging readback, write stages and commits PER.
+                  Tick every per_live+1 lfxt ticks, so about 2 s maximum interval.
+     5 RTC0SR   : [0]SYNC ro, [1]ALMF W1C, [2]TICKF W1C, 31:3 rsvd read 0.
+     6 RTC0TRIM : reserved: reads 0, writes ignored. Slots 7 and above read 0. */
 
 entity RTC is
     port (
@@ -126,9 +126,9 @@ begin
     -- slot decode: EnMemPeriph-qualified level, never an edge.
     rtc_slot  <= conv_integer(MABPart) when EnMemPeriph = '0' else 0;
 
-    -- ------------------------- register write (ClkMem) ------------------------
-    -- Rising ClkMem, qualified by EnMemPeriph='0'; every commit and the SR W1C require lane 0.
-    -- A committing write stages its value, marks commit_mask and flips wr_req_tgl; a SUB write stages only and is committed by the following SEC write.
+    /* ------------------------- register write (ClkMem) ------------------------
+       Rising ClkMem, qualified by EnMemPeriph='0'; every commit and the SR W1C require lane 0.
+       A committing write stages its value, marks commit_mask and flips wr_req_tgl; a SUB write stages only and is committed by the following SEC write. */
     reg_write: process(resetn, ClkMem)
     begin
         if resetn = '0' then
@@ -187,9 +187,9 @@ begin
         end if;
     end process;
 
-    -- ------------------------- register read (ClkMem) -------------------------
-    -- Registered read mux on rising ClkMem over data already synchronized into the bus domain, so no pre-latch and no read bridge.
-    -- Reserved bits, TRIM, and slots 7 and above read 0.
+    /* ------------------------- register read (ClkMem) -------------------------
+       Registered read mux on rising ClkMem over data already synchronized into the bus domain, so no pre-latch and no read bridge.
+       Reserved bits, TRIM, and slots 7 and above read 0. */
     reg_read: process(ClkMem)
     begin
         if rising_edge(ClkMem) then
@@ -212,9 +212,9 @@ begin
         end if;
     end process;
 
-    -- ------------------------- clk (mclk ref) CDC -----------------------------
-    -- Free-running clk hosts every LFXT-into-bus synchronizer plus the sticky flags, so ALMF/TICKF and irq_rtc set autonomously while the bus is idle.
-    -- A metastable sample can only DELAY a flag or snapshot by one clk edge.
+    /* ------------------------- clk (mclk ref) CDC -----------------------------
+       Free-running clk hosts every LFXT-into-bus synchronizer plus the sticky flags, so ALMF/TICKF and irq_rtc set autonomously while the bus is idle.
+       A metastable sample can only DELAY a flag or snapshot by one clk edge. */
     clk_cdc: process(resetn, clk)
     begin
         if resetn = '0' then
@@ -277,9 +277,9 @@ begin
         end if;
     end process;
 
-    -- ------------------------- Bus into LFXT: enable held-level syncs ---------
-    -- RTCEN/ALMEN/TICKEN cross as held levels, 2-FF synchronized on lfxt_in.
-    -- They gate the D-input logic of the counter, compare and tick engines, never a clock.
+    /* ------------------------- Bus into LFXT: enable held-level syncs ---------
+       RTCEN/ALMEN/TICKEN cross as held levels, 2-FF synchronized on lfxt_in.
+       They gate the D-input logic of the counter, compare and tick engines, never a clock. */
     en_sync: process(rtc_lfxt_rstn, lfxt_in)
     begin
         if rtc_lfxt_rstn = '0' then
@@ -293,9 +293,9 @@ begin
         end if;
     end process;
 
-    -- ------------------------- Bus into LFXT: write-commit apply --------------
-    -- 2-FF wr_req_tgl into lfxt, then edge-detect it to form wr_apply, a 1-lfxt pulse; wr_ack_tgl flips on that same edge to hand the acknowledge back.
-    -- The wall-clock, alarm and tick engines co-sample wr_apply with the quasi-static commit_mask and stage_* to load atomically.
+    /* ------------------------- Bus into LFXT: write-commit apply --------------
+       2-FF wr_req_tgl into lfxt, then edge-detect it to form wr_apply, a 1-lfxt pulse; wr_ack_tgl flips on that same edge to hand the acknowledge back.
+       The wall-clock, alarm and tick engines co-sample wr_apply with the quasi-static commit_mask and stage_* to load atomically. */
     wrsync: process(rtc_lfxt_rstn, lfxt_in)
     begin
         if rtc_lfxt_rstn = '0' then
@@ -310,9 +310,9 @@ begin
     end process;
     wr_apply <= '1' when (wrreq_s2 /= wrreq_prev) else '0';
 
-    -- ------------------------- wall clock (lfxt_in) ---------------------------
-    -- One 47-bit counter {sec_cnt(31:0), sub_cnt(14:0)}: sub_cnt wraps at 32768 = 2^15 and sec_cnt is its carry-out, giving exact 1 Hz while rtcen_sync='1'.
-    -- The atomic set-time load takes PRIORITY over the increment on that edge, and snap_lfxt with cap_tgl are written every edge AFTER the increment, so the reader never sees a pre-carry torn value.
+    /* ------------------------- wall clock (lfxt_in) ---------------------------
+       One 47-bit counter {sec_cnt(31:0), sub_cnt(14:0)}: sub_cnt wraps at 32768 = 2^15 and sec_cnt is its carry-out, giving exact 1 Hz while rtcen_sync='1'.
+       The atomic set-time load takes PRIORITY over the increment on that edge, and snap_lfxt with cap_tgl are written every edge AFTER the increment, so the reader never sees a pre-carry torn value. */
     wallclock: process(rtc_lfxt_rstn, lfxt_in)
         variable nsec : std_logic_vector(31 downto 0);
         variable nsub : std_logic_vector(14 downto 0);
@@ -345,9 +345,9 @@ begin
         end if;
     end process;
 
-    -- ------------------------- alarm compare (lfxt_in) ------------------------
-    -- Full 32-bit seconds equality, one-shot: the match holds for a whole second, so it is RISING-edge detected and, gated by almen_sync, that edge flips alm_tgl.
-    -- alm_live loads on an ALM commit; firmware re-arms by writing a new ALM that advances past this second.
+    /* ------------------------- alarm compare (lfxt_in) ------------------------
+       Full 32-bit seconds equality, one-shot: the match holds for a whole second, so it is RISING-edge detected and, gated by almen_sync, that edge flips alm_tgl.
+       alm_live loads on an ALM commit; firmware re-arms by writing a new ALM that advances past this second. */
     alarm: process(rtc_lfxt_rstn, lfxt_in)
         variable match_v : std_logic;
     begin
@@ -367,9 +367,9 @@ begin
         end if;
     end process;
 
-    -- ------------------------- periodic tick (lfxt_in) ------------------------
-    -- Independent down-counter reloaded from per_live: underflow flips tick_tgl and reloads, giving a tick every per_live+1 lfxt ticks without disturbing the wall-clock prescaler.
-    -- A PER commit loads both the counter and per_live; while ticken_sync='0' the counter is held at per_live, so enabling starts a clean cadence.
+    /* ------------------------- periodic tick (lfxt_in) ------------------------
+       Independent down-counter reloaded from per_live: underflow flips tick_tgl and reloads, giving a tick every per_live+1 lfxt ticks without disturbing the wall-clock prescaler.
+       A PER commit loads both the counter and per_live; while ticken_sync='0' the counter is held at per_live, so enabling starts a clean cadence. */
     tick: process(rtc_lfxt_rstn, lfxt_in)
     begin
         if rtc_lfxt_rstn = '0' then

@@ -1,12 +1,12 @@
--------------------------------------------------------------------------------
--- rtc_bfm_pkg.vhd
--------------------------------------------------------------------------------
--- Bench-support helpers for the RTC peripheral testbench (tb/RTC_tb.vhd).
--- The slot numbers, CR/SR field positions and packing helper are LOCAL to this bench: RTC0 sits at 0x6500 and MemoryMap.vhd carries no RTC constants.
--- Bus plumbing plus TB-side reference helpers (rtc_combined, rtc_within) only; no DUT internal is ever read.
--- The bench keeps its own wall-clock reference by counting lfxt_in edges and hand-computes the expected alarm and tick instants; these helpers only compare that reference against the DUT's coherent snapshot read.
--- Bounded polls end with done_ok, which the caller turns into a scoreboard check, so a poll that never satisfies its condition fails the run instead of hanging.
--------------------------------------------------------------------------------
+/* -----------------------------------------------------------------------------
+   rtc_bfm_pkg.vhd
+   -----------------------------------------------------------------------------
+   Bench-support helpers for the RTC peripheral testbench (tb/RTC_tb.vhd).
+   The slot numbers, CR/SR field positions and packing helper are LOCAL to this bench: RTC0 sits at 0x6500 and MemoryMap.vhd carries no RTC constants.
+   Bus plumbing plus TB-side reference helpers (rtc_combined, rtc_within) only; no DUT internal is ever read.
+   The bench keeps its own wall-clock reference by counting lfxt_in edges and hand-computes the expected alarm and tick instants; these helpers only compare that reference against the DUT's coherent snapshot read.
+   Bounded polls end with done_ok, which the caller turns into a scoreboard check, so a poll that never satisfies its condition fails the run instead of hanging.
+   ----------------------------------------------------------------------------- */
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -36,9 +36,9 @@ package rtc_bfm_pkg is
     constant RTC_SR_ALMF   : natural := 1;   -- w1c  : alarm fired (mclk sticky)
     constant RTC_SR_TICKF  : natural := 2;   -- w1c  : periodic tick fired (mclk sticky)
 
-    -- ---- geometry of the combined wall-clock counter ----------------------
-    -- {sec_cnt[31:0], sub_cnt[14:0]} is ONE 47-bit binary counter that increments by 1 on every lfxt_in rising edge.
-    -- The subsecond prescaler rolls at 32768 = 2^15 exactly, and SEC is its carry-out.
+    /* ---- geometry of the combined wall-clock counter ----------------------
+       {sec_cnt[31:0], sub_cnt[14:0]} is ONE 47-bit binary counter that increments by 1 on every lfxt_in rising edge.
+       The subsecond prescaler rolls at 32768 = 2^15 exactly, and SEC is its carry-out. */
     constant RTC_SUB_BITS  : natural := 15;
     constant RTC_SEC_BITS  : natural := 32;
     constant RTC_CNT_BITS  : natural := RTC_SEC_BITS + RTC_SUB_BITS;   -- 47

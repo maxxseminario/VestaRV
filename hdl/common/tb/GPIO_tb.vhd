@@ -1,8 +1,8 @@
--- GPIO_tb: standalone, self-checking bench for the GPIO peripheral, deliberately MINIMAL and TAP-FOCUSED.
--- PxSEL/PxAFS alt-function muxing and the PxIE/PxIF edge-interrupt machinery are out of scope here.
--- Taps under test: evt_edge_raw, the purely combinational PRE-MASK edge vector prt_in xor PxIES with PxIE NEVER consulted, sampled off the DUT port and never off a DUT internal; task_outset and task_outclr, one-clk_mem pulses that set or clear the PxTASK-selected PxOUT bits OUTSIDE the en gate; and PxTASK itself, an RW register at LOCAL slot 12, one bit per pin, resetting to 0.
--- CLR wins a same-cycle set-plus-clear, and a task wins its PxTASK pins over a coincident CPU PxOUT write, since the register write lands first in program order and the task blocks then overwrite only their own pins.
--- Compiles into its OWN library, gpio_lib, alongside hdl/common's constants, MemoryMap, ClkGate and GPIO: GPIO.vhd needs MemoryMap.RegSlotPxAFS and GPIO_NUM_AFS, which the MemoryMap shared by the rest of this suite does not carry.
+/* GPIO_tb: standalone, self-checking bench for the GPIO peripheral, deliberately MINIMAL and TAP-FOCUSED.
+   PxSEL/PxAFS alt-function muxing and the PxIE/PxIF edge-interrupt machinery are out of scope here.
+   Taps under test: evt_edge_raw, the purely combinational PRE-MASK edge vector prt_in xor PxIES with PxIE NEVER consulted, sampled off the DUT port and never off a DUT internal; task_outset and task_outclr, one-clk_mem pulses that set or clear the PxTASK-selected PxOUT bits OUTSIDE the en gate; and PxTASK itself, an RW register at LOCAL slot 12, one bit per pin, resetting to 0.
+   CLR wins a same-cycle set-plus-clear, and a task wins its PxTASK pins over a coincident CPU PxOUT write, since the register write lands first in program order and the task blocks then overwrite only their own pins.
+   Compiles into its OWN library, gpio_lib, alongside hdl/common's constants, MemoryMap, ClkGate and GPIO: GPIO.vhd needs MemoryMap.RegSlotPxAFS and GPIO_NUM_AFS, which the MemoryMap shared by the rest of this suite does not carry. */
 
 library ieee;
 use ieee.std_logic_1164.all;

@@ -1,6 +1,6 @@
--- rv4th_tb: boots the MCU into the ROM Forth interpreter and exercises it over UART0.
--- ProcMainTest sends each Forth command, ProcReceiveFromTX grades the reply, and the two run in lockstep through SentSync/ReceivedSync.
--- BOOT (P1.7) is held low to select ROM Forth; the run passes when no check reports an error.
+/* rv4th_tb: boots the MCU into the ROM Forth interpreter and exercises it over UART0.
+   ProcMainTest sends each Forth command, ProcReceiveFromTX grades the reply, and the two run in lockstep through SentSync/ReceivedSync.
+   BOOT (P1.7) is held low to select ROM Forth; the run passes when no check reports an error. */
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;

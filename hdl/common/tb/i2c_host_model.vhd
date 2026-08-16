@@ -1,10 +1,10 @@
--------------------------------------------------------------------------------
--- i2c_host_model.vhd: bit-banged I2C controller model for the I2C target peripheral testbench.
--- Generates START/repeated-START/STOP, drives SCL at a bench-chosen period, drives and samples SDA open-drain, sends address plus RnW, writes and reads bytes, and honours the target's clock stretch.
--- Checker independence is mandatory: every half-period, setup and sample point comes from the bench's own clk period (cfg_tick_period) times the tick constants in i2ct_bfm_pkg, never from the DUT's SDA_DIR/SCL_DIR or any internal state.
--- DUT-driven levels are measured off the RESOLVED bus at the model's own mid-SCL-high point and exposed as obs_* for the scoreboard; obs_viol flags a level unstable across the sample window, and cfg_corrupt forces it high as a self-test of that path.
--- A rising edge on cfg_go runs ONE framed segment against the captured cfg_* descriptor and obs_count increments when it completes; obs_wait_scl is '1' while blocked on a genuine stretch so the bench can service the DUT during the stall.
--------------------------------------------------------------------------------
+/* -----------------------------------------------------------------------------
+   i2c_host_model.vhd: bit-banged I2C controller model for the I2C target peripheral testbench.
+   Generates START/repeated-START/STOP, drives SCL at a bench-chosen period, drives and samples SDA open-drain, sends address plus RnW, writes and reads bytes, and honours the target's clock stretch.
+   Checker independence is mandatory: every half-period, setup and sample point comes from the bench's own clk period (cfg_tick_period) times the tick constants in i2ct_bfm_pkg, never from the DUT's SDA_DIR/SCL_DIR or any internal state.
+   DUT-driven levels are measured off the RESOLVED bus at the model's own mid-SCL-high point and exposed as obs_* for the scoreboard; obs_viol flags a level unstable across the sample window, and cfg_corrupt forces it high as a self-test of that path.
+   A rising edge on cfg_go runs ONE framed segment against the captured cfg_* descriptor and obs_count increments when it completes; obs_wait_scl is '1' while blocked on a genuine stretch so the bench can service the DUT during the stall.
+   ----------------------------------------------------------------------------- */
 
 library ieee;
 use ieee.std_logic_1164.all;

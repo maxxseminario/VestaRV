@@ -3,25 +3,25 @@ use ieee.std_logic_1164.all;
 use ieee.std_logic_arith.all;
 use ieee.std_logic_unsigned.all;
 
--- PWM: buffered 2-channel generator with a software fault trip and a period-event tick.
--- Interface: pwm_out(1 downto 0) channel outputs, irq_fault (vector 115), irq_evt (vector 116).
--- The engine (prescaler, counter, compare, output stage, sticky flags) runs on the free-running clk; the register file runs on the gated bus clock ClkMem.
--- clk and ClkMem are the same mclk net at integration, so every hand-off is a held level or a single-clock toggle and needs no 2-FF synchronizer.
--- EnMemPeriph is an active-low level qualifier only, never a clock and never an edge; the prescaler makes a tick enable, never a clock gate.
+/* PWM: buffered 2-channel generator with a software fault trip and a period-event tick.
+   Interface: pwm_out(1 downto 0) channel outputs, irq_fault (vector 115), irq_evt (vector 116).
+   The engine (prescaler, counter, compare, output stage, sticky flags) runs on the free-running clk; the register file runs on the gated bus clock ClkMem.
+   clk and ClkMem are the same mclk net at integration, so every hand-off is a held level or a single-clock toggle and needs no 2-FF synchronizer.
+   EnMemPeriph is an active-low level qualifier only, never a clock and never an edge; the prescaler makes a tick enable, never a clock gate. */
 
--- Register map (base 0x6600, slot n at 0x6600 + 4n, decoded off MABPart(7:2)):
---   0 PWM0CR   : [0]PWMEN [1]CH0EN [2]CH1EN [7]PEVIE [8]FLTIE [12]FLTEN
---                [14]FLTTRIG (w1, self-clearing command, reads 0) [19:16]PSC;
---                all other bits reserved.
---   1 PWM0PER  : [15:0] period modulus, BUFFERED; read returns the staging
---                readback, write stages the value and arms UPDF.
---   2 PWM0DTY0 : [15:0] CH0 duty, BUFFERED; read/write as PER.
---   3 PWM0DTY1 : [15:0] CH1 duty, BUFFERED; read/write as PER.
---   4 PWM0DTY2 : reserved (4-channel bolt-on): reads 0, writes ignored.
---   5 PWM0DTY3 : reserved (4-channel bolt-on): reads 0, writes ignored.
---   6 PWM0POL  : [0]POL0 [1]POL1 [4]SAFE0 [5]SAFE1, immediate, NOT buffered.
---   7 PWM0DT   : reserved (deadtime bolt-on): reads 0, writes ignored.
---   8 PWM0SR   : [0]FLTF W1C [1]PEVF W1C [2]UPDF ro. Slots 9 and above read 0.
+/* Register map (base 0x6600, slot n at 0x6600 + 4n, decoded off MABPart(7:2)):
+     0 PWM0CR   : [0]PWMEN [1]CH0EN [2]CH1EN [7]PEVIE [8]FLTIE [12]FLTEN
+                  [14]FLTTRIG (w1, self-clearing command, reads 0) [19:16]PSC;
+                  all other bits reserved.
+     1 PWM0PER  : [15:0] period modulus, BUFFERED; read returns the staging
+                  readback, write stages the value and arms UPDF.
+     2 PWM0DTY0 : [15:0] CH0 duty, BUFFERED; read/write as PER.
+     3 PWM0DTY1 : [15:0] CH1 duty, BUFFERED; read/write as PER.
+     4 PWM0DTY2 : reserved (4-channel bolt-on): reads 0, writes ignored.
+     5 PWM0DTY3 : reserved (4-channel bolt-on): reads 0, writes ignored.
+     6 PWM0POL  : [0]POL0 [1]POL1 [4]SAFE0 [5]SAFE1, immediate, NOT buffered.
+     7 PWM0DT   : reserved (deadtime bolt-on): reads 0, writes ignored.
+     8 PWM0SR   : [0]FLTF W1C [1]PEVF W1C [2]UPDF ro. Slots 9 and above read 0. */
 
 entity PWM is
     port (
@@ -152,9 +152,9 @@ begin
     evt_period <= period_boundary;
     evt_fault  <= flt_set;
 
-    -- ------------------------- register write (ClkMem) ------------------------
-    -- Rising ClkMem, qualified by EnMemPeriph='0', per byte lane via WEn: buffered waveform writes (PER/DTY0/DTY1) only stage the value and arm upd_req_tgl, while POL is immediate.
-    -- FLTTRIG (CR[14]) and the SR W1C bits flip request toggles; the FLTEN gate is applied in the clk domain, not at the write.
+    /* ------------------------- register write (ClkMem) ------------------------
+       Rising ClkMem, qualified by EnMemPeriph='0', per byte lane via WEn: buffered waveform writes (PER/DTY0/DTY1) only stage the value and arm upd_req_tgl, while POL is immediate.
+       FLTTRIG (CR[14]) and the SR W1C bits flip request toggles; the FLTEN gate is applied in the clk domain, not at the write. */
     reg_write: process(resetn, ClkMem)
     begin
         if resetn = '0' then
@@ -245,9 +245,9 @@ begin
         end if;
     end process;
 
-    -- ------------------------- register read (ClkMem) -------------------------
-    -- Registered read mux on rising ClkMem over data already in the mclk domain, so no pre-latch and no read bridge is needed.
-    -- Reserved slots and bits, and slots 9 and above, read 0.
+    /* ------------------------- register read (ClkMem) -------------------------
+       Registered read mux on rising ClkMem over data already in the mclk domain, so no pre-latch and no read bridge is needed.
+       Reserved slots and bits, and slots 9 and above, read 0. */
     reg_read: process(ClkMem)
     begin
         if rising_edge(ClkMem) then
@@ -273,9 +273,9 @@ begin
         end if;
     end process;
 
-    -- ------------------------- prescaler (clk) --------------------------------
-    -- Free-running 15-bit counter-compare, reloading on PWMEN=0 (clean restart) or on reaching psc_top.
-    -- NOT a clock gate and not a generated clock.
+    /* ------------------------- prescaler (clk) --------------------------------
+       Free-running 15-bit counter-compare, reloading on PWMEN=0 (clean restart) or on reaching psc_top.
+       NOT a clock gate and not a generated clock. */
     prescaler: process(resetn, clk)
     begin
         if resetn = '0' then
@@ -291,9 +291,9 @@ begin
         end if;
     end process;
 
-    -- ------------------------- counter + shadow commit (clk) ------------------
-    -- 16-bit edge-aligned up-counter advancing on psc_tick, wrapping at per_active (period_boundary).
-    -- Every boundary copies the staging regs into the active regs unconditionally; that idempotent commit is the glitch-free guarantee.
+    /* ------------------------- counter + shadow commit (clk) ------------------
+       16-bit edge-aligned up-counter advancing on psc_tick, wrapping at per_active (period_boundary).
+       Every boundary copies the staging regs into the active regs unconditionally; that idempotent commit is the glitch-free guarantee. */
     counter_commit: process(resetn, clk)
     begin
         if resetn = '0' then
@@ -321,9 +321,9 @@ begin
         end if;
     end process;
 
-    -- ------------------------- compare stage (clk) ----------------------------
-    -- Registered raw waveform updated only on psc_tick (a bare combinational compare would emit runts), compared against the NEXT count so the high run occupies exactly ticks 0 to dty-1 and the corners duty=0, duty at or above per+1 and period=0 need no special-casing.
-    -- At a boundary the duty source is the staging register, so a new duty is visible from the first tick of the new period, never one period late and never mid-period.
+    /* ------------------------- compare stage (clk) ----------------------------
+       Registered raw waveform updated only on psc_tick (a bare combinational compare would emit runts), compared against the NEXT count so the high run occupies exactly ticks 0 to dty-1 and the corners duty=0, duty at or above per+1 and period=0 need no special-casing.
+       At a boundary the duty source is the staging register, so a new duty is visible from the first tick of the new period, never one period late and never mid-period. */
     compare_stage: process(resetn, clk)
         variable next_cnt : std_logic_vector(15 downto 0);
         variable d0, d1   : std_logic_vector(15 downto 0);
@@ -354,9 +354,9 @@ begin
         end if;
     end process;
 
-    -- ------------------------- sticky flags (clk) -----------------------------
-    -- Single-clock edge-detect on the request toggles: one clock family, so a previous-value register is sufficient and no 2-FF sync is needed.
-    -- SET wins over a coincident CLEAR on every sticky flag.
+    /* ------------------------- sticky flags (clk) -----------------------------
+       Single-clock edge-detect on the request toggles: one clock family, so a previous-value register is sufficient and no 2-FF sync is needed.
+       SET wins over a coincident CLEAR on every sticky flag. */
     flags: process(resetn, clk)
     begin
         if resetn = '0' then

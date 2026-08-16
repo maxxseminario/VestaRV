@@ -1,8 +1,8 @@
--- MemoryMap.vhd: memory map VHDL package
--- Defines the MCU memory map: which RAM and peripheral slots are active, which slot each peripheral occupies, and which slot each register occupies inside its peripheral
--- Generated on 2026/08/15 at 18:47:19 with the MemoryMap.py memory map generator
--- WARNING: Do not edit or modify this file!
--- 	If you need to change it, use the MemoryMap.py memory map generator tool
+/* MemoryMap.vhd: memory map VHDL package
+   Defines the MCU memory map: which RAM and peripheral slots are active, which slot each peripheral occupies, and which slot each register occupies inside its peripheral
+   Generated on 2026/08/15 at 23:46:08 with the MemoryMap.py memory map generator
+   WARNING: Do not edit or modify this file!
+   	If you need to change it, use the MemoryMap.py memory map generator tool */
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -89,9 +89,9 @@ package MemoryMap is
 	constant RegSlotPxAFS			: natural := 11;	-- offset = 44 bytes
 	constant RegSlotPxTASK			: natural := 12;	-- offset = 48 bytes
 
-	-- Number of alternate-function planes per GPIO pin (AF0..AF7).
-	-- PxSEL picks GPIO vs alternate mode; the pin's PxAFS field (one nibble per pin, low 3 bits used) picks WHICH alternate function drives the pad.
-	-- AF0 is the legacy single alternate function, so PxAFS=0 reproduces the historic behavior and PxSEL-only software is unaffected.
+	/* Number of alternate-function planes per GPIO pin (AF0..AF7).
+	   PxSEL picks GPIO vs alternate mode; the pin's PxAFS field (one nibble per pin, low 3 bits used) picks WHICH alternate function drives the pad.
+	   AF0 is the legacy single alternate function, so PxAFS=0 reproduces the historic behavior and PxSEL-only software is unaffected. */
 	constant GPIO_NUM_AFS			: natural := 8;
 
 	-- SPIx

@@ -1,12 +1,12 @@
--------------------------------------------------------------------------------
--- RTC_tb.vhd
--------------------------------------------------------------------------------
--- Standalone, self-checking testbench for the RTC peripheral, on the shared support packages tb/periph_tb_pkg.vhd (scoreboard + register-bus BFM) and tb/rtc_bfm_pkg.vhd (slot/CR/SR constants, the rtc_mk_cr packer, rtc_combined/rtc_within, and the bounded SR polls).
--- The DUT is declared as a COMPONENT, not an entity instantiation, so this bench compiles standalone; VHDL default binding resolves it to the entity of the same name once RTC.vhd is analyzed into work.
--- Three clocks: clk is the free-running 20 ns bus/CDC reference, ClkMem the gated bus clock (clk while EnMemPeriph='0'), lfxt_in the ungated 32.768 kHz wall clock compressed to a 100 ns period so the 2-FF CDC still sees a real fast/slow ratio.
--- CHECKER INDEPENDENCE (mandatory): the bench keeps its OWN 47-bit wall-clock reference by counting lfxt_in rising edges in TB code, never reading a DUT internal, and every SEC/SUB compare allows read-snapshot staleness inside a [lo,hi] reference window (CMP_BOUND).
--- to_X01 normalizes every sampled DUT level that could be weak or meta, but full reset-default word reads are compared RAW so an uninitialized X is caught.
--------------------------------------------------------------------------------
+/* -----------------------------------------------------------------------------
+   RTC_tb.vhd
+   -----------------------------------------------------------------------------
+   Standalone, self-checking testbench for the RTC peripheral, on the shared support packages tb/periph_tb_pkg.vhd (scoreboard + register-bus BFM) and tb/rtc_bfm_pkg.vhd (slot/CR/SR constants, the rtc_mk_cr packer, rtc_combined/rtc_within, and the bounded SR polls).
+   The DUT is declared as a COMPONENT, not an entity instantiation, so this bench compiles standalone; VHDL default binding resolves it to the entity of the same name once RTC.vhd is analyzed into work.
+   Three clocks: clk is the free-running 20 ns bus/CDC reference, ClkMem the gated bus clock (clk while EnMemPeriph='0'), lfxt_in the ungated 32.768 kHz wall clock compressed to a 100 ns period so the 2-FF CDC still sees a real fast/slow ratio.
+   CHECKER INDEPENDENCE (mandatory): the bench keeps its OWN 47-bit wall-clock reference by counting lfxt_in rising edges in TB code, never reading a DUT internal, and every SEC/SUB compare allows read-snapshot staleness inside a [lo,hi] reference window (CMP_BOUND).
+   to_X01 normalizes every sampled DUT level that could be weak or meta, but full reset-default word reads are compared RAW so an uninitialized X is caught.
+   ----------------------------------------------------------------------------- */
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -64,9 +64,9 @@ architecture sim of RTC_tb is
     signal evt_alarm : std_logic;
     signal evt_tick  : std_logic;
 
-    -- ---- EVFAB pulse monitor (reads only the exported taps) ---------------
-    -- Continuous tracker of evt_alarm/evt_tick: counts pulse STARTS and total HIGH samples at clk rising edges since the last evt_mon_clear.
-    -- Exactly N one-clk-wide pulses give starts=N AND highs=N: a wider pulse pushes highs above starts, a missed pulse leaves starts short.
+    /* ---- EVFAB pulse monitor (reads only the exported taps) ---------------
+       Continuous tracker of evt_alarm/evt_tick: counts pulse STARTS and total HIGH samples at clk rising edges since the last evt_mon_clear.
+       Exactly N one-clk-wide pulses give starts=N AND highs=N: a wider pulse pushes highs above starts, a missed pulse leaves starts short. */
     signal evt_alarm_starts, evt_alarm_highs : natural := 0;
     signal evt_tick_starts,  evt_tick_highs  : natural := 0;
     signal evt_alarm_prev, evt_tick_prev     : std_logic := '0';
@@ -85,16 +85,16 @@ architecture sim of RTC_tb is
 
 begin
 
-    ----------------------------------------------------------------------------
-    -- clock / gated register-bus clock
-    ----------------------------------------------------------------------------
+    /* --------------------------------------------------------------------------
+       clock / gated register-bus clock
+       -------------------------------------------------------------------------- */
     clk     <= not clk after PERIOD / 2;
     lfxt_in <= not lfxt_in after LFXT_HALF;
     ClkMem  <= clk when pbus.en_mem = '0' else '0';
 
-    ----------------------------------------------------------------------------
-    -- Independent reference wall clock: counts lfxt_in rising edges, anchored by ref_load at each set-time commit.
-    ----------------------------------------------------------------------------
+    /* --------------------------------------------------------------------------
+       Independent reference wall clock: counts lfxt_in rising edges, anchored by ref_load at each set-time commit.
+       -------------------------------------------------------------------------- */
     ref_proc : process(lfxt_in)
     begin
         if rising_edge(lfxt_in) then
@@ -106,9 +106,9 @@ begin
         end if;
     end process;
 
-    ----------------------------------------------------------------------------
-    -- EVFAB pulse monitor: samples evt_alarm/evt_tick (to_X01-normalized) on every clk rising edge, windowed by evt_mon_clear.
-    ----------------------------------------------------------------------------
+    /* --------------------------------------------------------------------------
+       EVFAB pulse monitor: samples evt_alarm/evt_tick (to_X01-normalized) on every clk rising edge, windowed by evt_mon_clear.
+       -------------------------------------------------------------------------- */
     evt_mon_proc : process(clk)
         variable a_lvl, t_lvl : std_logic;
     begin
@@ -141,9 +141,9 @@ begin
         end if;
     end process;
 
-    ----------------------------------------------------------------------------
-    -- DUT
-    ----------------------------------------------------------------------------
+    /* --------------------------------------------------------------------------
+       DUT
+       -------------------------------------------------------------------------- */
     dut : component RTC
         port map (
             clk         => clk,
@@ -160,10 +160,10 @@ begin
             evt_tick    => evt_tick
         );
 
-    ----------------------------------------------------------------------------
-    -- Watchdog: abort with a FAIL banner if the stimulus ever hangs.
-    -- Expected sim time is under 1 ms, so this fires only on a true hang; std.env.stop from stim kills it on a clean run.
-    ----------------------------------------------------------------------------
+    /* --------------------------------------------------------------------------
+       Watchdog: abort with a FAIL banner if the stimulus ever hangs.
+       Expected sim time is under 1 ms, so this fires only on a true hang; std.env.stop from stim kills it on a clean run.
+       -------------------------------------------------------------------------- */
     watchdog : process
     begin
         wait for 20 ms;
@@ -178,9 +178,9 @@ begin
         wait;
     end process;
 
-    ----------------------------------------------------------------------------
-    -- stimulus
-    ----------------------------------------------------------------------------
+    /* --------------------------------------------------------------------------
+       stimulus
+       -------------------------------------------------------------------------- */
     stim_proc : process
         variable rdw     : std_logic_vector(31 downto 0);
         variable secw    : std_logic_vector(31 downto 0);
@@ -268,9 +268,9 @@ begin
         end procedure;
 
     begin
-        ------------------------------------------------------------------
-        -- Reset (resetn low for a few hundred ns at t=0)
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           Reset (resetn low for a few hundred ns at t=0)
+           ---------------------------------------------------------------- */
         resetn <= '0';
         pbus   <= PERIPH_BUS_IDLE;
         ref_en <= '0';
@@ -279,9 +279,9 @@ begin
         resetn <= '1';
         wait for 8 * PERIOD;
 
-        ------------------------------------------------------------------
-        -- GROUP G0: reset defaults
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           GROUP G0: reset defaults
+           ---------------------------------------------------------------- */
         report "=== GROUP G0: reset defaults ===" severity note;
         bus_read(clk, pbus, rdata_out, RTC_SLOT_CR, rdw);
         sb.check_slv("G0: CR resets to 0", rdw, x"00000000");
@@ -301,10 +301,10 @@ begin
         sb.check_slv("G0: slot 7 reads 0", rdw, x"00000000");
         sb.check_bit("G0: irq_rtc = 0 out of reset", to_X01(irq_rtc), '0');
 
-        ------------------------------------------------------------------
-        -- GROUP G1: wall-clock advance
-        -- Enable RTCEN, start the TB reference at the SAME moment, then confirm the DUT snapshot advances monotonically and tracks the reference within the staleness bound, never AHEAD of it.
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           GROUP G1: wall-clock advance
+           Enable RTCEN, start the TB reference at the SAME moment, then confirm the DUT snapshot advances monotonically and tracks the reference within the staleness bound, never AHEAD of it.
+           ---------------------------------------------------------------- */
         report "=== GROUP G1: wall-clock advance ===" severity note;
         bus_write(clk, pbus, RTC_SLOT_CR, rtc_mk_cr('1', '0', '0', '0', '0'));  -- RTCEN
         ref_en <= '1';                     -- TB reference starts counting too
@@ -325,10 +325,10 @@ begin
             prev47 := dut47;
         end loop;
 
-        ------------------------------------------------------------------
-        -- GROUP G2: coherent snapshot
-        -- The firmware SEC,SUB,SEC-recompare idiom: repeated reads are never torn and each coherent pair tracks the reference within bound.
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           GROUP G2: coherent snapshot
+           The firmware SEC,SUB,SEC-recompare idiom: repeated reads are never torn and each coherent pair tracks the reference within bound.
+           ---------------------------------------------------------------- */
         report "=== GROUP G2: coherent snapshot ===" severity note;
         prev47 := dut47;
         for i in 0 to 19 loop
@@ -355,10 +355,10 @@ begin
             wait for 40 * (2 * LFXT_HALF);
         end loop;
 
-        ------------------------------------------------------------------
-        -- GROUP G3: set-time
-        -- Stage SUB then commit SEC (atomic {SEC,SUB} load): SR.SYNC asserts then clears, read-back equals the loaded value, counting resumes from it, and a sub-carry set-time increments SEC by exactly one.
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           GROUP G3: set-time
+           Stage SUB then commit SEC (atomic {SEC,SUB} load): SR.SYNC asserts then clears, read-back equals the loaded value, counting resumes from it, and a sub-carry set-time increments SEC by exactly one.
+           ---------------------------------------------------------------- */
         report "=== GROUP G3: set-time ===" severity note;
         -- Stage SUB=0x3FF0, commit SEC=0x12345678 (set_time waits for SR.SYNC and anchors the TB reference).
         set_time(x"12345678", "011111111110000");    -- 0x3FF0
@@ -389,11 +389,11 @@ begin
         -- Hygiene: leave RTCEN on (always-on wall clock), ensure flags clear.
         w1c(x"00000006");                             -- W1C ALMF|TICKF (none set yet)
 
-        ------------------------------------------------------------------
-        -- GROUP G4: alarm
-        -- Compressed via the set-time-near-wrap trick: SUB loaded at 0x7F00 is 256 lfxt ticks from the prescaler roll-over, so an alarm at SEC+1 fires ~256 ticks later.
-        -- Legs proved: fire plus irq; W1C clears the flag and drops irq; one-shot (no re-fire across the match second); re-arm fires again; ALMEN=0 suppresses.
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           GROUP G4: alarm
+           Compressed via the set-time-near-wrap trick: SUB loaded at 0x7F00 is 256 lfxt ticks from the prescaler roll-over, so an alarm at SEC+1 fires ~256 ticks later.
+           Legs proved: fire plus irq; W1C clears the flag and drops irq; one-shot (no re-fire across the match second); re-arm fires again; ALMEN=0 suppresses.
+           ---------------------------------------------------------------- */
         report "=== GROUP G4: alarm ===" severity note;
 
         -- G4a: program ALM = current-second + 1, arm, wait for the match.
@@ -446,10 +446,10 @@ begin
         bus_write(clk, pbus, RTC_SLOT_CR, rtc_mk_cr('1', '0', '0', '0', '0'));
         w1c(x"00000006");
 
-        ------------------------------------------------------------------
-        -- GROUP G5: periodic tick, PER=4 giving a tick every PER+1 = 5 lfxt ticks.
-        -- Catch N consecutive ticks, W1C each, check the cadence against the independent lfxt-edge reference, reprogram PER=9 for cadence 10, and confirm SEC/SUB is undisturbed by the tick engine.
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           GROUP G5: periodic tick, PER=4 giving a tick every PER+1 = 5 lfxt ticks.
+           Catch N consecutive ticks, W1C each, check the cadence against the independent lfxt-edge reference, reprogram PER=9 for cadence 10, and confirm SEC/SUB is undisturbed by the tick engine.
+           ---------------------------------------------------------------- */
         report "=== GROUP G5: periodic tick ===" severity note;
         bus_write(clk, pbus, RTC_SLOT_PER, x"00000004");   -- PER = 4
         rtc_wait_sync_clear(clk, pbus, rdata_out, ok);
@@ -501,10 +501,10 @@ begin
         bus_write(clk, pbus, RTC_SLOT_CR, rtc_mk_cr('1', '0', '0', '0', '0'));
         w1c(x"00000006");
 
-        ------------------------------------------------------------------
-        -- GROUP G6: combined-IRQ demux + IE masking, irq_rtc = (ALMF and ALMIE) or (TICKF and TICKIE), combinational.
-        -- With both flags pending, W1C each in turn (irq drops only when BOTH are cleared), then mask ALMIE / TICKIE independently; engines are frozen with ALMEN/TICKEN=0 first so flags cannot re-arm mid-check.
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           GROUP G6: combined-IRQ demux + IE masking, irq_rtc = (ALMF and ALMIE) or (TICKF and TICKIE), combinational.
+           With both flags pending, W1C each in turn (irq drops only when BOTH are cleared), then mask ALMIE / TICKIE independently; engines are frozen with ALMEN/TICKEN=0 first so flags cannot re-arm mid-check.
+           ---------------------------------------------------------------- */
         report "=== GROUP G6: combined-IRQ demux ===" severity note;
         make_both_pending(x"00000300");
         bus_read(clk, pbus, rdata_out, RTC_SLOT_SR, rdw);
@@ -549,10 +549,10 @@ begin
         -- Hygiene: clear flags, back to RTCEN only.
         w1c(x"00000006");
 
-        ------------------------------------------------------------------
-        -- GROUP G7a: with the bus IDLE (ClkMem gated off) the flag path still sets TICKF and raises irq_rtc autonomously, observed on the free-running clk with ZERO bus activity in the window.
-        -- GROUP G7b: assert resetn mid-count, so the LFXT domain resets cleanly, SEC/SUB/CR read back 0 and the counter restarts from 0.
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           GROUP G7a: with the bus IDLE (ClkMem gated off) the flag path still sets TICKF and raises irq_rtc autonomously, observed on the free-running clk with ZERO bus activity in the window.
+           GROUP G7b: assert resetn mid-count, so the LFXT domain resets cleanly, SEC/SUB/CR read back 0 and the counter restarts from 0.
+           ---------------------------------------------------------------- */
         report "=== GROUP G7: always-on / reset-sync ===" severity note;
         -- Arm a fast tick, then stop touching the bus entirely.
         set_time(x"00000600", "000000000000000");
@@ -605,10 +605,10 @@ begin
         sb.check_true("G7b: restarted count tracks reference within bound",
                       rtc_within(dut47, ref_lo, CMP_BOUND) and (dut47 <= ref_hi));
 
-        ------------------------------------------------------------------
-        -- GROUP G-EV: EVFAB taps.
-        -- evt_alarm/evt_tick are the same synchronized event edges the sticky ALMF/TICKF flags set from, exported PRE-IE, so ALMIE/TICKIE must have ZERO effect on them; pulse counts come from evt_mon_proc, windowed by evt_mon_reset.
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           GROUP G-EV: EVFAB taps.
+           evt_alarm/evt_tick are the same synchronized event edges the sticky ALMF/TICKF flags set from, exported PRE-IE, so ALMIE/TICKIE must have ZERO effect on them; pulse counts come from evt_mon_proc, windowed by evt_mon_reset.
+           ---------------------------------------------------------------- */
         report "=== GROUP G-EV: EVFAB taps (evt_alarm/evt_tick) ===" severity note;
 
         -- G-EV-a: evt_tick pulse count vs TICKF at PER=4 (cadence 5 lfxt ticks).
@@ -701,18 +701,18 @@ begin
         sb.check_true("G-EV d2: evt_alarm stays 0 with nothing pending (bounded window)",
                       evt_alarm_starts = 0 and evt_alarm_highs = 0);
 
-        ------------------------------------------------------------------
-        -- GROUP G-NEG: NEGATIVE CONTROL (mandatory, LAST): exactly ONE deliberately-wrong expected value so the scoreboard proves it can fail.
-        -- Compare a freshly-read SEC against a wrong literal.
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           GROUP G-NEG: NEGATIVE CONTROL (mandatory, LAST): exactly ONE deliberately-wrong expected value so the scoreboard proves it can fail.
+           Compare a freshly-read SEC against a wrong literal.
+           ---------------------------------------------------------------- */
         report "=== GROUP G-NEG: NEGATIVE CONTROL ===" severity note;
         bus_read(clk, pbus, rdata_out, RTC_SLOT_SEC, secw);
         sb.check_slv("NEGATIVE CONTROL: wrong expected SEC (must FAIL)",
                      secw, std_logic_vector(unsigned(secw) + 1));
 
-        ------------------------------------------------------------------
-        -- Final verdict: sb.errors must be EXACTLY 1 (the negative control).
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           Final verdict: sb.errors must be EXACTLY 1 (the negative control).
+           ---------------------------------------------------------------- */
         wait for 1 us;
         sb.report_summary("RTC TB");
 

@@ -237,9 +237,9 @@ begin
 
 
 
-	---------- I2C Core ----------
-	-- Signal Routing
-	-- The pads are open-drain: output data is tied low and the direction pin drives, so a released line floats up to the bus pull-up, and I2CMCB picks whether the master or the slave supplies the level.
+	/* -------- I2C Core ----------
+	   Signal Routing
+	   The pads are open-drain: output data is tied low and the direction pin drives, so a released line floats up to the bus pull-up, and I2CMCB picks whether the master or the slave supplies the level. */
 	SDA_OUT <= '0';
 	SCL_OUT <= '0';
 	SDA_REN <= SDA_REN_in;
@@ -795,9 +795,9 @@ begin
 
 
 
-	---------- Register Synchronizer ----------
-	-- The asynchronous status registers are sampled only during a memory access, which is safe because EnMemPeriph leads the rdata latch by exactly one clock cycle; the double inversion reduces the chance of an undefined bit.
-	-- One generate arm per EnMemPeriph polarity, of which only the mem_assert one is elaborated.
+	/* -------- Register Synchronizer ----------
+	   The asynchronous status registers are sampled only during a memory access, which is safe because EnMemPeriph leads the rdata latch by exactly one clock cycle; the double inversion reduces the chance of an undefined bit.
+	   One generate arm per EnMemPeriph polarity, of which only the mem_assert one is elaborated. */
 	GenRegSync0: if mem_assert = '0' generate
 		process (EnMemPeriph)
 		begin

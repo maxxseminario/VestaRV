@@ -1,12 +1,12 @@
--------------------------------------------------------------------------------
--- st25r3916_model.vhd
--------------------------------------------------------------------------------
--- Behavioral model of the off-die ST25R3916 NFC front end that NFC0 talks to: SPI register interface, FIFO, and transparent-mode pin gating.
--- The RF protocol itself is not modelled here; tb/nfc_reader_model.vhd carries the ISO-14443A link, and this model duplicates none of it.
--- Transparent mode is armed by direct command 0xDC, engages on the BSS rising edge of that same SPI frame, and is silently dropped by the next BSS falling edge.
--- In transparent mode the shared pins change meaning: MOSI is Tx modulation in, MISO is the digitized RX out, SCLK is the receiver enable, MCU_CLK is the extracted carrier, EXT_LM is the field detector, IRQ is the ASK demod tap.
--- Functional model only (no analog, framing engine, timers, PT_memory or I2C); unmodelled direct commands are accepted and counted, and cfg_* inputs / obs_* outputs are the bench's controls and scoreboard taps.
--------------------------------------------------------------------------------
+/* -----------------------------------------------------------------------------
+   st25r3916_model.vhd
+   -----------------------------------------------------------------------------
+   Behavioral model of the off-die ST25R3916 NFC front end that NFC0 talks to: SPI register interface, FIFO, and transparent-mode pin gating.
+   The RF protocol itself is not modelled here; tb/nfc_reader_model.vhd carries the ISO-14443A link, and this model duplicates none of it.
+   Transparent mode is armed by direct command 0xDC, engages on the BSS rising edge of that same SPI frame, and is silently dropped by the next BSS falling edge.
+   In transparent mode the shared pins change meaning: MOSI is Tx modulation in, MISO is the digitized RX out, SCLK is the receiver enable, MCU_CLK is the extracted carrier, EXT_LM is the field detector, IRQ is the ASK demod tap.
+   Functional model only (no analog, framing engine, timers, PT_memory or I2C); unmodelled direct commands are accepted and counted, and cfg_* inputs / obs_* outputs are the bench's controls and scoreboard taps.
+   ----------------------------------------------------------------------------- */
 
 library ieee;
 use ieee.std_logic_1164.all;

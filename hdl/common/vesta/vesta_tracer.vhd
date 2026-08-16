@@ -1,8 +1,8 @@
--- vesta_tracer.vhd: retire-event trace writer for lockstep co-simulation, one ASCII file per hart.
--- A PURE OBSERVER: no output ports, drives no signal, never touches the memory path.
--- Instantiated in vesta.vhd inside `gen_trace: if TRACE_ENABLE generate`, so an OFF build elaborates none of it.
--- It logs what COMMITTED, not what decode intended: every value comes from an actual write port, sampled pre-edge on rising_edge(clk_cpu).
--- -V200X only: no VHDL-2008, no external names, no to_hstring; hex is hand-rolled below and std.textio is the only I/O.
+/* vesta_tracer.vhd: retire-event trace writer for lockstep co-simulation, one ASCII file per hart.
+   A PURE OBSERVER: no output ports, drives no signal, never touches the memory path.
+   Instantiated in vesta.vhd inside `gen_trace: if TRACE_ENABLE generate`, so an OFF build elaborates none of it.
+   It logs what COMMITTED, not what decode intended: every value comes from an actual write port, sampled pre-edge on rising_edge(clk_cpu).
+   -V200X only: no VHDL-2008, no external names, no to_hstring; hex is hand-rolled below and std.textio is the only I/O. */
 
 library IEEE;
 use IEEE.std_logic_1164.all;
@@ -584,9 +584,9 @@ begin
                                  & hexstr(dat) & " spwe " & std_logic'image(sp_write_en));
                         end if;
                     elsif state = ST_SC_CHECK and sc_fail_ext /= '0' then
-                        -- A GLOBALLY-failed sc.w: the core's local reservation check passed so `wen` is live, but resv_unit gates the write off downstream and memory is NOT modified.
-                        -- It is therefore never buffered as an `M ... S`, which would claim a commit that never happened, but emitted as a diagnostic carrying the full suppressed store.
-                        -- X-taint is REFUSED, never guessed: an unreadable verdict cannot prove the write was dropped, so the record is KEPT, because a kept ghost is caught downstream while a wrongly-dropped real store is invisible.
+                        /* A GLOBALLY-failed sc.w: the core's local reservation check passed so `wen` is live, but resv_unit gates the write off downstream and memory is NOT modified.
+                           It is therefore never buffered as an `M ... S`, which would claim a commit that never happened, but emitted as a diagnostic carrying the full suppressed store.
+                           X-taint is REFUSED, never guessed: an unreadable verdict cannot prove the write was dropped, so the record is KEPT, because a kept ghost is caught downstream while a wrongly-dropped real store is invisible. */
                         if sc_fail_ext = '1' then
                             emit("# SCGHOST " & hdr(cyc) & hexstr(data_addr) & " "
                                  & hexnat(sz, 1) & " " & hexstr(dat));

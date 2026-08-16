@@ -27,15 +27,15 @@ entity datapath is
         clk          : in  std_logic;
         resetn       : in  std_logic;
         
-        -- ==========================================
-        -- Program Counter Interface
-        -- ==========================================
+        /* ==========================================
+           Program Counter Interface
+           ========================================== */
         pc           : in  std_logic_vector(XLEN-1 downto 0);      -- Current PC value
         pc_plus_4    : in  std_logic_vector(XLEN-1 downto 0);      -- PC + 4 for next sequential instruction
         
-        -- ==========================================
-        -- Control Signals from Controller
-        -- ==========================================
+        /* ==========================================
+           Control Signals from Controller
+           ========================================== */
         result_Src   : in  std_logic_vector(2 downto 0);       -- Selects result source (000:ALU, 001:Mem, 010:PC+4, 011:PC_target, 100:CSR)
         pc_src       : in  std_logic;                          -- PC source selection
         ALU_src      : in  std_logic;                          -- ALU operand B source (0:register, 1:immediate)
@@ -48,17 +48,17 @@ entity datapath is
         div_start    : in  std_logic;                          -- Start signal for division operation
         div_dispatch : in  std_logic;                          -- The real DIV dispatch cycle (arms the ALU divide FSM)
         
-        -- ==========================================
-        -- Atomic operation control signals
-        -- ==========================================
+        /* ==========================================
+           Atomic operation control signals
+           ========================================== */
         amo_phase    : in  std_logic_vector(2 downto 0);       -- 000: normal, 001: AMO_READ, 010: AMO_COMPUTE, 011: AMO_WRITE, 100: SC fail, 101: SC success
         cas_op       : in  std_logic;                          -- Zacas: this AMO is an amocas (steers the rs2 read port to rd in AMO_WRITEBACK; gates the CAS compare)
 
-        -- ==========================================
-        -- Zcmp/Zcmt sequencer regfile steering
-        -- ==========================================
-        -- The push/pop/move/table-jump FSM drives the regfile ports from REGISTERED sequencer indices, never re-reading a live instruction field mid-sequence.
-        -- All default inactive, so a non-Zcm build is bit-identical: the muxes fold to plain instr-field addressing.
+        /* ==========================================
+           Zcmp/Zcmt sequencer regfile steering
+           ==========================================
+           The push/pop/move/table-jump FSM drives the regfile ports from REGISTERED sequencer indices, never re-reading a live instruction field mid-sequence.
+           All default inactive, so a non-Zcm build is bit-identical: the muxes fold to plain instr-field addressing. */
         zcm_rs_addr  : in  std_logic_vector(4 downto 0) := "00000";  -- rs1 read port (a1) index: src_a/rs1_value becomes reg[zcm_rs_addr] (push store data; a0 takes x0, ret reads x1)
         zcm_rs_sel   : in  std_logic := '0';
         zcm_rd_addr  : in  std_logic_vector(4 downto 0) := "00000";  -- write port (a3) index: the pop-loaded word or move result lands in reg[zcm_rd_addr]
@@ -66,16 +66,16 @@ entity datapath is
         zcm_move_sel : in  std_logic := '0';   -- Result is src_a (reg-reg move cm.mvsa01/mva01s, a0=0)
         zcm_loadwb_sel : in std_logic := '0';  -- Result is read_data (cm.pop raw loaded word; word access, so equal to loadext's funct3=010 passthrough)
         
-        -- ==========================================
-        -- Instruction and Memory Interface
-        -- ==========================================
+        /* ==========================================
+           Instruction and Memory Interface
+           ========================================== */
         instr        : in  std_logic_vector(ILEN-1 downto 0);      -- Current instruction
         read_data    : in  std_logic_vector(XLEN-1 downto 0);      -- Data from memory (for loads)
         write_data   : out std_logic_vector(XLEN-1 downto 0);      -- Data to memory (for stores)
         
-        -- ==========================================
-        -- Datapath Outputs
-        -- ==========================================
+        /* ==========================================
+           Datapath Outputs
+           ========================================== */
         Zero         : out std_logic;                          -- ALU zero flag
         pc_target    : out std_logic_vector(XLEN-1 downto 0);      -- Target PC for branches/jumps
         ALU_result   : out std_logic_vector(XLEN-1 downto 0);      -- ALU computation result
@@ -84,24 +84,24 @@ entity datapath is
         cas_match    : out std_logic;                          -- Registered CAS compare verdict (1=match, gates the conditional write)
         alu_done     : out std_logic;                          -- ALU operation complete (for multi-cycle ops)
         
-        -- ==========================================
-        -- Stack Pointer Management for IRQ
-        -- ==========================================
+        /* ==========================================
+           Stack Pointer Management for IRQ
+           ========================================== */
         sp_in        : in  std_logic_vector(XLEN-1 downto 0);      -- New stack pointer value on irq_save
         sp_out       : out std_logic_vector(XLEN-1 downto 0);      -- Current stack pointer value
         sp_write_en  : in  std_logic;       
         
-        -- ==========================================
-        -- CSR Interface
-        -- ==========================================
+        /* ==========================================
+           CSR Interface
+           ========================================== */
         csr_valid   : in  std_logic;                          -- Valid CSR operation
         csr_rdata   : in  std_logic_vector(XLEN-1 downto 0);      -- Data read from CSR
         csr_wdata   : out std_logic_vector(XLEN-1 downto 0);      -- Data to write to CSR
 
-        -- ==========================================
-        -- Zfinx FPU control / status, all default inert.
-        -- The whole FP datapath is behind gen_fpu, so an OFF build is bit-identical to base.
-        -- ==========================================
+        /* ==========================================
+           Zfinx FPU control / status, all default inert.
+           The whole FP datapath is behind gen_fpu, so an OFF build is bit-identical to base.
+           ========================================== */
         fp_op_latch  : in  std_logic := '0';                   -- EXECUTE-dispatch strobe: latch rs1/rs2
         fp_fetch3    : in  std_logic := '0';                   -- FPU_FETCH3: steer a2 to rs3, latch rs3
         fpu_start    : in  std_logic := '0';                   -- FPU_WAIT: run the multi-cycle unit
@@ -110,26 +110,26 @@ entity datapath is
         fp_flags     : out std_logic_vector(4 downto 0);       -- flags of the completing FP op (mc at FPU_DONE / sc in EXECUTE)
 
 
-        -- ==========================================
-        -- LOCKSTEP TRACER TAPS (read-only)
-        -- ==========================================
-        -- Only the two committed-write-port nets invisible from vesta need ports; we3, sp_write and sp_in are already datapath INPUTS wired straight to the regfile pins with no intervening logic.
-        -- Both are pure taps on nets that already drive the regfile, so the TRACE_ENABLE=false netlist is unchanged.
+        /* ==========================================
+           LOCKSTEP TRACER TAPS (read-only)
+           ==========================================
+           Only the two committed-write-port nets invisible from vesta need ports; we3, sp_write and sp_in are already datapath INPUTS wired straight to the regfile pins with no intervening logic.
+           Both are pure taps on nets that already drive the regfile, so the TRACE_ENABLE=false netlist is unchanged. */
         trc_rd_addr  : out std_logic_vector(4 downto 0);           -- = a3  (rf_a3_addr)
         trc_rd_data  : out std_logic_vector(XLEN-1 downto 0);      -- = wd3 (Result)
 
-        -- ==========================================
-        -- Test output: stores the pass/fail result of instruction tests
-        -- ==========================================
+        /* ==========================================
+           Test output: stores the pass/fail result of instruction tests
+           ========================================== */
         a0           : out std_logic_vector(XLEN-1 downto 0)       -- Register x10 (a0) value for testing
     );
 end datapath;
 
 architecture struct of datapath is
 
-    -- ==========================================
-    -- Component Declarations
-    -- ==========================================
+    /* ==========================================
+       Component Declarations
+       ========================================== */
     
     component regfile
         port (
@@ -227,9 +227,9 @@ architecture struct of datapath is
         );
     end component;
 
-    -- ==========================================
-    -- Internal Signal Declarations
-    -- ==========================================
+    /* ==========================================
+       Internal Signal Declarations
+       ========================================== */
     
     -- Register file signals
     signal src_a              : std_logic_vector(XLEN-1 downto 0);  -- Register file output A (rs1)
@@ -282,10 +282,10 @@ architecture struct of datapath is
 
 begin
 
-    -- ==========================================
-    -- AMO Data Registers
-    -- ==========================================
-    -- Save address, memory data and the CAS operands across the AMO phases.
+    /* ==========================================
+       AMO Data Registers
+       ==========================================
+       Save address, memory data and the CAS operands across the AMO phases. */
     amo_reg_proc: process(clk, resetn)
     begin
         if resetn = '0' then
@@ -340,29 +340,29 @@ begin
     -- Export the registered verdict to vesta for the amo_wen gating.
     cas_match <= cas_match_reg;
 
-    -- ==========================================
-    -- CSR write data. TODO: this could be better abstracted.
-    -- ==========================================
-    -- CSRxI forms take the zero-extended 5-bit uimm from instr[19:15]; the register forms take rs1.
+    /* ==========================================
+       CSR write data. TODO: this could be better abstracted.
+       ==========================================
+       CSRxI forms take the zero-extended 5-bit uimm from instr[19:15]; the register forms take rs1. */
     csr_wdata <= (XLEN-1 downto 5 => '0') & instr(19 downto 15) when (csr_valid = '1' and funct3(2) = '1') else
                 src_a;  -- rs1 value       
     
 
-    -- ==========================================
-    -- PC Target Calculation
-    -- ==========================================
-    -- For JALR: use register value as base
-    -- For branches/JAL: use current PC as base
+    /* ==========================================
+       PC Target Calculation
+       ==========================================
+       For JALR: use register value as base
+       For branches/JAL: use current PC as base */
     PC_targetbase <= src_a when jalr = '1' else pc;
     
     -- Calculate target PC by adding immediate to base
     pc_target <= std_logic_vector(unsigned(PC_targetbase) + unsigned(imm_ext));
 
-    -- ==========================================
-    -- Register File Instance
-    -- ==========================================
-    -- 32 general-purpose registers with special stack pointer handling.
-    -- The Zcmp sequencer steers the rs1 read port (a1) and the write port (a3) to its REGISTERED reg index during a push/pop/move step; both selects fold to '0' when the Zcm generics are off.
+    /* ==========================================
+       Register File Instance
+       ==========================================
+       32 general-purpose registers with special stack pointer handling.
+       The Zcmp sequencer steers the rs1 read port (a1) and the write port (a3) to its REGISTERED reg index during a push/pop/move step; both selects fold to '0' when the Zcm generics are off. */
     rf_a1_addr <= zcm_rs_addr when zcm_rs_sel = '1' else instr(19 downto 15);
     rf_a3_addr <= zcm_rd_addr when zcm_rd_sel = '1' else instr(11 downto 7);
 
@@ -395,10 +395,10 @@ begin
             a0       => a0                            -- Debug output (x10/a0)
         );
     
-    -- ==========================================
-    -- Immediate Extension Unit
-    -- ==========================================
-    -- Sign-extends immediate values based on instruction type
+    /* ==========================================
+       Immediate Extension Unit
+       ==========================================
+       Sign-extends immediate values based on instruction type */
     ext: extend
         port map (
             instr   => instr(31 downto 7),           -- Instruction bits containing immediate
@@ -406,17 +406,17 @@ begin
             imm_ext => imm_ext                        -- Extended 32-bit immediate
         );
 
-    -- ==========================================
-    -- ALU Source B Multiplexer (before AMO mux)
-    -- ==========================================
-    -- Select between register value and immediate for ALU input B
+    /* ==========================================
+       ALU Source B Multiplexer (before AMO mux)
+       ==========================================
+       Select between register value and immediate for ALU input B */
     SrcB <= imm_ext when ALU_src = '1' else          -- Use immediate
             write_data_reg_val;                       -- Use register rs2
 
-    -- ==========================================
-    -- ALU Input Multiplexers for AMO Support
-    -- ==========================================
-    -- ALU input A selection based on AMO phase
+    /* ==========================================
+       ALU Input Multiplexers for AMO Support
+       ==========================================
+       ALU input A selection based on AMO phase */
     ALU_A <= src_a           when amo_phase = "000" else  -- Normal: use rs1
              src_a           when amo_phase = "001" else  -- AMO_READ: use rs1 for address
              rd_amo          when amo_phase = "010" else  -- AMO_COMPUTE: use saved read data
@@ -435,10 +435,10 @@ begin
              amo_b_ext                when amo_phase = "010" else  -- Zabha: sub-word rs2 for AMO_COMPUTE (word AMO uses the full rs2)
              SrcB;
 
-    -- ==========================================
-    -- Arithmetic Logic Unit Instance
-    -- ==========================================
-    -- Performs all arithmetic and logical operations including multiply/divide
+    /* ==========================================
+       Arithmetic Logic Unit Instance
+       ==========================================
+       Performs all arithmetic and logical operations including multiply/divide */
     mainalu: alu
         generic map (
             ENABLE_MUL      => ENABLE_MUL,
@@ -473,11 +473,11 @@ begin
     -- ALU_result is rs1 + 0/1 during SC_CHECK depending on the pass/fail phase, so comparing reservation_addr against ALU_result there forms a combinational loop with two stable solutions.
     rs1_value <= src_a;
 
-    -- ==========================================
-    -- Result Source Multiplexer
-    -- ==========================================
-    -- Select the final result to write back to the register file; for SC, write success (0) or failure (1) from the reservation check.
-    -- The Zcmp/Zcmt sequencer sources take highest priority: zcm_move_sel picks src_a (reg[steered a1], or 0 when a1 is steered to x0), zcm_loadwb_sel the raw loaded word; both fold to '0' when the generics are off.
+    /* ==========================================
+       Result Source Multiplexer
+       ==========================================
+       Select the final result to write back to the register file; for SC, write success (0) or failure (1) from the reservation check.
+       The Zcmp/Zcmt sequencer sources take highest priority: zcm_move_sel picks src_a (reg[steered a1], or 0 when a1 is steered to x0), zcm_loadwb_sel the raw loaded word; both fold to '0' when the generics are off. */
     Result <= src_a               when zcm_move_sel   = '1' else  -- Zcmp reg-reg move, a0 takes x0
               read_data           when zcm_loadwb_sel = '1' else  -- Zcmp pop: raw loaded word, a word access so equal to loadext's funct3=010
               ALU_result_internal when result_Src = "000" else  -- ALU operation result
@@ -489,10 +489,10 @@ begin
             fp_result_mc        when result_Src = RSRC_FP_MULTI  else  -- Multi-cycle FP (FPU_DONE)
             (others => '0');
     
-    -- ==========================================
-    -- Load Extension Unit Instance
-    -- ==========================================
-    -- Sign/zero extends loaded data based on load type (LB/LBU/LH/LHU/LW)
+    /* ==========================================
+       Load Extension Unit Instance
+       ==========================================
+       Sign/zero extends loaded data based on load type (LB/LBU/LH/LHU/LW) */
     loadextender: loadext
         port map(
             clk           => clk,
@@ -502,10 +502,10 @@ begin
             extended_data => extended_data           -- Properly extended 32-bit value
         );
 
-    -- ==========================================
-    -- Store Extension Unit Instance
-    -- ==========================================
-    -- Formats store data based on store type (SB/SH/SW)
+    /* ==========================================
+       Store Extension Unit Instance
+       ==========================================
+       Formats store data based on store type (SB/SH/SW) */
     storeextender: store_ext
         port map(
             funct3        => funct3,                 -- Store type (byte/halfword/word)
@@ -513,9 +513,9 @@ begin
             extended_data => write_data              -- Formatted data for memory
         );
 
-    -- ==========================================
-    -- Zfinx FP datapath, behind gen_fpu so it is 100% pruned in the OFF build
-    -- ==========================================
+    /* ==========================================
+       Zfinx FP datapath, behind gen_fpu so it is 100% pruned in the OFF build
+       ========================================== */
     gen_fpu: if ENABLE_ZFINX generate
         -- Effective rounding mode: instruction rm, or frm when rm=111 (dynamic).
         eff_rm <= frm_value when instr(14 downto 12) = FRM_DYN else instr(14 downto 12);

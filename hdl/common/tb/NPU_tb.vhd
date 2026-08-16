@@ -13,11 +13,11 @@ library work;
 use work.fixed_float_types.all;
 use work.fixed_pkg.all;
 
--- Testbench for NPU.vhd with the SRAM instantiated separately, alongside the NPU.
--- The network under test is y = 2x^2 + 1 over x = [-1,1], one hidden layer of 5 neurons.
--- The bench resets the NPU, loads SRAM with the integer inputs and weights from "npu_fp_inputs.txt" and "npu_fp_weights.txt" (both must sit in the simulation directory; FPMLPNN_test.m generates them), then configures the memory mapped registers per layer and runs the NPU over every test point.
--- Outputs are read back from SRAM, checked against "npu_expected_fp_outputs.txt" and written to "npu_actual_fp_outputs.txt".
--- Two further phases follow the inference passes: the think-done IRQ checks and the event-fabric task_think checks.
+/* Testbench for NPU.vhd with the SRAM instantiated separately, alongside the NPU.
+   The network under test is y = 2x^2 + 1 over x = [-1,1], one hidden layer of 5 neurons.
+   The bench resets the NPU, loads SRAM with the integer inputs and weights from "npu_fp_inputs.txt" and "npu_fp_weights.txt" (both must sit in the simulation directory; FPMLPNN_test.m generates them), then configures the memory mapped registers per layer and runs the NPU over every test point.
+   Outputs are read back from SRAM, checked against "npu_expected_fp_outputs.txt" and written to "npu_actual_fp_outputs.txt".
+   Two further phases follow the inference passes: the think-done IRQ checks and the event-fabric task_think checks. */
 entity NPU_tb is
 	generic (
 		-- Think-done IRQ negative control: 0 = clean run, the only PASS-eligible mode.
@@ -505,10 +505,10 @@ begin
 		file_close(y_exp_file);
 		wait for (5*clk_period);
 
-		----------------------------------------------------------------------
-		----- Think-Done IRQ Test Phase (irq_router source 120)             --
-		----- NPUSR @ MmrAddrNPUSR=4 (THINKDONE, sticky W1C); NPUCR.19=TDIE --
-		----------------------------------------------------------------------
+		/* --------------------------------------------------------------------
+		   --- Think-Done IRQ Test Phase (irq_router source 120)             --
+		   --- NPUSR @ MmrAddrNPUSR=4 (THINKDONE, sticky W1C); NPUCR.19=TDIE --
+		   -------------------------------------------------------------------- */
 		report "[NPU_TB] Starting NPU IRQ test phase (NEGCTRL=" & integer'image(NEGCTRL) & ")..." severity note;
 
 		-- IRQ-a: after the two inference layers above, THINKDONE is sticky-set from the last completed THINK and nobody has touched NPUSR yet, so it must read 1.
@@ -817,11 +817,11 @@ begin
 		end if;
 		error_count := error_count + irq_error_count;
 
-		----------------------------------------------------------------------
-		----- Event-Fabric task_think Test Phase                            --
-		----- One MabMmrCLK pulse starts a THINK like an NPUCR bit-16 write --
-		----- and wins a coincident one; NpuDone/reset still clears both.   --
-		----------------------------------------------------------------------
+		/* --------------------------------------------------------------------
+		   --- Event-Fabric task_think Test Phase                            --
+		   --- One MabMmrCLK pulse starts a THINK like an NPUCR bit-16 write --
+		   --- and wins a coincident one; NpuDone/reset still clears both.   --
+		   -------------------------------------------------------------------- */
 		report "[NPU_TB] Starting EVFAB task_think test phase..." severity note;
 
 		-- Reuse the pass-through descriptor from IRQ-d/e: IVSAR=0 and WVSAR=2048 (both still staged), NI=0 (1 input), NN=0 (1 neuron), no bias, no activation.

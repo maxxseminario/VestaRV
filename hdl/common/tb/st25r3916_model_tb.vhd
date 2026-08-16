@@ -1,12 +1,12 @@
--------------------------------------------------------------------------------
--- st25r3916_model_tb.vhd
--------------------------------------------------------------------------------
--- Self-checking bench for tb/st25r3916_model.vhd, the ST25R3916 NFC AFE model.
--- The deliverable is the two-directional transparent-mode gate: RF reaches MISO only while transparent, and SPI traffic is refused while transparent; the register and command groups make the positive side credible.
--- nfc_reader_model supplies a real modified-Miller frame for the last group; it owns the ISO-14443A protocol and none of it is duplicated here.
--- SPI master is CPOL = 0 / CPHA = 1, MSB first: MOSI is presented before the rising edge (the model samples on the falling edge) and MISO is sampled at the end of the SCLK high phase.
--- MISO is a tristate pin resolved here to 'Z' when pin_miso_oe is low, so a 'Z' check is a real "the AFE is not driving" result, not X propagation.
--------------------------------------------------------------------------------
+/* -----------------------------------------------------------------------------
+   st25r3916_model_tb.vhd
+   -----------------------------------------------------------------------------
+   Self-checking bench for tb/st25r3916_model.vhd, the ST25R3916 NFC AFE model.
+   The deliverable is the two-directional transparent-mode gate: RF reaches MISO only while transparent, and SPI traffic is refused while transparent; the register and command groups make the positive side credible.
+   nfc_reader_model supplies a real modified-Miller frame for the last group; it owns the ISO-14443A protocol and none of it is duplicated here.
+   SPI master is CPOL = 0 / CPHA = 1, MSB first: MOSI is presented before the rising edge (the model samples on the falling edge) and MISO is sampled at the end of the SCLK high phase.
+   MISO is a tristate pin resolved here to 'Z' when pin_miso_oe is low, so a 'Z' check is a real "the AFE is not driving" result, not X propagation.
+   ----------------------------------------------------------------------------- */
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -122,9 +122,9 @@ architecture sim of st25r3916_model_tb is
 
 begin
 
-    ---------------------------------------------------------------------------
-    -- DUT: the ST25R3916 AFE model
-    ---------------------------------------------------------------------------
+    /* -------------------------------------------------------------------------
+       DUT: the ST25R3916 AFE model
+       ------------------------------------------------------------------------- */
     dut : entity work.st25r3916_model
         generic map (
             LF_HALF    => LF_HALF_C,
@@ -167,9 +167,9 @@ begin
             obs_rf_blocked_edges  => obs_rf_blocked_edges
         );
 
-    ---------------------------------------------------------------------------
-    -- The RF world: nfc_reader_model is the ISO-14443A reader, driven as stimulus only.
-    ---------------------------------------------------------------------------
+    /* -------------------------------------------------------------------------
+       The RF world: nfc_reader_model is the ISO-14443A reader, driven as stimulus only.
+       ------------------------------------------------------------------------- */
     rdr : entity work.nfc_reader_model
         generic map (RF_HALF => RF_HALF)
         port map (
@@ -215,9 +215,9 @@ begin
     sig_field <= rdr_field when sel_reader = '1' else tb_field;
     sig_clk   <= rdr_clk;
 
-    ---------------------------------------------------------------------------
-    -- Monitors: transition counters the checks sample as before/after deltas.
-    ---------------------------------------------------------------------------
+    /* -------------------------------------------------------------------------
+       Monitors: transition counters the checks sample as before/after deltas.
+       ------------------------------------------------------------------------- */
     -- counts every transition of the resolved MISO wire
     miso_mon : process (miso_net)
         variable n : natural := 0;
@@ -238,9 +238,9 @@ begin
         end if;
     end process mclk_mon;
 
-    ---------------------------------------------------------------------------
-    -- STIMULUS: one sequential program, the functional groups run in order and score into sb.
-    ---------------------------------------------------------------------------
+    /* -------------------------------------------------------------------------
+       STIMULUS: one sequential program, the functional groups run in order and score into sb.
+       ------------------------------------------------------------------------- */
     stim_proc : process
 
         variable v, d0, d1, d2 : std_logic_vector(7 downto 0);
@@ -408,9 +408,9 @@ begin
     begin
         wait for 200 ns;
 
-        ----------------------------------------------------------------
-        -- G-RST: power-up defaults over a real SPI read
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           G-RST: power-up defaults over a real SPI read
+           -------------------------------------------------------------- */
         report "=== G-RST: reset defaults ===" severity note;
         sb.check_bit("G-RST: transparent_mode is 0 out of reset", transparent_mode, '0');
         sb.check_bit("G-RST: MISO is tristate with BSS idle high", miso_net, 'Z');
@@ -428,9 +428,9 @@ begin
         sb.check_slv("G-RST: last operation-mode byte was a register read of 0x00",
                      obs_last_mode, x"40");
 
-        ----------------------------------------------------------------
-        -- G-REG: register write/read round trip + read-only protection
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           G-REG: register write/read round trip + read-only protection
+           -------------------------------------------------------------- */
         report "=== G-REG: register write / read ===" severity note;
         f0 := obs_frame_count;
         reg_wr(A_AUX, x"5A");
@@ -455,9 +455,9 @@ begin
         reg_rd(A_IC_ID, v);
         sb.check_slv("G-REG: IC identity unchanged after the refused write", v, x"2A");
 
-        ----------------------------------------------------------------
-        -- G-AINC: address auto-increment on both write and read
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           G-AINC: address auto-increment on both write and read
+           -------------------------------------------------------------- */
         report "=== G-AINC: address auto-increment ===" severity note;
         reg_wr3(A_ISO14443A, x"11", x"22", x"33");   -- 0x05, 0x06, 0x07
         reg_rd3(A_ISO14443A, d0, d1, d2);
@@ -465,9 +465,9 @@ begin
         sb.check_slv("G-AINC: 0x06 = 0x22 (auto-incremented)", d1, x"22");
         sb.check_slv("G-AINC: 0x07 = 0x33 (auto-incremented)", d2, x"33");
 
-        ----------------------------------------------------------------
-        -- G-CMD: direct commands (Table 13)
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           G-CMD: direct commands (Table 13)
+           -------------------------------------------------------------- */
         report "=== G-CMD: direct commands ===" severity note;
         n0 := obs_cmd_count;
         direct_cmd(x"D3");                 -- Measure amplitude: accepted, inert
@@ -484,9 +484,9 @@ begin
         reg_rd(A_IC_ID, v);
         sb.check_slv("G-CMD: IC identity survives Set default", v, x"2A");
 
-        ----------------------------------------------------------------
-        -- G-FIFO: FIFO load/read, and the `en` gate on FIFO operations
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           G-FIFO: FIFO load/read, and the `en` gate on FIFO operations
+           -------------------------------------------------------------- */
         report "=== G-FIFO: FIFO load / read + en gate ===" severity note;
         reg_rd(A_OP_CTRL, v);
         sb.check_slv("G-FIFO: en is clear before the gate test", v, x"00");
@@ -508,9 +508,9 @@ begin
         direct_cmd(x"DB");                 -- Clear FIFO
         sb.check_true("G-FIFO: Clear FIFO (0xDB) empties it", obs_fifo_level = 0);
 
-        ----------------------------------------------------------------
-        -- G-SPB: register space-B access via the chained 0xFB prefix
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           G-SPB: register space-B access via the chained 0xFB prefix
+           -------------------------------------------------------------- */
         report "=== G-SPB: space-B access (0xFB prefix) ===" severity note;
         regb_wr(B_CORR1, x"77");
         regb_rd(B_CORR1, v);
@@ -525,9 +525,9 @@ begin
         sb.check_true("G-SPB: write to a non-existent space-B address is refused",
                       obs_reject_count = n0 + 1);
 
-        ----------------------------------------------------------------
-        -- G-IRQ: IRQ pin + read-and-clear interrupt status (Sect. 4.3.1)
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           G-IRQ: IRQ pin + read-and-clear interrupt status (Sect. 4.3.1)
+           -------------------------------------------------------------- */
         report "=== G-IRQ: interrupt pin / read-and-clear ===" severity note;
         cfg_irq_bits    <= x"01";
         cfg_irq_trigger <= '1';
@@ -550,9 +550,9 @@ begin
         sb.check_slv("G-IRQ: the masked status bit is still readable", v, x"02");
         reg_wr(A_MASK_MAIN, x"00");
 
-        ----------------------------------------------------------------
-        -- G-EXTLM: EXT_LM as the field-detector output, gated by en_fd_c
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           G-EXTLM: EXT_LM as the field-detector output, gated by en_fd_c
+           -------------------------------------------------------------- */
         report "=== G-EXTLM: field detector output ===" severity note;
         tb_field <= '1';
         wait for 100 ns;
@@ -568,9 +568,9 @@ begin
         tb_field <= '1';
         wait for 100 ns;
 
-        ----------------------------------------------------------------
-        -- G-CLK: MCU_CLK gating (out_cl / lf_clk_off / en)
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           G-CLK: MCU_CLK gating (out_cl / lf_clk_off / en)
+           -------------------------------------------------------------- */
         report "=== G-CLK: MCU_CLK output gating ===" severity note;
         n0 := mclk_edges;
         wait for 2 us;
@@ -599,9 +599,9 @@ begin
         sb.check_true("G-CLK: lf_clk_off suppresses the LF clock", mclk_edges = n0);
         reg_wr(A_IO_CONF1, x"00");
 
-        ----------------------------------------------------------------
-        -- G-GATE-RF (a): RF must NOT pass while the part is NOT transparent
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           G-GATE-RF (a): RF must NOT pass while the part is NOT transparent
+           -------------------------------------------------------------- */
         report "=== G-GATE-RF(a): RF blocked in normal mode ===" severity note;
         reg_wr(A_OP_CTRL, x"C3");          -- en + rx_en + en_fd_c = 11
         sclk <= '0';
@@ -620,9 +620,9 @@ begin
         sb.check_bit("G-GATE-RF(a): no load modulation is driven either",
                      loadmod, '0');
 
-        ----------------------------------------------------------------
-        -- G-TP: entering transparent mode (0xDC + the BSS rising edge)
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           G-TP: entering transparent mode (0xDC + the BSS rising edge)
+           -------------------------------------------------------------- */
         report "=== G-TP: transparent-mode entry ===" severity note;
         -- with en = 0 the command must be refused (Table 13 operation mode "en")
         reg_wr(A_OP_CTRL, x"00");
@@ -646,9 +646,9 @@ begin
         sb.check_bit("G-TP: MISO is actively driven in transparent mode",
                      pin_miso_oe, '1');
 
-        ----------------------------------------------------------------
-        -- G-TP-RF: with the mode engaged the RF path is live
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           G-TP-RF: with the mode engaged the RF path is live
+           -------------------------------------------------------------- */
         report "=== G-TP-RF: RF pass-through while transparent ===" severity note;
         sclk <= '1';                       -- SCLK is the receiver enable now
         wait for 100 ns;
@@ -684,9 +684,9 @@ begin
                      miso_net, '0');
         tb_env <= '1'; wait for 200 ns;
 
-        ----------------------------------------------------------------
-        -- G-GATE-SPI: SPI is DEAD while transparent (the second negative)
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           G-GATE-SPI: SPI is DEAD while transparent (the second negative)
+           -------------------------------------------------------------- */
         report "=== G-GATE-SPI: SPI refused while transparent ===" severity note;
         f0 := obs_frame_count;
         w0 := obs_reg_writes;
@@ -714,9 +714,9 @@ begin
         sb.check_slv("G-GATE-SPI: 0x0A is untouched by the refused traffic",
                      v, x"00");
 
-        ----------------------------------------------------------------
-        -- G-EXIT: any BSS falling edge silently drops transparent mode
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           G-EXIT: any BSS falling edge silently drops transparent mode
+           -------------------------------------------------------------- */
         report "=== G-EXIT: leaving transparent mode ===" severity note;
         sb.check_bit("G-EXIT: the read above already left transparent mode",
                      transparent_mode, '0');
@@ -738,9 +738,9 @@ begin
         sb.check_bit("G-EXIT: MISO released again after the exiting frame",
                      miso_net, 'Z');
 
-        ----------------------------------------------------------------
-        -- G-GATE-RF (b): after the exit, RF is blocked again
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           G-GATE-RF (b): after the exit, RF is blocked again
+           -------------------------------------------------------------- */
         report "=== G-GATE-RF(b): RF blocked again after the exit ===" severity note;
         n0 := obs_rf_blocked_edges;
         w0 := miso_edges;
@@ -752,9 +752,9 @@ begin
                       obs_rf_blocked_edges = n0 + 6);
         sb.check_true("G-GATE-RF(b): MISO stayed put", miso_edges = w0);
 
-        ----------------------------------------------------------------
-        -- G-RDR: the reader drives a real modified-Miller REQA short frame; the AFE must relay it to MISO only while transparent.
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           G-RDR: the reader drives a real modified-Miller REQA short frame; the AFE must relay it to MISO only while transparent.
+           -------------------------------------------------------------- */
         report "=== G-RDR: composition with nfc_reader_model ===" severity note;
         sel_reader <= '1';
         r_field    <= '1';
@@ -797,9 +797,9 @@ begin
         sclk       <= '0';
         wait for 500 ns;
 
-        ----------------------------------------------------------------
-        -- GROUP-NEG: negative control, always last: one deliberately wrong expectation proves the scoreboard can fail.
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           GROUP-NEG: negative control, always last: one deliberately wrong expectation proves the scoreboard can fail.
+           -------------------------------------------------------------- */
         if NEGCTRL then
             report "=== GROUP-NEG: NEGATIVE CONTROL ===" severity note;
             reg_rd(A_IC_ID, neg_val);
@@ -809,9 +809,9 @@ begin
             report "=== GROUP-NEG: SKIPPED (NEGCTRL = false) ===" severity note;
         end if;
 
-        ----------------------------------------------------------------
-        -- Final verdict: sb.errors must be exactly 1 with NEGCTRL on, 0 with it off.
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           Final verdict: sb.errors must be exactly 1 with NEGCTRL on, 0 with it off.
+           -------------------------------------------------------------- */
         wait for 1 us;
         sb.report_summary("ST25R3916 MODEL TB");
 

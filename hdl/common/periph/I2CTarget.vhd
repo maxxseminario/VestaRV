@@ -3,11 +3,11 @@ use ieee.std_logic_1164.all;
 use ieee.std_logic_arith.all;
 use ieee.std_logic_unsigned.all;
 
--- I2CTarget: hardware-autonomous I2C target (slave), one instance I2CT0 at base 0x6A00, sharing the SDA0/SCL0 pad planes with I2C0 through a wired-AND DIR merge.
--- 7-bit address match with mask wildcard and general call, byte-at-a-time RX/TX with ready/empty status, optional clock stretching, START/STOP/repeated-START/NACK framing flags and a stuck-SCL watchdog.
--- Two open-drain pins, DIR-only: the MCU ties SDA/SCL OUT to '0', so DIR '1' pulls the line low and '0' releases it, and the lines are NEVER driven high.
--- Two combined IRQs, each (status AND enable) and never latched: vector 122 I2CT0_AE (address/error) and vector 123 I2CT0_DATA (tx-ready/rx-full).
--- ONE clock family: the whole engine is mclk-synchronous, every process infers exactly one edge of one clock, SDA_IN/SCL_IN are PURE DATA through 2-FF syncs, and nothing anywhere uses falling_edge, least of all of EnMemPeriph.
+/* I2CTarget: hardware-autonomous I2C target (slave), one instance I2CT0 at base 0x6A00, sharing the SDA0/SCL0 pad planes with I2C0 through a wired-AND DIR merge.
+   7-bit address match with mask wildcard and general call, byte-at-a-time RX/TX with ready/empty status, optional clock stretching, START/STOP/repeated-START/NACK framing flags and a stuck-SCL watchdog.
+   Two open-drain pins, DIR-only: the MCU ties SDA/SCL OUT to '0', so DIR '1' pulls the line low and '0' releases it, and the lines are NEVER driven high.
+   Two combined IRQs, each (status AND enable) and never latched: vector 122 I2CT0_AE (address/error) and vector 123 I2CT0_DATA (tx-ready/rx-full).
+   ONE clock family: the whole engine is mclk-synchronous, every process infers exactly one edge of one clock, SDA_IN/SCL_IN are PURE DATA through 2-FF syncs, and nothing anywhere uses falling_edge, least of all of EnMemPeriph. */
 
 entity I2CTarget is
     port (
@@ -34,12 +34,12 @@ end I2CTarget;
 
 architecture behavioral of I2CTarget is
 
-    -- ---- word-slot map (slot n at base + 4n, decoded off MABPart(7:2); slots >=5 read 0) ----
-    --   0 I2CTCR  : [0]EN [1]GCEN [2]CSEN [3]AEIE [4]DATAIE [14:8]SAD[6:0] [22:16]SADM[6:0]; rest reserved read 0.
-    --   1 I2CTSR  : [0]BUSY r [1]TM r [2]AMF [3]GCF [4]RXF [5]TXE r [6]OVF [7]NACKF [8]STOPF [9]RSTARTF [10]ERRF; W1C unless marked r, 31:11 reserved read 0.
-    --   2 I2CTTX  : [7:0] next transmit byte, reads back the last value; a lane-0 write loads the buffer and clears TXE.
-    --   3 I2CTRX  : [7:0] last received byte, side-effect-free read.
-    --   4 I2CTWDG : [15:0] WDTO, the SCL-low watchdog timeout in units of 256 clk; 0 disables it, and that is the reset value.
+    /* ---- word-slot map (slot n at base + 4n, decoded off MABPart(7:2); slots >=5 read 0) ----
+         0 I2CTCR  : [0]EN [1]GCEN [2]CSEN [3]AEIE [4]DATAIE [14:8]SAD[6:0] [22:16]SADM[6:0]; rest reserved read 0.
+         1 I2CTSR  : [0]BUSY r [1]TM r [2]AMF [3]GCF [4]RXF [5]TXE r [6]OVF [7]NACKF [8]STOPF [9]RSTARTF [10]ERRF; W1C unless marked r, 31:11 reserved read 0.
+         2 I2CTTX  : [7:0] next transmit byte, reads back the last value; a lane-0 write loads the buffer and clears TXE.
+         3 I2CTRX  : [7:0] last received byte, side-effect-free read.
+         4 I2CTWDG : [15:0] WDTO, the SCL-low watchdog timeout in units of 256 clk; 0 disables it, and that is the reset value. */
     constant SLOT_CR  : natural := 0;   -- I2CTCR
     constant SLOT_SR  : natural := 1;   -- I2CTSR
     constant SLOT_TX  : natural := 2;   -- I2CTTX
@@ -165,9 +165,9 @@ begin
     irq_ae   <= (amf or gcf or ovf or nackf or stopf or rstartf or errf) and cr_aeie;
     irq_data <= (rxf or tx_e_level) and cr_dataie;
 
-    -- ------------------------- register write (ClkMem) ------------------------
-    -- Rising ClkMem, qualified by EnMemPeriph='0', lane-0 (WEn(0)='0') writes, reset from resetn in the bus domain; I2CTCR loads all of its fields on one word write.
-    -- An I2CTTX write captures the byte AND flips tx_load_tgl (the TX launch); an SR write of 1 to a W1C bit flips the matching clr_<flag>_tgl.
+    /* ------------------------- register write (ClkMem) ------------------------
+       Rising ClkMem, qualified by EnMemPeriph='0', lane-0 (WEn(0)='0') writes, reset from resetn in the bus domain; I2CTCR loads all of its fields on one word write.
+       An I2CTTX write captures the byte AND flips tx_load_tgl (the TX launch); an SR write of 1 to a W1C bit flips the matching clr_<flag>_tgl. */
     reg_write: process(resetn, ClkMem)
     begin
         if resetn = '0' then
@@ -231,9 +231,9 @@ begin
         end if;
     end process;
 
-    -- ------------------------- register read (ClkMem) -------------------------
-    -- Registered read mux on rising ClkMem: the sticky flags plus BUSY/TM/TXE are read RAW from the clk domain and this registration IS their synchronization, so there is no pre-latch and no bridge.
-    -- SR-read TXE is masked by tx_load_pending, so a poll immediately after an I2CTTX write never sees stale-empty; reserved bits and slots >=5 read 0.
+    /* ------------------------- register read (ClkMem) -------------------------
+       Registered read mux on rising ClkMem: the sticky flags plus BUSY/TM/TXE are read RAW from the clk domain and this registration IS their synchronization, so there is no pre-latch and no bridge.
+       SR-read TXE is masked by tx_load_pending, so a poll immediately after an I2CTTX write never sees stale-empty; reserved bits and slots >=5 read 0. */
     reg_read: process(ClkMem)
     begin
         if rising_edge(ClkMem) then
@@ -256,9 +256,9 @@ begin
         end if;
     end process;
 
-    -- ------------------------- clk-domain sync and CDC ------------------------
-    -- Two independent SDA/SCL 2-FF synchronizers plus one-clk prev copies for edge detect, and a 2-FF plus prev of the tx_load_tgl launch toggle and of every W1C clr_<flag>_tgl.
-    -- Single edge (rising clk) only, reset from resetn; SDA and SCL are PURE DATA here, never a clock.
+    /* ------------------------- clk-domain sync and CDC ------------------------
+       Two independent SDA/SCL 2-FF synchronizers plus one-clk prev copies for edge detect, and a 2-FF plus prev of the tx_load_tgl launch toggle and of every W1C clr_<flag>_tgl.
+       Single edge (rising clk) only, reset from resetn; SDA and SCL are PURE DATA here, never a clock. */
     bus_sync: process(resetn, clk)
     begin
         if resetn = '0' then
@@ -291,10 +291,10 @@ begin
         end if;
     end process;
 
-    -- ------------------------- target FSM (clk) -------------------------------
-    -- The whole autonomous target engine on the free-running clk: it drives the REGISTERED sda_drv and scl_hold, never a combinational mux off a bus edge, owns the sticky W1C flags, BUSY/TM, the shift registers and the watchdog, and reads the quasi-static CR fields EN/GCEN/CSEN/SAD/SADM/WDTO directly.
-    -- Bits are sampled on scl_rise and driven on scl_fall, and SDA only ever changes AFTER scl_fall with SCL confirmed low through the sync, so the FSM can never glitch a false START or STOP.
-    -- Set-wins ordering: the default W1C clears run FIRST, and the FSM and framing SETs run later and override a coincident clear.
+    /* ------------------------- target FSM (clk) -------------------------------
+       The whole autonomous target engine on the free-running clk: it drives the REGISTERED sda_drv and scl_hold, never a combinational mux off a bus edge, owns the sticky W1C flags, BUSY/TM, the shift registers and the watchdog, and reads the quasi-static CR fields EN/GCEN/CSEN/SAD/SADM/WDTO directly.
+       Bits are sampled on scl_rise and driven on scl_fall, and SDA only ever changes AFTER scl_fall with SCL confirmed low through the sync, so the FSM can never glitch a false START or STOP.
+       Set-wins ordering: the default W1C clears run FIRST, and the FSM and framing SETs run later and override a coincident clear. */
     fsm: process(resetn, clk)
         variable full   : std_logic_vector(7 downto 0);
         variable addr7  : std_logic_vector(6 downto 0);

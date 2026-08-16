@@ -1,10 +1,10 @@
--- =============================================================================
--- debug_module.vhd: the chip's Debug Module, one per chip at assembly level, always-on mclk domain, never inside a tile.
--- DMI register file, per-hart run control, abstract access-register commands, a 2-word program buffer with an implicit third word, and halt groups.
--- It is an mp_arbiter master because an abstract command is CODE the halted hart executes out of the shared window; a tile's TCM is unreachable from the shared bus.
--- No DTM/TAP, no triggers, no System Bus Access: sbcs reads all-zeros ("no system bus"), 0x39-0x3F answer failed, and memory access is progbuf lw/sw through the hart.
--- ENABLE_DEBUG false folds the whole block: no master requests, no halt requests, dmi_req_ready low, no reachable flops.
--- =============================================================================
+/* =============================================================================
+   debug_module.vhd: the chip's Debug Module, one per chip at assembly level, always-on mclk domain, never inside a tile.
+   DMI register file, per-hart run control, abstract access-register commands, a 2-word program buffer with an implicit third word, and halt groups.
+   It is an mp_arbiter master because an abstract command is CODE the halted hart executes out of the shared window; a tile's TCM is unreachable from the shared bus.
+   No DTM/TAP, no triggers, no System Bus Access: sbcs reads all-zeros ("no system bus"), 0x39-0x3F answer failed, and memory access is progbuf lw/sw through the hart.
+   ENABLE_DEBUG false folds the whole block: no master requests, no halt requests, dmi_req_ready low, no reachable flops.
+   ============================================================================= */
 
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
@@ -61,9 +61,9 @@ end entity;
 
 architecture rtl of debug_module is
 
-    -- ------------------------------------------------------------------
-    -- Layout constants, WORD addresses (the arbiter's unit), all derived from the generics so a re-aimed block stays self-consistent.
-    -- ------------------------------------------------------------------
+    /* ------------------------------------------------------------------
+       Layout constants, WORD addresses (the arbiter's unit), all derived from the generics so a re-aimed block stays self-consistent.
+       ------------------------------------------------------------------ */
     -- Byte address to shared-window word address.
     function w(a : std_logic_vector(31 downto 0)) return integer is
     begin
@@ -91,10 +91,10 @@ architecture rtl of debug_module is
     constant W_BAND_LO  : integer := W_DATA0;
     constant W_BAND_HI  : integer := W_ENTRY + 63;
 
-    -- ------------------------------------------------------------------
-    -- FLAGS[h] handshake tokens, single-writer-per-state: the DM writes GO and RESUME, the hart writes HALTED and DONE; changing them without changing dbg_trampoline.S breaks the handshake.
-    -- Small positive immediates, and BIT 2 IS SET IN EXACTLY THE TWO VALUES A RE-ENTRY CAN SEE (GO, DONE) and clear in the two a first entry can see (0, RESUME), which is how the trampoline repairs its dscratch save with one `andi`.
-    -- ------------------------------------------------------------------
+    /* ------------------------------------------------------------------
+       FLAGS[h] handshake tokens, single-writer-per-state: the DM writes GO and RESUME, the hart writes HALTED and DONE; changing them without changing dbg_trampoline.S breaks the handshake.
+       Small positive immediates, and BIT 2 IS SET IN EXACTLY THE TWO VALUES A RE-ENTRY CAN SEE (GO, DONE) and clear in the two a first entry can see (0, RESUME), which is how the trampoline repairs its dscratch save with one `andi`.
+       ------------------------------------------------------------------ */
     constant TOK_HALTED : integer := 1;
     constant TOK_RESUME : integer := 2;
     constant TOK_GO     : integer := 4;
@@ -103,9 +103,9 @@ architecture rtl of debug_module is
     -- That adopts the values the program buffer left, with no new branch and without changing a trampoline word.
     constant TOK_PBDONE : integer := 8;
 
-    -- ------------------------------------------------------------------
-    -- DMI register addresses (debug_defines.h).
-    -- ------------------------------------------------------------------
+    /* ------------------------------------------------------------------
+       DMI register addresses (debug_defines.h).
+       ------------------------------------------------------------------ */
     constant A_DATA0     : std_logic_vector(6 downto 0) := "0000100";  -- 0x04
     constant A_DMCONTROL : std_logic_vector(6 downto 0) := "0010000";  -- 0x10
     constant A_DMSTATUS  : std_logic_vector(6 downto 0) := "0010001";  -- 0x11
@@ -134,9 +134,9 @@ architecture rtl of debug_module is
     -- ~65k mclk at 24 MHz is ~2.7 ms: inside the 100 ms testbench watchdog and far longer than any real abstract sequence.
     constant POLL_LIMIT : integer := 65535;
 
-    -- ------------------------------------------------------------------
-    -- DM register file
-    -- ------------------------------------------------------------------
+    /* ------------------------------------------------------------------
+       DM register file
+       ------------------------------------------------------------------ */
     signal dmactive   : std_logic;
     signal haltreq_r  : std_logic;                       -- dmcontrol[31]
     signal hartsel_r  : std_logic_vector(9 downto 0);    -- hartsello, WARL
@@ -163,9 +163,9 @@ architecture rtl of debug_module is
     signal want_halt  : std_logic_vector(NHARTS-1 downto 0);
     signal resume_pend: std_logic_vector(NHARTS-1 downto 0);
 
-    -- ------------------------------------------------------------------
-    -- Master engine
-    -- ------------------------------------------------------------------
+    /* ------------------------------------------------------------------
+       Master engine
+       ------------------------------------------------------------------ */
     type m_state_t is (MS_IDLE, MS_REQ, MS_CAP, MS_GAP);
     signal m_state  : m_state_t;
     signal m_req_r  : std_logic;
@@ -179,9 +179,9 @@ architecture rtl of debug_module is
     signal m_go_a   : integer range 0 to 2**20-1;
     signal m_go_d   : std_logic_vector(31 downto 0);
 
-    -- ------------------------------------------------------------------
-    -- Sequencer
-    -- ------------------------------------------------------------------
+    /* ------------------------------------------------------------------
+       Sequencer
+       ------------------------------------------------------------------ */
     type s_state_t is (S_IDLE,
                        S_PROXY,        -- a data0/progbuf DMI access in flight
                        S_PROXY_RSP,
@@ -236,10 +236,10 @@ architecture rtl of debug_module is
     -- S_POLL bound: a hart that never reports (wedged trampoline, unplanted entry page) must fail the command inside the tb watchdog rather than pin `busy` forever.
     signal poll_to     : integer range 0 to POLL_LIMIT;
 
-    -- ------------------------------------------------------------------
-    -- RV32I instruction synthesis: everything the DM emits is built here, nothing is a magic hex literal at a use site.
-    -- x8 = s0, x9 = s1 are the trampoline's saved scratch pair (dscratch0/1).
-    -- ------------------------------------------------------------------
+    /* ------------------------------------------------------------------
+       RV32I instruction synthesis: everything the DM emits is built here, nothing is a magic hex literal at a use site.
+       x8 = s0, x9 = s1 are the trampoline's saved scratch pair (dscratch0/1).
+       ------------------------------------------------------------------ */
     constant R_S0 : integer := 8;
     constant R_S1 : integer := 9;
     constant CSR_DSCRATCH0 : integer := 16#7B2#;
@@ -327,10 +327,10 @@ architecture rtl of debug_module is
     constant O_MIRROR0: integer := 16#6F0#;
     constant O_MIRROR1: integer := 16#6F4#;
 
-    -- ------------------------------------------------------------------
-    -- THE EPILOGUE, constant, reached from the abstract body (postexec = 0) or from the implicit third progbuf word (postexec = 1); it arrives with s0/s1 clobbered, so it recomputes &FLAGS[h] from mhartid, stores TOK_DONE, restores the pair from dscratch0/1 and ends in `ebreak` (which re-enters the trampoline; dpc/dcsr survive).
-    -- THE ORDER IS THE WHOLE POINT: TOK_DONE is stored BEFORE the ebreak, so an exception anywhere earlier leaves the token at TOK_GO and the DM reports cmderr = EXCEPTION instead of success.
-    -- ------------------------------------------------------------------
+    /* ------------------------------------------------------------------
+       THE EPILOGUE, constant, reached from the abstract body (postexec = 0) or from the implicit third progbuf word (postexec = 1); it arrives with s0/s1 clobbered, so it recomputes &FLAGS[h] from mhartid, stores TOK_DONE, restores the pair from dscratch0/1 and ends in `ebreak` (which re-enters the trampoline; dpc/dcsr survive).
+       THE ORDER IS THE WHOLE POINT: TOK_DONE is stored BEFORE the ebreak, so an exception anywhere earlier leaves the token at TOK_GO and the DM reports cmderr = EXCEPTION instead of success.
+       ------------------------------------------------------------------ */
     type word_arr is array (natural range <>) of std_logic_vector(31 downto 0);
     constant EPILOGUE : word_arr(0 to 8) := (
         0 => i_csrr(R_S0, CSR_MHARTID),
@@ -348,9 +348,9 @@ architecture rtl of debug_module is
     constant I_IMPLICIT : std_logic_vector(31 downto 0) :=
         i_jal(0, (W_PB_LEAVE - W_IMPLICIT) * 4);
 
-    -- ------------------------------------------------------------------
-    -- THE TWO PROGRAM-BUFFER STUBS, in the DM-reserved band at 0x10690 because the entry page has only ten free words left in two non-adjacent runs, and everything below 0x10800 stays reachable from a `lui 0x10` base with a 12-bit displacement.
-    -- ------------------------------------------------------------------
+    /* ------------------------------------------------------------------
+       THE TWO PROGRAM-BUFFER STUBS, in the DM-reserved band at 0x10690 because the entry page has only ten free words left in two non-adjacent runs, and everything below 0x10800 stays reachable from a `lui 0x10` base with a 12-bit displacement.
+       ------------------------------------------------------------------ */
     -- PB_ENTER restores the debugger's s0/s1 before the program buffer runs; it is reached from the abstract body's TAIL, so a `transfer+postexec` command's freshly written dscratch is what gets restored.
     -- Without it the program buffer runs on whatever scratch the DM's own body happened to leave in s0/s1.
     constant PB_ENTER : word_arr(0 to 2) := (
@@ -380,11 +380,11 @@ architecture rtl of debug_module is
     constant I_PB1_JAL : std_logic_vector(31 downto 0) :=
         i_jal(0, (W_PB_LEAVE - W_PROGBUF1) * 4);
 
-    -- ------------------------------------------------------------------
-    -- THE TRAMPOLINE: the entry code every halted hart executes, held as a constant instruction table and streamed to W_ENTRY+0..39 by S_TRAMP.
-    -- It is a word-for-word COPY of the artifact built from software/dbg_trampoline/dbg_trampoline.S and `tools/cosim/check_dbg_trampoline.py` gates the two, so never hand-edit either side: change the .S, rebuild, paste the new words here, and prove the checker exits 0.
-    -- POSITION-DEPENDENT: it is linked at 0x00010780, addresses FLAGS, the mirrors and the abstract area with absolute `lui`/displacement pairs, and word 31's `j` is the coupling to W_ABST, so an instance that re-aims DATA0_ADDR/ENTRY_ADDR must rebuild it for the new aim.
-    -- ------------------------------------------------------------------
+    /* ------------------------------------------------------------------
+       THE TRAMPOLINE: the entry code every halted hart executes, held as a constant instruction table and streamed to W_ENTRY+0..39 by S_TRAMP.
+       It is a word-for-word COPY of the artifact built from software/dbg_trampoline/dbg_trampoline.S and `tools/cosim/check_dbg_trampoline.py` gates the two, so never hand-edit either side: change the .S, rebuild, paste the new words here, and prove the checker exits 0.
+       POSITION-DEPENDENT: it is linked at 0x00010780, addresses FLAGS, the mirrors and the abstract area with absolute `lui`/displacement pairs, and word 31's `j` is the coupling to W_ABST, so an instance that re-aims DATA0_ADDR/ENTRY_ADDR must rebuild it for the new aim.
+       ------------------------------------------------------------------ */
     constant TRAMP : word_arr(0 to TRAMP_WORDS-1) := (
         --  entry: save the scratch pair tentatively
          0 => x"7B241073",   -- csrw   dscratch0, s0
@@ -441,9 +441,9 @@ architecture rtl of debug_module is
 
 begin
 
-    -- ==================================================================
-    -- KNOB-OFF FOLD: everything below lives inside gen_dm, and this arm ties every output to its fail-safe value so a knob-OFF instantiation carries no state at all.
-    -- ==================================================================
+    /* ==================================================================
+       KNOB-OFF FOLD: everything below lives inside gen_dm, and this arm ties every output to its fail-safe value so a knob-OFF instantiation carries no state at all.
+       ================================================================== */
     gen_dm_off: if not ENABLE_DEBUG generate
         dmi_req_ready    <= '0';
         dmi_rsp_valid    <= '0';
@@ -544,9 +544,9 @@ begin
             end if;
         end process;
 
-        -- ---- the abstract body, synthesized from `command` ------------
-        -- The trampoline already saves s0/s1 into dscratch0/1, so the body may use both freely and needs no save/restore of its own.
-        -- A request for s0 or s1 themselves is serviced through the dscratch copy, so the debugger sees the interrupted value and not the trampoline's working value.
+        /* ---- the abstract body, synthesized from `command` ------------
+           The trampoline already saves s0/s1 into dscratch0/1, so the body may use both freely and needs no save/restore of its own.
+           A request for s0 or s1 themselves is serviced through the dscratch copy, so the debugger sees the interrupted value and not the trampoline's working value. */
         body_proc: process(cmd_r)
             variable regno : integer;
             variable isgpr : boolean;
@@ -621,9 +621,9 @@ begin
             end if;
         end process;
 
-        -- ---- the DMI front end + the command sequencer ---------------
-        -- READY IS AN ACKNOWLEDGE AND IT IDLES LOW, raised the cycle a request is CAPTURED: an idle-high ready loses requests from masters that drop valid a few ns after seeing it, and the symptom is the PREVIOUS transaction's data rather than an error.
-        -- ready is NOT held low for the whole abstract command, which runs in the background behind `busy` so a debugger can poll abstractcs.busy; a DMI access needing the single-owner master engine while the sequencer holds it gets cmderr = BUSY instead of an interleaved transaction.
+        /* ---- the DMI front end + the command sequencer ---------------
+           READY IS AN ACKNOWLEDGE AND IT IDLES LOW, raised the cycle a request is CAPTURED: an idle-high ready loses requests from masters that drop valid a few ns after seeing it, and the symptom is the PREVIOUS transaction's data rather than an error.
+           ready is NOT held low for the whole abstract command, which runs in the background behind `busy` so a debugger can poll abstractcs.busy; a DMI access needing the single-owner master engine while the sequencer holds it gets cmderr = BUSY instead of an interleaved transaction. */
         mst_free      <= '1' when s_state = S_IDLE else '0';
         dmi_req_ready <= ready_r;
         dmi_rsp_valid <= rsp_valid_r;
@@ -722,9 +722,9 @@ begin
                     end if;
                 end loop;
 
-                -- ==========================================================
-                -- the sequencer
-                -- ==========================================================
+                /* ==========================================================
+                   the sequencer
+                   ========================================================== */
                 case s_state is
 
                     -- S_IDLE: nothing in flight, so take an owed eager plant or a queued resume.
@@ -989,11 +989,11 @@ begin
                         end if;
                 end case;
 
-                -- ==========================================================
-                -- DMI request acceptance: ONE REQUEST IN FLIGHT, ACK-STYLE HANDSHAKE, ready_r idling low and pulsing for exactly one cycle on the cycle the request is CAPTURED, with rsp_hold/rsp_arm as the re-capture lockout.
-                -- S_TRAMP JOINS S_PROXY/S_PROXY_RSP IN THE EXCLUSION: the plant is a bounded atomic multi-word operation owning the master engine, so the DM simply does not raise `ready` while it runs and the master waits.
-                -- Without that exclusion the attach-time plant answers the debugger's first abstract command with cmderr = BUSY, and because cmderr is STICKY and `command` writes are ignored while it is set, one such answer disables abstract commands for the whole session.
-                -- ==========================================================
+                /* ==========================================================
+                   DMI request acceptance: ONE REQUEST IN FLIGHT, ACK-STYLE HANDSHAKE, ready_r idling low and pulsing for exactly one cycle on the cycle the request is CAPTURED, with rsp_hold/rsp_arm as the re-capture lockout.
+                   S_TRAMP JOINS S_PROXY/S_PROXY_RSP IN THE EXCLUSION: the plant is a bounded atomic multi-word operation owning the master engine, so the DM simply does not raise `ready` while it runs and the master waits.
+                   Without that exclusion the attach-time plant answers the debugger's first abstract command with cmderr = BUSY, and because cmderr is STICKY and `command` writes are ignored while it is set, one such answer disables abstract commands for the whole session.
+                   ========================================================== */
                 if dmi_req_valid = '1' and rsp_hold = 0 and rsp_arm = '0'
                    and s_state /= S_PROXY and s_state /= S_PROXY_RSP
                    and s_state /= S_TRAMP then
@@ -1092,11 +1092,11 @@ begin
                         rsp_data_r <= rsp;
 
                     elsif a = A_HARTINFO then
-                        -- ==================================================
-                        -- hartinfo (0x12): THE NULL CLAIM, all four fields zero (nscratch, dataaccess, datasize, dataaddr), which says "no scratch registers and no shadowed data region, use the program buffer" and is the only path this design has.
-                        -- dataaddr MUST NOT advertise DATA0_ADDR: the field is 12 bits and sign-extended, so 0x10680 would be published as 0x680, a resolvable wrong address inside the read-only boot ROM.
-                        -- Clearing dataaccess is what makes that unreachable, since a debugger consumes dataaddr only when dataaccess is 1; the DM's own master engine still targets DATA0_ADDR, it simply does not advertise it.
-                        -- ==================================================
+                        /* ==================================================
+                           hartinfo (0x12): THE NULL CLAIM, all four fields zero (nscratch, dataaccess, datasize, dataaddr), which says "no scratch registers and no shadowed data region, use the program buffer" and is the only path this design has.
+                           dataaddr MUST NOT advertise DATA0_ADDR: the field is 12 bits and sign-extended, so 0x10680 would be published as 0x680, a resolvable wrong address inside the read-only boot ROM.
+                           Clearing dataaccess is what makes that unreachable, since a debugger consumes dataaddr only when dataaccess is 1; the DM's own master engine still targets DATA0_ADDR, it simply does not advertise it.
+                           ================================================== */
                         rsp_data_r <= (others => '0');
 
                     -- haltsum0 (0x40): one bit per hart, set when that hart is halted and reachable.
@@ -1112,11 +1112,11 @@ begin
                         rsp_data_r <= (others => '0');
 
                     elsif a = A_SBCS then
-                        -- ==================================================
-                        -- sbcs (0x38): READ-ZERO-SUCCESS, WRITES IGNORED-SUCCESS, and both halves are load-bearing.
-                        -- A debugger reads this address once per hart during examination and a FAILED read aborts examination outright, while it writes sbcs to clear sberror and a failed write is one more gratuitous sticky transport event.
-                        -- Zeros are the honest answer, not a placation: sbversion 0, sbasize 0 and every sbaccess width bit clear is the debug spec's own encoding for "no system bus access"; 0x39-0x3F remain unimplemented and answer `failed`.
-                        -- ==================================================
+                        /* ==================================================
+                           sbcs (0x38): READ-ZERO-SUCCESS, WRITES IGNORED-SUCCESS, and both halves are load-bearing.
+                           A debugger reads this address once per hart during examination and a FAILED read aborts examination outright, while it writes sbcs to clear sberror and a failed write is one more gratuitous sticky transport event.
+                           Zeros are the honest answer, not a placation: sbversion 0, sbasize 0 and every sbaccess width bit clear is the debug spec's own encoding for "no system bus access"; 0x39-0x3F remain unimplemented and answer `failed`.
+                           ================================================== */
                         rsp_data_r <= (others => '0');
 
                     -- abstractcs (0x16): progbufsize, datacount, busy and the sticky cmderr.

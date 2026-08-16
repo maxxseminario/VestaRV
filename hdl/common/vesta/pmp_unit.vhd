@@ -1,12 +1,12 @@
--- =============================================================================
--- pmp_unit.vhd: RISC-V physical memory protection (Smpmp) match, priority and permission decode.
--- =============================================================================
--- Pure combinational, no clock and no state: csr_unit owns pmpcfg/pmpaddr storage, WARL and lock, and hands this unit the flattened bank.
--- It answers two questions per cycle, at the privilege each access is checked with: may this fetch be executed, and may this data address be read or written.
--- The lowest-numbered matching entry decides alone; with no match M grants and U denies; a matching UNLOCKED entry never constrains M, a locked one enforces on M as on U.
--- Every access is at most 4 bytes and never crosses a word boundary, and every region boundary is word-aligned, so an access matches iff its word address (bits 31:2) lies in the region.
--- Needed permissions come from the caller: fetch needs X, load needs R, store needs W, and LR/SC/AMO needs R and W together.
--- =============================================================================
+/* =============================================================================
+   pmp_unit.vhd: RISC-V physical memory protection (Smpmp) match, priority and permission decode.
+   =============================================================================
+   Pure combinational, no clock and no state: csr_unit owns pmpcfg/pmpaddr storage, WARL and lock, and hands this unit the flattened bank.
+   It answers two questions per cycle, at the privilege each access is checked with: may this fetch be executed, and may this data address be read or written.
+   The lowest-numbered matching entry decides alone; with no match M grants and U denies; a matching UNLOCKED entry never constrains M, a locked one enforces on M as on U.
+   Every access is at most 4 bytes and never crosses a word boundary, and every region boundary is word-aligned, so an access matches iff its word address (bits 31:2) lies in the region.
+   Needed permissions come from the caller: fetch needs X, load needs R, store needs W, and LR/SC/AMO needs R and W together.
+   ============================================================================= */
 
 library IEEE;
 use IEEE.STD_LOGIC_1164.all;

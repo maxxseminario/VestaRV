@@ -83,14 +83,14 @@ entity maindec is
         status_tw        : in  STD_LOGIC := '0';                       -- mstatus.TW
         mcounteren_bits  : in  STD_LOGIC_VECTOR(4 downto 0) := "00000"; -- {HPM4,HPM3,IR,TM,CY}
 
-        -- The rs1/uimm FIELD is zero: it distinguishes a CSR WRITE form from a read-only CSR instruction form, and the read-only-CSR trap must fire on write forms ONLY, since `csrr t0, mhartid` is legal.
-        -- Same rule as csr_unit's write enable: CSRRW/CSRRWI always write, while the set/clear forms write iff the field is nonzero.
-        -- DEFAULT '1' (read-only form) is a SAFETY choice, not inertness: the read-only-CSR trap is ungated, so an unwired port must trap nothing rather than trap every read-only-quadrant access. csr_unit's port of the same name defaults '0', where the safe direction is the opposite; the two differ on purpose.
+        /* The rs1/uimm FIELD is zero: it distinguishes a CSR WRITE form from a read-only CSR instruction form, and the read-only-CSR trap must fire on write forms ONLY, since `csrr t0, mhartid` is legal.
+           Same rule as csr_unit's write enable: CSRRW/CSRRWI always write, while the set/clear forms write iff the field is nonzero.
+           DEFAULT '1' (read-only form) is a SAFETY choice, not inertness: the read-only-CSR trap is ungated, so an unwired port must trap nothing rather than trap every read-only-quadrant access. csr_unit's port of the same name defaults '0', where the safe direction is the opposite; the two differ on purpose. */
         csr_rs1_zero     : in  STD_LOGIC := '1';
 
-        -- The R-type rs2 FIELD is zero, arriving as a port because maindec decodes no register fields.
-        -- It qualifies EXACTLY ONE decode row, Zbb `zext.h rd,rs1` (funct7 = ZEXT_FN7, funct3=100), which is bit-identical to Zbkb `pack rd,rs1,x0`; without this term the whole pack encoding space aliases onto the ZEXT.H row on a Zbkb-off build and retires silently instead of trapping.
-        -- DEFAULT '0' (rs2 NOT zero) is fail-safe: an unwired port makes zext.h illegal in every build, which is loud, where defaulting '1' would silently reinstate the alias this port exists to close.
+        /* The R-type rs2 FIELD is zero, arriving as a port because maindec decodes no register fields.
+           It qualifies EXACTLY ONE decode row, Zbb `zext.h rd,rs1` (funct7 = ZEXT_FN7, funct3=100), which is bit-identical to Zbkb `pack rd,rs1,x0`; without this term the whole pack encoding space aliases onto the ZEXT.H row on a Zbkb-off build and retires silently instead of trapping.
+           DEFAULT '0' (rs2 NOT zero) is fail-safe: an unwired port makes zext.h illegal in every build, which is loud, where defaulting '1' would silently reinstate the alias this port exists to close. */
         rs2_zero         : in  STD_LOGIC := '0';
 
         -- Zawrs: wrs_op is a decoded wrs.nto or wrs.sto (illegal unless ENABLE_ZAWRS and ENABLE_ATOMICS), and wrs_sto marks the timeout variant.
@@ -276,9 +276,9 @@ begin
                             ((ENABLE_BITMANIP or ENABLE_ZBKC) and (funct3 = CLMUL_FN3 or funct3 = CLMULH_FN3)) or
                             (ENABLE_BITMANIP and funct3 = CLMULR_FN3))) else '0';
 
-    -- ========== Zbkb / Zbkx (scalar crypto bit-manip) decode helpers ==========
-    -- New Zbkb R-type ops: pack (funct3=100) and packh (funct3=111), both funct7 = PACK_FN7.
-    -- pack shares funct7 and funct3 with Zbb ZEXT.H (the rs2=x0 case); pack is the superset.
+    /* ========== Zbkb / Zbkx (scalar crypto bit-manip) decode helpers ==========
+       New Zbkb R-type ops: pack (funct3=100) and packh (funct3=111), both funct7 = PACK_FN7.
+       pack shares funct7 and funct3 with Zbb ZEXT.H (the rs2=x0 case); pack is the superset. */
     is_zbkb_new_r_instr <= '1' when (ENABLE_ZBKB and op = R_OPCODE and funct7 = PACK_FN7 and
                                      (funct3 = PACK_FN3 or funct3 = PACKH_FN3)) else '0';
     -- New Zbkb OP-IMM ops: brev8, zip and unzip, distinguished by funct3 plus imm12.
@@ -332,16 +332,16 @@ begin
     -- Everything else is an unknown CSR and raises illegal-instruction; the hpm ranges use unsigned compares, and time/timeh (0xC01/0xC81) are deliberately NOT known.
     csr_addr_valid <= '1' when (
         imm12 = CSR_MHARTID   or imm12 = CSR_MISA      or
-        -- The rest of the machine-information block, 0xF11-0xF15: required read-only M-mode CSRs, so a read must RETIRE and never trap, while writes trap via the ungated csr_ro_denied.
-        -- Their VALUE is all-zeros from csr_unit's catch-all `others` read arm, so anyone adding a read arm above that `others` must know these four ride it.
-        -- FOUR EXPLICIT EQUALITIES, not a range: 0xF10 and 0xF16 bracket the block and must keep trapping.
+        /* The rest of the machine-information block, 0xF11-0xF15: required read-only M-mode CSRs, so a read must RETIRE and never trap, while writes trap via the ungated csr_ro_denied.
+           Their VALUE is all-zeros from csr_unit's catch-all `others` read arm, so anyone adding a read arm above that `others` must know these four ride it.
+           FOUR EXPLICIT EQUALITIES, not a range: 0xF10 and 0xF16 bracket the block and must keep trapping. */
         imm12 = CSR_MVENDORID or imm12 = CSR_MARCHID   or
         imm12 = CSR_MIMPID    or imm12 = CSR_MCONFIGPTR or
         imm12 = CSR_MCYCLE    or imm12 = CSR_MINSTRET  or
         imm12 = CSR_MCYCLEH   or imm12 = CSR_MINSTRETH or
-        -- The USER-VIEW counter block admitted here is cycle and instret plus their h-forms ONLY.
-        -- time (0xC01) and timeh (0xC81) are DELIBERATELY ABSENT: no real time source is wired to the core, so a read raises illegal-instruction (cause 2) in every build, M-mode and U-mode alike, regardless of mcounteren.TM.
-        -- Do NOT re-admit them without a real time source behind them; returning zero is a wrong answer to a legal question that software cannot tell from a stopped clock.
+        /* The USER-VIEW counter block admitted here is cycle and instret plus their h-forms ONLY.
+           time (0xC01) and timeh (0xC81) are DELIBERATELY ABSENT: no real time source is wired to the core, so a read raises illegal-instruction (cause 2) in every build, M-mode and U-mode alike, regardless of mcounteren.TM.
+           Do NOT re-admit them without a real time source behind them; returning zero is a wrong answer to a legal question that software cannot tell from a stopped clock. */
         imm12 = CSR_CYCLE     or imm12 = CSR_INSTRET   or
         imm12 = CSR_CYCLEH    or imm12 = CSR_INSTRETH  or
         imm12 = CSR_MCOUNTINHIBIT or imm12 = CSR_MCOUNTEREN or
@@ -377,10 +377,10 @@ begin
     -- ONE gate signal drives every U-mode restriction, and it is statically '0' unless ENABLE_UMODE, since priv_m reads '1' there by the csr_unit contract.
     u_gate <= '1' when (ENABLE_UMODE and priv_m = '0') else '0';
 
-    -- mcounteren gating of the USER-VIEW counters: a U-mode read traps illegal (cause 2) unless the matching mcounteren bit is set.
-    --   CY(0)   enables cycle/cycleh          IR(2)   enables instret/instreth
-    --   HPM3(3) enables hpmcounter3/3h        HPM4(4) enables hpmcounter4/4h
-    -- TM(1) has NO term and enables nothing, since time/timeh are not KNOWN CSRs and csr_addr_valid kills those instructions first; bits 5-31 are WARL 0, so hpmcounter5-31 (0xC05-0xC1F) and their h-forms always trap in U-mode, and the MACHINE views (the 0xB00 and 0x320 ranges) need no term here at all, being caught by the csr_addr(9:8) /= "00" comparator in the SYSTEM arm below.
+    /* mcounteren gating of the USER-VIEW counters: a U-mode read traps illegal (cause 2) unless the matching mcounteren bit is set.
+         CY(0)   enables cycle/cycleh          IR(2)   enables instret/instreth
+         HPM3(3) enables hpmcounter3/3h        HPM4(4) enables hpmcounter4/4h
+       TM(1) has NO term and enables nothing, since time/timeh are not KNOWN CSRs and csr_addr_valid kills those instructions first; bits 5-31 are WARL 0, so hpmcounter5-31 (0xC05-0xC1F) and their h-forms always trap in U-mode, and the MACHINE views (the 0xB00 and 0x320 ranges) need no term here at all, being caught by the csr_addr(9:8) /= "00" comparator in the SYSTEM arm below. */
     ucnt_denied <= '1' when (
         ((imm12 = CSR_CYCLE       or imm12 = CSR_CYCLEH)       and mcounteren_bits(0) = '0') or
         ((imm12 = CSR_INSTRET     or imm12 = CSR_INSTRETH)     and mcounteren_bits(2) = '0') or
@@ -390,18 +390,18 @@ begin
         (unsigned(imm12) >= x"C85" and unsigned(imm12) <= x"C9F")      -- hpmcounter5h-31h
     ) else '0';
 
-    -- THE U-mode CSR denial, factored into ONE signal because two consumers must never disagree: valid_funct's illegal-instruction trap, and csr_valid, which is csr_unit's WRITE ENABLE.
-    -- Both are load-bearing, since a trapping instruction must leave NO architectural side effect: a U-mode `csrw mtvec` that traps but still commits its write is a full escape.
-    -- Statically '0' when ENABLE_UMODE is off, and two denial classes: (a) imm12(9:8) /= "00", one comparator covering every machine (0x3xx/0xBxx/0xFxx) and custom (0x7C0 mtrapctl) CSR, and (b) a user-view counter whose mcounteren enable bit is clear.
+    /* THE U-mode CSR denial, factored into ONE signal because two consumers must never disagree: valid_funct's illegal-instruction trap, and csr_valid, which is csr_unit's WRITE ENABLE.
+       Both are load-bearing, since a trapping instruction must leave NO architectural side effect: a U-mode `csrw mtvec` that traps but still commits its write is a full escape.
+       Statically '0' when ENABLE_UMODE is off, and two denial classes: (a) imm12(9:8) /= "00", one comparator covering every machine (0x3xx/0xBxx/0xFxx) and custom (0x7C0 mtrapctl) CSR, and (b) a user-view counter whose mcounteren enable bit is clear. */
     u_csr_denied <= '1' when (u_gate = '1' and is_csr_instr = '1' and
                               (imm12(9 downto 8) /= "00" or ucnt_denied = '1'))
                     else '0';
 
-    -- Zimop mop.r.N / mop.rr.N: SYSTEM opcode, funct3=100 (MOP_FN3), an otherwise unused decode hole, so gated purely on ENABLE_ZIMOP.
-    --   fixed bits : funct7(6)=instr31=1, funct7(4:3)=instr29..28="00"
-    --   mop.r.N    : funct7(0)=instr25=0 AND imm12(4:2)=instr24..22="111"; index bits {30,27,26,21,20} are don't-care
-    --   mop.rr.N   : funct7(0)=instr25=1; bits24..20=rs2, index bits {30,27,26} don't-care
-    -- Semantics: rd gets 0, an x0-safe zero write with no memory access, no CSR access and no trap; disabled, the encoding raises illegal-instruction.
+    /* Zimop mop.r.N / mop.rr.N: SYSTEM opcode, funct3=100 (MOP_FN3), an otherwise unused decode hole, so gated purely on ENABLE_ZIMOP.
+         fixed bits : funct7(6)=instr31=1, funct7(4:3)=instr29..28="00"
+         mop.r.N    : funct7(0)=instr25=0 AND imm12(4:2)=instr24..22="111"; index bits {30,27,26,21,20} are don't-care
+         mop.rr.N   : funct7(0)=instr25=1; bits24..20=rs2, index bits {30,27,26} don't-care
+       Semantics: rd gets 0, an x0-safe zero write with no memory access, no CSR access and no trap; disabled, the encoding raises illegal-instruction. */
     is_zimop_instr <= '1' when (ENABLE_ZIMOP and op = SYSTEM_OPCODE and funct3 = MOP_FN3 and
                                 funct7(6) = '1' and funct7(4 downto 3) = "00" and
                                 ( (funct7(0) = '0' and imm12(4 downto 2) = "111") or  -- mop.r.N
@@ -416,17 +416,17 @@ begin
                  and (not u_csr_denied) and (not csr_ro_denied)
                  and (not dbg_csr_denied);
 
-    -- dcsr/dpc/dscratch0/dscratch1 are accessible ONLY in debug mode; from M or U they raise illegal-instruction.
-    -- The DENIAL is deliberately wider than csr_addr_valid's four equalities and blocks the whole imm12(11:4) = 0x7B nibble, so admitting a fifth debug CSR cannot forget to deny it; it stops at that nibble because the trigger CSRs at 0x7A0-0x7AF are M-mode-visible (Sdtrig).
-    -- UNGATED by ENABLE_DEBUG on purpose: it is purely combinational, changes nothing in an OFF build (csr_addr_valid already rejects 0x7B0-0x7B3 there), and means a mis-set admission gate can never open the CSRs.
+    /* dcsr/dpc/dscratch0/dscratch1 are accessible ONLY in debug mode; from M or U they raise illegal-instruction.
+       The DENIAL is deliberately wider than csr_addr_valid's four equalities and blocks the whole imm12(11:4) = 0x7B nibble, so admitting a fifth debug CSR cannot forget to deny it; it stops at that nibble because the trigger CSRs at 0x7A0-0x7AF are M-mode-visible (Sdtrig).
+       UNGATED by ENABLE_DEBUG on purpose: it is purely combinational, changes nothing in an OFF build (csr_addr_valid already rejects 0x7B0-0x7B3 there), and means a mis-set admission gate can never open the CSRs. */
     dbg_csr_denied <= '1' when (is_csr_instr = '1' and
                                 imm12(11 downto 4) = x"7B" and
                                 debug_mode = '0')
                       else '0';
 
-    -- csr[11:10] = "11" marks a CSR address READ-ONLY, and any instruction FORM that would write such a CSR raises illegal-instruction; reads of those addresses are untouched.
-    -- ONE COMPARATOR on imm12(11:10), deliberately NOT an enumeration of the CSRs csr_unit happens not to store: misa (0x301), mip (0x344), mstatush (0x310), mcountinhibit (0x320), mhpmevent3-31 and mhpmcounter3-31 all sit BELOW the quadrant, so their writes stay legally write-ignored and must NOT trap.
-    -- UNGATED, so it applies in every build: `unimp` (0xC0001073 = `csrrw x0, cycle, x0`) traps here, which is exactly what a reserved encoding must do rather than retire as a silent NOP.
+    /* csr[11:10] = "11" marks a CSR address READ-ONLY, and any instruction FORM that would write such a CSR raises illegal-instruction; reads of those addresses are untouched.
+       ONE COMPARATOR on imm12(11:10), deliberately NOT an enumeration of the CSRs csr_unit happens not to store: misa (0x301), mip (0x344), mstatush (0x310), mcountinhibit (0x320), mhpmevent3-31 and mhpmcounter3-31 all sit BELOW the quadrant, so their writes stay legally write-ignored and must NOT trap.
+       UNGATED, so it applies in every build: `unimp` (0xC0001073 = `csrrw x0, cycle, x0`) traps here, which is exactly what a reserved encoding must do rather than retire as a silent NOP. */
     csr_ro_denied <= '1' when (is_csr_instr = '1' and
                                imm12(11 downto 10) = "11" and
                                (funct3(1 downto 0) = "01" or csr_rs1_zero = '0'))
@@ -439,9 +439,9 @@ begin
     -- Store-Conditional operation
     sc_op <= '1' when (ENABLE_ATOMICS and op = AMO_OPCODE and funct3 = AMO_WIDTH_W and funct5 = SC_FN5) else '0';
 
-    -- Atomic Memory Operation, excluding LR/SC.
-    -- Zabha: byte (funct3=000) and halfword (funct3=001) AMOs join the word path when ENABLE_ZABHA; LR/SC stay word-only, since Zabha excludes lr.b/h and sc.b/h.
-    -- THE FUNCT5 WHITELIST IS LOAD-BEARING and MUST stay in lockstep with the AMO_OPCODE arm of valid_funct: an encoding illegal there but still raising amo_op takes the trap AND commits the memory write, because trap dispatch freezes pc_en without forcing `wen` and hart_tile's sh_we_lanes carries no FSM-state qualifier.
+    /* Atomic Memory Operation, excluding LR/SC.
+       Zabha: byte (funct3=000) and halfword (funct3=001) AMOs join the word path when ENABLE_ZABHA; LR/SC stay word-only, since Zabha excludes lr.b/h and sc.b/h.
+       THE FUNCT5 WHITELIST IS LOAD-BEARING and MUST stay in lockstep with the AMO_OPCODE arm of valid_funct: an encoding illegal there but still raising amo_op takes the trap AND commits the memory write, because trap dispatch freezes pc_en without forcing `wen` and hart_tile's sh_we_lanes carries no FSM-state qualifier. */
     amo_op <= '1' when (ENABLE_ATOMICS and op = AMO_OPCODE and
                         (is_std_amo_fn5 = '1' or (ENABLE_ZACAS and funct5 = CAS_FN5)) and
                         (funct3 = AMO_WIDTH_W or
@@ -466,9 +466,9 @@ begin
     is_zcm <= '1' when ((ENABLE_ZCMP or ENABLE_ZCMT) and op = ZCM_SENTINEL_OP) else '0';
     zcm_op <= is_zcm;
 
-    -- ========== Zfinx single-precision FP decode ==========
-    -- rm-field (funct3) legality for the rounding-mode-carrying ops: 000 to 100 are legal, 101 and 110 are illegal, and 111 (dynamic) is legal iff frm is a valid mode.
-    -- The op-selector ops (fsgnj*, fmin, fmax, fcmp, fclass) do NOT consult this; their funct3 and rs2 field (imm12(4:0) = instr[24:20]) are checked exactly below.
+    /* ========== Zfinx single-precision FP decode ==========
+       rm-field (funct3) legality for the rounding-mode-carrying ops: 000 to 100 are legal, 101 and 110 are illegal, and 111 (dynamic) is legal iff frm is a valid mode.
+       The op-selector ops (fsgnj*, fmin, fmax, fcmp, fclass) do NOT consult this; their funct3 and rs2 field (imm12(4:0) = instr[24:20]) are checked exactly below. */
     fp_rm_ok <= '1' when (funct3 = "000" or funct3 = "001" or funct3 = "010" or
                           funct3 = "011" or funct3 = "100" or
                           (funct3 = FRM_DYN and frm_valid = '1')) else '0';
@@ -672,9 +672,9 @@ begin
                 -- SYSTEM instructions (CSR, ECALL, EBREAK)
                 when SYSTEM_OPCODE =>
                     if is_csr_instr = '1' then
-                        -- A CSR instruction is legal ONLY for a known CSR address; unknown addresses trap.
-                        -- Three further denials, all reporting cause 2 so their test order is moot: u_csr_denied (U-mode machine/custom addresses and disabled counter views), csr_ro_denied (a write form aimed at imm12(11:10)="11") and dbg_csr_denied (a 0x7Bx access outside debug mode).
-                        -- The last two carry no ENABLE_ term and so apply in EVERY build; all three are shared with the csr_valid write-enable suppression, so the trap and the side-effect block can never disagree.
+                        /* A CSR instruction is legal ONLY for a known CSR address; unknown addresses trap.
+                           Three further denials, all reporting cause 2 so their test order is moot: u_csr_denied (U-mode machine/custom addresses and disabled counter views), csr_ro_denied (a write form aimed at imm12(11:10)="11") and dbg_csr_denied (a 0x7Bx access outside debug mode).
+                           The last two carry no ENABLE_ term and so apply in EVERY build; all three are shared with the csr_valid write-enable suppression, so the trap and the side-effect block can never disagree. */
                         if u_csr_denied = '1' then
                             valid_funct <= '0';
                         elsif csr_ro_denied = '1' then
@@ -723,10 +723,10 @@ begin
                         valid_funct <= '0';
                     end if;
 
-                -- RV32A, Zabha and Zacas atomics, where decode legality is a funct5 WHITELIST per width:
-                --   word (funct3=010)  : the nine standard AMOs plus LR and SC always, plus CAS (amocas.w) only with ENABLE_ZACAS; every other funct5 is RESERVED and traps
-                --   byte/half (000/001): only with ENABLE_ZABHA, and only the nine standard AMOs plus CAS (amocas.b/.h needs ZACAS and ZABHA); lr.b/h and sc.b/h stay illegal, as Zabha excludes them
-                --   any other width (011, which includes amocas.d, and 1xx) always traps
+                /* RV32A, Zabha and Zacas atomics, where decode legality is a funct5 WHITELIST per width:
+                     word (funct3=010)  : the nine standard AMOs plus LR and SC always, plus CAS (amocas.w) only with ENABLE_ZACAS; every other funct5 is RESERVED and traps
+                     byte/half (000/001): only with ENABLE_ZABHA, and only the nine standard AMOs plus CAS (amocas.b/.h needs ZACAS and ZABHA); lr.b/h and sc.b/h stay illegal, as Zabha excludes them
+                     any other width (011, which includes amocas.d, and 1xx) always traps */
                 when AMO_OPCODE =>
                     if funct3 = AMO_WIDTH_W then
                         if is_std_amo_fn5 = '1' or funct5 = LR_FN5 or funct5 = SC_FN5 then
@@ -785,16 +785,16 @@ begin
     -- Trap on invalid opcode or invalid function field combination
     trap <= not (valid_opcode and valid_funct);
 
-    -- ========== Custom Vesta Instructions ==========
-    -- All three carry the U-mode qualifier because they are SIDE EFFECTS that fire independently of the trap: isr_ret pulses the legacy irq_handler EOI, and sleep_rq/wake_rq set and clear vesta's `sleep_cpu` flop on the free-running clk.
-    -- Without it a U-mode `extinguish` would trap AND leave sleep_cpu set, so a later legacy-mode IRQ_REST would return M-mode to SLEEPING: a U-mode denial of service on M.
+    /* ========== Custom Vesta Instructions ==========
+       All three carry the U-mode qualifier because they are SIDE EFFECTS that fire independently of the trap: isr_ret pulses the legacy irq_handler EOI, and sleep_rq/wake_rq set and clear vesta's `sleep_cpu` flop on the free-running clk.
+       Without it a U-mode `extinguish` would trap AND leave sleep_cpu set, so a later legacy-mode IRQ_REST would return M-mode to SLEEPING: a U-mode denial of service on M. */
     isr_ret  <= '1' when (op = CUSTOM_OPCODE and funct3 = IRET_FN3 and funct7 = IRET_FN7  and u_gate = '0') else '0';
     sleep_rq <= '1' when (op = CUSTOM_OPCODE and funct3 = SLP_FN3 and funct7 = SLEEP_FN7 and u_gate = '0') else '0';
     wake_rq  <= '1' when (op = CUSTOM_OPCODE and funct3 = SLP_FN3 and funct7 = WAKE_FN7  and u_gate = '0') else '0';
 
-    -- ========== Standard SYSTEM/PRIV decode outputs (ENABLE_TRAPCSR) ==========
-    -- All three are statically '0' when the generic is off, matching the valid_funct arm above that keeps the encodings illegal there.
-    -- They are consumed ONLY by vesta's FSM dispatch arms, which additionally qualify on the delivery mode; these signals never feed valid_funct or trap.
+    /* ========== Standard SYSTEM/PRIV decode outputs (ENABLE_TRAPCSR) ==========
+       All three are statically '0' when the generic is off, matching the valid_funct arm above that keeps the encodings illegal there.
+       They are consumed ONLY by vesta's FSM dispatch arms, which additionally qualify on the delivery mode; these signals never feed valid_funct or trap. */
     ecall_op  <= '1' when (ENABLE_TRAPCSR and op = SYSTEM_OPCODE and
                            funct3 = PRIV_FN3 and imm12 = ECALL_IMM12)  else '0';
     ebreak_op <= '1' when (ENABLE_TRAPCSR and op = SYSTEM_OPCODE and
@@ -836,9 +836,9 @@ begin
                  '0' when (op = FENCE_OPCODE)        else  -- FENCE instruction
                  '0';  -- No write for stores, branches, custom instructions
 
-    -- ========== Immediate Source Selection ==========
-    -- Encoding: 000 I-type, 001 S-type, 010 B-type, 011 J-type, 100 U-type.
-    -- AMO instructions use the R-type format and carry no immediate.
+    /* ========== Immediate Source Selection ==========
+       Encoding: 000 I-type, 001 S-type, 010 B-type, 011 J-type, 100 U-type.
+       AMO instructions use the R-type format and carry no immediate. */
     imm_src <= "000" when op = I_LOAD_OPCODE   else  -- I-type
                "001" when op = S_OPCODE         else  -- S-type
                "010" when op = B_OPCODE         else  -- B-type
@@ -883,10 +883,10 @@ begin
            -- No write for all other instructions (including LR)
            "1111";
 
-    -- ========== Result Source Selection (3-bit) ==========
-    --   000 ALU result          001 Memory data        010 PC+4
-    --   011 PC+immediate        100 CSR read value     101 Zimop (rd gets 0)
-    --   110 RSRC_FP_SINGLE      111 RSRC_FP_MULTI
+    /* ========== Result Source Selection (3-bit) ==========
+         000 ALU result          001 Memory data        010 PC+4
+         011 PC+immediate        100 CSR read value     101 Zimop (rd gets 0)
+         110 RSRC_FP_SINGLE      111 RSRC_FP_MULTI */
     result_src <= "001" when op = I_LOAD_OPCODE   else  -- Memory data
                   "000" when op = S_OPCODE         else  -- ALU result
                   "000" when op = R_OPCODE         else  -- ALU result (includes Zba/Zbb)
@@ -934,9 +934,9 @@ begin
                        (funct3 = DIV_FN3 or funct3 = DIVU_FN3 or
                         funct3 = REM_FN3 or funct3 = REMU_FN3)) else '0';
 
-    -- ========== ALU Control Signal Generation (7-bit) ==========
-    -- One 7-bit code per ALU operation, allocated so that no two decode rows collide.
-    -- The rows are ORDER-SENSITIVE, earlier rows winning, which is how the shared funct7/funct3 encodings (PACK before ZEXT.H, AES before the generic ADD/SUB path) are resolved.
+    /* ========== ALU Control Signal Generation (7-bit) ==========
+       One 7-bit code per ALU operation, allocated so that no two decode rows collide.
+       The rows are ORDER-SENSITIVE, earlier rows winning, which is how the shared funct7/funct3 encodings (PACK before ZEXT.H, AES before the generic ADD/SUB path) are resolved. */
     alu_control <= 
         -- Load and Store operations (ADD for the address calculation)
         "0000000" when op = I_LOAD_OPCODE else

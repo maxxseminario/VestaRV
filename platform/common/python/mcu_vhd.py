@@ -610,10 +610,10 @@ GPIO3_AF1_PLANES = [
 	'        );',
 ]
 ANALOG_TIE_OFFS = [
-	'    -- Peripheral-window slots 11/12 (0x4B00/0x4C00) and IRQ vectors 55/56 are reserved gaps (read 0, tied low).',
-	'    -- Tie off the unused analog alt-function outputs so those pins act as plain GPIO:',
-	'    --   GPIO2 pins 3/7 (T0/T1 CAP1 out)',
-	'    --   GPIO3 pins 4-7 (DTP0-3)',
+	'    /* Peripheral-window slots 11/12 (0x4B00/0x4C00) and IRQ vectors 55/56 are reserved gaps (read 0, tied low).',
+	'       Tie off the unused analog alt-function outputs so those pins act as plain GPIO:',
+	'         GPIO2 pins 3/7 (T0/T1 CAP1 out)',
+	'         GPIO3 pins 4-7 (DTP0-3) */',
 	"    t0_cap1_out <= '0';",
 	"    t1_cap1_out <= '0';",
 	"    dtp0_out <= '0';  dtp0_dir <= '0';  dtp0_ren <= '0';",
@@ -654,11 +654,11 @@ AFE_SLOT12_DECLS = [
 	'        signal afe_eis_irq      : std_logic_vector(4 downto 0);',
 ]
 AFE_SLOT12_INSTANCES = [
-	'    -- =========================================================================',
-	'    -- AFE digital register stubs + shared EIS engine stub: four AFE sites subdivide page-0 slot 12 (0x4C00) into 64 B sub-slots (sub-slot = sh_addr(5:4)), and each answers only for its owner hart OR hart 0 (mp_arbiter s_master gate, inside afe_stub).',
-	"    -- The EIS engine lives in the IRQ-router page top quarter (0x7C00-0x7FFF, where irq_router's ADDR_W=10 decode is inert) and is hart-0-only (OWNER_HART=0).",
-	'    -- Reads are registered, a denied read returns 0 and a denied write is dropped (no bus error, no stall), and every stub resets all-zero, so it is inert until software writes.',
-	'    -- =========================================================================',
+	'    /* =========================================================================',
+	'       AFE digital register stubs + shared EIS engine stub: four AFE sites subdivide page-0 slot 12 (0x4C00) into 64 B sub-slots (sub-slot = sh_addr(5:4)), and each answers only for its owner hart OR hart 0 (mp_arbiter s_master gate, inside afe_stub).',
+	"       The EIS engine lives in the IRQ-router page top quarter (0x7C00-0x7FFF, where irq_router's ADDR_W=10 decode is inert) and is hart-0-only (OWNER_HART=0).",
+	'       Reads are registered, a denied read returns 0 and a denied write is dropped (no bus error, no stall), and every stub resets all-zero, so it is inert until software writes.',
+	'       ========================================================================= */',
 	'    afe0: entity work.afe_stub',
 	'        generic map (OWNER_HART => 0)   -- 0x4C00: hart 0 only',
 	'        port map (clk => mclk, resetn => resetn, en => shslv_afe0_en,',
@@ -1475,11 +1475,11 @@ class McuVhdEmitter():
 			return self.afeStubsOrchOwners()
 		if self.qspi:
 			return [
-				'    -- =========================================================================',
-				'    -- QSPI0: Quad-SPI flash controller, page-0 slot 12 (0x4C00), smclk-domain serial core (SYS_CLK_CR=0 rule).',
-				'    -- Registered read (no bridge); RX reads have NO side effects; irq_tc drives vector 55, irq_rxf vector 56.',
-				'    -- Pins are unbonded: io_in tied low, outputs unobserved.',
-				'    -- =========================================================================',
+				'    /* =========================================================================',
+				'       QSPI0: Quad-SPI flash controller, page-0 slot 12 (0x4C00), smclk-domain serial core (SYS_CLK_CR=0 rule).',
+				'       Registered read (no bridge); RX reads have NO side effects; irq_tc drives vector 55, irq_rxf vector 56.',
+				'       Pins are unbonded: io_in tied low, outputs unobserved.',
+				'       ========================================================================= */',
 				'    qspi0: entity work.QSPI',
 				'        port map (',
 				'            clk         => smclk,',
@@ -1553,9 +1553,9 @@ class McuVhdEmitter():
 		if not self.i3c:
 			return []
 		return [
-			'        -- I3C0 (I3C controller with dynamic address assignment + in-band interrupts), page-2 (MUTEX page) sub-slot 1 @0x6100.',
-			'        -- Registered-read shim (no bridge); active-low one-cycle en; smclk serial core (SYS_CLK_CR=0 rule).',
-			'        -- The irq_* lines drive vectors 86-93, above the frozen meip slot 85.',
+			'        /* I3C0 (I3C controller with dynamic address assignment + in-band interrupts), page-2 (MUTEX page) sub-slot 1 @0x6100.',
+			'           Registered-read shim (no bridge); active-low one-cycle en; smclk serial core (SYS_CLK_CR=0 rule).',
+			'           The irq_* lines drive vectors 86-93, above the frozen meip slot 85. */',
 			'        signal shslv_i3c0_sel, shslv_i3c0_en : std_logic;',
 			"        signal shslv_rd_i3c0    : std_logic := '0';",
 			'        signal i3c0_sh_rdata    : std_logic_vector(31 downto 0);',
@@ -1575,11 +1575,11 @@ class McuVhdEmitter():
 			return []
 		return [
 			'',
-			'    -- =========================================================================',
-			'    -- I3C0: I3C controller (dynamic address assignment + in-band interrupts), page-2 (MUTEX page) sub-slot 1 @0x6100, smclk-domain serial core (SYS_CLK_CR=0 rule).',
-			'    -- Registered read (no bridge); register/RX reads have NO side effects; the eight irq_* lines drive vectors 86-93 (tc/rxf/txe/nack/eod/arb/daa/ibi) through the irq_router.',
-			'    -- Pins are unbonded: SDA_IN/SCL_IN tied HIGH (idle bus), outputs unobserved.',
-			'    -- =========================================================================',
+			'    /* =========================================================================',
+			'       I3C0: I3C controller (dynamic address assignment + in-band interrupts), page-2 (MUTEX page) sub-slot 1 @0x6100, smclk-domain serial core (SYS_CLK_CR=0 rule).',
+			'       Registered read (no bridge); register/RX reads have NO side effects; the eight irq_* lines drive vectors 86-93 (tc/rxf/txe/nack/eod/arb/daa/ibi) through the irq_router.',
+			'       Pins are unbonded: SDA_IN/SCL_IN tied HIGH (idle bus), outputs unobserved.',
+			'       ========================================================================= */',
 			'    -- I3C clocks its snapshot latches on en_mem\'s falling edge, so it takes the falling-mclk re-registered strobe (see snapshot_strobe_reg).',
 			'    i3c0_enq_reg: process(mclk)',
 			'    begin',
@@ -1621,9 +1621,9 @@ class McuVhdEmitter():
 		if not self.nfc:
 			return []
 		return [
-			'        -- NFC0 (ISO 14443A tag / card-emulation engine), page-2 (MUTEX page) sub-slot 2 @0x6200: registered-read shim (no bridge), active-low one-cycle en.',
-			'        -- Three clock domains inside NFC.vhd: ClkMem (bus), clk = smclk (the CDC synchronizers and W1C retirement; SYS_CLK_CR=0 rule), and the off-die rf_clk protocol core.',
-			'        -- The irq_* lines drive vectors 94-97.',
+			'        /* NFC0 (ISO 14443A tag / card-emulation engine), page-2 (MUTEX page) sub-slot 2 @0x6200: registered-read shim (no bridge), active-low one-cycle en.',
+			'           Three clock domains inside NFC.vhd: ClkMem (bus), clk = smclk (the CDC synchronizers and W1C retirement; SYS_CLK_CR=0 rule), and the off-die rf_clk protocol core.',
+			'           The irq_* lines drive vectors 94-97. */',
 			'        signal shslv_nfc0_sel, shslv_nfc0_en : std_logic;',
 			"        signal shslv_rd_nfc0    : std_logic := '0';",
 			'        signal nfc0_sh_rdata    : std_logic_vector(31 downto 0);',
@@ -1642,11 +1642,11 @@ class McuVhdEmitter():
 			return []
 		lines = [
 			'',
-			'    -- =========================================================================',
-			'    -- NFC0: ISO 14443A tag / card-emulation engine, page-2 (MUTEX page) sub-slot 2 @0x6200, registered read (no bridge) with no read side effects.',
-			'    -- Bus/CDC reference clock = smclk (the SYS_CLK_CR=0 rule applies), the whole protocol core runs on the off-die carrier-derived rf_clk, and the four irq_* lines drive vectors 94-97 (field/rxf/txdone/crcerr).',
-			'    -- The 13.56 MHz RF front end is off-die and unbonded here: rf_clk/field_detect tied low, rf_rx tied high (idle bus), outputs unobserved.',
-			'    -- =========================================================================',
+			'    /* =========================================================================',
+			'       NFC0: ISO 14443A tag / card-emulation engine, page-2 (MUTEX page) sub-slot 2 @0x6200, registered read (no bridge) with no read side effects.',
+			'       Bus/CDC reference clock = smclk (the SYS_CLK_CR=0 rule applies), the whole protocol core runs on the off-die carrier-derived rf_clk, and the four irq_* lines drive vectors 94-97 (field/rxf/txdone/crcerr).',
+			'       The 13.56 MHz RF front end is off-die and unbonded here: rf_clk/field_detect tied low, rf_rx tied high (idle bus), outputs unobserved.',
+			'       ========================================================================= */',
 			'    -- NFC clocks its snapshot latches on en_mem\'s falling edge, so it takes the falling-mclk re-registered strobe (see snapshot_strobe_reg).',
 			'    nfc0_enq_reg: process(mclk)',
 			'    begin',
@@ -1689,9 +1689,9 @@ class McuVhdEmitter():
 		if not self.rtc:
 			return []
 		return [
-			'        -- RTC0 (real-time clock: 32.768 kHz always-on wall clock + one-shot alarm + periodic tick, ONE combined IRQ), page-2 (MUTEX page) sub-slot 5 @0x6500.',
-			'        -- Registered-read native slave with a PLAIN active-low one-cycle en shim: no falling_edge(EnMemPeriph) pre-latch and no capture-clock en_q register, because it registers its read on rising ClkMem over data already synchronized into the bus domain.',
-			'        -- The clk port takes mclk (the free-running fabric clock hosts the LFXT-to-bus CDC synchronizers, the sticky W1C flags and the IRQ combiner) and the wall clock rides the ungated lfxt_in pad crystal; zero pins, and irq_rtc drives vector 114.',
+			'        /* RTC0 (real-time clock: 32.768 kHz always-on wall clock + one-shot alarm + periodic tick, ONE combined IRQ), page-2 (MUTEX page) sub-slot 5 @0x6500.',
+			'           Registered-read native slave with a PLAIN active-low one-cycle en shim: no falling_edge(EnMemPeriph) pre-latch and no capture-clock en_q register, because it registers its read on rising ClkMem over data already synchronized into the bus domain.',
+			'           The clk port takes mclk (the free-running fabric clock hosts the LFXT-to-bus CDC synchronizers, the sticky W1C flags and the IRQ combiner) and the wall clock rides the ungated lfxt_in pad crystal; zero pins, and irq_rtc drives vector 114. */',
 			'        signal shslv_rtc0_sel, shslv_rtc0_en : std_logic;',
 			"        signal shslv_rd_rtc0    : std_logic := '0';",
 			'        signal rtc0_sh_rdata    : std_logic_vector(31 downto 0);',
@@ -1706,11 +1706,11 @@ class McuVhdEmitter():
 			return []
 		lines = [
 			'',
-			'    -- =========================================================================',
-			'    -- RTC0: 32.768 kHz always-on real-time clock, page-2 (MUTEX page) sub-slot 5 @0x6500, zero pins.',
-			'    -- The 47-bit {seconds, subsecond} wall clock, alarm compare and periodic-tick down-counter all ride the UNGATED lfxt_in pad crystal, so firmware CANNOT stop it (SYS_CLK_CR is irrelevant to the count) and PWRCTRL cannot gate it.',
-			'    -- The clk port takes mclk: the free-running fabric clock hosts the LFXT-to-bus CDC synchronizers, the sticky ALMF/TICKF W1C flags and the combinational IRQ combiner, so the flags set and irq_rtc (vector 114, combined alarm/tick) asserts while the bus is idle.',
-			'    -- =========================================================================',
+			'    /* =========================================================================',
+			'       RTC0: 32.768 kHz always-on real-time clock, page-2 (MUTEX page) sub-slot 5 @0x6500, zero pins.',
+			'       The 47-bit {seconds, subsecond} wall clock, alarm compare and periodic-tick down-counter all ride the UNGATED lfxt_in pad crystal, so firmware CANNOT stop it (SYS_CLK_CR is irrelevant to the count) and PWRCTRL cannot gate it.',
+			'       The clk port takes mclk: the free-running fabric clock hosts the LFXT-to-bus CDC synchronizers, the sticky ALMF/TICKF W1C flags and the combinational IRQ combiner, so the flags set and irq_rtc (vector 114, combined alarm/tick) asserts while the bus is idle.',
+			'       ========================================================================= */',
 			'    -- PLAIN raw active-low en strobe (the GPIO4/5 native-slave idiom), so NO falling_edge(EnMemPeriph) pre-latch and NO capture-clock en_q here.',
 			'    rtc0_sh_en_n <= not shslv_rtc0_en;',
 			'    rtc0: entity work.RTC',
@@ -1739,9 +1739,9 @@ class McuVhdEmitter():
 		if not self.pwm:
 			return []
 		return [
-			'        -- PWM0 (buffered PWM generator: 2 channels, glitch-free double-buffered update, software fault trip, period-event tick), page-2 (MUTEX page) sub-slot 6 @0x6600.',
-			'        -- Registered-read native slave with a PLAIN active-low one-cycle en shim: no falling_edge(EnMemPeriph) pre-latch and no capture-clock en_q, because it registers its read on rising ClkMem over data already in the bus domain.',
-			'        -- The whole engine (prescaler/counter/compare/shadow-commit/sticky flags/IRQ) rides the free-running MCLK, so no LFXT and no generated/gated clocks; irq_fault drives vector 115, irq_evt vector 116, and zero INPUT pins are needed because pwm_out(0)/(1) alias onto the AF spread (P2.2/P2.3 AF2) through the pwm0_out/pwm1_out scalars below.',
+			'        /* PWM0 (buffered PWM generator: 2 channels, glitch-free double-buffered update, software fault trip, period-event tick), page-2 (MUTEX page) sub-slot 6 @0x6600.',
+			'           Registered-read native slave with a PLAIN active-low one-cycle en shim: no falling_edge(EnMemPeriph) pre-latch and no capture-clock en_q, because it registers its read on rising ClkMem over data already in the bus domain.',
+			'           The whole engine (prescaler/counter/compare/shadow-commit/sticky flags/IRQ) rides the free-running MCLK, so no LFXT and no generated/gated clocks; irq_fault drives vector 115, irq_evt vector 116, and zero INPUT pins are needed because pwm_out(0)/(1) alias onto the AF spread (P2.2/P2.3 AF2) through the pwm0_out/pwm1_out scalars below. */',
 			'        signal shslv_pwm0_sel, shslv_pwm0_en : std_logic;',
 			"        signal shslv_rd_pwm0    : std_logic := '0';",
 			'        signal pwm0_sh_rdata    : std_logic_vector(31 downto 0);',
@@ -1762,11 +1762,11 @@ class McuVhdEmitter():
 			return []
 		lines = [
 			'',
-			'    -- =========================================================================',
-			'    -- PWM0: 2-channel buffered PWM generator, page-2 (MUTEX page) sub-slot 6 @0x6600, registered read (no bridge), zero INPUT pins.',
-			'    -- The prescaler, 16-bit main counter, comparators, shadow-to-active commit, output stage, sticky FLTF/PEVF flags and the IRQ combiner all ride the free-running MCLK so the counter and PEVF advance while the bus is idle; the register file rides ClkMem (= mclk at integration).',
-			'    -- Waveform writes (PER/DTY0/DTY1) are double-buffered and commit at the period boundary (glitch-free); the software fault (FLTTRIG + FLTEN) forces both outputs safe within one clock; irq_fault drives vector 115 (lower id wins router priority) and irq_evt vector 116.',
-			'    -- =========================================================================',
+			'    /* =========================================================================',
+			'       PWM0: 2-channel buffered PWM generator, page-2 (MUTEX page) sub-slot 6 @0x6600, registered read (no bridge), zero INPUT pins.',
+			'       The prescaler, 16-bit main counter, comparators, shadow-to-active commit, output stage, sticky FLTF/PEVF flags and the IRQ combiner all ride the free-running MCLK so the counter and PEVF advance while the bus is idle; the register file rides ClkMem (= mclk at integration).',
+			'       Waveform writes (PER/DTY0/DTY1) are double-buffered and commit at the period boundary (glitch-free); the software fault (FLTTRIG + FLTEN) forces both outputs safe within one clock; irq_fault drives vector 115 (lower id wins router priority) and irq_evt vector 116.',
+			'       ========================================================================= */',
 			'    -- PLAIN raw active-low en strobe (the GPIO4/5 native-slave idiom), so NO falling_edge(EnMemPeriph) pre-latch and NO capture-clock en_q here.',
 			'    pwm0_sh_en_n <= not shslv_pwm0_en;',
 			'    pwm0: entity work.PWM',
@@ -1803,9 +1803,9 @@ class McuVhdEmitter():
 		if not self.onewire:
 			return []
 		return [
-			'        -- OW0 (1-Wire master: reset+presence, write/read bit + byte primitives off a programmable time base, standard + overdrive; ROM search + CRC-8 in firmware), page-2 (MUTEX page) sub-slot 7 @0x6700, a registered-read native slave with a PLAIN active-low one-cycle en shim (no falling_edge(EnMemPeriph) pre-latch, no capture-clock en_q).',
-			'        -- The time base, slot FSM, DQ 2-FF synchronizer, sticky W1C flags, BUSY/PRES and the IRQ combiner all ride the free-running MCLK, so no LFXT, no generated/gated clocks, and NO clock on the DQ pad (DQ is PURE DATA, 2-FF synced); irq_ow drives vector 117.',
-			'        -- One pad: DQ on P4.7/GPIO31 AF2 open-drain (rstREN=1), taking the redundant T0CMP1 spread slot; the AF2 plane drives the pad low from ow0_dq_dir (out fixed 0) and the relocation mux below taps ow0_dq_in from the pad.',
+			'        /* OW0 (1-Wire master: reset+presence, write/read bit + byte primitives off a programmable time base, standard + overdrive; ROM search + CRC-8 in firmware), page-2 (MUTEX page) sub-slot 7 @0x6700, a registered-read native slave with a PLAIN active-low one-cycle en shim (no falling_edge(EnMemPeriph) pre-latch, no capture-clock en_q).',
+			'           The time base, slot FSM, DQ 2-FF synchronizer, sticky W1C flags, BUSY/PRES and the IRQ combiner all ride the free-running MCLK, so no LFXT, no generated/gated clocks, and NO clock on the DQ pad (DQ is PURE DATA, 2-FF synced); irq_ow drives vector 117.',
+			'           One pad: DQ on P4.7/GPIO31 AF2 open-drain (rstREN=1), taking the redundant T0CMP1 spread slot; the AF2 plane drives the pad low from ow0_dq_dir (out fixed 0) and the relocation mux below taps ow0_dq_in from the pad. */',
 			'        signal shslv_ow0_sel, shslv_ow0_en : std_logic;',
 			"        signal shslv_rd_ow0     : std_logic := '0';",
 			'        signal ow0_sh_rdata     : std_logic_vector(31 downto 0);',
@@ -1826,11 +1826,11 @@ class McuVhdEmitter():
 			return []
 		return [
 			'',
-			'    -- =========================================================================',
-			'    -- OW0: 1-Wire master, page-2 (MUTEX page) sub-slot 7 @0x6700, master only, standard + overdrive, registered read (no bridge, no capture-clock pre-latch).',
-			'    -- The OW0DIV counter-compare time base, the slot FSM, the DQ 2-FF synchronizer, the sticky W1C flags, BUSY/PRES and the IRQ combiner all ride the free-running MCLK, so the tick base is immune to clock reconfig; there is NO clock on the DQ pad (OW_DQ_IN is 2-FF synchronized, PURE DATA) and irq_ow drives vector 117 (combined TC/error).',
-			'    -- One open-drain DQ pad: P4.7/GPIO31 (DTP3) alt plane AF2, taking the slot\'s redundant T0CMP1 spread copy (T0CMP1 keeps its P3.1 primary, its P2.1/P4.5 AF1 relocations and its other spread copies).',
-			'    -- =========================================================================',
+			'    /* =========================================================================',
+			'       OW0: 1-Wire master, page-2 (MUTEX page) sub-slot 7 @0x6700, master only, standard + overdrive, registered read (no bridge, no capture-clock pre-latch).',
+			'       The OW0DIV counter-compare time base, the slot FSM, the DQ 2-FF synchronizer, the sticky W1C flags, BUSY/PRES and the IRQ combiner all ride the free-running MCLK, so the tick base is immune to clock reconfig; there is NO clock on the DQ pad (OW_DQ_IN is 2-FF synchronized, PURE DATA) and irq_ow drives vector 117 (combined TC/error).',
+			'       One open-drain DQ pad: P4.7/GPIO31 (DTP3) alt plane AF2, taking the slot\'s redundant T0CMP1 spread copy (T0CMP1 keeps its P3.1 primary, its P2.1/P4.5 AF1 relocations and its other spread copies).',
+			'       ========================================================================= */',
 			'    -- PLAIN raw active-low en strobe (the GPIO4/5 native-slave idiom), so NO falling_edge(EnMemPeriph) pre-latch and NO capture-clock en_q here.',
 			'    ow0_sh_en_n <= not shslv_ow0_en;',
 			'    -- DQ pad tie-in (P4.7 AF2, io spread slot with a literal index, no pnum): the AF2 out/dir planes come from the GPIO3 spread block; the ren plane follows the pad register\'s own pull preference (PxREN, reset bit 7 = 1), and the input mux reads the pad ONLY when P4.7 selects AF2 (idle-high otherwise, so an unrouted DQ never fakes a presence pulse).',
@@ -1864,9 +1864,9 @@ class McuVhdEmitter():
 		if not self.dma:
 			return []
 		return [
-			'        -- DMA0 (multi-channel single-shot DMA controller: peripheral-paced or software-GO mem-to-mem transfers over the shared arbiter, CRC16-CDMA2000 ride-along), page-2 (MUTEX page) sub-slot 8 @0x6800, zero pins.',
-			'        -- This is the SLAVE register-file fabric only: a registered-read native slave with a PLAIN active-low one-cycle en shim (no falling_edge(EnMemPeriph) pre-latch, no capture-clock en_q).',
-			'        -- DMA0 is ALSO an arbiter MASTER (slice numHarts of arb_*); the fabric widening (extra arb_* slice, mp_arbiter/resv_unit/mutex_bank/irq_router generics, lrsc/lock ties, trigger taps) lives in the arb/instance emitters, and irq_dma0_done drives vector 118, irq_dma0_err vector 119.',
+			'        /* DMA0 (multi-channel single-shot DMA controller: peripheral-paced or software-GO mem-to-mem transfers over the shared arbiter, CRC16-CDMA2000 ride-along), page-2 (MUTEX page) sub-slot 8 @0x6800, zero pins.',
+			'           This is the SLAVE register-file fabric only: a registered-read native slave with a PLAIN active-low one-cycle en shim (no falling_edge(EnMemPeriph) pre-latch, no capture-clock en_q).',
+			'           DMA0 is ALSO an arbiter MASTER (slice numHarts of arb_*); the fabric widening (extra arb_* slice, mp_arbiter/resv_unit/mutex_bank/irq_router generics, lrsc/lock ties, trigger taps) lives in the arb/instance emitters, and irq_dma0_done drives vector 118, irq_dma0_err vector 119. */',
 			'        signal shslv_dma0_sel, shslv_dma0_en : std_logic;',
 			"        signal shslv_rd_dma0    : std_logic := '0';",
 			'        signal dma0_sh_rdata    : std_logic_vector(31 downto 0);',
@@ -1895,12 +1895,12 @@ class McuVhdEmitter():
 		nfcTap = 'irq_nfc0_rxf' if self.nfc else "'0'"
 		lines = [
 			'',
-			'    -- =========================================================================',
-			'    -- DMA0: multi-channel single-shot DMA controller, page-2 (MUTEX page) sub-slot 8 @0x6800, zero pins, registered read (no bridge, no capture-clock pre-latch).',
-			'    -- TWO peripherals fused: an arbiter SLAVE (the register file @0x6800, on ClkMem) AND an arbiter MASTER (the transfer engine, on the free-running mclk), whose port speaks the VERBATIM WAIT-FOR-RELEASE handshake at boundary depth 0 (the DMA lives inside MCU fabric on mclk like mp_arbiter itself, NOT behind a tile boundary), slicing DIRECTLY into arb_*(' + ns + ') as the ' + np1 + 'th master.',
-			'    -- Single-txn words, no grant-holding: lock is tied \'0\' forever and lrsc "00", so the LOCKED path is unreachable for the DMA; the whole engine (master FSM, SRC/DST/LEN counters, RR+priority picker, CRC16 datapath, pacing edge detectors, sticky W1C flags, IRQ combiners) rides mclk while the register file rides ClkMem (= mclk at integration).',
-			'    -- The three trigger inputs are the ONLY true CDC (2-FF synced) and tap the IE-gated irq_* LEVELS: UART0 RC always, QSPI0/NFC0 RX-full only when those knob-gated blocks are present (else \'0\'); irq_done drives vector 118 and irq_err vector 119.',
-			'    -- =========================================================================',
+			'    /* =========================================================================',
+			'       DMA0: multi-channel single-shot DMA controller, page-2 (MUTEX page) sub-slot 8 @0x6800, zero pins, registered read (no bridge, no capture-clock pre-latch).',
+			'       TWO peripherals fused: an arbiter SLAVE (the register file @0x6800, on ClkMem) AND an arbiter MASTER (the transfer engine, on the free-running mclk), whose port speaks the VERBATIM WAIT-FOR-RELEASE handshake at boundary depth 0 (the DMA lives inside MCU fabric on mclk like mp_arbiter itself, NOT behind a tile boundary), slicing DIRECTLY into arb_*(' + ns + ') as the ' + np1 + 'th master.',
+			'       Single-txn words, no grant-holding: lock is tied \'0\' forever and lrsc "00", so the LOCKED path is unreachable for the DMA; the whole engine (master FSM, SRC/DST/LEN counters, RR+priority picker, CRC16 datapath, pacing edge detectors, sticky W1C flags, IRQ combiners) rides mclk while the register file rides ClkMem (= mclk at integration).',
+			'       The three trigger inputs are the ONLY true CDC (2-FF synced) and tap the IE-gated irq_* LEVELS: UART0 RC always, QSPI0/NFC0 RX-full only when those knob-gated blocks are present (else \'0\'); irq_done drives vector 118 and irq_err vector 119.',
+			'       ========================================================================= */',
 			'    -- PLAIN raw active-low slave en strobe (the GPIO4/5 native-slave idiom), so NO falling_edge(EnMemPeriph) pre-latch and NO capture-clock en_q here.',
 			'    dma0_sh_en_n <= not shslv_dma0_en;',
 			'    dma0: entity work.DMA',
@@ -1948,16 +1948,16 @@ class McuVhdEmitter():
 		if not self.i2ctarget:
 			return []
 		return [
-			'        -- I2CT0 (hardware-autonomous I2C TARGET: 7-bit address match + mask + general call, byte-at-a-time RX/TX with ready/empty status, hardware clock stretching, START/STOP/repeated-START/NACK framing flags, stuck-SCL watchdog), page-2 (MUTEX page) sub-slot 10 @0x6A00, a registered-read native slave with a PLAIN active-low one-cycle en shim (no falling_edge(EnMemPeriph) pre-latch, no capture-clock en_q).',
-			'        -- The target FSM, SDA/SCL 2-FF synchronizers, edge and framing detectors, sticky W1C flags, BUSY/TM, watchdog and IRQ combiners all ride the free-running MCLK, so no LFXT, no generated/gated clocks, and NO clock on the SDA/SCL pads (PURE DATA, 2-FF synced); irq_i2ct0_ae drives vector 122, irq_i2ct0_data vector 123.',
-			"        -- NO new pins: I2CT0 shares I2C0's SDA0/SCL0 pad planes, and SDA_IN/SCL_IN fan out from the existing sda0_in/scl0_in inputs.",
+			'        /* I2CT0 (hardware-autonomous I2C TARGET: 7-bit address match + mask + general call, byte-at-a-time RX/TX with ready/empty status, hardware clock stretching, START/STOP/repeated-START/NACK framing flags, stuck-SCL watchdog), page-2 (MUTEX page) sub-slot 10 @0x6A00, a registered-read native slave with a PLAIN active-low one-cycle en shim (no falling_edge(EnMemPeriph) pre-latch, no capture-clock en_q).',
+			'           The target FSM, SDA/SCL 2-FF synchronizers, edge and framing detectors, sticky W1C flags, BUSY/TM, watchdog and IRQ combiners all ride the free-running MCLK, so no LFXT, no generated/gated clocks, and NO clock on the SDA/SCL pads (PURE DATA, 2-FF synced); irq_i2ct0_ae drives vector 122, irq_i2ct0_data vector 123.',
+			"           NO new pins: I2CT0 shares I2C0's SDA0/SCL0 pad planes, and SDA_IN/SCL_IN fan out from the existing sda0_in/scl0_in inputs. */",
 			'        signal shslv_i2ct0_sel, shslv_i2ct0_en : std_logic;',
 			"        signal shslv_rd_i2ct0   : std_logic := '0';",
 			'        signal i2ct0_sh_rdata   : std_logic_vector(31 downto 0);',
 			'        signal i2ct0_sh_en_n    : std_logic;',
-			"        -- SDA/SCL open-drain DIR scalars, driven by the I2CT0 instance's SDA_DIR/SCL_DIR ('1' drives the line low, '0' releases Hi-Z).",
-			"        -- The *_mrg scalars are the wired-AND merge consumed by the sda0/scl0 DIR plane aggregates (GPIO3 home + GPIO1/GPIO2 relocations), so either engine's drive-low wins: I2C0 (master) or I2CT0 (target ACK/data on SDA, clock stretch on SCL).",
-			"        -- OUT planes stay tied '0' (open-drain); REN/pull policy stays I2C0's.",
+			"        /* SDA/SCL open-drain DIR scalars, driven by the I2CT0 instance's SDA_DIR/SCL_DIR ('1' drives the line low, '0' releases Hi-Z).",
+			"           The *_mrg scalars are the wired-AND merge consumed by the sda0/scl0 DIR plane aggregates (GPIO3 home + GPIO1/GPIO2 relocations), so either engine's drive-low wins: I2C0 (master) or I2CT0 (target ACK/data on SDA, clock stretch on SCL).",
+			"           OUT planes stay tied '0' (open-drain); REN/pull policy stays I2C0's. */",
 			'        signal i2ct0_sda_dir, i2ct0_scl_dir : std_logic;',
 			'        signal sda0_dir_mrg,  scl0_dir_mrg  : std_logic;',
 		]
@@ -1972,12 +1972,12 @@ class McuVhdEmitter():
 			return []
 		lines = [
 			'',
-			'    -- =========================================================================',
-			'    -- I2CT0: hardware-autonomous I2C TARGET (slave), page-2 (MUTEX page) sub-slot 10 @0x6A00, registered read (no bridge, no capture-clock pre-latch).',
-			'    -- The target FSM, the SDA/SCL 2-FF synchronizers, the edge/framing detectors, the address matcher, the RX/TX byte paths, the clock-stretch driver, the sticky W1C flags, BUSY/TM, the stuck-SCL watchdog and the two IRQ combiners all ride the free-running MCLK, so the block is immune to clock reconfig; the register file rides ClkMem (= mclk at integration).',
-			"    -- NO clock on the SDA/SCL pads: SDA_IN/SCL_IN are 2-FF synchronized, PURE DATA, in deliberate contrast with I2C0's SCL-pad-clocked slave FSM; irq_i2ct0_ae drives vector 122 (address/error) and irq_i2ct0_data vector 123 (tx-ready/rx-full).",
-			"    -- NO new pins: I2CT0 shares I2C0's open-drain SDA0/SCL0 pad planes, SDA_IN/SCL_IN fan out from the existing sda0_in/scl0_in, and SDA_DIR/SCL_DIR drive i2ct0_sda_dir/i2ct0_scl_dir.",
-			'    -- =========================================================================',
+			'    /* =========================================================================',
+			'       I2CT0: hardware-autonomous I2C TARGET (slave), page-2 (MUTEX page) sub-slot 10 @0x6A00, registered read (no bridge, no capture-clock pre-latch).',
+			'       The target FSM, the SDA/SCL 2-FF synchronizers, the edge/framing detectors, the address matcher, the RX/TX byte paths, the clock-stretch driver, the sticky W1C flags, BUSY/TM, the stuck-SCL watchdog and the two IRQ combiners all ride the free-running MCLK, so the block is immune to clock reconfig; the register file rides ClkMem (= mclk at integration).',
+			"       NO clock on the SDA/SCL pads: SDA_IN/SCL_IN are 2-FF synchronized, PURE DATA, in deliberate contrast with I2C0's SCL-pad-clocked slave FSM; irq_i2ct0_ae drives vector 122 (address/error) and irq_i2ct0_data vector 123 (tx-ready/rx-full).",
+			"       NO new pins: I2CT0 shares I2C0's open-drain SDA0/SCL0 pad planes, SDA_IN/SCL_IN fan out from the existing sda0_in/scl0_in, and SDA_DIR/SCL_DIR drive i2ct0_sda_dir/i2ct0_scl_dir.",
+			'       ========================================================================= */',
 			'    -- PLAIN raw active-low en strobe (the GPIO4/5 native-slave idiom), so NO falling_edge(EnMemPeriph) pre-latch and NO capture-clock en_q here.',
 			'    i2ct0_sh_en_n <= not shslv_i2ct0_en;',
 			'    i2ct0: entity work.I2CTarget',
@@ -2015,9 +2015,9 @@ class McuVhdEmitter():
 		if not self.trng:
 			return []
 		return [
-			'        -- TRNG0 (ring-oscillator entropy source + harvest engine: NRO free-running rings 2-FF synchronized into MCLK, decimated and direct-packed into 32-bit words behind a read-CONSUMES data register, with a repetition-count health test that auto-halts harvesting on alarm), page-2 (MUTEX page) sub-slot 9 @0x6900, a registered-read native slave with a PLAIN active-low one-cycle en shim (no falling_edge(EnMemPeriph) pre-latch, no capture-clock en_q).',
-			'        -- The RO 2-FF sync, decimator, 32-bit assembler, repetition-count health test, sticky ALMF and the IRQ combiner all ride the free-running MCLK, so no LFXT and no generated/gated clocks; irq_trng drives vector 121.',
-			'        -- ZERO pins: the entropy source is the SIBLING u_ro TrngRoEnsemble instance, wired through the four ro_* fan-out scalars below, never a pad group.',
+			'        /* TRNG0 (ring-oscillator entropy source + harvest engine: NRO free-running rings 2-FF synchronized into MCLK, decimated and direct-packed into 32-bit words behind a read-CONSUMES data register, with a repetition-count health test that auto-halts harvesting on alarm), page-2 (MUTEX page) sub-slot 9 @0x6900, a registered-read native slave with a PLAIN active-low one-cycle en shim (no falling_edge(EnMemPeriph) pre-latch, no capture-clock en_q).',
+			'           The RO 2-FF sync, decimator, 32-bit assembler, repetition-count health test, sticky ALMF and the IRQ combiner all ride the free-running MCLK, so no LFXT and no generated/gated clocks; irq_trng drives vector 121.',
+			'           ZERO pins: the entropy source is the SIBLING u_ro TrngRoEnsemble instance, wired through the four ro_* fan-out scalars below, never a pad group. */',
 			'        signal shslv_trng0_sel, shslv_trng0_en : std_logic;',
 			"        signal shslv_rd_trng0   : std_logic := '0';",
 			'        signal trng0_sh_rdata   : std_logic_vector(31 downto 0);',
@@ -2041,11 +2041,11 @@ class McuVhdEmitter():
 		nro = str(self.trngRings)
 		lines = [
 			'',
-			'    -- =========================================================================',
-			'    -- TRNG0: ring-oscillator entropy source + harvest engine, page-2 (MUTEX page) sub-slot 9 @0x6900, both instances sharing the NRO generic (' + nro + ').',
-			'    -- The RO 2-FF synchronizer, the decimator, the 32-bit direct-pack assembler, the repetition-count health test, the sticky ALMF flag and the IRQ combiner all ride the free-running MCLK, so the harvest engine is immune to clock reconfig; the register file rides ClkMem (= mclk at integration).',
-			'    -- Registered read (no bridge, no capture-clock pre-latch), TRNG0DR is the ONE read-side-effect exception in this library (read-CONSUMES), irq_trng drives vector 121 (combined data-ready or health-alarm), and there are ZERO pins: the entropy source is the sibling u_ro instance, internal fabric never wired to a pad.',
-			'    -- =========================================================================',
+			'    /* =========================================================================',
+			'       TRNG0: ring-oscillator entropy source + harvest engine, page-2 (MUTEX page) sub-slot 9 @0x6900, both instances sharing the NRO generic (' + nro + ').',
+			'       The RO 2-FF synchronizer, the decimator, the 32-bit direct-pack assembler, the repetition-count health test, the sticky ALMF flag and the IRQ combiner all ride the free-running MCLK, so the harvest engine is immune to clock reconfig; the register file rides ClkMem (= mclk at integration).',
+			'       Registered read (no bridge, no capture-clock pre-latch), TRNG0DR is the ONE read-side-effect exception in this library (read-CONSUMES), irq_trng drives vector 121 (combined data-ready or health-alarm), and there are ZERO pins: the entropy source is the sibling u_ro instance, internal fabric never wired to a pad.',
+			'       ========================================================================= */',
 			'    -- PLAIN raw active-low en strobe (the GPIO4/5 native-slave idiom), so NO falling_edge(EnMemPeriph) pre-latch and NO capture-clock en_q here.',
 			'    trng0_sh_en_n <= not shslv_trng0_en;',
 			'    trng0: entity work.TRNG',
@@ -2118,9 +2118,9 @@ class McuVhdEmitter():
 		if not self.eventFabric:
 			return []
 		lines = [
-			'        -- EVFAB0 (event/trigger fabric, PPI-style crossbar: 8 channels routing 16 hardware EVENTS to 10 hardware TASKS as REGISTERED one-mclk pulses, 1 mclk of in-fabric latency), page-2 (MUTEX page) sub-slot 11 @0x6B00, a registered-read native slave with a PLAIN active-low one-cycle en shim (no falling_edge(EnMemPeriph) pre-latch, no capture-clock en_q).',
-			'        -- The WHOLE fabric (event front-end, GPIO0 edge path, crossbar, output register, sticky flags and the action path) rides the FREE-RUNNING mclk in the always-on domain: WFI keeps it alive, field-power mode only slows it, PWRCTRL never gates it, so chains keep firing with every hart asleep.',
-			'        -- VECTORLESS: irq_evfab is a constant \'0\' inside the block and is left OPEN here, so no irq net and no vector is spent.',
+			'        /* EVFAB0 (event/trigger fabric, PPI-style crossbar: 8 channels routing 16 hardware EVENTS to 10 hardware TASKS as REGISTERED one-mclk pulses, 1 mclk of in-fabric latency), page-2 (MUTEX page) sub-slot 11 @0x6B00, a registered-read native slave with a PLAIN active-low one-cycle en shim (no falling_edge(EnMemPeriph) pre-latch, no capture-clock en_q).',
+			'           The WHOLE fabric (event front-end, GPIO0 edge path, crossbar, output register, sticky flags and the action path) rides the FREE-RUNNING mclk in the always-on domain: WFI keeps it alive, field-power mode only slows it, PWRCTRL never gates it, so chains keep firing with every hart asleep.',
+			'           VECTORLESS: irq_evfab is a constant \'0\' inside the block and is left OPEN here, so no irq net and no vector is spent. */',
 			'        signal shslv_evfab0_sel, shslv_evfab0_en : std_logic;',
 			"        signal shslv_rd_evfab0  : std_logic := '0';",
 			'        signal evfab0_sh_rdata  : std_logic_vector(31 downto 0);',
@@ -2168,11 +2168,11 @@ class McuVhdEmitter():
 			return []
 		lines = [
 			'',
-			'    -- =========================================================================',
-			'    -- EVFAB0: event/trigger fabric, page-2 (MUTEX page) sub-slot 11 @0x6B00, registered read (no bridge, no capture-clock pre-latch).',
-			'    -- A PPI-style crossbar: 8 channels, each {EVSEL, TASKSEL}, turn one of 16 hardware EVENTS into a registered one-mclk pulse on one of 10 hardware TASKS, giving peripheral-to-peripheral command paths that run with every hart in WFI.',
-			'    -- The fabric is NEVER a bus master, never stalls and never rate-limits; it rides the free-running mclk in the always-on domain, owns ALL the CDC for its taps (per-input pulse/toggle/level modes carried by the EV_MODE_* generic masks) and is VECTORLESS, so irq_evfab is constant \'0\' and left open here.',
-			'    -- =========================================================================',
+			'    /* =========================================================================',
+			'       EVFAB0: event/trigger fabric, page-2 (MUTEX page) sub-slot 11 @0x6B00, registered read (no bridge, no capture-clock pre-latch).',
+			'       A PPI-style crossbar: 8 channels, each {EVSEL, TASKSEL}, turn one of 16 hardware EVENTS into a registered one-mclk pulse on one of 10 hardware TASKS, giving peripheral-to-peripheral command paths that run with every hart in WFI.',
+			'       The fabric is NEVER a bus master, never stalls and never rate-limits; it rides the free-running mclk in the always-on domain, owns ALL the CDC for its taps (per-input pulse/toggle/level modes carried by the EV_MODE_* generic masks) and is VECTORLESS, so irq_evfab is constant \'0\' and left open here.',
+			'       ========================================================================= */',
 			'    -- PLAIN raw active-low en strobe (the GPIO4/5 native-slave idiom), so NO falling_edge(EnMemPeriph) pre-latch and NO capture-clock en_q here.',
 			'    evfab0_sh_en_n <= not shslv_evfab0_en;',
 			'    -- TIE-OFF LEDGER (ev_in): index = the frozen EVSEL id.',
@@ -2505,10 +2505,10 @@ class McuVhdEmitter():
 			af1.append('    afunc5_af1_ren <= afunc_none;')
 		head = [
 			'',
-			'    -- =========================================================================',
-			'    -- GPIO4: general-purpose I/O port 5, MUTEX-page sub-slot 3 @0x6300, registered read behind its own active-low one-cycle en shim, per-pin IRQs on vectors 98-105.',
-			'    -- AF0 = plain GPIO; AF1 = QSPI0/I3C0 pin functions (Hi-Z when absent).',
-			'    -- =========================================================================',
+			'    /* =========================================================================',
+			'       GPIO4: general-purpose I/O port 5, MUTEX-page sub-slot 3 @0x6300, registered read behind its own active-low one-cycle en shim, per-pin IRQs on vectors 98-105.',
+			'       AF0 = plain GPIO; AF1 = QSPI0/I3C0 pin functions (Hi-Z when absent).',
+			'       ========================================================================= */',
 		]
 		return head + self.emitGpioBusInstance(5, af1, mux)
 
@@ -2552,10 +2552,10 @@ class McuVhdEmitter():
 			af1.append('    afunc6_af1_ren <= afunc_none;')
 		head = [
 			'',
-			'    -- =========================================================================',
-			'    -- GPIO5: general-purpose I/O port 6, MUTEX-page sub-slot 4 @0x6400, registered read behind its own active-low one-cycle en shim, per-pin IRQs on vectors 106-113.',
-			'    -- AF0 = plain GPIO; AF1 = NFC0 digital-AFE pins (Hi-Z when absent).',
-			'    -- =========================================================================',
+			'    /* =========================================================================',
+			'       GPIO5: general-purpose I/O port 6, MUTEX-page sub-slot 4 @0x6400, registered read behind its own active-low one-cycle en shim, per-pin IRQs on vectors 106-113.',
+			'       AF0 = plain GPIO; AF1 = NFC0 digital-AFE pins (Hi-Z when absent).',
+			'       ========================================================================= */',
 		]
 		return head + self.emitGpioBusInstance(6, af1, mux)
 
@@ -2871,14 +2871,14 @@ class McuVhdEmitter():
 		nm1 = str(self.nHarts() - 1)
 		ent = 'orch_tile' if self.orch else 'hart_tile'
 		lines = []
-		lines.append('    -- =========================================================================')
+		lines.append('    /* =========================================================================')
 		if self.orch:
-			lines.append('    -- ORCHESTRATOR HART (hart 0): the boot master and the management hart, running the SAME tile logic as harts 1-' + nm1 + ' (core, adddec, TCM, shared-window machinery, wait-for-boot-fetch reset release, qualified ack, clk_cpu-staged consumption register, nop-force; see hart_tile.vhd), but as SOFT logic in the centre band instead of a hardened corner macro, so it comes in through the orch_tile wrapper; the tile netlist and the orchestrator netlist must share no module name, or the assembly strip step deletes this subtree and gate sim sees two definitions of one module.')
+			lines.append('       ORCHESTRATOR HART (hart 0): the boot master and the management hart, running the SAME tile logic as harts 1-' + nm1 + ' (core, adddec, TCM, shared-window machinery, wait-for-boot-fetch reset release, qualified ack, clk_cpu-staged consumption register, nop-force; see hart_tile.vhd), but as SOFT logic in the centre band instead of a hardened corner macro, so it comes in through the orch_tile wrapper; the tile netlist and the orchestrator netlist must share no module name, or the assembly strip step deletes this subtree and gate sim sees two definitions of one module.')
 		else:
-			lines.append('    -- Hart 0 is the SAME hart_tile as harts 1-' + nm1 + ': core, adddec, TCM and shared-window machinery all live inside the tile, including the wait-for-boot-fetch reset release, the qualified ack, the clk_cpu-staged consumption register and the nop-force (see hart_tile.vhd).')
-		lines.append("    -- Hart 0's specials are pure WIRING on that identical tile: sleep and the flash/XIP ports go to SPI0 (tiles have no SPI0 behind them), tcm_pgen takes pgen_mem(1) for BLOCKPWR RAM gating, trap_flag drives the GPIO0 trap pin, a0 drives the tb pass/fail gate, and arbiter master slice 0 is direct with no isolation clamps.")
-		lines.append("    -- The IRQ interface is identical on every hart: msip/mtip from the CLINT, plus this hart's meip row from the irq_router.")
-		lines.append('    -- =========================================================================')
+			lines.append('       Hart 0 is the SAME hart_tile as harts 1-' + nm1 + ': core, adddec, TCM and shared-window machinery all live inside the tile, including the wait-for-boot-fetch reset release, the qualified ack, the clk_cpu-staged consumption register and the nop-force (see hart_tile.vhd).')
+		lines.append("       Hart 0's specials are pure WIRING on that identical tile: sleep and the flash/XIP ports go to SPI0 (tiles have no SPI0 behind them), tcm_pgen takes pgen_mem(1) for BLOCKPWR RAM gating, trap_flag drives the GPIO0 trap pin, a0 drives the tb pass/fail gate, and arbiter master slice 0 is direct with no isolation clamps.")
+		lines.append("       The IRQ interface is identical on every hart: msip/mtip from the CLINT, plus this hart's meip row from the irq_router.")
+		lines.append('       ========================================================================= */')
 		lines.append('    hart0: entity work.' + ent)
 		lines.append('        generic map (')
 		lines.append('            PC_RST_VAL     => x"00000000",')
@@ -2960,9 +2960,9 @@ class McuVhdEmitter():
 			return []
 		return [
 			'',
-			' ' * 8 + '-- DEBUG MODULE INTERFACE: abits=7, data=32, op: request 01=read 10=write, response 00=success 10=failed, which is the DTM 41-bit DR arithmetic (2+32+7).',
-			' ' * 8 + '-- One request in flight, and the handshake is ACK-STYLE: dmi_req_ready idles LOW and pulses for one cycle in response to a presented request, one accept per request, and exactly one rsp_valid follows each accepted request.',
-			' ' * 8 + '-- THERE IS NO "busy" RESPONSE OP: the DM has exactly two op constants (00 ok, 10 failed), busy is DTM-LOCAL state, and the 41-bit dmi DR captures literal 3 while a transaction is in flight.',
+			' ' * 8 + '/* DEBUG MODULE INTERFACE: abits=7, data=32, op: request 01=read 10=write, response 00=success 10=failed, which is the DTM 41-bit DR arithmetic (2+32+7).',
+			' ' * 8 + '   One request in flight, and the handshake is ACK-STYLE: dmi_req_ready idles LOW and pulses for one cycle in response to a presented request, one accept per request, and exactly one rsp_valid follows each accepted request.',
+			' ' * 8 + '   THERE IS NO "busy" RESPONSE OP: the DM has exactly two op constants (00 ok, 10 failed), busy is DTM-LOCAL state, and the 41-bit dmi DR captures literal 3 while a transaction is in flight. */',
 			' ' * 8 + "dmi_req_valid : in  std_logic := '0';",
 			' ' * 8 + 'dmi_req_op    : in  std_logic_vector(1 downto 0) := "00";',
 			' ' * 8 + "dmi_req_addr  : in  std_logic_vector(6 downto 0) := (others => '0');",
@@ -2990,9 +2990,9 @@ class McuVhdEmitter():
 			return []
 		return [
 			'',
-			' ' * 8 + '-- JTAG DEBUG TRANSPORT: IEEE 1149.1 pins for the dtm0 TAP (5-bit IR, IDCODE/dtmcs/dmi(41)/BYPASS DRs) and the TCK-to-mclk crossing onto the dmi_* port above.',
-			' ' * 8 + '-- FAIL-SAFE: trstn low = TAP in reset = the whole transport inert, so an instantiation that does not connect these pins is unaffected.',
-			' ' * 8 + '-- TCK IS ITS OWN CLOCK DOMAIN, and it is declared to Genus on the dtm0 INSTANCE PIN, never on this port: the chip SDC generator deletes every [get_ports] line and FATALs if one survives.',
+			' ' * 8 + '/* JTAG DEBUG TRANSPORT: IEEE 1149.1 pins for the dtm0 TAP (5-bit IR, IDCODE/dtmcs/dmi(41)/BYPASS DRs) and the TCK-to-mclk crossing onto the dmi_* port above.',
+			' ' * 8 + '   FAIL-SAFE: trstn low = TAP in reset = the whole transport inert, so an instantiation that does not connect these pins is unaffected.',
+			' ' * 8 + '   TCK IS ITS OWN CLOCK DOMAIN, and it is declared to Genus on the dtm0 INSTANCE PIN, never on this port: the chip SDC generator deletes every [get_ports] line and FATALs if one survives. */',
 			' ' * 8 + "tck   : in  std_logic := '0';",
 			' ' * 8 + "tms   : in  std_logic := '0';",
 			' ' * 8 + "tdi   : in  std_logic := '0';",
@@ -3007,11 +3007,11 @@ class McuVhdEmitter():
 		n = self.nHarts()
 		nm1 = str(n - 1)
 		return [
-			' ' * 8 + '-- DEBUG MODULE (dm0): assembly level, one per chip, always-on mclk, never inside a tile, because it must stay reachable while any hart is power-gated.',
-			' ' * 8 + '-- Three per-hart wire groups plus a fourth that is NOT a tile signal at all:',
-			' ' * 8 + '--   dbg_haltreq / dbg_resethaltreq : DM to tile (no clamp needed; they are INPUTS to a gated tile and a gated tile ignores them)',
-			' ' * 8 + '--   dbg_halted                     : tile to DM, and it CROSSES THE POWER BOUNDARY, so harts 1..' + nm1 + ' land on dbg_halted_raw and pass the isolation clamp like every other tile output; hart 0 is always-on and connects directly.',
-			' ' * 8 + '--   dbg_unavail                    : the DM\'s truth-telling input, derived from the power-control state BELOW; a clamped dbg_halted reads \'0\', which is indistinguishable from "running", so unavail is a SEPARATE signal and the DM consults it BEFORE halted.',
+			' ' * 8 + '/* DEBUG MODULE (dm0): assembly level, one per chip, always-on mclk, never inside a tile, because it must stay reachable while any hart is power-gated.',
+			' ' * 8 + '   Three per-hart wire groups plus a fourth that is NOT a tile signal at all:',
+			' ' * 8 + '     dbg_haltreq / dbg_resethaltreq : DM to tile (no clamp needed; they are INPUTS to a gated tile and a gated tile ignores them)',
+			' ' * 8 + '     dbg_halted                     : tile to DM, and it CROSSES THE POWER BOUNDARY, so harts 1..' + nm1 + ' land on dbg_halted_raw and pass the isolation clamp like every other tile output; hart 0 is always-on and connects directly.',
+			' ' * 8 + '     dbg_unavail                    : the DM\'s truth-telling input, derived from the power-control state BELOW; a clamped dbg_halted reads \'0\', which is indistinguishable from "running", so unavail is a SEPARATE signal and the DM consults it BEFORE halted. */',
 			self.sigDecl('dbg_haltreq', 'std_logic_vector(' + nm1 + ' downto 0);'),
 			self.sigDecl('dbg_resethaltreq', 'std_logic_vector(' + nm1 + ' downto 0);'),
 			self.sigDecl('dbg_halted', 'std_logic_vector(' + nm1 + ' downto 0);'),
@@ -3021,9 +3021,9 @@ class McuVhdEmitter():
 			self.sigDecl('dbg_halted_raw', 'std_logic_vector(' + str(self.tileTop() - 1) + ' downto 1);'),
 			self.sigDecl('dbg_unavail', 'std_logic_vector(' + nm1 + ' downto 0);'),
 			'',
-			' ' * 8 + '-- DMI OR-MERGE: the external dmi_* ports are RETAINED and merged with the DTM by valid-gated OR-composition, so both request buses reach the one Debug Module and its responses are fanned out to BOTH masters.',
-			' ' * 8 + "-- A bench driving the raw port and a debugger driving TCK are never simultaneously active by construction: an idle DTM's valid is low, which makes the merge transparent.",
-			' ' * 8 + '-- Keep the merge rather than letting the DTM take over the DM inputs: that would leave every force at the MCU formal resolving by NAME while reaching nothing.',
+			' ' * 8 + '/* DMI OR-MERGE: the external dmi_* ports are RETAINED and merged with the DTM by valid-gated OR-composition, so both request buses reach the one Debug Module and its responses are fanned out to BOTH masters.',
+			' ' * 8 + "   A bench driving the raw port and a debugger driving TCK are never simultaneously active by construction: an idle DTM's valid is low, which makes the merge transparent.",
+			' ' * 8 + '   Keep the merge rather than letting the DTM take over the DM inputs: that would leave every force at the MCU formal resolving by NAME while reaching nothing. */',
 			self.sigDecl('dm_req_valid', 'std_logic;'),
 			self.sigDecl('dm_req_op', 'std_logic_vector(1 downto 0);'),
 			self.sigDecl('dm_req_addr', 'std_logic_vector(6 downto 0);'),
@@ -3115,9 +3115,9 @@ class McuVhdEmitter():
 			return []
 		return [
 			'',
-			'    -- JTAG DTM (dtm0): assembly level, beside dm0 and never inside a tile, because TCK must reach the transport while any hart is power-gated and the tile SDC has no clock-to-clock false paths to disturb.',
-			'    -- The TCK domain is asynchronous to mclk and crosses on ONE toggle each way with the payload HELD (the UART flags_cdc_proc idiom).',
-			'    -- Its mclk-side master is a ONE-SHOT that retires on dmi_req_ready, because the DM\'s re-capture lockout is a 9-cycle TIMER and a held request level would earn a second, duplicate accept.',
+			'    /* JTAG DTM (dtm0): assembly level, beside dm0 and never inside a tile, because TCK must reach the transport while any hart is power-gated and the tile SDC has no clock-to-clock false paths to disturb.',
+			'       The TCK domain is asynchronous to mclk and crosses on ONE toggle each way with the payload HELD (the UART flags_cdc_proc idiom).',
+			'       Its mclk-side master is a ONE-SHOT that retires on dmi_req_ready, because the DM\'s re-capture lockout is a 9-cycle TIMER and a held request level would earn a second, duplicate accept. */',
 			'    dtm0: entity work.jtag_dtm',
 			'        generic map (ENABLE_DEBUG => CORE_ENABLE_DEBUG,',
 			'                     IDCODE      => x"' + self.jtagIdcode() + '",',
@@ -3239,9 +3239,9 @@ class McuVhdEmitter():
 		# arbiter's s_master width (emitted only when != the RTL default 2).
 		mw = self.masterW()
 		lines = []
-		lines.append('    -- PLIC-lite: THE peripheral interrupt controller, with per-hart routing rows (any hart programs any row through the arbiter; resv-gated sh_we like the CLINT) plus CLAIM/COMPLETE delivery @0x7800.')
-		lines.append('    -- The deglitched source vector TERMINATES here; delivery to harts 0-' + nm1 + ' is the one registered meip wire each (IVT slot 85), and sh_master attributes claim reads (the mutex-bank idiom).')
-		lines.append('    -- It resets all-masked, so the block is a provable NO-OP until software routes an IRQ; the wdt_* hooks carry the watchdog contract into SYSTEM0 (source 0 routed/EOI state).')
+		lines.append('    /* PLIC-lite: THE peripheral interrupt controller, with per-hart routing rows (any hart programs any row through the arbiter; resv-gated sh_we like the CLINT) plus CLAIM/COMPLETE delivery @0x7800.')
+		lines.append('       The deglitched source vector TERMINATES here; delivery to harts 0-' + nm1 + ' is the one registered meip wire each (IVT slot 85), and sh_master attributes claim reads (the mutex-bank idiom).')
+		lines.append('       It resets all-masked, so the block is a provable NO-OP until software routes an IRQ; the wdt_* hooks carry the watchdog contract into SYSTEM0 (source 0 routed/EOI state). */')
 		lines.append('    irtr0: entity work.irq_router')
 		lines.append('        generic map (NHARTS => ' + str(n) + ', NUM_SRCS => NUM_IRQ_SRCS'
 			+ ('' if mw == 2 else ', MW => ' + str(mw)) + ')')
@@ -3645,37 +3645,39 @@ class McuVhdEmitter():
 		ind = ' ' * 8
 		pw = self.shAw - 12
 		lines = []
-		lines.append(ind + '-- Shared window behind mp_arbiter on mclk.')
-		lines.append(ind + '-- At SH_AW = ' + str(self.shAw)
+		lines.append(ind + '/* Shared window behind mp_arbiter on mclk.')
+		lines.append(ind + '   At SH_AW = ' + str(self.shAw)
 			+ ' the arbiter word address covers ALL of 0x00000-0x%05X (word addr = data_addr(%d:2)) and the slave sub-decode selects on s_addr(%d:12):'
 			% (self.windowTop(), self.shAw + 1, self.shAw - 1))
-		lines.append(ind + '--   ' + self.pageBits(0) + ' = boot ROM 0x0-0x3FFF (one rom_hvt_pg, read-only slave; all ' + self.hartsWord() + ' harts reset here)')
-		lines.append(ind + '--   ' + self.pageBits(1) + ' = peripheral window 0x4000-0x7FFF (page 0 = 16 x 256B slots at the LEGACY slot numbering, page 1 = CLINT @0x5000, page 2 = MUTEX bank @0x6000, page 3 = IRQ router @0x7000)')
-		lines.append(ind + '--   ' + self.pageBits(2) + ' = dead (TCM region: tile-private, never arrives here)')
+		lines.append(ind + '     ' + self.pageBits(0) + ' = boot ROM 0x0-0x3FFF (one rom_hvt_pg, read-only slave; all ' + self.hartsWord() + ' harts reset here)')
+		lines.append(ind + '     ' + self.pageBits(1) + ' = peripheral window 0x4000-0x7FFF (page 0 = 16 x 256B slots at the LEGACY slot numbering, page 1 = CLINT @0x5000, page 2 = MUTEX bank @0x6000, page 3 = IRQ router @0x7000)')
+		lines.append(ind + '     ' + self.pageBits(2) + ' = dead (TCM region: tile-private, never arrives here)')
 		if self.npu:
-			lines.append(ind + '--   ' + self.pageBits(3) + ' = NPU staging RAM 0xC000-0xFFFF (one sram1p16k, NPU-muxed)')
+			lines.append(ind + '     ' + self.pageBits(3) + ' = NPU staging RAM 0xC000-0xFFFF (one sram1p16k, NPU-muxed)')
 		else:
-			lines.append(ind + '--   ' + self.pageBits(3) + ' = dead (0xC000-0xFFFF; no NPU in this configuration, reads return zero)')
+			lines.append(ind + '     ' + self.pageBits(3) + ' = dead (0xC000-0xFFFF; no NPU in this configuration, reads return zero)')
 		bankBits = _clog2(self.banks)
 		if pw == 3 and self.banks == 4:
 			bankCode = '1xx'
 		else:
 			bankCode = self.pageBits(4) + '-' + self.pageBits(4 + self.banks - 1)
-		lines.append(ind + '--   ' + bankCode + ' = shared bulk RAM 0x10000-0x%05X (%d x sram1p16k banks, bank = s_addr(%d:12))'
+		lines.append(ind + '     ' + bankCode + ' = shared bulk RAM 0x10000-0x%05X (%d x sram1p16k banks, bank = s_addr(%d:12))'
 			% (self.banksTop(), self.banks, 11 + bankBits))
 		apx = self.apertures()
 		if apx:
 			# CPR3/R3: the aperture pages sit in what used to be the round-up
 			# gap, and the REST of that gap stays unmapped.
-			lines.append(ind + '--   ' + self.pageBits(8) + '-' + self.pageBits(8 + len(apx) - 1)
+			lines.append(ind + '     ' + self.pageBits(8) + '-' + self.pageBits(8 + len(apx) - 1)
 				+ ' = READ-ONLY TCM APERTURES 0x%05X-0x%05X (one 16 KiB window per hart at 0x20000 + 0x4000*h; management hart 0 only, read-only, a gated tile completes with zeros)'
 				% (apx[0], apx[-1] + 0x3FFF))
 			if 8 + len(apx) < (1 << pw):
-				lines.append(ind + '--   ' + self.pageBits(8 + len(apx)) + '-' + self.pageBits((1 << pw) - 1)
+				lines.append(ind + '     ' + self.pageBits(8 + len(apx)) + '-' + self.pageBits((1 << pw) - 1)
 					+ ' = unmapped (window power-of-two round-up gap; reads zero)')
 		elif 4 + self.banks < (1 << pw):
-			lines.append(ind + '--   ' + self.pageBits(4 + self.banks) + '-' + self.pageBits((1 << pw) - 1)
+			lines.append(ind + '     ' + self.pageBits(4 + self.banks) + '-' + self.pageBits((1 << pw) - 1)
 				+ ' = unmapped (window power-of-two round-up gap; reads zero)')
+		# The map above is ONE block comment; whichever page row came last closes it.
+		lines[-1] = lines[-1] + ' */'
 		lines.append((ind + 'constant SH_AW : natural := ' + str(self.shAw) + ';').ljust(55)
 			+ '-- shared-window word-address width')
 		return lines
@@ -3740,11 +3742,11 @@ class McuVhdEmitter():
 		ind = ' ' * 8
 		n = len(apx)
 		lines = ['']
-		lines.append(ind + '-- =====================================================================')
-		lines.append(ind + '-- READ-ONLY TCM APERTURES: one 16 KiB window per hart at 0x20000 + 0x4000*h (h = 0..' + str(n - 1) + '), through which the management hart (hart 0) reads any hart\'s private TCM; the aperture address is a TCM WORD index, sh_addr(11:0), so window word i is that hart\'s byte address 0x8000 + 4*i.')
-		lines.append(ind + '-- Three gates, each answering with ZERO instead of a bus error, a stall or a hang: sh_master /= 0 is denied, a write is dropped (the tile port has no write side, and writing a live core\'s memory is a coherence hazard), and a power-gated target completes immediately because its iso clamp zeroes tcm_ext_done as well as rdata, so software checks PWRSR first (zero is a legal TCM value).')
-		lines.append(ind + '-- The only slave that stalls the arbiter: a tcm_ext read takes 6 mclk request-to-done against the fixed IDLE/LATCH/DATA walk, so the aperture holds s_stall (\'0\' everywhere else) while the grant is already pinned to this master.')
-		lines.append(ind + '-- =====================================================================')
+		lines.append(ind + '/* =====================================================================')
+		lines.append(ind + '   READ-ONLY TCM APERTURES: one 16 KiB window per hart at 0x20000 + 0x4000*h (h = 0..' + str(n - 1) + '), through which the management hart (hart 0) reads any hart\'s private TCM; the aperture address is a TCM WORD index, sh_addr(11:0), so window word i is that hart\'s byte address 0x8000 + 4*i.')
+		lines.append(ind + '   Three gates, each answering with ZERO instead of a bus error, a stall or a hang: sh_master /= 0 is denied, a write is dropped (the tile port has no write side, and writing a live core\'s memory is a coherence hazard), and a power-gated target completes immediately because its iso clamp zeroes tcm_ext_done as well as rdata, so software checks PWRSR first (zero is a legal TCM value).')
+		lines.append(ind + '   The only slave that stalls the arbiter: a tcm_ext read takes 6 mclk request-to-done against the fixed IDLE/LATCH/DATA walk, so the aperture holds s_stall (\'0\' everywhere else) while the grant is already pinned to this master.')
+		lines.append(ind + '   ===================================================================== */')
 		for h in range(n):
 			lines.append(ind + 'signal ' + ('shslv_tcmw' + str(h) + '_sel').ljust(17)
 				+ ': std_logic;   -- ' + self.pageBits(8 + h) + ' = TCM aperture, hart %d (0x%05X)' % (h, apx[h]))
@@ -3827,9 +3829,9 @@ class McuVhdEmitter():
 		n = len(apx)
 		zeros = "(others => '0')"
 		lines = ['']
-		lines.append(ind + '-- =========================================================================')
-		lines.append(ind + '-- READ-ONLY TCM APERTURE SEQUENCER (see the declarations above for the map, the three gates and the s_stall argument).')
-		lines.append(ind + '-- =========================================================================')
+		lines.append(ind + '/* =========================================================================')
+		lines.append(ind + '   READ-ONLY TCM APERTURE SEQUENCER (see the declarations above for the map, the three gates and the s_stall argument).')
+		lines.append(ind + '   ========================================================================= */')
 		for h in range(n):
 			lines.append(ind + ('tcmw_target(' + str(h) + ')').ljust(16) + ' <= shslv_tcmw' + str(h) + '_en;')
 		lines.append(ind + 'tcmw_en_any'.ljust(16) + ' <= \'1\' when tcmw_target /= "' + '0' * n + '" else \'0\';')
@@ -3893,12 +3895,12 @@ class McuVhdEmitter():
 	def emitSharedRamBanks(self):
 		ind = ' ' * 4
 		lines = []
-		lines.append(ind + '-- =========================================================================')
-		lines.append(ind + '-- Shared bulk RAM = %d x sram1p16k macros (%d KB, 0x10000-0x%05X).'
+		lines.append(ind + '/* =========================================================================')
+		lines.append(ind + '   Shared bulk RAM = %d x sram1p16k macros (%d KB, 0x10000-0x%05X).'
 			% (self.banks, self.banks * 16, self.banksTop()))
-		lines.append(ind + "-- The macro IS the arbiter's slave model: CEN sampled with the address at the s_en cycle's ending edge, Q valid the next cycle (1-cycle registered read); enables and WEN are ACTIVE-LOW at the macro, inverted from the arbiter's active-high strobes, and WEN comes from the resv-GATED sh_we per byte lane so a suppressed SC write cannot touch memory.")
-		lines.append(ind + '-- No INIT: power-up contents are undefined on silicon, so zeroing the mailboxes before any hart reads them is a bootrom obligation.')
-		lines.append(ind + '-- =========================================================================')
+		lines.append(ind + "   The macro IS the arbiter's slave model: CEN sampled with the address at the s_en cycle's ending edge, Q valid the next cycle (1-cycle registered read); enables and WEN are ACTIVE-LOW at the macro, inverted from the arbiter's active-high strobes, and WEN comes from the resv-GATED sh_we per byte lane so a suppressed SC write cannot touch memory.")
+		lines.append(ind + '   No INIT: power-up contents are undefined on silicon, so zeroing the mailboxes before any hart reads them is a bootrom obligation.')
+		lines.append(ind + '   ========================================================================= */')
 		for b in range(self.banks):
 			nm = 'bank' + str(b) + '_cen_n'
 			lines.append(ind + nm.ljust(13) + '<= not shslv_bank' + str(b) + '_en;')
@@ -4486,11 +4488,11 @@ def generateMcuVhd(gen, templatePath, outPath):
 		templateLines = f.read().split('\n')
 
 	header = []
-	header.append('-- MCU.vhd: Castalia MCU top-level integration layer (' + str(emitter.nHarts()) + ' harts, MCU_MP)')
-	header.append('-- The fixed boilerplate comes from hdl_templates/MCU.template.vhd; the description-driven sections are generated from python/generate.py')
-	header.append('-- Generated on ' + datetime.datetime.now().strftime('%Y/%m/%d at %H:%M:%S') + ' with the generate.py chip generator')
-	header.append('-- WARNING: Do not edit or modify this file!')
-	header.append('-- \tEdit hdl_templates/MCU.template.vhd (fixed regions) or python/generate.py + python/mcu_vhd.py (generated regions), then re-run make chip')
+	header.append('/* MCU.vhd: Castalia MCU top-level integration layer (' + str(emitter.nHarts()) + ' harts, MCU_MP)')
+	header.append('   The fixed boilerplate comes from hdl_templates/MCU.template.vhd; the description-driven sections are generated from python/generate.py')
+	header.append('   Generated on ' + datetime.datetime.now().strftime('%Y/%m/%d at %H:%M:%S') + ' with the generate.py chip generator')
+	header.append('   WARNING: Do not edit or modify this file!')
+	header.append('   \tEdit hdl_templates/MCU.template.vhd (fixed regions) or python/generate.py + python/mcu_vhd.py (generated regions), then re-run make chip */')
 	header.append('')
 
 	out = list(header)

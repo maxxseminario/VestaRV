@@ -26,9 +26,9 @@ The local bias generator (schematic cell \texttt{anatop\_biasgen\_local}, drawn 
 \texttt{BiasGenCascWideSwing}) is the cell each analog block instantiates to develop
 its own cascode bias rails, as distinct from the single chip-level
 \texttt{BiasGenCascWideSwingGlobal} that drives the global \texttt{bn!}/\texttt{bp!}
-nets. It presents four outputs --- the NMOS mirror and cascode gates
+nets. It presents four outputs, the NMOS mirror and cascode gates
 ($V_{\mathrm{BNM}}$, $V_{\mathrm{BNC}}$) and the PMOS mirror and cascode gates
-($V_{\mathrm{BPM}}$, $V_{\mathrm{BPC}}$) --- generated from a resistor-degenerated
+($V_{\mathrm{BPM}}$, $V_{\mathrm{BPC}}$), generated from a resistor-degenerated
 reference core in the wide-swing cascode arrangement, so the cascode gates sit only
 one saturation voltage away from the mirror gates and the mirrors keep their output
 devices in saturation over a wide compliance range. An \texttt{En} input gates the

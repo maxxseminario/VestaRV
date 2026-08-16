@@ -1,6 +1,6 @@
--- AFE_FSM_tb: directed bench for the dual-slope AFE conversion FSM.
--- It runs two conversions: one ended by the comparator (cmp_out) and one left to time out, so both exit paths are exercised.
--- There is no self-checking here; read done, count, sw and result_latch in the waveform.
+/* AFE_FSM_tb: directed bench for the dual-slope AFE conversion FSM.
+   It runs two conversions: one ended by the comparator (cmp_out) and one left to time out, so both exit paths are exercised.
+   There is no self-checking here; read done, count, sw and result_latch in the waveform. */
 
 library ieee;
 use ieee.std_logic_1164.all;

@@ -474,9 +474,9 @@ architecture behav of MCU is
         signal DCO1_BIAS        : std_logic_vector(11 downto 0);
         signal reset_dco       : std_logic; --special reset for DCO to ensure proper startup
 
-    -- Multi-AF plumbing (shared by all four ports) ---------------------------------------
-        -- Each GPIO port takes GPIO_NUM_AFS flattened alternate-function planes (plane k, pin i at bit k*8+i); the per-plane afuncN_* vectors below are concatenated into afuncN_all_*.
-        -- An unassigned plane slice behaves as a high-impedance input: out '0', dir '0' (input), ren '0' (pull disabled), all pre-polarity.
+    /* Multi-AF plumbing (shared by all four ports) ---------------------------------------
+       Each GPIO port takes GPIO_NUM_AFS flattened alternate-function planes (plane k, pin i at bit k*8+i); the per-plane afuncN_* vectors below are concatenated into afuncN_all_*.
+       An unassigned plane slice behaves as a high-impedance input: out '0', dir '0' (input), ren '0' (pull disabled), all pre-polarity. */
         constant afunc_none				: std_logic_vector(7 downto 0) := (others => '0');
 
     -- Multi-AF output-function spread planes: shared timer/UART/SPI outputs fanned across all four ports, dormant at reset (PxAFS=0).
@@ -836,9 +836,9 @@ begin
     -- GPIO1 Connections (SPI1, UART0, UART1) ---------------------------------------
         --@GEN:spi1-input-taps@
 
-        -- GPIO1 Connections (UART0)
-        -- Multi-AF input routing: a relocated function reads its alternate pad when that pin's PxAFS field selects the function's plane, otherwise its home pad; the selection is keyed on PxAFS alone, so peripheral inputs stay always-visible, and ren_in (the user pull preference) follows the same selection.
-        -- RX0's second alternate pad is P4.5 at AF2, a spread io slot addressed by literal index and paired with TX0 on P4.4 AF2; fixed priority is that pad, then the AF1 pad, then home.
+        /* GPIO1 Connections (UART0)
+           Multi-AF input routing: a relocated function reads its alternate pad when that pin's PxAFS field selects the function's plane, otherwise its home pad; the selection is keyed on PxAFS alone, so peripheral inputs stay always-visible, and ren_in (the user pull preference) follows the same selection.
+           RX0's second alternate pad is P4.5 at AF2, a spread io slot addressed by literal index and paired with TX0 on P4.4 AF2; fixed priority is that pad, then the AF1 pad, then home. */
         tx0_ren_in <= p3_ren(pnum_gpio2_af1_tx0)
                       when p3_afs((3 * pnum_gpio2_af1_tx0) + 2 downto 3 * pnum_gpio2_af1_tx0) = "001"
                       else p2_ren(pnum_gpio1_tx0);
@@ -885,16 +885,16 @@ begin
         --@GEN:gpio3-af-spread@
 
 
-    -- =============================================================================
-    -- IRQ Signal Assignments
-    -- =============================================================================
+    /* =============================================================================
+       IRQ Signal Assignments
+       ============================================================================= */
         --@GEN:irq-comb@
 
 
 
-    -- =============================================================================
-    -- Component Instantiations
-    -- =============================================================================
+    /* =============================================================================
+       Component Instantiations
+       ============================================================================= */
     --@GEN:npu-sleep-comment@
     sleep_cpu <= flash_ext_meming; -- Sleep while an external flash memory access is occurring
 
@@ -1342,11 +1342,11 @@ begin
 
     --@GEN:analog-tie-offs@
 
-    -- =============================================================================
-    -- Memory Blocks
-    -- =============================================================================
-    -- The shared boot ROM at 0x0-0x3FFF is an arbiter slave like the bulk banks: every hart resets to PC 0x0 and fetches its first instruction from here, and BLOCKPWR's ROMOFF bit gates the macro through pgen_mem(0).
-    -- CEN is sampled with the address at the s_en cycle's ending edge on the free-running mclk and Q is valid the next cycle, so the macro is the one-cycle registered read; with no WEN pin the page is read-only and a write completes at the arbiter and is discarded.
+    /* =============================================================================
+       Memory Blocks
+       =============================================================================
+       The shared boot ROM at 0x0-0x3FFF is an arbiter slave like the bulk banks: every hart resets to PC 0x0 and fetches its first instruction from here, and BLOCKPWR's ROMOFF bit gates the macro through pgen_mem(0).
+       CEN is sampled with the address at the s_en cycle's ending edge on the free-running mclk and Q is valid the next cycle, so the macro is the one-cycle registered read; with no WEN pin the page is read-only and a write completes at the arbiter and is discarded. */
     rom0: entity work.rom_hvt_pg
         port map (
             Q    => rom_q,
@@ -1362,9 +1362,9 @@ begin
     --@GEN:npuram-instance@
 
 
-    -- =============================================================================
-    -- Abstract Blocks
-    -- =============================================================================
+    /* =============================================================================
+       Abstract Blocks
+       ============================================================================= */
 
     -- Power-on resetn Circuit
 	por: entity work.PowerOnResetCheng

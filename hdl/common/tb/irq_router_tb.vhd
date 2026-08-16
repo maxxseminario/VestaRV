@@ -1,8 +1,8 @@
--- =============================================================================
--- irq_router_tb.vhd: unit proof for the PLIC-lite irq_router: routing rows, registered meip reduction, CLAIM and COMPLETE semantics, status words and the WDT hooks.
--- It drives the slave port with the arbiter's bus contract: en is a one-cycle strobe, we is active-high lanes, master is the granted index, and the registered read is valid the cycle after the strobe; the arbiter serializes whole transactions, so back-to-back strobes with different master values ARE the "simultaneous claim" case.
--- Self-checking, printing ALL CHECKS PASSED or CHECKS FAILED, over: reset no-op, row R/W with lane merge and top-EN-word masking, dead rows, a routed level raising meip only on routed harts, exactly-once multi-hart claim with the 0xFFFFFFFF sentinel, complete re-pending a still-high level and owner-unqualified recovery, lowest-ID priority, the PEND and INSVC status words including the word-3 pair 519 and 523, CLINT sources 83 and 84 never reaching meip, and the WDT reduction plus its one-cycle COMPLETE(0) pulse.
--- =============================================================================
+/* =============================================================================
+   irq_router_tb.vhd: unit proof for the PLIC-lite irq_router: routing rows, registered meip reduction, CLAIM and COMPLETE semantics, status words and the WDT hooks.
+   It drives the slave port with the arbiter's bus contract: en is a one-cycle strobe, we is active-high lanes, master is the granted index, and the registered read is valid the cycle after the strobe; the arbiter serializes whole transactions, so back-to-back strobes with different master values ARE the "simultaneous claim" case.
+   Self-checking, printing ALL CHECKS PASSED or CHECKS FAILED, over: reset no-op, row R/W with lane merge and top-EN-word masking, dead rows, a routed level raising meip only on routed harts, exactly-once multi-hart claim with the 0xFFFFFFFF sentinel, complete re-pending a still-high level and owner-unqualified recovery, lowest-ID priority, the PEND and INSVC status words including the word-3 pair 519 and 523, CLINT sources 83 and 84 never reaching meip, and the WDT reduction plus its one-cycle COMPLETE(0) pulse.
+   ============================================================================= */
 
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;

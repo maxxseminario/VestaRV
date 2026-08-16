@@ -1,6 +1,6 @@
--- regfile_sbirq.vhd
--- 32-entry architectural register file, the variant carrying the shadow-bank IRQ context signals.
--- Two asynchronous read ports, one synchronous write port, and a side channel that reads and writes the stack pointer (x2) directly.
+/* regfile_sbirq.vhd
+   32-entry architectural register file, the variant carrying the shadow-bank IRQ context signals.
+   Two asynchronous read ports, one synchronous write port, and a side channel that reads and writes the stack pointer (x2) directly. */
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.std_logic_arith.all;
@@ -9,20 +9,20 @@ library work;
 use work.constants.all;
 use work.MemoryMap.all;
 
--- Register | ABI Name | Description
--- ---------+----------+--------------------------------------------------------
--- x0       | zero     | Hardwired to 0 (read-only)
--- x1       | ra       | Return address (for JAL/JALR)
--- x2       | sp       | Stack pointer
--- x3       | gp       | Global pointer (for static data)
--- x4       | tp       | Thread pointer (for TLS)
--- x5-x7    | t0-t2    | Temporary registers
--- x8       | s0/fp    | Saved register or frame pointer
--- x9       | s1       | Saved register
--- x10-x11  | a0-a1    | Function arguments and return values
--- x12-x17  | a2-a7    | Function arguments
--- x18-x27  | s2-s11   | Saved registers
--- x28-x31  | t3-t6    | Temporary registers
+/* Register | ABI Name | Description
+   ---------+----------+--------------------------------------------------------
+   x0       | zero     | Hardwired to 0 (read-only)
+   x1       | ra       | Return address (for JAL/JALR)
+   x2       | sp       | Stack pointer
+   x3       | gp       | Global pointer (for static data)
+   x4       | tp       | Thread pointer (for TLS)
+   x5-x7    | t0-t2    | Temporary registers
+   x8       | s0/fp    | Saved register or frame pointer
+   x9       | s1       | Saved register
+   x10-x11  | a0-a1    | Function arguments and return values
+   x12-x17  | a2-a7    | Function arguments
+   x18-x27  | s2-s11   | Saved registers
+   x28-x31  | t3-t6    | Temporary registers */
 
 entity regfile is
     port (

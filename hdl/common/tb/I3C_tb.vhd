@@ -1,19 +1,19 @@
--------------------------------------------------------------------------------
--- I3C_tb.vhd
--------------------------------------------------------------------------------
--- Standalone, self-checking testbench for the I3C peripheral.
--- The DUT is declared as a COMPONENT, not an entity instantiation, so the bench compiles standalone before I3C.vhd exists; default binding resolves it once I3C.vhd is in the work library.
--- Uses periph_tb_pkg (scoreboard + register-bus BFM), i3c_bfm_pkg (register slots, CR/CMD packing, the parity and read-pattern formulas, bounded SR-bit polls) and the responder model i3c_target_model.vhd.
--- Bus contract: EnMemPeriph active-low, WEn active-low per byte lane, MABPart(7:2) is the word-slot address, and ClkMem ticks only while EnMemPeriph='0'.
--- A one-cycle W1C clear pulse can stick until the next selected access, so after every W1C this bench reads CR as a dummy access before re-reading SR.
--------------------------------------------------------------------------------
+/* -----------------------------------------------------------------------------
+   I3C_tb.vhd
+   -----------------------------------------------------------------------------
+   Standalone, self-checking testbench for the I3C peripheral.
+   The DUT is declared as a COMPONENT, not an entity instantiation, so the bench compiles standalone before I3C.vhd exists; default binding resolves it once I3C.vhd is in the work library.
+   Uses periph_tb_pkg (scoreboard + register-bus BFM), i3c_bfm_pkg (register slots, CR/CMD packing, the parity and read-pattern formulas, bounded SR-bit polls) and the responder model i3c_target_model.vhd.
+   Bus contract: EnMemPeriph active-low, WEn active-low per byte lane, MABPart(7:2) is the word-slot address, and ClkMem ticks only while EnMemPeriph='0'.
+   A one-cycle W1C clear pulse can stick until the next selected access, so after every W1C this bench reads CR as a dummy access before re-reading SR.
+   ----------------------------------------------------------------------------- */
 
--- Register slots i3c_bfm_pkg names; the fields below are the ones this bench decodes by literal bit index:
---   5 DAT     : [2:0]IDX [3]EVALID [10:4]DYNADDR [11]DYNVALID [18:12]STATADDR [19]STATVALID
---   6 DATPID  : PID[31:0]
---   7 DATINFO : [31:24]DCR [23:16]BCR [15:0]PID[47:32]
---   8 IBI     : [6:0]IBIADDR [7]IBIVALID [15:8]IBIMDB [16]IBIHASDATA [17]IBIACKED
--------------------------------------------------------------------------------
+/* Register slots i3c_bfm_pkg names; the fields below are the ones this bench decodes by literal bit index:
+     5 DAT     : [2:0]IDX [3]EVALID [10:4]DYNADDR [11]DYNVALID [18:12]STATADDR [19]STATVALID
+     6 DATPID  : PID[31:0]
+     7 DATINFO : [31:24]DCR [23:16]BCR [15:0]PID[47:32]
+     8 IBI     : [6:0]IBIADDR [7]IBIVALID [15:8]IBIMDB [16]IBIHASDATA [17]IBIACKED
+   ----------------------------------------------------------------------------- */
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -125,16 +125,16 @@ architecture sim of I3C_tb is
 
 begin
 
-    ----------------------------------------------------------------------------
-    -- clock / gated register-bus clock
-    ----------------------------------------------------------------------------
+    /* --------------------------------------------------------------------------
+       clock / gated register-bus clock
+       -------------------------------------------------------------------------- */
     clk    <= not clk after PERIOD / 2;
     ClkMem <= clk when pbus.en_mem = '0' else '0';
 
-    ----------------------------------------------------------------------------
-    -- sda_bus / scl_bus resolution: the DUT drives when its *_DIR='1', each target model when its *_oe='1', and a released driver contributes 'Z' so the constant 'H' sets the idle level.
-    -- std_logic resolution gives wired-AND for the open-drain phases (any '0' wins), and DUT and models all see the SAME resolved nets on their *_IN ports.
-    ----------------------------------------------------------------------------
+    /* --------------------------------------------------------------------------
+       sda_bus / scl_bus resolution: the DUT drives when its *_DIR='1', each target model when its *_oe='1', and a released driver contributes 'Z' so the constant 'H' sets the idle level.
+       std_logic resolution gives wired-AND for the open-drain phases (any '0' wins), and DUT and models all see the SAME resolved nets on their *_IN ports.
+       -------------------------------------------------------------------------- */
     sda_bus <= dut_sda_out   when dut_sda_dir  = '1' else 'Z';
     sda_bus <= model_sda_out when model_sda_oe = '1' else 'Z';
     sda_bus <= a_sda_out     when a_sda_oe     = '1' else 'Z';
@@ -147,9 +147,9 @@ begin
     scl_bus <= b_scl_out     when b_scl_oe     = '1' else 'Z';
     scl_bus <= 'H';
 
-    ----------------------------------------------------------------------------
-    -- DUT
-    ----------------------------------------------------------------------------
+    /* --------------------------------------------------------------------------
+       DUT
+       -------------------------------------------------------------------------- */
     dut : component I3C
         port map (
             clk         => clk,
@@ -176,9 +176,9 @@ begin
             SCL_DIR     => dut_scl_dir
         );
 
-    ----------------------------------------------------------------------------
-    -- Target-responder model
-    ----------------------------------------------------------------------------
+    /* --------------------------------------------------------------------------
+       Target-responder model
+       -------------------------------------------------------------------------- */
     target : entity work.I3C_target_model
         port map (
             scl                 => scl_bus,
@@ -207,10 +207,10 @@ begin
             obs_daa_parity_ok   => open
         );
 
-    ----------------------------------------------------------------------------
-    -- Two ENTDAA target models.
-    -- cfg_daa_enable makes them ACK the 0x7E header and stream {PID,BCR,DCR} open-drain; A's lower PID must win first.
-    ----------------------------------------------------------------------------
+    /* --------------------------------------------------------------------------
+       Two ENTDAA target models.
+       cfg_daa_enable makes them ACK the 0x7E header and stream {PID,BCR,DCR} open-drain; A's lower PID must win first.
+       -------------------------------------------------------------------------- */
     daa_a : entity work.I3C_target_model
         port map (
             scl               => scl_bus,       sda_in  => sda_bus,
@@ -249,9 +249,9 @@ begin
             obs_daa_parity_ok => b_daa_parity_ok
         );
 
-    ----------------------------------------------------------------------------
-    -- stimulus
-    ----------------------------------------------------------------------------
+    /* --------------------------------------------------------------------------
+       stimulus
+       -------------------------------------------------------------------------- */
     stim_proc : process
         variable rdw          : std_logic_vector(31 downto 0);
         variable done_ok      : boolean;
@@ -343,9 +343,9 @@ begin
         -- Hardware never moves IDX, so only the LAST-programmed entry reads back with its hardware-set EVALID/DYNVALID intact, which is what makes that readback non-circular.
 
     begin
-        ----------------------------------------------------------------
-        -- Reset
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           Reset
+           -------------------------------------------------------------- */
         resetn <= '0';
         pbus   <= PERIPH_BUS_IDLE;
         wait for 4 * PERIOD;
@@ -353,9 +353,9 @@ begin
         resetn <= '1';
         wait for 4 * PERIOD;
 
-        ----------------------------------------------------------------
-        -- GROUP 0: reset defaults
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           GROUP 0: reset defaults
+           -------------------------------------------------------------- */
         report "=== GROUP 0: reset defaults ===" severity note;
 
         bus_read(clk, pbus, rdata_out, SlotI3CxSR, rdw);
@@ -365,9 +365,9 @@ begin
         bus_read(clk, pbus, rdata_out, SlotI3CxCR, rdw);
         sb.check_slv("GROUP0: CR resets to 0 except SDAPP=1", rdw, x"00000004");
 
-        ----------------------------------------------------------------
-        -- GROUP 1: SDR write (obs_wdata + parity-ok)
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           GROUP 1: SDR write (obs_wdata + parity-ok)
+           -------------------------------------------------------------- */
         report "=== GROUP 1: SDR write ===" severity note;
 
         i3c_cfg_model(addr => "1010000", legacy => false, stretch => false,
@@ -394,9 +394,9 @@ begin
         bus_read(clk, pbus, rdata_out, SlotI3CxSR, rdw);
         sb.check_bit("GROUP1: TCIF cleared", rdw(SrBitTCIF), '0');
 
-        ----------------------------------------------------------------
-        -- GROUP 2: SDR read (one literal-value check)
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           GROUP 2: SDR read (one literal-value check)
+           -------------------------------------------------------------- */
         report "=== GROUP 2: SDR read ===" severity note;
 
         i3c_cfg_model(addr => "1010000", legacy => false, stretch => false,
@@ -422,9 +422,9 @@ begin
         sb.check_bit("GROUP2: EODF NOT set", rdw(SrBitEODF), '0');
         i3c_w1c_clear(x"0000000E");
 
-        ----------------------------------------------------------------
-        -- GROUP 3: multi-byte DLEN streaming (TXEIF / RXFULL)
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           GROUP 3: multi-byte DLEN streaming (TXEIF / RXFULL)
+           -------------------------------------------------------------- */
         report "=== GROUP 3: multi-byte streaming ===" severity note;
 
         -- 3a: 3-byte WRITE stream
@@ -481,9 +481,9 @@ begin
         sb.check_bit("GROUP3b: EODF NOT set", rdw(SrBitEODF), '0');
         i3c_w1c_clear(x"0000000E");
 
-        ----------------------------------------------------------------
-        -- GROUP 4: read early-terminate raises EODF
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           GROUP 4: read early-terminate raises EODF
+           -------------------------------------------------------------- */
         report "=== GROUP 4: read early-terminate (EODF) ===" severity note;
 
         -- Target only has 1 byte; controller asks for 3 (DLEN=3).
@@ -507,9 +507,9 @@ begin
         sb.check_bit("GROUP4: EODF set (short read)", rdw(SrBitEODF), '1');
         i3c_w1c_clear(x"0000000E");
 
-        ----------------------------------------------------------------
-        -- GROUP 5: address NACK raises ANACK
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           GROUP 5: address NACK raises ANACK
+           -------------------------------------------------------------- */
         report "=== GROUP 5: address NACK ===" severity note;
 
         -- Model is configured for 0x50; CMD targets 0x51 (mismatch).
@@ -528,9 +528,9 @@ begin
         sb.check_bit("GROUP5: ANACK set", rdw(SrBitANACK), '1');
         i3c_w1c_clear(x"0000001E");   -- ANACK|EODF|TXEIF|RXFULL|TCIF
 
-        ----------------------------------------------------------------
-        -- GROUP 6: legacy-I2C transfer
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           GROUP 6: legacy-I2C transfer
+           -------------------------------------------------------------- */
         report "=== GROUP 6: legacy-I2C transfer ===" severity note;
 
         i3c_cfg_model(addr => "1010000", legacy => true, stretch => false,
@@ -550,9 +550,9 @@ begin
         sb.check_bit("GROUP6: TCIF set (legacy)", rdw(SrBitTCIF), '1');
         i3c_w1c_clear(x"0000000E");
 
-        ----------------------------------------------------------------
-        -- GROUP 7: parity-mismatch injection
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           GROUP 7: parity-mismatch injection
+           -------------------------------------------------------------- */
         report "=== GROUP 7: parity-mismatch injection ===" severity note;
 
         i3c_cfg_model(addr => "1010000", legacy => false, stretch => false,
@@ -570,11 +570,11 @@ begin
                     model_obs_wparity_ok(0), '0');
         i3c_w1c_clear(x"0000000E");
 
-        ----------------------------------------------------------------
-        -- GROUP 8: ODBR/PPBR baud sanity; this does NOT assume which protocol phase it samples, only that the baud generator responds to ODBR/PPBR at all.
-        --   Two back-to-back single-byte writes with the two fields swapped must show different first-observed SCL half-periods.
-        --   The measurement is guard-bounded and reports "inconclusive" rather than failing when no edge is observed, so this group never inflates the error count.
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           GROUP 8: ODBR/PPBR baud sanity; this does NOT assume which protocol phase it samples, only that the baud generator responds to ODBR/PPBR at all.
+             Two back-to-back single-byte writes with the two fields swapped must show different first-observed SCL half-periods.
+             The measurement is guard-bounded and reports "inconclusive" rather than failing when no edge is observed, so this group never inflates the error count.
+           -------------------------------------------------------------- */
         report "=== GROUP 8: ODBR/PPBR baud sanity ===" severity note;
 
         i3c_cfg_model(addr => "1010000", legacy => false, stretch => false,
@@ -607,9 +607,9 @@ begin
                    "expected until a real DUT is connected)" severity note;
         end if;
 
-        ----------------------------------------------------------------
-        -- GROUP 9: launch guards
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           GROUP 9: launch guards
+           -------------------------------------------------------------- */
         report "=== GROUP 9: launch guards ===" severity note;
 
         -- (a) I3CEN=0: a CMD write must not launch anything.
@@ -654,9 +654,9 @@ begin
         sb.check_true("GROUP9b: exactly one transaction ran", model_obs_txn_count = txn_before + 1);
         i3c_w1c_clear(x"0000000E");
 
-        ----------------------------------------------------------------
-        -- GROUP 10: interrupts (irq_tc, irq_rxf, irq_nack) assert + W1C clear
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           GROUP 10: interrupts (irq_tc, irq_rxf, irq_nack) assert + W1C clear
+           -------------------------------------------------------------- */
         report "=== GROUP 10: interrupts ===" severity note;
 
         -- (a) TCIE=1: irq_tc rises with TCIF, falls after W1C.
@@ -703,10 +703,10 @@ begin
         sb.check_bit("GROUP10c: irq_nack cleared after ANACK W1C", irq_nack, '0');
         i3c_w1c_clear(x"0000001E");
 
-        ----------------------------------------------------------------
-        -- GROUP 12: ENTDAA, two-target dynamic address assignment by real wired-AND arbitration.
-        --   A (lower PID) wins round 1 and takes DAT entry 0 (DYNADDR 0x08), B wins round 2 and takes entry 1 (DYNADDR 0x09), and round 3 NACKs because both are assigned, which sets DAADONE.
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           GROUP 12: ENTDAA, two-target dynamic address assignment by real wired-AND arbitration.
+             A (lower PID) wins round 1 and takes DAT entry 0 (DYNADDR 0x08), B wins round 2 and takes entry 1 (DYNADDR 0x09), and round 3 NACKs because both are assigned, which sets DAADONE.
+           -------------------------------------------------------------- */
         report "=== GROUP 12: ENTDAA two-target assignment ===" severity note;
 
         cfg_daa_enable <= false;     -- keep the base model off the DAA bus
@@ -772,9 +772,9 @@ begin
         bus_read(clk, pbus, rdata_out, SlotI3CxSR, rdw);
         sb.check_bit("GROUP12: DAAFULL cleared after W1C", rdw(SrBitDAAFULL), '0');
 
-        ----------------------------------------------------------------
-        -- GROUP 12b: directed SDR write to model A's new dynamic address (0x08), proving the freshly-assigned target is live.
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           GROUP 12b: directed SDR write to model A's new dynamic address (0x08), proving the freshly-assigned target is live.
+           -------------------------------------------------------------- */
         report "=== GROUP 12b: directed write to assigned dyn addr ===" severity note;
 
         bus_write(clk, pbus, SlotI3CxTX, x"0000003C");
@@ -791,10 +791,10 @@ begin
         sb.check_bit("GROUP12b: ANACK NOT set (address was live)", rdw(SrBitANACK), '0');
         i3c_w1c_clear(x"0000000E");
 
-        ----------------------------------------------------------------
-        -- GROUP 13: SETDASA, assigning a dynamic address to a target at its static address (direct CCC 0x87).
-        -- Uses the base target model at 0x55.
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           GROUP 13: SETDASA, assigning a dynamic address to a target at its static address (direct CCC 0x87).
+           Uses the base target model at 0x55.
+           -------------------------------------------------------------- */
         report "=== GROUP 13: SETDASA ===" severity note;
 
         cfg_target_addr <= "1010101";   -- 0x55
@@ -825,11 +825,11 @@ begin
         sb.check_slv("GROUP13: entry2 STATADDR = 0x55", rdw(18 downto 12), "1010101");
         i3c_w1c_clear(x"0000000E");
 
-        ----------------------------------------------------------------
-        -- GROUP 14: IBI full path (IBIEN=1, mandatory-data byte), with model A (ENTDAA-assigned 0x08, DAT entry 0) raising the in-band interrupt.
-        -- DAT entry 0 is first given BCR[2]=1 (MDB present) by a firmware DATINFO write, then IBIEN is armed and the IBI triggered.
-        -- The controller must auto-ACK, clock the MDB, capture {addr,MDB,hasdata,acked} into I3CxIBI, set SR.IBIP and irq_ibi, and recover the bus afterwards.
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           GROUP 14: IBI full path (IBIEN=1, mandatory-data byte), with model A (ENTDAA-assigned 0x08, DAT entry 0) raising the in-band interrupt.
+           DAT entry 0 is first given BCR[2]=1 (MDB present) by a firmware DATINFO write, then IBIEN is armed and the IBI triggered.
+           The controller must auto-ACK, clock the MDB, capture {addr,MDB,hasdata,acked} into I3CxIBI, set SR.IBIP and irq_ibi, and recover the bus afterwards.
+           -------------------------------------------------------------- */
         report "=== GROUP 14: IBI full path (IBIEN=1 + MDB) ===" severity note;
 
         a_enable <= false; b_enable <= false;   -- ENTDAA done, models stay assigned
@@ -901,10 +901,10 @@ begin
         sb.check_slv("GROUP14: model A captured 0x46 post-IBI", a_obs_wdata(0), x"46");
         i3c_w1c_clear(x"0000000E");
 
-        ----------------------------------------------------------------
-        -- GROUP 15: IBI NACK path, where the target raises the same IBI but IBIEN=0.
-        -- The controller must NACK by releasing, STOP cleanly, capture nothing and set no IBIP, the model must observe the NACK, and the bus must recover.
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           GROUP 15: IBI NACK path, where the target raises the same IBI but IBIEN=0.
+           The controller must NACK by releasing, STOP cleanly, capture nothing and set no IBIP, the model must observe the NACK, and the bus must recover.
+           -------------------------------------------------------------- */
         report "=== GROUP 15: IBI NACK path (IBIEN=0) ===" severity note;
 
         -- Disarm IBIs: I3CEN=1, IBIEN=0 (IBIIE still on to prove irq stays low).
@@ -940,19 +940,19 @@ begin
         sb.check_slv("GROUP15: model A captured 0x47 post-NACK", a_obs_wdata(0), x"47");
         i3c_w1c_clear(x"0000000E");
 
-        ----------------------------------------------------------------
-        -- GROUP 11: negative control, mandatory and LAST.
-        -- One deliberately wrong expected IBI MDB that MUST report a mismatch, proving the checkers can fail; it is the single expected failure.
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           GROUP 11: negative control, mandatory and LAST.
+           One deliberately wrong expected IBI MDB that MUST report a mismatch, proving the checkers can fail; it is the single expected failure.
+           -------------------------------------------------------------- */
         report "=== GROUP 11: NEGATIVE CONTROL (stage 3) ===" severity note;
 
         -- the captured IBI MDB was truly 0x5C; compare against 0x5D (wrong).
         sb.check_slv("NEGATIVE CONTROL: wrong expected IBI MDB (must FAIL)",
                     neg_ibi_mdb, std_logic_vector(unsigned(neg_ibi_mdb) + 1));
 
-        ----------------------------------------------------------------
-        -- Final verdict: sb.errors must be EXACTLY 1, the negative control above, for an overall PASS.
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           Final verdict: sb.errors must be EXACTLY 1, the negative control above, for an overall PASS.
+           -------------------------------------------------------------- */
         wait for 1 us;
         sb.report_summary("I3C TB");
 

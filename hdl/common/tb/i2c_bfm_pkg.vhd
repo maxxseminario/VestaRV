@@ -1,12 +1,12 @@
--------------------------------------------------------------------------------
--- i2c_bfm_pkg.vhd
--------------------------------------------------------------------------------
--- Bus-functional model for driving an I2C bus as an external master against the I2C peripheral's slave port.
--- Open-drain: the model pulls a line low and the DUT or the pull-up releases it high, so the wired-AND stays in the TB architecture, driven from this record and the DUT's *_DIR outputs:
---     SDA_IN <= '0' when (SDA_DIR = '1' or m.sda_low = '1') else '1';
---     SCL_IN <= '0' when (SCL_DIR = '1' or m.scl_low = '1') else '1';
--- `T` is the bus phase time, roughly a quarter to an eighth of an SCL period.
--------------------------------------------------------------------------------
+/* -----------------------------------------------------------------------------
+   i2c_bfm_pkg.vhd
+   -----------------------------------------------------------------------------
+   Bus-functional model for driving an I2C bus as an external master against the I2C peripheral's slave port.
+   Open-drain: the model pulls a line low and the DUT or the pull-up releases it high, so the wired-AND stays in the TB architecture, driven from this record and the DUT's *_DIR outputs:
+       SDA_IN <= '0' when (SDA_DIR = '1' or m.sda_low = '1') else '1';
+       SCL_IN <= '0' when (SCL_DIR = '1' or m.scl_low = '1') else '1';
+   `T` is the bus phase time, roughly a quarter to an eighth of an SCL period.
+   ----------------------------------------------------------------------------- */
 
 library ieee;
 use ieee.std_logic_1164.all;

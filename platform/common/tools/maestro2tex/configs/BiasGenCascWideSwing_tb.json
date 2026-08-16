@@ -3,7 +3,7 @@
   "tex_root": "include/analog/",
   "nominal_corner": "tt",
   "supply_var": "VDD25",
-  "intro_tex": "\\subsection{Local Wide-Swing Cascode Bias Generator}\\label{ss:biasgen-local}\n\nThe local bias generator (schematic cell \\texttt{anatop\\_biasgen\\_local}, drawn from\n\\texttt{BiasGenCascWideSwing}) is the cell each analog block instantiates to develop\nits own cascode bias rails, as distinct from the single chip-level\n\\texttt{BiasGenCascWideSwingGlobal} that drives the global \\texttt{bn!}/\\texttt{bp!}\nnets. It presents four outputs --- the NMOS mirror and cascode gates\n($V_{\\mathrm{BNM}}$, $V_{\\mathrm{BNC}}$) and the PMOS mirror and cascode gates\n($V_{\\mathrm{BPM}}$, $V_{\\mathrm{BPC}}$) --- generated from a resistor-degenerated\nreference core in the wide-swing cascode arrangement, so the cascode gates sit only\none saturation voltage away from the mirror gates and the mirrors keep their output\ndevices in saturation over a wide compliance range. An \\texttt{En} input gates the\ncell, and a start-up branch guarantees it leaves the degenerate zero-current state at\npower-up. A 6-bit trim word, \\texttt{BiasAdj\\textless5:0\\textgreater}, moves the\nreference current so the operating point can be corrected after silicon.\n\nThe characterisation below is from schematic-level simulation (no extracted\nparasitics) of the \\texttt{BiasGenCascWideSwing\\allowbreak\\_tb} testbench, over the process,\ntemperature and supply points of\nTable~\\ref{tab:BiasGenCascWideSwing-corners}. All rail voltages are referred to\n\\texttt{vss!}, and the cell is enabled throughout.\n",
+  "intro_tex": "\\subsection{Local Wide-Swing Cascode Bias Generator}\\label{ss:biasgen-local}\n\nThe local bias generator (schematic cell \\texttt{anatop\\_biasgen\\_local}, drawn from\n\\texttt{BiasGenCascWideSwing}) is the cell each analog block instantiates to develop\nits own cascode bias rails, as distinct from the single chip-level\n\\texttt{BiasGenCascWideSwingGlobal} that drives the global \\texttt{bn!}/\\texttt{bp!}\nnets. It presents four outputs: the NMOS mirror and cascode gates\n($V_{\\mathrm{BNM}}$, $V_{\\mathrm{BNC}}$) and the PMOS mirror and cascode gates\n($V_{\\mathrm{BPM}}$, $V_{\\mathrm{BPC}}$). These are generated from a resistor-degenerated\nreference core in the wide-swing cascode arrangement, so the cascode gates sit only\none saturation voltage away from the mirror gates and the mirrors keep their output\ndevices in saturation over a wide compliance range. An \\texttt{En} input gates the\ncell, and a start-up branch guarantees it leaves the degenerate zero-current state at\npower-up. A 6-bit trim word, \\texttt{BiasAdj\\textless5:0\\textgreater}, moves the\nreference current so the operating point can be corrected after silicon.\n\nThe characterisation below is from schematic-level simulation (no extracted\nparasitics) of the \\texttt{BiasGenCascWideSwing\\allowbreak\\_tb} testbench, over the process,\ntemperature and supply points of\nTable~\\ref{tab:BiasGenCascWideSwing-corners}. All rail voltages are referred to\n\\texttt{vss!}, and the cell is enabled throughout.\n",
   "corner_table_caption": "Process, temperature and supply points simulated for the local bias generator.",
   "signals": {
     "vbnm": {
@@ -183,7 +183,7 @@
       ],
       "corners": "all",
       "yprec": 0,
-      "caption": "Trim characteristic: $V_{\\mathrm{BNM}}$ against the \\texttt{BiasAdj} word over all process corners. The bench sweeps the trim word as a continuous variable, so only the six codes 0, 12.6, 25.2, 37.8, 50.4 and 63 are sampled --- this is the shape of the trim law, not a per-code characterisation.",
+      "caption": "Trim characteristic: $V_{\\mathrm{BNM}}$ against the \\texttt{BiasAdj} word over all process corners. The bench sweeps the trim word as a continuous variable, so only the six codes 0, 12.6, 25.2, 37.8, 50.4 and 63 are sampled; this is the shape of the trim law, not a per-code characterisation.",
       "width": "0.80\\linewidth",
       "height": "6.0cm"
     },
@@ -279,7 +279,7 @@
       ],
       "corners": "all",
       "spread_column": false,
-      "caption": "Line sensitivity: total variation over the simulated supply range, normalised to the mean and to the swept supply span. The PMOS rails are supply-referred --- they track $V_{\\mathrm{DD}}$ by design --- so it is the supply-referred drops $V_{\\mathrm{DD}}-V_{\\mathrm{BPM}}$ and $V_{\\mathrm{DD}}-V_{\\mathrm{BPC}}$ that are quoted here, not the raw rail voltages, whose sensitivity against \\texttt{vss!} would simply restate that tracking."
+      "caption": "Line sensitivity: total variation over the simulated supply range, normalised to the mean and to the swept supply span. The PMOS rails are supply-referred (they track $V_{\\mathrm{DD}}$ by design), so it is the supply-referred drops $V_{\\mathrm{DD}}-V_{\\mathrm{BPM}}$ and $V_{\\mathrm{DD}}-V_{\\mathrm{BPC}}$ that are quoted here, not the raw rail voltages, whose sensitivity against \\texttt{vss!} would simply restate that tracking."
     },
     {
       "id": "biasgen_trim",

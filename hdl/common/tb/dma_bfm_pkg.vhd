@@ -1,9 +1,9 @@
--------------------------------------------------------------------------------
--- dma_bfm_pkg.vhd: bench-support helpers for the DMA controller testbench, providing bus plumbing, register-map constants, config and CR packers, address helpers, bounded SR polls and an independent CRC16-CDMA2000 reference.
--- The slot numbers, CR/SR/CFG field positions and the modeled byte addresses here are LOCAL to this bench, not shared MemoryMap.vhd constants; DMA0 lives at 0x6800.
--- Checker independence: nothing in this package reads a DUT internal, and the CRC reference is built from the same LFSR math as work.CRC16 in SYSTEM0.
--- Bounded polls take (signal clk, signal b, signal read_data, [args], done_ok : out boolean), and the caller turns done_ok into a scoreboard check, so a poll that never satisfies its condition fails the run instead of hanging.
--------------------------------------------------------------------------------
+/* -----------------------------------------------------------------------------
+   dma_bfm_pkg.vhd: bench-support helpers for the DMA controller testbench, providing bus plumbing, register-map constants, config and CR packers, address helpers, bounded SR polls and an independent CRC16-CDMA2000 reference.
+   The slot numbers, CR/SR/CFG field positions and the modeled byte addresses here are LOCAL to this bench, not shared MemoryMap.vhd constants; DMA0 lives at 0x6800.
+   Checker independence: nothing in this package reads a DUT internal, and the CRC reference is built from the same LFSR math as work.CRC16 in SYSTEM0.
+   Bounded polls take (signal clk, signal b, signal read_data, [args], done_ok : out boolean), and the caller turns done_ok into a scoreboard check, so a poll that never satisfies its condition fails the run instead of hanging.
+   ----------------------------------------------------------------------------- */
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -34,9 +34,9 @@ package dma_bfm_pkg is
 
     -- ---- DMA0SR bit positions (slot 1) -------------------------------------
     constant DMA_SR_BUSY   : natural := 0;
-    -- CHnDONE  = bits 4:1  (CH0DONE = bit 1),  W1C
-    -- CHnERR   = bits 8:5  (CH0ERR  = bit 5),  W1C
-    -- ACTIVECH = bits 11:9, read-only
+    /* CHnDONE  = bits 4:1  (CH0DONE = bit 1),  W1C
+       CHnERR   = bits 8:5  (CH0ERR  = bit 5),  W1C
+       ACTIVECH = bits 11:9, read-only */
     constant DMA_SR_DONE0  : natural := 1;
     constant DMA_SR_ERR0   : natural := 5;
     constant DMA_SR_ACTLO  : natural := 9;   -- ACTIVECH low bit
@@ -54,9 +54,9 @@ package dma_bfm_pkg is
     constant DMA_TRIG_QSPI : std_logic_vector(3 downto 0) := "0010";  -- QSPI0 RXFULL
     constant DMA_TRIG_NFC  : std_logic_vector(3 downto 0) := "0011";  -- NFC0 payload-ready
 
-    -- ---- modeled peripheral-window BYTE addresses --------------------------
-    -- The real register byte addresses the DMA's paced SRC and hardcoded SR-clear target land on (UART0 at 0x4400, QSPI0 at 0x4C00, NFC0 at 0x6200).
-    -- The bench models each window at exactly these addresses, so the DUT's per-TRIG clear target must agree with them.
+    /* ---- modeled peripheral-window BYTE addresses --------------------------
+       The real register byte addresses the DMA's paced SRC and hardcoded SR-clear target land on (UART0 at 0x4400, QSPI0 at 0x4C00, NFC0 at 0x6200).
+       The bench models each window at exactly these addresses, so the DUT's per-TRIG clear target must agree with them. */
     constant DMA_UART_RX_BYTE  : natural := 16#440C#;  -- UART0 RX  (slot 3, read-to-clear)
     constant DMA_QSPI_RX_BYTE  : natural := 16#4C10#;  -- QSPI0 RX  (slot 4, side-effect-free)
     constant DMA_QSPI_SR_BYTE  : natural := 16#4C14#;  -- QSPI0 SR  (slot 5, W1C bit 2)
@@ -74,9 +74,9 @@ package dma_bfm_pkg is
     -- Master-port word-address width (SH_AW).
     constant DMA_AW : natural := 15;
 
-    -- ---- modeled pacing-source data (shared by the model + the stim) --------
-    -- Each source delivers a known, checkable stream so the destination buffer can be verified independently.
-    -- UART and QSPI deliver seed+k on the k-th event (byte in the low lane), NFC delivers base+i on the i-th payload read within a frame as IDX auto-advances.
+    /* ---- modeled pacing-source data (shared by the model + the stim) --------
+       Each source delivers a known, checkable stream so the destination buffer can be verified independently.
+       UART and QSPI deliver seed+k on the k-th event (byte in the low lane), NFC delivers base+i on the i-th payload read within a frame as IDX auto-advances. */
     constant DMA_UART_SEED : natural := 16#10#;   -- UART byte stream 0x10,0x11,...
     constant DMA_QSPI_SEED : natural := 16#A0#;   -- QSPI word stream 0xA0,0xA1,...
     constant DMA_NFC_BASE  : natural := 16#50#;   -- NFC payload word i = 0x50+i
@@ -101,16 +101,16 @@ package dma_bfm_pkg is
     -- Byte address to RAM-model word index (natural).
     function dma_word_idx(byte_addr : natural) return natural;
 
-    -- ---- independent CRC16-CDMA2000 reference ------------------------------
-    -- Fold one 32-bit word into the accumulator, bytes b0 through b3 (low byte first); seed the first call with 0xFFFF.
-    -- Identical LFSR math to work.CRC16 in SYSTEM0 via periph_tb_pkg.crc16_byte, and it never reads the DUT.
+    /* ---- independent CRC16-CDMA2000 reference ------------------------------
+       Fold one 32-bit word into the accumulator, bytes b0 through b3 (low byte first); seed the first call with 0xFFFF.
+       Identical LFSR math to work.CRC16 in SYSTEM0 via periph_tb_pkg.crc16_byte, and it never reads the DUT. */
     function dma_crc_word(word : std_logic_vector(31 downto 0);
                           acc  : std_logic_vector(15 downto 0))
         return std_logic_vector;
 
-    -- ---- bounded SR polls (never hang; fail on guard) ----------------------
-    -- Guard sizing: a few-word mem-to-mem copy completes in well under 100 clk, and a paced or multi-channel run in a few hundred.
-    -- Each poll iteration is one bus_read (about 4 clk), so 8000 iterations is about 32000 clk: bounded, and well inside the tb watchdog.
+    /* ---- bounded SR polls (never hang; fail on guard) ----------------------
+       Guard sizing: a few-word mem-to-mem copy completes in well under 100 clk, and a paced or multi-channel run in a few hundred.
+       Each poll iteration is one bus_read (about 4 clk), so 8000 iterations is about 32000 clk: bounded, and well inside the tb watchdog. */
     constant DMA_POLL_GUARD : natural := 8000;
 
     -- Poll DMA0SR.BUSY (bit 0) until it reads '0'.

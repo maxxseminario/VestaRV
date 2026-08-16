@@ -1,11 +1,11 @@
--------------------------------------------------------------------------------
--- board_harvest_tb.vhd
--- Board-level bench for the harvested field-power / NFC path: field on, NTAG 5 harvests, the supercap charges, PGOOD (pin 69, P6.7) releases the boot gate, the chip cold-boots the harvested ROM path and serves an NFC Type-2 READ, then field off, re-hold, field back, cold re-boot.
--- DUT is the wound-configuration MCU booting from the real shared ROM image; no firmware is downloaded on the harvested path, only the bootrom's harvested branch runs.
--- Every check is EXTERNALLY OBSERVABLE (package pins, board-model ports, tb edge counters) because VHDL hierarchical references are unavailable under -V200X.
--- The bench does NOT claim NFC service is lost during brownout: the boot gate folds only the hart resets and VDD collapse is not modelled, so the re-hold is proven by the cold-re-boot PWRSTS payload delta instead.
--- NEGCTRL true selects the disarmed-board negative control; a bare boolean generic override is silently ignored by xmelab (EVBBOL warning only), so the literal must be QUOTED in the -generic argument.
--------------------------------------------------------------------------------
+/* -----------------------------------------------------------------------------
+   board_harvest_tb.vhd
+   Board-level bench for the harvested field-power / NFC path: field on, NTAG 5 harvests, the supercap charges, PGOOD (pin 69, P6.7) releases the boot gate, the chip cold-boots the harvested ROM path and serves an NFC Type-2 READ, then field off, re-hold, field back, cold re-boot.
+   DUT is the wound-configuration MCU booting from the real shared ROM image; no firmware is downloaded on the harvested path, only the bootrom's harvested branch runs.
+   Every check is EXTERNALLY OBSERVABLE (package pins, board-model ports, tb edge counters) because VHDL hierarchical references are unavailable under -V200X.
+   The bench does NOT claim NFC service is lost during brownout: the boot gate folds only the hart resets and VDD collapse is not modelled, so the re-hold is proven by the cold-re-boot PWRSTS payload delta instead.
+   NEGCTRL true selects the disarmed-board negative control; a bare boolean generic override is silently ignored by xmelab (EVBBOL warning only), so the literal must be QUOTED in the -generic argument.
+   ----------------------------------------------------------------------------- */
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -28,9 +28,9 @@ end entity board_harvest_tb;
 
 architecture sim of board_harvest_tb is
 
-    ---------------------------------------------------------------------
-    -- DUT component: the wound-configuration MCU
-    ---------------------------------------------------------------------
+    /* -------------------------------------------------------------------
+       DUT component: the wound-configuration MCU
+       ------------------------------------------------------------------- */
     component MCU
         port (
             resetn_in  : in  std_logic;
@@ -92,9 +92,9 @@ architecture sim of board_harvest_tb is
         );
     end component;
 
-    ---------------------------------------------------------------------
-    -- GPIO0 pin numbering, mirroring MemoryMap.vhd's pnum_gpio0_*, kept local so this bench need not use work.MemoryMap.
-    ---------------------------------------------------------------------
+    /* -------------------------------------------------------------------
+       GPIO0 pin numbering, mirroring MemoryMap.vhd's pnum_gpio0_*, kept local so this bench need not use work.MemoryMap.
+       ------------------------------------------------------------------- */
     constant P_CS_FLASH : natural := 0;
     constant P_MISO     : natural := 1;
     constant P_MOSI     : natural := 2;
@@ -103,9 +103,9 @@ architecture sim of board_harvest_tb is
     constant P_HFXT     : natural := 5;
     constant P_BOOT     : natural := 7;
 
-    ---------------------------------------------------------------------
-    -- clocks / reset
-    ---------------------------------------------------------------------
+    /* -------------------------------------------------------------------
+       clocks / reset
+       ------------------------------------------------------------------- */
     constant CLK_PERIOD      : time := 40 ns;
     constant clk_hfxt_period : time := (1.0 sec) / 24000000;   -- 24 MHz
     constant clk_lfxt_period : time := (1.0 sec) / 32768;      -- 32.768 kHz
@@ -114,9 +114,9 @@ architecture sim of board_harvest_tb is
     signal clk_lfxt : std_logic := '0';
     signal resetn   : std_logic := '0';
 
-    ---------------------------------------------------------------------
-    -- pins
-    ---------------------------------------------------------------------
+    /* -------------------------------------------------------------------
+       pins
+       ------------------------------------------------------------------- */
     signal resetn_pad : std_logic;
     signal resetn_in, resetn_out, resetn_dir, resetn_ren : std_logic;
 
@@ -135,9 +135,9 @@ architecture sim of board_harvest_tb is
     constant PASS_LABEL : std_logic_vector(31 downto 0) := x"CAFEBABE";
     constant FAIL_LABEL : std_logic_vector(31 downto 0) := x"DEADBEEF";
 
-    ---------------------------------------------------------------------
-    -- SPI serial flash (only the NEGCTRL leg boots from it)
-    ---------------------------------------------------------------------
+    /* -------------------------------------------------------------------
+       SPI serial flash (only the NEGCTRL leg boots from it)
+       ------------------------------------------------------------------- */
     signal spi_clk, spi_cs, spi_mosi, spi_miso : std_logic;
     signal flash_awake     : std_logic := '0';
     signal cs_flash        : std_logic;
@@ -146,14 +146,14 @@ architecture sim of board_harvest_tb is
     -- board-level observable: how many times the flash chip select has fallen.
     signal cs_fall_cnt     : natural := 0;
 
-    ---------------------------------------------------------------------
-    -- THE FIELD: one tb signal feeds the reader model, the tag's rf_field and the chip's field_detect pin.
-    ---------------------------------------------------------------------
+    /* -------------------------------------------------------------------
+       THE FIELD: one tb signal feeds the reader model, the tag's rf_field and the chip's field_detect pin.
+       ------------------------------------------------------------------- */
     signal field_on : std_logic := '0';
 
-    ---------------------------------------------------------------------
-    -- NTAG 5 (I2C slave on the P4 bus) + the tb-side factory I2C master
-    ---------------------------------------------------------------------
+    /* -------------------------------------------------------------------
+       NTAG 5 (I2C slave on the P4 bus) + the tb-side factory I2C master
+       ------------------------------------------------------------------- */
     constant TQ_I2C   : time := 250 ns;                          -- quarter bit: compressed 1 MHz factory I2C
     constant T_PROG   : time := 20 us;                           -- compressed EEPROM programming cycle
     constant DEV_ADDR : std_logic_vector(6 downto 0) := "1010100";  -- 54h
@@ -183,9 +183,9 @@ architecture sim of board_harvest_tb is
     signal obs_pt_dir      : std_logic;
     signal obs_eep_busy    : std_logic;
 
-    ---------------------------------------------------------------------
-    -- harvester / supercap / supervisor
-    ---------------------------------------------------------------------
+    /* -------------------------------------------------------------------
+       harvester / supercap / supervisor
+       ------------------------------------------------------------------- */
     signal vin_mv, iin_ua           : natural := 0;
     signal load_ua, load_aux_ua     : natural := 0;
     signal vstor_mv                 : natural;
@@ -201,9 +201,9 @@ architecture sim of board_harvest_tb is
     signal pg_fall    : natural := 0;
     signal hart_awake : std_logic := '0';
 
-    ---------------------------------------------------------------------
-    -- NFC reader (PCD) model
-    ---------------------------------------------------------------------
+    /* -------------------------------------------------------------------
+       NFC reader (PCD) model
+       ------------------------------------------------------------------- */
     constant RF_HALF : time := 25 ns;   -- reader's compressed carrier-derived clock
     -- NFCxTIM reset profile (ETU=128, SUBCDIV=8): the bootrom never programs TIM, so the reader model must match it.
     constant C_ETU     : natural := 128;
@@ -252,10 +252,10 @@ architecture sim of board_harvest_tb is
 
     shared variable sb : scoreboard;
 
-    ---------------------------------------------------------------------
-    -- bit-banged I2C MASTER (the board programmer, not the chip): every cell is entered and left with SCL LOW.
-    --   cell order: set SDA, tq, release SCL, tq, sample, tq, pull SCL, tq
-    ---------------------------------------------------------------------
+    /* -------------------------------------------------------------------
+       bit-banged I2C MASTER (the board programmer, not the chip): every cell is entered and left with SCL LOW.
+         cell order: set SDA, tq, release SCL, tq, sample, tq, pull SCL, tq
+       ------------------------------------------------------------------- */
     -- Park the bus: release both open-drain drivers and settle for one quarter bit.
     procedure i2c_idle(signal sdao : out std_logic;
                        signal sclo : out std_logic;
@@ -406,9 +406,9 @@ architecture sim of board_harvest_tb is
 
 begin
 
-    ---------------------------------------------------------------------
-    -- clocks
-    ---------------------------------------------------------------------
+    /* -------------------------------------------------------------------
+       clocks
+       ------------------------------------------------------------------- */
     -- 24 MHz crystal oscillator, wired onto GPIO0 P1.5 below.
     ProcClkHFXT : process
     begin
@@ -427,9 +427,9 @@ begin
         wait for clk_lfxt_period / 2;
     end process;
 
-    ---------------------------------------------------------------------
-    -- DUT
-    ---------------------------------------------------------------------
+    /* -------------------------------------------------------------------
+       DUT
+       ------------------------------------------------------------------- */
     dut : MCU
         port map (
             resetn_in  => resetn_in,
@@ -453,9 +453,9 @@ begin
             a0 => a0, a0_1 => a0_1, a0_2 => a0_2, a0_3 => a0_3
         );
 
-    ---------------------------------------------------------------------
-    -- Pads, identical to riscv_tb: reset, P1 = SPI flash plus crystals, P2/P3 unused here, P4 = the I2C0 home pads the NTAG 5 hangs on.
-    ---------------------------------------------------------------------
+    /* -------------------------------------------------------------------
+       Pads, identical to riscv_tb: reset, P1 = SPI flash plus crystals, P2/P3 unused here, P4 = the I2C0 home pads the NTAG 5 hangs on.
+       ------------------------------------------------------------------- */
     reset_pad : entity work.PDUW16SDGZ_G
         port map (I => resetn_out, OEN => resetn_dir, REN => resetn_ren,
                   PAD => resetn_pad, C => resetn_in);
@@ -495,9 +495,9 @@ begin
     -- OW0 DQ bench level: weak 'L', same as riscv_tb.
     prt4(7) <= 'L';
 
-    ---------------------------------------------------------------------
-    -- SPI serial flash
-    ---------------------------------------------------------------------
+    /* -------------------------------------------------------------------
+       SPI serial flash
+       ------------------------------------------------------------------- */
     spi_clk  <= prt1(P_SPI_CLK);
     spi_cs   <= prt1(P_CS_FLASH);
     spi_mosi <= prt1(P_MOSI);
@@ -544,10 +544,10 @@ begin
         end if;
     end process;
 
-    ---------------------------------------------------------------------
-    -- P4 open-drain I2C0 bus: weak 'H' idle, wired-AND of the factory master and the NTAG 5.
-    -- The chip is a silent third party here: no firmware runs on the harvested path, so its pads stay inputs.
-    ---------------------------------------------------------------------
+    /* -------------------------------------------------------------------
+       P4 open-drain I2C0 bus: weak 'H' idle, wired-AND of the factory master and the NTAG 5.
+       The chip is a silent third party here: no firmware runs on the harvested path, so its pads stay inputs.
+       ------------------------------------------------------------------- */
     prt4(0) <= '0' when (m_sda_oe = '1') or (d_sda_oe = '1' and d_sda_out = '0')
                else 'H';
     prt4(1) <= '0' when (m_scl_oe = '1') or (d_scl_oe = '1' and d_scl_out = '0')
@@ -597,10 +597,10 @@ begin
             obs_eep_busy        => obs_eep_busy
         );
 
-    ---------------------------------------------------------------------
-    -- The board supply chain: harvester, supercap, two rails, supervisor, then PGOOD on pin 69.
-    -- The tag's harvested output feeds the PMIC input directly; the real board's rectifier and input cap are not modelled.
-    ---------------------------------------------------------------------
+    /* -------------------------------------------------------------------
+       The board supply chain: harvester, supercap, two rails, supervisor, then PGOOD on pin 69.
+       The tag's harvested output feeds the PMIC input directly; the real board's rectifier and input cap are not modelled.
+       ------------------------------------------------------------------- */
     vin_mv <= eh_vout_mv when to_X01(eh_vout_on) = '1' else 0;
     iin_ua <= eh_iout_ua when to_X01(eh_vout_on) = '1' else 0;
 
@@ -681,9 +681,9 @@ begin
         hart_awake <= '1';
     end generate;
 
-    ---------------------------------------------------------------------
-    -- NFC reader (PCD)
-    ---------------------------------------------------------------------
+    /* -------------------------------------------------------------------
+       NFC reader (PCD)
+       ------------------------------------------------------------------- */
     reader : entity work.nfc_reader_model
         generic map ( RF_HALF => RF_HALF )
         port map (
@@ -722,18 +722,18 @@ begin
     -- the field the reader radiates IS the field the tag harvests
     cfg_field <= field_on;
 
-    ---------------------------------------------------------------------
-    -- P6 board wiring (the field-power / NFC pin group).
-    -- prt6 has no package pad model in this bench, as in riscv_tb: the port bus IS the board net.
-    --   P6.7 pin 69  PGOOD         in   from supply_supervisor
-    --   P6.6 pin 68  strap         in   from the board tie ('1' harvested, '0' disarmed)
-    --   P6.5         afe_en        out  observed by the bench
-    --   P6.4         rf_tx_en      out  to the reader
-    --   P6.3         rf_txmod      out  to the reader
-    --   P6.2         field_detect  in   from the reader
-    --   P6.1         rf_rx         in   from the reader
-    --   P6.0         rf_clk        in   from the reader
-    ---------------------------------------------------------------------
+    /* -------------------------------------------------------------------
+       P6 board wiring (the field-power / NFC pin group).
+       prt6 has no package pad model in this bench, as in riscv_tb: the port bus IS the board net.
+         P6.7 pin 69  PGOOD         in   from supply_supervisor
+         P6.6 pin 68  strap         in   from the board tie ('1' harvested, '0' disarmed)
+         P6.5         afe_en        out  observed by the bench
+         P6.4         rf_tx_en      out  to the reader
+         P6.3         rf_txmod      out  to the reader
+         P6.2         field_detect  in   from the reader
+         P6.1         rf_rx         in   from the reader
+         P6.0         rf_clk        in   from the reader
+       ------------------------------------------------------------------- */
     main_p6_gen : if not NEGCTRL generate
         prt6_in <= pgood & '1' & '0' & '0' & '0'
                    & field_detect_w & rf_rx_w & rf_clk_w;
@@ -751,10 +751,10 @@ begin
     -- unused ports idle
     prt5_in <= (others => '0');
 
-    ---------------------------------------------------------------------
-    -- Global backstop so a bench bug cannot hang a simulator seat.
-    -- Every wait in the stimulus is individually bounded, so this must never fire.
-    ---------------------------------------------------------------------
+    /* -------------------------------------------------------------------
+       Global backstop so a bench bug cannot hang a simulator seat.
+       Every wait in the stimulus is individually bounded, so this must never fire.
+       ------------------------------------------------------------------- */
     backstop : process
     begin
         wait for 80 ms;
@@ -763,9 +763,9 @@ begin
         wait;
     end process;
 
-    ---------------------------------------------------------------------
-    -- STIMULUS
-    ---------------------------------------------------------------------
+    /* -------------------------------------------------------------------
+       STIMULUS
+       ------------------------------------------------------------------- */
     stim : process
         variable aack : boolean;
         variable ni   : integer;
@@ -829,9 +829,9 @@ begin
                                  pwrsts : in std_logic_vector(7 downto 0)) is
             variable f : nfc_byte_array(0 to NFC_MAX_BYTES - 1) := (others => (others => '0'));
         begin
-            ----------------------------------------------------------
-            -- REQA, expecting an ATQA
-            ----------------------------------------------------------
+            /* --------------------------------------------------------
+               REQA, expecting an ATQA
+               -------------------------------------------------------- */
             f := (others => (others => '0'));
             f(0) := x"26";
             cfg_bytes <= f;
@@ -843,9 +843,9 @@ begin
             sb.check_slv(tag & ": ATQA byte1 = 0x00", obs_bytes(1), x"00");
             sb.check_bit(tag & ": ATQA parity ok", obs_parity_ok, '1');
 
-            ----------------------------------------------------------
-            -- anticollision (SEL=0x93, NVB=0x20), expecting UID + BCC
-            ----------------------------------------------------------
+            /* --------------------------------------------------------
+               anticollision (SEL=0x93, NVB=0x20), expecting UID + BCC
+               -------------------------------------------------------- */
             f := (others => (others => '0'));
             f(0) := x"93"; f(1) := x"20";
             cfg_bytes <= f;
@@ -859,9 +859,9 @@ begin
             sb.check_slv(tag & ": BCC = uid0^uid1^uid2^uid3", obs_bytes(4), BCCV);
             sb.check_bit(tag & ": UID stream parity ok", obs_parity_ok, '1');
 
-            ----------------------------------------------------------
-            -- SELECT (NVB=0x70, UID+BCC+CRC_A), expecting a SAK
-            ----------------------------------------------------------
+            /* --------------------------------------------------------
+               SELECT (NVB=0x70, UID+BCC+CRC_A), expecting a SAK
+               -------------------------------------------------------- */
             f := (others => (others => '0'));
             f(0) := x"93"; f(1) := x"70";
             f(2) := UID0; f(3) := UID1; f(4) := UID2; f(5) := UID3; f(6) := BCCV;
@@ -872,9 +872,9 @@ begin
             sb.check_slv(tag & ": SAK = 0x00", obs_bytes(0), SAKV);
             sb.check_bit(tag & ": SAK CRC_A ok", obs_crc_ok, '1');
 
-            ----------------------------------------------------------
-            -- READ block 0, expecting the ROM-provisioned status record
-            ----------------------------------------------------------
+            /* --------------------------------------------------------
+               READ block 0, expecting the ROM-provisioned status record
+               -------------------------------------------------------- */
             f := (others => (others => '0'));
             f(0) := x"30"; f(1) := x"00";
             cfg_bytes <= f;
@@ -919,10 +919,10 @@ begin
         wait for CLK_PERIOD;
 
         if NEGCTRL then
-            ------------------------------------------------------------
-            -- GROUP-NEG: the disarmed board, strap LOW and PGOOD low forever, so pwr_ctrl's gate is never armed and the chip must boot NORMALLY off the SPI flash.
-            -- This is the control for G-HOLD: it proves the hold there is strap-driven and not just a reset the bench forgot to release.
-            ------------------------------------------------------------
+            /* ----------------------------------------------------------
+               GROUP-NEG: the disarmed board, strap LOW and PGOOD low forever, so pwr_ctrl's gate is never armed and the chip must boot NORMALLY off the SPI flash.
+               This is the control for G-HOLD: it proves the hold there is strap-driven and not just a reset the bench forgot to release.
+               ---------------------------------------------------------- */
             report "=== GROUP-NEG: NEGATIVE CONTROL (disarmed board) ===" severity note;
             sb.check_bit("GROUP-NEG: PGOOD low (no harvester)", pgood, '0');
 
@@ -965,16 +965,16 @@ begin
         else
             report "=== GROUP-NEG: SKIPPED (NEGCTRL = false) ===" severity note;
 
-            ------------------------------------------------------------
-            -- G-FACTORY: the board programmer (this bench's I2C master) writes the NTAG 5's EH_CONFIG so the fielded board harvests at 3.0 V / 12.5 mA.
-            -- No contention: the chip is held, runs no firmware and never drives P4.
-            --   EH_CONFIG (config block 103Dh byte 0):
-            --     bits 6:4 EH_VOUT_I_SEL = 111b   12.5 mA    contributes 0x70
-            --     bit  3   DISABLE_POWER_CHECK = 0           contributes 0x00
-            --     bits 2:1 EH_VOUT_V_SEL = 10b    3.0 V      contributes 0x04
-            --     bit  0   EH_ENABLE = 1                     contributes 0x01
-            --                                            total 0x75
-            ------------------------------------------------------------
+            /* ----------------------------------------------------------
+               G-FACTORY: the board programmer (this bench's I2C master) writes the NTAG 5's EH_CONFIG so the fielded board harvests at 3.0 V / 12.5 mA.
+               No contention: the chip is held, runs no firmware and never drives P4.
+                 EH_CONFIG (config block 103Dh byte 0):
+                   bits 6:4 EH_VOUT_I_SEL = 111b   12.5 mA    contributes 0x70
+                   bit  3   DISABLE_POWER_CHECK = 0           contributes 0x00
+                   bits 2:1 EH_VOUT_V_SEL = 10b    3.0 V      contributes 0x04
+                   bit  0   EH_ENABLE = 1                     contributes 0x01
+                                                          total 0x75
+               ---------------------------------------------------------- */
             report "=== G-FACTORY: NTAG 5 EH provisioning over I2C ===" severity note;
             i2c_idle(m_sda_oe, m_scl_oe, TQ_I2C);
             wait for 5 us;
@@ -1007,9 +1007,9 @@ begin
                          eh_vout_on, '0');
             sb.check_true("G-FACTORY: no I2C byte was NACKed", obs_nack_count = 0);
 
-            ------------------------------------------------------------
-            -- G-HOLD: field off and strap high, so the boot gate holds
-            ------------------------------------------------------------
+            /* ----------------------------------------------------------
+               G-HOLD: field off and strap high, so the boot gate holds
+               ---------------------------------------------------------- */
             report "=== G-HOLD: field off, PGOOD low, chip held ===" severity note;
             wait for 50 us;
             sb.check_bit("G-HOLD: PGOOD low", pgood, '0');
@@ -1024,9 +1024,9 @@ begin
             sb.check_slv("G-HOLD: P6 outputs idle (GPIO5 AF never selected)",
                          prt6_out(5 downto 3), "000");
 
-            ------------------------------------------------------------
-            -- G-RAMP: the reader arrives
-            ------------------------------------------------------------
+            /* ----------------------------------------------------------
+               G-RAMP: the reader arrives
+               ---------------------------------------------------------- */
             report "=== G-RAMP: field on -> harvest -> supercap charges ===" severity note;
             field_on <= '1';
             wait for 20 us;
@@ -1066,9 +1066,9 @@ begin
             report "G-RAMP: VSTOR = " & integer'image(vstor_mv) & " mV at " &
                    time'image(now) severity note;
 
-            ------------------------------------------------------------
-            -- G-BOOT: PGOOD rises exactly once and the chip cold-boots
-            ------------------------------------------------------------
+            /* ----------------------------------------------------------
+               G-BOOT: PGOOD rises exactly once and the chip cold-boots
+               ---------------------------------------------------------- */
             report "=== G-BOOT: PGOOD -> boot-gate release -> harvested boot ===" severity note;
             wait until pgood = '1' for 3 ms;
             if pgood /= '1' then
@@ -1109,23 +1109,23 @@ begin
 
             wait for 100 us;   -- let the boot finish parking
 
-            ------------------------------------------------------------
-            -- G-SERVE: the reader collects the harvested record.
-            -- Expected payload[2] is the PWRSTS byte the bootrom snapshots at its strap poll:
-            --   bit0 PGOOD_LIVE  = 1  released
-            --   bit1 FIELD_LIVE  = 0  GPIO5 PxAFS is still at reset, so P6.2 is AF0 and nfc0_field_detect is tied low until the harvested branch selects AF1
-            --   bit2 STRAP       = 1  harvested board
-            --   bit3 STRAP_VALID = 1  poll exit condition
-            --   bit4 BOOT_HOLD   = 0  released
-            --   bit5 RLS_LATCHED = 1  sticky since release
-            --   total 0x2D
-            ------------------------------------------------------------
+            /* ----------------------------------------------------------
+               G-SERVE: the reader collects the harvested record.
+               Expected payload[2] is the PWRSTS byte the bootrom snapshots at its strap poll:
+                 bit0 PGOOD_LIVE  = 1  released
+                 bit1 FIELD_LIVE  = 0  GPIO5 PxAFS is still at reset, so P6.2 is AF0 and nfc0_field_detect is tied low until the harvested branch selects AF1
+                 bit2 STRAP       = 1  harvested board
+                 bit3 STRAP_VALID = 1  poll exit condition
+                 bit4 BOOT_HOLD   = 0  released
+                 bit5 RLS_LATCHED = 1  sticky since release
+                 total 0x2D
+               ---------------------------------------------------------- */
             report "=== G-SERVE: reader <-> NFC0 AUTOREAD ===" severity note;
             serve_sequence("G-SERVE", PWRSTS_BOOT1);
 
-            ------------------------------------------------------------
-            -- G-BROWN: the reader leaves
-            ------------------------------------------------------------
+            /* ----------------------------------------------------------
+               G-BROWN: the reader leaves
+               ---------------------------------------------------------- */
             report "=== G-BROWN: field off -> drain -> PGOOD falls ===" severity note;
             field_on <= '0';
             wait for 20 us;
@@ -1159,9 +1159,9 @@ begin
             sb.check_true("G-BROWN: a0 still carries no verdict label",
                           a0 /= PASS_LABEL and a0 /= FAIL_LABEL);
 
-            ------------------------------------------------------------
-            -- G-RECOVER: the reader comes back
-            ------------------------------------------------------------
+            /* ----------------------------------------------------------
+               G-RECOVER: the reader comes back
+               ---------------------------------------------------------- */
             report "=== G-RECOVER: field back -> recharge -> cold re-boot ===" severity note;
             field_on <= '1';
             wait for 20 us;
@@ -1191,19 +1191,19 @@ begin
             sb.check_true("G-RECOVER: a0 still carries no verdict label",
                           a0 /= PASS_LABEL and a0 /= FAIL_LABEL);
 
-            ------------------------------------------------------------
-            -- The payload delta is the re-hold proof: GPIO5 is already in AF1 because the peripherals were never reset, so the strap poll now sees FIELD_LIVE = 1 and PWRSTS reads 0x2F.
-            -- A changed payload is only possible if hart 0 was reset and re-ran the ROM.
-            ------------------------------------------------------------
+            /* ----------------------------------------------------------
+               The payload delta is the re-hold proof: GPIO5 is already in AF1 because the peripherals were never reset, so the strap poll now sees FIELD_LIVE = 1 and PWRSTS reads 0x2F.
+               A changed payload is only possible if hart 0 was reset and re-ran the ROM.
+               ---------------------------------------------------------- */
             serve_sequence("G-RECOVER", PWRSTS_BOOT2);
             sb.check_true("G-RECOVER: PWRSTS byte CHANGED vs the first boot " &
                           "(proves a genuine cold re-boot)",
                           PWRSTS_BOOT2 /= PWRSTS_BOOT1);
         end if;
 
-        ------------------------------------------------------------------
-        -- verdict
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           verdict
+           ---------------------------------------------------------------- */
         wait for 1 us;
         sb.report_summary("BOARD HARVEST TB");
 

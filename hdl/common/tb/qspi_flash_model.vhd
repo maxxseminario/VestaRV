@@ -1,12 +1,12 @@
--------------------------------------------------------------------------------
--- qspi_flash_model.vhd
--------------------------------------------------------------------------------
--- Behavioral SPI/QSPI flash responder for the QSPI peripheral testbench; it decodes no flash opcodes.
--- The TB names the phase shape per launch through the cfg_* inputs, held stable across one CS-framed transaction: lane widths and edge counts for CMD/ADDR/DUMMY/DATA plus the direction, so one model covers every width/AWID/DLEN combination.
--- cs is ACTIVE-LOW and comes straight from the DUT's cs_out, sck straight from sck_out; the matching direction outputs are not consulted.
--- Standard CPOL/CPHA semantics, leading edge being the first SCK transition away from the CPOL idle level: CPHA=0 samples leading and drives trailing, CPHA=1 the other way round, and one DUMMY count is one sample-role edge.
--- This model drives ONLY during the DATA phase of a READ (cfg_dir_read true) and holds io_oe at "0000" in every other phase; capture and its own drive-value advance both happen on the sample-role edge.
--------------------------------------------------------------------------------
+/* -----------------------------------------------------------------------------
+   qspi_flash_model.vhd
+   -----------------------------------------------------------------------------
+   Behavioral SPI/QSPI flash responder for the QSPI peripheral testbench; it decodes no flash opcodes.
+   The TB names the phase shape per launch through the cfg_* inputs, held stable across one CS-framed transaction: lane widths and edge counts for CMD/ADDR/DUMMY/DATA plus the direction, so one model covers every width/AWID/DLEN combination.
+   cs is ACTIVE-LOW and comes straight from the DUT's cs_out, sck straight from sck_out; the matching direction outputs are not consulted.
+   Standard CPOL/CPHA semantics, leading edge being the first SCK transition away from the CPOL idle level: CPHA=0 samples leading and drives trailing, CPHA=1 the other way round, and one DUMMY count is one sample-role edge.
+   This model drives ONLY during the DATA phase of a READ (cfg_dir_read true) and holds io_oe at "0000" in every other phase; capture and its own drive-value advance both happen on the sample-role edge.
+   ----------------------------------------------------------------------------- */
 
 library ieee;
 use ieee.std_logic_1164.all;

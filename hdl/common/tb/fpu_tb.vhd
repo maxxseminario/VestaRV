@@ -1,10 +1,10 @@
--- =============================================================================
--- fpu_tb.vhd: self-checking unit testbench driving fpu.vhd (multi-cycle) and fpu_simple.vhd (combinational) against the single-precision reference vectors from fpu_vec_gen.c.
--- Reads VECFILE (default fpu_vectors.txt) and checks BOTH result and flags on EVERY vector.
--- It also verifies per-op done latency and that fpu_done and the result hold stable until the next start.
--- Failures are bounded and named in a mismatch report, and the per-vector done watchdog means it never hangs.
--- The runner script greps the pass banner "ALL CHECKS PASSED"; compile is -V200X, so no VHDL-2008.
--- =============================================================================
+/* =============================================================================
+   fpu_tb.vhd: self-checking unit testbench driving fpu.vhd (multi-cycle) and fpu_simple.vhd (combinational) against the single-precision reference vectors from fpu_vec_gen.c.
+   Reads VECFILE (default fpu_vectors.txt) and checks BOTH result and flags on EVERY vector.
+   It also verifies per-op done latency and that fpu_done and the result hold stable until the next start.
+   Failures are bounded and named in a mismatch report, and the per-vector done watchdog means it never hangs.
+   The runner script greps the pass banner "ALL CHECKS PASSED"; compile is -V200X, so no VHDL-2008.
+   ============================================================================= */
 library IEEE;
 use IEEE.STD_LOGIC_1164.all;
 use IEEE.NUMERIC_STD.all;

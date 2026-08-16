@@ -1,8 +1,8 @@
--- harvest_supply_model: behavioral bq25570-class energy-harvesting PMIC, with cold-start and boost charger, one storage node, the buck rail, a companion regulator rail and the VBAT_OK flag.
--- Engineering-units lumped-energy model, not an analog simulation: ports are natural mV/uA/uJ, internal state is a real storage voltage stepped by explicit Euler every TICK_PERIOD.
--- The part has exactly ONE buck, programmable only over 1.3 V to VSTOR-0.2 V, so a dual-rail chip needs a companion regulator; both rails hang off the one storage node modelled here.
--- Drive BOTH load_ua (rail A, the buck) and load_aux_ua (rail B, the companion) so the whole chip draw lands on that node; two instances of this model would double-count the storage element.
--- Not modelled: switching node, control loop, MPPT, thermal shutdown, ship mode, input-voltage regulation, and the VSTOR/VBAT pass PFET (the two are one node here).
+/* harvest_supply_model: behavioral bq25570-class energy-harvesting PMIC, with cold-start and boost charger, one storage node, the buck rail, a companion regulator rail and the VBAT_OK flag.
+   Engineering-units lumped-energy model, not an analog simulation: ports are natural mV/uA/uJ, internal state is a real storage voltage stepped by explicit Euler every TICK_PERIOD.
+   The part has exactly ONE buck, programmable only over 1.3 V to VSTOR-0.2 V, so a dual-rail chip needs a companion regulator; both rails hang off the one storage node modelled here.
+   Drive BOTH load_ua (rail A, the buck) and load_aux_ua (rail B, the companion) so the whole chip draw lands on that node; two instances of this model would double-count the storage element.
+   Not modelled: switching node, control loop, MPPT, thermal shutdown, ship mode, input-voltage regulation, and the VSTOR/VBAT pass PFET (the two are one node here). */
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -349,11 +349,11 @@ begin
 end architecture behavioral;
 
 
--- supply_supervisor: turns an analog rail level in millivolts into a clean digital PGOOD, active high; ACTIVE_HIGH false gives the inverted, open-drain-style sense.
--- Models the three knobs that decide whether a SLOW ramp through the threshold gives one edge or a burst of them: hysteresis, de-glitch and input noise.
--- Comparator asserts at V_RISE_MV and deasserts at V_RISE_MV - V_HYST_MV; V_HYST_MV = 0 is a plain CMOS receiver with no Schmitt, the pessimistic case.
--- T_ASSERT / T_DEASSERT are the hold times the raw level must survive before the output follows it, 0 ns disables; VNOISE_MV is a deterministic LFSR dither so edge counts are reproducible.
--- Not modelled: the supervisor's own minimum operating voltage, open-drain outputs and their pull-up RC, and any power-on reset timer.
+/* supply_supervisor: turns an analog rail level in millivolts into a clean digital PGOOD, active high; ACTIVE_HIGH false gives the inverted, open-drain-style sense.
+   Models the three knobs that decide whether a SLOW ramp through the threshold gives one edge or a burst of them: hysteresis, de-glitch and input noise.
+   Comparator asserts at V_RISE_MV and deasserts at V_RISE_MV - V_HYST_MV; V_HYST_MV = 0 is a plain CMOS receiver with no Schmitt, the pessimistic case.
+   T_ASSERT / T_DEASSERT are the hold times the raw level must survive before the output follows it, 0 ns disables; VNOISE_MV is a deterministic LFSR dither so edge counts are reproducible.
+   Not modelled: the supervisor's own minimum operating voltage, open-drain outputs and their pull-up RC, and any power-on reset timer. */
 
 library ieee;
 use ieee.std_logic_1164.all;

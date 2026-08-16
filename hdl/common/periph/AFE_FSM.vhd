@@ -1,9 +1,9 @@
--- =============================================================================
--- AFE_FSM.vhd: dual-slope ADC control for the analog front end.
--- =============================================================================
--- Three entities live here: dual_slope_fsm2 is the conversion FSM, counter_upd is the shared up/down cycle counter it drives, and AFE_FSM is the top level that gates the converter clock and wires the two together.
--- One conversion resets the integrator, integrates for cycle_set clocks, then de-integrates until the comparator trips; the counter value at that moment IS the result.
--- =============================================================================
+/* =============================================================================
+   AFE_FSM.vhd: dual-slope ADC control for the analog front end.
+   =============================================================================
+   Three entities live here: dual_slope_fsm2 is the conversion FSM, counter_upd is the shared up/down cycle counter it drives, and AFE_FSM is the top level that gates the converter clock and wires the two together.
+   One conversion resets the integrator, integrates for cycle_set clocks, then de-integrates until the comparator trips; the counter value at that moment IS the result.
+   ============================================================================= */
 
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;

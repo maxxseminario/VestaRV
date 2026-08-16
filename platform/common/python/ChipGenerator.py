@@ -1934,11 +1934,11 @@ class ChipGenerator():
 		s = ''
 		
 		# Create the preamble
-		s += '-- MemoryMap.vhd: memory map VHDL package\n'
-		s += '-- Defines the MCU memory map: which RAM and peripheral slots are active, which slot each peripheral occupies, and which slot each register occupies inside its peripheral\n'
-		s += '-- Generated on ' + datetime.datetime.now().strftime('%Y/%m/%d at %H:%M:%S') + ' with the MemoryMap.py memory map generator\n'
-		s += '-- WARNING: Do not edit or modify this file!\n'
-		s += '-- \tIf you need to change it, use the MemoryMap.py memory map generator tool\n'
+		s += '/* MemoryMap.vhd: memory map VHDL package\n'
+		s += '   Defines the MCU memory map: which RAM and peripheral slots are active, which slot each peripheral occupies, and which slot each register occupies inside its peripheral\n'
+		s += '   Generated on ' + datetime.datetime.now().strftime('%Y/%m/%d at %H:%M:%S') + ' with the MemoryMap.py memory map generator\n'
+		s += '   WARNING: Do not edit or modify this file!\n'
+		s += '   \tIf you need to change it, use the MemoryMap.py memory map generator tool */\n'
 		
 		s += '\n'
 		
@@ -2028,9 +2028,9 @@ class ChipGenerator():
 				t.AddRow(['constant RegSlot' + rt.NameTemplate, ': natural := ' + self.fmtint(rt.RegisterMemorySlot) + ';', '-- offset = ' + str(rt.RegisterMemorySlot * 4) + ' bytes'], prefixTabs=1)
 			if pt.NameTemplate == 'GPIOx':
 				t.AddBlankLine()
-				t.AddLine('-- Number of alternate-function planes per GPIO pin (AF0..AF' + str(self.GpioNumAfs - 1) + ').', prefixTabs=1)
-				t.AddLine('-- PxSEL picks GPIO vs alternate mode; the pin\'s PxAFS field (one nibble per pin, low 3 bits used) picks WHICH alternate function drives the pad.', prefixTabs=1)
-				t.AddLine('-- AF0 is the legacy single alternate function, so PxAFS=0 reproduces the historic behavior and PxSEL-only software is unaffected.', prefixTabs=1)
+				t.AddLine('/* Number of alternate-function planes per GPIO pin (AF0..AF' + str(self.GpioNumAfs - 1) + ').', prefixTabs=1)
+				t.AddLine('   PxSEL picks GPIO vs alternate mode; the pin\'s PxAFS field (one nibble per pin, low 3 bits used) picks WHICH alternate function drives the pad.', prefixTabs=1)
+				t.AddLine('   AF0 is the legacy single alternate function, so PxAFS=0 reproduces the historic behavior and PxSEL-only software is unaffected. */', prefixTabs=1)
 				t.AddRow(['constant GPIO_NUM_AFS', ': natural := ' + str(self.GpioNumAfs) + ';'], prefixTabs=1)
 			t.AddBlankLine()
 		t.AddBlankLines(2)

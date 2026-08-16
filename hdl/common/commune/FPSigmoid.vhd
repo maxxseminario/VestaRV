@@ -13,9 +13,9 @@ use work.fixed_pkg.all;
 	-- http://dx.doi.org/10.2478/v10248-012-0002-6
 entity FPSigmoid is
 	generic(
-		-- Fixed-point M and N bit counts for the input and output.
-		-- The output is assumed to have 0 M bits, since its range is 0 to 1.
-		-- X_M_BITS must be at least RHO.
+		/* Fixed-point M and N bit counts for the input and output.
+		   The output is assumed to have 0 M bits, since its range is 0 to 1.
+		   X_M_BITS must be at least RHO. */
 		X_M_BITS		: integer := 3;
 		XY_N_BITS		: integer := 15;
 		RHO				: integer := 2

@@ -1,12 +1,12 @@
--------------------------------------------------------------------------------
--- pwm_bfm_pkg.vhd
--------------------------------------------------------------------------------
--- Bench-support helpers for the PWM peripheral testbench (tb/PWM_tb.vhd).
--- The slot numbers and CR/POL/SR field positions are LOCAL to this bench: PWM0 sits at 0x6600 and MemoryMap.vhd carries no PWM0 constants.
--- Provides bus plumbing, register-field packing, bounded SR polls, and pwm_wait_transition, which counts clk edges between observed pwm_out changes.
--- No DUT internal is ever read: period, duty and boundary math is done by the bench from the PER/DTY/PSC values it programmed.
--- Bounded polls end with done_ok, which the caller turns into a scoreboard check, so a poll that never satisfies its condition fails the run instead of hanging.
--------------------------------------------------------------------------------
+/* -----------------------------------------------------------------------------
+   pwm_bfm_pkg.vhd
+   -----------------------------------------------------------------------------
+   Bench-support helpers for the PWM peripheral testbench (tb/PWM_tb.vhd).
+   The slot numbers and CR/POL/SR field positions are LOCAL to this bench: PWM0 sits at 0x6600 and MemoryMap.vhd carries no PWM0 constants.
+   Provides bus plumbing, register-field packing, bounded SR polls, and pwm_wait_transition, which counts clk edges between observed pwm_out changes.
+   No DUT internal is ever read: period, duty and boundary math is done by the bench from the PER/DTY/PSC values it programmed.
+   Bounded polls end with done_ok, which the caller turns into a scoreboard check, so a poll that never satisfies its condition fails the run instead of hanging.
+   ----------------------------------------------------------------------------- */
 
 library ieee;
 use ieee.std_logic_1164.all;

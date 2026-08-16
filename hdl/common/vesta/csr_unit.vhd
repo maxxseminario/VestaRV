@@ -98,9 +98,9 @@ entity csr_unit is
         -- vesta must check the MRET-target FETCH at THIS privilege during MTRAP_RET: checking at the still-current M lets the first instruction after a return into U escape its X-permission.
         mret_priv_m      : out std_logic;
 
-        -- Debug-mode interface, inert when ENABLE_DEBUG is false: vesta owns the FSM and the decision, this file owns the state, and every export below is then a reset constant.
-        --   dbg_entry_we : DBG_SV strobe, ONE action from one strobe: dpc takes dbg_pc under the same IALIGN-WARL mask a software write gets, dcsr.cause takes dbg_cause, dcsr.prv takes the interrupted privilege, debug_mode sets, and with U-mode priv is forced to M.
-        --   dbg_ret_we   : DBG_RET strobe: debug_mode clears and priv is restored from dcsr.prv.
+        /* Debug-mode interface, inert when ENABLE_DEBUG is false: vesta owns the FSM and the decision, this file owns the state, and every export below is then a reset constant.
+             dbg_entry_we : DBG_SV strobe, ONE action from one strobe: dpc takes dbg_pc under the same IALIGN-WARL mask a software write gets, dcsr.cause takes dbg_cause, dcsr.prv takes the interrupted privilege, debug_mode sets, and with U-mode priv is forced to M.
+             dbg_ret_we   : DBG_RET strobe: debug_mode clears and priv is restored from dcsr.prv. */
         dbg_entry_we     : in  std_logic := '0';
         dbg_pc           : in  std_logic_vector(XLEN-1 downto 0) := (others => '0');
         dbg_cause        : in  std_logic_vector(2 downto 0) := (others => '0');
@@ -111,10 +111,10 @@ entity csr_unit is
         dcsr_step        : out std_logic;                     -- dcsr(2)
         dpc_value        : out std_logic_vector(XLEN-1 downto 0); -- DRET jump target (bit0 always '0')
 
-        -- PMP interface, inert when ENABLE_PMP is false: this file owns the pmpcfg0-3 and pmpaddr0-15 STORAGE, WARL and LOCK semantics, while match/priority/permission decode is pmp_unit's and the check point is vesta's.
-        --   entry i cfg byte  = pmp_cfg_flat(8*i+7  downto 8*i)
-        --   entry i pmpaddr   = pmp_addr_flat(30*i+29 downto 30*i)  (= phys 31:2)
-        -- These two flat exports are the ONLY coupling; both are all-zero when ENABLE_PMP is false, and the upper half is all-zero whenever PMP_ENTRIES < 16.
+        /* PMP interface, inert when ENABLE_PMP is false: this file owns the pmpcfg0-3 and pmpaddr0-15 STORAGE, WARL and LOCK semantics, while match/priority/permission decode is pmp_unit's and the check point is vesta's.
+             entry i cfg byte  = pmp_cfg_flat(8*i+7  downto 8*i)
+             entry i pmpaddr   = pmp_addr_flat(30*i+29 downto 30*i)  (= phys 31:2)
+           These two flat exports are the ONLY coupling; both are all-zero when ENABLE_PMP is false, and the upper half is all-zero whenever PMP_ENTRIES < 16. */
         pmp_cfg_flat     : out std_logic_vector(127 downto 0);
         pmp_addr_flat    : out std_logic_vector(479 downto 0);
 
@@ -139,9 +139,9 @@ architecture behave of csr_unit is
         end if;
     end function;
 
-    -- misa: MXL=01 (RV32) in bits 31:30 plus extension letters A(0), B(1), C(2), I(8), M(12), U(20); read-only, writes ignored like the other fixed CSRs.
-    -- M is advertised only when BOTH mul and div are present since the M extension is all-or-nothing, B means Zba+Zbb+Zbs (Zbc rides the same switch but has no letter), U follows ENABLE_UMODE, and S (18) stays clear because S-mode is out of scope.
-    -- The MXL field POSITION is XLEN-relative and its VALUE differs per width (01=RV32, 10=RV64), so bit 30 here is the RV32 encoding and must be revisited for any real RV64 work.
+    /* misa: MXL=01 (RV32) in bits 31:30 plus extension letters A(0), B(1), C(2), I(8), M(12), U(20); read-only, writes ignored like the other fixed CSRs.
+       M is advertised only when BOTH mul and div are present since the M extension is all-or-nothing, B means Zba+Zbb+Zbs (Zbc rides the same switch but has no letter), U follows ENABLE_UMODE, and S (18) stays clear because S-mode is out of scope.
+       The MXL field POSITION is XLEN-relative and its VALUE differs per width (01=RV32, 10=RV64), so bit 30 here is the RV32 encoding and must be revisited for any real RV64 work. */
     constant MISA_VALUE : std_logic_vector(XLEN-1 downto 0) := (
         30 => '1',                                -- MXL = 01 (RV32)
         20 => b2sl(ENABLE_UMODE),                 -- U
@@ -193,9 +193,9 @@ architecture behave of csr_unit is
     signal mtval_r         : std_logic_vector(XLEN-1 downto 0);
     signal mtrapctl_legacy : std_logic;                      -- mtrapctl.LEGACY (0), reset '1'
 
-    -- Debug-mode state, written only under `if ENABLE_DEBUG` or by the two generic-gated debug strobes, so an OFF build holds reset values forever and the exports are compile-time constants.
-    -- debug_mode_r resets '0', which maindec reads as DENIED, the direction an OFF build must have; dcsr.prv resets "11" (M) and stays there without U-mode so a dcsr read still reports M.
-    -- dcsr.cause is READ-ONLY to software (hardware writes it on entry), xdebugver is a constant in the read assembly rather than a flop, and dpc_r is 31 bits with bit 0 hardwired '0' exactly as mepc_r is.
+    /* Debug-mode state, written only under `if ENABLE_DEBUG` or by the two generic-gated debug strobes, so an OFF build holds reset values forever and the exports are compile-time constants.
+       debug_mode_r resets '0', which maindec reads as DENIED, the direction an OFF build must have; dcsr.prv resets "11" (M) and stays there without U-mode so a dcsr read still reports M.
+       dcsr.cause is READ-ONLY to software (hardware writes it on entry), xdebugver is a constant in the read assembly rather than a flop, and dpc_r is 31 bits with bit 0 hardwired '0' exactly as mepc_r is. */
     signal dcsr_ebreakm_r  : std_logic;                      -- dcsr(15)
     signal dcsr_ebreaku_r  : std_logic;                      -- dcsr(12), WARL {0} without U-mode
     signal dcsr_step_r     : std_logic;                      -- dcsr(2)
@@ -217,9 +217,9 @@ architecture behave of csr_unit is
     -- An MRET to a privilege below M CLEARS it, as the spec requires (see the mret_we arm).
     signal mst_mprv        : std_logic;                      -- mstatus.MPRV (17)
 
-    -- PMP CSR bank: sixteen cfg bytes and sixteen 30-bit addresses, ALL reset to zero (spec-required A=OFF, L=0), written ONLY under `if ENABLE_PMP`, so with the generic off the bank stays at reset, both exports read all-zero and the twenty addresses are illegal CSRs anyway.
-    -- With PMP_ENTRIES < 16 the `i < PMP_ENTRIES` guard below is GENERIC-STATIC, so synthesis prunes those flops entirely while their CSR addresses stay legal and read WARL zero.
-    -- The ARRAY is a plain 0-to-15 array, NEVER sized by PMP_ENTRIES: the address map and both flat exports are the 16-entry superset regardless, so indexing stays uniform and no bound can go negative at PMP_ENTRIES=0.
+    /* PMP CSR bank: sixteen cfg bytes and sixteen 30-bit addresses, ALL reset to zero (spec-required A=OFF, L=0), written ONLY under `if ENABLE_PMP`, so with the generic off the bank stays at reset, both exports read all-zero and the twenty addresses are illegal CSRs anyway.
+       With PMP_ENTRIES < 16 the `i < PMP_ENTRIES` guard below is GENERIC-STATIC, so synthesis prunes those flops entirely while their CSR addresses stay legal and read WARL zero.
+       The ARRAY is a plain 0-to-15 array, NEVER sized by PMP_ENTRIES: the address map and both flat exports are the 16-entry superset regardless, so indexing stays uniform and no bound can go negative at PMP_ENTRIES=0. */
     constant PMP_MAX_ENTRIES : integer := 16;
     type pmp_cfg_array_t  is array (0 to PMP_MAX_ENTRIES-1) of std_logic_vector(7 downto 0);
     type pmp_addr_array_t is array (0 to PMP_MAX_ENTRIES-1) of std_logic_vector(29 downto 0);
@@ -247,9 +247,9 @@ architecture behave of csr_unit is
         return cfgv(7) = '1';
     end function;
 
-    -- May pmpaddr(i) be written? TWO lock sources: entry i's OWN L bit (a locked entry's cfg byte AND address are immutable until reset), and entry i+1 locked with A=TOR, whose region starts at pmpaddr[i], making it that region's BASE.
-    -- `own_cfg` and `next_cfg` must be the CURRENT (pre-write) register values: a write that clears L on a locked entry would otherwise unlock itself in the same cycle.
-    -- Entry 15 has no successor, so callers pass all-zeros, which reads as "unlocked, A=OFF" and contributes nothing; entries at or above PMP_ENTRIES read all-zero for the same reason.
+    /* May pmpaddr(i) be written? TWO lock sources: entry i's OWN L bit (a locked entry's cfg byte AND address are immutable until reset), and entry i+1 locked with A=TOR, whose region starts at pmpaddr[i], making it that region's BASE.
+       `own_cfg` and `next_cfg` must be the CURRENT (pre-write) register values: a write that clears L on a locked entry would otherwise unlock itself in the same cycle.
+       Entry 15 has no successor, so callers pass all-zeros, which reads as "unlocked, A=OFF" and contributes nothing; entries at or above PMP_ENTRIES read all-zero for the same reason. */
     function pmp_addr_writable(own_cfg  : std_logic_vector(7 downto 0);
                                next_cfg : std_logic_vector(7 downto 0)) return boolean is
     begin
@@ -384,9 +384,9 @@ begin
             -- With ENABLE_UMODE off mcounteren_r is stuck at "00000", so this arm reads zero.
             when CSR_MCOUNTEREN    => csr_read_val <= x"000000" & "000" & mcounteren_r;
 
-            -- Standard M-mode trap CSRs: read arms are UNCONDITIONAL, since the state is held at reset when ENABLE_TRAPCSR is off and all ten addresses are illegal CSRs there.
-            -- Every reserved or WPRI bit is driven to its spec value here, never left to the `others` arm.
-            -- mstatus: MIE(3), MPIE(7), MPP(12:11), MPRV(17), TW(21), everything else reading 0; mst_tw and mst_mprv are stuck '0' without U-mode.
+            /* Standard M-mode trap CSRs: read arms are UNCONDITIONAL, since the state is held at reset when ENABLE_TRAPCSR is off and all ten addresses are illegal CSRs there.
+               Every reserved or WPRI bit is driven to its spec value here, never left to the `others` arm.
+               mstatus: MIE(3), MPIE(7), MPP(12:11), MPRV(17), TW(21), everything else reading 0; mst_tw and mst_mprv are stuck '0' without U-mode. */
             when CSR_MSTATUS   => csr_read_val <= (21 => mst_tw, 17 => mst_mprv,
                                                   12 => mst_mpp(1), 11 => mst_mpp(0),
                                                    7 => mst_mpie, 3 => mst_mie,
@@ -416,9 +416,9 @@ begin
             -- mtrapctl (custom 0x7C0): bit0 LEGACY, bits 31:1 WARL 0.
             when CSR_MTRAPCTL  => csr_read_val <= x"0000000" & "000" & mtrapctl_legacy;
 
-            -- Debug-Mode CSRs: read arms are UNCONDITIONAL, since the state is held at reset when ENABLE_DEBUG is off and all four addresses are illegal CSRs there.
-            -- Even with the generic ON, maindec's dbg_csr_denied traps every access from outside debug mode, so these arms are reachable only from debug code.
-            -- dcsr = xdebugver(31:28) constant 4 (a literal, not a flop), ebreakm(15), ebreaku(12), cause(8:6), step(2), prv(1:0); stepie, stopcount, stoptime, ebreakvs, ebreakvu, ebreaks, nmip, mprven, pelp and v are read-zero WARL and are driven HERE, never left to `others`.
+            /* Debug-Mode CSRs: read arms are UNCONDITIONAL, since the state is held at reset when ENABLE_DEBUG is off and all four addresses are illegal CSRs there.
+               Even with the generic ON, maindec's dbg_csr_denied traps every access from outside debug mode, so these arms are reachable only from debug code.
+               dcsr = xdebugver(31:28) constant 4 (a literal, not a flop), ebreakm(15), ebreaku(12), cause(8:6), step(2), prv(1:0); stepie, stopcount, stoptime, ebreakvs, ebreakvu, ebreaks, nmip, mprven, pelp and v are read-zero WARL and are driven HERE, never left to `others`. */
             when CSR_DCSR      => csr_read_val <= (30 => '1',
                                                   15 => dcsr_ebreakm_r,
                                                   12 => dcsr_ebreaku_r,
@@ -434,9 +434,9 @@ begin
             when CSR_DSCRATCH0 => csr_read_val <= dscratch0_r;
             when CSR_DSCRATCH1 => csr_read_val <= dscratch1_r;
 
-            -- PMP bank: read arms are UNCONDITIONAL, since the bank is held at reset when ENABLE_PMP is off and all twenty addresses are illegal CSRs there.
-            --   pmpcfg(n)  = the four WARL-masked cfg bytes as stored; bits 6:5 of every byte read zero because the WRITE masks them, so the readback is complete by construction.
-            --   pmpaddr(i) = "00" & the 30 stored bits, so bits 31:30 read 0, and entries at or above PMP_ENTRIES have no storage and read zero.
+            /* PMP bank: read arms are UNCONDITIONAL, since the bank is held at reset when ENABLE_PMP is off and all twenty addresses are illegal CSRs there.
+                 pmpcfg(n)  = the four WARL-masked cfg bytes as stored; bits 6:5 of every byte read zero because the WRITE masks them, so the readback is complete by construction.
+                 pmpaddr(i) = "00" & the 30 stored bits, so bits 31:30 read 0, and entries at or above PMP_ENTRIES have no storage and read zero. */
             when CSR_PMPCFG0   => csr_read_val <= pmp_cfg(3)  & pmp_cfg(2)  & pmp_cfg(1)  & pmp_cfg(0);
             when CSR_PMPCFG1   => csr_read_val <= pmp_cfg(7)  & pmp_cfg(6)  & pmp_cfg(5)  & pmp_cfg(4);
             when CSR_PMPCFG2   => csr_read_val <= pmp_cfg(11) & pmp_cfg(10) & pmp_cfg(9)  & pmp_cfg(8);
@@ -749,9 +749,9 @@ begin
                             dscratch1_r <= csr_new_val;
                         end if;
 
-                    -- PMP bank writes are EXACTLY DECODED, one `when` arm per implemented CSR and NEVER a range or wildcard: a wider arm would be reachable from a TRAPPING encoding, and the upstream csr_valid gate is defence in depth, not licence.
-                    --   Three orthogonal guards on every byte and word: ENABLE_PMP folds the whole bank away, the generic-static `i < PMP_ENTRIES` leaves the upper half without flops reading WARL zero, and the LOCK filter applies PER BYTE inside a pmpcfg word against the CURRENT (pre-write) cfg values.
-                    -- pmp_cfg_warl pins bits 6:5 to 0 and W to 0 when R=0; pmpaddr stores bits 29:0 only (31:30 WARL 0).
+                    /* PMP bank writes are EXACTLY DECODED, one `when` arm per implemented CSR and NEVER a range or wildcard: a wider arm would be reachable from a TRAPPING encoding, and the upstream csr_valid gate is defence in depth, not licence.
+                         Three orthogonal guards on every byte and word: ENABLE_PMP folds the whole bank away, the generic-static `i < PMP_ENTRIES` leaves the upper half without flops reading WARL zero, and the LOCK filter applies PER BYTE inside a pmpcfg word against the CURRENT (pre-write) cfg values.
+                       pmp_cfg_warl pins bits 6:5 to 0 and W to 0 when R=0; pmpaddr stores bits 29:0 only (31:30 WARL 0). */
                     when CSR_PMPCFG0 =>
                         if ENABLE_PMP then
                             if 0 < PMP_ENTRIES and not pmp_locked(pmp_cfg(0)) then
@@ -946,9 +946,9 @@ begin
                 end if;
             end if;
 
-            -- DEBUG ENTRY and DRET SIDE EFFECTS, assigned after the trap block for the same reason it is assigned after the write case: a later assignment wins, so a debug entry takes precedence over a same-cycle CSR write or trap entry, and the whole block prunes when ENABLE_DEBUG is false.
-            -- They cannot in fact coincide, since dbg_entry_we comes only from DBG_SV and dbg_ret_we only from DBG_RET, dedicated FSM states in which no CSR instruction retires and no MTRAP_* state is current, but the ordering is defined anyway so it can never become a silent hazard.
-            -- ENTRY IS ONE ACTION: dpc, cause, prv, the privilege force and debug_mode all move on ONE strobe, never split across two mechanisms.
+            /* DEBUG ENTRY and DRET SIDE EFFECTS, assigned after the trap block for the same reason it is assigned after the write case: a later assignment wins, so a debug entry takes precedence over a same-cycle CSR write or trap entry, and the whole block prunes when ENABLE_DEBUG is false.
+               They cannot in fact coincide, since dbg_entry_we comes only from DBG_SV and dbg_ret_we only from DBG_RET, dedicated FSM states in which no CSR instruction retires and no MTRAP_* state is current, but the ordering is defined anyway so it can never become a silent hazard.
+               ENTRY IS ONE ACTION: dpc, cause, prv, the privilege force and debug_mode all move on ONE strobe, never split across two mechanisms. */
             if ENABLE_DEBUG then
                 if dbg_entry_we = '1' then
                     -- dpc takes the interrupted PC, under the SAME IALIGN-WARL mask a software write gets (bit0 dropped, bit1 only on a C build).
@@ -1029,18 +1029,18 @@ begin
     -- Same expression the MRET pop uses to reload priv_m; without U-mode MPP is pinned to MPP_M, so this reads '1' (M).
     mret_priv_m <= '1' when mst_mpp = MPP_M else '0';
 
-    -- PMP exports, a pure flattening of the bank: STORAGE only, never match or priority policy (pmp_unit's) and never a check point (vesta's).
-    --   entry i cfg byte = pmp_cfg_flat(8*i+7  downto 8*i)
-    --   entry i pmpaddr  = pmp_addr_flat(30*i+29 downto 30*i)   (= phys 31:2)
-    -- All-zero with ENABLE_PMP false, and above PMP_ENTRIES for the same reason, so pmp_unit folds to "grant everything" there and an 8-entry build's upper half folds to A=OFF, which never matches.
+    /* PMP exports, a pure flattening of the bank: STORAGE only, never match or priority policy (pmp_unit's) and never a check point (vesta's).
+         entry i cfg byte = pmp_cfg_flat(8*i+7  downto 8*i)
+         entry i pmpaddr  = pmp_addr_flat(30*i+29 downto 30*i)   (= phys 31:2)
+       All-zero with ENABLE_PMP false, and above PMP_ENTRIES for the same reason, so pmp_unit folds to "grant everything" there and an 8-entry build's upper half folds to A=OFF, which never matches. */
     gen_pmp_flat: for i in 0 to PMP_MAX_ENTRIES-1 generate
         pmp_cfg_flat(8*i+7 downto 8*i)     <= pmp_cfg(i);
         pmp_addr_flat(30*i+29 downto 30*i) <= pmp_addr(i);
     end generate;
 
-    -- LOCKSTEP TRACER EXPORTS (read-only, see the port-list comment).
-    -- csr_addr_stores() lists EXACTLY the addresses whose write-case arm stores, carrying the SAME ENABLE_* gate the arm carries, so KEEP IT IN SYNC WITH THE `case csr_addr` WRITE BLOCK ABOVE.
-    -- Two approximations: the PMP arms also test RUN-TIME conditions (pmp_locked, pmp_addr_writable) that a static address decode cannot see, and csr_commit_val is the value the RMW REQUESTS, which for a WARL-masked CSR is a superset of what is stored.
+    /* LOCKSTEP TRACER EXPORTS (read-only, see the port-list comment).
+       csr_addr_stores() lists EXACTLY the addresses whose write-case arm stores, carrying the SAME ENABLE_* gate the arm carries, so KEEP IT IN SYNC WITH THE `case csr_addr` WRITE BLOCK ABOVE.
+       Two approximations: the PMP arms also test RUN-TIME conditions (pmp_locked, pmp_addr_writable) that a static address decode cannot see, and csr_commit_val is the value the RMW REQUESTS, which for a WARL-masked CSR is a superset of what is stored. */
     gen_trc: if TRACE_ENABLE generate
         csr_commit_we  <= csr_write_en when csr_addr_stores(csr_addr) else '0';
         csr_commit_val <= csr_new_val;

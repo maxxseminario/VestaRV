@@ -1,8 +1,8 @@
--------------------------------------------------------------------------------
--- trng_bfm_pkg.vhd: bench-support helpers for the TRNG peripheral testbench: register-map constants, bus plumbing, bounded SR polls, the reference SEED and TAPS, and a pure single-step Galois LFSR function.
--- Checker independence: TRNG_REF_SEED, TRNG_REF_TAPS and the sel-perturbation formula reproduce TrngRoEnsemble_sim.vhd's deterministic model exactly but are TB-owned copies, never read from the DUT, so any change to that stub must be mirrored here or the contract silently breaks.
--- The cycle-accurate reference replay (2-FF sync, decimator, 32-bit assembler, consume-and-pending mirror) needs live signals, so it lives as a process in TRNG_tb.vhd that reads only the bench's own shadow copies of EN, ROSEL and DECIM, clk, resetn and its record of qualifying TRNG0DR reads, never a DUT internal such as dr_word, word_valid or asm_reg.
--------------------------------------------------------------------------------
+/* -----------------------------------------------------------------------------
+   trng_bfm_pkg.vhd: bench-support helpers for the TRNG peripheral testbench: register-map constants, bus plumbing, bounded SR polls, the reference SEED and TAPS, and a pure single-step Galois LFSR function.
+   Checker independence: TRNG_REF_SEED, TRNG_REF_TAPS and the sel-perturbation formula reproduce TrngRoEnsemble_sim.vhd's deterministic model exactly but are TB-owned copies, never read from the DUT, so any change to that stub must be mirrored here or the contract silently breaks.
+   The cycle-accurate reference replay (2-FF sync, decimator, 32-bit assembler, consume-and-pending mirror) needs live signals, so it lives as a process in TRNG_tb.vhd that reads only the bench's own shadow copies of EN, ROSEL and DECIM, clk, resetn and its record of qualifying TRNG0DR reads, never a DUT internal such as dr_word, word_valid or asm_reg.
+   ----------------------------------------------------------------------------- */
 
 library ieee;
 use ieee.std_logic_1164.all;

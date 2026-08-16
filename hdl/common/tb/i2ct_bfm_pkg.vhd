@@ -1,12 +1,12 @@
--------------------------------------------------------------------------------
--- i2ct_bfm_pkg.vhd
--------------------------------------------------------------------------------
--- Bench-support helpers for the I2C target peripheral testbench (tb/I2CTarget_tb.vhd).
--- Slot numbers, CR/SR field positions and SCL-timing constants are LOCAL to this bench: I2CT0 sits at 0x6A00 and MemoryMap.vhd carries no I2CT0 constants.
--- The host model (i2c_host_model.vhd) scales these tick counts by one clk period to get real SCL windows; no I2CTarget.vhd internal is ever read.
--- The SCL half-period is I2CT_SCL_HALF_TICKS clk cycles, so a full SCL period is 32 clk: above the 24:1 ratio the target guarantees and about 8x its 4-clk edge-to-drive latency per half-period, while keeping wall-clock short.
--- Bounded polls end with done_ok, which the caller turns into a scoreboard check, so a poll that never satisfies its condition fails the run instead of hanging.
--------------------------------------------------------------------------------
+/* -----------------------------------------------------------------------------
+   i2ct_bfm_pkg.vhd
+   -----------------------------------------------------------------------------
+   Bench-support helpers for the I2C target peripheral testbench (tb/I2CTarget_tb.vhd).
+   Slot numbers, CR/SR field positions and SCL-timing constants are LOCAL to this bench: I2CT0 sits at 0x6A00 and MemoryMap.vhd carries no I2CT0 constants.
+   The host model (i2c_host_model.vhd) scales these tick counts by one clk period to get real SCL windows; no I2CTarget.vhd internal is ever read.
+   The SCL half-period is I2CT_SCL_HALF_TICKS clk cycles, so a full SCL period is 32 clk: above the 24:1 ratio the target guarantees and about 8x its 4-clk edge-to-drive latency per half-period, while keeping wall-clock short.
+   Bounded polls end with done_ok, which the caller turns into a scoreboard check, so a poll that never satisfies its condition fails the run instead of hanging.
+   ----------------------------------------------------------------------------- */
 
 library ieee;
 use ieee.std_logic_1164.all;

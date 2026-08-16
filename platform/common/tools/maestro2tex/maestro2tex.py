@@ -1779,7 +1779,7 @@ def emit_preview(cfg, outdir):
             f.write('\\usepackage{%s}\n' % p)
         f.write('\\def\\MaestroRoot{}\n')
         f.write('\\begin{document}\n')
-        f.write('\\section*{%s --- generated characterisation}\n' % texesc(block))
+        f.write('\\section*{%s: generated characterisation}\n' % texesc(block))
         f.write('\\input{%s.tex}\n' % block)
         f.write('\\end{document}\n')
     return path

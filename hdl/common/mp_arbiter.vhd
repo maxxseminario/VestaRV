@@ -1,10 +1,10 @@
--- =============================================================================
--- mp_arbiter.vhd: round-robin serializing arbiter, N masters (harts) onto ONE single-port shared slave.
--- Exactly one master is granted at a time and the grant is held for its whole multi-cycle transaction, so a data cycle can never latch another master's access.
--- Runs on the free-running mclk, never a hart's gated clk_cpu, because a hart gated off by its own stall cannot clock its own release.
--- Slave model: synchronous single port, address and enable at cycle T and read data at T+1; s_en/s_we are active-high here, so invert at an active-low SRAM macro.
--- Handshake per master i: req(i) is held until done(i); we is four active-high byte lanes ("0000" is a read); addr/wdata/we are sampled at grant; done(i) pulses for one cycle with rdata valid, and the hart holds its mem_ready low until it lands.
--- =============================================================================
+/* =============================================================================
+   mp_arbiter.vhd: round-robin serializing arbiter, N masters (harts) onto ONE single-port shared slave.
+   Exactly one master is granted at a time and the grant is held for its whole multi-cycle transaction, so a data cycle can never latch another master's access.
+   Runs on the free-running mclk, never a hart's gated clk_cpu, because a hart gated off by its own stall cannot clock its own release.
+   Slave model: synchronous single port, address and enable at cycle T and read data at T+1; s_en/s_we are active-high here, so invert at an active-low SRAM macro.
+   Handshake per master i: req(i) is held until done(i); we is four active-high byte lanes ("0000" is a read); addr/wdata/we are sampled at grant; done(i) pulses for one cycle with rdata valid, and the hart holds its mem_ready low until it lands.
+   ============================================================================= */
 
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;

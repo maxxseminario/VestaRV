@@ -1,8 +1,8 @@
--- dbg_tap_tb.vhd: JTAG TAP bench, shifting IR/DR on the TAP pins and grading the answers.
--- It names the five JTAG and the eight raw dmi_* formals of entity MCU, so a missing or renamed port is an elaboration error, not a runtime timeout.
--- Phase 1 drives the TAP with the chip held in system reset: the TAP is not in the resetn domain, which is what makes halt-on-reset reachable.
--- Run: tools/cosim/gate/mp_test/run_dbg_tap.sh [<rcf-basename>]; NHARTS_G=18 selects the 18-hart shape.
--- PASS iff the log prints "ALL CHECKS PASSED" and contains no "CHECK FAILED"; a failed check is a warning so the run continues.
+/* dbg_tap_tb.vhd: JTAG TAP bench, shifting IR/DR on the TAP pins and grading the answers.
+   It names the five JTAG and the eight raw dmi_* formals of entity MCU, so a missing or renamed port is an elaboration error, not a runtime timeout.
+   Phase 1 drives the TAP with the chip held in system reset: the TAP is not in the resetn domain, which is what makes halt-on-reset reachable.
+   Run: tools/cosim/gate/mp_test/run_dbg_tap.sh [<rcf-basename>]; NHARTS_G=18 selects the 18-hart shape.
+   PASS iff the log prints "ALL CHECKS PASSED" and contains no "CHECK FAILED"; a failed check is a warning so the run continues. */
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.STD_LOGIC_ARITH.ALL;

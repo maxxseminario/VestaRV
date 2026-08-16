@@ -1,11 +1,11 @@
--------------------------------------------------------------------------------
--- periph_tb_pkg.vhd
--------------------------------------------------------------------------------
--- Shared support for the peripheral testbenches: img / crc16_byte formatting and reference models, a self-checking scoreboard, and the peripheral register-bus record with its BFM.
--- The bus is narrow and active-low: b.en_mem selects, b.wen writes, b.addr_periph is the word-slot index, and read_data is observed directly off the DUT.
--- Each bench keeps its own gated memory-bus clock, since it depends on that bench's reference clock: clk_mem gets clk while b.en_mem is '0', else '0'.
--- Sharp edges of this bus: the gated clk_mem, SR reads that snapshot on select, and clear pulses that stick until the next access.
--------------------------------------------------------------------------------
+/* -----------------------------------------------------------------------------
+   periph_tb_pkg.vhd
+   -----------------------------------------------------------------------------
+   Shared support for the peripheral testbenches: img / crc16_byte formatting and reference models, a self-checking scoreboard, and the peripheral register-bus record with its BFM.
+   The bus is narrow and active-low: b.en_mem selects, b.wen writes, b.addr_periph is the word-slot index, and read_data is observed directly off the DUT.
+   Each bench keeps its own gated memory-bus clock, since it depends on that bench's reference clock: clk_mem gets clk while b.en_mem is '0', else '0'.
+   Sharp edges of this bus: the gated clk_mem, SR reads that snapshot on select, and clear pulses that stick until the next access.
+   ----------------------------------------------------------------------------- */
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -13,9 +13,9 @@ use ieee.numeric_std.all;
 
 package periph_tb_pkg is
 
-    -- ---- formatting / reference models -----------------------------------
-    -- Decimal image of an SLV, or "X" if it holds metavalues.
-    -- Keep doctor and expect words below 0x80000000: a bit-31-set value overflows the integer conversion and aborts the run.
+    /* ---- formatting / reference models -----------------------------------
+       Decimal image of an SLV, or "X" if it holds metavalues.
+       Keep doctor and expect words below 0x80000000: a bit-31-set value overflows the integer conversion and aborts the run. */
     function img(v : std_logic_vector) return string;
 
     -- One byte through the CRC16 engine in commune/CRC16.vhd: MSB-first, no reflection, no final xor.
@@ -25,9 +25,9 @@ package periph_tb_pkg is
                         poly    : std_logic_vector(15 downto 0) := x"C857")
         return std_logic_vector;
 
-    -- ---- self-checking scoreboard ----------------------------------------
-    -- Encapsulates the running error count; failures report at severity WARNING so the whole suite still runs, and the tally drives one PASS/FAIL banner at the end.
-    -- Declare one per bench: `shared variable sb : scoreboard;`.
+    /* ---- self-checking scoreboard ----------------------------------------
+       Encapsulates the running error count; failures report at severity WARNING so the whole suite still runs, and the tally drives one PASS/FAIL banner at the end.
+       Declare one per bench: `shared variable sb : scoreboard;`. */
     type scoreboard is protected
         procedure check_bit (tag : in string; got : in std_logic;        exp : in std_logic);
         procedure check_slv (tag : in string; got : in std_logic_vector; exp : in std_logic_vector);
@@ -36,9 +36,9 @@ package periph_tb_pkg is
         procedure report_summary(name : in string);
     end protected scoreboard;
 
-    -- ---- peripheral register-bus BFM -------------------------------------
-    -- TB-driven side of the bus: all strobes active-low, addr_periph is the word-slot index, bits 7 downto 2.
-    -- read_data is observed separately because the DUT drives it.
+    /* ---- peripheral register-bus BFM -------------------------------------
+       TB-driven side of the bus: all strobes active-low, addr_periph is the word-slot index, bits 7 downto 2.
+       read_data is observed separately because the DUT drives it. */
     type periph_bus_t is record
         en_mem      : std_logic;
         wen         : std_logic_vector(3 downto 0);

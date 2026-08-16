@@ -1,21 +1,21 @@
--- =============================================================================
--- mp_arbiter_tb.vhd : self-checking testbench for mp_arbiter
--- =============================================================================
--- Four master BFMs hammer one shared single-port RAM concurrently, each writing and reading back a known pattern over its own disjoint address range.
--- Checks mutual exclusion (at most one gnt per clock), data integrity, liveness under round-robin (watchdog on any starvation), grant-locking (lock-held read-modify-write pairs on a COMMON counter, whose final value must be exactly N*N_RMW), and the slave-side `s_stall` handshake.
--- Stall properties: S0 every unstalled transaction takes exactly BASE_LAT, S1 a stall of SP_LEN cycles delays done by SP_LEN with correct rdata, S2 no other master completes during a stall, S3 a 1-cycle stall released mid-transaction still completes.
--- BFMs hold req THROUGH the done cycle and drop it one clock later like a hart tile's sh_acked flop, so wait-for-release masking of a stale req is exercised on every transaction.
--- PASS banner: "ALL CHECKS PASSED" (grepped by the runner).
--- =============================================================================
+/* =============================================================================
+   mp_arbiter_tb.vhd : self-checking testbench for mp_arbiter
+   =============================================================================
+   Four master BFMs hammer one shared single-port RAM concurrently, each writing and reading back a known pattern over its own disjoint address range.
+   Checks mutual exclusion (at most one gnt per clock), data integrity, liveness under round-robin (watchdog on any starvation), grant-locking (lock-held read-modify-write pairs on a COMMON counter, whose final value must be exactly N*N_RMW), and the slave-side `s_stall` handshake.
+   Stall properties: S0 every unstalled transaction takes exactly BASE_LAT, S1 a stall of SP_LEN cycles delays done by SP_LEN with correct rdata, S2 no other master completes during a stall, S3 a 1-cycle stall released mid-transaction still completes.
+   BFMs hold req THROUGH the done cycle and drop it one clock later like a hart tile's sh_acked flop, so wait-for-release masking of a stale req is exercised on every transaction.
+   PASS banner: "ALL CHECKS PASSED" (grepped by the runner).
+   ============================================================================= */
 
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.STD_LOGIC_ARITH.ALL;
 use IEEE.STD_LOGIC_UNSIGNED.ALL;
 
--- ---------------------------------------------------------------------------
--- Master BFM: drives one master port of the arbiter through a write pass then a read-back pass, flagging any mismatch on `err`.
--- ---------------------------------------------------------------------------
+/* ---------------------------------------------------------------------------
+   Master BFM: drives one master port of the arbiter through a write pass then a read-back pass, flagging any mismatch on `err`.
+   --------------------------------------------------------------------------- */
 entity mp_master is
     generic (
         INDEX : natural := 0;
@@ -140,10 +140,10 @@ begin
             wait until rising_edge(clk);
         end loop;
 
-        -- ---------------------------------------------------------------
-        -- STALL PASS: two synchronised rounds; in each, all four masters read their own word 0 at once and the top stalls whichever transaction the arbiter picks first.
-        -- The data check reuses the `expected` word from the byte-lane pass, so a stalled transaction completing with a fabricated word fails here.
-        -- ---------------------------------------------------------------
+        /* ---------------------------------------------------------------
+           STALL PASS: two synchronised rounds; in each, all four masters read their own word 0 at once and the top stalls whichever transaction the arbiter picks first.
+           The data check reuses the `expected` word from the byte-lane pass, so a stalled transaction completing with a fabricated word fails here.
+           --------------------------------------------------------------- */
         ready <= '1';
         for p in 1 to 2 loop
             -- Poll, never `wait until sp_phase = p`: a master arriving after the phase has stepped would wait forever for an event that is already gone.
@@ -170,9 +170,9 @@ begin
 end architecture;
 
 
--- ---------------------------------------------------------------------------
--- Testbench top
--- ---------------------------------------------------------------------------
+/* ---------------------------------------------------------------------------
+   Testbench top
+   --------------------------------------------------------------------------- */
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.STD_LOGIC_ARITH.ALL;
@@ -222,9 +222,9 @@ architecture sim of mp_arbiter_tb is
     signal mutex_err : std_logic := '0';
     signal cs_err    : std_logic := '0';   -- foreign txn inside a locked RMW pair
 
-    -- =========================================================================
-    -- the s_stall apparatus
-    -- =========================================================================
+    /* =========================================================================
+       the s_stall apparatus
+       ========================================================================= */
     signal s_stall   : std_logic;
     signal sp_arm    : std_logic := '0';   -- stall the NEXT transaction
     signal sp_launch : std_logic;          -- combinational, with the s_en strobe
@@ -318,10 +318,10 @@ begin
             s_wdata => s_wdata, s_rdata => s_rdata
         );
 
-    -- -------------------------------------------------------------------------
-    -- THE STALL GENERATOR, same shape as the real aperture sequencer: s_stall is `launch or busy`, combinational on the enable strobe.
-    -- It MUST be combinational: the arbiter samples s_stall at the edge that would otherwise take it from LATCH to DATA, so a purely registered stall arrives one cycle too late and is a silent no-op.
-    -- -------------------------------------------------------------------------
+    /* -------------------------------------------------------------------------
+       THE STALL GENERATOR, same shape as the real aperture sequencer: s_stall is `launch or busy`, combinational on the enable strobe.
+       It MUST be combinational: the arbiter samples s_stall at the edge that would otherwise take it from LATCH to DATA, so a purely registered stall arrives one cycle too late and is a silent no-op.
+       ------------------------------------------------------------------------- */
     sp_launch <= s_en and sp_arm;
     sp_busy   <= '1' when sp_cnt /= 0 else '0';
     s_stall   <= sp_launch or sp_busy;
@@ -353,10 +353,10 @@ begin
         end if;
     end process;
 
-    -- -------------------------------------------------------------------------
-    -- THE LATENCY MONITOR: times every arbiter transaction from the edge s_en is observed to the edge done is observed, counting how many of those edges had s_stall up.
-    -- Invariants: an unstalled transaction always takes BASE_LAT, a stalled one takes BASE_LAT plus the cycles stalled, and no master may complete while s_stall is up.
-    -- -------------------------------------------------------------------------
+    /* -------------------------------------------------------------------------
+       THE LATENCY MONITOR: times every arbiter transaction from the edge s_en is observed to the edge done is observed, counting how many of those edges had s_stall up.
+       Invariants: an unstalled transaction always takes BASE_LAT, a stalled one takes BASE_LAT plus the cycles stalled, and no master may complete while s_stall is up.
+       ------------------------------------------------------------------------- */
     lat_mon: process(clk)
         variable active : boolean := false;
         variable n      : integer := 0;
@@ -465,9 +465,9 @@ begin
     begin
         wait until resetn = '1';
 
-        -- =====================================================================
-        -- STALL PASS, run BEFORE the finish watchdog: the masters park on `ready` and only set `finished` once both stall rounds are through them.
-        -- =====================================================================
+        /* =====================================================================
+           STALL PASS, run BEFORE the finish watchdog: the masters park on `ready` and only set `finished` once both stall rounds are through them.
+           ===================================================================== */
         for t in 0 to 5000 loop
             wait until rising_edge(clk);
             exit when m_ready = (m_ready'range => '1');
