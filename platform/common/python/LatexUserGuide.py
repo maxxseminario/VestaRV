@@ -1,4 +1,4 @@
-import datetime, os, pathlib, re
+import datetime, math, os, pathlib, re
 from shutil import copyfile, rmtree
 
 def copytree(src, dst, dirs_exist_ok=True):
@@ -2785,9 +2785,11 @@ class LatexUserGuide():
 		   THE SITE IS A HAT ON ITS HART. Each analog site is its own box,
 		   sitting directly on the box of the hart that owns it and exactly as
 		   wide, with air between channels: the pair reads as one channel. What
-		   makes a site its hart's is the gate printed inside it, so the thin
-		   \\emph{owns} arrow is short and captioned and cannot be read as a bus
-		   wire. The sites are arbiter slaves, and the ONE bus drop they take is
+		   makes a site its hart's is the gate printed inside it, so the arrow
+		   between the two is thin, short and unlabelled — the caption says
+		   \\emph{owns} once, where five printings of it were five labels in the
+		   one strip this row keeps clear. The sites are arbiter slaves, and the
+		   ONE bus drop they take is
 		   drawn as the same grey bar the arbiter is: a strip running the length
 		   of the row BEHIND the boxes it serves, visible only where it crosses
 		   the air between them. Hart 0's privilege is one comparison against
@@ -2796,6 +2798,27 @@ class LatexUserGuide():
 		   the old banner band used to take, and drawn with a real gap wherever
 		   a column's ownership arrow passes through it so that no crossing can
 		   be read as a junction.
+
+		   THE ENGINE PICKS ONE CHANNEL: A MUX. The chapter's own account of this
+		   subsystem (Section \\ref{s:cqanalog}) is four measurement sites, each
+		   with its own electrode group, plus one shared EIS sweep engine "$+$
+		   analog multiplexer" — so the engine measures through ONE channel's
+		   electrodes at a time, and the thing that chooses is a multiplexer. It
+		   is drawn as the classic trapezoid, dashed like every other analog
+		   stage in this manual because that IP is not integrated: four inputs on
+		   the long edge, one output on the short one into the site that carries
+		   the engine's registers, in air reserved for it between hart 0's column
+		   and the first channel's. The four inputs cannot be run across the row
+		   in the open — one of them would have to cross three sites' electrode
+		   rails — so they take the row's OWN idiom, the one the grey bus strip
+		   already uses: each lane runs BEHIND the site boxes at its own height
+		   and is seen only in the air between them, leaving its own channel at a
+		   marked point on that channel's edge. Every gap therefore shows exactly
+		   the lanes still travelling through it, four beside the mux and one
+		   beside the last channel, and the fan-in is a property of the drawing.
+		   It is deliberately unlike hart 0's heavy rail two strips below: that
+		   rail is DIGITAL register access arbitrated through the bar, this is
+		   the ANALOG path to the electrodes.
 
 		   ELECTRODES, DRAWN. Each site brings out its own WE/RE/CE triple
 		   straight up out of its own box, on unbroken vertical wires that cross
@@ -2808,10 +2831,23 @@ class LatexUserGuide():
 		   edge off-centre where the partner had to be nudged aside, because a
 		   jogged wire in a clear lane buys nothing and reads as a detour.
 
+		   COUNT, TWICE. A block instantiated N times says $\\times N$ in its
+		   title AND wears N offset squares: the numeral is the count exactly,
+		   the squares are the count at a glance, and the two are read by
+		   different passes over the page. The one thing squares cannot do is sit
+		   behind a GLUED compartment — a single stack behind a box whose
+		   compartments have different instance counts is a lie with no way to
+		   qualify it — so a multi-instance block is never glued, and the case
+		   that proves it (config/penta\\_wound.json's five serial blocks, at 1,
+		   2, 3 and 4 instances) is a build error rather than a drawing.
+
 		   IT DEGRADES INSTEAD OF LYING. The electrode/site row is drawn only
 		   where the configuration is the shape it asserts (the shared
 		   _ChipSystemAnalogRow test: an orchestrator, one site per channel
-		   hart, a column for every owner, and bonded pads). Anything else gets
+		   hart, a column for every owner, and bonded pads); the multiplexer
+		   additionally needs a hart-0 site that brings out no electrodes of its
+		   own and channel sites that all do, or there is nothing to multiplex.
+		   Anything else gets
 		   a uniform hart band — still split core/TCM — and the analog block, if
 		   any, back on the rank as an ordinary peripheral. The figure is
 		   therefore emitted and \\input UNGATED in both polarities, and every
@@ -2828,17 +2864,29 @@ class LatexUserGuide():
 		def P(v):
 			return '%.2f' % v
 
-		# THE STACKED-SHADOW EXPERIMENT. A block instantiated N times used to be
-		# drawn as N offset squares with an $\times N$ badge beside them. On a
-		# single rank that idiom costs twice: the offset squares need clear space
-		# up and to the right of a box that now has a neighbour there, and the
-		# badge needs 0.44 cm of height above the rank for a numeral that the
-		# title can carry in three characters. RENDERED BOTH WAYS at 150 dpi:
-		# the shadows read as a drawing artefact at this scale (the figure is
-		# resized to the text width, so a 0.15 cm offset lands at ~0.4 mm on the
-		# page and looks like a printing slur), and the badge collides with the
-		# rank above it. The count moves into the title.
-		SHADOWS = False
+		# THE STACKED-SHADOW EXPERIMENT, SECOND CUT. A block instantiated N times
+		# is drawn as N offset squares AND says $\times N$ in its title: the
+		# squares are the quantity at a glance, the numeral is the quantity
+		# exactly, and neither is the other's spare. The first cut of this figure
+		# dropped the squares because at stackStep 0.15 cm they read as a printing
+		# slur and because the separate $\times N$ BADGE node collided with the
+		# bar above the rank. Both faults were the badge's and the step's, not the
+		# idiom's: the count now lives in the title (so `badge' emits nothing) and
+		# the step is 0.22 cm, which is 1.8 mm on the page at this figure's own
+		# scale. The one thing squares cannot do is sit behind a GLUED
+		# compartment, so a multi-instance block is never glued (see `specs').
+		SHADOWS = True
+		# Whether the serial blocks are GLUED into one compartmented box or stand
+		# as one slim box each. RENDERED BOTH WAYS (see the report): glued costs
+		# 1.1 cm less width but cannot carry a stack, and a single stack behind a
+		# box whose three compartments have three different instance counts is a
+		# lie the drawing has no way to qualify. Split.
+		SERIAL_SPLIT = True
+		# Tiny TikZ glyphs in the top-left corner of the blocks whose subject has
+		# an unambiguous one. Every one is drawn from paths in this file (no new
+		# package, no font): the preamble loads tikz + arrows.meta + calc +
+		# shapes.geometric and nothing else this figure may lean on.
+		ICONS = True
 
 		# ---- type metrics, in cm. Every height is a LINE COUNT times a
 		# baseline, never a guess: a TikZ node whose contents outgrow its box
@@ -2846,7 +2894,10 @@ class LatexUserGuide():
 		hTitle, hLine, pad = 0.44, 0.37, 0.13
 		xEdge, gapM = 0.30, 0.42
 		gapRank, gapExt = 0.45, 0.18
-		stackStep, maxShadow = 0.15, 3
+		# The offset squares: 0.12 cm across, 0.20 cm up. The x step is the SMALL
+		# one on purpose -- horizontally a stack eats the gap to the next block on a
+		# justified rank, vertically it eats the 0.52 cm riser, which is dead space.
+		stackDx, stackDy, maxShadow = 0.12, 0.20, 3
 		barH, riser = 1.02, 0.52
 		hCmp = 0.24                    # the core|TCM compartment strip, plus its lines
 		xReach = 0.42                  # hart 0's reach, up the left margin
@@ -2923,6 +2974,32 @@ class LatexUserGuide():
 				raise Exception('ChipSystemFlatDiagram: the drawn electrode set ' + str(drawn)
 					+ ' is not this configuration\'s ' + str(expect))
 
+		# ---- THE ANALOG MULTIPLEXER, and the one shape of chip that has one ---
+		# The CQ analog chapter's own words (Section \ref{s:cqanalog}): four
+		# per-quadrant measurement SITES, each driving its own electrode group,
+		# plus ONE shared EIS sweep engine "+ analog multiplexer" that is not yet
+		# integrated. So the engine measures through one channel's electrodes at a
+		# time, and what selects the channel is a mux -- which this figure can
+		# draw only where the row it sits in has exactly that shape: an analog row
+		# at all, a hart-0 site that brings out NO electrodes of its own (it is
+		# the engine, not a channel), and every OTHER site bringing out a full
+		# electrode group (they are the channels it selects between). Anything
+		# else and there is nothing to multiplex, so nothing is drawn -- the same
+		# degrade the sites themselves take.
+		cols = sorted(siteOf)
+		muxIn = [h for h in cols if h != 0] if afeRow is not None else []
+		mux = bool(afeRow is not None and 0 in siteOf and muxIn
+			and set(padOf) == set(muxIn))
+		if mux and len(muxIn) != len(padOf):
+			raise Exception('ChipSystemFlatDiagram: the analog multiplexer would be drawn with '
+				+ str(len(muxIn)) + ' channel inputs for ' + str(len(padOf))
+				+ ' electrode-bearing sites.')
+		if mux and masters[0] is not columns[0]:
+			raise Exception('ChipSystemFlatDiagram: the multiplexer is drawn in the air between '
+				'the engine\'s column and the first channel\'s, which is only that air if the '
+				'engine\'s hart heads the master band; here it is master '
+				+ str(masters.index(columns[0])) + '.')
+
 		# ---- the hart box, split into the two things a tile IS ---------------
 		# The TCM stops being a note under the hart's name and becomes the
 		# compartment beside its core, which is what the RTL builds (hart_tile =
@@ -2981,8 +3058,17 @@ class LatexUserGuide():
 		# SPI/UART/I2C told the reader nothing the three names do not, and the
 		# banner cost 0.70 cm of height on every configuration.
 		serialKeys, clockKeys = ('spi', 'uart', 'i2c', 'nfc', 'ow'), ('system', 'power')
-		specs = [('mem',), ('timer',), ('sync',), ('npu',), ('engine',), ('io',),
-			serialKeys, clockKeys]
+		# ...EXCEPT that a glued compartment cannot carry a stack of offset
+		# squares, and the serial blocks are exactly the ones this chip
+		# instantiates twice. RENDERED BOTH WAYS at 150 dpi (the report carries
+		# both): glued is 1.1 cm narrower and its three names sit closer together,
+		# but the only stack it can take is ONE behind the whole group, which
+		# either says nothing (the group is not instantiated N times) or says the
+		# wrong number the moment two compartments differ. Split wins on the
+		# honesty, and the width it costs is width this rank has.
+		serialSpec = [(k,) for k in serialKeys] if SERIAL_SPLIT else [serialKeys]
+		specs = [('mem',), ('timer',), ('sync',), ('npu',), ('engine',), ('io',)]
+		specs += serialSpec + [clockKeys]
 		specs += [(k,) for k in order if not any(k in sp for sp in specs)]
 		groups = []
 		for sp in specs:
@@ -3020,37 +3106,79 @@ class LatexUserGuide():
 		# ---- widths -----------------------------------------------------------
 		# WHICH SUBTITLES THE ONE RANK CAN PAY FOR. Its width is what sets the
 		# type size of the WHOLE drawing, so a line that says what the name above
-		# it already says is not free, it is 4% off every letter. Three rules,
-		# and each names its own reason:
+		# it already says is not free, it is 4% off every letter. Two rules, and
+		# each names its own reason:
 		#   * a glued box of four or more compartments keeps its NAMES and drops
 		#     its subtitle lines (MEASURED on config/penta_wound.json, whose
 		#     serial group is five blocks wide: with a subtitle each it is 12 cm
 		#     of a rank that now has to hold every peripheral on the chip);
 		#   * the serial blocks drop them at any size -- "asynchronous serial"
 		#     under UART is a line the audience of a technical reference manual
-		#     can afford to lose, and the count and the name are not;
-		#   * so do `timer' and `npu', for the same reason and no other:
-		#     "capture / compare" under a box labelled timers, and "inference
-		#     engine" under one labelled NPU, are 1.8 cm of rank between them.
-		# Everything else keeps its line, because everything else is a DERIVED
+		#     can afford to lose, and the count and the name are not.
+		# `timer' and `npu' used to be muted with them, on the arithmetic that
+		# "capture / compare" and "inference engine" were 1.8 cm of rank between
+		# them. They are back: those two lines say what the block DOES, which a
+		# timer called `timers' and an accelerator called `NPU' do not, and 1.8 cm
+		# is 5% of a rank that the split serial boxes have already widened.
+		# Everything else keeps its line too, because everything else is a DERIVED
 		# fact (sizes, bank counts, port counts, instance names) that the reader
 		# cannot get from the title.
-		mute = serialKeys + ('timer', 'npu')
+		mute = serialKeys
 		for g in groups:
 			if len(g['members']) >= 4 or all(c['key'] in mute for c in g['members']):
 				for c in g['members']:
 					c['sub'] = ''
 
 		def titleOf(c, solo):
-			if c['stack'] < 2 or (SHADOWS and solo):
+			# The numeral rides in the title AND the box wears its stack of
+			# squares: one is read at a glance, the other is read exactly.
+			if c['stack'] < 2:
 				return c['title']
 			return c['title'] + ' $\\times$' + str(c['stack'])
+
+		# ---- the corner glyphs -------------------------------------------------
+		# ONE PICTOGRAM PER BLOCK WHOSE SUBJECT HAS AN UNAMBIGUOUS ONE, and no
+		# others. A glyph that has to be decoded is worse than no glyph: it is a
+		# second thing in the corner of a box whose whole job is a name and a
+		# line. The serial blocks deliberately have none (three near-identical
+		# plugs would be decoration), and so do the engines, whose subject is
+		# `whatever this configuration instantiated'.
+		ICON_OF = {'timer': 'stopwatch', 'npu': 'brain', 'sync': 'lock',
+			'system': 'crystal', 'power': 'power', 'mem': 'chip'}
+		iconW = 0.40
+
+		def iconOf(c):
+			'''...and NEVER the same glyph twice inside one box. The memory box is two
+			   compartments that are both memories, and two identical chips 2 cm apart
+			   in one frame read as a pattern, not as two facts. The second one is
+			   dropped, which also gives that compartment its 0.4 cm of width back.'''
+			if not ICONS:
+				return None
+			k = ICON_OF.get(c['key'])
+			if k is None:
+				return None
+			for g in groups:
+				if c in g['members']:
+					seen = [x for x in g['members'] if ICON_OF.get(x['key']) == k]
+					return k if seen and seen[0] is c else None
+			return k
 
 		def measure():
 			for g in groups:
 				solo = len(g['members']) == 1
 				for c in g['members']:
-					c['w'] = c['wBase'] = max(c['w'], wOf(titleOf(c, solo), c['sub'],
+					# WHAT A GLYPH ACTUALLY COSTS. It sits in the top-left corner, on
+					# the TITLE's line, so the only text it can collide with is the
+					# title -- and the title is centred, so the box has to be wide
+					# enough to hold it with a glyph's cell clear at BOTH ends. Where
+					# the subtitle is the wider line (it usually is: `capture /
+					# compare' under `timers') that width is already there and the
+					# glyph is free. MEASURED on the default configuration: charging
+					# every iconed box a flat cell cost 2.40 cm of rank, this rule
+					# costs 1.42 -- and the difference is 3% off every letter.
+					need = ((TWs(titleOf(c, solo), tBold) + 2.0 * iconW + 0.20)
+						if iconOf(c) else 0.0)
+					c['w'] = c['wBase'] = max(c['w'], need, wOf(titleOf(c, solo), c['sub'],
 						minw=(1.70 if not c['sub'] else 1.95)))
 				g['w'] = sum(c['w'] for c in g['members'])
 		measure()
@@ -3078,10 +3206,17 @@ class LatexUserGuide():
 		# comes down the right one.
 		xLane = 0.78 if afeRow is not None else 0.0
 		xBandL = xEdge + xLane
+		# ONE gap in the master band is wider than the others: the air between
+		# hart 0's column and the first channel's is where the multiplexer sits,
+		# between the engine it feeds and the channels it selects between. It is
+		# reserved HERE, in the width solve, because the band is justified across
+		# a width the rank fixes -- reserving it later would take it out of a
+		# column instead of out of the slack.
+		xMuxGap = 1.75 if mux else 0.0
 
 		def widthNeeded():
-			return max([sum(m['min'] for m in masters) + gapM * (len(masters) - 1) + xBandL
-					+ xEdge + xLane,
+			return max([sum(m['min'] for m in masters) + gapM * (len(masters) - 1) + xMuxGap
+					+ xBandL + xEdge + xLane,
 				sum(g['w'] for g in groups) + gapRank * (len(groups) - 1) + 2 * xEdge,
 				sum(c['ext']['dw'] for c in exts) + gapExt * (len(exts) - 1) + 2 * xEdge])
 
@@ -3203,7 +3338,13 @@ class LatexUserGuide():
 			for c in g['members'])) + pad
 		hExt = max([pad + hTitle * c['ext']['tl'] + hLine * L(c['ext'].get('sub')) + pad
 			for c in exts] or [0.90])
-		hSite = pad + hLine * 2 + pad
+		# The site row is two lines tall, plus -- where the analog multiplexer is
+		# drawn -- the depth its channel lanes need BEHIND the site boxes. The
+		# lanes are occluded by every box they pass, so the row's height is the
+		# only place that depth can come from.
+		laneStep = 0.20
+		hLanes = laneStep * (len(muxIn) + 1) if mux else 0.0
+		hSite = pad + hLine * 2 + pad + (0.58 if mux else 0.0)
 		# The electrode cells carry the only pad names in the drawing and they
 		# are what a board engineer opens this figure for, so they are drawn at
 		# the body type size, not the tiny one, in a box with room around them.
@@ -3212,9 +3353,16 @@ class LatexUserGuide():
 		y = 0.0
 		yCellT, yCellB = y, y - hCell
 		yRedT = (yCellB - 0.55) if afeRow is not None else 0.0
-		ySiteT = yRedT - 0.30
+		ySiteT = yRedT - (0.56 if mux else 0.30)
 		ySiteB = ySiteT - hSite
-		yBandT = (ySiteB - 0.76) if afeRow is not None else (yRedT - 0.34)
+		# Where there is no analog row the master band sits straight under the red
+		# boundary, and a STACKED master's squares climb out of the top of it: the
+		# clearance is the stack's own height, not a constant measured before the
+		# squares came back.
+		mShadow = (stackDy * (maxShadow - 1) + 0.14) if (SHADOWS
+			and any(m['stack'] > 1 for m in masters)) else 0.0
+		yBandT = ((ySiteB - 0.76) if afeRow is not None
+			else (yRedT - max(0.34, mShadow)))
 		yBandB = yBandT - hMaster
 		yBarT = yBandB - riser
 		yBarB = yBarT - barH
@@ -3226,7 +3374,8 @@ class LatexUserGuide():
 		# ---- emission ---------------------------------------------------------
 		s = ('% Generated whole-chip system diagram, FLAT companion (harts=' + str(N)
 			+ ', orchestrator=' + str(orch) + ', analogRow=' + str(afeRow is not None)
-			+ ', shadows=' + str(SHADOWS)
+			+ ', shadows=' + str(SHADOWS) + ', icons=' + str(ICONS)
+			+ ', serialSplit=' + str(SERIAL_SPLIT) + ', analogMux=' + str(mux)
 			+ ', rank=' + str([[c['key'] for c in g['members']] for g in groups]) + ')\n')
 		s += '\\begin{tikzpicture}[\n'
 		s += '\thd/.style={font=\\sffamily\\scriptsize, align=center, inner sep=1pt, anchor=north},\n'
@@ -3238,32 +3387,110 @@ class LatexUserGuide():
 		s += '\twire/.style={semithick},\n'
 		s += '\tpadlab/.style={font=\\sffamily\\small, align=center, inner sep=1pt},\n'
 		s += '\tlane/.style={font=\\sffamily\\scriptsize, align=center, inner sep=1pt},\n'
+		s += '\tana/.style={densely dashed, semithick},\n'
+		s += '\tanaArr/.style={->, >=Stealth, densely dashed, semithick},\n'
+		s += '\tgl/.style={line width=0.55pt, line cap=round, line join=round, black!72},\n'
 		s += '\tredlab/.style={font=\\sffamily\\small\\bfseries, red!70!black, align=left}]\n'
 
 		def frame(cx, yTop, w, h, fill, opts='thick'):
 			return ('\\draw[' + opts + ', fill=' + fill + '] (' + P(cx - w / 2.0) + ', '
 				+ P(yTop - h) + ') rectangle (' + P(cx + w / 2.0) + ', ' + P(yTop) + ');\n')
 
-		def head(cx, yTop, w, title, sub, note=None):
+		def head(cx, yTop, w, title, sub, note=None, ic=None):
 			tex = '{\\small\\bfseries ' + title + '}'
 			for extra in (sub, note):
 				if extra:
 					tex += '\\\\[1pt] ' + extra
+			# The text column is NOT narrowed for a glyph and the title is NOT
+			# pushed off centre: narrowing this node narrows the SUBTITLE too, and a
+			# subtitle that wraps does not clip, it prints its extra line through the
+			# box floor. The clearance is bought in `measure' instead, where it can
+			# be charged against the title alone.
 			return ('\\node[hd, text width=' + P(w - 0.20) + 'cm] at (' + P(cx) + ', '
 				+ P(yTop - pad) + ') {' + tex + '};\n')
+
+		def glyph(kind, x, y):
+			'''A ~0.32 cm pictogram, drawn from paths in this file: no new
+			   package, no icon font, nothing the TRM preamble does not already
+			   load. Every one is a SILHOUETTE at 0.55 pt -- at this figure's
+			   scale a glyph with interior detail closes up into a blot.'''
+			def pt(px, py):
+				return '(' + P(px) + ', ' + P(py) + ')'
+
+			def line(*ps):
+				return '\\draw[gl] ' + ' -- '.join(pt(*p) for p in ps) + ';\n'
+			o = ''
+			if kind == 'stopwatch':
+				o += '\\draw[gl] ' + pt(x, y - 0.02) + ' circle (0.125);\n'
+				o += line((x - 0.055, y + 0.165), (x + 0.055, y + 0.165))
+				o += line((x, y + 0.165), (x, y + 0.105))
+				o += line((x, y - 0.02), (x, y + 0.055))
+				o += line((x, y - 0.02), (x + 0.065, y - 0.02))
+			elif kind == 'brain':
+				# A SCALLOPED blob, not a circle. The first cut drew a smooth outline
+				# with two curls in it and rendered as a carnival mask; what makes a
+				# brain read at 1.6 mm is the lumpy silhouette and the fissure down the
+				# middle, so the outline is a twelve-point wave and the inside is three
+				# lines.
+				pts = []
+				for k in range(12):
+					a = math.radians(30.0 * k)
+					r = 0.160 if k % 2 == 0 else 0.112
+					pts.append((x + r * math.cos(a), y + r * 0.94 * math.sin(a)))
+				o += ('\\draw[gl] plot[smooth cycle, tension=0.85] coordinates {'
+					+ ' '.join(pt(*q) for q in pts) + '};\n')
+				o += line((x, y + 0.145), (x, y - 0.145))
+				o += ('\\draw[gl] ' + pt(x - 0.088, y + 0.072) + ' .. controls '
+					+ pt(x - 0.020, y + 0.072) + ' and ' + pt(x - 0.020, y - 0.008) + ' .. '
+					+ pt(x - 0.078, y - 0.022) + ';\n')
+				o += ('\\draw[gl] ' + pt(x + 0.088, y + 0.072) + ' .. controls '
+					+ pt(x + 0.020, y + 0.072) + ' and ' + pt(x + 0.020, y - 0.008) + ' .. '
+					+ pt(x + 0.078, y - 0.022) + ';\n')
+			elif kind == 'lock':
+				o += '\\draw[gl] ' + pt(x - 0.062, y + 0.015) + ' arc (180:0:0.062);\n'
+				o += ('\\draw[gl, fill=black!22] ' + pt(x - 0.105, y - 0.155) + ' rectangle '
+					+ pt(x + 0.105, y + 0.015) + ';\n')
+			elif kind == 'crystal':
+				# The IEEE quartz symbol, which is exactly what SYSTEM's own off-chip
+				# partner box on this figure is called: two plates round a body, one
+				# lead each side. A GEAR was drawn here first and rendered as a sun --
+				# eight radial ticks at 1.6 mm on the page have no gear left in them.
+				o += ('\\draw[gl, fill=black!12] ' + pt(x - 0.055, y - 0.115) + ' rectangle '
+					+ pt(x + 0.055, y + 0.115) + ';\n')
+				o += line((x - 0.10, y - 0.10), (x - 0.10, y + 0.10))
+				o += line((x + 0.10, y - 0.10), (x + 0.10, y + 0.10))
+				o += line((x - 0.10, y), (x - 0.175, y))
+				o += line((x + 0.10, y), (x + 0.175, y))
+			elif kind == 'power':
+				a = math.radians(72.0)
+				o += ('\\draw[gl] ' + pt(x + 0.135 * math.cos(a), y - 0.02 + 0.135 * math.sin(a))
+					+ ' arc (72:-252:0.135);\n')
+				o += line((x, y + 0.045), (x, y + 0.185))
+			elif kind == 'chip':
+				o += ('\\draw[gl, fill=black!12] ' + pt(x - 0.10, y - 0.10) + ' rectangle '
+					+ pt(x + 0.10, y + 0.10) + ';\n')
+				for dy in (-0.055, 0.0, 0.055):
+					o += line((x - 0.10, y + dy), (x - 0.165, y + dy))
+					o += line((x + 0.10, y + dy), (x + 0.165, y + dy))
+			else:
+				raise Exception('ChipSystemFlatDiagram: no glyph is drawn for "' + str(kind) + '".')
+			return o
 
 		def shadows(cx, yTop, w, h, n):
 			out = ''
 			if not SHADOWS:
 				return out
 			for k in range(min(n, maxShadow) - 1, 0, -1):
-				d = stackStep * k
-				out += frame(cx + d, yTop + d, w, h, 'white')
+				out += frame(cx + stackDx * k, yTop + stackDy * k, w, h, 'white')
 			return out
 
 		def badge(x, ymid, n, side='east'):
-			# White-filled: it sits over the corner of the box's own shadow stack,
-			# and an unfilled numeral on a rule is unreadable at this scale.
+			# DEAD, and kept dead deliberately. A separate $\\times N$ node beside a
+			# stacked box would be the THIRD place this figure says the same number
+			# (the title says it, the squares show it), and on a single rank the only
+			# room for it is the 0.52 cm riser between the rank and the bar, which is
+			# where it collided with the bar the first time round.
+			return ''
 			if not SHADOWS:
 				return ''
 			dx = 0.12 if side == 'west' else -0.12
@@ -3278,16 +3505,16 @@ class LatexUserGuide():
 
 		# ---- the master band --------------------------------------------------
 		xBandR = W - xEdge - xLane
-		avail = (xBandR - xBandL) - gapM * (len(masters) - 1)
+		avail = (xBandR - xBandL) - gapM * (len(masters) - 1) - xMuxGap
 		wsum = sum(m['weight'] for m in masters)
 		spare = avail - sum(m['min'] for m in masters)
 		for m in masters:
 			m['w'] = min(6.60, m['min'] + max(0.0, spare) * m['weight'] / wsum)
 		x = xBandL + max(0.0, (avail - sum(m['w'] for m in masters))) / 2.0
-		for m in masters:
+		for i, m in enumerate(masters):
 			m['cx'] = x + m['w'] / 2.0
 			m['tx'] = m['cx'] - (0.22 * m['w'] if (SHADOWS and m['stack'] > 1) else 0.0)
-			x += m['w'] + gapM
+			x += m['w'] + gapM + (xMuxGap if i == 0 else 0.0)
 		for m in masters:
 			# A stacked master's title is a RANGE ("hart 1--17"), which already
 			# counts the instances; it never takes the $\times N$ the rank's
@@ -3326,18 +3553,39 @@ class LatexUserGuide():
 		# ---- THE RANK: every peripheral, one row, one straight tap each -------
 		for g in groups:
 			solo = len(g['members']) == 1
-			s += shadows(g['cx'], yRankT, g['w'], hRank, g['members'][0]['stack'] if solo else 1)
+			# THE STACK BELONGS TO A BOX, AND A GLUED BOX IS ONE BOX. Squares
+			# behind a compartmented group say "N of this group", which is true
+			# only where every compartment in it has the same count -- and a lie
+			# with no way to qualify it the moment two differ. Where they differ,
+			# nothing is drawn rather than something wrong (and `specs' keeps the
+			# multi-instance blocks unglued so it never comes to that).
+			counts = set(c['stack'] for c in g['members'])
+			if solo:
+				nStack = g['members'][0]['stack']
+			elif len(counts) == 1:
+				nStack = g['members'][0]['stack']
+			else:
+				if max(counts) > 1:
+					raise Exception('ChipSystemFlatDiagram: the glued box '
+						+ str([c['key'] for c in g['members']]) + ' has compartments with '
+						+ str(sorted(counts)) + ' instances, so no single stack of squares '
+						'behind it is true. Ungroup it (see SERIAL_SPLIT).')
+				nStack = 1
+			s += shadows(g['cx'], yRankT, g['w'], hRank, nStack)
 			s += frame(g['cx'], yRankT, g['w'], hRank, 'black!5')
 			for j, c in enumerate(g['members']):
 				if j:
 					xL = c['cx'] - c['w'] / 2.0
 					s += ('\\draw[semithick] (' + P(xL) + ', ' + P(yRankT) + ') -- (' + P(xL)
 						+ ', ' + P(yRankB) + ');\n')
-				s += head(c['cx'], yRankT, c['w'], titleOf(c, solo), c['sub'])
+				ic = iconOf(c)
+				s += head(c['cx'], yRankT, c['w'], titleOf(c, solo), c['sub'], ic=ic)
+				if ic:
+					s += glyph(ic, c['cx'] - c['w'] / 2.0 + iconW / 2.0, yRankT - pad - 0.19)
 			s += ('\\draw[bus] (' + P(g['tx']) + ', ' + P(yRankT) + ') -- (' + P(g['tx']) + ', '
 				+ P(yBarB) + ');\n')
 			if solo and g['members'][0]['stack'] > 1:
-				s += badge(g['tx'], yRankT + stackStep * (maxShadow - 1) + 0.14,
+				s += badge(g['tx'], yRankT + stackDy * (maxShadow - 1) + 0.14,
 					g['members'][0]['stack'])
 
 		# ---- the outside world, below the boundary, on straight wires ---------
@@ -3352,7 +3600,6 @@ class LatexUserGuide():
 
 		# ---- the analog sites, their electrodes, and who may reach them -------
 		if afeRow is not None:
-			cols = sorted(siteOf)
 			# THE AIR BETWEEN THE CHANNELS STAYS AIR. The first cut ran BOTH the
 			# bus and hart 0's reach along the row at two heights, entering each
 			# site's left and right edges. RENDERED at 300 dpi that is two
@@ -3363,7 +3610,7 @@ class LatexUserGuide():
 			# first, occluded by every site it serves, visible only where it
 			# crosses the air), and the reach is a rail in the strip UNDER the
 			# row with a short heavy drop up into each site.
-			yBusRail = ySiteB + hSite / 2.0
+			yBusRail = ySiteB + (hLanes + 0.22 if mux else hSite / 2.0)
 			yReach = yBandT + 0.30
 			xOwnGap, xReachDrop = 0.11, 1.00
 			box = dict((h, (columns[h]['cx'] - columns[h]['w'] / 2.0,
@@ -3398,6 +3645,34 @@ class LatexUserGuide():
 				+ P((yBandT - hMaster / 2.0 + yReach) / 2.0)
 				+ ') {\\texttt{s\\_master} = 0};\n')
 
+			# ---- THE ANALOG MULTIPLEXER'S CHANNEL LANES, drawn BEFORE the boxes.
+			# The EIS sweep engine measures through ONE channel's electrodes at a
+			# time, so its four channel inputs are four separate paths and not one
+			# bus -- but four paths cannot be run across a row of five boxes in
+			# the open without crossing something they do not touch. They take the
+			# row's OWN idiom instead, the one the grey bus strip already uses:
+			# each lane runs BEHIND the site boxes at its own height, out of its
+			# channel's left edge and left to the multiplexer, and is visible only
+			# in the air between the columns. Every gap therefore shows exactly
+			# the lanes that are still travelling through it -- four beside the
+			# mux, one beside the last channel -- and the fan-in is a property of
+			# the drawing rather than a bundle of wires over the boxes.
+			yLane, xMuxR, xMuxL = {}, 0.0, 0.0
+			if mux:
+				# The long edge stands a clear centimetre off the first channel's box
+				# so the four lanes have a RUN in the open before they go behind it:
+				# at 0.16 cm they arrived and vanished in the same millimetre and the
+				# fan-in could not be seen at all.
+				xMuxR = box[muxIn[0]][0] - 0.92
+				xMuxL = xMuxR - 0.84
+				for k, h in enumerate(muxIn):
+					yLane[h] = ySiteB + laneStep * (len(muxIn) - k)
+					# arrowheads INTO the mux: four channels in, one engine out, and
+					# the direction of a measurement is not a thing to leave to the
+					# reader on a row where every other line is bidirectional.
+					s += ('\\draw[anaArr] (' + P(box[h][0]) + ', ' + P(yLane[h]) + ') -- ('
+						+ P(xMuxR) + ', ' + P(yLane[h]) + ');\n')
+
 			reached = []
 			for h in cols:
 				nm = siteOf[h][0]
@@ -3408,12 +3683,13 @@ class LatexUserGuide():
 					'\\texttt{s\\_master} = ' + str(h)
 					+ (' \\emph{only}' if h == 0 else ' \\emph{or} 0') + '};\n')
 				# THE OWNERSHIP MARK: a short direct arrow into the site from the
-				# hart whose index the gate inside it admits. Thin, and
-				# captioned, so it cannot be read as one of the bus wires.
+				# hart whose index the gate inside it admits. Thin, so it cannot
+				# be read as one of the bus wires. It used to carry the word
+				# `owns' beside it, five times; the caption says it once, and five
+				# repetitions of a word the reader has already met are five labels
+				# in the one strip the row keeps clear.
 				s += ('\\draw[own] (' + P(m['cx']) + ', ' + P(yBandT) + ') -- (' + P(m['cx'])
 					+ ', ' + P(ySiteB) + ');\n')
-				s += ('\\node[lane, anchor=east, inner sep=2pt] at ('
-					+ P(m['cx'] - 0.05) + ', ' + P((ySiteB + yBandT) / 2.0) + ') {\\emph{owns}};\n')
 				# and hart 0's reach, up into this site out of the rail below it
 				s += ('\\draw[reach] (' + P(m['cx'] + xReachDrop) + ', ' + P(yReach) + ') -- ('
 					+ P(m['cx'] + xReachDrop) + ', ' + P(ySiteB) + ');\n')
@@ -3425,6 +3701,34 @@ class LatexUserGuide():
 			if sorted(reached) != sorted(st[0] for st in afeRow['sites']):
 				raise Exception('ChipSystemFlatDiagram: the drawn site set ' + str(sorted(reached))
 					+ ' is not this configuration\'s ' + str(sorted(st[0] for st in afeRow['sites'])))
+
+			# ---- the multiplexer itself, in the air the band reserved for it ---
+			# The classic trapezoid, DASHED like every other analog stage in this
+			# manual: the sweep engine and its multiplexer are analog IP that is
+			# not integrated, and the honesty rule is that nothing which is not on
+			# the die today is drawn with a solid line. Four inputs on the long
+			# edge, one output on the short one, straight into the site that holds
+			# the engine's registers. It is deliberately unlike hart 0's heavy
+			# rail two strips below: that rail is DIGITAL register access through
+			# the bar, this is the ANALOG path to the electrodes.
+			if mux:
+				xM1, xM0 = xMuxR, xMuxL
+				yMT, yMB = yLane[muxIn[0]] + 0.17, yLane[muxIn[-1]] - 0.17
+				yMid, slant = (yMT + yMB) / 2.0, 0.15
+				s += ('\\draw[ana, fill=black!6] (' + P(xM0) + ', ' + P(yMB + slant) + ') -- ('
+					+ P(xM1) + ', ' + P(yMB) + ') -- (' + P(xM1) + ', ' + P(yMT) + ') -- ('
+					+ P(xM0) + ', ' + P(yMT - slant) + ') -- cycle;\n')
+				s += ('\\draw[anaArr] (' + P(xM0) + ', ' + P(yMid) + ') -- (' + P(box[0][1])
+					+ ', ' + P(yMid) + ');\n')
+				s += ('\\node[lane, anchor=south] at ('
+					+ P((box[0][1] + box[muxIn[0]][0]) / 2.0) + ', ' + P(ySiteT + 0.05)
+					+ ') {\\emph{analog multiplexer}};\n')
+				# Where each lane leaves its own channel: a mark ON the site's
+				# edge, drawn over the box, so the lane that disappears behind it
+				# can be seen to START there and not merely pass.
+				for h in muxIn:
+					s += ('\\fill[black!72] (' + P(box[h][0]) + ', ' + P(yLane[h])
+						+ ') circle (0.05);\n')
 
 			# ---- the electrodes, one triple straight up out of its own site ---
 			for h in sorted(padOf):
@@ -3453,6 +3757,13 @@ class LatexUserGuide():
 						+ ') rectangle (' + P(xk + 0.07) + ', ' + P(yRedT + 0.07) + ');\n')
 
 		s += '\\end{tikzpicture}\n'
+		# The drawn extent, in the figure's own centimetres, recorded in the file
+		# it describes: this figure is \resizebox'd to the text width, so its
+		# ASPECT is what decides how much page height it costs and how small its
+		# type lands -- and neither is visible in any other artefact of the build.
+		hAll = (yCellT if afeRow is not None else yRedT) - yExtT + hExt
+		s = (s.split('\n', 1)[0][:-1] + ', width=' + P(W) + 'cm, height=' + P(hAll)
+			+ 'cm, aspect=' + P(W / hAll) + ')\n' + s.split('\n', 1)[1])
 		self._writeInclude('ChipSystemFlatDiagram.tex', s)
 		return
 
