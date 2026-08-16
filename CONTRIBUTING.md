@@ -40,7 +40,7 @@ fixes in those trees are a proposal to the maintainer only:
 | Tree | Status | Notes |
 |------|--------|-------|
 | `hdl/common/` | **Live** | Shared multi-core tile RTL (Castalia + Argus derive from here). All multi-core RTL changes go here. |
-| `platform/common/` | **Live** | The Castalia/Argus chip generator (single source of truth). Has its own `CLAUDE.md`. |
+| `platform/common/` | **Live** | The Castalia/Argus chip generator (single source of truth). |
 | `innovus/common/` | **Live** | Multi-core P&R flow (hand-maintained tcl/sh/Makefile; build-artifact subdirs are generated, not committed). |
 | `hdl/myshkin/` | **FROZEN — do not touch** | Single-core Myshkin tape-out RTL. |
 | `platform/myshkin/` | **FROZEN — do not touch** | Single-core Myshkin generator. |
