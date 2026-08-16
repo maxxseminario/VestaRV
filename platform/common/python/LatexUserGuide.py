@@ -2043,7 +2043,7 @@ class LatexUserGuide():
 			above['io'] = box('io', 'GPIO', self._chipFigNames([p.Name for p in ps]),
 				str(len(ps[0].Pins)) + ' pins per port\\\\ AF0--AF7 planes',
 				stack=len(ps), w=3.05, ext=e,
-				brief=str(len(ps)) + ' ports, ' + str(len(ps[0].Pins)) + ' pins each')
+				brief=str(len(ps)) + ' ports $\\times$ ' + str(len(ps[0].Pins)) + ' pins')
 
 		ps = claim('spi')
 		if ps:
@@ -2171,19 +2171,22 @@ class LatexUserGuide():
 			+ kiB(gen.RomSize) + ', reset vector}']]
 		# The same three memories the rows above carry, as the (title, brief)
 		# chips the flat figure draws instead — one derivation, two drawings.
-		memParts = [('boot ROM', kiB(gen.RomSize) + ', reset vector')]
+		memParts = [('boot ROM', kiB(gen.RomSize))]
 		shared = [sec for sec in (gen.SharedWindowSections or []) if sec[0] == 'Shared RAM']
 		if shared:
 			rows.append(['shared RAM \\texttt{' + fmthex(shared[0][1]) + '}\\\\ \\textit{'
 				+ str(geo['sharedRamBanks']) + ' $\\times$ ' + kiB(16384) + ' banks}'])
 			memParts.append(('shared RAM',
-				str(geo['sharedRamBanks']) + ' $\\times$ ' + kiB(16384) + ' banks'))
+				str(geo['sharedRamBanks']) + ' $\\times$ ' + kiB(16384)))
 		windows = self._TcmApertureWindows()
 		if windows:
 			rows.append(['TCM apertures \\texttt{' + fmthex(windows[0]) + '}\\\\ \\textit{'
 				+ str(len(windows)) + ' $\\times$ ' + kiB(gen.RamMemorySlotSize) + ', read-only}'])
-			memParts.append(('TCM apertures', str(len(windows)) + ' $\\times$ '
-				+ kiB(gen.RamMemorySlotSize) + ', read-only'))
+			# NOT a `parts' compartment: the FLAT figure draws the TCM inside the
+			# hart box it belongs to, and an aperture is a WINDOW onto that TCM,
+			# not a third memory sitting behind the bar. It is drawn there, in
+			# the tile's own compartment, and the memory box on that figure's
+			# one rank is the two memories that really are behind the bar.
 		below['mem'] = box('mem', 'shared memory', 'behind the bar', None, rows=rows, w=3.45,
 			brief='behind the bar', parts=memParts)
 
@@ -2272,6 +2275,14 @@ class LatexUserGuide():
 		if geo.get('debug'):
 			masters.append({'title': 'dm0', 'sub': 'debug module', 'harts': [], 'stack': 1,
 				'note': dbgNote, 'weight': 0.90})
+		# The FLAT companion draws a hart as the two compartments the RTL builds
+		# it from -- the VestaRV core and its private TCM -- instead of naming
+		# the TCM in a note under it. The size is carried here, off the same
+		# `tcmKiB' the note is written from, so ONE derivation feeds both
+		# whole-chip figures and a TCM resize cannot move one and not the other.
+		# The portrait figure never reads the key.
+		for m in masters:
+			m['tcm'] = (str(tcmKiB) + '\\,KiB TCM') if m['title'].startswith('hart') else None
 		return masters
 
 	def _ChipSystemAnalogRow(self, allBoxes, columns, orch, N):
@@ -2753,41 +2764,58 @@ class LatexUserGuide():
 		'''include/ChipSystemFlatDiagram.tex — the FLAT companion to Figure
 		   \\ref{fig:chip-system-diagram}: the same configuration, the same
 		   derived content, drawn as a datasheet block diagram instead of a
-		   portrait page. Four things differ, and each is the point:
+		   portrait page. Five things differ, and each is the point:
 
-		   ONE BAR, NO WRAPPING. The portrait figure runs the bus down the left
+		   ONE BAR, ONE RANK. The portrait figure runs the bus down the left
 		   margin and back along a rib, because three shelves of tall boxes
-		   cannot all touch one horizontal bar. Here the peripherals are cut to
-		   a name and one line, so they fit in two short ranks BELOW the bar
-		   (the Myshkin arrangement, assets/ASIC_block_diagram.png): the first
-		   rank taps the bar straight up, and the second rank's taps rise
-		   through the GAPS BETWEEN the first rank's boxes to the same bar.
-		   There is no trunk, no rib, and no second bar segment.
+		   cannot all touch one horizontal bar. Here every peripheral is cut to
+		   a name and one line and hangs off ONE rank below the bar, each box
+		   tapping it straight up. There is no trunk, no rib, no second bar
+		   segment and no second rank whose taps have to find a lane: the two
+		   ranks the first cut needed cost 2.7 cm of height and a bisection
+		   search for a width at which every rank-2 tap could stay straight.
 
-		   THE OWNERSHIP IS A WIRE HERE, AND SAYS WHAT IT IS. Each analog site
-		   sits in its owner's column with a short arrow down to it. That arrow
-		   is NOT a bus wire and is not drawn like one: every access is a
-		   shared-window transaction through the bar (the one bus drop the site
-		   row takes, down the lane between hart 0 and hart 1), and what makes a
-		   site its hart's is the gate printed inside it. Hart 0's reach stays
-		   ONE heavy arrow into the whole row, visually unlike the five thin
-		   ownership marks, because the privilege is one comparison and not
-		   four more wires.
+		   THE TILE IS DRAWN AS THE TILE. A hart box is split into the two
+		   compartments the RTL builds it from — the VestaRV core and its
+		   private TCM — instead of naming the TCM in a note and drawing its
+		   shared-window apertures three metres away on the memory rank. That
+		   is where the TCM physically is, and it takes the memory rank down to
+		   the two memories that really are behind the bar.
 
-		   TWELVE ELECTRODES, DRAWN. Each site brings out its own WE/RE/CE
-		   triple at the top of the drawing, on unbroken wires that cross the
-		   red boundary and carry a pad square where they cross it; the pad name
-		   is printed inside the cell, above its stub, never on the wire (a
+		   THE SITE IS A HAT ON ITS HART. Each analog site is its own box,
+		   sitting directly on the box of the hart that owns it and exactly as
+		   wide, with air between channels: the pair reads as one channel. What
+		   makes a site its hart's is the gate printed inside it, so the thin
+		   \\emph{owns} arrow is short and captioned and cannot be read as a bus
+		   wire. The sites are arbiter slaves, and the ONE bus drop they take is
+		   drawn as the same grey bar the arbiter is: a strip running the length
+		   of the row BEHIND the boxes it serves, visible only where it crosses
+		   the air between them. Hart 0's privilege is one comparison against
+		   the granted-master index, so it is ONE heavy rail under the row with
+		   a drop into every site — visibly reaching all of them, in the room
+		   the old banner band used to take, and drawn with a real gap wherever
+		   a column's ownership arrow passes through it so that no crossing can
+		   be read as a junction.
+
+		   ELECTRODES, DRAWN. Each site brings out its own WE/RE/CE triple
+		   straight up out of its own box, on unbroken vertical wires that cross
+		   the red boundary and carry a pad square where they cross it; the pad
+		   name is printed inside the cell, above its stub, never on the wire (a
 		   white label box on a wire reads as an open circuit — the AFE figure
 		   was rejected for exactly that, and this reuses its cleaned pattern).
+		   Every off-chip partner below the boundary is reached the same way: a
+		   straight vertical wire down from the tap, entering the partner's top
+		   edge off-centre where the partner had to be nudged aside, because a
+		   jogged wire in a clear lane buys nothing and reads as a detour.
 
 		   IT DEGRADES INSTEAD OF LYING. The electrode/site row is drawn only
 		   where the configuration is the shape it asserts (the shared
 		   _ChipSystemAnalogRow test: an orchestrator, one site per channel
 		   hart, a column for every owner, and bonded pads). Anything else gets
-		   a uniform hart band and the analog block, if any, back on the pin
-		   rank. The figure is therefore emitted and \\input UNGATED in both
-		   polarities, and every \\ref to it resolves in both.'''
+		   a uniform hart band — still split core/TCM — and the analog block, if
+		   any, back on the rank as an ordinary peripheral. The figure is
+		   therefore emitted and \\input UNGATED in both polarities, and every
+		   \\ref to it resolves in both.'''
 		gen = self.Gen
 		geo = getattr(gen, 'McuMpGeometry', None)
 		aboveBoxes, belowBoxes = self._ChipSystemBoxes()
@@ -2795,20 +2823,33 @@ class LatexUserGuide():
 		N = gen.NumHarts
 		orch = bool(geo.get('orchestrator'))
 		L = self._chipFigLines
-		TW = self._chipFigWidth
 		padNames = set(p.Name for p in gen.Package.Pins)
 
 		def P(v):
 			return '%.2f' % v
+
+		# THE STACKED-SHADOW EXPERIMENT. A block instantiated N times used to be
+		# drawn as N offset squares with an $\times N$ badge beside them. On a
+		# single rank that idiom costs twice: the offset squares need clear space
+		# up and to the right of a box that now has a neighbour there, and the
+		# badge needs 0.44 cm of height above the rank for a numeral that the
+		# title can carry in three characters. RENDERED BOTH WAYS at 150 dpi:
+		# the shadows read as a drawing artefact at this scale (the figure is
+		# resized to the text width, so a 0.15 cm offset lands at ~0.4 mm on the
+		# page and looks like a printing slur), and the badge collides with the
+		# rank above it. The count moves into the title.
+		SHADOWS = False
 
 		# ---- type metrics, in cm. Every height is a LINE COUNT times a
 		# baseline, never a guess: a TikZ node whose contents outgrow its box
 		# does not clip, it spills.
 		hTitle, hLine, pad = 0.44, 0.37, 0.13
 		xEdge, gapM = 0.30, 0.42
+		gapRank, gapExt = 0.45, 0.18
 		stackStep, maxShadow = 0.15, 3
 		barH, riser = 1.02, 0.52
-		xReach = 0.42                  # hart 0's reach, down the left margin
+		hCmp = 0.24                    # the core|TCM compartment strip, plus its lines
+		xReach = 0.42                  # hart 0's reach, up the left margin
 
 		# _chipFigWidth's flat 0.125 cm/char was calibrated on the PORTRAIT
 		# figure, every line of which is broken by hand. Nothing here is: a chip
@@ -2847,8 +2888,16 @@ class LatexUserGuide():
 		stubs = list((afeRow['ext'].get('stubs') or []) if (afeRow and afeRow['ext']) else [])
 		if not stubs:
 			# No bonded electrode pads: there is no top row to draw, so the AFE
-			# block goes back on the pin rank like any other peripheral.
+			# block goes back on the rank like any other peripheral.
 			afeRow, siteOf = None, {}
+		# AIR BETWEEN THE CHANNELS. A site is drawn as a HAT on its own hart --
+		# same width, directly above it -- so what separates one channel from
+		# the next has to be a gap wide enough to read as one. The band is
+		# justified across a width the rank has already fixed, so this gap costs
+		# the drawing nothing: it comes out of column width the columns do not
+		# need.
+		if afeRow is not None:
+			gapM = 0.85
 
 		# The electrode-bearing sites, in pad-suffix order, and the E17 check
 		# over the twelve names this drawing prints: every one of them is
@@ -2874,234 +2923,311 @@ class LatexUserGuide():
 				raise Exception('ChipSystemFlatDiagram: the drawn electrode set ' + str(drawn)
 					+ ' is not this configuration\'s ' + str(expect))
 
+		# ---- the hart box, split into the two things a tile IS ---------------
+		# The TCM stops being a note under the hart's name and becomes the
+		# compartment beside its core, which is what the RTL builds (hart_tile =
+		# VestaRV + one private TCM behind a registered boundary). E17: the size
+		# in that compartment is re-derived here and checked against the same
+		# generator field the memory map is built from, so a TCM resize that the
+		# drawing does not cover fails `make generate`.
+		wantTcm = str(gen.RamMemorySlotSize // 1024) + '\\,KiB TCM'
+		# An aperture is a WINDOW onto that TCM, not a memory of its own, so it
+		# leaves the rank (where the portrait figure's memory box, and this
+		# figure's first cut, both put it) and is said in the caption, against
+		# the compartment it windows. It is NOT a second line in that
+		# compartment: MEASURED, "windowed read-only" is 2.5 cm of a hart column
+		# and there are five to eighteen of them, which is 5 cm of figure width
+		# and 5% off every letter in the drawing, for a fact the caption carries
+		# for nothing.
+		for m in masters:
+			m['cells'] = ['VestaRV core', m['tcm']] if m.get('tcm') else []
+			if m['cells']:
+				# what the compartment now says, the note no longer has to
+				m['note'] = ''
+			isTile = m['title'].startswith('hart')
+			if isTile != bool(m['cells']):
+				raise Exception('ChipSystemFlatDiagram: master "' + str(m['title']) + '" is '
+					+ ('' if isTile else 'not ') + 'a hart tile but '
+					+ ('carries no' if isTile else 'carries a') + ' TCM compartment.')
+			if m['cells'] and m['cells'][1] != wantTcm:
+				raise Exception('ChipSystemFlatDiagram: the hart boxes would be drawn with a "'
+					+ str(m['cells'][1]) + '" compartment, but this configuration\'s private TCM '
+					'is ' + wantTcm + '.')
+
 		# ---- the peripheral chips: a name and ONE line each -------------------
 		def chip(key, title, sub, stack=1, ext=None):
 			return {'key': key, 'title': title, 'sub': sub or '', 'stack': stack, 'ext': ext,
 				'w': 0.0, 'cx': 0.0, 'tx': 0.0}
 
 		rest = [b for b in allBoxes if b is not afeRow]
-		pinC, coreC = [], []
+		byKey, order = {}, []
 		for b in rest:
+			cs = []
 			if b['parts']:
-				# One chip per memory, not one box with compartments in it.
+				# One compartment per memory, glued into one box with one tap.
 				for t, sub in b['parts']:
-					coreC.append(chip(b['key'], t, sub))
-				continue
-			c = chip(b['key'], b['title'], b['brief'] or (b['sub'] or '').split('\\\\')[0],
-				b['stack'], b['ext'])
-			(pinC if b['ext'] else coreC).append(c)
+					cs.append(chip(b['key'], t, sub))
+			else:
+				cs.append(chip(b['key'], b['title'],
+					b['brief'] or (b['sub'] or '').split('\\\\')[0], b['stack'], b['ext']))
+			byKey[b['key']] = cs
+			order.append(b['key'])
+
+		# Related blocks are GLUED into one compartmented box (the portrait
+		# figure's compartment idiom): fewer boxes on a rank that now carries
+		# every peripheral on the chip, and one bus tap where the drawing would
+		# otherwise carry three that say the same thing. The group heads the two
+		# ranks used to carry are gone with them -- "serial interfaces" over
+		# SPI/UART/I2C told the reader nothing the three names do not, and the
+		# banner cost 0.70 cm of height on every configuration.
+		serialKeys, clockKeys = ('spi', 'uart', 'i2c', 'nfc', 'ow'), ('system', 'power')
+		specs = [('mem',), ('timer',), ('sync',), ('npu',), ('engine',), ('io',),
+			serialKeys, clockKeys]
+		specs += [(k,) for k in order if not any(k in sp for sp in specs)]
+		groups = []
+		for sp in specs:
+			ms = sum([byKey[k] for k in sp if k in byKey], [])
+			if ms:
+				groups.append({'members': ms, 'w': 0.0, 'cx': 0.0})
 		# E17: nothing this configuration carries may fall out of the drawing on
-		# its way from the shared bucketing pass into the two ranks.
-		placed = set(c['key'] for c in coreC + pinC) | set([afeRow['key']] if afeRow else [])
+		# its way from the shared bucketing pass into the rank.
+		placed = set(c['key'] for g in groups for c in g['members'])
+		placed |= set([afeRow['key']] if afeRow else [])
 		if placed != set(b['key'] for b in allBoxes):
 			raise Exception('ChipSystemFlatDiagram: the drawn block set ' + str(sorted(placed))
 				+ ' is not the bucketing pass\'s ' + str(sorted(b['key'] for b in allBoxes)))
-		if not coreC or not pinC:
-			raise Exception('ChipSystemFlatDiagram: this configuration puts every peripheral on '
-				'one side of the bus (pin-facing=' + str([c['key'] for c in pinC]) + ', behind='
-				+ str([c['key'] for c in coreC]) + '); the two-rank layout has nothing to '
-				'interleave.')
 
-		# Related pin-facing blocks are GROUPED into one compartmented box (the
-		# portrait figure's compartment idiom): fewer boxes on the rank that has
-		# to fit under the first rank's gaps, and one bus tap where the drawing
-		# would otherwise carry three that say the same thing.
-		serialKeys, clockKeys = ('spi', 'uart', 'i2c', 'nfc', 'ow'), ('system', 'power')
-		ser = [c for c in pinC if c['key'] in serialKeys]
-		clk = [c for c in pinC if c['key'] in clockKeys]
-		groups = [{'head': None, 'members': [c]} for c in pinC if c['key'] == 'io']
-		if ser:
-			groups.append({'head': 'serial interfaces' if len(ser) > 1 else None, 'members': ser})
-		if clk:
-			groups.append({'head': 'clock, power, reset' if len(clk) > 1 else None, 'members': clk})
-		groups += [{'head': None, 'members': [c]} for c in pinC
-			if c['key'] != 'io' and c['key'] not in serialKeys + clockKeys]
-		if len(groups) > len(coreC) - 1:
-			raise Exception('ChipSystemFlatDiagram: ' + str(len(groups)) + ' pin-facing groups '
-				'need a gap each in a first rank of ' + str(len(coreC)) + ' boxes, and there are '
-				'only ' + str(max(0, len(coreC) - 1)) + '. Group more of them.')
+		# The off-chip partners are the reason the rank cannot simply be sorted
+		# by function: a partner hangs on a STRAIGHT wire under its own
+		# compartment, so a rank with all its pin-facing groups bunched at one
+		# end cannot spread the partners under them. The pin-facing groups are
+		# therefore dealt out evenly through the rank.
+		def hasExt(g):
+			return any(c['ext'] for c in g['members'])
+		A = [g for g in groups if hasExt(g)]
+		B = [g for g in groups if not hasExt(g)]
+		nAll = len(groups)
+		slot, taken = {}, set()
+		for i, g in enumerate(A):
+			j = min(nAll - 1, int((i + 0.5) * nAll / max(1, len(A))))
+			while j in taken:
+				j = (j + 1) % nAll
+			taken.add(j)
+			slot[j] = g
+		it = iter(B)
+		groups = [slot.get(j) or next(it) for j in range(nAll)]
 
 		# ---- widths -----------------------------------------------------------
-		# A group of four or more compartments keeps its NAMES and drops its
-		# subtitle lines. MEASURED on config/penta_wound.json, whose serial group
-		# is five blocks wide: with a subtitle each it is 12 cm of the 21 cm pin
-		# rank, and the whole drawing scales to 64% of the portrait figure's type
-		# to fit. The count and the group head carry that box; the subtitles are
-		# the part of it the reader can afford to lose.
+		# WHICH SUBTITLES THE ONE RANK CAN PAY FOR. Its width is what sets the
+		# type size of the WHOLE drawing, so a line that says what the name above
+		# it already says is not free, it is 4% off every letter. Three rules,
+		# and each names its own reason:
+		#   * a glued box of four or more compartments keeps its NAMES and drops
+		#     its subtitle lines (MEASURED on config/penta_wound.json, whose
+		#     serial group is five blocks wide: with a subtitle each it is 12 cm
+		#     of a rank that now has to hold every peripheral on the chip);
+		#   * the serial blocks drop them at any size -- "asynchronous serial"
+		#     under UART is a line the audience of a technical reference manual
+		#     can afford to lose, and the count and the name are not;
+		#   * so do `timer' and `npu', for the same reason and no other:
+		#     "capture / compare" under a box labelled timers, and "inference
+		#     engine" under one labelled NPU, are 1.8 cm of rank between them.
+		# Everything else keeps its line, because everything else is a DERIVED
+		# fact (sizes, bank counts, port counts, instance names) that the reader
+		# cannot get from the title.
+		mute = serialKeys + ('timer', 'npu')
 		for g in groups:
-			if len(g['members']) >= 4:
+			if len(g['members']) >= 4 or all(c['key'] in mute for c in g['members']):
 				for c in g['members']:
 					c['sub'] = ''
-		for c in coreC + pinC:
-			c['w'] = wOf(c['title'], c['sub'], minw=(1.70 if not c['sub'] else 1.95))
-		for g in groups:
-			g['w'] = sum(c['w'] for c in g['members'])
-			if g['head']:
-				want = 0.36 + TWs(g['head'], tBold)
-				if want > g['w']:
-					for c in g['members']:
-						c['w'] += (want - g['w']) / len(g['members'])
-					g['w'] = want
+
+		def titleOf(c, solo):
+			if c['stack'] < 2 or (SHADOWS and solo):
+				return c['title']
+			return c['title'] + ' $\\times$' + str(c['stack'])
+
+		def measure():
+			for g in groups:
+				solo = len(g['members']) == 1
+				for c in g['members']:
+					c['w'] = c['wBase'] = max(c['w'], wOf(titleOf(c, solo), c['sub'],
+						minw=(1.70 if not c['sub'] else 1.95)))
+				g['w'] = sum(c['w'] for c in g['members'])
+		measure()
+
 		for m in masters:
-			m['min'] = min(4.80, 0.30 + max(TWs(m['title'], tBold), TWs(m['sub']), TWs(m['note'])))
-		exts = [c for c in pinC if c['ext']]
-		for c in exts:
-			e = c['ext']
-			e['dw'] = wOf(e['title'], e.get('sub'), minw=2.10, maxw=3.40)
+			m['min'] = min(6.60, 0.30 + max(TWs(m['title'], tBold), TWs(m['sub']), TWs(m['note']),
+				sum(TWs(t) for t in m['cells']) + 0.30 * len(m['cells'])))
+		exts = [c for g in groups for c in g['members'] if c['ext']]
+
+		def sizeExts(maxw):
+			'''The partner boxes, and HOW MANY LINES THEIR TITLES TAKE. A node
+			   whose title is wider than its box does not clip, it wraps and
+			   prints the extra line through the floor -- so a cap on the partner
+			   width is only safe if the height knows about it.'''
+			for c in exts:
+				e = c['ext']
+				e['dw'] = wOf(e['title'], e.get('sub'), minw=2.10, maxw=maxw)
+				n, wt = 1, TWs(e['title'], tBold)
+				while wt > n * (e['dw'] - 0.20) + 0.01:
+					n += 1
+				e['tl'] = n
 
 		# Two reserved lanes flank the master band where the analog row exists:
-		# hart 0's reach goes UP the left one, and the row's single bus drop goes
-		# DOWN the right one. The drop used to fall through the gap between hart
-		# 0 and hart 1 -- and the site row's compartment rules are drawn at those
-		# same gap centres, so its arrowhead landed exactly on a divider and read
-		# as a drawing error.
+		# hart 0's reach goes up the left one, and the row's single bus drop
+		# comes down the right one.
 		xLane = 0.78 if afeRow is not None else 0.0
 		xBandL = xEdge + xLane
-		gapCore, gapPin, gapExt = 0.55, 0.70, 0.40
-		W = max([sum(m['min'] for m in masters) + gapM * (len(masters) - 1) + xBandL + xEdge
-				+ xLane,
-			sum(c['w'] for c in coreC) + gapCore * (len(coreC) - 1) + 2 * xEdge,
-			sum(g['w'] for g in groups) + gapPin * (len(groups) - 1) + 2 * xEdge,
-			sum(c['ext']['dw'] for c in exts) + gapExt * (len(exts) - 1) + 2 * xEdge])
 
-		# ---- rank 1, its lanes, and the width that keeps every rank-2 tap
-		#      STRAIGHT ---------------------------------------------------------
-		# The lanes the second rank's taps rise through are the gap centres of
-		# the first rank; there is no rib and no second bar, a rank-2 tap reaches
-		# the SAME bar, between two rank-1 boxes. A group therefore has to be
-		# centred on its lane, and where the figure is too narrow for that it is
-		# the FIGURE that gives, not the tap: lanes move with W, so widening it
-		# and re-laying the rank is a fixed point, and three passes reach it.
-		def layoutRank1(width):
-			span = (width - 2 * xEdge) - sum(c['w'] for c in coreC)
-			g1 = span / float(len(coreC) - 1) if len(coreC) > 1 else 0.0
-			x = xEdge
-			for c in coreC:
-				c['cx'] = x + c['w'] / 2.0
-				c['tx'] = c['cx'] - (0.25 * c['w'] if c['stack'] > 1 else 0.0)
-				x += c['w'] + g1
-			return [(coreC[i]['cx'] + coreC[i]['w'] / 2.0 + coreC[i + 1]['cx']
-				- coreC[i + 1]['w'] / 2.0) / 2.0 for i in range(len(coreC) - 1)]
+		def widthNeeded():
+			return max([sum(m['min'] for m in masters) + gapM * (len(masters) - 1) + xBandL
+					+ xEdge + xLane,
+				sum(g['w'] for g in groups) + gapRank * (len(groups) - 1) + 2 * xEdge,
+				sum(c['ext']['dw'] for c in exts) + gapExt * (len(exts) - 1) + 2 * xEdge])
 
-		nG = len(groups)
-		for g in groups:
-			g['off'] = (0.25 * g['w'] if (len(g['members']) == 1 and not g['head']
-				and g['members'][0]['stack'] > 1) else 0.0)
-
-		def lanePlan(width):
-			'''The lanes at this width, the lane each group taps, and how much
-			   width is still MISSING for every one of those taps to be straight
-			   (<= 0 means they all are).'''
-			lanes = layoutRank1(width)
-			span = (width - 2 * xEdge) - sum(g['w'] for g in groups)
-			g2 = span / float(nG - 1) if nG > 1 else 0.0
-			x, want = xEdge, []
+		# ---- the rank, and the partners hanging straight off it ---------------
+		def applyExtra():
+			for c in exts:
+				c['w'] = c['wBase'] + c['extra']
 			for g in groups:
-				g['want'] = x + g['w'] / 2.0
-				want.append(g['want'])
-				x += g['w'] + g2
-			pick, first = [], 0
-			for k in range(nG):
-				last = len(lanes) - (nG - 1 - k)
-				j = min(range(first, last), key=lambda i: abs(lanes[i] - want[k]))
-				pick.append(j)
-				first = j + 1
-			need = max([xEdge + groups[0]['w'] / 2.0 - groups[0]['off'] - lanes[pick[0]],
-				lanes[pick[-1]] + groups[-1]['off'] + groups[-1]['w'] / 2.0 - (width - xEdge)]
-				+ [lanes[pick[k - 1]] + groups[k - 1]['off'] + groups[k]['off']
-					+ (groups[k - 1]['w'] + groups[k]['w']) / 2.0 + 0.34 - lanes[pick[k]]
-					for k in range(1, nG)])
-			return lanes, pick, need
+				g['w'] = sum(c['w'] for c in g['members'])
 
-		# BISECTED, not stepped. Adding `need' to the width and re-laying the rank
-		# is a contraction, not a solution — the lanes move too, so each pass asks
-		# for most of it again, and MEASURED on config/castalia4.json eight such
-		# passes overshot 19.4 cm to 29.2 and took the whole drawing down to 57%
-		# of its type size. The width that makes every tap straight is found by
-		# bisection instead, and it is capped: past the cap the figure keeps its
-		# type and the taps take a short jog through the lane, which is the right
-		# way round of the two.
-		wLo, wHi, wCap, straight = W, W, max(W * 1.25, W + 2.40), False
-		while wHi < wCap and lanePlan(wHi)[2] > 0.02:
-			wHi = min(wHi * 1.12, wCap)
-		if lanePlan(wHi)[2] <= 0.02:
-			for _ in range(14):
-				wMid = (wLo + wHi) / 2.0
-				if lanePlan(wMid)[2] <= 0.02:
-					wHi = wMid
-				else:
-					wLo = wMid
-			# Straight taps are worth some width and not any width: every
-			# centimetre here is 5% off every letter in the drawing. Past the
-			# budget the rank is justified and the taps step across in the lane.
-			if wHi - W <= max(1.80, 0.09 * W):
-				straight, W = True, wHi
-		# Not every configuration CAN have straight taps: the pin rank needs a
-		# clear lane per group and the lanes are the first rank's gaps, so a
-		# configuration whose pin rank is much wider than its first (MEASURED:
-		# config/castalia4.json, 16.1 cm of pin groups over 13.5 cm of memories)
-		# has no width at which three wide groups straddle three of four lanes.
-		# There the rank is justified and the taps take the offset as one jog
-		# each, at the figure's natural width -- a 1 cm step in a clear lane
-		# costs the reader nothing, and 25% more width costs every letter in the
-		# drawing 25% of its size.
-		lanes, pick, _need = lanePlan(W)
+		def layoutRank(width):
+			applyExtra()
+			span = (width - 2 * xEdge) - sum(g['w'] for g in groups)
+			gp = span / float(len(groups) - 1) if len(groups) > 1 else 0.0
+			x = xEdge
+			for g in groups:
+				g['cx'] = x + g['w'] / 2.0
+				xc = x
+				for c in g['members']:
+					c['cx'] = c['tx'] = xc + c['w'] / 2.0
+					xc += c['w']
+				# THE TAP MUST NOT LAND ON A DIVIDER. A glued box's centre is
+				# where two of its compartments meet as often as not (a
+				# two-compartment group: always), and an arrowhead that lands
+				# exactly on a rule reads as a drawing error, not as a tap. It
+				# moves to the centre of the compartment it fell in.
+				g['tx'] = g['cx']
+				for c in g['members']:
+					if abs(c['cx'] - c['w'] / 2.0 - g['cx']) < 0.25 or abs(
+							c['cx'] + c['w'] / 2.0 - g['cx']) < 0.25:
+						if abs(c['cx'] - g['cx']) < c['w'] / 2.0 + 0.26:
+							g['tx'] = c['cx']
+				x += g['w'] + gp
 
-		# Each group taps the lane NEAREST the place a justified rank would have
-		# put it (monotone, so no two taps cross), and is centred so its TAP --
-		# left of its own centre where it carries a shadow stack, the portrait
-		# figure's rule -- lands on that lane. The two passes below are a safety
-		# net for a configuration the fixed point above could not satisfy: they
-		# keep boxes off each other and inside the frame, and the tap takes the
-		# offset as a short jog.
-		for g, i in zip(groups, pick):
-			g['tx'] = lanes[i]
-			g['cx'] = (g['tx'] + g['off']) if straight else g['want']
-		for k in range(1, nG):
-			lo = (groups[k - 1]['cx'] + (groups[k - 1]['w'] + groups[k]['w']) / 2.0 + 0.34)
-			groups[k]['cx'] = max(groups[k]['cx'], lo)
-		for k in range(nG - 1, -1, -1):
-			groups[k]['cx'] = min(groups[k]['cx'], W - xEdge - groups[k]['w'] / 2.0)
-			if k:
-				hi = groups[k]['cx'] - (groups[k - 1]['w'] + groups[k]['w']) / 2.0 - 0.34
-				groups[k - 1]['cx'] = min(groups[k - 1]['cx'], hi)
-		for g in groups:
-			g['cx'] = max(g['cx'], xEdge + g['w'] / 2.0)
+		def placeExts(width):
+			'''Minimum displacement under a separation constraint, the standard
+			   two passes, then a third: a partner pushed left by the forward
+			   sweep must not be shifted again (MEASURED on
+			   config/penta_wound.json, eight partners: one sweep plus a global
+			   shift piled the left three on top of each other).'''
+			exts.sort(key=lambda c: c['tx'])
+			sep = [0.0] + [(exts[i - 1]['ext']['dw'] + exts[i]['ext']['dw']) / 2.0 + gapExt
+				for i in range(1, len(exts))]
+			xs = [c['tx'] for c in exts]
+			for _ in range(2):
+				for i in range(len(exts)):
+					xs[i] = max(xs[i], xEdge + exts[i]['ext']['dw'] / 2.0,
+						(xs[i - 1] + sep[i]) if i else 0.0)
+				for i in range(len(exts) - 1, -1, -1):
+					xs[i] = min(xs[i], width - xEdge - exts[i]['ext']['dw'] / 2.0,
+						(xs[i + 1] - sep[i + 1]) if i + 1 < len(exts) else width)
+			return xs
+
+		# THE WIRE IS STRAIGHT, SO THE BOX MOVES UNDER IT. A partner's wire drops
+		# vertically out of its own compartment and enters the partner's top edge
+		# wherever it lands -- off its centre is fine, off the box entirely is
+		# not. Where a partner had to be nudged so far aside that its own wire
+		# would miss it, the COMPARTMENT is widened (which spreads its
+		# neighbours' taps too) and the rank re-laid.
+		#
+		# The widening is driven by the MEASURED miss, not by the difference
+		# between a compartment and its partner: a partner may enter its box off
+		# centre, so a run of partners wider than the compartments under them
+		# needs only the SHORTFALL after that drift is spent. MEASURED on the
+		# default configuration, the first cut's deficit-driven version paid the
+		# whole difference and took the three serial compartments to 7.6 cm, a
+		# drawing whose SPI box is as wide as its memory box because of where a
+		# partner had to sit. The assertion below is what proves the fixed point
+		# rather than the drawing shipping a wire into space.
+		def entryMiss(c, xe):
+			return abs(xe - c['tx']) - (c['ext']['dw'] / 2.0 - 0.10)
+
+		def solve(maxw):
+			sizeExts(maxw)
+			for c in exts:
+				c['extra'] = 0.0
+			applyExtra()
+			width = widthNeeded()
+			# UNDER-RELAXED, and it has to be. Every partner's miss is measured
+			# with all the OTHER partners still missing too, so paying each one
+			# in full double-counts the same shortfall down a run of them:
+			# MEASURED on config/penta_wound.json (eight partners, five of them
+			# on one glued box) a full-payment step overshot 33.4 cm to 44.2 in
+			# ONE pass and then converged there. Paying a fraction per pass and
+			# iterating approaches the same fixed point from below.
+			for _ in range(28):
+				layoutRank(width)
+				pos = placeExts(width)
+				miss = [max(0.0, entryMiss(c, xe)) for c, xe in zip(exts, pos)]
+				if max(miss + [0.0]) <= 0.0:
+					break
+				for c, ms in zip(exts, miss):
+					if ms > 0.0:
+						c['extra'] += 0.55 * ms + 0.02
+				width = max(width, widthNeeded())
+			layoutRank(width)
+			return width, placeExts(width)
+		W, xs = solve(3.40)
+		# PAST A POINT THE PARTNERS GIVE INSTEAD. A one-line partner title is
+		# worth its width until the drawing is so wide that every letter in it is
+		# unreadable: MEASURED on config/penta_wound.json, whose rank carries
+		# five serial blocks and eight partners, one-line titles put the figure
+		# at 45.5 cm -- resized to the text width that is 2.5 pt type. Wrapping
+		# the partner titles costs one line of height, once, and takes it to
+		# 36 cm. The threshold is where the type crosses ~4.5 pt.
+		if W > 34.0:
+			W, xs = solve(2.30)
+		for c, xe in zip(exts, xs):
+			if entryMiss(c, xe) > 0.02:
+				raise Exception('ChipSystemFlatDiagram: the straight wire under ' + str(c['title'])
+					+ ' would enter "' + str(c['ext']['title']) + '" ' + P(abs(xe - c['tx']))
+					+ ' cm from its centre, which is off the box.')
 
 		# ---- heights ----------------------------------------------------------
-		hMaster = max(pad + hTitle + hLine * (L(m['sub']) + L(m['note'])) + pad for m in masters)
-		def rankH(cs):
-			return pad + hTitle + hLine * max(1, max(L(c['sub']) for c in cs)) + pad
-		hChip = rankH(coreC)
-		hChip2 = rankH(pinC)
-		hHead = pad + hTitle + pad
-		hPin = hChip2 + (hHead if any(g['head'] for g in groups) else 0.0)
-		hExt = max([pad + hTitle + hLine * L(c['ext'].get('sub')) + pad for c in exts] or [0.90])
-		hSiteHead = pad + hTitle + hLine * 2 + pad
-		hSiteCell = pad + hLine * 2 + pad
-		hCell, yStubOff = 0.86, 0.14
+		hCells = hCmp + hLine * max([L(t) for m in masters for t in m['cells']] or [0])
+		hMaster = max(pad + hTitle + hLine * (L(m['sub']) + L(m['note']))
+			+ (hCells if m['cells'] else 0.0) + pad for m in masters)
+		hRank = pad + hTitle + hLine * max(1, max(L(c['sub']) for g in groups
+			for c in g['members'])) + pad
+		hExt = max([pad + hTitle * c['ext']['tl'] + hLine * L(c['ext'].get('sub')) + pad
+			for c in exts] or [0.90])
+		hSite = pad + hLine * 2 + pad
+		# The electrode cells carry the only pad names in the drawing and they
+		# are what a board engineer opens this figure for, so they are drawn at
+		# the body type size, not the tiny one, in a box with room around them.
+		hCell, pitch, yStubOff = 1.46, 1.06, 0.26
 
 		y = 0.0
 		yCellT, yCellB = y, y - hCell
-		yRedT = (yCellB - 0.62) if afeRow is not None else 0.0
+		yRedT = (yCellB - 0.55) if afeRow is not None else 0.0
 		ySiteT = yRedT - 0.30
-		ySiteB = ySiteT - (hSiteHead + hSiteCell)
-		yBandT = (ySiteB - 0.74) if afeRow is not None else (yRedT - 0.34)
+		ySiteB = ySiteT - hSite
+		yBandT = (ySiteB - 0.76) if afeRow is not None else (yRedT - 0.34)
 		yBandB = yBandT - hMaster
 		yBarT = yBandB - riser
 		yBarB = yBarT - barH
-		yR1T = yBarB - riser
-		yR1B = yR1T - hChip
-		yR2T = yR1B - 0.90
-		yR2B = yR2T - hPin
-		yRedB = yR2B - 0.30
-		yExtT = yRedB - 0.72
+		yRankT = yBarB - riser
+		yRankB = yRankT - hRank
+		yRedB = yRankB - 0.30
+		yExtT = yRedB - 0.70
 
 		# ---- emission ---------------------------------------------------------
 		s = ('% Generated whole-chip system diagram, FLAT companion (harts=' + str(N)
 			+ ', orchestrator=' + str(orch) + ', analogRow=' + str(afeRow is not None)
-			+ ', rank1=' + str([c['title'] for c in coreC])
-			+ ', rank2=' + str([[c['key'] for c in g['members']] for g in groups]) + ')\n')
+			+ ', shadows=' + str(SHADOWS)
+			+ ', rank=' + str([[c['key'] for c in g['members']] for g in groups]) + ')\n')
 		s += '\\begin{tikzpicture}[\n'
 		s += '\thd/.style={font=\\sffamily\\scriptsize, align=center, inner sep=1pt, anchor=north},\n'
 		s += '\tbc/.style={font=\\sffamily\\scriptsize, align=center, inner sep=1pt},\n'
@@ -3110,7 +3236,8 @@ class LatexUserGuide():
 		s += '\town/.style={->, >=Stealth, semithick},\n'
 		s += '\treach/.style={->, >=Stealth, line width=1.4pt},\n'
 		s += '\twire/.style={semithick},\n'
-		s += '\tpadlab/.style={font=\\sffamily\\tiny, align=center, inner sep=1pt},\n'
+		s += '\tpadlab/.style={font=\\sffamily\\small, align=center, inner sep=1pt},\n'
+		s += '\tlane/.style={font=\\sffamily\\scriptsize, align=center, inner sep=1pt},\n'
 		s += '\tredlab/.style={font=\\sffamily\\small\\bfseries, red!70!black, align=left}]\n'
 
 		def frame(cx, yTop, w, h, fill, opts='thick'):
@@ -3127,6 +3254,8 @@ class LatexUserGuide():
 
 		def shadows(cx, yTop, w, h, n):
 			out = ''
+			if not SHADOWS:
+				return out
 			for k in range(min(n, maxShadow) - 1, 0, -1):
 				d = stackStep * k
 				out += frame(cx + d, yTop + d, w, h, 'white')
@@ -3135,6 +3264,8 @@ class LatexUserGuide():
 		def badge(x, ymid, n, side='east'):
 			# White-filled: it sits over the corner of the box's own shadow stack,
 			# and an unfilled numeral on a rule is unreadable at this scale.
+			if not SHADOWS:
+				return ''
 			dx = 0.12 if side == 'west' else -0.12
 			return ('\\node[badge, anchor=' + side + ', fill=white, inner sep=1.5pt] at ('
 				+ P(x + dx) + ', ' + P(ymid) + ') {$\\times$' + str(n) + '};\n')
@@ -3151,16 +3282,33 @@ class LatexUserGuide():
 		wsum = sum(m['weight'] for m in masters)
 		spare = avail - sum(m['min'] for m in masters)
 		for m in masters:
-			m['w'] = min(4.80, m['min'] + max(0.0, spare) * m['weight'] / wsum)
+			m['w'] = min(6.60, m['min'] + max(0.0, spare) * m['weight'] / wsum)
 		x = xBandL + max(0.0, (avail - sum(m['w'] for m in masters))) / 2.0
 		for m in masters:
 			m['cx'] = x + m['w'] / 2.0
-			m['tx'] = m['cx'] - (0.22 * m['w'] if m['stack'] > 1 else 0.0)
+			m['tx'] = m['cx'] - (0.22 * m['w'] if (SHADOWS and m['stack'] > 1) else 0.0)
 			x += m['w'] + gapM
 		for m in masters:
+			# A stacked master's title is a RANGE ("hart 1--17"), which already
+			# counts the instances; it never takes the $\times N$ the rank's
+			# stacked blocks take in place of their shadow squares.
 			s += shadows(m['cx'], yBandT, m['w'], hMaster, m['stack'])
 			s += frame(m['cx'], yBandT, m['w'], hMaster, 'black!8', 'thick, rounded corners=2pt')
 			s += head(m['cx'], yBandT, m['w'], m['title'], m['sub'], m['note'])
+			if m['cells']:
+				# the tile, drawn as the two things it is built from
+				yD = yBandB + hCells
+				s += ('\\draw[semithick] (' + P(m['cx'] - m['w'] / 2.0) + ', ' + P(yD) + ') -- ('
+					+ P(m['cx'] + m['w'] / 2.0) + ', ' + P(yD) + ');\n')
+				k = len(m['cells'])
+				for i, t in enumerate(m['cells']):
+					xL = m['cx'] - m['w'] / 2.0 + m['w'] * i / float(k)
+					if i:
+						s += ('\\draw[semithick] (' + P(xL) + ', ' + P(yD) + ') -- (' + P(xL)
+							+ ', ' + P(yBandB) + ');\n')
+					s += ('\\node[bc, text width=' + P(m['w'] / float(k) - 0.16) + 'cm] at ('
+						+ P(xL + m['w'] / (2.0 * k)) + ', ' + P(yBandB + hCells / 2.0) + ') {' + t
+						+ '};\n')
 			if m['stack'] > 1:
 				s += badge(m['cx'] - m['w'] / 2.0 - 0.22, yBandB + hMaster / 2.0, m['stack'], 'east')
 			s += ('\\draw[bus] (' + P(m['tx']) + ', ' + P(yBandB) + ') -- (' + P(m['tx']) + ', '
@@ -3175,168 +3323,132 @@ class LatexUserGuide():
 			' \\quad round-robin \\quad grant-locked AMOs\\\\ \\textit{every master reaches the '
 			'whole shared window, and only through the bar}};\n')
 
-		# ---- rank 1: behind the bar, tapping it straight up -----------------
-		for c in coreC:
-			s += shadows(c['cx'], yR1T, c['w'], hChip, c['stack'])
-			s += frame(c['cx'], yR1T, c['w'], hChip, 'black!5')
-			s += head(c['cx'], yR1T, c['w'], c['title'], c['sub'])
-			s += ('\\draw[bus] (' + P(c['tx']) + ', ' + P(yR1T) + ') -- (' + P(c['tx']) + ', '
-				+ P(yBarB) + ');\n')
-			if c['stack'] > 1:
-				s += badge(c['tx'], yR1T + stackStep * (maxShadow - 1) + 0.14, c['stack'])
-
-		# ---- rank 2: pin-facing, against the boundary -------------------------
-		yJog = (yR1B + yR2T) / 2.0
+		# ---- THE RANK: every peripheral, one row, one straight tap each -------
 		for g in groups:
-			solo = g['members'][0] if (len(g['members']) == 1 and not g['head']) else None
-			xTap = g['cx'] - g['off']
-			if solo:
-				s += shadows(g['cx'], yR2T, g['w'], hPin, solo['stack'])
-			s += frame(g['cx'], yR2T, g['w'], hPin, 'black!5')
-			yT = yR2T
-			if g['head']:
-				s += ('\\node[bc] at (' + P(g['cx']) + ', ' + P(yR2T - hHead / 2.0)
-					+ ') {\\small\\bfseries ' + g['head'] + '};\n')
-				s += ('\\draw[semithick] (' + P(g['cx'] - g['w'] / 2.0) + ', ' + P(yR2T - hHead)
-					+ ') -- (' + P(g['cx'] + g['w'] / 2.0) + ', ' + P(yR2T - hHead) + ');\n')
-				yT = yR2T - hHead
-			else:
-				yT = yR2T - (hPin - hChip2) / 2.0
-			x = g['cx'] - g['w'] / 2.0
+			solo = len(g['members']) == 1
+			s += shadows(g['cx'], yRankT, g['w'], hRank, g['members'][0]['stack'] if solo else 1)
+			s += frame(g['cx'], yRankT, g['w'], hRank, 'black!5')
 			for j, c in enumerate(g['members']):
-				c['cx'] = x + c['w'] / 2.0
-				c['tx'] = c['cx']
 				if j:
-					s += ('\\draw[semithick] (' + P(x) + ', ' + P(yT) + ') -- (' + P(x) + ', '
-						+ P(yT - hChip2) + ');\n')
-				# A glued compartment cannot carry the stack of shadow boxes, so
-				# its instance count goes in its TITLE. At the corner it printed
-				# over the rule between compartments.
-				title = c['title'] + ('' if (solo or c['stack'] < 2)
-					else ' $\\times$' + str(c['stack']))
-				s += head(c['cx'], yT, c['w'], title, c['sub'])
-				x += c['w']
-			# the one tap, up through the lane to the one bar
-			s += ('\\draw[bus] (' + P(xTap) + ', ' + P(yR2T) + ') -- (' + P(xTap) + ', '
-				+ P(yJog) + ') -- (' + P(g['tx']) + ', ' + P(yJog) + ') -- (' + P(g['tx']) + ', '
+					xL = c['cx'] - c['w'] / 2.0
+					s += ('\\draw[semithick] (' + P(xL) + ', ' + P(yRankT) + ') -- (' + P(xL)
+						+ ', ' + P(yRankB) + ');\n')
+				s += head(c['cx'], yRankT, c['w'], titleOf(c, solo), c['sub'])
+			s += ('\\draw[bus] (' + P(g['tx']) + ', ' + P(yRankT) + ') -- (' + P(g['tx']) + ', '
 				+ P(yBarB) + ');\n')
-			if solo and solo['stack'] > 1:
-				s += badge(xTap, yR2T + stackStep * (maxShadow - 1) + 0.14, solo['stack'])
+			if solo and g['members'][0]['stack'] > 1:
+				s += badge(g['tx'], yRankT + stackStep * (maxShadow - 1) + 0.14,
+					g['members'][0]['stack'])
 
-		# ---- the outside world, below the boundary ----------------------------
-		# Partners are spread apart where two compartments of one group sit
-		# closer than their partners are wide; the wire keeps the compartment's
-		# own x down to the pad square on the boundary, and takes the offset in
-		# the lane below it.
-		exts.sort(key=lambda c: c['cx'])
-		# Minimum displacement under a separation constraint, the standard two
-		# passes. The first cut did it in one forward sweep plus a global shift,
-		# and MEASURED on config/penta_wound.json (eight partners) that piled the
-		# left three on top of each other at the frame edge: a partner that has
-		# been pushed left by the sweep must not then be shifted again.
-		sep = [0.0] + [(exts[i - 1]['ext']['dw'] + exts[i]['ext']['dw']) / 2.0 + 0.26
-			for i in range(1, len(exts))]
-		xs = [c['cx'] for c in exts]
-		for i in range(len(exts)):
-			xs[i] = max(xs[i], xEdge + exts[i]['ext']['dw'] / 2.0,
-				(xs[i - 1] + sep[i]) if i else 0.0)
-		for i in range(len(exts) - 1, -1, -1):
-			xs[i] = min(xs[i], W - xEdge - exts[i]['ext']['dw'] / 2.0,
-				(xs[i + 1] - sep[i + 1]) if i + 1 < len(exts) else W)
-		for i in range(len(exts)):
-			xs[i] = max(xs[i], xEdge + exts[i]['ext']['dw'] / 2.0,
-				(xs[i - 1] + sep[i]) if i else 0.0)
-		yJogE = (yRedB + yExtT) / 2.0
+		# ---- the outside world, below the boundary, on straight wires ---------
 		for c, xe in zip(exts, xs):
 			e = c['ext']
 			s += frame(xe, yExtT, e['dw'], hExt, 'black!3')
 			s += head(xe, yExtT, e['dw'], e['title'], e.get('sub'))
-			s += ('\\draw[bus] (' + P(c['tx']) + ', ' + P(yR2B) + ') -- (' + P(c['tx']) + ', '
-				+ P(yJogE) + ') -- (' + P(xe) + ', ' + P(yJogE) + ') -- (' + P(xe) + ', '
+			s += ('\\draw[bus] (' + P(c['tx']) + ', ' + P(yRankB) + ') -- (' + P(c['tx']) + ', '
 				+ P(yExtT) + ');\n')
 			s += ('\\fill[red!70!black] (' + P(c['tx'] - 0.07) + ', ' + P(yRedB - 0.07)
 				+ ') rectangle (' + P(c['tx'] + 0.07) + ', ' + P(yRedB + 0.07) + ');\n')
 
-		# ---- the analog site row, its owners, and the electrodes --------------
+		# ---- the analog sites, their electrodes, and who may reach them -------
 		if afeRow is not None:
 			cols = sorted(siteOf)
-			xA0 = columns[cols[0]]['cx'] - columns[cols[0]]['w'] / 2.0
-			xA1 = columns[cols[-1]]['cx'] + columns[cols[-1]]['w'] / 2.0
-			s += ('\\draw[thick, fill=black!5] (' + P(xA0) + ', ' + P(ySiteB) + ') rectangle ('
-				+ P(xA1) + ', ' + P(ySiteT) + ');\n')
-			s += head((xA0 + xA1) / 2.0, ySiteT, xA1 - xA0, 'analog front end',
-				'one register site per hart, in the column of the hart that owns it',
-				'\\textit{analog IP not integrated; each site is reached only through the bar '
-				'--- the arrow marks the gate it enforces, not a wire of its own}')
-			s += ('\\draw[semithick] (' + P(xA0) + ', ' + P(ySiteT - hSiteHead) + ') -- ('
-				+ P(xA1) + ', ' + P(ySiteT - hSiteHead) + ');\n')
-			edges = [xA0]
-			for j in range(len(cols) - 1):
-				edges.append((columns[cols[j]]['cx'] + columns[cols[j]]['w'] / 2.0
-					+ columns[cols[j + 1]]['cx'] - columns[cols[j + 1]]['w'] / 2.0) / 2.0)
-			edges.append(xA1)
-			for j, h in enumerate(cols):
-				nm, _base, _own, _gate = siteOf[h]
-				cx = columns[h]['cx']
-				if j:
-					s += ('\\draw[semithick] (' + P(edges[j]) + ', ' + P(ySiteT - hSiteHead)
-						+ ') -- (' + P(edges[j]) + ', ' + P(ySiteB) + ');\n')
-				s += ('\\node[bc, text width=' + P(edges[j + 1] - edges[j] - 0.20) + 'cm] at ('
-					+ P(cx) + ', ' + P(ySiteB + hSiteCell / 2.0) + ') {\\textbf{' + fmttex(nm)
-					+ '} site\\\\ \\texttt{s\\_master} = ' + str(h)
-					+ (' \\emph{only}' if h == 0 else ' \\emph{or} 0') + '};\n')
-				# THE OWNERSHIP MARK: a short direct arrow into the hart whose
-				# index the gate above admits. Thin, and captioned, so it cannot
-				# be read as one of the bus wires.
-				s += ('\\draw[own] (' + P(cx) + ', ' + P(yBandT) + ') -- (' + P(cx) + ', '
-					+ P(ySiteB) + ');\n')
-				s += ('\\node[padlab, anchor=west, fill=white, inner sep=1pt] at ('
-					+ P(cx + 0.07) + ', ' + P((ySiteB + yBandT) / 2.0) + ') {\\emph{owns}};\n')
-
-			# The one bus drop the row takes, out of its right-hand edge and down
-			# the reserved lane: the sites are arbiter slaves, and this is the
-			# only path to any of them.
+			# THE AIR BETWEEN THE CHANNELS STAYS AIR. The first cut ran BOTH the
+			# bus and hart 0's reach along the row at two heights, entering each
+			# site's left and right edges. RENDERED at 300 dpi that is two
+			# double-headed arrows in every gap, and what it reads as is five
+			# sites wired to each other -- the one thing the row must not say.
+			# So the two paths are separated by KIND, not by height: the bus is
+			# one line running the length of the row BEHIND the boxes (drawn
+			# first, occluded by every site it serves, visible only where it
+			# crosses the air), and the reach is a rail in the strip UNDER the
+			# row with a short heavy drop up into each site.
+			yBusRail = ySiteB + hSite / 2.0
+			yReach = yBandT + 0.30
+			xOwnGap, xReachDrop = 0.11, 1.00
+			box = dict((h, (columns[h]['cx'] - columns[h]['w'] / 2.0,
+				columns[h]['cx'] + columns[h]['w'] / 2.0)) for h in cols)
 			xDrop = min(xBandR + xLane / 2.0, W - 0.18)
-			yCellMid = ySiteB + hSiteCell / 2.0
-			s += ('\\draw[bus] (' + P(xA1) + ', ' + P(yCellMid) + ') -- (' + P(xDrop) + ', '
-				+ P(yCellMid) + ') -- (' + P(xDrop) + ', ' + P(yBarT) + ');\n')
-			s += ('\\node[padlab, rotate=90] at (' + P(xDrop - 0.20) + ', '
-				+ P((yCellMid + yBarT) / 2.0) + ') {reached through the bar};\n')
+			s += ('\\draw[bus] (' + P(xDrop) + ', ' + P(yBarT) + ') -- (' + P(xDrop) + ', '
+				+ P(yBusRail) + ');\n')
+			s += ('\\draw[thick, fill=black!15] (' + P(box[cols[0]][0] + 0.30) + ', '
+				+ P(yBusRail - 0.09) + ') rectangle (' + P(xDrop) + ', ' + P(yBusRail + 0.09)
+				+ ');\n')
+			s += ('\\node[lane, rotate=90] at (' + P(xDrop - 0.22) + ', '
+				+ P((yBusRail + yBarT) / 2.0) + ') {reached through the bar};\n')
 
-			# Hart 0's reach: ONE heavy arrow into the whole row, down the margin.
-			yMid = ySiteT - hSiteHead / 2.0
-			s += ('\\draw[reach] (' + P(columns[cols[0]]['cx'] - columns[cols[0]]['w'] / 2.0)
-				+ ', ' + P(yBandT - hMaster / 2.0) + ') -- (' + P(xReach) + ', '
-				+ P(yBandT - hMaster / 2.0) + ') -- (' + P(xReach) + ', ' + P(yMid) + ') -- ('
-				+ P(xA0) + ', ' + P(yMid) + ');\n')
-			s += ('\\node[padlab, rotate=90] at (' + P(xReach - 0.20) + ', '
-				+ P((yBandT - hMaster / 2.0 + yMid) / 2.0)
-				+ ') {\\texttt{s\\_master} = 0 opens every gate};\n')
+			# Hart 0's reach: ONE heavy rail out of its own box, along the strip
+			# under the row, with a drop into every site including its own. The
+			# privilege is one comparison against the arbiter's granted-master
+			# index, so it is one line and not five more wires. The rail is drawn
+			# with a REAL GAP where each column's thin ownership arrow passes
+			# through it, so a crossing cannot be read as a junction.
+			cuts = sorted([columns[h]['cx'] for h in cols])
+			xr = xReach
+			s += ('\\draw[reach, -] (' + P(box[cols[0]][0]) + ', ' + P(yBandT - hMaster / 2.0)
+				+ ') -- (' + P(xr) + ', ' + P(yBandT - hMaster / 2.0) + ') -- (' + P(xr) + ', '
+				+ P(yReach) + ');\n')
+			for cut in cuts:
+				s += ('\\draw[reach, -] (' + P(xr) + ', ' + P(yReach) + ') -- ('
+					+ P(cut - xOwnGap) + ', ' + P(yReach) + ');\n')
+				xr = cut + xOwnGap
+			s += ('\\draw[reach, -] (' + P(xr) + ', ' + P(yReach) + ') -- ('
+				+ P(cuts[-1] + xReachDrop) + ', ' + P(yReach) + ');\n')
+			s += ('\\node[lane, rotate=90] at (' + P(xReach - 0.20) + ', '
+				+ P((yBandT - hMaster / 2.0 + yReach) / 2.0)
+				+ ') {\\texttt{s\\_master} = 0};\n')
 
-			# ---- the twelve electrodes, one triple per channel ----------------
-			pitch = 0.62
+			reached = []
+			for h in cols:
+				nm = siteOf[h][0]
+				m = columns[h]
+				s += frame(m['cx'], ySiteT, m['w'], hSite, 'black!5')
+				s += ('\\node[bc, text width=' + P(m['w'] - 0.90) + 'cm] at (' + P(m['cx']) + ', '
+					+ P(ySiteB + hSite / 2.0) + ') {\\textbf{' + fmttex(nm) + '} site\\\\ '
+					'\\texttt{s\\_master} = ' + str(h)
+					+ (' \\emph{only}' if h == 0 else ' \\emph{or} 0') + '};\n')
+				# THE OWNERSHIP MARK: a short direct arrow into the site from the
+				# hart whose index the gate inside it admits. Thin, and
+				# captioned, so it cannot be read as one of the bus wires.
+				s += ('\\draw[own] (' + P(m['cx']) + ', ' + P(yBandT) + ') -- (' + P(m['cx'])
+					+ ', ' + P(ySiteB) + ');\n')
+				s += ('\\node[lane, anchor=east, inner sep=2pt] at ('
+					+ P(m['cx'] - 0.05) + ', ' + P((ySiteB + yBandT) / 2.0) + ') {\\emph{owns}};\n')
+				# and hart 0's reach, up into this site out of the rail below it
+				s += ('\\draw[reach] (' + P(m['cx'] + xReachDrop) + ', ' + P(yReach) + ') -- ('
+					+ P(m['cx'] + xReachDrop) + ', ' + P(ySiteB) + ');\n')
+				reached.append(nm)
+
+			# E17: the rail and the drop are drawn per site from the same list
+			# the sites themselves come from, so a site the layout forgot cannot
+			# ship as a site nothing reaches.
+			if sorted(reached) != sorted(st[0] for st in afeRow['sites']):
+				raise Exception('ChipSystemFlatDiagram: the drawn site set ' + str(sorted(reached))
+					+ ' is not this configuration\'s ' + str(sorted(st[0] for st in afeRow['sites'])))
+
+			# ---- the electrodes, one triple straight up out of its own site ---
 			for h in sorted(padOf):
 				names = padOf[h]
 				cx = columns[h]['cx']
 				n = len(names)
-				wCell = pitch * (n - 1) + 0.90
+				wCell = pitch * (n - 1) + 1.60
 				s += ('\\draw[thick, rounded corners=3pt, fill=black!3] (' + P(cx - wCell / 2.0)
 					+ ', ' + P(yCellB) + ') rectangle (' + P(cx + wCell / 2.0) + ', '
 					+ P(yCellT) + ');\n')
-				s += ('\\node[padlab, anchor=north] at (' + P(cx) + ', ' + P(yCellT - 0.04)
+				s += ('\\node[bc, anchor=north] at (' + P(cx) + ', ' + P(yCellT - 0.06)
 					+ ') {' + str(n) + '-electrode cell};\n')
 				yStub = yCellB + yStubOff
 				for k, nm in enumerate(names):
 					xk = cx + (k - (n - 1) / 2.0) * pitch
-					# ONE unbroken wire: site box -> boundary -> stub. Nothing is
-					# drawn over it but the pad square, and the name sits above
-					# the stub inside the cell, never on the wire.
+					# ONE unbroken vertical wire: site box -> boundary -> stub.
+					# Nothing is drawn over it but the pad square, and the name
+					# sits above the stub inside the cell, never on the wire.
 					s += ('\\draw[wire] (' + P(xk) + ', ' + P(ySiteT) + ') -- (' + P(xk) + ', '
 						+ P(yStub) + ');\n')
-					s += ('\\draw[wire, line width=1.2pt] (' + P(xk - 0.15) + ', ' + P(yStub)
-						+ ') -- (' + P(xk + 0.15) + ', ' + P(yStub) + ');\n')
+					s += ('\\draw[wire, line width=1.4pt] (' + P(xk - 0.24) + ', ' + P(yStub)
+						+ ') -- (' + P(xk + 0.24) + ', ' + P(yStub) + ');\n')
 					s += ('\\node[padlab, anchor=south, inner sep=1.5pt] at (' + P(xk) + ', '
-						+ P(yStub + 0.05) + ') {\\texttt{' + fmttex(nm) + '}};\n')
+						+ P(yStub + 0.06) + ') {\\texttt{' + fmttex(nm) + '}};\n')
 					s += ('\\fill[red!70!black] (' + P(xk - 0.07) + ', ' + P(yRedT - 0.07)
 						+ ') rectangle (' + P(xk + 0.07) + ', ' + P(yRedT + 0.07) + ');\n')
 
