@@ -1,0 +1,524 @@
+{
+  "block": "AmpAB",
+  "tex_root": "include/analog/",
+  "nominal_corner": "tt",
+  "supply_var": "VDD25",
+  "emit_master": true,
+  "emit_corner_table": true,
+  "points": [
+    "1-5"
+  ],
+  "corner_labels": {
+    "pt1": "tt"
+  },
+  "corner_table_caption": "Process, temperature and supply points simulated for the class-AB amplifier in its control-amplifier role. Point 1 is the typical statistical process point, evaluated with zero statistical offset; points 2--5 are the imported foundry skew corners. Temperature is uniform across the seven benches of this run at every point: \\SI{37}{\\celsius} at point 1 and \\SI{25}{\\celsius} at points 2--5, so the typical point carries the body-temperature condition and the skew corners do not. Every figure and table in this section is schematic-level.",
+  "tests": {
+    "cab_unity_stb": {
+      "dir": "UnityFeedbackTB",
+      "result": "stb",
+      "xlabel": "Frequency~[\\si{\\hertz}]",
+      "xunit_tex": "\\si{\\hertz}",
+      "signals": {
+        "uf_aol_db": {
+          "expr": "ymax(dB20(getData(\"loopGain\" ?result \"stb\")))",
+          "label": "Open-loop gain $A_{\\mathrm{OL}}$",
+          "unit_tex": "\\si{\\decibel}",
+          "scale": 1.0,
+          "digits": 2
+        },
+        "uf_ugf": {
+          "expr": "cross(dB20(getData(\"loopGain\" ?result \"stb\")) 0 1 \"falling\")",
+          "label": "Unity-gain frequency $f_{\\mathrm{u}}$",
+          "unit_tex": "\\si{\\mega\\hertz}",
+          "scale": 1e-06,
+          "digits": 3
+        },
+        "uf_pm": {
+          "expr": "value(phase(getData(\"loopGain\" ?result \"stb\")) cross(dB20(getData(\"loopGain\" ?result \"stb\")) 0 1 \"falling\"))",
+          "label": "Phase margin",
+          "unit_tex": "\\si{\\degree}",
+          "scale": 1.0,
+          "digits": 2
+        },
+        "uf_gm": {
+          "expr": "(- value(dB20(getData(\"loopGain\" ?result \"stb\")) cross(phase(getData(\"loopGain\" ?result \"stb\")) 0 1 \"falling\")))",
+          "label": "Gain margin",
+          "unit_tex": "\\si{\\decibel}",
+          "scale": 1.0,
+          "digits": 2
+        }
+      }
+    },
+    "cab_ol_ac": {
+      "dir": "TypOpenLoopTB",
+      "result": "ac",
+      "xlabel": "Frequency~[\\si{\\hertz}]",
+      "xunit_tex": "\\si{\\hertz}",
+      "signals": {
+        "ol_gain_db": {
+          "expr": "dB20(ymax(mag((VF(\"/V_OutOL\") / (VF(\"/V_InP\") - VF(\"/V_InM\"))))))",
+          "label": "Open-loop gain $A_{\\mathrm{OL}}$",
+          "unit_tex": "\\si{\\decibel}",
+          "scale": 1.0,
+          "digits": 2
+        },
+        "ol_pm": {
+          "expr": "phaseMargin((VF(\"/V_OutOL\") / (VF(\"/V_InP\") - VF(\"/V_InM\"))))",
+          "label": "Phase margin",
+          "unit_tex": "\\si{\\degree}",
+          "scale": 1.0,
+          "digits": 2
+        },
+        "ol_f3db": {
+          "expr": "bandwidth((VF(\"/V_OutOL\") / (VF(\"/V_InP\") - VF(\"/V_InM\"))) 3 \"low\")",
+          "label": "Dominant pole $f_{-3\\,\\mathrm{dB}}$",
+          "unit_tex": "\\si{\\kilo\\hertz}",
+          "scale": 0.001,
+          "digits": 3
+        },
+        "ol_fu": {
+          "expr": "unityGainFreq((VF(\"/V_OutOL\") / (VF(\"/V_InP\") - VF(\"/V_InM\"))))",
+          "label": "Gain-bandwidth product",
+          "unit_tex": "\\si{\\mega\\hertz}",
+          "scale": 1e-06,
+          "digits": 3
+        }
+      }
+    },
+    "cab_ol_dcop": {
+      "dir": "TypOpenLoopTB",
+      "result": "dcOp",
+      "xlabel": "",
+      "xunit_tex": "",
+      "signals": {
+        "ol_itot": {
+          "expr": "abs(IDC(\"/POWER/SRC_VDD25/PLUS\"))",
+          "label": "Supply current",
+          "unit_tex": "\\si{\\micro\\ampere}",
+          "scale": 1000000.0,
+          "digits": 2
+        },
+        "ol_ptot": {
+          "expr": "(abs(IDC(\"/POWER/SRC_VDD25/PLUS\")) * VAR(\"VDD25\"))",
+          "label": "Dissipation",
+          "unit_tex": "\\si{\\micro\\watt}",
+          "scale": 1000000.0,
+          "digits": 2
+        }
+      }
+    },
+    "cab_offset_dc": {
+      "dir": "OffsetCalTB",
+      "result": "dc",
+      "xlabel": "Differential input~[\\si{\\volt}]",
+      "xunit_tex": "\\si{\\volt}",
+      "signals": {
+        "vos": {
+          "expr": "cross(VS(\"/V_OutOL\") (VAR(\"VDD25\") / 2) 1 \"either\" nil nil nil)",
+          "label": "Input offset voltage",
+          "short_label": "$V_{\\mathrm{OS}}$",
+          "unit_tex": "\\si{\\milli\\volt}",
+          "scale": 1000.0,
+          "digits": 3
+        }
+      }
+    },
+    "cab_drive_dc": {
+      "dir": "DriveTB",
+      "result": "dc",
+      "xlabel": "Load current~[\\si{\\ampere}]",
+      "xunit_tex": "\\si{\\ampere}",
+      "signals": {
+        "i_src_50m": {
+          "expr": "cross(abs((VS(\"/V_OutOL\") - VAR(\"V_CM\"))) 0.05 1 \"rising\")",
+          "label": "Load current at \\SI{50}{\\milli\\volt} error, sourcing",
+          "short_label": "$I_{\\mathrm{SRC}}$",
+          "unit_tex": "\\si{\\milli\\ampere}",
+          "scale": 1000.0,
+          "digits": 3
+        },
+        "i_sink_50m": {
+          "expr": "cross(abs((VS(\"/V_OutOL\") - VAR(\"V_CM\"))) 0.05 1 \"falling\")",
+          "label": "Load current at \\SI{50}{\\milli\\volt} error, sinking",
+          "short_label": "$I_{\\mathrm{SNK}}$",
+          "unit_tex": "\\si{\\milli\\ampere}",
+          "scale": 1000.0,
+          "digits": 3
+        },
+        "Rout_cl": {
+          "expr": "abs(value(deriv(VS(\"/V_OutOL\")) 0))",
+          "label": "Closed-loop output resistance",
+          "short_label": "$R_{\\mathrm{out}}$",
+          "unit_tex": "\\si{\\ohm}",
+          "scale": 1.0,
+          "digits": 3
+        }
+      }
+    },
+    "cab_cell_stb": {
+      "dir": "CellDriveTB",
+      "result": "stb",
+      "xlabel": "Frequency~[\\si{\\hertz}]",
+      "xunit_tex": "\\si{\\hertz}",
+      "signals": {
+        "cell_aol_db": {
+          "expr": "ymax(dB20(getData(\"loopGain\" ?result \"stb\")))",
+          "label": "Loop gain at DC",
+          "short_label": "$T_0$",
+          "unit_tex": "\\si{\\decibel}",
+          "scale": 1.0,
+          "digits": 2
+        },
+        "cell_ugf": {
+          "expr": "cross(dB20(getData(\"loopGain\" ?result \"stb\")) 0 1 \"falling\")",
+          "label": "Loop crossover",
+          "short_label": "$f_x$",
+          "unit_tex": "\\si{\\mega\\hertz}",
+          "scale": 1e-06,
+          "digits": 3
+        },
+        "cell_pm": {
+          "expr": "value(phase(getData(\"loopGain\" ?result \"stb\")) cross(dB20(getData(\"loopGain\" ?result \"stb\")) 0 1 \"falling\"))",
+          "label": "Phase margin",
+          "short_label": "$\\phi_m$",
+          "unit_tex": "\\si{\\degree}",
+          "scale": 1.0,
+          "digits": 2
+        }
+      }
+    },
+    "cab_cell_dc": {
+      "dir": "CellDriveTB",
+      "result": "dc",
+      "xlabel": "Commanded reference potential~[\\si{\\volt}]",
+      "xunit_tex": "\\si{\\volt}",
+      "nominal_x": 1.25,
+      "signals": {
+        "ce_w": {
+          "expr": "VS(\"/CE\")",
+          "label": "Counter-electrode potential",
+          "unit_tex": "\\si{\\volt}",
+          "scale": 1.0,
+          "digits": 3
+        },
+        "ce_hi": {
+          "expr": "ymax(VS(\"/CE\"))",
+          "label": "Counter-electrode ceiling",
+          "short_label": "$V_{\\mathrm{CE,hi}}$",
+          "unit_tex": "\\si{\\volt}",
+          "scale": 1.0,
+          "digits": 4
+        },
+        "ce_lo": {
+          "expr": "ymin(VS(\"/CE\"))",
+          "label": "Counter-electrode floor",
+          "short_label": "$V_{\\mathrm{CE,lo}}$",
+          "unit_tex": "\\si{\\milli\\volt}",
+          "scale": 1000.0,
+          "digits": 2
+        },
+        "i_src_max": {
+          "expr": "ymax(IS(\"/SRC_WE/PLUS\"))",
+          "label": "Cell current delivered, anodic",
+          "unit_tex": "\\si{\\micro\\ampere}",
+          "scale": 1000000.0,
+          "digits": 3
+        },
+        "i_sink_max": {
+          "expr": "abs(ymin(IS(\"/SRC_WE/PLUS\")))",
+          "label": "Cell current delivered, cathodic",
+          "unit_tex": "\\si{\\micro\\ampere}",
+          "scale": 1000000.0,
+          "digits": 3
+        },
+        "re_err_0": {
+          "expr": "value((VS(\"/RE\") - xval(VS(\"/RE\"))) VAR(\"V_CM\"))",
+          "label": "Tracking error at zero cell current",
+          "unit_tex": "\\si{\\micro\\volt}",
+          "scale": 1000000.0,
+          "digits": 1
+        },
+        "re_err_max": {
+          "expr": "ymax(abs(clip((VS(\"/RE\") - xval(VS(\"/RE\"))) VAR(\"vref_lo\") VAR(\"vref_hi\"))))",
+          "label": "Worst tracking error over the window",
+          "unit_tex": "\\si{\\micro\\volt}",
+          "scale": 1000000.0,
+          "digits": 1
+        },
+        "re_err_slope": {
+          "expr": "ymax(abs(deriv(clip((VS(\"/RE\") - xval(VS(\"/RE\"))) VAR(\"vref_lo\") VAR(\"vref_hi\")))))",
+          "label": "Worst tracking-error slope",
+          "unit_tex": "\\si{\\milli\\volt\\per\\volt}",
+          "scale": 1000.0,
+          "digits": 3
+        },
+        "re_reg_p10": {
+          "expr": "(value((VS(\"/RE\") - xval(VS(\"/RE\"))) cross(IS(\"/SRC_WE/PLUS\") 1e-05 1 \"either\")) - value((VS(\"/RE\") - xval(VS(\"/RE\"))) VAR(\"V_CM\")))",
+          "label": "Regulation error at \\SI{+10}{\\micro\\ampere}",
+          "unit_tex": "\\si{\\micro\\volt}",
+          "scale": 1000000.0,
+          "digits": 2
+        },
+        "re_reg_n10": {
+          "expr": "(value((VS(\"/RE\") - xval(VS(\"/RE\"))) cross(IS(\"/SRC_WE/PLUS\") -1e-05 1 \"either\")) - value((VS(\"/RE\") - xval(VS(\"/RE\"))) VAR(\"V_CM\")))",
+          "label": "Regulation error at \\SI{-10}{\\micro\\ampere}",
+          "unit_tex": "\\si{\\micro\\volt}",
+          "scale": 1000000.0,
+          "digits": 2
+        }
+      }
+    }
+  },
+  "figures": [
+    {
+      "id": "ampab_cell_ce",
+      "test": "cab_cell_dc",
+      "signals": [
+        "ce_w"
+      ],
+      "corners": "all",
+      "width": "0.82\\linewidth",
+      "height": "6.2cm",
+      "yprec": 2,
+      "legendpos": "south east",
+      "ylabel": "Counter-electrode potential~[\\si{\\volt}]",
+      "caption": "Counter-electrode potential against commanded reference potential over five process corners, cell-drive bench (Figure~\\ref{fig:tb-celldrive}). The amplifier drives a Randles cell with $R_{\\mathrm{CE}} = \\SI{1}{\\kilo\\ohm}$, $R_u = \\SI{1}{\\kilo\\ohm}$, $R_{\\mathrm{ct}} = \\SI{10}{\\kilo\\ohm}$, $C_{\\mathrm{dl}} = \\SI{1}{\\micro\\farad}$ with the working electrode held at \\SI{1.25}{\\volt}, $C_L = \\SI{5}{\\pico\\farad}$, $C_c = \\SI{500}{\\femto\\farad}$, \\SI{2.5}{\\volt} supply; the typical point is at \\SI{37}{\\celsius} and the four skew corners at \\SI{25}{\\celsius}. The central segment rises with slope $12/11$, the divider between the \\SI{1}{\\kilo\\ohm} counter-electrode branch and the \\SI{11}{\\kilo\\ohm} remainder of the cell; the flat ends are the amplifier against its rails, and their heights are the compliance limits tabulated in Table~\\ref{tab:ampab-compliance}. Over the whole central segment the cell current is set by the cell resistance and the commanded potential, not by the amplifier."
+    }
+  ],
+  "tables": [
+    {
+      "id": "ampab_unity",
+      "type": "matrix",
+      "test": "cab_unity_stb",
+      "stat": "value",
+      "corners": "all",
+      "spread_column": true,
+      "signals": [
+        "uf_aol_db",
+        "uf_ugf",
+        "uf_pm",
+        "uf_gm"
+      ],
+      "caption": "Amplifier stability in unity-gain feedback by process corner. Unity-feedback bench (Figure~\\ref{fig:tb-unityfb}) at $v_{\\mathrm{cm}} = \\SI{1.25}{\\volt}$, $C_L = \\SI{5}{\\pico\\farad}$, $C_c = \\SI{500}{\\femto\\farad}$, \\SI{2.5}{\\volt} supply; the typical point is at \\SI{37}{\\celsius} and the four skew corners at \\SI{25}{\\celsius}. Measured through a probe in the feedback wire, so the quantity is the loop gain of the unity-gain configuration and not the amplifier loaded by an application network. Gain margin is read at the first crossing of zero loop phase above the unity-gain frequency."
+    },
+    {
+      "id": "ampab_openloop",
+      "type": "matrix",
+      "test": "cab_ol_ac",
+      "stat": "value",
+      "corners": "all",
+      "spread_column": true,
+      "signals": [
+        "ol_gain_db",
+        "ol_pm",
+        "ol_f3db",
+        "ol_fu"
+      ],
+      "caption": "Open-loop small-signal response by process corner. The amplifier is driven differentially about mid-supply with no feedback, $C_L = \\SI{5}{\\pico\\farad}$, $C_c = \\SI{500}{\\femto\\farad}$, \\SI{2.5}{\\volt} supply, \\SI{37}{\\celsius} at the typical point and \\SI{25}{\\celsius} at the four skew corners. The input offset is nulled before the sweep and the DC operating point is linear at every point (output \\SIrange{0.60}{1.78}{\\volt} across corners), so the open-loop numbers are valid; they agree with the unity-feedback loop gain of Table~\\ref{tab:ampab-unity} to within \\SI{1.8}{\\decibel} and the phase margins to within \\SI{0.6}{\\degree}. The \\SI{-3}{\\decibel} frequency varies inversely with the DC gain at a unity-gain frequency that is nearly corner-independent."
+    },
+    {
+      "id": "ampab_offset",
+      "type": "matrix",
+      "test": "cab_offset_dc",
+      "stat": "value",
+      "corners": "all",
+      "spread_column": true,
+      "signals": [
+        "vos"
+      ],
+      "caption": "Systematic input offset by process corner. The differential input is swept about mid-supply into a \\SI{5}{\\pico\\farad} load, \\SI{2.5}{\\volt} supply, \\SI{37}{\\celsius} at the typical point and \\SI{25}{\\celsius} at the four skew corners; the entry is the differential input at which the output crosses mid-supply. These are corner figures with zero statistical offset, so they carry only the topology's systematic term: the random offset a manufactured channel carries is the Monte Carlo result of Table~\\ref{tab:ampab-mc-offset} and is an order of magnitude larger."
+    },
+    {
+      "id": "ampab_drive",
+      "type": "matrix",
+      "test": "cab_drive_dc",
+      "stat": "value",
+      "corners": "all",
+      "spread_column": true,
+      "signals": [
+        "i_src_50m",
+        "i_sink_50m",
+        "Rout_cl"
+      ],
+      "caption": "Output drive by process corner. The amplifier is in unity-gain feedback at $v_{\\mathrm{cm}} = \\SI{1.25}{\\volt}$ with $C_L = \\SI{5}{\\pico\\farad}$, $C_c = \\SI{500}{\\femto\\farad}$, \\SI{2.5}{\\volt} supply and the load current swept \\SIrange{-10}{10}{\\milli\\ampere}; the typical point is at \\SI{37}{\\celsius} and the four skew corners at \\SI{25}{\\celsius}. The first two entries are the load current at which the output departs from $v_{\\mathrm{cm}}$ by \\SI{50}{\\milli\\volt}, not a hard current limit; load current is signed positive out of the amplifier, so the sinking entry is negative. Output resistance is the slope of the same curve at zero load and is the quantity that sets load regulation in Table~\\ref{tab:ampab-tracking}."
+    },
+    {
+      "id": "ampab_power",
+      "type": "matrix",
+      "test": "cab_ol_dcop",
+      "stat": "value",
+      "corners": "all",
+      "spread_column": true,
+      "signals": [
+        "ol_itot",
+        "ol_ptot"
+      ],
+      "caption": "Quiescent supply current and dissipation by process corner, at the DC operating point of the open-loop bench with both inputs at mid-supply and no load. \\SI{2.5}{\\volt} supply, \\SI{37}{\\celsius} at the typical point and \\SI{25}{\\celsius} at the four skew corners. The measurement is taken at the supply terminal of the bench and therefore covers the amplifier together with the local bias generator that feeds it; at the typical point the amplifier draws \\SI{97}{\\micro\\ampere} of the \\SI{121}{\\micro\\ampere} total and the bias generator the remainder. One local bias generator serves one channel, so this is the per-channel budget."
+    },
+    {
+      "id": "ampab_cellstab",
+      "type": "matrix",
+      "test": "cab_cell_stb",
+      "stat": "value",
+      "corners": "all",
+      "spread_column": true,
+      "signals": [
+        "cell_aol_db",
+        "cell_ugf",
+        "cell_pm"
+      ],
+      "caption": "Control-loop stability driving an electrochemical cell, by process corner. Cell-drive bench (Figure~\\ref{fig:tb-celldrive}): Randles cell with $R_{\\mathrm{CE}} = \\SI{1}{\\kilo\\ohm}$, $R_u = \\SI{1}{\\kilo\\ohm}$, $R_{\\mathrm{ct}} = \\SI{10}{\\kilo\\ohm}$, $C_{\\mathrm{dl}} = \\SI{1}{\\micro\\farad}$, working electrode at \\SI{1.25}{\\volt}, $C_L = \\SI{5}{\\pico\\farad}$, $C_c = \\SI{500}{\\femto\\farad}$, \\SI{2.5}{\\volt} supply, \\SI{37}{\\celsius} at the typical point and \\SI{25}{\\celsius} at the four skew corners. The probe sits in the reference-electrode sense wire, so the loop measured here includes the cell; it is a different loop from Table~\\ref{tab:ampab-unity} and the two are not comparable. Loop gain is \\SI{10}{\\decibel} lower than the unity-feedback figure because the cell's \\SI{12}{\\kilo\\ohm} loads an open-loop output resistance of about \\SI{25}{\\kilo\\ohm}; crossover halves with it and the phase margin improves."
+    },
+    {
+      "id": "ampab_tracking",
+      "type": "matrix",
+      "test": "cab_cell_dc",
+      "stat": "value",
+      "corners": "all",
+      "spread_column": true,
+      "signals": [
+        "re_err_0",
+        "re_err_max",
+        "re_reg_p10",
+        "re_reg_n10"
+      ],
+      "caption": "Reference-potential tracking by process corner, conditions as Table~\\ref{tab:ampab-cellstab}. Tracking error is the reference-electrode potential minus the commanded value. The first row is that error at zero cell current and is the loop's DC offset; the second is its worst magnitude over the fixed \\SIrange{0.4}{2.1}{\\volt} command window, offset-inclusive. The last two rows are the load-regulation error at \\SI{\\pm 10}{\\micro\\ampere} of cell current with the zero-current error subtracted at the same corner, which is the quantity a differential measurement sees; they are two orders of magnitude smaller than the offset that dominates the rows above. The window is fixed for every corner and every sample, so a weak corner cannot report better accuracy over a narrower range."
+    },
+    {
+      "id": "ampab_compliance",
+      "type": "matrix",
+      "test": "cab_cell_dc",
+      "stat": "value",
+      "corners": "all",
+      "spread_column": true,
+      "signals": [
+        "ce_hi",
+        "ce_lo",
+        "i_src_max",
+        "i_sink_max"
+      ],
+      "caption": "Counter-electrode compliance and delivered cell current by process corner, conditions as Table~\\ref{tab:ampab-cellstab}. The first two rows are the extremes of the counter-electrode potential over the full \\SIrange{0}{2.5}{\\volt} command sweep (Figure~\\ref{fig:ampab-cell-ce}); they are measured directly at the electrode and are independent of the loop offset, which is why compliance is published from them. Headroom to each rail is under \\SI{40}{\\milli\\volt}. The current rows are the largest anodic and cathodic currents reached in the same sweep; with \\SI{12}{\\kilo\\ohm} between the counter and working electrodes they are the compliance limits divided by that resistance, so they are a property of this load and do not transfer to another electrode."
+    }
+  ],
+  "order": [
+    "note_ampab_intro",
+    "sch_TiaAmpAB_topology",
+    "tab_AmpAB_corners",
+    "sch_tb_unityfb",
+    "tab_ampab_unity",
+    "tab_ampab_openloop",
+    "tab_ampab_offset",
+    "tab_ampab_drive",
+    "tab_ampab_power",
+    "note_ampab_device_mc",
+    "fig_ampab_mc_voffset",
+    "tab_ampab_mc_offset",
+    "tab_ampab_mc_unity",
+    "tab_ampab_mc_openloop",
+    "fig_ampab_mc_power",
+    "tab_ampab_mc_power",
+    "tab_ampab_mc_drive",
+    "note_ampab_tia",
+    "sch_tb_tiafb",
+    "tab_TiaAmpAB_corners",
+    "tab_tiaab_accuracy",
+    "fig_tiaab_zt",
+    "tab_tiaab_transfer",
+    "fig_tiaab_loopgain",
+    "tab_tiaab_stability",
+    "tab_tiaab_noise",
+    "note_ampab_tia_mc",
+    "fig_tiaab_mc_voff",
+    "tab_tiaab_mc_offset",
+    "tab_tiaab_mc_accuracy",
+    "fig_tiaab_mc_pm",
+    "tab_tiaab_mc_stability",
+    "tab_tiaab_mc_bandwidth",
+    "fig_tiaab_mc_inoise",
+    "tab_tiaab_mc_noise",
+    "note_ampab_ctrl",
+    "sch_tb_celldrive",
+    "tab_ampab_cellstab",
+    "fig_ampab_cell_ce",
+    "tab_ampab_tracking",
+    "tab_ampab_compliance",
+    "note_ampab_ctrl_mc",
+    "fig_ampab_mc_cellaol",
+    "tab_ampab_mc_cellstab",
+    "tab_ampab_mc_tracking",
+    "tab_ampab_mc_regulation",
+    "tab_ampab_mc_compliance"
+  ],
+  "_note": [
+    "SECTION MASTER for castalia/anatop_tia_amp_ab, the class-AB amplifier that serves",
+    "as BOTH the transimpedance amplifier (A2) and the potentiostat control amplifier",
+    "(A1). Its `order` places the whole three-part section:",
+    "  part 1, the device      -- fragments from this block (AmpAB) + AmpABMC",
+    "  part 2, the amplifier as A2 -- fragments from TiaAmpAB + TiaAmpABMC",
+    "  part 3, the amplifier as A1 -- fragments from this block (AmpAB) + AmpABMC",
+    "plus the hand-written note_*/sch_* files. Fragments named in `order` that do not",
+    "exist are skipped silently, which is how the note_ampab_* files are staged.",
+    "anatop_tb_tia_amp_ab_corners.json must be switched to emit_master=false when this",
+    "block goes live, or two competing masters cover the same material.",
+    "",
+    "SOURCE: .../tb_anatop_ctrl_amp_ab/maestro/results/maestro/Interactive.168",
+    "5 points x 7 tests. Point 1's model list is the statistical section at nominal",
+    "(no cor_std_mos.scs), so _corner_from_modelfiles falls back to pt1 -- hence",
+    "corner_labels. Points 2-5 are ff / fs / sf / ss.",
+    "",
+    "TEMPERATURE IS UNIFORM ACROSS TESTS in this run, unlike the TIA bench. Verified in",
+    "all 35 netlists: point 1 is 37 C on every test, points 2-5 are 25 C on every test.",
+    "The generated corner legend reads temp from the alphabetically first test",
+    "(CellDriveTB) and is therefore correct as printed; captions may state it plainly.",
+    "",
+    "Block name AmpAB is distinct from AmpABMC / TiaAmpAB / TiaAmpABMC / TiaAmp /",
+    "ControlAmp / ControlAmpMonteCarlo / BiasGenCascWideSwing. The block keys",
+    "data/raw/corners_<Block>.json and data/extract_<Block>.ocn. Test names are prefixed",
+    "cab_ because raw CSVs are named <test>__<corner>__<signal>.csv and all blocks share",
+    "data/raw/; no existing block uses that prefix.",
+    "",
+    "EXPRESSIONS. Every one below was evaluated against this run with OCEAN before the",
+    "config was written and returned a number on all five points. Where the run's own",
+    "psf/<test>/monteCarlo/mcparam carries the expression it is copied verbatim, so the",
+    "corner table and the Monte Carlo table measure the same quantity. Four mcparam",
+    "expressions reference other named Assembler outputs, which OCEAN cannot see; they",
+    "are expanded here from the definitions in the testbench setup:",
+    "  GainVsFreqOL   = (VF(\"/V_OutOL\") / (VF(\"/V_InP\") - VF(\"/V_InM\")))",
+    "  verr           = (VS(\"/V_OutOL\") - VAR(\"V_CM\"))",
+    "  icell          = IS(\"/SRC_WE/PLUS\")",
+    "  re_err         = (VS(\"/RE\") - xval(VS(\"/RE\")))",
+    "  re_err_clipped = clip(re_err VAR(\"vref_lo\") VAR(\"vref_hi\"))",
+    "  re_err_deriv   = deriv(re_err_clipped)",
+    "and pm/GainLogOL/re_err_max/re_err_slope are built on those. vref_lo = 0.4 V and",
+    "vref_hi = 2.1 V are design variables, frozen for every corner and every sample.",
+    "",
+    "re_reg_p10 / re_reg_n10 have NO mcparam row: the run measures re_err_p10 and",
+    "re_err_n10, which are offset-inclusive and therefore measure offset rather than",
+    "regulation (their correlation with re_err_0 is r = 1.000 over the Monte Carlo",
+    "samples, and only 23 of 200 meet the +/-1 mV limit entered on them). The corner",
+    "expressions here subtract the zero-current error at the same corner; the Monte",
+    "Carlo companion does the same subtraction per sample through the `derive` key.",
+    "The raw re_err_p10/re_err_n10 are not published anywhere.",
+    "",
+    "cab_ol_ac and cab_ol_dcop are the same run directory read at two analyses. The",
+    "open-loop DC operating point of THIS bench is mid-rail (about 1.281 V), unlike the",
+    "TIA bench's railed one, so its gain, phase margin and bandwidth are valid results",
+    "and are published. ol_itot/ol_ptot are the supply terminal of the whole bench:",
+    "amplifier plus local bias generator, stated in the caption.",
+    "",
+    "NOT EXTRACTED, deliberately:",
+    "  SlewOpenLoopTB, StepUnityFeedbackTB -- their outputs carry no spec limits and",
+    "    were not graded; publishing them would imply slew and settling were.",
+    "  TypOpenLoopTB GainMargin -- gainMargin() returns a negative number here and the",
+    "    unity-feedback gain margin of Table tab_ampab_unity is the same quantity",
+    "    measured on a loop that is actually closed.",
+    "  CellDriveTB vref_lo_meas / vref_hi_meas / vref_range -- thresholds on the",
+    "    offset-inclusive error; compliance is published from ce_hi/ce_lo instead.",
+    "  CellDriveTB head_hi/head_lo/rail_hi/rail_lo -- algebraic restatements of",
+    "    ce_hi/ce_lo against the supply.",
+    "  CellDriveTB re_err_slope_at -- it locates the worst slope, and in 200 Monte",
+    "    Carlo samples it lands on one of the two window edges every time, so it",
+    "    carries no information beyond the window definition.",
+    "  DriveTB i_src_1m/i_sink_1m/voff/itot -- see the note in the MC config."
+  ]
+}

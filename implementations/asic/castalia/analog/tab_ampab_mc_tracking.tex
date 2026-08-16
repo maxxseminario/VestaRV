@@ -1,0 +1,15 @@
+%% maestro2tex -- generated table; do not edit by hand.
+\begin{table}[htbp]
+  \centering
+  \caption[{Monte Carlo reference-potential tracking, conditions as Table~\ref{tab:ampab-mc-cellstab}.}]{Monte Carlo reference-potential tracking, conditions as Table~\ref{tab:ampab-mc-cellstab}. Tracking error is the reference-electrode potential minus the commanded value; the first row is that error at zero cell current, the second its worst magnitude over the fixed \SIrange{0.4}{2.1}{\volt} command window. Both are offset-inclusive, and the worst-error row tracks the magnitude of the zero-current row at $r = 0.986$ across the 200 samples: what is measured here is the amplifier's input offset carried to the electrode, not a gain error, and calibrating the offset removes almost all of it. Load regulation with that offset taken out is Table~\ref{tab:ampab-mc-regulation}. The window is frozen at the same two voltages for every sample, so a weak sample cannot report better accuracy over a narrower range. Both distributions are right-skewed, so the median, percentiles and worst sample are quoted and mean \(\pm\,3\sigma\) is not.}
+  \label{tab:ampab-mc-tracking}
+  \footnotesize
+  \begin{tabular}{lrrrrrrrrrrr}
+    \toprule
+    Parameter & Unit & $N$ & Mean & $\sigma$ & Median & $p_{1}$ & $p_{99}$ & Worst & Spec & Yield & 4\,ch \\
+    \midrule
+    Tracking error at zero cell current & \si{\milli\volt} & 200 & $-0.694$ & 5.708 & $-0.267$ & $-16.532$ & 13.086 & -- & -- & -- & -- \\
+    Worst tracking error over the window & \si{\milli\volt} & 200 & 5.494 & 4.463 & 4.423 & 0.358 & 21.869 & 23.082 & $\leq 10.000$ & 87.0 & 57.3 \\
+    \bottomrule
+  \end{tabular}
+\end{table}

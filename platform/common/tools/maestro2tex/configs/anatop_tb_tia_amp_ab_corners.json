@@ -3,7 +3,7 @@
   "tex_root": "include/analog/",
   "nominal_corner": "tt",
   "supply_var": "VDD25",
-  "emit_master": true,
+  "emit_master": false,
   "emit_corner_table": true,
   "points": [
     "1-5"
@@ -11,7 +11,7 @@
   "corner_labels": {
     "pt1": "tt"
   },
-  "corner_table_caption": "Process, temperature and supply points simulated for the class-AB transimpedance amplifier. Point 1 is the typical statistical process point, evaluated with zero statistical offset; points 2--5 are the imported foundry skew corners. The temperature column reads \\SI{25}{\\celsius} at every point, which is correct for the open-loop benches; the closed-loop transimpedance bench runs point 1 at \\SI{37}{\\celsius} and the four skew corners at \\SI{25}{\\celsius}, and each table below names the temperature that applies to it. Every figure and table in this section is schematic-level and covers only the $R_f = \\SI{560}{\\kilo\\ohm}$ feedback tap; nothing here characterises the other fifteen taps of the gain string.",
+  "corner_table_caption": "Process, temperature and supply points simulated for the transimpedance application. Point 1 is the typical statistical process point, evaluated with zero statistical offset, at the \\SI{37}{\\celsius} on-body temperature; points 2--5 are the imported foundry skew corners at \\SI{25}{\\celsius}. Every figure and table in this part is schematic-level and covers only the $R_f = \\SI{560}{\\kilo\\ohm}$ feedback tap; nothing here characterises the other fifteen taps of the gain string.",
   "tests": {
     "ab_tiafb_dc": {
       "dir": "TiaFbTB",
@@ -178,66 +178,6 @@
           "digits": 3
         }
       }
-    },
-    "ab_unity_stb": {
-      "dir": "UnityFeedbackTB",
-      "result": "stb",
-      "xlabel": "Frequency~[\\si{\\hertz}]",
-      "xunit_tex": "\\si{\\hertz}",
-      "signals": {
-        "uf_aol_db": {
-          "expr": "ymax(dB20(getData(\"loopGain\" ?result \"stb\")))",
-          "label": "Open-loop gain $A_{\\mathrm{OL}}$",
-          "unit_tex": "\\si{\\decibel}",
-          "scale": 1.0,
-          "digits": 2
-        },
-        "uf_ugf": {
-          "expr": "cross(dB20(getData(\"loopGain\" ?result \"stb\")) 0 1 \"falling\")",
-          "label": "Unity-gain frequency $f_{\\mathrm{u}}$",
-          "unit_tex": "\\si{\\mega\\hertz}",
-          "scale": 1e-06,
-          "digits": 3
-        },
-        "uf_pm": {
-          "expr": "value(phase(getData(\"loopGain\" ?result \"stb\")) cross(dB20(getData(\"loopGain\" ?result \"stb\")) 0 1 \"falling\"))",
-          "label": "Phase margin",
-          "unit_tex": "\\si{\\degree}",
-          "scale": 1.0,
-          "digits": 2
-        },
-        "uf_gm": {
-          "expr": "(- value(dB20(getData(\"loopGain\" ?result \"stb\")) cross(phase(getData(\"loopGain\" ?result \"stb\")) 0 1 \"falling\")))",
-          "label": "Gain margin",
-          "unit_tex": "\\si{\\decibel}",
-          "scale": 1.0,
-          "digits": 2
-        }
-      }
-    },
-    "ab_drive_dc": {
-      "dir": "DriveTB",
-      "result": "dc",
-      "xlabel": "Load current~[\\si{\\ampere}]",
-      "xunit_tex": "\\si{\\ampere}",
-      "signals": {
-        "i_src_50m": {
-          "expr": "cross(abs((VS(\"/V_OutOL\") - VAR(\"V_CM\"))) 0.05 1 \"rising\")",
-          "label": "Sourced current at \\SI{50}{\\milli\\volt} error",
-          "short_label": "$I_{\\mathrm{SRC}}$",
-          "unit_tex": "\\si{\\milli\\ampere}",
-          "scale": 1000.0,
-          "digits": 3
-        },
-        "i_sink_50m": {
-          "expr": "abs(cross(abs((VS(\"/V_OutOL\") - VAR(\"V_CM\"))) 0.05 1 \"falling\"))",
-          "label": "Sunk current at \\SI{50}{\\milli\\volt} error",
-          "short_label": "$I_{\\mathrm{SNK}}$",
-          "unit_tex": "\\si{\\milli\\ampere}",
-          "scale": 1000.0,
-          "digits": 3
-        }
-      }
     }
   },
   "figures": [
@@ -254,7 +194,7 @@
       "yprec": 0,
       "legendpos": "south west",
       "ylabel": "Loop gain $|T|$~[\\si{\\decibel}]",
-      "caption": "Transimpedance loop gain over five process corners, measured through a probe in series with the feedback network (Figure~\\ref{fig:tb-tiafb}). $R_f = \\SI{560}{\\kilo\\ohm}$, $C_f = \\SI{22}{\\pico\\farad}$, $C_L = \\SI{5}{\\pico\\farad}$, $C_c = \\SI{500}{\\femto\\farad}$, \\texttt{BiasAdj}~=~37, \\SI{2.5}{\\volt}, Randles electrode with $R_s = \\SI{100}{\\ohm}$, $R_{\\mathrm{ct}} = \\SI{1}{\\mega\\ohm}$, $C_{\\mathrm{dl}} = \\SI{100}{\\nano\\farad}$. \\texttt{tt} is at \\SI{37}{\\celsius}, the four skew corners at \\SI{25}{\\celsius}. This is the loop around the amplifier, the feedback network and the electrode together, not the amplifier's own gain; the two are tabulated separately in Tables~\\ref{tab:tiaab-stability} and~\\ref{tab:tiaab-unity}."
+      "caption": "Transimpedance loop gain over five process corners, measured through a probe in series with the feedback network (Figure~\\ref{fig:tb-tiafb}). $R_f = \\SI{560}{\\kilo\\ohm}$, $C_f = \\SI{22}{\\pico\\farad}$, $C_L = \\SI{5}{\\pico\\farad}$, $C_c = \\SI{500}{\\femto\\farad}$, \\texttt{BiasAdj}~=~37, \\SI{2.5}{\\volt}, Randles electrode with $R_s = \\SI{100}{\\ohm}$, $R_{\\mathrm{ct}} = \\SI{1}{\\mega\\ohm}$, $C_{\\mathrm{dl}} = \\SI{100}{\\nano\\farad}$. \\texttt{tt} is at \\SI{37}{\\celsius}, the four skew corners at \\SI{25}{\\celsius}. This is the loop around the amplifier, the feedback network and the electrode together, not the amplifier's own gain; the two are tabulated separately in Table~\\ref{tab:tiaab-stability} and Table~\\ref{tab:ampab-unity}."
     },
     {
       "id": "tiaab_zt",
@@ -315,7 +255,7 @@
         "stb_pm",
         "stb_gm"
       ],
-      "caption": "Transimpedance loop stability by process corner, conditions as Table~\\ref{tab:tiaab-accuracy}. Measured through the feedback probe of Figure~\\ref{fig:tb-tiafb}, so the loop includes the amplifier, the feedback network and the electrode; the amplifier's own margins are in Table~\\ref{tab:tiaab-unity}. Gain margin is read at the first crossing of zero loop phase above the unity-gain frequency."
+      "caption": "Transimpedance loop stability by process corner, conditions as Table~\\ref{tab:tiaab-accuracy}. Measured through the feedback probe of Figure~\\ref{fig:tb-tiafb}, so the loop includes the amplifier, the feedback network and the electrode; the amplifier's own margins are in Table~\\ref{tab:ampab-unity}. Gain margin is read at the first crossing of zero loop phase above the unity-gain frequency."
     },
     {
       "id": "tiaab_noise",
@@ -331,63 +271,7 @@
         "in_rms_1k"
       ],
       "caption": "Noise by process corner, conditions as Table~\\ref{tab:tiaab-accuracy}. The noise analysis runs \\SI{0.1}{\\hertz} to \\SI{10}{\\kilo\\hertz} at 20 points per decade; the three input-referred rows are the output noise integrated to \\SI{10}{\\hertz}, \\SI{100}{\\hertz} and \\SI{1}{\\kilo\\hertz} and divided by $R_f$, and no figure is integrated beyond the analysis stop frequency. The input-referred rows therefore scale inversely with the selected gain tap."
-    },
-    {
-      "id": "tiaab_unity",
-      "type": "matrix",
-      "test": "ab_unity_stb",
-      "stat": "value",
-      "corners": "all",
-      "spread_column": true,
-      "signals": [
-        "uf_aol_db",
-        "uf_ugf",
-        "uf_pm",
-        "uf_gm"
-      ],
-      "caption": "Amplifier stability in unity-gain feedback by process corner. Unity-feedback bench (Figure~\\ref{fig:tb-unityfb}) at \\SI{25}{\\celsius} at all five points, $C_L = \\SI{5}{\\pico\\farad}$, $C_c = \\SI{500}{\\femto\\farad}$, \\texttt{BiasAdj}~=~37, \\SI{2.5}{\\volt} supply. This is the amplifier alone, with neither the feedback network nor the electrode in the loop, and is not comparable with Table~\\ref{tab:tiaab-stability}."
-    },
-    {
-      "id": "tiaab_drive",
-      "type": "matrix",
-      "test": "ab_drive_dc",
-      "stat": "value",
-      "corners": "all",
-      "spread_column": true,
-      "signals": [
-        "i_src_50m",
-        "i_sink_50m"
-      ],
-      "caption": "Output drive by process corner. Drive bench (Figure~\\ref{fig:tb-unityfb}, with the swept load current) at \\SI{25}{\\celsius} at all five points: the amplifier in unity-gain feedback at $v_{\\mathrm{cm}} = \\SI{1.25}{\\volt}$ with $C_L = \\SI{5}{\\pico\\farad}$, \\texttt{BiasAdj}~=~37, \\SI{2.5}{\\volt} supply, load current swept \\SIrange{-10}{10}{\\milli\\ampere}. Each entry is the load current at which the output departs from $v_{\\mathrm{cm}}$ by \\SI{50}{\\milli\\volt}, not a hard current limit."
     }
-  ],
-  "order": [
-    "note_tiaampab_intro",
-    "sch_TiaAmpAB_topology",
-    "tab_TiaAmpAB_corners",
-    "sch_tb_tiafb",
-    "sch_tb_unityfb",
-    "tab_tiaab_accuracy",
-    "fig_tiaab_zt",
-    "tab_tiaab_transfer",
-    "fig_tiaab_loopgain",
-    "tab_tiaab_stability",
-    "tab_tiaab_unity",
-    "tab_tiaab_noise",
-    "tab_tiaab_drive",
-    "note_tiaampab_mc",
-    "fig_tiaab_mc_voff",
-    "tab_tiaab_mc_offset",
-    "tab_tiaab_mc_accuracy",
-    "fig_tiaab_mc_pm",
-    "tab_tiaab_mc_stability",
-    "tab_tiaab_mc_unity",
-    "tab_tiaab_mc_bandwidth",
-    "fig_tiaab_mc_inoise",
-    "tab_tiaab_mc_noise",
-    "tab_tiaab_mc_drive",
-    "fig_tiaab_mc_power",
-    "tab_tiaab_mc_power"
   ],
   "_note": [
     "SECTION MASTER for the class-AB transimpedance amplifier castalia/anatop_tia_amp_ab.",
@@ -429,6 +313,11 @@
     "bimodal (187 samples 75-170 uW, ~13 at 230-300 uW) and the deterministic corner",
     "run converges to the HIGH branch at all five points (190-319 uW) despite nominal",
     "statistics -- a corner row would publish the branch, not a process trend. Only the",
-    "Monte Carlo p_opamp is published, with the bimodality stated in its captions."
+    "Monte Carlo p_opamp is published, with the bimodality stated in its captions.",
+    "",
+    "RESTRUCTURE 2026-08-16 (amp_ab_trm_prompt): the cell now serves both A1 and A2;",
+    "device-level content (unity-feedback, drive, power) moved to the control-bench",
+    "blocks AmpAB/AmpABMC (configs/anatop_tb_ctrl_amp_ab_*.json). This block now covers",
+    "only the A2 application and no longer emits the section master -- AmpAB does."
   ]
 }

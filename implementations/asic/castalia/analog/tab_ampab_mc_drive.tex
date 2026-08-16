@@ -1,0 +1,16 @@
+%% maestro2tex -- generated table; do not edit by hand.
+\begin{table}[htbp]
+  \centering
+  \caption[{Monte Carlo output drive.}]{Monte Carlo output drive. \textbf{Process and mismatch}, \SI{37}{\celsius}, 200 samples, amplifier in unity-gain feedback at $v_{\mathrm{cm}} = \SI{1.25}{\volt}$, $C_L = \SI{5}{\pico\farad}$, $C_c = \SI{500}{\femto\farad}$, \SI{2.5}{\volt} supply, load current swept \SIrange{-10}{10}{\milli\ampere}. The first two entries are the load current at which the output departs from $v_{\mathrm{cm}}$ by \SI{50}{\milli\volt}, not a hard current limit; load current is signed positive out of the amplifier, so the sinking entry is negative. All three distributions are symmetric, so mean \(\pm\,3\sigma\) applies.  Every sample clears the sourcing limit entered on the test; the other two rows were not graded.}
+  \label{tab:ampab-mc-drive}
+  \footnotesize
+  \begin{tabular}{lrrrrrrrrrr}
+    \toprule
+    Parameter & Unit & $N$ & Mean & $\sigma$ & Mean $\pm\,3\sigma$ & Min & Max & Spec & Yield & 4\,ch \\
+    \midrule
+    Load current, sourcing & \si{\milli\ampere} & 200 & 2.224 & 0.084 & 2.224\,$\pm$\,0.252 & 2.041 & 2.443 & $\geq 0.033$ & 100.0 & 100.0 \\
+    Load current, sinking & \si{\milli\ampere} & 200 & $-2.158$ & 0.104 & $-2.158$\,$\pm$\,0.313 & $-2.511$ & $-1.860$ & -- & -- & -- \\
+    Output resistance & \si{\ohm} & 200 & 1.850 & 0.252 & 1.850\,$\pm$\,0.757 & 1.218 & 2.908 & -- & -- & -- \\
+    \bottomrule
+  \end{tabular}
+\end{table}

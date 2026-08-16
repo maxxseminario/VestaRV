@@ -201,6 +201,15 @@ distribution into a single bar and hide the tail it exists to show.
 `yield_chip`. Per-signal `spec_lo`/`spec_hi` override whatever was typed into Assembler,
 which is what you want when the entered limit and the documented specification differ.
 
+A signal can also carry `"derive": "a - b"`, naming two mcparam outputs to subtract
+**per sample**. It publishes a quantity the run determines but did not measure — load
+regulation with the zero-current error removed sample by sample, which is a different
+distribution from the offset-inclusive error the test graded, not a shifted one. A
+derived signal has no mcparam row, so its limits come from the config's
+`spec_lo`/`spec_hi`; a sample is held out if either operand is a sentinel. It is one
+subtraction and not an expression engine on purpose — anything richer belongs in the
+Assembler outputs, where the corner run measures it too.
+
 Three things this path gets right that a naive reader would not:
 
 - **`-1.11111e+36` is a "could not evaluate" sentinel, not a number.** A `cross()` that

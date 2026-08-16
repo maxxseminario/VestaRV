@@ -1,0 +1,17 @@
+%% maestro2tex -- generated table; do not edit by hand.
+\begin{table}[htbp]
+  \centering
+  \caption[{Monte Carlo open-loop response.}]{Monte Carlo open-loop response. \textbf{Process and mismatch}, \SI{37}{\celsius}, 200 samples, amplifier driven differentially about mid-supply with no feedback, $C_L = \SI{5}{\pico\farad}$, $C_c = \SI{500}{\femto\farad}$, \SI{2.5}{\volt} supply. The input offset is nulled per sample from the offset measurement of the same run, leaving the DC operating point linear on every sample; all four quantities are measurable on all 200. Only gain and phase margin carry limits; the two bandwidth rows were not graded and their spec, yield and worst-case columns are therefore empty. Gain agrees with the unity-feedback loop gain of Table~\ref{tab:ampab-mc-unity} to within \SI{0.5}{\decibel} of mean. Percentiles are quoted rather than \(\pm 3\sigma\): the two bandwidth distributions are right-skewed, both being inversely proportional to a transconductance.}
+  \label{tab:ampab-mc-openloop}
+  \footnotesize
+  \begin{tabular}{lrrrrrrrrrr}
+    \toprule
+    Parameter & Unit & $N$ & Mean & $\sigma$ & $p_{1}$ & $p_{99}$ & Worst & Spec & Yield & 4\,ch \\
+    \midrule
+    Open-loop gain $A_{\mathrm{OL}}$ & \si{\decibel} & 200 & 82.16 & 1.06 & 80.04 & 84.60 & 79.50 & $\geq 40.00$ & 100.0 & 100.0 \\
+    Phase margin & \si{\degree} & 200 & 73.62 & 1.42 & 69.80 & 76.21 & 68.93 & $\geq 40.00$ & 100.0 & 100.0 \\
+    Dominant pole $f_{-3\,\mathrm{dB}}$ & \si{\kilo\hertz} & 200 & 1.723 & 0.276 & 1.158 & 2.453 & -- & -- & -- & -- \\
+    Gain-bandwidth product & \si{\mega\hertz} & 200 & 22.815 & 3.566 & 16.191 & 31.741 & -- & -- & -- & -- \\
+    \bottomrule
+  \end{tabular}
+\end{table}

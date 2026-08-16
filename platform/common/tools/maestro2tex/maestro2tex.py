@@ -150,13 +150,17 @@ def expand_points(spec):
     return out
 
 
-def discover_corners(results_dir, points=None):
+def discover_corners(results_dir, points=None, prefer_tests=None):
     """Return [(dirname, label, vars)] for each numeric point/corner subdirectory.
 
     Maestro names the per-corner run directories 1, 2, 3 ... The process corner
     itself is recovered from the netlist's .modelFiles (section=ff, section=tt_bip,
     ...) by majority vote over the section prefixes, and the design variables from
     the PSF variables_file.
+
+    prefer_tests: test directory names to read variables from first. Benches can
+    run their tests at different temperatures, so the legend must come from a test
+    the config actually uses, not from whichever sorts first in the run directory.
     """
     out = []
     for name in sorted(os.listdir(results_dir), key=lambda s: (len(s), s)):
@@ -168,7 +172,11 @@ def discover_corners(results_dir, points=None):
         if not os.path.isdir(cdir):
             continue
         label, dvars = None, {}
-        for test in sorted(os.listdir(cdir)):
+        tdirs = sorted(os.listdir(cdir))
+        if prefer_tests:
+            tdirs = ([t for t in tdirs if t in prefer_tests] +
+                     [t for t in tdirs if t not in prefer_tests])
+        for test in tdirs:
             mf = os.path.join(cdir, test, 'netlist', '.modelFiles')
             if label is None and os.path.isfile(mf):
                 label = _corner_from_modelfiles(mf)
@@ -612,9 +620,38 @@ def read_mc(path):
     return (run, cols, rows)
 
 
-def mc_column(mc, name):
-    """The valid samples of one output, plus how many were not measurable."""
+def mc_column(mc, name, derive=None):
+    """The valid samples of one output, plus how many were not measurable.
+
+    `derive` is `"a - b"`: the per-sample difference of two mcdata columns,
+    published under `name` with no mcparam row of its own (so its limits come
+    from the config's `spec_lo`/`spec_hi`). It exists for the quantity the run
+    determines but did not measure -- load regulation with the zero-current
+    error removed sample by sample, which is a different result from the
+    offset-inclusive error the test graded. A sample is held out if EITHER
+    operand is a sentinel; two subtracted sentinels are not a number. Kept to
+    one subtraction on purpose: anything richer belongs in the Assembler
+    outputs, where the corner run measures it too.
+    """
     run, cols, rows = mc
+    if derive:
+        parts = [p.strip() for p in derive.split('-')]
+        if len(parts) != 2 or not all(parts):
+            info('signal %s: cannot read derive "%s" (expected "a - b")'
+                 % (name, derive))
+            return None
+        a, b = (mc_raw(mc, p) for p in parts)
+        if a is None or b is None:
+            info('signal %s: derive "%s" names an output the run does not have'
+                 % (name, derive))
+            return None
+        vals, n_bad = [], 0
+        for x, y in zip(a, b):
+            if x is None or y is None:
+                n_bad += 1
+            else:
+                vals.append(x - y)
+        return (vals, n_bad, None, None)
     idx = None
     for i, c in enumerate(cols):
         if c[0] == name:
@@ -633,6 +670,27 @@ def mc_column(mc, name):
         else:
             vals.append(v)
     return (vals, n_bad, cols[idx][1], cols[idx][2])
+
+
+def mc_raw(mc, name):
+    """One output's samples in run order, None where it was not measurable.
+
+    Unlike mc_column this keeps the row alignment, which is what a per-sample
+    derivation needs: sample i of one output has to meet sample i of the other.
+    """
+    run, cols, rows = mc
+    idx = None
+    for i, c in enumerate(cols):
+        if c[0] == name:
+            idx = i
+            break
+    if idx is None:
+        return None
+    out = []
+    for r in rows:
+        v = r[idx] if idx < len(r) else float('nan')
+        out.append(None if (v != v or abs(v) >= MC_SENTINEL) else v)
+    return out
 
 
 def percentile(sorted_vals, q):
@@ -1363,12 +1421,12 @@ def render(cfg, corners, rawdir, outdir, texroot, maxpts):
         wanted = spec.get('signals') or [spec['signal']]
         dists, missing = [], []
         for sname in wanted:
-            col = mc_column(mc, sname)
+            ss = sigspec(test, sname)
+            col = mc_column(mc, sname, ss.get('derive'))
             if not col or not col[0]:
                 missing.append(sname)
                 continue
             vals, n_bad, lo, hi = col
-            ss = sigspec(test, sname)
             sc = ss.get('scale', 1.0)
             lo, hi = _mc_limits(spec, ss, lo, hi)
             lines = []
@@ -1522,7 +1580,7 @@ def render(cfg, corners, rawdir, outdir, texroot, maxpts):
             for signame in spec['signals']:
                 ss = sigspec(test, signame)
                 dig = spec.get('digits', ss.get('digits', 2))
-                col = mc_column(mc, signame)
+                col = mc_column(mc, signame, ss.get('derive'))
                 if not col:
                     info('table %s: %s is not an output of %s' % (tabid, signame, test))
                     continue
@@ -1838,7 +1896,9 @@ def main():
         else:
             info('results directory is gone; rendering from the MC CSVs in %s' % rawdir)
     elif have_results:
-        corners = discover_corners(results, expand_points(cfg.get('points')))
+        corners = discover_corners(results, expand_points(cfg.get('points')),
+                                   set(t.get('dir') for t in cfg.get('tests', {}).values()
+                                       if t.get('dir')))
         if not corners:
             die('no corner directories (1, 2, 3, ...) under %s' % results)
         corners = relabel_corners(corners, cfg.get('corner_labels'))
