@@ -3,157 +3,78 @@ use ieee.std_logic_1164.all;
 use ieee.std_logic_arith.all;
 use ieee.std_logic_unsigned.all;
 
--- ===========================================================================
--- TRNG: ring-oscillator entropy source plus harvest engine.
--- One combined IRQ (vector 121, data-ready or health-alarm), zero pins, base 0x6900.
--- FROZEN design: ~/vesta_docs/digperiphs/trng_design.md (decisions D1-D16, adjudication RULINGS 1-7, ALL BINDING; a ruling overrides any conflicting Dn text).
--- Structural template is OneWire/RTC, the house bus/CDC/flag idiom.
--- The NEW mechanisms this block introduces are the read-CONSUMES data register with an exactly-once consume strobe plus the DRDY same-cycle blind-window fix (D9), and the sim-stub boundary around a deliberately oscillating entropy source (D6, TrngRoEnsemble_sim.vhd / TrngRoEnsemble.vhd).
--- -V200X only: NO VHDL-2008 (no to_hstring, no process(all), no unary reduce, no reading of out ports).
--- Every process infers exactly ONE edge of ONE clock, and every synchronizer is single-edge (Genus VHDL-601 discipline).
--- NO falling_edge of anything, anywhere, and specifically NOT of EnMemPeriph.
---
--- D1/D2: ONE clock family.
--- The raw-sample decimator, the 32-bit word-assembly shifter, the RCT health test, the DRDY/word-valid lifecycle, the sticky W1C ALMF flag, the RUN status and the IRQ combiner ALL ride the free-running `clk`, wired to MCLK at integration (D2).
--- The register file rides the gated `ClkMem`, the SAME mclk net at integration, and every hand-off between ClkMem and clk below is a toggle or a held/quasi-static level (standalone-honest, RTC/OW precedent), never an async clear crossing a domain (the ROOT-2 UART defect class this library now avoids by construction).
--- The ONE true metastability CDC is the ring-oscillator tap `ro_raw`, which arrives from the free-running, clockless RO ensemble and is 2-FF synchronized into `clk` before any use (D7).
--- NO async FIFO, NO clock gate in the harvest datapath, NO flop clocked by `ro_raw` or any other pad/async bit (ROOT-3 discipline).
---
--- CDC CROSSING INVENTORY: the ONLY crossing paths, all toggle, held-level or quasi-static, with no async FIFO.
--- See the design doc's table for the full rationale of each row.
---   1. ro_raw, async RO into clk: 2-FF sync giving ro_sync (D7). The ONE genuine async CDC in the block.
---   2. dr_consume_tgl, ClkMem into clk: toggle plus edge-detect giving a consume pulse (D9); single mclk family at integration.
---   3. clr_almf_tgl (W1C), ClkMem into clk: toggle plus edge-detect, cleared in ALMF's OWN clk process, SET WINS over a coincident CLEAR (D8, the RTC/OW "later sequential assignment wins" discipline).
---   4. dr_consume_pending, ClkMem, read by the ClkMem SR mux: held level, masks DRDY in the same cycle (D9's blind-window fix).
---   5. DRDY / RUN / ALMF / dr_word / RUNLEN, clk into the ClkMem read mux: held or quasi-static levels sampled by the registered read mux (D4); clk and ClkMem are literally the same physical net at integration (D1).
---   6. EN / ROSEL / DECIM, ClkMem into clk: held levels (D12); no 2-FF is needed for correctness (same mclk family), kept standalone-honest as levels.
---
--- D4: bus contract, xcollapse-clean by construction (per xcollapse_findings.md, BINDING).
--- EnMemPeriph is consumed ONLY as an active-low LEVEL: address decode, write enable, read-mux gate, and the D9 DR-read-consume qualifier.
--- It is NEVER a clock and NEVER an edge, and the TRNG SDC has NO EnMemPeriph clock.
--- The read mux registers on rising ClkMem over data already in, or coincident with, the mclk domain: NO combinational read, NO MCU-side bridge, NO falling_edge(EnMemPeriph) pre-latch.
--- The DR read side effect (D9) is the ONE exception to "no read side effects" and does NOT reintroduce the banned falling_edge idiom: it is rising-ClkMem-qualified and pending-gated, exactly like every other write-commit toggle in this library.
---
--- Register map (D5): base 0x6900, slot n at 0x6900 + 4n, decoded off MABPart(7:2). Slots 4 and above read 0.
+-- TRNG: ring-oscillator entropy source plus harvest engine at base 0x6900, zero pins, one combined data-ready/health-alarm IRQ (vector 121).
+-- The decimator, word assembler, RCT health test, DRDY lifecycle, sticky ALMF and IRQ combiner all ride the free-running `clk`; the register file rides the gated `ClkMem`, the same mclk net at integration.
+-- Every hand-off between the two domains is a toggle or a held/quasi-static level, NEVER an async clear crossing a domain, and the ONE genuine metastability CDC is the ring tap `ro_raw`, 2-FF synchronized into `clk` before any use and never a clock: no async FIFO, no clock gate in the harvest datapath, no flop clocked by a pad or async bit.
+-- EnMemPeriph is consumed ONLY as an active-low LEVEL (address decode, write enable, read-mux gate, DR-read-consume qualifier), never as a clock or an edge, and the TRNG SDC has no EnMemPeriph clock.
+-- -V200X only: no VHDL-2008, no reading of out ports, every process infers exactly ONE rising edge of ONE clock, no falling_edge anywhere, and resetn (async, active-low) is applied directly in both domains.
+
+-- Register map: base 0x6900, slot n at 0x6900 + 4n, decoded off MABPart(7:2); slots 4 and above read 0.
 --   0 TRNG0CR : [0]EN [1]DRDYIE [2]ALMIE [7:4]ROSEL [11:8]DECIM, 31:12 rsvd.
---   1 TRNG0SR : [0]DRDY ro (D9 blind-window-corrected) [1]ALMF W1C [2]RUN ro, 31:3 rsvd read 0.
---   2 TRNG0DR : [31:0] entropy word, ro, READ-CONSUMES (D9). An empty read (DRDY=0) returns 0, with no consume and no toggle (ruling 6).
---   3 TRNG0HT : [7:0] RCTC rw (0 selects the hardware default 32, D8) plus [21:16] RUNLEN ro diagnostic (saturating), other bits reserved read 0.
---
--- D6: entropy source TrngRoEnsemble, a separate sub-component with a SIM/REAL architecture split (see TrngRoEnsemble_sim.vhd and TrngRoEnsemble.vhd).
--- TRNG's FROZEN entity (D3) exposes it as a genuine EXTERNAL interface, `ro_enable`/`ro_sel`/`ro_sclk` (out) and `ro_raw` (in), matching the chipgen integration outline in which `u_ro` is an MCU.vhd-level sibling instance of `trng0`.
--- It also matches this library's house convention for every other companion entropy/protocol model (i2c_host_model, onewire_target_model, qspi_flash_model, nfc_reader_model, i3c_target_model), ALL instantiated in the INTEGRATION layer or testbench, wired through real ports, never nested inside the DUT.
--- `ro_raw` is 2-FF synchronized inside TRNG before any use (D7) and is NEVER a clock.
---
--- WHERE u_ro LIVES, and why it is NOT inside this entity.
--- Reading D6's "the TRNG core instantiates TrngRoEnsemble as a COMPONENT" literally would put `u_ro` inside TRNG.vhd and force the TB to reach it through a nested VHDL `configuration`.
--- That reading conflicts with the rest of the frozen material three ways.
---   1. An entity's `in` port cannot be driven by a component instantiated inside that same entity, so `ro_raw` would become a dead port.
---   2. The design doc's own G5 bench plan calls for a hierarchical `force dut.u_ro.ro_raw` to script a stuck run, and -V200X has NO VHDL-2008 external-name mechanism to reach a signal nested two levels inside a DUT; that force is only reachable if `u_ro` sits at the SAME level as `dut`, which is exactly what `force dut.u_ro.ro_raw` addresses: siblings `dut` and `u_ro`, not `u_ro` a third level down inside `dut`'s OWN internals.
---   3. It breaks the house convention noted above.
--- Resolution taken here: `u_ro` is instantiated in the TESTBENCH (TRNG_tb.vhd), wired through the frozen ports exactly as D3 spells them, so `ro_raw` is a live, meaningful input and nothing is dead.
--- The TB's default component binding is the PROVEN mechanism: only the `sim` architecture is ever compiled into the behavioral flow, so VHDL's sole-architecture default binding rule resolves `TrngRoEnsemble` unambiguously (see TRNG_tb.vhd's header for the belt-and-suspenders explicit-configuration attempt, ruling 5).
---
--- D8: health test, an SP 800-90B-lite Repetition Count Test (RCT) only, no APT (ruling 3).
--- A clk-domain run-length counter increments while consecutive `ro_sync` samples (at a sample_tick) are IDENTICAL, and resets to 1 on any change.
--- Cutoff N is TRNG0HT.RCTC, with RCTC=0 selecting the hardware default 32 (ruling 3), and reaching N sets the sticky ALMF (W1C).
--- Ruling 3: ALMF auto-halts harvesting, since ro_enable is EN and NOT alm_halt (D12), so clearing EN or an active alarm both park the rings and freeze RUN and harvesting while the flags and the last assembled word are preserved.
--- No advisory-only override bit this stage.
---
--- D9: TRNG0DR read-CONSUMES, the new library mechanism; the design doc carries the full derivation.
--- DRDY lifecycle in the clk domain: the assembler (D7/D10) latches a completed 32-bit word into dr_word and sets word_valid, and word_valid clears when the word is consumed.
--- The consume qualifier (ClkMem domain) is `rising ClkMem AND EnMemPeriph='0' AND slot=DR AND WEn="1111"`, i.e. a read, gated on `word_valid='1' AND dr_consume_pending='0'` so a duplicate edge inside one access can never double-pop.
--- On a qualifying read, dr_consume_pending sets on the SAME edge and dr_consume_tgl flips; the SR mux computes `DRDY = word_valid AND NOT dr_consume_pending`, so an SR read issued immediately after the DR read sees DRDY=0 in the SAME cycle even though the clk engine has not yet torn down word_valid, which is what closes the D9 blind window.
--- The clk domain 2-FFs dr_consume_tgl and edge-detects it into a one-cycle consume pulse that clears word_valid.
--- dr_consume_pending clears once word_valid=0 has been OBSERVED in ClkMem (read directly, coincident nets, D1), so the old word is truly gone before the mask lifts and the next DRDY assert is a genuinely new word.
---
--- D10: depth-1 holding register, not a FIFO.
--- The assembler (asm_reg/asm_cnt) stalls, holding its just-completed 32 bits without dropping them and without overwriting dr_word, whenever dr_word is still unconsumed when the 32nd sample lands.
--- It promotes that held candidate into dr_word the moment word_valid frees up, then resumes collecting the NEXT word, so no partial word is ever exposed on dr_word.
---
--- D11: irq_trng = (DRDY and DRDYIE) or (ALMF and ALMIE), combinational, never latched.
--- DRDY here is the D9 blind-window-corrected level.
---
--- D12: CR fields and RO fan-out. EN gates the entropy source (ro_enable is EN and NOT alm_halt), ROSEL forwards to ro_sel (D6 mask), DECIM sets the decimator (D7), and DRDYIE/ALMIE gate the IRQ (D11).
--- All CR bits are quasi-static ClkMem stores.
---
--- D13: reset. resetn (chip async, active-low) is applied DIRECTLY to both the clk and ClkMem processes, with no reset synchronizer, because they are the same mclk family and there is no truly-async always-on domain like the RTC's LFXT.
--- The RO ensemble has no state to release: it simply starts oscillating when ro_enable rises, and its async output is covered by the D7 2-FF sync.
---
--- D14: zero pins.
--- D15: presence knob `peripherals.trng` (chipgen), and the `NRO` generic {4,8} via `peripherals.trngRings`.
--- D16: entropy caveat, bring-up-grade only. Firmware MUST run a DRBG and honor ALMF; a TRM/firmware concern, not enforced in hardware.
---
--- Architecture (block summary, D3/B1-B5, matching the design doc's grouping):
---   B1 register file (ClkMem): the CR/HT stores, the SR W1C toggle, the D9 dr_consume_pending/dr_consume_tgl, and the registered read mux.
---   B2 sync/CDC (clk): the ro_raw 2-FF sync, and the dr_consume_tgl/clr_almf_tgl 2-FF plus edge-detect pulses.
---   B3 decimator and assembler (clk): the 2^DECIM sample-tick counter, and the 32-bit word-assembly shifter with the D9/D10 stall-on-unconsumed.
---   B4 health test (clk): the run-length counter against the RCTC (or default 32) cutoff, setting sticky ALMF, plus the RUNLEN diagnostic and the alm_halt gate.
---   B5 status/IRQ (clk): the DRDY/RUN levels and the irq_trng combiner.
---   u_ro TrngRoEnsemble (D6): async rings in the real arch, a deterministic LFSR in sim, driving ro_raw.
--- ===========================================================================
+--   1 TRNG0SR : [0]DRDY ro (blind-window-corrected) [1]ALMF W1C [2]RUN ro, 31:3 rsvd read 0.
+--   2 TRNG0DR : [31:0] entropy word, ro, READ-CONSUMES. An empty read (DRDY=0) returns 0, with no consume and no toggle.
+--   3 TRNG0HT : [7:0] RCTC rw (0 selects the hardware default 32) plus [21:16] RUNLEN ro diagnostic (saturating), other bits reserved read 0.
 
 entity TRNG is
     generic (
-        NRO : natural := 8    -- ring-oscillator count in the ensemble (D6). {4,8} proven (D15).
+        NRO : natural := 8    -- ring-oscillator count in the ensemble; {4,8} supported.
     );
     port (
-        clk         : in  std_logic;                     -- free-running MCLK at integration (D2):
-                                                         -- decimator, word assembler, health test,
-                                                         -- DRDY lifecycle, sticky ALMF, IRQ combiner
+        clk         : in  std_logic;                     -- free-running MCLK at integration: decimator, word assembler,
+                                                         -- health test, DRDY lifecycle, sticky ALMF, IRQ combiner
         resetn      : in  std_logic;                     -- chip reset, active-low (async)
         irq_trng    : out std_logic;                     -- combined data-ready|alarm IRQ (vector 121)
 
-        -- register-file slave port (RTC/OW/DMA/I2CT house idiom, D4)
+        -- register-file slave port (house slave-port idiom)
         ClkMem      : in  std_logic;                     -- gated bus clock (register file)
         EnMemPeriph : in  std_logic;                     -- ACTIVE-LOW select/qualifier (NEVER a clock)
         WEn         : in  std_logic_vector(3 downto 0);  -- ACTIVE-LOW per byte lane
         MABPart     : in  std_logic_vector(7 downto 2);  -- word slot in the 256 B window
         wdata       : in  std_logic_vector(31 downto 0);
-        rdata_out   : out std_logic_vector(31 downto 0); -- registered read (no bridge, D4)
+        rdata_out   : out std_logic_vector(31 downto 0); -- registered read (no bridge)
 
-        -- entropy-source interface to the TrngRoEnsemble sub-component (D6).
-        -- ro_raw is PURE DATA, 2-FF synchronized inside TRNG before use (D7), and NEVER a clock.
+        -- Entropy-source interface to the TrngRoEnsemble instance, which is a SIBLING of this entity (in MCU.vhd or the testbench, never nested inside it): an `in` port cannot be driven from within the entity that declares it.
+        -- ro_raw is PURE DATA, 2-FF synchronized inside TRNG before use, and NEVER a clock; the entropy is bring-up grade, so firmware must run a DRBG and honor ALMF.
         ro_enable   : out std_logic;                     -- '1' lets the rings oscillate; '0' gates them
         ro_sel      : out std_logic_vector(3 downto 0);  -- CR.ROSEL forwarded to the ensemble
-        ro_sclk     : out std_logic;                     -- driven from clk, for the SIM arch's deterministic model ONLY (the real RO ignores it, D6)
-        ro_raw      : in  std_logic;                     -- XOR-ensembled RO jitter bit (async, D6/D7)
+        ro_sclk     : out std_logic;                     -- driven from clk, for the SIM architecture's deterministic model ONLY (the real RO ignores it)
+        ro_raw      : in  std_logic;                     -- XOR-ensembled RO jitter bit (async)
 
-        -- EVFAB tap (event fabric, event_fabric_spec.md 2026-07-24): the D9 blind-window-corrected data-ready LEVEL, taken pre-IE so drdyie_cr never touches it.
-        -- L-mode producer EV13: the fabric's front-end does the 2-FF and rising-edge detect, and a level held until consumed fires exactly once.
+        -- Event-fabric tap: the blind-window-corrected data-ready LEVEL, taken pre-IE so drdyie_cr never touches it.
+        -- The fabric front-end does its own 2-FF and rising-edge detect, so a level held until consumed fires exactly once.
         evt_drdy    : out std_logic
     );
 end TRNG;
 
 architecture behavioral of TRNG is
 
-    -- ---- word-slot map (frozen, D5) --------------------------------------
+    -- ---- word-slot map ---------------------------------------------------
     constant SLOT_CR : natural := 0;
     constant SLOT_SR : natural := 1;
     constant SLOT_DR : natural := 2;
     constant SLOT_HT : natural := 3;
 
-    -- ---- B1 register-file storage (ClkMem domain) --------------------------
-    signal trng_cr   : std_logic_vector(11 downto 0);   -- EN/DRDYIE/ALMIE/ROSEL/DECIM (D5/D12)
-    signal rct_cutoff: std_logic_vector(7 downto 0);    -- HT.RCTC (D8)
-    signal dr_consume_pending : std_logic;              -- D9 blind-window mask
-    signal dr_consume_tgl     : std_logic;              -- D9 consume request toggle
-    signal clr_almf_tgl       : std_logic;              -- D8/D12 W1C ALMF request toggle
+    -- ---- register-file storage (ClkMem domain) -----------------------------
+    signal trng_cr   : std_logic_vector(11 downto 0);   -- EN/DRDYIE/ALMIE/ROSEL/DECIM
+    signal rct_cutoff: std_logic_vector(7 downto 0);    -- HT.RCTC
+    signal dr_consume_pending : std_logic;              -- blind-window mask
+    signal dr_consume_tgl     : std_logic;              -- consume request toggle
+    signal clr_almf_tgl       : std_logic;              -- W1C ALMF request toggle
     signal trng_slot          : natural range 0 to 63;  -- decoded word slot
 
-    -- ---- CR field taps (combinational; quasi-static, D12) -----------------
+    -- ---- CR field taps (combinational, quasi-static) ----------------------
     signal en_cr, drdyie_cr, almie_cr : std_logic;
     signal rosel_cr : std_logic_vector(3 downto 0);
     signal decim_cr : std_logic_vector(3 downto 0);
 
-    -- ---- B2 clk-domain CDC: 2-FF sync + edge-detect (D7/D9/D8) ------------
+    -- ---- clk-domain CDC: 2-FF sync + edge-detect --------------------------
     signal ro_s1, ro_s2   : std_logic;
     signal ro_sync        : std_logic;
     signal cnstgl_c1, cnstgl_c2, cnstgl_prev   : std_logic;
     signal clralm_c1, clralm_c2, clralm_prev   : std_logic;
     signal consume_pulse, clr_almf_pulse       : std_logic;
 
-    -- ---- B3 decimator + assembler (clk domain, D7/D9/D10) -----------------
+    -- ---- decimator + assembler (clk domain) -------------------------------
     signal decim_reload : std_logic_vector(15 downto 0);
     signal samp_cnt      : std_logic_vector(15 downto 0);
     signal sample_tick    : std_logic;
@@ -162,7 +83,7 @@ architecture behavioral of TRNG is
     signal dr_word        : std_logic_vector(31 downto 0);
     signal word_valid      : std_logic;
 
-    -- ---- B4 health test (clk domain, D8) -----------------------------------
+    -- ---- health test (clk domain) ------------------------------------------
     signal have_prev   : std_logic;
     signal prev_sample  : std_logic;
     signal run_len       : std_logic_vector(7 downto 0);
@@ -170,7 +91,7 @@ architecture behavioral of TRNG is
     signal almf_flag      : std_logic;
     signal runlen_diag     : std_logic_vector(5 downto 0);
 
-    -- ---- B5 status/IRQ (clk domain, D11/D12) -------------------------------
+    -- ---- status/IRQ (clk domain) -------------------------------------------
     signal alm_halt   : std_logic;
     signal run_level   : std_logic;
     signal drdy_level   : std_logic;
@@ -178,36 +99,35 @@ architecture behavioral of TRNG is
 begin
 
     -- ------------------------- Signal Routing ---------------------------------
-    -- slot decode (EnMemPeriph-qualified LEVEL, D4; never an edge).
+    -- slot decode (EnMemPeriph-qualified LEVEL, never an edge).
     trng_slot <= conv_integer(MABPart) when EnMemPeriph = '0' else 0;
 
-    -- CR field taps (D12; quasi-static, coincident nets at integration, D1).
+    -- CR field taps (quasi-static, coincident nets at integration).
     en_cr     <= trng_cr(0);
     drdyie_cr <= trng_cr(1);
     almie_cr  <= trng_cr(2);
     rosel_cr  <= trng_cr(7 downto 4);
     decim_cr  <= trng_cr(11 downto 8);
 
-    -- RCT cutoff: RCTC=0 selects the hardware default 32 (D8, ruling 3).
+    -- RCT cutoff: RCTC=0 selects the hardware default 32.
     cutoff_eff <= rct_cutoff when rct_cutoff /= x"00" else x"20";
 
-    -- B5: status levels + IRQ combiner (D11/D12), combinational, never latched.
+    -- Status levels + IRQ combiner, combinational, never latched.
     alm_halt   <= almf_flag;
-    run_level  <= en_cr and not alm_halt;             -- RUN = EN and not alarm-halted (D12)
-    drdy_level <= word_valid and not dr_consume_pending;   -- D9 blind-window-corrected DRDY
-    irq_trng   <= (drdy_level and drdyie_cr) or (almf_flag and almie_cr);   -- D11
-    evt_drdy   <= drdy_level;                           -- EVFAB EV13 tap (pre-IE level)
+    run_level  <= en_cr and not alm_halt;             -- RUN = EN and not alarm-halted
+    drdy_level <= word_valid and not dr_consume_pending;   -- blind-window-corrected DRDY
+    irq_trng   <= (drdy_level and drdyie_cr) or (almf_flag and almie_cr);   -- data-ready or alarm
+    evt_drdy   <= drdy_level;                           -- event-fabric tap (pre-IE level)
 
-    -- Entropy-source fan-out (D6/D12): ro_enable gates the ensemble, ro_sel forwards CR.ROSEL, and ro_sclk is clk for the sim arch only (D6, ignored by the real RTL).
-    -- u_ro itself is instantiated externally, in the TB or in MCU.vhd (see the header note on where u_ro lives), so these are genuine, live external ports.
+    -- Entropy-source fan-out: ro_enable gates the ensemble, ro_sel forwards CR.ROSEL, and ro_sclk is clk for the sim architecture only (the real RTL ignores it).
+    -- u_ro itself is instantiated externally, in the TB or in MCU.vhd, so these are genuine, live external ports.
     ro_enable <= run_level;
     ro_sel    <= rosel_cr;
     ro_sclk   <= clk;
 
-    -- ------------------------- B1: register write + D9 consume (ClkMem) -------
-    -- Rising ClkMem, EnMemPeriph='0' qualified writes (D4): the CR/HT stores, an SR lane-0 write of 1 to ALMF flipping clr_almf_tgl (W1C-CDC, D8/D12), and a qualifying DR READ (slot=DR, WEn="1111") launching the D9 consume when word_valid='1' and nothing is already pending.
-    -- dr_consume_pending's teardown, independent of EnMemPeriph, clears once word_valid=0 has been observed, i.e. the old word is truly gone (D9).
-    -- Reset via resetn.
+    -- ------------------------- register write + consume (ClkMem) -------------
+    -- Rising ClkMem, EnMemPeriph='0' qualified writes: the CR/HT stores, an SR lane-0 write of 1 to ALMF flipping clr_almf_tgl (W1C across domains), and a qualifying DR READ (slot=DR, WEn="1111") launching the consume when word_valid='1' and nothing is already pending.
+    -- dr_consume_pending's teardown, independent of EnMemPeriph, clears once word_valid=0 has been observed, i.e. the old word is truly gone.
     reg_write: process(resetn, ClkMem)
     begin
         if resetn = '0' then
@@ -218,7 +138,7 @@ begin
             clr_almf_tgl        <= '0';
         elsif rising_edge(ClkMem) then
 
-            -- D9 pending teardown: once the clk engine has torn down word_valid the mask lifts (coincident nets, D1, read directly with no crossing needed).
+            -- Pending teardown: once the clk engine has torn down word_valid the mask lifts (coincident nets, read directly with no crossing needed).
             if dr_consume_pending = '1' and word_valid = '0' then
                 dr_consume_pending <= '0';
             end if;
@@ -235,8 +155,7 @@ begin
                             if wdata(1) = '1' then clr_almf_tgl <= not clr_almf_tgl; end if;
                         end if;
                     when SLOT_DR =>
-                        -- D9 read-consume: qualifying READ only (WEn="1111"), gated on a
-                        -- valid, not-already-consumed word (no double-pop on a repeat edge).
+                        -- Read-consume: qualifying READ only (WEn="1111"), gated on a valid, not-already-consumed word (no double-pop on a repeat edge).
                         if WEn = "1111" then
                             if word_valid = '1' and dr_consume_pending = '0' then
                                 dr_consume_pending <= '1';
@@ -255,10 +174,9 @@ begin
         end if;
     end process reg_write;
 
-    -- ------------------------- B1: register read (ClkMem) ---------------------
-    -- Registered read mux on rising ClkMem over data already in, or coincident with, the mclk domain (D4): no pre-latch, no bridge.
-    -- DR returns dr_word ONLY on a currently-valid, not-yet-consumed word, the SAME condition that gates the consume above, so the read and the pop are atomic and consistent.
-    -- Otherwise it returns 0: an empty read (ruling 6), with no consume and no toggle.
+    -- ------------------------- register read (ClkMem) -------------------------
+    -- Registered read mux on rising ClkMem over data already in, or coincident with, the mclk domain: no pre-latch, no bridge.
+    -- DR returns dr_word ONLY on a currently-valid, not-yet-consumed word, the SAME condition that gates the consume above, so the read and the pop are atomic; otherwise it returns 0, an empty read with no consume and no toggle.
     reg_read: process(ClkMem)
     begin
         if rising_edge(ClkMem) then
@@ -281,8 +199,8 @@ begin
         end if;
     end process reg_read;
 
-    -- ------------------------- B2: clk-domain CDC (D7/D8/D9) -------------------
-    -- 2-FF sync of the async RO tap (ro_raw, D7, the ONE genuine metastability CDC in this block), plus 2-FF and edge-detect on the two ClkMem-domain request toggles (dr_consume_tgl, D9; clr_almf_tgl, D8).
+    -- ------------------------- clk-domain CDC ----------------------------------
+    -- 2-FF sync of the async RO tap ro_raw, the ONE genuine metastability CDC in this block, plus 2-FF and edge-detect on the two ClkMem-domain request toggles (dr_consume_tgl, clr_almf_tgl).
     -- Single edge (rising clk) only, reset via resetn.
     clk_cdc: process(resetn, clk)
     begin
@@ -301,10 +219,9 @@ begin
     consume_pulse  <= '1' when (cnstgl_c2 /= cnstgl_prev) else '0';
     clr_almf_pulse <= '1' when (clralm_c2 /= clralm_prev) else '0';
 
-    -- ------------------------- B3: decimator (clk, D7) --------------------------
-    -- Free-running reload down-counter producing a one-cycle sample_tick every decim_reload+1 = 2^DECIM clk cycles (DECIM=0 gives every clk, D7).
-    -- Plain counter-compare, NO clock gate, no generated clock.
-    -- decim_reload is a combinational lookup off decim_cr (quasi-static CR field, D12).
+    -- ------------------------- decimator (clk) ----------------------------------
+    -- Free-running reload down-counter producing a one-cycle sample_tick every decim_reload+1 = 2^DECIM clk cycles (DECIM=0 gives every clk), a plain counter-compare with NO clock gate and no generated clock.
+    -- decim_reload is a combinational lookup off decim_cr, a quasi-static CR field.
     decim_lut: process(decim_cr)
     begin
         case decim_cr is
@@ -334,7 +251,7 @@ begin
             samp_cnt    <= (others => '0');
             sample_tick <= '0';
         elsif rising_edge(clk) then
-            if run_level = '1' then   -- same net as ro_enable (D12); never read an out port under -V200X
+            if run_level = '1' then   -- same net as ro_enable; never read an out port under -V200X
                 if samp_cnt = x"0000" then
                     samp_cnt    <= decim_reload;
                     sample_tick <= '1';
@@ -349,10 +266,9 @@ begin
         end if;
     end process decimator;
 
-    -- ------------------------- B3: 32-bit assembler + D10 stall (clk) -----------
-    -- asm_reg/asm_cnt continuously packs decimated samples MSB-first (direct-pack whitening, ruling 1).
-    -- At the 32nd sample it promotes directly into dr_word/word_valid if the holding register is free; otherwise it STALLs (D10), parking asm_cnt at 32 and holding the completed candidate in asm_reg without dropping it and without overwriting dr_word, until word_valid frees up (checked every cycle), at which point it promotes and resumes collecting the next word.
-    -- No partial word ever reaches dr_word.
+    -- ------------------------- 32-bit assembler + stall (clk) -------------------
+    -- asm_reg/asm_cnt continuously packs decimated samples MSB-first (direct-pack whitening) and at the 32nd sample promotes directly into dr_word/word_valid if the depth-1 holding register is free.
+    -- Otherwise it STALLs, parking asm_cnt at 32 and holding the completed candidate in asm_reg without dropping it or overwriting dr_word, until word_valid frees up; no partial word ever reaches dr_word.
     assembler: process(resetn, clk)
     begin
         if resetn = '0' then
@@ -363,7 +279,7 @@ begin
         elsif rising_edge(clk) then
 
             if asm_cnt = 32 then
-                -- stalled: a completed word waits in asm_reg (D10)
+                -- stalled: a completed word waits in asm_reg
                 if word_valid = '0' then
                     dr_word    <= asm_reg;
                     word_valid <= '1';
@@ -385,7 +301,7 @@ begin
                 end if;
             end if;
 
-            -- D9 consume: clears word_valid for one cycle per consume pulse.
+            -- Consume: clears word_valid for one cycle per consume pulse.
             -- It cannot collide with a same-cycle stall-promote above, because that branch requires word_valid='0', the pre-edge value, so a promote and a consume never target the same edge's word.
             if consume_pulse = '1' then
                 word_valid <= '0';
@@ -394,11 +310,9 @@ begin
         end if;
     end process assembler;
 
-    -- ------------------------- B4: health test, RCT (clk, D8) ------------------
-    -- Run-length counter over consecutive IDENTICAL ro_sync samples at each sample_tick, resetting to 1 on any change.
-    -- Reaching cutoff_eff sets the sticky ALMF (W1C, ruling 3: RCT-only, RCTC=0 meaning 32, auto-halt).
-    -- SET wins over a coincident CLEAR: the clear is applied first and the case-driven set below can override it in the SAME cycle, because the later sequential assignment wins (RTC/OW discipline).
-    -- RUNLEN (runlen_diag) saturates at 63.
+    -- ------------------------- health test, RCT (clk) --------------------------
+    -- Run-length counter over consecutive IDENTICAL ro_sync samples at each sample_tick, resetting to 1 on any change; reaching cutoff_eff sets the sticky ALMF (W1C), which auto-halts harvesting through alm_halt.
+    -- SET wins over a coincident CLEAR: the clear is applied first and the set below overrides it in the SAME cycle, the later sequential assignment winning; RUNLEN (runlen_diag) saturates at 63.
     health: process(resetn, clk)
         variable new_run : std_logic_vector(7 downto 0);
     begin
@@ -431,13 +345,13 @@ begin
                 prev_sample <= ro_sync;
 
                 if new_run >= cutoff_eff then
-                    almf_flag <= '1';   -- SET wins over the clear above (D8/ruling 3)
+                    almf_flag <= '1';   -- SET wins over the clear above
                 end if;
             end if;
         end if;
     end process health;
 
-    -- RUNLEN diagnostic: the low 6 bits of run_len, saturating at 63 (D8).
+    -- RUNLEN diagnostic: the low 6 bits of run_len, saturating at 63.
     runlen_diag <= run_len(5 downto 0) when run_len(7 downto 6) = "00" else "111111";
 
 end architecture behavioral;

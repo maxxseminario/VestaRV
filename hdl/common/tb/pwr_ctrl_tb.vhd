@@ -1,27 +1,8 @@
--- =============================================================================
--- pwr_ctrl_tb.vhd  (DP-S3)
--- =============================================================================
--- Unit proof for the reworked power controller: the M17 per-tile MTCMOS sequencers plus the DP-S3 PGOOD/field boot gate and strap self-arm.
+-- Unit proof for the power controller: the per-tile MTCMOS sequencers plus the PGOOD/field boot gate and strap self-arm.
 -- It drives the arbiter slave port directly: en is a one-cycle strobe, we is the active-high lane vector, addr is a word offset, and the registered read is valid the cycle after the strobe.
 -- It also drives the three async pad inputs (pgood_pad, strap_pad, field_detect), which are 2-FF synchronized inside the DUT.
---
--- Checks, all self-checking; the bench prints ALL TESTS PASSED or TB FAILED:
---   1. M17 backward-compat: reset is a NO-OP, then tile 1 gates to OFF and wakes back to ON with the pd_* controls asserted and released in order, and PWRSTS/PWRWAKE stay sane.
---   2. Strap sample, latch-once: a harvested board self-arms and holds while PGOOD is low, and the strap is a one-shot, so a mid-run pad change is ignored.
---   3. Self-arm release then brownout re-hold, since the strap ORs REHOLD.
---   4. Software-arm path with no strap: arm plus RLS_PGOOD holds, PGOOD releases, and the one-shot latch survives the PGOOD drop (RLS_LATCHED).
---   5. Negative control: a DISABLED wake source (field, with RLS_FIELD off) does not release, and enabling RLS_FIELD then releases on that same field level.
---   6. Negative control: an armed gate with NO release source holds through live PGOOD AND field, and SW_RELEASE releases it, so pgood_rstn is load-bearing.
---   7. PWRWAKE readback where only bits 4:0 stick, reserved words 7 to 15 read 0, and the PWRSR word above NSRW reads 0.
---   8. Independence: with the boot gate armed and released, the tile MTCMOS sequencer still gates and wakes tile 1, so the two FSMs are independent.
---   9. EVFAB task-wake tap (event_fabric_spec.md 2026-07-24): W_TASKWKM (word 7) RW readback, walking-1 over NHARTS-1:1 with bit 0 and out-of-range bits reading 0 and reset 0.
---      A task_wake pulse clears gate_req wherever task_wkm=1 and the FSM sequences rail-up exactly like a register-cleared gate; a mask=0 pulse is a no-op; selectivity is proven across two gated tiles.
---      A coincident PWRCR write and task_wake pulse in the same cycle merges: the task's masked bit ends 0 while the other bits take the CPU value.
---      The DP-S3 boot gate (pgood_rstn and rls_latch) is untouched by task_wake pulses.
---
--- Run: xcelium/mp_test/run_pwr_ctrl.sh, which compiles this against hdl/common/pwr_ctrl.vhd only, with no other DUT dependencies.
--- The small delay generics (T_SEQ=2, T_RAIL=8, STRAP_SETTLE=8) keep the sim short.
--- =============================================================================
+-- Self-checking: every check reports and keeps going, and the bench ends with ALL TESTS PASSED or TB FAILED.
+-- Runs standalone against pwr_ctrl.vhd through xcelium/mp_test/run_pwr_ctrl.sh, with small delay generics (T_SEQ=2, T_RAIL=8, STRAP_SETTLE=8) to keep the sim short.
 
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
@@ -59,7 +40,7 @@ architecture tb of pwr_ctrl_tb is
     signal field_detect : std_logic := '0';
     signal pgood_rstn   : std_logic;
 
-    -- EVFAB task-wake tap (event_fabric_spec.md 2026-07-24): a one-mclk pulse, inert by default like the DUT port default.
+    -- Event-fabric task-wake tap: a one-mclk pulse, inert by default like the DUT port default.
     signal task_wake : std_logic := '0';
 
     signal done  : boolean := false;   -- stops the clock once the verdict is printed
@@ -226,7 +207,7 @@ begin
         field_detect <= '0';
         do_reset;
 
-        -- === 1. M17 backward-compat ==========================================
+        -- === 1. backward-compat: reset is a no-op, PWRCR gates and wakes ======
         check(pgood_rstn = '1', "1: pgood_rstn not released after reset");
         bus_read(PWRCR, rd);
         check(rd = x"00000000", "1: PWRCR not 0 at reset");
@@ -392,7 +373,7 @@ begin
         bus_read(PWRSTS, rd);
         check(rd(B_BOOT_HOLD) = '0', "8: tile activity disturbed the boot gate");
 
-        -- === 9. EVFAB task-wake tap ==========================================
+        -- === 9. task-wake tap ================================================
         strap_pad    <= '0';
         pgood_pad    <= '1';
         field_detect <= '0';
@@ -481,10 +462,8 @@ begin
         poll_nibble(2, N_ON, ok2);
         check(ok2, "9d: tile 2 did not wake on cleanup");
 
-        -- --- 9e. Merge and precedence for a coincident PWRCR write and task_wake pulse.
-        -- Both tiles are ON here, and task_wkm still selects tile 1, set just below.
-        -- The CPU write asks to gate BOTH tiles 1 and 2 in the same cycle the task_wake pulse fires.
-        -- The masked bit, tile 1, must end 0 because the task wins, while the unmasked bit, tile 2, takes the CPU value of 1.
+        -- --- 9e. Merge and precedence when a PWRCR write and a task_wake pulse land in the same cycle, with both tiles ON and task_wkm selecting tile 1.
+        -- The CPU asks to gate tiles 1 and 2: the masked bit (tile 1) must end 0 because the task wins, while the unmasked bit (tile 2) takes the CPU value of 1.
         wv := (others => '0');
         wv(1) := '1';
         bus_write(TASKWKM, wv, "1111");

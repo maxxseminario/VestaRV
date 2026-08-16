@@ -1,24 +1,7 @@
 -- =============================================================================
--- irq_router_tb.vhd  (M19)
--- =============================================================================
--- Unit proof for the PLIC-lite irq_router rework: routing rows, registered meip reduction, CLAIM and COMPLETE semantics, status words and the D2 WDT hooks.
--- It drives the slave port directly with the arbiter's bus contract: en is a one-cycle strobe, we is active-high lanes, master is the granted index, and the registered read is valid the cycle after the strobe.
--- The arbiter serializes whole transactions, so back-to-back strobes with different master values ARE the "simultaneous claim" case.
---
--- Checks, all self-checking, printing ALL CHECKS PASSED or CHECKS FAILED:
---   1. reset: rows read 0 and meip is all-0, a provable no-op.
---   2. row read/write, lane merge, top-EN-word masking (NUM_SRCS-generic: the top word's dead bits store 0), and reserved word 4h+3 reads 0 when NUM_EN_WORDS is under 4 (at NUM_EN_WORDS = 4 that word is the live HhENX).
---   3. a dead row (index at or above NHARTS) reads 0 and ignores writes.
---   4. a routed level raises meip, and only on the routed harts.
---   5. multi-hart routing: a claim by one hart returns the ID, sets in_service and drops EVERY hart's meip, and the second claimer gets the 0xFFFFFFFF sentinel, which is exactly-once delivery.
---   6. complete while the level is still high re-pends, complete is owner-UNqualified for recovery, and completing the sentinel value is a no-op.
---   7. lowest-ID priority among pending sources.
---   8. the PENDx and INSVCx status words.
---      Leg 8b covers the Stage-E-rider PENDX/INSVCX words 519 and 523: a full route, pend, claim and complete walk of a word-3 source when NUM_SRCS is over 96, and a proof that both words read 0 otherwise.
---   9. CLINT sources 83 and 84 never reach meip even when routed.
---  10. WDT hooks: the wdt_routed reduction and the one-cycle COMPLETE(0) pulse.
---
--- Run: xcelium/mp_test/run_irq_router.sh, which compiles this against hdl/common/irq_router.vhd alone, with no other DUT dependencies.
+-- irq_router_tb.vhd: unit proof for the PLIC-lite irq_router: routing rows, registered meip reduction, CLAIM and COMPLETE semantics, status words and the WDT hooks.
+-- It drives the slave port with the arbiter's bus contract: en is a one-cycle strobe, we is active-high lanes, master is the granted index, and the registered read is valid the cycle after the strobe; the arbiter serializes whole transactions, so back-to-back strobes with different master values ARE the "simultaneous claim" case.
+-- Self-checking, printing ALL CHECKS PASSED or CHECKS FAILED, over: reset no-op, row R/W with lane merge and top-EN-word masking, dead rows, a routed level raising meip only on routed harts, exactly-once multi-hart claim with the 0xFFFFFFFF sentinel, complete re-pending a still-high level and owner-unqualified recovery, lowest-ID priority, the PEND and INSVC status words including the word-3 pair 519 and 523, CLINT sources 83 and 84 never reaching meip, and the WDT reduction plus its one-cycle COMPLETE(0) pulse.
 -- =============================================================================
 
 library IEEE;
@@ -62,7 +45,7 @@ architecture tb of irq_router_tb is
     -- NUM_SRCS-generic shape facts, mirroring the DUT's own constants.
     constant NUM_EN_WORDS : natural := (NUM_SRCS + 31) / 32;
     constant TOP_LIVE     : natural := NUM_SRCS - 32*(NUM_EN_WORDS-1);
-    -- Word-3 probe source for leg 8b: the top source, used only when NUM_SRCS is over 96.
+    -- Word-3 probe source: the top source, used only when NUM_SRCS is over 96.
     constant SRC_X : natural := NUM_SRCS - 1;
     constant BX    : natural := SRC_X mod 32;
 
@@ -240,7 +223,7 @@ begin
         check(rd32 = x"00000000", "INSVCL not cleared after completes");
         bus_write(4*0 + 0, 0, x"00000000", "1111");             -- Clean row 0.
 
-        -- 8b. PENDX and INSVCX, the Stage E rider words 519 and 523. ------------
+        -- 8b. PENDX and INSVCX, words 519 and 523. ----------------------------
         if NUM_SRCS > 96 then
             -- Full walk of a word-3 source, SRC_X = NUM_SRCS-1, on hart 0.
             bus_read(519, 0, rd32);

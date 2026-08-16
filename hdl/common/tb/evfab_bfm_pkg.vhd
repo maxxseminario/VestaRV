@@ -1,23 +1,8 @@
--------------------------------------------------------------------------------
--- evfab_bfm_pkg.vhd
--------------------------------------------------------------------------------
 -- Bench-support helpers for the EVFAB0 event/trigger fabric testbench (tb/EVFAB_tb.vhd).
--- EVFAB.vhd is written against the FROZEN design this bench targets (~/vesta_docs/digperiphs/event_fabric_design.md, D1-D25 plus the FABLE ADJUDICATION rulings).
--- The slot/CR/SR/CAP/CHnCFG field positions below are LOCAL to this bench, mirroring trng_bfm_pkg.vhd / onewire_bfm_pkg.vhd / rtc_bfm_pkg.vhd, and are NOT shared MemoryMap.vhd constants.
--- EVFAB0 lives at 0x6B00, and MemoryMap.vhd has no EVFAB0 slot constants until the generator knob lands; chipgen integration is out of scope here.
---
--- CHECKER INDEPENDENCE (the task's binding instruction): this package provides bus-level register plumbing, register-map constants, bounded polls, AND a TB SHADOW MODEL of the whole matrix (event front-end including GPIO0, crossbar, output register, OVR, stickies).
--- The shadow model is built ONLY from what the TB itself commands (evfab_shadow_set_* below) and drives (the ev_in / gpio0_evin / task_busy arguments to evfab_shadow_tick).
--- It NEVER reads a DUT-internal signal.
--- Design-doc groups G6/G9's discrete CHTRIG/EVTRIG/W1C checks are done directly against register reads in EVFAB_tb.vhd instead of through the shadow model: their expected behavior is a small number of documented corner cases, cheaper to hand-verify than to fold into the per-cycle tick.
--- See the design doc's own bench-plan split between G5's "shadow model" callout and G6-G8's discrete corner-case language.
---
--- SHADOW-MODEL TIMING CONTRACT (read before calling evfab_shadow_tick): call it EXACTLY ONCE PER clk PERIOD, right after the rising edge, passing the ev_in/gpio0_evin/task_busy values the TB is driving into the DUT for THAT SAME period.
--- That is, whatever was set up before the edge and is still held at the moment of the call, the same values the DUT's own flops are sampling at that edge.
--- The procedure internally carries one extra lag register per T/L/GPIO bit (`raw_prev`) versus the DUT's real 3-flop chain (D9/D22).
--- That lag is a bookkeeping artifact of this call convention (SW samples "this period's" value, whereas the DUT's own s1 flop captures "the value going into this edge" one call earlier), NOT a claim about silicon flop count.
--- It was verified cycle-for-cycle against the design doc's worked timing diagrams A (P latency=1) and B (T latency=3) before being written into this file; see event_fabric_design.md.
--------------------------------------------------------------------------------
+-- The slot/CR/SR/CAP/CHnCFG field positions below are LOCAL to this bench and are NOT shared MemoryMap.vhd constants; EVFAB0 lives at 0x6B00 and MemoryMap.vhd carries no EVFAB0 slot constants.
+-- Besides bus plumbing and bounded polls, this package holds a TB SHADOW MODEL of the whole matrix (event front-end including GPIO0, crossbar, output register, OVR, stickies), built ONLY from what the TB commands and drives and NEVER from a DUT-internal signal.
+-- SHADOW-MODEL TIMING CONTRACT: call evfab_shadow_tick EXACTLY ONCE PER clk PERIOD, right after the rising edge, passing the ev_in/gpio0_evin/task_busy values the TB holds into the DUT for THAT SAME period.
+-- It therefore carries one extra lag register per T/L/GPIO bit (`raw_prev`) than the DUT's real 3-flop chain; that lag is an artifact of this call convention, NOT a claim about silicon flop count.
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -26,7 +11,7 @@ use work.periph_tb_pkg.all;
 
 package evfab_bfm_pkg is
 
-    -- Register word-slot map (frozen, design doc D18; base 0x6B00).
+    -- Register word-slot map, base 0x6B00.
     constant EVFAB_SLOT_CR       : natural := 0;   -- rw:  CR.EN
     constant EVFAB_SLOT_SR       : natural := 1;   -- ro:  FIREDIF/OVRIF
     constant EVFAB_SLOT_IE       : natural := 2;   -- reserved, r0/wI
@@ -44,8 +29,7 @@ package evfab_bfm_pkg is
     constant EVFAB_SLOT_RSVD14   : natural := 14;  -- reserved r0 (OVRIE)
     constant EVFAB_SLOT_GPIOMASK : natural := 15;  -- rw:  EVGPIOMASK[7:0]
     constant EVFAB_SLOT_CH0CFG   : natural := 16;  -- CHnCFG = 16+n, n=0..15
-    -- CHnCFG REGISTER ARRAY size (16 addresses, D18/D6), independent of the LIVE N_CH count.
-    -- Slots for n >= N_CH read 0 and ignore writes.
+    -- CHnCFG REGISTER ARRAY size: 16 addresses independent of the LIVE N_CH count, and slots for n >= N_CH read 0 and ignore writes.
     constant EVFAB_CHCFG_SLOTS   : natural := 16;
 
     -- Convenience: the CHnCFG slot for channel n.
@@ -69,24 +53,24 @@ package evfab_bfm_pkg is
     constant EVFAB_CHCFG_TASKSEL_LO : natural := 8;   -- [11:8]
     constant EVFAB_CHCFG_ENR        : natural := 31;  -- ro mirror of CHEN(n)
 
-    -- Live line counts (v1 defaults, D6/D19).
+    -- Live line counts (v1 defaults).
     constant EVFAB_N_CH        : natural := 8;
     constant EVFAB_N_EV        : natural := 16;
     constant EVFAB_N_TASK      : natural := 10;
     constant EVFAB_EV_GPIO_IDX : natural := 15;
     constant EVFAB_VER         : natural := 1;
 
-    -- EVFCAP read-only constant at v1 defaults: VER=01, NTASK=0A, NEV=10, NCH=08 (D19: 0x01_0A_10_08).
+    -- EVFCAP read-only constant at v1 defaults: VER=01, NTASK=0A, NEV=10, NCH=08.
     constant EVFAB_CAP_EXPECT : std_logic_vector(31 downto 0) := x"010A1008";
 
-    -- EV_MODE_* generic defaults (D7): TGL = EV4/5/6/8/9, LVL = EV13.
+    -- EV_MODE_* generic defaults: TGL = EV4/5/6/8/9, LVL = EV13.
     constant EVFAB_MODE_TGL : std_logic_vector(31 downto 0) := x"00000370";
     constant EVFAB_MODE_LVL : std_logic_vector(31 downto 0) := x"00002000";
 
     function evfab_ev_is_tgl(e : natural) return boolean;
     function evfab_ev_is_lvl(e : natural) return boolean;
 
-    -- Guard bound for register-bit polls (shirq/TRNG precedent: ~20000 bus_read-class iterations trips far inside the 100 ms tb watchdog).
+    -- Guard bound for register-bit polls: ~20000 bus_read-class iterations trips far inside the 100 ms tb watchdog.
     constant EVFAB_POLL_GUARD : natural := 20000;
     -- Guard bound for direct task_pulse-signal polls, counted in clk edges.
     constant EVFAB_PULSE_GUARD : natural := 4096;
@@ -97,7 +81,7 @@ package evfab_bfm_pkg is
                           tasksel : natural range 0 to 15)
         return std_logic_vector;
 
-    -- D5 action-visibility settle: 4 clk, at or above the 3-clk contract with margin, between an action write (CHTRIG/EVTRIG/W1C) and the read that checks it.
+    -- Action-visibility settle: 4 clk, one above the 3-clk contract, between an action write (CHTRIG/EVTRIG/W1C) and the read that checks it.
     procedure evfab_settle(signal clk : in std_logic);
 
     -- Bounded poll of one bit of a given register slot until it reads exp_val.
@@ -110,7 +94,7 @@ package evfab_bfm_pkg is
                                  done_ok          : out   boolean);
 
     -- Bounded direct wait on a task_pulse bit, which is a DUT port signal and not a register.
-    -- It counts clk edges taken so callers can assert exact latency (D5 worked diagrams A/B: 1 clk for P-mode, 3 for T/L).
+    -- It counts clk edges taken so callers can assert exact latency: 1 clk for P mode, 3 for T/L.
     procedure evfab_wait_task_pulse(signal clk : in  std_logic;
                                     signal tp  : in  std_logic_vector;
                                     idx        : in  natural;
@@ -118,13 +102,11 @@ package evfab_bfm_pkg is
                                     cyc_taken  : out natural;
                                     done_ok    : out boolean);
 
-    -----------------------------------------------------------------------
-    -- TB SHADOW MODEL (bench-plan mandatory machinery; see the file header for the checker-independence contract and the call-timing contract).
-    -- It mirrors B2 (event front-end), B3 (GPIO0 front-end), B4 (crossbar plus output register) and B6 (stickies) purely from TB-commanded config and TB-driven stimulus, never a DUT-internal signal.
-    -----------------------------------------------------------------------
+    -- TB SHADOW MODEL: it mirrors the event and GPIO0 front ends, the crossbar plus output register and the stickies, purely from TB-commanded config and TB-driven stimulus.
+    -- See the file header for the call-timing contract.
 
     -- One event or GPIO bit's front-end state.
-    -- `raw_prev` is a TB bookkeeping lag stage (see the header's timing-contract note); s1/s2/prv mirror the DUT's uniform 3-flop chain (D9).
+    -- `raw_prev` is a TB bookkeeping lag stage (see the header's timing-contract note); s1/s2/prv mirror the DUT's uniform 3-flop chain.
     type evfab_fe_t is record
         raw_prev : std_logic;
         s1       : std_logic;
@@ -136,7 +118,7 @@ package evfab_bfm_pkg is
     type evfab_ev_fe_arr_t is array (0 to EVFAB_N_EV - 1) of evfab_fe_t;
     type evfab_gp_fe_arr_t is array (0 to 7) of evfab_fe_t;
 
-    -- One channel's live config (D18 CHnCFG EVSEL/TASKSEL fields).
+    -- One channel's live config: the CHnCFG EVSEL/TASKSEL fields.
     type evfab_ch_cfg_t is record
         evsel   : natural range 0 to 31;
         tasksel : natural range 0 to 15;
@@ -144,7 +126,7 @@ package evfab_bfm_pkg is
     constant EVFAB_CH_CFG_ZERO : evfab_ch_cfg_t := (evsel => 0, tasksel => 0);
     type evfab_ch_cfg_arr_t is array (0 to EVFAB_N_CH - 1) of evfab_ch_cfg_t;
 
-    -- Per-task same-cycle firing-collision counts (D15 OVR merge term).
+    -- Per-task same-cycle firing-collision counts, the OVR merge term.
     type evfab_taskcnt_arr_t is array (0 to EVFAB_N_TASK - 1) of natural;
 
     -- The whole shadow state: commanded config plus the modelled front-end and sticky state.
@@ -158,7 +140,7 @@ package evfab_bfm_pkg is
         fired     : std_logic_vector(EVFAB_N_CH - 1 downto 0);
         ovr       : std_logic_vector(EVFAB_N_CH - 1 downto 0);
         evstat    : std_logic_vector(EVFAB_N_EV - 1 downto 0);
-        pend_task : std_logic_vector(EVFAB_N_TASK - 1 downto 0);  -- D12 output reg
+        pend_task : std_logic_vector(EVFAB_N_TASK - 1 downto 0);  -- Output register
     end record;
 
     procedure evfab_shadow_reset(variable sh : inout evfab_shadow_t);
@@ -265,9 +247,7 @@ package body evfab_bfm_pkg is
         end loop;
     end procedure;
 
-    -----------------------------------------------------------------------
-    -- TB SHADOW MODEL bodies.
-    -----------------------------------------------------------------------
+    -- TB shadow model bodies.
 
     -- Put the shadow back into its reset state: no config, no stickies, cleared front ends.
     procedure evfab_shadow_reset(variable sh : inout evfab_shadow_t) is
@@ -332,8 +312,7 @@ package body evfab_bfm_pkg is
         variable ovr_this  : std_logic_vector(EVFAB_N_CH - 1 downto 0) := (others => '0');
         variable ns1, ns2, nprv : std_logic;
     begin
-        -- B2 mirror: the uniform event front-end (D9).
-        -- See the header's timing contract for why `raw_prev` exists.
+        -- Uniform event front-end mirror; see the header's timing contract for why `raw_prev` exists.
         for e in 0 to EVFAB_N_EV - 1 loop
             ns1  := sh.ev_fe(e).raw_prev;
             ns2  := sh.ev_fe(e).s1;
@@ -343,7 +322,7 @@ package body evfab_bfm_pkg is
             elsif evfab_ev_is_lvl(e) then
                 ev_front(e) := ns2 and (not nprv);
             else
-                ev_front(e) := ev_in(e);   -- P mode: pass-through, no flop (D9).
+                ev_front(e) := ev_in(e);   -- P mode: pass-through, no flop.
             end if;
             sh.ev_fe(e).s1       := ns1;
             sh.ev_fe(e).s2       := ns2;
@@ -351,7 +330,7 @@ package body evfab_bfm_pkg is
             sh.ev_fe(e).raw_prev := ev_in(e);
         end loop;
 
-        -- B3 mirror: the GPIO0 8-bit edge path, AND-masked then OR-reduced into event 15 (D10), overriding the D9 select for that index.
+        -- GPIO0 front-end mirror: the 8-bit edge path is AND-masked then OR-reduced into event 15, overriding the per-event select at that index.
         gp15 := '0';
         for g in 0 to 7 loop
             ns1  := sh.gp_fe(g).raw_prev;
@@ -366,7 +345,7 @@ package body evfab_bfm_pkg is
         end loop;
         ev_front(EVFAB_EV_GPIO_IDX) := gp15;
 
-        -- B4 mirror: the crossbar one-hot EVSEL match (D11) behind the ch_arm gate (D13).
+        -- Crossbar mirror: the one-hot EVSEL match behind the channel-arm gate.
         for n in 0 to EVFAB_N_CH - 1 loop
             ev_hit := '0';
             for e in 0 to EVFAB_N_EV - 1 loop
@@ -377,7 +356,7 @@ package body evfab_bfm_pkg is
             ch_fire(n) := (sh.cr_en and sh.chen(n)) and ev_hit;
         end loop;
 
-        -- Per-task OR-reduce (D11) and the same-cycle collision counts (D15 OVR).
+        -- Per-task OR-reduce and the same-cycle collision counts for OVR.
         for t in 0 to EVFAB_N_TASK - 1 loop
             cnt(t) := 0;
             for n in 0 to EVFAB_N_CH - 1 loop
@@ -392,8 +371,8 @@ package body evfab_bfm_pkg is
             end if;
         end loop;
 
-        -- D15 OVR set term: consumer busy OR a same-cycle same-task merge.
-        -- A reserved TASKSEL >= N_TASK never contributes (D15 corner 5).
+        -- OVR set term: consumer busy OR a same-cycle same-task merge.
+        -- A reserved TASKSEL >= N_TASK never contributes.
         for n in 0 to EVFAB_N_CH - 1 loop
             if ch_fire(n) = '1' and sh.cfg(n).tasksel < EVFAB_N_TASK then
                 if task_busy(sh.cfg(n).tasksel) = '1' or cnt(sh.cfg(n).tasksel) >= 2 then
@@ -402,11 +381,11 @@ package body evfab_bfm_pkg is
             end if;
         end loop;
 
-        -- B4 output register (D12): this call emits the PREVIOUS call's task_hit, and this call's own task_hit becomes visible on the next call.
+        -- Output register: this call emits the PREVIOUS call's task_hit, and this call's own task_hit becomes visible on the next call.
         task_pulse_exp := sh.pend_task;
         sh.pend_task    := task_hit;
 
-        -- B6 stickies (D14/D15/D17): set wins and no clears are modeled here, since the discrete groups exercise W1C directly against the real DUT.
+        -- Stickies: set wins and no clears are modeled here, since the bench exercises W1C directly against the real DUT.
         sh.fired  := sh.fired or ch_fire;
         sh.ovr    := sh.ovr or ovr_this;
         sh.evstat := sh.evstat or ev_front;

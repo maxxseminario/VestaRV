@@ -362,9 +362,8 @@ begin
         clr_adc_data_rdy <= '0'; -- default value
 
         if resetn = '0' then
-            -- TODO: make these reset values generics.
-            -- TODO: for future AFE instances, global bias should be handled in another peripheral, leaving only local AFE signals here.
-	        -- Register resets.
+            -- Register resets.
+            -- TODO: make these values generics, and move global bias into its own peripheral so only local AFE signals stay here.
             -- AFE_CR              <= x"0FF71F";
             AFE_CR              <= x"000000";
             AFE_TPR             <= (others => '0');

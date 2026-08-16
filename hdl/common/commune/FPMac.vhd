@@ -4,10 +4,7 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 library work;
--- Synthesizable Fixed Point libraries created by David Bishop for VHDL 2008
--- User Guide: https://freemodelfoundry.com/fphdl/Fixed_ug.pdf
--- Repository: https://github.com/FPHDL/fphdl/blob/master/fixed_pkg_c.vhdl / https://github.com/ghdl/ghdl/blob/master/libraries/ieee2008/fixed_generic_pkg-body.vhdl
--- The library files here were pulled from /opt/cadence/XCELIUM2009/tools/xcelium/files/IEEE_PROPOSED.src
+-- Synthesizable fixed-point packages (the David Bishop VHDL-2008 fphdl set), compiled into work from the simulator's IEEE_PROPOSED sources.
 use work.fixed_float_types.all;
 use work.fixed_pkg.all;
 

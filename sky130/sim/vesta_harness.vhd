@@ -1,26 +1,7 @@
--- vesta_harness.vhd — Stage-2 cocotb/GHDL smoke harness for the `vesta`
--- RISC-V core (RV32IMAC+Zb*, multicycle, single unified bus).
---
--- WHY A VHDL HARNESS (not a pure-Python memory model):
---   `vesta` drives a *combinational* fetch/decode path — internally
---   `instr <= read_data;` and the whole EXECUTE-cycle decode consumes
---   read_data in the same delta the address is presented. The core is
---   multicycle over a SINGLE shared bus (instruction fetch AND load/store
---   ride the same data_addr/read_data pins). A real SRAM registers the
---   address and returns data one cycle later; the FSM is built around that
---   1-cycle latency (there is NO fetch-wait state — a plain ALU op is one
---   EXECUTE cycle, so fetch latency must be exactly one clock). Modelling
---   that timing precisely from Python (reacting to data_addr edges and
---   driving read_data back within the core's sampling window) is racy; a
---   behavioral VHDL RAM clocked in-domain gives the exact zero-fuss timing
---   the core was designed against. cocotb then only drives clk/resetn and
---   observes a0/trap_flag/clk_cpu — no protocol driving from Python.
---
--- This mirrors how hart_tile wires vesta<->adddec<->TCM, minus the
--- chip-specific machinery (flash/XIP, power gates, shared window, the ARM
--- SRAM macro): mask = data_addr(1:0), mem_ready = '1' (single master),
--- read_data = 1-cycle registered word read, byte-masked writes on wen
--- (active-LOW per lane, matching maindec's WEN encoding).
+-- Smoke harness for the `vesta` core (RV32IMAC+Zb*, multicycle, single unified bus): the testbench drives only clk/resetn and observes a0/trap_flag/clk_cpu.
+-- The core decodes read_data combinationally in its EXECUTE cycle and has no fetch-wait state, so memory MUST return the word exactly one clock after the address; a behavioral RAM clocked in-domain gives that timing where a Python model would race it.
+-- The wiring mirrors a hart tile's core, address decoder and TCM, minus flash/XIP, power gates, the shared window and the SRAM macro.
+-- mask = data_addr(1:0), mem_ready tied '1' (single master), 1-cycle registered word reads, byte-masked writes on wen (active-LOW per lane, matching maindec's WEN encoding).
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -38,15 +19,14 @@ end entity vesta_harness;
 
 architecture sim of vesta_harness is
 
-    -- core <-> RAM bus
+    -- core-to-RAM bus
     signal data_addr  : std_logic_vector(31 downto 0);
     signal wen        : std_logic_vector(3 downto 0);
     signal write_data : std_logic_vector(31 downto 0);
     signal read_data  : std_logic_vector(31 downto 0);
     signal mask       : std_logic_vector(1 downto 0);
 
-    -- 64-word (256 B) behavioral RAM, pre-loaded with the smoke program.
-    -- Program (PC_RST_VAL = 0):
+    -- 64-word (256 B) behavioral RAM preloaded with the smoke program (PC_RST_VAL = 0):
     --   0x00: CAFEB537  lui  a0, 0xCAFEB      ; a0 = 0xCAFEB000
     --   0x04: 0BA50513  addi a0, a0, 0x0BA    ; a0 = 0xCAFEB0BA  (magic)
     --   0x08: 0000006F  jal  x0, 0            ; self-loop (halt)
@@ -68,12 +48,11 @@ architecture sim of vesta_harness is
 
 begin
 
-    -- Byte position within the word — exactly adddec's `mask <= data_addr(1:0)`.
+    -- Byte position within the word: the same data_addr(1:0) slice the address decoder drives.
     mask <= data_addr(1 downto 0);
 
-    -- Synchronous, 1-cycle-latency RAM (in the free-running clk domain; with
-    -- mem_ready tied '1' and no sleep, clk_cpu == clk so the core and RAM
-    -- advance together). Writes are byte-masked, wen active-LOW per lane.
+    -- Synchronous 1-cycle-latency RAM in the free-running clk domain; with mem_ready tied '1' and no sleep, clk_cpu equals clk so core and RAM advance together.
+    -- Writes are byte-masked, wen active-LOW per lane.
     ram_proc : process (clk)
         variable idx : natural;
     begin

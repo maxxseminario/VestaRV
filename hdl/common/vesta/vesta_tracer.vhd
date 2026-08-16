@@ -1,48 +1,8 @@
--- =============================================================================
--- vesta_tracer.vhd, V1 of the Spike lockstep co-simulation program.
---
--- A PURE OBSERVER. It has NO output ports, drives NO signal, and its only side effect is an ASCII text file.
+-- vesta_tracer.vhd: retire-event trace writer for lockstep co-simulation, one ASCII file per hart.
+-- A PURE OBSERVER: no output ports, drives no signal, never touches the memory path.
 -- Instantiated in vesta.vhd inside `gen_trace: if TRACE_ENABLE generate`, so an OFF build elaborates none of it.
---
--- Spec: ~/vesta_docs/lockstep/v1_retire_enumeration.md rev 2, the retire-event enumeration.
---       Section 3-R0 of it is implemented verbatim below.
--- Wire format: ~/vestarv/tools/cosim/RECORD_FORMAT.md plus Amendments A1-A7.
---       A6 (V3): an `M L` record's data field carries the RETURNED BUS WORD (it was a hardcoded zero through V2).
---                Back-filled one clk_cpu edge after the issue; see the A6 block in the process.
---       A7 (V3): the legacy IRQ_SV return-PC push and the iret stack pop LEAVE the compared stream (# IRQPUSH / # IRETPOP).
---                Each is bounded by an equality so a wrong address is loud, not invisible.
---       A10 (WT): BIT-GRANULAR x. The compared fields are UNCHANGED: `hexstr` is still nibble-granular and every width is frozen.
---                A tainted compared field now additionally emits `# XBITS <hart> <cycle> <field> <mask> <defined>` on the line BELOW its record.
---                `mask` is 1 at each undriven bit; `defined` is the value with those bits forced to 0.
---                A clean trace is byte-identical to a pre-A10 one.
---       A16 (WT, finding T2): a GLOBALLY-failed sc.w no longer emits an `M ... S`.
---                It never committed, because resv_unit gates the write off downstream, so the record contradicted section 2's definition of `M`.
---                It is now `# SCGHOST`, which retires the SHAPE that compare.py's amendment A15 existed to filter.
---                A15 stays as a compatibility shim for pre-A16 traces.
---       A17 (K2b, finding F-K2b-1): the Zfinx `C 001` record is emitted on ANY retire whose `fp_flags_we` is asserted, not only on ST_FPU_DONE.
---                It carries the POST-op value `fflags_value or fp_flags_val`, not the pre-op CSR register.
---                Both halves are corrections of a record that violated section 3.
---                The old emission described the state BEFORE the op it belonged to.
---                Single-cycle FP ops (fmin/fmax/fsgnj/fcmp/fclass, which retire in EXECUTE) emitted no record at all even when they raised NV.
---                Statically inert in a zfinx-off build.
---
--- INVARIANTS THIS FILE MUST HOLD (kickoff section 3):
---   1. -V200X. No VHDL-2008: no external names, no to_hstring, no 2008 aggregates.
---      Hex is hand-rolled below. std.textio only.
---   7. It logs what COMMITTED, not what decode intended.
---      Every value arrives from the actual write PORT (regfile we3/a3/wd3, the sp port, the memory interface, csr_unit's committed-write export).
---      Sampling is pre-edge on rising_edge(clk_cpu), i.e. exactly the values the flops capture on that same edge.
---   3b. It never drives or muxes anything on the memory path.
---
--- THE STATE-ORDINAL CONTRACT (read this before touching `type cpu_state`):
---   `cpu_state` is declared inside vesta's architecture, so it cannot cross a port boundary in VHDL-93.
---   vesta therefore passes `cpu_state'pos(...)` and the ST_* constants below MUST match the DECLARATION ORDER of that type.
---   If you add, remove or REORDER a state you MUST update the ST_* block here.
---   A mismatch is silent. The tracer prints the raw ordinal in every diagnostic line so a mismatch is at least visible.
---   FIND IT WITH `grep -n "type cpu_state" vesta.vhd`, NOT with a line number.
---   This comment used to say ":425-493", which was already stale by two waves: the declaration was at :509-577 when A17 re-checked the contract, and the old range now lands inside this component's own port list.
---   Method rule section 3, first line: a wrong reference is worse than none.
--- =============================================================================
+-- It logs what COMMITTED, not what decode intended: every value comes from an actual write port, sampled pre-edge on rising_edge(clk_cpu).
+-- -V200X only: no VHDL-2008, no external names, no to_hstring; hex is hand-rolled below and std.textio is the only I/O.
 
 library IEEE;
 use IEEE.std_logic_1164.all;
@@ -52,37 +12,31 @@ use work.constants.all;
 
 entity vesta_tracer is
     generic (
-        -- Base name of the trace file, giving <TRACE_FILE>_h<xx>.trace.
-        -- The hart suffix is appended at runtime because a generic cannot depend on the hart_id PORT.
+        -- Base name of the trace file, giving <TRACE_FILE>_h<xx>.trace; the hart suffix is appended at runtime because a generic cannot depend on the hart_id PORT.
         TRACE_FILE        : string  := "vesta_trace";
-        -- Statically-known feature knobs, mirrored from vesta so the section 3-R0 exclusion terms fold exactly as the FSM's do.
+        -- Statically-known feature knobs, mirrored from vesta so the retire exclusion terms fold exactly as the FSM's do.
         ENABLE_PMP        : boolean := false;
         ENABLE_COMPRESSED : boolean := true;
-        -- Rate limit for the unbounded #TRAPSTORE diagnostic (finding F8: TRAP_STATE self-loops forever and can commit a store every cycle).
+        -- Rate limit for the #TRAPSTORE diagnostic: TRAP_STATE self-loops forever and can commit a store every cycle.
         TRAPSTORE_LIMIT   : natural := 8;
-        -- D1 (R-D0-3(1)): THE ORDINAL-COUNT TRIPWIRE.
-        -- vesta passes `cpu_state'pos(cpu_state'high) + 1` here, and the concurrent assert at the end of this architecture compares it against ST_COUNT and FAILS AT ELABORATION on a mismatch.
-        -- Until D1 the contract below had ZERO mechanical enforcement: ST_COUNT was declared and never read, so the constant that LOOKS like a tripwire was not one.
-        -- DEFAULT 0 IS THE FAIL-SAFE DIRECTION, not an "unspecified" sentinel.
-        -- An instantiation that forgets this generic fails the assert loudly rather than silently opting out of the check.
+        -- Ordinal-count tripwire: vesta passes `cpu_state'pos(cpu_state'high) + 1` and the concurrent assert below fails elaboration when it disagrees with ST_COUNT.
+        -- Default 0 is the fail-safe direction: an instantiation that forgets this generic fails the assert loudly instead of opting out of the check.
         STATE_COUNT       : natural := 0
     );
     port (
-        -- ---------------------------------------------------------------------
         -- EVERY PORT IS `in`. There is deliberately no output of any kind.
-        -- ---------------------------------------------------------------------
         clk_cpu          : in std_logic;                       -- the GATED core clock
         resetn           : in std_logic;
         hart_id          : in std_logic_vector(XLEN-1 downto 0);
 
-        -- FSM state as an ordinal (see THE STATE-ORDINAL CONTRACT above).
+        -- FSM state as an ordinal (see the ST_* table below).
         state            : in natural;                         -- cpu_state'pos(current_state)
         next_state       : in natural;                         -- cpu_state'pos(next_state)
 
         -- PC, the raw instruction bus, and the four dispatch-shape selectors.
         pc               : in std_logic_vector(XLEN-1 downto 0);
-        instr            : in std_logic_vector(ILEN-1 downto 0);  -- the read_data bus itself (vesta:951)
-        instr_curr       : in std_logic_vector(ILEN-1 downto 0);  -- decoded/held (vesta:1328)
+        instr            : in std_logic_vector(ILEN-1 downto 0);  -- the read_data bus itself
+        instr_curr       : in std_logic_vector(ILEN-1 downto 0);  -- decoded/held
         instr_lower_half : in std_logic_vector(15 downto 0);
         quadrant_upper   : in std_logic_vector(1 downto 0);
         quadrant_lower   : in std_logic_vector(1 downto 0);
@@ -105,35 +59,23 @@ entity vesta_tracer is
         mem_access_instr : in std_logic;
         funct3           : in std_logic_vector(2 downto 0);     -- instr_curr(14 downto 12)
 
-        -- A16 (finding T2): the GLOBAL SC verdict from resv_unit.
-        -- In SC_CHECK the core drives `wen` on its LOCAL check alone, so the port shows a store for a write that resv_unit's `s_we_gated` then suppresses.
-        -- This is the one input the tracer needs to tell a presentation from a commit.
-        -- Sampling it HERE is sound and needs no holding mechanism: vesta.vhd:92-95 contracts it stable by the end of the SC_CHECK cycle (latched from the arbiter done for a stalled shared SC).
-        -- The core itself consumes it combinationally in that same cycle to pick `amo_phase` "101"/"100" (vesta.vhd:1930-1933), and the edge this process samples IS the end of that cycle.
-        -- DEFAULT '0' is the FAIL-SAFE direction (R-W4-12): an unwired instantiation reports "no external failure" and therefore behaves EXACTLY as the pre-A16 tracer did, dropping nothing.
-        -- The opposite default would silently delete every shared SC's store record.
+        -- The GLOBAL SC verdict from resv_unit: in SC_CHECK the core drives `wen` on its LOCAL check alone, so the port shows a store that resv_unit's `s_we_gated` then suppresses.
+        -- It is stable by the end of the SC_CHECK cycle, which is the edge sampled here, and default '0' is fail-safe: an unwired instantiation drops no store record.
         sc_fail_ext      : in std_logic := '0';
 
-        -- csr_unit's COMMITTED-write export, generated inside csr_unit and asserted only when a write `case` arm actually stores (R4/F10).
+        -- csr_unit's COMMITTED-write export, asserted only when a write `case` arm actually stores.
         csr_addr         : in std_logic_vector(11 downto 0);
         csr_commit_we    : in std_logic;
         csr_commit_val   : in std_logic_vector(XLEN-1 downto 0);
         mstatus_value    : in std_logic_vector(XLEN-1 downto 0); -- for MTRAP_RET's mret pop
-        -- A17 (F-K2b-1). `fflags_value` is csr_unit's fflags REGISTER, i.e. the value BEFORE this edge's sticky OR commits (csr_unit.vhd:670-671 and :1205).
-        -- On its own it therefore describes the state before the op that owns the record.
-        -- The post-op value is `fflags_value or fp_flags_val`.
-        -- `fp_flags_we` is the strobe that says an FP op is committing flags on THIS edge (vesta.vhd's `fp_flags_we`, both arms: FPU_DONE for the multi-cycle ops and EXECUTE for the single-cycle ones).
+        -- `fflags_value` is csr_unit's fflags REGISTER, read before this edge's sticky OR commits, so the post-op value is `fflags_value or fp_flags_val`.
         fflags_value     : in std_logic_vector(XLEN-1 downto 0); -- fflags PRE-edge
-        -- DEFAULTS, AND WHY THIS DIRECTION (method rule 15 / R-W4-12).
-        -- An unwired instantiation gets `fp_flags_we = '0'` and emits NO `C 001` at all.
-        -- That is NOT "behaves like the pre-A17 tracer" and is not claimed to be: it is the LOUD direction.
-        -- A missing `C 001` on a Zfinx build is an immediate record-KIND divergence at the first flag-raising op (the reference presents `c1_fflags` there and the RTL presents nothing), while on a zfinx-off build it is exactly correct.
-        -- The opposite default ('1') would fabricate a `C 001` on EVERY retire of EVERY build, destroying traces that are otherwise sound.
-        -- Neither default can produce the F-K2b-1 shape, a plausible-looking record carrying the wrong value, which is the failure mode that cost a wave to find.
+        -- `fp_flags_we` strobes on every edge an FP op commits flags, from both the multi-cycle (FPU_DONE) and single-cycle (EXECUTE) arms.
+        -- Default '0' is the LOUD direction: an unwired instantiation emits no `C 001`, which is exactly right on a zfinx-off build and an immediate record-kind divergence on a Zfinx one.
         fp_flags_we      : in std_logic := '0';
         fp_flags_val     : in std_logic_vector(4 downto 0) := (others => '0');
 
-        -- Decode class, for the section 3-R0 EXECUTE exclusions.
+        -- Decode class, for the EXECUTE retire exclusions.
         trap             : in std_logic;
         ecall_op         : in std_logic;
         ebreak_op        : in std_logic;
@@ -154,9 +96,8 @@ end entity vesta_tracer;
 
 architecture behav of vesta_tracer is
 
-    -- ==========================================================
-    -- cpu_state ordinals: MUST match the declaration order of vesta.vhd's `type cpu_state`.
-    -- ==========================================================
+    -- cpu_state ordinals: MUST match the DECLARATION ORDER of vesta.vhd's `type cpu_state` (find it with `grep -n "type cpu_state" vesta.vhd`).
+    -- A wrong ordinal is silent, so every diagnostic line below prints the raw ordinal to make a mismatch visible.
     constant ST_INITIALIZE    : natural :=  0;
     constant ST_SLEEPING      : natural :=  1;
     constant ST_EXECUTE       : natural :=  2;
@@ -196,24 +137,20 @@ architecture behav of vesta_tracer is
     constant ST_ZCM_MV2       : natural := 36;
     constant ST_ZCM_JT_LD     : natural := 37;
     constant ST_ZCM_JT_WB     : natural := 38;
-    -- D1 debug-mode states, TAIL-APPENDED exactly as they are in vesta.vhd.
+    -- Debug-mode states, tail-appended exactly as in vesta.vhd.
     constant ST_DBG_SV        : natural := 39;
     constant ST_DBG_JUMP      : natural := 40;
     constant ST_DBG_RET       : natural := 41;
     constant ST_COUNT         : natural := 42;
 
-    -- Buffer depths.
-    -- A Zcmp cm.pop commits up to 13 rd writes plus 1 sp write for ONE architectural instruction, and a cbo.zero commits CBOZ_WORDS stores.
-    -- Both are flushed as one retire (Amendment A2, spec sections 6.5 and 6.6).
+    -- Buffer depths: a cm.pop commits up to 13 rd writes plus 1 sp write for ONE architectural instruction and a cbo.zero commits CBOZ_WORDS stores, each flushed as one retire.
     constant MAX_RD  : natural := 16;
     constant MAX_MEM : natural := 24;
 
     -- Nibble alphabet for the hand-rolled hex printers below.
     constant HEXCHARS : string(1 to 16) := "0123456789abcdef";
 
-    -- ==========================================================
-    -- Hand-rolled hex (invariant 1: no to_hstring, no VHDL-2008).
-    -- ==========================================================
+    -- Hand-rolled hex, because to_hstring is VHDL-2008.
     -- Any bit that is not '0' or '1' makes its whole nibble print as 'x', so an X-corrupted value is visible in the trace instead of crashing the run.
     function hexstr(v : std_logic_vector) return string is
         constant ND     : natural := (v'length + 3) / 4;
@@ -235,8 +172,7 @@ architecture behav of vesta_tracer is
                 end if;
             end loop;
             if bad then
-                -- RECORD_FORMAT Amendment A5: a literal 'x' nibble means the sampled RTL state carried an X at that position.
-                -- We never invent a value; the comparator treats any record containing 'x' as INVESTIGATE, never as a match.
+                -- A literal 'x' nibble means the sampled RTL state carried an X there; no value is ever invented, and the comparator treats such a record as INVESTIGATE, never as a match.
                 s(ND-i) := 'x';
             else
                 s(ND-i) := HEXCHARS(d+1);
@@ -245,14 +181,9 @@ architecture behav of vesta_tracer is
         return s;
     end function hexstr;
 
-    -- ==========================================================
-    -- A10 (WT): BIT-GRANULAR x.
-    -- `hexstr` above is NIBBLE-granular by design and STAYS THAT WAY, so the compared field keeps its frozen width and its meaning and every existing consumer is untouched.
-    -- What A5 could not say is WHICH BITS were undriven, and that is the whole of A10.
-    -- The three functions below let the tracer emit a companion `# XBITS` line carrying the exact undriven-bit MASK and the exact DEFINED bits, alongside the record and never instead of it.
-    --
-    -- Why the extra line rather than a wider field: a `000000xx` data field says eight bits MIGHT be undriven.
-    -- It does not say that seven are and one is a defined '0' that the program then branches on, which is exactly `rv32ui-p-afsel`'s shape and exactly why it is uninjectable.
+    -- `hexstr` stays NIBBLE-granular so every compared field keeps its frozen width, and the three functions below add the bit-granular detail on a companion `# XBITS` line instead.
+    -- The mask says WHICH bits were undriven, which a widened `000000xx` field could never distinguish from a defined '0' the program then branches on.
+
     -- True when any bit of v is neither '0' nor '1'.
     function has_x(v : std_logic_vector) return boolean is
         variable a : std_logic_vector(v'length-1 downto 0);
@@ -278,9 +209,7 @@ architecture behav of vesta_tracer is
         return r;
     end function x_mask_of;
 
-    -- The value with every undriven bit forced to '0'.
-    -- This is NOT an invented value and must never be read as one: it is only meaningful UNDER the mask.
-    -- The mask is emitted beside it precisely so a consumer cannot use one without the other.
+    -- The value with every undriven bit forced to '0': not an invented value, and meaningful only under the mask emitted beside it.
     function x_def_of(v : std_logic_vector) return std_logic_vector is
         variable a : std_logic_vector(v'length-1 downto 0);
         variable r : std_logic_vector(v'length-1 downto 0);
@@ -293,7 +222,7 @@ architecture behav of vesta_tracer is
     end function x_def_of;
 
     -- Fixed-width hex of a natural: the cycle field, and the state ordinals in diagnostics.
-    -- Truncates from the top if nd is too small, which is fine because the cycle field is debug-only and NEVER compared (RECORD_FORMAT section 0).
+    -- Truncates from the top if nd is too small, which is harmless because the cycle field is debug-only and never compared.
     function hexnat(n : natural; nd : natural) return string is
         variable s : string(1 to nd);
         variable t : natural;
@@ -313,9 +242,7 @@ architecture behav of vesta_tracer is
     end function natstr;
 
     -- "<hart> <cycle> ", the two leading fields every record shares.
-    -- IMPURE because it reads the hart_id SIGNAL: a VHDL-93 pure function may not reference a signal or a variable from an enclosing declarative region.
-    -- `impure function` is itself VHDL-93 (LRM 93 section 2.1), so this is the correct and portable spelling, not merely what the tool tolerates.
-    -- The cycle is taken as a PARAMETER rather than read from the process variable, which keeps the signal read as the ONLY impurity.
+    -- IMPURE because it reads the hart_id SIGNAL, which a pure function may not do; the cycle is a parameter so that read stays the only impurity.
     impure function hdr(c : natural) return string is
     begin
         return hexstr(hart_id(7 downto 0)) & " " & hexnat(c, 8) & " ";
@@ -332,21 +259,19 @@ architecture behav of vesta_tracer is
 
 begin
 
-    -- =====================================================================
     -- The one and only process, sampled on rising_edge(clk_cpu).
-    -- The values read here are the PRE-EDGE values, i.e. exactly what the regfile, RAM and sequencer flops capture on this same edge (invariant 7).
-    -- =====================================================================
+    -- The values read here are the PRE-EDGE values, i.e. exactly what the regfile, RAM and sequencer flops capture on this same edge.
     trace_proc: process(clk_cpu)
         file     f            : text;
         variable fopened      : boolean := false;
         variable cyc          : natural := 0;
         variable hstr         : string(1 to 2);
-        -- In-flight architectural instruction (spec section 3-I1, "latch, don't re-read").
+        -- In-flight architectural instruction: latched at dispatch, never re-read from the bus.
         variable iv_valid     : boolean := false;
         variable iv_pc        : std_logic_vector(XLEN-1 downto 0);
         variable iv_insn      : std_logic_vector(ILEN-1 downto 0);
         variable iv_c16       : boolean := false;
-        -- Committed register writes for the in-flight instruction (A2: n R records).
+        -- Committed register writes for the in-flight instruction, one R record each.
         variable rd_n         : natural := 0;
         variable rd_a         : addr5_arr(0 to MAX_RD-1);
         variable rd_v         : word_arr(0 to MAX_RD-1);
@@ -356,32 +281,32 @@ begin
         variable mm_ad        : word_arr(0 to MAX_MEM-1);
         variable mm_da        : word_arr(0 to MAX_MEM-1);
         variable mm_sz        : nat_arr(0 to MAX_MEM-1);
-        -- The address the S1/S2 suppressions are bounded against (A3).
+        -- The address the AMO and LR re-read suppressions are bounded against.
         variable cap_addr     : std_logic_vector(XLEN-1 downto 0);
         variable cap_vld      : boolean := false;
-        -- A6: the returned load word is not on the bus at the ISSUE edge; it arrives one clk_cpu edge later, on the edge where the core itself consumes it.
-        -- fl_pend and fl_idx back-fill the buffered L record's data field, which before A6 was a hardcoded zero.
+        -- The returned load word is not on the bus at the ISSUE edge; it arrives one clk_cpu edge later, on the edge where the core itself consumes it.
+        -- fl_pend and fl_idx back-fill the buffered L record's data field on that later edge.
         variable fl_pend      : boolean := false;
         variable fl_idx       : natural := 0;
-        -- Pending explicit CSR write (A1).
+        -- Pending explicit CSR write.
         variable csr_p        : boolean := false;
         variable csr_pa       : std_logic_vector(11 downto 0);
         variable csr_pv       : std_logic_vector(XLEN-1 downto 0);
-        -- Legacy trap entry: captured at IRQ_SV, emitted at IRQ_JUMP (spec section 3-T1).
+        -- Legacy trap entry: captured at IRQ_SV, emitted at IRQ_JUMP.
         variable t_pend       : boolean := false;
         variable t_epc        : std_logic_vector(XLEN-1 downto 0);
         -- Miscellaneous one-shots and counters.
-        variable wfi_armed    : boolean := false;   -- R5: trc_wfi_armed
-        variable ts_count     : natural := 0;       -- F8 rate limit
-        variable init_seen    : boolean := false;   -- R6 probe one-shot
+        variable wfi_armed    : boolean := false;   -- armed by the wfi dispatch
+        variable ts_count     : natural := 0;       -- TRAPSTORE rate limit
+        variable init_seen    : boolean := false;   -- INITIALIZE probe one-shot
         -- Per-edge combinational scratch.
         variable sP, sQ, sE, sD, sC, sA, sB : boolean;
         variable is_disp, ret_exec, retire  : boolean;
         variable is_load, is_store, own     : boolean;
         variable sz, lo, k                  : natural;
         variable dat                        : std_logic_vector(XLEN-1 downto 0);
-        -- A17: the POST-op fflags word, i.e. fflags_value with its low 5 bits OR'd with the completing op's flags.
-        -- Held in a variable rather than written as an expression twice, so the record and its `# XBITS` companion can never drift apart and an `x` in either operand propagates to both.
+        -- The POST-op fflags word: fflags_value with its low 5 bits OR'd with the completing op's flags.
+        -- Held in a variable rather than written twice, so the record and its `# XBITS` companion cannot drift apart.
         variable ffpost                     : std_logic_vector(XLEN-1 downto 0);
 
         -- Write one finished record line to the trace file.
@@ -392,14 +317,8 @@ begin
             writeline(f, ll);
         end procedure emit;
 
-        -- A10: the companion line for ONE tainted field of the record on the line immediately above.
-        -- Emitted only when the field is actually tainted, so a clean trace is byte-identical to a pre-A10 one.
-        -- BINDS BACKWARD, like `# NODATA` and unlike `# SCFAILRD` and `# SCGHOST`, which are written at their event edge, before the retire flush.
-        -- The two conventions coexist in this file already; the discriminator is simply where the emit sits.
-        -- A10's sits INSIDE the record procedures so the adjacency cannot be broken by a later edit.
-        --   # XBITS <hart> <cycle> <field> <mask> <defined>
-        -- `mask` is 1 at every undriven bit; `defined` is the value with those bits forced to 0.
-        -- Both are the SAME WIDTH as the field they describe.
+        -- `# XBITS <hart> <cycle> <field> <mask> <defined>`, binding BACKWARD to the record on the line above and emitted only when that field is actually tainted.
+        -- The call sits inside the record procedures so nothing can break that adjacency; mask is 1 at every undriven bit and defined is the value with those bits forced to 0, both the field's own width.
         procedure emit_xbits(fld : string; v : std_logic_vector) is
         begin
             if has_x(v) then
@@ -442,8 +361,7 @@ begin
                            n : natural; dt : std_logic_vector(XLEN-1 downto 0)) is
         begin
             if mm_n < MAX_MEM then
-                -- A6: arm the one-edge-late data back-fill for a LOAD.
-                -- Single point of arming, so no push site can forget it.
+                -- Arm the one-edge-late data back-fill for a LOAD here, the single arming point, so no push site can forget it.
                 if not st then
                     fl_pend := true;
                     fl_idx  := mm_n;
@@ -477,39 +395,34 @@ begin
     begin
         if rising_edge(clk_cpu) then
 
-            -- Lazy open plus the MANDATORY provenance header.
-            -- Stale-snapshot trap: if this line is missing from the trace, the OFF snapshot ran.
+            -- Lazy open plus the mandatory trace header line: if that line is missing, a TRACE_ENABLE=false snapshot ran.
             if not fopened then
                 hstr := hexstr(hart_id(7 downto 0));
                 file_open(f, TRACE_FILE & "_h" & hstr & ".trace", write_mode);
                 fopened := true;
                 emit("# vesta_tracer TRACE_ENABLE=true " & TRACE_FILE & " hart=" & hstr);
-                -- The format list is the CONSUMER'S vintage signal.
-                -- compare.py and mk_inject must be able to tell a pre-A16 trace, which still carries failed-SC ghost stores filtered by A15, from a post-A16 one, which does not.
-                -- Bump it whenever an amendment changes what this file emits.
+                -- The format list tells a consumer which record shapes to expect; bump it whenever what this file emits changes.
                 emit("# spec v1_retire_enumeration.md rev2 ; format RECORD_FORMAT.md A1-A7,A10,A16,A17");
             end if;
 
             if resetn = '1' then
-                -- ---------- Section 3-I1 dispatch shapes, mutually exclusive, P and Q evaluated first.
-                sP := ENABLE_PMP and pmp_f_deny_r = '1';                            -- :2051
-                sQ := (not ENABLE_COMPRESSED) and pc(1) = '1';                      -- :2078
-                sE := (pc(1) = '1') and (quadrant_upper =  "11") and repeat_if = '0'; -- :2301
-                sD := (pc(1) = '1') and repeat_if = '1';                            -- :2096
-                sC := (pc(1) = '1') and (quadrant_upper /= "11") and repeat_if = '0'; -- :2310
-                sA := (pc(1) = '0') and (quadrant_lower =  "11");                    -- :2416
-                sB := (pc(1) = '0') and (quadrant_lower /= "11");                    -- :2576
+                -- ---------- Dispatch shapes, mutually exclusive, P and Q evaluated first.
+                sP := ENABLE_PMP and pmp_f_deny_r = '1';
+                sQ := (not ENABLE_COMPRESSED) and pc(1) = '1';
+                sE := (pc(1) = '1') and (quadrant_upper =  "11") and repeat_if = '0';
+                sD := (pc(1) = '1') and repeat_if = '1';
+                sC := (pc(1) = '1') and (quadrant_upper /= "11") and repeat_if = '0';
+                sA := (pc(1) = '0') and (quadrant_lower =  "11");
+                sB := (pc(1) = '0') and (quadrant_lower /= "11");
                 is_disp := (state = ST_EXECUTE) and (not sP) and (not sQ) and (not sE);
 
-                -- ---------- Section 3-R0 retire condition, implemented verbatim.
+                -- ---------- The retire condition.
                 ret_exec := is_disp
                             and trap = '0' and ecall_op = '0' and ebreak_op = '0'
                             and mret_op = '0'
                             and not (ENABLE_PMP and pmp_d_deny = '1')
-                            -- D1: DBG_SV joins the whitelist, mirroring vesta.vhd's retire_now.
-                            -- A halt or step divert out of EXECUTE withdraws only pc_en, so the diverted instruction still retires, and for single-step that retire IS the step.
-                            -- THE TWO COPIES OF THIS CONDITION DIFFER ON PURPOSE ELSEWHERE (the MEMORY_WAIT isr_ret term below).
-                            -- This addition is NOT one of the deliberate differences, and a mismatch here would be as silent as an ordinal one.
+                            -- DBG_SV is in the whitelist, mirroring vesta.vhd's retire_now: a halt or step divert out of EXECUTE withdraws only pc_en, so the diverted instruction still retires.
+                            -- This list must track vesta's; the deliberate difference between the two is the MEMORY_WAIT isr_ret term below, and nothing else.
                             and (next_state = ST_EXECUTE  or next_state = ST_IRQ_SV or
                                  next_state = ST_MTRAP_SV or next_state = ST_FENCE_WAIT or
                                  next_state = ST_DBG_SV);
@@ -519,22 +432,14 @@ begin
                        or state = ST_DIV_DONE  or state = ST_FPU_DONE
                        or state = ST_LR_READ   or state = ST_SC_CHECK
                        or state = ST_AMO_WRITE or state = ST_MTRAP_RET
-                       -- D1: DRET retires, beside MRET and for the same reason.
-                       -- Unlike `iret` it is a STANDARD encoding the reference knows, so the retire is comparable.
+                       -- DRET retires beside MRET: unlike `iret` it is a standard encoding the reference knows, so the retire is comparable.
                        or state = ST_DBG_RET
                        or state = ST_ZCM_RET   or state = ST_ZCM_JT_WB
                        or (state = ST_PAUSE_WAIT and next_state = ST_EXECUTE)
                        or (state = ST_WRS_WAIT  and next_state = ST_EXECUTE);
 
-                -- ---------- A6: back-fill the load data issued on the PREVIOUS edge.
-                -- `instr` IS the unified read bus (vesta.vhd:1052 assigns it from read_data), and THIS edge is the one on which the core itself consumes it.
-                -- Every load-issuing state is followed by its consuming state after exactly ONE clk_cpu edge, and the core's own capture of the same signal proves the timing per case:
-                --   EXECUTE then MEMORY_WAIT     datapath's Result takes read_data; the tracer's own retire condition makes MEMORY_WAIT unable to self-loop
-                --   EXECUTE then AMO_READ        vesta.vhd:1152/1154 amo_read_data
-                --   EXECUTE then LR_READ         retires here, rd takes read_data
-                --   ZCM_POP_LD then ZCM_POP_WB, ZCM_JT_LD then ZCM_JT_WB   vesta.vhd:1240
-                -- A multi-cycle memory is invisible here: the stall is implemented by GATING clk_cpu, so there is no multi-edge wait to track.
-                -- A fill that cannot land, because a sequencer abort flushed the buffer first, is LOUD, never silently zero.
+                -- ---------- Back-fill the load data issued on the PREVIOUS edge.
+                -- `instr` IS the unified read bus and this edge is where the core itself consumes it; every load-issuing state is followed by its consuming state after exactly one clk_cpu edge, since a memory stall gates clk_cpu rather than adding edges.
                 if fl_pend then
                     if fl_idx < mm_n and not mm_st(fl_idx) then
                         mm_da(fl_idx) := instr;
@@ -549,8 +454,8 @@ begin
                     clear_inflight;
                     iv_valid := true;
                     iv_pc    := pc;
-                    if sD then          -- 32-bit instruction split across two fetches, upper half held in instr_lower_half
-                        iv_insn := instr(15 downto 0) & instr_lower_half;  -- :1313-1314
+                    if sD then          -- 32-bit instruction split across two fetches, rejoined with the held instr_lower_half
+                        iv_insn := instr(15 downto 0) & instr_lower_half;
                         iv_c16  := false;
                     elsif sA then       -- aligned 32-bit instruction
                         iv_insn := instr;
@@ -558,18 +463,18 @@ begin
                     elsif sC then       -- compressed instruction in the upper half of the fetched word
                         iv_insn := x"0000" & instr(31 downto 16);
                         iv_c16  := true;
-                    else                                                  -- sB: compressed instruction in the lower half
+                    else                -- sB: compressed instruction in the lower half
                         iv_insn := x"0000" & instr(15 downto 0);
                         iv_c16  := true;
                     end if;
                 end if;
 
-                -- ---------- R5: arm the WFI one-shot on the real dispatch only.
+                -- ---------- Arm the WFI one-shot on the real dispatch only.
                 if state = ST_EXECUTE and next_state = ST_SLEEPING then
                     wfi_armed := true;
                 end if;
 
-                -- ---------- Committed register writes (regfile_sbirq.vhd:71/76).
+                -- ---------- Committed register writes on the regfile main port.
                 if reg_write = '1' and rd_addr /= "00000" then
                     if rd_n < MAX_RD then
                         rd_a(rd_n) := rd_addr; rd_v(rd_n) := rd_data; rd_n := rd_n + 1;
@@ -577,13 +482,12 @@ begin
                         emit("# BUFOVF " & hdr(cyc) & "rd");
                     end if;
                 end if;
-                -- The sp port. Only ZCM_SP_COMMIT is a retire-owned sp write (spec section 0-C5).
-                -- IRQ_SV's sp-4 and IRQ_REST's sp+4 belong to the T and X records instead.
+                -- The sp port: only ZCM_SP_COMMIT is a retire-owned sp write, while IRQ_SV's sp-4 and IRQ_REST's sp+4 belong to the T and X records instead.
                 if sp_write_en = '1' and state = ST_ZCM_SP_COMMIT and rd_n < MAX_RD then
                     rd_a(rd_n) := "00010"; rd_v(rd_n) := sp_write_data; rd_n := rd_n + 1;
                 end if;
 
-                -- ---------- Section 3-M1 memory transactions.
+                -- ---------- Memory transactions.
                 -- wen is ACTIVE LOW per byte lane, so all-ones means no store this edge.
                 is_store := (wen /= "1111");
                 is_load  := (mem_access_instr = '1') and (wen = "1111");
@@ -599,39 +503,35 @@ begin
 
                 if is_load then
                     if state = ST_AMO_READ or state = ST_LR_READ then
-                        -- S1/S2: the AMO and LR re-reads are suppressed, bounded by EQUALITY against the already-logged address (A3).
+                        -- The AMO and LR re-reads are suppressed, bounded by EQUALITY against the already-logged address.
                         if not (cap_vld and data_addr = cap_addr) then
                             emit("# ADDRMISMATCH " & hdr(cyc) & hexnat(state, 2) & " "
                                  & hexstr(cap_addr) & " " & hexstr(data_addr));
                             push_mem(false, data_addr, sz, (others => '0'));
                         end if;
                     elsif state = ST_SC_CHECK then
-                        -- S3 (A3): a FAILED sc.w still reads at rs1, finding F2.
+                        -- A FAILED sc.w still reads at rs1.
                         emit("# SCFAILRD " & hdr(cyc) & hexstr(data_addr));
                     else
                         if iv_valid and own then
                             push_mem(false, data_addr, sz, (others => '0'));
                         else
-                            -- A6: an L emitted OUTSIDE a retire group is written to the file at the issue edge, so its data cannot be back-filled.
-                            -- It keeps the pre-A6 zero and says so, so that V3's injector REFUSES it rather than injecting a fabricated 0.
+                            -- An L emitted OUTSIDE a retire group is written at the issue edge, so its data cannot be back-filled: it keeps a zero and says so, and the injector then refuses it rather than injecting a fabricated 0.
                             emit_m(false, data_addr, sz, (others => '0'));
                             emit("# NODATA " & hdr(cyc) & "unowned " & hexstr(data_addr));
                         end if;
                         if not cap_vld then cap_addr := data_addr; cap_vld := true; end if;
-                        -- F9: the iret dispatch's phantom read at ALU_Result, which is 0.
+                        -- The iret dispatch's phantom read at ALU_Result, which is 0.
                         if state = ST_EXECUTE and isr_ret = '1' then
                             emit("# IRETPHANTOM " & hdr(cyc) & hexstr(data_addr));
                         end if;
                     end if;
                 end if;
 
-                -- R1: the iret POP rides MEMORY_WAIT with mem_access_instr='0' AND wen="1111", so it is invisible to both general tests (vesta:1461).
+                -- The iret POP rides MEMORY_WAIT with mem_access_instr='0' AND wen="1111", so it is invisible to both tests above.
                 if state = ST_MEMORY_WAIT and isr_ret = '1' then
-                    -- A7 (this WAS the `V3 TODO`): the pop is the return half of a trap EVENT, and `retire` excludes MEMORY_WAIT when isr_ret='1'.
-                    -- As a compared `M L` it therefore had no owning retire and misaligned the stream the moment an interrupt was taken.
-                    -- It is now a diagnostic, BOUNDED BY AN EQUALITY, following the A3 principle of never reclassifying on state alone.
-                    -- The pop address is `stack_pointer` by construction (vesta.vhd:1562, the IRQ_REST arm of the data_addr mux), so a pop from anywhere else is LOUD.
-                    -- The popped WORD is deliberately not logged: read_data does not carry it until the following IRQ_REST edge, and the value is already provable from the T record's epc versus the first post-iret retire pc.
+                    -- The pop is the return half of a trap EVENT with no owning retire, so it is a diagnostic bounded by an equality rather than a compared `M L`.
+                    -- The pop address is `stack_pointer` by construction (the IRQ_REST arm of the data_addr mux), so a pop from anywhere else is LOUD; the popped WORD is not logged because read_data does not carry it until the following IRQ_REST edge.
                     if data_addr = stack_pointer then
                         emit("# IRETPOP " & hdr(cyc) & hexstr(data_addr));
                     else
@@ -664,7 +564,7 @@ begin
                         emit("# LANEMISMATCH " & hdr(cyc) & hexstr(data_addr) & " " & natstr(lo));
                     end if;
                     if state = ST_TRAP_STATE then
-                        -- F8: TRAP_STATE self-loops and can store EVERY cycle, hence the rate limit.
+                        -- TRAP_STATE self-loops and can store EVERY cycle, hence the rate limit.
                         if ts_count < TRAPSTORE_LIMIT then
                             emit("# TRAPSTORE " & hdr(cyc) & hexstr(data_addr) & " "
                                  & hexnat(sz, 1) & " " & hexstr(dat));
@@ -673,10 +573,8 @@ begin
                         end if;
                         ts_count := ts_count + 1;
                     elsif state = ST_IRQ_SV then
-                        -- A7: the legacy trap entry's return-PC push is a real committed store with NO Spike counterpart, emitted outside any retire.
-                        -- It belongs to the T event, not to the compared stream.
-                        -- BOUNDED BY AN EQUALITY (A3), and the bound needs no arithmetic: IRQ_SV drives BOTH data_addr and sp_write_data from sp-4 in the same cycle (vesta.vhd:1561 and :3286).
-                        -- Comparing them therefore checks the actual hardware contract, so a push that misses the slot sp is about to become is LOUD.
+                        -- The legacy trap entry's return-PC push is a real committed store with no reference counterpart: it belongs to the T event, not to the compared stream.
+                        -- IRQ_SV drives BOTH data_addr and sp_write_data from sp-4 in the same cycle, so comparing them bounds the push against the actual hardware contract and a push that misses the slot is LOUD.
                         if sp_write_en = '1' and data_addr = sp_write_data then
                             emit("# IRQPUSH " & hdr(cyc) & hexstr(data_addr) & " "
                                  & hexnat(sz, 1) & " " & hexstr(dat));
@@ -686,19 +584,9 @@ begin
                                  & hexstr(dat) & " spwe " & std_logic'image(sp_write_en));
                         end if;
                     elsif state = ST_SC_CHECK and sc_fail_ext /= '0' then
-                        -- A16 (finding T2): a GLOBALLY-failed sc.w.
-                        -- The core's local reservation check passed, so `wen` is live and this looks exactly like a committed store.
-                        -- resv_unit gates the write off downstream (resv_unit.vhd:120-123) and returns sc_fail_ext, so memory is NOT modified.
-                        -- Emitting an `M ... S` here violated section 2's own definition of `M` as "a COMMITTED memory transaction": the record described a presentation, not a commit.
-                        -- It is therefore not buffered at all.
-                        --
-                        -- The evidence stays visible to a human: this is a diagnostic, not a silent deletion.
-                        -- It carries the full store it would have emitted so a triage can see exactly what was suppressed and where.
-                        -- Amendment A15 (compare.py) used to remove the same record from the COMPARED stream; on a post-A16 trace it now finds nothing to drop, which is the intended end state.
-                        --
-                        -- X-taint is REFUSED, never guessed, following the A5/A15 discipline.
-                        -- If the verdict itself is unreadable we cannot know whether the write committed, so the record is KEPT.
-                        -- That is the conservative direction: a kept ghost is caught downstream by A15 or by the next load, while a wrongly-dropped real store is invisible.
+                        -- A GLOBALLY-failed sc.w: the core's local reservation check passed so `wen` is live, but resv_unit gates the write off downstream and memory is NOT modified.
+                        -- It is therefore never buffered as an `M ... S`, which would claim a commit that never happened, but emitted as a diagnostic carrying the full suppressed store.
+                        -- X-taint is REFUSED, never guessed: an unreadable verdict cannot prove the write was dropped, so the record is KEPT, because a kept ghost is caught downstream while a wrongly-dropped real store is invisible.
                         if sc_fail_ext = '1' then
                             emit("# SCGHOST " & hdr(cyc) & hexstr(data_addr) & " "
                                  & hexnat(sz, 1) & " " & hexstr(dat));
@@ -719,18 +607,14 @@ begin
                     end if;
                 end if;
 
-                -- ---------- A17: the A1 discipline, applied to the fflags strobe.
-                -- A1 fixed the compared-`C` discriminator as "a retire happens on this edge" and made every OTHER edge's CSR-port activity a loud `# CSRLEAK` rather than a silent drop.
-                -- The sticky-OR strobe is a second, independent write path into the same architectural register, so it gets the same treatment.
-                -- `fp_flags_we` on a non-retire edge means flags committed outside any retire, which is exactly the F3/F7 leak class in a different port.
-                -- This is EXPECTED to be silent: vesta.vhd's EXECUTE arm carries the same pmp, compressed and half-fetch guards that the tracer's own `is_disp` does, and FPU_DONE is an unconditional retire.
-                -- But "expected silent" is precisely the claim that has to be instrumented rather than asserted.
+                -- ---------- Flags committed on a non-retire edge are a loud leak, never a silent drop, exactly like an off-retire CSR write.
+                -- Expected to stay silent: vesta's EXECUTE arm carries the same pmp, compressed and half-fetch guards as `is_disp`, and FPU_DONE is an unconditional retire.
                 if fp_flags_we = '1' and not retire then
                     emit("# FPFLAGSLEAK " & hdr(cyc) & hexnat(state, 2) & " "
                          & hexstr(fp_flags_val));
                 end if;
 
-                -- ---------- Section 3-C1 and A1: a compared C record only on a retire edge.
+                -- ---------- A compared C record only on a retire edge; any other edge's CSR commit is a loud leak.
                 if csr_commit_we = '1' then
                     if retire then
                         csr_p := true; csr_pa := csr_addr; csr_pv := csr_commit_val;
@@ -740,7 +624,7 @@ begin
                     end if;
                 end if;
 
-                -- ---------- R8: on a sequencer PMP abort, flush what DID commit.
+                -- ---------- On a sequencer PMP abort, flush what DID commit.
                 if (state = ST_CBOZ_WRITE or state = ST_ZCM_PUSH_ST or
                     state = ST_ZCM_POP_LD or state = ST_ZCM_JT_LD) and
                    (next_state = ST_TRAP_STATE or next_state = ST_MTRAP_SV) then
@@ -754,26 +638,19 @@ begin
                     if rd_n = 0 then
                         emit_r("00000", (others => '0'));
                     else
-                        for i in 0 to rd_n-1 loop            -- A2: n R records
+                        for i in 0 to rd_n-1 loop            -- one R record per committed write
                             emit_r(rd_a(i), rd_v(i));
                         end loop;
                     end if;
                     flush_mem;
-                    -- A10 covers the COMPARED set (R, M and C) and stops there.
-                    -- T and X are RTL-side only and never compared (spec sections 4 and 5), so a mask on them would be a metric nothing can act on: decorative, which is worse than absent (R-W3-4).
+                    -- The `# XBITS` companions cover the COMPARED set (R, M and C) only: T and X are RTL-side and never compared, so a mask on them would be decorative.
                     -- mret's mstatus pop is the one C record keyed on state rather than on a commit strobe.
                     if state = ST_MTRAP_RET then
                         emit("C " & hdr(cyc) & "300 " & hexstr(mstatus_value));
                         emit_xbits("val", mstatus_value);
                     end if;
-                    -- A17 (F-K2b-1): TWO corrections in one condition.
-                    --   * WHEN. The strobe, not the state.
-                    --     `fp_flags_we` has two arms in vesta.vhd: FPU_DONE for the multi-cycle ops and EXECUTE for the single-cycle ones (fmin/fmax/fsgnj/fcmp/fclass).
-                    --     Keying on ST_FPU_DONE alone dropped every single-cycle op's record; measured, an `fmin.s` on a signalling NaN raised NV, the reference logged it, and the trace said nothing.
-                    --   * WHAT. `fflags_value` is the fflags REGISTER read PRE-EDGE, and csr_unit's sticky OR commits on THIS edge, so the old record carried the value from before the op it belonged to.
-                    --     The committed value is the OR, computed here from the same two operands the CSR flop captures (csr_unit.vhd:670-671).
-                    --     It is not re-derived, and not read back a cycle later where an intervening `csrrw fflags` could have moved it.
-                    -- This is a strict superset of the pre-A17 emission: at FPU_DONE `fp_flags_we` is unconditionally '1' and `state = ST_FPU_DONE` is unconditionally a retire, so no record that used to be emitted stops being emitted.
+                    -- Keyed on the STROBE, not on ST_FPU_DONE: `fp_flags_we` also has an EXECUTE arm for the single-cycle ops (fmin/fmax/fsgnj/fcmp/fclass), whose records a state key would drop.
+                    -- The value is the committed sticky OR, built here from the same two operands the CSR flop captures rather than read back a cycle later where a `csrrw fflags` could have moved it.
                     if fp_flags_we = '1' then
                         ffpost := fflags_value;
                         ffpost(4 downto 0) := fflags_value(4 downto 0) or fp_flags_val;
@@ -789,7 +666,7 @@ begin
                     clear_inflight;
                 end if;
 
-                -- ---------- T records (spec section 3-T1).
+                -- ---------- T records: trap entries.
                 if state = ST_IRQ_SV then          -- legacy path: capture here, emit at IRQ_JUMP
                     t_pend := true;
                     t_epc  := write_data;          -- pc_next, the pushed return PC
@@ -812,7 +689,7 @@ begin
                          & " " & hexstr(pc) & " " & hexstr(instr_curr) & " 3");
                 end if;
 
-                -- ---------- X records (spec section 3-X1).
+                -- ---------- X records: events with no reference counterpart.
                 if state = ST_MTRAP_RET then
                     emit("X " & hdr(cyc) & "mret");
                 end if;
@@ -828,12 +705,12 @@ begin
                     if wfi_armed then
                         emit("X " & hdr(cyc) & "wfi_wake");
                     else
-                        emit("# SLEEPEXIT " & hdr(cyc) & "unarmed");   -- R5
+                        emit("# SLEEPEXIT " & hdr(cyc) & "unarmed");
                     end if;
                     wfi_armed := false;
                 end if;
 
-                -- ---------- R6 probe: does INITIALIZE ever execute? (spec section 10-Reb1).
+                -- ---------- One-shot probe: does INITIALIZE ever execute?
                 if state = ST_INITIALIZE and not init_seen then
                     emit("# INIT " & hdr(cyc) & "INITIALIZE entered");
                     init_seen := true;
@@ -844,14 +721,8 @@ begin
         end if;
     end process trace_proc;
 
-    -- ==========================================================
-    -- D1 (R-D0-3(1)): THE STATE-ORDINAL COUNT ASSERT
-    -- ==========================================================
-    -- The contract above is enforced by prose in two files and by nothing else.
-    -- This closes the ADD and REMOVE halves of it at ELABORATION time, in every configuration that instantiates the tracer at all.
-    -- `cpu_state` cannot cross a port boundary in VHDL-93 but its CARDINALITY is a `natural` and can, which is the whole trick.
-    -- WHAT IT DOES NOT CATCH, stated plainly rather than left to be assumed: a pure REORDER at constant count.
-    -- No cheap VHDL-93 construct catches that, and presenting this as complete coverage would be worse than the gap.
+    -- The state-ordinal count assert: `cpu_state` cannot cross a port boundary but its CARDINALITY can, so an added or removed state fails elaboration here.
+    -- It does NOT catch a pure REORDER at constant count; no cheap construct does.
     assert STATE_COUNT = ST_COUNT
         report "TRACER ORDINAL CONTRACT BROKEN: vesta declares "
              & integer'image(STATE_COUNT) & " cpu_state values, this tracer's "

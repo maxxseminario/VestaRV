@@ -2,12 +2,10 @@
 -- uart_bfm_pkg.vhd
 -------------------------------------------------------------------------------
 -- Bus-functional model for the UART peripheral's pad-level serial lines: capture a frame off the TX pad, drive a frame onto the RX pad.
--- These are the pad-level counterparts to tb/TestbenchLibrary.vhd's UART helpers, which work over the full-MCU external TX/RX with an activity flag.
--- Use these when driving the peripheral's TX_OUT / RX_IN directly.
---
--- `bit_period` is one UART bit time, 16*(BR+1) core clocks for this UART.
--- For drive_rx, `clk` is the core clock the frame is aligned to (the start bit begins on a falling edge).
--- Parity is computed as psel XOR all data bits; corrupt_parity and good_stop inject error conditions.
+-- Use these when driving the peripheral's TX_OUT / RX_IN directly; TestbenchLibrary.vhd's UART helpers cover the full-MCU external TX/RX instead.
+-- bit_period is one UART bit time, 16*(BR+1) core clocks for this UART.
+-- For drive_rx, clk is the core clock the frame is aligned to: the start bit begins on a falling edge.
+-- Parity is psel XOR all data bits; corrupt_parity and good_stop inject error conditions.
 -------------------------------------------------------------------------------
 
 library ieee;
@@ -61,7 +59,7 @@ package body uart_bfm_pkg is
         end if;
         stop_o := tx;
         data_o := d;
-        -- Wait past the TX-complete flag settling, about one bit period after the stop bit begins, so a following SR read sees the settled state.
+        -- Wait past the TX-complete flag settling so a following SR read sees the settled state.
         wait for 2 * bit_period;
     end procedure;
 

@@ -1,45 +1,16 @@
--- =============================================================================
--- arb_lat_tb.vhd (M10): arbiter LATENCY-INSENSITIVITY proof.
--- =============================================================================
--- M13 will harden each hart as a P&R tile with REGISTERED I/O at the tile boundary, i.e. +N_DELAY cycles EACH WAY on every signal between a master and the arbiter.
--- This tb proves, or refutes, that the shared-bus protocol tolerates that added latency BEFORE anything moves.
--- It wires mp_arbiter, resv_unit, mutex_bank and a 1-cycle shared-RAM model behind generic pipeline registers on ALL master-side paths: req/we/addr/wdata/lock/lrsc outbound, gnt/done/rdata/scfail inbound.
--- That is the audit's full boundary-contract list, and everything shares ONE depth, as the real tile boundary must.
---
--- Model: mp_arbiter_tb.vhd's M8 tile-accurate BFMs (req held THROUGH the done cycle, dropped one clock later, the M5a ghost-txn shape), plus the directed passes M10 demands:
---   1 WRITE / 2 READBACK / 3 BYTE-LANE : disjoint-range integrity (M3c/M4a)
---   4 RANDOM      : LFSR reads/writes in own range, scoreboarded against a model
---   5 LR/SC       : 4-way contended increment of ONE word through resv_unit,
---                   bounded retries plus hartid-scaled backoff (M4c livelock rule)
---   6 AMO LOCKED  : grant-locked RMW pairs on ONE counter (M8 pass, verbatim)
---   7 MUTEX STORM : 1-txn claim-read storms on mutex_bank slot 0, own-marker
---                   re-read check, mutex-protected unlocked RMW counter
---
--- Checkers: per-master data scoreboards, grant mutual exclusion, locked-pair critical section, GHOST-DONE (done(i) while master i has nothing in flight, the delayed-stale-req failure signature), and final counter totals.
---
--- NEGATIVE CONTROLS (house rule), via generic BREAK_MODE:
---   0 = clean run, the only PASS-eligible mode.
---   1 = master 0 drops lock EARLY in the AMO pass, right after the locked read.
---       Interleaving must then lose updates, so the counter check must FAIL.
---   2 = the tile boundary skews: req is piped ONE STAGE SHALLOWER than addr/wdata (only meaningful when N_DELAY>0).
---       The arbiter's pick edge then samples the PREVIOUS transaction's address and data, so the scoreboard must FAIL.
---       This is "drop a delay stage the DUT was told to expect".
---       The opposite skew, addr early and req on time, is provably benign: the master holds addr stable across the whole transaction, so an early addr only pre-exposes the value before req arrives.
---       The first cut of this control skewed that way and correctly went unnoticed.
---
--- PASS banner: "ALL CHECKS PASSED", grepped by xcelium/mp_test/run_arb_lat.sh.
--- Expected runtime: a few seconds (irq_sys_tb-class unit tb).
--- =============================================================================
+-- arb_lat_tb: proves the shared-bus protocol is LATENCY-INSENSITIVE, i.e. that it still holds with every master-side signal piped through N_DELAY boundary registers each way, as a hardened tile boundary does.
+-- Wires mp_arbiter, resv_unit, mutex_bank and a 1-cycle shared-RAM model behind those pipes: req/we/addr/wdata/lock/lrsc outbound, gnt/done/rdata/scfail inbound, ALL at ONE depth.
+-- Masters are tile-accurate BFMs (req held THROUGH the done cycle, dropped one clock later); checkers are per-master scoreboards, grant mutual exclusion, locked-pair critical section, ghost-done and final counter totals.
+-- Negative controls via BREAK_MODE: 1 drops the AMO lock early on master 0, so the counter check must FAIL; 2 pipes req one stage SHALLOWER than addr/wdata (needs N_DELAY>0) so the pick edge samples stale context and the scoreboard must FAIL.
+-- Skewing the other way, addr early and req on time, is provably benign and proves nothing: the master holds addr stable across the whole transaction. Only BREAK_MODE=0 is PASS-eligible, and the banner is "ALL CHECKS PASSED".
 
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.STD_LOGIC_ARITH.ALL;
 use IEEE.STD_LOGIC_UNSIGNED.ALL;
 
--- ---------------------------------------------------------------------------
 -- Master BFM: tile-accurate handshake, holding req through done and dropping it one clock later.
--- All waits are on the MASTER-SIDE (piped) done/rdata/scfail, so the BFM never peeks past the boundary registers, exactly like a hardened tile.
--- ---------------------------------------------------------------------------
+-- All waits are on the MASTER-SIDE (piped) done/rdata/scfail, so the BFM never peeks past the boundary registers.
 entity arb_lat_master is
     generic (
         INDEX      : natural := 0;
@@ -49,8 +20,7 @@ entity arb_lat_master is
         N_RMW      : natural := 8;    -- grant-locked RMW pairs (pass 6)
         N_MTX      : natural := 6;    -- mutex-protected increments (pass 7)
         BREAK_MODE : natural := 0;    -- 1 = drop lock early (master 0 only)
-        -- A2 (Argus): total master count, for the mutex owner-marker sanity bounds.
-        -- The owner is 1..N_TOTAL and can exceed 3 bits at N > 7.
+        -- Total master count, bounding the mutex owner marker: the owner is 1..N_TOTAL and needs more than 3 bits above 7 masters.
         N_TOTAL    : natural := 4
     );
     port (
@@ -199,7 +169,7 @@ begin
         end loop;
 
         -- ---- pass 5: LR/SC contended increment (through resv_unit) -------
-        -- Bounded retries plus hartid-scaled backoff, the M4c livelock rule.
+        -- Bounded retries plus hartid-scaled backoff: identical masters on a fair round-robin arbiter livelock without it.
         for k in 0 to N_LRSC-1 loop
             attempts := 0;
             loop
@@ -220,9 +190,8 @@ begin
             end loop;
         end loop;
 
-        -- ---- pass 6: GRANT-LOCKED RMW pairs (M8 AMO shape) ---------------
-        -- The lock spans the read through the write.
-        -- BREAK_MODE=1 on master 0 drops it EARLY, right after the locked read: the negative control, where interleaving must lose updates and the final-counter check must fail.
+        -- ---- pass 6: GRANT-LOCKED RMW pairs, the AMO shape ---------------
+        -- The lock spans the read through the write; BREAK_MODE=1 on master 0 drops it EARLY, right after the locked read, so interleaving loses updates and the final-counter check must fail.
         for k in 0 to N_RMW-1 loop
             lock <= '1';
             req <= '1'; we <= (others => '0'); addr <= CTR_ADDR; busy <= '1';
@@ -250,7 +219,7 @@ begin
             loop
                 txn(MTX_ADDR, "0000", x"00000000", "00", rd, scf);  -- claim-read
                 exit when rd = x"00000000";                          -- acquired
-                got := conv_integer(rd(7 downto 0));                 -- owner marker (A2: wider than 3 bits at N > 7)
+                got := conv_integer(rd(7 downto 0));                 -- owner marker, wider than 3 bits above 7 masters
                 if got = 0 or got > N_TOTAL then                     -- sanity check: owner is 1..N_TOTAL
                     err <= '1';
                     report "master " & integer'image(INDEX) &
@@ -287,10 +256,8 @@ begin
 end architecture;
 
 
--- ---------------------------------------------------------------------------
 -- Testbench top, outbound: BFMs, N_DELAY boundary registers, mp_arbiter plus resv_unit, then either the shared RAM or mutex_bank.
 -- Inbound: the same path back through N_DELAY registers to the BFMs.
--- ---------------------------------------------------------------------------
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.STD_LOGIC_ARITH.ALL;
@@ -298,10 +265,9 @@ use IEEE.STD_LOGIC_UNSIGNED.ALL;
 
 entity arb_lat_tb is
     generic (
-        N_DELAY    : natural := 0;   -- boundary-register stages, 0/1/2 (M13 emulation)
+        N_DELAY    : natural := 0;   -- boundary-register stages, 0/1/2
         BREAK_MODE : natural := 0;   -- 0 clean, 1 early lock drop, 2 skewed addr pipe
-        -- A2 (Argus): master count.
-        -- 4 is the Castalia gate; 18 is the Argus fabric shape, where s_master and MW widen and owner markers pass 3 bits.
+        -- Master count; above 8 masters s_master, MW and the mutex owner markers all widen.
         N_MASTERS  : natural := 4
     );
 end entity;
@@ -310,7 +276,7 @@ architecture sim of arb_lat_tb is
 
     constant N   : natural := N_MASTERS;
 
-    -- A2: s_master and mutex master width at this master count, the mp_arbiter MW generic.
+    -- s_master and mutex master width at this master count: the mp_arbiter MW generic.
     function clog2(v : natural) return natural is
         variable w : natural := 0;
     begin
@@ -324,9 +290,8 @@ architecture sim of arb_lat_tb is
         if a > b then return a; else return b; end if;
     end function;
     constant MW : natural := max2(1, clog2(N));
-    -- BFM-internal address width.
-    -- The MCU is at SH_AW=15 since M11, but the protocol properties proven here (wait-for-release masking, LOCKED pairs, LR/SC ordering) are ADDRESS-WIDTH-INDEPENDENT and the arbiter and resv_unit are generic.
-    -- Staying at 12 keeps the hand-built 12-bit BFMs and checkers intact.
+    -- BFM-internal address width, deliberately narrower than the MCU's shared window.
+    -- The properties proven here (wait-for-release masking, LOCKED pairs, LR/SC ordering) are ADDRESS-WIDTH-INDEPENDENT and both DUTs are generic, so 12 bits keeps the hand-built BFMs and checkers intact.
     constant AW  : natural := 12;
     constant DW  : natural := 32;
     constant NTX : natural := 4;
@@ -361,13 +326,9 @@ architecture sim of arb_lat_tb is
     signal f_wdata : std_logic_vector(N*DW-1 downto 0);
     signal f_lrsc  : std_logic_vector(N*2-1 downto 0);
 
-    -- =========================================================================
-    -- BOUNDARY PIPES: one wide register per direction per stage, so every signal class shares the SAME depth (the M13 contract, audit finding 5).
-    -- Taps select depth 0, 1 or 2.
-    -- BREAK_MODE=2 skews ONLY the addr slice one stage shallower, a boundary that "dropped a delay stage", and it must be caught.
+    -- BOUNDARY PIPES: one wide register per direction per stage, so every signal class shares the SAME depth; taps select 0, 1 or 2, and BREAK_MODE=2 skews ONLY the addr slice one stage shallower.
     -- outbound layout: [req N][lock N][lrsc 2N][we 4N][addr AW*N][wdata DW*N]
     -- inbound  layout: [gnt N][done N][scfail N][rdata DW]
-    -- =========================================================================
     constant OBW : natural := N + N + N*2 + N*4 + N*AW + N*DW;
     constant IBW : natural := N + N + N + DW;
     signal ob0, ob1, ob2 : std_logic_vector(OBW-1 downto 0) := (others => '0');
@@ -406,11 +367,11 @@ architecture sim of arb_lat_tb is
     signal s_wdata   : std_logic_vector(DW-1 downto 0);
     signal s_rdata   : std_logic_vector(DW-1 downto 0);
 
-    -- Slave sub-decode, mirroring MCU.vhd's region-4 style: mutex_bank sits at the page-3 slot-0 mirror, words 0xC00-0xC3F, and RAM answers everywhere else.
+    -- Slave sub-decode: mutex_bank sits at the page-3 slot-0 mirror, words 0xC00-0xC3F, and RAM answers everywhere else.
     signal mtx_sel   : std_logic;
     signal mtx_en    : std_logic;
     signal ram_en    : std_logic;
-    signal rd_mtx    : std_logic := '0';   -- registered read-select (house rule)
+    signal rd_mtx    : std_logic := '0';   -- registered read-select
     signal mtx_rdata : std_logic_vector(DW-1 downto 0);
     signal ram_rdata : std_logic_vector(DW-1 downto 0) := (others => '0');
 
@@ -546,7 +507,7 @@ begin
         end if;
     end process;
 
-    -- Registered read-select mux, the house slave-mux rule (MCU.vhd shslv_rd_sel).
+    -- Registered read-select mux: the select must be registered to line up with the slave's 1-cycle read.
     rd_sel: process(clk, resetn)
     begin
         if resetn = '0' then
@@ -601,7 +562,7 @@ begin
         end if;
     end process;
 
-    -- GHOST-DONE detector: a done pulse reaching a master with NOTHING in flight is the delayed-stale-req ghost-transaction signature (M5a class).
+    -- GHOST-DONE detector: a done pulse reaching a master with NOTHING in flight is the delayed-stale-req ghost-transaction signature.
     ghost_chk: process(clk)
     begin
         if rising_edge(clk) then
@@ -621,7 +582,7 @@ begin
         variable v : natural;
     begin
         wait until resetn = '1';
-        -- A2: the watchdog scales with the master count, since more masters mean more serialized traffic and contention; 200000 cycles at the N=4 gate.
+        -- The watchdog scales with the master count: more masters mean more serialized traffic and more contention.
         for t in 0 to 50000 * N loop
             wait until rising_edge(clk);
             exit when m_finished = (m_finished'range => '1');

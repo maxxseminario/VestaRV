@@ -229,14 +229,11 @@ begin
 
     ---------------------End Signal Routing ---------------------
 
-    -- VERDICT (S9, was "!! JUST CHANGED THIS TO NOT [clk]"): the `not clk` here and on cg_clk_baud below is NOT the SPI protocol clock polarity; it selects which edge of the smclk-domain peripheral clock the baud counter and the master shift FSM advance on.
-    -- CPOL/CPHA are handled separately: spi_cpol sets the idle sck and the sck_slave xor, spi_cpha toggles sck at transfer start.
-    -- Both baud gates use `not clk` so the counter (clk_baud_src) and the one-shot clk_baud share the SAME edge family: the en_clk_baud enable (combinational off baud_counter=0, registered on clk_baud_src) is stable before clk_baud's active edge, so there is no half-cycle skew or double-count.
-    -- Proven correct three ways: Myshkin taped out with identical `not clk`; the multicore boot reads its image from SPI0 flash by XIP (wrong shift/sck timing would corrupt the boot copy, yet all 117 behavioral_mp tests boot); and SPI_flash_tb + SPI_tb pass.
-    -- Left as-is, since flipping to `clk` would be a speculative change with no failing test.
+    -- The `not clk` on both baud gates selects which edge of the smclk-domain peripheral clock the baud counter and the master shift FSM advance on; it is NOT the SPI clock polarity (spi_cpol sets the idle sck and the sck_slave xor, spi_cpha toggles sck at transfer start).
+    -- Keep both gates on the same edge family: en_clk_baud is combinational off baud_counter=0 and must be stable before clk_baud's active edge, or the baud counter double-counts.
     cg_clk_baud_src: entity work.ClkGate
         port map (
-            ClkIn   => not clk, -- baud/shift-clock edge; see VERDICT above (not CPOL)
+            ClkIn   => not clk, -- baud/shift-clock edge selection, not CPOL
             En      => en_clk_baud_src,
             ClkOut  => clk_baud_src
         );
@@ -261,7 +258,7 @@ begin
     en_clk_baud <= '1' when baud_counter = "00000000" and en_clk_baud_src = '1' else '0'; 
     cg_clk_baud: entity work.ClkGate
         port map (
-            ClkIn   => not clk, -- baud/shift-clock edge; see VERDICT above (not CPOL)
+            ClkIn   => not clk, -- baud/shift-clock edge selection, not CPOL
             En      => en_clk_baud,
             ClkOut  => clk_baud
     );

@@ -1,30 +1,8 @@
--- vesta_isa_tb.vhd — pure-GHDL ISA-regression testbench for the `vesta`
--- RISC-V core (RV32IMAC+Zb*, multicycle, single unified bus).
---
--- This is the batch sibling of sky130/sim/vesta_harness.vhd: same bare `vesta`
--- + behavioral single-cycle-latency RAM, but self-driving (its own clock/reset)
--- and self-terminating for CI. One test image (.rcf) is loaded per run via the
--- TEST_FILE generic (GHDL: -gTEST_FILE=<path>), the core runs, and the process
--- exits:
---   * a0 == 0xCAFEBABE  -> "TEST PASSED", std.env.finish  (GHDL exit 0)
---   * a0 == 0xDEADBEEF  -> "TEST FAILED", severity failure (GHDL exit nonzero)
---   * watchdog expires  -> "TEST TIMED OUT", severity failure (nonzero)
--- 0xCAFEBABE / 0xDEADBEEF are the repo's riscv-tests sentinels written to x10
--- (a0) by RVTEST_PASS / RVTEST_FAIL (verification/env/p/riscv_test.h) — the
--- only pass/fail convention this core exports (no tohost).
---
--- MEMORY MAP (verified against the built artifacts, see run_isa.sh sanity check):
---   env/p/link.ld puts .ivt at 0x8000 and _start at 0x8200. objcopy -O binary
---   starts the image at the lowest LMA (0x8000) and the Makefile overlays it at
---   BIN_OFFSET 0x0 of the padded image, so *rcf word 0 == memory[0x8000]*.
---   RAM base is therefore 0x8000 and PC_RST_VAL is 0x8200 (jump straight to
---   _start; there is no boot ROM in this bare-core harness).
---
--- BUS TIMING: identical to vesta_harness.vhd — mask = data_addr(1:0),
--- mem_ready = '1', a synchronous RAM with EXACTLY one cycle of read latency
--- (rdata registered on the clock, read_data driven combinationally from it),
--- byte-lane writes on wen (ACTIVE-LOW per lane). The core's multicycle FSM has
--- no fetch-wait state, so fetch latency MUST be exactly one clock.
+-- Self-driving ISA-regression testbench for the `vesta` core (RV32IMAC+Zb*, multicycle, single unified bus): one test image per run, given by the TEST_FILE generic.
+-- It terminates itself: a0 = 0xCAFEBABE reports TEST PASSED and exits 0, a0 = 0xDEADBEEF reports TEST FAILED, and the watchdog reports TEST TIMED OUT, both failures exiting nonzero.
+-- Those sentinels are the riscv-tests values RVTEST_PASS and RVTEST_FAIL write to x10 (a0), the only pass/fail convention this core exports (no tohost).
+-- Memory map: rcf word 0 is memory[0x8000], so RAM base is 0x8000 and PC_RST_VAL is 0x8200 (_start); this bare-core harness has no boot ROM.
+-- Bus timing: mask = data_addr(1:0), mem_ready = '1', byte-lane writes on wen (ACTIVE-LOW per lane), and EXACTLY one cycle of read latency because the multicycle FSM has no fetch-wait state.
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -36,28 +14,20 @@ use std.env.all;
 
 entity vesta_isa_tb is
     generic (
-        -- Unconstrained string: GHDL accepts -gTEST_FILE=/path/to/foo.rcf with
-        -- no fixed-length padding hacks.
+        -- Unconstrained string, so a path can be passed with no fixed-length padding.
         TEST_FILE     : string  := "";
-        -- Behavioral clock period (behavioral sim — no timing meaning; ~100 MHz).
+        -- Behavioral clock period, no timing meaning (about 100 MHz).
         CLK_PERIOD_NS : time    := 10 ns;
-        -- Watchdog, in clock cycles. The Xcelium MCU TB's longest PASSING test
-        -- ran ~13.7 ms at MCU clock rates; a bare-core ISA test needs far fewer
-        -- cycles (the longest PASSING test observed here, rv32ui shmem/shmem_mp,
-        -- finishes in ~38k cycles; the plain ISA tests in <5k). 300,000 cycles
-        -- = 3 ms of sim time is ~8x that longest observed pass — generous for a
-        -- bare core, while still firing (~30 s wall) inside run_isa.sh's per-test
-        -- wall timeout so a genuinely hung multi-hart test ends cleanly (a
-        -- reported sim-timeout, nonzero exit) rather than as a wall kill.
+        -- Watchdog in clock cycles: 300,000 is about 8x the longest passing test here, and short enough to fire inside the runner's per-test wall timeout.
+        -- A hung test then ends as a reported sim timeout with a nonzero exit rather than as a wall kill.
         WATCHDOG_CYCLES : natural := 300_000
     );
 end entity vesta_isa_tb;
 
 architecture sim of vesta_isa_tb is
 
-    -- rcf word 0 lives at this address (see header). RAM spans the full padded
-    -- image (MEM_SIZE 0x14000 bytes = 20480 words) so no in-range access can
-    -- index past the array.
+    -- rcf word 0 lives at RAM_BASE.
+    -- RAM spans the full padded image (0x14000 bytes = 20480 words), so no in-range access can index past the array.
     constant RAM_BASE  : unsigned(31 downto 0) := x"00008000";
     constant RAM_WORDS : natural := 16#14000# / 4;  -- 20480
 
@@ -65,7 +35,7 @@ architecture sim of vesta_isa_tb is
     signal resetn : std_logic := '0';
     signal running : boolean  := true;
 
-    -- core <-> RAM bus
+    -- core-to-RAM bus
     signal data_addr  : std_logic_vector(31 downto 0);
     signal wen        : std_logic_vector(3 downto 0);
     signal write_data : std_logic_vector(31 downto 0);
@@ -78,13 +48,8 @@ architecture sim of vesta_isa_tb is
 
     type ram_t is array (0 to RAM_WORDS-1) of std_logic_vector(31 downto 0);
 
-    -- Impure loader: reads the rcf (one 32-bit ASCII-binary word per line) into
-    -- the RAM image. This runs at ELABORATION (it initializes the `ram` signal),
-    -- where a `severity failure` assert does NOT stop GHDL — so on a bad/empty
-    -- TEST_FILE it must RETURN EARLY (zero RAM) rather than fall into the read
-    -- loop (which would flood "file operation failed" on the unopened file until
-    -- GHDL's error limit). The authoritative, clean abort for a missing/empty
-    -- file is the runtime `file_guard` process below, which reports at t=0.
+    -- Loads the rcf (one 32-bit ASCII-binary word per line) into the RAM image at ELABORATION, where a `severity failure` assert does NOT stop the simulator.
+    -- On a missing or empty TEST_FILE it must RETURN EARLY with zero RAM instead of entering the read loop; the clean abort is the runtime file_guard process below.
     impure function load_rcf return ram_t is
         variable r     : ram_t := (others => (others => '0'));
         file     f     : text;
@@ -125,11 +90,8 @@ architecture sim of vesta_isa_tb is
 
 begin
 
-    -- Authoritative TEST_FILE validation. Runs at t=0; unlike the elaboration-
-    -- time loader, a runtime `severity failure` here stops GHDL immediately with
-    -- a clear message and a nonzero exit — before the core executes a single
-    -- (zero) instruction, so a missing/empty file fails fast instead of running
-    -- the empty RAM out to the watchdog.
+    -- Authoritative TEST_FILE validation at t=0: unlike the elaboration-time loader, a runtime `severity failure` here stops the simulator at once with a nonzero exit.
+    -- A missing or empty file therefore fails fast instead of running an empty RAM out to the watchdog.
     file_guard : process
         file     f  : text;
         variable st : file_open_status;
@@ -170,7 +132,7 @@ begin
         wait;
     end process;
 
-    -- Byte position within the word — exactly adddec's `mask <= data_addr(1:0)`.
+    -- Byte position within the word: the same data_addr(1:0) slice the address decoder drives.
     mask <= data_addr(1 downto 0);
 
     -- Synchronous, 1-cycle-latency RAM. Byte-masked writes, wen active-LOW.
@@ -189,36 +151,8 @@ begin
 
     read_data <= rdata;
 
-    -- Device under test: bare core at _start (PC_RST_VAL = 0x8200), with every
-    -- X-series extension that is FUNCTIONALLY VERIFIABLE on a single bare core
-    -- turned ON. The vesta entity defaults the X-series generics to FALSE so a
-    -- minimal chip prunes them; here we enable the set the ISA regression can
-    -- actually exercise and check, so the run verifies the whole implemented
-    -- decode/sequencer rather than a stripped subset. The verification/isa
-    -- ext-probe tests dispatch their ON (result-checking) arm on a matching
-    -- -DCORE_ENABLE_<EXT> at build time — run_isa.sh builds rv32ua with exactly
-    -- the -D set matching the TRUE generics below, so probe polarity == RTL.
-    -- (RV32IMAC + Zb* base extensions default TRUE already.)
-    --
-    -- Zfinx IS enabled: the single-precision FPU (fpu.vhd + fpu_simple.vhd) works
-    -- fine under GHDL once those two sources are analyzed — run_isa.sh's SOURCES
-    -- list now includes them. (An earlier bring-up left them out; the resulting
-    -- unbound fpu component floated fpu_done and hung every FP op, which was
-    -- misread as "the FPU never completes" — it was a missing-source artifact,
-    -- not an RTL bug.) extzfinx's ON arm and the whole rv32uzf suite pass.
-    --
-    -- TWO generics are deliberately left FALSE — genuine single-bare-core limits,
-    -- each proven under THIS harness (see run_isa.sh's SKIP table / the README):
-    --   * ENABLE_ZAWRS — wrs.nto/wrs.sto BLOCK until the local reservation is
-    --     cleared by another master (resv_unit / a competing SC). With one hart
-    --     and resv stuck valid, wrs.nto never retires -> the core FSM hangs.
-    --   * ENABLE_ZIHPM — the hardware perf-counter probe (extzihpm) runtime-
-    --     dispatches on whether an mhpmcounter advances; the bare-core counter
-    --     behaviour makes its ON assertion fail, so the honest polarity here is
-    --     OFF (the probe then verifies the counters stay static).
-    -- The ext-probes for these two fall back to their non-trapping OFF arm and
-    -- PASS as base-ISA sanity; their genuine (MCU-dependent) behaviour and the
-    -- extensions' negative-control poisons are SKIP-listed with justification.
+    -- Device under test: bare core at _start (PC_RST_VAL = 0x8200) with every extension that is functionally verifiable on a single bare core enabled; the entity defaults the optional ones FALSE, RV32IMAC and Zb* TRUE.
+    -- The ISA ext-probe tests dispatch their result-checking arm on -DCORE_ENABLE_<EXT> at build time, so the image build must use exactly the -D set matching the TRUE generics below or probe polarity disagrees with the RTL.
     dut : entity work.vesta
         generic map (
             PC_RST_VAL    => x"00008200",
@@ -226,8 +160,8 @@ begin
             ENABLE_ZCB    => true,   -- Zcb     : extra compressed (c.mul/c.zext/...)
             ENABLE_ZIMOP  => true,   -- Zimop   : may-be-operation placeholders
             ENABLE_ZIHINT => true,   -- Zihint  : hint NOPs (pause/ntl)
-            ENABLE_ZIHPM  => false,  -- Zihpm   : hpm counters (probe needs OFF polarity — see above)
-            ENABLE_ZAWRS  => false,  -- Zawrs   : wrs.nto/sto BLOCK on bare core — see above
+            ENABLE_ZIHPM  => false,  -- Zihpm   : hpm counters; OFF because the probe dispatches on an mhpmcounter advancing, which a bare core does not do
+            ENABLE_ZAWRS  => false,  -- Zawrs   : OFF because wrs.nto/sto block until another master clears the reservation, so a single hart never retires them
             ENABLE_ZABHA  => true,   -- Zabha   : byte/halfword AMOs
             ENABLE_ZACAS  => true,   -- Zacas   : amocas.w/b/h compare-and-swap
             ENABLE_ZICBOZ => true,   -- Zicboz  : cbo.zero block-zero
@@ -237,7 +171,7 @@ begin
             ENABLE_ZBKC   => true,   -- Zbkc    : carry-less multiply (clmul/clmulh)
             ENABLE_ZBKX   => true,   -- Zbkx    : crossbar permute (xperm8/xperm4)
             ENABLE_ZKN    => true,   -- Zkn     : scalar crypto AES + SHA
-            ENABLE_ZFINX  => true    -- Zfinx   : single-precision FP in x-registers (fpu.vhd)
+            ENABLE_ZFINX  => true    -- Zfinx   : single-precision FP in x-registers; needs fpu.vhd and fpu_simple.vhd in the source list, or the unbound component floats fpu_done and every FP op hangs
         )
         port map (
             clk              => clk,
@@ -267,8 +201,7 @@ begin
             a0               => a0
         );
 
-    -- a0 monitor + watchdog. Sample a0 once reset is released; the core writes
-    -- the sentinel then self-loops, so the value latches.
+    -- a0 monitor and watchdog: sample a0 once reset is released; the core writes the sentinel then self-loops, so the value latches.
     monitor : process
         variable cycles : natural := 0;
     begin

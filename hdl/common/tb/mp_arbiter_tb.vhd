@@ -1,34 +1,10 @@
 -- =============================================================================
--- mp_arbiter_tb.vhd  (M3c) : self-checking testbench for mp_arbiter
+-- mp_arbiter_tb.vhd : self-checking testbench for mp_arbiter
 -- =============================================================================
--- Proves the round-robin full-handshake serializer with SYNTHETIC contending traffic (the M3c pass path: no boot code needed).
--- Four master BFMs hammer one shared single-port RAM concurrently.
--- Each master owns a DISJOINT address range (shared read-modify-write atomicity is M4, not here), writes a known pattern, then reads it back and checks it.
---
--- Checks (all must hold for the banner):
---   * mutual exclusion  : at most one gnt bit high on every clock (checker proc)
---   * data integrity    : every master reads back exactly what it wrote
---   * liveness/fairness : all four masters finish, since round-robin gives no starvation, and a watchdog fails the test if they do not
---   * grant-locking (M8): all four masters run TILE-ACCURATE lock-held read-modify-write pairs on a COMMON counter word.
---                         A critical-section checker fails on any foreign transaction inside a locked pair, and the final counter must be EXACTLY N*N_RMW (any interleaving loses updates).
---   * slave-side stall  : CPR3/R3 `s_stall`, the condition of A4's ratification, covered by the STALL PASS below and by the latency monitor that runs over the whole simulation.
---
--- THE STALL PASS (CPR3b).
--- s_stall lets a slave that cannot answer in the arbiter's one-cycle registered-read model hold the LATCH bubble; it exists for the CPR3 TCM apertures, whose read is 6 mclk.
--- Four properties are checked, and the first one is checked over EVERY transaction in the run:
---   S0  IDENTITY.  With s_stall low, an arbiter transaction is a fixed length (BASE_LAT, in the monitor's observed-edge units).
---       The latency monitor asserts that on every unstalled transaction in every pass: the write pass, the read-back pass, the byte-lane pass and all 32 locked RMW halves.
---       So "s_stall = '0' is byte-identical to before" is a measurement here, not a claim about a default value.
---   S1  DELAYED DONE.  A transaction stalled for SP_LEN cycles completes exactly SP_LEN mclk later than an unstalled one (measured BASE_LAT + SP_LEN), and its rdata is still the right word.
---   S2  QUEUEING.  The other three masters request DURING the stall, none of them completes while it is up (the mutual-exclusion and no-foreign-done checkers cover that), and all three are served afterwards with their own correct data.
---   S3  ABORT-DURING-STALL.  The aperture sequencer drops s_stall on a tile that went dark mid-transaction (R4-A2) rather than on a completion, so the arbiter must accept a stall that ends at an arbitrary cycle, including the shortest possible one.
---       Modelled as a 1-cycle stall whose transaction must still complete correctly.
--- The stall generator mirrors the real one in mcu_vhd.py bit for bit: s_stall is `launch or busy`, COMBINATIONAL on the enable strobe.
--- The arbiter samples s_stall at the edge that would otherwise take it to DATA, so a registered-only stall is one cycle too late and does nothing.
---
--- M8 BFM hardening: req is held THROUGH the done cycle and dropped one clock later, exactly like a hart tile's sh_acked flop.
--- That is the stale-req shape that produced the M5a ghost-transaction bug; the old BFM dropped req at done and could never reproduce that class.
--- This exercises mask_last on every txn.
+-- Four master BFMs hammer one shared single-port RAM concurrently, each writing and reading back a known pattern over its own disjoint address range.
+-- Checks mutual exclusion (at most one gnt per clock), data integrity, liveness under round-robin (watchdog on any starvation), grant-locking (lock-held read-modify-write pairs on a COMMON counter, whose final value must be exactly N*N_RMW), and the slave-side `s_stall` handshake.
+-- Stall properties: S0 every unstalled transaction takes exactly BASE_LAT, S1 a stall of SP_LEN cycles delays done by SP_LEN with correct rdata, S2 no other master completes during a stall, S3 a 1-cycle stall released mid-transaction still completes.
+-- BFMs hold req THROUGH the done cycle and drop it one clock later like a hart tile's sh_acked flop, so wait-for-release masking of a stale req is exercised on every transaction.
 -- PASS banner: "ALL CHECKS PASSED" (grepped by the runner).
 -- =============================================================================
 
@@ -44,22 +20,22 @@ entity mp_master is
     generic (
         INDEX : natural := 0;
         NTX   : natural := 4;    -- transactions (addresses) per phase
-        N_RMW : natural := 8     -- grant-locked RMW pairs on the common counter (M8)
+        N_RMW : natural := 8     -- grant-locked RMW pairs on the common counter
     );
     port (
         clk      : in  std_logic;
         resetn   : in  std_logic;
-        -- arbiter master interface (we = 4 active-high byte-lane strobes, M4a)
+        -- arbiter master interface (we = 4 active-high byte-lane strobes)
         req      : out std_logic;
         we       : out std_logic_vector(3 downto 0);
         addr     : out std_logic_vector(11 downto 0);
         wdata    : out std_logic_vector(31 downto 0);
-        lock     : out std_logic;   -- M8: grant-lock (the core's amo_lock)
+        lock     : out std_logic;   -- grant-lock, the core's amo_lock
         gnt      : in  std_logic;
         done     : in  std_logic;
         rdata    : in  std_logic_vector(31 downto 0);
-        -- CPR3b STALL PASS handshake: the master parks on `ready` when its own passes are done, then serves one read per `sp_phase` step.
-        -- That way all four are requesting SIMULTANEOUSLY when the top asserts s_stall, which is what makes S2 (queueing behind a stalled transaction) a real property and not a solo run.
+        -- STALL PASS handshake: the master parks on `ready` when its own passes are done, then serves one read per `sp_phase` step.
+        -- That keeps all four requesting SIMULTANEOUSLY when the top asserts s_stall, so queueing behind a stalled transaction is a real property and not a solo run.
         sp_phase : in  integer;
         ready    : out std_logic;
         -- status
@@ -93,9 +69,8 @@ begin
         wait until resetn = '1';
         wait until rising_edge(clk);
 
-        -- M8 NOTE (tile-accurate req timing, all passes): req is dropped one clock AFTER the done cycle.
-        -- A hart tile's sh_acked flop clears req one mclk after done, so the arbiter's next pick edge sees the served master's req stale-high, the M5a ghost-txn shape.
-        -- mask_last must swallow it on EVERY transaction here.
+        -- Tile-accurate req timing in every pass: req is dropped one clock AFTER the done cycle, like a hart tile's sh_acked flop.
+        -- The arbiter's next pick edge therefore sees the served master's req stale-high and must mask it on EVERY transaction.
 
         -- WRITE pass (full word: all four lane strobes)
         for k in 0 to NTX-1 loop
@@ -121,7 +96,7 @@ begin
             wait until rising_edge(clk);
         end loop;
 
-        -- BYTE-LANE pass (M4a): overwrite ONE byte of word 0 with 0xEE and check the merged word, since the other lanes must be untouched.
+        -- BYTE-LANE pass: overwrite ONE byte of word 0 with 0xEE and check the merged word, since the other lanes must be untouched.
         lane := INDEX mod 4;
         req <= '1'; addr <= addr_for(0); wdata <= x"EEEEEEEE";
         we <= (others => '0'); we(lane) <= '1';
@@ -145,9 +120,8 @@ begin
         req <= '0';
         wait until rising_edge(clk);
 
-        -- GRANT-LOCKED RMW pass (M8): N_RMW lock-held read, increment and write pairs on the COMMON counter, mimicking the core's AMO flow.
-        -- lock rises with the read request (amo_lock spans the whole AMO), the write follows 2 idle cycles after the read's ack (AMO_WRITEBACK plus AMO_COMPUTE), and lock drops after the write completes (AMO_COMPLETE).
-        -- Any lost update here means broken locking.
+        -- GRANT-LOCKED RMW pass: N_RMW lock-held read, increment and write pairs on the COMMON counter, mimicking the core's AMO flow.
+        -- lock rises with the read request, the write follows 2 idle cycles after the read's ack, lock drops after the write completes; any lost update here means broken locking.
         for k in 0 to N_RMW-1 loop
             lock <= '1';
             req <= '1'; we <= (others => '0'); addr <= CTR_ADDR;
@@ -167,12 +141,12 @@ begin
         end loop;
 
         -- ---------------------------------------------------------------
-        -- CPR3b STALL PASS.  Two synchronised rounds; in each one all four masters read their own word 0 at the same time and the top stalls whichever transaction the arbiter picks first.
-        -- The data check is the same `expected` the byte-lane pass established, so a stalled transaction that completed with a fabricated word (the exact failure s_stall exists to prevent) fails here.
+        -- STALL PASS: two synchronised rounds; in each, all four masters read their own word 0 at once and the top stalls whichever transaction the arbiter picks first.
+        -- The data check reuses the `expected` word from the byte-lane pass, so a stalled transaction completing with a fabricated word fails here.
         -- ---------------------------------------------------------------
         ready <= '1';
         for p in 1 to 2 loop
-            -- Polled, not `wait until sp_phase = p`: a master reaching this statement after the phase signal has already stepped would wait forever for an event that has been and gone.
+            -- Poll, never `wait until sp_phase = p`: a master arriving after the phase has stepped would wait forever for an event that is already gone.
             while sp_phase < p loop
                 wait until rising_edge(clk);
             end loop;
@@ -210,9 +184,8 @@ end entity;
 architecture sim of mp_arbiter_tb is
 
     constant N   : natural := 4;
-    constant AW  : natural := 12;  -- BFM-internal width; the MCU is at SH_AW=15 since M11.
-                                   -- The protocol properties proven here (wait-for-release masking, LOCKED pairs, LR/SC ordering) are ADDRESS-WIDTH-INDEPENDENT and the arbiter and resv_unit are generic.
-                                   -- Keeping 12 leaves the hand-built 12-bit BFMs and checkers intact.
+    constant AW  : natural := 12;  -- BFM-internal width; the MCU runs a wider SH_AW.
+                                   -- The protocol properties proven here (wait-for-release masking, LOCKED pairs, LR/SC ordering) are ADDRESS-WIDTH-INDEPENDENT, and the arbiter and resv_unit are generic.
     constant DW  : natural := 32;
     constant NTX : natural := 4;
     constant CLK_PERIOD : time := 10 ns;
@@ -226,7 +199,7 @@ architecture sim of mp_arbiter_tb is
     type slv32_arr is array(0 to N-1) of std_logic_vector(DW-1 downto 0);
     type slv4_arr  is array(0 to N-1) of std_logic_vector(3 downto 0);
     signal m_req, m_gnt, m_done : std_logic_vector(N-1 downto 0);
-    signal m_lock  : std_logic_vector(N-1 downto 0);   -- M8 grant-lock
+    signal m_lock  : std_logic_vector(N-1 downto 0);   -- grant-lock
     signal m_we    : slv4_arr;
     signal m_addr  : slv12_arr;
     signal m_wdata : slv32_arr;
@@ -247,10 +220,10 @@ architecture sim of mp_arbiter_tb is
     signal s_rdata : std_logic_vector(DW-1 downto 0);
 
     signal mutex_err : std_logic := '0';
-    signal cs_err    : std_logic := '0';   -- M8: foreign txn inside a locked RMW pair
+    signal cs_err    : std_logic := '0';   -- foreign txn inside a locked RMW pair
 
     -- =========================================================================
-    -- CPR3b: the s_stall apparatus (see the header).
+    -- the s_stall apparatus
     -- =========================================================================
     signal s_stall   : std_logic;
     signal sp_arm    : std_logic := '0';   -- stall the NEXT transaction
@@ -263,8 +236,8 @@ architecture sim of mp_arbiter_tb is
     constant SP_LEN_LONG  : integer := 12; -- S1/S2: longer than the 6-mclk TCM read
     constant SP_LEN_SHORT : integer := 1;  -- S3: the abort shape, shortest legal
 
-    -- The latency monitor's numbers are in "edges at which the monitor OBSERVED", from s_en observed high to done observed high.
-    -- An unstalled arbiter transaction is 3 in these units: s_en presented in the IDLE cycle, LATCH, then DATA/done, each seen one edge after it is driven.
+    -- Latency is counted in edges at which the monitor OBSERVED, from s_en high to done high.
+    -- An unstalled transaction is 3 in those units: s_en presented in IDLE, then LATCH, then DATA/done, each seen one edge after it is driven.
     constant BASE_LAT : integer := 3;
     signal n_txn      : integer := 0;   -- transactions the monitor timed
     signal n_unstall  : integer := 0;   -- of which unstalled
@@ -282,9 +255,7 @@ architecture sim of mp_arbiter_tb is
     type ram_t is array(0 to 2**AW-1) of std_logic_vector(DW-1 downto 0);
     signal shram : ram_t := (others => (others => '0'));
 
-    -- NOTE: s_stall is named here on purpose.
-    -- It has a '0' default on the entity, so the pre-CPR3b component declaration that omitted it bound and elaborated fine.
-    -- That is exactly why the port needed a directed case: a defaulted input that nothing drives is a port no test covers.
+    -- s_stall is named explicitly: it defaults to '0' on the entity, so a declaration that omits it still binds and elaborates, leaving the port untested.
     component mp_arbiter
         generic (N : natural; ADDR_WIDTH : natural; DATA_WIDTH : natural);
         port (
@@ -348,16 +319,15 @@ begin
         );
 
     -- -------------------------------------------------------------------------
-    -- CPR3b: THE STALL GENERATOR.
-    -- Same shape as the real aperture sequencer (mcu_vhd.py drives tcmw_stall from `tcmw_launch or tcmw_busy`): combinational on the enable strobe, registered afterwards.
-    -- It MUST be combinational: the arbiter samples s_stall at the edge that would otherwise take it from LATCH to DATA, the edge right after the s_en cycle, so a purely registered stall arrives one cycle too late and is a silent no-op.
+    -- THE STALL GENERATOR, same shape as the real aperture sequencer: s_stall is `launch or busy`, combinational on the enable strobe.
+    -- It MUST be combinational: the arbiter samples s_stall at the edge that would otherwise take it from LATCH to DATA, so a purely registered stall arrives one cycle too late and is a silent no-op.
     -- -------------------------------------------------------------------------
     sp_launch <= s_en and sp_arm;
     sp_busy   <= '1' when sp_cnt /= 0 else '0';
     s_stall   <= sp_launch or sp_busy;
 
     -- sp_arm and sp_load are owned HERE (one driver) and armed by the phase stepping.
-    -- The arm is a one-shot, so exactly one transaction per phase is stalled and everything else in the run stays on the identity path.
+    -- The arm is a one-shot: exactly one transaction per phase is stalled, so everything else in the run stays on the identity path.
     stall_gen: process(clk)
         variable ph_prev : integer := 0;
     begin
@@ -384,12 +354,8 @@ begin
     end process;
 
     -- -------------------------------------------------------------------------
-    -- CPR3b: THE LATENCY MONITOR.
-    -- Times every arbiter transaction from the edge at which s_en is observed to the edge at which done is observed, and counts how many of those edges had s_stall up.
-    -- Two invariants:
-    --   * an UNSTALLED transaction is always BASE_LAT.  This is the S0 identity regression: it runs over every pass in the file, unchanged ones included, so it measures "s_stall = '0' changed nothing".
-    --   * a STALLED transaction is BASE_LAT plus the cycles stalled.
-    -- Plus: no master may complete while s_stall is up.  The stalled master cannot, and no other master may be granted underneath it.
+    -- THE LATENCY MONITOR: times every arbiter transaction from the edge s_en is observed to the edge done is observed, counting how many of those edges had s_stall up.
+    -- Invariants: an unstalled transaction always takes BASE_LAT, a stalled one takes BASE_LAT plus the cycles stalled, and no master may complete while s_stall is up.
     -- -------------------------------------------------------------------------
     lat_mon: process(clk)
         variable active : boolean := false;
@@ -432,7 +398,7 @@ begin
         end if;
     end process;
 
-    -- Shared single-port RAM slave: matches the arbiter's 1-cycle-latency model, with per-byte-lane writes (M4a).
+    -- Shared single-port RAM slave: matches the arbiter's 1-cycle-latency model, with per-byte-lane writes.
     slave: process(clk)
         variable merged : std_logic_vector(DW-1 downto 0);
     begin
@@ -467,7 +433,7 @@ begin
         end if;
     end process;
 
-    -- M8 critical-section checker: from a lock-holder's READ done to its WRITE done, NO other master may complete a transaction.
+    -- Critical-section checker: from a lock-holder's READ done to its WRITE done, NO other master may complete a transaction.
     -- m_we is held through the done cycle by the BFM, so it classifies the transaction type.
     cs_chk: process(clk)
         variable cs_active : boolean := false;
@@ -500,7 +466,7 @@ begin
         wait until resetn = '1';
 
         -- =====================================================================
-        -- CPR3b STALL PASS.  Run it BEFORE the finish watchdog: the masters park on `ready` and only set `finished` once both stall rounds are through them.
+        -- STALL PASS, run BEFORE the finish watchdog: the masters park on `ready` and only set `finished` once both stall rounds are through them.
         -- =====================================================================
         for t in 0 to 5000 loop
             wait until rising_edge(clk);
@@ -573,8 +539,7 @@ begin
 
         wait for 5*CLK_PERIOD;
 
-        -- M8: the grant-locked RMW pass must have lost NO updates.
-        -- The common counter is exactly N*N_RMW, or some pair was interleaved.
+        -- The grant-locked RMW pass must have lost NO updates: the common counter is exactly N*N_RMW, or some pair was interleaved.
         if shram(CTR_ADDR_I) /= conv_std_logic_vector(N*N_RMW, 32) then
             report "GRANT-LOCK COUNTER MISMATCH: expected " &
                    integer'image(N*N_RMW) & " got " &
@@ -582,8 +547,7 @@ begin
                 severity failure;
         end if;
 
-        -- S0: the identity regression.
-        -- Every transaction in this run that was not deliberately stalled took exactly BASE_LAT, i.e. s_stall = '0' is byte-identical to the pre-CPR3 arbiter, measured rather than inferred from the port default.
+        -- S0 identity regression: every transaction not deliberately stalled took exactly BASE_LAT, so s_stall = '0' costs nothing, measured rather than inferred from the port default.
         if lat_bad /= 0 then
             report "S0 FAILED: " & integer'image(lat_bad) &
                    " unstalled transactions did not take " &

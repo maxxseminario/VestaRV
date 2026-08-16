@@ -28,14 +28,8 @@ architecture rtl of div is
     signal state : state_t;
     signal N, D  : signed(XLEN-1 downto 0);
     signal N_u, D_u : unsigned(XLEN-1 downto 0);
-    -- K5 defect A: the signed restoring loop's MAGNITUDES and PARTIAL REMAINDER are UNSIGNED.
-    -- They were `signed(XLEN-1 downto 0)`, and that is the whole bug: a magnitude of exactly 2**31, which is what abs(INT_MIN) is because abs() wraps, reads as NEGATIVE in the WORK-state loop guard, the `R_var >= D_Abs` compare below.
-    -- Two escapes followed, both measured:
-    --   * b = INT_MIN made D_Abs read as -2**31, so `R_var >= D_Abs` was TRUE at all 32 steps and every quotient bit was set.
-    --   * a = INT_MIN with abs(b) greater than 2**30 made the final shift_left produce exactly 2**31, read as negative, so the last restore was SKIPPED.
-    -- No other operand can reach bit 31: at a non-final step the partial remainder is floor(N_Abs / 2**j) mod D_Abs with j >= 1, hence below 2**30 whenever N_Abs < 2**31.
-    -- That is why every non-INT_MIN pair was already correct, and why the UNSIGNED branch below (R_unsigned/Q_unsigned) never had the defect at all.
-    -- The fix simply gives the signed branch the same unsigned datapath, fed magnitudes; signs are applied only at the result mux (the two `-signed(...)` negations in the result process), which is otherwise unchanged.
+    -- The signed loop's magnitudes and partial remainder MUST stay unsigned: abs(INT_MIN) wraps to exactly 2**31, which a signed `R_var >= D_Abs` compare reads as negative and mis-steps the restoring loop.
+    -- Signs are applied only at the result mux, never inside the loop.
     signal Q : unsigned(XLEN-1 downto 0);
     signal R : unsigned(XLEN-1 downto 0);
     signal cnt : integer range 0 to XLEN;
@@ -45,10 +39,8 @@ architecture rtl of div is
     signal neg_result : std_logic;
     signal neg_rem : std_logic;
     signal start_reg : std_logic;
-    -- Dispatch-time copies of the operand ports.
-    -- The result process below decides the RISC-V special cases (divide-by-zero, signed overflow, and the rem-by-zero passthrough) from these LATCHED values instead of the live a/b ports.
-    -- The divider's output therefore depends only on the operands as captured when the operation started, the same phase-stable-operand discipline the core uses elsewhere with rs1_value for LR/SC/AMO.
-    -- This keeps the divider immune to any regfile activity on its a/b ports during the multi-cycle run.
+    -- Dispatch-time copies of the operand ports: the result process decides the special cases (divide-by-zero, signed overflow, rem-by-zero passthrough) from these, never from the live a/b ports.
+    -- The output therefore depends only on the operands captured at start, immune to regfile activity during the multi-cycle run.
     signal a_lat, b_lat : std_logic_vector(XLEN-1 downto 0);
 
     -- XLEN-wide special-case values from the RISC-V div/rem spec: zero, all-ones (-1 signed, maximum unsigned), and the most-negative signed integer, which is the overflow operand.
@@ -98,14 +90,12 @@ begin
                     if start = '1' and start_reg = '0' then
                         -- rdy <= '0';
                         -- Latch inputs and initialize the loop state.
-                        -- The raw operand ports are latched for the result process's special cases: divide-by-zero, overflow, and the rem passthrough.
                         a_lat <= a;
                         b_lat <= b;
                         if sel_signed = '1' then
                             N <= signed(a);
                             D <= signed(b);
-                            -- abs() on signed WRAPS at INT_MIN and returns x"80000000".
-                            -- Read as UNSIGNED that bit pattern is 2**31, which is the CORRECT magnitude, so the cast and not a wider adder is the whole fix.
+                            -- abs() on signed wraps at INT_MIN and returns x"80000000", which read as unsigned is the correct magnitude 2**31.
                             N_Abs <= unsigned(abs(signed(a)));
                             D_Abs <= unsigned(abs(signed(b)));
                             neg_result <= (a(XLEN-1) xor b(XLEN-1));
@@ -134,7 +124,7 @@ begin
                         R_var := shift_left(R, 1);
                         R_var(0) := N_Abs(cnt);
                         Q_var := Q;
-                        -- K5 defect A: this compare is now UNSIGNED; as a signed compare it was the single site the defect acted at.
+                        -- Keep this compare unsigned: a signed one mis-reads a 2**31 magnitude as negative.
                         if R_var >= D_Abs then
                             R_var := R_var - D_Abs;
                             Q_var(cnt) := '1';
@@ -201,9 +191,7 @@ begin
             else
                 if sel_signed = '1' then
                     if sel_rem = '1' then
-                        -- REM: signed remainder.
-                        -- R is UNSIGNED since defect A, so the negation casts to signed explicitly, because numeric_std defines unary "-" for SIGNED only.
-                        -- The result is value-identical to the old `-R`.
+                        -- REM: signed remainder; R is unsigned, so negation casts to signed because numeric_std defines unary "-" for signed only.
                         if neg_rem = '1' then
                             result <= std_logic_vector(-signed(R));
                         else

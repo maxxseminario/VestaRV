@@ -1,29 +1,8 @@
--- =============================================================================
--- pmp_unit_tb.vhd (P3: PMP match/priority/permission unit proof)
--- =============================================================================
--- Self-checking bench for hdl/common/vesta/pmp_unit.vhd.
--- The DUT is PURE COMBINATIONAL, so there is no clock: the bench drives the flat cfg/addr bank exactly as csr_unit exports it, waits a delta-settling delay, and asserts the two grant outputs.
---
--- THREE DUT instances share one stimulus bank, which is what makes the generic-fold claims testable in a single run:
---   dut16  ENABLE_PMP = true,  PMP_ENTRIES = 16   -- the product shape
---   dut8   ENABLE_PMP = true,  PMP_ENTRIES = 8    -- upper half must be DEAD
---   dutoff ENABLE_PMP = false                     -- both grants stuck '1'
---
--- Coverage (p0_specs.md 4.1):
---   P0  empty bank: M grants, U denies (the no-match rule)
---   P1  TOR: entry-0 lower bound 0, a deny region, an OFF-PREDECESSOR TOR base (the live pmpaddr[i-1] is used even when entry i-1 is A=OFF)
---   P2  NA4: exact word equality, neighbours excluded
---   P3  NAPOT: size decode at 8 B / 16 B / 4 KB and the all-ones full span
---   P4a lowest-match priority, DENY under a later GRANT (no rescue)
---   P4b lowest-match priority, GRANT under a later DENY (no revoke)
---   P5  M-mode: unlocked match grants unconditionally; the SAME entry with L=1 DENIES M (locked entries enforce on M)
---   P6  R / W / X selectivity, incl. the LR/SC/AMO R&W-together shape
---   P7  PMP_ENTRIES: entries 8 and 12 are live on dut16 and DEAD on dut8
---   P8  ENABLE_PMP=false: both grants '1' against a bank that denies everything
---
+-- Self-checking bench for the PMP match/priority/permission unit (pmp_unit.vhd).
+-- The DUT is PURE COMBINATIONAL: the bench drives the flat cfg/addr bank exactly as csr_unit exports it, waits a delta-settling delay, and asserts the two grant outputs.
+-- Three instances share one stimulus bank: dut16 (16 entries), dut8 (8 entries, upper half must be dead) and dutoff (ENABLE_PMP false, both grants stuck '1').
 -- Run: xcelium/mp_test/run_pmp_unit.sh
 -- Compile is -V200X: VHDL-93 only.
--- =============================================================================
 
 library IEEE;
 use IEEE.STD_LOGIC_1164.all;
@@ -89,10 +68,8 @@ begin
         variable errs : integer := 0;
         variable nchk : integer := 0;
 
-        -- ------------------------------------------------------------------
-        -- Bank helpers.
-        -- The bench writes the flat vectors DIRECTLY, since it is not testing csr_unit's WARL/lock filtering here (that is privpmpcs's job), so it can plant a locked entry, or an R=0/W=1 combination, that the CSR write path would never let software create.
-        -- ------------------------------------------------------------------
+        -- Bank helpers: the bench writes the flat vectors DIRECTLY, bypassing csr_unit's WARL/lock filtering.
+        -- That lets it plant a locked entry, or an R=0/W=1 combination, that the CSR write path would never let software create.
         procedure clear_bank is
         begin
             cfg_flat  <= (others => '0');
@@ -127,10 +104,7 @@ begin
         -- The all-ones NAPOT encoding: a region covering the whole address space.
         constant NAPOT_ALL : unsigned(29 downto 0) := (others => '1');
 
-        -- ------------------------------------------------------------------
-        -- Stimulus and check helpers.
-        -- Every check carries a name so a failure is localisable straight out of the log.
-        -- ------------------------------------------------------------------
+        -- Stimulus and check helpers; every check carries a name so a failure is localisable straight out of the log.
         -- Let the combinational DUTs re-evaluate before any grant is sampled.
         procedure settle is
         begin
@@ -205,10 +179,7 @@ begin
     begin
         report "=== pmp_unit_tb start ===";
 
-        -- ==================================================================
-        -- P0: empty bank (the reset state), so no entry can match.
-        -- With no match, M grants and U denies.
-        -- ==================================================================
+        -- P0: empty bank (the reset state), so no entry can match; M grants and U denies.
         clear_bank; settle;
         dchk("P0.M.read",   '1', '1', '0', 16#00008000#, '1');
         dchk("P0.M.write",  '1', '0', '1', 16#00008000#, '1');
@@ -217,13 +188,7 @@ begin
         fchk("P0.M.fetch",  '1',           16#00008000#, '1');
         fchk("P0.U.fetch",  '0',           16#00008000#, '0');
 
-        -- ==================================================================
-        -- P1: TOR.
-        --   e0: A=TOR RWX, pmpaddr0 = 0x1000/4   covers [0x0000, 0x1000)
-        --   e1: A=TOR ---, pmpaddr1 = 0x2000/4   covers [0x1000, 0x2000), deny
-        --   e2: A=OFF    , pmpaddr2 = 0x3000/4   never matches, but its VALUE is e3's TOR base
-        --   e3: A=TOR R-X, pmpaddr3 = 0x4000/4   covers [0x3000, 0x4000)
-        -- ==================================================================
+        -- P1: TOR. e0 RWX covers [0x0000, 0x1000); e1 no-perms covers [0x1000, 0x2000); e2 is A=OFF and never matches, but its pmpaddr VALUE is e3's TOR base; e3 R|X covers [0x3000, 0x4000).
         clear_bank; settle;
         set_cfg(0, x"0F"); set_addr(0, wa(16#00001000#));   -- TOR, R|W|X
         set_cfg(1, x"08"); set_addr(1, wa(16#00002000#));   -- TOR, no perms
@@ -251,10 +216,7 @@ begin
         dchk("P1.tor3.write",   '0', '0', '1', 16#00003000#, '0');
         fchk("P1.tor3.fetch",   '0',           16#00003000#, '1');
 
-        -- ==================================================================
-        -- P2: NA4, exact word equality only.
-        --   e0: A=NA4, R|W, pmpaddr0 = 0x8000/4
-        -- ==================================================================
+        -- P2: NA4, exact word equality only; e0 is NA4 R|W at 0x8000.
         clear_bank; settle;
         set_cfg(0, x"13"); set_addr(0, wa(16#00008000#));   -- NA4, R|W (no X)
         settle;
@@ -267,9 +229,7 @@ begin
         -- X is clear, so a fetch of the very same word is denied.
         fchk("P2.na4.fetch",    '0',           16#00008000#, '0');
 
-        -- ==================================================================
-        -- P3: NAPOT size decode.
-        -- ==================================================================
+        -- P3: NAPOT size decode at 8 B, 16 B, 4 KB and the all-ones full span.
         clear_bank; settle;
         set_cfg(0, x"1F");                                  -- NAPOT, R|W|X
         set_addr(0, napot(16#00010000#, 8));                -- 8 bytes
@@ -302,11 +262,7 @@ begin
 
         report "=== pmp_unit_tb: phases P0-P3 done ===";
 
-        -- ==================================================================
-        -- P4a: the LOWEST-numbered match decides ALONE, so a later GRANT must not rescue an earlier DENY.
-        --   e0: NAPOT 4 KB @0x30000, NO permissions  (deny)
-        --   e1: NAPOT full span, R|W|X               (would grant everything)
-        -- ==================================================================
+        -- P4a: the LOWEST-numbered match decides ALONE, so e1 (full-span RWX) must not rescue e0's deny over 4 KB at 0x30000.
         clear_bank; settle;
         set_cfg(0, x"18"); set_addr(0, napot(16#00030000#, 4096));  -- NAPOT, ---
         set_cfg(1, x"1F"); set_addr(1, NAPOT_ALL);                  -- NAPOT, RWX
@@ -317,11 +273,7 @@ begin
         -- Outside e0, e1 is the lowest match and grants.
         dchk("P4a.outside",     '0', '1', '0', 16#00040000#, '1');
 
-        -- ==================================================================
-        -- P4b: the mirror case, a later DENY must not revoke an earlier GRANT.
-        --   e0: NA4 @0x50000, R|W                    (grant)
-        --   e1: NAPOT full span, NO permissions      (would deny everything)
-        -- ==================================================================
+        -- P4b: the mirror case, so e1 (full-span deny-all) must not revoke e0's NA4 R|W grant at 0x50000.
         clear_bank; settle;
         set_cfg(0, x"13"); set_addr(0, wa(16#00050000#));           -- NA4, R|W
         set_cfg(1, x"18"); set_addr(1, NAPOT_ALL);                  -- NAPOT, ---
@@ -331,12 +283,8 @@ begin
         -- One word away e0 no longer matches, so the deny-all entry rules.
         dchk("P4b.next.deny",   '0', '1', '0', 16#00050004#, '0');
 
-        -- ==================================================================
-        -- P5: M-mode and the LOCK bit.
-        --   The SAME region, unlocked then locked.
-        --   Unlocked, M is not constrained at all.
-        --   Locked, the entry enforces on M exactly as on U, which is the whole point of L.
-        -- ==================================================================
+        -- P5: M-mode and the LOCK bit, on the SAME region unlocked then locked.
+        -- Unlocked, M is not constrained at all; locked, the entry enforces on M exactly as on U.
         clear_bank; settle;
         set_cfg(0, x"18"); set_addr(0, napot(16#00060000#, 4096));  -- NAPOT, --- , L=0
         settle;
@@ -359,10 +307,8 @@ begin
         dchk("P5.lockedR.Mr",   '1', '1', '0', 16#00060000#, '1');
         dchk("P5.lockedR.Mw",   '1', '0', '1', 16#00060000#, '0');
 
-        -- ==================================================================
         -- P6: R / W / X selectivity, on a locked full-span entry so BOTH privileges take the permission path.
         -- d_read = d_write = '1' is the LR/SC/AMO shape, which needs R AND W.
-        -- ==================================================================
         clear_bank; settle;
         set_addr(0, NAPOT_ALL);
         set_cfg(0, x"99");                                          -- L=1, NAPOT, R only
@@ -393,10 +339,7 @@ begin
 
         report "=== pmp_unit_tb: phases P4-P6 done ===";
 
-        -- ==================================================================
-        -- P7: PMP_ENTRIES.
-        -- Entries 8 and 12 are LIVE on dut16 and DEAD on dut8 (its check loop never reaches them), so the identical bank grants U on dut16 and denies U on dut8.
-        -- ==================================================================
+        -- P7: entries 8 and 12 are LIVE on dut16 and DEAD on dut8 (its check loop never reaches them), so the identical bank grants U on dut16 and denies U on dut8.
         clear_bank; settle;
         set_cfg(8, x"1F"); set_addr(8, NAPOT_ALL);                  -- NAPOT full span, RWX
         settle;
@@ -417,10 +360,8 @@ begin
         dchk ("P7.e0.dut16.U",  '0', '1', '0', 16#00008000#, '1');
         dchk8("P7.e0.dut8.U",   '0', '1', '0', 16#00008000#, '1');
 
-        -- ==================================================================
-        -- P8: ENABLE_PMP = false.
-        -- BOTH grants are constant '1' even against a bank that denies U everything, and even in U-mode with an empty bank (the no-match-U-denies rule must not exist there either).
-        -- ==================================================================
+        -- P8: with ENABLE_PMP = false BOTH grants are constant '1', even against a bank that denies U everything.
+        -- Also in U-mode with an empty bank: the no-match-U-denies rule must not exist there either.
         clear_bank; settle;
         set_cfg(0, x"98"); set_addr(0, NAPOT_ALL);                  -- L=1, NAPOT, ---
         settle;
@@ -431,7 +372,6 @@ begin
         offchk("P8.empty.U",   '0', '1', '0', 16#00008000#);
         offchk("P8.empty.M",   '1', '0', '1', 16#00008000#);
 
-        -- ==================================================================
         -- Publish the tallies and report the verdict.
         errors <= errs;
         checks <= nchk;

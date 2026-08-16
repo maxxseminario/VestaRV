@@ -1,26 +1,11 @@
 -------------------------------------------------------------------------------
 -- TIMER_tb.vhd
 -------------------------------------------------------------------------------
--- Standalone, self-checking testbench for the TIMER peripheral (hdl/common/periph/TIMER.vhd).
--- TIMER predates the bench ritual (it was covered only at ISA level) and is otherwise a mature, unit-proven block, so this bench is deliberately MINIMAL and TAP-FOCUSED.
--- It exists to prove the four new EVFAB taps the RTL gained (event_fabric_spec.md 2026-07-24), not to re-verify the whole peripheral.
--- It follows the house style of tb/PWM_tb.vhd: component DUT so this bench compiles standalone, work.periph_tb_pkg's scoreboard plus register-bus BFM, G-NEG last.
---
--- EVFAB taps under test (see the EVFAB comment block in hdl/common/periph/TIMER.vhd, lines ~72-88):
---   evt_compare0 / evt_overflow: T-mode TOGGLE producers in the timer_clock domain.
---     They flip ONCE per compare0-match or overflow occurrence, in their OWN process (resetn-only async), and are never touched by the flags' W1C clears.
---     Checker independence: a continuous background monitor (evt_mon_proc below) counts FLIPS as the XOR of consecutive `clk` samples and never reads a DUT internal.
---   task_start / task_stop: one-clk_mem consumer TASK pulses that set or clear control_reg(6) (timer enable) OUTSIDE the en_mem gate.
---     clk_mem free-runs at integration, so this bench ties clk_mem straight to the free-running reference clock with no bus-idle gating, unlike the gated `ClkMem` idiom (clk when en_mem='0' else '0') some other benches use.
---     A task wins its bit on a coincident CPU CR write; a same-cycle start plus stop resolves to STOP (both per the RTL comment and per the repo design notes).
---
--- CLOCKING AND THE MUX-RELEASE GOTCHA (repo design notes): TIMER's ClockMuxGlitchFree defaults to the smclk slice (index 0) and needs 3 smclk edges to release it before another source (mclk/lfxt/hfxt) can engage.
--- This bench drives mclk, smclk, clk_lfxt, clk_hfxt and clk_mem ALL from the same free-running 20 ns reference `clk`, so the release condition is satisfied quickly and deterministically, matching the FREE-RUNNING integration truth above.
--- Every group that (re)selects a clock source and enables the timer POLLS TIMxVAL until it visibly counts (poll_val_counting) rather than assuming a fixed edge count before relying on the timer.
---
--- FLIP-COUNTING DISCIPLINE: computing exact edge counts up front is fragile against the mux and gate latencies.
--- Each exact-count check instead polls (bounded) until the background monitor's flip tally reaches the expected count, then immediately disables the timer, which freezes clock_source, hence timer_clock, hence any further match.
--- It then confirms the tally is EXACTLY the expected value (no overshoot), which is timing-insensitive by construction and still an exact check.
+-- Standalone, self-checking testbench for the TIMER peripheral, focused on its four event-fabric taps.
+-- evt_compare0 / evt_overflow are toggle producers in the timer_clock domain: they flip ONCE per compare0 match or overflow and are never touched by the flags' W1C clears, so a background monitor counts flips from the exported ports only.
+-- task_start / task_stop are one-clk_mem consumer pulses that set or clear control_reg(6) OUTSIDE the en_mem gate, so clk_mem is tied to the free-running reference here; a task beats a coincident CPU CR write, and a coincident start plus stop resolves to STOP.
+-- TIMER's ClockMuxGlitchFree defaults to the smclk slice and needs 3 smclk edges to release it, so every group that selects a source polls TIMxVAL until it visibly counts instead of assuming a fixed edge count.
+-- Exact-count checks poll until the flip tally reaches the expected value, then disable the timer to freeze timer_clock and confirm the tally did not overshoot.
 -------------------------------------------------------------------------------
 
 library ieee;
@@ -37,8 +22,7 @@ architecture sim of TIMER_tb is
 
     constant PERIOD : time := 20 ns;   -- free-running reference clock
 
-    -- FROZEN DUT entity (hdl/common/periph/TIMER.vhd), declared as a component so default binding resolves it once TIMER.vhd is analyzed into `work`.
-    -- The RTL is frozen: never edit it from this bench.
+    -- DUT declared as a component so this bench compiles standalone; default binding resolves it once TIMER.vhd is analyzed into work.
     component TIMER is
         port (
             mclk         : in  std_logic;
@@ -89,7 +73,7 @@ architecture sim of TIMER_tb is
     end component;
 
     -- ---- clocks / reset ----------------------------------------------------
-    -- ALL clock inputs tied to the SAME free-running reference (see header): this guarantees the glitch-free mux's smclk release condition is satisfied quickly no matter which source CR(9:8) selects.
+    -- ALL clock inputs tied to the SAME free-running reference, so the glitch-free mux's smclk release condition is met quickly whichever source CR(9:8) selects.
     signal clk      : std_logic := '0';
     signal mclk     : std_logic;
     signal smclk    : std_logic;
@@ -117,15 +101,14 @@ architecture sim of TIMER_tb is
     signal cap1_in     : std_logic := '0';
     signal cap1_dir, cap1_ren : std_logic;
 
-    -- ---- EVFAB taps (event_fabric_spec.md 2026-07-24) ----------------------
+    -- ---- event-fabric taps -------------------------------------------------
     signal evt_compare0 : std_logic;
     signal evt_overflow : std_logic;
     signal task_start   : std_logic := '0';   -- tb-driven, default '0'
     signal task_stop    : std_logic := '0';   -- tb-driven, default '0'
 
-    -- ---- continuous EVFAB flip monitor (checker independence) -------------
-    -- Counts toggle FLIPS (XOR of consecutive `clk` samples) on each producer tap since the last evt_mon_clear pulse.
-    -- NEVER reads a DUT internal: only the exported evt_compare0/evt_overflow ports.
+    -- ---- continuous tap flip monitor (checker independence) ---------------
+    -- Counts toggle FLIPS (XOR of consecutive `clk` samples) on each producer tap since the last evt_mon_clear pulse, reading only the exported ports and never a DUT internal.
     signal evt_cmp0_flips, evt_ovf_flips : natural := 0;
     signal evt_cmp0_prev, evt_ovf_prev   : std_logic := '0';
     signal evt_mon_clear : std_logic := '0';
@@ -137,8 +120,8 @@ architecture sim of TIMER_tb is
 begin
 
     ----------------------------------------------------------------------------
-    -- Clocks: one free-running reference drives every DUT clock input, the bus clock included.
-    -- clk_mem free-runs at integration (see header), because task_start/task_stop must be observed even with the bus idle.
+    -- One free-running reference drives every DUT clock input, the bus clock included.
+    -- clk_mem must free-run: task_start/task_stop act outside the en_mem gate and have to be observed with the bus idle.
     ----------------------------------------------------------------------------
     clk      <= not clk after PERIOD / 2;
     mclk     <= clk;
@@ -148,7 +131,7 @@ begin
     clk_mem  <= clk;
 
     ----------------------------------------------------------------------------
-    -- Continuous EVFAB flip monitor (see signal-declaration comment above).
+    -- Continuous flip monitor for the two producer taps.
     ----------------------------------------------------------------------------
     evt_mon_proc : process(clk)
         variable c_lvl, o_lvl : std_logic;
@@ -259,8 +242,7 @@ begin
             wait for 4 * PERIOD;
         end procedure;
 
-        -- Clear the EVFAB flip monitor's accumulators.
-        -- Call only outside a timing-critical window (same discipline as PWM_tb's mon_reset).
+        -- Clear the flip monitor's accumulators; call only outside a timing-critical window.
         procedure evt_mon_reset is
         begin
             wait until clk = '0';
@@ -270,7 +252,7 @@ begin
             evt_mon_clear <= '0';
         end procedure;
 
-        -- Let exactly `n` clk RISING edges pass, then settle on the following falling edge (PWM_tb's wait_edges idiom).
+        -- Let exactly `n` clk RISING edges pass, then settle on the following falling edge.
         procedure wait_edges(n : natural) is
         begin
             for i in 1 to n loop
@@ -289,7 +271,7 @@ begin
             sig <= '0';
         end procedure;
 
-        -- Pulse task_start AND task_stop across the SAME clk_mem rising edge (the G4 "coincident start+stop" corner).
+        -- Pulse task_start AND task_stop across the SAME clk_mem rising edge: the coincident start plus stop corner.
         procedure pulse_both_tasks is
         begin
             wait until clk = '0';
@@ -301,8 +283,7 @@ begin
             task_stop  <= '0';
         end procedure;
 
-        -- CPU CR write coincident with a task pulse, landing on the SAME clk_mem rising edge (the G4 "coincident CPU write + task" corner).
-        -- Mirrors periph_tb_pkg.bus_write's exact timing, with task_start/task_stop asserted across the same capture edge.
+        -- CPU CR write coincident with a task pulse on the SAME clk_mem rising edge: mirrors periph_tb_pkg.bus_write's timing with task_start/task_stop asserted across the capture edge.
         procedure coincident_cr_write_task(cr_word : std_logic_vector(31 downto 0);
                                             do_start, do_stop : std_logic) is
         begin
@@ -321,8 +302,7 @@ begin
             task_stop   <= '0';
         end procedure;
 
-        -- Bounded poll until two TIMxVAL reads, a few clk apart, differ.
-        -- This is the mux-release gotcha check (repo design notes): never assume a fixed edge count before relying on the timer running.
+        -- Bounded poll until two TIMxVAL reads, a few clk apart, differ: never assume a fixed edge count before relying on the timer running.
         procedure poll_val_counting(guard : natural; ok : out boolean) is
             variable v0, v1 : std_logic_vector(31 downto 0);
             variable g : natural := 0;
@@ -385,7 +365,7 @@ begin
 
         ------------------------------------------------------------------
         -- GROUP G1: baseline.
-        -- Select a fast source (CR 9:8=01, mclk) and a small compare0, poll until counting (mux-release gotcha), then confirm the compare0 flag sets.
+        -- Select a fast source (CR 9:8=01, mclk) and a small compare0, poll until counting, then confirm the compare0 flag sets.
         ------------------------------------------------------------------
         report "=== GROUP G1: baseline (mux-release + compare0 flag) ===" severity note;
         bus_write(clk, pbus, RegSlotTIMxCMP0, x"00000020");   -- compare0 = 32
@@ -428,9 +408,8 @@ begin
         ------------------------------------------------------------------
         report "=== GROUP G3: evt_overflow flip count ===" severity note;
         reset_pulse;
-        -- compare0_reg resets to 0 along with everything else on resetn, and 0 is exactly the wrap landing value.
-        -- Leaving it there would spuriously fire a compare0 match (and an evt_compare0 flip) one timer_clock after the wrap.
-        -- Park CMP0 well out of reach of this group's brief post-wrap observation window instead.
+        -- compare0_reg resets to 0, which is exactly the wrap landing value, so leaving it there fires a spurious compare0 match one timer_clock after the wrap.
+        -- Park CMP0 out of reach of this group's post-wrap observation window instead.
         bus_write(clk, pbus, RegSlotTIMxCMP0, x"00000100");   -- compare0 parked at 256 (unreachable here)
         bus_write(clk, pbus, RegSlotTIMxVAL, x"FFFFFFF0");    -- one lap from wrap (16 counts to go)
         evt_mon_reset;
@@ -517,8 +496,7 @@ begin
 
         ------------------------------------------------------------------
         -- GROUP G-NEG: NEGATIVE CONTROL (mandatory, LAST).
-        -- Exactly ONE deliberately wrong expected value, so the scoreboard proves it can fail.
-        -- Repeat a fresh compare0 flip and assert a wrong flip count.
+        -- Exactly ONE deliberately wrong expected value (a wrong compare0 flip count), so the scoreboard proves it can fail.
         ------------------------------------------------------------------
         report "=== GROUP G-NEG: NEGATIVE CONTROL ===" severity note;
         reset_pulse;

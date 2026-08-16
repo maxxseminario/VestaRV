@@ -1,32 +1,11 @@
 -------------------------------------------------------------------------------
 -- ntag5_model_tb.vhd
 -------------------------------------------------------------------------------
--- Standalone, self-checking testbench for tb/ntag5_model.vhd, the behavioral model of the NXP NTAG 5 (NTP5332 "link" / NTA5332 "boost") seen from its I2C SLAVE side.
--- This bench plays the role Castalia plays on the real board: it is the I2C MASTER.
---
--- The bench carries its OWN bit-banged I2C master (the i2c_* procedures below).
--- Every SCL edge, setup point and sample point is generated from the bench's own quarter-bit constant, NEVER from anything the model drives, so the model is judged, not trusted.
--- Two bit rates are exercised (400 kHz fast mode in most groups, 100 kHz standard mode in G-SPEED) to prove the model carries no internal timing assumption ([L] 8.3.1.1).
---
--- OPEN-DRAIN BUS: the model drives sda_oe/scl_oe ('1' = pull that pin low, see ntag5_model.vhd's header) and so does this bench's master.
--- Both are resolved onto ONE net per pin with a weak 'H' release level, the same wired-AND idiom I3C_tb.vhd uses.
--- The model never stretches SCL, so SCL has one real driver.
--- ED is resolved the same way (ed_n = '0' when ed_n_oe = '1', else 'H').
---
--- GROUPS
---   G-INIT   variant recognition, EH reset decode, ED released, delivery content of user EEPROM block 00h ([L] Tab. 7)
---   G-ADDR   address match ACK / wrong-address NACK ([L] 8.3.1.1.5)
---   G-MEM    WRITE MEMORY + READ MEMORY round trip on the 16-bit BLOCK address, and the read auto-increment across a block boundary
---   G-REG    READ/WRITE REGISTER frame (the extra REGA + MASK bytes), masked write, and the live STATUS0_REG NFC_FIELD_OK bit
---   G-EH     the EH_CONFIG V/I encoding walk ([L] Tab. 53) on the decoded output ports, including DISABLE_POWER_CHECK and the RFU code
---   G-ED     ED pin field-detect source and software-interrupt source + ED_INTR_CLEAR_REG release ([L] Tab. 56/58)
---   G-PT     SRAM enable via CONFIG_1 + system reset, then an SRAM pass-through transfer with SRAM_DATA_READY and the ED pin
---   G-LOCK   I2C_LOCK_BLOCK write lock (NACK on the FOURTH data byte, [L] 8.3.1.5), its one-time-programmable behavior, and a write to the I2C-read-only EH_CONFIG_REG being dropped
---   G-ERR    unmapped-block read = FFh, unmapped-block write NACK, and a memory access during the EEPROM programming cycle NACKing on BL_AD0 ([L] 8.3.1.5)
---   G-SPEED  the same round trip again at 100 kHz
---   G-NEG    the mandatory NEGATIVE CONTROL: one deliberately wrong expectation, so a pass is "ALL CHECKS PASSED + exactly 1 expected negative-control failure"
---
--- [L] = NTP53x2 NTAG 5 link data sheet Rev. 3.2 (544532); see the model header.
+-- Standalone, self-checking testbench for ntag5_model.vhd, the behavioral NXP NTAG 5 (NTP5332 / NTA5332) model, exercised from its I2C SLAVE side with this bench as the I2C MASTER.
+-- The bench carries its own bit-banged master: every SCL edge, setup point and sample point comes from the bench's quarter-bit constant and NEVER from anything the model drives, so the model is judged, not trusted.
+-- Two bit rates are exercised, 400 kHz fast mode in most groups and 100 kHz standard mode in G-SPEED, to prove the model carries no internal timing assumption.
+-- OPEN-DRAIN BUS: model and master both drive *_oe ('1' pulls that pin low) onto ONE resolved net per pin with a weak 'H' release level; the model never stretches SCL, and ed_n resolves the same way.
+-- The run ends on the mandatory negative control, so a pass is "ALL CHECKS PASSED plus exactly 1 expected negative-control failure".
 -------------------------------------------------------------------------------
 
 library ieee;
@@ -37,8 +16,7 @@ use work.periph_tb_pkg.all;
 
 entity ntag5_model_tb is
     generic (
-        -- Set false to silence the mandatory negative control, so a clean run reports 0 failures instead of exactly 1.
-        -- Default true = armed.
+        -- Set false to silence the mandatory negative control, so a clean run reports 0 failures instead of exactly 1; armed by default.
         NEGCTRL : boolean := true
     );
 end entity ntag5_model_tb;
@@ -49,8 +27,7 @@ architecture sim of ntag5_model_tb is
     constant TQ_FAST : time := 625 ns;
     constant TQ_STD  : time := 2500 ns;
 
-    -- Programming-cycle length.
-    -- The datasheet gives no number (see the model header), so this bench picks one LONGER than a whole I2C frame at 400 kHz (~160 us), letting G-ERR actually catch a memory access landing inside the cycle, and shorter than anything that would slow the run down.
+    -- Programming-cycle length: no number is specified for the part, so pick one longer than a whole 400 kHz I2C frame (~160 us) so G-ERR can catch an access landing inside the cycle, and short enough not to slow the run down.
     constant T_PROG      : time := 400 us;
     constant T_PROG_WAIT : time := 450 us;   -- always > T_PROG
 
@@ -108,9 +85,8 @@ architecture sim of ntag5_model_tb is
     shared variable sb : scoreboard;
 
     ---------------------------------------------------------------------
-    -- bit-banged I2C MASTER (bench-owned; see file header)
-    -- Cell shape, entered and left with SCL LOW:
-    --   set SDA, tq, release SCL, tq, sample, tq, pull SCL, tq
+    -- Bench-owned bit-banged I2C MASTER.
+    -- Cell shape, entered and left with SCL LOW: set SDA, tq, release SCL, tq, sample, tq, pull SCL, tq.
     ---------------------------------------------------------------------
     -- Release both lines and hold the bus idle for one quarter bit.
     procedure i2c_idle(signal sdao : out std_logic;
@@ -154,8 +130,7 @@ architecture sim of ntag5_model_tb is
                      wait for tq;
     end procedure;
 
-    -- Write one byte MSB-first and sample the slave's ACK.
-    -- ack = true on ACK.
+    -- Write one byte MSB-first and sample the slave's ACK; ack is true on ACK.
     procedure i2c_wbyte(signal sdao : out std_logic;
                         signal sclo : out std_logic;
                         signal sdai : in  std_logic;
@@ -204,9 +179,8 @@ architecture sim of ntag5_model_tb is
     end procedure;
 
     ---------------------------------------------------------------------
-    -- Frame helpers.
-    -- data(0) is BL_AD1, data(1) is BL_AD0, then the payload.
-    -- nack_idx = index into `data` of the FIRST byte the model NACKed, or -1 if every byte was ACKed.
+    -- Frame helpers: data(0) is BL_AD1, data(1) is BL_AD0, then the payload.
+    -- nack_idx is the index into `data` of the FIRST byte the model NACKed, or -1 when every byte was ACKed.
     ---------------------------------------------------------------------
     procedure i2c_write_frame(signal sdao : out std_logic;
                               signal sclo : out std_logic;
@@ -257,8 +231,7 @@ architecture sim of ntag5_model_tb is
         i2c_stop(sdao, sclo, tq);
     end procedure;
 
-    -- Convenience: 16-bit block address as the two leading frame bytes.
-    -- blk_hi is BL_AD1.
+    -- The 16-bit block address as the two leading frame bytes; blk_hi is BL_AD1.
     function blk_hi(blk : natural) return std_logic_vector is
     begin
         return std_logic_vector(to_unsigned(blk / 256, 8));
@@ -399,7 +372,7 @@ begin
         wait for 5 us;
 
         ----------------------------------------------------------------
-        -- G-INIT
+        -- G-INIT: variant recognition, EH reset decode, ED released, and the delivery content of user EEPROM block 00h.
         ----------------------------------------------------------------
         report "=== G-INIT: reset state ===" severity note;
         sb.check_bit("G-INIT: VARIANT recognized", obs_variant_ok, '1');
@@ -410,7 +383,7 @@ begin
         sb.check_bit("G-INIT: EH RFU voltage code clear", eh_vout_rfu_v, '0');
         sb.check_bit("G-INIT: ED pin released", ed_n, 'H');
 
-        -- delivery content of user EEPROM block 00h ([L] Tab. 7): E1 40 80 09
+        -- delivery content of user EEPROM block 00h: E1 40 80 09
         set_ptr(16#0000#, aack, ni);
         sb.check_true("G-INIT: pointer frame addressed", aack);
         sb.check_true("G-INIT: pointer frame fully ACKed", ni = -1);
@@ -421,13 +394,13 @@ begin
         sb.check_slv("G-INIT: block 0 byte 3 (09h)",    rd4(3), x"09");
 
         ----------------------------------------------------------------
-        -- G-ADDR
+        -- G-ADDR: address match ACK and wrong-address NACK.
         ----------------------------------------------------------------
         report "=== G-ADDR: address match / mismatch ===" severity note;
         sb.check_bit("G-ADDR: matching address was ACKed", obs_addr_acked, '1');
         sb.check_slv("G-ADDR: captured address = 54h", ('0' & obs_last_addr), ('0' & DEV_ADDR));
 
-        -- wrong address: must NACK and deselect ([L] 8.3.1.1.5)
+        -- wrong address: must NACK and deselect
         i2c_start(m_sda_oe, m_scl_oe, TQ_FAST);
         i2c_wbyte(m_sda_oe, m_scl_oe, sda, TQ_FAST, BAD_ADDR & '0', aack);
         sb.check_true("G-ADDR: wrong address 2Ah NACKed", not aack);
@@ -439,7 +412,7 @@ begin
         sb.check_true("G-ADDR: own address still ACKed after a mismatch", aack);
 
         ----------------------------------------------------------------
-        -- G-MEM: WRITE MEMORY / READ MEMORY on the 16-bit BLOCK address
+        -- G-MEM: WRITE MEMORY / READ MEMORY on the 16-bit BLOCK address, plus the read auto-increment across a block boundary.
         ----------------------------------------------------------------
         report "=== G-MEM: block-addressed memory access ===" severity note;
         wr_block(16#0010#, x"A1", x"A2", x"A3", x"A4", aack, ni);
@@ -464,13 +437,13 @@ begin
         sb.check_slv("G-MEM: model sourced 8 bytes",
                      nat16(obs_rbyte_count), nat16(8));
 
-        -- the counter block 01FFh is not accessible from I2C ([L] 8.1.2)
+        -- the counter block 01FFh is not accessible from I2C
         set_ptr(16#01FF#, aack, ni);
         i2c_read_frame(m_sda_oe, m_scl_oe, sda, TQ_FAST, 4, aack, rd4);
         sb.check_slv("G-MEM: counter block reads FFh from I2C", rd4(0), x"FF");
 
         ----------------------------------------------------------------
-        -- G-REG: the REGISTER frame shape (REGA + MASK)
+        -- G-REG: the REGISTER frame shape (REGA + MASK), the masked write, and the live STATUS0_REG NFC_FIELD_OK bit.
         ----------------------------------------------------------------
         report "=== G-REG: READ/WRITE REGISTER ===" severity note;
 
@@ -480,12 +453,12 @@ begin
         rd_reg(16#10A2#, 0, rv);
         sb.check_slv("G-REG: register round trip 5Ah", rv, x"5A");
 
-        -- masked write: only the bits set in MASK change ([L] 8.3.1.4)
+        -- masked write: only the bits set in MASK change
         wr_reg(16#10A2#, 0, x"0F", x"F3", aack, ni);
         rd_reg(16#10A2#, 0, rv);
         sb.check_slv("G-REG: masked write kept the upper nibble", rv, x"53");
 
-        -- STATUS0_REG NFC_FIELD_OK follows the RF-side stimulus ([L] Tab. 87)
+        -- STATUS0_REG NFC_FIELD_OK follows the RF-side stimulus
         rd_reg(16#10A0#, 0, rv);
         sb.check_bit("G-REG: STATUS0 NFC_FIELD_OK = 0 (no field)", rv(0), '0');
         sb.check_bit("G-REG: STATUS0 VCC_SUPPLY_OK = 1", rv(1), '1');
@@ -495,7 +468,7 @@ begin
         sb.check_bit("G-REG: STATUS0 NFC_FIELD_OK = 1 (field present)", rv(0), '1');
 
         ----------------------------------------------------------------
-        -- G-EH: the EH_CONFIG encoding walk ([L] Tab. 53 / [B] Tab. 52)
+        -- G-EH: the EH_CONFIG V/I encoding walk on the decoded output ports, including DISABLE_POWER_CHECK and the RFU code.
         -- EH_CONFIG is config block 103Dh byte 0; byte 2 is ED_CONFIG and is kept 00h here so the ED pin stays out of the way.
         ----------------------------------------------------------------
         report "=== G-EH: energy-harvesting decode ===" severity note;
@@ -565,11 +538,11 @@ begin
         sb.check_bit("G-EH: EH re-enabled", eh_enabled, '1');
 
         ----------------------------------------------------------------
-        -- G-ED: the event-detection pin
+        -- G-ED: the event-detection pin, its field-detect and software-interrupt sources, and the ED_INTR_CLEAR_REG release.
         ----------------------------------------------------------------
         report "=== G-ED: event detection pin ===" severity note;
 
-        -- source 1h = NFC field detect ([L] Tab. 56); write ED_CONFIG_REG
+        -- source 1h = NFC field detect; write ED_CONFIG_REG
         wr_reg(16#10A8#, 0, x"0F", x"01", aack, ni);
         sb.check_true("G-ED: ED_CONFIG_REG write ACKed", ni = -1);
         wait for 2 us;
@@ -581,7 +554,7 @@ begin
         wait for 2 us;
         sb.check_bit("G-ED: ED re-asserted on the next field", ed_n, '0');
 
-        -- source Dh = software interrupt: it latches, and only ED_INTR_CLEAR_REG releases it ([L] Tab. 56 / Tab. 58)
+        -- source Dh = software interrupt: it latches, and only ED_INTR_CLEAR_REG releases it
         wr_reg(16#10A8#, 0, x"0F", x"0D", aack, ni);
         wait for 2 us;
         sb.check_bit("G-ED: software interrupt asserted ED", ed_n, '0');
@@ -600,9 +573,8 @@ begin
         sb.check_bit("G-ED: ED disabled source keeps the pin released", ed_n, 'H');
 
         ----------------------------------------------------------------
-        -- G-PT: SRAM pass-through
-        -- SRAM_ENABLE lives in the CONFIG_1 *configuration* byte (103Fh-1 block 1037h byte 1) and reaches the session register only through a POR/system reset ([L] Tab. 38 vs Tab. 91).
-        -- So this group writes the config byte and then triggers RESET_GEN_REG.
+        -- G-PT: SRAM enable through CONFIG_1 plus a system reset, then a pass-through transfer with SRAM_DATA_READY and the ED pin.
+        -- SRAM_ENABLE lives in the CONFIG_1 configuration byte (block 1037h byte 1) and reaches the session register only through a POR or system reset, so this group writes the config byte and then triggers RESET_GEN_REG.
         ----------------------------------------------------------------
         report "=== G-PT: SRAM pass-through ===" severity note;
 
@@ -616,7 +588,7 @@ begin
         sb.check_true("G-PT: CONFIG block write ACKed", ni = -1);
         wait for T_PROG_WAIT;
 
-        -- RESET_GEN_REG = E7h: the DATA byte is NACKed by design ([L] 8.3.1.5)
+        -- RESET_GEN_REG = E7h: the DATA byte is NACKed by design
         wr_reg(16#10AA#, 0, x"FF", x"E7", aack, ni);
         sb.check_true("G-PT: RESET_GEN_REG E7h NACKs the DATA byte", ni = 4);
         wait for 5 us;
@@ -686,7 +658,7 @@ begin
         wait for 2 us;
 
         ----------------------------------------------------------------
-        -- G-LOCK: I2C_LOCK_BLOCK and a read-only register
+        -- G-LOCK: the I2C_LOCK_BLOCK write lock and its one-time-programmable behavior, plus a dropped write to the I2C-read-only EH_CONFIG_REG.
         ----------------------------------------------------------------
         report "=== G-LOCK: write protection ===" severity note;
 
@@ -695,13 +667,13 @@ begin
         sb.check_true("G-LOCK: block 2 writable before locking", ni = -1);
         wait for T_PROG_WAIT;
 
-        -- I2C_LOCK_BL00 bit 0 locks user blocks 0,1,2,3 ([L] 8.1.3.31)
+        -- I2C_LOCK_BL00 bit 0 locks user blocks 0,1,2,3
         wr_block(16#108A#, x"01", x"00", x"00", x"00", aack, ni);
         sb.check_true("G-LOCK: lock-byte write ACKed", ni = -1);
         wait for T_PROG_WAIT;
 
-        -- Now the write must be ACKed for D0..D2 and NACKed on THE FOURTH data byte ([L] 8.3.1.5).
-        -- Frame indices: 0,1 = BL_AD1/BL_AD0 and 2..5 = D0..D3, so the NACK lands on index 5.
+        -- Now the write must be ACKed for the first three data bytes and NACKed on THE FOURTH.
+        -- Frame indices: 0,1 are BL_AD1/BL_AD0 and 2 to 5 are the four data bytes, so the NACK lands on index 5.
         wr_block(16#0002#, x"D1", x"D2", x"D3", x"D4", aack, ni);
         sb.check_true("G-LOCK: locked block NACKs on the 4th data byte", ni = 5);
         wait for T_PROG_WAIT;
@@ -722,7 +694,7 @@ begin
         i2c_read_frame(m_sda_oe, m_scl_oe, sda, TQ_FAST, 4, aack, rd4);
         sb.check_slv("G-LOCK: lock bit is OTP (still 01h)", rd4(0), x"01");
 
-        -- EH_CONFIG_REG is read-only from I2C in every bit ([L] Tab. 97): the write is accepted on the wire but must not change anything.
+        -- EH_CONFIG_REG is read-only from I2C in every bit: the write is accepted on the wire but must not change anything.
         rd_reg(16#10A7#, 0, rv);
         sb.check_bit("G-LOCK: EH_CONFIG_REG EH_ENABLE reads 0", rv(0), '0');
         wr_reg(16#10A7#, 0, x"FF", x"FF", aack, ni);
@@ -733,7 +705,7 @@ begin
                      rv(0), '0');
 
         ----------------------------------------------------------------
-        -- G-ERR: error handling ([L] 8.3.1.5)
+        -- G-ERR: unmapped-block read and write, access during the EEPROM programming cycle, and DISABLE_I2C.
         ----------------------------------------------------------------
         report "=== G-ERR: error handling ===" severity note;
 
@@ -761,7 +733,7 @@ begin
                       ni = -1);
         wait for T_PROG_WAIT;
 
-        -- DISABLE_I2C (NFC-side only, [L] 8.3.1.1.6) NACKs on BL_AD0
+        -- DISABLE_I2C, which only the NFC side can set, NACKs on BL_AD0
         rf_disable_i2c <= '1';
         wait for 2 us;
         set_ptr(16#0000#, aack, ni);
@@ -787,10 +759,8 @@ begin
         sb.check_slv("G-SPEED: 100 kHz read byte 3", rd4(3), x"C3");
 
         ----------------------------------------------------------------
-        -- G-NEG: MANDATORY NEGATIVE CONTROL (last).
-        -- A deliberately wrong expectation: user block 0018h byte 0 really holds 5Ah, and this check demands 5Bh.
-        -- It MUST fail, proving the checker path fires.
-        -- Exactly one failure is expected overall.
+        -- G-NEG: the MANDATORY NEGATIVE CONTROL, run last: user block 0018h byte 0 really holds 5Ah and this check demands 5Bh.
+        -- It MUST fail, proving the checker path fires; exactly one failure is expected over the whole run.
         ----------------------------------------------------------------
         report "=== G-NEG: NEGATIVE CONTROL ===" severity note;
         if NEGCTRL then
@@ -806,7 +776,7 @@ begin
 
         if (NEGCTRL and sb.errors = 1) or ((not NEGCTRL) and sb.errors = 0) then
             -- With the negative control armed the scoreboard always tallies 1 error, so report_summary above prints "1 CHECK(S) FAILED" rather than the "ALL CHECKS PASSED" token the periph-suite runner greps for.
-            -- Emit that token HERE on a genuine pass (the I3C_tb idiom); a real failure takes the else branch and never prints it.
+            -- Emit that token HERE on a genuine pass; a real failure takes the else branch and never prints it.
             report LF & LF &
                 "    ##################################################" & LF &
                 "    ##   NTAG5_MODEL_TB PASS (1 expected negative-control failure)" & LF &

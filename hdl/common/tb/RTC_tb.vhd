@@ -1,34 +1,11 @@
 -------------------------------------------------------------------------------
 -- RTC_tb.vhd
 -------------------------------------------------------------------------------
--- Standalone, self-checking testbench for the RTC real-time-clock peripheral (hdl/common/periph/RTC.vhd), written AGAINST THE FROZEN ENTITY + REGISTER MAP (~/vesta_docs/digperiphs/rtc_design.md, D1-D17 + orchestrator A1-A4) while the RTL is written in parallel.
--- The DUT is declared as a COMPONENT (not an entity instantiation) so this bench compiles standalone with xmvhdl before RTC.vhd exists; VHDL default binding resolves it to the entity of the same name once RTC.vhd is analyzed into the work library.
--- Mirrors NFC_tb.vhd's structure.
---
--- Uses the shared support packages tb/periph_tb_pkg.vhd (scoreboard + register-bus BFM) and tb/rtc_bfm_pkg.vhd (RTC slot/CR/SR constants, the rtc_mk_cr packer, the reference-counter helpers rtc_combined/rtc_within, and the bounded SR polls rtc_wait_sync_clear / rtc_wait_flag).
---
--- THREE clock domains (design doc D1/D2):
---   * clk     : the free-running fast reference, bound to MCLK at integration (A2).
---               Hosts the LFXT-to-bus CDC synchronizers, the mclk-domain sticky W1C flags and the combinational IRQ combiner.
---               Also the reference clock the register-bus BFM times off, 20 ns period.
---   * ClkMem  : the GATED bus clock, ticking only while EnMemPeriph='0', driven clk when b.en_mem = '0' else '0' (periph_tb_pkg idiom).
---   * lfxt_in : the UNGATED 32.768 kHz always-on wall clock (D1).
---               Compressed to a brisk 100 ns period here (5x slower than clk) so the 2-FF CDC sees a real fast/slow ratio.
---               The 32768 prescaler modulus is FIXED (exact 1 Hz, D6), so nothing is scaled to wall clock.
---
--- CHECKER INDEPENDENCE (mandatory): the bench keeps its OWN 47-bit wall-clock reference (ref_count) by counting lfxt_in RISING edges in TB code, never reading a DUT internal, and hand-computes the expected alarm/tick instants.
--- Every SEC/SUB compare allows the D7 snapshot staleness (a DUT read is a coherent snapshot at most ~1 lfxt period + ~3 clk behind the live count, and is never AHEAD of it): the reference is sampled in a [lo,hi] window around the read and the DUT value must sit within CMP_BOUND of it.
---
--- to_X01 normalizes every sampled DUT LEVEL where a weak/meta level could appear (irq_rtc, and the single SR/flag bits polled in rtc_bfm_pkg).
--- Full reset-default word reads are compared RAW so an uninitialized X is caught.
---
--- COMPRESSED TIMING: brisk lfxt (100 ns) + set-time jumps near a prescaler wrap make every alarm/tick match arrive in a few hundred lfxt ticks, so the whole run is well under a millisecond of sim time and inside the 1-minute rule.
--- A top-level watchdog aborts with a FAIL banner if the stimulus ever hangs.
---
--- DEVIATIONS / clarifications vs the design doc bench plan, noted while writing (flagged, not resolved; see the bench author's report):
---   * The doc's "|ref - dut| within 2 lfxt ticks" bound is honored as the SNAPSHOT staleness; a slightly larger CMP_BOUND folds in the enable-cross / commit CDC skew (2-FF held-level and toggle-handshake latency) that also separates the TB reference start from the DUT's, since neither the enable nor the set-time commit cross instantaneously.
---     Named-constant + windowed so it is trivially retuned once the real RTL is connected.
---   * rtc_wait_sync_clear / rtc_wait_flag copy nfc_bfm_pkg's calling convention EXACTLY (done_ok : out boolean); the caller turns done_ok into the scoreboard fail, rather than passing the protected-type scoreboard into the procedure (kept out for -V200X portability).
+-- Standalone, self-checking testbench for the RTC peripheral, on the shared support packages tb/periph_tb_pkg.vhd (scoreboard + register-bus BFM) and tb/rtc_bfm_pkg.vhd (slot/CR/SR constants, the rtc_mk_cr packer, rtc_combined/rtc_within, and the bounded SR polls).
+-- The DUT is declared as a COMPONENT, not an entity instantiation, so this bench compiles standalone; VHDL default binding resolves it to the entity of the same name once RTC.vhd is analyzed into work.
+-- Three clocks: clk is the free-running 20 ns bus/CDC reference, ClkMem the gated bus clock (clk while EnMemPeriph='0'), lfxt_in the ungated 32.768 kHz wall clock compressed to a 100 ns period so the 2-FF CDC still sees a real fast/slow ratio.
+-- CHECKER INDEPENDENCE (mandatory): the bench keeps its OWN 47-bit wall-clock reference by counting lfxt_in rising edges in TB code, never reading a DUT internal, and every SEC/SUB compare allows read-snapshot staleness inside a [lo,hi] reference window (CMP_BOUND).
+-- to_X01 normalizes every sampled DUT level that could be weak or meta, but full reset-default word reads are compared RAW so an uninitialized X is caught.
 -------------------------------------------------------------------------------
 
 library ieee;
@@ -43,17 +20,15 @@ end entity RTC_tb;
 
 architecture sim of RTC_tb is
 
-    constant PERIOD   : time    := 20 ns;    -- clk / bus reference (free-running ref, A2)
+    constant PERIOD   : time    := 20 ns;    -- clk / bus reference, free-running
     constant LFXT_HALF: time    := 50 ns;    -- lfxt_in half period, so a 100 ns wall-clock tick
 
-    -- Snapshot-staleness + CDC-skew tolerance, in lfxt ticks, for every reference-vs-DUT combined-value compare (see the header deviation note).
-    -- Budget: D7 read-snapshot staleness (1-2 ticks) + wr_req/enable 2-FF sync + edge-detect apply delay behind the write-time reference anchor (2-4 ticks) + 1-2 ticks poll/phase jitter.
+    -- Snapshot-staleness + CDC-skew tolerance in lfxt ticks for every reference-vs-DUT compare: read snapshot (1-2) + write-side 2-FF sync and edge-detect delay (2-4) + poll/phase jitter (1-2).
     -- Real failures (missed carry, wrong load) miss by thousands of ticks, so 8 stays a sharp discriminator.
     constant CMP_BOUND : natural := 8;
 
-    -- FROZEN DUT entity (design doc D3), declared as a component so the bench compiles standalone before hdl/common/periph/RTC.vhd exists.
-    -- EVFAB taps (event_fabric_spec.md 2026-07-24) are in the component so default binding sees the FULL entity port list.
-    -- evt_alarm/evt_tick are the D10 synchronized event edges, PRE-IE (mirrors PWM_tb.vhd's G-EV addition).
+    -- DUT declared as a component so the bench compiles standalone; the EVFAB taps must be listed here so default binding sees the FULL entity port list.
+    -- evt_alarm/evt_tick are the synchronized event edges, exported PRE-IE.
     component RTC is
         port (
             clk         : in  std_logic;
@@ -85,23 +60,20 @@ architecture sim of RTC_tb is
     signal pbus      : periph_bus_t := PERIPH_BUS_IDLE;
     signal rdata_out : std_logic_vector(31 downto 0);
 
-    -- ---- EVFAB taps (event_fabric_spec.md 2026-07-24, G-EV) ---------------
+    -- ---- EVFAB taps -------------------------------------------------------
     signal evt_alarm : std_logic;
     signal evt_tick  : std_logic;
 
-    -- ---- EVFAB pulse monitor (checker independence, G-EV) -----------------
-    -- Continuous background tracker of BOTH tap ports (evt_alarm/evt_tick): counts pulse STARTS (rising transitions) and total HIGH samples, both at `clk` rising edges, since the last evt_mon_clear pulse.
-    -- Mirrors PWM_tb.vhd's evt_mon_proc exactly.
-    -- A run of exactly N one-clk-wide pulses satisfies starts=N AND highs=N simultaneously: any wider pulse pushes highs above starts, and any missed pulse leaves starts short.
-    -- NEVER reads a DUT internal, only the exported evt_alarm/evt_tick ports.
+    -- ---- EVFAB pulse monitor (reads only the exported taps) ---------------
+    -- Continuous tracker of evt_alarm/evt_tick: counts pulse STARTS and total HIGH samples at clk rising edges since the last evt_mon_clear.
+    -- Exactly N one-clk-wide pulses give starts=N AND highs=N: a wider pulse pushes highs above starts, a missed pulse leaves starts short.
     signal evt_alarm_starts, evt_alarm_highs : natural := 0;
     signal evt_tick_starts,  evt_tick_highs  : natural := 0;
     signal evt_alarm_prev, evt_tick_prev     : std_logic := '0';
     signal evt_mon_clear : std_logic := '0';
 
-    -- ---- TB independent wall-clock reference (checker independence) -------
-    -- ref_count counts lfxt_in rising edges while ref_en='1'; ref_load anchors it to ref_load_val (applied on the next lfxt rising edge) at each set-time commit so subsequent groups track the loaded time.
-    -- NEVER driven from any DUT internal.
+    -- ---- TB independent wall-clock reference, never driven from a DUT internal ----
+    -- ref_count counts lfxt_in rising edges while ref_en='1'; ref_load anchors it to ref_load_val on the next lfxt rising edge at each set-time commit.
     signal ref_count    : unsigned(RTC_CNT_BITS - 1 downto 0) := (others => '0');
     signal ref_en       : std_logic := '0';
     signal ref_load     : std_logic := '0';
@@ -114,15 +86,14 @@ architecture sim of RTC_tb is
 begin
 
     ----------------------------------------------------------------------------
-    -- clock / gated register-bus clock (mirrors NFC_tb / I2C_tb / I3C_tb)
+    -- clock / gated register-bus clock
     ----------------------------------------------------------------------------
     clk     <= not clk after PERIOD / 2;
     lfxt_in <= not lfxt_in after LFXT_HALF;
     ClkMem  <= clk when pbus.en_mem = '0' else '0';
 
     ----------------------------------------------------------------------------
-    -- Independent reference wall clock: counts lfxt_in rising edges (checker independence).
-    -- Anchored by ref_load at each set-time commit.
+    -- Independent reference wall clock: counts lfxt_in rising edges, anchored by ref_load at each set-time commit.
     ----------------------------------------------------------------------------
     ref_proc : process(lfxt_in)
     begin
@@ -136,8 +107,7 @@ begin
     end process;
 
     ----------------------------------------------------------------------------
-    -- EVFAB pulse monitor (see the signal-declaration comment above): samples evt_alarm/evt_tick (to_X01-normalized) on every clk rising edge.
-    -- Windowed via evt_mon_clear the same way PWM_tb.vhd's evt_mon_proc is windowed via its own evt_mon_clear.
+    -- EVFAB pulse monitor: samples evt_alarm/evt_tick (to_X01-normalized) on every clk rising edge, windowed by evt_mon_clear.
     ----------------------------------------------------------------------------
     evt_mon_proc : process(clk)
         variable a_lvl, t_lvl : std_logic;
@@ -191,9 +161,8 @@ begin
         );
 
     ----------------------------------------------------------------------------
-    -- Watchdog: abort with a FAIL banner if the stimulus ever hangs (cloned from the NFC/I3C bounded-abort idiom).
-    -- Expected sim time is under 1 ms, so this fires only on a true hang.
-    -- std.env.stop from stim kills it on a clean run.
+    -- Watchdog: abort with a FAIL banner if the stimulus ever hangs.
+    -- Expected sim time is under 1 ms, so this fires only on a true hang; std.env.stop from stim kills it on a clean run.
     ----------------------------------------------------------------------------
     watchdog : process
     begin
@@ -226,7 +195,7 @@ begin
         variable delta   : integer;
         variable tickcnt : natural;
 
-        -- W1C the given SR mask, then a dummy CR read to retire the gated-ClkMem write pulse before the next SR read (the NFC/QSPI/UART clear idiom).
+        -- W1C the given SR mask, then a dummy CR read to retire the gated-ClkMem write pulse before the next SR read.
         procedure w1c(mask : std_logic_vector(31 downto 0)) is
             variable r : std_logic_vector(31 downto 0);
         begin
@@ -234,9 +203,9 @@ begin
             bus_read (clk, pbus, rdata_out, RTC_SLOT_CR, r);
         end procedure;
 
-        -- ---- G-EV helper (EVFAB taps) ---------------------------------------
+        -- ---- EVFAB tap helper -----------------------------------------------
 
-        -- Clear the evt_alarm/evt_tick pulse monitor's accumulators (mirrors PWM_tb.vhd's evt_mon_reset exactly, the held-across-one-edge idiom).
+        -- Clear the evt_alarm/evt_tick pulse monitor's accumulators, holding evt_mon_clear across one clk edge.
         -- Call only OUTSIDE a timing-critical window.
         procedure evt_mon_reset is
         begin
@@ -260,16 +229,15 @@ begin
             dutv := rtc_combined(s, u);
         end procedure;
 
-        -- Set-time to {sec, sub}: stage SUB, commit both by writing SEC, poll SR.SYNC from busy to clear (D8), and anchor the TB reference to the same value.
+        -- Set-time to {sec, sub}: stage SUB, commit both by writing SEC, poll SR.SYNC from busy to clear, and anchor the TB reference to the same value.
         -- Leaves the wall clock counting from {sec, sub}.
         procedure set_time(sec : std_logic_vector(31 downto 0);
                            sub : std_logic_vector(14 downto 0)) is
             variable done_ok : boolean;
         begin
             bus_write(clk, pbus, RTC_SLOT_SUB, x"0000" & '0' & sub);   -- stage SUB [14:0]
-            -- Anchor the reference AT the commit write (one lfxt edge), BEFORE the SYNC poll: the DUT applies the load ~2-4 lfxt edges later (wr_req 2-FF sync + edge detect), so the DUT then runs a constant 2-4 ticks BEHIND the reference.
-            -- That is the correct direction for the "dut never ahead of ref_hi" check, and inside CMP_BOUND together with the D7 snapshot staleness.
-            -- Anchoring after the SYNC-clear poll instead put the DUT AHEAD of the reference: the first-run G3/G5 failures.
+            -- Anchor the reference AT the commit write, BEFORE the SYNC poll: the DUT applies the load 2-4 lfxt edges later (wr_req 2-FF sync + edge detect) and so runs that constant amount BEHIND the reference, which is the direction the "dut never ahead of ref_hi" check needs and stays inside CMP_BOUND.
+            -- Anchoring after the SYNC-clear poll instead puts the DUT AHEAD of the reference and fails that check.
             ref_load_val <= unsigned(sec) & unsigned(sub);
             ref_load     <= '1';
             bus_write(clk, pbus, RTC_SLOT_SEC, sec);                   -- commit {SEC,SUB}
@@ -281,7 +249,6 @@ begin
 
         -- Make BOTH ALMF and TICKF pending: jump near a prescaler wrap, arm an alarm one second out and a fast periodic tick, then wait for the alarm match (by which time several ticks have also fired).
         -- Leaves both engines enabled with both sticky flags set.
-        -- Used by G6.
         procedure make_both_pending(secbase : std_logic_vector(31 downto 0)) is
             variable done_ok : boolean;
         begin
@@ -292,7 +259,7 @@ begin
             bus_write(clk, pbus, RTC_SLOT_PER, x"00000004");
             rtc_wait_sync_clear(clk, pbus, rdata_out, done_ok);
             -- Clear any STALE flags left by a previous leg, THEN enable and wait for BOTH flags to be freshly pending.
-            -- A masked ALMF left pending would satisfy the ALMF wait instantly, freezing the engines before any tick fires: the first-run G6 leg-3 failure.
+            -- A masked ALMF left pending would satisfy the ALMF wait instantly, freezing the engines before any tick fires.
             w1c(x"00000006");
             bus_write(clk, pbus, RTC_SLOT_CR,
                       rtc_mk_cr('1', '1', '1', '1', '1'));  -- all EN + all IE
@@ -313,7 +280,7 @@ begin
         wait for 8 * PERIOD;
 
         ------------------------------------------------------------------
-        -- GROUP G0: reset defaults (design doc G0)
+        -- GROUP G0: reset defaults
         ------------------------------------------------------------------
         report "=== GROUP G0: reset defaults ===" severity note;
         bus_read(clk, pbus, rdata_out, RTC_SLOT_CR, rdw);
@@ -335,8 +302,8 @@ begin
         sb.check_bit("G0: irq_rtc = 0 out of reset", to_X01(irq_rtc), '0');
 
         ------------------------------------------------------------------
-        -- GROUP G1: wall-clock advance (design doc G1)
-        -- Enable RTCEN, start the TB reference at the SAME moment, run a few thousand lfxt ticks and confirm the DUT snapshot advances monotonically and tracks the independent reference within the staleness/CDC bound (the DUT is never AHEAD of the reference, D7).
+        -- GROUP G1: wall-clock advance
+        -- Enable RTCEN, start the TB reference at the SAME moment, then confirm the DUT snapshot advances monotonically and tracks the reference within the staleness bound, never AHEAD of it.
         ------------------------------------------------------------------
         report "=== GROUP G1: wall-clock advance ===" severity note;
         bus_write(clk, pbus, RTC_SLOT_CR, rtc_mk_cr('1', '0', '0', '0', '0'));  -- RTCEN
@@ -359,8 +326,8 @@ begin
         end loop;
 
         ------------------------------------------------------------------
-        -- GROUP G2: coherent snapshot (design doc G2)
-        -- The firmware SEC,SUB,SEC-recompare idiom (D7): repeated reads are never torn and each coherent pair tracks the reference within bound.
+        -- GROUP G2: coherent snapshot
+        -- The firmware SEC,SUB,SEC-recompare idiom: repeated reads are never torn and each coherent pair tracks the reference within bound.
         ------------------------------------------------------------------
         report "=== GROUP G2: coherent snapshot ===" severity note;
         prev47 := dut47;
@@ -389,8 +356,8 @@ begin
         end loop;
 
         ------------------------------------------------------------------
-        -- GROUP G3: set-time (design doc G3)
-        -- Stage SUB then commit SEC (atomic {SEC,SUB} load, D8): SR.SYNC asserts then clears, read-back equals the loaded value, counting resumes from it, and a sub-carry set-time increments SEC by exactly one.
+        -- GROUP G3: set-time
+        -- Stage SUB then commit SEC (atomic {SEC,SUB} load): SR.SYNC asserts then clears, read-back equals the loaded value, counting resumes from it, and a sub-carry set-time increments SEC by exactly one.
         ------------------------------------------------------------------
         report "=== GROUP G3: set-time ===" severity note;
         -- Stage SUB=0x3FF0, commit SEC=0x12345678 (set_time waits for SR.SYNC and anchors the TB reference).
@@ -423,10 +390,9 @@ begin
         w1c(x"00000006");                             -- W1C ALMF|TICKF (none set yet)
 
         ------------------------------------------------------------------
-        -- GROUP G4: alarm (design doc G4)
+        -- GROUP G4: alarm
         -- Compressed via the set-time-near-wrap trick: SUB loaded at 0x7F00 is 256 lfxt ticks from the prescaler roll-over, so an alarm at SEC+1 fires ~256 ticks later.
         -- Legs proved: fire plus irq; W1C clears the flag and drops irq; one-shot (no re-fire across the match second); re-arm fires again; ALMEN=0 suppresses.
-        -- This proves the same one-shot/re-arm contract as the doc's SEC=0x101 double-set choreography, using a wait-and-confirm for the "no re-fire" leg (flagged in the bench author's report).
         ------------------------------------------------------------------
         report "=== GROUP G4: alarm ===" severity note;
 
@@ -481,10 +447,8 @@ begin
         w1c(x"00000006");
 
         ------------------------------------------------------------------
-        -- GROUP G5: periodic tick (design doc G5)
-        -- PER=4 gives a tick every PER+1 = 5 lfxt ticks (D12).
-        -- Catch N consecutive ticks, W1C each, and check the cadence against the independent lfxt-edge reference (delta ~= PER+1), then reprogram PER=9 for cadence 10.
-        -- Confirm the wall clock (SEC/SUB) is undisturbed by the tick engine.
+        -- GROUP G5: periodic tick, PER=4 giving a tick every PER+1 = 5 lfxt ticks.
+        -- Catch N consecutive ticks, W1C each, check the cadence against the independent lfxt-edge reference, reprogram PER=9 for cadence 10, and confirm SEC/SUB is undisturbed by the tick engine.
         ------------------------------------------------------------------
         report "=== GROUP G5: periodic tick ===" severity note;
         bus_write(clk, pbus, RTC_SLOT_PER, x"00000004");   -- PER = 4
@@ -528,7 +492,7 @@ begin
             d0 := d1;
         end loop;
 
-        -- The tick engine does not disturb the wall clock (D12): SEC/SUB still track the independent reference.
+        -- The tick engine does not disturb the wall clock: SEC/SUB still track the independent reference.
         read_wall(dut47, ref_lo, ref_hi);
         sb.check_true("G5: wall clock undisturbed by tick engine (tracks reference)",
                       rtc_within(dut47, ref_lo, CMP_BOUND) and (dut47 <= ref_hi));
@@ -538,10 +502,8 @@ begin
         w1c(x"00000006");
 
         ------------------------------------------------------------------
-        -- GROUP G6: combined-IRQ demux + IE masking (design doc G6)
-        -- irq_rtc = (ALMF & ALMIE) or (TICKF & TICKIE), combinational (D13).
-        -- With both flags pending, W1C each in turn: irq drops only when BOTH are cleared, then mask ALMIE / TICKIE independently to prove the gating.
-        -- Event engines are frozen (ALMEN/TICKEN=0) before clearing so flags do not re-arm under us.
+        -- GROUP G6: combined-IRQ demux + IE masking, irq_rtc = (ALMF and ALMIE) or (TICKF and TICKIE), combinational.
+        -- With both flags pending, W1C each in turn (irq drops only when BOTH are cleared), then mask ALMIE / TICKIE independently; engines are frozen with ALMEN/TICKEN=0 first so flags cannot re-arm mid-check.
         ------------------------------------------------------------------
         report "=== GROUP G6: combined-IRQ demux ===" severity note;
         make_both_pending(x"00000300");
@@ -588,9 +550,8 @@ begin
         w1c(x"00000006");
 
         ------------------------------------------------------------------
-        -- GROUP G7: always-on / reset-sync (design doc G7)
-        -- (a) With the bus IDLE (ClkMem gated off), the smclk-hosted flag path (D2) still sets TICKF and raises irq_rtc autonomously, observed on the free-running clk with ZERO bus activity in the window.
-        -- (b) Assert resetn mid-count: the LFXT domain resets cleanly (D14), SEC/SUB/CR read back 0 and the counter restarts from 0.
+        -- GROUP G7a: with the bus IDLE (ClkMem gated off) the flag path still sets TICKF and raises irq_rtc autonomously, observed on the free-running clk with ZERO bus activity in the window.
+        -- GROUP G7b: assert resetn mid-count, so the LFXT domain resets cleanly, SEC/SUB/CR read back 0 and the counter restarts from 0.
         ------------------------------------------------------------------
         report "=== GROUP G7: always-on / reset-sync ===" severity note;
         -- Arm a fast tick, then stop touching the bus entirely.
@@ -645,16 +606,13 @@ begin
                       rtc_within(dut47, ref_lo, CMP_BOUND) and (dut47 <= ref_hi));
 
         ------------------------------------------------------------------
-        -- GROUP G-EV: EVFAB taps (event_fabric_spec.md 2026-07-24)
-        -- evt_alarm/evt_tick are the SAME D10 synchronized event edges the sticky ALMF/TICKF flags set from, exported PRE-IE, so ALMIE/TICKIE must have ZERO effect on them (RTC.vhd header, EVFAB producer taps comment).
-        -- Pulse counts are proven with the continuous evt_mon_proc background monitor (checker independence: it only samples the exported evt_alarm/evt_tick ports, never a DUT internal), windowed via evt_mon_reset the same way PWM_tb.vhd's G-EV group is windowed.
-        -- Mirrors that bench's monitor approach; the alarm/tick provocations below reuse this bench's own G4/G5 setups (near-wrap set_time + fast PER=4 cadence) so timing stays inside the 1-minute rule.
+        -- GROUP G-EV: EVFAB taps.
+        -- evt_alarm/evt_tick are the same synchronized event edges the sticky ALMF/TICKF flags set from, exported PRE-IE, so ALMIE/TICKIE must have ZERO effect on them; pulse counts come from evt_mon_proc, windowed by evt_mon_reset.
         ------------------------------------------------------------------
         report "=== GROUP G-EV: EVFAB taps (evt_alarm/evt_tick) ===" severity note;
 
-        -- G-EV-a: evt_tick pulse count vs TICKF, PER=4 (cadence 5 lfxt ticks, the same fastest-tick setup G5 uses).
-        -- Catch and clear the first ("prime") tick outside the window, since its phase includes the enable-cross CDC latency, same as G5.
-        -- Then open the evt monitor and catch exactly 5 more ticks via the bus-timed SR poll/W1C idiom (already proven by G5's cadence measurement) while counting evt_tick pulses concurrently and independently.
+        -- G-EV-a: evt_tick pulse count vs TICKF at PER=4 (cadence 5 lfxt ticks).
+        -- Catch and clear the first "prime" tick outside the window, since its phase includes the enable-cross CDC latency, then open the monitor and catch exactly 5 more ticks by SR poll/W1C while counting evt_tick pulses independently.
         bus_write(clk, pbus, RTC_SLOT_PER, x"00000004");   -- PER = 4
         rtc_wait_sync_clear(clk, pbus, rdata_out, ok);
         sb.check_true("G-EV a0: PER commit SR.SYNC cleared", ok);
@@ -681,7 +639,7 @@ begin
         bus_write(clk, pbus, RTC_SLOT_CR, rtc_mk_cr('1', '0', '0', '0', '0'));
         w1c(x"00000006");
 
-        -- G-EV-b: evt_alarm, one alarm match (reuses G4a's exact setup shape: near-wrap set-time, ALM = SEC+1, RTCEN|ALMEN|ALMIE), giving exactly one evt_alarm pulse, one clk wide.
+        -- G-EV-b: evt_alarm, one alarm match (near-wrap set-time, ALM = SEC+1, RTCEN|ALMEN|ALMIE), giving exactly one evt_alarm pulse, one clk wide.
         set_time(x"00000700", "111111100000000");      -- SEC=0x700, SUB=0x7F00
         bus_write(clk, pbus, RTC_SLOT_ALM, x"00000701");   -- ALM = 0x701
         rtc_wait_sync_clear(clk, pbus, rdata_out, ok);
@@ -700,7 +658,7 @@ begin
         bus_write(clk, pbus, RTC_SLOT_CR, rtc_mk_cr('1', '0', '0', '0', '0'));
         w1c(x"00000002");
 
-        -- G-EV-c: THE DISCIPLINE CHECK, masking BOTH IE (ALMIE=0, TICKIE=0) and provoking a fresh tick + alarm (same near-wrap PER=4/ALM=SEC+1 shape as G6's make_both_pending, but with IE=0 instead of IE=1).
+        -- G-EV-c: mask BOTH IE (ALMIE=0, TICKIE=0) and provoke a fresh tick plus alarm with the near-wrap PER=4 / ALM=SEC+1 shape.
         -- evt_tick/evt_alarm must STILL pulse (pre-IE taps) and irq_rtc must stay LOW throughout, proving ALMIE/TICKIE have zero effect on them.
         set_time(x"00000800", "111111100000000");      -- SEC=0x800, SUB=0x7F00
         bus_write(clk, pbus, RTC_SLOT_ALM, x"00000801");   -- ALM = 0x801

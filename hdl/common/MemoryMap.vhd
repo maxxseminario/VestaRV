@@ -1,7 +1,6 @@
--- MemoryMap.vhd
--- Memory map VHDL package
+-- MemoryMap.vhd: memory map VHDL package
 -- Defines the MCU memory map: which RAM and peripheral slots are active, which slot each peripheral occupies, and which slot each register occupies inside its peripheral
--- Generated on 2026/08/15 at 16:10:53 with the MemoryMap.py memory map generator
+-- Generated on 2026/08/15 at 18:47:19 with the MemoryMap.py memory map generator
 -- WARNING: Do not edit or modify this file!
 -- 	If you need to change it, use the MemoryMap.py memory map generator tool
 
@@ -1015,8 +1014,7 @@ package MemoryMap is
 
 
 	---------- MCU_MP Compatibility ----------
-	-- Constants the hand-written hdl/common/MemoryMap.vhd defines beyond the sections above.
-	-- Emitted so this generated package is a drop-in replacement for that file; transcribed values cite it as their source.
+	-- Constants hdl/common/MemoryMap.vhd defines beyond the sections above, emitted so this package is a drop-in replacement for it.
 
 	-- Memory Block Memory Slot Assignments
 	constant MemSlotROM				: natural := 00;						-- base address = 0x00000
@@ -1213,36 +1211,36 @@ package MemoryMap is
 	constant IRQB_NPU0_TD			: natural := 120;						-- NPU0 think-done Interrupt, IVT address = 0x81E0
 	constant IRQB_EXT_MEIP			: natural := 85;						-- External (peripheral) interrupt via IRQROUTER claim/complete, IVT address = 0x8154
 	constant NUM_IRQ_SRCS			: natural := 121;						-- Peripheral IRQ SOURCES (deglitch/irq_router width; CLINT slots delivered per-hart)
-	constant NUM_IRQS				: natural := 121;						-- Core IVT slot count = max(sources, meip slot + 1) (M19; digperiphs #2)
+	constant NUM_IRQS				: natural := 121;						-- Core IVT slot count = max(sources, meip slot + 1)
 	constant NUM_GF_INSTANCES		: natural := (NUM_IRQ_SRCS + 31) / 32;	-- glitch-filter instance count
 
-	-- Core ISA Features (drive the hart_tile/vesta ENABLE_* generics; all four tiles identical)
+	-- Core ISA Features (drive the hart_tile/vesta ENABLE_* generics; every tile identical)
 	constant CORE_ENABLE_MUL		: boolean := true;						-- M: MUL/MULH/MULHU/MULHSU
 	constant CORE_ENABLE_DIV		: boolean := true;						-- M: DIV/DIVU/REM/REMU + the iterative divider
 	constant CORE_ENABLE_ATOMICS	: boolean := true;						-- A: LR/SC + AMOs (disabling breaks the mutex/lock infrastructure)
 	constant CORE_ENABLE_COMPRESSED	: boolean := true;						-- C: 16-bit instructions
 	constant CORE_ENABLE_BITMANIP	: boolean := true;						-- Zba/Zbb/Zbs/Zbc
-	constant CORE_ENABLE_ZICOND		: boolean := false;						-- X1: Zicond czero.eqz/nez
-	constant CORE_ENABLE_ZCB		: boolean := false;						-- X1: Zcb extra compressed insns
-	constant CORE_ENABLE_ZIMOP		: boolean := false;						-- X1: Zimop+Zcmop may-be-ops
-	constant CORE_ENABLE_ZIHINT		: boolean := false;						-- X1: Zihintpause+Zihintntl
-	constant CORE_ENABLE_ZIHPM		: boolean := false;						-- X1: Zihpm hw perf counters
-	constant CORE_ENABLE_ZAWRS		: boolean := false;						-- X1: Zawrs wait-on-reservation
-	constant CORE_ENABLE_ZABHA		: boolean := false;						-- X2: Zabha byte/half AMOs
-	constant CORE_ENABLE_ZACAS		: boolean := false;						-- X2: Zacas amocas.w
-	constant CORE_ENABLE_ZICBOZ		: boolean := false;						-- X3: Zicboz cbo.zero block-zero
-	constant CORE_ENABLE_ZCMP		: boolean := false;						-- X3: Zcmp push/pop + reg-moves
-	constant CORE_ENABLE_ZCMT		: boolean := false;						-- X3: Zcmt table jump + jvt CSR
-	constant CORE_ENABLE_ZBKB		: boolean := false;						-- X3: Zbkb crypto bit-manip
-	constant CORE_ENABLE_ZBKC		: boolean := false;						-- X3: Zbkc carryless multiply
-	constant CORE_ENABLE_ZBKX		: boolean := false;						-- X3: Zbkx crossbar permute
-	constant CORE_ENABLE_ZKN		: boolean := false;						-- X3: Zkn AES+SHA (Zknd+Zkne+Zknh)
-	constant CORE_ENABLE_ZFINX		: boolean := false;						-- X4: Zfinx single-prec FP in x-regs
-	constant CORE_ENABLE_TRAPCSR	: boolean := true;						-- P1: standard M-mode trap CSRs + MRET
-	constant CORE_ENABLE_UMODE		: boolean := false;						-- P2: U-mode (needs TRAPCSR)
-	constant CORE_ENABLE_PMP		: boolean := false;						-- P3: PMP / Smpmp (needs UMODE)
-	constant CORE_PMP_ENTRIES		: natural := 16;						-- P3: PMP entry count {8,16} (only with PMP)
-	constant CORE_ENABLE_DEBUG		: boolean := false;						-- D1: debug mode (dcsr/dpc/dscratch, dret, halt)
+	constant CORE_ENABLE_ZICOND		: boolean := false;						-- Zicond czero.eqz/nez
+	constant CORE_ENABLE_ZCB		: boolean := false;						-- Zcb extra compressed insns
+	constant CORE_ENABLE_ZIMOP		: boolean := false;						-- Zimop+Zcmop may-be-ops
+	constant CORE_ENABLE_ZIHINT		: boolean := false;						-- Zihintpause+Zihintntl
+	constant CORE_ENABLE_ZIHPM		: boolean := false;						-- Zihpm hw perf counters
+	constant CORE_ENABLE_ZAWRS		: boolean := false;						-- Zawrs wait-on-reservation
+	constant CORE_ENABLE_ZABHA		: boolean := false;						-- Zabha byte/half AMOs
+	constant CORE_ENABLE_ZACAS		: boolean := false;						-- Zacas amocas.w
+	constant CORE_ENABLE_ZICBOZ		: boolean := false;						-- Zicboz cbo.zero block-zero
+	constant CORE_ENABLE_ZCMP		: boolean := false;						-- Zcmp push/pop + reg-moves
+	constant CORE_ENABLE_ZCMT		: boolean := false;						-- Zcmt table jump + jvt CSR
+	constant CORE_ENABLE_ZBKB		: boolean := false;						-- Zbkb crypto bit-manip
+	constant CORE_ENABLE_ZBKC		: boolean := false;						-- Zbkc carryless multiply
+	constant CORE_ENABLE_ZBKX		: boolean := false;						-- Zbkx crossbar permute
+	constant CORE_ENABLE_ZKN		: boolean := false;						-- Zkn AES+SHA (Zknd+Zkne+Zknh)
+	constant CORE_ENABLE_ZFINX		: boolean := false;						-- Zfinx single-prec FP in x-regs
+	constant CORE_ENABLE_TRAPCSR	: boolean := true;						-- Standard M-mode trap CSRs + MRET
+	constant CORE_ENABLE_UMODE		: boolean := false;						-- U-mode (needs TRAPCSR)
+	constant CORE_ENABLE_PMP		: boolean := false;						-- PMP / Smpmp (needs UMODE)
+	constant CORE_PMP_ENTRIES		: natural := 16;						-- PMP entry count {8,16} (only with PMP)
+	constant CORE_ENABLE_DEBUG		: boolean := false;						-- Debug mode (dcsr/dpc/dscratch, dret, halt)
 
 	-- GPIO0 Pin Assignments (Serial Flash)
 	constant pnum_gpio0_cs_flash	: natural := 00;						-- P1.0

@@ -1,30 +1,11 @@
 -- =============================================================================
--- resv_unit.vhd  (M4b)
+-- resv_unit.vhd
 -- =============================================================================
--- GLOBAL LR/SC reservation table for the shared-RAM window.
--- Sits between mp_arbiter's slave port and the shared RAM, on the FREE-RUNNING mclk.
---
--- WHY (see ~/vesta_docs/multicore_plan.md M4): vesta's reservation is a LOCAL flop (vesta.vhd reservation_proc), correct for one hart and silently wrong for four.
--- Two harts SC-ing the same word both pass their LOCAL check before the arbiter serializes their writes, so both report success.
--- The success of an SC to SHARED memory must therefore be adjudicated HERE, in the arbiter's serialization order, at the moment the SC's write transaction is granted:
---   * a dead SC's write is SUPPRESSED (s_we masked to all-zero, so the slave sees a read), and
---   * the fail flag is returned to the master alongside the arbiter's done (the tile latches it like sh_rdata_reg and feeds the core's sc_fail_ext, which folds into the SC rd result).
---
--- Table semantics (per master i):
---   * an LR read txn that completes sets resv[i] to that addr and marks it valid.
---   * any master j's committed write kills resv[i] for ALL i /= j with a matching addr, because a foreign write between i's LR and SC must make i's SC fail.
---     A master's own non-SC write also kills its own reservation: conservative but spec-legal, since SC is allowed to fail spuriously.
---   * an adjudicated SC txn by i is allowed when valid(i) is set and the addr matches.
---     resv[i] is always cleared, since an SC consumes the reservation whether it succeeds or fails, and a COMMITTED SC write kills other masters' matching reservations like any other write.
---
--- TIMING (locked to mp_arbiter's IDLE, LATCH, DATA sequence):
---   * s_en/s_we/s_addr are registered by the arbiter in IDLE and are asserted and valid during the LATCH cycle; gnt(cur) is held, so cur is known.
---   * s_we_gated is COMBINATIONAL during that cycle (pure mclk-domain inputs, no feedback), so the slave commits or skips the write at the LATCH-to-DATA edge.
---   * the table update and the sc_fail(cur) register both land at that same LATCH-to-DATA edge, and the arbiter pulses done(cur) in the DATA cycle, so sc_fail(i) is stable one full mclk cycle BEFORE the master samples done.
---     sc_fail(i) holds its value until master i's next adjudicated SC; the tile-side latch clears itself when the core steps off the shared address.
---
--- lr_sc context (per master, 2 bits): "01" means this txn is an LR read, "10" means this txn is an SC write attempt, "00" means a plain access.
--- It is driven by the core and stable for the whole txn, because the issuing core is frozen, and it is gated by the master's req in the tile/MCU wiring.
+-- Global LR/SC reservation table for the shared-RAM window, between mp_arbiter's slave port and the shared RAM, on the free-running mclk.
+-- An SC to shared memory must be adjudicated here, in the arbiter's serialization order: a per-hart local reservation flop lets two harts pass their own check and both report success.
+-- A dead SC's write is suppressed (s_we masked to all-zero, so the slave sees a read) and its fail flag returns to the master alongside the arbiter's done, feeding the core's sc_fail_ext.
+-- An LR read places the reservation; an SC consumes it either way; any committed write kills every matching reservation, foreign ones because they must fail and the writer's own conservatively, which SC permits.
+-- lr_sc per master: "01" = LR read, "10" = SC write attempt, "00" = plain access, stable for the whole txn because the issuing core is frozen and it is gated by the master's req.
 -- =============================================================================
 
 library IEEE;
@@ -53,10 +34,8 @@ entity resv_unit is
         s_we_gated : out std_logic_vector(3 downto 0);  -- to the shared RAM
         sc_fail    : out std_logic_vector(N-1 downto 0); -- valid with done(i)
 
-        -- X1 Zawrs: per-master reservation-valid LEVEL.
-        -- Exposes the exact snoop the SC path already relies on, so a hart stalled in wrs.nto or wrs.sto can wake when a FOREIGN committed store kills its reservation and resv_valid(i) falls.
-        -- Registered on mclk here; the tile re-registers it across its depth-1 boundary alongside sc_fail, msip and mtip.
-        -- This is a pure observation port: it changes no adjudication logic, so LR/SC/AMO behaviour is unaffected.
+        -- Per-master reservation-valid level, the Zawrs wake source: a hart stalled in wrs.nto or wrs.sto wakes when a foreign committed store drops resv_valid(i).
+        -- Pure observation port, registered on mclk here and re-registered across the tile's depth-1 boundary alongside sc_fail, msip and mtip.
         resv_valid_o : out std_logic_vector(N-1 downto 0)
     );
 end entity;
@@ -100,12 +79,11 @@ begin
                   else '0';
 
     -- Write suppression: a dead SC's write must not commit.
-    -- This is combinational, which is safe because all inputs are mclk-domain registered arbiter outputs with no feedback.
+    -- Combinational is safe here because every input is a registered mclk-domain arbiter output with no feedback.
     s_we_gated <= (others => '0') when (cur_sc = '1' and sc_allowed = '0')
                   else s_we;
 
-    -- Reservation table and SC verdict, updated at the LATCH-to-DATA edge.
-    -- s_en is high for exactly the LATCH cycle.
+    -- Reservation table and SC verdict, updated at the LATCH-to-DATA edge; s_en is high for exactly the LATCH cycle.
     table: process(clk, resetn)
     begin
         if resetn = '0' then
@@ -144,9 +122,10 @@ begin
         end if;
     end process;
 
+    -- sc_fail(i) settles a full mclk before the master samples done(i) and holds until that master's next adjudicated SC.
     sc_fail <= sc_fail_r;
 
-    -- X1 Zawrs: expose the reservation-valid table as a level (Zawrs wake source).
+    -- Expose the reservation-valid table as a level.
     resv_valid_o <= resv_valid;
 
 end architecture;

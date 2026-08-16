@@ -40,20 +40,16 @@ architecture behavioral of serial_flash is
 	signal bitcount : natural range 0 to 8;
 	signal RXSr : std_logic_vector(7 downto 0);
 	signal TXSr : std_logic_vector(7 downto 0);
-	-- Power-state model of the AT45DB021E (DataFlash family).
-	-- The device is modeled as starting in deep power-down, forcing the boot code to issue a correctly framed ABh wake-up.
-	-- On the real chip the ABh (resume) and B9h (deep power-down) opcodes take effect only on the RISING edge of CSb after the opcode is shifted in, and the wake-up timer (tRDPD) starts at that CSb edge.
-	-- The pre-2026-07 model woke up as soon as the 8th bit of ABh arrived, which hid the CS-framing bug in the myshkin-2025-11 boot ROM.
+	-- Power-state model of the AT45DB021E (DataFlash family): the device starts in deep power-down, so boot code must issue a correctly framed ABh wake-up.
+	-- ABh (resume) and B9h (deep power-down) take effect only on the RISING edge of CSb after the opcode is shifted in, and the tRDPD wake-up timer starts at that CSb edge.
 	signal PowerOn : boolean := false;
 	signal WakePending : boolean := false;
 	signal SleepPending : boolean := false;
 	signal ReadyBit : std_logic := '0';
 begin
 
-	-- Maxx Seminario 05/19/2025: the rcf is re-read every time the flash is reset.
-	-- That does not reflect the physical flash chip; it is a simulation convenience.
-	-- The flash data image is read at the start of simulation and updated only once.
-	-- It expects the flash contents as binary ASCII strings, one word per line.
+	-- The rcf image is re-read on every flash reset: a simulation convenience, not physical-chip behaviour.
+	-- It expects the flash contents as binary ASCII strings, one 32-bit word per line.
 	read_file: process(mem_reset)
     file ROM_File : text;
     variable ROM_File_line : LINE;

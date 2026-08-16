@@ -1,15 +1,11 @@
 -- =============================================================================
--- fpu_simple.vhd  (X4 Zfinx, Stage 2a)
+-- fpu_simple.vhd
 -- =============================================================================
--- PURE-COMBINATIONAL single-cycle FP block (gatekeeper correction C2).
--- Ops (fp_s_op[3:0], correction C3):
---   0 FSGNJ  1 FSGNJN  2 FSGNJX  3 FEQ  4 FLT  5 FLE  6 FMIN  7 FMAX  8 FCLASS
---
--- Fed LIVE rd1/rd2 in EXECUTE and consumed the same cycle, before writeback.
+-- Pure-combinational single-cycle Zfinx FP block, fed live rd1/rd2 in EXECUTE and consumed the same cycle, before writeback.
+-- Ops (fp_s_op[3:0]): 0 FSGNJ  1 FSGNJN  2 FSGNJX  3 FEQ  4 FLT  5 FLE  6 FMIN  7 FMAX  8 FCLASS.
 -- Sets no flags for fsgnj* and fclass; NV only for feq(sNaN), flt and fle (any NaN), and fmin and fmax (sNaN).
--- All single-precision, no NaN-boxing (RV32 plus single precision fills the whole register).
--- Compile is -V200X, so no VHDL-2008.
--- Stage 3 unifies the op constants into constants.vhd; they are declared locally here and the VALUES must stay the same.
+-- All single-precision, no NaN-boxing: on RV32 a single-precision value fills the whole register.
+-- The op constants are declared locally here and their values must match the decoder's encoding.
 -- =============================================================================
 library IEEE;
 use IEEE.STD_LOGIC_1164.all;

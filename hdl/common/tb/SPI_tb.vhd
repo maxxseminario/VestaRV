@@ -1,17 +1,9 @@
 -------------------------------------------------------------------------------
--- SPI_tb.vhd
--------------------------------------------------------------------------------
--- Standalone, self-checking testbench for the SPI peripheral (hdl/myshkin/periph/SPI.vhd) in its BASE configuration (ENABLE_EXTENDED_MEM = false).
--- The SPI-flash extended-memory path is intentionally NOT exercised here; the flash ports are tied off inactive.
---
--- Uses the shared support packages: tb/periph_tb_pkg.vhd (scoreboard and register-bus BFM) and tb/spi_bfm_pkg.vhd (external-master byte driver).
---
--- Coverage: register R/W, master-mode transfers at 8/16/32-bit lengths verified by MISO-driven-from-MOSI loopback, MSB-first and LSB-first ordering, CPOL idle level, busy/TC/TE flags with their interrupt lines and clear paths, and a basic slave-mode receive.
---
--- Clocking: one free-running clock (smclk) drives both the SPI core (port clk) and the gated register bus (clk_mem = smclk while en_mem='0').
---
--- Bus contract: en_mem is active-low, wen is active-low per byte lane, and SR/RX read a snapshot latched on the falling edge of en_mem.
--- Reading the RX slot also clears the transmit-complete flag.
+-- SPI_tb.vhd: standalone self-checking testbench for the SPI peripheral in its base configuration (ENABLE_EXTENDED_MEM = false), with the flash-side ports tied off inactive.
+-- Coverage: register read/write, master transfers at 8/16/32 bits checked by MISO-driven-from-MOSI loopback, MSB-first and LSB-first ordering, CPOL idle level, busy/TC/TE flags with their interrupt lines and clear paths, and a basic slave-mode receive.
+-- Support packages: periph_tb_pkg (scoreboard and register-bus BFM) and spi_bfm_pkg (external-master byte driver).
+-- One free-running smclk drives both the SPI core and the gated register bus (clk_mem is smclk while en_mem is low).
+-- Bus contract: en_mem and the per-lane wen are active-low, SR and RX return a snapshot latched on the falling edge of en_mem, and reading RX also clears the transmit-complete flag.
 -------------------------------------------------------------------------------
 
 library ieee;
@@ -138,7 +130,6 @@ begin
     begin
         ----------------------------------------------------------------
         -- Reset
-        ----------------------------------------------------------------
         resetn <= '0';
         pbus   <= PERIPH_BUS_IDLE;
         spie   <= SPI_EXT_MASTER_IDLE;
@@ -151,7 +142,6 @@ begin
 
         ----------------------------------------------------------------
         -- GROUP 1: reset / defaults / pad directions
-        ----------------------------------------------------------------
         report "=== GROUP 1: reset & defaults ===" severity note;
 
         bus_read(smclk, pbus, read_data, RegSlotSPIxCR, rdw);
@@ -176,7 +166,6 @@ begin
 
         ----------------------------------------------------------------
         -- GROUP 2: control register read/write
-        ----------------------------------------------------------------
         report "=== GROUP 2: control register ===" severity note;
 
         bus_write(smclk, pbus, RegSlotSPIxCR, x"000ABCDE");
@@ -187,7 +176,6 @@ begin
 
         ----------------------------------------------------------------
         -- GROUP 3: master 8-bit transfer (loopback)
-        ----------------------------------------------------------------
         report "=== GROUP 3: master 8-bit ===" severity note;
 
         mloop <= '1';
@@ -210,7 +198,6 @@ begin
 
         ----------------------------------------------------------------
         -- GROUP 4: master 16-bit and 32-bit transfers (loopback)
-        ----------------------------------------------------------------
         report "=== GROUP 4: master 16/32-bit ===" severity note;
 
         bus_write(smclk, pbus, RegSlotSPIxCR, x"00000084");   -- 16-bit
@@ -227,7 +214,6 @@ begin
 
         ----------------------------------------------------------------
         -- GROUP 5: MSB-first ordering (loopback should still echo)
-        ----------------------------------------------------------------
         report "=== GROUP 5: MSB-first ===" severity note;
 
         bus_write(smclk, pbus, RegSlotSPIxCR, x"000000C0");   -- en, master, 8-bit, MSB-first
@@ -238,7 +224,6 @@ begin
 
         ----------------------------------------------------------------
         -- GROUP 6: CPOL idle level
-        ----------------------------------------------------------------
         report "=== GROUP 6: CPOL ===" severity note;
 
         bus_write(smclk, pbus, RegSlotSPIxCR, x"00000082");   -- en, master, CPOL=1
@@ -250,7 +235,6 @@ begin
 
         ----------------------------------------------------------------
         -- GROUP 7: interrupt lines + flag clearing
-        ----------------------------------------------------------------
         report "=== GROUP 7: interrupts ===" severity note;
 
         bus_write(smclk, pbus, RegSlotSPIxCR, x"000000B0");   -- en, master, 8-bit, TCIE+TEIE
@@ -272,7 +256,6 @@ begin
 
         ----------------------------------------------------------------
         -- GROUP 8: slave-mode receive
-        ----------------------------------------------------------------
         report "=== GROUP 8: slave receive ===" severity note;
 
         cs_in <= '1';
@@ -299,7 +282,6 @@ begin
 
         ----------------------------------------------------------------
         -- Final verdict
-        ----------------------------------------------------------------
         wait for 1 us;
         sb.report_summary("SPI TB");
         stop;

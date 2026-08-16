@@ -1,32 +1,11 @@
 -- =============================================================================
--- orch_tile.vhd  (CP2: Castalia-Penta orchestrator hart wrapper, renumbered to HART 0 at CPR3/R2)
+-- orch_tile.vhd: the orchestrator hart (hart 0), a thin wrapper around hart_tile.
 -- =============================================================================
--- A THIN WRAPPER around hart_tile: same generics, same ports, and an architecture that is a single bare instantiation of `entity work.hart_tile`.
--- It adds NO logic, NO registers and NO wiring difference: behaviourally an orch_tile IS a hart_tile and a behavioural simulation cannot tell them apart.
--- That is the point, because the orchestrator is ISA-identical and config-identical to the tiles (CP1 decision D5).
---
--- CPR3/R2 RENUMBER: the orchestrator is HART 0 and the channel tiles are harts 1 to numHarts-1.
--- Nothing in this file depends on the index, and it never had one, but every sentence below that says "the corner harts" now means harts 1-4 rather than 0-3, and the instance MCU.vhd binds to this entity is `hart0`.
---
--- WHY IT EXISTS AT ALL (CP1 decision D6): it is a MODULE-NAMESPACE device, not an RTL feature.
---
---   The four corner harts are a HARDENED MACRO.
---   `genus/hart_tile` elaborates hart_tile once and the resulting netlist (hart_tile.genus.v) is the one physical tile placed four times; the assembly flow reads that netlist and the strip step deletes exactly the modules it names, from a module list extracted out of that same file.
---   The orchestrator is the OPPOSITE kind of object: SOFT logic, flat-synthesized into the centre band of the same die, from the SAME source RTL.
---
---   Elaborating that soft copy as `hart_tile` would emit a second netlist whose module names (hart_tile, vesta, adddec, ...) collide with the hardened tile's, and the collision is load-bearing in two places at once.
---   (a) The strip script's module list would match the orchestrator's subtree and delete it out of the flat P&R netlist.
---   (b) A gate simulation would see two different definitions of the same module name.
---   Giving the soft core its own TOP entity gives it its own genus block (genus/orch_tile), which elaborates `orch_tile` and prefix-renames every module below the top, so vesta becomes orch_vesta and so on.
---   The invariant CP4 must preserve: NO module name is shared between the tile netlist and the orchestrator netlist, and the flat netlist retains the orchestrator subtree after the strip step.
---
--- So nothing here is for simulation, and nothing here may grow logic.
--- A future orchestrator-only feature such as a bigger TCM or a different reset belongs in hart_tile behind a generic; this file stays a bare pass-through so the two netlists keep sharing ONE source of truth.
---
--- POWER/RESET SHAPE (CP1 decision D2, enforced by the GENERATOR, not here): the orchestrator is ALWAYS-ON.
--- There is no chip-level power intent in the centre band (the MTCMOS headers exist only inside the hardened tile), so a gateable-in-RTL orchestrator would be a hardware lie of exactly the hw_clint_en class.
--- MCU.vhd therefore wires this instance the way it wires hart 0: resetn is resetn and pgood_rstn, no pwr_ctrl row, no isolation clamps, sh_* straight into its arbiter master slice, pd_sleep and pd_iso_en strapped '0', tcm_pgen '0', tcm_retn '1'.
--- The pd_* ports below exist only because the port list is hart_tile's; they are inert on this instance.
+-- The architecture is one bare `entity work.hart_tile` instance with the same generics and ports and no added logic, so an orch_tile is behaviourally a hart_tile.
+-- It exists as a module-namespace device: the channel tiles are placed from one hardened netlist while the orchestrator is soft logic synthesized from the same RTL, and its own top entity prefix-renames every module below it.
+-- No module name may be shared between the two netlists: a collision lets the strip step delete the orchestrator subtree out of the flat netlist and gives a gate simulation two definitions of one module.
+-- Never add logic here; an orchestrator-only feature belongs in hart_tile behind a generic so both netlists keep one source of truth.
+-- The orchestrator is ALWAYS-ON: there is no power intent in the centre band, so pd_sleep, pd_iso_en and tcm_pgen are inert on this instance.
 -- =============================================================================
 
 library IEEE;
@@ -41,9 +20,9 @@ use work.MemoryMap.all;      -- NUM_IRQS
 entity orch_tile is
     generic (
         -- EXACTLY hart_tile's generics, in hart_tile's order, with hart_tile's defaults.
-        -- Any divergence here is a silent configuration split between the orchestrator and the tiles (the F-K7-4 shape), so this list is transcribed, never "tidied".
+        -- Any divergence is a silent configuration split between the orchestrator and the tiles, so transcribe this list, never tidy it.
         PC_RST_VAL     : std_logic_vector(31 downto 0) := x"00000000";
-        SH_AW          : natural := 16;   -- CPR8/R6: tracks hart_tile's default, which moved from 15 to 16.
+        SH_AW          : natural := 16;   -- Tracks hart_tile's default.
 
         ENABLE_MUL        : boolean := true;
         ENABLE_DIV        : boolean := true;
@@ -66,11 +45,11 @@ entity orch_tile is
         ENABLE_ZBKX       : boolean := false;
         ENABLE_ZKN        : boolean := false;
         ENABLE_ZFINX      : boolean := false;
-        ENABLE_TRAPCSR    : boolean := true;   -- Tracks hart_tile's default (K7/R-DK3).
+        ENABLE_TRAPCSR    : boolean := true;   -- Tracks hart_tile's default.
         ENABLE_UMODE      : boolean := false;
         ENABLE_PMP        : boolean := false;
         PMP_ENTRIES       : integer := 16;
-        -- DEFAULT FALSE, for hart_tile's reason verbatim: a debug interface inherited by an omitted generic is an area and attack-surface surprise, not a convenience (method rule 15).
+        -- Default FALSE, as in hart_tile: a debug interface inherited by an omitted generic is an area and attack-surface surprise, not a convenience.
         ENABLE_DEBUG      : boolean := false;
         DEBUG_ENTRY_ADDR  : std_logic_vector(31 downto 0) := x"0000BE00"
     );
@@ -90,8 +69,7 @@ entity orch_tile is
         dbg_resethaltreq : in  std_logic := '0';
         dbg_halted       : out std_logic;
 
-        -- Extended-flash / XIP port.
-        -- The flash quartet is physically wired to hart 0's tile (CP1 D3: boot mastership does not move), so these are left open or at their defaults on the orchestrator.
+        -- Extended-flash / XIP port; the flash quartet is wired to the boot tile, so these stay open or at their defaults here.
         flash_mem_en  : out std_logic;
         flash_clk_mem : out std_logic;
         flash_mab     : out std_logic_vector(31 downto 0);
@@ -110,14 +88,12 @@ entity orch_tile is
         sh_resv_valid : in std_logic := '1';
         sh_lock   : out std_logic;
 
-        -- Own 16 KiB TCM, never gated (D2): tcm_pgen is '0' and tcm_retn is '1'.
+        -- Own 16 KiB TCM, never gated: tcm_pgen is '0' and tcm_retn is '1'.
         tcm_pgen  : in  std_logic := '0';
         tcm_retn  : in  std_logic := '1';
 
-        -- CPR3/R3: the READ-ONLY external TCM slave port, passed straight through to hart_tile (CPR2 R4).
-        -- The orchestrator's own TCM gets an aperture like every other hart's, 0x20000 being the h=0 window, so the indexing stays uniform.
-        -- R4-A2 names this instance as the one aperture that is never gated: no power domain, no clamp, no zero-completion bypass.
-        -- Same defaults as hart_tile's declaration, so an instantiation that does not name these ports is unchanged.
+        -- Read-only external TCM slave port, passed straight through to hart_tile; the orchestrator's TCM gets the h=0 aperture at 0x20000 so the indexing stays uniform.
+        -- This is the one aperture that is never gated: no power domain, no clamp, no zero-completion bypass. Defaults match hart_tile's declaration.
         tcm_ext_req   : in  std_logic := '0';
         tcm_ext_addr  : in  std_logic_vector(11 downto 0) := (others => '0');
         tcm_ext_rdata : out std_logic_vector(31 downto 0);
@@ -136,7 +112,7 @@ architecture behav of orch_tile is
 begin
 
     -- The whole architecture: ONE hart_tile, with every generic and every port passed straight through.
-    -- No logic may be added between these two entities (see the header), because a difference here would be a difference between the orchestrator and the tiles that no test could see.
+    -- No logic may be added between these two entities: a difference here is a difference between the orchestrator and the tiles that no test can see.
     tile: entity work.hart_tile
         generic map (
             PC_RST_VAL        => PC_RST_VAL,

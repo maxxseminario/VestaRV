@@ -1,23 +1,8 @@
--------------------------------------------------------------------------------
--- EVFAB_tb.vhd
--------------------------------------------------------------------------------
--- Standalone, self-checking testbench for the EVFAB0 event/trigger fabric (hdl/common/periph/EVFAB.vhd).
--- The DUT is written against the FROZEN design ~/vesta_docs/digperiphs/event_fabric_design.md, D1-D25 plus the FABLE ADJUDICATION rulings.
--- The DUT is declared as a COMPONENT rather than an entity instantiation, so this bench compiles standalone with xmvhdl whether or not EVFAB.vhd has landed yet.
--- VHDL default binding resolves it once EVFAB.vhd is analyzed into work.
--- Structurally mirrors TRNG_tb.vhd and OneWire_tb.vhd: periph_tb_pkg scoreboard plus register-bus BFM, one clk family, named GROUPS, mandatory G-NEG last.
---
--- Uses tb/periph_tb_pkg.vhd (shared scoreboard and register-bus BFM) and tb/evfab_bfm_pkg.vhd (slot/CR/SR/CAP/CHnCFG constants, evfab_mk_cfg, evfab_settle, bounded polls, and the TB SHADOW MODEL).
--- See that package's header for the checker-independence and call-timing contracts.
---
--- ONE clock family (design doc D1/D2): `clk`, bound to MCLK at integration, hosts the whole fabric (front-end, crossbar, output register, stickies, ACTION path).
--- `ClkMem` is the gated bus clock, driven `clk when pbus.en_mem='0' else '0'` exactly like every other bench in this library.
--- The bench's stricter gated-ClkMem model is deliberate (the design doc's FABLE ADJUDICATION note): it is the harder case for G9's autonomy leg, and integration's raw free-running ClkMem is a strict superset of edges.
---
--- Generics bound at the DUT instantiation are the v1 defaults verbatim (D6): EV_MODE_TGL=x"00000370" (EV4/5/6/8/9 = T), EV_MODE_LVL=x"00002000" (EV13 = L), everything else P.
--- evfab_bfm_pkg's EVFAB_MODE_TGL/LVL constants are an INDEPENDENT copy of the same literals, for checker independence.
--- If the generics here are ever changed, that package's copies must change with them or the mode-dependent stimulus and latency checks below silently stop matching the DUT.
--------------------------------------------------------------------------------
+-- EVFAB_tb.vhd: standalone, self-checking testbench for the EVFAB0 event/trigger fabric.
+-- The DUT is declared as a COMPONENT rather than an entity instantiation, so this bench compiles standalone; default binding resolves it once EVFAB.vhd is analyzed into work.
+-- Uses periph_tb_pkg (scoreboard and register-bus BFM) and evfab_bfm_pkg (slot/register constants, evfab_mk_cfg, evfab_settle, bounded polls and the independent TB SHADOW MODEL).
+-- ONE clock family: `clk` hosts the whole fabric, while `ClkMem` is the gated bus clock driven `clk when pbus.en_mem='0' else '0'`, the harder case for the autonomy leg since integration's free-running ClkMem is a strict superset of edges.
+-- The DUT generics are the v1 defaults, of which EV_MODE_TGL/LVL are copied INDEPENDENTLY in evfab_bfm_pkg: change one without the other and the mode-dependent stimulus and latency checks silently stop matching the DUT.
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -31,9 +16,9 @@ end entity EVFAB_tb;
 
 architecture sim of EVFAB_tb is
 
-    constant PERIOD : time := 20 ns;   -- clk reference (D1: free-running mclk)
+    constant PERIOD : time := 20 ns;   -- clk reference, the free-running mclk
 
-    -- FROZEN DUT entity (design doc D6), declared as a component so the bench compiles standalone whether or not EVFAB.vhd has been analyzed.
+    -- DUT entity, declared as a component so the bench compiles standalone whether or not EVFAB.vhd has been analyzed.
     component EVFAB is
         generic (
             N_CH        : natural := 8;
@@ -69,14 +54,14 @@ architecture sim of EVFAB_tb is
     signal ClkMem : std_logic := '0';
     signal resetn : std_logic := '0';
 
-    -- Interrupt: vectorless in v1 (D20), so constant '0'.
+    -- Interrupt: vectorless in v1, so constant '0'.
     signal irq_evfab : std_logic;
 
     -- Register bus: the BFM record plus the observed rdata_out.
     signal pbus      : periph_bus_t := PERIPH_BUS_IDLE;
     signal rdata_out : std_logic_vector(31 downto 0);
 
-    -- Producer and consumer interconnect (D6).
+    -- Producer and consumer interconnect.
     signal ev_in      : std_logic_vector(EVFAB_N_EV-1 downto 0)   := (others => '0');
     signal gpio0_evin  : std_logic_vector(7 downto 0)              := (others => '0');
     signal task_busy   : std_logic_vector(EVFAB_N_TASK-1 downto 0) := (others => '0');
@@ -86,13 +71,12 @@ architecture sim of EVFAB_tb is
 
     shared variable sb : scoreboard;
 
-    -- G9 leg 2 (gated-ClkMem autonomy): a free-running edge counter on ClkMem.
-    -- It is sampled before and after the frozen-bus window so the "no edges at all" claim is a real observation, not an assumption from never calling bus_read/bus_write during the window.
+    -- Free-running edge counter on ClkMem, sampled before and after the frozen-bus window so the no-edges-at-all claim is a real observation and not an assumption from making no bus access.
     signal clkmem_edge_count : natural := 0;
 
 begin
 
-    -- Counts every ClkMem rising edge for the G9 leg-2 negative control.
+    -- Counts every ClkMem rising edge for the frozen-bus negative control.
     clkmem_monitor : process(ClkMem)
     begin
         if rising_edge(ClkMem) then
@@ -101,14 +85,12 @@ begin
     end process;
 
     ----------------------------------------------------------------------------
-    -- Clock and gated register-bus clock (D1/D2; mirrors every other bench).
-    ----------------------------------------------------------------------------
+    -- Clock and gated register-bus clock.
     clk    <= not clk after PERIOD / 2;
     ClkMem <= clk when pbus.en_mem = '0' else '0';
 
     ----------------------------------------------------------------------------
-    -- DUT, with the generics set to the v1 defaults verbatim (D6).
-    ----------------------------------------------------------------------------
+    -- DUT, with the generics set to the v1 defaults.
     dut : component EVFAB
         generic map (
             N_CH        => 8,
@@ -137,7 +119,6 @@ begin
 
     ----------------------------------------------------------------------------
     -- Watchdog: abort with a FAIL banner if the stimulus ever hangs.
-    ----------------------------------------------------------------------------
     watchdog : process
     begin
         wait for 60 ms;
@@ -154,7 +135,6 @@ begin
 
     ----------------------------------------------------------------------------
     -- Stimulus: every group runs here in sequence, G-NEG last.
-    ----------------------------------------------------------------------------
     stim_proc : process
         variable rdw, exp : std_logic_vector(31 downto 0);
         variable ok       : boolean;
@@ -163,11 +143,11 @@ begin
         variable g9_mismatches : natural := 0;
         variable pulse_cnt : natural := 0;
 
-        -- Shadow-model state, used by G5 and G9 leg 2.
+        -- Shadow-model state, used by the randomized and frozen-bus groups.
         variable sh     : evfab_shadow_t;
         variable tp_exp : std_logic_vector(EVFAB_N_TASK-1 downto 0);
 
-        -- G5 pseudo-random stream state.
+        -- Pseudo-random stream state.
         variable lfsr24 : std_logic_vector(23 downto 0) := x"ACE1A5";
         type nat_ch_arr_t is array (0 to EVFAB_N_CH-1) of natural;
         variable g5_evsel, g5_tasksel     : nat_ch_arr_t;
@@ -187,7 +167,6 @@ begin
 
         ------------------------------------------------------------------
         -- Generic wait for n clk rising edges.
-        ------------------------------------------------------------------
         procedure wait_n(n : natural) is
         begin
             for i in 1 to n loop
@@ -195,12 +174,8 @@ begin
             end loop;
         end procedure;
 
-        ------------------------------------------------------------------
-        -- Mode-aware event driving (D9).
-        -- `ev_lat` returns the design doc's worked latency from diagrams A and B: 1 clk for P, 3 for T and L.
-        -- `drive_event` performs the reference-edge then fire sequence for one canonical event.
-        -- `clear_event` un-asserts a P-mode pulse; T, L and GPIO drives self-clear or are left for the NEXT call's own settle (see evfab_bfm_pkg's header).
-        ------------------------------------------------------------------
+        -- Mode-aware event driving: `ev_lat` is the worked latency, 1 clk for P and 3 for T and L, and `drive_event` performs the reference-edge then fire sequence for one event.
+        -- `clear_event` un-asserts a P-mode pulse; T, L and GPIO drives self-clear or are left for the NEXT call's own settle.
         function ev_lat(e : natural) return natural is
         begin
             if evfab_ev_is_tgl(e) or evfab_ev_is_lvl(e) then
@@ -248,18 +223,9 @@ begin
             gpio0_evin(g) <= '0';
         end procedure;
 
-        ------------------------------------------------------------------
-        -- SAMPLE-POINT CONTRACT, the one thing every task_pulse check in this bench depends on.
-        -- `wait until clk = '1'` resumes this process in the SAME delta cycle in which clk changed, i.e. BEFORE the DUT's own rising-edge processes have applied their scheduled updates.
-        -- A registered DUT output read right after that wait therefore still carries its PRE-edge value.
-        -- The design doc's worked timing diagrams A and B count CYCLES (a value shown in Ck lives between edge k and edge k+1), so the edge at which a pulse becomes OBSERVABLE here is ONE later than the doc's latency number.
-        -- P-mode latency 1 is observed at edge 2, T and L latency 3 at edge 4.
-        -- evfab_bfm_pkg's shadow model already encodes exactly this via its `raw_prev` lag, which is why G5 and G9-2 compare cleanly cycle-for-cycle.
-        --
-        -- fire_event and fire_gpio fire one event and leave the stimulus process parked ON that observation edge.
-        -- They deassert a P-mode drive at the doc's latency edge, keeping the input a ONE-clk pulse per the D9 producer contract, and then take one more edge.
-        -- T, L and GPIO drives self-clear or are level-held, so their clear is a no-op.
-        ------------------------------------------------------------------
+        -- SAMPLE-POINT CONTRACT, which every task_pulse check in this bench depends on: `wait until clk = '1'` resumes in the SAME delta cycle as the edge, BEFORE the DUT applies its scheduled updates, so a registered output read right after it still carries its PRE-edge value.
+        -- The edge at which a pulse becomes OBSERVABLE here is therefore ONE later than the worked latency number: P latency 1 is observed at edge 2, T and L latency 3 at edge 4, and evfab_bfm_pkg's shadow model encodes the same lag.
+        -- fire_event and fire_gpio fire one event and leave this process parked ON that observation edge, deasserting a P-mode drive at the latency edge to keep the input a ONE-clk pulse; T, L and GPIO clears are no-ops.
         procedure fire_event(e : natural) is
         begin
             drive_event(e);
@@ -278,7 +244,6 @@ begin
 
         ------------------------------------------------------------------
         -- Register-bus write helpers: thin wrappers over periph_tb_pkg's bus_write that pack each field into the right lane.
-        ------------------------------------------------------------------
         procedure w_cr(en : std_logic) is
             variable v : std_logic_vector(31 downto 0) := (others => '0');
         begin
@@ -355,10 +320,8 @@ begin
             bus_write(clk, pbus, EVFAB_SLOT_EVSTAT, v);
         end procedure;
 
-        ------------------------------------------------------------------
-        -- Full chip-reset pulse, reusable between independent groups (the TRNG precedent).
+        -- Full chip-reset pulse, reusable between independent groups.
         -- It also re-idles every producer-side signal and resets the shadow model, so no group leaks state into the next.
-        ------------------------------------------------------------------
         procedure do_reset is
         begin
             resetn     <= '0';
@@ -373,18 +336,15 @@ begin
             evfab_shadow_reset(sh);
         end procedure;
 
-        ------------------------------------------------------------------
-        -- G1 sweep helper: program channel `ch` to {e,t}, fire the event in its own mode, and check that task_pulse(t) asserts at the exact D5/D9 worked latency.
+        -- Sweep helper: program channel `ch` to {e,t}, fire the event in its own mode, and check that task_pulse(t) asserts at the exact worked latency.
         -- The pulse must appear on that one task line only, and be exactly one clk wide.
-        ------------------------------------------------------------------
         procedure g1_check(e : natural; t : natural; ch : natural) is
             variable lat : natural;
         begin
             w_cfg(ch, e, t);
             evfab_settle(clk);
 
-            -- fire_event and fire_gpio park us ON the observation edge (see the SAMPLE-POINT CONTRACT above).
-            -- `lat` is still the design doc's worked latency, which is what the check text reports.
+            -- fire_event and fire_gpio park us ON the observation edge; `lat` stays the worked latency, which is what the check text reports.
             if e = EVFAB_EV_GPIO_IDX then
                 lat := 3;
                 fire_gpio(0);
@@ -411,10 +371,8 @@ begin
                          to_X01(task_pulse(t)), '0');
         end procedure;
 
-        ------------------------------------------------------------------
-        -- G7 out-of-range helper: sweep every real ev_in-reachable event (0 to 14) against a channel config that structurally can never match, i.e. an out-of-range EVSEL.
+        -- Out-of-range helper: sweep every ev_in-reachable event (0 to 14) against a channel config that structurally can never match, i.e. an out-of-range EVSEL.
         -- task_pulse(t) must stay low throughout.
-        ------------------------------------------------------------------
         procedure check_no_fire_all_events(t : natural) is
         begin
             for e in 0 to EVFAB_N_EV - 2 loop
@@ -427,14 +385,10 @@ begin
         end procedure;
 
     begin
-        ------------------------------------------------------------------
         -- Reset before the first group.
-        ------------------------------------------------------------------
         do_reset;
         report "=== EVFAB_TB start ===" severity note;
 
-        ------------------------------------------------------------------
-        -- GROUP G0: reset / CAP / inertness
         ------------------------------------------------------------------
         report "=== GROUP G0: reset / CAP / inertness ===" severity note;
 
@@ -495,10 +449,9 @@ begin
         bus_read(clk, pbus, rdata_out, EVFAB_SLOT_IE, rdw);
         sb.check_slv("G0: IE (reserved slot 2) write ignored, reads 0", rdw, x"00000000");
 
-        -- With EN=0 and CHEN=0, still the reset defaults, pulse EVERY ev_in and gpio0_evin bit.
-        -- task_pulse, FIRED and OVR must stay 0 (the D13 double gate), but EVSTAT records every ev_in-reachable event (the D14 ungated-tap property).
-        -- The GPIO0 path stays fully inert because EVGPIOMASK=0 absorbs it (D10 reset note).
-        for e in 0 to EVFAB_N_EV - 2 loop   -- 0 to 14; ev_in(15) is ignored (D10)
+        -- With EN=0 and CHEN=0, pulse EVERY ev_in and gpio0_evin bit: task_pulse, FIRED and OVR must stay 0 behind the double gate, but the ungated tap still records every ev_in-reachable event in EVSTAT.
+        -- The GPIO0 path stays fully inert because EVGPIOMASK=0 absorbs it.
+        for e in 0 to EVFAB_N_EV - 2 loop   -- 0 to 14; ev_in(15) is ignored
             drive_event(e);
             wait_n(ev_lat(e));
             clear_event(e);
@@ -525,8 +478,6 @@ begin
         w1c_evstat("1111111111111111");   -- clear EVSTAT so the next group starts clean
 
         ------------------------------------------------------------------
-        -- GROUP G1: pulse integrity + latency, full EV x TASK sweep
-        ------------------------------------------------------------------
         report "=== GROUP G1: pulse integrity + latency, full EV x TASK sweep ===" severity note;
         w_cr('1');
         w_gpiomask("00000001");     -- enable GPIO0 bit0 for the e=15 sweep legs
@@ -548,8 +499,6 @@ begin
         g1_check(13, 6, 7);
         g1_check(15, 9, 7);
 
-        ------------------------------------------------------------------
-        -- GROUP G2: enable gating both ways + CHENSET/CHENCLR neighbour-safety
         ------------------------------------------------------------------
         report "=== GROUP G2: enable gating both ways + CHENSET/CHENCLR ===" severity note;
         do_reset;
@@ -630,8 +579,6 @@ begin
         sb.check_bit("G2: CH5CFG.ENR mirrors CHEN(5)=0", to_X01(rdw(EVFAB_CHCFG_ENR)), '0');
 
         ------------------------------------------------------------------
-        -- GROUP G3: fan-out same cycle
-        ------------------------------------------------------------------
         report "=== GROUP G3: fan-out same cycle ===" severity note;
         do_reset;
         w_cr('1');
@@ -681,8 +628,6 @@ begin
         wait_n(1);
         w1c_fired("11111111");
 
-        ------------------------------------------------------------------
-        -- GROUP G4: same-task OR-merge + staggered
         ------------------------------------------------------------------
         report "=== GROUP G4: same-task OR-merge + staggered ===" severity note;
         do_reset;
@@ -760,8 +705,6 @@ begin
         w1c_fired("00000001");
 
         ------------------------------------------------------------------
-        -- GROUP G5: back-to-back N-for-N (shadow model)
-        ------------------------------------------------------------------
         report "=== GROUP G5: back-to-back N-for-N (shadow model) ===" severity note;
         do_reset;
         g5_mismatches := 0;
@@ -831,15 +774,13 @@ begin
                      rdw(EVFAB_N_EV - 1 downto 0), sh.evstat);
 
         ------------------------------------------------------------------
-        -- GROUP G6: CHTRIG / EVTRIG + held-write = exactly one
-        ------------------------------------------------------------------
         report "=== GROUP G6: CHTRIG / EVTRIG + held-write = exactly one ===" severity note;
         do_reset;
         w_cr('1');
         w_cfg(0, 31, 2);   -- CH0: EVSEL=31 (NONE), so only CHTRIG can fire it
         w_chen("00000001");
 
-        -- CHTRIG bit0 gives one pulse and sets FIRED (D16).
+        -- CHTRIG bit0 gives one pulse and sets FIRED.
         w_chtrig("00000001");
         evfab_wait_task_pulse(clk, task_pulse, 2, EVFAB_PULSE_GUARD, cyc, ok);
         sb.check_true("G6: CHTRIG(0) produces a task_pulse (bounded)", ok);
@@ -851,7 +792,7 @@ begin
         sb.check_slv("G6: CHTRIG reads 0", rdw, x"00000000");
         w1c_fired("00000001");
 
-        -- CHTRIG to a disabled channel does nothing (D16).
+        -- CHTRIG to a disabled channel does nothing.
         w_chen("00000000");
         w_chtrig("00000001");
         evfab_wait_task_pulse(clk, task_pulse, 2, 20, cyc, ok);
@@ -882,7 +823,7 @@ begin
         w1c_evstat("0000000010000000");
         w1c_fired("00000011");
 
-        -- A held write is exactly one injection (diagram C).
+        -- A held write is exactly one injection.
         w_chen("00000001");
         bus_write_hold(clk, pbus, EVFAB_SLOT_CHTRIG, x"00000001", 3);
         evfab_wait_task_pulse(clk, task_pulse, 3, EVFAB_PULSE_GUARD, cyc, ok);
@@ -891,9 +832,8 @@ begin
         sb.check_true("G6: held CHTRIG write did NOT re-fire (only one injection)", not ok);
         w1c_fired("00000001");
 
-        -- Held EVTRIG, 5 cycles.
-        -- The injection lands INSIDE the hold window (design doc diagram C: the action applies on the 3rd edge of the window), so a post-hoc bounded wait would MISS it entirely and then correctly report "no pulse".
-        -- Count task_pulse assertions across the whole window plus a tail instead, which is strictly stronger than "one, then none": it proves EXACTLY ONE injection.
+        -- Held EVTRIG, 5 cycles: the injection lands INSIDE the hold window, on its 3rd edge, so a post-hoc bounded wait would MISS it entirely and then correctly report no pulse.
+        -- Counting task_pulse assertions across the whole window plus a tail instead proves EXACTLY ONE injection, which is strictly stronger than one-then-none.
         w_chen("00000011");
         pulse_cnt := 0;
         wait until clk = '0';
@@ -919,7 +859,7 @@ begin
         w1c_fired("00000011");
         w1c_evstat("0000000010000000");
 
-        -- Two CHTRIG writes in consecutive, separate accesses give two pulses: the re-arm property (D2.2).
+        -- Two CHTRIG writes in consecutive, separate accesses give two pulses: the re-arm property.
         w_chen("00000001");
         w_chtrig("00000001");
         evfab_wait_task_pulse(clk, task_pulse, 3, EVFAB_PULSE_GUARD, cyc, ok);
@@ -931,8 +871,7 @@ begin
         sb.check_bit("G6: FIRED(0) set after the two-write re-arm sequence", to_X01(rdw(0)), '1');
         w1c_fired("00000001");
 
-        -- A held W1C of FIRED across 4 or more cycles, with an event injected mid-write, ends with FIRED SET.
-        -- A one-cycle clear cannot eat a later event (D14).
+        -- A held W1C of FIRED across 4 or more cycles, with an event injected mid-write, ends with FIRED SET: a one-cycle clear cannot eat a later event.
         w_cfg(0, 2, 3);      -- CH0 back to a real P-mode tap (EV2)
         fire_event(2);
         sb.check_bit("G6 setup: CH0 fires so FIRED(0) is set going into the held W1C",
@@ -959,8 +898,6 @@ begin
                      to_X01(rdw(0)), '1');
         w1c_fired("00000001");
 
-        ------------------------------------------------------------------
-        -- GROUP G7: register RW / W1C / set-wins / out-of-range
         ------------------------------------------------------------------
         report "=== GROUP G7: register RW / W1C / set-wins / out-of-range ===" severity note;
         do_reset;
@@ -1048,7 +985,7 @@ begin
         bus_read(clk, pbus, rdata_out, EVFAB_SLOT_FIRED, rdw);
         sb.check_slv("G7: FIRED = 0x07 before selective W1C", rdw(7 downto 0), x"07");
         w1c_fired("00000010");
-        evfab_settle(clk);   -- D5 GATE CLOSURE FIX: action-visibility (3 clk) before the check
+        evfab_settle(clk);   -- action visibility (3 clk) before the check
         bus_read(clk, pbus, rdata_out, EVFAB_SLOT_FIRED, rdw);
         sb.check_slv("G7: W1C clears ONLY the written bit(s) -> FIRED = 0x05", rdw(7 downto 0), x"05");
         w1c_fired("00000101");
@@ -1061,8 +998,7 @@ begin
         pbus.write_data  <= x"00000001";
         pbus.wen         <= (others => '0');
         pbus.en_mem      <= '0';
-        -- The action path applies the clear on the THIRD edge of the select window (2 sync plus 1 apply, D5 and diagram C), so the fire must be driven into the cycle BEFORE that edge to land on it.
-        -- This is the same alignment the held-W1C leg of G6 uses.
+        -- The action path applies the clear on the THIRD edge of the select window (2 sync plus 1 apply), so the fire must be driven into the cycle BEFORE that edge to land on it.
         -- Driven one edge earlier the flag is set at edge 2 and legitimately cleared at edge 3, which tests nothing about set-wins.
         wait until clk = '1';    -- edge 1: select window open
         wait until clk = '1';    -- edge 2: the clear pulse fires within this window
@@ -1118,7 +1054,7 @@ begin
         bus_read(clk, pbus, rdata_out, EVFAB_SLOT_SR, rdw);
         sb.check_bit("G7: FIREDIF stays 1 -- one FIRED bit remains", to_X01(rdw(EVFAB_SR_FIREDIF)), '1');
         w1c_fired("00000010");
-        evfab_settle(clk);   -- D5 GATE CLOSURE FIX: action-visibility (3 clk) before the check
+        evfab_settle(clk);   -- action visibility (3 clk) before the check
         bus_read(clk, pbus, rdata_out, EVFAB_SLOT_SR, rdw);
         sb.check_bit("G7: FIREDIF drops only once the LAST bit clears", to_X01(rdw(EVFAB_SR_FIREDIF)), '0');
 
@@ -1134,13 +1070,11 @@ begin
         bus_read(clk, pbus, rdata_out, EVFAB_SLOT_SR, rdw);
         sb.check_bit("G7: OVRIF stays 1 -- one OVR bit remains", to_X01(rdw(EVFAB_SR_OVRIF)), '1');
         w1c_ovr("00000010");
-        evfab_settle(clk);   -- D5 GATE CLOSURE FIX: action-visibility (3 clk) before the check
+        evfab_settle(clk);   -- action visibility (3 clk) before the check
         bus_read(clk, pbus, rdata_out, EVFAB_SLOT_SR, rdw);
         sb.check_bit("G7: OVRIF drops only once the LAST bit clears", to_X01(rdw(EVFAB_SR_OVRIF)), '0');
         w1c_fired("00000011");
 
-        ------------------------------------------------------------------
-        -- GROUP G8: task_busy sets OVR while the pulse is still emitted.
         ------------------------------------------------------------------
         report "=== GROUP G8: task_busy -> OVR while the pulse is still emitted ===" severity note;
         do_reset;
@@ -1213,24 +1147,10 @@ begin
         w1c_fired("00000001");
 
         ------------------------------------------------------------------
-        -- GROUP G9: X-collapse, gated-ClkMem autonomy, and reset mid-traffic.
-        -- Leg 1 is RE-SCOPED per the D25 GATE CLOSURE / FABLE ruling to silicon-meaningful properties only: input-line X never reaches task_pulse, FIRED, OVR or rdata_out, plus the GPIO0-mask absorption on EVSTAT(15).
-        -- The metavalue-config-register leg and the sacrificial own-EVSTAT-bit value check are gone; see the leg 1a and 1b comments.
-        ------------------------------------------------------------------
         report "=== GROUP G9: X-collapse + gated-ClkMem autonomy + reset-mid-traffic ===" severity note;
 
-        -- Leg 1a REMOVED (D25 GATE CLOSURE / FABLE RULING, G9-1 re-scope).
-        -- The original leg drove a metavalue 'XXXXX' straight into CHnCFG.EVSEL and swept every event asserting the channel never fires.
-        -- A real config flop never holds X in silicon (D11's "X in a select field is inert" is scoped to RTL-simulation robustness, not a silicon claim), so this was X-optimism overstating what gate/SDF sim can prove.
-        -- All 17 of its checks, that loop plus the FIRED/OVR-clean follow-ups, failed at gate.
-        -- Reserved-code inertness on real synthesizable hardware is already covered, and DOES pass at gate, by G7's EVSEL=20 (reserved) and TASKSEL=13 (>= N_TASK) legs.
-        -- Both of those are ordinary determinate-value writes with no metavalue involved, and both PASSED unmodified at SDF gate sim, so removing this leg opens no coverage gap.
-
         -- Leg 1b: X, Z or U on an UNSELECTED ev_in bit and on an UNMASKED gpio0_evin bit must not let any X reach task_pulse, FIRED, OVR or rdata_out.
-        -- Those four assertions PASSED at gate.
-        -- RE-SCOPED (G9-1): no value check is made on EVSTAT as a whole, because the X-driven line's OWN EVSTAT bit, EVSTAT(5) fed directly by ev_in(5), is SACRIFICIAL by design.
-        -- EVSTAT is ungated (D14) and legitimately reads X at gate.
-        -- EVSTAT(15) stays checked: it is reached only through the GPIO0 AND-before-OR mask (D10), which DOES absorb the X and pass at gate.
+        -- EVSTAT as a whole is deliberately NOT value-checked: the X-driven line's own EVSTAT bit is sacrificial because that tap is ungated, while EVSTAT(15) is reached only through the GPIO0 AND-before-OR mask, which does absorb the X.
         do_reset;
         w_cr('1');
         w_cfg(0, 2, 3);
@@ -1271,10 +1191,8 @@ begin
         task_busy(9) <= '0';
         w1c_fired("00000001");
 
-        -- Leg 2: gated-ClkMem autonomy.
-        -- Freeze ClkMem, i.e. make no bus access, for 500 clk while driving events; pulses must keep firing on schedule and FIRED, OVR and EVSTAT must keep accumulating.
-        -- Re-open the bus and the readback must equal the shadow model.
-        -- If any fabric state were on ClkMem this leg would read zeros, which makes it a built-in negative control for D1/D2.
+        -- Leg 2: gated-ClkMem autonomy. Freeze ClkMem, i.e. make no bus access, for 500 clk while driving events; pulses must keep firing on schedule, the stickies must keep accumulating, and the readback after re-opening the bus must equal the shadow model.
+        -- If any fabric state ran on ClkMem this leg would read zeros, which makes it a built-in negative control for the one-clock-family rule.
         do_reset;
         w_cr('1');
         evfab_shadow_set_cr_en(sh, '1');
@@ -1350,8 +1268,6 @@ begin
         w1c_fired("00000001");
 
         ------------------------------------------------------------------
-        -- GROUP G10: input modes
-        ------------------------------------------------------------------
         report "=== GROUP G10: input modes ===" severity note;
         do_reset;
         w_cr('1');
@@ -1425,7 +1341,7 @@ begin
         sb.check_bit("G10 P: pulse is exactly one clk wide", to_X01(task_pulse(7)), '0');
         w1c_fired("00000001");
 
-        -- A contract-violating 2-clk P input produces two pulses, making the D9 contract visible.
+        -- A contract-violating 2-clk P input produces two pulses, making the one-clk producer contract visible.
         -- ev_in(2) is held across exactly TWO rising edges; the checks sit one edge later than the fires they observe (SAMPLE-POINT CONTRACT).
         wait until clk = '1';
         ev_in(2) <= '1';
@@ -1504,8 +1420,7 @@ begin
         w1c_evstat("1000000000000000");
 
         ------------------------------------------------------------------
-        -- GROUP G-NEG: NEGATIVE CONTROL, mandatory and LAST, with exactly ONE deliberately-wrong expected value.
-        ------------------------------------------------------------------
+        -- Mandatory negative control, LAST, with exactly ONE deliberately-wrong expected value.
         report "=== GROUP G-NEG: NEGATIVE CONTROL ===" severity note;
         do_reset;
         w_cr('1');
@@ -1521,7 +1436,6 @@ begin
 
         ------------------------------------------------------------------
         -- Final verdict: sb.errors must be EXACTLY 1 (the negative control).
-        ------------------------------------------------------------------
         wait for 1 us;
         sb.report_summary("EVFAB TB");
 

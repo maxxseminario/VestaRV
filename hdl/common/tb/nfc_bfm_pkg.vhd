@@ -1,20 +1,10 @@
 -------------------------------------------------------------------------------
 -- nfc_bfm_pkg.vhd
 -------------------------------------------------------------------------------
--- Bench-support helpers for the NFC ISO 14443A tag / card-emulation peripheral testbench (tb/NFC_tb.vhd) and its behavioral reader model (tb/nfc_reader_model.vhd).
--- As with i3c_bfm_pkg.vhd, NFC.vhd is being written in parallel against the same FROZEN design (~/vesta_docs/digperiphs/nfc_design.md, R3 and S8) this bench targets.
--- The slot numbers, field-packing helpers and SR-bit positions below are therefore LOCAL to this bench and not shared MemoryMap.vhd constants: NFC0 lives at 0x6200, and MemoryMap.vhd has no NFC slot constants yet.
---
--- CHECKER-INDEPENDENCE, the I3C and QSPI-8d lesson and this task's explicit instruction.
--- The ONLY protocol reference this package shares between the reader model, which drives and decodes the wire, and NFC_tb.vhd, which computes expected values, are the spec-LITERAL single-reading utilities nfc_crc_a() (D10), nfc_parity() (D9) and nfc_bcc() (D12).
--- The modified-Miller pause encode (D6) and the Manchester-on-subcarrier decode (D7) live ENTIRELY inside nfc_reader_model.vhd as signal-level logic.
--- They are deliberately NOT provided here as shared formulas, so the reader's decode and the tb's expectations cannot collapse onto one shared codec function.
--- This is a small deviation from the design doc's S13 suggested helper list, which named nfc_miller_encode() and nfc_manchester_decode() as package helpers; it is flagged in the bench author's report, and the over-the-wire hand-computed CRC frame check in NFC_tb.vhd is the independent anchor the doc asked for.
---
--- Frozen register map (word slots at 0x6200, design doc S8/D17):
---   0 NFCxCR   1 NFCxSR   2 NFCxUID  3 NFCxCFG  4 NFCxTIM
---   5 NFCxRXST 6 NFCxIDX  7 NFCxDATA 8 NFCxTXCTL 9 NFCxDBG
--- Slot 8, TXCTL on the firmware-response path, is INERT in the AUTOREAD=1 MVP (D17) and is declared here for completeness but not exercised by this bench.
+-- Bench helpers for the NFC ISO 14443A card-emulation peripheral testbench and its behavioral reader model.
+-- Slot numbers, field packers and SR bit positions are LOCAL to this bench: NFC0 lives at 0x6200 and MemoryMap.vhd carries no NFC constants.
+-- Only the spec-literal utilities nfc_crc_a, nfc_parity and nfc_bcc are shared with the reader model.
+-- Miller encode and Manchester decode stay inside the reader model so its decode and the tb's expectations cannot collapse onto one shared codec.
 -------------------------------------------------------------------------------
 
 library ieee;
@@ -24,7 +14,7 @@ use work.periph_tb_pkg.all;
 
 package nfc_bfm_pkg is
 
-    -- ---- Register word-slot map, frozen by design doc S8 ------------------
+    -- ---- Register word-slot map ------------------------------------------
     constant SlotNFCxCR    : natural := 0;
     constant SlotNFCxSR    : natural := 1;
     constant SlotNFCxUID   : natural := 2;
@@ -36,7 +26,7 @@ package nfc_bfm_pkg is
     constant SlotNFCxTXCTL : natural := 8;   -- Inert in the AUTOREAD MVP.
     constant SlotNFCxDBG   : natural := 9;
 
-    -- ---- NFCxSR bit positions, design doc D17; r is read-only, rw1c is write-1-to-clear.
+    -- ---- NFCxSR bit positions; r is read-only, rw1c is write-1-to-clear ---
     constant SrBitBUSY     : natural := 0;   -- r
     constant SrBitFIELDF   : natural := 1;   -- rw1c
     constant SrBitRXFRAMEF : natural := 2;   -- rw1c
@@ -47,7 +37,7 @@ package nfc_bfm_pkg is
     constant SrBitHALTED   : natural := 7;   -- r
     constant SrStateLo     : natural := 8;   -- Low bit of the read-only STATE field, bits 11:8.
 
-    -- ---- NFCxCR bit positions, design doc D17 -----------------------------
+    -- ---- NFCxCR bit positions ---------------------------------------------
     constant CrBitNFCEN    : natural := 0;
     constant CrBitLISTEN   : natural := 1;
     constant CrBitHALTCLR  : natural := 2;
@@ -57,7 +47,7 @@ package nfc_bfm_pkg is
     constant CrBitCRCIE    : natural := 11;
     constant CrBitAUTOREAD : natural := 12;
 
-    -- ---- FSM state encodings reported in SR bits 11:8, design doc D11/D17 --
+    -- ---- FSM state encodings reported in SR bits 11:8 ----------------------
     constant StPOWEROFF : natural := 0;
     constant StIDLE     : natural := 1;
     constant StREADY    : natural := 2;
@@ -65,51 +55,47 @@ package nfc_bfm_pkg is
     constant StHALT     : natural := 4;
 
     -- ---- Byte array shared with the reader model --------------------------
-    constant NFC_MAX_BYTES : natural := 32;   -- Generously above a 16-byte READ response plus its CRC.
+    constant NFC_MAX_BYTES : natural := 32;   -- Above a 16-byte READ response plus its CRC.
     type nfc_byte_array is array (natural range <>) of std_logic_vector(7 downto 0);
 
-    -- D9: odd per-byte parity, sent LSB-first on air, chosen so {8 data bits, parity} carries an ODD number of ones, i.e. parity = not(b0 xor ... xor b7).
-    -- Spec-literal with a single reading, so it is shared by the reader model and the tb.
+    -- Odd per-byte parity sent LSB-first on air: {8 data bits, parity} carries an odd number of ones, i.e. parity = not(b0 xor ... xor b7).
     function nfc_parity(data : std_logic_vector(7 downto 0)) return std_logic;
 
-    -- D12: the block check character BCC is uid0 xor uid1 xor uid2 xor uid3, derived in hardware.
+    -- Block check character: BCC is uid0 xor uid1 xor uid2 xor uid3.
     function nfc_bcc(u0, u1, u2, u3 : std_logic_vector(7 downto 0))
         return std_logic_vector;
 
-    -- D10: CRC_A per ISO/IEC 14443-3, reflected polynomial 0x8408 with init 0x6363.
-    -- Returns the 16-bit register; on air the LOW byte crc(7:0) is sent first, then the HIGH byte crc(15:8), each LSB-first.
-    -- ISO Annex B gives the reference value CRC_A of {00,00} as 0x1EA0.
+    -- CRC_A per ISO/IEC 14443-3: reflected polynomial 0x8408, init 0x6363, reference CRC_A of {00,00} = 0x1EA0.
+    -- Returns the 16-bit register; on air the low byte crc(7:0) goes first, then crc(15:8), each LSB-first.
     function nfc_crc_a(data : nfc_byte_array; n : natural)
         return std_logic_vector;
 
-    -- Build a full 32-bit NFCxCR word in the D17 field layout.
+    -- Build a full 32-bit NFCxCR word.
     function nfc_mk_cr(nfcen, listen, autoread            : std_logic;
                        fieldie, rxfie, txie, crcie        : std_logic;
                        rfdiv                              : std_logic_vector(3 downto 0) := (others => '0'))
         return std_logic_vector;
 
-    -- Build a full 32-bit NFCxCFG word (D17): ATQA in bits 15:0, SAK in bits 23:16.
+    -- Build a full 32-bit NFCxCFG word: ATQA in bits 15:0, SAK in bits 23:16.
     function nfc_mk_cfg(atqa : std_logic_vector(15 downto 0);
                         sak  : std_logic_vector(7 downto 0))
         return std_logic_vector;
 
-    -- Build a full 32-bit NFCxTIM word (D17): FDT in bits 15:0, ETU in bits 23:16, SUBCDIV in bits 31:24.
+    -- Build a full 32-bit NFCxTIM word: FDT in bits 15:0, ETU in bits 23:16, SUBCDIV in bits 31:24.
     function nfc_mk_tim(fdt : natural; etu : natural; subcdiv : natural)
         return std_logic_vector;
 
-    -- Build a full 32-bit NFCxIDX word (D17): IDX in bits 5:0, IDXAINC in bit 6, IDXSEL in bit 8.
+    -- Build a full 32-bit NFCxIDX word: IDX in bits 5:0, IDXAINC in bit 6, IDXSEL in bit 8.
     function nfc_mk_idx(idx : natural; ainc : std_logic; sel : std_logic)
         return std_logic_vector;
 
-    -- Bounded poll of NFCxSR.BUSY (bit 0) until it reads '0'.
-    -- It never hangs: done_ok comes back false if BUSY has not cleared within the guard count, mirroring i3c_wait_busy_clear.
+    -- Bounded poll of NFCxSR.BUSY (bit 0) until it reads '0'; done_ok is false if the guard count expires first.
     procedure nfc_wait_busy_clear(signal clk       : in    std_logic;
                                   signal b         : inout periph_bus_t;
                                   signal read_data : in    std_logic_vector(31 downto 0);
                                   done_ok          : out   boolean);
 
-    -- Bounded poll of a single NFCxSR bit until it reads '1'.
-    -- It never hangs: done_ok comes back false if the bit has not set within the guard count.
+    -- Bounded poll of a single NFCxSR bit until it reads '1'; done_ok is false if the guard count expires first.
     procedure nfc_wait_sr_bit_set(signal clk       : in    std_logic;
                                   signal b         : inout periph_bus_t;
                                   signal read_data : in    std_logic_vector(31 downto 0);
@@ -218,8 +204,7 @@ package body nfc_bfm_pkg is
                 exit;
             end if;
             guard := guard + 1;
-            exit when guard > 8000;    -- Bounded, so it never hangs.
-                                       -- A full 16-byte READ response is the longest wait here and clears well inside this budget.
+            exit when guard > 8000;    -- A full 16-byte READ response is the longest wait and clears well inside this budget.
         end loop;
     end procedure;
 

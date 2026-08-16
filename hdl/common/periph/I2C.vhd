@@ -6,6 +6,7 @@ library work;
 use work.Constants.all;
 use work.MemoryMap.all;
 
+-- Combined I2C master/slave peripheral: memory-mapped registers, open-drain pads and one interrupt line per event.
 -- I2C specification: https://www.nxp.com/docs/en/user-guide/UM10204.pdf
 
 entity I2C is
@@ -94,15 +95,10 @@ architecture behavioral of I2C is
 	signal I2CGCE		: std_logic;	-- I2C slave general call enable: when enabled, this slave is addressed by a global call issued for slave receiver mode ('0' = disabled, '1' = enabled)
 	signal I2CSN		: std_logic;	-- I2C slave NACK next byte received: reply with a NACK when this slave receives its address or a data byte from the master ('0' = send an ACK, '1' = send a NACK)
 	signal I2CSCS		: std_logic;	-- I2C slave clock stretching enable: when enabled, the slave holds SCL low during the slave ACK states ('0' = SCL forced to '0' while in the slave ACK state, '1' = SCL released to '1' during all slave states)
-	-- I2C slave enable ('0' = disabled, '1' = enabled).
-	-- When enabled, this device behaves as an I2C slave and begins listening for its address.
-	-- If master mode is also enabled, the device acts as a slave until commanded to send a start condition with I2CMST, whereupon it begins acting as a master.
-	-- Once the master transfer is complete it resumes acting as a slave.
+	-- I2C slave enable ('0' = disabled, '1' = enabled): the device listens for its address.
+	-- With master mode also enabled it stays a slave until I2CMST commands a start condition, acts as master for that transfer, then goes back to being a slave.
 	signal I2CSEN		: std_logic;
-	-- I2C master enable ('0' = disabled, '1' = enabled).
-	-- When enabled, this device awaits a command to send a start condition with I2CMST, then acts as a master until commanded to send a stop condition with I2CMSP.
-	-- If slave mode is also enabled, the device acts as a slave until commanded to send a start condition with I2CMST, whereupon it begins acting as a master.
-	-- Once the master transfer is complete it resumes acting as a slave.
+	-- I2C master enable ('0' = disabled, '1' = enabled): the device waits for I2CMST to send a start condition, then acts as master until I2CMSP sends a stop condition.
 	signal I2CMEN		: std_logic;
 
 	-- I2CxFCR (everything in this register is write-1 only, and reads as all '0's)
@@ -243,8 +239,7 @@ begin
 
 	---------- I2C Core ----------
 	-- Signal Routing
-	-- The pads are open-drain: the output data is tied low and the direction pin does the driving, so a released line floats up to the bus pull-up.
-	-- Whoever owns the bus, master or slave, supplies the desired line level through I2CMCB.
+	-- The pads are open-drain: output data is tied low and the direction pin drives, so a released line floats up to the bus pull-up, and I2CMCB picks whether the master or the slave supplies the level.
 	SDA_OUT <= '0';
 	SCL_OUT <= '0';
 	SDA_REN <= SDA_REN_in;
@@ -671,8 +666,7 @@ begin
 						-- This is the last bit
 						-- Check the address
 						if and_reduct((SlaveData(6 downto 0) xnor I2CxAR(6 downto 0)) or I2CxAMR(6 downto 0)) = '1' or (I2CGCE = '1' and or_reduct(SlaveData(6 downto 0)) = '0' and SDA_LAT = '0') then
-							-- This slave has been addressed, or a general call (for slave receiver mode) has been issued
-							-- Indicate that this slave is addressed
+							-- This slave has been addressed, or a general call for slave receiver mode was issued.
 							--SlaveAddressed <= '1';
 							I2CSA <= '1';	-- The slave addressed flag needs a separate signal from SlaveAddressed because it should be able to be cleared in the status register
 
@@ -748,10 +742,8 @@ begin
 						SlaveState <= SlaveStateAck;
 					end if;
 				when SlaveStateTransmitter =>
-					-- This state is responsible for sending a byte of data to the master
-					-- SlaveData has already been latched with the new data in I2CxSTX
-					-- I2CSTXE has already been set
-					-- Send the next bit on SDA by default. This will never be the MSB, since it is sent in the ACK state
+					-- Sends a byte of data to the master; SlaveData was already latched from I2CxSTX and I2CSTXE was already set.
+					-- Send the next bit on SDA by default: never the MSB, which the ACK state sends.
 					SlaveFsmSDA <= SlaveData(7);
 
 					-- Is this the last bit?
@@ -804,11 +796,8 @@ begin
 
 
 	---------- Register Synchronizer ----------
-	-- Synchronizes the asynchronous register signals.
-	-- The registers are sampled only when the processor accesses this peripheral's memory space.
-	-- That is safe because EnMemPeriph has a leading edge exactly one clock cycle before rdata latches a register.
-	-- The double NOT gates also reduce the chance of an undefined bit.
-	-- One generate arm per EnMemPeriph polarity; only the mem_assert one is elaborated.
+	-- The asynchronous status registers are sampled only during a memory access, which is safe because EnMemPeriph leads the rdata latch by exactly one clock cycle; the double inversion reduces the chance of an undefined bit.
+	-- One generate arm per EnMemPeriph polarity, of which only the mem_assert one is elaborated.
 	GenRegSync0: if mem_assert = '0' generate
 		process (EnMemPeriph)
 		begin
@@ -839,8 +828,7 @@ begin
 	process(resetn, ClkMem, EnMemPeriph, I2CMEN, I2CMCB, ClearI2CMST, ClearI2CMSP, ClearI2CMRB, ClearMasterWrite, ClearI2CSC, I2CSCS)
 	begin
 		if resetn = '0' then
-			-- Reset clear signal(s)
-			-- No signals to reset
+			-- No clear signals need resetting here.
 
 			-- Set registers to their default values
 			I2CxCR <= (others => '0');
@@ -850,8 +838,7 @@ begin
 			I2CxAR <= default_SAD; -- Default address for the I2C slave
 			I2CxAMR <= (others => '0');
 		elsif rising_edge(ClkMem) then
-			-- Initialize clear signal(s)
-			-- No signals to clear
+			-- No clear signals need initializing here.
 			
 			-- Memory writes
 			if EnMemPeriph = mem_assert then

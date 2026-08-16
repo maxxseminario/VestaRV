@@ -1,85 +1,8 @@
--- =============================================================================
--- jtag_dtm.vhd  (D3)
--- =============================================================================
--- THE JTAG TAP AND THE DEBUG TRANSPORT MODULE.
--- One per chip, at ASSEMBLY level beside dm0, never inside a tile (d3_cdc_spec 7).
--- Frozen contract: ~/vesta_docs/d_series/d3_spec.md 1-2 and d3_cdc_spec.md 1-4 as amended by R-D3-4(2).
--- The DMI port it drives is d2_spec 2, frozen at D2 and NOT moved.
---
--- WHAT IT IS AND IS NOT AT D3.
---   IS : the 16-state IEEE 1149.1 TAP, a 5-bit IR, the four DRs (IDCODE, dtmcs, the 41-bit dmi, BYPASS), the sticky/dmireset machine, and the TCK-to-mclk crossing that turns a DR scan into ONE DMI transaction on the Debug Module's frozen port.
---   NOT: pads (D3 wires them at netlist level only; the physical cut is the close-of-programme re-cut), a debug ROM (D4), OpenOCD/gdb (D5), System Bus Access (never: there is no raw-memory DMI path here BY DESIGN), and any behaviour change to the DM itself.
---
--- SPIKE IS THE REFERENCE (riscv/jtag_dtm.{h,cc}), and every DEVIATION FROM IT IS DELIBERATE AND NAMED:
---   1. An UNSUPPORTED IR selects BYPASS (d3_spec 1).
---      Spike leaves dr/dr_length stale from the previous capture, which makes the length of the selected chain depend on history.
---   2. dtmcs.dmistat IS DRIVEN, sticky, and includes sticky FAILED (2) as well as sticky BUSY (3) (d3_cdc_spec 4).
---      Spike's dtmcs is a constant 0x71 and never reports either; a real debugger reads dmistat to decide whether to issue dmireset.
---   3. dtmcs.idle IS TRUTHFUL (see THE idle DERIVATION below).
---      Spike advertises 0 while enforcing a hidden RTI requirement, the one behaviour the CDC spec explicitly says not to copy.
---   4. While dmistat is NONZERO, in EITHER sticky flavour, an Update-DR of dmi is IGNORED (R-D3-4(2a)).
---      Spike gates on busy_stuck only; the debug spec's own contract, no DMI transactions until dmireset after a sticky error, is the authority here.
---   5. dmihardreset does NOT force the TAP to Test-Logic-Reset (R-D3-4(2b)).
---      It resets the TCK-side DTM state (sticky, shadow, in-flight bookkeeping); TLR stays reachable through TMS/TRSTn, which the debugger already controls.
---      The DMI result SHADOW's reset value is DEFINED all-zeros, so a Capture-DR of dmi straight after dmihardreset returns 41'b0.
---   6. TRSTn resets the WHOLE TCK-side DTM (Spike's reset(): FSM, IR, sticky, shadow, in-flight).
---      TEST-LOGIC-RESET resets only the FSM and IR: it does NOT clear the sticky flag or the shadow, which is exactly why dmireset exists (Spike semantics, d3_cdc_spec 3).
---
--- THE CROSSING, and why it is shaped like the UART and not like a FIFO.
--- The mandated idiom is hdl/common/periph/UART.vhd flags_cdc_proc (:478-538) with its ACK half (:640-657): ONE source toggle, the payload written on the same source edge and then HELD while that toggle is in flight, and a THREE flop destination chain (2-FF synchroniser plus a third flop for edge detect).
--- The written prohibition on per-bit bus synchronisers is SYSTEM.vhd:442-457.
--- debug_module.vhd and mp_arbiter.vhd contain ZERO CDC structures today: this file is the first crossing anywhere near them, so the idiom is copied rather than invented.
---   TCK to mclk (request): an Update-DR of a dmi scan with op /= NOP loads the 41-bit REQUEST HOLD register (addr, data, op, all TCK domain) and flips req_tgl.
---     The mclk side syncs, detects the edge, and presents the held payload to the DM.
---   mclk to TCK (response): dmi_rsp_valid latches rsp_op/rsp_data into a 34-bit HOLD register (mclk domain) and flips rsp_tgl.
---     The TCK side syncs, detects the edge, and updates the DMI result shadow.
---
--- ***** THE ONE-SHOT CLAUSE (d3_cdc_spec 2, REQUIRED at spec level) *****
--- The mclk-side master asserts dmi_req_valid, holds it ONLY until dmi_req_ready is observed, and deasserts the cycle after.
--- It NEVER re-asserts for the same request, and that is not stylistic.
--- The Debug Module's re-capture lockout is a TIMER, `rsp_hold = 0 and rsp_arm = '0'` (debug_module.vhd, the accept guard), and the window RE-OPENS 9 mclk after a capture.
--- A DD4-idiomatic master that held the request level until its response came back would hold it far longer than that (the response has to cross a 3-flop chain into the TCK domain) and would earn a SECOND, DUPLICATE accept of the same request: two responses for one request, sliding every later request/response pair by one.
--- The symptom is not a wrong answer, it is the PREVIOUS answer.
--- valid is high for exactly two mclk here, presented and then retired on the registered ready, seven cycles inside the window.
---
--- ***** THE idle DERIVATION (d3_cdc_spec 4 wants the VALUE stated) *****
--- Latency from the Update-DR that arms a request to the earliest Capture-DR that can see its result, in TCK cycles:
---     t_visible = 3 TCK (this file's response synchroniser: 2-FF plus edge flop)
---               + ceil(t_DM / T_TCK)
---     t_DM      = 3..4 mclk (request synchroniser plus edge detect)
---               + 1 (registered valid) + 1..2 (DM accept; ready_r is
---               REGISTERED, not combinational) + 2 (DM arms the response one
---               cycle before asserting it) + 1 (latch plus rsp_tgl)
---               = 8..10 mclk for a register access, plus the shared-window
---               master read for the three PROXIED addresses (data0, progbuf0,
---               progbuf1), which is tens of mclk through mp_arbiter.
--- A debugger's own navigation puts its Capture-DR at Update + idle + 3 TCK cycles: Update-DR into Run-Test/Idle, `idle` cycles, then Select-DR then Capture-DR.
--- The requirement is therefore idle >= ceil(t_DM / T_TCK).
--- STATED ASSUMPTION: T_TCK at least 140 ns (TCK no faster than 7.14 MHz) against mclk 41.667 ns (24 MHz).
--- A register access of 10 mclk = 417 ns needs 3 cycles; a proxied access of at most 20 mclk = 833 ns needs 6 cycles.
--- IDLE_CYCLES is therefore 7: one cycle of margin over the worst class, and the maximum the 3-bit field can express, so rounding up costs nothing but debugger throughput.
--- AT A FASTER TCK, OR UNDER HEAVY ARBITER CONTENTION, BUSY CAN STILL HAPPEN.
--- That is not an error condition: the sticky-busy, dmireset, re-issue path is fully functional and instrumented, and `idle` is a MINIMUM recommendation, not a guarantee the hardware enforces.
---
--- ***** THE PAYLOAD-STABILITY ASSUMPTION, stated rather than discovered *****
--- The mclk side reads the request payload out of the TCK-domain hold register: that IS the held-payload idiom, and a second copy on the mclk side would cost 41 more flops for no coverage.
--- The hold register is written only at an arming Update-DR, so it is stable for as long as one DMI transaction takes.
--- The ONE sequence that could overwrite it while the DM still has the previous request is: arm, then ABANDON (dmireset / dmihardreset / TRSTn), then arm again before the abandoned transaction has finished.
--- The shortest TCK-side path between those two Update-DRs is an IR scan plus a 32- or 41-bit DR scan plus navigation, at least 45 TCK cycles and at least 6.3 us at the assumed rate, against a DM transaction of at most tens of mclk (about 1 us).
--- The margin is a factor of several, and it is written here because it is an ASSUMPTION and not a proof.
---
--- ***** WHY THE mclk SIDE CARRIES A RESET-RECOVERY GUARD *****
--- req_tgl lives in the TCK domain and is NOT reset by system resetn, because a debugger must stay attached across a chip reset (the halt-on-reset story).
--- Its mclk synchroniser IS reset by resetn, to zeros.
--- So if req_tgl happens to be '1' when resetn releases, the chain fills with ones and the edge detector sees a transition that never happened, manufacturing ONE PHANTOM DMI REQUEST that replays whatever the hold register still contains, at every system reset while a debugger is attached.
--- rst_guard suppresses edge detection until the chain holds three real samples: three flops, and they buy a defect class.
---
--- FAIL-SAFE POLARITY (rule 15; policed by check_entity_defaults.py).
--- ENABLE_DEBUG defaults false and folds the whole block away.
--- Every JTAG input defaults '0', and trstn '0' means the TAP is HELD IN RESET, so an unconnected or unbonded DTM is INERT: it issues nothing, and the OR-merge at the MCU sees a permanently-zero valid.
--- The IDCODE generic defaults to 0x00000001: version 0, partnum 0, manufid 0, with only the 1149.1-mandatory LSB set.
--- That is obviously invalid, so a build that forgot to pass the real value announces itself instead of impersonating a chip.
--- =============================================================================
+-- jtag_dtm.vhd: the JTAG TAP and Debug Transport Module, one per chip at assembly level beside the Debug Module and never inside a tile.
+-- A 16-state IEEE 1149.1 TAP, a 5-bit IR, four DRs (IDCODE, dtmcs, the 41-bit dmi, BYPASS), the sticky/dmireset machine, and the TCK-to-mclk crossing that turns one DR scan into one DMI transaction.
+-- Contract: any unsupported IR selects BYPASS; dtmcs.dmistat is driven and sticky for FAILED as well as BUSY; dtmcs.idle is truthful; an Update-DR of dmi is ignored while dmistat is nonzero; dmihardreset resets TCK-side DTM state but does not force Test-Logic-Reset.
+-- TRSTn resets the whole TCK-side DTM, while Test-Logic-Reset resets only the FSM and IR: dmireset exists precisely to clear the sticky flag.
+-- ENABLE_DEBUG defaults false and folds the block away; every JTAG input defaults '0' and trstn '0' holds the TAP in reset, so an unconnected DTM is inert and issues nothing.
 
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
@@ -88,18 +11,18 @@ use IEEE.STD_LOGIC_UNSIGNED.ALL;
 
 entity jtag_dtm is
     generic (
-        -- Fail-safe OFF at every declaration site (rule 15).
+        -- Fail-safe OFF at every declaration site.
         ENABLE_DEBUG : boolean := false;
-        -- JTAG IDCODE. The per-chip values are USER decisions (R-DD4(1)).
-        -- Castalia 0x1CA57EEF, Argus 0x1A265EEF: version 1, partnum 0xCA57/0xA265, manufid 0x777 (the Spike-precedent deliberately invalid JEP106 code, honest for a non-commercial chip), LSB 1.
-        -- The generator selects by chip identity; this DECLARATION default is the fail-safe one described in the header.
+        -- JTAG IDCODE, selected per chip by the generator (Castalia 0x1CA57EEF, Argus 0x1A265EEF: version 1, partnum, manufid 0x777, LSB 1).
+        -- The declaration default is deliberately an invalid code, so a build that forgot to pass the real value announces itself instead of impersonating a chip.
         IDCODE       : std_logic_vector(31 downto 0) := x"00000001";
-        -- dtmcs.idle [14:12], in TCK cycles. See THE idle DERIVATION above.
+        -- dtmcs.idle [14:12], in TCK cycles: 7 covers the worst DMI latency as long as TCK stays at or below about 7 MHz against a 24 MHz mclk.
+        -- A faster TCK or heavy arbiter contention can still return BUSY; that is not an error, the sticky-busy, dmireset, re-issue path handles it.
         IDLE_CYCLES  : natural range 0 to 7 := 0
     );
     port (
         -- ---- the five JTAG pins (TCK domain) -----------------------------
-        -- Defaulted like the D2 DMI port so every existing instantiation stays legal with no edits: riscv_tb's COMPONENT, the chip_top netlists, the gate flows (d2_probe finding 12, reused on purpose).
+        -- Inputs carry defaults so an instantiation that leaves them unconnected stays legal and inert.
         tck   : in  std_logic := '0';
         tms   : in  std_logic := '0';
         tdi   : in  std_logic := '0';
@@ -110,7 +33,7 @@ entity jtag_dtm is
         clk    : in  std_logic;                    -- free-running mclk
         resetn : in  std_logic;                    -- system reset: mclk SIDE ONLY
 
-        -- ---- DMI master: drives debug_module's frozen D2 port ------------
+        -- ---- DMI master: drives the Debug Module's DMI port --------------
         dmi_req_valid : out std_logic;
         dmi_req_op    : out std_logic_vector(1 downto 0);   -- 01=read 10=write
         dmi_req_addr  : out std_logic_vector(6 downto 0);
@@ -124,7 +47,7 @@ end entity;
 
 architecture rtl of jtag_dtm is
 
-    -- ---- TAP states, in Spike's enum order (jtag_dtm.h:8-25), which is the standard IEEE 1149.1 graph.
+    -- ---- TAP states, the standard IEEE 1149.1 graph.
     -- Kept as an integer range so the state register is four flops and the transition table is one lookup.
     constant ST_TLR        : integer := 0;
     constant ST_RTI        : integer := 1;
@@ -143,7 +66,7 @@ architecture rtl of jtag_dtm is
     constant ST_EXIT2_IR   : integer := 14;
     constant ST_UPDATE_IR  : integer := 15;
 
-    -- next[state][tms]. Transcribed from Spike jtag_dtm.cc:60-77.
+    -- next[state][tms].
     type tap_next_t is array (0 to 15, 0 to 1) of integer range 0 to 15;
     constant TAP_NEXT : tap_next_t := (
         (1, 0),   (1, 2),   (3, 9),    (4, 5),
@@ -151,24 +74,23 @@ architecture rtl of jtag_dtm is
         (1, 2),   (10, 0),  (11, 12),  (11, 12),
         (13, 15), (13, 14), (11, 15),  (1, 2));
 
-    -- ---- IR (5 bits; every OpenOCD config in tools/debug/ says -irlen 5)
+    -- ---- IR, 5 bits: the debugger configs all use -irlen 5.
     constant IR_IDCODE : std_logic_vector(4 downto 0) := "00001";  -- 0x01, reset value
     constant IR_DTMCS  : std_logic_vector(4 downto 0) := "10000";  -- 0x10
     constant IR_DMI    : std_logic_vector(4 downto 0) := "10001";  -- 0x11
     constant IR_BYPASS : std_logic_vector(4 downto 0) := "11111";  -- 0x1F
 
-    -- Selected DR. Deviation 1: EVERY unsupported opcode maps to BYPASS.
+    -- Selected DR: every unsupported opcode maps to BYPASS.
     constant SEL_IDCODE : integer := 0;
     constant SEL_DTMCS  : integer := 1;
     constant SEL_DMI    : integer := 2;
     constant SEL_BYPASS : integer := 3;
 
-    -- ---- dmi DR geometry: op[1:0], data[33:2], address[40:34].
-    -- 41 = abits 7 + 34, which is Spike's arithmetic and the frozen port's.
+    -- ---- dmi DR geometry: op[1:0], data[33:2], address[40:34], so 41 bits = abits 7 + 34.
     constant DR_HI : integer := 40;
     constant OP_NOP     : std_logic_vector(1 downto 0) := "00";
     constant OP_FAILED  : std_logic_vector(1 downto 0) := "10";
-    -- dmistat / captured-op encodings (Spike's status enum)
+    -- dmistat / captured-op encodings
     constant ST_NONE   : std_logic_vector(1 downto 0) := "00";
     constant ST_FAILED : std_logic_vector(1 downto 0) := "10";
     constant ST_BUSY   : std_logic_vector(1 downto 0) := "11";
@@ -220,11 +142,7 @@ architecture rtl of jtag_dtm is
 
 begin
 
-    -- ==================================================================
-    -- KNOB-OFF FOLD.
-    -- Everything below lives inside gen_dtm; the off arm ties every output to its fail-safe value.
-    -- A knob-OFF instantiation, which the generator never emits but a hand instantiation might, then carries no state at all and cannot reach the Debug Module.
-    -- ==================================================================
+    -- Knob-off fold: the off arm ties every output to its fail-safe value, so a debug-disabled instance carries no state and cannot reach the Debug Module.
     gen_dtm_off: if not ENABLE_DEBUG generate
         tdo           <= '0';
         dmi_req_valid <= '0';
@@ -237,28 +155,23 @@ begin
 
         sel <= ir_decode(ir_r);
 
-        -- dtmcs: version[3:0] = 1 (0.13 and 1.0) and abits[9:4] = 7 give the base value 0x71 that Spike hard-codes.
-        -- dmistat[11:10] and idle[14:12] are the two fields this design drives and Spike does not.
-        -- dmireset (16) and dmihardreset (17) are WRITE-ONLY strobes decoded at Update-DR and read back as zero: zero flops, which is why they are not registers.
+        -- dtmcs: version[3:0] = 1 and abits[9:4] = 7 give the base 0x71, with dmistat[11:10] and idle[14:12] driven on top.
+        -- dmireset (16) and dmihardreset (17) are write-only strobes decoded at Update-DR and read back as zero, so they hold no flops.
         dtmcs_w(31 downto 15) <= (others => '0');
         dtmcs_w(14 downto 12) <= IDLE_SLV;
         dtmcs_w(11 downto 10) <= sticky;
         dtmcs_w(9 downto 4)   <= "000111";
         dtmcs_w(3 downto 0)   <= "0001";
 
-        -- ==============================================================
-        -- THE TAP: one process, TCK rising, asynchronously reset by TRSTn.
-        -- Ordering inside it follows Spike (jtag_dtm.cc:79-131): the SHIFT uses the state the TAP is in BEFORE the edge, then the state advances, then the entry action of the state just entered runs.
-        -- Capture-DR/Update-DR/Capture-IR/Update-IR/TLR are entry actions here, where Spike runs them on the following falling edge.
-        -- The two are indistinguishable from the pins, since nothing samples between the two edges except TDO, which has its own falling-edge flop, and the earlier form gives the crossing half a TCK cycle more.
-        -- ==============================================================
+        -- The TAP: one process, TCK rising, asynchronously reset by TRSTn.
+        -- Keep the ordering: shift with the state the TAP is in before the edge, then advance, then run the entry action of the state just entered.
         tap_proc: process(tck, trstn)
             variable tmsi : integer range 0 to 1;
             variable nxt  : integer range 0 to 15;
         begin
             if trstn = '0' then
-                -- DEVIATION 6: TRSTn is Spike's reset(), the WHOLE TCK-side DTM and not just the FSM.
-                -- Clearing `pending` here is also the DISCARD mechanism (see the response block): an outstanding transaction completes on the mclk side and its response is dropped on arrival, so the toggle chains stay phase coherent and the DTM is immediately re-usable.
+                -- TRSTn resets the WHOLE TCK-side DTM, not just the FSM.
+                -- Clearing `pending` here is the discard mechanism: an abandoned transaction still completes on the mclk side and its response is dropped on arrival, keeping the toggle chains phase coherent.
                 tap_state <= ST_TLR;
                 ir_r      <= IR_IDCODE;
                 ir_sh     <= (others => '0');
@@ -274,25 +187,19 @@ begin
             elsif rising_edge(tck) then
 
                 -- ---- response crossing: 2-FF synchroniser plus edge detect ---
-                -- The payload (rsp_op_h/rsp_data_h) is HELD in the mclk domain and sampled here at the detected edge, never synchronised per bit (SYSTEM.vhd:442-457's prohibition).
-                -- THE `pending` QUALIFIER IS THE DISCARD MECHANISM.
-                -- A response to a transaction that has been abandoned (dmireset, dmihardreset, TRSTn) arrives with pending = '0' and is dropped.
-                -- The same qualifier absorbs the phantom edge that a TRSTn-reset synchroniser chain manufactures when rsp_tgl happens to be '1' at the time.
+                -- The payload is HELD in the mclk domain and sampled at the detected edge; never synchronise a bus per bit.
+                -- The `pending` qualifier drops responses to abandoned transactions and absorbs the phantom edge a TRSTn-reset chain manufactures when rsp_tgl is '1'.
                 rsp_s1 <= rsp_tgl;
                 rsp_s2 <= rsp_s1;
                 rsp_s3 <= rsp_s2;
                 if (rsp_s2 /= rsp_s3) and pending = '1' then
-                    -- Address bits PRESERVED from the request (d3_cdc_spec 2's Capture-DR clause: the captured word carries the previous op's address verbatim).
+                    -- Address bits are preserved from the request: a captured word carries the previous op's address verbatim.
                     shadow(DR_HI downto 34) <= req_hold(DR_HI downto 34);
                     shadow(33 downto 2)     <= rsp_data_h;
                     shadow(1 downto 0)      <= rsp_op_h;
                     pending                 <= '0';
-                    -- ***** STICKY FAILED IS LATCHED HERE, AT THE RESPONSE'S ARRIVAL, NOT AT THE CAPTURE THAT DELIVERS IT. *****
-                    -- MEASURED, and it is the difference between a recoverable DTM and a permanently wedged one.
-                    -- The shadow KEEPS its op until the next response overwrites it, and dmireset deliberately does not clear the shadow (d3_cdc_spec 3: only dmihardreset does).
-                    -- So a capture-time latch re-raises dmistat from the STALE failed op on the very next dmi scan, and because that scan's own Capture-DR runs BEFORE its Update-DR, the uniform sticky gate then drops the request the debugger was trying to issue.
-                    -- One failed address would silently swallow every subsequent DMI write for the rest of the session, with dmireset unable to break the loop.
-                    -- That is exactly what the acceptance set caught: dbg_conf replayed over the TAP dropped every write from K12 onward, while the same list passed 38/38 over the raw port.
+                    -- Sticky FAILED must be latched HERE, when the response arrives, never at the capture that delivers it.
+                    -- The shadow keeps its op until the next response and dmireset does not clear it, so a capture-time latch would re-raise dmistat from the stale op and swallow every later DMI write for the rest of the session.
                     if rsp_op_h = OP_FAILED then
                         sticky <= ST_FAILED;
                     end if;
@@ -305,7 +212,7 @@ begin
                     elsif sel = SEL_BYPASS then
                         dr(0) <= tdi;
                     else
-                        -- IDCODE / dtmcs: a 32-bit chain inside the shared shifter, so TDI is injected at bit 31 and the measured length is 32 (dbg_tapconf G8/G9).
+                        -- IDCODE / dtmcs: a 32-bit chain inside the shared shifter, so TDI is injected at bit 31 and the scan length is 32.
                         dr(31 downto 0) <= tdi & dr(31 downto 1);
                     end if;
                 end if;
@@ -323,8 +230,7 @@ begin
 
                 -- ---- entry actions of the state just entered --------------
                 if nxt = ST_TLR then
-                    -- TLR sets IR = IDCODE AND NOTHING ELSE (Spike jtag_dtm.cc:104-106).
-                    -- It does NOT clear the sticky flag or the shadow; dmireset exists precisely for that.
+                    -- Test-Logic-Reset sets IR = IDCODE and nothing else: it must not clear the sticky flag or the shadow, which is what dmireset is for.
                     ir_r <= IR_IDCODE;
 
                 elsif nxt = ST_CAPTURE_IR then
@@ -343,15 +249,12 @@ begin
                         dr <= "000000000" & dtmcs_w;
                     elsif sel = SEL_DMI then
                         if pending = '1' or sticky = ST_BUSY then
-                            -- THE WHOLE 41-BIT DR IS LITERAL 3: address 0, data 0, op = busy.
-                            -- It is NOT "the previous result with op = busy" (Spike jtag_dtm.cc:145-147), and the capture is what MAKES the flag sticky.
+                            -- The whole 41-bit DR captures literal 3 (address 0, data 0, op = busy), not the previous result with op = busy, and the capture is what makes the flag sticky.
                             dr     <= (1 => '1', 0 => '1', others => '0');
                             sticky <= ST_BUSY;
                         else
-                            -- The previous op's result, address preserved.
-                            -- NOTE what this arm does NOT do: it does not touch dmistat.
-                            -- Sticky BUSY is a capture-time discovery and is raised above; sticky FAILED is raised where the failure is LEARNED, in the response block, whose essay explains the wedge the other ordering produces.
-                            -- A capture is still able to READ a failed result as FAILED (op = 2) while dmistat already says 2: the literal-3 substitution above is gated on in-flight or sticky BUSY, never on sticky FAILED.
+                            -- The previous op's result, address preserved, and this arm must not touch dmistat.
+                            -- A capture can still read a failed result as FAILED while dmistat already says 2: the literal-3 substitution above is gated on in-flight or sticky BUSY, never on sticky FAILED.
                             dr <= shadow;
                         end if;
                     else
@@ -361,24 +264,24 @@ begin
                 elsif nxt = ST_UPDATE_DR then
                     if sel = SEL_DTMCS then
                         -- Write-only strobes: dmihardreset dominates and adds the shadow clear.
-                        -- NEITHER resets the Debug Module, and per DEVIATION 5 neither forces Test-Logic-Reset.
+                        -- Neither resets the Debug Module and neither forces Test-Logic-Reset.
                         if dr(17) = '1' then
                             sticky  <= ST_NONE;
                             pending <= '0';
                             shadow  <= (others => '0');
                         elsif dr(16) = '1' then
-                            -- dmireset clears the sticky flag AND ABANDONS the outstanding transaction (d3_spec 2), the same discard the response block enforces.
+                            -- dmireset clears the sticky flag and abandons the outstanding transaction, the same discard the response block enforces.
                             sticky  <= ST_NONE;
                             pending <= '0';
                         end if;
 
                     elsif sel = SEL_DMI then
                         if dr(1 downto 0) /= OP_NOP then
-                            -- A NOP scan NEVER arms anything (d3_spec 2), which is what makes a capture-only scan safe.
+                            -- A NOP scan never arms anything, which is what makes a capture-only scan safe.
                             if sticky /= ST_NONE then
-                                null;   -- DEVIATION 4: dropped while sticky
+                                null;   -- dropped while dmistat is sticky
                             elsif pending = '1' then
-                                -- An access while a transaction is in flight is dropped and RAISES sticky busy: the debug spec's own answer, and the only way the debugger can learn its scan was lost.
+                                -- An access while a transaction is in flight is dropped and raises sticky busy, which is the only way the debugger learns its scan was lost.
                                 sticky <= ST_BUSY;
                             else
                                 req_hold <= dr;
@@ -391,8 +294,7 @@ begin
             end if;
         end process;
 
-        -- TDO changes on the TCK FALLING edge, LSB first (d3_spec 1).
-        -- It is held between shift states rather than forced low: a JTAG chain wants TDO quiet, not toggling, outside its own shift window.
+        -- TDO changes on the TCK falling edge, LSB first, and is held between shift states rather than forced low so the chain stays quiet outside its shift window.
         tdo_proc: process(tck, trstn)
         begin
             if trstn = '0' then
@@ -408,10 +310,8 @@ begin
 
         tdo <= tdo_r;
 
-        -- ==============================================================
-        -- THE mclk SIDE: request synchroniser, the ONE-SHOT master, and the response hold.
-        -- Reset by SYSTEM resetn, the DM's own domain, and deliberately NOT the TAP's: a debugger must be attachable while the chip is held in reset (d3_cdc_spec 3, the halt-on-reset story).
-        -- ==============================================================
+        -- The mclk side: request synchroniser, the one-shot master, and the response hold.
+        -- Reset by system resetn and deliberately not by the TAP's, so a debugger stays attachable while the chip is held in reset.
         mst_proc: process(clk, resetn)
         begin
             if resetn = '0' then
@@ -430,15 +330,16 @@ begin
                 req_s3 <= req_s2;
                 rst_guard <= rst_guard(1 downto 0) & '1';
 
-                -- M_IDLE: wait for a real request edge, held off until the guard chain holds three post-reset samples.
+                -- M_IDLE: wait for a real request edge, held off until rst_guard says the synchroniser holds three post-reset samples.
+                -- Keep the guard: req_tgl is not reset by resetn, so a req_tgl of '1' at reset release would otherwise fake an edge and replay the hold register as a phantom DMI request.
                 if m_state = M_IDLE then
                     if rst_guard(2) = '1' and (req_s2 /= req_s3) then
                         req_vld_r <= '1';
                         m_state   <= M_REQ;
                     end if;
                 elsif m_state = M_REQ then
-                    -- M_REQ, THE ONE-SHOT CLAUSE: ready is a REGISTERED one-cycle acknowledge, driven from the Debug Module's ready_r.
-                    -- It is sampled the cycle AFTER valid is presented and valid retires the cycle after that: two cycles high, seven inside the DM's 9-cycle re-capture window.
+                    -- M_REQ is a ONE-SHOT: valid is held only until the registered ready is observed and never re-asserted for the same request.
+                    -- Holding it longer earns a second, duplicate accept once the Debug Module's re-capture window reopens, which slides every later response back by one.
                     if dmi_req_ready = '1' then
                         req_vld_r <= '0';
                         m_state   <= M_RSP;
@@ -455,8 +356,8 @@ begin
             end if;
         end process;
 
-        -- The request payload is driven straight out of the TCK-domain hold register: HELD while its toggle is in flight, sampled by the DM only after the edge has been synchronised.
-        -- This is the idiom, not a shortcut; see THE PAYLOAD-STABILITY ASSUMPTION in the header.
+        -- The request payload is driven straight out of the TCK-domain hold register, held while its toggle is in flight and sampled only after the edge has been synchronised.
+        -- Stability rests on the hold register being written only at an arming Update-DR, which is many TCK cycles apart even when a transaction is abandoned and re-armed.
         dmi_req_valid <= req_vld_r;
         dmi_req_op    <= req_hold(1 downto 0);
         dmi_req_data  <= req_hold(33 downto 2);

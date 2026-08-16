@@ -1,14 +1,6 @@
 -- =====================================================================
--- verification/formal/fabric_formal_tb.vhd   (R-S4-3 items 3 and 5)
--- Tracked directed bench for the two contracts the mutation campaign
--- found checked by NOTHING:
---   * mutex_bank claim atomicity / steal-proofness  (mutant F4)
---   * resv_unit's headline M4b rule: a FOREIGN WRITE between LR and SC
---     must break the reservation and fail the SC          (mutant F6)
--- arb_lat_tb drives both units but never produces these shapes -- its
--- masters never write to another master's reserved address, and its
--- mutex storm never re-claims a HELD slot from a different master.
--- pmp_unit_tb / arb_lat_tb are left untouched; this is additive.
+-- Directed bench for three fabric contracts: mutex_bank claim atomicity,
+-- resv_unit foreign-write reservation break, arbiter locked RMW window.
 -- =====================================================================
 library ieee; use ieee.std_logic_1164.all; use ieee.numeric_std.all;
 
@@ -44,12 +36,8 @@ architecture tb of fabric_formal_tb is
     signal rv_valid  : std_logic_vector(N-1 downto 0);
     signal foreign_write_done : std_logic := '0';  -- a foreign write hit m0's addr
 
-    -- ---- mp_arbiter, for the M8 grant-locking window (R-S4-3 item 4) ----
-    -- Residency is NOT inferable from a_lock at the ports: a master may
-    -- assert lock long before it is granted, and the arbiter pins only on
-    -- its DATA->LOCKED edge.  Both earlier property forms fired on clean
-    -- RTL for exactly that reason.  So the BENCH declares the window --
-    -- the same bench-controlled-flag pattern that fixed NAPOT/TOR.
+    -- mp_arbiter grant-locking window.
+    -- Lock residency is not inferable from a_lock at the ports: a master may assert lock long before it is granted, so the bench declares the window with a flag.
     signal ab_req   : std_logic_vector(N-1 downto 0) := (others => '0');
     signal ab_lock  : std_logic_vector(N-1 downto 0) := (others => '0');
     signal ab_we    : std_logic_vector(N*4-1 downto 0) := (others => '0');
@@ -84,21 +72,18 @@ begin
         resetn <= '0'; tick; tick; resetn <= '1'; tick;
 
         -- ============ mutex_bank: claim atomicity + steal-proof ============
-        -- 1. master 1 claims a FREE mutex 0 -> rdata must be the OLD value (free = 0)
+        -- 1. master 1 claims a FREE mutex 0: rdata must be the OLD value (free = 0).
         mx_addr <= "0000"; mx_master <= "01"; mx_we <= "0000"; mx_en <= '1';
         mx_exp <= (others => '0'); mx_exp_valid <= '1'; mx_claim_held <= '0';
         tick; mx_en <= '0'; tick; mx_exp_valid <= '0'; tick;
 
-        -- 2. master 2 claims the SAME, now-HELD mutex -> must return the HOLDER
-        --    (master 1 -> id+1 = 2) and must NOT take ownership.  This is the
-        --    steal-proof shape: F4 deletes the owner=FREE guard.
+        -- 2. master 2 claims the SAME, now-HELD mutex: must return the holder as id+1 = 2.
+        -- Ownership must NOT move; this is the steal-proof shape.
         mx_master <= "10"; mx_we <= "0000"; mx_en <= '1';
         mx_exp <= x"00000002"; mx_exp_valid <= '1'; mx_claim_held <= '1';
         tick; mx_en <= '0'; tick; mx_exp_valid <= '0'; mx_claim_held <= '0'; tick;
 
-        -- 3. master 2 claims AGAIN -- still master 1's.  A stolen mutex would
-        --    now read back as master 2's (3), so this re-read is the witness
-        --    that ownership did not move.
+        -- 3. master 2 claims again: still master 1's, since a stolen mutex would read back as 3.
         mx_master <= "10"; mx_we <= "0000"; mx_en <= '1';
         mx_exp <= x"00000002"; mx_exp_valid <= '1'; mx_claim_held <= '1';
         tick; mx_en <= '0'; tick; mx_exp_valid <= '0'; mx_claim_held <= '0'; tick;
@@ -110,38 +95,31 @@ begin
         mx_exp <= (others => '0'); mx_exp_valid <= '1';
         tick; mx_en <= '0'; tick; mx_exp_valid <= '0'; tick;
 
-        -- ============ resv_unit: THE M4b FOREIGN-WRITE RULE ============
-        -- master 0 takes a reservation at address 0x20
+        -- ============ resv_unit: the foreign-write rule ============
+        -- master 0 takes a reservation at address 0x20.
         rv_addr <= x"20"; rv_gnt <= "0001"; rv_lrsc <= "00000001";  -- m0 = LR
         rv_sen <= '1'; rv_we <= "0000"; tick;
         rv_sen <= '0'; rv_lrsc <= (others => '0'); rv_gnt <= "0000"; tick;
 
-        -- master 1 WRITES the same address.  M4b: this must break m0's
-        -- reservation.  arb_lat_tb never produces this shape.
+        -- master 1 WRITES the same address: this must break m0's reservation.
         rv_addr <= x"20"; rv_gnt <= "0010"; rv_lrsc <= (others => '0');
         rv_sen <= '1'; rv_we <= "1111"; tick;
         foreign_write_done <= '1';
         rv_sen <= '0'; rv_we <= "0000"; rv_gnt <= "0000"; tick; tick;
 
-        -- master 0 now attempts its SC at the same address -> MUST FAIL
+        -- master 0 now attempts its SC at the same address: it MUST FAIL.
         rv_addr <= x"20"; rv_gnt <= "0001"; rv_lrsc <= "00000010";  -- m0 = SC
         rv_sen <= '1'; rv_we <= "1111"; tick;
         rv_sen <= '0'; rv_we <= "0000"; rv_gnt <= "0000"; rv_lrsc <= (others=>'0');
         tick; tick;
 
-        -- ============ mp_arbiter: M8 GRANT-LOCKED RMW WINDOW ============
-        -- Masters 1..3 are driven by the bfm_other processes below and are
-        -- requesting throughout, so the window is genuinely CONTENDED (see
-        -- witness W_CONTENDED); this process drives master 0 ONLY.
-        -- The full handshake is mandatory here: a master's req must be
-        -- OBSERVED LOW before the arbiter's wait-for-release mask will honor
-        -- it again -- including for the follow-up write out of LOCKED.
+        -- ============ mp_arbiter: grant-locked RMW window ============
+        -- Masters 1..3 request throughout via the BFMs below, so the window is genuinely contended; this process drives master 0 only.
+        -- The full handshake is mandatory: a master's req must be observed low before the wait-for-release mask honors it again, the write out of LOCKED included.
         for k in 0 to 9 loop tick; end loop;
 
         -- master 0's RMW, first half: a READ (we slice "0000") with lock high.
-        -- This is the transaction on whose completion the arbiter enters
-        -- LOCKED; from here until master 0's write completes, no other master
-        -- may be granted.
+        -- The arbiter enters LOCKED on its completion; no other master may be granted until master 0's write completes.
         ab_lock(0) <= '1'; ab_we(3 downto 0) <= "0000"; ab_req(0) <= '1';
         wait until rising_edge(clk) and ab_done(0) = '1';
 
@@ -157,10 +135,8 @@ begin
         stopc <= true; wait;
     end process;
 
-    -- Masters 1..3: full-handshake BFMs that request CONTINUOUSLY (dropping
-    -- req for one cycle after each done, per the arbiter's ghost-txn rule).
-    -- They exist so master 0's locked window has real contenders in it --
-    -- without them P_LOCK_ATOMIC would hold vacuously.
+    -- Masters 1..3: full-handshake BFMs that request continuously, dropping req for one cycle after each done per the arbiter's ghost-txn rule.
+    -- They give master 0's locked window real contenders; without them the lock-atomicity check holds vacuously.
     g_bfm_other : for i in 1 to N-1 generate
         bfm_other : process
         begin

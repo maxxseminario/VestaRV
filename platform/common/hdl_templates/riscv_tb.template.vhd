@@ -14,8 +14,7 @@ use work.tb_defs.all;
 
 entity riscv_tb is
     generic (
-        -- M12: the tile-TCM preload (HART_RAM0_INIT) is retired, every hart boots from the shared ROM like silicon.
-        -- Tests load tiles through the bootrom's msip loader mailboxes.
+        -- Every hart boots from the shared ROM like silicon; tests load the tiles through the bootrom's msip loader mailboxes.
         TEST_FILE : string(1 to 29) := "../rcf/xxxrv32ui-p-simple.rcf"
     );
 end riscv_tb;
@@ -80,8 +79,8 @@ end component;
     constant clk_lfxt_delay : time := (0.5 sec) / 32768;	-- 32.768 kHz
     constant clk_hfxt_period : time := clk_hfxt_delay * 2;
     constant clk_lfxt_period : time := clk_lfxt_delay * 2;
-    -- Watchdog: a test that never writes CAFEBABE/DEADBEEF to a0 (e.g. traps on an unimplemented instruction and spins) is failed when this fires.
-    -- The longest known legit passing test is ~13.7 ms sim-time, so 100 ms gives ~7x headroom while failing tests give up ~100x sooner than the old 10 s value.
+    -- Watchdog: a test that never writes CAFEBABE/DEADBEEF to a0 (it traps and spins, say) fails when this fires.
+    -- The longest legitimate passing test needs ~13.7 ms of sim time, so 100 ms leaves about 7x headroom.
     constant SIMULATION_TIMEOUT : time := 100000 us;
     
     -- Test control addresses
@@ -267,7 +266,7 @@ end component;
         --@GEN:tb-a0-portmap@
     );
 
-    -- Mission B: GPIO4/GPIO5 (prt5/prt6) have no package pads in this testbench, so their inputs are driven idle-low (benign) and their outputs are left unobserved.
+    -- GPIO4/GPIO5 (prt5/prt6) have no package pads in this testbench: drive their inputs idle-low and leave their outputs unobserved.
     prt5_in <= (others => '0');
     prt6_in <= (others => '0');
 
@@ -561,15 +560,13 @@ end component;
         prt4(i) <=  gpio3_drv_sig(i) when gpio3_oe_sig(i) = '1' and (gpio2_test = '1') else 'Z';
     end generate;
 
-    -- I2CT0 loopback (wi2ct): weak 'H' pull-ups on the shared I2C0 home pads P4.0 (SDA0) and P4.1 (SCL0) so the open-drain bus idles high, mirroring a board's I2C pull-ups.
-    -- Weak 'H' resolves against the DUT's open-drain strong '0' lows, and the Verilog pad model's buf() normalizes the weak-high to a clean '1' at the MCU input.
-    -- P4.0/P4.1 only: every other pad/test is untouched (afsel drives P4.0 as a strong GPIO output, which overrides 'H').
+    -- I2CT0 loopback: weak 'H' pull-ups on the shared I2C0 home pads P4.0 (SDA0) and P4.1 (SCL0) so the open-drain bus idles high, mirroring a board's I2C pull-ups.
+    -- The weak high resolves against the DUT's strong open-drain lows and the pad model cleans it to '1' at the MCU input; only these two pads carry it, and a strong GPIO output still overrides 'H'.
     prt4(0) <= 'H';
     prt4(1) <= 'H';
 
-    -- OW0 DQ bench level (Stage H re-pin, 2026-07-26): OW0's 1-Wire DQ moved from P6.6 to P4.7/GPIO31 AF2, and P4.7 is a REAL pad (pad_prt4_gen), so an undriven line floats X and only creeps weak-'1' after the vendor model's 100 us PullTime.
-    -- A weak 'L' reproduces the stuck-low bus wow.S contracts on: presence-always, RX == 0x00.
-    -- Never a strong '0' (it must yield to the pad's own driver) and never 'H' (that flips to NOPRES/0xFF).
+    -- OW0 DQ bench level: the 1-Wire DQ sits on P4.7 (GPIO31 AF2), a real pad, so an undriven line floats X and only creeps weak-'1' after the pad model's 100 us PullTime.
+    -- Weak 'L' gives the stuck-low bus the 1-Wire test expects (presence always, RX 0x00); never a strong '0' (it must yield to the pad's own driver) and never 'H' (that flips to NOPRES and 0xFF).
     prt4(7) <= 'L';
 
     -- Main test sequence
@@ -599,9 +596,8 @@ end component;
 
         wait until (a0_reached_fail or a0_reached_pass or simulation_timeout_flag);
 
-        -- M12: report the tile harts. They boot from the SHARED ROM and park in WFI, so ordinary single-hart tests leave them parked, neither passing nor failing (expected silence).
-        -- Multi-hart tests ignite them via the bootrom loader mailboxes.
-        -- Hart 0 remains the pass/fail gate and a tile FAIL always fails the run; the verdict is latched, so post-PASS corruption still counts.
+        -- Report the tile harts: they park in WFI until a multi-hart test ignites them through the bootrom loader mailboxes, so single-hart tests leave them silent, neither passing nor failing.
+        -- Hart 0 is the pass/fail gate and a tile FAIL always fails the run; the verdict is latched, so corruption after a PASS still counts.
         --@GEN:tb-hart-report@
 
         if a0_reached_pass then
@@ -634,9 +630,8 @@ end component;
         end if;
     end process;
 
-    -- M3b/M12: monitor the tile harts.
-    -- Since M12 they boot from the shared ROM and park in WFI until ignited through the bootrom loader mailboxes.
-    -- Latched so the end-of-test report can confirm pass AND catch any fail.
+    -- Monitor the tile harts, which boot from the shared ROM and park in WFI until ignited through the bootrom loader mailboxes.
+    -- Latched so the end-of-test report can confirm a pass and still catch any fail.
     monitor_harts: process(resetn, clk)
     begin
         if resetn = '0' then

@@ -1,78 +1,11 @@
 -- =============================================================================
--- dbg_dmi_tb.vhd  (D2 acceptance instrument J1, BLIND-AUTHORED, 2026-08-05)
+-- dbg_dmi_tb.vhd
 -- =============================================================================
--- THE DM REGISTER-MAP CONFORMANCE BENCH for the D2 frozen interface: it drives the d2_spec.md section 2 DMI port of a DEBUG-ON MCU and grades the section 3 register subset.
--- It is the D2 sibling of D1's dbg_iface_tb.vhd (I2) and inherits that file's contract exactly: it is the ONE instrument in the D2 set that NAMES the new interface in VHDL, so its FAIL leg at unimplemented HEAD is an ELABORATION ERROR rather than a verdict word, which is the two-part seen-to-FAIL protocol of d2_spec.md section 8.
---
--- BLINDNESS NOTE: written before any D2 RTL exists, against the frozen spec text only.
--- If it fails to elaborate, READ THE ERROR: that is the instrument working, not the instrument broken.
--- Do not "fix" it by deleting the names it asserts must exist.
---
--- ---------------------------------------------------------------------------
--- WHY AN MCU-LEVEL BENCH AND NOT A debug_module UNIT BENCH
---   d2_spec freezes the MCU-entity DMI port names (section 2, verbatim) and does NOT freeze debug_module's own port names.
---   An acceptance instrument may only depend on what the spec froze, so the DUT here is the MCU and the DM is reached exclusively through DMI.
---   That also means this bench tests the thing a D3 DTM will drive, unchanged, which is the stated point of designing the port once.
---
--- ---------------------------------------------------------------------------
--- WHAT IT ASSERTS, and why each assertion is not free
---   The conformance list of d2_spec section 8 first bullet, plus the pieces of section 3 that a debugger's very first transactions depend on.
---
---   C1-C4  dmstatus IDENTITY: version = 3 (1.0), authenticated = 1, hasresethaltreq = 1, impebreak = 1.
---          NONE of these can be taken from Spike: Spike reports version 2, implements no set/clrresethaltreq at all and reads hasresethaltreq 0 (d2_probe P6 deviations 1-2).
---          They are spec-text requirements and this is the only instrument that reads them.
---   C5     hartinfo dataaddr = 0x10680.
---          The DM's advertised data window must be the word d2_spec section 1 claims, or a debugger that believes hartinfo writes somewhere else in the shared band.
---   C6     abstractcs SHAPE: progbufsize = 2, datacount = 1, and both busy and cmderr clean before anything has been asked of it.
---   C7     hartsel WARL WIDTH: write all ten hartsello bits AND all ten hartselhi bits; only ceil(log2(NHARTS)) hartsello bits may stick and hartselhi must read zero.
---          A DM that implements all 20 bits passes every other check here and fails this one.
---   C8     NONEXISTENT, NOT CLAMP.
---          This is the check the "copy Spike" instinct fails: Spike CLAMPS a written hartsel to nprocs()-1 (debug_module.cc:1046), which makes an out-of-range selection look like the top hart.
---          d2_spec section 3 forbids the clamp because a debugger's hart-count discovery probe depends on nonexistent being reachable.
---          So with hartsel out of range, all/anynonexistent must BOTH be 1 and halted/running must both be 0; with hartsel = N-1 nonexistent must be 0.
---          The pair is the discrimination: a DM that hardwires nonexistent = 1 fails the second half.
---   C9     haltsum0 at DMI 0x40 reads SUCCESS and reads 0 while nothing is halted.
---          C19 below is what makes this an instrument rather than a tautology: haltsum0 is read again with a hart actually halted.
---   C10    haltsum1 at DMI 0x13 reads ZERO with op = SUCCESS.
---          d2_spec section 2 carves this out by name from the "unimplemented address returns failed" rule, precisely because a debugger probes it.
---   C11    An unimplemented DMI address DOES return failed.
---          C10 and C11 together are the pair; either alone is satisfiable by an accident.
---   C12    data0 proxy ROUND TRIP over DMI.
---          What this bench canNOT see is whether the proxy really touched shared 0x10680, since a VHDL bench has no window into the RAM model.
---          That half is dbgabsmp/dbg_abs.tcl's, which reads 0x10680 through the RAM model AND has the victim read it in band. Stated, not papered over.
---   C13    cmderr is W1C, IN BOTH DIRECTIONS.
---          Provoke a real error (a legal access-register command aimed at a hart that is RUNNING must set cmderr = HALT_RESUME = 4, d2_spec section 4), then write the cmderr field as ZERO and require it to be UNCHANGED, then write it as ones and require it to clear.
---          A read/write-normal cmderr passes the third step and fails the second, and a hardwired cmderr fails the first.
---   C14    abstractauto (0x18) reads zero (d2_spec section 3).
---   C15    dmcs2 group WARL: 8 groups, so writing the 5-bit group field all ones must read back 7, and group 0 must be the reset value.
---   C16-C21 THE LIVENESS HALF, and it is the half that makes C1-C15 mean something.
---          An expected-zero needs independent proof the instrument was live (method rule 5): every "reads 0" above is satisfied by a DM whose registers are all hardwired zero.
---          So a hart is actually HALTED through DMI here:
---            C16 hart 1 reads allrunning BEFORE (both pair bits driven)
---            C17 haltreq raises allhalted AND anyhalted within budget
---            C18 haltsum0 now has EXACTLY bit 1 set: nonzero, and in the right place
---            C19 selecting hart 2 shows it still running, so halting one hart did not halt the chip
---            C20 an access-memory command (cmdtype 2) on the HALTED hart returns NOT_SUPPORTED, DD5's memory answer, checked where HALT_RESUME cannot mask it
---            C21 aarsize = 3 on the HALTED hart returns NOT_SUPPORTED
---
--- WHAT IT DELIBERATELY DOES NOT ASSERT
---   RESUME, abstract register transfers, progbuf execution, postexec, the EXCEPTION cmderr, halt groups, dcsr.prv, and unavail.
---   Every one of those needs the D4-ROM-stand-in TRAMPOLINE planted at DEBUG_ENTRY_ADDR (d2_spec section 1), which is a testbench DEPOSIT and therefore a tcl act that a VHDL bench cannot do.
---   They are covered by the in-band instruments dbgdmimp / dbgabsmp / dbggrpmp / dbgprvmp / dbgdarkmp and their tcl harnesses.
---   Splitting it this way keeps this file short enough to review line by line, which is the only reason to trust a bench that grades itself.
---   It also asserts nothing about what the halted hart EXECUTES: with no trampoline planted, a halted hart fetches whatever the shared RAM holds at DEBUG_ENTRY_ADDR.
---   That is fine here, because dbg_halted is a STATE (D1's vesta.vhd assigns dbg_halted from debug_mode) so dmstatus and haltsum0 read correctly regardless, and it is why this bench never resumes anything.
---
--- ---------------------------------------------------------------------------
--- THE HANDSHAKE THIS BENCH ASSUMES, and the ONE spec ambiguity behind it
---   d2_spec section 2 gives req_valid/req_ready plus rsp_valid/rsp_op/rsp_data and says "one request in flight; rsp_valid one-shot per request".
---   It does NOT say whether req_ready may be asserted before req_valid.
---   This bench uses the form that is legal under BOTH readings: it raises req_valid and holds it until req_ready is sampled high, then drops it.
---   A DM that holds req_ready high unconditionally would accept only once anyway, because the "one request in flight" clause forbids accepting another while a response is outstanding.
---   If the implementer reads the handshake differently, this is the paragraph to argue with.
---
--- RUN IT:  xcelium/mp_test/run_dbg_dmi.sh
--- PASS iff the log prints "ALL CHECKS PASSED" and contains no "CHECK FAILED".
+-- Debug Module register-map conformance bench: it drives the MCU's DMI port and grades dmstatus, hartinfo, abstractcs, hartsel WARL, haltsum0/1, data0, cmderr, abstractauto and dmcs2.
+-- The DUT is entity work.MCU rather than the riscv_tb component so the DMI formals are NAMED here, which turns a missing DMI port into an elaboration error instead of a silent pass.
+-- Assumed handshake, legal under either reading of the port contract: one request in flight, req_valid held until req_ready is sampled high, rsp_valid one-shot per request.
+-- Out of scope: resume, register transfers, progbuf/postexec, halt groups and dcsr.prv all need a trampoline deposited at DEBUG_ENTRY_ADDR, so they belong to the in-band instruments.
+-- Run xcelium/mp_test/run_dbg_dmi.sh; PASS iff the log prints "ALL CHECKS PASSED" and contains no "CHECK FAILED".
 -- =============================================================================
 
 library IEEE;
@@ -86,11 +19,9 @@ use work.MemoryMap.all;
 
 entity dbg_dmi_tb is
     generic (
-        -- Any real image: this bench never asserts anything about what hart 0 executes.
-        -- It needs a booting chip, not a particular test.
+        -- Any real image: this bench needs a booting chip, not a particular test, and asserts nothing about what hart 0 executes.
         TEST_FILE : string(1 to 29) := "../rcf/xxxrv32ui-p-simple.rcf";
-        -- NHARTS drives the WARL-width and NONEXISTENT arithmetic, so the same file grades Castalia (4) and Argus (18).
-        -- The N=18 leg of d2_spec section 8 sets the generic NHARTS_G to 18 and changes nothing else.
+        -- Hart count drives the hartsel WARL-width and nonexistent arithmetic, so one file grades any chip shape.
         NHARTS_G  : integer := 4
     );
 end entity;
@@ -102,7 +33,7 @@ architecture sim of dbg_dmi_tb is
     constant clk_hfxt_period : time := clk_hfxt_delay * 2;
     constant clk_lfxt_period : time := clk_lfxt_delay * 2;
 
-    -- DM register DMI word addresses (debug_defines.h, d2_spec section 3).
+    -- DM register DMI word addresses.
     constant A_DATA0      : integer := 16#04#;
     constant A_DMCONTROL  : integer := 16#10#;
     constant A_DMSTATUS   : integer := 16#11#;
@@ -113,7 +44,7 @@ architecture sim of dbg_dmi_tb is
     constant A_ABSTRACTAUTO : integer := 16#18#;
     constant A_DMCS2      : integer := 16#32#;
     constant A_HALTSUM0   : integer := 16#40#;
-    -- Deliberately unallocated in d2_spec section 3's subset, so C11 can prove a failed response.
+    -- Deliberately unallocated, so the bench has an address that must answer "failed".
     constant A_UNIMPL     : integer := 16#1A#;
 
     -- DMI request opcodes and response codes.
@@ -126,9 +57,8 @@ architecture sim of dbg_dmi_tb is
     constant CMDERR_NOTSUP     : integer := 2;
     constant CMDERR_HALTRESUME : integer := 4;
 
-    -- Budgets, generous because DMI latency is unspecified at D2 and a tight budget would be a calibration, not a check (method rule 7): what is under test is "eventually" versus "never".
-    -- But NOT unboundedly generous, and the reason is measured: a poll whose every iteration is itself a timing-out DMI transaction multiplies the two budgets together, and the first draft of this file took a 400-cycle answer and turned it into 100 ms of wall clock against an absent DM.
-    -- So transactions are bounded in mclk cycles, POLLS are bounded in ITERATIONS, and a DMI port that never handshakes is latched DEAD after the first attempt so the rest of the run reports instead of grinding.
+    -- Budgets are generous because DMI latency is unspecified and what is under test is "eventually" versus "never", but not unbounded: a poll whose every iteration is itself a timing-out transaction multiplies the two budgets together.
+    -- So transactions are bounded in mclk cycles, polls in iterations, and a port that never handshakes is latched dead after the first attempt so the run reports instead of grinding.
     constant W_XACT  : integer := 400;     -- mclk cycles per DMI phase (~17 us)
     constant N_HALT  : integer := 400;     -- dmstatus polls after haltreq
     constant N_BUSY  : integer := 200;     -- abstractcs polls while busy
@@ -139,11 +69,10 @@ architecture sim of dbg_dmi_tb is
     signal done    : boolean := false;   -- set when the stimulus process finishes
     signal fails   : integer := 0;       -- failed checks
     signal checks  : integer := 0;       -- checks attempted
-    -- Latched the first time a DMI transaction gets no req_ready.
-    -- Everything after that returns immediately: against an absent or wedged DM the run must REPORT, not grind (see the budget note above).
+    -- Latched the first time a DMI transaction gets no req_ready; every later transaction then returns immediately, so an absent or wedged DM is reported rather than ground on.
     signal dmi_dead : boolean := false;
 
-    -- The frozen DMI port (d2_spec section 2).
+    -- The DMI port under test.
     signal dmi_req_valid : std_logic := '0';
     signal dmi_req_op    : std_logic_vector(1 downto 0) := "00";
     signal dmi_req_addr  : std_logic_vector(6 downto 0) := (others => '0');
@@ -166,8 +95,7 @@ architecture sim of dbg_dmi_tb is
     signal a0, a0_1, a0_2, a0_3 : std_logic_vector(31 downto 0);
 
     signal spi_miso, flash_awake : std_logic;
-    -- C0a's subject: latched the first time the bootrom actually drives the SPI flash.
-    -- It is the one check in this file that says something about the CHIP rather than about the DM, and it is what tells a reader of a failing log whether the plumbing or the DM is at fault.
+    -- Latched the first time the bootrom actually drives the SPI flash: the one check here that grades the CHIP rather than the DM, so a failing log separates plumbing from DM.
     signal boot_seen : boolean := false;
     signal boot_done_flag : std_logic := '0';
     signal cs_flash : std_logic;
@@ -192,10 +120,7 @@ architecture sim of dbg_dmi_tb is
 
 begin
 
-    -- ---------------------------------------------------------------------
-    -- Clocks, pads and flash, copied in SHAPE from riscv_tb.vhd and reduced to the boot path.
-    -- GPIO1-5 inputs idle low (riscv_tb does the same for prt5/prt6); nothing in this bench uses them.
-    -- ---------------------------------------------------------------------
+    -- Clocks, pads and flash in the riscv_tb shape, reduced to the boot path; the unused GPIO inputs idle low.
     -- 24 MHz crystal oscillator stimulus.
     ProcClkHFXT: process
     begin
@@ -246,7 +171,7 @@ begin
 
     cs_flash <= prt1(pnum_gpio0_cs_flash) when boot_done_flag = '0' else '1';
 
-    -- C0a evidence: remember that the flash was ever addressed, i.e. that the chip really booted.
+    -- Remember that the flash was ever addressed, i.e. that the chip really booted.
     boot_watch: process(mclk)
     begin
         if rising_edge(mclk) then
@@ -254,8 +179,7 @@ begin
         end if;
     end process;
 
-    -- A BENCH THAT CAN HANG PROMISES EVIDENCE THAT CANNOT OCCUR (the D1 dbg_halt.tcl lesson, method rule 9), and the 1-minute rule makes a hung sim a wasted licence seat.
-    -- Every loop above is bounded; this is the belt for anything the design does that those bounds cannot see.
+    -- A bench that can hang promises evidence that never arrives, so every loop here is bounded and this watchdog is the belt for anything those bounds cannot see.
     watchdog: process
     begin
         wait for 60 ms;
@@ -278,10 +202,7 @@ begin
                   awake => flash_awake,
                   RAM_FILE_PATH => ram_file_name);
 
-    -- ---------------------------------------------------------------------
-    -- THE DUT, instantiated as entity work.MCU rather than through the riscv_tb COMPONENT, precisely so the DMI formals can be NAMED.
-    -- That is what makes this file's FAIL leg an elaboration error.
-    -- ---------------------------------------------------------------------
+    -- The DUT, instantiated as entity work.MCU rather than through a component, so the DMI formals are named and a missing port fails elaboration.
     dut: entity work.MCU
         port map (
             resetn_in => resetn_in, resetn_out => resetn_out,
@@ -303,9 +224,7 @@ begin
             a0 => a0, a0_1 => a0_1, a0_2 => a0_2, a0_3 => a0_3
         );
 
-    -- ---------------------------------------------------------------------
-    -- The stimulus and grading process: boot the chip, then walk C0a through C22.
-    -- ---------------------------------------------------------------------
+    -- The stimulus and grading process: boot the chip, then walk the checks in order.
     stim: process
 
         -- Grade one check, counting it either way.
@@ -315,7 +234,7 @@ begin
             if cond then
                 report "CHECK ok: " & msg severity note;
             else
-                -- Severity WARNING, not error: Xcelium stops the run at the first error, and a bench that stops at the first failure can never tell you whether the rest would also have failed.
+                -- Severity WARNING, not error: an error stops the run at the first failure, hiding whether the rest would have failed too.
                 report "CHECK FAILED: " & msg severity warning;
                 fails <= fails + 1;
             end if;
@@ -397,8 +316,7 @@ begin
         end procedure;
 
         -- Field extract from a DMI word.
-        -- The temporary is THIRTY-ONE bits, not 32, and that is not a style choice: STD_LOGIC_UNSIGNED's conv_integer routes to STD_LOGIC_ARITH's UNSIGNED version, which raises "CONV_INTEGER argument too large" for ANY 32-bit argument regardless of its value.
-        -- Measured here on the first control run, where it turned every field comparison into a warning flood.
+        -- The temporary is THIRTY-ONE bits, not 32: conv_integer raises "CONV_INTEGER argument too large" for any 32-bit argument regardless of its value.
         function fld(v : std_logic_vector(31 downto 0); hi, lo : integer) return integer is
             variable t : std_logic_vector(30 downto 0) := (others => '0');
         begin
@@ -447,25 +365,19 @@ begin
         wait for 4 * clk_hfxt_period;
         resetn <= '1';
 
-        -- Wait for the chip to be OBSERVABLY alive rather than for a fixed time.
-        -- Measured on the control run: 400 us was not enough, because the bootrom switches SMCLK to LFXT mid-boot, so the flash handshake lands well after that.
-        -- Waiting on the EVENT instead of on a guess is method rule 7 at the smallest scale.
+        -- Wait for the chip to be OBSERVABLY alive rather than for a fixed time: the bootrom switches SMCLK onto LFXT mid-boot, so the flash handshake lands long after any plausible fixed delay.
         for i in 0 to 400 loop
             exit when boot_seen;
             wait for 50 us;
         end loop;
 
-        -- =============================================================
-        -- C0a  THE CHIP BOOTED, independent of the DM entirely: it says the reset released, hart 0 fetched the ROM through the arbiter, programmed GPIO0 and drove the flash.
-        -- Without it, a log full of DMI timeouts cannot distinguish "no DM" from "no chip".
-        -- =============================================================
+        -- C0a: the chip booted, independent of the DM: reset released, hart 0 fetched the ROM through the arbiter, programmed GPIO0 and drove the flash.
+        -- Without it a log full of DMI timeouts cannot distinguish "no DM" from "no chip".
         chk(boot_seen,
             "C0a: the chip BOOTED -- the bootrom drove the SPI flash (this "
             & "check knows nothing about the DM)");
 
-        -- =============================================================
-        -- C1-C4  dmstatus identity, read with hart 0 selected.
-        -- =============================================================
+        -- C1-C4: dmstatus identity, read with hart 0 selected.
         dmi_wr(A_DMCONTROL, dmcontrol_w(0, (others => '0')));
         dmi_rd(A_DMSTATUS, d, rop);
         chk(rop = RSP_SUCCESS, "C0: dmstatus read returns op = success");
@@ -478,9 +390,7 @@ begin
         chk(fld(d, 22, 22) = 1,
             "C4: dmstatus.impebreak = 1 (the third progbuf word, free)");
 
-        -- =============================================================
-        -- C5  hartinfo: the advertised data window
-        -- =============================================================
+        -- C5: hartinfo, the advertised data window.
         dmi_rd(A_HARTINFO, d, rop);
         chk(rop = RSP_SUCCESS, "C5a: hartinfo read returns op = success");
         chk(fld(d, 11, 0) = 16#680#,
@@ -488,9 +398,7 @@ begin
         chk(fld(d, 16, 16) = 1, "C5c: hartinfo.dataaccess = 1 (memory-mapped)");
         chk(fld(d, 15, 12) = 1, "C5d: hartinfo.datasize = 1");
 
-        -- =============================================================
-        -- C6  abstractcs shape, clean before anything is asked
-        -- =============================================================
+        -- C6: abstractcs shape, clean before anything is asked of it.
         dmi_rd(A_ABSTRACTCS, d, rop);
         chk(rop = RSP_SUCCESS, "C6a: abstractcs read returns op = success");
         chk(fld(d, 28, 24) = 2, "C6b: abstractcs.progbufsize = 2");
@@ -498,15 +406,11 @@ begin
         chk(fld(d, 12, 12) = 0, "C6d: abstractcs.busy = 0 before any command");
         chk(fld(d, 10, 8) = 0,  "C6e: abstractcs.cmderr = 0 before any command");
 
-        -- =============================================================
-        -- C7  hartsel WARL width
-        -- =============================================================
-        -- Write all ten hartsello bits AND all ten hartselhi bits at once.
-        -- 0x03FFFFC1 = hartsello[25:16] all ones, hartselhi[15:6] all ones and dmactive, with bits 1-5 left clear (writing set and clr resethaltreq together would be an ambiguous stimulus, not a stronger one).
+        -- C7: hartsel WARL width, writing all ten hartsello bits and all ten hartselhi bits at once.
+        -- 0x03FFFFC1 = hartsello[25:16] all ones, hartselhi[15:6] all ones and dmactive, with bits 1-5 left clear (set and clr resethaltreq together would be an ambiguous stimulus).
         dmi_wr(A_DMCONTROL, x"03FFFFC1");
         dmi_rd(A_DMCONTROL, d, rop);
-        -- R-D2-4(1): hartsello stores ALL TEN bits at BOTH N.
-        -- The old masked-readback expectation was an INSTRUMENT DEFECT against the amended spec: at N=4 a 2-bit mask contradicts the NONEXISTENT clause outright, and a masked wide write silently selects a DIFFERENT EXISTING hart, the failure class the anti-clamp rationale condemns.
+        -- hartsello stores ALL TEN bits at every hart count: masking it would contradict the nonexistent rule and let a wide write silently select a different EXISTING hart.
         expect_hs := 16#3FF#;
         chk(fld(d, 25, 16) = expect_hs,
             "C7a: hartsello stores ALL TEN bits at both N (no mask, no clamp)");
@@ -515,11 +419,8 @@ begin
         chk(fld(d, 29, 29) = 0,"C7d: hartreset reads zero (WARL, D2 residue)");
         chk(fld(d, 26, 26) = 0,"C7e: hasel reads zero (dropped at D2)");
 
-        -- =============================================================
-        -- C8  NONEXISTENT, not clamp
-        -- =============================================================
-        -- Use the SMALLEST out-of-range value, not 0x3FF: NHARTS+1 is what a bit-masking implementation would fold onto a real hart (5 becomes 1 at N=4).
-        -- 0x3FF cannot catch that; this can.
+        -- C8: an out-of-range hartsel must read NONEXISTENT, never clamp onto a real hart.
+        -- Use the SMALLEST out-of-range value, not 0x3FF: NHARTS+1 is what a bit-masking implementation folds onto a real hart, and 0x3FF cannot catch that.
         dmi_wr(A_DMCONTROL, dmcontrol_w(NHARTS_G + 1, (others => '0')));
         dmi_rd(A_DMCONTROL, d2, rop);
         dmi_rd(A_DMSTATUS, d, rop);
@@ -537,9 +438,7 @@ begin
             "C8d: hartsel = NHARTS-1 is EXISTENT -- the pair that stops a "
             & "hardwired nonexistent from passing C8a");
 
-        -- =============================================================
-        -- C9/C10/C11  haltsum0, haltsum1, and an unimplemented address
-        -- =============================================================
+        -- C9/C10/C11: haltsum0, haltsum1, and an unimplemented address.
         dmi_wr(A_DMCONTROL, dmcontrol_w(0, (others => '0')));
         dmi_rd(A_HALTSUM0, d, rop);
         chk(rop = RSP_SUCCESS, "C9a: haltsum0 (0x40) reads op = success");
@@ -555,9 +454,7 @@ begin
             & "counterpart to C10 -- either check alone is satisfiable by "
             & "an accident)");
 
-        -- =============================================================
-        -- C12  data0 proxy round trip
-        -- =============================================================
+        -- C12: data0 proxy round trip (whether the proxy really touched the shared word is the in-band instruments' half).
         dmi_wr(A_DATA0, x"5EED0D2A");
         dmi_rd(A_DATA0, d, rop);
         chk(rop = RSP_SUCCESS and d = x"5EED0D2A",
@@ -567,9 +464,7 @@ begin
         chk(d = x"A5A5F00D",
             "C12b: ...and a SECOND value, so C12a is not a reset constant");
 
-        -- =============================================================
-        -- C13  cmderr is W1C, in both directions
-        -- =============================================================
+        -- C13: cmderr is W1C in both directions, so writing zero must leave it set and writing ones must clear it.
         -- A LEGAL access-register command aimed at a RUNNING hart, which must be refused with HALT_RESUME.
         dmi_wr(A_DMCONTROL, dmcontrol_w(1, (others => '0')));
         dmi_wr(A_COMMAND, x"00221008");        -- aarsize=2 transfer=1 read s0(x8)
@@ -589,16 +484,13 @@ begin
         dmi_rd(A_ABSTRACTCS, d, rop);
         chk(fld(d, 10, 8) = 0, "C13c: writing ONES to cmderr clears it");
 
-        -- =============================================================
-        -- C14/C15  abstractauto, dmcs2 group WARL
-        -- =============================================================
+        -- C14/C15: abstractauto and the dmcs2 group WARL.
         dmi_rd(A_ABSTRACTAUTO, d, rop);
         chk(d = x"00000000", "C14: abstractauto reads zero");
 
         dmi_rd(A_DMCS2, d, rop);
         chk(fld(d, 6, 2) = 0, "C15a: dmcs2.group resets to 0 (= no group)");
-        -- hgwrite (bit 1) MUST be set for the group field to commit.
-        -- The first draft wrote 0x7C, with hgwrite CLEAR, and then required a commit, i.e. it demanded non-conformant behaviour; this file's own tcl sibling always wrote 0x7E and always passed, which is what named the defect (R-D2-6(4)).
+        -- hgwrite (bit 1) MUST be set for the group field to commit, so the stimulus is 0x7E and never 0x7C.
         dmi_wr(A_DMCS2, x"0000007E");          -- hgselect=0, hgwrite=1, group=all ones
         dmi_rd(A_DMCS2, d, rop);
         chk(fld(d, 6, 2) = 7,
@@ -607,9 +499,7 @@ begin
         dmi_wr(A_DMCS2, x"00000002");          -- hgwrite, group 0: put it back
         dmi_wr(A_DMCS2, x"00000000");
 
-        -- =============================================================
-        -- C16-C21  THE LIVENESS HALF
-        -- =============================================================
+        -- C16-C22: the liveness half, which actually halts a hart so that the expected-zero checks above are evidence and not a hardwired zero.
         dmi_wr(A_DMCONTROL, dmcontrol_w(1, (others => '0')));
         dmi_rd(A_DMSTATUS, d, rop);
         chk(fld(d, 11, 11) = 1 and fld(d, 10, 10) = 1,
@@ -628,7 +518,7 @@ begin
         chk(fld(d, 8, 8) = 1, "C17b: ...and anyhalted is driven too");
         chk(fld(d, 11, 11) = 0 and fld(d, 10, 10) = 0,
             "C17c: ...and running went low: the state is exclusive");
-        -- Drop haltreq, as a debugger does; d2_spec section 4 makes the re-armed level the DM's job, not the core's.
+        -- Drop haltreq, as a debugger does; re-arming the level is the DM's job, not the core's.
         dmi_wr(A_DMCONTROL, dmcontrol_w(1, (others => '0')));
         dmi_rd(A_DMSTATUS, d, rop);
         chk(fld(d, 9, 9) = 1,
@@ -667,7 +557,7 @@ begin
             "C22: aarsize = 3 on a HALTED hart returns NOT_SUPPORTED");
         dmi_wr(A_ABSTRACTCS, x"00000700");
 
-        -- The halted hart is left halted ON PURPOSE: resuming it needs the trampoline at DEBUG_ENTRY_ADDR, which is a tcl deposit and belongs to the in-band instruments (see the header).
+        -- The halted hart is left halted ON PURPOSE: resuming it needs the trampoline at DEBUG_ENTRY_ADDR, which is a deposit only the in-band instruments can make.
         wait for 20 us;
         if fails = 0 then
             report "ALL CHECKS PASSED" severity note;

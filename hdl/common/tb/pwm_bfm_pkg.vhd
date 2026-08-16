@@ -1,24 +1,11 @@
 -------------------------------------------------------------------------------
 -- pwm_bfm_pkg.vhd
 -------------------------------------------------------------------------------
--- Bench-support helpers for the PWM buffered-PWM-generator peripheral testbench (tb/PWM_tb.vhd).
--- Mirrors rtc_bfm_pkg.vhd and nfc_bfm_pkg.vhd: PWM.vhd is being written in parallel against the same FROZEN design this bench targets (~/vesta_docs/digperiphs/pwm_design.md, D1-D21 plus orchestrator A1-A7).
--- The slot numbers and CR/POL/SR field positions below are therefore LOCAL to this bench, not shared MemoryMap.vhd constants.
--- PWM0 lives at 0x6600, and MemoryMap.vhd has no PWM0 slot constants until the generator knob is turned on (D17).
---
--- CHECKER INDEPENDENCE (the task's binding instruction): this package provides ONLY bus-level plumbing, register-field packing, bounded SR polls, and a single ATOMIC output-measurement primitive (pwm_wait_transition) that counts `clk` edges in TB code between observed `pwm_out` transitions.
--- It NEVER reads a DUT internal (no pwm_cnt, dty_active, per_active, psc_cnt, etc.): period, duty and boundary MATH is done by the bench (PWM_tb.vhd) from the PER/DTY/PSC values it programmed, consuming this primitive's elapsed-edge counts.
--- The CONTINUOUS min-pulse-width glitch monitor (G2, the headline check) lives directly in PWM_tb.vhd as a background process, because it needs persistent per-channel accumulator state across the whole run and is not a natural fit for a stateless package procedure.
--- This package's pwm_wait_transition is the on-demand sibling used by the stimulus process itself for G1/G3/G4.
---
--- Frozen register map (word slots @0x6600, design doc D5):
---   0 PWM0CR   1 PWM0PER  2 PWM0DTY0  3 PWM0DTY1  4 PWM0DTY2 (rsvd)
---   5 PWM0DTY3 (rsvd)     6 PWM0POL   7 PWM0DT (rsvd)        8 PWM0SR
---   9+ read 0.
---
--- Calling convention for the bounded polls copies rtc_bfm_pkg exactly:
---   (signal clk, signal b, signal read_data, [args], done_ok : out boolean).
--- The caller turns done_ok into a scoreboard pass/fail (sb.check_true), so a poll that never satisfies its condition FAILS the run instead of hanging.
+-- Bench-support helpers for the PWM peripheral testbench (tb/PWM_tb.vhd).
+-- The slot numbers and CR/POL/SR field positions are LOCAL to this bench: PWM0 sits at 0x6600 and MemoryMap.vhd carries no PWM0 constants.
+-- Provides bus plumbing, register-field packing, bounded SR polls, and pwm_wait_transition, which counts clk edges between observed pwm_out changes.
+-- No DUT internal is ever read: period, duty and boundary math is done by the bench from the PER/DTY/PSC values it programmed.
+-- Bounded polls end with done_ok, which the caller turns into a scoreboard check, so a poll that never satisfies its condition fails the run instead of hanging.
 -------------------------------------------------------------------------------
 
 library ieee;
@@ -28,60 +15,59 @@ use work.periph_tb_pkg.all;
 
 package pwm_bfm_pkg is
 
-    -- ---- register word-slot map (frozen, design doc D5) -------------------
+    -- ---- register word-slot map -------------------------------------------
     constant PWM_SLOT_CR   : natural := 0;
     constant PWM_SLOT_PER  : natural := 1;
     constant PWM_SLOT_DTY0 : natural := 2;
     constant PWM_SLOT_DTY1 : natural := 3;
-    constant PWM_SLOT_DTY2 : natural := 4;   -- reserved (D16): reads 0, writes ignored
-    constant PWM_SLOT_DTY3 : natural := 5;   -- reserved (D16): reads 0, writes ignored
+    constant PWM_SLOT_DTY2 : natural := 4;   -- reserved: reads 0, writes ignored
+    constant PWM_SLOT_DTY3 : natural := 5;   -- reserved: reads 0, writes ignored
     constant PWM_SLOT_POL  : natural := 6;
-    constant PWM_SLOT_DT   : natural := 7;   -- reserved (D16): reads 0, writes ignored
+    constant PWM_SLOT_DT   : natural := 7;   -- reserved: reads 0, writes ignored
     constant PWM_SLOT_SR   : natural := 8;
 
-    -- ---- PWM0CR bit positions (design doc D5, slot 0) ----------------------
+    -- ---- PWM0CR bit positions (slot 0) ------------------------------------
     constant PWM_CR_PWMEN   : natural := 0;    -- master enable                    (crosses to clk)
     constant PWM_CR_CH0EN   : natural := 1;    -- CH0 output enable                (crosses to clk)
     constant PWM_CR_CH1EN   : natural := 2;    -- CH1 output enable                (crosses to clk)
-    constant PWM_CR_CH2EN   : natural := 3;    -- reserved (4-ch bolt-on, D16)
-    constant PWM_CR_CH3EN   : natural := 4;    -- reserved (4-ch bolt-on, D16)
-    constant PWM_CR_CNTMODE : natural := 5;    -- reserved (center-aligned, D19)
-    constant PWM_CR_DTEN    : natural := 6;    -- reserved (deadtime bolt-on, D16)
+    constant PWM_CR_CH2EN   : natural := 3;    -- reserved (4-channel bolt-on)
+    constant PWM_CR_CH3EN   : natural := 4;    -- reserved (4-channel bolt-on)
+    constant PWM_CR_CNTMODE : natural := 5;    -- reserved (center-aligned mode)
+    constant PWM_CR_DTEN    : natural := 6;    -- reserved (deadtime bolt-on)
     constant PWM_CR_PEVIE   : natural := 7;    -- period-event interrupt enable    (clk)
     constant PWM_CR_FLTIE   : natural := 8;    -- fault interrupt enable           (clk)
     constant PWM_CR_FLTEN   : natural := 12;   -- fault system enable              (crosses to clk)
-    constant PWM_CR_FLTPOL  : natural := 13;   -- reserved (HW fault polarity, D16)
+    constant PWM_CR_FLTPOL  : natural := 13;   -- reserved (HW fault polarity)
     constant PWM_CR_FLTTRIG : natural := 14;   -- write-1 software trip, reads 0   (crosses to clk)
     constant PWM_CR_PSC_LO  : natural := 16;   -- PSC[3:0] field lo
     constant PWM_CR_PSC_HI  : natural := 19;   -- PSC[3:0] field hi
 
-    -- ---- PWM0POL bit positions (design doc D5, slot 6; immediate, D11) -----
+    -- ---- PWM0POL bit positions (slot 6; takes effect immediately) ---------
     constant PWM_POL_POL0  : natural := 0;
     constant PWM_POL_POL1  : natural := 1;
     constant PWM_POL_SAFE0 : natural := 4;
     constant PWM_POL_SAFE1 : natural := 5;
 
-    -- ---- PWM0SR bit positions (design doc D5, slot 8) ----------------------
+    -- ---- PWM0SR bit positions (slot 8) ------------------------------------
     constant PWM_SR_FLTF : natural := 0;   -- w1c
     constant PWM_SR_PEVF : natural := 1;   -- w1c
     constant PWM_SR_UPDF : natural := 2;   -- r
-    constant PWM_SR_DIR  : natural := 3;   -- r, reserved (D19)
+    constant PWM_SR_DIR  : natural := 3;   -- r, reserved
 
-    -- Build a full 32-bit PWM0CR word (D5 field layout).
-    -- EN/FLTEN/FLTTRIG/PSC cross to the `clk` engine (D2.2/D2.4); PEVIE/FLTIE stay in the `clk` domain and gate the IRQs combinationally (D18).
+    -- Build a full 32-bit PWM0CR word.
+    -- EN/FLTEN/FLTTRIG/PSC cross to the clk engine; PEVIE/FLTIE stay in the clk domain and gate the IRQs combinationally.
     function pwm_mk_cr(pwmen, ch0en, ch1en, pevie, fltie, flten, flttrig : std_logic;
                         psc : std_logic_vector(3 downto 0) := "0000")
         return std_logic_vector;
 
-    -- Build a full 32-bit PWM0POL word (D5 field layout, D11 absolute safe level).
+    -- Build a full 32-bit PWM0POL word; SAFEn is an absolute output level, not a polarity.
     function pwm_mk_pol(pol0, pol1, safe0, safe1 : std_logic) return std_logic_vector;
 
-    -- Guard bound for every bounded poll or wait in this package.
-    -- The largest legitimate wait in this bench is one PWM period, which the bench keeps to at most a few tens of clk edges (compressed timing, small PSC/PER), so 4000 clk edges is generous headroom while staying bounded.
+    -- Guard bound for every bounded poll or wait here; the longest legitimate wait is one PWM period, a few tens of clk edges at this bench's compressed PSC/PER.
     constant PWM_POLL_GUARD : natural := 4000;
 
     -- Bounded poll of a single PWM0SR bit until it reads exp_val.
-    -- done_ok comes back false (the poll never hangs) if the bit has not reached exp_val within the guard count, mirroring rtc_wait_flag.
+    -- done_ok comes back false, never a hang, if the bit has not reached exp_val within the guard count.
     procedure pwm_wait_flag(signal clk       : in    std_logic;
                             signal b         : inout periph_bus_t;
                             signal read_data : in    std_logic_vector(31 downto 0);
@@ -89,17 +75,14 @@ package pwm_bfm_pkg is
                             exp_val          : in    std_logic;
                             done_ok          : out   boolean);
 
-    -- Specialized bounded poll of PWM0SR.UPDF (bit 2) until it reads '0' (D9: the staged waveform has been absorbed at a period boundary).
+    -- Bounded poll of PWM0SR.UPDF (bit 2) until it reads '0', i.e. the staged waveform was absorbed at a period boundary.
     procedure pwm_wait_updf_clear(signal clk       : in    std_logic;
                                   signal b         : inout periph_bus_t;
                                   signal read_data : in    std_logic_vector(31 downto 0);
                                   done_ok          : out   boolean);
 
-    -- CHECKER-INDEPENDENT output-measurement primitive (mandatory, D8/G1-G4).
-    -- Waits for the NEXT change of pwm_out(ch) (to_X01-normalized) away from its level at call time, counting `clk` RISING edges elapsed, and returns that edge count plus the new level.
-    -- done_ok comes back false (the wait never hangs) if no transition is observed within PWM_POLL_GUARD clk edges, which is also how the bench proves a CONSTANT output (G4 duty=0 and duty>=PER+1 corners): a bounded, expected timeout.
-    --
-    -- This procedure reads ONLY the bench-visible pwm_out port and never a DUT internal, so every period and duty figure the bench checks is derived by the bench's OWN arithmetic on the PER/DTY/PSC values it programmed.
+    -- Waits for the next change of pwm_out(ch) away from its level at call time, counting elapsed clk rising edges, and returns that count plus the new level.
+    -- done_ok comes back false on a bounded timeout, which is also how the bench proves a constant output at the duty=0 and duty>=PER+1 corners.
     procedure pwm_wait_transition(signal clk      : in  std_logic;
                                   signal pwm_out  : in  std_logic_vector(1 downto 0);
                                   ch              : in  natural range 0 to 1;

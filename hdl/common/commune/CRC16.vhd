@@ -17,9 +17,8 @@ entity CRC16 is
 end CRC16;
 
 architecture behavioral of CRC16 is
-	-- Default configuration is the CRC16_CDMA2000 standard: polynomial 0xC857, initial CRC 0xFFFF, final XOR 0x0000, no data reflection, no output reflection.
-	-- The initial value must be fed into CrcOld by the caller.
-	-- Input data reflection, output data reflection and a nonzero final output XOR are not supported.
+	-- Default configuration is the CRC16_CDMA2000 standard: polynomial 0xC857, initial CRC 0xFFFF, final XOR 0x0000, no reflection.
+	-- The caller feeds the initial value in through CrcOld; data reflection and a nonzero final XOR are not supported.
 begin
 
 	-- Combinational byte-wide CRC step: eight LFSR shifts per input byte.

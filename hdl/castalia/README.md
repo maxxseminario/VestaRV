@@ -1,15 +1,16 @@
-# Castalia — 4-hart wound-monitoring MCU
+# Castalia — 5-hart wound-monitoring MCU
 
-Chip-specific RTL for **Castalia**, the four-core wound-monitoring chip
-(4 × `hart_tile`, shared-bus MCU_MP fabric, NPU, `config` = the default
-Castalia configuration in `platform/common/`).
+Chip-specific RTL for **Castalia**, the five-core wound-monitoring chip:
+hart 0 is the always-on orchestrator (`orch_tile`) and harts 1-4 are the
+channel tiles (`hart_tile`), on the shared-bus MCU_MP fabric with the NPU.
+`config` = the default Castalia configuration in `platform/common/`.
 
 ```
 castalia/
-├── MCU.vhd        — Castalia top-level (4 harts) — make-chip product
+├── MCU.vhd        — Castalia top-level (5 harts) — make-chip product
 ├── MemoryMap.vhd  — Castalia peripheral/address constants — make-chip product
 └── tb/
-    └── riscv_tb.vhd — 4-hart ISA-regression testbench (a0 + a0_1/2/3 monitors)
+    └── riscv_tb.vhd — 5-hart ISA-regression testbench (a0 + a0_1/2/3/4 monitors)
 ```
 
 ## ⚠ Source of truth

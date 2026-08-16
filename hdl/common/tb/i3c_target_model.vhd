@@ -1,37 +1,8 @@
--------------------------------------------------------------------------------
--- i3c_target_model.vhd
--------------------------------------------------------------------------------
--- Generic-configured behavioral I3C/legacy-I2C TARGET responder for the I3C peripheral testbench (tb/I3C_tb.vhd), stage 1 (D29).
--- It mirrors tb/qspi_flash_model.vhd's role: per launch the TB states the exact shape to expect through cfg_* inputs held stable for one START..STOP framed transaction.
--- Those are its own 7-bit address, legacy versus I3C-SDR mode, how many bytes IT has available to source on a read, the read pattern seed, and a write-parity-corruption injection flag.
--- The stage-1 model does NOT implement DAA/IBI (stage 2 and 3, D34, out of scope for stage 1) or HDR modes.
---
--- BUS-LEVEL PROTOCOL MODEL, this designer's own read of D19 and D24-D27, since I3C.vhd does not exist yet to validate cycle-level behavior against; ASSUMPTIONS are flagged below.
---   Every 9-edge "group" on SCL is either the address+RnW group (group 0: 7 address bits MSB-first, 1 RnW bit, 1 ACK slot) or a data-byte group (group N of 1 or more: 8 data bits MSB-first, 1 ACK/T slot).
---   This model tracks a single `edge` counter (SCL rising-edge count since the last START/Sr) and derives group_idx = edge/9 and bit_in_group = edge mod 9 from it.
---   That is exactly qspi_flash_model's b1/b2/b3/b4 boundary technique, applied to a 9-edge cadence instead of CMD/ADDR/DUMMY/DATA phase boundaries.
---   * SAMPLE happens on the SCL RISING edge, with setup on SCL low, matching B3's BIT_SETUP, BIT_SCL_RISE, BIT_SAMPLE, BIT_SCL_FALL sequence (D1).
---   * DRIVE, this model's own output setup for the NEXT sample, happens on the SCL FALLING edge.
---   * START always RESETS `edge` to 0 and restarts the address group; a repeated START (Sr) is electrically identical to a first START, namely SDA falling while SCL is high.
---     That is exactly the Sr behavior D16/D19 need, with no special-casing.
---   * ADDRESS ACK (group 0, bit 8) is open-drain: this model drives SDA low iff the captured 7-bit address matches cfg_target_addr, else it releases, giving a NACK into the DUT's ANACK path (address-NACK test group).
---   * WRITE byte T-bit (D24, non-legacy): the CONTROLLER drives 9th-bit odd parity.
---     This model only SAMPLES it, never drives it, and compares against i3c_parity() of the captured byte, or of a locally corrupted copy when cfg_corrupt_wparity is set (D29's self-test of the checker, not a real DUT fault).
---   * READ byte T-bit (D25, non-legacy) is an ASSUMPTION, flagged: the frozen D19 table describes the CONTROLLER's drive action, "release and sample" for continue and "drive low" for the final or abort byte, not the target's.
---     This model drives T=0 (SDA low) on ITS OWN last configured byte (byte_idx = cfg_num_read_bytes-1, announcing end-of-data) and RELEASES otherwise, never driving high, relying on the D19-mandated weak-'H' pull for the T=1 continue case.
---     So a controller that wants to terminate EARLY (its own final byte, per D19 "drive low") always wins the wired-AND regardless of what this model intends, and a target that wants to end early (EODF) can assert T=0 without knowing the controller's DLEN.
---     This model never drives an ACTIVE HIGH.
---   * Legacy-I2C mode (cfg_legacy_mode, BUSMODE=1, D29): the ACK/T slot becomes a real bidirectional per-byte ACK.
---     On a WRITE byte this model, the addressed target, DRIVES the ACK (open-drain low = ack, no parity concept).
---     On a READ byte it only SAMPLES the controller's ACK/NACK and drives nothing, symmetric with I2C.vhd's L504-513 recipe minus the slave FSM (D10).
---   * SCL is SAMPLE/DRIVE clocked entirely from the DUT in I3C-SDR mode (D19: push-pull, no stretch, D11).
---     This model may assert scl_oe (stretch) only when cfg_legacy_mode AND cfg_legacy_stretch are both true, and then only as an ILLUSTRATIVE fixed-duration stretch right after the address ACK (LEGACY_STRETCH_TIME below).
---     There is no real processing delay to model in a combinational bench responder, so that stretch exists to prove the scl_oe/scl_out wiring is present and exercised in at least one test group, not to model a specific real duration.
---
--- Bus ownership: sda_oe/scl_oe follow the qspi_flash_model io_oe convention, where '1' means this model drives that pin.
--- The TB resolves sda_in and scl, this model's inputs, the same way QSPI_tb.vhd's io_res generate does, extended with a weak 'H' release level (see the I3C_tb.vhd header).
--- The D19/D20 push-pull WDATA and DAA-assign phases are NOT driven by this model at all: the DUT is the single driver, and sda_oe stays '0' through those bit groups here.
--------------------------------------------------------------------------------
+-- Behavioral I3C/legacy-I2C TARGET responder for the I3C testbench: the TB states the shape of each transaction through cfg_* inputs held stable across one START..STOP frame.
+-- Bus traffic is parsed as 9-edge groups off a single SCL rising-edge counter: group 0 is 7 address bits MSB-first plus RnW plus the ACK slot, and each later group is 8 data bits plus an ACK/T slot.
+-- Sampling happens on the SCL rising edge and this model's drive setup on the falling edge; a START or repeated START always resets the counter and restarts the address group.
+-- The model is open-drain throughout and NEVER drives an active high: a released bit relies on the bench's weak 'H' pull, and sda_oe/scl_oe = '1' means this model drives the matching *_out.
+-- DAA and IBI are modelled, HDR modes are not, and the legacy-only SCL stretch after the address ACK is an illustrative fixed hold that exercises the scl_oe wiring, not a modelled processing delay.
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -53,21 +24,20 @@ entity I3C_target_model is
         -- Per-transaction configuration, held stable by the TB across one START..STOP framed transaction.
         cfg_target_addr     : in std_logic_vector(6 downto 0) := "1010000";  -- 0x50
         cfg_legacy_mode     : in boolean                      := false;     -- BUSMODE=1
-        cfg_legacy_stretch  : in boolean                      := false;     -- D11 stretch demo, legacy only
+        cfg_legacy_stretch  : in boolean                      := false;     -- stretch demo, legacy only
         cfg_num_read_bytes  : in natural                      := 1;         -- target's OWN last-byte boundary
         cfg_read_seed       : in std_logic_vector(7 downto 0) := x"A5";     -- seed for the generated read pattern
-        cfg_corrupt_wparity : in boolean                      := false;     -- D29 injection flag
+        cfg_corrupt_wparity : in boolean                      := false;     -- write-parity injection, a self-test of the checker
 
-        -- Stage-2 DAA config (D18/task): the 48-bit PID plus BCR and DCR, streamed open-drain during an ENTDAA round.
+        -- DAA config: the 48-bit PID plus BCR and DCR, streamed open-drain during an ENTDAA round.
         -- cfg_daa_enable also makes this model ACK the 0x7E broadcast header (CCC / ENTDAA / SETDASA).
         cfg_daa_enable : in boolean                       := false;
         cfg_pid        : in std_logic_vector(47 downto 0) := (others => '0');
         cfg_bcr        : in std_logic_vector(7 downto 0)  := (others => '0');
         cfg_dcr        : in std_logic_vector(7 downto 0)  := (others => '0');
 
-        -- Stage-3 IBI (D-doc S3, R2): a rising edge on cfg_ibi_trigger makes this model INITIATE a bus-available IBI.
-        -- It drives a START (SDA low while SCL high), then streams its STAGE-2-ASSIGNED dynamic address plus RnW=1 open-drain as the controller clocks SCL, samples the controller's ACK/NACK, and on ACK, when cfg_ibi_has_data, drives cfg_ibi_mdb followed by a released T.
-        -- The TB only pulses the trigger when the bus is idle.
+        -- A rising edge on cfg_ibi_trigger makes this model INITIATE a bus-available IBI; the TB only pulses it when the bus is idle.
+        -- It drives a START (SDA low while SCL high), then streams its assigned dynamic address plus RnW=1 open-drain as the controller clocks SCL, samples the ACK/NACK, and on ACK with cfg_ibi_has_data drives cfg_ibi_mdb followed by a released T.
         cfg_ibi_trigger  : in std_logic                     := '0';
         cfg_ibi_mdb      : in std_logic_vector(7 downto 0)  := (others => '0');
         cfg_ibi_has_data : in boolean                       := true;
@@ -82,12 +52,12 @@ entity I3C_target_model is
         obs_rcount     : out natural := 0;
         obs_txn_count  : out natural := 0;
 
-        -- Stage-2 DAA observations; these persist once an address is assigned.
+        -- DAA observations; these persist once an address is assigned.
         obs_daa_assigned  : out std_logic                    := '0';
         obs_daa_dynaddr   : out std_logic_vector(6 downto 0) := (others => '0');
         obs_daa_parity_ok : out std_logic                    := '0';
 
-        -- Stage-3 IBI observations: obs_ibi_acked is the ACK/NACK this model sampled from the controller on its last IBI (1=ACK, 0=NACK), held until the next IBI.
+        -- IBI observations: obs_ibi_acked is the ACK/NACK this model sampled from the controller on its last IBI (1=ACK, 0=NACK), held until the next IBI.
         -- obs_ibi_count increments once per completed IBI.
         obs_ibi_acked : out std_logic := '0';
         obs_ibi_count : out natural   := 0
@@ -115,8 +85,7 @@ begin
         variable is_read  : boolean := false;   -- RnW bit of the current frame
         variable addr_ok  : boolean := false;   -- the frame addressed this target
         variable legacy_l : boolean := false;   -- cfg_legacy_mode latched at START
-        -- Ruling 3: once this model has driven its final read T=0 it releases SDA for the rest of the frame, until the next START.
-        -- That way no phantom read byte fights the STOP or the idle bus.
+        -- Once this model has driven its final read T=0 it releases SDA until the next START, so no phantom read byte fights the STOP or the idle bus.
         variable read_done : boolean := false;
 
         variable wdata_v : i3c_byte_array(0 to I3C_MODEL_MAX_BYTES - 1) := (others => (others => '0'));
@@ -128,9 +97,8 @@ begin
         variable g, bp, byte_idx : natural;     -- group index, bit position in group, data-byte index
         variable pat : std_logic_vector(7 downto 0);  -- generated read-pattern byte
 
-        -- ---- stage-2 DAA state ----------------------------------------
-        -- `assigned` persists for the whole test once this device wins an ENTDAA round; it then NACKs further 7E+R headers and ACKs its adopted dynamic address for directed transfers.
-        -- The per-round state resets on every START/Sr.
+        -- ---- DAA state ------------------------------------------------
+        -- `assigned` persists once this device wins an ENTDAA round: it then NACKs further 7E+R headers and ACKs its adopted dynamic address, while the per-round state resets on every START/Sr.
         -- daa_id = {PID[47:0], BCR, DCR} is the 64-bit value streamed MSB-first under open-drain arbitration.
         variable assigned    : boolean := false;
         variable daa_dynaddr : std_logic_vector(6 downto 0) := (others => '0');
@@ -142,21 +110,17 @@ begin
         variable k           : natural;            -- bit index within the 64-bit arbitration ID
         variable par_v       : std_logic;          -- locally recomputed assign parity
 
-        -- ---- stage-3 IBI initiator state ------------------------------
-        -- in_ibi spans the START..STOP of a model-initiated IBI.
-        -- ibi_fall counts SCL falling edges since the START; on fall k the model sets up header or MDB bit k, mapped as follows:
+        -- ---- IBI initiator state --------------------------------------
+        -- in_ibi spans the START..STOP of a model-initiated IBI; ibi_fall counts SCL falling edges since that START and selects the bit set up for the next sample, with the ACK sampled at ibi_fall=9:
         --   k=0..6 address MSB-first, k=7 RnW=1, k=8 ACK slot (controller drives),
         --   k=9..16 MDB MSB-first, k=17 T slot, k=18 and beyond released.
-        -- The ACK is sampled on the rising edge where ibi_fall=9.
         variable in_ibi      : boolean := false;
         variable ibi_fall    : natural := 0;
         variable ibi_acked_v : boolean := false;
         variable ibi_cnt     : natural := 0;
     begin
         ------------------------------------------------------------------
-        -- Stage-3 IBI: initiate on a trigger edge, then drive the frame off the controller's SCL.
-        -- Handled BEFORE the normal branches so the model's own START is not mis-parsed as an incoming transaction.
-        ------------------------------------------------------------------
+        -- IBI: initiate on a trigger edge and drive the frame off the controller's SCL, handled BEFORE the normal branches so the model's own START is not mis-parsed as an incoming transaction.
         if cfg_ibi_trigger'event and to_X01(cfg_ibi_trigger) = '1'
            and (not active) and (not in_ibi) and to_X01(scl) = '1' then
             in_ibi      := true;
@@ -206,10 +170,8 @@ begin
             end if;
 
         ------------------------------------------------------------------
-        ------------------------------------------------------------------
         -- START, repeated-START and STOP detection: SDA transitions while SCL is high.
-        ------------------------------------------------------------------
-        -- Weak-level correct (ruling 2): every sda and scl sample is normalized through to_X01, so a released wired-AND 'H' reads as '1'.
+        -- Every sda and scl sample is normalized through to_X01, so a released wired-AND 'H' reads as '1'.
         elsif sda_in'event and to_X01(scl) = '1' then
             if to_X01(sda_in) = '0' then
                 -- START, or a repeated START: resynchronize the frame from bit 0.
@@ -250,7 +212,6 @@ begin
 
         ------------------------------------------------------------------
         -- SCL RISING edge: SAMPLE.
-        ------------------------------------------------------------------
         elsif active and scl'event and to_X01(scl) = '1' and daa_round then
             -- DAA-round SAMPLE, where edge counts rising edges since this repeated START.
             -- Header address bits 0..7 and the ACK at 8 precede daa_round; this arm handles arbitration (9..72), the assigned address (73..79), its parity (80) and the assign ACK (81).
@@ -300,7 +261,7 @@ begin
                         -- I3C non-legacy WRITE: sample the controller's parity T-bit.
                         byte_v := shift;
                         if cfg_corrupt_wparity then
-                            corrupted_v := byte_v xor "00000001";   -- D29 injection: corrupt before recompute
+                            corrupted_v := byte_v xor "00000001";   -- injection: corrupt before recompute
                         else
                             corrupted_v := byte_v;
                         end if;
@@ -329,18 +290,16 @@ begin
 
         ------------------------------------------------------------------
         -- SCL FALLING edge: DRIVE, i.e. set up this model's output for the UPCOMING sample, using the just-incremented `edge`.
-        ------------------------------------------------------------------
         elsif active and scl'event and to_X01(scl) = '0' then
             g  := edge / 9;
             bp := edge mod 9;
 
             if read_done then
-                -- Ruling 3: released for the remainder of the frame.
+                -- Released for the remainder of the frame.
                 sda_oe <= '0';
             elsif daa_round and edge >= 9 then
                 -- DAA-round DRIVE; edge has already been incremented to the upcoming sample index.
-                -- Arbitration 9..72 is open-drain: drive a 0, release a 1, and back off once lost.
-                -- Assign 73..80 is controller push-pull, so this model only samples; the assign ACK at 81 is driven low by the winner.
+                -- Arbitration 9..72 is open-drain (drive a 0, release a 1, back off once lost); assign 73..80 is controller push-pull, and the assign ACK at 81 is driven low by the winner.
                 if edge <= 72 then
                     k := edge - 9;
                     if daa_lost then
@@ -388,7 +347,7 @@ begin
                         obs_addr_acked <= '1';
                         sda_oe  <= '1'; sda_out <= '0';
                         if legacy_l and cfg_legacy_stretch then
-                            -- D11: SCL stretch is legacy-only, and this is an illustrative fixed hold, flagged in the file header.
+                            -- SCL stretch is legacy-only, and this is an illustrative fixed hold.
                             scl_oe  <= '1', '0' after LEGACY_STRETCH_TIME;
                             scl_out <= '0';
                         else
@@ -426,7 +385,7 @@ begin
                             if addr_ok and byte_idx = cfg_num_read_bytes - 1 then
                                 sda_oe  <= '1';
                                 sda_out <= '0';   -- T=0 on OUR last byte, which is an EODF when it comes early
-                                read_done := true;  -- release for the rest of the frame (ruling 3)
+                                read_done := true;  -- release for the rest of the frame
                             else
                                 sda_oe <= '0';    -- T=1, continue, expressed by releasing
                             end if;

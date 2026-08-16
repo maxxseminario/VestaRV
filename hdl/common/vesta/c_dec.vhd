@@ -5,15 +5,13 @@ use work.constants.all;
 
 entity c_dec is
     generic (
-        -- X0 ISA-extension scaffolding, default false: the new quadrant expansions are added by the named phase and are unused here for now.
-        ENABLE_ZCB   : boolean := false;  -- X1 (Zcb): consumed from phase X1 on; scaffolded X0
-        ENABLE_ZIMOP : boolean := false;  -- X1 (Zcmop c.mop): consumed from phase X1 on; scaffolded X0
-        -- X3 Zcmp/Zcmt: the C2 funct3=101 slot (c.fsdsp on an F/D core, free here).
-        -- When either is on, c_dec emits a fixed 32-bit SENTINEL for a LEGAL cm.* (see constants.vhd ZCM_*).
-        -- Both OFF leaves the slot reserved/illegal, i.e. bit-identical to the base.
-        -- Push/pop/moves need ENABLE_ZCMP, jt/jalt need ENABLE_ZCMT: each sub-encoding is gated on its OWN generic below.
-        ENABLE_ZCMP  : boolean := false;  -- X3 (Zcmp): compressed push/pop + reg-moves
-        ENABLE_ZCMT  : boolean := false   -- X3 (Zcmt): compressed table jump (cm.jt/jalt)
+        -- ISA-extension enables, all default false: an all-off build is bit-identical to the base RVC decoder.
+        ENABLE_ZCB   : boolean := false;  -- Zcb: compressed byte/halfword memory ops and unary ALU ops
+        ENABLE_ZIMOP : boolean := false;  -- Zcmop: c.mop.N in the reserved C.LUI holes
+        -- Zcmp/Zcmt share the C2 funct3=101 slot (c.fsdsp on an F/D core, free here) and each sub-encoding is gated on its own generic below.
+        -- A legal, enabled cm.* emits a fixed 32-bit sentinel (constants.vhd ZCM_*); with both off the slot stays reserved and illegal.
+        ENABLE_ZCMP  : boolean := false;  -- Zcmp: compressed push/pop plus reg-moves
+        ENABLE_ZCMT  : boolean := false   -- Zcmt: compressed table jump (cm.jt/cm.jalt)
     );
     port (
         resetn        : in  std_logic;
@@ -144,8 +142,7 @@ begin
                                 dec(24 downto 20) := rs2;
                                 dec(31 downto 25) := imm(11 downto 5);
 
-                            -- Zcb byte/halfword loads and stores (funct3=100).
-                            -- Reserved on this core unless ENABLE_ZCB: off leaves dec:=0, i.e. illegal, today's behavior.
+                            -- Zcb byte/halfword loads and stores (funct3=100), reserved unless ENABLE_ZCB.
                             when "100" =>
                                 if ENABLE_ZCB then
                                     rs1_p := instr16(9 downto 7);
@@ -318,11 +315,8 @@ begin
                                     imm(16 downto 12) := instr16(6 downto 2);
                                     
                                     if rd = "00000" or unsigned(imm(17 downto 12)) = 0 then
-                                        -- Reserved region of C.LUI: rd=x0, or the nzimm=0 hole.
-                                        -- Zcmop (X1) lives in the odd-rd slots of the nzimm=0 hole.
-                                        -- c.mop.N (N in 1,3,5,7,9,11,13,15) = 15..13=011, 12=0, 11..7=N (odd, so bit7=1), 6..2=00000, 1..0=01.
-                                        -- Expand to a canonical 32-bit nop (addi x0,x0,0): a pure nop, no register/memory change, PC+2.
-                                        -- Gated by ENABLE_ZIMOP; when off this stays the all-zero reserved word (illegal-instruction).
+                                        -- Reserved C.LUI region: rd=x0, or the nzimm=0 hole whose odd-rd slots encode c.mop.N (15..13=011, 12=0, 11..7=N odd, 6..2=00000, 1..0=01).
+                                        -- With ENABLE_ZIMOP c.mop.N becomes a canonical nop (addi x0,x0,0); otherwise the word stays all-zero and illegal.
                                         if ENABLE_ZIMOP and instr16(7) = '1' and
                                            instr16(6 downto 2) = "00000" and
                                            instr16(12) = '0' then
@@ -441,8 +435,7 @@ begin
                                         elsif ENABLE_ZCB then
                                           -- ==== Zcb (funct6 = 100111) ====
                                           case instr16(6 downto 5) is
-                                            -- C.MUL rd', rd', rs2', gated by ENABLE_MUL at the base MUL op.
-                                            -- With MUL off maindec traps this as illegal, giving both-polarity cover.
+                                            -- C.MUL rd', rd', rs2'; the base MUL op is gated by ENABLE_MUL, so maindec traps this as illegal when MUL is off.
                                             when "10" =>
                                                 dec(6 downto 0)   := "0110011";  -- OP (MUL)
                                                 dec(11 downto 7)  := rs1;
@@ -695,12 +688,8 @@ begin
                                 dec(24 downto 20) := rs2;
                                 dec(31 downto 25) := imm(11 downto 5);
 
-                            -- ==== X3 Zcmp / Zcmt (C2 funct3=101) ====
-                            -- The c.fsdsp slot on an F/D core, reserved (illegal) on this core at the base.
-                            -- cm.push/pop/popret[z], cm.mvsa01/mva01s (Zcmp) and cm.jt/cm.jalt (Zcmt) all live here.
-                            -- c_dec does NOT expand them to a single 32-bit insn (each is multi-write, a memory burst, or a redirect): it emits the fixed ZCM SENTINEL that maindec and vesta's FSM consume.
-                            -- A LEGAL, enabled cm.* sets dec; every illegal pattern, and both generics off, leaves dec all-zero, i.e. illegal-instruction, so an OFF build is bit-identical to the base.
-                            -- The embedded instr16 (dec(31:16)) carries the operand fields at their spec bit positions.
+                            -- Zcmp/Zcmt in the C2 funct3=101 slot: cm.push/pop/popret[z], cm.mvsa01/mva01s, cm.jt/cm.jalt.
+                            -- Each is multi-write or a redirect, so instead of a 32-bit expansion c_dec emits the ZCM sentinel that maindec and the vesta FSM consume, with instr16 embedded in dec(31:16); any illegal or disabled pattern leaves dec all-zero.
                             when "101" =>
                                 if ENABLE_ZCMP or ENABLE_ZCMT then
                                     if instr16(12) = '0' then
@@ -712,8 +701,7 @@ begin
                                                 dec(31 downto 16) := instr16;
                                             end if;
                                         elsif instr16(11 downto 10) = "11" then
-                                            -- cm.mvsa01 (6:5=01) / cm.mva01s (6:5=11).
-                                            -- r1s' /= r2s' is required: the specifiers must differ, and the sreg map is injective.
+                                            -- cm.mvsa01 (6:5=01) / cm.mva01s (6:5=11); r1s' /= r2s' is required since the sreg map is injective.
                                             if ENABLE_ZCMP and
                                                instr16(9 downto 7) /= instr16(4 downto 2) then
                                                 if instr16(6 downto 5) = "01" then

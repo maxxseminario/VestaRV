@@ -1,8 +1,10 @@
+-- vesta: the RV32 core. Multi-cycle FSM, unified instruction/data bus, optional M/A/C/Zb, privileged and debug extensions.
+-- read_data doubles as the instruction during decode, so no combinational mux may be keyed off an address decode of it.
 library IEEE;
 use IEEE.std_logic_1164.all;
 use work.constants.all;
--- P1: the standard mip CSR mirrors the three interrupt LEVEL wires, which reach this core as irq_vector bits at the MemoryMap slot indices IRQB_CLINT_MSIP / IRQB_CLINT_MTIP / IRQB_EXT_MEIP.
--- MemoryMap is compiled before vesta in every cell list and genus read_hdl order (hart_tile already depends on it) and shares no declaration name with work.constants, so this adds no ambiguity.
+-- MemoryMap supplies the irq_vector slot indices (IRQB_CLINT_MSIP / MTIP / IRQB_EXT_MEIP) the standard mip CSR mirrors.
+-- It is compiled before vesta in every cell list and genus read order, and shares no declaration name with work.constants.
 use work.MemoryMap.all;
 use IEEE.NUMERIC_STD.all;
 
@@ -11,55 +13,45 @@ entity vesta is
         PC_RST_VAL : std_logic_vector(XLEN-1 downto 0) := (others => '0');
         NUM_IRQS   : natural := 16;
 
-        -- Core ISA feature switches, config-driven via make chip; the defaults are the full RV32IMAC+Zba/Zbb/Zbs/Zbc core so existing instantiations are unchanged.
-        -- A disabled extension's instructions take the illegal-instruction trap path and its hardware (multiplier, iterative divider, c_dec, Zb* ALU logic) is pruned at elaboration.
-        -- The read-only misa CSR (0x301) advertises the enabled set.
+        -- Core ISA feature switches; the defaults are the full RV32IMAC+Zba/Zbb/Zbs/Zbc core and misa (0x301) advertises the enabled set.
+        -- A disabled extension traps as an illegal instruction and its hardware (multiplier, divider, c_dec, Zb* ALU logic) is pruned at elaboration.
         ENABLE_MUL        : boolean := true;   -- M: MUL/MULH/MULHU/MULHSU
         ENABLE_DIV        : boolean := true;   -- M: DIV/DIVU/REM/REMU + div unit
         ENABLE_ATOMICS    : boolean := true;   -- A: LR/SC + AMOs
         ENABLE_COMPRESSED : boolean := true;   -- C: 16-bit instructions (c_dec)
         ENABLE_BITMANIP   : boolean := true;   -- Zba/Zbb/Zbs/Zbc
-        -- X0 ISA-extension scaffolding: all default false, zero behavioral change.
-        -- Fanned out to the sub-blocks that will consume them (maindec, alu, c_dec, csr_unit); ZAWRS/ZACAS/ZABHA/ZIHINT are consumed at THIS (FSM/sequencer) level from their phase on.
-        -- Each knob below is consumed from phase X<n> on and scaffolded at X0.
-        ENABLE_ZICOND     : boolean := false;  -- X1 (Zicond): consumed from phase X1 on; scaffolded X0
-        ENABLE_ZCB        : boolean := false;  -- X1 (Zcb): consumed from phase X1 on; scaffolded X0
-        ENABLE_ZIMOP      : boolean := false;  -- X1 (Zimop/Zcmop): consumed from phase X1 on; scaffolded X0
-        ENABLE_ZIHINT     : boolean := false;  -- X1 (Zihint): consumed from phase X1 on; scaffolded X0
-        ENABLE_ZIHPM      : boolean := false;  -- X1 (Zihpm): consumed from phase X1 on; scaffolded X0
-        ENABLE_ZAWRS      : boolean := false;  -- X1 (Zawrs): consumed from phase X1 on; scaffolded X0
-        ENABLE_ZABHA      : boolean := false;  -- X2 (Zabha): consumed from phase X2 on; scaffolded X0
-        ENABLE_ZACAS      : boolean := false;  -- X2 (Zacas): consumed from phase X2 on; scaffolded X0
-        ENABLE_ZICBOZ     : boolean := false;  -- X3 (Zicboz): cbo.zero block-zero store sequencer
-        ENABLE_ZCMP       : boolean := false;  -- X3 (Zcmp): compressed push/pop + reg-moves (memory sequencer)
-        ENABLE_ZCMT       : boolean := false;  -- X3 (Zcmt): compressed table jump + jvt CSR
-        ENABLE_ZBKB       : boolean := false;  -- X3 (Zbkb): consumed from phase X3 on; scaffolded X0
-        ENABLE_ZBKC       : boolean := false;  -- X3 (Zbkc): consumed from phase X3 on; scaffolded X0
-        ENABLE_ZBKX       : boolean := false;  -- X3 (Zbkx): consumed from phase X3 on; scaffolded X0
-        ENABLE_ZKN        : boolean := false;  -- X3 (Zkn): consumed from phase X3 on; scaffolded X0
-        ENABLE_ZFINX      : boolean := false;  -- X4 (Zfinx): consumed from phase X4 on; scaffolded X0
-        -- P0 privileged-architecture scaffolding: all default false / 16 entries, zero behavioral change.
-        -- Fanned out to the sub-blocks that will consume them (maindec via controller for the MRET/ECALL/EBREAK/WFI decode and the csr_addr_valid map; csr_unit for the CSR file itself).
-        -- The trap entry / MRET FSM arms and the PMP check points land at THIS level from their phase on.
-        -- Each knob below is consumed from phase P<n> on and scaffolded at P0.
-        ENABLE_TRAPCSR    : boolean := false;  -- P1 (trap CSRs + MRET): consumed from phase P1 on; scaffolded P0
-        ENABLE_UMODE      : boolean := false;  -- P2 (U-mode, requires TRAPCSR): consumed from phase P2 on; scaffolded P0
-        ENABLE_PMP        : boolean := false;  -- P3 (PMP/Smpmp, requires UMODE): consumed from phase P3 on; scaffolded P0
-        PMP_ENTRIES       : integer := 16;     -- P3 (PMP entry count {8,16}): consumed from phase P3 on; scaffolded P0
-        -- D1 (2026-08-05) core-side DEBUG MODE: dcsr/dpc/dscratch0/1, DRET, halt request plus halt-on-reset, ebreak-to-debug and single-step.
-        -- DEFAULT FALSE, and it must stay false at EVERY declaration site, policed by tools/python/check_entity_defaults.py.
-        -- The hart_tile-vs-vesta default DISAGREEMENT that already exists for ENABLE_TRAPCSR is exactly how the frozen Argus snapshot ran TRAPCSR-ON for two days with no way to say so (F-K7-4).
-        -- A debug port silently enabled on a snapshot is an area and attack-surface surprise, not a convenience (method rule 15).
-        -- REQUIRES ENABLE_TRAPCSR: see the concurrent assert below.
+        -- Optional ISA extensions, all default false for zero behavioural change, fanned out to maindec, alu, c_dec and csr_unit.
+        -- Zawrs, Zacas, Zabha and Zihint are consumed at this FSM/sequencer level.
+        ENABLE_ZICOND     : boolean := false;  -- Zicond
+        ENABLE_ZCB        : boolean := false;  -- Zcb
+        ENABLE_ZIMOP      : boolean := false;  -- Zimop/Zcmop
+        ENABLE_ZIHINT     : boolean := false;  -- Zihint
+        ENABLE_ZIHPM      : boolean := false;  -- Zihpm
+        ENABLE_ZAWRS      : boolean := false;  -- Zawrs
+        ENABLE_ZABHA      : boolean := false;  -- Zabha
+        ENABLE_ZACAS      : boolean := false;  -- Zacas
+        ENABLE_ZICBOZ     : boolean := false;  -- Zicboz: cbo.zero block-zero store sequencer
+        ENABLE_ZCMP       : boolean := false;  -- Zcmp: compressed push/pop + reg-moves (memory sequencer)
+        ENABLE_ZCMT       : boolean := false;  -- Zcmt: compressed table jump + jvt CSR
+        ENABLE_ZBKB       : boolean := false;  -- Zbkb
+        ENABLE_ZBKC       : boolean := false;  -- Zbkc
+        ENABLE_ZBKX       : boolean := false;  -- Zbkx
+        ENABLE_ZKN        : boolean := false;  -- Zkn
+        ENABLE_ZFINX      : boolean := false;  -- Zfinx
+        -- Privileged-architecture switches, default false / 16 entries, fanned out to maindec via the controller (MRET/ECALL/EBREAK/WFI decode, csr_addr_valid) and to csr_unit for the CSR file.
+        -- The trap-entry and MRET FSM arms and the PMP check points live at this level.
+        ENABLE_TRAPCSR    : boolean := false;  -- trap CSRs + MRET
+        ENABLE_UMODE      : boolean := false;  -- U-mode (requires TRAPCSR)
+        ENABLE_PMP        : boolean := false;  -- PMP/Smpmp (requires UMODE)
+        PMP_ENTRIES       : integer := 16;     -- PMP entry count, 8 or 16
+        -- Core-side debug mode: dcsr/dpc/dscratch0/1, DRET, halt request plus halt-on-reset, ebreak-to-debug and single-step.
+        -- Must stay FALSE at every declaration site (check_entity_defaults.py polices it): a silently-enabled debug port is an area and attack-surface surprise. Requires ENABLE_TRAPCSR, see the concurrent assert below.
         ENABLE_DEBUG      : boolean := false;
-        -- Where a debug entry lands, FROZEN at 0xBE00 (d1_spec.md 1, amended R-D1-1(2)): the first free 256-byte slot in the TCM ISR bank above .isr_eis @0xBD00, below the 0xBF00-0xBFEF headroom and the stack top at 0xBFF0, and inside the MP_STAGE_IMAGE window so a tile gets its debug stub from the ordinary image copy.
-        -- 0xBB00 was REJECTED on purpose: it is the parking target of every unused IVT slot, so a stub there would also be entered by a stray interrupt, and a tripwire two mechanisms can trip is not a tripwire.
-        -- It is a GENERIC and not a constant so a bench can re-aim it (hdl/common/tb/dbg_iface_tb.vhd points it into its own responder window); the shipped chips take this default, so MCU.vhd does not name it.
+        -- Where a debug entry lands: the first free 256-byte slot in the TCM ISR bank, above .isr_eis at 0xBD00 and below the 0xBF00-0xBFEF headroom and the 0xBFF0 stack top, inside the staged-image window so a tile gets its stub from the ordinary image copy.
+        -- 0xBB00 must not be used: it is the parking target of every unused IVT slot, so a stray interrupt would enter the stub too. A generic rather than a constant so a bench can re-aim it.
         DEBUG_ENTRY_ADDR  : std_logic_vector(XLEN-1 downto 0) := x"0000BE00";
-        -- V1 (Spike lockstep co-simulation): instantiate the read-only vesta_tracer.
-        -- Follows the ENABLE_* scaffolding idiom exactly: default FALSE, so `gen_trace` elaborates nothing and the netlist, the cell lists and the full regression are untouched.
-        -- The tracer has no output ports and drives no signal; its only effect is a text file named <TRACE_FILE>_h<hart>.trace, where the hart suffix is appended at runtime because a generic cannot depend on the hart_id PORT.
-        -- Spec: ~/vesta_docs/lockstep/v1_retire_enumeration.md rev 2.
+        -- Spike lockstep co-simulation: instantiate the read-only vesta_tracer. Default FALSE, so gen_trace elaborates nothing and the netlist, cell lists and regression are untouched.
+        -- The tracer has no output ports and drives no signal; its only effect is a text file <TRACE_FILE>_h<hart>.trace, the hart suffix appended at runtime because a generic cannot depend on the hart_id PORT.
         TRACE_ENABLE      : boolean := false;
         TRACE_FILE        : string  := "vesta_trace"
     );
@@ -69,7 +61,7 @@ entity vesta is
         sleep      : in  std_logic;
         clk_cpu    : out std_logic;
 
-        -- M13: unique per-hart ID (mhartid CSR) as a PORT, replacing the old HARTID generic; all hart tiles share ONE netlist and are wired per instance.
+        -- Unique per-hart ID (the mhartid CSR) as a PORT, so all hart tiles share ONE netlist and are wired per instance.
         hart_id    : in  std_logic_vector(XLEN-1 downto 0) := (others => '0');
 
         -- Memory Interface
@@ -80,21 +72,17 @@ entity vesta is
         mask       : in  std_logic_vector(1 downto 0);
         mem_ready  : in  std_logic := '1';                    -- Memory back-pressure; '0' stalls the core (freezes clk_cpu). Defaults '1' for single-master use.
 
-        -- Global LR/SC interface (M4b; the defaults keep single-master use a no-op).
-        -- lr_sc_bus tags the CURRENT memory access: "01" = LR read, "10" = SC write attempt (local reservation check passed), "00" = plain access.
-        -- sc_fail_ext is the external (resv_unit) SC verdict for a SHARED SC: '1' forces the SC rd result to fail, because the shared write was suppressed upstream.
-        -- It must be stable by the end of the SC_CHECK cycle; for a stalled shared SC it is latched from the arbiter done, well before the core's release edge.
+        -- Global LR/SC interface; the defaults make single-master use a no-op. lr_sc_bus tags the current access: "01" LR read, "10" SC write attempt (local reservation check passed), "00" plain.
+        -- sc_fail_ext is resv_unit's SC verdict for a shared SC ('1' forces the SC rd result to fail) and must be stable by the end of the SC_CHECK cycle.
         lr_sc_bus   : out std_logic_vector(1 downto 0);
         sc_fail_ext : in  std_logic := '0';
 
-        -- X1 Zawrs: this hart's GLOBAL reservation-valid level from resv_unit, registered through the tile boundary.
-        -- A hart stalled in wrs.nto/wrs.sto wakes when this drops to '0', meaning a foreign committed store killed the reservation, which is the exact snoop the LR/SC unit already relies on.
-        -- Defaults '1' so single-master tops (no resv_unit) treat every reservation as live and fall back to the interrupt/timeout wakes.
+        -- Zawrs: this hart's global reservation-valid level from resv_unit. A hart stalled in wrs.nto/wrs.sto wakes when it drops, meaning a foreign committed store killed the reservation.
+        -- Defaults '1' so single-master tops with no resv_unit treat every reservation as live and fall back to the interrupt and timeout wakes.
         resv_valid_ext : in  std_logic := '1';
 
-        -- M8: cross-hart AMO atomicity; '1' for the whole AMO read-modify-write flow, from the EXECUTE dispatch cycle where the shared READ transaction runs (like LR's) through AMO_WRITE where the WRITE transaction runs.
-        -- The MCU-level mp_arbiter samples it at the read's completion and HOLDS THE GRANT pinned to this hart until the write commits (grant-locking), making shared AMOs atomic across masters.
-        -- Leave open / unconnected in single-master tops.
+        -- Cross-hart AMO atomicity: '1' for the whole AMO read-modify-write flow, from the EXECUTE dispatch cycle that runs the shared read through AMO_WRITE.
+        -- mp_arbiter samples it at the read's completion and pins the grant to this hart until the write commits. Leave unconnected in single-master tops.
         amo_lock    : out std_logic;
 
         -- IRQ Interface
@@ -104,17 +92,9 @@ entity vesta is
         irq_recursion_en : in std_logic;
         isr_ret      : out std_logic;
 
-        -- ------------------------------------------------------------------
-        -- D1 DEBUG INTERFACE (all inert when ENABLE_DEBUG = false).
-        -- Three LEVELS, no handshake, no resumereq: resume at D1 is the exclusive job of `dret` executed by debug code, and DM-side sequencing is D2's.
-        --   dbg_haltreq      : raise to halt; UNMASKABLE, since neither mstatus.MIE nor mtrapctl.LEGACY qualifies it.
-        --                      A debugger drops it once dbg_halted reads '1'; leaving it high would re-halt the hart the instant its `dret` retired, forever.
-        --   dbg_resethaltreq : hold across reset release to halt before the hart runs anything.
-        --   dbg_halted       : '1' while the hart is IN DEBUG MODE; it is a STATE, not a level follower, and stays high after dbg_haltreq drops.
-        -- BOTH INPUTS DEFAULT '0', and that direction is the fail-safe one (method rule 15): an unconnected instantiation requests nothing and halts nothing.
-        -- Unconnected is every MCU-level tile at D1, since no Debug Module exists yet to drive them.
-        -- A '1' default would halt the whole chip out of reset.
-        -- ------------------------------------------------------------------
+        -- Debug interface, inert when ENABLE_DEBUG is false: three levels, no handshake and no resumereq, resume being the exclusive job of a `dret` executed by debug code. Both inputs default '0', so an unconnected instantiation halts nothing.
+        --   dbg_haltreq is UNMASKABLE, neither mstatus.MIE nor mtrapctl.LEGACY qualifying it, and must be dropped once dbg_halted reads '1' or the hart re-halts the instant each `dret` retires; dbg_resethaltreq is held across reset release to halt before the hart runs anything.
+        --   dbg_halted is '1' while the hart is IN DEBUG MODE. A STATE, not a level follower: it stays high after dbg_haltreq drops.
         dbg_haltreq      : in  std_logic := '0';
         dbg_resethaltreq : in  std_logic := '0';
         dbg_halted       : out std_logic;
@@ -129,17 +109,15 @@ end entity;
 
 architecture struct of vesta is
 
-    -- ==========================================
-    -- Component Declarations
-    -- ==========================================
-    
+    -- Component declarations.
+
     component controller
         generic (
             ENABLE_MUL      : boolean := true;
             ENABLE_DIV      : boolean := true;
             ENABLE_ATOMICS  : boolean := true;
             ENABLE_BITMANIP : boolean := true;
-            -- X0 scaffolding: the subset maindec will consume (default false)
+            -- The optional-extension subset maindec consumes.
             ENABLE_ZICOND   : boolean := false;
             ENABLE_ZIMOP    : boolean := false;
             ENABLE_ZIHINT   : boolean := false;
@@ -154,7 +132,7 @@ architecture struct of vesta is
             ENABLE_ZBKX     : boolean := false;
             ENABLE_ZKN      : boolean := false;
             ENABLE_ZFINX    : boolean := false;
-            -- P0 scaffolding: the subset maindec will consume (default false)
+            -- The privileged subset maindec consumes.
             ENABLE_TRAPCSR  : boolean := false;
             ENABLE_UMODE    : boolean := false;
             ENABLE_PMP      : boolean := false;
@@ -183,21 +161,21 @@ architecture struct of vesta is
             isr_ret          : out std_logic;
             sleep_rq         : out std_logic;
             wake_rq          : out std_logic;
-            -- P1 standard SYSTEM/PRIV decode ('0' unless ENABLE_TRAPCSR)
+            -- Standard SYSTEM/PRIV decode, '0' unless ENABLE_TRAPCSR.
             ecall_op         : out std_logic;
             ebreak_op        : out std_logic;
             mret_op          : out std_logic;
-            -- P2 WFI decode + the U-mode decode inputs (inert defaults)
+            -- WFI decode plus the U-mode decode inputs, inert defaults.
             wfi_op           : out std_logic;
-            -- D1 DRET decode + the debug-mode decode input (default '0' = denied)
+            -- DRET decode plus the debug-mode decode input, default '0' meaning denied.
             dret_op          : out std_logic;
             debug_mode       : in  std_logic := '0';
             priv_m           : in  std_logic := '1';
             status_tw        : in  std_logic := '0';
             mcounteren_bits  : in  std_logic_vector(4 downto 0) := "00000";
-            -- F10 (fix pass W4): CSR rs1/uimm-field-is-zero (read-only form)
+            -- The CSR rs1/uimm field is zero, the read-only form.
             csr_rs1_zero     : in  std_logic := '1';
-            -- F-BV1 (K5): R-type rs2-field-is-zero (qualifies the ZEXT.H row)
+            -- The R-type rs2 field is zero; qualifies the ZEXT.H row.
             rs2_zero         : in  std_logic := '0';
             wrs_op           : out std_logic;
             wrs_sto          : out std_logic;
@@ -215,7 +193,7 @@ architecture struct of vesta is
             csr_op           : out std_logic_vector(2 downto 0);
             csr_valid        : out std_logic;
 
-            -- X4 Zfinx FP decode
+            -- Zfinx FP decode.
             is_fp_singlecycle : out std_logic;
             is_fp_multicycle  : out std_logic;
             is_fp_fma         : out std_logic;
@@ -231,7 +209,7 @@ architecture struct of vesta is
             ENABLE_DIV      : boolean := true;
             ENABLE_ATOMICS  : boolean := true;
             ENABLE_BITMANIP : boolean := true;
-            -- X0 scaffolding: the subset alu will consume (default false)
+            -- The optional-extension subset the alu consumes.
             ENABLE_ZICOND   : boolean := false;
             ENABLE_ZBKB     : boolean := false;
             ENABLE_ZBKC     : boolean := false;
@@ -257,8 +235,8 @@ architecture struct of vesta is
             div_start    : in  std_logic;
             div_dispatch : in  std_logic;
             amo_phase    : in  std_logic_vector(2 downto 0);  -- 000: normal, 001: AMO_READ, 010: AMO_COMPUTE, 011: AMO_WRITE, 100: SC fail, 101: SC success
-            cas_op       : in  std_logic;  -- X2 Zacas: current AMO is an amocas
-            -- X3 Zcmp/Zcmt sequencer regfile steering (all default inactive)
+            cas_op       : in  std_logic;  -- Zacas: the current AMO is an amocas
+            -- Zcmp/Zcmt sequencer regfile steering, all default inactive.
             zcm_rs_addr  : in  std_logic_vector(4 downto 0) := "00000";
             zcm_rs_sel   : in  std_logic := '0';
             zcm_rd_addr  : in  std_logic_vector(4 downto 0) := "00000";
@@ -271,7 +249,7 @@ architecture struct of vesta is
             ALU_result   : out std_logic_vector(XLEN-1 downto 0);
             rs1_value    : out std_logic_vector(XLEN-1 downto 0);
             amo_addr_low : out std_logic_vector(1 downto 0);
-            cas_match    : out std_logic;  -- X2 Zacas: registered CAS compare verdict
+            cas_match    : out std_logic;  -- Zacas: registered CAS compare verdict
             alu_done     : out std_logic;
             write_data   : out std_logic_vector(XLEN-1 downto 0);
             read_data    : in  std_logic_vector(XLEN-1 downto 0);
@@ -282,14 +260,14 @@ architecture struct of vesta is
             csr_valid    : in  std_logic;
             csr_rdata    : in std_logic_vector(XLEN-1 downto 0);
             csr_wdata    : out std_logic_vector(XLEN-1 downto 0);
-            -- X4 Zfinx FPU control/status (all default inert)
+            -- Zfinx FPU control and status, all default inert.
             fp_op_latch  : in  std_logic := '0';
             fp_fetch3    : in  std_logic := '0';
             fpu_start    : in  std_logic := '0';
             frm_value    : in  std_logic_vector(2 downto 0) := "000";
             fpu_done     : out std_logic;
             fp_flags     : out std_logic_vector(4 downto 0);
-            -- V1 lockstep tracer taps (read-only; the regfile a3/wd3 nets)
+            -- Lockstep tracer taps, read-only: the regfile a3 and wd3 nets.
             trc_rd_addr  : out std_logic_vector(4 downto 0);
             trc_rd_data  : out std_logic_vector(XLEN-1 downto 0);
             a0           : out std_logic_vector(XLEN-1 downto 0)
@@ -321,10 +299,10 @@ architecture struct of vesta is
 
     component c_dec
         generic (
-            -- X0 scaffolding: Zcb expansions + Zcmop (c.mop), default false
+            -- Zcb expansions and Zcmop (c.mop).
             ENABLE_ZCB   : boolean := false;
             ENABLE_ZIMOP : boolean := false;
-            -- X3 Zcmp/Zcmt: C2 funct3=101 sentinel emit (default false)
+            -- Zcmp/Zcmt: the C2 funct3=101 sentinel emit.
             ENABLE_ZCMP  : boolean := false;
             ENABLE_ZCMT  : boolean := false
         );
@@ -343,16 +321,16 @@ architecture struct of vesta is
             ENABLE_ATOMICS    : boolean := true;
             ENABLE_COMPRESSED : boolean := true;
             ENABLE_BITMANIP   : boolean := true;
-            -- X0 scaffolding: hpm counters + Zfinx fcsr, default false
+            -- hpm counters and the Zfinx fcsr.
             ENABLE_ZIHPM      : boolean := false;
-            ENABLE_ZCMT       : boolean := false;  -- X3 Zcmt: jvt CSR
+            ENABLE_ZCMT       : boolean := false;  -- Zcmt: jvt CSR
             ENABLE_ZFINX      : boolean := false;
-            -- P0 scaffolding: the trap-CSR file, the U-mode privilege state and the PMP config/address CSR bank all live in csr_unit from their phase on, defaulting to false / 16 entries.
+            -- The trap-CSR file, the U-mode privilege state and the PMP config/address bank all live in csr_unit.
             ENABLE_TRAPCSR    : boolean := false;
             ENABLE_UMODE      : boolean := false;
             ENABLE_PMP        : boolean := false;
             PMP_ENTRIES       : integer := 16;
-            -- D1 debug-mode CSR file (dcsr/dpc/dscratch0/1 + debug_mode)
+            -- Debug-mode CSR file: dcsr, dpc, dscratch0/1 and debug_mode.
             ENABLE_DEBUG      : boolean := false;
             TRACE_ENABLE      : boolean := false
         );
@@ -361,10 +339,10 @@ architecture struct of vesta is
             resetn         : in  std_logic;
             hart_id        : in  std_logic_vector(XLEN-1 downto 0) := (others => '0');
 
-            -- X3 Zcmt jvt base export
+            -- Zcmt jvt base export.
             jvt_value      : out std_logic_vector(31 downto 0);
 
-            -- X4 Zfinx fcsr/fflags/frm
+            -- Zfinx fcsr/fflags/frm.
             fp_flags_we    : in  std_logic := '0';
             fp_flags_val   : in  std_logic_vector(4 downto 0) := (others => '0');
             frm_value      : out std_logic_vector(2 downto 0);
@@ -380,12 +358,12 @@ architecture struct of vesta is
             -- Performance counter input
             inst_retired   : in  std_logic;
 
-            -- X1 Zihpm event inputs (internal vesta signals, not tile ports)
+            -- Zihpm event inputs: internal vesta signals, not tile ports.
             ev_bus_stall   : in  std_logic := '0';
             ev_sleep       : in  std_logic := '0';
             ev_trap_entry  : in  std_logic := '0';
 
-            -- P1 trap-CSR interface (p0_specs.md 2.4 FREEZE; inert defaults)
+            -- Trap-CSR interface, inert defaults.
             irq_msip       : in  std_logic := '0';
             irq_mtip       : in  std_logic := '0';
             irq_meip       : in  std_logic := '0';
@@ -400,18 +378,18 @@ architecture struct of vesta is
             mie_bits       : out std_logic_vector(2 downto 0);
             legacy_mode    : out std_logic;
 
-            -- P2 U-mode interface (p0_specs.md 3.1 FREEZE)
+            -- U-mode interface.
             priv_mode      : out std_logic;
             status_tw      : out std_logic;
             mcounteren_bits : out std_logic_vector(4 downto 0);
 
-            -- P3-entry interface (p3_kickoff.md 3): the CSR write-form qualifier in, the effective data-access privilege (mstatus.MPRV redirect) out.
+            -- The CSR write-form qualifier in, the effective data-access privilege (mstatus.MPRV redirect) out.
             csr_rs1_zero   : in  std_logic := '0';
             data_priv_m    : out std_logic;
-            -- P3 red-team F1: the MRET return privilege (MPP mapped)
+            -- The MRET return privilege, MPP mapped.
             mret_priv_m    : out std_logic;
 
-            -- D1 debug-mode interface (inert defaults; see csr_unit.vhd)
+            -- Debug-mode interface, inert defaults; see csr_unit.vhd.
             dbg_entry_we   : in  std_logic := '0';
             dbg_pc         : in  std_logic_vector(XLEN-1 downto 0) := (others => '0');
             dbg_cause      : in  std_logic_vector(2 downto 0) := (others => '0');
@@ -422,10 +400,10 @@ architecture struct of vesta is
             dcsr_step      : out std_logic;
             dpc_value      : out std_logic_vector(XLEN-1 downto 0);
 
-            -- P3 PMP bank exports (p0_specs.md section 4.1); all-zero when ENABLE_PMP is false.
+            -- PMP bank exports, all-zero when ENABLE_PMP is false.
             pmp_cfg_flat   : out std_logic_vector(127 downto 0);
             pmp_addr_flat  : out std_logic_vector(479 downto 0);
-            -- V1 lockstep tracer exports (read-only)
+            -- Lockstep tracer exports, read-only.
             csr_commit_we  : out std_logic;
             csr_commit_val : out std_logic_vector(XLEN-1 downto 0);
             mstatus_value  : out std_logic_vector(XLEN-1 downto 0);
@@ -433,9 +411,8 @@ architecture struct of vesta is
         );
     end component;
 
-    -- P3 (PMP/Smpmp): the pure-combinational match / priority / permission decoder.
-    -- Ports and semantics are FROZEN by p0_specs.md section 4.1; the bank STORAGE lives in csr_unit and every CHECK POINT lives in this file.
-    -- Instantiated ONLY inside `gen_pmp: if ENABLE_PMP generate`, so an OFF build's hand-maintained cell lists and netlist are untouched.
+    -- PMP/Smpmp: the pure-combinational match, priority and permission decoder; the bank STORAGE lives in csr_unit and every CHECK POINT lives in this file.
+    -- Instantiated only inside `gen_pmp: if ENABLE_PMP generate`, so an OFF build's hand-maintained cell lists and netlist are untouched.
     component pmp_unit
         generic (
             ENABLE_PMP  : boolean := false;
@@ -455,19 +432,15 @@ architecture struct of vesta is
         );
     end component;
 
-    -- ==========================================================
-    -- V1 lockstep tracer (TRACE_ENABLE only), declared as a COMPONENT and deliberately NOT as direct entity instantiation.
-    -- `entity work.x` binds at ANALYSIS, so it hard-errors (*E,SELLIB) in every one of the ~16 cell lists that compile this file without vesta_tracer.vhd.
-    -- A component binds at ELABORATION and is therefore skipped entirely inside a statically-false generate, which is exactly why the pmp_unit precedent uses this idiom.
-    -- Only the flow that actually turns tracing ON needs vesta_tracer.vhd in its file list.
-    -- ==========================================================
+    -- The lockstep tracer (TRACE_ENABLE only) is declared as a COMPONENT and never as a direct entity instantiation: `entity work.x` binds at ANALYSIS and hard-errors in every cell list that compiles this file without vesta_tracer.vhd.
+    -- A component binds at ELABORATION and is skipped inside a statically-false generate, so only a flow that turns tracing on needs vesta_tracer.vhd in its file list.
     component vesta_tracer
         generic (
             TRACE_FILE        : string  := "vesta_trace";
             ENABLE_PMP        : boolean := false;
             ENABLE_COMPRESSED : boolean := true;
             TRAPSTORE_LIMIT   : natural := 8;
-            -- D1: cpu_state'pos(cpu_state'high)+1, checked against ST_COUNT
+            -- cpu_state'pos(cpu_state'high)+1, checked against the tracer's ST_COUNT.
             STATE_COUNT       : natural := 0
         );
         port (
@@ -477,8 +450,8 @@ architecture struct of vesta is
             state            : in natural;                         -- cpu_state'pos(current_state)
             next_state       : in natural;                         -- cpu_state'pos(next_state)
             pc               : in std_logic_vector(XLEN-1 downto 0);
-            instr            : in std_logic_vector(ILEN-1 downto 0);  -- = read_data (vesta:951)
-            instr_curr       : in std_logic_vector(ILEN-1 downto 0);  -- decoded/held (vesta:1328)
+            instr            : in std_logic_vector(ILEN-1 downto 0);  -- the raw bus word, read_data
+            instr_curr       : in std_logic_vector(ILEN-1 downto 0);  -- the decoded or held instruction
             instr_lower_half : in std_logic_vector(15 downto 0);
             quadrant_upper   : in std_logic_vector(1 downto 0);
             quadrant_lower   : in std_logic_vector(1 downto 0);
@@ -493,12 +466,12 @@ architecture struct of vesta is
             wen              : in std_logic_vector(XLEN_BYTES-1 downto 0);  -- ACTIVE LOW per byte
             write_data       : in std_logic_vector(XLEN-1 downto 0);
             mem_access_instr : in std_logic;
-            funct3           : in std_logic_vector(2 downto 0); sc_fail_ext : in std_logic := '0';  -- instr_curr(14:12); the A16/T2 verdict SHARES THIS LINE ON PURPOSE, see the port map
+            funct3           : in std_logic_vector(2 downto 0); sc_fail_ext : in std_logic := '0';  -- instr_curr(14:12); sc_fail_ext SHARES THIS LINE ON PURPOSE, see the port map
             csr_addr         : in std_logic_vector(11 downto 0);
             csr_commit_we    : in std_logic;
             csr_commit_val   : in std_logic_vector(XLEN-1 downto 0);
             mstatus_value    : in std_logic_vector(XLEN-1 downto 0); -- for MTRAP_RET's mret pop
-            fflags_value     : in std_logic_vector(XLEN-1 downto 0); fp_flags_we : in std_logic := '0'; fp_flags_val : in std_logic_vector(4 downto 0) := (others => '0');  -- fflags PRE-edge plus A17's post-op OR operands; THREE PORTS SHARE THIS LINE ON PURPOSE (the A16 rule at :484), see the port map
+            fflags_value     : in std_logic_vector(XLEN-1 downto 0); fp_flags_we : in std_logic := '0'; fp_flags_val : in std_logic_vector(4 downto 0) := (others => '0');  -- fflags pre-edge plus the post-op OR operands; THREE PORTS SHARE THIS LINE ON PURPOSE, see the port map
             trap             : in std_logic;
             ecall_op         : in std_logic;
             ebreak_op        : in std_logic;
@@ -515,9 +488,7 @@ architecture struct of vesta is
         );
     end component;
 
-    -- ==========================================
-    -- State Machine Definition
-    -- ==========================================
+    -- State machine definition. The declaration ORDER is a contract: vesta_tracer's ST_* table mirrors it positionally, so append new states at the TAIL and never insert or reorder.
     type cpu_state is (
         INITIALIZE,   -- Initial state after reset
         SLEEPING,     -- CPU in sleep mode
@@ -525,8 +496,7 @@ architecture struct of vesta is
         MEMORY_WAIT,  -- Wait for memory operation
         DIV_WAIT,     -- Wait for division to complete
         DIV_DONE,     -- Division completed
-        -- X4 Zfinx FP multi-cycle stall states, modeled on DIV_WAIT/DIV_DONE and all gated so they are UNREACHABLE when ENABLE_ZFINX is off: the transitions into them are constant-false via the ENABLE_ZFINX-gated decode signals.
-        -- FPU_FETCH3 (FMA only) latches rs3 through the steered rs2 read port; FPU_WAIT holds the unit running (fpu_start high, section C1); FPU_DONE retires the writeback exactly like DIV_DONE (reg_write_dp defaults to '1').
+        -- Zfinx FP multi-cycle stall states, modelled on DIV_WAIT/DIV_DONE and UNREACHABLE when ENABLE_ZFINX is off, since every transition into them is constant-false there.
         FPU_FETCH3,   -- FMA rs3 fetch cycle (no 3rd regfile port)
         FPU_WAIT,     -- Wait for the multi-cycle FP unit
         FPU_DONE,     -- FP op completed (writeback here)
@@ -534,9 +504,8 @@ architecture struct of vesta is
         IRQ_REST,     -- Restore context from IRQ
         IRQ_JUMP,     -- Jump to interrupt vector
         TRAP_STATE,   -- Trap state for illegal instructions
-        -- P1 standard M-mode trap delivery (ENABLE_TRAPCSR and mtrapctl.LEGACY=0).
-        -- Shaped on IRQ_SV/IRQ_JUMP but with ZERO memory transactions: no push, no sp_write_en, wen all-ones, reg_write_dp='0' in every one of them (kickoff 3b class 1), and no irq_handler handshake (no irq_save_ack).
-        -- All three are UNREACHABLE when ENABLE_TRAPCSR is false: every transition into them is qualified by `std_mode`, which is statically '0' there, so the OFF build's state encoding is bit-identical.
+        -- Standard M-mode trap delivery (ENABLE_TRAPCSR and mtrapctl.LEGACY=0), shaped on IRQ_SV/IRQ_JUMP but with ZERO memory transactions: no push, no sp_write_en, wen all-ones, reg_write_dp '0' and no irq_handler handshake.
+        -- All three are UNREACHABLE when ENABLE_TRAPCSR is false, since every transition into them is qualified by std_mode, so the OFF build's state encoding is bit-identical.
         MTRAP_SV,     -- standard trap entry: write mepc/mcause/mtval plus the mstatus push
         MTRAP_JUMP,   -- standard trap entry: PC takes mtvec.BASE
         MTRAP_RET,    -- MRET: PC takes mepc, mstatus pop (MIE gets MPIE, MPIE gets '1')
@@ -549,18 +518,14 @@ architecture struct of vesta is
         LR_READ,      -- Load-Reserved read
         SC_CHECK,     -- Store-Conditional check and write
         FENCE_WAIT,   -- FENCE operation wait state
-        PAUSE_WAIT,   -- X1 Zihintpause: arbiter-yield hold window (D6)
-        WRS_WAIT,     -- X1 Zawrs: wait-on-reservation-set stall (wrs.nto/wrs.sto)
-        -- X3 Zicboz: cbo.zero block-zero store sequencer.
-        -- CBOZ_WRITE issues one full-word 0 store (mem_access='1', wen="0000"); CBOZ_GAP is the req-low settle cycle (mem_access='0') the shared-bus arbiter's WAIT-FOR-RELEASE needs BETWEEN same-master transactions.
-        -- That is exactly the store-then-MEMORY_WAIT cadence: no new arbiter protocol, no grant-lock.
-        -- The pair repeats CBOZ_WORDS times, UNINTERRUPTIBLE (no irq_save check), then MEMORY_WAIT.
+        PAUSE_WAIT,   -- Zihintpause: arbiter-yield hold window
+        WRS_WAIT,     -- Zawrs: wait-on-reservation-set stall (wrs.nto/wrs.sto)
+        -- Zicboz cbo.zero sequencer: CBOZ_WRITE issues one full-word 0 store, CBOZ_GAP is the req-low settle cycle the arbiter's WAIT-FOR-RELEASE needs between same-master transactions.
+        -- The pair repeats CBOZ_WORDS times, UNINTERRUPTIBLE (no irq_save check), then retires through MEMORY_WAIT.
         CBOZ_WRITE,   -- issue the cbo.zero word store for cboz_idx
         CBOZ_GAP,     -- req-low settle between stores; the last one retires via MEMORY_WAIT
-        -- X3 Zcmp/Zcmt sequencer states (MEMORY / control-flow path).
-        -- All UNINTERRUPTIBLE (no irq_save check) and atomic: RAM here is idempotent and fault-free, so no re-execution machinery is needed and interrupts are simply held to the retire boundary.
-        -- sp is committed EXACTLY ONCE, LAST, through the regfile's dedicated sp_write port (ZCM_SP_COMMIT).
-        -- Every register index and address derives from REGISTERED sequencer state (the zcm_idx counter plus zcm_rlist/zcm_spimm/zcm_sp0 latched at dispatch), never a live regfile-port re-read mid-sequence (the X2 phantom-read invariant).
+        -- Zcmp/Zcmt sequencer states, all UNINTERRUPTIBLE and atomic: RAM here is idempotent and fault-free, so interrupts are simply held to the retire boundary. sp is committed EXACTLY ONCE and LAST, in ZCM_SP_COMMIT.
+        -- Every register index and address derives from REGISTERED sequencer state, never from a live regfile-port re-read mid-sequence, or an rd write that aliases rs1 corrupts the sequence.
         ZCM_PUSH_ST,  -- cm.push : store reg[reg_at(idx)] at the frame slot
         ZCM_PUSH_GAP, -- req-low settle; advance idx or go to ZCM_SP_COMMIT
         ZCM_POP_LD,   -- cm.pop* : issue the load of the frame slot
@@ -572,15 +537,8 @@ architecture struct of vesta is
         ZCM_MV2,      -- cm.mvsa01/mva01s : second move; retire
         ZCM_JT_LD,    -- cm.jt/jalt : issue the load of the jvt table entry
         ZCM_JT_WB,    -- capture target; cm.jalt writes ra=pc+2; redirect PC
-        -- D1 debug mode (ENABLE_DEBUG). **TAIL-APPENDED, AND THAT IS A HARD REQUIREMENT, NOT A STYLE CHOICE** (D0/P1 1a).
-        -- vesta_tracer.vhd's ST_* table mirrors this declaration ORDER positionally and a mismatch is SILENT.
-        -- Appending leaves all 39 existing ordinals valid, so the tracer diff is purely additive; inserting a DBG_SV beside MTRAP_SV, which reads as the tidy choice, would renumber 26 states and invalidate every lockstep record.
-        -- The S-series permission tables are keyed by NAME (commit_perm_t is array (cpu_state)), so they are insertion-safe; the tracer is the ONLY positional consumer, which is exactly what makes the trap asymmetric and easy to walk into.
-        -- Since D1 there is also an ELABORATION-TIME COUNT ASSERT (the STATE_COUNT generic on vesta_tracer): it catches an ADD or a REMOVE, and it does NOT catch a reorder at constant count.
-        -- Nothing cheap does.
-        --
-        -- All three are UNREACHABLE when ENABLE_DEBUG is false: every transition into them is qualified by dbg_halt_take, dbg_ebreak_take or dret_op, each statically '0' there, so the OFF build's state encoding is bit-identical.
-        -- None of them declares ANY commit intent beyond ci_pc_advance, so the permission tables' catch-all `others` row, which is all zeros, makes them inert by construction (verified, not assumed: rd, sp and lanes are all absent from their arms).
+        -- Debug mode (ENABLE_DEBUG), TAIL-APPENDED because the tracer's ST_* table mirrors this order positionally and a mismatch is silent; the STATE_COUNT generic catches an add or a remove but not a reorder.
+        -- All three are UNREACHABLE when ENABLE_DEBUG is false (dbg_halt_take, dbg_ebreak_take and dret_op are statically '0'), and none declares commit intent beyond ci_pc_advance, so the permission tables' zero `others` row makes them inert.
         DBG_SV,       -- debug ENTRY: load dpc/dcsr.cause/prv/debug_mode, then PC takes DEBUG_ENTRY_ADDR
         DBG_JUMP,     -- debug RE-ENTRY (ebreak in debug mode): PC takes DEBUG_ENTRY_ADDR, no CSR write
         DBG_RET       -- DRET: PC takes dpc, debug_mode clears, priv takes dcsr.prv
@@ -588,43 +546,16 @@ architecture struct of vesta is
 
     signal current_state, next_state : cpu_state;
 
-    -- ==========================================
-    -- S-series commit-intent interface (S0 interface spec, section 2)
-    -- ==========================================
-    -- A state DECLARES what it commits; the commit block at the tail of next_state_logic is the only place that turns intent into the four nets (reg_write_dp, sp_write_en, wen, pc_en).
-    -- Every default is the FAIL-SAFE direction: a state that declares nothing commits nothing and holds the PC.
-    -- Note ci_st_lanes is ACTIVE-HIGH: the active-low wen convention is re-derived at 64 sites today and, after migration, exists in exactly one line where wen takes the inverse of ci_st_lanes.
-    --
-    -- S1 adds a declaration exactly where a state's CURRENT effective drive differs from that fail-safe value.
-    -- That includes the paths which reach a non-default value by FALLING THROUGH to the process defaults (reg_write_ctrl, wen_controller, pc_en '1'), which is why arms that assign nothing today still declare here.
-    -- It excludes the arms that force '0', all-ones or pc-hold, which the default already covers.
-    -- Where an earlier declaration in the SAME path has already moved a signal off its default, restoring it takes an explicit declaration (the pc_en '1' then '0' shape of AMO_WRITE, LR_READ, SC_CHECK, DIV_DONE and so on).
-    --
-    -- ONE DELIBERATE EXCEPTION, for `wen` only (rulings R-S1-1c, R-S1-2): **a wen fall-through in a NON-DISPATCH state declares NOTHING.**
-    -- There, no-store is the INTENDED behaviour and it holds today only by a cross-file decode coincidence over a HELD word (census N1), so mirroring it would blind the shadow checker to that coincidence breaking.
-    -- The sites: SLEEPING, DIV_WAIT, DIV_DONE, FPU_FETCH3, FPU_WAIT, FPU_DONE, IRQ_REST's irq_save and std_irq_take paths, and `when others`.
-    -- IN EXECUTE THE MIRROR STAYS: there the live decode is the DISPATCHING word's own intent, so `not wen_controller` on a div, fp, lr or trap-entry branch is that instruction's true no-store, not a coincidence.
+    -- Commit-intent interface: a state DECLARES what it commits, and the commit block at the tail of next_state_logic is the only place that turns intent into the four nets (reg_write_dp, sp_write_en, wen, pc_en).
+    -- Every default is FAIL-SAFE, so a state that declares nothing commits nothing and holds the PC. ci_st_lanes is ACTIVE-HIGH; wen takes its inverse in that one line.
     signal ci_rd_commit  : std_logic;                     -- default '0' : no rd write
     signal ci_sp_commit  : std_logic;                     -- default '0' : no sp write
     signal ci_st_lanes   : std_logic_vector(3 downto 0);  -- ACTIVE-HIGH, default "0000" : no store
     signal ci_pc_advance : std_logic;                     -- default '0' : PC holds
 
-    -- ==========================================
-    -- S3 COMMIT PERMISSION MASKS (S0 interface spec, section 3.1)
-    -- ==========================================
-    -- "No commit outside a retire group", made STRUCTURAL rather than declared.
-    -- Each table names the states in which the corresponding commit is LEGITIMATE; the commit block ANDs intent with the table, so a state that declares a commit it has no business making cannot make one.
-    --
-    -- DERIVED FROM THE TREE, not adopted from prose (spec section 4 requires the re-derivation and treats any difference as a finding): a state is allowed exactly when its own arm can produce a NONZERO value for that intent signal.
-    -- Because S2 made every state's intent explicit, that derivation is mechanical and complete, which is also why masking is a no-op today and why any behavioural movement here means a table is wrong.
-    --
-    -- Retire GROUPS, not `retire_now` (R-S0-1 item 2): commit state /= retire state for 6 of the 12 commit sites.
-    -- AMO_WRITEBACK commits where AMO_WRITE retires, and ZCM_POP_WB/A0Z/MV1/MV2 commit where ZCM_RET or MEMORY_WAIT retires, so a mask keyed on retirement would be wrong.
-    --
-    -- NOTE on ci_pc_advance: there is deliberately NO pc table.
-    -- A wrong PC hold is loud by construction (the machine stops), and a table naming every state that may advance the PC would be a second copy of the state machine, a decorative instrument, which is worse than none.
-    -- The tables are std_logic / std_logic_vector rather than boolean so the mask is a plain AND against the intent signal: no type juggling and no conditional-assignment form, which VHDL-93 does not allow inside a process.
-    -- The lane table holds the PERMITTED LANE MASK directly.
+    -- Commit permission masks: "no commit outside a retire group" made structural. Each table names the states in which that commit is LEGITIMATE and the commit block ANDs intent with the table, so a state cannot make a commit it has no business making.
+    -- A state is allowed exactly when its own arm can produce a NONZERO value for that intent signal. Commit state is not retire state for 6 of the 12 commit sites, so a mask keyed on retirement would be wrong.
+    -- There is deliberately NO pc table (a wrong PC hold stops the machine and is loud); the tables are std_logic so the mask is a plain AND, and the lane table holds the permitted lane mask directly.
     type commit_perm_t is array (cpu_state) of std_logic;
     type lanes_perm_t  is array (cpu_state) of std_logic_vector(3 downto 0);
 
@@ -659,14 +590,9 @@ architecture struct of vesta is
         ZCM_PUSH_ST   => "1111",   -- cm.push's frame store
         IRQ_SV        => "1111",   -- the full-word PC push
         others        => "0000");
-    -- INITIALIZE is in the store list because its arm declares ci_st_lanes as the inverse of wen_controller, a LIVE DECODE, so it is store-capable.
-    -- Spec section 4's list omits it and instead names MEMORY_WAIT, which declares no lanes at all (its pre-S2 `wen` site drove the all-ones NO-STORE value).
-    -- The two errors cancel in the count, so a count-only check passes; the membership is what matters.
-    -- Derivation beats prose: see the S3 implementation report.
+    -- INITIALIZE is in the store list because its arm declares ci_st_lanes as the inverse of wen_controller, a LIVE DECODE, so it is store-capable; MEMORY_WAIT declares no lanes at all and is deliberately absent.
 
-    -- ==========================================
-    -- PC Management Signals
-    -- ==========================================
+    -- PC management signals.
     signal pc, pc_next           : std_logic_vector(XLEN-1 downto 0);
     signal pc_plus_2, pc_plus_4  : std_logic_vector(XLEN-1 downto 0);
     signal pc_link               : std_logic_vector(XLEN-1 downto 0);  -- JAL/JALR return addr: pc+2 for compressed, else pc+4
@@ -675,13 +601,10 @@ architecture struct of vesta is
     signal pc_next_reg            : std_logic_vector(XLEN-1 downto 0);  -- Registered PC next
     signal pc_next_trad_reg       : std_logic_vector(XLEN-1 downto 0);  -- Registered traditional PC next
     signal pc_next_ret            : std_logic_vector(XLEN-1 downto 0);  -- Return PC after IRQ
-    -- F11 (fix pass W1): pc_next_ret_ltch is RETIRED; see :1109.
     signal pc_en                  : std_logic;                      -- PC update enable
     signal pc_src                 : std_logic;                      -- PC source select
 
-    -- ==========================================
-    -- Instruction Handling Signals
-    -- ==========================================
+    -- Instruction handling signals.
     signal instr                  : std_logic_vector(ILEN-1 downto 0);
     signal instr_curr             : std_logic_vector(ILEN-1 downto 0);  -- Current instruction being executed
     signal instr_curr_prev        : std_logic_vector(ILEN-1 downto 0);  -- Previous instruction (for timing)
@@ -692,19 +615,9 @@ architecture struct of vesta is
     signal instr_assembled        : std_logic_vector(ILEN-1 downto 0);  -- Assembled from split fetch
     signal data_addr_reg          : std_logic_vector(XLEN-1 downto 0);  -- Registered copy of the issued data address
 
-    -- ==========================================
-    -- Compressed Instruction Signals
-    -- ==========================================
-    -- F5.5 (fix pass W1): DOCUMENTED, DELIBERATELY NOT CHANGED.
-    -- is_compressed is assigned in the RESET branch and in four EXECUTE arms, but is ABSENT from the FSM process's else-branch default list, so it HOLDS in every other state, inferring a third latch (is_compressed_reg, a real LATQX1MA10TH in the netlist).
-    -- Adding it to the default list would retire that latch, and the enumeration says it is ALMOST safe:
-    --   * the ONLY reader is instr_to_decomp (:1447), qualified `EXECUTE and pc(1)='1' and repeat_if='0'`, so the held value in non-EXECUTE states is never read;
-    --   * the value is OBSERVABLE only when instr_curr selects instr_decomp, i.e. additionally `quadrant_upper /= "11"`, and in the normal case that condition lands exactly on the EXECUTE arm that ASSIGNS is_compressed '1', so no held value is ever observed there.
-    -- EXCEPT on one path: the hoisted PMP instruction-access-fault arm (ENABLE_PMP and pmp_f_deny_r='1'), which does NOT assign is_compressed and can run with pc(1)='1', repeat_if='0', quadrant_upper /= "11".
-    -- That path looks harmless: it forces pc_en, reg_write_dp and mem_access_instr to '0' and wen to all-ones; mtrap_disp_code's FIRST arm is x"1" gated on pmp_f_deny_r and mtrap_disp_val is pmp_f_addr_r, so cause, mtval and mepc are all decode-independent.
-    -- But it writes instr_curr_prev, and the whole argument lives in an OPT-IN ENABLE_PMP build that this wave's gates do not exercise.
-    -- The default build folds that arm away statically, so a green 136-suite would prove nothing about the only exposed path.
-    -- Not demonstrable, therefore not changed. See ~/vesta_docs/fixpass/w1_report.md.
+    -- Compressed instruction signals.
+    -- is_compressed is assigned in the reset branch and in four EXECUTE arms but is absent from the FSM's default list, so it HOLDS elsewhere and infers a latch; its only reader is qualified by EXECUTE with pc(1)='1' and repeat_if='0', so the held value is never read.
+    -- Do not add it to the default list without proving the PMP instruction-access-fault arm, which does not assign it and can run with those same qualifiers.
     signal is_compressed          : std_logic;
     signal is_compressed_cdec     : std_logic;  -- From decompressor (unused)
     signal quadrant_upper         : std_logic_vector(1 downto 0);  -- Upper half instruction type
@@ -714,9 +627,7 @@ architecture struct of vesta is
     signal clr_repeat_if          : std_logic;  -- Clear repeat fetch flag
     signal ltch_lh_inst           : std_logic;  -- Latch lower half instruction
 
-    -- ==========================================
-    -- Control Signals
-    -- ==========================================
+    -- Control signals.
     signal ALU_src                : std_logic;
     signal jump                   : std_logic;
     signal jalr                   : std_logic;
@@ -732,25 +643,21 @@ architecture struct of vesta is
     signal reg_write_dp           : std_logic;  -- To datapath
     signal trap                   : std_logic;
 
-    -- ==========================================
-    -- ALU and Division Signals
-    -- ==========================================
+    -- ALU and division signals.
     signal ALU_result             : std_logic_vector(XLEN-1 downto 0);
-    signal rs1_value              : std_logic_vector(XLEN-1 downto 0);  -- M4b: phase-independent rs1 for reservation compares
+    signal rs1_value              : std_logic_vector(XLEN-1 downto 0);  -- phase-independent rs1, used for reservation compares and atomic addresses
     signal alu_done               : std_logic;
     signal is_div_op              : std_logic;
     signal div_start              : std_logic;
-    signal div_dispatch           : std_logic;  -- K5 defect B; derived at :4710-ish
+    signal div_dispatch           : std_logic;  -- the divide dispatch qualifier, see its assignment
 
-    -- ==========================================
-    -- X4 Zfinx FP control/status signals
-    -- ==========================================
+    -- Zfinx FP control and status signals.
     signal is_fp_singlecycle      : std_logic;  -- fsgnj*/fmin/fmax/fcmp/fclass (EXECUTE retire)
     signal is_fp_multicycle       : std_logic;  -- fadd/sub/mul/div/sqrt/fcvt (enters FPU_WAIT)
     signal is_fp_fma              : std_logic;  -- fmadd/fmsub/fnmadd/fnmsub (enters FPU_FETCH3)
     signal frm_value              : std_logic_vector(2 downto 0);  -- csr_unit fp_csr[7:5]
     signal frm_valid              : std_logic;  -- '1' iff frm in {000..100}
-    signal fpu_start              : std_logic;  -- run pulse to fpu (asserted only in FPU_WAIT, section C1)
+    signal fpu_start              : std_logic;  -- run pulse to fpu, asserted only in FPU_WAIT so every operand is stable first
     signal fpu_done_sig           : std_logic;  -- fpu complete; paces the move from FPU_WAIT to FPU_DONE. The _sig suffix avoids the FPU_DONE state name (VHDL is case-insensitive)
     signal fp_op_latch            : std_logic;  -- EXECUTE-dispatch strobe: latch rs1/rs2 in datapath
     signal fp_fetch3              : std_logic;  -- '1' in FPU_FETCH3 (steers the a2 read port to rs3)
@@ -758,17 +665,13 @@ architecture struct of vesta is
     signal fp_flags_we            : std_logic;  -- strobe: OR fp_flags into fflags (to csr_unit)
     signal fp_flags_val           : std_logic_vector(4 downto 0);  -- flag value to csr_unit
 
-    -- ==========================================
-    -- Stack Pointer Management
-    -- ==========================================
+    -- Stack pointer management.
     signal sp_write_data          : std_logic_vector(XLEN-1 downto 0);  -- New SP value
     signal stack_pointer          : std_logic_vector(XLEN-1 downto 0);  -- Current SP value
     signal sp_write_en            : std_logic;                      -- SP write enable
     signal write_data_dp          : std_logic_vector(XLEN-1 downto 0);  -- Write data from datapath
 
-    -- ==========================================
-    -- Interrupt Handling Signals
-    -- ==========================================
+    -- Interrupt handling signals.
     signal irq_save               : std_logic;
     signal irq_save_int           : std_logic;
     signal irq_save_ack           : std_logic;
@@ -778,16 +681,14 @@ architecture struct of vesta is
     signal ivt_jump               : std_logic;
     signal ivt_entry              : std_logic_vector(XLEN-1 downto 0);
 
-    -- ==========================================
-    -- Clock Gating and Power Management
-    -- ==========================================
+    -- Clock gating and power management.
     signal en_clk_cpu             : std_logic;
     -- signal clk_cpu                : std_logic;
     signal sleep_rq               : std_logic;  -- Sleep request from instruction
     signal wake_rq                : std_logic;  -- Wake request from instruction
     signal sleep_cpu              : std_logic;  -- CPU sleep state
 
-    -- X1 Zawrs wait-on-reservation-set; WRS_TIMEOUT_CYCLES is the wrs.sto short timeout in clk_cpu cycles, named and parameterizable so retuning is one line.
+    -- Zawrs wait-on-reservation-set; WRS_TIMEOUT_CYCLES is the wrs.sto short timeout in clk_cpu cycles, named so retuning is one line.
     constant WRS_TIMEOUT_CYCLES   : integer := 1024;
     signal wrs_op                 : std_logic;  -- decoded wrs.nto or wrs.sto
     signal wrs_sto                : std_logic;  -- '1' for wrs.sto (has timeout)
@@ -798,25 +699,20 @@ architecture struct of vesta is
     signal wrs_is_sto             : std_logic;  -- latched at entry: this WRS is the timeout variant
                                                 -- (instr_curr does not persist through the stall)
     
-    -- ==========================================
-    -- RV32A Atomic Operation Signals
-    -- ==========================================
+    -- RV32A atomic operation signals.
     signal amo_op                 : std_logic;  -- AMO operation (not LR/SC)
     signal lr_op                  : std_logic;  -- Load-Reserved operation
     signal sc_op                  : std_logic;  -- Store-Conditional operation
     signal fence_op               : std_logic;  -- FENCE instruction indicator
-    -- X3 Zicboz (cbo.zero) block-zero store sequencer state (clk_cpu domain).
-    -- cboz_op: exact cbo.zero decode from maindec, '0' when ENABLE_ZICBOZ is off.
-    -- cboz_base: the naturally-aligned block base (rs1 & ~(CBOZ_BLOCK_SIZE-1)), latched ONCE at dispatch from the LIVE rs1 port and NEVER re-read mid-burst.
-    --   That is the X2 rd_amo/amo_*_reg phantom-read lesson: cbo.zero does not write rd so rs1 is stable, but latching is the invariant, not an optimisation.
-    -- cboz_idx: 0..CBOZ_WORDS-1, the word being stored this burst step.
+    -- Zicboz cbo.zero block-zero store sequencer state, clk_cpu domain. cboz_op is the exact cbo.zero decode, '0' when ENABLE_ZICBOZ is off, and cboz_idx runs 0..CBOZ_WORDS-1.
+    -- cboz_base is the naturally-aligned block base (rs1 masked by CBOZ_BLOCK_SIZE-1), latched ONCE at dispatch and never re-read mid-burst: a mid-sequence regfile re-read is the phantom-read hazard.
     signal cboz_op                : std_logic;
     signal cboz_base              : std_logic_vector(31 downto 0);
     signal cboz_idx               : integer range 0 to CBOZ_WORDS-1;
     signal cboz_zero_addr         : std_logic_vector(31 downto 0);  -- cboz_base + cboz_idx*4
 
-    -- X3 Zcmp / Zcmt sequencer signals (clk_cpu domain); zcm_op is the cm.* sentinel decode from the controller, '0' when both generics are off.
-    -- Registered at dispatch, and the ONLY source of mid-sequence indices and addresses: zcm_subop_r, zcm_i16_r (the embedded compressed operand bits), zcm_sp0 (old sp), zcm_idx (position 0..12).
+    -- Zcmp/Zcmt sequencer signals, clk_cpu domain; zcm_op is the cm.* sentinel decode from the controller, '0' when both generics are off.
+    -- zcm_subop_r, zcm_i16_r (the embedded compressed operand bits), zcm_sp0 (the old sp) and zcm_idx (position 0..12) are registered at dispatch and are the ONLY source of mid-sequence indices and addresses.
     signal zcm_op                 : std_logic;
     signal zcm_subop              : std_logic_vector(2 downto 0);
     signal zcm_subop_r            : std_logic_vector(2 downto 0);
@@ -851,9 +747,8 @@ architecture struct of vesta is
     signal zcm_move_sel           : std_logic;
     signal zcm_loadwb_sel         : std_logic;
     signal dp_result_src          : std_logic_vector(2 downto 0);
-    signal pause_hint             : std_logic;  -- X1 Zihintpause: exact PAUSE hint (fence w,0), '0' when ENABLE_ZIHINT off
-    -- X1 Zihintpause window counter (clk_cpu domain).
-    -- The range is a fixed generous span, NOT tied to PAUSE_WINDOW_CYCLES, so the negative-control seed can set the window to 0 without a dead-branch static-range elaboration issue.
+    signal pause_hint             : std_logic;  -- Zihintpause: the exact PAUSE hint (fence w,0), '0' when ENABLE_ZIHINT is off
+    -- Zihintpause window counter, clk_cpu domain. The range is a fixed generous span and deliberately NOT tied to PAUSE_WINDOW_CYCLES, so a window of 0 cannot make the range static-illegal.
     signal pause_cnt              : natural range 0 to 1023 := 0;
     signal amo_read_data          : std_logic_vector(XLEN-1 downto 0);  -- Saved read data for AMO
     signal amo_new_data           : std_logic_vector(XLEN-1 downto 0);  -- Computed data for AMO write
@@ -861,96 +756,77 @@ architecture struct of vesta is
     signal reservation_addr       : std_logic_vector(XLEN-1 downto 0);  -- LR/SC reservation address
     signal amo_phase              : std_logic_vector(2 downto 0);  -- 000: normal, 001: AMO_READ, 010: AMO_COMPUTE, 011: AMO_WRITE, 100: SC fail, 101: SC success
     signal amo_write_data         : std_logic_vector(XLEN-1 downto 0);  -- Data to write for AMO operations
-    signal amo_write_data_steered : std_logic_vector(XLEN-1 downto 0);  -- X2 Zabha: sub-word-replicated AMO write data
-    signal amo_wen                : std_logic_vector(XLEN_BYTES-1 downto 0);  -- X2 Zabha: byte-lane write-enable for sub-word AMO write (active-low)
-    signal amo_addr_low           : std_logic_vector(1 downto 0);    -- X2 Zabha F1: registered AMO address low bits (from datapath)
-    signal cas_op                 : std_logic;                        -- X2 Zacas: current AMO is an amocas (funct5=CAS_FN5, ENABLE_ZACAS)
-    signal cas_match_reg          : std_logic;                        -- X2 Zacas: registered CAS compare verdict from datapath (1=match)
+    signal amo_write_data_steered : std_logic_vector(XLEN-1 downto 0);  -- Zabha: sub-word-replicated AMO write data
+    signal amo_wen                : std_logic_vector(XLEN_BYTES-1 downto 0);  -- Zabha: byte-lane write-enable for a sub-word AMO write (active-low)
+    signal amo_addr_low           : std_logic_vector(1 downto 0);    -- Zabha: registered AMO address low bits, from the datapath
+    signal cas_op                 : std_logic;                        -- Zacas: the current AMO is an amocas (funct5=CAS_FN5, ENABLE_ZACAS)
+    signal cas_match_reg          : std_logic;                        -- Zacas: registered CAS compare verdict from the datapath, 1 = match
 
-    -- ==========================================
-    -- RV32SI (RV32ZISCR) CSR Signals
-    -- ==========================================
+    -- CSR signals.
     signal csr_addr               : std_logic_vector(11 downto 0);
     signal csr_rdata              : std_logic_vector(XLEN-1 downto 0);
     signal csr_wdata              : std_logic_vector(XLEN-1 downto 0);
     signal csr_op                 : std_logic_vector(2 downto 0);
     signal csr_valid              : std_logic;
-    -- P3-entry: the CSR instruction's rs1/uimm FIELD is zero, which is the csr_unit write-form rule that CSRRS/C[I] with rs1/uimm = 0 must not write.
+    -- The CSR instruction's rs1/uimm FIELD is zero: csr_unit's write-form rule is that CSRRS/C[I] with rs1 or uimm = 0 must not write.
     signal csr_rs1_zero           : std_logic;
-    -- F-BV1 (K5): the R-type rs2 FIELD is zero; decode legality only, never the register's VALUE.
-    -- Feeds maindec's ZEXT.H row via the controller.
+    -- The R-type rs2 FIELD is zero; decode legality only, never the register's VALUE. Feeds maindec's ZEXT.H row via the controller.
     signal rs2_zero               : std_logic;
-    -- P3-entry: effective DATA-access privilege from csr_unit (mstatus.MPRV redirection).
-    -- Its consumer is the P3 PMP data-side check (Agent B); carried unconsumed until then.
+    -- Effective DATA-access privilege from csr_unit (the mstatus.MPRV redirection); consumed by the PMP data-side check.
     signal eff_data_priv_m        : std_logic;
-    -- P3 red-team F1: the MRET return privilege (MPP mapped) from csr_unit, the privilege the MRET-target FETCH is checked at during MTRAP_RET.
+    -- The MRET return privilege (MPP mapped) from csr_unit: the privilege the MRET-target FETCH is checked at during MTRAP_RET.
     signal mret_priv_m            : std_logic;
-    -- P3 red-team F1: the effective FETCH-check privilege, which is trap_priv_mode normally but mret_priv_m during MTRAP_RET.
+    -- The effective FETCH-check privilege: trap_priv_mode normally, mret_priv_m during MTRAP_RET.
     -- MTRAP_RET is the one privilege-LOWERING state whose issued fetch is consumed at the new, lower privilege.
     signal pmp_f_priv             : std_logic;
-    -- P2 TRAP-ENTRY SIDE-EFFECT BLOCK (see the assignment near the trap glue).
+    -- Trap-entry side-effect suppression; see the assignment near the trap glue.
     signal trap_entry_seq         : std_logic;
     signal csr_valid_eff          : std_logic;
     signal isr_ret_eff            : std_logic;
-    -- W3 (fix pass, F1/F1+): THE STRUCTURAL RETIRE PATH.
-    -- `retire_now` is the architectural predicate "an instruction retires at this clk_cpu edge" (v1_retire_enumeration.md section 3-R0 plus one documented deviation).
-    -- `retire_wfi_armed` is its SLEEPING one-shot; `inst_retired` is the same predicate qualified into the free-running clk domain that csr_unit's minstret counts on.
-    -- The old `en_cg_insret` and `cg_insret` ClkGate pair is DELETED; see the assignments in the clock-gating section for why.
+    -- The structural retire path. retire_now is the architectural predicate "an instruction retires at this clk_cpu edge", retire_wfi_armed is its SLEEPING one-shot.
+    -- inst_retired is the same predicate qualified into the free-running clk domain that csr_unit's minstret counts on.
     signal retire_now             : std_logic;
     signal retire_wfi_armed       : std_logic;
     signal inst_retired           : std_logic;
 
-    -- X1 Zihpm event levels, fed to csr_unit's hpm counters and sourced ONLY from signals already visible inside vesta, with no hart_tile or MCU boundary ports.
-    --   hpm_ev_stall: mem_ready low, meaning this hart is requesting a shared transaction the arbiter has not granted and completed (grant not held).
-    --   hpm_ev_sleep: the WFI SLEEPING state or the external tile sleep input.
-    --   hpm_ev_trap : in an interrupt- or exception-entry state (IRQ_SV or TRAP).
+    -- Zihpm event levels for csr_unit's hpm counters, sourced only from signals already visible inside vesta.
+    -- hpm_ev_stall is mem_ready low (a shared transaction not yet granted and completed), hpm_ev_sleep is the SLEEPING state or the tile sleep input, hpm_ev_trap is an interrupt- or exception-entry state.
     signal hpm_ev_stall           : std_logic;
     signal hpm_ev_sleep           : std_logic;
     signal hpm_ev_trap            : std_logic;
 
-    -- ==========================================
-    -- P1 standard M-mode trap CSR file hookup (ENABLE_TRAPCSR)
-    -- ==========================================
-    -- The three interrupt LEVELS the standard `mip` mirrors.
-    -- These are the SAME wires the legacy irq_handler consumes, the irq_vector bits at the MemoryMap slot indices, tapped and never latched (mip has no storage by spec).
+    -- Standard M-mode trap CSR file hookup (ENABLE_TRAPCSR). The three interrupt LEVELS the standard mip mirrors are the same wires the legacy irq_handler consumes, tapped and never latched: mip has no storage by spec.
     signal trap_irq_msip          : std_logic;
     signal trap_irq_mtip          : std_logic;
     signal trap_irq_meip          : std_logic;
-    -- csr_unit's trap-CSR exports, with NO CONSUMERS YET: the MTRAP_SV/MTRAP_JUMP states, the MRET arm and the LEGACY delivery mux are the P1 Agent-B diff.
-    -- Declared here so the frozen csr_unit port map is complete today.
+    -- csr_unit's trap-CSR exports, consumed by the MTRAP_* states and the legacy delivery mux.
     signal trap_mtvec_value       : std_logic_vector(XLEN-1 downto 0);
     signal trap_mepc_value        : std_logic_vector(XLEN-1 downto 0);
     signal trap_mstatus_mie       : std_logic;
     signal trap_mie_bits          : std_logic_vector(2 downto 0);
     signal trap_legacy_mode       : std_logic;
 
-    -- ------------------------------------------------------------------
-    -- P1 standard trap DELIVERY (this is the Agent-B half of the P1 diff).
-    -- ------------------------------------------------------------------
-    -- SYSTEM/PRIV decode from maindec (statically '0' when ENABLE_TRAPCSR off).
+    -- Standard trap delivery. SYSTEM/PRIV decode from maindec, statically '0' when ENABLE_TRAPCSR is off.
     signal ecall_op               : std_logic;
     signal ebreak_op              : std_logic;
     signal mret_op                : std_logic;
-    -- '1' means standard delivery (ENABLE_TRAPCSR and mtrapctl.LEGACY = 0).
-    -- This is THE coexistence mux select: statically '0' on an OFF build, so every new FSM arm constant-folds away, and '0' at reset on an ON build because LEGACY resets '1', which is what makes the full legacy suite run untouched on ON hardware.
+    -- The coexistence mux select, '1' for standard delivery (ENABLE_TRAPCSR and mtrapctl.LEGACY = 0).
+    -- Statically '0' on an OFF build so every standard FSM arm constant-folds, and '0' at reset on an ON build because LEGACY resets '1', which is what lets the legacy path run untouched.
     signal std_mode               : std_logic;
     -- Standard-mode interrupt take: mstatus.MIE and (mip and mie) /= 0.
     signal std_irq_take           : std_logic;
     -- Dispatch-cycle trap classification: combinational, and sampled ONLY at the edge that enters MTRAP_SV, so it can never be read on a compressed half-fetch cycle.
-    -- The half-fetch class is closed by construction here; see the mtrap_cause_proc comment.
     signal mtrap_disp_int         : std_logic;
     signal mtrap_disp_code        : std_logic_vector(3 downto 0);
     -- The same classification latched at the dispatch edge: 5 flops, the Interrupt bit plus the 4-bit code.
     signal mtrap_cause_int        : std_logic;
     signal mtrap_cause_code       : std_logic_vector(3 downto 0);
-    -- csr_unit writeback drive (values are combinational from HELD state).
+    -- csr_unit writeback drive; the values are combinational from HELD state.
     signal trap_pc_val            : std_logic_vector(XLEN-1 downto 0);
     signal trap_cause_val         : std_logic_vector(XLEN-1 downto 0);
     signal trap_value_val         : std_logic_vector(XLEN-1 downto 0);
-    -- One-shot strobes into csr_unit.
-    -- csr_unit runs on the FREE-RUNNING clk while the FSM runs on the GATED clk_cpu, so a plain state-level strobe would be applied on EVERY clk edge the FSM spends in the state.
-    -- The mstatus stack push (MPIE takes MIE, MIE takes '0') is NOT idempotent: a second application would destroy MPIE.
-    -- These are clk-domain rising-edge one-shots of the state level, so the writeback lands EXACTLY ONCE however long clk_cpu is gated.
+    -- One-shot strobes into csr_unit, which runs on the free-running clk while the FSM runs on the gated clk_cpu: a plain state level would be applied on every clk edge spent in the state.
+    -- The mstatus stack push (MPIE takes MIE, MIE takes '0') is NOT idempotent, so these are clk-domain rising-edge one-shots and the writeback lands exactly once however long clk_cpu is gated.
     signal mtrap_sv_lvl           : std_logic;
     signal mtrap_sv_d             : std_logic;
     signal mtrap_ret_lvl          : std_logic;
@@ -962,75 +838,59 @@ architecture struct of vesta is
     -- mcause bits 30:4 are hardwired 0; csr_unit stores only bit 31 and code(3:0).
     constant MTRAP_RSVD27         : std_logic_vector(26 downto 0) := (others => '0');
 
-    -- ------------------------------------------------------------------
-    -- P2 U-mode + standard WFI (ENABLE_UMODE / ENABLE_TRAPCSR)
-    -- ------------------------------------------------------------------
-    -- csr_unit's P2 exports (p0_specs.md 3.1); trap_priv_mode reads '1' (M) for all time on an ENABLE_UMODE=false build, so maindec's U-mode gate folds.
+    -- U-mode and standard WFI. csr_unit's exports; trap_priv_mode reads '1' (M) for all time on an ENABLE_UMODE=false build, so maindec's U-mode gate folds.
     signal trap_priv_mode         : std_logic;
     signal trap_status_tw         : std_logic;
     signal trap_mcounteren        : std_logic_vector(4 downto 0);
-    -- maindec's standard-WFI decode ('0' unless ENABLE_TRAPCSR).
+    -- maindec's standard-WFI decode, '0' unless ENABLE_TRAPCSR.
     signal wfi_op                 : std_logic;
-    -- WFI ENTRY-REASON MARKER: SLEEPING is entered by TWO different instructions with DIFFERENT wake rules.
-    --   extinguish (legacy custom insn): wakes only on a TAKEN interrupt (irq_save or std_irq_take), unchanged.
-    --   WFI        (standard, P2)      : wakes on (mip and mie) /= 0 REGARDLESS of mstatus.MIE; if the interrupt is takeable it vectors to MTRAP_SV, otherwise it RESUMES at the instruction after WFI.
-    -- One flop distinguishes them, set at the WFI dispatch edge (wfi_enter, driven only from the real-dispatch decode arms, so the compressed half-fetch class 5 cannot set it) and cleared on EVERY exit from SLEEPING.
+    -- WFI entry-reason marker: SLEEPING is entered by two instructions with DIFFERENT wake rules. `extinguish` wakes only on a TAKEN interrupt; WFI wakes on (mip and mie) /= 0 regardless of mstatus.MIE, vectoring to MTRAP_SV if takeable and otherwise resuming after the WFI.
+    -- wfi_enter is set at the WFI dispatch edge only, from the real-dispatch decode arms so a compressed half-fetch cycle cannot set it, and wfi_slept is cleared on EVERY exit from SLEEPING.
     signal wfi_slept              : std_logic;
     signal wfi_enter              : std_logic;
-    -- (mip and mie) /= 0, the MIE-agnostic pending term the standard WFI wake rule uses.
-    -- Same three sources and same mie packing as std_irq_take, MINUS the mstatus.MIE qualifier.
+    -- (mip and mie) /= 0, the MIE-agnostic pending term the standard WFI wake rule uses: std_irq_take's three sources and mie packing minus the mstatus.MIE qualifier.
     signal std_wfi_pend           : std_logic;
     -- The wake itself: only ever asserted for a WFI-entered sleep.
     signal std_wfi_wake           : std_logic;
 
-    -- ------------------------------------------------------------------
-    -- D1 DEBUG MODE (ENABLE_DEBUG)
-    -- ------------------------------------------------------------------
-    -- csr_unit's exports, all reset constants on an OFF build (debug_mode '0', the three dcsr bits '0', dpc zero), which is what makes every take signal below statically '0' and every FSM arm fold.
+    -- Debug mode (ENABLE_DEBUG). csr_unit's exports are reset constants on an OFF build (debug_mode '0', the three dcsr bits '0', dpc zero), which is what makes every take signal below statically '0' and every FSM arm fold.
     signal debug_mode             : std_logic;
     signal dcsr_ebreakm           : std_logic;
     signal dcsr_ebreaku           : std_logic;
     signal dcsr_step              : std_logic;
     signal dbg_dpc_value          : std_logic_vector(XLEN-1 downto 0);
-    -- maindec's DRET decode ('0' unless ENABLE_DEBUG **and** in debug mode).
+    -- maindec's DRET decode, '0' unless ENABLE_DEBUG AND in debug mode.
     signal dret_op                : std_logic;
-    -- THE THREE TAKES: separate signals with different qualifier sets, following the std_irq_take / std_wfi_pend precedent.
-    -- One decides whether an ASYNCHRONOUS halt is recognised, one whether a SYNCHRONOUS ebreak diverts, and they are tested at different points in the decode tree.
+    -- The takes: separate signals with different qualifier sets, tested at different points in the decode tree.
     signal dbg_halt_take          : std_logic;   -- haltreq or resethaltreq or step, and not already halted
     signal dbg_step_take          : std_logic;   -- the step re-entry alone (feeds the cause mux)
     signal dbg_ebreak_take        : std_logic;   -- ebreak diverts to debug rather than to the trap path
-    -- D2 / F-D2-0 (R-D2-3(1)): a SYNCHRONOUS exception taken while ALREADY in debug mode re-enters at DEBUG_ENTRY_ADDR instead of taking the trap path.
-    -- Fourth "take" in the same family and named the same way, because it is tested at the same dispatch points as dbg_ebreak_take but answers a different question: not "does this ebreak divert" but "is this hart allowed to leave debug mode through a trap at all".
+    -- A SYNCHRONOUS exception taken while ALREADY in debug mode re-enters at DEBUG_ENTRY_ADDR instead of taking the trap path.
+    -- Tested at the same dispatch points as dbg_ebreak_take but answering a different question: whether this hart may leave debug mode through a trap at all.
     signal dbg_exc_take           : std_logic;
-    -- D2 / F-D2-1 (R-D2-3(3)): interrupt delivery is suppressed in debug mode, on BOTH paths.
-    -- Deliberately a SEPARATE signal from dbg_exc_take even though the predicate is identical: they are two separately-ruled findings with two separate detectors, and either must be revertible without touching the other.
-    -- The duplicate term is combinational and costs nothing, the same argument the dbg_halt_pend comment below makes for its own duplicate of dbg_halt_take.
+    -- Interrupt delivery is suppressed in debug mode, on both the legacy and the standard path.
+    -- Kept a SEPARATE signal from dbg_exc_take even though the predicate is identical, so either can be changed without touching the other; the duplicate term is combinational and costs nothing.
     signal dbg_irq_block          : std_logic;
-    -- The en_clk_cpu ungate (F-D0P1-3), the same expression as dbg_halt_take.
-    -- It gets a separate name because it is consumed in a DIFFERENT domain question, namely whether this hart gets a clock at all, and conflating the two is how a future edit to one silently changes the other.
+    -- The en_clk_cpu ungate, the same expression as dbg_halt_take under its own name because it answers a different question, whether this hart gets a clock at all.
     signal dbg_halt_pend          : std_logic;
-    -- WAIT-FOR-RELEASE on the halt request: the mp_arbiter `need_release` idiom, and the same hazard it exists for.
-    -- See the assignment below.
+    -- WAIT-FOR-RELEASE on the halt request; see the assignment below.
     signal dbg_req_mask           : std_logic;
     signal dbg_haltreq_eff        : std_logic;
-    -- Halt-on-reset: dbg_rsthalt_r is SAMPLED ONCE, at the first free-clk edge after this core's reset release (dbg_rst_armed is the one-shot), then held until the debug entry it causes.
-    -- That is d1_spec's frozen interface, "sampled at reset release", and F-D2-2 is what the earlier level-following shape cost: a request raised on a RUNNING hart halted it, which contradicts both d1_spec and the debug spec's setresethaltreq ("the hart will halt upon the next deassertion of its reset").
-    -- WHY THE SAMPLE POINT IS WELL DEFINED, since D1's comment doubted it: hart_tile's boundary flop bnd_rsthalt_r is reset by the TILE reset and follows the request from one mclk after THAT release, while this core's resetn is resetn_core driven from boot_fetched, which cannot latch until the M12 boot fetch has crossed the arbiter and landed.
-    -- The core therefore leaves reset strictly later than the boundary flop settles, by construction and not by a tuned delay: the very stretch D1 cited as the obstacle is what makes the single sample safe.
+    -- Halt on reset: dbg_rsthalt_r is SAMPLED ONCE, at the first free-clk edge after this core's reset release (dbg_rst_armed is the one-shot), then held until the debug entry it causes.
+    -- It must not level-follow the request: a request raised on a RUNNING hart would then halt it, whereas the contract is to halt at the next deassertion of reset.
     signal dbg_rsthalt_r          : std_logic;
     signal dbg_rst_armed          : std_logic;
-    -- SINGLE-STEP: armed at the DRET that carried dcsr.step, consumed by the next entry.
-    -- THE STEP DIVERTS AT THE STEPPED INSTRUCTION'S OWN DISPATCH CYCLE, not at the next one, exactly like an interrupt divert, so the stepped instruction RETIRES (ci_rd_commit and ci_st_lanes are declared) and dpc becomes pc_next_reg, the address of the following instruction.
-    -- Diverting at the NEXT instruction's dispatch instead would retire TWO instructions per step, which is the natural wrong implementation.
+    -- Single step: armed at the DRET that carried dcsr.step, consumed by the next entry.
+    -- The step diverts at the stepped instruction's OWN dispatch cycle, like an interrupt divert, so that instruction retires and dpc becomes pc_next_reg; diverting at the next dispatch would retire two instructions per step.
     signal dbg_step_armed         : std_logic;
-    -- Dispatch-cycle cause classification and its latch, the mtrap_cause_proc idiom: read ONLY at the clk_cpu edge that ENTERS DBG_SV, so the value is stable for the whole state and for the free-clk strobe that consumes it.
+    -- Dispatch-cycle cause classification and its latch, read ONLY at the clk_cpu edge that ENTERS DBG_SV so the value is stable for the whole state and for the free-clk strobe that consumes it.
     -- Codes: 1 ebreak, 3 haltreq, 4 step, 5 resethaltreq.
     signal dbg_disp_cause         : std_logic_vector(2 downto 0);
     signal dbg_cause_r            : std_logic_vector(2 downto 0);
-    -- The dpc value, selected by the LATCHED cause: a synchronous ebreak records its OWN pc, while a halt or a step records pc_next_reg, the resume PC, provably the same word the legacy IRQ_SV pushes at sp-4.
+    -- The dpc value, selected by the LATCHED cause: a synchronous ebreak records its OWN pc, a halt or a step records pc_next_reg, the resume PC.
     signal dbg_pc_val             : std_logic_vector(XLEN-1 downto 0);
     -- The two one-shots, generated on the csr_unit clock domain exactly as mtrap_sv_lvl and mtrap_ret_lvl are.
-    -- That is the ONLY mechanism in this core for a gated-clk state to commit a free-clk CSR side effect exactly once.
+    -- That is the only mechanism in this core for a gated-clk state to commit a free-clk CSR side effect exactly once.
     signal dbg_sv_lvl             : std_logic;
     signal dbg_sv_d               : std_logic;
     signal dbg_ret_lvl            : std_logic;
@@ -1038,17 +898,9 @@ architecture struct of vesta is
     signal dbg_entry_we_sig       : std_logic;
     signal dbg_ret_we_sig         : std_logic;
 
-    -- ------------------------------------------------------------------
-    -- P3 PMP CHECK INTEGRATION (ENABLE_PMP): the D5 strict-pre-issue diff
-    -- ------------------------------------------------------------------
-    -- EVERY signal below is statically '0', '1' or zero when ENABLE_PMP is false, because the gen_pmp_off generate ties the unit outputs and the two flops, so the OFF netlist and the LEGACY delivery path are bit-identical.
-    --
-    -- THE SUPPRESSION MECHANISM, i.e. why "no transaction" is structural here: hart_tile derives the arbiter request from the ADDRESS ALONE, with sh_sel driven from a window decode of data_addr and sh_req driven from sh_sel and not ack.
-    -- So "a denied access issues NO transaction" is EXACTLY "the denied address never reaches `data_addr`", and both check points are shaped to that single invariant:
-    --   DATA  : the EXECUTE-cycle data address only reaches data_addr through `mem_access_instr` (loads, stores, LR, AMO) or through a sequencer STATE term (CBOZ_WRITE, ZCM_*).
-    --           A denial forces mem_access_instr '0' and wen all-ones AND gates the sequencer terms, so data_addr stays on the fetch fall-through; SC's only transaction lives in SC_CHECK, which a denial never enters.
-    --   FETCH : the fall-through `pc_next` arm of the data_addr mux is the ONE place this core issues an instruction fetch.
-    --           A denial parks data_addr on PC_RST_VAL, the reset vector, which is fetchable and side-effect-free by construction in every instantiation.
+    -- PMP check integration (ENABLE_PMP), strict pre-issue; every signal below is statically '0', '1' or zero when ENABLE_PMP is false. hart_tile derives the arbiter request from the ADDRESS ALONE, so "a denied access issues no transaction" is exactly "the denied address never reaches data_addr", and both check points are shaped to that one invariant:
+    --   DATA  : a denial forces mem_access_instr '0' and wen all-ones and gates the sequencer address terms, so data_addr stays on the fetch fall-through; SC's only transaction lives in SC_CHECK, which a denial never enters.
+    --   FETCH : the fall-through pc_next arm of the data_addr mux is the one place this core issues a fetch, and a denial parks data_addr on PC_RST_VAL, which is fetchable and side-effect-free by construction.
     signal pmp_cfg_flat_sig       : std_logic_vector(127 downto 0);
     signal pmp_addr_flat_sig      : std_logic_vector(479 downto 0);
     -- Fetch port; f_addr is pc_next, the address the CURRENT cycle would put on the bus as an instruction fetch.
@@ -1058,12 +910,11 @@ architecture struct of vesta is
     -- That is always the word this EXECUTE decodes, or on a repeat_if completion the UPPER half of the straddling 32-bit instruction, which is why ONE fetch port covers both halves.
     signal pmp_f_deny_r           : std_logic;
     signal pmp_f_addr_r           : std_logic_vector(XLEN-1 downto 0);
-    -- '1' in the EXECUTE cycle that would consume a fetch which never issued: the decoder is looking at the PARK word, so this cycle must commit NOTHING (the trap_entry_seq lesson, applied one cycle earlier).
+    -- '1' in the EXECUTE cycle that would consume a fetch which never issued: the decoder is looking at the PARK word, so this cycle must commit NOTHING.
     signal pmp_if_squash          : std_logic;
     -- trap_entry_seq OR pmp_if_squash: the decode-bypassing side effects (csr_valid, isr_ret, sleep_cpu) are killed by either.
     signal dec_squash             : std_logic;
-    -- W2 (F7/F3/F3+/F3++): the POSITIVE form of that rule, '1' in exactly the cycle in which the decode of instr_curr is a DISPATCHING instruction and may therefore commit a side effect that bypasses the FSM.
-    -- See the assignment for the per-term justification.
+    -- The POSITIVE form of that rule: '1' in exactly the cycle in which the decode of instr_curr is a DISPATCHING instruction and may commit a side effect that bypasses the FSM. See the assignment for the per-term justification.
     signal dec_dispatch           : std_logic;
     -- data_addr park select (see the mechanism note above).
     signal pmp_if_park            : std_logic;
@@ -1073,20 +924,16 @@ architecture struct of vesta is
     signal pmp_d_rd               : std_logic;
     signal pmp_d_wr               : std_logic;
     signal pmp_d_active           : std_logic;
-    -- '1' when the denied access is of the STORE class (store, SC, AMO, cbo.zero, cm.push), which reports cause 7; '0' for the LOAD class (load, LR, cm.pop, Zcmt table fetch), which reports cause 5.
-    -- NOTE this is the ACCESS CLASS, not the permission need: LR, SC and AMO all check R AND W (frozen section 4), but a denied LR reports cause 5, per the section 2.2 row it belongs to.
+    -- '1' when the denied access is of the STORE class (store, SC, AMO, cbo.zero, cm.push), reporting cause 7; '0' for the LOAD class (load, LR, cm.pop, Zcmt table fetch), reporting cause 5.
+    -- This is the ACCESS CLASS, not the permission need: LR, SC and AMO all check R and W, but a denied LR still reports cause 5.
     signal pmp_d_st_class         : std_logic;
     signal pmp_d_deny             : std_logic;
     -- The faulting address for mtval (causes 1, 5 and 7): combinational at the dispatch cycle, LATCHED at the MTRAP_SV dispatch edge because neither source is stable during MTRAP_SV.
     signal mtrap_disp_val         : std_logic_vector(XLEN-1 downto 0);
     signal mtrap_val_r            : std_logic_vector(XLEN-1 downto 0);
 
-    -- ------------------------------------------------------------------
-    -- V1 LOCKSTEP TRACER TAPS (read-only), carrying the committed-write values that are NOT otherwise visible at this level: two from datapath (the regfile's a3 and wd3) and four from csr_unit.
-    -- They are mapped unconditionally, since a port map cannot be conditional, but TRACE_ENABLE is threaded into both sub-blocks, so with TRACE_ENABLE=false the logic that would drive them does not exist at all (their `gen_trc_off` arms tie them to constants) and nothing reads them here either.
-    -- Identical BY CONSTRUCTION, not by unloaded-logic removal: the first cut relied on the optimiser and cost +174 cells and +745.8 area at elaborate.
-    -- See v1_retire_enumeration.md sections 2.1, 2.4, 7-A and 7-B.
-    -- ------------------------------------------------------------------
+    -- Lockstep tracer taps, read-only: the committed-write values not otherwise visible at this level, two from the datapath (the regfile a3 and wd3 nets) and four from csr_unit.
+    -- They are mapped unconditionally, since a port map cannot be conditional, but TRACE_ENABLE is threaded into both sub-blocks so the driving logic does not exist in an OFF build. Do not rely on the optimiser to remove it instead.
     signal trc_rd_addr            : std_logic_vector(4 downto 0);
     signal trc_rd_data            : std_logic_vector(XLEN-1 downto 0);
     signal csr_commit_we          : std_logic;
@@ -1094,7 +941,7 @@ architecture struct of vesta is
     signal mstatus_value          : std_logic_vector(XLEN-1 downto 0);
     signal fflags_value           : std_logic_vector(XLEN-1 downto 0);
 
-    -- X3 Zcmp/Zcmt helper functions (pure combinational, spec tables).
+    -- Zcmp/Zcmt helper functions: pure combinational spec tables.
     function zcm_reg_at(p : integer) return std_logic_vector is
     begin
         if p = 0 then
@@ -1126,8 +973,8 @@ architecture struct of vesta is
         if r = 15 then
             return 13;
         elsif r < 4 then
-            -- Reserved rlist encodings (0-3) never reach the ZCM states, but this lookup is a concurrent statement evaluated from reset with rlist = "0000", where r-3 would violate zcm_nregs_val's range 1..13 (GHDL bound check).
-            -- Clamp reserved encodings to the range floor; defined encodings (4-15) are untouched.
+            -- Reserved rlist encodings 0-3 never reach the ZCM states, but this lookup is concurrent and is evaluated from reset with rlist = "0000", where r-3 would violate zcm_nregs_val's range 1..13.
+            -- Clamp reserved encodings to the range floor; defined encodings 4-15 are untouched.
             return 1;
         else
             return r - 3;
@@ -1154,31 +1001,11 @@ architecture struct of vesta is
 
     begin
 
-    -- ==========================================
-    -- Signal Assignments
-    -- ==========================================
     instr <= read_data;
 
-    -- ==========================================
-    -- Clock Gating Logic
-    -- ==========================================
-    -- Enable the CPU clock when:
-    -- - Memory is ready. mem_ready = '0' freezes the whole core: state, PC and all read-data latching stop, while the combinational data_addr/wen request stays asserted so the arbiter keeps seeing the pending access.
-    --   This has TOP priority so a stalled memory access cannot be overridden by an IRQ. With mem_ready tied '1' (single-master MCU) this term is always false, so en_clk_cpu is unchanged.
-    -- - IRQ is active (always process interrupts).
-    -- - Not in external sleep mode.
-    -- - Not in the SLEEPING state.
-    -- P1: in STANDARD delivery mode the irq_handler is held in IDLE, so irq_active can never rise and the legacy "IRQ is active" ungate above is dead; a hart that extinguished into SLEEPING would never get a clk_cpu edge again and could never reach MTRAP_SV.
-    -- std_irq_take restores exactly that ungate for the standard path, at the same precedence, and is statically '0' on an OFF build (std_mode folds to '0'), so en_clk_cpu is bit-identical.
-    -- P2: the standard WFI wake needs its OWN ungate, at the same precedence and for the same reason.
-    -- std_irq_take carries the mstatus.MIE qualifier, but a WFI must resume on a pending and enabled interrupt even with MIE=0; with no term here that hart would sleep forever with clk_cpu gated off, never evaluating the SLEEPING arm.
-    -- std_wfi_wake is qualified by wfi_slept, so an extinguish-entered sleep is untouched, and it is statically '0' when ENABLE_TRAPCSR is off, so the OFF build's en_clk_cpu is bit-identical.
-    -- D1 (F-D0P1-3): THE PARKED-HART UNGATE, and on this chip it is not a corner case, it is the DEFAULT BOOT STATE OF EVERY HART BUT HART 0.
-    -- Harts 1..N-1 park in SLEEPING via `extinguish` (bootrom_mp start.S) with clk_cpu GATED OFF: the FSM gets no edge, so it cannot evaluate the SLEEPING arm and cannot sample a halt request at all.
-    -- Without this term "attach a debugger and halt hart 2" is impossible by construction on three quarters of the harts, at N=4 and at N=18 alike, and every knob-OFF gate stays green while it is missing, which is what makes it the single most likely D1 omission.
-    -- Same precedence and the same shape as the P1/P2 terms above it, and statically '0' when ENABLE_DEBUG is off (via dbg_halt_take), so the OFF build's en_clk_cpu is bit-identical.
-    -- COROLLARY, and it must not be "optimised": the DEBUG-HALTED state is deliberately NOT added to the gating list below.
-    -- A halted core keeps clk_cpu running, which is what lets it execute debug-ROM and program-buffer instructions at all; gating it would look like a power win and would make the feature non-functional.
+    -- Enable the CPU clock unless the core is stalled or asleep. mem_ready = '0' freezes state, PC and all read-data latching while the combinational data_addr/wen request stays asserted, and it has TOP priority so a stall cannot be overridden by an interrupt.
+    -- Every wake source needs its OWN ungate at that same precedence, or a hart sleeps forever with clk_cpu gated and never evaluates the SLEEPING arm: irq_active (legacy), std_irq_take (standard, where irq_active can never rise), std_wfi_wake (a WFI resumes even with mstatus.MIE=0) and dbg_halt_pend (a parked hart must still sample a halt request).
+    -- The DEBUG-HALTED state is deliberately NOT in the gating list: a halted core keeps clk_cpu running, which is what lets it execute debug-ROM and program-buffer instructions at all.
     en_clk_cpu <= '0' when mem_ready = '0' else
                   '1' when irq_active = '1' else
                   '1' when std_irq_take = '1' else
@@ -1195,100 +1022,44 @@ architecture struct of vesta is
             ClkOut => clk_cpu
         );
 
-    -- ==========================================
-    -- THE RETIRE STROBE  (fix pass W3: findings F1 and F1+)
-    -- ==========================================
-    -- This is roadmap step 10, "make the retire path structural", not a counter patch.
-    -- Spec: ~/vesta_docs/fixpass/specs/w3_spec.md; condition: ~/vesta_docs/lockstep/v1_retire_enumeration.md section 3-R0 plus section 5's 39-row table; detector: rv32ua-p-insretov.
-    --
-    -- WHAT WAS HERE, AND WHY IT WAS WRONG. Two independent defects:
-    --
-    --     en_cg_insret <= '1' when next_state = EXECUTE else '0';
-    --     cg_insret: entity work.ClkGate
-    --         port map (ClkIn => not clk_cpu, En => en_cg_insret,
-    --                   ClkOut => inst_retired);
-    --
-    -- F1, THE CONDITION. `next_state = EXECUTE` is not "an instruction retired": through a `not clk_cpu`-clocked ClkGate it makes minstret count EXECUTE CYCLES.
-    -- The compressed straddling fetch (the shape-E half-fetch bubble, the `else` at :2726 below) spends TWO EXECUTE cycles on ONE instruction, so it measured +1 per straddling 32-bit instruction (d1s = 5 against the word-aligned control d1a = 4).
-    --   Do NOT re-add "+1 per FENCE / per AMO / per interrupt entry" to this list.
-    --   Three separate reviews asserted it; all three counted a trailing state's fire without checking whether the DISPATCH EXECUTE cycle fired at all.
-    --   It does not: FENCE_WAIT, AMO_COMPLETE, MEMORY_WAIT and the rest are the FETCH-NEXT states, so the dispatch cycle has next_state /= EXECUTE and the trailing fire is the ONLY fire.
-    --   Measured correct today (d2f = d3a = d2n = 2).
-    --   The standing habit: before believing any "+1 from state X" claim about this counter, write out the instruction's whole state trajectory and count its EXECUTE cycles.
-    --
-    -- F1+, THE DOMAIN, and the dominant term. `inst_retired` was a GATED CLOCK consumed as a LEVEL on the free-running clk (csr_unit :681, inside `elsif rising_edge(clk)`).
-    -- With ClkIn driven from `not clk_cpu` the ClkGate latch is transparent only while clk_cpu is HIGH, so once clk_cpu gated off with the enable latched '1' the level STUCK HIGH and minstret incremented once per free-running clk cycle for the whole stall.
-    --   It fires per shared-window instruction FETCH, not per shared-window ACCESS: hart_tile's mem_ready_sh is a combinational decode of data_addr ((not sh_sel) or sh_ack_ok), so a shared DATA access freezes the core inside an EXECUTE whose next_state is MEMORY_WAIT, the latch holds '0' and the stall integrates nothing.
-    --   Measured: two bursts stalling for exactly the same 48 clk, the fetch case gained 48 phantom retires and the data case 0, i.e. exactly one phantom retire per stalled clk cycle.
-    --   Every hart boots from the SHARED ROM (M12), so about 79 % of all boot clk cycles were counted as retired instructions.
-    --
-    -- THE FIX, part 1: the condition. `retire_now` implements section 3-R0.
-    -- That boolean is not a sketch: it was adopted from the lockstep red team's R5/R7, re-verified arm by arm, and every state ordinal in it checked against section 5's 39-row table.
-    -- Do not "simplify" an arm; each term has a named counter-example:
-    --   * `next_state in {EXECUTE, IRQ_SV, MTRAP_SV, FENCE_WAIT}` is what separates a RETIRE from a multi-cycle DISPATCH.
-    --     Verified complete against the four surviving EXECUTE arms: the four `else` next_state EXECUTE tails, irq_save into IRQ_SV, std_irq_take into MTRAP_SV, fence_op-non-PAUSE into FENCE_WAIT, and wrs_op-with-no-reservation back into EXECUTE.
-    --     An interrupt divert takes away only pc_en, so the interrupted instruction still retires: the retire condition is a function of current_state, decode class and next_state, and NEVER of pc_en.
-    --     pc_en is neither necessary nor sufficient, being '1' with no retire in INITIALIZE, IRQ_JUMP, MTRAP_JUMP, FENCE_WAIT and AMO_COMPLETE.
-    --   * the hoisted shapes P (:2476, ENABLE_PMP fetch deny) and Q (:2503, non-compressed build, pc(1)='1') sit ABOVE every shape selector and leave the quadrant and pc bits untouched, so they need their own exclusions.
-    --     The trap, ecall_op, ebreak_op, mret_op and pmp_d_deny sub-arms each MATCH a shape predicate and must be excluded too, since in standard mode they target MTRAP_SV, which is in the allowed next_state set.
-    --     All exclusions are ANDed, so this expression does not depend on the FSM's arm ORDER.
-    --   * shape E (:2726, "need to fetch upper half") emits nothing; that is the F1 half-fetch bubble itself.
-    --   * SLEEPING retires on the EXIT cycle only, and only for a real WFI or extinguish dispatch.
-    --     SLEEPING has a SECOND entry, IRQ_REST's sleep_cpu arm (:3755), the bootrom park contract for harts 1..N-1, so an unqualified "retire on every SLEEPING exit" would invent a retire on every parked-hart ISR round trip, i.e. on every sh* test.
-    --     retire_wfi_armed below is the one-shot that separates them.
-    --
-    -- THE ONE DOCUMENTED DEVIATION FROM section 3-R0: `iret` RETIRES (ruling: w3_spec.md section 6.3).
-    -- Rule 2 of section 3-R0 reads RETIRE_MEMORY_WAIT = (current_state = MEMORY_WAIT) and isr_ret = '0', and that `isr_ret = '0'` qualifier is deliberately NOT reproduced here.
-    -- Section 3-R0 is the TRACER'S COMPARISON CONTRACT, not an architectural definition of retirement: it excludes `iret` only because Spike has no encoding for this custom instruction, so the tracer emits X instead of R.
-    -- That is a statement about what can be COMPARED, not about what EXECUTED.
-    -- Section 3-R0 already treats `mret` as a retire (section 5 row 16) and `iret` is the legacy-path analogue of `mret`; counting one and not the other in an architectural counter is indefensible.
-    -- `iret`'s real trajectory is EXECUTE, then MEMORY_WAIT, then IRQ_REST (the three EXECUTE isr_ret arms are dead code, :2224-2235 and enumeration R1), and MEMORY_WAIT is a single-cycle state, so dropping the qualifier counts it EXACTLY ONCE.
-    -- DO NOT "correct" this to match the tracer.
-    --   Nothing is added on IRQ_REST's re-park arm, and that is deliberate: the re-parking `iret` is ALREADY counted here, exactly like the resuming one (measured d_fb = d4 + 1 = 3 over a 498-clk gated park).
-    --   Adding a count there would DOUBLE-count every parked-hart msip round trip, i.e. every sh* test on harts 1..N-1.
+    -- THE RETIRE STROBE: "an instruction retires at this clk_cpu edge". Never derive it from a gated clock (a level so derived sticks high through a stall and counts one phantom retire per stalled cycle) or from `next_state = EXECUTE` alone, which counts EXECUTE CYCLES and double-counts every split 32-bit fetch.
+    -- Not a function of pc_en: an interrupt divert takes away only pc_en and the diverted instruction still retires, and pc_en is '1' with no retire in INITIALIZE, IRQ_JUMP, MTRAP_JUMP, FENCE_WAIT and AMO_COMPLETE. All exclusions below are ANDed, so this does not depend on the FSM's arm ORDER.
+    -- `iret` RETIRES here even though the tracer's comparison contract excludes it, the reference model having no encoding for this custom instruction; its trajectory passes through single-cycle MEMORY_WAIT, so rule 2 counts it exactly once.
     retire_now <=
-        -- 1. EXECUTE, section 3-R0 rule 1.
+        -- 1. EXECUTE.
         '1' when (current_state = EXECUTE
-                  and not (ENABLE_PMP and pmp_f_deny_r = '1')            -- shape P
-                  and not ((not ENABLE_COMPRESSED) and pc(1) = '1')      -- shape Q
+                  and not (ENABLE_PMP and pmp_f_deny_r = '1')            -- PMP fetch deny
+                  and not ((not ENABLE_COMPRESSED) and pc(1) = '1')      -- misaligned PC on a non-C build
                   and not (pc(1) = '1' and quadrant_upper = "11"
-                           and repeat_if = '0')                          -- shape E
+                           and repeat_if = '0')                          -- the split-fetch bubble
                   and trap = '0' and ecall_op = '0' and ebreak_op = '0'  -- trap sub-arms
                   and mret_op = '0'                                      -- retires at MTRAP_RET
-                  and not (ENABLE_PMP and pmp_d_deny = '1')              -- the P3 D5 arm
-                  -- D1: DBG_SV joins this CLOSED whitelist, and it MUST (D0/P1 F-D0P1-2).
-                  -- A halt or step divert out of EXECUTE takes away only pc_en, exactly as an interrupt divert does, so the diverted instruction still retires.
-                  -- For SINGLE-STEP that retire IS the step: the one instruction the step is defined to execute.
-                  -- Omitting it here would silently drop one minstret and one lockstep retire record PER HALT AND PER STEP, a bug whose signature is "the counters are one low, sometimes".
-                  -- vesta_tracer.vhd carries the SAME addition to its own copy of this condition; the two copies differ ON PURPOSE elsewhere (the MEMORY_WAIT isr_ret term) and a mismatch here is as silent as the ordinal one.
-                  -- Unreachable knob-OFF, since DBG_SV has no reachable transition there, so the OFF retire stream is unchanged.
+                  and not (ENABLE_PMP and pmp_d_deny = '1')              -- PMP data deny
+                  -- DBG_SV belongs in this closed whitelist: a halt or step divert takes away only pc_en, so the diverted instruction still retires, and for a single step that retire IS the step.
+                  -- vesta_tracer carries the same term in its own copy of this condition; the copies differ on purpose only in the MEMORY_WAIT isr_ret term, and any other mismatch is silent.
                   and (next_state = EXECUTE  or next_state = IRQ_SV or
                        next_state = MTRAP_SV or next_state = FENCE_WAIT or
                        next_state = DBG_SV)) else
-        -- 2. MEMORY_WAIT, section 3-R0 rule 2 WITHOUT its `isr_ret = '0'` qualifier; that omission is the one documented deviation (see above).
+        -- 2. MEMORY_WAIT, deliberately without an `isr_ret = '0'` qualifier so that `iret` counts.
         '1' when (current_state = MEMORY_WAIT) else
-        -- 3. SLEEPING, section 3-R0 rule 3: the exit cycle of an armed sleep only.
+        -- 3. SLEEPING: the exit cycle of an ARMED sleep only. SLEEPING has a second entry, the return-to-sleep arm of IRQ_REST, so an unqualified exit would invent a retire on every parked-hart interrupt round trip.
         '1' when (current_state = SLEEPING and next_state /= SLEEPING
                   and retire_wfi_armed = '1') else
-        -- 4..11. Unconditional in the state: no arm can suppress the commit.
-        -- D1: DBG_RET joins the unconditional list beside MTRAP_RET, the same shape and the same argument, and `dret` is a STANDARD encoding the reference knows (unlike `iret`), so its retire is comparable.
-        -- DBG_SV and DBG_JUMP do NOT retire: an entry executes nothing, and the retire that accompanies a halt belongs to the DIVERTING state above.
+        -- 4 onward: unconditional in the state, no arm can suppress the commit.
+        -- DBG_RET sits beside MTRAP_RET on the same argument, but DBG_SV and DBG_JUMP do NOT retire: an entry executes nothing and the retire that accompanies a halt belongs to the diverting state above.
         '1' when (current_state = DIV_DONE  or current_state = FPU_DONE  or
                   current_state = LR_READ   or current_state = SC_CHECK  or
                   current_state = AMO_WRITE or current_state = MTRAP_RET or
                   current_state = DBG_RET   or
                   current_state = ZCM_RET   or current_state = ZCM_JT_WB) else
-        -- 12. PAUSE_WAIT retires on the window-close cycle only.
+        -- PAUSE_WAIT retires on the window-close cycle only.
         '1' when (current_state = PAUSE_WAIT and pause_cnt = 0) else
-        -- 13. WRS_WAIT retires on the wake cycle only.
+        -- WRS_WAIT retires on the wake cycle only.
         '1' when (current_state = WRS_WAIT and wrs_wake = '1') else
         '0';
 
-    -- The SLEEPING one-shot, the core-side equivalent of section 3-R0's `trc_wfi_armed`.
-    -- Set at the ONLY real WFI or extinguish dispatch edge (EXECUTE into SLEEPING, the sleep_rq and wfi_op arms at :2596/:2599 and :2892/:2895), and cleared on the first SLEEPING exit, whichever arm takes it.
-    -- Set and clear cannot coincide, since one needs current_state = EXECUTE and the other SLEEPING.
-    -- NOT reusable: wfi_slept looks identical but is set from `wfi_enter`, which the extinguish arms do NOT raise (it selects the STANDARD wake rule) and which is statically '0' on a non-ENABLE_TRAPCSR build, so reusing it would drop the retire of every extinguish in the default config.
-    -- This flop is the one piece of new state W3 adds.
+    -- The SLEEPING one-shot: set at the only real WFI or extinguish dispatch edge, EXECUTE into SLEEPING, and cleared on the first SLEEPING exit whichever arm takes it; set and clear cannot coincide.
+    -- Do not reuse wfi_slept here: it looks identical but is set from wfi_enter, which the extinguish arms never raise and which is statically '0' without ENABLE_TRAPCSR, so it would drop the retire of every extinguish.
     retire_wfi_arm_proc: process(clk_cpu, resetn)
     begin
         if resetn = '0' then
@@ -1302,55 +1073,20 @@ architecture struct of vesta is
         end if;
     end process;
 
-    -- THE FIX, part 2: the domain crossing, one clk_cpu cycle for exactly one increment.
-    -- This is what the author's own commented-out line was reaching for, and it deletes the cg_insret ClkGate entirely.
-    --
-    -- clk_cpu is ClkGate(clk, en_clk_cpu): its edges are a SUBSET of clk's, same source, no phase relationship, so this is an edge-REMOVAL problem, not a CDC problem.
-    -- csr_unit samples inst_retired on rising_edge(clk), and the question is whether "en_clk_cpu sampled at a clk rising edge" is the same predicate as "this edge is also a clk_cpu edge". IT IS, IN BOTH VIEWS:
-    --   * hdl/common/sim/ClkGate.vhd is the classic latch-then-AND: ClkSync takes En while ClkIn is '0', and ClkOut is ClkSync AND ClkIn.
-    --     So a clk_cpu edge occurs only when ClkSync = '1', and ClkSync at that edge is en_clk_cpu as of the END OF THE LOW PHASE, exactly the value a clk-edge flop samples under setup.
-    --   * hdl/common/commune/ClkGate_cmn65gp_ARM.vhd wraps PREICGX1BA10TH, a standard integrated clock gate with the same latch-then-AND semantics, so the argument holds in gates as well as in sim.
-    -- Both files re-confirmed unchanged at W3.
-    -- Un-stalled, every clk edge is a clk_cpu edge and the strobe is high for exactly the retiring cycle, giving one increment.
-    -- Stalled (or slept, or externally sleep-gated), en_clk_cpu = '0' kills it, so the stall integrates NOTHING and the cycle in which the stall releases counts once.
-    --   The toggle-flop alternative is deliberately NOT used: it adds a same-edge launch/capture path into a tile with picosecond setup margin.
+    -- The domain crossing: one clk_cpu cycle gives exactly one increment. clk_cpu is ClkGate(clk, en_clk_cpu), so its edges are a SUBSET of clk's and this is edge removal, not a clock-domain crossing.
+    -- ClkGate latches En while the clock is low, so a clk_cpu edge occurs only where en_clk_cpu was '1' at the end of the low phase, which is exactly what a clk-edge flop in csr_unit samples; a stall therefore integrates nothing and the releasing cycle counts once.
+    -- A toggle flop is deliberately not used here: it adds a same-edge launch/capture path into a tile with picosecond setup margin.
     inst_retired <= retire_now and en_clk_cpu;
 
-    -- BINDING (w3_spec.md section 2.3): vesta_tracer must NOT consume `retire_now`.
-    -- The tracer implements section 3-R0 independently, with its own `wfi_armed` variable.
-    -- Wiring this signal into it would make the two agree BY CONSTRUCTION and destroy the only thing that makes their agreement evidence: two independent implementations of one spec agreeing over 4.6 M records is a result, whereas one implementation observed twice is a tautology.
-    -- Keep them separate; do NOT "de-duplicate" them.
+    -- BINDING: vesta_tracer must NOT consume retire_now. It implements the same predicate independently, with its own armed flag.
+    -- Wiring this signal into it would make the two agree by construction and destroy the only thing that makes their agreement evidence.
 
 
-    -- ==========================================
-    -- PC Return Value Latching
-    -- ==========================================
-    -- F11 (fix pass W1): this WAS a 32-bit transparent latch bank plus a guard flop, and the latch was DEAD, provably always transparent.
-    --
-    --     pc_next_ret_gt_proc: process(resetn, clk_cpu) ...
-    --         elsif rising_edge(clk_cpu) then
-    --             if en_clk_cpu = '0' then pc_next_ret_ltch <= '1';
-    --             else                     pc_next_ret_ltch <= '0'; end if;
-    --     pc_next_ret <= read_data when pc_next_ret_ltch = '0' else pc_next_ret;
-    --
-    -- WHY IT WAS DEAD: clk_cpu is the ClkGate output, and ClkGate holds En into ClkSync while ClkIn is '0' and drives ClkOut as ClkSync AND ClkIn (hdl/common/sim/ClkGate.vhd; the PREICGX1BA10TH synthesis cell samples the enable while the clock is low in the same way).
-    -- So clk_cpu can only RISE when ClkSync = '1', i.e. when en_clk_cpu was '1' at the end of the preceding low phase.
-    -- EVERY rising edge of clk_cpu therefore has en_clk_cpu = '1', the process always took its `else` arm, and pc_next_ret_ltch was a constant '0' after reset.
-    -- A mid-HIGH fall of en_clk_cpu cannot create an edge, since ClkOut is already high, and the process cannot race it: en_clk_cpu's inputs (mem_ready, irq_active, sleep, current_state) all settle at delta +1 or +2 after an edge, while this process ran at delta 0 and read the pre-edge '1'.
-    --
-    -- MEASURED, not merely argued. A TEMP concurrent assertion whose predicate is always false makes its FIRE COUNT equal the number of transitions of the signal.
-    -- Over the full behavioral_mp suite, the single-hart lockstep sweep and the multi-hart sweep, 258 sims x 4 harts = 1032 hart-instances, it fired exactly 4 times per sim, always at time 0 FS: the 'U' to '0' reset settle, and never again.
-    -- The netlist agreed to the digit: `sequential` went from 2284 to 2251 instances and area from 21,650.800 to 21,487.600, exactly the predicted -33 instances and -163.200 area (32 latches at 4.8 plus one DFFRPQX1MA10TH at 9.6).
-    -- pc_next_ret_ltch has zero residue in the netlist.
-    -- The latches that REMAIN (32 result_reg, 32 sp_write_data_reg, is_compressed_reg, reg_write_dp_reg) are other inferences and are not this finding.
-    --
-    -- So pc_next_ret is simply read_data, and its one consumer, the IRQ_REST arm of the pc_next mux (:1527), samples the popped return PC off the bus at the IRQ_REST clk_cpu edge, which is precisely the cycle in which read_data carries it.
-    -- Keeping the name documents that. DO NOT "restore" the latch: it never held anything.
+    -- pc_next_ret is simply read_data: its one consumer, the IRQ_REST arm of the pc_next mux, samples the popped return PC off the bus at the IRQ_REST clk_cpu edge, precisely the cycle in which read_data carries it.
+    -- Do not add a latch here: clk_cpu can only rise where en_clk_cpu was already '1', so any en_clk_cpu-qualified hold would be permanently transparent.
     pc_next_ret <= read_data;
 
-    -- ==========================================
-    -- RV32A Reservation Management
-    -- ==========================================
+    -- RV32A reservation management.
     reservation_proc: process(clk_cpu, resetn)
     begin
         if resetn = '0' then
@@ -1362,12 +1098,11 @@ architecture struct of vesta is
             -- Set reservation on LR
             if current_state = LR_READ then
                 reservation_valid <= '1';
-                reservation_addr <= rs1_value;  -- M4b: rs1 IS the LR address (phase-independent)
-            -- Clear reservation on SC, interrupt, or context switch
+                reservation_addr <= rs1_value;  -- rs1 IS the LR address, phase-independent
+            -- Clear the reservation on SC, interrupt or context switch.
             elsif current_state = SC_CHECK or current_state = IRQ_SV
                   or current_state = MTRAP_SV then
-                -- P1: a standard trap entry is a context switch exactly like the legacy IRQ_SV, so it kills the local reservation the same way.
-                -- MTRAP_SV is unreachable on an OFF or legacy build, so nothing changes there.
+                -- A standard trap entry is a context switch exactly like the legacy IRQ_SV, so it kills the local reservation the same way.
                 reservation_valid <= '0';
             end if;
             
@@ -1383,12 +1118,8 @@ architecture struct of vesta is
         end if;
     end process;
 
-    -- ==========================================
-    -- X3 Zicboz block-zero sequencer registers
-    -- ==========================================
-    -- cboz_base is latched ONCE, on the EXECUTE-to-CBOZ_WRITE dispatch transition, from the LIVE rs1 port masked to the naturally-aligned block base (rs1 & ~(CBOZ_BLOCK_SIZE-1)).
-    -- It is NEVER re-read mid-burst: the address source is registered state, the X2 phantom-read invariant.
-    -- cboz_idx resets to 0 at dispatch and advances one word per COMPLETED store, incremented in CBOZ_GAP (the post-store settle cycle), so it names the word already written.
+    -- Zicboz block-zero sequencer registers. cboz_base is latched ONCE, on the EXECUTE-to-CBOZ_WRITE dispatch transition, from the live rs1 port masked to the naturally-aligned block base, and is never re-read mid-burst.
+    -- cboz_idx resets to 0 at dispatch and advances one word per COMPLETED store, in CBOZ_GAP, so it names the word already written.
     cboz_seq_proc: process(clk_cpu, resetn)
     begin
         if resetn = '0' then
@@ -1397,7 +1128,7 @@ architecture struct of vesta is
         elsif rising_edge(clk_cpu) then
             if current_state /= CBOZ_WRITE and current_state /= CBOZ_GAP
                and next_state = CBOZ_WRITE then
-                -- dispatch edge from EXECUTE into CBOZ_WRITE: latch the base, reset the index
+                -- Dispatch edge from EXECUTE into CBOZ_WRITE: latch the base, reset the index.
                 cboz_base <= std_logic_vector(unsigned(rs1_value)
                                  and not to_unsigned(CBOZ_BLOCK_SIZE - 1, 32));
                 cboz_idx  <= 0;
@@ -1407,8 +1138,8 @@ architecture struct of vesta is
         end if;
     end process;
 
-    -- X3 Zcmp/Zcmt sequencer registers: latch the sub-op, the embedded operand bits and the old sp ONCE at dispatch, on the edge from EXECUTE into the first ZCM state.
-    -- zcm_idx counts list position, advancing one per completed element (in ZCM_PUSH_GAP or ZCM_POP_WB).
+    -- Zcmp/Zcmt sequencer registers: latch the sub-op, the embedded operand bits and the old sp ONCE at dispatch, on the edge from EXECUTE into the first ZCM state.
+    -- zcm_idx counts list position, advancing one per completed element, in ZCM_PUSH_GAP or ZCM_POP_WB.
     zcm_seq_proc: process(clk_cpu, resetn)
     begin
         if resetn = '0' then
@@ -1489,37 +1220,29 @@ architecture struct of vesta is
     zcm_loadwb_sel <= '1' when ((ENABLE_ZCMP or ENABLE_ZCMT) and current_state = ZCM_POP_WB) else '0';
     dp_result_src <= "010" when (ENABLE_ZCMT and current_state = ZCM_JT_WB) else result_src;
 
-    -- ==========================================
-    -- X4 Zfinx FP control glue, all constant '0' when ENABLE_ZFINX is off, so the OFF-build datapath and CSR wiring folds away
-    -- ==========================================
-    -- Latch rs1 and rs2 in the datapath during the EXECUTE dispatch cycle of a multi-cycle or FMA FP op; the operands are read pre-writeback that cycle.
-    -- Half-fetch guard (see fp_flags_we below): during the FIRST cycle of a 32-bit split fetch (pc(1)='1', quadrant_upper="11", repeat_if='0') instr_curr is HELD at the PREVIOUS instruction (vesta:~1017), so a prior FP op's decode is still live here.
-    -- Excluding this cycle stops a phantom re-latch of the FP operand registers from the held op; the legitimate latch is on the repeat_if='1' completion cycle, which this term keeps.
+    -- Zfinx FP control glue, all constant '0' when ENABLE_ZFINX is off so the OFF-build datapath and CSR wiring folds away.
+    -- Latch rs1 and rs2 in the datapath during the EXECUTE dispatch cycle of a multi-cycle or FMA FP op, where the operands are read pre-writeback.
+    -- The final term excludes the first cycle of a 32-bit split fetch, where instr_curr is HELD at the previous instruction: without it a prior FP op re-latches its operands. The legitimate latch is the repeat_if='1' completion cycle.
     fp_op_latch <= '1' when (current_state = EXECUTE and (is_fp_multicycle = '1' or is_fp_fma = '1')
                              and not (pc(1) = '1' and quadrant_upper = "11" and repeat_if = '0')) else '0';
     -- FPU_FETCH3: steer the rs2 read port to rs3 and latch fp_rs3_reg.
     fp_fetch3   <= '1' when (current_state = FPU_FETCH3) else '0';
-    -- fpu_start asserts ONLY in FPU_WAIT (section C1), so every fp_rs*_reg is stable before the first edge the unit can sample start.
+    -- fpu_start asserts ONLY in FPU_WAIT, so every fp_rs*_reg is stable before the first edge at which the unit can sample start.
     fpu_start   <= '1' when (current_state = FPU_WAIT) else '0';
 
-    -- fflags sticky-OR strobe: at FPU_DONE (the multi-cycle op's registered flags) or during the EXECUTE retire of a single-cycle FP op (fpu_simple's combinational flags).
-    -- Driven INDEPENDENT of rd, so rd=x0 still sets flags, and the EXECUTE case is guarded so a misaligned FP op (C disabled) that traps does NOT commit flags.
-    -- The final term excludes the compressed HALF-FETCH cycle (pc(1)='1', quadrant_upper="11", repeat_if='0'), where instr_curr is HELD at the PREVIOUS instruction (vesta:~1017).
-    -- Without it, a single-cycle FP op followed by a split 32-bit instruction would RE-fire this strobe on the half-fetch cycle with fpu_simple re-evaluating flags from possibly-mutated (rd equal to rs1) operands, which is the phantom-side-effect class (X3 lesson 5).
-    -- A concurrent statement does not inherit the EXECUTE sub-arm structure that protects the FSM dispatch arms, so it must qualify its own EXECUTE term, exactly as amo_lock does (vesta:~1207, qualifying its EXECUTE term to the real dispatch: amo_op and mem_access_instr).
-    -- P3: pmp_if_squash excludes the EXECUTE cycle that decodes the park word of a PMP-denied fetch; it is statically '0' when ENABLE_PMP is false.
+    -- fflags sticky-OR strobe: at FPU_DONE for the multi-cycle op's registered flags, or during the EXECUTE retire of a single-cycle FP op for fpu_simple's combinational flags.
+    -- Independent of rd, so rd=x0 still sets flags, and guarded so a misaligned FP op that traps commits none. pmp_if_squash excludes the EXECUTE cycle that decodes a denied fetch's park word.
+    -- A concurrent statement does not inherit the EXECUTE sub-arm structure that protects the FSM dispatch arms, so it must exclude the split-fetch cycle itself, or a single-cycle FP op re-fires this strobe over possibly-mutated operands.
     fp_flags_we <= '1' when (current_state = FPU_DONE) else
                    '1' when (current_state = EXECUTE and is_fp_singlecycle = '1' and trap = '0'
                              and pmp_if_squash = '0'
                              and (ENABLE_COMPRESSED or pc(1) = '0')
                              and not (pc(1) = '1' and quadrant_upper = "11" and repeat_if = '0')) else
                    '0';
-    -- The datapath already muxes: fpu_simple flags when result_src=110 (single-cycle), otherwise the multi-cycle unit's flags, valid at FPU_DONE with result_src=111.
+    -- The datapath already muxes: fpu_simple flags when result_src=110, otherwise the multi-cycle unit's flags, valid at FPU_DONE with result_src=111.
     fp_flags_val <= fp_flags;
 
-    -- ==========================================
-    -- State Machine Sequential Logic
-    -- ==========================================
+    -- State machine sequential logic.
     state_reg: process(clk_cpu, resetn)
     begin
         if resetn = '0' then
@@ -1562,12 +1285,8 @@ architecture struct of vesta is
         end if;
     end process;
 
-    -- ==========================================
-    -- X1 Zihintpause window counter (clk_cpu domain)
-    -- ==========================================
-    -- Loaded when the FSM enters PAUSE_WAIT, then counts down one per clk_cpu edge.
-    -- Loading WINDOW-1 makes the hart spend exactly PAUSE_WINDOW_CYCLES clk_cpu cycles in PAUSE_WAIT (counter values WINDOW-1 down to 0 inclusive).
-    -- The load arm is only reachable when PAUSE_WINDOW_CYCLES is greater than 0 (the FSM routing guard), so WINDOW-1 is never negative at runtime.
+    -- Zihintpause window counter, clk_cpu domain: loaded when the FSM enters PAUSE_WAIT, then counting down one per edge.
+    -- Loading WINDOW-1 spends exactly PAUSE_WINDOW_CYCLES cycles in PAUSE_WAIT, and the load arm is reachable only when PAUSE_WINDOW_CYCLES is greater than 0, so it is never negative at runtime.
     pause_cnt_proc: process(clk_cpu, resetn)
     begin
         if resetn = '0' then
@@ -1581,7 +1300,7 @@ architecture struct of vesta is
         end if;
     end process;
 
-    -- Separate register stage: assigning instr_curr into instr_curr_prev in the main state process caused timing issues, so it advances on its own half cycle here.
+    -- Separate register stage: assigning instr_curr into instr_curr_prev inside the main state process causes timing problems, so it advances here.
     state_reg_fe: process(clk_cpu, resetn)
     begin
         if resetn = '0' then
@@ -1591,40 +1310,29 @@ architecture struct of vesta is
         end if;
     end process;
 
-    -- ==========================================
-    -- PC Calculation Logic
-    -- ==========================================
+    -- PC calculation.
     pc_plus_2 <= std_logic_vector(unsigned(pc) + 2);
     pc_plus_4 <= std_logic_vector(unsigned(pc) + 4);
 
-    -- The JAL/JALR return address must be the sequential next-PC, i.e. pc plus the size of the jump instruction.
-    -- The datapath link path was hardwired to pc_plus_4, which is correct for 32-bit jumps but wrong for compressed c.jal/c.jalr (2 bytes).
-    -- Mirror the compressed-instruction conditions used by pc_next_trad below so compressed jumps link pc+2; all other cases keep pc+4, which is the unchanged behaviour.
+    -- The JAL/JALR return address is pc plus the SIZE of the jump instruction, so a compressed c.jal/c.jalr links pc+2 and everything else pc+4.
+    -- The conditions mirror the compressed-instruction terms of pc_next_trad below; keep the two in step.
     pc_link <= pc_plus_2 when (current_state = EXECUTE and pc(1) = '1' and quadrant_upper /= "11" and repeat_if = '0') else
                pc_plus_2 when (current_state = EXECUTE and pc(1) = '0' and quadrant_lower /= "11") else
-               pc_plus_2 when (current_state = ZCM_JT_WB) else  -- X3 Zcmt cm.jalt link ra=pc+2
+               pc_plus_2 when (current_state = ZCM_JT_WB) else  -- Zcmt cm.jalt links ra = pc+2
                pc_plus_4;
 
-    -- ==========================================
-    -- Instruction Type Detection
-    -- ==========================================
+    -- Instruction type detection.
     quadrant_upper <= instr(17 downto 16);
     quadrant_lower <= instr(1 downto 0);
     instr_upper_half <= instr(15 downto 0);
     instr_assembled <= instr_upper_half & instr_lower_half;
 
-    -- ==========================================
-    -- Instruction Assembly for Decompression
-    -- ==========================================
-    -- Select instruction to decompress based on fetch state
+    -- Select the instruction to decompress, by fetch state.
     instr_to_decomp <= instr_assembled when current_state = EXECUTE and pc(1) = '1' and repeat_if = '1' else
                        x"0000" & instr(31 downto 16) when current_state = EXECUTE and pc(1) = '1' and is_compressed = '1' else
                        instr;
 
-    -- ==========================================
-    -- Current Instruction Selection
-    -- ==========================================
-    -- Multiplexer for selecting current instruction based on state and alignment
+    -- Current-instruction mux, by state and alignment. Every multi-cycle state holds instr_curr_prev so the dispatching encoding stays stable across it.
     instr_curr <= nop when (resetn = '0' or current_state = INITIALIZE) else
                   instr when (current_state = IRQ_SV) else  -- IVT entries are never compressed
                   instr_decomp when (current_state = EXECUTE and pc(1) = '1' and repeat_if = '1') else
@@ -1635,29 +1343,24 @@ architecture struct of vesta is
                   instr_curr_prev when (current_state = MEMORY_WAIT) else
                   instr_curr_prev when (current_state = DIV_WAIT) else
                   instr_curr_prev when (current_state = DIV_DONE) else
-                  instr_curr_prev when (current_state = FPU_FETCH3) else  -- X4 Zfinx: hold FP instr
+                  instr_curr_prev when (current_state = FPU_FETCH3) else  -- hold the FP instruction
                   instr_curr_prev when (current_state = FPU_WAIT) else
                   instr_curr_prev when (current_state = FPU_DONE) else
-                  -- W2/F5.4: a SECOND `current_state = IRQ_SV` arm used to sit here, and it was DEAD, because the `instr when (current_state = IRQ_SV)` arm at the head of this mux (:1484) matches first and wins.
-                  -- So IRQ_SV has always decoded the RAW BUS WORD, which on this path is deterministically the next instruction in program order; that live decode is F3.
-                  -- The head arm is deliberately LEFT AS IS, since changing it to hold would move mtval and PC-target behaviour in the legacy entry path, which is out of scope.
-                  -- Instead the raw word is now INERT: dec_dispatch (:1992) gates every strobe that could have acted on it, namely csr_valid_eff (F3) and the sleep_cpu flop in BOTH directions (F3+/F3++), and the FSM arm (:3461) forces reg_write_dp='0' and wen all-ones.
-                  -- P1: HOLD the faulting or trapping instruction across the standard trap-entry pair, for two reasons.
-                  -- (a) mtval for an illegal instruction is taken from instr_curr_prev, which stays stable only if instr_curr feeds itself here.
-                  -- (b) No decode of a live memory word may leak into these cycles; reg_write_dp is forced '0' anyway, but this keeps the decoder quiescent.
+                  -- IRQ_SV decodes the RAW BUS WORD, via the head arm of this mux; that word is inert because dec_dispatch gates every strobe that could act on it and the FSM arm forces reg_write_dp '0' and wen all-ones.
+                  -- The standard trap-entry pair HOLDS the faulting instruction instead: mtval for an illegal instruction comes from instr_curr_prev, which is stable only if instr_curr feeds itself here, and no live memory word may leak into these cycles.
                   instr_curr_prev when (current_state = MTRAP_SV) else
                   instr_curr_prev when (current_state = MTRAP_JUMP) else
                   instr_curr_prev when (current_state = MTRAP_RET) else
                   instr_curr_prev when (current_state = IRQ_REST) else
                   instr_curr_prev when (current_state = SLEEPING) else
-                  instr_curr_prev when (current_state = AMO_READ) else  -- Keep instruction during AMO
+                  instr_curr_prev when (current_state = AMO_READ) else  -- keep the instruction during an AMO
                   instr_curr_prev when (current_state = AMO_WRITEBACK) else
                   instr_curr_prev when (current_state = AMO_COMPUTE) else
                   instr_curr_prev when (current_state = AMO_COMPLETE) else
                   instr_curr_prev when (current_state = AMO_WRITE) else
                   instr_curr_prev when (current_state = LR_READ) else
                   instr_curr_prev when (current_state = SC_CHECK) else
-                  instr_curr_prev when (current_state = CBOZ_WRITE) else  -- X3 Zicboz: hold cbo.zero
+                  instr_curr_prev when (current_state = CBOZ_WRITE) else  -- hold the cbo.zero
                   instr_curr_prev when (current_state = CBOZ_GAP) else
                   instr_curr_prev when (current_state = ZCM_PUSH_ST) else
                   instr_curr_prev when (current_state = ZCM_PUSH_GAP) else
@@ -1672,9 +1375,6 @@ architecture struct of vesta is
                   instr_curr_prev when (current_state = ZCM_JT_WB) else
                   instr_decomp;
 
-    -- ==========================================
-    -- PC Next Traditional Calculation
-    -- ==========================================
     -- Next PC for normal operation, with no interrupt; the PC holds during atomic operations.
     pc_next_trad <= PC_RST_VAL when (resetn = '0' or current_state = INITIALIZE) else
                     pc_target when ((current_state = EXECUTE or current_state = IRQ_SV) and pc(1) = '1' and repeat_if = '1' and pc_src = '1') else
@@ -1686,15 +1386,10 @@ architecture struct of vesta is
                     pc_plus_4 when (current_state = EXECUTE and pc(1) = '0' and quadrant_lower = "11" and pc_src = '0') else
                     pc_target when (current_state = EXECUTE and pc(1) = '0' and quadrant_lower /= "11" and pc_src = '1') else
                     pc_plus_2 when (current_state = EXECUTE and pc(1) = '0' and quadrant_lower /= "11" and pc_src = '0') else
-                    pc_next_trad_reg;  -- Hold value for other states including atomic operations
+                    pc_next_trad_reg;  -- hold for other states, including atomic operations
 
-    -- ==========================================
-    -- PC Next Final Selection
-    -- ==========================================
-    -- P1 standard delivery: MTRAP_JUMP loads mtvec.BASE concatenated with "00" and MTRAP_RET loads mepc, the IRQ_JUMP/ivt_entry idiom exactly, with pc_en='1' in those states and data_addr falling through to pc_next so the SAME cycle also issues the fetch from the new PC.
-    -- MTRAP_SV holds pc_next_reg like IRQ_SV, which is what makes pc_next_reg the interrupt RESUME PC, identical to the word the legacy IRQ_SV pushes at sp-4, for the whole entry pair.
-    -- D1: the debug states use the same idiom. DEBUG_ENTRY_ADDR is a GENERIC and not a CSR, since there is no dm-programmable entry vector at D1, so both entry arms load a constant and DBG_RET loads dpc, which is the MTRAP_RET arm one line above with a different CSR.
-    -- All three carry pc_en='1' from their FSM arms, so data_addr falls through to pc_next and the fetch from the new PC issues in the SAME cycle.
+    -- Final PC selection. Every vectoring state (IRQ_JUMP, MTRAP_JUMP, MTRAP_RET, the debug entries and DBG_RET) carries pc_en='1', so data_addr falls through to pc_next and the SAME cycle issues the fetch from the new PC.
+    -- MTRAP_SV holds pc_next_reg like IRQ_SV, which is what makes pc_next_reg the interrupt RESUME PC, identical to the word the legacy IRQ_SV pushes at sp-4, across the whole entry pair.
     pc_next <= ivt_entry   when (current_state = IRQ_JUMP) else
                DEBUG_ENTRY_ADDR when (current_state = DBG_SV or
                                       current_state = DBG_JUMP) else
@@ -1708,59 +1403,29 @@ architecture struct of vesta is
                pc_next_reg when (current_state = AMO_READ or current_state = AMO_WRITEBACK or 
                                 current_state = AMO_COMPUTE or current_state = AMO_WRITE) else
                pc_next_reg when (current_state = LR_READ or current_state = SC_CHECK) else
-               zcm_jt_target when (current_state = ZCM_JT_WB) else  -- X3 Zcmt table-jump target
-               rs1_value when (current_state = ZCM_RET) else        -- X3 Zcmp popret[z] returns through ra
+               zcm_jt_target when (current_state = ZCM_JT_WB) else  -- Zcmt table-jump target
+               rs1_value when (current_state = ZCM_RET) else        -- Zcmp popret[z] returns through ra
                pc_next_trad;
 
-    -- ==========================================
-    -- Memory Interface Address Selection
-    -- ==========================================
-    -- M4b FIX: during SC_CHECK the ALU is repurposed to produce the SC rd value (alu_control_dp is pass-B, so ALU_result is 0 or 1), so the write address must come from rs1 directly.
-    -- With the old ALU_Result term every SC write went to address 0x0 or 0x1 instead of (rs1), and it was never caught because no test checked an SC's memory effect before shlrsc.
-    -- M8 FIX: during the AMO dispatch cycle (EXECUTE with amo_op) the ALU computes rs1 combined with rs2 under the AMO's own function, which the controller decodes there (ADD, AND, MAX and so on), NOT the address, so the EXECUTE-phase access rode a GARBAGE address, the same class as the M4b SC bugs.
-    -- Private memory masked it, because AMO_READ re-presents the correct pass-A address a cycle later and the SRAM refreshes Q mid-cycle, but the SHARED window completes its whole transaction inside the frozen EXECUTE cycle at that garbage address and AMO_READ then consumes the stale sh_rdata_reg, so shared AMOs returned wrong data.
-    -- rs1 IS the AMO address; with it the shared read rides EXECUTE exactly like the proven LR pattern.
-    -- X3 Zicboz: the store address for the current burst word is the block base plus cboz_idx*4.
-    -- Both operands are REGISTERED (cboz_base latched at dispatch, cboz_idx the burst counter), so no live regfile port is read mid-sequence.
-    -- Placed BEFORE the generic mem_access_instr term, which would otherwise steer data_addr to the stale ALU_Result during CBOZ_WRITE.
+    -- Memory interface address selection. In SC_CHECK and during an AMO or LR dispatch the ALU is NOT computing the address (it is in pass-B for the SC rd value, or applying the AMO's own function to rs1 and rs2), so those accesses address from rs1_value directly.
+    -- Addressing them from ALU_Result puts a garbage address on the bus; private memory masks it because the next state re-presents the right one, but a shared access completes inside the frozen dispatch cycle and returns the wrong data.
+    -- The cbo.zero store address is the registered block base plus cboz_idx*4, computed here so it can be placed BEFORE the generic mem_access_instr term, which would otherwise steer data_addr to a stale ALU_Result during CBOZ_WRITE.
     cboz_zero_addr <= std_logic_vector(unsigned(cboz_base) + to_unsigned(cboz_idx * 4, 32));
 
-    -- P3 (PMP, D5 strict pre-issue): the three SEQUENCER address terms are selected by STATE, not by mem_access_instr, so suppressing the FSM's request alone would still leave the denied word on data_addr for one cycle, and hart_tile's sh_req is a pure decode of data_addr.
-    -- Gate them with pmp_d_deny, which is statically '0' when ENABLE_PMP is false, so this folds bit-for-bit.
-    -- The EXECUTE-dispatch terms need no such gate: they are already qualified by mem_access_instr, which the denial forces '0'.
-    -- The PC_RST_VAL arm is the FETCH suppression point: it replaces the single `pc_next` fall-through through which every instruction fetch of this core issues.
+    -- The three SEQUENCER address terms are selected by STATE, not by mem_access_instr, so a PMP denial must gate them here too: suppressing only the FSM's request would still leave the denied word on data_addr, and sh_req is a pure decode of data_addr.
+    -- The EXECUTE-dispatch terms need no such gate, being qualified by mem_access_instr, which a denial forces '0'; the PC_RST_VAL arm is the FETCH suppression point.
     data_addr <= cboz_zero_addr when (current_state = CBOZ_WRITE and pmp_d_deny = '0') else
                  zcm_mem_addr when ((current_state = ZCM_PUSH_ST or current_state = ZCM_POP_LD)
                                     and pmp_d_deny = '0') else
                  zcm_jt_addr  when (current_state = ZCM_JT_LD and pmp_d_deny = '0') else
-                 -- F2 (fix pass W1): the SC_CHECK term is gated by the SAME LOCAL reservation predicate that gates its wen and its mem_access_instr (the :2900 SC_CHECK arm); keep all three identical.
-                 -- Steering the address is not optional: sh_sel is a pure decode of data_addr, so suppressing only the request would still have issued the transaction (spec W1-0).
-                 -- On the failing path this arm drops out and data_addr falls through to pc_next, which is pc_next_reg (:1511), the redundant early fetch of the word AMO_COMPLETE presents next cycle.
-                 -- ***** SC-SUCCESS PREDICATE: FOUR COPIES, ALL IDENTICAL *****
-                 -- `reservation_valid = '1' and reservation_addr = rs1_value` is duplicated at FOUR sites. Change all four or none: a divergence between them is SILENT.
-                 -- Listed by role, not line number, because three of the four WRAP across lines and a line-based grep under-reports them:
-                 --   1. THIS arm of the data_addr mux   (steers rs1_value)
-                 --   2. amo_phase                       ("101" SC-success)
-                 --   3. lr_sc_bus                       ("10" SC-write tag)
-                 --   4. the SC_CHECK FSM arm            (store lanes and mem_access_instr)
+                 -- SC-SUCCESS PREDICATE, FOUR IDENTICAL COPIES: `reservation_valid = '1' and reservation_addr = rs1_value` appears in this data_addr arm, in amo_phase ("101"), in lr_sc_bus ("10") and in the SC_CHECK FSM arm. Change all four or none, since a divergence is SILENT.
+                 -- Steering the address is not optional: sh_sel is a pure decode of data_addr, so suppressing only the request would still issue the transaction. On the failing path this arm drops out and data_addr falls through to pc_next, a harmless early fetch.
                  rs1_value  when (current_state = SC_CHECK
                                   and reservation_valid = '1'
                                   and reservation_addr = rs1_value) else
-                 -- F6 (fix pass W4): LR JOINS SC AND AMO ON THE PHASE-INDEPENDENT rs1 ADDRESS.
-                 -- `valid_funct` whitelists AMO_OPCODE on funct3 and funct5 only (maindec:952-971) and lr_op has no rs2 term (maindec:606), so `lr.w rd, rs2, (rs1)` with a NON-ZERO rs2 FIELD is a legal decode.
-                 -- ALU_src is '0' for AMO_OPCODE (maindec:1112) and alu_control is ADD for LR/SC (maindec:1307), so ALU_Result is rs1 + reg[rs2].
-                 -- Before this fix BOTH the EXECUTE dispatch and LR_READ fell through to that ALU_Result while the reservation armed at rs1_value (:1377), so the read and the reservation landed on DIFFERENT addresses.
-                 -- lr.w is the one member of the family that was left out of the M4b/M8 rs1_value rule (see the SC note at :2680 and the EXECUTE-plus-amo_op term folded in below).
-                 --
-                 -- BOTH TERMS ARE REQUIRED; either alone is a HALF FIX:
-                 --  * EXECUTE alone: the LR's read transaction rides the EXECUTE cycle (:1947's "01" lr_sc_bus tag says so), and it is data_addr in THAT cycle that the resv_unit sees, so this term is what moves the GLOBAL reservation to rs1 as well as the read.
-                 --    But LR_READ would then re-present a DIFFERENT word address to a window whose ack is word-address qualified (hart_tile.vhd:701/715 sh_acked_addr), dropping sh_ack_ok and re-arbitrating a second, wrong-address read.
-                 --  * LR_READ alone: the read and the global reservation both stay at rs1+reg[rs2], so a later shared `sc.w` at rs1 can never succeed (W4 measured exactly that, a7 = 1).
-                 -- Moving both keeps the two cycles' word addresses EQUAL, which is what lets hart_tile absorb LR_READ into the EXECUTE ack (hart_tile.vhd:682-683) exactly as it does today.
-                 --
-                 -- Canonical `lr.w` has rs2 = x0, so rs1 + 0 is rs1: today's behaviour for every assembler-emitted LR is unchanged, and Spike decodes lr.w ignoring rs2, so forcing the address rather than trapping the encoding is what keeps lockstep clean.
-                 -- NOTE: the ALU_Result arm below keeps its `current_state = LR_READ` term, now SHADOWED by the arm above.
-                 -- It is left in place as the AMO_READ/AMO_WRITE symmetry it was written as; removing it would change nothing.
+                 -- LR joins SC and AMO on the phase-independent rs1 address. `lr.w rd, rs2, (rs1)` with a NON-ZERO rs2 field is a legal decode and ALU_Result is then rs1 + reg[rs2], so addressing from the ALU would arm the reservation and issue the read at DIFFERENT addresses.
+                 -- BOTH terms are required: the LR's read transaction rides the EXECUTE cycle, so only that term moves the global reservation, while LR_READ must present the SAME word address or the word-address-qualified ack drops and a second, wrong-address read is arbitrated.
+                 -- Canonical lr.w has rs2 = x0, so this changes nothing for assembler-emitted code; the ALU_Result arm below keeps its now-shadowed LR_READ term for symmetry with AMO_READ/AMO_WRITE.
                  rs1_value  when (current_state = LR_READ or
                                   (current_state = EXECUTE
                                    and (amo_op = '1' or lr_op = '1')
@@ -1773,30 +1438,22 @@ architecture struct of vesta is
                  PC_RST_VAL when pmp_if_park = '1' else
                  pc_next;
 
-    -- ==========================================
-    -- Memory Write Data Selection
-    -- ==========================================
-    -- For AMO operations use the computed result; for SC use the rs2 data.
-    -- X2 Zabha: replicate the computed sub-word result across all byte lanes (the store_ext idiom); the byte-lane wen commits only the addressed lane.
+    -- Memory write data selection: an AMO writes the computed result, an SC writes rs2.
+    -- Zabha replicates the computed sub-word result across all byte lanes; the byte-lane wen commits only the addressed lane.
     amo_write_data_steered <= amo_write_data(7 downto 0) & amo_write_data(7 downto 0) &
                               amo_write_data(7 downto 0) & amo_write_data(7 downto 0)
                                   when instr_curr(14 downto 12) = "000" else
                               amo_write_data(15 downto 0) & amo_write_data(15 downto 0)
                                   when instr_curr(14 downto 12) = "001" else
-                              amo_write_data;  -- word AMO: full 32-bit result
+                              amo_write_data;  -- word AMO: the full 32-bit result
 
-    -- X2 Zacas: this AMO is an amocas (compare-and-swap), detected from the held instruction (funct5 = CAS_FN5) plus the ENABLE_ZACAS generic.
-    -- Statically '0' when ENABLE_ZACAS is false, since an amocas encoding then traps in decode and never enters the AMO flow.
+    -- Zacas: this AMO is an amocas, detected from the held instruction (funct5 = CAS_FN5) plus the generic, and statically '0' when ENABLE_ZACAS is false since the encoding then traps in decode.
     -- Drives the datapath rs2-port steering and the conditional-write gating below.
     cas_op <= '1' when (ENABLE_ZACAS and instr_curr(6 downto 0) = AMO_OPCODE
                        and instr_curr(31 downto 27) = CAS_FN5) else '0';
 
-    -- X2 Zabha: active-low byte-lane enables for the sub-word AMO write, keyed off the REGISTERED AMO address low bits (amo_addr_low is amo_addr_reg(1:0), latched at AMO_READ).
-    -- Keying off the live rs1 port was X2-F1: the rd write in AMO_WRITEBACK clobbers rs1 for an AMO whose rd equals rs1, corrupting the lane select.
-    -- A word AMO writes all four lanes ("0000"), bit-identical to pre-X2.
-    -- X2 Zacas: a CAS whose compare FAILED suppresses the write entirely ("1111" is no lane, active-low).
-    -- That is write-enable gating ONLY, so the FSM still issues the identical AMO_WRITE transaction on the same LOCKED trajectory and the global reservation unit, keyed on committed lane strobes, does NOT kill reservations on a fail.
-    -- Mirrors the SC-fail wen; on a CAS success the normal lane logic applies (word AMO gives "0000").
+    -- Zabha active-low byte-lane enables for the sub-word AMO write, keyed off the REGISTERED AMO address low bits latched at AMO_READ; keying off the live rs1 port corrupts the lane select for an AMO whose rd equals rs1.
+    -- A CAS whose compare FAILED suppresses the write entirely ("1111", no lane). That is write-enable gating only, so the FSM still issues the identical AMO_WRITE transaction on the same locked trajectory and the reservation unit, keyed on committed lane strobes, kills no reservation on a fail.
     amo_wen <= "1111" when (cas_op = '1' and cas_match_reg = '0') else
                "1110" when (instr_curr(14 downto 12) = "000" and amo_addr_low = "00") else
                "1101" when (instr_curr(14 downto 12) = "000" and amo_addr_low = "01") else
@@ -1807,56 +1464,34 @@ architecture struct of vesta is
                "0000";  -- word AMO (funct3=010): all four lanes
 
     write_data <= pc_next when (current_state = IRQ_SV) else
-                  amo_write_data_steered when (current_state = AMO_WRITE) else  -- X2 Zabha: sub-word-steered (word = full result)
-                  (others => '0') when (current_state = CBOZ_WRITE) else  -- X3 Zicboz: block-zero payload
-                  rs1_value when (current_state = ZCM_PUSH_ST) else  -- X3 Zcmp push: reg[reg_at(idx)] via steered rs1
-                  write_data_dp;  -- Use rs2 for normal stores and SC
+                  amo_write_data_steered when (current_state = AMO_WRITE) else  -- sub-word-steered; a word AMO gets the full result
+                  (others => '0') when (current_state = CBOZ_WRITE) else  -- the block-zero payload
+                  rs1_value when (current_state = ZCM_PUSH_ST) else  -- cm.push: reg[reg_at(idx)] via the steered rs1 port
+                  write_data_dp;  -- rs2 for normal stores and SC
 
-    -- ==========================================
-    -- Atomic operation phase signal, passed to the datapath so the ALU performs the computation
-    -- ==========================================
-    -- M4b: SC success is the LOCAL reservation check (valid AND address match, the same condition that drives the store lanes in SC_CHECK) AND the EXTERNAL verdict.
-    -- The old valid-only term let an address-mismatched SC report success while skipping the write.
-    -- The external verdict is sc_fail_ext, from the global resv_unit for shared addresses; it ties '0' for private or single-master use.
-    -- ***** SC-SUCCESS PREDICATE: FOUR COPIES, ALL IDENTICAL *****
-    -- `reservation_valid = '1' and reservation_addr = rs1_value` is duplicated at FOUR sites. Change all four or none: a divergence between them is SILENT.
-    -- Listed by role, not line number, because three of the four WRAP across lines and a line-based grep under-reports them:
-    --   1. the data_addr mux's SC_CHECK term  (steers rs1_value)
-    --   2. THIS term, amo_phase               ("101" SC-success, with sc_fail_ext)
-    --   3. lr_sc_bus                          ("10" SC-write tag)
-    --   4. the SC_CHECK FSM arm               (store lanes and mem_access_instr)
-    amo_phase <=    "001" when current_state = AMO_READ or current_state = LR_READ else  -- Reading address
-                    "110" when current_state = AMO_WRITEBACK else  -- X2 Zacas: rd-capture window, steering the rs2 port to rd and latching amo_cmp_reg; the ALU output is unused here and the datapath muxes default as normal
-                    "010" when current_state = AMO_COMPUTE else  -- Computing with memory data
-                    "011" when current_state = AMO_WRITE else     -- Writing result back
+    -- Atomic operation phase, passed to the datapath so the ALU performs the computation.
+    -- SC success is the LOCAL reservation check (valid AND address match, the same condition that drives the store lanes in SC_CHECK) AND the external verdict sc_fail_ext, which ties '0' for private or single-master use.
+    -- SC-SUCCESS PREDICATE, FOUR IDENTICAL COPIES: this amo_phase term, the data_addr mux's SC_CHECK term, lr_sc_bus and the SC_CHECK FSM arm. Change all four or none, since a divergence is SILENT.
+    amo_phase <=    "001" when current_state = AMO_READ or current_state = LR_READ else  -- reading the address
+                    "110" when current_state = AMO_WRITEBACK else  -- Zacas rd-capture window: steer the rs2 port to rd and latch the compare; the ALU output is unused here
+                    "010" when current_state = AMO_COMPUTE else  -- computing with the memory data
+                    "011" when current_state = AMO_WRITE else     -- writing the result back
                     "101" when current_state = SC_CHECK and reservation_valid = '1'
                                and reservation_addr = rs1_value
                                and sc_fail_ext = '0' else          -- SC succeeded
                     "100" when current_state = SC_CHECK else       -- SC failed
-                    "000";  -- Normal operation
+                    "000";  -- normal operation
 
-    -- M4b: tag the current memory access for the global reservation unit.
-    -- PHASING: the LR's bus transaction runs during the EXECUTE (decode) cycle, where data_addr goes live via mem_access_instr, and LR_READ merely consumes the returned data, so the "01" tag must ride the EXECUTE cycle.
-    -- The SC's conditional WRITE transaction runs during SC_CHECK; EXECUTE only issues a harmless read for SC after the M4b wen fix.
-    -- "10" requires the LOCAL check to pass, since a locally failed SC issues no write and must not be adjudicated as an SC.
-    -- P3: a PMP-DENIED LR issues no read transaction at all, because mem_access_instr is forced '0' and data_addr stays on the fetch fall-through.
-    -- Without this qualifier the "01" tag would ride that FETCH transaction into the arbiter and arm a global reservation on the fetch address; pmp_d_deny is statically '0' when ENABLE_PMP is false, so the OFF tag is unchanged.
-    -- ***** SC-SUCCESS PREDICATE: FOUR COPIES, ALL IDENTICAL *****
-    -- `reservation_valid = '1' and reservation_addr = rs1_value` is duplicated at FOUR sites. Change all four or none: a divergence between them is SILENT.
-    -- Listed by role, not line number, because three of the four WRAP across lines and a line-based grep under-reports them:
-    --   1. the data_addr mux's SC_CHECK term  (steers rs1_value)
-    --   2. amo_phase                          ("101" SC-success, with sc_fail_ext)
-    --   3. THIS term, lr_sc_bus               ("10" SC-write tag)
-    --   4. the SC_CHECK FSM arm               (store lanes and mem_access_instr)
+    -- Tag the current memory access for the global reservation unit. The LR's bus transaction runs during the EXECUTE decode cycle and LR_READ only consumes the returned data, so the "01" tag must ride EXECUTE; the SC's conditional write runs in SC_CHECK.
+    -- "10" requires the LOCAL check to pass, since a locally failed SC issues no write and must not be adjudicated as an SC. The pmp_d_deny qualifier keeps a denied LR, which issues no read at all, from tagging the fetch that data_addr falls through to.
+    -- SC-SUCCESS PREDICATE, FOUR IDENTICAL COPIES: this lr_sc_bus term, the data_addr mux's SC_CHECK term, amo_phase and the SC_CHECK FSM arm. Change all four or none, since a divergence is SILENT.
     lr_sc_bus <= "01" when current_state = EXECUTE and lr_op = '1' and pmp_d_deny = '0' else
                  "10" when current_state = SC_CHECK and reservation_valid = '1'
                            and reservation_addr = rs1_value else
                  "00";
 
-    -- M8: assert for the WHOLE AMO flow.
-    -- The read transaction completes while the core is FROZEN in EXECUTE, so the dispatch-cycle term is required because the arbiter samples the lock at that transaction's completion, and the lock must persist through AMO_WRITE so the write's grant is the pinned one.
-    -- It drops at AMO_COMPLETE, IRQ_SV or TRAP, which is the arbiter's release valve if the write can never issue.
-    -- mem_access_instr qualifies the EXECUTE term to the real dispatch, excluding a compressed half-fetch cycle where amo_op may be decoded from an incomplete instruction.
+    -- Assert for the WHOLE AMO flow: the read completes while the core is frozen in EXECUTE and the arbiter samples the lock at that completion, so the dispatch-cycle term is required, and the lock must persist through AMO_WRITE for the write to get the pinned grant.
+    -- It drops at AMO_COMPLETE, IRQ_SV or TRAP, the release valve if the write can never issue. mem_access_instr qualifies the EXECUTE term to the real dispatch, excluding a half-fetch cycle where amo_op may be decoded from an incomplete instruction.
     amo_lock <= '1' when (current_state = EXECUTE and amo_op = '1'
                           and mem_access_instr = '1')
                       or current_state = AMO_READ
@@ -1865,18 +1500,12 @@ architecture struct of vesta is
                       or current_state = AMO_WRITE
                 else '0';
 
-    -- ==========================================
-    -- P1 standard M-mode trap delivery glue (ENABLE_TRAPCSR)
-    -- ==========================================
-    -- THE coexistence select: statically '0' when the generic is off, so every MTRAP_* transition below constant-folds and the OFF netlist is unchanged.
-    -- It is also '0' at reset when the generic is ON, because mtrapctl.LEGACY resets '1', which is why the full legacy suite runs untouched on ON hardware.
+    -- Standard M-mode trap delivery glue (ENABLE_TRAPCSR). The coexistence select is statically '0' when the generic is off, so every MTRAP_* transition constant-folds and the OFF netlist is unchanged.
+    -- It is also '0' at reset when the generic is ON, because mtrapctl.LEGACY resets '1', which is what lets the legacy path run untouched on ON hardware.
     std_mode <= '1' when (ENABLE_TRAPCSR and trap_legacy_mode = '0') else '0';
 
-    -- Standard-mode interrupt take (p0_specs.md 2.3 / 2.4 rule (b)): csr_unit exports STATE only, and the pending decision is made HERE.
-    -- The take is mstatus.MIE AND ((meip and MEIE) or (msip and MSIE) or (mtip and MTIE)), where mie_bits is the frozen {MEIE(2), MTIE(1), MSIE(0)} packing.
-    -- F-D2-1 (R-D2-3(3)): dbg_irq_block suppresses STANDARD delivery in debug mode.
-    -- It sits here, at the single source, rather than on the 13 recognition arms: a fix applied arm-by-arm is a fix that can be half-applied, and the detector is built to catch exactly that.
-    -- The interrupt stays LEVEL-pending and is delivered after the dret, which is the required behaviour, not a side effect.
+    -- Standard-mode interrupt take: csr_unit exports STATE only and the pending decision is made here, as mstatus.MIE and ((meip and MEIE) or (msip and MSIE) or (mtip and MTIE)), with mie_bits packed {MEIE(2), MTIE(1), MSIE(0)}.
+    -- dbg_irq_block suppresses standard delivery in debug mode at this single source rather than on each recognition arm, because an arm-by-arm suppression can be half-applied; the interrupt stays LEVEL-pending and is delivered after the dret.
     std_irq_take <= '1' when (std_mode = '1' and dbg_irq_block = '0' and
                               trap_mstatus_mie = '1' and
                               ((trap_irq_meip = '1' and trap_mie_bits(2) = '1') or
@@ -1884,16 +1513,9 @@ architecture struct of vesta is
                                (trap_irq_mtip = '1' and trap_mie_bits(1) = '1')))
                     else '0';
 
-    -- Dispatch-cycle trap classification, read ONLY at the clk_cpu edge that enters MTRAP_SV (mtrap_cause_proc).
-    -- The FSM arms that make that transition all live INSIDE the real-dispatch branches of the EXECUTE decode tree; the compressed half-fetch branch ("Need to fetch upper half") is a separate else-branch that goes unconditionally to EXECUTE with NO trap, ecall, ebreak or irq check.
-    -- So a half-fetch cycle, where instr_curr still holds the PREVIOUS instruction (kickoff 3b class 5), can never sample these.
-    -- Priority mirrors the FSM arm order exactly: misaligned-PC, illegal, ECALL, EBREAK, and anything else that reaches MTRAP_SV is an interrupt.
-    -- P3 adds three EXCEPTION classes to this mux, and the priority is EXACTLY the FSM arm order, because a cause mux that disagrees with the arm order silently mislabels traps:
-    --   1. instruction access fault, FIRST in EXECUTE, because the word being decoded is the PARK word, so `trap`, ecall_op and ebreak_op are all meaningless on it.
-    --   2. the existing misaligned-PC, illegal, ECALL and EBREAK classes.
-    --   3. load/store access fault: the FSM arm sits after mret_op, and it also fires from the SEQUENCER states (CBOZ_WRITE, ZCM_*), which is why it is not qualified by `current_state = EXECUTE`.
-    --   4. anything else is an interrupt.
-    -- The three original arms gain an explicit `current_state = EXECUTE` qualifier that the old leading `/= EXECUTE` term supplied implicitly; with the PMP terms tied off the result is bit-identical.
+    -- Dispatch-cycle trap classification, read ONLY at the clk_cpu edge that enters MTRAP_SV. Every FSM arm making that transition lives inside a real-dispatch branch of the EXECUTE decode tree, so a half-fetch cycle, where instr_curr still holds the previous instruction, can never sample it.
+    -- PRIORITY MIRRORS THE FSM ARM ORDER EXACTLY, because a cause mux that disagrees with the arm order silently mislabels traps: instruction access fault first (the word being decoded is the park word, so trap, ecall_op and ebreak_op are meaningless on it), then misaligned PC, illegal, ECALL and EBREAK, then load/store access fault, and anything else is an interrupt.
+    -- The load/store fault arm also fires from the sequencer states, which is why it carries no `current_state = EXECUTE` qualifier.
     mtrap_disp_int <=
         '0' when (ENABLE_PMP and current_state = EXECUTE and pmp_f_deny_r = '1') else         -- 1 instr access fault
         '0' when (current_state = EXECUTE and (not ENABLE_COMPRESSED) and pc(1) = '1') else   -- instruction-address-misaligned
@@ -1907,16 +1529,15 @@ architecture struct of vesta is
         x"1" when (ENABLE_PMP and current_state = EXECUTE and pmp_f_deny_r = '1') else        -- 1  instruction access fault
         x"0" when (current_state = EXECUTE and (not ENABLE_COMPRESSED) and pc(1) = '1') else  -- 0  instr addr misaligned
         x"2" when (current_state = EXECUTE and trap = '1') else                               -- 2  illegal instruction
-        -- P2: the ECALL cause is the CURRENT privilege (p0_specs.md 2.2 rows "ECALL from M" and "ECALL from U").
-        -- trap_priv_mode is stuck '1' (M) on any ENABLE_UMODE=false build, so this collapses to the P1 constant 11.
+        -- The ECALL cause is the CURRENT privilege; trap_priv_mode is stuck '1' (M) on any ENABLE_UMODE=false build, so this collapses to the constant 11.
         x"8" when (current_state = EXECUTE and ecall_op = '1' and trap_priv_mode = '0') else  -- 8  ecall from U
         x"B" when (current_state = EXECUTE and ecall_op = '1') else                           -- 11 ecall from M
         x"3" when (current_state = EXECUTE and ebreak_op = '1') else                          -- 3  breakpoint
-        -- P3 data-side access faults; the class, not the permission need, picks the code.
+        -- Data-side access faults; the access class, not the permission need, picks the code.
         -- Store, SC, AMO, cbo.zero and cm.push give 7; load, LR, cm.pop and the Zcmt table fetch give 5.
         x"7" when (pmp_d_deny = '1' and pmp_d_st_class = '1') else                            -- 7  store/AMO access fault
         x"5" when (pmp_d_deny = '1') else                                                     -- 5  load access fault
-        -- interrupt codes, in the spec priority order MEI, then MSI, then MTI
+        -- Interrupt codes, in the spec priority order MEI, then MSI, then MTI.
         x"B" when (trap_irq_meip = '1' and trap_mie_bits(2) = '1') else                       -- 0x8000000B
         x"3" when (trap_irq_msip = '1' and trap_mie_bits(0) = '1') else                       -- 0x80000003
         x"7";                                                                                 -- 0x80000007
@@ -1936,14 +1557,11 @@ architecture struct of vesta is
         end if;
     end process;
 
-    -- csr_unit writeback values, valid throughout MTRAP_SV:
-    --   mepc  : pc_next_reg for an interrupt, the RESUME PC, provably the same word the legacy IRQ_SV pushes at sp-4 since IRQ_SV's write_data is pc_next and pc_next equals pc_next_reg there.
-    --           Otherwise `pc`, the faulting or ECALL's-own PC; pc_en is '0' from the dispatch edge on, so pc still holds it.
-    --   mtval : the faulting 32-bit encoding for an illegal instruction (mtval TIER-1), the misaligned PC for cause 0, otherwise 0.
+    -- csr_unit writeback values, valid throughout MTRAP_SV. mepc is pc_next_reg for an interrupt (the resume PC, the same word the legacy IRQ_SV pushes at sp-4), otherwise pc, which still holds the faulting or ECALL's own address because pc_en is '0' from the dispatch edge on.
+    -- mtval is the faulting 32-bit encoding for an illegal instruction, the misaligned PC for cause 0, otherwise 0.
     trap_pc_val    <= pc_next_reg when mtrap_cause_int = '1' else pc;
     trap_cause_val <= mtrap_cause_int & MTRAP_RSVD27 & mtrap_cause_code;
-    --   P3: for the three ACCESS-FAULT causes mtval is the FAULTING ADDRESS, taken from the dispatch-edge latch mtrap_val_r because neither pmp_d_addr nor pmp_f_addr_r is stable during MTRAP_SV.
-    --       mtrap_val_r is all-zero on an ENABLE_PMP=false build.
+    -- For the three ACCESS-FAULT causes mtval is the FAULTING ADDRESS, taken from the dispatch-edge latch because neither pmp_d_addr nor pmp_f_addr_r is stable during MTRAP_SV; the latch is all-zero on an ENABLE_PMP=false build.
     trap_value_val <= instr_curr_prev when (mtrap_cause_int = '0' and mtrap_cause_code = x"2") else
                       pc              when (mtrap_cause_int = '0' and mtrap_cause_code = x"0") else
                       mtrap_val_r     when (ENABLE_PMP and mtrap_cause_int = '0' and
@@ -1951,8 +1569,8 @@ architecture struct of vesta is
                                              mtrap_cause_code = x"7")) else
                       (others => '0');
 
-    -- One-shot generation on the csr_unit clock domain; see the declaration comment, since csr_unit is on the free-running clk and the FSM on the gated clk_cpu.
-    -- The whole block is generate-gated so an OFF build carries no extra flops at all and both strobes are hard-tied '0'.
+    -- One-shot generation on the csr_unit clock domain, which is the free-running clk while the FSM is on the gated clk_cpu.
+    -- The whole block is generate-gated, so an OFF build carries no extra flops at all and both strobes are hard-tied '0'.
     mtrap_sv_lvl  <= '1' when current_state = MTRAP_SV  else '0';
     mtrap_ret_lvl <= '1' when current_state = MTRAP_RET else '0';
 
@@ -1978,55 +1596,33 @@ architecture struct of vesta is
         mret_we_sig       <= '0';
     end generate;
 
-    -- irq_handler NEUTRALIZATION in standard mode (p0_specs.md 1/2.3): mask every enable so pending_irqs_comb is all-zero, irq_found never rises and the handler FSM is pinned in IDLE.
-    -- irq_save can therefore never fire, which is what lets the new std_irq_take arms sit BESIDE the existing irq_save arms without a priority fight; this is statically the identity function when ENABLE_TRAPCSR is off.
-    -- F-D2-1 (R-D2-3(3)): the SAME neutralization mechanism, extended to debug mode.
-    -- Masking every enable pins the handler FSM in IDLE, so irq_save can never fire while the hart is in debug mode; this is the legacy half of the fix, and it reuses the proven idiom rather than inventing a second one.
-    -- The IRQ sources are LEVEL, so nothing is lost: unmasking at the dret re-presents whatever is still pending.
-    -- Statically the identity function when ENABLE_DEBUG is off, since dbg_irq_block folds to '0', so an OFF build keeps exactly the P1 expression.
+    -- irq_handler neutralization: masking every enable makes pending_irqs_comb all-zero, so irq_found never rises and the handler FSM is pinned in IDLE, which is what lets the std_irq_take arms sit BESIDE the irq_save arms without a priority fight.
+    -- The same mechanism suppresses legacy delivery in debug mode. Nothing is lost either way, the IRQ sources being LEVEL: unmasking re-presents whatever is still pending. This is the identity function when both knobs are off.
     irq_en_eff <= irq_en when (std_mode = '0' and dbg_irq_block = '0')
                   else (others => '0');
 
-    -- ==========================================
-    -- P2 standard WFI wake rule (ENABLE_TRAPCSR)
-    -- ==========================================
-    -- p0_specs.md 3: WFI wakes when `(mip and mie) /= 0` REGARDLESS of mstatus.MIE.
-    -- This is std_irq_take MINUS the MIE qualifier, and the two are deliberately separate signals: std_irq_take decides whether a trap is DELIVERED, std_wfi_pend only whether the hart RESUMES.
+    -- Standard WFI wake rule: a WFI wakes when (mip and mie) /= 0 REGARDLESS of mstatus.MIE.
+    -- This is std_irq_take minus the MIE qualifier, and the two are deliberately separate: std_irq_take decides whether a trap is DELIVERED, std_wfi_pend only whether the hart RESUMES.
     std_wfi_pend <= '1' when ((trap_irq_meip = '1' and trap_mie_bits(2) = '1') or
                               (trap_irq_msip = '1' and trap_mie_bits(0) = '1') or
                               (trap_irq_mtip = '1' and trap_mie_bits(1) = '1'))
                     else '0';
 
-    -- Qualified by wfi_slept, so an EXTINGUISH-entered sleep keeps its exact legacy/P1 behaviour of waking only on a taken interrupt, even on an ON build with mie armed.
-    -- Gated on ENABLE_TRAPCSR and NOT on ENABLE_UMODE: WFI is legal on a trapCsr-only build, and only the TW/U legality gating is P2.
-    -- Statically '0' when ENABLE_TRAPCSR is off, so the OFF FSM and clock gate are bit-identical.
+    -- Qualified by wfi_slept, so an EXTINGUISH-entered sleep keeps its legacy behaviour of waking only on a taken interrupt even with mie armed.
+    -- Gated on ENABLE_TRAPCSR and NOT on ENABLE_UMODE, since WFI is legal on a trapCsr-only build and only the TW and U-mode legality gating needs U-mode.
     std_wfi_wake <= '1' when (ENABLE_TRAPCSR and wfi_slept = '1' and std_wfi_pend = '1')
                     else '0';
 
-    -- ==========================================
-    -- D1 DEBUG-MODE GLUE (ENABLE_DEBUG)
-    -- ==========================================
-    -- ENABLE_DEBUG REQUIRES ENABLE_TRAPCSR, and the coupling is real, not tidiness.
-    -- `ebreak_op` and the whole SYSTEM PRIV_FN3 legality arm are ENABLE_TRAPCSR-gated in maindec, so on a trapCsr-OFF build `ebreak` does not decode at all and dcsr.ebreakm would have nothing to interpose on: a chip with a Debug Module that cannot recognise a software breakpoint (D0/P2 N8).
-    -- generate.py's validator enforces the implication for every config; this assert catches anyone instantiating the core directly.
+    -- Debug-mode glue (ENABLE_DEBUG). ENABLE_DEBUG requires ENABLE_TRAPCSR: ebreak_op and the whole SYSTEM PRIV legality arm are ENABLE_TRAPCSR-gated in maindec, so without it `ebreak` does not decode and dcsr.ebreakm has nothing to interpose on.
+    -- The generator's validator enforces the implication for every config; this assert catches anyone instantiating the core directly.
     assert not (ENABLE_DEBUG and not ENABLE_TRAPCSR)
         report "vesta: ENABLE_DEBUG requires ENABLE_TRAPCSR (ebreak and the "
              & "SYSTEM PRIV arm do not decode without it)"
         severity failure;
 
-    -- THE HALT TAKE, qualified by NEITHER mstatus.MIE NOR mtrapctl.LEGACY: a halt request is unmaskable and must fire in a legacy-mode build exactly as in a standard-delivery one.
-    -- The only qualifier is `not debug_mode`, since a hart already in debug mode must not re-enter and overwrite its own dpc.
-    -- Three sources, one signal, because all three land on the same 14 FSM recognition points; the CAUSE mux below is what tells them apart.
-    -- WAIT-FOR-RELEASE: ONE ENTRY PER ASSERTION OF dbg_haltreq.
-    -- THE HAZARD, measured 2026-08-05 before this term existed: dbg_haltreq is a LEVEL, and a debugger cannot drop it until it has SEEN dbg_halted, an observation that costs a JTAG round trip in silicon and a polling interval in a testbench.
-    -- Without this mask the hart re-entered debug the instant each `dret` retired, walking forward exactly one instruction per round trip and rewriting its own dpc and dcsr every time.
-    -- Measured: the halt-reachability instrument's running victim never reached the store that proves it resumed, because it was still bouncing in and out of the stub when the orchestrating hart read the result.
-    -- Single-step is outright IMPOSSIBLE that way, because the second entry reports cause haltreq instead of cause step and the dpc ledger never advances by 4.
-    -- THE FIX IS THE ARBITER'S, VERBATIM: mp_arbiter masks a served master via WAIT-FOR-RELEASE, eligible again only after its req is OBSERVED low, because the M5a one-pick mask leaked ghost transactions from exactly this shape, a request line that is legitimately still high after it has been served.
-    -- A halt request is the same object: one flop, on the FREE-RUNNING clk so a hart whose clk_cpu is gated cannot miss the release.
-    -- RELEASE WINS over set, so a debugger that drops and re-raises the line gets a second halt immediately; only a CONTINUOUS assertion is collapsed to one entry.
-    -- The other two entry sources need no mask: dbg_rsthalt_r is disarmed by the first entry (once per reset), and dbg_step_armed is cleared by the entry it causes.
-    -- NOT PINNED BY d1_spec.md, which says only "dbg_haltreq (in, level)"; recorded here as a DESIGN DECISION, not as a reading of the spec.
+    -- THE HALT TAKE is qualified by NEITHER mstatus.MIE NOR mtrapctl.LEGACY, only by `not debug_mode`: a halt request is unmaskable, but a hart already in debug mode must not re-enter and overwrite its own dpc. Three sources share one signal; the CAUSE mux below tells them apart.
+    -- WAIT-FOR-RELEASE gives ONE ENTRY PER ASSERTION: dbg_haltreq is a LEVEL that a debugger cannot drop until it has seen dbg_halted, so without the mask the hart re-enters debug the instant each `dret` retires, walks forward one instruction per round trip, rewrites its own dpc and makes single-step impossible.
+    -- One flop, on the FREE-RUNNING clk so a hart whose clk_cpu is gated cannot miss the release, and RELEASE WINS over set so dropping and re-raising the line gets a second halt immediately. The other two sources need no mask: each is cleared by the entry it causes.
     dbg_haltreq_eff <= dbg_haltreq and not dbg_req_mask;
 
     dbg_halt_take <= '1' when (ENABLE_DEBUG and debug_mode = '0' and
@@ -2038,32 +1634,17 @@ architecture struct of vesta is
                      else '0';
     dbg_halt_pend <= dbg_halt_take;
 
-    -- THE EXCEPTION TAKE (D2, F-D2-0, ruled R-D2-3(1)).
-    -- MEASURED at abf9fac, both delivery polarities, before this existed: a non-ebreak synchronous exception taken in debug mode did NOT re-enter.
-    -- On the legacy polarity it wedged in the terminal TRAP_STATE with dbg_halted still asserted and trap_flag latched.
-    -- On the standard polarity it vectored to mtvec, whose RESET VALUE is 0, i.e. the shared boot ROM, re-ran the ROM's not-hart-0 park sequence and extinguished, all with debug_mode still '1'.
-    -- That second outcome is UNRECOVERABLE: dbg_halt_take is qualified by debug_mode = '0', so no fresh halt request can reach a hart that has left its debug code this way, and only a dret that nothing will ever execute clears the mode.
-    -- The fix redirects every synchronous-exception dispatch to DBG_JUMP, the state that ALREADY means "re-enter, dpc and dcsr survive" (see its arm below).
-    -- So this adds no state, no flop and no commit interface: the 18 new arms declare mem_access_instr only, exactly as the ebreak-in-debug-mode arm beside them does, and inherit the fail-safe commit defaults from the S2 structural block.
-    -- WHY NOT INTERCEPT IN THE SINK STATES: TRAP_STATE unconditionally raises trap_flag, a hart_tile output the testbench monitors, so a debug-mode fault must never ENTER it.
-    -- And MTRAP_SV's CSR writeback rides trap_entry_we, a one-shot of that state, so mepc, mcause and mtval would already be corrupted before any redirect; both were rejected on those measurements, not on taste.
-    -- NOT REDIRECTED, and ruled so rather than left silent (R-D2-3(2)): the four mret_op blocks, whose legacy arm also lands in TRAP_STATE.
-    -- mret is not an exception: in debug mode it executes architecturally with debug_mode unchanged, which is Spike-consistent, and the trampoline never executes one.
-    -- Statically '0' when ENABLE_DEBUG is off, so every new arm constant-folds and the OFF FSM is bit-identical, by the dbg_halt_take argument.
+    -- THE EXCEPTION TAKE: a SYNCHRONOUS exception taken in debug mode must NOT leave debug mode. Without it a fault either wedges in the terminal TRAP_STATE with dbg_halted asserted, or vectors to mtvec (reset value 0, the shared boot ROM) and runs the park sequence with debug_mode still '1', which is unrecoverable because no fresh halt request can reach a hart that is already in debug mode.
+    -- The redirect target is DBG_JUMP, which already means "re-enter, dpc and dcsr survive", so this adds no state, no flop and no commit interface. Intercepting in the sink states instead cannot work: TRAP_STATE unconditionally raises trap_flag, and MTRAP_SV's CSR writeback rides a one-shot of that state, so mepc, mcause and mtval are corrupted before any redirect could run.
+    -- The mret_op arms are deliberately NOT redirected: mret is not an exception and in debug mode it executes architecturally with debug_mode unchanged.
     dbg_exc_take <= '1' when (ENABLE_DEBUG and debug_mode = '1') else '0';
 
-    -- THE INTERRUPT BLOCK (D2, F-D2-1, ruled R-D2-3(3)).
-    -- d1_spec.md 2 froze "interrupts NOT taken (all recognition qualified by `not debug_mode`)" and the RTL never carried the qualifier.
-    -- dbg_halt_take sits ABOVE irq_save and std_irq_take in all 13 recognition chains but does not BLOCK them: in debug mode it is '0' and the chain falls straight through to the interrupt arms.
-    -- MEASURED: a halted hart spinning at DEBUG_ENTRY_ADDR reached IRQ_JUMP 200 ns after msip rose, vectored through IVT slot 83 into the ROM's loader ISR and looped there, with dbg_halted asserted throughout.
-    -- The suppression is applied at the two SOURCES rather than at the 13 chains, so it cannot be half-applied: see std_irq_take and irq_en_eff.
-    -- Statically '0' when ENABLE_DEBUG is off; both consumers then reduce to their pre-D2 expressions exactly.
+    -- THE INTERRUPT BLOCK: interrupts are not taken in debug mode. dbg_halt_take sits above irq_save and std_irq_take in every recognition chain but does not BLOCK them, so without this a halted hart spinning at DEBUG_ENTRY_ADDR vectors into an ISR with dbg_halted still asserted.
+    -- The suppression is applied at the two SOURCES, std_irq_take and irq_en_eff, rather than at the recognition chains, so it cannot be half-applied.
     dbg_irq_block <= '1' when (ENABLE_DEBUG and debug_mode = '1') else '0';
 
-    -- THE EBREAK TAKE. dcsr.ebreakm RESETS 0 and is writable only from debug mode, so no M-mode software can ever arm it.
-    -- That is what makes "ebreak takes an ordinary breakpoint exception" the standing behaviour and dbgdenymp.S's hart 3 a real detector rather than a tautology.
-    -- ebreaku rides ENABLE_UMODE, since dcsr_ebreaku is stuck '0' without it.
-    -- The debug_mode term is the re-entry clause (d1_spec.md 2): an ebreak executed BY debug code always re-enters, regardless of ebreakm.
+    -- THE EBREAK TAKE. dcsr.ebreakm resets 0 and is writable only from debug mode, so no M-mode software can arm it and `ebreak` normally takes an ordinary breakpoint exception; ebreaku rides ENABLE_UMODE, dcsr_ebreaku being stuck '0' without it.
+    -- The debug_mode term is the re-entry clause: an ebreak executed BY debug code always re-enters, regardless of ebreakm.
     dbg_ebreak_take <= '1' when (ENABLE_DEBUG and
                                  (debug_mode = '1' or
                                   dcsr_ebreakm = '1' or
@@ -2072,7 +1653,7 @@ architecture struct of vesta is
                        else '0';
 
     -- Dispatch-cycle cause classification. PRIORITY MIRRORS THE FSM ARM ORDER EXACTLY: the ebreak arm sits above the halt arm in the EXECUTE decode tree, so ebreak is first here.
-    -- A cause mux that disagrees with the arm order silently mislabels entries (the mtrap_disp_code lesson).
+    -- A cause mux that disagrees with the arm order silently mislabels entries.
     dbg_disp_cause <=
         "001" when (current_state = EXECUTE and ebreak_op = '1' and
                     dbg_ebreak_take = '1') else                 -- 1 ebreak
@@ -2081,23 +1662,18 @@ architecture struct of vesta is
         "100" when (dbg_step_take = '1') else                   -- 4 step
         "011";                                                  -- default: haltreq
 
-    -- The cause LATCH lives inside gen_debug below, not here.
-    -- Its write condition is statically false on an OFF build, so Genus would very likely constant-propagate it away, but "very likely pruned" is not the standard this file holds itself to.
-    -- The gen_trapcsr_wb / gen_trapcsr_wb_off pair is the house pattern precisely because it makes the OFF netlist identical BY CONSTRUCTION rather than by unloaded-logic removal, and the D1 inertness claim is the programme's crown jewel.
-    -- The same goes for every other debug flop.
+    -- The cause LATCH and every other debug flop live inside the generate pair below, not here, so the OFF netlist is identical BY CONSTRUCTION rather than by relying on unloaded-logic removal.
 
-    -- dpc, valid throughout DBG_SV.
-    -- A SYNCHRONOUS ebreak reports its OWN address (pc; pc_en is '0' from the dispatch edge on, so pc still holds it), NOT the instruction after, which is why debug code that wants to resume past an ebreak must add 4 itself.
+    -- dpc, valid throughout DBG_SV. A synchronous ebreak reports its OWN address (pc still holds it, pc_en being '0' from the dispatch edge on), so debug code resuming past an ebreak must add 4 itself.
     -- Every other cause is taken BETWEEN instructions, so the resume PC is pc_next_reg, the same word MTRAP_SV uses as mepc for an interrupt.
     dbg_pc_val <= pc when dbg_cause_r = "001" else pc_next_reg;
 
-    -- The one-shots, plus the halt-on-reset and single-step state, all inside the generate pair so an OFF netlist carries no extra flops at all and every strobe is hard-tied '0'; the gen_trapcsr_wb pattern, verbatim.
+    -- The one-shots, plus the halt-on-reset and single-step state, all inside the generate pair so an OFF netlist carries no extra flops and every strobe is hard-tied '0'.
     dbg_sv_lvl  <= '1' when current_state = DBG_SV  else '0';
     dbg_ret_lvl <= '1' when current_state = DBG_RET else '0';
 
     gen_debug: if ENABLE_DEBUG generate
-        -- The dispatch-cycle cause latch: 3 flops on clk_cpu.
-        -- The 32-bit dpc value is NOT registered; it is re-derived from pc and pc_next_reg, both provably held through DBG_SV.
+        -- The dispatch-cycle cause latch, 3 flops on clk_cpu. The 32-bit dpc value is NOT registered: it is re-derived from pc and pc_next_reg, both held through DBG_SV.
         dbg_cause_proc: process(clk_cpu, resetn)
         begin
             if resetn = '0' then
@@ -2122,12 +1698,8 @@ architecture struct of vesta is
         dbg_entry_we_sig <= dbg_sv_lvl  and not dbg_sv_d;
         dbg_ret_we_sig   <= dbg_ret_lvl and not dbg_ret_d;
 
-        -- HALT ON RESET, SAMPLED AT RESET RELEASE (F-D2-2, R-D2-6(3)).
-        -- dbg_rst_armed is a one-shot: the FIRST free-clk edge after this core's reset release captures dbg_resethaltreq and disarms.
-        -- A request that arrives later cannot halt a running hart, which is the whole fix; the previous shape level-followed the request until the first debug entry, so a debugger arming a hart it had never halted stopped it on the spot (measured: a bootrom-parked tile halted inside 100 us of the arm and could never be launched again).
-        -- Once captured, dbg_rsthalt_r is HELD until the entry it causes, so the halt is still taken at the first recognition site the hart reaches, before it retires anything of its own.
-        -- It is also still stable ACROSS that entry, which is what lets the cause mux report 5 rather than 3, because the clear is scheduled on the entry cycle and takes effect after it.
-        -- On the free-running clk, so a hart whose clk_cpu is still gated cannot miss either the sample or the arming.
+        -- Halt on reset is SAMPLED AT RESET RELEASE: dbg_rst_armed is a one-shot, so the first free-clk edge after this core's reset release captures dbg_resethaltreq and disarms, and a request arriving later cannot halt a running hart.
+        -- Once captured it is HELD until the entry it causes, and is still stable across that entry, which is what lets the cause mux report resethaltreq rather than haltreq. On the free-running clk, so a hart whose clk_cpu is gated cannot miss the sample.
         -- Below is the wait-for-release flop; the clear, meaning the release was observed, has PRIORITY.
         dbg_reqmask_proc: process(clk, resetn)
         begin
@@ -2149,7 +1721,7 @@ architecture struct of vesta is
                 dbg_rst_armed <= '1';
             elsif rising_edge(clk) then
                 if dbg_rst_armed = '1' then
-                    dbg_rsthalt_r <= dbg_resethaltreq;   -- the ONE sample
+                    dbg_rsthalt_r <= dbg_resethaltreq;   -- the one sample
                     dbg_rst_armed <= '0';
                 elsif dbg_entry_we_sig = '1' then
                     dbg_rsthalt_r <= '0';                -- consumed by its entry
@@ -2157,10 +1729,8 @@ architecture struct of vesta is
             end if;
         end process;
 
-        -- SINGLE-STEP ARMING: set on the DRET cycle only if dcsr.step is set, read at that edge, so debug code that CLEARS step before its dret (entry 5 of dbgstepmp.S) resumes free-running.
-        -- Cleared by the entry it causes; the two conditions cannot coincide, since one needs current_state = DBG_RET and the other next_state = DBG_SV from another state.
-        -- On clk_cpu, because it is sampled by the FSM.
-        -- NOTE step is NOT active in debug mode: dbg_step_take carries `not debug_mode`, so the several instructions the debug stub executes after `csrsi dcsr, 4` do not step.
+        -- Single-step arming: set on the DRET cycle only if dcsr.step is set, read at that edge, so debug code that clears step before its dret resumes free-running.
+        -- Cleared by the entry it causes, and the two conditions cannot coincide. On clk_cpu, because the FSM samples it. Step is not active in debug mode: dbg_step_take carries `not debug_mode`.
         dbg_step_proc: process(clk_cpu, resetn)
         begin
             if resetn = '0' then
@@ -2187,82 +1757,34 @@ architecture struct of vesta is
         dbg_req_mask     <= '0';
     end generate;
 
-    -- HALTED IS A STATE, NOT A LEVEL FOLLOWER: it is simply "this hart is in debug mode", so it rises with the entry edge and stays high after the debugger drops dbg_haltreq, and only a `dret` lowers it.
-    -- A build that drove dbg_halted straight from dbg_haltreq would pass an entry test and fail exactly here (dbg_iface_tb check C).
+    -- HALTED IS A STATE, NOT A LEVEL FOLLOWER: it means "this hart is in debug mode", so it rises with the entry edge, stays high after the debugger drops dbg_haltreq, and only a `dret` lowers it.
+    -- Driving dbg_halted straight from dbg_haltreq passes an entry test and fails here.
     dbg_halted <= debug_mode;
 
-    -- ==========================================
-    -- P2 TRAP-ENTRY SIDE-EFFECT BLOCK (ENABLE_TRAPCSR)
-    -- ==========================================
-    -- MTRAP_SV and MTRAP_JUMP already suppress every side effect the FSM OWNS (reg_write_dp, wen, mem_access_instr, sp_write_en; p0_specs.md 2.3).
-    -- Four decode outputs BYPASS the FSM and were still live through those two cycles, because `read_data`, which is the instruction during decode, still holds the FAULTING encoding until the mtvec fetch lands in the next EXECUTE:
-    --   csr_valid, which is csr_unit's WRITE ENABLE
-    --   isr_ret, the legacy irq_handler EOI
-    --   sleep_rq and wake_rq, feeding the free-running `sleep_cpu` flop
-    -- That is benign in P1, since an illegal CSR ADDRESS matches no write arm, but it BREAKS the P2 U-mode gate.
-    -- maindec's u_gate is keyed on the LIVE privilege, and privilege flips to M inside MTRAP_SV, so a U-mode `csrw` to mtvec, mepc, mtrapctl or mscratch trapped correctly and THEN COMMITTED one cycle later, in M: a full escape.
-    -- Found by privucsr CHECK 27, which showed the decode-side suppression alone was NOT enough.
-    -- The rule is the one p0_specs.md 2.3 already states for the FSM-owned effects, extended to the four that bypass it: DURING TRAP ENTRY THE FAULTING INSTRUCTION COMMITS NOTHING.
-    -- Statically '0' when ENABLE_TRAPCSR is off, since the states are unreachable there, so the OFF and legacy paths are bit-identical.
+    -- Trap-entry side-effect suppression. MTRAP_SV and MTRAP_JUMP already suppress every side effect the FSM OWNS (reg_write_dp, wen, mem_access_instr, sp_write_en), but four decode outputs BYPASS the FSM and stay live through those cycles, because read_data still holds the FAULTING encoding until the mtvec fetch lands: csr_valid (csr_unit's write enable), isr_ret (the legacy EOI) and sleep_rq/wake_rq (the free-running sleep_cpu flop).
+    -- That breaks the U-mode gate, which is keyed on the LIVE privilege: privilege flips to M inside MTRAP_SV, so a U-mode `csrw` to a trap CSR traps correctly and then COMMITS one cycle later, in M. The rule is that DURING TRAP ENTRY THE FAULTING INSTRUCTION COMMITS NOTHING.
     trap_entry_seq <= '1' when (ENABLE_TRAPCSR and
                                 (current_state = MTRAP_SV or current_state = MTRAP_JUMP))
                       else '0';
-    -- P3 extends the SAME rule one cycle EARLIER.
-    -- A PMP-denied instruction FETCH never issued, so the EXECUTE cycle that would have consumed it is decoding the PARK word (PC_RST_VAL's contents) instead of a real instruction.
-    -- reg_write_dp, mem_access_instr, wen and pc_en are all forced by the FSM arm, but the same four decode outputs that bypass the FSM (csr_valid as csr_unit's WRITE ENABLE, isr_ret, sleep_rq and wake_rq) would otherwise commit a side effect for an instruction the hart is not allowed to execute: the identical escape shape privucsr CHECK 27 found in P2.
+    -- The same rule, one cycle earlier: a PMP-denied instruction FETCH never issued, so the EXECUTE cycle that would have consumed it decodes the PARK word instead of a real instruction and must commit nothing either.
     -- pmp_if_squash is statically '0' when ENABLE_PMP is false, so dec_squash degenerates to trap_entry_seq and the OFF build is bit-identical.
     dec_squash     <= trap_entry_seq or pmp_if_squash;
-    -- ==========================================
-    -- W2 DECODE-DISPATCH QUALIFICATION (F7, F3, F3+)
-    -- ==========================================
-    -- dec_squash is a STATE BLACKLIST, and a blacklist is only ever as good as the list.
-    -- It named the P1/P3 trap-entry states and missed six legacy ones (IRQ_SV, IRQ_JUMP, FENCE_WAIT, PAUSE_WAIT, WRS_WAIT, TRAP_STATE; finding F3) and the compressed half-fetch bubble inside EXECUTE itself (F7).
-    -- In every one of those cycles instr_curr is NOT the instruction the hart is dispatching: it is either the raw bus word (IRQ_SV, :1484) or the PREVIOUS, already retired encoding (instr_curr_prev, :1486 and :1490 onward).
-    -- Any strobe that bypasses the FSM's own suppression therefore fires for an instruction that is not executing.
-    --
-    -- dec_dispatch replaces the blacklist with a POSITIVE qualification: name the ONE cycle in which a decoded instruction may commit a bypassing side effect.
-    -- That is closed against the seventh state nobody wrote down. Term by term:
-    --   current_state = EXECUTE
-    --       EXECUTE is the only state in which an explicit CSR write commits (v1_retire_enumeration.md 5 row 3, re-verified against csr_unit's write process: the only other architectural CSR effects are fp_flags_we, trap_entry_we and mret_we, each on its own dedicated strobe).
-    --       Every other state either holds instr_curr_prev, whose encoding cannot be a CSR or sleep op because those states are entered only from a load/store, div, FP or trap dispatch, or decodes a live word that is not executing at all.
-    --   dec_squash = '0'
-    --       Inherits P2's trap-entry suppression and P3's PMP park squash unchanged (:1932-1946). EXECUTE is reachable with pmp_if_squash='1'.
-    --   not (pc(1)='1' and quadrant_upper="11" and repeat_if='0')
-    --       Shape E, the 32-bit split-fetch bubble (the SHAPE_E arm of the EXECUTE dispatch tree).
-    --       That cycle's reg_write_dp, pc_en and wen are driven by the S-series commit block since S2 commit 2, to the same fail-safe values the arm forced directly before it, but NOTHING drives csr_valid while instr_curr is HELD at the previous instruction (:1486).
-    --       So a just-retired `csrrw rd,csr,rd` re-fires csr_write_en with csr_wdata read LIVE from rf[rs1], reverting the CSR to its own old value (F7).
-    --       The legitimate dispatch of a straddling 32-bit instruction is the repeat_if='1' completion cycle, which this term keeps.
-    --       Copied verbatim from fp_op_latch (:1338-1339) and fp_flags_we (:1365), where this exact class was already fixed and not applied here.
-    --   (ENABLE_COMPRESSED or pc(1)='0')
-    --       Shape Q: on a non-C build a halfword-aligned PC is an instruction-address-misaligned TRAP arm (:2320), never a dispatch.
-    --       Statically true on the Castalia/Argus C-on builds, so this term cannot change the shipping configuration. Also from fp_flags_we (:1364).
+    -- DECODE-DISPATCH QUALIFICATION. A state blacklist is only ever as good as the list, and in IRQ_SV, IRQ_JUMP, FENCE_WAIT, PAUSE_WAIT, WRS_WAIT, TRAP_STATE and the split-fetch bubble instr_curr is NOT the instruction being dispatched, so dec_dispatch takes the POSITIVE form instead: the ONE cycle in which a decoded instruction may commit an FSM-bypassing side effect.
+    --   EXECUTE is the only state in which an explicit CSR write commits, every other state either holding a previous encoding that cannot be a CSR or sleep op or decoding a live word that is not executing; dec_squash inherits the trap-entry suppression and the PMP park squash, both reachable inside EXECUTE.
+    --   The split-fetch bubble is excluded because nothing drives csr_valid while instr_curr is HELD at the previous instruction, so a just-retired `csrrw rd,csr,rd` would re-fire with csr_wdata read live from rf[rs1] and revert the CSR; the legitimate dispatch is the repeat_if='1' completion cycle, which the term keeps. The last term excludes a halfword-aligned PC on a non-C build, which is a misaligned-address TRAP arm and never a dispatch.
     dec_dispatch   <= '1' when (current_state = EXECUTE
                                 and dec_squash = '0'
                                 and not (pc(1) = '1' and quadrant_upper = "11" and repeat_if = '0')
                                 and (ENABLE_COMPRESSED or pc(1) = '0'))
                       else '0';
     csr_valid_eff  <= csr_valid and dec_dispatch;
-    -- isr_ret_eff is DELIBERATELY NOT re-qualified (W2 ruling, spec 1).
-    -- irq_handler's sm_proc runs on the FREE-RUNNING clk and consumes isr_ret as a LEVEL, both inside WAIT_EOI (irq_handler.vhd:355) and in next_state_logic (:431) to leave it.
-    -- instr_curr holds the iret encoding across EXECUTE, MEMORY_WAIT and IRQ_REST, so isr_ret_eff is high for that whole span.
-    -- Narrowing it to EXECUTE would shrink the window over which the EOI and its exit condition are asserted, on the one path where a mistake hangs the chip, in exchange for no finding: nothing in the ledger claims isr_ret leaks.
-    -- It IS an instance of "a level consumed on the free-running clock", but unlike F1+ it is IDEMPOTENT (the EOI clears a flag, it does not increment a counter), so it integrates nothing and is not a defect.
+    -- isr_ret_eff is deliberately NOT re-qualified to the dispatch cycle. irq_handler runs on the free-running clk and consumes isr_ret as a LEVEL, both inside WAIT_EOI and to leave it, and instr_curr holds the iret encoding across EXECUTE, MEMORY_WAIT and IRQ_REST.
+    -- Narrowing it would shrink the window over which the EOI is asserted, on the one path where a mistake hangs the chip; the level is idempotent here, since the EOI clears a flag rather than incrementing a counter.
     isr_ret_eff    <= isr_ret   and not dec_squash;
 
-    -- The entry-reason flop, set at the WFI dispatch edge and cleared at EVERY SLEEPING exit, whichever arm takes it.
-    -- wfi_enter is driven ONLY from the real-dispatch decode arms of EXECUTE, so it can never be set on a compressed half-fetch cycle (kickoff 3b class 5), and it cannot coincide with the clear, which needs current_state = SLEEPING.
-    -- ==========================================
-    -- P3 PMP CHECK POINTS (ENABLE_PMP), p0_specs.md section 4.1 "vesta integration"
-    -- ==========================================
-    -- THE DATA ADDRESS UNDER TEST, deliberately NOT `data_addr`: data_addr is a function of mem_access_instr, which the denial has to drive, so reading it back here would be a combinational loop.
-    -- Every term below is either a STATE-selected registered sequencer address or a regfile/ALU export that the data_addr mux would have chosen in the same cycle:
-    --   EXECUTE with LR/SC/AMO : rs1_value, the M4b/M8 phase-independent address, since ALU_Result holds rs1 combined with rs2 in those cycles.
-    --                      F6 (fix pass W4) ADDED lr_op here: data_addr's EXECUTE term now takes rs1_value for an LR too (:1857), and this mux exists precisely to mirror data_addr's choice.
-    --                      A malformed `lr.w` with a non-zero rs2 field would otherwise be PMP-checked at rs1+reg[rs2] while the access issued at rs1, and check and access disagreeing is the one thing a pre-issue check may never do.
-    --                      ENABLE_PMP is false in every standing build, so this arm folds away there; it is correctness for the knobs-on build, not a default-build change.
-    --   EXECUTE with load/store : ALU_Result (rs1+imm, exactly data_addr's term).
-    --   CBOZ_WRITE / ZCM_PUSH_ST / ZCM_POP_LD / ZCM_JT_LD : the sequencer's own generated address for THIS step (section 4, "each generated address is checked pre-issue at its own dispatch").
-    -- In every other cycle the value is don't-care because pmp_d_active is '0'.
+    -- PMP CHECK POINTS (ENABLE_PMP). The data address under test is deliberately NOT data_addr: data_addr is a function of mem_access_instr, which the denial has to drive, so reading it back here would be a combinational loop.
+    -- Every term below mirrors what the data_addr mux would have chosen in the same cycle: rs1_value for an LR, SC or AMO dispatch (ALU_Result holds rs1 combined with rs2 there), ALU_Result for a plain load or store, and the sequencer's own generated address for this step in CBOZ_WRITE, ZCM_PUSH_ST, ZCM_POP_LD and ZCM_JT_LD.
+    -- Check and access must never disagree about the address; in every other cycle the value is don't-care, pmp_d_active being '0'.
     pmp_d_addr <= cboz_zero_addr when (current_state = CBOZ_WRITE) else
                   zcm_mem_addr   when (current_state = ZCM_PUSH_ST or current_state = ZCM_POP_LD) else
                   zcm_jt_addr    when (current_state = ZCM_JT_LD) else
@@ -2270,21 +1792,9 @@ architecture struct of vesta is
                                                                     or lr_op = '1')) else
                   ALU_Result;
 
-    -- Permission NEEDS (frozen section 4: LR, SC and AMO drive BOTH R and W).
-    -- A plain access is a store exactly when its byte-lane enables are not all inactive; wen_controller is "1111" for every load and for LR (maindec:1135).
-    --
-    -- P3 red-team F2/F3 FIX: the `isr_ret` (iret) decode ALSO raises read_data_flag and therefore mem_access_controller (maindec:1186), so without a guard iret looks like a load here and PMP-checks a PHANTOM read at its ALU_Result, which is 0 for the canonical encoding.
-    -- A locked or no-permission entry over that address then faults EVERY M-mode iret, an M-mode denial of service (F2).
-    -- iret is u-gated (M-mode only) and its real transaction is the return-PC pop off the PRIVATE stack (TCM 0x8000-0xBFFF by the sp-validity contract), never a shared-window side-effecting address, so legacy interrupt entry and return stack traffic is deliberately OUT of PMP scope (documented, p0_specs.md section 4.1).
-    -- `and isr_ret = '0'` removes iret from the data check entirely; the IRQ_SV push and IRQ_REST pop states already carry no PMP term (F3, the same exemption).
-    --
-    -- F12 RESIDUE (fix pass W4, COMMENT ONLY, deliberately not changed).
-    -- That `and isr_ret = '0'` guard SILENTLY STOPS APPLYING IN U-MODE: isr_ret is u-gated (maindec:1027) so it reads '0' there, while mem_access_controller is NOT u-gated and still reads '1' for the iret encoding.
-    -- A U-mode iret on an ENABLE_PMP build therefore raises pmp_d_active and, over a denying region, pmp_d_deny.
-    -- It is INERT TODAY, and only by ARM ORDERING: the `trap = '1'` arm is the FIRST arm of all four EXECUTE shapes (:2594/:2867/:2982/:3145), above the D5 pmp_d_deny arm (:2637 and friends), and a U-mode CUSTOM opcode is illegal (maindec:849-856), so the illegal-instruction trap wins and reports cause 2.
-    -- W4 MEASURED that on an ENABLE_UMODE build (mcause 2, mepc the iret's own pc, mtval its own encoding, bus silent); the ENABLE_PMP leg is argued from source, not measured.
-    -- IF A FUTURE CHANGE EVER HOISTS THE PMP DATA ARM ABOVE THE TRAP ARM, a U-mode iret starts reporting cause 5 instead of cause 2.
-    -- The one-line repair at that point is `and isr_ret_arch = '0'` against a NON-u-gated iret decode, not a reordering.
+    -- Permission NEEDS: LR, SC and AMO drive BOTH R and W. A plain access is a store exactly when its byte-lane enables are not all inactive, wen_controller being "1111" for every load and for LR.
+    -- `and isr_ret = '0'` keeps an iret out of the data check: its decode also raises mem_access_controller, so without the guard it looks like a load and is checked at a phantom address, which a denying region would turn into an M-mode denial of service. Legacy interrupt entry and return stack traffic is deliberately out of PMP scope.
+    -- That guard stops applying in U-mode, where isr_ret is u-gated to '0' while mem_access_controller is not; it is inert only because the illegal-instruction trap arm sits above the PMP data arm in all four EXECUTE shapes. Hoisting the PMP arm needs a non-u-gated iret decode here, not a reordering.
     pmp_d_rd <= '1' when (current_state = EXECUTE and
                           (lr_op = '1' or sc_op = '1' or amo_op = '1')) else
                 '1' when (current_state = EXECUTE and mem_access_controller = '1'
@@ -2298,26 +1808,21 @@ architecture struct of vesta is
                 '1' when (current_state = CBOZ_WRITE or current_state = ZCM_PUSH_ST) else
                 '0';
 
-    -- ACCESS CLASS for the cause code (see the signal declaration): LR is a READ that checks both R and W, so it is deliberately absent from this term.
+    -- ACCESS CLASS for the cause code: LR is a READ that checks both R and W, so it is deliberately absent from this term.
     pmp_d_st_class <= '1' when (current_state = EXECUTE and (sc_op = '1' or amo_op = '1')) else
                       '1' when (current_state = EXECUTE and mem_access_controller = '1'
                                 and wen_controller /= "1111") else
                       '1' when (current_state = CBOZ_WRITE or current_state = ZCM_PUSH_ST) else
                       '0';
 
-    -- "A data transaction would issue this cycle".
-    -- NOTE this is '1' on a compressed HALF-FETCH cycle too, where instr_curr still holds the PREVIOUS, already-retired instruction (kickoff section 3b class 5).
-    -- That is harmless BY CONSTRUCTION: the half-fetch branch of the EXECUTE decode tree has no PMP arm, being a separate else-branch that goes unconditionally to EXECUTE, so pmp_d_deny can never dispatch a trap from it, and nothing else consumes it in EXECUTE.
-    -- The qualifier is the FSM arm placement, exactly as amo_lock qualifies its EXECUTE term.
+    -- "A data transaction would issue this cycle". This is '1' on a half-fetch cycle too, where instr_curr still holds the previous instruction, and that is harmless by construction:
+    -- the half-fetch branch has no PMP arm and goes unconditionally to EXECUTE, so pmp_d_deny can never dispatch a trap from it. The qualifier is the FSM arm placement, as it is for amo_lock.
     pmp_d_active <= pmp_d_rd or pmp_d_wr;
     pmp_d_deny   <= '1' when (ENABLE_PMP and pmp_d_active = '1' and pmp_d_grant = '0') else '0';
 
     -- FETCH side. pc_next IS the fetch address: the data_addr mux falls through to it in every cycle that issues an instruction fetch.
-    --
-    -- P3 red-team F1 FIX: the fetch is X-checked at pmp_f_priv, which is the current privilege (trap_priv_mode) EXCEPT during MTRAP_RET.
-    -- MTRAP_RET is the one state that both issues a fetch (pc_next is mepc, pc_en='1') AND lowers privilege on the SAME edge that latches the verdict, so the fetch it issues is CONSUMED at the post-MRET privilege (MPP).
-    -- Checking it at the still-current M would let the first instruction after an MRET into U run with X denied, which is the F1 escape; mret_priv_m is MPP mapped, read combinationally before the pop, i.e. the return privilege.
-    -- Every other privilege change RAISES privilege, since a trap entry goes to M, so its issued fetch is checked at the stricter old privilege, the safe direction; only the LOWERING MRET case needs this override.
+    -- The fetch is X-checked at pmp_f_priv, the current privilege EXCEPT during MTRAP_RET, the one state that both issues a fetch and LOWERS privilege on the same edge, so its fetch is consumed at the post-MRET privilege and must be checked there.
+    -- Every other privilege change raises privilege, so its issued fetch is checked at the stricter old privilege, which is the safe direction.
     pmp_f_priv <= mret_priv_m when current_state = MTRAP_RET else trap_priv_mode;
 
     pmp_f_deny <= '1' when (ENABLE_PMP and pmp_f_grant = '0') else '0';
@@ -2325,14 +1830,8 @@ architecture struct of vesta is
     pmp_if_squash <= '1' when (ENABLE_PMP and current_state = EXECUTE and pmp_f_deny_r = '1')
                      else '0';
 
-    -- PARK SELECT. Three cases, all ENABLE_PMP-gated:
-    --   (a) pmp_f_deny: the address this cycle would fetch is X-denied.
-    --   (b) pmp_if_squash: the EXECUTE cycle that consumes a denied fetch, whose pc_next is derived from the PARK word's decode, i.e. from an instruction the hart never legitimately executed.
-    --       Parking keeps that arbitrary address off the bus.
-    --   (c) MTRAP_SV of an instruction-access-fault entry, the trap-entry RE-PRESENTATION window (p0_specs.md section 4.1, kickoff section 6b).
-    --       pc_next there is pc_next_reg, registered from case (b)'s cycle, and privilege has already flipped to M so the fetch check would now GRANT it.
-    --       MTRAP_JUMP is deliberately NOT parked, since it issues the mtvec fetch.
-    -- All three park on the SAME address, so hart_tile's ack latch (sh_acked_addr and sh_acked_we) absorbs them into ONE benign ROM read.
+    -- PARK SELECT, three ENABLE_PMP-gated cases: the address this cycle would fetch is X-denied; the EXECUTE cycle that consumes a denied fetch, whose pc_next comes from the PARK word's decode and is therefore arbitrary; and MTRAP_SV of an instruction-access-fault entry, the re-presentation window, where privilege has already flipped to M so the check would now grant it.
+    -- MTRAP_JUMP is deliberately NOT parked, since it issues the mtvec fetch. All three park on the SAME address, so hart_tile's ack latch absorbs them into one benign ROM read.
     pmp_if_park <= '1' when (ENABLE_PMP and
                              (pmp_f_deny = '1' or pmp_if_squash = '1' or
                               (current_state = MTRAP_SV and mtrap_cause_int = '0'
@@ -2352,12 +1851,12 @@ architecture struct of vesta is
             port map (
                 pmp_cfg_flat  => pmp_cfg_flat_sig,
                 pmp_addr_flat => pmp_addr_flat_sig,
-                -- FETCH: X at the effective fetch privilege, which is the current privilege or the return privilege during MTRAP_RET (F1).
-                -- Never MPRV-redirected, since MPRV governs data accesses only.
+                -- FETCH: X at the effective fetch privilege, the current privilege or the return privilege during MTRAP_RET.
+                -- Never MPRV-redirected: MPRV governs data accesses only.
                 f_addr        => pc_next,
                 f_priv_m      => pmp_f_priv,
                 f_grant       => pmp_f_grant,
-                -- DATA: R/W at the EFFECTIVE data privilege (mstatus.MPRV).
+                -- DATA: R/W at the EFFECTIVE data privilege, after the mstatus.MPRV redirect.
                 d_addr        => pmp_d_addr,
                 d_priv_m      => eff_data_priv_m,
                 d_read        => pmp_d_rd,
@@ -2366,7 +1865,7 @@ architecture struct of vesta is
             );
 
         -- The fetch-check pipeline, sampled on EVERY clk_cpu edge, which is what makes the "previous core cycle's fetch" invariant hold without enumerating states.
-        -- Whenever the FSM redirects the PC (MTRAP_JUMP to mtvec, MTRAP_RET to mepc, IRQ_JUMP to ivt_entry, ZCM_RET or ZCM_JT_WB, a SLEEPING or WRS_WAIT resume) the redirected address is on pc_next in that very cycle and is therefore the value this flop carries into the EXECUTE that consumes it.
+        -- Whenever the FSM redirects the PC, the redirected address is on pc_next in that very cycle and is therefore the value this flop carries into the EXECUTE that consumes it.
         pmp_ifetch_proc: process(clk_cpu, resetn)
         begin
             if resetn = '0' then
@@ -2378,7 +1877,7 @@ architecture struct of vesta is
             end if;
         end process;
 
-        -- mtval latch, on the SAME edge and the SAME condition as mtrap_cause_proc; kept a separate process so the 32 flops are inside the generate and an OFF build carries none of them.
+        -- mtval latch, on the same edge and condition as mtrap_cause_proc; a separate process so its 32 flops sit inside the generate and an OFF build carries none of them.
         pmp_mtval_proc: process(clk_cpu, resetn)
         begin
             if resetn = '0' then
@@ -2392,7 +1891,7 @@ architecture struct of vesta is
     end generate;
 
     gen_pmp_off: if not ENABLE_PMP generate
-        -- Grant everything, with no flops and no unit: the OFF netlist folds to today's and the OFF cell lists need no pmp_unit entry.
+        -- Grant everything, with no flops and no unit, so the OFF cell lists need no pmp_unit entry.
         pmp_f_grant  <= '1';
         pmp_d_grant  <= '1';
         pmp_f_deny_r <= '0';
@@ -2414,9 +1913,7 @@ architecture struct of vesta is
     end process;
 
 
-    -- ==========================================
-    -- FSM Next State Logic
-    -- ==========================================
+    -- FSM next-state logic.
     next_state_logic: process(resetn, current_state, pc, instr, quadrant_upper, quadrant_lower, 
                              repeat_if, instr_upper_half, instr_lower_half, instr_decomp, 
                              irq_save, mem_access_controller, is_div_op, pc_src, pc_target, 
@@ -2433,16 +1930,11 @@ architecture struct of vesta is
                              std_mode, std_irq_take, ecall_op, ebreak_op, mret_op,
                              wfi_op, std_wfi_wake,
                              pmp_f_deny_r, pmp_d_deny,
-                             -- D1: THE FOUR DEBUG DECISION SIGNALS. Leaving them out is a SIMULATION-ONLY defect that hides in exactly the two states debug exists to reach.
-                             -- MEASURED (2026-08-05): with these absent, a halt request diverted a RUNNING hart correctly, because EXECUTE re-evaluates this process every cycle anyway with pc, instr and the rest in the list.
-                             -- But a hart parked in SLEEPING or wedged in TRAP_STATE sat with dbg_halt_take = '1', en_clk_cpu ungated to '1', and next_state stuck at its own value FOREVER.
-                             -- Nothing else in the list moves in an absorbing state, so the process never re-ran to see the request.
-                             -- A synthesis tool ignores sensitivity lists entirely, so the netlist would have been RIGHT and every behavioural gate WRONG, the worst direction.
+                             -- The debug decision signals MUST be listed: in an absorbing state such as SLEEPING or TRAP_STATE nothing else in this list moves, so without them the process never re-runs to see a halt request and next_state sticks forever.
+                             -- A synthesis tool ignores sensitivity lists, so omitting them makes the netlist right and every behavioural run wrong, which is the worst direction.
                              dbg_halt_take, dbg_ebreak_take, dbg_exc_take, dret_op, debug_mode,
-                             -- R-S2-2: THE COMMIT TAIL READS THESE FOUR.
-                             -- A same-process signal read returns the PREVIOUS delta's value, so without these entries the process does not re-evaluate when intent settles and a migrated shape can be driven from STALE intent, with a retiring instruction's ci_pc_advance='1' leaking into SHAPE_E's bubble cycle and advancing the PC mid-instruction.
-                             -- Genus infers the intended logic either way, so RTL sim would be the lying instrument.
-                             -- Verified before adding them: every ci_* right-hand side is a literal or one of reg_write_ctrl, wen_controller, amo_wen or zcm_jt_link, none of which is a function of the four owned outputs or of any ci_*, so there is no feedback and the extra evaluation settles in one delta.
+                             -- The commit tail reads these four. A same-process signal read returns the PREVIOUS delta's value, so without them a state can be driven from STALE intent, for instance a retiring instruction's ci_pc_advance leaking into the split-fetch bubble and advancing the PC mid-instruction.
+                             -- No ci_* right-hand side is a function of the four owned outputs or of any ci_*, so there is no feedback and the extra evaluation settles in one delta.
                              ci_rd_commit, ci_sp_commit, ci_st_lanes, ci_pc_advance)
     begin
         if resetn = '0' then
@@ -2460,21 +1952,17 @@ architecture struct of vesta is
             irq_save_ack <= '0';
             is_compressed <= '0';
             trap_flag <= '0';
-            wfi_enter <= '0';   -- P2 standard-WFI entry marker
-            -- RESET-VALUE EXACTNESS (spec section 3, ruling R-S1-1a): the obligation S1 deferred, discharged here by deliberately changing NOTHING above.
-            -- Two of the reset branch's four owned-net drives are NOT the fail-safe intent values: wen takes wen_controller rather than all-ones, and pc_en takes '1' rather than hold.
-            -- The commit block sits in the ELSE branch, so it cannot reach reset and cannot reproduce them, and therefore the four reset drives STAY exactly as written.
-            -- Spec section 3 anticipated this: "if that requires keeping two explicit reset lines, keep them, a simple edit beats a clever one."
-            -- This is why the final census is 4 reset plus 4 block, giving 8, and why "one assignment site per signal" means one OUTSIDE reset.
-            -- The intent defaults below are still FAIL-SAFE (spec section 2), so intent and the live nets disagree during reset by construction, which is why the shadow checker is qualified with resetn='1'.
+            wfi_enter <= '0';   -- standard-WFI entry marker
+            -- The reset branch drives the four owned nets ITSELF, and two of those drives are deliberately NOT the fail-safe intent values: wen takes wen_controller rather than all-ones, and pc_en takes '1' rather than hold.
+            -- The commit block sits in the ELSE branch and cannot reach reset, so these four lines stay exactly as written; the intent defaults below are still fail-safe, so intent and the live nets differ during reset by construction.
             ci_rd_commit  <= '0';
             ci_sp_commit  <= '0';
             ci_st_lanes   <= "0000";
             ci_pc_advance <= '0';
 
         else
-            -- Default signal values. NOTE: the four commit-block nets (reg_write_dp, sp_write_en, wen, pc_en) are deliberately ABSENT from this list.
-            -- They are driven unconditionally by the commit block at the end of this branch, from the ci_* intent each state declares; a default here would be dead code overwritten every cycle, and worse, would read as though a state could rely on it.
+            -- Default signal values. The four commit-block nets (reg_write_dp, sp_write_en, wen, pc_en) are deliberately ABSENT: the commit block at the end of this branch drives them unconditionally from the ci_* intent each state declares.
+            -- A default here would be dead code overwritten every cycle, and would read as though a state could rely on it.
             mem_access_instr <= '0';
             repeat_if_req <= '0';
             clr_repeat_if <= '0';
@@ -2482,26 +1970,17 @@ architecture struct of vesta is
             ltch_lh_inst <= '0';
             irq_save_ack <= '0';
             trap_flag <= '0';
-            wfi_enter <= '0';   -- P2: only the WFI dispatch arms raise this
-            -- S-series intent defaults: FAIL-SAFE (S0 spec section 2).
+            wfi_enter <= '0';   -- only the WFI dispatch arms raise this
+            -- Commit-intent defaults, all fail-safe.
             ci_rd_commit  <= '0';
             ci_sp_commit  <= '0';
             ci_st_lanes   <= "0000";
             ci_pc_advance <= '0';
 
             case current_state is
-                -- ==========================================
-                -- INITIALIZE State
-                -- ==========================================
+                -- INITIALIZE passes the LIVE DECODE through to rd and to the store lanes, which is inert because instr_curr is forced to a nop whenever this state is current: the decode does write rd, but rd is x0 and the regfile discards it, and a nop is not a store.
+                -- The state is UNREACHABLE by design, since the only producer of next_state = INITIALIZE sits inside the reset branch where the async reset dominates; it is kept, and kept correct, for a corrupted state encoding.
                 when INITIALIZE =>
-                    -- S2 c7: MIGRATED. This arm passes the LIVE DECODE through to rd and to the store lanes, and that is safe for a reason worth writing down rather than rediscovering.
-                    -- instr_curr is forced to a nop whenever this state is current (see the instr_curr mux's first arm, keyed on `resetn = '0' or current_state = INITIALIZE`), and nop is x"00000013", ADDI x0,x0,0 in constants.vhd.
-                    -- So reg_write_ctrl is '1' here, because OP-IMM decodes a write, and the pass-through is inert NOT because the decode is quiet but because **rd is x0**, which the regfile discards; the lane strobes are all-ones because a nop is not a store.
-                    -- The block reproduces both exactly, so nothing is special-cased.
-                    --
-                    -- NOTE, measured 2026-08-02: this state is UNREACHABLE by design.
-                    -- current_state has exactly two writers, an async reset to EXECUTE and the assignment from next_state, and the only producer of next_state = INITIALIZE sits inside the `resetn = '0'` branch, where the async reset dominates.
-                    -- The machine resets into EXECUTE and never enters this arm; only a corrupted state encoding can land here, and the arm is kept, and kept correct, for exactly that case.
                     next_state <= EXECUTE;
                     mem_access_instr <= '0';
                     div_start <= '0';
@@ -2510,27 +1989,18 @@ architecture struct of vesta is
                     ci_st_lanes   <= not wen_controller;
                     ci_pc_advance <= '1';
 
-                -- ==========================================
-                -- EXECUTE State - Main instruction execution
-                -- ==========================================
+                -- EXECUTE: main instruction execution.
                 when EXECUTE =>
-                    -- P3 PMP INSTRUCTION ACCESS FAULT (cause 1), FIRST and above every other decode arm, because the fetch that would have delivered this word NEVER ISSUED.
-                    -- The decoder is looking at the PARK word, so `trap`, ecall_op, ebreak_op, the quadrant bits and the whole compressed/half-fetch sub-tree below are all decoded from a word this hart is not allowed to execute.
-                    -- Hoisting the arm to the top of the state, rather than into the four dispatch sub-trees, is what keeps a park word whose bits 17:16 happen to read "11" out of the half-fetch branch.
-                    --   mepc  : pc, since pc_en is '0'. That is the faulting instruction's own PC, which for a STRADDLING 32-bit instruction is the LOWER half's address even when the UPPER half is the denied one, exactly the frozen rule.
-                    --   mtval : pmp_f_addr_r, the denied half's address.
-                    -- Legacy mode keeps the terminal TRAP_STATE, like any other P3 fault (p0_specs.md section 4).
+                    -- PMP INSTRUCTION ACCESS FAULT (cause 1), FIRST and above every other decode arm, because the fetch that would have delivered this word NEVER ISSUED and the decoder is looking at the park word.
+                    -- Hoisting it to the top of the state, rather than into the four dispatch sub-trees, is what keeps a park word whose bits 17:16 happen to read "11" out of the half-fetch branch.
+                    -- mepc is pc, the faulting instruction's own address, which for a straddling 32-bit instruction is the LOWER half's even when the UPPER half is the denied one; mtval is the denied half's address. Legacy mode keeps the terminal TRAP_STATE.
                     if ENABLE_PMP and pmp_f_deny_r = '1' then
-                        -- S2 c2: SHAPE_P MIGRATED. Its three owned drives were pc_en '0', reg_write_dp '0' and wen all-ones, exactly the fail-safe intent defaults, so this shape declares nothing and the deletion is value-neutral by construction (R-S2-1).
-                        -- sp_write_en fell through to '0' and the block drives ci_sp_commit '0'.
                         mem_access_instr <= '0';
-                        -- P3 red-team F4 FIX: clear a pending repeat_if.
-                        -- When the DENIED fetch is the UPPER half of a straddling 32-bit instruction, the lower-half cycle already set repeat_if_req='1'.
-                        -- This arm is hoisted ABOVE the repeat_if branch that normally clears it, so without this line the stale flag survives the trap and hijacks the first compressed instruction the handler fetches, decompressing instr_assembled and advancing pc by 4.
-                        -- Harmless when repeat_if was already 0, since the clear is then a no-op via the repeat_if_req precedence in its flop.
+                        -- Clear a pending repeat_if: when the DENIED fetch is the upper half of a straddling instruction the lower-half cycle already set it, and this arm is hoisted above the branch that normally clears it.
+                        -- A stale flag would survive the trap and hijack the first compressed instruction the handler fetches. Harmless when repeat_if was already 0.
                         clr_repeat_if    <= '1';
                         if dbg_exc_take = '1' then
-                            -- D2/F-D2-0 re-entry (see dbg_exc_take): debug mode never traps out.
+                            -- Debug mode never traps out; re-enter instead. See dbg_exc_take.
                             mem_access_instr <= '0';
                             next_state <= DBG_JUMP;
                         elsif std_mode = '1' then
@@ -2541,15 +2011,10 @@ architecture struct of vesta is
                     -- With the C extension disabled a halfword-aligned PC is an instruction-address-misaligned condition, reachable only via a jump or branch to a non-word boundary, so trap instead of decoding garbage instruction halves.
                     -- The condition is statically false when ENABLE_COMPRESSED, so the default build's FSM is untouched.
                     elsif (not ENABLE_COMPRESSED) and pc(1) = '1' then
-                        -- P1: instruction-address-misaligned. Standard mode takes it as a RECOVERABLE exception (cause 0, mtval is the misaligned PC); legacy mode keeps today's terminal TRAP_STATE.
-                        -- Statically dead in the Castalia/Argus configs, where C is on, and implemented for contract parity.
-                        --
-                        -- S2 c2: SHAPE_Q MIGRATED, AND THIS ONE CHANGES BEHAVIOUR.
-                        -- The arm drove pc_en only; reg_write_dp and wen fell through to the LIVE DECODE (reg_write_ctrl and wen_controller), so the misaligned-fetch trap could commit the faulting encoding's rd and its store lanes on the cycle it trapped, which is census finding N2.
-                        -- Migration deletes the pc_en drive AND the S1 mirror declarations, so the block now drives reg_write_dp '0' and wen all-ones here: the N2 fix, ordered by R-DS2 and ruled in R-S2-1.
-                        -- LATENT ONLY: this predicate is statically false wherever ENABLE_COMPRESSED is true, which is every shipped config (MemoryMap CORE_ENABLE_COMPRESSED = true, Castalia and Argus alike), so no gate can observe it.
+                        -- Instruction-address-misaligned: standard mode takes it as a RECOVERABLE exception, cause 0 with mtval the misaligned PC, and legacy mode keeps the terminal TRAP_STATE.
+                        -- The arm declares no commit, so the block drives reg_write_dp '0' and wen all-ones: a misaligned-fetch trap must not commit the faulting encoding's rd or its store lanes.
                         if dbg_exc_take = '1' then
-                            -- D2/F-D2-0 re-entry (see dbg_exc_take): debug mode never traps out.
+                            -- Debug mode never traps out; re-enter instead. See dbg_exc_take.
                             mem_access_instr <= '0';
                             next_state <= DBG_JUMP;
                         elsif std_mode = '1' then
@@ -2558,39 +2023,33 @@ architecture struct of vesta is
                             next_state <= TRAP_STATE;
                         end if;
                     elsif pc(1) = '1' then
-                        -- Current instruction on half-word boundary
+                        -- Current instruction on a half-word boundary.
                         if quadrant_upper = "11" or repeat_if = '1' then
-                            -- Instruction not compressed or fetching upper half
+                            -- Not compressed, or fetching the upper half.
                             is_compressed <= '0';
-                            
+
                             if repeat_if = '1' then
-                                -- Completing the split fetch of a 32-bit instruction.
-                                -- S2 c3: SHAPE_STRADDLE MIGRATED. The first shape with real work: retiring tails, every memory, div, FP and atomic dispatch, the trap arms and both IRQ takes.
-                                -- 37 of its 38 owned drives were the fail-safe values ('0', '0' and all-ones); the 38th, the FENCE_WAIT pc_en '1', is carried by the ci_pc_advance declaration beside it.
+                                -- Completing the split fetch of a 32-bit instruction: the full dispatch tree, since this is where a straddling instruction actually issues.
                                 clr_repeat_if <= '1';
-                                
-                                -- Determine next state based on instruction type
+
+                                -- Choose the next state by instruction class.
                                 if trap = '1' then
                                     if dbg_exc_take = '1' then
-                                        -- D2/F-D2-0 re-entry (see dbg_exc_take): debug mode never traps out.
+                                        -- Debug mode never traps out; re-enter instead. See dbg_exc_take.
                                         mem_access_instr <= '0';
                                         next_state <= DBG_JUMP;
                                     elsif std_mode = '1' then
-                                        -- P1: RECOVERABLE illegal-instruction exception, cause 2 with mtval set to the faulting encoding, and zero memory transactions.
+                                        -- Recoverable illegal-instruction exception: cause 2, mtval the faulting encoding, and zero memory transactions.
                                         next_state <= MTRAP_SV;
                                         mem_access_instr <= '0';
                                     else
                                         next_state <= TRAP_STATE;
-                                        -- The LEGACY trap-entry cycle has no reg_write_dp or wen arm, so both keep the live decode's drives.
+                                        -- The legacy trap-entry cycle keeps the live decode's rd and lane drives.
                                         ci_rd_commit <= reg_write_ctrl;
                                         ci_st_lanes  <= not wen_controller;
                                     end if;
-                                -- D1 EBREAK ENTERING DEBUG MODE, tested ABOVE the shared ecall/ebreak arm because that disjunction currently absorbs ebreak_op; the cause mux at :2174 already distinguishes the two, so only the FSM arm splits.
-                                -- Two destinations, and the difference is the whole of the spec's "ebreak in debug mode re-enters" clause:
-                                --   NOT in debug mode goes to DBG_SV, a full entry, where dpc takes this ebreak's OWN pc, because a synchronous exception reports its own address and not the next one, plus cause 1, prv and debug_mode.
-                                --   ALREADY in debug mode goes to DBG_JUMP, which reloads the PC and writes NOTHING: dpc and dcsr.cause must survive an ebreak taken by debug code itself, or the debugger loses its own return address.
-                                -- dbg_ebreak_take is statically '0' when ENABLE_DEBUG is off, so both arms constant-fold and the ecall/ebreak behaviour below is untouched in every shipped build.
-                                -- dcsr.ebreakm RESETS 0 and no M-mode software can set it; dbgdenymp.S hart 3 is the standing detector for that.
+                                -- An ebreak entering debug mode is tested ABOVE the shared ecall/ebreak arm, which would otherwise absorb it. Not in debug mode goes to DBG_SV, a full entry recording this ebreak's OWN pc;
+                                -- already in debug mode goes to DBG_JUMP, which reloads the PC and writes NOTHING, because dpc and dcsr.cause must survive an ebreak taken by debug code or the debugger loses its return address.
                                 elsif ebreak_op = '1' and dbg_ebreak_take = '1' then
                                     mem_access_instr <= '0';
                                     if debug_mode = '1' then
@@ -2599,27 +2058,24 @@ architecture struct of vesta is
                                         next_state <= DBG_SV;
                                     end if;
                                 elsif ecall_op = '1' or ebreak_op = '1' then
-                                    -- P1 ECALL (cause 11) and EBREAK (cause 3), both with mtval 0 and mepc set to the instruction's OWN PC.
-                                    -- In legacy mode they are legal decodes with no legacy semantics, so they land in the terminal TRAP_STATE, exactly where the OFF build's illegal-instruction path puts them.
+                                    -- ECALL (cause 11) and EBREAK (cause 3), both with mtval 0 and mepc the instruction's OWN PC.
+                                    -- In legacy mode they are legal decodes with no legacy semantics, so they land in the terminal TRAP_STATE, where the illegal-instruction path puts them.
                                     mem_access_instr <= '0';
                                     if dbg_exc_take = '1' then
-                                        -- D2/F-D2-0 re-entry (see dbg_exc_take): debug mode never traps out.
+                                        -- Debug mode never traps out; re-enter instead. See dbg_exc_take.
                                         next_state <= DBG_JUMP;
                                     elsif std_mode = '1' then
                                         next_state <= MTRAP_SV;
                                     else
                                         next_state <= TRAP_STATE;
                                     end if;
-                                -- D1 DRET: the MRET shape exactly (D0/P1 1d), a CSR-based restore in ONE state, no memory transaction, with the PC taking dpc.
-                                -- dret_op already carries its own debug_mode qualifier from maindec, so this arm cannot fire outside debug mode; outside it the encoding is an illegal instruction and takes the `trap` arm above.
-                                -- Statically '0' when ENABLE_DEBUG is off.
-                                -- NOTE there is no std_mode branch here: debug mode is not a delivery mode, and the debug knob implying trapCsr makes std_mode's machinery present in every build that can reach this arm at all.
+                                -- DRET is the MRET shape exactly: a CSR-based restore in ONE state, no memory transaction, with the PC taking dpc.
+                                -- dret_op carries its own debug_mode qualifier from maindec, so this arm cannot fire outside debug mode, where the encoding is illegal and takes the trap arm above. There is no std_mode branch, debug mode not being a delivery mode.
                                 elsif dret_op = '1' then
                                     mem_access_instr <= '0';
                                     next_state <= DBG_RET;
                                 elsif mret_op = '1' then
-                                    -- P1 MRET: the PC takes mepc and mstatus pops, in the dedicated MTRAP_RET state (JALR shape, no memory access, no writeback).
-                                    -- Legacy mode goes to the terminal TRAP_STATE, as above.
+                                    -- MRET: the PC takes mepc and mstatus pops, in the dedicated MTRAP_RET state, a JALR shape with no memory access and no writeback. Legacy mode goes to the terminal TRAP_STATE.
                                     mem_access_instr <= '0';
                                     if std_mode = '1' then
                                         next_state <= MTRAP_RET;
@@ -2627,14 +2083,12 @@ architecture struct of vesta is
                                         next_state <= TRAP_STATE;
                                     end if;
                                 elsif ENABLE_PMP and pmp_d_deny = '1' then
-                                    -- P3 PMP LOAD/STORE ACCESS FAULT, THE D5 ARM: cause 5 for a load or LR, 7 for a store, SC or AMO, with mtval the byte-precise data address and mepc the pc.
-                                    -- It sits HERE, after the trap, ECALL, EBREAK and MRET arms and before every memory dispatch arm, so an illegal encoding still reports cause 2 and a memory instruction can never reach its own arm.
-                                    -- THE PRE-ISSUE GUARANTEE: mem_access_instr stays '0', so data_addr keeps the fetch fall-through and the denied address is never decoded by hart_tile's sh_sel, so sh_req never rises for it.
-                                    -- No request is yanked, so the arbiter's WAIT-FOR-RELEASE contract is untouched.
-                                    -- wen all-ones kills the private-RAM lane strobes; an SC or AMO never enters SC_CHECK or AMO_READ at all, and amo_lock, qualified by mem_access_instr, never pins the grant.
+                                    -- PMP load/store access fault: cause 5 for a load or LR, 7 for a store, SC or AMO, with mtval the byte-precise data address and mepc the pc.
+                                    -- It sits after the trap, ECALL, EBREAK and MRET arms and before every memory dispatch arm, so an illegal encoding still reports cause 2 and a memory instruction can never reach its own arm.
+                                    -- PRE-ISSUE GUARANTEE: mem_access_instr stays '0', so data_addr keeps the fetch fall-through, sh_req never rises for the denied address and no request is yanked from the arbiter; wen all-ones kills the private-RAM lane strobes.
                                     mem_access_instr <= '0';
                                     if dbg_exc_take = '1' then
-                                        -- D2/F-D2-0 re-entry (see dbg_exc_take): debug mode never traps out.
+                                        -- Debug mode never traps out; re-enter instead. See dbg_exc_take.
                                         next_state <= DBG_JUMP;
                                     elsif std_mode = '1' then
                                         next_state <= MTRAP_SV;
@@ -2646,48 +2100,44 @@ architecture struct of vesta is
                                     ci_rd_commit <= reg_write_ctrl;
                                     ci_st_lanes  <= not wen_controller;
                                 elsif wfi_op = '1' then
-                                    -- P2 standard WFI: enter SLEEPING and RAISE the entry-reason marker, so the SLEEPING arm applies the STANDARD wake rule instead of extinguish's.
-                                    -- pc is frozen exactly as for extinguish, so pc_next_reg holds WFI+4, which is BOTH the resume PC and, if the hart vectors, the mepc.
-                                    -- No memory access and no writeback: reg_write and wen for a SYSTEM PRIV encoding are already '0' and "1111".
+                                    -- Standard WFI: enter SLEEPING and RAISE the entry-reason marker, so the SLEEPING arm applies the standard wake rule instead of extinguish's.
+                                    -- pc is frozen exactly as for extinguish, so pc_next_reg holds WFI+4, which is both the resume PC and, if the hart vectors, the mepc.
                                     next_state <= SLEEPING;
                                     wfi_enter  <= '1';
                                     ci_rd_commit <= reg_write_ctrl;
                                     ci_st_lanes  <= not wen_controller;
                                 elsif wrs_op = '1' then
-                                    -- X1 Zawrs: stall only if a global reservation is live, otherwise the hint retires immediately.
+                                    -- Zawrs: stall only if a global reservation is live, otherwise the hint retires immediately.
                                     ci_rd_commit <= reg_write_ctrl;
                                     ci_st_lanes  <= not wen_controller;
                                     if resv_valid_ext = '1' then
                                         next_state <= WRS_WAIT;
                                     else
-                                        next_state <= EXECUTE;  -- pc_en defaults '1'
+                                        next_state <= EXECUTE;  -- the hint retires here
                                         ci_pc_advance <= '1';
                                     end if;
                                 elsif lr_op = '1' then
-                                    -- Load-Reserved operation
+                                    -- Load-Reserved.
                                     mem_access_instr <= '1';
                                     next_state <= LR_READ;
                                     ci_st_lanes <= not wen_controller;
                                 elsif sc_op = '1' then
-                                    -- Store-Conditional operation.
-                                    -- M4b FIX: no EXECUTE-phase access, because the ALU holds rs1+rs2 here, a garbage address; the only SC access is SC_CHECK's write.
+                                    -- Store-Conditional. NO EXECUTE-phase access: the ALU holds rs1+rs2 here, a garbage address, and the only SC access is SC_CHECK's conditional write.
+                                    -- The store lanes must stay suppressed here too, wen_controller decoding SC as a word store, or the write commits before the reservation check.
                                     mem_access_instr <= '0';
                                     next_state <= SC_CHECK;
-                                    -- M4b FIX: wen_controller decodes SC as a word store, which committed the write HERE, before the reservation check; the only conditional SC write is SC_CHECK's.
-                                    -- S2 c3: the suppression is now the block's fail-safe default, not a local drive.
                                 elsif amo_op = '1' then
-                                    -- Atomic memory operation
+                                    -- Atomic memory operation.
                                     mem_access_instr <= '1';
                                     next_state <= AMO_READ;
                                 elsif cboz_op = '1' then
-                                    -- X3 Zicboz: launch the cbo.zero block-zero store sequencer.
-                                    -- NO memory access this cycle, since the CBOZ_WORDS stores issue in CBOZ_WRITE, and the PC is frozen until the burst retires.
-                                    -- cboz_base is latched from the live rs1 in cboz_seq_proc on THIS transition from EXECUTE into CBOZ_WRITE, and wen is forced inactive so the fetch-addressed cycle commits no write.
+                                    -- Launch the cbo.zero block-zero store sequencer: no memory access this cycle, since the stores issue in CBOZ_WRITE, and the PC is frozen until the burst retires.
+                                    -- cboz_base is latched from the live rs1 on THIS transition, and wen stays inactive so the fetch-addressed cycle commits no write.
                                     mem_access_instr <= '0';
                                     next_state <= CBOZ_WRITE;
                                 elsif fence_op = '1' then
-                                    -- X1 Zihintpause (D6): the exact PAUSE hint enters the arbiter-yield window instead of the 1-cycle FENCE nop.
-                                    -- pc_en is frozen so the PAUSE holds and retires when the window closes; ENABLE_ZIHINT and the non-zero window are static, so a disabled or seeded build takes the FENCE arm and is bit-identical to today.
+                                    -- An exact PAUSE hint enters the arbiter-yield window instead of the one-cycle FENCE nop, with pc_en frozen so it holds and retires when the window closes.
+                                    -- The knob and the non-zero window are static, so a disabled build takes the FENCE arm and is bit-identical.
                                     ci_rd_commit <= reg_write_ctrl;
                                     ci_st_lanes  <= not wen_controller;
                                     if ENABLE_ZIHINT and pause_hint = '1' and PAUSE_WINDOW_CYCLES > 0 then
@@ -2697,48 +2147,26 @@ architecture struct of vesta is
                                         ci_pc_advance <= '1';
                                     end if;
                                 elsif mem_access_controller = '1' then
-                                    -- ==========================================
-                                    -- F9 (fix pass W4): AN `iret` IS NOT A LOAD
-                                    -- ==========================================
-                                    -- maindec's read_data_flag has an arm for op=CUSTOM_OPCODE, funct3=000, funct7=0 (maindec:1186), and that IS the `iret` encoding, so mem_access_controller (maindec:1194) is high for an iret.
-                                    -- THIS arm, tested above the `elsif isr_ret` arm at :2849, is the one an iret takes; the isr_ret arm below is dead, and the trajectory it names is reached through MEMORY_WAIT instead (:3694).
-                                    --
-                                    -- With mem_access_instr='1' the data_addr mux (:1861) put ALU_Result on the bus for that cycle, and for CUSTOM_OPCODE the ALU ADDS TWO REGISTERS (alu_control="0000000" at maindec:1213; ALU_src has no CUSTOM row and falls through to '0', the register operand), while the custom decode never inspects rs1 or rs2 (maindec:849-862 whitelists funct3 and funct7 only).
-                                    -- So every ISR return issued a REAL, SIDE-EFFECTING read at reg[rs1]+reg[rs2], which is 0 for the canonical macro (riscv_test.h `.insn r 0x0b,0,0,x0,x0,x0`) and therefore inside the shared boot ROM, hence a genuine arbiter transaction: sh_sel is a PURE DECODE of data_addr (hart_tile.vhd:654, sh_req_int :726).
-                                    -- W4's detector steered it with a hand-assembled rs1 and the iret CLAIMED A HARDWARE MUTEX. MEASURED cost: 6 clk per ISR return, chip-wide.
-                                    --
-                                    -- THE FIX SUPPRESSES THE REQUEST AND KEEPS THE TRAJECTORY.
-                                    -- next_state, pc_en and reg_write_dp are untouched, so the EXECUTE, MEMORY_WAIT, IRQ_REST sequence still holds and the REAL pop is still addressed from stack_pointer in MEMORY_WAIT (:1865).
-                                    -- wen is already "1111" for CUSTOM (maindec:1135), because the phantom was a READ.
-                                    -- With the request suppressed the ALU_Result arm drops out and data_addr falls through the mux to pc_next: an ordinary early fetch of the word this ISR was about to fetch anyway, the same fall-through idiom F2 relies on at :1810.
-                                    -- For a TCM-resident ISR (every committed test; the ISR bank is 0xB100-0xBAFF) that is a private access and the stall disappears entirely; for an ISR executing FROM the shared window (the bootrom park/loader ISR) it is a legitimate instruction fetch of read-only ROM instead of a data read at a register-dependent address.
-                                    --
-                                    -- U-MODE: `isr_ret` is u-gated (maindec:1027) so this qualifier does not fire in U, and it does not need to.
-                                    -- W4 MEASURED on a knobs-on build that a U-mode iret takes the `trap = '1'` arm, which is the FIRST arm of all four shapes (:2594/:2867/:2982/:3145): mcause 2, mepc its own pc, mtval its own encoding, bus silent.
-                                    -- It never reaches this arm (F12 REFUTED).
+                                    -- AN `iret` IS NOT A LOAD, and this is the arm it takes: maindec raises mem_access_controller for the CUSTOM_OPCODE iret encoding, so without the qualifier every ISR return issues a real, side-effecting read at reg[rs1]+reg[rs2],
+                                    -- which for the canonical encoding lands in the shared boot ROM and is a genuine arbiter transaction, and with a steered rs1 could claim a hardware mutex.
+                                    -- Suppressing the request keeps the trajectory: next_state, pc_en and reg_write_dp are untouched, the real pop is still addressed from stack_pointer in MEMORY_WAIT, and data_addr falls through to pc_next, an ordinary early fetch.
                                     mem_access_instr <= not isr_ret;
                                     next_state <= MEMORY_WAIT;
                                     ci_st_lanes <= not wen_controller;
                                 elsif is_div_op = '1' then
                                     next_state <= DIV_WAIT;
-                                    -- Div-aliasing fix: suppress the EXECUTE-cycle writeback.
-                                    -- The decode says reg_write='1' for a DIV, so an unsuppressed dispatch cycle writes rd with the ALU's idle ResultSignal, which is 0, BEFORE the divider latches its operands in DIV_WAIT.
-                                    -- When rd equals rs1 that zero becomes the latched dividend, giving result 0; when rd equals rs2 it zeroes the divisor read, giving a spurious div-by-zero.
-                                    -- rd is written exactly once, at DIV_DONE, like lr, sc, amo and mem_access.
-                                    -- S2 c3: the suppression is now STRUCTURAL, because this arm declares no rd commit so the block drives '0'; there is no longer a drive to forget.
+                                    -- The EXECUTE-cycle writeback must stay suppressed: the decode says reg_write='1' for a DIV, so an unsuppressed dispatch cycle writes rd with the ALU's idle result, 0, BEFORE the divider latches its operands.
+                                    -- With rd equal to rs1 that zero becomes the dividend and the result is 0; with rd equal to rs2 it zeroes the divisor and gives a spurious divide by zero. rd is written exactly once, at DIV_DONE.
                                     ci_st_lanes <= not wen_controller;
                                 elsif is_fp_fma = '1' then
-                                    -- X4 Zfinx FMA: fetch rs3 then run.
-                                    -- pc_en is frozen and reg_write_dp forced '0' across the whole dispatch and wait window, so the writeback lands only in FPU_DONE; this is the div-arm ungated-write bug class.
+                                    -- FMA: fetch rs3, then run. pc_en is frozen and rd stays uncommitted across the whole dispatch and wait window, so the writeback lands only in FPU_DONE, exactly as for a divide.
                                     next_state <= FPU_FETCH3;
                                     ci_st_lanes <= not wen_controller;
                                 elsif is_fp_multicycle = '1' then
                                     next_state <= FPU_WAIT;
                                     ci_st_lanes <= not wen_controller;
-                                -- D1: THE HALT/STEP RECOGNITION SITE, above BOTH delivery takes.
-                                -- A halt request is UNMASKABLE, since neither mstatus.MIE nor mtrapctl.LEGACY qualifies it, so it must be tested before irq_save and std_irq_take, and it rides the SAME 13 points an interrupt already diverts from (d1_spec.md 2).
-                                -- The commit declarations are copied from the irq_save arm verbatim: a halt is taken BETWEEN instructions, so the in-flight instruction still retires and dpc becomes the address of the NEXT one.
-                                -- dbg_halt_take is statically '0' when ENABLE_DEBUG is off, so every one of these arms constant-folds and the OFF FSM is bit-identical.
+                                -- THE HALT/STEP RECOGNITION SITE, above BOTH delivery takes: a halt request is unmaskable, so it must be tested before irq_save and std_irq_take, and it rides every point an interrupt already diverts from.
+                                -- Its commit declarations match the irq_save arm: a halt is taken BETWEEN instructions, so the in-flight instruction still retires and dpc becomes the address of the NEXT one.
                                 elsif dbg_halt_take = '1' then
                                     next_state <= DBG_SV;
                                     ci_rd_commit <= reg_write_ctrl;
@@ -2748,9 +2176,7 @@ architecture struct of vesta is
                                     ci_rd_commit <= reg_write_ctrl;
                                     ci_st_lanes  <= not wen_controller;
                                 elsif std_irq_take = '1' then
-                                    -- P1 standard delivery: the SAME check point, not a new one.
-                                    -- In standard mode irq_save can never fire, because irq_en_eff is masked all-zero and the irq_handler FSM is pinned in IDLE, and in legacy mode std_irq_take is '0', so the two arms are mutually exclusive by construction.
-                                    -- The X3 uninterruptible sequencers stay uninterruptible: they have no irq_save site, so they get no std_irq_take site either.
+                                    -- Standard delivery reuses this check point: irq_save cannot fire in standard mode, where irq_en_eff is masked all-zero and the handler FSM is pinned in IDLE, and std_irq_take is '0' in legacy mode, so the two arms are mutually exclusive by construction.
                                     next_state <= MTRAP_SV;
                                     ci_rd_commit <= reg_write_ctrl;
                                     ci_st_lanes  <= not wen_controller;
@@ -2766,26 +2192,22 @@ architecture struct of vesta is
                                     ci_pc_advance <= '1';
                                 end if;
                             else
-                                -- Need to fetch the upper half of the instruction.
-                                -- S2 c2: SHAPE_E MIGRATED. Its three owned drives were reg_write_dp '0', pc_en '0' and wen all-ones, the fail-safe defaults, so it declares nothing and the deletion is value-neutral.
-                                -- This is the ONLY shape in this commit with live coverage: the bubble fires on every straddling 32-bit instruction.
+                                -- Need to fetch the upper half of the instruction. This bubble cycle declares NO commit intent, so it neither writes rd, nor stores, nor advances the PC; it fires on every straddling 32-bit instruction.
                                 ltch_lh_inst <= '1';
                                 repeat_if_req <= '1';
                                 next_state <= EXECUTE;
                             end if;
                         else
-                            
-                            -- Compressed instruction on a half-word boundary.
-                            -- S2 c5: SHAPE_HWC MIGRATED. A PURE deletion: all 21 of its owned drives were the fail-safe values and none depended on a declaration.
-                            -- This shape has no fence, lr, sc, amo, cboz, wfi, wrs or fp arms at all (the F4 assert (4) class), so it has no FENCE_WAIT pc_en '1' exception the way STRADDLE and WA32 do.
+
+                            -- Compressed instruction on a half-word boundary. This shape has no fence, lr, sc, amo, cboz, wfi, wrs or fp arms at all, because no compressed encoding decompresses to one; the last assertion at the end of this file polices that.
                             is_compressed <= '1';
                             if trap = '1' then
                                 if dbg_exc_take = '1' then
-                                    -- D2/F-D2-0 re-entry (see dbg_exc_take): debug mode never traps out.
+                                    -- Debug mode never traps out; re-enter instead. See dbg_exc_take.
                                     mem_access_instr <= '0';
                                     next_state <= DBG_JUMP;
                                 elsif std_mode = '1' then
-                                    -- P1: recoverable illegal-instruction exception
+                                    -- Recoverable illegal-instruction exception.
                                     next_state <= MTRAP_SV;
                                     mem_access_instr <= '0';
                                 else
@@ -2793,7 +2215,7 @@ architecture struct of vesta is
                                     ci_rd_commit <= reg_write_ctrl;
                                     ci_st_lanes  <= not wen_controller;
                                 end if;
-                            -- D1 ebreak taking a debug entry, above the shared ecall/ebreak arm; see the first site, in EXECUTE shape STRADDLE, for the full argument.
+                            -- An ebreak taking a debug entry, above the shared ecall/ebreak arm; see the split-fetch dispatch arm above.
                             elsif ebreak_op = '1' and dbg_ebreak_take = '1' then
                                 mem_access_instr <= '0';
                                 if debug_mode = '1' then
@@ -2802,18 +2224,18 @@ architecture struct of vesta is
                                     next_state <= DBG_SV;
                                 end if;
                             elsif ecall_op = '1' or ebreak_op = '1' then
-                                -- P1: c.ebreak DECOMPRESSES to EBREAK (c_dec:~676), so this compressed arm really can see ebreak_op, with the same routing as the 32-bit arm.
-                                -- ECALL and MRET have no compressed form; the term costs nothing and keeps the four decode arms uniform.
+                                -- c.ebreak DECOMPRESSES to EBREAK, so this compressed arm really can see ebreak_op and routes it exactly as the 32-bit arm does.
+                                -- ECALL and MRET have no compressed form; carrying the term anyway costs nothing and keeps the four decode arms uniform.
                                 mem_access_instr <= '0';
                                 if dbg_exc_take = '1' then
-                                    -- D2/F-D2-0 re-entry (see dbg_exc_take): debug mode never traps out.
+                                    -- Debug mode never traps out; re-enter instead. See dbg_exc_take.
                                     next_state <= DBG_JUMP;
                                 elsif std_mode = '1' then
                                     next_state <= MTRAP_SV;
                                 else
                                     next_state <= TRAP_STATE;
                                 end if;
-                            -- D1 DRET (see the first site, in EXECUTE shape STRADDLE).
+                            -- DRET; see the split-fetch dispatch arm above.
                             elsif dret_op = '1' then
                                 mem_access_instr <= '0';
                                 next_state <= DBG_RET;
@@ -2825,11 +2247,11 @@ architecture struct of vesta is
                                     next_state <= TRAP_STATE;
                                 end if;
                             elsif ENABLE_PMP and pmp_d_deny = '1' then
-                                -- P3 PMP load/store access fault, the D5 arm; see the split-fetch arm above for the full rationale.
+                                -- PMP load/store access fault; see the split-fetch dispatch arm above.
                                 -- A compressed c.lw or c.sw reaches it through mem_access_controller exactly like a 32-bit one; cm.* sequencer steps are checked in their OWN states, so pmp_d_active is '0' at a zcm dispatch.
                                 mem_access_instr <= '0';
                                 if dbg_exc_take = '1' then
-                                    -- D2/F-D2-0 re-entry (see dbg_exc_take): debug mode never traps out.
+                                    -- Debug mode never traps out; re-enter instead. See dbg_exc_take.
                                     next_state <= DBG_JUMP;
                                 elsif std_mode = '1' then
                                     next_state <= MTRAP_SV;
@@ -2849,19 +2271,16 @@ architecture struct of vesta is
                                     next_state <= ZCM_POP_LD;
                                 end if;
                             elsif mem_access_controller = '1' then
-                                -- F9 (fix pass W4): see shape A's block at :2747.
-                                -- SHAPE B is the HALF-WORD-ALIGNED COMPRESSED shape, so `isr_ret` is statically '0' here: isr_ret needs op = CUSTOM_OPCODE and c_dec NEVER emits it (the same F5.3 argument recorded at :3240 for shape D, which is why shape B's own `elsif isr_ret` arm at :2970 is equally dead).
-                                -- The qualifier is carried on all four arms anyway so the rule is uniform and a fifth shape would inherit it; it folds away here.
+                                -- The iret qualifier; see the split-fetch dispatch arm above. It is statically '0' in this COMPRESSED shape, isr_ret needing op = CUSTOM_OPCODE which c_dec never emits, and folds away.
+                                -- It is carried on all four dispatch shapes anyway, so the rule is uniform and a fifth shape would inherit it.
                                 mem_access_instr <= not isr_ret;
                                 next_state <= MEMORY_WAIT;
                                 ci_st_lanes <= not wen_controller;
                             elsif is_div_op = '1' then
                                 next_state <= DIV_WAIT;
-                                -- Div-aliasing fix: suppress the EXECUTE-cycle writeback.
-                                -- The decode says reg_write='1' for a DIV, so an unsuppressed dispatch cycle clobbers rd with the ALU's idle ResultSignal, which is 0, before the divider latches its operands; rd is written exactly once, at DIV_DONE.
-                                -- S2 c5: the suppression is STRUCTURAL here now, because this arm declares no rd commit so the block drives '0'.
+                                -- The EXECUTE-cycle writeback must stay suppressed: the decode says reg_write='1' for a DIV, so an unsuppressed dispatch cycle clobbers rd with the ALU's idle result, 0, before the divider latches its operands. rd is written exactly once, at DIV_DONE.
                                 ci_st_lanes <= not wen_controller;
-                            -- D1 halt/step recognition, above both delivery takes; see the first site, in EXECUTE shape STRADDLE, for the full argument.
+                            -- Halt/step recognition, above both delivery takes: a halt request is unmaskable, so it is tested before irq_save and std_irq_take.
                             elsif dbg_halt_take = '1' then
                                 next_state <= DBG_SV;
                                 ci_rd_commit <= reg_write_ctrl;
@@ -2871,9 +2290,7 @@ architecture struct of vesta is
                                 ci_rd_commit <= reg_write_ctrl;
                                 ci_st_lanes  <= not wen_controller;
                             elsif std_irq_take = '1' then
-                                -- P1 standard delivery: the SAME check point, not a new one.
-                                -- In standard mode irq_save can never fire, because irq_en_eff is masked all-zero and the irq_handler FSM is pinned in IDLE, and in legacy mode std_irq_take is '0', so the two arms are mutually exclusive by construction.
-                                -- The X3 uninterruptible sequencers stay uninterruptible: they have no irq_save site, so they get no std_irq_take site either.
+                                -- Standard delivery reuses this check point: irq_save cannot fire in standard mode, where irq_en_eff is masked all-zero and the handler FSM is pinned in IDLE, and std_irq_take is '0' in legacy mode, so the two arms are mutually exclusive by construction.
                                 next_state <= MTRAP_SV;
                                 ci_rd_commit <= reg_write_ctrl;
                                 ci_st_lanes  <= not wen_controller;
@@ -2892,18 +2309,16 @@ architecture struct of vesta is
                     else
                         -- Full word boundary
                         if quadrant_lower = "11" then
-                            -- Not compressed.
-                            -- S2 c4: SHAPE_WA32 MIGRATED, the word-aligned 32-bit shape and the most-executed one in the machine.
-                            -- Structurally identical to SHAPE_STRADDLE: 37 of its 38 owned drives were the fail-safe values, and the 38th, the FENCE_WAIT pc_en '1', is carried by the ci_pc_advance declaration beside it.
+                            -- Not compressed: the word-aligned 32-bit shape, the most-executed dispatch in the machine, structurally identical to the split-fetch completion above.
                             is_compressed <= '0';
-                            
+
                             if trap = '1' then
                                 if dbg_exc_take = '1' then
-                                    -- D2/F-D2-0 re-entry (see dbg_exc_take): debug mode never traps out.
+                                    -- Debug mode never traps out; re-enter instead. See dbg_exc_take.
                                     mem_access_instr <= '0';
                                     next_state <= DBG_JUMP;
                                 elsif std_mode = '1' then
-                                    -- P1: recoverable illegal-instruction exception, cause 2 with mtval set to the faulting encoding.
+                                    -- Recoverable illegal-instruction exception: cause 2, mtval the faulting encoding.
                                     next_state <= MTRAP_SV;
                                     mem_access_instr <= '0';
                                 else
@@ -2911,7 +2326,7 @@ architecture struct of vesta is
                                     ci_rd_commit <= reg_write_ctrl;
                                     ci_st_lanes  <= not wen_controller;
                                 end if;
-                            -- D1 ebreak taking a debug entry, above the shared ecall/ebreak arm; see the first site, in EXECUTE shape STRADDLE, for the full argument.
+                            -- An ebreak taking a debug entry, above the shared ecall/ebreak arm; see the split-fetch dispatch arm above.
                             elsif ebreak_op = '1' and dbg_ebreak_take = '1' then
                                 mem_access_instr <= '0';
                                 if debug_mode = '1' then
@@ -2920,22 +2335,22 @@ architecture struct of vesta is
                                     next_state <= DBG_SV;
                                 end if;
                             elsif ecall_op = '1' or ebreak_op = '1' then
-                                -- P1 ECALL (cause 11) and EBREAK (cause 3); see the split-fetch arm above for the full rationale.
+                                -- ECALL (cause 11) and EBREAK (cause 3); see the split-fetch dispatch arm above.
                                 mem_access_instr <= '0';
                                 if dbg_exc_take = '1' then
-                                    -- D2/F-D2-0 re-entry (see dbg_exc_take): debug mode never traps out.
+                                    -- Debug mode never traps out; re-enter instead. See dbg_exc_take.
                                     next_state <= DBG_JUMP;
                                 elsif std_mode = '1' then
                                     next_state <= MTRAP_SV;
                                 else
                                     next_state <= TRAP_STATE;
                                 end if;
-                            -- D1 DRET (see the first site, in EXECUTE shape STRADDLE).
+                            -- DRET; see the split-fetch dispatch arm above.
                             elsif dret_op = '1' then
                                 mem_access_instr <= '0';
                                 next_state <= DBG_RET;
                             elsif mret_op = '1' then
-                                -- P1 MRET; see the split-fetch arm above.
+                                -- MRET; see the split-fetch dispatch arm above.
                                 mem_access_instr <= '0';
                                 if std_mode = '1' then
                                     next_state <= MTRAP_RET;
@@ -2943,10 +2358,10 @@ architecture struct of vesta is
                                     next_state <= TRAP_STATE;
                                 end if;
                             elsif ENABLE_PMP and pmp_d_deny = '1' then
-                                -- P3 PMP load/store access fault, the D5 arm; see the split-fetch arm above for the full rationale.
+                                -- PMP load/store access fault; see the split-fetch dispatch arm above.
                                 mem_access_instr <= '0';
                                 if dbg_exc_take = '1' then
-                                    -- D2/F-D2-0 re-entry (see dbg_exc_take): debug mode never traps out.
+                                    -- Debug mode never traps out; re-enter instead. See dbg_exc_take.
                                     next_state <= DBG_JUMP;
                                 elsif std_mode = '1' then
                                     next_state <= MTRAP_SV;
@@ -2958,14 +2373,14 @@ architecture struct of vesta is
                                 ci_rd_commit <= reg_write_ctrl;
                                 ci_st_lanes  <= not wen_controller;
                             elsif wfi_op = '1' then
-                                -- P2 standard WFI; see the split-fetch arm above for the full rationale.
-                                -- WFI is a 32-bit SYSTEM encoding with no compressed form, so these two word-dispatch arms are the ONLY places it can appear, exactly like extinguish and sleep_rq, whose arms it sits beside.
+                                -- Standard WFI; see the split-fetch dispatch arm above.
+                                -- WFI is a 32-bit SYSTEM encoding with no compressed form, so the two non-compressed dispatch arms are the ONLY places it can appear, like extinguish beside it.
                                 next_state <= SLEEPING;
                                 wfi_enter  <= '1';
                                 ci_rd_commit <= reg_write_ctrl;
                                 ci_st_lanes  <= not wen_controller;
                             elsif wrs_op = '1' then
-                                -- X1 Zawrs: stall only if a global reservation is live, otherwise the hint retires immediately.
+                                -- Zawrs: stall only if a global reservation is live, otherwise the hint retires immediately.
                                 ci_rd_commit <= reg_write_ctrl;
                                 ci_st_lanes  <= not wen_controller;
                                 if resv_valid_ext = '1' then
@@ -2975,28 +2390,25 @@ architecture struct of vesta is
                                     ci_pc_advance <= '1';
                                 end if;
                             elsif lr_op = '1' then
-                                -- Load-Reserved operation
+                                -- Load-Reserved.
                                 mem_access_instr <= '1';
                                 next_state <= LR_READ;
                                 ci_st_lanes <= not wen_controller;
                             elsif sc_op = '1' then
-                                -- Store-Conditional operation.
-                                -- M4b FIX: no EXECUTE-phase access; see the half-word path above.
+                                -- Store-Conditional: no EXECUTE-phase access and no store lanes, the only SC access being SC_CHECK's conditional write. See the split-fetch dispatch arm above.
                                 mem_access_instr <= '0';
                                 next_state <= SC_CHECK;
-                                -- M4b FIX: no unconditional EXECUTE-phase SC write; see the half-word path above.
-                                -- S2 c4: the suppression is now the block's fail-safe default, not a local drive.
                             elsif amo_op = '1' then
-                                -- Atomic memory operation
+                                -- Atomic memory operation.
                                 mem_access_instr <= '1';
                                 next_state <= AMO_READ;
                             elsif cboz_op = '1' then
-                                -- X3 Zicboz: launch the cbo.zero block-zero store sequencer; see the half-word arm above for the rationale.
+                                -- Launch the cbo.zero sequencer; see the split-fetch dispatch arm above.
                                 -- No access this cycle, the PC is frozen, and cboz_base is latched from rs1 on this transition.
                                 mem_access_instr <= '0';
                                 next_state <= CBOZ_WRITE;
                             elsif fence_op = '1' then
-                                -- X1 Zihintpause (D6): a PAUSE enters the arbiter-yield window, any other FENCE becomes a 1-cycle nop. See the half-word path above for the rationale.
+                                -- A PAUSE enters the arbiter-yield window, any other FENCE becomes a one-cycle nop; see the split-fetch dispatch arm above.
                                 ci_rd_commit <= reg_write_ctrl;
                                 ci_st_lanes  <= not wen_controller;
                                 if ENABLE_ZIHINT and pause_hint = '1' and PAUSE_WINDOW_CYCLES > 0 then
@@ -3006,25 +2418,22 @@ architecture struct of vesta is
                                     ci_pc_advance <= '1';
                                 end if;
                             elsif mem_access_controller = '1' then
-                                -- F9 (fix pass W4): see shape A's block at :2747.
-                                -- SHAPE C is the word-aligned 32-bit shape, so this arm and shape A's are the two that really carry an `iret`.
+                                -- The iret qualifier; see the split-fetch dispatch arm above. This word-aligned 32-bit shape and that one are the two that really carry an `iret`.
                                 mem_access_instr <= not isr_ret;
                                 next_state <= MEMORY_WAIT;
                                 ci_st_lanes <= not wen_controller;
                             elsif is_div_op = '1' then
                                 next_state <= DIV_WAIT;
-                                -- Div-aliasing fix: suppress the EXECUTE-cycle writeback.
-                                -- The decode says reg_write='1' for a DIV, so an unsuppressed dispatch cycle clobbers rd with the ALU's idle ResultSignal, which is 0, before the divider latches its operands; rd is written exactly once, at DIV_DONE.
-                                -- S2 c4: the suppression is STRUCTURAL here now, because this arm declares no rd commit so the block drives '0'.
+                                -- The EXECUTE-cycle writeback must stay suppressed: the decode says reg_write='1' for a DIV, so an unsuppressed dispatch cycle clobbers rd with the ALU's idle result, 0, before the divider latches its operands. rd is written exactly once, at DIV_DONE.
                                 ci_st_lanes <= not wen_controller;
                             elsif is_fp_fma = '1' then
-                                -- X4 Zfinx FMA; see the half-word arm for the rationale: freeze pc_en and force reg_write_dp '0' across dispatch.
+                                -- FMA: freeze pc_en and leave rd uncommitted across dispatch; see the split-fetch dispatch arm above.
                                 next_state <= FPU_FETCH3;
                                 ci_st_lanes <= not wen_controller;
                             elsif is_fp_multicycle = '1' then
                                 next_state <= FPU_WAIT;
                                 ci_st_lanes <= not wen_controller;
-                            -- D1 halt/step recognition, above both delivery takes; see the first site, in EXECUTE shape STRADDLE, for the full argument.
+                            -- Halt/step recognition, above both delivery takes: a halt request is unmaskable, so it is tested before irq_save and std_irq_take.
                             elsif dbg_halt_take = '1' then
                                 next_state <= DBG_SV;
                                 ci_rd_commit <= reg_write_ctrl;
@@ -3034,9 +2443,7 @@ architecture struct of vesta is
                                 ci_rd_commit <= reg_write_ctrl;
                                 ci_st_lanes  <= not wen_controller;
                             elsif std_irq_take = '1' then
-                                -- P1 standard delivery: the SAME check point, not a new one.
-                                -- In standard mode irq_save can never fire, because irq_en_eff is masked all-zero and the irq_handler FSM is pinned in IDLE, and in legacy mode std_irq_take is '0', so the two arms are mutually exclusive by construction.
-                                -- The X3 uninterruptible sequencers stay uninterruptible: they have no irq_save site, so they get no std_irq_take site either.
+                                -- Standard delivery reuses this check point: irq_save cannot fire in standard mode, where irq_en_eff is masked all-zero and the handler FSM is pinned in IDLE, and std_irq_take is '0' in legacy mode, so the two arms are mutually exclusive by construction.
                                 next_state <= MTRAP_SV;
                                 ci_rd_commit <= reg_write_ctrl;
                                 ci_st_lanes  <= not wen_controller;
@@ -3052,17 +2459,15 @@ architecture struct of vesta is
                                 ci_pc_advance <= '1';
                             end if;
                         else
-                            -- Compressed instruction.
-                            -- S2 c6: SHAPE_WAC MIGRATED, the last of the seven.
-                            -- A pure deletion like SHAPE_HWC, whose missing-arm set it shares; with this arm the EXECUTE state holds no direct drive of the four owned nets at all.
+                            -- Compressed instruction on a word boundary. It shares the half-word compressed shape's missing-arm set: no fence, lr, sc, amo, cboz, wfi, wrs or fp arms, because no compressed encoding decompresses to one.
                             is_compressed <= '1';
                             if trap = '1' then
                                 if dbg_exc_take = '1' then
-                                    -- D2/F-D2-0 re-entry (see dbg_exc_take): debug mode never traps out.
+                                    -- Debug mode never traps out; re-enter instead. See dbg_exc_take.
                                     mem_access_instr <= '0';
                                     next_state <= DBG_JUMP;
                                 elsif std_mode = '1' then
-                                    -- P1: recoverable illegal-instruction exception
+                                    -- Recoverable illegal-instruction exception.
                                     next_state <= MTRAP_SV;
                                     mem_access_instr <= '0';
                                 else
@@ -3070,7 +2475,7 @@ architecture struct of vesta is
                                     ci_rd_commit <= reg_write_ctrl;
                                     ci_st_lanes  <= not wen_controller;
                                 end if;
-                            -- D1 ebreak taking a debug entry, above the shared ecall/ebreak arm; see the first site, in EXECUTE shape STRADDLE, for the full argument.
+                            -- An ebreak taking a debug entry, above the shared ecall/ebreak arm; see the split-fetch dispatch arm above.
                             elsif ebreak_op = '1' and dbg_ebreak_take = '1' then
                                 mem_access_instr <= '0';
                                 if debug_mode = '1' then
@@ -3079,17 +2484,17 @@ architecture struct of vesta is
                                     next_state <= DBG_SV;
                                 end if;
                             elsif ecall_op = '1' or ebreak_op = '1' then
-                                -- P1: c.ebreak decompresses to EBREAK (c_dec:~676).
+                                -- c.ebreak decompresses to EBREAK, so this arm can see ebreak_op.
                                 mem_access_instr <= '0';
                                 if dbg_exc_take = '1' then
-                                    -- D2/F-D2-0 re-entry (see dbg_exc_take): debug mode never traps out.
+                                    -- Debug mode never traps out; re-enter instead. See dbg_exc_take.
                                     next_state <= DBG_JUMP;
                                 elsif std_mode = '1' then
                                     next_state <= MTRAP_SV;
                                 else
                                     next_state <= TRAP_STATE;
                                 end if;
-                            -- D1 DRET (see the first site, in EXECUTE shape STRADDLE).
+                            -- DRET; see the split-fetch dispatch arm above.
                             elsif dret_op = '1' then
                                 mem_access_instr <= '0';
                                 next_state <= DBG_RET;
@@ -3101,11 +2506,11 @@ architecture struct of vesta is
                                     next_state <= TRAP_STATE;
                                 end if;
                             elsif ENABLE_PMP and pmp_d_deny = '1' then
-                                -- P3 PMP load/store access fault, the D5 arm; see the split-fetch arm above for the full rationale.
+                                -- PMP load/store access fault; see the split-fetch dispatch arm above.
                                 -- A compressed c.lw or c.sw reaches it through mem_access_controller exactly like a 32-bit one; cm.* sequencer steps are checked in their OWN states, so pmp_d_active is '0' at a zcm dispatch.
                                 mem_access_instr <= '0';
                                 if dbg_exc_take = '1' then
-                                    -- D2/F-D2-0 re-entry (see dbg_exc_take): debug mode never traps out.
+                                    -- Debug mode never traps out; re-enter instead. See dbg_exc_take.
                                     next_state <= DBG_JUMP;
                                 elsif std_mode = '1' then
                                     next_state <= MTRAP_SV;
@@ -3125,18 +2530,15 @@ architecture struct of vesta is
                                     next_state <= ZCM_POP_LD;
                                 end if;
                             elsif mem_access_controller = '1' then
-                                -- F9 (fix pass W4): see shape A's block at :2747.
-                                -- SHAPE D is the WORD-ALIGNED COMPRESSED shape, so `isr_ret` is statically '0' here for the F5.3 reason spelled out at :3240 below; the qualifier is carried anyway for uniformity and folds away.
+                                -- The iret qualifier; see the split-fetch dispatch arm above. It is statically '0' in this COMPRESSED shape and is carried only for uniformity.
                                 mem_access_instr <= not isr_ret;
                                 next_state <= MEMORY_WAIT;
                                 ci_st_lanes <= not wen_controller;
                             elsif is_div_op = '1' then
                                 next_state <= DIV_WAIT;
-                                -- Div-aliasing fix: suppress the EXECUTE-cycle writeback.
-                                -- The decode says reg_write='1' for a DIV, so an unsuppressed dispatch cycle clobbers rd with the ALU's idle ResultSignal, which is 0, before the divider latches its operands; rd is written exactly once, at DIV_DONE.
-                                -- S2 c6: the suppression is STRUCTURAL here now, because this arm declares no rd commit so the block drives '0'.
+                                -- The EXECUTE-cycle writeback must stay suppressed: the decode says reg_write='1' for a DIV, so an unsuppressed dispatch cycle clobbers rd with the ALU's idle result, 0, before the divider latches its operands. rd is written exactly once, at DIV_DONE.
                                 ci_st_lanes <= not wen_controller;
-                            -- D1 halt/step recognition, above both delivery takes; see the first site, in EXECUTE shape STRADDLE, for the full argument.
+                            -- Halt/step recognition, above both delivery takes: a halt request is unmaskable, so it is tested before irq_save and std_irq_take.
                             elsif dbg_halt_take = '1' then
                                 next_state <= DBG_SV;
                                 ci_rd_commit <= reg_write_ctrl;
@@ -3146,18 +2548,12 @@ architecture struct of vesta is
                                 ci_rd_commit <= reg_write_ctrl;
                                 ci_st_lanes  <= not wen_controller;
                             elsif std_irq_take = '1' then
-                                -- P1 standard delivery: the SAME check point, not a new one.
-                                -- In standard mode irq_save can never fire, because irq_en_eff is masked all-zero and the irq_handler FSM is pinned in IDLE, and in legacy mode std_irq_take is '0', so the two arms are mutually exclusive by construction.
-                                -- The X3 uninterruptible sequencers stay uninterruptible: they have no irq_save site, so they get no std_irq_take site either.
+                                -- Standard delivery reuses this check point: irq_save cannot fire in standard mode, where irq_en_eff is masked all-zero and the handler FSM is pinned in IDLE, and std_irq_take is '0' in legacy mode, so the two arms are mutually exclusive by construction.
                                 next_state <= MTRAP_SV;
                                 ci_rd_commit <= reg_write_ctrl;
                                 ci_st_lanes  <= not wen_controller;
-                            -- F5.3 (fix pass W1): this arm, the WORD-ALIGNED COMPRESSED shape, deliberately has NO `elsif isr_ret = '1'` branch, unlike its three siblings.
-                            -- That is CORRECT, not an omission, and the branch must not be added: isr_ret requires op = CUSTOM_OPCODE (maindec.vhd:921; constants.vhd:65 is "0001011", a 32-bit encoding with bits[1:0]="11"), and c_dec NEVER emits CUSTOM_OPCODE.
-                            -- So no compressed instruction can decompress into an `iret` and this branch would be unreachable by construction; adding it would be an FSM behaviour change bought for nothing.
-                            -- F9 (fix pass W4) COROLLARY, measured by the W4 detector agent against c_dec's complete opcode set (c_dec.vhd:790, one instr_out assignment; the literals it can emit are 0010011, 0110011, 0100011, 0000011, 1101111, 1100111, 1100011, 0110111 and ZCM_SENTINEL_OP, and 0001011 is NOT among them).
-                            -- The SAME argument makes shape B's PRESENT `elsif isr_ret` arm at :2970 dead too, so shape D's missing arm is not the asymmetry; shape B's spare one is.
-                            -- Neither is removed: deleting a dead arm from one of four near-identical shapes is a bigger readability hazard than leaving it documented.
+                            -- This shape deliberately has NO `elsif isr_ret` branch, unlike its siblings, and one must not be added: isr_ret requires op = CUSTOM_OPCODE, which c_dec never emits, so no compressed instruction can decompress into an `iret`.
+                            -- By the same argument the half-word compressed shape's own isr_ret arm is dead; neither is removed, deleting a dead arm from one of four near-identical shapes being the bigger readability hazard.
                             else
                                 next_state <= EXECUTE;
                                 ci_rd_commit  <= reg_write_ctrl;
@@ -3167,43 +2563,28 @@ architecture struct of vesta is
                         end if;
                     end if;
 
-                -- ==========================================
-                -- AMO_READ State - Read phase of atomic operation
-                -- ==========================================
+                -- AMO read phase: it asserts the request but commits nothing yet.
                 when AMO_READ =>
-                    -- S2 c10: MIGRATED. Read phase: no store lanes and no rd yet, and all three are the fail-safe values, so the arm declares nothing and the block supplies them.
-                    -- mem_access_instr stays here: it is not an owned signal and it encodes the AMO bus protocol, since the read phase asserts the request.
                     mem_access_instr <= '1';
                     next_state <= AMO_WRITEBACK;
-                -- ==========================================
-                -- AMO_WRITEBACK State - Write value to rd
-                -- ==========================================
+                -- The AMO's rd commit site: it returns the OLD memory value to rd, so the declaration is an unconditional '1' rather than the live decode, the value being the state's own.
                 when AMO_WRITEBACK =>
-                    -- S2 c10: MIGRATED. This is the AMO's rd commit site: it returns the OLD memory value to rd, which is why the declaration is an unconditional '1' rather than the live decode, since the value committed here is the state's own and not the decoder's.
-                    -- No memory access this cycle.
                     mem_access_instr <= '0';
                     ci_rd_commit <= '1';
                     next_state <= AMO_COMPUTE;
 
-                -- ==========================================
-                -- AMO_COMPUTE State - Compute phase of atomic operation
-                -- ==========================================
+                -- AMO compute phase: rd was already committed in AMO_WRITEBACK, so this cycle commits nothing.
                 when AMO_COMPUTE =>
-                    -- S2 c10: MIGRATED. rd was already committed in AMO_WRITEBACK, so this cycle commits nothing and declares nothing; the fail-safe default IS the intent here.
                     mem_access_instr <= '0';
                     next_state <= AMO_WRITE;
 
-                -- ==========================================
-                -- AMO_WRITE State - Write phase of atomic operation
-                -- ==========================================
+                -- AMO write phase. The store lanes are the COMPUTED amo_wen vector, inverted because ci_st_lanes is active-high.
                 when AMO_WRITE =>
-                    -- S2 c10: MIGRATED. The store lanes are the COMPUTED vector amo_wen (X2 Zabha byte-lane enables, "0000" for a word AMO); only the drive moved, and the computation stays at its own site.
-                    -- ci_st_lanes is ACTIVE-HIGH, hence the inversion.
                     mem_access_instr <= '1';
                     ci_pc_advance <= '1';
                     ci_st_lanes   <= not amo_wen;
                     
-                    -- D1 halt/step recognition, above both delivery takes; see the first site, in EXECUTE shape STRADDLE, for the full argument.
+                    -- Halt/step recognition, above both delivery takes: a halt request is unmaskable, so it is tested before irq_save and std_irq_take.
                     if dbg_halt_take = '1' then
                         next_state <= DBG_SV;
                         ci_pc_advance <= '0';
@@ -3211,9 +2592,7 @@ architecture struct of vesta is
                         next_state <= IRQ_SV;
                         ci_pc_advance <= '0';
                     elsif std_irq_take = '1' then
-                        -- P1 standard delivery: the SAME check point, not a new one.
-                        -- In standard mode irq_save can never fire, because irq_en_eff is masked all-zero and the irq_handler FSM is pinned in IDLE, and in legacy mode std_irq_take is '0', so the two arms are mutually exclusive by construction.
-                        -- The X3 uninterruptible sequencers stay uninterruptible: they have no irq_save site, so they get no std_irq_take site either.
+                        -- Standard delivery reuses this check point: irq_save cannot fire in standard mode, where irq_en_eff is masked all-zero and the handler FSM is pinned in IDLE, and std_irq_take is '0' in legacy mode, so the two arms are mutually exclusive by construction.
                         next_state <= MTRAP_SV;
                         ci_pc_advance <= '0';
                     else
@@ -3221,14 +2600,11 @@ architecture struct of vesta is
                         next_state <= AMO_COMPLETE;
                     end if;
 
-                -- ==========================================
-                -- AMO COMPLETE State - Fetch next instruction
-                -- ==========================================
+                -- The AMO's retire bubble, which fetches the next instruction: no access, no commit, and the PC advances unless an interrupt is taken here.
                 when AMO_COMPLETE =>
-                    -- S2 c10: MIGRATED. The AMO's retire bubble: no access, no commit, and the PC advances unless an interrupt is taken here.
                     mem_access_instr <= '0';
                     ci_pc_advance <= '1';
-                    -- D1 halt/step recognition, above both delivery takes; see the first site, in EXECUTE shape STRADDLE, for the full argument.
+                    -- Halt/step recognition, above both delivery takes: a halt request is unmaskable, so it is tested before irq_save and std_irq_take.
                     if dbg_halt_take = '1' then
                         next_state <= DBG_SV;
                         ci_pc_advance <= '0';
@@ -3236,26 +2612,20 @@ architecture struct of vesta is
                         next_state <= IRQ_SV;
                         ci_pc_advance <= '0';
                     elsif std_irq_take = '1' then
-                        -- P1 standard delivery: the SAME check point, not a new one.
-                        -- In standard mode irq_save can never fire, because irq_en_eff is masked all-zero and the irq_handler FSM is pinned in IDLE, and in legacy mode std_irq_take is '0', so the two arms are mutually exclusive by construction.
-                        -- The X3 uninterruptible sequencers stay uninterruptible: they have no irq_save site, so they get no std_irq_take site either.
+                        -- Standard delivery reuses this check point: irq_save cannot fire in standard mode, where irq_en_eff is masked all-zero and the handler FSM is pinned in IDLE, and std_irq_take is '0' in legacy mode, so the two arms are mutually exclusive by construction.
                         next_state <= MTRAP_SV;
                         ci_pc_advance <= '0';
                     else
                         next_state <= EXECUTE;
                     end if;
 
-                -- ==========================================
-                -- LR_READ State - Load-Reserved read
-                -- ==========================================
+                -- Load-Reserved read, and the LR's rd commit site: it returns the loaded word, so the declaration is an unconditional '1'. A read, so no store lanes.
                 when LR_READ =>
-                    -- S2 c11: MIGRATED. The LR's rd commit site: it returns the loaded word, so the declaration is an unconditional '1', the value being the state's own and not the decoder's.
-                    -- Read operation, so no store lanes, which is the fail-safe default; mem_access_instr stays because it is not owned and it is what makes this a read.
                     mem_access_instr <= '1';
                     ci_pc_advance <= '1';
                     ci_rd_commit  <= '1';
                     
-                    -- D1 halt/step recognition, above both delivery takes; see the first site, in EXECUTE shape STRADDLE, for the full argument.
+                    -- Halt/step recognition, above both delivery takes: a halt request is unmaskable, so it is tested before irq_save and std_irq_take.
                     if dbg_halt_take = '1' then
                         next_state <= DBG_SV;
                         ci_pc_advance <= '0';
@@ -3263,50 +2633,30 @@ architecture struct of vesta is
                         next_state <= IRQ_SV;
                         ci_pc_advance <= '0';
                     elsif std_irq_take = '1' then
-                        -- P1 standard delivery: the SAME check point, not a new one.
-                        -- In standard mode irq_save can never fire, because irq_en_eff is masked all-zero and the irq_handler FSM is pinned in IDLE, and in legacy mode std_irq_take is '0', so the two arms are mutually exclusive by construction.
-                        -- The X3 uninterruptible sequencers stay uninterruptible: they have no irq_save site, so they get no std_irq_take site either.
+                        -- Standard delivery reuses this check point: irq_save cannot fire in standard mode, where irq_en_eff is masked all-zero and the handler FSM is pinned in IDLE, and std_irq_take is '0' in legacy mode, so the two arms are mutually exclusive by construction.
                         next_state <= MTRAP_SV;
                         ci_pc_advance <= '0';
                     else
                         next_state <= AMO_COMPLETE;
                     end if;
 
-                -- ==========================================
-                -- SC_CHECK State - Store-Conditional check and write
-                -- ==========================================
+                -- Store-Conditional check and write. rd is committed unconditionally, because the SC writes its success or fail result to rd on BOTH paths, so the declaration sits above the reservation test rather than inside it; only the STORE LANES are conditional.
                 when SC_CHECK =>
-                    -- S2 c11: MIGRATED. rd is committed unconditionally here, because the SC writes its success or fail result to rd on BOTH paths, which is why the declaration is '1' and sits above the reservation test rather than inside it.
-                    -- Only the STORE LANES are conditional, below.
                     ci_pc_advance <= '1';
                     ci_rd_commit  <= '1';
 
-                    -- Only write if the reservation is valid and the addresses match.
-                    -- F2 (fix pass W1): and only ISSUE A BUS ACCESS AT ALL under that same condition.
-                    -- mem_access_instr used to be asserted here UNCONDITIONALLY, so a locally-FAILED sc.w still put rs1 on data_addr, via the SC_CHECK term of the data_addr mux, copy 1 of the four listed below, with only the lanes suppressed.
-                    -- hart_tile's sh_sel is a PURE DECODE of data_addr (hart_tile.vhd:654, sh_req_int :726), so the failed SC performed a real, side-effecting shared-window READ: an atomic claim of a HW mutex, an atomic CLAIM of the IRQ router, an SPIxRX TCIF auto-clear.
-                    -- BOTH halves of the fix are required. Suppressing the request alone would drop the mux through to the `ALU_Result when mem_access_instr = '1'` arm, and the ALU is in pass-B during SC_CHECK, where ALU_Result is the SC's rd, 0 or 1, a WORSE phantom address, inside the boot ROM.
-                    -- So the data_addr mux's SC_CHECK term carries the SAME literal predicate; they must be kept textually identical.
-                    -- On the failing path data_addr falls through to pc_next, which during SC_CHECK is pc_next_reg, the very address the following AMO_COMPLETE bubble presents anyway, i.e. a redundant, harmless early fetch of the pending word.
-                    -- Untouched on purpose: the reservation unit and the success path. Detector: rv32ua-p-scfailrd.
-                    --
-                    -- ***** SC-SUCCESS PREDICATE: FOUR COPIES, ALL IDENTICAL *****
-                    -- `reservation_valid = '1' and reservation_addr = rs1_value` is duplicated at FOUR sites. Change all four or none: a divergence between them is SILENT.
-                    -- Listed by role, not line number, because numbers rot and three of the four also WRAP across lines, so a line-based grep finds only this one:
-                    --   1. the data_addr mux's SC_CHECK term  (steers rs1_value)
-                    --   2. amo_phase                          ("101" SC-success, with sc_fail_ext)
-                    --   3. lr_sc_bus                          ("10" SC-write tag)
-                    --   4. THIS arm                           (store lanes and mem_access_instr)
-                    -- S2 c11 replaced the old two-site SYNC notes, which named one sibling each and missed copies 2 and 3 entirely.
-                    if reservation_valid = '1' and reservation_addr = rs1_value then  -- M4b: rs1, not the phase-dependent ALU_result
-                        ci_st_lanes <= "1111";   -- write word (success)
+                    -- Write, and ISSUE A BUS ACCESS AT ALL, only when the reservation is valid and the addresses match: asserting mem_access_instr unconditionally makes a locally-FAILED sc.w perform a real, side-effecting shared-window READ, which can atomically claim a hardware mutex or the IRQ router, or auto-clear an SPI status flag.
+                    -- Suppressing only the request is worse still, data_addr then falling through to ALU_Result, which holds the SC's own rd value here; on the failing path it falls through to pc_next instead, a harmless early fetch of the word the following AMO_COMPLETE bubble presents anyway.
+                    -- SC-SUCCESS PREDICATE, FOUR IDENTICAL COPIES: this arm, the data_addr mux's SC_CHECK term, amo_phase and lr_sc_bus. Change all four or none, since a divergence is SILENT.
+                    if reservation_valid = '1' and reservation_addr = rs1_value then  -- rs1, not the phase-dependent ALU_result
+                        ci_st_lanes <= "1111";   -- write the word: success
                         mem_access_instr <= '1';
                     else
-                        -- no lanes declared, so the fail-safe "0000" intent makes wen all-ones
-                        mem_access_instr <= '0';  -- F2: and no READ either
+                        -- No lanes declared, so the fail-safe intent makes wen all-ones, and no read either.
+                        mem_access_instr <= '0';
                     end if;
                     
-                    -- D1 halt/step recognition, above both delivery takes; see the first site, in EXECUTE shape STRADDLE, for the full argument.
+                    -- Halt/step recognition, above both delivery takes: a halt request is unmaskable, so it is tested before irq_save and std_irq_take.
                     if dbg_halt_take = '1' then
                         next_state <= DBG_SV;
                         ci_pc_advance <= '0';
@@ -3314,34 +2664,20 @@ architecture struct of vesta is
                         next_state <= IRQ_SV;
                         ci_pc_advance <= '0';
                     elsif std_irq_take = '1' then
-                        -- P1 standard delivery: the SAME check point, not a new one.
-                        -- In standard mode irq_save can never fire, because irq_en_eff is masked all-zero and the irq_handler FSM is pinned in IDLE, and in legacy mode std_irq_take is '0', so the two arms are mutually exclusive by construction.
-                        -- The X3 uninterruptible sequencers stay uninterruptible: they have no irq_save site, so they get no std_irq_take site either.
+                        -- Standard delivery reuses this check point: irq_save cannot fire in standard mode, where irq_en_eff is masked all-zero and the handler FSM is pinned in IDLE, and std_irq_take is '0' in legacy mode, so the two arms are mutually exclusive by construction.
                         next_state <= MTRAP_SV;
                         ci_pc_advance <= '0';
                     else
                         next_state <= AMO_COMPLETE;
                     end if;
-                -- ==========================================
-                -- CBOZ_WRITE State - X3 Zicboz cbo.zero block-zero store
-                -- ==========================================
-                -- Issue the full-word 0 store for word cboz_idx.
-                -- wen="0000" is active-low for ALL FOUR lanes, the FULL-WORD strobe, so every byte of the word is committed and the global reservation unit sees an ordinary committed store.
-                -- data_addr is the registered block base plus cboz_idx*4 and write_data is 0, both driven by the CBOZ_WRITE mux terms above.
-                -- UNINTERRUPTIBLE: there is no irq_save check here, so the burst runs to completion before any interrupt is taken.
-                -- RAM on this core is idempotent and fault-free (no PMP and no bus fault on the RAM window), so there is no mid-sequence trap and no re-execution machinery is needed.
-                -- P3, section 4 ("sequencer steps check each generated address pre-issue and abort with NO sp/rd commit; mepc is the cm/cbo instruction"): the per-word check rides THIS state, because the burst address cboz_base + 4*cboz_idx only exists here.
-                -- A denial means no lane strobe and no request, and the data_addr mux term for CBOZ_WRITE is gated by the same pmp_d_deny, so the denied word is never on the bus.
-                -- cbo.zero writes no register, and pc_en has been '0' since dispatch, so pc still holds the cbo.zero itself and mepc is right.
-                -- Zicboz is OFF in the Castalia/Argus configs, so this arm is structural, folding away with ENABLE_ZICBOZ, and was sim-untested in P3; flagged for the red team.
+                -- cbo.zero block-zero store: issue the full-word zero store for word cboz_idx, from the registered block base plus cboz_idx*4, with all four lanes strobed so the reservation unit sees an ordinary committed store.
+                -- UNINTERRUPTIBLE, there being no irq_save check, so the burst runs to completion; RAM here is idempotent and fault-free, so no mid-sequence trap and no re-execution machinery is needed.
+                -- The per-word PMP check rides THIS state, because the burst address only exists here; a denial leaves no lane strobe and no request, and the data_addr term is gated by the same pmp_d_deny. The PC has been frozen since dispatch, so mepc is the cbo.zero itself.
                 when CBOZ_WRITE =>
-                    -- S2 c12: MIGRATED. The PC is frozen and there is no rd commit for the whole burst, and both are the fail-safe defaults, so neither is declared.
-                    -- Only the store lanes differ per branch: the PMP-deny path declares nothing, giving all-ones and no strobe, and the store path declares the FULL-WORD "1111".
-                    -- mem_access_instr is not owned and keeps its per-branch protocol values.
                     if ENABLE_PMP and pmp_d_deny = '1' then
                         mem_access_instr <= '0';
                         if dbg_exc_take = '1' then
-                            -- D2/F-D2-0 re-entry (see dbg_exc_take): debug mode never traps out.
+                            -- Debug mode never traps out; re-enter instead. See dbg_exc_take.
                             next_state <= DBG_JUMP;
                         elsif std_mode = '1' then
                             next_state <= MTRAP_SV;
@@ -3354,15 +2690,9 @@ architecture struct of vesta is
                         next_state       <= CBOZ_GAP;
                     end if;
 
-                -- ==========================================
-                -- CBOZ_GAP State - req-low settle between block-zero stores
-                -- ==========================================
-                -- The shared-bus arbiter's WAIT-FOR-RELEASE re-grants a served master only after its sh_req is OBSERVED low, and mem_access='0' here drops sh_req for one cycle so the NEXT word can be granted.
-                -- This is exactly the store-then-MEMORY_WAIT cadence: no grant-lock, no new arbiter protocol, and amo_lock stays '0'.
-                -- Still UNINTERRUPTIBLE. After the last word the burst retires through MEMORY_WAIT, where the PC advance and the IRQ re-check happen; cboz_idx advances in cboz_seq_proc on this state.
+                -- Req-low settle between block-zero stores: the arbiter re-grants a served master only after its request is OBSERVED low, so mem_access_instr '0' here drops it for one cycle and the NEXT word can be granted. No grant-lock and no new arbiter protocol.
+                -- Still uninterruptible; after the last word the burst retires through MEMORY_WAIT, where the PC advance and the interrupt re-check happen, and cboz_idx advances on this state.
                 when CBOZ_GAP =>
-                    -- S2 c12: MIGRATED. A pure hold cycle with no PC advance, no rd commit and no store, all three being the fail-safe defaults, so this arm declares nothing at all.
-                    -- mem_access_instr '0' is what makes it the req-low settle the arbiter needs.
                     mem_access_instr <= '0';
                     if cboz_idx = CBOZ_WORDS - 1 then
                         next_state <= MEMORY_WAIT;
@@ -3370,17 +2700,13 @@ architecture struct of vesta is
                         next_state <= CBOZ_WRITE;
                     end if;
 
-                -- X3 Zcmp/Zcmt sequencer states: all UNINTERRUPTIBLE (no irq_save), sp committed once and last in ZCM_SP_COMMIT, and every index and address taken from registered state.
-                -- P3: per-slot pre-issue check, the same contract as CBOZ_WRITE.
-                -- sp is committed ONCE and LAST in ZCM_SP_COMMIT, which a fault here never reaches, so the "no sp/rd commit" half of section 4 is structural, and pc, frozen since dispatch, is the cm.push itself.
-                -- Zcmp and Zcmt are OFF in the Castalia/Argus configs, so this is structural and sim-untested.
+                -- Zcmp/Zcmt sequencer states: all UNINTERRUPTIBLE, with every index and address taken from registered state, and sp committed ONCE and LAST in ZCM_SP_COMMIT, which a fault here never reaches.
+                -- Per-slot pre-issue PMP check, the same contract as CBOZ_WRITE; the PC is frozen from dispatch, so mepc is the cm.push itself.
                 when ZCM_PUSH_ST =>
-                    -- S2 c13: MIGRATED. The PC is frozen and there is no rd commit for the whole push sequence, since sp is committed ONCE and LAST in ZCM_SP_COMMIT; both are fail-safe, so neither is declared.
-                    -- Only the store lanes differ per branch, exactly as in CBOZ_WRITE: the PMP-deny path declares nothing, giving all-ones and no strobe, and the store path declares the FULL-WORD "1111".
                     if ENABLE_PMP and pmp_d_deny = '1' then
                         mem_access_instr <= '0';
                         if dbg_exc_take = '1' then
-                            -- D2/F-D2-0 re-entry (see dbg_exc_take): debug mode never traps out.
+                            -- Debug mode never traps out; re-enter instead. See dbg_exc_take.
                             next_state <= DBG_JUMP;
                         elsif std_mode = '1' then
                             next_state <= MTRAP_SV;
@@ -3393,8 +2719,8 @@ architecture struct of vesta is
                         next_state       <= ZCM_PUSH_GAP;
                     end if;
 
+                -- A pure req-low settle cycle between frame stores.
                 when ZCM_PUSH_GAP =>
-                    -- S2 c13: MIGRATED. A pure settle cycle that declares nothing.
                     mem_access_instr <= '0';
                     if zcm_idx = zcm_nregs_val - 1 then
                         next_state <= ZCM_SP_COMMIT;
@@ -3402,14 +2728,12 @@ architecture struct of vesta is
                         next_state <= ZCM_PUSH_ST;
                     end if;
 
-                -- P3: per-slot pre-issue check reporting cause 5, since a pop slot is a LOAD.
-                -- The register writeback happens in ZCM_POP_WB, which a fault never reaches, so there is no rd commit. Structural and sim-untested, since Zcmp is OFF.
+                -- Issue the frame-slot load. Its per-slot pre-issue check reports cause 5, a pop slot being a LOAD, and the writeback happens in ZCM_POP_WB, which a fault never reaches, so this cycle commits nothing.
                 when ZCM_POP_LD =>
-                    -- S2 c13: MIGRATED. Issues the frame-slot load; the writeback is ZCM_POP_WB's, so this cycle declares nothing.
                     if ENABLE_PMP and pmp_d_deny = '1' then
                         mem_access_instr <= '0';
                         if dbg_exc_take = '1' then
-                            -- D2/F-D2-0 re-entry (see dbg_exc_take): debug mode never traps out.
+                            -- Debug mode never traps out; re-enter instead. See dbg_exc_take.
                             next_state <= DBG_JUMP;
                         elsif std_mode = '1' then
                             next_state <= MTRAP_SV;
@@ -3421,8 +2745,8 @@ architecture struct of vesta is
                         next_state       <= ZCM_POP_WB;
                     end if;
 
+                -- A cm.pop rd commit site: the value is the loaded frame word.
                 when ZCM_POP_WB =>
-                    -- S2 c13: MIGRATED. A cm.pop rd commit site; the value is the loaded frame word, so the declaration is '1'.
                     ci_rd_commit     <= '1';
                     mem_access_instr <= '0';
                     if zcm_idx = zcm_nregs_val - 1 then
@@ -3435,17 +2759,15 @@ architecture struct of vesta is
                         next_state <= ZCM_POP_LD;
                     end if;
 
+                -- cm.popretz clears a0, which is an rd commit.
                 when ZCM_A0Z =>
-                    -- S2 c13: MIGRATED. cm.popretz clears a0, which is an rd commit.
                     ci_rd_commit     <= '1';
                     mem_access_instr <= '0';
                     next_state       <= ZCM_SP_COMMIT;
 
+                -- The one and only sp commit of a cm.* sequence. The enable comes from the commit block and the DATA is assigned here, and they stay same-cycle only because that block is COMBINATIONAL and lives in this process:
+                -- both settle in the same delta and land on the same clock edge. A registered commit interface would break exactly this pairing.
                 when ZCM_SP_COMMIT =>
-                    -- S2 c13: MIGRATED, and the one PAIRING to be careful with.
-                    -- sp_write_en is OWNED and migrates; sp_write_data is NOT owned and stays right here.
-                    -- They remain same-cycle: the commit block is COMBINATIONAL and lives in this very process, so it assigns sp_write_en later in the SAME evaluation that assigns sp_write_data below, and both settle in the same delta and land on the same clock edge.
-                    -- Only which statement writes the enable moved. A REGISTERED interface would have broken exactly this; spec section 0 rejected one, and this arm is why it matters.
                     mem_access_instr <= '0';
                     ci_sp_commit     <= '1';
                     sp_write_data    <= zcm_final_sp;
@@ -3455,32 +2777,30 @@ architecture struct of vesta is
                         next_state <= MEMORY_WAIT;
                     end if;
 
+                -- cm.popret's PC redirect, with no commit.
                 when ZCM_RET =>
-                    -- S2 c13: MIGRATED. cm.popret's PC redirect, with no commit.
                     ci_pc_advance    <= '1';
                     mem_access_instr <= '0';
                     next_state       <= EXECUTE;
 
+                -- First of the two cm.mv rd commits.
                 when ZCM_MV1 =>
-                    -- S2 c13: MIGRATED. First of the two cm.mv rd commits.
                     ci_rd_commit     <= '1';
                     mem_access_instr <= '0';
                     next_state       <= ZCM_MV2;
 
+                -- Second cm.mv rd commit; retires via MEMORY_WAIT.
                 when ZCM_MV2 =>
-                    -- S2 c13: MIGRATED. Second cm.mv rd commit; retires via MEMORY_WAIT.
                     ci_rd_commit     <= '1';
                     mem_access_instr <= '0';
                     next_state       <= MEMORY_WAIT;
 
-                -- P3: the Zcmt jump-TABLE fetch is a DATA read of jvt + 4*index, riding data_addr rather than the fetch path, so it is checked on the data port and reports cause 5.
-                -- The target capture and the ra link both live in ZCM_JT_WB, which a fault never reaches. Structural and sim-untested, since Zcmt is OFF.
+                -- Issue the jvt table read. It is a DATA read of jvt + 4*index riding data_addr rather than the fetch path, so it is checked on the data port and reports cause 5; the target capture and the ra link both land in ZCM_JT_WB.
                 when ZCM_JT_LD =>
-                    -- S2 c13: MIGRATED. Issues the jvt table read; the target capture and the ra link both land in ZCM_JT_WB.
                     if ENABLE_PMP and pmp_d_deny = '1' then
                         mem_access_instr <= '0';
                         if dbg_exc_take = '1' then
-                            -- D2/F-D2-0 re-entry (see dbg_exc_take): debug mode never traps out.
+                            -- Debug mode never traps out; re-enter instead. See dbg_exc_take.
                             next_state <= DBG_JUMP;
                         elsif std_mode = '1' then
                             next_state <= MTRAP_SV;
@@ -3492,62 +2812,41 @@ architecture struct of vesta is
                         next_state       <= ZCM_JT_WB;
                     end if;
 
+                -- Capture the target and redirect the PC. The rd commit is CONDITIONAL on zcm_jt_link, since cm.jalt links ra and cm.jt does not.
                 when ZCM_JT_WB =>
-                    -- S2 c13: MIGRATED. The rd commit is CONDITIONAL on the computed zcm_jt_link, since cm.jalt links ra and cm.jt does not; the declaration carries that value verbatim and the computation stays at its own site.
                     ci_pc_advance    <= '1';
                     ci_rd_commit     <= zcm_jt_link;
                     mem_access_instr <= '0';
                     next_state       <= EXECUTE;
 
-                -- ==========================================
-                -- FENCE State - Fence operation
-                -- ==========================================
-                -- On a single core a fence may be treated as a nop.
+                -- A fence is a one-cycle nop on this core, and retires here.
                 when FENCE_WAIT =>
-                    -- S2 c15: MIGRATED. The fence retires here, so the PC advance is declared; no store and no rd commit are the fail-safe defaults.
-                    -- The deleted lane drive was spelled `WEN` in upper case, the S0 census's case-insensitivity landmark; a case-sensitive edit would have left a live drive behind in a migrated state.
                     next_state <= EXECUTE;
                     ci_pc_advance <= '1';
 
-                -- ==========================================
-                -- PAUSE_WAIT State - X1 Zihintpause arbiter-yield window (D6)
-                -- ==========================================
-                -- The retiring PAUSE parks the hart here for PAUSE_WINDOW_CYCLES clk_cpu cycles. Why this cannot wedge the arbiter:
-                --  * NO new shared transaction is issued while waiting: mem_access_instr='0' and the PC is frozen, so data_addr defaults to pc_next.
-                --    For a TCM-resident spin loop that is a TCM address, so sh_sel stays '0' and this hart's sh_req stays low, which is exactly the arbiter-yield the spec asks for.
-                --  * The PAUSE's OWN fetch already completed before this state, having been decoded in EXECUTE, so no in-flight or granted transaction is ever masked; this is not the M5a ghost-transaction shape.
-                --  * The window is a finite down-counter, so forward progress is guaranteed: the hart always returns to EXECUTE and retires.
-                -- Modeled on DIV_WAIT/DIV_DONE, a stall with pc_en frozen.
-                -- The window is uninterruptible-short, so, like DIV_WAIT, IRQs are re-checked on the EXECUTE cycle after the window rather than mid-hold.
+                -- The Zihintpause arbiter-yield window: a retiring PAUSE parks the hart here for PAUSE_WINDOW_CYCLES, with mem_access_instr '0' and the PC frozen, so data_addr defaults to pc_next and no new shared transaction is issued.
+                -- The PAUSE's own fetch completed in EXECUTE, so no in-flight or granted transaction is ever masked, and the window is a finite down-counter, so forward progress is guaranteed.
+                -- Uninterruptible-short, like DIV_WAIT: interrupts are re-checked on the EXECUTE cycle after the window rather than mid-hold.
                 when PAUSE_WAIT =>
-                    -- S2 c15: MIGRATED. A hold with a conditional retire: the window-closed branch declares the PC advance and the holding branch declares nothing.
-                    -- No store and no rd commit, both fail-safe; pause_cnt is untouched.
                     mem_access_instr <= '0';
                     if pause_cnt = 0 then
-                        next_state <= EXECUTE;   -- window closed: PAUSE retires
+                        next_state <= EXECUTE;   -- window closed, so the PAUSE retires
                         ci_pc_advance <= '1';
                     else
                         next_state <= PAUSE_WAIT;
                     end if;
 
-                -- ==========================================
-                -- MEMORY_WAIT State
-                -- ==========================================
+                -- MEMORY_WAIT is the LOAD's rd commit site: the rd write is CARRIED, not suppressed, on every one of the four paths out, which is why the declaration sits at the arm top rather than in a branch.
+                -- The value is the live decode; the first assertion at the end of this file polices which encodings may be held here.
                 when MEMORY_WAIT =>
-                    -- S2 c8: MIGRATED, the first LIVE commit site to go through the table.
-                    -- This state is the LOAD's rd commit site: its rd write is CARRIED, not suppressed, on every one of the four paths out, which is why the declaration sits at the arm top rather than in a branch.
-                    -- The value is the live decode, the same expression the process default used to supply; only the carrier changed.
-                    -- F4 assert (1) polices it and is unaffected, because it reads the net, which still evaluates to reg_write_ctrl on every cycle.
                     ci_rd_commit <= reg_write_ctrl;
-                    -- D1 halt/step recognition, above both delivery takes; see the first site, in EXECUTE shape STRADDLE, for the full argument.
+                    -- Halt/step recognition, above both delivery takes: a halt request is unmaskable, so it is tested before irq_save and std_irq_take.
                     if dbg_halt_take = '1' then
                         next_state <= DBG_SV;
                     elsif irq_save = '1' then
                         next_state <= IRQ_SV;
                     elsif std_irq_take = '1' then
-                        -- P1 standard delivery: the SAME check point, not a new one.
-                        -- In standard mode irq_save can never fire, because irq_en_eff is masked all-zero and the irq_handler FSM is pinned in IDLE, and in legacy mode std_irq_take is '0', so the two arms are mutually exclusive by construction.
-                        -- The X3 uninterruptible sequencers stay uninterruptible: they have no irq_save site, so they get no std_irq_take site either.
+                        -- Standard delivery reuses this check point: irq_save cannot fire in standard mode, where irq_en_eff is masked all-zero and the handler FSM is pinned in IDLE, and std_irq_take is '0' in legacy mode, so the two arms are mutually exclusive by construction.
                         next_state <= MTRAP_SV;
                     elsif isr_ret = '1' then
                         next_state <= IRQ_REST;
@@ -3556,14 +2855,8 @@ architecture struct of vesta is
                         ci_pc_advance <= '1';
                     end if;
 
-                -- ==========================================
-                -- DIV_WAIT State
-                -- ==========================================
+                -- Wait for the divider. Declaring NO store lanes is load-bearing: the block then drives wen all-ones structurally, rather than the state inheriting the held encoding's live lane strobes.
                 when DIV_WAIT =>
-                    -- N1 / R-S1-1c CLOSED HERE BY S2 c9.
-                    -- This state never drove wen, so wen used to fall through to the decoder's live lane strobes and was a non-store only by a cross-file decode coincidence.
-                    -- ci_st_lanes still declares NOTHING, but that now MEANS something: the block drives all-ones here structurally, so the coincidence is closed rather than relied on.
-                    -- The evidence it was safe to close is the shadow checker's silence at this exact site since S1, which is what declaring nothing was for.
                     if alu_done = '1' then
                         next_state <= DIV_DONE;
                         div_start <= '0';
@@ -3572,16 +2865,12 @@ architecture struct of vesta is
                         div_start <= '1';
                     end if;
 
-                -- ==========================================
-                -- DIV_DONE State
-                -- ==========================================
+                -- The DIV's rd commit site: it CARRIES the live decode through to rd rather than suppressing it, which is why the declaration is reg_write_ctrl and not '0'.
                 when DIV_DONE =>
-                    -- S2 c9: MIGRATED. This is the DIV's rd commit site: it CARRIES the live decode through to rd rather than suppressing it, which is why the declaration is reg_write_ctrl and not '0'.
-                    -- F4 assert (2) polices it and is unaffected, because it reads the net, which still evaluates to reg_write_ctrl on every cycle; wen is the N1 site closed here (see DIV_WAIT).
                     ci_pc_advance <= '1';
                     ci_rd_commit  <= reg_write_ctrl;
 
-                    -- D1 halt/step recognition, above both delivery takes; see the first site, in EXECUTE shape STRADDLE, for the full argument.
+                    -- Halt/step recognition, above both delivery takes: a halt request is unmaskable, so it is tested before irq_save and std_irq_take.
                     if dbg_halt_take = '1' then
                         next_state <= DBG_SV;
                         ci_pc_advance <= '0';
@@ -3589,53 +2878,33 @@ architecture struct of vesta is
                         next_state <= IRQ_SV;
                         ci_pc_advance <= '0';
                     elsif std_irq_take = '1' then
-                        -- P1 standard delivery: the SAME check point, not a new one.
-                        -- In standard mode irq_save can never fire, because irq_en_eff is masked all-zero and the irq_handler FSM is pinned in IDLE, and in legacy mode std_irq_take is '0', so the two arms are mutually exclusive by construction.
-                        -- The X3 uninterruptible sequencers stay uninterruptible: they have no irq_save site, so they get no std_irq_take site either.
+                        -- Standard delivery reuses this check point: irq_save cannot fire in standard mode, where irq_en_eff is masked all-zero and the handler FSM is pinned in IDLE, and std_irq_take is '0' in legacy mode, so the two arms are mutually exclusive by construction.
                         next_state <= MTRAP_SV;
                         ci_pc_advance <= '0';
-                    -- S2 c9 (R-DS2 item 9): the dead `elsif isr_ret = '1'` arm that stood here is DELETED; w5_report residue 4 recorded it and handed it to "the next programme that opens vesta.vhd for a real change".
-                    -- Deadness, from the tree: isr_ret requires op = CUSTOM_OPCODE (the F5.3 note at the WORD-ALIGNED COMPRESSED arm), DIV_DONE holds the dispatching encoding via the instr_curr mux's `instr_curr_prev when current_state = DIV_DONE` term, and DIV_DONE is reachable only from DIV_WAIT, itself reachable only from EXECUTE's is_div_op arm.
-                    -- So the held encoding is necessarily a DIV with op = OP and isr_ret is statically '0'; the `else` below already handled these cycles.
-                    -- NOTE: Genus could not prove this, because isr_ret is a live controller output off a flop-held instr_curr, so the mux term was really synthesised and this deletion removes gates.
+                    -- There is deliberately no isr_ret arm: DIV_DONE is reachable only from DIV_WAIT and holds the dispatching DIV encoding, so isr_ret is statically '0' here.
                     else
                         next_state <= EXECUTE;
                     end if;
 
-                -- ==========================================
-                -- FPU_FETCH3 State (X4 Zfinx, FMA only) - fetch rs3
-                -- ==========================================
-                -- The rs2 read port is steered to the FMA rs3 index this cycle, through the datapath's rf_a2_addr, and fp_rs3_reg is latched at the edge; the PC is frozen and there is no writeback.
-                -- fpu_start is NOT asserted here (section C1): it decodes from FPU_WAIT only, so every operand register is stable strictly before the first edge at which the unit samples start.
+                -- FMA rs3 fetch: the rs2 read port is steered to the rs3 index this cycle and fp_rs3_reg is latched at the edge, with the PC frozen and no writeback.
+                -- fpu_start is NOT asserted here, only from FPU_WAIT, so every operand register is stable strictly before the first edge at which the unit samples start.
                 when FPU_FETCH3 =>
-                    -- N1 / R-S1-1c closed here by S2 c9; see DIV_WAIT.
                     next_state <= FPU_WAIT;
 
-                -- ==========================================
-                -- FPU_WAIT State (X4 Zfinx) - run the multi-cycle unit
-                -- ==========================================
-                -- Exactly the DIV_WAIT contract: the PC is frozen, there is no rd commit and instr is held, all three now declared through the commit block rather than driven here.
-                -- fpu_start is asserted concurrently from state = FPU_WAIT while waiting, and fpu_done ends the stall.
+                -- Run the multi-cycle FP unit. The DIV_WAIT contract exactly: the PC is frozen, there is no rd commit, the instruction is held, and no store lanes are declared so wen is driven all-ones structurally.
                 when FPU_WAIT =>
-                    -- N1 / R-S1-1c closed here by S2 c9; see DIV_WAIT.
                     if fpu_done_sig = '1' then
                         next_state <= FPU_DONE;
                     else
                         next_state <= FPU_WAIT;
                     end if;
 
-                -- ==========================================
-                -- FPU_DONE State (X4 Zfinx) - writeback + flags
-                -- ==========================================
-                -- Mirrors DIV_DONE exactly: this state CARRIES the live decode through to rd, with reg_write_ctrl '1' for an FP op, and the writeback of the fpu result (result_src=111) lands in this cycle.
-                -- IRQ handling is identical to DIV_DONE.
+                -- FP writeback and flags, the DIV_DONE shape exactly: this state CARRIES the live decode through to rd and the fpu result lands in this cycle. Interrupt handling is identical to DIV_DONE's.
                 when FPU_DONE =>
-                    -- S2 c9: MIGRATED, and the FP rd commit site: carried, not suppressed, exactly as at DIV_DONE.
-                    -- F4 assert (3) polices it and is unaffected, because it reads the net, still reg_write_ctrl on every cycle; wen is the N1 site closed here (see DIV_WAIT).
                     ci_pc_advance <= '1';
                     ci_rd_commit  <= reg_write_ctrl;
 
-                    -- D1 halt/step recognition, above both delivery takes; see the first site, in EXECUTE shape STRADDLE, for the full argument.
+                    -- Halt/step recognition, above both delivery takes: a halt request is unmaskable, so it is tested before irq_save and std_irq_take.
                     if dbg_halt_take = '1' then
                         next_state <= DBG_SV;
                         ci_pc_advance <= '0';
@@ -3643,88 +2912,52 @@ architecture struct of vesta is
                         next_state <= IRQ_SV;
                         ci_pc_advance <= '0';
                     elsif std_irq_take = '1' then
-                        -- P1 standard delivery: the SAME check point, not a new one.
-                        -- In standard mode irq_save can never fire, because irq_en_eff is masked all-zero and the irq_handler FSM is pinned in IDLE, and in legacy mode std_irq_take is '0', so the two arms are mutually exclusive by construction.
-                        -- The X3 uninterruptible sequencers stay uninterruptible: they have no irq_save site, so they get no std_irq_take site either.
+                        -- Standard delivery reuses this check point: irq_save cannot fire in standard mode, where irq_en_eff is masked all-zero and the handler FSM is pinned in IDLE, and std_irq_take is '0' in legacy mode, so the two arms are mutually exclusive by construction.
                         next_state <= MTRAP_SV;
                         ci_pc_advance <= '0';
-                    -- S2 c9 (R-DS2 item 9): the dead `elsif isr_ret = '1'` arm is DELETED here too, on the same argument as DIV_DONE's, with FPU_DONE reachable only from FPU_WAIT and holding an FP encoding, so isr_ret is statically '0'. See w5_report residue 4.
+                    -- No isr_ret arm, for DIV_DONE's reason: FPU_DONE is reachable only from FPU_WAIT and holds an FP encoding, so isr_ret is statically '0'.
                     else
                         next_state <= EXECUTE;
                     end if;
 
-                -- ==========================================
-                -- IRQ_SV State - Save context for interrupt
-                -- ==========================================
+                -- Save context for an interrupt: the full-word PC push, the one active store declaration outside the data states, ACTIVE-HIGH here because wen is the inverse of ci_st_lanes.
+                -- NO rd may be committed in the IRQ dispatch cycles: the instruction mux shows the already-retired interrupted instruction, whose load decode would re-write its rd with garbage, and IRQ_JUMP shows the raw bus word, an arbitrary image writing an arbitrary rd.
                 when IRQ_SV =>
-                    -- S2 c14: MIGRATED. The full-word PC push, the ONE active store declaration outside the data states.
-                    -- ACTIVE-HIGH "1111" here is the block's all-lanes-low wen strobe, since wen is the inverse of ci_st_lanes.
                     ci_st_lanes <= "1111";
 
-                    -- Update the stack pointer. sp_write_en is OWNED and now arrives from the commit block via ci_sp_commit, while sp_write_data is NOT owned and stays here.
-                    -- Same evaluation of a combinational block: the two settle within deltas of one another and take effect on the same edge, which is all their clocked consumers see.
+                    -- Update the stack pointer: the enable comes from the commit block and the data is assigned here, both settling in the same combinational evaluation and landing on the same edge.
                     ci_sp_commit <= '1';
                     sp_write_data <= std_logic_vector(unsigned(stack_pointer) - 4);
 
-                    -- No writeback belongs to the IRQ dispatch cycles: the instruction mux shows the already-retired interrupted instruction here, and a load decodes RegWrite=1 and would re-write its rd with garbage, while IRQ_JUMP shows raw read_data, an arbitrary image writing an arbitrary rd.
-                    -- That suppression is now STRUCTURAL: this arm declares no rd commit, so the block drives '0' and there is no drive left to forget.
-                    -- Caught by rv32ui-p-irqctx, which saw a phantom t1 write during IRQ_JUMP.
                     next_state <= IRQ_JUMP;
 
-                -- ==========================================
-                -- IRQ_JUMP State - Jump to interrupt vector
-                -- ==========================================
+                -- Jump to the interrupt vector, loading the IVT entry with no store and no rd commit.
                 when IRQ_JUMP =>
-                    -- S2 c14: MIGRATED. Loads the IVT entry with no store and no rd commit, both now structural; see IRQ_SV's note, since read_data is an arbitrary image here.
                     irq_save_ack <= '1';
                     ci_pc_advance <= '1';
                     next_state <= EXECUTE;
 
-                -- ==========================================
-                -- MTRAP_SV State - P1 standard trap entry (CSR writeback)
-                -- ==========================================
-                -- Shaped on IRQ_SV, MINUS every memory effect (p0_specs.md 2.3):
-                --   * NO push: wen all-ones, mem_access_instr '0', and sp_write_en left at its '0' default, so sp is NEVER touched (a U-mode sp is untrusted; software uses mscratch).
-                --   * NO writeback: reg_write_dp '0' here AND in MTRAP_JUMP, the kickoff 3b class-1 phantom-regfile-write guard, since instr_curr still shows the already-retired instruction in these cycles.
-                --   * NO irq_handler handshake: irq_save_ack stays '0', its default, because the handler is pinned in IDLE.
-                -- The csr_unit writeback itself rides trap_entry_we, a clk-domain ONE-SHOT of this state (see the gen_trapcsr_wb block), with trap_pc, trap_cause and trap_value derived from held state.
-                -- trap_flag is NOT raised: a standard trap is RECOVERABLE, unlike the terminal TRAP_STATE.
+                -- Standard trap entry, the CSR writeback cycle. Shaped on IRQ_SV MINUS every memory effect: no push, no sp touch (a U-mode sp is untrusted, software uses mscratch), no writeback, and no irq_handler handshake, the handler being pinned in IDLE.
+                -- The csr_unit writeback rides trap_entry_we, a clk-domain ONE-SHOT of this state, with trap_pc, trap_cause and trap_value derived from held state. trap_flag is NOT raised: a standard trap is RECOVERABLE, unlike TRAP_STATE.
                 when MTRAP_SV =>
-                    -- S2 c14: MIGRATED. Every memory effect this state must NOT have (no push, no sp touch, no writeback) is now the fail-safe default, so the arm declares nothing at all.
                     mem_access_instr <= '0';
                     next_state       <= MTRAP_JUMP;
 
-                -- ==========================================
-                -- MTRAP_JUMP State - P1 standard trap entry (vector)
-                -- ==========================================
-                -- The PC takes mtvec.BASE concatenated with "00" via the pc_next mux arm, and the same cycle issues the fetch from there, because data_addr falls through to pc_next, exactly like IRQ_JUMP loading ivt_entry.
+                -- Standard trap entry, the vector cycle: the PC takes mtvec.BASE and the same cycle issues the fetch from there, data_addr falling through to pc_next exactly as at IRQ_JUMP.
                 when MTRAP_JUMP =>
-                    -- S2 c14: MIGRATED.
                     ci_pc_advance    <= '1';
                     mem_access_instr <= '0';
                     next_state       <= EXECUTE;
 
-                -- ==========================================
-                -- MTRAP_RET State - P1 MRET
-                -- ==========================================
-                -- The PC takes mepc via the pc_next mux arm, plus the mstatus POP in csr_unit (MIE gets MPIE, MPIE gets '1') via the mret_we one-shot.
-                -- No memory access, no writeback and no sp touch: the JALR shape.
+                -- MRET: the PC takes mepc and csr_unit pops mstatus (MIE takes MPIE, MPIE takes '1') via the mret_we one-shot. The JALR shape: no memory access, no writeback and no sp touch.
                 when MTRAP_RET =>
-                    -- S2 c14: MIGRATED. The JALR shape: the PC takes mepc, with no access, no writeback and no sp touch, all fail-safe.
                     ci_pc_advance    <= '1';
                     mem_access_instr <= '0';
                     next_state       <= EXECUTE;
 
-                -- ==========================================
-                -- D1 DEBUG-MODE STATES (ENABLE_DEBUG)
-                -- ==========================================
-                -- All three are the MTRAP_RET / IRQ_JUMP shape: declare ci_pc_advance, hold mem_access_instr low so data_addr falls through to pc_next and the SAME cycle issues the fetch from the new PC, and declare NOTHING else.
-                -- That is the entire commit interface a halt, a re-entry and a resume need (D0/P1 1b), with zero new suppression terms.
-                --
-                -- WHY DBG_SV IS ONE STATE AND MTRAP_SV IS TWO: the CSR write rides the dbg_entry_we one-shot, which fires on the FIRST free-clk edge of the state, and csr_unit samples dbg_pc at that same edge, i.e. the PRE-edge value of pc or pc_next_reg, which is what the entry must record.
-                -- pc_en is '1' in the same cycle, so debug_mode and the PC load of DEBUG_ENTRY_ADDR land on ONE edge.
-                -- That simultaneity is load-bearing for the halt-on-reset instrument, which reads pc at the moment dbg_halted rises and requires it to be DEBUG_ENTRY_ADDR.
-                -- If clk_cpu is gated here, which happens when a DEBUG_ENTRY_ADDR in the shared window stalls its own fetch, the state simply holds; the one-shot is on the free clk and still fires exactly once.
+                -- The three debug-mode states are all the MTRAP_RET/IRQ_JUMP shape: declare ci_pc_advance, hold mem_access_instr low so data_addr falls through to pc_next and the same cycle issues the fetch from the new PC, and declare nothing else.
+                -- DBG_SV is ONE state where MTRAP_SV is two, because its CSR write rides a one-shot that fires on the FIRST free-clk edge of the state and csr_unit samples dbg_pc at that same edge, so debug_mode and the PC load of DEBUG_ENTRY_ADDR land together.
+                -- If clk_cpu is gated here, which happens when a DEBUG_ENTRY_ADDR in the shared window stalls its own fetch, the state simply holds and the one-shot still fires exactly once.
                 when DBG_SV =>
                     ci_pc_advance    <= '1';
                     mem_access_instr <= '0';
@@ -3736,38 +2969,25 @@ architecture struct of vesta is
                     mem_access_instr <= '0';
                     next_state       <= EXECUTE;
 
-                -- DRET: the PC takes dpc via the pc_next mux arm, plus the debug_mode clear and the privilege pop in csr_unit via the dbg_ret_we one-shot. It retires exactly as MTRAP_RET does.
+                -- DRET: the PC takes dpc, plus the debug_mode clear and the privilege pop in csr_unit via the dbg_ret_we one-shot. It retires exactly as MTRAP_RET does.
                 when DBG_RET =>
                     ci_pc_advance    <= '1';
                     mem_access_instr <= '0';
                     next_state       <= EXECUTE;
 
-                -- ==========================================
-                -- IRQ_REST State - Restore context from interrupt
-                -- ==========================================
+                -- Restore context from an interrupt. NOTHING may write rd here: the state declares no rd commit, so the block drives it '0' rather than leaving it to the held `iret` encoding's decode.
                 when IRQ_REST =>
-                    -- W2/F4a: NOTHING may write rd here.
-                    -- This arm used to fall through to the reg_write_dp default carried by reg_write_ctrl in the else branch of this process, the pre-case default block, and was correct only by a DECODE COINCIDENCE: instr_curr is held at the `iret`, which is CUSTOM_OPCODE, and maindec's reg_write list (:960-973) happens to end with '0' for stores, branches and custom instructions.
-                    -- Nothing enforced that, in either file.
-                    -- MEMORY_WAIT, DIV_DONE and FPU_DONE are REAL COMMIT SITES, each CARRYING the live decode through to rd by whichever mechanism currently delivers it, and therefore get an assertion instead; IRQ_REST has no rd to commit at all, so the coincidence is simply removed.
-                    -- S2 c14: MIGRATED. The rd suppression above is now STRUCTURAL, because this arm declares no rd commit so the block drives '0'; the coincidence is closed, not relied on.
-                    -- D1 halt/step recognition, above both delivery takes; see the first site, in EXECUTE shape STRADDLE, for the full argument.
+                    -- Halt/step recognition, above both delivery takes: a halt request is unmaskable, so it is tested before irq_save and std_irq_take.
                     if dbg_halt_take = '1' then
                         next_state <= DBG_SV;
                     elsif irq_save = '1' then
-                        -- Nested interrupt.
+                        -- Nested interrupt. Declaring no store lanes is what makes the block drive wen all-ones here, instead of the held `iret` word's live decode.
                         next_state <= IRQ_SV;
-                        -- N1 / R-S1-2 CLOSED HERE BY c14: this path has no wen arm, so wen used to fall through to the live decode of the HELD word, the `iret`, in a NON-DISPATCH state.
-                        -- ci_st_lanes still declares NOTHING, but that now MEANS something: the block drives all-ones structurally.
-                        -- The evidence it was safe to close is the shadow checker's silence at this exact site since S1.
                     elsif std_irq_take = '1' then
-                        -- P1 standard delivery: the SAME check point, not a new one.
-                        -- In standard mode irq_save can never fire, because irq_en_eff is masked all-zero and the irq_handler FSM is pinned in IDLE, and in legacy mode std_irq_take is '0', so the two arms are mutually exclusive by construction.
-                        -- The X3 uninterruptible sequencers stay uninterruptible: they have no irq_save site, so they get no std_irq_take site either.
+                        -- Standard delivery reuses this check point: irq_save cannot fire in standard mode, where irq_en_eff is masked all-zero and the handler FSM is pinned in IDLE, and std_irq_take is '0' in legacy mode, so the two arms are mutually exclusive by construction.
                         next_state <= MTRAP_SV;
-                        -- N1 / R-S1-2 closed here by c14, as on the irq_save path.
                     elsif sleep_cpu = '1' then
-                        -- Return to sleep after the interrupt. sp_write_data stays here; the enable now arrives from the block via ci_sp_commit, in the same evaluation and on the same edge, as at IRQ_SV.
+                        -- Return to sleep after the interrupt. The sp enable comes from the commit block and the data is assigned here, as at IRQ_SV.
                         next_state <= SLEEPING;
                         ci_sp_commit <= '1';
                         sp_write_data <= std_logic_vector(unsigned(stack_pointer) + 4);
@@ -3779,50 +2999,31 @@ architecture struct of vesta is
                         ci_pc_advance <= '1';
                     end if;
 
-                -- ==========================================
-                -- SLEEPING State
-                -- ==========================================
-                -- P2 adds a THIRD exit, std_wfi_wake, taken ONLY by a WFI-entered sleep. The priority is deliberate:
-                --   1. irq_save     : legacy delivery, masked off in standard mode.
-                --   2. std_irq_take : standard delivery, MIE and (mip and mie), vectoring to MTRAP_SV with mepc set to the resume PC, pc_next_reg = WFI+4.
-                --                     This arm ALSO serves a WFI sleep, which is why it comes first: if takeable, deliver.
-                --   3. std_wfi_wake : (mip and mie) /= 0 but NOT takeable, with mstatus.MIE = 0. That is the spec's resumption rule, resuming at the instruction AFTER WFI without entering a handler.
-                -- The resume is a plain pc_en='1' load of pc_next, which is pc_next_reg via the SLEEPING pc_next mux arm, the same shape as WRS_WAIT's retire.
-                -- The fetch of that word has been issued from data_addr every SLEEPING cycle already, since data_addr falls through to pc_next, so EXECUTE consumes the right instruction; wfi_slept is cleared by wfi_slept_proc on whichever exit is taken.
+                -- SLEEPING has three exits, in a deliberate priority: irq_save (legacy delivery, masked off in standard mode), std_irq_take (standard delivery, which also serves a WFI sleep, so if the interrupt is takeable it is delivered),
+                -- and std_wfi_wake, taken ONLY by a WFI-entered sleep when the interrupt is pending and enabled but not takeable, resuming at the instruction after the WFI without entering a handler.
+                -- Declaring no rd commit and no store lanes is load-bearing here more than anywhere, a sleep lasting an unbounded clock-gated number of cycles: the block then drives rd '0' and wen all-ones rather than the held encoding's decode. The PC is held the same way, by declaring nothing, and only the std_wfi_wake leg advances it: a real wake takes the irq_save leg and must NOT advance the PC, which is the return address IRQ_SV is about to push.
                 when SLEEPING =>
-                    -- S2 c15: MIGRATED. Two things this arm used to hold by coincidence are now structural, which matters more here than anywhere else because a sleep lasts an unbounded, clock-gated number of cycles:
-                    --   * rd (W2/F4a): the held encoding is the `extinguish` or `wfi` that put us here, so reg_write_ctrl was '0' only by the maindec coincidence. This arm now declares no rd commit, so the block drives '0' outright.
-                    --   * lanes (N1 / R-S1-1c): there is no wen site here, so wen used to fall through to the live decode. ci_st_lanes still declares NOTHING, and that now MEANS all-ones from the block.
-                    --     This was the LAST live N1 site, and the licence to close it is the shadow checker's silence here across every gate since S1.
-                    -- The PC is held by declaring nothing; the only ci_pc_advance below sits in the P2 std_wfi_wake leg, which is statically unreachable while ENABLE_TRAPCSR is false.
-                    -- Real wakes take the irq_save leg and must NOT advance the PC, since it is the return address IRQ_SV is about to push.
 
-                    -- D1 halt/step recognition, above both delivery takes; see the first site, in EXECUTE shape STRADDLE, for the full argument.
+                    -- Halt/step recognition, above both delivery takes: a halt request is unmaskable, so it is tested before irq_save and std_irq_take.
                     if dbg_halt_take = '1' then
                         next_state <= DBG_SV;
                     elsif irq_save = '1' then
                         next_state <= IRQ_SV;
                     elsif std_irq_take = '1' then
-                        -- P1 standard delivery: the SAME check point, not a new one.
-                        -- In standard mode irq_save can never fire, because irq_en_eff is masked all-zero and the irq_handler FSM is pinned in IDLE, and in legacy mode std_irq_take is '0', so the two arms are mutually exclusive by construction.
-                        -- The X3 uninterruptible sequencers stay uninterruptible: they have no irq_save site, so they get no std_irq_take site either.
+                        -- Standard delivery reuses this check point: irq_save cannot fire in standard mode, where irq_en_eff is masked all-zero and the handler FSM is pinned in IDLE, and std_irq_take is '0' in legacy mode, so the two arms are mutually exclusive by construction.
                         next_state <= MTRAP_SV;
                     elsif std_wfi_wake = '1' then
-                        -- P2: WFI resumption. Statically unreachable when ENABLE_TRAPCSR is off, and unreachable for an extinguish-entered sleep on ANY build, where wfi_slept is '0'.
+                        -- WFI resumption, unreachable for an extinguish-entered sleep on any build, where wfi_slept is '0'.
                         next_state <= EXECUTE;
                         ci_pc_advance <= '1';
                     else
                         next_state <= SLEEPING;
                     end if;
 
-                -- ==========================================
-                -- WRS_WAIT State  (X1 Zawrs wait-on-reservation-set)
-                -- ==========================================
-                -- Stall with the PC frozen, since the wrs hint has NOT retired, while clk_cpu keeps running and wrs_wake is polled.
-                -- On any wake the hint retires like a nop (pc_en='1', next_state EXECUTE); if the wake was a pending and enabled interrupt, the standard EXECUTE-to-IRQ_SV path then takes it with the return PC set to the instruction after wrs, since a WRS is never a trap and changes no architectural state.
-                -- Deliberately does NOT set sleep_cpu, so an interrupt taken here does not leave the hart in the return-to-sleep contract.
+                -- Zawrs wait-on-reservation-set: stall with the PC frozen, the hint not having retired, while clk_cpu keeps running and wrs_wake is polled. On any wake the hint retires like a nop.
+                -- If the wake was a pending enabled interrupt, the ordinary EXECUTE path then takes it with the return PC set to the instruction after the wrs, a WRS being neither a trap nor a change of architectural state.
+                -- It deliberately does NOT set sleep_cpu, so an interrupt taken here does not leave the hart in the return-to-sleep contract.
                 when WRS_WAIT =>
-                    -- S2 c15: MIGRATED. The same shape as PAUSE_WAIT: the wake branch declares the PC advance and retires the hint, the stalled branch declares nothing, and wrs_wake is untouched.
                     mem_access_instr <= '0';
                     if wrs_wake = '1' then
                         next_state <= EXECUTE;
@@ -3831,23 +3032,9 @@ architecture struct of vesta is
                         next_state <= WRS_WAIT;
                     end if;
 
-                -- ==========================================
-                -- TRAP State
-                -- ==========================================
+                -- The terminal trap state. Declaring NO store lanes is what keeps it silent: TRAP_STATE is absent from the instr_curr hold list, so instr_curr decodes the live bus word, and a store encoding there would commit a REAL store at data_addr on every cycle of this self-loop.
+                -- The halt recognition below is the only exit, and the only recognition site that is not also an interrupt site: a wedged hart is the highest-value halt target a debugger has. With ENABLE_DEBUG off this collapses to the unconditional self-loop.
                 when TRAP_STATE =>
-                    -- F8 (fix pass W1), and S2 c14 makes it STRUCTURAL.
-                    -- HISTORY, which must not be lost: TRAP_STATE originally assigned no `wen` at all, so it inherited the process default of wen_controller, the DECODER's live lane strobes.
-                    -- TRAP_STATE is also absent from the instr_curr hold list, so instr_curr is instr_decomp of the live bus word; a store encoding on read_data therefore committed a REAL store at data_addr every cycle of this self-loop, until the tb watchdog.
-                    -- F8 fixed it with an explicit all-ones drive.
-                    -- NOW this arm declares no store lanes, so the block drives all-ones and the protection is the fail-safe default rather than a line someone must remember to keep; the F8 class cannot recur here, because there is no drive left to omit.
-                    -- mem_access_instr is at its '0' default and the state is terminal, so nothing downstream consumes an access from it. Detector: rv32ua-p-trapstor.
-                    --
-                    -- D1 (R-D0-3(6), d1_spec.md 2): THE 14TH RECOGNITION SITE, and the only one that is not also an interrupt site.
-                    -- A WEDGED HART IS THE HIGHEST-VALUE HALT TARGET a debugger has, and until now it was the one state a halt could not reach.
-                    -- This is an addition to the RECOGNITION set, not a suppression term: it declares no commit, so the state's fail-safe drives are untouched on the halt cycle too.
-                    -- IT IS A REAL SEMANTIC MOVE, ruled deliberately: a terminal state becomes non-terminal WHEN A DEBUGGER IS ATTACHED AND THE KNOB IS ON.
-                    -- Knob-OFF, dbg_halt_take is statically '0' and this collapses to the unconditional self-loop it has always been, bit-identical, which is what the standing sweeps pin.
-                    -- Do NOT read this as "TRAP_STATE is diagnosable now": in the reset configuration nothing raises dbg_haltreq, so the wedge is exactly as terminal as it was.
                     if dbg_halt_take = '1' then
                         next_state <= DBG_SV;
                     else
@@ -3855,38 +3042,16 @@ architecture struct of vesta is
                     end if;
                     trap_flag <= '1';
 
-                -- ==========================================
-                -- Default Case
-                -- ==========================================
+                -- The illegal-encoding recovery arm. It looks unreachable, but the state register holds more bits than the type has values, so a corrupted encoding lands here; never hold a commit signal in it, or a stale regfile write commits and a latch is inferred.
+                -- Declaring no rd commit and no store lanes gives '0' and all-ones by construction; the PC advance is genuine and is declared.
                 when others =>
-                    -- F5.1 (fix pass W1), CLOSED STRUCTURALLY BY THE S2 CLEANUP.
-                    -- HISTORY: a self-assignment of reg_write_dp to itself here overrode the process default and so inferred a SECOND latch; reg_write_dp_reg was a real LATQX1MA10TH in the netlist, not a lint curiosity.
-                    -- The arm looks unreachable in the STATE enumeration, but the enumeration is encoded in more bits than it has values, so an illegal encoding reaches here and holding reg_write_dp would have committed a stale regfile write.
-                    -- F5.1 replaced the hold with an explicit '0'; the arm itself stays, because VHDL requires it.
-                    --
-                    -- S2 deferred migrating that '0' until this commit, and the order was load-bearing (R-S2-6): while the commit block was still gated by a per-cpu_state table, this arm had no row to turn on, since it covers NON-values of the type.
-                    -- So under an illegal encoding the lookup was a synthesis don't-care and deleting the drive could have dropped rd back onto the live decode, recreating F5.1 exactly.
-                    -- The gate is now GONE: the block drives all four nets unconditionally, from intent, whatever the state register holds.
-                    -- This arm declares no rd commit, so rd is driven '0' by construction; the protection no longer depends on anyone remembering a line, and the latch cannot return.
-                    --
-                    -- pc_en's fall-through to '1' is genuine and is declared below.
-                    -- wen is NOT declared (R-S1-2): a store committing in the illegal-encoding recovery arm would be a real finding, and leaving it undeclared means the block drives all-ones rather than the live decode, the safe direction.
                     next_state <= EXECUTE;
                     ci_pc_advance <= '1';
             end case;
 
-            -- =====================================================
-            -- COMMIT BLOCK (S-series; S0 interface spec section 3)
-            -- =====================================================
-            -- THIS IS THE ONLY ASSIGNMENT SITE FOR THE FOUR NETS outside the resetn branch.
-            -- It is UNCONDITIONAL: every state reaches it, and what each state commits is decided entirely by the ci_* intent it declared in its own arm.
-            -- A state that declares nothing commits nothing and holds the PC, so there is no longer anywhere to forget an explicit rd-commit suppression, which is the whole point of the exercise (S0 spec section 6).
-            --
-            -- History, because the scaffolding is gone and left no trace: migration ran state-by-state behind two temporary gates, a constant table `state_commits_via_block` indexed by cpu_state, and for the five commits that split EXECUTE a process variable `v_exec_via_block`.
-            -- The variable died when EXECUTE's seven dispatch shapes were all migrated; the table died here, when all 39 rows had become true and it selected everything. Both were built with a scheduled death and both met it.
-            -- It sits INSIDE the else branch on purpose: the resetn branch is out of its reach and reproduces its own four values exactly, two of which are deliberately NOT the fail-safe ones. See the reset branch's note (spec section 3, ruling R-S1-1a).
-            -- S3: intent is GATED BY PERMISSION. A state may commit only what its permission table allows; anything else is squashed here and shouted about by s3_perm_assert_proc.
-            -- pc_advance is deliberately ungated; see the tables' note.
+            -- THE COMMIT BLOCK: the ONLY assignment site for the four owned nets outside the reset branch, and unconditional, so what each state commits is decided entirely by the ci_* intent it declared in its own arm.
+            -- A state that declares nothing commits nothing and holds the PC, so there is nowhere left to forget an explicit rd-commit suppression. It sits INSIDE the else branch on purpose: the reset branch drives its own four values and is out of reach.
+            -- Intent is GATED BY PERMISSION: a state may commit only what its table allows, and anything else is squashed here and shouted about by s3_perm_assert_proc. pc_advance is deliberately ungated.
             reg_write_dp <= ci_rd_commit  and rd_commit_allowed(current_state);
             sp_write_en  <= ci_sp_commit  and sp_commit_allowed(current_state);
             wen          <= not (ci_st_lanes and st_commit_allowed(current_state));
@@ -3894,34 +3059,9 @@ architecture struct of vesta is
         end if;
     end process;
 
-    -- ==========================================
-    -- S3 COMMIT-PERMISSION ASSERTIONS (S-series; PERMANENT)
-    -- ==========================================
-    -- WHAT REPLACED THE S1 SHADOW CHECKER, deleted in this commit.
-    --
-    -- The shadow checker existed to prove, before anything depended on it, that the commit block could reproduce the machine it was going to own.
-    -- It did that job across S1 and all of S2: it is why every migration could be made value-equal by MEASUREMENT rather than by argument, and it caught the N1 decode coincidences at nine sites as they closed one by one.
-    -- When the S2 cleanup made the block the sole driver in every state, the checker began comparing the block's outputs against the block's own inputs, so it became tautological EVERYWHERE and its silence stopped being coverage.
-    -- Keeping it would have been a decorative instrument (method rule 9/11), so it is gone.
-    --
-    -- THE REPLACEMENT, so no one has to reconstruct it:
-    --   1. the PERMISSION MASKS in the commit block: a state can no longer commit anything its table does not allow, structurally;
-    --   2. THIS process, the masks made loud. A mask that silently squashes is exactly instrument rule 11's defect, so every squash is an assertion failure naming the signal and the state;
-    --   3. the standing BIT-EXACT LOCKSTEP GATES, which were the real gate on every one of the sixteen migration commits and remain so;
-    --   4. f4_assert_proc's four decode assertions, at the end of this architecture, which police a DIFFERENT property: which encoding may be held when a permitted commit happens.
-    --      The masks and those four are complementary, and neither subsumes the other.
-    --
-    -- Note what this process does NOT check: it says nothing about whether a PERMITTED commit carries the right VALUE.
-    -- That is the lockstep stream's job, and it compares every retire's rd across 4,668,509 records.
-    --
-    -- CLOCKED, not concurrent: a concurrent assertion samples mid-settle, and F4b's first cut fired on 23 of 136 tests for exactly that reason.
-    -- Style, severity and the "a firing assertion is a FINDING, do not tune it away" contract are f4_assert_proc's; read its block comment before touching this one.
-    -- These are PERMANENT: they compile into every configuration.
-    --
-    -- SCOPE: post-reset, on every rising clk_cpu edge. The `resetn = '1'` qualifier is load-bearing, because the reset branch drives its own values, which the block cannot reach.
-    -- clk_cpu is GATED, so a stalled cycle is structurally unchecked; the honest claim is "every core-advance edge".
-    --
-    -- Simulation-only in effect: assertions with no signal drives, so Genus emits nothing for them (VHDL-644).
+    -- COMMIT-PERMISSION ASSERTIONS: the masks made loud, since a mask that silently squashes is an instrument that hides its own findings. Every squash is an assertion failure naming the signal and the state.
+    -- They say nothing about whether a PERMITTED commit carries the right VALUE; the f4 assertions below police a different property again, which encoding may be held when a permitted commit happens, and neither set subsumes the other.
+    -- CLOCKED, not concurrent, because a concurrent assertion samples mid-settle and fires on ordinary traffic. Scope is post-reset on every rising clk_cpu edge, the resetn qualifier being load-bearing since the reset branch drives values the block cannot reach, and clk_cpu is GATED, so a stalled cycle is structurally unchecked.
     s3_perm_assert_proc: process(clk_cpu)
     begin
         if rising_edge(clk_cpu) then
@@ -3943,32 +3083,15 @@ architecture struct of vesta is
         end if;
     end process;
 
-    -- ==========================================
-    -- Sleep/Wake Control Logic
-    -- ==========================================
-    -- Track the CPU sleep state, driven by the custom sleep and wake instructions.
+    -- Sleep and wake control: track the CPU sleep state, driven by the custom sleep and wake instructions.
     process(clk, resetn)
     begin
         if resetn = '0' then
             sleep_cpu <= '0';
         elsif rising_edge(clk) then
-            -- W2/F3+ and F3++: this flop is on the FREE-RUNNING clk while sleep_rq and wake_rq are PURE DECODES of instr_curr (maindec.vhd:922-923, with no state qualification at all beyond the P2 u_gate), so it used to update in every state the old dec_squash blacklist did not name.
-            -- BOTH directions leak, and they are two separate mechanisms sharing one live decode: the raw bus word IRQ_SV puts on instr_curr (:1484), which on this path is deterministically the next instruction in program order.
-            --
-            --   F3+  (the SET leak): an `extinguish` encoding sitting there set sleep_cpu behind the FSM's back, and IRQ_REST's `elsif sleep_cpu = '1'` arm (:3557) then sent the hart to SLEEPING instead of resuming.
-            --        A HANG, invisible to the a0 contract, for a word the hart never executed.
-            --   F3++ (the CLEAR leak, the mirror image): an `ignite` encoding in the same position CLEARS the flop, so a hart that was legitimately asleep resumes instead of re-parking.
-            --        That breaks the bootrom park contract DIRECTLY: the stray-msip ISRs (start.S:582-585, and the tile park at :468) rely on `iret` WITHOUT `ignite` leaving sleep_cpu SET so IRQ_REST returns the hart to its sleep.
-            --        A silently-awake parked hart then spins in its `j <park>` paranoia loop, burning power and shared-bus bandwidth on a chip that gated its rails.
-            --
-            -- Hence the whole `if` is re-qualified, not just the set arm.
-            --
-            -- dec_dispatch (:1992) SUPERSEDES dec_squash here and subsumes it, since dec_squash='0' is one of its terms, so both the P2 trap-entry rule (a U-mode extinguish or ignite traps illegal and must not touch this flop) and the P3 PMP park-word rule are preserved exactly.
-            -- Nothing legitimate is lost: every real sleep or wake dispatch is an EXECUTE cycle, since the extinguish and wfi arms at :2413 and :2709 are EXECUTE sub-arms, and the bootrom park/loader contract is EXECUTE-only too, with `EXTINGUISH` at start.S:468 and `IGNITE` at start.S:510 both ordinary dispatches.
-            --
-            -- The one non-EXECUTE update that DOES disappear is benign, and it is worth naming so nobody re-derives it as a regression: SLEEPING holds instr_curr_prev (:1519), the `extinguish` itself, so sleep_rq stayed HIGH for the whole sleep and this flop re-set an already-set bit on every free-running clk edge.
-            -- Dropping that changes no value: the flop holds, and no state that can run while asleep drives wake_rq.
-            -- The return-to-sleep contract works by NOT clearing the flop, so this change can only remove spurious updates, never add one.
+            -- THE WHOLE `if` is qualified by dec_dispatch, not just the set arm: this flop is on the FREE-RUNNING clk while sleep_rq and wake_rq are pure decodes of instr_curr, so it would otherwise update in every state that holds a stale or raw word.
+            -- Both directions leak: an `extinguish` encoding on the bus sets sleep_cpu behind the FSM's back and IRQ_REST then sends the hart to SLEEPING instead of resuming, a hang for a word the hart never executed, while an `ignite` encoding clears it, so a legitimately parked hart resumes instead of re-parking, breaking a park contract that works by NOT clearing the flop.
+            -- Nothing legitimate is lost, every real sleep or wake dispatch being an EXECUTE cycle, and dec_dispatch subsumes dec_squash, so the trap-entry and PMP park-word rules are preserved exactly.
             if dec_dispatch = '1' then
                 if wake_rq = '1' then
                     sleep_cpu <= '0';
@@ -3979,23 +3102,15 @@ architecture struct of vesta is
         end if;
     end process;
 
-    -- ==========================================
-    -- X1 Zawrs wait-on-reservation-set wake logic
-    -- ==========================================
-    -- wrs.nto and wrs.sto stall the hart in the dedicated WRS_WAIT FSM state.
-    -- Unlike WFI and extinguish, WRS_WAIT does NOT gate clk_cpu and does NOT touch sleep_cpu: the FSM simply spins with pc_en frozen while the wake conditions are polled each clk_cpu edge, so the CLINT ignite and return-to-sleep contract is provably untouched, a WRS stall being invisible to the sleep machinery.
-    -- The core issues no bus transaction while waiting, with the arbiter request de-asserted.
-    --
-    -- Wake sources, any one of which suffices per the spec:
-    --   (a) reservation invalidated, i.e. resv_valid_ext dropped to '0' because a foreign committed store hit the LR address, the snoop resv_unit implements;
-    --   (b) an interrupt is pending, from the RAW enable-agnostic irq_vector, so it fires even for a source that would not be taken (the spec says wake even if globally disabled). This core hardwires the CLINT and meip enables on, so a pending source is also serviced after the WRS retires;
-    --   (c) wrs.sto only: the short timeout of WRS_TIMEOUT_CYCLES clk_cpu cycles elapsed.
+    -- Zawrs wake logic. wrs.nto and wrs.sto stall the hart in WRS_WAIT, which unlike WFI and extinguish does NOT gate clk_cpu and does NOT touch sleep_cpu, so the return-to-sleep contract is untouched and the stall is invisible to the sleep machinery.
+    -- The core issues no bus transaction while waiting. Any one wake source suffices: the reservation was invalidated by a foreign committed store; an interrupt is pending, taken from the RAW enable-agnostic irq_vector so it fires even for a source that would not be delivered;
+    -- or, for wrs.sto only, the short timeout elapsed.
     wrs_int_pending <= '1' when irq_vector /= (irq_vector'range => '0') else '0';
     wrs_timeout     <= '1' when (wrs_is_sto = '1' and wrs_cnt = WRS_TIMEOUT_CYCLES) else '0';
     wrs_wake        <= '1' when (resv_valid_ext = '0' or wrs_int_pending = '1' or wrs_timeout = '1') else '0';
 
-    -- Timeout counter: free-runs on clk_cpu only while stalled, and is cleared whenever the hart is not in WRS_WAIT.
-    -- It saturates at WRS_TIMEOUT_CYCLES, which wrs.nto never reads, and runs in the same clock domain as mcycle, so the stall is measurable via mcycle.
+    -- Timeout counter: runs on clk_cpu only while stalled and is cleared whenever the hart is not in WRS_WAIT.
+    -- It saturates at WRS_TIMEOUT_CYCLES, which wrs.nto never reads, and shares mcycle's clock domain, so the stall is measurable through mcycle.
     wrs_timeout_proc: process(clk_cpu, resetn)
     begin
         if resetn = '0' then
@@ -4003,7 +3118,7 @@ architecture struct of vesta is
             wrs_is_sto <= '0';
         elsif rising_edge(clk_cpu) then
             if current_state = WRS_WAIT then
-                -- Stalled: freeze the sto flag, since instr_curr no longer holds the wrs encoding here, and advance the timeout counter.
+                -- Stalled: freeze the sto flag, instr_curr no longer holding the wrs encoding here, and advance the timeout counter.
                 if wrs_cnt /= WRS_TIMEOUT_CYCLES then
                     wrs_cnt <= wrs_cnt + 1;
                 end if;
@@ -4015,9 +3130,7 @@ architecture struct of vesta is
         end if;
     end process;
 
-    -- ==========================================
-    -- Controller Instance
-    -- ==========================================
+    -- Controller instance.
     controller_inst: controller
         generic map (
             ENABLE_MUL      => ENABLE_MUL,
@@ -4067,17 +3180,17 @@ architecture struct of vesta is
             ecall_op         => ecall_op,
             ebreak_op        => ebreak_op,
             mret_op          => mret_op,
-            -- P2: the standard WFI decode out, and the three U-mode decode inputs straight from csr_unit's frozen 3.1 exports.
+            -- The standard WFI decode out, and the three U-mode decode inputs straight from csr_unit.
             wfi_op           => wfi_op,
-            -- D1: the DRET decode out, and the debug-mode decode input from csr_unit, the same route priv_m takes and for the same reason.
+            -- The DRET decode out, and the debug-mode decode input from csr_unit, the same route priv_m takes and for the same reason.
             dret_op          => dret_op,
             debug_mode       => debug_mode,
             priv_m           => trap_priv_mode,
             status_tw        => trap_status_tw,
             mcounteren_bits  => trap_mcounteren,
-            -- F10 (fix pass W4): the SAME csr_rs1_zero the csr_unit already consumes for its write enable (:4479 below), so the decode's read-only-CSR trap and the write path can never disagree about what counts as a write.
+            -- The SAME csr_rs1_zero csr_unit consumes for its write enable, so the decode's read-only-CSR trap and the write path can never disagree about what counts as a write.
             csr_rs1_zero     => csr_rs1_zero,
-            -- F-BV1 (K5): the R-type rs2 field is zero, the one bit maindec needs to tell Zbb `zext.h rd,rs1` apart from Zbkb `pack rd,rs1,rs2`, which share the same funct7, funct3 and opcode.
+            -- The R-type rs2 field is zero, the one bit maindec needs to tell Zbb `zext.h rd,rs1` apart from Zbkb `pack rd,rs1,rs2`, which share the same funct7, funct3 and opcode.
             rs2_zero         => rs2_zero,
             wrs_op           => wrs_op,
             wrs_sto          => wrs_sto,
@@ -4098,9 +3211,6 @@ architecture struct of vesta is
             frm_valid         => frm_valid
         );
 
-    -- ==========================================
-    -- IRQ Ready Process
-    -- ==========================================
     -- Signal the IRQ handler when the core is ready to process an interrupt.
     irq_rdy_proc: process(clk_cpu)
     begin
@@ -4115,31 +3225,16 @@ architecture struct of vesta is
 
 
 
-    -- ==========================================
-    -- K5 DEFECT B: the divide dispatch qualification
-    -- ==========================================
-    -- The ALU's divide FSM used to arm itself off `div_start_rq`, a bare combinational decode of `alu_control` in alu.vhd.
-    -- `alu_control` decodes `instr_curr`, and there are cycles in which instr_curr is NOT the instruction the hart is dispatching, exactly the class :2307 names:
-    --   * SHAPE E, the 32-bit split-fetch bubble (:1777): instr_curr is HELD at the PREVIOUS instruction. MEASURED as the live trigger.
-    --   * IRQ_SV (:1775): the RAW BUS WORD.
-    --   * IRQ_JUMP and TRAP_STATE: they fall through this mux's tail to `instr_decomp`, a decode of the live bus word.
-    -- In any of those, a divide-looking encoding armed the FSM, which latched the PREVIOUS divide's sel_signed and sel_rem and then STUCK in ALU_DIV_WAIT, which only div_complete leaves, so the next divide executed under the wrong opcode's selects.
-    --
-    -- The fix is a POSITIVE qualification, not a state blacklist: :2307's own text records why a blacklist is only ever as good as the list, and that list had already missed six states once.
-    -- `next_state = DIV_WAIT` IS the dispatch, because DIV_WAIT is reachable only from EXECUTE's is_div_op arms (the four shapes at :3021/:3164/:3323/:3434), so this term is exact BY CONSTRUCTION and cannot drift out of step with those guards the way a copy of their trap or shape predicates would.
-    -- Qualifying with `current_state = EXECUTE` narrows it to the dispatch cycle itself, since during DIV_WAIT next_state is DIV_WAIT again while alu_done is low.
-    --
-    -- NOT a loop: div_dispatch feeds only the ALU FSM's CLOCKED arm, so nothing combinational returns from it to next_state.
-    -- Timing is UNCHANGED on the correct path: the old arm also fired in this same EXECUTE cycle, so alu_state is still ALU_DIV_WAIT by the time the core reaches DIV_WAIT and alu_done's ALU_IDLE term still holds.
+    -- THE DIVIDE DISPATCH QUALIFIER. The ALU's divide FSM must arm from this, never from a bare combinational decode of alu_control: alu_control decodes instr_curr, which in the split-fetch bubble, IRQ_SV, IRQ_JUMP and TRAP_STATE is not the instruction being dispatched.
+    -- A divide-looking encoding in any of those arms the FSM, which latches the PREVIOUS divide's signed and remainder selects and sticks in its wait state, so the next real divide executes under the wrong opcode's selects.
+    -- `next_state = DIV_WAIT` IS the dispatch, DIV_WAIT being reachable only from the EXECUTE is_div_op arms, so the term is exact by construction; `current_state = EXECUTE` narrows it to the dispatch cycle itself. Not a loop: it feeds only the ALU FSM's clocked arm.
     div_dispatch <= '1' when (current_state = EXECUTE and next_state = DIV_WAIT) else '0';
 
     alu_control_dp <=   "0001011" when (current_state = AMO_READ or current_state = AMO_WRITE) else
-                        "0001010" when (current_state = SC_CHECK) else -- ALU passes b
+                        "0001010" when (current_state = SC_CHECK) else -- the ALU passes B
                         alu_control;
 
-    -- ==========================================
-    -- Component Instantiations
-    -- ==========================================
+    -- Component instantiations.
     datapath_inst: datapath
         generic map (
             ENABLE_MUL      => ENABLE_MUL,
@@ -4159,7 +3254,7 @@ architecture struct of vesta is
             resetn      => resetn,
             pc          => pc,
             pc_plus_4   => pc_link,
-            result_src  => dp_result_src,  -- X3 Zcmt jalt-link override ("010"), otherwise the controller's value
+            result_src  => dp_result_src,  -- the Zcmt jalt-link override ("010"), otherwise the controller's value
             pc_src      => pc_src,
             ALU_src     => ALU_src,
             reg_write   => reg_write_dp,
@@ -4200,7 +3295,7 @@ architecture struct of vesta is
             frm_value   => frm_value,
             fpu_done    => fpu_done_sig,
             fp_flags    => fp_flags,
-            -- V1 tracer taps: the regfile a3 and wd3 nets, read-only
+            -- Tracer taps: the regfile a3 and wd3 nets, read-only.
             trc_rd_addr => trc_rd_addr,
             trc_rd_data => trc_rd_data,
             a0          => a0
@@ -4215,13 +3310,13 @@ architecture struct of vesta is
             clk             => clk,
             resetn          => resetn,
             irq             => irq_vector,
-            -- P1: irq_en_eff equals irq_en in legacy mode and on any OFF build, and is forced ALL-ZERO in standard mode so this FSM never leaves IDLE (p0_specs.md 1).
-            -- Consequence for an `iret` executed in standard mode: isr_ret is only ever acted on from WAIT_EOI (irq_handler:~355 and the WAIT_EOI next-state arm), so it is silently IGNORED here, which is the "unspecified but bounded, must not wedge" contract.
+            -- irq_en_eff equals irq_en in legacy mode and on any OFF build, and is forced ALL-ZERO in standard mode so this FSM never leaves IDLE.
+            -- An `iret` executed in standard mode is therefore silently ignored, isr_ret only ever being acted on from WAIT_EOI: unspecified but bounded, and it must not wedge.
             irq_en          => irq_en_eff,
             irq_pri         => irq_priority,
             irq_recursion_en => irq_recursion_en,
             irq_active      => irq_active,
-            isr_ret         => isr_ret_eff,   -- P2: gated by trap_entry_seq
+            isr_ret         => isr_ret_eff,   -- gated by the trap-entry squash
             irq_save        => irq_save,
             irq_save_ack    => irq_save_ack,
             irq_restore     => irq_restore,
@@ -4255,26 +3350,22 @@ architecture struct of vesta is
 
  
     csr_addr <= instr_curr(31 downto 20);
-    -- P3-entry: the rs1/uimm FIELD of the CSR instruction, from the same instruction source as csr_addr; for the immediate forms instr(19:15) IS uimm.
-    -- Feeds csr_unit's write-form rule: CSRRS and CSRRC with rs1=x0, and CSRRSI and CSRRCI with uimm=0, must not assert the write enable.
+    -- The rs1/uimm FIELD of the CSR instruction, from the same instruction source as csr_addr; for the immediate forms instr(19:15) IS uimm.
+    -- It feeds csr_unit's write-form rule: CSRRS and CSRRC with rs1=x0, and CSRRSI and CSRRCI with uimm=0, must not assert the write enable.
     csr_rs1_zero <= '1' when instr_curr(19 downto 15) = "00000" else '0';
-    -- F-BV1 (K5): the R-type rs2 FIELD, instr[24:20], is zero.
-    -- SAME instruction source as csr_addr and csr_rs1_zero, so the decode can never disagree with itself about which instruction it is looking at.
-    -- Consumed ONLY by maindec's Zbb ZEXT.H legality row: `zext.h rd,rs1` and Zbkb `pack rd,rs1,x0` are one encoding (0x080ece33 for x28,x29), so rs2 is the only field that separates a legal zext.h from an unimplemented pack.
-    -- A decompressed C.ZEXT.H arrives here with instr[24:20] = "00000", because c_dec.vhd's Zcb expansion writes that field explicitly, so the compressed form stays legal.
+    -- The R-type rs2 FIELD is zero. Same instruction source as csr_addr and csr_rs1_zero, so the decode cannot disagree with itself about which instruction it is looking at.
+    -- Consumed ONLY by maindec's ZEXT.H legality row: `zext.h rd,rs1` and `pack rd,rs1,x0` are one encoding, so rs2 is the only field separating a legal zext.h from an unimplemented pack. A decompressed c.zext.h arrives with that field explicitly zero, so the compressed form stays legal.
     rs2_zero <= '1' when instr_curr(24 downto 20) = "00000" else '0';
 
-    -- X1 Zihpm event levels; see the signal declarations. mem_ready is the arbiter back-pressure, where '0' means a pending shared request has not yet been granted and completed.
+    -- Zihpm event levels. mem_ready is the arbiter back-pressure, where '0' means a pending shared request has not yet been granted and completed.
     hpm_ev_stall <= not mem_ready;
     hpm_ev_sleep <= '1' when (current_state = SLEEPING or sleep = '1') else '0';
-    -- P1: MTRAP_SV joins the Zihpm "trap entries taken" event, because the event counts TRAP ENTRIES and a standard-mode entry is one.
-    -- MTRAP_JUMP and MTRAP_RET do NOT, mirroring IRQ_JUMP and IRQ_REST, so one entry still counts as one cycle.
-    -- MTRAP_SV is unreachable on an OFF build, so the counter is bit-identical there.
+    -- The "trap entries taken" event counts ENTRIES, so MTRAP_SV belongs and MTRAP_JUMP and MTRAP_RET do not, mirroring IRQ_JUMP and IRQ_REST: one entry counts as one cycle.
     hpm_ev_trap  <= '1' when (current_state = IRQ_SV or current_state = TRAP_STATE
                               or current_state = MTRAP_SV) else '0';
 
-    -- P1: tap the three standard interrupt levels for the `mip` mirror.
-    -- The indices are MemoryMap slot numbers, 83, 84 and 85 today, so guard the slice for any instantiation built with a NUM_IRQS smaller than the meip slot; vesta's own generic default is 16, and an out-of-range slice would be an elaboration error, not a warning.
+    -- Tap the three standard interrupt levels for the mip mirror. The indices are MemoryMap slot numbers, so the slice is guarded for any instantiation whose NUM_IRQS is smaller than the meip slot.
+    -- vesta's own generic default is 16, and an out-of-range slice is an elaboration error, not a warning.
     gen_mip_taps: if NUM_IRQS > IRQB_EXT_MEIP generate
         trap_irq_msip <= irq_vector(IRQB_CLINT_MSIP);
         trap_irq_mtip <= irq_vector(IRQB_CLINT_MTIP);
@@ -4315,15 +3406,15 @@ architecture struct of vesta is
             csr_addr       => csr_addr,
             csr_write_data => csr_wdata, 
             csr_op         => csr_op,
-            csr_valid      => csr_valid_eff,   -- P2/W2: qualified by dec_dispatch
+            csr_valid      => csr_valid_eff,   -- qualified by dec_dispatch
             csr_read_data  => csr_rdata,
             inst_retired   => inst_retired,
             ev_bus_stall   => hpm_ev_stall,
             ev_sleep       => hpm_ev_sleep,
             ev_trap_entry  => hpm_ev_trap,
 
-            -- P1 trap-CSR interface (p0_specs.md 2.4), now DRIVEN by the MTRAP_SV and MTRAP_RET FSM states.
-            -- trap_entry_we and mret_we are clk-domain ONE-SHOTS, since csr_unit is on the free-running clk and the FSM on the gated clk_cpu; see gen_trapcsr_wb.
+            -- Trap-CSR interface, driven by the MTRAP_SV and MTRAP_RET states.
+            -- trap_entry_we and mret_we are clk-domain ONE-SHOTS, csr_unit being on the free-running clk and the FSM on the gated clk_cpu; see gen_trapcsr_wb.
             irq_msip       => trap_irq_msip,
             irq_mtip       => trap_irq_mtip,
             irq_meip       => trap_irq_meip,
@@ -4338,18 +3429,17 @@ architecture struct of vesta is
             mie_bits       => trap_mie_bits,
             legacy_mode    => trap_legacy_mode,
 
-            -- P2 U-mode exports (p0_specs.md 3.1); trap_priv_mode is stuck '1' (M) unless ENABLE_UMODE, which is what folds every U-mode decode restriction out of the OFF and trapCsr-only netlists.
+            -- U-mode exports; trap_priv_mode is stuck '1' (M) unless ENABLE_UMODE, which is what folds every U-mode decode restriction out of the other builds.
             priv_mode      => trap_priv_mode,
             status_tw      => trap_status_tw,
             mcounteren_bits => trap_mcounteren,
 
-            -- P3-entry (p3_kickoff.md 3): the write-form qualifier in, the effective data-access privilege out.
-            -- Its consumer is the PMP data-side check, which P3 Agent B wires in; it is unconsumed until then.
+            -- The CSR write-form qualifier in, the effective data-access privilege out, which the PMP data-side check consumes.
             csr_rs1_zero   => csr_rs1_zero,
             data_priv_m    => eff_data_priv_m,
-            mret_priv_m    => mret_priv_m,   -- P3 red-team F1
+            mret_priv_m    => mret_priv_m,   -- the MRET return privilege, for the fetch check
 
-            -- D1 debug-mode interface: the two strobes are the gen_debug one-shots, and everything coming back is STATE that vesta's FSM, its clock gate and, via the controller, maindec consume.
+            -- Debug-mode interface: the two strobes are the gen_debug one-shots, and everything coming back is STATE that vesta's FSM, its clock gate and, through the controller, maindec consume.
             dbg_entry_we   => dbg_entry_we_sig,
             dbg_pc         => dbg_pc_val,
             dbg_cause      => dbg_cause_r,
@@ -4360,28 +3450,19 @@ architecture struct of vesta is
             dcsr_step      => dcsr_step,
             dpc_value      => dbg_dpc_value,
 
-            -- P3 (p0_specs.md section 4.1): the pmpcfg0-3 and pmpaddr0-15 bank, flattened.
-            -- Both are all-zero when ENABLE_PMP is false, since nothing ever writes the flops, which is the second half of the OFF fold; the first is that gen_pmp does not instantiate pmp_unit.
+            -- The pmpcfg and pmpaddr bank, flattened. Both are all-zero when ENABLE_PMP is false, nothing ever writing the flops, which together with gen_pmp not instantiating pmp_unit is the whole OFF fold.
             pmp_cfg_flat   => pmp_cfg_flat_sig,
             pmp_addr_flat  => pmp_addr_flat_sig,
 
-            -- V1 tracer exports, read-only. csr_commit_we is generated INSIDE csr_unit and is asserted only when a write-case arm actually stores; a vesta-level reproduction of csr_write_en would log writes that never committed (red-team R4, finding F10).
+            -- Tracer exports, read-only. csr_commit_we is generated INSIDE csr_unit and asserted only when a write-case arm actually stores; a vesta-level reproduction of csr_write_en would log writes that never committed.
             csr_commit_we  => csr_commit_we,
             csr_commit_val => csr_commit_val,
             mstatus_value  => mstatus_value,
             fflags_value   => fflags_value
         );
 
-    -- ==========================================================
-    -- V1 SPIKE-LOCKSTEP TRACER (TRACE_ENABLE only)
-    -- ==========================================================
-    -- A PURE OBSERVER: vesta_tracer has no output ports, so this block cannot affect the design in the ON build either; it only writes a file.
-    -- Elaboration removes the whole block when TRACE_ENABLE is false.
-    --
-    -- THE STATE-ORDINAL CONTRACT: `cpu_state` is declared in this architecture and cannot cross a port boundary in VHDL-93, so the FSM state is passed as `cpu_state'pos(...)`.
-    -- The ST_* constants in vesta_tracer.vhd MUST match the DECLARATION ORDER of the type at about line 425 of this file.
-    -- IF YOU ADD, REMOVE OR REORDER A STATE THERE, UPDATE vesta_tracer.vhd.
-    -- The two ordinal signals live inside the generate so the OFF build carries not even the conversion.
+    -- The lockstep tracer (TRACE_ENABLE only) is a PURE OBSERVER: vesta_tracer has no output ports, so it cannot affect the design even in an ON build, and elaboration removes the whole block when TRACE_ENABLE is false.
+    -- THE STATE-ORDINAL CONTRACT: cpu_state cannot cross a port boundary in VHDL-93, so the FSM state is passed as an ordinal and vesta_tracer's ST_* constants MUST match the type's declaration order. Adding, removing or reordering a state means updating vesta_tracer.vhd.
     gen_trace: if TRACE_ENABLE generate
         signal trc_state      : natural range 0 to 63;
         signal trc_next_state : natural range 0 to 63;
@@ -4394,9 +3475,8 @@ architecture struct of vesta is
                 TRACE_FILE        => TRACE_FILE,
                 ENABLE_PMP        => ENABLE_PMP,
                 ENABLE_COMPRESSED => ENABLE_COMPRESSED,
-                -- D1 (R-D0-3(1)): THE ORDINAL-COUNT ASSERT. `cpu_state` cannot cross a port boundary in VHDL-93, but its CARDINALITY is a natural and can.
-                -- vesta_tracer compares this against its own ST_COUNT and FAILS AT ELABORATION on a mismatch, closing the add/remove half of a contract that had ZERO mechanical enforcement before, since ST_COUNT was declared and never read.
-                -- It does NOT catch a reorder at constant count; nothing cheap does, and saying so is better than implying the gap is shut.
+                -- THE ORDINAL-COUNT ASSERT: cpu_state cannot cross a port boundary, but its CARDINALITY can, and vesta_tracer compares it against its own ST_COUNT and FAILS AT ELABORATION on a mismatch.
+                -- It catches an add or a remove, and it does NOT catch a reorder at constant count.
                 STATE_COUNT       => cpu_state'pos(cpu_state'high) + 1
             )
             port map (
@@ -4423,24 +3503,16 @@ architecture struct of vesta is
                 write_data       => write_data,
                 mem_access_instr => mem_access_instr,
                 funct3           => instr_curr(14 downto 12),
-                -- A16/T2: the tracer's only new input. `sc_fail_ext` is an EXISTING vesta input port, so this creates no signal and no logic; it is a wire already present in every build, read by an observer that only exists when TRACE_ENABLE is true.
-                --
-                -- WHY ITS COMPONENT DECLARATION SHARES A LINE WITH `funct3` at :483, which looks wrong until you know this: Genus derives internal net names from the SOURCE LINE of the expression that creates them, giving names like `add_1469_57` and `plus_3919_83`.
-                -- Inserting even a comment line above about 3919 renumbers them, and the OFF-build netlist then differs from its predecessor in 1,794 lines of pure renaming.
-                -- Measured, not feared: the first cut of this change did exactly that, and the diff was provably nothing else, with identical cell counts, identical area to 3 decimals and byte-identical content after normalising 7 line and column keys.
-                -- A netlist A/B is the evidence that a tracer edit invalidates no hardened block, so it is worth keeping that A/B checkable with `grep -v 'Generated on' | md5sum` instead of a bespoke normaliser.
-                -- Hence: NO NEW LINE above the last generated name. Anything below here is free, which is why this comment can afford to exist at all.
+                -- sc_fail_ext is an EXISTING vesta input port, so reading it here creates no signal and no logic.
+                -- Its component declaration shares a line with funct3 on purpose: the synthesiser derives internal net names from the SOURCE LINE of the expression that creates them, so inserting a line above the last such expression renumbers hundreds of nets and makes a netlist A/B unreadable. Below that point, extra lines are free.
                 sc_fail_ext      => sc_fail_ext,
                 csr_addr         => csr_addr,
                 csr_commit_we    => csr_commit_we,
                 csr_commit_val   => csr_commit_val,
                 mstatus_value    => mstatus_value,
                 fflags_value     => fflags_value,
-                -- A17/F-K2b-1: the tracer's two new inputs. Both are EXISTING vesta signals (`fp_flags_we` at about :1652 and `fp_flags_val` at about :1660, already wired to csr_unit), so this creates no logic and no net; it is an observer reading wires present in every build.
-                -- Their COMPONENT declaration shares :489 with `fflags_value` for the reason spelled out above `sc_fail_ext`: no new line may appear above the last Genus-named expression. Down here the port map is free, which is why this comment can exist at all.
-                --
-                -- WHY BOTH, AND WHY NOT READ THE CSR BACK INSTEAD: the committed fflags is `fflags_value or fp_flags_val` on THIS edge, and reading the register on the NEXT edge would give the same answer only until an instruction writes fflags in between, which the Zfinx test harness does after every tested op with `csrrw a1,fflags,x0`.
-                -- The tracer therefore computes the commit from the same two operands the flop captures, which is invariant 7, "log what COMMITTED", applied literally.
+                -- fp_flags_we and fp_flags_val are EXISTING vesta signals already wired to csr_unit, so reading them creates no logic; their component declaration shares a line for the net-naming reason given above sc_fail_ext.
+                -- The tracer needs BOTH rather than reading the CSR back, because the committed fflags is the OR of the two on THIS edge, and a read on the next edge is wrong as soon as an instruction writes fflags in between.
                 fp_flags_we      => fp_flags_we,
                 fp_flags_val     => fp_flags_val,
                 trap             => trap,
@@ -4459,42 +3531,16 @@ architecture struct of vesta is
             );
     end generate;
 
-    -- ==========================================
-    -- W2/F4b DESIGN ASSERTIONS: the decode coincidences, made CHECKED
-    -- ==========================================
-    -- Simulation-only by construction: a VHDL assertion has no hardware and Genus emits none for it, verified by `sequential` and the gate census being unchanged with these present.
-    --
-    -- Findings F4 and F4-shapes-B/C are both of the form "this is correct only because two files happen to agree, and nothing checks that they do".
-    -- The fix for a coincidence is not to remove the mechanism: MEMORY_WAIT, DIV_DONE and FPU_DONE are REAL COMMIT SITES, each CARRYING the live decode through to rd rather than suppressing it, and that is precisely how a load, a div and an FP op write their rd (v1_retire_enumeration.md 5, rows 4, 6, 9). Removing the carrier would break them.
-    -- The S-series is MOVING that carrier, state by state, from the process default to the commit block, which changes who delivers the value and never the value, so do not read "fall-through" into these three; read "not suppressed".
-    -- The fix is to make the coincidence FAIL LOUDLY the day someone breaks it.
-    --
-    -- CLOCKED, NOT CONCURRENT, and this is load-bearing rather than style.
-    -- The first cut of this block used concurrent assertions, and assertion (4) then fired on 23 of the 136 standing tests, every AMO, LR-SC and sh* cell, as a pure FALSE POSITIVE.
-    -- A concurrent assertion re-evaluates on EVERY delta in which any of its operands moves, i.e. it samples the combinational cone MID-SETTLE.
-    -- Probed at the fire point on rv32ua-p-amoadd_w: state=EXECUTE, is_compressed='1', pc(1)='0', quadrant_lower="00", a genuine shape-C compressed cycle, but amo_op='1' with instr_curr=0x00000000, which is impossible in any settled state.
-    -- amo_op was simply one delta stale, still holding the PREVIOUS cycle's AMO decode while the shape terms had already advanced to the next, compressed, instruction.
-    --   The design was never in that state. c_dec.vhd emits ZERO instances of the AMO (0101111), FENCE (0001111), SYSTEM (1110011) and OP-FP (1010011) opcodes, so the guarded mechanism remains unreachable.
-    -- Sampling at `rising_edge(clk_cpu)` reads the SETTLED pre-edge values, and it is also the more faithful property: every one of these is a statement about what a COMMIT EDGE does, not about a combinational instant.
-    -- LESSON, worth more than the assertions: assertion (4) was built on `is_compressed`, a signal W1 had ALREADY documented (:615-625) as an inferred latch whose value is only meaningful under `EXECUTE and pc(1)='1' and repeat_if='0'`. An assertion never seen to fire would have shipped this.
-    --
-    -- SEVERITY `error`, AND IN THIS ENVIRONMENT THAT ABORTS THE SIMULATION.
-    -- Measured, not assumed (W2, xrun/xmsim 20.09-s006): a firing assertion prints `ASSERT/ERROR ... F4 ASSERT:` with its text, file and line, and the run STOPS THERE, with no TEST PASSED/FAILED, no a0 verdict, and xmsim exiting.
-    -- Deliberate, and the choice is on the record: this project's history is silent coincidences surviving a year, so the failure mode to design against is being IGNORED, not being disruptive.
-    -- THE CONSEQUENCE, for whoever hits this: if a future knobs-on configuration legitimately trips one of these, IT WILL KILL THE REGRESSION RUN, and the sim will die at the first occurrence rather than finishing with a report.
-    -- That is not a broken testbench. Read the report string, then treat it as a FINDING: these four encode decode coincidences across vesta.vhd, maindec.vhd and c_dec.vhd, and an assertion firing means the coincidence has broken.
-    -- Do not tune the assertion to fit the new build; fix the arm it is pointing at.
-    -- These compile into every configuration, including the Argus N=18 suite and every opt-in P-series build.
+    -- DESIGN ASSERTIONS: the decode coincidences, made checked. Each is of the form "this is correct only because two files happen to agree, and nothing checks that they do", and the fix for a coincidence is to make it FAIL LOUDLY, not to remove the mechanism.
+    -- CLOCKED, NOT CONCURRENT, and that is load-bearing: a concurrent assertion re-evaluates on every delta in which an operand moves, so it samples the combinational cone MID-SETTLE and fires on one-delta-stale decodes during ordinary traffic. A rising_edge sample reads the settled pre-edge values, which is also the more faithful property.
+    -- SEVERITY error ABORTS THE SIMULATION in this environment, deliberately, the failure mode to design against being ignored rather than disruptive: if one fires, treat it as a FINDING and fix the arm it points at, never tune the assertion to fit the build. Simulation-only by construction, an assertion driving no signal, and they compile into every configuration.
     f4_assert_proc: process(clk_cpu)
     begin
         if rising_edge(clk_cpu) then
 
-            -- (1) MEMORY_WAIT is the LOAD's commit site.
-            --     Every other encoding that can be held here (STORE, cbo.zero, cm.push, cm.pop, cm.mv, and the `iret`, whose trajectory is EXECUTE then MEMORY_WAIT then IRQ_REST, v1 rev-2 R1) must decode reg_write='0' in maindec.
-            --     If one ever does not, it writes a garbage rd here, and NOTHING STRUCTURAL STOPS IT, because MEMORY_WAIT is a legitimate rd commit site and its S3 permission mask therefore ALLOWS the write.
-            --     The masks police WHICH STATE may commit; this assertion polices WHICH ENCODING may be held when it does. That is why the two are complementary and why neither retires the other.
-            --     NOTE the scope caveat: with ENABLE_ZCMP on, the Zcmp rd commits happen in ZCM_POP_WB, ZCM_A0Z, ZCM_MV1 and ZCM_MV2, NOT here, and what reaches MEMORY_WAIT is the held ZCM sentinel, which decodes reg_write='0'.
-            --     So LOAD-only holds with the knob either way, and if a future Zcmp change made the sentinel write, this firing is the DESIRED outcome.
+            -- (1) MEMORY_WAIT is the LOAD's commit site, so every other encoding that can be held here (store, cbo.zero, cm.push, cm.pop, cm.mv and the `iret`) must decode reg_write='0' in maindec.
+            --     If one ever does not it writes a garbage rd, and nothing structural stops it, MEMORY_WAIT being a legitimate rd commit site whose permission mask allows the write.
+            --     The masks police WHICH STATE may commit; this polices WHICH ENCODING may be held when it does.
             assert not (current_state = MEMORY_WAIT and reg_write_dp = '1'
                         and instr_curr(6 downto 0) /= I_LOAD_OPCODE)
                 report "F4 ASSERT: reg_write_dp asserted in MEMORY_WAIT for a non-LOAD encoding"
@@ -4506,17 +3552,16 @@ architecture struct of vesta is
                 report "F4 ASSERT: reg_write_dp asserted in DIV_DONE for a non-DIV encoding"
                 severity error;
 
-            -- (3) FPU_DONE is the multi-cycle and FMA FP commit site; single-cycle FP retires in EXECUTE and never reaches this state.
-            --     Statically unreachable in the default build, where ENABLE_ZFINX is false and no FP op decodes at all, so this one is a guard for the knobs-on configurations only and the standing gates cannot exercise it.
+            -- (3) FPU_DONE is the multi-cycle and FMA FP commit site; a single-cycle FP op retires in EXECUTE and never reaches this state.
+            --     Unreachable unless ENABLE_ZFINX is set, so this one guards the knobs-on configurations only.
             assert not (current_state = FPU_DONE and reg_write_dp = '1'
                         and is_fp_multicycle = '0' and is_fp_fma = '0')
                 report "F4 ASSERT: reg_write_dp asserted in FPU_DONE for a non-multicycle-FP encoding"
                 severity error;
 
-            -- (4) The shapes-B/C missing-arm class: the two COMPRESSED EXECUTE arms have NO lr_op, sc_op, amo_op, cboz_op, fence_op, wfi_op, wrs_op or is_fp_* branches at all.
-            --     That is unreachable TODAY only because no compressed encoding decompresses to any of them, a property of c_dec.vhd that nothing in vesta.vhd enforces.
+            -- (4) The two COMPRESSED EXECUTE arms have NO lr_op, sc_op, amo_op, cboz_op, fence_op, wfi_op, wrs_op or is_fp_* branches at all, which is safe only because no compressed encoding decompresses to any of them, a property of c_dec that nothing in this file enforces.
             --     If a future Zc* extension ever emits one, the instruction would silently retire as a plain ALU op with its memory, atomic or FP side effect simply not performed.
-            --     The shape terms are spelled out rather than reusing `is_compressed`, for the latch reason in the block comment above: these are exactly the two `instr_decomp` arms of the instr_curr mux (:1487 and :1489), written in terms of pc (a flop), repeat_if (a flop) and the quadrant bits (combinational off the bus), so no latched FSM output is read.
+            --     The shape terms are spelled out rather than reusing is_compressed, which is an inferred latch: they are written in terms of pc, repeat_if and the quadrant bits, so no latched FSM output is read.
             assert not (current_state = EXECUTE
                         and ((pc(1) = '1' and repeat_if = '0' and quadrant_upper /= "11")
                              or (pc(1) = '0' and quadrant_lower /= "11"))

@@ -1,38 +1,11 @@
 -------------------------------------------------------------------------------
 -- st25r3916_model_tb.vhd
 -------------------------------------------------------------------------------
--- Standalone self-checking bench for tb/st25r3916_model.vhd, the behavioral model of the ST ST25R3916 used as Castalia's off-die NFC AFE.
--- See that file's header for the datasheet citations [S1].. and the assumption list [A1]..
---
--- WHAT IS UNDER TEST.
--- Not the RF protocol: tb/nfc_reader_model.vhd owns that and is instantiated here only as a REALISTIC RF STIMULUS SOURCE for the last functional group.
--- What this bench proves is the ST25R3916's own SPI register front end and, above all, the TWO-DIRECTIONAL transparent-mode gate:
---     * RF passes through the part ONLY while it is in transparent mode
---       (G-GATE-RF proves the negative: envelope edges are counted as blocked,
---        MISO stays tristate);
---     * SPI traffic is REFUSED while it is in transparent mode
---       (G-GATE-SPI proves the negative: SCLK edges with BSS high change no
---        register and complete no frame, they only bump the ignored-edge
---        counter).
--- Those two negatives are the deliverable; the register/command groups exist to make the positive side credible.
---
--- BENCH-SIDE WIRING NOTES.
---   * MISO is a tristate pin, so the bench resolves it exactly like QSPI_tb / I3C_tb do: miso_net gets pin_miso when pin_miso_oe is '1', else 'Z'.
---     A 'Z' reading in a check is therefore a real, meaningful "the AFE is not driving this wire" result, not an X-propagation accident.
---   * rf_env_in / rf_field_in are multiplexed (sel_reader) between bench-driven levels and the nfc_reader_model outputs, so the directed groups can step the envelope one edge at a time while the last group hands the model a real modified-Miller frame.
---   * mcu_rf_tx_en is held high during the reader groups.
---     It is the model's clearly-labelled BENCH-ONLY port (NFC0's rf_tx_en has no ST25R3916 pin); driving it high simply lets nfc_reader_model's decoder open its response window promptly instead of burning its full bounded FDT guard.
---
--- SPI MASTER TIMING.
--- CPOL = 0 / CPHA = 1 per DS12484 Sect. 4.3.3: the bench presents MOSI before the rising edge (the model samples on the FALLING edge) and samples MISO at the end of the SCLK high phase (the model updates MISO on the RISING edge).
--- MSB first.
--- No setup/hold margin is being characterized; this is a functional bench (model assumption [A10]).
---
--- NEGATIVE CONTROL.
--- Guarded by the NEGCTRL generic (default true): the normal run ends with one deliberately wrong expectation, so a healthy result is "ALL CHECKS PASSED" plus EXACTLY ONE failure.
--- Setting NEGCTRL false gives a clean zero-failure run; note that the override literal must be QUOTED, see the entity's generic comment for the Xcelium *W,EVBBOL silent-ignore trap.
---
--- NOT CHECKED HERE, because the model does not implement it (see its "WHAT THIS MODEL DOES NOT IMPLEMENT" list): analog measurement commands, framing / CRC / anticollision, timers, PT_memory, I2C, stream modes, test registers, MCU_CLK division ratios, and any real-silicon timing.
+-- Self-checking bench for tb/st25r3916_model.vhd, the ST25R3916 NFC AFE model.
+-- The deliverable is the two-directional transparent-mode gate: RF reaches MISO only while transparent, and SPI traffic is refused while transparent; the register and command groups make the positive side credible.
+-- nfc_reader_model supplies a real modified-Miller frame for the last group; it owns the ISO-14443A protocol and none of it is duplicated here.
+-- SPI master is CPOL = 0 / CPHA = 1, MSB first: MOSI is presented before the rising edge (the model samples on the falling edge) and MISO is sampled at the end of the SCLK high phase.
+-- MISO is a tristate pin resolved here to 'Z' when pin_miso_oe is low, so a 'Z' check is a real "the AFE is not driving" result, not X propagation.
 -------------------------------------------------------------------------------
 
 library ieee;
@@ -44,20 +17,15 @@ use work.nfc_bfm_pkg.all;
 
 entity st25r3916_model_tb is
     generic (
-        -- Mandatory negative control (house rule: a bench that cannot fail proves nothing).
-        -- With NEGCTRL = true, the DEFAULT and the way this bench is normally run, one deliberately wrong expectation is checked at the very end, so a healthy run reports EXACTLY ONE failure and the banner reads "PASS (1 expected negative-control failure)".
-        -- Override to false for a clean zero-failure run.
-        --
-        -- OVERRIDE GOTCHA (Xcelium 20.09): a BARE VHDL boolean generic override is SILENTLY IGNORED, xmelab emits only a *W,EVBBOL warning and keeps the default, producing a fake green.
-        -- The value inside the -gpg generic association for st25r3916_model_tb.NEGCTRL must be the QUOTED (escaped) literal \"false\", never a bare false.
-        -- xrun.sh in xcelium/cots_test/st25r3916/ does this and treats EVBBOL as fatal so a mis-specified override cannot pass unnoticed.
+        -- Negative control: true (the default) checks one deliberately wrong expectation last, so a healthy run reports EXACTLY ONE failure; false gives a clean zero-failure run.
+        -- A bare boolean generic override is silently ignored by xmelab (only a *W,EVBBOL warning), so the -gpg value for NEGCTRL must be the quoted literal \"false\" and EVBBOL must be treated as fatal.
         NEGCTRL : boolean := true
     );
 end entity st25r3916_model_tb;
 
 architecture sim of st25r3916_model_tb is
 
-    -- SPI master bit timing (see header)
+    -- SPI master bit timing
     constant TSU  : time := 5 ns;    -- MOSI setup before the rising edge
     constant THI  : time := 20 ns;   -- SCLK high phase
     constant TLO  : time := 20 ns;   -- SCLK low phase
@@ -200,8 +168,7 @@ begin
         );
 
     ---------------------------------------------------------------------------
-    -- The RF world.
-    -- nfc_reader_model is the EXISTING ISO-14443A reader model; nothing of its protocol logic is duplicated here or in the AFE model.
+    -- The RF world: nfc_reader_model is the ISO-14443A reader, driven as stimulus only.
     ---------------------------------------------------------------------------
     rdr : entity work.nfc_reader_model
         generic map (RF_HALF => RF_HALF)
@@ -261,7 +228,7 @@ begin
         end if;
     end process miso_mon;
 
-    -- counts every transition of the MCU_CLK output, so the gating checks can compare deltas
+    -- counts MCU_CLK transitions so the gating checks can compare deltas
     mclk_mon : process (pin_mcu_clk)
         variable n : natural := 0;
     begin
@@ -272,8 +239,7 @@ begin
     end process mclk_mon;
 
     ---------------------------------------------------------------------------
-    -- STIMULUS.
-    -- One sequential program: the functional groups run in order and score into sb.
+    -- STIMULUS: one sequential program, the functional groups run in order and score into sb.
     ---------------------------------------------------------------------------
     stim_proc : process
 
@@ -708,7 +674,7 @@ begin
                      loadmod_en, '1');
         tb_txen <= '0'; wait for 100 ns;
 
-        -- the SCLK receiver-enable gate (model assumption [A2])
+        -- SCLK is the receiver enable in transparent mode
         sclk <= '0'; wait for 100 ns;
         tb_env <= '0'; wait for 200 ns;
         sb.check_bit("G-TP-RF: receiver disabled (SCLK low) parks MISO at idle",
@@ -755,7 +721,7 @@ begin
         sb.check_bit("G-EXIT: the read above already left transparent mode",
                      transparent_mode, '0');
 
-        -- re-enter, then prove the exit happens ON the BSS falling edge and that the very frame which caused it is parsed as ordinary SPI
+        -- re-enter, then prove the exit lands on the BSS falling edge and the causing frame still parses as ordinary SPI
         direct_cmd(x"DC");
         sb.check_bit("G-EXIT: re-entered transparent mode", transparent_mode, '1');
         sclk <= '0';
@@ -787,8 +753,7 @@ begin
         sb.check_true("G-GATE-RF(b): MISO stayed put", miso_edges = w0);
 
         ----------------------------------------------------------------
-        -- G-RDR: composition with the existing ISO-14443A reader model.
-        -- nfc_reader_model drives a real modified-Miller REQA short frame at the antenna; the AFE must relay it to MISO only while transparent.
+        -- G-RDR: the reader drives a real modified-Miller REQA short frame; the AFE must relay it to MISO only while transparent.
         ----------------------------------------------------------------
         report "=== G-RDR: composition with nfc_reader_model ===" severity note;
         sel_reader <= '1';
@@ -833,8 +798,7 @@ begin
         wait for 500 ns;
 
         ----------------------------------------------------------------
-        -- GROUP-NEG: NEGATIVE CONTROL (mandatory, LAST).
-        -- One deliberately wrong expectation, so the scoreboard proves it can fail.
+        -- GROUP-NEG: negative control, always last: one deliberately wrong expectation proves the scoreboard can fail.
         ----------------------------------------------------------------
         if NEGCTRL then
             report "=== GROUP-NEG: NEGATIVE CONTROL ===" severity note;
@@ -846,7 +810,7 @@ begin
         end if;
 
         ----------------------------------------------------------------
-        -- Final verdict: sb.errors must be EXACTLY the negative control (1 when NEGCTRL is on, 0 when it is off).
+        -- Final verdict: sb.errors must be exactly 1 with NEGCTRL on, 0 with it off.
         ----------------------------------------------------------------
         wait for 1 us;
         sb.report_summary("ST25R3916 MODEL TB");

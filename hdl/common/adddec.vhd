@@ -315,10 +315,8 @@ use work.MemoryMap.all;
 entity adddec is
     generic (
         ENABLE_FLASH_EXTENDED_MEM : boolean := false;
-        -- A2 (Argus): shared-window word-address width, passed down from hart_tile.
-        -- The extended-flash decode is the STRICT COMPLEMENT of the master-side sh_sel window (addr(31:SH_AW+2) /= 0), the M3c.3 double-claim lesson.
-        -- The TCM decode is qualified by the same upper bits, so a wide window (SH_AW=16: 0x20000-0x3FFFF) can never alias onto the TCM's region bits.
-        -- Default 15 is the Castalia shape (flash at 0x20000 and above), bit-for-bit the original decode.
+        -- Shared-window word-address width, passed down from hart_tile.
+        -- The extended-flash decode is the strict complement of the master-side sh_sel window, and the TCM decode is qualified by the same upper bits so a wide window cannot alias onto it.
         SH_AW                     : natural := 15
     );
     port (
@@ -374,23 +372,16 @@ architecture Behavioral of adddec is
     signal en_clk_mem_flash : std_logic;
     signal flash_dout_reg : std_logic_vector(31 downto 0);
 
-    -- A2: SH_AW-derived all-zero comparators (see the generic comment).
-    -- FLASH_ZERO spans the bits above the shared window.
-    -- tcm_upper_zero qualifies the window bits above the region field; at SH_AW=15 there are no such bits (bit 16 is the region field's top bit), so the qualifier is constant '1' and reproduces the original decode exactly.
-    -- That slice lives in a generate because Xcelium rejects a null slice.
+    -- SH_AW-derived all-zero comparators: FLASH_ZERO spans the bits above the shared window, tcm_upper_zero qualifies the window bits above the region field.
+    -- tcm_upper_zero is driven from a generate because below SH_AW=16 its address slice is null and a null slice is illegal.
     constant FLASH_ZERO   : std_logic_vector(31 downto SH_AW+2) := (others => '0');
     constant ZEROS32      : std_logic_vector(31 downto 0) := (others => '0');
     signal tcm_upper_zero : std_logic;
 
 begin
 
-    -- Memory map (M11 rework; M12 single-ROM boot).
-    -- This decoder now serves ONLY the hart-private TCM; everything else is the MCU-level shared window behind the mp_arbiter, selected by the master-side sh_sel in hart_tile.vhd/MCU.vhd.
-    -- TCM  - 0x08000 - 0x0BFFF (16KB private RAM0, one per tile)
-    -- Shared (NOT decoded here): 0x00000-0x03FFF boot ROM (M12),
-    --   0x04000-0x07FFF peripheral window, 0x0C000-0x0FFFF NPU staging RAM,
-    --   0x10000-0x1FFFF shared bulk RAM.
-    -- Extended Memory (Flash): 0x20000 and above (when ENABLE_FLASH_EXTENDED_MEM = true)
+    -- This decoder serves ONLY the hart-private TCM at 0x08000-0x0BFFF (16KB RAM0, one per tile); everything below and above it is the shared window behind the mp_arbiter, claimed by the master-side sh_sel.
+    -- Extended flash (when ENABLE_FLASH_EXTENDED_MEM) starts just above the shared window: 0x20000 at SH_AW=15.
 
     -- Extract the address fields the decode works on.
     mem_region_sel      <= data_addr(16 downto 14);
@@ -400,13 +391,8 @@ begin
     -- Pass full address bus for flash
     -- mab_out <= data_addr;
 
-    -- Determine if this is a flash access.
-    -- Flash memory is accessed when the address is >= 0x20000.
-    -- MCU_MP M11: 0x10000-0x1FFFF is the shared bulk RAM (mp_arbiter in MCU.vhd), NOT external flash (pre-M11 the boundary was 0x14000 and the 64 KB shared RAM claimed 0x14000-0x1FFFF).
-    -- Two subsystems claiming one address deadlocks the core: SPI0 FlashActive freezes clk_cpu via sleep_cpu while the shared handshake stalls mem_ready.
-    -- Keep the flash decode the exact complement of the master-side sh_sel regions.
-    -- A2: the boundary is 2^(SH_AW+2), the strict complement of sh_sel's window qualification.
-    -- At the SH_AW=15 default this is bit-for-bit the original ">= 0x20000" decode; at SH_AW=16 (Argus) flash begins at 0x40000.
+    -- A flash access is any address at or above the top of the shared window, 2^(SH_AW+2): 0x20000 at SH_AW=15, 0x40000 at SH_AW=16.
+    -- Keep this the exact complement of the master-side sh_sel regions: two subsystems claiming one address deadlock the core, because SPI0 FlashActive freezes clk_cpu via sleep_cpu while the shared handshake stalls mem_ready.
     gen_flash_detect: if ENABLE_FLASH_EXTENDED_MEM generate
         is_flash_access <= '1' when data_addr(31 downto SH_AW+2) /= FLASH_ZERO else '0';
     end generate;
@@ -415,10 +401,8 @@ begin
         is_flash_access <= '0';
     end generate;
 
-    -- A2: TCM upper-bit qualification.
-    -- The TCM lives at 0x8000-0xBFFF ONLY, so the window bits ABOVE the region field must be zero.
-    -- At the Castalia SH_AW=15 there are no such bits and the qualifier is statically '1': the flash decode already excluded everything >= 0x20000, which is the original behavior.
-    -- At SH_AW=16 it keeps 0x28000-0x2BFFF (region bits also "010") from double-claiming against sh_sel.
+    -- TCM upper-bit qualification: the TCM lives at 0x8000-0xBFFF only, so the window bits above the region field must be zero.
+    -- Without it a wide window aliases 0x28000-0x2BFFF (region bits also "010") onto the TCM and double-claims against sh_sel; below SH_AW=16 no such bits exist and the qualifier is statically '1'.
     gen_tcm_qual: if SH_AW >= 16 generate
         tcm_upper_zero <= '1' when data_addr(SH_AW+1 downto 17) = ZEROS32(SH_AW+1 downto 17) else '0';
     end generate;
@@ -438,10 +422,8 @@ begin
             -- Flash memory access
             mem_en_flash_sig <= '0';
         else
-            -- Normal memory map (M11/M12): only the PRIVATE TCM decodes here.
-            -- Regions 000 (boot ROM, M12), 001 (peripheral window), 011 (NPU staging RAM) and 1xx (shared bulk RAM) are shared.
-            -- The master-side sh_sel in hart_tile.vhd/MCU.vhd claims them, so no enable asserts here, exactly like the pre-M11 region-4 carve-out.
-            -- TCM : 0x08000 - 0x0BFFF (bits 16:14 = 010, private RAM0)
+            -- Only the private TCM decodes here: 0x08000-0x0BFFF, region bits 16:14 = "010", RAM0.
+            -- Regions 000 (boot ROM), 001 (peripheral window), 011 (NPU staging RAM) and 1xx (shared bulk RAM) are claimed by the master-side sh_sel, so no enable asserts here.
 
             case mem_region_sel is
                 when "010" =>
@@ -456,12 +438,8 @@ begin
         end if;
     end process;
 
-    -- Falling edge sensitive register for memory signals.
-    -- M9b GATE-SIM FIX: async reset to the INACTIVE values.
-    -- These staging regs were unreset, so they were X at power-on and the first mclk edge pushed X through the clock gates (En = not mem_en) onto the RAM macros' CLK/CEN/WEN pins.
-    -- The vendor SRAM models corrupt their mem arrays on unknown-control accesses: nuked tile preloads, then tile cores X, then arb_req X, then NPU CEN X, then sleep_cpu X, then hart 0 clk_cpu dead.
-    -- Holding every strobe deasserted (clock gates closed, CEN/WEN high) across reset kills the X at its source.
-    -- Root cause found via fs-ordered first-X VCD (multicore_plan.md M9b).
+    -- Falling-edge register for the memory strobes and addresses, async reset to the INACTIVE values.
+    -- Keep the reset arm: unreset staging is X at power-on and the first clock edge drives X through the clock gates onto the RAM CLK/CEN/WEN pins, which corrupts the SRAM arrays chip-wide.
     process(clk, resetn)
     begin
         if resetn = '0' then
@@ -484,8 +462,7 @@ begin
 
     
 
-    -- Rising edge sensitive register for memory select.
-    -- M9b GATE-SIM FIX: same async-reset treatment as the strobe staging above, so deasserted selects make the read mux fall through to the safe default arm.
+    -- Rising-edge register for the memory selects, async reset to deasserted so the read mux falls through to its safe default arm.
     process(clk, resetn)
     begin
         if resetn = '0' then
@@ -503,9 +480,8 @@ begin
         end if;
     end process;
 
-    -- Output buffer selection using combinational assignments.
-    -- M11/M12: the ROM, peripheral and RAM1 arms are gone; the boot ROM and the peripherals live behind the arbiter and are consumed via the master-side sh_rdata_cpu mux, and RAM1's region is now the shared NPU staging RAM.
-    -- Shared-region accesses fall through to the safe default arm here, exactly like region 4 did.
+    -- Output buffer selection, combinational: only the private TCM and, when enabled, flash are sourced locally.
+    -- Shared-region reads fall through to the safe default arm here and are consumed through the master-side sh_rdata_cpu mux instead.
     gen_flash_mux: if ENABLE_FLASH_EXTENDED_MEM generate
         out_buff <= nop                              when resetn = '0' else
                     flash_dout_reg                   when mem_sel_flash_int = '0' else  -- Flash
@@ -557,9 +533,7 @@ begin
     end generate;
 
 
-    -- Memory control process from memory_subsystem: per-byte-lane capture of the write data.
-    -- M9b GATE-SIM FIX: async reset (see the strobe staging above).
-    -- X on the RAM D pins is harmless while WEN is deasserted, but a defined value here costs nothing and keeps the write bus X-free from power-on.
+    -- Per-byte-lane capture of the write data, async reset so the write bus is X-free from power-on.
     mem_cntrl: process(clk, resetn)
     begin
         if resetn = '0' then

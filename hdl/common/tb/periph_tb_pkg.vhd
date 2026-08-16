@@ -1,18 +1,10 @@
 -------------------------------------------------------------------------------
 -- periph_tb_pkg.vhd
 -------------------------------------------------------------------------------
--- Shared support for the VestaRV peripheral testbenches: the standalone benches in tb/ and, going forward, the full-MCU integration tests.
--- Collects the parts that were copy-pasted into every standalone bench:
---
---   * img / crc16_byte            : SLV formatting and the CRC16 reference model
---   * scoreboard (protected type) : self-checking check_bit/check_slv/check_true with an internal error tally and a PASS/FAIL banner
---   * periph_bus_t + BFM          : the narrow peripheral register bus, en_mem/wen active-low, word-slot address
---
--- The gated memory-bus clock stays in each TB architecture because it depends on that bench's reference clock, and is driven from the record's select line:
---     clk_mem <= clk when b.en_mem = '0' else '0';
--- The record members map onto the DUT's bus ports, whose names vary per peripheral: b.en_mem drives en_mem, b.wen drives wen, b.addr_periph drives addr_periph, b.write_data drives write_data, and read_data is observed directly.
---
--- Sharp edges of this bus, all of which have caught a bench before: the gated clk_mem, SR reads that snapshot on select, and clear pulses that stick until the next access.
+-- Shared support for the peripheral testbenches: img / crc16_byte formatting and reference models, a self-checking scoreboard, and the peripheral register-bus record with its BFM.
+-- The bus is narrow and active-low: b.en_mem selects, b.wen writes, b.addr_periph is the word-slot index, and read_data is observed directly off the DUT.
+-- Each bench keeps its own gated memory-bus clock, since it depends on that bench's reference clock: clk_mem gets clk while b.en_mem is '0', else '0'.
+-- Sharp edges of this bus: the gated clk_mem, SR reads that snapshot on select, and clear pulses that stick until the next access.
 -------------------------------------------------------------------------------
 
 library ieee;
@@ -34,8 +26,7 @@ package periph_tb_pkg is
         return std_logic_vector;
 
     -- ---- self-checking scoreboard ----------------------------------------
-    -- Encapsulates the running error count.
-    -- Failures report at severity WARNING so the whole suite still runs, and the tally drives one PASS/FAIL banner at the end.
+    -- Encapsulates the running error count; failures report at severity WARNING so the whole suite still runs, and the tally drives one PASS/FAIL banner at the end.
     -- Declare one per bench: `shared variable sb : scoreboard;`.
     type scoreboard is protected
         procedure check_bit (tag : in string; got : in std_logic;        exp : in std_logic);
@@ -164,9 +155,8 @@ package body periph_tb_pkg is
 
     end protected body scoreboard;
 
-    -- NOTE: these procedures use value-based waits (`wait until clk = '0'/'1'`) rather than rising_edge/falling_edge.
-    -- For a clean two-value TB clock the two forms are equivalent, but the value-based wait avoids a signal-parameter 'event/'last_value attribute quirk in Xcelium 20.09.
-    -- In that quirk, falling_edge on an `in` signal parameter never fires when it is a process's first edge-wait after resuming off the clock grid.
+    -- These procedures wait on clk VALUES (`wait until clk = '0'/'1'`), never rising_edge/falling_edge.
+    -- The forms are equivalent for a two-value TB clock, but the edge form on an `in` signal parameter can miss a process's first edge-wait after it resumes off the clock grid.
 
     procedure bus_write(signal clk : in    std_logic;
                         signal b   : inout periph_bus_t;
