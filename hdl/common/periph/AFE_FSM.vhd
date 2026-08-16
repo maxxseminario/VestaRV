@@ -56,9 +56,8 @@ begin
     -- Busy for the whole conversion: any state other than IDLE, and never during reset.
     busy <= '0' when rst = '1' else '1' when state /= IDLE else '0';
     
-    -- State register and counter-enable tracking.
+    -- State register and counter-enable tracking; dropping enable parks the FSM in IDLE.
     -- The counter runs through both _PRE states and both timed _WAIT states, and through de-integration until the comparator trips or the count reaches zero.
-    -- Dropping enable parks the FSM in IDLE.
     process(clk, rst)
     begin
         if rst = '1' then
@@ -152,7 +151,7 @@ begin
 			    result_latch <= count;
 		        next_state <= IDLE;
 
-            -- Added Maxx Seminario: catch-all so the FSM cannot latch on an unreachable encoding.
+            -- Catch-all so the FSM cannot latch on an unreachable encoding.
             when others =>
                 next_state <= IDLE;
 

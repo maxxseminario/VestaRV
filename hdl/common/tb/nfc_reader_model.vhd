@@ -1,29 +1,7 @@
 -------------------------------------------------------------------------------
--- nfc_reader_model.vhd
--------------------------------------------------------------------------------
--- Behavioral ISO 14443A READER (PCD) model for the NFC tag/card-emulation peripheral testbench (tb/NFC_tb.vhd).
--- This is the checker PEER and the heart of the bench: an INDEPENDENT implementation of the reader side of the RF link.
--- It does NOT reuse the DUT's codec, which does not exist yet and must not share encode or decode logic with the tb's expectations beyond the spec-literal CRC_A and parity utilities in nfc_bfm_pkg.
--- It mirrors the role of tb/i3c_target_model.vhd and tb/qspi_flash_model.vhd: a per-transaction cfg_* shape held stable by the tb across one frame, and obs_* results for the scoreboard.
---
--- RF loopback (design doc S13 AFE stub): the AFE is off-die (D2), so this bench closes the RF path in behavioral VHDL.
--- The model does three things.
---   * It generates rf_clk, the compressed carrier-derived protocol clock, and drives field_detect for the field on/off scenarios.
---   * It ENCODES reader-to-tag commands as modified-Miller pause coding on rf_rx (D6): within one ETU bit period a carrier pause ('0') sits in the FIRST half (symbol Z), the SECOND half (symbol X), or is absent (symbol Y).
---     Miller symbol rule (D6): SOC is Z out of idle, logic 1 is X, logic 0 is Y if the previous symbol was a 1 (X) else Z, and EOC is two idle bit periods.
---   * It DECODES tag-to-reader responses from rf_txmod and rf_tx_en (D7): per half-bit it counts subcarrier toggles on rf_txmod and calls the window "modulated" (running fc/16 subcarrier) or "held".
---     Manchester sequences: D = (mod, held) = logic 1, E = (held, mod) = logic 0, F = (held, held) = no subcarrier = EOF.
---     SOF is a leading D that opens every card frame.
---     Data bits are LSB-first, each followed by its odd parity bit (D9), and a trailing 2-byte CRC_A is checked when present (D10).
---     It measures FDT (D16) as the rf_clk tick count from the command EOC to rf_tx_en rising.
---
--- ASSUMPTIONS, flagged because NFC.vhd does not exist yet to validate cycle timing:
---   * rf_clk is free-running regardless of field_detect, so a real "no carrier when no field" gap is NOT modelled.
---     That lets the DUT's field-loss reset be observed through the synchronized field level with the core clock alive.
---   * The tag's SOF bit cell begins on the tick rf_tx_en rises, with no inter-symbol guard inserted, and half-bit boundaries are counted from there.
---     A subcarrier half-bit counts as "modulated" at EDGE_THRESH or more rf_txmod toggles.
---   * A partial (bit-oriented) anticollision response is not fully byte-decoded here.
---     obs_first_bit, obs_nbits and obs_saw_response carry the offset and silence checks the tb needs for the D13 solo collision scenario.
+-- nfc_reader_model.vhd: behavioral ISO 14443A reader (PCD) model closing the RF link for the NFC card-emulation testbench, sharing no encode or decode logic with the DUT beyond the spec-literal CRC_A and parity helpers in nfc_bfm_pkg, and taking a per-transaction cfg_* shape held stable across one frame.
+-- It generates the compressed rf_clk and field_detect, Miller pause-encodes commands on rf_rx (Z is a pause in the first ETU half, X in the second, Y no pause: SOC is Z, logic 1 is X, logic 0 is Y after a 1 else Z, EOC is two idle bit periods), then decodes the response from rf_txmod and rf_tx_en per half-bit window (D is logic 1 and the SOF, E is logic 0, F is no subcarrier and ends the frame) LSB-first with odd parity and a trailing CRC_A, measuring FDT in rf_clk ticks from EOC to rf_tx_en rising.
+-- rf_clk is free-running regardless of field_detect, so field loss is observed through the synchronized level with the clock alive; the tag SOF cell starts on the tick rf_tx_en rises and a half-bit counts as modulated at EDGE_THRESH toggles or more.
 -------------------------------------------------------------------------------
 
 library ieee;
@@ -53,7 +31,7 @@ entity nfc_reader_model is
         cfg_nbytes         : in natural := 0;        -- Whole bytes to send.
         cfg_partial_bits   : in natural := 0;        -- Extra bits of cfg_bytes(cfg_nbytes), the anticollision split.
         cfg_append_crc     : in boolean := false;    -- Append CRC_A over the whole bytes.
-        cfg_corrupt_parity : in boolean := false;    -- Flip byte-0 parity (D23 G3 injection).
+        cfg_corrupt_parity : in boolean := false;    -- Flip byte-0 parity (negative parity path).
         cfg_corrupt_crc    : in boolean := false;    -- Corrupt the appended CRC (negative CRC path).
         cfg_resp_parity    : in boolean := true;     -- Response decode consumes a parity bit per byte.
         cfg_etu            : in natural := 16;        -- Bit-period ticks (compressed).
@@ -62,6 +40,7 @@ entity nfc_reader_model is
         cfg_pause          : in natural := 3;         -- Miller pause width in ticks.
 
         -- Observations, valid and held from the end of one transaction until the next go.
+        -- A bit-oriented anticollision response is not byte-decoded: obs_first_bit, obs_nbits and obs_saw_response carry its offset and silence checks.
         obs_busy         : out std_logic := '0';
         obs_txn_count    : out natural   := 0;
         obs_saw_response : out std_logic := '0';
@@ -109,9 +88,7 @@ begin
     -- field_detect is a plain held level the tb drives through cfg_field.
     field_detect <= cfg_field;
 
-    ---------------------------------------------------------------------------
     -- Reader engine: on each rising edge of cfg_go, Miller-encode the command frame onto rf_rx, then decode the tag's load-modulation response.
-    ---------------------------------------------------------------------------
     reader : process
         -- Compressed-timing constants latched for this transaction.
         variable etu_v, half_v, pause_v, subc_v : natural;
@@ -165,7 +142,7 @@ begin
             if with_parity then
                 par := nfc_parity(bt);
                 if cfg_corrupt_parity and not corr_done then
-                    par := not par;          -- G3 injection, applied to the first parity bit only.
+                    par := not par;          -- Injection hits the first parity bit only.
                     corr_done := true;
                 end if;
                 send_bit(par);
@@ -233,9 +210,7 @@ begin
             obs_parity_ok <= '0'; obs_crc_ok <= '0'; obs_fdt_ticks <= 0;
             rbytes := (others => (others => '0'));
 
-            ---------------------------------------------------------------
             -- ENCODE the reader command frame.
-            ---------------------------------------------------------------
             send_Z;                       -- SOC: a Z symbol out of idle.
             prev_one := false;
             if cfg_short then
@@ -252,11 +227,11 @@ begin
                     if cfg_corrupt_crc then
                         crc := crc xor x"0100";       -- Corrupt the high CRC byte.
                     end if;
-                    send_byte(crc(7 downto 0),  true);   -- LOW byte first (D10).
+                    send_byte(crc(7 downto 0),  true);   -- LOW byte first.
                     send_byte(crc(15 downto 8), true);
                 end if;
                 if cfg_partial_bits > 0 then
-                    b := cfg_bytes(cfg_nbytes);   -- Split byte, sent with NO parity (D8/D9).
+                    b := cfg_bytes(cfg_nbytes);   -- Split byte, sent with NO parity.
                     for i in 0 to cfg_partial_bits - 1 loop
                         send_bit(b(i));
                     end loop;
@@ -265,9 +240,7 @@ begin
             rf_rx <= '1';                 -- EOC: idle with no modulation for at least 2 ETUs.
             rf_ticks(2 * etu_v);
 
-            ---------------------------------------------------------------
             -- MEASURE the FDT, then DECODE the tag response.
-            ---------------------------------------------------------------
             fdt_v := 0; saw := false;
             for i in 0 to FDT_GUARD loop
                 exit when to_X01(rf_tx_en) = '1';
@@ -310,8 +283,7 @@ begin
                     exit when to_X01(rf_tx_en) = '0';
                 end loop;
 
-                -- CRC_A check: recompute over the payload and compare the trailing 2 bytes, which are LOW then HIGH on air.
-                -- This computation is independent of the tb.
+                -- CRC_A check, independent of the tb: recompute over the payload and compare the trailing 2 bytes, LOW then HIGH on air.
                 if bidx >= 2 then
                     crc := nfc_crc_a(rbytes, bidx - 2);
                     crc_ok := (rbytes(bidx - 2) = crc(7 downto 0)) and
@@ -328,7 +300,7 @@ begin
             txn_v := txn_v + 1;
             obs_busy      <= '0';
             obs_txn_count <= txn_v;   -- Published LAST: this is the tb's completion handshake.
-                                      -- cfg_go is a short pulse, so there is deliberately no wait-for-'0' here, which would hang waiting on an already-false condition.
+                                      -- cfg_go is a short pulse, so never wait for it to fall here; the condition is already false and the wait would hang.
         end loop;
     end process reader;
 

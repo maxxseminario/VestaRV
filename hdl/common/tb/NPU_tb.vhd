@@ -15,17 +15,13 @@ use work.fixed_pkg.all;
 
 -- Testbench for NPU.vhd with the SRAM instantiated separately, alongside the NPU.
 -- The network under test is y = 2x^2 + 1 over x = [-1,1], one hidden layer of 5 neurons.
--- The bench resets the NPU, then loads SRAM with inputs and weights (both integers) from "npu_fp_inputs.txt" and "npu_fp_weights.txt" respectively, which must be present in the simulation directory.
--- Both input files can be generated with FPMLPNN_test.m.
--- The memory mapped registers are configured for the first layer and the NPU is run over every test point.
--- The registers are then reconfigured for the second layer and the NPU is run over every test point again.
--- Finally the outputs are read back from SRAM and written to "npu_actual_fp_outputs.txt".
+-- The bench resets the NPU, loads SRAM with the integer inputs and weights from "npu_fp_inputs.txt" and "npu_fp_weights.txt" (both must sit in the simulation directory; FPMLPNN_test.m generates them), then configures the memory mapped registers per layer and runs the NPU over every test point.
+-- Outputs are read back from SRAM, checked against "npu_expected_fp_outputs.txt" and written to "npu_actual_fp_outputs.txt".
+-- Two further phases follow the inference passes: the think-done IRQ checks and the event-fabric task_think checks.
 entity NPU_tb is
 	generic (
-		-- DP-SG think-done IRQ negative control (npu_irq_spec.md, house rule).
-		-- 0 = clean run, the only PASS-eligible mode.
-		-- 1 = deliberately SKIP the W1C clear write in the IRQ-c phase but still CHECK for the cleared flag and IRQ.
-		-- The flag and IRQ then stay asserted, so that check must FAIL, proving the check itself is load-bearing both ways.
+		-- Think-done IRQ negative control: 0 = clean run, the only PASS-eligible mode.
+		-- 1 = deliberately SKIP the W1C clear write in the IRQ-c phase while still checking for the cleared flag and IRQ, so both stay asserted and that check must FAIL.
 		NEGCTRL : integer := 0
 	);
 end NPU_tb;
@@ -45,7 +41,7 @@ architecture testbench of NPU_tb is
 	constant MmrAddrNPUIVSAR	: natural	:= 1;
 	constant MmrAddrNPUWVSAR	: natural	:= 2;
 	constant MmrAddrNPUOVSAR	: natural	:= 3;
-	constant MmrAddrNPUSR		: natural	:= 4;	-- DP-SG think-done IRQ NPUSR (npu_irq_spec.md)
+	constant MmrAddrNPUSR		: natural	:= 4;	-- think-done status register: THINKDONE is sticky, write-1-to-clear
 	-- Generic Defaults Values
 	constant X_M_BITS					: integer := 0;
     constant W_M_BITS					: integer := 3;
@@ -59,7 +55,7 @@ architecture testbench of NPU_tb is
     signal ResetN		: std_logic;						-- NPU Active-Low Reset
     -- Memory Address Bus to Memory Mapped Registers Signals
 	signal  MabMmrA		: std_logic_vector(3 downto 0)
-							:= (others => '0');	    		-- MCU To NPU MMR - Address (4b widen, P4.1 family CFG words)
+							:= (others => '0');	    		-- MCU To NPU MMR - Address
     signal MabMmrD		: std_logic_vector(31 downto 0)
 								:= (others => '0');			-- MCU To NPU MMR - Data Input
     signal MabMmrCLK	: std_logic;						-- MCU To NPU MMR - Clock
@@ -77,10 +73,10 @@ architecture testbench of NPU_tb is
     signal NpuSramQ		: std_logic_vector(31 downto 0);	-- NPU From SRAM - Data Output
     -- NPU Status Signal
     signal NpuActive	: std_logic;						-- NPU Active Signal for Arbitration
-    -- NPU Interrupt Signal (DP-SG think-done IRQ, npu_irq_spec.md, irq_router source 120)
+    -- NPU Interrupt Signal (irq_router source 120)
     signal ThinkDoneIrq	: std_logic;						-- Think-Done IRQ (registered level on Clk)
-    -- EVFAB task port (event_fabric_spec.md, 2026-07-24): a one-MabMmrCLK pulse that starts a THINK exactly like a register write of NPUCR bit 16.
-    signal task_think	: std_logic := '0';					-- EVFAB task pulse (MabMmrCLK domain)
+    -- Event-fabric task port: a one-MabMmrCLK pulse that starts a THINK exactly like a register write of NPUCR bit 16.
+    signal task_think	: std_logic := '0';					-- fabric task pulse (MabMmrCLK domain)
 
 	-- SRAM Input Signals (MUXed by NPU)
 	signal NpuSramA_out	: std_logic_vector(11 downto 0);	-- NPU To SRAM - Address (to SRAM)
@@ -154,9 +150,9 @@ begin
 
 		-- Status
         NpuActive	=> NpuActive,
-		-- Interrupt (DP-SG think-done IRQ, npu_irq_spec.md)
+		-- Interrupt (think-done)
         ThinkDoneIrq	=> ThinkDoneIrq,
-		-- EVFAB task port (event_fabric_spec.md, 2026-07-24)
+		-- Event-fabric task port
         task_think	=> task_think
     );
 
@@ -183,9 +179,8 @@ begin
         RETN	=> '1'
     );
 
-    ----- SRAM Arbitration Logic (implemented in testbench)
-    -- Superseded: the NPU now muxes the two SRAM ports itself (Sram*_in in, NpuSram*_out out), so the testbench-side arbitration below stays disabled.
-    -- Arbitration: NPU has priority when active, otherwise MCU has access
+    ----- SRAM arbitration (NPU has priority when active, otherwise the MCU has access)
+    -- The NPU muxes the two SRAM ports itself (Sram*_in in, NpuSram*_out out), so the testbench-side arbitration below stays disabled.
     -- SramA <= NpuSramA when NpuActive = '1' else MabSramA;
     -- SramD <= NpuSramD when NpuActive = '1' else MabSramD;
     -- SramCEN <= NpuSramCEN when NpuActive = '1' else MabSramCEN;
@@ -235,11 +230,11 @@ begin
 		variable x_address		: integer 	:= 0;
 		variable y_address		: integer 	:= 256;
 		variable error_count	: integer 	:= 0;	-- self-checking mismatch tally
-		-- DP-SG think-done IRQ test phase (npu_irq_spec.md, vector 120)
+		-- think-done IRQ test phase
 		variable irq_error_count	: integer	:= 0;	-- IRQ-phase mismatch tally
 		variable think_poll_i		: integer	:= 0;	-- bounded THINK-completion poll counter
 		constant THINK_POLL_MAX		: integer	:= 4096;	-- bounded poll ceiling (never an unbounded wait)
-		-- EVFAB task_think phase (event_fabric_spec.md, 2026-07-24)
+		-- event-fabric task_think phase
 		variable evfab_error_count	: integer	:= 0;	-- EVFAB-phase mismatch tally
 		variable evfab_poll_i		: integer	:= 0;	-- bounded THINK-completion poll counter (own copy)
 		variable reg_launch_val		: integer	:= 0;	-- register-launched THINK output (reference)
@@ -511,7 +506,7 @@ begin
 		wait for (5*clk_period);
 
 		----------------------------------------------------------------------
-		----- DP-SG Think-Done IRQ Test Phase (npu_irq_spec.md, vector 120) --
+		----- Think-Done IRQ Test Phase (irq_router source 120)             --
 		----- NPUSR @ MmrAddrNPUSR=4 (THINKDONE, sticky W1C); NPUCR.19=TDIE --
 		----------------------------------------------------------------------
 		report "[NPU_TB] Starting NPU IRQ test phase (NEGCTRL=" & integer'image(NEGCTRL) & ")..." severity note;
@@ -537,8 +532,7 @@ begin
 		MabMmrCEN	<= MEM_DEASSERT;
 		report "[NPU_TB] IRQ-a: THINKDONE=1 / ThinkDoneIrq=0 (TDIE=0) OK." severity note;
 
-		-- IRQ-b: set TDIE (NPUCR.19).
-		-- WEN(2) gangs TDIE/NPUBEN/NPUAEN/NPUTHINK into one byte lane (see NPU.vhd MMR_WRITE), so supply the Layer-2 tail values for NPUBEN/NPUAEN ('0'/'0') and NPUTHINK='0' to make this a pure TDIE set that preserves every other CR field.
+		-- IRQ-b: set TDIE (NPUCR.19). WEN(2) gangs TDIE/NPUBEN/NPUAEN/NPUTHINK into one byte lane, so the Layer-2 tail values must be supplied for the other three to keep this a pure TDIE set.
 		-- WEN(0) and WEN(1) stay deasserted, so NPUNI and NPUNN are left completely untouched.
 		wait until falling_edge(MabMmrCLK);
 		MabMmrA		<= std_logic_vector(to_unsigned(MmrAddrNPUCR, MabMmrA'length));
@@ -564,8 +558,7 @@ begin
 		end if;
 		report "[NPU_TB] IRQ-b: TDIE=1 -> ThinkDoneIrq=1 within 2 Clk OK." severity note;
 
-		-- IRQ-c: W1C semantics of NPUSR.
-		-- A write of 0 must be IGNORED, leaving flag and IRQ asserted; a write of 1 clears the flag and drops the IRQ within 2 Clk.
+		-- IRQ-c: W1C semantics of NPUSR. A write of 0 must be IGNORED, leaving flag and IRQ asserted; a write of 1 clears the flag and drops the IRQ within 2 Clk.
 		-- NEGCTRL=1 skips the clearing write below while the checks still expect flag and IRQ cleared, so those checks must then FAIL.
 		wait until falling_edge(MabMmrCLK);
 		MabMmrA		<= std_logic_vector(to_unsigned(MmrAddrNPUSR, MabMmrA'length));
@@ -627,8 +620,7 @@ begin
 		MabMmrCEN	<= MEM_DEASSERT;
 		report "[NPU_TB] IRQ-c(W1C write-1): flag/IRQ cleared check complete." severity note;
 
-		-- IRQ-d: a second, short 1-input/1-neuron pass-through THINK, reusing the Layer-1 input already staged at SRAM addr 0 and a Layer-1 weight already staged at addr 2048.
-		-- Its output is parked at addr 3000, well clear of every address the inference passes above read or wrote.
+		-- IRQ-d: a second short 1-input/1-neuron pass-through THINK, reusing the input at SRAM addr 0 and the weight at addr 2048, with its output parked at addr 3000, clear of every inference address.
 		-- TDIE is still 1 from IRQ-b (the W1C write does not touch it), so the IRQ must fire again exactly once.
 		wait until falling_edge(MabMmrCLK);
 		MabMmrA		<= std_logic_vector(to_unsigned(MmrAddrNPUIVSAR, MabMmrA'length));
@@ -688,10 +680,8 @@ begin
 					" bounded poll cycles" severity warning;
 		end if;
 
-		-- 4 Clk, not 2: the bounded MabMmrCLK falling-edge poll above can see NPUTHINK clear up to 1 cycle later than the original bench's `wait until falling_edge(MabMmrQ(16))` idiom would, because that waits on the SIGNAL's own edge while polling on fixed clock edges can catch it a cycle late.
-		-- That slack sits ON TOP of the real 2-cycle NpuDone then THINKDONE then ThinkDoneIrqQ pipeline (THINKDONE_SEQ reads last cycle's NpuDone/THINKDONE, never the same-edge value).
-		-- Traced with xmsim `value` probes on NPU_INST:{NpuDone,THINKDONE,ThinkDoneIrqQ}: NpuDone pulses on cycle N, THINKDONE reads 1 at N+1, ThinkDoneIrqQ reads 1 at N+2.
-		-- A fixed 2-cycle wait from our poll's (up to 1-cycle-late) exit therefore landed exactly 1 cycle short.
+		-- 4 Clk, not 2: the fixed-edge poll above can see NPUTHINK clear up to 1 cycle late, and that slack sits on top of the 2-cycle pipeline NpuDone at N, THINKDONE at N+1, ThinkDoneIrqQ at N+2.
+		-- Do not shorten this to 2 Clk; the sample then lands exactly one cycle before the IRQ level appears.
 		for k in 1 to 4 loop
 			wait until rising_edge(Clk);
 		end loop;
@@ -763,7 +753,7 @@ begin
 					" bounded poll cycles" severity warning;
 		end if;
 
-		-- 4 Clk margin, on the same poll-phase plus 2-cycle pipeline reasoning as IRQ-d above.
+		-- 4 Clk margin, same poll-phase plus 2-cycle pipeline reasoning as IRQ-d above.
 		for k in 1 to 4 loop
 			wait until rising_edge(Clk);
 		end loop;
@@ -828,15 +818,13 @@ begin
 		error_count := error_count + irq_error_count;
 
 		----------------------------------------------------------------------
-		----- EVFAB task_think Test Phase (event_fabric_spec.md, 2026-07-24) -
-		----- Fabric task port: one-MabMmrCLK pulse starts a THINK exactly  --
-		----- like an NPUCR bit-16 register write, outside CEN, after the   --
-		----- register case (task wins a coincident write); the trailing   --
-		----- NpuDone/reset clear still wins over both paths.               --
+		----- Event-Fabric task_think Test Phase                            --
+		----- One MabMmrCLK pulse starts a THINK like an NPUCR bit-16 write --
+		----- and wins a coincident one; NpuDone/reset still clears both.   --
 		----------------------------------------------------------------------
 		report "[NPU_TB] Starting EVFAB task_think test phase..." severity note;
 
-		-- Reuse the exact pass-through descriptor already proven by IRQ-d/e: IVSAR=0 (Layer-1 x[0] still staged), WVSAR=2048 (Layer-1 w[0] still staged), NI=0 (1 input), NN=0 (1 neuron), no bias, no activation.
+		-- Reuse the pass-through descriptor from IRQ-d/e: IVSAR=0 and WVSAR=2048 (both still staged), NI=0 (1 input), NN=0 (1 neuron), no bias, no activation.
 		-- EVFAB-a: launch via the REGISTER path (bit 16) to a fresh output address (3100) to establish the reference value.
 		wait until falling_edge(MabMmrCLK);
 		MabMmrA		<= std_logic_vector(to_unsigned(MmrAddrNPUIVSAR, MabMmrA'length));
@@ -1020,9 +1008,8 @@ begin
 		end if;
 		report "[NPU_TB] EVFAB-d: pulse consumed exactly once (50 Clk quiet check), output stable OK." severity note;
 
-		-- EVFAB-e: a coincident register write and task pulse on the same MabMmrCLK edge.
-		-- The register write carries NPUCR bit 16 = 0, so it does NOT ask for a THINK by itself, while task_think fires on the SAME edge.
-		-- Task processing sits AFTER the register case in the same clocked process, so the task path wins the coincidence and a THINK must start whatever the register write's bit 16 carried.
+		-- EVFAB-e: a coincident register write and task pulse on the same MabMmrCLK edge, the write carrying NPUCR bit 16 = 0 so it does not ask for a THINK by itself.
+		-- Task processing sits after the register case in the same clocked process, so the task path wins the coincidence and a THINK must start regardless.
 		wait until falling_edge(MabMmrCLK);
 		MabMmrA		<= std_logic_vector(to_unsigned(MmrAddrNPUOVSAR, MabMmrA'length));
 		MabMmrWEN	<= (others => MEM_ASSERT);

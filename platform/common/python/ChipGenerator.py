@@ -1934,8 +1934,7 @@ class ChipGenerator():
 		s = ''
 		
 		# Create the preamble
-		s += '-- MemoryMap.vhd\n'
-		s += '-- Memory map VHDL package\n'
+		s += '-- MemoryMap.vhd: memory map VHDL package\n'
 		s += '-- Defines the MCU memory map: which RAM and peripheral slots are active, which slot each peripheral occupies, and which slot each register occupies inside its peripheral\n'
 		s += '-- Generated on ' + datetime.datetime.now().strftime('%Y/%m/%d at %H:%M:%S') + ' with the MemoryMap.py memory map generator\n'
 		s += '-- WARNING: Do not edit or modify this file!\n'
@@ -2226,8 +2225,7 @@ class ChipGenerator():
 		c = self.McuMpCompat
 		t = TabbedTable()
 		t.AddLine('---------- MCU_MP Compatibility ----------', prefixTabs=1)
-		t.AddLine('-- Constants the hand-written ' + c['sourceFile'] + ' defines beyond the sections above.', prefixTabs=1)
-		t.AddLine('-- Emitted so this generated package is a drop-in replacement for that file; transcribed values cite it as their source.', prefixTabs=1)
+		t.AddLine('-- Constants ' + c['sourceFile'] + ' defines beyond the sections above, emitted so this package is a drop-in replacement for it.', prefixTabs=1)
 		t.AddBlankLine()
 
 		# Memory block slot assignments
@@ -2351,7 +2349,7 @@ class ChipGenerator():
 		numIrqs = max(self.VectorsCount, meipVector + 1)
 		t.AddRow(['constant IRQB_EXT_MEIP', ': natural := ' + self.fmtint(meipVector, 2) + ';', '-- External (peripheral) interrupt via IRQROUTER claim/complete, IVT address = ' + self.fmthex(self.VectorsStartAddress + meipVector * 4)], prefixTabs=1)
 		t.AddRow(['constant NUM_IRQ_SRCS', ': natural := ' + str(self.VectorsCount) + ';', '-- Peripheral IRQ SOURCES (deglitch/irq_router width; CLINT slots delivered per-hart)'], prefixTabs=1)
-		t.AddRow(['constant NUM_IRQS', ': natural := ' + str(numIrqs) + ';', '-- Core IVT slot count = max(sources, meip slot + 1) (M19; digperiphs #2)'], prefixTabs=1)
+		t.AddRow(['constant NUM_IRQS', ': natural := ' + str(numIrqs) + ';', '-- Core IVT slot count = max(sources, meip slot + 1)'], prefixTabs=1)
 		t.AddRow(['constant NUM_GF_INSTANCES', ': natural := (NUM_IRQ_SRCS + 31) / 32;', '-- glitch-filter instance count'], prefixTabs=1)
 		t.AddBlankLine()
 
@@ -2359,37 +2357,37 @@ class ChipGenerator():
 		# generic maps and threaded down to the vesta core (decode gating + hardware
 		# pruning + the read-only misa CSR). All four tiles MUST get the same values —
 		# the tile is hardened once (M14, one netlist).
-		t.AddLine('-- Core ISA Features (drive the hart_tile/vesta ENABLE_* generics; all four tiles identical)', prefixTabs=1)
+		t.AddLine('-- Core ISA Features (drive the hart_tile/vesta ENABLE_* generics; every tile identical)', prefixTabs=1)
 		t.AddRow(['constant CORE_ENABLE_MUL', ': boolean := ' + str(bool(self.ENABLE_MUL)).lower() + ';', '-- M: MUL/MULH/MULHU/MULHSU'], prefixTabs=1)
 		t.AddRow(['constant CORE_ENABLE_DIV', ': boolean := ' + str(bool(self.ENABLE_DIV)).lower() + ';', '-- M: DIV/DIVU/REM/REMU + the iterative divider'], prefixTabs=1)
 		t.AddRow(['constant CORE_ENABLE_ATOMICS', ': boolean := ' + str(bool(self.ENABLE_ATOMICS)).lower() + ';', '-- A: LR/SC + AMOs (disabling breaks the mutex/lock infrastructure)'], prefixTabs=1)
 		t.AddRow(['constant CORE_ENABLE_COMPRESSED', ': boolean := ' + str(bool(self.COMPRESSED_ISA)).lower() + ';', '-- C: 16-bit instructions'], prefixTabs=1)
 		t.AddRow(['constant CORE_ENABLE_BITMANIP', ': boolean := ' + str(bool(self.ENABLE_BITMANIP)).lower() + ';', '-- Zba/Zbb/Zbs/Zbc'], prefixTabs=1)
 		# X0 scaffolded ISA extensions (default false; decode/logic added X1-X4)
-		t.AddRow(['constant CORE_ENABLE_ZICOND', ': boolean := ' + str(bool(self.ENABLE_ZICOND)).lower() + ';', '-- X1: Zicond czero.eqz/nez'], prefixTabs=1)
-		t.AddRow(['constant CORE_ENABLE_ZCB', ': boolean := ' + str(bool(self.ENABLE_ZCB)).lower() + ';', '-- X1: Zcb extra compressed insns'], prefixTabs=1)
-		t.AddRow(['constant CORE_ENABLE_ZIMOP', ': boolean := ' + str(bool(self.ENABLE_ZIMOP)).lower() + ';', '-- X1: Zimop+Zcmop may-be-ops'], prefixTabs=1)
-		t.AddRow(['constant CORE_ENABLE_ZIHINT', ': boolean := ' + str(bool(self.ENABLE_ZIHINT)).lower() + ';', '-- X1: Zihintpause+Zihintntl'], prefixTabs=1)
-		t.AddRow(['constant CORE_ENABLE_ZIHPM', ': boolean := ' + str(bool(self.ENABLE_ZIHPM)).lower() + ';', '-- X1: Zihpm hw perf counters'], prefixTabs=1)
-		t.AddRow(['constant CORE_ENABLE_ZAWRS', ': boolean := ' + str(bool(self.ENABLE_ZAWRS)).lower() + ';', '-- X1: Zawrs wait-on-reservation'], prefixTabs=1)
-		t.AddRow(['constant CORE_ENABLE_ZABHA', ': boolean := ' + str(bool(self.ENABLE_ZABHA)).lower() + ';', '-- X2: Zabha byte/half AMOs'], prefixTabs=1)
-		t.AddRow(['constant CORE_ENABLE_ZACAS', ': boolean := ' + str(bool(self.ENABLE_ZACAS)).lower() + ';', '-- X2: Zacas amocas.w'], prefixTabs=1)
-		t.AddRow(['constant CORE_ENABLE_ZICBOZ', ': boolean := ' + str(bool(self.ENABLE_ZICBOZ)).lower() + ';', '-- X3: Zicboz cbo.zero block-zero'], prefixTabs=1)
-		t.AddRow(['constant CORE_ENABLE_ZCMP', ': boolean := ' + str(bool(self.ENABLE_ZCMP)).lower() + ';', '-- X3: Zcmp push/pop + reg-moves'], prefixTabs=1)
-		t.AddRow(['constant CORE_ENABLE_ZCMT', ': boolean := ' + str(bool(self.ENABLE_ZCMT)).lower() + ';', '-- X3: Zcmt table jump + jvt CSR'], prefixTabs=1)
-		t.AddRow(['constant CORE_ENABLE_ZBKB', ': boolean := ' + str(bool(self.ENABLE_ZBKB)).lower() + ';', '-- X3: Zbkb crypto bit-manip'], prefixTabs=1)
-		t.AddRow(['constant CORE_ENABLE_ZBKC', ': boolean := ' + str(bool(self.ENABLE_ZBKC)).lower() + ';', '-- X3: Zbkc carryless multiply'], prefixTabs=1)
-		t.AddRow(['constant CORE_ENABLE_ZBKX', ': boolean := ' + str(bool(self.ENABLE_ZBKX)).lower() + ';', '-- X3: Zbkx crossbar permute'], prefixTabs=1)
-		t.AddRow(['constant CORE_ENABLE_ZKN', ': boolean := ' + str(bool(self.ENABLE_ZKN)).lower() + ';', '-- X3: Zkn AES+SHA (Zknd+Zkne+Zknh)'], prefixTabs=1)
-		t.AddRow(['constant CORE_ENABLE_ZFINX', ': boolean := ' + str(bool(self.ENABLE_ZFINX)).lower() + ';', '-- X4: Zfinx single-prec FP in x-regs'], prefixTabs=1)
+		t.AddRow(['constant CORE_ENABLE_ZICOND', ': boolean := ' + str(bool(self.ENABLE_ZICOND)).lower() + ';', '-- Zicond czero.eqz/nez'], prefixTabs=1)
+		t.AddRow(['constant CORE_ENABLE_ZCB', ': boolean := ' + str(bool(self.ENABLE_ZCB)).lower() + ';', '-- Zcb extra compressed insns'], prefixTabs=1)
+		t.AddRow(['constant CORE_ENABLE_ZIMOP', ': boolean := ' + str(bool(self.ENABLE_ZIMOP)).lower() + ';', '-- Zimop+Zcmop may-be-ops'], prefixTabs=1)
+		t.AddRow(['constant CORE_ENABLE_ZIHINT', ': boolean := ' + str(bool(self.ENABLE_ZIHINT)).lower() + ';', '-- Zihintpause+Zihintntl'], prefixTabs=1)
+		t.AddRow(['constant CORE_ENABLE_ZIHPM', ': boolean := ' + str(bool(self.ENABLE_ZIHPM)).lower() + ';', '-- Zihpm hw perf counters'], prefixTabs=1)
+		t.AddRow(['constant CORE_ENABLE_ZAWRS', ': boolean := ' + str(bool(self.ENABLE_ZAWRS)).lower() + ';', '-- Zawrs wait-on-reservation'], prefixTabs=1)
+		t.AddRow(['constant CORE_ENABLE_ZABHA', ': boolean := ' + str(bool(self.ENABLE_ZABHA)).lower() + ';', '-- Zabha byte/half AMOs'], prefixTabs=1)
+		t.AddRow(['constant CORE_ENABLE_ZACAS', ': boolean := ' + str(bool(self.ENABLE_ZACAS)).lower() + ';', '-- Zacas amocas.w'], prefixTabs=1)
+		t.AddRow(['constant CORE_ENABLE_ZICBOZ', ': boolean := ' + str(bool(self.ENABLE_ZICBOZ)).lower() + ';', '-- Zicboz cbo.zero block-zero'], prefixTabs=1)
+		t.AddRow(['constant CORE_ENABLE_ZCMP', ': boolean := ' + str(bool(self.ENABLE_ZCMP)).lower() + ';', '-- Zcmp push/pop + reg-moves'], prefixTabs=1)
+		t.AddRow(['constant CORE_ENABLE_ZCMT', ': boolean := ' + str(bool(self.ENABLE_ZCMT)).lower() + ';', '-- Zcmt table jump + jvt CSR'], prefixTabs=1)
+		t.AddRow(['constant CORE_ENABLE_ZBKB', ': boolean := ' + str(bool(self.ENABLE_ZBKB)).lower() + ';', '-- Zbkb crypto bit-manip'], prefixTabs=1)
+		t.AddRow(['constant CORE_ENABLE_ZBKC', ': boolean := ' + str(bool(self.ENABLE_ZBKC)).lower() + ';', '-- Zbkc carryless multiply'], prefixTabs=1)
+		t.AddRow(['constant CORE_ENABLE_ZBKX', ': boolean := ' + str(bool(self.ENABLE_ZBKX)).lower() + ';', '-- Zbkx crossbar permute'], prefixTabs=1)
+		t.AddRow(['constant CORE_ENABLE_ZKN', ': boolean := ' + str(bool(self.ENABLE_ZKN)).lower() + ';', '-- Zkn AES+SHA (Zknd+Zkne+Zknh)'], prefixTabs=1)
+		t.AddRow(['constant CORE_ENABLE_ZFINX', ': boolean := ' + str(bool(self.ENABLE_ZFINX)).lower() + ';', '-- Zfinx single-prec FP in x-regs'], prefixTabs=1)
 		# P0 privileged-architecture scaffolding (P1/P2/P3; no logic consumes
 		# these yet — generate.py hard-errors if any boolean is configured true)
-		t.AddRow(['constant CORE_ENABLE_TRAPCSR', ': boolean := ' + str(bool(self.ENABLE_TRAPCSR)).lower() + ';', '-- P1: standard M-mode trap CSRs + MRET'], prefixTabs=1)
-		t.AddRow(['constant CORE_ENABLE_UMODE', ': boolean := ' + str(bool(self.ENABLE_UMODE)).lower() + ';', '-- P2: U-mode (needs TRAPCSR)'], prefixTabs=1)
-		t.AddRow(['constant CORE_ENABLE_PMP', ': boolean := ' + str(bool(self.ENABLE_PMP)).lower() + ';', '-- P3: PMP / Smpmp (needs UMODE)'], prefixTabs=1)
-		t.AddRow(['constant CORE_PMP_ENTRIES', ': natural := ' + str(int(self.PMP_ENTRIES)) + ';', '-- P3: PMP entry count {8,16} (only with PMP)'], prefixTabs=1)
+		t.AddRow(['constant CORE_ENABLE_TRAPCSR', ': boolean := ' + str(bool(self.ENABLE_TRAPCSR)).lower() + ';', '-- Standard M-mode trap CSRs + MRET'], prefixTabs=1)
+		t.AddRow(['constant CORE_ENABLE_UMODE', ': boolean := ' + str(bool(self.ENABLE_UMODE)).lower() + ';', '-- U-mode (needs TRAPCSR)'], prefixTabs=1)
+		t.AddRow(['constant CORE_ENABLE_PMP', ': boolean := ' + str(bool(self.ENABLE_PMP)).lower() + ';', '-- PMP / Smpmp (needs UMODE)'], prefixTabs=1)
+		t.AddRow(['constant CORE_PMP_ENTRIES', ': natural := ' + str(int(self.PMP_ENTRIES)) + ';', '-- PMP entry count {8,16} (only with PMP)'], prefixTabs=1)
 		# D1 core-side debug mode (needs TRAPCSR; generate.py enforces)
-		t.AddRow(['constant CORE_ENABLE_DEBUG', ': boolean := ' + str(bool(self.ENABLE_DEBUG)).lower() + ';', '-- D1: debug mode (dcsr/dpc/dscratch, dret, halt)'], prefixTabs=1)
+		t.AddRow(['constant CORE_ENABLE_DEBUG', ': boolean := ' + str(bool(self.ENABLE_DEBUG)).lower() + ';', '-- Debug mode (dcsr/dpc/dscratch, dret, halt)'], prefixTabs=1)
 		t.AddBlankLine()
 
 		# GPIO pin-number constants in the RTL's pnum_* spelling. AF-plane names

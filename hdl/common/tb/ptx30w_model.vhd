@@ -1,179 +1,11 @@
 -------------------------------------------------------------------------------
 -- ptx30w_model.vhd
 -------------------------------------------------------------------------------
--- BEHAVIORAL simulation model of the Renesas PTX30W "NFC Forum Wireless Charging (WLC) Listener" IC.
--- It is written so a Castalia board that carries one can be simulated end to end: Castalia is the I2C MASTER on I2C0 (chip pins 37/38) and takes the PTX30W's dedicated IRQ pin on a GPIO.
---
--- Source: Renesas PTX30W datasheet R35DS0090EU0102 Rev.1.02, Sep 4 2024 (on disk at .devlog/datasheets/PTX30W_datasheet.pdf).
--- Every section number quoted below is from that document.
---
--- THIS IS NOT AN ANALOG MODEL AND NOT A SIGN-OFF MODEL.
---   There is no electrical simulation here of any kind.
---   The rectifier, limiter, LDO, charger and battery are represented by INTEGER ENGINEERING-UNIT ports (millivolts, microamps, milliwatts) updated on a fixed simulation tick (G_PWR_TICK).
---   The bench DRIVES the environment (rf_field_present, rf_available_mw, the load currents, ntc_mv, tj_degc) and the model REPORTS the resulting rail/charger state.
---   Use it for firmware bring-up and board bring-up sequencing, never for power-integrity or accuracy claims.
---   The RF/NFC link itself is NOT modelled at all: the poller side of the Transparent Data Channel is a bench-side stimulus interface (see BENCH ABSTRACTION below), not an ISO/IEC 14443-3 Type A radio.
---
--- ============================================================================
--- WHAT IS MODELLED
--- ============================================================================
--- 1. PINS (section 2.2).
---    The digital pins are modelled properly:
---      SCL / SDA  : I2C target, open drain, `*_oe` convention (see below)
---      IRQ        : dedicated host IRQ, push-pull, polarity from IRQ_POLARITY
---      GPO_0/1    : configurable open-drain active-low outputs, `*_oe`
---      SM         : shipping-mode push button, active low, >5 s to toggle
---    The supply/analog pins (VDBAT, VDDC, VDBUFC, VDMCU, NTC, VS, RF1, RF2) are NOT electrical nets here.
---    They appear as engineering-unit in/out ports: RF1/RF2 collapse into (rf_field_present, rf_available_mw); VDBUFC and VS have no behavioural role and are absent; VDBAT/VDDC/VDMCU/NTC appear as vbat_mv / vddc_mv / vdmcu_mv / ntc_mv.
---
--- 2. I2C TARGET (section 4.8.4).
---    7-bit addressing, default address 0x4B (parameter I2C_ADDR, section 4.8.1).
---    Fast mode up to 1 Mbit/s: this model imposes NO timing minima, it is edge-driven off the master's SCL, so the bench chooses the bit rate.
---    Open drain both ways: the model only ever PULLS LOW (sda_oe='1', sda_out='0') or RELEASES (sda_oe='0').
---    It never drives an active high, and it never stretches SCL (scl_oe is tied '0'; the datasheet documents no clock stretching for this part).
---
--- 3. STANDBY WAKE-UP (section 4.8.4, verbatim): "When PTX30W is in standby mode, it cannot process the incoming command (the I2C module does not acknowledge the target address). However, the command wakes up the device, and the device stays in normal mode for at least 100ms for the command to be resent."
---    Modelled exactly: the FIRST addressed transfer while the part is in standby is address-NACKed and arms a wake window of G_WAKE_HOLD (default 100 ms); a retry inside that window is ACKed.
---    Standby is only entered with no RF field (section 4, "System supply from Battery (standby mode)"), so a listener sitting on a poller always answers first time.
---
--- 4. HOST INTERFACE PROTOCOL, HIP (section 4.8.3), the priority item.
---    Frame = LEN(2, MSB first) | FCB | payload | optional CRC | padding.
---      * LEN counts FCB + payload + CRC, and excludes SOF, LEN and padding (4.8.3.1).
---        Valid range 1..4095; anything else is "invalid length".
---        NOTE: over I2C there is NO SOF byte, the I2C START is the SOF.
---        That is what every worked example in 4.8.4.1-4.8.4.4 shows (the first byte after the address is LEN[15:8]).
---      * FCB (Table 21): [7:4] OPCODE, [3] RFU, [2] RAK, [1] CRC, [0] RFU.
---      * CRC is CRC_B (ISO/IEC 14443-3 Type B): poly 0x1021 reflected (0x8408), init 0xFFFF, result inverted.
---        Computed over LEN+FCB+payload.
---      * Padding after the frame is discarded and is not counted in LEN.
---    Commands implemented (Table 23), all five:
---      0x1 RST  : System Reset (4.8.3.6.1).
---                 Payload DFYS; only 0x01 is valid, anything else is NAK 0x04.
---                 The reset happens AFTER the ACK.
---      0x2 RSS  : Read System Status (4.8.3.6.2 + Table 18).
---                 Payload N; N=0 is NAK 0x04.
---                 Response payload = the 21-byte status block {ACK/NAK, HW_VERSION, FW_VERSION[2], DIE_INFO[16], OEM_VALID_FLAG}, truncated or 0x00-padded to N bytes.
---      0x7 WMSG : Write Message (4.8.3.6.3).
---                 Payload = ADDR + data.
---                 Only ADDR=0 exists (4.8.2: "the Host must use the WMSG command of the HIP with an input buffer address set to 0"); any other ADDR is NAK 0x04.
---                 A write into a full input buffer is NAK 0x05, an over-long payload NAK 0x02.
---      0x8 RMSG : Read Message (4.8.3.6.5).
---                 Payload N(2, MSB first); N=0 means "the whole message".
---                 Response is N bytes, 0x00-padded.
---      0x9 RML  : Read Message Length (4.8.3.6.4).
---                 No payload; response is ML(2, MSB first), 0 when nothing is pending.
---    Response framing: the response FCB carries the SAME opcode as the command and mirrors the command's CRC bit (4.8.3.1: "If CRC is included in a command frame, the corresponding response frame is also included").
---    An ACK frame (4.8.3.4) sets FCB.RAK=1 and carries the single byte 0x00.
---    NO RESPONSE is produced (4.8.3.3) for an erroneous command frame, or for a valid WRITE command (RST/WMSG) with FCB.RAK=0.
---    The NAK value is stored and is readable as the first byte of the next RSS response (Table 22: 0x01 invalid command, 0x02 invalid length, 0x03 CRC error, 0x04 invalid parameter, 0x05 write buffer full).
---
--- 5. NSC LAYER over HIP (section 4.8.2), i.e. what a WMSG or RMSG payload actually contains:
---      0x01 NSC_CONFIG_CMD    : one-shot OEM parameter block (4.8.2.1).
---                               Response {0x01, EC}.
---      0x02 NSC_SET_PARAM_CMD : (ID,value) list terminated by 0x00 EoC (4.8.2.2 + Table 16).
---                               Response {0x02, EC}.
---      0x03 NSC_GET_PARAM_CMD : Response {0x03, EC, then the eight RD parameters of Table 17 in order:
---                               BC_ENABLE, RFF_STATUS, ERROR_STATUS, BC_STATUS, VDBAT_ADC_VAL, VDDC_ADC_VAL, NTC_STATUS, WLCP_CONNECTED} = 10 bytes, which is exactly the RML=0x0A shown in Figure 36.
---      0x80 NSC_DATA_MSG      : top two bits "10", low six bits = payload length 0..63 (Table 19).
---                               Length 0 with no payload is NSC_DATA_ACK (Figure 24).
---    Error codes (Table 20): 0x00 none, 0x01 invalid command, 0x02 invalid parameter, 0x03 NVM write error.
---    IRQ (4.8.2, receive sequence): the model asserts IRQ whenever a message is pending in its output buffer; the host clears it by (1) RML to learn the length and (2) RMSG to read it.
---    IRQ drops when the pending message has actually been clocked out (end of the RMSG read frame), and re-asserts immediately if another chunk or ACK is already queued behind it.
---
--- 6. TRANSPARENT DATA CHANNEL, TDC (section 4.6.2).
---    Two 64-byte buffers, TDC_BUF_POL (poller to listener) and TDC_BUF_LIS (listener to poller), with the datasheet's buffer-free / buffer-full handshake:
---      poller to host: on a poller write the model turns the message into NSC_DATA_MSG chunks of at most 63 payload bytes (one buffer-full each, H1 + 63 data = the 64-byte buffer) and delivers them ONE AT A TIME.
---        Only when the host has read chunk k (step 18: "After the NSC_DATA_MSG has been read by the Host, the listener sets the first byte of TDC_BUF_POL[0] to 0, indicating to the poller that the buffer is free") does the next chunk appear and IRQ re-assert.
---        A 70-byte poller message therefore arrives as 63 + 7, exactly Figure 10.
---      host to poller: an NSC_DATA_MSG written by the host is copied into TDC_BUF_LIS, byte 0 = H1 with bit 7 set ("If TDC_BUF_LIS[0][7] bit is set, the buffer contains a valid message").
---        While that bit is set the input buffer is FULL and a further data WMSG is rejected with HIP NAK 0x05.
---        When the poller has read it, the model clears bit 7 and sends the host an NSC_DATA_ACK (step 6), which is the host's licence to send the next chunk (4.8.2.5.2 flow control).
---
--- 7. POWER PATH / CHARGER, as an abstraction (sections 3.4, 4.1-4.5).
---      * Harvest: rf_available_mw is the DC power the rectifier can deliver.
---        VDDC target = clamp(VDBAT + VDBAT_OFFSET_HIGH, VDDC_TH_LOW, LIM_TH), i.e. the section 4.6.1.1 regulation windows, with LIM_TH default 5.2 V.
---        Available current = rf_available_mw / VDDC.
---      * Power selector (4.5.1) with the datasheet's priority: system supply first, battery charged from the RESIDUAL current; if the system needs more than the field provides the battery makes up the difference; with no field at all everything comes from the battery.
---      * MCU LDO (4.2, 3.4 "VDMCU pin"): VDMCU_MODE 0b01 = 1.8 V out, 0b10 = 3.3 V out, 0b11 = input (the PTX30WCC16D7A2 variant, where vdmcu_ext_mv is the externally supplied reference).
---        Output range 1.6-3.6 V, output current limit IVDMCU = 50 mA; above that the model folds the rail back (vdmcu_mv = target*50/load) and drops vdmcu_good.
---      * VDDC brownout (3.4 "Brownout Reset Voltage Thresholds"): VVDDC_BOD_SET (reset threshold, 2.2-2.8 V, default midpoint 2.5 V) asserts the internal reset; VVDDC_BOD_RESET (power-up threshold, 2.30-3.25 V, default 2.8 V) releases it.
---        While the BOD holds the part in reset the I2C target does not answer.
---      * Charger phase machine (4.4 + Figure 5 + Table 12):
---          TCM  vbat <  VTRICKLE            I = 10% of ICHG
---          CCM  VTRICKLE <= vbat < VTERM    I = ICHG
---          CVM  vbat >= VTERM               V clamped, I decays
---          DONE I < ITERM                   charging complete
---          recharge when vbat < VRCHG
---        Thresholds come from the parameter tables in 4.8.1:
---          ICHG  = 1.96 mA * BC_ICHG_CTRL + 1.92 mA (code 0x02..0x7F)
---          ITERM = 1.39 mA * BC_ITERM_CTRL - 0.34 mA (code 4..59)
---          VTERM  from the 32-entry BC_VTERM_CTRL table (0x00=3.59 V .. 0x1F=4.65 V; note the datasheet's "3 bits" size column is a typo, Table 16 gives bitfield 4:0)
---          VTRK   from the 8-entry BC_VTRK_CTRL table (0b000=3.00 V ...)
---          VRCHG  from the 16-entry BC_VRCHG_CTRL table (0b0000=2.91 V ...)
---        BC_STATUS follows Table 12: with the RF field off the status reads 0 (disabled) unless the battery is full, which reads 4.
---      * NTC (4.4.2 + 3.4 "NTC Monitor Specifications"): ntc_mv is compared against the eCold/Cold/Hot/eHot set and reset thresholds WITH their datasheet hysteresis.
---        The model reports NTC_STATUS (0x00 normal, 0x02 cold, 0x03 eCold, 0x04 hot, 0x0C eHot) and scales or stops the charge current per BC_ICHG_PCT_COLD / BC_ICHG_PCT_HOT.
---      * Chip over-temperature (section 4, "Chip Over-Temperature"): tj_degc >= TJ_ALERT_SET (120 C) detunes the RF interface (no harvest, no NFC) until it drops below TJ_ALERT_RESET (100 C); the host supply keeps running.
---      * Shipping mode (4.4): entered by SHIPPING_MODE_ENABLE or by SM held low for >5 s; left by the RF field appearing or by another >5 s SM press.
---        In shipping mode the battery is isolated, so with no field there is no supply and the I2C target is dead.
---        The third documented entry path (VDBAT below VBAT_LOW_TH = 3.0 V) is deliberately NOT modelled: it would fire during every low-battery trickle-charge test.
---
--- ============================================================================
--- BENCH ABSTRACTION (explicitly NOT part of the device)
--- ============================================================================
--- Everything below the "-- BENCH ABSTRACTION" comment in the port list exists only so a testbench can play the roles the model refuses to simulate:
---   rf_field_present / rf_available_mw / vddc_load_ma / vdmcu_load_ma / vdmcu_ext_mv / ntc_mv / tj_degc / bat_connected: the analog environment.
---   tdc_pol_go / tdc_pol_len / tdc_pol_data: "the poller just wrote N bytes into TDC_BUF_POL".
---     This stands in for the NFC Forum T2T WRITE sequence of Figure 10 (or the proprietary PTX write of Figure 11); the model does the buffer-size chunking that those figures describe, but there is no RF link, no T2T block addressing and no NFC frame anywhere in this file.
---   tdc_lis_rd_go / obs_lis_*: "the poller just read TDC_BUF_LIS".
---     Stands in for the T2T READ sequence of Figure 12 / the PTX read of Figure 13.
---   gpo_poller_ctl: the "controlled by poller" GPO source (4.8.1 GPO_x_CONFIG = 0b0101), which really comes over the RF link.
---   vdmcu_good: THERE IS NO SUCH PIN ON THE REAL PART.
---     It is a modelled status flag with the semantics defined at its declaration.
---     On a real board this is what an external supply supervisor watching VDMCU would produce, and it is the signal a Castalia board would gate its POR with.
---
--- ============================================================================
--- ASSUMPTIONS (datasheet does not specify; flagged here, house style)
--- ============================================================================
--- A1. HIP PAYLOAD BYTE ORDER FOR THE CRC FIELD.
---     4.8.3.1 says multi-byte parameters are MSB first "unless otherwise specified", but CRC_B is conventionally transmitted least-significant byte first and the datasheet's worked examples never enable CRC.
---     The model transmits and expects CRC_B LSB-byte-first; generic G_CRC_MSB_FIRST flips it if silicon disagrees.
--- A2. READ WITH NOTHING STAGED.
---     The datasheet says only that no response is sent; it does not say what the I2C target does if the host reads anyway.
---     This model ACKs the address (the part is awake) and streams 0xFF.
---     It does NOT address-NACK, because an address NACK is the standby indication (item 3) and conflating the two would mislead firmware.
--- A3. WHEN THE PENDING MESSAGE IS RETIRED.
---     Modelled at the END of the RMSG read frame, once the host has actually clocked out at least ML bytes, not at RMSG command-parse time.
---     A short read (N < ML) leaves the message pending and IRQ asserted.
--- A4. "INPUT BUFFER FULL" (NAK 0x05) is modelled as "TDC_BUF_LIS still holds an unread listener-to-poller message".
---     Control commands (CONFIG/SET_PARAM/GET_PARAM) are never rejected for buffer-full; only NSC_DATA_MSGs are.
--- A5. NSC_CONFIG_CMD replay.
---     4.8.2.1 says the command "is executed only once and is deactivated afterwards" but gives no error code for the second attempt; this model answers EC=0x01 (invalid command).
--- A6. UNKNOWN NSC OPCODE.
---     Answered as {opcode, 0x01} (invalid command); the datasheet defines no such response.
--- A7. GPO ACTIVE LEVEL.
---     2.2 calls the GPOs "open drain, internal pull-up, active low" and 4.8.1 lists the selectable SOURCES, but never states the mapping.
---     This model pulls the pin LOW when the selected condition is TRUE (error present / charging / field present / poller connected).
--- A8. ERROR_STATUS IS AN ENUMERATION, NOT A BITFIELD.
---     The Table values overlap bitwise (0x0C "TCM timeout" is 0x04|0x08), so the model reports ONE value with priority battery-temperature > battery-not-connected > IC-temperature.
---     Charging timeouts (0x0C/0x10/0x14) are NOT modelled at all.
--- A9. WLCP_CONNECTED is derived, not driven: 0b00 with no field, 0b01 with a field, 0b11 once the charger has actually started a phase.
---     The real value tracks WLCP-INFO/WLCL-CTL records over the (unmodelled) RF link.
--- A10. CV taper.
---     Real CV current decays over minutes; a fixed per-tick decay factor G_CV_DECAY is used so a simulation reaches termination in a sensible number of ticks.
---     G_BAT_CAP_MAH is likewise expected to be scaled down by a bench that wants to see a full charge inside a sim.
--- A11. OEM parameter block indices.
---     Section 4.8.2.1's byte-index table is only partly legible in the PDF's text layer; the model applies the entries it could read (see APPLY_OEM below) and stores the rest inertly.
---
--- ============================================================================
--- NOT MODELLED, deliberately
--- ============================================================================
---   * The RF link: NFC Type 2 Tag activation/anticollision, the T2T and proprietary PTX READ/WRITE commands (4.7.2), the T2T memory map (4.7.3), the custom NDEF record (4.7.4), load modulation, the UID (4.7.1).
---   * The WLC power-negotiation protocol itself: WPT cycles, ADJ/TCM/CCM/CVM WPT durations, WLCL-CTL/WLCP-INFO records, WPT_REQ (4.6, 4.6.1).
---     The parameters are stored, but no cycle timing is generated.
---   * Any real timing: I2C setup/hold/frequency limits, NVM write time, ADC conversion time; the 100 ms wake window is a plain deadline.
---   * The startup circuit (4.4.1), overvoltage limiter current sensing (4.3), antenna detuning as an RF effect (only the "no harvest" consequence is kept), charging timeouts, battery short/overcurrent protection, thermal regulation of the charge current.
---   * DIE_INFO / HW / FW version content: these are generics, not real values.
+-- Behavioral model of the Renesas PTX30W NFC wireless-charging (WLC) listener IC: I2C target at 0x4B, dedicated host IRQ, HIP frames carrying the NSC layer and the transparent data channel (TDC).
+-- Board context: Castalia is the I2C master on I2C0 (chip pins 37/38) and takes the PTX30W IRQ pin on a GPIO.
+-- Power path, charger and rails are an ABSTRACTION: integer engineering units (mV, uA, mW) recomputed every G_PWR_TICK, no electrical simulation, never an accuracy or sign-off claim.
+-- The RF link is not modelled; the ports under the BENCH ABSTRACTION headings are bench stimulus (poller side of the TDC, analog environment), not device pins.
+-- In standby the first addressed transfer is address-NACKed and arms a 100 ms wake window; the retry inside that window is ACKed.
 -------------------------------------------------------------------------------
 
 library ieee;
@@ -181,30 +13,30 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
 -------------------------------------------------------------------------------
--- Support package, kept in this file so the model plus its bench are the whole deliverable, with no third file to register.
+-- Support package, kept in this file so the model and its bench are the whole deliverable.
 -------------------------------------------------------------------------------
 package ptx30w_pkg is
 
     type ptx_byte_array is array (natural range <>) of std_logic_vector(7 downto 0);
 
-    -- Buffer/geometry constants, all from the datasheet.
-    constant PTX_TDC_BUF_SIZE : natural := 64;    -- 4.6.2: two 64-byte buffers
-    constant PTX_NSC_DATA_MAX : natural := 63;    -- Table 19: 6-bit length field
-    constant PTX_MSG_MAX      : natural := 264;   -- 4.8.2: "256+8 bytes"
+    -- Buffer and geometry constants.
+    constant PTX_TDC_BUF_SIZE : natural := 64;    -- the two TDC buffers are 64 bytes each
+    constant PTX_NSC_DATA_MAX : natural := 63;    -- NSC_DATA_MSG 6-bit length field
+    constant PTX_MSG_MAX      : natural := 264;   -- message buffer, 256+8 bytes
     constant PTX_FRAME_MAX    : natural := 300;   -- HIP frame staging (LEN+FCB+payload+CRC)
-    constant PTX_RSS_LEN      : natural := 21;    -- Table 18: 1+1+2+16+1
+    constant PTX_RSS_LEN      : natural := 21;    -- status block 1+1+2+16+1
 
     subtype ptx_msg_t   is ptx_byte_array(0 to PTX_MSG_MAX - 1);
     subtype ptx_buf64_t is ptx_byte_array(0 to PTX_TDC_BUF_SIZE - 1);
 
-    -- HIP opcodes (Table 23)
+    -- HIP opcodes: reset, read system status, write message, read message, read message length.
     constant PTX_OP_RST  : natural := 16#1#;
     constant PTX_OP_RSS  : natural := 16#2#;
     constant PTX_OP_WMSG : natural := 16#7#;
     constant PTX_OP_RMSG : natural := 16#8#;
     constant PTX_OP_RML  : natural := 16#9#;
 
-    -- HIP ACK/NAK values (Table 22)
+    -- HIP ACK/NAK values; the NAK is stored and reads back as the first byte of the next RSS response.
     constant PTX_NAK_NONE  : std_logic_vector(7 downto 0) := x"00";
     constant PTX_NAK_CMD   : std_logic_vector(7 downto 0) := x"01";
     constant PTX_NAK_LEN   : std_logic_vector(7 downto 0) := x"02";
@@ -212,38 +44,38 @@ package ptx30w_pkg is
     constant PTX_NAK_PARAM : std_logic_vector(7 downto 0) := x"04";
     constant PTX_NAK_FULL  : std_logic_vector(7 downto 0) := x"05";
 
-    -- NSC opcodes (4.8.2.1 .. 4.8.2.5)
+    -- NSC opcodes; 0x80 plus a 6-bit length is NSC_DATA_MSG, and 0x80 alone is NSC_DATA_ACK.
     constant PTX_NSC_CONFIG    : std_logic_vector(7 downto 0) := x"01";
     constant PTX_NSC_SET_PARAM : std_logic_vector(7 downto 0) := x"02";
     constant PTX_NSC_GET_PARAM : std_logic_vector(7 downto 0) := x"03";
 
-    -- NSC error codes (Table 20)
+    -- NSC error codes
     constant PTX_EC_NONE  : std_logic_vector(7 downto 0) := x"00";
     constant PTX_EC_CMD   : std_logic_vector(7 downto 0) := x"01";
     constant PTX_EC_PARAM : std_logic_vector(7 downto 0) := x"02";
     constant PTX_EC_NVM   : std_logic_vector(7 downto 0) := x"03";
 
-    -- BC_STATUS values (Table 12 / 4.8.1)
+    -- BC_STATUS (charger phase) values
     constant PTX_BC_DISABLED : natural := 0;
     constant PTX_BC_TCM      : natural := 1;
     constant PTX_BC_CCM      : natural := 2;
     constant PTX_BC_CVM      : natural := 3;
     constant PTX_BC_DONE     : natural := 4;
 
-    -- NTC_STATUS values (4.8.1)
+    -- NTC_STATUS values
     constant PTX_NTC_NORMAL : natural := 16#00#;
     constant PTX_NTC_COLD   : natural := 16#02#;
     constant PTX_NTC_ECOLD  : natural := 16#03#;
     constant PTX_NTC_HOT    : natural := 16#04#;
     constant PTX_NTC_EHOT   : natural := 16#0C#;
 
-    -- ERROR_STATUS values actually produced (4.8.1; see ASSUMPTION A8)
+    -- ERROR_STATUS values actually produced: one enumerated value, never a bitfield (the defined values overlap bitwise).
     constant PTX_ERR_NONE    : natural := 16#00#;
     constant PTX_ERR_ICTEMP  : natural := 16#01#;
     constant PTX_ERR_NOBAT   : natural := 16#04#;
     constant PTX_ERR_BATTEMP : natural := 16#08#;
 
-    -- NSC WR parameter IDs (Table 16)
+    -- NSC WR parameter IDs
     constant PTX_ID_ICHG      : natural := 16#01#;
     constant PTX_ID_VTERM     : natural := 16#02#;
     constant PTX_ID_VTRK      : natural := 16#03#;
@@ -257,11 +89,11 @@ package ptx30w_pkg is
     constant PTX_ID_NFC_EN    : natural := 16#0B#;
     constant PTX_ID_LIM_TH    : natural := 16#0C#;
 
-    -- CRC_B, ISO/IEC 14443-3 Type B (4.8.3.1): poly 0x8408 reflected, init 0xFFFF, final inversion.
-    -- Returns the 16-bit value; the byte order it is placed in the frame with is a model generic (ASSUMPTION A1).
+    -- CRC_B, ISO/IEC 14443-3 Type B: poly 0x8408 reflected, init 0xFFFF, final inversion, over LEN+FCB+payload.
+    -- Returns the 16-bit value; G_CRC_MSB_FIRST picks the byte order it goes into the frame with.
     function ptx_crc_b(d : ptx_byte_array) return std_logic_vector;
 
-    -- Charger threshold/current decode tables from section 4.8.1.
+    -- Charger threshold and current decode tables.
     function ptx_vterm_mv(code : natural) return natural;   -- BC_VTERM_CTRL, 32 entries
     function ptx_vtrk_mv (code : natural) return natural;   -- BC_VTRK_CTRL,   8 entries
     function ptx_vrchg_mv(code : natural) return natural;   -- BC_VRCHG_CTRL, 16 entries
@@ -291,8 +123,7 @@ package body ptx30w_pkg is
         return not crc;
     end function;
 
-    -- BC_VTERM_CTRL table, 4.8.1 (millivolts).
-    -- Codes 0x00..0x1F.
+    -- BC_VTERM_CTRL table, millivolts, codes 0x00 to 0x1F.
     type mv_tbl32 is array (0 to 31) of natural;
     constant VTERM_TBL : mv_tbl32 :=
         (3590, 3620, 3650, 3670, 3700, 3730, 3750, 3810,
@@ -301,16 +132,15 @@ package body ptx30w_pkg is
          4420, 4450, 4510, 4530, 4560, 4590, 4610, 4650);
 
     type mv_tbl8 is array (0 to 7) of natural;
-    -- BC_VTRK_CTRL table, 4.8.1 (millivolts).
-    -- Note the non-monotonic code order.
+    -- BC_VTRK_CTRL table, millivolts; note the non-monotonic code order.
     constant VTRK_TBL : mv_tbl8 := (3000, 2500, 2600, 2700, 2800, 2900, 3100, 3200);
 
     type mv_tbl16 is array (0 to 15) of natural;
-    -- BC_VRCHG_CTRL table, 4.8.1 (millivolts).
+    -- BC_VRCHG_CTRL table, millivolts.
     constant VRCHG_TBL : mv_tbl16 :=
         (2910, 3020, 3130, 3230, 3340, 3440, 3550, 3660,
          3730, 3770, 3820, 3870, 4040, 4200, 4300, 4420);
-    -- LIM_TH_SEL table, 4.8.1 (millivolts); codes 0..2 are invalid, 13..15 too.
+    -- LIM_TH_SEL table, millivolts; codes 0 to 2 and 13 to 15 are invalid and read as the 5.2 V default.
     constant LIMTH_TBL : mv_tbl16 :=
         (5200, 5200, 5200, 3400, 3600, 3800, 4000, 4200,
          4400, 4600, 4800, 5000, 5200, 5200, 5200, 5200);
@@ -340,8 +170,8 @@ package body ptx30w_pkg is
         return LIMTH_TBL(code);
     end function;
 
-    -- 4.8.1 BC_ICHG_CTRL: ICHG = 1.96 mA * ICHG_CODE + 1.92 mA, code 0x02..0x7F.
-    -- Returned in microamps so the phase machine can carry the 10% trickle current and the percentage scaling without rounding to nothing.
+    -- BC_ICHG_CTRL: ICHG = 1.96 mA * code + 1.92 mA, code 0x02 to 0x7F.
+    -- Returned in microamps so the 10% trickle current and the percentage scaling do not round away to nothing.
     function ptx_ichg_ua(code : natural) return natural is
         variable c : natural := code;
     begin
@@ -350,7 +180,7 @@ package body ptx30w_pkg is
         return 1960 * c + 1920;
     end function;
 
-    -- 4.8.1 BC_ITERM_CTRL: ITERM = 1.39 mA * code - 0.34 mA, code 4..59.
+    -- BC_ITERM_CTRL: ITERM = 1.39 mA * code - 0.34 mA, code 4 to 59.
     function ptx_iterm_ua(code : natural) return natural is
         variable c : natural := code;
     begin
@@ -359,7 +189,7 @@ package body ptx30w_pkg is
         return 1390 * c - 340;
     end function;
 
-    -- 4.8.1 BC_ICHG_PCT_COLD / BC_ICHG_PCT_HOT: 0=100, 1=75, 2=50, 3=25, 4=0 percent; "others: RFU (is interpreted as 0)".
+    -- BC_ICHG_PCT_COLD / BC_ICHG_PCT_HOT: 0=100, 1=75, 2=50, 3=25, 4=0 percent; every other code is RFU and reads as 0.
     function ptx_ichg_pct(code : natural) return natural is
     begin
         case code is
@@ -385,19 +215,19 @@ use work.ptx30w_pkg.all;
 entity ptx30w_model is
     generic (
         -- ---- identity / interface -------------------------------------
-        G_I2C_ADDR        : std_logic_vector(6 downto 0) := "1001011";  -- 0x4B (I2C_ADDR default, 4.8.1)
+        G_I2C_ADDR        : std_logic_vector(6 downto 0) := "1001011";  -- 0x4B, the I2C_ADDR default
         G_IRQ_ACTIVE_HIGH : boolean := true;                            -- IRQ_POLARITY = 0b0 default
-        G_CRC_MSB_FIRST   : boolean := false;                           -- see ASSUMPTION A1
+        G_CRC_MSB_FIRST   : boolean := false;                           -- CRC_B byte order in the frame; LSB byte first by default
         G_HW_VERSION      : std_logic_vector(7 downto 0)  := x"30";
         G_FW_VERSION      : std_logic_vector(15 downto 0) := x"148B";   -- 5259 decimal
         G_DIE_INFO_SEED   : std_logic_vector(7 downto 0)  := x"D0";     -- DIE_INFO[k] = seed + k
         G_OEM_VALID       : boolean := true;                            -- OEM_VALID_FLAG in the RSS block
 
-        -- ---- standby / wake (4.8.4) -----------------------------------
+        -- ---- standby / wake -------------------------------------------
         G_STANDBY_EN      : boolean := true;
         G_WAKE_HOLD       : time    := 100 ms;
 
-        -- ---- power model tick + battery (see ASSUMPTION A10) ----------
+        -- ---- power model tick + battery -------------------------------
         G_PWR_TICK        : time    := 100 us;
         G_BAT_CAP_MAH     : real    := 40.0;    -- scale DOWN in a bench that wants a full charge
         G_VBAT_INIT_MV    : natural := 2800;
@@ -406,24 +236,23 @@ entity ptx30w_model is
         G_CV_DECAY        : real    := 0.97;    -- CV current taper per tick
 
         -- ---- rails ----------------------------------------------------
-        G_VDDC_BOD_SET_MV : natural := 2500;    -- VVDDC_BOD_SET  (3.4: 2.2-2.8 V)
-        G_VDDC_BOD_RST_MV : natural := 2800;    -- VVDDC_BOD_RESET(3.4: 2.30-3.25 V)
+        G_VDDC_BOD_SET_MV : natural := 2500;    -- VVDDC_BOD_SET, spec range 2.2-2.8 V
+        G_VDDC_BOD_RST_MV : natural := 2800;    -- VVDDC_BOD_RESET, spec range 2.30-3.25 V
         G_LDO_DROPOUT_MV  : natural := 200;
-        G_VDMCU_ILIM_MA   : natural := 50;      -- IVDMCU (3.4)
+        G_VDMCU_ILIM_MA   : natural := 50;      -- IVDMCU output current limit
 
         -- ---- OEM/reset defaults for the parameters we act on ----------
         G_VDMCU_MODE      : std_logic_vector(1 downto 0) := "10";  -- 0b10 = 3.3 V out
         G_GPO0_CONFIG     : natural := 6;       -- 0b0110 startup circuit enable (OEM default)
         G_GPO1_CONFIG     : natural := 0;       -- 0b0000 GPO disabled (OEM default)
-        G_SM_HOLD         : time    := 5 sec    -- 4.4: SM low for >5 s toggles shipping mode
+        G_SM_HOLD         : time    := 5 sec    -- SM low for >5 s toggles shipping mode
     );
     port (
         ---------------------------------------------------------------
-        -- REAL DEVICE PINS (section 2.2)
+        -- REAL DEVICE PINS
         ---------------------------------------------------------------
-        -- I2C, open drain.
-        -- scl/sda_in are the RESOLVED nets: the bench ties the master's and the model's open-drain drivers together with a weak 'H' pull-up.
-        -- '1' on a *_oe means THIS model is pulling that pin low.
+        -- I2C, open drain: scl/sda_in are the RESOLVED nets, so the bench ties the master's and the model's open-drain drivers together with a weak 'H' pull-up.
+        -- '1' on a *_oe means THIS model is pulling that pin low; the model never drives an active high.
         scl     : in  std_logic;
         sda_in  : in  std_logic;
         sda_out : out std_logic := '0';
@@ -437,8 +266,7 @@ entity ptx30w_model is
         sm_n    : in  std_logic := '1';   -- SM push button to GND, active low
 
         ---------------------------------------------------------------
-        -- BENCH ABSTRACTION: the analog environment the bench drives.
-        -- NONE of these are device pins.
+        -- BENCH ABSTRACTION: the analog environment the bench drives; none of these are device pins.
         ---------------------------------------------------------------
         rf_field_present : in boolean := false;  -- poller field on the antenna
         rf_available_mw  : in natural := 0;      -- DC power the rectifier can deliver
@@ -448,20 +276,13 @@ entity ptx30w_model is
         ntc_mv           : in natural := 1400;   -- voltage on the NTC pin
         tj_degc          : in natural := 25;     -- junction temperature
         bat_connected    : in boolean := true;   -- a cell is present on VDBAT
-        gpo_poller_ctl   : in std_logic := '0';  -- GPO_x_CONFIG = 0b0101 source
+        gpo_poller_ctl   : in std_logic := '0';  -- the "controlled by poller" GPO source, GPO_x_CONFIG 0b0101
 
         ---------------------------------------------------------------
         -- Reported power/charger state, in engineering units.
         ---------------------------------------------------------------
-        -- vdmcu_good SEMANTICS (there is no such pin on the real part; see the BENCH ABSTRACTION note in the header).
-        -- '1' means, and only means:
-        --   * the MCU LDO is configured as an OUTPUT (VDMCU_MODE 0b01/0b10) and is enabled, or is configured as an INPUT and the externally supplied VDMCU is inside the datasheet's 1.6-3.6 V input range;
-        --   * the VDDC brownout detector is NOT asserted;
-        --   * VDDC is at least G_LDO_DROPOUT_MV above the programmed VDMCU target, so the LDO is out of dropout;
-        --   * the VDMCU load is within the 50 mA IVDMCU limit;
-        -- i.e. VDMCU is sitting at its programmed 1.8 V / 3.3 V target and may be trusted as a Castalia core/IO supply.
-        -- It goes '0' the instant any of those stops being true.
-        -- Treat it as the output of a supply supervisor: gate power-on-reset with it, do not use it as a millivolt measurement (that is vdmcu_mv).
+        -- vdmcu_good is a modelled supply-supervisor flag, not a pin: '1' only when the LDO is out of dropout (VDDC at least G_LDO_DROPOUT_MV above target) or the external VDMCU is inside 1.6-3.6 V, the brownout detector is clear, and the load is within the 50 mA limit.
+        -- It drops the instant any of that stops holding, so gate power-on-reset with it and read vdmcu_mv for the actual millivolts.
         vdmcu_good   : out std_logic := '0';
         vdmcu_mv     : out natural := 0;
         vddc_mv      : out natural := 0;
@@ -474,8 +295,7 @@ entity ptx30w_model is
         shipping     : out std_logic := '0';
 
         ---------------------------------------------------------------
-        -- BENCH ABSTRACTION: the poller side of the Transparent Data Channel.
-        -- It stands in for the NFC link; see section 4.6.2 and the header.
+        -- BENCH ABSTRACTION: the poller side of the transparent data channel, standing in for the NFC link.
         -- Both *_go ports are RISING-EDGE triggered.
         ---------------------------------------------------------------
         tdc_pol_go    : in  std_logic := '0';   -- "poller wrote tdc_pol_len bytes"
@@ -501,8 +321,7 @@ end entity ptx30w_model;
 architecture behavioral of ptx30w_model is
 
     -----------------------------------------------------------------------
-    -- Configuration written by the host interface (process hip) and consumed by the power model (process pwr).
-    -- Single driver each: `hip`.
+    -- Configuration written by the host interface (process hip, the single driver of each) and consumed by the power model (process pwr).
     -----------------------------------------------------------------------
     signal s_bc_enable   : std_logic := '1';                 -- BC_ENABLE default 0b1
     signal s_ichg_code   : natural := 16#02#;                -- 6 mA
@@ -551,7 +370,7 @@ architecture behavioral of ptx30w_model is
         return std_logic_vector(to_unsigned(n mod 256, 8));
     end function;
 
-    -- 4.8.1 VDBAT_ADC_VAL / VDDC_ADC_VAL: V = 12.5 mV * code + 2.4 V, and the code reads 0 when the ADC cannot measure (below the 2.4 V floor).
+    -- VDBAT_ADC_VAL / VDDC_ADC_VAL: V = 12.5 mV * code + 2.4 V, and the code reads 0 when the ADC cannot measure (below the 2.4 V floor).
     function adc_code(mv : natural) return natural is
         variable c : natural;
     begin
@@ -576,8 +395,7 @@ begin
     bod_reset <= s_bod;
 
     ---------------------------------------------------------------------------
-    -- GPO_0 / GPO_1 (4.8.1 GPO_x_CONFIG).
-    -- Open drain, active low: the pin is PULLED LOW when the selected condition is true (ASSUMPTION A7).
+    -- GPO_0 / GPO_1, open drain and active low: the pin is PULLED LOW when the selected GPO_x_CONFIG condition is true.
     ---------------------------------------------------------------------------
     gpo_proc : process (s_gpo0_cfg, s_gpo1_cfg, s_err_stat, s_bc_status,
                         s_wlcp, s_ship, gpo_poller_ctl, rf_field_present)
@@ -599,7 +417,7 @@ begin
     begin
         gpo0_oe <= gpo_level(s_gpo0_cfg, s_err_stat, s_bc_status, s_wlcp,
                              s_ship, gpo_poller_ctl, rf_field_present);
-        -- GPO_1 has no "startup circuit enable" option (4.8.1); cfg 6 is RFU there and therefore reads as disabled.
+        -- GPO_1 has no startup-circuit-enable option: cfg 6 is RFU there and reads as disabled.
         if s_gpo1_cfg = 6 then
             gpo1_oe <= '0';
         else
@@ -610,8 +428,7 @@ begin
 
 
     ---------------------------------------------------------------------------
-    -- POWER / CHARGER MODEL (sections 4.1-4.5, thresholds from 3.4 and 4.8.1).
-    -- Fixed-tick, integer engineering units, no electrical simulation.
+    -- POWER / CHARGER MODEL: fixed-tick, integer engineering units, no electrical simulation.
     ---------------------------------------------------------------------------
     pwr : process
         constant TICK_H : real := real(G_PWR_TICK / 1 ns) / 3.6e12;  -- tick in hours
@@ -678,7 +495,7 @@ begin
             wait for G_PWR_TICK;
 
             ------------------------------------------------------------------
-            -- HIP system reset (4.8.3.6.1): back to the OEM/reset charger state.
+            -- HIP system reset: back to the OEM/reset charger state.
             ------------------------------------------------------------------
             if s_rst_tog /= rst_tog_l then
                 rst_tog_l := s_rst_tog;
@@ -689,8 +506,7 @@ begin
             end if;
 
             ------------------------------------------------------------------
-            -- NTC state with the 3.4 set/reset hysteresis.
-            -- NTC voltage FALLS as the cell gets hotter (constant 69 uA source into the thermistor).
+            -- NTC state with set/reset hysteresis; the NTC voltage FALLS as the cell gets hotter (constant 69 uA source into the thermistor).
             ------------------------------------------------------------------
             if ntc_mv >= 1785 then ecold := true;  elsif ntc_mv <  1717 then ecold := false; end if;
             if ntc_mv >= 1175 then cold  := true;  elsif ntc_mv <  1115 then cold  := false; end if;
@@ -705,15 +521,14 @@ begin
             end if;
 
             ------------------------------------------------------------------
-            -- Chip over-temperature (section 4): TJ_ALERT_SET 120 C, TJ_ALERT_RESET 100 C.
-            -- Detuning the RF interface means no harvest.
+            -- Chip over-temperature, set 120 C and reset 100 C: the RF interface detunes, so no harvest, while the host supply keeps running.
             ------------------------------------------------------------------
             if tj_degc >= 120 then overtemp := true;
             elsif tj_degc < 100 then overtemp := false; end if;
 
             ------------------------------------------------------------------
-            -- Shipping mode (4.4): entered by the host parameter or by a >5 s SM press; left by the RF field appearing or another >5 s SM press.
-            -- The datasheet's third entry path (VDBAT below VBAT_LOW_TH = 3.0 V) is deliberately not modelled; see the header.
+            -- Shipping mode: entered by the host parameter or a >5 s SM press, left by the RF field appearing or another >5 s SM press, and it isolates the battery so an unfielded part is dead.
+            -- Entry on VDBAT below VBAT_LOW_TH is deliberately not modelled: it would fire during every low-battery trickle-charge test.
             ------------------------------------------------------------------
             if to_X01(sm_n) = '0' then
                 if sm_ticks < SM_TICKS_REQ then sm_ticks := sm_ticks + 1; end if;
@@ -729,7 +544,7 @@ begin
             if rf_field_present and not overtemp then ship := '0'; end if;
 
             ------------------------------------------------------------------
-            -- Charger parameter decode (4.8.1 tables).
+            -- Charger parameter decode.
             ------------------------------------------------------------------
             ichg_ua  := ptx_ichg_ua(s_ichg_code);
             iterm_ua := ptx_iterm_ua(s_iterm_code);
@@ -750,11 +565,11 @@ begin
             end if;
 
             ------------------------------------------------------------------
-            -- ERROR_STATUS (single enumerated value, ASSUMPTION A8).
+            -- ERROR_STATUS, one enumerated value: battery temperature first, then battery absent, then IC temperature.
             ------------------------------------------------------------------
             if s_err_ack /= err_ack_l then
                 err_ack_l := s_err_ack;
-                err := PTX_ERR_NONE;        -- "cleared when read" (4.8.1)
+                err := PTX_ERR_NONE;        -- cleared when read
             end if;
             if ecold or ehot or (pct = 0 and (cold or hot)) then
                 err := PTX_ERR_BATTEMP;
@@ -765,7 +580,8 @@ begin
             end if;
 
             ------------------------------------------------------------------
-            -- Harvest + power selection (4.5.1).
+            -- Harvest and power selection: the system supply comes first and the battery is charged from the residual, or makes up the shortfall when the field cannot cover the load.
+            -- VDDC target is VDBAT + VDBAT_OFFSET_HIGH clamped between VDDC_TH_LOW and LIM_TH, and the available current is rf_available_mw / VDDC.
             ------------------------------------------------------------------
             i_load := (vddc_load_ma + vdmcu_load_ma) * 1000;
 
@@ -804,12 +620,12 @@ begin
             end if;
 
             ------------------------------------------------------------------
-            -- Charger phase machine (4.4, Figure 5, Table 12).
+            -- Charger phase machine: TCM below VTRICKLE at 10% of ICHG, CCM at ICHG up to VTERM, CVM tapering until ITERM, DONE until vbat falls below VRCHG.
             ------------------------------------------------------------------
             if s_bc_enable = '0' or (not rf_field_present) or overtemp
                or ship = '1' or pct = 0 or ecold or ehot
                or ((not bat_connected) and s_batoff_en = '0') then
-                -- Table 12: RF field off reads 0 unless the battery is full, which keeps reading 4.
+                -- With the RF field off BC_STATUS reads 0 (disabled) unless the battery is full, which keeps reading 4 (done).
                 if bc /= PTX_BC_DONE then bc := PTX_BC_DISABLED; end if;
                 i_target := 0;
                 i_cv_ua  := 0.0;
@@ -861,15 +677,14 @@ begin
                 end if;
             end if;
 
-            -- The charge current can never exceed what the field left over (4.5.1: "the battery is charged with residual current").
+            -- The charge current can never exceed the residual the field left over.
             if i_target > i_budget then i_chg := i_budget; else i_chg := i_target; end if;
 
             ------------------------------------------------------------------
             -- Battery integration.
             ------------------------------------------------------------------
             if bc = PTX_BC_CVM or bc = PTX_BC_DONE then
-                -- CV holds the terminal voltage at VTERM while the current tapers (ASSUMPTION A10).
-                -- Pin soc there rather than letting the linear soc model push vbat past VTERM.
+                -- CV holds the terminal voltage at VTERM while the current tapers: pin soc there so the linear soc model cannot push vbat past VTERM.
                 if i_out = 0 then
                     soc := soc_of_v(vterm);
                 else
@@ -883,7 +698,7 @@ begin
             if bat_connected then vbat := v_of_soc(soc); else vbat := 0; end if;
 
             ------------------------------------------------------------------
-            -- Brownout detector with hysteresis (3.4).
+            -- Brownout detector with hysteresis; while it holds, the I2C target does not answer.
             ------------------------------------------------------------------
             if vddc < G_VDDC_BOD_SET_MV then
                 bod := '1';
@@ -892,7 +707,7 @@ begin
             end if;
 
             ------------------------------------------------------------------
-            -- MCU LDO (4.2 + 3.4 "VDMCU pin").
+            -- MCU LDO: VDMCU_MODE 0b01 gives 1.8 V out, 0b10 gives 3.3 V out, 0b11 takes VDMCU as an input; over the 50 mA limit the rail folds back.
             ------------------------------------------------------------------
             case s_vdmcu_mode is
                 when "01"   => vdmcu_t := 1800;
@@ -917,7 +732,7 @@ begin
             end if;
 
             ------------------------------------------------------------------
-            -- WLCP_CONNECTED (ASSUMPTION A9).
+            -- WLCP_CONNECTED is derived, not driven: 0 with no field, 1 with a field, 3 once the charger has actually started a phase.
             ------------------------------------------------------------------
             if not rf_field_present then
                 wlcp    := 0;
@@ -953,11 +768,9 @@ begin
 
 
     ---------------------------------------------------------------------------
-    -- I2C TARGET + HOST INTERFACE PROTOCOL + NSC LAYER + TDC.
-    --
-    -- Bit engine: `edge` counts SCL rising edges since the last START or repeated START, so group g = edge/9 and bit-in-group bp = edge mod 9 (group 0 is address+RnW+ACK, group N>=1 is data byte N-1 plus its ACK).
-    -- This is the i3c_target_model.vhd / qspi_flash_model.vhd phase-boundary-counting technique.
-    -- SAMPLE on the rising edge, set the model's own drive up on the falling edge.
+    -- I2C TARGET + HOST INTERFACE PROTOCOL + NSC LAYER + TDC; no timing minima are imposed, so the bench picks the bit rate.
+    -- Bit engine: `edge` counts SCL rising edges since the last START, so group g = edge/9 and bit-in-group bp = edge mod 9 (group 0 is address+RnW+ACK, group N>=1 is data byte N-1 plus its ACK).
+    -- Sample on the rising edge, set this model's own drive up on the falling edge.
     ---------------------------------------------------------------------------
     hip : process (scl, sda_in, tdc_pol_go, tdc_lis_rd_go)
 
@@ -969,12 +782,12 @@ begin
         variable addr_ok  : boolean := false;
         variable rd_bytes : natural := 0;
         -- Once the master has NACKed a read byte the model must RELEASE SDA for the rest of the frame.
-        -- Otherwise the phantom next byte's MSB=0 would hold SDA low across the master's STOP and the STOP would never be seen (the i3c_target_model.vhd "ruling 3" hazard).
+        -- Otherwise the phantom next byte's MSB=0 holds SDA low across the master's STOP and the STOP is never seen.
         variable read_done : boolean := false;
         variable g, bp, bidx : natural;
         variable bitv     : std_logic;
 
-        ---- standby / wake (4.8.4) --------------------------------------
+        ---- standby / wake ----------------------------------------------
         variable wake_deadline : time    := 0 ns;
         variable nack_cnt      : natural := 0;
 
@@ -1037,7 +850,7 @@ begin
             out_valid := true;
         end procedure;
 
-        -- Stage the next NSC_DATA_MSG chunk of a poller message: at most 63 payload bytes, which is the 64-byte TDC_BUF_POL minus its H1 header (4.6.2 / Table 19).
+        -- Stage the next NSC_DATA_MSG chunk of a poller message: at most 63 payload bytes, the 64-byte TDC_BUF_POL minus its H1 header, so a 70-byte poller message arrives as 63 then 7.
         procedure stage_pol_chunk is
             variable c : natural;
         begin
@@ -1097,7 +910,7 @@ begin
             variable c  : std_logic_vector(15 downto 0);
         begin
             lf := tx_ptr - 2;                       -- FCB + payload
-            if crc_en then lf := lf + 2; end if;    -- plus the CRC bytes (4.8.3.1)
+            if crc_en then lf := lf + 2; end if;    -- plus the CRC bytes
             tx_buf(0) := u8(lf / 256);
             tx_buf(1) := u8(lf mod 256);
             if crc_en then
@@ -1112,8 +925,7 @@ begin
         end procedure;
 
         -----------------------------------------------------------------
-        -- NSC layer (4.8.2).
-        -- `d` is the WMSG data payload, `dn` its length.
+        -- NSC layer: `d` is the WMSG data payload and `dn` its length.
         -----------------------------------------------------------------
         procedure nsc_handle(d : ptx_byte_array; dn : natural) is
             variable op   : std_logic_vector(7 downto 0);
@@ -1128,7 +940,7 @@ begin
 
             if op(7 downto 6) = "10" then
                 ------------------------------------------------------------
-                -- NSC_DATA_MSG from the host (Table 19 / 4.6.2.3 step 1)
+                -- NSC_DATA_MSG from the host: copied into TDC_BUF_LIS with bit 7 of H1 set, which marks the buffer full until the poller reads it.
                 ------------------------------------------------------------
                 dlen := to_integer(unsigned(op(5 downto 0)));
                 if dlen = 0 then
@@ -1146,15 +958,14 @@ begin
 
             elsif op = PTX_NSC_CONFIG then
                 ------------------------------------------------------------
-                -- NSC_CONFIG_CMD (4.8.2.1): one-shot OEM block.
+                -- NSC_CONFIG_CMD: one-shot OEM block, a replay is answered invalid-command.
                 ------------------------------------------------------------
                 if oem_done then
-                    ec := PTX_EC_CMD;                    -- ASSUMPTION A5
+                    ec := PTX_EC_CMD;                    -- already executed once
                 else
                     ec := PTX_EC_NONE;
                     oem_done := true;
-                    -- APPLY_OEM: the byte indices that are legible in 4.8.2.1 (ASSUMPTION A11).
-                    -- Parameter #k lives at d(k).
+                    -- OEM block: parameter #k lives at d(k), and the indices not decoded here have no modelled effect.
                     if dn > 3  then s_vdbat_off_h <= to_integer(unsigned(d(3))); end if;
                     if dn > 10 then s_bc_enable   <= d(10)(0); end if;
                     if dn > 11 then s_voff_cold   <= to_integer(unsigned(d(11)(2 downto 0))); end if;
@@ -1180,7 +991,7 @@ begin
 
             elsif op = PTX_NSC_SET_PARAM then
                 ------------------------------------------------------------
-                -- NSC_SET_PARAM_CMD (4.8.2.2 + Table 16): (ID,V)* then EoC 0.
+                -- NSC_SET_PARAM_CMD: (ID,value) pairs terminated by the EoC byte 0.
                 ------------------------------------------------------------
                 ec  := PTX_EC_NONE;
                 idx := 1;
@@ -1205,7 +1016,7 @@ begin
                         when PTX_ID_NFC_EN   => null;
                         when PTX_ID_LIM_TH   => s_limth_code <= to_integer(unsigned(val(3 downto 0)));
                         when PTX_ID_NDEF     =>
-                            -- CUSTOM_NDEF_MSG: the value is a length byte followed by that many payload bytes (Table 16 note 1).
+                            -- CUSTOM_NDEF_MSG: the value is a length byte followed by that many payload bytes.
                             idx := idx + to_integer(unsigned(val));
                         when others          => ec := PTX_EC_PARAM;
                     end case;
@@ -1219,7 +1030,7 @@ begin
 
             elsif op = PTX_NSC_GET_PARAM then
                 ------------------------------------------------------------
-                -- NSC_GET_PARAM_CMD (4.8.2.3 + Table 17): opcode, EC, then the eight RD parameters in order = 10 bytes = the RML=0x0A of Figure 36.
+                -- NSC_GET_PARAM_CMD: opcode, EC, then the eight RD parameters in order, so the message length reads 10 bytes.
                 ------------------------------------------------------------
                 out_clear;
                 out_put(PTX_NSC_GET_PARAM);
@@ -1233,11 +1044,11 @@ begin
                 out_put(u8(s_ntc_stat));                                -- 7 NTC_STATUS
                 out_put(u8(s_wlcp));                                    -- 8 WLCP_CONNECTED
                 out_commit;
-                s_err_ack <= not s_err_ack;   -- "cleared when read" (4.8.1)
+                s_err_ack <= not s_err_ack;   -- ERROR_STATUS is cleared when read
 
             else
                 ------------------------------------------------------------
-                -- Unknown NSC opcode (ASSUMPTION A6)
+                -- Unknown NSC opcode: answered {opcode, invalid command}.
                 ------------------------------------------------------------
                 out_clear;
                 out_put(op);
@@ -1247,7 +1058,8 @@ begin
         end procedure;
 
         -----------------------------------------------------------------
-        -- HIP frame parse + dispatch (4.8.3).
+        -- HIP frame parse and dispatch: LEN(2, MSB first) then FCB, payload, optional CRC and padding, with the I2C START standing in for the SOF byte.
+        -- LEN counts FCB + payload + CRC only and must be 1 to 4095; FCB is [7:4] opcode, [2] RAK, [1] CRC, and the response mirrors both the opcode and the CRC bit.
         -----------------------------------------------------------------
         procedure process_frame is
             variable lenf, opcode, np : natural;
@@ -1286,7 +1098,7 @@ begin
                     return;
                 end if;
                 plen := plen - 2;
-                -- 4.8.3.1: computed over the whole frame except SOF and padding (i.e. LEN + FCB + payload), inverted CRC_B.
+                -- Inverted CRC_B over LEN + FCB + payload, i.e. the whole frame except SOF and padding.
                 if G_CRC_MSB_FIRST then
                     rxc := rx_buf(lenf) & rx_buf(lenf + 1);
                 else
@@ -1301,7 +1113,7 @@ begin
 
             case opcode is
                 ----------------------------------------------------------
-                when PTX_OP_RST =>          -- 4.8.3.6.1
+                when PTX_OP_RST =>          -- System Reset: payload must be the single byte 0x01
                     if plen /= 1 or rx_buf(p0) /= x"01" then
                         last_nak := PTX_NAK_PARAM;
                         return;
@@ -1310,10 +1122,10 @@ begin
                     frames   := frames + 1;
                     if rak then
                         resp_begin(PTX_OP_RST, true);
-                        resp_put(x"00");                       -- ACK value (4.8.3.4)
+                        resp_put(x"00");                       -- an ACK frame is RAK plus the single byte 0x00
                         resp_end;
                     end if;
-                    -- "The system reset is performed after the acknowledge ... is sent to the Host", so state is cleared here and the ACK frame is already staged in tx_buf.
+                    -- The reset happens after the ACK is sent, so state is cleared here with the ACK frame already staged in tx_buf.
                     out_valid := false; out_len := 0;
                     pol_len := 0; pol_ptr := 0; ack_pend := false;
                     lis_valid := false; lis_len := 0;
@@ -1321,7 +1133,7 @@ begin
                     s_rst_tog  <= not s_rst_tog;
 
                 ----------------------------------------------------------
-                when PTX_OP_RSS =>          -- 4.8.3.6.2 + Table 18
+                when PTX_OP_RSS =>          -- Read System Status: N bytes of the 21-byte status block, truncated or zero-padded
                     if plen /= 1 then
                         last_nak := PTX_NAK_LEN;
                         return;
@@ -1343,7 +1155,7 @@ begin
                     resp_begin(PTX_OP_RSS, false);
                     for i in 0 to np - 1 loop
                         if i < PTX_RSS_LEN then resp_put(status(i));
-                        else                    resp_put(x"00");   -- padded (4.8.3.6.2)
+                        else                    resp_put(x"00");   -- padded past the end of the block
                         end if;
                     end loop;
                     resp_end;
@@ -1351,7 +1163,7 @@ begin
                     frames   := frames + 1;
 
                 ----------------------------------------------------------
-                when PTX_OP_WMSG =>         -- 4.8.3.6.3
+                when PTX_OP_WMSG =>         -- Write Message: payload is the buffer address then the data
                     if plen < 1 then
                         last_nak := PTX_NAK_LEN;
                         return;
@@ -1365,7 +1177,7 @@ begin
                         last_nak := PTX_NAK_LEN;               -- exceeds the input buffer
                         return;
                     end if;
-                    -- "write buffer full" (ASSUMPTION A4): a data message arriving while TDC_BUF_LIS still holds an unread one.
+                    -- Write buffer full: a data message arriving while TDC_BUF_LIS still holds an unread one; control commands are never rejected this way.
                     if n >= 1 and lis_valid then
                         if rx_buf(p0 + 1)(7 downto 6) = "10"
                            and rx_buf(p0 + 1)(5 downto 0) /= "000000" then
@@ -1387,7 +1199,7 @@ begin
                     nsc_handle(nsc_tmp, n);
 
                 ----------------------------------------------------------
-                when PTX_OP_RML =>          -- 4.8.3.6.4
+                when PTX_OP_RML =>          -- Read Message Length: 0 when nothing is pending
                     if plen /= 0 then
                         last_nak := PTX_NAK_LEN;
                         return;
@@ -1405,7 +1217,7 @@ begin
                     frames   := frames + 1;
 
                 ----------------------------------------------------------
-                when PTX_OP_RMSG =>         -- 4.8.3.6.5
+                when PTX_OP_RMSG =>         -- Read Message: N bytes, zero-padded
                     if plen /= 2 then
                         last_nak := PTX_NAK_LEN;
                         return;
@@ -1420,14 +1232,14 @@ begin
                         end if;
                     end loop;
                     resp_end;
-                    -- ASSUMPTION A3: retire the message only once it has really been clocked out, and only on a full-length read.
+                    -- Retire the message only once it has really been clocked out, and only on a full-length read; a short read leaves it pending with IRQ asserted.
                     pend_consume := out_valid and (np >= out_len);
                     last_nak := PTX_NAK_NONE;
                     frames   := frames + 1;
 
                 ----------------------------------------------------------
                 when others =>
-                    last_nak := PTX_NAK_CMD;                   -- opcode not in Table 23: invalid command, Table 22 0x01
+                    last_nak := PTX_NAK_CMD;                   -- undefined opcode
             end case;
         end procedure;
 
@@ -1442,7 +1254,7 @@ begin
             rx_len := 0;
         end procedure;
 
-        -- End of a read phase; the pending message retires only after a full-length read (ASSUMPTION A3).
+        -- End of a read phase; the pending message retires only after a full-length read.
         procedure end_read_phase is
         begin
             if pend_consume and rd_bytes >= tx_len then
@@ -1461,7 +1273,7 @@ begin
             obs_lis_msgs  <= lis_msgs;
         end procedure;
 
-        -- Can the I2C target answer at all: the 4.8.4 standby rule plus the brownout and shipping-mode dead cases.
+        -- Can the I2C target answer at all: the standby rule plus the brownout and shipping-mode dead cases.
         impure function awake return boolean is
         begin
             if s_bod = '1' then return false; end if;
@@ -1488,7 +1300,7 @@ begin
 
         ------------------------------------------------------------------
         -- BENCH ABSTRACTION: the poller read TDC_BUF_LIS.
-        -- 4.6.2.3 steps 5 and 6: clear TDC_BUF_LIS[0][7], then send the host an NSC_DATA_ACK.
+        -- Clear TDC_BUF_LIS[0][7], then send the host the NSC_DATA_ACK that licences its next chunk.
         ------------------------------------------------------------------
         elsif tdc_lis_rd_go'event and to_X01(tdc_lis_rd_go) = '1' and lis_rd_l = '0' then
             lis_rd_l := '1';
@@ -1577,7 +1389,7 @@ begin
                     is_read := (shift(0) = '1');
                     addr_ok := (shift(7 downto 1) = G_I2C_ADDR) and awake;
                     if shift(7 downto 1) = G_I2C_ADDR then
-                        -- 4.8.4: even a NACKed command wakes the device for at least 100 ms so the host can resend it.
+                        -- Even a NACKed command wakes the device for at least 100 ms so the host can resend it.
                         wake_deadline := now + G_WAKE_HOLD;
                         if not addr_ok then
                             nack_cnt := nack_cnt + 1;
@@ -1598,7 +1410,7 @@ begin
                 bidx := g - 1;
                 if bp < 8 then
                     if is_read and addr_ok then
-                        -- ASSUMPTION A2: 0xFF past the end of the staged response.
+                        -- Past the end of the staged response the model streams 0xFF; it must not address-NACK, since that is the standby indication.
                         if bidx < tx_len then bitv := tx_buf(bidx)(7 - bp);
                         else                  bitv := '1';
                         end if;
@@ -1620,7 +1432,7 @@ begin
             end if;
         end if;
 
-        -- IRQ tracks "a message is pending for the host" (4.8.2 step 1).
+        -- IRQ tracks "a message is pending for the host": it drops when that message has been clocked out and re-asserts at once if another chunk or ACK is queued behind it.
         s_irq <= to_sl(out_valid);
         obs_lis_valid <= to_sl(lis_valid);
         obs_lis_len   <= lis_len;

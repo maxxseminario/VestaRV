@@ -1,24 +1,7 @@
 -------------------------------------------------------------------------------
--- SPI_flash_tb.vhd
--------------------------------------------------------------------------------
--- Standalone, self-checking testbench for the SPI peripheral's EXTENDED-MEMORY path, i.e. SPI-flash XIP.
--- The DUT is hdl/common/periph/SPI.vhd built with ENABLE_EXTENDED_MEM = true, wired to the AT45DB021E behavioral flash model in hdl/common/tb/serial_flash.vhd.
--- The RISC-V core is NOT in this bench: the testbench itself plays the role of the tile's adddec, driving the flash request interface (en_mem_flash, clk_mem_flash, mab) and consuming rdata_flash and disable_clk_cpu exactly the way adddec.vhd does for a data_addr at or above 0x20000.
---
--- What it exercises, none of which the ISA or behavioral regressions touch, since those tests run entirely from TCM and never fetch across the XIP boundary:
---
---   * The deep-power-down wake-up handshake: the flash model boots asleep and only honours reads after a correctly CS-framed 0xAB resume opcode plus tRDPD, 35 us.
---     The bench issues that wake as a normal 8-bit master transfer with spi_fen = 0, then waits on the model's awake output.
---   * The XIP read FSM: on a flash request it drives CS low, streams opcode 0x0B (Continuous Array Read, High-Frequency), a 24-bit address of mab(23:0) plus SPIxFOS, a dummy byte, then clocks a 32-bit word back.
---   * SPIxFOS, the flash address offset register, programmed to 0xFE0000 so a realistic XIP address 0x20000+4*i maps to flash word i (0x020000 plus 0xFE0000 wraps to 0x000000 in the 24-bit adder).
---   * The 32-bit read data alignment (SPIxCR rx-swap-bytes, MSB-first, 32-bit length) that turns the MISO byte stream back into the stored little-endian word, checked against a known flash image.
---   * disable_clk_cpu, the core stall, asserting for the duration of every access and returning low when the word is ready.
---
--- Flash image: ../rcf/spiflash_xiptest_a.rcf, 32 binary chars per line, one 32-bit word MSB-first.
--- Word i is the expected XIP read at 0x20000+4*i.
---
--- Support: tb/periph_tb_pkg.vhd, the scoreboard and the register-bus BFM.
--- The register bus contract (en_mem and wen active-low, gated clk_mem) is the same as SPI_tb.
+-- SPI_flash_tb.vhd: self-checking testbench for the SPI peripheral's extended-memory (flash XIP) path, SPI.vhd built with ENABLE_EXTENDED_MEM = true against the AT45DB021E behavioral model in tb/serial_flash.vhd, on the usual periph_tb_pkg scoreboard and register-bus BFM (en_mem and wen active-low, gated clk_mem).
+-- No core is present: the bench plays the tile's adddec, driving en_mem_flash, clk_mem_flash and mab and consuming rdata_flash and disable_clk_cpu exactly as adddec.vhd does for a data_addr in the flash window; the flash image ../rcf/spiflash_xiptest_a.rcf holds 32 binary chars per line, one 32-bit word MSB-first, word i being the expected XIP read at 0x20000+4*i.
+-- Coverage: the deep-power-down wake handshake (a CS-framed 0xAB resume issued as a normal 8-bit transfer with spi_fen = 0, plus 35 us of tRDPD), the XIP read FSM (CS low, opcode 0x0B, 24-bit address of mab(23:0) plus SPIxFOS, dummy byte, 32-bit word), SPIxFOS = 0xFE0000 mapping XIP address 0x20000+4*i onto flash word i in the 24-bit adder, the SPIxCR rx-swap MSB-first 32-bit alignment back to a little-endian word, and the disable_clk_cpu core stall.
 -------------------------------------------------------------------------------
 
 library ieee;
@@ -92,33 +75,26 @@ architecture sim of SPI_flash_tb is
 
 begin
 
-    ----------------------------------------------------------------------------
     -- Clock and reset infrastructure.
-    ----------------------------------------------------------------------------
     smclk   <= not smclk after SM_PERIOD / 2;
     mclk    <= not mclk  after MC_PERIOD / 2;
     clk_mem <= smclk when pbus.en_mem = '0' else '0';
 
-    -- serial_flash reloads its image on the RISING edge of mem_reset.
-    -- resetn starts HIGH and drops to '0' in the stimulus, so mem_reset, which is its inverse, sees a clean rising edge while the DUT is held in reset.
+    -- serial_flash reloads its image on the RISING edge of mem_reset, so resetn starts high and drops in the stimulus to give a clean edge while the DUT is in reset.
     mem_reset <= not resetn;
 
     -- Flash SCK and MOSI come from the SPI master, and MISO goes back into the core.
     miso_in <= flash_miso;
 
-    -- Flash CS: during the wake frame (spi_fen=0) the FSM parks cs_flash_out high and the TB pulls tb_flash_csn low to frame the 0xAB.
-    -- During XIP the TB releases tb_flash_csn high and the FSM's cs_flash_out owns the pin.
-    -- The wired-AND is active-low, so either driver can select the device.
+    -- Flash CS is a wired-AND of the two active-low drivers: during the wake frame (spi_fen=0) the FSM parks cs_flash_out high and the tb frames the 0xAB with tb_flash_csn, and during XIP the tb releases and cs_flash_out owns the pin.
     flash_csb <= cs_flash_out and tb_flash_csn;
 
-    -- clk_mem_flash mirrors adddec.vhd exactly: a glitch-free gate off the inverted smclk, enabled while a flash request is asserted.
+    -- clk_mem_flash mirrors adddec.vhd: a glitch-free gate off the inverted smclk, enabled while a flash request is asserted.
     en_clk_mem_flash <= '1' when en_mem_flash = '0' else '0';
     cg_flash : entity work.ClkGate
         port map (ClkIn => not smclk, En => en_clk_mem_flash, ClkOut => clk_mem_flash);
 
-    ----------------------------------------------------------------------------
     -- DUT: the SPI peripheral with the extended-memory flash XIP path compiled in.
-    ----------------------------------------------------------------------------
     dut : entity work.SPI
         generic map ( ENABLE_EXTENDED_MEM => true )
         port map (
@@ -159,9 +135,7 @@ begin
             cs_flash_ren    => cs_flash_ren
         );
 
-    ----------------------------------------------------------------------------
     -- AT45DB021E behavioral flash model, loaded from the .rcf image at reset.
-    ----------------------------------------------------------------------------
     flash : entity work.serial_flash
         generic map (
             ProgramAddress       => 16#0000#,
@@ -178,9 +152,7 @@ begin
             RAM_FILE_PATH => "../rcf/spiflash_xiptest_a.rcf"
         );
 
-    ----------------------------------------------------------------------------
     -- Stimulus: reset, wake the flash, configure XIP, then read the image back.
-    ----------------------------------------------------------------------------
     stim_proc : process
         variable rdw : std_logic_vector(31 downto 0);
 
@@ -197,8 +169,7 @@ begin
             end loop;
         end procedure;
 
-        -- One XIP read: present a flash address the way adddec does, wait for the access to start (disable_clk_cpu high) and finish (low), then sample the word.
-        -- started reports whether the stall actually asserted.
+        -- One XIP read: present a flash address the way adddec does, wait for the stall to assert then release, sample the word, and report in started whether the stall ever asserted.
         procedure xip_read(addr    : in  unsigned(31 downto 0);
                            result  : out std_logic_vector(31 downto 0);
                            started : out boolean) is
@@ -229,9 +200,7 @@ begin
 
         variable started : boolean;
     begin
-        ----------------------------------------------------------------
         -- Reset: dropping resetn low triggers the flash image load.
-        ----------------------------------------------------------------
         resetn       <= '1';
         pbus         <= PERIPH_BUS_IDLE;
         en_mem_flash <= '1';
@@ -243,15 +212,11 @@ begin
         resetn <= '1';
         wait for 4 * SM_PERIOD;
 
-        ----------------------------------------------------------------
         -- GROUP 1: the flash boots ASLEEP, so an XIP read before the wake returns no data.
-        ----------------------------------------------------------------
         report "=== GROUP 1: pre-wake (deep power-down) ===" severity note;
         sb.check_bit("flash asleep at reset", flash_awake, '0');
 
-        ----------------------------------------------------------------
         -- GROUP 2: wake-up handshake, a CS-framed 0xAB sent as a normal transfer.
-        ----------------------------------------------------------------
         report "=== GROUP 2: deep-power-down wake-up ===" severity note;
 
         -- Normal 8-bit master, MSB-first, mode 0, with spi_fen = 0.
@@ -268,9 +233,7 @@ begin
         wait until flash_awake = '1' for 60 us;
         sb.check_bit("flash awake after 0xAB + tRDPD", flash_awake, '1');
 
-        ----------------------------------------------------------------
-        -- GROUP 3: configure the XIP engine
-        ----------------------------------------------------------------
+        -- GROUP 3: configure the XIP engine.
         report "=== GROUP 3: enable XIP ===" severity note;
 
         -- Program SPIxFOS so that XIP address 0x20000 lands on flash word 0.
@@ -278,14 +241,11 @@ begin
         bus_read(smclk, pbus, read_data, RegSlotSPIxFOS, rdw);
         sb.check_slv("SPIxFOS readback", rdw(23 downto 0), FOS_VAL(23 downto 0));
 
-        -- CR: spi_fen(19)=1, rx_swap(16)=1, en(7)=1, msb(6)=1, dl(3:2) selects 32-bit, master, mode 0.
-        -- This alignment turns the flash MISO byte stream back into the stored little-endian word.
+        -- CR: spi_fen(19)=1, rx_swap(16)=1, en(7)=1, msb(6)=1, dl(3:2) selects 32-bit, master, mode 0; this alignment turns the MISO byte stream back into the stored little-endian word.
         bus_write(smclk, pbus, RegSlotSPIxCR, x"000900C8");
         sb.check_bit("no XIP stall while idle", disable_clk_cpu, '0');
 
-        ----------------------------------------------------------------
-        -- GROUP 4: XIP reads across the known image
-        ----------------------------------------------------------------
+        -- GROUP 4: XIP reads across the known image.
         report "=== GROUP 4: XIP reads ===" severity note;
 
         for i in IMG'range loop
@@ -294,16 +254,12 @@ begin
             sb.check_slv("XIP read 0x2000" & integer'image(i) & " == image", rdw, IMG(i));
         end loop;
 
-        ----------------------------------------------------------------
         -- GROUP 5: re-reading word 2 must return the same value, so the read is deterministic.
-        ----------------------------------------------------------------
         report "=== GROUP 5: deterministic re-read ===" severity note;
         xip_read(XIP_BASE + to_unsigned(8, 32), rdw, started);
         sb.check_slv("XIP re-read word 2 stable", rdw, IMG(2));
 
-        ----------------------------------------------------------------
         -- GROUP 6: out-of-order addresses, proving each access re-issues its own opcode and address.
-        ----------------------------------------------------------------
         report "=== GROUP 6: out-of-order reads ===" severity note;
         xip_read(XIP_BASE + to_unsigned(4 * 5, 32), rdw, started);
         sb.check_slv("XIP read word 5 (out of order)", rdw, IMG(5));
@@ -312,9 +268,7 @@ begin
         xip_read(XIP_BASE + to_unsigned(4 * 9, 32), rdw, started);
         sb.check_slv("XIP read word 9 (out of order)", rdw, IMG(9));
 
-        ----------------------------------------------------------------
         -- Final verdict: settle, print the scoreboard summary, then stop.
-        ----------------------------------------------------------------
         wait for 1 us;
         sb.report_summary("SPI FLASH XIP TB");
         stop;

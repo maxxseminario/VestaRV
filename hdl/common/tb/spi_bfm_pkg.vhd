@@ -5,10 +5,8 @@
 -- The record members map onto the DUT's slave inputs in the TB:
 --     sck_in <= e.sck;  mosi_in <= e.mosi;
 -- The TB observes miso_out, and `half` is the SCK half-period.
---
--- The mode here matches SPI_tb's slave-receive test: data is LSB-first, the DUT samples MOSI on the trailing (falling) SCK edge, and MOSI is held past that edge to avoid a sample race.
--- Master-mode transfers are driven by writing the DUT's registers, so the DUT itself generates SCK and MOSI, and a loopback of MOSI back onto MISO for those stays a
--- concurrent assignment in the TB: miso_in <= mosi_out when loopback else ...
+-- Data is LSB-first, the DUT samples MOSI on the trailing (falling) SCK edge, and MOSI is held past that edge to avoid a sample race.
+-- Master-mode transfers are driven by writing the DUT's registers, so the DUT generates SCK and MOSI itself and any MOSI-to-MISO loopback stays a concurrent assignment in the TB.
 -------------------------------------------------------------------------------
 
 library ieee;

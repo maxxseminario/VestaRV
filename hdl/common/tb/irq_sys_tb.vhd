@@ -1,26 +1,9 @@
 -- =============================================================================
--- irq_sys_tb.vhd  -- self-checking testbench for the MP interrupt system
--- =============================================================================
--- Unit-level coverage for the CLINT shared-window interrupt-delivery block, which had no standalone testbench before (it was covered only indirectly through the full-system ISA tests shclint/shirq/shtimer):
---
---   clint.vhd      (M5b)  -- per-hart msip IPIs plus 64-bit mtime/mtimecmp mtip
---
--- M19: the irq_router half of this file (the old per-hart fan-out router, generic NUM_IRQS, port irq_en_out) is RETIRED along with irq_router.vhd's old interface.
--- irq_router is now a PLIC-lite with claim/complete per hart, and that coverage moved to irq_router_tb.vhd, which covers it fully.
--- This file keeps only the CLINT DUT and its checks.
---
--- The CLINT DUT sits behind mp_arbiter in the real system, and the arbiter has its own testbench (mp_arbiter_tb), so here the tb drives the slave port directly with the shared bus contract: active-high one-cycle en strobe, 4 active-high byte-lane strobes, 1-cycle registered read (address at T, rdata at T+1).
---
--- Checks:
---   * reset state       -- msip/mtip low, mtimecmp all-ones
---   * msip IPIs         -- per-hart set/clear, bit-0 and lane-0-only write decode
---   * mtime             -- free-runs, lo/hi writable, lane-merge
---   * mtimecmp/mtip     -- level fires not before, and at, the programmed count
---                          ISR clear contract: advancing cmp drops the level
---                          a lo-write with hi still at reset all-ones must NOT fire
---                          TRUE 64-bit compare across the 2^32 boundary (a lo-word-only compare fails the not-before check)
---
--- PASS banner: "ALL CHECKS PASSED" (grepped by run_irq_sys.sh).
+-- irq_sys_tb.vhd: self-checking unit testbench for clint.vhd, the per-hart msip IPIs plus the 64-bit mtime/mtimecmp mtip levels.
+-- The CLINT sits behind mp_arbiter in the real system, so here the tb drives its slave port directly with the shared-bus contract: a one-cycle active-high en strobe, four active-high byte-lane strobes, and a registered read with the address at T and rdata at T+1.
+-- Checks: reset state (msip/mtip low, mtimecmp all-ones); msip set/clear with bit-0, lane-0-only write decode; mtime free-running, lo/hi writable, lane-merge; mtip not before and at the programmed count, the ISR clear contract, a lo-only write that must not fire, and a true 64-bit compare across the 2^32 boundary.
+-- The interrupt router is a separate DUT with its own testbench, irq_router_tb.vhd.
+-- The runner script greps the pass banner "ALL CHECKS PASSED".
 -- =============================================================================
 
 library IEEE;
@@ -85,7 +68,7 @@ begin
             mtip   => mtip
         );
 
-    -- Scaled-down version of the 100 ms system watchdog: this whole tb is a few thousand cycles, so anything past 1 ms of sim time is a hang.
+    -- The whole tb is a few thousand cycles, so anything past 1 ms of sim time is a hang
     watchdog: process
     begin
         wait for 1 ms;
@@ -97,7 +80,6 @@ begin
 
     -- ------------------------------------------------------------------------
     -- Single stimulus and checker process: phases A to D, then the banner
-    -- ------------------------------------------------------------------------
     stim: process
         variable errs : natural := 0;
         variable rd   : word_t;
@@ -139,7 +121,7 @@ begin
             end loop;
         end procedure;
 
-        -- Poll mtip(h) for a level with a bounded budget; the budget must trip well inside the tb watchdog, the same rule the software tests follow.
+        -- Poll mtip(h) for a level; the budget must trip well inside the tb watchdog
         procedure wait_mtip(h : natural; val : std_logic;
                             budget : natural; msg : string) is
             variable n : natural := 0;
@@ -256,10 +238,8 @@ begin
         wait_cycles(4);
         check(mtip(3) = '0', "D2: mtip(3) stuck after re-parking cmp");
 
-        -- D3: TRUE 64-bit compare across the 2^32 boundary.
-        -- mtime starts at 0x0_FFFFFF00 and cmp[0] is 0x1_00000080, roughly 0x180 ticks out.
-        -- A lo-only compare fires almost immediately (FFFFFFxx is already >= 00000080) and dies on the 64-cycle not-before check.
-        -- The 256-cycle check sits just PAST the boundary, mtime around 0x1_00000010, and mtip must still be low there.
+        -- D3: TRUE 64-bit compare across the 2^32 boundary, with mtime starting at 0x0_FFFFFF00 and cmp[0] at 0x1_00000080, roughly 0x180 ticks out.
+        -- A lo-only compare fires almost immediately (FFFFFFxx is already >= 00000080) and dies on the 64-cycle not-before check; the 256-cycle check sits just past the boundary, where mtip must still be low.
         cwr(CA_MTIME_LO, x"FFFFFF00", "1111");
         cwr(CA_MTIME_HI, x"00000000", "1111");
         cwr(CA_CMP0_LO + 2*0,     x"00000080", "1111");
@@ -276,7 +256,6 @@ begin
 
         -- ==================================================================
         -- Scoreboard and PASS banner
-        -- ==================================================================
         wait_cycles(4);
         if errs = 0 then
             report "ALL CHECKS PASSED" severity note;

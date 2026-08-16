@@ -1,25 +1,11 @@
 -- =============================================================================
--- fpu.vhd  (X4 Zfinx, Stage 2a): iterative multi-cycle single-precision FPU
+-- fpu.vhd: iterative multi-cycle single-precision (Zfinx) FPU
 -- =============================================================================
--- Shared FMA-based backend (fadd/fsub/fmul + fmadd/fmsub/fnmsub/fnmadd), a separate radix-2 iterative div/sqrt engine, and unpack-only fcvt, all feeding ONE shared normalize+round back-end.
--- That back-end does single rounding, G/R/S, all 5 modes, full subnormal support in both directions, and UF = tininess-after-rounding AND NX.
---
--- Interface is EXACT per proposal section 7 + corrections C1/C3:
---   fp_op[3:0] : 0 FADD 1 FSUB 2 FMUL 3 FDIV 4 FSQRT 5 FMADD 6 FMSUB
---                7 FNMSUB 8 FNMADD 9 FCVT_W_S 10 FCVT_WU_S 11 FCVT_S_W 12 FCVT_S_WU
---   rm[2:0]    : EFFECTIVE mode (dynamic already resolved; illegal never arrives)
---                000 RNE 001 RTZ 010 RDN 011 RUP 100 RMM
---   fp_flags   : {NV,DZ,OF,UF,NX}
---
--- BUG-CLASS COMPLIANCE (proposal section 10):
---   Operands fp_a/fp_b/fp_c are LATCHED into a_lat/b_lat/c_lat at the start edge (div.vhd start_reg idiom) and the whole run consumes ONLY those registered copies, never a live port mid-run.
---   The base div.vhd live-port anti-pattern is NOT transcribed here.
---   fpu_done + result/flags hold stable until the next start.
---
--- FMA math: full 48-bit product, wide (128-bit) aligner/accumulator, ONE round.
--- Div/sqrt: at most one radix-2 step per cycle (no combinational division).
--- Registered stage boundaries: unpack | product | align-add | normalize | round, so there is no combinational chain running from unpack through mul, align, normalize and round.
--- Compile: -V200X.
+-- A shared FMA backend (fadd/fsub/fmul, fmadd/fmsub/fnmsub/fnmadd), a radix-2 iterative div/sqrt engine and unpack-only fcvt all feed ONE normalize+round back-end doing a single rounding with G/R/S, all 5 modes, full subnormal support both ways, and UF = tininess-after-rounding AND NX.
+--   fp_op[3:0] : 0 FADD 1 FSUB 2 FMUL 3 FDIV 4 FSQRT 5 FMADD 6 FMSUB 7 FNMSUB 8 FNMADD 9 FCVT_W_S 10 FCVT_WU_S 11 FCVT_S_W 12 FCVT_S_WU
+--   rm[2:0]    : EFFECTIVE mode, dynamic already resolved and illegal never arriving: 000 RNE 001 RTZ 010 RDN 011 RUP 100 RMM;  fp_flags = {NV,DZ,OF,UF,NX}
+-- fp_a/fp_b/fp_c are latched at the start edge and the whole run consumes ONLY those copies, never a live port mid-run; fpu_done, result and flags hold until the next start.
+-- Registered stage boundaries unpack, product, align-add, normalize, round keep any combinational chain from running the whole length of the datapath; the FMA carries a full 48-bit product into a 128-bit aligner/accumulator and div/sqrt takes at most one radix-2 step per cycle.
 -- =============================================================================
 library IEEE;
 use IEEE.STD_LOGIC_1164.all;
@@ -43,7 +29,7 @@ end entity;
 
 architecture rtl of fpu is
 
-    -- ------- op encodings (C3; Stage 3 unifies into constants.vhd) -----------
+    -- ---------------------------- op encodings ------------------------------
     constant OP_FADD     : std_logic_vector(3 downto 0) := "0000";
     constant OP_FSUB     : std_logic_vector(3 downto 0) := "0001";
     constant OP_FMUL     : std_logic_vector(3 downto 0) := "0010";
@@ -259,7 +245,7 @@ architecture rtl of fpu is
 
     signal start_reg : std_logic;
 
-    -- latched operands (bug-class: consumed ONLY from these across the run)
+    -- latched operands: the run consumes ONLY these, never a live port
     signal a_lat, b_lat, c_lat : std_logic_vector(31 downto 0);
     signal op_lat : std_logic_vector(3 downto 0);
     signal rm_lat : std_logic_vector(2 downto 0);

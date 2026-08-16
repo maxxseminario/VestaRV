@@ -1,45 +1,18 @@
 -------------------------------------------------------------------------------
 -- I3C_tb.vhd
 -------------------------------------------------------------------------------
--- Standalone, self-checking testbench for the I3C peripheral (hdl/common/periph/I3C.vhd).
--- Written AGAINST THE FROZEN ENTITY + REGISTER MAP (~/vesta_docs/digperiphs/i3c_design.md, R3 + S3) while the RTL is being written in parallel.
--- The DUT is declared as a COMPONENT, not an entity instantiation, so this bench compiles standalone with xmvhdl before I3C.vhd exists.
--- VHDL default binding resolves it to the entity of the same name once I3C.vhd is analyzed into the work library.
--- Mirrors QSPI_tb.vhd's role and structure exactly; see that file's header.
---
--- Uses the shared support packages: tb/periph_tb_pkg.vhd (scoreboard plus register-bus BFM, existing and shared) and tb/i3c_bfm_pkg.vhd (I3C-specific register-slot constants, CR/CMD field packing, the shared parity and read-pattern formulas, and bounded SR-bit polls).
--- The target-responder model is tb/i3c_target_model.vhd (D29 stage 1); see its header for the bus-level protocol model and its flagged assumptions.
---
--- Bus contract, mirroring every other peripheral bench in this tree: EnMemPeriph active-low, WEn active-low per byte lane, MABPart(7:2) is the word-slot address.
--- ClkMem is GATED and ticks only while EnMemPeriph='0' (see periph_tb_pkg.bus_write/bus_read).
--- One-cycle internal clear pulses (W1C SR bits) can stick until the next selected access, so after a W1C this bench issues a dummy read of another register (CR) before re-reading SR.
--- That is exactly the idiom QSPI_tb.vhd and UART_tb.vhd use; the bench-conventions note in hdl/common/tb/ records it.
---
--- SERIAL BUS RESOLUTION (design doc S7): the DUT and the target model each drive SDA via an OUT/OE-style pair, and in legacy mode only the model may also drive SCL to stretch it.
--- Both are resolved onto ONE shared net per pin with a weak 'H' pull for the released level: '0' wins when either driver asserts it, the wired-AND open-drain behaviour matching D19/D20's OD phases.
--- Push-pull phases (WDATA bits, DAA-assign) are single-driver by construction, since the model never asserts sda_oe there (see i3c_target_model.vhd's header), so the same resolved-net expression is safe for both drive styles.
--- That is exactly QSPI_tb.vhd's io_res generate, extended with the 'H' release level QSPI's push-pull-only bus did not need.
---
--- FROZEN register map (word slots) this bench drives; i3c_bfm_pkg.vhd holds the exact bit-packing helpers and SR bit-position constants:
---   Slot 0 CR : [0]I3CEN [1]BUSMODE(0=I3C-SDR,1=legacy-I2C) [2]SDAPP
---               [3]IBIEN [15:8]ODBR [23:16]PPBR [24]TCIE [25]ERRIE [26]DAAIE
---               [27]IBIIE [28]RXFIE [29]TXEIE. Resets to 0 except SDAPP=1.
---   Slot 1 CMD: [6:0]ADDR [7]RNW [8]SR [9]STOPEN [10]CCC [11]CCCDIR
---               [12]DAARUN [13]DASA [23:16]DLEN [31:24]CCCOP. Writing this
---               slot LAUNCHES (D16; ignored if I3CEN=0 or BUSY=1).
---   Slot 2 TX : [7:0] next write byte; write arms the byte-pending handshake.
---   Slot 3 RX : [7:0] last received byte; side-effect-free read.
---   Slot 4 SR : [0]BUSY RO [1]TCIF W1C [2]RXFULL W1C [3]TXEIF W1C [4]ANACK
---               W1C [5]EODF W1C [6]ARBLOST W1C (stage-2/3 bits 7-10 unused
---               here).
---   Slots 5-9 (DAT/DATPID/DATINFO/IBI/reserved): stage-2/3, D23 inert and read-0 in this MVP, not exercised by this bench.
---
--- AMBIGUITIES IN THE FROZEN CONTRACT noted while writing this bench (flagged, not resolved; the bench author's final report has the full list):
---   * D19's phase table gives ADDR/START-STOP SCL drive mode as "PP (I3C) / OD (legacy)" but never states which of ODBR/PPBR clocks the ADDRESS phase in non-legacy I3C-SDR mode, only that "OD phases reload ODBR, PP phases reload PPBR" (B2).
---     This bench's GROUP 8 (baud sanity) therefore does NOT assume which specific protocol phase it is sampling, and checks only that the baud generator is sensitive to ODBR/PPBR at all: two back-to-back launches with the two fields swapped must show different first-observed SCL half-periods.
---   * The exact cycle at which BUSY asserts after a CMD-slot launch write is not stated.
---     GROUP 9b's BUSY=1 launch-guard race (a second CMD write shortly after the first) uses the same short fixed-delay assumption QSPI_tb.vhd's GROUP 7b flags, and may need tuning once I3C.vhd exists.
---   * i3c_target_model.vhd's own T-bit/ACK bus-level assumptions (see that file's header) are inherited here uncritically, since this bench cannot run against real DUT timing yet.
+-- Standalone, self-checking testbench for the I3C peripheral.
+-- The DUT is declared as a COMPONENT, not an entity instantiation, so the bench compiles standalone before I3C.vhd exists; default binding resolves it once I3C.vhd is in the work library.
+-- Uses periph_tb_pkg (scoreboard + register-bus BFM), i3c_bfm_pkg (register slots, CR/CMD packing, the parity and read-pattern formulas, bounded SR-bit polls) and the responder model i3c_target_model.vhd.
+-- Bus contract: EnMemPeriph active-low, WEn active-low per byte lane, MABPart(7:2) is the word-slot address, and ClkMem ticks only while EnMemPeriph='0'.
+-- A one-cycle W1C clear pulse can stick until the next selected access, so after every W1C this bench reads CR as a dummy access before re-reading SR.
+-------------------------------------------------------------------------------
+
+-- Register slots i3c_bfm_pkg names; the fields below are the ones this bench decodes by literal bit index:
+--   5 DAT     : [2:0]IDX [3]EVALID [10:4]DYNADDR [11]DYNVALID [18:12]STATADDR [19]STATVALID
+--   6 DATPID  : PID[31:0]
+--   7 DATINFO : [31:24]DCR [23:16]BCR [15:0]PID[47:32]
+--   8 IBI     : [6:0]IBIADDR [7]IBIVALID [15:8]IBIMDB [16]IBIHASDATA [17]IBIACKED
 -------------------------------------------------------------------------------
 
 library ieee;
@@ -56,7 +29,7 @@ architecture sim of I3C_tb is
 
     constant PERIOD : time := 40 ns;   -- ~25 MHz smclk-domain serial-clock reference
 
-    -- FROZEN DUT entity (R3), declared as a component (see file header) so this bench compiles standalone before hdl/common/periph/I3C.vhd exists.
+    -- DUT declared as a component so this bench compiles standalone before I3C.vhd exists.
     component I3C is
         port (
             clk         : in  std_logic;
@@ -101,7 +74,7 @@ architecture sim of I3C_tb is
     signal dut_sda_out, dut_sda_dir : std_logic;
     signal dut_scl_out, dut_scl_dir : std_logic;
 
-    -- Resolved bus nets with a weak 'H' release (D19/S7: '0' wins, the wired-AND OD behaviour; WDATA and DAA-assign push-pull phases are single-driver by construction).
+    -- Resolved bus nets with a weak 'H' release: '0' wins for the wired-AND open-drain phases, and the push-pull phases are single-driver by construction.
     signal sda_bus, scl_bus : std_logic;
 
     -- target-model drive + config
@@ -124,10 +97,10 @@ architecture sim of I3C_tb is
     signal model_obs_rcount     : natural;
     signal model_obs_txn_count  : natural;
 
-    -- stage-1 model DAA config (enabled only for the SETDASA group)
+    -- base model DAA config (enabled only for the SETDASA group)
     signal cfg_daa_enable : boolean := false;
 
-    -- ---- stage-2 ENTDAA: two extra target models (A lower PID, B higher) ---
+    -- ---- ENTDAA: two extra target models (A lower PID, B higher) ----------
     -- Real wired-AND arbitration on the shared SDA net decides the winner: A takes round 1, B takes round 2, and round 3 NACKs because both are assigned, which raises DAADONE.
     signal a_sda_out, a_sda_oe, a_scl_out, a_scl_oe : std_logic;
     signal b_sda_out, b_sda_oe, b_scl_out, b_scl_oe : std_logic;
@@ -140,9 +113,8 @@ architecture sim of I3C_tb is
     signal a_obs_wdata      : i3c_byte_array(0 to I3C_MODEL_MAX_BYTES - 1);
     signal a_obs_wcount     : natural;
 
-    -- ---- stage-3 IBI: model A initiates a bus-available IBI ---------------
-    -- Model A (ENTDAA-assigned 0x08) is the IBI source, and its assigned address is used over the wire for chain realism.
-    -- The TB pulses a_ibi_trigger only while the bus is idle.
+    -- ---- IBI: model A (ENTDAA-assigned 0x08) is the in-band interrupt source, using its assigned address over the wire.
+    -- a_ibi_trigger is pulsed only while the bus is idle.
     signal a_ibi_trigger  : std_logic := '0';
     signal a_ibi_mdb      : std_logic_vector(7 downto 0) := (others => '0');
     signal a_ibi_has_data : boolean := true;
@@ -154,18 +126,15 @@ architecture sim of I3C_tb is
 begin
 
     ----------------------------------------------------------------------------
-    -- clock / gated register-bus clock (mirrors QSPI_tb / I2C_tb)
+    -- clock / gated register-bus clock
     ----------------------------------------------------------------------------
     clk    <= not clk after PERIOD / 2;
     ClkMem <= clk when pbus.en_mem = '0' else '0';
 
     ----------------------------------------------------------------------------
-    -- sda_bus / scl_bus resolution: the DUT drives when its *_DIR='1', otherwise the target model drives when it owns that pin (model_*_oe='1'), otherwise the net is released to a weak 'H'.
-    -- Both DUT and model see the SAME resolved nets on their *_IN ports.
+    -- sda_bus / scl_bus resolution: the DUT drives when its *_DIR='1', each target model when its *_oe='1', and a released driver contributes 'Z' so the constant 'H' sets the idle level.
+    -- std_logic resolution gives wired-AND for the open-drain phases (any '0' wins), and DUT and models all see the SAME resolved nets on their *_IN ports.
     ----------------------------------------------------------------------------
-    -- Multi-driver resolution (stage 2): the DUT, all three target models, and a weak 'H' pull each drive the shared net.
-    -- std_logic resolution gives wired-AND for the open-drain phases (any '0' wins) and single-driver behaviour for push-pull phases, where the models release 'Z'.
-    -- A released driver contributes 'Z'; the constant 'H' driver sets the idle level.
     sda_bus <= dut_sda_out   when dut_sda_dir  = '1' else 'Z';
     sda_bus <= model_sda_out when model_sda_oe = '1' else 'Z';
     sda_bus <= a_sda_out     when a_sda_oe     = '1' else 'Z';
@@ -208,7 +177,7 @@ begin
         );
 
     ----------------------------------------------------------------------------
-    -- Target-responder model (D29 stage 1)
+    -- Target-responder model
     ----------------------------------------------------------------------------
     target : entity work.I3C_target_model
         port map (
@@ -224,7 +193,7 @@ begin
             cfg_num_read_bytes  => cfg_num_read_bytes,
             cfg_read_seed       => cfg_read_seed,
             cfg_corrupt_wparity => cfg_corrupt_wparity,
-            cfg_daa_enable      => cfg_daa_enable,   -- stage-2: ACK 0x7E for SETDASA
+            cfg_daa_enable      => cfg_daa_enable,   -- ACK the 0x7E header for SETDASA
             obs_addr            => model_obs_addr,
             obs_rnw             => model_obs_rnw,
             obs_addr_acked      => model_obs_addr_acked,
@@ -292,8 +261,7 @@ begin
         variable t_od, t_pp   : time;
         variable neg_ibi_mdb  : std_logic_vector(7 downto 0) := (others => '0');
 
-        -- Program the target model's per-transaction shape.
-        -- The model holds it stable across one START..STOP frame, mirroring qspi_launch's cfg_* settle idiom.
+        -- Program the target model's per-transaction shape; the model holds it stable across one START..STOP frame.
         procedure i3c_cfg_model(addr    : std_logic_vector(6 downto 0);
                                 legacy  : boolean;
                                 stretch : boolean;
@@ -325,7 +293,7 @@ begin
                                  std_logic_vector(to_unsigned(dlen, 8))));   -- LAUNCH
         end procedure;
 
-        -- W1C-clear the given SR bits, then retire the gated-ClkMem clear pulse with a dummy CR read before re-reading SR (the QSPI/UART idiom).
+        -- W1C-clear the given SR bits, then retire the gated-ClkMem clear pulse with a dummy CR read before SR is re-read.
         procedure i3c_w1c_clear(mask : std_logic_vector(31 downto 0)) is
             variable r : std_logic_vector(31 downto 0);
         begin
@@ -333,16 +301,15 @@ begin
             bus_read(clk, pbus, rdata_out, SlotI3CxCR, r);   -- dummy access: retire the W1C pulse
         end procedure;
 
-        -- Bounded (guard-timeout) measurement of one SCL low-to-high half period on the resolved bus.
-        -- got is false if either edge does not show up within guard, so this NEVER hangs even with no DUT connected yet (see the file-header ambiguity note on GROUP 8).
+        -- Bounded measurement of one SCL low-to-high half period on the resolved bus.
+        -- got is false if either edge does not show up within guard, so this never hangs.
         procedure measure_half_period(guard : in time; got : out boolean; dur : out time) is
             variable t_start, t_mid : time;
         begin
             got := false;
             dur := 0 ns;
             t_start := now;
-            -- Weak-level correct (ruling 2): normalize the resolved net so a released 'H' counts as a high.
-            -- I3C-SDR SCL is push-pull here, but this keeps the checker honest about the wired-AND contract.
+            -- Normalize the resolved net with to_X01 so a released 'H' counts as a high.
             wait until to_X01(scl_bus) = '0' for guard;
             if now < t_start + guard then
                 t_mid := now;
@@ -372,9 +339,8 @@ begin
             bus_write(clk, pbus, SlotI3CxDAT, wd);
         end procedure;
 
-        -- READBACK NOTE: a slot-5 write carries IDX *and* the entry's firmware fields, so re-selecting an entry rewrites its EVALID/DYNADDR/DYNVALID/STAT, leaving PID/BCR/DCR in slots 6/7 untouched.
-        -- Hardware never moves IDX, so the LAST-programmed entry can be read back with its hardware-set EVALID/DYNVALID INTACT: genuine and non-circular.
-        -- The other entry is re-selected only to read its captured PID/BCR/DCR; its assigned address is proven independently by the model's obs_daa_* outputs.
+        -- READBACK NOTE: a slot-5 write carries IDX and the entry's firmware fields, so re-selecting an entry rewrites its EVALID/DYNADDR/DYNVALID/STAT while leaving PID/BCR/DCR in slots 6/7 untouched.
+        -- Hardware never moves IDX, so only the LAST-programmed entry reads back with its hardware-set EVALID/DYNVALID intact, which is what makes that readback non-circular.
 
     begin
         ----------------------------------------------------------------
@@ -444,9 +410,8 @@ begin
         sb.check_true("GROUP2: BUSY cleared within bound", done_ok);
 
         bus_read(clk, pbus, rdata_out, SlotI3CxRX, rdw);
-        -- DIRECTED literal check (checker independence, the QSPI GROUP 8d lesson).
+        -- Directed literal check, hand-computed independently of i3c_read_pattern() so the checker cannot be circular.
         -- With target_addr=0x50, seed=0xA5, byte_idx=0: 0x50 xor 0xA5 = 0101_0000 xor 1010_0101 = 1111_0101 = 0xF5.
-        -- HAND-COMPUTED independently of i3c_read_pattern().
         sb.check_slv("GROUP2: RX matches HAND-COMPUTED literal 0xF5", rdw(7 downto 0), x"F5");
         expected := i3c_read_pattern("1010000", x"A5", 0);
         sb.check_slv("GROUP2: RX matches i3c_read_pattern()", rdw(7 downto 0), expected);
@@ -606,10 +571,9 @@ begin
         i3c_w1c_clear(x"0000000E");
 
         ----------------------------------------------------------------
-        -- GROUP 8: ODBR/PPBR baud sanity.
-        --   Does NOT assume which protocol phase it samples (see the file-header ambiguity note); it checks only that the baud generator responds to ODBR/PPBR.
-        --   Two back-to-back single-byte writes with the two fields swapped should show different first-observed SCL half-periods.
-        --   The measurement is bounded by a guard timeout and reports "inconclusive" rather than failing if no edge is observed, e.g. with no DUT connected yet, so this group never inflates the error count.
+        -- GROUP 8: ODBR/PPBR baud sanity; this does NOT assume which protocol phase it samples, only that the baud generator responds to ODBR/PPBR at all.
+        --   Two back-to-back single-byte writes with the two fields swapped must show different first-observed SCL half-periods.
+        --   The measurement is guard-bounded and reports "inconclusive" rather than failing when no edge is observed, so this group never inflates the error count.
         ----------------------------------------------------------------
         report "=== GROUP 8: ODBR/PPBR baud sanity ===" severity note;
 
@@ -659,13 +623,12 @@ begin
         sb.check_true("GROUP9a: model transaction count unchanged", model_obs_txn_count = txn_before);
 
         -- (b) BUSY=1: a second CMD write while a transaction is in flight must not be queued and must not corrupt the in-flight one.
-        --     Launch a slow (small ODBR/PPBR) 3-byte write, then race a second CMD write in shortly after; that timing assumption is flagged in the file header.
+        --     Launch a 3-byte write, then race a second CMD write in shortly after it.
         txn_before := model_obs_txn_count;
         i3c_cfg_model(addr => "1010000", legacy => false, stretch => false,
                      nread => 1, seed => x"A5", corrupt => false);
         bus_write(clk, pbus, SlotI3CxTX, x"000000C1");
-        -- Moderate baud (D32, small ODBR/PPBR): BUSY still rises within a couple of clk of launch, so the +3*PERIOD second-CMD race holds.
-        -- Each byte also stays inside the bounded TXEIF poll budget; 0x20/0x20 overran it.
+        -- Keep ODBR/PPBR small: BUSY then rises within a couple of clk of launch so the +3*PERIOD second-CMD race holds, and each byte stays inside the bounded TXEIF poll budget.
         i3c_launch(addr => "1010000", rnw => '0', sr => '0', stopen => '1',
                   busmode => '0', sdapp => '1', dlen => 3,
                   odbr => x"04", ppbr => x"01",
@@ -741,14 +704,12 @@ begin
         i3c_w1c_clear(x"0000001E");
 
         ----------------------------------------------------------------
-        -- GROUP 12: ENTDAA, two-target dynamic address assignment.
-        --   A (PID 0xA0...0A) wins round 1 and takes DAT entry 0 (DYNADDR 0x08).
-        --   B (PID 0xB0...0B) wins round 2 and takes DAT entry 1 (DYNADDR 0x09).
-        --   In round 3 both are assigned, so the round NACKs and DAADONE sets. Real wired-AND arbitration throughout.
+        -- GROUP 12: ENTDAA, two-target dynamic address assignment by real wired-AND arbitration.
+        --   A (lower PID) wins round 1 and takes DAT entry 0 (DYNADDR 0x08), B wins round 2 and takes entry 1 (DYNADDR 0x09), and round 3 NACKs because both are assigned, which sets DAADONE.
         ----------------------------------------------------------------
         report "=== GROUP 12: ENTDAA two-target assignment ===" severity note;
 
-        cfg_daa_enable <= false;     -- keep the stage-1 model off the DAA bus
+        cfg_daa_enable <= false;     -- keep the base model off the DAA bus
         a_enable <= true;  b_enable <= true;
         wait for 1 ns;
 
@@ -832,12 +793,12 @@ begin
 
         ----------------------------------------------------------------
         -- GROUP 13: SETDASA, assigning a dynamic address to a target at its static address (direct CCC 0x87).
-        -- Uses the stage-1 model at 0x55.
+        -- Uses the base target model at 0x55.
         ----------------------------------------------------------------
         report "=== GROUP 13: SETDASA ===" severity note;
 
         cfg_target_addr <= "1010101";   -- 0x55
-        cfg_daa_enable  <= true;         -- stage-1 model ACKs the 0x7E header
+        cfg_daa_enable  <= true;         -- base model ACKs the 0x7E header
         wait for 1 ns;
 
         -- DAT entry 2: STATADDR 0x55 (valid) plus DYNADDR 0x0A, with DYNVALID=0 so hardware sets it.
@@ -865,14 +826,13 @@ begin
         i3c_w1c_clear(x"0000000E");
 
         ----------------------------------------------------------------
-        -- GROUP 14: IBI full path (IBIEN=1, mandatory-data byte).
-        -- Model A (ENTDAA-assigned 0x08, DAT entry 0) raises an in-band interrupt.
-        -- We first make DAT entry 0 carry BCR[2]=1 (MDB present) via a firmware DATINFO write, arm IBIEN, then trigger the IBI.
-        -- The controller must auto-ACK (R2), clock the MDB, capture {addr,MDB,hasdata,acked} into I3CxIBI, set SR.IBIP and irq_ibi, and recover the bus afterwards.
+        -- GROUP 14: IBI full path (IBIEN=1, mandatory-data byte), with model A (ENTDAA-assigned 0x08, DAT entry 0) raising the in-band interrupt.
+        -- DAT entry 0 is first given BCR[2]=1 (MDB present) by a firmware DATINFO write, then IBIEN is armed and the IBI triggered.
+        -- The controller must auto-ACK, clock the MDB, capture {addr,MDB,hasdata,acked} into I3CxIBI, set SR.IBIP and irq_ibi, and recover the bus afterwards.
         ----------------------------------------------------------------
         report "=== GROUP 14: IBI full path (IBIEN=1 + MDB) ===" severity note;
 
-        a_enable <= false; b_enable <= false;   -- ENTDAA done; models stay assigned
+        a_enable <= false; b_enable <= false;   -- ENTDAA done, models stay assigned
         cfg_daa_enable <= false;
         wait for 1 ns;
 
@@ -881,8 +841,8 @@ begin
         -- DATINFO (slot 7): DCR=0x22, BCR=0x04 (bit 2 set means MDB), PID[47:32]=0xA000.
         bus_write(clk, pbus, SlotI3CxDATINFO, x"2204" & x"A000");
 
-        -- Arm the controller for IBIs: I3CEN=1, IBIEN=1, IBIIE=1 (irq_ibi), plus ERRIE for good measure.
-        -- A CR write does NOT launch, and ODBR/PPBR are kept small.
+        -- Arm the controller for IBIs: I3CEN=1, IBIEN=1, IBIIE=1 and ERRIE, with ODBR/PPBR small.
+        -- A CR write never launches a transaction.
         bus_write(clk, pbus, SlotI3CxCR,
                   i3c_mk_cr('1', '0', '1', '1',            -- EN, BUSMODE=0, SDAPP=1, IBIEN=1
                             '0', '1', '0', '1', '0', '0',  -- ERRIE + IBIIE
@@ -942,9 +902,8 @@ begin
         i3c_w1c_clear(x"0000000E");
 
         ----------------------------------------------------------------
-        -- GROUP 15: IBI NACK path (IBIEN=0).
-        -- The target initiates the same IBI, but with IBIEN=0 the controller must NACK by releasing, STOP cleanly, capture nothing and set no IBIP.
-        -- The model must observe the NACK, and the bus must recover.
+        -- GROUP 15: IBI NACK path, where the target raises the same IBI but IBIEN=0.
+        -- The controller must NACK by releasing, STOP cleanly, capture nothing and set no IBIP, the model must observe the NACK, and the bus must recover.
         ----------------------------------------------------------------
         report "=== GROUP 15: IBI NACK path (IBIEN=0) ===" severity note;
 
@@ -982,9 +941,8 @@ begin
         i3c_w1c_clear(x"0000000E");
 
         ----------------------------------------------------------------
-        -- GROUP 11: NEGATIVE CONTROL, mandatory (D31) and LAST, now at stage 3.
-        -- A deliberately wrong expected IBI MDB that MUST report a mismatch, proving the checkers can fail.
-        -- Counted as exactly 1 expected failure.
+        -- GROUP 11: negative control, mandatory and LAST.
+        -- One deliberately wrong expected IBI MDB that MUST report a mismatch, proving the checkers can fail; it is the single expected failure.
         ----------------------------------------------------------------
         report "=== GROUP 11: NEGATIVE CONTROL (stage 3) ===" severity note;
 
@@ -993,14 +951,13 @@ begin
                     neg_ibi_mdb, std_logic_vector(unsigned(neg_ibi_mdb) + 1));
 
         ----------------------------------------------------------------
-        -- Final verdict: sb.errors() must be EXACTLY 1, the negative control above, for an overall PASS.
+        -- Final verdict: sb.errors must be EXACTLY 1, the negative control above, for an overall PASS.
         ----------------------------------------------------------------
         wait for 1 us;
         sb.report_summary("I3C TB");
 
         if sb.errors = 1 then
-            -- The scoreboard itself always tallies 1 error (the negative control), so report_summary above prints "1 CHECK(S) FAILED", not the "ALL CHECKS PASSED" token the parallel periph-suite runner greps for.
-            -- Emit that token HERE on a genuine pass so this bench integrates with xrun_parallel.sh's banner detection unchanged.
+            -- report_summary always prints "1 CHECK(S) FAILED" here (the negative control), never the "ALL CHECKS PASSED" token the suite runner greps for, so emit that token here on a genuine pass.
             -- A real failure (errors /= 1) takes the else branch and never prints it, so the suite still fails the run.
             report LF & LF &
                 "    ##################################################" & LF &

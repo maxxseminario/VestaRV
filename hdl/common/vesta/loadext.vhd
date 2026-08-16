@@ -23,7 +23,6 @@ architecture Behavioral of loadext is
     -- signal mask_intermediate : STD_LOGIC_VECTOR(1 downto 0);
 begin
 
-    -- This was causing a post-genus timing error, so it was changed to the falling edge.
 
     -- latch_mask_int: process(clk) 
     -- begin

@@ -1,21 +1,7 @@
 -------------------------------------------------------------------------------
--- SYSTEM_tb.vhd
--------------------------------------------------------------------------------
--- Standalone, self-checking testbench for the SYSTEM peripheral (hdl/myshkin/periph/SYSTEM.vhd), the clock/reset/IRQ/WDT/CRC controller.
---
--- M19: the vectored IRQ controller is RETIRED from SYSTEM.vhd (NUM_IRQS generic, irq/isr_ret ports, irq_en/irq_priority/irq_recursion_en outputs, and register slots 5-11: SYS_IRQ_ENL/M/U, PRIL/M/U, CR).
--- All peripheral IRQ routing and masking now lives in irq_router's per-hart PLIC-lite rows, covered by irq_router_tb.vhd.
--- SYSTEM keeps only the WDT level output (irq_sys_wdt = wdt_if AND wdt_ie) plus the new wdt_irq_routed and wdt_irq_complete inputs from the router.
--- This tb was trimmed to match: the irq_en/irq_priority/irq_recursion_en checks and the IRQ register R/W checks are gone, and a "retired slot" check replaces them.
--- GROUP 5b drives wdt_irq_routed to prove the M19 irq_sys_wdt output actually asserts on a WDT timeout; pre-M19 it was hardwired '0', so WDT interrupt mode was dead.
--- wdt_irq_complete is left at its default here.
---
--- Uses the shared support package tb/periph_tb_pkg.vhd: the scoreboard (check_bit/check_slv/check_true plus banner), the register-bus BFM (periph_bus_t plus bus_write/bus_read/bus_write_hold), and crc16_byte.
---
--- Unlike the other peripheral benches, SYSTEM generates its OWN synchronous reset (resetn_sys) from clk_hfxt_in via mclk, so the bench must feed a live clk_hfxt_in from t=0 and only exercise the register bus once resetn_sys has deasserted.
--- The memory-bus clock (clk_mem) is gated from the same reference clock, exactly as the SoC gates each peripheral's clk_periph by its select.
---
--- Coverage: reset defaults, R/W of every writable register plus byte lanes, register to pad routing (PGEN_mem, DCO bias/en), a retired-slot readback and write-ignore check, the CRC16 engine, the watchdog (password lock, counter, timeout flag and clear), and clock-tree activity, divider and source mux.
+-- SYSTEM_tb.vhd: self-checking testbench for the SYSTEM clock/reset/WDT/CRC controller, built on tb/periph_tb_pkg.vhd (scoreboard, register-bus BFM, crc16_byte).
+-- SYSTEM generates its own synchronous reset (resetn_sys) from clk_hfxt_in via mclk, so clk_hfxt_in must run from t=0 and the register bus is only exercised once resetn_sys has deasserted.
+-- Coverage: reset defaults, register R/W and pad routing (PGEN_mem, DCO bias/en), reserved IRQ slots, CRC16, watchdog and its interrupt line, clock activity/divider/source mux.
 -------------------------------------------------------------------------------
 
 library ieee;
@@ -44,8 +30,7 @@ architecture sim of SYSTEM_tb is
     signal resetn_por   : std_logic := '0';
     signal resetn_sys   : std_logic;
 
-    -- WDT level output plus the router "source-0 routed" hook, driven by GROUP 5b.
-    -- wdt_irq_complete stays at its port default '0'.
+    -- WDT level output plus the router "source-0 routed" hook; wdt_irq_complete stays at its port default '0'.
     signal irq_sys_wdt      : std_logic;
     signal wdt_irq_routed   : std_logic := '0';
 
@@ -60,7 +45,7 @@ architecture sim of SYSTEM_tb is
     -- DCO / power outputs
     signal en_dco0_out, en_dco1_out : std_logic;
     signal DCO0_BIAS, DCO1_BIAS     : std_logic_vector(11 downto 0);
-    signal PGEN_mem                 : std_logic_vector(6 downto 0);  -- DP-S3 3b: bits 6:3 are shbank0-3.
+    signal PGEN_mem                 : std_logic_vector(6 downto 0);  -- bits 6:3 are shbank0-3.
 
     -- edge counters for clock-output activity checks
     signal cnt_mclk  : natural := 0;
@@ -82,7 +67,7 @@ begin
     -- Gated memory-bus clock: ticks only while the peripheral is selected.
     clk_mem <= clk when pbus.en_mem = '0' else '0';
 
-    -- Edge counters, one per clock output, used by the activity checks in GROUP 6.
+    -- Edge counters, one per clock output, used by the clock-activity checks.
     process(mclk_out)     begin if rising_edge(mclk_out)     then cnt_mclk  <= cnt_mclk  + 1; end if; end process;
     process(smclk_out)    begin if rising_edge(smclk_out)    then cnt_smclk <= cnt_smclk + 1; end if; end process;
     process(clk_hfxt_out) begin if rising_edge(clk_hfxt_out) then cnt_hfxt  <= cnt_hfxt  + 1; end if; end process;
@@ -112,19 +97,14 @@ begin
         variable crc        : std_logic_vector(15 downto 0);
         variable v1, v2, r1, r2 : natural;
     begin
-        ----------------------------------------------------------------
-        -- Reset: resetn_sys is generated internally from mclk, so hold resetn_por low while the clock primes the glitch-free muxes.
-        -- Then release it and wait for resetn_sys to propagate.
-        ----------------------------------------------------------------
+        -- Hold resetn_por low while the clock primes the glitch-free muxes, then release and let resetn_sys propagate.
         resetn_por <= '0';
         pbus <= PERIPH_BUS_IDLE;
         wait for 10 * PERIOD;
         resetn_por <= '1';
         wait for 10 * PERIOD;
 
-        ----------------------------------------------------------------
-        -- GROUP 1: reset & defaults
-        ----------------------------------------------------------------
+        -- GROUP 1: reset and defaults.
         report "=== GROUP 1: reset & defaults ===" severity note;
 
         sb.check_bit("resetn_sys deasserted after reset", resetn_sys, '1');
@@ -152,9 +132,7 @@ begin
         sb.check_slv("PGEN_mem = 0 at reset (all on)", PGEN_mem, "000");
         sb.check_bit("irq_sys_wdt low at reset (wdt_ie=0)", irq_sys_wdt, '0');
 
-        ----------------------------------------------------------------
-        -- GROUP 2: register read/write + pad routing
-        ----------------------------------------------------------------
+        -- GROUP 2: register read/write and pad routing.
         report "=== GROUP 2: register R/W ===" severity note;
 
         -- CLK_CR: keep mclk_sel(1:0)=00 so the reference clock survives.
@@ -194,21 +172,15 @@ begin
         sb.check_bit("en_dco0_out clears", en_dco0_out, '0');
         sb.check_bit("en_dco1_out clears", en_dco1_out, '0');
 
-        ----------------------------------------------------------------
-        -- GROUP 3: retired IRQ register slots (M19).
-        -- Slots 5-11 (formerly SYS_IRQ_ENL/M/U, PRIL/M/U, CR) are now reserved gaps: reads return 0 and writes are ignored.
-        -- Slot 5 (formerly SYS_IRQ_ENL) stands in for the whole retired block.
-        ----------------------------------------------------------------
+        -- GROUP 3: slots 5-11 are reserved gaps, reads return 0 and writes are ignored; slot 5 stands in for the block.
         report "=== GROUP 3: retired IRQ register slots ===" severity note;
 
         bus_write(clk, pbus, 5, x"FFFFFFFF");
         bus_read(clk, pbus, read_data, 5, rdw);
         sb.check_slv("retired slot 5 reads 0 and ignores writes", rdw, x"00000000");
 
-        ----------------------------------------------------------------
         -- GROUP 4: CRC16 engine.
-        -- Init by writing SYS_CRC_STATE, which sets first_crc_flag, then feed bytes through SYS_CRC_DATA and compare the accumulated state.
-        ----------------------------------------------------------------
+        -- Writing SYS_CRC_STATE sets first_crc_flag, then bytes go through SYS_CRC_DATA and the accumulated state is compared.
         report "=== GROUP 4: CRC16 ===" severity note;
 
         bus_write(clk, pbus, RegSlotSYS_CRC_STATE, x"0000FFFF");        -- initial value
@@ -219,9 +191,7 @@ begin
         bus_read(clk, pbus, read_data, RegSlotSYS_CRC_STATE, rdw);
         sb.check_slv("CRC16 over {12,34,56} matches model", rdw(15 downto 0), crc);
 
-        ----------------------------------------------------------------
-        -- GROUP 5: watchdog timer
-        ----------------------------------------------------------------
+        -- GROUP 5: watchdog timer.
         report "=== GROUP 5: watchdog ===" severity note;
 
         -- (a) WDT_CR write is password-locked, so a bare write is ignored.
@@ -230,8 +200,7 @@ begin
         sb.check_slv("WDT_CR write blocked while locked", rdw(7 downto 0), x"00");
 
         -- (b) Unlock, then write WDT_CR within the 64-cycle window.
-        -- cdiv=5 makes the watched bit WDT_VAL(5), which rises at count 32 and only re-rises every 64 counts.
-        -- That gives a wide window to observe the flag set and then cleared before it re-asserts.
+        -- cdiv=5 watches WDT_VAL(5), which rises at count 32 and re-rises only every 64 counts, wide enough to see the flag set then cleared.
         bus_write(clk, pbus, RegSlotSYS_WDT_PASS, WDT_UNLCK_PASSWD);
         bus_write(clk, pbus, RegSlotSYS_WDT_CR, x"00000094");           -- wdt_en=1, cdiv=5, ie=0
         bus_read(clk, pbus, read_data, RegSlotSYS_WDT_CR, rdw);
@@ -266,14 +235,8 @@ begin
         bus_write(clk, pbus, RegSlotSYS_WDT_PASS, WDT_UNLCK_PASSWD);
         bus_write(clk, pbus, RegSlotSYS_WDT_CR, x"00000000");
 
-        ----------------------------------------------------------------
-        -- GROUP 5b: watchdog INTERRUPT line, irq_sys_wdt = wdt_if AND wdt_ie.
-        -- M19 fix: pre-M19 irq_sys_wdt was hardwired '0', so WDT interrupt mode was dead.
-        -- With interrupts enabled (ie=1) and the router asserting wdt_irq_routed, a timeout must RAISE the level instead of barking a reset.
-        -- resetn_wdt holds high while the IRQ is routed and not yet completed.
-        -- Confirm irq_sys_wdt tracks wdt_if AND wdt_ie.
-        -- NEGATIVE CONTROL: reverting SYSTEM.vhd's "irq_sys_wdt" assignment from "wdt_if and wdt_ie" back to constant '0' fails ONLY the assertion check below.
-        ----------------------------------------------------------------
+        -- GROUP 5b: watchdog interrupt line, irq_sys_wdt = wdt_if AND wdt_ie.
+        -- With ie=1 and the router asserting wdt_irq_routed, a timeout must raise the level instead of resetting: resetn_wdt holds high while the IRQ is routed and not yet completed.
         report "=== GROUP 5b: watchdog IRQ line ===" severity note;
 
         wdt_irq_routed <= '1';                       -- The router has source 0 routed.
@@ -300,9 +263,7 @@ begin
         bus_write(clk, pbus, RegSlotSYS_WDT_CR, x"00000000");
         wdt_irq_routed <= '0';
 
-        ----------------------------------------------------------------
-        -- GROUP 6: clock tree activity
-        ----------------------------------------------------------------
+        -- GROUP 6: clock tree activity.
         report "=== GROUP 6: clocks ===" severity note;
 
         -- All four clock outputs should be toggling at the reset defaults.
@@ -330,9 +291,7 @@ begin
         sb.check_true("mclk still toggles on dco0 source", cnt_mclk > v1);
         bus_write(clk, pbus, RegSlotSYS_CLK_CR, x"00000000");           -- Back to hfxt.
 
-        ----------------------------------------------------------------
         -- Final verdict: settle, print the scoreboard summary, then stop.
-        ----------------------------------------------------------------
         wait for 1 us;
         sb.report_summary("SYSTEM TB");
         stop;

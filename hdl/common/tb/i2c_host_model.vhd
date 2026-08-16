@@ -1,21 +1,9 @@
 -------------------------------------------------------------------------------
--- i2c_host_model.vhd
--------------------------------------------------------------------------------
--- Bit-banged I2C CONTROLLER (master) model for the I2C TARGET peripheral testbench (tb/I2CTarget_tb.vhd).
--- This is the ROLE-INVERSE of i3c_target_model.vhd: there the model was the addressed target reacting to a controller's SCL, here the model IS the controller.
--- It generates START/STOP/repeated-START, drives SCL at a bench-chosen period, drives and samples SDA open-drain, sends address plus RnW, writes bytes, reads bytes (ACK/NACK per its config), and honours the target's clock stretch.
---
--- CHECKER INDEPENDENCE (mandatory, the task's binding instruction): every SCL half-period, setup point and sample point is derived from the TB's OWN clk period (cfg_tick_period) times the frozen-doc-derived tick constants in i2ct_bfm_pkg, NEVER from the DUT's SDA_DIR/SCL_DIR or any internal state.
--- The model measures the DUT's driven levels (address ACK, per-byte ACK, TX data) off the RESOLVED bus at its OWN mid-SCL-high sample point, to_X01 normalized, and exposes them as obs_* for the TB scoreboard to judge.
--- Its one internal checker (obs_viol) flags a DUT level that is unstable across the SCL-high sample window; cfg_corrupt forces that flag high as a self-test that proves the checker path fires (the OneWire cfg_corrupt_window idiom).
---
--- OPEN-DRAIN BUS: sda_out/scl_out are fixed '0'; only sda_oe/scl_oe toggle, where '1' pulls that net low and '0' releases it to the bench's weak 'H' pull.
--- The model NEVER drives either net high.
--- Clock stretch is honoured by scl_release_wait: after releasing SCL the model SAMPLES the resolved net and waits for it to actually rise (the DUT may be holding it low, D11), with a bounded guard that raises obs_timeout rather than hanging.
---
--- HANDSHAKE: a rising edge on cfg_go launches ONE framed segment against the captured cfg_* descriptor, and obs_count increments when the segment completes.
--- A segment with cfg_stop='false' ends by LEAVING SCL held low (this model's scl_oe stays '1') so a following cfg_sr='true' segment can issue a genuine repeated-START: the classic write-then-read direction reversal (G5).
--- While the model is blocked on a genuine target stretch, obs_wait_scl='1' so the TB can service the DUT (load I2CTTX, read and W1C I2CTRX) exactly during the stall.
+-- i2c_host_model.vhd: bit-banged I2C controller model for the I2C target peripheral testbench.
+-- Generates START/repeated-START/STOP, drives SCL at a bench-chosen period, drives and samples SDA open-drain, sends address plus RnW, writes and reads bytes, and honours the target's clock stretch.
+-- Checker independence is mandatory: every half-period, setup and sample point comes from the bench's own clk period (cfg_tick_period) times the tick constants in i2ct_bfm_pkg, never from the DUT's SDA_DIR/SCL_DIR or any internal state.
+-- DUT-driven levels are measured off the RESOLVED bus at the model's own mid-SCL-high point and exposed as obs_* for the scoreboard; obs_viol flags a level unstable across the sample window, and cfg_corrupt forces it high as a self-test of that path.
+-- A rising edge on cfg_go runs ONE framed segment against the captured cfg_* descriptor and obs_count increments when it completes; obs_wait_scl is '1' while blocked on a genuine stretch so the bench can service the DUT during the stall.
 -------------------------------------------------------------------------------
 
 library ieee;
@@ -90,7 +78,7 @@ begin
         procedure sda_rel is begin sda_oe <= '0'; end procedure;
         procedure scl_low is begin scl_oe <= '1'; end procedure;
 
-        -- Release SCL and wait for it to ACTUALLY rise, honouring a DUT stretch (D11), measured off the RESOLVED net and to_X01-normalized.
+        -- Release SCL and wait for it to ACTUALLY rise off the resolved net, so a DUT stretch is honoured rather than assumed away.
         -- Bounded: it raises timeout_v, hence obs_timeout and a scoreboard error, rather than hanging.
         procedure scl_release_wait is
             variable g : natural := 0;
@@ -191,7 +179,7 @@ begin
         obs_rdata     <= (others => (others => '0'));
 
         if cfg_op = I2CT_OP_WDOG then
-            -- D13 stimulus: START plus a write address so the DUT enters BUSY and ACKs, then hold SCL low past WDTO (the DUT's watchdog counts SCL-low while BUSY), then STOP.
+            -- Watchdog stimulus: START plus a write address so the DUT enters BUSY and ACKs, then hold SCL low past WDTO (its watchdog counts SCL-low while BUSY), then STOP.
             do_start;
             addr_byte := cfg_addr & '0';
             for i in 7 downto 0 loop wr_bit(addr_byte(i)); end loop;
@@ -218,7 +206,7 @@ begin
                     obs_wr_ack(k) <= not got;
                 end loop;
             else
-                -- HOST READ: sample cfg_nbytes bytes MSB-first, then drive the host ACK/NACK per cfg_rd_ack (D10 host handshake).
+                -- HOST READ: sample cfg_nbytes bytes MSB-first, then drive the host ACK/NACK per cfg_rd_ack.
                 for k in 0 to cfg_nbytes - 1 loop
                     rb := (others => '0');
                     for i in 7 downto 0 loop
@@ -233,7 +221,7 @@ begin
             if cfg_stop then
                 do_stop;
             else
-                -- Leave SCL held low for a following repeated-START (G5); the next cfg_sr segment picks the bus up from here.
+                -- Leave SCL held low for a following repeated-START; the next cfg_sr segment picks the bus up from here.
                 sda_rel;
                 scl_low;
             end if;

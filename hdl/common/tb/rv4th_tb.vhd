@@ -1,3 +1,6 @@
+-- rv4th_tb: boots the MCU into the ROM Forth interpreter and exercises it over UART0.
+-- ProcMainTest sends each Forth command, ProcReceiveFromTX grades the reply, and the two run in lockstep through SentSync/ReceivedSync.
+-- BOOT (P1.7) is held low to select ROM Forth; the run passes when no check reports an error.
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
@@ -191,7 +194,6 @@ architecture behavior of rv4th_tb is
     
 begin
 
-    -- Clock generation.
     -- 24 MHz crystal oscillator driven onto the HFXT pad.
     ProcClkHFXT: process
     begin
@@ -210,12 +212,11 @@ begin
         wait for clk_lfxt_period / 2;
     end process;
 
-    -- Signal routing, wired once at elaboration.
-    -- Clock signal routing.
+    -- Clock pad routing.
     prt1(pnum_gpio0_hfxt) <= clk_hfxt;
     prt1(pnum_gpio0_lfxt) <= clk_lfxt;
     
-    -- Boot pin routing (0 for Forth mode)
+    -- Boot pin routing.
     prt1(pnum_gpio0_boot) <= BOOT;  -- Always '0' for Forth mode
     
     -- GPIO0 routing
@@ -236,7 +237,7 @@ begin
         variable len : natural;
     begin
         -- Test 1.1: Boot message
-        len := 21;  -- Changed from 22 to 21 for "myshkin"
+        len := 21;  -- length of the boot banner
         UartReceiveStringFromTX(baudratePeriodROM, len, TX0, TXing, str);
         TXStr <= str;
         wait for clk_hfxt_period;
@@ -332,10 +333,8 @@ begin
         wait for clk_hfxt_period;
         ReceivedSync <= '0';
 
-        -- Test 1.5a: response to writing the jump-to-self instruction to 0x8200.
-        -- We write the RISC-V instruction `jal x0, 0` (opcode 0x0000006F), an infinite one-instruction loop.
-        -- Then in 1.5b we jump to 0x8200 using the Forth `call0` word and confirm that the Forth interpreter stops emitting prompts, because the CPU is now executing the RAM loop instead of returning to the Forth REPL.
-        -- Expected echo: "0x6F 0x8200 !" (13 chars) plus lf, lf and ">", 16 chars in total.
+        -- Test 1.5a: echo of writing `jal x0, 0` (0x0000006F, a one-instruction infinite loop) to 0x8200.
+        -- Expected echo is "0x6F 0x8200 !" (13 chars) plus lf, lf and ">", 16 in total.
         len := 16;
         UartReceiveStringFromTX(baudratePeriodROM, len, TX0, TXing, str);
         TXStr <= str;
@@ -350,10 +349,8 @@ begin
         wait for clk_hfxt_period;
         ReceivedSync <= '0';
 
-        -- Test 1.5b: response to `0x8200 call0`.
-        -- We only expect the character-by-character echo of the command and its trailing newline ("0x8200 call0" is 12 chars, plus lf, so 13).
-        -- After that the CPU jumps to 0x8200 and spins forever, so the Forth interpreter never re-enters getLine() and no `>` prompt follows.
-        -- We do NOT use UartReceiveStringFromTXUntil('>',...) here because that would hang.
+        -- Test 1.5b: `0x8200 call0` echoes 12 chars plus lf and nothing more, because the CPU jumps to the RAM loop and never re-enters the Forth prompt.
+        -- Receive a fixed 13 chars here: waiting for a `>` would hang.
         len := 13;
         UartReceiveStringFromTX(baudratePeriodROM, len, TX0, TXing, str);
         TXStr <= str;
@@ -364,8 +361,7 @@ begin
             report "Error: incorrect call0 echo: " & str(1 to 13) severity error;
             AllTestsPassed <= false;
         end if;
-        -- Give the CPU a little time in its RAM loop, then verify no prompt has been emitted.
-        -- A prompt would mean we are still in the Forth REPL and call0 silently fell through, which is a bug.
+        -- Let the CPU sit in its RAM loop, then confirm silence; further output would mean call0 fell through and the interpreter is still running.
         wait for 2 ms;
         if TXing = '1' then
             report "Error: MCU is still transmitting after call0; CPU did not jump to RAM" severity error;
@@ -377,7 +373,7 @@ begin
         wait for clk_hfxt_period;
         ReceivedSync <= '0';
 
-        -- Report final status
+        -- Final verdict.
         if AllTestsPassed then
             report "===== ALL FORTH TESTS PASSED =====" severity note;
         else
@@ -460,9 +456,8 @@ begin
         SentSync <= '0';
         wait until ReceivedSync = '1';
 
-        -- Test 1.5: RAM-upload and jump test, mirroring forthram.py's poke plus call0.
-        --   1.5a: write RISC-V `jal x0, 0` (0x0000006F, an infinite loop) to 0x8200.
-        --   1.5b: jump to it via `call0`; the CPU should leave the Forth REPL forever.
+        -- Test 1.5: RAM upload then jump.
+        -- 1.5a writes `jal x0, 0` (0x0000006F, an infinite loop) to 0x8200; 1.5b jumps to it via `call0`, which leaves the Forth prompt for good.
         report "Test 1.5a: Store `jal x0, 0` (0x6F) at 0x8200";
         UartSendStrToRX(baudratePeriodROM, RX0, RXing, "0x6F 0x8200 !" & lf);
         SentSync <= '1';

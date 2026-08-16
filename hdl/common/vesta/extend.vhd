@@ -22,7 +22,7 @@ begin
             -- I-type: one contiguous 12-bit field.
             when "000" =>
                 imm_ext <= (XLEN-1 downto 12 => instr(31)) & instr(31 downto 20);
-                -- Check for SRAI and fix the immediate. TODO: work out why this was here originally.
+                -- SRAI immediate fix-up, disabled. TODO: decide whether it is needed at all.
                 -- if instr(30) = '1' and instr(14 downto 12) = "101" then --SRAI operation
                 --     imm_ext(10) <= '0';
                 -- end if;

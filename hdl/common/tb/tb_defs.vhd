@@ -9,9 +9,6 @@ use std.textio.all;
 
 package tb_defs is
 
-    -- Note: all instruction tests passed compressed post genus.
-    -- Note: all peripheral tests pass uncompressed post genus except SPI and SPISR, which see an HF glitch on SCK in the TB.
-    -- Note: all peripheral tests pass compressed post Innovus.
 
     
 

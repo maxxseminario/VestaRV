@@ -1,20 +1,13 @@
 -------------------------------------------------------------------------------
 -- QSPI_tb.vhd
 -------------------------------------------------------------------------------
--- Standalone, self-checking testbench for the QSPI peripheral (hdl/common/periph/QSPI.vhd), written AGAINST THE FROZEN ENTITY AND REGISTER MAP while the RTL is written in parallel.
--- The DUT is declared as a COMPONENT (not an entity instantiation) so this bench compiles standalone with xmvhdl before QSPI.vhd exists.
--- VHDL default binding resolves it to the entity of the same name once QSPI.vhd is analyzed into the work library.
+-- Standalone, self-checking testbench for the QSPI peripheral, driven entirely through its entity and register map.
+-- The DUT is declared as a COMPONENT, so this bench compiles standalone and VHDL default binding resolves it once QSPI.vhd is analyzed into the work library.
+-- Support: periph_tb_pkg (shared scoreboard and register-bus BFM), qspi_bfm_pkg (slot constants, CR/CMD packing, the deterministic read-pattern formula, a bounded BUSY poll), and QSPI_flash_model as the generic-configured responder.
+-- Bus contract: EnMemPeriph active-low, WEn active-low per byte lane, MABPart(7:2) is the word-slot address, and ClkMem is GATED so it ticks only while EnMemPeriph='0'.
+-- A one-cycle W1C clear pulse can stick until the next selected access, so every W1C here is followed by a dummy CR read before SR is re-read.
 --
--- Support packages: tb/periph_tb_pkg.vhd (the existing shared scoreboard and register-bus BFM) and tb/qspi_bfm_pkg.vhd (QSPI-specific register-slot constants, CR/CMD field packing, the deterministic read-pattern formula and a bounded BUSY poll; new, mirroring i2c_bfm_pkg and spi_bfm_pkg).
--- The flash-responder model is tb/qspi_flash_model.vhd: new, in the role of tb/serial_flash.vhd but generic-configured per test phase instead of decoding real opcodes.
---
--- Bus contract (mirrors every other peripheral bench in this tree): EnMemPeriph active-low, WEn active-low per byte lane, MABPart(7:2) is the word-slot address.
--- ClkMem is GATED: it ticks only while EnMemPeriph='0' (see periph_tb_pkg.bus_write/bus_read).
--- One-cycle internal clear pulses (W1C SR bits, the RX-side-effect flags) can stick until the next selected access, so after a W1C this bench issues a dummy read of another register (CR) before re-reading SR to observe the clear.
--- That is exactly the idiom UART_tb.vhd uses for its RX-overflow clear (see UART_tb.vhd GROUP 9 and the tb/ bench notes).
---
--- FROZEN register map (word slots) this bench drives (see qspi_bfm_pkg.vhd
--- for the exact bit-packing helpers):
+-- Register map (word slots; bit-packing helpers in qspi_bfm_pkg.vhd):
 --   Slot 0 CR : [0]QSPIEN [2:1]CMDW [4:3]ADRW [6:5]DATW (00=1b,01=2b,10=4b)
 --               [7]CPOL [8]CPHA [10:9]AWID (00=none,01=24b,10=32b)
 --               [15:11]DUMMY edges [18:16]CSSEL(write 0) [26:19]BR
@@ -27,12 +20,8 @@
 --   Slot 4 RX : read-only snapshot; reading clears nothing.
 --   Slot 5 SR : [0]BUSY RO [1]TXEIF W1C [2]RXFULL W1C [3]TCIF W1C.
 --
--- AMBIGUITIES IN THE FROZEN CONTRACT, noted while writing this bench and flagged rather than resolved (the full list is in the bench write-up):
---   * CMDW/ADRW/DATW/AWID's "11" encoding is undefined; never driven here.
---   * The DUMMY field's unit ("edges") is not defined precisely: half-cycle, or one per SCK period? See the qspi_flash_model.vhd header.
---   * RX/TX/obs_wdata bit-justification for DLEN<32 is ASSUMED right-justified (low bits); the frozen contract does not state it.
---   * cs_out/sck_out polarity is ASSUMED active-low CS with the dir signals not consulted, mirroring SPI_flash_tb.vhd's serial_flash wiring; whether cs_dir/sck_dir must be consulted is unstated.
---   * Whether a DUMMY phase exists on WRITE or command-only transactions is unstated, sidestepped here by only ever programming DUMMY=0 for those tests.
+-- Contract points the register map leaves open, and what this bench assumes about each: the "11" width encoding is undefined and never driven; DUMMY is counted in the responder model's own edge units.
+-- RX/TX payloads narrower than 32 bits are taken as right-justified; CS is taken as active-low with cs_dir/sck_dir not consulted; DUMMY is programmed 0 on write and command-only transactions.
 -------------------------------------------------------------------------------
 
 library ieee;
@@ -49,7 +38,7 @@ architecture sim of QSPI_tb is
 
     constant PERIOD : time := 40 ns;   -- ~25 MHz smclk-domain serial-clock reference
 
-    -- FROZEN DUT entity, declared as a component (see file header) so this bench compiles standalone before hdl/common/periph/QSPI.vhd exists.
+    -- DUT declared as a component so this bench compiles standalone; default binding resolves it to the QSPI entity in work.
     component QSPI is
         port (
             clk         : in  std_logic;
@@ -112,7 +101,7 @@ architecture sim of QSPI_tb is
 begin
 
     ----------------------------------------------------------------------------
-    -- clock / gated register-bus clock (mirrors I2C_tb / SPI_tb)
+    -- clock / gated register-bus clock
     ----------------------------------------------------------------------------
     clk    <= not clk after PERIOD / 2;
     ClkMem <= clk when pbus.en_mem = '0' else '0';
@@ -152,8 +141,7 @@ begin
         );
 
     ----------------------------------------------------------------------------
-    -- Flash-responder model: cs/sck wired directly from cs_out/sck_out, dir signals not consulted.
-    -- See the polarity ASSUMPTION in the file header and in qspi_flash_model.vhd's header.
+    -- Flash-responder model: cs/sck wired straight from cs_out/sck_out with the dir signals not consulted, per the active-low CS assumption in the header.
     ----------------------------------------------------------------------------
     flash : entity work.QSPI_flash_model
         port map (
@@ -190,8 +178,8 @@ begin
         variable expected_byte : std_logic_vector(7 downto 0);
         variable expected_word : std_logic_vector(31 downto 0);
 
-        -- Program the flash model's shape for the NEXT transaction, then drive ADR/TX/CR/CMD to launch it (SPI_flash_tb's procedure style).
-        -- CR is always written with QSPIEN=1, so callers exercising the launch guards (QSPIEN=0 or BUSY=1) drive the registers directly instead of using this procedure.
+        -- Program the flash model's shape for the NEXT transaction, then drive ADR/TX/CR/CMD to launch it.
+        -- CR is always written with QSPIEN=1, so the launch-guard checks (QSPIEN=0 or BUSY=1) drive the registers directly instead of calling this.
         procedure qspi_launch(cmdw, adrw, datw, awid, dlen : std_logic_vector(1 downto 0);
                               dir, cpol, cpha, tcie, rxfie  : std_logic;
                               dummy   : natural;
@@ -245,7 +233,7 @@ begin
             bus_write(clk, pbus, SlotQSPIxCMD, qspi_mk_cmd(opcode, dlen, dir));  -- LAUNCH
         end procedure;
 
-        -- W1C-clear the given SR bits, then retire the gated-ClkMem clear pulse with a dummy CR read before re-reading SR (the UART_tb.vhd idiom).
+        -- W1C-clear the given SR bits, then retire the gated-ClkMem clear pulse with a dummy CR read before SR is re-read.
         procedure qspi_w1c_clear(mask : std_logic_vector(31 downto 0)) is
             variable r : std_logic_vector(31 downto 0);
         begin
@@ -431,9 +419,8 @@ begin
         sb.check_true("GROUP7a: model transaction count unchanged", obs_txn_count = txn_before);
         sb.check_bit("GROUP7a: cs_out stays idle (assumed active-low idle-high)", cs_out, '1');
 
-        -- (b) BUSY=1: a second CMD write while a transaction is in flight must not be queued and must not corrupt the in-flight one.
-        --     Launch a long (quad, DUMMY=8) read, then race a second CMD write in shortly after.
-        --     Timing assumption: BUSY asserts within a few `clk` cycles of the launch; flagged, may need tuning once QSPI.vhd exists.
+        -- (b) BUSY=1: a second CMD write while a transaction is in flight must be ignored and must not corrupt the in-flight one.
+        --     Launch a long quad read, then race a second CMD write in; this assumes BUSY asserts within a few `clk` of the launch.
         txn_before := obs_txn_count;
         qspi_launch(cmdw => "10", adrw => "10", datw => "10", awid => "01", dlen => "11",
                     dir => '1', cpol => '0', cpha => '0', tcie => '0', rxfie => '0',
@@ -484,9 +471,8 @@ begin
         qspi_w1c_clear(x"0000000E");
 
         ----------------------------------------------------------------
-        -- GROUP 8d: DIRECTED literal check, for checker independence.
-        -- Every other RX check compares against qspi_read_pattern(), the SAME function the flash model uses to DRIVE the data, so a shared bug in that formula could self-certify.
-        -- This check uses a HAND-COMPUTED literal: a 1-1-4 32-bit read from addr 0x00000000 with seed 0xA5, so each MSB-first byte i = 0xA5 xor (0x00 + i), giving {A5, A4, A7, A6}, i.e. 0xA5A4A7A6.
+        -- GROUP 8d: DIRECTED literal check, for checker independence: every other RX check compares against qspi_read_pattern(), the same function the model uses to DRIVE the data, so a bug in it could self-certify.
+        -- Hand-computed expectation: a 1-1-4 32-bit read from 0x00000000 with seed 0xA5 gives MSB-first byte i = 0xA5 xor i, i.e. 0xA5A4A7A6.
         ----------------------------------------------------------------
         report "=== GROUP 8d: DIRECTED literal RX check ===" severity note;
 
@@ -519,16 +505,14 @@ begin
         qspi_w1c_clear(x"0000000E");
 
         ----------------------------------------------------------------
-        -- Final verdict: sb.errors() must be EXACTLY 1 (the negative control
-        -- above) for an overall PASS.
+        -- Final verdict: sb.errors must be EXACTLY 1 (the negative control above) for an overall PASS.
         ----------------------------------------------------------------
         wait for 1 us;
         sb.report_summary("QSPI TB");
 
         if sb.errors = 1 then
-            -- The scoreboard always tallies 1 error (the negative control), so report_summary above prints "1 CHECK(S) FAILED", not the "ALL CHECKS PASSED" token the parallel periph-suite runner greps for.
-            -- Emit that token HERE on a genuine pass so this bench integrates with xrun_parallel.sh's banner detection unchanged.
-            -- A real failure (errors /= 1) takes the else branch and never prints it, so the suite still fails the run.
+            -- The scoreboard always tallies 1 error (the negative control), so report_summary prints "1 CHECK(S) FAILED" instead of the "ALL CHECKS PASSED" token the parallel periph-suite runner greps for.
+            -- Emit that token HERE, on a genuine pass only: a real failure takes the else branch, never prints it, and still fails the suite.
             report LF & LF &
                 "    ##################################################" & LF &
                 "    ##   QSPI_TB PASS (1 expected negative-control failure)" & LF &

@@ -2,57 +2,29 @@ library ieee;
 use ieee.std_logic_1164.all;
 
 -- ===========================================================================
--- TrngRoEnsemble_sim.vhd: BEHAVIORAL FLOWS ONLY.
--- NEVER co-list this file with TrngRoEnsemble.vhd in the same cell list (D6/A5).
--- TrngRoEnsemble.vhd carries the REAL `rtl` architecture, whose deliberate combinational ring-oscillator loops DELTA-LOOP a behavioral simulator: zero-time oscillation, and the 1-MINUTE RULE fires the hard way.
--- This file supplies a second, independent architecture of the SAME entity, a deterministic 32-bit Galois LFSR that advances on rising `sclk`, for use ONLY in xcelium/periph_test/behavioral and the standalone dev scratch sim.
--- Genus and gate cell lists must compile TrngRoEnsemble.vhd instead and must NEVER see this file.
---
--- FROZEN design: ~/vesta_docs/digperiphs/trng_design.md, D3/D6/D7 plus the ADJUDICATION RULINGS (ruling 5: explicit binding in the TB), all BINDING.
--- Peripheral of the digital-peripherals program (TRNG0, base 0x6900, vector 121).
---
--- -V200X only: NO VHDL-2008, so no to_hstring, no process(all), no unary reduce.
--- Every process infers exactly ONE edge of ONE clock (Genus VHDL-601 discipline): this file's process is level-gated by `enable`, a deliberate async-reset-like level matching the real rtl arch's "enable=0 parks the ring at a known level", plus rising `sclk`.
---
--- Determinism contract (checker independence, D6 bench plan): the SAME seed, tap and perturbation function is reproduced, TB-owned, in tb/trng_bfm_pkg.vhd's independent reference replay.
--- That package NEVER reads this file, and this file is NEVER read back by the bench beyond the documented hierarchical `force dut.u_ro.ro_raw` override used for G5 (health alarm and stuck-run testing).
---
--- Entity (D3, FROZEN, identical to the entity in TrngRoEnsemble.vhd):
---   enable : gates the model. While '0', the LFSR is HELD at a sel-perturbed
---            constant seed, a deterministic restart point: every EN-rising
---            transition begins the SAME sequence for a given `sel`, so the
---            bench's independent replay only needs to know the seed function
---            and the sel value at the moment EN rose.
---   sel    : perturbs the seed, XORed into the low nibble, at the moment the
---            model is held by enable='0', and is held constant thereafter for
---            that run. This matches the design doc's "sel-perturbed" framing
---            and gives G4 a clean wiring and forwarding check, since a NEW sel
---            only takes effect the next time enable drops then rises again.
---   sclk   : the TRNG's own `clk`, routed through `ro_sclk` at integration
---            (D3). The model advances the LFSR one step per rising sclk edge
---            while enable='1'.
---   ro_raw : LFSR bit 0 of the CURRENT state, a combinational tap rather than
---            the next-state value. TRNG.vhd 2-FF synchronizes it (D7) before
---            any use, exactly like the real rtl arch's XOR-ensembled bit.
+-- TrngRoEnsemble_sim.vhd: behavioral flows only, and NEVER co-listed with TrngRoEnsemble.vhd, which carries the real `rtl` architecture of the same entity.
+-- That architecture's combinational ring-oscillator loops delta-loop a behavioral simulator into zero-time oscillation, so behavioral runs bind this deterministic 32-bit Galois LFSR model instead.
+-- Genus and gate cell lists must compile TrngRoEnsemble.vhd and must never see this file.
+-- The entity is identical to TrngRoEnsemble.vhd's; the peripheral is TRNG0, base 0x6900, vector 121.
+-- Compile is -V200X, no VHDL-2008, and the one process infers exactly one edge of one clock.
 -- ===========================================================================
 
 entity TrngRoEnsemble is
-    generic ( NRO : natural := 8 );   -- ring-oscillator count (D6); values 4 and 8 are proven (D15)
+    generic ( NRO : natural := 8 );   -- ring-oscillator count; 4 and 8 are the proven values
     port (
-        enable : in  std_logic;                     -- gates the model here, gates the rings in the real arch
-        sel    : in  std_logic_vector(3 downto 0);   -- perturbs the LFSR seed here; ring
-                                                     --   contribution mask in the real arch (D6 ruling 4)
-        sclk   : in  std_logic;                     -- advances the LFSR on rising sclk here;
+        enable : in  std_logic;                     -- while '0' the LFSR holds the sel-perturbed seed, so every rise restarts the same sequence; gates the rings in the real arch
+        sel    : in  std_logic_vector(3 downto 0);   -- perturbs the LFSR seed here, and a new value takes effect only after enable drops and rises again; ring
+                                                     --   contribution mask in the real arch
+        sclk   : in  std_logic;                     -- advances the LFSR one step per rising edge while enable is '1';
                                                      --   IGNORED by the real rtl arch, whose rings are async
-        ro_raw : out std_logic                      -- LFSR tap here, XOR-ensembled ring bit in the real arch
+        ro_raw : out std_logic                      -- bit 0 of the CURRENT LFSR state, 2-FF synchronized in TRNG.vhd; XOR-ensembled ring bit in the real arch
     );
 end entity TrngRoEnsemble;
 
 architecture sim of TrngRoEnsemble is
 
-    -- Deterministic maximal-length-class 32-bit Galois LFSR.
-    -- TAPS and SEED are arbitrary but FIXED, never derived from any TRNG.vhd or generator state.
-    -- The exact same constants are reproduced in trng_bfm_pkg.vhd's reference replay: change BOTH together or the checker-independence contract breaks.
+    -- TAPS and SEED are arbitrary but fixed, never derived from any TRNG.vhd or generator state.
+    -- tb/trng_bfm_pkg.vhd reproduces the same seed, taps and perturbation in its independent replay: change both together or the bench stops being an independent checker.
     constant SEED : std_logic_vector(31 downto 0) := x"ACE1ACE1";
     constant TAPS : std_logic_vector(31 downto 0) := x"A3000000";
 
@@ -60,13 +32,12 @@ architecture sim of TrngRoEnsemble is
 
 begin
 
-    -- NO combinational loop: this is a plain Galois LFSR with register-only state.
-    -- It is level-gated by `enable`, deliberately async-reset-like to mirror the real ring's "enable=0 parks at a known level", and advances on rising sclk only while enable='1'.
-    -- The single-edge discipline holds, because the enable branch never itself contains a clock edge.
+    -- No combinational loop: a plain Galois LFSR with register-only state, advancing on rising sclk only while enable is '1'.
+    -- The enable level acts as an async reset, mirroring the real ring parking at a known level, and never contains a clock edge of its own.
     lfsr_proc: process(enable, sclk)
     begin
         if enable = '0' then
-            lfsr <= SEED xor (x"0000000" & sel);   -- sel perturbs the low nibble (D6)
+            lfsr <= SEED xor (x"0000000" & sel);   -- sel perturbs the low nibble
         elsif rising_edge(sclk) then
             -- Galois step: shift right, and fold in the taps when the bit shifted out is set.
             if lfsr(0) = '1' then

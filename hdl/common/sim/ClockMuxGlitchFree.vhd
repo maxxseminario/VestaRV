@@ -96,8 +96,7 @@ use ieee.math_real.all;
 
 -- For the TSMC cmn65gp process using the ARM standard cell library tsmc65_hvt_sc_adv10
 
--- This was originally set up with unconstrained ports, but NCVHDL assumed the inputs were in ascending bit order while Sel was in descending bit order.
--- To avoid confusion in a critical block, explicit generic parameters are now used.
+-- Port widths come from generics rather than being unconstrained: unconstrained ports leave the bit order of ClkIn and Sel ambiguous, which is not acceptable in a clocking block.
 entity ClockMuxGlitchFree is
 	generic
 	(
@@ -163,8 +162,7 @@ begin
 	-- Active-high copy of the reset for the cells that need it
 	resetp <= not resetn;
 
-	-- All synchronization slice outputs are ORed together to get the final clock; at most one slice is ever gated on, so this is a mux.
-	-- This used VHDL 2008 syntax.
+	-- All slice outputs are ORed to get the final clock; at most one slice is ever gated on, so this is a mux
 	ClkOut <= or_reduce(ClkGated);
 
 	-- Enable a given clock if it is selected, or if its enable signal has not yet cleared the synchronization DFF chain.
@@ -198,9 +196,8 @@ begin
 	--EnQQN  <= not EnQQ;
 	EnQQQN <= not EnQQQ;
 
-	-- Generate the synchronization slices.
-	-- The default slice comes out of reset selected (set), while every other slice comes out deselected (reset).
-	-- Note that the ARM 65 nm cells are not entirely symmetric between set and reset: set is active low, reset is active high.
+	-- Synchronization slices: the default slice comes out of reset selected, every other slice deselected.
+	-- The ARM 65 nm cells are asymmetric here, so set is active low while reset is active high.
 
 	MuxGen: for i in 0 to CLK_COUNT-1 generate
 
@@ -225,9 +222,8 @@ begin
 				Q  => EnQQ(i)
 			);
 
-			-- This delays the enable signal by one clock, which ensures the current clock is no longer oscillating when the next clock is enabled.
-			-- It covers the small half-cycle lag between the enable being deasserted and the clock gate stopping oscillation.
-			-- It also keeps the chip-level oscillator powered long enough to drive the clock mux.
+			-- One more clock of enable delay, covering the half-cycle lag between the enable dropping and the gate stopping, so the outgoing clock is dead before the next one starts.
+			-- It also keeps the chip-level oscillator powered long enough to drive the mux.
 
 			DLYDFF0: DFFSQ
 			port map
@@ -261,9 +257,8 @@ begin
 				Q  => EnQQ(i)
 			);
 
-			-- This delays the enable signal by one clock, which ensures the current clock is no longer oscillating when the next clock is enabled.
-			-- It covers the small half-cycle lag between the enable being deasserted and the clock gate stopping oscillation.
-			-- It also keeps the chip-level oscillator powered long enough to drive the clock mux.
+			-- One more clock of enable delay, covering the half-cycle lag between the enable dropping and the gate stopping, so the outgoing clock is dead before the next one starts.
+			-- It also keeps the chip-level oscillator powered long enough to drive the mux.
 
 			DLYDFF0: DFFRPQ
 			port map

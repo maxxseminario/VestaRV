@@ -1,28 +1,14 @@
 -- =============================================================================
--- mutex_bank.vhd  (M7c, LOCKING v2)
+-- mutex_bank.vhd
 -- =============================================================================
--- HARDWARE MUTEX BANK: 1-instruction cross-hart mutual exclusion.
--- Atomic for free, because the mp_arbiter serializes whole transactions: no LR/SC loop, no cross-hart-AMO dependence.
---
---   READ  mutex[i] : atomic RETURN-OLD-AND-CLAIM.
---                    Returns 0 if the mutex was free, and the SAME transaction claims it for the reading master (owner := master+1).
---                    Returns owner (hartid+1) if held; a claim-read of a held mutex does NOT disturb it, so re-reading your own mutex returns your own marker.
---   WRITE 0        : release (owner := 0).
---                    Deliberately UNQUALIFIED by owner so a supervisory hart can force-release a dead hart's mutex; correct software only releases what it holds.
---   WRITE nonzero  : ignored (no way to forge ownership).
---
--- Software contract: `lw t0, (MUTEXi)`, where t0 == 0 means you now hold it; otherwise spin with hartid-scaled backoff per the M4c livelock rule.
--- Release with `sw x0, (MUTEXi)`.
--- NEVER LR/SC a mutex address: a reservation-failed SC arrives here with its lanes suppressed by resv_unit and would be indistinguishable from a claim-read.
--- These are ADVISORY locks; nothing is bus-enforced (no core bus-error path exists, and stall-until-release would be a deadlock generator by design decision).
---
--- PLACEMENT: page-3 slot 0 = 0x13000-0x130FF, GPIO0's legacy slot number, free forever because GPIO0 is never shared.
--- NMUTEX=16 word-mapped mutexes at 0x13000 + 4*i; only addr(3:0) is decoded, so the bank aliases every 16 words through its 256B slot.
---
--- BUS CONTRACT (same as clint.vhd / irq_router.vhd): active-high en one-cycle strobe, 4 active-high byte-lane strobes we (resv-GATED in MCU.vhd), 1-cycle registered read (address at cycle T, rdata valid at T+1), free-running mclk.
--- The one extra input is `master`, the arbiter's granted-master index (mp_arbiter s_master), valid whenever en is strobed.
--- It is what makes the claim-read attributable, and it is the ONLY reason the arbiter exports it.
--- All mutexes reset FREE, so the block is a provable NO-OP until software reads a mutex word.
+-- Hardware mutex bank: 1-instruction cross-hart mutual exclusion, atomic because mp_arbiter serializes whole transactions.
+--   READ  mutex[i] : returns 0 and claims it for the reading master (owner := master+1) if free, else returns the holder's hartid+1 and leaves it undisturbed.
+--   WRITE 0        : release, owner-unqualified so a supervisory hart can force-release a dead hart's mutex.
+--   WRITE nonzero  : ignored, so ownership can never be forged.
+-- Software acquires with `lw t0, (MUTEXi)` (t0 = 0 means you hold it), releases with `sw x0, (MUTEXi)`, and spins with hartid-scaled backoff; the locks are ADVISORY, since stall-until-release would be a deadlock generator.
+-- Never LR/SC or AMO a mutex address: a reservation-failed SC arrives with its lanes suppressed by resv_unit and is indistinguishable from a claim-read.
+-- Bus contract: active-high one-cycle en strobe, 4 active-high byte-lane strobes we (resv-gated in MCU.vhd), read registered one mclk after the strobe, free-running mclk.
+-- `master` is the arbiter's granted-master index, valid whenever en is strobed, and it is what makes the claim-read attributable.
 -- =============================================================================
 
 library IEEE;
@@ -33,8 +19,7 @@ use IEEE.STD_LOGIC_UNSIGNED.ALL;
 entity mutex_bank is
     generic (
         NMUTEX : natural := 16;   -- word-mapped mutexes (16 = one slot pitch)
-        -- A2 (Argus): decoded word-address width (2**AW must cover NMUTEX) and the arbiter's s_master width (must match mp_arbiter's MW).
-        -- Defaults are the Castalia 4-hart / 16-mutex shape.
+        -- Decoded word-address width (2**AW must equal NMUTEX) and the arbiter's granted-master width (must match mp_arbiter's MW).
         AW     : natural := 4;
         MW     : natural := 2
     );
@@ -63,8 +48,7 @@ architecture behav of mutex_bank is
 
 begin
 
-    -- A2 coverage assert (elaboration-time constant, no hardware).
-    -- Equality is required, not just coverage: the addr slice must alias the bank exactly, since an idx beyond NMUTEX-1 would fall off the owner array.
+    -- Elaboration-time check, no hardware: the addr slice must alias the bank EXACTLY, since an idx beyond NMUTEX-1 would fall off the owner array.
     assert 2**AW = NMUTEX
         report "mutex_bank: NMUTEX must equal 2**AW (exact word alias)"
         severity failure;

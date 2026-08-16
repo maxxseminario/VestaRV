@@ -1,7 +1,6 @@
--- MemoryMap.vhd
--- Memory map VHDL package
--- Defines the memory map of the MCU, including which RAM and peripheral slots are activated, as well as which slot each peripheral is allocated to, and the slot each register within each peripheral is allocated to
--- Generated on 2026/07/17 at 20:03:20 with the MemoryMap.py memory map generator
+-- MemoryMap.vhd: memory map VHDL package
+-- Defines the MCU memory map: which RAM and peripheral slots are active, which slot each peripheral occupies, and which slot each register occupies inside its peripheral
+-- Generated on 2026/08/15 at 18:47:19 with the MemoryMap.py memory map generator
 -- WARNING: Do not edit or modify this file!
 -- 	If you need to change it, use the MemoryMap.py memory map generator tool
 
@@ -88,12 +87,11 @@ package MemoryMap is
 	constant RegSlotPxSEL			: natural := 09;	-- offset = 36 bytes
 	constant RegSlotPxREN			: natural := 10;	-- offset = 40 bytes
 	constant RegSlotPxAFS			: natural := 11;	-- offset = 44 bytes
+	constant RegSlotPxTASK			: natural := 12;	-- offset = 48 bytes
 
-	-- Number of alternate-function planes per GPIO pin (AF0..AF7). PxSEL picks
-	-- GPIO vs alternate mode; the pin's PxAFS field (one nibble per pin, low
-	-- 3 bits used) picks WHICH alternate function drives the pad. AF0 is the
-	-- legacy single alternate function, so PxAFS=0 reproduces the historic
-	-- behavior and PxSEL-only software is unaffected.
+	-- Number of alternate-function planes per GPIO pin (AF0..AF7).
+	-- PxSEL picks GPIO vs alternate mode; the pin's PxAFS field (one nibble per pin, low 3 bits used) picks WHICH alternate function drives the pad.
+	-- AF0 is the legacy single alternate function, so PxAFS=0 reproduces the historic behavior and PxSEL-only software is unaffected.
 	constant GPIO_NUM_AFS			: natural := 8;
 
 	-- SPIx
@@ -138,10 +136,15 @@ package MemoryMap is
 	constant RegSlotNPUIVSAR		: natural := 01;	-- offset = 4 bytes
 	constant RegSlotNPUWVSAR		: natural := 02;	-- offset = 8 bytes
 	constant RegSlotNPUOVSAR		: natural := 03;	-- offset = 12 bytes
+	constant RegSlotNPUSR			: natural := 04;	-- offset = 16 bytes
+	constant RegSlotNPUCFG1			: natural := 05;	-- offset = 20 bytes
+	constant RegSlotNPUCFG2			: natural := 06;	-- offset = 24 bytes
 
 	-- PWRCTRL
 	constant RegSlotPWRCR			: natural := 00;	-- offset = 0 bytes
 	constant RegSlotPWRSR			: natural := 01;	-- offset = 4 bytes
+	constant RegSlotPWRWAKE			: natural := 05;	-- offset = 20 bytes
+	constant RegSlotPWRSTS			: natural := 06;	-- offset = 24 bytes
 
 	-- I2Cx
 	constant RegSlotI2CxCR			: natural := 00;	-- offset = 0 bytes
@@ -159,16 +162,19 @@ package MemoryMap is
 	constant RegSlotMSIP1			: natural := 01;	-- offset = 4 bytes
 	constant RegSlotMSIP2			: natural := 02;	-- offset = 8 bytes
 	constant RegSlotMSIP3			: natural := 03;	-- offset = 12 bytes
-	constant RegSlotMTIMEL			: natural := 04;	-- offset = 16 bytes
-	constant RegSlotMTIMEH			: natural := 05;	-- offset = 20 bytes
-	constant RegSlotMTIMECMP0L		: natural := 08;	-- offset = 32 bytes
-	constant RegSlotMTIMECMP0H		: natural := 09;	-- offset = 36 bytes
-	constant RegSlotMTIMECMP1L		: natural := 10;	-- offset = 40 bytes
-	constant RegSlotMTIMECMP1H		: natural := 11;	-- offset = 44 bytes
-	constant RegSlotMTIMECMP2L		: natural := 12;	-- offset = 48 bytes
-	constant RegSlotMTIMECMP2H		: natural := 13;	-- offset = 52 bytes
-	constant RegSlotMTIMECMP3L		: natural := 14;	-- offset = 56 bytes
-	constant RegSlotMTIMECMP3H		: natural := 15;	-- offset = 60 bytes
+	constant RegSlotMSIP4			: natural := 04;	-- offset = 16 bytes
+	constant RegSlotMTIMEL			: natural := 08;	-- offset = 32 bytes
+	constant RegSlotMTIMEH			: natural := 09;	-- offset = 36 bytes
+	constant RegSlotMTIMECMP0L		: natural := 12;	-- offset = 48 bytes
+	constant RegSlotMTIMECMP0H		: natural := 13;	-- offset = 52 bytes
+	constant RegSlotMTIMECMP1L		: natural := 14;	-- offset = 56 bytes
+	constant RegSlotMTIMECMP1H		: natural := 15;	-- offset = 60 bytes
+	constant RegSlotMTIMECMP2L		: natural := 16;	-- offset = 64 bytes
+	constant RegSlotMTIMECMP2H		: natural := 17;	-- offset = 68 bytes
+	constant RegSlotMTIMECMP3L		: natural := 18;	-- offset = 72 bytes
+	constant RegSlotMTIMECMP3H		: natural := 19;	-- offset = 76 bytes
+	constant RegSlotMTIMECMP4L		: natural := 20;	-- offset = 80 bytes
+	constant RegSlotMTIMECMP4H		: natural := 21;	-- offset = 84 bytes
 
 	-- MUTEX
 	constant RegSlotMUTEX0			: natural := 00;	-- offset = 0 bytes
@@ -192,22 +198,32 @@ package MemoryMap is
 	constant RegSlotH0ENL			: natural := 00;	-- offset = 0 bytes
 	constant RegSlotH0ENM			: natural := 01;	-- offset = 4 bytes
 	constant RegSlotH0ENU			: natural := 02;	-- offset = 8 bytes
+	constant RegSlotH0ENX			: natural := 03;	-- offset = 12 bytes
 	constant RegSlotH1ENL			: natural := 04;	-- offset = 16 bytes
 	constant RegSlotH1ENM			: natural := 05;	-- offset = 20 bytes
 	constant RegSlotH1ENU			: natural := 06;	-- offset = 24 bytes
+	constant RegSlotH1ENX			: natural := 07;	-- offset = 28 bytes
 	constant RegSlotH2ENL			: natural := 08;	-- offset = 32 bytes
 	constant RegSlotH2ENM			: natural := 09;	-- offset = 36 bytes
 	constant RegSlotH2ENU			: natural := 10;	-- offset = 40 bytes
+	constant RegSlotH2ENX			: natural := 11;	-- offset = 44 bytes
 	constant RegSlotH3ENL			: natural := 12;	-- offset = 48 bytes
 	constant RegSlotH3ENM			: natural := 13;	-- offset = 52 bytes
 	constant RegSlotH3ENU			: natural := 14;	-- offset = 56 bytes
+	constant RegSlotH3ENX			: natural := 15;	-- offset = 60 bytes
+	constant RegSlotH4ENL			: natural := 16;	-- offset = 64 bytes
+	constant RegSlotH4ENM			: natural := 17;	-- offset = 68 bytes
+	constant RegSlotH4ENU			: natural := 18;	-- offset = 72 bytes
+	constant RegSlotH4ENX			: natural := 19;	-- offset = 76 bytes
 	constant RegSlotCLAIM			: natural := 512;	-- offset = 2048 bytes
 	constant RegSlotPENDL			: natural := 516;	-- offset = 2064 bytes
 	constant RegSlotPENDM			: natural := 517;	-- offset = 2068 bytes
 	constant RegSlotPENDU			: natural := 518;	-- offset = 2072 bytes
+	constant RegSlotPENDX			: natural := 519;	-- offset = 2076 bytes
 	constant RegSlotINSVCL			: natural := 520;	-- offset = 2080 bytes
 	constant RegSlotINSVCM			: natural := 521;	-- offset = 2084 bytes
 	constant RegSlotINSVCU			: natural := 522;	-- offset = 2088 bytes
+	constant RegSlotINSVCX			: natural := 523;	-- offset = 2092 bytes
 
 
 
@@ -251,6 +267,10 @@ package MemoryMap is
 	constant PinNumGPIO3DTP2		: natural := 06;	-- P3.6
 	constant PinNumGPIO3DTP3		: natural := 07;	-- P3.7
 
+	-- GPIO4
+
+	-- GPIO5
+
 
 
 	---------- GPIO Register Reset Values ----------
@@ -282,6 +302,20 @@ package MemoryMap is
 	constant RstValP4SEL	: std_logic_vector(31 downto 0) := X"00000000";
 	constant RstValP4REN	: std_logic_vector(31 downto 0) := X"00000000";
 	constant RstValP4AFS	: std_logic_vector(31 downto 0) := X"00000000";	-- all pins select AF0 (legacy alternate function) at reset
+
+	-- GPIO4
+	constant RstValP5OUT	: std_logic_vector(31 downto 0) := X"00000000";	-- all pads output low
+	constant RstValP5DIR	: std_logic_vector(31 downto 0) := X"00000000";	-- all pins input at reset
+	constant RstValP5SEL	: std_logic_vector(31 downto 0) := X"00000000";	-- all pins in GPIO mode at reset
+	constant RstValP5REN	: std_logic_vector(31 downto 0) := X"00000000";	-- P5.6/7 (I3C SDA/SCL) pull-ups enabled when I3C present, else none
+	constant RstValP5AFS	: std_logic_vector(31 downto 0) := X"00000000";	-- all pins select AF0 (plain GPIO) at reset
+
+	-- GPIO5
+	constant RstValP6OUT	: std_logic_vector(31 downto 0) := X"00000000";	-- all pads output low
+	constant RstValP6DIR	: std_logic_vector(31 downto 0) := X"00000000";	-- all pins input at reset
+	constant RstValP6SEL	: std_logic_vector(31 downto 0) := X"00000000";	-- all pins in GPIO mode at reset
+	constant RstValP6REN	: std_logic_vector(31 downto 0) := X"000000C0";	-- P6.6 (harvested-boot strap) + P6.7 (PGOOD) pulls enabled when fieldPower present (pull DIRECTION is a pad-cell property: chip-top rings must use PDDW16SDGZ_G pull-DOWN cells on these two pads; PxOUT does NOT set pull direction)
+	constant RstValP6AFS	: std_logic_vector(31 downto 0) := X"00000000";	-- P6.0 (NFC rf_clk) resets to AF1 for clock routing when NFC present, else all AF0
 
 
 
@@ -392,6 +426,10 @@ package MemoryMap is
 	constant PxAFS1_LSB				: natural := 04;
 	constant PxAFS0_MSB				: natural := 02;
 	constant PxAFS0_LSB				: natural := 00;
+
+	-- PxTASK
+	constant PxTASK_MSB				: natural := 31;
+	constant PxTASK_LSB				: natural := 00;
 
 
 	------ SPIx
@@ -536,6 +574,10 @@ package MemoryMap is
 	constant SYSMCLKDIV_LSB			: natural := 00;
 
 	-- BLOCKPWR
+	constant SYSSHB3OFF_LSB			: natural := 06;
+	constant SYSSHB2OFF_LSB			: natural := 05;
+	constant SYSSHB1OFF_LSB			: natural := 04;
+	constant SYSSHB0OFF_LSB			: natural := 03;
 	constant SYSRAM1OFF_LSB			: natural := 02;
 	constant SYSRAM0OFF_LSB			: natural := 01;
 	constant SYSROMOFF_LSB			: natural := 00;
@@ -578,6 +620,11 @@ package MemoryMap is
 
 	------ NPU
 	-- NPUCR
+	constant NPUACTF_MSB			: natural := 25;
+	constant NPUACTF_LSB			: natural := 23;
+	constant NPUMODE_MSB			: natural := 22;
+	constant NPUMODE_LSB			: natural := 20;
+	constant NPUTDIE_LSB			: natural := 19;
 	constant NPUBEN_LSB				: natural := 18;
 	constant NPUAEN_LSB				: natural := 17;
 	constant NPUTHINK_LSB			: natural := 16;
@@ -598,14 +645,27 @@ package MemoryMap is
 	constant NPUOVSAR_MSB			: natural := 11;
 	constant NPUOVSAR_LSB			: natural := 00;
 
+	-- NPUSR
+	constant NPUTHINKDONE_LSB		: natural := 00;
+
+	-- NPUCFG1
+	constant NPUCFG1_MSB			: natural := 31;
+	constant NPUCFG1_LSB			: natural := 00;
+
+	-- NPUCFG2
+	constant NPUCFG2_MSB			: natural := 15;
+	constant NPUCFG2_LSB			: natural := 00;
+
 
 	------ PWRCTRL
 	-- PWRCR
-	constant PWRGATE_MSB			: natural := 03;
+	constant PWRGATE_MSB			: natural := 04;
 	constant PWRGATE_LSB			: natural := 01;
 	constant PWRH0_LSB				: natural := 00;
 
 	-- PWRSR
+	constant PWRST4_MSB				: natural := 19;
+	constant PWRST4_LSB				: natural := 16;
 	constant PWRST3_MSB				: natural := 15;
 	constant PWRST3_LSB				: natural := 12;
 	constant PWRST2_MSB				: natural := 11;
@@ -614,6 +674,21 @@ package MemoryMap is
 	constant PWRST1_LSB				: natural := 04;
 	constant PWRST0_MSB				: natural := 03;
 	constant PWRST0_LSB				: natural := 00;
+
+	-- PWRWAKE
+	constant PWREHOLD_LSB			: natural := 04;
+	constant PWSWRLS_LSB			: natural := 03;
+	constant PWRLSFIELD_LSB			: natural := 02;
+	constant PWRLSPGOOD_LSB			: natural := 01;
+	constant PWGATEEN_LSB			: natural := 00;
+
+	-- PWRSTS
+	constant PWRRLSLATCH_LSB		: natural := 05;
+	constant PWBOOTHOLD_LSB			: natural := 04;
+	constant PWSTRAPVLD_LSB			: natural := 03;
+	constant PWSTRAP_LSB			: natural := 02;
+	constant PWFIELDLIV_LSB			: natural := 01;
+	constant PWPGOODLIV_LSB			: natural := 00;
 
 
 	------ I2Cx
@@ -701,6 +776,9 @@ package MemoryMap is
 	-- MSIP3
 	constant CLINTMSIPH3_LSB		: natural := 00;
 
+	-- MSIP4
+	constant CLINTMSIPH4_LSB		: natural := 00;
+
 	-- MTIMEL
 	constant CLINTMTIMEL_MSB		: natural := 31;
 	constant CLINTMTIMEL_LSB		: natural := 00;
@@ -740,6 +818,14 @@ package MemoryMap is
 	-- MTIMECMP3H
 	constant CLINTMTIMECMP3H_MSB	: natural := 31;
 	constant CLINTMTIMECMP3H_LSB	: natural := 00;
+
+	-- MTIMECMP4L
+	constant CLINTMTIMECMP4L_MSB	: natural := 31;
+	constant CLINTMTIMECMP4L_LSB	: natural := 00;
+
+	-- MTIMECMP4H
+	constant CLINTMTIMECMP4H_MSB	: natural := 31;
+	constant CLINTMTIMECMP4H_LSB	: natural := 00;
 
 
 	------ MUTEX
@@ -818,8 +904,12 @@ package MemoryMap is
 	constant IRQRH0ENM_LSB			: natural := 00;
 
 	-- H0ENU
-	constant IRQRH0ENU_MSB			: natural := 20;
+	constant IRQRH0ENU_MSB			: natural := 31;
 	constant IRQRH0ENU_LSB			: natural := 00;
+
+	-- H0ENX
+	constant IRQRH0ENX_MSB			: natural := 24;
+	constant IRQRH0ENX_LSB			: natural := 00;
 
 	-- H1ENL
 	constant IRQRH1ENL_MSB			: natural := 31;
@@ -830,8 +920,12 @@ package MemoryMap is
 	constant IRQRH1ENM_LSB			: natural := 00;
 
 	-- H1ENU
-	constant IRQRH1ENU_MSB			: natural := 20;
+	constant IRQRH1ENU_MSB			: natural := 31;
 	constant IRQRH1ENU_LSB			: natural := 00;
+
+	-- H1ENX
+	constant IRQRH1ENX_MSB			: natural := 24;
+	constant IRQRH1ENX_LSB			: natural := 00;
 
 	-- H2ENL
 	constant IRQRH2ENL_MSB			: natural := 31;
@@ -842,8 +936,12 @@ package MemoryMap is
 	constant IRQRH2ENM_LSB			: natural := 00;
 
 	-- H2ENU
-	constant IRQRH2ENU_MSB			: natural := 20;
+	constant IRQRH2ENU_MSB			: natural := 31;
 	constant IRQRH2ENU_LSB			: natural := 00;
+
+	-- H2ENX
+	constant IRQRH2ENX_MSB			: natural := 24;
+	constant IRQRH2ENX_LSB			: natural := 00;
 
 	-- H3ENL
 	constant IRQRH3ENL_MSB			: natural := 31;
@@ -854,8 +952,28 @@ package MemoryMap is
 	constant IRQRH3ENM_LSB			: natural := 00;
 
 	-- H3ENU
-	constant IRQRH3ENU_MSB			: natural := 20;
+	constant IRQRH3ENU_MSB			: natural := 31;
 	constant IRQRH3ENU_LSB			: natural := 00;
+
+	-- H3ENX
+	constant IRQRH3ENX_MSB			: natural := 24;
+	constant IRQRH3ENX_LSB			: natural := 00;
+
+	-- H4ENL
+	constant IRQRH4ENL_MSB			: natural := 31;
+	constant IRQRH4ENL_LSB			: natural := 00;
+
+	-- H4ENM
+	constant IRQRH4ENM_MSB			: natural := 31;
+	constant IRQRH4ENM_LSB			: natural := 00;
+
+	-- H4ENU
+	constant IRQRH4ENU_MSB			: natural := 31;
+	constant IRQRH4ENU_LSB			: natural := 00;
+
+	-- H4ENX
+	constant IRQRH4ENX_MSB			: natural := 24;
+	constant IRQRH4ENX_LSB			: natural := 00;
 
 	-- CLAIM
 	constant IRQRCLAIM_MSB			: natural := 31;
@@ -870,8 +988,12 @@ package MemoryMap is
 	constant IRQRPENDM_LSB			: natural := 00;
 
 	-- PENDU
-	constant IRQRPENDU_MSB			: natural := 20;
+	constant IRQRPENDU_MSB			: natural := 31;
 	constant IRQRPENDU_LSB			: natural := 00;
+
+	-- PENDX
+	constant IRQRPENDX_MSB			: natural := 24;
+	constant IRQRPENDX_LSB			: natural := 00;
 
 	-- INSVCL
 	constant IRQRINSVCL_MSB			: natural := 31;
@@ -882,15 +1004,17 @@ package MemoryMap is
 	constant IRQRINSVCM_LSB			: natural := 00;
 
 	-- INSVCU
-	constant IRQRINSVCU_MSB			: natural := 20;
+	constant IRQRINSVCU_MSB			: natural := 31;
 	constant IRQRINSVCU_LSB			: natural := 00;
+
+	-- INSVCX
+	constant IRQRINSVCX_MSB			: natural := 24;
+	constant IRQRINSVCX_LSB			: natural := 00;
 
 
 
 	---------- MCU_MP Compatibility ----------
-	-- Constants the hand-written hdl/common/MemoryMap.vhd defines beyond the sections
-	-- above. Emitted so this generated package is a drop-in replacement for that file;
-	-- transcribed values cite it as their source.
+	-- Constants hdl/common/MemoryMap.vhd defines beyond the sections above, emitted so this package is a drop-in replacement for it.
 
 	-- Memory Block Memory Slot Assignments
 	constant MemSlotROM				: natural := 00;						-- base address = 0x00000
@@ -898,8 +1022,7 @@ package MemoryMap is
 	constant MemSlotRAM1			: natural := 02;						-- base address = 0x0C000
 	constant MemSlotPeriph			: natural := 04;						-- base address = 0x04000
 
-	-- Peripheral legacy slot numbers (RTL spelling; slots of moved peripherals are
-	-- still used to zero their dead 0x4000-page windows)
+	-- Peripheral legacy slot numbers (RTL spelling; slots of moved peripherals are still used to zero their dead 0x4000-page windows)
 	constant PeriphSlotGPIO0		: natural := 00;						-- base address = 0x4000 (legacy; peripheral now at 0x4000)
 	constant PeriphSlotGPIO1		: natural := 01;						-- base address = 0x4100 (legacy; peripheral now at 0x4100)
 	constant PeriphSlotSPI0			: natural := 02;						-- base address = 0x4200 (legacy; peripheral now at 0x4200)
@@ -959,6 +1082,9 @@ package MemoryMap is
 	constant MmrAddrNPUIVSAR		: natural := 01;						-- offset = 4 bytes
 	constant MmrAddrNPUWVSAR		: natural := 02;						-- offset = 8 bytes
 	constant MmrAddrNPUOVSAR		: natural := 03;						-- offset = 12 bytes
+	constant MmrAddrNPUSR			: natural := 04;						-- offset = 16 bytes
+	constant MmrAddrNPUCFG1			: natural := 05;						-- offset = 20 bytes
+	constant MmrAddrNPUCFG2			: natural := 06;						-- offset = 24 bytes
 
 	-- Interrupt Bit Assignments (per-vector; names from hdl/common/MemoryMap.vhd)
 	constant IVT_BASE_ADDR			: integer := 16#8000#;					-- IVT base address = 0x8000
@@ -1047,33 +1173,74 @@ package MemoryMap is
 	constant IRQB_I2C1_sxc			: natural := 82;						-- I2C1 slave mode transfer complete Interrupt, IVT address = 0x8148
 	constant IRQB_CLINT_MSIP		: natural := 83;						-- CLINT software interrupt (IPI), IVT address = 0x814C
 	constant IRQB_CLINT_MTIP		: natural := 84;						-- CLINT timer interrupt, IVT address = 0x8150
+	constant IRQB_RSVD85			: natural := 85;						-- Reserved (vector 85; coincides with the meip external-interrupt IVT slot, never a pending source), IVT address = 0x8154
+	constant IRQB_RSVD86			: natural := 86;						-- Reserved (vector 86; I3C0 disabled by this configuration), IVT address = 0x8158
+	constant IRQB_RSVD87			: natural := 87;						-- Reserved (vector 87; I3C0 disabled by this configuration), IVT address = 0x815C
+	constant IRQB_RSVD88			: natural := 88;						-- Reserved (vector 88; I3C0 disabled by this configuration), IVT address = 0x8160
+	constant IRQB_RSVD89			: natural := 89;						-- Reserved (vector 89; I3C0 disabled by this configuration), IVT address = 0x8164
+	constant IRQB_RSVD90			: natural := 90;						-- Reserved (vector 90; I3C0 disabled by this configuration), IVT address = 0x8168
+	constant IRQB_RSVD91			: natural := 91;						-- Reserved (vector 91; I3C0 disabled by this configuration), IVT address = 0x816C
+	constant IRQB_RSVD92			: natural := 92;						-- Reserved (vector 92; I3C0 disabled by this configuration), IVT address = 0x8170
+	constant IRQB_RSVD93			: natural := 93;						-- Reserved (vector 93; I3C0 disabled by this configuration), IVT address = 0x8174
+	constant IRQB_RSVD94			: natural := 94;						-- Reserved (vector 94; NFC0 disabled by this configuration), IVT address = 0x8178
+	constant IRQB_RSVD95			: natural := 95;						-- Reserved (vector 95; NFC0 disabled by this configuration), IVT address = 0x817C
+	constant IRQB_RSVD96			: natural := 96;						-- Reserved (vector 96; NFC0 disabled by this configuration), IVT address = 0x8180
+	constant IRQB_RSVD97			: natural := 97;						-- Reserved (vector 97; NFC0 disabled by this configuration), IVT address = 0x8184
+	constant IRQB_GPIO4_B0			: natural := 98;						-- GPIO4 Bit 0 Interrupt, IVT address = 0x8188
+	constant IRQB_GPIO4_B1			: natural := 99;						-- GPIO4 Bit 1 Interrupt, IVT address = 0x818C
+	constant IRQB_GPIO4_B2			: natural := 100;						-- GPIO4 Bit 2 Interrupt, IVT address = 0x8190
+	constant IRQB_GPIO4_B3			: natural := 101;						-- GPIO4 Bit 3 Interrupt, IVT address = 0x8194
+	constant IRQB_GPIO4_B4			: natural := 102;						-- GPIO4 Bit 4 Interrupt, IVT address = 0x8198
+	constant IRQB_GPIO4_B5			: natural := 103;						-- GPIO4 Bit 5 Interrupt, IVT address = 0x819C
+	constant IRQB_GPIO4_B6			: natural := 104;						-- GPIO4 Bit 6 Interrupt, IVT address = 0x81A0
+	constant IRQB_GPIO4_B7			: natural := 105;						-- GPIO4 Bit 7 Interrupt, IVT address = 0x81A4
+	constant IRQB_GPIO5_B0			: natural := 106;						-- GPIO5 Bit 0 Interrupt, IVT address = 0x81A8
+	constant IRQB_GPIO5_B1			: natural := 107;						-- GPIO5 Bit 1 Interrupt, IVT address = 0x81AC
+	constant IRQB_GPIO5_B2			: natural := 108;						-- GPIO5 Bit 2 Interrupt, IVT address = 0x81B0
+	constant IRQB_GPIO5_B3			: natural := 109;						-- GPIO5 Bit 3 Interrupt, IVT address = 0x81B4
+	constant IRQB_GPIO5_B4			: natural := 110;						-- GPIO5 Bit 4 Interrupt, IVT address = 0x81B8
+	constant IRQB_GPIO5_B5			: natural := 111;						-- GPIO5 Bit 5 Interrupt, IVT address = 0x81BC
+	constant IRQB_GPIO5_B6			: natural := 112;						-- GPIO5 Bit 6 Interrupt, IVT address = 0x81C0
+	constant IRQB_GPIO5_B7			: natural := 113;						-- GPIO5 Bit 7 Interrupt, IVT address = 0x81C4
+	constant IRQB_RSVD114			: natural := 114;						-- Reserved (vector 114; RTC0 source, disabled by this configuration), IVT address = 0x81C8
+	constant IRQB_RSVD115			: natural := 115;						-- Reserved (vector 115; PWM0_FAULT source, disabled by this configuration), IVT address = 0x81CC
+	constant IRQB_RSVD116			: natural := 116;						-- Reserved (vector 116; PWM0_EVT source, disabled by this configuration), IVT address = 0x81D0
+	constant IRQB_RSVD117			: natural := 117;						-- Reserved (vector 117; OW0 source, disabled by this configuration), IVT address = 0x81D4
+	constant IRQB_RSVD118			: natural := 118;						-- Reserved (vector 118; DMA0_DONE source, disabled by this configuration), IVT address = 0x81D8
+	constant IRQB_RSVD119			: natural := 119;						-- Reserved (vector 119; DMA0_ERR source, disabled by this configuration), IVT address = 0x81DC
+	constant IRQB_NPU0_TD			: natural := 120;						-- NPU0 think-done Interrupt, IVT address = 0x81E0
 	constant IRQB_EXT_MEIP			: natural := 85;						-- External (peripheral) interrupt via IRQROUTER claim/complete, IVT address = 0x8154
-	constant NUM_IRQ_SRCS			: natural := 85;						-- Peripheral IRQ SOURCES (deglitch/irq_router width; CLINT slots delivered per-hart)
-	constant NUM_IRQS				: natural := 86;						-- Core IVT slot count = sources + the meip slot (M19)
+	constant NUM_IRQ_SRCS			: natural := 121;						-- Peripheral IRQ SOURCES (deglitch/irq_router width; CLINT slots delivered per-hart)
+	constant NUM_IRQS				: natural := 121;						-- Core IVT slot count = max(sources, meip slot + 1)
 	constant NUM_GF_INSTANCES		: natural := (NUM_IRQ_SRCS + 31) / 32;	-- glitch-filter instance count
 
-	-- Core ISA Features (drive the hart_tile/vesta ENABLE_* generics; all four tiles identical)
+	-- Core ISA Features (drive the hart_tile/vesta ENABLE_* generics; every tile identical)
 	constant CORE_ENABLE_MUL		: boolean := true;						-- M: MUL/MULH/MULHU/MULHSU
 	constant CORE_ENABLE_DIV		: boolean := true;						-- M: DIV/DIVU/REM/REMU + the iterative divider
 	constant CORE_ENABLE_ATOMICS	: boolean := true;						-- A: LR/SC + AMOs (disabling breaks the mutex/lock infrastructure)
 	constant CORE_ENABLE_COMPRESSED	: boolean := true;						-- C: 16-bit instructions
 	constant CORE_ENABLE_BITMANIP	: boolean := true;						-- Zba/Zbb/Zbs/Zbc
-	constant CORE_ENABLE_ZICOND		: boolean := false;						-- X1: Zicond czero.eqz/nez
-	constant CORE_ENABLE_ZCB		: boolean := false;						-- X1: Zcb extra compressed insns
-	constant CORE_ENABLE_ZIMOP		: boolean := false;						-- X1: Zimop+Zcmop may-be-ops
-	constant CORE_ENABLE_ZIHINT		: boolean := false;						-- X1: Zihintpause+Zihintntl
-	constant CORE_ENABLE_ZIHPM		: boolean := false;						-- X1: Zihpm hw perf counters
-	constant CORE_ENABLE_ZAWRS		: boolean := false;						-- X1: Zawrs wait-on-reservation
-	constant CORE_ENABLE_ZABHA		: boolean := false;						-- X2: Zabha byte/half AMOs
-	constant CORE_ENABLE_ZACAS		: boolean := false;						-- X2: Zacas amocas.w
-	constant CORE_ENABLE_ZICBOZ		: boolean := false;						-- X3: Zicboz cbo.zero block-zero
-	constant CORE_ENABLE_ZCMP		: boolean := false;						-- X3: Zcmp push/pop + reg-moves
-	constant CORE_ENABLE_ZCMT		: boolean := false;						-- X3: Zcmt table jump + jvt CSR
-	constant CORE_ENABLE_ZBKB		: boolean := false;						-- X3: Zbkb crypto bit-manip
-	constant CORE_ENABLE_ZBKC		: boolean := false;						-- X3: Zbkc carryless multiply
-	constant CORE_ENABLE_ZBKX		: boolean := false;						-- X3: Zbkx crossbar permute
-	constant CORE_ENABLE_ZKN		: boolean := false;						-- X3: Zkn AES+SHA (Zknd+Zkne+Zknh)
-	constant CORE_ENABLE_ZFINX		: boolean := false;						-- X4: Zfinx single-prec FP in x-regs
+	constant CORE_ENABLE_ZICOND		: boolean := false;						-- Zicond czero.eqz/nez
+	constant CORE_ENABLE_ZCB		: boolean := false;						-- Zcb extra compressed insns
+	constant CORE_ENABLE_ZIMOP		: boolean := false;						-- Zimop+Zcmop may-be-ops
+	constant CORE_ENABLE_ZIHINT		: boolean := false;						-- Zihintpause+Zihintntl
+	constant CORE_ENABLE_ZIHPM		: boolean := false;						-- Zihpm hw perf counters
+	constant CORE_ENABLE_ZAWRS		: boolean := false;						-- Zawrs wait-on-reservation
+	constant CORE_ENABLE_ZABHA		: boolean := false;						-- Zabha byte/half AMOs
+	constant CORE_ENABLE_ZACAS		: boolean := false;						-- Zacas amocas.w
+	constant CORE_ENABLE_ZICBOZ		: boolean := false;						-- Zicboz cbo.zero block-zero
+	constant CORE_ENABLE_ZCMP		: boolean := false;						-- Zcmp push/pop + reg-moves
+	constant CORE_ENABLE_ZCMT		: boolean := false;						-- Zcmt table jump + jvt CSR
+	constant CORE_ENABLE_ZBKB		: boolean := false;						-- Zbkb crypto bit-manip
+	constant CORE_ENABLE_ZBKC		: boolean := false;						-- Zbkc carryless multiply
+	constant CORE_ENABLE_ZBKX		: boolean := false;						-- Zbkx crossbar permute
+	constant CORE_ENABLE_ZKN		: boolean := false;						-- Zkn AES+SHA (Zknd+Zkne+Zknh)
+	constant CORE_ENABLE_ZFINX		: boolean := false;						-- Zfinx single-prec FP in x-regs
+	constant CORE_ENABLE_TRAPCSR	: boolean := true;						-- Standard M-mode trap CSRs + MRET
+	constant CORE_ENABLE_UMODE		: boolean := false;						-- U-mode (needs TRAPCSR)
+	constant CORE_ENABLE_PMP		: boolean := false;						-- PMP / Smpmp (needs UMODE)
+	constant CORE_PMP_ENTRIES		: natural := 16;						-- PMP entry count {8,16} (only with PMP)
+	constant CORE_ENABLE_DEBUG		: boolean := false;						-- Debug mode (dcsr/dpc/dscratch, dret, halt)
 
 	-- GPIO0 Pin Assignments (Serial Flash)
 	constant pnum_gpio0_cs_flash	: natural := 00;						-- P1.0
@@ -1144,6 +1311,10 @@ package MemoryMap is
 	constant pnum_gpio3_af1_t0_cmp1	: natural := 05;						-- P4.5
 	constant pnum_gpio3_af1_t1_cmp0	: natural := 06;						-- P4.6
 	constant pnum_gpio3_af1_t1_cmp1	: natural := 07;						-- P4.7
+
+	-- GPIO4 (P5) AF1: P5.0-5 reserved (QSPI0 absent) + P5.6/7 reserved (I3C0 absent)
+
+	-- GPIO5 (P6) AF1: P6.0-5 reserved (NFC0 absent)
 
 
 

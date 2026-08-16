@@ -4,18 +4,13 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 library work;
--- Synthesizable fixed-point libraries created by David Bishop for VHDL 2008.
--- User guide: https://freemodelfoundry.com/fphdl/Fixed_ug.pdf
--- Repository: https://github.com/FPHDL/fphdl/blob/master/fixed_pkg_c.vhdl and https://github.com/ghdl/ghdl/blob/master/libraries/ieee2008/fixed_generic_pkg-body.vhdl
--- The library files used here were pulled from /opt/cadence/XCELIUM2009/tools/xcelium/files/IEEE_PROPOSED.src
+-- Synthesizable fixed-point libraries by David Bishop for VHDL 2008; user guide https://freemodelfoundry.com/fphdl/Fixed_ug.pdf, source https://github.com/FPHDL/fphdl.
+-- The copies compiled here are Xcelium's, under /opt/cadence/XCELIUM2009/tools/xcelium/files/IEEE_PROPOSED.src.
 use work.fixed_float_types.all;
 use work.fixed_pkg.all;
 
--- Combinational fixed-point sigmoid approximator, based on:
-	-- B. Cyganek and K. Socha, "Computationally efficient methods
-	-- of approximations of the s-shape functions for image processing
-	-- and computer graphics tasks," IPC, vol. 16, no. 1-2, p. 19-28,
-	-- Jan. 2011. [Online]. Available: http://dx.doi.org/10.2478/v10248-012-0002-6
+-- Combinational fixed-point sigmoid approximator, after B. Cyganek and K. Socha, "Computationally efficient methods of approximations of the s-shape functions for image processing and computer graphics tasks", IPC vol. 16 no. 1-2, p. 19-28, Jan. 2011.
+	-- http://dx.doi.org/10.2478/v10248-012-0002-6
 entity FPSigmoid is
 	generic(
 		-- Fixed-point M and N bit counts for the input and output.

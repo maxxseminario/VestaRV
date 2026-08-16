@@ -1,188 +1,11 @@
 -------------------------------------------------------------------------------
 -- ntag5_model.vhd
 -------------------------------------------------------------------------------
--- Behavioral simulation model of the NXP NTAG 5 dual-interface NFC tag, seen FROM ITS I2C SLAVE SIDE ONLY.
--- Castalia is the I2C MASTER (I2C0 on pins 37/38, or I2C1 on pins 39/40) and this model is the addressed slave, so a board-level bench can bring up firmware against a plausible, datasheet-grounded NTAG 5 without an RF stack.
---
--- Covers both part variants through the VARIANT generic:
---   "NTP5332"  NTAG 5 link  (passive load modulation)
---   "NTA5332"  NTAG 5 boost (active load modulation, ALM)
---
--- SOURCE DATASHEETS (both read from .devlog/datasheets/):
---   [L] NTP53x2, NTAG 5 link, product data sheet Rev. 3.2, 27 April 2020 (544532)
---   [B] NTA5332, NTAG 5 boost, product data sheet Rev. 3.1, 24 March 2020 (544731)
--- Section and table numbers below are [L] unless marked [B].
--- Where the two datasheets were compared byte-for-byte on a table, both citations are given.
---
--- ===========================================================================
--- VARIANT: WHAT ACTUALLY DIFFERS ON THE I2C SIDE IS NOTHING
--- ===========================================================================
--- The two datasheets were diffed on every I2C-visible item this model implements and they AGREE EXACTLY:
---   * user EEPROM 2048 bytes            [L] 8.1.2 / [B] 8.1.2
---   * SRAM 256 bytes at blocks 2000h-203Fh  [L] 8.1.1, 8.1.5 / [B] 8.1.1, 8.1.5
---   * default I2C slave address 54h     [L] Tab. 60 + Tab. 229 / [B] Tab. 59
---   * EH_CONFIG V/I encodings           [L] Tab. 53 / [B] Tab. 52 (identical)
---   * ED_CONFIG source encodings        [L] Tab. 56 / [B] Tab. 55
---   * session register block map A0h-AFh, and the register access rights
---   * both ordering codes carry AES + I2C master/slave  [L] Tab. 2 / [B] Tab. 2
--- The real differences are RF-side: NTA5332 uses ACTIVE load modulation with its own VCC,TX / GNDTX supply pins ([B] 1, [B] Tab. 4), NTP53x2 uses passive load modulation.
--- This model does not implement the RF protocol at all, so VARIANT changes NO behavior here.
--- It is accepted, validated, and reported on obs_variant_ok so a bench can prove the string was recognized, rather than inventing an I2C-side difference that does not exist.
---
--- ===========================================================================
--- WHAT THIS MODEL DOES IMPLEMENT
--- ===========================================================================
--- 1. I2C SLAVE bus protocol on an open-drain SDA/SCL pair ([L] 8.3.1.1):
---    START / repeated-START / STOP, 7-bit address + R/W bit, per-byte ACK/NACK, MSB-first, sample on the SCL RISING edge ([L] 8.3.1.1.4), drive set up on the SCL FALLING edge.
---    Standard (100 kHz) and fast (400 kHz) mode are supported in the sense that the model is fully edge-driven and carries NO internal timing assumption at all: it responds at whatever rate the master clocks SCL.
---    It never stretches SCL (see NOT IMPLEMENTED).
---
--- 2. THE ADDRESSING SCHEME, the thing firmware trips on ([L] 8.3.1.4, Fig. 10 and Fig. 11).
---    NTAG 5 does NOT use a flat byte address.
---    Every access opens with a 16-BIT BLOCK address, MSB first:
---       START, SL_AD+W, BL_AD1(MSB), BL_AD0(LSB), ...
---    A block is 4 bytes.
---    The block address space seen from I2C is:
---       0000h..01FEh  user EEPROM, 2048 bytes             [L] Tab. 6
---       01FFh         16-bit counter, NOT I2C accessible  [L] 8.1.2
---       1000h..109Fh  configuration memory                [L] 8.1.3, Tab. 11
---       10A0h..10AFh  session registers                   [L] Tab. 85
---       2000h..203Fh  SRAM, 256 bytes                     [L] 8.1.1, 8.1.5
---    and there are TWO DIFFERENT FRAME SHAPES keyed off that block address:
---
---    a) MEMORY access (block NOT in 10A0h..10AFh), READ/WRITE MEMORY:
---         write: START SL_AD+W BL_AD1 BL_AD0 D0 D1 D2 D3 STOP
---                (N=3 for EEPROM, i.e. exactly one 4-byte block;
---                 N = multiple of 4 minus 1, max 255, for SRAM)
---         read:  START SL_AD+W BL_AD1 BL_AD0 STOP,
---                START SL_AD+R D0 D1 ... Dn NACK STOP
---                (reads auto-increment and continue until the host NACKs)
---
---    b) REGISTER access (block IS in 10A0h..10AFh), READ/WRITE REGISTER.
---       A THIRD address byte, REGA (0..3, the byte within the register block), and on a write a MASK byte before the data:
---         write: START SL_AD+W BL_AD1 BL_AD0 REGA MASK REGDAT STOP
---                (only bits set in MASK are written, [L] 8.3.1.4)
---         read:  START SL_AD+W BL_AD1 BL_AD0 REGA STOP,
---                START SL_AD+R REGDAT NACK STOP
---       Session registers can ONLY be reached this way from I2C ([L] 8.1.4).
---    The model decides a/b purely from the captured 16-bit block address, and a bench that gets it wrong sees exactly the confusion real firmware sees.
---
--- 3. MEMORIES, all backed by VHDL byte arrays:
---       user EEPROM 2048 B, configuration 160 blocks (640 B), session
---       registers 16 blocks (64 B), SRAM 256 B.
---    Delivery content of user blocks 00h..05h is loaded per [L] Tab. 7 (the NFC Forum capability container + the www.nxp.com/nfc NDEF message); the rest of user EEPROM is 00h.
---    The datasheet says the rest is random at delivery and that "SRAM values are not initialized during boot and may have arbitrary data" ([L] 8.1.5); this model uses 00h for both so runs are deterministic.
---    FLAGGED as a deliberate deviation.
---
---    DEFINED VALUE FOR EVERYTHING NOT MODELLED (the brief's requirement):
---      * every byte inside the four modelled ranges reads back what was written to it, so "unimplemented config register" still round-trips, and config bytes that this model does not INTERPRET simply have no side effect.
---        RFU-only config blocks read 00h ([L] 8.1.3) because the whole config array initialises to 00h.
---      * a READ of any block OUTSIDE the four ranges (0200h..0FFFh, 10B0h..1FFFh, >=2040h), of the counter block 01FFh, or of SRAM while SRAM_ENABLE=0, returns FFh.
---        That matches the datasheet's own rule for a restricted region ([L] 8.3.1.5, "returned data will be FFh if the access is to restricted region"); extending it to unmapped blocks is an ASSUMPTION.
---      * a WRITE to an unmapped block is NACKed on its first data byte (ASSUMPTION: the datasheet enumerates NACK causes but not this one).
---
--- 4. ENERGY HARVESTING ([L] 8.1.3.18 + Tab. 52/53, [L] 8.5; [B] Tab. 51/52).
---    EH_CONFIG is config block 103Dh byte 0:
---       bit 7      RFU
---       bits 6:4   EH_VOUT_I_SEL  000=0.4mA 001=0.6 010=1.4 011=2.7
---                                 100=4.0   101=6.5 110=9.0 111=12.5
---       bit 3      DISABLE_POWER_CHECK  0 = VOUT only if enough power can be
---                                       harvested (default); 1 = no check
---       bits 2:1   EH_VOUT_V_SEL  00=1.8V  01=2.4V  10=3.0V  11=RFU
---       bit 0      EH_ENABLE      1 = energy harvesting enabled after boot
---    Decoded onto output ports eh_iout_ua / eh_vout_mv / eh_enabled / eh_vout_on so a board bench can drive a supply model.
---    The current codes are datasheet MINIMA ("> 0.4 mA"); eh_iout_ua carries that minimum.
---    The RFU voltage code 11b drives eh_vout_mv = 0 (ASSUMPTION: the part's behavior for an RFU code is undefined) and eh_vout_rfu_v = '1'.
---    eh_vout_on models the actual pin: enabled AND a field is present AND (DISABLE_POWER_CHECK or the bench says the field is strong enough).
---    Session-side EH_CONFIG_REG (block 10A7h byte 0, [L] Tab. 96/97) is modelled read-only from I2C exactly as the datasheet's access column says (NFC R/W, I2C R), so a host write to it is silently dropped.
---    EH_LOAD_OK (bit 7) reads back rf_field AND rf_power_ok while session EH_ENABLE is 0, and clears once EH is enabled ([L] Tab. 97 "As soon as EH_ENABLE is set to 1b, this bit gets cleared automatically").
---    ASSUMPTION: the real part requires an EH_TRIGGER write first, and EH_TRIGGER is writable only from NFC, so this model reports EH_LOAD_OK without a trigger.
---
--- 5. EVENT DETECTION PIN ([L] 8.1.3.19 + Tab. 56, [L] 8.3.2).
---    Open-drain, ACTIVE LOW; the datasheet's "ED pin state ON" means the pin is pulled LOW.
---    Source = ED_CONFIG_REG(3:0) at session block 10A8h byte 0, POR-copied from ED_CONFIG (config block 103Dh byte 2).
---    Implemented sources:
---       0h  disabled                      never asserted (default)
---       1h  NFC field detect              ON while rf_field = '1'
---       3h  I2C-to-NFC pass-through       ON when the reader has read the
---            last SRAM byte (host may use SRAM again); OFF on the I2C host's
---            own last SRAM byte written, or when the field goes away
---       4h  NFC-to-I2C pass-through       ON when the reader wrote the last
---            SRAM byte (host may read); OFF once the I2C host has read it, or
---            when the field goes away
---       Dh  software interrupt            ON when Dh is written into
---            ED_CONFIG/ED_CONFIG_REG; cleared ONLY via ED_INTR_CLEAR_REG
---    Sources 2h (PWM), 5h (arbiter lock), 6h (NDEF TLV length), 7h (standby), 8h/9h/Ah (write/read/any-command indication) and Bh/Ch (SYNCH_BLOCK access) are NOT modelled and leave the pin released: see NOT IMPLEMENTED.
---    ED_INTR_CLEAR_REG (block 10ABh byte 0, [L] Tab. 57/58): writing 01h releases the pin and the bit self-clears.
---
--- 6. SRAM PASS-THROUGH ([L] 8.4.5, [L] 8.1.4.1 Tab. 87, [L] Tab. 91).
---    ARBITER_MODE = CONFIG_1_REG(3:2) at session block 10A1h byte 1 (10b = SRAM pass-through); PT_TRANSFER_DIR = CONFIG_1_REG(0) (0 = I2C to NFC, 1 = NFC to I2C), both I2C-writable per [L] Tab. 91.
---    STATUS0_REG (block 10A0h byte 0, [L] Tab. 87) exposes SRAM_DATA_READY(5) and a mirror of PT_TRANSFER_DIR(2), plus EEPROM_WR_BUSY(7), EEPROM_WR_ERROR(6), VCC_SUPPLY_OK(1), NFC_FIELD_OK(0).
---    The datasheet says the arbiter switches automatically "when accessing the terminator block (last block of SRAM)" and refers the handshake detail to application note AN12364, which is NOT on disk.
---    ASSUMPTION, stated plainly: this model treats block 203Fh as the terminator and defines
---       NFC-to-I2C (dir=1): the reader writes the buffer, which sets
---                           SRAM_DATA_READY = 1; the I2C host reading block
---                           203Fh clears it
---       I2C-to-NFC (dir=0): the I2C host writing block 203Fh sets
---                           SRAM_DATA_READY = 1; the reader reading the buffer
---                           clears it
---    SRAM is only accessible while SRAM_ENABLE (CONFIG_1_REG(1)) is 1 ([L] 8.1.5).
---    With it clear, SRAM reads return FFh and SRAM writes are NACKed on the first data byte ([L] 8.3.1.5, "SRAM: generated on the first byte if the block is not writable").
---
--- 7. WRITE PROTECTION ([L] 8.1.3.31 Tab. 79, [L] 8.3.1.5).
---    I2C_LOCK_BLOCK occupies config blocks 108Ah..1091h, bytes 0 and 1 of each: 16 bytes, 128 bits, each bit locking FOUR user blocks (bit 0 of I2C_LOCK_BL00 locks user blocks 0,1,2,3).
---    The bits are ONE-TIME PROGRAMMABLE, so this model ORs writes into those bytes and never clears them.
---    A WRITE MEMORY to a locked user block is ACKed for data bytes 0..2 and NACKed on THE FOURTH data byte, exactly as [L] 8.3.1.5 specifies for EEPROM.
---
--- 8. ERROR HANDLING ([L] 8.3.1.5), the NACK causes that are modelled:
---    * BL_AD0 is NACKed for a MEMORY access while an EEPROM programming cycle is ongoing, or while the I2C interface is disabled (DISABLE_I2C, I2C_SLAVE_CONFIG_REG(0), [L] Tab. 100, settable only from NFC, so a bench pokes it through the rf_disable_i2c input).
---    * BL_AD0 is NACKed for a REGISTER access only when the I2C interface is disabled; registers are otherwise "always accessible".
---    * EEPROM/config write to a non-writable block: NACK on the 4th data byte.
---    * SRAM write while not writable: NACK on the first data byte.
---    * write to a config block that is RFU-only: NACKed ([L] 8.1.3, "Writing to blocks with only RFU bytes is not possible and results in ... NAK from I2C perspective").
---      The RFU block list encoded here is the one visible in [L] Tab. 11: 100Ah, 100Bh, 100Fh, 1018h-101Fh, 1040h-1044h, 1059h-1069h, 109Ah-109Fh.
---      PARTIAL by construction, and flagged as such.
---    * a REGISTER write of E7h to RESET_GEN_REG (block 10AAh byte 0, [L] Tab. 101): the DATA byte is NACKed and a system reset is performed ([L] 8.3.1.5 "DATA NACK due to register write command to trigger system reset").
---      The model's reset re-does the POR copy of config into the session registers and clears the ED/pass-through latches.
---    Once this model NACKs a byte it stays silent for the rest of the frame (until the next START/Sr).
---    ASSUMPTION: the datasheet does not say, but every I2C master aborts on a NACK anyway.
---
--- 9. RF-SIDE BENCH ABSTRACTION, the rf_* input ports.
---    THIS MODEL DOES NOT IMPLEMENT ISO/IEC 15693, NFC Forum Type 5 Tag, the NFC command set, AES or plain-password authentication, or ANY air-interface behavior.
---    The rf_* ports exist ONLY so a testbench can say "a reader showed up and did X" in one signal edge.
---    They are a BENCH ABSTRACTION, not silicon:
---       rf_field       '1' = an NFC field is present (drives NFC_FIELD_OK,
---                      the ED field-detect source, and EH availability)
---       rf_power_ok    '1' = the field is strong enough for the configured
---                      EH_VOUT_V_SEL/EH_VOUT_I_SEL power level
---       rf_write_sram  rising edge = the reader wrote rf_sram_len bytes into
---                      the SRAM (filled with rf_data, rf_data+1, ... )
---       rf_read_sram   rising edge = the reader read the SRAM buffer out
---       rf_data        seed byte for the rf_write_sram fill
---       rf_sram_len    how many bytes rf_write_sram fills (0..256)
---       rf_disable_i2c '1' = the NFC side has set the DISABLE_I2C session bit
---                      ([L] 8.3.1.1.6), so I2C-side accesses then NACK
---
--- ===========================================================================
--- NOT IMPLEMENTED (deliberately)
--- ===========================================================================
---   * The NFC/RF air interface in every respect (see item 9).
---   * SCL clock stretching.
---     [L] 8.3.1.1 describes an "asynchronous interface" and never specifies a stretch; scl_out/scl_oe exist only to keep the house open-drain port shape and are hardwired released.
---   * I2C MASTER mode ([L] 8.3.1.2), since Castalia is the master on this bus.
---   * GPIO mode, PWM channels, the watchdog timer's timeout behavior (WDT_ENABLE/WDT_CONFIG bytes are stored but never expire), the arbiter's NFC-vs-I2C locking (I2C_IF_LOCKED / NFC_IF_LOCKED are storage/constant, not a real arbiter), SRAM mirror and SRAM PHDC modes, SRAM_COPY on POR, the 16-bit counter, standby / hard power-down.
---   * AES and plain-password authentication, and the I2C protection pointer (I2C_PP/I2C_PPC) READ protection.
---     Only the I2C_LOCK_BLOCK WRITE lock of item 7 is enforced.
---   * Real EEPROM programming time.
---     The datasheet extract specifies write ENDURANCE (1e6 cycles) but no programming time, so EEPROM_PROG_TIME is a GENERIC defaulting to 500 us: an ASSUMPTION, tune it per bench.
---
--- ===========================================================================
--- BUS CONVENTION (house style, matches tb/i3c_target_model.vhd)
--- ===========================================================================
--- sda_out/sda_oe and scl_out/scl_oe: '1' on the *_oe port means THIS MODEL is actively driving that pin, always to '0' because the bus is open drain.
--- The testbench resolves the shared net, giving the released level a weak 'H' pull.
--- This model NEVER drives an active high on either pin; every sample is normalized through to_X01 so a released 'H' reads as '1'.
--- ed_n_oe follows the same convention on the ED pin: '1' means this model pulls ED low, the datasheet's "ED pin state ON".
+-- Behavioral model of the NXP NTAG 5 dual-interface NFC tag, seen from its I2C SLAVE side only, with Castalia as the I2C master; the [L] and [B] citations below are the NTAG 5 link and boost product data sheets.
+-- VARIANT picks NTP5332 (link) or NTA5332 (boost), which differ only on the RF side, so it changes no behavior here; the air interface is NOT modelled at all.
+-- The rf_* inputs are a bench abstraction instead, letting a testbench say "a reader showed up and did X" in one signal edge.
+-- Implemented: I2C slave framing, the 16-bit block addressing scheme, user EEPROM / config / session registers / SRAM, energy-harvest decode, the ED pin, SRAM pass-through, the I2C write lock and the datasheet NACK causes.
+-- Not modelled: SCL stretching, I2C master mode, GPIO/PWM/WDT timeout, NFC-vs-I2C arbiter locking, SRAM mirror/PHDC/COPY, the 16-bit counter, standby, authentication, and real EEPROM programming time (EEPROM_PROG_TIME stands in).
 -------------------------------------------------------------------------------
 
 library ieee;
@@ -199,7 +22,7 @@ entity ntag5_model is
         -- Datasheet default 54h = "1010100" ([L] Tab. 60, Tab. 229).
         I2C_ADDR : std_logic_vector(6 downto 0) := "1010100";
 
-        -- EEPROM programming-cycle length, NOT a datasheet number (see header).
+        -- EEPROM programming-cycle length: an ASSUMPTION, since the datasheet gives write endurance but no programming time, so tune it per bench.
         EEPROM_PROG_TIME : time := 500 us
     );
     port (
@@ -207,7 +30,8 @@ entity ntag5_model is
         scl    : in std_logic;
         sda_in : in std_logic;
 
-        -- this model's drive; '1' on *_oe = this model pulls that pin low
+        -- This model's drive; '1' on *_oe = this model pulls that pin low, never high, because the bus is open drain and the testbench pulls the released level to a weak 'H'.
+        -- Every sample here is normalized through to_X01, so a released 'H' reads as '1'.
         sda_out : out std_logic := '0';
         sda_oe  : out std_logic := '0';
         scl_out : out std_logic := '0';
@@ -220,13 +44,13 @@ entity ntag5_model is
         ---------------------------------------------------------------
         -- RF-side stimulus: A BENCH ABSTRACTION, NOT THE AIR INTERFACE
         ---------------------------------------------------------------
-        rf_field       : in std_logic := '0';
-        rf_power_ok    : in std_logic := '1';
-        rf_write_sram  : in std_logic := '0';
-        rf_read_sram   : in std_logic := '0';
-        rf_data        : in std_logic_vector(7 downto 0) := x"00";
-        rf_sram_len    : in natural range 0 to 256 := 256;
-        rf_disable_i2c : in std_logic := '0';
+        rf_field       : in std_logic := '0';  -- an NFC field is present: drives NFC_FIELD_OK, the ED field-detect source and EH availability
+        rf_power_ok    : in std_logic := '1';  -- the field is strong enough for the configured EH_VOUT_V_SEL/EH_VOUT_I_SEL level
+        rf_write_sram  : in std_logic := '0';  -- rising edge = the reader wrote rf_sram_len bytes into the SRAM
+        rf_read_sram   : in std_logic := '0';  -- rising edge = the reader read the SRAM buffer out
+        rf_data        : in std_logic_vector(7 downto 0) := x"00";  -- seed byte for the rf_write_sram fill (seed, seed+1, ...)
+        rf_sram_len    : in natural range 0 to 256 := 256;          -- how many bytes rf_write_sram fills
+        rf_disable_i2c : in std_logic := '0';  -- the NFC side has set the DISABLE_I2C session bit, so I2C accesses NACK
 
         ---------------------------------------------------------------
         -- decoded energy-harvesting selections (for a supply model)
@@ -240,7 +64,7 @@ entity ntag5_model is
         ---------------------------------------------------------------
         -- observation (for the testbench scoreboard)
         ---------------------------------------------------------------
-        obs_variant_ok      : out std_logic := '0';
+        obs_variant_ok      : out std_logic := '0'; -- the VARIANT string was recognized
         obs_txn_count       : out natural   := 0;   -- completed START..STOP frames
         obs_addr_acked      : out std_logic := '0'; -- last address phase ACKed?
         obs_last_addr       : out std_logic_vector(6 downto 0) := (others => '0');
@@ -257,7 +81,7 @@ end entity ntag5_model;
 
 architecture behavioral of ntag5_model is
 
-    -- ---- geometry -------------------------------------------------------
+    -- ---- geometry: a block is 4 bytes and every access opens with a 16-bit block address, MSB first ----
     constant EEP_BYTES  : natural := 2048;              -- blocks 0000h..01FFh
     constant CFG_BLOCKS : natural := 160;               -- blocks 1000h..109Fh
     constant REG_BLOCKS : natural := 16;                -- blocks 10A0h..10AFh
@@ -343,7 +167,8 @@ architecture behavioral of ntag5_model is
         others => x"00");
 
     ---------------------------------------------------------------------
-    -- Delivery content of the user EEPROM ([L] Tab. 7 / [B] Tab. 6).
+    -- Delivery content of the user EEPROM ([L] Tab. 7 / [B] Tab. 6): the NFC Forum capability container plus the www.nxp.com/nfc NDEF message.
+    -- DEVIATION for determinism: the rest of EEPROM and all of SRAM start at 00h, where the real part delivers random EEPROM and uninitialised SRAM.
     ---------------------------------------------------------------------
     function eep_init return byte_arr_t is
         variable e : byte_arr_t(0 to EEP_BYTES - 1) := (others => x"00");
@@ -449,7 +274,7 @@ architecture behavioral of ntag5_model is
 
 begin
 
-    -- no clock stretching is modelled (see header)
+    -- No clock stretching: scl_out/scl_oe exist only to keep the house open-drain port shape and stay released.
     scl_out <= '0';
     scl_oe  <= '0';
     sda_out <= '0';          -- open drain: the model only ever pulls low
@@ -485,7 +310,7 @@ begin
         variable read_done  : boolean := false;   -- host NACKed: release
         variable frame_dead : boolean := false;   -- we NACKed: stay silent
 
-        -- ---- addressing state (PERSISTS across STOP, see header item 2) ----
+        -- ---- addressing state, which PERSISTS across STOP so a read frame can use the pointer a preceding write frame set ----
         variable ptr_valid : boolean := false;
         variable ptr_blk   : natural := 0;
         variable ptr_byt   : natural := 0;
@@ -529,7 +354,8 @@ begin
         variable nfill       : natural;
 
         ---------------------------------------------------------------
-        -- read one byte of MEMORY space (not registers)
+        -- Read one byte of MEMORY space (not registers).
+        -- A restricted or unmapped block, and SRAM while SRAM_ENABLE is 0, reads FFh ([L] 8.3.1.5); extending that rule to unmapped blocks is an ASSUMPTION.
         ---------------------------------------------------------------
         procedure mem_read(blk : in natural; byt : in natural;
                            val : out std_logic_vector(7 downto 0)) is
@@ -553,7 +379,7 @@ begin
 
     begin
         -------------------------------------------------------------------
-        -- RF-SIDE BENCH STIMULUS (not the air interface, see header item 9)
+        -- RF-SIDE BENCH STIMULUS, not the air interface
         -------------------------------------------------------------------
         if rf_write_sram'event and to_X01(rf_write_sram) = '1' then
             -- "a reader wrote the SRAM buffer"
@@ -588,7 +414,9 @@ begin
         end if;
 
         -------------------------------------------------------------------
-        -- I2C BUS FSM
+        -- I2C BUS FSM.
+        -- Two frame shapes, chosen purely from the captured block address: memory write = SL_AD+W BL_AD1 BL_AD0 then one 4-byte block (SRAM takes multiples of 4); register write (block 10A0h..10AFh) inserts REGA and a MASK byte before the single REGDAT byte.
+        -- A read is addressed by such a write frame without data, then repeated-START SL_AD+R; memory reads auto-increment until the host NACKs, a register read returns the one REGDAT byte.
         -------------------------------------------------------------------
         if sda_in'event and to_X01(scl) = '1' then
             ------------------------------------------------------------
@@ -740,7 +568,8 @@ begin
                                 st1(1) := regs(RGO_STATUS*4 + 1)(1);
                                 rd_v := st1;
                             elsif ptr_blk = BLK_REG_BASE + RGO_EH and reg_rega = 0 then
-                                -- EH_CONFIG_REG ([L] Tab. 97)
+                                -- EH_CONFIG_REG ([L] Tab. 97): EH_LOAD_OK (bit 7) reads rf_field AND rf_power_ok while EH_ENABLE is 0, and clears once EH is enabled.
+                                -- ASSUMPTION: the real part wants an EH_TRIGGER write first, and that is NFC-only, so this model reports EH_LOAD_OK untriggered.
                                 ehb := (others => '0');
                                 ehb(0) := regs(RGO_EH*4 + 0)(0);   -- EH_ENABLE
                                 if ehb(0) = '0' then
@@ -760,6 +589,7 @@ begin
                                 ptr_byt := ptr_byt + 1;
                             end if;
                             -- Pass-through consume: the I2C host reading the terminator block clears SRAM_DATA_READY.
+                            -- ASSUMPTION, since the datasheet defers the handshake to an application note: block 203Fh is the terminator, and whichever side fills the buffer sets the flag while the other side's read of it clears it.
                             if ptr_blk = BLK_SRAM_TERM + 1 and ptr_byt = 0
                                and regs(RGO_CONFIG*4 + 1)(0) = '1' then
                                 sram_rdy := '0';
@@ -893,6 +723,7 @@ begin
                                     stg(d) := shift;
                                     if d = 3 then
                                         -- Writability is decided on the FOURTH data byte ([L] 8.3.1.5).
+                                        -- Each I2C_LOCK_BLOCK bit locks FOUR user blocks, and the bits are one-time programmable.
                                         ack_v := true;
                                         if ptr_blk <= BLK_USER_LAST_RW then
                                             lock_bit  := ptr_blk / 4;
@@ -918,7 +749,7 @@ begin
                                 end if;
 
                             else
-                                -- unmapped block (ASSUMPTION: NACK, header item 3)
+                                -- Unmapped block; the datasheet enumerates NACK causes but not this one, so NACKing it is an ASSUMPTION.
                                 ack_v := false;
                             end if;
                         end if;
@@ -939,12 +770,12 @@ begin
         -------------------------------------------------------------------
         -- DERIVED OUTPUTS, recomputed on EVERY activation
         -------------------------------------------------------------------
-        -- Energy harvesting ([L] Tab. 53).
+        -- Energy harvesting: EH_CONFIG (config block 103Dh byte 0) is bit 0 EH_ENABLE, bits 2:1 EH_VOUT_V_SEL, bit 3 DISABLE_POWER_CHECK, bits 6:4 EH_VOUT_I_SEL ([L] Tab. 53).
         -- The V/I selections live ONLY in the config byte; the session register carries just EH_ENABLE/LOAD_OK.
         ehb  := cfg(CFO_EHED*4 + 0);
         cfg1 := regs(RGO_CONFIG*4 + 1);
 
-        -- EH_VOUT_I_SEL: the datasheet minimum output current, in microamps.
+        -- EH_VOUT_I_SEL: the codes are datasheet MINIMA ("> 0.4 mA"), and eh_iout_ua carries that minimum in microamps.
         case ehb(6 downto 4) is
             when "000"  => eh_iout_ua <= 400;
             when "001"  => eh_iout_ua <= 600;
@@ -957,6 +788,7 @@ begin
         end case;
 
         -- EH_VOUT_V_SEL: the harvested output voltage, in millivolts.
+        -- The RFU code 11b drives 0 mV and eh_vout_rfu_v, an ASSUMPTION: the part's behavior for an RFU code is undefined.
         case ehb(2 downto 1) is
             when "00"   => eh_vout_mv <= 1800; eh_vout_rfu_v <= '0';
             when "01"   => eh_vout_mv <= 2400; eh_vout_rfu_v <= '0';
@@ -973,13 +805,14 @@ begin
             eh_vout_on <= '0';
         end if;
 
-        -- Event detection pin ([L] Tab. 56)
+        -- Event detection pin: open drain and ACTIVE LOW, so ed_n_oe = '1' pulls ED low, the datasheet's "ED pin state ON".
+        -- Source is ED_CONFIG_REG(3:0), POR-copied from ED_CONFIG ([L] Tab. 56); every source not listed below is left unmodelled and releases the pin.
         ed_src := to_integer(unsigned(regs(RGO_ED*4 + 0)(3 downto 0)));
         case ed_src is
-            when 1      => ed_on := to_X01(rf_field);
-            when 3      => ed_on := ed_i2c and to_X01(rf_field);
-            when 4      => ed_on := ed_nfc and to_X01(rf_field);
-            when 13     => ed_on := ed_swi;
+            when 1      => ed_on := to_X01(rf_field);              -- 1h NFC field detect
+            when 3      => ed_on := ed_i2c and to_X01(rf_field);   -- 3h I2C-to-NFC pass-through: the reader has read the last SRAM byte
+            when 4      => ed_on := ed_nfc and to_X01(rf_field);   -- 4h NFC-to-I2C pass-through: the reader wrote the last SRAM byte
+            when 13     => ed_on := ed_swi;                        -- Dh software interrupt, cleared only via ED_INTR_CLEAR_REG
             when others => ed_on := '0';   -- disabled or source not modelled
         end case;
         ed_n_oe <= ed_on;

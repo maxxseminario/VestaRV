@@ -68,15 +68,11 @@ architecture sim of AFE_tb is
     signal BIAS_DSADC_VCM  : std_logic_vector(13 downto 0);
 
 begin
-    -------------------------------------------------------------------
     -- Clock generation.
-    -------------------------------------------------------------------
     clk     <= not clk after 25 ns;   -- 40 MHz core clock.
     clk_mem <= clk when en_mem = '0'; -- Register clock is gated by the chip select.
 
-    -------------------------------------------------------------------
     -- DUT instantiation.
-    -------------------------------------------------------------------
     dut: entity work.AFE
         port map (
             clk         => clk,
@@ -135,9 +131,7 @@ begin
 	    dac_en	  => dac_en
         );
 
-    -------------------------------------------------------------------
     -- Stimulus: reset, register writes with read-back checks, then one ADC conversion.
-    -------------------------------------------------------------------
     stim_proc: process
     begin
 	dtp0_ren_in <= '0';
@@ -162,9 +156,7 @@ begin
 	wait until falling_edge(clk);
 	en_mem <= '1';
 
-	----------------------------------------------------------------
         -- Test the single-bit bias enables via BIAS_CR.
-        ----------------------------------------------------------------
 	wait until falling_edge(clk);
         en_mem <= '0';
         wen <= "1110";  -- Write the low byte only, wen is active low per lane.
@@ -183,9 +175,7 @@ begin
 
         wait for 100 ns;
 
-        ----------------------------------------------------------------
         -- Test the 6-bit and 8-bit BIAS registers: write, then check the exported value.
-        ----------------------------------------------------------------
         -- BIAS_TC_POT
 	wait until falling_edge(clk);
         en_mem <= '0'; wen <= "1110";
@@ -413,8 +403,7 @@ begin
 
         wait for 100 ns;
 
-        -- Kick off an ADC conversion.
-	-- AFE_CR sets adc_en = afe_en = adc_data_rdy_ie = adc_ext_in = atp_en = atp_sel = '1'.
+        -- Kick off an ADC conversion: AFE_CR sets adc_en = afe_en = adc_data_rdy_ie = adc_ext_in = atp_en = atp_sel = '1'.
 	-- It also sets adc_ramp_num = 0xFFF (4095).
 	wait until falling_edge(clk);
 	en_mem <= '0'; wen <= "1000";

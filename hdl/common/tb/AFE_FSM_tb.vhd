@@ -30,9 +30,7 @@ architecture sim of AFE_FSM_tb is
 
 begin
 
-    -------------------------------------------------------------------
     -- Clock generator: free-running 25 MHz that stops at 300 us so the run ends on its own.
-    -------------------------------------------------------------------
     clk_process : process
     begin
         while now < 300 us loop
@@ -43,9 +41,7 @@ begin
         end loop;
     end process;
 
-    -------------------------------------------------------------------
-    -- DUT instantiation
-    -------------------------------------------------------------------
+    -- DUT instantiation.
     dut: entity work.AFE_FSM
     port map (
         clk          => clk,
@@ -61,9 +57,7 @@ begin
         result_latch => result_latch
     );
 
-    -------------------------------------------------------------------
-    -- Stimulus
-    -------------------------------------------------------------------
+    -- Stimulus: two conversions, the first ended by the comparator and the second by timeout.
     stim_proc: process
     begin
         -- Initial reset
@@ -102,7 +96,7 @@ begin
 	-- Let the FSM reach its timeout instead.
         wait for 90 us;
 
-        -- Finish simulation
+        -- Nothing further to drive; the clock stops on its own.
         wait;
     end process;
 

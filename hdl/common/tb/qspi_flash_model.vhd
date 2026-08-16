@@ -1,26 +1,11 @@
 -------------------------------------------------------------------------------
 -- qspi_flash_model.vhd
 -------------------------------------------------------------------------------
--- Generic-configured behavioral SPI/QSPI flash responder for the QSPI peripheral testbench (tb/QSPI_tb.vhd).
--- Unlike tb/serial_flash.vhd (the real AT45DB021E model used by SPI_flash_tb, which decodes actual opcodes), this model does NOT decode flash opcodes at all.
--- The TB tells it per launch, through the cfg_* inputs, the exact phase shape to expect: lane widths and edge counts for CMD/ADDR/DUMMY/DATA plus the transfer direction, held stable for the duration of one CS-framed transaction.
--- That keeps the model reusable across every width/AWID/DLEN combination in the test plan without needing a real opcode table.
---
--- Bus ownership: the TB resolves io_in/io_out/io_dir from the DUT against this model's io_out/io_oe the way the top-level comment in QSPI_tb.vhd describes, so the io_in fed to BOTH the DUT and this model is the same resolved 4-bit bus.
--- This model drives ONLY during the DATA phase of a READ (cfg_dir_read=true); in every other phase it holds io_oe at "0000", matching the frozen contract: "It must NOT drive the bus outside the data phase of a READ".
---
--- CS / SCK polarity ASSUMPTION, not stated in the frozen entity contract and flagged in the bench author's report: cs is ACTIVE-LOW, mirroring every other CS-style pin in this codebase such as serial_flash.vhd's CSb.
--- cs is wired directly from the DUT's cs_out (cs_dir is NOT consulted, matching how SPI_flash_tb.vhd wires serial_flash's CSb straight from cs_flash_out), and sck likewise straight from sck_out (sck_dir not consulted).
---
--- SPI mode / edge-role ASSUMPTION: standard CPOL/CPHA mode semantics, where "leading edge" is the first SCK transition away from the CPOL idle level.
--- CPHA=0 samples on the leading edge and drives changed data on the trailing edge; CPHA=1 drives on the leading edge and samples on the trailing edge.
--- SIMPLIFICATION (flagged): this model performs BOTH capture (CMD/ADDR/write-DATA) and its own drive-value advance (read-DATA) on the SAME "sample-role" edge (see the qualifying `samp` variable below), rather than splitting capture and drive across the two edge roles the way a real SPI transmitter/receiver pair would.
--- In event-driven VHDL that still resolves correctly via delta-cycle ordering for THIS model's own bus turnaround, but it has never been run against a real DUT (QSPI.vhd does not exist yet) and may need retiming once it does.
---
--- DUMMY-field granularity ASSUMPTION (flagged): the frozen CR.DUMMY field is documented only as "[15:11] DUMMY edges" with no stated unit.
--- This model treats one DUMMY count as one "sample-role" edge, i.e. effectively one SCK period, the same granularity used for the CMD/ADDR/DATA edge counts.
---
--- The deterministic READ pattern and the MSB-first byte/nibble packing are exactly the frozen-contract examples; see qspi_bfm_pkg.qspi_read_pattern.
+-- Behavioral SPI/QSPI flash responder for the QSPI peripheral testbench; it decodes no flash opcodes.
+-- The TB names the phase shape per launch through the cfg_* inputs, held stable across one CS-framed transaction: lane widths and edge counts for CMD/ADDR/DUMMY/DATA plus the direction, so one model covers every width/AWID/DLEN combination.
+-- cs is ACTIVE-LOW and comes straight from the DUT's cs_out, sck straight from sck_out; the matching direction outputs are not consulted.
+-- Standard CPOL/CPHA semantics, leading edge being the first SCK transition away from the CPOL idle level: CPHA=0 samples leading and drives trailing, CPHA=1 the other way round, and one DUMMY count is one sample-role edge.
+-- This model drives ONLY during the DATA phase of a READ (cfg_dir_read true) and holds io_oe at "0000" in every other phase; capture and its own drive-value advance both happen on the sample-role edge.
 -------------------------------------------------------------------------------
 
 library ieee;
@@ -61,8 +46,7 @@ end entity QSPI_flash_model;
 
 architecture behavioral of QSPI_flash_model is
 
-    -- Per-phase OE mask and nibble presentation for the read-DATA phase.
-    -- lanes=1 drives IO1 only (the "MISO position" of the frozen contract), lanes=2 drives IO1 and IO0, lanes=4 drives IO3 down to IO0.
+    -- Per-phase OE mask for the read-DATA phase: lanes=1 drives IO1 only (the MISO position), lanes=2 drives IO1 and IO0, lanes=4 drives IO3 down to IO0.
     -- word is MSB-first and nibble_idx counts completed lane-groups from the top of word.
     function drive_oe_mask(lanes : natural) return std_logic_vector is
     begin
@@ -113,8 +97,7 @@ begin
         variable samp    : boolean;
     begin
         if cs'event and cs = '0' then
-            -- CS asserted: start of a new transaction.
-            -- Latch the phase boundaries from the cfg_* inputs, which are assumed stable.
+            -- CS asserted: start a new transaction and latch the phase boundaries from the cfg_* inputs.
             phase_edge  := 0;
             shift_cmd   := (others => '0');
             shift_addr  := (others => '0');
@@ -144,8 +127,8 @@ begin
             samp    := (cpha = '0' and leading) or (cpha = '1' and not leading);
 
             if samp then
-                -- SAMPLE edge: a real mode-0/mode-3 flash CAPTURES its inputs here (CMD/ADDR/write-DATA).
-                -- Read data is NOT driven on this edge: it was presented on the preceding DRIVE edge below and held stable across this sample edge for the DUT to latch.
+                -- SAMPLE edge: capture CMD/ADDR/write-DATA here.
+                -- Read data is never driven on this edge; it was presented on the preceding drive edge and is held stable across it for the DUT to latch.
                 if phase_edge < b1 then                          -- CMD phase: the DUT drives, the model captures.
                     for k in cfg_cmd_lanes - 1 downto 0 loop
                         shift_cmd := shift_cmd(6 downto 0) & io_in(k);
@@ -169,13 +152,11 @@ begin
                 phase_edge := phase_edge + 1;
 
             else
-                -- DRIVE edge, the opposite of the sample edge: a real flash changes its output here so it is stable before the master's next sample edge.
-                -- `phase_edge` currently equals the index of the UPCOMING sample edge, so present the read nibble for that sample.
-                -- Never drive outside the READ data window.
+                -- DRIVE edge: change the output here so it is stable before the master's next sample edge, and never drive outside the READ data window.
+                -- `phase_edge` equals the index of the UPCOMING sample edge, so present the read nibble for that sample.
                 if cfg_dir_read and phase_edge >= b3 and phase_edge < b4 then
                     if phase_edge = b3 then
-                        -- Entering the data phase: build the deterministic pattern from the address just captured.
-                        -- With no address phase shift_addr stays 0 and the seed alone determines the pattern.
+                        -- Entering the data phase: build the pattern from the address just captured; with no address phase shift_addr stays 0 and the seed alone determines it.
                         tx_word := qspi_read_pattern(shift_addr, cfg_read_seed);
                     end if;
                     io_oe  <= drive_oe_mask(cfg_data_lanes);

@@ -16,23 +16,17 @@ entity irq_handler is
         DATA_WIDTH : integer := 32     -- Data bus width
     );
     port (
-        -- ==========================================
-        -- System Interface
-        -- ==========================================
+        -- ---- System Interface ----
         clk             : in  std_logic;
         resetn          : in  std_logic;
         
-        -- ==========================================
-        -- Interrupt Request Inputs
-        -- ==========================================
+        -- ---- Interrupt Request Inputs ----
         irq             : in  std_logic_vector(NUM_IRQS-1 downto 0);  -- Interrupt request lines
         irq_en          : in  std_logic_vector(NUM_IRQS-1 downto 0);  -- Interrupt enable mask
         irq_pri         : in  std_logic_vector(NUM_IRQS-1 downto 0);  -- Priority (1=high, 0=low)
         irq_recursion_en: in  std_logic;                              -- Enable interrupt recursion, i.e. preemption (1=enabled, 0=disabled)
         
-        -- ==========================================
-        -- CPU Interface
-        -- ==========================================
+        -- ---- CPU Interface ----
         irq_active      : out std_logic;                              -- IRQ handler is active
         isr_ret         : in  std_logic;                              -- ISR return instruction executed
         irq_save        : out std_logic;                              -- Request CPU to save context
@@ -46,9 +40,7 @@ end irq_handler;
 
 architecture behavioral of irq_handler is
     
-    -- ==========================================
-    -- State Machine Type Definition
-    -- ==========================================
+    -- ---- State Machine Type Definition ----
     type irq_state_type is (
         IDLE,              -- No interrupt being serviced
         ISR_TRIGGERED,     -- Interrupt detected, initiate save
@@ -62,17 +54,12 @@ architecture behavioral of irq_handler is
         DIRECT_JUMP        -- Direct jump to the next IRQ without a restore; unreachable in the current next-state logic
     );
     
-    -- ==========================================
-    -- State Machine Signals
-    -- ==========================================
+    -- ---- State Machine Signals ----
     signal prev_state    : irq_state_type;
     signal current_state : irq_state_type;
     signal next_state    : irq_state_type;
     
-    -- ==========================================
-    -- IRQ Management Signals
-    -- ==========================================
-    -- Registered versions to break combinational loops
+    -- ---- IRQ Management Signals (registered, to break combinational loops) ----
     signal pending_irqs_reg          : std_logic_vector(NUM_IRQS-1 downto 0);
     signal highest_priority_irq_reg  : integer range 0 to NUM_IRQS;
     signal latched_irq               : integer range 0 to NUM_IRQS;  -- Currently serviced IRQ
@@ -82,31 +69,23 @@ architecture behavioral of irq_handler is
     -- Constants
     constant MAX_IRQ_VALUE : integer := NUM_IRQS;
     
-    -- ==========================================
-    -- Context and Nesting Management
-    -- ==========================================
+    -- ---- Context and Nesting Management ----
     signal context_saved    : std_logic;                             -- Context has been saved
     signal context_restored : std_logic;                             -- Context has been restored
     signal nesting_count    : integer range 0 to NUM_IRQS;          -- Interrupt nesting depth
     signal irqs_in_service  : std_logic_vector(NUM_IRQS-1 downto 0); -- Track active ISRs
     
-    -- ==========================================
-    -- Non-recursive mode management
-    -- ==========================================
+    -- ---- Non-recursive mode management ----
     signal single_isr_active : std_logic;                            -- Single ISR active in non-recursive mode
     
-    -- ==========================================
-    -- Combinational Signals
-    -- ==========================================
+    -- ---- Combinational Signals ----
     signal pending_irqs_comb         : std_logic_vector(NUM_IRQS-1 downto 0);
     signal pending_irqs_high_pri     : std_logic_vector(NUM_IRQS-1 downto 0);
     signal highest_priority_irq_comb : integer range 0 to NUM_IRQS;
     signal higher_priority_pending   : std_logic;
     signal any_in_service            : std_logic;
     
-    -- ==========================================
-    -- Helper Functions
-    -- ==========================================
+    -- ---- Helper Functions ----
     
     -- Convert integer to std_logic_vector
     function int_to_slv(val : integer; width : integer) return std_logic_vector is
@@ -147,10 +126,7 @@ architecture behavioral of irq_handler is
 
 begin
     
-    -- ==========================================
-    -- Pending IRQ Detection 
-    -- ==========================================
-    -- Mask out IRQs based on recursion mode
+    -- ---- Pending IRQ detection: mask the requests per recursion mode ----
     process(irq, irq_en, irqs_in_service, irq_recursion_en, single_isr_active)
     begin
         if irq_recursion_en = '1' then
@@ -173,10 +149,7 @@ begin
     -- Check if any interrupts are currently in service
     any_in_service <= '0' when irqs_in_service = (irqs_in_service'range => '0') else '1';
 
-    -- ==========================================
-    -- Priority Encoder 
-    -- ==========================================
-    -- Finds highest priority pending interrupt and checks for nesting
+    -- ---- Priority encoder: pick the highest-priority pending source and check nesting ----
     priority_encoder: process(pending_irqs_high_pri, pending_irqs_comb, irq_pri, 
                              latched_irq, current_state, irqs_in_service, 
                              irq_recursion_en)
@@ -238,9 +211,7 @@ begin
     -- IRQ found indicator: MAX_IRQ_VALUE is the "nothing selected" sentinel.
     irq_found <= '0' when highest_priority_irq_comb = MAX_IRQ_VALUE else '1';
     
-    -- ==========================================
-    -- Main State Machine Sequential Process
-    -- ==========================================
+    -- ---- Main state machine, sequential ----
     sm_proc: process(clk, resetn)
     begin
         if resetn = '0' then
@@ -367,9 +338,7 @@ begin
         end if;
     end process;
 
-    -- ==========================================
-    -- Next State Logic 
-    -- ==========================================
+    -- ---- Next-state logic ----
     next_state_logic: process(current_state, irq_found_reg, isr_ret, irq_save_ack, 
                              context_saved, highest_priority_irq_reg, latched_irq,
                              nesting_count, irqs_in_service, higher_priority_pending,
@@ -471,9 +440,7 @@ begin
         end case;
     end process;
 
-    -- ==========================================
-    -- Output Signal Generation
-    -- ==========================================
+    -- ---- Output signal generation ----
     
     -- Request context save
     irq_save <= '1' when ((current_state = ISR_TRIGGERED or current_state = WAIT_SAVE_ACK) 

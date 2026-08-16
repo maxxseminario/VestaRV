@@ -1,32 +1,9 @@
 -- =============================================================================
--- clint.vhd  (M5b)
--- =============================================================================
--- Minimal real CLINT for the multi-hart MCU_MP: per-hart software interrupts (msip, the IPI mechanism) plus a shared 64-bit mtime with per-hart mtimecmp for timer interrupts.
--- It replaces nothing: the M5a soft-CLINT mailboxes in the shared RAM stay as they are, since they gate the regression, and this block adds REAL interrupt delivery so parked harts can sleep in WFI instead of polling.
---
--- PLACEMENT: second slave behind mp_arbiter in the shared window (region 4), at 0x11000-0x11FFF, word-address bits 11:10 = "01", with the shared RAM keeping 0x10000-0x103FF.
--- Every hart reaches it through its existing shared-window master port, so there is no new interconnect.
--- It runs on the free-running mclk, the same clock as the arbiter and every vesta's irq_handler, so there is no clock-domain crossing.
---
--- REGISTER MAP: byte address is block base + 4*word, and only addr(ADDR_W-1:0) is decoded, so the block aliases every 2**ADDR_W words through its page.
--- A1 N-HART FORMULA (Argus generalization; see ~/vesta_docs/argus), with:
---   MTIME_W = roundup16(4*NHARTS)/4   (mtime word index)
---   CMP_W   = MTIME_W + 4             (first mtimecmp word index)
---   word 0..NHARTS-1      : msip[h], bit 0 (1 raises the IPI to hart h, 0 clears it)
---   word MTIME_W and +1   : mtime lo and hi (free-running, +1 per mclk; writable, and a write lane-merges that half)
---   word MTIME_W+2..CMP_W-1 : reserved (read 0)
---   word CMP_W+2h         : mtimecmp[h] lo  } mtip(h) is (mtime >= mtimecmp[h]),
---   word CMP_W+2h+1       : mtimecmp[h] hi  } registered. Resets ALL-ONES, so mtip starts low.
--- At NHARTS=4 and ADDR_W=4 this reproduces the original M5b layout EXACTLY: msip words 0-3, mtime 4 and 5, reserved 6 and 7, mtimecmp 8+2h and 9+2h, aliasing every 16 words.
--- That decode was proven byte-identical, and it is the Castalia shape.
--- ADDR_W must satisfy 2**ADDR_W >= CMP_W + 2*NHARTS (asserted below); the chip generator (platform/common/python/mcu_vhd.py) computes it.
---
--- IRQ OUTPUTS: msip(h) and mtip(h) are level signals into hart h's irq_vector (slots IRQB_CLINT_MSIP and IRQB_CLINT_MTIP, MemoryMap.vhd).
--- The ISR clears the level by writing msip[h]=0, or by advancing mtimecmp[h], BEFORE iret, otherwise the irq_handler re-triggers.
---
--- BUS CONTRACT, matching mp_arbiter's slave model and the behavioral shared RAM: active-high en, 4 active-high byte-lane strobes on we, and a 1-cycle registered read with the address at cycle T and rdata valid at T+1.
--- The strobes are already resv_unit-gated in MCU.vhd, because a suppressed SC write must not touch the CLINT either.
--- Writes lane-merge.
+-- clint.vhd: per-hart software interrupts (msip) and a shared 64-bit mtime with per-hart mtimecmp, for NHARTS harts.
+-- Slave behind mp_arbiter in the shared window, on the free-running mclk, so there is no clock-domain crossing.
+-- Bus: active-high en, four active-high byte lanes on we, address at cycle T and rdata at T+1, writes lane-merge; only addr(ADDR_W-1:0) decodes, so the page aliases every 2**ADDR_W words.
+-- msip(h)/mtip(h) are levels into hart h's irq_vector; an ISR must write msip[h]=0 or advance mtimecmp[h] before iret, or the interrupt re-triggers.
+-- Word map: 0..NHARTS-1 = msip[h] bit 0; MTIME_W and +1 = mtime lo/hi, free-running and writable; CMP_W+2h and +1 = mtimecmp[h] lo/hi, reset all-ones so mtip starts low.
 -- =============================================================================
 
 library IEEE;
@@ -37,8 +14,7 @@ use IEEE.STD_LOGIC_UNSIGNED.ALL;
 entity clint is
     generic (
         NHARTS : natural := 4;
-        -- Word-address width; it must cover the whole register file (see the formula in the header).
-        -- 4 is the Castalia NHARTS=4 shape.
+        -- Word-address width; 2**ADDR_W must cover the whole register file (asserted below)
         ADDR_W : natural := 4
     );
     port (
@@ -60,8 +36,7 @@ end entity;
 
 architecture behav of clint is
 
-    -- A1 layout formula from the header: mtime lo sits at MTIME_W and mtimecmp[0] lo at CMP_W.
-    -- At NHARTS=4 these are 4 and 8, the original M5b layout.
+    -- Word indices of mtime lo and of mtimecmp[0] lo, sized to clear the msip array
     constant MTIME_W : natural := ((4*NHARTS + 15) / 16) * 4;
     constant CMP_W   : natural := MTIME_W + 4;
 

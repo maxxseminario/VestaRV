@@ -1,21 +1,7 @@
 -- =====================================================================
--- verification/formal/pmp_formal_tb.vhd
--- S4 / R-S4-2: a TRACKED wrapper bench for pmp_unit's grant-function
--- properties, existing for one reason -- to expose a REAL `settled`
--- flag that the PSL properties can qualify on.
---
--- Why not reuse pmp_unit_tb: its `checks` signal is written ONCE in its
--- summary block, so guarding on it restricts every property to the final
--- quiescent state (measured; the witness instrument caught it).  And
--- pmp_unit_tb is left UNTOUCHED on purpose -- the same don't-overload
--- reasoning that put the DS5 guard in its own script.
---
--- `settled` is '0' until the first input pattern has propagated, then
--- '1' for the whole stimulus.  Unclocked PSL is evaluated at time 0
--- where every output is 'U', so this is the combinational analogue of
--- the `resetn = '1'` qualifier the clocked properties carry.
---
--- Instance shape mirrors pmp_unit_tb: 16-entry ON, 8-entry ON, OFF.
+-- Wrapper bench for pmp_unit's grant-function PSL properties.
+-- It exposes a `settled` flag and a post-settle `sample` pulse the unclocked properties qualify on.
+-- Three instances: 16-entry enabled, 8-entry enabled, disabled.
 -- =====================================================================
 library ieee; use ieee.std_logic_1164.all; use ieee.numeric_std.all;
 
@@ -31,19 +17,11 @@ architecture tb of pmp_formal_tb is
     signal d_read    : std_logic := '0';
     signal d_write   : std_logic := '0';
     signal f16, d16, f8, d8, foff, doff : std_logic;
-    signal settled   : std_logic := '0';   -- THE GUARD
-    -- SAMPLING CLOCK (R-S4-2, second finding): pmp_unit is combinational,
-    -- so its inputs and outputs settle in DIFFERENT deltas.  A continuous
-    -- unclocked invariant relating them is transiently FALSE during
-    -- settling -- measured: P_UMODE_NOMATCH fired mid-transition while the
-    -- DUT was correct (pmp_check returns priv_m on no-match).  `sample`
-    -- pulses only AFTER each input change has propagated, giving the
-    -- properties the same post-settle sampling the clocked fabric
-    -- properties get for free from rising_edge(clk).
+    signal settled   : std_logic := '0';   -- guard: low until the first pattern has propagated past the time-0 'U' outputs
+    -- Sampling strobe: pmp_unit is combinational, so inputs and outputs settle in different deltas and any continuous unclocked invariant is transiently false while they do.
+    -- `sample` pulses only after each input change has propagated; qualify every property on it.
     signal sample    : std_logic := '0';
-    -- Stimulus-shape flags: they tell the properties which region shape the
-    -- current address is in, so a decode property can be written WITHOUT
-    -- restating pmp_check (which would be tautological).
+    -- Stimulus-shape flags telling the properties which region shape the current address is in, so a decode property need not restate pmp_check tautologically.
     signal napot_in  : std_logic := '0';   -- d_addr is inside the NAPOT region
     signal napot_out : std_logic := '0';   -- d_addr is OUTSIDE it (explicitly flagged)
     signal tor_in    : std_logic := '0';   -- d_addr is inside the TOR region
@@ -81,14 +59,14 @@ begin
         d_read <= '1'; d_write <= '0'; d_priv_m <= '1'; f_priv_m <= '1';
         step; settled <= '1'; step;
 
-        -- 1. EMPTY BANK, M-MODE  -> must GRANT
+        -- 1. EMPTY BANK, M-MODE: must GRANT.
         d_priv_m <= '1'; f_priv_m <= '1'; step;
-        -- 2. EMPTY BANK, U-MODE  -> must DENY   (the security half)
+        -- 2. EMPTY BANK, U-MODE: must DENY (the security half).
         d_priv_m <= '0'; f_priv_m <= '0'; step;
-        -- 3. NAPOT entry 0, no permissions, U-mode -> DENY on a match
+        -- 3. NAPOT entry 0, no permissions, U-mode: DENY on a match.
         set_e0(cfg_flat, A_NAPOT, '0', '0', '0');
         addr_flat(31 downto 0) <= x"00000FFF"; d_addr <= x"00001000"; step;
-        -- 4. NAPOT entry 0 WITH R, U-mode read -> the permitted shape
+        -- 4. NAPOT entry 0 WITH R, U-mode read: the permitted shape.
         set_e0(cfg_flat, A_NAPOT, '1', '1', '1'); step;
         -- 5. TOR entry 0, U-mode
         set_e0(cfg_flat, A_TOR, '0', '0', '0');
@@ -98,8 +76,8 @@ begin
         d_read <= '0'; d_write <= '1'; step;
         d_read <= '1'; d_write <= '1'; step;
         f_addr <= x"00000004"; step;
-        -- 7. UPPER-HALF-ONLY config: lower 8 entries zero, entry 8 NAPOT-permissive.
-        --    dut8 must ignore it entirely and deny in U-mode.
+        -- 7. Upper-half-only config: lower 8 entries zero, entry 8 NAPOT-permissive.
+        -- dut8 must ignore it entirely and deny in U-mode.
         cfg_flat <= (others => '0');
         cfg_flat(68 downto 67) <= A_NAPOT; cfg_flat(66) <= '1';
         cfg_flat(65) <= '1'; cfg_flat(64) <= '1';
@@ -107,14 +85,8 @@ begin
         -- 8. back to M-mode with the empty bank
         cfg_flat <= (others => '0'); d_priv_m <= '1'; f_priv_m <= '1'; step;
 
-        -- ==================================================================
-        -- R-S4-3 items 1 & 2: DECODE-SENSITIVE stimulus.  The first pass
-        -- only ever probed no-match shapes, so a mutated decoder flipped
-        -- grants in silence.  These drive matched IN-region and OUT-of-region
-        -- addresses so a wrong decode must change an observable grant.
-        -- ==================================================================
-        -- NAPOT region: base 0x1000, size 16 bytes -> pmpaddr = 0x400|0x1 = word
-        -- encoding with one trailing 1.  Region covers 0x1000..0x100F.
+        -- Decode-sensitive stimulus: matched in-region and out-of-region addresses, so a wrong decode must change an observable grant.
+        -- NAPOT region base 0x1000, size 16 bytes: pmpaddr = 0x400|0x1, the word encoding with one trailing 1, covering 0x1000..0x100F.
         napot_lo <= x"00001000"; napot_hi <= x"0000100F";
         set_e0(cfg_flat, A_NAPOT, '1', '1', '1');     -- RWX permitted
         addr_flat(29 downto 0) <= "00" & x"0000401";  -- NAPOT: 0x1000/16B
@@ -138,9 +110,7 @@ begin
         -- inside
         tor_in <= '1'; d_addr <= x"00000000"; step;
         d_addr <= x"00000FFC"; step;
-        -- THE BOUNDARY, a = hi.  RISC-V TOR is [lo,hi) so this is OUTSIDE.
-        -- The first pass never probed it, which is how an a<hi -> a<=hi
-        -- off-by-one escaped.
+        -- The boundary a = hi: RISC-V TOR is [lo,hi), so this address is OUTSIDE the region and must be denied.
         tor_in <= '0'; tor_at_hi <= '1'; d_addr <= x"00001000"; step;
         tor_at_hi <= '0'; d_addr <= x"00001004"; step;
         napot_in <= '0'; tor_in <= '0'; cfg_flat <= (others => '0'); step;

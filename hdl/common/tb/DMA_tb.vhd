@@ -1,38 +1,16 @@
 -------------------------------------------------------------------------------
 -- DMA_tb.vhd
 -------------------------------------------------------------------------------
--- Standalone, self-checking testbench for the DMA controller peripheral (hdl/common/periph/DMA.vhd).
--- Written AGAINST THE FROZEN ENTITY + REGISTER MAP (~/vesta_docs/digperiphs/dma_design.md, D1-D21 plus orchestrator A1-A19) while the RTL is written in parallel.
--- The DUT is declared as a COMPONENT, not an entity instantiation, so this bench compiles standalone with xmvhdl before DMA.vhd exists (the I3C_tb / RTC_tb / OneWire_tb discipline).
--- VHDL default binding resolves it to the entity of the same name once DMA.vhd is analyzed into the work library.
---
--- Uses periph_tb_pkg.vhd (scoreboard + register-bus BFM) and dma_bfm_pkg.vhd (slot/CR/SR/CFG constants, dma_mk_cfg/dma_mk_cr packers, deny/hole/window byte addresses, the INDEPENDENT dma_crc_word reference, and the bounded SR polls dma_wait_busy_clear/dma_wait_flag).
--- Crucially it also uses the local dma_arb_model below: the ARBITER-SIDE tile-accurate model the DMA's master port transacts against.
---
--- ONE clock family (design doc D1): clk, bound to MCLK at integration, hosts the whole transfer engine, master-port FSM, CRC and pacing sync.
--- ClkMem is the gated bus clock, driven clk when b.en_mem = '0' else '0', exactly like RTC_tb / OneWire_tb.
--- D1 binds clk and ClkMem to the SAME mclk net; this bench drives them from the same clk so there is genuinely ONE clock family.
---
--- ARBITER-SIDE MODEL (the task's binding instruction).
--- dma_arb_model receives the DUT's m_req/m_we/m_addr/m_wdata and behaves like mp_arbiter plus a shared slave EXACTLY (verified against mp_arbiter.vhd L192-251):
---   * 3-edge IDLE/LATCH/DATA shape: accept req, register the slave access, then pulse m_done for one cycle with m_rdata valid THAT cycle (done at accept+2, cycle-identical to mp_arbiter DATA at edge T+2).
---   * WAIT-FOR-RELEASE (need_release, mp_arbiter L127/L242): a served master is masked until its m_req is OBSERVED low, so a DUT that holds req across two words is NOT re-served (it stalls into the watchdog) AND is caught explicitly by the protocol monitor below.
---   * A PROTOCOL MONITOR fails the bench (sets prot_err, tallied as a scoreboard error) on: (a) m_req not observed low >=1 cycle between txns (stale req held across words, the M5a ghost the arbiter's IDLE pick corrupts); (b) m_addr/m_we/m_wdata changing while m_req is high through its m_done cycle; (c) m_req dropping BEFORE its m_done (a truncated handshake, the mid-txn drop G8's abort must never do).
--- The model also holds the modeled shared RAM and the modeled UART / QSPI / NFC data-ready windows for the pacing groups (G4).
--- Checker independence: the reference dest words and CRC are computed by the bench from the values it programmed or poked, NEVER from a DUT internal.
---
--- DEVIATIONS / open questions (flagged, not silently resolved; the bench author's final report has the full list):
---   * The DUT's per-TRIG M_CLR target address (QSPI0SR / NFC0SR) is a DUT detail the frozen doc leaves to the implementer (no "clear-address" register in the D5 map).
---     This bench models those SR words at the REAL peripheral addresses (QSPI0 @0x4C00 slot 5 = 0x4C14; NFC0 @0x6200 slot 1 = 0x6204) and assumes the DUT hardcodes them per TRIG.
---     If the DUT derives them differently, the G4 QSPI/NFC legs are a DUT-vs-bench contract issue.
---   * G3's strict-PRIO hold-off is proven via a mid-flight LEN readback (the PRIO=0 channel makes NO progress while the PRIO=1 channel drains).
---     The exact word-granular RR interleave ORDER is not directly observable from the register interface, so both channels completing correctly and both decrementing mid-flight is the RR proof.
---   * G10 (NCH=2 shape) uses a SECOND DUT INSTANCE (dut2) with its own dma_arb_model in the SAME elaboration, the cleaner choice against a whole re-elaboration.
---     One sim run then proves both shapes; the periph_test suite adds a second generic-override TESTS entry for the top-level 2ch close.
+-- Standalone, self-checking testbench for the DMA controller peripheral.
+-- The DUT is declared as a COMPONENT, not an entity instantiation, so the bench compiles standalone before DMA.vhd exists; default binding resolves it once DMA.vhd is in the work library.
+-- Uses periph_tb_pkg (scoreboard + register-bus BFM), dma_bfm_pkg (slot/CR/SR/CFG constants, packers, deny/hole addresses, the independent CRC reference, bounded SR polls) and the local dma_arb_model.
+-- ONE clock family: clk hosts the transfer engine, master-port FSM, CRC and pacing sync, and ClkMem is that same clock gated by the bus select.
+-- Checker independence: reference dest words and CRC come from what the bench programmed or poked, never from a DUT internal, and the modeled M_CLR targets (QSPI0SR 0x4C14, NFC0SR 0x6204) are a DUT-vs-bench contract.
 -------------------------------------------------------------------------------
 
 -- =============================================================================
--- dma_arb_model : arbiter-side tile-accurate model + shared RAM + pacing windows
+-- dma_arb_model : cycle-accurate mp_arbiter-plus-shared-slave model, with the modeled RAM, pacing windows and a master-port protocol monitor.
+-- 3-edge IDLE/LATCH/DATA shape, and wait-for-release: a served master is masked until its req is observed low, so a req held across two words is never re-served.
 -- =============================================================================
 library ieee;
 use ieee.std_logic_1164.all;
@@ -75,8 +53,8 @@ entity dma_arb_model is
         denied_hits    : out natural;   -- READ accesses seen to a deny word (>0 = DUT failed to suppress)
         uart_reads     : out natural;   -- UART RX reads since last arm_uart
         nfc_reads      : out natural;   -- NFC DATA reads since last arm_nfc
-        qspi_sr_obs    : out std_logic_vector(7 downto 0);   -- modeled QSPI SR (A11)
-        qspi_clr_wdata : out std_logic_vector(31 downto 0)   -- last write to QSPI SR (A11)
+        qspi_sr_obs    : out std_logic_vector(7 downto 0);   -- modeled QSPI SR
+        qspi_clr_wdata : out std_logic_vector(31 downto 0)   -- last write to QSPI SR
     );
 end entity dma_arb_model;
 
@@ -123,7 +101,7 @@ architecture model of dma_arb_model is
 
     function is_deny_read(idx : natural; we : std_logic_vector(3 downto 0)) return boolean is
     begin
-        if we /= "0000" then return false; end if;   -- guard blocks READS only (D12)
+        if we /= "0000" then return false; end if;   -- the guard blocks READS only
         if idx >= MUTEX_LO_W and idx <= MUTEX_HI_W then return true; end if;
         if idx = ROUTER_W then return true; end if;
         return false;
@@ -143,7 +121,7 @@ begin
     denied_hits    <= denied_i;
     uart_reads     <= uart_rd_cnt;
     nfc_reads      <= nfc_rd_cnt;
-    qspi_sr_obs    <= (qspi_sr_i(7 downto 3) & qspi_ready & qspi_sr_i(1 downto 0));  -- bit2 = rxfull
+    qspi_sr_obs    <= (qspi_sr_i(7 downto 3) & qspi_ready & qspi_sr_i(1 downto 0));  -- bit 2 = rxfull
     qspi_clr_wdata <= qspi_clr_i;
 
     -- =======================================================================
@@ -197,21 +175,21 @@ begin
             end if;
 
             ---------------------------------------------------------------
-            -- need_release bookkeeping (mp_arbiter L186-190): a served master is eligible again only once its req is OBSERVED low.
+            -- need_release: a served master is eligible again only once its req is OBSERVED low.
             ---------------------------------------------------------------
             if m_req = '0' then
                 need_release <= '0';
             end if;
 
             ---------------------------------------------------------------
-            -- arbiter FSM (single master); mp_arbiter IDLE/LATCH/DATA shape
+            -- arbiter FSM (single master), IDLE/LATCH/DATA shape
             ---------------------------------------------------------------
             case state is
                 when A_IDLE =>
                     -- wait for a request from an unmasked master, then accept it
                     gnt_i <= '0';
                     if m_req = '1' and need_release = '0' then
-                        -- accept: latch the access this edge (mp_arbiter IDLE)
+                        -- accept: latch the access this edge
                         a_addr  <= m_addr;
                         a_we    <= m_we;
                         a_wdata <= m_wdata;
@@ -220,22 +198,22 @@ begin
                     end if;
 
                 when A_LATCH =>
-                    -- slave registers the access (mp_arbiter: s_rdata valid in DATA)
+                    -- slave registers the access; s_rdata is valid in DATA
                     gnt_i <= '1';
                     idx := to_integer(unsigned(a_addr)) mod RAM_WORDS;
                     if a_we = "0000" then
                         ---- READ ---------------------------------------------
                         if to_integer(unsigned(a_addr)) = UART_RX_W then
                             s_rdata <= x"000000" & std_logic_vector(uart_byte);
-                            uart_ready <= '0';                 -- read-to-clear (D10)
+                            uart_ready <= '0';                 -- read-to-clear
                             uart_byte  <= uart_byte + 1;
                             uart_rl    <= RAISE;               -- re-arm next byte
                             uart_rd_cnt <= uart_rd_cnt + 1;
                         elsif to_integer(unsigned(a_addr)) = QSPI_RX_W then
-                            s_rdata <= x"000000" & std_logic_vector(qspi_val);  -- side-effect-free (D10)
+                            s_rdata <= x"000000" & std_logic_vector(qspi_val);  -- side-effect-free read
                         elsif to_integer(unsigned(a_addr)) = NFC_DATA_W then
                             s_rdata <= std_logic_vector(to_unsigned(DMA_NFC_BASE + nfc_idx, 32));
-                            nfc_idx <= nfc_idx + 1;            -- IDX auto-advance (D10)
+                            nfc_idx <= nfc_idx + 1;            -- IDX auto-advance
                             nfc_rd_cnt <= nfc_rd_cnt + 1;
                         else
                             s_rdata <= mem(idx);
@@ -246,7 +224,7 @@ begin
                     else
                         ---- WRITE (byte-lane merged) --------------------------
                         if to_integer(unsigned(a_addr)) = QSPI_SR_W then
-                            qspi_clr_i <= a_wdata;             -- record M_CLR value (A11)
+                            qspi_clr_i <= a_wdata;             -- record the M_CLR value
                             if a_wdata(2) = '1' then           -- W1C bit 2 only
                                 qspi_ready <= '0';
                                 qspi_val   <= qspi_val + 1;    -- next sample
@@ -254,7 +232,7 @@ begin
                             end if;
                         elsif to_integer(unsigned(a_addr)) = NFC_SR_W then
                             if a_wdata(2) = '1' then
-                                nfc_ready <= '0';              -- frame ack (D10)
+                                nfc_ready <= '0';              -- frame ack
                             end if;
                         else
                             for l in 0 to 3 loop
@@ -276,10 +254,8 @@ begin
     end process proc;
 
     -- =======================================================================
-    -- PROTOCOL MONITOR: fails the bench on a handshake violation (D2/D3).
-    --   (a) m_req must be observed low >=1 cycle between txns.
-    --   (b) m_addr/m_we/m_wdata must be stable while m_req is high through m_done.
-    --   (c) m_req must NOT drop before its m_done (truncated handshake).
+    -- PROTOCOL MONITOR: fails the bench on a master-port handshake violation.
+    --   (a) m_req observed low >=1 cycle between txns; (b) payload stable while m_req is high through m_done; (c) m_req never drops before its m_done.
     -- =======================================================================
     monitor: process(clk, resetn)
         variable prev_req  : std_logic := '0';
@@ -293,8 +269,7 @@ begin
             prev_req := '0'; done_seen := false; post_done := 0;
         elsif rising_edge(clk) then
             if m_req = '1' and prev_req = '0' then
-                -- A rising edge of req starts a new txn; the '0' cycle just passed satisfies the observed-low gap (a).
-                -- Capture the payload for the stability check.
+                -- A rising edge of req starts a new txn, the '0' cycle just passed satisfies the observed-low gap, so capture the payload for the stability check.
                 hold_addr := m_addr; hold_we := m_we; hold_wd := m_wdata;
                 done_seen := false; post_done := 0;
             elsif m_req = '1' and prev_req = '1' then
@@ -308,7 +283,7 @@ begin
                 if done_seen then
                     post_done := post_done + 1;
                     if post_done > 4 then
-                        -- (a) stale req held across words: the M5a ghost the arbiter's IDLE pick would corrupt.
+                        -- (a) stale req held across words: a ghost request the arbiter's IDLE pick would mis-serve.
                         prot_i <= '1';
                         report "DMA_ARB_MODEL PROTOCOL VIOLATION: m_req not "
                             & "released within 4 cycles after m_done (stale req "
@@ -351,12 +326,11 @@ end entity DMA_tb;
 
 architecture sim of DMA_tb is
 
-    constant PERIOD : time    := 20 ns;   -- clk / ClkMem reference (ONE mclk family, D1)
+    constant PERIOD : time    := 20 ns;   -- clk / ClkMem reference (ONE clock family)
     constant AW     : natural := DMA_AW;  -- 15-bit master word address
 
-    -- FROZEN DUT entity (design doc "FROZEN ENTITY"), declared as a component so the bench compiles standalone before hdl/common/periph/DMA.vhd exists.
-    -- The EVFAB taps (event_fabric_spec.md 2026-07-24) are part of the component so default binding sees the FULL entity port list.
-    -- task_go carries the same all-zero default as the entity (PWM_tb task_flttrig discipline).
+    -- DUT declared as a component so the bench compiles standalone; the event-fabric taps are part of it so default binding sees the FULL entity port list.
+    -- task_go carries the same all-zero default as the entity.
     component DMA is
         generic (
             NCH : natural := 4;
@@ -390,8 +364,7 @@ architecture sim of DMA_tb is
         );
     end component;
 
-    -- work.CRC16 (SYSTEM0's proven CRC16-CDMA2000 cell) is the INDEPENDENT reference.
-    -- D14 and the task's binding instruction: FOUR chained instances fed bytes b0 through b3, seed 0xFFFF, inside the bench model.
+    -- work.CRC16 (the CRC16-CDMA2000 cell) is the INDEPENDENT reference: four chained instances fed bytes b0 through b3, seed 0xFFFF.
     component CRC16 is
         generic (POLYNOMIAL : std_logic_vector(15 downto 0) := x"C857");
         port (
@@ -427,18 +400,15 @@ architecture sim of DMA_tb is
     signal qspi_sr_obs    : std_logic_vector(7 downto 0);
     signal qspi_clr_wdata : std_logic_vector(31 downto 0);
 
-    -- ==== EVFAB taps (event_fabric_spec.md 2026-07-24, G-EV) ==============
-    -- DUT#1 only: G10's dut2 leaves these at the component default or open, since G10 is register-shape only and needs no task-tap coverage.
+    -- ==== event-fabric taps ==============================================
+    -- DUT#1 only: dut2 leaves these at the component default or open, since its group is register-shape only and needs no task-tap coverage.
     signal task_go  : std_logic_vector(3 downto 0) := "0000";  -- tb-driven, default 0000
     signal evt_done : std_logic_vector(3 downto 0);
     signal evt_err  : std_logic;
     signal ch_busy  : std_logic_vector(3 downto 0);
 
-    -- ---- EVFAB pulse/level monitor (checker independence, PWM_tb G-EV idiom)
-    -- Continuous background tracker of evt_done(3:0)/evt_err (pulse starts plus total-high samples, mirroring PWM_tb's evt_period/evt_fault tracker).
-    -- It tracks ch_busy(3:0) the same way (episode starts plus total-high samples), proving both "did it ever assert" and "exactly one contiguous engaged episode".
-    -- It NEVER reads a DUT internal, only the exported evt_done/evt_err/ch_busy ports.
-    -- Windowed via evt_mon_clear, held across exactly one clk edge (mon_reset idiom).
+    -- ---- event-tap pulse/level monitor: pulse starts plus total-high samples for evt_done(3:0)/evt_err/ch_busy(3:0), windowed via evt_mon_clear.
+    -- It samples only the exported ports, never a DUT internal, so the check stays independent.
     type nat_arr4 is array (0 to 3) of natural;
     signal evt_done_starts, evt_done_highs : nat_arr4 := (others => 0);
     signal evt_done_prev : std_logic_vector(3 downto 0) := (others => '0');
@@ -448,7 +418,7 @@ architecture sim of DMA_tb is
     signal ch_busy_prev  : std_logic_vector(3 downto 0) := (others => '0');
     signal evt_mon_clear : std_logic := '0';
 
-    -- ==== DUT #2 (NCH=2) harness (G10) ===================================
+    -- ==== DUT #2 (NCH=2) harness =========================================
     signal pbus2  : periph_bus_t := PERIPH_BUS_IDLE;
     signal rdata2 : std_logic_vector(31 downto 0);
     signal m_req2  : std_logic;
@@ -479,16 +449,15 @@ architecture sim of DMA_tb is
 begin
 
     ----------------------------------------------------------------------------
-    -- Clock and gated register-bus clock (ONE mclk family, D1).
-    -- Both DUTs share clk and the same ClkMem gating idiom; the gate follows DUT#1's select for DUT#1 accesses and DUT#2's for DUT#2 accesses.
-    -- Only one bus is active at a time in the single stim process, so a shared gate is safe.
+    -- Clock and gated register-bus clock: both DUTs share clk, and the gate opens on either DUT's bus select.
+    -- Only one bus is active at a time in the single stim process, so the shared gate is safe.
     ----------------------------------------------------------------------------
     clk    <= not clk after PERIOD / 2;
     ClkMem <= clk when (pbus.en_mem = '0' or pbus2.en_mem = '0') else '0';
 
     ----------------------------------------------------------------------------
-    -- CRC reference: four chained work.CRC16, bytes b0 through b3 (D14).
-    -- crc_seed and crc_word are driven by the stim; crc_res is the folded result.
+    -- CRC reference: four chained work.CRC16 over bytes b0 through b3.
+    -- crc_seed and crc_word are driven by the stim, crc_res is the folded result.
     ----------------------------------------------------------------------------
     c0: CRC16 port map (DataIn => crc_word(7  downto 0),  CrcOld => crc_seed, CrcOut => crc_s1);
     c1: CRC16 port map (DataIn => crc_word(15 downto 8),  CrcOld => crc_s1,   CrcOut => crc_s2);
@@ -496,9 +465,8 @@ begin
     c3: CRC16 port map (DataIn => crc_word(31 downto 24), CrcOld => crc_s3,   CrcOut => crc_res);
 
     ----------------------------------------------------------------------------
-    -- EVFAB pulse/level monitor (see the signal-declaration comment above).
-    -- It samples evt_done(3:0)/evt_err/ch_busy(3:0), to_X01-normalized per bit, on every clk rising edge.
-    -- Windowed via evt_mon_clear, the same way PWM_tb's evt_mon_proc is windowed.
+    -- Event-tap monitor: samples evt_done(3:0)/evt_err/ch_busy(3:0), to_X01-normalized per bit, on every clk rising edge.
+    -- evt_mon_clear restarts the accumulators to open a new measurement window.
     ----------------------------------------------------------------------------
     evt_mon_proc : process(clk)
         variable d_lvl, b_lvl : std_logic_vector(3 downto 0);
@@ -585,8 +553,8 @@ begin
         );
 
     ----------------------------------------------------------------------------
-    -- DUT #2 (NCH=2) plus its arbiter-side model (G10).
-    -- Triggers are tied '0' because G10 is mem-to-mem and register-shape only; backdoor and bus are driven by the same stim.
+    -- DUT #2 (NCH=2) plus its arbiter-side model.
+    -- Triggers are tied '0' because this instance only covers mem-to-mem and register shape; backdoor and bus come from the same stim.
     ----------------------------------------------------------------------------
     dut2 : component DMA
         generic map (NCH => 2, AW => AW)
@@ -658,7 +626,7 @@ begin
         constant SRAB : natural := 16#13000#;   constant DRAB : natural := 16#13400#;
         constant LEGM : natural := 16#6100#;    constant LEGR : natural := 16#7804#;
         constant DLEG : natural := 16#13800#;
-        constant DSTT : natural := 16#13C00#;   -- G-EV task-launched-copy dst (fresh, clear of DLEG)
+        constant DSTT : natural := 16#13C00#;   -- task-launched-copy dst (fresh, clear of DLEG)
 
         -- program a channel's {SRC,DST,LEN,CFG}
         procedure prog_ch(signal b : inout periph_bus_t;
@@ -684,17 +652,16 @@ begin
             bus_write(clk, b, DMA_SLOT_CR, dma_mk_cr('1', go_mask, "0000", doneie, errie));
         end procedure;
 
-        -- W1C an SR mask, then let the clr toggle cross into clk (D16)
+        -- W1C an SR mask, then let the clear toggle cross into clk
         procedure dma_w1c(signal b : inout periph_bus_t; mask : std_logic_vector(31 downto 0)) is
         begin
             bus_write(clk, b, DMA_SLOT_SR, mask);
             wait for 6 * PERIOD;
         end procedure;
 
-        -- ---- G-EV helpers (EVFAB taps) -------------------------------------
+        -- ---- event-tap helpers ---------------------------------------------
 
         -- Drive task_go(ch) high across EXACTLY one clk rising edge, then drop it back to '0'.
-        -- Same held-across-one-edge idiom as PWM_tb's pulse_task_flttrig.
         procedure pulse_task_go(ch : natural) is
         begin
             wait until clk = '0';
@@ -704,8 +671,7 @@ begin
             task_go(ch) <= '0';
         end procedure;
 
-        -- Clear the evt_done/evt_err/ch_busy pulse and level monitor's accumulators (PWM_tb evt_mon_reset idiom).
-        -- Call only outside a timing-critical window.
+        -- Clear the event-tap monitor accumulators; call only outside a timing-critical window.
         procedure evt_mon_reset is
         begin
             wait until clk = '0';
@@ -775,7 +741,7 @@ begin
         wait for 8 * PERIOD;
 
         ------------------------------------------------------------------
-        -- GROUP G0: reset defaults (design doc G0)
+        -- GROUP G0: reset defaults
         ------------------------------------------------------------------
         report "=== GROUP G0: reset defaults ===" severity note;
         bus_read(clk, pbus, rdata, DMA_SLOT_CR, rdw);
@@ -803,7 +769,7 @@ begin
         sb.check_true("G0: protocol monitor clean out of reset", to_X01(prot_err) = '0');
 
         ------------------------------------------------------------------
-        -- GROUP G1: mem-to-mem copy (design doc G1)
+        -- GROUP G1: mem-to-mem copy
         ------------------------------------------------------------------
         report "=== GROUP G1: mem-to-mem copy ===" severity note;
         for k in 0 to 3 loop
@@ -813,7 +779,7 @@ begin
         dma_enable(pbus, '1', '0');
         prog_ch(pbus, 0, SRCA, DSTA, 4, dma_mk_cfg('1','1', DMA_TRIG_MEM, '0','0'));
         dma_go(pbus, "0001", '1', '0');
-        -- D8 same-cycle blind window: BUSY must read 1 immediately after GO
+        -- same-cycle blind window: BUSY must read 1 immediately after GO
         bus_read(clk, pbus, rdata, DMA_SLOT_SR, rdw);
         sb.check_bit("G1: BUSY=1 same cycle as CH0 GO (D8 blind window)",
                      to_X01(rdw(DMA_SR_BUSY)), '1');
@@ -834,10 +800,10 @@ begin
         sb.check_bit("G1: irq_done drops after W1C CH0DONE", to_X01(irq_done), '0');
 
         ------------------------------------------------------------------
-        -- GROUP G2: increment modes (design doc G2)
+        -- GROUP G2: increment modes
         ------------------------------------------------------------------
         report "=== GROUP G2: increment modes ===" severity note;
-        -- (a) SINC=1/DINC=1 is already covered by G1 (block copy).
+        -- (a) SINC=1/DINC=1 is already covered by the block copy above.
         -- (b) SINC=0 is the fixed-src, peripheral-drain shape: every dst word equals src word 0.
         for k in 0 to 3 loop
             buf(k) := x"5000" & std_logic_vector(to_unsigned(k, 16));
@@ -862,10 +828,10 @@ begin
         dma_w1c(pbus, std_logic_vector(to_unsigned(2**DMA_SR_DONE0, 32)));
 
         ------------------------------------------------------------------
-        -- GROUP G3: multi-channel round-robin + strict PRIO + ACTIVECH (D7)
+        -- GROUP G3: multi-channel round-robin + strict PRIO + ACTIVECH
         ------------------------------------------------------------------
         report "=== GROUP G3: multi-channel round-robin / PRIO ===" severity note;
-        -- Part A: two SAME-priority mem-to-mem channels both complete correctly, and neither starves within the watchdog, which is the RR fairness proof.
+        -- Part A: two SAME-priority mem-to-mem channels both complete correctly and neither starves, the round-robin fairness proof.
         for k in 0 to 5 loop
             buf(k) := x"3300" & std_logic_vector(to_unsigned(k, 16));
             ram_poke1(dma_word_idx(SRR0) + k, buf(k));
@@ -885,9 +851,8 @@ begin
         end loop;
         dma_w1c(pbus, std_logic_vector(to_unsigned(2**DMA_SR_DONE0 + 2**(DMA_SR_DONE0+1), 32)));
 
-        -- Part B: strict 2-level PRIO.
-        -- CH0 PRIO=1 (LEN=10) must hold off CH1 PRIO=0 (LEN=3) completely while it runs, both being continuously serviceable mem-to-mem.
-        -- CH1 LEN must stay 3 while CH0 is draining.
+        -- Part B: strict 2-level PRIO, so CH0 PRIO=1 (LEN=10) must hold off CH1 PRIO=0 (LEN=3) completely while it drains.
+        -- Both channels are continuously serviceable mem-to-mem, so CH1 LEN must stay 3 for as long as CH0 runs.
         for k in 0 to 9 loop
             buf(k) := x"AA00" & std_logic_vector(to_unsigned(k, 16));
             ram_poke1(dma_word_idx(SRR0) + k, buf(k));
@@ -924,7 +889,7 @@ begin
         bus_read(clk, pbus, rdata, DMA_SLOT_SR, rdw);
         sb.check_slv("G3: ACTIVECH reads 0 when idle", rdw(11 downto 9), "000");
 
-        -- Part C: on a solo CH1 run ACTIVECH must read 1 while CH1 is serviced (D16)
+        -- Part C: on a solo CH1 run ACTIVECH must read 1 while CH1 is serviced
         for k in 0 to 5 loop
             ram_poke1(dma_word_idx(SRR1) + k, x"C100" & std_logic_vector(to_unsigned(k, 16)));
         end loop;
@@ -942,7 +907,7 @@ begin
         dma_w1c(pbus, std_logic_vector(to_unsigned(2**(DMA_SR_DONE0+1), 32)));
 
         ------------------------------------------------------------------
-        -- GROUP G4: pacing (design doc G4; D9/D10)
+        -- GROUP G4: pacing
         ------------------------------------------------------------------
         report "=== GROUP G4: pacing (UART / QSPI / NFC) ===" severity note;
         dma_enable(pbus, '1', '0');
@@ -963,7 +928,7 @@ begin
         sb.check_true("G4-UART: exactly LEN reads (one word per event)", uart_reads = 4);
         dma_w1c(pbus, std_logic_vector(to_unsigned(2**DMA_SR_DONE0, 32)));
 
-        -- (b) QSPI0 RXFULL: side-effect-free read + M_CLR W1C(bit2) re-arm (A11).
+        -- (b) QSPI0 RXFULL: side-effect-free read + M_CLR W1C(bit 2) re-arm.
         prog_ch(pbus, 0, DMA_QSPI_RX_BYTE, DSTQ, 3,
                 dma_mk_cfg('0','1', DMA_TRIG_QSPI, '0','0'));
         dma_go(pbus, "0001", '1', '0');
@@ -997,7 +962,7 @@ begin
         dma_w1c(pbus, std_logic_vector(to_unsigned(2**DMA_SR_DONE0, 32)));
 
         ------------------------------------------------------------------
-        -- GROUP G5: CRC ride-along (design doc G5; D14/A14)
+        -- GROUP G5: CRC ride-along
         ------------------------------------------------------------------
         report "=== GROUP G5: CRC ride-along ===" severity note;
         -- byte-asymmetric buffer so the b0 through b3 byte order is proven
@@ -1031,7 +996,7 @@ begin
         dma_w1c(pbus, std_logic_vector(to_unsigned(2**DMA_SR_DONE0, 32)));
 
         ------------------------------------------------------------------
-        -- GROUP G6: deny-guard (design doc G6; D12/A5)
+        -- GROUP G6: deny-guard
         ------------------------------------------------------------------
         report "=== GROUP G6: deny-guard ===" severity note;
         dma_enable(pbus, '0', '1');   -- ERRIE=1
@@ -1077,7 +1042,7 @@ begin
         dma_w1c(pbus, std_logic_vector(to_unsigned(2**DMA_SR_DONE0, 32)));
 
         ------------------------------------------------------------------
-        -- GROUP G7: error model, reject-at-GO (design doc G7; D13 + A18)
+        -- GROUP G7: error model, reject-at-GO
         ------------------------------------------------------------------
         report "=== GROUP G7: error model (reject-at-GO) ===" severity note;
         dma_enable(pbus, '0', '1');   -- ERRIE=1
@@ -1119,7 +1084,7 @@ begin
         sb.check_bit("G7: out-of-window SRC (>=0x20000) -> CH0ERR", to_X01(rdw(DMA_SR_ERR0)), '1');
         dma_w1c(pbus, std_logic_vector(to_unsigned(2**DMA_SR_ERR0, 32)));
 
-        -- (e) TCM hole SRC (0x8000-0xBFFF, A18)
+        -- (e) TCM hole SRC (0x8000-0xBFFF)
         prog_ch(pbus, 0, DMA_TCM_LO_BYTE, DSTA, 1, dma_mk_cfg('1','1', DMA_TRIG_MEM, '0','0'));
         dma_go(pbus, "0001", '0', '1');
         wait for 12 * PERIOD;
@@ -1127,7 +1092,7 @@ begin
         sb.check_bit("G7: TCM-hole SRC (0x8000, A18) -> CH0ERR", to_X01(rdw(DMA_SR_ERR0)), '1');
         dma_w1c(pbus, std_logic_vector(to_unsigned(2**DMA_SR_ERR0, 32)));
 
-        -- (f) TCM hole DST (A18)
+        -- (f) TCM hole DST
         prog_ch(pbus, 0, SRCA, 16#9000#, 1, dma_mk_cfg('1','1', DMA_TRIG_MEM, '0','0'));
         dma_go(pbus, "0001", '0', '1');
         wait for 12 * PERIOD;
@@ -1143,8 +1108,8 @@ begin
         dma_w1c(pbus, std_logic_vector(to_unsigned(2**DMA_SR_ERR0, 32)));
 
         ------------------------------------------------------------------
-        -- GROUP G8: abort (design doc G8; D15).
-        -- The in-flight txn completes and m_req NEVER drops mid-txn; the arbiter monitor proves it.
+        -- GROUP G8: abort.
+        -- The in-flight txn must complete and m_req must never drop mid-txn; the arbiter protocol monitor proves it.
         ------------------------------------------------------------------
         report "=== GROUP G8: abort ===" severity note;
         for k in 0 to 15 loop
@@ -1168,7 +1133,7 @@ begin
                      to_X01(prot_err), '0');
 
         ------------------------------------------------------------------
-        -- GROUP G9: W1C + IRQ demux (design doc G9; D17)
+        -- GROUP G9: W1C + IRQ demux
         ------------------------------------------------------------------
         report "=== GROUP G9: W1C + IRQ demux ===" severity note;
         for k in 0 to 1 loop
@@ -1207,10 +1172,10 @@ begin
         dma_w1c(pbus, std_logic_vector(to_unsigned(2**DMA_SR_DONE0, 32)));
 
         ------------------------------------------------------------------
-        -- GROUP G10: NCH=2 shape (design doc G10), run on the second DUT instance
+        -- GROUP G10: NCH=2 shape, run on the second DUT instance
         ------------------------------------------------------------------
         report "=== GROUP G10: NCH=2 shape (dut2) ===" severity note;
-        -- CH2/CH3 slots ignore writes and read 0 (absent channels, D6)
+        -- CH2/CH3 slots ignore writes and read 0 (absent channels)
         bus_write(clk, pbus2, dma_ch_slot(2,0), x"DEADBEEF");
         bus_read(clk, pbus2, rdata2, dma_ch_slot(2,0), rdw);
         sb.check_slv("G10: NCH=2 CH2 SRC ignores writes / reads 0", rdw, x"00000000");
@@ -1253,18 +1218,15 @@ begin
         sb.check_true("FINAL: no deny-word master txn ever issued (DUT#2)", denied2 = 0);
 
         ------------------------------------------------------------------
-        -- GROUP G-EV: EVFAB taps (event_fabric_spec.md 2026-07-24).
-        -- task_go is consumed at the SAME arm site as a register CHnGO: D8/D13 reject-at-GO, busy suppression and pacing arm are IDENTICAL.
-        -- DMAEN gates task GOs clk-side (task_go_eff = task_go and dmaen), and busy_any covers a task GO the same cycle it arrives.
-        -- evt_done and evt_err are registered one-clk pulses at the flags' SET sites (pre-IE; abort sets neither), and ch_busy is busy or go_pending or a gated task pulse.
-        -- Pulse counts and episode counts are proven with the continuous evt_mon_proc background monitor, windowed via evt_mon_reset: the PWM_tb G-EV idiom.
-        -- Checker independence: that monitor only samples the exported evt_done/evt_err/ch_busy ports, never a DUT internal.
+        -- GROUP G-EV: event-fabric taps.
+        -- task_go is consumed at the SAME arm site as a register CHnGO, so reject-at-GO, busy suppression and pacing arm are identical, and DMAEN gates task GOs clk-side.
+        -- evt_done and evt_err are registered one-clk pulses at the flags' SET sites (pre-IE, and abort sets neither); ch_busy is busy or go_pending or a gated task pulse.
         ------------------------------------------------------------------
         report "=== GROUP G-EV: EVFAB taps (task_go/evt_done/evt_err/ch_busy) ===" severity note;
 
-        -- (a) and (b) INDISTINGUISHABILITY plus BUSY same-cycle: reuse G1's mem-to-mem setup but launch CH0 via a one-clk task_go(0) pulse instead of the register CHnGO write.
-        -- The SRCA source values are re-poked; that is idempotent, since SRCA is unchanged since G1.
-        dma_enable(pbus, '1', '0');   -- DMAEN=1, DONEIE=1, ERRIE=0 (G1 shape)
+        -- (a) and (b) indistinguishability plus BUSY same-cycle: the same mem-to-mem setup, but CH0 is launched by a one-clk task_go(0) pulse instead of a register CHnGO write.
+        -- Re-poking the SRCA source values is idempotent.
+        dma_enable(pbus, '1', '0');   -- DMAEN=1, DONEIE=1, ERRIE=0
         for k in 0 to 3 loop
             buf(k) := x"A1B2C3" & std_logic_vector(to_unsigned(16#40# + k, 8));
             ram_poke1(dma_word_idx(SRCA) + k, buf(k));
@@ -1311,8 +1273,8 @@ begin
         sb.check_bit("G-EV c: CH0DONE stays 0 (no arm under DMAEN=0)", to_X01(rdw(DMA_SR_DONE0)), '0');
         sb.check_bit("G-EV c: CH0ERR stays 0 (no arm under DMAEN=0)", to_X01(rdw(DMA_SR_ERR0)), '0');
 
-        -- (d) task GO to a BUSY channel: a mid-flight task_go(0) is a safe no-op, since the busy(ch)='0' guard blocks the re-arm.
-        -- The descriptor is still legal so no reject-at-GO fires either; the copy just finishes.
+        -- (d) task GO to a BUSY channel: a mid-flight task_go(0) is a safe no-op because the busy(ch)='0' guard blocks the re-arm.
+        -- The descriptor is still legal, so no reject-at-GO fires either and the copy simply finishes.
         dma_enable(pbus, '1', '1');   -- DMAEN=1, DONEIE=1, ERRIE=1 (catch a false CH0ERR too)
         for k in 0 to 15 loop
             buf(k) := x"3D00" & std_logic_vector(to_unsigned(k, 16));
@@ -1320,7 +1282,7 @@ begin
         end loop;
         prog_ch(pbus, 0, SRAB, DRAB, 16, dma_mk_cfg('1','1', DMA_TRIG_MEM, '0','0'));
         dma_go(pbus, "0001", '1', '1');
-        wait for 20 * PERIOD;   -- let a few words go (G8 idiom)
+        wait for 20 * PERIOD;   -- let a few words go
         evt_mon_reset;
         pulse_task_go(0);
         sb.check_true("G-EV d: ch_busy(0) already high at the mid-flight task_go(0) pulse",
@@ -1341,9 +1303,9 @@ begin
         sb.check_true("G-EV d: exactly one evt_done(0) pulse (no extra run fired)", evt_done_starts(0) = 1);
         dma_w1c(pbus, std_logic_vector(to_unsigned(2**DMA_SR_DONE0, 32)));
 
-        -- (e) reject-at-GO via the tap: with LEN=0 a task_go(0) sets CH0ERR and one evt_err pulse, and the channel never runs (D13/A18-identical reject-at-GO).
+        -- (e) reject-at-GO via the tap: with LEN=0 a task_go(0) sets CH0ERR and one evt_err pulse, and the channel never runs.
         dma_enable(pbus, '0', '1');   -- DMAEN=1, DONEIE=0, ERRIE=1
-        ram_poke1(dma_word_idx(DSTT), x"5EED5EED");   -- sentinel (G7 idiom)
+        ram_poke1(dma_word_idx(DSTT), x"5EED5EED");   -- sentinel: proves no transfer happened
         prog_ch(pbus, 0, SRCA, DSTT, 0, dma_mk_cfg('1','1', DMA_TRIG_MEM, '0','0'));
         evt_mon_reset;
         pulse_task_go(0);
@@ -1360,7 +1322,7 @@ begin
         sb.check_true("G-EV e: that evt_err pulse is exactly one clk wide", evt_err_highs = evt_err_starts);
         dma_w1c(pbus, std_logic_vector(to_unsigned(2**DMA_SR_ERR0, 32)));
 
-        -- (f) DISCIPLINE with DONEIE/ERRIE masked off: a task-launched copy still produces its evt_done pulse because EVFAB is pre-IE.
+        -- (f) with DONEIE/ERRIE masked off a task-launched copy still produces its evt_done pulse, because the event taps sit ahead of the IE gating.
         -- irq_done stays low, since only the irq path is IE-gated.
         dma_enable(pbus, '0', '0');   -- DMAEN=1, DONEIE=0, ERRIE=0
         prog_ch(pbus, 0, SRCA, DSTT, 4, dma_mk_cfg('1','1', DMA_TRIG_MEM, '0','0'));
@@ -1391,11 +1353,11 @@ begin
         dma_w1c(pbus, std_logic_vector(to_unsigned(2**DMA_SR_DONE0, 32)));
 
         ------------------------------------------------------------------
-        -- GROUP G-NEG: NEGATIVE CONTROL, mandatory and LAST.
+        -- GROUP G-NEG: negative control, mandatory and LAST.
         -- Exactly ONE deliberately-wrong expected value: a clean copy checked against a WRONG expected dst word.
         ------------------------------------------------------------------
         report "=== GROUP G-NEG: NEGATIVE CONTROL ===" severity note;
-        -- NOTE: both values keep bit 31 CLEAR, because periph_tb_pkg's img() renders via to_integer(unsigned(v)) and overflows on >= 2**31 (TRINTOVF).
+        -- Keep both values' bit 31 CLEAR: periph_tb_pkg's img() renders via to_integer(unsigned(v)) and overflows at >= 2**31.
         ram_poke1(dma_word_idx(SRCA), x"4A11AB1E");
         dma_enable(pbus, '1', '0');
         prog_ch(pbus, 0, SRCA, DSTA, 1, dma_mk_cfg('1','1', DMA_TRIG_MEM, '0','0'));

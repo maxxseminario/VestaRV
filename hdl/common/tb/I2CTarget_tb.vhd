@@ -1,34 +1,11 @@
 -------------------------------------------------------------------------------
 -- I2CTarget_tb.vhd
 -------------------------------------------------------------------------------
--- Standalone, self-checking testbench for the I2C TARGET peripheral (hdl/common/periph/I2CTarget.vhd).
--- Written AGAINST THE FROZEN ENTITY AND REGISTER MAP (~/vesta_docs/digperiphs/i2ct_design.md, D1-D20 plus the adjudicated tensions) while the RTL is written in parallel.
--- The DUT is declared as a COMPONENT, not an entity instantiation, so this bench compiles standalone with xmvhdl before I2CTarget.vhd exists.
--- VHDL default binding resolves it to the entity of the same name once I2CTarget.vhd is analyzed into work.
--- Structurally mirrors OneWire_tb.vhd and I3C_tb.vhd.
---
--- Uses tb/periph_tb_pkg.vhd (the shared scoreboard and register-bus BFM) and tb/i2ct_bfm_pkg.vhd (slot/CR/SR constants, the i2ct_mk_cr packer, the bounded SR polls, and the checker-independent SCL-timing constants).
--- The bus master is tb/i2c_host_model.vhd, the role-inverse of i3c_target_model: it drives the whole I2C frame (START/STOP/Sr, address, data, ACK/NACK) and honours the DUT's clock stretch.
--- It measures the DUT's driven ACK/TX levels off the resolved bus at its OWN sample points, which is what keeps the checker independent.
---
--- ONE clock family (design doc D1/D2): `clk`, bound to MCLK at integration, hosts the whole target FSM, the SDA/SCL 2-FF synchronizers, the sticky W1C flags and the watchdog.
--- `ClkMem` is the gated bus clock, driven `clk when pbus.en_mem='0' else '0'` exactly like OneWire_tb and I3C_tb.
--- There is no second domain: I2CT0 is mclk (D2), unlike the smclk I2C0 host of the wi2ct loopback.
---
--- SCL:clk RATIO = 32:1 (i2ct_bfm_pkg.I2CT_SCL_HALF_TICKS=16, so one SCL period = 2*16 = 32 clk).
--- That is above the frozen-doc guaranteed floor of 24:1 (D14) and about 8x the 4-clk FSM edge-to-drive latency per half-period, yet fast enough that the whole suite finishes in seconds of wall clock (the 1-MINUTE RULE).
--- PERIOD = 40 ns gives a ~25 MHz-equivalent clk, so one SCL bit = 32*40 ns = 1.28 us.
---
--- OPEN-DRAIN BIDIRECTIONAL BUS (design doc gotcha 10): SDA and SCL each get a weak 'H' pull, NOT the OneWire "strong 0".
--- The DUT pulls low via SDA_DIR/SCL_DIR: this entity has NO *_OUT ports, D19 ties them '0' at MCU, so the DUT drives '0' when *_DIR='1' and 'Z' otherwise.
--- The host model pulls low via its own oe, and every sample of the resolved net is to_X01-normalized.
---
--- DEVIATIONS / scope notes (flagged, not silently resolved):
---   * Clock-stretch tests (G3 RX-stretch, G4 TX-stretch) require the TB to service the DUT (read plus W1C RXF, or load I2CTTX) DURING the stall.
---     The host model exposes obs_wait_scl='1' while blocked on a genuine stretch; the TB launches the segment non-blocking, waits for obs_wait_scl, services the register, then waits for completion.
---     This is the only mid-transaction interleave; every other segment is launch-then-finish.
---   * BUSY-same-cycle TXE cover (D10) is exercised implicitly by the TX-stretch path (TXE asserts, the TB loads, the stretch releases).
---     A standalone write-then-poll-TXE micro-check is not separately staged.
+-- Standalone, self-checking testbench for the I2C target peripheral (periph/I2CTarget.vhd).
+-- The DUT is declared as a COMPONENT, so the bench compiles standalone; VHDL default binding resolves it to the entity of the same name once I2CTarget.vhd is analyzed into work.
+-- Uses periph_tb_pkg.vhd (scoreboard and register-bus BFM), i2ct_bfm_pkg.vhd (slot/CR/SR constants, the i2ct_mk_cr packer, bounded SR polls, SCL timing) and i2c_host_model.vhd as the bus master, which samples the DUT's driven ACK/TX levels off the resolved bus at its own sample points.
+-- One clock family: `clk` (MCLK at integration) hosts the target FSM, the SDA/SCL 2-FF synchronizers, the sticky W1C flags and the watchdog; `ClkMem` is the gated register-bus clock.
+-- SCL:clk ratio is 32:1 (I2CT_SCL_HALF_TICKS=16) and PERIOD = 40 ns, so one SCL bit is 1.28 us; SDA and SCL are open-drain with a weak 'H' idle, the DUT pulling low via SDA_DIR/SCL_DIR (no *_OUT ports) and the host model via its own oe.
 -------------------------------------------------------------------------------
 
 library ieee;
@@ -43,10 +20,9 @@ end entity I2CTarget_tb;
 
 architecture sim of I2CTarget_tb is
 
-    constant PERIOD : time := 40 ns;   -- clk reference (~25 MHz-equivalent, D2)
+    constant PERIOD : time := 40 ns;   -- clk reference (~25 MHz-equivalent)
 
-    -- FROZEN DUT entity (design doc D3), declared as a component so the bench compiles standalone before hdl/common/periph/I2CTarget.vhd exists.
-    -- The EVFAB tap (event_fabric_spec.md 2026-07-24, EV14) is carried here too so default binding sees the FULL entity port list.
+    -- DUT declared as a component so the bench compiles standalone; the port list here, including the evt_amf event tap, must match the entity for default binding.
     component I2CTarget is
         port (
             clk         : in  std_logic;
@@ -111,17 +87,14 @@ architecture sim of I2CTarget_tb is
     signal pbus      : periph_bus_t := PERIPH_BUS_IDLE;
     signal rdata_out : std_logic_vector(31 downto 0);
 
-    -- DUT pad drive-enables (this entity has no *_OUT ports, D19)
+    -- DUT pad drive-enables (this entity has no *_OUT ports)
     signal dut_sda_dir, dut_scl_dir : std_logic;
 
-    -- ---- EVFAB tap (event_fabric_spec.md 2026-07-24, EV14, G-EV) ----------
+    -- event fabric tap
     signal evt_amf : std_logic;
 
-    -- ---- EVFAB pulse monitor (checker independence, G-EV) -----------------
-    -- Continuous background tracker of the evt_amf tap port: counts pulse STARTS (rising transitions) and total HIGH samples, both at `clk` rising edges, since the last evt_amf_mon_clear pulse.
-    -- Mirrors PWM_tb's evt_mon_proc (evt_period/evt_fault).
-    -- A run of exactly N one-clk-wide pulses satisfies starts=N AND highs=N simultaneously: any wider pulse pushes highs above starts, and any missed pulse leaves starts short.
-    -- NEVER reads a DUT internal, only the exported evt_amf port.
+    -- evt_amf pulse monitor: counts pulse starts and total HIGH samples of the exported tap port at `clk` rising edges, since the last evt_amf_mon_clear.
+    -- Exactly N one-clk pulses gives starts=N and highs=N together: a wider pulse pushes highs above starts, a missed pulse leaves starts short.
     signal evt_amf_starts, evt_amf_highs : natural := 0;
     signal evt_amf_prev                  : std_logic := '0';
     signal evt_amf_mon_clear             : std_logic := '0';
@@ -164,14 +137,13 @@ architecture sim of I2CTarget_tb is
 begin
 
     ----------------------------------------------------------------------------
-    -- clock / gated register-bus clock (mirrors OneWire_tb / I3C_tb)
+    -- clock / gated register-bus clock
     ----------------------------------------------------------------------------
     clk    <= not clk after PERIOD / 2;
     ClkMem <= clk when pbus.en_mem = '0' else '0';
 
     ----------------------------------------------------------------------------
-    -- Open-drain bus resolution (design doc bench plan, gotcha 10): the DUT pulls low via *_DIR (value '0', no *_OUT port, D19), the host model pulls low via its own oe, and a weak 'H' idles the net high.
-    -- Any '0' wins (wired-AND), and every sample is to_X01-normalized.
+    -- Open-drain bus resolution: the DUT pulls low via *_DIR, the host model via its own oe, and a weak 'H' idles the net high, so any '0' wins (wired-AND) and every sample is to_X01-normalized.
     ----------------------------------------------------------------------------
     sda_bus <= '0'          when dut_sda_dir  = '1' else 'Z';
     sda_bus <= host_sda_out when host_sda_oe  = '1' else 'Z';
@@ -184,8 +156,7 @@ begin
     scl_bus_x01 <= to_X01(scl_bus);
 
     ----------------------------------------------------------------------------
-    -- EVFAB pulse monitor (see the signal-declaration comment): samples evt_amf, to_X01-normalized, on every clk rising edge.
-    -- Windowed via evt_amf_mon_clear the same way PWM_tb's evt_mon_proc is windowed.
+    -- evt_amf pulse monitor: samples the tap, to_X01-normalized, on every clk rising edge, windowed by evt_amf_mon_clear.
     ----------------------------------------------------------------------------
     evt_amf_mon_proc : process(clk)
         variable a_lvl : std_logic;
@@ -296,7 +267,7 @@ begin
             bus_write(clk, pbus, I2CT_SLOT_CR, i2ct_mk_cr(en, gcen, csen, aeie, dataie, sad, sadm));
         end procedure;
 
-        -- W1C the given SR mask, then wait out the clr_*_tgl 2-FF sync and edge detect (D17) before the caller relies on the flag being clear.
+        -- W1C the given SR mask, then wait out the clr_*_tgl 2-FF sync and edge detect before the caller relies on the flag being clear.
         procedure w1c(mask : std_logic_vector(31 downto 0)) is
         begin
             bus_write(clk, pbus, I2CT_SLOT_SR, mask);
@@ -332,7 +303,7 @@ begin
             end loop;
         end procedure;
 
-        -- Clear the evt_amf pulse monitor's accumulators, mirroring PWM_tb's evt_mon_reset exactly: the clear is held across one clk edge so the concurrent evt_amf_mon_proc samples it on a real edge.
+        -- Clear the evt_amf monitor accumulators: the clear is held across one clk edge so the concurrent monitor samples it on a real edge.
         -- Call only OUTSIDE a timing-critical window.
         procedure evt_amf_mon_reset is
         begin
@@ -606,8 +577,7 @@ begin
         w1c(x"000007DC");
 
         ------------------------------------------------------------------
-        -- GROUP G8: IRQ demux / W1C
-        -- irq_ae = (AMF|GCF|OVF|NACKF|STOPF|RSTARTF|ERRF)&AEIE ; irq_data = (RXF|TXE)&DATAIE (D16)
+        -- GROUP G8: IRQ demux / W1C; irq_ae = (AMF|GCF|OVF|NACKF|STOPF|RSTARTF|ERRF)&AEIE, irq_data = (RXF|TXE)&DATAIE
         ------------------------------------------------------------------
         report "=== GROUP G8: IRQ demux / W1C ===" severity note;
         set_cr('1', '0', '0', '1', '1', SAD, "0000000");   -- AEIE=1, DATAIE=1
@@ -642,14 +612,12 @@ begin
         w1c(x"000007DC");
 
         ------------------------------------------------------------------
-        -- GROUP G-EV: EVFAB tap (event_fabric_spec.md 2026-07-24, EV14).
-        -- evt_amf is a registered one-clk pulse at the amf SET site (address match including general call), taken pre-IE so cr_aeie never touches it.
-        -- Pulse counts are proven with the continuous evt_amf_mon_proc background monitor, which only samples the exported evt_amf port and never a DUT internal.
-        -- It is windowed via evt_amf_mon_reset the same way PWM_tb's G-EV group windows evt_period/evt_fault via evt_mon_reset.
+        -- GROUP G-EV: event fabric tap. evt_amf is a registered one-clk pulse at the amf SET site (address match including general call), taken pre-IE so cr_aeie never touches it.
+        -- Pulse counts come from the background monitor, which samples only the exported evt_amf port and is windowed via evt_amf_mon_reset.
         ------------------------------------------------------------------
         report "=== GROUP G-EV: EVFAB tap (evt_amf) ===" severity note;
 
-        -- G-EV-a: one addressed transaction gives exactly one evt_amf pulse, one clk wide, and amf sticky sets as before (mirrors G1's exact-match check).
+        -- G-EV-a: one addressed transaction gives exactly one evt_amf pulse, one clk wide, and sets the sticky AMF.
         set_cr('1', '0', '0', '0', '0', SAD, "0000000");
         evt_amf_mon_reset;
         launch(I2CT_OP_XFER, false, true, SAD, '0', 0);
@@ -669,7 +637,7 @@ begin
         sb.check_bit("G-EV b3: AMF still reads 1 (never W1C'd since a1)", to_X01(rdw(I2CT_SR_AMF)), '1');
         w1c(x"000007DC");
 
-        -- G-EV-c: DISCIPLINE CHECK with AEIE=0 (address/error IRQ enable off): the tap still pulses, since it is pre-IE and D16 never gates it, while the combinational irq_ae stays low.
+        -- G-EV-c: with AEIE=0 the tap still pulses, since it is pre-IE and never gated, while the combinational irq_ae stays low.
         set_cr('1', '0', '0', '0', '0', SAD, "0000000");   -- AEIE=0
         evt_amf_mon_reset;
         launch(I2CT_OP_XFER, false, true, SAD, '0', 0);
@@ -680,17 +648,17 @@ begin
                      to_X01(irq_ae), '0');
         w1c(x"000007DC");
 
-        -- G-EV-d: a non-matching address produces NO evt_amf pulse over the whole transaction (mirrors G1's mismatch check).
-        -- A general call (GCEN=1) DOES pulse: gc also sets amf (D7), so the tap fires identically (mirrors G2's general-call check).
+        -- G-EV-d: a non-matching address produces NO evt_amf pulse over the whole transaction.
+        -- A general call (GCEN=1) DOES pulse, since it also sets amf.
         evt_amf_mon_reset;
-        launch(I2CT_OP_XFER, false, true, "0101010", '0', 0);   -- 0x2A: full mismatch (G1)
+        launch(I2CT_OP_XFER, false, true, "0101010", '0', 0);   -- 0x2A: full mismatch
         finish;
         sb.check_true("G-EV d1: no evt_amf pulse over a non-matching address",
                       evt_amf_starts = 0 and evt_amf_highs = 0);
 
         set_cr('1', '1', '0', '0', '0', SAD, "0000000");   -- GCEN=1
         evt_amf_mon_reset;
-        launch(I2CT_OP_XFER, false, true, "0000000", '0', 0);   -- general call (G2)
+        launch(I2CT_OP_XFER, false, true, "0000000", '0', 0);   -- general call
         finish;
         sb.check_true("G-EV d2: a general call also pulses evt_amf exactly once (gc sets amf too)",
                       evt_amf_starts = 1 and evt_amf_highs = 1);
@@ -704,8 +672,7 @@ begin
                       evt_amf_starts = 0 and evt_amf_highs = 0);
 
         ------------------------------------------------------------------
-        -- GROUP G-NEG: NEGATIVE CONTROL (mandatory, LAST) with exactly ONE deliberately-wrong expected value.
-        -- It expects a wrong RX byte after a clean, known host write, the design doc's own suggested example.
+        -- GROUP G-NEG: negative control, LAST, with exactly ONE deliberately-wrong expected value: a wrong RX byte after a clean, known host write.
         ------------------------------------------------------------------
         report "=== GROUP G-NEG: NEGATIVE CONTROL ===" severity note;
         set_cr('1', '0', '0', '0', '0', SAD, "0000000");

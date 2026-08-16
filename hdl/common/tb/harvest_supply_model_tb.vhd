@@ -1,38 +1,11 @@
 -------------------------------------------------------------------------------
 -- harvest_supply_model_tb.vhd
 -------------------------------------------------------------------------------
--- Self-checking standalone bench for harvest_supply_model.vhd (a TI bq25570-class harvesting PMIC) and its companion supply_supervisor.
--- That pair drives Castalia's DP-S3 field-power PGOOD input, package pin 69 / P6.7, which feeds pwr_ctrl.pgood_pad.
---
--- Compile order:  hdl/common/tb/periph_tb_pkg.vhd
---                 hdl/common/tb/harvest_supply_model.vhd
---                 hdl/common/tb/harvest_supply_model_tb.vhd
--- Run:            xcelium/cots_test/harvest_supply/run_harvest_supply.sh
---
--- GROUPS
---   G-INIT   the model comes up dead and cold, as a discharged board does.
---   G-COLD   cold start: below VIN(CS) nothing happens no matter how much power is offered.
---            At VIN(CS) the cold-start pump charges VSTOR to VSTOR(CHGEN), the main boost charger takes over, VBAT_OK asserts, the RC-slewed flag pin drags PGOOD up behind it, both rails regulate, the overvoltage clamp stops the charger, and the buck current limit flags.
---   G-SIZE   THE SUPERCAP SIZING ARITHMETIC.
---            Reproduces the documented "0.75 mJ per 100 ms transaction at LDO eta = 0.8, ~1 mF class for a 2.5 V to 1.8 V droop" result from docs/field_power.html, then re-runs the arithmetic against the thresholds the bq25570 ACTUALLY enforces.
---            See the long note above the group.
---   G-BROWN  brownout and recover: awake-load droop past the battery-good falling threshold deasserts PGOOD (which re-holds the chip in reset on a real board), harvest returns, PGOOD re-asserts.
---            Edge count over the whole cycle must be exactly 2, i.e. no chatter at either crossing.
---   G-UV     the INTERNALLY SET VBAT_UV load shed, driven all the way through the crossing in both directions.
---            G-BROWN deliberately stops at the battery-good falling threshold (2400 mV), which is ABOVE VBAT_UV, so without this group the 1.95 V threshold would be configured but never exercised.
---            It is one of the two independent grounds on which G-SIZE rejects the documented 2.5 V to 1.8 V droop.
---            Checks pin the threshold VALUE in both directions, not merely "UV eventually asserts", so a mis-set VBAT_UV cannot slip through.
---   G-RAMP   THE OPEN QUESTION.
---            One slowly-ramping storage node, three supervisors watching it with the SAME noise realization, differing only in the candidate fix:
---                A: hysteresis 0, de-glitch 0   (a plain CMOS receiver)
---                B: hysteresis 100 mV
---                C: de-glitch 3 ms
---            Edge count is the crisp observable: A chatters, B and C produce exactly one edge.
---   G-NEG    mandatory negative control: a deliberately wrong expectation, so the run proves the checker can fail.
---            Exactly 1 tallied failure is the PASS condition.
---
--- The bench never touches pwr_ctrl.
--- It only proves the model, and that the `pgood` it produces is the clean std_logic pwr_ctrl.pgood_pad wants.
+-- Self-checking bench for harvest_supply_model (a bq25570-class harvesting PMIC) and its companion supply_supervisor.
+-- The pair drives the field-power PGOOD input on package pin 69 / P6.7, which feeds pwr_ctrl.pgood_pad.
+-- Compile after periph_tb_pkg.vhd and harvest_supply_model.vhd; run xcelium/cots_test/harvest_supply/run_harvest_supply.sh.
+-- Groups: G-INIT discharged board, G-COLD cold start to regulation, G-SIZE supercap sizing, G-BROWN droop and recover, G-UV VBAT_UV load shed, G-RAMP receiver chatter on a slow ramp, G-NEG negative control.
+-- The bench never touches pwr_ctrl; with NEGCTRL set, exactly 1 tallied failure is the PASS condition.
 -------------------------------------------------------------------------------
 
 library ieee;
@@ -43,8 +16,7 @@ use work.periph_tb_pkg.all;
 
 entity harvest_supply_model_tb is
     generic (
-        -- Deliberately-wrong expectation, guarded so the bench can also be run as a pure pass.
-        -- Default true selects the house-style negative control.
+        -- Selects the deliberately-wrong expectation; clear it to run the bench as a pure pass.
         NEGCTRL : boolean := true
     );
 end entity harvest_supply_model_tb;
@@ -62,17 +34,15 @@ architecture tb of harvest_supply_model_tb is
     ---------------------------------------------------------------------
     -- G-COLD / G-BROWN / G-RAMP / G-SIZE stimulus + observation nets
     ---------------------------------------------------------------------
-    -- u_cold : realistic Castalia board.
-    -- 4.7 uF CSTOR (the datasheet's own external component value), supercap-free, buck at 3.3 V for the I/O rail and a companion switcher at 1.0 V for the core.
-    -- That split is forced by the bq25570 buck's 1.3 V floor (see the model header).
+    -- u_cold : realistic board, 4.7 uF CSTOR, supercap-free, buck at 3.3 V for the I/O rail and a companion switcher at 1.0 V for the core.
+    -- The split is forced by the bq25570 buck's 1.3 V floor.
     signal cd_vin, cd_iin, cd_la, cd_lb : natural := 0;
     signal cd_vstor, cd_vout, cd_vaux, cd_okmv : natural;
     signal cd_ok, cd_cs, cd_chg, cd_ov, cd_ilim : std_logic;
     signal cd_pgood : std_logic;
 
-    -- u_size1 / u_size2 : the sizing experiment.
-    -- IDEALIZED on purpose (see the G-SIZE note): dropout and the VBAT_UV load shed are disabled so the simulation reproduces the DOCUMENTED arithmetic exactly rather than the part's real behavior.
-    -- The real behavior is checked separately, in the same group, as an arithmetic comparison.
+    -- u_size1 / u_size2 : the sizing experiment, idealized on purpose (dropout and the VBAT_UV load shed disabled) so it reproduces the plain arithmetic.
+    -- The part's real behavior is checked in the same group as an arithmetic comparison.
     signal sz_la : natural := 0;
     signal s1_vstor, s1_estor, s1_eload : natural;
     signal s2_vstor : natural;
@@ -83,7 +53,7 @@ architecture tb of harvest_supply_model_tb is
     signal br_ok, br_uv : std_logic;
     signal br_pgood : std_logic;
 
-    -- u_ramp : 10 uF, slowly charged through a supervisor threshold, with the converter ripple the datasheet describes riding on it.
+    -- u_ramp : 10 uF charged slowly through a supervisor threshold, with converter ripple riding on it.
     signal rp_vin, rp_iin : natural := 0;
     signal rp_vstor : natural;
     signal pg_a, pg_b, pg_c : std_logic;
@@ -331,8 +301,7 @@ begin
         ---------------------------------------------------------------
         report "G-COLD: cold start, boost takeover, VBAT_OK, rails, OV, ilim";
         ---------------------------------------------------------------
-        -- 500 mV is below VIN(CS) = 600 mV.
-        -- 2.5 mW is 166x the 15 uW PIN(CS) floor: POWER is not the gate here, VOLTAGE is.
+        -- 500 mV is below VIN(CS) = 600 mV, while 2.5 mW is 166x the 15 uW PIN(CS) floor: voltage is the gate here, not power.
         cd_vin <= 500;
         cd_iin <= 5000;
         wait for 5 ms;
@@ -411,14 +380,8 @@ begin
         sb.check_true("G-COLD ilim clears when the demand goes away", cd_ilim = '0');
 
         ---------------------------------------------------------------
-        -- G-SIZE: the supercap sizing arithmetic.
-        --
-        -- docs/field_power.html claims 0.75 mJ per 100 ms transaction window at eta = 0.8, needing a ~1 mF class capacitor for a 2.5 V to 1.8 V droop, "with x2 margin".
-        --
-        -- Reproduced here as 3333 uA at a 1.8 V rail = 6.00 mW of load; at eta = 0.8 that is 7.50 mW out of storage, and over 100 ms that is 0.750 mJ.
-        -- Both size instances start at 2500 mV: u_size1 is the 1 mF target, u_size2 is the analytic minimum of 500 uF, which should land exactly on the 1.8 V floor.
-        --
-        -- Closed form: C_min = 2E / (V0^2 - V1^2).
+        -- G-SIZE: 3333 uA on a 1.8 V rail is 6.00 mW of load, 7.50 mW out of storage at eta = 0.8, so 0.750 mJ per 100 ms transaction window.
+        -- Closed form C_min = 2E / (Vhi^2 - Vlo^2); both instances start at 2500 mV, u_size1 at the 1 mF target and u_size2 at the 500 uF analytic minimum, which lands exactly on the 1.8 V floor.
         ---------------------------------------------------------------
         report "G-SIZE: supercap sizing";
         sz_la <= 3333;
@@ -450,8 +413,7 @@ begin
                       & "droop is " & n2s(integer(c_ideal * 1.0e6))
                       & " uF, matching the simulated 500 uF result",
                       c_ideal >= 490.0e-6 and c_ideal <= 510.0e-6);
-        -- The part will not let the storage node reach 1.8 V with a 1.8 V rail up: the buck needs VSTOR >= VOUT + 0.2 V (Table 6.6) and VBAT_UV is INTERNALLY set at 1.95 V (Table 6.5).
-        -- The honest floor is 2.0 V.
+        -- The part will not let the storage node reach 1.8 V with a 1.8 V rail up: the buck needs VSTOR at or above VOUT + 0.2 V and VBAT_UV is internally set at 1.95 V, so the honest floor is 2.0 V.
         sb.check_true("G-SIZE 1 mF still covers the bq25570's REAL floor "
                       & "(2.0 V, needing " & n2s(integer(c_real * 1.0e6))
                       & " uF) -- but at 1.5x margin, not 2x",
@@ -493,17 +455,8 @@ begin
         br_la <= 0;
 
         ---------------------------------------------------------------
-        -- G-UV: the VBAT_UV load shed.
-        --
-        -- VBAT_UV is INTERNALLY SET at 1.95 V typ (Table 6.5) and is NOT programmable.
-        -- It is one of the two independent reasons G-SIZE rejects the documented 2.5 V to 1.8 V droop, the other being the buck's VSTOR - 0.2 V ceiling, so it must be exercised and not merely configured.
-        -- G-BROWN above stops at the battery-good FALLING threshold (2400 mV), which never reaches it.
-        --
-        -- Every check here pins the threshold VALUE in one direction or the other, so that a mis-set VBAT_UV cannot pass:
-        --   above it   rails regulating, UV clear
-        --   crossing   UV asserts AT 1950 mV, rail A shed to 0 V
-        --   shed       the storage node stops falling under an unchanged 12.3 mW demand, proof the shed is real and not cosmetic
-        --   release    UV clears ABOVE 1950 mV by the 15 mV VBAT_UV_HYST
+        -- G-UV: the VBAT_UV load shed. VBAT_UV is internally set at 1.95 V typ and is not programmable, so it must be exercised, not merely configured.
+        -- Every check pins the threshold value in one direction or the other: UV asserts at 1950 mV shedding rail A, the storage node then holds under an unchanged 12.3 mW demand, and UV clears 15 mV higher by VBAT_UV_HYST.
         ---------------------------------------------------------------
         report "G-UV: VBAT_UV load shed and its 15 mV rising hysteresis";
         br_vin <= 0;
@@ -531,7 +484,7 @@ begin
         sb.check_true("G-UV rail A is shed at UV, vout = " & n2s(br_vout)
                       & " mV", br_vout = 0);
 
-        -- The shed must actually remove the load: hold the 12.3 mW demand and prove the storage node stops falling, with only the 488 nA Iq left.
+        -- Hold the 12.3 mW demand: the shed must leave only the 488 nA Iq, so the storage node stops falling.
         v_hold := br_vstor;
         wait for 5 ms;
         sb.check_true("G-UV the shed really removes the load: VSTOR held at "
@@ -560,9 +513,8 @@ begin
         br_iin <= 0;
 
         ---------------------------------------------------------------
-        -- G-RAMP: the DP-S3 open question, made simulatable.
-        --
-        -- One storage node ramping at ~27 mV/ms (10 uF charged at ~270 uA) with 30 mVpp of converter ripple on it, watched by three supervisors that share ONE noise realization (same seed, same 20 mV pk-pk) and differ only in the fix under test.
+        -- G-RAMP: one storage node ramping at ~27 mV/ms (10 uF charged at ~270 uA) with 30 mVpp of converter ripple on it.
+        -- Three supervisors share ONE noise realization (same seed, same 20 mV pk-pk) and differ only in the fix under test.
         ---------------------------------------------------------------
         report "G-RAMP: slow ramp through the PGOOD threshold";
         ramp_arm <= '1';

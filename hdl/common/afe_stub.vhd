@@ -1,44 +1,22 @@
 -- =============================================================================
--- afe_stub.vhd  (CQ2a: AFE and EIS digital register stub)
+-- afe_stub.vhd
 -- =============================================================================
--- DIGITAL REGISTER STUB for a Castalia-Quad analog front-end (AFE) site or the shared EIS engine.
--- A plain registered-read arbiter-slave register file of 16 words, one 64 B sub-slot, standing in for the real analog IP until it arrives.
--- It holds the control, DAC-pattern, TIA-gain, switch-matrix, ADC control and data, and status placeholders plus a write-1-to-clear interrupt-flag word, and drives one level interrupt from that flag word.
+-- Digital register stub for one analog front-end (AFE) site or for the shared EIS engine: 16 words in one 64 B sub-slot, standing in for the analog IP.
+-- Every access is qualified against the arbiter's granted-master index: an AFE for hart h answers only when s_master is h or MGMT_HART, and EIS is instantiated with OWNER_HART equal to MGMT_HART so its gate is management-hart-only.
+-- A denied read returns 0 and a denied write is dropped: no bus error, no stall, no arbiter-contract change, and no way to forge ownership.
+-- The bank is exactly four AFE sites plus EIS at any hart count, because there are four physical analog channels.
+-- Reads never mutate state; keep them that way (W1C flags only) so LR/SC or AMO to an AFE address stays harmless.
 --
--- OWNERSHIP GATE (the whole point of instantiating it per site): every access is qualified against the arbiter's granted-master index (mp_arbiter s_master, the mutex-bank and CLAIM precedent).
--- An AFE for hart h answers only when s_master = h OR s_master = MGMT_HART, since the MANAGEMENT hart reaches every site.
--- The EIS engine is instantiated with OWNER_HART set to the management hart itself, so its gate collapses to that one master.
--- A DENIED read returns 0 and a DENIED write is dropped: NO bus error, NO stall, NO arbiter-contract change, because the gate lives entirely inside this slave shim.
--- The gate keys off s_master alone, so there is no cross-hart data leakage and no way to forge ownership.
---
--- CP2 (Castalia-Penta, D4): the management privilege used to be the literal `s_master = 0`, the ONE fabric privilege hart 0 held.
--- It is now the MGMT_HART generic, defaulting to 0, so every existing configuration is bit-identical.
--- A penta chip passes MGMT_HART of 4 and the orchestrator hart takes the privilege and owns the EIS engine, while AFE0-3 keep OWNER_HART 0-3.
--- The bank stays exactly four AFE sites plus EIS at any hart count: there are four physical channels, and the orchestrator deliberately has no site of its own.
---
--- REGISTER MAP (word offset in the 16-word, 64 B sub-slot; only addr(3:0) is decoded, so the block aliases every 16 words within its sub-slot):
---   +0x0 CTRL   RW  control. As a TEST HOOK standing in for the absent
---                   analog event, a write with wdata bit 0 = 1 SOFT-SETS
---                   IF bit 0, which is how the level interrupt path is
---                   exercised until the analog IP drives real events.
+-- Register map (word offset; only addr(3:0) is decoded, so the block aliases every 16 words within its sub-slot):
+--   +0x0 CTRL   RW  control; a write with wdata bit 0 = 1 soft-sets IF bit 0, the test hook that exercises the interrupt path until the analog IP drives real events
 --   +0x1 DACPAT RW  DAC pattern control placeholder
 --   +0x2 TIA    RW  TIA gain-range placeholder
 --   +0x3 SWM    RW  switch-matrix and analog-mux config placeholder
 --   +0x4 ADCC   RW  ADC control placeholder
 --   +0x5 ADCD   RW  ADC data placeholder
 --   +0x6 STAT   RW  status placeholder
---   +0x7 IF     W1C interrupt-flag word: a set bit drives irq high (level),
---                   and writing a 1 to a bit CLEARS it. READ is side-effect-free.
+--   +0x7 IF     W1C interrupt-flag word: a set bit drives irq high, writing a 1 to a bit clears it, and reads are side-effect-free
 --   +0x8..0xF  RW  scratch and reserved (plain storage)
---
--- BUS CONTRACT (same as clint.vhd, mutex_bank.vhd and pwr_ctrl.vhd): active-high one-cycle en strobe, 4 active-high byte-lane strobes we, 1-cycle REGISTERED read, free-running mclk.
--- The we strobes are resv-GATED in MCU.vhd, because a suppressed SC write must not touch a register either.
--- The read is registered: address at cycle T, rdata valid at T+1, so there is no combinational read and no i2c_rdata_bridge latch is needed.
--- `master` is the arbiter's granted-master index, left UNCONSTRAINED so one entity serves any s_master width (Castalia MW=2, Argus MW=5).
--- All registers reset to 0, so the block is a provable NO-OP (irq low, reads 0) until software writes it.
---
--- SIDE-EFFECT-FREE READS: reads never mutate state, so it is safe, though pointless, to LR/SC or AMO an AFE address.
--- Keep AFE reads side-effect-free (W1C flags only) so that stays true, exactly as the mutex-bank rule warns for the opposite case.
 -- =============================================================================
 
 library IEEE;
@@ -49,10 +27,8 @@ use IEEE.STD_LOGIC_UNSIGNED.ALL;
 entity afe_stub is
     generic (
         -- Hart that, together with MGMT_HART, may access this block.
-        -- EIS is instantiated with OWNER_HART equal to MGMT_HART, which makes its gate management-hart-only.
         OWNER_HART : natural := 0;
-        -- CP2/D4: the MANAGEMENT hart, the one master that reaches every site.
-        -- The default of 0 is the pre-penta behaviour where hart 0 manages, so an omitted association is bit-identical to the literal `s_master = 0` this replaced.
+        -- The management hart, the one master that reaches every site.
         MGMT_HART  : natural := 0;
         -- Word registers: 16 of them, one 64 B sub-slot, so addr is 4 bits.
         NREG       : natural := 16
@@ -61,13 +37,14 @@ entity afe_stub is
         clk    : in  std_logic;   -- free-running mclk
         resetn : in  std_logic;
 
-        -- slave port behind mp_arbiter: en is active-high and we is resv-gated
+        -- Slave port behind mp_arbiter: one-cycle active-high en, four active-high byte lanes.
+        -- we is resv-gated in MCU.vhd, because a suppressed SC write must not touch a register either.
         en     : in  std_logic;
         we     : in  std_logic_vector(3 downto 0);
         addr   : in  std_logic_vector(3 downto 0);      -- word offset within the sub-slot
         wdata  : in  std_logic_vector(31 downto 0);
-        master : in  std_logic_vector;                  -- arbiter s_master (unconstrained width)
-        rdata  : out std_logic_vector(31 downto 0);
+        master : in  std_logic_vector;                  -- arbiter s_master, unconstrained so one entity serves any master-index width
+        rdata  : out std_logic_vector(31 downto 0);     -- registered read: address at T, rdata valid at T+1, so no read bridge is needed
 
         -- level interrupt: high while any IF bit is set
         irq    : out std_logic
@@ -102,7 +79,7 @@ begin
         variable allow : boolean;
     begin
         if resetn = '0' then
-            regs      <= (others => (others => '0'));  -- all zero: the block is a NO-OP and irq stays low
+            regs      <= (others => (others => '0'));  -- all zero: the block is a no-op, irq low and reads 0, until software writes it
             rdata_reg <= (others => '0');
         elsif rising_edge(clk) then
             if en = '1' then
@@ -134,7 +111,7 @@ begin
                                     regs(idx)(l*8 + 7 downto l*8) <= wdata(l*8 + 7 downto l*8);
                                 end if;
                             end loop;
-                            -- CTRL test hook: soft-set IF(0), standing in for the analog event until the real IP drives it.
+                            -- CTRL test hook: soft-set IF(0), standing in for the analog event.
                             if idx = W_CTRL and we(0) = '1' and wdata(0) = '1' then
                                 regs(W_IF)(0) <= '1';
                             end if;

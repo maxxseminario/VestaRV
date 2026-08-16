@@ -2,8 +2,7 @@
 -- GlitchFilter_behav.vhd
 -- =============================================================================
 -- Behavioral stand-in for the analog GlitchFilter macro on the 32 IRQ lines.
--- The real cell swallows pulses narrower than minPulseWidth; simulation does not model that, so this architecture is a straight pass-through.
--- minPulseWidth is kept here as the documented filter width of the macro.
+-- The real cell swallows pulses narrower than minPulseWidth; this model does not filter at all.
 -- =============================================================================
 
 library ieee;

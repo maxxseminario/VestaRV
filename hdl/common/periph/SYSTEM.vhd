@@ -7,9 +7,8 @@ use work.constants.all;
 use work.MemoryMap.all;
 
 entity SYSTEM is
-    -- M19: the vectored IRQ controller block (SYS_IRQ_EN/PRI/CR plus the ENU write-packing quirk) is RETIRED.
-    -- ALL peripheral IRQ routing and masking, hart 0 included, lives in the irq_router's per-hart rows at 0x7000 (claim/complete delivery, one meip wire per hart).
-    -- SYSTEM keeps the clock/reset/CRC/WDT monarchy, and the retired register slots read 0 and ignore writes (reserved).
+    -- SYSTEM owns the clock, reset, CRC and watchdog monarchy; ALL peripheral IRQ routing and masking lives in the irq_router's per-hart rows at 0x7000.
+    -- The SYS_IRQ_EN/PRI/CR slots are therefore reserved here: writes are ignored and reads return 0.
     port (
         -- Clock Inputs
         clk_lfxt_in     : in  std_logic;
@@ -22,13 +21,11 @@ entity SYSTEM is
         resetn_por      : in  std_logic;
         resetn_sys      : out std_logic;
 
-        -- Interrupt Signals (M19: WDT only).
-        -- The WDT level source into the deglitch chain (source 0 = IRQB_SYS_WDT).
-        -- Pre-M19 this was hardwired '0' and dead; it is now wdt_if AND wdt_ie, a REAL level, cleared by the WDT_SR write-1-to-clear and masked chip-wide until a router row routes it.
+        -- Interrupt signals: the WDT is the only source SYSTEM raises.
+        -- The WDT level into the deglitch chain (source 0 = IRQB_SYS_WDT): wdt_if AND wdt_ie, cleared by the WDT_SR write-1-to-clear.
         irq_sys_wdt     : out std_logic;
-        -- D2 hooks from the irq_router.
-        -- wdt_irq_routed = source 0 is enabled in SOME hart's row (the reset-on-undeliverable arm).
-        -- wdt_irq_complete = 1-mclk COMPLETE(0) pulse, the WDT end-of-interrupt; it replaces the falling_edge(isr_ret) hack and works no matter WHICH hart serviced the WDT.
+        -- wdt_irq_routed: source 0 is enabled in SOME hart's router row, which arms the reset-on-undeliverable path.
+        -- wdt_irq_complete: 1-mclk COMPLETE(0) pulse, the WDT end-of-interrupt, no matter WHICH hart serviced it.
         wdt_irq_routed   : in  std_logic := '0';
         wdt_irq_complete : in  std_logic := '0';
 
@@ -52,11 +49,9 @@ entity SYSTEM is
         en_dco1_out        : out std_logic;
         DCO1_BIAS           : out std_logic_vector(11 downto 0);
 
-        --Memory Power
         -- PGEN_rom        : out std_logic; -- '0' rom on, '1' rom off
-        -- DP-S3 3b: widened from 3 bits to 7 bits.
-        -- 0 = ROM, 1 = hart0 TCM (RAM0), 2 = npuram (RAM1), 6:3 = shared bulk-RAM banks shbank0-3 (per bank; banks 4 and up of a wider config stay hardwired ON at the MCU level).
-        -- CONTENTS ARE LOST when a bank is gated (no retention): the M12 bootrom zero-fill is write-before-read anyway, but running software must keep its stack/payload bank ON.
+        -- Memory power gating, one bit per block: 0 = ROM, 1 = hart 0 TCM (RAM0), 2 = npuram (RAM1), 6:3 = shared bulk-RAM banks shbank0-3; any further banks stay hardwired ON at the MCU level.
+        -- CONTENTS ARE LOST when a bank is gated (there is no retention), so running software must keep its stack and payload bank ON.
         PGEN_mem        : out std_logic_vector(6 downto 0) -- '0' mem on, '1' mem off
 
     );
@@ -67,10 +62,10 @@ architecture rtl of SYSTEM is
     -- Registers 
     signal SYS_CLK_CR         : std_logic_vector(8 downto 0);
     signal SYS_CLK_DIV_CR     : std_logic_vector(5 downto 0);
-    signal SYS_BLOCK_PWR      : std_logic_vector(6 downto 0);  -- DP-S3 3b: 6:3 = shbank0-3 off
+    signal SYS_BLOCK_PWR      : std_logic_vector(6 downto 0);  -- 6:3 = shbank0-3 off
     signal SYS_CRC_DATA       : std_logic_vector(7 downto 0);
     signal SYS_CRC_STATE      : std_logic_vector(15 downto 0);
-    -- M19: SYS_IRQ_EN / SYS_IRQ_PRI / SYS_IRQ_CR are RETIRED; irq_router rows own routing and masking chip-wide, and priority is fixed lowest-ID.
+    -- No SYS_IRQ_EN / SYS_IRQ_PRI / SYS_IRQ_CR registers: the irq_router rows own routing and masking chip-wide, and priority is fixed lowest-ID.
     signal SYS_WDT_CR         : std_logic_vector(7 downto 0);
     signal SYS_WDT_SR         : std_logic_vector(1 downto 0);
     signal SYS_WDT_VAL        : std_logic_vector(23 downto 0);
@@ -94,7 +89,7 @@ architecture rtl of SYSTEM is
     --SYS_BLOCK_PWR
     signal rom_off            : std_logic;
     signal ram_off            : std_logic_vector(1 downto 0);
-    signal shb_off            : std_logic_vector(3 downto 0);  -- DP-S3 3b: shbank0-3 off
+    signal shb_off            : std_logic_vector(3 downto 0);  -- shbank0-3 off
 
     --SYS_WDT_CR
     signal wdt_en             : std_logic;
@@ -106,9 +101,7 @@ architecture rtl of SYSTEM is
     signal wdt_rf             : std_logic;
     signal wdt_if             : std_logic;
 
-    -- =============================================================================
     -- Memory Interface Signals
-    -- =============================================================================
     signal en_addr_periph     : natural range 0 to 63;
 
     -- Core Signal Declarations 
@@ -179,7 +172,7 @@ begin
 
     ram_off       <= SYS_BLOCK_PWR(2 downto 1);
     rom_off       <= SYS_BLOCK_PWR(0);
-    shb_off       <= SYS_BLOCK_PWR(6 downto 3);  -- DP-S3 3b
+    shb_off       <= SYS_BLOCK_PWR(6 downto 3);  -- shared bulk-RAM banks
 
     wdt_en        <= SYS_WDT_CR(7);
     wdt_cdiv      <= SYS_WDT_CR(5 downto 2);
@@ -196,9 +189,6 @@ begin
     clk_hfxt_out    <= clk_hfxt;
 
 
-    -- ===========================
-    -- Synchronizers 
-    -- ===========================
     -- Two-stage release of the system reset: any of POR, a WDT reset or the WDT hardware-reset bit forces it low asynchronously.
     sync_proc: process(resetn_por, resetn_wdt, mclk, wdt_hwrst)
     begin
@@ -213,9 +203,7 @@ begin
 
 
 
-    -- ===========================
-    -- Watchdog timer 
-    -- ===========================
+    -- Watchdog timer
 
 
    -- Clock gating for power savings
@@ -254,15 +242,13 @@ begin
             wdt_trigger <= '0';
             wdt_bit_prev := '0';
         elsif rising_edge(clk_wdt) then
-            -- Detect a rising edge on the selected bit, which is the WDT event.
-            -- NOTE: wdt_bit_prev must hold the PREVIOUS cycle's sample here, so the compare happens BEFORE wdt_bit_prev is refreshed below.
-            -- Previously the sample was taken first, making prev equal to current and the edge undetectable, so wdt_if/wdt_trigger never fired.
+            -- Detect a rising edge on the selected counter bit, which is the WDT event.
+            -- wdt_bit_prev must still hold the PREVIOUS sample at this compare: refresh it first and prev equals current, so the edge never fires.
             if wdt_bit_prev = '0' and SYS_WDT_VAL(slv2uint(wdt_cdiv)) = '1' then
                 -- Set interrupt flag on WDT timeout
                 wdt_if <= '1';
 
-                -- Generate the trigger pulse if interrupts are enabled.
-                -- M19: the retired SYS_IRQ_CR global gate no longer qualifies this, since delivery masking is the irq_router row's job.
+                -- Generate the trigger pulse if interrupts are enabled; delivery masking is the router row's job, not SYSTEM's.
                 if wdt_ie = '1' then
                     wdt_trigger <= '1';
                 end if;
@@ -290,8 +276,7 @@ begin
 
 
 
-    -- M19 (D2): the WDT end-of-interrupt is the irq_router's COMPLETE(0) pulse, a real mclk-domain strobe from WHICHEVER hart completed the WDT claim.
-    -- The pre-M19 falling_edge(isr_ret) form observed only hart 0, and only ever fired if the iret coincided with the 1-cycle trigger pulse, so it was vestigial.
+    -- The WDT end-of-interrupt is the irq_router's COMPLETE(0) pulse, an mclk-domain strobe from WHICHEVER hart completed the WDT claim.
     -- Qualified by wdt_if (the pending LEVEL), not by the trigger pulse.
     wdt_eoi_proc: process(resetn_sys, mclk)
     begin
@@ -304,8 +289,7 @@ begin
         end if;
     end process;
 
-    -- M19: "IRQ masked" is now the router's business, so wdt_irq_routed replaces the retired SYS_IRQ_EN(IRQB_SYS_WDT) term.
-    -- The reset fires when the timeout IRQ is undeliverable ANYWHERE, or after its EOI.
+    -- The WDT reset fires when the timeout interrupt is undeliverable ANYWHERE (interrupts off or no router row enables source 0), or after its end-of-interrupt.
     resetn_wdt <= '0' when wdt_en = '1' and wdt_trigger = '1' and
                     (wdt_ie = '0' or wdt_irq_routed = '0' or
                     (wdt_ie = '1' and wdt_interrupt_ret = '1'))
@@ -417,13 +401,8 @@ begin
         ClkOut     => smclk_undiv
     );
 
-    -- NOTE: smclk_divider increments on falling_edge(smclk_undiv) to avoid timing issues when smclk_div changes on rising_edge (from the address decoder).
-    -- Since smclk_div is sampled by the clock mux and may change synchronously with smclk_undiv (when it is the same clock), using opposite clock edges prevents the selector from changing at the same instant the divider outputs toggle, reducing the likelihood of glitches or metastability.
-    -- VERDICT (S9, was a "consider adding synchronization" TODO): no extra synchronizer is warranted.
-    -- smclk_div = SYS_CLK_DIV_CR(5:3) is written in the clk_mem (mclk) domain and consumed as the Sel of ClockMuxGlitchFree, whose per-slice DFF chain is clocked by the smclk SOURCE clocks, so it is a real CDC.
-    -- A naive 2-FF synchronizer is the WRONG fix here: (a) smclk_div is a 3-bit BUS, so per-bit 2-FF sync would let incoherent intermediate codes through during a multi-bit transition (classic bus-CDC hazard), and (b) the destination IS the clock being switched, so no single stable destination clock exists to clock a synchronizer during the switch.
-    -- ClockMuxGlitchFree already IS the correct structure: Sel feeds a one-hot decode, which feeds En, then a 3-deep DFF chain (SYNCDFF0/1 plus DLYDFF0) per slice clocked by that slice's ClkIn, with the break-before-make interlock En(i) = ClkSel(i) AND (all other slices not enabled).
-    -- The chip contract reconfigures clocks only while the smclk peripherals are quiesced (SYS_CLK_CR=0, the management-hart quiesce rule), so Sel is stable at each switch, and Myshkin taped out with this exact structure.
+    -- smclk_divider increments on the FALLING edge of smclk_undiv so the divider outputs never toggle at the instant smclk_div (written on a rising mclk edge) changes the mux selector; do not move it to the rising edge.
+    -- smclk_div crosses into the switched clock, and ClockMuxGlitchFree's per-slice DFF chain plus its break-before-make interlock IS the synchronizer: a 2-FF sync would be wrong, since the bus could pass incoherent intermediate codes and the destination is the very clock being switched, and clocks are only reconfigured while the smclk peripherals are quiesced.
 
     -- Free-running ripple divider feeding the smclk divider mux; held cleared when smclk is off or undivided.
     smclk_div_proc: process(resetn_sys, smclk_undiv, smclk_off, smclk_div)
@@ -537,12 +516,10 @@ begin
 
     --Additional signal routing 
     -- PGEN_rom <= rom_off;
-    PGEN_mem <= shb_off & ram_off & rom_off;  -- DP-S3 3b: 6:3 = shbank0-3
+    PGEN_mem <= shb_off & ram_off & rom_off;  -- 6:3 = shbank0-3
 
-    -- IRQ Signals
-    -- M19: the WDT level source goes LIVE; pre-M19 it was hardwired '0' and WDT interrupt mode was dead.
-    -- Level = pending flag AND interrupt mode, cleared by the WDT_SR write-1-to-clear (the ISR's clear-the-level-at-the-peripheral contract).
-    -- Chip-wide it stays masked until software routes source 0 in an irq_router row.
+    -- WDT interrupt level = pending flag AND interrupt mode, cleared by the WDT_SR write-1-to-clear as the ISR's clear-at-the-peripheral step.
+    -- It stays masked chip-wide until software routes source 0 in an irq_router row.
     irq_sys_wdt <= wdt_if and wdt_ie;
 
     -- CRC Logic
@@ -559,9 +536,7 @@ begin
         CrcOut      => SYS_CRC_STATE
     );
 
-    -- =============================================================================
     -- Memory-Mapped Register Interface
-    -- =============================================================================
     en_addr_periph <= slv2uint(addr_periph) when en_mem = '0' else 0;
 
     -- Register Write Process: byte-lane-enabled writes on clk_mem, plus the one-shot WDT command strobes cleared whenever the block is deselected.
@@ -616,8 +591,7 @@ begin
                             crc_prev(15 downto 8) <= write_data(15 downto 8);
                             first_crc_flag <= '1';
                         end if;
-                    -- M19: RegSlotSYS_IRQ_ENL/ENM/ENU, PRIL/PRIM/PRIU and IRQ_CR are RETIRED, i.e. reserved slots whose writes are ignored and which read 0 through the read process 'others' arm.
-                    -- Routing and masking are the irq_router rows at 0x7000, and the ENU packing quirk that loaded EN(84:80) from write_data(28:24) dies with them.
+                    -- The SYS_IRQ_ENL/ENM/ENU, PRIL/PRIM/PRIU and IRQ_CR slots are reserved: their writes fall through to 'others' and they read 0.
                     when RegSlotSYS_WDT_CR =>
                         if unlocked = '1' and wen(0) = '0' then
                             SYS_WDT_CR(SYS_WDT_CR'high downto 0) <= write_data(SYS_WDT_CR'high downto 0);
@@ -694,7 +668,7 @@ begin
                 when RegSlotSYS_CRC_STATE =>
                     read_data <= (others => '0');
                     read_data(SYS_CRC_STATE'high downto SYS_CRC_STATE'low) <= SYS_CRC_STATE;
-                -- M19: the SYS_IRQ_* slots fall through to 'others' (read 0)
+                -- The SYS_IRQ_* slots fall through to 'others' and read 0.
                 when RegSlotSYS_WDT_CR =>
                     read_data <= (others => '0');
                     read_data(SYS_WDT_CR'high downto SYS_WDT_CR'low) <= SYS_WDT_CR;

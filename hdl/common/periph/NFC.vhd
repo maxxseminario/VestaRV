@@ -5,45 +5,17 @@ use ieee.std_logic_unsigned.all;
 library work;
 use work.constants.all;
 
--- NFC: ISO 14443A tag and card-emulation digital protocol engine (digital-peripherals program).
--- The FROZEN design is ~/vesta_docs/digperiphs/nfc_design.md (decisions Dn, rulings R1-R3).
--- The entity is FROZEN (R3): a bench binds it.
--- THREE clock domains (D3/D18): ClkMem (gated bus, register file B1), clk (free-running smclk, hosting the CDC synchronizers and the W1C retirement, B-CDC), and rf_clk (AFE carrier-derived, the entire protocol core: B-TIME/B-CODEC/B-FRAME/B-CRC/B-FSM).
--- House style mirrors QSPI.vhd and I3C.vhd: registered read via a falling-edge EnMemPeriph pre-latch plus a clocked ClkMem read mux for the volatile registers, W1C via a lane-0 write with clr-pulse retirement on EnMemPeriph='1', transaction-local config latching, and held-level CDC (no async FIFO, D18).
--- Compile is -V200X only.
---
--- FIRMWARE QUICK-START (tag emulation, AUTOREAD path; full flow in ~/vesta_docs/digperiphs/nfc_spec.md "Driver note"):
---   1. SYS_CLK_CR = 0 (SMCLK sourced from HFXT; the bootrom parks SMCLK on LFXT).
---   2. Provision the identity: NFCxUID (4-byte UID) and NFCxCFG (ATQA/SAK), leaving the NFCxTIM real-grid defaults on silicon (benches write them small).
---   3. Load the payload the reader will collect: NFCxIDX = IDXSEL=0|IDXAINC=1|IDX=0, then stream bytes into NFCxDATA (wound record, up to 64 B).
---   4. Arm: NFCxCR = NFCEN|LISTEN plus the IE bits.
---      With AUTOREAD=1 (the reset default) hardware auto-answers a Type-2 READ from the payload window, with no firmware in the loop.
---   5. IRQs 94 FIELD / 95 RXF / 96 TXDONE / 97 CRCERR arrive via irq_router CLAIM/COMPLETE through the meip dispatcher (the route needs HhENU bits 30/31 AND HhENX bits 0/1, because NFC straddles the U/X enable-word boundary).
---      W1C the SR flag (bits 1-5) in the handler before returning.
---   Exact-grid timing note: the response starts FDT + compose_latency (at most about 19 rf_clk ticks) after the reader EOF, so program FDT = target - compose_latency if a reader demands the exact ISO grid (benign for the memory-tag profile).
---
--- OFF-DIE ANALOG FRONT END (D2: the rf_* ports are the ONLY link, and the AFE sits on the PCB, never on-die).
--- Best-match COTS part: ST ST25R3916 in TRANSPARENT MODE, wired MOSI = modulation in (rf_txmod), MISO/IRQ = demodulated RX (rf_rx), MCU_CLK = extracted carrier clock (rf_clk; set CR.RFDIV/NFCxTIM to its division), EXT_LM = field detector (field_detect), SCLK = receiver enable (the afe_en role).
--- rf_tx_en is a NO-CONNECT on the ST25R3916 (five AFE pins against six rf_* ports) because rf_txmod is already OOK-gated per D5, so the AFE needs no separate window:
---   https://www.st.com/en/nfc/st25r3916.html
---   https://community.st.com/t5/st25-nfc-rfid-tags-and-readers/st25r3916-transparent-mode-details/td-p/134598
---   https://community.st.com/t5/st25-nfc-rfid-tags-and-readers/questions-about-configurations-of-st25r3916-for-transparent-mode/td-p/314074
--- Ruled out: TI TRF7970A, whose direct mode is NOT supported for ISO card emulation (TI E2E plus app note SLOA208):
---   https://e2e.ti.com/support/wireless-connectivity/other-wireless-group/other-wireless/f/other-wireless-technologies-forum/874751/trf7970a-using-direct-mode-0-in-card-emulation-mode-iso14443a-2
---   https://www.ti.com/lit/pdf/sloa208
--- Alternatives: a discrete AFE (coil, envelope detector/comparator, load-mod FET, clock slicer) for the production patch.
--- Dynamic tag ICs (ST25DV, NTAG I2C) are a fallback only: they embed the whole protocol and bypass this block.
---
--- WIRELESS POWER (decision 2026-07-20): this block is COMMUNICATIONS ONLY.
--- Any NFC energy harvesting is PCB-LEVEL COTS (rectifier, supercap and LDO, or an NTAG 5 boost EH output, plus a supply supervisor): the chip has no harvesting or voltage-sensing circuitry and presents ordinary rails.
--- The planned chip-side novelty is DIGITAL only and lives in PWRCTRL and the bootrom, NOT in this block: a "field-powered mode" uses field_detect as a PWRCTRL wake source, a PGOOD input pin gating boot (P6.6/P6.7 are the reserved spares), and a harvested-boot ROM path (skip the SPI-flash copy, tiles gated, slow mclk).
--- The protocol side already tolerates field power: rf_clk may vanish with the field, and field loss forces the FSM to POWER_OFF/IDLE cleanly (D11/D18).
--- Full plan: ~/vesta_docs/digperiphs/nfc_spec.md "Wireless power".
+-- NFC: ISO/IEC 14443-3 Type A tag and card-emulation digital protocol engine, communications only (no energy harvesting on-die).
+-- Three clock domains: ClkMem (gated bus, register file), clk (free-running smclk, hosting the CDC synchronizers and the W1C retirement) and rf_clk (AFE carrier-derived, the whole protocol core).
+-- House style: registered read through a falling-edge EnMemPeriph pre-latch, W1C via a lane-0 write retired on EnMemPeriph='1', transaction-local config latching, and held-level CDC with no async FIFO.
+-- The analog front end is off-die: the rf_* ports plus field_detect and afe_en are the only link, and rf_txmod is OOK-gated so the AFE needs no separate TX window.
+-- Firmware arms the block with SYS_CLK_CR=0 (SMCLK on HFXT), the identity in NFCxUID/NFCxCFG, a payload streamed through NFCxIDX/NFCxDATA, then NFCxCR = NFCEN|LISTEN plus the IE bits; with AUTOREAD set, hardware answers a Type-2 READ with no firmware in the loop.
 
 entity NFC is
     port (
         clk          : in  std_logic;  -- smclk-domain free-running ref (CDC synchronizers)
         resetn       : in  std_logic;
+        -- Vectors 94-97 straddle the router's U/X enable-word boundary: routing them needs HhENU bits 30/31 and HhENX bits 0/1.
         irq_field    : out std_logic;  -- RF field detected            (vector 94)
         irq_rxf      : out std_logic;  -- reader frame received        (vector 95)
         irq_txdone   : out std_logic;  -- tag response transmit done   (vector 96)
@@ -54,24 +26,22 @@ entity NFC is
         MABPart      : in  std_logic_vector(7 downto 2);
         wdata        : in  std_logic_vector(31 downto 0);
         rdata_out    : out std_logic_vector(31 downto 0);
-        rf_clk       : in  std_logic;  -- AFE carrier-derived clock (~fc=13.56 MHz; D3)
-        field_detect : in  std_logic;  -- RF field present (ASYNCHRONOUS, synchronized D18)
-        rf_rx        : in  std_logic;  -- demodulated RX envelope: '1'=field, '0'=pause (D4)
-        rf_txmod     : out std_logic;  -- load-modulation drive: fc/16 subcarrier, OOK-gated (D5)
+        rf_clk       : in  std_logic;  -- AFE carrier-derived clock (fc = 13.56 MHz)
+        field_detect : in  std_logic;  -- RF field present (asynchronous, synchronized inside)
+        rf_rx        : in  std_logic;  -- demodulated RX envelope: '1'=field, '0'=pause
+        rf_txmod     : out std_logic;  -- load-modulation drive: fc/16 subcarrier, OOK-gated
         rf_tx_en     : out std_logic;  -- TX active: frames the tag's load-mod response window
         afe_en       : out std_logic;  -- AFE demod-path enable (listen power gate)
 
-        -- EVFAB taps (event fabric, event_fabric_spec.md 2026-07-24): toggles flipped at the fieldf/rxframef SET sites (pre-IE) in the clk (smclk) domain.
-        -- These are the T-mode producers EV8/EV9; the fabric front-end does the smclk to mclk 2-FF plus XOR edge detect.
-        -- Independent of PWRCTRL's own field_detect copy.
-        evt_field    : out std_logic;  -- EV8: toggles on field-detect rise
-        evt_rxframe  : out std_logic   -- EV9: toggles on rx-frame arrival
+        -- Event-fabric taps: toggles flipped at the fieldf/rxframef set sites (pre-IE) in the smclk domain; the fabric front-end does the smclk to mclk synchronization and edge detect.
+        evt_field    : out std_logic;  -- toggles on field-detect rise
+        evt_rxframe  : out std_logic   -- toggles on rx-frame arrival
     );
 end NFC;
 
 architecture behavioral of NFC is
 
-    -- ---- register word-slot map (frozen, design doc S8/D17) --------------
+    -- ---- register word-slot map ------------------------------------------
     constant SLOT_CR    : natural := 0;
     constant SLOT_SR    : natural := 1;
     constant SLOT_UID   : natural := 2;
@@ -83,10 +53,9 @@ architecture behavioral of NFC is
     constant SLOT_TXCTL : natural := 8;
     constant SLOT_DBG   : natural := 9;
 
-    -- ---- CRC_A per ISO/IEC 14443-3 (reflected 0x8408, init 0x6363, D10) ---
-    -- Bit-serial reflected LFSR, one data byte (LSB-first) at a time.
-    -- Self-check vector: the CRC over {0x00,0x00} is 0x1EA0 (Annex B).
-    -- This is NOT the house CRC16.
+    -- ---- CRC_A per ISO/IEC 14443-3 (reflected 0x8408, init 0x6363) -------
+    -- Bit-serial reflected LFSR, one data byte LSB-first at a time; this is NOT the house CRC16.
+    -- Self-check vector: the CRC over {0x00,0x00} is 0x1EA0.
     function crc_a_byte(crc_in : std_logic_vector(15 downto 0);
                         b      : std_logic_vector(7 downto 0)) return std_logic_vector is
         variable c : std_logic_vector(15 downto 0);
@@ -101,41 +70,39 @@ architecture behavioral of NFC is
         return c;
     end function;
 
-    -- Odd parity bit (D9): {8 data bits, parity} carries an odd number of 1s.
+    -- Odd parity bit: the 8 data bits plus parity carry an odd number of ones.
     function odd_parity(b : std_logic_vector(7 downto 0)) return std_logic is
     begin
         return not (b(7) xor b(6) xor b(5) xor b(4) xor
                     b(3) xor b(2) xor b(1) xor b(0));
     end function;
 
-    -- ---- ISO tag FSM states (D11) ----------------------------------------
+    -- ---- ISO tag FSM states ----------------------------------------------
     type iso_t is (POWER_OFF, ISO_IDLE, ISO_READY, ISO_ACTIVE, ISO_HALT);
     signal iso_state : iso_t;
     -- Protocol-core activity sub-FSM, in order: parse, byte-count, CRC-check, FDT, compose, TX.
-    -- ACT_NBYTES and the serial ACT_COMPOSE phase (cmp_ph) were added at gate closure to SERIALIZE the two synthesis-heavy combinational cones (the /9 byte divide and the tx_bits scatter plus CRC chain) into one rf_clk step each, mirroring ACT_CRC's proven one-byte-per-cycle style.
-    -- No protocol semantics change: identical frames, flags, buffers and bit counts.
+    -- ACT_NBYTES and the phased ACT_COMPOSE keep the /9 byte divide and the tx_bits scatter plus CRC chain serial, one step per rf_clk; do not collapse either back into a single combinational cone.
     type act_t is (ACT_LISTEN, ACT_PARSE, ACT_NBYTES, ACT_CRC, ACT_DECIDE,
                    ACT_FDT, ACT_COMPOSE, ACT_TX, ACT_TXWAIT);
     signal act : act_t;
 
-    -- ---- register storage (ClkMem domain, B1) ----------------------------
+    -- ---- register storage (ClkMem domain) --------------------------------
     signal NFCxCR    : std_logic_vector(19 downto 0); -- reset AUTOREAD(12)=1
     signal NFCxUID   : std_logic_vector(31 downto 0);
     signal NFCxCFG   : std_logic_vector(23 downto 0); -- [15:0]ATQA [23:16]SAK
     signal NFCxTIM   : std_logic_vector(31 downto 0); -- [15:0]FDT [23:16]ETU [31:24]SUBCDIV
     signal NFCxIDX   : std_logic_vector(8 downto 0);  -- [5:0]IDX [6]AINC [8]SEL
-    signal NFCxTXCTL : std_logic_vector(9 downto 0);  -- inert MVP (D17 slot 8)
+    signal NFCxTXCTL : std_logic_vector(9 downto 0);  -- software-only, no hardware consumer
 
     -- Assembled status word (volatile, read through the pre-latch).
     signal NFCxSR    : std_logic_vector(11 downto 0);
 
-    -- 64-byte indexed windows (D19): the payload TX window (firmware writes, hardware reads) and the RX frame buffer (hardware writes, firmware reads).
-    -- ONE driver each.
+    -- 64-byte indexed windows, one driver each: the payload TX window (firmware writes, hardware reads) and the RX frame buffer (hardware writes, firmware reads).
     type mem64_t is array (0 to 63) of std_logic_vector(7 downto 0);
     signal payload_mem : mem64_t;   -- driven ONLY by reg_write (ClkMem)
     signal rxbuf_mem   : mem64_t;   -- driven ONLY by the rf-domain FSM
 
-    -- Pre-latch snapshots (QSPI reg_sync idiom: SR, RXST, DATA and DBG are the volatile ones).
+    -- Pre-latch snapshots of the volatile registers: SR, RXST, DATA and DBG.
     signal NFCxSR_ltch : std_logic_vector(11 downto 0);
     signal rxst_ltch   : std_logic_vector(23 downto 0);
     signal data_ltch   : std_logic_vector(7 downto 0);
@@ -154,10 +121,10 @@ architecture behavioral of NFC is
     signal clr_crcerrf, clr_parerrf                  : std_logic;
     signal halt_req_tgl : std_logic;  -- toggle-CDC for the HALTCLR W-pulse (event)
 
-    -- ---- clk (smclk) domain: B-CDC synchronizers + sticky W1C flags -------
+    -- ---- clk (smclk) domain: CDC synchronizers + sticky W1C flags --------
     signal field_s1, field_s2, field_live, field_prev : std_logic;
     signal fieldf_flag, rxframef_flag, txdonef_flag    : std_logic;
-    signal evt_field_tgl, evt_rxf_tgl                  : std_logic;  -- EVFAB toggles
+    signal evt_field_tgl, evt_rxf_tgl                  : std_logic;  -- event-fabric toggles
     signal crcerrf_flag, parerrf_flag                  : std_logic;
     -- 2-FF synchronizers of the rf-domain held event levels, plus their edge detectors.
     signal rxframe_s1, rxframe_s2, rxframe_prev         : std_logic;
@@ -168,7 +135,7 @@ architecture behavioral of NFC is
     signal busy_s1, busy_s2, halted_s1, halted_s2       : std_logic;
     signal state_s1, state_s2 : std_logic_vector(3 downto 0);
 
-    -- ---- rf_clk domain: synchronized clk/config levels (B-CDC into rf) ----
+    -- ---- rf_clk domain: synchronized clk/config levels -------------------
     signal nfcen_r1, nfcen_r2, listen_r1, listen_r2     : std_logic;
     signal field_r1, field_r2                           : std_logic;
     signal halt_r1, halt_r2, halt_rprev, halt_pulse     : std_logic;
@@ -181,7 +148,7 @@ architecture behavioral of NFC is
     signal rf_busy, rf_halted   : std_logic;
     signal rf_state             : std_logic_vector(3 downto 0);
 
-    -- ---- rf-domain RX Miller decoder (B-CODEC/D6, B-FRAME/D8) -------------
+    -- ---- rf-domain RX Miller decoder -------------------------------------
     signal rx_s1, rx_s2, rx_prev  : std_logic;
     signal rx_active, soc_period  : std_logic;
     signal etu_cnt      : std_logic_vector(15 downto 0);
@@ -193,9 +160,9 @@ architecture behavioral of NFC is
     signal rx_raw       : std_logic_vector(255 downto 0); -- bits, LSB=index0=first-on-air
     signal rx_nbits     : natural range 0 to 256;
     signal rx_soc, rx_eoc : std_logic;      -- 1-rf_clk pulses
-    signal last_rx_bit  : std_logic;        -- last decoded data bit (selects the FDT adjust, D16)
+    signal last_rx_bit  : std_logic;        -- last decoded data bit (selects the FDT adjust)
 
-    -- ---- rf-domain FSM latched config (transaction-local, D18) ------------
+    -- ---- rf-domain FSM config, latched per transaction -------------------
     signal t_uid  : std_logic_vector(31 downto 0);
     signal t_atqa : std_logic_vector(15 downto 0);
     signal t_sak  : std_logic_vector(7 downto 0);
@@ -215,7 +182,7 @@ architecture behavioral of NFC is
     signal resp_start  : natural range 0 to 32;   -- first byte to send (anticollision)
     signal resp_split  : std_logic;               -- first byte is a bit-split partial
     signal resp_splitb : natural range 0 to 7;    -- start bit within the split byte
-    signal resp_appcrc : std_logic;               -- append CRC_A (D10/D11)
+    signal resp_appcrc : std_logic;               -- append CRC_A
     signal do_respond  : std_logic;               -- FDT/TX only when set
     signal next_state  : iso_t;                   -- iso_state to adopt after the reply
     signal crc_reg     : std_logic_vector(15 downto 0);
@@ -224,24 +191,22 @@ architecture behavioral of NFC is
     signal is_short    : std_logic;               -- 7-bit short frame (REQA/WUPA)
     signal shortval    : std_logic_vector(6 downto 0);
 
-    -- ---- gate-closure: serial /9 byte-count divide (ACT_NBYTES) --------------
-    -- Replaces the single-cycle `rx_nbits / 9` (a non-power-of-2 divide, which infers a ChipWare CW_div_k datapath) with a repeated-subtract counter, one subtraction per rf_clk.
-    -- rx_nbits of at most 256 takes at most 28 cycles, and real frames are 2-7 bytes, so 2-7 cycles.
-    -- Integer division IS repeated subtraction, so the result is bit-identical.
+    -- ---- serial /9 byte-count divide (ACT_NBYTES) ------------------------
+    -- Repeated subtraction, one per rf_clk: a single-cycle rx_nbits/9 would infer a divider datapath.
+    -- rx_nbits of at most 256 takes at most 28 cycles, and real frames of 2-7 bytes take 2-7.
     signal div_rem : natural range 0 to 256;      -- running remainder
     signal div_q   : natural range 0 to 32;       -- accumulated quotient (byte count)
 
-    -- ---- gate-closure: serial response composer (ACT_COMPOSE phases) ---------
-    -- Replaces the 32x-unrolled single-cycle tx_bits(tb) scatter crossbar and the chained combinational CRC (crc_a_byte fed into itself up to 32 deep).
-    -- Now ONE source byte per rf_clk: append its 9 framed bits (fewer on a split byte) at a running write pointer and fold it into the SEQUENTIAL CRC LFSR, the exact ACT_CRC engine.
-    -- tx_bits, tx_nbits and the emitted frame are unchanged.
+    -- ---- serial response composer (ACT_COMPOSE phases) -------------------
+    -- One source byte per rf_clk: append its 9 framed bits (fewer on a split byte) at a running write pointer and fold it into the CRC LFSR.
+    -- Keep it serial: an unrolled scatter plus a chained combinational CRC is a synthesis-heavy cone.
     type cmp_t is (CMP_BYTES, CMP_CRCLO, CMP_CRCHI, CMP_FIN);
     signal cmp_ph  : cmp_t;
     signal cmp_k   : natural range 0 to 32;       -- source byte index being framed
     signal cmp_wr  : natural range 0 to 511;      -- running tx_bits write pointer
     signal crc_cmp : std_logic_vector(15 downto 0); -- compose-time CRC accumulator
 
-    -- ---- rf-domain TX Manchester/subcarrier encoder (B-CODEC/D7) ---------
+    -- ---- rf-domain TX Manchester/subcarrier encoder ----------------------
     type txph_t is (TXP_IDLE, TXP_SOF, TXP_DATA, TXP_EOF, TXP_DONE);
     signal txph      : txph_t;
     signal tx_start, tx_active, tx_done : std_logic;
@@ -270,7 +235,7 @@ begin
     idx_ainc <= NFCxIDX(6);
     idx_sel  <= NFCxIDX(8);
 
-    -- SR assembly (D17 slot 1): every volatile and rf-status bit arrives pre-synchronized.
+    -- SR assembly: every volatile and rf-status bit arrives pre-synchronized.
     NFCxSR(0)          <= busy_s2;
     NFCxSR(1)          <= fieldf_flag;
     NFCxSR(2)          <= rxframef_flag;
@@ -289,15 +254,15 @@ begin
                  x"2" when iso_state = ISO_READY else
                  x"3" when iso_state = ISO_ACTIVE else x"4";
 
-    -- AFE demod enable: listen while armed (NFCEN and LISTEN), so afe_en is the listen power gate (D2, optional pin).
+    -- AFE demod enable: listen while armed (NFCEN and LISTEN), so afe_en is the listen power gate.
     afe_en <= nfcen and listen_bit;
 
-    -- EVFAB producer exports: the raw toggles (T-mode; pre-IE by construction).
+    -- Event-fabric exports: the raw toggles, pre-IE by construction.
     evt_field   <= evt_field_tgl;
     evt_rxframe <= evt_rxf_tgl;
 
-    -- Each irq_* is (status and enable), combinational and never latched (D20, the QSPI form).
-    -- CRCERR folds the parity and CRC errors onto one line (vector 97), while the two flags stay separate.
+    -- Each irq_* is status AND enable, combinational and never latched.
+    -- CRCERR folds the parity and CRC errors onto one line while the two flags stay separate.
     irq_field   <= fieldf_flag and fieldie;
     irq_rxf     <= rxframef_flag and rxfie;
     irq_txdone  <= txdonef_flag and txie;
@@ -305,7 +270,7 @@ begin
 
     ------------------------- End Signal Routing ----------------------------
 
-    -- Registered-read pre-latch (QSPI reg_sync idiom): capture the volatile snapshots INVERTED on falling_edge(EnMemPeriph), and the read mux un-inverts them.
+    -- Registered-read pre-latch: capture the volatile snapshots inverted on falling_edge(EnMemPeriph); the read mux un-inverts them.
     reg_sync: process(EnMemPeriph, NFCxSR, rx_parok, rx_crcok, rx_len, rx_cmd,
                       idx_sel, idx, rxbuf_mem, payload_mem, tx_frame_count, rx_frame_count)
     begin
@@ -322,17 +287,15 @@ begin
     ---------------------------- Memory Logic -------------------------------
     nfc_slot <= slv2uint(MABPart) when EnMemPeriph = '0' else 0;
 
-    -- Register write process (QSPI reg_write structure).
-    -- CR bit2 (HALTCLR) is a self-clearing write pulse: it reads back 0, and a lane-0 write of '1' TOGGLES halt_req_tgl (toggle-CDC into rf, D18).
-    -- The DATA slot auto-increments IDX on every access, read or write, when IDXAINC=1.
+    -- Register write: CR bit 2 (HALTCLR) is a self-clearing write pulse that reads back 0 and toggles halt_req_tgl into the rf domain, and the DATA slot auto-increments IDX on any access when IDXAINC=1.
     -- Payload-window writes commit here; RX-buffer writes are ignored because that buffer is hardware-owned.
     reg_write: process(resetn, ClkMem, EnMemPeriph)
     begin
         if resetn = '0' then
             NFCxCR    <= (12 => '1', others => '0'); -- AUTOREAD reset default
             NFCxUID   <= (others => '0');
-            NFCxCFG   <= x"000044";                  -- ATQA=0x0044, SAK=0x00 (D12)
-            NFCxTIM   <= x"088004D4";                -- SUBCDIV=8, ETU=128, FDT=1236 (D3/D16)
+            NFCxCFG   <= x"000044";                  -- ATQA=0x0044, SAK=0x00
+            NFCxTIM   <= x"088004D4";                -- SUBCDIV=8, ETU=128, FDT=1236
             NFCxIDX   <= (others => '0');
             NFCxTXCTL <= (others => '0');
             halt_req_tgl <= '0';
@@ -389,7 +352,7 @@ begin
             end if;
         end if;
 
-        -- Async clear-pulse retirement (QSPI/I3C level-sensitive idiom).
+        -- Async clear-pulse retirement.
         if resetn = '0' or EnMemPeriph = '1' then
             clr_fieldf   <= '0';
             clr_rxframef <= '0';
@@ -399,8 +362,7 @@ begin
         end if;
     end process;
 
-    -- Register read process (synchronous).
-    -- The volatile SR/RXST/DATA/DBG values are un-inverted from the pre-latch, plain software registers read straight, and reserved slots read 0.
+    -- Synchronous register read: SR/RXST/DATA/DBG are un-inverted from the pre-latch, plain software registers read straight, reserved slots read 0.
     reg_read: process(ClkMem)
     begin
         if rising_edge(ClkMem) then
@@ -420,12 +382,10 @@ begin
         end if;
     end process;
 
-    ---------- B-CDC: clk (smclk) domain synchronizers + W1C flags ----------
-    -- All CDC lives on the free-running smclk `clk` (ClkMem is gated and cannot host synchronizers, D18).
-    -- field_detect is double-flopped into FIELD_LIVE, whose rising edge sets FIELDF.
-    -- The four rf-domain held event levels are 2-FF synchronized and rising-edge-detected to SET the sticky W1C flags, and the rf side lowers each level at rx_soc so every frame produces a fresh edge.
-    -- A metastable sample only DELAYS a flag by one clk edge (the QSPI/I3C safety argument).
-    -- The W1C clears (clr_*) retire the sticky flags asynchronously, exactly QSPI's clk_baud tail-clear, so a clear dominates a coincident set.
+    ---------- clk (smclk) domain synchronizers + W1C flags -----------------
+    -- All CDC lives on the free-running smclk: ClkMem is gated and cannot host synchronizers.
+    -- The rf-domain held event levels are 2-FF synchronized and rising-edge-detected to set the sticky W1C flags, and the rf side lowers each level at rx_soc so every frame gives a fresh edge; a metastable sample only delays a flag by one clk edge.
+    -- The clr_* pulses retire the sticky flags asynchronously, so a clear dominates a coincident set.
     bcdc: process(clk, resetn, clr_fieldf, clr_rxframef, clr_txdonef,
                   clr_crcerrf, clr_parerrf)
     begin
@@ -448,14 +408,14 @@ begin
             field_prev <= field_live;
             if field_live = '1' and field_prev = '0' then
                 fieldf_flag   <= '1';
-                evt_field_tgl <= not evt_field_tgl;   -- EVFAB EV8 toggle (T-mode; the fabric does the smclk to mclk CDC)
+                evt_field_tgl <= not evt_field_tgl;   -- event-fabric toggle; the fabric does the smclk to mclk CDC
             end if;
 
             -- rf-domain event levels: 2-FF synchronize, then a rising edge sets the sticky flag.
             rxframe_s1 <= rf_rxframe_lvl; rxframe_s2 <= rxframe_s1; rxframe_prev <= rxframe_s2;
             if rxframe_s2 = '1' and rxframe_prev = '0' then
                 rxframef_flag <= '1';
-                evt_rxf_tgl   <= not evt_rxf_tgl;     -- EVFAB EV9 toggle
+                evt_rxf_tgl   <= not evt_rxf_tgl;     -- event-fabric toggle
             end if;
             txdone_s1  <= rf_txdone_lvl;  txdone_s2  <= txdone_s1;  txdone_prev  <= txdone_s2;
             if txdone_s2  = '1' and txdone_prev  = '0' then txdonef_flag <= '1'; end if;
@@ -478,10 +438,9 @@ begin
         if resetn = '0' or clr_parerrf  = '1' then parerrf_flag  <= '0'; end if;
     end process;
 
-    ---------- B-CDC into rf_clk: config / field / HALTCLR synchronizers -----
-    -- NFCEN, LISTEN and field are held levels, so they take a 2-FF path into rf_clk that arms or quiesces the protocol core.
-    -- HALTCLR is an EVENT, so it uses a toggle-CDC (halt_req_tgl 2-FF synchronized and XOR-detected) and survives regardless of the ClkMem pulse width.
-    -- UID, ATQA, SAK and TIM are quasi-static and latched transaction-locally in the rf FSM and RX decoder (latch-at-launch, D18), so those multi-bit words get no synchronizer.
+    ---------- CDC into rf_clk: config / field / HALTCLR synchronizers ------
+    -- NFCEN, LISTEN and field are held levels on a 2-FF path into rf_clk; HALTCLR is an event, so it uses a toggle-CDC that survives regardless of the ClkMem pulse width.
+    -- UID, ATQA, SAK and TIM are quasi-static and latched transaction-locally in the rf FSM and RX decoder, so those multi-bit words get no synchronizer.
     rfsync: process(rf_clk, resetn)
     begin
         if resetn = '0' then
@@ -498,15 +457,10 @@ begin
     end process;
     halt_pulse <= halt_r2 xor halt_rprev; -- 1-rf_clk pulse on a HALTCLR request
 
-    ---------- B-CODEC RX: modified-Miller decoder + bit assembler (D6/D8) ---
-    -- rf_clk domain: rf_rx is the raw pause envelope ('0' = pause).
-    -- We 2-FF synchronize it, run a free-running ETU grid started on the first pause (SOC), and classify the pause position once per bit period: a pause in the SECOND half is logic 1 (X), a pause in the FIRST half or no pause at all is logic 0 (Z/Y).
-    -- The SOC period emits no data bit.
-    -- A single no-pause period (Y) is DEFERRED one period: it is a data 0 only if a pause-bearing period follows, and it is flushed then.
-    -- TWO consecutive no-pause periods are the EOC, and the deferred 0 is flushed as the last bit (D6: "two idle bit periods close the frame").
-    -- Bits land LSB-first in rx_raw (index 0 is first on air).
-    -- All protocol timing is register-programmed (t_etu latched at SOC, D3/D16) so the bench can compress it.
-    -- Field loss (field_r2='0') quiesces the decoder.
+    ---------- RX: modified-Miller decoder + bit assembler ------------------
+    -- rf_rx is the raw pause envelope ('0' = pause), 2-FF synchronized and classified once per bit period on a free-running ETU grid started at the first pause (SOC, which emits no data bit): a pause in the second half is a 1, a pause in the first half or none at all is a 0.
+    -- A single no-pause period is deferred one period and flushed as a 0 only if a pause-bearing period follows; two consecutive no-pause periods are the EOC, flushing the deferred 0 as the last bit.
+    -- Bits land LSB-first in rx_raw, all timing is register-programmed (t_etu latched at SOC), and field loss quiesces the decoder.
     rx_decode: process(rf_clk, resetn, nfcen_r2)
         variable nb    : natural range 0 to 256;
         variable pedge : boolean;
@@ -537,9 +491,8 @@ begin
                         etu16 := x"00" & NFCxTIM(23 downto 16);
                         half  := "000000000" & NFCxTIM(23 downto 17);
                         rx_active <= '1'; soc_period <= '1'; rx_soc <= '1';
-                        -- Anchor the ETU grid so the bit-period BOUNDARY lands in the inter-symbol dead zone, NOT on the first-half (Z) pause region.
-                        -- The pause falling edge is seen about 2 rf_clk later (rx_s1/rx_s2 plus the pedge detect), so etu_cnt=0 at the pedge would put the boundary right on every subsequent Z pause, with etu_cnt straddling 15 and 0, misclassifying the pause position.
-                        -- Seeding etu_cnt=4 places the boundary near ETU-3, in the dead zone, with balanced margin for both the first-half (Z, etu_cnt about 4) and second-half (X, etu_cnt about 12) pauses.
+                        -- Seed etu_cnt=4 so the bit-period boundary lands in the inter-symbol dead zone with balanced margin for first-half and second-half pauses.
+                        -- Do not seed 0: the pause edge is seen about 2 rf_clk late, which would put the boundary on every first-half pause and misclassify its position.
                         etu_cnt <= conv_std_logic_vector(4, 16); rx_nbits <= 0;
                         pause_seen <= '0'; pause_second <= '0'; prev_nopause <= '0';
                         since_pause <= (others => '0');
@@ -597,12 +550,10 @@ begin
         end if;
     end process;
 
-    ---------- B-CODEC TX: Manchester-on-subcarrier encoder (D5/D7) ----------
-    -- rf_clk domain: tx_bits is the RAW framed bitstream (data plus inserted parity and CRC bits, LSB-first) composed by B-FSM, and the encoder is a "dumb" Manchester serializer that brackets it with SOF (sequence D) and EOF (sequence F).
-    --   Each symbol is 2 half-bits of t_etu_half rf_clk ticks: logic 1 (D) = modulated then unmodulated, logic 0 (E) = unmodulated then modulated, SOF = D, EOF (F) = unmodulated then unmodulated.
-    --   A modulated half runs the fc/16 subcarrier (a divide-by-2*SUBCDIV toggle of rf_clk), while an unmodulated half holds rf_txmod steady.
-    --   rf_tx_en brackets SOF through EOF.
-    --   All timing is register-programmed (t_etu_half shared with RX, t_subc latched from SUBCDIV) so the bench can compress it (D3/D22).
+    ---------- TX: Manchester-on-subcarrier encoder -------------------------
+    -- tx_bits is the raw framed bitstream (data plus inserted parity and CRC, LSB-first) composed by the FSM; this encoder is a plain Manchester serializer that brackets it with SOF (sequence D) and EOF (sequence F), with rf_tx_en high across both.
+    -- Each symbol is 2 half-bits of t_etu_half rf_clk ticks: a 1 is modulated then unmodulated, a 0 is unmodulated then modulated, EOF is unmodulated in both halves.
+    -- A modulated half runs the fc/16 subcarrier as a divide-by-2*SUBCDIV toggle of rf_clk, an unmodulated half holds rf_txmod steady, and all timing is register-programmed.
     tx_encode: process(rf_clk, resetn, nfcen_r2)
     begin
         if resetn = '0' or nfcen_r2 = '0' then
@@ -666,14 +617,10 @@ begin
     rf_txmod <= subc_lvl when tx_modnow = '1' else '0';
     rf_tx_en <= '1' when (txph = TXP_SOF or txph = TXP_DATA or txph = TXP_EOF) else '0';
 
-    ---------- B-FSM: ISO 14443-3 Type A tag state machine (D11-D16) ---------
-    -- rf_clk domain, latching the config transaction-locally at rx_soc (D18).
-    -- On rx_eoc: ACT_PARSE de-frames the Miller bitstream into bytes plus per-byte odd parity (a short frame is 7 bits with no parity).
-    -- ACT_CRC runs the reflected 0x8408 LFSR (crc_a_byte) over the frame and compares the trailing two bytes (D10).
-    -- ACT_DECIDE runs the tag FSM: REQA/WUPA answered with ATQA, anticollision CL1 with bit-oriented NVB, SELECT answered with SAK, READ auto-answer, and HLTA.
-    -- ACT_FDT waits out the programmable Frame-Delay-Time down-counter (plus t_etu_half when the reader's last bit was a 1, D16).
-    -- ACT_COMPOSE frames the reply into tx_bits (SOF/EOF are added by the encoder, parity and CRC are inserted here), and ACT_TX/ACT_TXWAIT drive it out.
-    -- The rf event levels (RXFRAMEF/TXDONEF/CRCERRF/PARERRF) are held from their event until the next rx_soc, so the clk-domain B-CDC edge-detects exactly one set per frame.
+    ---------- ISO 14443-3 Type A tag state machine -------------------------
+    -- rf_clk domain, config latched transaction-locally at rx_soc; on rx_eoc the frame is de-framed into bytes plus per-byte odd parity (a short frame is 7 bits with no parity), CRC-checked, decided on, delayed by FDT, composed and transmitted.
+    -- ACT_DECIDE answers REQA/WUPA with ATQA, anticollision CL1 with bit-oriented NVB, SELECT with SAK, READ from the payload window, and HLTA by going silent.
+    -- The rf event levels are held from their event until the next rx_soc, so the clk-domain synchronizers edge-detect exactly one set per frame.
     bfsm: process(rf_clk, resetn, nfcen_r2)
         variable pk       : std_logic;
         variable bytev    : std_logic_vector(7 downto 0);
@@ -709,7 +656,7 @@ begin
         elsif rising_edge(rf_clk) then
             tx_start <= '0'; -- 1-cycle launch pulse default
 
-            -- Transaction-local config latch and per-frame event-level clear (D18).
+            -- Transaction-local config latch and per-frame event-level clear.
             if rx_soc = '1' then
                 rf_rxframe_lvl <= '0'; rf_txdone_lvl <= '0';
                 rf_crcerr_lvl <= '0'; rf_parerr_lvl <= '0';
@@ -721,7 +668,7 @@ begin
             end if;
 
             if field_r2 = '0' then
-                iso_state <= POWER_OFF; act <= ACT_LISTEN;   -- field loss returns the tag to IDLE (D11/D15)
+                iso_state <= POWER_OFF; act <= ACT_LISTEN;   -- field loss returns the tag to IDLE
             else
                 if iso_state = POWER_OFF then iso_state <= ISO_IDLE; end if;
                 if halt_pulse = '1' and iso_state = ISO_HALT then
@@ -735,7 +682,7 @@ begin
 
                     -- PARSE: split short frames from standard frames and count the frame in.
                     when ACT_PARSE =>
-                        rf_rxframe_lvl <= '1';               -- reader frame landed (D17)
+                        rf_rxframe_lvl <= '1';               -- reader frame landed
                         rx_frame_count <= rx_frame_count + 1;
                         if rx_nbits <= 8 then                -- 7-bit short frame
                             is_short <= '1'; shortval <= rx_raw(6 downto 0);
@@ -744,16 +691,14 @@ begin
                             rx_parok <= '1'; rx_crcok <= '0';
                             act <= ACT_DECIDE;
                         else                                 -- standard/anticollision frame
-                            -- Launch the serial byte-count divide (rx_nbits / 9) as repeated subtraction in ACT_NBYTES instead of a combinational CW_div_k.
-                            -- The byte de-frame and the parity check run once the quotient lands, using constant bit-picks there.
+                            -- Launch the serial byte-count divide; the byte de-frame and parity check run once the quotient lands.
                             div_rem <= rx_nbits; div_q <= 0;
                             act <= ACT_NBYTES;
                         end if;
 
                     when ACT_NBYTES =>
                         -- One subtraction per rf_clk: once div_rem drops below 9 the quotient div_q is floor(rx_nbits/9), the whole-byte count.
-                        -- That is the SAME value the old `rx_nbits / 9` produced, since integer division is repeated subtraction.
-                        -- Then de-frame the bytes with constant rx_raw bit-picks (NOT a crossbar) and check their parity.
+                        -- Then de-frame the bytes with constant rx_raw bit-picks, not a crossbar, and check their parity.
                         if div_rem >= 9 then
                             div_rem <= div_rem - 9; div_q <= div_q + 1;
                         else
@@ -843,9 +788,8 @@ begin
                                     else nvbits := 0; end if;
                                     if nvbits > 32 then nvbits := 32; end if;
                                     uidbcc := bccv & t_uid;       -- on-air order, LSB-first
-                                    -- Compare the reader's partial UID against ours bit-for-bit STRAIGHT FROM THE RAW MILLER STREAM (rx_raw), not from the reassembled bytes.
-                                    -- A bit-split anticollision frame omits parity on the split byte (D8/D13), so byte reassembly would drop it.
-                                    -- Reader UID bit m sits at 18 (SEL and NVB, 9 bits each) + (m/8)*9 (8 data bits plus parity per full byte) + (m mod 8); the same formula also lands the split byte's leading bits, which carry no parity.
+                                    -- Compare the reader's partial UID bit-for-bit straight from the raw Miller stream, not from the reassembled bytes: a bit-split anticollision frame omits parity on the split byte, which byte reassembly would drop.
+                                    -- Reader UID bit m sits at 18 (SEL and NVB, 9 bits each) + (m/8)*9 + (m mod 8), a formula that also lands the split byte's parity-less leading bits.
                                     matchv := '1';
                                     for i in 0 to 31 loop
                                         if i < nvbits then
@@ -867,7 +811,7 @@ begin
                                         end if;
                                         nstate_v := ISO_READY;
                                         if listen_r2 = '1' then respond_v := '1'; end if;
-                                    end if;                       -- a mismatch stays silent (D13)
+                                    end if;                       -- a mismatch stays silent
                                 end if;
                             elsif iso_state = ISO_ACTIVE and rx_cmd = x"30" then  -- READ
                                 if rx_crcok = '0' then rf_crcerr_lvl <= '1'; end if;
@@ -882,7 +826,7 @@ begin
                             elsif iso_state = ISO_ACTIVE and rx_cmd = x"50" then  -- HLTA
                                 if rx_crcok = '0' then rf_crcerr_lvl <= '1'; end if;
                                 if rx_crcok = '1' and rxbuf_mem(1) = x"00" then
-                                    nstate_v := ISO_HALT;         -- go silent and enter HALT (D15)
+                                    nstate_v := ISO_HALT;         -- go silent and enter HALT
                                 end if;
                             end if;
                         end if;
@@ -903,12 +847,11 @@ begin
                     -- FDT: count out the Frame-Delay-Time before the reply may start.
                     when ACT_FDT =>
                         if fdt_cnt = conv_std_logic_vector(0, 17) then
-                            -- FDT elapsed: launch the SERIAL composer.
-                            -- Response TX starts once compose completes (CMP_FIN hands over to ACT_TX), so on the wire the reply lands FDT + compose_latency after the reader's EOF.
-                            -- See the FDT and compose-latency contract in nfc_design.md (the bench checks FDT order only, D16).
+                            -- FDT elapsed: launch the composer, which hands over to ACT_TX at CMP_FIN.
+                            -- The reply therefore lands FDT plus the compose latency (at most about 19 rf_clk ticks) after the reader's EOF, so program FDT short by that much if a reader demands the exact ISO grid.
                             cmp_k  <= resp_start;      -- skip bytes already sent (split)
                             cmp_wr <= 0;               -- tx_bits write pointer
-                            crc_cmp <= x"6363";        -- CRC_A init (D10)
+                            crc_cmp <= x"6363";        -- CRC_A init
                             cmp_ph <= CMP_BYTES;
                             act <= ACT_COMPOSE;
                         else
@@ -916,8 +859,8 @@ begin
                         end if;
 
                     when ACT_COMPOSE =>
-                        -- SERIALIZED frame composer: one source byte per rf_clk, appended at the running cmp_wr pointer (a small serial write into tx_bits, NOT the old 512x32 scatter), folding each byte into the SEQUENTIAL CRC LFSR crc_cmp, the ACT_CRC engine.
-                        -- The emitted bit layout is byte-for-byte identical to the old single-cycle loop: 8 data bits LSB-first plus parity per byte, the split byte omitting parity (D8/D9), then the CRC_A low byte and high byte, each with parity, when resp_appcrc=1 (D10).
+                        -- Frame composer: one source byte per rf_clk appended at the running cmp_wr pointer and folded into the CRC LFSR crc_cmp.
+                        -- Bit layout is 8 data bits LSB-first plus parity per byte, the split byte omitting parity, then the CRC_A low and high bytes each with parity when resp_appcrc=1.
                         srcb := resp_bytes(cmp_k);
                         case cmp_ph is
                             when CMP_BYTES =>

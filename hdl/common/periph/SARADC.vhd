@@ -1,19 +1,7 @@
 -------------------------------------------------------------------------------
--- SARADC.vhd
--------------------------------------------------------------------------------
--- Memory-mapped controller for the off-die 10-bit SAR ADC.
--- It owns three jobs: generating the ADC trigger clock, capturing conversion results, and presenting both through the peripheral register bus.
---
--- The trigger clock comes from a 16-bit one-hot shift register clocked on the falling edge of clk.
--- Bit 14 is the clear phase, bit 12 the sample phase, and the conversion phase spans bit 11 down to bit 1.
--- The sample phase is stretched by the SARADC_CR sample-step countdown, so software sets the acquisition width.
--- The combined waveform is registered once more (ADC_sync_clock_reg) before leaving the block, to keep the shift-register bit off a long output path.
---
--- Capture side: ADC_data_i is latched on the rising edge of ADC_ready_i.
--- A capture into a still-full result sets the overflow flag, and irq asserts while data is valid and the interrupt enable bit is set.
---
--- Registers: SARADC_CR control, SARADC_SR status, SARADC_DATA result, SARADC_TPR debug test-port select.
--- SARADC_SR is stored inverted (SARADC_SR_ltch) and re-inverted on read, and its data-valid and overflow flags are write-1-to-clear.
+-- SARADC.vhd: memory-mapped controller for the off-die 10-bit SAR ADC: it generates the trigger clock, latches ADC_data_i on the rising edge of ADC_ready_i (a capture into a still-full result sets overflow), and raises irq while data is valid and its enable bit is set.
+-- The trigger clock is a 16-bit one-hot shift register clocked on the falling edge of clk: bit 14 is the clear phase, bit 12 the sample phase stretched by the SARADC_CR sample-step countdown, and bits 11 down to 1 the conversion phase; the combined waveform is registered once more before leaving the block to keep the shift-register bit off a long output path.
+-- Registers: SARADC_CR control, SARADC_SR status (stored inverted in SARADC_SR_ltch, re-inverted on read, data-valid and overflow are write-1-to-clear), SARADC_DATA result, SARADC_TPR debug test-port select.
 -------------------------------------------------------------------------------
 
 library ieee;
@@ -54,8 +42,7 @@ architecture rtl of SARADC is
 
     signal reset_i : std_logic;
 
-    -- Register storage.
-    -- SARADC_SR_ltch holds the status word inverted.
+    -- Register storage; SARADC_SR_ltch holds the status word inverted.
     signal SARADC_CR    	: std_logic_vector(8 downto 0);
     signal SARADC_SR    	: std_logic_vector(3 downto 0);
     signal SARADC_SR_ltch	: std_logic_vector(3 downto 0);
@@ -94,7 +81,7 @@ architecture rtl of SARADC is
     ---------------------------------------------------------------------------------------------------------
     --signal external_trigger_clock_mode  : std_logic; --TODO: What is this ? Check.
     ---------------------------------------------------------------------------------------------------------
-    signal adc_sync_init_sample_step    : std_logic_vector(3 downto 0); -- Reload value for the sample-phase countdown, formerly a pulse width. 
+    signal adc_sync_init_sample_step    : std_logic_vector(3 downto 0); -- Reload value for the sample-phase countdown.
     signal adc_en                       : std_logic;
     signal adc_data_valid_ie            : std_logic;
     signal adc_cont_meas		: std_logic;
@@ -120,16 +107,15 @@ architecture rtl of SARADC is
     -- Write-1-to-clear strobes raised by a SARADC_SR write.
    signal clr_data_valid, clr_adc_ovf_if : std_logic;
 
-    -- Added by Maxx Seminario to fix the hold time violation on ADC_sync_clock_phase_shift_reg(14)    
+    -- Registered trigger clock, keeping the hold-critical path off ADC_sync_clock_phase_shift_reg(14).
     signal adc_sync_clock_reg : std_logic;
 
 begin
 
-    -- Convert the active-low reset to active high to match Zhili's setup.
+    -- The ADC macro takes an active-high reset.
     reset_i <= not resetn;
 
-    -- Register signal routing: unpack each control field onto its named signal.
-    -- SARADC_CR fields.
+    -- SARADC_CR fields, unpacked onto their named signals.
     adc_reset                       <= '1' when reset_i = '1' 
                                         else SARADC_CR(0);  -- TODO: this could be done more elegantly, but it is a manual reset for now.
                                         
@@ -170,8 +156,7 @@ begin
     -- Raise the IRQ level while a captured result is valid and its interrupt enable is set.
     irq <= '1' when (adc_data_valid = '1' and adc_data_valid_ie = '1') else '0';
 
-    -- ADC data capture and the interrupt flags it sets.
-    -- ADC_ready_i is resynchronized here, and the clear strobes from the register bus win over a same-cycle set.
+    -- ADC data capture and its flags: ADC_ready_i is resynchronized here, and the register-bus clear strobes win over a same-cycle set.
     ADC_Data_Capture : process (clk, reset_i, clr_data_valid, clr_adc_ovf_if, ADC_ready)
     begin
         if reset_i = '1' then
@@ -237,7 +222,7 @@ begin
 
     
     -- Conversion sequencer: the one-hot phase shift register plus the sample-step countdown that stretches the sample phase.
-    -- It is held in its reload state while adc_en is low, and reloads itself each pass when continuous measurement is enabled.
+    -- Held in its reload state while adc_en is low, and self-reloading each pass when continuous measurement is enabled.
     Sync_Clock_Step : process (reset_i, adc_en, clk)
     begin
         if (reset_i = '1') or (adc_en = '0') then
@@ -278,14 +263,11 @@ begin
     ADC_sync_clock_clear_phase <= ADC_sync_clock_phase_shift_reg(14);
     ADC_sync_clock_sample_phase <= ADC_sync_clock_phase_shift_reg(12);
 
-    -- Clock waveform generation.
-    -- The original unregistered assignment is kept below for reference.
+    -- Clock waveform generation; the unregistered form is kept below for reference.
     -- ADC_sync_clock <= ADC_sync_clock_clear_phase or ADC_sync_clock_sample_phase or (ADC_sync_clock_conversion_phase and clk);
     ADC_trigger_clock_o <= ADC_sync_clock;
 
-    -- Added by Maxx Seminario to fix the hold time violation on ADC_sync_clock_phase_shift_reg(14)  
-    -- ADC_sync_clock_phase_shift_reg(14) was used combinationally to generate ADC_sync_clock_clear_phase and hence ADC_sync_clock, which leaves the block as ADC_trigger_clock_o.
-    -- That is a long combinational path from a register bit to an output, so the combinational result is registered here.
+    -- Register the waveform here: ADC_sync_clock_clear_phase comes combinationally off shift-register bit 14, so driving ADC_trigger_clock_o directly is a long path from a register bit to an output and violates hold.
     Clock_Output_Register: process(clk, reset_i)
     begin
         if reset_i = '1' then
@@ -296,13 +278,11 @@ begin
     end process;
     ADC_sync_clock <= ADC_sync_clock_reg;
 
-    -- =============================================================================
-    -- Memory-Mapped Register Interface
-    -- =============================================================================
+    -- Memory-mapped register interface.
     en_addr_periph <= slv2uint(addr_periph) when en_mem = '0' else 0;
 
-    -- Register writes, byte-lane qualified by wen, which is active low.
-    -- A SARADC_SR write stores nothing: it only raises the clr_* strobes, which are dropped again as soon as the select deasserts.
+    -- Register writes, byte-lane qualified by the active-low wen.
+    -- A SARADC_SR write stores nothing: it only raises the clr_* strobes, dropped again as soon as the select deasserts.
     write_proc: process(resetn, clk_mem, reset_i, en_mem)
     begin
 
@@ -353,7 +333,7 @@ begin
     end process;
 
         -- Registered reads: one clk_mem cycle of latency, zero-extended to 32 bits.
-        -- SARADC_SR comes from the inverted latch, so it is inverted back on the way out.
+        -- SARADC_SR comes from the inverted latch and is inverted back on the way out.
     read_proc: process(clk_mem)
     begin
         if rising_edge(clk_mem) then
