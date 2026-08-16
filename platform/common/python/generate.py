@@ -53,6 +53,18 @@ def _cfg(dottedKey, default):
 # values land in config/ChipConfig.resolved.json. Keep all four in sync.
 # Every key is optional (missing = the Castalia default). Unknown keys RAISE:
 # a typo that silently falls back to the default is worse than an error.
+#
+# THE DESCRIPTION STRING IS A TABLE CELL, SO WRITE IT AS ONE (2026-08-15, USER
+# review of TRM table 1). Each description is rendered THREE ways — the TRM's
+# "Meaning / valid values" column, the configurator's help text, and the
+# unknown-key error listing — and the narrow TRM column is the binding one: a
+# knob whose description had grown into a paragraph printed a FULL PAGE for one
+# row (`orchestrator` and `priv.trapCsr` were the two the user named). Keep it
+# to one sentence: the valid values, then what the knob does, ~80 characters,
+# never more than about two rendered lines. The mechanism detail belongs in the
+# TRM chapter and in the comments HERE — where a description was cut, its long
+# form is preserved verbatim in a `Long form, preserved` comment above the entry,
+# so nothing was lost, only moved out of the table.
 # ---------------------------------------------------------------------------
 def _isBool(v):
 	return isinstance(v, bool)
@@ -68,24 +80,55 @@ def _isMemSize(v, ceiling):
 _PACKAGE_MODELS = ('myshkin-qfn44', 'castalia-quad-qfn64', 'castalia-lqfp100')
 
 _CONFIG_SCHEMA = {
-	'chipName':             ('non-empty string — renames the chip in the TRM/headers (docs-only; CHIP_NAME env still wins)',
+	'chipName':             ('non-empty string — renames the chip in the TRM and headers (CHIP_NAME env wins)',
 	                         lambda v: isinstance(v, str) and len(v.strip()) > 0),
-	'numHarts':             ('int 1..32 — hart/tile count (4 = Castalia golden master, 18 = Argus sim-proven)',
+	'numHarts':             ('int 1..32 — hart/tile count (5 = Castalia default, 18 = Argus)',
 	                         lambda v: _isInt(v) and 1 <= v <= 32),
-	'orchestrator':         ('bool — CPR3/R1 (Castalia-Penta rework): is there an always-on soft ORCHESTRATOR hart? false (the default) is the historical shape — every hart is a hardened `hart_tile`, hart 0 is the management hart, and the generated RTL is byte-identical to a build that never heard of this knob. true makes HART 0 the orchestrator: it is emitted as `entity work.orch_tile` (a thin wrapper whose only job is to keep the soft core\'s module names disjoint from the hardened hart_tile netlist — see orch_tile.vhd and CP1 D6), keeps every hart-0 wiring special it already had (the SPI0 flash/XIP quartet, sleep => sleep_cpu, trap_flag => the GPIO0 trap pin, a0 => the tb pass/fail gate, tcm_pgen => pgen_mem(1), arbiter master slice 0 with no isolation clamps), and harts 1..numHarts-1 become FULLY UNIFORM channel tiles — hart_id 1..N-1, pwr_ctrl rows 1..N-1 (so PWRCR gains a gate bit for what used to be hart 0\'s always-on tile), iso clamps, tcm_pgen => pd_sleep(h), flash ports open, a0_h monitored. It also switches the memory map to v2 (R3): SH_AW = max(derived, 16), five READ-ONLY TCM apertures at TCMWIN[h] = 0x20000 + h*0x4000 through which the management hart (and only it — the s_master = 0 gate) reads any hart\'s private TCM, and extended flash at the automatic strict complement 0x40000. The management hart is hart 0 in BOTH shapes, so afe_stub\'s MGMT_HART generic is never overridden (its entity default 0 is correct everywhere) and only the AFE bank\'s OWNER_HART literals shift with the tiles (AFE0-3 own harts 1-4; the EIS engine stays hart-0/management-only). Everything else follows the existing single sources — nMasters()/masterW()/dmMasterIndex() and clint/irq_router/debug_module NHARTS => numHarts (the CLINT layout SHIFTS with the hart count: mtime 0x5010 -> 0x5020 at N=5 — firmware must derive CLINT addresses from NHARTS)',
+	# Long form, preserved from the pre-2026-08-15 schema (the TRM chapters and this file's
+	# own notes are where this detail belongs; the string below is the table cell): bool —
+	# CPR3/R1 (Castalia-Penta rework): is there an always-on soft ORCHESTRATOR hart? false
+	# (the default) is the historical shape — every hart is a hardened `hart_tile`, hart 0 is
+	# the management hart, and the generated RTL is byte-identical to a build that never heard
+	# of this knob. true makes HART 0 the orchestrator: it is emitted as `entity
+	# work.orch_tile` (a thin wrapper whose only job is to keep the soft core's module names
+	# disjoint from the hardened hart_tile netlist — see orch_tile.vhd and CP1 D6), keeps
+	# every hart-0 wiring special it already had (the SPI0 flash/XIP quartet, sleep =>
+	# sleep_cpu, trap_flag => the GPIO0 trap pin, a0 => the tb pass/fail gate, tcm_pgen =>
+	# pgen_mem(1), arbiter master slice 0 with no isolation clamps), and harts 1..numHarts-1
+	# become FULLY UNIFORM channel tiles — hart_id 1..N-1, pwr_ctrl rows 1..N-1 (so PWRCR
+	# gains a gate bit for what used to be hart 0's always-on tile), iso clamps, tcm_pgen =>
+	# pd_sleep(h), flash ports open, a0_h monitored. It also switches the memory map to v2
+	# (R3): SH_AW = max(derived, 16), five READ-ONLY TCM apertures at TCMWIN[h] = 0x20000 +
+	# h*0x4000 through which the management hart (and only it — the s_master = 0 gate) reads
+	# any hart's private TCM, and extended flash at the automatic strict complement 0x40000.
+	# The management hart is hart 0 in BOTH shapes, so afe_stub's MGMT_HART generic is never
+	# overridden (its entity default 0 is correct everywhere) and only the AFE bank's
+	# OWNER_HART literals shift with the tiles (AFE0-3 own harts 1-4; the EIS engine stays
+	# hart-0/management-only). Everything else follows the existing single sources —
+	# nMasters()/masterW()/dmMasterIndex() and clint/irq_router/debug_module NHARTS =>
+	# numHarts (the CLINT layout SHIFTS with the hart count: mtime 0x5010 -> 0x5020 at N=5 —
+	# firmware must derive CLINT addresses from NHARTS)
+	'orchestrator':         ('bool — hart 0 is the always-on orchestrator; harts 1..N-1 are gateable tiles',
 	                         _isBool),
 	'numMutexes':           ('int 1..1024 — HW mutex bank size (16 = Castalia, 32 = Argus)',
 	                         lambda v: _isInt(v) and 1 <= v <= 1024),
-	'registerFileDualPort': ('bool — docs-only on vesta (regfile is dual-port in the RTL regardless; only the legacy picorv32_* MemoryMap constant changes)',
+	'registerFileDualPort': ('bool — docs-only: the register file is dual-port in the RTL either way',
 	                         _isBool),
 	'isa.mul':              ('bool — M multiply', _isBool),
-	'isa.fastMul':          ('bool — docs-only on vesta (multiplier is already single-cycle)', _isBool),
+	'isa.fastMul':          ('bool — docs-only: the multiplier is already single-cycle', _isBool),
 	'isa.div':              ('bool — M divide', _isBool),
 	'isa.atomics':          ('bool — A extension (LR/SC + AMO)', _isBool),
 	'isa.compressed':       ('bool — C extension', _isBool),
 	'isa.bitmanip':         ('bool — Zba/Zbb/Zbs/Zbc', _isBool),
-	'isa.counters':         ('bool — Zicntr mcycle/minstret; docs/march-only on vesta (cycle/instret and their high halves are always present — this gates only the _zicntr march suffix and the legacy constants). NOTE the march suffix over-promises since DD11-N1: time/timeh (0xC01/0xC81) are NOT implemented in any build and a read of either raises illegal-instruction, because no real time source is wired to the core', _isBool),
-	'isa.counters64':       ('bool — 64-bit counter high halves (needs isa.counters); docs-only on vesta (the high halves are always present)', _isBool),
+	# Long form, preserved from the pre-2026-08-15 schema (the TRM chapters and this file's
+	# own notes are where this detail belongs; the string below is the table cell): bool —
+	# Zicntr mcycle/minstret; docs/march-only on vesta (cycle/instret and their high halves
+	# are always present — this gates only the _zicntr march suffix and the legacy constants).
+	# NOTE the march suffix over-promises since DD11-N1: time/timeh (0xC01/0xC81) are NOT
+	# implemented in any build and a read of either raises illegal-instruction, because no
+	# real time source is wired to the core
+	'isa.counters':         ('bool — Zicntr march suffix only: cycle/instret always exist, time/timeh never do', _isBool),
+	'isa.counters64':       ('bool — docs-only high counter halves (always present); needs isa.counters', _isBool),
 	# ISA extensions. X1 (2026-07-17) implemented the six Tier-1 knobs below
 	# (zicond zcb zimop zihint zihpm zawrs) — default false, decode + tests +
 	# both-polarity gates landed. X2 (zabha zacas), X3 (zicboz zcmp zcmt zbkb
@@ -93,21 +136,26 @@ _CONFIG_SCHEMA = {
 	# isa.* knob below is real hardware and the X0 scaffolding hard-error
 	# list (_SCAFFOLDED_ISA) is empty — no knob advertises hardware it lacks.
 	'isa.zicond':           ('bool — Zicond conditional-zero ops (czero.eqz/czero.nez)', _isBool),
-	'isa.zcb':              ('bool — Zcb extra compressed insns (c.lbu/lhu/lh/sb/sh, zext/sext, c.not, c.mul; needs isa.compressed)', _isBool),
+	'isa.zcb':              ('bool — Zcb extra compressed loads/stores and ALU ops; needs isa.compressed', _isBool),
 	'isa.zimop':            ('bool — Zimop+Zcmop may-be-ops (mop.r/mop.rr rd<-0, c.mop.n nops)', _isBool),
 	'isa.zihint':           ('bool — Zihintpause+Zihintntl (PAUSE = 16-cycle arbiter-yield window; ntl.* nops)', _isBool),
-	'isa.zihpm':            ('bool — Zihpm perf counters 3/4 (events: arbiter-stall, bus-grants, sleep, trap-entry)', _isBool),
+	'isa.zihpm':            ('bool — Zihpm performance counters 3 and 4 (four chip events)', _isBool),
 	'isa.zawrs':            ('bool — Zawrs wrs.nto/wrs.sto wait-on-reservation-set (needs isa.atomics)', _isBool),
-	'isa.zabha':            ('bool — Zabha byte/half AMOs (requires atomics). Implemented X2.', _isBool),
-	'isa.zacas':            ('bool — Zacas amocas.w/.b/.h compare-and-swap (requires atomics; .b/.h also need zabha). Implemented X2.', _isBool),
-	'isa.zicboz':           ('bool — Zicboz cbo.zero cache-block zero (64-byte block). Implemented X3.', _isBool),
-	'isa.zcmp':             ('bool — Zcmp compressed push/pop + reg-moves (requires isa.compressed). Implemented X3.', _isBool),
-	'isa.zcmt':             ('bool — Zcmt compressed table jump + jvt CSR (requires isa.compressed). Implemented X3.', _isBool),
-	'isa.zbkb':             ('bool — Zbkb crypto bit-manip (pack/packh/brev8/zip/unzip + Zbb-shared subset). Implemented X3.', _isBool),
-	'isa.zbkc':             ('bool — Zbkc carryless multiply (clmul/clmulh; reuses the Zbc datapath). Implemented X3.', _isBool),
-	'isa.zbkx':             ('bool — Zbkx crossbar permute (xperm8/xperm4). Implemented X3.', _isBool),
-	'isa.zkn':              ('bool — Zkn AES+SHA (Zknd+Zkne+Zknh). Implemented X3.', _isBool),
-	'isa.zfinx':            ('bool — Zfinx single-precision FP in x-regs (shared FMA-based backend, exactly one rounding, all 5 rounding modes, full subnormals; radix-2 iterative div/sqrt; fcvt family). Implemented X4 — the largest single extension (0.034 mm² of tile area).', _isBool),
+	'isa.zabha':            ('bool — Zabha byte/halfword AMOs; needs isa.atomics', _isBool),
+	'isa.zacas':            ('bool — Zacas compare-and-swap (amocas.w/.b/.h); needs isa.atomics', _isBool),
+	'isa.zicboz':           ('bool — Zicboz cbo.zero cache-block zero (64-byte block)', _isBool),
+	'isa.zcmp':             ('bool — Zcmp compressed push/pop and register moves; needs isa.compressed', _isBool),
+	'isa.zcmt':             ('bool — Zcmt compressed table jump and the jvt CSR; needs isa.compressed', _isBool),
+	'isa.zbkb':             ('bool — Zbkb crypto bit-manipulation (pack/brev8/zip/unzip)', _isBool),
+	'isa.zbkc':             ('bool — Zbkc carry-less multiply (clmul/clmulh)', _isBool),
+	'isa.zbkx':             ('bool — Zbkx crossbar permute (xperm8/xperm4)', _isBool),
+	'isa.zkn':              ('bool — Zkn AES+SHA (Zknd+Zkne+Zknh)', _isBool),
+	# Long form, preserved from the pre-2026-08-15 schema (the TRM chapters and this file's
+	# own notes are where this detail belongs; the string below is the table cell): bool —
+	# Zfinx single-precision FP in x-regs (shared FMA-based backend, exactly one rounding, all
+	# 5 rounding modes, full subnormals; radix-2 iterative div/sqrt; fcvt family). Implemented
+	# X4 — the largest single extension (0.034 mm² of tile area).
+	'isa.zfinx':            ('bool — Zfinx single-precision floating point in the x registers', _isBool),
 	# P-series PRIVILEGED ARCHITECTURE. The generics ride the full chain
 	# (generate.py -> ChipGenerator -> mcu_vhd -> MemoryMap CORE_* ->
 	# hart_tile -> vesta -> maindec/csr_unit). ALL THREE HAVE GRADUATED:
@@ -115,61 +163,306 @@ _CONFIG_SCHEMA = {
 	# (2026-07-29) -- _SCAFFOLDED_PRIV below is now EMPTY, so none of them
 	# hard-errors any more. The dependency validations (umode => trapCsr,
 	# pmp => umode) stay LIVE and are the only gate left.
-	'priv.trapCsr':         ('bool — P1: standard M-mode trap architecture, IMPLEMENTED in full (P1, 2026-07-28): the CSR file (mstatus/mstatush/mtvec/mie/mip/mscratch/mepc/mcause/mtval + the custom mtrapctl @0x7C0 legacy-select bit) AND standard delivery — MRET/ECALL/EBREAK decode, mtvec-vectored exceptions and interrupts (MEI>MSI>MTI), the mstatus MPIE/MIE stack. mtrapctl.LEGACY resets 1, so even an ON chip boots on the legacy irq_handler/IVT path and is suite-identical until software clears the bit. DEFAULT TRUE since K7/R-DK3 (2026-08-04) on both Castalia and Argus: the CSR file and standard delivery are present, boot is bit-identical, and a hart enters standard delivery only when its own firmware writes mtrapctl (csrw 0x7C0, x0). Cost, measured at K6: +144 flops per tile (genus sequential 2251 -> 2395), +3.85% standard-cell area, +1.29% tile area, timing neutral. Set false to get a pre-P1 chip back: all ten addresses and the three encodings stay illegal. HAZARD any firmware policy must respect: clearing LEGACY on a hart that then EXTINGUISHes makes it unwakeable (the legacy IVT slot-83 msip path is what the bootrom park/wake contract uses) -- per-hart only, never before park', _isBool),
-	'debug.enable':         ('bool — D1: CORE-SIDE DEBUG MODE (2026-08-05). Debug mode as a privilege state: the Debug-Mode CSRs dcsr/dpc/dscratch0/dscratch1 (0x7B0-0x7B3, accessible ONLY in debug mode -- from M or U they raise illegal-instruction), the DRET encoding, an unmaskable halt request sampled at the same fourteen FSM points an interrupt is (including the terminal TRAP_STATE, so a debugger can rescue a wedged hart), halt-on-reset, ebreak-to-debug under dcsr.ebreakm, and single-step. Debug entry vectors to DEBUG_ENTRY_ADDR, which is the SHARED-WINDOW debug program page 0x00010780 on every debug-ON build (R-DD3/R-D2-1(3): a tile\'s TCM is unreachable from the shared bus, so a Debug Module could never place code at the old TCM default 0xBE00 -- that address survives only as the VHDL generic\'s fail-safe declaration default). REQUIRES priv.trapCsr: ebreak and the whole SYSTEM PRIV decode arm are trapCsr-gated, so a debug-without-trapCsr chip could not recognise a software breakpoint at all. Default false: the four CSR addresses and the DRET encoding stay illegal, the three tile debug ports fold away, and the core is bit-identical to a chip built before D1. THE KNOB NOW CARRIES THE WHOLE TRANSPORT. D2 added the assembly-level Debug Module dm0 (run control, dmstatus truth-telling against PWRCTRL, abstract access-register commands, a 2-word program buffer, halt groups, hartsel/haltsum at N=4 AND N=18) with its eight dmi_* MCU ports; D3 added the JTAG DTM dtm0 (16-state TAP, 5-bit IR, IDCODE/dtmcs/dmi(41)/BYPASS, the TCK<->mclk crossing) with the five pins tck/tms/tdi/tdo/trstn, and merged it with the dmi_* ports by valid-gated OR so both masters reach the one DM. D4 LANDED 2026-08-07 AND THERE IS NO DEBUG ROM: R-DD5 took option B, so dm0 PLANTS the 40-word entry code itself, out of a constant table, through the master port it already owned -- once at every dmactive 0->1, and again before it consumes a newly-halted hart\'s token. A ROM was rejected on STRUCTURE, not cost: 24 of the entry page\'s 64 words are DM-written at runtime and must stay writable, so read-only memory there would break the Debug Module outright. The table is held equal to the built software/dbg_trampoline/dbg_trampoline.S by tools/cosim/check_dbg_trampoline.py, a standing gate (rc 0 equal / 1 mismatch / 2 missing -- never a silent skip). The page is self-repairing for every word but the FIRST (F-D4-1: a hart that halts into a wrong word 0 re-asks for that same word and hart_tile\'s same-word ack hold keeps re-serving the stale copy, so it wedges until a PWRCTRL tile power-cycle). STILL OUT OF SCOPE and arriving later in the D-series: OpenOCD/gdb bring-up (D5) and hardware triggers (D6). System Bus Access is out FOREVER by design -- memory access is progbuf lw/sw through the halted hart. Cost, measured: +742 flops on the Castalia assembly at D2 (452 core + 265 dm0 + 25 fabric), plus dtm0 at D3, plus 4 for the D4 plant (assembly 18,159 -> 18,163)', _isBool),
-	'priv.umode':           ('bool — P2: user mode, IMPLEMENTED in full (P2, 2026-07-28): the 1-bit privilege register (reset M) with the MPP push/pop riding trap entry and MRET, mstatus.MPP WARL widened to {00,11} (unsupported 01/10 map to M), mstatus.TW, a real mcounteren (CY/TM/IR/HPM3/HPM4), misa.U, ECALL-from-U cause 8, the standard WFI encoding with its wake-on-(mip&mie) rule, and the U-mode decode gate — every machine/custom CSR (csr_addr(9:8)/="00"), MRET, the three custom Vesta instructions and a TW-denied WFI trap illegal-instruction, and a denied CSR access commits no write. Requires priv.trapCsr. Default false: no privilege register, misa.U clear, MPP WARL {11}, mcounteren read-zero — bit-identical to a P1 chip', _isBool),
-	'priv.pmp':             ('bool — P3: physical memory protection (Smpmp), IMPLEMENTED (P3, 2026-07-29): the pmpcfg0-3 / pmpaddr0-15 CSR bank (packed 4x8-bit cfg, R/W/X/A(4:3)/L with bits 6:5 WARL 0, W pinned 0 when R=0, pmpaddr bits 31:30 WARL 0), the full lock semantics (a locked entry\'s cfg AND address are immutable until reset, a TOR-locked entry also write-locks its predecessor address, per-byte lock filtering inside a pmpcfg word), and the combinational match unit (OFF/TOR/NA4/NAPOT at G=0, lowest-numbered match decides alone, locked entries enforce on M-mode, no-match grants M and faults U). The pre-issue fetch/load/store CHECK INTEGRATION with its access-fault causes 1/5/7 lands with the vesta diff of the same phase. Requires priv.umode. Default false: all twenty addresses stay illegal CSRs and the match unit is not instantiated — bit-identical to a P2 chip', _isBool),
-	'priv.pmpEntries':      ('int — PMP entry count, {8, 16} ONLY (the PMP_ENTRIES generic). Consulted only when priv.pmp is true; the CSR map is the 16-entry superset regardless (entries above the count are WARL all-zero). Default 16',
+	# Long form, preserved from the pre-2026-08-15 schema (the TRM chapters and this file's
+	# own notes are where this detail belongs; the string below is the table cell): bool — P1:
+	# standard M-mode trap architecture, IMPLEMENTED in full (P1, 2026-07-28): the CSR file
+	# (mstatus/mstatush/mtvec/mie/mip/mscratch/mepc/mcause/mtval + the custom mtrapctl @0x7C0
+	# legacy-select bit) AND standard delivery — MRET/ECALL/EBREAK decode, mtvec-vectored
+	# exceptions and interrupts (MEI>MSI>MTI), the mstatus MPIE/MIE stack. mtrapctl.LEGACY
+	# resets 1, so even an ON chip boots on the legacy irq_handler/IVT path and is suite-
+	# identical until software clears the bit. DEFAULT TRUE since K7/R-DK3 (2026-08-04) on
+	# both Castalia and Argus: the CSR file and standard delivery are present, boot is bit-
+	# identical, and a hart enters standard delivery only when its own firmware writes
+	# mtrapctl (csrw 0x7C0, x0). Cost, measured at K6: +144 flops per tile (genus sequential
+	# 2251 -> 2395), +3.85% standard-cell area, +1.29% tile area, timing neutral. Set false to
+	# get a pre-P1 chip back: all ten addresses and the three encodings stay illegal. HAZARD
+	# any firmware policy must respect: clearing LEGACY on a hart that then EXTINGUISHes makes
+	# it unwakeable (the legacy IVT slot-83 msip path is what the bootrom park/wake contract
+	# uses) -- per-hart only, never before park
+	'priv.trapCsr':         ('bool — standard M-mode trap CSRs and delivery; firmware opts in via mtrapctl', _isBool),
+	# Long form, preserved from the pre-2026-08-15 schema (the TRM chapters and this file's
+	# own notes are where this detail belongs; the string below is the table cell): bool — D1:
+	# CORE-SIDE DEBUG MODE (2026-08-05). Debug mode as a privilege state: the Debug-Mode CSRs
+	# dcsr/dpc/dscratch0/dscratch1 (0x7B0-0x7B3, accessible ONLY in debug mode -- from M or U
+	# they raise illegal-instruction), the DRET encoding, an unmaskable halt request sampled
+	# at the same fourteen FSM points an interrupt is (including the terminal TRAP_STATE, so a
+	# debugger can rescue a wedged hart), halt-on-reset, ebreak-to-debug under dcsr.ebreakm,
+	# and single-step. Debug entry vectors to DEBUG_ENTRY_ADDR, which is the SHARED-WINDOW
+	# debug program page 0x00010780 on every debug-ON build (R-DD3/R-D2-1(3): a tile's TCM is
+	# unreachable from the shared bus, so a Debug Module could never place code at the old TCM
+	# default 0xBE00 -- that address survives only as the VHDL generic's fail-safe declaration
+	# default). REQUIRES priv.trapCsr: ebreak and the whole SYSTEM PRIV decode arm are
+	# trapCsr-gated, so a debug-without-trapCsr chip could not recognise a software breakpoint
+	# at all. Default false: the four CSR addresses and the DRET encoding stay illegal, the
+	# three tile debug ports fold away, and the core is bit-identical to a chip built before
+	# D1. THE KNOB NOW CARRIES THE WHOLE TRANSPORT. D2 added the assembly-level Debug Module
+	# dm0 (run control, dmstatus truth-telling against PWRCTRL, abstract access-register
+	# commands, a 2-word program buffer, halt groups, hartsel/haltsum at N=4 AND N=18) with
+	# its eight dmi_* MCU ports; D3 added the JTAG DTM dtm0 (16-state TAP, 5-bit IR,
+	# IDCODE/dtmcs/dmi(41)/BYPASS, the TCK<->mclk crossing) with the five pins
+	# tck/tms/tdi/tdo/trstn, and merged it with the dmi_* ports by valid-gated OR so both
+	# masters reach the one DM. D4 LANDED 2026-08-07 AND THERE IS NO DEBUG ROM: R-DD5 took
+	# option B, so dm0 PLANTS the 40-word entry code itself, out of a constant table, through
+	# the master port it already owned -- once at every dmactive 0->1, and again before it
+	# consumes a newly-halted hart's token. A ROM was rejected on STRUCTURE, not cost: 24 of
+	# the entry page's 64 words are DM-written at runtime and must stay writable, so read-only
+	# memory there would break the Debug Module outright. The table is held equal to the built
+	# software/dbg_trampoline/dbg_trampoline.S by tools/cosim/check_dbg_trampoline.py, a
+	# standing gate (rc 0 equal / 1 mismatch / 2 missing -- never a silent skip). The page is
+	# self-repairing for every word but the FIRST (F-D4-1: a hart that halts into a wrong word
+	# 0 re-asks for that same word and hart_tile's same-word ack hold keeps re-serving the
+	# stale copy, so it wedges until a PWRCTRL tile power-cycle). STILL OUT OF SCOPE and
+	# arriving later in the D-series: OpenOCD/gdb bring-up (D5) and hardware triggers (D6).
+	# System Bus Access is out FOREVER by design -- memory access is progbuf lw/sw through the
+	# halted hart. Cost, measured: +742 flops on the Castalia assembly at D2 (452 core + 265
+	# dm0 + 25 fabric), plus dtm0 at D3, plus 4 for the D4 plant (assembly 18,159 -> 18,163)
+	'debug.enable':         ('bool — debug mode, the Debug Module and the JTAG DTM; needs priv.trapCsr', _isBool),
+	# Long form, preserved from the pre-2026-08-15 schema (the TRM chapters and this file's
+	# own notes are where this detail belongs; the string below is the table cell): bool — P2:
+	# user mode, IMPLEMENTED in full (P2, 2026-07-28): the 1-bit privilege register (reset M)
+	# with the MPP push/pop riding trap entry and MRET, mstatus.MPP WARL widened to {00,11}
+	# (unsupported 01/10 map to M), mstatus.TW, a real mcounteren (CY/TM/IR/HPM3/HPM4),
+	# misa.U, ECALL-from-U cause 8, the standard WFI encoding with its wake-on-(mip&mie) rule,
+	# and the U-mode decode gate — every machine/custom CSR (csr_addr(9:8)/="00"), MRET, the
+	# three custom Vesta instructions and a TW-denied WFI trap illegal-instruction, and a
+	# denied CSR access commits no write. Requires priv.trapCsr. Default false: no privilege
+	# register, misa.U clear, MPP WARL {11}, mcounteren read-zero — bit-identical to a P1 chip
+	'priv.umode':           ('bool — user mode (privilege register, MPP stack, mcounteren); needs priv.trapCsr', _isBool),
+	# Long form, preserved from the pre-2026-08-15 schema (the TRM chapters and this file's
+	# own notes are where this detail belongs; the string below is the table cell): bool — P3:
+	# physical memory protection (Smpmp), IMPLEMENTED (P3, 2026-07-29): the pmpcfg0-3 /
+	# pmpaddr0-15 CSR bank (packed 4x8-bit cfg, R/W/X/A(4:3)/L with bits 6:5 WARL 0, W pinned
+	# 0 when R=0, pmpaddr bits 31:30 WARL 0), the full lock semantics (a locked entry's cfg
+	# AND address are immutable until reset, a TOR-locked entry also write-locks its
+	# predecessor address, per-byte lock filtering inside a pmpcfg word), and the
+	# combinational match unit (OFF/TOR/NA4/NAPOT at G=0, lowest-numbered match decides alone,
+	# locked entries enforce on M-mode, no-match grants M and faults U). The pre-issue
+	# fetch/load/store CHECK INTEGRATION with its access-fault causes 1/5/7 lands with the
+	# vesta diff of the same phase. Requires priv.umode. Default false: all twenty addresses
+	# stay illegal CSRs and the match unit is not instantiated — bit-identical to a P2 chip
+	'priv.pmp':             ('bool — PMP (Smpmp) CSR bank and match unit; needs priv.umode', _isBool),
+	# Long form, preserved from the pre-2026-08-15 schema (the TRM chapters and this file's
+	# own notes are where this detail belongs; the string below is the table cell): int — PMP
+	# entry count, {8, 16} ONLY (the PMP_ENTRIES generic). Consulted only when priv.pmp is
+	# true; the CSR map is the 16-entry superset regardless (entries above the count are WARL
+	# all-zero). Default 16
+	'priv.pmpEntries':      ('int, 8 or 16 — PMP entry count when priv.pmp is true (default 16)',
 	                         lambda v: _isInt(v) and v in (8, 16)),
-	'memory.romSize':            ('int bytes, 1 KiB multiple <= 0x4000 (region 0x0-0x3FFF)',
+	'memory.romSize':            ('int bytes, 1 KiB multiple <= 0x4000 — boot ROM (0x0-0x3FFF)',
 	                              lambda v: _isMemSize(v, 0x4000)),
-	'memory.tcmSizePerHart':     ('int bytes, 1 KiB multiple <= 0x4000 (region 0x8000-0xBFFF)',
+	'memory.tcmSizePerHart':     ('int bytes, 1 KiB multiple <= 0x4000 — per-hart TCM (0x8000-0xBFFF)',
 	                              lambda v: _isMemSize(v, 0x4000)),
-	'memory.sharedBulkRamSize':  ('int bytes, multiple of 0x4000 (one sram1p16k bank) from 0x10000',
+	'memory.sharedBulkRamSize':  ('int bytes, multiple of 0x4000 — shared bulk RAM from 0x10000, one bank per 16 KiB',
 	                              lambda v: _isInt(v) and v >= 0x4000 and v % 0x4000 == 0),
-	'memory.npuStagingRamSize':  ('int bytes, 1 KiB multiple <= 0x4000 (region 0xC000-0xFFFF)',
+	'memory.npuStagingRamSize':  ('int bytes, 1 KiB multiple <= 0x4000 — NPU staging RAM (0xC000-0xFFFF)',
 	                              lambda v: _isMemSize(v, 0x4000)),
-	'peripherals.npu':      ('bool — False drops the NPU entirely (slot 10 + the 0xC000 staging window read zero)',
+	# Long form, preserved from the pre-2026-08-15 schema (the TRM chapters and this file's
+	# own notes are where this detail belongs; the string below is the table cell): bool —
+	# False drops the NPU entirely (slot 10 + the 0xC000 staging window read zero)
+	'peripherals.npu':      ('bool — false drops the NPU (slot 10 and the 0xC000 staging window read zero)',
 	                         _isBool),
-	'peripherals.i2c1':     ('bool — False drops the second I2C instance (slot 15 reads zero, IRQ vectors 70-82 reserved, SDA1/SCL1 pins revert to plain GPIO)',
+	# Long form, preserved from the pre-2026-08-15 schema (the TRM chapters and this file's
+	# own notes are where this detail belongs; the string below is the table cell): bool —
+	# False drops the second I2C instance (slot 15 reads zero, IRQ vectors 70-82 reserved,
+	# SDA1/SCL1 pins revert to plain GPIO)
+	'peripherals.i2c1':     ('bool — false drops I2C1 (slot 15 reads zero; SDA1/SCL1 revert to plain GPIO)',
 	                         _isBool),
-	'peripherals.uart1':    ('bool — False drops the second UART instance (slot 5 reads zero, IRQ vectors 52-54 reserved, TX1/RX1 pins revert to plain GPIO)',
+	# Long form, preserved from the pre-2026-08-15 schema (the TRM chapters and this file's
+	# own notes are where this detail belongs; the string below is the table cell): bool —
+	# False drops the second UART instance (slot 5 reads zero, IRQ vectors 52-54 reserved,
+	# TX1/RX1 pins revert to plain GPIO)
+	'peripherals.uart1':    ('bool — false drops UART1 (slot 5 reads zero; TX1/RX1 revert to plain GPIO)',
 	                         _isBool),
-	'peripherals.spi1':     ('bool — False drops the second SPI instance (slot 3 reads zero, IRQ vectors 11-12 reserved, CS1/MISO1/MOSI1/SCK1 pins revert to plain GPIO)',
+	# Long form, preserved from the pre-2026-08-15 schema (the TRM chapters and this file's
+	# own notes are where this detail belongs; the string below is the table cell): bool —
+	# False drops the second SPI instance (slot 3 reads zero, IRQ vectors 11-12 reserved,
+	# CS1/MISO1/MOSI1/SCK1 pins revert to plain GPIO)
+	'peripherals.spi1':     ('bool — false drops SPI1 (slot 3 reads zero; its four pins revert to plain GPIO)',
 	                         _isBool),
-	'peripherals.timer1':   ('bool — False drops the second TIMER instance (slot 7 reads zero, IRQ vectors 22-27 reserved, T1CMP*/T1CAP* pins revert to plain GPIO)',
+	# Long form, preserved from the pre-2026-08-15 schema (the TRM chapters and this file's
+	# own notes are where this detail belongs; the string below is the table cell): bool —
+	# False drops the second TIMER instance (slot 7 reads zero, IRQ vectors 22-27 reserved,
+	# T1CMP*/T1CAP* pins revert to plain GPIO)
+	'peripherals.timer1':   ('bool — false drops TIMER1 (slot 7 reads zero; the T1 pins revert to plain GPIO)',
 	                         _isBool),
-	'peripherals.cqAfeStubs': ('bool — True instantiates the four AFE register stubs (page-0 slot 12 @0x4C00, sub-slots on sh_addr(5:4)) and the shared EIS engine stub (0x7C00); the Castalia golden master keeps them. False frees slot 12 for a native peripheral (mutually exclusive with peripherals.qspi) and reserves IRQ vectors 55/56',
+	# Long form, preserved from the pre-2026-08-15 schema (the TRM chapters and this file's
+	# own notes are where this detail belongs; the string below is the table cell): bool —
+	# True instantiates the four AFE register stubs (page-0 slot 12 @0x4C00, sub-slots on
+	# sh_addr(5:4)) and the shared EIS engine stub (0x7C00); the Castalia golden master keeps
+	# them. False frees slot 12 for a native peripheral (mutually exclusive with
+	# peripherals.qspi) and reserves IRQ vectors 55/56
+	'peripherals.cqAfeStubs': ('bool — the four AFE register stubs and the EIS engine stub (slot 12, 0x4C00)',
 	                         _isBool),
-	'peripherals.qspi':     ('bool — True instantiates the QSPI0 controller in page-0 slot 12 (0x4C00), driving IRQ vectors 55 (transfer-complete) and 56 (RX-full); requires peripherals.cqAfeStubs=false (both claim slot 12). Default false',
+	# Long form, preserved from the pre-2026-08-15 schema (the TRM chapters and this file's
+	# own notes are where this detail belongs; the string below is the table cell): bool —
+	# True instantiates the QSPI0 controller in page-0 slot 12 (0x4C00), driving IRQ vectors
+	# 55 (transfer-complete) and 56 (RX-full); requires peripherals.cqAfeStubs=false (both
+	# claim slot 12). Default false
+	'peripherals.qspi':     ('bool — QSPI0 controller in slot 12 (0x4C00); needs cqAfeStubs false',
 	                         _isBool),
-	'peripherals.i3c':      ('bool — True instantiates the I3C0 controller (MVP+DAA+IBI) at 0x6100: page-2 (MUTEX page) sub-slot 1. Tightens the mutex-bank decode to its 256 B sub-slot 0 (retiring the page-wide alias whose reads had a CLAIM side effect), adds a page-2 sub-decode, and GROWS the IRQ source list to 94 (a reserved placeholder at the frozen meip slot 85, then I3C vectors 86-93: tc/rxf/txe/nack/eod/arb/daa/ibi). Default false',
+	# Long form, preserved from the pre-2026-08-15 schema (the TRM chapters and this file's
+	# own notes are where this detail belongs; the string below is the table cell): bool —
+	# True instantiates the I3C0 controller (MVP+DAA+IBI) at 0x6100: page-2 (MUTEX page) sub-
+	# slot 1. Tightens the mutex-bank decode to its 256 B sub-slot 0 (retiring the page-wide
+	# alias whose reads had a CLAIM side effect), adds a page-2 sub-decode, and GROWS the IRQ
+	# source list to 94 (a reserved placeholder at the frozen meip slot 85, then I3C vectors
+	# 86-93: tc/rxf/txe/nack/eod/arb/daa/ibi). Default false
+	'peripherals.i3c':      ('bool — I3C0 controller (MVP + DAA + IBI) at 0x6100',
 	                         _isBool),
-	'peripherals.nfc':      ('bool — True instantiates the NFC0 ISO 14443A tag / card-emulation engine at 0x6200: page-2 (MUTEX page) sub-slot 2. Like I3C it tightens the mutex-bank decode to its 256 B sub-slot 0 (retiring the aliased-CLAIM side effect) and adds the page-2 sub-decode. GROWS the IRQ source list to 98 (meip stays frozen at slot 85; sources 86-93 are I3C or reserved; NFC drives vectors 94-97: field/rxf/txdone/crcerr). The digital AFE / RF interface is off-die (placeholder-tied). Default false',
+	# Long form, preserved from the pre-2026-08-15 schema (the TRM chapters and this file's
+	# own notes are where this detail belongs; the string below is the table cell): bool —
+	# True instantiates the NFC0 ISO 14443A tag / card-emulation engine at 0x6200: page-2
+	# (MUTEX page) sub-slot 2. Like I3C it tightens the mutex-bank decode to its 256 B sub-
+	# slot 0 (retiring the aliased-CLAIM side effect) and adds the page-2 sub-decode. GROWS
+	# the IRQ source list to 98 (meip stays frozen at slot 85; sources 86-93 are I3C or
+	# reserved; NFC drives vectors 94-97: field/rxf/txdone/crcerr). The digital AFE / RF
+	# interface is off-die (placeholder-tied). Default false
+	'peripherals.nfc':      ('bool — NFC0 ISO 14443A tag engine at 0x6200 (the RF front end is off-die)',
 	                         _isBool),
-	'peripherals.rtc':      ('bool — True instantiates the RTC0 real-time clock (32.768 kHz always-on wall clock + one-shot alarm + periodic tick) at 0x6500: page-2 (MUTEX page) sub-slot 5. Zero pins; clocks off the UNGATED lfxt_in pad crystal, with the CDC synchronizers / sticky W1C flags / IRQ combiner on the free-running MCLK. GROWS the IRQ source list to 115: vector 114 = RTC0 (single combined alarm/tick IRQ, above GPIO5\'s 106-113). NUM_EN_WORDS stays 4 (115 <= 128). Default false',
+	# Long form, preserved from the pre-2026-08-15 schema (the TRM chapters and this file's
+	# own notes are where this detail belongs; the string below is the table cell): bool —
+	# True instantiates the RTC0 real-time clock (32.768 kHz always-on wall clock + one-shot
+	# alarm + periodic tick) at 0x6500: page-2 (MUTEX page) sub-slot 5. Zero pins; clocks off
+	# the UNGATED lfxt_in pad crystal, with the CDC synchronizers / sticky W1C flags / IRQ
+	# combiner on the free-running MCLK. GROWS the IRQ source list to 115: vector 114 = RTC0
+	# (single combined alarm/tick IRQ, above GPIO5's 106-113). NUM_EN_WORDS stays 4 (115 <=
+	# 128). Default false
+	'peripherals.rtc':      ('bool — RTC0 32.768 kHz wall clock with alarm and tick at 0x6500',
 	                         _isBool),
-	'peripherals.pwm':      ('bool — True instantiates the PWM0 buffered PWM generator (2 channels, glitch-free double-buffered update, software fault trip, period-event tick) at 0x6600: page-2 (MUTEX page) sub-slot 6. Zero input pins; the two outputs pwm_out(0)/(1) REPLACE two redundant timer-compare spread copies (P2.2/P2.3 AF2, the pin-mux-v2 replaced-spread-slot precedent). Free-running MCLK engine (no LFXT, no generated clocks). GROWS the IRQ source list per the GLOBAL VECTOR RULE (A5): vectors 115 = PWM0_FAULT (lower id = router priority), 116 = PWM0_EVT; when a lower library block (RTC vector 114) is off but pwm is on, 114 backfills as IRQB_RSVD114. NUM_EN_WORDS stays 4 (117 <= 128). Default false',
+	# Long form, preserved from the pre-2026-08-15 schema (the TRM chapters and this file's
+	# own notes are where this detail belongs; the string below is the table cell): bool —
+	# True instantiates the PWM0 buffered PWM generator (2 channels, glitch-free double-
+	# buffered update, software fault trip, period-event tick) at 0x6600: page-2 (MUTEX page)
+	# sub-slot 6. Zero input pins; the two outputs pwm_out(0)/(1) REPLACE two redundant timer-
+	# compare spread copies (P2.2/P2.3 AF2, the pin-mux-v2 replaced-spread-slot precedent).
+	# Free-running MCLK engine (no LFXT, no generated clocks). GROWS the IRQ source list per
+	# the GLOBAL VECTOR RULE (A5): vectors 115 = PWM0_FAULT (lower id = router priority), 116
+	# = PWM0_EVT; when a lower library block (RTC vector 114) is off but pwm is on, 114
+	# backfills as IRQB_RSVD114. NUM_EN_WORDS stays 4 (117 <= 128). Default false
+	'peripherals.pwm':      ('bool — PWM0 two-channel buffered PWM at 0x6600 (outputs on P2.2/P2.3)',
 	                         _isBool),
-	'peripherals.onewire':  ('bool — True instantiates the OW0 Dallas/Maxim 1-Wire master (reset+presence, write/read bit + byte link-layer primitives off a programmable time base; ROM search + CRC-8 in firmware; standard + overdrive; one open-drain DQ pin) at 0x6700: page-2 (MUTEX page) sub-slot 7. One pad: DQ on P4.7 / GPIO31 (DTP3), alt plane AF2, open-drain, rstREN=1 — the pin-mux-v2 REPLACED-SPREAD-SLOT mechanism (it takes over the redundant T0CMP1 output-spread copy in that slot; T0CMP1 keeps its P3.1/GPIO17 AF0 primary, its P2.1/P4.5 AF1 relocations and 26 other spread copies, so the replacement is pure redundancy). Free-running MCLK engine (no LFXT, no generated clocks, no clock on the DQ pad — DQ is 2-FF synchronized). EXTENDS the IRQ source list per the GLOBAL VECTOR RULE (A5) to 118: vector 117 = OW0 (single combined transaction-complete/error IRQ); when a lower library block (RTC 114, PWM 115/116) is off but onewire is on, those slots backfill as IRQB_RSVD. NUM_EN_WORDS stays 4 (118 <= 128). Default false',
+	# Long form, preserved from the pre-2026-08-15 schema (the TRM chapters and this file's
+	# own notes are where this detail belongs; the string below is the table cell): bool —
+	# True instantiates the OW0 Dallas/Maxim 1-Wire master (reset+presence, write/read bit +
+	# byte link-layer primitives off a programmable time base; ROM search + CRC-8 in firmware;
+	# standard + overdrive; one open-drain DQ pin) at 0x6700: page-2 (MUTEX page) sub-slot 7.
+	# One pad: DQ on P4.7 / GPIO31 (DTP3), alt plane AF2, open-drain, rstREN=1 — the pin-
+	# mux-v2 REPLACED-SPREAD-SLOT mechanism (it takes over the redundant T0CMP1 output-spread
+	# copy in that slot; T0CMP1 keeps its P3.1/GPIO17 AF0 primary, its P2.1/P4.5 AF1
+	# relocations and 26 other spread copies, so the replacement is pure redundancy). Free-
+	# running MCLK engine (no LFXT, no generated clocks, no clock on the DQ pad — DQ is 2-FF
+	# synchronized). EXTENDS the IRQ source list per the GLOBAL VECTOR RULE (A5) to 118:
+	# vector 117 = OW0 (single combined transaction-complete/error IRQ); when a lower library
+	# block (RTC 114, PWM 115/116) is off but onewire is on, those slots backfill as
+	# IRQB_RSVD. NUM_EN_WORDS stays 4 (118 <= 128). Default false
+	'peripherals.onewire':  ('bool — OW0 1-Wire master at 0x6700, open-drain DQ on P4.7',
 	                         _isBool),
-	'peripherals.fieldPower': ('bool — True wires the DP-S3 field-powered-mode supervision inputs into PWRCTRL: P6.7/GPIO47 = PGOOD supply-supervisor input, P6.6/GPIO46 = harvested-boot strap. Both are plain-GPIO DIRECT TAPS of the pad-input plane (always readable, independent of PxSEL/PxAFS — PGOOD must gate boot before any software can program a mux), with reset attrs rstDIR=input, rstREN=1, pull-DOWN: unconnected reads power-not-good + NORMAL(SPI) boot. Also taps NFC0\'s field_detect level as an optional PWRCTRL wake/release source (tied 0 when NFC is absent). The PWRCTRL PWRWAKE/PWRSTS registers and the pgood_rstn HOLD-IN-RESET boot gate exist in the RTL unconditionally; this knob only controls the pad-side ties, so False leaves the feature a provable NO-OP (gate stuck released). Default true (the Castalia golden master and castalia_dp carry the live wiring)',
+	# Long form, preserved from the pre-2026-08-15 schema (the TRM chapters and this file's
+	# own notes are where this detail belongs; the string below is the table cell): bool —
+	# True wires the DP-S3 field-powered-mode supervision inputs into PWRCTRL: P6.7/GPIO47 =
+	# PGOOD supply-supervisor input, P6.6/GPIO46 = harvested-boot strap. Both are plain-GPIO
+	# DIRECT TAPS of the pad-input plane (always readable, independent of PxSEL/PxAFS — PGOOD
+	# must gate boot before any software can program a mux), with reset attrs rstDIR=input,
+	# rstREN=1, pull-DOWN: unconnected reads power-not-good + NORMAL(SPI) boot. Also taps
+	# NFC0's field_detect level as an optional PWRCTRL wake/release source (tied 0 when NFC is
+	# absent). The PWRCTRL PWRWAKE/PWRSTS registers and the pgood_rstn HOLD-IN-RESET boot gate
+	# exist in the RTL unconditionally; this knob only controls the pad-side ties, so False
+	# leaves the feature a provable NO-OP (gate stuck released). Default true (the Castalia
+	# golden master and castalia_dp carry the live wiring)
+	'peripherals.fieldPower': ('bool — wires the field-power pins (PGOOD, harvest strap) into PWRCTRL',
 	                         _isBool),
-	'peripherals.dma':      ('bool — True instantiates the DMA0 configurable multi-channel single-shot DMA controller (peripheral-paced or software-GO mem-to-mem transfers, CRC16 ride-along) at 0x6800: page-2 (MUTEX page) sub-slot 8. Zero pins. DMA0 is the FIRST new arbiter MASTER since the four harts (M13): enabling it WIDENS the shared fabric from N=4 to N=5 masters (the DMA is master index numHarts, the last slice) — mp_arbiter N=>5/MW=>3, resv_unit N=>5, mutex_bank/irq_router MW=>3, sh_master 2->3 bits, arb_* buses grow a 5th slice. EXTENDS the IRQ source list per the GLOBAL VECTOR RULE (A5) to 119: vectors 118 = DMA0_DONE (combined channels-done), 119 = DMA0_ERR; when a lower library block (RTC 114, PWM 115/116, OW 117) is off but dma is on, those slots backfill as IRQB_RSVD. NUM_EN_WORDS stays 4 (119 <= 128). Default false',
+	# Long form, preserved from the pre-2026-08-15 schema (the TRM chapters and this file's
+	# own notes are where this detail belongs; the string below is the table cell): bool —
+	# True instantiates the DMA0 configurable multi-channel single-shot DMA controller
+	# (peripheral-paced or software-GO mem-to-mem transfers, CRC16 ride-along) at 0x6800:
+	# page-2 (MUTEX page) sub-slot 8. Zero pins. DMA0 is the FIRST new arbiter MASTER since
+	# the four harts (M13): enabling it WIDENS the shared fabric from N=4 to N=5 masters (the
+	# DMA is master index numHarts, the last slice) — mp_arbiter N=>5/MW=>3, resv_unit N=>5,
+	# mutex_bank/irq_router MW=>3, sh_master 2->3 bits, arb_* buses grow a 5th slice. EXTENDS
+	# the IRQ source list per the GLOBAL VECTOR RULE (A5) to 119: vectors 118 = DMA0_DONE
+	# (combined channels-done), 119 = DMA0_ERR; when a lower library block (RTC 114, PWM
+	# 115/116, OW 117) is off but dma is on, those slots backfill as IRQB_RSVD. NUM_EN_WORDS
+	# stays 4 (119 <= 128). Default false
+	'peripherals.dma':      ('bool — DMA0 multi-channel DMA at 0x6800; adds one more arbiter master',
 	                         _isBool),
-	'peripherals.dmaChannels': ('int — DMA0 channel count, {2, 4} ONLY (the NCH generic; the register map is the 4-channel superset regardless, absent channels read 0). Consulted only when peripherals.dma is true. Default 4',
+	# Long form, preserved from the pre-2026-08-15 schema (the TRM chapters and this file's
+	# own notes are where this detail belongs; the string below is the table cell): int — DMA0
+	# channel count, {2, 4} ONLY (the NCH generic; the register map is the 4-channel superset
+	# regardless, absent channels read 0). Consulted only when peripherals.dma is true.
+	# Default 4
+	'peripherals.dmaChannels': ('int, 2 or 4 — DMA0 channel count when peripherals.dma is true (default 4)',
 	                         lambda v: _isInt(v) and v in (2, 4)),
-	'peripherals.i2ctarget': ('bool — True instantiates the I2CT0 hardware-autonomous I2C TARGET (slave) at 0x6A00: page-2 (MUTEX page) sub-slot 10. 7-bit address match + mask + general call, byte-at-a-time RX/TX with ready/empty status, hardware clock stretching, START/STOP/repeated-START/NACK framing flags, and a stuck-SCL watchdog — all in the free-running MCLK domain (D4-clean, 2-FF SDA/SCL sync, no pad-clocked processes). Two combined IRQs delivered per the GLOBAL VECTOR RULE (A5): vector 122 = I2CT0_AE (address/error), 123 = I2CT0_DATA (tx-ready/rx-full); vectors 120/121 belong to the DP-SG blocks (120 = NPU0 think-done, 121 = TRNG0 — landed 2026-07-22; each backfills as IRQB_RSVD when its block is absent), so 122/123 hold under the frozen-numbering rule. NUM_EN_WORDS stays 4 (124 <= 128). NO new pins: I2CT0 SHARES the I2C0 SDA0/SCL0 pad planes via an open-drain wired-AND DIR merge (a separate shared-RTL edit). mclk-domain, so the SYS_CLK_CR=0 footgun does NOT bind I2CT0 (unlike the smclk I2C0). Default false',
+	# Long form, preserved from the pre-2026-08-15 schema (the TRM chapters and this file's
+	# own notes are where this detail belongs; the string below is the table cell): bool —
+	# True instantiates the I2CT0 hardware-autonomous I2C TARGET (slave) at 0x6A00: page-2
+	# (MUTEX page) sub-slot 10. 7-bit address match + mask + general call, byte-at-a-time
+	# RX/TX with ready/empty status, hardware clock stretching, START/STOP/repeated-START/NACK
+	# framing flags, and a stuck-SCL watchdog — all in the free-running MCLK domain (D4-clean,
+	# 2-FF SDA/SCL sync, no pad-clocked processes). Two combined IRQs delivered per the GLOBAL
+	# VECTOR RULE (A5): vector 122 = I2CT0_AE (address/error), 123 = I2CT0_DATA (tx-ready/rx-
+	# full); vectors 120/121 belong to the DP-SG blocks (120 = NPU0 think-done, 121 = TRNG0 —
+	# landed 2026-07-22; each backfills as IRQB_RSVD when its block is absent), so 122/123
+	# hold under the frozen-numbering rule. NUM_EN_WORDS stays 4 (124 <= 128). NO new pins:
+	# I2CT0 SHARES the I2C0 SDA0/SCL0 pad planes via an open-drain wired-AND DIR merge (a
+	# separate shared-RTL edit). mclk-domain, so the SYS_CLK_CR=0 footgun does NOT bind I2CT0
+	# (unlike the smclk I2C0). Default false
+	'peripherals.i2ctarget': ('bool — I2CT0 hardware I2C target at 0x6A00, sharing the I2C0 pads',
 	                         _isBool),
-	'peripherals.trng':      ('bool — True instantiates the TRNG0 ring-oscillator entropy source + harvest engine at 0x6900: page-2 (MUTEX page) sub-slot 9. Free-running RO ensemble (NRO rings, {4,8} via peripherals.trngRings) 2-FF synchronized into MCLK, decimated/packed into 32-bit words with a read-CONSUMES data register (exactly-once consume + DRDY same-cycle blind-window fix), and an SP 800-90B-lite repetition-count health test whose alarm auto-halts harvesting — all in the free-running MCLK domain (D4-clean, plain raw-strobe active-low shim, neither combinationalRead nor CAPTURE_CLOCK). ONE combined IRQ (data-ready | health-alarm) delivered per the GLOBAL VECTOR RULE (A5): vector 121 = TRNG0; vector 120 (npu-thinkdone) is gated by the EXISTING peripherals.npu knob. NUM_EN_WORDS stays 4 (ceil(122/32) = 4, 122 <= 128 when TRNG is the highest enabled tail block). Zero pins — the RO ensemble is internal combinational fabric behind a SIM/REAL architecture split (TrngRoEnsemble_sim.vhd behavioral-only, TrngRoEnsemble.vhd genus/gate-only; the two must never co-list). ENTROPY CAVEAT (bring-up-grade, not certified — see the TRM chapter): firmware MUST DRBG the raw words and honor ALMF. Default false — the default emission (no page-2 sub-slot 9, no MmrAddrTRNG0, no vector 121) is byte-identical',
+	# Long form, preserved from the pre-2026-08-15 schema (the TRM chapters and this file's
+	# own notes are where this detail belongs; the string below is the table cell): bool —
+	# True instantiates the TRNG0 ring-oscillator entropy source + harvest engine at 0x6900:
+	# page-2 (MUTEX page) sub-slot 9. Free-running RO ensemble (NRO rings, {4,8} via
+	# peripherals.trngRings) 2-FF synchronized into MCLK, decimated/packed into 32-bit words
+	# with a read-CONSUMES data register (exactly-once consume + DRDY same-cycle blind-window
+	# fix), and an SP 800-90B-lite repetition-count health test whose alarm auto-halts
+	# harvesting — all in the free-running MCLK domain (D4-clean, plain raw-strobe active-low
+	# shim, neither combinationalRead nor CAPTURE_CLOCK). ONE combined IRQ (data-ready |
+	# health-alarm) delivered per the GLOBAL VECTOR RULE (A5): vector 121 = TRNG0; vector 120
+	# (npu-thinkdone) is gated by the EXISTING peripherals.npu knob. NUM_EN_WORDS stays 4
+	# (ceil(122/32) = 4, 122 <= 128 when TRNG is the highest enabled tail block). Zero pins —
+	# the RO ensemble is internal combinational fabric behind a SIM/REAL architecture split
+	# (TrngRoEnsemble_sim.vhd behavioral-only, TrngRoEnsemble.vhd genus/gate-only; the two
+	# must never co-list). ENTROPY CAVEAT (bring-up-grade, not certified — see the TRM
+	# chapter): firmware MUST DRBG the raw words and honor ALMF. Default false — the default
+	# emission (no page-2 sub-slot 9, no MmrAddrTRNG0, no vector 121) is byte-identical
+	'peripherals.trng':      ('bool — TRNG0 ring-oscillator entropy source at 0x6900 (firmware must DRBG it)',
 	                         _isBool),
-	'peripherals.trngRings': ('int — TRNG0 ring-oscillator ensemble size, {4, 8} ONLY (the NRO generic; the register map is NRO-invariant — ROSEL/RCTC/RUNLEN semantics are unchanged by the knob). Consulted only when peripherals.trng is true. Default 8',
+	# Long form, preserved from the pre-2026-08-15 schema (the TRM chapters and this file's
+	# own notes are where this detail belongs; the string below is the table cell): int —
+	# TRNG0 ring-oscillator ensemble size, {4, 8} ONLY (the NRO generic; the register map is
+	# NRO-invariant — ROSEL/RCTC/RUNLEN semantics are unchanged by the knob). Consulted only
+	# when peripherals.trng is true. Default 8
+	'peripherals.trngRings': ('int, 4 or 8 — TRNG0 ring count when peripherals.trng is true (default 8)',
 	                         lambda v: _isInt(v) and v in (4, 8)),
-	'peripherals.eventFabric': ('bool — True instantiates the EVFAB0 event/trigger fabric (PPI-style crossbar) at 0x6B00: page-2 (MUTEX page) sub-slot 11. 8 channels, each a {EVSEL, TASKSEL} pair, route one of 16 hardware EVENTS to one of 10 hardware TASKS with a registered one-MCLK pulse and 1 MCLK of in-fabric latency, so peripheral-to-peripheral chains run with every hart asleep. Producers are pre-mask SET-condition taps on RTC0/PWM0/TIMER0/TIMER1/UART0/NFC0/DMA0/TRNG0/I2CT0 plus a GPIO0 masked-edge path (the fabric owns all CDC: per-input pulse/toggle/level modes via the EV_MODE_TGL/EV_MODE_LVL generic masks); consumers are DMA0 channel GO, TIMER0 START/STOP, PWM0 fault trip, PWRCTRL tile wake, NPU0 THINK and GPIO0 OUT-SET/OUT-CLR (the PxTASK pin-select byte). Every producer/consumer whose block is absent from the configuration is TIED OFF ("0") rather than left open (design-doc D23) — the knob composes with every other peripheral knob. VECTORLESS v1: no IRQ vector is spent (irq_evfab is a constant "0", the IE slot is reserved), so NUM_IRQ_SRCS is untouched and the frozen vector numbering is undisturbed. Zero pins. Free-running MCLK in the always-on shared domain (WFI keeps it alive, DP-S3 field-power only slows it, PWRCTRL never gates it). Default false — the default emission (no page-2 sub-slot 11, no EVF* register block, no tap port maps) is byte-identical',
+	# Long form, preserved from the pre-2026-08-15 schema (the TRM chapters and this file's
+	# own notes are where this detail belongs; the string below is the table cell): bool —
+	# True instantiates the EVFAB0 event/trigger fabric (PPI-style crossbar) at 0x6B00: page-2
+	# (MUTEX page) sub-slot 11. 8 channels, each a {EVSEL, TASKSEL} pair, route one of 16
+	# hardware EVENTS to one of 10 hardware TASKS with a registered one-MCLK pulse and 1 MCLK
+	# of in-fabric latency, so peripheral-to-peripheral chains run with every hart asleep.
+	# Producers are pre-mask SET-condition taps on
+	# RTC0/PWM0/TIMER0/TIMER1/UART0/NFC0/DMA0/TRNG0/I2CT0 plus a GPIO0 masked-edge path (the
+	# fabric owns all CDC: per-input pulse/toggle/level modes via the EV_MODE_TGL/EV_MODE_LVL
+	# generic masks); consumers are DMA0 channel GO, TIMER0 START/STOP, PWM0 fault trip,
+	# PWRCTRL tile wake, NPU0 THINK and GPIO0 OUT-SET/OUT-CLR (the PxTASK pin-select byte).
+	# Every producer/consumer whose block is absent from the configuration is TIED OFF ("0")
+	# rather than left open (design-doc D23) — the knob composes with every other peripheral
+	# knob. VECTORLESS v1: no IRQ vector is spent (irq_evfab is a constant "0", the IE slot is
+	# reserved), so NUM_IRQ_SRCS is untouched and the frozen vector numbering is undisturbed.
+	# Zero pins. Free-running MCLK in the always-on shared domain (WFI keeps it alive, DP-S3
+	# field-power only slows it, PWRCTRL never gates it). Default false — the default emission
+	# (no page-2 sub-slot 11, no EVF* register block, no tap port maps) is byte-identical
+	'peripherals.eventFabric': ('bool — EVFAB0 event/trigger crossbar at 0x6B00 (8 channels, no IRQ vector)',
 	                         _isBool),
-	'package.model':        ('string — package model name defined in generate.py (_PACKAGE_MODELS: "myshkin-qfn44" QFN-44, "castalia-quad-qfn64" QFN-64 quad pinout, "castalia-lqfp100" LQFP-100 single-MCU large package [Stage G2, 2026-07-22: all 48 GPIO bonded] — new pinouts are added as Python models, never as free-form config pin lists)',
+	# Long form, preserved from the pre-2026-08-15 schema (the TRM chapters and this file's
+	# own notes are where this detail belongs; the string below is the table cell): string —
+	# package model name defined in generate.py (_PACKAGE_MODELS: "myshkin-qfn44" QFN-44,
+	# "castalia-quad-qfn64" QFN-64 quad pinout, "castalia-lqfp100" LQFP-100 single-MCU large
+	# package [Stage G2, 2026-07-22: all 48 GPIO bonded] — new pinouts are added as Python
+	# models, never as free-form config pin lists)
+	'package.model':        ('string — package pinout model: myshkin-qfn44, castalia-quad-qfn64 or castalia-lqfp100',
 	                         lambda v: isinstance(v, str) and v in _PACKAGE_MODELS),
-	'package.preliminary':  ('bool — True prints the TRM package-section "Preliminary" note (default True while the package is inherited from Myshkin unchanged)',
+	'package.preliminary':  ('bool — prints the Preliminary note in the TRM package section',
 	                         _isBool),
 }
 
