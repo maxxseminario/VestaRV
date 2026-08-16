@@ -163,10 +163,14 @@ tools/debug/fast_saradc/logs/
 myshkin_commands.log
 
 # ─────────────────────────────────────────────────────────────────────────────
-# AI assistant instructions (local only, not committed)
+# AI assistant instructions (local only, never committed)
 # ─────────────────────────────────────────────────────────────────────────────
 CLAUDE.md
 **/CLAUDE.md
+.claude/
+**/.claude/
+*.claude.md
+**/AGENTS.md
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Editor / IDE
