@@ -94,16 +94,18 @@ The following list details the MCU configuration:
 	\input{include/FeaturesList.tex}
 \end{itemize}
 
-Figure~\ref{fig:system-block-diagram} is the memory system's view of the chip: how the \NumHartsWord{} harts share one window. Figure~\ref{fig:chip-system-diagram} is the other view, and the one to read first if the question is \emph{what is on this chip}: the arbiter drawn as the single bus bar it behaves like, every peripheral this configuration instantiates hanging off it, the shared memories underneath, the harts compressed into the master panel on the right, and the package boundary in red with the outside world crossing it. Both figures are generated from the same configuration, so the peripheral set, the instance counts and the addresses in them are this build's and no other's; the full address map is Section~\ref{s:addressSpace} and the per-pin bonding is Section~\ref{s:pinsConfig}.
+Figure~\ref{fig:system-block-diagram} is the memory system's view of the chip: how the \NumHartsWord{} harts share one window. Figure~\ref{fig:chip-system-diagram} is the other view, and the one to read first if the question is \emph{what is on this chip}: the masters in a band across the top, the arbiter drawn as the single bus bar it behaves like directly under them, every peripheral this configuration instantiates hanging off it, the shared memories, and the package boundary in red with the outside world crossing it. Both figures are generated from the same configuration, so the peripheral set, the instance counts and the addresses in them are this build's and no other's; the full address map is Section~\ref{s:addressSpace} and the per-pin bonding is Section~\ref{s:pinsConfig}.\ifcqanalog{} The row under the bus bar is the analog front end, drawn the way Figure~\ref{fig:afe-system-diagram} draws it: one site per hart, in the column of the hart that owns it, because that alignment \emph{is} the claim --- there is no per-hart wire to an analog site, only the gate printed in each one and hart 0's reach over all of them (Section~\ref{ss:cqanalog-gate}).\fi{}
 
-% Generated, configuration-driven whole-chip diagram (make chip). Landscape: it
-% is the widest figure in the manual and the peripheral row must stay legible.
-\begin{sidewaysfigure}
+% Generated, configuration-driven whole-chip diagram (make chip). Portrait, on
+% its own page: the masters band at the top, the bus under it, the shelves
+% below, and the outside world across the boundary at top and bottom.
+\begin{figure}[p]
 	\centering
 	\resizebox{\linewidth}{!}{\input{include/ChipSystemDiagram.tex}}
-	\caption[{\AsicNameForUserGuide{} whole-chip diagram: the bus and the peripherals}]{\AsicNameForUserGuide{} whole-chip diagram: the bus and the peripherals. Everything on the die is reached through one serializing shared-window bus, so the \texttt{mp\_arbiter} is drawn as the bus bar and every block taps it; a stacked box with an $\times N$ badge is $N$ instances of one peripheral, not one block. Above the bar sits the pin-facing half of the chip and above the red package boundary the world it talks to; below the bar sit time, clocks, power, the shared memories and the on-chip engines. The blocks, their instance names, their counts and their addresses are generated from this configuration, and the outside-world boxes from its package model.}
+	\caption[{\AsicNameForUserGuide{} whole-chip diagram: the bus and the peripherals}]{\AsicNameForUserGuide{} whole-chip diagram: the bus and the peripherals. One serializing shared-window bus reaches everything on the die, so the \texttt{mp\_arbiter} is drawn as the grey bar every block taps --- run down the margin and along the lower shelves, because one bar cannot touch three shelves without a tap crossing a box. Masters on top; the pin-facing shelf against the red package boundary, its outside world beyond it; an $\times N$ badge is $N$ instances of one peripheral, not one block.\ifcqanalog{} In the analog row the \emph{column is the ownership}: a site sits under the hart that owns it, and what enforces that is the gate printed inside it --- a comparison against the arbiter's granted-master index, not a wire; hart 0's margin arrow is the same comparison from the other side.\fi{} Everything drawn is generated from this configuration.}
 	\label{fig:chip-system-diagram}
-\end{sidewaysfigure}
+\end{figure}
+\clearpage
 
 \subsection{Chip Configuration} \label{ss:chipConfig}
 
