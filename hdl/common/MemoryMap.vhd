@@ -1,6 +1,6 @@
 /* MemoryMap.vhd: memory map VHDL package
    Defines the MCU memory map: which RAM and peripheral slots are active, which slot each peripheral occupies, and which slot each register occupies inside its peripheral
-   Generated on 2026/08/15 at 23:46:08 with the MemoryMap.py memory map generator
+   Generated on 2026/08/16 at 00:51:16 with the MemoryMap.py memory map generator
    WARNING: Do not edit or modify this file!
    	If you need to change it, use the MemoryMap.py memory map generator tool */
 
@@ -50,26 +50,6 @@ package MemoryMap is
 
 	-- SRAM Slot Enables/Disables
 	constant UseSRAM02				: boolean := true;	-- base address = 0x8000
-
-
-
-	---------- Peripheral Memory Slot Assignments ----------
-	--constant PeriphSlot			: natural := 00;	-- base address = 0x4000
-	--constant PeriphSlot			: natural := 01;	-- base address = 0x4100
-	--constant PeriphSlot			: natural := 02;	-- base address = 0x4200
-	--constant PeriphSlot			: natural := 03;	-- base address = 0x4300
-	--constant PeriphSlot			: natural := 04;	-- base address = 0x4400
-	--constant PeriphSlot			: natural := 05;	-- base address = 0x4500
-	--constant PeriphSlot			: natural := 06;	-- base address = 0x4600
-	--constant PeriphSlot			: natural := 07;	-- base address = 0x4700
-	--constant PeriphSlot			: natural := 08;	-- base address = 0x4800
-	--constant PeriphSlot			: natural := 09;	-- base address = 0x4900
-	--constant PeriphSlot			: natural := 10;	-- base address = 0x4A00
-	--constant PeriphSlot			: natural := 11;	-- base address = 0x4B00
-	--constant PeriphSlot			: natural := 12;	-- base address = 0x4C00
-	--constant PeriphSlot			: natural := 13;	-- base address = 0x4D00
-	--constant PeriphSlot			: natural := 14;	-- base address = 0x4E00
-	--constant PeriphSlot			: natural := 15;	-- base address = 0x4F00
 
 
 

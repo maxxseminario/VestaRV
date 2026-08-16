@@ -712,7 +712,6 @@ begin
 	TDIE		<= NPUCR(19);
 	NPUBEN		<= NPUCR(18);
 	NPUAEN		<= NPUCR(17);
-	-- NPUTHINK	<= NPUCR(16);
 	NPUNI		<= NPUCR(15 downto 8);
 	NPUNN		<= NPUCR(7 downto 0);
 	-- NPUIVSAR, NPUWVSAR and NPUOVSAR are 12-bit registers of their own and need no bit routing.
@@ -785,7 +784,6 @@ begin
 
 		if (NpuDone = '1') or (resetn = '0') then
 			-- Clear NPUTHINK to indicate the NPU is done.
-			-- NPUCR(16) <= '0';
 			NPUTHINK	<= '0';
 		end if;
 	end process MMR_WRITE;

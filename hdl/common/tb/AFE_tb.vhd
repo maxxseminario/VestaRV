@@ -288,25 +288,6 @@ begin
 
         wait for 100 ns;
 
-        -- ----------------------------------------------------------------
-        -- -- Test 14-bit / 16-bit BIAS registers
-        -- ----------------------------------------------------------------
-        -- -- BIAS_TIA_G_POT------------------------
-	-- wait until falling_edge(clk);
-        -- en_mem <= '0'; wen <= "1100";
-	-- addr_periph <= std_logic_vector(to_unsigned(RegSlotBIAS_TIA_G_POT, 6));
-        -- write_data(15 downto 0) <= x"1234";
-        -- wait until rising_edge(clk_mem); 
-	
-	-- wen <= (others => '1'); 
-	-- wait until falling_edge(clk);
-	-- en_mem <= '1';
-
-	-- wait for 40 ns;
-        -- assert BIAS_TIA_G_POT = x"1234" report "BIAS_TIA_G_POT mismatch" severity error;
-
-        -- wait for 100 ns;
-
         -- BIAS_REV_POT: 14-bit register, written as two byte lanes.
 	wait until falling_edge(clk);
         en_mem <= '0'; wen <= "1100";

@@ -212,7 +212,6 @@ begin
     dtp3_sel       <= AFE_TPR(19 downto 15);
 
 
-    -- irq <= '1' when (adc_data_rdy_if  = '1' and adc_data_rdy_ie = '1') else '0';
     irq <= adc_data_rdy_if  and adc_data_rdy_ie;
 
     -- The pad pull enables pass straight through; all four test ports are always outputs.
@@ -364,7 +363,6 @@ begin
         if resetn = '0' then
             -- Register resets.
             -- TODO: make these values generics, and move global bias into its own peripheral so only local AFE signals stay here.
-            -- AFE_CR              <= x"0FF71F";
             AFE_CR              <= x"000000";
             AFE_TPR             <= (others => '0');
             BIAS_CR             <= "01100";

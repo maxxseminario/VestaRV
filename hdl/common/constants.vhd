@@ -32,9 +32,6 @@ package constants is
 	type halfword_array	is array (natural range <>) of halfword;
 
 
-    -- constant RAM_SIZE       : integer := 16#a000#; -- 40KiB RAMs
-    -- constant RAM_START      : integer := 16#a000#; 
-    -- constant IVT_BASE_ADDR  : integer := 16#a000#;
     constant cafebabe       : std_logic_vector(31 downto 0) := x"CAFEBABE";
     constant four           : std_logic_vector(31 downto 0) := x"00000004";
     constant MEM_ADDR_WIDTH : integer := 17;

@@ -119,9 +119,7 @@ architecture behavioral of ClockMuxGlitchFree is
 	signal ClkSel	: std_logic_vector(CLK_COUNT-1 downto 0);
 	signal En		: std_logic_vector(CLK_COUNT-1 downto 0);
 	signal EnQ		: std_logic_vector(CLK_COUNT-1 downto 0);
-	--signal EnQN		: std_logic_vector(CLK_COUNT-1 downto 0);
 	signal EnQQ		: std_logic_vector(CLK_COUNT-1 downto 0);
-	--signal EnQQN	: std_logic_vector(CLK_COUNT-1 downto 0);
 	signal EnQQQ	: std_logic_vector(CLK_COUNT-1 downto 0);
 	signal EnQQQN	: std_logic_vector(CLK_COUNT-1 downto 0);
 	signal ClkGated	: std_logic_vector(CLK_COUNT-1 downto 0);
@@ -191,9 +189,7 @@ begin
 		ClkSel(to_integer(unsigned(Sel))) <= '1';
 	end process;
 
-	-- Inverted copies of the DFF outputs, used by the mutual-exclusion AND above
-	--EnQN   <= not EnQ;
-	--EnQQN  <= not EnQQ;
+	-- Inverted copy of the DFF output, used by the mutual-exclusion AND above
 	EnQQQN <= not EnQQQ;
 
 	-- Synchronization slices: the default slice comes out of reset selected, every other slice deselected.

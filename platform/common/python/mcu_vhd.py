@@ -414,7 +414,6 @@ SPI1_INPUT_TAPS = [
 	'        miso1_ren_in <= p4_ren(6)',
 	'                        when p4_afs((3 * 6) + 2 downto 3 * 6) = "111"',
 	'                        else p2_ren(pnum_gpio1_miso1);',
-	'        -- cs1_ren_in <= p2_ren(pnum_gpio1_cs1);',
 ]
 UART1_INPUT_MUXES = [
 	'        -- GPIO1 Connections (UART1)',

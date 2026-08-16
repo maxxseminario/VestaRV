@@ -166,7 +166,6 @@ architecture behav of MCU is
         port (
             clk         : in  std_logic;
             mclk        : in  std_logic;
-            -- clk_cpu     : in  std_logic;
             resetn      : in  std_logic;
             irq_tc      : out std_logic;
             irq_te      : out std_logic;
@@ -451,8 +450,6 @@ architecture behav of MCU is
         --@GEN:debug-decls@
         --@GEN:slot12-decls@
         --@GEN:sh-master-decl@
-        -- signal inst_retired     : std_logic; -- Instruction Retired Signal from Core
-        -- signal mem_access       : std_logic; -- High when memory access is occurring
 
         -- Memory and RAM Control Signals
         --@GEN:pgen-decls@

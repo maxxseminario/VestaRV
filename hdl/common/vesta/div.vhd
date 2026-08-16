@@ -52,7 +52,6 @@ begin
 
     -- The unit is ready whenever it is not stepping through a division.
     rdy <= '1' when (resetn = '0' or state = IDLE or state = COMPLETED) else '0';
-    -- complete <= '1' when state = COMPLETED else '0';
 
     -- Sequencer: latches the operands on start, then walks one restoring-division step per clock.
     process(clk, resetn)
@@ -78,17 +77,14 @@ begin
             start_reg <= '0';
             a_lat <= (others => '0');
             b_lat <= (others => '0');
-            -- rdy <= '1';
             complete <= '0';
     
         elsif rising_edge(clk) then
             case state is
                 when IDLE =>       -- Wait for a rising start strobe, then latch operands and arm the loop.
-                    -- state <= IDLE;
                     complete <= '0';
                     
                     if start = '1' and start_reg = '0' then
-                        -- rdy <= '0';
                         -- Latch inputs and initialize the loop state.
                         a_lat <= a;
                         b_lat <= b;
@@ -112,14 +108,10 @@ begin
                         state <= WORK;
                     else 
                         state <= IDLE;
-                        -- rdy <= '1';
                     end if;
                     
                     start_reg <= start;
                 when WORK =>       -- One restoring step per clock, from bit XLEN-1 down to bit 0.
-                    -- state <= WORK;
-                    -- complete <= '0';
-                    -- rdy <= '0';
                     if sel_signed = '1' then
                         R_var := shift_left(R, 1);
                         R_var(0) := N_Abs(cnt);
@@ -154,7 +146,6 @@ begin
                     end if;
                 when COMPLETED =>  -- Hold complete high for one cycle so the result mux is sampled, then go idle.
                     complete <= '1';
-                    -- rdy <= '1';
                     state <= IDLE;
             end case;
         end if;
@@ -168,7 +159,6 @@ begin
     begin
         if resetn = '0' then
             result <= (others => '0');
-        -- elsif state = COMPLETED then
         elsif complete = '1' then
             -- Division-by-zero cases from the RISC-V spec, decided from the LATCHED operands a_lat and b_lat, never from the live a/b ports.
             if b_lat = DIV_ZERO_X then
@@ -215,8 +205,6 @@ begin
                     end if;
                 end if;
             end if;
-        -- else
-        --     result <= (others => '0');
         end if;
     end process;
 

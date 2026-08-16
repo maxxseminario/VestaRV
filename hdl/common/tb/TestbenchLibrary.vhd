@@ -248,9 +248,6 @@ package body TestbenchLibrary is
 	) is
 		variable TXChar : character;
 	begin
-		-- Fill the string with null terminators
-		--TXStr := (others => nul);
-
 		for i in 1 to NumChars loop
 			UartReceiveCharFromTX(baudratePeriod, TX, TXing, TXChar);
 			TXStr(i) := TXChar;
@@ -273,9 +270,6 @@ package body TestbenchLibrary is
 		variable TXChar : character;
 		variable i : integer;
 	begin
-		-- Fill the string with null terminators
-		--TXStr := (others => nul);
-
 		TXChar := nul;
 		if UntilChar = nul then
 			TXChar := 'a';

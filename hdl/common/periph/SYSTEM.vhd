@@ -49,7 +49,6 @@ entity SYSTEM is
         en_dco1_out        : out std_logic;
         DCO1_BIAS           : out std_logic_vector(11 downto 0);
 
-        -- PGEN_rom        : out std_logic; -- '0' rom on, '1' rom off
         -- Memory power gating, one bit per block: 0 = ROM, 1 = hart 0 TCM (RAM0), 2 = npuram (RAM1), 6:3 = shared bulk-RAM banks shbank0-3; any further banks stay hardwired ON at the MCU level.
         -- CONTENTS ARE LOST when a bank is gated (there is no retention), so running software must keep its stack and payload bank ON.
         PGEN_mem        : out std_logic_vector(6 downto 0) -- '0' mem on, '1' mem off
@@ -69,9 +68,6 @@ architecture rtl of SYSTEM is
     signal SYS_WDT_CR         : std_logic_vector(7 downto 0);
     signal SYS_WDT_SR         : std_logic_vector(1 downto 0);
     signal SYS_WDT_VAL        : std_logic_vector(23 downto 0);
-    -- signal DCO0_BIAS          : std_logic_vector(11 downto 0);
-    -- signal DCO1_BIAS          : std_logic_vector(11 downto 0);
-    -- signal SYS_IRQ           : std_logic_vector(NUM_IRQS -1 downto 0); -- End of interrupt signals '1' interrupt pending '0' interrupt complete / no interrupt
 
     -- SYS_CLK_CR
     signal smclk_off          : std_logic;
@@ -137,7 +133,6 @@ architecture rtl of SYSTEM is
 
     -- WDT Signals 
     signal resetn_wdt         : std_logic;
-    -- signal count              : std_logic_vector(23 downto 0); -- Unified counter
     signal en_clk_wdt         : std_logic;
     signal clk_wdt            : std_logic;
     signal wdt_trigger        : std_logic;
@@ -478,7 +473,6 @@ begin
     mclk_div_proc: process(resetn_sys, mclk_undiv, mclk_div)
     begin
         -- TODO: Implement a sort of timer that will disable mclk_divider if not needed (some time after mclk_div goes to 0)
-        -- if resetn_sys = '0' or mclk_div = "000" then
         if resetn_sys = '0' then
             mclk_divider <= (others => '0');
         elsif rising_edge(mclk_undiv) then
@@ -515,7 +509,6 @@ begin
     mclk_out <= mclk;
 
     --Additional signal routing 
-    -- PGEN_rom <= rom_off;
     PGEN_mem <= shb_off & ram_off & rom_off;  -- 6:3 = shbank0-3
 
     -- WDT interrupt level = pending flag AND interrupt mode, cleared by the WDT_SR write-1-to-clear as the ISR's clear-at-the-peripheral step.
