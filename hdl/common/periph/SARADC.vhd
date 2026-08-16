@@ -52,20 +52,10 @@ architecture rtl of SARADC is
     -- Sync clock signals: the phase shift register and the phase flags decoded from it.
     signal ADC_sync_clock : std_logic;
 
-     ---------------------------------------------------------------------------------------------------------
-    -- signal ADC_sync_clock_active : std_logic;
-    -- signal ADC_sync_clock_active_synced0 : std_logic;
-    -- signal ADC_sync_clock_active_synced1 : std_logic;
-     ---------------------------------------------------------------------------------------------------------
-
     signal ADC_sync_clock_phase_shift_reg : std_logic_vector(15 downto 0);
     signal ADC_sync_clock_clear_phase : std_logic;
     signal ADC_sync_clock_sample_phase : std_logic;
     signal ADC_sync_clock_conversion_phase : std_logic;
-
-     ---------------------------------------------------------------------------------------------------------
-    --signal ADC_sync_clock_activation_allowed : std_logic;
-     ---------------------------------------------------------------------------------------------------------
 
     signal ADC_sync_sample_step_counter : std_logic_vector(3 downto 0);
 
@@ -76,11 +66,6 @@ architecture rtl of SARADC is
     signal dtp1_sel : std_logic_vector(3 downto 0);
 
     -- Signal routing from the control register. TODO
-
-    -- signal active_channel               : std_logic_vector(4 downto 0);
-    ---------------------------------------------------------------------------------------------------------
-    --signal external_trigger_clock_mode  : std_logic; --TODO: What is this ? Check.
-    ---------------------------------------------------------------------------------------------------------
     signal adc_sync_init_sample_step    : std_logic_vector(3 downto 0); -- Reload value for the sample-phase countdown.
     signal adc_en                       : std_logic;
     signal adc_data_valid_ie            : std_logic;
@@ -120,9 +105,6 @@ begin
                                         else SARADC_CR(0);  -- TODO: this could be done more elegantly, but it is a manual reset for now.
                                         
     adc_sync_init_sample_step       <= SARADC_CR(4 downto 1); 
-    ---------------------------------------------------------------------------------------------------------   
-    --external_trigger_clock_mode     <= SARADC_CR(13);    
-    ---------------------------------------------------------------------------------------------------------          
     adc_en                          <= SARADC_CR(5);                                 
     debug_mode                      <= SARADC_CR(6);  
     adc_data_valid_ie               <= SARADC_CR(7);   
@@ -150,7 +132,6 @@ begin
     -- SARADC_DATA always mirrors the last captured conversion result.
     SARADC_DATA(9 downto 0) <= adc_data_out;                                                         
 
-    -- ADC_ready <= ADC_ready_i;
     ADC_data <= ADC_data_i;
     
     -- Raise the IRQ level while a captured result is valid and its interrupt enable is set.
@@ -263,8 +244,7 @@ begin
     ADC_sync_clock_clear_phase <= ADC_sync_clock_phase_shift_reg(14);
     ADC_sync_clock_sample_phase <= ADC_sync_clock_phase_shift_reg(12);
 
-    -- Clock waveform generation; the unregistered form is kept below for reference.
-    -- ADC_sync_clock <= ADC_sync_clock_clear_phase or ADC_sync_clock_sample_phase or (ADC_sync_clock_conversion_phase and clk);
+    -- Clock waveform generation.
     ADC_trigger_clock_o <= ADC_sync_clock;
 
     -- Register the waveform here: ADC_sync_clock_clear_phase comes combinationally off shift-register bit 14, so driving ADC_trigger_clock_o directly is a long path from a register bit to an output and violates hold.

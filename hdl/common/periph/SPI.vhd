@@ -155,7 +155,6 @@ architecture behavioral of SPI is
     signal TXDataFlash      : std_logic_vector(31 downto 0);
     signal TXDataFlash_reversed : std_logic_vector(31 downto 0);
     signal mab_top          : std_logic_vector(23 downto 2);
-    -- signal clr_flash_active_ack : std_logic;
 
     -- SPIFEM synchronizer signals
     signal en_mem_flash_d1 : std_logic;
@@ -788,8 +787,6 @@ begin
                 when RegSlotSPIxSR =>
                     read_data <= (31 downto SPIxSR'high + 1 => '0') & (not SPIxSR_ltch);
                 when RegSlotSPIxRX =>
-                    -- read_data <= (31 downto SPIxRX'high + 1 => '0') & (not SPIxRX_ltch);
-                    -- read_data <= (others => '0') 
                     read_data <= (not SPIxRX_ltch); -- RX register is read as 8-bit only, upper bits are 0
                 when RegSlotSPIxTX =>
                     read_data <= SPIxTX;

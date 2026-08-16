@@ -62,8 +62,7 @@ begin
     if rising_edge(mem_reset) then
         -- Open the file specified by RAM_FILE_PATH
         file_open(file_status, ROM_File, RAM_FILE_PATH, READ_MODE);
-		-- report "Flash Memory opened file: " & RAM_FILE_PATH severity warning;
-        
+
         if file_status = OPEN_OK then
             i := 0;
             -- Clear the memory array before loading new data
@@ -95,10 +94,8 @@ begin
                 end if;
             end loop;
             -- Close the file after reading
-			-- report "Flash Memory Updated With: " & RAM_FILE_PATH severity warning;
             file_close(ROM_File);
         else
-            -- report "Failed to open file: " & RAM_FILE_PATH severity warning;
         end if;
     end if;
 end process read_file;
@@ -165,7 +162,6 @@ end process read_file;
 							state <= Reading;
 						elsif state = Reading then
 							AddressInt := to_integer(unsigned(Address(Address'high downto 2)));
-							--AddressOffset := to_integer(unsigned(ProgramAddress(ProgramAddress'high downto 2)));
 							AddressOffset := ProgramAddress / 4;
 							AddressShifted := AddressInt - AddressOffset;
 							if AddressShifted < RamSizeWords then

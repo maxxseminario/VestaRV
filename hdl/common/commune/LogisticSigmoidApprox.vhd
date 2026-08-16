@@ -24,11 +24,6 @@ architecture behavioral of LogisticSigmoidApprox is
 	signal Sel				: slv(1 downto 0);
 	signal OutputInteger	: integer range 0 to 32767;
 	
-	--signal X	: slv(16 downto 0);	-- 17-bit unsigned integer. Range = [0, 131071]
-	--signal a	: slv(14 downto 0);	-- 15-bit unsigned integer. Range = [0, 32767]
-	--signal b	: slv(29 downto 0);	-- 30-bit unsigned integer. Range = [0, 1073741823]
-	--signal Z	: slv(14 downto 0);	-- 15-bit unsigned integer. Range = [0, 32767]
-
 	signal X	: slv(16 downto 0);	-- 17-bit unsigned integer. Range = [0, 131071]
 	signal a	: integer range 0 to 32767;	-- 15-bit unsigned integer. Range = [0, 32767]
 	signal b	: integer range 16383 to 1073692672;	-- 30-bit unsigned integer. Range = [0, 1073741823]

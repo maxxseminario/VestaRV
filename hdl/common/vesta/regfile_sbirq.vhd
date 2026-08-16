@@ -36,12 +36,6 @@ entity regfile is
         rd1:  out STD_LOGIC_VECTOR(XLEN-1 downto 0);    -- Read data 1
         rd2:  out STD_LOGIC_VECTOR(XLEN-1 downto 0);     -- Read data 2
 
-        -- -- IRQ
-        -- irq_save: in std_logic;     --should only be high for one clock cycle 
-        -- irq_restore: in std_logic; --should only be high for one clock cycle 
-        -- pc : in std_logic_vector(31 downto 0); --current program counter (for saving to ra on irq_save)
-        -- q0 : out std_logic_vector(31 downto 0); --irq ra
-
         sp_in : in std_logic_vector(XLEN-1 downto 0); -- New stack pointer value on irq_save
         sp_out : out std_logic_vector(XLEN-1 downto 0); -- Current stack pointer value on irq_restore
         sp_write : in std_logic; -- Write strobe for the new stack pointer value

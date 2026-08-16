@@ -162,8 +162,6 @@ begin
     -- Interrupts.
     clk_if_comb <= prt_in xor PxIES; -- Flag clock, polarity chosen by the edge select.
     evt_edge_raw <= clk_if_comb;     -- Raw event-fabric export, pre-mask and pre-sync.
-    -- irq <= '1' when (or PxIF) = '1' else '0';
-    -- irq <= '1' when PxIF /= zero_vector else '0'; -- IRQ is high if any interrupt flag is set
 
     -- TODO: allow these flags to be polled without interrupts, that is, separate the interrupt enables from the status flags.
     irq <= PxIF; -- The IRQ lines are the interrupt flags themselves.

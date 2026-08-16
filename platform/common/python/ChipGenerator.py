@@ -1998,22 +1998,29 @@ class ChipGenerator():
 		
 		t.AddBlankLines(3)
 		
-		# Add the peripheral memory slot assignments
-		t.AddLine('---------- Peripheral Memory Slot Assignments ----------', prefixTabs=1)
+		# Add the peripheral memory slot assignments. Slots no peripheral claims
+		# under the description's own name are simply omitted; the RTL spelling of
+		# every slot (moved peripherals included) is emitted by the MCU_MP
+		# compatibility section further down.
+		slotRows = []
 		for i in range(self.PeripheralMemorySlotCount):
 			name = None
 			for p in self.Peripherals:
 				if i == p.PeripheralMemorySlot:
 					name = p.Name
 					break
-			
+
 			if name is None:
-				t.AddRow(['--constant PeriphSlot', ': natural := ' + self.fmtint(i, 2) + ';', '-- base address = ' + self.fmthex(self.PeripheralMemoryStartAddress + i * self.PeripheralMemorySlotSize)], prefixTabs=1)
-			else:
-				t.AddRow(['constant PeriphSlot' + name, ': natural := ' + self.fmtint(i, 2) + ';', '-- base address = ' + self.fmthex(self.PeripheralMemoryStartAddress + i * self.PeripheralMemorySlotSize)], prefixTabs=1)
-		
-		t.AddBlankLines(3)
-		
+				continue
+
+			slotRows.append(['constant PeriphSlot' + name, ': natural := ' + self.fmtint(i, 2) + ';', '-- base address = ' + self.fmthex(self.PeripheralMemoryStartAddress + i * self.PeripheralMemorySlotSize)])
+
+		if slotRows:
+			t.AddLine('---------- Peripheral Memory Slot Assignments ----------', prefixTabs=1)
+			for row in slotRows:
+				t.AddRow(row, prefixTabs=1)
+			t.AddBlankLines(3)
+
 		# Get all used peripheral templates
 		usedPTs = []
 		for p in self.Peripherals:

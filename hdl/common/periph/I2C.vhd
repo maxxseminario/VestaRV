@@ -18,7 +18,6 @@ entity I2C is
 		-- System Signals
 		smclk			: in	std_logic;	-- Sub-main clock
 		resetn			: in	std_logic;	-- System reset
-		-- IRQ				: out	std_logic;	-- I2C interrupt output to processor
 		irq_str 		: out std_logic;
 		irq_spr 		: out std_logic;
 		irq_msts 		: out std_logic;
@@ -64,7 +63,6 @@ architecture behavioral of I2C is
 	---------- Register and Bit Field Signal Declarations ----------
 	-- Registers
 	signal I2CxCR		: std_logic_vector(21 downto 0);	-- I2C control register
-	--signal I2CxFCR		: std_logic_vector();	-- I2C flow control register
 	signal I2CxSR		: std_logic_vector(15 downto 0);	-- I2C status register
 	signal I2CxSRLat	: std_logic_vector(15 downto 0);	-- Inverted latched copy of I2CxSR for the memory read path
 	signal I2CxMTX		: std_logic_vector(7 downto 0);	-- I2C master mode transmit register
@@ -183,7 +181,6 @@ architecture behavioral of I2C is
 	signal SDA_LAT				: std_logic;	-- A sampled value of SDA on the rising edge of SCL, for use in the slave FSM
 	signal SlaveBit				: std_logic_vector(2 downto 0);	-- The slave mode bit number to receive next
 	signal SlaveData			: std_logic_vector(7 downto 0);	-- The slave data
-	--signal SlaveAddressed		: std_logic;	-- Indicates that this slave has been addressed (this is different than the slave addressed interrupt flag, which can be cleared in the status register)
 	signal SlaveJustAddressed	: std_logic;	-- The slave was just addressed and no bytes have been sent or received yet in the current transmission
 	signal ClearI2CSC			: std_logic;	-- Clear request for I2CSC, held asserted except while a slave ACK state may consume it
 	
@@ -250,7 +247,6 @@ begin
 
 
 	-- Interrupts
-	-- IRQ <= (I2CSTR and I2CSTRIE) or (I2CSPR and I2CSPRIE) or (I2CMSTS and I2CMSTSIE) or (I2CMSPS and I2CMSPSIE) or (I2CMARB and I2CMARBIE) or (I2CMTXE and I2CMTXEIE) or (I2CMNR and I2CMNRIE) or (I2CMXC and I2CMXCIE) or (I2CSA and I2CSAIE) or (I2CSTXE and I2CSTXEIE) or (I2CSOVF and I2CSOVFIE) or (I2CSNR and I2CSNRIE) or (I2CSXC and I2CSXCIE);
 	irq_str 	<= (I2CSTR and I2CSTRIE);
 	irq_spr 	<= (I2CSPR and I2CSPRIE);
 	irq_msts 	<= (I2CMSTS and I2CMSTSIE);
@@ -382,7 +378,6 @@ begin
 
 					-- Wait until the command is given to begin transmitting (the master MUST send the first byte after a start condition)
 					if MasterWrite = '1' then
-						--ClearI2CMST <= '0';	-- Already done at the top
 						ClearMasterWrite <= '1';
 						MasterData <= I2CxMTX;
 						MasterState <= MasterStateDataTransmitter1;
@@ -398,7 +393,6 @@ begin
 
 					-- If this is the first bit of a master transmitter, indicate that the transmit register is empty
 					if ClearMasterWrite = '1' then
-						--ClearMasterWrite <= '0';	-- Already done at the top
 						I2CMTXE <= '1';	-- Transmit register empty flag
 					end if;
 
@@ -578,10 +572,6 @@ begin
 					-- Send a rising edge of SDA
 					MasterSDA <= '1';
 					I2CMSPS <= '1';
-					--ClearI2CMST <= '0';	-- Already done at the top
-					--ClearI2CMSP <= '0';	-- Already done at the top
-					--ClearI2CMRB <= '0';	-- Already done at the top
-					--ClearMasterWrite <= '0';	-- Already done at the top
 					I2CMCB <= '0';
 					MasterState <= MasterStateStart1;
 			end case;
@@ -644,7 +634,6 @@ begin
 			SlaveState <= SlaveStateAddr;
 			SlaveFsmSDA <= '1';
 			SlaveBit <= "111";
-			--SlaveAddressed <= '0';
 			SlaveJustAddressed <= '0';
 			ClearI2CSC <= '1';
 			I2CSTM <= '0';
@@ -667,7 +656,6 @@ begin
 						-- Check the address
 						if and_reduct((SlaveData(6 downto 0) xnor I2CxAR(6 downto 0)) or I2CxAMR(6 downto 0)) = '1' or (I2CGCE = '1' and or_reduct(SlaveData(6 downto 0)) = '0' and SDA_LAT = '0') then
 							-- This slave has been addressed, or a general call for slave receiver mode was issued.
-							--SlaveAddressed <= '1';
 							I2CSA <= '1';	-- The slave addressed flag needs a separate signal from SlaveAddressed because it should be able to be cleared in the status register
 
 							-- Latch the receive register
@@ -834,7 +822,6 @@ begin
 			I2CxCR <= (others => '0');
 			I2CxMTX <= (others => '0');
 			I2CxSTX <= (others => '0');
-			-- I2CxAR <= (others => '0');
 			I2CxAR <= default_SAD; -- Default address for the I2C slave
 			I2CxAMR <= (others => '0');
 		elsif rising_edge(ClkMem) then

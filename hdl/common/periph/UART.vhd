@@ -193,7 +193,6 @@ begin
     
     -- Enable baud clock source when UART is active
     en_baud_clk_src <= UCR_EN and (tx_in_progress or rx_in_progress or start_tx or clr_rx_in_progress);
-    -- en_baud_clk_src <= UCR_EN;
 
     -- Gated baud clock source
     cgu_baud_clk_src : entity work.ClkGate
@@ -610,13 +609,6 @@ begin
                         null;
                 end case;
             end if;
-            
-            -- -- Handle other clear signals
-            -- if en_mem = '1' then
-            --     clr_UTCIF <= '0';
-            --     clr_UTEIF <= '0';
-            --     clr_SR_RX <= '0';
-            -- end if;
         end if;
     end process;
 

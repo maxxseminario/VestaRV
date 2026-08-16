@@ -36,7 +36,7 @@ begin
                     when BCOMPU_TOP_FN3 =>
                         ALU_control <= "01001"; -- sltu
                     when others =>
-                        -- ALU_control <= "----"; -- unknown
+                        -- Unknown encoding: ALU_control is left unassigned, a don't-care.
                 end case;
             -- LUI: pass the immediate straight through.
             when "11" =>
@@ -70,7 +70,7 @@ begin
                     when AND_FN3 =>
                         ALU_control <= "00010"; -- and, andi
                     when others =>
-                        -- ALU_control <= "----"; -- unknown
+                        -- Unknown encoding: ALU_control is left unassigned, a don't-care.
                 end case;
         end case;
     end process;

@@ -266,20 +266,6 @@ begin
         wait for clk_hfxt_period;
         ReceivedSync <= '0';
 
-        -- Test 1.2b: second write command response, DISABLED (0x04D00).
-        -- UartReceiveStringFromTXUntil(baudratePeriodROM, '>', TX0, TXing, str);
-        -- TXStr <= str;
-        -- wait for clk_hfxt_period;
-        -- if str(1 to 16) = "124 0x04D00 !" & lf & lf & ">" then
-        --     report "Second write command response correct: " & str(1 to 16);
-        -- else
-        --     report "Error: incorrect second write response: " & str(1 to 16) severity error;
-        --     AllTestsPassed <= false;
-        -- end if;
-        -- ReceivedSync <= '1';
-        -- wait for clk_hfxt_period;
-        -- ReceivedSync <= '0';
-
         -- Test 1.2c: First read command response
         UartReceiveStringFromTXUntil(baudratePeriodROM, '>', TX0, TXing, str);
         TXStr <= str;
@@ -293,20 +279,6 @@ begin
         ReceivedSync <= '1';
         wait for clk_hfxt_period;
         ReceivedSync <= '0';
-
-        -- Test 1.2d: second read command response, DISABLED (0x04D00).
-        -- UartReceiveStringFromTXUntil(baudratePeriodROM, '>', TX0, TXing, str);
-        -- TXStr <= str;
-        -- wait for clk_hfxt_period;
-        -- if str(1 to 18) = "0x04B00 @ ." & lf & "124 " & lf & ">" then
-        --     report "Second read command response correct: " & str(1 to 18);
-        -- else
-        --     report "Error: incorrect second read response: " & str(1 to 18) severity error;
-        --     AllTestsPassed <= false;
-        -- end if;
-        -- ReceivedSync <= '1';
-        -- wait for clk_hfxt_period;
-        -- ReceivedSync <= '0';
 
         -- Test 1.3: Clock frequency response
         wait for 100 ms;
@@ -419,11 +391,6 @@ begin
         wait until ReceivedSync = '1';
 
         report "Sending second write command: 124 0x04D00 ! (DISABLED)";
-        -- UartSendStrToRX(baudratePeriodROM, RX0, RXing, "124 0x04D00 !" & lf);
-        -- SentSync <= '1';
-        -- wait for clk_hfxt_period;
-        -- SentSync <= '0';
-        -- wait until ReceivedSync = '1';
 
         report "Sending first read command: 0x04C00 @ .";
         UartSendStrToRX(baudratePeriodROM, RX0, RXing, "0x04C00 @ ." & lf);
@@ -433,11 +400,6 @@ begin
         wait until ReceivedSync = '1';
 
         report "Sending second read command: 0x04D00 @ . (DISABLED)";
-        -- UartSendStrToRX(baudratePeriodROM, RX0, RXing, "0x04D00 @ ." & lf);
-        -- SentSync <= '1';
-        -- wait for clk_hfxt_period;
-        -- SentSync <= '0';
-        -- wait until ReceivedSync = '1';
 
         -- Test 1.3: Clock frequency test
         report "Test 1.3: Get MCLK frequency";

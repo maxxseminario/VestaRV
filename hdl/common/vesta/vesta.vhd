@@ -683,7 +683,6 @@ architecture struct of vesta is
 
     -- Clock gating and power management.
     signal en_clk_cpu             : std_logic;
-    -- signal clk_cpu                : std_logic;
     signal sleep_rq               : std_logic;  -- Sleep request from instruction
     signal wake_rq                : std_logic;  -- Wake request from instruction
     signal sleep_cpu              : std_logic;  -- CPU sleep state
@@ -1249,7 +1248,6 @@ architecture struct of vesta is
             current_state <= EXECUTE;
             repeat_if <= '0';
             pc <= PC_RST_VAL;
-            -- instr_curr_prev <= nop;
             instr_lower_half <= (others => '0');
             pc_next_reg <= PC_RST_VAL;
             pc_next_trad_reg <= PC_RST_VAL;
@@ -1258,7 +1256,6 @@ architecture struct of vesta is
         elsif rising_edge(clk_cpu) then
             -- Update state machine
             current_state <= next_state;
-            -- instr_curr_prev <= instr_curr;
             pc_next_reg <= pc_next;
             pc_next_trad_reg <= pc_next_trad;
             data_addr_reg <= data_addr;

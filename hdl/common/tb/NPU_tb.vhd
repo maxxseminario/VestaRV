@@ -180,18 +180,12 @@ begin
     );
 
     ----- SRAM arbitration (NPU has priority when active, otherwise the MCU has access)
-    -- The NPU muxes the two SRAM ports itself (Sram*_in in, NpuSram*_out out), so the testbench-side arbitration below stays disabled.
-    -- SramA <= NpuSramA when NpuActive = '1' else MabSramA;
-    -- SramD <= NpuSramD when NpuActive = '1' else MabSramD;
-    -- SramCEN <= NpuSramCEN when NpuActive = '1' else MabSramCEN;
-    -- SramGWEN <= NpuSramGWEN when NpuActive = '1' else MabSramGWEN;
-    -- SramWEN <= NpuSramWEN when NpuActive = '1' else MabSramWEN;
+    -- The NPU muxes the two SRAM ports itself (Sram*_in in, NpuSram*_out out), so the testbench needs no arbitration of its own.
 
     -- Clock enable for SRAM
     SramClkEn <= '1' when (SramCEN = MEM_ASSERT) else '0';
 
     -- Output data routing
-    -- NpuSramQ <= NpuSramQ;		-- NPU reads from SRAM
     MabSramQ <= NpuSramQ;		-- MCU reads from SRAM (testbench)
 
 	-- Free-running testbench clock at CLK_FREQ with a 50 percent duty cycle.

@@ -110,26 +110,6 @@ architecture behav of alu is
         return count;
     end function;
 
-    -- -- Function to perform rotate left
-    -- function rol32(x: std_logic_vector(31 downto 0); s: integer) return std_logic_vector is
-    --     variable result: std_logic_vector(31 downto 0);
-    -- begin
-    --     for i in 0 to 31 loop
-    --         result(i) := x((i - s + 32) mod 32);
-    --     end loop;
-    --     return result;
-    -- end function;
-
-    -- -- Function to perform rotate right
-    -- function ror32(x: std_logic_vector(31 downto 0); s: integer) return std_logic_vector is
-    --     variable result: std_logic_vector(31 downto 0);
-    -- begin
-    --     for i in 0 to 31 loop
-    --         result(i) := x((i + s) mod 32);
-    --     end loop;
-    --     return result;
-    -- end function;
-
 
     /* ========== Zknd/Zkne AES-32 shared crypto primitives ==========
        ONE forward S-box and ONE inverse S-box (256 B each) serve all four aes32* ops through a single aes32_datapath() body byte-steered by bs, with the GF(2^8) MixColumn terms computed combinationally.
@@ -523,13 +503,6 @@ begin
                     end if;
                 
                 -- Rotate operations
-                -- when "0100010" => -- ROL: rotate left
-                --     shift_amount := to_integer(unsigned(b(4 downto 0)));
-                --     ResultSignal <= rol32(a, shift_amount);
-                    
-                -- when "0100011" => -- ROR/RORI: rotate right
-                --     shift_amount := to_integer(unsigned(b(4 downto 0)));
-                --     ResultSignal <= ror32(a, shift_amount);
                 -- Live rotate arms, built on the numeric_std rotate_left/rotate_right operators.
                 when "0100010" => -- ROL: rotate left (Zbb or Zbkb-shared)
                     if ENABLE_BITMANIP or ENABLE_ZBKB then

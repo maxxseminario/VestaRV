@@ -60,22 +60,6 @@ begin
      check_flag <= true;  -- Release the checker once the delay has expired.
  end process mem_check_delay;
 
--- For Behav and Genus
---    -- check that value gets written to address 100 at end of program
---     process(clk) begin
---         if(clk'event and clk = '0' and MemWrite = '1' and check_flag = true) then
---             if( to_integer(DataAdr) = 100 and to_integer(Writedata) = 260) then
---                 report "Simulation Passed!!" severity failure;
---             elsif (DataAdr /= 96) then
---                 report "WriteData: " & integer'image(to_integer(WriteData));
---                 report "DataAdr: " & integer'image(to_integer(DataAdr));
---                 report "MemWrite: " & std_logic'image(MemWrite) ;
---                 report "Simulation failed :(" severity failure;
-
---             end if;
---         end if;
---     end process;
-
 /* For Behav and Innovus
    Pass condition: the program writes 260 to address 100 at the end of the run.
    Address 96 is the expected intermediate store and is ignored; any other write fails the run. */

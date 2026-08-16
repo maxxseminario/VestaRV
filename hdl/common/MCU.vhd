@@ -1,6 +1,6 @@
 /* MCU.vhd: Castalia MCU top-level integration layer (5 harts, MCU_MP)
    The fixed boilerplate comes from hdl_templates/MCU.template.vhd; the description-driven sections are generated from python/generate.py
-   Generated on 2026/08/15 at 23:46:08 with the generate.py chip generator
+   Generated on 2026/08/16 at 00:51:16 with the generate.py chip generator
    WARNING: Do not edit or modify this file!
    	Edit hdl_templates/MCU.template.vhd (fixed regions) or python/generate.py + python/mcu_vhd.py (generated regions), then re-run make chip */
 
@@ -173,7 +173,6 @@ architecture behav of MCU is
         port (
             clk         : in  std_logic;
             mclk        : in  std_logic;
-            -- clk_cpu     : in  std_logic;
             resetn      : in  std_logic;
             irq_tc      : out std_logic;
             irq_te      : out std_logic;
@@ -758,8 +757,6 @@ architecture behav of MCU is
         -- Not routed to the irq_router: the 85-source map has only 2 reserved slots for the 5 sources this would need.
         signal afe_eis_irq      : std_logic_vector(4 downto 0);
         signal sh_master        : std_logic_vector(2 downto 0);
-        -- signal inst_retired     : std_logic; -- Instruction Retired Signal from Core
-        -- signal mem_access       : std_logic; -- High when memory access is occurring
 
         -- Memory and RAM Control Signals
         -- SYSTEM0's BLOCKPWR gates rom0 (bit 0), hart 0's TCM through the tile's tcm_pgen port (bit 1) and npuram0 (bit 2).
@@ -1471,7 +1468,6 @@ begin
         miso1_ren_in <= p4_ren(6)
                         when p4_afs((3 * 6) + 2 downto 3 * 6) = "111"
                         else p2_ren(pnum_gpio1_miso1);
-        -- cs1_ren_in <= p2_ren(pnum_gpio1_cs1);
 
         /* GPIO1 Connections (UART0)
            Multi-AF input routing: a relocated function reads its alternate pad when that pin's PxAFS field selects the function's plane, otherwise its home pad; the selection is keyed on PxAFS alone, so peripheral inputs stay always-visible, and ren_in (the user pull preference) follows the same selection.

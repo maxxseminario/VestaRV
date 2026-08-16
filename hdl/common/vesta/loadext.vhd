@@ -20,22 +20,13 @@ architecture Behavioral of loadext is
     signal byte_data   : STD_LOGIC_VECTOR(7 downto 0);
     signal half_data   : STD_LOGIC_VECTOR(15 downto 0);
     signal mask_latched: STD_LOGIC_VECTOR(1 downto 0);
-    -- signal mask_intermediate : STD_LOGIC_VECTOR(1 downto 0);
 begin
 
-
-    -- latch_mask_int: process(clk) 
-    -- begin
-    --     if falling_edge(clk) then 
-    --         mask_intermediate <= mask;
-    --     end if;
-    -- end process;
 
     -- Hold the byte offset from the address phase so it lines up with the returning data.
     latch_mask: process(clk) 
     begin
         if rising_edge(clk) then 
-            -- mask_latched <= mask_intermediate;
             mask_latched <= mask;
         end if;
     end process;
@@ -66,6 +57,5 @@ begin
             -- LHU: load halfword, zero-extended
             (XLEN-1 downto 16 => '0') & half_data when "101",
             -- Any other funct3 passes the raw word through.
-            -- x"00000000" when others;
             read_data when others;
 end Behavioral;

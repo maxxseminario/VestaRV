@@ -46,7 +46,6 @@ architecture Behavioral of dual_slope_fsm2 is
     constant RESET_CYCLES : std_logic_vector(11 downto 0) := std_logic_vector(to_unsigned(74, 12));   -- integrator reset length
     constant DEINT_TIMEOUT : std_logic_vector(11 downto 0) := std_logic_vector(to_unsigned(0, 12));   -- de-integration floor
 
-    --signal result_latch : std_logic_vector(11 downto 0) := (others => '0');
     signal counter_en_reg : std_logic;
 
 begin
@@ -207,42 +206,6 @@ begin
     count <= count_reg;
 
 end architecture;
-
--------Clock Gate---------
-
--- library ieee;
--- use ieee.std_logic_1164.all;
--- use ieee.std_logic_arith.all;
--- use ieee.std_logic_unsigned.all;
-
--- entity ClkGate is
--- 	port
--- 	(
--- 		ClkIn	: in	std_logic;
--- 		En		: in	std_logic;
--- 		ClkOut	: out	std_logic
--- 	);
--- end ClkGate;
-
--- For simulation and FPGA design ONLY
-
--- architecture behavioral of ClkGate is
-
--- 	signal ClkSync : std_logic;
-
--- begin
-	
--- 	process (ClkIn, En)
--- 	begin
--- 		if ClkIn = '0' then
--- 			ClkSync <= En;
--- 		end if;
--- 	end process;
-	
--- 	ClkOut <= ClkSync and ClkIn;
-	
--- end behavioral;
-
 
 
 -- TOP LEVEL FSM FOR AFE ---------------------------------------

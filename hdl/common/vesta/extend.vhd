@@ -22,10 +22,6 @@ begin
             -- I-type: one contiguous 12-bit field.
             when "000" =>
                 imm_ext <= (XLEN-1 downto 12 => instr(31)) & instr(31 downto 20);
-                -- SRAI immediate fix-up, disabled. TODO: decide whether it is needed at all.
-                -- if instr(30) = '1' and instr(14 downto 12) = "101" then --SRAI operation
-                --     imm_ext(10) <= '0';
-                -- end if;
             -- S-type stores: the 12-bit field is split across the two register-field gaps.
             when "001" =>
                 imm_ext <= (XLEN-1 downto 12 => instr(31)) & instr(31 downto 25) & instr(11 downto 7);
