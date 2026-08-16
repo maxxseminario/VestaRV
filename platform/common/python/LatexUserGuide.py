@@ -1951,6 +1951,26 @@ class LatexUserGuide():
 	def _chipFigLines(tex):
 		return 0 if not tex else 1 + tex.count('\\\\')
 
+	@staticmethod
+	def _chipFigWidth(tex, unit=0.125):
+		'''A deliberately crude width, in cm, for the widest line of a
+		   \\scriptsize sans block. It exists for one reason: the height of every
+		   box in this drawing is a LINE COUNT, and a line the box is too narrow
+		   to hold does not clip, it WRAPS — adding a row nobody reserved and
+		   spilling the box. MEASURED on the six-column band of the debug
+		   configuration, where "behind the registered" and "owns EIS, reads
+		   every site" each wrapped and pushed a line through the box floor.'''
+		if not tex:
+			return 0.0
+		best = 0.0
+		for line in tex.split('\\\\'):
+			bold = ('textbf' in line) or ('bfseries' in line)
+			t = re.sub(r'\\[a-zA-Z]+', '', line)
+			for ch in '{}$\\':
+				t = t.replace(ch, '')
+			best = max(best, len(t.strip()) * (unit * 1.12 if bold else unit))
+		return best
+
 	def _ChipSystemBoxes(self):
 		'''Build the drawn boxes (and their outside-world partners) from the
 		   configuration. Returns (aboveBoxes, belowBoxes).'''
@@ -2062,6 +2082,12 @@ class LatexUserGuide():
 				w=3.40, stubs=stubs) if stubs else None
 			above['afe'] = box('afe', 'analog front end', label,
 				'register sites\\\\ \\textit{analog IP not integrated}', w=3.40, ext=e)
+			# The per-site ownership the drawing needs to put each site in the
+			# column of the hart that owns it. Taken from the SAME block model
+			# the AFE chapter and Figure \ref{fig:afe-system-diagram} read, so a
+			# re-assignment of an owner cannot move one figure and not the other.
+			above['afe']['sites'] = [(b['name'], b['base'], b['ownerHart'],
+				b.get('gate') or '') for b in blocks]
 
 		# ---- below the bus: time, clocks, power, memory, engines -----------
 		ps = claim('timer')
@@ -2153,10 +2179,28 @@ class LatexUserGuide():
 			[below[k] for k in self._CHIP_FIG_BELOW if k in below])
 
 	def GenerateChipSystemDiagram(self):
-		'''include/ChipSystemDiagram.tex — the whole chip on one page: the
-		   arbiter bus bar, every peripheral this configuration instantiates
-		   hanging off it, the shared memories, the masters, and the outside
-		   world crossing the red package boundary.'''
+		'''include/ChipSystemDiagram.tex — the whole chip on one PORTRAIT page:
+		   the masters in a band across the top (the arrangement of Figure
+		   \\ref{fig:system-block-diagram} and of the AFE figure), the arbiter
+		   drawn as the bus bar under them, the analog ownership row directly
+		   below that bar with each site in the column of the hart that owns it,
+		   the rest of the peripherals on the shelves below, and the outside
+		   world crossing the red package boundary at the top and the bottom.
+
+		   WHY THE COLUMN AND NOT AN ARROW. Ownership here is not a wire: every
+		   access is a shared-window transaction through the bar, and what makes
+		   AFE0 hart 1's is a comparison against the arbiter's granted-master
+		   index inside the slave. So the drawing says it the way the AFE figure
+		   says it, and for the same reason — the site sits directly under its
+		   owner, the owner's box names it, and the gate is printed inside the
+		   site — and hart 0's reach is ONE arrow with a verb, because the
+		   privilege is not four more wires, it is one comparison that every
+		   gate on the row makes.
+
+		   THE BUS IS ONE BAR. Three shelves cannot all touch a single bar
+		   without a tap crossing a box, so the bar is drawn with a trunk down
+		   the left margin and a rib along the shelf pair it cannot reach: one
+		   connected grey figure, labelled once as one bar.'''
 		gen = self.Gen
 		geo = getattr(gen, 'McuMpGeometry', None)
 		aboveBoxes, belowBoxes = self._ChipSystemBoxes()
@@ -2173,8 +2217,12 @@ class LatexUserGuide():
 		# does not clip, it spills, and a spilt line in a drawing this dense
 		# costs the reader the figure.
 		hTitle, hLine, pad = 0.44, 0.37, 0.13
-		gap, riser, cross = 0.38, 1.25, 1.05
+		gap, cross, clear = 0.36, 0.80, 0.34
 		stackStep, maxShadow = 0.15, 3
+		riser, ribH, barH, trunkW = 0.54, 0.42, 1.02, 0.34
+		xReach, xTrunk = 0.30, 0.68           # the two things that live in the
+		xInset = xTrunk + trunkW + 0.24       # left margin, and what they cost
+		xEdge = 0.26                          # margin for the shelves below them
 
 		def headH(b):
 			return pad + hTitle + hLine * (L(b.get('sub')) + L(b.get('note'))) + pad
@@ -2185,59 +2233,192 @@ class LatexUserGuide():
 		def boxH(b):
 			return headH(b) + rowsH(b)
 
-		hAbove = max([boxH(b) for b in aboveBoxes] or [1.6])
-		hBelow = max([boxH(b) for b in belowBoxes] or [1.6])
+		def shelfW(bs):
+			if not bs:
+				return 0.0
+			w = sum(b['w'] for b in bs) + gap * (len(bs) - 1)
+			return w + (stackStep * (maxShadow - 1) if any(b['stack'] > 1 for b in bs) else 0.0)
 
-		yBusT, yBusB = 0.42, -0.42
-		yAboveB = yBusT + riser
-		yAboveT = yAboveB + hAbove
-		yRedT = yAboveT + stackStep * (maxShadow - 1) + 0.45
-		yExtB = yRedT + cross
-		yBelowT = yBusB - riser
-		yBelowB = yBelowT - hBelow
-		yRedB = yBelowB - 0.50
-		yExtBelowT = yRedB - cross
+		# ---- the master band ------------------------------------------------
+		# One column per hart where the configuration has few enough of them to
+		# draw honestly; otherwise the stacked x N idiom, because an 18-hart
+		# band of eighteen boxes is not a drawing, it is a wall.
+		masters = []
+		# Three lines, not four: the fourth was "behind the registered / tile
+		# boundary", whose 21 characters set the minimum width of every hart
+		# column in the band -- and on a six-column band that minimum is what
+		# the whole drawing ends up scaled by.
+		tileNote = ('VestaRV core $+$\\\\ ' + str(tcmKiB) + '\\,KiB private TCM,'
+			'\\\\ registered boundary')
+		if orch:
+			masters.append({'title': 'hart 0', 'sub': 'orchestrator', 'harts': [0], 'stack': 1,
+				'note': 'soft logic, always on\\\\ boots and manages the chip'
+				'\\\\ owns the XIP flash path', 'weight': 1.30})
+			if N <= 7:
+				for h in range(1, N):
+					masters.append({'title': 'hart ' + str(h), 'sub': 'channel tile',
+						'harts': [h], 'stack': 1, 'note': tileNote, 'weight': 1.0})
+			else:
+				masters.append({'title': 'hart 1--' + str(N - 1), 'sub': 'channel tile',
+					'harts': [], 'stack': N - 1, 'note': tileNote, 'weight': 2.4})
+		elif N <= 6:
+			for h in range(N):
+				masters.append({'title': 'hart ' + str(h), 'sub': 'hart tile', 'harts': [h],
+					'stack': 1, 'note': tileNote, 'weight': 1.0})
+		else:
+			masters.append({'title': 'hart 0--' + str(N - 1), 'sub': 'hart tile', 'harts': [],
+				'stack': N, 'note': tileNote, 'weight': 3.2})
+		if geo.get('dma'):
+			masters.append({'title': 'DMA0', 'sub': 'engine master', 'harts': [], 'stack': 1,
+				'note': 'moves data\\\\ without a hart', 'weight': 0.90})
+		if geo.get('debug'):
+			masters.append({'title': 'dm0', 'sub': 'debug module', 'harts': [], 'stack': 1,
+				'note': 'halts and resumes\\\\ harts, plants code', 'weight': 0.90})
+		columns = dict((m['harts'][0], m) for m in masters if m['harts'])
 
-		# outside-world boxes: one height for the plain ones, one for the cell
+		# ---- the analog ownership row ---------------------------------------
+		# Drawn as its own row under the bar ONLY when this configuration is the
+		# shape the row asserts: an orchestrator, one site per channel hart, and
+		# a column of its own for every owner. Anything else keeps the compact
+		# shelf box, so the drawing degrades instead of lying about ownership.
+		allBoxes = aboveBoxes + belowBoxes
+		afe = None
+		for b in allBoxes:
+			if b['key'] == 'afe':
+				afe = b
+		afeRow, siteOf = None, {}
+		if afe is not None and afe.get('sites'):
+			owners = [st[2] for st in afe['sites']]
+			if (orch and len(set(owners)) == len(owners)
+					and set(owners) <= set(columns) and set(range(1, N)) <= set(owners)):
+				afeRow = afe
+				siteOf = dict((st[2], st) for st in afe['sites'])
+		if afeRow is not None:
+			for h in sorted(siteOf):
+				# E17: the gate this figure prints is re-derived from the owner,
+				# and checked against the gate the block model carries, so an
+				# ownership change that the drawing does not cover fails the
+				# build instead of shipping two figures that disagree.
+				want = ('s\\_master = 0' if h == 0
+					else 's\\_master = ' + str(h) + ' or s\\_master = 0')
+				got = siteOf[h][3]
+				if got and got != want:
+					raise Exception('ChipSystemDiagram: block ' + str(siteOf[h][0])
+						+ ' is owned by hart ' + str(h) + ' but its gate reads "' + str(got)
+						+ '", not "' + want + '" — the ownership row would print a gate this '
+						'configuration does not implement.')
+				m = columns[h]
+				if h == 0:
+					m['note'] += ('\\\\ \\textbf{owns ' + fmttex(siteOf[h][0])
+						+ ', reads every site}')
+				else:
+					m['note'] += '\\\\ \\textbf{owns ' + fmttex(siteOf[h][0]) + '}'
+
+		# ---- the shelves ----------------------------------------------------
+		# Everything whose signals leave the die goes on the shelf that touches
+		# the boundary (one boundary crossing per block, all at one depth); what
+		# is left goes on the shelves above it, five to a shelf.
+		rest = [b for b in allBoxes if b is not afeRow]
+		extB = [b for b in rest if b['ext']]
+		plainB = [b for b in rest if not b['ext']]
+		shelves = []
+		if afeRow is not None:
+			shelves.append({'kind': 'afe', 'boxes': []})
+		for i in range(0, len(plainB), 5):
+			shelves.append({'kind': 'plain', 'boxes': plainB[i:i + 5]})
+		shelves.append({'kind': 'ext', 'boxes': extB})
+
+		# Which grey bar each shelf taps. The first shelf taps the main bar from
+		# below; the rest are paired around a rib, so no tap ever crosses a box.
+		shelves[0]['bar'] = ('main', 0, 'above')
+		i, nRib = 1, 0
+		while i < len(shelves):
+			if i + 1 < len(shelves):
+				shelves[i]['bar'] = ('rib', nRib, 'below')
+				shelves[i + 1]['bar'] = ('rib', nRib, 'above')
+				i += 2
+			else:
+				shelves[i]['bar'] = ('rib', nRib, 'above')
+				i += 1
+			nRib += 1
+
+		# ---- widths ---------------------------------------------------------
+		laneR = 2.20 if afeRow is not None else 0.0
+		maxCol = 5.00
+		for m in masters:
+			m['min'] = min(maxCol, 0.24 + max(
+				self._chipFigWidth(m['title'], 0.135), self._chipFigWidth(m['sub']),
+				self._chipFigWidth(m['note'])))
+		bandMin = sum(m['min'] for m in masters) + gap * (len(masters) - 1)
+		W = max([shelfW(extB) + 2 * xEdge, bandMin + xInset + xEdge + laneR]
+			+ [shelfW(sh['boxes']) + xInset + xEdge for sh in shelves if sh['kind'] == 'plain'])
+		xIn0, xIn1 = xInset, W - xEdge               # the trunk-clear inset span
+		xTop1 = W - xEdge - laneR                    # band / ownership-row span
+
+		# ---- heights --------------------------------------------------------
+		hMaster = max(pad + hTitle + hLine * (L(m['sub']) + L(m['note'])) + pad for m in masters)
+		mShadow = stackStep * (maxShadow - 1) if any(m['stack'] > 1 for m in masters) else 0.0
+		hAfeHead = pad + hTitle + hLine * 2 + pad
+		hAfeCell = pad + hLine * 3 + pad
+		for sh in shelves:
+			sh['h'] = ((hAfeHead + hAfeCell) if sh['kind'] == 'afe'
+				else max([boxH(b) for b in sh['boxes']] or [1.40]))
 		hExt = max([pad + hTitle + hLine * L(b['ext'].get('sub')) + pad
-			for b in aboveBoxes + belowBoxes if b['ext'] and not b['ext'].get('stubs')] or [0.9])
-		hCell = hExt + 0.85
-		yExtT = yExtB + max(hExt, hCell)
+			for b in extB if not b['ext'].get('stubs')] or [0.90])
+		hStub = hExt + 0.78
+		hExtRow = max([hStub if b['ext'].get('stubs') else hExt for b in extB] or [0.90])
+		cell = afeRow['ext'] if (afeRow is not None and afeRow['ext']) else None
+		hCell = (pad + hTitle + hLine * L(cell.get('sub')) + pad + 0.78) if cell else 0.0
 
-		def shelfW(boxes):
-			return (sum(b['w'] for b in boxes) + gap * (len(boxes) - 1)
-				+ stackStep * (maxShadow - 1)) if boxes else 0.0
+		ribYs = {}
+		y = 0.0
+		yCellT = y
+		if cell:
+			y -= hCell + cross
+		yRedT = y
+		y -= clear + mShadow
+		yBandT = y
+		y -= hMaster + 0.34
+		yBarT = y
+		y -= barH
+		yBarB = y
+		for sh in shelves:
+			kind, idx, side = sh['bar']
+			if kind == 'main':
+				y -= clear if sh['kind'] == 'afe' else riser
+			elif side == 'above':
+				if idx in ribYs:
+					y -= riser
+				else:
+					y -= clear
+					ribYs[idx] = y
+					y -= ribH + riser
+			else:
+				y -= clear
+			sh['yT'] = y
+			y -= sh['h']
+			if kind == 'rib' and side == 'below':
+				y -= riser
+				ribYs[idx] = y
+				y -= ribH
+		yRedB = y - clear
+		yExtT = yRedB - cross
 
-		hartW = 5.95
-		shelf = max(shelfW(aboveBoxes), shelfW(belowBoxes))
-		xL = 0.55
-		xHart0 = xL + shelf + 0.70
-		W = xHart0 + hartW + 0.55
-
-		def layout(boxes):
-			x = xL + (shelf - shelfW(boxes)) / 2.0
-			for b in boxes:
-				b['cx'] = x + b['w'] / 2.0
-				# The bus tap and the boundary crossing leave the FRONT box,
-				# left of the stack's shadows, so no wire is drawn over a stack.
-				b['tx'] = b['cx'] - (0.25 * b['w'] if b['stack'] > 1 else 0.0)
-				x += b['w'] + gap
-		layout(aboveBoxes)
-		layout(belowBoxes)
-
-		s = ('% Generated whole-chip system diagram (harts=' + str(N) + ', orchestrator='
-			+ str(orch) + ', above=' + str([b['key'] for b in aboveBoxes])
-			+ ', below=' + str([b['key'] for b in belowBoxes]) + ')\n')
+		# ---- emission -------------------------------------------------------
+		s = ('% Generated whole-chip system diagram (portrait; harts=' + str(N)
+			+ ', orchestrator=' + str(orch) + ', ownershipRow=' + str(afeRow is not None)
+			+ ', shelves=' + str([[b['key'] for b in sh['boxes']] for sh in shelves]) + ')\n')
 		s += '\\begin{tikzpicture}[\n'
 		s += '\thd/.style={font=\\sffamily\\scriptsize, align=center, inner sep=1pt, anchor=north},\n'
 		s += '\tbc/.style={font=\\sffamily\\scriptsize, align=center, inner sep=1pt},\n'
 		s += '\tbadge/.style={font=\\sffamily\\small\\bfseries, align=center, inner sep=1pt},\n'
 		s += '\tbus/.style={<->, >=Stealth, thick},\n'
+		s += '\treach/.style={->, >=Stealth, line width=1.3pt},\n'
 		s += '\tredlab/.style={font=\\sffamily\\small\\bfseries, red!70!black, align=left}]\n'
 
 		def frame(cx, yTop, w, h, fill, opts='thick'):
-			return ('\\draw[' + opts + ', fill=' + fill + '] (' + P(cx - w / 2.0) + ', ' + P(yTop - h)
-				+ ') rectangle (' + P(cx + w / 2.0) + ', ' + P(yTop) + ');\n')
+			return ('\\draw[' + opts + ', fill=' + fill + '] (' + P(cx - w / 2.0) + ', '
+				+ P(yTop - h) + ') rectangle (' + P(cx + w / 2.0) + ', ' + P(yTop) + ');\n')
 
 		def head(cx, yTop, w, title, sub, note):
 			tex = '{\\small\\bfseries ' + title + '}'
@@ -2247,168 +2428,248 @@ class LatexUserGuide():
 			return ('\\node[hd, text width=' + P(w - 0.20) + 'cm] at (' + P(cx) + ', '
 				+ P(yTop - pad) + ') {' + tex + '};\n')
 
-		def drawBox(b, yTop, h, fill):
+		def shadows(cx, yTop, w, h, n):
 			out = ''
-			cx, w = b['cx'], b['w']
-			for k in range(min(b['stack'], maxShadow) - 1, 0, -1):
+			for k in range(min(n, maxShadow) - 1, 0, -1):
 				d = stackStep * k
 				out += frame(cx + d, yTop + d, w, h, 'white')
+			return out
+
+		def drawBox(b, yTop, h, fill):
+			cx, w = b['cx'], b['w']
+			out = shadows(cx, yTop, w, h, b['stack'])
 			out += frame(cx, yTop, w, h, fill)
 			# The shelf is one height for every box on it (a ragged shelf reads
 			# as an accident), so the height a short box does not need is given
 			# BACK to its compartments — or, with no compartments, to the space
-			# above and below its head. Otherwise every short box on the shelf
-			# carries a dead bottom third.
+			# above and below its head.
 			slack = h - boxH(b)
 			if not b['rows']:
 				out += head(cx, yTop - slack / 2.0, w, b['title'], b['sub'], b['note'])
 				return out
 			out += head(cx, yTop, w, b['title'], b['sub'], b['note'])
 			share = slack / float(len(b['rows']))
-			y = yTop - headH(b)
+			yy = yTop - headH(b)
 			for row in b['rows']:
 				hRow = pad + hLine * max(L(c) for c in row) + pad + share
-				out += ('\\draw[semithick] (' + P(cx - w / 2.0) + ', ' + P(y) + ') -- ('
-					+ P(cx + w / 2.0) + ', ' + P(y) + ');\n')
+				out += ('\\draw[semithick] (' + P(cx - w / 2.0) + ', ' + P(yy) + ') -- ('
+					+ P(cx + w / 2.0) + ', ' + P(yy) + ');\n')
 				cw = w / float(len(row))
-				for j, cell in enumerate(row):
+				for j, c in enumerate(row):
 					x0 = cx - w / 2.0 + j * cw
-					out += ('\\node[bc, text width=' + P(cw - 0.18) + 'cm] at (' + P(x0 + cw / 2.0)
-						+ ', ' + P(y - hRow / 2.0) + ') {' + cell + '};\n')
+					out += ('\\node[bc, text width=' + P(cw - 0.18) + 'cm] at ('
+						+ P(x0 + cw / 2.0) + ', ' + P(yy - hRow / 2.0) + ') {' + c + '};\n')
 					if j > 0:
-						out += ('\\draw[semithick] (' + P(x0) + ', ' + P(y) + ') -- (' + P(x0) + ', '
-							+ P(y - hRow) + ');\n')
-				y -= hRow
+						out += ('\\draw[semithick] (' + P(x0) + ', ' + P(yy) + ') -- (' + P(x0)
+							+ ', ' + P(yy - hRow) + ');\n')
+				yy -= hRow
 			return out
 
-		def drawExt(b, up):
+		# ---- the red package boundary, drawn first --------------------------
+		s += ('\\draw[red!75!black, line width=1.2pt] (0.00, ' + P(yRedB) + ') rectangle ('
+			+ P(W) + ', ' + P(yRedT) + ');\n')
+		s += ('\\node[redlab, anchor=south west] at (0.00, ' + P(yRedT + 0.10)
+			+ ') {chip boundary};\n')
+
+		# ---- the master band ------------------------------------------------
+		# Every column gets at least the width its longest line needs; what is
+		# left over is shared by weight, and no column grows past maxCol — an
+		# eighteen-hart configuration has two boxes in this band, and stretched
+		# to the full width they are a hand's breadth of white with four words
+		# in them. Whatever the cap leaves over, the band is centred in.
+		avail = (xTop1 - xIn0) - gap * (len(masters) - 1)
+		wsum = sum(m['weight'] for m in masters)
+		spare = avail - sum(m['min'] for m in masters)
+		for m in masters:
+			m['w'] = min(maxCol, m['min'] + max(0.0, spare) * m['weight'] / wsum)
+		x = xIn0 + max(0.0, (avail - sum(m['w'] for m in masters))) / 2.0
+		for m in masters:
+			m['cx'] = x + m['w'] / 2.0
+			m['tx'] = m['cx'] - (0.22 * m['w'] if m['stack'] > 1 else 0.0)
+			x += m['w'] + gap
+		for m in masters:
+			s += shadows(m['cx'], yBandT, m['w'], hMaster, m['stack'])
+			s += frame(m['cx'], yBandT, m['w'], hMaster, 'black!8', 'thick, rounded corners=2pt')
+			s += head(m['cx'], yBandT, m['w'], m['title'], m['sub'], m['note'])
+			if m['stack'] > 1:
+				s += ('\\node[badge, anchor=east] at (' + P(m['cx'] - m['w'] / 2.0 - 0.10) + ', '
+					+ P(yBandT - hMaster / 2.0) + ') {$\\times$' + str(m['stack']) + '};\n')
+			s += ('\\draw[bus] (' + P(m['tx']) + ', ' + P(yBandT - hMaster) + ') -- ('
+				+ P(m['tx']) + ', ' + P(yBarT) + ');\n')
+
+		# ---- THE BUS: one bar, a trunk down the margin, a rib per shelf pair -
+		yTrunkB = min([yBarB] + [v - ribH for v in ribYs.values()])
+		s += ('\\draw[thick, fill=black!15] (' + P(xTrunk) + ', ' + P(yTrunkB) + ') rectangle ('
+			+ P(xTrunk + trunkW) + ', ' + P(yBarB) + ');\n')
+		s += ('\\draw[thick, fill=black!15] (' + P(xTrunk) + ', ' + P(yBarB) + ') rectangle ('
+			+ P(xTop1) + ', ' + P(yBarT) + ');\n')
+		s += ('\\node[bc, text width=' + P(xTop1 - xTrunk - 0.40) + 'cm] at ('
+			+ P((xTrunk + xTop1) / 2.0) + ', ' + P(yBarB + barH / 2.0)
+			+ ') {{\\small\\bfseries mp\\_arbiter} \\quad one shared-window transaction at a time'
+			' \\quad round-robin \\quad grant-locked AMOs\\\\ \\textit{every master reaches the '
+			'whole shared window, and only through the bar}};\n')
+		for k in sorted(ribYs):
+			yr = ribYs[k]
+			s += ('\\draw[thick, fill=black!15] (' + P(xTrunk) + ', ' + P(yr - ribH)
+				+ ') rectangle (' + P(xIn1) + ', ' + P(yr) + ');\n')
+			s += ('\\node[bc, font=\\sffamily\\scriptsize\\itshape] at ('
+				+ P((xTrunk + xIn1) / 2.0) + ', ' + P(yr - ribH / 2.0)
+				+ ') {the same bar, run along the shelves it cannot touch};\n')
+
+		def barEdge(sh):
+			kind, idx, side = sh['bar']
+			if kind == 'main':
+				return yBarB, 1
+			return (ribYs[idx] - ribH, 1) if side == 'above' else (ribYs[idx], -1)
+
+		# ---- the shelves ----------------------------------------------------
+		def layout(bs, x0, x1):
+			# Justified, up to a cap: a four-box shelf centred at its natural
+			# width leaves a hand's width of nothing at each end of a drawing
+			# that has no room to waste, and a shelf spread past the cap stops
+			# reading as one shelf.
+			g = gap
+			if len(bs) > 1:
+				g += max(0.0, min(((x1 - x0) - shelfW(bs)) / (len(bs) - 1), 0.85))
+			x = x0 + ((x1 - x0) - (shelfW(bs) + (g - gap) * (len(bs) - 1))) / 2.0
+			for b in bs:
+				b['cx'] = x + b['w'] / 2.0
+				# The bus tap and the boundary crossing leave the FRONT box, left
+				# of the stack's shadows, so no wire is drawn over a stack.
+				b['tx'] = b['cx'] - (0.25 * b['w'] if b['stack'] > 1 else 0.0)
+				x += b['w'] + g
+
+		for sh in shelves:
+			if sh['kind'] == 'ext':
+				layout(sh['boxes'], xEdge, W - xEdge)
+			elif sh['boxes']:
+				layout(sh['boxes'], xIn0, xIn1)
+
+		for sh in shelves:
+			if sh['kind'] == 'afe':
+				continue
+			yEdge, up = barEdge(sh)
+			for b in sh['boxes']:
+				s += drawBox(b, sh['yT'], sh['h'], 'black!5')
+				y0 = sh['yT'] if up > 0 else sh['yT'] - sh['h']
+				s += ('\\draw[bus] (' + P(b['tx']) + ', ' + P(y0) + ') -- (' + P(b['tx']) + ', '
+					+ P(yEdge) + ');\n')
+				if b['stack'] > 1:
+					s += ('\\node[badge, anchor=west] at (' + P(b['tx'] + 0.12) + ', '
+						+ P((y0 + yEdge) / 2.0) + ') {$\\times$' + str(b['stack']) + '};\n')
+
+		# ---- the ownership row ----------------------------------------------
+		xA0 = xA1 = 0.0
+		if afeRow is not None:
+			cols = sorted(siteOf)
+			xA0 = columns[cols[0]]['cx'] - columns[cols[0]]['w'] / 2.0
+			xA1 = columns[cols[-1]]['cx'] + columns[cols[-1]]['w'] / 2.0
+			yA = shelves[0]['yT']
+			s += ('\\draw[thick, fill=black!5] (' + P(xA0) + ', ' + P(yA - hAfeHead - hAfeCell)
+				+ ') rectangle (' + P(xA1) + ', ' + P(yA) + ');\n')
+			s += head((xA0 + xA1) / 2.0, yA, xA1 - xA0, 'analog front end',
+				'one register site per hart, in the column of the hart that owns it',
+				'\\textit{analog IP not integrated; the index under each site is the master '
+				'it admits --- its own hart, or hart 0}')
+			s += ('\\draw[semithick] (' + P(xA0) + ', ' + P(yA - hAfeHead) + ') -- ('
+				+ P(xA1) + ', ' + P(yA - hAfeHead) + ');\n')
+			edges = [xA0]
+			for j in range(len(cols) - 1):
+				edges.append((columns[cols[j]]['cx'] + columns[cols[j + 1]]['cx']) / 2.0)
+			edges.append(xA1)
+			for j, h in enumerate(cols):
+				nm, base, owner, _gate = siteOf[h]
+				cx = columns[h]['cx']
+				if j:
+					s += ('\\draw[semithick] (' + P(edges[j]) + ', ' + P(yA - hAfeHead) + ') -- ('
+						+ P(edges[j]) + ', ' + P(yA - hAfeHead - hAfeCell) + ');\n')
+				s += ('\\node[bc, text width=' + P(edges[j + 1] - edges[j] - 0.20) + 'cm] at ('
+					+ P(cx) + ', ' + P(yA - hAfeHead - hAfeCell / 2.0) + ') {\\textbf{'
+					+ fmttex(nm) + '} site\\\\ \\texttt{' + fmthex(base) + '}\\\\ '
+					+ '\\texttt{s\\_master} = ' + str(h)
+					+ (' \\emph{only}' if h == 0 else ' \\emph{or} 0') + '};\n')
+				s += ('\\draw[bus] (' + P(cx) + ', ' + P(yBarB) + ') -- (' + P(cx) + ', '
+					+ P(yA) + ');\n')
+			# Hart 0's reach: ONE arrow with a verb, down the margin the trunk
+			# does not use, into the row it opens.
+			yMid = yA - hAfeHead / 2.0 - 0.10
+			s += ('\\draw[reach] (' + P(columns[0]['cx'] - columns[0]['w'] / 2.0) + ', '
+				+ P(yBandT - hMaster / 2.0) + ') -- (' + P(xReach) + ', '
+				+ P(yBandT - hMaster / 2.0) + ') -- (' + P(xReach) + ', ' + P(yMid) + ') -- ('
+				+ P(xA0) + ', ' + P(yMid) + ');\n')
+
+		# ---- the outside world, below the boundary --------------------------
+		def drawExt(b, yFromBox):
 			'''The outside-world partner and the wire that crosses the boundary.
 			   The wire is UNBROKEN and carries a solid pad square where it meets
 			   the red line: a square on a wire is a pad, a white label box on a
 			   wire is an open circuit.'''
 			e = b['ext']
-			out = ''
-			x, stubs = b['tx'], e.get('stubs')
-			h = hCell if stubs else hExt
-			yTop = (yExtT if up else yExtBelowT)
-			yRed = yRedT if up else yRedB
-			yPer = yAboveT if up else yBelowB
-			out += frame(x, yTop, e['w'], h, 'black!3')
-			out += head(x, yTop, e['w'], e['title'], e['sub'], None)
-			yFrom = (yTop - h) if up else yTop
+			stubs = e.get('stubs')
+			h = hStub if stubs else hExt
+			# The partner sits under the peripheral's CENTRE, not under its tap.
+			# A stacked peripheral taps left of its own centre, and partners
+			# centred on that tap both hung off the left edge of the figure (the
+			# width of which every other box then paid for) and OVERLAPPED their
+			# neighbour, because the shelf's boxes do not overlap but their taps
+			# are not evenly spaced. The wire still leaves the tap, and lands on
+			# the partner: the offset is a quarter of a box width, never half.
+			cxE = min(max(b['cx'], e['w'] / 2.0), W - e['w'] / 2.0)
+			out = frame(cxE, yExtT, e['w'], h, 'black!3')
+			out += head(cxE, yExtT, e['w'], e['title'], e['sub'], None)
 			if stubs:
 				n = len(stubs)
 				pitch = min(0.95, (e['w'] - 0.55) / (n - 1)) if n > 1 else 0.0
-				yStub = yTop - h + 0.30
-				for k, name in enumerate(stubs):
-					xk = x + (k - (n - 1) / 2.0) * pitch
-					out += ('\\draw[semithick] (' + P(xk) + ', ' + P(yStub) + ') -- (' + P(xk) + ', '
-						+ P(yPer) + ');\n')
-					out += ('\\draw[line width=1.2pt] (' + P(xk - 0.16) + ', ' + P(yStub) + ') -- ('
-						+ P(xk + 0.16) + ', ' + P(yStub) + ');\n')
+				yStub = yExtT - h + 0.30
+				for k, nm in enumerate(stubs):
+					xk = cxE + (k - (n - 1) / 2.0) * pitch
+					out += ('\\draw[semithick] (' + P(xk) + ', ' + P(yStub) + ') -- (' + P(xk)
+						+ ', ' + P(yFromBox) + ');\n')
+					out += ('\\draw[line width=1.2pt] (' + P(xk - 0.16) + ', ' + P(yStub)
+						+ ') -- (' + P(xk + 0.16) + ', ' + P(yStub) + ');\n')
 					out += ('\\node[bc, anchor=south, inner sep=1.5pt] at (' + P(xk) + ', '
-						+ P(yStub + 0.05) + ') {\\texttt{' + fmttex(name) + '}};\n')
-					out += ('\\fill[red!70!black] (' + P(xk - 0.07) + ', ' + P(yRed - 0.07)
-						+ ') rectangle (' + P(xk + 0.07) + ', ' + P(yRed + 0.07) + ');\n')
-			else:
-				out += ('\\draw[bus] (' + P(x) + ', ' + P(yFrom) + ') -- (' + P(x) + ', '
-					+ P(yPer) + ');\n')
-				out += ('\\fill[red!70!black] (' + P(x - 0.07) + ', ' + P(yRed - 0.07)
-					+ ') rectangle (' + P(x + 0.07) + ', ' + P(yRed + 0.07) + ');\n')
+						+ P(yStub + 0.05) + ') {\\texttt{' + fmttex(nm) + '}};\n')
+					out += ('\\fill[red!70!black] (' + P(xk - 0.07) + ', ' + P(yRedB - 0.07)
+						+ ') rectangle (' + P(xk + 0.07) + ', ' + P(yRedB + 0.07) + ');\n')
+				return out
+			out += ('\\draw[bus] (' + P(b['tx']) + ', ' + P(yFromBox) + ') -- (' + P(b['tx'])
+				+ ', ' + P(yExtT) + ');\n')
+			out += ('\\fill[red!70!black] (' + P(b['tx'] - 0.07) + ', ' + P(yRedB - 0.07)
+				+ ') rectangle (' + P(b['tx'] + 0.07) + ', ' + P(yRedB + 0.07) + ');\n')
 			return out
 
-		# ---- the red package boundary, drawn first so everything sits on it
-		s += ('\\draw[red!75!black, line width=1.2pt] (0.00, ' + P(yRedB) + ') rectangle ('
-			+ P(W) + ', ' + P(yRedT) + ');\n')
-		s += ('\\node[redlab, anchor=south east] at (' + P(W) + ', ' + P(yRedT + 0.10)
-			+ ') {chip boundary};\n')
+		for sh in shelves:
+			if sh['kind'] != 'ext':
+				continue
+			for b in sh['boxes']:
+				if b['ext']:
+					s += drawExt(b, sh['yT'] - sh['h'])
 
-		# ---- the two shelves, their bus taps and their x N badges ----------
-		for b in aboveBoxes:
-			s += drawBox(b, yAboveT, hAbove, 'black!5')
-			s += ('\\draw[bus] (' + P(b['tx']) + ', ' + P(yAboveB) + ') -- (' + P(b['tx']) + ', '
-				+ P(yBusT) + ');\n')
-			if b['stack'] > 1:
-				s += ('\\node[badge, anchor=west] at (' + P(b['tx'] + 0.12) + ', '
-					+ P((yAboveB + yBusT) / 2.0) + ') {$\\times$' + str(b['stack']) + '};\n')
-			if b['ext']:
-				s += drawExt(b, True)
-		for b in belowBoxes:
-			s += drawBox(b, yBelowT, hBelow, 'black!5')
-			s += ('\\draw[bus] (' + P(b['tx']) + ', ' + P(yBusB) + ') -- (' + P(b['tx']) + ', '
-				+ P(yBelowT) + ');\n')
-			if b['stack'] > 1:
-				s += ('\\node[badge, anchor=west] at (' + P(b['tx'] + 0.12) + ', '
-					+ P((yBusB + yBelowT) / 2.0) + ') {$\\times$' + str(b['stack']) + '};\n')
-			if b['ext']:
-				s += drawExt(b, False)
-
-		# ---- THE BUS. One bar, the width of both shelves, running into the
-		# master panel: the reader's eye follows it once and has the chip.
-		s += ('\\draw[thick, fill=black!15] (' + P(xL - 0.22) + ', ' + P(yBusB) + ') rectangle ('
-			+ P(xHart0 + 0.02) + ', ' + P(yBusT) + ');\n')
-		s += ('\\node[bc, font=\\sffamily\\small\\bfseries] at (' + P((xL + xHart0) / 2.0) + ', '
-			+ P((yBusB + yBusT) / 2.0) + ') {mp\\_arbiter \\quad one shared-window transaction at a '
-			+ 'time \\quad round-robin \\quad grant-locked AMOs};\n')
-
-		# ---- the masters, compressed into one panel ------------------------
-		cxH = xHart0 + 0.95 + (hartW - 0.95) / 2.0
-		tileW = hartW - 2.35
-		hHart = yAboveT - yBelowB
-		s += frame(cxH, yAboveT, hartW - 0.95, hHart, 'black!8', 'thick, rounded corners=3pt')
-		s += ('\\draw[bus, line width=1.4pt] (' + P(xHart0 + 0.02) + ', ' + P((yBusB + yBusT) / 2.0)
-			+ ') -- (' + P(xHart0 + 0.95) + ', ' + P((yBusB + yBusT) / 2.0) + ');\n')
-
-		items = []
-		if orch:
-			items.append(('hart 0', 'orchestrator', 'soft logic, always on\\\\ boots and manages the chip'
-				'\\\\ owns the XIP flash path', 1))
-			items.append(('hart 1--' + str(N - 1), 'channel tile', 'VestaRV core $+$\\\\ ' + str(tcmKiB)
-				+ '\\,KiB private TCM\\\\ behind the registered\\\\ tile boundary, gateable', N - 1))
-		else:
-			items.append(('hart 0--' + str(N - 1), 'hart tile', 'VestaRV core $+$\\\\ ' + str(tcmKiB)
-				+ '\\,KiB private TCM\\\\ behind the registered\\\\ tile boundary, one macro', N))
-		if geo.get('dma'):
-			items.append(('DMA0', 'engine master', 'moves data without a hart', 1))
-		if geo.get('debug'):
-			items.append(('dm0', 'debug module', 'halts and resumes harts\\\\ plants code for them', 1))
-
-		def itemH(it):
-			return pad + hTitle + hLine * (1 + L(it[2])) + pad
-
-		def itemHead(it):
-			# A stacked item's shadow copies step UP, so the item needs that much
-			# clearance above it or the copies print through whatever is there —
-			# which, on the 18-hart configuration, was the panel's own title.
-			return stackStep * (min(it[3], maxShadow) - 1)
-		note = ('\\textit{every master reaches the whole shared window, and only through the bar}')
-		noteH = pad + hLine * 2 + pad
-		total = 0.50 + sum(itemH(it) + itemHead(it) + 0.40 for it in items) + noteH
-		# Whatever height the panel has over its contents is spread across the
-		# gaps, not left in a heap at the bottom: the shelves set this panel's
-		# height, and a configuration with few masters would otherwise get a
-		# title, one box, and a third of a page of nothing.
-		extra = max(0.0, hHart - total - 0.30) / (len(items) + 1)
-		y = yAboveT - 0.12
-		s += ('\\node[bc, font=\\sffamily\\small\\bfseries, anchor=north] at (' + P(cxH) + ', ' + P(y)
-			+ ') {the masters};\n')
-		y -= 0.50 + extra
-		for it in items:
-			h = itemH(it)
-			y -= itemHead(it)
-			for k in range(min(it[3], maxShadow) - 1, 0, -1):
-				d = stackStep * k
-				s += frame(cxH + d, y + d, tileW, h, 'white')
-			s += frame(cxH, y, tileW, h, 'white')
-			s += head(cxH, y, tileW, it[0], it[1], it[2])
-			if it[3] > 1:
-				# LEFT of the stack, not right: the shadows already eat the right
-				# margin, and a badge past them lands outside the panel border.
-				s += ('\\node[badge, anchor=east] at (' + P(cxH - tileW / 2.0 - 0.10) + ', '
-					+ P(y - h / 2.0) + ') {$\\times$' + str(it[3]) + '};\n')
-			y -= h + 0.40 + extra
-		s += ('\\node[bc, text width=' + P(hartW - 1.35) + 'cm, anchor=north] at (' + P(cxH) + ', '
-			+ P(y) + ') {' + note + '};\n')
+		# ---- the electrode cell, above the boundary -------------------------
+		# It leaves the die at the TOP because the row it belongs to is at the
+		# top: the ownership row has to sit under the harts, and a pad group
+		# dragged the height of the drawing to reach the bottom band would be
+		# eleven centimetres of wire for no reader's benefit.
+		if cell:
+			stubs = cell.get('stubs') or []
+			n = max(1, len(stubs))
+			pitch = 0.55
+			cxCell = min(W - xEdge - laneR / 2.0 - 0.10, W - cell['w'] / 2.0)
+			s += frame(cxCell, yCellT, cell['w'], hCell, 'black!3')
+			s += head(cxCell, yCellT, cell['w'], cell['title'], cell['sub'], None)
+			yStub = yCellT - hCell + 0.30
+			yA = shelves[0]['yT']
+			for k, nm in enumerate(stubs):
+				xk = cxCell + (k - (n - 1) / 2.0) * pitch
+				yk = yA - hAfeHead * (k + 1.0) / (n + 1.0)
+				s += ('\\draw[semithick] (' + P(xk) + ', ' + P(yStub) + ') -- (' + P(xk) + ', '
+					+ P(yk) + ') -- (' + P(xA1) + ', ' + P(yk) + ');\n')
+				s += ('\\draw[line width=1.2pt] (' + P(xk - 0.16) + ', ' + P(yStub) + ') -- ('
+					+ P(xk + 0.16) + ', ' + P(yStub) + ');\n')
+				s += ('\\node[bc, font=\\sffamily\\tiny, anchor=south, inner sep=1.5pt] at ('
+					+ P(xk) + ', ' + P(yStub + 0.04) + ') {\\texttt{' + fmttex(nm) + '}};\n')
+				s += ('\\fill[red!70!black] (' + P(xk - 0.07) + ', ' + P(yRedT - 0.07)
+					+ ') rectangle (' + P(xk + 0.07) + ', ' + P(yRedT + 0.07) + ');\n')
 
 		s += '\\end{tikzpicture}\n'
 		self._writeInclude('ChipSystemDiagram.tex', s)
