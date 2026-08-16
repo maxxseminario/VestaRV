@@ -558,7 +558,7 @@ _CONFIG_META = {
 	'peripherals.trng':      {'type': 'bool', 'default': False},
 	'peripherals.trngRings': {'type': 'int', 'default': 8, 'min': 4, 'max': 8, 'step': 4},
 	'peripherals.eventFabric': {'type': 'bool', 'default': False},
-	'package.model':        {'type': 'enum', 'default': 'myshkin-qfn44', 'enum': list(_PACKAGE_MODELS)},
+	'package.model':        {'type': 'enum', 'default': 'castalia-quad-qfn64', 'enum': list(_PACKAGE_MODELS)},
 	'package.preliminary':  {'type': 'bool', 'default': True},
 }
 
@@ -932,8 +932,32 @@ _vectorsCount = _libraryTailVectorsCount()
 
 # Package model selection (G4): which _PACKAGE_MODELS entry builds the pad
 # ring below, and whether the TRM package section carries the "Preliminary"
-# banner (True while every config inherits the Myshkin QFN-44 unchanged).
-packageModel = _cfg('package.model', 'myshkin-qfn44')
+# banner.
+#
+# THE SHIPPED DEFAULT PACKAGE IS THE CASTALIA-QUAD QFN-64 (user directive,
+# 2026-08-16). It was 'myshkin-qfn44' -- the inherited single-core pinout, kept
+# as the default only because no Castalia package had been chosen. The QFN-64
+# quad pinout (16/side, 9x9 mm, 0.5 mm pitch, four per-quadrant analog domains,
+# 16 electrode pads) is that choice, so a bare `make chip` now documents the
+# real package and config/cq.json is left as a named alias of the default rather
+# than the only way to reach it.
+#
+# The default is stated TWICE (here and in _CONFIG_META) and
+# check_config_defaults.py enforces that the two agree -- change both.
+#
+# WHAT THIS DOES NOT TOUCH: the pad ring is DOCUMENTATION + PnR pad-list data.
+# MCU.vhd and MemoryMap.vhd are package-agnostic by construction (the shared
+# GPIO structure is one table; only each bit's package PIN NUMBER is per-model),
+# so the RTL products are byte-unaffected by this flip -- proven by A/B md5.
+# Two DOC consequences ride it, both intended: the TRM's pinout chapter becomes
+# the QFN-64 one, and the CQ analog front-end chapter (AFE0-3 + EIS, gated on
+# this model below) now renders in the default manual.
+#
+# `package.preliminary` is a SEPARATE knob and is deliberately NOT flipped with
+# the model: it states whether the bond-out is confirmed, which is a different
+# question from which pinout is documented. config/cq.json still carries
+# `preliminary: false`, so that file is not fully redundant.
+packageModel = _cfg('package.model', 'castalia-quad-qfn64')
 packagePreliminary = _cfg('package.preliminary', True)
 
 # Remaining scalar knobs, hoisted so the ChipGenerator(...) call and the

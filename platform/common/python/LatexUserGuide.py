@@ -785,6 +785,35 @@ class LatexUserGuide():
 		if eis[0]['ownerHart'] != 0:
 			raise Exception('AfeSystemDiagram: the EIS engine is drawn as the management hart\'s '
 				'alone, but this configuration gives it to hart %d' % eis[0]['ownerHart'])
+		# THE DRAWING IS THE ORCHESTRATOR CHIP'S, AND SAYS SO IN WORDS. Its hart
+		# row is one management box captioned "hart 0: orchestrator" plus one
+		# channel column per site, its banners read "the management hart" and
+		# "the four channel harts", and the caption names the orchestrator. That
+		# was safe while the CQ package model could only be reached through
+		# config/cq.json, which is an orchestrator configuration. Since the CQ
+		# QFN-64 became the DEFAULT package (2026-08-16) it is reachable by
+		# inheritance from any config that does not name one, and MEASURED on
+		# config/castalia4.json (numHarts=4, orchestrator=false) the figure
+		# rendered two boxes both labelled "hart 0", a gate line reading
+		# `s_master = 0 or 0', and a chapter sentence promising five harts on a
+		# four-hart chip -- through a green build and a clean trm-lint. So the
+		# three facts the drawing asserts about the hart row are now assertions:
+		# a config that wants this chapter must be the shape the chapter
+		# describes, or it must name a package model that does not carry it.
+		if not bool((getattr(self.Gen, 'McuMpGeometry', None) or {}).get('orchestrator')):
+			raise Exception('AfeSystemDiagram: this figure and its chapter describe the '
+				'ORCHESTRATOR chip (a management hart 0 that is not a channel tile, named as '
+				'the orchestrator in the hart box and in the caption), but this configuration '
+				'has no orchestrator. Pin a package model without the AFE bank in this '
+				'config, or generalize the drawing.')
+		if eis[0]['ownerHart'] in owners:
+			raise Exception('AfeSystemDiagram: hart %d is drawn BOTH as the management hart and '
+				'as a channel tile, so the figure would carry two boxes with the same name; '
+				'owners are %s' % (eis[0]['ownerHart'], str(owners)))
+		if N != len(afe) + 1:
+			raise Exception('AfeSystemDiagram: the figure draws every hart in the configuration '
+				'(one management hart plus one channel tile per AFE site, %d in all), but this '
+				'configuration has %d harts' % (len(afe) + 1, N))
 		# The three-electrode group this figure draws per site, plus the fourth
 		# pad it does NOT draw (RE2, the optional four-electrode/Kelvin sense
 		# named in the caption): all four must be bonded by the package model,
@@ -2000,44 +2029,65 @@ class LatexUserGuide():
 		   fourth anonymous tile.'''
 		N = self.Gen.NumHarts
 		orch = bool((getattr(self.Gen, 'McuMpGeometry', None) or {}).get('orchestrator'))
+		# SIZING CONTRACT (USER review, 2026-08-16 — the same treatment the TAP
+		# state graph got). This picture is \input at NATURAL SIZE: the chapter
+		# used to wrap it in \resizebox{0.95\linewidth}, and since the drawing was
+		# only ~11.7 cm wide that SCALED IT UP by about 1.35, so \small node type
+		# printed larger than the 11 pt body text and every box grew with it until
+		# consecutive boxes abutted and the arrow between them was a black smudge
+		# two millimetres tall. Measured in the render, not guessed.
+		# The fix is not a smaller \resizebox: it is to draw the thing at the size
+		# it should print at. Node type is \scriptsize (labels \tiny), inner sep
+		# drops 5pt -> 3pt, the boxes narrow to 4.15 cm, and ALL of the space that
+		# buys goes into SEPARATION — every consecutive pair of boxes now has
+		# 0.6-1.0 cm of clear air with the arrow alone in it, and the two columns
+		# stand 5 cm apart so the diamond's branches and the dashed msip arrow
+		# each own an empty channel. Natural size lands ~13.6 x 12.0 cm against
+		# the old print size of ~15.7 x 13.6 cm, i.e. smaller on both axes.
+		# CONTENT AND EDGES ARE UNCHANGED — this is a layout and type change only.
+		# Keep the natural width under \linewidth (16.5 cm) if the text ever grows.
+		xL, xR, xC = 3.10, 12.30, 7.70     # left branch / right branch / spine
 		s = '% Generated boot flow chart (M12 single-ROM boot, numHarts=' + str(N) + ')\n'
+		s += '% Drawn at natural size: the chapter \\inputs this WITHOUT a \\resizebox.\n'
 		s += '\\begin{tikzpicture}[\n'
-		s += '\tstp/.style={draw, thick, rounded corners=2pt, align=center, font=\\sffamily\\small, text width=4.6cm, inner sep=5pt},\n'
+		s += '\tstp/.style={draw, semithick, rounded corners=2pt, align=center, font=\\sffamily\\scriptsize, text width=4.15cm, inner sep=3pt},\n'
 		s += '\tterm/.style={stp, fill=black!12},\n'
-		s += '\tdec/.style={draw, thick, diamond, aspect=2.4, align=center, font=\\sffamily\\small, inner sep=1.5pt},\n'
-		s += '\tflow/.style={->, >=Stealth, thick},\n'
-		s += '\tlab/.style={font=\\sffamily\\scriptsize, fill=white, inner sep=1pt}]\n'
-		s += '\\node[term, text width=7.6cm] (rst) at (6.0, 10.6) {\\textbf{Power-on / reset}\\\\ all ' + str(N) + ' harts: PC $=$ \\texttt{0x0}, fetching THE shared boot ROM through the arbiter};\n'
-		s += '\\node[dec] (who) at (6.0, 8.9) {\\register{mhartid} $= 0$?};\n'
+		s += '\tdec/.style={draw, semithick, diamond, aspect=2.6, align=center, font=\\sffamily\\scriptsize, inner sep=1pt},\n'
+		s += '\tflow/.style={->, >=Stealth, semithick},\n'
+		s += '\tlab/.style={font=\\sffamily\\tiny, align=center, fill=white, inner sep=1.2pt}]\n'
+		s += '\\node[term, text width=9.0cm] (rst) at (' + str(xC) + ', 13.00) {\\textbf{Power-on / reset}\\\\ all ' + str(N) + ' harts: PC $=$ \\texttt{0x0}, fetching THE shared boot ROM through the arbiter};\n'
+		s += '\\node[dec] (who) at (' + str(xC) + ', 11.05) {\\register{mhartid} $= 0$?};\n'
 		# Hart 0 branch (left)
-		s += '\\node[stp] (h0a) at (2.6, 7.1) {Configure \\peripheral{GPIO0}/\\peripheral{SPI0}, read the BOOT strap pin};\n'
-		s += '\\node[stp] (h0b) at (2.6, 5.5) {Copy the program from SPI flash to \\texttt{0x8000}--\\texttt{0xFFFC}; zero the mailbox region \\texttt{0x10000}--\\texttt{0x107FF}};\n'
-		s += '\\node[term] (h0c) at (2.6, 3.9) {Jump to \\texttt{\\SpiFlashProgramAddress}: application runs on hart 0};\n'
-		s += '\\node[stp, dashed] (launch) at (2.6, 1.9) {\\textbf{Launching a tile $h$:} stage its image in shared RAM, write \\register{SRC[h]}/\\register{LEN[h]}/\\register{ENTRY[h]} at \\texttt{\\BootMailboxBase}$+16h$, then write $1$ to \\register{MSIPx} (\\texttt{0x5000}$+4h$)};\n'
+		s += '\\node[stp] (h0a) at (' + str(xL) + ', 9.00) {Configure \\peripheral{GPIO0}/\\peripheral{SPI0}, read the BOOT strap pin};\n'
+		s += '\\node[stp] (h0b) at (' + str(xL) + ', 6.90) {Copy the program from SPI flash to \\texttt{0x8000}--\\texttt{0xFFFC}; zero the mailbox region \\texttt{0x10000}--\\texttt{0x107FF}};\n'
+		s += '\\node[term] (h0c) at (' + str(xL) + ', 4.95) {Jump to \\texttt{\\SpiFlashProgramAddress}: application runs on hart 0};\n'
+		s += '\\node[stp, dashed] (launch) at (' + str(xL) + ', 2.60) {\\textbf{Launching a tile $h$:} stage its image in shared RAM, write \\register{SRC[h]}/\\register{LEN[h]}/\\register{ENTRY[h]} at \\texttt{\\BootMailboxBase}$+16h$, then write $1$ to \\register{MSIPx} (\\texttt{0x5000}$+4h$)};\n'
 		# Tile branch (right)
-		s += '\\node[stp] (t1) at (9.4, 7.1) {Set $\\mathtt{sp}$ to the top of the private TCM; arm the software-interrupt vector};\n'
-		s += '\\node[term] (t2) at (9.4, 5.5) {\\textbf{Park}: low-power sleep, waiting for a \\peripheral{CLINT} software interrupt};\n'
-		s += '\\node[stp] (t3) at (9.4, 3.6) {ROM loader: clear the \\register{MSIPx} level, read \\register{SRC}/\\register{LEN}/\\register{ENTRY} at \\texttt{\\BootMailboxBase}$+16h$, copy \\register{LEN} words into the TCM at \\texttt{0x8000}};\n'
-		s += '\\node[term] (t4) at (9.4, 1.9) {Enter \\register{ENTRY} with $\\mathtt{sp}$ at the top of the TCM: tile runs};\n'
+		s += '\\node[stp] (t1) at (' + str(xR) + ', 9.00) {Set $\\mathtt{sp}$ to the top of the private TCM; arm the software-interrupt vector};\n'
+		s += '\\node[term] (t2) at (' + str(xR) + ', 6.85) {\\textbf{Park}: low-power sleep, waiting for a \\peripheral{CLINT} software interrupt};\n'
+		s += '\\node[stp] (t3) at (' + str(xR) + ', 4.55) {ROM loader: clear the \\register{MSIPx} level, read \\register{SRC}/\\register{LEN}/\\register{ENTRY} at \\texttt{\\BootMailboxBase}$+16h$, copy \\register{LEN} words into the TCM at \\texttt{0x8000}};\n'
+		s += '\\node[term] (t4) at (' + str(xR) + ', 2.30) {Enter \\register{ENTRY} with $\\mathtt{sp}$ at the top of the TCM: tile runs};\n'
 		# Edges
 		s += '\\draw[flow] (rst) -- (who);\n'
-		# The naming costs width: at pos=0.25 the label sits on the horizontal run
-		# straight out of the diamond, and "yes: hart 0 (orchestrator)" on one line
-		# runs INTO the diamond (measured in the render). On the orchestrator
-		# polarity it therefore breaks in two and moves onto the vertical run,
-		# clear of both nodes; without an orchestrator the original single-line
-		# label is emitted unchanged, byte for byte.
+		# The two branch labels ride the MIDDLE of their own horizontal run, and
+		# the run is drawn as an explicit two-segment path rather than `-|' so
+		# that `pos' means what it says (the SyncPrimitiveDecisionTree idiom in
+		# this same file). Each run is ~3 cm of empty lane, so the orchestrator
+		# polarity's two-line label clears the diamond and the box below it
+		# without any per-polarity nudging: only the WORDS differ now.
 		if orch:
-			yesLab = 'node[lab, align=center, pos=0.62] {yes: hart 0\\\\ (orchestrator)}'
+			yesLab = 'yes: hart 0\\\\ (orchestrator)'
 		else:
-			yesLab = 'node[lab, pos=0.25] {yes: hart 0}'
-		s += '\\draw[flow] (who.west) -| ' + yesLab + ' (h0a.north);\n'
-		s += '\\draw[flow] (who.east) -| node[lab, pos=0.25] {no: harts 1--' + str(N - 1) + '} (t1.north);\n'
+			yesLab = 'yes: hart 0'
+		s += '\\draw[flow] (who.west) -- node[lab] {' + yesLab + '} (h0a.north |- who.west) -- (h0a.north);\n'
+		s += '\\draw[flow] (who.east) -- node[lab] {no: harts 1--' + str(N - 1) + '} (t1.north |- who.east) -- (t1.north);\n'
 		s += '\\draw[flow] (h0a) -- (h0b);\n'
 		s += '\\draw[flow] (h0b) -- (h0c);\n'
 		s += '\\draw[flow, dashed] (h0c) -- (launch);\n'
 		s += '\\draw[flow] (t1) -- (t2);\n'
-		s += '\\draw[flow] (t2) -- node[lab, right=1pt] {\\register{MSIPx} interrupt} (t3);\n'
+		# Hung to the RIGHT of its arrow, not centred on it: the arrow is short
+		# and a centred label with a white fill would swallow it.
+		s += '\\draw[flow] (t2) -- node[lab, right=2pt] {\\register{MSIPx} interrupt} (t3);\n'
 		s += '\\draw[flow] (t3) -- (t4);\n'
 		s += '\\draw[flow, dashed] (launch.east) -- node[lab, above, sloped] {\\peripheral{CLINT} msip} (t2.south west);\n'
 		s += '\\end{tikzpicture}\n'

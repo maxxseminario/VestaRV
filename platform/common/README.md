@@ -50,7 +50,7 @@ documented in the generated TRM's "Chip Configuration" section):
 | `peripherals.uart1` | `false` = drop the second UART (slot 5 dead, vectors 52–54 reserved, TX1/RX1 pins revert to plain GPIO) |
 | `peripherals.spi1` | `false` = drop the second SPI (slot 3 dead, vectors 11–12 reserved, CS1/MISO1/MOSI1/SCK1 pins revert to plain GPIO) |
 | `peripherals.timer1` | `false` = drop the second TIMER (slot 7 dead, vectors 22–27 reserved, T1CMP\*/T1CAP\* pins revert to plain GPIO) |
-| `package.model` | Package model name defined in `generate.py` (`_PACKAGE_MODELS`; today `myshkin-qfn44`) |
+| `package.model` | Package model name defined in `generate.py` (`_PACKAGE_MODELS`: `myshkin-qfn44`, `castalia-quad-qfn64`, `castalia-lqfp100`). **Default since 2026-08-16: `castalia-quad-qfn64`** — the Castalia-Quad QFN-64 quad pinout, which also gates the TRM's Analog Front-End chapter. `config/castalia4.json` and the three `argus*.json` rows pin `myshkin-qfn44` (they are not that chip; see their `_packageNote`). |
 | `package.preliminary` | `false` = suppress the TRM package-section "Preliminary" banner |
 
 Every build also writes `config/ChipConfig.resolved.json` (all knobs plus the derived

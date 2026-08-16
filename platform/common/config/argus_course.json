@@ -22,5 +22,7 @@
     "bitmanip": true,
     "counters": false,
     "counters64": false
-  }
+  },
+  "_packageNote": "2026-08-16 PIN, added when castalia-quad-qfn64 became the SHIPPED DEFAULT package model (both the _CONFIG_META entry and the _cfg call site -- the two-places rule). Argus has no package of its own yet, and without this explicit model it would INHERIT the Castalia-Quad QFN-64: an 18-hart teaching chip documented with a 5-hart chip's 64-pin quad pinout, AND -- because the CQ model is what gates the AFE/EIS chapter -- an analog front-end chapter written for the orchestrator chip (measured: two boxes both labelled `hart 0', a gate line reading `s_master = 0 or 0'). The AfeSystemDiagram now ASSERTS the orchestrator shape, so an unpinned Argus build FAILS loudly instead of shipping that; this pin is the answer to it. Pinned, not changed -- myshkin-qfn44 is the model Argus already resolved to before the promotion. Replace it with a real Argus model in _PACKAGE_MODELS when the package is decided.",
+  "package": { "model": "myshkin-qfn44" }
 }
