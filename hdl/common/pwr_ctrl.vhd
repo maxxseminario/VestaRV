@@ -1,8 +1,8 @@
--- POWER CONTROLLER for the switchable hart-tile domains: an arbiter slave at page-0 slot 11 (0x4B00) holding one gate-request bit per tile hart plus a per-tile FSM that drives the tile's MTCMOS controls in the only legal order.
--- GATE (PWRCR bit h := 1) is iso_en=1, then rstn=0, then sleep=1 (rail off); WAKE (bit h := 0) is sleep=0, then T_RAIL settle, then iso_en=0, then rstn=1.
--- Hart 0, the management hart owning SPI boot, the console and the CLINT, is ALWAYS-ON: its PWRCR bit reads 0 and ignores writes, and its tile instance ties the pd_* ports inactive at the top level.
--- COLD-GATE CONTRACT, no retention: a gated tile loses ALL state and pd_rstn accompanies the power sequence on BOTH edges, so the domain is held in reset while unpowered and while its rail ramps; on wake the tile re-runs the ROM boot and the management hart relaunches it.
--- Bus contract: active-high one-cycle en strobe, 4 active-high byte-lane strobes we (resv-gated in MCU.vhd), 1-cycle registered read, free-running mclk; it resets all-ON, so the block is a NO-OP until software sets a PWRCR bit.
+/* POWER CONTROLLER for the switchable hart-tile domains: an arbiter slave at page-0 slot 11 (0x4B00) holding one gate-request bit per tile hart plus a per-tile FSM that drives the tile's MTCMOS controls in the only legal order.
+   GATE (PWRCR bit h := 1) is iso_en=1, then rstn=0, then sleep=1 (rail off); WAKE (bit h := 0) is sleep=0, then T_RAIL settle, then iso_en=0, then rstn=1.
+   Hart 0, the management hart owning SPI boot, the console and the CLINT, is ALWAYS-ON: its PWRCR bit reads 0 and ignores writes, and its tile instance ties the pd_* ports inactive at the top level.
+   COLD-GATE CONTRACT, no retention: a gated tile loses ALL state and pd_rstn accompanies the power sequence on BOTH edges, so the domain is held in reset while unpowered and while its rail ramps; on wake the tile re-runs the ROM boot and the management hart relaunches it.
+   Bus contract: active-high one-cycle en strobe, 4 active-high byte-lane strobes we (resv-gated in MCU.vhd), 1-cycle registered read, free-running mclk; it resets all-ON, so the block is a NO-OP until software sets a PWRCR bit. */
 
 -- SOFTWARE CONTRACT: gate only a PARKED or otherwise quiesced tile; a violation cannot deadlock the hardware (a clamped or reset req is a released req to the wait-for-release arbiter, and a pinned AMO lock drops the same way) but destroys the tile's in-flight work.
 -- A gate request taken mid-sequence completes the sequence and only then honors the new request: no mid-sequence aborts, and PWRSR shows the state.
@@ -10,13 +10,13 @@
 -- Reset values EQUAL the clamp values: the tile's outbound boundary registers reset to 0 and sh_req is qualified by the tile's resetn, so a reset-held tile is bus-silent, exactly like the isolation clamp-0 the arbiter sees when the domain is really off.
 -- Reset is therefore the honest sim model of the power cycle; electrically the HEAD switch fabric and the isolation boundary clamps inserted by the CPF flow do the real work.
 
--- REGISTERS (word offsets in the 256B slot; only addr(3:0) decoded):
---   +0x0   PWRCR    RW  bits NHARTS-1:1 GATE[h], 1 = power-gate tile h, 0 = run; bit 0 RO 0 (hart 0). Byte-lane-0-qualified, so use full-word stores; the gate bits are ONE field even when they span lanes.
---   +0x4.. PWRSR0..ceil(NHARTS/8)-1  RO  4-bit state nibble per hart, 8 harts per word: hart h in PWRSR(h/8) at (4*(h mod 8)+3 downto 4*(h mod 8)). 0=ON 1=ISO 2=RSTOFF 3=OFF 4=RAIL 5=UNISO; hart 0 nibble reads 0.
---   +0x14  PWRWAKE  RW  reset 0: bit 0 GATE_EN (arm the boot gate), 1 RLS_PGOOD, 2 RLS_FIELD, 3 SW_RELEASE, 4 REHOLD (re-hold on a release-condition drop; 0 = one-shot latched release). Byte-lane-0-qualified.
---   +0x18  PWRSTS   RO  bit 0 PGOOD_LIVE, 1 FIELD_LIVE, 2 STRAP (1 = harvested boot), 3 STRAP_VALID, 4 BOOT_HOLD, 5 RLS_LATCHED.
---   +0x1C  TASKWKM  RW  event-fabric task-wake mask, one bit per gateable tile.
--- PWRWAKE, PWRSTS and TASKWKM sit at FIXED words 5/6/7, above PWRSR's worst case (NSRW <= 4 at NHARTS <= 32), so the map is NHARTS-independent.
+/* REGISTERS (word offsets in the 256B slot; only addr(3:0) decoded):
+     +0x0   PWRCR    RW  bits NHARTS-1:1 GATE[h], 1 = power-gate tile h, 0 = run; bit 0 RO 0 (hart 0). Byte-lane-0-qualified, so use full-word stores; the gate bits are ONE field even when they span lanes.
+     +0x4.. PWRSR0..ceil(NHARTS/8)-1  RO  4-bit state nibble per hart, 8 harts per word: hart h in PWRSR(h/8) at (4*(h mod 8)+3 downto 4*(h mod 8)). 0=ON 1=ISO 2=RSTOFF 3=OFF 4=RAIL 5=UNISO; hart 0 nibble reads 0.
+     +0x14  PWRWAKE  RW  reset 0: bit 0 GATE_EN (arm the boot gate), 1 RLS_PGOOD, 2 RLS_FIELD, 3 SW_RELEASE, 4 REHOLD (re-hold on a release-condition drop; 0 = one-shot latched release). Byte-lane-0-qualified.
+     +0x18  PWRSTS   RO  bit 0 PGOOD_LIVE, 1 FIELD_LIVE, 2 STRAP (1 = harvested boot), 3 STRAP_VALID, 4 BOOT_HOLD, 5 RLS_LATCHED.
+     +0x1C  TASKWKM  RW  event-fabric task-wake mask, one bit per gateable tile.
+   PWRWAKE, PWRSTS and TASKWKM sit at FIXED words 5/6/7, above PWRSR's worst case (NSRW <= 4 at NHARTS <= 32), so the map is NHARTS-independent. */
 
 -- FIELD-POWER BOOT GATE (hold-in-reset): pgood_rstn, reset value '1' meaning release, is ANDed into EVERY hart's outer reset at the top level, hart 0 included.
 -- A held hart issues no sh_req, so the arbiter sees the bus silence pd_rstn already guarantees; tying pgood_pad='1', strap_pad='0' and field_detect='0' makes the whole gate a NO-OP.

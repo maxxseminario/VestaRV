@@ -1,12 +1,12 @@
--------------------------------------------------------------------------------
--- I2CTarget_tb.vhd
--------------------------------------------------------------------------------
--- Standalone, self-checking testbench for the I2C target peripheral (periph/I2CTarget.vhd).
--- The DUT is declared as a COMPONENT, so the bench compiles standalone; VHDL default binding resolves it to the entity of the same name once I2CTarget.vhd is analyzed into work.
--- Uses periph_tb_pkg.vhd (scoreboard and register-bus BFM), i2ct_bfm_pkg.vhd (slot/CR/SR constants, the i2ct_mk_cr packer, bounded SR polls, SCL timing) and i2c_host_model.vhd as the bus master, which samples the DUT's driven ACK/TX levels off the resolved bus at its own sample points.
--- One clock family: `clk` (MCLK at integration) hosts the target FSM, the SDA/SCL 2-FF synchronizers, the sticky W1C flags and the watchdog; `ClkMem` is the gated register-bus clock.
--- SCL:clk ratio is 32:1 (I2CT_SCL_HALF_TICKS=16) and PERIOD = 40 ns, so one SCL bit is 1.28 us; SDA and SCL are open-drain with a weak 'H' idle, the DUT pulling low via SDA_DIR/SCL_DIR (no *_OUT ports) and the host model via its own oe.
--------------------------------------------------------------------------------
+/* -----------------------------------------------------------------------------
+   I2CTarget_tb.vhd
+   -----------------------------------------------------------------------------
+   Standalone, self-checking testbench for the I2C target peripheral (periph/I2CTarget.vhd).
+   The DUT is declared as a COMPONENT, so the bench compiles standalone; VHDL default binding resolves it to the entity of the same name once I2CTarget.vhd is analyzed into work.
+   Uses periph_tb_pkg.vhd (scoreboard and register-bus BFM), i2ct_bfm_pkg.vhd (slot/CR/SR constants, the i2ct_mk_cr packer, bounded SR polls, SCL timing) and i2c_host_model.vhd as the bus master, which samples the DUT's driven ACK/TX levels off the resolved bus at its own sample points.
+   One clock family: `clk` (MCLK at integration) hosts the target FSM, the SDA/SCL 2-FF synchronizers, the sticky W1C flags and the watchdog; `ClkMem` is the gated register-bus clock.
+   SCL:clk ratio is 32:1 (I2CT_SCL_HALF_TICKS=16) and PERIOD = 40 ns, so one SCL bit is 1.28 us; SDA and SCL are open-drain with a weak 'H' idle, the DUT pulling low via SDA_DIR/SCL_DIR (no *_OUT ports) and the host model via its own oe.
+   ----------------------------------------------------------------------------- */
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -136,15 +136,15 @@ architecture sim of I2CTarget_tb is
 
 begin
 
-    ----------------------------------------------------------------------------
-    -- clock / gated register-bus clock
-    ----------------------------------------------------------------------------
+    /* --------------------------------------------------------------------------
+       clock / gated register-bus clock
+       -------------------------------------------------------------------------- */
     clk    <= not clk after PERIOD / 2;
     ClkMem <= clk when pbus.en_mem = '0' else '0';
 
-    ----------------------------------------------------------------------------
-    -- Open-drain bus resolution: the DUT pulls low via *_DIR, the host model via its own oe, and a weak 'H' idles the net high, so any '0' wins (wired-AND) and every sample is to_X01-normalized.
-    ----------------------------------------------------------------------------
+    /* --------------------------------------------------------------------------
+       Open-drain bus resolution: the DUT pulls low via *_DIR, the host model via its own oe, and a weak 'H' idles the net high, so any '0' wins (wired-AND) and every sample is to_X01-normalized.
+       -------------------------------------------------------------------------- */
     sda_bus <= '0'          when dut_sda_dir  = '1' else 'Z';
     sda_bus <= host_sda_out when host_sda_oe  = '1' else 'Z';
     sda_bus <= 'H';
@@ -155,9 +155,9 @@ begin
     scl_bus <= 'H';
     scl_bus_x01 <= to_X01(scl_bus);
 
-    ----------------------------------------------------------------------------
-    -- evt_amf pulse monitor: samples the tap, to_X01-normalized, on every clk rising edge, windowed by evt_amf_mon_clear.
-    ----------------------------------------------------------------------------
+    /* --------------------------------------------------------------------------
+       evt_amf pulse monitor: samples the tap, to_X01-normalized, on every clk rising edge, windowed by evt_amf_mon_clear.
+       -------------------------------------------------------------------------- */
     evt_amf_mon_proc : process(clk)
         variable a_lvl : std_logic;
     begin
@@ -179,9 +179,9 @@ begin
         end if;
     end process;
 
-    ----------------------------------------------------------------------------
-    -- DUT
-    ----------------------------------------------------------------------------
+    /* --------------------------------------------------------------------------
+       DUT
+       -------------------------------------------------------------------------- */
     dut : component I2CTarget
         port map (
             clk         => clk,
@@ -201,9 +201,9 @@ begin
             evt_amf     => evt_amf
         );
 
-    ----------------------------------------------------------------------------
-    -- Bit-banged I2C controller (master) model
-    ----------------------------------------------------------------------------
+    /* --------------------------------------------------------------------------
+       Bit-banged I2C controller (master) model
+       -------------------------------------------------------------------------- */
     host : component i2c_host_model
         port map (
             scl_in => scl_bus_x01,
@@ -234,9 +234,9 @@ begin
             obs_viol      => obs_viol
         );
 
-    ----------------------------------------------------------------------------
-    -- Watchdog: abort with a FAIL banner if the stimulus ever hangs.
-    ----------------------------------------------------------------------------
+    /* --------------------------------------------------------------------------
+       Watchdog: abort with a FAIL banner if the stimulus ever hangs.
+       -------------------------------------------------------------------------- */
     watchdog : process
     begin
         wait for 60 ms;
@@ -251,9 +251,9 @@ begin
         wait;
     end process;
 
-    ----------------------------------------------------------------------------
-    -- stimulus
-    ----------------------------------------------------------------------------
+    /* --------------------------------------------------------------------------
+       stimulus
+       -------------------------------------------------------------------------- */
     stim_proc : process
         constant SAD : std_logic_vector(6 downto 0) := "1010101";  -- 0x55 target address
         variable rdw : std_logic_vector(31 downto 0);
@@ -328,9 +328,9 @@ begin
         end procedure;
 
     begin
-        ------------------------------------------------------------------
-        -- Reset
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           Reset
+           ---------------------------------------------------------------- */
         resetn <= '0';
         pbus   <= PERIPH_BUS_IDLE;
         cfg_wdata  <= (others => (others => '0'));
@@ -340,9 +340,9 @@ begin
         resetn <= '1';
         wait for 8 * PERIOD;
 
-        ------------------------------------------------------------------
-        -- GROUP G0: reset defaults
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           GROUP G0: reset defaults
+           ---------------------------------------------------------------- */
         report "=== GROUP G0: reset defaults ===" severity note;
         bus_read(clk, pbus, rdata_out, I2CT_SLOT_CR, rdw);
         sb.check_slv("G0: CR resets to 0", rdw, x"00000000");
@@ -357,9 +357,9 @@ begin
         sb.check_bit("G0: irq_ae = 0 out of reset", to_X01(irq_ae), '0');
         sb.check_bit("G0: irq_data = 0 out of reset", to_X01(irq_data), '0');
 
-        ------------------------------------------------------------------
-        -- GROUP G1: address match / mask / mismatch
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           GROUP G1: address match / mask / mismatch
+           ---------------------------------------------------------------- */
         report "=== GROUP G1: address match / mask / mismatch ===" severity note;
         set_cr('1', '0', '0', '0', '0', SAD, "0000000");
         launch(I2CT_OP_XFER, false, true, SAD, '0', 0);
@@ -387,9 +387,9 @@ begin
         sb.check_bit("G1: AMF stays 0 on mismatch (silent ignore)", to_X01(rdw(I2CT_SR_AMF)), '0');
         w1c(x"000007DC");
 
-        ------------------------------------------------------------------
-        -- GROUP G2: general call
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           GROUP G2: general call
+           ---------------------------------------------------------------- */
         report "=== GROUP G2: general call ===" severity note;
         set_cr('1', '1', '0', '0', '0', SAD, "0000000");   -- GCEN=1
         launch(I2CT_OP_XFER, false, true, "0000000", '0', 0);   -- addr 0x00, write
@@ -408,9 +408,9 @@ begin
         sb.check_bit("G2: GCF stays 0 with GCEN=0", to_X01(rdw(I2CT_SR_GCF)), '0');
         w1c(x"000007DC");
 
-        ------------------------------------------------------------------
-        -- GROUP G3: host-write (RX)
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           GROUP G3: host-write (RX)
+           ---------------------------------------------------------------- */
         report "=== GROUP G3: host-write (RX) ===" severity note;
         set_cr('1', '0', '0', '0', '0', SAD, "0000000");   -- CSEN=0
         cfg_wdata(0) <= x"A5";
@@ -454,9 +454,9 @@ begin
         sb.check_bit("G3: RX-stretch: no bounded-wait timeout", to_X01(obs_timeout), '0');
         w1c(x"000007DC");
 
-        ------------------------------------------------------------------
-        -- GROUP G4: host-read (TX)
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           GROUP G4: host-read (TX)
+           ---------------------------------------------------------------- */
         report "=== GROUP G4: host-read (TX) ===" severity note;
         set_cr('1', '0', '0', '0', '0', SAD, "0000000");   -- CSEN=0
         bus_write(clk, pbus, I2CT_SLOT_TX, x"00000096");    -- asymmetric: reversed shift sends 0x69
@@ -516,9 +516,9 @@ begin
         sb.check_slv("G4: corrupt self-test leaves read data correct (0xC3)", obs_rdata(0), x"C3");
         w1c(x"000007DC");
 
-        ------------------------------------------------------------------
-        -- GROUP G5: repeated-START (write-address then Sr then read)
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           GROUP G5: repeated-START (write-address then Sr then read)
+           ---------------------------------------------------------------- */
         report "=== GROUP G5: repeated-START ===" severity note;
         set_cr('1', '0', '0', '0', '0', SAD, "0000000");
         launch(I2CT_OP_XFER, false, false, SAD, '0', 0);   -- segment A: address-only write, bus held
@@ -542,9 +542,9 @@ begin
         sb.check_bit("G5: BUSY cleared after the final STOP", to_X01(rdw(I2CT_SR_BUSY)), '0');
         w1c(x"000007DC");
 
-        ------------------------------------------------------------------
-        -- GROUP G6: STOP flag
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           GROUP G6: STOP flag
+           ---------------------------------------------------------------- */
         report "=== GROUP G6: STOP flag ===" severity note;
         set_cr('1', '0', '0', '0', '0', SAD, "0000000");
         launch(I2CT_OP_XFER, false, true, SAD, '0', 0);
@@ -556,9 +556,9 @@ begin
         sb.check_bit("G6: SCL released high after STOP", to_X01(scl_bus_x01), '1');
         w1c(x"000007DC");
 
-        ------------------------------------------------------------------
-        -- GROUP G7: watchdog error
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           GROUP G7: watchdog error
+           ---------------------------------------------------------------- */
         report "=== GROUP G7: watchdog error ===" severity note;
         set_cr('1', '0', '0', '0', '0', SAD, "0000000");
         bus_write(clk, pbus, I2CT_SLOT_WDG, x"00000001");   -- WDTO=1 selects the 256-clk SCL-low timeout
@@ -576,9 +576,9 @@ begin
         sb.check_bit("G7: WDTO=0 -> no watchdog trip (ERRF stays 0)", to_X01(rdw(I2CT_SR_ERRF)), '0');
         w1c(x"000007DC");
 
-        ------------------------------------------------------------------
-        -- GROUP G8: IRQ demux / W1C; irq_ae = (AMF|GCF|OVF|NACKF|STOPF|RSTARTF|ERRF)&AEIE, irq_data = (RXF|TXE)&DATAIE
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           GROUP G8: IRQ demux / W1C; irq_ae = (AMF|GCF|OVF|NACKF|STOPF|RSTARTF|ERRF)&AEIE, irq_data = (RXF|TXE)&DATAIE
+           ---------------------------------------------------------------- */
         report "=== GROUP G8: IRQ demux / W1C ===" severity note;
         set_cr('1', '0', '0', '1', '1', SAD, "0000000");   -- AEIE=1, DATAIE=1
         cfg_wdata(0) <= x"44";
@@ -611,10 +611,10 @@ begin
         bus_read(clk, pbus, rdata_out, I2CT_SLOT_RX, rdw);
         w1c(x"000007DC");
 
-        ------------------------------------------------------------------
-        -- GROUP G-EV: event fabric tap. evt_amf is a registered one-clk pulse at the amf SET site (address match including general call), taken pre-IE so cr_aeie never touches it.
-        -- Pulse counts come from the background monitor, which samples only the exported evt_amf port and is windowed via evt_amf_mon_reset.
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           GROUP G-EV: event fabric tap. evt_amf is a registered one-clk pulse at the amf SET site (address match including general call), taken pre-IE so cr_aeie never touches it.
+           Pulse counts come from the background monitor, which samples only the exported evt_amf port and is windowed via evt_amf_mon_reset.
+           ---------------------------------------------------------------- */
         report "=== GROUP G-EV: EVFAB tap (evt_amf) ===" severity note;
 
         -- G-EV-a: one addressed transaction gives exactly one evt_amf pulse, one clk wide, and sets the sticky AMF.
@@ -671,9 +671,9 @@ begin
         sb.check_true("G-EV e1: evt_amf stays 0 over a quiet window with no transaction",
                       evt_amf_starts = 0 and evt_amf_highs = 0);
 
-        ------------------------------------------------------------------
-        -- GROUP G-NEG: negative control, LAST, with exactly ONE deliberately-wrong expected value: a wrong RX byte after a clean, known host write.
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           GROUP G-NEG: negative control, LAST, with exactly ONE deliberately-wrong expected value: a wrong RX byte after a clean, known host write.
+           ---------------------------------------------------------------- */
         report "=== GROUP G-NEG: NEGATIVE CONTROL ===" severity note;
         set_cr('1', '0', '0', '0', '0', SAD, "0000000");
         cfg_wdata(0) <= x"A5";
@@ -683,9 +683,9 @@ begin
         sb.check_slv("NEGATIVE CONTROL: wrong expected RX byte (must FAIL)", rdw(7 downto 0), x"00");
         w1c(x"000007DC");
 
-        ------------------------------------------------------------------
-        -- Final verdict: sb.errors must be EXACTLY 1 (the negative control).
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           Final verdict: sb.errors must be EXACTLY 1 (the negative control).
+           ---------------------------------------------------------------- */
         wait for 1 us;
         sb.report_summary("I2CTARGET TB");
 

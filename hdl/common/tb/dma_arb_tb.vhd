@@ -1,10 +1,10 @@
--- =============================================================================
--- dma_arb_tb.vhd: the real work.DMA engine as the fifth master on the shared fabric.
--- Four arb_lat_master BFMs (indices 0-3) sit behind an N_DELAY registered boundary; the DMA sits at index 4 at DEPTH 0, wired straight into the arb_*(4) slices, and ties arb_lock(4)='0' / arb_lrsc(9:8)="00" since it never grant-locks or LR/SCs.
--- The arbiter and RAM are 12-bit word-addressed while the DMA drives m_addr = byte_ptr(16:2); every pointer used here is word-aligned and below byte 0x4000, so m_addr(14:12)=0 and m_addr(11:0) is an exact truncation.
--- BREAK_MODE 1 (BFM drops lock early) and 2 (BFM req pipe skewed one stage) are the negative controls; the DMA itself never skews.
--- PASS banner: "ALL CHECKS PASSED".
--- =============================================================================
+/* =============================================================================
+   dma_arb_tb.vhd: the real work.DMA engine as the fifth master on the shared fabric.
+   Four arb_lat_master BFMs (indices 0-3) sit behind an N_DELAY registered boundary; the DMA sits at index 4 at DEPTH 0, wired straight into the arb_*(4) slices, and ties arb_lock(4)='0' / arb_lrsc(9:8)="00" since it never grant-locks or LR/SCs.
+   The arbiter and RAM are 12-bit word-addressed while the DMA drives m_addr = byte_ptr(16:2); every pointer used here is word-aligned and below byte 0x4000, so m_addr(14:12)=0 and m_addr(11:0) is an exact truncation.
+   BREAK_MODE 1 (BFM drops lock early) and 2 (BFM req pipe skewed one stage) are the negative controls; the DMA itself never skews.
+   PASS banner: "ALL CHECKS PASSED".
+   ============================================================================= */
 
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
@@ -76,9 +76,9 @@ architecture sim of dma_arb_tb is
     signal f_wdata : std_logic_vector(NB*DW-1 downto 0);
     signal f_lrsc  : std_logic_vector(NB*2-1 downto 0);
 
-    -- BOUNDARY PIPES over the NB BFMs only (the DMA has NO boundary, depth 0).
-    -- outbound: [req NB][lock NB][lrsc 2NB][we 4NB][addr AW*NB][wdata DW*NB]
-    -- inbound : [gnt NB][done NB][scfail NB][rdata DW]
+    /* BOUNDARY PIPES over the NB BFMs only (the DMA has NO boundary, depth 0).
+       outbound: [req NB][lock NB][lrsc 2NB][we 4NB][addr AW*NB][wdata DW*NB]
+       inbound : [gnt NB][done NB][scfail NB][rdata DW] */
     constant OBW : natural := NB + NB + NB*2 + NB*4 + NB*AW + NB*DW;
     constant IBW : natural := NB + NB + NB + DW;
     signal ob0, ob1, ob2 : std_logic_vector(OBW-1 downto 0) := (others => '0');
@@ -492,9 +492,9 @@ begin
         wait;
     end process;
 
-    -- ===== DMA-specific monitors ======================================
-    -- (a) derived in-flight state: busy from the m_req rise to one cycle after m_done.
-    -- A done with no txn in flight is a ghost-done FAIL.
+    /* ===== DMA-specific monitors ======================================
+       (a) derived in-flight state: busy from the m_req rise to one cycle after m_done.
+       A done with no txn in flight is a ghost-done FAIL. */
     dma_busy_mon: process(clk, resetn)
         variable done_d : std_logic;
     begin

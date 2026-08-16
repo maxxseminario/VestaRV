@@ -1,6 +1,6 @@
--- MCU.template.spi1.vhd: SPI1-conditional verbatim blocks, delimited by the @SPI1BLOCK:<name>@ markers.
--- python/mcu_vhd.py splices them into MCU.template.vhd only when peripherals.spi1 is true (the default).
--- Without spi1 nothing is emitted: window slot 3 reads zero via the mux fall-through, vectors 11-12 become IRQB_RSVD*, the CS1/MISO1/MOSI1/SCK1 pad planes go hi-Z and P2.0-3 revert to plain GPIO8-11.
+/* MCU.template.spi1.vhd: SPI1-conditional verbatim blocks, delimited by the @SPI1BLOCK:<name>@ markers.
+   python/mcu_vhd.py splices them into MCU.template.vhd only when peripherals.spi1 is true (the default).
+   Without spi1 nothing is emitted: window slot 3 reads zero via the mux fall-through, vectors 11-12 become IRQB_RSVD*, the CS1/MISO1/MOSI1/SCK1 pad planes go hi-Z and P2.0-3 revert to plain GPIO8-11. */
 
 --@SPI1BLOCK:spi1-pad-decls@
         -- P2.0: cs1 

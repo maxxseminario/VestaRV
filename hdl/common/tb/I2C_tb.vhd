@@ -1,10 +1,10 @@
--------------------------------------------------------------------------------
--- I2C_tb.vhd: standalone self-checking testbench for the I2C peripheral.
--- Coverage: register read/write and reset values, START/STOP detection, slave receive (address and data byte, ACK, flags, SRX capture), slave-not-addressed, interrupt flag/enable/clear, and a master transmit (START, byte, absent-slave NACK, STOP).
--- Support packages: periph_tb_pkg (scoreboard and register-bus BFM) and i2c_bfm_pkg (external-master driver).
--- SDA/SCL are modelled as a real open-drain wired-AND: a line reads '0' when either the DUT drives it (its *_DIR output is '1') or the master BFM pulls it (i2cm.*_low is '1'), and floats to '1' through the pull-up otherwise.
--- Bus contract: en_mem and the per-lane wen are active-low, and SR and SRX return a snapshot latched on the falling edge of en_mem.
--------------------------------------------------------------------------------
+/* -----------------------------------------------------------------------------
+   I2C_tb.vhd: standalone self-checking testbench for the I2C peripheral.
+   Coverage: register read/write and reset values, START/STOP detection, slave receive (address and data byte, ACK, flags, SRX capture), slave-not-addressed, interrupt flag/enable/clear, and a master transmit (START, byte, absent-slave NACK, STOP).
+   Support packages: periph_tb_pkg (scoreboard and register-bus BFM) and i2c_bfm_pkg (external-master driver).
+   SDA/SCL are modelled as a real open-drain wired-AND: a line reads '0' when either the DUT drives it (its *_DIR output is '1') or the master BFM pulls it (i2cm.*_low is '1'), and floats to '1' through the pull-up otherwise.
+   Bus contract: en_mem and the per-lane wen are active-low, and SR and SRX return a snapshot latched on the falling edge of en_mem.
+   ----------------------------------------------------------------------------- */
 
 library ieee;
 use ieee.std_logic_1164.all;

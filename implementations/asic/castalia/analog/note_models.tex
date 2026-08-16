@@ -14,7 +14,7 @@ Every measurement in this chapter that involves an electrode uses one of two lum
 models from the \texttt{castalia} library, drawn in Figures~\ref{fig:randles-cell}
 and~\ref{fig:randles-electrode}, with values in Table~\ref{tab:analog-models}. They are stated once here and referenced by the
 block sections rather than repeated, because the electrode impedance is not a detail of
-the setup --- it sets the feedback factor of the potentiostat loop and of the
+the setup: it sets the feedback factor of the potentiostat loop and of the
 transimpedance loop, and both blocks' stability figures depend on it directly.
 
 \texttt{randles\_cell} is the three-electrode arrangement the potentiostat actually
@@ -52,7 +52,7 @@ resistance; it is not used by the benches reported here.
 Two limits apply to every number derived through these models. Both are linear and
 frequency-independent: there is no Warburg diffusion term and no potential dependence,
 so they describe small-signal behaviour about a bias point, not a full electrochemical
-response. And they are nominal --- no spread is assigned to any element, so no result in
+response. And they are nominal: no spread is assigned to any element, so no result in
 this chapter accounts for electrode-to-electrode variation, which on a real wound
 interface is likely to exceed the process spread reported alongside it.
 

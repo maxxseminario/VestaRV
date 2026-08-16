@@ -1,12 +1,12 @@
--- =============================================================================
--- resv_unit.vhd
--- =============================================================================
--- Global LR/SC reservation table for the shared-RAM window, between mp_arbiter's slave port and the shared RAM, on the free-running mclk.
--- An SC to shared memory must be adjudicated here, in the arbiter's serialization order: a per-hart local reservation flop lets two harts pass their own check and both report success.
--- A dead SC's write is suppressed (s_we masked to all-zero, so the slave sees a read) and its fail flag returns to the master alongside the arbiter's done, feeding the core's sc_fail_ext.
--- An LR read places the reservation; an SC consumes it either way; any committed write kills every matching reservation, foreign ones because they must fail and the writer's own conservatively, which SC permits.
--- lr_sc per master: "01" = LR read, "10" = SC write attempt, "00" = plain access, stable for the whole txn because the issuing core is frozen and it is gated by the master's req.
--- =============================================================================
+/* =============================================================================
+   resv_unit.vhd
+   =============================================================================
+   Global LR/SC reservation table for the shared-RAM window, between mp_arbiter's slave port and the shared RAM, on the free-running mclk.
+   An SC to shared memory must be adjudicated here, in the arbiter's serialization order: a per-hart local reservation flop lets two harts pass their own check and both report success.
+   A dead SC's write is suppressed (s_we masked to all-zero, so the slave sees a read) and its fail flag returns to the master alongside the arbiter's done, feeding the core's sc_fail_ext.
+   An LR read places the reservation; an SC consumes it either way; any committed write kills every matching reservation, foreign ones because they must fail and the writer's own conservatively, which SC permits.
+   lr_sc per master: "01" = LR read, "10" = SC write attempt, "00" = plain access, stable for the whole txn because the issuing core is frozen and it is gated by the master's req.
+   ============================================================================= */
 
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;

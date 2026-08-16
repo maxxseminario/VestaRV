@@ -21,8 +21,8 @@ columns, which assume the channels vary independently; a mismatch-only
 (\texttt{castalia\_mm\_25}) companion run is needed to separate the two terms and does
 not yet exist for this design. Variation type is named in every caption.
 
-Gaussian quantities are reported as mean $\pm\,3\sigma$; clipped or skewed ones ---
-the margins and the drive currents --- as 1st and 99th percentiles with the worst
+Gaussian quantities are reported as mean $\pm\,3\sigma$; clipped or skewed ones
+(the margins and the drive currents) as 1st and 99th percentiles with the worst
 sample. Yield is given per channel and, where a specification exists, for the
 four-channel chip. Chip yield is approximately $p^4$, so \SI{95}{\percent} of chips
 requires \SI{98.7}{\percent} of channels, near \(2.5\sigma\) rather than \(3\sigma\).
@@ -65,7 +65,7 @@ by a ratio that a global corner shift preserves, so the corner run is blind to t
 that actually dominates: at \SI{12.5}{\percent}, the shared bias explains most of the
 \SI{14.5}{\percent} spread in A1's peak drive current and the \SI{12.4}{\percent} in its
 unity-gain frequency. Because the generator is shared, this term is common-mode across the
-four channels --- it widens the chip-to-chip envelope without degrading channel matching.
+four channels: it widens the chip-to-chip envelope without degrading channel matching.
 \end{enumerate}
 
 The bias generator is a separate netlist from the amplifier testbench. The two runs

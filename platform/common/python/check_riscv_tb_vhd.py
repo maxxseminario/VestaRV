@@ -22,17 +22,60 @@ import sys
 
 
 def stripHeader(lines):
-	'''Remove the leading comment block and following blank lines.'''
+	'''Remove the leading comment block and following blank lines.
+
+	Both VHDL comment styles are recognized: the generated header is a
+	/* ... */ block, older masters wrote a run of -- lines.'''
 	i = 0
-	while i < len(lines) and (lines[i].lstrip().startswith('--') or lines[i].strip() == ''):
-		i += 1
+	inBlock = False
+	while i < len(lines):
+		stripped = lines[i].strip()
+		if inBlock:
+			if '*/' in stripped:
+				inBlock = False
+			i += 1
+			continue
+		if stripped == '' or stripped.startswith('--'):
+			i += 1
+			continue
+		if stripped.startswith('/*'):
+			if '*/' not in stripped[2:]:
+				inBlock = True
+			i += 1
+			continue
+		break
 	return lines[i:]
+
+
+def stripBlockComments(lines):
+	'''Drop every /* ... */ span (they may run across lines).'''
+	out = []
+	inBlock = False
+	for line in lines:
+		if inBlock:
+			end = line.find('*/')
+			if end < 0:
+				out.append('')
+				continue
+			line = line[end + 2:]
+			inBlock = False
+		start = line.find('/*')
+		while start >= 0:
+			end = line.find('*/', start + 2)
+			if end < 0:
+				line = line[:start]
+				inBlock = True
+				break
+			line = line[:start] + line[end + 2:]
+			start = line.find('/*')
+		out.append(line)
+	return out
 
 
 def normalizeStructural(lines):
 	'''Whitespace-normalized, comment-stripped, blank-line-free view.'''
 	out = []
-	for line in lines:
+	for line in stripBlockComments(lines):
 		commentIndex = line.find('--')
 		if commentIndex >= 0:
 			line = line[:commentIndex]

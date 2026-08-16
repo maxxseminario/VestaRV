@@ -1,10 +1,10 @@
--------------------------------------------------------------------------------
--- SPI_tb.vhd: standalone self-checking testbench for the SPI peripheral in its base configuration (ENABLE_EXTENDED_MEM = false), with the flash-side ports tied off inactive.
--- Coverage: register read/write, master transfers at 8/16/32 bits checked by MISO-driven-from-MOSI loopback, MSB-first and LSB-first ordering, CPOL idle level, busy/TC/TE flags with their interrupt lines and clear paths, and a basic slave-mode receive.
--- Support packages: periph_tb_pkg (scoreboard and register-bus BFM) and spi_bfm_pkg (external-master byte driver).
--- One free-running smclk drives both the SPI core and the gated register bus (clk_mem is smclk while en_mem is low).
--- Bus contract: en_mem and the per-lane wen are active-low, SR and RX return a snapshot latched on the falling edge of en_mem, and reading RX also clears the transmit-complete flag.
--------------------------------------------------------------------------------
+/* -----------------------------------------------------------------------------
+   SPI_tb.vhd: standalone self-checking testbench for the SPI peripheral in its base configuration (ENABLE_EXTENDED_MEM = false), with the flash-side ports tied off inactive.
+   Coverage: register read/write, master transfers at 8/16/32 bits checked by MISO-driven-from-MOSI loopback, MSB-first and LSB-first ordering, CPOL idle level, busy/TC/TE flags with their interrupt lines and clear paths, and a basic slave-mode receive.
+   Support packages: periph_tb_pkg (scoreboard and register-bus BFM) and spi_bfm_pkg (external-master byte driver).
+   One free-running smclk drives both the SPI core and the gated register bus (clk_mem is smclk while en_mem is low).
+   Bus contract: en_mem and the per-lane wen are active-low, SR and RX return a snapshot latched on the falling edge of en_mem, and reading RX also clears the transmit-complete flag.
+   ----------------------------------------------------------------------------- */
 
 library ieee;
 use ieee.std_logic_1164.all;

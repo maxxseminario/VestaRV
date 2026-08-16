@@ -1,12 +1,12 @@
--------------------------------------------------------------------------------
--- TRNG_tb.vhd
--------------------------------------------------------------------------------
--- Standalone, self-checking testbench for the TRNG peripheral (hdl/common/periph/TRNG.vhd) and its companion entropy source periph/TrngRoEnsemble_sim.vhd, which is instantiated here as a SIBLING of the DUT and wired through TRNG's genuine ro_enable/ro_sel/ro_sclk/ro_raw ports, never nested inside it.
--- Both are declared as COMPONENTs so this bench compiles standalone with xmvhdl regardless of analysis order; a plain configuration specification binds u_ro to the sim architecture.
--- The stuck-entropy case is driven by a bench-owned override mux (g5_force_en/g5_force_val) on the wire from u_ro into dut, which is -V200X-portable where a hierarchical force or an external name is not.
--- CHECKER INDEPENDENCE: the ref_* model is a clean-room mirror of the 2-FF sync, decimator, 32-bit assembler and consume/pending logic, built only from trng_bfm_pkg constants and this bench's own shadow of what it commanded; it never reads a DUT-internal signal, and health-test/alarm behavior is deliberately not modelled.
--- ONE clock family: clk hosts the whole harvest engine and ClkMem is the gated bus clock, driven `clk when pbus.en_mem='0' else '0'`.
--------------------------------------------------------------------------------
+/* -----------------------------------------------------------------------------
+   TRNG_tb.vhd
+   -----------------------------------------------------------------------------
+   Standalone, self-checking testbench for the TRNG peripheral (hdl/common/periph/TRNG.vhd) and its companion entropy source periph/TrngRoEnsemble_sim.vhd, which is instantiated here as a SIBLING of the DUT and wired through TRNG's genuine ro_enable/ro_sel/ro_sclk/ro_raw ports, never nested inside it.
+   Both are declared as COMPONENTs so this bench compiles standalone with xmvhdl regardless of analysis order; a plain configuration specification binds u_ro to the sim architecture.
+   The stuck-entropy case is driven by a bench-owned override mux (g5_force_en/g5_force_val) on the wire from u_ro into dut, which is -V200X-portable where a hierarchical force or an external name is not.
+   CHECKER INDEPENDENCE: the ref_* model is a clean-room mirror of the 2-FF sync, decimator, 32-bit assembler and consume/pending logic, built only from trng_bfm_pkg constants and this bench's own shadow of what it commanded; it never reads a DUT-internal signal, and health-test/alarm behavior is deliberately not modelled.
+   ONE clock family: clk hosts the whole harvest engine and ClkMem is the gated bus clock, driven `clk when pbus.en_mem='0' else '0'`.
+   ----------------------------------------------------------------------------- */
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -88,9 +88,9 @@ architecture sim of TRNG_tb is
 
     shared variable sb : scoreboard;
 
-    ---------------------------------------------------------------------------
-    -- Reference-replay model: shadow copies of what this bench commanded, driven by set_cr/read_dr below.
-    ---------------------------------------------------------------------------
+    /* -------------------------------------------------------------------------
+       Reference-replay model: shadow copies of what this bench commanded, driven by set_cr/read_dr below.
+       ------------------------------------------------------------------------- */
     signal ref_en    : std_logic := '0';
     signal ref_sel   : std_logic_vector(3 downto 0) := (others => '0');
     signal ref_decim : std_logic_vector(3 downto 0) := (others => '0');
@@ -116,18 +116,18 @@ architecture sim of TRNG_tb is
 
 begin
 
-    ----------------------------------------------------------------------------
-    -- clock / gated register-bus clock
-    ----------------------------------------------------------------------------
+    /* --------------------------------------------------------------------------
+       clock / gated register-bus clock
+       -------------------------------------------------------------------------- */
     clk    <= not clk after PERIOD / 2;
     ClkMem <= clk when pbus.en_mem = '0' else '0';
 
     -- The value reaching dut.ro_raw is either u_ro's genuine output or the bench-forced constant.
     ro_raw_to_dut <= g5_force_val when g5_force_en = '1' else ro_raw_natural;
 
-    ----------------------------------------------------------------------------
-    -- DUT
-    ----------------------------------------------------------------------------
+    /* --------------------------------------------------------------------------
+       DUT
+       -------------------------------------------------------------------------- */
     dut : component TRNG
         generic map ( NRO => NRO_G )
         port map (
@@ -147,9 +147,9 @@ begin
             evt_drdy    => evt_drdy
         );
 
-    ----------------------------------------------------------------------------
-    -- Companion entropy-source model
-    ----------------------------------------------------------------------------
+    /* --------------------------------------------------------------------------
+       Companion entropy-source model
+       -------------------------------------------------------------------------- */
     u_ro : component TrngRoEnsemble
         generic map ( NRO => NRO_G )
         port map (
@@ -159,9 +159,9 @@ begin
             ro_raw => ro_raw_natural
         );
 
-    ----------------------------------------------------------------------------
-    -- Watchdog: abort with a FAIL banner if the stimulus ever hangs.
-    ----------------------------------------------------------------------------
+    /* --------------------------------------------------------------------------
+       Watchdog: abort with a FAIL banner if the stimulus ever hangs.
+       -------------------------------------------------------------------------- */
     watchdog : process
     begin
         wait for 60 ms;
@@ -176,10 +176,10 @@ begin
         wait;
     end process;
 
-    ----------------------------------------------------------------------------
-    -- Reference-replay model: a clean-room mirror of the 2-FF sync, decimator, 32-bit assembler and consume/pending logic.
-    -- It is driven ONLY by this bench's own shadow signals (ref_en/ref_sel/ref_decim from `set_cr`) and its own record of qualifying DR reads (`ref_dr_read_req` from `read_dr`), never by a DUT-internal signal.
-    ----------------------------------------------------------------------------
+    /* --------------------------------------------------------------------------
+       Reference-replay model: a clean-room mirror of the 2-FF sync, decimator, 32-bit assembler and consume/pending logic.
+       It is driven ONLY by this bench's own shadow signals (ref_en/ref_sel/ref_decim from `set_cr`) and its own record of qualifying DR reads (`ref_dr_read_req` from `read_dr`), never by a DUT-internal signal.
+       -------------------------------------------------------------------------- */
 
     -- LFSR mirror: identical recurrence to TrngRoEnsemble_sim.vhd, re-seeded whenever the reference is disabled.
     ref_lfsr_proc: process(ref_en, clk)
@@ -317,9 +317,9 @@ begin
     end process ref_consume_cdc;
     ref_consume_pulse <= '1' when (rc2 /= rcprev) else '0';
 
-    ----------------------------------------------------------------------------
-    -- stimulus
-    ----------------------------------------------------------------------------
+    /* --------------------------------------------------------------------------
+       stimulus
+       -------------------------------------------------------------------------- */
     stim_proc : process
         variable rdw, exp_word : std_logic_vector(31 downto 0);
         variable ok            : boolean;
@@ -378,9 +378,9 @@ begin
         end procedure;
 
     begin
-        ------------------------------------------------------------------
-        -- Reset
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           Reset
+           ---------------------------------------------------------------- */
         resetn <= '0';
         pbus   <= PERIPH_BUS_IDLE;
         wait for 12 * PERIOD;
@@ -390,9 +390,9 @@ begin
 
         report "=== TRNG_TB: NRO_G = " & integer'image(NRO_G) & " ===" severity note;
 
-        ------------------------------------------------------------------
-        -- GROUP G0: reset defaults
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           GROUP G0: reset defaults
+           ---------------------------------------------------------------- */
         report "=== GROUP G0: reset defaults ===" severity note;
         bus_read(clk, pbus, rdata_out, TRNG_SLOT_CR, rdw);
         sb.check_slv("G0: CR resets to 0", rdw, x"00000000");
@@ -408,9 +408,9 @@ begin
         sb.check_slv("G0: slot 4 (>=4) reads 0", rdw, x"00000000");
         sb.check_bit("G0: irq_trng = 0 out of reset", to_X01(irq_trng), '0');
 
-        ------------------------------------------------------------------
-        -- GROUP G1: harvest / DRDY
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           GROUP G1: harvest / DRDY
+           ---------------------------------------------------------------- */
         report "=== GROUP G1: harvest / DRDY ===" severity note;
         set_cr('1', '1', '0', "0000", "0000");   -- EN=1, DRDYIE=1, ALMIE=0, ROSEL=0000 (all rings), DECIM=0
         trng_wait_drdy(clk, pbus, rdata_out, ok);
@@ -422,9 +422,9 @@ begin
         read_dr(rdw);
         sb.check_slv("G1: harvested word matches the independent LFSR replay", rdw, exp_word);
 
-        ------------------------------------------------------------------
-        -- GROUP G2: read-consume + blind window
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           GROUP G2: read-consume + blind window
+           ---------------------------------------------------------------- */
         report "=== GROUP G2: read-consume + blind window ===" severity note;
         bus_read(clk, pbus, rdata_out, TRNG_SLOT_SR, rdw);
         sb.check_bit("G2: DRDY=0 immediately after the consuming DR read (blind window closed)",
@@ -439,9 +439,9 @@ begin
         bus_read(clk, pbus, rdata_out, TRNG_SLOT_SR, rdw);
         sb.check_bit("G2: DRDY=0 again after the second consume", to_X01(rdw(TRNG_SR_DRDY)), '0');
 
-        ------------------------------------------------------------------
-        -- GROUP G3: decimation
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           GROUP G3: decimation
+           ---------------------------------------------------------------- */
         report "=== GROUP G3: decimation ===" severity note;
         set_cr('1', '1', '0', "0000", "0001");   -- DECIM=1: one sample every 2 clk
         trng_wait_drdy(clk, pbus, rdata_out, ok);
@@ -457,10 +457,10 @@ begin
         read_dr(rdw);
         sb.check_slv("G3: DECIM=2 word matches the decimated replay", rdw, exp_word);
 
-        ------------------------------------------------------------------
-        -- GROUP G4: ROSEL plumbing, a wiring/forwarding check.
-        -- A NEW sel only takes effect the next time EN drops then rises again, because the entropy stub perturbs its seed at that transition.
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           GROUP G4: ROSEL plumbing, a wiring/forwarding check.
+           A NEW sel only takes effect the next time EN drops then rises again, because the entropy stub perturbs its seed at that transition.
+           ---------------------------------------------------------------- */
         report "=== GROUP G4: ROSEL plumbing ===" severity note;
         set_cr('0', '1', '0', "0000", "0000");   -- EN=0: park, arm a fresh perturbation
         wait for 4 * PERIOD;
@@ -472,9 +472,9 @@ begin
         sb.check_slv("G4: word matches the replay using the SAME new sel (forwarding proven)",
                      rdw, exp_word);
 
-        ------------------------------------------------------------------
-        -- GROUP G5: health alarm / RCT
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           GROUP G5: health alarm / RCT
+           ---------------------------------------------------------------- */
         report "=== GROUP G5: health alarm / RCT ===" severity note;
         -- Clean resetn before each independent sub-phase: only resetn re-arms the RCT run-length counter, so a stale high run_len would instantly re-trip a later, lower cutoff.
         do_reset;
@@ -527,10 +527,10 @@ begin
         g5_force_en <= '0';
         w1c_almf;
 
-        ------------------------------------------------------------------
-        -- GROUP G6: IRQ demux / W1C
-        -- irq_trng = (DRDY & DRDYIE) | (ALMF & ALMIE)
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           GROUP G6: IRQ demux / W1C
+           irq_trng = (DRDY & DRDYIE) | (ALMF & ALMIE)
+           ---------------------------------------------------------------- */
         report "=== GROUP G6: IRQ demux / W1C ===" severity note;
         do_reset;
         write_ht(x"00");                          -- default cutoff (real source, low trip risk)
@@ -570,17 +570,17 @@ begin
         sb.check_bit("G6: irq_trng resumes once unmasked", to_X01(irq_trng), '1');
         read_dr(rdw);
 
-        ------------------------------------------------------------------
-        -- GROUP G7: NRO shape.
-        -- Every group above already ran against the DUT and companion elaborated at NRO_G, and the register map is NRO-invariant, so an all-green run at NRO_G=4 IS the {4,8} shape proof.
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           GROUP G7: NRO shape.
+           Every group above already ran against the DUT and companion elaborated at NRO_G, and the register map is NRO-invariant, so an all-green run at NRO_G=4 IS the {4,8} shape proof.
+           ---------------------------------------------------------------- */
         report "=== GROUP G7: NRO shape (elaborated at NRO_G) ===" severity note;
         sb.check_true("G7: NRO_G is a proven shape (4 or 8)", (NRO_G = 4) or (NRO_G = 8));
 
-        ------------------------------------------------------------------
-        -- GROUP G-EV: event-fabric producer tap. evt_drdy IS the blind-window-corrected DRDY LEVEL, pre-IE, so DRDYIE has zero effect on it, unlike irq_trng which DRDYIE masks.
-        -- A held level needs no start/width pulse monitor, so it is checked at the same bus_read(SR) and read_dr settle points the rest of this bench already uses for SR.DRDY.
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           GROUP G-EV: event-fabric producer tap. evt_drdy IS the blind-window-corrected DRDY LEVEL, pre-IE, so DRDYIE has zero effect on it, unlike irq_trng which DRDYIE masks.
+           A held level needs no start/width pulse monitor, so it is checked at the same bus_read(SR) and read_dr settle points the rest of this bench already uses for SR.DRDY.
+           ---------------------------------------------------------------- */
         report "=== GROUP G-EV: EVFAB producer tap (evt_drdy) ===" severity note;
         -- Fresh resetn first: a clean, deterministic starting state for an independent sub-phase.
         do_reset;
@@ -626,9 +626,9 @@ begin
         sb.check_true("G-EV c1: evt_drdy stays 0 over a bounded 40-clk quiet window "
                      & "(halted, consumed)", quiet_ok);
 
-        ------------------------------------------------------------------
-        -- GROUP G-NEG: negative control, always last: exactly ONE deliberately wrong expected value, a wrong entropy word after a clean, known harvest.
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           GROUP G-NEG: negative control, always last: exactly ONE deliberately wrong expected value, a wrong entropy word after a clean, known harvest.
+           ---------------------------------------------------------------- */
         report "=== GROUP G-NEG: NEGATIVE CONTROL ===" severity note;
         -- Fresh resetn first: asm_cnt/asm_reg clear only on resetn and not on an EN 0-to-1 toggle, so a clean known harvest needs a reset regardless of where the previous group left the assembler.
         -- ROSEL=0001 rather than the 0000 used elsewhere: the clean-reset sel=0000 word has bit31 set, which overflows periph_tb_pkg's img() helper (integer'image of a value >= 2**31), while sel=0001's word has bit31 clear.
@@ -643,9 +643,9 @@ begin
         sb.check_slv("NEGATIVE CONTROL: wrong expected entropy word (must FAIL)",
                      rdw, x"00000000");
 
-        ------------------------------------------------------------------
-        -- Final verdict: sb.errors must be EXACTLY 1 (the negative control).
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           Final verdict: sb.errors must be EXACTLY 1 (the negative control).
+           ---------------------------------------------------------------- */
         wait for 1 us;
         sb.report_summary("TRNG TB");
 

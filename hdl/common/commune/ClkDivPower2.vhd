@@ -1,6 +1,6 @@
--- Power-of-two clock divider.
--- A ripple counter of gated stages provides every division from 1 to 2^(2^nbits - 1), and DivSel picks which stage reaches the output.
--- Both the input and the output run through ClkGate cells so the divider starts and stops without glitching.
+/* Power-of-two clock divider.
+   A ripple counter of gated stages provides every division from 1 to 2^(2^nbits - 1), and DivSel picks which stage reaches the output.
+   Both the input and the output run through ClkGate cells so the divider starts and stops without glitching. */
 library ieee;
 use ieee.std_logic_1164.all;
 library work;

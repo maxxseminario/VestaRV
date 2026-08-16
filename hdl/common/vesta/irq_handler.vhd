@@ -1,8 +1,8 @@
 
--- irq_handler: the vesta core's vectored interrupt controller.
--- It picks the highest-priority enabled request, runs the context save handshake with the core, hands over the IVT entry address, and runs the restore handshake at end of interrupt.
--- Priority is the irq_pri bit first (1 beats 0), then the lower source index.
--- Recursion (preemption of a running ISR by a higher-priority source) is enabled by irq_recursion_en; with it low, one ISR runs to completion before any other is admitted.
+/* irq_handler: the vesta core's vectored interrupt controller.
+   It picks the highest-priority enabled request, runs the context save handshake with the core, hands over the IVT entry address, and runs the restore handshake at end of interrupt.
+   Priority is the irq_pri bit first (1 beats 0), then the lower source index.
+   Recursion (preemption of a running ISR by a higher-priority source) is enabled by irq_recursion_en; with it low, one ISR runs to completion before any other is admitted. */
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;

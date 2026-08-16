@@ -3,11 +3,11 @@ use ieee.std_logic_1164.all;
 use ieee.std_logic_arith.all;
 use ieee.std_logic_unsigned.all;
 
--- OneWire: Dallas/Maxim 1-Wire master, one open-drain DQ pin, one combined IRQ, register base 0x6700.
--- Link-layer primitives off a programmable time base: reset plus presence, write-bit, read-bit, write-byte, read-byte; ROM search and CRC-8 stay in firmware.
--- Standard and overdrive speeds; strong-pullup is a register stub only, so DQ is released high and never driven high.
--- All protocol logic (time base, slot FSM, DQ synchronizer, sticky flags, IRQ combiner) rides the free-running clk; the register file rides the gated ClkMem.
--- Every hand-off between the two is a toggle or a quasi-static level, and EnMemPeriph is an active-low qualifying LEVEL, never a clock or an edge.
+/* OneWire: Dallas/Maxim 1-Wire master, one open-drain DQ pin, one combined IRQ, register base 0x6700.
+   Link-layer primitives off a programmable time base: reset plus presence, write-bit, read-bit, write-byte, read-byte; ROM search and CRC-8 stay in firmware.
+   Standard and overdrive speeds; strong-pullup is a register stub only, so DQ is released high and never driven high.
+   All protocol logic (time base, slot FSM, DQ synchronizer, sticky flags, IRQ combiner) rides the free-running clk; the register file rides the gated ClkMem.
+   Every hand-off between the two is a toggle or a quasi-static level, and EnMemPeriph is an active-low qualifying LEVEL, never a clock or an edge. */
 
 entity OneWire is
     port (
@@ -28,14 +28,14 @@ end OneWire;
 
 architecture behavioral of OneWire is
 
-    -- Word-slot map, slot n at 0x6700 + 4n, decoded off MABPart(7:2):
-    --   0 OW0CR  : [0]OWEN [1]ODS [2]SPUEN (reserved stub) [3]TCIE [4]ERRIE, 31:5 reserved
-    --   1 OW0CMD : [2:0]OP [8]BITVAL; a lane-0 write always captures and launches unless OWEN=0 or BUSY=1
-    --   2 OW0TX  : [7:0] next write byte, the WRBYTE source; a write never launches
-    --   3 OW0RX  : [7:0] last RDBYTE, [0] last RDBIT, side-effect-free read
-    --   4 OW0DIV : [15:0] time-base divisor, one tick every OW0DIV+1 clk cycles
-    --   5 OW0SR  : [0]BUSY ro [1]TCIF W1C [2]PRES ro [3]NOPRES W1C [4]SHORT W1C
-    --   6 OW0SPU : reserved, reads 0 and ignores writes; slots >=7 read 0
+    /* Word-slot map, slot n at 0x6700 + 4n, decoded off MABPart(7:2):
+         0 OW0CR  : [0]OWEN [1]ODS [2]SPUEN (reserved stub) [3]TCIE [4]ERRIE, 31:5 reserved
+         1 OW0CMD : [2:0]OP [8]BITVAL; a lane-0 write always captures and launches unless OWEN=0 or BUSY=1
+         2 OW0TX  : [7:0] next write byte, the WRBYTE source; a write never launches
+         3 OW0RX  : [7:0] last RDBYTE, [0] last RDBIT, side-effect-free read
+         4 OW0DIV : [15:0] time-base divisor, one tick every OW0DIV+1 clk cycles
+         5 OW0SR  : [0]BUSY ro [1]TCIF W1C [2]PRES ro [3]NOPRES W1C [4]SHORT W1C
+         6 OW0SPU : reserved, reads 0 and ignores writes; slots >=7 read 0 */
     constant SLOT_CR  : natural := 0;
     constant SLOT_CMD : natural := 1;
     constant SLOT_TX  : natural := 2;
@@ -51,19 +51,19 @@ architecture behavioral of OneWire is
     constant OP_WRBYTE : std_logic_vector(2 downto 0) := "011";
     constant OP_RDBYTE : std_logic_vector(2 downto 0) := "100";
 
-    -- Slot timing in 0.5 us ticks; nominal OW0DIV=11 at 24 MHz gives 12 clk cycles per tick.
-    --   symbol  STD ticks (us)   OD ticks (us)
-    --   tRSTL   960  (480us)     96  (48us)
-    --   tPRES   140  (70us)      18  (9us)
-    --   tRSTH   960  (480us)     96  (48us)
-    --   tW1L    12   (6us)       2   (1us)
-    --   tW0L    120  (60us)      16  (8us)
-    --   tSLOT   140  (70us)      20  (10us)
-    --   tRL     12   (6us)       2   (1us)
-    --   tMSR    26   (13us)      3   (1.5us)  OD is 3, not 4: 4 ticks would sample exactly at the 2us tRDV edge
-    --   tREC    4    (2us)       4   (2us)
-    -- Reset slot = tRSTL low, release, presence sampled tPRES later, then tRSTH high; write/read slot = drive low, release to tSLOT, then tREC.
-    -- SHORT is checked at end-of-recovery and wins: a bus still low there sets SHORT and suppresses NOPRES, which is unevaluable on a stuck bus.
+    /* Slot timing in 0.5 us ticks; nominal OW0DIV=11 at 24 MHz gives 12 clk cycles per tick.
+         symbol  STD ticks (us)   OD ticks (us)
+         tRSTL   960  (480us)     96  (48us)
+         tPRES   140  (70us)      18  (9us)
+         tRSTH   960  (480us)     96  (48us)
+         tW1L    12   (6us)       2   (1us)
+         tW0L    120  (60us)      16  (8us)
+         tSLOT   140  (70us)      20  (10us)
+         tRL     12   (6us)       2   (1us)
+         tMSR    26   (13us)      3   (1.5us)  OD is 3, not 4: 4 ticks would sample exactly at the 2us tRDV edge
+         tREC    4    (2us)       4   (2us)
+       Reset slot = tRSTL low, release, presence sampled tPRES later, then tRSTH high; write/read slot = drive low, release to tSLOT, then tREC.
+       SHORT is checked at end-of-recovery and wins: a bus still low there sets SHORT and suppresses NOPRES, which is unevaluable on a stuck bus. */
     constant OW_STD_TRSTL : natural := 960;
     constant OW_STD_TPRES : natural := 140;
     constant OW_STD_TRSTH : natural := 960;

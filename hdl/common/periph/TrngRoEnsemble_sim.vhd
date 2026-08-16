@@ -1,13 +1,13 @@
 library ieee;
 use ieee.std_logic_1164.all;
 
--- ===========================================================================
--- TrngRoEnsemble_sim.vhd: behavioral flows only, and NEVER co-listed with TrngRoEnsemble.vhd, which carries the real `rtl` architecture of the same entity.
--- That architecture's combinational ring-oscillator loops delta-loop a behavioral simulator into zero-time oscillation, so behavioral runs bind this deterministic 32-bit Galois LFSR model instead.
--- Genus and gate cell lists must compile TrngRoEnsemble.vhd and must never see this file.
--- The entity is identical to TrngRoEnsemble.vhd's; the peripheral is TRNG0, base 0x6900, vector 121.
--- Compile is -V200X, no VHDL-2008, and the one process infers exactly one edge of one clock.
--- ===========================================================================
+/* ===========================================================================
+   TrngRoEnsemble_sim.vhd: behavioral flows only, and NEVER co-listed with TrngRoEnsemble.vhd, which carries the real `rtl` architecture of the same entity.
+   That architecture's combinational ring-oscillator loops delta-loop a behavioral simulator into zero-time oscillation, so behavioral runs bind this deterministic 32-bit Galois LFSR model instead.
+   Genus and gate cell lists must compile TrngRoEnsemble.vhd and must never see this file.
+   The entity is identical to TrngRoEnsemble.vhd's; the peripheral is TRNG0, base 0x6900, vector 121.
+   Compile is -V200X, no VHDL-2008, and the one process infers exactly one edge of one clock.
+   =========================================================================== */
 
 entity TrngRoEnsemble is
     generic ( NRO : natural := 8 );   -- ring-oscillator count; 4 and 8 are the proven values

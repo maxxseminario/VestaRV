@@ -1,7 +1,7 @@
--- =====================================================================
--- Directed bench for three fabric contracts: mutex_bank claim atomicity,
--- resv_unit foreign-write reservation break, arbiter locked RMW window.
--- =====================================================================
+/* =====================================================================
+   Directed bench for three fabric contracts: mutex_bank claim atomicity,
+   resv_unit foreign-write reservation break, arbiter locked RMW window.
+   ===================================================================== */
 library ieee; use ieee.std_logic_1164.all; use ieee.numeric_std.all;
 
 entity fabric_formal_tb is end entity;
@@ -113,9 +113,9 @@ begin
         rv_sen <= '0'; rv_we <= "0000"; rv_gnt <= "0000"; rv_lrsc <= (others=>'0');
         tick; tick;
 
-        -- ============ mp_arbiter: grant-locked RMW window ============
-        -- Masters 1..3 request throughout via the BFMs below, so the window is genuinely contended; this process drives master 0 only.
-        -- The full handshake is mandatory: a master's req must be observed low before the wait-for-release mask honors it again, the write out of LOCKED included.
+        /* ============ mp_arbiter: grant-locked RMW window ============
+           Masters 1..3 request throughout via the BFMs below, so the window is genuinely contended; this process drives master 0 only.
+           The full handshake is mandatory: a master's req must be observed low before the wait-for-release mask honors it again, the write out of LOCKED included. */
         for k in 0 to 9 loop tick; end loop;
 
         -- master 0's RMW, first half: a READ (we slice "0000") with lock high.

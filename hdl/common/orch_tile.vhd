@@ -1,12 +1,12 @@
--- =============================================================================
--- orch_tile.vhd: the orchestrator hart (hart 0), a thin wrapper around hart_tile.
--- =============================================================================
--- The architecture is one bare `entity work.hart_tile` instance with the same generics and ports and no added logic, so an orch_tile is behaviourally a hart_tile.
--- It exists as a module-namespace device: the channel tiles are placed from one hardened netlist while the orchestrator is soft logic synthesized from the same RTL, and its own top entity prefix-renames every module below it.
--- No module name may be shared between the two netlists: a collision lets the strip step delete the orchestrator subtree out of the flat netlist and gives a gate simulation two definitions of one module.
--- Never add logic here; an orchestrator-only feature belongs in hart_tile behind a generic so both netlists keep one source of truth.
--- The orchestrator is ALWAYS-ON: there is no power intent in the centre band, so pd_sleep, pd_iso_en and tcm_pgen are inert on this instance.
--- =============================================================================
+/* =============================================================================
+   orch_tile.vhd: the orchestrator hart (hart 0), a thin wrapper around hart_tile.
+   =============================================================================
+   The architecture is one bare `entity work.hart_tile` instance with the same generics and ports and no added logic, so an orch_tile is behaviourally a hart_tile.
+   It exists as a module-namespace device: the channel tiles are placed from one hardened netlist while the orchestrator is soft logic synthesized from the same RTL, and its own top entity prefix-renames every module below it.
+   No module name may be shared between the two netlists: a collision lets the strip step delete the orchestrator subtree out of the flat netlist and gives a gate simulation two definitions of one module.
+   Never add logic here; an orchestrator-only feature belongs in hart_tile behind a generic so both netlists keep one source of truth.
+   The orchestrator is ALWAYS-ON: there is no power intent in the centre band, so pd_sleep, pd_iso_en and tcm_pgen are inert on this instance.
+   ============================================================================= */
 
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;

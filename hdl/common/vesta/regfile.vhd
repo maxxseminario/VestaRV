@@ -1,25 +1,25 @@
--- regfile.vhd
--- 32-entry architectural register file: two asynchronous read ports and one synchronous write port.
--- x0 is never written, so it reads 0 for the life of the design.
+/* regfile.vhd
+   32-entry architectural register file: two asynchronous read ports and one synchronous write port.
+   x0 is never written, so it reads 0 for the life of the design. */
 library IEEE;
 use IEEE.STD_LOGIC_1164.all;
 use IEEE.NUMERIC_STD.all;
 use work.constants.all;
 
--- Register | ABI Name | Description
--- ---------+----------+--------------------------------------------------------
--- x0       | zero     | Hardwired to 0 (read-only)
--- x1       | ra       | Return address (for JAL/JALR)
--- x2       | sp       | Stack pointer
--- x3       | gp       | Global pointer (for static data)
--- x4       | tp       | Thread pointer (for TLS)
--- x5-x7    | t0-t2    | Temporary registers
--- x8       | s0/fp    | Saved register or frame pointer
--- x9       | s1       | Saved register
--- x10-x11  | a0-a1    | Function arguments and return values
--- x12-x17  | a2-a7    | Function arguments
--- x18-x27  | s2-s11   | Saved registers
--- x28-x31  | t3-t6    | Temporary registers
+/* Register | ABI Name | Description
+   ---------+----------+--------------------------------------------------------
+   x0       | zero     | Hardwired to 0 (read-only)
+   x1       | ra       | Return address (for JAL/JALR)
+   x2       | sp       | Stack pointer
+   x3       | gp       | Global pointer (for static data)
+   x4       | tp       | Thread pointer (for TLS)
+   x5-x7    | t0-t2    | Temporary registers
+   x8       | s0/fp    | Saved register or frame pointer
+   x9       | s1       | Saved register
+   x10-x11  | a0-a1    | Function arguments and return values
+   x12-x17  | a2-a7    | Function arguments
+   x18-x27  | s2-s11   | Saved registers
+   x28-x31  | t3-t6    | Temporary registers */
 
 entity regfile is
     port (

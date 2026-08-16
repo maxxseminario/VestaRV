@@ -1,6 +1,6 @@
--- loadext.vhd
--- Load-data alignment and extension: picks the addressed byte or halfword out of the 32-bit word and sign- or zero-extends it according to funct3.
--- The byte-select mask is latched on the rising edge because the data phase arrives one cycle after the address.
+/* loadext.vhd
+   Load-data alignment and extension: picks the addressed byte or halfword out of the 32-bit word and sign- or zero-extends it according to funct3.
+   The byte-select mask is latched on the rising edge because the data phase arrives one cycle after the address. */
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;

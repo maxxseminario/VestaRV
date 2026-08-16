@@ -1,8 +1,8 @@
--------------------------------------------------------------------------------
--- SYSTEM_tb.vhd: self-checking testbench for the SYSTEM clock/reset/WDT/CRC controller, built on tb/periph_tb_pkg.vhd (scoreboard, register-bus BFM, crc16_byte).
--- SYSTEM generates its own synchronous reset (resetn_sys) from clk_hfxt_in via mclk, so clk_hfxt_in must run from t=0 and the register bus is only exercised once resetn_sys has deasserted.
--- Coverage: reset defaults, register R/W and pad routing (PGEN_mem, DCO bias/en), reserved IRQ slots, CRC16, watchdog and its interrupt line, clock activity/divider/source mux.
--------------------------------------------------------------------------------
+/* -----------------------------------------------------------------------------
+   SYSTEM_tb.vhd: self-checking testbench for the SYSTEM clock/reset/WDT/CRC controller, built on tb/periph_tb_pkg.vhd (scoreboard, register-bus BFM, crc16_byte).
+   SYSTEM generates its own synchronous reset (resetn_sys) from clk_hfxt_in via mclk, so clk_hfxt_in must run from t=0 and the register bus is only exercised once resetn_sys has deasserted.
+   Coverage: reset defaults, register R/W and pad routing (PGEN_mem, DCO bias/en), reserved IRQ slots, CRC16, watchdog and its interrupt line, clock activity/divider/source mux.
+   ----------------------------------------------------------------------------- */
 
 library ieee;
 use ieee.std_logic_1164.all;

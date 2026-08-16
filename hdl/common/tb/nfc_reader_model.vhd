@@ -1,8 +1,8 @@
--------------------------------------------------------------------------------
--- nfc_reader_model.vhd: behavioral ISO 14443A reader (PCD) model closing the RF link for the NFC card-emulation testbench, sharing no encode or decode logic with the DUT beyond the spec-literal CRC_A and parity helpers in nfc_bfm_pkg, and taking a per-transaction cfg_* shape held stable across one frame.
--- It generates the compressed rf_clk and field_detect, Miller pause-encodes commands on rf_rx (Z is a pause in the first ETU half, X in the second, Y no pause: SOC is Z, logic 1 is X, logic 0 is Y after a 1 else Z, EOC is two idle bit periods), then decodes the response from rf_txmod and rf_tx_en per half-bit window (D is logic 1 and the SOF, E is logic 0, F is no subcarrier and ends the frame) LSB-first with odd parity and a trailing CRC_A, measuring FDT in rf_clk ticks from EOC to rf_tx_en rising.
--- rf_clk is free-running regardless of field_detect, so field loss is observed through the synchronized level with the clock alive; the tag SOF cell starts on the tick rf_tx_en rises and a half-bit counts as modulated at EDGE_THRESH toggles or more.
--------------------------------------------------------------------------------
+/* -----------------------------------------------------------------------------
+   nfc_reader_model.vhd: behavioral ISO 14443A reader (PCD) model closing the RF link for the NFC card-emulation testbench, sharing no encode or decode logic with the DUT beyond the spec-literal CRC_A and parity helpers in nfc_bfm_pkg, and taking a per-transaction cfg_* shape held stable across one frame.
+   It generates the compressed rf_clk and field_detect, Miller pause-encodes commands on rf_rx (Z is a pause in the first ETU half, X in the second, Y no pause: SOC is Z, logic 1 is X, logic 0 is Y after a 1 else Z, EOC is two idle bit periods), then decodes the response from rf_txmod and rf_tx_en per half-bit window (D is logic 1 and the SOF, E is logic 0, F is no subcarrier and ends the frame) LSB-first with odd parity and a trailing CRC_A, measuring FDT in rf_clk ticks from EOC to rf_tx_en rising.
+   rf_clk is free-running regardless of field_detect, so field loss is observed through the synchronized level with the clock alive; the tag SOF cell starts on the tick rf_tx_en rises and a half-bit counts as modulated at EDGE_THRESH toggles or more.
+   ----------------------------------------------------------------------------- */
 
 library ieee;
 use ieee.std_logic_1164.all;

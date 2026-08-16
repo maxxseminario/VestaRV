@@ -1,12 +1,12 @@
--------------------------------------------------------------------------------
--- harvest_supply_model_tb.vhd
--------------------------------------------------------------------------------
--- Self-checking bench for harvest_supply_model (a bq25570-class harvesting PMIC) and its companion supply_supervisor.
--- The pair drives the field-power PGOOD input on package pin 69 / P6.7, which feeds pwr_ctrl.pgood_pad.
--- Compile after periph_tb_pkg.vhd and harvest_supply_model.vhd; run xcelium/cots_test/harvest_supply/run_harvest_supply.sh.
--- Groups: G-INIT discharged board, G-COLD cold start to regulation, G-SIZE supercap sizing, G-BROWN droop and recover, G-UV VBAT_UV load shed, G-RAMP receiver chatter on a slow ramp, G-NEG negative control.
--- The bench never touches pwr_ctrl; with NEGCTRL set, exactly 1 tallied failure is the PASS condition.
--------------------------------------------------------------------------------
+/* -----------------------------------------------------------------------------
+   harvest_supply_model_tb.vhd
+   -----------------------------------------------------------------------------
+   Self-checking bench for harvest_supply_model (a bq25570-class harvesting PMIC) and its companion supply_supervisor.
+   The pair drives the field-power PGOOD input on package pin 69 / P6.7, which feeds pwr_ctrl.pgood_pad.
+   Compile after periph_tb_pkg.vhd and harvest_supply_model.vhd; run xcelium/cots_test/harvest_supply/run_harvest_supply.sh.
+   Groups: G-INIT discharged board, G-COLD cold start to regulation, G-SIZE supercap sizing, G-BROWN droop and recover, G-UV VBAT_UV load shed, G-RAMP receiver chatter on a slow ramp, G-NEG negative control.
+   The bench never touches pwr_ctrl; with NEGCTRL set, exactly 1 tallied failure is the PASS condition.
+   ----------------------------------------------------------------------------- */
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -31,9 +31,9 @@ architecture tb of harvest_supply_model_tb is
         return integer'image(n);
     end function;
 
-    ---------------------------------------------------------------------
-    -- G-COLD / G-BROWN / G-RAMP / G-SIZE stimulus + observation nets
-    ---------------------------------------------------------------------
+    /* -------------------------------------------------------------------
+       G-COLD / G-BROWN / G-RAMP / G-SIZE stimulus + observation nets
+       ------------------------------------------------------------------- */
     -- u_cold : realistic board, 4.7 uF CSTOR, supercap-free, buck at 3.3 V for the I/O rail and a companion switcher at 1.0 V for the core.
     -- The split is forced by the bq25570 buck's 1.3 V floor.
     signal cd_vin, cd_iin, cd_la, cd_lb : natural := 0;
@@ -70,9 +70,9 @@ architecture tb of harvest_supply_model_tb is
 
 begin
 
-    ---------------------------------------------------------------------
-    -- DUT instances
-    ---------------------------------------------------------------------
+    /* -------------------------------------------------------------------
+       DUT instances
+       ------------------------------------------------------------------- */
     u_cold : entity work.harvest_supply_model
         generic map (
             TICK_PERIOD     => 10 us,
@@ -235,9 +235,9 @@ begin
                      VNOISE_MV => RAMP_NOISE, NOISE_SEED => RAMP_SEED)
         port map (vsense_mv => rp_vstor, pgood => pg_c);
 
-    ---------------------------------------------------------------------
-    -- edge counters (armed by the bench so earlier groups cannot pollute)
-    ---------------------------------------------------------------------
+    /* -------------------------------------------------------------------
+       edge counters (armed by the bench so earlier groups cannot pollute)
+       ------------------------------------------------------------------- */
     cnt_a : process (pg_a, ramp_arm)
     begin
         if ramp_arm = '0' then
@@ -275,9 +275,9 @@ begin
         end if;
     end process cnt_br;
 
-    ---------------------------------------------------------------------
-    -- stimulus / checks
-    ---------------------------------------------------------------------
+    /* -------------------------------------------------------------------
+       stimulus / checks
+       ------------------------------------------------------------------- */
     stim : process
         variable t0, t1  : time;
         variable lag_us  : integer;
@@ -379,10 +379,10 @@ begin
         wait for 50 us;
         sb.check_true("G-COLD ilim clears when the demand goes away", cd_ilim = '0');
 
-        ---------------------------------------------------------------
-        -- G-SIZE: 3333 uA on a 1.8 V rail is 6.00 mW of load, 7.50 mW out of storage at eta = 0.8, so 0.750 mJ per 100 ms transaction window.
-        -- Closed form C_min = 2E / (Vhi^2 - Vlo^2); both instances start at 2500 mV, u_size1 at the 1 mF target and u_size2 at the 500 uF analytic minimum, which lands exactly on the 1.8 V floor.
-        ---------------------------------------------------------------
+        /* -------------------------------------------------------------
+           G-SIZE: 3333 uA on a 1.8 V rail is 6.00 mW of load, 7.50 mW out of storage at eta = 0.8, so 0.750 mJ per 100 ms transaction window.
+           Closed form C_min = 2E / (Vhi^2 - Vlo^2); both instances start at 2500 mV, u_size1 at the 1 mF target and u_size2 at the 500 uF analytic minimum, which lands exactly on the 1.8 V floor.
+           ------------------------------------------------------------- */
         report "G-SIZE: supercap sizing";
         sz_la <= 3333;
         wait for 100 ms;
@@ -454,10 +454,10 @@ begin
                       n_br = 2);
         br_la <= 0;
 
-        ---------------------------------------------------------------
-        -- G-UV: the VBAT_UV load shed. VBAT_UV is internally set at 1.95 V typ and is not programmable, so it must be exercised, not merely configured.
-        -- Every check pins the threshold value in one direction or the other: UV asserts at 1950 mV shedding rail A, the storage node then holds under an unchanged 12.3 mW demand, and UV clears 15 mV higher by VBAT_UV_HYST.
-        ---------------------------------------------------------------
+        /* -------------------------------------------------------------
+           G-UV: the VBAT_UV load shed. VBAT_UV is internally set at 1.95 V typ and is not programmable, so it must be exercised, not merely configured.
+           Every check pins the threshold value in one direction or the other: UV asserts at 1950 mV shedding rail A, the storage node then holds under an unchanged 12.3 mW demand, and UV clears 15 mV higher by VBAT_UV_HYST.
+           ------------------------------------------------------------- */
         report "G-UV: VBAT_UV load shed and its 15 mV rising hysteresis";
         br_vin <= 0;
         br_iin <= 0;
@@ -512,10 +512,10 @@ begin
         br_vin <= 0;
         br_iin <= 0;
 
-        ---------------------------------------------------------------
-        -- G-RAMP: one storage node ramping at ~27 mV/ms (10 uF charged at ~270 uA) with 30 mVpp of converter ripple on it.
-        -- Three supervisors share ONE noise realization (same seed, same 20 mV pk-pk) and differ only in the fix under test.
-        ---------------------------------------------------------------
+        /* -------------------------------------------------------------
+           G-RAMP: one storage node ramping at ~27 mV/ms (10 uF charged at ~270 uA) with 30 mVpp of converter ripple on it.
+           Three supervisors share ONE noise realization (same seed, same 20 mV pk-pk) and differ only in the fix under test.
+           ------------------------------------------------------------- */
         report "G-RAMP: slow ramp through the PGOOD threshold";
         ramp_arm <= '1';
         wait for 100 us;
@@ -556,9 +556,9 @@ begin
                           & n2s(s1_vstor), s1_vstor = 9999);
         end if;
 
-        ---------------------------------------------------------------
-        -- verdict
-        ---------------------------------------------------------------
+        /* -------------------------------------------------------------
+           verdict
+           ------------------------------------------------------------- */
         if NEGCTRL then
             exp_err := 1;
         else

@@ -51,7 +51,7 @@ Three regimes follow, and they are the reason the trim is there:
 \begin{itemize}
 \item $R_z = 0$: the zero is in the \emph{right} half plane at
 $g_{m2}/2\pi C_c = \SI{53.8}{\mega\hertz}$. A RHP zero adds gain while subtracting
-phase --- the classic failure mode of an uncompensated two-stage amplifier.
+phase: the classic failure mode of an uncompensated two-stage amplifier.
 \item $R_z = 1/g_{m2} = \SI{2.96}{\kilo\ohm}$: the bracket vanishes and the zero moves
 to infinity. The feedforward path is cancelled exactly.
 \item $R_z > 1/g_{m2}$: the zero is in the \emph{left} half plane and adds phase lead.
@@ -64,7 +64,7 @@ places it exactly on $f_{p2}$ and cancels the second pole.
 
 This is what the 6-bit \texttt{LCBias} ladder adjusts. The setting simulated here leaves
 an $R_z$ above the cancellation value of Equation~(\ref{eq:tia-rz}), so the zero lands
-\emph{below} $f_{p2}$ --- consistent with both observations: the lead arrives before the
+\emph{below} $f_{p2}$, consistent with both observations: the lead arrives before the
 second pole, giving \SI{88}{\degree} rather than the \SI{60}{\degree} of a bare two-pole
 design, and the extra gain pushes the crossover from \SI{5.0}{\mega\hertz} to
 \SI{6.4}{\mega\hertz}. ($R_z$ is inferred from the drawn layout; it is not directly
@@ -91,5 +91,5 @@ fixed current in M5, into $C_L$ and $C_c$ together,
 
 The open-loop transient gives \SI{2.20}{\volt\per\micro\second} and the closed-loop step
 \SI{2.02}{\volt\per\micro\second}: the ceiling binds in both. The falling edge has no
-such limit --- M12 is a driven device, not a current source --- and reaches
+such limit (M12 is a driven device, not a current source) and reaches
 \SI{3.80}{\volt\per\micro\second}.

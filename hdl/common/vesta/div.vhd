@@ -3,9 +3,9 @@ use IEEE.STD_LOGIC_1164.all;
 use IEEE.NUMERIC_STD.all;
 use work.constants.all;
 
--- Restoring division for XLEN-bit signed and unsigned integers.
--- It supports both division and remainder operations, as specified by the RISC-V ISA.
--- One operation takes XLEN clock cycles plus one start cycle plus one done cycle, XLEN+2 in total.
+/* Restoring division for XLEN-bit signed and unsigned integers.
+   It supports both division and remainder operations, as specified by the RISC-V ISA.
+   One operation takes XLEN clock cycles plus one start cycle plus one done cycle, XLEN+2 in total. */
 
 entity div is
     port (

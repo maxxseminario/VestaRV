@@ -1,12 +1,12 @@
--------------------------------------------------------------------------------
--- st25dv_model.vhd
--------------------------------------------------------------------------------
--- Behavioral model of the ST25DV64KC dynamic NFC tag (64-Kbit EEPROM, fast-transfer-mode mailbox, energy harvesting) as seen from its CONTACT side: the MCU is the I2C master, this model is the I2C slave.
--- Registers, factory values and protocol follow the ST25DV04/16/64KC datasheet DS13519; this is a firmware bring-up aid, not a sign-off model.
--- Implemented: the full I2C slave bit protocol, both memory device-select families (A6h/A7h user space, AEh/AFh system space) plus the RFSwitchOff/On pair, 8 KB user EEPROM behind the tW write cycle, the dynamic registers, the 256-byte FTM mailbox, GPO pulse sources, energy harvesting and the present/write password commands.
--- NOT implemented: the RF / ISO-IEC 15693 side (the rf_* ports are a bench abstraction meaning "a reader did that"), user-memory area and RF protection, the FTM watchdog, configuration locking, the CMOS GPO variant, and all analog / AC timing other than tW (SCL is never stretched and never timing-checked, hence no scl_oe port).
--- Bus convention: open drain, sda_out/gpo_out are tied '0' and only the _oe outputs toggle ('1' = this model pulls the line low); the bench resolves each shared wire with a weak 'H' and every sample is to_X01-normalized.
--------------------------------------------------------------------------------
+/* -----------------------------------------------------------------------------
+   st25dv_model.vhd
+   -----------------------------------------------------------------------------
+   Behavioral model of the ST25DV64KC dynamic NFC tag (64-Kbit EEPROM, fast-transfer-mode mailbox, energy harvesting) as seen from its CONTACT side: the MCU is the I2C master, this model is the I2C slave.
+   Registers, factory values and protocol follow the ST25DV04/16/64KC datasheet DS13519; this is a firmware bring-up aid, not a sign-off model.
+   Implemented: the full I2C slave bit protocol, both memory device-select families (A6h/A7h user space, AEh/AFh system space) plus the RFSwitchOff/On pair, 8 KB user EEPROM behind the tW write cycle, the dynamic registers, the 256-byte FTM mailbox, GPO pulse sources, energy harvesting and the present/write password commands.
+   NOT implemented: the RF / ISO-IEC 15693 side (the rf_* ports are a bench abstraction meaning "a reader did that"), user-memory area and RF protection, the FTM watchdog, configuration locking, the CMOS GPO variant, and all analog / AC timing other than tW (SCL is never stretched and never timing-checked, hence no scl_oe port).
+   Bus convention: open drain, sda_out/gpo_out are tied '0' and only the _oe outputs toggle ('1' = this model pulls the line low); the bench resolves each shared wire with a weak 'H' and every sample is to_X01-normalized.
+   ----------------------------------------------------------------------------- */
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -35,17 +35,17 @@ entity st25dv_model is
         gpo_out : out std_logic := '0';   -- tied '0'
         gpo_oe  : out std_logic := '0';   -- '1' = this model pulls GPO low
 
-        -- ---- V_EH energy harvesting ---------------------------------------
-        -- eh_enabled = EH_CTRL_Dyn.EH_EN; veh_active = the pin is actually delivering (EH enabled AND an RF field present), '0' = High-Z.
-        -- The device encodes no harvested level, so veh_avail_ua merely echoes the bench-supplied cfg_veh_ua while delivering: wire it from a board-level supply model, it is not a device register.
+        /* ---- V_EH energy harvesting ---------------------------------------
+           eh_enabled = EH_CTRL_Dyn.EH_EN; veh_active = the pin is actually delivering (EH enabled AND an RF field present), '0' = High-Z.
+           The device encodes no harvested level, so veh_avail_ua merely echoes the bench-supplied cfg_veh_ua while delivering: wire it from a board-level supply model, it is not a device register. */
         eh_enabled   : out std_logic := '0';
         veh_active   : out std_logic := '0';
         veh_avail_ua : out natural   := 0;
         cfg_veh_ua   : in  natural   := 0;
 
-        -- ---- RF-side stimulus: BENCH ABSTRACTION, NOT ISO/IEC 15693 --------
-        -- rf_field is a level (carrier present, driving FIELD_ON, FIELD_CHANGE and EH delivery); the other three are rising-edge events: a reader wrote rf_put_len mailbox bytes (byte i = rf_put_seed + i), a reader emptied the mailbox (clears HOST_PUT_MSG), a reader completed an EEPROM write.
-        -- rf_write_ee raises the RF_WRITE interrupt only: with no RF command set here, user memory is never changed from the RF side.
+        /* ---- RF-side stimulus: BENCH ABSTRACTION, NOT ISO/IEC 15693 --------
+           rf_field is a level (carrier present, driving FIELD_ON, FIELD_CHANGE and EH delivery); the other three are rising-edge events: a reader wrote rf_put_len mailbox bytes (byte i = rf_put_seed + i), a reader emptied the mailbox (clears HOST_PUT_MSG), a reader completed an EEPROM write.
+           rf_write_ee raises the RF_WRITE interrupt only: with no RF command set here, user memory is never changed from the RF side. */
         rf_field    : in std_logic := '0';
         rf_put_msg  : in std_logic := '0';
         rf_put_len  : in natural   := 0;
@@ -94,9 +94,9 @@ begin
     dev : process (scl, sda_in, resetn, vcc_on,
                    rf_field, rf_put_msg, rf_get_msg, rf_write_ee, cfg_veh_ua)
 
-        ------------------------------------------------------------------
-        -- NONVOLATILE state (EEPROM; survives resetn)
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           NONVOLATILE state (EEPROM; survives resetn)
+           ---------------------------------------------------------------- */
         variable umem : byte_mem_t(0 to 8191) := (others => x"00");  -- user EEPROM, factory-initialized to 00h
         variable pwd  : byte_mem_t(0 to 7)    := (others => x"00");  -- factory password is all zeros
 
@@ -116,9 +116,9 @@ begin
             16#20# => IC_REV_VAL,         -- IC_REV (placeholder)
             others => x"00");
 
-        ------------------------------------------------------------------
-        -- VOLATILE state (dynamic registers + mailbox; reset at boot)
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           VOLATILE state (dynamic registers + mailbox; reset at boot)
+           ---------------------------------------------------------------- */
         variable mbox        : byte_mem_t(0 to 255) := (others => x"00");
         variable gpo_dyn_en  : std_logic := '1';   -- GPO_CTRL_Dyn b0, loaded from GPO1 b0
         variable eh_en       : std_logic := '0';   -- EH_MODE=01h ("on demand") boots with EH_EN=0
@@ -129,9 +129,9 @@ begin
         variable mb_len      : std_logic_vector(7 downto 0) := (others => '0');
         variable rf_off_v    : std_logic := '0';
 
-        ------------------------------------------------------------------
-        -- I2C frame state
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           I2C frame state
+           ---------------------------------------------------------------- */
         variable active    : boolean := false;   -- inside START..STOP
         variable edge      : natural := 0;       -- SCL rising edges since START/Sr
         variable shift     : std_logic_vector(7 downto 0) := (others => '0');
@@ -156,9 +156,9 @@ begin
         variable g, bp, kk, k : natural;
         variable ackit, okv   : boolean;
 
-        ------------------------------------------------------------------
-        -- helpers (declared AFTER the variables they read)
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           helpers (declared AFTER the variables they read)
+           ---------------------------------------------------------------- */
 
         -- GPO pulse width = 301 us - IT_TIME * 37.65 us, with IT_TIME = GPO2[4:2].
         impure function gpo_pulse_len return time is
@@ -288,9 +288,9 @@ begin
             wt := 0 ns;
 
             if e2v = '1' and base_addr = A_PWD then
-                ------------------------------------------------------------
-                -- I2C present / write password
-                ------------------------------------------------------------
+                /* ----------------------------------------------------------
+                   I2C present / write password
+                   ---------------------------------------------------------- */
                 if n = 17 then
                     code := wbuf(8);
                     same := true;
@@ -314,9 +314,9 @@ begin
                 end if;
 
             elsif e2v = '1' then
-                ------------------------------------------------------------
-                -- system configuration EEPROM, single byte, session open
-                ------------------------------------------------------------
+                /* ----------------------------------------------------------
+                   system configuration EEPROM, single byte, session open
+                   ---------------------------------------------------------- */
                 sysr(base_addr) := wbuf(0);
                 wt := T_W;
                 -- side effects of the static registers that have a dynamic image
@@ -329,9 +329,9 @@ begin
                 end if;
 
             elsif base_addr <= A_USER_TOP then
-                ------------------------------------------------------------
-                -- user EEPROM
-                ------------------------------------------------------------
+                /* ----------------------------------------------------------
+                   user EEPROM
+                   ---------------------------------------------------------- */
                 for j in 0 to n - 1 loop
                     umem(base_addr + j) := wbuf(j);
                 end loop;
@@ -341,9 +341,9 @@ begin
                 wt   := rows * T_W;
 
             elsif base_addr >= A_DYN_LO and base_addr <= A_DYN_HI then
-                ------------------------------------------------------------
-                -- dynamic registers: immediate, single byte, no tW
-                ------------------------------------------------------------
+                /* ----------------------------------------------------------
+                   dynamic registers: immediate, single byte, no tW
+                   ---------------------------------------------------------- */
                 if base_addr = 16#2000# then
                     gpo_dyn_en := wbuf(0)(0);
                 elsif base_addr = 16#2002# then
@@ -360,9 +360,9 @@ begin
                 end if;
 
             elsif base_addr = A_MB_LO then
-                ------------------------------------------------------------
-                -- FTM mailbox message from I2C: immediate, no tW
-                ------------------------------------------------------------
+                /* ----------------------------------------------------------
+                   FTM mailbox message from I2C: immediate, no tW
+                   ---------------------------------------------------------- */
                 for j in 0 to n - 1 loop
                     mbox(j) := wbuf(j);
                 end loop;
@@ -414,16 +414,16 @@ begin
         end procedure;
 
     begin
-        ------------------------------------------------------------------
-        -- POR / boot
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           POR / boot
+           ---------------------------------------------------------------- */
         if resetn'event and to_X01(resetn) = '1' then
             do_boot;
         end if;
 
-        ------------------------------------------------------------------
-        -- RF-side stimulus: BENCH ABSTRACTION, no ISO/IEC 15693 here
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           RF-side stimulus: BENCH ABSTRACTION, no ISO/IEC 15693 here
+           ---------------------------------------------------------------- */
         if rf_field'event then
             if to_X01(rf_field) = '1' then
                 it_sts(4) := '1';                       -- FIELD_RISING
@@ -465,10 +465,10 @@ begin
             gpo_pulse(sysr(16#00#)(7));                 -- RF_WRITE_EN
         end if;
 
-        ------------------------------------------------------------------
-        -- I2C bus: START / Sr / STOP, then SAMPLE (rising) / DRIVE (falling)
-        -- `edge` counts SCL rising edges since the last START/Sr, so g = edge/9 is the byte group (g=0 is the device select) and bp = edge mod 9 is the bit position (bp=8 is the ACK slot).
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           I2C bus: START / Sr / STOP, then SAMPLE (rising) / DRIVE (falling)
+           `edge` counts SCL rising edges since the last START/Sr, so g = edge/9 is the byte group (g=0 is the device select) and bp = edge mod 9 is the bit position (bp=8 is the ACK slot).
+           ---------------------------------------------------------------- */
         if sda_in'event and to_X01(scl) = '1' then
             if to_X01(sda_in) = '0' then
                 -- START or repeated START: (re)synchronize the frame.
@@ -501,9 +501,9 @@ begin
                 sda_oe <= '0';
             end if;
 
-        ------------------------------------------------------------------
-        -- SCL RISING edge: SAMPLE
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           SCL RISING edge: SAMPLE
+           ---------------------------------------------------------------- */
         elsif active and scl'event and to_X01(scl) = '1' then
             g  := edge / 9;
             bp := edge mod 9;
@@ -538,18 +538,18 @@ begin
 
             edge := edge + 1;
 
-        ------------------------------------------------------------------
-        -- SCL FALLING edge: DRIVE (set up the UPCOMING sample; `edge` has already been incremented by the preceding rising edge)
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           SCL FALLING edge: DRIVE (set up the UPCOMING sample; `edge` has already been incremented by the preceding rising edge)
+           ---------------------------------------------------------------- */
         elsif active and scl'event and to_X01(scl) = '0' then
             g  := edge / 9;
             bp := edge mod 9;
 
             if g = 0 then
                 if bp = 8 then
-                    ----------------------------------------------------------
-                    -- DEVICE SELECT decision: 1010 E2 E1 E0 R/notW, with the code and E0 taken live from I2C_CFG
-                    ----------------------------------------------------------
+                    /* --------------------------------------------------------
+                       DEVICE SELECT decision: 1010 E2 E1 E0 R/notW, with the code and E0 taken live from I2C_CFG
+                       -------------------------------------------------------- */
                     obs_devsel <= shift;
                     is_read    := (shift(0) = '1');
                     e2v        := shift(3);
@@ -586,9 +586,9 @@ begin
                 end if;
 
             elsif dev_ok and (not rfsw) and (not is_read) then
-                ----------------------------------------------------------
-                -- WRITE frame: group 1 = address MSB, group 2 = address LSB, groups 3 and up = data bytes.
-                ----------------------------------------------------------
+                /* --------------------------------------------------------
+                   WRITE frame: group 1 = address MSB, group 2 = address LSB, groups 3 and up = data bytes.
+                   -------------------------------------------------------- */
                 if bp = 8 then
                     kk    := g - 1;
                     ackit := false;
@@ -621,9 +621,9 @@ begin
                 end if;
 
             elsif dev_ok and (not rfsw) and is_read then
-                ----------------------------------------------------------
-                -- READ frame: this model sources the data bytes.
-                ----------------------------------------------------------
+                /* --------------------------------------------------------
+                   READ frame: this model sources the data bytes.
+                   -------------------------------------------------------- */
                 if bp = 0 then
                     if rd_dead then
                         rbyte := x"FF";
@@ -651,9 +651,9 @@ begin
             end if;
         end if;
 
-        ------------------------------------------------------------------
-        -- Publish observations and the V_EH bench abstraction
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           Publish observations and the V_EH bench abstraction
+           ---------------------------------------------------------------- */
         obs_txn_count   <= txn_v;
         obs_wcommit     <= wcommit_v;
         obs_devsel_nack <= dsnack_v;

@@ -1,8 +1,8 @@
--- Bench-support helpers for the EVFAB0 event/trigger fabric testbench (tb/EVFAB_tb.vhd).
--- The slot/CR/SR/CAP/CHnCFG field positions below are LOCAL to this bench and are NOT shared MemoryMap.vhd constants; EVFAB0 lives at 0x6B00 and MemoryMap.vhd carries no EVFAB0 slot constants.
--- Besides bus plumbing and bounded polls, this package holds a TB SHADOW MODEL of the whole matrix (event front-end including GPIO0, crossbar, output register, OVR, stickies), built ONLY from what the TB commands and drives and NEVER from a DUT-internal signal.
--- SHADOW-MODEL TIMING CONTRACT: call evfab_shadow_tick EXACTLY ONCE PER clk PERIOD, right after the rising edge, passing the ev_in/gpio0_evin/task_busy values the TB holds into the DUT for THAT SAME period.
--- It therefore carries one extra lag register per T/L/GPIO bit (`raw_prev`) than the DUT's real 3-flop chain; that lag is an artifact of this call convention, NOT a claim about silicon flop count.
+/* Bench-support helpers for the EVFAB0 event/trigger fabric testbench (tb/EVFAB_tb.vhd).
+   The slot/CR/SR/CAP/CHnCFG field positions below are LOCAL to this bench and are NOT shared MemoryMap.vhd constants; EVFAB0 lives at 0x6B00 and MemoryMap.vhd carries no EVFAB0 slot constants.
+   Besides bus plumbing and bounded polls, this package holds a TB SHADOW MODEL of the whole matrix (event front-end including GPIO0, crossbar, output register, OVR, stickies), built ONLY from what the TB commands and drives and NEVER from a DUT-internal signal.
+   SHADOW-MODEL TIMING CONTRACT: call evfab_shadow_tick EXACTLY ONCE PER clk PERIOD, right after the rising edge, passing the ev_in/gpio0_evin/task_busy values the TB holds into the DUT for THAT SAME period.
+   It therefore carries one extra lag register per T/L/GPIO bit (`raw_prev`) than the DUT's real 3-flop chain; that lag is an artifact of this call convention, NOT a claim about silicon flop count. */
 
 library ieee;
 use ieee.std_logic_1164.all;

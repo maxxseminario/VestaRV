@@ -1,8 +1,8 @@
--- Self-checking bench for the PMP match/priority/permission unit (pmp_unit.vhd).
--- The DUT is PURE COMBINATIONAL: the bench drives the flat cfg/addr bank exactly as csr_unit exports it, waits a delta-settling delay, and asserts the two grant outputs.
--- Three instances share one stimulus bank: dut16 (16 entries), dut8 (8 entries, upper half must be dead) and dutoff (ENABLE_PMP false, both grants stuck '1').
--- Run: xcelium/mp_test/run_pmp_unit.sh
--- Compile is -V200X: VHDL-93 only.
+/* Self-checking bench for the PMP match/priority/permission unit (pmp_unit.vhd).
+   The DUT is PURE COMBINATIONAL: the bench drives the flat cfg/addr bank exactly as csr_unit exports it, waits a delta-settling delay, and asserts the two grant outputs.
+   Three instances share one stimulus bank: dut16 (16 entries), dut8 (8 entries, upper half must be dead) and dutoff (ENABLE_PMP false, both grants stuck '1').
+   Run: xcelium/mp_test/run_pmp_unit.sh
+   Compile is -V200X: VHDL-93 only. */
 
 library IEEE;
 use IEEE.STD_LOGIC_1164.all;

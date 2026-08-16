@@ -1,20 +1,20 @@
--------------------------------------------------------------------------------
--- ptx30w_model.vhd
--------------------------------------------------------------------------------
--- Behavioral model of the Renesas PTX30W NFC wireless-charging (WLC) listener IC: I2C target at 0x4B, dedicated host IRQ, HIP frames carrying the NSC layer and the transparent data channel (TDC).
--- Board context: Castalia is the I2C master on I2C0 (chip pins 37/38) and takes the PTX30W IRQ pin on a GPIO.
--- Power path, charger and rails are an ABSTRACTION: integer engineering units (mV, uA, mW) recomputed every G_PWR_TICK, no electrical simulation, never an accuracy or sign-off claim.
--- The RF link is not modelled; the ports under the BENCH ABSTRACTION headings are bench stimulus (poller side of the TDC, analog environment), not device pins.
--- In standby the first addressed transfer is address-NACKed and arms a 100 ms wake window; the retry inside that window is ACKed.
--------------------------------------------------------------------------------
+/* -----------------------------------------------------------------------------
+   ptx30w_model.vhd
+   -----------------------------------------------------------------------------
+   Behavioral model of the Renesas PTX30W NFC wireless-charging (WLC) listener IC: I2C target at 0x4B, dedicated host IRQ, HIP frames carrying the NSC layer and the transparent data channel (TDC).
+   Board context: Castalia is the I2C master on I2C0 (chip pins 37/38) and takes the PTX30W IRQ pin on a GPIO.
+   Power path, charger and rails are an ABSTRACTION: integer engineering units (mV, uA, mW) recomputed every G_PWR_TICK, no electrical simulation, never an accuracy or sign-off claim.
+   The RF link is not modelled; the ports under the BENCH ABSTRACTION headings are bench stimulus (poller side of the TDC, analog environment), not device pins.
+   In standby the first addressed transfer is address-NACKed and arms a 100 ms wake window; the retry inside that window is ACKed.
+   ----------------------------------------------------------------------------- */
 
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
--------------------------------------------------------------------------------
--- Support package, kept in this file so the model and its bench are the whole deliverable.
--------------------------------------------------------------------------------
+/* -----------------------------------------------------------------------------
+   Support package, kept in this file so the model and its bench are the whole deliverable.
+   ----------------------------------------------------------------------------- */
 package ptx30w_pkg is
 
     type ptx_byte_array is array (natural range <>) of std_logic_vector(7 downto 0);
@@ -204,9 +204,9 @@ package body ptx30w_pkg is
 end package body ptx30w_pkg;
 
 
--------------------------------------------------------------------------------
--- The device
--------------------------------------------------------------------------------
+/* -----------------------------------------------------------------------------
+   The device
+   ----------------------------------------------------------------------------- */
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
@@ -248,11 +248,11 @@ entity ptx30w_model is
         G_SM_HOLD         : time    := 5 sec    -- SM low for >5 s toggles shipping mode
     );
     port (
-        ---------------------------------------------------------------
-        -- REAL DEVICE PINS
-        ---------------------------------------------------------------
-        -- I2C, open drain: scl/sda_in are the RESOLVED nets, so the bench ties the master's and the model's open-drain drivers together with a weak 'H' pull-up.
-        -- '1' on a *_oe means THIS model is pulling that pin low; the model never drives an active high.
+        /* -------------------------------------------------------------
+           REAL DEVICE PINS
+           -------------------------------------------------------------
+           I2C, open drain: scl/sda_in are the RESOLVED nets, so the bench ties the master's and the model's open-drain drivers together with a weak 'H' pull-up.
+           '1' on a *_oe means THIS model is pulling that pin low; the model never drives an active high. */
         scl     : in  std_logic;
         sda_in  : in  std_logic;
         sda_out : out std_logic := '0';
@@ -265,9 +265,9 @@ entity ptx30w_model is
         gpo1_oe : out std_logic := '0';   -- GPO_1, open drain active low
         sm_n    : in  std_logic := '1';   -- SM push button to GND, active low
 
-        ---------------------------------------------------------------
-        -- BENCH ABSTRACTION: the analog environment the bench drives; none of these are device pins.
-        ---------------------------------------------------------------
+        /* -------------------------------------------------------------
+           BENCH ABSTRACTION: the analog environment the bench drives; none of these are device pins.
+           ------------------------------------------------------------- */
         rf_field_present : in boolean := false;  -- poller field on the antenna
         rf_available_mw  : in natural := 0;      -- DC power the rectifier can deliver
         vddc_load_ma     : in natural := 0;      -- host load taken straight off VDDC
@@ -278,11 +278,11 @@ entity ptx30w_model is
         bat_connected    : in boolean := true;   -- a cell is present on VDBAT
         gpo_poller_ctl   : in std_logic := '0';  -- the "controlled by poller" GPO source, GPO_x_CONFIG 0b0101
 
-        ---------------------------------------------------------------
-        -- Reported power/charger state, in engineering units.
-        ---------------------------------------------------------------
-        -- vdmcu_good is a modelled supply-supervisor flag, not a pin: '1' only when the LDO is out of dropout (VDDC at least G_LDO_DROPOUT_MV above target) or the external VDMCU is inside 1.6-3.6 V, the brownout detector is clear, and the load is within the 50 mA limit.
-        -- It drops the instant any of that stops holding, so gate power-on-reset with it and read vdmcu_mv for the actual millivolts.
+        /* -------------------------------------------------------------
+           Reported power/charger state, in engineering units.
+           -------------------------------------------------------------
+           vdmcu_good is a modelled supply-supervisor flag, not a pin: '1' only when the LDO is out of dropout (VDDC at least G_LDO_DROPOUT_MV above target) or the external VDMCU is inside 1.6-3.6 V, the brownout detector is clear, and the load is within the 50 mA limit.
+           It drops the instant any of that stops holding, so gate power-on-reset with it and read vdmcu_mv for the actual millivolts. */
         vdmcu_good   : out std_logic := '0';
         vdmcu_mv     : out natural := 0;
         vddc_mv      : out natural := 0;
@@ -294,10 +294,10 @@ entity ptx30w_model is
         bod_reset    : out std_logic := '0';            -- VDDC brownout asserted
         shipping     : out std_logic := '0';
 
-        ---------------------------------------------------------------
-        -- BENCH ABSTRACTION: the poller side of the transparent data channel, standing in for the NFC link.
-        -- Both *_go ports are RISING-EDGE triggered.
-        ---------------------------------------------------------------
+        /* -------------------------------------------------------------
+           BENCH ABSTRACTION: the poller side of the transparent data channel, standing in for the NFC link.
+           Both *_go ports are RISING-EDGE triggered.
+           ------------------------------------------------------------- */
         tdc_pol_go    : in  std_logic := '0';   -- "poller wrote tdc_pol_len bytes"
         tdc_pol_len   : in  natural   := 0;
         tdc_pol_data  : in  ptx_msg_t := (others => (others => '0'));
@@ -307,9 +307,9 @@ entity ptx30w_model is
         obs_lis_data  : out ptx_buf64_t := (others => (others => '0'));
         obs_lis_msgs  : out natural   := 0;     -- listener-to-poller messages completed
 
-        ---------------------------------------------------------------
-        -- Observability for the bench scoreboard.
-        ---------------------------------------------------------------
+        /* -------------------------------------------------------------
+           Observability for the bench scoreboard.
+           ------------------------------------------------------------- */
         obs_frames     : out natural := 0;      -- HIP command frames ACCEPTED
         obs_last_nak   : out std_logic_vector(7 downto 0) := PTX_NAK_NONE;
         obs_addr_nack  : out natural := 0;      -- address NACKs (standby / dead)
@@ -320,9 +320,9 @@ end entity ptx30w_model;
 
 architecture behavioral of ptx30w_model is
 
-    -----------------------------------------------------------------------
-    -- Configuration written by the host interface (process hip, the single driver of each) and consumed by the power model (process pwr).
-    -----------------------------------------------------------------------
+    /* ---------------------------------------------------------------------
+       Configuration written by the host interface (process hip, the single driver of each) and consumed by the power model (process pwr).
+       --------------------------------------------------------------------- */
     signal s_bc_enable   : std_logic := '1';                 -- BC_ENABLE default 0b1
     signal s_ichg_code   : natural := 16#02#;                -- 6 mA
     signal s_iterm_code  : natural := 16#0E#;                -- 19 mA
@@ -344,9 +344,9 @@ architecture behavioral of ptx30w_model is
     signal s_err_ack     : std_logic := '0';                 -- toggled when ERROR_STATUS is read
     signal s_rst_tog     : std_logic := '0';                 -- toggled by a HIP RST
 
-    -----------------------------------------------------------------------
-    -- State published by the power model (process pwr), read by `hip`.
-    -----------------------------------------------------------------------
+    /* ---------------------------------------------------------------------
+       State published by the power model (process pwr), read by `hip`.
+       --------------------------------------------------------------------- */
     signal s_bc_status : natural := PTX_BC_DISABLED;
     signal s_ntc_stat  : natural := PTX_NTC_NORMAL;
     signal s_err_stat  : natural := PTX_ERR_NONE;
@@ -382,9 +382,9 @@ architecture behavioral of ptx30w_model is
 
 begin
 
-    ---------------------------------------------------------------------------
-    -- Pin drives that are pure functions of state.
-    ---------------------------------------------------------------------------
+    /* -------------------------------------------------------------------------
+       Pin drives that are pure functions of state.
+       ------------------------------------------------------------------------- */
     sda_out <= '0';           -- open drain: only ever pulls low
     scl_out <= '0';
     scl_oe  <= '0';           -- this part does not clock-stretch
@@ -394,9 +394,9 @@ begin
     shipping  <= s_ship;
     bod_reset <= s_bod;
 
-    ---------------------------------------------------------------------------
-    -- GPO_0 / GPO_1, open drain and active low: the pin is PULLED LOW when the selected GPO_x_CONFIG condition is true.
-    ---------------------------------------------------------------------------
+    /* -------------------------------------------------------------------------
+       GPO_0 / GPO_1, open drain and active low: the pin is PULLED LOW when the selected GPO_x_CONFIG condition is true.
+       ------------------------------------------------------------------------- */
     gpo_proc : process (s_gpo0_cfg, s_gpo1_cfg, s_err_stat, s_bc_status,
                         s_wlcp, s_ship, gpo_poller_ctl, rf_field_present)
         function gpo_level(cfg : natural; err : natural; bc : natural;
@@ -427,9 +427,9 @@ begin
     end process gpo_proc;
 
 
-    ---------------------------------------------------------------------------
-    -- POWER / CHARGER MODEL: fixed-tick, integer engineering units, no electrical simulation.
-    ---------------------------------------------------------------------------
+    /* -------------------------------------------------------------------------
+       POWER / CHARGER MODEL: fixed-tick, integer engineering units, no electrical simulation.
+       ------------------------------------------------------------------------- */
     pwr : process
         constant TICK_H : real := real(G_PWR_TICK / 1 ns) / 3.6e12;  -- tick in hours
 
@@ -494,9 +494,9 @@ begin
         loop
             wait for G_PWR_TICK;
 
-            ------------------------------------------------------------------
-            -- HIP system reset: back to the OEM/reset charger state.
-            ------------------------------------------------------------------
+            /* ----------------------------------------------------------------
+               HIP system reset: back to the OEM/reset charger state.
+               ---------------------------------------------------------------- */
             if s_rst_tog /= rst_tog_l then
                 rst_tog_l := s_rst_tog;
                 bc        := PTX_BC_DISABLED;
@@ -505,9 +505,9 @@ begin
                 started   := false;
             end if;
 
-            ------------------------------------------------------------------
-            -- NTC state with set/reset hysteresis; the NTC voltage FALLS as the cell gets hotter (constant 69 uA source into the thermistor).
-            ------------------------------------------------------------------
+            /* ----------------------------------------------------------------
+               NTC state with set/reset hysteresis; the NTC voltage FALLS as the cell gets hotter (constant 69 uA source into the thermistor).
+               ---------------------------------------------------------------- */
             if ntc_mv >= 1785 then ecold := true;  elsif ntc_mv <  1717 then ecold := false; end if;
             if ntc_mv >= 1175 then cold  := true;  elsif ntc_mv <  1115 then cold  := false; end if;
             if ntc_mv <=  377 then hot   := true;  elsif ntc_mv >   437 then hot   := false; end if;
@@ -520,16 +520,16 @@ begin
             else             ntc := PTX_NTC_NORMAL;
             end if;
 
-            ------------------------------------------------------------------
-            -- Chip over-temperature, set 120 C and reset 100 C: the RF interface detunes, so no harvest, while the host supply keeps running.
-            ------------------------------------------------------------------
+            /* ----------------------------------------------------------------
+               Chip over-temperature, set 120 C and reset 100 C: the RF interface detunes, so no harvest, while the host supply keeps running.
+               ---------------------------------------------------------------- */
             if tj_degc >= 120 then overtemp := true;
             elsif tj_degc < 100 then overtemp := false; end if;
 
-            ------------------------------------------------------------------
-            -- Shipping mode: entered by the host parameter or a >5 s SM press, left by the RF field appearing or another >5 s SM press, and it isolates the battery so an unfielded part is dead.
-            -- Entry on VDBAT below VBAT_LOW_TH is deliberately not modelled: it would fire during every low-battery trickle-charge test.
-            ------------------------------------------------------------------
+            /* ----------------------------------------------------------------
+               Shipping mode: entered by the host parameter or a >5 s SM press, left by the RF field appearing or another >5 s SM press, and it isolates the battery so an unfielded part is dead.
+               Entry on VDBAT below VBAT_LOW_TH is deliberately not modelled: it would fire during every low-battery trickle-charge test.
+               ---------------------------------------------------------------- */
             if to_X01(sm_n) = '0' then
                 if sm_ticks < SM_TICKS_REQ then sm_ticks := sm_ticks + 1; end if;
                 if sm_ticks >= SM_TICKS_REQ and sm_armed then
@@ -543,9 +543,9 @@ begin
             if s_ship_req = '1' then ship := '1'; end if;
             if rf_field_present and not overtemp then ship := '0'; end if;
 
-            ------------------------------------------------------------------
-            -- Charger parameter decode.
-            ------------------------------------------------------------------
+            /* ----------------------------------------------------------------
+               Charger parameter decode.
+               ---------------------------------------------------------------- */
             ichg_ua  := ptx_ichg_ua(s_ichg_code);
             iterm_ua := ptx_iterm_ua(s_iterm_code);
             limth    := ptx_limth_mv(s_limth_code);
@@ -564,9 +564,9 @@ begin
                 pct   := 100;
             end if;
 
-            ------------------------------------------------------------------
-            -- ERROR_STATUS, one enumerated value: battery temperature first, then battery absent, then IC temperature.
-            ------------------------------------------------------------------
+            /* ----------------------------------------------------------------
+               ERROR_STATUS, one enumerated value: battery temperature first, then battery absent, then IC temperature.
+               ---------------------------------------------------------------- */
             if s_err_ack /= err_ack_l then
                 err_ack_l := s_err_ack;
                 err := PTX_ERR_NONE;        -- cleared when read
@@ -579,10 +579,10 @@ begin
                 err := PTX_ERR_ICTEMP;
             end if;
 
-            ------------------------------------------------------------------
-            -- Harvest and power selection: the system supply comes first and the battery is charged from the residual, or makes up the shortfall when the field cannot cover the load.
-            -- VDDC target is VDBAT + VDBAT_OFFSET_HIGH clamped between VDDC_TH_LOW and LIM_TH, and the available current is rf_available_mw / VDDC.
-            ------------------------------------------------------------------
+            /* ----------------------------------------------------------------
+               Harvest and power selection: the system supply comes first and the battery is charged from the residual, or makes up the shortfall when the field cannot cover the load.
+               VDDC target is VDBAT + VDBAT_OFFSET_HIGH clamped between VDDC_TH_LOW and LIM_TH, and the available current is rf_available_mw / VDDC.
+               ---------------------------------------------------------------- */
             i_load := (vddc_load_ma + vdmcu_load_ma) * 1000;
 
             if rf_field_present and not overtemp then
@@ -619,9 +619,9 @@ begin
                 end if;
             end if;
 
-            ------------------------------------------------------------------
-            -- Charger phase machine: TCM below VTRICKLE at 10% of ICHG, CCM at ICHG up to VTERM, CVM tapering until ITERM, DONE until vbat falls below VRCHG.
-            ------------------------------------------------------------------
+            /* ----------------------------------------------------------------
+               Charger phase machine: TCM below VTRICKLE at 10% of ICHG, CCM at ICHG up to VTERM, CVM tapering until ITERM, DONE until vbat falls below VRCHG.
+               ---------------------------------------------------------------- */
             if s_bc_enable = '0' or (not rf_field_present) or overtemp
                or ship = '1' or pct = 0 or ecold or ehot
                or ((not bat_connected) and s_batoff_en = '0') then
@@ -680,9 +680,9 @@ begin
             -- The charge current can never exceed the residual the field left over.
             if i_target > i_budget then i_chg := i_budget; else i_chg := i_target; end if;
 
-            ------------------------------------------------------------------
-            -- Battery integration.
-            ------------------------------------------------------------------
+            /* ----------------------------------------------------------------
+               Battery integration.
+               ---------------------------------------------------------------- */
             if bc = PTX_BC_CVM or bc = PTX_BC_DONE then
                 -- CV holds the terminal voltage at VTERM while the current tapers: pin soc there so the linear soc model cannot push vbat past VTERM.
                 if i_out = 0 then
@@ -697,18 +697,18 @@ begin
             if soc > 1.0 then soc := 1.0; end if;
             if bat_connected then vbat := v_of_soc(soc); else vbat := 0; end if;
 
-            ------------------------------------------------------------------
-            -- Brownout detector with hysteresis; while it holds, the I2C target does not answer.
-            ------------------------------------------------------------------
+            /* ----------------------------------------------------------------
+               Brownout detector with hysteresis; while it holds, the I2C target does not answer.
+               ---------------------------------------------------------------- */
             if vddc < G_VDDC_BOD_SET_MV then
                 bod := '1';
             elsif vddc >= G_VDDC_BOD_RST_MV then
                 bod := '0';
             end if;
 
-            ------------------------------------------------------------------
-            -- MCU LDO: VDMCU_MODE 0b01 gives 1.8 V out, 0b10 gives 3.3 V out, 0b11 takes VDMCU as an input; over the 50 mA limit the rail folds back.
-            ------------------------------------------------------------------
+            /* ----------------------------------------------------------------
+               MCU LDO: VDMCU_MODE 0b01 gives 1.8 V out, 0b10 gives 3.3 V out, 0b11 takes VDMCU as an input; over the 50 mA limit the rail folds back.
+               ---------------------------------------------------------------- */
             case s_vdmcu_mode is
                 when "01"   => vdmcu_t := 1800;
                 when "10"   => vdmcu_t := 3300;
@@ -731,9 +731,9 @@ begin
                 good  := '1';
             end if;
 
-            ------------------------------------------------------------------
-            -- WLCP_CONNECTED is derived, not driven: 0 with no field, 1 with a field, 3 once the charger has actually started a phase.
-            ------------------------------------------------------------------
+            /* ----------------------------------------------------------------
+               WLCP_CONNECTED is derived, not driven: 0 with no field, 1 with a field, 3 once the charger has actually started a phase.
+               ---------------------------------------------------------------- */
             if not rf_field_present then
                 wlcp    := 0;
                 started := false;
@@ -743,9 +743,9 @@ begin
                 wlcp := 1;
             end if;
 
-            ------------------------------------------------------------------
-            -- Publish.
-            ------------------------------------------------------------------
+            /* ----------------------------------------------------------------
+               Publish.
+               ---------------------------------------------------------------- */
             s_vbat_mv   <= vbat;
             s_vddc_mv   <= vddc;
             s_bc_status <= bc;
@@ -767,11 +767,11 @@ begin
     end process pwr;
 
 
-    ---------------------------------------------------------------------------
-    -- I2C TARGET + HOST INTERFACE PROTOCOL + NSC LAYER + TDC; no timing minima are imposed, so the bench picks the bit rate.
-    -- Bit engine: `edge` counts SCL rising edges since the last START, so group g = edge/9 and bit-in-group bp = edge mod 9 (group 0 is address+RnW+ACK, group N>=1 is data byte N-1 plus its ACK).
-    -- Sample on the rising edge, set this model's own drive up on the falling edge.
-    ---------------------------------------------------------------------------
+    /* -------------------------------------------------------------------------
+       I2C TARGET + HOST INTERFACE PROTOCOL + NSC LAYER + TDC; no timing minima are imposed, so the bench picks the bit rate.
+       Bit engine: `edge` counts SCL rising edges since the last START, so group g = edge/9 and bit-in-group bp = edge mod 9 (group 0 is address+RnW+ACK, group N>=1 is data byte N-1 plus its ACK).
+       Sample on the rising edge, set this model's own drive up on the falling edge.
+       ------------------------------------------------------------------------- */
     hip : process (scl, sda_in, tdc_pol_go, tdc_lis_rd_go)
 
         ---- I2C bit/frame state -----------------------------------------
@@ -826,10 +826,10 @@ begin
         -- 0-based copy of a WMSG data payload: an unconstrained formal takes the ACTUAL's index range, so a raw rx_buf slice would arrive indexed from p0+1 and every d(0) below would be out of range.
         variable nsc_tmp  : ptx_msg_t := (others => (others => '0'));
 
-        -----------------------------------------------------------------
-        -- Output-message helpers
-        -----------------------------------------------------------------
-        -- Drop whatever was being built in the output message.
+        /* ---------------------------------------------------------------
+           Output-message helpers
+           ---------------------------------------------------------------
+           Drop whatever was being built in the output message. */
         procedure out_clear is
         begin
             out_len := 0;
@@ -881,10 +881,10 @@ begin
             end if;
         end procedure;
 
-        -----------------------------------------------------------------
-        -- HIP response builders
-        -----------------------------------------------------------------
-        -- Open a response frame: FCB goes at byte 2, the payload builds from byte 3, LEN is filled in by resp_end.
+        /* ---------------------------------------------------------------
+           HIP response builders
+           ---------------------------------------------------------------
+           Open a response frame: FCB goes at byte 2, the payload builds from byte 3, LEN is filled in by resp_end. */
         procedure resp_begin(op : natural; ack : boolean) is
             variable fcb : std_logic_vector(7 downto 0);
         begin
@@ -924,9 +924,9 @@ begin
             tx_len := tx_ptr;
         end procedure;
 
-        -----------------------------------------------------------------
-        -- NSC layer: `d` is the WMSG data payload and `dn` its length.
-        -----------------------------------------------------------------
+        /* ---------------------------------------------------------------
+           NSC layer: `d` is the WMSG data payload and `dn` its length.
+           --------------------------------------------------------------- */
         procedure nsc_handle(d : ptx_byte_array; dn : natural) is
             variable op   : std_logic_vector(7 downto 0);
             variable ec   : std_logic_vector(7 downto 0);
@@ -939,9 +939,9 @@ begin
             op := d(0);
 
             if op(7 downto 6) = "10" then
-                ------------------------------------------------------------
-                -- NSC_DATA_MSG from the host: copied into TDC_BUF_LIS with bit 7 of H1 set, which marks the buffer full until the poller reads it.
-                ------------------------------------------------------------
+                /* ----------------------------------------------------------
+                   NSC_DATA_MSG from the host: copied into TDC_BUF_LIS with bit 7 of H1 set, which marks the buffer full until the poller reads it.
+                   ---------------------------------------------------------- */
                 dlen := to_integer(unsigned(op(5 downto 0)));
                 if dlen = 0 then
                     return;                              -- NSC_DATA_ACK; nothing to do
@@ -957,9 +957,9 @@ begin
                 return;                                  -- the ACK comes after the poller read
 
             elsif op = PTX_NSC_CONFIG then
-                ------------------------------------------------------------
-                -- NSC_CONFIG_CMD: one-shot OEM block, a replay is answered invalid-command.
-                ------------------------------------------------------------
+                /* ----------------------------------------------------------
+                   NSC_CONFIG_CMD: one-shot OEM block, a replay is answered invalid-command.
+                   ---------------------------------------------------------- */
                 if oem_done then
                     ec := PTX_EC_CMD;                    -- already executed once
                 else
@@ -990,9 +990,9 @@ begin
                 out_commit;
 
             elsif op = PTX_NSC_SET_PARAM then
-                ------------------------------------------------------------
-                -- NSC_SET_PARAM_CMD: (ID,value) pairs terminated by the EoC byte 0.
-                ------------------------------------------------------------
+                /* ----------------------------------------------------------
+                   NSC_SET_PARAM_CMD: (ID,value) pairs terminated by the EoC byte 0.
+                   ---------------------------------------------------------- */
                 ec  := PTX_EC_NONE;
                 idx := 1;
                 while idx < dn loop
@@ -1029,9 +1029,9 @@ begin
                 out_commit;
 
             elsif op = PTX_NSC_GET_PARAM then
-                ------------------------------------------------------------
-                -- NSC_GET_PARAM_CMD: opcode, EC, then the eight RD parameters in order, so the message length reads 10 bytes.
-                ------------------------------------------------------------
+                /* ----------------------------------------------------------
+                   NSC_GET_PARAM_CMD: opcode, EC, then the eight RD parameters in order, so the message length reads 10 bytes.
+                   ---------------------------------------------------------- */
                 out_clear;
                 out_put(PTX_NSC_GET_PARAM);
                 out_put(PTX_EC_NONE);
@@ -1047,9 +1047,9 @@ begin
                 s_err_ack <= not s_err_ack;   -- ERROR_STATUS is cleared when read
 
             else
-                ------------------------------------------------------------
-                -- Unknown NSC opcode: answered {opcode, invalid command}.
-                ------------------------------------------------------------
+                /* ----------------------------------------------------------
+                   Unknown NSC opcode: answered {opcode, invalid command}.
+                   ---------------------------------------------------------- */
                 out_clear;
                 out_put(op);
                 out_put(PTX_EC_CMD);
@@ -1057,10 +1057,10 @@ begin
             end if;
         end procedure;
 
-        -----------------------------------------------------------------
-        -- HIP frame parse and dispatch: LEN(2, MSB first) then FCB, payload, optional CRC and padding, with the I2C START standing in for the SOF byte.
-        -- LEN counts FCB + payload + CRC only and must be 1 to 4095; FCB is [7:4] opcode, [2] RAK, [1] CRC, and the response mirrors both the opcode and the CRC bit.
-        -----------------------------------------------------------------
+        /* ---------------------------------------------------------------
+           HIP frame parse and dispatch: LEN(2, MSB first) then FCB, payload, optional CRC and padding, with the I2C START standing in for the SOF byte.
+           LEN counts FCB + payload + CRC only and must be 1 to 4095; FCB is [7:4] opcode, [2] RAK, [1] CRC, and the response mirrors both the opcode and the CRC bit.
+           --------------------------------------------------------------- */
         procedure process_frame is
             variable lenf, opcode, np : natural;
             variable fcb  : std_logic_vector(7 downto 0);
@@ -1284,9 +1284,9 @@ begin
         end function;
 
     begin
-        ------------------------------------------------------------------
-        -- BENCH ABSTRACTION: the poller wrote TDC_BUF_POL.
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           BENCH ABSTRACTION: the poller wrote TDC_BUF_POL.
+           ---------------------------------------------------------------- */
         if tdc_pol_go'event and to_X01(tdc_pol_go) = '1' and pol_go_l = '0' then
             pol_go_l := '1';
             pol_msg  := tdc_pol_data;
@@ -1298,10 +1298,10 @@ begin
         elsif tdc_pol_go'event and to_X01(tdc_pol_go) = '0' then
             pol_go_l := '0';
 
-        ------------------------------------------------------------------
-        -- BENCH ABSTRACTION: the poller read TDC_BUF_LIS.
-        -- Clear TDC_BUF_LIS[0][7], then send the host the NSC_DATA_ACK that licences its next chunk.
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           BENCH ABSTRACTION: the poller read TDC_BUF_LIS.
+           Clear TDC_BUF_LIS[0][7], then send the host the NSC_DATA_ACK that licences its next chunk.
+           ---------------------------------------------------------------- */
         elsif tdc_lis_rd_go'event and to_X01(tdc_lis_rd_go) = '1' and lis_rd_l = '0' then
             lis_rd_l := '1';
             if lis_valid then
@@ -1320,9 +1320,9 @@ begin
         elsif tdc_lis_rd_go'event and to_X01(tdc_lis_rd_go) = '0' then
             lis_rd_l := '0';
 
-        ------------------------------------------------------------------
-        -- START / repeated START / STOP: SDA moves while SCL is high.
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           START / repeated START / STOP: SDA moves while SCL is high.
+           ---------------------------------------------------------------- */
         elsif sda_in'event and to_X01(scl) = '1' then
             if to_X01(sda_in) = '0' then
                 -- START or repeated START: close whatever phase was running.
@@ -1346,9 +1346,9 @@ begin
                 sda_oe <= '0';
             end if;
 
-        ------------------------------------------------------------------
-        -- SCL RISING EDGE: sample.
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           SCL RISING EDGE: sample.
+           ---------------------------------------------------------------- */
         elsif active and scl'event and to_X01(scl) = '1' then
             g  := edge / 9;
             bp := edge mod 9;
@@ -1373,9 +1373,9 @@ begin
             end if;
             edge := edge + 1;
 
-        ------------------------------------------------------------------
-        -- SCL FALLING EDGE: set up this model's drive for the NEXT sample, since edge has already been incremented past that sample's index.
-        ------------------------------------------------------------------
+        /* ----------------------------------------------------------------
+           SCL FALLING EDGE: set up this model's drive for the NEXT sample, since edge has already been incremented past that sample's index.
+           ---------------------------------------------------------------- */
         elsif active and scl'event and to_X01(scl) = '0' then
             g  := edge / 9;
             bp := edge mod 9;

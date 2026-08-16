@@ -76,9 +76,9 @@ begin
 --         end if;
 --     end process;
 
--- For Behav and Innovus
-   -- Pass condition: the program writes 260 to address 100 at the end of the run.
-   -- Address 96 is the expected intermediate store and is ignored; any other write fails the run.
+/* For Behav and Innovus
+   Pass condition: the program writes 260 to address 100 at the end of the run.
+   Address 96 is the expected intermediate store and is ignored; any other write fails the run. */
     process(clk) begin
         if(clk'event and clk = '1' and MemWrite = '1' and check_flag = true) then
             if( to_integer(DataAdr) = 100 and to_integer(Writedata) = 260) then

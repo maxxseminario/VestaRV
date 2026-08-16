@@ -1,8 +1,8 @@
--- Unit proof for the power controller: the per-tile MTCMOS sequencers plus the PGOOD/field boot gate and strap self-arm.
--- It drives the arbiter slave port directly: en is a one-cycle strobe, we is the active-high lane vector, addr is a word offset, and the registered read is valid the cycle after the strobe.
--- It also drives the three async pad inputs (pgood_pad, strap_pad, field_detect), which are 2-FF synchronized inside the DUT.
--- Self-checking: every check reports and keeps going, and the bench ends with ALL TESTS PASSED or TB FAILED.
--- Runs standalone against pwr_ctrl.vhd through xcelium/mp_test/run_pwr_ctrl.sh, with small delay generics (T_SEQ=2, T_RAIL=8, STRAP_SETTLE=8) to keep the sim short.
+/* Unit proof for the power controller: the per-tile MTCMOS sequencers plus the PGOOD/field boot gate and strap self-arm.
+   It drives the arbiter slave port directly: en is a one-cycle strobe, we is the active-high lane vector, addr is a word offset, and the registered read is valid the cycle after the strobe.
+   It also drives the three async pad inputs (pgood_pad, strap_pad, field_detect), which are 2-FF synchronized inside the DUT.
+   Self-checking: every check reports and keeps going, and the bench ends with ALL TESTS PASSED or TB FAILED.
+   Runs standalone against pwr_ctrl.vhd through xcelium/mp_test/run_pwr_ctrl.sh, with small delay generics (T_SEQ=2, T_RAIL=8, STRAP_SETTLE=8) to keep the sim short. */
 
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;

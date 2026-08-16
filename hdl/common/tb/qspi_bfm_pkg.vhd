@@ -1,10 +1,10 @@
--------------------------------------------------------------------------------
--- qspi_bfm_pkg.vhd
--------------------------------------------------------------------------------
--- Bench-support helpers for the QSPI peripheral testbench (tb/QSPI_tb.vhd) and its flash-responder model (tb/qspi_flash_model.vhd).
--- The slot numbers and field-packing helpers are LOCAL to this bench, not shared MemoryMap.vhd constants; QSPI_tb.vhd's header carries the full field layout.
--- qspi_read_pattern is the ONE shared formula for the flash model's deterministic READ data, called both to drive it and to expect it, so a bug in the formula itself cannot be caught by these checks.
--------------------------------------------------------------------------------
+/* -----------------------------------------------------------------------------
+   qspi_bfm_pkg.vhd
+   -----------------------------------------------------------------------------
+   Bench-support helpers for the QSPI peripheral testbench (tb/QSPI_tb.vhd) and its flash-responder model (tb/qspi_flash_model.vhd).
+   The slot numbers and field-packing helpers are LOCAL to this bench, not shared MemoryMap.vhd constants; QSPI_tb.vhd's header carries the full field layout.
+   qspi_read_pattern is the ONE shared formula for the flash model's deterministic READ data, called both to drive it and to expect it, so a bug in the formula itself cannot be caught by these checks.
+   ----------------------------------------------------------------------------- */
 
 library ieee;
 use ieee.std_logic_1164.all;

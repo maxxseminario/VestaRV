@@ -1,13 +1,13 @@
 library ieee;
 use ieee.std_logic_1164.all;
 
--- ===========================================================================
--- TrngRoEnsemble.vhd: the ring-oscillator entropy source of TRNG0 (base 0x6900, vector 121), for GENUS AND GATE FLOWS ONLY.
--- Its DELIBERATE combinational ring feedback DELTA-LOOPS a behavioral simulator (zero-time oscillation), so never put this file in a behavioral cell list and never co-list it with TrngRoEnsemble_sim.vhd, which carries the OTHER architecture of this same entity.
--- The behavioral flow compiles TrngRoEnsemble_sim.vhd and only ANALYZES this file (-V200X, no VHDL-2008) as a syntax smoke; if it is ever elaborated and run the sim spins at 100% CPU with frozen sim time and needs an immediate `pkill -9 xmsim`.
--- Each ring is built structurally from the trng_inv/trng_nand wrappers so foundry std-cell names stay out of this repo; dont_touch/preserve, set_disable_timing on each loop-closing arc, set_false_path into the TRNG core's 2-FF synchronizer and the absence of create_clock on any RO net all live in the TRNG genus tcl.
--- GATE BAR: a post-synthesis netlist census must count exactly sum_i(RING_STAGES(i)-1) preserved trng_inv instances plus NRO preserved trng_nand instances, which is what catches a silent ring collapse.
--- ===========================================================================
+/* ===========================================================================
+   TrngRoEnsemble.vhd: the ring-oscillator entropy source of TRNG0 (base 0x6900, vector 121), for GENUS AND GATE FLOWS ONLY.
+   Its DELIBERATE combinational ring feedback DELTA-LOOPS a behavioral simulator (zero-time oscillation), so never put this file in a behavioral cell list and never co-list it with TrngRoEnsemble_sim.vhd, which carries the OTHER architecture of this same entity.
+   The behavioral flow compiles TrngRoEnsemble_sim.vhd and only ANALYZES this file (-V200X, no VHDL-2008) as a syntax smoke; if it is ever elaborated and run the sim spins at 100% CPU with frozen sim time and needs an immediate `pkill -9 xmsim`.
+   Each ring is built structurally from the trng_inv/trng_nand wrappers so foundry std-cell names stay out of this repo; dont_touch/preserve, set_disable_timing on each loop-closing arc, set_false_path into the TRNG core's 2-FF synchronizer and the absence of create_clock on any RO net all live in the TRNG genus tcl.
+   GATE BAR: a post-synthesis netlist census must count exactly sum_i(RING_STAGES(i)-1) preserved trng_inv instances plus NRO preserved trng_nand instances, which is what catches a silent ring collapse.
+   =========================================================================== */
 
 entity TrngRoEnsemble is
     generic ( NRO : natural := 8 );   -- ring-oscillator count; only 4 and 8 are supported
@@ -19,10 +19,10 @@ entity TrngRoEnsemble is
     );
 end entity TrngRoEnsemble;
 
--- ---------------------------------------------------------------------------
--- Wrapper gates, each carrying exactly ONE real gate's worth of logic so Genus maps each body to one library cell.
--- The dont_touch/preserve attributes applied to the wrapper instances in the genus tcl keep that mapping from being optimized away.
--- ---------------------------------------------------------------------------
+/* ---------------------------------------------------------------------------
+   Wrapper gates, each carrying exactly ONE real gate's worth of logic so Genus maps each body to one library cell.
+   The dont_touch/preserve attributes applied to the wrapper instances in the genus tcl keep that mapping from being optimized away.
+   --------------------------------------------------------------------------- */
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -63,9 +63,9 @@ begin
     y <= a nand b;
 end architecture rtl;
 
--- ---------------------------------------------------------------------------
--- architecture rtl of TrngRoEnsemble: the REAL ring ensemble.
--- ---------------------------------------------------------------------------
+/* ---------------------------------------------------------------------------
+   architecture rtl of TrngRoEnsemble: the REAL ring ensemble.
+   --------------------------------------------------------------------------- */
 
 library ieee;
 use ieee.std_logic_1164.all;

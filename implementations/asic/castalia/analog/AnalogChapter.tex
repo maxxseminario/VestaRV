@@ -28,8 +28,8 @@ registers through which software reaches them are documented with the peripheral
 in Section~\ref{s:regMemMap}.
 
 Unless stated otherwise, every figure and table in this chapter is taken from
-schematic-level simulation of the block's own testbench --- pre-layout, with no
-extracted parasitics --- and is therefore a design-intent characterisation rather
+schematic-level simulation of the block's own testbench (pre-layout, with no
+extracted parasitics), and is therefore a design-intent characterisation rather
 than silicon data. Each block section names the testbench it came from and the
 process, temperature and supply points that were simulated, so the coverage behind
 each number is explicit. Numbers are regenerated directly from the simulator's
@@ -50,7 +50,7 @@ data converters will be added to this chapter as their benches are closed.
 \toprule
 Block & Section & Benches & Corners & Monte Carlo \\
 \midrule
-Bias generator        & \ref{ss:biasgen-local} & 2 & \checkmark & --- \\
+Bias generator        & \ref{ss:biasgen-local} & 2 & \checkmark & -- \\
 Control amplifier     & \ref{ss:controlamp}    & 4 & \checkmark & \checkmark \\
 Transimpedance stage  & \ref{ss:tiaamp}        & 5 & \checkmark & \checkmark \\
 \bottomrule

@@ -11,13 +11,13 @@ use std.env.all;
 library work;
 use work.periph_tb_pkg.all;
 
--------------------------------------------------------------------------------
--- NPU_actf_tb.vhd: ACTF activation-mux bench (NPUCR.MODE=0/MLP, ACTF = NPUCR(25:23)) at the chip generics (X_M=0, W_M=7, Y_M=7, N=24, RHO=2).
--- MLP mode with NI=0 and BEN=0 makes each neuron a single MAC tap acc = X_HALF * w_neuron, so the golden generator can stage any exact Q7.24 accumulator by picking w_neuron = 2*target.
--- Cases are driven from golden files npu_actf_<case>_{cfg,in,w,exp}.txt, symlinked into the run directory.
--- cfg header order is fixed: NI NN BEN AEN ACTF IVSAR WVSAR OVSAR; in.txt is NI+1 Q0.24 words, w.txt is (NN+1)*(NI+1+BEN) Q7.24 words, exp.txt is NN+1 post-activation words (raw accumulator when AEN=0).
--- NEGCTRL=0 runs clean and banners ALL-PASS on 0 errors; NEGCTRL=1 corrupts one expected value in the final case and banners on exactly 1.
--------------------------------------------------------------------------------
+/* -----------------------------------------------------------------------------
+   NPU_actf_tb.vhd: ACTF activation-mux bench (NPUCR.MODE=0/MLP, ACTF = NPUCR(25:23)) at the chip generics (X_M=0, W_M=7, Y_M=7, N=24, RHO=2).
+   MLP mode with NI=0 and BEN=0 makes each neuron a single MAC tap acc = X_HALF * w_neuron, so the golden generator can stage any exact Q7.24 accumulator by picking w_neuron = 2*target.
+   Cases are driven from golden files npu_actf_<case>_{cfg,in,w,exp}.txt, symlinked into the run directory.
+   cfg header order is fixed: NI NN BEN AEN ACTF IVSAR WVSAR OVSAR; in.txt is NI+1 Q0.24 words, w.txt is (NN+1)*(NI+1+BEN) Q7.24 words, exp.txt is NN+1 post-activation words (raw accumulator when AEN=0).
+   NEGCTRL=0 runs clean and banners ALL-PASS on 0 errors; NEGCTRL=1 corrupts one expected value in the final case and banners on exactly 1.
+   ----------------------------------------------------------------------------- */
 entity NPU_actf_tb is
 	generic (
 		NEGCTRL : integer := 0
@@ -227,9 +227,9 @@ begin
 			MabMmrCEN <= MEM_DEASSERT;
 		end procedure;
 
-		----- SRAM primitives: backdoor MCU-side access -----
-		-- MabSramCLK is a GATED clock that only toggles once CEN is asserted, so a burst opens the gate first, clocks every word, and closes it at the end.
-		-- sram_burst_start: open the gate and land on the first gated clock edge.
+		/* --- SRAM primitives: backdoor MCU-side access -----
+		   MabSramCLK is a GATED clock that only toggles once CEN is asserted, so a burst opens the gate first, clocks every word, and closes it at the end.
+		   sram_burst_start: open the gate and land on the first gated clock edge. */
 		procedure sram_burst_start is
 		begin
 			wait until falling_edge(Clk);
@@ -423,16 +423,16 @@ begin
 		wait for 1 us;
 		report "[NPU_ACTF_TB] Reset complete." severity note;
 
-		----------------------------------------------------------------
-		-- sigregress runs first after reset with no CFG pokes ahead of it, so its definedness check proves actf_run and the act_out/relu/tanh/clamp/exp nets cannot drive X on the SRAM interface out of cold reset.
-		-- It is also the ACTF=0 mux-collapse compatibility anchor; keep it first.
-		----------------------------------------------------------------
+		/* --------------------------------------------------------------
+		   sigregress runs first after reset with no CFG pokes ahead of it, so its definedness check proves actf_run and the act_out/relu/tanh/clamp/exp nets cannot drive X on the SRAM interface out of cold reset.
+		   It is also the ACTF=0 mux-collapse compatibility anchor; keep it first.
+		   -------------------------------------------------------------- */
 		run_actf_case("sigregress", check_no_x => true);
 
-		----------------------------------------------------------------
-		-- NPUCR ACTF-field readback smoke: a raw poke with THINK=0 confirms bits 25:23 store and read back exactly.
-		-- Harmless to any case's correctness, since think_start fully overwrites NPUCR every time.
-		----------------------------------------------------------------
+		/* --------------------------------------------------------------
+		   NPUCR ACTF-field readback smoke: a raw poke with THINK=0 confirms bits 25:23 store and read back exactly.
+		   Harmless to any case's correctness, since think_start fully overwrites NPUCR every time.
+		   -------------------------------------------------------------- */
 		report "[NPU_ACTF_TB] === NPUCR ACTF-field readback ===" severity note;
 		mmr_write(MmrAddrNPUCR,
 		          std_logic_vector(to_unsigned(0, 6)) &   -- 31:26 unused
@@ -445,9 +445,9 @@ begin
 		sb.check_slv("NPUCR ACTF field readback (bits 25:23, THINK=0 no launch)",
 		             rd(25 downto 23), "110");
 
-		----------------------------------------------------------------
-		-- Remaining groups: ordinary file-driven cases.
-		----------------------------------------------------------------
+		/* --------------------------------------------------------------
+		   Remaining groups: ordinary file-driven cases.
+		   -------------------------------------------------------------- */
 		run_actf_case("relu");
 		run_actf_case("tanh");
 		run_actf_case("clamp");
@@ -464,9 +464,9 @@ begin
 		run_actf_case("aen0", force_actf => 3);
 		run_actf_case("aen0", force_actf => 4);
 
-		----------------------------------------------------------------
-		-- Negative control, and it must stay the last action in this process: a rerun of "tanh" whose mid-position expected output is corrupted once when NEGCTRL=1.
-		----------------------------------------------------------------
+		/* --------------------------------------------------------------
+		   Negative control, and it must stay the last action in this process: a rerun of "tanh" whose mid-position expected output is corrupted once when NEGCTRL=1.
+		   -------------------------------------------------------------- */
 		run_actf_case("tanh", corrupt_mid => (NEGCTRL = 1));
 
 		----- Final verdict: banner polarity depends on NEGCTRL -----

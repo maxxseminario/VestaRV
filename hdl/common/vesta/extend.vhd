@@ -1,6 +1,6 @@
--- extend.vhd
--- Immediate extractor: gathers the scattered immediate fields of each instruction format and sign-extends them to XLEN.
--- imm_src comes from the main decoder and names the format.
+/* extend.vhd
+   Immediate extractor: gathers the scattered immediate fields of each instruction format and sign-extends them to XLEN.
+   imm_src comes from the main decoder and names the format. */
 library IEEE;
 use IEEE.STD_LOGIC_1164.all;
 use work.constants.all;

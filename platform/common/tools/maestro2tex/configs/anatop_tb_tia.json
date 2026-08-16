@@ -5,7 +5,7 @@
   "supply_var": "VDD25",
   "emit_master": true,
   "emit_corner_table": true,
-  "corner_table_caption": "Process, temperature and supply points simulated for the transimpedance stage. The typical point is the Monte Carlo process section at zero statistical offset and the \\SI{37}{\\celsius} on-body temperature; the four skew corners are the foundry corners at \\SI{25}{\\celsius}. This run is corners only --- no Monte Carlo, so no mismatch or yield figures appear in this section.",
+  "corner_table_caption": "Process, temperature and supply points simulated for the transimpedance stage. The typical point is the Monte Carlo process section at zero statistical offset and the \\SI{37}{\\celsius} on-body temperature; the four skew corners are the foundry corners at \\SI{25}{\\celsius}. This run is corners only, with no Monte Carlo, so no mismatch or yield figures appear in this section.",
   "tests": {
     "tia_ac": {
       "dir": "TiaFbTB",
@@ -592,7 +592,7 @@
       "yprec": 1,
       "legendpos": "south east",
       "ylabel": "Output voltage~[\\si{\\volt}]",
-      "caption": "Rising edge of a \\SI{1}{\\volt} step ($v_{\\mathrm{cm}} \\pm \\SI{0.5}{\\volt}$) in unity feedback into \\SI{5}{\\pico\\farad}, over the five corners; the window is \\SI{3.5}{\\micro\\second} around the edge at \\SI{100}{\\micro\\second}, and the falling edge at \\SI{1.1}{\\milli\\second} lies outside it. The output slews for about \\SI{0.4}{\\micro\\second}, overshoots once by \\SIrange{5.0}{9.0}{\\percent} of the step and recovers without ringing --- slew recovery, not small-signal ringing, as the \\ang{88} phase margin predicts.",
+      "caption": "Rising edge of a \\SI{1}{\\volt} step ($v_{\\mathrm{cm}} \\pm \\SI{0.5}{\\volt}$) in unity feedback into \\SI{5}{\\pico\\farad}, over the five corners; the window is \\SI{3.5}{\\micro\\second} around the edge at \\SI{100}{\\micro\\second}, and the falling edge at \\SI{1.1}{\\milli\\second} lies outside it. The output slews for about \\SI{0.4}{\\micro\\second}, overshoots once by \\SIrange{5.0}{9.0}{\\percent} of the step and recovers without ringing: slew recovery, not small-signal ringing, as the \\ang{88} phase margin predicts.",
       "axis_extra": "xmin=99.5, xmax=103, ymin=0.70, ymax=1.90, restrict x to domain=99:104, unbounded coords=discard"
     }
   ],
@@ -631,7 +631,7 @@
         "we_err_n2u",
         "idd"
       ],
-      "caption": "DC transfer by corner. Incremental gain falls \\SI{0.09}{\\percent} between zero and \\SI{+2}{\\micro\\ampere} --- the amplifier's finite loop gain, not resistor non-linearity, since $R_f$ is ideal here. Supply current is the amplifier's own; no electrode or ADC loading is included."
+      "caption": "DC transfer by corner. Incremental gain falls \\SI{0.09}{\\percent} between zero and \\SI{+2}{\\micro\\ampere}, which is the amplifier's finite loop gain, not resistor non-linearity, since $R_f$ is ideal here. Supply current is the amplifier's own; no electrode or ADC loading is included."
     },
     {
       "id": "tia_amp",
@@ -676,7 +676,7 @@
         "vo_src40",
         "vo_snk40"
       ],
-      "caption": "Output drive limits by corner, from \\texttt{DriveTB} with a \\SI{5}{\\pico\\farad} load; the sourcing limit is the current at \\SI{1}{\\percent} (\\SI{12.5}{\\milli\\volt}) droop. Sinking is not resolved --- the output is still within \\SI{0.8}{\\milli\\volt} of $v_{\\mathrm{cm}}$ at \\SI{-40}{\\micro\\ampere} --- so that figure is a lower bound. The consequence at minimum gain is discussed above."
+      "caption": "Output drive limits by corner, from \\texttt{DriveTB} with a \\SI{5}{\\pico\\farad} load; the sourcing limit is the current at \\SI{1}{\\percent} (\\SI{12.5}{\\milli\\volt}) droop. Sinking is not resolved (the output is still within \\SI{0.8}{\\milli\\volt} of $v_{\\mathrm{cm}}$ at \\SI{-40}{\\micro\\ampere}), so that figure is a lower bound. The consequence at minimum gain is discussed above."
     },
     {
       "id": "tia_tran",
@@ -704,7 +704,7 @@
         "err_1us",
         "und"
       ],
-      "caption": "Step response by corner: a \\SI{1}{\\volt} step into \\SI{5}{\\pico\\farad}, overshoot as a percentage of the step. The overshoot peaks about \\SI{0.55}{\\micro\\second} after the edge and is gone immediately --- residual error at \\SI{1}{\\micro\\second} is \\SI{0.02}{\\percent} of the step. The falling edge, driven by M12 rather than the current source M5, shows essentially none."
+      "caption": "Step response by corner: a \\SI{1}{\\volt} step into \\SI{5}{\\pico\\farad}, overshoot as a percentage of the step. The overshoot peaks about \\SI{0.55}{\\micro\\second} after the edge and is gone immediately: residual error at \\SI{1}{\\micro\\second} is \\SI{0.02}{\\percent} of the step. The falling edge, driven by M12 rather than the current source M5, shows essentially none."
     },
     {
       "id": "tia_range",

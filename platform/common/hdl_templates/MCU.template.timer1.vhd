@@ -1,6 +1,6 @@
--- MCU.template.timer1.vhd: TIMER1-conditional verbatim blocks, delimited by the @TIMER1BLOCK:<name>@ markers.
--- python/mcu_vhd.py splices them into MCU.template.vhd only when peripherals.timer1 is true (the default).
--- Without timer1 nothing is emitted: window slot 7 reads zero via the mux fall-through, vectors 22-27 become IRQB_RSVD*, the T1CMP0/T1CMP1/T1CAP0/T1CAP1 pad planes go hi-Z and P3.4-7 revert to plain GPIO20-23.
+/* MCU.template.timer1.vhd: TIMER1-conditional verbatim blocks, delimited by the @TIMER1BLOCK:<name>@ markers.
+   python/mcu_vhd.py splices them into MCU.template.vhd only when peripherals.timer1 is true (the default).
+   Without timer1 nothing is emitted: window slot 7 reads zero via the mux fall-through, vectors 22-27 become IRQB_RSVD*, the T1CMP0/T1CMP1/T1CAP0/T1CAP1 pad planes go hi-Z and P3.4-7 revert to plain GPIO20-23. */
 
 --@TIMER1BLOCK:timer1-pad-decls@
         -- P3.4: T1_CMP0 (output)

@@ -131,9 +131,9 @@ architecture behav of alu is
     -- end function;
 
 
-    -- ========== Zknd/Zkne AES-32 shared crypto primitives ==========
-    -- ONE forward S-box and ONE inverse S-box (256 B each) serve all four aes32* ops through a single aes32_datapath() body byte-steered by bs, with the GF(2^8) MixColumn terms computed combinationally.
-    -- Everything here must stay pure combinational, with fixed latency and data-independent timing, to hold the constant-time invariant.
+    /* ========== Zknd/Zkne AES-32 shared crypto primitives ==========
+       ONE forward S-box and ONE inverse S-box (256 B each) serve all four aes32* ops through a single aes32_datapath() body byte-steered by bs, with the GF(2^8) MixColumn terms computed combinationally.
+       Everything here must stay pure combinational, with fixed latency and data-independent timing, to hold the constant-time invariant. */
     type aes_sbox_t is array (0 to 255) of std_logic_vector(7 downto 0);
 
     constant AES_SBOX_FWD : aes_sbox_t := (
@@ -201,10 +201,10 @@ architecture behav of alu is
         return acc;
     end function;
 
-    -- Shared aes32 datapath (rs1 = a_in, rs2 = b_in, byte-select bs): decrypt picks the inverse S-box and inverse MixColumn constants, and mix adds the MixColumn step.
-    --   si = byte bs of rs2 ; so = SBOX(si)
-    --   x  = MixColumn(so) (or zext(so) for the *si ops)
-    --   rd = rs1 XOR rol32(x, 8*bs)
+    /* Shared aes32 datapath (rs1 = a_in, rs2 = b_in, byte-select bs): decrypt picks the inverse S-box and inverse MixColumn constants, and mix adds the MixColumn step.
+         si = byte bs of rs2 ; so = SBOX(si)
+         x  = MixColumn(so) (or zext(so) for the *si ops)
+         rd = rs1 XOR rol32(x, 8*bs) */
     function aes32_datapath(a_in, b_in : std_logic_vector(31 downto 0);
                             bsel       : std_logic_vector(1 downto 0);
                             decrypt    : boolean;

@@ -1,12 +1,12 @@
--- =============================================================================
--- tcm_port_tb.vhd  -- unit bench for the hart_tile external TCM slave port
--- =============================================================================
--- Drives a REAL hart_tile (real vesta core, adddec and sram1p16k_hvt_pg) through tcm_ext_* while the core genuinely executes out of a shared-window BFM; the only models are that BFM (one master, so no arbiter) and the external requester.
--- The core must be RUNNING for any of this to mean anything, since the port borrows an SRAM port out from under a core that is using it; PC_RST_VAL = 0 and core_rst_stretch hold the core in reset until its first boot fetch LANDS, so the BFM must serve address 0 or the core never starts.
--- The hand-assembled program (PROG_IMG, with its disassembly in the comment column) executes from the shared window: fill TCM words 0..15 with 0xA5A50000+i, poison TCM word 100 (byte 0x8190) with 0xDEADBEEF, publish READY at shared 0x10000, then re-check the planted words forever, publishing iterations at 0x10004 and mismatches at 0x10008.
--- Those two words are the core's own verdict on its memory, and the poison value appears nowhere in the checked range, so any leak of external read data into the core's load path is a guaranteed mismatch.
--- Self-grading: PASS iff the log prints "ALL CHECKS PASSED" and contains no "CHECK FAILED"; severity is WARNING rather than ERROR so one failing test does not stop the rest.
--- =============================================================================
+/* =============================================================================
+   tcm_port_tb.vhd  -- unit bench for the hart_tile external TCM slave port
+   =============================================================================
+   Drives a REAL hart_tile (real vesta core, adddec and sram1p16k_hvt_pg) through tcm_ext_* while the core genuinely executes out of a shared-window BFM; the only models are that BFM (one master, so no arbiter) and the external requester.
+   The core must be RUNNING for any of this to mean anything, since the port borrows an SRAM port out from under a core that is using it; PC_RST_VAL = 0 and core_rst_stretch hold the core in reset until its first boot fetch LANDS, so the BFM must serve address 0 or the core never starts.
+   The hand-assembled program (PROG_IMG, with its disassembly in the comment column) executes from the shared window: fill TCM words 0..15 with 0xA5A50000+i, poison TCM word 100 (byte 0x8190) with 0xDEADBEEF, publish READY at shared 0x10000, then re-check the planted words forever, publishing iterations at 0x10004 and mismatches at 0x10008.
+   Those two words are the core's own verdict on its memory, and the poison value appears nowhere in the checked range, so any leak of external read data into the core's load path is a guaranteed mismatch.
+   Self-grading: PASS iff the log prints "ALL CHECKS PASSED" and contains no "CHECK FAILED"; severity is WARNING rather than ERROR so one failing test does not stop the rest.
+   ============================================================================= */
 
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
@@ -24,9 +24,9 @@ architecture sim of tcm_port_tb is
     constant MCLK_PERIOD : time    := 41.667 ns;   -- 24 MHz, the chip mclk
     constant SH_AW_C     : natural := 15;          -- the Castalia shape
 
-    -- Shared-window BFM geometry: two disjoint regions, anything else reads zeros and swallows writes like the real unmapped gap.
-    --   word 0..63          = byte 0x0..0xFF        : the instruction stream
-    --   word 0x4000..0x400F = byte 0x10000..0x1003F : the core's report words
+    /* Shared-window BFM geometry: two disjoint regions, anything else reads zeros and swallows writes like the real unmapped gap.
+         word 0..63          = byte 0x0..0xFF        : the instruction stream
+         word 0x4000..0x400F = byte 0x10000..0x1003F : the core's report words */
     constant SH_RPT_BASE : integer := 16#4000#;
     constant RPT_READY   : integer := 0;           -- 0x10000
     constant RPT_ITERS   : integer := 1;           -- 0x10004
@@ -162,10 +162,10 @@ architecture sim of tcm_port_tb is
         return s;
     end function;
 
-    -- -------------------------------------------------------------------------
-    -- The external requester: req is held until done AND THEN RETURNS LOW FOR AT LEAST ONE mclk, because the tile's one-shot (tx_served) rearms on req being low; the trailing wait guarantees that gap so back-to-back calls stay legal.
-    -- `cyc` counts mclk edges from the first edge after req was raised to the edge on which done was sampled, which is the latency the port is pinned by.
-    -- -------------------------------------------------------------------------
+    /* -------------------------------------------------------------------------
+       The external requester: req is held until done AND THEN RETURNS LOW FOR AT LEAST ONE mclk, because the tile's one-shot (tx_served) rearms on req being low; the trailing wait guarantees that gap so back-to-back calls stay legal.
+       `cyc` counts mclk edges from the first edge after req was raised to the edge on which done was sampled, which is the latency the port is pinned by.
+       ------------------------------------------------------------------------- */
     procedure ext_read(signal   clk_s   : in  std_logic;
                        signal   req_s   : out std_logic;
                        signal   addr_s  : out std_logic_vector(11 downto 0);
@@ -211,10 +211,10 @@ begin
 
     mclk <= not mclk after MCLK_PERIOD / 2 when not tb_end else '0';
 
-    -- -------------------------------------------------------------------------
-    -- Shared-window BFM: ONE master, so no arbitration to model, but it does implement the arbiter's WAIT-FOR-RELEASE handshake (R_REL).
-    -- The tile's req is stale-high for a couple of cycles after its done, since the ack flop clears it through the registered boundary, and a BFM that re-serves on that tail manufactures a ghost transaction, which for a STORE would silently double-apply it.
-    -- -------------------------------------------------------------------------
+    /* -------------------------------------------------------------------------
+       Shared-window BFM: ONE master, so no arbitration to model, but it does implement the arbiter's WAIT-FOR-RELEASE handshake (R_REL).
+       The tile's req is stale-high for a couple of cycles after its done, since the ack flop clears it through the registered boundary, and a BFM that re-serves on that tail manufactures a ghost transaction, which for a STORE would silently double-apply it.
+       ------------------------------------------------------------------------- */
     bfm: process(mclk)
         variable wa : integer;
     begin
@@ -290,10 +290,10 @@ begin
         end if;
     end process;
 
-    -- -------------------------------------------------------------------------
-    -- THE DUT: a real hart_tile.
-    -- pd_sleep, pd_iso_en, tcm_pgen, tcm_retn, msip/mtip/meip and the debug trio are deliberately left at their entity defaults, which is the shape MCU.vhd instantiates.
-    -- -------------------------------------------------------------------------
+    /* -------------------------------------------------------------------------
+       THE DUT: a real hart_tile.
+       pd_sleep, pd_iso_en, tcm_pgen, tcm_retn, msip/mtip/meip and the debug trio are deliberately left at their entity defaults, which is the shape MCU.vhd instantiates.
+       ------------------------------------------------------------------------- */
     tile: entity work.hart_tile
         generic map (
             PC_RST_VAL => x"00000000",
@@ -341,10 +341,10 @@ begin
     begin
         report "tcm_port_tb: CPR2 external TCM slave port bench starting" severity note;
 
-        -- =====================================================================
-        -- T5a  REQUEST DURING RESET IS IGNORED: no done pulse, and rdata parked at its reset value.
-        -- Done FIRST, while resetn is still low, because it is the only check that needs the reset state and re-resetting later would restart the core.
-        -- =====================================================================
+        /* =====================================================================
+           T5a  REQUEST DURING RESET IS IGNORED: no done pulse, and rdata parked at its reset value.
+           Done FIRST, while resetn is still low, because it is the only check that needs the reset state and re-resetting later would restart the core.
+           ===================================================================== */
         resetn <= '0';
         x_req  <= '1';
         x_addr <= conv_std_logic_vector(POISON_IDX, 12);
@@ -362,10 +362,10 @@ begin
         wait until rising_edge(mclk);
         wait until rising_edge(mclk);
 
-        -- =====================================================================
-        -- BOOT.  Release reset and wait for the core to publish READY.
-        -- Not decoration: the core is held in reset until its boot fetch lands, so a READY that never arrives means every later check is vacuously green against a dead core.
-        -- =====================================================================
+        /* =====================================================================
+           BOOT.  Release reset and wait for the core to publish READY.
+           Not decoration: the core is held in reset until its boot fetch lands, so a READY that never arrives means every later check is vacuously green against a dead core.
+           ===================================================================== */
         resetn <= '1';
         boot_ok := false;
         for n in 0 to W_BOOT-1 loop
@@ -384,9 +384,9 @@ begin
                 severity warning;
         end if;
 
-        -- =====================================================================
-        -- T1  BASIC.  Read the 16 planted words plus the poison word back through the external port and compare against what the program wrote.
-        -- =====================================================================
+        /* =====================================================================
+           T1  BASIC.  Read the 16 planted words plus the poison word back through the external port and compare against what the program wrote.
+           ===================================================================== */
         n_bad   := 0;
         n_to    := 0;
         cyc_min := 1000000;
@@ -427,10 +427,10 @@ begin
             "T1: the transaction latency is DETERMINISTIC (min = max) -- the "
             & "port does not depend on what the core happens to be doing", fails);
 
-        -- =====================================================================
-        -- T2  CONTENTION.  Same sweep against a core running its check loop, asserting BOTH sides at once: every external word still correct, and the core's mismatch count still 0 with its iteration count advancing.
-        -- The core side catches the interesting bug, since an external read that clobbers the SRAM Q a frozen core still held is invisible from out here; its negative control is an RTL mutation (drop the Q shadow, or switch the ram0 mux on the raw request) re-run against T2.
-        -- =====================================================================
+        /* =====================================================================
+           T2  CONTENTION.  Same sweep against a core running its check loop, asserting BOTH sides at once: every external word still correct, and the core's mismatch count still 0 with its iteration count advancing.
+           The core side catches the interesting bug, since an external read that clobbers the SRAM Q a frozen core still held is invisible from out here; its negative control is an RTL mutation (drop the Q shadow, or switch the ram0 mux on the raw request) re-run against T2.
+           ===================================================================== */
         it0   := ctr(shram(RPT_ITERS));
         n_bad := 0;
         n_to  := 0;
@@ -465,10 +465,10 @@ begin
             & integer'image(it1) & ")", fails);
         chk(trap_seen = '0', "T2: the core did not trap under contention", fails);
 
-        -- =====================================================================
-        -- T3  SELF-PROGRESS / NO LIVELOCK.  ext_read issues the minimum legal cadence (one idle mclk between transactions), the worst case the port can be driven at.
-        -- The claim under test is that the stall is BOUNDED: tx_busy must go low for a full cycle before the next request registers, so the core gets at least one clk_cpu edge per transaction and its iteration counter must move DURING the hammer, not merely after it.
-        -- =====================================================================
+        /* =====================================================================
+           T3  SELF-PROGRESS / NO LIVELOCK.  ext_read issues the minimum legal cadence (one idle mclk between transactions), the worst case the port can be driven at.
+           The claim under test is that the stall is BOUNDED: tx_busy must go low for a full cycle before the next request registers, so the core gets at least one clk_cpu edge per transaction and its iteration counter must move DURING the hammer, not merely after it.
+           ===================================================================== */
         it0 := ctr(shram(RPT_ITERS));
         i   := 0;
         n_to := 0;
@@ -503,9 +503,9 @@ begin
             "T3: still no core-side mismatches after the hammer -- got "
             & hex8(shram(RPT_ERRS)), fails);
 
-        -- =====================================================================
-        -- T5  HANDSHAKE DETAIL.
-        -- =====================================================================
+        /* =====================================================================
+           T5  HANDSHAKE DETAIL.
+           ===================================================================== */
         -- T5b: done is exactly ONE mclk wide, and rdata is valid with it.
         x_req  <= '1';
         x_addr <= conv_std_logic_vector(POISON_IDX, 12);
@@ -551,10 +551,10 @@ begin
         chk(trap_seen = '0', "T5: the core never trapped anywhere in this run",
             fails);
 
-        -- =====================================================================
-        -- T6  SELF-ACCESS / LONG FREEZE.  Each pass arms the BFM to stall the fetch the core issues while it is in MEMORY_WAIT on `lw t3,0(t0)`, waits for that stall to start, lets a few more mclk pass so the external read lands at a different phase of the freeze each time, then fires ONE external read of the poison word.
-        -- The external transaction is ~7 mclk and the freeze is STALL_N+1, so the freeze OUTLASTS it by construction: a Q-shadow hold that expires inside the freeze lets the core consume the external word as its load result, and the core grades that itself (t3 must be 0xA5A50000+i, and 0xDEADBEEF appears nowhere in that range), so any leak is a published mismatch.
-        -- =====================================================================
+        /* =====================================================================
+           T6  SELF-ACCESS / LONG FREEZE.  Each pass arms the BFM to stall the fetch the core issues while it is in MEMORY_WAIT on `lw t3,0(t0)`, waits for that stall to start, lets a few more mclk pass so the external read lands at a different phase of the freeze each time, then fires ONE external read of the poison word.
+           The external transaction is ~7 mclk and the freeze is STALL_N+1, so the freeze OUTLASTS it by construction: a Q-shadow hold that expires inside the freeze lets the core consume the external word as its load result, and the core grades that itself (t3 must be 0xA5A50000+i, and 0xDEADBEEF appears nowhere in that range), so any leak is a published mismatch.
+           ===================================================================== */
         it0    := ctr(shram(RPT_ITERS));
         n_bad  := 0;
         n_to   := 0;

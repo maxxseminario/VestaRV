@@ -1,13 +1,13 @@
--------------------------------------------------------------------------------
--- spi_bfm_pkg.vhd
--------------------------------------------------------------------------------
--- Bus-functional model for driving the SPI peripheral's slave port as an external master: the model drives SCK and MOSI, and the DUT in slave mode shifts out on MISO.
--- The record members map onto the DUT's slave inputs in the TB:
---     sck_in <= e.sck;  mosi_in <= e.mosi;
--- The TB observes miso_out, and `half` is the SCK half-period.
--- Data is LSB-first, the DUT samples MOSI on the trailing (falling) SCK edge, and MOSI is held past that edge to avoid a sample race.
--- Master-mode transfers are driven by writing the DUT's registers, so the DUT generates SCK and MOSI itself and any MOSI-to-MISO loopback stays a concurrent assignment in the TB.
--------------------------------------------------------------------------------
+/* -----------------------------------------------------------------------------
+   spi_bfm_pkg.vhd
+   -----------------------------------------------------------------------------
+   Bus-functional model for driving the SPI peripheral's slave port as an external master: the model drives SCK and MOSI, and the DUT in slave mode shifts out on MISO.
+   The record members map onto the DUT's slave inputs in the TB:
+       sck_in <= e.sck;  mosi_in <= e.mosi;
+   The TB observes miso_out, and `half` is the SCK half-period.
+   Data is LSB-first, the DUT samples MOSI on the trailing (falling) SCK edge, and MOSI is held past that edge to avoid a sample race.
+   Master-mode transfers are driven by writing the DUT's registers, so the DUT generates SCK and MOSI itself and any MOSI-to-MISO loopback stays a concurrent assignment in the TB.
+   ----------------------------------------------------------------------------- */
 
 library ieee;
 use ieee.std_logic_1164.all;

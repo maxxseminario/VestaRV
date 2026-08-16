@@ -1,23 +1,23 @@
--- =============================================================================
--- afe_stub.vhd
--- =============================================================================
--- Digital register stub for one analog front-end (AFE) site or for the shared EIS engine: 16 words in one 64 B sub-slot, standing in for the analog IP.
--- Every access is qualified against the arbiter's granted-master index: an AFE for hart h answers only when s_master is h or MGMT_HART, and EIS is instantiated with OWNER_HART equal to MGMT_HART so its gate is management-hart-only.
--- A denied read returns 0 and a denied write is dropped: no bus error, no stall, no arbiter-contract change, and no way to forge ownership.
--- The bank is exactly four AFE sites plus EIS at any hart count, because there are four physical analog channels.
--- Reads never mutate state; keep them that way (W1C flags only) so LR/SC or AMO to an AFE address stays harmless.
---
--- Register map (word offset; only addr(3:0) is decoded, so the block aliases every 16 words within its sub-slot):
---   +0x0 CTRL   RW  control; a write with wdata bit 0 = 1 soft-sets IF bit 0, the test hook that exercises the interrupt path until the analog IP drives real events
---   +0x1 DACPAT RW  DAC pattern control placeholder
---   +0x2 TIA    RW  TIA gain-range placeholder
---   +0x3 SWM    RW  switch-matrix and analog-mux config placeholder
---   +0x4 ADCC   RW  ADC control placeholder
---   +0x5 ADCD   RW  ADC data placeholder
---   +0x6 STAT   RW  status placeholder
---   +0x7 IF     W1C interrupt-flag word: a set bit drives irq high, writing a 1 to a bit clears it, and reads are side-effect-free
---   +0x8..0xF  RW  scratch and reserved (plain storage)
--- =============================================================================
+/* =============================================================================
+   afe_stub.vhd
+   =============================================================================
+   Digital register stub for one analog front-end (AFE) site or for the shared EIS engine: 16 words in one 64 B sub-slot, standing in for the analog IP.
+   Every access is qualified against the arbiter's granted-master index: an AFE for hart h answers only when s_master is h or MGMT_HART, and EIS is instantiated with OWNER_HART equal to MGMT_HART so its gate is management-hart-only.
+   A denied read returns 0 and a denied write is dropped: no bus error, no stall, no arbiter-contract change, and no way to forge ownership.
+   The bank is exactly four AFE sites plus EIS at any hart count, because there are four physical analog channels.
+   Reads never mutate state; keep them that way (W1C flags only) so LR/SC or AMO to an AFE address stays harmless.
+
+   Register map (word offset; only addr(3:0) is decoded, so the block aliases every 16 words within its sub-slot):
+     +0x0 CTRL   RW  control; a write with wdata bit 0 = 1 soft-sets IF bit 0, the test hook that exercises the interrupt path until the analog IP drives real events
+     +0x1 DACPAT RW  DAC pattern control placeholder
+     +0x2 TIA    RW  TIA gain-range placeholder
+     +0x3 SWM    RW  switch-matrix and analog-mux config placeholder
+     +0x4 ADCC   RW  ADC control placeholder
+     +0x5 ADCD   RW  ADC data placeholder
+     +0x6 STAT   RW  status placeholder
+     +0x7 IF     W1C interrupt-flag word: a set bit drives irq high, writing a 1 to a bit clears it, and reads are side-effect-free
+     +0x8..0xF  RW  scratch and reserved (plain storage)
+   ============================================================================= */
 
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;

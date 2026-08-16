@@ -724,176 +724,176 @@ const VESTA_DATA = {
   },
   "schema": {
     "chipName": {
-      "description": "non-empty string \u2014 renames the chip in the TRM and headers (CHIP_NAME env wins)",
+      "description": "non-empty string: renames the chip in the TRM and headers (CHIP_NAME env wins)",
       "type": "string",
       "default": "Castalia"
     },
     "numHarts": {
-      "description": "int 1..32 \u2014 hart/tile count (5 = Castalia default, 18 = Argus)",
+      "description": "int 1..32: hart/tile count (5 = Castalia default, 18 = Argus)",
       "type": "int",
       "default": 5,
       "min": 1,
       "max": 32
     },
     "orchestrator": {
-      "description": "bool \u2014 hart 0 is the always-on orchestrator; harts 1..N-1 are gateable tiles",
+      "description": "bool: hart 0 is the always-on orchestrator; harts 1..N-1 are gateable tiles",
       "type": "bool",
       "default": true
     },
     "numMutexes": {
-      "description": "int 1..1024 \u2014 HW mutex bank size (16 = Castalia, 32 = Argus)",
+      "description": "int 1..1024: HW mutex bank size (16 = Castalia, 32 = Argus)",
       "type": "int",
       "default": 16,
       "min": 1,
       "max": 1024
     },
     "registerFileDualPort": {
-      "description": "bool \u2014 docs-only: the register file is dual-port in the RTL either way",
+      "description": "bool: docs-only, the register file is dual-port in the RTL either way",
       "type": "bool",
       "default": true
     },
     "isa.mul": {
-      "description": "bool \u2014 M multiply",
+      "description": "bool: M multiply",
       "type": "bool",
       "default": true
     },
     "isa.fastMul": {
-      "description": "bool \u2014 docs-only: the multiplier is already single-cycle",
+      "description": "bool: docs-only, the multiplier is already single-cycle",
       "type": "bool",
       "default": true
     },
     "isa.div": {
-      "description": "bool \u2014 M divide",
+      "description": "bool: M divide",
       "type": "bool",
       "default": true
     },
     "isa.atomics": {
-      "description": "bool \u2014 A extension (LR/SC + AMO)",
+      "description": "bool: A extension (LR/SC + AMO)",
       "type": "bool",
       "default": true
     },
     "isa.compressed": {
-      "description": "bool \u2014 C extension",
+      "description": "bool: C extension",
       "type": "bool",
       "default": true
     },
     "isa.bitmanip": {
-      "description": "bool \u2014 Zba/Zbb/Zbs/Zbc",
+      "description": "bool: Zba/Zbb/Zbs/Zbc",
       "type": "bool",
       "default": true
     },
     "isa.counters": {
-      "description": "bool \u2014 Zicntr march suffix only: cycle/instret always exist, time/timeh never do",
+      "description": "bool: Zicntr march suffix only (cycle/instret always exist, time/timeh never do)",
       "type": "bool",
       "default": false
     },
     "isa.counters64": {
-      "description": "bool \u2014 docs-only high counter halves (always present); needs isa.counters",
+      "description": "bool: docs-only high counter halves (always present); needs isa.counters",
       "type": "bool",
       "default": false
     },
     "isa.zicond": {
-      "description": "bool \u2014 Zicond conditional-zero ops (czero.eqz/czero.nez)",
+      "description": "bool: Zicond conditional-zero ops (czero.eqz/czero.nez)",
       "type": "bool",
       "default": false
     },
     "isa.zcb": {
-      "description": "bool \u2014 Zcb extra compressed loads/stores and ALU ops; needs isa.compressed",
+      "description": "bool: Zcb extra compressed loads/stores and ALU ops; needs isa.compressed",
       "type": "bool",
       "default": false
     },
     "isa.zimop": {
-      "description": "bool \u2014 Zimop+Zcmop may-be-ops (mop.r/mop.rr rd<-0, c.mop.n nops)",
+      "description": "bool: Zimop+Zcmop may-be-ops (mop.r/mop.rr rd<-0, c.mop.n nops)",
       "type": "bool",
       "default": false
     },
     "isa.zihint": {
-      "description": "bool \u2014 Zihintpause+Zihintntl (PAUSE = 16-cycle arbiter-yield window; ntl.* nops)",
+      "description": "bool: Zihintpause+Zihintntl (PAUSE = 16-cycle arbiter-yield window; ntl.* nops)",
       "type": "bool",
       "default": false
     },
     "isa.zihpm": {
-      "description": "bool \u2014 Zihpm performance counters 3 and 4 (four chip events)",
+      "description": "bool: Zihpm performance counters 3 and 4 (four chip events)",
       "type": "bool",
       "default": false
     },
     "isa.zawrs": {
-      "description": "bool \u2014 Zawrs wrs.nto/wrs.sto wait-on-reservation-set (needs isa.atomics)",
+      "description": "bool: Zawrs wrs.nto/wrs.sto wait-on-reservation-set (needs isa.atomics)",
       "type": "bool",
       "default": false
     },
     "isa.zabha": {
-      "description": "bool \u2014 Zabha byte/halfword AMOs; needs isa.atomics",
+      "description": "bool: Zabha byte/halfword AMOs; needs isa.atomics",
       "type": "bool",
       "default": false
     },
     "isa.zacas": {
-      "description": "bool \u2014 Zacas compare-and-swap (amocas.w/.b/.h); needs isa.atomics",
+      "description": "bool: Zacas compare-and-swap (amocas.w/.b/.h); needs isa.atomics",
       "type": "bool",
       "default": false
     },
     "isa.zicboz": {
-      "description": "bool \u2014 Zicboz cbo.zero cache-block zero (64-byte block)",
+      "description": "bool: Zicboz cbo.zero cache-block zero (64-byte block)",
       "type": "bool",
       "default": false
     },
     "isa.zcmp": {
-      "description": "bool \u2014 Zcmp compressed push/pop and register moves; needs isa.compressed",
+      "description": "bool: Zcmp compressed push/pop and register moves; needs isa.compressed",
       "type": "bool",
       "default": false
     },
     "isa.zcmt": {
-      "description": "bool \u2014 Zcmt compressed table jump and the jvt CSR; needs isa.compressed",
+      "description": "bool: Zcmt compressed table jump and the jvt CSR; needs isa.compressed",
       "type": "bool",
       "default": false
     },
     "isa.zbkb": {
-      "description": "bool \u2014 Zbkb crypto bit-manipulation (pack/brev8/zip/unzip)",
+      "description": "bool: Zbkb crypto bit-manipulation (pack/brev8/zip/unzip)",
       "type": "bool",
       "default": false
     },
     "isa.zbkc": {
-      "description": "bool \u2014 Zbkc carry-less multiply (clmul/clmulh)",
+      "description": "bool: Zbkc carry-less multiply (clmul/clmulh)",
       "type": "bool",
       "default": false
     },
     "isa.zbkx": {
-      "description": "bool \u2014 Zbkx crossbar permute (xperm8/xperm4)",
+      "description": "bool: Zbkx crossbar permute (xperm8/xperm4)",
       "type": "bool",
       "default": false
     },
     "isa.zkn": {
-      "description": "bool \u2014 Zkn AES+SHA (Zknd+Zkne+Zknh)",
+      "description": "bool: Zkn AES+SHA (Zknd+Zkne+Zknh)",
       "type": "bool",
       "default": false
     },
     "isa.zfinx": {
-      "description": "bool \u2014 Zfinx single-precision floating point in the x registers",
+      "description": "bool: Zfinx single-precision floating point in the x registers",
       "type": "bool",
       "default": false
     },
     "priv.trapCsr": {
-      "description": "bool \u2014 standard M-mode trap CSRs and delivery; firmware opts in via mtrapctl",
+      "description": "bool: standard M-mode trap CSRs and delivery; firmware opts in via mtrapctl",
       "type": "bool",
       "default": true
     },
     "debug.enable": {
-      "description": "bool \u2014 debug mode, the Debug Module and the JTAG DTM; needs priv.trapCsr",
+      "description": "bool: debug mode, the Debug Module and the JTAG DTM; needs priv.trapCsr",
       "type": "bool",
       "default": false
     },
     "priv.umode": {
-      "description": "bool \u2014 user mode (privilege register, MPP stack, mcounteren); needs priv.trapCsr",
+      "description": "bool: user mode (privilege register, MPP stack, mcounteren); needs priv.trapCsr",
       "type": "bool",
       "default": false
     },
     "priv.pmp": {
-      "description": "bool \u2014 PMP (Smpmp) CSR bank and match unit; needs priv.umode",
+      "description": "bool: PMP (Smpmp) CSR bank and match unit; needs priv.umode",
       "type": "bool",
       "default": false
     },
     "priv.pmpEntries": {
-      "description": "int, 8 or 16 \u2014 PMP entry count when priv.pmp is true (default 16)",
+      "description": "int, 8 or 16: PMP entry count when priv.pmp is true (default 16)",
       "type": "int",
       "default": 16,
       "min": 8,
@@ -901,7 +901,7 @@ const VESTA_DATA = {
       "step": 8
     },
     "memory.romSize": {
-      "description": "int bytes, 1 KiB multiple <= 0x4000 \u2014 boot ROM (0x0-0x3FFF)",
+      "description": "int bytes, 1 KiB multiple <= 0x4000: boot ROM (0x0-0x3FFF)",
       "type": "int",
       "default": 16384,
       "min": 1024,
@@ -909,7 +909,7 @@ const VESTA_DATA = {
       "step": 1024
     },
     "memory.tcmSizePerHart": {
-      "description": "int bytes, 1 KiB multiple <= 0x4000 \u2014 per-hart TCM (0x8000-0xBFFF)",
+      "description": "int bytes, 1 KiB multiple <= 0x4000: per-hart TCM (0x8000-0xBFFF)",
       "type": "int",
       "default": 16384,
       "min": 1024,
@@ -917,14 +917,14 @@ const VESTA_DATA = {
       "step": 1024
     },
     "memory.sharedBulkRamSize": {
-      "description": "int bytes, multiple of 0x4000 \u2014 shared bulk RAM from 0x10000, one bank per 16 KiB",
+      "description": "int bytes, multiple of 0x4000: shared bulk RAM from 0x10000, one bank per 16 KiB",
       "type": "int",
       "default": 65536,
       "min": 16384,
       "step": 16384
     },
     "memory.npuStagingRamSize": {
-      "description": "int bytes, 1 KiB multiple <= 0x4000 \u2014 NPU staging RAM (0xC000-0xFFFF)",
+      "description": "int bytes, 1 KiB multiple <= 0x4000: NPU staging RAM (0xC000-0xFFFF)",
       "type": "int",
       "default": 16384,
       "min": 1024,
@@ -932,77 +932,77 @@ const VESTA_DATA = {
       "step": 1024
     },
     "peripherals.npu": {
-      "description": "bool \u2014 false drops the NPU (slot 10 and the 0xC000 staging window read zero)",
+      "description": "bool: false drops the NPU (slot 10 and the 0xC000 staging window read zero)",
       "type": "bool",
       "default": true
     },
     "peripherals.i2c1": {
-      "description": "bool \u2014 false drops I2C1 (slot 15 reads zero; SDA1/SCL1 revert to plain GPIO)",
+      "description": "bool: false drops I2C1 (slot 15 reads zero; SDA1/SCL1 revert to plain GPIO)",
       "type": "bool",
       "default": true
     },
     "peripherals.uart1": {
-      "description": "bool \u2014 false drops UART1 (slot 5 reads zero; TX1/RX1 revert to plain GPIO)",
+      "description": "bool: false drops UART1 (slot 5 reads zero; TX1/RX1 revert to plain GPIO)",
       "type": "bool",
       "default": true
     },
     "peripherals.spi1": {
-      "description": "bool \u2014 false drops SPI1 (slot 3 reads zero; its four pins revert to plain GPIO)",
+      "description": "bool: false drops SPI1 (slot 3 reads zero; its four pins revert to plain GPIO)",
       "type": "bool",
       "default": true
     },
     "peripherals.timer1": {
-      "description": "bool \u2014 false drops TIMER1 (slot 7 reads zero; the T1 pins revert to plain GPIO)",
+      "description": "bool: false drops TIMER1 (slot 7 reads zero; the T1 pins revert to plain GPIO)",
       "type": "bool",
       "default": true
     },
     "peripherals.cqAfeStubs": {
-      "description": "bool \u2014 the four AFE register stubs and the EIS engine stub (slot 12, 0x4C00)",
+      "description": "bool: the four AFE register stubs and the EIS engine stub (slot 12, 0x4C00)",
       "type": "bool",
       "default": true
     },
     "peripherals.qspi": {
-      "description": "bool \u2014 QSPI0 controller in slot 12 (0x4C00); needs cqAfeStubs false",
+      "description": "bool: QSPI0 controller in slot 12 (0x4C00); needs cqAfeStubs false",
       "type": "bool",
       "default": false
     },
     "peripherals.i3c": {
-      "description": "bool \u2014 I3C0 controller (MVP + DAA + IBI) at 0x6100",
+      "description": "bool: I3C0 controller (MVP + DAA + IBI) at 0x6100",
       "type": "bool",
       "default": false
     },
     "peripherals.nfc": {
-      "description": "bool \u2014 NFC0 ISO 14443A tag engine at 0x6200 (the RF front end is off-die)",
+      "description": "bool: NFC0 ISO 14443A tag engine at 0x6200 (the RF front end is off-die)",
       "type": "bool",
       "default": false
     },
     "peripherals.rtc": {
-      "description": "bool \u2014 RTC0 32.768 kHz wall clock with alarm and tick at 0x6500",
+      "description": "bool: RTC0 32.768 kHz wall clock with alarm and tick at 0x6500",
       "type": "bool",
       "default": false
     },
     "peripherals.pwm": {
-      "description": "bool \u2014 PWM0 two-channel buffered PWM at 0x6600 (outputs on P2.2/P2.3)",
+      "description": "bool: PWM0 two-channel buffered PWM at 0x6600 (outputs on P2.2/P2.3)",
       "type": "bool",
       "default": false
     },
     "peripherals.onewire": {
-      "description": "bool \u2014 OW0 1-Wire master at 0x6700, open-drain DQ on P4.7",
+      "description": "bool: OW0 1-Wire master at 0x6700, open-drain DQ on P4.7",
       "type": "bool",
       "default": false
     },
     "peripherals.fieldPower": {
-      "description": "bool \u2014 wires the field-power pins (PGOOD, harvest strap) into PWRCTRL",
+      "description": "bool: wires the field-power pins (PGOOD, harvest strap) into PWRCTRL",
       "type": "bool",
       "default": true
     },
     "peripherals.dma": {
-      "description": "bool \u2014 DMA0 multi-channel DMA at 0x6800; adds one more arbiter master",
+      "description": "bool: DMA0 multi-channel DMA at 0x6800; adds one more arbiter master",
       "type": "bool",
       "default": false
     },
     "peripherals.dmaChannels": {
-      "description": "int, 2 or 4 \u2014 DMA0 channel count when peripherals.dma is true (default 4)",
+      "description": "int, 2 or 4: DMA0 channel count when peripherals.dma is true (default 4)",
       "type": "int",
       "default": 4,
       "min": 2,
@@ -1010,17 +1010,17 @@ const VESTA_DATA = {
       "step": 2
     },
     "peripherals.i2ctarget": {
-      "description": "bool \u2014 I2CT0 hardware I2C target at 0x6A00, sharing the I2C0 pads",
+      "description": "bool: I2CT0 hardware I2C target at 0x6A00, sharing the I2C0 pads",
       "type": "bool",
       "default": false
     },
     "peripherals.trng": {
-      "description": "bool \u2014 TRNG0 ring-oscillator entropy source at 0x6900 (firmware must DRBG it)",
+      "description": "bool: TRNG0 ring-oscillator entropy source at 0x6900 (firmware must DRBG it)",
       "type": "bool",
       "default": false
     },
     "peripherals.trngRings": {
-      "description": "int, 4 or 8 \u2014 TRNG0 ring count when peripherals.trng is true (default 8)",
+      "description": "int, 4 or 8: TRNG0 ring count when peripherals.trng is true (default 8)",
       "type": "int",
       "default": 8,
       "min": 4,
@@ -1028,12 +1028,12 @@ const VESTA_DATA = {
       "step": 4
     },
     "peripherals.eventFabric": {
-      "description": "bool \u2014 EVFAB0 event/trigger crossbar at 0x6B00 (8 channels, no IRQ vector)",
+      "description": "bool: EVFAB0 event/trigger crossbar at 0x6B00 (8 channels, no IRQ vector)",
       "type": "bool",
       "default": false
     },
     "package.model": {
-      "description": "string \u2014 package pinout model: myshkin-qfn44, castalia-quad-qfn64 or castalia-lqfp100",
+      "description": "string: package pinout model, one of myshkin-qfn44, castalia-quad-qfn64 or castalia-lqfp100",
       "type": "enum",
       "default": "myshkin-qfn44",
       "enum": [
@@ -1043,7 +1043,7 @@ const VESTA_DATA = {
       ]
     },
     "package.preliminary": {
-      "description": "bool \u2014 prints the Preliminary note in the TRM package section",
+      "description": "bool: prints the Preliminary note in the TRM package section",
       "type": "bool",
       "default": true
     }

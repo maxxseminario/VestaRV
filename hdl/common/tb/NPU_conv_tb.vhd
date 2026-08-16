@@ -14,13 +14,13 @@ use work.periph_tb_pkg.all;
 use work.fixed_float_types.all;
 use work.fixed_pkg.all;
 
--------------------------------------------------------------------------------
--- NPU_conv_tb.vhd : CONV1D mode (NPUCR.MODE=1) bench, a separate leg from the mode-0 MLP fixture NPU_tb.
--- Instantiates the NPU and staging-RAM model at the MCU/chip generics (X_M=0, W_M=7, Y_M=7, N=24, RHO=2), NOT the entity's own bench defaults, and drives file-driven cases.
--- Golden files npu_conv_<case>_{cfg,in,w,exp}.txt come from verification/npu/gen_conv_vectors.py and reach this run directory as symlinks.
--- NEGCTRL=0 is a clean run whose ALL-PASS banner needs a zero error tally; NEGCTRL=1 corrupts exactly one expected value of the base case, and its banner needs a tally of exactly 1.
--- The base case runs first after ResetN deasserts, with no warm-up CFG pokes ahead of it and every output checked for definedness before the numeric compare.
--------------------------------------------------------------------------------
+/* -----------------------------------------------------------------------------
+   NPU_conv_tb.vhd : CONV1D mode (NPUCR.MODE=1) bench, a separate leg from the mode-0 MLP fixture NPU_tb.
+   Instantiates the NPU and staging-RAM model at the MCU/chip generics (X_M=0, W_M=7, Y_M=7, N=24, RHO=2), NOT the entity's own bench defaults, and drives file-driven cases.
+   Golden files npu_conv_<case>_{cfg,in,w,exp}.txt come from verification/npu/gen_conv_vectors.py and reach this run directory as symlinks.
+   NEGCTRL=0 is a clean run whose ALL-PASS banner needs a zero error tally; NEGCTRL=1 corrupts exactly one expected value of the base case, and its banner needs a tally of exactly 1.
+   The base case runs first after ResetN deasserts, with no warm-up CFG pokes ahead of it and every output checked for definedness before the numeric compare.
+   ----------------------------------------------------------------------------- */
 entity NPU_conv_tb is
 	generic (
 		NEGCTRL : integer := 0
@@ -233,9 +233,9 @@ begin
 			MabMmrCEN <= MEM_DEASSERT;
 		end procedure;
 
-		----- SRAM primitives (backdoor MCU-side access) -----
-		-- MabSramCLK is a GATED clock: SramClkEn follows MabSramCEN = ASSERT through ClkGate, so it only toggles once CEN is already asserted.
-		-- A burst is therefore: assert CEN off the FREE-RUNNING Clk to open the gate, wait on MabSramCLK edges for every word, and deassert CEN only when the burst is done; waiting on MabSramCLK before CEN is asserted hangs forever.
+		/* --- SRAM primitives (backdoor MCU-side access) -----
+		   MabSramCLK is a GATED clock: SramClkEn follows MabSramCEN = ASSERT through ClkGate, so it only toggles once CEN is already asserted.
+		   A burst is therefore: assert CEN off the FREE-RUNNING Clk to open the gate, wait on MabSramCLK edges for every word, and deassert CEN only when the burst is done; waiting on MabSramCLK before CEN is asserted hangs forever. */
 		procedure sram_burst_start is
 		begin
 			wait until falling_edge(Clk);
@@ -324,9 +324,9 @@ begin
 			MabMmrCEN <= MEM_DEASSERT;
 		end procedure;
 
-		-- run_conv_case: loads npu_conv_<case_name>_{cfg,in,w,exp}.txt, runs the THINK and compares every output.
-		--   corrupt_first : deliberately wrong first expected value, for the negative control.  check_no_x : also assert each output is fully defined.
-		--   force_actf >= 0 overrides the cfg file's ACTF, and a non-empty exp_file_name overrides the default expected file, so an ACTF re-run compares against the matching golden.
+		/* run_conv_case: loads npu_conv_<case_name>_{cfg,in,w,exp}.txt, runs the THINK and compares every output.
+		     corrupt_first : deliberately wrong first expected value, for the negative control.  check_no_x : also assert each output is fully defined.
+		     force_actf >= 0 overrides the cfg file's ACTF, and a non-empty exp_file_name overrides the default expected file, so an ACTF re-run compares against the matching golden. */
 		procedure run_conv_case(case_name     : string;
 		                        corrupt_first : boolean := false;
 		                        check_no_x    : boolean := false;
@@ -463,15 +463,15 @@ begin
 		wait for 1 us;
 		report "[NPU_CONV_TB] Reset complete." severity note;
 
-		----------------------------------------------------------------
-		-- The base conv case runs FIRST after reset, with no other CFG pokes ahead of it and every output checked for definedness, proving the conv registers cannot produce X on the SRAM interface after a cold reset.
-		-- With NEGCTRL=1 this same invocation also corrupts exactly one expected value.
-		----------------------------------------------------------------
+		/* --------------------------------------------------------------
+		   The base conv case runs FIRST after reset, with no other CFG pokes ahead of it and every output checked for definedness, proving the conv registers cannot produce X on the SRAM interface after a cold reset.
+		   With NEGCTRL=1 this same invocation also corrupts exactly one expected value.
+		   -------------------------------------------------------------- */
 		run_conv_case("base", corrupt_first => (NEGCTRL = 1), check_no_x => true);
 
-		----------------------------------------------------------------
-		-- NPUCFG1/NPUCFG2/offset-7/offsets-8-15 readback pokes
-		----------------------------------------------------------------
+		/* --------------------------------------------------------------
+		   NPUCFG1/NPUCFG2/offset-7/offsets-8-15 readback pokes
+		   -------------------------------------------------------------- */
 		report "[NPU_CONV_TB] === NPUCFG1/NPUCFG2/reserved-offset readback ===" severity note;
 		-- Pattern: Cin-1=6, L=1234, D=9, S=5 (packed exactly as think_start does)
 		mmr_write(MmrAddrNPUCFG1, std_logic_vector(to_unsigned(6, 8)) &
@@ -501,9 +501,9 @@ begin
 		mmr_read(15, rd);
 		sb.check_slv("offset 15 (reserved) reads 0", rd, x"00000000");
 
-		----------------------------------------------------------------
-		-- Remaining groups: ordinary file-driven cases.
-		----------------------------------------------------------------
+		/* --------------------------------------------------------------
+		   Remaining groups: ordinary file-driven cases.
+		   -------------------------------------------------------------- */
 		run_conv_case("asym");
 		run_conv_case("stride_s2");
 		run_conv_case("stride_s4");

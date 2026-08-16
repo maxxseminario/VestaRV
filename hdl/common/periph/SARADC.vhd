@@ -1,8 +1,8 @@
--------------------------------------------------------------------------------
--- SARADC.vhd: memory-mapped controller for the off-die 10-bit SAR ADC: it generates the trigger clock, latches ADC_data_i on the rising edge of ADC_ready_i (a capture into a still-full result sets overflow), and raises irq while data is valid and its enable bit is set.
--- The trigger clock is a 16-bit one-hot shift register clocked on the falling edge of clk: bit 14 is the clear phase, bit 12 the sample phase stretched by the SARADC_CR sample-step countdown, and bits 11 down to 1 the conversion phase; the combined waveform is registered once more before leaving the block to keep the shift-register bit off a long output path.
--- Registers: SARADC_CR control, SARADC_SR status (stored inverted in SARADC_SR_ltch, re-inverted on read, data-valid and overflow are write-1-to-clear), SARADC_DATA result, SARADC_TPR debug test-port select.
--------------------------------------------------------------------------------
+/* -----------------------------------------------------------------------------
+   SARADC.vhd: memory-mapped controller for the off-die 10-bit SAR ADC: it generates the trigger clock, latches ADC_data_i on the rising edge of ADC_ready_i (a capture into a still-full result sets overflow), and raises irq while data is valid and its enable bit is set.
+   The trigger clock is a 16-bit one-hot shift register clocked on the falling edge of clk: bit 14 is the clear phase, bit 12 the sample phase stretched by the SARADC_CR sample-step countdown, and bits 11 down to 1 the conversion phase; the combined waveform is registered once more before leaving the block to keep the shift-register bit off a long output path.
+   Registers: SARADC_CR control, SARADC_SR status (stored inverted in SARADC_SR_ltch, re-inverted on read, data-valid and overflow are write-1-to-clear), SARADC_DATA result, SARADC_TPR debug test-port select.
+   ----------------------------------------------------------------------------- */
 
 library ieee;
 use ieee.std_logic_1164.all;

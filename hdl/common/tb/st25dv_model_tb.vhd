@@ -1,12 +1,12 @@
--------------------------------------------------------------------------------
--- st25dv_model_tb.vhd
--------------------------------------------------------------------------------
--- Self-checking testbench for st25dv_model.vhd, the ST25DV64KC dynamic NFC tag model: the BENCH is the I2C controller and the MODEL is the slave.
--- The controller is bit-banged here rather than reusing i2c_host_model.vhd, whose 8-byte segment cap carries neither the 2 address + 17 data byte present-password frame nor a device-select-only ACK probe.
--- SCL, SDA and GPO are open-drain nets with a weak 'H' pull: nobody drives an active high, and every sample of a resolved net is to_X01-normalized.
--- Timing is T_HALF = 500 ns plus a T_Q = 125 ns tail after every SCL falling edge, so SDA never changes in the same delta as an SCL edge (a coincident change parses as START/STOP); one bit is 1.125 us, about 890 kHz.
--- G-NEG is the mandatory negative control, so a healthy run reports EXACTLY ONE failure; the RF/ISO-15693 side, memory-area protection and the FTM watchdog are not modelled and are not proven here.
--------------------------------------------------------------------------------
+/* -----------------------------------------------------------------------------
+   st25dv_model_tb.vhd
+   -----------------------------------------------------------------------------
+   Self-checking testbench for st25dv_model.vhd, the ST25DV64KC dynamic NFC tag model: the BENCH is the I2C controller and the MODEL is the slave.
+   The controller is bit-banged here rather than reusing i2c_host_model.vhd, whose 8-byte segment cap carries neither the 2 address + 17 data byte present-password frame nor a device-select-only ACK probe.
+   SCL, SDA and GPO are open-drain nets with a weak 'H' pull: nobody drives an active high, and every sample of a resolved net is to_X01-normalized.
+   Timing is T_HALF = 500 ns plus a T_Q = 125 ns tail after every SCL falling edge, so SDA never changes in the same delta as an SCL edge (a coincident change parses as START/STOP); one bit is 1.125 us, about 890 kHz.
+   G-NEG is the mandatory negative control, so a healthy run reports EXACTLY ONE failure; the RF/ISO-15693 side, memory-area protection and the FTM watchdog are not modelled and are not proven here.
+   ----------------------------------------------------------------------------- */
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -757,9 +757,9 @@ begin
         poll_ready(DS_SW, 2000, tries, okv);
         wait for 400 us;
 
-        ------------------------------------------------------------------
-        -- G-EH: energy harvesting.
-        -- V_EH has no digital level encoding, so veh_avail_ua only echoes the bench's cfg_veh_ua.
+        /* ----------------------------------------------------------------
+           G-EH: energy harvesting.
+           V_EH has no digital level encoding, so veh_avail_ua only echoes the bench's cfg_veh_ua. */
         report "=== GROUP G-EH: energy harvesting ===" severity note;
 
         -- rf_field is currently '1' but EH_EN is still 0 (EH_MODE = 01h).

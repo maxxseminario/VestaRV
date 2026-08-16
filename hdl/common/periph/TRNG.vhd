@@ -3,17 +3,17 @@ use ieee.std_logic_1164.all;
 use ieee.std_logic_arith.all;
 use ieee.std_logic_unsigned.all;
 
--- TRNG: ring-oscillator entropy source plus harvest engine at base 0x6900, zero pins, one combined data-ready/health-alarm IRQ (vector 121).
--- The decimator, word assembler, RCT health test, DRDY lifecycle, sticky ALMF and IRQ combiner all ride the free-running `clk`; the register file rides the gated `ClkMem`, the same mclk net at integration.
--- Every hand-off between the two domains is a toggle or a held/quasi-static level, NEVER an async clear crossing a domain, and the ONE genuine metastability CDC is the ring tap `ro_raw`, 2-FF synchronized into `clk` before any use and never a clock: no async FIFO, no clock gate in the harvest datapath, no flop clocked by a pad or async bit.
--- EnMemPeriph is consumed ONLY as an active-low LEVEL (address decode, write enable, read-mux gate, DR-read-consume qualifier), never as a clock or an edge, and the TRNG SDC has no EnMemPeriph clock.
--- -V200X only: no VHDL-2008, no reading of out ports, every process infers exactly ONE rising edge of ONE clock, no falling_edge anywhere, and resetn (async, active-low) is applied directly in both domains.
+/* TRNG: ring-oscillator entropy source plus harvest engine at base 0x6900, zero pins, one combined data-ready/health-alarm IRQ (vector 121).
+   The decimator, word assembler, RCT health test, DRDY lifecycle, sticky ALMF and IRQ combiner all ride the free-running `clk`; the register file rides the gated `ClkMem`, the same mclk net at integration.
+   Every hand-off between the two domains is a toggle or a held/quasi-static level, NEVER an async clear crossing a domain, and the ONE genuine metastability CDC is the ring tap `ro_raw`, 2-FF synchronized into `clk` before any use and never a clock: no async FIFO, no clock gate in the harvest datapath, no flop clocked by a pad or async bit.
+   EnMemPeriph is consumed ONLY as an active-low LEVEL (address decode, write enable, read-mux gate, DR-read-consume qualifier), never as a clock or an edge, and the TRNG SDC has no EnMemPeriph clock.
+   -V200X only: no VHDL-2008, no reading of out ports, every process infers exactly ONE rising edge of ONE clock, no falling_edge anywhere, and resetn (async, active-low) is applied directly in both domains. */
 
--- Register map: base 0x6900, slot n at 0x6900 + 4n, decoded off MABPart(7:2); slots 4 and above read 0.
---   0 TRNG0CR : [0]EN [1]DRDYIE [2]ALMIE [7:4]ROSEL [11:8]DECIM, 31:12 rsvd.
---   1 TRNG0SR : [0]DRDY ro (blind-window-corrected) [1]ALMF W1C [2]RUN ro, 31:3 rsvd read 0.
---   2 TRNG0DR : [31:0] entropy word, ro, READ-CONSUMES. An empty read (DRDY=0) returns 0, with no consume and no toggle.
---   3 TRNG0HT : [7:0] RCTC rw (0 selects the hardware default 32) plus [21:16] RUNLEN ro diagnostic (saturating), other bits reserved read 0.
+/* Register map: base 0x6900, slot n at 0x6900 + 4n, decoded off MABPart(7:2); slots 4 and above read 0.
+     0 TRNG0CR : [0]EN [1]DRDYIE [2]ALMIE [7:4]ROSEL [11:8]DECIM, 31:12 rsvd.
+     1 TRNG0SR : [0]DRDY ro (blind-window-corrected) [1]ALMF W1C [2]RUN ro, 31:3 rsvd read 0.
+     2 TRNG0DR : [31:0] entropy word, ro, READ-CONSUMES. An empty read (DRDY=0) returns 0, with no consume and no toggle.
+     3 TRNG0HT : [7:0] RCTC rw (0 selects the hardware default 32) plus [21:16] RUNLEN ro diagnostic (saturating), other bits reserved read 0. */
 
 entity TRNG is
     generic (
@@ -125,9 +125,9 @@ begin
     ro_sel    <= rosel_cr;
     ro_sclk   <= clk;
 
-    -- ------------------------- register write + consume (ClkMem) -------------
-    -- Rising ClkMem, EnMemPeriph='0' qualified writes: the CR/HT stores, an SR lane-0 write of 1 to ALMF flipping clr_almf_tgl (W1C across domains), and a qualifying DR READ (slot=DR, WEn="1111") launching the consume when word_valid='1' and nothing is already pending.
-    -- dr_consume_pending's teardown, independent of EnMemPeriph, clears once word_valid=0 has been observed, i.e. the old word is truly gone.
+    /* ------------------------- register write + consume (ClkMem) -------------
+       Rising ClkMem, EnMemPeriph='0' qualified writes: the CR/HT stores, an SR lane-0 write of 1 to ALMF flipping clr_almf_tgl (W1C across domains), and a qualifying DR READ (slot=DR, WEn="1111") launching the consume when word_valid='1' and nothing is already pending.
+       dr_consume_pending's teardown, independent of EnMemPeriph, clears once word_valid=0 has been observed, i.e. the old word is truly gone. */
     reg_write: process(resetn, ClkMem)
     begin
         if resetn = '0' then
@@ -174,9 +174,9 @@ begin
         end if;
     end process reg_write;
 
-    -- ------------------------- register read (ClkMem) -------------------------
-    -- Registered read mux on rising ClkMem over data already in, or coincident with, the mclk domain: no pre-latch, no bridge.
-    -- DR returns dr_word ONLY on a currently-valid, not-yet-consumed word, the SAME condition that gates the consume above, so the read and the pop are atomic; otherwise it returns 0, an empty read with no consume and no toggle.
+    /* ------------------------- register read (ClkMem) -------------------------
+       Registered read mux on rising ClkMem over data already in, or coincident with, the mclk domain: no pre-latch, no bridge.
+       DR returns dr_word ONLY on a currently-valid, not-yet-consumed word, the SAME condition that gates the consume above, so the read and the pop are atomic; otherwise it returns 0, an empty read with no consume and no toggle. */
     reg_read: process(ClkMem)
     begin
         if rising_edge(ClkMem) then
@@ -199,9 +199,9 @@ begin
         end if;
     end process reg_read;
 
-    -- ------------------------- clk-domain CDC ----------------------------------
-    -- 2-FF sync of the async RO tap ro_raw, the ONE genuine metastability CDC in this block, plus 2-FF and edge-detect on the two ClkMem-domain request toggles (dr_consume_tgl, clr_almf_tgl).
-    -- Single edge (rising clk) only, reset via resetn.
+    /* ------------------------- clk-domain CDC ----------------------------------
+       2-FF sync of the async RO tap ro_raw, the ONE genuine metastability CDC in this block, plus 2-FF and edge-detect on the two ClkMem-domain request toggles (dr_consume_tgl, clr_almf_tgl).
+       Single edge (rising clk) only, reset via resetn. */
     clk_cdc: process(resetn, clk)
     begin
         if resetn = '0' then
@@ -219,9 +219,9 @@ begin
     consume_pulse  <= '1' when (cnstgl_c2 /= cnstgl_prev) else '0';
     clr_almf_pulse <= '1' when (clralm_c2 /= clralm_prev) else '0';
 
-    -- ------------------------- decimator (clk) ----------------------------------
-    -- Free-running reload down-counter producing a one-cycle sample_tick every decim_reload+1 = 2^DECIM clk cycles (DECIM=0 gives every clk), a plain counter-compare with NO clock gate and no generated clock.
-    -- decim_reload is a combinational lookup off decim_cr, a quasi-static CR field.
+    /* ------------------------- decimator (clk) ----------------------------------
+       Free-running reload down-counter producing a one-cycle sample_tick every decim_reload+1 = 2^DECIM clk cycles (DECIM=0 gives every clk), a plain counter-compare with NO clock gate and no generated clock.
+       decim_reload is a combinational lookup off decim_cr, a quasi-static CR field. */
     decim_lut: process(decim_cr)
     begin
         case decim_cr is
@@ -266,9 +266,9 @@ begin
         end if;
     end process decimator;
 
-    -- ------------------------- 32-bit assembler + stall (clk) -------------------
-    -- asm_reg/asm_cnt continuously packs decimated samples MSB-first (direct-pack whitening) and at the 32nd sample promotes directly into dr_word/word_valid if the depth-1 holding register is free.
-    -- Otherwise it STALLs, parking asm_cnt at 32 and holding the completed candidate in asm_reg without dropping it or overwriting dr_word, until word_valid frees up; no partial word ever reaches dr_word.
+    /* ------------------------- 32-bit assembler + stall (clk) -------------------
+       asm_reg/asm_cnt continuously packs decimated samples MSB-first (direct-pack whitening) and at the 32nd sample promotes directly into dr_word/word_valid if the depth-1 holding register is free.
+       Otherwise it STALLs, parking asm_cnt at 32 and holding the completed candidate in asm_reg without dropping it or overwriting dr_word, until word_valid frees up; no partial word ever reaches dr_word. */
     assembler: process(resetn, clk)
     begin
         if resetn = '0' then
@@ -310,9 +310,9 @@ begin
         end if;
     end process assembler;
 
-    -- ------------------------- health test, RCT (clk) --------------------------
-    -- Run-length counter over consecutive IDENTICAL ro_sync samples at each sample_tick, resetting to 1 on any change; reaching cutoff_eff sets the sticky ALMF (W1C), which auto-halts harvesting through alm_halt.
-    -- SET wins over a coincident CLEAR: the clear is applied first and the set below overrides it in the SAME cycle, the later sequential assignment winning; RUNLEN (runlen_diag) saturates at 63.
+    /* ------------------------- health test, RCT (clk) --------------------------
+       Run-length counter over consecutive IDENTICAL ro_sync samples at each sample_tick, resetting to 1 on any change; reaching cutoff_eff sets the sticky ALMF (W1C), which auto-halts harvesting through alm_halt.
+       SET wins over a coincident CLEAR: the clear is applied first and the set below overrides it in the SAME cycle, the later sequential assignment winning; RUNLEN (runlen_diag) saturates at 63. */
     health: process(resetn, clk)
         variable new_run : std_logic_vector(7 downto 0);
     begin

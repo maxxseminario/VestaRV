@@ -228,9 +228,9 @@ begin
     -- Intermediate Reset Signal
     rst_int <= not resetn;
 
-    -- =============================================================================
-    -- Analog Front End Interface Core 
-    -- =============================================================================
+    /* =============================================================================
+       Analog Front End Interface Core
+       ============================================================================= */
 
 
     -- Register synchronization: latch the inverted status register at the end of a bus access so a read returns a stable snapshot.
@@ -347,9 +347,9 @@ begin
 
 
 
-    -- =============================================================================
-    -- Memory-Mapped Register Interface
-    -- =============================================================================
+    /* =============================================================================
+       Memory-Mapped Register Interface
+       ============================================================================= */
     
     -- Address decoding: the register slot is only presented while the bus enable is active low.
     en_addr_periph <= slv2uint(addr_periph) when en_mem = '0' else 0;

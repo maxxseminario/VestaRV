@@ -1,8 +1,8 @@
--- =============================================================================
--- dbg_iface_tb.vhd: port-level conformance bench for the hart_tile debug interface (dbg_haltreq, dbg_resethaltreq, dbg_halted and the DEBUG_ENTRY_ADDR generic), checking inertness with no request pending, entry on a running hart, halt as a latched state, the fail-safe tie-off of an instance with the ports omitted, and halt on reset; run it with xcelium/mp_test/run_dbg_iface.sh, PASS iff the log prints "ALL CHECKS PASSED" and contains no "CHECK FAILED".
--- It deliberately does NOT assert dpc, dcsr.cause, dcsr.prv, step, dret or ebreak: those are architectural state readable only by code executing at DEBUG_ENTRY_ADDR, and this bench has no assembler behind it.
--- Shared-window responder: one master, so grant is unconditional and done is a one-cycle pulse after a req held until done, every read returns 0x00000013 (a nop) and every write is dropped, so each tile boots from address 0 and retires NOPs with pc walking up inside the window for far longer than any window used below, and DEBUG_ENTRY_ADDR is aimed into that same window so debug entry lands on NOPs rather than on uninitialised TCM.
--- =============================================================================
+/* =============================================================================
+   dbg_iface_tb.vhd: port-level conformance bench for the hart_tile debug interface (dbg_haltreq, dbg_resethaltreq, dbg_halted and the DEBUG_ENTRY_ADDR generic), checking inertness with no request pending, entry on a running hart, halt as a latched state, the fail-safe tie-off of an instance with the ports omitted, and halt on reset; run it with xcelium/mp_test/run_dbg_iface.sh, PASS iff the log prints "ALL CHECKS PASSED" and contains no "CHECK FAILED".
+   It deliberately does NOT assert dpc, dcsr.cause, dcsr.prv, step, dret or ebreak: those are architectural state readable only by code executing at DEBUG_ENTRY_ADDR, and this bench has no assembler behind it.
+   Shared-window responder: one master, so grant is unconditional and done is a one-cycle pulse after a req held until done, every read returns 0x00000013 (a nop) and every write is dropped, so each tile boots from address 0 and retires NOPs with pc walking up inside the window for far longer than any window used below, and DEBUG_ENTRY_ADDR is aimed into that same window so debug entry lands on NOPs rather than on uninitialised TCM.
+   ============================================================================= */
 
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;

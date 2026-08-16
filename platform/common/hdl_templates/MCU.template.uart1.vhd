@@ -1,6 +1,6 @@
--- MCU.template.uart1.vhd: UART1-conditional verbatim blocks, delimited by the @UART1BLOCK:<name>@ markers.
--- python/mcu_vhd.py splices them into MCU.template.vhd only when peripherals.uart1 is true (the default).
--- Without uart1 nothing is emitted: window slot 5 reads zero via the mux fall-through, vectors 52-54 become IRQB_RSVD*, the TX1/RX1 pad planes go hi-Z and P2.6/7 revert to plain GPIO14/15.
+/* MCU.template.uart1.vhd: UART1-conditional verbatim blocks, delimited by the @UART1BLOCK:<name>@ markers.
+   python/mcu_vhd.py splices them into MCU.template.vhd only when peripherals.uart1 is true (the default).
+   Without uart1 nothing is emitted: window slot 5 reads zero via the mux fall-through, vectors 52-54 become IRQB_RSVD*, the TX1/RX1 pad planes go hi-Z and P2.6/7 revert to plain GPIO14/15. */
 
 --@UART1BLOCK:uart1-pad-decls@
         -- P2.6: TX1

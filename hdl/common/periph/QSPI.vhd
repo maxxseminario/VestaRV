@@ -5,10 +5,10 @@ use ieee.std_logic_unsigned.all;
 library work;
 use work.constants.all;
 
--- QSPI: quad-SPI controller peripheral, one transaction at a time, CS0 only.
--- Registers CR/CMD/ADR/TX/RX/SR occupy word slots 0 to 5 of this peripheral's 256B window; a write to CMD is the sole transaction trigger.
--- Transfer FSM is IDLE, CMD, ADDR, DUMMY, DATA, DONE, back to IDLE, with zero-length phases skipped by construction.
--- Registered read path, two-chained-ClkGate baud divider and write clear-pulse retirement follow the same idioms as SPI.vhd.
+/* QSPI: quad-SPI controller peripheral, one transaction at a time, CS0 only.
+   Registers CR/CMD/ADR/TX/RX/SR occupy word slots 0 to 5 of this peripheral's 256B window; a write to CMD is the sole transaction trigger.
+   Transfer FSM is IDLE, CMD, ADDR, DUMMY, DATA, DONE, back to IDLE, with zero-length phases skipped by construction.
+   Registered read path, two-chained-ClkGate baud divider and write clear-pulse retirement follow the same idioms as SPI.vhd. */
 
 entity QSPI is
     port (

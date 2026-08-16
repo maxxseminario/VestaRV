@@ -1,4 +1,4 @@
-The hardware mutex bank provides \NumMutexesWord{} word-mapped advisory locks with \textbf{single-instruction} cross-hart mutual exclusion --- no \texttt{LR}/\texttt{SC} retry loop and no reservation state. Atomicity comes for free from the multi-core arbiter, which serializes whole shared-window transactions. The main features are listed below:
+The hardware mutex bank provides \NumMutexesWord{} word-mapped advisory locks with \textbf{single-instruction} cross-hart mutual exclusion: no \texttt{LR}/\texttt{SC} retry loop and no reservation state. Atomicity comes for free from the multi-core arbiter, which serializes whole shared-window transactions. The main features are listed below:
 
 \begin{itemize}
 	\item \NumMutexes{} independent mutexes, one 32-bit word each
@@ -42,7 +42,7 @@ When a claim fails, spin with a hart-scaled backoff and a bounded retry count (s
 
 \begin{itemize}
 	\item These are \textbf{advisory} locks: the hardware does not block a hart that ignores the protocol and accesses the protected resource directly. Correct software claims the mutex before touching the resource it guards.
-	\item \textbf{Never} access a mutex address with \texttt{LR}/\texttt{SC} or \texttt{AMO} instructions --- only plain \asminline{lw}/\asminline{sw}. A suppressed store-conditional arrives at the bank indistinguishable from a claim-read and will corrupt the ownership protocol.
+	\item \textbf{Never} access a mutex address with \texttt{LR}/\texttt{SC} or \texttt{AMO} instructions; use only plain \asminline{lw}/\asminline{sw}. A suppressed store-conditional arrives at the bank indistinguishable from a claim-read and will corrupt the ownership protocol.
 	\item Release (write 0) is deliberately \textit{not} qualified by owner so that a supervisory hart can force-release the mutex of a hung or dead hart. Correct software releases only mutexes it holds.
 \end{itemize}
 

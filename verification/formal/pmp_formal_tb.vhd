@@ -1,8 +1,8 @@
--- =====================================================================
--- Wrapper bench for pmp_unit's grant-function PSL properties.
--- It exposes a `settled` flag and a post-settle `sample` pulse the unclocked properties qualify on.
--- Three instances: 16-entry enabled, 8-entry enabled, disabled.
--- =====================================================================
+/* =====================================================================
+   Wrapper bench for pmp_unit's grant-function PSL properties.
+   It exposes a `settled` flag and a post-settle `sample` pulse the unclocked properties qualify on.
+   Three instances: 16-entry enabled, 8-entry enabled, disabled.
+   ===================================================================== */
 library ieee; use ieee.std_logic_1164.all; use ieee.numeric_std.all;
 
 entity pmp_formal_tb is end entity;

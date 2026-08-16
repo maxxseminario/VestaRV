@@ -1,6 +1,6 @@
--- branch_valid.vhd
--- Branch-condition evaluator: decides from funct3 and the ALU's Zero flag whether the branch is taken.
--- The main decoder points the ALU at subtract for equality branches and at slt or sltu for the ordered ones, so every condition reduces to Zero or its inverse.
+/* branch_valid.vhd
+   Branch-condition evaluator: decides from funct3 and the ALU's Zero flag whether the branch is taken.
+   The main decoder points the ALU at subtract for equality branches and at slt or sltu for the ordered ones, so every condition reduces to Zero or its inverse. */
 library IEEE;
 use IEEE.STD_LOGIC_1164.all;
 use work.constants.all;

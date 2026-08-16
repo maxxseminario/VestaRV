@@ -1,12 +1,12 @@
--------------------------------------------------------------------------------
--- ntag5_model.vhd
--------------------------------------------------------------------------------
--- Behavioral model of the NXP NTAG 5 dual-interface NFC tag, seen from its I2C SLAVE side only, with Castalia as the I2C master; the [L] and [B] citations below are the NTAG 5 link and boost product data sheets.
--- VARIANT picks NTP5332 (link) or NTA5332 (boost), which differ only on the RF side, so it changes no behavior here; the air interface is NOT modelled at all.
--- The rf_* inputs are a bench abstraction instead, letting a testbench say "a reader showed up and did X" in one signal edge.
--- Implemented: I2C slave framing, the 16-bit block addressing scheme, user EEPROM / config / session registers / SRAM, energy-harvest decode, the ED pin, SRAM pass-through, the I2C write lock and the datasheet NACK causes.
--- Not modelled: SCL stretching, I2C master mode, GPIO/PWM/WDT timeout, NFC-vs-I2C arbiter locking, SRAM mirror/PHDC/COPY, the 16-bit counter, standby, authentication, and real EEPROM programming time (EEPROM_PROG_TIME stands in).
--------------------------------------------------------------------------------
+/* -----------------------------------------------------------------------------
+   ntag5_model.vhd
+   -----------------------------------------------------------------------------
+   Behavioral model of the NXP NTAG 5 dual-interface NFC tag, seen from its I2C SLAVE side only, with Castalia as the I2C master; the [L] and [B] citations below are the NTAG 5 link and boost product data sheets.
+   VARIANT picks NTP5332 (link) or NTA5332 (boost), which differ only on the RF side, so it changes no behavior here; the air interface is NOT modelled at all.
+   The rf_* inputs are a bench abstraction instead, letting a testbench say "a reader showed up and did X" in one signal edge.
+   Implemented: I2C slave framing, the 16-bit block addressing scheme, user EEPROM / config / session registers / SRAM, energy-harvest decode, the ED pin, SRAM pass-through, the I2C write lock and the datasheet NACK causes.
+   Not modelled: SCL stretching, I2C master mode, GPIO/PWM/WDT timeout, NFC-vs-I2C arbiter locking, SRAM mirror/PHDC/COPY, the 16-bit counter, standby, authentication, and real EEPROM programming time (EEPROM_PROG_TIME stands in).
+   ----------------------------------------------------------------------------- */
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -41,9 +41,9 @@ entity ntag5_model is
         -- '1' = model pulls ED low = datasheet "ED pin state ON".
         ed_n_oe : out std_logic := '0';
 
-        ---------------------------------------------------------------
-        -- RF-side stimulus: A BENCH ABSTRACTION, NOT THE AIR INTERFACE
-        ---------------------------------------------------------------
+        /* -------------------------------------------------------------
+           RF-side stimulus: A BENCH ABSTRACTION, NOT THE AIR INTERFACE
+           ------------------------------------------------------------- */
         rf_field       : in std_logic := '0';  -- an NFC field is present: drives NFC_FIELD_OK, the ED field-detect source and EH availability
         rf_power_ok    : in std_logic := '1';  -- the field is strong enough for the configured EH_VOUT_V_SEL/EH_VOUT_I_SEL level
         rf_write_sram  : in std_logic := '0';  -- rising edge = the reader wrote rf_sram_len bytes into the SRAM
@@ -52,18 +52,18 @@ entity ntag5_model is
         rf_sram_len    : in natural range 0 to 256 := 256;          -- how many bytes rf_write_sram fills
         rf_disable_i2c : in std_logic := '0';  -- the NFC side has set the DISABLE_I2C session bit, so I2C accesses NACK
 
-        ---------------------------------------------------------------
-        -- decoded energy-harvesting selections (for a supply model)
-        ---------------------------------------------------------------
+        /* -------------------------------------------------------------
+           decoded energy-harvesting selections (for a supply model)
+           ------------------------------------------------------------- */
         eh_enabled    : out std_logic := '0';  -- EH_ENABLE (config or session)
         eh_vout_on    : out std_logic := '0';  -- VOUT actually driven
         eh_vout_mv    : out natural   := 1800; -- 1800 / 2400 / 3000 (0 = RFU code)
         eh_iout_ua    : out natural   := 400;  -- datasheet MINIMUM, microamps
         eh_vout_rfu_v : out std_logic := '0';  -- EH_VOUT_V_SEL = 11b (RFU)
 
-        ---------------------------------------------------------------
-        -- observation (for the testbench scoreboard)
-        ---------------------------------------------------------------
+        /* -------------------------------------------------------------
+           observation (for the testbench scoreboard)
+           ------------------------------------------------------------- */
         obs_variant_ok      : out std_logic := '0'; -- the VARIANT string was recognized
         obs_txn_count       : out natural   := 0;   -- completed START..STOP frames
         obs_addr_acked      : out std_logic := '0'; -- last address phase ACKed?
@@ -123,11 +123,11 @@ architecture behavioral of ntag5_model is
 
     type byte_arr_t is array (natural range <>) of std_logic_vector(7 downto 0);
 
-    ---------------------------------------------------------------------
-    -- Per-byte I2C WRITE masks for the session registers ([L] Tab. 87, 88, 90, 91, 92, 97, 99, 100 access columns).
-    -- A '1' means the I2C side may change that bit; a '0' means the datasheet marks it R from I2C, so a host write to it is silently dropped.
-    --   index = (block - 10A0h)*4 + REGA
-    ---------------------------------------------------------------------
+    /* -------------------------------------------------------------------
+       Per-byte I2C WRITE masks for the session registers ([L] Tab. 87, 88, 90, 91, 92, 97, 99, 100 access columns).
+       A '1' means the I2C side may change that bit; a '0' means the datasheet marks it R from I2C, so a host write to it is silently dropped.
+         index = (block - 10A0h)*4 + REGA
+       ------------------------------------------------------------------- */
     constant REG_I2C_WMASK : byte_arr_t(0 to REG_BLOCKS*4 - 1) := (
         --  A0h STATUS0: EEPROM_WR_ERROR(6), SYNCH_BLOCK_WRITE(4), _READ(3)
          0 => x"58",
@@ -166,10 +166,10 @@ architecture behavioral of ntag5_model is
         52 => x"00",
         others => x"00");
 
-    ---------------------------------------------------------------------
-    -- Delivery content of the user EEPROM ([L] Tab. 7 / [B] Tab. 6): the NFC Forum capability container plus the www.nxp.com/nfc NDEF message.
-    -- DEVIATION for determinism: the rest of EEPROM and all of SRAM start at 00h, where the real part delivers random EEPROM and uninitialised SRAM.
-    ---------------------------------------------------------------------
+    /* -------------------------------------------------------------------
+       Delivery content of the user EEPROM ([L] Tab. 7 / [B] Tab. 6): the NFC Forum capability container plus the www.nxp.com/nfc NDEF message.
+       DEVIATION for determinism: the rest of EEPROM and all of SRAM start at 00h, where the real part delivers random EEPROM and uninitialised SRAM.
+       ------------------------------------------------------------------- */
     function eep_init return byte_arr_t is
         variable e : byte_arr_t(0 to EEP_BYTES - 1) := (others => x"00");
     begin
@@ -188,10 +188,10 @@ architecture behavioral of ntag5_model is
         return e;
     end function;
 
-    ---------------------------------------------------------------------
-    -- Configuration-memory reset content.
-    -- Only the bytes this model interprets are given non-zero defaults; the rest are 00h.
-    ---------------------------------------------------------------------
+    /* -------------------------------------------------------------------
+       Configuration-memory reset content.
+       Only the bytes this model interprets are given non-zero defaults; the rest are 00h.
+       ------------------------------------------------------------------- */
     function cfg_init return byte_arr_t is
         variable c : byte_arr_t(0 to CFG_BLOCKS*4 - 1) := (others => x"00");
     begin
@@ -213,10 +213,10 @@ architecture behavioral of ntag5_model is
         return c;
     end function;
 
-    ---------------------------------------------------------------------
-    -- POR copy of the configuration into the session registers ([L] 8.1.4: "After POR, the content of the configuration settings is loaded into the session register").
-    -- The block pairing is from [L] Tab. 11 vs Tab. 85.
-    ---------------------------------------------------------------------
+    /* -------------------------------------------------------------------
+       POR copy of the configuration into the session registers ([L] 8.1.4: "After POR, the content of the configuration settings is loaded into the session register").
+       The block pairing is from [L] Tab. 11 vs Tab. 85.
+       ------------------------------------------------------------------- */
     function reg_init(c : byte_arr_t) return byte_arr_t is
         variable r : byte_arr_t(0 to REG_BLOCKS*4 - 1) := (others => x"00");
     begin
@@ -288,10 +288,10 @@ begin
                "for both, so the model still runs."
         severity warning;
 
-    ---------------------------------------------------------------------
-    -- One process owns the bus FSM, all four memories, the RF stimulus reactions and every derived output.
-    -- Memories live in process variables; the derived outputs (ED pin, EH decode, observation) are recomputed unconditionally at the BOTTOM of every activation.
-    ---------------------------------------------------------------------
+    /* -------------------------------------------------------------------
+       One process owns the bus FSM, all four memories, the RF stimulus reactions and every derived output.
+       Memories live in process variables; the derived outputs (ED pin, EH decode, observation) are recomputed unconditionally at the BOTTOM of every activation.
+       ------------------------------------------------------------------- */
     slave : process (scl, sda_in, rf_field, rf_power_ok,
                      rf_write_sram, rf_read_sram, rf_disable_i2c)
 
@@ -353,10 +353,10 @@ begin
         variable oldb, newb  : std_logic_vector(7 downto 0);
         variable nfill       : natural;
 
-        ---------------------------------------------------------------
-        -- Read one byte of MEMORY space (not registers).
-        -- A restricted or unmapped block, and SRAM while SRAM_ENABLE is 0, reads FFh ([L] 8.3.1.5); extending that rule to unmapped blocks is an ASSUMPTION.
-        ---------------------------------------------------------------
+        /* -------------------------------------------------------------
+           Read one byte of MEMORY space (not registers).
+           A restricted or unmapped block, and SRAM while SRAM_ENABLE is 0, reads FFh ([L] 8.3.1.5); extending that rule to unmapped blocks is an ASSUMPTION.
+           ------------------------------------------------------------- */
         procedure mem_read(blk : in natural; byt : in natural;
                            val : out std_logic_vector(7 downto 0)) is
         begin
@@ -378,9 +378,9 @@ begin
         end procedure;
 
     begin
-        -------------------------------------------------------------------
-        -- RF-SIDE BENCH STIMULUS, not the air interface
-        -------------------------------------------------------------------
+        /* -----------------------------------------------------------------
+           RF-SIDE BENCH STIMULUS, not the air interface
+           ----------------------------------------------------------------- */
         if rf_write_sram'event and to_X01(rf_write_sram) = '1' then
             -- "a reader wrote the SRAM buffer"
             nfill := rf_sram_len;
@@ -413,19 +413,19 @@ begin
             ed_nfc := '0';
         end if;
 
-        -------------------------------------------------------------------
-        -- I2C BUS FSM.
-        -- Two frame shapes, chosen purely from the captured block address: memory write = SL_AD+W BL_AD1 BL_AD0 then one 4-byte block (SRAM takes multiples of 4); register write (block 10A0h..10AFh) inserts REGA and a MASK byte before the single REGDAT byte.
-        -- A read is addressed by such a write frame without data, then repeated-START SL_AD+R; memory reads auto-increment until the host NACKs, a register read returns the one REGDAT byte.
-        -------------------------------------------------------------------
+        /* -----------------------------------------------------------------
+           I2C BUS FSM.
+           Two frame shapes, chosen purely from the captured block address: memory write = SL_AD+W BL_AD1 BL_AD0 then one 4-byte block (SRAM takes multiples of 4); register write (block 10A0h..10AFh) inserts REGA and a MASK byte before the single REGDAT byte.
+           A read is addressed by such a write frame without data, then repeated-START SL_AD+R; memory reads auto-increment until the host NACKs, a register read returns the one REGDAT byte.
+           ----------------------------------------------------------------- */
         if sda_in'event and to_X01(scl) = '1' then
-            ------------------------------------------------------------
-            -- START / repeated-START / STOP: SDA moves while SCL is high
-            ------------------------------------------------------------
+            /* ----------------------------------------------------------
+               START / repeated-START / STOP: SDA moves while SCL is high
+               ---------------------------------------------------------- */
             if to_X01(sda_in) = '0' then
-                -- START or repeated-START.
-                -- I2C_S_REPEATED_START ([L] Tab. 100 bit 2): when set, the slave "resets internal state machine on repeated start".
-                -- ASSUMPTION: modelled as invalidating the address pointer.
+                /* START or repeated-START.
+                   I2C_S_REPEATED_START ([L] Tab. 100 bit 2): when set, the slave "resets internal state machine on repeated start".
+                   ASSUMPTION: modelled as invalidating the address pointer. */
                 if active and regs(RGO_I2CSLV*4 + 1)(2) = '1' then
                     ptr_valid := false;
                 end if;
@@ -477,9 +477,9 @@ begin
             end if;
 
         elsif active and scl'event and to_X01(scl) = '1' then
-            ------------------------------------------------------------
-            -- SCL RISING edge: SAMPLE
-            ------------------------------------------------------------
+            /* ----------------------------------------------------------
+               SCL RISING edge: SAMPLE
+               ---------------------------------------------------------- */
             g  := edge / 9;
             bp := edge mod 9;
             if bp < 8 then
@@ -497,10 +497,10 @@ begin
             edge := edge + 1;
 
         elsif active and scl'event and to_X01(scl) = '0' then
-            ------------------------------------------------------------
-            -- SCL FALLING edge: process the sampled bit, then set up this model's next drive.
-            -- edge has already been incremented, so g/bp name the UPCOMING sample slot: the tb/i3c_target_model idiom.
-            ------------------------------------------------------------
+            /* ----------------------------------------------------------
+               SCL FALLING edge: process the sampled bit, then set up this model's next drive.
+               edge has already been incremented, so g/bp name the UPCOMING sample slot: the tb/i3c_target_model idiom.
+               ---------------------------------------------------------- */
             g  := edge / 9;
             bp := edge mod 9;
 
@@ -509,9 +509,9 @@ begin
 
             elsif g = 0 then
                 if bp = 8 then
-                    ------------------------------------------------------
-                    -- address ACK slot
-                    ------------------------------------------------------
+                    /* ----------------------------------------------------
+                       address ACK slot
+                       ---------------------------------------------------- */
                     is_read := (shift(0) = '1');
                     addr_ok := (shift(7 downto 1) = regs(RGO_I2CSLV*4 + 0)(6 downto 0));
                     obs_last_addr <= shift(7 downto 1);
@@ -537,9 +537,9 @@ begin
                 n := g - 1;                     -- data-byte index in this frame
 
                 if is_read then
-                    ------------------------------------------------------
-                    -- READ direction
-                    ------------------------------------------------------
+                    /* ----------------------------------------------------
+                       READ direction
+                       ---------------------------------------------------- */
                     if bp = 0 then
                         -- fetch the byte we are about to shift out
                         if not ptr_valid then
@@ -605,9 +605,9 @@ begin
                     end if;
 
                 else
-                    ------------------------------------------------------
-                    -- WRITE direction (master to model)
-                    ------------------------------------------------------
+                    /* ----------------------------------------------------
+                       WRITE direction (master to model)
+                       ---------------------------------------------------- */
                     if bp /= 8 then
                         sda_oe <= '0';          -- data bits: master drives
                     else
@@ -633,9 +633,9 @@ begin
                             end if;
 
                         elsif is_reg then
-                            ----------------------------------------------
-                            -- REGISTER write frame: REGA, MASK, REGDAT
-                            ----------------------------------------------
+                            /* --------------------------------------------
+                               REGISTER write frame: REGA, MASK, REGDAT
+                               -------------------------------------------- */
                             if n = 2 then
                                 reg_rega := to_integer(unsigned(shift(1 downto 0)));
                             elsif n = 3 then
@@ -684,9 +684,9 @@ begin
                             end if;
 
                         else
-                            ----------------------------------------------
-                            -- MEMORY write frame: data bytes
-                            ----------------------------------------------
+                            /* --------------------------------------------
+                               MEMORY write frame: data bytes
+                               -------------------------------------------- */
                             d := n - 2;
 
                             if ptr_blk >= BLK_SRAM_BASE and ptr_blk <= BLK_SRAM_TERM then
@@ -767,11 +767,11 @@ begin
             end if;
         end if;
 
-        -------------------------------------------------------------------
-        -- DERIVED OUTPUTS, recomputed on EVERY activation
-        -------------------------------------------------------------------
-        -- Energy harvesting: EH_CONFIG (config block 103Dh byte 0) is bit 0 EH_ENABLE, bits 2:1 EH_VOUT_V_SEL, bit 3 DISABLE_POWER_CHECK, bits 6:4 EH_VOUT_I_SEL ([L] Tab. 53).
-        -- The V/I selections live ONLY in the config byte; the session register carries just EH_ENABLE/LOAD_OK.
+        /* -----------------------------------------------------------------
+           DERIVED OUTPUTS, recomputed on EVERY activation
+           -----------------------------------------------------------------
+           Energy harvesting: EH_CONFIG (config block 103Dh byte 0) is bit 0 EH_ENABLE, bits 2:1 EH_VOUT_V_SEL, bit 3 DISABLE_POWER_CHECK, bits 6:4 EH_VOUT_I_SEL ([L] Tab. 53).
+           The V/I selections live ONLY in the config byte; the session register carries just EH_ENABLE/LOAD_OK. */
         ehb  := cfg(CFO_EHED*4 + 0);
         cfg1 := regs(RGO_CONFIG*4 + 1);
 

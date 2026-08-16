@@ -1,12 +1,12 @@
--------------------------------------------------------------------------------
--- UART_tb.vhd
--------------------------------------------------------------------------------
--- Standalone, self-checking testbench for the UART peripheral: drives the peripheral memory bus and the RX pad while observing the TX pad, status flags, interrupt lines and the evt_rx event tap.
--- Support packages: periph_tb_pkg (scoreboard and register-bus BFM) and uart_bfm_pkg (pad-level TX capture and RX drive); the scoreboard prints a single PASS/FAIL banner at the end.
--- Bus contract: en_mem and wen are ACTIVE-LOW, SR and RX read back a snapshot taken on the falling edge of en_mem, and reading the RX slot also clears the RX status flags (OVF/FEF/PEF/RCIF).
--- Baud timing: one UART bit lasts 16*(BR+1) core-clock periods.
--- clk_mem must FREE-RUN here: all flag/status logic lives in the clk_mem domain and synchronizes the serial-side events in through a toggle plus 3-stage synchronizer, which a gated clk_mem starves (TX corruption, RCIF/irq_rc never seen, framing/parity/overflow flags never observed).
--------------------------------------------------------------------------------
+/* -----------------------------------------------------------------------------
+   UART_tb.vhd
+   -----------------------------------------------------------------------------
+   Standalone, self-checking testbench for the UART peripheral: drives the peripheral memory bus and the RX pad while observing the TX pad, status flags, interrupt lines and the evt_rx event tap.
+   Support packages: periph_tb_pkg (scoreboard and register-bus BFM) and uart_bfm_pkg (pad-level TX capture and RX drive); the scoreboard prints a single PASS/FAIL banner at the end.
+   Bus contract: en_mem and wen are ACTIVE-LOW, SR and RX read back a snapshot taken on the falling edge of en_mem, and reading the RX slot also clears the RX status flags (OVF/FEF/PEF/RCIF).
+   Baud timing: one UART bit lasts 16*(BR+1) core-clock periods.
+   clk_mem must FREE-RUN here: all flag/status logic lives in the clk_mem domain and synchronizes the serial-side events in through a toggle plus 3-stage synchronizer, which a gated clk_mem starves (TX corruption, RCIF/irq_rc never seen, framing/parity/overflow flags never observed).
+   ----------------------------------------------------------------------------- */
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -22,27 +22,27 @@ end entity UART_tb;
 
 architecture sim of UART_tb is
 
-    -----------------------------------------------------------------------
-    -- Timing
-    -----------------------------------------------------------------------
+    /* ---------------------------------------------------------------------
+       Timing
+       --------------------------------------------------------------------- */
     constant CLK_PERIOD : time    := 50 ns;            -- 20 MHz core clock
     constant BAUD_DIV   : integer := 1;                -- value written to UART_BR
     constant BIT_PERIOD : time    := 16 * (BAUD_DIV + 1) * CLK_PERIOD; -- 1.6 us
 
-    -----------------------------------------------------------------------
-    -- Control-register field encodings (UART_CR(5 downto 0))
-    --   bit5 EN | bit4 PEN | bit3 PSEL(0=even,1=odd)
-    --   bit2 CIE(rx) | bit1 TEIE | bit0 TCIE
-    -----------------------------------------------------------------------
+    /* ---------------------------------------------------------------------
+       Control-register field encodings (UART_CR(5 downto 0))
+         bit5 EN | bit4 PEN | bit3 PSEL(0=even,1=odd)
+         bit2 CIE(rx) | bit1 TEIE | bit0 TCIE
+       --------------------------------------------------------------------- */
     constant CR_EN_NOPAR  : std_logic_vector(5 downto 0) := "100000"; -- enable, 8N1
     constant CR_EN_RXIE   : std_logic_vector(5 downto 0) := "100100"; -- enable + RX irq
     constant CR_EN_TXIE   : std_logic_vector(5 downto 0) := "100011"; -- enable + TE+TC irq
     constant CR_EN_EVEN   : std_logic_vector(5 downto 0) := "110000"; -- enable, even parity
     constant CR_EN_ODD    : std_logic_vector(5 downto 0) := "111000"; -- enable, odd parity
 
-    -----------------------------------------------------------------------
-    -- DUT bus / system signals
-    -----------------------------------------------------------------------
+    /* ---------------------------------------------------------------------
+       DUT bus / system signals
+       --------------------------------------------------------------------- */
     signal clk         : std_logic := '0';
     signal clk_mem     : std_logic := '0';
     signal resetn      : std_logic := '0';
@@ -67,9 +67,9 @@ architecture sim of UART_tb is
     -- ---- event tap (GROUP EV) ---------------------------------------------
     signal evt_rx : std_logic;
 
-    -- ---- evt_rx pulse monitor (checker independence, GROUP EV) ------------
-    -- Counts pulse STARTS and total HIGH samples at clk_mem rising edges since the last evt_mon_clear, reading only the exported evt_rx port, so N one-clk_mem-wide pulses satisfy starts=N and highs=N.
-    -- Also tracks whether irq_rc was EVER seen high in the window, for the masked-IRQ discipline check.
+    /* ---- evt_rx pulse monitor (checker independence, GROUP EV) ------------
+       Counts pulse STARTS and total HIGH samples at clk_mem rising edges since the last evt_mon_clear, reading only the exported evt_rx port, so N one-clk_mem-wide pulses satisfy starts=N and highs=N.
+       Also tracks whether irq_rc was EVER seen high in the window, for the masked-IRQ discipline check. */
     signal evt_rx_starts, evt_rx_highs : natural := 0;
     signal evt_rx_prev   : std_logic := '0';
     signal evt_mon_clear : std_logic := '0';
@@ -79,15 +79,15 @@ architecture sim of UART_tb is
 
 begin
 
-    -----------------------------------------------------------------------
-    -- Clocks: clk_mem free-runs, which the flag CDC needs to synchronize the serial-side events in.
-    -----------------------------------------------------------------------
+    /* ---------------------------------------------------------------------
+       Clocks: clk_mem free-runs, which the flag CDC needs to synchronize the serial-side events in.
+       --------------------------------------------------------------------- */
     clk     <= not clk after CLK_PERIOD / 2;
     clk_mem <= clk;
 
-    -----------------------------------------------------------------------
-    -- evt_rx pulse monitor.
-    -----------------------------------------------------------------------
+    /* ---------------------------------------------------------------------
+       evt_rx pulse monitor.
+       --------------------------------------------------------------------- */
     evt_mon_proc : process(clk_mem)
         variable r_lvl : std_logic;
     begin
@@ -115,9 +115,9 @@ begin
         end if;
     end process;
 
-    -----------------------------------------------------------------------
-    -- DUT
-    -----------------------------------------------------------------------
+    /* ---------------------------------------------------------------------
+       DUT
+       --------------------------------------------------------------------- */
     dut : entity work.UART
         port map (
             clk         => clk,
@@ -141,9 +141,9 @@ begin
             evt_rx      => evt_rx
         );
 
-    -----------------------------------------------------------------------
-    -- Stimulus + checking
-    -----------------------------------------------------------------------
+    /* ---------------------------------------------------------------------
+       Stimulus + checking
+       --------------------------------------------------------------------- */
     stim_proc : process
 
         variable rdw      : std_logic_vector(31 downto 0);
@@ -171,9 +171,9 @@ begin
         end procedure;
 
     begin
-        ----------------------------------------------------------------
-        -- Reset
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           Reset
+           -------------------------------------------------------------- */
         resetn <= '0';
         RX_IN  <= '1';
         pbus   <= PERIPH_BUS_IDLE;
@@ -182,9 +182,9 @@ begin
         resetn <= '1';
         wait for 4 * CLK_PERIOD;
 
-        ----------------------------------------------------------------
-        -- GROUP 1: reset / idle state
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           GROUP 1: reset / idle state
+           -------------------------------------------------------------- */
         report "=== GROUP 1: reset & idle state ===" severity note;
 
         sb.check_bit("TX pad idle high",              TX_OUT, '1');
@@ -208,9 +208,9 @@ begin
         bus_read(clk, pbus, read_data, RegSlotUARTxSR, rdw);
         sb.check_slv("SR resets to 0", rdw(7 downto 0), x"00");
 
-        ----------------------------------------------------------------
-        -- GROUP 2: register read/write
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           GROUP 2: register read/write
+           -------------------------------------------------------------- */
         report "=== GROUP 2: register read / write ===" severity note;
 
         bus_write_small(RegSlotUARTxBR, std_logic_vector(to_unsigned(BAUD_DIV, 12)));
@@ -232,9 +232,9 @@ begin
         bus_write_small(RegSlotUARTxCR, "000000");
         wait for 2 * CLK_PERIOD;
 
-        ----------------------------------------------------------------
-        -- GROUP 3: transmit (8N1), two distinct payloads
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           GROUP 3: transmit (8N1), two distinct payloads
+           -------------------------------------------------------------- */
         report "=== GROUP 3: TX 8N1 ===" severity note;
 
         bus_write_small(RegSlotUARTxCR, CR_EN_NOPAR);
@@ -257,9 +257,9 @@ begin
         sb.check_slv("TX byte 0xA3 on the wire", cap_data, x"A3");
         sb.check_bit("TX stop bit high (0xA3)",  cap_stop, '1');
 
-        ----------------------------------------------------------------
-        -- GROUP 4: TX-complete / TX-empty interrupt lines + flag clear
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           GROUP 4: TX-complete / TX-empty interrupt lines + flag clear
+           -------------------------------------------------------------- */
         report "=== GROUP 4: TX interrupts ===" severity note;
 
         bus_write_small(RegSlotUARTxCR, CR_EN_TXIE);   -- enable, TEIE+TCIE
@@ -277,9 +277,9 @@ begin
         sb.check_bit("irq_tc deasserted after clear", irq_tc, '0');
         sb.check_bit("irq_te deasserted after clear", irq_te, '0');
 
-        ----------------------------------------------------------------
-        -- GROUP 5: receive (8N1)
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           GROUP 5: receive (8N1)
+           -------------------------------------------------------------- */
         report "=== GROUP 5: RX 8N1 ===" severity note;
 
         bus_write_small(RegSlotUARTxCR, CR_EN_NOPAR);
@@ -302,9 +302,9 @@ begin
         bus_read(clk, pbus, read_data, RegSlotUARTxRX, rdw);
         sb.check_slv("RX byte 0x96 received", rdw(7 downto 0), x"96");
 
-        ----------------------------------------------------------------
-        -- GROUP 6: RX-complete interrupt line
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           GROUP 6: RX-complete interrupt line
+           -------------------------------------------------------------- */
         report "=== GROUP 6: RX interrupt ===" severity note;
 
         bus_write_small(RegSlotUARTxCR, CR_EN_RXIE);   -- enable + CIE
@@ -317,9 +317,9 @@ begin
         wait for 2 * CLK_PERIOD;
         sb.check_bit("irq_rc deasserted after RX read", irq_rc, '0');
 
-        ----------------------------------------------------------------
-        -- GROUP 7: framing error (bad stop bit)
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           GROUP 7: framing error (bad stop bit)
+           -------------------------------------------------------------- */
         report "=== GROUP 7: framing error ===" severity note;
 
         bus_write_small(RegSlotUARTxCR, CR_EN_NOPAR);
@@ -331,9 +331,9 @@ begin
         bus_read(clk, pbus, read_data, RegSlotUARTxSR, rdw);
         sb.check_bit("framing error cleared by RX read", rdw(5), '0');
 
-        ----------------------------------------------------------------
-        -- GROUP 8: parity generation (TX) and checking (RX)
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           GROUP 8: parity generation (TX) and checking (RX)
+           -------------------------------------------------------------- */
         report "=== GROUP 8: parity ===" severity note;
 
         -- TX even parity: the parity bit is the XOR of the data bits.
@@ -377,10 +377,10 @@ begin
         bus_read(clk, pbus, read_data, RegSlotUARTxRX, rdw);
         sb.check_slv("RX(odd) data 0x3C", rdw(7 downto 0), x"3C");
 
-        ----------------------------------------------------------------
-        -- GROUP 9: RX overflow, two frames with the first never read: the second byte sets the overflow flag (SR bit3).
-        -- clr_SR_RX from reading RX is a gated pulse that sticks until the next UART access, so a dummy non-RX access retires it before the overflow is set up.
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           GROUP 9: RX overflow, two frames with the first never read: the second byte sets the overflow flag (SR bit3).
+           clr_SR_RX from reading RX is a gated pulse that sticks until the next UART access, so a dummy non-RX access retires it before the overflow is set up.
+           -------------------------------------------------------------- */
         report "=== GROUP 9: RX overflow ===" severity note;
 
         -- (a) Two unread RX bytes must raise overflow.
@@ -409,9 +409,9 @@ begin
         bus_read(clk, pbus, read_data, RegSlotUARTxRX, rdw);
         sb.check_slv("RX data 0x33 readable", rdw(7 downto 0), x"33");
 
-        ----------------------------------------------------------------
-        -- GROUP 10: disable clears activity / outputs return to idle
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           GROUP 10: disable clears activity / outputs return to idle
+           -------------------------------------------------------------- */
         report "=== GROUP 10: disable behaviour ===" severity note;
 
         bus_write_small(RegSlotUARTxCR, "000000");       -- UART disabled
@@ -421,10 +421,10 @@ begin
         sb.check_bit("irq_te low when disabled",   irq_te, '0');
         sb.check_bit("irq_tc low when disabled",   irq_tc, '0');
 
-        ----------------------------------------------------------------
-        -- GROUP EV: evt_rx is the RCIF SET condition itself, PRE-MASK: one clk_mem pulse per set edge, on every received frame regardless of CIE, and again on an overrun.
-        -- Checked by the background pulse monitor over evt_mon_reset-bounded windows, sampling only the exported evt_rx/irq_rc ports.
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           GROUP EV: evt_rx is the RCIF SET condition itself, PRE-MASK: one clk_mem pulse per set edge, on every received frame regardless of CIE, and again on an overrun.
+           Checked by the background pulse monitor over evt_mon_reset-bounded windows, sampling only the exported evt_rx/irq_rc ports.
+           -------------------------------------------------------------- */
         report "=== GROUP EV: EVFAB tap (evt_rx) ===" severity note;
 
         -- EV-a: three clean frames, each read and its clr_SR_RX pulse retired by a dummy CR access before the next frame arrives, so no overrun.
@@ -513,9 +513,9 @@ begin
         sb.check_true("EV-d1: evt_rx never pulses during a quiet window (no RX traffic)",
                       evt_rx_starts = 0 and evt_rx_highs = 0);
 
-        ----------------------------------------------------------------
-        -- Final verdict
-        ----------------------------------------------------------------
+        /* --------------------------------------------------------------
+           Final verdict
+           -------------------------------------------------------------- */
         wait for 1 us;
         sb.report_summary("UART TB");
         stop;

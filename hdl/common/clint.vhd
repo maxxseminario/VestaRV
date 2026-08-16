@@ -1,10 +1,10 @@
--- =============================================================================
--- clint.vhd: per-hart software interrupts (msip) and a shared 64-bit mtime with per-hart mtimecmp, for NHARTS harts.
--- Slave behind mp_arbiter in the shared window, on the free-running mclk, so there is no clock-domain crossing.
--- Bus: active-high en, four active-high byte lanes on we, address at cycle T and rdata at T+1, writes lane-merge; only addr(ADDR_W-1:0) decodes, so the page aliases every 2**ADDR_W words.
--- msip(h)/mtip(h) are levels into hart h's irq_vector; an ISR must write msip[h]=0 or advance mtimecmp[h] before iret, or the interrupt re-triggers.
--- Word map: 0..NHARTS-1 = msip[h] bit 0; MTIME_W and +1 = mtime lo/hi, free-running and writable; CMP_W+2h and +1 = mtimecmp[h] lo/hi, reset all-ones so mtip starts low.
--- =============================================================================
+/* =============================================================================
+   clint.vhd: per-hart software interrupts (msip) and a shared 64-bit mtime with per-hart mtimecmp, for NHARTS harts.
+   Slave behind mp_arbiter in the shared window, on the free-running mclk, so there is no clock-domain crossing.
+   Bus: active-high en, four active-high byte lanes on we, address at cycle T and rdata at T+1, writes lane-merge; only addr(ADDR_W-1:0) decodes, so the page aliases every 2**ADDR_W words.
+   msip(h)/mtip(h) are levels into hart h's irq_vector; an ISR must write msip[h]=0 or advance mtimecmp[h] before iret, or the interrupt re-triggers.
+   Word map: 0..NHARTS-1 = msip[h] bit 0; MTIME_W and +1 = mtime lo/hi, free-running and writable; CMP_W+2h and +1 = mtimecmp[h] lo/hi, reset all-ones so mtip starts low.
+   ============================================================================= */
 
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;

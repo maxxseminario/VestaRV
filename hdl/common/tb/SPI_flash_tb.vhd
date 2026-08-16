@@ -1,8 +1,8 @@
--------------------------------------------------------------------------------
--- SPI_flash_tb.vhd: self-checking testbench for the SPI peripheral's extended-memory (flash XIP) path, SPI.vhd built with ENABLE_EXTENDED_MEM = true against the AT45DB021E behavioral model in tb/serial_flash.vhd, on the usual periph_tb_pkg scoreboard and register-bus BFM (en_mem and wen active-low, gated clk_mem).
--- No core is present: the bench plays the tile's adddec, driving en_mem_flash, clk_mem_flash and mab and consuming rdata_flash and disable_clk_cpu exactly as adddec.vhd does for a data_addr in the flash window; the flash image ../rcf/spiflash_xiptest_a.rcf holds 32 binary chars per line, one 32-bit word MSB-first, word i being the expected XIP read at 0x20000+4*i.
--- Coverage: the deep-power-down wake handshake (a CS-framed 0xAB resume issued as a normal 8-bit transfer with spi_fen = 0, plus 35 us of tRDPD), the XIP read FSM (CS low, opcode 0x0B, 24-bit address of mab(23:0) plus SPIxFOS, dummy byte, 32-bit word), SPIxFOS = 0xFE0000 mapping XIP address 0x20000+4*i onto flash word i in the 24-bit adder, the SPIxCR rx-swap MSB-first 32-bit alignment back to a little-endian word, and the disable_clk_cpu core stall.
--------------------------------------------------------------------------------
+/* -----------------------------------------------------------------------------
+   SPI_flash_tb.vhd: self-checking testbench for the SPI peripheral's extended-memory (flash XIP) path, SPI.vhd built with ENABLE_EXTENDED_MEM = true against the AT45DB021E behavioral model in tb/serial_flash.vhd, on the usual periph_tb_pkg scoreboard and register-bus BFM (en_mem and wen active-low, gated clk_mem).
+   No core is present: the bench plays the tile's adddec, driving en_mem_flash, clk_mem_flash and mab and consuming rdata_flash and disable_clk_cpu exactly as adddec.vhd does for a data_addr in the flash window; the flash image ../rcf/spiflash_xiptest_a.rcf holds 32 binary chars per line, one 32-bit word MSB-first, word i being the expected XIP read at 0x20000+4*i.
+   Coverage: the deep-power-down wake handshake (a CS-framed 0xAB resume issued as a normal 8-bit transfer with spi_fen = 0, plus 35 us of tRDPD), the XIP read FSM (CS low, opcode 0x0B, 24-bit address of mab(23:0) plus SPIxFOS, dummy byte, 32-bit word), SPIxFOS = 0xFE0000 mapping XIP address 0x20000+4*i onto flash word i in the 24-bit adder, the SPIxCR rx-swap MSB-first 32-bit alignment back to a little-endian word, and the disable_clk_cpu core stall.
+   ----------------------------------------------------------------------------- */
 
 library ieee;
 use ieee.std_logic_1164.all;
