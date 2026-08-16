@@ -94,6 +94,17 @@ The following list details the MCU configuration:
 	\input{include/FeaturesList.tex}
 \end{itemize}
 
+Figure~\ref{fig:system-block-diagram} is the memory system's view of the chip: how the \NumHartsWord{} harts share one window. Figure~\ref{fig:chip-system-diagram} is the other view, and the one to read first if the question is \emph{what is on this chip}: the arbiter drawn as the single bus bar it behaves like, every peripheral this configuration instantiates hanging off it, the shared memories underneath, the harts compressed into the master panel on the right, and the package boundary in red with the outside world crossing it. Both figures are generated from the same configuration, so the peripheral set, the instance counts and the addresses in them are this build's and no other's; the full address map is Section~\ref{s:addressSpace} and the per-pin bonding is Section~\ref{s:pinsConfig}.
+
+% Generated, configuration-driven whole-chip diagram (make chip). Landscape: it
+% is the widest figure in the manual and the peripheral row must stay legible.
+\begin{sidewaysfigure}
+	\centering
+	\resizebox{\linewidth}{!}{\input{include/ChipSystemDiagram.tex}}
+	\caption[{\AsicNameForUserGuide{} whole-chip diagram: the bus and the peripherals}]{\AsicNameForUserGuide{} whole-chip diagram: the bus and the peripherals. Everything on the die is reached through one serializing shared-window bus, so the \texttt{mp\_arbiter} is drawn as the bus bar and every block taps it; a stacked box with an $\times N$ badge is $N$ instances of one peripheral, not one block. Above the bar sits the pin-facing half of the chip and above the red package boundary the world it talks to; below the bar sit time, clocks, power, the shared memories and the on-chip engines. The blocks, their instance names, their counts and their addresses are generated from this configuration, and the outside-world boxes from its package model.}
+	\label{fig:chip-system-diagram}
+\end{sidewaysfigure}
+
 \subsection{Chip Configuration} \label{ss:chipConfig}
 
 This document, the memory-map headers, the linker scripts, and the drop-in RTL are all generated from one chip configuration by \texttt{make chip}. The configuration is a small JSON document (every key optional; missing keys keep the \AsicNameForUserGuide{} defaults) passed as \texttt{make chip CONFIG=config.json}; an interactive front-end for producing it ships with the generator (\texttt{docs/chip\_configurator.html}). Table~\ref{t:chip-config} lists every configuration knob together with the value used to build \emph{this} document, and Table~\ref{t:chip-config-derived} lists the geometry derived from those knobs. The resolved configuration is also written to \texttt{config/ChipConfig.resolved.json} at every build, and \texttt{make verify [CONFIG=config.json]} \emph{proves} a configuration: it stages the generated RTL into a behavioral simulation environment and runs the multi-core boot/ISA smoke suite against it. The core peripheral set and the pad ring are not configuration knobs; they are fixed template content, and the pad ring (Section~\ref{s:pinsConfig}) is derived from the generator's package model. The second-instance peripherals (\peripheral{UART1}, \peripheral{SPI1}, \peripheral{TIMER1}, \peripheral{I2C1}) and the \peripheral{NPU}, however, are individually droppable through the \texttt{peripherals} section: a dropped instance's register window reads zero, its interrupt vectors are reserved (the numbering is frozen), and its pins revert to plain GPIO.
