@@ -4193,15 +4193,26 @@ if packageModel == 'castalia-quad-qfn64' and cqAfeStubsPresent:
 		(0xE, '-', 'RW',  'Scratch / reserved (plain read-write storage).'),
 		(0xF, '-', 'RW',  'Scratch / reserved (plain read-write storage).'),
 	]
+	# THE OWNER FOLLOWS THE TILE, NOT THE SITE INDEX. mcu_vhd.afeStubsOrchOwners()
+	# shifts every AFE site's OWNER_HART generic by +1 on an orchestrator config,
+	# because hart 0 is the orchestrator and the four CHANNEL harts are 1..4: the
+	# emitted MCU.vhd reads `afe0 ... OWNER_HART => 1  -- 0x4C00: tile hart 1 or
+	# hart 0'. This table used to hard-code ownerHart = site index regardless, so
+	# the TRM's ownership table and gating prose described the pre-orchestrator
+	# shape, and since the chapter renders ONLY on the CQ package model, which IS
+	# an orchestrator config, every rendered copy of it was wrong: it told the
+	# reader AFE0 answered hart 0 alone when the RTL gives it to hart 1. Derived
+	# here from the same knob mcu_vhd.py derives from, so the two cannot drift.
 	_cqDocBlocks = []
 	for _h in range(4):
+		_owner = _h + 1 if orchestrator else _h
 		_cqDocBlocks.append({
 			'name':      'AFE' + str(_h),
 			'base':      0x4C00 + 0x40 * _h,
 			'sizeBytes': 0x40,
 			'parent':    ('page-0 slot 12 (0x4C00-0x4CFF, the reserved ex-SARADC/AFE slot)', 0x4C00, 0x4CFF),
-			'ownerHart': _h,
-			'gate':      ('s\\_master = 0' if _h == 0 else 's\\_master = ' + str(_h) + ' or s\\_master = 0'),
+			'ownerHart': _owner,
+			'gate':      ('s\\_master = 0' if _owner == 0 else 's\\_master = ' + str(_owner) + ' or s\\_master = 0'),
 			'irqSource': 55,
 			'registers': _afeRegisters,
 		})
