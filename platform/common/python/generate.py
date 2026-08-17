@@ -529,14 +529,34 @@ _CONFIG_META = {
 	'priv.umode':           {'type': 'bool', 'default': False},
 	'priv.pmp':             {'type': 'bool', 'default': False},
 	'priv.pmpEntries':      {'type': 'int', 'default': 16, 'min': 8, 'max': 16, 'step': 8},
-	# D-series core-side debug (D1, 2026-08-05). Default FALSE -- the whole
-	# programme's inertness claim is that a knob-OFF build is bit-identical to
-	# a pre-D1 chip. NOTE, as above: this literal is the SCHEMA default; the
-	# OPERATIVE one is the _cfg() fallback in _debug below, and
-	# check_config_defaults.py is what keeps the two in step.
-	'debug.enable':         {'type': 'bool', 'default': False},
+	# D-series core-side debug (D1, 2026-08-05). DEFAULT FLIPPED TO TRUE
+	# 2026-08-16 (USER directive: "I want all of these features including
+	# debug"): the shipped Castalia now carries the Debug Module dm0 AND the
+	# JTAG DTM dtm0, and the default package moved to castalia-lqfp100 in the
+	# same change because it is the ONLY model that bonds the five TAP balls
+	# (47=TCK/48=TMS/49=TDI/50=TDO/51=TRSTn) -- castalia-quad-qfn64 has all 64
+	# balls committed, so an enabled TAP there is on-die but unreachable, which
+	# is what _checkDebugTransportBonded below now refuses to ship silently.
+	# The D-series inertness claim (a knob-OFF build is bit-identical to a
+	# pre-D1 chip) is NOT retired -- it is now proven by the named back-compat
+	# row config/castalia_nodbgnfc.json, the castalia4.json precedent.
+	# NOTE, as above: this literal is the SCHEMA default; the OPERATIVE one is
+	# the _cfg() fallback in _debug below, and check_config_defaults.py is what
+	# keeps the two in step.
+	'debug.enable':         {'type': 'bool', 'default': True},
 	'memory.romSize':            {'type': 'int', 'default': 16384, 'min': 0x400, 'max': 0x4000, 'step': 0x400},
-	'memory.tcmSizePerHart':     {'type': 'int', 'default': 16384, 'min': 0x400, 'max': 0x4000, 'step': 0x400},
+	# DEFAULT HALVED 16384 -> 8192 on 2026-08-16 (USER directive: use the 8 KiB
+	# SRAM for each core's private TCM, "make each tile as small as possible").
+	# The 8 KiB macro sram1p8k_hvt_pg is 319.65 x 208.675 against the 16 KiB
+	# sram1p16k_hvt_pg's 319.65 x 383.085 -- SAME WIDTH, 174.41 um shorter, which
+	# is why it drops into the tile's bottom-left TCM slot without re-plumbing the
+	# U-notch floorplan's X axis. NOTE what this does NOT change: the TCM APERTURE
+	# STRIDE stays 0x4000 (tcmWindows below). Apertures are address space, not
+	# silicon -- packing them to 0x2000 would buy no area and would force the
+	# aperture sub-decode off its 16 KiB s_addr(15:12) granularity, so the upper
+	# half of each aperture simply reads unmapped. The OPERATIVE default is the
+	# _cfg() fallback at _tcmSize; check_config_defaults.py keeps the two in step.
+	'memory.tcmSizePerHart':     {'type': 'int', 'default': 8192, 'min': 0x400, 'max': 0x4000, 'step': 0x400},
 	'memory.sharedBulkRamSize':  {'type': 'int', 'default': 0x10000, 'min': 0x4000, 'step': 0x4000},
 	'memory.npuStagingRamSize':  {'type': 'int', 'default': 0x4000, 'min': 0x400, 'max': 0x4000, 'step': 0x400},
 	'peripherals.npu':      {'type': 'bool', 'default': True},
@@ -547,7 +567,7 @@ _CONFIG_META = {
 	'peripherals.cqAfeStubs': {'type': 'bool', 'default': True},
 	'peripherals.qspi':     {'type': 'bool', 'default': False},
 	'peripherals.i3c':      {'type': 'bool', 'default': False},
-	'peripherals.nfc':      {'type': 'bool', 'default': False},
+	'peripherals.nfc':      {'type': 'bool', 'default': True},
 	'peripherals.rtc':      {'type': 'bool', 'default': False},
 	'peripherals.pwm':      {'type': 'bool', 'default': False},
 	'peripherals.onewire':  {'type': 'bool', 'default': False},
@@ -558,7 +578,11 @@ _CONFIG_META = {
 	'peripherals.trng':      {'type': 'bool', 'default': False},
 	'peripherals.trngRings': {'type': 'int', 'default': 8, 'min': 4, 'max': 8, 'step': 4},
 	'peripherals.eventFabric': {'type': 'bool', 'default': False},
-	'package.model':        {'type': 'enum', 'default': 'castalia-quad-qfn64', 'enum': list(_PACKAGE_MODELS)},
+	# DEFAULT MOVED qfn64 -> lqfp100 2026-08-16, as the pad-side half of the
+	# debug.enable flip: castalia-lqfp100 is the only model that bonds the TAP
+	# (47-51, carved from NC balls at D3), and it is already the tape-out
+	# product's package (penta_wound.json). See _checkDebugTransportBonded.
+	'package.model':        {'type': 'enum', 'default': 'castalia-lqfp100', 'enum': list(_PACKAGE_MODELS)},
 	'package.preliminary':  {'type': 'bool', 'default': True},
 }
 
@@ -736,7 +760,14 @@ i3cPresent = _cfg('peripherals.i3c', False)
 # glitch-filter instance (the irq-gf region is now geometry-driven). The digital
 # AFE / RF interface is off-die (placeholder-tied, no pads). Default FALSE — the
 # default emission (85-entry vector list, 3 glitch filters) is byte-identical.
-nfcPresent = _cfg('peripherals.nfc', False)
+# DEFAULT FLIPPED TO TRUE 2026-08-16 (USER directive, same change as debug.enable
+# above). Measured at the flip, and it is the reason this was cheap: enabling NFC
+# does NOT move vectorsCount (121 both ways) -- 94-97 are already RESERVED GAPS in
+# the vector space, not new entries appended above it, so none of the
+# vectorsCount-drift class applies. peripheralCount goes 20 -> 21. The
+# byte-identical default-emission claim in the note above is now carried by the
+# named back-compat row config/castalia_nodbgnfc.json, not by the default.
+nfcPresent = _cfg('peripherals.nfc', True)
 
 # digperiphs #4 (RTC, 2026-07-20): the RTC0 real-time clock (32.768 kHz always-on
 # wall clock + one-shot alarm + recurring periodic tick, ONE combined IRQ) claims
@@ -957,7 +988,7 @@ _vectorsCount = _libraryTailVectorsCount()
 # the model: it states whether the bond-out is confirmed, which is a different
 # question from which pinout is documented. config/cq.json still carries
 # `preliminary: false`, so that file is not fully redundant.
-packageModel = _cfg('package.model', 'castalia-quad-qfn64')
+packageModel = _cfg('package.model', 'castalia-lqfp100')
 packagePreliminary = _cfg('package.preliminary', True)
 
 # Remaining scalar knobs, hoisted so the ChipGenerator(...) call and the
@@ -1086,7 +1117,7 @@ if _priv['pmp'] and not _priv['umode']:
 # D-series core-side debug (D1, 2026-08-05). Hoisted like _isa/_priv so the
 # ChipGenerator(...) call and the resolved-config record share ONE value.
 _debug = {
-	'enable': _cfg('debug.enable', False),
+	'enable': _cfg('debug.enable', True),
 }
 
 # D1 REQUIRES P1 (R-DD1). The coupling is not tidiness, it is decode: maindec
@@ -1107,7 +1138,17 @@ if _debug['enable'] and not _priv['trapCsr']:
 
 _regsDualPort = _cfg('registerFileDualPort', True)
 _romSize = _cfg('memory.romSize', 16384)
-_tcmSize = _cfg('memory.tcmSizePerHart', 16384)
+_tcmSize = _cfg('memory.tcmSizePerHart', 8192)
+# The TCM's top address + 1, and therefore the stack pointer's reset value: the
+# stack starts at the top of the private TCM and grows down. THIS USED TO BE THE
+# LITERAL 0xC000, which silently encoded "the TCM is 16 KiB" in a second place --
+# and it FAILED CLOSED the moment the knob moved, which is how it was found:
+# ChipGenerator's validator refused 0xC000 against an 8 KiB TCM ending at 0x9FFF
+# ("Invalid stack pointer initial value: 49152"). Deriving it is the fix, so the
+# knob now has exactly one authority. 16 KiB -> 0xC000 (the historical value,
+# unchanged), 8 KiB -> 0xA000.
+_ramStart = 0x8000
+_stackPointerInit = _ramStart + _tcmSize
 
 def _isaString():
 	'''The march string this configuration implements (mirrors the misa CSR
@@ -1246,7 +1287,7 @@ m = ChipGenerator(
 	peripheralMemoryStartAddress=0x4000,
 	peripheralMemorySlotCount=16,
 	registerMemorySlotsPerPeripheralMemorySlot=64, #Bytes between each peripheral's register memory slots.
-	ramStartAddress=0x8000,
+	ramStartAddress=_ramStart,
 	ramMemorySlotSize=_tcmSize,	# 16 KiB private TCM/tile (region 0x8000-0xBFFF; do not exceed 0x4000)
 	# Neither 0 nor 1 may be in ramMemorySlotsAvailable. This is because the ROM and the peripheral memory technically take slots 0 and 1.
 	# M11: ONE private TCM per tile (slot 2 = 0x8000-0xBFFF). The old RAM1
@@ -1258,7 +1299,7 @@ m = ChipGenerator(
 	spiFlashProgramAddress=0x8200,
 	nativeSpiFlashMemoryReadAccess=True,
 	nativeSpiFlashMemoryWriteAccess=False,
-	stackPointerInit=0xC000,	# Stack pointer at top of the private TCM
+	stackPointerInit=_stackPointerInit,	# Stack pointer at top of the private TCM (derived from memory.tcmSizePerHart -- never a literal again)
 	bootloaderUsesSpiFlashCommands=True,
 	vectorsCount=_vectorsCount,	# digperiphs Mission B: GPIO4/5 UNCONDITIONAL -> fixed 114. Layout: 0-84 legacy (incl CLINT msip 83 / mtip 84), 85 meip placeholder, 86-93 I3C (RSVD when off), 94-97 NFC (RSVD when off), 98-105 GPIO4, 106-113 GPIO5. digperiphs #4/#5: the library tail (RTC 114, PWM 115/116, ...) extends the source count per the A5 GLOBAL VECTOR RULE (_libraryTailVectorsCount(); 114 when the tail is off). meip slot stays 85 via m.MeipVector below
 	padOutPosLogic=True,
@@ -1362,7 +1403,28 @@ if orchestrator and shAw < 16:
 flashBase = 1 << (shAw + 2)
 # CPR3/R3: the aperture windows themselves, derived once here so no consumer
 # re-derives the arithmetic. Empty without an orchestrator.
-tcmWindows = [(0x20000 + 0x4000 * _h) for _h in range(numHarts)] if orchestrator else []
+# THE APERTURE STRIDE IS 0x4000 AND IS *NOT* THE TCM SIZE (USER decision,
+# 2026-08-16, taken when memory.tcmSizePerHart dropped to 8 KiB). They were the
+# same number until then, which is why one literal used to serve both jobs.
+# They are different jobs:
+#   * the TCM size is SILICON -- it is the sram1p*_hvt_pg macro in the tile;
+#   * the aperture stride is ADDRESS SPACE, and address space is free here.
+# Packing the apertures to 0x2000 would buy no area whatsoever and would force
+# the MCU aperture sub-decode off its 16 KiB s_addr(15:12) granularity (the
+# codes 1000..1100), so the stride stays 0x4000 and the DECODE IS UNTOUCHED.
+# CONSEQUENCE, stated plainly because the alternative is a figure that lies:
+# the tile answers an aperture read with tcm_ext_addr, whose top bit is now
+# unused, so AN 8 KiB TCM APPEARS TWICE IN ITS 16 KiB APERTURE -- the upper half
+# is a MIRROR of the lower, not unmapped space and not zeros. The TRM says so.
+_tcmApertureSize = 0x4000
+if _tcmApertureSize % _tcmSize != 0:
+	raise Exception('TCM aperture stride 0x%X is not a whole multiple of the TCM size 0x%X, '
+		'so the aperture would expose a RAGGED mirror (a partial final copy). Choose a '
+		'power-of-two TCM size that divides the stride.' % (_tcmApertureSize, _tcmSize))
+if _tcmSize > _tcmApertureSize:
+	raise Exception('TCM size 0x%X exceeds the aperture stride 0x%X -- the apertures would '
+		'overlap and hart h would read hart h+1\'s memory.' % (_tcmSize, _tcmApertureSize))
+tcmWindows = [(0x20000 + _tcmApertureSize * _h) for _h in range(numHarts)] if orchestrator else []
 if tcmWindows and tcmWindows[-1] + 0x4000 > flashBase:
 	raise Exception('orchestrator: ' + str(numHarts) + ' TCM apertures (top 0x%05X)' % (tcmWindows[-1] + 0x3FFF)
 		+ ' do not fit under the shared window top 0x%05X' % (flashBase - 1)
@@ -3510,6 +3572,40 @@ def _buildPackageData(model):
 
 m.Package = _buildPackageData(packageModel)
 
+
+def _checkDebugTransportBonded(_pkg, _model, _dbgOn):
+	'''GATE (2026-08-16, added with the debug.enable default flip): a chip that
+	   instantiates the JTAG DTM must be on a package that BONDS the TAP.
+
+	   THE DEFECT THIS EXISTS FOR, measured before the flip: `debug.enable` is
+	   the only JTAG knob (D3 rides it), and turning it on emits the five
+	   tck/tms/tdi/tdo/trstn ports on the MCU entity and instantiates dtm0 --
+	   on EVERY package model, because the knob and the pad ring never spoke.
+	   Built on castalia-quad-qfn64 (all 64 balls committed, no NC band) the
+	   run SUCCEEDS and PadRing.json simply contains no TCK and no TRSTn. The
+	   result is a working TAP with no way to reach it, and a TRM that
+	   documents a debug port the package cannot expose -- the same
+	   silent-split class check_config_defaults.py was written for, one layer
+	   out. Nothing caught it; this does.
+
+	   FAIL LOUDLY, never warn: a warning here is a tape-out that ships an
+	   unreachable debug port.'''
+	if not _dbgOn:
+		return
+	_tap = ('TCK', 'TMS', 'TDI', 'TDO', 'TRSTn')
+	_have = set(_p.Name for _p in _pkg.Pins)
+	_missing = [_n for _n in _tap if _n not in _have]
+	if _missing:
+		raise Exception(
+			'debug.enable is true but package model "' + _model + '" bonds no '
+			+ 'JTAG TAP: missing ' + ', '.join(_missing) + '. The DTM would be '
+			+ 'on-die and unreachable. Use package.model "castalia-lqfp100" '
+			+ '(bonds TCK/TMS/TDI/TDO/TRSTn at pins 47-51), or set '
+			+ 'debug.enable false for this package.')
+
+
+_checkDebugTransportBonded(m.Package, packageModel, _debug['enable'])
+
 # Per-model GPIO bit -> package pin number (objGPIOk, bit b). None = unbonded
 # (kept in the RTL/register map, but no package ball — the netlist ties the
 # port bit). objGPIO0 = PadRing "P0" = RTL prt1 (boot flash); objGPIOk = prt(k+1).
@@ -4149,6 +4245,7 @@ m.McuMpGeometry = {
 	'orchestrator': orchestrator,  # CPR3/R1: False = no orchestrator (byte-identical historical shape); True = HART 0 is the always-on SOFT orchestrator emitted as `entity work.orch_tile` (keeping every hart-0 wiring special) and harts 1..numHarts-1 are FULLY UNIFORM channel tiles -- pwr_ctrl rows 1..numHarts-1 (PWRCR gains bit numHarts-1), iso clamps on all of them, and the memory map goes to v2 (SH_AW >= 16 + the five read-only TCM apertures). The management hart is hart 0 in both shapes, so afe_stub's MGMT_HART is never overridden any more
 	'shAw': shAw,               # arbiter/tile word-address width (15 = Castalia, 16 = Argus and every orchestrator config)
 	'tcmWindows': tcmWindows,   # CPR3/R3: byte base of the read-only TCM aperture for hart h (index = h); [] = no apertures
+	'tcmApertureSize': _tcmApertureSize,  # 2026-08-16: aperture STRIDE/SPAN in bytes, deliberately DECOUPLED from the TCM size (address space, not silicon). >= tcmSizePerHart; an 8 KiB TCM mirrors twice inside its 16 KiB aperture. The decode granularity s_addr(15:12) depends on this being 0x4000.
 	'sharedRamBanks': _sharedRamBanks,  # sram1p16k banks from 0x10000 (4 = Castalia)
 	'npu': npuPresent,          # False = Argus (slot 10 + 0xC000 window read zero)
 	'i2c1': i2c1Present,        # G1a: False drops the i2c1 instance (slot 15 dead)
@@ -4327,7 +4424,7 @@ _resolvedConfig = [
 			('mtimecmpBaseAddress', _hx(0x5000 + 4 * clintMtimecmpSlot)),
 		]),
 		('bootromLoaderRowBase', '0x10500 + 0x10*hartid'),	# Argus A3 relocation (N-agnostic, all builds — see software/bootrom_mp)
-		('stackPointerInit', _hx(0xC000)),
+		('stackPointerInit', _hx(_stackPointerInit)),
 		('peripheralCount', len(m.Peripherals)),
 	]),
 ]

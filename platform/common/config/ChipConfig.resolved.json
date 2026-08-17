@@ -39,11 +39,11 @@
     "pmpEntries": 16
   },
   "debug": {
-    "enable": false
+    "enable": true
   },
   "memory": {
     "romSize": 16384,
-    "tcmSizePerHart": 16384,
+    "tcmSizePerHart": 8192,
     "sharedBulkRamSize": 65536,
     "npuStagingRamSize": 16384
   },
@@ -56,7 +56,7 @@
     "cqAfeStubs": true,
     "qspi": false,
     "i3c": false,
-    "nfc": false,
+    "nfc": true,
     "rtc": false,
     "pwm": false,
     "onewire": false,
@@ -68,7 +68,7 @@
     "eventFabric": false
   },
   "package": {
-    "model": "castalia-quad-qfn64",
+    "model": "castalia-lqfp100",
     "preliminary": true
   },
   "derived": {
@@ -94,7 +94,7 @@
       "mtimecmpBaseAddress": "0x5030"
     },
     "bootromLoaderRowBase": "0x10500 + 0x10*hartid",
-    "stackPointerInit": "0xC000",
-    "peripheralCount": 20
+    "stackPointerInit": "0xA000",
+    "peripheralCount": 21
   }
 }

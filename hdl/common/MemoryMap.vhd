@@ -25,7 +25,7 @@ package MemoryMap is
 
 	---------- Memory Information ----------
 	constant RamStartAddress		: natural := 32768;	-- 0x8000
-	constant RamSize				: natural := 16384;	-- 0x4000
+	constant RamSize				: natural := 8192;	-- 0x2000 (2026-08-16: per-hart private TCM halved to the 8 KiB sram1p8k_hvt_pg macro; hart_tile selects the macro on THIS constant)
 
 
 
@@ -295,7 +295,7 @@ package MemoryMap is
 	constant RstValP6DIR	: std_logic_vector(31 downto 0) := X"00000000";	-- all pins input at reset
 	constant RstValP6SEL	: std_logic_vector(31 downto 0) := X"00000000";	-- all pins in GPIO mode at reset
 	constant RstValP6REN	: std_logic_vector(31 downto 0) := X"000000C0";	-- P6.6 (harvested-boot strap) + P6.7 (PGOOD) pulls enabled when fieldPower present (pull DIRECTION is a pad-cell property: chip-top rings must use PDDW16SDGZ_G pull-DOWN cells on these two pads; PxOUT does NOT set pull direction)
-	constant RstValP6AFS	: std_logic_vector(31 downto 0) := X"00000000";	-- P6.0 (NFC rf_clk) resets to AF1 for clock routing when NFC present, else all AF0
+	constant RstValP6AFS	: std_logic_vector(31 downto 0) := X"00000001";	-- P6.0 (NFC rf_clk) resets to AF1 for clock routing when NFC present, else all AF0
 
 
 
@@ -1162,10 +1162,10 @@ package MemoryMap is
 	constant IRQB_RSVD91			: natural := 91;						-- Reserved (vector 91; I3C0 disabled by this configuration), IVT address = 0x816C
 	constant IRQB_RSVD92			: natural := 92;						-- Reserved (vector 92; I3C0 disabled by this configuration), IVT address = 0x8170
 	constant IRQB_RSVD93			: natural := 93;						-- Reserved (vector 93; I3C0 disabled by this configuration), IVT address = 0x8174
-	constant IRQB_RSVD94			: natural := 94;						-- Reserved (vector 94; NFC0 disabled by this configuration), IVT address = 0x8178
-	constant IRQB_RSVD95			: natural := 95;						-- Reserved (vector 95; NFC0 disabled by this configuration), IVT address = 0x817C
-	constant IRQB_RSVD96			: natural := 96;						-- Reserved (vector 96; NFC0 disabled by this configuration), IVT address = 0x8180
-	constant IRQB_RSVD97			: natural := 97;						-- Reserved (vector 97; NFC0 disabled by this configuration), IVT address = 0x8184
+	constant IRQB_NFC0_FIELD 	: natural := 94;						-- NFC0 RF Field-Detect Interrupt, IVT address = 0x8178
+	constant IRQB_NFC0_RXF   	: natural := 95;						-- NFC0 Reader-Frame Received Interrupt, IVT address = 0x817C
+	constant IRQB_NFC0_TXDONE	: natural := 96;						-- NFC0 Tag-Response Transmit-Done Interrupt, IVT address = 0x8180
+	constant IRQB_NFC0_CRCERR	: natural := 97;						-- NFC0 RX CRC / Parity Error Interrupt, IVT address = 0x8184
 	constant IRQB_GPIO4_B0			: natural := 98;						-- GPIO4 Bit 0 Interrupt, IVT address = 0x8188
 	constant IRQB_GPIO4_B1			: natural := 99;						-- GPIO4 Bit 1 Interrupt, IVT address = 0x818C
 	constant IRQB_GPIO4_B2			: natural := 100;						-- GPIO4 Bit 2 Interrupt, IVT address = 0x8190
@@ -1220,7 +1220,7 @@ package MemoryMap is
 	constant CORE_ENABLE_UMODE		: boolean := false;						-- U-mode (needs TRAPCSR)
 	constant CORE_ENABLE_PMP		: boolean := false;						-- PMP / Smpmp (needs UMODE)
 	constant CORE_PMP_ENTRIES		: natural := 16;						-- PMP entry count {8,16} (only with PMP)
-	constant CORE_ENABLE_DEBUG		: boolean := false;						-- Debug mode (dcsr/dpc/dscratch, dret, halt)
+	constant CORE_ENABLE_DEBUG		: boolean := true;						-- Debug mode (dcsr/dpc/dscratch, dret, halt)
 
 	-- GPIO0 Pin Assignments (Serial Flash)
 	constant pnum_gpio0_cs_flash	: natural := 00;						-- P1.0

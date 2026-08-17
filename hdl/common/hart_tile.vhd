@@ -55,8 +55,10 @@ entity hart_tile is
         ENABLE_PMP        : boolean := false;  -- PMP/Smpmp; requires UMODE
         PMP_ENTRIES       : integer := 16;     -- PMP entry count {8,16}
         -- Core-side debug mode, routed straight to the vesta core.
-        -- DEFAULT FALSE DELIBERATELY, unlike ENABLE_TRAPCSR: a top that names no priv generics inherits this default, and a debug interface silently present on such a build is an area and attack-surface surprise.
-        ENABLE_DEBUG      : boolean := false;  -- debug mode; requires TRAPCSR
+        -- FLIPPED TO TRUE 2026-08-16, and it is now load-bearing in the SAME WAY ENABLE_TRAPCSR is: debug.enable became a SHIPPED DEFAULT (USER directive; generate.py, both of its two literals), so the tile the shipped chip instantiates is a debug-ON tile and the bare `elaborate hart_tile` that hardens the macro MUST agree with it.
+        -- THE OLD `false` WAS MEASURED WRONG HERE, not merely stale: with MCU.vhd passing ENABLE_DEBUG => CORE_ENABLE_DEBUG (true) while a bare elaborate took this default, genus/hart_tile produced a netlist BYTE-FOR-BYTE identical to the pre-flip tile (15,096 cells, 2,464 sequential -- verified by comparing area/gates reports before and after the flip). The hardened macro would have been debug-OFF while the assembly wired it as debug-ON: the M14 hw_clint_en VHDL-default-lost-at-netlist-boundary silicon bug, exactly.
+        -- The prior rationale (a debug interface silently present is an area and attack-surface surprise) is NOT discarded -- it now belongs to the knob-OFF row config/castalia_nodbgnfc.json, which is where a debug-free chip is built and proven.
+        ENABLE_DEBUG      : boolean := true;   -- debug mode; requires TRAPCSR
         -- Debug entry vector, passed through unchanged; see the vesta entity for the memory-map argument for 0xBE00.
         DEBUG_ENTRY_ADDR  : std_logic_vector(31 downto 0) := x"0000BE00"
     );
@@ -821,20 +823,54 @@ begin
     tcm_ext_rdata <= tx_rdata_r;
     tcm_ext_done  <= tx_done_r;
 
-    -- Private TCM (RAM0, 0x8000-0xBFFF): IVT, code, data and stack, NOT preloaded.
-    -- Like silicon it powers up unknown and software owns write-before-read; every pin except EMA/RETN/PGEN arrives through the external read port's mux above, and Q leaves through the shadow.
-    ram0: entity work.sram1p16k_hvt_pg
-        port map (
-            Q     => tcm_q,
-            CLK   => ram_clk,
-            CEN   => ram_cen,
-            WEN   => ram_wen,
-            A     => ram_a,
-            D     => ram_d,
-            EMA   => "000",
-            GWEN  => ram_gwen,
-            RETN  => tcm_retn,
-            PGEN  => tcm_pgen
-        );
+    /* -------------------------------------------------------------------------
+       Private TCM (RAM0, based at RamStartAddress): IVT, code, data and stack, NOT preloaded.
+       Like silicon it powers up unknown and software owns write-before-read; every pin except EMA/RETN/PGEN arrives through the external read port's mux above, and Q leaves through the shadow.
+
+       THE MACRO IS SELECTED BY RamSize (MemoryMap.vhd), not hardcoded -- 2026-08-16, when the shipped default TCM dropped from 16 KiB to 8 KiB (USER directive: "make each tile as small as possible"). The two vendor macros are pin-identical apart from the address bus and, usefully, THE SAME WIDTH:
+           sram1p16k_hvt_pg  4096 x 32  A(11:0)  319.65 x 383.085 um
+           sram1p8k_hvt_pg   2048 x 32  A(10:0)  319.65 x 208.675 um
+       so the swap is 174.41 um of HEIGHT out of the tile and nothing off its X axis -- which is why the U-notch floorplan's width survives it.
+       Selecting on the constant rather than editing the entity name keeps ONE authority for the TCM size: memory.tcmSizePerHart -> RamSize -> this generate. Hardcoding the 8 KiB macro would have let a 16 KiB configuration emit a memory map promising 0x8000-0xBFFF over an array that answers only half of it.
+       A configuration that asks for neither size fails ELABORATION here rather than quietly picking one; the sizes the knob permits and the macros the kit provides are not the same set (the knob allows any 1 KiB multiple up to 0x4000), so this is a real guard, not a formality.
+
+       ADDRESS ALIASING, stated because the map depends on it: mem_addr and tx_addr_r are 12 bits either way. At 8 KiB the top bit is simply not connected, so the array repeats twice across the 16 KiB the decode still routes here -- which is exactly what makes the 16 KiB read-only aperture at 0x20000 + 0x4000*h show an 8 KiB TCM MIRRORED, the behaviour generate.py documents and the TRM draws.
+       ------------------------------------------------------------------------- */
+    gen_tcm_16k: if RamSize = 16384 generate
+        ram0: entity work.sram1p16k_hvt_pg
+            port map (
+                Q     => tcm_q,
+                CLK   => ram_clk,
+                CEN   => ram_cen,
+                WEN   => ram_wen,
+                A     => ram_a,
+                D     => ram_d,
+                EMA   => "000",
+                GWEN  => ram_gwen,
+                RETN  => tcm_retn,
+                PGEN  => tcm_pgen
+            );
+    end generate;
+
+    gen_tcm_8k: if RamSize = 8192 generate
+        ram0: entity work.sram1p8k_hvt_pg
+            port map (
+                Q     => tcm_q,
+                CLK   => ram_clk,
+                CEN   => ram_cen,
+                WEN   => ram_wen,
+                A     => ram_a(10 downto 0),   -- ram_a(11) unused: the array mirrors across the 16 KiB the decode routes here
+                D     => ram_d,
+                EMA   => "000",
+                GWEN  => ram_gwen,
+                RETN  => tcm_retn,
+                PGEN  => tcm_pgen
+            );
+    end generate;
+
+    -- No macro for this RamSize: fail at elaboration, never silently.
+    assert RamSize = 16384 or RamSize = 8192
+        report "hart_tile: RamSize = " & integer'image(RamSize) & " has no TCM macro (kit provides sram1p16k_hvt_pg and sram1p8k_hvt_pg only)"
+        severity failure;
 
 end architecture;

@@ -506,7 +506,7 @@ def padded_rcf(name):
     return 'x' * (22 - len(fn)) + fn
 
 
-def rcf_mapping(nharts, defines=(), march=None):
+def rcf_mapping(nharts, defines=(), march=None, tcm=None):
     """(3-char link name under xcelium/riscv_test/, dest dir under
     verification/isa/) for an image set built at this NHARTS and this ON-knob
     polarity. rcf/rca are the pre-existing Castalia/Argus sets -- reuse, never
@@ -564,8 +564,8 @@ def rcf_mapping(nharts, defines=(), march=None):
     # The `.imgset` guard STAYS and is still the authority: probing chooses a
     # directory, the stamp proves it is the right one. A probe that landed
     # wrongly would still be caught.
-    tag = imgset_tag(nharts, defines, march)
-    want = imgset_identity(nharts, defines, march)
+    tag = imgset_tag(nharts, defines, march, tcm)
+    want = imgset_identity(nharts, defines, march, tcm)
     base = int(tag, 16)
     for step in range(256):
         t = '%02x' % ((base + step) % 256)
@@ -579,7 +579,13 @@ def rcf_mapping(nharts, defines=(), march=None):
         '  Garbage-collect the sets no configuration claims before adding more.')
 
 
-def imgset_identity(nharts, defines, march=None):
+# The TCM size every image set built before 2026-08-16 was linked against.
+# An identity only mentions the TCM when it DIFFERS from this, which is what
+# keeps every pre-existing set's identity string byte-identical.
+_TCM_HISTORICAL = 16384
+
+
+def imgset_identity(nharts, defines, march=None, tcm=None):
     """The EXACT string that identifies an image set's polarity. Stored in the
     set's `.imgset` stamp and compared on every reuse: this is the record the
     K0 probes found missing entirely (`rcf/`'s 260 images were rebuildable
@@ -591,7 +597,21 @@ def imgset_identity(nharts, defines, march=None):
     set built before K4 keeps a byte-identical identity string -- and therefore
     a byte-identical digest, tag and `rcf_k<XX>` directory. No pinned row moves.
 
-    The blindness this closes is specific, and it was predicted before it bit:
+    2026-08-16: memory.tcmSizePerHart JOINS the identity, appended and only when
+    it differs from the historical 16 KiB -- the SAME back-compat device K4 used
+    for march, so every image set built before today keeps a byte-identical
+    identity string, digest, tag and rcf_k<XX> directory, and no pinned row moves.
+
+    THE BLINDNESS THIS CLOSES, caught the hard way: the TCM size is not a
+    -D define and not a -march, so halving it to 8 KiB changed the LINKER
+    SCRIPT under the images (RAM 0x3E1C -> 0x1E1C, __stack_top 0xC000 ->
+    0xA000) while leaving the identity string untouched. `make verify` then
+    reused a 16 KiB image set against an 8 KiB chip and reported 42/43 -- a
+    number that looked like a real capacity failure and was in fact a stale
+    image. Memory layout is part of an image's polarity, exactly as the
+    compiler flags are.
+
+    The blindness K4 closed is specific, and it was predicted before it bit:
     row C3's `image_defines()` is exactly `['-DCORE_ENABLE_TRAPCSR']`, the SAME
     list as row A1 (`castalia_trapcsr`), so without the march clause a norvc
     image set and A1's compressed one would be directed at the SAME `rcf_k17`
@@ -600,15 +620,17 @@ def imgset_identity(nharts, defines, march=None):
     s = 'NHARTS=%d DEFINES=%s' % (nharts, ' '.join(defines) if defines else '(none)')
     if march:
         s += ' MARCH=%s' % march
+    if tcm and tcm != _TCM_HISTORICAL:
+        s += ' TCM=0x%X' % tcm
     return s
 
 
-def imgset_tag(nharts, defines, march=None):
+def imgset_tag(nharts, defines, march=None, tcm=None):
     """Two hex digits naming the polarity, from a digest of its identity.
     hashlib, not hash(): Python's str hash is randomised per process, so hash()
     would give a DIFFERENT directory on every run."""
     import hashlib
-    h = hashlib.sha1(imgset_identity(nharts, defines, march).encode('utf-8')).hexdigest()
+    h = hashlib.sha1(imgset_identity(nharts, defines, march, tcm).encode('utf-8')).hexdigest()
     return h[:2]
 
 
@@ -887,7 +909,12 @@ def main():
     have = config_tags(cfg)
     defines = image_defines(cfg)
     march = image_march(cfg)
-    link, dest = rcf_mapping(nharts, defines, march)
+    # 2026-08-16: the memory layout is the fourth half of the polarity. The
+    # images are LINKED against memory.x, so the TCM size decides __stack_top
+    # and the RAM region length; reusing another size's images is reusing a
+    # different chip's binaries.
+    tcm = int(cfg.get('memory', {}).get('tcmSizePerHart') or _TCM_HISTORICAL)
+    link, dest = rcf_mapping(nharts, defines, march, tcm)
 
     sel = [(name, smoke) for (name, need, smoke) in CATALOG if need <= have]
     smoke_sel = [name for (name, smoke) in sel if smoke]
@@ -1114,7 +1141,8 @@ def main():
     # says which march the images were asked for instead of leaving it implicit
     # in the ISA Makefile.
     print('MARCH=%s' % (march or ''))
-    print('IMGSET=%s' % imgset_identity(nharts, defines, march))
+    print('TCM=0x%X' % tcm)
+    print('IMGSET=%s' % imgset_identity(nharts, defines, march, tcm))
     # The staged RTL's own ON-knob set, read back out of the file that was just
     # written rather than recomputed from the config. That is the point: the
     # polarity gate must compare the SOFTWARE side against what the HARDWARE
