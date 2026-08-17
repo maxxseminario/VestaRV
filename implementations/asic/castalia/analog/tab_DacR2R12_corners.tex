@@ -1,0 +1,17 @@
+%% maestro2tex -- generated table; do not edit by hand.
+\begin{table}[htbp]
+  \centering
+  \caption[{Process, temperature and supply points simulated for the 12-bit R-2R DAC and its supply block.}]{Process, temperature and supply points simulated for the 12-bit R-2R DAC and its supply block. Point 1 is the typical statistical process point evaluated at nominal; points 2--5 are the imported foundry skew corners. Temperature is not uniform across this run: the two DAC benches are at \SI{25}{\celsius} at all five points, the four supply-block benches (load regulation, line regulation, output impedance, startup) at \SI{27}{\celsius} at point 1 and \SI{25}{\celsius} at points 2--5; the column below reports the DAC benches. Solver tolerances split the same way --- the DAC benches run \texttt{reltol}~=~\num{1e-6}, \texttt{vabstol}~=~\num{1e-9}, \texttt{iabstol}~=~\num{1e-15}, the supply-block benches the ADE defaults \num{1e-3}, \num{1e-6}, \num{1e-12}. This is a corner run and carries no device mismatch; R-2R linearity is a matching property, so every nonlinearity figure in this section is a systematic term and none of it is a yield statement.}
+  \label{tab:DacR2R12-corners}
+  \begin{tabular}{lrrr}
+    \toprule
+    Point & Process & Temperature & Supply \\
+    \midrule
+    1 & tt & 25\,\si{\celsius} & 2.5\,\si{\volt} \\
+    2 & ff & 25\,\si{\celsius} & 2.5\,\si{\volt} \\
+    3 & fs & 25\,\si{\celsius} & 2.5\,\si{\volt} \\
+    4 & sf & 25\,\si{\celsius} & 2.5\,\si{\volt} \\
+    5 & ss & 25\,\si{\celsius} & 2.5\,\si{\volt} \\
+    \bottomrule
+  \end{tabular}
+\end{table}

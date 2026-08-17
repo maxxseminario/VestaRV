@@ -1,0 +1,41 @@
+%% maestro2tex -- generated figure; do not edit by hand.
+\providecommand{\MaestroRoot}{include/analog/}
+\begin{figure}[htbp]
+  \centering
+  {\pgfplotsset{compat=1.18}%
+  \begin{tikzpicture}
+    \begin{axis}[
+      width=0.82\linewidth, height=6.2cm,
+      xlabel={Time~[\si{\micro\second}]}, ylabel={Ladder reference $V_{\mathrm{DDDAC}}$~[\si{\volt}]},
+      grid=both,
+      major grid style={line width=0.2pt, draw=black!14},
+      minor grid style={line width=0.2pt, draw=black!7},
+      minor tick num=1,
+      axis line style={line width=0.4pt, draw=black!45},
+      tick style={line width=0.4pt, draw=black!45},
+      tick align=outside,
+      label style={font=\small}, tick label style={font=\small},
+      enlarge x limits=0.02, enlarge y limits=0.10,
+      every axis plot/.append style={line join=round, no marks},
+      legend style={font=\footnotesize, draw=black!25, fill=white,
+                    fill opacity=0.9, text opacity=1, row sep=1pt},
+      legend cell align=left, legend pos=south east,
+      scaled y ticks=false, scaled x ticks=false,
+      y tick label style={/pgf/number format/fixed,
+                          /pgf/number format/precision=2}
+    ]
+      \addplot[mtxA, line width=1.1pt, solid] table {\MaestroRoot data/dacr2r12_psu_startup_00.dat};
+      \addlegendentry{tt}
+      \addplot[mtxB, line width=1.1pt, dashed] table {\MaestroRoot data/dacr2r12_psu_startup_01.dat};
+      \addlegendentry{ff}
+      \addplot[mtxC, line width=1.1pt, dotted] table {\MaestroRoot data/dacr2r12_psu_startup_02.dat};
+      \addlegendentry{fs}
+      \addplot[mtxD, line width=1.1pt, dashdotted] table {\MaestroRoot data/dacr2r12_psu_startup_03.dat};
+      \addlegendentry{sf}
+      \addplot[mtxE, line width=1.1pt, densely dashed] table {\MaestroRoot data/dacr2r12_psu_startup_04.dat};
+      \addlegendentry{ss}
+    \end{axis}
+  \end{tikzpicture}}
+  \caption[{\(V_{\mathrm{DDDAC}}\) against time over five process corners, \texttt{PSUStartupTB}: \texttt{En} rises at\,\dots}]{\(V_{\mathrm{DDDAC}}\) against time over five process corners, \texttt{PSUStartupTB}: \texttt{En} rises at \SI{50}{\micro\second} into a \SI{500}{\micro\second} window at zero external load, \SI{27}{\celsius} at point 1 and \SI{25}{\celsius} at points 2--5. With \texttt{En} low the node sits at \SIrange{0.28}{0.54}{\volt}; at the \SI{1}{\nano\second} enable edge the pass device is driven hard on and the node is pulled to the \SI{2.5}{\volt} supply rail for \SIrange{64}{100}{\nano\second} before falling back. It reaches the zero-load DC value of Table~\ref{tab:dacr2r12-loadreg} to within \SI{140}{\micro\volt} at every corner and holds it to the end of the window. No settling-time or overshoot figure of merit is published from this bench: the design variable \texttt{t\_win} sets both the \texttt{En} pulse width and the \texttt{settlingTime} evaluation window, so the two cannot be specified independently.}
+  \label{fig:dacr2r12-psu-startup}
+\end{figure}

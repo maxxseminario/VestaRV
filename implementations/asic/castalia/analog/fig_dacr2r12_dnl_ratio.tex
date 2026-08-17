@@ -1,0 +1,42 @@
+%% maestro2tex -- generated figure; do not edit by hand.
+\providecommand{\MaestroRoot}{include/analog/}
+\begin{figure}[htbp]
+  \centering
+  {\pgfplotsset{compat=1.18}%
+  \begin{tikzpicture}
+    \begin{axis}[
+      width=0.82\linewidth, height=6.2cm,
+      xlabel={DAC code}, ylabel={Differential nonlinearity~[LSB]},
+      grid=both,
+      major grid style={line width=0.2pt, draw=black!14},
+      minor grid style={line width=0.2pt, draw=black!7},
+      minor tick num=1,
+      axis line style={line width=0.4pt, draw=black!45},
+      tick style={line width=0.4pt, draw=black!45},
+      tick align=outside,
+      label style={font=\small}, tick label style={font=\small},
+      enlarge x limits=0.02, enlarge y limits=0.10,
+      every axis plot/.append style={line join=round, no marks},
+      legend style={font=\footnotesize, draw=none, fill=none,
+                    at={(0.5,1.02)}, anchor=south, legend columns=-1,
+                    /tikz/every even column/.append style={column sep=9pt}},
+      legend cell align=left,
+      scaled y ticks=false, scaled x ticks=false,
+      y tick label style={/pgf/number format/fixed,
+                          /pgf/number format/precision=2}
+    ]
+      \addplot[mtxA, line width=1.1pt, solid] table {\MaestroRoot data/dacr2r12_dnl_ratio_00.dat};
+      \addlegendentry{tt}
+      \addplot[mtxB, line width=1.1pt, dashed] table {\MaestroRoot data/dacr2r12_dnl_ratio_01.dat};
+      \addlegendentry{ff}
+      \addplot[mtxC, line width=1.1pt, dotted] table {\MaestroRoot data/dacr2r12_dnl_ratio_02.dat};
+      \addlegendentry{fs}
+      \addplot[mtxD, line width=1.1pt, dashdotted] table {\MaestroRoot data/dacr2r12_dnl_ratio_03.dat};
+      \addlegendentry{sf}
+      \addplot[mtxE, line width=1.1pt, densely dashed] table {\MaestroRoot data/dacr2r12_dnl_ratio_04.dat};
+      \addlegendentry{ss}
+    \end{axis}
+  \end{tikzpicture}}
+  \caption[{Ratiometric differential nonlinearity against code over five process corners: each code's output is divided\,\dots}]{Ratiometric differential nonlinearity against code over five process corners: each code's output is divided by the reference measured at that code before the LSB and the first difference are taken, so the reference droop divides out and the ladder alone is measured. Conditions as Figure~\ref{fig:dacr2r12-inl-wpsu}; the 4095-point curve is stride-decimated for the plot as in Figure~\ref{fig:dacr2r12-dnl-ideal}. The major-carry hierarchy is the ideal-rail one --- \(-0.53\) at code 2048, then \(-0.28\) at 1024, \(-0.24\) at 3072, \(-0.14\) at 512 and \(-0.13\,\mathrm{LSB}\) at 2560 --- and the worst step matches Figure~\ref{fig:dacr2r12-dnl-ideal} to within \(0.03\,\mathrm{LSB}\). Raw DNL on the same bench is \(-9.8\) to \(-18.4\,\mathrm{LSB}\) (Table~\ref{tab:dacr2r12-wpsu}); the difference is the reference step between adjacent codes and nothing else.}
+  \label{fig:dacr2r12-dnl-ratio}
+\end{figure}

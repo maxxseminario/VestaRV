@@ -1,0 +1,21 @@
+%% maestro2tex -- generated table; do not edit by hand.
+\begin{table}[htbp]
+  \centering
+  \caption[{Static accuracy with the ladder referenced to \texttt{VddDac} from the supply block, \texttt{DacWPSUTB}, zero\,\dots}]{Static accuracy with the ladder referenced to \texttt{VddDac} from the supply block, \texttt{DacWPSUTB}, zero external load, \SI{25}{\celsius}, all 4096 codes, \texttt{reltol}~=~\num{1e-6}. The first four rows are the block as delivered, reference included; the last five divide the output by the measured \(V_{\mathrm{DDDAC}}\) at each code and so measure the ladder alone. The pair attributes the error: raw INL of \numrange{32.5}{45.1}\,LSB collapses to \numrange{0.43}{0.45}\,LSB ratiometric and raw DNL of \(-9.8\) to \(-18.4\,\mathrm{LSB}\) to \(-0.52\) to \(-0.54\,\mathrm{LSB}\), so \SI{99}{\percent} of the raw nonlinearity is the reference modulation of Figure~\ref{fig:dacr2r12-vddac}. Gain error is referred to the ideal ratiometric full scale \(4095/4096 = 0.999756\); it is not an absolute-voltage gain error, which the line regulation of Table~\ref{tab:dacr2r12-linereg} dominates. Corner run, no device mismatch.}
+  \label{tab:dacr2r12-wpsu}
+  \begin{tabular}{lrrrrrrr}
+    \toprule
+    Parameter & Unit & tt & ff & fs & sf & ss & Spread \\
+    \midrule
+    Full-scale output & \si{\volt} & 2.16484 & 1.99313 & 2.10312 & 2.22263 & 2.34569 & 0.35256 \\
+    LSB size & \si{\micro\volt} & 528.646 & 486.684 & 513.576 & 542.747 & 572.810 & 86.125 \\
+    INL, worst (raw) & LSB & 37.064 & 45.087 & 37.145 & 38.890 & 32.546 & 12.541 \\
+    DNL, most negative (raw) & LSB & $-10.864$ & $-18.356$ & $-11.542$ & $-9.765$ & $-10.836$ & 8.592 \\
+    INL, worst (ratio) & LSB & 0.442 & 0.450 & 0.438 & 0.443 & 0.432 & 0.018 \\
+    DNL, most negative (ratio) & LSB & $-0.525$ & $-0.530$ & $-0.525$ & $-0.518$ & $-0.543$ & 0.024 \\
+    DNL, worst (ratio) & LSB & 0.525 & 0.530 & 0.525 & 0.518 & 0.543 & 0.024 \\
+    Zero-scale offset (ratio) & LSB & 0.077 & 0.325 & 0.058 & 0.139 & 0.051 & 0.273 \\
+    Gain error (ratio) & ppm & $-41.3$ & $-170.9$ & $-46.0$ & $-56.0$ & $-30.6$ & 140.2 \\
+    \bottomrule
+  \end{tabular}
+\end{table}

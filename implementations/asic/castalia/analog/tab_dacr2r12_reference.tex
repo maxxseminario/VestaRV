@@ -1,0 +1,16 @@
+%% maestro2tex -- generated table; do not edit by hand.
+\begin{table}[htbp]
+  \centering
+  \caption[{Ladder reference excursion over the full code sweep by process corner, \texttt{DacWPSUTB} at\,\dots}]{Ladder reference excursion over the full code sweep by process corner, \texttt{DacWPSUTB} at \SI{25}{\celsius} with zero external load. The ladder is the only load on the supply block, so this is reference modulation the DAC imposes on itself; against the \SI{133}{\micro\volt} limit entered on the test it is 190 to 220 times over. The minimum lands on code 1365 = 0b010101010101 at four corners and 1317 at ff. The maximum is at code 0 at tt, fs and ss but at code 4095 at ff and sf, which is why the excursion is quoted peak-to-peak and not as a droop from zero scale.}
+  \label{tab:dacr2r12-reference}
+  \begin{tabular}{lrrrrrrr}
+    \toprule
+    Parameter & Unit & tt & ff & fs & sf & ss & Spread \\
+    \midrule
+    Reference, maximum & \si{\volt} & 2.1655 & 1.9938 & 2.1056 & 2.2232 & 2.3511 & 0.3573 \\
+    Reference, minimum & \si{\volt} & 2.1398 & 1.9642 & 2.0788 & 2.1954 & 2.3221 & 0.3578 \\
+    Reference excursion, pk-pk & \si{\milli\volt} & 25.700 & 29.572 & 26.783 & 27.842 & 29.053 & 3.872 \\
+    Code at the minimum &  & 1365 & 1317 & 1365 & 1365 & 1365 & 48 \\
+    \bottomrule
+  \end{tabular}
+\end{table}

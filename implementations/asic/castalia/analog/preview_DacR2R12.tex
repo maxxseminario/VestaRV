@@ -1,0 +1,19 @@
+%% maestro2tex -- standalone proof sheet. Build with:
+%     cd /home/mseminario2/vestarv/implementations/asic/castalia/analog && pdflatex preview_DacR2R12.tex
+% The TRM does NOT use this file; it inputs DacR2R12.tex directly.
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{caption}
+\usepackage{pgfplots}
+\usepackage{xcolor}
+\usepackage{siunitx}
+\usepackage{amsmath}
+\usepackage{placeins}
+\usepackage{circuitikz}
+\def\MaestroRoot{}
+\begin{document}
+\section*{DacR2R12: generated characterisation}
+\input{DacR2R12.tex}
+\end{document}

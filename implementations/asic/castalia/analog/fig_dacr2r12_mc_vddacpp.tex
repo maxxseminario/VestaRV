@@ -1,0 +1,38 @@
+%% maestro2tex -- generated Monte Carlo histogram; do not edit by hand.
+\providecommand{\MaestroRoot}{include/analog/}
+\begin{figure}[htbp]
+  \centering
+  {\pgfplotsset{compat=1.18}%
+  \begin{tikzpicture}
+    \begin{axis}[
+      width=0.86\linewidth, height=6.0cm,
+      xlabel={Reference movement over the code sweep~[\si{\milli\volt}]}, ylabel={Samples},
+      grid=both,
+      major grid style={line width=0.2pt, draw=black!14},
+      minor grid style={line width=0.2pt, draw=black!7},
+      minor tick num=1,
+      axis line style={line width=0.4pt, draw=black!45},
+      tick style={line width=0.4pt, draw=black!45},
+      tick align=outside,
+      label style={font=\small}, tick label style={font=\small},
+      enlarge x limits=0.02, enlarge y limits=0.10,
+      every axis plot/.append style={line join=round, no marks},
+      legend style={font=\footnotesize, draw=none, fill=none,
+                    at={(0.5,1.02)}, anchor=south, legend columns=-1,
+                    /tikz/every even column/.append style={column sep=9pt}},
+      legend cell align=left,
+      scaled y ticks=false, scaled x ticks=false,
+      y tick label style={/pgf/number format/fixed,
+                          /pgf/number format/precision=0},
+      ymin=0, ymax=28.6,
+      enlarge x limits=0.04, enlarge y limits=false,
+      area legend
+    ]
+      \addplot[ybar interval, draw=mtxA, fill=mtxA!25, line width=0.7pt] table {\MaestroRoot data/dacr2r12_mc_vddacpp_00.dat};
+      \addlegendentry{Reference movement}
+      \node[anchor=west, font=\footnotesize, align=left, text=black!70] at (rel axis cs:0.02,0.93) {\SI{0.133}{\milli\volt} spec};
+    \end{axis}
+  \end{tikzpicture}}
+  \caption[{Peak-to-peak movement of the DAC reference \texttt{VddDac} across the 4096-code sweep, with the ladder\,\dots}]{Peak-to-peak movement of the DAC reference \texttt{VddDac} across the 4096-code sweep, with the ladder referenced to the on-chip supply block instead of an ideal rail. \textbf{Process and mismatch}, \texttt{castalia\_pm\_25}, 200 samples, \SI{25}{\celsius}, no external load on \texttt{VddDac}. The quarter-LSB budget of \SI{133}{\micro\volt} entered on the test sits about 200 times below the data, so it is annotated at the left axis edge rather than drawn and the distribution is not compressed into a single bar; the closest sample misses it by a factor of 144. Meeting it needs the supply's output impedance down by a factor of 193, to about \SI{5}{\ohm}, against \SI{894}{\ohm} small-signal (Table~\ref{tab:dacr2r12-mc-psu-zout}) and \SI{1133}{\ohm} as a \SI{0}{\micro\ampere} to \SI{100}{\micro\ampere} chord (Table~\ref{tab:dacr2r12-mc-psu-load}).}
+  \label{fig:dacr2r12-mc-vddacpp}
+\end{figure}

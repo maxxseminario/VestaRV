@@ -1,0 +1,16 @@
+%% maestro2tex -- generated table; do not edit by hand.
+\begin{table}[htbp]
+  \centering
+  \caption[{Monte Carlo small-signal output impedance of the DAC supply block, AC swept \SI{1}{\hertz} to\,\dots}]{Monte Carlo small-signal output impedance of the DAC supply block, AC swept \SI{1}{\hertz} to \SI{1}{\giga\hertz}. \textbf{Process and mismatch}, \texttt{castalia\_pm\_25}, 200 samples, \SI{27}{\celsius}, \texttt{VddDac} unloaded, ADE default tolerances; yields are per cent of samples and of four channels. The impedance is flat at \SI{894.3}{\ohm} to within \SI{0.4}{\ohm} from \SI{1}{\hertz} to \SI{100}{\kilo\hertz}, and this is the value that sets the reference movement of Table~\ref{tab:dacr2r12-mc-reference}, the ladder's code-dependent current being a DC excursion. \texttt{zout\_max} is the peak over the whole band and lands at \SI{98.9}{\mega\hertz}, loop peaking well above anything the ladder excites; it is the only graded row here and no sample meets its \SI{10}{\ohm} limit. \texttt{zout\_max} is strongly left-skewed (skew \(-1.82\)), so the median and percentiles are quoted; \texttt{zout\_lf} and the peak frequency carry no entered limit and their spec, yield and worst-case cells are empty.}
+  \label{tab:dacr2r12-mc-psu-zout}
+  \footnotesize
+  \begin{tabular}{lrrrrrrrrrrr}
+    \toprule
+    Parameter & Unit & $N$ & Mean & $\sigma$ & Median & $p_{1}$ & $p_{99}$ & Worst & Spec & Yield & 4\,ch \\
+    \midrule
+    $Z_\mathrm{out}$, LF & \si{\ohm} & 200 & 894.3 & 46.6 & 893.8 & 779.4 & 990.8 & -- & -- & -- & -- \\
+    $Z_\mathrm{out}$, peak & \si{\ohm} & 200 & 3402.1 & 299.5 & 3442.8 & 2369.2 & 3853.9 & 3872.2 & $\leq 10.0$ & 0.0 & 0.0 \\
+    Peak frequency & \si{\mega\hertz} & 200 & 98.94 & 6.23 & 100.00 & 89.13 & 112.20 & -- & -- & -- & -- \\
+    \bottomrule
+  \end{tabular}
+\end{table}

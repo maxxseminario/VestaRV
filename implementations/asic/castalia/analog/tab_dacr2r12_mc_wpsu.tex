@@ -1,0 +1,18 @@
+%% maestro2tex -- generated table; do not edit by hand.
+\begin{table}[htbp]
+  \centering
+  \caption[{Monte Carlo linearity with the ladder referenced to \texttt{VddDac} from the on-chip supply block:\,\dots}]{Monte Carlo linearity with the ladder referenced to \texttt{VddDac} from the on-chip supply block: ratiometric rows first, raw rows below. \textbf{Process and mismatch}, \texttt{castalia\_pm\_25}, 200 samples, \SI{25}{\celsius}, all 4096 codes, no external load on \texttt{VddDac}; yields are per cent of samples and of four channels. The ratiometric rows normalise each code to the reference at that code and so measure the ladder alone; they reproduce Table~\ref{tab:dacr2r12-mc-ideal} sample for sample, at \(r = 1.000\) on both INL and DNL, and their yields are \SI{20.5}{\percent} and \SI{40.0}{\percent} against \SI{21.0}{\percent} and \SI{40.0}{\percent} there. The raw rows include the reference and are 24 and 6 times worse; the run's own \texttt{inl\_from\_ref}, which is the INL predicted from the reference error alone, averages \num{36.770}\,LSB against the raw \num{36.776}\,LSB, so the reference accounts for essentially all of the difference and no second matching mechanism is needed to explain it. Raw \texttt{inl\_lsb} carries no entered limit and its spec, yield and worst-case cells are empty; raw \texttt{dnl\_min} was graded and no sample meets it. The three ratiometric rows are skewed (\(+0.74\), \(-1.10\), \(+0.89\)), so the median and percentiles are quoted throughout.}
+  \label{tab:dacr2r12-mc-wpsu}
+  \footnotesize
+  \begin{tabular}{lrrrrrrrrrrr}
+    \toprule
+    Parameter & Unit & $N$ & Mean & $\sigma$ & Median & $p_{1}$ & $p_{99}$ & Worst & Spec & Yield & 4\,ch \\
+    \midrule
+    INL worst & LSB & 200 & 1.514 & 0.627 & 1.388 & 0.418 & 3.326 & 3.491 & $\leq 1.000$ & 20.5 & 0.2 \\
+    DNL min & LSB & 200 & $-1.747$ & 1.441 & $-1.324$ & $-6.252$ & $-0.063$ & $-6.629$ & $\geq -1.000$ & 40.0 & 2.6 \\
+    DNL worst & LSB & 200 & 2.271 & 1.328 & 1.913 & 0.412 & 6.252 & 6.629 & $\leq 0.750$ & 7.0 & 0.0 \\
+    INL worst, raw & LSB & 200 & 36.776 & 2.308 & 36.911 & 30.562 & 41.460 & -- & -- & -- & -- \\
+    DNL min, raw & LSB & 200 & $-10.816$ & 0.833 & $-10.837$ & $-12.522$ & $-8.906$ & $-12.700$ & $\geq -1.000$ & 0.0 & 0.0 \\
+    \bottomrule
+  \end{tabular}
+\end{table}

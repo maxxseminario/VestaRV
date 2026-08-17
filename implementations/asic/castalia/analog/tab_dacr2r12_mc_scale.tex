@@ -1,0 +1,16 @@
+%% maestro2tex -- generated table; do not edit by hand.
+\begin{table}[htbp]
+  \centering
+  \caption[{Monte Carlo scale factors, same bench and samples as Table~\ref{tab:dacr2r12-mc-ideal}.}]{Monte Carlo scale factors, same bench and samples as Table~\ref{tab:dacr2r12-mc-ideal}. \textbf{Process and mismatch}, \texttt{castalia\_pm\_25}, 200 samples, \SI{25}{\celsius}. On an ideal reference these four are set by the rail and by the ladder's attenuation ratio, not by matching: LSB size spreads \SI{0.5}{\nano\volt} on \SI{610.3}{\micro\volt}, full scale \SI{1.8}{\micro\volt} on \SI{2.5}{\volt}, and gain error \num{0.50}~ppm on \num{-76.91}~ppm. All of the linearity spread of Table~\ref{tab:dacr2r12-mc-ideal} is therefore ladder mismatch and none of it is a gain or offset term. No limit was entered on any of these outputs, so the spec, yield and worst-case columns are omitted rather than left blank; mean \(\pm\,3\sigma\) is not quoted either, because at a part in \(10^{6}\) the distribution shapes are solver residue and not device statistics.}
+  \label{tab:dacr2r12-mc-scale}
+  \begin{tabular}{lrrrrrr}
+    \toprule
+    Parameter & Unit & $N$ & Mean & $\sigma$ & Min & Max \\
+    \midrule
+    LSB size & \si{\micro\volt} & 200 & 610.3046 & 0.0005 & 610.3040 & 610.3050 \\
+    Full-scale output & \si{\volt} & 200 & 2.499290 & 0.000002 & 2.499280 & 2.499290 \\
+    Zero-scale offset & LSB & 200 & 0.1474 & 0.0000 & 0.1474 & 0.1474 \\
+    Gain error & ppm & 200 & $-76.91$ & 0.50 & $-78.15$ & $-75.48$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
