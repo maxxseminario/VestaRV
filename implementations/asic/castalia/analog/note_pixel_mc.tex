@@ -1,0 +1,30 @@
+% HAND-WRITTEN fragment -- placed via configs/anatop_tb_pixel_corners.json
+% `order`. Numbers from fig_px_mc_izero_35k.tex, fig_px_mc_izero_560k.tex,
+% tab_px_mc_izero.tex, tab_px_mc_izero_allgain.tex and tab_px_mc_rezero.tex.
+%
+% Source: Plan.0.Run.0, sliced per gain by skill/px_mc_slice.py -- see
+% configs/anatop_tb_pixel_mc.json's _note for the staging mechanism and the
+% independent verification against the simarchive README.
+
+\subsubsection{Monte Carlo: Zero-Current Offset}\label{sss:pixel-mc}
+
+200 samples, \textbf{mismatch only}, nominal process at \SI{25}{\celsius}, the
+\SI{10}{\kilo\ohm} electrode, one 200-sample sub-run at each of the four gain
+taps. The reference-electrode offset $\sigma(v_{\mathrm{re,zero}}) =
+\SI{5.72}{\milli\volt}$ (Table~\ref{tab:px-mc-rezero}) is the clean,
+gain-independent statistic: it is the control loop's own tracking offset
+carried to the electrode, identical to five significant figures at all four
+gain taps. The output-referred current offset $\sigma(i_{\mathrm{zero}})$ is
+nearly gain-independent in its own right, \SIrange{0.729}{0.843}{\micro\ampere}
+across the four taps (Table~\ref{tab:px-mc-izero-allgain}) -- consistent with
+$\sigma(i_{\mathrm{zero}}) \approx \sigma(v_{\mathrm{re,zero}})/R_{\mathrm{cell}}$.
+Referred to the ADC LSB the same offset current scales with $R_f$: $\sigma
+\approx 12/43/96/167$~LSB at 35/140/315/\SI{560}{\kilo\ohm}
+(Figure~\ref{fig:px-mc-izero-35k}, Figure~\ref{fig:px-mc-izero-560k}). At
+\SI{560}{\kilo\ohm} some samples reach the output rails
+(Table~\ref{tab:px-mc-izero}) -- this bounds the range a vcm-mux offset
+calibration must cover. Applying the same \SI{5.72}{\milli\volt} loop offset
+to the operational \SI{1}{\mega\ohm} electrode of
+Table~\ref{tab:px-hg1m-acc} predicts $\approx 1.3$~LSB at
+\SI{560}{\kilo\ohm} -- a channel-to-channel spread on top of, not instead of,
+the corner-level finite-gain error of that table.

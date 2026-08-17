@@ -1,0 +1,228 @@
+{
+  "block": "PixelMC",
+  "tex_root": "include/analog/",
+  "monte_carlo": true,
+  "emit_master": false,
+  "emit_corner_table": false,
+  "supply_var": "VDD25",
+  "tests": {
+    "px_mc_g35k": {
+      "dir": "ps_mc",
+      "signals": {
+        "i_zero": {
+          "label": "Zero-current offset, $R_f = \\SI{35}{\\kilo\\ohm}$",
+          "unit_tex": "\\si{\\micro\\ampere}",
+          "scale": 1000000.0,
+          "digits": 3
+        },
+        "i_zero_lsb": {
+          "label": "Zero-current offset in LSB, $R_f = \\SI{35}{\\kilo\\ohm}$",
+          "unit_tex": "LSB",
+          "scale": 1.0,
+          "digits": 2
+        },
+        "re_zero": {
+          "label": "RE zero-current offset, $R_f = \\SI{35}{\\kilo\\ohm}$",
+          "unit_tex": "\\si{\\milli\\volt}",
+          "scale": 1000.0,
+          "digits": 3
+        },
+        "vout_zero": {
+          "label": "Output voltage at zero current, $R_f = \\SI{35}{\\kilo\\ohm}$",
+          "unit_tex": "\\si{\\volt}",
+          "scale": 1.0,
+          "digits": 3
+        }
+      }
+    },
+    "px_mc_g140k": {
+      "dir": "ps_mc",
+      "signals": {
+        "i_zero": {
+          "label": "Zero-current offset, $R_f = \\SI{140}{\\kilo\\ohm}$",
+          "unit_tex": "\\si{\\micro\\ampere}",
+          "scale": 1000000.0,
+          "digits": 3
+        },
+        "i_zero_lsb": {
+          "label": "Zero-current offset in LSB, $R_f = \\SI{140}{\\kilo\\ohm}$",
+          "unit_tex": "LSB",
+          "scale": 1.0,
+          "digits": 2
+        },
+        "re_zero": {
+          "label": "RE zero-current offset, $R_f = \\SI{140}{\\kilo\\ohm}$",
+          "unit_tex": "\\si{\\milli\\volt}",
+          "scale": 1000.0,
+          "digits": 3
+        },
+        "vout_zero": {
+          "label": "Output voltage at zero current, $R_f = \\SI{140}{\\kilo\\ohm}$",
+          "unit_tex": "\\si{\\volt}",
+          "scale": 1.0,
+          "digits": 3
+        }
+      }
+    },
+    "px_mc_g315k": {
+      "dir": "ps_mc",
+      "signals": {
+        "i_zero": {
+          "label": "Zero-current offset, $R_f = \\SI{315}{\\kilo\\ohm}$",
+          "unit_tex": "\\si{\\micro\\ampere}",
+          "scale": 1000000.0,
+          "digits": 3
+        },
+        "i_zero_lsb": {
+          "label": "Zero-current offset in LSB, $R_f = \\SI{315}{\\kilo\\ohm}$",
+          "unit_tex": "LSB",
+          "scale": 1.0,
+          "digits": 2
+        },
+        "re_zero": {
+          "label": "RE zero-current offset, $R_f = \\SI{315}{\\kilo\\ohm}$",
+          "unit_tex": "\\si{\\milli\\volt}",
+          "scale": 1000.0,
+          "digits": 3
+        },
+        "vout_zero": {
+          "label": "Output voltage at zero current, $R_f = \\SI{315}{\\kilo\\ohm}$",
+          "unit_tex": "\\si{\\volt}",
+          "scale": 1.0,
+          "digits": 3
+        }
+      }
+    },
+    "px_mc_g560k": {
+      "dir": "ps_mc",
+      "signals": {
+        "i_zero": {
+          "label": "Zero-current offset, $R_f = \\SI{560}{\\kilo\\ohm}$",
+          "unit_tex": "\\si{\\micro\\ampere}",
+          "scale": 1000000.0,
+          "digits": 3
+        },
+        "i_zero_lsb": {
+          "label": "Zero-current offset in LSB, $R_f = \\SI{560}{\\kilo\\ohm}$",
+          "unit_tex": "LSB",
+          "scale": 1.0,
+          "digits": 2
+        },
+        "re_zero": {
+          "label": "RE zero-current offset, $R_f = \\SI{560}{\\kilo\\ohm}$",
+          "unit_tex": "\\si{\\milli\\volt}",
+          "scale": 1000.0,
+          "digits": 3
+        },
+        "vout_zero": {
+          "label": "Output voltage at zero current, $R_f = \\SI{560}{\\kilo\\ohm}$",
+          "unit_tex": "\\si{\\volt}",
+          "scale": 1.0,
+          "digits": 3
+        }
+      }
+    }
+  },
+  "figures": [
+    {
+      "id": "px_mc_izero_35k",
+      "kind": "histogram",
+      "test": "px_mc_g35k",
+      "signals": ["i_zero_lsb"],
+      "bins": 30,
+      "spec_span": 1.5,
+      "spec_lo_label": "$-1$",
+      "spec_hi_label": "$+1$",
+      "width": "0.86\\linewidth",
+      "height": "6.0cm",
+      "xlabel": "Zero-current offset~[LSB]",
+      "ylabel": "Samples",
+      "caption": "Zero-current output offset at $R_f = \\SI{35}{\\kilo\\ohm}$, referred to the \\SI{2.441}{\\milli\\volt} ADC LSB. \\textbf{Mismatch only}, \\SI{25}{\\celsius} nominal process, 200 samples, $R_{\\mathrm{ct}} = \\SI{10}{\\kilo\\ohm}$ electrode. The limit shown is the $\\pm 1$~LSB entered on the test in Assembler -- comparable in kind across the four gain taps but mechanically harder to meet as $R_f$ rises, since the underlying offset is closer to gain-independent in current (Table~\\ref{tab:px-mc-izero}). Statistics are in Table~\\ref{tab:px-mc-izero}."
+    },
+    {
+      "id": "px_mc_izero_560k",
+      "kind": "histogram",
+      "test": "px_mc_g560k",
+      "signals": ["i_zero_lsb"],
+      "bins": 30,
+      "spec_span": 1.5,
+      "spec_lo_label": "$-1$",
+      "spec_hi_label": "$+1$",
+      "width": "0.86\\linewidth",
+      "height": "6.0cm",
+      "xlabel": "Zero-current offset~[LSB]",
+      "ylabel": "Samples",
+      "caption": "Zero-current output offset at $R_f = \\SI{560}{\\kilo\\ohm}$, conditions as Figure~\\ref{fig:px-mc-izero-35k} but at $R_{\\mathrm{ct}} = \\SI{10}{\\kilo\\ohm}$ (the same stiff electrode as the finite-loop-gain demonstration of Table~\\ref{tab:px-hg-demo}, NOT the \\SI{1}{\\mega\\ohm} operational electrode of Table~\\ref{tab:px-hg1m-acc}). Some samples reach the sweep's output rails (Table~\\ref{tab:px-mc-izero}); the LSB spread here is $14\\times$ wider than at \\SI{35}{\\kilo\\ohm} for the same underlying current offset, since the same offset current is multiplied through a $16\\times$ larger $R_f$."
+    }
+  ],
+  "tables": [
+    {
+      "id": "px_mc_izero",
+      "type": "mcstats",
+      "test": "px_mc_g560k",
+      "signals": ["i_zero", "i_zero_lsb", "vout_zero"],
+      "stats": ["n", "mean", "sigma", "min", "max", "spec", "yield"],
+      "caption": "Monte Carlo zero-current offset at $R_f = \\SI{560}{\\kilo\\ohm}$, $R_{\\mathrm{ct}} = \\SI{10}{\\kilo\\ohm}$ electrode. \\textbf{Mismatch only}, \\SI{25}{\\celsius} nominal process, 200 samples. $\\sigma(i_{\\mathrm{zero}}) = \\SI{0.729}{\\micro\\ampere}$ here against \\SIrange{0.729}{0.843}{\\micro\\ampere} across all four gain taps (Table~\\ref{tab:px-mc-izero-allgain}) -- nearly gain-independent, as expected for an amplifier-referred current offset. \\texttt{vout\\_zero} ranges \\SIrange{0.21}{2.50}{\\volt}, i.e.\\ some samples reach the output rails at this gain -- this bounds the range a vcm-mux offset calibration must cover. \\texttt{i\\_zero\\_lsb} carries the $\\pm 1$~LSB limit entered on the test; only the yield against that literal limit is quoted, not a four-channel figure, because the limit itself is not gain-scaled (see Figure~\\ref{fig:px-mc-izero-560k})."
+    },
+    {
+      "id": "px_mc_izero_allgain",
+      "type": "mcstats",
+      "test": "px_mc_g35k",
+      "signals": ["i_zero"],
+      "stats": ["n", "mean", "sigma", "min", "max"],
+      "caption": "Monte Carlo zero-current offset at $R_f = \\SI{35}{\\kilo\\ohm}$, conditions as Table~\\ref{tab:px-mc-izero}. $\\sigma = \\SI{0.843}{\\micro\\ampere}$; the four-gain range \\SIrange{0.729}{0.843}{\\micro\\ampere} (35k highest, 560k lowest) is the full spread of this same statistic recomputed independently at each of the four staged gain blocks (140k: \\SI{0.758}{\\micro\\ampere}, 315k: \\SI{0.742}{\\micro\\ampere}) -- all four traceable to \\texttt{skill/px\\_mc\\_slice.py} and the corresponding \\texttt{px\\_mc\\_g*\\_\\_mc.csv} files."
+    },
+    {
+      "id": "px_mc_rezero",
+      "type": "mcstats",
+      "test": "px_mc_g35k",
+      "signals": ["re_zero"],
+      "stats": ["n", "mean", "sigma", "min", "max"],
+      "channels": 4,
+      "caption": "Monte Carlo reference-electrode zero-current offset, the gain-independent statistic. \\textbf{Mismatch only}, \\SI{25}{\\celsius} nominal process, 200 samples. \\(\\sigma = \\SI{5.7176}{\\milli\\volt}\\), identical to five significant figures at all four gain taps (verified: 5.71757, 5.71757, 5.71758, 5.71759~mV at 35k/140k/315k/560k) -- this is the control loop's own reference-tracking offset (Table~\\ref{tab:px-ctrl-tracking}), which does not depend on which TIA gain tap is selected. At the operational \\SI{1}{\\mega\\ohm} electrode this offset predicts \\(\\sigma(i_{\\mathrm{zero}}) \\approx \\sigma(v_{\\mathrm{os}})/R_{\\mathrm{cell}}\\); using the measured \\SI{5.72}{\\milli\\volt} against the operational electrode's own \\(R_{\\mathrm{ct}}+R_u \\approx \\SI{1.001}{\\mega\\ohm}\\) gives \\(\\approx\\SI{5.7}{\\nano\\ampere} \\approx \\SI{1.3}{LSB}\\) at \\SI{560}{\\kilo\\ohm} -- consistent with, and about \\(3.5\\times\\) larger than, the corner-level finite-gain error of Table~\\ref{tab:px-hg1m-acc}."
+    }
+  ],
+  "order": [],
+  "_note": [
+    "Companion for the Pixel section: the zero-current-offset Monte Carlo part.",
+    "Contributes 2 histograms + 3 mcstats tables, named in Pixel's `order`.",
+    "",
+    "SOURCE: .../tb_anatop_pixel/maestro/results/maestro/Plan.0.Run.0,",
+    "psf/ps_mc/monteCarlo/{mcdata,mcparam}. 800 samples total = 4 back-to-back",
+    "200-sample sub-runs at rf in {35k,140k,315k,560k} (design variable, NOT a",
+    "column in mcdata/mcparam -- confirmed per-chunk via each chunk directory's",
+    "own variables_file, see skill/px_mc_slice.py header). variations=mismatch",
+    "(confirmed in netlist: 'mc1 montecarlo numruns=13 seed=12345",
+    "variations=mismatch sampling=lds donominal=no'), NOT process+mismatch --",
+    "state 'mismatch only' on every table/figure here, never 'process and",
+    "mismatch'. rct_we=10k GLOBAL (not the 1M operational electrode).",
+    "",
+    "STAGING (mandatory, read before touching this config): maestro2tex's",
+    "monte_carlo path reads the WHOLE aggregate mcdata for one --results run; it",
+    "has no way to slice rows by an outer swept design variable.",
+    "skill/px_mc_slice.py pre-splits the 800 rows into 4 staged",
+    "data/raw/px_mc_g<gain>__mc.csv files in maestro2tex's own on-disk format",
+    "(built by importing maestro2tex.read_mcparam/read_mcdata/mc_run_info",
+    "directly, so the format cannot drift). Run this config with --results",
+    "pointing at a PATH THAT DOES NOT EXIST (e.g. the string 'NONE') so",
+    "main()'s is_mc branch takes the 'results directory is gone' fallback",
+    "(maestro2tex.py:1896-1897) and renders straight from the staged CSVs",
+    "without copy_mc() re-reading (and clobbering the slice of) the real",
+    "800-row aggregate. Re-run px_mc_slice.py by hand if Plan.0.Run.0 is",
+    "re-simulated; this config's own extraction step does nothing.",
+    "",
+    "VERIFIED (2026-08-17) against the simarchive README: sigma(re_zero) =",
+    "5.7176 mV at every gain (README: 5.72 mV, gain-independent); sigma(i_zero)",
+    "0.729-0.843 uA (README: 0.73-0.84); sigma(i_zero_lsb) 12.09/43.45/95.71/",
+    "167.33 at 35k/140k/315k/560k (README: 12/43/96/167); vout_zero at 560k",
+    "spans 0.2105-2.4992 V (README: 'vout 0.21-2.50'). All four blocks are",
+    "0/200 sentinels (0 errors, matching the README's '800 pts, 0 errors').",
+    "",
+    "sigma is the engine's mc_stats() n-1 sample form throughout.",
+    "",
+    "i_zero_lsb's mcparam-entered spec is a LITERAL +/-1 LSB at every gain (not",
+    "gain-scaled), so yield against it is quoted but NOT presented as a",
+    "four-channel figure or compared across gains as if it were the same",
+    "criterion -- the caption in tab_px_mc_izero says so explicitly."
+  ]
+}

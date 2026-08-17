@@ -1,0 +1,20 @@
+% HAND-WRITTEN fragment -- placed via configs/anatop_tb_pixel_corners.json
+% `order`. Numbers from fig_px_cv_voltammogram.tex, fig_px_cv_potential.tex,
+% tab_px_cv_stats.tex, fig_px_step_i.tex and tab_px_step_stats.tex.
+%
+% Source: simruns/tb_anatop_pixel_cv_1M and tb_anatop_pixel_step_1M
+% (rf=35k, rct_we=1M -- a different electrode from the 10k cell used in
+% Sections~\ref{sss:pixel-accuracy}-\ref{sss:pixel-ctrl}, stated once here).
+
+\subsubsection{Transients}\label{sss:pixel-transient}
+
+Figure~\ref{fig:px-cv-voltammogram} is a cyclic-voltammetry sweep at the
+\SI{1}{\mega\ohm} electrode: the working-electrode current stays within the
+loop's linear region for the entire sweep, unclipped
+(Table~\ref{tab:px-cv-stats}). Figure~\ref{fig:px-step-i} is the current
+response to a \SI{400}{\milli\volt} step in the commanded reference potential
+at the same electrode. \textbf{The edges rail transiently by design}: the
+bench exercises the step edge itself, and the current briefly saturates
+against the loop's slew-limited transient (Table~\ref{tab:px-step-stats})
+before settling to the value the \SI{1}{\mega\ohm} cell impedance sets. Read
+the transient extremes as edge behaviour, not a sustained current rating.

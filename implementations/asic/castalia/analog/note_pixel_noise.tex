@@ -1,0 +1,27 @@
+% HAND-WRITTEN fragment -- placed via configs/anatop_tb_pixel_corners.json
+% `order`. Numbers from tab_px_grid_noise.tex and independently verified from
+% every one of the 60 extracted px_grid_noise__*__vn_out.csv /
+% __in_rma.csv files: vn_out full-grid range 0.129-11.97 mV; in_rma at
+% rf=560k over all 30 (cdl x rct x corner) points in that block:
+% 3.561-21.367 nA.
+%
+% Source: Interactive.20 points 1-60, same grid as note_pixel_grid.tex.
+
+\subsubsection{System Noise}\label{sss:pixel-noise}
+
+Table~\ref{tab:px-grid-noise} gives output and input-referred noise over the
+same electrode grid. Output noise spans \SIrange{0.129}{11.97}{\milli\volt}
+across the full twelve-cell grid; at $R_f = \SI{35}{\kilo\ohm}$ it stays under
+\SI{0.75}{\milli\volt} everywhere, but at $R_f = \SI{560}{\kilo\ohm}$ it grows
+to \SIrange{2.0}{12}{\milli\volt} -- one half to five ADC LSBs. The growth
+tracks $C_{\mathrm{dl}}$, not $R_{\mathrm{ct}}$: the closed-loop noise gain is
+$e_n\cdot(1 + R_f/Z_{\mathrm{electrode}})$, and $\lvert Z_{\mathrm{electrode}}
+\rvert$ falls with $C_{\mathrm{dl}}$ over the integration band, so a larger
+double-layer capacitance raises the noise gain even though it does not change
+$R_{\mathrm{ct}}$. Input-referred current noise at $R_f =
+\SI{560}{\kilo\ohm}$ reaches \SIrange{3.6}{21}{\nano\ampere} across the grid
+against a \SI{2}{\nano\ampere} design budget -- exceeded by a factor of two to
+ten at the maximum gain tap. This mechanism is invisible to the standalone TIA
+bench of Section~\ref{sss:ampab-tia}, which uses an ideal feedback resistor
+with no electrode network in the loop; publishing it here, with the
+mechanism, is why the pixel-system noise grid exists.

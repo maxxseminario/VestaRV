@@ -1,0 +1,349 @@
+{
+  "block": "Pixel",
+  "tex_root": "include/analog/",
+  "nominal_corner": "tt",
+  "supply_var": "VDD25",
+  "emit_master": true,
+  "emit_corner_table": true,
+  "points": ["81-85"],
+  "corner_labels": { "pt81": "tt" },
+  "corner_table_caption": "Process, temperature and supply points simulated for the potentiostat pixel system (design point 17 of the archived Interactive.20 run: $R_f = \\SI{35}{\\kilo\\ohm}$, $R_{\\mathrm{ct}} = \\SI{10}{\\kilo\\ohm}$, $C_{\\mathrm{dl}} = \\SI{100}{\\nano\\farad}$). Point 1 is the typical statistical process point at \\SI{37}{\\celsius}; points 2--5 are the imported foundry skew corners at \\SI{25}{\\celsius}. Every figure and table in this section is schematic-level.",
+  "tests": {
+    "px_ctrl_dc": {
+      "dir": "PotCtrlTB",
+      "result": "dc",
+      "xlabel": "Commanded reference potential $v_{\\mathrm{ref}}$",
+      "xunit_tex": "\\si{\\volt}",
+      "nominal_x": 1.25,
+      "signals": {
+        "re_err_0": {
+          "expr": "value((VS(\"/RE\") - xval(VS(\"/RE\"))) VAR(\"V_CM\"))",
+          "label": "Zero-current tracking error",
+          "unit_tex": "\\si{\\milli\\volt}",
+          "scale": 1000.0,
+          "digits": 3
+        },
+        "re_err_max": {
+          "expr": "ymax(abs(clip((VS(\"/RE\") - xval(VS(\"/RE\"))) VAR(\"vref_lo\") VAR(\"vref_hi\"))))",
+          "label": "Worst tracking error over the window",
+          "unit_tex": "\\si{\\milli\\volt}",
+          "scale": 1000.0,
+          "digits": 3
+        },
+        "re_err_slope": {
+          "expr": "ymax(abs(deriv(clip((VS(\"/RE\") - xval(VS(\"/RE\"))) VAR(\"vref_lo\") VAR(\"vref_hi\")))))",
+          "label": "Worst tracking-error slope",
+          "unit_tex": "\\si{\\milli\\volt\\per\\volt}",
+          "scale": 1000.0,
+          "digits": 3
+        },
+        "vref_lo_meas": {
+          "expr": "cross(abs((VS(\"/RE\") - xval(VS(\"/RE\")))) 0.01 1 \"falling\")",
+          "label": "RE tracking floor",
+          "unit_tex": "\\si{\\volt}",
+          "scale": 1.0,
+          "digits": 3
+        },
+        "vref_hi_meas": {
+          "expr": "cross(abs((VS(\"/RE\") - xval(VS(\"/RE\")))) 0.01 1 \"rising\")",
+          "label": "RE tracking ceiling",
+          "unit_tex": "\\si{\\volt}",
+          "scale": 1.0,
+          "digits": 3
+        },
+        "vref_range": {
+          "expr": "(cross(abs((VS(\"/RE\") - xval(VS(\"/RE\")))) 0.01 1 \"rising\") - cross(abs((VS(\"/RE\") - xval(VS(\"/RE\")))) 0.01 1 \"falling\"))",
+          "label": "RE tracking range (10 mV crit.)",
+          "unit_tex": "\\si{\\volt}",
+          "scale": 1.0,
+          "digits": 3
+        },
+        "we_range": {
+          "expr": "(cross(abs((VS(\"/WE\") - VAR(\"V_CM\"))) 0.01 1 \"rising\") - cross(abs((VS(\"/WE\") - VAR(\"V_CM\"))) 0.01 1 \"falling\"))",
+          "label": "TIA compliance range (10 mV crit.)",
+          "unit_tex": "\\si{\\volt}",
+          "scale": 1.0,
+          "digits": 3
+        },
+        "ce_hi": {
+          "expr": "ymax(VS(\"/CE\"))",
+          "label": "Counter-electrode ceiling",
+          "unit_tex": "\\si{\\volt}",
+          "scale": 1.0,
+          "digits": 4
+        },
+        "ce_lo": {
+          "expr": "ymin(VS(\"/CE\"))",
+          "label": "Counter-electrode floor",
+          "unit_tex": "\\si{\\milli\\volt}",
+          "scale": 1000.0,
+          "digits": 2
+        },
+        "i_src_max": {
+          "expr": "ymax(IS(\"/IPRB_F/PLUS\"))",
+          "label": "Cell current delivered, anodic",
+          "unit_tex": "\\si{\\micro\\ampere}",
+          "scale": 1000000.0,
+          "digits": 3
+        },
+        "i_sink_max": {
+          "expr": "abs(ymin(IS(\"/IPRB_F/PLUS\")))",
+          "label": "Cell current delivered, cathodic",
+          "unit_tex": "\\si{\\micro\\ampere}",
+          "scale": 1000000.0,
+          "digits": 3
+        },
+        "i_tot": {
+          "expr": "abs(IDC(\"/POWER/SRC_VDD25/PLUS\"))",
+          "label": "Supply current",
+          "unit_tex": "\\si{\\micro\\ampere}",
+          "scale": 1000000.0,
+          "digits": 2
+        },
+        "ce_w": {
+          "expr": "VS(\"/CE\")",
+          "label": "Counter-electrode potential",
+          "unit_tex": "\\si{\\volt}",
+          "scale": 1.0,
+          "digits": 3
+        }
+      }
+    },
+    "px_ctrl_stb": {
+      "dir": "PotCtrlTB",
+      "result": "stb",
+      "xlabel": "Frequency~[\\si{\\hertz}]",
+      "xunit_tex": "\\si{\\hertz}",
+      "nominal_x": 1.0,
+      "signals": {
+        "lg_db": {
+          "expr": "dB20(getData(\"loopGain\" ?result \"stb\"))",
+          "label": "Loop gain $|T|$",
+          "unit_tex": "\\si{\\decibel}",
+          "scale": 1.0,
+          "digits": 2
+        },
+        "aol_db": {
+          "expr": "ymax(dB20(getData(\"loopGain\" ?result \"stb\")))",
+          "label": "Loop gain at DC",
+          "unit_tex": "\\si{\\decibel}",
+          "scale": 1.0,
+          "digits": 2
+        },
+        "ugf": {
+          "expr": "cross(dB20(getData(\"loopGain\" ?result \"stb\")) 0 1 \"falling\")",
+          "label": "Loop crossover",
+          "unit_tex": "\\si{\\mega\\hertz}",
+          "scale": 1e-06,
+          "digits": 3
+        },
+        "pm": {
+          "expr": "value(phase(getData(\"loopGain\" ?result \"stb\")) cross(dB20(getData(\"loopGain\" ?result \"stb\")) 0 1 \"falling\"))",
+          "label": "Phase margin",
+          "unit_tex": "\\si{\\degree}",
+          "scale": 1.0,
+          "digits": 2
+        }
+      }
+    },
+    "px_acc35_dc": {
+      "dir": "ps_iacc",
+      "result": "dc",
+      "xlabel": "Injected working-electrode current $i_{\\mathrm{we}}$",
+      "xunit_tex": "\\si{\\micro\\ampere}",
+      "xscale": 1000000.0,
+      "nominal_x": 0.0,
+      "signals": {
+        "ierr_lsb": {
+          "expr": "((((VS(\"/V_OUT\") - VAR(\"V_CM\")) / VAR(\"rf\")) - xval(((VS(\"/V_OUT\") - VAR(\"V_CM\")) / VAR(\"rf\")))) * VAR(\"rf\") / 0.002441)",
+          "label": "Accuracy error",
+          "unit_tex": "LSB",
+          "scale": 1.0,
+          "digits": 3
+        },
+        "ierr_lsb_max": {
+          "expr": "ymax(abs(clip((((((VS(\"/V_OUT\") - VAR(\"V_CM\")) / VAR(\"rf\")) - xval(((VS(\"/V_OUT\") - VAR(\"V_CM\")) / VAR(\"rf\")))) * VAR(\"rf\")) / 0.002441) (0 - (1.155 / VAR(\"rf\"))) (1.155 / VAR(\"rf\")))))",
+          "label": "Worst full-scale error",
+          "unit_tex": "LSB",
+          "scale": 1.0,
+          "digits": 3
+        },
+        "ierr_0": {
+          "expr": "value((((VS(\"/V_OUT\") - VAR(\"V_CM\")) / VAR(\"rf\")) - xval(((VS(\"/V_OUT\") - VAR(\"V_CM\")) / VAR(\"rf\")))) 0)",
+          "label": "Zero-crossing error",
+          "unit_tex": "\\si{\\nano\\ampere}",
+          "scale": 1000000000.0,
+          "digits": 3
+        },
+        "slope_err_0": {
+          "expr": "(value(deriv(((VS(\"/V_OUT\") - VAR(\"V_CM\")) / VAR(\"rf\"))) 0) - 1)",
+          "label": "Zero-crossing slope error",
+          "unit_tex": "",
+          "scale": 1.0,
+          "digits": 5
+        }
+      }
+    }
+  },
+  "figures": [
+    {
+      "id": "px_ctrl_loopgain",
+      "test": "px_ctrl_stb",
+      "signals": ["lg_db"],
+      "corners": "all",
+      "width": "0.82\\linewidth",
+      "height": "6.2cm",
+      "xlog": true,
+      "yprec": 0,
+      "legendpos": "south west",
+      "ylabel": "Loop gain $|T|$~[\\si{\\decibel}]",
+      "caption": "Potentiostat control-loop gain over five process corners, measured through the \\SI{0}{\\volt} probe \\texttt{IPRB1} in the RE feedback path (Figure~\\ref{fig:tb-pixel}). $R_f = \\SI{35}{\\kilo\\ohm}$, cell $R_{\\mathrm{ce}} = R_u = \\SI{1}{\\kilo\\ohm}$, $R_{\\mathrm{ct}} = \\SI{10}{\\kilo\\ohm}$, $C_{\\mathrm{dl}} = \\SI{100}{\\nano\\farad}$, \\SI{2.5}{\\volt} supply. This is the full loop -- A1, A2, both feedback networks and the electrode together -- and is not the open-loop amplifier gain of Section~\\ref{ss:ampab}. \\texttt{tt} is at \\SI{37}{\\celsius}, the four skew corners at \\SI{25}{\\celsius}."
+    }
+  ],
+  "tables": [
+    {
+      "id": "px_ctrl_stability",
+      "type": "matrix",
+      "test": "px_ctrl_stb",
+      "stat": "value",
+      "corners": "all",
+      "spread_column": true,
+      "signals": ["aol_db", "ugf", "pm"],
+      "caption": "Potentiostat control-loop stability by process corner, conditions as Figure~\\ref{fig:px-ctrl-loopgain}. Every corner exceeds the \\SI{60}{\\degree} phase-margin and \\SI{60}{\\decibel} DC-gain limits entered on the bench by a wide margin."
+    },
+    {
+      "id": "px_ctrl_tracking",
+      "type": "matrix",
+      "test": "px_ctrl_dc",
+      "stat": "value",
+      "corners": "all",
+      "spread_column": true,
+      "signals": ["re_err_0", "re_err_max", "re_err_slope"],
+      "caption": "Reference-potential tracking by process corner. Cell-drive bench (Figure~\\ref{fig:tb-pixel}), $v_{\\mathrm{ref}}$ swept \\SIrange{0}{2.5}{\\volt}, $R_f = \\SI{35}{\\kilo\\ohm}$, cell $R_{\\mathrm{ce}} = R_u = \\SI{1}{\\kilo\\ohm}$, $R_{\\mathrm{ct}} = \\SI{10}{\\kilo\\ohm}$, $C_{\\mathrm{dl}} = \\SI{100}{\\nano\\farad}$, \\SI{2.5}{\\volt} supply. Tracking error is the reference-electrode potential minus the commanded value; the worst-error row is evaluated over the fixed \\SIrange{0.4}{2.1}{\\volt} design-variable window (\\texttt{vref\\_lo}/\\texttt{vref\\_hi}), the same window for every corner, and is offset-inclusive. All five corners clear the \\SI{1}{\\milli\\volt} \\texttt{re\\_err\\_max} and \\SI{50}{\\milli\\volt\\per\\volt} \\texttt{re\\_err\\_slope} limits entered on the bench."
+    },
+    {
+      "id": "px_ctrl_range",
+      "type": "matrix",
+      "test": "px_ctrl_dc",
+      "stat": "value",
+      "corners": "all",
+      "spread_column": true,
+      "signals": ["vref_range", "we_range"],
+      "caption": "RE tracking range and TIA compliance range by process corner, conditions as Table~\\ref{tab:px-ctrl-tracking}. Both are the width of the region over which the respective error stays inside a \\SI{10}{\\milli\\volt} threshold; the threshold is on the total error including the loop's static offset, so a corner with more offset reports a narrower range for the same underlying loop gain -- read these next to Table~\\ref{tab:px-ctrl-tracking} rather than as an independent compliance figure. The TIA range is $\\pm\\SI{35}{\\micro\\ampere}\\times\\SI{35}{\\kilo\\ohm}$ at the \\SI{10}{\\kilo\\ohm} electrode used here."
+    },
+    {
+      "id": "px_ctrl_drive",
+      "type": "matrix",
+      "test": "px_ctrl_dc",
+      "stat": "value",
+      "corners": "all",
+      "spread_column": true,
+      "signals": ["ce_hi", "ce_lo", "i_src_max", "i_sink_max", "i_tot"],
+      "caption": "Counter-electrode compliance, delivered cell current and supply current by process corner, conditions as Table~\\ref{tab:px-ctrl-tracking}. Cell current is measured through the TIA feedback probe \\texttt{IPRB\\_F}, which carries the entire working-electrode current by KCL since no truth current is injected on this bench; both directions clear the \\SI{33}{\\micro\\ampere} limits entered on the test by more than \\SI{50}{\\percent}. Supply current covers both amplifiers, both local bias generators and the shared global bias generator."
+    },
+    {
+      "id": "px_acc35",
+      "type": "matrix",
+      "test": "px_acc35_dc",
+      "stat": "value",
+      "corners": "all",
+      "spread_column": true,
+      "signals": ["ierr_lsb_max", "ierr_0", "slope_err_0"],
+      "caption": "Bipolar accuracy at the $R_f = \\SI{35}{\\kilo\\ohm}$ gain tap, the operational point at the $R_{\\mathrm{ct}} = \\SI{10}{\\kilo\\ohm}$ electrode, by process corner. Truth current \\texttt{iwe} swept \\SIrange{-36}{36}{\\micro\\ampere} (full scale is \\SI{33}{\\micro\\ampere}), error referred to the \\SI{2.441}{\\milli\\volt} ADC LSB and clipped to $\\pm$ full scale before taking the worst case. Over the full range the worst-case error is 0.41--0.61 LSB across corners; over the $\\pm\\SI{2.3}{\\micro\\ampere}$ subrange it improves to 0.21--0.30 LSB, the error growing toward full scale as the finite transimpedance loop gain ($\\varepsilon \\propto 1/T$)."
+    }
+  ],
+  "order": [
+    "note_pixel_intro",
+    "sch_tb_pixel",
+    "tab_Pixel_corners",
+    "note_pixel_accuracy",
+    "fig_px_xover_ierr",
+    "tab_px_acc35",
+    "tab_px_hg1m_acc",
+    "fig_px_hg1m_zoom",
+    "note_pixel_hg",
+    "tab_px_hg_demo",
+    "note_pixel_ctrl",
+    "fig_px_ctrl_loopgain",
+    "tab_px_ctrl_stability",
+    "tab_px_ctrl_tracking",
+    "tab_px_ctrl_range",
+    "tab_px_ctrl_drive",
+    "note_pixel_grid",
+    "tab_px_grid_pm",
+    "note_pixel_noise",
+    "tab_px_grid_noise",
+    "note_pixel_transient",
+    "fig_px_cv_voltammogram",
+    "fig_px_cv_potential",
+    "tab_px_cv_stats",
+    "fig_px_step_i",
+    "tab_px_step_stats",
+    "note_pixel_mc",
+    "fig_px_mc_izero_35k",
+    "fig_px_mc_izero_560k",
+    "tab_px_mc_izero",
+    "tab_px_mc_izero_allgain",
+    "tab_px_mc_rezero"
+  ],
+  "_note": [
+    "SECTION MASTER for the potentiostat pixel system (grounded-WE two-amp",
+    "potentiostat: A1 = anatop_tia_amp_ab as control amp, A2 = anatop_tia_amp_ab",
+    "as TIA, randles_cell electrode, single-ended SAR-facing output). Its `order`",
+    "places every fragment of the published section, including ones contributed by",
+    "the companion PixelXover / PixelHG / PixelHG1M / PixelGrid / PixelCV / PixelStep",
+    "/ PixelMC configs and the hand-written note_pixel_*/sch_tb_pixel fragments.",
+    "Fragments named in `order` that do not exist are skipped silently.",
+    "",
+    "SOURCE: .../tb_anatop_pixel/maestro/results/maestro/Interactive.20, points",
+    "81-85 (design point 17 of that run: PotCtrlTB + ps_iacc + ps_cv + ps_step at",
+    "rf=35k, rct_we=10k, cdl_we=100n -- the 'operational' 35k/10k pixel). Point 81",
+    "has no cor_std_mos.scs (statistical section, zero offset) so falls back to",
+    "pt81 -- hence corner_labels. Points 82-85 are ff/fs/sf/ss at 25 C; point 81 is",
+    "37 C. ps_cv/ps_step at these 5 points are NOT used here -- the Transients part",
+    "of this section sources from the separate 1M-electrode headless runs instead",
+    "(PixelCV/PixelStep configs), per the simarchive README's guidance that CV/step",
+    "should be shown at the operational max-gain (1M) electrode.",
+    "",
+    "EXPRESSIONS. Every expression below is copied character-for-character from",
+    "the archived tb_anatop_pixel_iacc2/run.ocn export (the Assembler's own",
+    "ocnxlOutputExpr definitions for this bench) and independently re-verified with",
+    "OCEAN against Interactive.20 points 81-85 before this config was written.",
+    "getData(name) on the ASSEMBLER-COMPUTED output names (re_err, icell, i_fs, ...)",
+    "does NOT work here -- confirmed empirically: ?save t in ocnxlOutputExpr saves",
+    "to the ADE XL results database, not to the raw PSF, so getData(\"re_err\")",
+    "returns nil against a real point's psf. Every expression is therefore fully",
+    "inlined from VS()/IS()/IDC() primitives, the same 'known exception' to the",
+    "'build on previously defined outputs' house style already documented in",
+    "AmpAB's _note (cross-output references are unavailable in this engine's",
+    "per-test-signal model, not merely fragile in Monte Carlo).",
+    "",
+    "SIGN CONVENTION (verified 2026-08-17, firmware-critical): positive iwe flows",
+    "WE->ground; vout = V_CM + iwe*Rf; imeas = IS(\"/IPRB_F/PLUS\") = (vout-V_CM)/rf.",
+    "ierr = imeas - iwe (measured minus true). This is the OPPOSITE sign",
+    "orientation from the simplan TB-07 formula (vcm - vout)/rf -- see",
+    "note_pixel_intro.tex.",
+    "",
+    "RANGE-DEPENDENCE, RESOLVED (2026-08-17): the archived",
+    "simarchive/tb_anatop_pixel/README.md 'Headline numbers' section states",
+    "README originally attributed ps_iacc_hg's NARROW +/-2.3uA-sweep figure",
+    "(0.21-0.30 LSB) to full scale. Full-scale ps_iacc gives 0.41-0.61 LSB",
+    "(pt81..85: 0.539/0.606/0.521/0.483/0.409), confirmed three ways: (1) OCEAN eval of",
+    "Interactive.20/81-85/ps_iacc, (2) the run's own Maestro-computed",
+    "cornerResultValue for resultID 56 (ierr_lsb_max) in",
+    "simarchive/tb_anatop_pixel/rdb/Interactive.20.rdb (0.5392153366443123 at",
+    "pt81, bit-identical to (1)), and (3)",
+    "simruns/tb_anatop_pixel_iacc2/summary_ps_iacc.txt (ierr_lsb_max 0.5392153,",
+    "same nominal point, same value to 7 figures). The 560k/1M-electrode figure",
+    "(0.253-0.376 LSB, PixelHG1M) DOES reproduce exactly from its own source run.",
+    "Both numbers are real; FULL-SCALE 0.41-0.61 LSB is published (TB-07 grades",
+    "over +/-FS); the subrange figure appears as a secondary condition in the",
+    "caption. README corrected by the owner's coordinating session 2026-08-17.",
+    "",
+    "we_err_max, ce_lo=head_lo, we_lo/hi_meas: available from the same PotCtrlTB",
+    "dc sweep but not published as separate rows here -- vref_range/we_range and",
+    "ce_hi/ce_lo already carry the compliance information the task plan asks for;",
+    "adding the raw thresholds would restate them (same trap AmpAB's _note",
+    "documents for head_hi/head_lo/rail_hi/rail_lo)."
+  ]
+}

@@ -1,0 +1,33 @@
+%% maestro2tex -- generated figure; do not edit by hand.
+\providecommand{\MaestroRoot}{include/analog/}
+\begin{figure}[htbp]
+  \centering
+  {\pgfplotsset{compat=1.18}%
+  \begin{tikzpicture}
+    \begin{axis}[
+      width=0.82\linewidth, height=6.0cm,
+      xlabel={Injected working-electrode current $i_{\mathrm{we}}$}, ylabel={Accuracy error~[LSB]},
+      grid=both,
+      major grid style={line width=0.2pt, draw=black!14},
+      minor grid style={line width=0.2pt, draw=black!7},
+      minor tick num=1,
+      axis line style={line width=0.4pt, draw=black!45},
+      tick style={line width=0.4pt, draw=black!45},
+      tick align=outside,
+      label style={font=\small}, tick label style={font=\small},
+      enlarge x limits=0.02, enlarge y limits=0.10,
+      every axis plot/.append style={line join=round, no marks},
+      legend style={font=\footnotesize, draw=black!25, fill=white,
+                    fill opacity=0.9, text opacity=1, row sep=1pt},
+      legend cell align=left, legend pos=south east,
+      scaled y ticks=false, scaled x ticks=false,
+      y tick label style={/pgf/number format/fixed,
+                          /pgf/number format/precision=2}
+    ]
+      \addplot[mtxA, line width=1.1pt, solid] table {\MaestroRoot data/px_xover_ierr_00.dat};
+      \addlegendentry{tt}
+    \end{axis}
+  \end{tikzpicture}}
+  \caption[{Bipolar accuracy error against injected working-electrode current, $R_f = \SI{35}{\kilo\ohm}$,\,\dots}]{Bipolar accuracy error against injected working-electrode current, $R_f = \SI{35}{\kilo\ohm}$, $R_{\mathrm{ct}} = \SI{10}{\kilo\ohm}$ electrode, typical process point, \SI{37}{\celsius}, full $\pm\SI{36}{\micro\ampere}$ sweep (full scale $\pm\SI{33}{\micro\ampere}$). The zero crossing is smooth with no kink or discontinuity between the sourcing and sinking halves of the sweep: the error's slope through zero is $-1/T$ exactly (Table~\ref{tab:px-acc35}) and the same single \texttt{anatop\_tia\_amp\_ab} TIA feedback path serves both current directions, unlike the rev-1 PMOS-only mirror it replaces.}
+  \label{fig:px-xover-ierr}
+\end{figure}

@@ -1,0 +1,13 @@
+%% maestro2tex -- generated table; do not edit by hand.
+\begin{table}[htbp]
+  \centering
+  \caption[{Monte Carlo reference-electrode zero-current offset, the gain-independent statistic.}]{Monte Carlo reference-electrode zero-current offset, the gain-independent statistic. \textbf{Mismatch only}, \SI{25}{\celsius} nominal process, 200 samples. \(\sigma = \SI{5.7176}{\milli\volt}\), identical to five significant figures at all four gain taps (verified: 5.71757, 5.71757, 5.71758, 5.71759~mV at 35k/140k/315k/560k) -- this is the control loop's own reference-tracking offset (Table~\ref{tab:px-ctrl-tracking}), which does not depend on which TIA gain tap is selected. At the operational \SI{1}{\mega\ohm} electrode this offset predicts \(\sigma(i_{\mathrm{zero}}) \approx \sigma(v_{\mathrm{os}})/R_{\mathrm{cell}}\); using the measured \SI{5.72}{\milli\volt} against the operational electrode's own \(R_{\mathrm{ct}}+R_u \approx \SI{1.001}{\mega\ohm}\) gives \(\approx\SI{5.7}{\nano\ampere} \approx \SI{1.3}{LSB}\) at \SI{560}{\kilo\ohm} -- consistent with, and about \(3.5\times\) larger than, the corner-level finite-gain error of Table~\ref{tab:px-hg1m-acc}.}
+  \label{tab:px-mc-rezero}
+  \begin{tabular}{lrrrrrr}
+    \toprule
+    Parameter & Unit & $N$ & Mean & $\sigma$ & Min & Max \\
+    \midrule
+    RE zero-current offset, $R_f = \SI{35}{\kilo\ohm}$ & \si{\milli\volt} & 200 & $-0.686$ & 5.718 & $-18.623$ & 16.457 \\
+    \bottomrule
+  \end{tabular}
+\end{table}

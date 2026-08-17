@@ -1,0 +1,101 @@
+{
+  "block": "PixelHG1M",
+  "tex_root": "include/analog/",
+  "nominal_corner": "tt",
+  "supply_var": "VDD25",
+  "emit_master": false,
+  "emit_corner_table": false,
+  "points": ["1-5"],
+  "corner_labels": { "pt1": "tt" },
+  "tests": {
+    "px_hg1m_dc": {
+      "dir": "ps_iacc_hg",
+      "result": "dc",
+      "xlabel": "Injected working-electrode current $i_{\\mathrm{we}}$",
+      "xunit_tex": "\\si{\\micro\\ampere}",
+      "xscale": 1000000.0,
+      "nominal_x": 0.0,
+      "signals": {
+        "ierr_lsb": {
+          "expr": "((((VS(\"/V_OUT\") - VAR(\"V_CM\")) / VAR(\"rf\")) - xval(((VS(\"/V_OUT\") - VAR(\"V_CM\")) / VAR(\"rf\")))) * VAR(\"rf\") / 0.002441)",
+          "label": "Accuracy error",
+          "unit_tex": "LSB",
+          "scale": 1.0,
+          "digits": 3
+        },
+        "ierr_lsb_max": {
+          "expr": "ymax(abs(clip((((((VS(\"/V_OUT\") - VAR(\"V_CM\")) / VAR(\"rf\")) - xval(((VS(\"/V_OUT\") - VAR(\"V_CM\")) / VAR(\"rf\")))) * VAR(\"rf\")) / 0.002441) (0 - (1.155 / VAR(\"rf\"))) (1.155 / VAR(\"rf\")))))",
+          "label": "Worst full-scale error",
+          "unit_tex": "LSB",
+          "scale": 1.0,
+          "digits": 3
+        },
+        "ierr_0": {
+          "expr": "value((((VS(\"/V_OUT\") - VAR(\"V_CM\")) / VAR(\"rf\")) - xval(((VS(\"/V_OUT\") - VAR(\"V_CM\")) / VAR(\"rf\")))) 0)",
+          "label": "Zero-crossing error",
+          "unit_tex": "\\si{\\nano\\ampere}",
+          "scale": 1000000000.0,
+          "digits": 3
+        },
+        "slope_err_0": {
+          "expr": "(value(deriv(((VS(\"/V_OUT\") - VAR(\"V_CM\")) / VAR(\"rf\"))) 0) - 1)",
+          "label": "Zero-crossing slope error",
+          "unit_tex": "",
+          "scale": 1.0,
+          "digits": 5
+        }
+      }
+    }
+  },
+  "figures": [
+    {
+      "id": "px_hg1m_zoom",
+      "test": "px_hg1m_dc",
+      "signals": ["ierr_lsb"],
+      "corners": ["tt"],
+      "width": "0.72\\linewidth",
+      "height": "5.6cm",
+      "yprec": 2,
+      "legendpos": "south east",
+      "ylabel": "Accuracy error~[LSB]",
+      "caption": "Accuracy error at the operational max-gain point, $R_f = \\SI{560}{\\kilo\\ohm}$ into $R_{\\mathrm{ct}} = \\SI{1}{\\mega\\ohm}$, typical process point, \\SI{37}{\\celsius}. The truth current sweep is $\\pm\\SI{2.3}{\\micro\\ampere}$, just beyond the \\SI{2.06}{\\micro\\ampere} full-scale current at this gain tap; the crossing at zero is smooth, with no kink, over the full swept range shown."
+    }
+  ],
+  "tables": [
+    {
+      "id": "px_hg1m_acc",
+      "type": "matrix",
+      "test": "px_hg1m_dc",
+      "stat": "value",
+      "corners": "all",
+      "spread_column": true,
+      "signals": ["ierr_lsb_max", "ierr_0", "slope_err_0"],
+      "caption": "Bipolar accuracy at the $R_f = \\SI{560}{\\kilo\\ohm}$ gain tap, the operational point at the $R_{\\mathrm{ct}} = \\SI{1}{\\mega\\ohm}$ electrode, by process corner -- \\textbf{the headline rev-2 accuracy figure}. Truth current swept $\\pm\\SI{2.3}{\\micro\\ampere}$ (full scale is \\SI{2.06}{\\micro\\ampere}), error referred to the \\SI{2.441}{\\milli\\volt} ADC LSB and clipped to $\\pm$ full scale before taking the worst case."
+    }
+  ],
+  "order": [],
+  "_note": [
+    "Companion for the Pixel section: THE headline rev-2 max-gain accuracy",
+    "(560k/1M, operational). Contributes tab_px_hg1m_acc + fig_px_hg1m_zoom, named",
+    "in Pixel's `order`.",
+    "",
+    "SOURCE: simruns/tb_anatop_pixel_iacc_hg_1M_corners/castalia/tb_anatop_pixel/",
+    "maestro/results/maestro/Ocean.0, points 1-5. A headless ocean-export run but",
+    "genuinely Maestro-shaped (numbered point dirs 1-5 under Ocean.0, each holding",
+    "ps_iacc_hg/{netlist,psf} directly) -- consumable by --results/discover_corners",
+    "with NO staging needed, unlike the MC row-slicing case (PixelMC). Point 1 has",
+    "no cor_std_mos.scs (statistical section, castalia_pm_25, zero offset) hence",
+    "corner_labels pt1->tt; points 2-5 are ff/fs/sf/ss, all at 25 C, point 1 at",
+    "37 C. rf=560k, rct_we=1M fixed at every point (verified via variables_file).",
+    "",
+    "VERIFIED (2026-08-17) against the simarchive README headline",
+    "'0.253-0.376 LSB': ierr_lsb_max at pt1..5 = 0.3331/0.3762/0.3311/0.2930/",
+    "0.2528, i.e. 0.253-0.376 LSB. Also matches 'ierr_0 = -1.1 nA' (measured here",
+    "-0.87 to -1.21 nA) and 'slope_err_0 = -1/T' (here -7.6e-5 to -1.56e-4, i.e.",
+    "-0.008% to -0.016%, an order of magnitude tighter than the 35k/10k stiff",
+    "cell's -0.39% in PixelHG -- consistent with T being far higher at this",
+    "electrode).",
+    "",
+    "EXPRESSIONS verbatim from tb_anatop_pixel_iacc_hg_1M_corners/run.ocn."
+  ]
+}

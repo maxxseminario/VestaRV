@@ -23,7 +23,7 @@
   \coordinate (VCM) at (-1.6,0 |- Ap);
   \coordinate (FB)  at (-2.8,0 |- Am);
   \draw (A.+) -- (VCM);
-  \draw (VCM) to[V, l_=$V_{\mathrm{CM}}$, invert] (-1.6,-2.6) node[ground]{};
+  \draw (VCM) to[V, l_=$V_{\mathrm{CM}}$] (-1.6,-2.6) node[ground]{};
   \node[prb] (P) at (-1.6,2.2) {};
   \draw (A.-) -- (FB) -- (-2.8,2.2) -- (P.west);
   \node[nlab, above=2pt] at (P.north) {probe};
