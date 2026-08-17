@@ -1,0 +1,80 @@
+{
+  "block": "PixelCV",
+  "tex_root": "include/analog/",
+  "nominal_corner": "tt",
+  "supply_var": "VDD25",
+  "emit_master": false,
+  "emit_corner_table": false,
+  "points": ["1"],
+  "corner_labels": { "pt1": "tt" },
+  "tests": {
+    "px_cv_tran": {
+      "dir": "ps_cv",
+      "result": "tran",
+      "xlabel": "Time~[\\si{\\milli\\second}]",
+      "xunit_tex": "\\si{\\milli\\second}",
+      "xscale": 1000.0,
+      "signals": {
+        "cv_x": {
+          "expr": "VT(\"/RE\")",
+          "label": "Commanded RE potential",
+          "unit_tex": "\\si{\\volt}",
+          "scale": 1.0,
+          "digits": 3
+        },
+        "cv_i": {
+          "expr": "((VT(\"/V_OUT\") - VAR(\"V_CM\")) / VAR(\"rf\"))",
+          "label": "Working-electrode current",
+          "unit_tex": "\\si{\\micro\\ampere}",
+          "scale": 1000000.0,
+          "digits": 3
+        }
+      }
+    }
+  },
+  "figures": [
+    {
+      "id": "px_cv_potential",
+      "test": "px_cv_tran",
+      "signals": ["cv_x"],
+      "corners": ["tt"],
+      "width": "0.6\\linewidth",
+      "height": "5.0cm",
+      "yprec": 2,
+      "legendpos": "south east",
+      "ylabel": "RE potential~[\\si{\\volt}]",
+      "caption": "Commanded reference-electrode potential against time for the triangular voltammetry sweep, typical process point, \\SI{37}{\\celsius}, $R_f = \\SI{35}{\\kilo\\ohm}$, $R_{\\mathrm{ct}} = \\SI{1}{\\mega\\ohm}$ electrode. Paired with the current response of Figure~\\ref{fig:px-cv-voltammogram}."
+    }
+  ],
+  "tables": [
+    {
+      "id": "px_cv_stats",
+      "type": "stats",
+      "test": "px_cv_tran",
+      "corner": "tt",
+      "stats": ["min", "max", "spread"],
+      "signals": ["cv_x", "cv_i"],
+      "caption": "Extremes of the CV sweep and its current response, typical process point, conditions as Figure~\\ref{fig:px-cv-potential}. The current stays inside the loop's linear region for the whole sweep -- unclipped, unlike the \\SI{10}{\\kilo\\ohm} electrode used for the accuracy and control-loop measurements elsewhere in this section."
+    }
+  ],
+  "order": [],
+  "_note": [
+    "Companion for the Pixel section: CV voltammogram (transient part).",
+    "Contributes fig_px_cv_potential + tab_px_cv_stats; the fig_px_cv_voltammogram",
+    "(cv_i vs cv_x XY plot) is a SEPARATE hand-written fragment",
+    "(note_pixel_transient.tex / fig_px_cv_voltammogram.tex) built from the same",
+    "extracted CSVs by scripts/px_cv_merge.py, because this engine has no",
+    "signal-vs-signal (XY) figure kind -- only signal-vs-native-sweep-axis. See",
+    "that script's header for the merge procedure.",
+    "",
+    "SOURCE: simruns/tb_anatop_pixel_cv_1M/castalia/tb_anatop_pixel/maestro/",
+    "results/maestro/Ocean.0, point 1 only. rf=35k, rct_we=1M (the operational",
+    "max-gain electrode), cdl_we=1u, v_step=1 (verified via variables_file).",
+    "This is a DIFFERENT electrode from the accuracy/control-loop tables (which",
+    "use rct_we=10k) -- per the task's instruction to source CV/step from the",
+    "1M-electrode headless runs. Stated explicitly in the caption/note.",
+    "",
+    "cv_i/cv_x expressions verbatim from tb_anatop_pixel_iacc2/run.ocn's ps_cv",
+    "block (VT() not VS() -- transient result)."
+  ]
+}

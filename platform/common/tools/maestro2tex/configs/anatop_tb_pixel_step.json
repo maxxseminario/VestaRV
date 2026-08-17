@@ -1,0 +1,74 @@
+{
+  "block": "PixelStep",
+  "tex_root": "include/analog/",
+  "nominal_corner": "tt",
+  "supply_var": "VDD25",
+  "emit_master": false,
+  "emit_corner_table": false,
+  "points": ["1"],
+  "corner_labels": { "pt1": "tt" },
+  "tests": {
+    "px_step_tran": {
+      "dir": "ps_step",
+      "result": "tran",
+      "xlabel": "Time~[\\si{\\milli\\second}]",
+      "xunit_tex": "\\si{\\milli\\second}",
+      "xscale": 1000.0,
+      "signals": {
+        "i_t": {
+          "expr": "((VT(\"/V_OUT\") - VAR(\"V_CM\")) / VAR(\"rf\"))",
+          "label": "Working-electrode current",
+          "unit_tex": "\\si{\\micro\\ampere}",
+          "scale": 1000000.0,
+          "digits": 3
+        },
+        "ce_t": {
+          "expr": "VT(\"/CE\")",
+          "label": "Counter-electrode potential",
+          "unit_tex": "\\si{\\volt}",
+          "scale": 1.0,
+          "digits": 3
+        }
+      }
+    }
+  },
+  "figures": [
+    {
+      "id": "px_step_i",
+      "test": "px_step_tran",
+      "signals": ["i_t"],
+      "corners": ["tt"],
+      "width": "0.82\\linewidth",
+      "height": "6.0cm",
+      "yprec": 2,
+      "legendpos": "north east",
+      "ylabel": "Working-electrode current~[\\si{\\micro\\ampere}]",
+      "caption": "Step response of the working-electrode current to a \\SI{400}{\\milli\\volt} step in the commanded reference potential, typical process point, \\SI{37}{\\celsius}, $R_f = \\SI{35}{\\kilo\\ohm}$, $R_{\\mathrm{ct}} = \\SI{1}{\\mega\\ohm}$ electrode, \\SI{1}{\\micro\\second} edge. The transient overshoots and briefly rails against the loop's slew-limited edges immediately after the step -- by design, the bench exercises the edge rather than a settled operating condition -- before settling to the value set by the cell impedance."
+    }
+  ],
+  "tables": [
+    {
+      "id": "px_step_stats",
+      "type": "stats",
+      "test": "px_step_tran",
+      "corner": "tt",
+      "stats": ["min", "max", "spread", "settle"],
+      "signals": ["i_t", "ce_t"],
+      "caption": "Extremes and settling of the step response, conditions as Figure~\\ref{fig:px-step-i}. \\texttt{settle} is the last exit from a \\(\\pm 1\\,\\%\\) band around the final value; the extremes are transient peaks reached during the rail-limited edge and are not a sustained operating rating."
+    }
+  ],
+  "order": [],
+  "_note": [
+    "Companion for the Pixel section: step transient. Contributes fig_px_step_i +",
+    "tab_px_step_stats, named in Pixel's `order`.",
+    "",
+    "SOURCE: simruns/tb_anatop_pixel_step_1M/castalia/tb_anatop_pixel/maestro/",
+    "results/maestro/Ocean.0, point 1 only. rf=35k, rct_we=1M, v_step=400m",
+    "(verified via variables_file). Same 1M electrode as PixelCV, different from",
+    "the 10k electrode used for accuracy/control-loop tables elsewhere.",
+    "",
+    "i_t/ce_t expressions verbatim from tb_anatop_pixel_iacc2/run.ocn's ps_step",
+    "block. The simarchive README states the edges rail transiently BY DESIGN --",
+    "captioned as a caveat here, not published as a sustained current rating."
+  ]
+}

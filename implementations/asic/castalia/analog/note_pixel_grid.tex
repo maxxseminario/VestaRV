@@ -1,0 +1,18 @@
+% HAND-WRITTEN fragment -- placed via configs/anatop_tb_pixel_corners.json
+% `order`. Numbers from tab_px_grid_pm.tex and independently verified from
+% every one of the 60 extracted data/raw/px_grid_stb__*__stb_pm.csv files
+% (min 89.30584, max 93.26609 degrees; 60 corner/cell points, all present).
+%
+% Source: Interactive.20 points 1-60 (12-cell electrode grid x 5 corners).
+
+\subsubsection{Stability Across the Electrode Grid}\label{sss:pixel-grid}
+
+Table~\ref{tab:px-grid-pm} gives the transimpedance-loop phase margin at the
+typical process point over all twelve $R_f\times R_{\mathrm{ct}}\times
+C_{\mathrm{dl}}$ cells simulated. Phase margin stays inside
+\SIrange{89.3}{93.3}{\degree} over the entire twelve-cell grid and all five
+process corners -- every combination simulated, not only the typical point
+shown here. No cell needs an explicit compensation capacitor $C_F$ across the
+electrode range simulated: the loop is unconditionally stable at both gain
+taps, both electrode resistances and all three double-layer capacitances
+tested.

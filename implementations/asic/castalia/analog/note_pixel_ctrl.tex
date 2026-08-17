@@ -1,0 +1,22 @@
+% HAND-WRITTEN fragment -- placed via configs/anatop_tb_pixel_corners.json
+% `order`. Numbers from fig_px_ctrl_loopgain.tex, tab_px_ctrl_stability.tex,
+% tab_px_ctrl_tracking.tex, tab_px_ctrl_range.tex and tab_px_ctrl_drive.tex.
+%
+% Source: Interactive.20 points 81-85 ($R_f = 35$ kOhm, $R_{ct} = 10$ kOhm,
+% $C_{dl} = 100$ nF electrode).
+
+\subsubsection{Control Loop}\label{sss:pixel-ctrl}
+
+The commanded reference potential $v_{\mathrm{ref}}$ is swept
+\SIrange{0}{2.5}{\volt}; Table~\ref{tab:px-ctrl-stability} gives the resulting
+loop stability and Table~\ref{tab:px-ctrl-tracking} the tracking error. Loop
+gain exceeds \SI{71.8}{\decibel} and crossover exceeds \SI{21.2}{\mega\hertz}
+at every corner, both well past the \SI{60}{\decibel}/\SI{60}{\degree} limits
+entered on the bench; the worst tracking error stays at or below
+\SI{0.814}{\milli\volt} over the fixed \SIrange{0.4}{2.1}{\volt} evaluation
+window at every corner. Table~\ref{tab:px-ctrl-range} and
+Table~\ref{tab:px-ctrl-drive} give the compliance: the reference electrode
+tracks over \SIrange{0.054}{2.44}{\volt} (a \SI{10}{\milli\volt} error
+criterion, offset-inclusive) and the loop delivers \SI{\pm 52.5}{\micro\ampere}
+into the cell at every corner, read through the TIA feedback probe since no
+separate truth-current source is active on this bench.

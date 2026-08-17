@@ -1,0 +1,14 @@
+% HAND-WRITTEN fragment -- placed via configs/anatop_tb_pixel_corners.json
+% `order`. Numbers from tab_px_hg_demo.tex.
+%
+% Source: Interactive.20 points 61-80.
+
+\paragraph{Finite-loop-gain error away from the operational electrode.}
+Table~\ref{tab:px-hg-demo} sweeps a small band around zero at all four gain
+taps with the electrode held at the stiff \SI{10}{\kilo\ohm} cell used for the
+control-loop bench. The 140, 315 and \SI{560}{\kilo\ohm} rows are not the
+accuracy of those taps -- \SI{10}{\kilo\ohm} is not the electrode those taps
+are designed against -- but they isolate the mechanism: the zero-crossing
+slope error tracks $-1/T$ within \SI{4}{\percent} at every tap, so the growth
+in worst-case error with $R_f$ is finite closed-loop gain, not a distortion
+that appears only at high gain.

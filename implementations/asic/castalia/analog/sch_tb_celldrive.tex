@@ -22,7 +22,7 @@
   \coordinate (VREF) at (-1.7,0 |- Ap);
   \coordinate (FB)   at (-3.0,0 |- Am);
   \draw (A.+) -- (VREF);
-  \draw (VREF) to[V, l_=$v_{\mathrm{ref}}$, invert] (-1.7,-3.0) node[ground]{};
+  \draw (VREF) to[V, l_=$v_{\mathrm{ref}}$] (-1.7,-3.0) node[ground]{};
   \node[opt, anchor=north] at (-1.7,-3.45) {swept \SIrange{0}{2.5}{\volt}};
   %% reference-electrode feedback, through the loop-gain probe
   \node[prb] (P) at (-1.8,2.6) {};
@@ -47,7 +47,7 @@
   \node[draw, minimum width=1.9cm, minimum height=1.7cm, align=center,
         font=\scriptsize] (CELL) at (5.3,0) {three-electrode\\cell};
   \node[nlab, anchor=west] at (5.4,1.7){\texttt{RE}};
-  \draw (CELL.south) to[V, l_=$V_{\mathrm{CM}}$, invert] (5.3,-3.0) node[ground]{};
+  \draw (CELL.south) to[V, l_=$V_{\mathrm{CM}}$] (5.3,-3.0) node[ground]{};
   \node[nlab, anchor=west] at (5.4,-1.15){\texttt{WE}};
   \node[opt, anchor=north] at (5.3,-3.45) {cell current\\measured here};
 \end{circuitikz}

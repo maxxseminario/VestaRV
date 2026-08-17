@@ -1,0 +1,41 @@
+%% maestro2tex -- generated Monte Carlo histogram; do not edit by hand.
+\providecommand{\MaestroRoot}{include/analog/}
+\begin{figure}[htbp]
+  \centering
+  {\pgfplotsset{compat=1.18}%
+  \begin{tikzpicture}
+    \begin{axis}[
+      width=0.86\linewidth, height=6.0cm,
+      xlabel={Zero-current offset~[LSB]}, ylabel={Samples},
+      grid=both,
+      major grid style={line width=0.2pt, draw=black!14},
+      minor grid style={line width=0.2pt, draw=black!7},
+      minor tick num=1,
+      axis line style={line width=0.4pt, draw=black!45},
+      tick style={line width=0.4pt, draw=black!45},
+      tick align=outside,
+      label style={font=\small}, tick label style={font=\small},
+      enlarge x limits=0.02, enlarge y limits=0.10,
+      every axis plot/.append style={line join=round, no marks},
+      legend style={font=\footnotesize, draw=none, fill=none,
+                    at={(0.5,1.02)}, anchor=south, legend columns=-1,
+                    /tikz/every even column/.append style={column sep=9pt}},
+      legend cell align=left,
+      scaled y ticks=false, scaled x ticks=false,
+      y tick label style={/pgf/number format/fixed,
+                          /pgf/number format/precision=0},
+      ymin=0, ymax=29.9,
+      enlarge x limits=0.04, enlarge y limits=false,
+      area legend
+    ]
+      \addplot[ybar interval, draw=mtxA, fill=mtxA!25, line width=0.7pt] table {\MaestroRoot data/px_mc_izero_560k_00.dat};
+      \addlegendentry{Zero-current offset in LSB, $R_f = \SI{560}{\kilo\ohm}$}
+      \draw[black!70, line width=1.0pt, densely dashed] ({axis cs:-1,0}|-{rel axis cs:0,0}) -- ({axis cs:-1,0}|-{rel axis cs:0,0.90})
+        node[above, font=\footnotesize, inner sep=1pt] {$-1$};
+      \draw[black!70, line width=1.0pt, densely dashed] ({axis cs:1,0}|-{rel axis cs:0,0}) -- ({axis cs:1,0}|-{rel axis cs:0,0.90})
+        node[above, font=\footnotesize, inner sep=1pt] {$+1$};
+    \end{axis}
+  \end{tikzpicture}}
+  \caption[{Zero-current output offset at $R_f = \SI{560}{\kilo\ohm}$, conditions as Figure~\ref{fig:px-mc-izero-35k} but\,\dots}]{Zero-current output offset at $R_f = \SI{560}{\kilo\ohm}$, conditions as Figure~\ref{fig:px-mc-izero-35k} but at $R_{\mathrm{ct}} = \SI{10}{\kilo\ohm}$ (the same stiff electrode as the finite-loop-gain demonstration of Table~\ref{tab:px-hg-demo}, NOT the \SI{1}{\mega\ohm} operational electrode of Table~\ref{tab:px-hg1m-acc}). Some samples reach the sweep's output rails (Table~\ref{tab:px-mc-izero}); the LSB spread here is $14\times$ wider than at \SI{35}{\kilo\ohm} for the same underlying current offset, since the same offset current is multiplied through a $16\times$ larger $R_f$.}
+  \label{fig:px-mc-izero-560k}
+\end{figure}

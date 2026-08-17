@@ -1,0 +1,15 @@
+%% maestro2tex -- generated table; do not edit by hand.
+\begin{table}[htbp]
+  \centering
+  \caption[{Reference-potential tracking by process corner.}]{Reference-potential tracking by process corner. Cell-drive bench (Figure~\ref{fig:tb-pixel}), $v_{\mathrm{ref}}$ swept \SIrange{0}{2.5}{\volt}, $R_f = \SI{35}{\kilo\ohm}$, cell $R_{\mathrm{ce}} = R_u = \SI{1}{\kilo\ohm}$, $R_{\mathrm{ct}} = \SI{10}{\kilo\ohm}$, $C_{\mathrm{dl}} = \SI{100}{\nano\farad}$, \SI{2.5}{\volt} supply. Tracking error is the reference-electrode potential minus the commanded value; the worst-error row is evaluated over the fixed \SIrange{0.4}{2.1}{\volt} design-variable window (\texttt{vref\_lo}/\texttt{vref\_hi}), the same window for every corner, and is offset-inclusive. All five corners clear the \SI{1}{\milli\volt} \texttt{re\_err\_max} and \SI{50}{\milli\volt\per\volt} \texttt{re\_err\_slope} limits entered on the bench.}
+  \label{tab:px-ctrl-tracking}
+  \begin{tabular}{lrrrrrrr}
+    \toprule
+    Parameter & Unit & tt & ff & fs & sf & ss & Spread \\
+    \midrule
+    Zero-current tracking error & \si{\milli\volt} & $-0.620$ & $-0.677$ & $-0.633$ & $-0.533$ & $-0.488$ & 0.189 \\
+    Worst tracking error over the window & \si{\milli\volt} & 0.748 & 0.814 & 0.773 & 0.646 & 0.692 & 0.168 \\
+    Worst tracking-error slope & \si{\milli\volt\per\volt} & 1.735 & 0.541 & 1.534 & 2.022 & 2.442 & 1.901 \\
+    \bottomrule
+  \end{tabular}
+\end{table}

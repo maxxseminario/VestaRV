@@ -1,0 +1,24 @@
+%% maestro2tex -- generated table; do not edit by hand.
+\begin{table}[htbp]
+  \centering
+  \caption[{System output and input-referred noise across the electrode grid, conditions and process point as\,\dots}]{System output and input-referred noise across the electrode grid, conditions and process point as Table~\ref{tab:px-grid-pm}. Output noise integrated \SIrange{0.1}{1000}{\hertz}; input-referred current noise is the same integral divided by $R_f$ and is therefore not comparable across the two $R_f$ blocks by itself. At $R_f = \SI{560}{\kilo\ohm}$ noise grows with $C_{\mathrm{dl}}$, not $R_{\mathrm{ct}}$: the closed-loop noise gain is $e_n\cdot(1+R_f/Z_{\mathrm{electrode}})$ and $|Z_{\mathrm{electrode}}|$ falls with $C_{\mathrm{dl}}$ over the \SIrange{0.1}{1}{\kilo\hertz} integration band, which the standalone TIA bench of Section~\ref{sss:ampab-tia} (ideal $R_f$, no electrode network) cannot show.}
+  \label{tab:px-grid-noise}
+  \begin{tabular}{lrrrr}
+    \toprule
+    $R_f$ & $C_{\mathrm{dl}}$~[\si{\micro\farad}] & $R_{\mathrm{ct}}$~[\si{\kilo\ohm}] & Output noise, \SIrange{0.1}{1000}{\hertz}~[\si{\milli\volt}] & Input-referred current noise~[\si{\nano\ampere}] \\
+    \midrule
+    35000 & 0.10 & 10 & 0.186 & 5.309 \\
+    35000 & 1.00 & 10 & 0.477 & 13.640 \\
+    35000 & 1.00 & 1000 & 0.474 & 13.534 \\
+    35000 & 10.00 & 10 & 0.743 & 21.242 \\
+    35000 & 10.00 & 1000 & 0.746 & 21.308 \\
+    35000 & 0.10 & 1000 & 0.141 & 4.031 \\
+    560000 & 0.10 & 10 & 2.739 & 4.891 \\
+    560000 & 0.10 & 1000 & 2.187 & 3.905 \\
+    560000 & 1.00 & 10 & 7.299 & 13.033 \\
+    560000 & 1.00 & 1000 & 7.287 & 13.013 \\
+    560000 & 10.00 & 10 & 11.343 & 20.255 \\
+    560000 & 10.00 & 1000 & 11.402 & 20.360 \\
+    \bottomrule
+  \end{tabular}
+\end{table}

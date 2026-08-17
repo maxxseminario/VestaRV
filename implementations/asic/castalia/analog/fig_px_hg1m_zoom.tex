@@ -1,0 +1,33 @@
+%% maestro2tex -- generated figure; do not edit by hand.
+\providecommand{\MaestroRoot}{include/analog/}
+\begin{figure}[htbp]
+  \centering
+  {\pgfplotsset{compat=1.18}%
+  \begin{tikzpicture}
+    \begin{axis}[
+      width=0.72\linewidth, height=5.6cm,
+      xlabel={Injected working-electrode current $i_{\mathrm{we}}$}, ylabel={Accuracy error~[LSB]},
+      grid=both,
+      major grid style={line width=0.2pt, draw=black!14},
+      minor grid style={line width=0.2pt, draw=black!7},
+      minor tick num=1,
+      axis line style={line width=0.4pt, draw=black!45},
+      tick style={line width=0.4pt, draw=black!45},
+      tick align=outside,
+      label style={font=\small}, tick label style={font=\small},
+      enlarge x limits=0.02, enlarge y limits=0.10,
+      every axis plot/.append style={line join=round, no marks},
+      legend style={font=\footnotesize, draw=black!25, fill=white,
+                    fill opacity=0.9, text opacity=1, row sep=1pt},
+      legend cell align=left, legend pos=south east,
+      scaled y ticks=false, scaled x ticks=false,
+      y tick label style={/pgf/number format/fixed,
+                          /pgf/number format/precision=2}
+    ]
+      \addplot[mtxA, line width=1.1pt, solid] table {\MaestroRoot data/px_hg1m_zoom_00.dat};
+      \addlegendentry{tt}
+    \end{axis}
+  \end{tikzpicture}}
+  \caption[{Accuracy error at the operational max-gain point, $R_f = \SI{560}{\kilo\ohm}$ into $R_{\mathrm{ct}} = \SI{1}{\mega\ohm}$, typical process point, \SI{37}{\celsius}.}]{Accuracy error at the operational max-gain point, $R_f = \SI{560}{\kilo\ohm}$ into $R_{\mathrm{ct}} = \SI{1}{\mega\ohm}$, typical process point, \SI{37}{\celsius}. The truth current sweep is $\pm\SI{2.3}{\micro\ampere}$, just beyond the \SI{2.06}{\micro\ampere} full-scale current at this gain tap; the crossing at zero is smooth, with no kink, over the full swept range shown.}
+  \label{fig:px-hg1m-zoom}
+\end{figure}

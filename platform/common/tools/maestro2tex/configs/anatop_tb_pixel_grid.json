@@ -1,0 +1,160 @@
+{
+  "block": "PixelGrid",
+  "tex_root": "include/analog/",
+  "nominal_corner": "pt1",
+  "supply_var": "VDD25",
+  "emit_master": false,
+  "emit_corner_table": false,
+  "points": ["1-60"],
+  "tests": {
+    "px_grid_stb": {
+      "dir": "PotTiaTB",
+      "result": "stb",
+      "xlabel": "",
+      "xunit_tex": "",
+      "signals": {
+        "grid_rf": {
+          "expr": "VAR(\"rf\")",
+          "label": "$R_f$",
+          "unit_tex": "\\si{\\kilo\\ohm}",
+          "scale": 0.001,
+          "digits": 0
+        },
+        "grid_rct": {
+          "expr": "VAR(\"rct_we\")",
+          "label": "$R_{\\mathrm{ct}}$",
+          "unit_tex": "\\si{\\kilo\\ohm}",
+          "scale": 0.001,
+          "digits": 0
+        },
+        "grid_cdl": {
+          "expr": "VAR(\"cdl_we\")",
+          "label": "$C_{\\mathrm{dl}}$",
+          "unit_tex": "\\si{\\micro\\farad}",
+          "scale": 1000000.0,
+          "digits": 2
+        },
+        "stb_pm": {
+          "expr": "(phaseMargin(getData(\"loopGain\" ?result \"stb\")) + 180)",
+          "label": "TIA loop phase margin",
+          "unit_tex": "\\si{\\degree}",
+          "scale": 1.0,
+          "digits": 2
+        },
+        "stb_aol_db": {
+          "expr": "value(dB20(getData(\"loopGain\" ?result \"stb\")) 1)",
+          "label": "TIA loop gain at \\SI{1}{\\hertz}",
+          "unit_tex": "\\si{\\decibel}",
+          "scale": 1.0,
+          "digits": 2
+        }
+      }
+    },
+    "px_grid_noise": {
+      "dir": "PotTiaTB",
+      "result": "noise",
+      "xlabel": "",
+      "xunit_tex": "",
+      "signals": {
+        "grid_rf": {
+          "expr": "VAR(\"rf\")",
+          "label": "$R_f$",
+          "unit_tex": "\\si{\\kilo\\ohm}",
+          "scale": 0.001,
+          "digits": 0
+        },
+        "grid_rct": {
+          "expr": "VAR(\"rct_we\")",
+          "label": "$R_{\\mathrm{ct}}$",
+          "unit_tex": "\\si{\\kilo\\ohm}",
+          "scale": 0.001,
+          "digits": 0
+        },
+        "grid_cdl": {
+          "expr": "VAR(\"cdl_we\")",
+          "label": "$C_{\\mathrm{dl}}$",
+          "unit_tex": "\\si{\\micro\\farad}",
+          "scale": 1000000.0,
+          "digits": 2
+        },
+        "vn_out": {
+          "expr": "rmsNoise(0.1 1000.0)",
+          "label": "Output noise, \\SIrange{0.1}{1000}{\\hertz}",
+          "unit_tex": "\\si{\\milli\\volt}",
+          "scale": 1000.0,
+          "digits": 3
+        },
+        "in_rma": {
+          "expr": "(rmsNoise(0.1 1000.0) / VAR(\"rf\"))",
+          "label": "Input-referred current noise",
+          "unit_tex": "\\si{\\nano\\ampere}",
+          "scale": 1000000000.0,
+          "digits": 3
+        }
+      }
+    }
+  },
+  "figures": [],
+  "tables": [
+    {
+      "id": "px_grid_pm",
+      "type": "bycorner",
+      "test": "px_grid_stb",
+      "sortvar": "rf",
+      "sortvar_label": "$R_f$",
+      "sortvar_unit": "\\si{\\ohm}",
+      "sortvar_digits": 0,
+      "corners": ["pt1", "pt6", "pt11", "pt16", "pt21", "pt26", "pt31", "pt36", "pt41", "pt46", "pt51", "pt56"],
+      "signals": ["grid_cdl", "grid_rct", "stb_aol_db", "stb_pm"],
+      "caption": "Transimpedance-loop stability across the electrode grid at the typical statistical process point (\\SI{37}{\\celsius}, zero statistical offset). Randles electrode, $R_u = R_{\\mathrm{ce}} = \\SI{1}{\\kilo\\ohm}$ fixed, $C_{\\mathrm{dl}}$ and $R_{\\mathrm{ct}}$ swept over the twelve $R_f\\times C_{\\mathrm{dl}}\\times R_{\\mathrm{ct}}$ combinations simulated (rows grouped by $R_f$). Phase margin stays inside \\SIrange{89.3}{93.3}{\\degree} over all twelve cells and all five process corners of this grid (verified from the same extracted data, not tabulated in full here for width) -- the transimpedance loop needs no explicit compensation capacitor $C_F$ across the electrode range simulated."
+    },
+    {
+      "id": "px_grid_noise",
+      "type": "bycorner",
+      "test": "px_grid_noise",
+      "sortvar": "rf",
+      "sortvar_label": "$R_f$",
+      "sortvar_unit": "\\si{\\ohm}",
+      "sortvar_digits": 0,
+      "corners": ["pt1", "pt6", "pt11", "pt16", "pt21", "pt26", "pt31", "pt36", "pt41", "pt46", "pt51", "pt56"],
+      "signals": ["grid_cdl", "grid_rct", "vn_out", "in_rma"],
+      "caption": "System output and input-referred noise across the electrode grid, conditions and process point as Table~\\ref{tab:px-grid-pm}. Output noise integrated \\SIrange{0.1}{1000}{\\hertz}; input-referred current noise is the same integral divided by $R_f$ and is therefore not comparable across the two $R_f$ blocks by itself. At $R_f = \\SI{560}{\\kilo\\ohm}$ noise grows with $C_{\\mathrm{dl}}$, not $R_{\\mathrm{ct}}$: the closed-loop noise gain is $e_n\\cdot(1+R_f/Z_{\\mathrm{electrode}})$ and $|Z_{\\mathrm{electrode}}|$ falls with $C_{\\mathrm{dl}}$ over the \\SIrange{0.1}{1}{\\kilo\\hertz} integration band, which the standalone TIA bench of Section~\\ref{sss:ampab-tia} (ideal $R_f$, no electrode network) cannot show."
+    }
+  ],
+  "order": [],
+  "_note": [
+    "Companion config for the Pixel section's stability-grid part. Contributes",
+    "tab_px_grid_pm only (fig_px_grid_pm/tab_px_grid_noise etc. come from the",
+    "sibling anatop_tb_pixel_grid_noise.json). Named in Pixel's own `order`.",
+    "",
+    "SOURCE: .../tb_anatop_pixel/maestro/results/maestro/Interactive.20, points",
+    "1-60: PotTiaTB stb+noise over 12 electrode-grid cells (cdl_we in",
+    "{100n,1u,10u} x rf in {35k,560k} x rct_we in {10k,1M}, nested in that order",
+    "over points 1-60) x 5 process corners each. Design-variable values verified",
+    "per point via variables_file before writing this config.",
+    "",
+    "EXPRESSIONS are copied character-for-character from",
+    "tb_anatop_pixel_iacc2/run.ocn's PotTiaTB block (?plot t only, NO ?save t --",
+    "unlike PotCtrlTB/ps_iacc these are not retrievable via getData(name) at all,",
+    "confirmed empirically, so full inlining is the only option here, not a",
+    "choice). Verified against Interactive.20 point 1 (cell cdl=100n/rct=10k/",
+    "rf=35k, corner tt): stb_pm=91.36 deg, stb_aol_db=66.57 dB, vn_out=185.8 uV,",
+    "matching the simarchive README's '89.3-93.3 deg' and 'vn_out 170-192 uV at",
+    "35k/100n' ranges.",
+    "",
+    "TABLE DESIGN: bycorner with corner_match implicit via an explicit `corners`",
+    "list of the 12 nominal-temperature (37 C, zero offset) points -- the first",
+    "point of each 5-corner group of Interactive.20's grid (1,6,11,...,56), which",
+    "fall back to label ptN (no cor_std_mos.scs at the statistical point). This is",
+    "the NOMINAL-CORNER slice of the grid; the full 60-point (12 cell x 5 corner)",
+    "PM/vn_out range is stated in the table caption and in note_pixel_grid.tex,",
+    "verified by inspecting every one of the 60 extracted CSVs (see",
+    "note_pixel_grid.tex header) rather than tabulated in full -- a 60-row table",
+    "would not fit the page and the AmpAB/TiaAmpAB precedent already establishes",
+    "that a grid's full range belongs in prose once verified from the committed",
+    "data/raw CSVs. sortvar=cdl_we only orders the 12 rows by double-layer",
+    "capacitance; rf and rct_we ride along as ordinary signal columns",
+    "(grid_rf/grid_rct) so the full grid identity of each row is visible without",
+    "a second table."
+  ]
+}

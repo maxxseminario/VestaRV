@@ -1,0 +1,61 @@
+{
+  "block": "PixelXover",
+  "tex_root": "include/analog/",
+  "nominal_corner": "tt",
+  "supply_var": "VDD25",
+  "emit_master": false,
+  "emit_corner_table": false,
+  "points": ["1"],
+  "corner_labels": { "pt1": "tt" },
+  "tests": {
+    "px_xover_dc": {
+      "dir": "ps_iacc",
+      "result": "dc",
+      "xlabel": "Injected working-electrode current $i_{\\mathrm{we}}$",
+      "xunit_tex": "\\si{\\micro\\ampere}",
+      "xscale": 1000000.0,
+      "nominal_x": 0.0,
+      "signals": {
+        "ierr_lsb": {
+          "expr": "((((VS(\"/V_OUT\") - VAR(\"V_CM\")) / VAR(\"rf\")) - xval(((VS(\"/V_OUT\") - VAR(\"V_CM\")) / VAR(\"rf\")))) * VAR(\"rf\") / 0.002441)",
+          "label": "Accuracy error",
+          "unit_tex": "LSB",
+          "scale": 1.0,
+          "digits": 3
+        }
+      }
+    }
+  },
+  "figures": [
+    {
+      "id": "px_xover_ierr",
+      "test": "px_xover_dc",
+      "signals": ["ierr_lsb"],
+      "corners": ["tt"],
+      "width": "0.82\\linewidth",
+      "height": "6.0cm",
+      "yprec": 2,
+      "legendpos": "south east",
+      "ylabel": "Accuracy error~[LSB]",
+      "caption": "Bipolar accuracy error against injected working-electrode current, $R_f = \\SI{35}{\\kilo\\ohm}$, $R_{\\mathrm{ct}} = \\SI{10}{\\kilo\\ohm}$ electrode, typical process point, \\SI{37}{\\celsius}, full $\\pm\\SI{36}{\\micro\\ampere}$ sweep (full scale $\\pm\\SI{33}{\\micro\\ampere}$). The zero crossing is smooth with no kink or discontinuity between the sourcing and sinking halves of the sweep: the error's slope through zero is $-1/T$ exactly (Table~\\ref{tab:px-acc35}) and the same single \\texttt{anatop\\_tia\\_amp\\_ab} TIA feedback path serves both current directions, unlike the rev-1 PMOS-only mirror it replaces."
+    }
+  ],
+  "tables": [],
+  "order": [],
+  "_note": [
+    "Companion for the Pixel section: THE crossover figure (fig_px_xover_ierr),",
+    "the full +/-36uA sweep at the operational 35k/10k point, demonstrating the",
+    "smooth bipolar zero crossing that is the rev-2 result. Named in Pixel's",
+    "`order`. The accuracy TABLE at this gain (px_acc35) comes from the master",
+    "config's own 5-corner Interactive.20 extraction, not from this single-point",
+    "headless run -- this config exists only for the full-resolution waveform.",
+    "",
+    "SOURCE: simruns/tb_anatop_pixel_iacc2/castalia/tb_anatop_pixel/maestro/",
+    "results/maestro/Ocean.0, point 1 only (single nominal point, castalia_pm_25",
+    "statistical section, 37 C, rf=35k, rct_we=10k -- confirmed via",
+    "variables_file). Genuinely Maestro-shaped (Ocean.0/1/ps_iacc/{netlist,psf}),",
+    "no staging needed.",
+    "",
+    "ierr_lsb expression verbatim from tb_anatop_pixel_iacc2/run.ocn."
+  ]
+}

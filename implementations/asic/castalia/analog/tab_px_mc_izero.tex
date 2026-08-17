@@ -1,0 +1,16 @@
+%% maestro2tex -- generated table; do not edit by hand.
+\begin{table}[htbp]
+  \centering
+  \caption[{Monte Carlo zero-current offset at $R_f = \SI{560}{\kilo\ohm}$, $R_{\mathrm{ct}} = \SI{10}{\kilo\ohm}$\,\dots}]{Monte Carlo zero-current offset at $R_f = \SI{560}{\kilo\ohm}$, $R_{\mathrm{ct}} = \SI{10}{\kilo\ohm}$ electrode. \textbf{Mismatch only}, \SI{25}{\celsius} nominal process, 200 samples. $\sigma(i_{\mathrm{zero}}) = \SI{0.729}{\micro\ampere}$ here against \SIrange{0.729}{0.843}{\micro\ampere} across all four gain taps (Table~\ref{tab:px-mc-izero-allgain}) -- nearly gain-independent, as expected for an amplifier-referred current offset. \texttt{vout\_zero} ranges \SIrange{0.21}{2.50}{\volt}, i.e.\ some samples reach the output rails at this gain -- this bounds the range a vcm-mux offset calibration must cover. \texttt{i\_zero\_lsb} carries the $\pm 1$~LSB limit entered on the test; only the yield against that literal limit is quoted, not a four-channel figure, because the limit itself is not gain-scaled (see Figure~\ref{fig:px-mc-izero-560k}).}
+  \label{tab:px-mc-izero}
+  \small
+  \begin{tabular}{lrrrrrrrr}
+    \toprule
+    Parameter & Unit & $N$ & Mean & $\sigma$ & Min & Max & Spec & Yield \\
+    \midrule
+    Zero-current offset, $R_f = \SI{560}{\kilo\ohm}$ & \si{\micro\ampere} & 200 & $-0.002$ & 0.729 & $-1.856$ & 2.231 & -- & -- \\
+    Zero-current offset in LSB, $R_f = \SI{560}{\kilo\ohm}$ & LSB & 200 & $-0.49$ & 167.33 & $-425.83$ & 511.74 & $\pm1.00$ & 0.5 \\
+    Output voltage at zero current, $R_f = \SI{560}{\kilo\ohm}$ & \si{\volt} & 200 & 1.249 & 0.408 & 0.211 & 2.499 & -- & -- \\
+    \bottomrule
+  \end{tabular}
+\end{table}

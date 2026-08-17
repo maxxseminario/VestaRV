@@ -1,0 +1,89 @@
+{
+  "block": "PixelHG",
+  "tex_root": "include/analog/",
+  "nominal_corner": "pt61",
+  "supply_var": "VDD25",
+  "emit_master": false,
+  "emit_corner_table": false,
+  "points": ["61-80"],
+  "tests": {
+    "px_hg_dc": {
+      "dir": "ps_iacc_hg",
+      "result": "dc",
+      "xlabel": "",
+      "xunit_tex": "",
+      "signals": {
+        "grid_rf": {
+          "expr": "VAR(\"rf\")",
+          "label": "$R_f$",
+          "unit_tex": "\\si{\\kilo\\ohm}",
+          "scale": 0.001,
+          "digits": 0
+        },
+        "ierr_lsb_max": {
+          "expr": "ymax(abs(clip((((((VS(\"/V_OUT\") - VAR(\"V_CM\")) / VAR(\"rf\")) - xval(((VS(\"/V_OUT\") - VAR(\"V_CM\")) / VAR(\"rf\")))) * VAR(\"rf\")) / 0.002441) (0 - (1.155 / VAR(\"rf\"))) (1.155 / VAR(\"rf\")))))",
+          "label": "Worst error over the sweep",
+          "unit_tex": "LSB",
+          "scale": 1.0,
+          "digits": 3
+        },
+        "ierr_0": {
+          "expr": "value((((VS(\"/V_OUT\") - VAR(\"V_CM\")) / VAR(\"rf\")) - xval(((VS(\"/V_OUT\") - VAR(\"V_CM\")) / VAR(\"rf\")))) 0)",
+          "label": "Zero-crossing error",
+          "unit_tex": "\\si{\\nano\\ampere}",
+          "scale": 1000000000.0,
+          "digits": 3
+        },
+        "slope_err_0": {
+          "expr": "(value(deriv(((VS(\"/V_OUT\") - VAR(\"V_CM\")) / VAR(\"rf\"))) 0) - 1)",
+          "label": "Zero-crossing slope error ($=-1/T$)",
+          "unit_tex": "",
+          "scale": 1.0,
+          "digits": 5
+        }
+      }
+    }
+  },
+  "figures": [],
+  "tables": [
+    {
+      "id": "px_hg_demo",
+      "type": "bycorner",
+      "test": "px_hg_dc",
+      "sortvar": "rf",
+      "sortvar_label": "$R_f$",
+      "sortvar_unit": "\\si{\\kilo\\ohm}",
+      "sortvar_digits": 0,
+      "corners": ["pt61", "pt66", "pt71", "pt76"],
+      "signals": ["ierr_lsb_max", "ierr_0", "slope_err_0"],
+      "caption": "Finite-loop-gain error against feedback resistance at the typical statistical process point, \\SI{37}{\\celsius}, truth current swept \\SIrange{-2.3}{2.3}{\\micro\\ampere} with $R_{\\mathrm{ct}} = \\SI{10}{\\kilo\\ohm}$ held fixed across the whole sweep. \\textbf{The 315 and \\SI{560}{\\kilo\\ohm} rows are NOT the accuracy of those gain taps} -- $R_{\\mathrm{ct}} = \\SI{10}{\\kilo\\ohm}$ is a stiff, non-operational electrode at those gains (the operational electrode is \\SI{1}{\\mega\\ohm}, Table~\\ref{tab:px-hg1m-acc}). They demonstrate that the residual error is finite closed-loop gain alone: the zero-crossing slope error is $-1/T$ to within \\SI{4}{\\percent} at every tap, and the worst-case error scales with $R_f$ as $T$ falls."
+    }
+  ],
+  "order": [],
+  "_note": [
+    "Companion for the Pixel section: the finite-loop-gain demonstration figure",
+    "(not the operational accuracy) at the 3 non-operational stiff-electrode gain",
+    "taps (140k/315k/560k) plus 35k for reference. Named tab_px_hg_demo in",
+    "Pixel's `order`.",
+    "",
+    "SOURCE: .../tb_anatop_pixel/maestro/results/maestro/Interactive.20, points",
+    "61-80: ps_iacc_hg, rf in {35k,140k,315k,560k} x 5 corners, rct_we=10k GLOBAL",
+    "(the caveat the simarchive README states explicitly: 'the 315k/560k accuracy",
+    "rows are the NON-operational stiff-electrode cells -- do not publish them as",
+    "the accuracy'). Sweep is +/-2.3uA (from netlist dc param=iwe start=-2.3u",
+    "stop=2.3u), the SAME headless-export sweep used at rf=560k/rct=1M in",
+    "PixelHG1M -- here it covers only ~7% of full scale at rf=35k (i_fs=33uA) but",
+    "exceeds full scale at rf=560k (i_fs=2.06uA), which is why this table is a",
+    "gain-vs-error demonstration and not a comparable accuracy sweep across taps.",
+    "",
+    "EXPRESSIONS verbatim from tb_anatop_pixel_iacc_hg_1M_corners/run.ocn's",
+    "ps_iacc_hg block (identical to ps_iacc's), verified against",
+    "Interactive.20 point 61 (rf=35k): ierr_lsb_max=0.271, matching the same",
+    "quantity's ps_iacc/full-sweep value at the same point to within the",
+    "different sweep window's clip.",
+    "",
+    "corners list picks the 4 nominal-temperature (37 C, zero offset) points, one",
+    "per rf value (61,66,71,76 -- first of each 5-corner group), matching the",
+    "PixelGrid table's convention."
+  ]
+}
