@@ -1,0 +1,17 @@
+%% maestro2tex -- generated table; do not edit by hand.
+\begin{table}[htbp]
+  \centering
+  \caption[{Monte Carlo line regulation and quiescent power of the DAC supply block.}]{Monte Carlo line regulation and quiescent power of the DAC supply block. \textbf{Process and mismatch}, \texttt{castalia\_pm\_25}, 200 samples, \SI{27}{\celsius}, supply swept \SI{2.25}{\volt} to \SI{2.75}{\volt}, \texttt{VddDac} unloaded, ADE default tolerances; yields are per cent of samples and of four channels. \texttt{VddDac} follows the supply by \SI{78.8}{\milli\volt} over that \SI{0.5}{\volt} span, a rejection of only \SI{0.158}{\volt\per\volt}, against the \SI{5}{\milli\volt} limit entered on the test that no sample meets. Only \texttt{dvddac\_line} was graded; the other three rows have empty spec, yield and worst-case cells, the last two being the same measurement scaled by the \SI{2.5}{\volt} supply. All four are right-skewed (\(+0.58\), \(+0.58\), \(+0.45\), \(+0.45\)), so the median and percentiles are quoted and mean \(\pm\,3\sigma\) is not.}
+  \label{tab:dacr2r12-mc-psu-line}
+  \footnotesize
+  \begin{tabular}{lrrrrrrrrrrr}
+    \toprule
+    Parameter & Unit & $N$ & Mean & $\sigma$ & Median & $p_{1}$ & $p_{99}$ & Worst & Spec & Yield & 4\,ch \\
+    \midrule
+    Line shift & \si{\milli\volt} & 200 & 78.750 & 23.770 & 75.740 & 38.686 & 144.474 & 157.026 & $\leq 5.000$ & 0.0 & 0.0 \\
+    Line regulation & \si{\volt\per\volt} & 200 & 0.1575 & 0.0475 & 0.1515 & 0.0774 & 0.2889 & -- & -- & -- & -- \\
+    Quiescent current & \si{\micro\ampere} & 200 & 159.56 & 12.97 & 159.41 & 134.34 & 193.35 & -- & -- & -- & -- \\
+    Dissipation & \si{\micro\watt} & 200 & 398.89 & 32.42 & 398.52 & 335.85 & 483.38 & -- & -- & -- & -- \\
+    \bottomrule
+  \end{tabular}
+\end{table}

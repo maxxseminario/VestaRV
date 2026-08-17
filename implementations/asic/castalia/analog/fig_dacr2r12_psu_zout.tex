@@ -1,0 +1,41 @@
+%% maestro2tex -- generated figure; do not edit by hand.
+\providecommand{\MaestroRoot}{include/analog/}
+\begin{figure}[htbp]
+  \centering
+  {\pgfplotsset{compat=1.18}%
+  \begin{tikzpicture}
+    \begin{axis}[
+      width=0.82\linewidth, height=6.2cm,
+      xlabel={Frequency~[\si{\hertz}]}, ylabel={Output impedance $|Z_{\mathrm{out}}|$~[\si{\ohm}]},
+      grid=both,
+      major grid style={line width=0.2pt, draw=black!14},
+      minor grid style={line width=0.2pt, draw=black!7},
+      minor tick num=1,
+      axis line style={line width=0.4pt, draw=black!45},
+      tick style={line width=0.4pt, draw=black!45},
+      tick align=outside,
+      label style={font=\small}, tick label style={font=\small},
+      enlarge x limits=0.02, enlarge y limits=0.10,
+      every axis plot/.append style={line join=round, no marks},
+      legend style={font=\footnotesize, draw=none, fill=none,
+                    at={(0.5,1.02)}, anchor=south, legend columns=-1,
+                    /tikz/every even column/.append style={column sep=9pt}},
+      legend cell align=left,
+      xmode=log,
+      ymode=log
+    ]
+      \addplot[mtxA, line width=1.1pt, solid] table {\MaestroRoot data/dacr2r12_psu_zout_00.dat};
+      \addlegendentry{tt}
+      \addplot[mtxB, line width=1.1pt, dashed] table {\MaestroRoot data/dacr2r12_psu_zout_01.dat};
+      \addlegendentry{ff}
+      \addplot[mtxC, line width=1.1pt, dotted] table {\MaestroRoot data/dacr2r12_psu_zout_02.dat};
+      \addlegendentry{fs}
+      \addplot[mtxD, line width=1.1pt, dashdotted] table {\MaestroRoot data/dacr2r12_psu_zout_03.dat};
+      \addlegendentry{sf}
+      \addplot[mtxE, line width=1.1pt, densely dashed] table {\MaestroRoot data/dacr2r12_psu_zout_04.dat};
+      \addlegendentry{ss}
+    \end{axis}
+  \end{tikzpicture}}
+  \caption[{Magnitude of the supply block's output impedance against frequency over five process corners,\,\dots}]{Magnitude of the supply block's output impedance against frequency over five process corners, \SI{27}{\celsius} at point 1 and \SI{25}{\celsius} at points 2--5. The AC load source carries unit magnitude, so \(|V_{\mathrm{DDDAC}}|\) is the impedance in ohms. It is flat at \SIrange{781}{927}{\ohm} from \SI{1}{\hertz} to \SI{100}{\kilo\hertz} and peaks at \SIrange{1.8}{3.8}{\kilo\ohm} near \SI{100}{\mega\hertz}. This is the small-signal impedance at zero load; the large-signal chord over the \SIrange{0}{100}{\micro\ampere} sweep is \SIrange{18}{51}{\percent} higher (Table~\ref{tab:dacr2r12-loadreg}).}
+  \label{fig:dacr2r12-psu-zout}
+\end{figure}

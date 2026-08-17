@@ -1,0 +1,39 @@
+%% maestro2tex -- generated Monte Carlo histogram; do not edit by hand.
+\providecommand{\MaestroRoot}{include/analog/}
+\begin{figure}[htbp]
+  \centering
+  {\pgfplotsset{compat=1.18}%
+  \begin{tikzpicture}
+    \begin{axis}[
+      width=0.86\linewidth, height=6.0cm,
+      xlabel={Most negative DNL~[LSB]}, ylabel={Samples},
+      grid=both,
+      major grid style={line width=0.2pt, draw=black!14},
+      minor grid style={line width=0.2pt, draw=black!7},
+      minor tick num=1,
+      axis line style={line width=0.4pt, draw=black!45},
+      tick style={line width=0.4pt, draw=black!45},
+      tick align=outside,
+      label style={font=\small}, tick label style={font=\small},
+      enlarge x limits=0.02, enlarge y limits=0.10,
+      every axis plot/.append style={line join=round, no marks},
+      legend style={font=\footnotesize, draw=none, fill=none,
+                    at={(0.5,1.02)}, anchor=south, legend columns=-1,
+                    /tikz/every even column/.append style={column sep=9pt}},
+      legend cell align=left,
+      scaled y ticks=false, scaled x ticks=false,
+      y tick label style={/pgf/number format/fixed,
+                          /pgf/number format/precision=0},
+      ymin=0, ymax=27.3,
+      enlarge x limits=0.04, enlarge y limits=false,
+      area legend
+    ]
+      \addplot[ybar interval, draw=mtxA, fill=mtxA!25, line width=0.7pt] table {\MaestroRoot data/dacr2r12_mc_dnl_00.dat};
+      \addlegendentry{DNL min}
+      \draw[black!70, line width=1.0pt, densely dashed] ({axis cs:-1,0}|-{rel axis cs:0,0}) -- ({axis cs:-1,0}|-{rel axis cs:0,0.90})
+        node[above left, font=\footnotesize, inner sep=1pt] {$-1$\,LSB, monotonicity};
+    \end{axis}
+  \end{tikzpicture}}
+  \caption[{Worst negative differential nonlinearity, same bench, samples and conditions as\,\dots}]{Worst negative differential nonlinearity, same bench, samples and conditions as Figure~\ref{fig:dacr2r12-mc-inl}. The dashed rule at \(-1\,\mathrm{LSB}\) is the monotonicity limit entered on the test: 80 of 200 samples clear it, so \SI{40}{\percent} of channels are monotonic and \(0.40^4 = \SI{2.6}{\percent}\) of four-channel chips are monotonic on all four. The distribution is left-skewed (skew \(-1.11\)) with a tail to \(-6.608\,\mathrm{LSB}\), so the median \(-1.318\,\mathrm{LSB}\) and the percentiles of Table~\ref{tab:dacr2r12-mc-ideal} describe it and mean \(\pm\,3\sigma\) does not.}
+  \label{fig:dacr2r12-mc-dnl}
+\end{figure}

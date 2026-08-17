@@ -1,0 +1,18 @@
+%% maestro2tex -- generated table; do not edit by hand.
+\begin{table}[htbp]
+  \centering
+  \caption[{Monte Carlo behaviour of the \texttt{VddDac} reference itself, same bench and samples as\,\dots}]{Monte Carlo behaviour of the \texttt{VddDac} reference itself, same bench and samples as Table~\ref{tab:dacr2r12-mc-wpsu}; only \texttt{vddac\_pp} carries an entered limit, so the other four rows have empty spec, yield and worst-case cells. \textbf{Process and mismatch}, \texttt{castalia\_pm\_25}, 200 samples, \SI{25}{\celsius}; yields are per cent of samples and of four channels. Full scale is \SI{2.166}{\volt} and the LSB \SI{529.0}{\micro\volt} rather than \SI{2.5}{\volt} and \SI{610.3}{\micro\volt}, because the supply block delivers about \SI{2.15}{\volt}; the reference then moves \SI{25.8}{\milli\volt} peak to peak across the code sweep against the \SI{133}{\micro\volt} quarter-LSB budget, which no sample meets. The excursion is not monotonic in code: in an \(R\)--\(2R\) ladder the binary weighting comes from attenuation, so every \(2R\) branch switched to the reference draws a comparable current and the reference current follows the bit pattern rather than the code value --- a nodal solve of this topology gives \(I_\mathrm{ref} = 0\) at code 0, \(0.250\,V_\mathrm{ref}/R\) at 2048 and \(0.333\) at 4095, with a maximum of \(1.444\) at code 1365 (\texttt{0b010101010101}), which is exactly where \texttt{vddac\_min} lands on all 200 samples, and a one-parameter fit \(V = V_0 - R_\mathrm{out} I_\mathrm{ref}\) accounts for \SI{94}{\percent} of the excursion. All five distributions are near-symmetric (skew \(\leq 0.13\)), so mean \(\pm\,3\sigma\) applies.}
+  \label{tab:dacr2r12-mc-reference}
+  \footnotesize
+  \begin{tabular}{lrrrrrrrrrr}
+    \toprule
+    Parameter & Unit & $N$ & Mean & $\sigma$ & Mean $\pm\,3\sigma$ & Min & Max & Spec & Yield & 4\,ch \\
+    \midrule
+    Reference movement & \si{\milli\volt} & 200 & 25.835 & 2.302 & 25.835\,$\pm$\,6.905 & 19.124 & 31.980 & $\leq 0.133$ & 0.0 & 0.0 \\
+    Reference min & \si{\volt} & 200 & 2.1412 & 0.0554 & 2.1412\,$\pm$\,0.1663 & 1.9821 & 2.3066 & -- & -- & -- \\
+    Reference max & \si{\volt} & 200 & 2.1671 & 0.0571 & 2.1671\,$\pm$\,0.1712 & 2.0030 & 2.3348 & -- & -- & -- \\
+    LSB size & \si{\micro\volt} & 200 & 528.96 & 13.88 & 528.96\,$\pm$\,41.64 & 488.91 & 569.53 & -- & -- & -- \\
+    Full scale & \si{\volt} & 200 & 2.1661 & 0.0568 & 2.1661\,$\pm$\,0.1705 & 2.0021 & 2.3323 & -- & -- & -- \\
+    \bottomrule
+  \end{tabular}
+\end{table}

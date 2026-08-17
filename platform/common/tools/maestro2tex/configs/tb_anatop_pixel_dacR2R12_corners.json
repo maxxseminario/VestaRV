@@ -1,0 +1,728 @@
+{
+  "block": "DacR2R12",
+  "tex_root": "include/analog/",
+  "nominal_corner": "tt",
+  "supply_var": "VDD25",
+  "emit_master": true,
+  "emit_corner_table": true,
+  "points": [
+    "1-5"
+  ],
+  "corner_labels": {
+    "pt1": "tt"
+  },
+  "corner_table_caption": "Process, temperature and supply points simulated for the 12-bit R-2R DAC and its supply block. Point 1 is the typical statistical process point evaluated at nominal; points 2--5 are the imported foundry skew corners. Temperature is not uniform across this run: the two DAC benches are at \\SI{25}{\\celsius} at all five points, the four supply-block benches (load regulation, line regulation, output impedance, startup) at \\SI{27}{\\celsius} at point 1 and \\SI{25}{\\celsius} at points 2--5; the column below reports the DAC benches. Solver tolerances split the same way --- the DAC benches run \\texttt{reltol}~=~\\num{1e-6}, \\texttt{vabstol}~=~\\num{1e-9}, \\texttt{iabstol}~=~\\num{1e-15}, the supply-block benches the ADE defaults \\num{1e-3}, \\num{1e-6}, \\num{1e-12}. This is a corner run and carries no device mismatch; R-2R linearity is a matching property, so every nonlinearity figure in this section is a systematic term and none of it is a yield statement.",
+  "tests": {
+    "dr_ideal": {
+      "dir": "DacNonlinTB",
+      "result": "dc",
+      "xlabel": "DAC code",
+      "xunit_tex": "",
+      "xscale": 1.0,
+      "signals": {
+        "v_zs": {
+          "expr": "value(VS(\"/Out\") 0)",
+          "label": "Zero-scale output",
+          "unit_tex": "\\si{\\micro\\volt}",
+          "scale": 1000000.0,
+          "digits": 2
+        },
+        "v_fs": {
+          "expr": "value(VS(\"/Out\") 4095)",
+          "label": "Full-scale output",
+          "unit_tex": "\\si{\\volt}",
+          "scale": 1.0,
+          "digits": 6
+        },
+        "lsb": {
+          "expr": "((value(VS(\"/Out\") 4095) - value(VS(\"/Out\") 0)) / 4095)",
+          "label": "LSB size",
+          "unit_tex": "\\si{\\micro\\volt}",
+          "scale": 1000000.0,
+          "digits": 3
+        },
+        "inl_max": {
+          "expr": "ymax(((VS(\"/Out\") - (value(VS(\"/Out\") 0) + (((value(VS(\"/Out\") 4095) - value(VS(\"/Out\") 0)) / 4095) * xval(VS(\"/Out\"))))) / ((value(VS(\"/Out\") 4095) - value(VS(\"/Out\") 0)) / 4095)))",
+          "label": "INL, most positive",
+          "unit_tex": "LSB",
+          "scale": 1.0,
+          "digits": 3
+        },
+        "inl_min": {
+          "expr": "ymin(((VS(\"/Out\") - (value(VS(\"/Out\") 0) + (((value(VS(\"/Out\") 4095) - value(VS(\"/Out\") 0)) / 4095) * xval(VS(\"/Out\"))))) / ((value(VS(\"/Out\") 4095) - value(VS(\"/Out\") 0)) / 4095)))",
+          "label": "INL, most negative",
+          "unit_tex": "LSB",
+          "scale": 1.0,
+          "digits": 3
+        },
+        "inl_lsb": {
+          "expr": "ymax(abs(((VS(\"/Out\") - (value(VS(\"/Out\") 0) + (((value(VS(\"/Out\") 4095) - value(VS(\"/Out\") 0)) / 4095) * xval(VS(\"/Out\"))))) / ((value(VS(\"/Out\") 4095) - value(VS(\"/Out\") 0)) / 4095))))",
+          "label": "INL, worst magnitude",
+          "unit_tex": "LSB",
+          "scale": 1.0,
+          "digits": 3
+        },
+        "dnl_max": {
+          "expr": "ymax(((deriv(VS(\"/Out\")) / ((value(VS(\"/Out\") 4095) - value(VS(\"/Out\") 0)) / 4095)) - 1))",
+          "label": "DNL, most positive",
+          "unit_tex": "LSB",
+          "scale": 1.0,
+          "digits": 3
+        },
+        "dnl_min": {
+          "expr": "ymin(((deriv(VS(\"/Out\")) / ((value(VS(\"/Out\") 4095) - value(VS(\"/Out\") 0)) / 4095)) - 1))",
+          "label": "DNL, most negative",
+          "unit_tex": "LSB",
+          "scale": 1.0,
+          "digits": 3
+        },
+        "dnl_lsb": {
+          "expr": "ymax(abs(((deriv(VS(\"/Out\")) / ((value(VS(\"/Out\") 4095) - value(VS(\"/Out\") 0)) / 4095)) - 1)))",
+          "label": "DNL, worst magnitude",
+          "unit_tex": "LSB",
+          "scale": 1.0,
+          "digits": 3
+        },
+        "inl_wave": {
+          "expr": "((VS(\"/Out\") - (value(VS(\"/Out\") 0) + (((value(VS(\"/Out\") 4095) - value(VS(\"/Out\") 0)) / 4095) * xval(VS(\"/Out\"))))) / ((value(VS(\"/Out\") 4095) - value(VS(\"/Out\") 0)) / 4095))",
+          "label": "Integral nonlinearity",
+          "unit_tex": "LSB",
+          "scale": 1.0,
+          "digits": 3
+        },
+        "dnl_wave": {
+          "expr": "((deriv(VS(\"/Out\")) / ((value(VS(\"/Out\") 4095) - value(VS(\"/Out\") 0)) / 4095)) - 1)",
+          "label": "Differential nonlinearity",
+          "unit_tex": "LSB",
+          "scale": 1.0,
+          "digits": 3
+        }
+      }
+    },
+    "dr_wpsu": {
+      "dir": "DacNonlinWPSUTB",
+      "result": "dc",
+      "xlabel": "DAC code",
+      "xunit_tex": "",
+      "xscale": 1.0,
+      "signals": {
+        "v_fs": {
+          "expr": "value(VS(\"/Out\") 4095)",
+          "label": "Full-scale output",
+          "unit_tex": "\\si{\\volt}",
+          "scale": 1.0,
+          "digits": 5
+        },
+        "lsb": {
+          "expr": "((value(VS(\"/Out\") 4095) - value(VS(\"/Out\") 0)) / 4095)",
+          "label": "LSB size",
+          "unit_tex": "\\si{\\micro\\volt}",
+          "scale": 1000000.0,
+          "digits": 3
+        },
+        "inl_lsb": {
+          "expr": "ymax(abs(((VS(\"/Out\") - (value(VS(\"/Out\") 0) + (((value(VS(\"/Out\") 4095) - value(VS(\"/Out\") 0)) / 4095) * xval(VS(\"/Out\"))))) / ((value(VS(\"/Out\") 4095) - value(VS(\"/Out\") 0)) / 4095))))",
+          "label": "INL, worst (raw)",
+          "unit_tex": "LSB",
+          "scale": 1.0,
+          "digits": 3
+        },
+        "dnl_min": {
+          "expr": "ymin(((deriv(VS(\"/Out\")) / ((value(VS(\"/Out\") 4095) - value(VS(\"/Out\") 0)) / 4095)) - 1))",
+          "label": "DNL, most negative (raw)",
+          "unit_tex": "LSB",
+          "scale": 1.0,
+          "digits": 3
+        },
+        "inl_n_lsb": {
+          "expr": "ymax(abs((((VS(\"/Out\") / VS(\"/VddDac\")) - (value((VS(\"/Out\") / VS(\"/VddDac\")) 0) + (((value((VS(\"/Out\") / VS(\"/VddDac\")) 4095) - value((VS(\"/Out\") / VS(\"/VddDac\")) 0)) / 4095) * xval(VS(\"/Out\"))))) / ((value((VS(\"/Out\") / VS(\"/VddDac\")) 4095) - value((VS(\"/Out\") / VS(\"/VddDac\")) 0)) / 4095))))",
+          "label": "INL, worst (ratio)",
+          "unit_tex": "LSB",
+          "scale": 1.0,
+          "digits": 3
+        },
+        "dnl_n_min": {
+          "expr": "ymin(((deriv((VS(\"/Out\") / VS(\"/VddDac\"))) / ((value((VS(\"/Out\") / VS(\"/VddDac\")) 4095) - value((VS(\"/Out\") / VS(\"/VddDac\")) 0)) / 4095)) - 1))",
+          "label": "DNL, most negative (ratio)",
+          "unit_tex": "LSB",
+          "scale": 1.0,
+          "digits": 3
+        },
+        "dnl_n_lsb": {
+          "expr": "ymax(abs(((deriv((VS(\"/Out\") / VS(\"/VddDac\"))) / ((value((VS(\"/Out\") / VS(\"/VddDac\")) 4095) - value((VS(\"/Out\") / VS(\"/VddDac\")) 0)) / 4095)) - 1)))",
+          "label": "DNL, worst (ratio)",
+          "unit_tex": "LSB",
+          "scale": 1.0,
+          "digits": 3
+        },
+        "voff_lsb": {
+          "expr": "(value((VS(\"/Out\") / VS(\"/VddDac\")) 0) / ((value((VS(\"/Out\") / VS(\"/VddDac\")) 4095) - value((VS(\"/Out\") / VS(\"/VddDac\")) 0)) / 4095))",
+          "label": "Zero-scale offset (ratio)",
+          "unit_tex": "LSB",
+          "scale": 1.0,
+          "digits": 3
+        },
+        "gain_err": {
+          "expr": "(((value((VS(\"/Out\") / VS(\"/VddDac\")) 4095) - value((VS(\"/Out\") / VS(\"/VddDac\")) 0)) / (4095.0 / 4096.0)) - 1)",
+          "label": "Gain error (ratio)",
+          "unit_tex": "ppm",
+          "scale": 1000000.0,
+          "digits": 1
+        },
+        "vddac_max": {
+          "expr": "ymax(VS(\"/VddDac\"))",
+          "label": "Reference, maximum",
+          "unit_tex": "\\si{\\volt}",
+          "scale": 1.0,
+          "digits": 4
+        },
+        "vddac_min": {
+          "expr": "ymin(VS(\"/VddDac\"))",
+          "label": "Reference, minimum",
+          "unit_tex": "\\si{\\volt}",
+          "scale": 1.0,
+          "digits": 4
+        },
+        "vddac_pp": {
+          "expr": "(ymax(VS(\"/VddDac\")) - ymin(VS(\"/VddDac\")))",
+          "label": "Reference excursion, pk-pk",
+          "unit_tex": "\\si{\\milli\\volt}",
+          "scale": 1000.0,
+          "digits": 3
+        },
+        "code_vdac_min": {
+          "expr": "xmin(VS(\"/VddDac\"))",
+          "label": "Code at the minimum",
+          "unit_tex": "",
+          "scale": 1.0,
+          "digits": 0
+        },
+        "inl_wave": {
+          "expr": "((VS(\"/Out\") - (value(VS(\"/Out\") 0) + (((value(VS(\"/Out\") 4095) - value(VS(\"/Out\") 0)) / 4095) * xval(VS(\"/Out\"))))) / ((value(VS(\"/Out\") 4095) - value(VS(\"/Out\") 0)) / 4095))",
+          "label": "Integral nonlinearity",
+          "unit_tex": "LSB",
+          "scale": 1.0,
+          "digits": 3
+        },
+        "dnl_n_wave": {
+          "expr": "((deriv((VS(\"/Out\") / VS(\"/VddDac\"))) / ((value((VS(\"/Out\") / VS(\"/VddDac\")) 4095) - value((VS(\"/Out\") / VS(\"/VddDac\")) 0)) / 4095)) - 1)",
+          "label": "Differential nonlinearity, ratiometric",
+          "unit_tex": "LSB",
+          "scale": 1.0,
+          "digits": 3
+        },
+        "vddac_dev": {
+          "expr": "(VS(\"/VddDac\") - value(VS(\"/VddDac\") 0))",
+          "label": "Reference deviation from code 0",
+          "unit_tex": "\\si{\\milli\\volt}",
+          "scale": 1000.0,
+          "digits": 3
+        }
+      }
+    },
+    "dr_load": {
+      "dir": "LoadRegTB",
+      "result": "dc",
+      "xlabel": "Load current~[\\si{\\micro\\ampere}]",
+      "xunit_tex": "\\si{\\micro\\ampere}",
+      "xscale": 1000000.0,
+      "signals": {
+        "vddac_l": {
+          "expr": "VS(\"/VddDac\")",
+          "label": "Ladder reference $V_{\\mathrm{DDDAC}}$",
+          "unit_tex": "\\si{\\volt}",
+          "scale": 1.0,
+          "digits": 4
+        },
+        "vddac_noload": {
+          "expr": "value(VS(\"/VddDac\") 0)",
+          "label": "Reference at zero load",
+          "unit_tex": "\\si{\\volt}",
+          "scale": 1.0,
+          "digits": 4
+        },
+        "vddac_full": {
+          "expr": "value(VS(\"/VddDac\") VAR(\"i_load_max\"))",
+          "label": "Reference at \\SI{100}{\\micro\\ampere}",
+          "unit_tex": "\\si{\\volt}",
+          "scale": 1.0,
+          "digits": 4
+        },
+        "dvddac_load": {
+          "expr": "(value(VS(\"/VddDac\") 0) - value(VS(\"/VddDac\") VAR(\"i_load_max\")))",
+          "label": "Load-induced drop",
+          "unit_tex": "\\si{\\milli\\volt}",
+          "scale": 1000.0,
+          "digits": 3
+        },
+        "load_reg": {
+          "expr": "((value(VS(\"/VddDac\") 0) - value(VS(\"/VddDac\") VAR(\"i_load_max\"))) / VAR(\"i_load_max\"))",
+          "label": "Load regulation",
+          "unit_tex": "\\si{\\ohm}",
+          "scale": 1.0,
+          "digits": 1
+        }
+      }
+    },
+    "dr_line": {
+      "dir": "LineRegTB",
+      "result": "dc",
+      "xlabel": "Supply $V_{\\mathrm{DD}}$~[\\si{\\volt}]",
+      "xunit_tex": "\\si{\\volt}",
+      "xscale": 1.0,
+      "nominal_x": 2.5,
+      "signals": {
+        "vddac_ln": {
+          "expr": "VS(\"/VddDac\")",
+          "label": "Ladder reference $V_{\\mathrm{DDDAC}}$",
+          "unit_tex": "\\si{\\volt}",
+          "scale": 1.0,
+          "digits": 4
+        },
+        "vddac_nom": {
+          "expr": "value(VS(\"/VddDac\") VAR(\"VDD25\"))",
+          "label": "Reference at \\SI{2.5}{\\volt}",
+          "unit_tex": "\\si{\\volt}",
+          "scale": 1.0,
+          "digits": 4
+        },
+        "dvddac_line": {
+          "expr": "(value(VS(\"/VddDac\") VAR(\"vdd_hi\")) - value(VS(\"/VddDac\") VAR(\"vdd_lo\")))",
+          "label": "Reference change, \\SIrange{2.25}{2.75}{\\volt}",
+          "unit_tex": "\\si{\\milli\\volt}",
+          "scale": 1000.0,
+          "digits": 2
+        },
+        "line_reg": {
+          "expr": "((value(VS(\"/VddDac\") VAR(\"vdd_hi\")) - value(VS(\"/VddDac\") VAR(\"vdd_lo\"))) / (VAR(\"vdd_hi\") - VAR(\"vdd_lo\")))",
+          "label": "Line regulation",
+          "unit_tex": "\\si{\\volt\\per\\volt}",
+          "scale": 1.0,
+          "digits": 4
+        },
+        "i_q": {
+          "expr": "abs(IDC(\"/POWER/SRC_VDD25/PLUS\"))",
+          "label": "Quiescent supply current",
+          "unit_tex": "\\si{\\micro\\ampere}",
+          "scale": 1000000.0,
+          "digits": 2
+        }
+      }
+    },
+    "dr_zout": {
+      "dir": "ZoutTB",
+      "result": "ac",
+      "xlabel": "Frequency~[\\si{\\hertz}]",
+      "xunit_tex": "\\si{\\hertz}",
+      "xscale": 1.0,
+      "signals": {
+        "zout_wave": {
+          "expr": "mag(VF(\"/VddDac\"))",
+          "label": "Output impedance $|Z_{\\mathrm{out}}|$",
+          "unit_tex": "\\si{\\ohm}",
+          "scale": 1.0,
+          "digits": 1
+        },
+        "zout_lf": {
+          "expr": "value(mag(VF(\"/VddDac\")) 1)",
+          "label": "Output impedance at \\SI{1}{\\hertz}",
+          "unit_tex": "\\si{\\ohm}",
+          "scale": 1.0,
+          "digits": 1
+        },
+        "zout_1k": {
+          "expr": "value(mag(VF(\"/VddDac\")) 1000)",
+          "label": "Output impedance at \\SI{1}{\\kilo\\hertz}",
+          "unit_tex": "\\si{\\ohm}",
+          "scale": 1.0,
+          "digits": 1
+        },
+        "zout_100k": {
+          "expr": "value(mag(VF(\"/VddDac\")) 100000)",
+          "label": "Output impedance at \\SI{100}{\\kilo\\hertz}",
+          "unit_tex": "\\si{\\ohm}",
+          "scale": 1.0,
+          "digits": 1
+        },
+        "zout_max": {
+          "expr": "ymax(mag(VF(\"/VddDac\")))",
+          "label": "Output impedance, peak",
+          "unit_tex": "\\si{\\ohm}",
+          "scale": 1.0,
+          "digits": 1
+        },
+        "f_zout_peak": {
+          "expr": "xmax(mag(VF(\"/VddDac\")))",
+          "label": "Frequency of the peak",
+          "unit_tex": "\\si{\\mega\\hertz}",
+          "scale": 1e-06,
+          "digits": 1
+        }
+      }
+    },
+    "dr_startup": {
+      "dir": "PSUStartupTB",
+      "result": "tran",
+      "xlabel": "Time~[\\si{\\micro\\second}]",
+      "xunit_tex": "\\si{\\micro\\second}",
+      "xscale": 1000000.0,
+      "signals": {
+        "vddac_t": {
+          "expr": "VT(\"/VddDac\")",
+          "label": "Ladder reference $V_{\\mathrm{DDDAC}}$",
+          "unit_tex": "\\si{\\volt}",
+          "scale": 1.0,
+          "digits": 4
+        }
+      }
+    }
+  },
+  "figures": [
+    {
+      "id": "dacr2r12_inl_ideal",
+      "test": "dr_ideal",
+      "signals": [
+        "inl_wave"
+      ],
+      "corners": "all",
+      "yprec": 2,
+      "ylabel": "Integral nonlinearity~[LSB]",
+      "caption": "Integral nonlinearity against code over five process corners, ladder on an ideal \\SI{2.5}{\\volt} rail, \\SI{25}{\\celsius}, \\texttt{reltol}~=~\\num{1e-6}. INL is taken from the endpoint line through each corner's own zero- and full-scale outputs, so it is zero at codes 0 and 4095 by construction. The positive extreme is code 1023, \\(+0.15\\) to \\(+0.18\\,\\mathrm{LSB}\\); the negative extreme is shared by the major carries at codes 2048 and 3072, which sit within \\(0.006\\,\\mathrm{LSB}\\) of each other at \\(-0.39\\) to \\(-0.43\\,\\mathrm{LSB}\\) at every corner. The code of each extreme is the same at all five corners: the shape is set by the ladder, not by the process. Corner run, no device mismatch --- R-2R linearity is a matching property, so this envelope is the systematic term alone."
+    },
+    {
+      "id": "dacr2r12_dnl_ideal",
+      "test": "dr_ideal",
+      "signals": [
+        "dnl_wave"
+      ],
+      "corners": "all",
+      "yprec": 2,
+      "ylabel": "Differential nonlinearity~[LSB]",
+      "caption": "Differential nonlinearity against code over five process corners, conditions as Figure~\\ref{fig:dacr2r12-inl-ideal}. DNL is the first difference of the transfer divided by the endpoint LSB, minus one. The worst step is the mid-scale major carry at code 2048, \\(-0.50\\) to \\(-0.54\\,\\mathrm{LSB}\\); the sub-carries measure \\(-0.27\\) at code 1024, \\(-0.23\\) at 3072, \\(-0.14\\) at 512 and \\(-0.13\\,\\mathrm{LSB}\\) at 2560. The 4095-point curve is stride-decimated for the plot, so the comb drawn is a sample of the code grid and not every tooth of it; the extreme is preserved exactly. The converter is monotonic at every corner, with \\(0.46\\,\\mathrm{LSB}\\) of margin to the \\(-1\\,\\mathrm{LSB}\\) limit at worst."
+    },
+    {
+      "id": "dacr2r12_vddac",
+      "test": "dr_wpsu",
+      "signals": [
+        "vddac_dev"
+      ],
+      "corners": "all",
+      "yprec": 1,
+      "ylabel": "$V_{\\mathrm{DDDAC}}(D) - V_{\\mathrm{DDDAC}}(0)$~[\\si{\\milli\\volt}]",
+      "axis_extra": "xtick={0,1000,2000,3000,4000}, extra x ticks={1365,3413}, extra x tick labels={1365,3413}, extra x tick style={grid=major, grid style={line width=0.6pt, draw=black!55, dashed}, tick label style={font=\\scriptsize}}",
+      "caption": "Ladder reference \\(V_{\\mathrm{DDDAC}}\\) referred to its value at code 0, against DAC code, over five process corners, \\texttt{DacWPSUTB} at \\SI{25}{\\celsius} with the external load current set to zero. The ladder is the only load on the supply block and its current is code-dependent, so the reference the ladder divides moves \\SIrange{25.7}{29.6}{\\milli\\volt} peak-to-peak with no external load at all; the absolute levels, which differ by \\SI{357}{\\milli\\volt} across corners, are Table~\\ref{tab:dacr2r12-reference}. The two marked codes are alternating-bit patterns: 1365 = 0b010101010101 is the global minimum at four of the five corners (1317 at ff), and 3413 = 1365 + 2048 droops \\SI{23.4}{\\milli\\volt} at \\(2.5\\times\\) the code weight and therefore sets the worst raw INL of Figure~\\ref{fig:dacr2r12-inl-wpsu}. Reference droop times code accounts for \\(-36.9\\) of the \\(-37.1\\,\\mathrm{LSB}\\) measured there, so the raw nonlinearity of the delivered block is reference modulation and not a ladder error."
+    },
+    {
+      "id": "dacr2r12_inl_wpsu",
+      "test": "dr_wpsu",
+      "signals": [
+        "inl_wave"
+      ],
+      "corners": "all",
+      "yprec": 1,
+      "ylabel": "Integral nonlinearity~[LSB]",
+      "caption": "Integral nonlinearity against code over five process corners with the ladder referenced to \\texttt{VddDac} from the supply block, zero external load, \\SI{25}{\\celsius}. Endpoint-line INL as in Figure~\\ref{fig:dacr2r12-inl-ideal}; the vertical scale is tens of LSB, not tenths. The bow reaches \\(-37.1\\,\\mathrm{LSB}\\) at tt (code 3413) and \\(-45.1\\,\\mathrm{LSB}\\) at ff (code 3365) and tracks the reference droop of Figure~\\ref{fig:dacr2r12-vddac} scaled by code. Dividing each code's output by the reference measured at that code removes it and leaves \\numrange{0.43}{0.45}\\,LSB (Table~\\ref{tab:dacr2r12-wpsu}), so the ladder is unchanged from the ideal-rail case."
+    },
+    {
+      "id": "dacr2r12_dnl_ratio",
+      "test": "dr_wpsu",
+      "signals": [
+        "dnl_n_wave"
+      ],
+      "corners": "all",
+      "yprec": 2,
+      "ylabel": "Differential nonlinearity~[LSB]",
+      "caption": "Ratiometric differential nonlinearity against code over five process corners: each code's output is divided by the reference measured at that code before the LSB and the first difference are taken, so the reference droop divides out and the ladder alone is measured. Conditions as Figure~\\ref{fig:dacr2r12-inl-wpsu}; the 4095-point curve is stride-decimated for the plot as in Figure~\\ref{fig:dacr2r12-dnl-ideal}. The major-carry hierarchy is the ideal-rail one --- \\(-0.53\\) at code 2048, then \\(-0.28\\) at 1024, \\(-0.24\\) at 3072, \\(-0.14\\) at 512 and \\(-0.13\\,\\mathrm{LSB}\\) at 2560 --- and the worst step matches Figure~\\ref{fig:dacr2r12-dnl-ideal} to within \\(0.03\\,\\mathrm{LSB}\\). Raw DNL on the same bench is \\(-9.8\\) to \\(-18.4\\,\\mathrm{LSB}\\) (Table~\\ref{tab:dacr2r12-wpsu}); the difference is the reference step between adjacent codes and nothing else."
+    },
+    {
+      "id": "dacr2r12_psu_load",
+      "test": "dr_load",
+      "signals": [
+        "vddac_l"
+      ],
+      "corners": "all",
+      "yprec": 2,
+      "ylabel": "Ladder reference $V_{\\mathrm{DDDAC}}$~[\\si{\\volt}]",
+      "caption": "\\(V_{\\mathrm{DDDAC}}\\) against external load current over five process corners, supply block alone, \\SI{27}{\\celsius} at point 1 and \\SI{25}{\\celsius} at points 2--5, ADE default tolerances. There is no feedback loop around the output, so the slope is the block's own output resistance and the reference falls \\SIrange{92.7}{119.3}{\\milli\\volt} across the \\SIrange{0}{100}{\\micro\\ampere} sweep. The curve steepens with load, which is why the chord in Table~\\ref{tab:dacr2r12-loadreg} exceeds the small-signal \\(|Z_{\\mathrm{out}}|\\) of Table~\\ref{tab:dacr2r12-zout}. This sweep is an external load only: the ladder is not connected on this bench, and its own code-dependent draw is Figure~\\ref{fig:dacr2r12-vddac}."
+    },
+    {
+      "id": "dacr2r12_psu_zout",
+      "test": "dr_zout",
+      "signals": [
+        "zout_wave"
+      ],
+      "corners": "all",
+      "xlog": true,
+      "ylog": true,
+      "ylabel": "Output impedance $|Z_{\\mathrm{out}}|$~[\\si{\\ohm}]",
+      "caption": "Magnitude of the supply block's output impedance against frequency over five process corners, \\SI{27}{\\celsius} at point 1 and \\SI{25}{\\celsius} at points 2--5. The AC load source carries unit magnitude, so \\(|V_{\\mathrm{DDDAC}}|\\) is the impedance in ohms. It is flat at \\SIrange{781}{927}{\\ohm} from \\SI{1}{\\hertz} to \\SI{100}{\\kilo\\hertz} and peaks at \\SIrange{1.8}{3.8}{\\kilo\\ohm} near \\SI{100}{\\mega\\hertz}. This is the small-signal impedance at zero load; the large-signal chord over the \\SIrange{0}{100}{\\micro\\ampere} sweep is \\SIrange{18}{51}{\\percent} higher (Table~\\ref{tab:dacr2r12-loadreg})."
+    },
+    {
+      "id": "dacr2r12_psu_line",
+      "test": "dr_line",
+      "signals": [
+        "vddac_ln"
+      ],
+      "corners": "all",
+      "yprec": 2,
+      "ylabel": "Ladder reference $V_{\\mathrm{DDDAC}}$~[\\si{\\volt}]",
+      "caption": "\\(V_{\\mathrm{DDDAC}}\\) against the supply, swept \\SIrange{2.25}{2.75}{\\volt}, over five process corners at zero external load, \\SI{27}{\\celsius} at point 1 and \\SI{25}{\\celsius} at points 2--5. The slope is the line regulation tabulated in Table~\\ref{tab:dacr2r12-linereg}; it is not constant across the sweep, so the tabulated value is the chord between the two endpoints. The corner spread of the reference itself, \\SI{344}{\\milli\\volt} at nominal supply, is larger than anything the supply sweep produces."
+    },
+    {
+      "id": "dacr2r12_psu_startup",
+      "test": "dr_startup",
+      "signals": [
+        "vddac_t"
+      ],
+      "corners": "all",
+      "yprec": 2,
+      "legendpos": "south east",
+      "ylabel": "Ladder reference $V_{\\mathrm{DDDAC}}$~[\\si{\\volt}]",
+      "caption": "\\(V_{\\mathrm{DDDAC}}\\) against time over five process corners, \\texttt{PSUStartupTB}: \\texttt{En} rises at \\SI{50}{\\micro\\second} into a \\SI{500}{\\micro\\second} window at zero external load, \\SI{27}{\\celsius} at point 1 and \\SI{25}{\\celsius} at points 2--5. With \\texttt{En} low the node sits at \\SIrange{0.28}{0.54}{\\volt}; at the \\SI{1}{\\nano\\second} enable edge the pass device is driven hard on and the node is pulled to the \\SI{2.5}{\\volt} supply rail for \\SIrange{64}{100}{\\nano\\second} before falling back. It reaches the zero-load DC value of Table~\\ref{tab:dacr2r12-loadreg} to within \\SI{140}{\\micro\\volt} at every corner and holds it to the end of the window. No settling-time or overshoot figure of merit is published from this bench: the design variable \\texttt{t\\_win} sets both the \\texttt{En} pulse width and the \\texttt{settlingTime} evaluation window, so the two cannot be specified independently."
+    }
+  ],
+  "tables": [
+    {
+      "id": "dacr2r12_ideal",
+      "type": "matrix",
+      "test": "dr_ideal",
+      "stat": "value",
+      "corners": "all",
+      "spread_column": true,
+      "signals": [
+        "v_zs",
+        "v_fs",
+        "lsb",
+        "inl_max",
+        "inl_min",
+        "inl_lsb",
+        "dnl_max",
+        "dnl_min",
+        "dnl_lsb"
+      ],
+      "caption": "Static accuracy of the ladder on an ideal \\SI{2.5}{\\volt} rail by process corner, \\texttt{DacTB}, \\SI{25}{\\celsius}, all 4096 codes, \\texttt{reltol}~=~\\num{1e-6}. The ideal endpoints for this bench are \\SI{2.499390}{\\volt} full scale and \\SI{610.35}{\\micro\\volt} per LSB (\\(2.5 \\times 4095/4096\\)); the measured LSB is within \\SI{0.35}{\\micro\\volt} of that at every corner. INL and DNL are referred to the endpoint line through each corner's own zero- and full-scale outputs, so gain and offset are removed and only shape is reported. The bench saves the output node only and records no current, so no supply current is measured on it; the supply block's quiescent current is Table~\\ref{tab:dacr2r12-linereg}. Corner run, no device mismatch: these are systematic terms."
+    },
+    {
+      "id": "dacr2r12_wpsu",
+      "type": "matrix",
+      "test": "dr_wpsu",
+      "stat": "value",
+      "corners": "all",
+      "spread_column": true,
+      "signals": [
+        "v_fs",
+        "lsb",
+        "inl_lsb",
+        "dnl_min",
+        "inl_n_lsb",
+        "dnl_n_min",
+        "dnl_n_lsb",
+        "voff_lsb",
+        "gain_err"
+      ],
+      "caption": "Static accuracy with the ladder referenced to \\texttt{VddDac} from the supply block, \\texttt{DacWPSUTB}, zero external load, \\SI{25}{\\celsius}, all 4096 codes, \\texttt{reltol}~=~\\num{1e-6}. The first four rows are the block as delivered, reference included; the last five divide the output by the measured \\(V_{\\mathrm{DDDAC}}\\) at each code and so measure the ladder alone. The pair attributes the error: raw INL of \\numrange{32.5}{45.1}\\,LSB collapses to \\numrange{0.43}{0.45}\\,LSB ratiometric and raw DNL of \\(-9.8\\) to \\(-18.4\\,\\mathrm{LSB}\\) to \\(-0.52\\) to \\(-0.54\\,\\mathrm{LSB}\\), so \\SI{99}{\\percent} of the raw nonlinearity is the reference modulation of Figure~\\ref{fig:dacr2r12-vddac}. Gain error is referred to the ideal ratiometric full scale \\(4095/4096 = 0.999756\\); it is not an absolute-voltage gain error, which the line regulation of Table~\\ref{tab:dacr2r12-linereg} dominates. Corner run, no device mismatch."
+    },
+    {
+      "id": "dacr2r12_reference",
+      "type": "matrix",
+      "test": "dr_wpsu",
+      "stat": "value",
+      "corners": "all",
+      "spread_column": true,
+      "signals": [
+        "vddac_max",
+        "vddac_min",
+        "vddac_pp",
+        "code_vdac_min"
+      ],
+      "caption": "Ladder reference excursion over the full code sweep by process corner, \\texttt{DacWPSUTB} at \\SI{25}{\\celsius} with zero external load. The ladder is the only load on the supply block, so this is reference modulation the DAC imposes on itself; against the \\SI{133}{\\micro\\volt} limit entered on the test it is 190 to 220 times over. The minimum lands on code 1365 = 0b010101010101 at four corners and 1317 at ff. The maximum is at code 0 at tt, fs and ss but at code 4095 at ff and sf, which is why the excursion is quoted peak-to-peak and not as a droop from zero scale."
+    },
+    {
+      "id": "dacr2r12_loadreg",
+      "type": "matrix",
+      "test": "dr_load",
+      "stat": "value",
+      "corners": "all",
+      "spread_column": true,
+      "signals": [
+        "vddac_noload",
+        "vddac_full",
+        "dvddac_load",
+        "load_reg"
+      ],
+      "caption": "Supply-block load regulation by process corner: \\(V_{\\mathrm{DDDAC}}\\) against an external load current swept \\SIrange{0}{100}{\\micro\\ampere}, \\texttt{DacPSUTB}, \\SI{27}{\\celsius} at point 1 and \\SI{25}{\\celsius} at points 2--5, ADE default tolerances. Load regulation is the chord across the whole sweep, not the slope at the origin, and runs \\SIrange{18}{51}{\\percent} above the small-signal \\(|Z_{\\mathrm{out}}|\\) of Table~\\ref{tab:dacr2r12-zout}. The ladder is not connected on this bench; its own code-dependent current is Figure~\\ref{fig:dacr2r12-vddac}."
+    },
+    {
+      "id": "dacr2r12_linereg",
+      "type": "matrix",
+      "test": "dr_line",
+      "stat": "value",
+      "corners": "all",
+      "spread_column": true,
+      "signals": [
+        "vddac_nom",
+        "dvddac_line",
+        "line_reg",
+        "i_q"
+      ],
+      "caption": "Supply-block line regulation and quiescent current by process corner: \\(V_{\\mathrm{DDDAC}}\\) with the supply swept \\SIrange{2.25}{2.75}{\\volt} at zero external load, \\texttt{DacPSUTB}, \\SI{27}{\\celsius} at point 1 and \\SI{25}{\\celsius} at points 2--5. With no feedback loop, \\SIrange{0.102}{0.323}{\\volt\\per\\volt} of any supply movement reaches the reference, and every absolute output voltage of the DAC moves with it; the ratiometric rows of Table~\\ref{tab:dacr2r12-wpsu} are what survives. The current is read at the bench supply terminal and covers the supply block only --- the ladder is not connected on this bench."
+    },
+    {
+      "id": "dacr2r12_zout",
+      "type": "matrix",
+      "test": "dr_zout",
+      "stat": "value",
+      "corners": "all",
+      "spread_column": true,
+      "signals": [
+        "zout_lf",
+        "zout_1k",
+        "zout_100k",
+        "zout_max",
+        "f_zout_peak"
+      ],
+      "caption": "Supply-block small-signal output impedance by process corner, \\texttt{DacPSUTB} AC sweep from \\SI{1}{\\hertz} to \\SI{1}{\\giga\\hertz} at 20 points per decade, \\SI{27}{\\celsius} at point 1 and \\SI{25}{\\celsius} at points 2--5. The AC load source carries unit magnitude, so \\(|V_{\\mathrm{DDDAC}}|\\) reads directly in ohms. The impedance is flat to \\SI{100}{\\kilo\\hertz}, within \\SI{0.3}{\\ohm} of the \\SI{1}{\\hertz} value at every corner, and peaks three decades higher in frequency at two to four times the flat value. Grid points are \\SI{12}{\\percent} apart, so the peak frequency is located only to that resolution and the ff entry is one grid step from the other four."
+    }
+  ],
+  "order": [
+    "note_dacr2r12_intro",
+    "sch_dacr2r12_ladder",
+    "tab_DacR2R12_corners",
+    "fig_dacr2r12_inl_ideal",
+    "fig_dacr2r12_dnl_ideal",
+    "tab_dacr2r12_ideal",
+    "note_dacr2r12_supply",
+    "sch_dacr2r12_psu",
+    "fig_dacr2r12_vddac",
+    "tab_dacr2r12_reference",
+    "fig_dacr2r12_inl_wpsu",
+    "fig_dacr2r12_dnl_ratio",
+    "tab_dacr2r12_wpsu",
+    "note_dacr2r12_mc",
+    "fig_dacr2r12_mc_inl",
+    "fig_dacr2r12_mc_dnl",
+    "tab_dacr2r12_mc_ideal",
+    "tab_dacr2r12_mc_scale",
+    "tab_dacr2r12_mc_wpsu",
+    "fig_dacr2r12_mc_vddacpp",
+    "tab_dacr2r12_mc_reference",
+    "fig_dacr2r12_psu_load",
+    "tab_dacr2r12_loadreg",
+    "fig_dacr2r12_mc_loadreg",
+    "tab_dacr2r12_mc_psu_load",
+    "fig_dacr2r12_psu_line",
+    "tab_dacr2r12_linereg",
+    "tab_dacr2r12_mc_psu_line",
+    "fig_dacr2r12_psu_zout",
+    "tab_dacr2r12_zout",
+    "tab_dacr2r12_mc_psu_zout",
+    "fig_dacr2r12_psu_startup",
+    "note_dacr2r12_scope"
+  ],
+  "_note": [
+    "CORNER-RUN fragments for the 12-bit R-2R reference DAC and its supply block.",
+    "Block DacR2R12. Companion Monte Carlo block is DacR2R12MC (separate config,",
+    "separate owner); the hand-written note_dacr2r12_* and sch_dacr2r12_* fragments",
+    "are placed by the `order` list here and are NOT generated.",
+    "",
+    "SOURCE: .../tb_anatop_pixel_dacR2R12/maestro/results/maestro/Interactive.34",
+    "5 points x 6 tests, all PASS. Points 2-5 carry cor_std_mos.scs section=ff/fs/sf/ss.",
+    "Point 1 has no cor_std_mos.scs, so _corner_from_modelfiles falls back to the vote",
+    "over the PDK master's tt_* sections and already answers `tt'; corner_labels is kept",
+    "anyway so a future change in that fallback cannot silently publish `pt1'. It logs",
+    "one `no corner named pt1' info line per run, which is expected.",
+    "",
+    "TEMPERATURE IS NOT UNIFORM ACROSS TESTS. Verified in all 30 netlists: DacNonlinTB",
+    "and DacNonlinWPSUTB are temp=25 at all five points; LoadRegTB, LineRegTB, ZoutTB",
+    "and PSUStartupTB are temp=27 at point 1 and temp=25 at points 2-5. The generated",
+    "corner legend reads temp from the alphabetically first test directory the config",
+    "uses, DacNonlinTB, so it prints 25 C at every point -- correct for the DAC benches",
+    "and stated explicitly in the corner-table caption for the supply benches.",
+    "SOLVER TOLERANCES ALSO SPLIT: reltol 1e-6 / vabstol 1e-9 / iabstol 1e-15 on the two",
+    "DAC benches, ADE defaults (1e-3 / 1e-6 / 1e-12) on the four supply benches. The",
+    "tight tolerances matter: DNL is a first difference of a 529 uV LSB.",
+    "",
+    "EXPRESSIONS ARE INLINED, AND THAT IS FORCED. The house style is to build each",
+    "output on the previous one, but maestro2tex has no cross-signal reference, so the",
+    "whole chain v_zs -> lsb -> vout_ideal -> inl_wave -> inl_lsb collapses into one",
+    "expression and `lsb' appears four times inside a single INL string. That is exactly",
+    "the condition under which the 200-character inl_lsb/x_src_lim expressions were",
+    "wrong in four places at once. Each chain was therefore built once by substitution",
+    "and pasted, so every occurrence of a sub-expression inside a longer one is",
+    "character-identical, and every value was checked numerically before publication:",
+    "  DacNonlinWPSUTB, all five corners, against the Maestro output set of the",
+    "  equivalent earlier run -- lsb, inl_lsb, dnl_min, inl_n_lsb, dnl_n_min, vddac_pp,",
+    "  code_vdac_min, voff_lsb, gain_err: 45 values, all identical to the digits",
+    "  published here.",
+    "  DacNonlinTB nominal -- v_zs 89.98 uV, v_fs 2.499287 V, lsb 610.305 uV,",
+    "  INL -0.417/+0.159, DNL -0.511/+0.002: identical.",
+    "  The chain definitions themselves are copied from the run's own",
+    "  psf/<test>/monteCarlo/mcparam (Plan.1.Run.3), which stores them verbatim, so the",
+    "  corner tables and the Monte Carlo tables measure the same quantity.",
+    "Anything edited here must be re-checked the same way; do not hand-edit one",
+    "occurrence of `lsb' inside an INL string.",
+    "",
+    "NO SUPPLY CURRENT ON THE DAC BENCHES. DacNonlinTB netlists `save Out' with",
+    "saveOptions save=selected pwr=none currents=none (DacNonlinWPSUTB adds VddDac and",
+    "nothing else), so IS(\"/POWER/SRC_VDD25/PLUS\") does not exist on either -- OCEAN",
+    "returns nil and the cell would print `--'. The supply-current row asked for in",
+    "tab_dacr2r12_ideal is therefore omitted and the omission is stated in its caption;",
+    "the quiescent current in tab_dacr2r12_linereg is the supply block alone, measured",
+    "on LineRegTB, which does save the source terminal.",
+    "",
+    "THE PSU TABLE IS SPLIT IN THREE. A `matrix' table reads one logical test, and load",
+    "regulation, line regulation and output impedance are three different analyses in",
+    "three different run directories. Hence tab_dacr2r12_loadreg (LoadRegTB),",
+    "tab_dacr2r12_linereg (LineRegTB) and tab_dacr2r12_zout (ZoutTB) instead of one",
+    "tab_dacr2r12_psu.",
+    "",
+    "PSUStartupTB IS HEALTHY IN THIS RUN. The 200-sample Monte Carlo of the same design",
+    "reported vddac_final = 0.394 V against a 2.179 V DC value, which reads as `never",
+    "starts'. In Interactive.34 that is not what happens: 0.394 V is exactly the tt",
+    "PRE-ENABLE level, and the transient reaches the zero-load DC value of",
+    "tab_dacr2r12_loadreg to within 140 uV at all five corners and holds it to t_end.",
+    "Settling into a 1 % band takes 0.57-0.69 us after the edge and the peak is the",
+    "2.5 V rail itself. Those two numbers are still NOT published as table rows,",
+    "because t_win is overloaded as both the vpulse width and the settlingTime window",
+    "and so cannot be set independently; the figure caption says what the waveform does",
+    "and no more. Only vddac_t is extracted from this test.",
+    "",
+    "DECIMATION: THIS BLOCK MUST BE RENDERED WITH --max-points 512. The default 400",
+    "stride-decimates 4096 codes by 10, and 512/1024/2560/3072 are not multiples of",
+    "10, so every major carry except the global minimum at 2048 vanished from the two",
+    "DNL figures -- they came out as a single spike on an otherwise flat line. 512",
+    "gives stride 8, which divides every major carry, and 5 curves x 512 points is",
+    "within TeX's main memory. 1024 renders standalone but only 2x under the limit,",
+    "and 2048 already dies with `TeX capacity exceeded' in the proof sheet alone, so",
+    "do not raise it. maestro2tex has no config key for this; it is a CLI flag, so the",
+    "regeneration command is:",
+    "  python3 maestro2tex.py --max-points 512 \\",
+    "    --results .../tb_anatop_pixel_dacR2R12/maestro/results/maestro/Interactive.34 \\",
+    "    --config configs/tb_anatop_pixel_dacR2R12_corners.json \\",
+    "    --outdir ~/vestarv/implementations/asic/castalia/analog",
+    "",
+    "FIGURE MARKS. fig_dacr2r12_vddac carries extra x ticks at codes 1365 and 3413. 1365",
+    "= 0b010101010101 is the reference minimum; 3413 = 1365 + 2048 is where the raw INL",
+    "peaks, because its 23.4 mV droop carries 2.5x the code weight. Checked against the",
+    "extracted CSVs: droop x code/4096/lsb predicts -36.88 LSB at code 3413 against the",
+    "-37.06 LSB measured, i.e. 99.5 % of the raw INL is reference modulation.",
+    "",
+    "NOT EXTRACTED, deliberately:",
+    "  PSUStartupTB t_startup / vddac_over / i_inrush -- see above; the bench cannot",
+    "    specify its settling window independently of the enable pulse.",
+    "  DacNonlin*TB dnl_msb, voff_dac, vfs_dac, inl_from_ref, vddac_droop -- algebraic",
+    "    restatements of rows already published, or (inl_from_ref) a quantity whose",
+    "    corner value is reproduced in the fig_dacr2r12_vddac caption.",
+    "  DacNonlinTB voff_lsb / gain_err -- the ideal-rail bench has no reference error,",
+    "    so its offset and gain terms are the DC solve, not the block; the published",
+    "    pair is the ratiometric one on DacNonlinWPSUTB.",
+    "  LineRegTB p_psu, vddac_lo/vddac_hi -- i_q times a constant, and the endpoints",
+    "    already summarised by dvddac_line.",
+    "",
+    "`order' here lists ONLY this block's own 16 fragments, so preview_DacR2R12.tex",
+    "compiles standalone with no unresolved references. The final interleaved order --",
+    "hand-written note_dacr2r12_* / sch_dacr2r12_* and the DacR2R12MC fragments woven",
+    "in -- is set by the section owner; names listed there that do not exist are",
+    "skipped silently."
+  ]
+}

@@ -39,10 +39,12 @@ results database rather than transcribed by hand.
 
 The analog front end is being brought up incrementally. The electrochemical models
 the benches use are defined once in Section~\ref{ss:analog-models}. This revision documents
-the local bias generator and the class-AB amplifier that serves as both the
+the local bias generator, the class-AB amplifier that serves as both the
 channel's transimpedance amplifier (A2) and its potentiostat control amplifier
-(A1); the reference DAC and the data converters will be added to this chapter as
-their benches are closed.
+(A1), the complete potentiostat pixel system built from a pair of those
+amplifiers around a three-electrode cell, and the 12-bit R-2R reference DAC
+with the supply block that feeds it; the data converters will be added to this
+chapter as their benches are closed.
 
 \subsection*{Characterisation coverage}
 
@@ -53,6 +55,8 @@ Block & Section & Benches & Corners & Monte Carlo \\
 \midrule
 Bias generator        & \ref{ss:biasgen-local} & 2 & \checkmark & n/a \\
 Class-AB amplifier    & \ref{ss:ampab}         & 6 & \checkmark & \checkmark \\
+Potentiostat pixel system & \ref{ss:pixel}     & 6 & \checkmark & \checkmark \\
+Reference DAC         & \ref{ss:dacr2r12}      & 6 & \checkmark & \checkmark \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -77,3 +81,5 @@ reports the measurement.
 
 \input{include/analog/BiasGenCascWideSwing.tex}
 \input{include/analog/AmpAB.tex}
+\input{include/analog/Pixel.tex}
+\input{include/analog/DacR2R12.tex}

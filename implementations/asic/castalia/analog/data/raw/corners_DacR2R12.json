@@ -1,0 +1,92 @@
+[
+  {
+    "dir": "1",
+    "label": "tt",
+    "vars": {
+      "VDD25": 2.5,
+      "dac_code": 2048.0,
+      "i_load": 0.0,
+      "i_load_max": 0.0001,
+      "t_dly": 5e-05,
+      "t_end": 0.0005,
+      "t_win": 1.0,
+      "temp": 25.0,
+      "v_en": 2.5,
+      "v_en_hi": 2.5,
+      "vdd_hi": 2.75,
+      "vdd_lo": 2.25
+    }
+  },
+  {
+    "dir": "2",
+    "label": "ff",
+    "vars": {
+      "VDD25": 2.5,
+      "dac_code": 2048.0,
+      "i_load": 0.0,
+      "i_load_max": 0.0001,
+      "t_dly": 5e-05,
+      "t_end": 0.0005,
+      "t_win": 1.0,
+      "temp": 25.0,
+      "v_en": 2.5,
+      "v_en_hi": 2.5,
+      "vdd_hi": 2.75,
+      "vdd_lo": 2.25
+    }
+  },
+  {
+    "dir": "3",
+    "label": "fs",
+    "vars": {
+      "VDD25": 2.5,
+      "dac_code": 2048.0,
+      "i_load": 0.0,
+      "i_load_max": 0.0001,
+      "t_dly": 5e-05,
+      "t_end": 0.0005,
+      "t_win": 1.0,
+      "temp": 25.0,
+      "v_en": 2.5,
+      "v_en_hi": 2.5,
+      "vdd_hi": 2.75,
+      "vdd_lo": 2.25
+    }
+  },
+  {
+    "dir": "4",
+    "label": "sf",
+    "vars": {
+      "VDD25": 2.5,
+      "dac_code": 2048.0,
+      "i_load": 0.0,
+      "i_load_max": 0.0001,
+      "t_dly": 5e-05,
+      "t_end": 0.0005,
+      "t_win": 1.0,
+      "temp": 25.0,
+      "v_en": 2.5,
+      "v_en_hi": 2.5,
+      "vdd_hi": 2.75,
+      "vdd_lo": 2.25
+    }
+  },
+  {
+    "dir": "5",
+    "label": "ss",
+    "vars": {
+      "VDD25": 2.5,
+      "dac_code": 2048.0,
+      "i_load": 0.0,
+      "i_load_max": 0.0001,
+      "t_dly": 5e-05,
+      "t_end": 0.0005,
+      "t_win": 1.0,
+      "temp": 25.0,
+      "v_en": 2.5,
+      "v_en_hi": 2.5,
+      "vdd_hi": 2.75,
+      "vdd_lo": 2.25
+    }
+  }
+]

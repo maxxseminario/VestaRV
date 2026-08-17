@@ -1,0 +1,43 @@
+%% maestro2tex -- generated figure; do not edit by hand.
+\providecommand{\MaestroRoot}{include/analog/}
+\begin{figure}[htbp]
+  \centering
+  {\pgfplotsset{compat=1.18}%
+  \begin{tikzpicture}
+    \begin{axis}[
+      width=0.82\linewidth, height=6.2cm,
+      xlabel={DAC code}, ylabel={$V_{\mathrm{DDDAC}}(D) - V_{\mathrm{DDDAC}}(0)$~[\si{\milli\volt}]},
+      grid=both,
+      major grid style={line width=0.2pt, draw=black!14},
+      minor grid style={line width=0.2pt, draw=black!7},
+      minor tick num=1,
+      axis line style={line width=0.4pt, draw=black!45},
+      tick style={line width=0.4pt, draw=black!45},
+      tick align=outside,
+      label style={font=\small}, tick label style={font=\small},
+      enlarge x limits=0.02, enlarge y limits=0.10,
+      every axis plot/.append style={line join=round, no marks},
+      legend style={font=\footnotesize, draw=none, fill=none,
+                    at={(0.5,1.02)}, anchor=south, legend columns=-1,
+                    /tikz/every even column/.append style={column sep=9pt}},
+      legend cell align=left,
+      scaled y ticks=false, scaled x ticks=false,
+      y tick label style={/pgf/number format/fixed,
+                          /pgf/number format/precision=1},
+      xtick={0,1000,2000,3000,4000}, extra x ticks={1365,3413}, extra x tick labels={1365,3413}, extra x tick style={grid=major, grid style={line width=0.6pt, draw=black!55, dashed}, tick label style={font=\scriptsize}}
+    ]
+      \addplot[mtxA, line width=1.1pt, solid] table {\MaestroRoot data/dacr2r12_vddac_00.dat};
+      \addlegendentry{tt}
+      \addplot[mtxB, line width=1.1pt, dashed] table {\MaestroRoot data/dacr2r12_vddac_01.dat};
+      \addlegendentry{ff}
+      \addplot[mtxC, line width=1.1pt, dotted] table {\MaestroRoot data/dacr2r12_vddac_02.dat};
+      \addlegendentry{fs}
+      \addplot[mtxD, line width=1.1pt, dashdotted] table {\MaestroRoot data/dacr2r12_vddac_03.dat};
+      \addlegendentry{sf}
+      \addplot[mtxE, line width=1.1pt, densely dashed] table {\MaestroRoot data/dacr2r12_vddac_04.dat};
+      \addlegendentry{ss}
+    \end{axis}
+  \end{tikzpicture}}
+  \caption[{Ladder reference \(V_{\mathrm{DDDAC}}\) referred to its value at code 0, against DAC code, over five process\,\dots}]{Ladder reference \(V_{\mathrm{DDDAC}}\) referred to its value at code 0, against DAC code, over five process corners, \texttt{DacWPSUTB} at \SI{25}{\celsius} with the external load current set to zero. The ladder is the only load on the supply block and its current is code-dependent, so the reference the ladder divides moves \SIrange{25.7}{29.6}{\milli\volt} peak-to-peak with no external load at all; the absolute levels, which differ by \SI{357}{\milli\volt} across corners, are Table~\ref{tab:dacr2r12-reference}. The two marked codes are alternating-bit patterns: 1365 = 0b010101010101 is the global minimum at four of the five corners (1317 at ff), and 3413 = 1365 + 2048 droops \SI{23.4}{\milli\volt} at \(2.5\times\) the code weight and therefore sets the worst raw INL of Figure~\ref{fig:dacr2r12-inl-wpsu}. Reference droop times code accounts for \(-36.9\) of the \(-37.1\,\mathrm{LSB}\) measured there, so the raw nonlinearity of the delivered block is reference modulation and not a ladder error.}
+  \label{fig:dacr2r12-vddac}
+\end{figure}

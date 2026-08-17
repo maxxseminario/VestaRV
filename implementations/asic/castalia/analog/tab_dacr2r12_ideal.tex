@@ -1,0 +1,21 @@
+%% maestro2tex -- generated table; do not edit by hand.
+\begin{table}[htbp]
+  \centering
+  \caption[{Static accuracy of the ladder on an ideal \SI{2.5}{\volt} rail by process corner, \texttt{DacTB},\,\dots}]{Static accuracy of the ladder on an ideal \SI{2.5}{\volt} rail by process corner, \texttt{DacTB}, \SI{25}{\celsius}, all 4096 codes, \texttt{reltol}~=~\num{1e-6}. The ideal endpoints for this bench are \SI{2.499390}{\volt} full scale and \SI{610.35}{\micro\volt} per LSB (\(2.5 \times 4095/4096\)); the measured LSB is within \SI{0.35}{\micro\volt} of that at every corner. INL and DNL are referred to the endpoint line through each corner's own zero- and full-scale outputs, so gain and offset are removed and only shape is reported. The bench saves the output node only and records no current, so no supply current is measured on it; the supply block's quiescent current is Table~\ref{tab:dacr2r12-linereg}. Corner run, no device mismatch: these are systematic terms.}
+  \label{tab:dacr2r12-ideal}
+  \begin{tabular}{lrrrrrrr}
+    \toprule
+    Parameter & Unit & tt & ff & fs & sf & ss & Spread \\
+    \midrule
+    Zero-scale output & \si{\micro\volt} & 89.98 & 745.16 & 75.05 & 156.22 & 41.54 & 703.62 \\
+    Full-scale output & \si{\volt} & 2.499287 & 2.498719 & 2.499228 & 2.499299 & 2.499329 & 0.000610 \\
+    LSB size & \si{\micro\volt} & 610.305 & 610.006 & 610.294 & 610.291 & 610.327 & 0.321 \\
+    INL, most positive & LSB & 0.159 & 0.153 & 0.166 & 0.150 & 0.179 & 0.029 \\
+    INL, most negative & LSB & $-0.417$ & $-0.423$ & $-0.399$ & $-0.425$ & $-0.421$ & 0.027 \\
+    INL, worst magnitude & LSB & 0.417 & 0.423 & 0.399 & 0.425 & 0.421 & 0.027 \\
+    DNL, most positive & LSB & 0.002 & 0.002 & 0.002 & 0.002 & 0.002 & 0.000 \\
+    DNL, most negative & LSB & $-0.511$ & $-0.512$ & $-0.500$ & $-0.511$ & $-0.535$ & 0.036 \\
+    DNL, worst magnitude & LSB & 0.511 & 0.512 & 0.500 & 0.511 & 0.535 & 0.036 \\
+    \bottomrule
+  \end{tabular}
+\end{table}

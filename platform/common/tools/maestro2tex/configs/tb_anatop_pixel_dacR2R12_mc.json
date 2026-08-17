@@ -1,0 +1,611 @@
+{
+  "block": "DacR2R12MC",
+  "tex_root": "include/analog/",
+  "monte_carlo": true,
+  "emit_master": false,
+  "emit_corner_table": false,
+  "supply_var": "VDD25",
+  "tests": {
+    "dac_mc_ideal": {
+      "dir": "DacNonlinTB",
+      "signals": {
+        "inl_lsb": {
+          "label": "INL worst",
+          "unit_tex": "LSB",
+          "scale": 1.0,
+          "digits": 3
+        },
+        "inl_max": {
+          "label": "INL max",
+          "unit_tex": "LSB",
+          "scale": 1.0,
+          "digits": 3
+        },
+        "inl_min": {
+          "label": "INL min",
+          "unit_tex": "LSB",
+          "scale": 1.0,
+          "digits": 3
+        },
+        "dnl_min": {
+          "label": "DNL min",
+          "unit_tex": "LSB",
+          "scale": 1.0,
+          "digits": 3
+        },
+        "dnl_max": {
+          "label": "DNL max",
+          "unit_tex": "LSB",
+          "scale": 1.0,
+          "digits": 3
+        },
+        "dnl_lsb": {
+          "label": "DNL worst",
+          "unit_tex": "LSB",
+          "scale": 1.0,
+          "digits": 3
+        },
+        "lsb": {
+          "label": "LSB size",
+          "unit_tex": "\\si{\\micro\\volt}",
+          "scale": 1000000.0,
+          "digits": 4
+        },
+        "v_fs": {
+          "label": "Full-scale output",
+          "unit_tex": "\\si{\\volt}",
+          "scale": 1.0,
+          "digits": 6
+        },
+        "voff_lsb": {
+          "label": "Zero-scale offset",
+          "unit_tex": "LSB",
+          "scale": 1.0,
+          "digits": 4
+        },
+        "gain_err": {
+          "label": "Gain error",
+          "unit_tex": "ppm",
+          "scale": 1000000.0,
+          "digits": 2
+        }
+      }
+    },
+    "dac_mc_wpsu": {
+      "dir": "DacNonlinWPSUTB",
+      "signals": {
+        "inl_n_lsb": {
+          "label": "INL worst",
+          "unit_tex": "LSB",
+          "scale": 1.0,
+          "digits": 3
+        },
+        "dnl_n_min": {
+          "label": "DNL min",
+          "unit_tex": "LSB",
+          "scale": 1.0,
+          "digits": 3
+        },
+        "dnl_n_lsb": {
+          "label": "DNL worst",
+          "unit_tex": "LSB",
+          "scale": 1.0,
+          "digits": 3
+        },
+        "inl_lsb": {
+          "label": "INL worst, raw",
+          "unit_tex": "LSB",
+          "scale": 1.0,
+          "digits": 3
+        },
+        "dnl_min": {
+          "label": "DNL min, raw",
+          "unit_tex": "LSB",
+          "scale": 1.0,
+          "digits": 3
+        },
+        "vddac_pp": {
+          "label": "Reference movement",
+          "unit_tex": "\\si{\\milli\\volt}",
+          "scale": 1000.0,
+          "digits": 3
+        },
+        "vddac_min": {
+          "label": "Reference min",
+          "unit_tex": "\\si{\\volt}",
+          "scale": 1.0,
+          "digits": 4
+        },
+        "vddac_max": {
+          "label": "Reference max",
+          "unit_tex": "\\si{\\volt}",
+          "scale": 1.0,
+          "digits": 4
+        },
+        "lsb": {
+          "label": "LSB size",
+          "unit_tex": "\\si{\\micro\\volt}",
+          "scale": 1000000.0,
+          "digits": 2
+        },
+        "v_fs": {
+          "label": "Full scale",
+          "unit_tex": "\\si{\\volt}",
+          "scale": 1.0,
+          "digits": 4
+        }
+      }
+    },
+    "dac_mc_loadreg": {
+      "dir": "LoadRegTB",
+      "signals": {
+        "vddac_noload": {
+          "label": "Reference, no load",
+          "unit_tex": "\\si{\\volt}",
+          "scale": 1.0,
+          "digits": 4
+        },
+        "vddac_full": {
+          "label": "Reference, full load",
+          "unit_tex": "\\si{\\volt}",
+          "scale": 1.0,
+          "digits": 4
+        },
+        "dvddac_load": {
+          "label": "Load droop",
+          "unit_tex": "\\si{\\milli\\volt}",
+          "scale": 1000.0,
+          "digits": 3
+        },
+        "load_reg": {
+          "label": "Output resistance",
+          "unit_tex": "\\si{\\ohm}",
+          "scale": 1.0,
+          "digits": 1
+        }
+      }
+    },
+    "dac_mc_linereg": {
+      "dir": "LineRegTB",
+      "signals": {
+        "dvddac_line": {
+          "label": "Line shift",
+          "unit_tex": "\\si{\\milli\\volt}",
+          "scale": 1000.0,
+          "digits": 3
+        },
+        "line_reg": {
+          "label": "Line regulation",
+          "unit_tex": "\\si{\\volt\\per\\volt}",
+          "scale": 1.0,
+          "digits": 4
+        },
+        "i_q": {
+          "label": "Quiescent current",
+          "unit_tex": "\\si{\\micro\\ampere}",
+          "scale": 1000000.0,
+          "digits": 2
+        },
+        "p_psu": {
+          "label": "Dissipation",
+          "unit_tex": "\\si{\\micro\\watt}",
+          "scale": 1000000.0,
+          "digits": 2
+        }
+      }
+    },
+    "dac_mc_zout": {
+      "dir": "ZoutTB",
+      "signals": {
+        "zout_lf": {
+          "label": "$Z_\\mathrm{out}$, LF",
+          "unit_tex": "\\si{\\ohm}",
+          "scale": 1.0,
+          "digits": 1
+        },
+        "zout_max": {
+          "label": "$Z_\\mathrm{out}$, peak",
+          "unit_tex": "\\si{\\ohm}",
+          "scale": 1.0,
+          "digits": 1
+        },
+        "f_zout_peak": {
+          "label": "Peak frequency",
+          "unit_tex": "\\si{\\mega\\hertz}",
+          "scale": 1e-06,
+          "digits": 2
+        }
+      }
+    }
+  },
+  "figures": [
+    {
+      "id": "dacr2r12_mc_inl",
+      "kind": "histogram",
+      "test": "dac_mc_ideal",
+      "signals": [
+        "inl_lsb"
+      ],
+      "bins": 30,
+      "spec_span": 1.5,
+      "spec_hi_label": "1\\,LSB limit",
+      "width": "0.86\\linewidth",
+      "height": "6.0cm",
+      "xlabel": "Worst-magnitude INL~[LSB]",
+      "ylabel": "Samples",
+      "caption": "Integral nonlinearity of the \\(R\\)--\\(2R\\) ladder driven from an ideal \\SI{2.5}{\\volt} reference. \\textbf{Process and mismatch}, model section \\texttt{castalia\\_pm\\_25}, 200 samples, seed 12345, low-discrepancy sampling, \\SI{25}{\\celsius}, all 4096 codes. The dashed rule is the \\(1\\,\\mathrm{LSB}\\) limit entered on the test; 42 of 200 samples fall inside it and the worst reaches \\(3.453\\,\\mathrm{LSB}\\). The distribution is right-skewed (Fisher skew \\(+0.74\\)), so Table~\\ref{tab:dacr2r12-mc-ideal} quotes the median and percentiles rather than mean \\(\\pm\\,3\\sigma\\). LSB size, full scale and gain error are fixed to a part in \\(10^{6}\\) on this bench (Table~\\ref{tab:dacr2r12-mc-scale}), so the whole of this spread is resistor mismatch in the ladder and none of it is the reference."
+    },
+    {
+      "id": "dacr2r12_mc_dnl",
+      "kind": "histogram",
+      "test": "dac_mc_ideal",
+      "signals": [
+        "dnl_min"
+      ],
+      "bins": 30,
+      "spec_span": 1.5,
+      "spec_lo_label": "$-1$\\,LSB, monotonicity",
+      "width": "0.86\\linewidth",
+      "height": "6.0cm",
+      "xlabel": "Most negative DNL~[LSB]",
+      "ylabel": "Samples",
+      "caption": "Worst negative differential nonlinearity, same bench, samples and conditions as Figure~\\ref{fig:dacr2r12-mc-inl}. The dashed rule at \\(-1\\,\\mathrm{LSB}\\) is the monotonicity limit entered on the test: 80 of 200 samples clear it, so \\SI{40}{\\percent} of channels are monotonic and \\(0.40^4 = \\SI{2.6}{\\percent}\\) of four-channel chips are monotonic on all four. The distribution is left-skewed (skew \\(-1.11\\)) with a tail to \\(-6.608\\,\\mathrm{LSB}\\), so the median \\(-1.318\\,\\mathrm{LSB}\\) and the percentiles of Table~\\ref{tab:dacr2r12-mc-ideal} describe it and mean \\(\\pm\\,3\\sigma\\) does not."
+    },
+    {
+      "id": "dacr2r12_mc_vddacpp",
+      "kind": "histogram",
+      "test": "dac_mc_wpsu",
+      "signals": [
+        "vddac_pp"
+      ],
+      "bins": 30,
+      "spec_span": 0.5,
+      "spec_hi_label": "\\SI{0.133}{\\milli\\volt} spec",
+      "width": "0.86\\linewidth",
+      "height": "6.0cm",
+      "xlabel": "Reference movement over the code sweep~[\\si{\\milli\\volt}]",
+      "ylabel": "Samples",
+      "caption": "Peak-to-peak movement of the DAC reference \\texttt{VddDac} across the 4096-code sweep, with the ladder referenced to the on-chip supply block instead of an ideal rail. \\textbf{Process and mismatch}, \\texttt{castalia\\_pm\\_25}, 200 samples, \\SI{25}{\\celsius}, no external load on \\texttt{VddDac}. The quarter-LSB budget of \\SI{133}{\\micro\\volt} entered on the test sits about 200 times below the data, so it is annotated at the left axis edge rather than drawn and the distribution is not compressed into a single bar; the closest sample misses it by a factor of 144. Meeting it needs the supply's output impedance down by a factor of 193, to about \\SI{5}{\\ohm}, against \\SI{894}{\\ohm} small-signal (Table~\\ref{tab:dacr2r12-mc-psu-zout}) and \\SI{1133}{\\ohm} as a \\SI{0}{\\micro\\ampere} to \\SI{100}{\\micro\\ampere} chord (Table~\\ref{tab:dacr2r12-mc-psu-load})."
+    },
+    {
+      "id": "dacr2r12_mc_loadreg",
+      "kind": "histogram",
+      "test": "dac_mc_loadreg",
+      "signals": [
+        "load_reg"
+      ],
+      "bins": 30,
+      "spec_span": 0.5,
+      "spec_hi_label": "\\SI{3}{\\ohm} spec",
+      "width": "0.86\\linewidth",
+      "height": "6.0cm",
+      "xlabel": "Supply output resistance~[\\si{\\ohm}]",
+      "ylabel": "Samples",
+      "caption": "Output resistance of the DAC supply block, taken as the chord \\(\\Delta V/\\Delta I\\) over a \\SI{0}{\\micro\\ampere} to \\SI{100}{\\micro\\ampere} load sweep on \\texttt{VddDac}. \\textbf{Process and mismatch}, \\texttt{castalia\\_pm\\_25}, 200 samples, \\SI{27}{\\celsius}. The \\SI{3}{\\ohm} limit entered on the test is two orders of magnitude below the data and is annotated at the left axis edge rather than drawn; no sample meets it. This is not a second defect: the reference movement of Figure~\\ref{fig:dacr2r12-mc-vddacpp} is this impedance multiplied by the ladder's own code-dependent reference current."
+    }
+  ],
+  "tables": [
+    {
+      "id": "dacr2r12_mc_ideal",
+      "type": "mcstats",
+      "test": "dac_mc_ideal",
+      "signals": [
+        "inl_lsb",
+        "inl_max",
+        "inl_min",
+        "dnl_min",
+        "dnl_max",
+        "dnl_lsb"
+      ],
+      "stats": [
+        "n",
+        "mean",
+        "sigma",
+        "median",
+        "p1",
+        "p99",
+        "worst",
+        "spec",
+        "yield",
+        "yield_chip"
+      ],
+      "channels": 4,
+      "caption": "Monte Carlo static linearity of the \\(R\\)--\\(2R\\) ladder on an ideal \\SI{2.5}{\\volt} reference. \\textbf{Process and mismatch}, model section \\texttt{castalia\\_pm\\_25}, 200 samples, seed 12345, low-discrepancy sampling, \\SI{25}{\\celsius}, all 4096 codes, \\texttt{reltol}~\\num{1e-6}; the yield columns are per cent of samples and of four independent channels. The ladder fails on its own: 42 of 200 samples hold INL below \\(1\\,\\mathrm{LSB}\\), 80 of 200 are monotonic, and both together on 34 of 200 --- \\SI{17.0}{\\percent} of channels and \\SI{0.08}{\\percent} of four-channel chips. Only the three worst-case rows carry limits entered on the test; \\texttt{inl\\_max}, \\texttt{inl\\_min} and \\texttt{dnl\\_max} were not graded and their spec, yield and worst-case cells are therefore empty. Worst-magnitude INL is the negative extreme on all 200 samples, so the first and third rows are one measurement with opposite sign, while \\texttt{inl\\_max} is the independent positive extreme. All three graded rows are skewed (Figures~\\ref{fig:dacr2r12-mc-inl} and~\\ref{fig:dacr2r12-mc-dnl}), so the median and percentiles are quoted and mean \\(\\pm\\,3\\sigma\\) is not."
+    },
+    {
+      "id": "dacr2r12_mc_scale",
+      "type": "mcstats",
+      "test": "dac_mc_ideal",
+      "signals": [
+        "lsb",
+        "v_fs",
+        "voff_lsb",
+        "gain_err"
+      ],
+      "stats": [
+        "n",
+        "mean",
+        "sigma",
+        "min",
+        "max"
+      ],
+      "caption": "Monte Carlo scale factors, same bench and samples as Table~\\ref{tab:dacr2r12-mc-ideal}. \\textbf{Process and mismatch}, \\texttt{castalia\\_pm\\_25}, 200 samples, \\SI{25}{\\celsius}. On an ideal reference these four are set by the rail and by the ladder's attenuation ratio, not by matching: LSB size spreads \\SI{0.5}{\\nano\\volt} on \\SI{610.3}{\\micro\\volt}, full scale \\SI{1.8}{\\micro\\volt} on \\SI{2.5}{\\volt}, and gain error \\num{0.50}~ppm on \\num{-76.91}~ppm. All of the linearity spread of Table~\\ref{tab:dacr2r12-mc-ideal} is therefore ladder mismatch and none of it is a gain or offset term. No limit was entered on any of these outputs, so the spec, yield and worst-case columns are omitted rather than left blank; mean \\(\\pm\\,3\\sigma\\) is not quoted either, because at a part in \\(10^{6}\\) the distribution shapes are solver residue and not device statistics."
+    },
+    {
+      "id": "dacr2r12_mc_wpsu",
+      "type": "mcstats",
+      "test": "dac_mc_wpsu",
+      "signals": [
+        "inl_n_lsb",
+        "dnl_n_min",
+        "dnl_n_lsb",
+        "inl_lsb",
+        "dnl_min"
+      ],
+      "stats": [
+        "n",
+        "mean",
+        "sigma",
+        "median",
+        "p1",
+        "p99",
+        "worst",
+        "spec",
+        "yield",
+        "yield_chip"
+      ],
+      "channels": 4,
+      "caption": "Monte Carlo linearity with the ladder referenced to \\texttt{VddDac} from the on-chip supply block: ratiometric rows first, raw rows below. \\textbf{Process and mismatch}, \\texttt{castalia\\_pm\\_25}, 200 samples, \\SI{25}{\\celsius}, all 4096 codes, no external load on \\texttt{VddDac}; yields are per cent of samples and of four channels. The ratiometric rows normalise each code to the reference at that code and so measure the ladder alone; they reproduce Table~\\ref{tab:dacr2r12-mc-ideal} sample for sample, at \\(r = 1.000\\) on both INL and DNL, and their yields are \\SI{20.5}{\\percent} and \\SI{40.0}{\\percent} against \\SI{21.0}{\\percent} and \\SI{40.0}{\\percent} there. The raw rows include the reference and are 24 and 6 times worse; the run's own \\texttt{inl\\_from\\_ref}, which is the INL predicted from the reference error alone, averages \\num{36.770}\\,LSB against the raw \\num{36.776}\\,LSB, so the reference accounts for essentially all of the difference and no second matching mechanism is needed to explain it. Raw \\texttt{inl\\_lsb} carries no entered limit and its spec, yield and worst-case cells are empty; raw \\texttt{dnl\\_min} was graded and no sample meets it. The three ratiometric rows are skewed (\\(+0.74\\), \\(-1.10\\), \\(+0.89\\)), so the median and percentiles are quoted throughout."
+    },
+    {
+      "id": "dacr2r12_mc_reference",
+      "type": "mcstats",
+      "test": "dac_mc_wpsu",
+      "signals": [
+        "vddac_pp",
+        "vddac_min",
+        "vddac_max",
+        "lsb",
+        "v_fs"
+      ],
+      "stats": [
+        "n",
+        "mean",
+        "sigma",
+        "mean_3s",
+        "min",
+        "max",
+        "spec",
+        "yield",
+        "yield_chip"
+      ],
+      "channels": 4,
+      "caption": "Monte Carlo behaviour of the \\texttt{VddDac} reference itself, same bench and samples as Table~\\ref{tab:dacr2r12-mc-wpsu}; only \\texttt{vddac\\_pp} carries an entered limit, so the other four rows have empty spec, yield and worst-case cells. \\textbf{Process and mismatch}, \\texttt{castalia\\_pm\\_25}, 200 samples, \\SI{25}{\\celsius}; yields are per cent of samples and of four channels. Full scale is \\SI{2.166}{\\volt} and the LSB \\SI{529.0}{\\micro\\volt} rather than \\SI{2.5}{\\volt} and \\SI{610.3}{\\micro\\volt}, because the supply block delivers about \\SI{2.15}{\\volt}; the reference then moves \\SI{25.8}{\\milli\\volt} peak to peak across the code sweep against the \\SI{133}{\\micro\\volt} quarter-LSB budget, which no sample meets. The excursion is not monotonic in code: in an \\(R\\)--\\(2R\\) ladder the binary weighting comes from attenuation, so every \\(2R\\) branch switched to the reference draws a comparable current and the reference current follows the bit pattern rather than the code value --- a nodal solve of this topology gives \\(I_\\mathrm{ref} = 0\\) at code 0, \\(0.250\\,V_\\mathrm{ref}/R\\) at 2048 and \\(0.333\\) at 4095, with a maximum of \\(1.444\\) at code 1365 (\\texttt{0b010101010101}), which is exactly where \\texttt{vddac\\_min} lands on all 200 samples, and a one-parameter fit \\(V = V_0 - R_\\mathrm{out} I_\\mathrm{ref}\\) accounts for \\SI{94}{\\percent} of the excursion. All five distributions are near-symmetric (skew \\(\\leq 0.13\\)), so mean \\(\\pm\\,3\\sigma\\) applies."
+    },
+    {
+      "id": "dacr2r12_mc_psu_load",
+      "type": "mcstats",
+      "test": "dac_mc_loadreg",
+      "signals": [
+        "vddac_noload",
+        "vddac_full",
+        "dvddac_load",
+        "load_reg"
+      ],
+      "stats": [
+        "n",
+        "mean",
+        "sigma",
+        "mean_3s",
+        "min",
+        "max",
+        "spec",
+        "yield",
+        "yield_chip"
+      ],
+      "channels": 4,
+      "caption": "Monte Carlo load regulation of the DAC supply block. \\textbf{Process and mismatch}, \\texttt{castalia\\_pm\\_25}, 200 samples, \\SI{27}{\\celsius}, \\texttt{VddDac} loaded \\SI{0}{\\micro\\ampere} to \\SI{100}{\\micro\\ampere}, ADE default tolerances --- looser than the two DAC benches, which run \\SI{25}{\\celsius} and \\texttt{reltol}~\\num{1e-6}; yields are per cent of samples and of four channels. \\texttt{VddDac} droops \\SI{113.3}{\\milli\\volt} over that sweep, a chord output resistance of \\SI{1132.8}{\\ohm} against the \\SI{3}{\\ohm} limit entered on the test; no sample meets either graded limit, and the two reference-voltage rows were not graded. The last two rows are one measurement scaled by the load current, and both are near-symmetric (skew \\(+0.29\\)), so mean \\(\\pm\\,3\\sigma\\) applies. Together with the reference movement of Table~\\ref{tab:dacr2r12-mc-reference} and the small-signal impedance of Table~\\ref{tab:dacr2r12-mc-psu-zout} this is one defect measured three ways, not three problems."
+    },
+    {
+      "id": "dacr2r12_mc_psu_line",
+      "type": "mcstats",
+      "test": "dac_mc_linereg",
+      "signals": [
+        "dvddac_line",
+        "line_reg",
+        "i_q",
+        "p_psu"
+      ],
+      "stats": [
+        "n",
+        "mean",
+        "sigma",
+        "median",
+        "p1",
+        "p99",
+        "worst",
+        "spec",
+        "yield",
+        "yield_chip"
+      ],
+      "channels": 4,
+      "caption": "Monte Carlo line regulation and quiescent power of the DAC supply block. \\textbf{Process and mismatch}, \\texttt{castalia\\_pm\\_25}, 200 samples, \\SI{27}{\\celsius}, supply swept \\SI{2.25}{\\volt} to \\SI{2.75}{\\volt}, \\texttt{VddDac} unloaded, ADE default tolerances; yields are per cent of samples and of four channels. \\texttt{VddDac} follows the supply by \\SI{78.8}{\\milli\\volt} over that \\SI{0.5}{\\volt} span, a rejection of only \\SI{0.158}{\\volt\\per\\volt}, against the \\SI{5}{\\milli\\volt} limit entered on the test that no sample meets. Only \\texttt{dvddac\\_line} was graded; the other three rows have empty spec, yield and worst-case cells, the last two being the same measurement scaled by the \\SI{2.5}{\\volt} supply. All four are right-skewed (\\(+0.58\\), \\(+0.58\\), \\(+0.45\\), \\(+0.45\\)), so the median and percentiles are quoted and mean \\(\\pm\\,3\\sigma\\) is not."
+    },
+    {
+      "id": "dacr2r12_mc_psu_zout",
+      "type": "mcstats",
+      "test": "dac_mc_zout",
+      "signals": [
+        "zout_lf",
+        "zout_max",
+        "f_zout_peak"
+      ],
+      "stats": [
+        "n",
+        "mean",
+        "sigma",
+        "median",
+        "p1",
+        "p99",
+        "worst",
+        "spec",
+        "yield",
+        "yield_chip"
+      ],
+      "channels": 4,
+      "caption": "Monte Carlo small-signal output impedance of the DAC supply block, AC swept \\SI{1}{\\hertz} to \\SI{1}{\\giga\\hertz}. \\textbf{Process and mismatch}, \\texttt{castalia\\_pm\\_25}, 200 samples, \\SI{27}{\\celsius}, \\texttt{VddDac} unloaded, ADE default tolerances; yields are per cent of samples and of four channels. The impedance is flat at \\SI{894.3}{\\ohm} to within \\SI{0.4}{\\ohm} from \\SI{1}{\\hertz} to \\SI{100}{\\kilo\\hertz}, and this is the value that sets the reference movement of Table~\\ref{tab:dacr2r12-mc-reference}, the ladder's code-dependent current being a DC excursion. \\texttt{zout\\_max} is the peak over the whole band and lands at \\SI{98.9}{\\mega\\hertz}, loop peaking well above anything the ladder excites; it is the only graded row here and no sample meets its \\SI{10}{\\ohm} limit. \\texttt{zout\\_max} is strongly left-skewed (skew \\(-1.82\\)), so the median and percentiles are quoted; \\texttt{zout\\_lf} and the peak frequency carry no entered limit and their spec, yield and worst-case cells are empty."
+    }
+  ],
+  "_note": [
+    "Monte Carlo companion for castalia/tb_anatop_pixel_dacR2R12 (the 12-bit R-2R",
+    "reference DAC and its supply block). Contributes fragments only: the master file",
+    "and the section order come from the corner config (block DacR2R12), whose `order`",
+    "names every fragment below. This config deliberately has no `order` of its own --",
+    "adding one would emit a second, competing section. Block is DacR2R12MC, distinct",
+    "from DacR2R12 / AmpAB / AmpABMC / TiaAmpAB / TiaAmpABMC / BiasGenCascWideSwing.",
+    "Logical test names are prefixed dac_mc_ because data/raw/<test>__mc.csv is a",
+    "namespace shared by every block rendering into one outdir.",
+    "",
+    "SOURCE: .../tb_anatop_pixel_dacR2R12/maestro/results/maestro/Plan.2.Run.3",
+    "200 samples, seed=12345, sampling=lds, variations=all (PROCESS AND MISMATCH",
+    "together), donominal=no, numruns=20. Per-sample scalars are in",
+    "psf/<test>/monteCarlo/{mcdata,mcparam}; no OCEAN and no licence.",
+    "",
+    "READINESS GATE, verified from the netlist of the run that EXECUTED",
+    "(psf/<test>/netlist/input.scs), not from the setup files. Two earlier MC attempts",
+    "on this cell failed it silently.",
+    "  1. mismatchflag. DacNonlinTB and DacNonlinWPSUTB netlist 76 devices with",
+    "     mismatchflag=1 and ZERO with mismatchflag=0; 74 of those are the ladder",
+    "     (RS1/RS2/RP1..RP4 x 12 each, plus RTERM1/RTERM2). The four PSU-only benches",
+    "     contain no ladder instance at all (0 matches for RS*/RP*/RTERM*) and carry 17",
+    "     mismatchflag=1 devices each -- that is the PSU block, not a gap.",
+    "  2. Model section. All six tests select section=castalia_pm_25, the section that",
+    "     carries the statistics blocks. No test falls back to a tt_* list.",
+    "  3. Tolerances. The two DAC tests run reltol=1e-6 vabstol=1e-9 iabstol=1e-15;",
+    "     the four PSU tests run ADE defaults (reltol=1e-3 vabstol=1e-6 iabstol=1e-12).",
+    "     Stated on the affected captions.",
+    "",
+    "TEMPERATURE IS NOT UNIFORM. DacNonlinTB and DacNonlinWPSUTB are netlisted at",
+    "temp=25; LoadRegTB, LineRegTB, ZoutTB and PSUStartupTB at temp=27. Every caption",
+    "states the temperature of its own test. Do not total or compare sigmas across the",
+    "two groups without noting it.",
+    "",
+    "EVERY SIGNAL NAME IS COPIED VERBATIM FROM THE RUN'S OWN mcparam. A name not in",
+    "mcparam is silently dropped from the table with only a log line. Note lsb, v_fs,",
+    "inl_lsb, dnl_min, voff_dac and gain_err exist in BOTH DAC tests with different",
+    "values -- they are kept in separate logical tests and never mixed in one table.",
+    "",
+    "NO SENTINELS ANYWHERE. All six tests report N = 200/200 on every mcparam output;",
+    "no -1.11111e+36 and no NaN in any column. Nothing is held out of any statistic.",
+    "",
+    "THE TWO DEFECTS ARE INDEPENDENT, and the corner run sees neither.",
+    "  (a) The ladder is matching-limited and fails on an IDEAL rail: INL 1.490 +/-",
+    "      0.625 LSB against 1 LSB (42/200), monotonic on 80/200, joint 34/200 = 17.0 %",
+    "      of channels and 0.08 % of four-channel chips. lsb (sd 4.84e-10 V), v_fs",
+    "      (sd 1.84e-6 V) and gain_err (sd 0.50 ppm) are effectively fixed, so all of",
+    "      the linearity spread is resistor mismatch.",
+    "  (b) The supply block modulates the reference: vddac_pp 25.835 mV against the",
+    "      133 uV quarter-LSB budget (0/200), which turns the ratiometric -1.747 LSB",
+    "      DNL into a raw -10.816 LSB and the INL into 36.78 LSB.",
+    "  vddac_pp, raw dnl_min, load_reg, dvddac_load and zout_max are ONE defect",
+    "  measured five ways, not five problems. Verified: load_reg vs zout_lf r = 0.966;",
+    "  vddac_pp vs raw dnl_min r = -0.944; vddac_pp vs raw inl_lsb r = +0.903.",
+    "  Ratiometric vs ideal-rail: inl r = 1.0000, dnl r = 1.0000.",
+    "",
+    "SUPERSEDED CLAIM, must not reappear: an earlier prompt for this block asserted",
+    "'the ladder is excellent, only the supply is bad'. That came from a run whose",
+    "ladder had mismatchflag=0 and is FALSE.",
+    "",
+    "THE 9.7 OHM FIGURE IS ALSO SUPERSEDED and is not printed anywhere. The",
+    "requirement is derived only from measured quantities: 133 uV / 25.835 mV = 1/193,",
+    "so the supply output impedance must fall by a factor of 193, to about 5 ohm,",
+    "against 894 ohm small-signal (zout_lf, the right one for the ladder's own ~23 uA",
+    "excursion about near-zero load) and 1133 ohm as a 0-100 uA chord (load_reg).",
+    "894/193 = 4.6, 1133/193 = 5.9. Quote the factor and ~5 ohm, never a false-precision",
+    "single number. No device dimensions or absolute resistance values appear in any",
+    "caption -- those are proprietary (see note_ampab_intro.tex); ratios only.",
+    "",
+    "REFERENCE-CURRENT MODEL, transcribed from the netlist topology (RS1+RS2 = the",
+    "series R arm, RP1..RP4 = the 2R branch, RS2+RS1+RTERM looking left from the LSB",
+    "node = the 2R termination) and solved nodally with unit R: Out/Vref = code/4096 to",
+    "the last digit at every code, so the network ratio design is exact and contributes",
+    "no INL. I_ref = 0 at code 0, 0.2500 at 2048, 0.3333 at 4095, maximum 1.4444",
+    "Vref/R at code 1365 = 0b010101010101 -- which is where the measured vddac_min",
+    "lands on all 200 samples (sd exactly 0). The model maximum is degenerate: code",
+    "2731 = 0b101010101011 gives the identical 1.4444; not belaboured in the captions.",
+    "The fit VddDac = V0 - Rout*I_ref on the nominal tight-tolerance sweep gives",
+    "r = -0.9698, R^2 = 94.0 %, residual 931 uV rms against a 25.700 mV spread,",
+    "V0 = 2.1679 V. That fit is the coordinating agent's, from the nominal sweep",
+    "waveform; everything else in these captions is computed from mcdata here.",
+    "",
+    "TABLE SPLIT. The brief asked for one PSU table (load_reg, dvddac_load, line_reg,",
+    "dvddac_line, i_q, zout_lf, zout_max). An mcstats table reads ONE test's mcparam,",
+    "and those rows live in three different tests, so it is emitted as three tables:",
+    "dacr2r12_mc_psu_load, dacr2r12_mc_psu_line, dacr2r12_mc_psu_zout. All three ids",
+    "must appear in the owning block's `order`.",
+    "",
+    "DELIBERATE EXCLUSIONS. Nothing is dropped silently.",
+    "  PSUStartupTB -- the WHOLE TEST. The enable source is a pulse with delay=t_dly=1 s",
+    "    and width=t_win=0 against a transient stop of t_end=500 us, so En never asserts",
+    "    inside the simulated window. vddac_final is therefore 0.394 V (sd 40.8 mV): the",
+    "    disabled state, not a settled startup value, against the 2.179 V the same block",
+    "    reaches under DC in LoadRegTB. vddac_over (skew +3.95, 200/200 inside its 5 %",
+    "    limit) and i_inrush (3.15 uA) grade a startup that did not happen, and t_startup",
+    "    has no mcparam row at all. Publishing any of it would imply startup was",
+    "    characterised. Fix the bench (t_dly << t_end) and re-run before publishing.",
+    "  DacNonlinTB v_zs / voff_dac / vfs_dac -- bit-identical duplicates: voff_dac == v_zs",
+    "    and vfs_dac == v_fs on all 200 samples. Published once, as v_fs and voff_lsb.",
+    "  DacNonlinTB dnl_msb -- the DNL at the mid-scale transition. It is not an",
+    "    independent quantity: |dnl_msb| equals dnl_lsb on 131 of 200 samples and",
+    "    dnl_msb equals dnl_min on 83, i.e. the MSB transition IS the worst code about",
+    "    two thirds of the time. Its own distribution is bimodal (mean -0.495, sd 2.452,",
+    "    p1 -6.240, p99 +4.655) because it changes sign between samples, so a mean is",
+    "    meaningless. The information is already in dnl_min / dnl_max / dnl_lsb.",
+    "  DacNonlinWPSUTB v_zs / voff_dac / vfs_dac -- same duplication as above.",
+    "  DacNonlinWPSUTB n_zs / n_fs / lsb_n / voff_lsb / gain_err -- the ratiometric",
+    "    scale factors. They restate that the normalisation works (n_fs = 0.999733,",
+    "    lsb_n sd 1.1e-9) and carry no information the ideal-rail Table",
+    "    dacr2r12_mc_scale does not carry better.",
+    "  DacNonlinWPSUTB inl_min / inl_n_max / inl_n_min / dnl_max / dnl_n_max /",
+    "    dnl_n_msb -- extreme-value restatements. inl_lsb == -inl_min and",
+    "    inl_n_lsb == -inl_n_min on all 200 samples (the INL bow is one-sided).",
+    "  DacNonlinWPSUTB dnl_n_lsb IS published; dnl_lsb (raw) is not, because raw",
+    "    dnl_lsb == -dnl_min on this data and the raw pair is shown as dnl_min only.",
+    "  DacNonlinWPSUTB vddac_droop -- value(vddac,0) - vddac_min, which differs from",
+    "    vddac_pp by at most 1.6 mV because code 0 is the maximum on nearly every",
+    "    sample. vddac_pp is the graded output and is published instead.",
+    "  DacNonlinWPSUTB code_vdac_min -- constant 1365 on all 200 samples (sd exactly 0).",
+    "    A table row of one repeated integer is a caption sentence, and that is where it",
+    "    is: dacr2r12_mc_reference.",
+    "  DacNonlinWPSUTB inl_from_ref -- the INL predicted from the reference error alone.",
+    "    Quoted in the dacr2r12_mc_wpsu caption (mean 36.770 LSB against raw inl_lsb",
+    "    36.776 LSB) because it is the attribution evidence, but not given a row: per",
+    "    sample the two differ by up to 4.2 LSB, so it is an explanation of the mean and",
+    "    not a per-sample equivalent.",
+    "  LineRegTB vddac_nom / vddac_lo / vddac_hi -- the three sweep endpoints whose",
+    "    difference is dvddac_line. vddac_nom is also the same quantity as LoadRegTB",
+    "    vddac_noload (mean 2.17853 vs 2.17854), which IS published.",
+    "  ZoutTB zout_1k / zout_100k -- the same number as zout_lf to within 0.4 ohm",
+    "    (means 894.313 / 894.313 / 894.105). Flatness is stated in the caption.",
+    "",
+    "DISTRIBUTION SHAPES, Fisher skew over the 200 valid samples, computed here. This",
+    "is what decides mean+/-3sigma against median/percentiles in each table.",
+    "  skewed, percentiles quoted: inl_lsb +0.74, inl_max +0.76, inl_min -0.74,",
+    "    dnl_min -1.11, dnl_max +1.53, dnl_lsb +0.89, inl_n_lsb +0.74, dnl_n_min -1.10,",
+    "    dnl_n_lsb +0.89, zout_max -1.82, dvddac_line +0.58, line_reg +0.58, i_q +0.45,",
+    "    p_psu +0.45, raw wpsu inl_lsb -0.39 and dnl_min +0.27 (kept on the percentile",
+    "    table with their skewed neighbours rather than split off)",
+    "  near-symmetric, mean+/-3sigma quoted: vddac_pp +0.08, vddac_min +0.13,",
+    "    vddac_max +0.13, wpsu lsb +0.12, wpsu v_fs +0.12, vddac_noload +0.17,",
+    "    vddac_full +0.34, dvddac_load +0.29, load_reg +0.29",
+    "  no shape statistic quoted: ideal lsb -0.53, v_fs -5.02, voff_lsb +0.99,",
+    "    gain_err 0.00 -- their spreads are 1e-9 V, 1.8e-6 V, 3.6e-16 LSB and 0.5 ppm,",
+    "    so the shapes are solver residue. dacr2r12_mc_scale prints n/mean/sigma/min/max",
+    "    only.",
+    "",
+    "MEDIAN CONVENTION. The engine's percentile() is linear-interpolated, so the",
+    "median of an even sample count is the midpoint of the two middle values",
+    "(inl_lsb 1.363, inl_n_lsb 1.388). A brief circulated earlier quoted 1.390 and",
+    "1.4166, which are the UPPER middle values. Captions quote the engine's numbers."
+  ]
+}
