@@ -448,7 +448,12 @@ CATALOG = [
     #                before this tag existed.
     T('rv32ua-p-trapstor', 'atomics', True),
     T('rv32ua-p-packalias', 'atomics bitmanip', True),
-    T('rv32ua-p-fk51mp', 'atomics bitmanip nozkn', True),
+    # RETAGGED bitmanip -> tilebitmanip (2026-08-16): this is the MP variant, and
+    # its tile arm executes the reserved-shamt encodings on harts 1..N-1. Those
+    # harts are rv32iac now, so the encoding is illegal there for a SECOND,
+    # unrelated reason and the test cannot distinguish the two -- measured: the
+    # tiles park and hart 0 never passes (150/151, failing exactly this row).
+    T('rv32ua-p-fk51mp', 'atomics tilebitmanip nozkn', True),
     T('rv32um-p-dvintmin', 'div', True),
     T('rv32um-p-dvbubble', 'div compressed', True),
 
@@ -801,6 +806,16 @@ def config_tags(cfg):
     for k in PRIV_KNOBS:
         if priv.get(k):
             tags.add(k)
+    # ASYMMETRIC ISA (2026-08-16). `bitmanip` above answers "does THE CHIP have
+    # B?", which since the minimal-tiles decision is no longer the same question
+    # as "does a TILE have B?": harts 1..N-1 are built rv32iac while hart 0 keeps
+    # the full ISA. An MP test whose TILE ARM executes B needs this tag, not
+    # `bitmanip`. Same shape as `nozkn` below and NOT the R-K2-4 "tag a real
+    # constraint away" anti-pattern: the tiles genuinely do not implement B, so
+    # the property the test asserts is false BY DESIGN on them, and no edit
+    # inside the test can make it true.
+    if isa.get('bitmanip') and not isa.get('minimalTiles'):
+        tags.add('tilebitmanip')
     # K7 (R-K7-2(4)) -- `nozkn` is a NEGATIVE structural predicate, and the only
     # one in this table. It exists because Zknh ALLOCATES ENCODINGS IN THE SPACE
     # RV32 RESERVES for shamt[5]=1, which is exactly the space `fk51mp` exists to

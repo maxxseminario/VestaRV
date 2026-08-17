@@ -2803,19 +2803,31 @@ class McuVhdEmitter():
 		w = self.masterW()
 		return [self.sigDecl('sh_master', 'std_logic_vector(' + str(w - 1) + ' downto 0);')]
 
-	def coreGenericLines(self):
+	def coreGenericLines(self, tile=False):
 		'''The 24 core ISA/priv generic associations + the D1/D2 debug pair,
-		shared VERBATIM by all THREE hart-instance emitters (hart 0, the tiles,
-		and the CP2 orchestrator). It is ONE list on purpose: the orchestrator is
-		ISA-identical to the tiles by construction (CP1 D5), and three hand-kept
-		copies of this block is exactly how one instance silently ends up on a
-		different configuration (the F-K7-4 shape).'''
+		shared by all THREE hart-instance emitters (hart 0, the tiles, and the
+		CP2 orchestrator). It is ONE list on purpose: three hand-kept copies of
+		this block is exactly how one instance silently ends up on a different
+		configuration (the F-K7-4 shape).
+
+		   tile=True emits the CORNER-TILE flavour. Until 2026-08-16 the
+		   orchestrator was ISA-identical to the tiles by construction (CP1 D5)
+		   and this list took no argument; the asymmetric-ISA decision (USER:
+		   minimal rv32iac tiles, for area and power) broke that identity ON
+		   PURPOSE. It is still ONE list, PARAMETERISED -- not a forked copy --
+		   precisely because a forked copy is the F-K7-4 shape this docstring
+		   warns about. Exactly three associations differ, and only M and B: A
+		   and C are never dropped on a tile (the tiles run the shared-fabric
+		   LR/SC + AMO locking, and C is decoder-only but shrinks code).'''
+		mul  = 'TILE_ENABLE_MUL' if tile else 'CORE_ENABLE_MUL'
+		div  = 'TILE_ENABLE_DIV' if tile else 'CORE_ENABLE_DIV'
+		bman = 'TILE_ENABLE_BITMANIP' if tile else 'CORE_ENABLE_BITMANIP'
 		lines = []
-		lines.append('            ENABLE_MUL        => CORE_ENABLE_MUL,')
-		lines.append('            ENABLE_DIV        => CORE_ENABLE_DIV,')
+		lines.append('            ENABLE_MUL        => ' + mul + ',')
+		lines.append('            ENABLE_DIV        => ' + div + ',')
 		lines.append('            ENABLE_ATOMICS    => CORE_ENABLE_ATOMICS,')
 		lines.append('            ENABLE_COMPRESSED => CORE_ENABLE_COMPRESSED,')
-		lines.append('            ENABLE_BITMANIP   => CORE_ENABLE_BITMANIP,')
+		lines.append('            ENABLE_BITMANIP   => ' + bman + ',')
 		lines.append('            ENABLE_ZICOND     => CORE_ENABLE_ZICOND,')
 		lines.append('            ENABLE_ZCB        => CORE_ENABLE_ZCB,')
 		lines.append('            ENABLE_ZIMOP      => CORE_ENABLE_ZIMOP,')
@@ -4108,7 +4120,8 @@ class McuVhdEmitter():
 		lines.append('            PC_RST_VAL     => x"00000000",')
 		lines.append('            SH_AW          => SH_AW,')
 		lines.append('            -- Core ISA features (config-driven, work.MemoryMap; MUST be identical on all ' + self.hartsWord() + ' tiles, one hardened netlist)')
-		lines.extend(self.coreGenericLines())
+		lines.append('            -- M and B come from TILE_ENABLE_*, NOT CORE_ENABLE_*: the corner tiles are the MINIMAL-ISA harts (rv32iac). Hart 0 / the orchestrator take the full CORE_ENABLE_* set.')
+		lines.extend(self.coreGenericLines(tile=True))
 		lines.append('        )')
 		lines.append('        port map (')
 		lines.append('            clk       => mclk,')

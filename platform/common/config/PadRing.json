@@ -99,7 +99,7 @@
     },
     {
       "name": "Analog",
-      "voltage": 3.3,
+      "voltage": 2.5,
       "positiveRail": {
         "pin": 76,
         "name": "AVDD"
@@ -1038,114 +1038,114 @@
     {
       "pin": 78,
       "side": "N",
-      "name": "ARSV0",
+      "name": "CE_0",
       "io": "Input/Output",
       "powerDomain": "Analog"
     },
     {
       "pin": 79,
       "side": "N",
-      "name": "ARSV1",
+      "name": "WE_0",
       "io": "Input/Output",
       "powerDomain": "Analog"
     },
     {
       "pin": 80,
       "side": "N",
-      "name": "ARSV2",
+      "name": "RE_0",
       "io": "Input/Output",
       "powerDomain": "Analog"
     },
     {
       "pin": 81,
       "side": "N",
-      "name": "ARSV3",
+      "name": "RE2_0",
       "io": "Input/Output",
       "powerDomain": "Analog"
     },
     {
       "pin": 82,
       "side": "N",
-      "name": "ARSV4",
+      "name": "CE_1",
       "io": "Input/Output",
       "powerDomain": "Analog"
     },
     {
       "pin": 83,
       "side": "N",
-      "name": "ARSV5",
+      "name": "WE_1",
       "io": "Input/Output",
       "powerDomain": "Analog"
     },
     {
       "pin": 84,
       "side": "N",
-      "name": "ARSV6",
+      "name": "RE_1",
       "io": "Input/Output",
       "powerDomain": "Analog"
     },
     {
       "pin": 85,
       "side": "N",
-      "name": "ARSV7",
+      "name": "RE2_1",
       "io": "Input/Output",
       "powerDomain": "Analog"
     },
     {
       "pin": 86,
       "side": "N",
-      "name": "NC",
-      "io": "NC",
-      "noConnect": true
+      "name": "CE_2",
+      "io": "Input/Output",
+      "powerDomain": "Analog"
     },
     {
       "pin": 87,
       "side": "N",
-      "name": "NC",
-      "io": "NC",
-      "noConnect": true
+      "name": "WE_2",
+      "io": "Input/Output",
+      "powerDomain": "Analog"
     },
     {
       "pin": 88,
       "side": "N",
-      "name": "NC",
-      "io": "NC",
-      "noConnect": true
+      "name": "RE_2",
+      "io": "Input/Output",
+      "powerDomain": "Analog"
     },
     {
       "pin": 89,
       "side": "N",
-      "name": "NC",
-      "io": "NC",
-      "noConnect": true
+      "name": "RE2_2",
+      "io": "Input/Output",
+      "powerDomain": "Analog"
     },
     {
       "pin": 90,
       "side": "N",
-      "name": "NC",
-      "io": "NC",
-      "noConnect": true
+      "name": "CE_3",
+      "io": "Input/Output",
+      "powerDomain": "Analog"
     },
     {
       "pin": 91,
       "side": "N",
-      "name": "NC",
-      "io": "NC",
-      "noConnect": true
+      "name": "WE_3",
+      "io": "Input/Output",
+      "powerDomain": "Analog"
     },
     {
       "pin": 92,
       "side": "N",
-      "name": "NC",
-      "io": "NC",
-      "noConnect": true
+      "name": "RE_3",
+      "io": "Input/Output",
+      "powerDomain": "Analog"
     },
     {
       "pin": 93,
       "side": "N",
-      "name": "NC",
-      "io": "NC",
-      "noConnect": true
+      "name": "RE2_3",
+      "io": "Input/Output",
+      "powerDomain": "Analog"
     },
     {
       "pin": 94,

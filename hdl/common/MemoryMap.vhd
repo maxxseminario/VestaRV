@@ -1221,6 +1221,14 @@ package MemoryMap is
 	constant CORE_ENABLE_PMP		: boolean := false;						-- PMP / Smpmp (needs UMODE)
 	constant CORE_PMP_ENTRIES		: natural := 16;						-- PMP entry count {8,16} (only with PMP)
 	constant CORE_ENABLE_DEBUG		: boolean := true;						-- Debug mode (dcsr/dpc/dscratch, dret, halt)
+	-- Corner-tile ISA (harts 1..N-1), 2026-08-16. MCU.vhd hands the four hardened
+	-- hart_tile instances THESE, and hands hart 0 / the orchestrator the
+	-- CORE_ENABLE_* set above: the tiles are the minimal-ISA harts (rv32iac).
+	-- hart_tile's own generics still default to the FULL ISA, so a tile-only
+	-- `elaborate hart_tile` must override them by name -- see hart_tile.genus.tcl.
+	constant TILE_ENABLE_MUL		: boolean := false;						-- M on the corner tiles
+	constant TILE_ENABLE_DIV		: boolean := false;						-- M on the corner tiles
+	constant TILE_ENABLE_BITMANIP	: boolean := false;						-- Zba/Zbb/Zbs/Zbc on the corner tiles
 
 	-- GPIO0 Pin Assignments (Serial Flash)
 	constant pnum_gpio0_cs_flash	: natural := 00;						-- P1.0

@@ -13,6 +13,7 @@
     "atomics": true,
     "compressed": true,
     "bitmanip": true,
+    "minimalTiles": true,
     "counters": false,
     "counters64": false,
     "zicond": false,
