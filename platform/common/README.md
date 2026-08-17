@@ -183,9 +183,13 @@ Configuration-driven TRM (2026-07-06, `make chip` = artifacts + PDF):
   count, shared RAM size, CLINT/mutex-count/IRQ-router presence) come from `numHarts=` and
   the shared-window peripherals actually created
 - New config-driven LaTeX defines: `\NumHarts`/`\NumHartsWord`/`\MaxHartIndex`,
-  `\VectorsCount`/`\PeriphVectorsCount`/`\ClintMsipVector`/`\ClintMtipVector` — the master
-  template's prose uses these (and `\AsicNameForUserGuide`) instead of hardcoded
-  "Castalia"/"four-hart"/"85". (`\SharedWindowStartAddress`/`\SharedWindowEndAddress` were
+  `\VectorsCount`/`\TopVector`/`\RoutedVectorsCount`/`\MeipVector`/`\ClintMsipVector`/
+  `\ClintMtipVector`, and the router row's `\IrqEnableWords`/`\IrqEnableWordsWord`/
+  `\IrqEnuTopVector`/`\IrqEnuMsb` — the master template's prose and the IRQROUTER chapter
+  use these (and `\AsicNameForUserGuide`) instead of hardcoded
+  "Castalia"/"four-hart"/"85"/"three enable registers, vectors 0--84". (`\PeriphVectorsCount`
+  is still emitted, but it is the CLINT's own vector number, NOT a count of peripheral
+  vectors — the source list grew past it in digperiphs and no prose quotes it any more.) (`\SharedWindowStartAddress`/`\SharedWindowEndAddress` were
   retired in the D-series figure sweep: they were min/max over the address-space diagram's
   rows, not the RTL window's edges, and had no consumers.)
 - Hand-written extra chapters are input via generated `include/ExtraIntroChapters.tex`

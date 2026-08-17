@@ -782,6 +782,11 @@ const VESTA_DATA = {
       "type": "bool",
       "default": true
     },
+    "isa.minimalTiles": {
+      "description": "bool: harts 1..N-1 drop M and B (rv32iac); hart 0 keeps the full ISA",
+      "type": "bool",
+      "default": true
+    },
     "isa.counters": {
       "description": "bool: Zicntr march suffix only (cycle/instret always exist, time/timeh never do)",
       "type": "bool",
@@ -1060,6 +1065,7 @@ const VESTA_DATA = {
     "isa.atomics": true,
     "isa.compressed": true,
     "isa.bitmanip": true,
+    "isa.minimalTiles": true,
     "isa.counters": false,
     "isa.counters64": false,
     "isa.zicond": false,
@@ -1155,7 +1161,7 @@ const VESTA_DATA = {
         },
         {
           "name": "Analog",
-          "voltage": 3.3,
+          "voltage": 2.5,
           "positiveRail": {
             "pin": 37,
             "name": "AVDD"
@@ -1913,7 +1919,7 @@ const VESTA_DATA = {
         },
         {
           "name": "Analog0",
-          "voltage": 3.3,
+          "voltage": 2.5,
           "positiveRail": {
             "pin": 64,
             "name": "AVDD_0"
@@ -1925,7 +1931,7 @@ const VESTA_DATA = {
         },
         {
           "name": "Analog1",
-          "voltage": 3.3,
+          "voltage": 2.5,
           "positiveRail": {
             "pin": 49,
             "name": "AVDD_1"
@@ -1937,7 +1943,7 @@ const VESTA_DATA = {
         },
         {
           "name": "Analog2",
-          "voltage": 3.3,
+          "voltage": 2.5,
           "positiveRail": {
             "pin": 17,
             "name": "AVDD_2"
@@ -1949,7 +1955,7 @@ const VESTA_DATA = {
         },
         {
           "name": "Analog3",
-          "voltage": 3.3,
+          "voltage": 2.5,
           "positiveRail": {
             "pin": 32,
             "name": "AVDD_3"
@@ -2841,7 +2847,7 @@ const VESTA_DATA = {
         },
         {
           "name": "Analog",
-          "voltage": 3.3,
+          "voltage": 2.5,
           "positiveRail": {
             "pin": 76,
             "name": "AVDD"
@@ -3780,114 +3786,114 @@ const VESTA_DATA = {
         {
           "pin": 78,
           "side": "N",
-          "name": "ARSV0",
+          "name": "CE_0",
           "io": "Input/Output",
           "powerDomain": "Analog"
         },
         {
           "pin": 79,
           "side": "N",
-          "name": "ARSV1",
+          "name": "WE_0",
           "io": "Input/Output",
           "powerDomain": "Analog"
         },
         {
           "pin": 80,
           "side": "N",
-          "name": "ARSV2",
+          "name": "RE_0",
           "io": "Input/Output",
           "powerDomain": "Analog"
         },
         {
           "pin": 81,
           "side": "N",
-          "name": "ARSV3",
+          "name": "RE2_0",
           "io": "Input/Output",
           "powerDomain": "Analog"
         },
         {
           "pin": 82,
           "side": "N",
-          "name": "ARSV4",
+          "name": "CE_1",
           "io": "Input/Output",
           "powerDomain": "Analog"
         },
         {
           "pin": 83,
           "side": "N",
-          "name": "ARSV5",
+          "name": "WE_1",
           "io": "Input/Output",
           "powerDomain": "Analog"
         },
         {
           "pin": 84,
           "side": "N",
-          "name": "ARSV6",
+          "name": "RE_1",
           "io": "Input/Output",
           "powerDomain": "Analog"
         },
         {
           "pin": 85,
           "side": "N",
-          "name": "ARSV7",
+          "name": "RE2_1",
           "io": "Input/Output",
           "powerDomain": "Analog"
         },
         {
           "pin": 86,
           "side": "N",
-          "name": "NC",
-          "io": "NC",
-          "noConnect": true
+          "name": "CE_2",
+          "io": "Input/Output",
+          "powerDomain": "Analog"
         },
         {
           "pin": 87,
           "side": "N",
-          "name": "NC",
-          "io": "NC",
-          "noConnect": true
+          "name": "WE_2",
+          "io": "Input/Output",
+          "powerDomain": "Analog"
         },
         {
           "pin": 88,
           "side": "N",
-          "name": "NC",
-          "io": "NC",
-          "noConnect": true
+          "name": "RE_2",
+          "io": "Input/Output",
+          "powerDomain": "Analog"
         },
         {
           "pin": 89,
           "side": "N",
-          "name": "NC",
-          "io": "NC",
-          "noConnect": true
+          "name": "RE2_2",
+          "io": "Input/Output",
+          "powerDomain": "Analog"
         },
         {
           "pin": 90,
           "side": "N",
-          "name": "NC",
-          "io": "NC",
-          "noConnect": true
+          "name": "CE_3",
+          "io": "Input/Output",
+          "powerDomain": "Analog"
         },
         {
           "pin": 91,
           "side": "N",
-          "name": "NC",
-          "io": "NC",
-          "noConnect": true
+          "name": "WE_3",
+          "io": "Input/Output",
+          "powerDomain": "Analog"
         },
         {
           "pin": 92,
           "side": "N",
-          "name": "NC",
-          "io": "NC",
-          "noConnect": true
+          "name": "RE_3",
+          "io": "Input/Output",
+          "powerDomain": "Analog"
         },
         {
           "pin": 93,
           "side": "N",
-          "name": "NC",
-          "io": "NC",
-          "noConnect": true
+          "name": "RE2_3",
+          "io": "Input/Output",
+          "powerDomain": "Analog"
         },
         {
           "pin": 94,
@@ -4143,6 +4149,9 @@ const SCHEMA_TO_CFG = {
   "isa.mul":"ENABLE_MUL", "isa.fastMul":"ENABLE_FAST_MUL", "isa.div":"ENABLE_DIV",
   "isa.atomics":"ENABLE_ATOMICS", "isa.compressed":"COMPRESSED_ISA",
   "isa.bitmanip":"ENABLE_BITMANIP", "isa.counters":"ENABLE_COUNTERS",
+  // Asymmetric ISA (2026-08-16): harts 1..N-1 are built rv32iac (M and B
+  // dropped) while hart 0, the soft orchestrator, keeps the full ISA above.
+  "isa.minimalTiles":"MINIMAL_TILES",
   "isa.counters64":"ENABLE_COUNTERS64",
   // X-series ISA extensions — ALL implemented in the RTL since X4 (Zfinx,
   // 2026-07-18). Still no UI toggle: DEFAULTS seeds them false from
@@ -4909,6 +4918,10 @@ function configObject(){
       mul: cfg.ENABLE_MUL, fastMul: cfg.ENABLE_FAST_MUL, div: cfg.ENABLE_DIV,
       atomics: cfg.ENABLE_ATOMICS, compressed: cfg.COMPRESSED_ISA, bitmanip: cfg.ENABLE_BITMANIP,
       counters: cfg.ENABLE_COUNTERS, counters64: cfg.ENABLE_COUNTERS64,
+      // Asymmetric ISA: true = the four hardened corner tiles drop M and B
+      // (rv32iac); hart 0 keeps everything above. Area/power only -- it does
+      // not change hart 0's ISA or the chip's advertised march.
+      minimalTiles: cfg.MINIMAL_TILES,
       // X-series ISA extensions (X1-X4) — all implemented in the RTL since
       // X4 (Zfinx, 2026-07-18); generate.py's scaffolding hard-error list is
       // empty. No interactive toggle yet — exported at their cfg values

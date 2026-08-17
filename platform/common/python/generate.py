@@ -120,6 +120,29 @@ _CONFIG_SCHEMA = {
 	'isa.atomics':          ('bool: A extension (LR/SC + AMO)', _isBool),
 	'isa.compressed':       ('bool: C extension', _isBool),
 	'isa.bitmanip':         ('bool: Zba/Zbb/Zbs/Zbc', _isBool),
+	# ASYMMETRIC ISA (2026-08-16, USER: "minimal rv32iac for each tile ... make this
+	# chip as small and low power as possible"). True = the HARDENED CORNER TILES
+	# (harts 1..numHarts-1) drop M and B and are built rv32iac, while HART 0 -- the
+	# soft orchestrator, which runs boot, management and anything needing arithmetic
+	# -- keeps the full chip ISA above. This is the ONE asymmetry the chip has, and
+	# it lands on the seam that already exists: hart 0 is an orch_tile (soft,
+	# synthesized from RTL) and harts 1..N-1 are instances of ONE hardened hart_tile
+	# macro, so the split costs no extra hardening -- still harden once, place 4x.
+	# MEASURED on the 8 KiB tile at genus, full vs rv32iac:
+	#   tile 132,657 -> 109,926 um2 (-17.1%)   core 60,540 -> 37,808 um2 (-37.5%)
+	#   flops 2,576 -> 2,210 (-366)            power 2.687 -> 1.945 mW (-27.6%)
+	#   leakage 460 -> 379 uW (-17.6%)         x4 tiles = ~91,000 um2 and ~3.0 mW
+	# A AND C ARE NOT DROPPED, deliberately: the tiles are exactly the harts that run
+	# the M7c/M8 shared-fabric locking (LR/SC + AMOs), so removing A would break the
+	# mutex infrastructure outright; and C is decoder-only (456 um2 measured) while
+	# it SHRINKS code, which matters more now that a TCM is 8 KiB.
+	# SOFTWARE CONTRACT this creates: no binary may migrate between hart 0 and a
+	# corner tile, and anything the tiles execute must be built without M/B. Verified
+	# at the flip that no tile-executed test uses them (the three M/B uses in
+	# tile-launching tests -- dbgdarkmp, packalias, fk51mp -- all sit in hart-0-only
+	# code, above each test's tile_entry label).
+	'isa.minimalTiles':     ('bool: harts 1..N-1 drop M and B (rv32iac); hart 0 keeps the full ISA',
+	                         _isBool),
 	# Long form, preserved from the pre-2026-08-15 schema (the TRM chapters and this file's
 	# own notes are where this detail belongs; the string below is the table cell): bool —
 	# Zicntr mcycle/minstret; docs/march-only on vesta (cycle/instret and their high halves
@@ -498,6 +521,9 @@ _CONFIG_META = {
 	'isa.atomics':          {'type': 'bool', 'default': True},
 	'isa.compressed':       {'type': 'bool', 'default': True},
 	'isa.bitmanip':         {'type': 'bool', 'default': True},
+	# NOTE, as everywhere: this is the SCHEMA default; the OPERATIVE one is the
+	# _cfg() fallback in _isa below, and check_config_defaults.py gates the pair.
+	'isa.minimalTiles':     {'type': 'bool', 'default': True},
 	'isa.counters':         {'type': 'bool', 'default': False},
 	'isa.counters64':       {'type': 'bool', 'default': False},
 	# X-series ISA extensions (X1-X4, all implemented; default false)
@@ -1000,6 +1026,7 @@ _isa = {
 	'atomics':    _cfg('isa.atomics', True),
 	'compressed': _cfg('isa.compressed', True),
 	'bitmanip':   _cfg('isa.bitmanip', True),
+	'minimalTiles': _cfg('isa.minimalTiles', True),
 	'counters':   _cfg('isa.counters', False),
 	'counters64': _cfg('isa.counters64', False),
 	# X0 scaffolded extensions (default false, plumbed to the vesta ENABLE_* generics)
@@ -1321,6 +1348,7 @@ m = ChipGenerator(
 	# WARNING: disabling ENABLE_ATOMICS on a multi-hart chip breaks the LR/SC +
 	# AMO + (never-LR/SC-a-mutex aside) lock infrastructure the sh tests rely on.
 	COMPRESSED_ISA=_isa['compressed'],
+	MINIMAL_TILES=_isa['minimalTiles'],	# asymmetric ISA: harts 1..N-1 built rv32iac (TILE_ENABLE_*), hart 0 keeps the full ISA
 	ENABLE_MUL=_isa['mul'],
 	ENABLE_FAST_MUL=_isa['fastMul'],
 	ENABLE_DIV=_isa['div'],
@@ -3379,7 +3407,7 @@ def _buildPackageData(model):
 
 		analogPowerDomain = package.AddPowerDomain(
 			powerDomainName='Analog',
-			positiveVoltage=3.3,
+			positiveVoltage=2.5,
 			negativeVoltage=0.0,
 			positiveRailPinNumber=37,
 			positiveRailPinName='AVDD',
@@ -3441,19 +3469,19 @@ def _buildPackageData(model):
 		# Four per-quadrant analog domains (AFE0 top-left ... AFE3 bottom-right,
 		# CQ1 #1/#5), each with its own AVDD_h/AVSS_h rail.
 		analog0PowerDomain = package.AddPowerDomain(
-			powerDomainName='Analog0', positiveVoltage=3.3, negativeVoltage=0.0,
+			powerDomainName='Analog0', positiveVoltage=2.5, negativeVoltage=0.0,
 			positiveRailPinNumber=64, positiveRailPinName='AVDD_0',
 			negativeRailPinNumber=59, negativeRailPinName='AVSS_0')
 		analog1PowerDomain = package.AddPowerDomain(
-			powerDomainName='Analog1', positiveVoltage=3.3, negativeVoltage=0.0,
+			powerDomainName='Analog1', positiveVoltage=2.5, negativeVoltage=0.0,
 			positiveRailPinNumber=49, positiveRailPinName='AVDD_1',
 			negativeRailPinNumber=54, negativeRailPinName='AVSS_1')
 		analog2PowerDomain = package.AddPowerDomain(
-			powerDomainName='Analog2', positiveVoltage=3.3, negativeVoltage=0.0,
+			powerDomainName='Analog2', positiveVoltage=2.5, negativeVoltage=0.0,
 			positiveRailPinNumber=17, positiveRailPinName='AVDD_2',
 			negativeRailPinNumber=22, negativeRailPinName='AVSS_2')
 		analog3PowerDomain = package.AddPowerDomain(
-			powerDomainName='Analog3', positiveVoltage=3.3, negativeVoltage=0.0,
+			powerDomainName='Analog3', positiveVoltage=2.5, negativeVoltage=0.0,
 			positiveRailPinNumber=32, positiveRailPinName='AVDD_3',
 			negativeRailPinNumber=27, negativeRailPinName='AVSS_3')
 
@@ -3479,8 +3507,8 @@ def _buildPackageData(model):
 		# pins"); this model bonds the FULL digital complement — all 48 GPIO
 		# (prt1-prt6, first package to bond P5/P6), RESETN, POC — plus 3 core
 		# and 3 IO supply pairs (one per digital edge) and a NORTH analog-
-		# reserve band (AVDD/AVSS + ARSV0-7) for the U-tile-notch potentiostat
-		# drop-in. Numbering follows the house convention: pin 1 at the top of
+		# band (AVDD/AVSS + the sixteen electrode pads) for the U-tile-notch
+		# potentiostat drop-in. Numbering follows the house convention: pin 1 at the top of
 		# the WEST edge, counterclockwise (W 1-25 top->bottom, S 26-50 L->R,
 		# E 51-75 bottom->top, N 76-100 R->L). Leaded LQFP chosen for bring-up
 		# friendliness (probing/hand-rework) per the 2026-07-22 user pick.
@@ -3523,12 +3551,19 @@ def _buildPackageData(model):
 			negativeRailExtraPins=[(46, 'VSSPST'), (71, 'VSSPST')]
 		)
 
-		# One analog domain on the NORTH edge: the CastaliaDP die is digital-only,
-		# but the four hart-tile U-notches (top-center analog reserve, potentiostat
-		# drop-in at Virtuoso) face north — the band reserves supply + 8 pins.
+		# ONE analog domain on the NORTH edge, and one is what the die has: the
+		# north band is the single PRCUT_G-bracketed analog island (the G0
+		# ring-break pair added at the wound-quad cut), with exactly one AVDD/AVSS
+		# pair feeding all of it. This is the ONE convention this model does NOT
+		# take from castalia-quad-qfn64, which carries four per-quadrant AVDD_h/
+		# AVSS_h domains because its four AFE sites sit at four separate die
+		# corners with four separate islands. Declaring four domains here would
+		# assert an isolation this pad ring does not build (and would cost six more
+		# rail balls the north edge does not have), so the sixteen electrode pads
+		# below all name this one domain.
 		analogPowerDomain = package.AddPowerDomain(
 			powerDomainName='Analog',
-			positiveVoltage=3.3,
+			positiveVoltage=2.5,
 			negativeVoltage=0.0,
 			positiveRailPinNumber=76,
 			positiveRailPinName='AVDD',
@@ -3541,10 +3576,51 @@ def _buildPackageData(model):
 		package.AddPin(packagePinNumber=1, name='RESETN', ioType='i', powerDomain=digitalIOPowerDomain)
 		package.AddPin(packagePinNumber=2, name='POC', ioType='i', powerDomain=digitalIOPowerDomain)
 
-		# North analog-reserve band: 8 uncommitted analog pads for the notch
-		# drop-in (electrode/test points; unconnected until an analog respin).
-		for _ai in range(8):
-			package.AddPin(packagePinNumber=78 + _ai, name='ARSV' + str(_ai), ioType='io', powerDomain=analogPowerDomain)
+		# ---- the sixteen electrode pads (USER DECISION, 2026-08-17) ----------
+		# The LQFP-100 is the shipped default package, and a Castalia that bonds no
+		# electrodes is a monitoring chip with nothing to monitor: the whole-chip
+		# flat figure loses its analog row, and the analog chapter it points at
+		# never renders. This band bonds them, on the SAME naming and grouping
+		# convention as castalia-quad-qfn64 above — four measurement sites, four
+		# pads each on the flat aio[4*h+e] bus, e in {0:WE, 1:RE, 2:RE2, 3:CE}:
+		# WE_h the working electrode, RE_h the reference, CE_h the counter, and
+		# RE2_h the second sense electrode of the optional four-terminal (Kelvin)
+		# configuration.
+		#
+		# WHERE THEY LAND, AND WHAT THEY COST. The north edge (76-100) is the only
+		# place they may go: it is the PRCUT-isolated analog island, and the other
+		# three edges have no analog supply at all. Its free pins were the eight
+		# ARSV0-7 reserve pads (78-85) plus fifteen NC balls (86-100) — twenty-
+		# three free, sixteen needed. The reserve band is spent FIRST and by its
+		# own charter: ARSV0-7 was declared as "uncommitted analog pads for the
+		# notch drop-in (electrode/test points; unconnected until an analog
+		# respin)", and these sixteen pads ARE that drop-in — the reserve is
+		# discharged, not stolen. Nothing with a function was displaced: no GPIO,
+		# no supply, no JTAG ball moves, and seven NC balls (94-100) stay as the
+		# new north spare. Every pad below is analog-domain and bonded on the
+		# island side of the PRCUT ring breaks.
+		#
+		# THIS IS INTENT, NOT AS-BUILT, and the manual says so: `package
+		# .preliminary' (default true) prints the Preliminary banner over
+		# Section \ref{s:pinsConfig} — "the bonding shown here is the planned
+		# assignment, not a confirmed bond-out". The as-built ring
+		# (innovus/common/MCU_castalia/tcl/chip_top_wound_padlists.tcl, 77 pads)
+		# carries PAD_ARSV0-7 and nothing on 86-100; renaming those eight and
+		# adding eight more PDB3A_G instances in the north band is work for the
+		# AFE integration programme, exactly as castalia-quad-qfn64 declared its
+		# sixteen before any analog IP existed. The model documents the pinout the
+		# chip is being built toward; it does not claim the metal is drawn.
+		#
+		# ORDER WITHIN A SITE follows the QFN-64 model: the current-carrying pair
+		# (CE, WE) abut, then the sense pair (RE, RE2), so a site's four pads are
+		# four adjacent balls and a probe card lands on one contiguous block.
+		_lqfpElectrodes = []
+		for _s in range(4):
+			_p0 = 78 + 4 * _s
+			_lqfpElectrodes += [(_p0, 'CE_' + str(_s)), (_p0 + 1, 'WE_' + str(_s)),
+				(_p0 + 2, 'RE_' + str(_s)), (_p0 + 3, 'RE2_' + str(_s))]
+		for (_epn, _enm) in _lqfpElectrodes:
+			package.AddPin(packagePinNumber=_epn, name=_enm, ioType='io', powerDomain=analogPowerDomain)
 
 		# D3 (2026-08-06, R-DD4(2) -- USER): the JTAG debug port takes five of the
 		# NC balls. 47=TCK, 48=TMS, 49=TDI, 50=TDO on the SOUTH edge (pins 26-50)
@@ -3562,7 +3638,9 @@ def _buildPackageData(model):
 
 		# Explicit NC balls (every remaining pin; Myshkin-QFN44 precedent).
 		# 47-51 LEFT this list at D3 -- see the JTAG block above.
-		for _ncp in ([23, 24, 25] + [26] + [72, 73, 74, 75] + list(range(86, 101))):
+		# 78-93 LEFT this list at the electrode block above (they were 78-85 ARSV
+		# and 86-93 NC); 94-100 are the north band's remaining spare.
+		for _ncp in ([23, 24, 25] + [26] + [72, 73, 74, 75] + list(range(94, 101))):
 			package.AddPin(packagePinNumber=_ncp, name='NC', ioType='', noConnect=True)
 
 	else:
@@ -4291,8 +4369,31 @@ m.CheckPackagePins()
 # m.CheckDocSubSlotBlocks() (its own sub-slot alignment / containment / no-shadow
 # rules), feeding ONLY the TRM (a config-gated generated chapter). They never
 # enter the peripheral / address / interrupt tables, MemoryMap.vhd, or MCU.vhd.
-# Populated only for the CQ package model, so the default TRM stays byte-identical.
-if packageModel == 'castalia-quad-qfn64' and cqAfeStubsPresent:
+# WHICH CONFIGURATIONS GET THEM, and why it is no longer a package-model NAME.
+# This used to read `packageModel == 'castalia-quad-qfn64'', which was a stand-in
+# for the two facts the chapter and both whole-chip figures actually assert:
+# (1) the package BONDS the sixteen electrode pads, so there is an analog story
+#     to tell at all -- AfeSystemDiagram re-derives WE/RE/RE2/CE_0..3 from the
+#     pin list and refuses to draw pads the chip does not have, and
+#     ChipSystemFlatDiagram's channel row is built from the same lookup; and
+# (2) the chip is the SHAPE that chapter describes -- an orchestrator hart 0
+#     plus one channel tile per site, which is numHarts == 5 with orchestrator
+#     true (AfeSystemDiagram asserts both, by name, and raises otherwise).
+# Keying on the model name held (1) only by coincidence and (2) not at all, and
+# when castalia-lqfp100 became the shipped default on 2026-08-17 the coincidence
+# broke the other way: the default TRM lost its analog row and its analog
+# chapter although the RTL still instantiates all five afe_stub slaves. With the
+# electrode pads now bonded on the LQFP-100 (above), the honest gate is the two
+# facts themselves. castalia-quad-qfn64 is unchanged by this (it bonds the
+# sixteen and is a 5-hart orchestrator), myshkin-qfn44 bonds no electrode group
+# and stays off, and config/argus_debug.json -- eighteen harts, no orchestrator,
+# wearing the LQFP-100 provisionally to reach the JTAG balls -- stays off too:
+# the degrade is the AFE block back on the peripheral rank, never a figure that
+# names five harts on an eighteen-hart chip.
+_pkgPinNames = set(_p.Name for _p in m.Package.Pins)
+_bondsElectrodes = all((_e + '_' + str(_i)) in _pkgPinNames
+	for _i in range(4) for _e in ('WE', 'RE', 'RE2', 'CE'))
+if _bondsElectrodes and cqAfeStubsPresent and orchestrator and numHarts == 5:
 	# The 16-word (64 B) register file shared by every afe_stub instance (AFE and
 	# EIS are the same entity — only the ownership gate differs). Word offset,
 	# name, access, description; byte offset = 4 x word offset.

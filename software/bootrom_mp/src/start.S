@@ -218,6 +218,17 @@ SPI_FlashSetup:
     li s2, RAM0_BASE_ADDR // Load RAM base address
     li s3, RAM0_BASE_ADDR + RAM_SIZE -4 // Load RAM end address
 
+    // BOOT ENTRY VECTOR (2026-08-16): nothing is armed here ON PURPOSE, and a
+    // store WAS tried here first -- it cost 5 NPU tests (100 ms watchdog
+    // timeouts on wgemm/wactf/wxnpu/wnpuconv/shnpu). This sits between
+    // `sw zero, SPI_TX(a0)` -- which has a transfer IN FLIGHT -- and
+    // getCommandWord, the same window the myshkin-2025-11 comment above warns
+    // about, and it also clobbered a4's CS mask. The zero is not needed here:
+    // flash_prepend.sh ALREADY prepends a mandatory 0x8000-0x81FF zero-fill
+    // segment to EVERY image, so 0x81FC arrives defined for every image ever
+    // built, and an image that publishes a vector simply emits a later segment
+    // that overwrites it. See the dispatch at the end of boot.
+
 
 getCommandWord:
 
@@ -433,6 +444,26 @@ executeProgram:
 	li x30, 0
 	li x31, 0
 
+    // BOOT ENTRY VECTOR dispatch (2026-08-16). Was an unconditional
+    // `j PROG_BASE_ADDR`, which pinned every image's first instruction to
+    // 0x8200 inside the private TCM -- unusable for an image LARGER than the
+    // TCM, which must execute from the shared bulk RAM instead (the 8 KiB-TCM
+    // rv32uc-p-rvc case: an 11,642-byte .text.init wraps onto itself through
+    // the array's address aliasing and overwrites its own code).
+    //
+    // THE DEFAULT PATH IS BIT-IDENTICAL TO THE OLD ONE, deliberately: the word
+    // was zeroed before the flash load, so an image that publishes nothing
+    // takes the branch, RESTORES t0 to the cleared state, and reaches
+    // PROG_BASE_ADDR with all 31 registers zero exactly as before. Only an
+    // image that opts in sees any difference, and the only difference it sees
+    // is t0 holding its own entry address -- one register must carry the
+    // target, since an indirect jump has nowhere else to read it from.
+    li   t0, BOOT_ENTRY_VEC
+    lw   t0, 0(t0)
+    beqz t0, boot_default_entry     // nothing published -> historical path
+    jr   t0                         // vectored entry (t0 = entry address)
+boot_default_entry:
+    li   t0, 0                      // undo the scratch; registers all clear again
     j PROG_BASE_ADDR // Jump to the start of the program in RAM
 
 

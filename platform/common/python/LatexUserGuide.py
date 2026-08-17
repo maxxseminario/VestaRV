@@ -80,7 +80,12 @@ class LatexUserGuide():
 		self.GenerateCqAnalogChapter()
 		self.GenerateAddressSpaceDiagram()
 		self.GenerateChipConfigurationSection()
-		self.GenerateSystemBlockDiagram()
+		# Still emitted, no longer printed: the TRM retired this figure on
+		# 2026-08-16 (three drawings of one chip in four pages) and nothing
+		# \input{}s include/SystemBlockDiagram.tex now. Kept generating so the
+		# view can be taken back unchanged, and so the AFE/chip-system emitters
+		# that copy its geometry keep a live reference to copy from.
+		self.GenerateSystemBlockDiagram()	# W5
 		# The whole-chip companion to the block diagram above: the bus, every
 		# peripheral this configuration instantiates, and what leaves the die.
 		# Ungated (both hart shapes live inside the emitter), so the master
@@ -91,6 +96,10 @@ class LatexUserGuide():
 		# (both hart shapes and the degraded no-analog shape live inside the
 		# emitter), so the master template can \ref it from ungated prose.
 		self.GenerateChipSystemFlatDiagram()
+		# The SYSTEM chapter's clock system, replacing a static vector
+		# figure whose mux codes contradicted its own register tables.
+		# Emitted unconditionally; the chapter \input{}s it ungated.
+		self.GenerateClockSystemDiagram()  # W1
 		# CPR3/R3 mechanism figure. Emitted unconditionally (the D-series
 		# precedent): the multi-core chapter \input{}s it inside its own
 		# \iforchpresent, so the gating rule lives in exactly one place.
@@ -104,12 +113,23 @@ class LatexUserGuide():
 		# unconditionally like the aperture mechanism figure above; the
 		# chapter's \input sits inside \iforchpresent.
 		self.GenerateArbiterStallDiagram()
+		# The NPU chapter's mechanism figure. Emitted unconditionally like the
+		# two above; the chapter itself only exists when the peripheral does, so
+		# a configuration with peripherals.npu = false never reaches the \input
+		# and this writes a stub. # W4
+		self.GenerateNpuDatapathDiagram()
+		self.GenerateSpiFlashDiagram()  # W2
 		self.GenerateSpiTimingDiagram()
 		self.GenerateSpiByteOrderingDiagram()
 		self.GenerateSpiBitOrderingDiagram()
 		self.GenerateUartFrameDiagram()
 		self.GenerateI2cTransactionDiagram()
 		self.GenerateIrqClaimCompleteDiagram()
+		# The interrupt-fabric overview: the source population, the router as
+		# the spine, and the CLINT pair going round it. Emitted and \input
+		# UNGATED (the interrupts section and the IRQROUTER chapter are both
+		# ungated), so every \ref to it resolves in both polarities.
+		self.GenerateIrqFabricDiagram()	# W3
 		self.GenerateMutexClaimDiagram()
 		# D-series: the PWRCTRL chapter's mechanism figure. Emitted
 		# unconditionally — the switched-tile story is true on every multi-core
@@ -410,7 +430,20 @@ class LatexUserGuide():
 			# CLINT owns the last two vectors: msip at its interruptPriority, mtip right after
 			defines['ClintMsipVector'] = str(clint.InterruptPriority)
 			defines['ClintMtipVector'] = str(clint.InterruptPriority + 1)
+			# NOTE (2026-08-17): this is the CLINT's OWN vector number, not a
+			# count of peripheral vectors — the source list grew past it when
+			# digperiphs added vectors 86..120, so \VectorsCount is no longer
+			# \PeriphVectorsCount + 2. No prose quotes it any more (Section
+			# \ref{s:interrupts} was rewritten to \RoutedVectorsCount below);
+			# kept emitted only so an old chapter cannot dangle on it.
 			defines['PeriphVectorsCount'] = str(clint.InterruptPriority)
+			# W-merge (2026-08-17): the routed/hardwired split. Every vector but
+			# the CLINT pair is delivered through the router; those two reach the
+			# harts on dedicated per-hart wires and are never enabled, pended,
+			# claimed or completed. GenerateIrqFabricDiagram derives and PRINTS
+			# the same split, so the sentence in Section \ref{s:interrupts} and
+			# the figure under it cannot disagree.
+			defines['RoutedVectorsCount'] = str(self.Gen.VectorsCount - 2)
 			# CLINT register-layout addresses (N-parameterized, matches clint.vhd):
 			# MSIPh word-mapped from the base; the MTIME pair and per-hart MTIMECMP
 			# pairs sit at slots that grow with the hart count (the roundup16
@@ -431,6 +464,35 @@ class LatexUserGuide():
 				_clintSlotCount = _clintCmpOff // 4 + 2 * self.Gen.NumHarts
 				_clintClog = (_clintSlotCount - 1).bit_length() if _clintSlotCount > 1 else 0
 				defines['ClintAliasBytes'] = str(4 << _clintClog)
+
+		# W-merge (2026-08-17): the interrupt-fabric numbers Section
+		# \ref{s:interrupts} and the IRQROUTER chapter used to state as
+		# LITERALS, and which had all silently moved:
+		#   * meip's IVT slot is FROZEN at ChipGenerator.MeipVector (85) while
+		#     the SOURCE count grows above it (digperiphs #2), so "vector 85"
+		#     in prose is a coincidence of this build, not a rule.
+		#   * the top vector is VectorsCount-1 (120 here, 84 when the chapters
+		#     were written), and
+		#   * generate.py packs the per-hart enable row into as many 32-bit
+		#     words as the source count needs -- three below 96 sources, FOUR
+		#     above -- so the chapter's "three registers ... vectors 0--84" and
+		#     its "bit b of HxENU is vector 64+b for b = 0..20" were both a
+		#     source-list growth out of date. The word count is READ BACK off
+		#     the emitted register model (the H0EN* words) rather than
+		#     recomputed, so the manual states the row this build actually has.
+		defines['MeipVector'] = str(self.Gen.MeipVector if self.Gen.MeipVector is not None
+			else self.Gen.VectorsCount)
+		defines['TopVector'] = str(self.Gen.VectorsCount - 1)
+		# HxENU covers vectors min(VectorsCount,96)-1 : 64, i.e. bits <IrqEnuMsb>:0.
+		defines['IrqEnuTopVector'] = str(min(self.Gen.VectorsCount, 96) - 1)
+		defines['IrqEnuMsb'] = str(31 if self.Gen.VectorsCount >= 96 else self.Gen.VectorsCount - 65)
+		for _p in self.Gen.Peripherals:
+			if _p.Name != 'IRQROUTER':
+				continue
+			_enWords = [_r for _r in _p.Registers if re.match('^H0EN', _r.Name)]
+			if _enWords:
+				defines['IrqEnableWords'] = str(len(_enWords))
+				defines['IrqEnableWordsWord'] = _numberWord(len(_enWords))
 
 		# A2 (Argus): shared-memory geometry + mutex-count defines so the
 		# hand-written multi-core chapter is configuration-driven prose.
@@ -734,11 +796,13 @@ class LatexUserGuide():
 
 	def GenerateAfeSystemDiagram(self):
 		'''include/AfeSystemDiagram.tex — the analog-front-end companion to the
-		   system block diagram (Figure \\ref{fig:system-block-diagram}), drawn
+		   system block diagram (GenerateSystemBlockDiagram, whose figure was
+		   retired from the manual on 2026-08-16, so the emitted prose now cites
+		   Figure \\ref{fig:chip-system-diagram} instead), drawn
 		   ONLY where the AFE bank exists (the CQ package model declares
 		   DocSubSlotBlocks; \\ifcqanalog gates the chapter that \\inputs this).
 
-		   IT IS THE SAME SHAPE AS FIGURE 1 ON PURPOSE — the same two banded
+		   IT IS THE SAME SHAPE AS THE SYSTEM BLOCK DIAGRAM ON PURPOSE — the same two banded
 		   regions, the same five hart boxes, the same arbiter bar across the
 		   bottom of them — because the reader has already learnt to read that
 		   picture. What changes is the row UNDER the arbiter: instead of the
@@ -839,7 +903,7 @@ class LatexUserGuide():
 		def P(v):
 			return '%.2f' % v
 
-		# ---- geometry, in cm; the top half is Figure 1's, to the millimetre
+		# ---- geometry, in cm; the top half is the system block diagram's, to the millimetre
 		# where it can be (band edges, tile width, the boundary/arbiter stack),
 		# because the two figures are meant to be read as one drawing.
 		aX0, aX1 = 0.00, 4.60          # band A: the always-on centre band
@@ -910,7 +974,7 @@ class LatexUserGuide():
 		s += '\tpadlab/.style={font=\\sffamily\\tiny, align=center},\n'
 		s += '\tredlab/.style={font=\\sffamily\\scriptsize\\bfseries, red!70!black, align=left}]\n'
 
-		# ---- the two banded regions of Figure 1, and their banners
+		# ---- the two banded regions of the system block diagram, and their banners
 		s += '\\fill[black!4] (' + P(aX0) + ', ' + P(yBnd) + ') rectangle (' + P(aX1) + ', ' + P(yTop) + ');\n'
 		s += '\\fill[black!9] (' + P(bX0 - 0.20) + ', ' + P(yBnd) + ') rectangle (' + P(bX1 + 0.20) + ', ' + P(yTop) + ');\n'
 		s += '\\fill[black!14] (' + P(aX0) + ', ' + P(yBan) + ') rectangle (' + P(aX1) + ', ' + P(yTop) + ');\n'
@@ -920,7 +984,7 @@ class LatexUserGuide():
 		s += ('\\node[ban, text width=' + P(bX1 - bX0 - 0.30) + 'cm] at (' + P((bX0 + bX1) / 2.0) + ', '
 			+ P((yBan + yTop) / 2.0) + ') {the four channel harts, one analog site each};\n')
 
-		# ---- the hart row: Figure 1's five boxes, told what they own here
+		# ---- the hart row: the system block diagram's five boxes, told what they own here
 		s += ('\\node[orch, text width=' + P(mgmtTW) + 'cm, minimum width=' + P(mgmtW)
 			+ 'cm, minimum height=' + P(hartH) + 'cm] (h0) at ('
 			+ P(mgmtX) + ', ' + P(yHart) + ') {\\textbf{hart 0}: orchestrator\\\\ \\scriptsize soft logic, always on\\\\'
@@ -932,7 +996,7 @@ class LatexUserGuide():
 				+ str(b['ownerHart']) + '}\\\\ \\scriptsize channel tile\\\\ \\scriptsize VestaRV core\\\\'
 				+ ' \\scriptsize \\textbf{owns ' + b['name'] + '}};\n')
 
-		# ---- the registered tile boundary and the arbiter, exactly as Figure 1
+		# ---- the registered tile boundary and the arbiter, exactly as the system block diagram
 		s += '\\draw[dashed, thick] (' + P(bX0 - 0.20) + ', ' + P(yBnd) + ') -- (' + P(bX1 + 0.20) + ', ' + P(yBnd) + ');\n'
 		# \tiny, and that is a clearance decision, not a taste one: this label sits
 		# in the lane between two masters' bus arrows (2.85 cm apart), and at
@@ -1061,8 +1125,13 @@ class LatexUserGuide():
 		# this generated chapter, which the master template \inputs only under
 		# \ifcqanalog, so the two polarities cannot disagree and trm-lint never
 		# sees a dangling reference (the both-polarity \ref rule).
+		# W5 (2026-08-16): this used to cite the top-level block diagram
+		# (fig:system-block-diagram), which was retired from TRM.template.tex.
+		# It now cites the whole-chip portrait figure, which carries the same
+		# hart band and the same arbiter bar and is the figure this one is
+		# actually the companion to.
 		s += ('Figure \\ref{fig:afe-system-diagram} is the arrangement: the same five harts '
-			'and the same arbiter as Figure \\ref{fig:system-block-diagram}, with the analog '
+			'and the same arbiter as Figure \\ref{fig:chip-system-diagram}, with the analog '
 			'register sites in the row underneath and the electrodes leaving the die at the '
 			'bottom.\n\n')
 		s += '\\begin{figure}[htpb]\n\t\\centering\n'
@@ -1439,7 +1508,7 @@ class LatexUserGuide():
 		# generate.py _CONFIG_SCHEMA — grouped: core, isa, priv, memory, periph, pkg.
 		keyOrder = ['chipName', 'numHarts', 'orchestrator', 'numMutexes', 'registerFileDualPort',
 			'isa.mul', 'isa.fastMul', 'isa.div', 'isa.atomics', 'isa.compressed',
-			'isa.bitmanip', 'isa.counters', 'isa.counters64',
+			'isa.bitmanip', 'isa.minimalTiles', 'isa.counters', 'isa.counters64',
 			'isa.zicond', 'isa.zcb', 'isa.zimop', 'isa.zihint', 'isa.zihpm',
 			'isa.zawrs', 'isa.zabha', 'isa.zacas', 'isa.zicboz', 'isa.zcmp',
 			'isa.zcmt', 'isa.zbkb', 'isa.zbkc', 'isa.zbkx', 'isa.zkn', 'isa.zfinx',
@@ -1876,7 +1945,8 @@ class LatexUserGuide():
 	# WHOLE-CHIP SYSTEM DIAGRAM (TRM Section \ref{s:config}, Figure
 	# \ref{fig:chip-system-diagram}).
 	#
-	# Figure \ref{fig:system-block-diagram} answers one half of "what is this
+	# The system block diagram (GenerateSystemBlockDiagram, no longer printed in
+	# the manual) answered one half of "what is this
 	# chip": how N harts share one memory system. THIS figure answers the other
 	# half — what is ON the die besides the harts, and what of it leaves the
 	# package. Its subject is therefore the BUS and the peripherals, so the hart
@@ -2340,8 +2410,8 @@ class LatexUserGuide():
 
 	def GenerateChipSystemDiagram(self):
 		'''include/ChipSystemDiagram.tex — the whole chip on one PORTRAIT page:
-		   the masters in a band across the top (the arrangement of Figure
-		   \\ref{fig:system-block-diagram} and of the AFE figure), the arbiter
+		   the masters in a band across the top (the arrangement of the system
+		   block diagram and of the AFE figure), the arbiter
 		   drawn as the bus bar under them, the analog ownership row directly
 		   below that bar with each site in the column of the hart that owns it,
 		   the rest of the peripherals on the shelves below, and the outside
@@ -4279,6 +4349,894 @@ class LatexUserGuide():
 		self._writeInclude('ChipSystemFlatDiagram.tex', s)
 		return
 
+	def GenerateClockSystemDiagram(self):
+		'''include/ClockSystemDiagram.tex — the MCU clock system, DRAWN FROM THE
+		   REGISTER MODEL. It replaces a static vector figure
+		   (figures/clocks-myshkin-2025-11) that had drifted off the chip it was
+		   printed beside in five ways, every one of them contradicted by the
+		   register tables on the facing pages:
+
+		     * \\bitfield{SMCLKSEL} codes 01 and 10 were SWAPPED (the drawing fed
+		       01 from DCO0 and 10 from LFXT; the register says 01 LFXT, 10
+		       DCO0), so a reader who followed the picture selected the wrong
+		       clock and got a 32.768 kHz chip where they wanted a DCO;
+		     * code 11 was drawn CROSSED OUT on both muxes and DCO1 was absent
+		       from the drawing altogether, though \\bitfield{DCO1ON},
+		       \\register{DCO1BIAS} and the fourth input of both
+		       \\texttt{ClockMuxGlitchFree} instances have always been there;
+		     * the DCO trim was labelled \\texttt{DCO0FREQ}, which is not a
+		       register this chip has (it is \\register{DCO0BIAS});
+		     * the DCO enable was drawn as an active-low \\texttt{DCO0OFF}, where
+		       the bit is \\bitfield{DCO0ON} and resets to 0, off;
+		     * ONE "CPU Awake" switch fed ONE "CPU clock" output, on a chip whose
+		       sleep gate lives INSIDE each core (\\texttt{cg\\_clk\\_cpu} in
+		       vesta.vhd), one gate per hart.
+
+		   THE FIX IS NOT A REDRAW, IT IS A DERIVATION. Every code, source,
+		   ratio and consumer here is read off the generator's own model at
+		   build time and ASSERTED against it:
+
+		     * the mux legs are BUILT FROM the \\bitfield{MCLKSEL} /
+		       \\bitfield{SMCLKSEL} value descriptions. The code order is the
+		       register's own, and each leg is routed to the source its value
+		       description NAMES (the \\texttt{\\_HFXT} / \\texttt{\\_LFXT} /
+		       \\texttt{\\_DCO0} / \\texttt{\\_DCO1} / \\texttt{\\_SMCLK} suffix). The
+		       swap cannot come back, because there is no hand-drawn wire left
+		       to swap: the wire IS the table row;
+		     * the SOURCE SET comes from bit-field PRESENCE (\\bitfield{HFXTOFF},
+		       \\bitfield{LFXTOFF}, \\bitfield{DCO0ON}, \\bitfield{DCO1ON}) and is
+		       cross-checked against the set the two selects reach. A
+		       configuration without DCO1 drops the box, the leg and the code
+		       together; it never draws a crossed-out stub;
+		     * the divider ratios come from \\bitfield{SYSMCLKDIV} /
+		       \\bitfield{SYSSMCLKDIV}, and the two must enumerate the same list;
+		     * every peripheral is placed by its own \\texttt{clockDomain} (the
+		       field generate.py sets at \\texttt{CreatePeripheral}), and the
+		       drawn set is proved to BE the configured set (the E17 rule);
+		     * the hart count is the master band's own
+		       (\\texttt{\\_ChipSystemMasters}), so this figure and
+		       Figure \\ref{fig:chip-system-flat-diagram} cannot disagree about how
+		       many cores there are, and the gate is a COMPARTMENT of the hart
+		       box under the stack: one gate per core, which is what the RTL
+		       builds.
+
+		   THE LAYOUT IS A MIRROR, and that is what makes it crossing-free. The
+		   sources stand in ONE column, in the order \\bitfield{SMCLKSEL}
+		   enumerates them. The SMCLK chain runs LEFT out of that column and
+		   down; the MCLK chain runs RIGHT out of it and up. Every source-to-mux
+		   leg is therefore a straight horizontal at its own row height, both
+		   ways, and the two spines leave the block at opposite ends into their
+		   own bars.
+
+		   THE ONE WIRE THAT CANNOT BE STRAIGHT is \\bitfield{MCLKSEL} code 01,
+		   because it is not a source at all: it is SMCLK, taken (SYSTEM.vhd,
+		   \\texttt{mclk\\_mux ClkIn(1) => smclk}) AFTER the SMCLK divider and
+		   BEFORE the \\bitfield{SMCLKOFF} gate, so stopping SMCLK does not stop
+		   MCLK. It is drawn from that exact node, up the channel and into the
+		   01 row, hopping the legs it crosses with a real gap. It is the fact
+		   the retired figure was furthest from, and it is why every row here
+		   prints its code AND the name of what that code selects.'''
+		gen = self.Gen
+		geo = getattr(gen, 'McuMpGeometry', None) or {}
+		N = gen.NumHarts
+		pkg = gen.Package
+		padOfFunc = {}
+		for pin in pkg.Pins:
+			if pin.FuncName and pin.FuncName not in padOfFunc:
+				padOfFunc[pin.FuncName] = pin.Name
+		padNames = set(pin.Name for pin in pkg.Pins)
+
+		def P(v):
+			return '%.2f' % v
+
+		# The per-character width rule of the flat whole-chip figure, and for
+		# the same reason: every box height in this drawing is a LINE COUNT, and
+		# a line the box is too narrow to hold does not clip, it prints through
+		# the box floor.
+		def TWs(t, bold=1.0):
+			best = 0.0
+			for line in (t or '').split('\\\\'):
+				u = re.sub(r'\\[a-zA-Z]+', '', line)
+				for ch in '{}$\\':
+					u = u.replace(ch, '')
+				w = 0.0
+				for ch in u.strip():
+					w += (0.185 if (ch.isupper() or ch.isdigit())
+						else 0.085 if ch in ' .,:;/|!\'ilj' else 0.145)
+				best = max(best, w * bold)
+			return best
+
+		tBold, tLab = 1.40, 1.77
+
+		def wOf(title, subs, minw=2.10, maxw=5.60):
+			w = TWs(title, tBold)
+			for sub in subs:
+				w = max(w, TWs(sub))
+			return min(maxw, max(minw, 0.40 + w))
+
+		# ---- THE REGISTER MODEL, LOOKED UP AND NEVER REMEMBERED --------------
+		sysInsts = [p for p in gen.Peripherals if p.Template.NameTemplate == 'SYSTEM']
+		if len(sysInsts) != 1:
+			raise Exception('ClockSystemDiagram: this configuration carries '
+				+ str(len(sysInsts)) + ' SYSTEM instances; the clock tree is drawn from '
+				'exactly one clock monarch.')
+		sysInst = sysInsts[0]
+		regOf = dict((r.Name, r) for r in sysInst.Registers)
+		sysBits = set(bf.Name for r in sysInst.Registers for bf in r.BitFields if bf.Name)
+
+		def field(regName, fieldName):
+			r = regOf.get(regName)
+			if r is None:
+				raise Exception('ClockSystemDiagram: this SYSTEM has no ' + str(regName)
+					+ ' register, so the figure has nothing to draw the clock tree from.')
+			for bf in r.BitFields:
+				if bf.Name == fieldName:
+					return bf
+			raise Exception('ClockSystemDiagram: ' + str(regName) + ' carries no '
+				+ str(fieldName) + ' bit field; it has '
+				+ str(sorted(b.Name for b in r.BitFields if b.Name)) + '.')
+
+		def codes(bf):
+			'''(value, name suffix, description) for every code of a select, in
+			   REGISTER ORDER, with the enumeration's completeness asserted: a
+			   select whose codes the figure drew as a subset is a select the
+			   figure would lie about.'''
+			vds = list(bf.ValueDescriptions)
+			if [v for v, d, n in vds] != sorted(v for v, d, n in vds):
+				raise Exception('ClockSystemDiagram: ' + bf.Name + ' enumerates its codes out '
+					'of value order; the figure prints them in the order the register table '
+					'does, and the two would disagree.')
+			if len(vds) != (1 << bf.Size) or [v for v, d, n in vds] != list(range(len(vds))):
+				raise Exception('ClockSystemDiagram: ' + bf.Name + ' is ' + str(bf.Size)
+					+ ' bits but enumerates ' + str([v for v, d, n in vds])
+					+ '; the figure draws EVERY code of a select, so a gap in the enumeration '
+					'is a leg it cannot route.')
+			out = []
+			for v, d, n in vds:
+				if not n.startswith(bf.Name):
+					raise Exception('ClockSystemDiagram: value description "' + str(n) + '" of '
+						+ bf.Name + ' does not carry its own field name, so the figure cannot '
+						'derive what the code selects.')
+				out.append((v, n[len(bf.Name):], d))
+			return out
+
+		selM, selS = field('SYSCLKCR', 'MCLKSEL'), field('SYSCLKCR', 'SMCLKSEL')
+		divM, divS = field('CLKDIVCR', 'SYSMCLKDIV'), field('CLKDIVCR', 'SYSSMCLKDIV')
+
+		# ---- THE SOURCES, derived from BIT-FIELD PRESENCE --------------------
+		# (key, printed name, its enable/disable bit, what the bit does, its
+		# trim register if it is a programmable oscillator).
+		_SRC_SPEC = [
+			('hfxt', 'HFXT', 'HFXTOFF', 'off', None),
+			('lfxt', 'LFXT', 'LFXTOFF', 'off', None),
+			('dco0', 'DCO0', 'DCO0ON', 'on', 'DCO0BIAS'),
+			('dco1', 'DCO1', 'DCO1ON', 'on', 'DCO1BIAS'),
+		]
+		_SUFFIX_SRC = dict(('_' + spec[1], spec[0]) for spec in _SRC_SPEC)
+		specOf = dict((spec[0], spec) for spec in _SRC_SPEC if spec[2] in sysBits)
+
+		# THE COLUMN ORDER IS THE SMCLKSEL CODE ORDER, not a list in this file:
+		# that is what makes every SMCLK leg a straight horizontal, and it is
+		# what makes a re-coded register REDRAW the picture instead of
+		# mis-wiring it.
+		smCodes, mcCodes = codes(selS), codes(selM)
+		order = []
+		for v, suf, d in smCodes:
+			if suf not in _SUFFIX_SRC:
+				raise Exception('ClockSystemDiagram: SMCLKSEL code ' + str(v) + ' names "'
+					+ str(suf) + '", which is not a clock source this figure knows how to '
+					'draw. Add it to _SRC_SPEC and give it a box, or the drawing routes a leg '
+					'to nothing.')
+			order.append(_SUFFIX_SRC[suf])
+		if sorted(order) != sorted(specOf) or len(set(order)) != len(order):
+			raise Exception('ClockSystemDiagram: SMCLKSEL selects ' + str(order)
+				+ ' but the SYSCLKCR enable bits give this configuration the sources '
+				+ str(sorted(specOf)) + '. The drawn source set must BE the configured one: a '
+				'source with no code is a box wired to nothing, and a code with no source is '
+				'the crossed-out stub this figure exists to retire.')
+		rowOf = dict((k, i) for i, k in enumerate(order))
+
+		# Every source MCLKSEL reaches must be one of those boxes; its own SMCLK
+		# code is routed to the NODE, not to a source. Anything else fails here.
+		mcLegs = []
+		for v, suf, d in mcCodes:
+			if suf == '_SMCLK':
+				mcLegs.append((v, None, 'SMCLK'))
+				continue
+			if suf not in _SUFFIX_SRC or _SUFFIX_SRC[suf] not in specOf:
+				raise Exception('ClockSystemDiagram: MCLKSEL code ' + str(v) + ' names "'
+					+ str(suf) + '", which this configuration has no source box for.')
+			k = _SUFFIX_SRC[suf]
+			if rowOf[k] != v:
+				raise Exception('ClockSystemDiagram: MCLKSEL code ' + str(v) + ' selects '
+					+ specOf[k][1] + ', which SMCLKSEL puts in row ' + str(rowOf[k])
+					+ '. This figure draws every source leg as a straight horizontal at its '
+					'own row, so the two selects must agree on the order of the sources they '
+					'share. Give the drawing a routing channel before re-coding either.')
+			mcLegs.append((v, k, specOf[k][1]))
+		if len([1 for v, k, nm in mcLegs if k is None]) != 1:
+			raise Exception('ClockSystemDiagram: MCLKSEL takes the SMCLK node '
+				+ str(len([1 for v, k, nm in mcLegs if k is None])) + ' times; the figure draws '
+				'exactly one such wire, from the pre-gate node.')
+
+		# ---- THE DIVIDERS: one ratio list, or no figure ----------------------
+		def ratios(bf):
+			out = []
+			for v, suf, d in codes(bf):
+				r = d.split(' ')[0]
+				if not r.startswith('/'):
+					raise Exception('ClockSystemDiagram: ' + bf.Name + ' code ' + str(v)
+						+ ' is described as "' + str(d) + '", which the figure cannot read as '
+						'a division ratio.')
+				out.append(r)
+			return out
+		ratM, ratS = ratios(divM), ratios(divS)
+		if ratM != ratS:
+			raise Exception('ClockSystemDiagram: the MCLK divider offers ' + str(ratM)
+				+ ' and the SMCLK divider ' + str(ratS) + '; the figure prints one ratio list '
+				'per spine and would have to invent the difference.')
+		ratTex = '\\texttt{' + '} \\texttt{'.join(ratM) + '}'
+
+		# ---- the trim registers, by NAME from the model ----------------------
+		# The retired figure printed DCO0FREQ, a register this chip has never
+		# had. Nothing below is printed that was not looked up.
+		for k in order:
+			trim = specOf[k][4]
+			if trim is not None and trim not in regOf:
+				raise Exception('ClockSystemDiagram: source ' + specOf[k][1] + ' is present '
+					'(its ' + specOf[k][2] + ' bit exists) but this configuration has no '
+					+ trim + ' register for the figure to name as its trim.')
+
+		# ---- THE CONSUMERS, placed by the model's own clockDomain ------------
+		_GROUP = {
+			'GPIOx':     ('GPIO', 'ports and their\\\\ alternate functions'),
+			'SPIx':      ('SPI', 'shift engine and\\\\ baud divider'),
+			'QSPIx':     ('QSPI', 'quad shift engine'),
+			'UARTx':     ('UART', 'baud generator,\\\\ transmit and receive'),
+			'I2Cx':      ('I\\textsuperscript{2}C', 'open-drain bit engine'),
+			'I2CTx':     ('I\\textsuperscript{2}C target', 'autonomous target'),
+			'I3Cx':      ('I3C', 'push-pull serial core'),
+			'NFCx':      ('NFC', 'bus side and its\\\\ synchronisers'),
+			'OWx':       ('1-Wire', 'bit-slot timing'),
+			'TIMERx':    ('timers', 'counter, capture\\\\ and compare'),
+			'PWMx':      ('PWM', 'free-running counter'),
+			'RTCx':      ('RTC', 'registers, flags\\\\ and interrupt'),
+			'SYSTEM':    ('SYSTEM', 'owns every register\\\\ on this page'),
+			'PWRCTRL':   ('PWRCTRL', 'tile gate sequencer'),
+			'CLINT':     ('CLINT', 'mtime and the\\\\ software interrupts'),
+			'MUTEX':     ('MUTEX', 'claim in one\\\\ instruction'),
+			'IRQROUTER': ('IRQROUTER', 'per-hart rows,\\\\ claim and complete'),
+			'NPU':       ('NPU', 'inference engine'),
+			'DMAx':      ('DMA', 'engine and\\\\ bus master'),
+			'TRNGx':     ('TRNG', 'ring harvest and\\\\ health test'),
+			'EVFAB':     ('EVFAB', 'event and trigger\\\\ fabric'),
+		}
+		_ALWAYS_ON = ('CLINT', 'MUTEX', 'IRQROUTER', 'PWRCTRL')
+		groups = {}
+		for p in gen.Peripherals:
+			t = p.Template.NameTemplate
+			if t not in _GROUP:
+				raise Exception('ClockSystemDiagram: peripheral template "' + str(t)
+					+ '" (instance ' + str(p.Name) + ') has no place in the clock figure. Add '
+					'it to _GROUP, so the drawing says which clock it runs on.')
+			if p.ClockDomain not in ('mclk', 'smclk', 'muxed'):
+				raise Exception('ClockSystemDiagram: ' + str(p.Name) + ' declares clockDomain '
+					+ str(p.ClockDomain) + '; this figure places a block by that field and '
+					'would otherwise have to guess.')
+			groups.setdefault((p.ClockDomain, t), []).append(p)
+		drawn = set(p.Name for ps in groups.values() for p in ps)
+		if drawn != set(p.Name for p in gen.Peripherals):
+			raise Exception('ClockSystemDiagram: the drawn instance set ' + str(sorted(drawn))
+				+ ' is not this configuration\'s ' + str(sorted(p.Name for p in gen.Peripherals))
+				+ '; a clock figure that omits a block says that block has no clock.')
+
+		def groupBox(key):
+			dom, t = key
+			ps = groups[key]
+			title, sub = _GROUP[t]
+			if len(ps) > 1:
+				title += ' $\\times$' + str(len(ps))
+			return {'title': title, 'subs': [sub], 'stack': len(ps), 'cells': [], 'key': key}
+
+		fabric, mclkPer, smclkPer, muxed = [], [], [], []
+		for key in sorted(groups, key=lambda k: min(p.BaseAddress for p in groups[k])):
+			dom, t = key
+			box = groupBox(key)
+			if dom == 'muxed':
+				muxed.append(box)
+			elif dom == 'smclk':
+				smclkPer.append(box)
+			elif t in _ALWAYS_ON:
+				fabric.append(box)
+			else:
+				mclkPer.append(box)
+
+		# The bus arbiter is not a peripheral and never was: it IS the fabric,
+		# on the free-running MCLK (MCU.vhd: mp_arb0 clk => mclk).
+		fabric.insert(0, {'title': 'shared-bus arbiter', 'stack': 1, 'cells': [], 'key': None,
+			'subs': ['\\texttt{mp\\_arbiter},\\\\ free-running']})
+		# The Debug Module runs on that same free-running MCLK; its TAP does
+		# not (see the independent domains). Both come off the ONE debug knob.
+		dbgOn = bool(geo.get('debug'))
+		if dbgOn:
+			fabric.append({'title': 'dm0', 'stack': 1, 'cells': [], 'key': None,
+				'subs': ['debug module, halts\\\\ and resumes harts']})
+
+		# ---- the harts: the master band's count, one gate per core -----------
+		masters = self._ChipSystemMasters(brief=True)
+		nHartCols = sum(m['stack'] for m in masters if m['title'].startswith('hart'))
+		if nHartCols != N:
+			raise Exception('ClockSystemDiagram: the shared master band draws '
+				+ str(nHartCols) + ' harts where this configuration has ' + str(N)
+				+ '; this figure stacks one clock gate per hart and would count differently '
+				'from the whole-chip figures.')
+		harts = [{'title': 'harts' + (' $\\times$' + str(N) if N > 1 else ''), 'stack': N,
+			'subs': ['each core gates its own clock,\\\\ and sleeps by closing it'],
+			'cells': ['\\texttt{cg\\_clk\\_cpu}', 'VestaRV core'], 'key': None}]
+
+		# ---- the independent domains: clocks that are on NEITHER spine -------
+		# Derived from the knobs the blocks come from and cross-checked against
+		# the peripheral list, because a domain drawn from a knob whose block is
+		# absent is a clock going nowhere.
+		hasTmpl = set(t for dom, t in groups)
+		ind = []
+		for knob, tmpl, title, sub, partner in (
+				('nfc', 'NFCx', '\\texttt{rf\\_clk}',
+					'the NFC0 protocol core runs on\\\\ the carrier, recovered off die',
+					'NFC front end'),
+				('rtc', 'RTCx', '\\texttt{lfxt\\_in}',
+					'the RTC0 wall clock rides the\\\\ pad itself, ahead of every gate', None),
+				('debug', None, '\\texttt{TCK}',
+					'the dtm0 shift registers run on\\\\ the probe\'s own clock',
+					'debug probe')):
+			on = bool(geo.get(knob))
+			if tmpl is not None and on != (tmpl in hasTmpl):
+				raise Exception('ClockSystemDiagram: the ' + knob + ' knob says ' + str(on)
+					+ ' but the peripheral list ' + ('carries' if tmpl in hasTmpl
+						else 'carries no') + ' ' + tmpl + ' instance; the figure would draw a '
+					'clock domain with no block in it.')
+			if not on:
+				continue
+			subs = [sub]
+			if knob == 'debug' and 'TCK' not in padNames:
+				subs.append('\\textit{no ball on this package}')
+			ind.append({'title': title, 'subs': subs, 'stack': 1, 'cells': [], 'key': None,
+				'partner': partner})
+
+		# ---- the timers' own select, printed in ITS register order -----------
+		for box in muxed:
+			dom, t = box['key']
+			ssel = None
+			for p in groups[box['key']]:
+				for r in p.Registers:
+					for bf in r.BitFields:
+						if bf.Name == 'SSEL':
+							ssel = bf
+			if ssel is None:
+				raise Exception('ClockSystemDiagram: ' + str(t) + ' declares clockDomain '
+					'"muxed" but carries no SSEL select for the figure to enumerate; a block '
+					'drawn between the two spines must say what it chooses between.')
+			names = ['\\texttt{' + format(v, '0' + str(ssel.Size) + 'b') + '} ' + suf.lstrip('_')
+				for v, suf, d in codes(ssel)]
+			half = (len(names) + 1) // 2
+			box['subs'] = ['\\bitfield{SSEL} picks its own source',
+				', '.join(names[:half]) + ',\\\\ ' + ', '.join(names[half:])]
+
+		# =====================================================================
+		# GEOMETRY (cm). Every height is a LINE COUNT times a baseline, never a
+		# guess: a TikZ node whose contents outgrow its box does not clip, it
+		# prints the extra line through the floor.
+		# =====================================================================
+		hTitle, hLine, pad = 0.44, 0.34, 0.12
+		gapIn, gapRank = 0.26, 0.62
+		frmPad, frmTop, frmBot, frmGap = 0.18, 0.74, 0.22, 0.13
+		stackDx, stackDy, maxShadow = 0.12, 0.20, 3
+		hCells, tapLen, hRail = 0.32, 0.72, 0.84
+		hPart = 1.34
+		hMuxHd, gapRow = 0.72, 0.26
+
+		def lines(subs):
+			return sum(self._chipFigLines(x) for x in subs)
+
+		def sizeBox(b):
+			b['w'] = wOf(b['title'], b['subs'])
+			b['h'] = hTitle + hLine * lines(b['subs']) + 2 * pad + (hCells if b['cells'] else 0.0)
+			return b
+
+		def sizeRank(rank):
+			h = 0.0
+			for g in rank:
+				for b in g['boxes']:
+					sizeBox(b)
+					h = max(h, b['h'])
+			for g in rank:
+				g['w'] = (sum(b['w'] for b in g['boxes']) + gapIn * (len(g['boxes']) - 1)
+					+ 2 * frmPad)
+				for b in g['boxes']:
+					b['h'] = h
+			return h
+
+		rankM = [g for g in ({'label': 'Harts', 'boxes': harts},
+			{'label': 'Always-On Fabric', 'boxes': fabric},
+			{'label': 'Peripherals on MCLK', 'boxes': mclkPer}) if g['boxes']]
+		# `force' = frame and head this group even when it holds ONE box. The
+		# house rule is that a heading over a single box is that box's title
+		# again, and it holds for a type label; it does NOT hold for these two,
+		# whose heading carries the whole claim (this block is on NEITHER bar /
+		# this block chooses its own source). Rendered at castalia4, where the
+		# lone rf_clk box lost its frame and read as a peripheral that had
+		# simply missed its tap.
+		rankS = [g for g in ({'label': 'Peripherals on SMCLK', 'boxes': smclkPer},
+			{'label': 'Independent Domains', 'boxes': ind, 'force': True}) if g['boxes']]
+		rankMid = [g for g in ({'label': 'Own Source Select', 'boxes': muxed,
+			'force': True},) if g['boxes']]
+		hBoxM, hBoxS = sizeRank(rankM), sizeRank(rankS)
+		hBoxMid = sizeRank(rankMid) if rankMid else 0.0
+		# A WOUND CONFIGURATION IS A WALL. At the digital-peripherals maximum
+		# the MCLK rank is seventeen boxes, and one short line under each of
+		# them is 13 cm of extra figure width -- which is 13 cm this drawing is
+		# then scaled down by, taking every letter in it with them. Over the
+		# budget, the two PERIPHERAL groups go to titles only (the count is
+		# still in the title and still behind the box); the fabric and the harts
+		# keep their lines, because what those blocks ARE is the thing this
+		# figure is saying about them. MEASURED: penta_wound 58.2 cm -> 53.0 cm,
+		# and the shipped default's rank is 5 cm under the budget, so the manual
+		# this project ships never degrades (the budget was RAISED to 40 cm for
+		# exactly that reason after the first cut stripped it). A wound rank is a wide drawing whatever is done to it; what
+		# this buys is the 5 cm that come off every letter's size with it.
+		briefRank = (sum(g['w'] for g in rankM) + gapRank * (len(rankM) - 1)) > 40.0
+		if briefRank:
+			for b in mclkPer + smclkPer:
+				b['subs'] = []
+			hBoxM, hBoxS = sizeRank(rankM), sizeRank(rankS)
+
+		# ---- the generator block, left of both ranks -------------------------
+		srcBoxes = []
+		for k in order:
+			key, name, bit, sense, trim = specOf[k]
+			subs = (['\\texttt{' + fmttex(padOfFunc[name]) + '} pad function']
+				if name in padOfFunc else ['on-die oscillator'])
+			if trim:
+				subs.append('\\register{' + trim + '} sets its frequency')
+			subs.append('\\bitfield{' + bit + '} turns it ' + sense)
+			srcBoxes.append(sizeBox({'title': name, 'subs': subs, 'stack': 1, 'cells': [],
+				'key': k}))
+		hRow = max(b['h'] for b in srcBoxes)
+		wSrc = max(b['w'] for b in srcBoxes)
+		for b in srcBoxes:
+			b['h'], b['w'] = hRow, wSrc
+		nSrc = len(order)
+		hSrcCol = nSrc * hRow + (nSrc - 1) * gapRow
+
+		divMBox = sizeBox({'title': 'MCLK divider', 'stack': 1, 'cells': [], 'key': None,
+			'subs': ['\\bitfield{SYSMCLKDIV} of \\register{CLKDIVCR}', ratTex]})
+		divSBox = sizeBox({'title': 'SMCLK divider', 'stack': 1, 'cells': [], 'key': None,
+			'subs': ['\\bitfield{SYSSMCLKDIV} of \\register{CLKDIVCR}', ratTex]})
+		gateBox = sizeBox({'title': '\\bitfield{SMCLKOFF}', 'stack': 1, 'cells': [], 'key': None,
+			'subs': ['stops SMCLK for every\\\\ peripheral at once']})
+		wMux = max(3.45, wSrc - 0.60)
+		# THE CRYSTALS COME IN FROM THE SIDE, and they have to: the source column
+		# is walled in by its own two selects, so the only edges it has left are
+		# the top of its first row and the right of any row that feeds no select.
+		# The off-chip partners therefore sit beyond the die's LEFT boundary at
+		# the height of the routing band above both selects, and every pad wire
+		# crosses that boundary on ONE straight horizontal with a pad square on
+		# it. Nothing of this figure crosses a clock bar: a gap in a spine would
+		# read as a break in the clock, which is the one thing a clock drawing
+		# must never draw.
+		xtalBoxes = []
+		for i, k in enumerate(order):
+			if specOf[k][1] not in padOfFunc:
+				continue
+			xtalBoxes.append(sizeBox({'title': specOf[k][1], 'stack': 1, 'cells': [],
+				'key': k, 'row': i, 'subs': ['crystal or\\\\ oscillator']}))
+		wXtal = max([b['w'] for b in xtalBoxes] + [0.0])
+		hXtal = max([b['h'] for b in xtalBoxes] + [0.0])
+		for b in xtalBoxes:
+			b['w'], b['h'] = wXtal, hXtal
+
+		# The channel between the source column and the MCLK select carries one
+		# LANE per wire that cannot be a straight horizontal: the pad wire of
+		# any crystal that is not the top row, and the SMCLK leg. Every lane
+		# HOPS the legs it crosses instead of touching them.
+		lanes = []
+		for i, k in enumerate(order):
+			if specOf[k][1] not in padOfFunc or i == 0:
+				continue
+			if any(kk == k for v, kk, nm in mcLegs):
+				raise Exception('ClockSystemDiagram: ' + specOf[k][1] + ' arrives on a pad AND '
+					'feeds MCLKSEL, but it is not the top row of the source column, so its pad '
+					'wire and its mux leg would land on the same edge of the same box.')
+			lanes.append({'kind': 'pad', 'row': i})
+		lanes.append({'kind': 'smclk', 'row': [v for v, k, nm in mcLegs if k is None][0]})
+
+		xDie0 = 0.20 + ((wXtal + 0.60) if xtalBoxes else 0.0)
+		xGen0 = xDie0 + 0.50
+		xMuxS = xGen0
+		xSrc = xMuxS + wMux + 1.15
+		xChan = xSrc + wSrc
+		wChan = 0.46 + 0.60 * len(lanes) + 0.26
+		xMuxM = xChan + wChan
+		xGenR = xMuxM + wMux
+		for i, ln in enumerate(lanes):
+			ln['x'] = xChan + 0.46 + 0.60 * i
+
+		# ---- widths: the ranks are justified across the die ------------------
+		xRankL = xGen0
+		wKey = 6.90
+		wRankM = sum(g['w'] for g in rankM) + gapRank * (len(rankM) - 1)
+		wRankS = sum(g['w'] for g in rankS) + gapRank * (len(rankS) - 1)
+		wMid = (sum(g['w'] for g in rankMid) + gapRank * (len(rankMid) - 1)) if rankMid else 0.0
+		W = max(xRankL + wRankM, xRankL + wRankS,
+			xGenR + 1.10 + wMid + 0.90 + wKey) + 0.45
+
+		# ---- vertical anchors, bottom up -------------------------------------
+		yPartB = 0.00
+		yPartT = yPartB + hPart
+		yRedB = yPartT + 0.66
+		yBoxSB = yRedB + 0.36
+		yBoxST = yBoxSB + hBoxS
+		yFrmST = yBoxST + frmTop
+		yRailSB = yFrmST + 0.30
+		yRailST = yRailSB + hRail
+		yGateB = yRailST + 0.50
+		yGateT = yGateB + gateBox['h']
+		yNode = yGateT + 0.26          # the pre-gate SMCLK node the MCLK leg taps
+		yDivSB = yNode + 0.26
+		yDivST = yDivSB + divSBox['h']
+		yMuxB = yDivST + 0.44
+		ySrcB = yMuxB + 0.16
+		ySrcT = ySrcB + hSrcCol
+		yMuxT = ySrcT + hMuxHd
+		# one horizontal routing lane per pad-fed source, above both selects and
+		# clear of the MCLK divider above them
+		# The lane pitch is the partner box's own height: the wires are what has
+		# to clear the selects, but the boxes they come out of must not overlap
+		# each other, and the first cut printed one crystal through the other.
+		yXLane = [yMuxT + 0.30 + (hXtal + 0.30) * j for j in range(len(xtalBoxes))]
+		yDivMB = (max(yXLane) if yXLane else yMuxT) + 0.44
+		yDivMT = yDivMB + divMBox['h']
+		yRailMB = yDivMT + 0.50
+		yRailMT = yRailMB + hRail
+		yBoxMB = yRailMT + tapLen
+		yBoxMT = yBoxMB + hBoxM
+		yFrmMT = yBoxMT + frmTop
+		yRedT = yFrmMT + 0.52
+		hAll = yRedT + 0.28
+
+		yRowC = [ySrcT - hRow / 2.0 - i * (hRow + gapRow) for i in range(nSrc)]
+		yMidC = (yRailST + yRailMB) / 2.0
+		yMidT = yMidC + hBoxMid / 2.0
+		yMidB = yMidT - hBoxMid
+
+		# ---- x placement of the ranks ----------------------------------------
+		def place(rank, xL, xR):
+			if not rank:
+				return
+			spare = (xR - xL) - sum(g['w'] for g in rank)
+			gap = max(gapRank, spare / float(len(rank) + 1))
+			x = xL + max(0.0, (spare - gap * (len(rank) - 1)) / 2.0)
+			for g in rank:
+				g['x0'], g['x1'] = x, x + g['w']
+				bx = x + frmPad
+				for b in g['boxes']:
+					b['cx'] = bx + b['w'] / 2.0
+					b['tx'] = b['cx'] - (0.22 * b['w'] if b['stack'] > 1 else 0.0)
+					bx += b['w'] + gapIn
+				x += g['w'] + gap
+
+		place(rankM, xRankL, W - 0.30)
+		place(rankS, xRankL, W - 0.30)
+		place(rankMid, xGenR + 1.10, W - 0.30)
+
+		# =====================================================================
+		# EMISSION
+		# =====================================================================
+		s = ('% Generated MCU clock system diagram (harts=' + str(N) + ', sources='
+			+ str(order) + ', mclkSel=' + str([(nm if k is None else k)
+				for v, k, nm in mcLegs]) + ', ratios=' + str(len(ratM)) + ', independent='
+			+ str([b['title'] for b in ind]) + ', briefRank=' + str(briefRank) + ')\n')
+		s += '\\begin{tikzpicture}[\n'
+		s += '\thd/.style={font=\\sffamily\\scriptsize, align=center, inner sep=1pt, anchor=north},\n'
+		s += '\tbc/.style={font=\\sffamily\\scriptsize, align=center, inner sep=1pt},\n'
+		s += '\tcode/.style={font=\\sffamily\\scriptsize, align=center, inner sep=1pt},\n'
+		s += '\twire/.style={->, >=Stealth, semithick},\n'
+		s += '\tplain/.style={semithick},\n'
+		s += '\tspine/.style={->, >=Stealth, thick},\n'
+		s += ('\tnote/.style={font=\\sffamily\\scriptsize\\itshape, black!55, align=left, '
+			'fill=white, inner sep=1.5pt},\n')
+		s += ('\ttyp/.style={font=\\sffamily\\large\\itshape, black!55, align=left, '
+			'fill=white, inner sep=1.5pt, anchor=west},\n')
+		s += ('\tkey/.style={draw, thick, dashed, align=left, font=\\sffamily\\scriptsize, '
+			'fill=white, inner sep=4pt},\n')
+		s += '\tredlab/.style={font=\\sffamily\\small\\bfseries, red!70!black, align=left}]\n'
+
+		def frame(cx, yTop, w, h, fill, opts='thick'):
+			return ('\\draw[' + opts + ', fill=' + fill + '] (' + P(cx - w / 2.0) + ', '
+				+ P(yTop - h) + ') rectangle (' + P(cx + w / 2.0) + ', ' + P(yTop) + ');\n')
+
+		def head(cx, yTop, w, title, subs):
+			tex = '{\\small\\bfseries ' + title + '}'
+			for extra in subs:
+				tex += '\\\\[1pt] ' + extra
+			return ('\\node[hd, text width=' + P(w - 0.18) + 'cm] at (' + P(cx) + ', '
+				+ P(yTop - pad) + ') {' + tex + '};\n')
+
+		def drawBox(b, yTop, fill='black!8'):
+			out = ''
+			for k in range(min(b['stack'], maxShadow) - 1, 0, -1):
+				out += frame(b['cx'] + stackDx * k, yTop + stackDy * k, b['w'], b['h'], fill,
+					'thick, rounded corners=2pt')
+			out += frame(b['cx'], yTop, b['w'], b['h'], fill, 'thick, rounded corners=2pt')
+			out += head(b['cx'], yTop, b['w'], b['title'], b['subs'])
+			if b['cells']:
+				yD = yTop - b['h'] + hCells
+				out += ('\\draw[semithick] (' + P(b['cx'] - b['w'] / 2.0) + ', ' + P(yD)
+					+ ') -- (' + P(b['cx'] + b['w'] / 2.0) + ', ' + P(yD) + ');\n')
+				n = len(b['cells'])
+				for i, t in enumerate(b['cells']):
+					xL = b['cx'] - b['w'] / 2.0 + b['w'] * i / float(n)
+					if i:
+						out += ('\\draw[semithick] (' + P(xL) + ', ' + P(yD) + ') -- (' + P(xL)
+							+ ', ' + P(yTop - b['h']) + ');\n')
+					out += ('\\node[bc, text width=' + P(b['w'] / float(n) - 0.14) + 'cm] at ('
+						+ P(xL + b['w'] / (2.0 * n)) + ', ' + P(yTop - b['h'] + hCells / 2.0)
+						+ ') {' + t + '};\n')
+			return out
+
+		def brokenH(y, x0, x1, cuts, opts='plain'):
+			out, x = '', x0
+			for cut in sorted(c for c in cuts if x0 + frmGap < c < x1 - frmGap):
+				if cut - frmGap > x + 0.02:
+					out += ('\\draw[' + opts + '] (' + P(x) + ', ' + P(y) + ') -- ('
+						+ P(cut - frmGap) + ', ' + P(y) + ');\n')
+				x = cut + frmGap
+			if x1 > x + 0.02:
+				out += ('\\draw[' + opts + '] (' + P(x) + ', ' + P(y) + ') -- (' + P(x1) + ', '
+					+ P(y) + ');\n')
+			return out
+
+		def brokenV(x, y0, y1, cuts, opts='plain'):
+			out, y = '', y0
+			for cut in sorted(c for c in cuts if y0 + frmGap < c < y1 - frmGap):
+				if cut - frmGap > y + 0.02:
+					out += ('\\draw[' + opts + '] (' + P(x) + ', ' + P(y) + ') -- (' + P(x)
+						+ ', ' + P(cut - frmGap) + ');\n')
+				y = cut + frmGap
+			if y1 > y + 0.02:
+				out += ('\\draw[' + opts + '] (' + P(x) + ', ' + P(y) + ') -- (' + P(x) + ', '
+					+ P(y1) + ');\n')
+			return out
+
+		def labelIvs(xL, xR, taps):
+			ivs, lo = [], xL + 0.10
+			for t in sorted(t for t in taps if xL < t < xR):
+				ivs.append((lo, t - 0.10))
+				lo = t + 0.10
+			ivs.append((lo, xR - 0.10))
+			return ivs
+
+		def typeLabel(xL, xR, taps, lab, y):
+			'''A heading may not stand on a wire: it takes the widest tap-free
+			   interval of its lane that will hold it, and the widest one there
+			   is if none will.'''
+			wLab = TWs(lab, tLab)
+			best, room = None, -1.0
+			for a, b in labelIvs(xL, xR, taps):
+				if b - a >= wLab:
+					return '\\node[typ] at (' + P(a) + ', ' + P(y) + ') {' + lab + '};\n'
+				if b - a > room:
+					best, room = (a, b), b - a
+			return '\\node[typ] at (' + P(best[0]) + ', ' + P(y) + ') {' + lab + '};\n'
+
+		def padSquare(x, y):
+			return ('\\draw[fill=black] (' + P(x - 0.085) + ', ' + P(y - 0.085)
+				+ ') rectangle (' + P(x + 0.085) + ', ' + P(y + 0.085) + ');\n')
+
+		# ---- the package boundary, first --------------------------------------
+		s += ('\\draw[red!75!black, line width=1.2pt] (' + P(xDie0) + ', ' + P(yRedB)
+			+ ') rectangle (' + P(W) + ', ' + P(yRedT) + ');\n')
+		s += ('\\node[redlab, anchor=north west] at (' + P(xDie0) + ', ' + P(yRedB - 0.12)
+			+ ') {chip boundary};\n')
+
+		# ---- the two spines ----------------------------------------------------
+		# BOTH BARS RUN THE WHOLE RANK, and they have to: a bar that stopped
+		# short of a consumer would leave that consumer's tap hanging in white
+		# space (the first cut did exactly that to the hart box). Nothing else
+		# in the drawing lives at their height, so the generator block below the
+		# MCLK bar and above the SMCLK bar loses nothing to them.
+		xRailM = xRailS = xGen0
+
+		def rail(yB, yT, x0, title, note):
+			out = ('\\draw[thick, fill=black!15] (' + P(x0) + ', ' + P(yB) + ') rectangle ('
+				+ P(W - 0.30) + ', ' + P(yT) + ');\n')
+			out += ('\\node[bc, text width=' + P(W - 0.60 - x0) + 'cm] at ('
+				+ P((x0 + W - 0.30) / 2.0) + ', ' + P((yB + yT) / 2.0) + ') {{\\small\\bfseries '
+				+ title + '} \\quad ' + note + '};\n')
+			return out
+
+		s += rail(yRailMB, yRailMT, xRailM, 'MCLK', 'the main clock: every hart, the shared-bus '
+			'fabric and the always-on blocks \\quad it has no chip-wide off switch')
+		s += rail(yRailSB, yRailST, xRailS, 'SMCLK', 'the submain clock: the serial engines of '
+			'the peripherals \\quad \\bitfield{SMCLKOFF} stops all of them at once')
+
+		# ---- the source column, and the crystals off the die -------------------
+		xSrcC = xSrc + wSrc / 2.0
+		for j, pb in enumerate(xtalBoxes):
+			i = pb['row']
+			yLane = yXLane[j]
+			pb['cx'] = 0.20 + wXtal / 2.0
+			s += drawBox(pb, yLane + hXtal / 2.0, 'white')
+			lane = [ln for ln in lanes if ln['kind'] == 'pad' and ln['row'] == i]
+			xw = lane[0]['x'] if lane else xSrcC
+			# across the boundary on one straight horizontal, then down its own
+			# lane to the one free edge its row has
+			s += ('\\draw[plain] (' + P(0.20 + wXtal) + ', ' + P(yLane) + ') -- (' + P(xw)
+				+ ', ' + P(yLane) + ');\n')
+			s += padSquare(xDie0, yLane)
+			if lane:
+				cuts = [yRowC[rowOf[kk]] for v, kk, nm in mcLegs
+					if kk is not None and yRowC[i] < yRowC[rowOf[kk]] < yLane]
+				s += brokenV(xw, yRowC[i], yLane, cuts)
+				s += ('\\draw[wire] (' + P(xw) + ', ' + P(yRowC[i]) + ') -- (' + P(xChan)
+					+ ', ' + P(yRowC[i]) + ');\n')
+			else:
+				s += ('\\draw[wire] (' + P(xw) + ', ' + P(yLane) + ') -- (' + P(xw) + ', '
+					+ P(yRowC[i] + hRow / 2.0) + ');\n')
+		for i, b in enumerate(srcBoxes):
+			b['cx'] = xSrcC
+			s += drawBox(b, yRowC[i] + hRow / 2.0, 'white')
+		# The heading sits in the band the two selects use for their own, and it
+		# keeps out of the one wire that crosses that band (the top row's pad).
+		s += typeLabel(xSrc - 0.10, xSrc + wSrc + 0.10, [xSrcC], 'Clock Sources',
+			ySrcT + hMuxHd / 2.0)
+
+		# ---- the two glitch-free selects -------------------------------------
+		def muxBox(x0, w, title, sub, rows):
+			out = frame(x0 + w / 2.0, yMuxT, w, yMuxT - yMuxB, 'black!4', 'thick')
+			out += ('\\node[bc, text width=' + P(w - 0.20) + 'cm] at (' + P(x0 + w / 2.0) + ', '
+				+ P(yMuxT - hMuxHd / 2.0) + ') {{\\small\\bfseries ' + title + '}\\\\[1pt] '
+				+ sub + '};\n')
+			for i, (codeTex, nameTex) in enumerate(rows):
+				out += frame(x0 + w / 2.0, yRowC[i] + hRow / 2.0, w - 0.30, hRow, 'white',
+					'semithick, rounded corners=1pt')
+				out += ('\\node[code] at (' + P(x0 + w / 2.0) + ', ' + P(yRowC[i])
+					+ ') {\\texttt{' + codeTex + '}\\\\[1pt] {\\bfseries ' + nameTex + '}};\n')
+			return out
+
+		def codeTex(bf, v):
+			return format(v, '0' + str(bf.Size) + 'b')
+
+		s += muxBox(xMuxS, wMux, 'SMCLK select', '\\bitfield{SMCLKSEL}, glitch-free',
+			[(codeTex(selS, v), specOf[_SUFFIX_SRC[suf]][1]) for v, suf, d in smCodes])
+		s += muxBox(xMuxM, wMux, 'MCLK select', '\\bitfield{MCLKSEL}, glitch-free',
+			[(codeTex(selM, v), (nm if k is None else specOf[k][1])) for v, k, nm in mcLegs])
+
+		# ---- the legs. Every source leg is a straight horizontal at its own
+		# row, both ways: that is what the mirror layout buys.
+		for i, k in enumerate(order):
+			s += ('\\draw[wire] (' + P(xSrc) + ', ' + P(yRowC[i]) + ') -- ('
+				+ P(xMuxS + wMux) + ', ' + P(yRowC[i]) + ');\n')
+		legY = []
+		for v, k, nm in mcLegs:
+			if k is None:
+				continue
+			y = yRowC[rowOf[k]]
+			legY.append(y)
+			s += ('\\draw[wire] (' + P(xChan) + ', ' + P(y) + ') -- (' + P(xMuxM) + ', '
+				+ P(y) + ');\n')
+
+		# ---- THE ONE WIRE THAT IS NOT STRAIGHT -------------------------------
+		# MCLKSEL's SMCLK code, from the node the RTL takes it from: after the
+		# SMCLK divider, BEFORE the SMCLKOFF gate (SYSTEM.vhd, mclk_mux
+		# ClkIn(1) => smclk), so stopping SMCLK never stops MCLK. Up its own
+		# lane, hopping the legs it crosses.
+		fbLane = [ln for ln in lanes if ln['kind'] == 'smclk'][0]
+		yFb = yRowC[fbLane['row']]
+		s += ('\\draw[plain] (' + P(xMuxS + wMux / 2.0) + ', ' + P(yNode) + ') -- ('
+			+ P(fbLane['x']) + ', ' + P(yNode) + ');\n')
+		s += brokenV(fbLane['x'], yNode, yFb, [y for y in legY if yNode < y < yFb])
+		s += ('\\draw[wire] (' + P(fbLane['x']) + ', ' + P(yFb) + ') -- (' + P(xMuxM) + ', '
+			+ P(yFb) + ');\n')
+		# The note goes BESIDE the wire, never on it: a white label box sitting
+		# on a wire reads as an open circuit (the AFE figure was rejected for
+		# exactly that).
+		s += ('\\node[note, anchor=south west] at (' + P(xMuxS + wMux / 2.0 + divSBox['w'] / 2.0
+			+ 0.25) + ', ' + P(yNode + 0.10) + ') {the divided SMCLK, ahead of its gate};\n')
+
+		# ---- the dividers, the gate, and the two spine risers -----------------
+		divMBox['cx'] = xMuxM + wMux / 2.0
+		divSBox['cx'] = xMuxS + wMux / 2.0
+		gateBox['cx'] = xMuxS + wMux / 2.0
+		s += drawBox(divMBox, yDivMT)
+		s += drawBox(divSBox, yDivST)
+		s += drawBox(gateBox, yGateT)
+		xChain = xMuxM + wMux / 2.0
+		s += ('\\draw[wire] (' + P(xChain) + ', ' + P(yMuxT) + ') -- (' + P(xChain) + ', '
+			+ P(yDivMB) + ');\n')
+		s += ('\\draw[spine] (' + P(xChain) + ', ' + P(yDivMT) + ') -- (' + P(xChain) + ', '
+			+ P(yRailMB) + ');\n')
+		xChainS = xMuxS + wMux / 2.0
+		s += ('\\draw[wire] (' + P(xChainS) + ', ' + P(yMuxB) + ') -- (' + P(xChainS) + ', '
+			+ P(yDivST) + ');\n')
+		s += ('\\draw[wire] (' + P(xChainS) + ', ' + P(yDivSB) + ') -- (' + P(xChainS) + ', '
+			+ P(yGateT) + ');\n')
+		s += ('\\draw[spine] (' + P(xChainS) + ', ' + P(yGateB) + ') -- (' + P(xChainS) + ', '
+			+ P(yRailST) + ');\n')
+
+		# ---- the ranks -------------------------------------------------------
+		fo = 'black!45, line width=0.5pt'
+
+		def drawFrame(g, yB, yT, cutsB, cutsT, label, yLab):
+			out = brokenH(yB, g['x0'], g['x1'], cutsB, fo)
+			out += brokenH(yT, g['x0'], g['x1'], cutsT, fo)
+			out += ('\\draw[' + fo + '] (' + P(g['x0']) + ', ' + P(yB) + ') -- (' + P(g['x0'])
+				+ ', ' + P(yT) + ');\n')
+			out += ('\\draw[' + fo + '] (' + P(g['x1']) + ', ' + P(yB) + ') -- (' + P(g['x1'])
+				+ ', ' + P(yT) + ');\n')
+			out += typeLabel(g['x0'], g['x1'], cutsT, label, yLab)
+			return out
+
+		yFrmMB = yBoxMB - frmBot
+		for g in rankM:
+			taps = [b['tx'] for b in g['boxes']]
+			if len(g['boxes']) > 1 or g.get('force'):
+				s += drawFrame(g, yFrmMB, yFrmMT, taps, [], g['label'], yFrmMT)
+			for b in g['boxes']:
+				s += ('\\draw[wire] (' + P(b['tx']) + ', ' + P(yRailMT) + ') -- (' + P(b['tx'])
+					+ ', ' + P(yBoxMB) + ');\n')
+				s += drawBox(b, yBoxMT)
+
+		yFrmSB = yBoxSB - frmBot
+		for g in rankS:
+			taps = [b['tx'] for b in g['boxes'] if b.get('partner') is None]
+			drops = [b['cx'] for b in g['boxes'] if b.get('partner')]
+			if len(g['boxes']) > 1 or g.get('force'):
+				s += drawFrame(g, yFrmSB, yFrmST, drops, taps, g['label'], yFrmST)
+			for b in g['boxes']:
+				if b.get('partner') is None and 'partner' not in b:
+					s += ('\\draw[wire] (' + P(b['tx']) + ', ' + P(yRailSB) + ') -- ('
+						+ P(b['tx']) + ', ' + P(yBoxST) + ');\n')
+				s += drawBox(b, yBoxST)
+				if b.get('partner'):
+					pb = {'title': b['partner'], 'stack': 1, 'cells': [], 'key': None,
+						'subs': ['\\textit{off die}']}
+					sizeBox(pb)
+					pb['h'], pb['cx'] = hPart, b['cx']
+					s += drawBox(pb, yPartT, 'white')
+					s += ('\\draw[wire] (' + P(b['cx']) + ', ' + P(yPartT) + ') -- ('
+						+ P(b['cx']) + ', ' + P(yBoxSB) + ');\n')
+					s += padSquare(b['cx'], yRedB)
+
+		for g in rankMid:
+			if len(g['boxes']) > 1 or g.get('force'):
+				s += drawFrame(g, yMidB - frmBot, yMidT + frmTop, [], [], g['label'],
+					yMidT + frmTop)
+			for b in g['boxes']:
+				s += drawBox(b, yMidT)
+				s += ('\\draw[wire] (' + P(b['cx'] - 0.55) + ', ' + P(yRailMB) + ') -- ('
+					+ P(b['cx'] - 0.55) + ', ' + P(yMidT) + ');\n')
+				# UP FROM THE BAR'S TOP EDGE, never from inside it: a tap that
+				# starts at the far edge is drawn straight through the clock it
+				# is tapping.
+				s += ('\\draw[wire] (' + P(b['cx'] + 0.55) + ', ' + P(yRailST) + ') -- ('
+					+ P(b['cx'] + 0.55) + ', ' + P(yMidB) + ');\n')
+
+		# ---- the key, in the dead space between the spines --------------------
+		s += ('\\node[key, anchor=north east, text width=' + P(wKey - 0.40) + 'cm] at ('
+			+ P(W - 0.40) + ', ' + P(yRailMB - 0.55) + ') {\\textbf{how to read this}\\\\[2pt] '
+			'a grey bar is a clock, and every block on it taps it straight\\\\[1pt] '
+			'a box on a wire is a real gate, named by the bit that opens it\\\\[1pt] '
+			'$\\times N$ and the squares behind a box are $N$ copies of it, each with its own '
+			'gate\\\\[1pt] '
+			'a wire that hops another does not touch it};\n')
+
+		s += '\\end{tikzpicture}\n'
+		s = (s.split('\n', 1)[0][:-1] + ', width=' + P(W) + 'cm, height=' + P(hAll)
+			+ 'cm, aspect=' + P(W / hAll) + ')\n' + s.split('\n', 1)[1])
+		self._writeInclude('ClockSystemDiagram.tex', s)
+		return
+
 	def GenerateTcmApertureDiagram(self):
 		'''include/TcmApertureDiagram.tex — what ONE read through a TCM aperture
 		   actually does. Emitted unconditionally (the DEBUG-figure precedent);
@@ -4465,6 +5423,491 @@ class LatexUserGuide():
 			+ ' the aperture\'s word for its own.}};\n')
 		s += '\\end{tikzpicture}\n'
 		self._writeInclude('TcmApertureDiagram.tex', s)
+		return
+
+	# -----------------------------------------------------------------
+	# NPU datapath figure (W4). Everything the drawing asserts is either
+	# DERIVED from the configuration model or PARSED back out of the source
+	# that owns it, and checked here so a change to the RTL, the register
+	# descriptions or the memory map fails `make generate` instead of leaving
+	# a wrong picture in the manual.
+	#
+	# SOURCES — do not edit these from memory:
+	#   hdl/common/periph/NPU.vhd            (the port mux, its select flop,
+	#                                         the six-state sequencer, the
+	#                                         activation constants)
+	#   hdl/common/commune/FPMac.vhd         (the accumulator: one sfixed
+	#                                         resize per step, so fixed_pkg's
+	#                                         default round-to-nearest and
+	#                                         saturate apply at EVERY step)
+	#   hdl_templates/MCU.template.npu.vhd   (the Q generics of THIS chip's
+	#                                         instance, and the comment that
+	#                                         says npu0_active sleeps nobody)
+	#   generate.py NPUMODE / NPUACTF        (the mode and activation lists)
+	#   Gen.SharedWindowSections             (the staging RAM's geometry)
+	#   Gen.McuMpCompat['irqVectors']        (the think-done vector number)
+	# -----------------------------------------------------------------
+
+	# The mode and activation lists the figure DRAWS, as
+	# (code, drawn label, a phrase that must appear in that code's own sentence
+	# of the register description). The labels are the figure's English; the
+	# phrases are the tie to the register model, checked below. A code added,
+	# renumbered or reworded in generate.py therefore fails the build here
+	# rather than shipping a four-way frame that has grown a fifth mode.
+	_NPU_MODES = [
+		(0, 'MLP',            'dense layer',        'multilayer-perceptron'),
+		(1, '1-D convolution', 'taps and filters',  'one-dimensional convolution'),
+		(2, 'XNOR-popcount',  'binary, 32 per word', 'XNOR-popcount'),
+		(3, 'GEMM',           '$C = A \\times B$',  'general matrix-multiply'),
+	]
+	_NPU_ACTS = [
+		(0, 'sigmoid', 'logistic sigmoid'),
+		(1, 'ReLU',    'ReLU'),
+		(2, 'tanh',    'tanh'),
+		(3, 'clamp',   'clamp'),
+		(4, 'exp',     'exponential approximation'),
+	]
+	# The sequencer states this figure names, in the order the RTL walks them.
+	_NPU_STATES = ['NPU_BEGIN', 'NPU_GET_WEIGHT', 'NPU_GET_INPUT', 'NPU_MAC',
+		'NPU_SET_OUTPUT', 'NPU_FINISH']
+
+	def _NpuCodedList(self, field, drawn, what):
+		'''Parse a `0 = ... 1 = ...` coded list back out of a BitField's own
+		   description and check the figure's transcription against it. The
+		   codes must be exactly the drawn ones, in order, and each drawn
+		   entry's phrase must appear in that code's sentence.'''
+		desc = field.Description
+		hits = list(re.finditer(r'(?:^|\.\s+)([0-7]) = ', desc))
+		parsed = {}
+		for i, h in enumerate(hits):
+			end = hits[i + 1].start() if i + 1 < len(hits) else len(desc)
+			parsed[int(h.group(1))] = desc[h.end():end]
+		want = [d[0] for d in drawn]
+		if sorted(parsed.keys()) != want:
+			raise Exception('NpuDatapathDiagram: %s draws codes %s but %s describes %s '
+				'— the figure and the register table would disagree.'
+				% (what, want, field.Name, sorted(parsed.keys())))
+		for entry in drawn:
+			code, phrase = entry[0], entry[-1]
+			if phrase.lower() not in parsed[code].lower():
+				raise Exception('NpuDatapathDiagram: %s code %d is drawn as %r, but %s\'s '
+					'description of that code (%r) no longer says %r.'
+					% (what, code, entry[1], field.Name, parsed[code][:80], phrase))
+		return parsed
+
+	def _NpuFacts(self):
+		'''Every number and name the figure prints, derived and cross-checked.
+		   Returns None when this configuration has no NPU.'''
+		gen = self.Gen
+		# The template is registered as `NPU', so the single instance is named
+		# NPU (no index); match the template rather than a guessed spelling.
+		npu = [p for p in gen.Peripherals if p.Template.NameTemplate == 'NPU']
+		if not npu:
+			return None
+		npu = npu[0]
+
+		def field(regName, fieldName):
+			for r in npu.Registers:
+				if r.Name != regName:
+					continue
+				for f in r.BitFields:
+					if f.Name == fieldName:
+						return f
+			raise Exception('NpuDatapathDiagram: %s.%s is not in the generated register '
+				'model any more.' % (regName, fieldName))
+
+		# ---- the mode and activation lists, against their own descriptions
+		modeField = field('NPUCR', 'NPUMODE')
+		actField = field('NPUCR', 'NPUACTF')
+		self._NpuCodedList(modeField, self._NPU_MODES, 'the mode frame')
+		self._NpuCodedList(actField, self._NPU_ACTS, 'the activation frame')
+		# The reserved tails are drawn as words, so they are checked as words.
+		if 'Codes 4-7 are reserved' not in modeField.Description:
+			raise Exception('NpuDatapathDiagram: NPUMODE no longer reserves codes 4-7; '
+				'the drawn four-way frame would be incomplete.')
+		if 'Codes 5-7 are reserved' not in actField.Description:
+			raise Exception('NpuDatapathDiagram: NPUACTF no longer reserves codes 5-7; '
+				'the drawn activation note would be wrong.')
+
+		# ---- the staging RAM, from the address-space model, cross-checked
+		# against the resolved configuration's own byte count (two independent
+		# products of the same arithmetic, the _TcmApertureWindows pattern).
+		stage = [sec for sec in (gen.SharedWindowSections or []) if sec[0] == 'NPU staging RAM']
+		if len(stage) != 1:
+			raise Exception('NpuDatapathDiagram: the NPU is instantiated but the shared '
+				'window has %d staging-RAM rows — the figure could not place it.' % len(stage))
+		base, last = int(stage[0][1]), int(stage[0][2])
+		size = last - base + 1
+		rc = getattr(gen, 'ResolvedConfig', None) or {}
+		cfgSize = ((rc.get('memory') or {}).get('npuStagingRamSize'))
+		if cfgSize is not None and int(cfgSize) != size:
+			raise Exception('NpuDatapathDiagram: the shared window gives the staging RAM %d '
+				'bytes but memory.npuStagingRamSize resolves to %d.' % (size, cfgSize))
+		words = size // 4
+		# The pointer registers hold WORD INDICES, so their width has to cover
+		# the word count: a staging RAM the pointers cannot address is a figure
+		# that draws a tap which cannot reach.
+		ptrBits = field('NPUIVSAR', 'NPUIVSAR').Size
+		if (1 << ptrBits) < words:
+			raise Exception('NpuDatapathDiagram: the staging RAM holds %d words but the '
+				'vector pointers are only %d bits wide.' % (words, ptrBits))
+
+		# ---- the think-done vector, from the emitted IRQ source list
+		vectors = [n for n, _ in (getattr(gen, 'McuMpCompat', {}) or {}).get('irqVectors', [])]
+		if 'IRQB_NPU0_TD' not in vectors:
+			raise Exception('NpuDatapathDiagram: the NPU is instantiated but IRQB_NPU0_TD is '
+				'not in the emitted interrupt source list, so the figure has no vector to draw.')
+		vector = vectors.index('IRQB_NPU0_TD')
+
+		# ---- the Q formats, parsed from the generic map that builds THIS chip's
+		# instance. Q0.24 x Q7.24 into a Q7.24 accumulator is a property of the
+		# MCU template, not of the NPU entity's defaults, so it is read there.
+		tplPath = self.ThisFileDirectory + '/../hdl_templates/MCU.template.npu.vhd'
+		with open(tplPath) as f:
+			tpl = f.read()
+		gmap = {}
+		for key in ('X_M_BITS', 'W_M_BITS', 'Y_M_BITS', 'N_BITS'):
+			m = re.search(key + r'\s*=>\s*(\d+)', tpl)
+			if m is None:
+				raise Exception('NpuDatapathDiagram: %s is not in the npu0 generic map of '
+					'MCU.template.npu.vhd any more.' % key)
+			gmap[key] = int(m.group(1))
+		if 'npu0_active does not sleep any hart' not in tpl:
+			raise Exception('NpuDatapathDiagram: MCU.template.npu.vhd no longer says that '
+				'npu0_active sleeps no hart — the figure\'s ownership note would be a guess.')
+
+		# ---- the mechanism itself, read back out of the NPU RTL
+		rtlPath = self.ThisFileDirectory + '/../../../hdl/common/periph/NPU.vhd'
+		with open(rtlPath) as f:
+			rtl = f.read()
+		if not re.search(r'NpuMuxSel\s*<=\s*NPUTHINK;', rtl):
+			raise Exception('NpuDatapathDiagram: NPU.vhd no longer registers NpuMuxSel from '
+				'NPUTHINK, so the drawn select contract is wrong.')
+		if not re.search(r'NPU_MUXSEL_REG:\s*process\(Clk,\s*ResetN\)', rtl):
+			raise Exception('NpuDatapathDiagram: the NPU port-mux select is no longer a flop '
+				'on the free-running Clk (NPU_MUXSEL_REG), so the drawn contract is wrong.')
+		stateDecl = re.search(r'type\s+npu_state_type\s+is\s*\((.*?)\)\s*;', rtl, re.S)
+		if stateDecl is None:
+			raise Exception('NpuDatapathDiagram: npu_state_type is not declared in NPU.vhd.')
+		states = [t.strip() for t in stateDecl.group(1).split(',')]
+		if sorted(states) != sorted(self._NPU_STATES):
+			raise Exception('NpuDatapathDiagram: the sequencer states drawn %s are not the '
+				'RTL\'s %s.' % (sorted(self._NPU_STATES), sorted(states)))
+
+		return {
+			'base': base, 'last': last, 'size': size, 'words': words,
+			'ptrBits': ptrBits, 'vector': vector,
+			'xq': (gmap['X_M_BITS'], gmap['N_BITS']),
+			'wq': (gmap['W_M_BITS'], gmap['N_BITS']),
+			'aq': (gmap['Y_M_BITS'], gmap['N_BITS']),
+			'sat': 1 << gmap['Y_M_BITS'],
+		}
+
+	def GenerateNpuDatapathDiagram(self):
+		'''include/NpuDatapathDiagram.tex — what ONE computation does to the
+		   staging RAM, and who owns that RAM while it happens. Emitted
+		   unconditionally (the TCM-aperture precedent); the NPU chapter is
+		   itself only assembled when the peripheral exists, so a configuration
+		   without an NPU never reaches the \\input and gets a stub here.
+
+		   THE FIGURE DRAWS THE SHAPE; THE CAPTION CARRIES THE CONTRACTS.
+		   (USER review, 2026-08-17: the first cut was rejected as "too many
+		   words".) Every box here is a BOLD TITLE plus AT MOST ONE short line,
+		   which is the rule the pinout and clock-tree figures already keep. The
+		   ownership rule, the one-cycle select registration, the per-step
+		   rounding, the reserved code foldings, the five-wrappers-one-sigmoid
+		   fact and what the completion pulse does are all still stated — in the
+		   chapter\'s caption, where a reader who wants a sentence can find one
+		   and a reader who wants the shape is not made to read past it. A
+		   picture that has to be READ word by word is a paragraph with lines
+		   drawn on it.
+
+		   THE HOUSE THEME, NOT A THEME OF ITS OWN. The same review found the
+		   figure off-house: it had three tinted bands under three darker banner
+		   strips, which is a colour ladder no other figure in this manual uses.
+		   It now uses the clock-tree figure\'s idiom exactly — white ground, one
+		   light grey wash on the ONE band that needs emphasis, thin grey frames
+		   with Title Case italic grey headings sitting on their top edge, grey
+		   filled blocks, and one grey spine. There is NO red in it, and that is
+		   deliberate: red is this manual\'s package/off-die idiom (the pinout,
+		   SPI-flash and clock figures all spend it on a chip boundary), and the
+		   NPU is entirely on-die, so a red line here would name a boundary that
+		   does not exist.
+
+		   THREE BANDS, LEFT TO RIGHT, BECAUSE OWNERSHIP IS WHAT SPLITS THEM.
+		   The harts\' side, the staging RAM, and the engine. The RAM is in the
+		   middle and is the only washed band because it is the contested thing:
+		   it has ONE port, and the whole figure is about which side of it is
+		   driving that port. The two outer bands never touch each other; every
+		   line between them lands on something in the middle band.
+
+		   THE MUX IS DRAWN AS A MUX, AND ITS SELECT IS A SECOND COMPARTMENT.
+		   The select is not a decoration and not an arbitration: it is one flop,
+		   NPUTHINK re-clocked on the free-running clock. The strip names the
+		   flop; WHAT the extra cycle buys is the caption\'s sentence. It is a
+		   glued compartment rather than a wire back to NPUCR because the wire
+		   would have to cross the compute port to get there.
+
+		   THE CONTRACT IS SOFTWARE\'S, AND THE FIGURE SAYS SO IN SIX WORDS.
+		   Nothing in the hardware stops a hart reading the staging window during
+		   a computation: npu0_active sleeps nobody (MCU.template.npu.vhd says so
+		   in as many words, and _NpuFacts refuses to ship if it stops saying
+		   it). A figure that drew a lock here would teach a protection this chip
+		   does not have, so the key box states whose rule it is and names the
+		   poll, and the caption explains why there is nothing else to name.
+
+		   THE POINTERS ARE TAPS, NOT ADDRESSES. NPUIVSAR, NPUWVSAR and NPUOVSAR
+		   are word indices into the RAM, so they are drawn as three arrows
+		   landing on three stripes of the one word array. The stripes are
+		   labelled by ROLE and are deliberately not to scale: where they sit and
+		   how big they are is firmware\'s business, and the sequencer
+		   bounds-checks none of it (caption).
+
+		   ONE PORT, ONE SPINE. The engine reaches the RAM through exactly one
+		   port, so there is exactly one bus between the middle band and the
+		   engine, drawn as a grey spine down the engine\'s left edge that the
+		   sequencer, the MAC and the activation each tap. Drawing a separate
+		   write-back arrow from the activation to the RAM would draw a second
+		   port this chip does not have.
+
+		   EVERY DERIVED FACT STILL PRINTS. De-wording moved sentences, not
+		   numbers: the staging window and its word count, the vector number, the
+		   pointer width, the three Q formats and the saturation limit, the four
+		   mode codes, the five activation codes and the sequencer\'s state count
+		   are all still drawn, so every assertion in _NpuFacts still guards
+		   something the reader can see.'''
+		facts = self._NpuFacts()
+		if facts is None:
+			self._writeInclude('NpuDatapathDiagram.tex',
+				'% This configuration has no NPU (peripherals.npu = false).\n')
+			return
+
+		def P(v):
+			return '%.2f' % v
+
+		def Q(mn):
+			return 'Q%d.%d' % mn
+
+		vec = facts['vector']
+		kiB = facts['size'] // 1024
+
+		# ---- geometry, in cm. Every box height here is a LINE COUNT times a
+		# baseline plus padding, never a guess: a TikZ node whose contents
+		# outgrow its box does not clip, it spills over its own border and over
+		# whatever is under it. The first cut of this figure was drawn with
+		# guessed heights and every second box bled. Two lines per block is now
+		# the CEILING, so the heights below are small and the drawing is short
+		# enough that \resizebox does not have to shrink the type.
+		yBot, yTop = 0.15, 12.60
+		# The three bands are FRAMES with a clear channel between them, not
+		# abutting tinted columns: the wires that cross from one to the next
+		# have to be seen leaving one frame and entering the next.
+		bands = [(0.00, 4.70, 'white', 'The Harts\' Side'),
+			(5.00, 11.20, 'black!6', 'The Staging RAM'),
+			(11.50, 23.35, 'white', 'Inside the NPU')]
+		hX1 = bands[0][1]
+		mCx = (bands[1][0] + bands[1][1]) / 2.0
+		hCx, hartW = 2.35, 4.20
+
+		yReg, yPort = 11.60, 10.50     # the two lanes that leave the harts' box
+		yHart, hartH = 11.05, 1.70
+		yKey, keyH = 5.00, 1.70
+		yIrq, irqH = 1.15, 1.30
+		xOut = hCx + hartW / 2.0       # where every lane leaves the harts' band
+
+		muxX0, muxX1 = 5.20, 11.00
+		yMux, muxH = 10.50, 1.10
+		ySel, selH = 9.58, 0.75        # glued under the mux, sharing its border
+		ramX0, ramX1 = 5.65, 10.55
+		ramY0, ramY1 = 2.30, 7.70
+		ramCx = (ramX0 + ramX1) / 2.0
+		stripeY = [5.90, 4.65, 3.40]   # the three tapped regions
+		stripeW, stripeH = 4.30, 0.90
+
+		regCx, regW = 13.30, 3.40
+		yCr, crH = 11.60, 1.10
+		ptrX0, ptrX1 = regCx - regW / 2.0, regCx + regW / 2.0
+		ptrFrameY0, ptrFrameY1 = 2.30, 6.70
+		spX0, spX1 = 15.20, 15.85      # the engine's one port
+		spY0, spY1 = 3.60, 11.30
+		engX0, engX1 = 16.15, 23.20
+		engCx = (engX0 + engX1) / 2.0
+		seqY0, seqY1 = 8.60, 11.60
+		yMac, macH = 6.95, 1.30
+		actY0, actY1 = 3.40, 5.60
+		yDone, doneH = 1.15, 1.30
+		ySeqTap = 10.20                # between the two mode rows
+
+		s = ('% Generated NPU datapath figure: ' + str(kiB) + ' KiB staging RAM at '
+			+ fmthex(facts['base']) + ' (' + str(facts['words']) + ' words), think-done vector '
+			+ str(vec) + ', ' + Q(facts['xq']) + ' x ' + Q(facts['wq']) + ' into '
+			+ Q(facts['aq']) + '\n')
+		# NO HYPHENATION anywhere in this figure. Every text node here is a
+		# narrow column, which is exactly where TeX starts breaking words, and
+		# a register name split as `en-\\ables' in a block diagram reads as two
+		# different identifiers. `nb' carries the switch and every text style
+		# inherits it.
+		s += '\\begin{tikzpicture}[\n'
+		s += '\tnb/.style={execute at begin node={\\hyphenpenalty=10000\\relax}},\n'
+		s += '\tblk/.style={draw, thick, align=center, fill=white, font=\\sffamily\\small, nb},\n'
+		s += '\tunit/.style={blk, fill=black!8},\n'
+		s += '\tmuxb/.style={blk, fill=black!12, line width=1.1pt},\n'
+		s += '\tsel/.style={blk, fill=black!18, font=\\sffamily\\scriptsize, line width=1.1pt},\n'
+		s += '\tstripe/.style={blk, fill=black!8, font=\\sffamily\\scriptsize},\n'
+		s += '\tsmallb/.style={blk, fill=black!8, font=\\sffamily\\scriptsize},\n'
+		s += '\tsig/.style={->, >=Stealth, thick},\n'
+		s += '\tbus/.style={<->, >=Stealth, line width=1.5pt},\n'
+		s += '\tcross/.style={->, >=Stealth, line width=1.5pt},\n'
+		# The frame-heading idiom of the clock-tree figure: Title Case, italic,
+		# grey, sitting ON the frame's top edge. `ban' is the same thing one
+		# step larger, for the three bands themselves.
+		s += ('\tban/.style={font=\\sffamily\\small\\itshape, black!50, align=center, '
+			+ 'inner sep=2pt},\n')
+		s += ('\ttyp/.style={font=\\sffamily\\scriptsize\\itshape, black!55, align=center, '
+			+ 'inner sep=1.5pt},\n')
+		s += '\tlab/.style={font=\\sffamily\\scriptsize, align=center, nb},\n'
+		s += '\tnote/.style={font=\\sffamily\\scriptsize\\itshape, align=center, nb}]\n'
+
+		# ---- the three bands: a wash on the contested one, a frame on each
+		for x0, x1, fill, title in bands:
+			if fill != 'white':
+				s += ('\\fill[' + fill + '] (' + P(x0) + ', ' + P(yBot) + ') rectangle ('
+					+ P(x1) + ', ' + P(yTop) + ');\n')
+			s += ('\\draw[semithick, black!45] (' + P(x0) + ', ' + P(yBot) + ') rectangle ('
+				+ P(x1) + ', ' + P(yTop) + ');\n')
+			s += ('\\node[ban, fill=' + fill + '] at (' + P((x0 + x1) / 2.0) + ', ' + P(yTop)
+				+ ') {' + title + '};\n')
+
+		# ---- band 1: who asks, on which of the two wires, and under what rule
+		s += ('\\node[unit, minimum width=' + P(hartW) + 'cm, minimum height=' + P(hartH)
+			+ 'cm, text width=' + P(hartW - 0.40) + 'cm] (hart) at (' + P(hCx) + ', ' + P(yHart)
+			+ ') {\\textbf{any hart}\\\\ \\scriptsize registers on one wire,'
+			+ ' staging RAM on the other};\n')
+		s += ('\\node[blk, minimum width=' + P(hartW) + 'cm, minimum height=' + P(keyH)
+			+ 'cm, text width=' + P(hartW - 0.40) + 'cm] (key) at (' + P(hCx) + ', ' + P(yKey)
+			+ ') {\\textbf{the ownership rule is software\'s}\\\\ \\scriptsize poll'
+			+ ' \\bitfield{NPUTHINK} for 0 before touching \\texttt{' + fmthex(facts['base'])
+			+ '}--\\texttt{' + fmthex(facts['last']) + '}};\n')
+		s += ('\\node[unit, minimum width=' + P(hartW) + 'cm, minimum height=' + P(irqH)
+			+ 'cm, text width=' + P(hartW - 0.40) + 'cm] (irq) at (' + P(hCx) + ', ' + P(yIrq)
+			+ ') {\\textbf{interrupt vector ' + str(vec) + '}\\\\ \\scriptsize one more source'
+			+ ' at the interrupt router};\n')
+
+		# ---- the two lanes out of the harts' box
+		s += '\\draw[cross] (' + P(xOut) + ', ' + P(yReg) + ') -- (' + P(ptrX0) + ', ' + P(yReg) + ');\n'
+		s += ('\\node[lab, fill=' + bands[1][2] + ', inner sep=2pt, anchor=south] at (' + P(mCx)
+			+ ', ' + P(yReg + 0.14) + ') {the register bus};\n')
+		s += '\\draw[bus] (' + P(xOut) + ', ' + P(yPort) + ') -- (' + P(muxX0) + ', ' + P(yPort) + ');\n'
+
+		# ---- band 2: the port multiplexer, its select strip, and the RAM
+		s += ('\\node[muxb, minimum width=' + P(muxX1 - muxX0) + 'cm, minimum height=' + P(muxH)
+			+ 'cm, text width=' + P(muxX1 - muxX0 - 0.40) + 'cm] (mux) at (' + P((muxX0 + muxX1) / 2.0) + ', '
+			+ P(yMux) + ') {\\textbf{the port multiplexer}\\\\ \\scriptsize one side drives the'
+			+ ' SRAM port, never both};\n')
+		s += ('\\node[sel, minimum width=' + P(muxX1 - muxX0) + 'cm, minimum height=' + P(selH)
+			+ 'cm, text width=' + P(muxX1 - muxX0 - 0.40) + 'cm] (sel) at (' + P((muxX0 + muxX1) / 2.0) + ', '
+			+ P(ySel) + ') {\\textbf{select} $=$ \\bitfield{NPUTHINK}, registered on'
+			+ ' \\register{mclk}};\n')
+
+		# The RAM: one word array and three tapped regions. What firmware owns
+		# and what the sequencer does not check is the caption's sentence.
+		s += ('\\draw[thick, fill=white] (' + P(ramX0) + ', ' + P(ramY0) + ') rectangle ('
+			+ P(ramX1) + ', ' + P(ramY1) + ');\n')
+		s += ('\\node[lab, text width=' + P(ramX1 - ramX0 - 0.40) + 'cm, anchor=north] at (' + P(ramCx) + ', '
+			+ P(ramY1 - 0.16) + ') {\\textbf{\\small NPU staging RAM}\\\\ \\texttt{' + fmthex(facts['base'])
+			+ '}--\\texttt{' + fmthex(facts['last']) + '}, ' + str(facts['words']) + ' words};\n')
+		stripeNames = ['input vector', 'weight matrix', 'output vector']
+		for i, yS in enumerate(stripeY):
+			s += ('\\node[stripe, minimum width=' + P(stripeW) + 'cm, minimum height=' + P(stripeH)
+				+ 'cm] (st' + str(i) + ') at (' + P(ramCx) + ', ' + P(yS) + ') {' + stripeNames[i] + '};\n')
+		s += ('\\draw[bus] (' + P(ramCx) + ', ' + P(ySel - selH / 2.0) + ') -- (' + P(ramCx) + ', '
+			+ P(ramY1) + ');\n')
+		s += ('\\node[lab, anchor=west, fill=' + bands[1][2] + ', inner sep=1.5pt] at ('
+			+ P(ramCx + 0.14) + ', ' + P((ySel - selH / 2.0 + ramY1) / 2.0) + ') {the one port};\n')
+
+		# ---- band 3, left column: the registers, and the three pointer taps
+		s += ('\\node[unit, minimum width=' + P(regW) + 'cm, minimum height=' + P(crH) + 'cm, text width='
+			+ P(regW - 0.34) + 'cm] (cr) at (' + P(regCx) + ', ' + P(yCr) + ') {\\textbf{\\small NPUCR}\\\\'
+			+ ' \\scriptsize mode, counts, \\bitfield{NPUTHINK}};\n')
+		s += ('\\draw[thin, black!55] (' + P(ptrX0) + ', ' + P(ptrFrameY0) + ') rectangle ('
+			+ P(ptrX1) + ', ' + P(ptrFrameY1) + ');\n')
+		s += ('\\node[typ, fill=white] at (' + P(regCx) + ', ' + P(ptrFrameY1)
+			+ ') {The Vector Pointers};\n')
+		ptrNames = ['NPUIVSAR', 'NPUWVSAR', 'NPUOVSAR']
+		ptrRoles = ['inputs', 'weights', 'outputs']
+		for i, yS in enumerate(stripeY):
+			s += ('\\node[smallb, minimum width=' + P(regW - 0.34) + 'cm, minimum height=' + P(stripeH)
+				+ 'cm] (pt' + str(i) + ') at (' + P(regCx) + ', ' + P(yS) + ') {\\textbf{'
+				+ ptrNames[i] + '}\\\\ ' + ptrRoles[i] + '};\n')
+			s += ('\\draw[sig] (' + P(ptrX0) + ', ' + P(yS) + ') -- (' + P(ramX1) + ', ' + P(yS) + ');\n')
+		s += ('\\node[note, text width=' + P(regW - 0.26) + 'cm, anchor=north] at ('
+			+ P(regCx) + ', ' + P(stripeY[-1] - stripeH / 2.0 - 0.14) + ') {'
+			+ str(facts['ptrBits']) + '-bit word indices};\n')
+
+		# ---- the one port between the RAM and the engine, drawn as a spine
+		s += ('\\fill[black!15, draw=black, thick] (' + P(spX0) + ', ' + P(spY0) + ') rectangle ('
+			+ P(spX1) + ', ' + P(spY1) + ');\n')
+		s += ('\\node[lab, rotate=90] at (' + P((spX0 + spX1) / 2.0) + ', ' + P((spY0 + spY1) / 2.0)
+			+ ') {\\textbf{the NPU\'s compute port}};\n')
+		s += '\\draw[bus] (' + P(muxX1) + ', ' + P(yPort) + ') -- (' + P(spX0) + ', ' + P(yPort) + ');\n'
+		s += ('\\node[lab, inner sep=2pt, anchor=north] at (' + P((muxX1 + spX0) / 2.0) + ', '
+			+ P(yPort - 0.16) + ') {one word per access};\n')
+
+		# ---- band 3, right column: the sequencer, the MAC, the activation
+		s += ('\\draw[thin, black!55] (' + P(engX0) + ', ' + P(seqY0) + ') rectangle ('
+			+ P(engX1) + ', ' + P(seqY1) + ');\n')
+		s += ('\\node[typ, fill=white] at (' + P(engCx) + ', ' + P(seqY1)
+			+ ') {The Mode Sequencer};\n')
+		# 2 x 2, not a rank of four: at four across, a mode box is 1.7 cm wide and
+		# `XNOR-popcount' hyphenates into three lines inside it.
+		modeW, modeH = 3.30, 0.95
+		modeXs = [engCx - modeW / 2.0 - 0.10, engCx + modeW / 2.0 + 0.10]
+		modeYs = [10.75, 9.70]
+		for i, (code, label, sub, _phrase) in enumerate(self._NPU_MODES):
+			s += ('\\node[smallb, minimum width=' + P(modeW) + 'cm, minimum height=' + P(modeH)
+				+ 'cm, text width=' + P(modeW - 0.26) + 'cm] at (' + P(modeXs[i % 2]) + ', '
+				+ P(modeYs[i // 2]) + ') {\\textbf{' + str(code) + '\\quad ' + label + '}\\\\ ' + sub + '};\n')
+		s += ('\\node[note, text width=' + P(engX1 - engX0 - 0.40) + 'cm, anchor=north] at ('
+			+ P(engCx) + ', ' + P(modeYs[1] - modeH / 2.0 - 0.14) + ') {one mode per computation, '
+			+ str(len(self._NPU_STATES)) + ' sequencer states};\n')
+
+		s += ('\\node[unit, minimum width=' + P(engX1 - engX0) + 'cm, minimum height=' + P(macH)
+			+ 'cm, text width=' + P(engX1 - engX0 - 0.40) + 'cm] (mac) at (' + P(engCx) + ', ' + P(yMac)
+			+ ') {\\textbf{the multiply-accumulate step}\\\\ \\scriptsize ' + Q(facts['xq'])
+			+ ' $\\times$ ' + Q(facts['wq']) + ' $\\to$ ' + Q(facts['aq'])
+			+ ', saturating at $\\pm$' + str(facts['sat']) + ' every step};\n')
+
+		s += ('\\draw[thin, black!55] (' + P(engX0) + ', ' + P(actY0) + ') rectangle ('
+			+ P(engX1) + ', ' + P(actY1) + ');\n')
+		s += ('\\node[typ, fill=white] at (' + P(engCx) + ', ' + P(actY1) + ') {The Activation Taps};\n')
+		actW, actGap, actH = 1.30, 0.10, 0.95
+		actSpan = len(self._NPU_ACTS) * actW + (len(self._NPU_ACTS) - 1) * actGap
+		actX = engCx - actSpan / 2.0 + actW / 2.0
+		yAct = 4.55
+		for code, label, _phrase in self._NPU_ACTS:
+			s += ('\\node[smallb, minimum width=' + P(actW) + 'cm, minimum height=' + P(actH)
+				+ 'cm] at (' + P(actX) + ', ' + P(yAct) + ') {\\textbf{' + str(code) + '}\\\\ ' + label + '};\n')
+			actX += actW + actGap
+		s += ('\\node[note, text width=' + P(engX1 - engX0 - 0.40) + 'cm, anchor=north] at ('
+			+ P(engCx) + ', ' + P(yAct - actH / 2.0 - 0.14) + ') {all '
+			+ str(len(self._NPU_ACTS)) + ' share one sigmoid approximator};\n')
+
+		# ---- the spine taps: what each block takes from, or gives to, the port
+		s += '\\draw[sig] (' + P(spX1) + ', ' + P(ySeqTap) + ') -- (' + P(engX0) + ', ' + P(ySeqTap) + ');\n'
+		s += '\\draw[sig] (' + P(spX1) + ', ' + P(yMac) + ') -- (' + P(engX0) + ', ' + P(yMac) + ');\n'
+		s += '\\draw[sig] (' + P(engX0) + ', ' + P(yAct) + ') -- (' + P(spX1) + ', ' + P(yAct) + ');\n'
+
+		# ---- the completion event, and the leg it turns into
+		s += ('\\node[unit, minimum width=' + P(engX1 - engX0) + 'cm, minimum height=' + P(doneH)
+			+ 'cm, text width=' + P(engX1 - engX0 - 0.40) + 'cm] (done) at (' + P(engCx) + ', ' + P(yDone)
+			+ ') {\\textbf{the completion event}\\\\ \\scriptsize clears \\bitfield{NPUTHINK},'
+			+ ' sets \\bitfield{NPUTHINKDONE}};\n')
+		s += '\\draw[cross] (' + P(engX0) + ', ' + P(yDone) + ') -- (' + P(xOut) + ', ' + P(yDone) + ');\n'
+		s += ('\\node[lab, fill=' + bands[1][2] + ', inner sep=2pt, anchor=south] at (' + P(mCx) + ', '
+			+ P(yDone + 0.14) + ') {the think-done level};\n')
+
+		s += '\\end{tikzpicture}\n'
+		self._writeInclude('NpuDatapathDiagram.tex', s)
 		return
 
 	def GenerateBootFlowDiagram(self):
@@ -5109,6 +6552,676 @@ class LatexUserGuide():
 		s += '\\end{tikztimingtable}\n'
 		return s
 
+	def GenerateSpiFlashDiagram(self):
+		'''include/SpiFlashDiagram.tex — SPI0 AND THE BOOT FLASH, in the house
+		   style of the flat whole-chip figure: a masters band, one grey spine,
+		   one rank, a red package boundary, and the off-chip partners on straight
+		   verticals below it.
+
+		   WHAT IT REPLACES, AND WHY. The SPI chapter used to open on a textbook
+		   connection diagram — a box marked \\emph{SPI Master}, two marked
+		   \\emph{SPI Slave A/B}, five wires — drawn once, by hand, for a manual
+		   that was not this chip\'s. Nothing in it was derived and nothing in it
+		   was true of SPI0 in particular, while the eight pages of prose around it
+		   carried the whole of the real story with no picture at all: that SPI0 is
+		   the BOOT FLASH\'s master, that hart 0 reaches that flash by TWO different
+		   routes, and that one of those routes does not touch the shared bus.
+
+		   THE STORY IS THE TWO PATHS, AND THE DRAWING IS BUILT AROUND THEM.
+		     * The ORDINARY path: hart 0, like every other hart, taps the arbiter
+		       bar, and SPI0\'s registers hang off it as one more arbiter slave.
+		       That is the path every SPI0TX write takes.
+		     * The PRIVATE path: adddec inside hart 0\'s own tile decodes every
+		       address at or above 2^(SH_AW+2) as an extended-flash access and
+		       takes it out of the tile on the flash quartet instead. It never
+		       reaches the bar and nothing arbitrates it (hdl/common/adddec.vhd:
+		       85-92, gen_flash_detect: `data_addr(31 downto SH_AW+2) /=
+		       FLASH_ZERO\', the STRICT COMPLEMENT of the sh_sel window;
+		       hdl/common/hart_tile.vhd:90-96 and 581-622 for the port and the
+		       enabled-in-every-tile rule; hdl/common/MCU.vhd:2513-2516 and
+		       3779-3782 for hart 0\'s hookup into SPI0).
+		   So the bar is drawn STOPPING SHORT of the left margin and hart 0\'s
+		   private rail runs down the lane it leaves — past the END of the bar,
+		   not under it. That is the one claim this figure makes with geometry
+		   rather than with words, because a reader who takes the flash window for
+		   one more arbiter slave will not understand a line of the XIP section.
+
+		   THE OTHER HARTS ARE DRAWN, AND DRAWN HONESTLY. Every tile is the same
+		   netlist, so harts 1..N-1 have the decoder and the port too — with
+		   nothing behind them. hart_tile.vhd:90-96 states the contract in words:
+		   `other tiles leave the outputs open and flash_dout at its zeros default,
+		   so their extended-flash accesses read ZEROS and never stall\'. The
+		   drawing says exactly that and no more: the same box, the same decoder
+		   compartment, the same stub out of the bottom of it, and the stub ENDS
+		   in a small OPEN CIRCLE — the unconnected-pin idiom — with the contract
+		   printed in the box above it. Nothing is greyed out or dashed, because
+		   nothing here is absent. (It ended in a heavy horizontal BAR until a
+		   USER read that as a ground symbol on the other tiles\' decoders, which
+		   is a connection this chip does not make; see the emission below.)
+
+		   THE CHIP SELECT HAS TWO OWNERS AND THAT IS A MECHANISM, NOT A NOTE.
+		   CS_FLASH is the AF0 function of a GPIO pad and its pad driver is chosen
+		   by that port\'s PxSEL bit, which resets to 0 (generate.py\'s GPIO0 bit 0:
+		   rstSEL=0, rstDIR=1, rstOUT=1 — a GPIO output driven HIGH out of reset),
+		   so the boot ROM toggles it as a plain GPIO while it loads the image and
+		   software hands it to SPI0 by setting the bit. On the SPI0 side the pin
+		   is pulled low only by the flash read machine, which is held in
+		   FlashStateCSHigh whenever SPIEN or SPIFEN is 0 (SPI.vhd:580-584, 659).
+		   Both drivers are drawn and they meet in a PLAIN-WORDS BOX on the pin\'s
+		   own lane — the idiom the debug-stack figure\'s `either master drives the
+		   same port\' box established — and never in a mux glyph.
+
+		   TRANSCRIBED, NOT REMEMBERED. The read command is the 0x0B the flash
+		   machine sends in FlashStateWaitCmd (SPI.vhd:645-646); the address is
+		   24 bits because SPIxFOS is (SPI.vhd:78) and the sum is taken over
+		   mab(23 downto 0) (SPI.vhd:648); the flash base is 1 << (SH_AW + 2), the
+		   one expression \\FlashBaseAddress, the address-space figure and adddec\'s
+		   own decode all share.
+
+		   E17 — WHAT THE BUILD ASSERTS ABOUT THIS DRAWING:
+		     * every pad name drawn is re-derived from the package model and looked
+		       up in it, and each pin group is all-or-nothing (a package that bonds
+		       three of the four is a package this drawing does not understand);
+		     * the flash base drawn equals the resolved configuration\'s own
+		       derived.flashBaseAddress, so the two cannot drift apart;
+		     * the number of SPI boxes equals the number of SPIx instances this
+		       configuration builds, which equals 1 + peripherals.spi1;
+		     * the driver-select box contains the two lanes it merges and NO other
+		       lane, so it can never read as a third driver;
+		     * every partner wire lands inside its own partner box, and no two
+		       partner boxes overlap.
+
+		   IT DEGRADES INSTEAD OF LYING. A configuration whose package bonds no
+		   flash quartet, or that builds no extended-flash path, loses the private
+		   rail, the driver-select box and the flash partner and keeps the rest; a
+		   single-hart configuration loses the other-harts column. The figure is
+		   emitted unconditionally and the chapter \\input{}s it ungated, so every
+		   \\ref to it resolves in every polarity.'''
+		gen = self.Gen
+		geo = getattr(gen, 'McuMpGeometry', None)
+		if geo is None:
+			raise Exception('SpiFlashDiagram: the configuration has no McuMpGeometry; '
+				'generate.py must set it before the TRM is written.')
+		N = gen.NumHarts
+		pkg = gen.Package
+		rc = getattr(gen, 'ResolvedConfig', None) or {}
+		L = self._chipFigLines
+
+		def P(v):
+			return '%.2f' % v
+
+		# The per-character width rule of the flat whole-chip figure, and it is
+		# here for the same reason: every box height in this drawing is a LINE
+		# COUNT, so a line the box cannot hold does not clip — it wraps, and
+		# prints the extra line through the box floor.
+		def TWs(t, bold=1.0):
+			best = 0.0
+			for line in (t or '').split('\\\\'):
+				u = re.sub(r'\\[a-zA-Z]+', '', line)
+				for ch in '{}$\\':
+					u = u.replace(ch, '')
+				w = 0.0
+				for ch in u.strip():
+					w += (0.185 if (ch.isupper() or ch.isdigit())
+						else 0.085 if ch in ' .,:;/|!\'ilj' else 0.145)
+				best = max(best, w * bold)
+			return best
+		tBold = 1.40
+
+		def wOf(parts, minw=2.00):
+			w = 0.0
+			for t, bold in parts:
+				w = max(w, TWs(t, bold))
+			return max(minw, w + 0.34)
+
+		# ---- the SPI instances, and the count assertion ----------------------
+		spis = sorted([p for p in gen.Peripherals if p.Template.NameTemplate == 'SPIx'],
+			key=lambda p: p.BaseAddress)
+		if not spis:
+			raise Exception('SpiFlashDiagram: this configuration instantiates no SPIx '
+				'peripheral, but the SPI chapter (and this figure) is emitted for it.')
+		wantSpi1 = bool((rc.get('peripherals') or {}).get('spi1', True))
+		if len(spis) != (2 if wantSpi1 else 1):
+			raise Exception('SpiFlashDiagram: this configuration has peripherals.spi1='
+				+ str(wantSpi1) + ' but builds ' + str([p.Name for p in spis]) + ' — the figure '
+				'would draw a number of SPI boxes the configuration does not have.')
+		spi0, spi1 = spis[0], (spis[1] if len(spis) > 1 else None)
+
+		# ---- the pads, straight out of the package model ---------------------
+		# Both pin groups are derived by FUNCTION NAME and then looked up, so a
+		# pad-ring change this drawing does not cover fails `make generate`
+		# instead of shipping a wire to a ball that is not there.
+		funcOf = dict((p.FuncName, p) for p in pkg.Pins if p.FuncName is not None)
+
+		def padGroup(names, what):
+			'''All of them or none of them, in package-pin order.'''
+			have = [n for n in names if n in funcOf]
+			if have and len(have) != len(names):
+				raise Exception('SpiFlashDiagram: this package model bonds ' + str(have)
+					+ ' of the ' + what + ' group ' + str(list(names)) + ' — the figure would '
+					'draw a partner on a port this package brings out only in part.')
+			return sorted(have, key=lambda n: funcOf[n].PackagePinNumber)
+		flashPads = padGroup(('CS_FLASH', 'MISO0', 'MOSI0', 'SCK0'), 'SPI0 boot-flash')
+		spi1Pads = padGroup(('CS1', 'MISO1', 'MOSI1', 'SCK1'), 'SPI1 bus')
+		# THE CHIP SELECT TAKES THE LANE NEAREST THE PORT IT SHARES. Everything
+		# else on a partner hangs in package-pin order, which is the order a board
+		# engineer reads a data sheet in; the flash chip select is the exception
+		# because it is the one wire in this drawing with TWO drivers, and the box
+		# where they meet has to reach the GPIO block WITHOUT swallowing the three
+		# lanes that have nothing to do with it. MEASURED, and it is why the
+		# select box asserts its own contents: on the myshkin-qfn44 pad ring
+		# CS_FLASH is the LAST of the four by pin number, the box spanned the
+		# whole group, and the build stopped rather than draw three wires through
+		# a two-driver select.
+		if flashPads:
+			flashPads = ['CS_FLASH'] + [n for n in flashPads if n != 'CS_FLASH']
+		if spi1 is None and spi1Pads:
+			raise Exception('SpiFlashDiagram: there is no SPI1 in this configuration but the '
+				'package model still bonds ' + str(spi1Pads) + '.')
+
+		# ---- the flash base, derived once and checked against the resolved
+		# configuration's own copy of it. \FlashBaseAddress, the address-space
+		# figure and adddec's decode are all 1 << (SH_AW+2); two derivations of it
+		# are allowed to exist, drifting apart is not.
+		flashBase = 1 << (geo['shAw'] + 2)
+		wantBase = (rc.get('derived') or {}).get('flashBaseAddress')
+		if wantBase is not None and int(str(wantBase), 16) != flashBase:
+			raise Exception('SpiFlashDiagram: the drawn extended-flash base '
+				+ fmthex(flashBase) + ' is not this configuration\'s derived ' + str(wantBase))
+		xipOn = bool(gen.NativeSpiFlashMemoryReadAccess) and bool(flashPads)
+
+		# ---- who drives CS_FLASH, and which register decides ------------------
+		selReg, csBit, gpioTitle, gpioSub = None, None, None, None
+		if xipOn:
+			csPin = funcOf['CS_FLASH']
+			port = csPin.Gpio.ParentPeripheral
+			selReg = 'P' + str(port.GetGPIOPortLabel()) + 'SEL'
+			if selReg not in [r.Name for r in port.Registers]:
+				raise Exception('SpiFlashDiagram: the driver-select box would name register '
+					+ selReg + ', which ' + str(port.Name) + ' does not have.')
+			csBit = csPin.Gpio.BitNumber
+			gpioTitle = fmttex(port.Name)
+			gpioSub = 'port ' + str(port.GetGPIOPortLabel()) + ' pads'
+
+		# ---- type metrics, in cm ---------------------------------------------
+		hTitle, hLine, pad = 0.44, 0.37, 0.13
+		hCmp = 0.24                       # the compartment strip's own slack
+		xEdge = 0.30
+		xRail = 0.42                      # hart 0's private lane, LEFT of the bar
+		barL = 1.05                       # ...and the bar starts here, clear of it
+		gapM, gapRank, gapExt = 0.90, 0.90, 0.30
+		barH, gap1 = 0.95, 0.95           # the bar, and the band-to-bar riser
+		stubOpen = 0.46                   # the other harts' open flash port
+		stubDot = 0.12                    # ...and the open circle that terminates it
+		stackDx, stackDy, maxShadow = 0.12, 0.20, 3
+
+		# ---- the masters ------------------------------------------------------
+		orch = bool(geo.get('orchestrator'))
+		cells = ['VestaRV core', 'address decoder']
+		masters = [{'title': 'hart 0', 'sub': ('orchestrator' if orch else 'management hart'),
+			'note': '\\textit{the chip\'s only flash path}', 'stack': 1, 'cells': list(cells)}]
+		if N > 1:
+			masters.append({'title': ('hart 1' if N == 2 else 'hart 1--' + str(N - 1)),
+				'sub': 'the same tile', 'stack': N - 1, 'cells': list(cells),
+				'note': ('\\textit{same port, nothing behind it:}\\\\ '
+					'\\textit{reads zeros, never stalls}')})
+		if not xipOn:
+			# Both notes are about a port this configuration does not build.
+			for m in masters:
+				m['note'] = ''
+		for m in masters:
+			m['w'] = wOf([(m['title'], tBold), (m['sub'], 1.0), (m['note'], 1.0)],
+				minw=max(2.60, 2 * (TWs(max(m['cells'], key=TWs)) + 0.24)))
+
+		# ---- the rank: the GPIO port that owns the pin at reset, then the SPIs -
+		def chip(key, title, sub, cells=None, pads=None):
+			return {'key': key, 'title': title, 'sub': sub, 'cells': cells or [],
+				'pads': pads or [], 'w': 0.0, 'cx': 0.0}
+		# The shared alternate-function OUTPUT POOL, read off the pad ring once.
+		# It answers two questions this figure and the prose beside it both put:
+		# which of SPI1's signals can be moved, and (the half nothing in the build
+		# was checking) that SPI0's cannot. The boot flash is wired to fixed pads,
+		# and it has to be — the boot ROM clocks it before any PxAFS field has
+		# been written.
+		pool = set()
+		for p in pkg.Pins:
+			if p.Gpio is not None:
+				for af in p.Gpio.AltFuncs:
+					pool.add(af.Name)
+		fixed = [n for n in flashPads if n in pool]
+		if fixed:
+			raise Exception('SpiFlashDiagram: the boot-flash pins ' + str(fixed)
+				+ ' are members of the shared alternate-function pool on this pad ring, so '
+				'they are relocatable — the figure and the chapter both say the boot flash '
+				'is wired to fixed pads.')
+
+		rank = []
+		if xipOn:
+			rank.append(chip('gpio', gpioTitle, gpioSub))
+		rank.append(chip('spi0', fmttex(spi0.Name),
+			# The second line is the OTHER half of the honesty the harts band
+			# carries: the harts with no flash behind their port read zeros and
+			# never stall, and the one hart that does have flash behind it is
+			# frozen for the whole of every access (SPI.vhd:656 disable_clk_cpu <=
+			# FlashActive, MCU.vhd:2464 sleep_cpu <= flash_ext_meming). The two
+			# lines are ten centimetres apart in the drawing and they are the same
+			# fact from the two ends of the same wire.
+			('the boot-flash master\\\\ \\textit{stalls hart 0 while it reads}'
+				if xipOn else 'full-duplex master'),
+			cells=(['flash read machine', 'registers, shift engine'] if xipOn else []),
+			pads=flashPads))
+		if spi1 is not None:
+			# WHICH of SPI1's signals can be moved, DERIVED. Some of them are
+			# members of the pool above, so they can be relocated onto other pads
+			# through PxAFS (see the GPIO chapter) -- and WHICH ones is a property
+			# of the AF matrix, not of this figure's memory of it: a pad-ring pass
+			# that adds or drops a plane moves this line with it. (It has already
+			# moved once: the chapter's prose named two, and the matrix has
+			# carried three since the pin-mux v2 io slot gave MISO1 one.)
+			reloc = [n for n in spi1Pads if n in pool]
+			sub = 'master or slave'
+			if reloc:
+				sub += ('\\\\ ' + ', '.join('\\texttt{' + fmttex(n) + '}' for n in reloc)
+					+ ' relocatable')
+			rank.append(chip('spi1', fmttex(spi1.Name), sub, pads=spi1Pads))
+		byKey = dict((c['key'], c) for c in rank)
+		gpioChip, spi0Chip = byKey.get('gpio'), byKey['spi0']
+		spi1Chip = byKey.get('spi1')
+
+		# The pad LANE PITCH is set by the widest name a lane has to carry: the
+		# names are printed inside the partner box, one under each stub, and two
+		# that touch are two names nobody can read. MEASURED: \texttt{CS\_FLASH}
+		# is 1.44 cm at this figure's body size, against the 1.10 cm pitch a
+		# four-pin group would otherwise be given.
+		for c in rank:
+			c['pitch'] = ((max([TWs(fmttex(n)) for n in c['pads']]) + 0.30)
+				if c['pads'] else 0.0)
+			c['span'] = c['pitch'] * (len(c['pads']) - 1) if c['pads'] else 0.0
+			cellMin = (2 * (TWs(max(c['cells'], key=TWs)) + 0.24)) if c['cells'] else 0.0
+			c['w'] = wOf([(c['title'], tBold), (c['sub'], 1.0)],
+				minw=max(2.40, c['span'] + 0.80, cellMin))
+			c['half'] = c['span'] / 2.0 + 0.65      # its partner box's half-width
+
+		# ---- the driver-select box, and why it sets the rank's first gap ------
+		# The box merges TWO lanes that are far apart on purpose: the pin's own
+		# lane under SPI0, and the port's drop under the GPIO block. It is
+		# therefore at least as wide as the distance between them, and the rank
+		# gap in front of SPI0 is whatever that box's TEXT needs, and no more.
+		selTitle, selLines, selText = None, [], 0.0
+		if xipOn:
+			selTitle = 'pad driver select'
+			selLines = ['\\texttt{' + fmttex(selReg) + '} bit ' + str(csBit)
+					+ ' picks the driver',
+				'0 at reset: the boot ROM, as plain GPIO',
+				'1: ' + fmttex(spi0.Name) + ', low only during a flash read']
+			selText = max([TWs(selTitle, tBold)] + [TWs(t) for t in selLines]) + 0.24
+
+		# ---- the rail annotation, and the lane it needs ----------------------
+		# Broken by hand and SHORT, because the lane it stands in is bounded by
+		# the two bus taps either side of it: this is the one annotation in the
+		# drawing, it is what the private path IS, and a label that fits nowhere
+		# fails the build rather than being nudged onto a wire.
+		railLab = ('hart 0\'s private\\\\ extended-flash port:\\\\ \\texttt{'
+			+ fmthex(flashBase) + '} and above,\\\\ never through the bar')
+		gap2 = (0.62 + 0.10 + hLine * L(railLab) + 0.20) if xipOn else 1.10
+
+		# ---- heights, WHICH ARE SETTLED BEFORE ANY x IS ------------------------
+		# Nothing below depends on the width, and the width has to depend on THEM:
+		# this figure is \resizebox'd to the text width, so a drawing taller than
+		# it is wide is blown UP by the resize and walks off the bottom of the
+		# page. MEASURED on config/castalia_nospi1.json, whose rank is two boxes
+		# instead of three: at 11.7 x 14.7 cm the caption printed through the page
+		# footer. The rank is JUSTIFIED to a minimum aspect below, which is the
+		# flat whole-chip figure's own answer and costs the drawing nothing but
+		# air between blocks that were already separate.
+		hCells = hCmp + hLine
+		hMaster = (pad + hTitle + hLine * max(L(m['sub']) + L(m['note']) for m in masters)
+			+ hCells + pad)
+		hRank = (pad + hTitle + hLine * max(L(c['sub']) for c in rank)
+			+ (hCells if any(c['cells'] for c in rank) else 0.0) + pad)
+		hSel = (pad + hTitle + hLine * len(selLines) + pad) if xipOn else 0.0
+		# The partner box: the stubs and their names at the top, the partner's own
+		# name under them. The names are what a board engineer opens this figure
+		# for, so they get the body size and a clear row of their own.
+		hExt = 0.24 + hLine + 0.16 + hTitle + hLine + pad
+		MIN_ASPECT = 1.20
+		bandW = sum(m['w'] for m in masters) + gapM * (len(masters) - 1)
+		# The bar's own text is one paragraph in a fixed-width node, so on a narrow
+		# bar the title and the fact beside it do not overflow, they WRAP -- and a
+		# \quad-joined pair wraps mid-phrase ("ev-/ery ordinary load"). MEASURED on
+		# config/castalia_nospi1.json before the aspect guard widened the drawing.
+		# So the two are set on ONE line where one line fits and on TWO where it
+		# does not, and the bar's HEIGHT follows that decision instead of being a
+		# constant the text can overrun.
+		barTitle = '\\small\\bfseries multi-hart shared-bus arbiter'
+		barFact = 'every ordinary load and store, one at a time'
+		barNote = '\\textit{the extended-flash range is not decoded here and never arrives}'
+
+		def heightOf(bh):
+			return (0.34 + max(0.34, stackDy * (maxShadow - 1) + 0.14) + hMaster + gap1 + bh
+				+ gap2 + hRank + (0.42 + hSel if xipOn else 0.0) + 0.44 + 0.62 + hExt)
+
+		def layoutRank(spread):
+			x = xEdge
+			for i, c in enumerate(rank):
+				if i:
+					gap = gapRank + spread
+					if c is spi0Chip and gpioChip is not None:
+						# The CS lane is spi0L + 0.40 and the box's right edge is
+						# 0.45 past it, so the box reaches back to spi0L + 0.85
+						# minus its own text: put SPI0 far enough right that the
+						# box still starts inside the drawing.
+						gap = max(gap, (selText - 0.80) - x)
+					if c is spi1Chip:
+						# ...and far enough right that the two partner boxes below,
+						# each wider than the block it hangs off, cannot collide.
+						gap = max(gap, (spi0Chip['cx'] + spi0Chip['half'] + gapExt + c['half']
+							- c['w'] / 2.0) - x)
+					x += gap
+				c['cx'] = x + c['w'] / 2.0
+				x += c['w']
+			w = max(x + xEdge, barL + bandW + xEdge)
+			for c in rank:
+				if c['pads']:
+					w = max(w, c['cx'] + c['half'] + xEdge)
+			return w
+		def solve(bh):
+			h = heightOf(bh)
+			w = layoutRank(0.0)
+			if w < h * MIN_ASPECT and len(rank) > 1:
+				w = layoutRank((h * MIN_ASPECT - w) / (len(rank) - 1))
+			return max(w, h * MIN_ASPECT), h
+		barH = 0.95
+		W, hAll = solve(barH)
+		barOneLine = TWs(barTitle, tBold) + TWs(barFact) + 0.90 <= (W - xEdge - barL) - 0.40
+		if not barOneLine:
+			# Two lines in the bar is 0.37 cm more height, which the width then has
+			# to be justified against again -- and a wider bar can only make the
+			# one-line form MORE likely to fit, so this settles in one more pass.
+			barH = 0.95 + hLine
+			W, hAll = solve(barH)
+
+		# ---- the master band, centred over the bar ---------------------------
+		xb = barL + ((W - xEdge - barL) - bandW) / 2.0
+		for m in masters:
+			m['cx'] = xb + m['w'] / 2.0
+			xb += m['w'] + gapM
+
+		yRedT = -0.34
+		yBandT = yRedT - max(0.34, (stackDy * (maxShadow - 1) + 0.14)
+			if any(m['stack'] > 1 for m in masters) else 0.34)
+		yBandB = yBandT - hMaster
+		yBarT = yBandB - gap1
+		yBarB = yBarT - barH
+		yRankT = yBarB - gap2
+		yRankB = yRankT - hRank
+		ySelT = yRankB - 0.42
+		ySelB = ySelT - hSel
+		yRedB = (ySelB if xipOn else yRankB) - 0.44
+		yExtT = yRedB - 0.62
+		yExtB = yExtT - hExt
+		yRail = yRankT + 0.62                    # the private rail's run under the bar
+		yStub = yBandB - stubOpen                # the other harts' open port
+
+		# ---- emission ---------------------------------------------------------
+		s = ('% Generated SPI0/boot-flash figure (harts=' + str(N) + ', spis='
+			+ str([p.Name for p in spis]) + ', xip=' + str(xipOn) + ', flashBase='
+			+ fmthex(flashBase) + ', flashPads=' + str(flashPads) + ', spi1Pads='
+			+ str(spi1Pads) + ')\n')
+		s += '\\begin{tikzpicture}[\n'
+		s += '\thd/.style={font=\\sffamily\\scriptsize, align=center, inner sep=1pt, anchor=north},\n'
+		s += '\tbc/.style={font=\\sffamily\\scriptsize, align=center, inner sep=1pt},\n'
+		s += '\tbus/.style={<->, >=Stealth, thick},\n'
+		s += '\tsig/.style={->, >=Stealth, semithick},\n'
+		s += '\treach/.style={->, >=Stealth, line width=1.4pt},\n'
+		s += '\twire/.style={semithick},\n'
+		s += ('\tpadlab/.style={font=\\sffamily\\scriptsize\\ttfamily, align=center, '
+			'inner sep=1pt},\n')
+		s += ('\trail/.style={font=\\sffamily\\scriptsize\\itshape, black!55, align=left, '
+			'fill=white, inner sep=1.5pt, anchor=south west},\n')
+		s += '\tredlab/.style={font=\\sffamily\\small\\bfseries, red!70!black, align=left}]\n'
+
+		def frame(cx, yTop, w, h, fill, opts='thick'):
+			return ('\\draw[' + opts + ', fill=' + fill + '] (' + P(cx - w / 2.0) + ', '
+				+ P(yTop - h) + ') rectangle (' + P(cx + w / 2.0) + ', ' + P(yTop) + ');\n')
+
+		def head(cx, yTop, w, title, sub, note=None):
+			tex = '{\\small\\bfseries ' + title + '}'
+			for extra in (sub, note):
+				if extra:
+					tex += '\\\\[1pt] ' + extra
+			return ('\\node[hd, text width=' + P(w - 0.20) + 'cm] at (' + P(cx) + ', '
+				+ P(yTop - pad) + ') {' + tex + '};\n')
+
+		def shadows(cx, yTop, w, h, n, fill, opts='thick'):
+			'''N copies of one tile, offset so you can see there are N. Every
+			   layer carries the FRONT box's fill and border: white back copies
+			   draw a shadow, not a count.'''
+			out = ''
+			for k in range(min(n, maxShadow) - 1, 0, -1):
+				out += frame(cx + stackDx * k, yTop + stackDy * k, w, h, fill, opts)
+			return out
+
+		def compartments(cx, yTop, yBot, w, cs):
+			'''The block drawn as the things the RTL builds it from — the flat
+			   whole-chip figure's tile idiom, and the reason the two paths in
+			   this drawing can be seen to leave the SAME decoder.'''
+			out = ''
+			yD = yBot + hCells
+			out += ('\\draw[semithick] (' + P(cx - w / 2.0) + ', ' + P(yD) + ') -- ('
+				+ P(cx + w / 2.0) + ', ' + P(yD) + ');\n')
+			k = len(cs)
+			for i, t in enumerate(cs):
+				xL = cx - w / 2.0 + w * i / float(k)
+				if i:
+					out += ('\\draw[semithick] (' + P(xL) + ', ' + P(yD) + ') -- (' + P(xL)
+						+ ', ' + P(yBot) + ');\n')
+				out += ('\\node[bc, text width=' + P(w / float(k) - 0.16) + 'cm] at ('
+					+ P(xL + w / (2.0 * k)) + ', ' + P(yBot + hCells / 2.0) + ') {' + t + '};\n')
+			return out
+
+		def redSquare(xk, yline):
+			return ('\\fill[red!70!black] (' + P(xk - 0.07) + ', ' + P(yline - 0.07)
+				+ ') rectangle (' + P(xk + 0.07) + ', ' + P(yline + 0.07) + ');\n')
+
+		def brokenLine(yline, x0, x1, cuts, opts, gapw=0.14):
+			'''One horizontal run with a REAL GAP at every wire that crosses it.
+			   The gaps are not cosmetic: a heavy rail that touches a bus tap is
+			   a junction until the reader gets close enough to see it is not.'''
+			out, xc = '', x0
+			for cut in sorted(c for c in cuts if x0 + gapw < c < x1 - gapw):
+				if cut - gapw > xc + 0.02:
+					out += ('\\draw[' + opts + '] (' + P(xc) + ', ' + P(yline) + ') -- ('
+						+ P(cut - gapw) + ', ' + P(yline) + ');\n')
+				xc = cut + gapw
+			if x1 > xc + 0.02:
+				out += ('\\draw[' + opts + '] (' + P(xc) + ', ' + P(yline) + ') -- (' + P(x1)
+					+ ', ' + P(yline) + ');\n')
+			return out
+
+		def labelAt(xL, xR, cuts, wLab, lab):
+			'''WHERE AN ANNOTATION MAY STAND: the leftmost gap between the wires
+			   crossing its lane that is wide enough to hold it. A label that fits
+			   nowhere is not nudged, it fails the build — a white label box
+			   sitting on a wire reads as an open circuit, which is the exact
+			   fault the AFE figure was rejected for.'''
+			ivs, lo = [], xL + 0.10
+			for t in sorted(t for t in cuts if xL < t < xR):
+				ivs.append((lo, t - 0.16))
+				lo = t + 0.16
+			ivs.append((lo, xR - 0.10))
+			fits = [iv for iv in ivs if iv[1] - iv[0] >= wLab]
+			if not fits:
+				raise Exception('SpiFlashDiagram: the annotation "' + lab + '" is ' + P(wLab)
+					+ ' cm wide and the widest wire-free interval of its lane is '
+					+ P(max(iv[1] - iv[0] for iv in ivs)) + ' cm: it would sit on a wire.')
+			return fits[0][0]
+
+		# ---- the red package boundary, drawn first ---------------------------
+		s += ('\\draw[red!75!black, line width=1.2pt] (0.00, ' + P(yRedB) + ') rectangle ('
+			+ P(W) + ', ' + P(yRedT) + ');\n')
+		s += ('\\node[redlab, anchor=south west] at (0.00, ' + P(yRedT + 0.10)
+			+ ') {chip boundary};\n')
+
+		# ---- the masters ------------------------------------------------------
+		for m in masters:
+			s += shadows(m['cx'], yBandT, m['w'], hMaster, m['stack'], 'black!8',
+				'thick, rounded corners=2pt')
+			s += frame(m['cx'], yBandT, m['w'], hMaster, 'black!8', 'thick, rounded corners=2pt')
+			s += head(m['cx'], yBandT, m['w'], m['title'], m['sub'], m['note'])
+			s += compartments(m['cx'], yBandT, yBandB, m['w'], m['cells'])
+			# The two wires that leave a tile, BOTH out of the bottom of its
+			# address-decoder compartment, because that is where both are decided:
+			# the shared-window request on the right, the extended-flash access on
+			# the left. Bringing them out of different edges would make the split
+			# a property of the drawing instead of a property of the decoder.
+			# Both land INSIDE the decoder compartment (which runs from the box's
+			# centre to its right edge) and clear of its divider: a wire that
+			# leaves a box on a rule reads as leaving the rule.
+			m['xBus'] = m['cx'] + m['w'] * 0.35
+			m['xFlash'] = m['cx'] + m['w'] * 0.15
+			s += ('\\draw[bus] (' + P(m['xBus']) + ', ' + P(yBandB) + ') -- (' + P(m['xBus'])
+				+ ', ' + P(yBarT) + ');\n')
+
+		# ---- THE BAR, and the lane it deliberately leaves ---------------------
+		# It stops short of the left margin so hart 0's private rail passes the
+		# END of it. That is the one thing in this drawing claimed by geometry
+		# rather than by a caption: a rail crossing under a full-width bar would
+		# be a rail the reader has to be TOLD does not touch it.
+		s += ('\\draw[thick, fill=black!15] (' + P(barL) + ', ' + P(yBarB) + ') rectangle ('
+			+ P(W - xEdge) + ', ' + P(yBarT) + ');\n')
+		barTex = ('{' + barTitle + '} \\quad ' + barFact if barOneLine
+			else '{' + barTitle + '}\\\\ ' + barFact)
+		s += ('\\node[bc, text width=' + P(W - xEdge - barL - 0.40) + 'cm] at ('
+			+ P((barL + W - xEdge) / 2.0) + ', ' + P(yBarB + barH / 2.0)
+			+ ') {' + barTex + '\\\\ ' + barNote + '};\n')
+
+		# ---- the rank ---------------------------------------------------------
+		for c in rank:
+			s += frame(c['cx'], yRankT, c['w'], hRank, 'black!5')
+			s += head(c['cx'], yRankT, c['w'], c['title'], c['sub'])
+			if c['cells']:
+				s += compartments(c['cx'], yRankT, yRankB, c['w'], c['cells'])
+			# The bus tap. On the compartmented SPI0 box it rises out of the
+			# REGISTER half, which is the half of the block the bar can reach;
+			# the flash half is reached only by hart 0's own rail.
+			c['tx'] = (c['cx'] + c['w'] * 0.25) if c['cells'] else c['cx']
+			c['fx'] = c['cx'] - c['w'] * 0.25
+			s += ('\\draw[bus] (' + P(c['tx']) + ', ' + P(yRankT) + ') -- (' + P(c['tx']) + ', '
+				+ P(yBarB) + ');\n')
+
+		# ---- HART 0's PRIVATE RAIL, and the same port left open on every other -
+		if xipOn:
+			m0 = masters[0]
+			xDrop = spi0Chip['fx']
+			taps = [c['tx'] for c in rank]
+			s += ('\\draw[reach, -] (' + P(m0['xFlash']) + ', ' + P(yBandB) + ') -- ('
+				+ P(m0['xFlash']) + ', ' + P(yBandB - gap1 / 2.0) + ') -- (' + P(xRail) + ', '
+				+ P(yBandB - gap1 / 2.0) + ') -- (' + P(xRail) + ', ' + P(yRail) + ');\n')
+			s += brokenLine(yRail, xRail, xDrop, taps, 'line width=1.4pt')
+			s += ('\\draw[reach] (' + P(xDrop) + ', ' + P(yRail) + ') -- (' + P(xDrop) + ', '
+				+ P(yRankT) + ');\n')
+			s += ('\\node[rail] at (' + P(labelAt(xRail, xDrop, taps, TWs(railLab), railLab))
+				+ ', ' + P(yRail + 0.10) + ') {' + railLab + '};\n')
+			# THE OPEN-PORT TERMINATOR IS A CIRCLE, NOT A BAR. It was drawn as a
+			# short stub ending in a heavy horizontal bar, which is the schematic
+			# glyph for GROUND — a USER read it as exactly that, and a reader who
+			# believes the other tiles tie their flash port to 0 V has been taught
+			# a connection this chip does not make. It is now the unconnected-pin
+			# idiom every schematic uses for the same fact: the wire stops short
+			# and ends in a small open (white-filled) circle, which cannot be read
+			# as a rail. The contract stays in the box above it.
+			for m in masters[1:]:
+				s += ('\\draw[wire] (' + P(m['xFlash']) + ', ' + P(yBandB) + ') -- ('
+					+ P(m['xFlash']) + ', ' + P(yStub + stubDot) + ');\n')
+				s += ('\\draw[wire, fill=white] (' + P(m['xFlash']) + ', ' + P(yStub)
+					+ ') circle (' + P(stubDot) + ');\n')
+
+		# ---- the pads and the outside world ----------------------------------
+		withExt = [c for c in rank if c['pads']]
+		for c in withExt:
+			n = len(c['pads'])
+			c['lanes'] = [c['cx'] + (k - (n - 1) / 2.0) * c['pitch'] for k in range(n)]
+			wExt = 2 * c['half']
+			s += frame(c['cx'], yExtT, wExt, hExt, 'black!3')
+			for k, xk in enumerate(c['lanes']):
+				if xipOn and c is spi0Chip and c['pads'][k] == 'CS_FLASH':
+					pass         # this one comes through the driver-select box below
+				else:
+					s += ('\\draw[wire] (' + P(xk) + ', ' + P(yRankB) + ') -- (' + P(xk) + ', '
+						+ P(yExtT - 0.24) + ');\n')
+					s += redSquare(xk, yRedB)
+				s += ('\\draw[wire, line width=1.4pt] (' + P(xk - 0.24) + ', '
+					+ P(yExtT - 0.24) + ') -- (' + P(xk + 0.24) + ', ' + P(yExtT - 0.24) + ');\n')
+				s += ('\\node[padlab, anchor=north] at (' + P(xk) + ', ' + P(yExtT - 0.34)
+					+ ') {' + fmttex(c['pads'][k]) + '};\n')
+			extTitle, extSub = (('serial boot flash',
+					'read command \\texttt{0x0B}, 24-bit address')
+				if c is spi0Chip else
+				('SPI1 bus devices', '\\texttt{CS1} is an input to ' + fmttex(spi1.Name)))
+			s += ('\\node[hd, text width=' + P(wExt - 0.20) + 'cm] at (' + P(c['cx']) + ', '
+				+ P(yExtT - 0.24 - hLine - 0.16) + ') {{\\small\\bfseries ' + extTitle
+				+ '}\\\\[1pt] ' + extSub + '};\n')
+			c['extL'], c['extR'] = c['cx'] - c['half'], c['cx'] + c['half']
+
+		# E17: every partner wire lands INSIDE its own partner box, and no two
+		# partner boxes overlap. Both hold by construction above; a drawing that
+		# finds either out on the render has already shipped once.
+		for c in withExt:
+			for xk in c['lanes']:
+				if not (c['extL'] + 0.10 <= xk <= c['extR'] - 0.10):
+					raise Exception('SpiFlashDiagram: the straight wire at ' + P(xk)
+						+ ' would enter the ' + str(c['key']) + ' partner box (which spans '
+						+ P(c['extL']) + '--' + P(c['extR']) + ') off the box.')
+		for a, b in zip(withExt, withExt[1:]):
+			if b['extL'] - a['extR'] < 0.20:
+				raise Exception('SpiFlashDiagram: the partner boxes of ' + str(a['key'])
+					+ ' and ' + str(b['key']) + ' overlap (' + P(a['extR']) + ' against '
+					+ P(b['extL']) + ').')
+
+		# ---- the two drivers of CS_FLASH, meeting in a plain-words box --------
+		if xipOn:
+			csLane = spi0Chip['lanes'][spi0Chip['pads'].index('CS_FLASH')]
+			gTap = gpioChip['cx']
+			selR = csLane + 0.45
+			selL = min(selR - selText, gTap - 0.45)
+			if selL < 0.05:
+				raise Exception('SpiFlashDiagram: the driver-select box would start at '
+					+ P(selL) + ', off the left edge of the drawing — its text needs '
+					+ P(selText) + ' cm and the rank does not give it that far.')
+			inside = sorted(xk for c in withExt for xk in c['lanes'] if selL < xk < selR)
+			if inside != [csLane]:
+				raise Exception('SpiFlashDiagram: the driver-select box spans ' + P(selL)
+					+ '--' + P(selR) + ', which contains the pad lanes ' + str(inside)
+					+ ' instead of exactly the CS_FLASH lane at ' + P(csLane) + ' — a third '
+					'wire through it would read as a third driver.')
+			if not (selL + 0.10 < gTap < selR - 0.10):
+				raise Exception('SpiFlashDiagram: the ' + str(gpioChip['title']) + ' drop at '
+					+ P(gTap) + ' misses the driver-select box (' + P(selL) + '--' + P(selR)
+					+ ').')
+			for xk in (gTap, csLane):
+				s += ('\\draw[sig] (' + P(xk) + ', ' + P(yRankB) + ') -- (' + P(xk) + ', '
+					+ P(ySelT) + ');\n')
+			s += frame((selL + selR) / 2.0, ySelT, selR - selL, hSel, 'white')
+			s += head((selL + selR) / 2.0, ySelT, selR - selL, selTitle, '\\\\ '.join(selLines))
+			s += ('\\draw[wire] (' + P(csLane) + ', ' + P(ySelB) + ') -- (' + P(csLane) + ', '
+				+ P(yExtT - 0.24) + ');\n')
+			s += redSquare(csLane, yRedB)
+
+		s += '\\end{tikzpicture}\n'
+		# E17: the height the WIDTH was justified against is the height actually
+		# drawn. They are computed twice, once forwards from the band metrics and
+		# once backwards off the last y, and a figure whose aspect guard was
+		# computed against a height it does not have is a figure that walks off
+		# the page for the reason the guard exists.
+		if abs(-yExtB - hAll) > 0.01:
+			raise Exception('SpiFlashDiagram: the drawn height ' + P(-yExtB) + ' cm is not the '
+				+ P(hAll) + ' cm the width was justified against.')
+		s = (s.split('\n', 1)[0][:-1] + ', width=' + P(W) + 'cm, height=' + P(hAll)
+			+ 'cm, aspect=' + P(W / hAll) + ')\n' + s.split('\n', 1)[1])
+		self._writeInclude('SpiFlashDiagram.tex', s)
+		return
+
 	def GenerateSpiTimingDiagram(self):
 		'''include/SpiTimingDiagram.tex — all four SPI modes. Waveform content is
 		   the proven hand-written original; only the styling changed. The two
@@ -5318,6 +7431,474 @@ class LatexUserGuide():
 		s = '% Generated IRQROUTER claim/complete diagram\n'
 		s += self._cycleFigure('1.05cm', rows, 11, ann, shade=('5', '11'))
 		self._writeInclude('IrqClaimCompleteDiagram.tex', s)
+		return
+
+	def GenerateIrqFabricDiagram(self):
+		'''include/IrqFabricDiagram.tex — the interrupt fabric of the whole chip
+		   in one landscape view: where every interrupt vector on the die comes
+		   from, what the IRQROUTER does with it, and the two vectors that never
+		   go near the router at all. The manual describes this topology at
+		   length in TWO chapters and draws it NOWHERE: Section
+		   \\ref{s:interrupts} says each hart takes three lines, the IRQROUTER
+		   chapter says the CLINT pair reaches each hart "on dedicated hardwired
+		   wires", and a reader who has just met a claim/complete controller has
+		   no reason to believe the timer and IPI interrupts are not claimed
+		   through it too. THAT is the fact this figure exists to teach, so the
+		   drawing is built around it:
+
+		   THE BYPASS IS A ROUTE, NOT A LABEL. \\texttt{msip} and \\texttt{mtip}
+		   leave the CLINT on two heavy rails that run along a lane UNDER the
+		   router, up the far margin, and into each hart's RIGHT edge — the
+		   opposite side of the hart from the router's \\texttt{meip}, which
+		   arrives on its left. The router is a box those two rails pass beneath
+		   and never touch. A reader who never reads the annotation still cannot
+		   read the CLINT pair as going through the router, which is what
+		   drawing the fact instead of writing it buys. (The emitter ASSERTS the
+		   non-connection: exactly the type frames get a router-input arrow, and
+		   the CLINT box gets none.)
+
+		   THE ROW IS ITS HART. Routing row $h$ is drawn at exactly the height of
+		   hart $h$'s box, so \\texttt{meip} leaves the row and enters the hart on
+		   ONE straight horizontal wire, and the per-hart correspondence between
+		   a row of enable words and a hart is a property of the drawing rather
+		   than a sentence under it. Both columns take the same elision (all of
+		   them up to five, else $0, 1, 2, \\cdots, N-1$), so they cannot fall out
+		   of step; the Argus manual's eighteen harts stack in the same frame as
+		   Castalia's five.
+
+		   THE SOURCES ARE COLLAPSED BY TYPE, AND THE TOTAL IS DERIVED. A
+		   hundred-and-twenty-one-row vector table is Table
+		   \\ref{t:interrupt-vectors}'s job. What an overview owes the reader is
+		   the SHAPE of the population, so the generator's own vector list is
+		   bucketed into the same Title Case type vocabulary Figure
+		   \\ref{fig:chip-system-flat-diagram} groups its rank by, each frame
+		   wearing the $\\times N$ title and the offset squares that say how many
+		   instances feed it, and the total strip under the column adds up to
+		   \\VectorsCount{} and SPLITS it the way the hardware does: all but two
+		   through the router, two on the dedicated wires. Every one of those
+		   numbers is re-derived here and checked against \\texttt{VectorsCount},
+		   so a peripheral added to the vector table fails \\texttt{make
+		   generate} rather than quietly falling out of the drawing.
+
+		   NO ADDRESSES, NO PACKAGE BOUNDARY. Nothing in this fabric leaves the
+		   die and nothing about it is an address: the register block's base and
+		   offsets are the IRQROUTER chapter's, and a red boundary round a
+		   drawing with no pin in it would be decoration asserting a fact.'''
+		gen = self.Gen
+		N = gen.NumHarts
+		compat = getattr(gen, 'McuMpCompat', None) or {}
+		vecs = list(compat.get('irqVectors') or [])
+		if len(vecs) != gen.VectorsCount:
+			raise Exception('IrqFabricDiagram: the generator\'s IRQB vector list has '
+				+ str(len(vecs)) + ' entries but VectorsCount is ' + str(gen.VectorsCount)
+				+ ' — the figure would draw a source population that is not this chip\'s.')
+
+		# ---- the two blocks this figure is about, and their derived facts ----
+		irqr = clint = None
+		for p in gen.Peripherals:
+			if p.Name == 'IRQROUTER':
+				irqr = p
+			if p.Name == 'CLINT':
+				clint = p
+		if irqr is None or clint is None:
+			raise Exception('IrqFabricDiagram: this configuration has '
+				+ ('no IRQROUTER' if irqr is None else 'no CLINT')
+				+ ' — the interrupt fabric this figure draws does not exist here.')
+		# The free-running-MCLK clause is PRINTED IN THE DRAWING (it is why a
+		# routed interrupt can wake a gated hart), so it is checked against the
+		# generator's own clocking class for both blocks rather than remembered
+		# from the chapter prose.
+		for p in (irqr, clint):
+			if p.ClockDomain != 'mclk':
+				raise Exception('IrqFabricDiagram: ' + p.Name + ' is on the '
+					+ str(p.ClockDomain) + ' clock, but the drawing prints the free-running '
+					'MCLK clause that lets a routed interrupt wake a gated hart.')
+		msipVec, mtipVec = clint.InterruptPriority, clint.InterruptPriority + 1
+		meipVec = gen.MeipVector if gen.MeipVector is not None else gen.VectorsCount
+		if vecs[msipVec][0] != 'IRQB_CLINT_MSIP' or vecs[mtipVec][0] != 'IRQB_CLINT_MTIP':
+			raise Exception('IrqFabricDiagram: vectors ' + str(msipVec) + '/' + str(mtipVec)
+				+ ' are ' + str(vecs[msipVec][0]) + '/' + str(vecs[mtipVec][0])
+				+ ', not the CLINT pair the bypass rails are drawn for.')
+		# The meip slot is the router's OWN delivery vector, never a routable
+		# source: where it falls inside the source list it must be the reserved
+		# self-slot placeholder, or the drawing would show a peripheral standing
+		# on the wire the router delivers over.
+		if meipVec < len(vecs) and not vecs[meipVec][0].startswith('IRQB_RSVD'):
+			raise Exception('IrqFabricDiagram: the meip slot ' + str(meipVec) + ' is '
+				+ str(vecs[meipVec][0]) + ', a live source — meip cannot be delivered at a '
+				'vector some peripheral also pends on.')
+
+		# ---- the enable rows, TRANSCRIBED from the register model ------------
+		# hdl/common/irq_router.vhd carries one enable BIT per source per hart;
+		# generate.py packs them into as many 32-bit words as the source count
+		# needs (three below 96 sources, four above). The row names are read back
+		# out of the emitted register model, so the figure prints the words this
+		# build actually has.
+		rowsOf = {}
+		for h in range(N):
+			rr = [r for r in irqr.Registers if re.match('^H' + str(h) + 'EN', r.Name)]
+			rr.sort(key=lambda r: r.Offset)
+			rowsOf[h] = [r.Name for r in rr]
+		nWords = len(rowsOf[0])
+		if any(len(rowsOf[h]) != nWords for h in range(N)):
+			raise Exception('IrqFabricDiagram: the harts do not carry the same number of '
+				'enable words (' + str(dict((h, len(rowsOf[h])) for h in range(N))) + ')')
+		if not (32 * (nWords - 1) < gen.VectorsCount <= 32 * nWords):
+			raise Exception('IrqFabricDiagram: ' + str(nWords) + ' enable words per hart do not '
+				'exactly cover this build\'s ' + str(gen.VectorsCount) + ' vectors — the drawing '
+				'would print a routing row that is too short or one word too long.')
+
+		# ---- THE SOURCE POPULATION, COLLAPSED BY TYPE ------------------------
+		# The bucket key is the vector name's own instance token (IRQB_<INST>_<sig>,
+		# or IRQB_<INST> where the block has one), with its trailing index cut off:
+		# GPIO4_B7 -> GPIO, RSVD117 -> RSVD, OW0 -> OW. The Title Case type names
+		# are Figure \ref{fig:chip-system-flat-diagram}'s, so the two overviews
+		# call the same blocks the same thing.
+		TYPE_OF = {'SYS': 'System', 'GPIO': 'Digital I/O',
+			'SPI': 'Comms', 'UART': 'Comms', 'I2C': 'Comms', 'I2CT': 'Comms',
+			'I3C': 'Comms', 'NFC': 'Comms', 'OW': 'Comms', 'QSPI': 'Comms',
+			'TIM': 'Timing \\& Sync', 'RTC': 'Timing \\& Sync', 'PWM': 'Timing \\& Sync',
+			'NPU': 'Compute', 'DMA': 'Compute', 'TRNG': 'Compute',
+			'RSVD': 'Reserved', 'CLINT': 'CLINT'}
+		ORDER = ['System', 'Digital I/O', 'Comms', 'Timing \\& Sync', 'Compute', 'Reserved']
+		count, insts, clintVecs, unknown = {}, {}, [], set()
+		for i, (nm, _d) in enumerate(vecs):
+			tok = nm[len('IRQB_'):].split('_')[0]
+			fam = tok.rstrip('0123456789') or tok
+			lab = TYPE_OF.get(fam)
+			if lab is None:
+				unknown.add(fam)
+				continue
+			if lab == 'CLINT':
+				clintVecs.append(i)
+				continue
+			count[lab] = count.get(lab, 0) + 1
+			insts.setdefault(lab, set()).add(tok)
+		if unknown:
+			raise Exception('IrqFabricDiagram: interrupt source family/families '
+				+ str(sorted(unknown)) + ' belong to no type frame. Add the family to TYPE_OF '
+				'and decide what kind of source it is — otherwise the drawing would show a '
+				'vector total that is not this chip\'s.')
+		if clintVecs != [msipVec, mtipVec]:
+			raise Exception('IrqFabricDiagram: the CLINT occupies vectors ' + str(clintVecs)
+				+ ', not the pair ' + str([msipVec, mtipVec]) + ' the bypass rails are drawn as.')
+		# The RESERVED frame counts SLOTS, not instances: every reserved vector
+		# carries its own RSVD<n> token, so an offset-squares stack behind it
+		# would be counting nothing.
+		srcs = []
+		for lab in ORDER:
+			n = count.get(lab, 0)
+			if not n:
+				continue
+			k = 1 if lab == 'Reserved' else len(insts[lab])
+			srcs.append({'label': lab, 'n': n, 'stack': k,
+				'sub': (str(n) + ' frozen slot' + ('' if n == 1 else 's')) if lab == 'Reserved'
+					else (str(n) + ' vector' + ('' if n == 1 else 's'))})
+		routed = sum(x['n'] for x in srcs)
+		if routed + len(clintVecs) != gen.VectorsCount:
+			raise Exception('IrqFabricDiagram: the drawn type frames total ' + str(routed)
+				+ ' vectors plus the CLINT pair, which is not this build\'s '
+				+ str(gen.VectorsCount) + '.')
+
+		# ---- the hart / row grid, and its elision ---------------------------
+		# Draw every hart up to five and elide only beyond that (Argus is
+		# eighteen), the rule Figure \ref{fig:debug-stack-diagram} already uses.
+		# The ROWS take the same list, so a row and its hart are always the same
+		# height and their meip wire is always straight.
+		shown = list(range(N)) if N <= 5 else [0, 1, 2, None, N - 1]
+		drawnH = [h for h in shown if h is not None]
+		elided = N - len(drawnH)
+		if len(drawnH) + elided != N:
+			raise Exception('IrqFabricDiagram: %d harts drawn + %d elided is not the %d this '
+				'configuration builds.' % (len(drawnH), elided, N))
+
+		def P(v):
+			return '%.2f' % v
+
+		# Per-character width rule, in cm, copied from the flat whole-chip
+		# figure: ALL-CAPS register names are half again as wide as prose, and
+		# every derived name this drawing prints is all-caps.
+		def TW(t, bold=1.0):
+			best = 0.0
+			for line in (t or '').split('\\\\'):
+				u = re.sub(r'\\[a-zA-Z]+', '', line)
+				for ch in '{}$\\':
+					u = u.replace(ch, '')
+				w = 0.0
+				for ch in u.strip():
+					w += (0.185 if (ch.isupper() or ch.isdigit())
+						else 0.085 if ch in ' .,:;/|!\'ilj' else 0.145)
+				best = max(best, w * bold)
+			return best
+
+		tBold, pad, base = 1.40, 0.13, 0.37
+		stackDx, stackDy, maxShadow = 0.12, 0.20, 3
+
+		# A TikZ node whose contents outgrow its box does not clip, it prints the
+		# extra line through the floor — and every long string in this drawing is
+		# a derived sentence whose length is a property of the configuration, not
+		# of anything anyone typed. So the emitter BREAKS the lines itself and the
+		# heights below are that line count times a baseline, rather than a guess
+		# that LaTeX's own wrapping is free to exceed. (The first cut trusted
+		# text width and measured only the unbroken string: the CLINT box's
+		# summary strip set itself in four lines through the box under it.)
+		def wrapTx(t, maxw):
+			lines, cur = [], ''
+			for w in t.split(' '):
+				trial = (cur + ' ' + w).strip()
+				if cur and TW(trial) > maxw:
+					lines.append(cur)
+					cur = w
+				else:
+					cur = trial
+			if cur:
+				lines.append(cur)
+			return lines
+
+		def lay(clauses, maxw):
+			'''One logical clause per element; each is wrapped in place, and the
+			   pair (text, line count) comes back so a box height and the text it
+			   holds can never disagree.'''
+			out = []
+			for c in clauses:
+				out += wrapTx(c, maxw)
+			return '\\\\ '.join(out), len(out)
+
+		# ---- the strings the drawing prints, all derived ---------------------
+		rowTxt = dict((h, ' '.join('\\register{' + nm + '}' for nm in rowsOf[h]))
+			for h in range(N))
+		rtrClauses = ['the chip\'s peripheral interrupt controller',
+			'\\textit{free-running MCLK: a routed interrupt wakes a hart whose gated CPU '
+			'clock is off}']
+		rowHead = ('Per-Hart Routing Rows \\quad one enable bit per vector, vectors '
+			+ str(gen.VectorsCount - 1) + ':0 \\quad reset all-zero, fully masked')
+		claimClauses = ['\\register{CLAIM} read = claim the lowest pending vector enabled for '
+			'the reading hart \\quad write = complete',
+			'\\register{PEND} raw deglitched levels \\quad \\register{INSVC} under service '
+			'\\quad fixed priority: lowest vector number wins']
+		annTxt = ('\\textit{a claimed vector is masked from every hart\'s \\texttt{meip} until it '
+			'is completed, so a source routed to several harts is serviced by exactly one}')
+		byClauses = ['\\textit{\\texttt{msip} and \\texttt{mtip} bypass the router entirely: '
+			'dedicated hardwired wires, one pair per hart, always enabled}',
+			'\\textit{the router\'s row bits ' + str(msipVec) + ' and ' + str(mtipVec)
+			+ ' are writable but inert, and no CLINT interrupt is ever claimed}']
+		totTxt = ('$\\Sigma$ \\textbf{' + str(gen.VectorsCount) + ' interrupt vectors} \\quad '
+			+ str(routed) + ' through the router \\quad ' + str(len(clintVecs))
+			+ ' on dedicated per-hart wires, never routed and never claimed')
+		clintSub = 'software (IPI) \\& timer, per hart'
+
+		# ---- widths ----------------------------------------------------------
+		# The rank of type frames and the hart column are sized by their own
+		# (short) contents; the ROUTER is given a floor wide enough that its
+		# derived sentences come out in one or two lines rather than five, since
+		# the spine's width is what sets the aspect of the whole drawing and a
+		# tall figure lands small on the page.
+		wSrc = 3.30
+		for sp in srcs:
+			t = sp['label'] + ('' if sp['stack'] < 2 else ' $\\times$' + str(sp['stack']))
+			sp['title'] = t
+			wSrc = max(wSrc, 0.40 + max(TW(t, tBold), TW(sp['sub'])) + stackDx * 2)
+		wSrc = max(wSrc, 0.40 + TW('CLINT', tBold), 0.40 + TW(clintSub))
+		wHart = max(2.00, 0.40 + TW('hart ' + str(N - 1), tBold))
+		wRtr = max(12.00, 0.50 + max([TW(rowTxt[h]) for h in drawnH] + [TW(rowHead)]))
+
+		xEdge, gapA, gapB, gapC = 0.30, 1.30, 2.30, 0.85
+		xSrcL = xEdge
+		xSrcR = xSrcL + wSrc
+		xRtrL = xSrcR + gapA
+		xRtrR = xRtrL + wRtr
+		xHartL = xRtrR + gapB
+		xHartR = xHartL + wHart
+		xRailA = xHartR + gapC
+		xRailB = xRailA + gapC
+		W = xRailB + 1.15
+
+		# ---- the wrapped text, and the heights that are its line count --------
+		wIn = wRtr - 0.50
+		rtrSub, nRtr = lay(rtrClauses, wIn)
+		rowHeadTx, nRowHd = lay([rowHead], wIn)
+		claimSub, nClaim = lay(claimClauses, wIn - 0.20)
+		annTx, nAnn = lay([annTxt], wIn - 0.20)
+		clintTx, nClint = lay([clintSub], wSrc - 0.24)
+		byTx, nBy = lay(byClauses, (xRailB - xRtrL))
+		totTx, nTot = lay([totTxt], (xRailB - xSrcL) - 0.30)
+
+		hHead = 2 * pad + 0.44 + nRtr * base
+		hRowHd = 0.10 + nRowHd * base
+		hRow, pitch, hHart = 0.46, 1.16, 0.86
+		hClaim = 2 * pad + 0.44 + nClaim * base
+		hAnn = 0.16 + nAnn * base
+		hClint = 2 * pad + 0.44 + nClint * base
+		hTot = 0.18 + nTot * base
+
+		yRtrT = 0.00
+		yGridT = yRtrT - hHead - hRowHd - 0.18
+		yc = [yGridT - 0.16 - hHart / 2.0 - i * pitch for i in range(len(shown))]
+		yGridB = yc[-1] - hHart / 2.0 - 0.16
+		yClaimT = yGridB - 0.30
+		yAnnT = yClaimT - hClaim - 0.16
+		yRtrB = yAnnT - hAnn - 0.16
+		yClintT = yRtrB - 0.85
+		yClintB = yClintT - hClint
+		yLaneA, yLaneB = yClintT - 0.36, yClintT - 0.74
+		yByT = min(yClintB, yLaneB - 0.30) - 0.34
+		yTotT = yByT - nBy * base - 0.36
+		yBot = yTotT - hTot - 0.25
+		yLabel = 0.42                            # the band headings, above it all
+
+		# ---- emission ---------------------------------------------------------
+		s = ('% Generated interrupt-fabric overview (harts=' + str(N)
+			+ ', vectors=' + str(gen.VectorsCount) + ', routed=' + str(routed)
+			+ ', meip=' + str(meipVec) + ', msip=' + str(msipVec) + ', mtip=' + str(mtipVec)
+			+ ', enableWords=' + str(nWords) + ', elided=' + str(elided)
+			+ ', types=' + str([(x['label'], x['n'], x['stack']) for x in srcs]) + ')\n')
+		s += '\\begin{tikzpicture}[\n'
+		s += '\thd/.style={font=\\sffamily\\scriptsize, align=center, inner sep=1pt, anchor=north},\n'
+		s += '\tbc/.style={font=\\sffamily\\scriptsize, align=center, inner sep=1pt},\n'
+		s += '\tsig/.style={->, >=Stealth, semithick},\n'
+		# The bypass rails are the heaviest stroke in the drawing on purpose:
+		# at 1.5 pt they read as one more box border on the whole-page view.
+		s += '\trail/.style={line width=1.9pt, black!70},\n'
+		s += ('\ttyp/.style={font=\\sffamily\\large\\itshape, black!55, align=left, '
+			'inner sep=1.5pt, anchor=south west},\n')
+		s += ('\tlane/.style={font=\\sffamily\\scriptsize, align=center, fill=white, '
+			'inner sep=1.5pt, anchor=south},\n')
+		s += ('\tnote/.style={font=\\sffamily\\scriptsize, black!60, align=left, '
+			'inner sep=1.5pt, anchor=north west}]\n')
+
+		def frame(cx, yTop, w, h, fill, opts='thick'):
+			return ('\\draw[' + opts + ', fill=' + fill + '] (' + P(cx - w / 2.0) + ', '
+				+ P(yTop - h) + ') rectangle (' + P(cx + w / 2.0) + ', ' + P(yTop) + ');\n')
+
+		def shadows(cx, yTop, w, h, n, fill, opts='thick'):
+			out = ''
+			for k in range(min(n, maxShadow) - 1, 0, -1):
+				out += frame(cx + stackDx * k, yTop + stackDy * k, w, h, fill, opts)
+			return out
+
+		def head(cx, yTop, w, title, sub=None):
+			tex = '{\\small\\bfseries ' + title + '}'
+			if sub:
+				tex += '\\\\[1pt] ' + sub
+			return ('\\node[hd, text width=' + P(w - 0.20) + 'cm] at (' + P(cx) + ', '
+				+ P(yTop - pad) + ') {' + tex + '};\n')
+
+		xRtrC = (xRtrL + xRtrR) / 2.0
+		xSrcC = (xSrcL + xSrcR) / 2.0
+		xHartC = (xHartL + xHartR) / 2.0
+
+		# ---- band headings ----------------------------------------------------
+		s += '\\node[typ] at (' + P(xSrcL) + ', ' + P(yLabel) + ') {Interrupt Sources};\n'
+		s += ('\\node[typ] at (' + P(xHartL - 0.10) + ', ' + P(yLabel) + ') {Harts $\\times$'
+			+ str(N) + '};\n')
+
+		# ---- the router spine -------------------------------------------------
+		hRtr = yRtrT - yRtrB
+		s += frame(xRtrC, yRtrT, wRtr, hRtr, 'black!8')
+		s += head(xRtrC, yRtrT, wRtr, 'IRQROUTER', rtrSub)
+		s += ('\\draw[semithick, black!45] (' + P(xRtrL) + ', ' + P(yRtrT - hHead) + ') -- ('
+			+ P(xRtrR) + ', ' + P(yRtrT - hHead) + ');\n')
+		s += ('\\node[bc, text width=' + P(wRtr - 0.30) + 'cm] at (' + P(xRtrC) + ', '
+			+ P(yRtrT - hHead - hRowHd / 2.0) + ') {' + rowHeadTx + '};\n')
+		wRow = wRtr - 0.44
+		for i, h in enumerate(shown):
+			if h is None:
+				s += ('\\node[font=\\sffamily\\Large] at (' + P(xRtrC) + ', ' + P(yc[i])
+					+ ') {$\\cdots$};\n')
+				continue
+			s += frame(xRtrC, yc[i] + hRow / 2.0, wRow, hRow, 'white')
+			s += ('\\node[bc] at (' + P(xRtrC) + ', ' + P(yc[i]) + ') {' + rowTxt[h] + '};\n')
+		# the claim/pend/in-service machinery, one compact box
+		s += frame(xRtrC, yClaimT, wRow, hClaim, 'white')
+		s += head(xRtrC, yClaimT, wRow, 'Claim / Pend / In-Service', claimSub)
+		# ...and the ONE annotation this drawing carries
+		s += ('\\node[bc, text width=' + P(wRtr - 0.36) + 'cm] at (' + P(xRtrC) + ', '
+			+ P(yAnnT - hAnn / 2.0) + ') {' + annTx + '};\n')
+
+		# ---- the source type frames, and their one arrow each -----------------
+		hSrc = 2 * pad + 0.44 + 0.37
+		gapSrc = 0.34
+		if len(srcs) > 1:
+			gapSrc = min(1.10, max(0.34,
+				(hRtr - 0.40 - len(srcs) * hSrc) / float(len(srcs) - 1)))
+		ySrcT = yRtrT - 0.20
+		fed = []
+		for i, sp in enumerate(srcs):
+			yT = ySrcT - i * (hSrc + gapSrc)
+			cy = yT - hSrc / 2.0
+			s += shadows(xSrcC - stackDx, yT, wSrc - stackDx * 2, hSrc, sp['stack'], 'white')
+			s += frame(xSrcC - stackDx, yT, wSrc - stackDx * 2, hSrc, 'white')
+			s += head(xSrcC - stackDx, yT, wSrc - stackDx * 2, sp['title'], sp['sub'])
+			s += ('\\draw[sig] (' + P(xSrcR - stackDx) + ', ' + P(cy) + ') -- (' + P(xRtrL)
+				+ ', ' + P(cy) + ');\n')
+			fed.append(sp['label'])
+		# E17, and the whole of what the bypass claims: exactly the type frames
+		# feed the router, and the CLINT feeds it nothing.
+		if sorted(fed) != sorted(x['label'] for x in srcs) or 'CLINT' in fed:
+			raise Exception('IrqFabricDiagram: the blocks drawn with a router input are '
+				+ str(sorted(fed)) + ', which is not the type-frame set '
+				+ str(sorted(x['label'] for x in srcs)) + ' with the CLINT outside it.')
+
+		# ---- the CLINT, and the two rails that go round the router ------------
+		s += frame(xSrcC, yClintT, wSrc, hClint, 'black!8')
+		s += head(xSrcC, yClintT, wSrc, 'CLINT', clintTx)
+		# The bypass annotation sits UNDER the two rails, in the lane they run
+		# along, so it reads as a note on them and not on the router above.
+		s += ('\\node[note, text width=' + P(xRailB - xRtrL) + 'cm] at (' + P(xRtrL) + ', '
+			+ P(yByT) + ') {' + byTx + '};\n')
+		# The total: one grey strip across the whole drawing, which is where the
+		# source population and the bypass pair finally add up to one number.
+		s += ('\\draw[thick, fill=black!15] (' + P(xSrcL) + ', ' + P(yTotT - hTot)
+			+ ') rectangle (' + P(xRailB) + ', ' + P(yTotT) + ');\n')
+		s += ('\\node[bc, text width=' + P(xRailB - xSrcL - 0.30) + 'cm] at ('
+			+ P((xSrcL + xRailB) / 2.0) + ', ' + P(yTotT - hTot / 2.0) + ') {' + totTx + '};\n')
+
+		# ---- the harts, their meip, and the two rails into their far side -----
+		portM, portT = 0.26, 0.26
+		for i, h in enumerate(shown):
+			if h is None:
+				s += ('\\node[font=\\sffamily\\Large] at (' + P(xHartC) + ', ' + P(yc[i])
+					+ ') {$\\cdots$};\n')
+				continue
+			s += frame(xHartC, yc[i] + hHart / 2.0, wHart, hHart, 'black!8',
+				'thick, rounded corners=2pt')
+			s += ('\\node[bc] at (' + P(xHartC) + ', ' + P(yc[i])
+				+ ') {{\\small\\bfseries hart ' + str(h) + '}};\n')
+			# meip, straight out of this hart's own routing row
+			s += ('\\draw[sig] (' + P(xRtrR) + ', ' + P(yc[i]) + ') -- (' + P(xHartL) + ', '
+				+ P(yc[i]) + ');\n')
+			# msip off rail A, and mtip off rail B with a REAL GAP where it
+			# crosses rail A: a heavy rail a stub touches is a junction until the
+			# reader gets close enough to see it is not.
+			s += ('\\draw[rail, ->, >=Stealth] (' + P(xRailA) + ', ' + P(yc[i] + portM)
+				+ ') -- (' + P(xHartR) + ', ' + P(yc[i] + portM) + ');\n')
+			s += ('\\draw[rail] (' + P(xRailB) + ', ' + P(yc[i] - portT) + ') -- ('
+				+ P(xRailA + 0.14) + ', ' + P(yc[i] - portT) + ');\n')
+			s += ('\\draw[rail, ->, >=Stealth] (' + P(xRailA - 0.14) + ', ' + P(yc[i] - portT)
+				+ ') -- (' + P(xHartR) + ', ' + P(yc[i] - portT) + ');\n')
+		# the rails themselves: out of the CLINT, along a lane UNDER the router,
+		# and up the far margin. They touch nothing between the two.
+		yTopA, yTopB = yc[0] + portM + 0.55, yc[0] + portM + 1.60
+		s += ('\\draw[rail] (' + P(xSrcR) + ', ' + P(yLaneA) + ') -- (' + P(xRailA) + ', '
+			+ P(yLaneA) + ') -- (' + P(xRailA) + ', ' + P(yTopA) + ');\n')
+		s += ('\\draw[rail] (' + P(xSrcR) + ', ' + P(yLaneB) + ') -- (' + P(xRailB) + ', '
+			+ P(yLaneB) + ') -- (' + P(xRailB) + ', ' + P(yTopB) + ');\n')
+
+		# ---- the three lanes, named once each, above the top hart -------------
+		# They are staggered in height because the two rails are 8.5 mm apart and
+		# a lane name is 13 mm wide: side by side they printed through each other.
+		s += ('\\node[lane] at (' + P((xRtrR + xHartL) / 2.0) + ', ' + P(yc[0] + 0.55)
+			+ ') {\\texttt{meip}\\\\ vector ' + str(meipVec) + '};\n')
+		s += ('\\node[lane] at (' + P(xRailA) + ', ' + P(yTopA)
+			+ ') {\\texttt{msip}\\\\ vector ' + str(msipVec) + '};\n')
+		s += ('\\node[lane] at (' + P(xRailB) + ', ' + P(yTopB)
+			+ ') {\\texttt{mtip}\\\\ vector ' + str(mtipVec) + '};\n')
+
+		s += '\\end{tikzpicture}\n'
+		hAll = yLabel + 0.40 - yBot
+		s = (s.split('\n', 1)[0][:-1] + ', width=' + P(W) + 'cm, height=' + P(hAll)
+			+ 'cm, aspect=' + P(W / hAll) + ')\n' + s.split('\n', 1)[1])
+		self._writeInclude('IrqFabricDiagram.tex', s)
 		return
 
 	def GenerateMutexClaimDiagram(self):

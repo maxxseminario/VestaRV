@@ -222,6 +222,18 @@ junk += $(addsuffix .bin, $(tests)) $(addsuffix _padded.bin, $(tests)) $(tests_r
 # ---------------------------------------------------------------
 
 
+# PER-TEST LINK SCRIPT (2026-08-16). Every test links with link.ld, which puts
+# .text.init in the private TCM at 0x8200. An image LARGER THAN THE TCM cannot
+# live there -- with the 8 KiB TCM, rv32uc-p-rvc's 11,642-byte .text.init wraps
+# onto itself through the array's address aliasing and overwrites its own code.
+# Such a test overrides LINK_LD below and executes from the shared bulk RAM
+# instead (fetch-through-the-arbiter is proven: M10, shexec.S).
+# Keep this a NARROW, PER-TEST override, never a global default: a test that
+# FITS the TCM should stay in it, where fetch is private and unarbitrated.
+LINK_LD ?= ../env/p/link.ld
+
+$(build_dir)/rv32uc/rv32uc-p-rvc: LINK_LD = ../env/p/link_shared.ld
+
 define compile_template
 
 # Create build subdirectory for this test suite
@@ -231,7 +243,7 @@ $$(shell mkdir -p $$(build_dir)/$(1))
 $(1)_p_tests_build = $$(patsubst %,$$(build_dir)/$(1)/%,$$(notdir $$($(1)_p_tests)))
 
 $$($(1)_p_tests_build): $$(build_dir)/$(1)/$(1)-p-%: $$(src_dir)/$(1)/%.S
-	$$(RISCV_GCC) $(2) $$(RISCV_GCC_OPTS) -I../env/p -I./macros/scalar -I../../platform/myshkin/gcc/lib/include -T../env/p/link.ld $$< -o $$@
+	$$(RISCV_GCC) $(2) $$(RISCV_GCC_OPTS) -I../env/p -I./macros/scalar -I../../platform/myshkin/gcc/lib/include -T$$(LINK_LD) $$< -o $$@
 	$$(MAKE) $$@.rcf  
 $(1)_tests += $$($(1)_p_tests_build)
 

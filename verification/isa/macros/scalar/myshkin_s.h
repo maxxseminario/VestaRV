@@ -56,6 +56,39 @@ extern "C" {
 #define IVT_BASE_ADDR           0x08000
 #define RAM0_BASE_ADDR          0x08000
 #define PROG_BASE_ADDR          0x08150
+
+// BOOT ENTRY VECTOR (2026-08-16). A published entry point for images whose
+// _start cannot live at PROG_BASE_ADDR.
+//
+// WHY IT EXISTS: the flash bootrom's last act used to be an unconditional
+// `j PROG_BASE_ADDR`, pinning every image's first instruction to 0x8200 inside
+// the private TCM. That is fine until an image is BIGGER THAN THE TCM. With the
+// 8 KiB TCM, rv32uc-p-rvc's .text.init is 11,642 bytes, so it wraps onto itself
+// through the array's address aliasing and destroys its own code. Such an image
+// must execute from the shared bulk RAM, and nothing could tell the bootrom to
+// start it there.
+//
+// WHY IT LIVES IN SHARED RAM AND NOT THE TCM: it was first placed at 0x81FC,
+// in what looked like free space between the IVT (121 vectors end at 0x81E3)
+// and PROG_BASE_ADDR. IT IS NOT FREE -- measured, after it cost five NPU tests
+// (wgemm/wactf/wxnpu/wnpuconv/shnpu, all 100 ms watchdog hangs): decoding those
+// images' flash segments shows 0x81FC holding 0x1050306F, a real JAL, so the
+// bootrom read a non-zero "vector" and jumped into nowhere. The word has to
+// live where NO image places content.
+//
+// THE ADDRESS IS CONSTRAINED FROM BOTH SIDES and the window is narrow:
+//   below  0x10620  the loader mailbox rows {SRC,LEN,ENTRY} (0x10500-0x1061F at N=18)
+//   at/above 0x10680 the Debug Module program page (0x10680-0x1087F)
+// 0x10640 sits in the gap between them, inside the bootrom's mailbox ZERO range
+// (0x10000-0x107FF). That zeroing is what makes "no vector published" decidable
+// and it ALREADY HAPPENS, early in boot, before any SPI work -- so no store had
+// to be added to the timing-critical flash path (an attempt to do exactly that
+// is what broke the NPU tests the first time).
+//
+// CONTRACT: bootrom zeroes the mailbox region -> flash segments load (an image
+// may publish here) -> bootrom reads it. Non-zero = jump there; zero = the
+// historical PROG_BASE_ADDR path, bit-identical, all registers still cleared.
+#define BOOT_ENTRY_VEC          0x10640  // published entry address; 0 = use PROG_BASE_ADDR
 #define RAM1_BASE_ADDR          0x0C000  // legacy name: now the SHARED NPU staging RAM
 #define NPURAM_BASE_ADDR        0x0C000
 #define RAM_END_ADDR            0x0BFFF

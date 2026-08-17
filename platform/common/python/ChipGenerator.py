@@ -121,6 +121,11 @@ class ChipGenerator():
 	# MemoryMap.vhd and the C-header/core_features.h define. REQUIRES
 	# ENABLE_TRAPCSR -- generate.py raises, and the vesta entity asserts.
 	ENABLE_DEBUG = None			# D1: debug mode (dcsr/dpc/dscratch0-1, dret, halt, single-step)
+	# ASYMMETRIC ISA (2026-08-16). True = the hardened corner tiles (harts 1..N-1)
+	# are built rv32iac -- M and B dropped -- while hart 0, the soft orchestrator,
+	# keeps the full ISA above. Drives the TILE_ENABLE_* constants, which are what
+	# MCU.vhd hands the tile instances (hart 0 still gets CORE_ENABLE_*).
+	MINIMAL_TILES = None
 	ENABLE_IRQ_QREGS = None		# Enables/disables the four IRQ registers, which help speed IRQ calls
 	ENABLE_IRQ_TIMER = None		# Enables/disables the "timer" custom instruction. For chips up to pingora2, this was always True
 	MASKED_IRQ = None			# Any '1' bit corresponds to a permenantely disabled IRQ
@@ -200,7 +205,8 @@ class ChipGenerator():
 		PMP_ENTRIES:int=16,
 		# D1 core-side debug mode — default False so every existing caller
 		# (and testbench) keeps a chip with no debug interface at all.
-		ENABLE_DEBUG:bool=False):
+		ENABLE_DEBUG:bool=False,
+		MINIMAL_TILES:bool=False):
 		# Initialize lists
 		self.PeripheralTemplates = []
 		self.Peripherals = []
@@ -477,6 +483,7 @@ class ChipGenerator():
 		self.ENABLE_ZFINX = ENABLE_ZFINX
 		# P0 scaffolded privileged architecture (default false / 16 entries)
 		self.ENABLE_DEBUG = ENABLE_DEBUG
+		self.MINIMAL_TILES = MINIMAL_TILES
 		self.ENABLE_TRAPCSR = ENABLE_TRAPCSR
 		self.ENABLE_UMODE = ENABLE_UMODE
 		self.ENABLE_PMP = ENABLE_PMP
@@ -2406,6 +2413,21 @@ class ChipGenerator():
 		t.AddRow(['constant CORE_PMP_ENTRIES', ': natural := ' + str(int(self.PMP_ENTRIES)) + ';', '-- PMP entry count {8,16} (only with PMP)'], prefixTabs=1)
 		# D1 core-side debug mode (needs TRAPCSR; generate.py enforces)
 		t.AddRow(['constant CORE_ENABLE_DEBUG', ': boolean := ' + str(bool(self.ENABLE_DEBUG)).lower() + ';', '-- Debug mode (dcsr/dpc/dscratch, dret, halt)'], prefixTabs=1)
+		# ASYMMETRIC ISA: what the HARDENED CORNER TILES get, as opposed to hart 0.
+		# These exist so the asymmetry has ONE authority. MCU.vhd hands hart 0 (and the
+		# orchestrator) the CORE_ENABLE_* values above and hands hart_tile instances
+		# these; hart_tile's own generics still DEFAULT to the full ISA, so a bare
+		# `elaborate hart_tile` for macro hardening must override them explicitly --
+		# see genus/hart_tile/tcl/hart_tile.genus.tcl, which names them and guards that
+		# they took (the ENABLE_DEBUG lesson: a generic default silently wins over a
+		# memory-map constant in a tile-only elaborate).
+		# Only M and B differ. A and C are NEVER dropped on a tile: the tiles run the
+		# shared-fabric LR/SC + AMO locking, and C is decoder-only but shrinks code.
+		_tmin = bool(self.MINIMAL_TILES)
+		t.AddLine('-- Corner-tile ISA (harts 1..N-1). Equal to CORE_ENABLE_* unless the tiles are minimal.', prefixTabs=1)
+		t.AddRow(['constant TILE_ENABLE_MUL', ': boolean := ' + str(bool(self.ENABLE_MUL) and not _tmin).lower() + ';', '-- M on the corner tiles'], prefixTabs=1)
+		t.AddRow(['constant TILE_ENABLE_DIV', ': boolean := ' + str(bool(self.ENABLE_DIV) and not _tmin).lower() + ';', '-- M on the corner tiles'], prefixTabs=1)
+		t.AddRow(['constant TILE_ENABLE_BITMANIP', ': boolean := ' + str(bool(self.ENABLE_BITMANIP) and not _tmin).lower() + ';', '-- Zba/Zbb/Zbs/Zbc on the corner tiles'], prefixTabs=1)
 		t.AddBlankLine()
 
 		# GPIO pin-number constants in the RTL's pnum_* spelling. AF-plane names

@@ -836,41 +836,39 @@ begin
 
        ADDRESS ALIASING, stated because the map depends on it: mem_addr and tx_addr_r are 12 bits either way. At 8 KiB the top bit is simply not connected, so the array repeats twice across the 16 KiB the decode still routes here -- which is exactly what makes the 16 KiB read-only aperture at 0x20000 + 0x4000*h show an 8 KiB TCM MIRRORED, the behaviour generate.py documents and the TRM draws.
        ------------------------------------------------------------------------- */
-    gen_tcm_16k: if RamSize = 16384 generate
-        ram0: entity work.sram1p16k_hvt_pg
-            port map (
-                Q     => tcm_q,
-                CLK   => ram_clk,
-                CEN   => ram_cen,
-                WEN   => ram_wen,
-                A     => ram_a,
-                D     => ram_d,
-                EMA   => "000",
-                GWEN  => ram_gwen,
-                RETN  => tcm_retn,
-                PGEN  => tcm_pgen
-            );
-    end generate;
+    -- THE INSTANCE NAME ram0 IS A FLOW CONTRACT, not a preference. It is named
+    -- EXPLICITLY, at THIS level of hierarchy, by: genus/hart_tile SDC
+    -- (`set_false_path -to pin:hart_tile/ram0/PGEN` and /RETN), the orch_tile SDC
+    -- (via its tile instance), the RAM setup/hold timing queries, and innovus
+    -- `placeInstance ram0` in the tile floorplan. A first version of this block
+    -- selected the macro with an if-generate on RamSize, which is tidier RTL and
+    -- BROKE SYNTHESIS OUTRIGHT: a VHDL generate adds a level to the instance path,
+    -- so `pin:hart_tile/ram0/PGEN` stopped resolving and genus died with TUI-61
+    -- (and still exited 0 -- the log was the only place it existed). Hence a plain
+    -- direct instantiation, with the size checked below instead of selected.
+    ram0: entity work.sram1p8k_hvt_pg
+        port map (
+            Q     => tcm_q,
+            CLK   => ram_clk,
+            CEN   => ram_cen,
+            WEN   => ram_wen,
+            A     => ram_a(10 downto 0),   -- ram_a(11) unused: see the aliasing note above
+            D     => ram_d,
+            EMA   => "000",
+            GWEN  => ram_gwen,
+            RETN  => tcm_retn,
+            PGEN  => tcm_pgen
+        );
 
-    gen_tcm_8k: if RamSize = 8192 generate
-        ram0: entity work.sram1p8k_hvt_pg
-            port map (
-                Q     => tcm_q,
-                CLK   => ram_clk,
-                CEN   => ram_cen,
-                WEN   => ram_wen,
-                A     => ram_a(10 downto 0),   -- ram_a(11) unused: the array mirrors across the 16 KiB the decode routes here
-                D     => ram_d,
-                EMA   => "000",
-                GWEN  => ram_gwen,
-                RETN  => tcm_retn,
-                PGEN  => tcm_pgen
-            );
-    end generate;
-
-    -- No macro for this RamSize: fail at elaboration, never silently.
-    assert RamSize = 16384 or RamSize = 8192
-        report "hart_tile: RamSize = " & integer'image(RamSize) & " has no TCM macro (kit provides sram1p16k_hvt_pg and sram1p8k_hvt_pg only)"
+    -- The macro above is 8 KiB. If the memory map ever says otherwise, FAIL HERE
+    -- rather than ship a chip whose map promises more RAM than the array answers.
+    -- Changing memory.tcmSizePerHart back to 16384 means editing TWO things here:
+    -- the entity (sram1p16k_hvt_pg) and the A width (ram_a, all 12 bits). That is
+    -- deliberate manual work, not a knob, for the flow-contract reason above.
+    assert RamSize = 8192
+        report "hart_tile: MemoryMap RamSize = " & integer'image(RamSize)
+             & " but ram0 is the 8 KiB sram1p8k_hvt_pg macro. Swap the entity and "
+             & "the A width, or set memory.tcmSizePerHart = 8192."
         severity failure;
 
 end architecture;

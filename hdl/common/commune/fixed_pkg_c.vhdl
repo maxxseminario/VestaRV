@@ -1481,43 +1481,24 @@ package fixed_pkg is
 -- rtl_synthesis on
 -- pragma synthesis_on
 
-  -- IN VHDL-2006 std_logic_vector is a subtype of std_ulogic_vector, so these
-  -- extra functions are needed for compatability.
-  function to_ufixed (
-    arg                  : STD_LOGIC_VECTOR;  -- shifted vector
-    constant left_index  : INTEGER;
-    constant right_index : INTEGER)
-    return UNRESOLVED_ufixed;
-
-  function to_ufixed (
-    arg      : STD_LOGIC_VECTOR;       -- shifted vector
-    size_res : UNRESOLVED_ufixed)       -- for size only
-    return UNRESOLVED_ufixed;
-
-  function to_sfixed (
-    arg                  : STD_LOGIC_VECTOR;  -- shifted vector
-    constant left_index  : INTEGER;
-    constant right_index : INTEGER)
-    return UNRESOLVED_sfixed;
-
-  function to_sfixed (
-    arg      : STD_LOGIC_VECTOR;       -- shifted vector
-    size_res : UNRESOLVED_sfixed)       -- for size only
-    return UNRESOLVED_sfixed;
-
-  -- unsigned fixed point
-  function to_UFix (
-    arg      : STD_LOGIC_VECTOR;
-    width    : NATURAL;                 -- width of vector
-    fraction : NATURAL)                 -- width of fraction
-    return UNRESOLVED_ufixed;
-
-  -- signed fixed point
-  function to_SFix (
-    arg      : STD_LOGIC_VECTOR;
-    width    : NATURAL;                 -- width of vector
-    fraction : NATURAL)                 -- width of fraction
-    return UNRESOLVED_sfixed;
+  -- VHDL-2006/2008 COMPATIBILITY OVERLOADS REMOVED 2026-08-17 (USER-approved).
+  -- The block that stood here declared STD_LOGIC_VECTOR forms of to_ufixed /
+  -- to_sfixed / to_UFix / to_SFix, and its own comment said why: 'IN VHDL-2006
+  -- std_logic_vector is a subtype of std_ulogic_vector, so these extra functions
+  -- are needed for compatability.' That reasoning INVERTS under VHDL-2008, which
+  -- is how this package is now read: because slv IS a subtype of sulv there, each
+  -- of these is an EXACT DUPLICATE of the std_ulogic_vector form above it, and the
+  -- parser rejects the package outright -- 20 errors, 'Design unit not stored.
+  -- Package fixed_pkg', then genus aborts the script (while still exiting 0).
+  -- Callers are unaffected: to_sfixed(<slv>, ...) in FPMac.vhd / FPSigmoid.vhd /
+  -- NPU.vhd now resolves to the std_ulogic_vector version through the subtype
+  -- relation, which is the same function the deleted body delegated to anyway
+  -- (it just called to_stdulogicvector() first).
+  -- WHY THE PACKAGE MUST BE READ AS 2008 AT ALL: FPMac.vhd and FPSigmoid.vhd
+  -- carry /* */ delimited comments since the 2026-08 comment-style cleanup, as
+  -- does the generated MCU.vhd, and genus refuses to mix versions in one session
+  -- ('Cannot mix VHDL 2008 files with previous VHDL versions. [HPT-88]').
+  -- Pre-edit file preserved as fixed_pkg_c.vhdl.pre_vhdl2008.
 
 end package fixed_pkg;
 -------------------------------------------------------------------------------
@@ -9017,76 +8998,6 @@ package body fixed_pkg is
   end function from_hstring;
 -- pragma synthesis_on
 -- rtl_synthesis on
-  -- IN VHDL-2006 std_logic_vector is a subtype of std_ulogic_vector, so these
-  -- extra functions are needed for compatability.
-  function to_ufixed (
-    arg                  : STD_LOGIC_VECTOR;  -- shifted vector
-    constant left_index  : INTEGER;
-    constant right_index : INTEGER)
-    return UNRESOLVED_ufixed is
-  begin
-    return to_ufixed (
-      arg => to_stdulogicvector (arg),
-      left_index => left_index,
-      right_index => right_index);
-  end function to_ufixed;
-
-  function to_ufixed (
-    arg      : STD_LOGIC_VECTOR;       -- shifted vector
-    size_res : UNRESOLVED_ufixed)       -- for size only
-    return UNRESOLVED_ufixed is
-  begin
-    return to_ufixed (
-      arg => to_stdulogicvector (arg),
-      size_res => size_res);
-  end function to_ufixed;
-
-  function to_sfixed (
-    arg                  : STD_LOGIC_VECTOR;  -- shifted vector
-    constant left_index  : INTEGER;
-    constant right_index : INTEGER)
-    return UNRESOLVED_sfixed is
-  begin
-    return to_sfixed (
-      arg => to_stdulogicvector (arg),
-      left_index => left_index,
-      right_index => right_index);
-  end function to_sfixed;
-
-  function to_sfixed (
-    arg      : STD_LOGIC_VECTOR;       -- shifted vector
-    size_res : UNRESOLVED_sfixed)       -- for size only
-    return UNRESOLVED_sfixed is
-  begin
-    return to_sfixed (
-      arg => to_stdulogicvector (arg),
-      size_res => size_res);
-  end function to_sfixed;
-
-  -- unsigned fixed point
-  function to_UFix (
-    arg      : STD_LOGIC_VECTOR;
-    width    : NATURAL;                 -- width of vector
-    fraction : NATURAL)                 -- width of fraction
-    return UNRESOLVED_ufixed is
-  begin
-    return to_UFix (
-      arg => to_stdulogicvector (arg),
-      width => width,
-      fraction => fraction);
-  end function to_UFix;
-
-  -- signed fixed point
-  function to_SFix (
-    arg      : STD_LOGIC_VECTOR;
-    width    : NATURAL;                 -- width of vector
-    fraction : NATURAL)                 -- width of fraction
-    return UNRESOLVED_sfixed is
-  begin
-    return to_SFix (
-      arg => to_stdulogicvector (arg),
-      width => width,
-      fraction => fraction);
-  end function to_SFix;
+  -- (VHDL-2006 compatibility function BODIES removed here -- see the package declaration for the full rationale.)
 
 end package body fixed_pkg;
