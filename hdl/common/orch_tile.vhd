@@ -50,7 +50,7 @@ entity orch_tile is
         ENABLE_PMP        : boolean := false;
         PMP_ENTRIES       : integer := 16;
         -- Default FALSE, as in hart_tile: a debug interface inherited by an omitted generic is an area and attack-surface surprise, not a convenience.
-        ENABLE_DEBUG      : boolean := false;
+        ENABLE_DEBUG      : boolean := true;   -- Tracks hart_tile's default (flipped 2026-08-16 with the debug.enable shipped-default flip; a bare `elaborate orch_tile` must harden the same debug-ON core the assembly wires).
         DEBUG_ENTRY_ADDR  : std_logic_vector(31 downto 0) := x"0000BE00"
     );
     port (

@@ -880,7 +880,7 @@ const VESTA_DATA = {
     "debug.enable": {
       "description": "bool: debug mode, the Debug Module and the JTAG DTM; needs priv.trapCsr",
       "type": "bool",
-      "default": false
+      "default": true
     },
     "priv.umode": {
       "description": "bool: user mode (privilege register, MPP stack, mcounteren); needs priv.trapCsr",
@@ -911,7 +911,7 @@ const VESTA_DATA = {
     "memory.tcmSizePerHart": {
       "description": "int bytes, 1 KiB multiple <= 0x4000: per-hart TCM (0x8000-0xBFFF)",
       "type": "int",
-      "default": 16384,
+      "default": 8192,
       "min": 1024,
       "max": 16384,
       "step": 1024
@@ -974,7 +974,7 @@ const VESTA_DATA = {
     "peripherals.nfc": {
       "description": "bool: NFC0 ISO 14443A tag engine at 0x6200 (the RF front end is off-die)",
       "type": "bool",
-      "default": false
+      "default": true
     },
     "peripherals.rtc": {
       "description": "bool: RTC0 32.768 kHz wall clock with alarm and tick at 0x6500",
@@ -1035,7 +1035,7 @@ const VESTA_DATA = {
     "package.model": {
       "description": "string: package pinout model, one of myshkin-qfn44, castalia-quad-qfn64 or castalia-lqfp100",
       "type": "enum",
-      "default": "castalia-quad-qfn64",
+      "default": "castalia-lqfp100",
       "enum": [
         "myshkin-qfn44",
         "castalia-quad-qfn64",
@@ -1082,9 +1082,9 @@ const VESTA_DATA = {
     "priv.umode": false,
     "priv.pmp": false,
     "priv.pmpEntries": 16,
-    "debug.enable": false,
+    "debug.enable": true,
     "memory.romSize": 16384,
-    "memory.tcmSizePerHart": 16384,
+    "memory.tcmSizePerHart": 8192,
     "memory.sharedBulkRamSize": 65536,
     "memory.npuStagingRamSize": 16384,
     "peripherals.npu": true,
@@ -1095,7 +1095,7 @@ const VESTA_DATA = {
     "peripherals.cqAfeStubs": true,
     "peripherals.qspi": false,
     "peripherals.i3c": false,
-    "peripherals.nfc": false,
+    "peripherals.nfc": true,
     "peripherals.rtc": false,
     "peripherals.pwm": false,
     "peripherals.onewire": false,
@@ -1106,7 +1106,7 @@ const VESTA_DATA = {
     "peripherals.trng": false,
     "peripherals.trngRings": 8,
     "peripherals.eventFabric": false,
-    "package.model": "castalia-quad-qfn64",
+    "package.model": "castalia-lqfp100",
     "package.preliminary": true
   },
   "packages": {
@@ -3645,7 +3645,10 @@ const VESTA_DATA = {
           "name": "P5.0(GPIO40)",
           "io": "Input/Output",
           "powerDomain": "Digital I/O",
-          "gpio": "P5.0"
+          "gpio": "P5.0",
+          "altFuncs": {
+            "AF1": "NFC_RF_CLK"
+          }
         },
         {
           "pin": 63,
@@ -3653,7 +3656,10 @@ const VESTA_DATA = {
           "name": "P5.1(GPIO41)",
           "io": "Input/Output",
           "powerDomain": "Digital I/O",
-          "gpio": "P5.1"
+          "gpio": "P5.1",
+          "altFuncs": {
+            "AF1": "NFC_RF_RX"
+          }
         },
         {
           "pin": 64,
@@ -3661,7 +3667,10 @@ const VESTA_DATA = {
           "name": "P5.2(GPIO42)",
           "io": "Input/Output",
           "powerDomain": "Digital I/O",
-          "gpio": "P5.2"
+          "gpio": "P5.2",
+          "altFuncs": {
+            "AF1": "NFC_FIELD_DETECT"
+          }
         },
         {
           "pin": 65,
@@ -3669,7 +3678,10 @@ const VESTA_DATA = {
           "name": "P5.3(GPIO43)",
           "io": "Input/Output",
           "powerDomain": "Digital I/O",
-          "gpio": "P5.3"
+          "gpio": "P5.3",
+          "altFuncs": {
+            "AF1": "NFC_RF_TXMOD"
+          }
         },
         {
           "pin": 66,
@@ -3677,7 +3689,10 @@ const VESTA_DATA = {
           "name": "P5.4(GPIO44)",
           "io": "Input/Output",
           "powerDomain": "Digital I/O",
-          "gpio": "P5.4"
+          "gpio": "P5.4",
+          "altFuncs": {
+            "AF1": "NFC_RF_TX_EN"
+          }
         },
         {
           "pin": 67,
@@ -3685,7 +3700,10 @@ const VESTA_DATA = {
           "name": "P5.5(GPIO45)",
           "io": "Input/Output",
           "powerDomain": "Digital I/O",
-          "gpio": "P5.5"
+          "gpio": "P5.5",
+          "altFuncs": {
+            "AF1": "NFC_AFE_EN"
+          }
         },
         {
           "pin": 68,
@@ -4037,7 +4055,7 @@ const VESTA_DATA = {
     {
       "name": "Private TCM",
       "start": "0x8000",
-      "end": "0xBFFF",
+      "end": "0x9FFF",
       "kind": "private",
       "description": "Per-hart private tightly-coupled memory (the only private address region)"
     },

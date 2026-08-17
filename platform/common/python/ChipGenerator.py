@@ -419,7 +419,18 @@ class ChipGenerator():
 		RamMemorySlotsMuxedMin = max(self.RamMemorySlotsUsed) + 1
 		if len(self.RamMemorySlotsMuxed) > 0:
 			RamMemorySlotsMuxedMin = min(self.RamMemorySlotsMuxed)
-		if self.StackPointerInit != (self.RamMemorySlotSize * RamMemorySlotsMuxedMin):
+		# `RamMemorySlotSize * slotIndex` is a BYTE ADDRESS only when the RAM
+		# region starts at 0 -- it silently assumes slot n begins at n*slotSize
+		# from address zero. Castalia's TCM is based at RamStartAddress 0x8000,
+		# so the identity held only by the coincidence that slotSize*3 == 0xC000
+		# when slotSize was 0x4000. Halving the TCM to 0x2000 broke the
+		# coincidence (0x2000*3 = 0x6000) and this fired on a build whose stack
+		# pointer was exactly right, which is a false alarm, i.e. the failure
+		# mode that teaches readers to ignore the warning. Anchor it to the
+		# region's real end instead; the slot arithmetic is kept for the
+		# muxed-slot case it was actually written for.
+		expectedTop = self.RamStartAddress + (self.RamMemorySlotSize * (RamMemorySlotsMuxedMin - min(self.RamMemorySlotsUsed)))
+		if self.StackPointerInit != expectedTop:
 			print('***')
 			print('***')
 			print('WARNING: StackPointerInit is not set to the end of the non-MUXed RAM')

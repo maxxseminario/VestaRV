@@ -1589,14 +1589,34 @@ class LatexUserGuide():
 			raise Exception('TCM apertures: McuMpGeometry tcmWindows %s do not match the '
 				'SharedWindowSections aperture rows %s — the block diagram and the address-space '
 				'figure would disagree.' % ([hex(w) for w in windows], [hex(sec[1]) for sec in sections]))
+		# 2026-08-16: the aperture SPAN/STRIDE and the TCM SIZE were the same
+		# number until memory.tcmSizePerHart dropped to 8 KiB, and this check
+		# read RamMemorySlotSize for both. They are now separate quantities --
+		# the stride is address space (fixed 0x4000, so the MCU sub-decode keeps
+		# its 16 KiB s_addr(15:12) granularity) and the TCM is silicon. Checking
+		# the aperture against the TCM size is what wrongly failed the 8 KiB
+		# build, so the geometry's own aperture size is the authority here and
+		# the TCM relationship is checked SEPARATELY below -- both still checked,
+		# neither conflated.
+		apertureBytes = geo.get('tcmApertureSize')
+		if not apertureBytes:
+			raise Exception('McuMpGeometry has no tcmApertureSize -- the aperture figure cannot '
+				'be drawn against an unstated stride, and silently assuming the TCM size is the '
+				'bug this check exists to catch.')
 		tcmBytes = self.Gen.RamMemorySlotSize
 		for h, (start, end) in enumerate((sec[1], sec[2]) for sec in sections):
-			if end - start + 1 != tcmBytes:
-				raise Exception('TCM aperture %d spans 0x%X bytes but a TCM is 0x%X'
-					% (h, end - start + 1, tcmBytes))
-			if start != windows[0] + h * tcmBytes:
+			if end - start + 1 != apertureBytes:
+				raise Exception('TCM aperture %d spans 0x%X bytes but the aperture stride is 0x%X'
+					% (h, end - start + 1, apertureBytes))
+			if start != windows[0] + h * apertureBytes:
 				raise Exception('TCM aperture %d is at 0x%X, not the uniform 0x%X + %d*0x%X'
-					% (h, start, windows[0], h, tcmBytes))
+					% (h, start, windows[0], h, apertureBytes))
+		# The mirror invariant: a TCM must tile its aperture a whole number of
+		# times, or the aperture's last copy is a partial one and the figure's
+		# "mirrored N times" caption is false.
+		if tcmBytes > apertureBytes or apertureBytes % tcmBytes != 0:
+			raise Exception('TCM 0x%X does not tile its 0x%X aperture a whole number of times, '
+				'so the aperture mirror is ragged.' % (tcmBytes, apertureBytes))
 		return windows
 
 	def GenerateSystemBlockDiagram(self):
@@ -2784,58 +2804,75 @@ class LatexUserGuide():
 
 		   THE SITE IS A HAT ON ITS HART. Each analog site is its own box,
 		   sitting directly on the box of the hart that owns it and exactly as
-		   wide, with air between channels: the pair reads as one channel. What
-		   makes a site its hart's is the gate printed inside it, so the arrow
-		   between the two is thin, short and unlabelled — the caption says
+		   wide, with air between channels: the pair reads as one channel. The
+		   arrow between the two is thin, short and unlabelled, and it IS what
+		   makes a site its hart's — the caption says
 		   \\emph{owns} once, where five printings of it were five labels in the
 		   one strip this row keeps clear. Hart 0's privilege is one comparison
 		   against the granted-master index, so it is ONE heavy rail under the
 		   row with a drop into every site — visibly reaching all of them, in
 		   the room the old banner band used to take, and drawn with a real gap
 		   wherever a column's ownership arrow passes through it so that no
-		   crossing can be read as a junction. That rail and the gate printed in
-		   each site box are the WHOLE of the access story, and now the only of
-		   it: an earlier cut also ran the arbiter's own grey strip the length of
-		   the row behind the site boxes, with one drop down the right lane into
-		   the bar, and by USER DIRECTIVE it is gone. Only hart 0 or the site's
-		   own hart may read a site, both are drawn already, and a second grey
-		   bar across the one row this figure keeps clear was buying a fact —
-		   that the sites are ordinary arbiter slaves, reached only through the
-		   bar, exactly like every other block in the drawing — which the
-		   caption carries for nothing.
+		   crossing can be read as a junction. Those two marks are the WHOLE of the
+		   access story, and now the only of it. Two things have come OUT of this
+		   row by USER DIRECTIVE and both went for the same reason. The first was
+		   the arbiter's own grey strip, run the length of the row behind the site
+		   boxes with one drop down the right lane into the bar: only hart 0 or
+		   the site's own hart may read a site and both are drawn already, so the
+		   strip was buying the fact that the sites are ordinary arbiter slaves
+		   reached only through the bar, which is true of every block in the
+		   drawing and which the caption carries for nothing. The second
+		   (2026-08-16) is the register-level GATE itself, which used to be
+		   printed inside every site box (\\texttt{s\\_master} = its own hart
+		   \\emph{or} 0) and again up the margin of hart 0's rail: five printings
+		   of one signal name, in the one strip this row keeps clear, saying what
+		   the two marks already draw. A site box is its NAME now, the identifier
+		   belongs to the caption and to the analog chapter, and \\texttt{s\\_master}
+		   appears nowhere in this drawing.
 
 		   THE RANK IS GROUPED BY TYPE. Ten boxes in a line is a list; the same
-		   ten under \\emph{memory}, \\emph{communications}, \\emph{timing and
-		   synchronisation} and the rest is an organisation. The idiom is the
-		   user's own Myshkin block diagram's: the blocks of one kind stand
-		   together under a small type label, with a thin outline round them
-		   where there is more than one box to enclose — and where a type is one
-		   box (or one glued box) the label is the whole of it, because a
-		   rectangle 2 mm outside a rectangle is a doubled border, not a group.
-		   The outlines are cut with a REAL GAP at every bus tap and every
-		   partner wire that crosses them, the same rule hart 0's rail is drawn
-		   by. The FRAME is what gets dealt out along the rank now, so the
+		   ten under \\emph{Memory}, \\emph{Comms}, \\emph{Timing \\& Sync} and the
+		   rest is an organisation. The idiom is the user's own Myshkin block
+		   diagram's: the blocks of one kind stand together under a type label,
+		   with a thin outline round them. The label is set BIG (user directive,
+		   2026-08-16: \\large italic grey, bigger than the block titles under it,
+		   because a heading is read before the things it heads) and in Title
+		   Case, and where it will not fit its lane on one line the layout sets it
+		   on two rather than the list shortening the English again. The outline
+		   goes round EVERY type of more than one box, and a GLUED box of several
+		   compartments counts as more than one (same directive): the emitter used
+		   to give those types the label alone, on the argument that a rectangle
+		   2 mm outside a rectangle is a doubled border rather than a group, and
+		   at the bigger heading size the unframed types read as captions floating
+		   over the rank while the framed ones read as groups. The outlines are cut
+		   with a REAL GAP at every bus tap, every partner wire and the harvested
+		   supply rail where it rises back through one, the same rule hart 0's
+		   rail is drawn by. The FRAME is what gets dealt out along the rank now, so the
 		   pin-facing types still spread their partners under themselves. What a
 		   frame may never do is imply a block or drop one, and the emitter
 		   asserts exactly that and nothing more — every frame member is a drawn
 		   block and every drawn block is in one frame — because a frame is
 		   decoration and decoration does not get to make claims.
 
-		   THE DEBUG PATH IS DRAWN, AND DASHED WHERE IT IS NOT BUILT. The Debug
+		   THE DEBUG PATH IS DRAWN, AND DRAWN SOLID. The Debug
 		   Module is a bus MASTER — Figure \\ref{fig:debug-stack-diagram} draws it
 		   reading and writing memory as one more master on this bar — so it
 		   belongs in the master band, at the end of it, with the five JTAG pins
 		   coming down out of an off-chip probe across the boundary into it. On
-		   a debug-enabled build the column is SOLID and carries the two derived
-		   names (dtm0, the TAP and its transport; dm0, the Debug Module); with
-		   the knob off it is DASHED — the analog-IP idiom, drawn and not in this
-		   build — and says which builds have it in one clause. The polarity is
-		   ASSERTED against the knob, so the drawing cannot go solid on a chip
-		   that has no debug module in it. Whether those pins reach a BALL is a
-		   second and separate fact, and a package one (the QFN-64 has no room
-		   for them; the LQFP-100 takes five of its NC balls): the probe path is
-		   dashed for that reason too, and carries its own clause when that is
-		   the only reason it is dashed.
+		   a debug-enabled build the column carries the two derived names (dtm0,
+		   the TAP and its transport; dm0, the Debug Module). It used to go DASHED
+		   with the knob off — the analog-IP idiom, drawn and not in this build —
+		   under a polarity ASSERTED against the knob, and by USER DIRECTIVE
+		   (2026-08-16) it is SOLID in every configuration instead, the default
+		   manual included. The assertion is not dropped, it is turned round: the
+		   emitter now proves the column is solid EVERYWHERE and that the
+		   knob-derived fact is carried in words, by the \\emph{debug builds only}
+		   clause printed in the box, which the emitter also refuses to ship
+		   missing. Whether those pins reach a BALL is a second and separate fact,
+		   and a package one (the QFN-64 has no room for them; the LQFP-100 takes
+		   five of its NC balls): the probe used to be dashed for that too, so
+		   that clause is now printed whenever it is true rather than only on a
+		   debug-enabled build.
 
 		   NFC IS TWO PATHS, AND THE SECOND ONE IS THE SUPPLY. The digital core
 		   reads the tag through the bar like any peripheral and its RF front end
@@ -2850,10 +2887,18 @@ class LatexUserGuide():
 		   band, heavier and greyer than any signal in the drawing, running from
 		   the antenna to under PWRCTRL and crossing the boundary there, cut with
 		   a real gap at every partner wire it passes — and never as a wire out
-		   of the NFC block. Both halves are dashed where the configuration does
-		   not build them, on the same asserted-polarity rule the debug path
-		   takes, and the rail has a third condition of its own: the two pads are
-		   GPIO46/47, which the QFN packages do not bring out at all.
+		   of the NFC block. The RAIL is the one stroke in this drawing that still
+		   changes with the configuration: it is dashed where the chip is not run
+		   off the field, and it has a third condition of its own besides the
+		   block and the knob, because the two pads are GPIO46/47, which the QFN
+		   packages do not bring out at all. The NFC BLOCK and its antenna do not:
+		   by USER DIRECTIVE (2026-08-16, the directive that made the debug column
+		   solid) they are drawn solid in every configuration, and what a build
+		   really contains is the caption's to say. The rail's own label was
+		   trimmed to what the rail IS, `harvested field power', in the same pass:
+		   the pads it lands on are a PWRCTRL fact, they are in the pin table and
+		   in the caption, and on a whole-chip overview they were two lines of
+		   \\texttt{} in the one band the rail runs through.
 
 		   THE BAR SAYS WHAT IT IS. It used to be labelled \\texttt{mp\\_arbiter},
 		   which is the VHDL entity's name and not a name at all to a reader
@@ -2997,6 +3042,14 @@ class LatexUserGuide():
 		# 7 pt, bold against roman. 1.40, measured -- at 1.10 "host terminal" and
 		# "two-wire bus" both wrapped their own titles.
 		tBold = 1.40
+		# ...and a type heading is now \large italic against that same \scriptsize
+		# body: 12 pt against 7, which TWs knows nothing about. Every width TWs
+		# returns for a heading is therefore scaled by this, and the ONLY thing
+		# those widths are used for is deciding which tap-free interval a heading
+		# fits in -- so an under-estimate here does not make the drawing slightly
+		# tight, it puts a white label box on a bus wire. 12/7 = 1.71, and the
+		# extra 0.06 is the italic's own overhang plus the node's inner sep.
+		tLab = 1.77
 
 		def wOf(title, sub, minw=1.95, maxw=4.80):
 			return min(maxw, max(minw, 0.36 + max(TWs(title, tBold), TWs(sub))))
@@ -3041,7 +3094,7 @@ class LatexUserGuide():
 		# build without the knob nothing behind the pins exists at all; on a
 		# build WITH it, whether the pins reach a ball is a PACKAGE fact (the
 		# QFN-64 has no room for them; the LQFP-100 takes five of its NC balls),
-		# and the probe path is dashed for that reason instead.
+		# and the clause printed in the box says so.
 		if not dbgOn:
 			dbgM = {'title': 'JTAG TAP', 'sub': 'debug module',
 				'note': '\\textit{debug builds only}', 'harts': [], 'stack': 1, 'weight': 0.90,
@@ -3052,17 +3105,39 @@ class LatexUserGuide():
 			# its transport) beside dm0 (the Debug Module), and the five pins
 			# land on the first while the bus tap belongs to the second.
 			dbgM = dmCols[0]
-			dbgM['title'] = 'dtm0 $+$ dm0'
-			dbgM['sub'] = 'TAP $+$ debug module'
+			dbgM['title'] = 'dtm0 \\& dm0'
+			dbgM['sub'] = 'TAP \\& debug module'
 		dbgM['debug'] = True
-		dbgM['dash'] = not dbgOn
+		# ---- USER DIRECTIVE, 2026-08-16: THE DEBUG COLUMN IS DRAWN SOLID ----
+		# The dashed-optional idiom (drawn, and not built in THIS configuration)
+		# used to own this column, and the emitter ASSERTED the stroke against the
+		# `debug' knob so the drawing could not go solid on a chip with no debug
+		# module in it. The USER has chosen the SOLID presentation for the JTAG /
+		# debug column in every configuration, the default manual included, so
+		# that polarity assertion is retired here. What replaces it is not
+		# nothing: the column is asserted SOLID everywhere, and where the knob is
+		# off the configuration-derived fact is carried in WORDS instead of in the
+		# stroke, by the `debug builds only' clause printed in the box and by the
+		# caption's own sentence. The check below is what keeps that clause from
+		# going missing, because with the stroke retired it is the only thing left
+		# saying this build has no debug module in it.
+		dbgM['dash'] = False
 		probeSub = ('\\texttt{TCK} \\texttt{TMS} \\texttt{TDI}\\\\ \\texttt{TDO} \\texttt{TRSTn}')
-		if dbgOn and not jtagBonded:
+		# Whether the five pins reach a BALL is the second, separate, package
+		# fact, and the probe stroke used to carry it too. Same directive, same
+		# consequence: it is printed whenever it is true, not only on a
+		# debug-enabled build.
+		if not jtagBonded:
 			probeSub += '\\\\ \\textit{no ball on this package}'
 		dbgCols = [m for m in masters if m.get('debug')]
-		if len(dbgCols) != 1 or dbgCols[0]['dash'] == dbgOn:
+		if len(dbgCols) != 1 or dbgCols[0]['dash']:
 			raise Exception('ChipSystemFlatDiagram: the debug column set ' + str(dbgCols)
-				+ ' is not one column dashed exactly where debug=' + str(dbgOn) + ' is off.')
+				+ ' is not exactly one SOLID column (user directive 2026-08-16).')
+		if not dbgOn and 'debug builds only' not in str(dbgM.get('note') or ''):
+			raise Exception('ChipSystemFlatDiagram: debug=' + str(dbgOn) + ' and the solid JTAG '
+				'column carries no "debug builds only" clause. With the dashed stroke retired by '
+				'user directive that clause is the only thing in the drawing that says this '
+				'configuration builds no debug module.')
 		afeRow, siteOf = self._ChipSystemAnalogRow(allBoxes, columns, orch, N)
 		stubs = list((afeRow['ext'].get('stubs') or []) if (afeRow and afeRow['ext']) else [])
 		if not stubs:
@@ -3225,7 +3300,14 @@ class LatexUserGuide():
 		if not nfcOn:
 			byKey['nfc'] = [chip('nfc', 'NFC', 'digital protocol core', 1,
 				{'title': 'NFC antenna', 'sub': None, 'w': 2.70})]
-			byKey['nfc'][0]['dash'] = True
+			# ---- USER DIRECTIVE, 2026-08-16: THE NFC BLOCK IS DRAWN SOLID ----
+			# Same directive and same reasoning as the debug column above: the
+			# USER has chosen the solid presentation for NFC and its antenna in
+			# every configuration, the default manual included, so the block this
+			# pass synthesises for a chip that does not build one is drawn like
+			# every other block on the rank. The configuration-derived fact is
+			# still stated, in the caption, which is where it now lives alone.
+			byKey['nfc'][0]['dash'] = False
 			order.append('nfc')
 			synthKeys.add('nfc')
 		nfcChip = byKey['nfc'][0]
@@ -3238,8 +3320,12 @@ class LatexUserGuide():
 		# config/penta_wound.json) a line the box cannot hold is a line set in
 		# two -- which the height now counts, but which reads as "RF front / end,
 		# off-die" and is nobody's idea of a caption.
-		nfcChip['ext']['sub'] = ('RF front end\\\\ \\textit{off-die}\\\\ data readout $+$\\\\ '
-			'harvested field' + ('' if nfcOn else '\\\\ \\textit{field-powered builds}'))
+		# The `field-powered builds' clause is GONE by user directive (2026-08-16):
+		# it qualified the harvested half of this partner's job, the rail below
+		# already carries that condition in its own stroke, and the caption says
+		# it in a sentence. What is left is what the antenna IS.
+		nfcChip['ext']['sub'] = ('RF front end\\\\ \\textit{off-die}\\\\ data readout \\&\\\\ '
+			'harvested field')
 		nfcChip['ext']['w'] = 3.30
 		# The supply rail is SOLID only where the chip really runs off it: the
 		# block built, the supervision inputs wired, and the two pads bonded on
@@ -3299,26 +3385,34 @@ class LatexUserGuide():
 		# their banner heads went: "serial interfaces" over SPI/UART/I2C cost
 		# 0.70 cm of height as a banner band, and costs one line of small grey
 		# text here.
-		# The labels are SHORT because of where they have to sit. A type label
-		# rides on its frame's top edge, in the same 1.3 cm lane every bus tap
-		# on the rank rises through, so it goes in the leftmost tap-free
-		# interval it FITS in -- and a label too long for any of them has
-		# nowhere to stand that is not on a wire. `timing \& synchronisation'
-		# was measured at 2.9 cm against a widest interval of 2.6 and is why
-		# this list is written in short words.
-		TYPES = [('memory', ('mem',)),
-			('digital I/O', ('io',)),
-			('communications', tuple(k for k in serialKeys if k != 'nfc')),
+		# The labels are SHORT because of where they have to sit, and SHORTER
+		# again now that they are set BIGGER (user directive, 2026-08-16: the
+		# headings were too small to read at the size this figure lands on the
+		# page). A type label rides on its frame's top edge, in the same 1.3 cm
+		# lane every bus tap on the rank rises through, so it goes in the
+		# leftmost tap-free interval it FITS in -- and a label too long for any
+		# of them has nowhere to stand that is not on a wire. Two consequences
+		# of the bigger type, and each is written down where it is paid for:
+		#   * `Communications' measures 3.16 cm at the heading size against its
+		#     frame's widest tap-free interval of 2.29, and had nowhere to stand
+		#     at all. The USER's own shortening, `Comms', is 1.35 and fits. That
+		#     is the trade the size bought, and it is the only one: one word of
+		#     formality for a heading a reader can actually read.
+		#   * every OTHER label is left in full English, because a heading that
+		#     does not fit its lane on one line is now SET IN TWO by `typeLabel'
+		#     rather than shortened. Written here in one line, as it should be
+		#     read; the break is the layout's business, not this list's.
+		TYPES = [('Memory', ('mem',)),
+			('Digital I/O', ('io',)),
+			('Comms', tuple(k for k in serialKeys if k != 'nfc')),
 			# NFC stands apart from the blocks that only move data: it is the one
 			# block on this rank with TWO off-chip roles, and the harvested supply
-			# rail starts under it. (It also keeps the communications frame to
-			# three boxes on the default chip, which is what leaves "communications"
-			# a tap-free interval wide enough to stand in -- see labelAt.)
-			('NFC \\& field power', ('nfc',)),
-			('timing \\& sync', ('timer', 'sync')),
-			('compute', ('npu', 'engine')),
-			('analog', ('afe',)),
-			('system \\& power', clockKeys)]
+			# rail starts under it.
+			('NFC \\& Field Power', ('nfc',)),
+			('Timing \\& Sync', ('timer', 'sync')),
+			('Compute', ('npu', 'engine')),
+			('Analog', ('afe',)),
+			('System \\& Power', clockKeys)]
 		typeOf = {}
 		for lab, ks in TYPES:
 			for k in ks:
@@ -3608,10 +3702,13 @@ class LatexUserGuide():
 			for c in g['members'])) + pad
 		hExt = max([pad + hTitle * c['ext']['tl'] + hLine * c['ext']['sl'] + pad
 			for c in exts] or [0.90])
-		# The site row is two lines tall, and nothing else runs inside it: the
-		# depth an earlier cut kept there for the multiplexer's channel lanes to
-		# pass BEHIND the site boxes is gone with the multiplexer.
-		hSite = pad + hLine * 2 + pad
+		# The site row is ONE line tall now that the gate line inside each box has
+		# gone (user directive; see the emission), and nothing else runs inside
+		# it: the depth an earlier cut kept there for the multiplexer's channel
+		# lanes to pass BEHIND the site boxes went with the multiplexer. The line
+		# is a TITLE line, not a body line, because what is left in the box is
+		# the site's name.
+		hSite = pad + hTitle + pad
 		# The electrode cells carry the only pad names in the drawing and they
 		# are what a board engineer opens this figure for, so they are drawn at
 		# the body type size, not the tiny one, in a box with room around them.
@@ -3667,11 +3764,23 @@ class LatexUserGuide():
 		s += '\treach/.style={->, >=Stealth, line width=1.4pt},\n'
 		s += '\twire/.style={semithick},\n'
 		s += '\tpadlab/.style={font=\\sffamily\\small, align=center, inner sep=1pt},\n'
-		s += '\tlane/.style={font=\\sffamily\\scriptsize, align=center, inner sep=1pt},\n'
-		# The type label: small, grey, roman. It is a HEADING over a row of
-		# blocks, not another block's name, and the moment it is set in the same
-		# weight as the titles below it the rank has two kinds of bold in it.
-		s += ('\ttyp/.style={font=\\sffamily\\scriptsize\\itshape, black!55, align=left, '
+		# (The `lane' style is retired with the rotated \texttt{s\_master}
+		# annotation it was the only user of.)
+		# The type label: BIG, grey, italic, roman weight. It was \scriptsize --
+		# 7 pt in a drawing that lands on the page at 0.48 scale, which is 3.4 pt
+		# of print and not a heading anybody reads -- and by user directive
+		# (2026-08-16) it is now \large, which is bigger than the block titles
+		# under it. That is deliberate and it is the ONE place in this figure
+		# where a grey label outsizes a black one: a heading is read before the
+		# things it heads. The hierarchy is kept by WEIGHT and COLOUR instead, as
+		# it always was: the titles are bold black, this is roman grey italic, so
+		# the rank still has exactly one kind of bold in it.
+		s += ('\ttyp/.style={font=\\sffamily\\large\\itshape, black!55, align=left, '
+			'fill=white, inner sep=1.5pt, anchor=west},\n')
+		# The rail annotation keeps the size the type headings left behind: it is
+		# a note on ONE wire in the off-chip band, not a heading over a row of
+		# blocks, and it has to stay out of the partner boxes it runs above.
+		s += ('\trail/.style={font=\\sffamily\\scriptsize\\itshape, black!55, align=left, '
 			'fill=white, inner sep=1.5pt, anchor=west},\n')
 		s += '\tredlab/.style={font=\\sffamily\\small\\bfseries, red!70!black, align=left}]\n'
 
@@ -3797,6 +3906,15 @@ class LatexUserGuide():
 					+ P(y) + ');\n')
 			return out
 
+		def labelIvs(xL, xR, taps):
+			'''The tap-free intervals of one label lane, left to right.'''
+			ivs, lo = [], xL + 0.10
+			for t in sorted(t for t in taps if xL < t < xR):
+				ivs.append((lo, t - 0.10))
+				lo = t + 0.10
+			ivs.append((lo, xR - 0.10))
+			return ivs
+
 		def labelAt(xL, xR, taps, wLab, lab):
 			'''WHERE A HEADING MAY STAND. The label lane is the riser, and every
 			   box on the rank sends its bus tap straight up through it, so the
@@ -3806,48 +3924,101 @@ class LatexUserGuide():
 			   that fits nowhere is not nudged, it fails the build: a white label
 			   box sitting on a bus wire is the exact fault the AFE figure was
 			   rejected for, and it must not be able to ship by accident.'''
-			ivs, lo = [], xL + 0.06
-			for t in sorted(t for t in taps if xL < t < xR):
-				ivs.append((lo, t - 0.10))
-				lo = t + 0.10
-			ivs.append((lo, xR - 0.06))
+			ivs = labelIvs(xL, xR, taps)
 			fits = [iv for iv in ivs if iv[1] - iv[0] >= wLab]
 			if not fits:
-				raise Exception('ChipSystemFlatDiagram: the type label "' + lab + '" is '
-					+ P(wLab) + ' cm wide and the widest tap-free interval of its frame is '
-					+ P(max(iv[1] - iv[0] for iv in ivs)) + ' cm — it would sit on a bus tap. '
-					'Shorten the label in TYPES.')
+				raise Exception('ChipSystemFlatDiagram: the label "' + lab + '" is '
+					+ P(wLab) + ' cm wide at its own type size and the widest tap-free interval '
+					'of its lane is ' + P(max(iv[1] - iv[0] for iv in ivs)) + ' cm: it would sit '
+					'on a wire.')
 			return fits[0][0]
+
+		def typeLabel(xL, xR, taps, lab):
+			'''A TYPE HEADING, SET IN AS FEW LINES AS ITS LANE WILL TAKE. Returns
+			   (x, text).
+
+			   The headings were \\scriptsize when TYPES was written and every one
+			   of them fitted its lane on one line. At \\large -- the size the USER
+			   asked for, 1.77x the widths TWs measures -- some do not, and the
+			   answer is not to keep shortening English until it does: a heading
+			   may be SET IN TWO LINES, and the interval test cares only about the
+			   widest of them, because both lines stand in one node and a bus tap
+			   is vertical (so a lane that is clear is clear for the node's whole
+			   height).
+
+			   The break is tried, not written into TYPES, and it is tried in this
+			   order: the label as written, then broken after its conjunction. One
+			   line is preferred wherever one line fits, because a two-line node
+			   is centred on the frame's top edge and its second line hangs into
+			   the frame's own standoff -- room this figure has, but not room it
+			   should spend where it does not have to. A label that fits nowhere
+			   in either form still fails the build, by the rule above.'''
+			ivs = labelIvs(xL, xR, taps)
+			room = max(iv[1] - iv[0] for iv in ivs)
+			forms = [lab]
+			if '\\\\' not in lab and ' \\& ' in lab:
+				forms.append(lab.replace(' \\& ', ' \\&\\\\ ', 1))
+			for form in forms:
+				if TWs(form) * tLab <= room:
+					return labelAt(xL, xR, taps, TWs(form) * tLab, form), form
+			# Neither form fits: report against the LAST one tried, which is the
+			# narrowest, so the message names the real shortfall.
+			return labelAt(xL, xR, taps, TWs(forms[-1]) * tLab, forms[-1]), forms[-1]
+
+		# THE WIRES THAT CROSS A FRAME'S BOTTOM EDGE. Every partner hangs on a
+		# straight wire dropped out of its own compartment, and the harvested
+		# supply rail comes back UP into PWRCTRL on one of its own. Both cross
+		# the rank, so both get a real gap where they pass a frame outline -- and
+		# the rail's is easy to forget, because it is the only wire in the
+		# drawing that crosses the rank from below. Its x is computed here, once,
+		# and used again where the rail itself is drawn.
+		pwrChip = None
+		for g in groups:
+			for c in g['members']:
+				if c['key'] == 'power':
+					pwrChip = c
+		xPwrRise = (pwrChip['cx'] + max(0.50, pwrChip['w'] / 2.0 - 0.34)) if pwrChip else None
 
 		yFrmT, yFrmB = yRankT + frmTop, yRankB - frmBot
 		for u in units:
 			cs = [c for g in u['groups'] for c in g['members']]
 			xL, xR = u['x0'] - frmPad, u['x1'] + frmPad
 			taps = [g['tx'] for g in u['groups']]
-			if len(u['groups']) > 1:
-				# More than one BOX of this kind: enclose them. A type that is
-				# one box (or one glued box) takes the label alone -- see the
-				# note where TYPES is built.
+			# EVERY TYPE THAT HAS MORE THAN ONE BOX IS ENCLOSED, and a GLUED box
+			# of several compartments counts (user directive, 2026-08-16). The
+			# emitter used to give the glued types -- the memory box, the
+			# SYSTEM/PWRCTRL box -- their heading and no outline, on the argument
+			# that a rectangle 1.8 mm outside a rectangle is a doubled border
+			# rather than a group. RENDERED: with the headings set big the
+			# unframed types read as captions floating over the rank while the
+			# framed ones read as groups, and the rank stopped looking like one
+			# organisation. So the frame is now drawn wherever the heading is,
+			# and the two say the same thing everywhere.
+			if len(cs) > 1:
 				fo = 'black!45, line width=0.5pt'
 				s += brokenLine(yFrmT, xL, xR, taps, fo)
-				s += brokenLine(yFrmB, xL, xR, [c['tx'] for c in cs if c['ext']], fo)
+				bCuts = [c['tx'] for c in cs if c['ext']]
+				if xPwrRise is not None and any(c['key'] == 'power' for c in cs):
+					bCuts.append(xPwrRise)
+				s += brokenLine(yFrmB, xL, xR, bCuts, fo)
 				s += ('\\draw[' + fo + '] (' + P(xL) + ', ' + P(yFrmB) + ') -- (' + P(xL) + ', '
 					+ P(yFrmT) + ');\n')
 				s += ('\\draw[' + fo + '] (' + P(xR) + ', ' + P(yFrmB) + ') -- (' + P(xR) + ', '
 					+ P(yFrmT) + ');\n')
 			else:
 				xL, xR = u['x0'] - 0.04, u['x1'] + 0.04
-			# A HEADING OVER ONE BOX IS THAT BOX'S TITLE AGAIN. "compute" over a
-			# box called NPU, "digital I/O" over a box called GPIO: the reader
+			# A HEADING OVER ONE BOX IS THAT BOX'S TITLE AGAIN. "Compute" over a
+			# box called NPU, "Digital I/O" over a box called GPIO: the reader
 			# has already read it, and the second printing is one more thing in
 			# the one lane the bus taps have to get through (MEASURED: the GPIO
-			# box is 2.50 cm, its tap halves it, and "digital I/O" is 1.48 -- it
-			# does not fit beside its own wire). The label is drawn where it is
-			# doing work: over two or more blocks that are one kind of thing.
+			# box is 2.50 cm, its tap halves it, and "Digital I/O" is 2.50 at the
+			# heading size -- it does not fit beside its own wire, and at this
+			# size nothing of that length would). The label is drawn where it is
+			# doing work: over two or more blocks that are one kind of thing,
+			# which is exactly where the frame is drawn too.
 			if len(cs) > 1:
-				s += ('\\node[typ] at ('
-					+ P(labelAt(xL, xR, taps, TWs(u['label']), u['label']))
-					+ ', ' + P(yFrmT) + ') {' + u['label'] + '};\n')
+				xLab, tLabel = typeLabel(xL, xR, taps, u['label'])
+				s += ('\\node[typ] at (' + P(xLab) + ', ' + P(yFrmT) + ') {' + tLabel + '};\n')
 
 		# ---- THE RANK: every peripheral, one row, one straight tap each -------
 		for g in groups:
@@ -3911,16 +4082,13 @@ class LatexUserGuide():
 		# antenna to under PWRCTRL and crossing the boundary there -- and it is
 		# cut with a real gap at every partner wire it passes, the same rule the
 		# type frames and hart 0's rail are drawn by.
-		pwrChip = None
-		for g in groups:
-			for c in g['members']:
-				if c['key'] == 'power':
-					pwrChip = c
+		# (`pwrChip' and its rise-in x are computed once, up where the type frames
+		# needed a gap cut in the bottom edge the rail crosses.)
 		if xNfcExt is not None and pwrChip is not None:
 			pDash = '' if powerSolid else ', dashed'
 			po = 'black!55, line width=1.5pt' + pDash
 			x0 = xNfcExt + nfcChip['ext']['dw'] / 2.0 - 0.34
-			x1 = pwrChip['cx'] + max(0.50, pwrChip['w'] / 2.0 - 0.34)
+			x1 = xPwrRise
 			s += ('\\draw[' + po + '] (' + P(x0) + ', ' + P(yExtT) + ') -- (' + P(x0) + ', '
 				+ P(yPwr) + ');\n')
 			s += brokenLine(yPwr, min(x0, x1), max(x0, x1),
@@ -3930,11 +4098,14 @@ class LatexUserGuide():
 			s += ('\\fill[red!70!black] (' + P(x1 - 0.07) + ', ' + P(yRedB - 0.07)
 				+ ') rectangle (' + P(x1 + 0.07) + ', ' + P(yRedB + 0.07) + ');\n')
 			# The label goes where the rail is clear of the wires that cross it,
-			# by the same rule the type headings are placed by.
-			lab = ('harvested field power\\\\ \\texttt{PGOOD} $+$ boot strap on \\texttt{'
-				+ fmttex(fieldPads[0]) + '}/\\texttt{' + fmttex(fieldPads[1]) + '}') if fieldBonded \
-				else 'harvested field power\\\\ \\texttt{PGOOD} $+$ boot strap'
-			s += ('\\node[typ, text=black!60, anchor=south west] at ('
+			# by the same rule the type headings are placed by. It names WHAT THE
+			# RAIL IS and nothing else: the second line, which named the two
+			# supervision pads it lands on, is gone by user directive
+			# (2026-08-16). Those pad names are a PWRCTRL fact, they are in the
+			# pin table and in the caption, and on a whole-chip overview they
+			# were two lines of \texttt{} in the one band the rail runs through.
+			lab = 'harvested field power'
+			s += ('\\node[rail, text=black!60, anchor=south west] at ('
 				+ P(labelAt(min(x0, x1), max(x0, x1), [c['tx'] for c in exts],
 					TWs(lab), lab)) + ', ' + P(yPwr + 0.10) + ') {' + lab + '};\n')
 
@@ -3949,12 +4120,12 @@ class LatexUserGuide():
 			# strip running the length of the row behind the boxes, with one
 			# drop down the right lane into the bar.
 			#
-			# That strip is GONE (USER, this cut). The access story the row has
-			# to tell is WHO MAY READ A SITE, and it is told twice already and
-			# in full: the gate printed inside each site box (\texttt{s\_master}
-			# = its own hart \emph{or} 0) and hart 0's rail underneath. The
-			# sites are still ordinary arbiter slaves and are still reached only
-			# through the bar -- that is a fact of the fabric, it is the same
+			# That strip is GONE (USER). The access story the row has to tell is
+			# WHO MAY READ A SITE, and it is told twice already and in full, by
+			# the two things that are DRAWN: the thin arrow from a hart into its
+			# own site, and hart 0's heavy rail underneath reaching all of them.
+			# The sites are still ordinary arbiter slaves and are still reached
+			# only through the bar -- that is a fact of the fabric, it is the same
 			# fact for every block in the drawing, and it is now carried by the
 			# caption rather than by a strip that put a second grey bar across
 			# the one row this figure keeps clear.
@@ -3980,18 +4151,28 @@ class LatexUserGuide():
 				xr = cut + xOwnGap
 			s += ('\\draw[reach, -] (' + P(xr) + ', ' + P(yReach) + ') -- ('
 				+ P(cuts[-1] + xReachDrop) + ', ' + P(yReach) + ');\n')
-			s += ('\\node[lane, rotate=90] at (' + P(xReach - 0.20) + ', '
-				+ P((yBandT - hMaster / 2.0 + yReach) / 2.0)
-				+ ') {\\texttt{s\\_master} = 0};\n')
+			# NO \texttt{s\_master} ANYWHERE IN THIS DRAWING (user directive,
+			# 2026-08-16). The rail used to carry `s\_master = 0' rotated up its
+			# own margin and every site box printed its own copy of the gate. The
+			# ownership story is now told by the two things that are drawn: the
+			# thin arrow from a hart into its own site, and this heavy rail out of
+			# hart 0 reaching all of them. The signal's name, and what the gate
+			# compares, are the caption's and Section \ref{ss:cqanalog-gate}'s --
+			# a register-level identifier repeated five times across the one strip
+			# this row keeps clear was five labels buying one fact.
 
 			reached = []
 			for h in drawnCols:
 				nm = siteOf[h][0]
 				m = columns[h]
 				s += frame(m['cx'], ySiteT, m['w'], hSite, 'black!5')
-				s += ('\\node[bc, text width=' + P(m['w'] - 0.90) + 'cm] at (' + P(m['cx']) + ', '
-					+ P(ySiteB + hSite / 2.0) + ') {\\textbf{' + fmttex(nm) + '} site\\\\ '
-					'\\texttt{s\\_master} = ' + str(h) + ' \\emph{or} 0};\n')
+				# The site box is its NAME, and that is the whole of it now that
+				# the gate line has gone: one line, set at the same \small\bfseries
+				# the hart under it is set in, because the pair is one channel and
+				# the two halves of it should read as one weight.
+				s += ('\\node[bc, text width=' + P(m['w'] - 0.30) + 'cm] at (' + P(m['cx']) + ', '
+					+ P(ySiteB + hSite / 2.0) + ') {{\\small\\bfseries ' + fmttex(nm)
+					+ '} site};\n')
 				# THE OWNERSHIP MARK: a short direct arrow into the site from the
 				# hart whose index the gate inside it admits. Thin, so it cannot
 				# be read as one of the bus wires. It used to carry the word
@@ -4026,7 +4207,11 @@ class LatexUserGuide():
 				s += ('\\draw[thick, rounded corners=3pt, fill=black!3] (' + P(cx - wCell / 2.0)
 					+ ', ' + P(yCellB) + ') rectangle (' + P(cx + wCell / 2.0) + ', '
 					+ P(yCellT) + ');\n')
-				s += ('\\node[bc, anchor=north] at (' + P(cx) + ', ' + P(yCellT - 0.06)
+				# The caption of the cell is set at the PAD-LABEL size (user
+				# directive, 2026-08-16): it was \scriptsize, which is 3.4 pt of
+				# print at the scale this figure lands on the page, and it names
+				# the one thing in the drawing that is not on the die at all.
+				s += ('\\node[padlab, anchor=north] at (' + P(cx) + ', ' + P(yCellT - 0.10)
 					+ ') {' + str(n) + '-electrode cell};\n')
 				yStub = yCellB + yStubOff
 				for k, nm in enumerate(names):
@@ -4056,7 +4241,12 @@ class LatexUserGuide():
 		# and nothing has to be labelled to say which block the pins reach.
 		probeW = min(dbgM['w'], 3.60)
 		yProbeB = yCellT - hProbe
-		dashJ = ', dashed' if (dbgM['dash'] or not jtagBonded) else ''
+		# SOLID, with the column it stands on (user directive, 2026-08-16; see
+		# where dbgM['dash'] is set). The probe box and its five pin wires used to
+		# be dashed on two separate conditions -- the knob, and whether the pins
+		# reach a ball on this package -- and both of those facts are now printed
+		# in the box in words instead.
+		dashJ = ''
 		s += ('\\draw[thick, rounded corners=3pt, fill=white' + dashJ + '] ('
 			+ P(dbgM['cx'] - probeW / 2.0) + ', ' + P(yProbeB) + ') rectangle ('
 			+ P(dbgM['cx'] + probeW / 2.0) + ', ' + P(yCellT) + ');\n')
