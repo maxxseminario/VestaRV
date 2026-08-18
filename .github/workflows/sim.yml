@@ -13,6 +13,15 @@ name: Simulation (self-hosted Cadence)
 #   * MAX_PARALLEL stays modest; the 1-minute rule is enforced per-test by
 #     xrun_parallel.sh's own watchdog, and job-level timeout-minutes backstops it.
 #   * always(): pkill xmsim so a hung run can't hold seats overnight.
+#
+# NO merge_group trigger, on purpose. The `cadence-license` group admits one job
+# at a time and never cancels, so gating the merge queue on this tier would
+# serialize every queued PR behind a full sim seat. Tier 1 (ci.yml) gates the
+# queue; this tier keeps its two existing safety nets — the opt-in `run-sim`
+# label for a pre-merge smoke, and sim-full on push to main, which the queue's
+# own merge commit still fires. Never make a job in this file a required status
+# check: with no merge_group run to satisfy it, the queue would stall.
+# See .github/MERGE_QUEUE.md.
 
 on:
   pull_request:
