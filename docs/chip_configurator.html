@@ -914,7 +914,7 @@ const VESTA_DATA = {
       "step": 1024
     },
     "memory.tcmSizePerHart": {
-      "description": "int bytes, 1 KiB multiple <= 0x4000: per-hart TCM (0x8000-0xBFFF)",
+      "description": "int bytes, 1 KiB multiple <= 0x4000: per-hart TCM based at 0x8000 (top = 0x8000 + size - 1; 0x9FFF at the shipped 8 KiB)",
       "type": "int",
       "default": 8192,
       "min": 1024,

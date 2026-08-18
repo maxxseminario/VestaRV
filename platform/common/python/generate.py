@@ -273,7 +273,7 @@ _CONFIG_SCHEMA = {
 	                         lambda v: _isInt(v) and v in (8, 16)),
 	'memory.romSize':            ('int bytes, 1 KiB multiple <= 0x4000: boot ROM (0x0-0x3FFF)',
 	                              lambda v: _isMemSize(v, 0x4000)),
-	'memory.tcmSizePerHart':     ('int bytes, 1 KiB multiple <= 0x4000: per-hart TCM (0x8000-0xBFFF)',
+	'memory.tcmSizePerHart':     ('int bytes, 1 KiB multiple <= 0x4000: per-hart TCM based at 0x8000 (top = 0x8000 + size - 1; 0x9FFF at the shipped 8 KiB)',
 	                              lambda v: _isMemSize(v, 0x4000)),
 	'memory.sharedBulkRamSize':  ('int bytes, multiple of 0x4000: shared bulk RAM from 0x10000, one bank per 16 KiB',
 	                              lambda v: _isInt(v) and v >= 0x4000 and v % 0x4000 == 0),
