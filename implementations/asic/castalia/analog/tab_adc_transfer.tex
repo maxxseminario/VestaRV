@@ -1,0 +1,24 @@
+%% HAND-WRITTEN table fragment (matches the maestro2tex house style).
+%% Every entry derived from simarchive/tb_anatop_pixel_adc/adc_transfer.csv.
+\begin{table}[htbp]
+  \centering
+  \caption[{Transfer parameters of the extracted \texttt{anatop\_pixel\_adc}, test \texttt{adc\_dc},\,\dots}]{Transfer parameters of the extracted \texttt{anatop\_pixel\_adc} from test \texttt{adc\_dc}, nominal corner, \SI{37}{\celsius}, \SI{2.5}{\volt} analog and \SI{1.0}{\volt} digital supplies. The slope is a least-squares fit to the seven unclipped sweep points from \SIrange{0.5}{2.0}{\volt}; the code-0, code-1023 and centre voltages are extrapolations of that fit and are not measured points. The worst residual is the departure of those seven points from the fit, not an INL: the \SI{0.25}{\volt} sweep step is 157 codes. Single nominal run --- no corner, temperature, supply or mismatch spread attaches to any entry.}
+  \label{tab:adc-transfer}
+  \begin{tabular}{llr}
+    \toprule
+    Parameter & Unit & Value \\
+    \midrule
+    Fitted slope, \SIrange{0.5}{2.0}{\volt} & codes/V & 628.85 \\
+    Ideal slope, \(1024/\SI{2.5}{\volt}\)   & codes/V & 409.60 \\
+    Slope ratio, measured / ideal           &         & 1.535 \\
+    Effective LSB                           & \si{\milli\volt} & 1.590 \\
+    Nominal LSB, \(\SI{2.5}{\volt}/1024\)   & \si{\milli\volt} & 2.441 \\
+    Effective full-scale input span         & \si{\volt} & 1.628 \\
+    Input at code 0, extrapolated           & \si{\volt} & 0.441 \\
+    Input at code 1023, extrapolated        & \si{\volt} & 2.068 \\
+    Centre of usable window                 & \si{\volt} & 1.255 \\
+    Input range lost to clipping            & \si{\percent} & 34.9 \\
+    Worst residual about the fit            & LSB & 0.43 \\
+    \bottomrule
+  \end{tabular}
+\end{table}

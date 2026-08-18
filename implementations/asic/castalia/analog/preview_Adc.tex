@@ -1,0 +1,24 @@
+%% Standalone proof sheet. Build with:
+%     cd /home/mseminario2/vestarv/implementations/asic/castalia/analog && pdflatex preview_Adc.tex
+% The TRM does NOT use this file; it inputs Adc.tex directly.
+%
+% \graphicspath carries the two extra roots the real build gets for free: from
+% latex/TRM/ the CapDAC image is figures/CDAC_layout.png, and from this
+% directory the same relative path has to be reached through ../../.
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{caption}
+\usepackage{pgfplots}
+\usepackage{xcolor}
+\usepackage{siunitx}
+\usepackage{amsmath}
+\usepackage{placeins}
+\usepackage{circuitikz}
+\graphicspath{{./}, {./figures/}, {../../}, {../../../../platform/common/latex/TRM/}}
+\def\MaestroRoot{}
+\begin{document}
+\section*{Adc: generated characterisation}
+\input{Adc.tex}
+\end{document}

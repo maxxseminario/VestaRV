@@ -1,0 +1,18 @@
+% HAND-WRITTEN fragment -- placed by Adc.tex. Numbers from tab_adc_power.tex,
+% derived from simarchive/tb_anatop_pixel_adc/adc_transfer.csv.
+
+\subsubsection{Supply Current and Conversion Energy}\label{sss:adc-power}
+
+Total power spans \SIrange{38.5}{48.1}{\micro\watt} over the input sweep about a
+mean of \SI{43.8}{\micro\watt}, with no monotonic dependence on input level
+(Table~\ref{tab:adc-power}). The analog \SI{2.5}{\volt} rail dominates at
+\SIrange{11.8}{15.4}{\micro\ampere}; the digital rails average
+\SI{2.30}{\micro\ampere} at \SI{2.5}{\volt} and \SI{3.45}{\micro\ampere} at
+\SI{1.0}{\volt}. Over the \SI{1.15}{\micro\second} conversion that is
+\SIrange{44.3}{55.3}{\pico\joule} per conversion, mean
+\SI{50.4}{\pico\joule}.
+
+Each current is sampled at the same settled point as the code, not averaged over
+the acquisition and conversion phases, and the energy column is that power held
+for the full conversion period. A converter whose instantaneous current differs
+between phases will not integrate to these figures.
