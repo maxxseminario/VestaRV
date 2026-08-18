@@ -6,7 +6,9 @@ This directory contains the RTL for the complete VestaRV MCU system — the proc
 
 ## Architecture Overview
 
-![MCU Block Diagram](../../assets/ASIC_block_diagram.png)
+Below is the Castalia configuration of this RTL — five harts on one shared-window arbiter, with the peripheral set on a single rank beneath it. Every block in it is a source file in this directory. The figure is generated from the chip configuration (Figure 2 of the [Castalia TRM](../../implementations/asic/castalia/docs/TRM.pdf)); other configurations drop or repeat blocks.
+
+![Castalia Block Diagram](../../assets/castalia_block_diagram.png)
 
 ### Memory Map
 
