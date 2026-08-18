@@ -1,0 +1,34 @@
+%% Usable input window against the nominal supply span. Data:
+%% data/adc_range_00.dat, data/adc_range_01.dat, from adc_range_analysis.py.
+\providecommand{\MaestroRoot}{include/analog/}
+\begin{figure}[htbp]
+  \centering
+  {\pgfplotsset{compat=1.18}%
+  \begin{tikzpicture}
+    \begin{axis}[
+      width=0.82\linewidth, height=3.6cm,
+      xlabel={Input voltage~[\si{\volt}]},
+      xmin=-0.12, xmax=2.62, ymin=0.4, ymax=2.6,
+      ytick={1,2},
+      yticklabels={{measured},{nominal}},
+      grid=none,
+      axis line style={line width=0.4pt, draw=black!45},
+      tick style={line width=0.4pt, draw=black!45},
+      tick align=outside,
+      label style={font=\small}, tick label style={font=\small},
+      xtick={0,0.4413,1.25,2.0680,2.5},
+      xticklabels={0,0.441,1.25,2.068,2.5},
+      x tick label style={font=\scriptsize},
+      scaled x ticks=false
+    ]
+      \addplot[black!45, line width=5pt, no marks]
+        table {\MaestroRoot data/adc_range_01.dat};
+      \addplot[mtxA, line width=5pt, no marks]
+        table {\MaestroRoot data/adc_range_00.dat};
+      \addplot[black!55, line width=0.5pt, dashed, no marks, forget plot]
+        coordinates {(1.25,0.45) (1.25,2.55)};
+    \end{axis}
+  \end{tikzpicture}}
+  \caption[{Usable input window against the nominal supply span.}]{Usable input window of the converter against the nominal \SIrange{0}{2.5}{\volt} supply span. The measured window runs \SIrange{0.441}{2.068}{\volt}, \SI{1.628}{\volt} wide, so \SI{34.9}{\percent} of the nominal span is unreachable --- \SI{0.441}{\volt} at the bottom and \SI{0.432}{\volt} at the top, near enough symmetric about the \SI{1.25}{\volt} common mode (dashed). Outside that window the output sits at a code rail, so a transimpedance swing wider than $\pm\SI{0.81}{\volt}$ about $V_{\mathrm{CM}}$ is truncated rather than digitised.}
+  \label{fig:adc-range}
+\end{figure}

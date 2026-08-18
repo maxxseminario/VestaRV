@@ -1,0 +1,39 @@
+%% Deviation from the converter's own best-fit line -- linearity separated from
+%% gain error. Data: data/adc_inl_00.dat, from adc_range_analysis.py.
+\providecommand{\MaestroRoot}{include/analog/}
+\begin{figure}[htbp]
+  \centering
+  {\pgfplotsset{compat=1.18}%
+  \begin{tikzpicture}
+    \begin{axis}[
+      width=0.82\linewidth, height=6.0cm,
+      xlabel={Input voltage~[\si{\volt}]},
+      ylabel={Deviation from measured line~[LSB]},
+      grid=both,
+      major grid style={line width=0.2pt, draw=black!14},
+      minor grid style={line width=0.2pt, draw=black!7},
+      minor tick num=1,
+      axis line style={line width=0.4pt, draw=black!45},
+      tick style={line width=0.4pt, draw=black!45},
+      tick align=outside,
+      label style={font=\small}, tick label style={font=\small},
+      enlarge x limits=0.06, ymin=-1.05, ymax=1.05,
+      every axis plot/.append style={line join=round},
+      scaled y ticks=false, scaled x ticks=false,
+      xtick={0.5,0.75,1,1.25,1.5,1.75,2},
+      ytick={-1,-0.5,0,0.5,1},
+      y tick label style={/pgf/number format/fixed}
+    ]
+      \addplot[mtxC, line width=1.1pt, solid, mark=*, mark size=1.6pt]
+        table {\MaestroRoot data/adc_inl_00.dat};
+      \addplot[black!55, line width=0.6pt, dashed, no marks, forget plot]
+        coordinates {(0.45,0) (2.1,0)};
+      \addplot[mtxB, line width=0.7pt, dotted, no marks, forget plot]
+        coordinates {(0.45,0.5) (2.1,0.5)};
+      \addplot[mtxB, line width=0.7pt, dotted, no marks, forget plot]
+        coordinates {(0.45,-0.5) (2.1,-0.5)};
+    \end{axis}
+  \end{tikzpicture}}
+  \caption[{Deviation from the converter's own measured transfer line,\,\dots}]{Deviation of each measured code from the converter's own best-fit line, \num{628.85}~codes/V, over the unclipped window. Referred to its own scale rather than the nominal one, the converter is straight to \num{0.429}~LSB worst case and \num{0.247}~LSB rms, against the $\pm\num{0.5}$~LSB dotted guides --- so the \SI{168}{LSB} of Figure~\ref{fig:adc-error} is gain error alone and carries no linearity information. Seven points at \num{157} codes apart is a coarse grid: this bounds the deviation at the sampled inputs and is not a DNL or INL measurement, which needs every code.}
+  \label{fig:adc-inl}
+\end{figure}
