@@ -1,6 +1,6 @@
 /* MCU.vhd: Castalia MCU top-level integration layer (5 harts, MCU_MP)
    The fixed boilerplate comes from hdl_templates/MCU.template.vhd; the description-driven sections are generated from python/generate.py
-   Generated on 2026/08/16 at 00:51:16 with the generate.py chip generator
+   Generated on 2026/08/17 at 13:34:51 with the generate.py chip generator
    WARNING: Do not edit or modify this file!
    	Edit hdl_templates/MCU.template.vhd (fixed regions) or python/generate.py + python/mcu_vhd.py (generated regions), then re-run make chip */
 
@@ -65,7 +65,28 @@ entity MCU is
         a0_1 : out std_logic_vector(31 downto 0);
         a0_2 : out std_logic_vector(31 downto 0);
         a0_3 : out std_logic_vector(31 downto 0);
-        a0_4 : out std_logic_vector(31 downto 0)
+        a0_4 : out std_logic_vector(31 downto 0);
+
+        /* DEBUG MODULE INTERFACE: abits=7, data=32, op: request 01=read 10=write, response 00=success 10=failed, which is the DTM 41-bit DR arithmetic (2+32+7).
+           One request in flight, and the handshake is ACK-STYLE: dmi_req_ready idles LOW and pulses for one cycle in response to a presented request, one accept per request, and exactly one rsp_valid follows each accepted request.
+           THERE IS NO "busy" RESPONSE OP: the DM has exactly two op constants (00 ok, 10 failed), busy is DTM-LOCAL state, and the 41-bit dmi DR captures literal 3 while a transaction is in flight. */
+        dmi_req_valid : in  std_logic := '0';
+        dmi_req_op    : in  std_logic_vector(1 downto 0) := "00";
+        dmi_req_addr  : in  std_logic_vector(6 downto 0) := (others => '0');
+        dmi_req_data  : in  std_logic_vector(31 downto 0) := (others => '0');
+        dmi_req_ready : out std_logic;
+        dmi_rsp_valid : out std_logic;
+        dmi_rsp_data  : out std_logic_vector(31 downto 0);
+        dmi_rsp_op    : out std_logic_vector(1 downto 0);
+
+        /* JTAG DEBUG TRANSPORT: IEEE 1149.1 pins for the dtm0 TAP (5-bit IR, IDCODE/dtmcs/dmi(41)/BYPASS DRs) and the TCK-to-mclk crossing onto the dmi_* port above.
+           FAIL-SAFE: trstn low = TAP in reset = the whole transport inert, so an instantiation that does not connect these pins is unaffected.
+           TCK IS ITS OWN CLOCK DOMAIN, and it is declared to Genus on the dtm0 INSTANCE PIN, never on this port: the chip SDC generator deletes every [get_ports] line and FATALs if one survives. */
+        tck   : in  std_logic := '0';
+        tms   : in  std_logic := '0';
+        tdi   : in  std_logic := '0';
+        tdo   : out std_logic;
+        trstn : in  std_logic := '0'
 
     );
 end entity;
@@ -473,6 +494,10 @@ architecture behav of MCU is
         signal irq_i2c1_sovf   : std_logic;  -- I2C1 Slave Overflow Interrupt
         signal irq_i2c1_snr    : std_logic;  -- I2C1 Slave Mode NACK Received Interrupt
         signal irq_i2c1_sxc    : std_logic;  -- I2C1 Slave Transfer Complete Interrupt
+        signal irq_nfc0_field   : std_logic;  -- NFC0 RF Field-Detect Interrupt
+        signal irq_nfc0_rxf     : std_logic;  -- NFC0 Reader-Frame Received Interrupt
+        signal irq_nfc0_txdone  : std_logic;  -- NFC0 Tag-Response Transmit-Done Interrupt
+        signal irq_nfc0_crcerr  : std_logic;  -- NFC0 RX CRC / Parity Error Interrupt
         signal irq_npu0_td      : std_logic;  -- NPU0 think-done Interrupt
 
         signal irq_comb         : std_logic_vector(127 downto 0);
@@ -493,18 +518,18 @@ architecture behav of MCU is
              1101-1111 = unmapped (window power-of-two round-up gap; reads zero) */
         constant SH_AW : natural := 16;                -- shared-window word-address width
         -- Global LR/SC reservation unit
-        signal arb_lrsc         : std_logic_vector(5*2-1 downto 0);
-        signal arb_scfail       : std_logic_vector(4 downto 0);
-        signal arb_resvvld      : std_logic_vector(4 downto 0);  -- Zawrs: per-master reservation-valid level
+        signal arb_lrsc         : std_logic_vector(6*2-1 downto 0);
+        signal arb_scfail       : std_logic_vector(5 downto 0);
+        signal arb_resvvld      : std_logic_vector(5 downto 0);  -- Zawrs: per-master reservation-valid level
         signal sh_we_raw        : std_logic_vector(3 downto 0);  -- arbiter s_we, pre resv gating
-        -- arbiter master buses (master 0 = the orchestrator hart; masters 1-4 = hart tiles).
+        -- arbiter master buses (master 0 = the orchestrator hart; masters 1-4 = hart tiles; master 5 = dm0 Debug Module).
         -- we = 4 active-high byte-lane strobes per master.
-        signal arb_req, arb_gnt, arb_done : std_logic_vector(4 downto 0);
+        signal arb_req, arb_gnt, arb_done : std_logic_vector(5 downto 0);
         -- Per-master grant-lock (the cores' amo_lock) pins the arbiter to a master across its AMO read+write transaction pair, which is what makes cross-hart AMOs atomic.
-        signal arb_lock         : std_logic_vector(4 downto 0);
-        signal arb_we           : std_logic_vector(5*4-1 downto 0);
-        signal arb_addr         : std_logic_vector(5*SH_AW-1 downto 0);
-        signal arb_wdata        : std_logic_vector(5*32-1 downto 0);
+        signal arb_lock         : std_logic_vector(5 downto 0);
+        signal arb_we           : std_logic_vector(6*4-1 downto 0);
+        signal arb_addr         : std_logic_vector(6*SH_AW-1 downto 0);
+        signal arb_wdata        : std_logic_vector(6*32-1 downto 0);
         signal arb_rdata        : std_logic_vector(31 downto 0);
         -- Arbiter to shared-slave side (RAM and CLINT sub-decoded below)
         signal sh_en            : std_logic;
@@ -735,6 +760,43 @@ architecture behav of MCU is
         signal shslv_rd_mtx     : std_logic := '0';
         signal mtx_rdata        : std_logic_vector(31 downto 0);
 
+        /* NFC0 (ISO 14443A tag / card-emulation engine), page-2 (MUTEX page) sub-slot 2 @0x6200: registered-read shim (no bridge), active-low one-cycle en.
+           Three clock domains inside NFC.vhd: ClkMem (bus), clk = smclk (the CDC synchronizers and W1C retirement; SYS_CLK_CR=0 rule), and the off-die rf_clk protocol core.
+           The irq_* lines drive vectors 94-97. */
+        signal shslv_nfc0_sel, shslv_nfc0_en : std_logic;
+        signal shslv_rd_nfc0    : std_logic := '0';
+        signal nfc0_sh_rdata    : std_logic_vector(31 downto 0);
+        signal nfc0_sh_en_n     : std_logic;
+        signal shslv_nfc0_en_q  : std_logic;   -- falling-mclk registered strobe (snapshot capture clock)
+        -- NFC0 digital-AFE / RF interface: the six AFE signals are NOT routed to pads.
+        -- rf_clk and field_detect tie '0' (no carrier, no field), rf_rx ties '1' (idle envelope, no pause), and the outputs are observed by nothing.
+        signal nfc0_rf_txmod, nfc0_rf_tx_en, nfc0_afe_en : std_logic;
+        /* DEBUG MODULE (dm0): assembly level, one per chip, always-on mclk, never inside a tile, because it must stay reachable while any hart is power-gated.
+           Three per-hart wire groups plus a fourth that is NOT a tile signal at all:
+             dbg_haltreq / dbg_resethaltreq : DM to tile (no clamp needed; they are INPUTS to a gated tile and a gated tile ignores them)
+             dbg_halted                     : tile to DM, and it CROSSES THE POWER BOUNDARY, so harts 1..4 land on dbg_halted_raw and pass the isolation clamp like every other tile output; hart 0 is always-on and connects directly.
+             dbg_unavail                    : the DM's truth-telling input, derived from the power-control state BELOW; a clamped dbg_halted reads '0', which is indistinguishable from "running", so unavail is a SEPARATE signal and the DM consults it BEFORE halted. */
+        signal dbg_haltreq      : std_logic_vector(4 downto 0);
+        signal dbg_resethaltreq : std_logic_vector(4 downto 0);
+        signal dbg_halted       : std_logic_vector(4 downto 0);
+        signal dbg_halted_raw   : std_logic_vector(4 downto 1);
+        signal dbg_unavail      : std_logic_vector(4 downto 0);
+
+        /* DMI OR-MERGE: the external dmi_* ports are RETAINED and merged with the DTM by valid-gated OR-composition, so both request buses reach the one Debug Module and its responses are fanned out to BOTH masters.
+           A bench driving the raw port and a debugger driving TCK are never simultaneously active by construction: an idle DTM's valid is low, which makes the merge transparent.
+           Keep the merge rather than letting the DTM take over the DM inputs: that would leave every force at the MCU formal resolving by NAME while reaching nothing. */
+        signal dm_req_valid     : std_logic;
+        signal dm_req_op        : std_logic_vector(1 downto 0);
+        signal dm_req_addr      : std_logic_vector(6 downto 0);
+        signal dm_req_data      : std_logic_vector(31 downto 0);
+        signal dm_req_ready     : std_logic;
+        signal dm_rsp_valid     : std_logic;
+        signal dm_rsp_data      : std_logic_vector(31 downto 0);
+        signal dm_rsp_op        : std_logic_vector(1 downto 0);
+        signal dtm_req_valid    : std_logic;
+        signal dtm_req_op       : std_logic_vector(1 downto 0);
+        signal dtm_req_addr     : std_logic_vector(6 downto 0);
+        signal dtm_req_data     : std_logic_vector(31 downto 0);
         -- AFE digital register stubs (four 64 B sub-slots of page-0 slot 12 @0x4C00/40/80/C0) + the shared EIS engine stub (IRQ-router page top quarter @0x7C00-0x7FFF).
         -- Each is an afe_stub with an s_master ownership gate and a REGISTERED read (no bridge); the EIS block is hart-0-only.
         signal shslv_afe_sel    : std_logic;   -- page-0 slot 12 (0x4C00) hit
@@ -1170,6 +1232,8 @@ architecture behav of MCU is
         signal afunc6_all_out   : std_logic_vector(GPIO_NUM_AFS * 8 - 1 downto 0);
         signal afunc6_all_dir   : std_logic_vector(GPIO_NUM_AFS * 8 - 1 downto 0);
         signal afunc6_all_ren   : std_logic_vector(GPIO_NUM_AFS * 8 - 1 downto 0);
+        -- NFC0 off-die AFE inputs, routed by GPIO5 from P6.0-2.
+        signal nfc0_rf_clk, nfc0_rf_rx, nfc0_field_detect : std_logic;
 
 begin
 
@@ -2433,6 +2497,10 @@ begin
             IRQB_I2C1_sovf  => irq_i2c1_sovf,
             IRQB_I2C1_snr   => irq_i2c1_snr,
             IRQB_I2C1_sxc   => irq_i2c1_sxc,
+            IRQB_NFC0_FIELD => irq_nfc0_field,
+            IRQB_NFC0_RXF   => irq_nfc0_rxf,
+            IRQB_NFC0_TXDONE=> irq_nfc0_txdone,
+            IRQB_NFC0_CRCERR=> irq_nfc0_crcerr,
             IRQB_GPIO4_B0   => irq_gpio4(0),
             IRQB_GPIO4_B1   => irq_gpio4(1),
             IRQB_GPIO4_B2   => irq_gpio4(2),
@@ -2499,7 +2567,8 @@ begin
             ENABLE_UMODE      => CORE_ENABLE_UMODE,
             ENABLE_PMP        => CORE_ENABLE_PMP,
             PMP_ENTRIES       => CORE_PMP_ENTRIES,
-            ENABLE_DEBUG      => CORE_ENABLE_DEBUG
+            ENABLE_DEBUG      => CORE_ENABLE_DEBUG,
+            DEBUG_ENTRY_ADDR  => x"00010780"
         )
         port map (
             clk       => mclk,
@@ -2510,6 +2579,9 @@ begin
             msip_in   => clint_msip(0),
             mtip_in   => clint_mtip(0),
             meip_in   => meip(0),
+            dbg_haltreq      => dbg_haltreq(0),
+            dbg_resethaltreq => dbg_resethaltreq(0),
+            dbg_halted       => dbg_halted(0),
             flash_mem_en  => mem_en_flash,
             flash_clk_mem => clk_mem_flash,
             flash_mab     => mab_flash,
@@ -2540,7 +2612,7 @@ begin
         );
 
     mp_arb0: entity work.mp_arbiter
-        generic map (N => 5, ADDR_WIDTH => SH_AW, DATA_WIDTH => 32, MW => 3)
+        generic map (N => 6, ADDR_WIDTH => SH_AW, DATA_WIDTH => 32, MW => 3)
         port map (
             clk    => mclk,
             resetn => resetn,
@@ -2564,7 +2636,7 @@ begin
     -- Global LR/SC reservation unit: it snoops every granted shared transaction, places reservations on LR reads, kills them on writes, and adjudicates SC writes in the arbiter's serialization order (a dead SC's write is suppressed through sh_we and its fail verdict returns with done).
     -- Cross-hart LR/SC depends on it: two harts SC-ing the same word both pass their core-local checks, and only this unit can order them.
     resv0: entity work.resv_unit
-        generic map (N => 5, ADDR_WIDTH => SH_AW)
+        generic map (N => 6, ADDR_WIDTH => SH_AW)
         port map (
             clk        => mclk,
             resetn     => resetn,
@@ -2603,6 +2675,7 @@ begin
     -- Page 2 (MUTEX/0x6000) is carved into 256 B sub-slots on sh_addr(9:6): mutex bank sub-slot 0 (0x6000-0x60FF), I3C0 sub-slot 1 (0x6100), NFC0 sub-slot 2 (0x6200), GPIO4 sub-slot 3 (0x6300), GPIO5 sub-slot 4 (0x6400).
     -- Keep the mutex decode narrow: a page-wide alias fires the atomic CLAIM side effect on any page-2 read (all 16 mutexes live below 0x6040).
     shslv_mtx_sel    <= shslv_perwin_sel when sh_addr(11 downto 10) = "10" and sh_addr(9 downto 6) = "0000" else '0';
+    shslv_nfc0_sel   <= shslv_perwin_sel when sh_addr(11 downto 10) = "10" and sh_addr(9 downto 6) = "0010" else '0';
     shslv_gpio4_sel  <= shslv_perwin_sel when sh_addr(11 downto 10) = "10" and sh_addr(9 downto 6) = "0011" else '0';
     shslv_gpio5_sel  <= shslv_perwin_sel when sh_addr(11 downto 10) = "10" and sh_addr(9 downto 6) = "0100" else '0';
     -- Page-3 sub-decode: irq_router keeps 0x7000-0x7BFF and the shared EIS engine stub owns the top quarter 0x7C00-0x7FFF (the router ADDR_W=10 decode is inert above word 522, so only aliased space is taken).
@@ -2646,6 +2719,7 @@ begin
     shslv_mtx_en     <= sh_en and shslv_mtx_sel;
     shslv_irtr_en    <= sh_en and shslv_irtr_sel;
     shslv_pwr_en     <= sh_en and shslv_pwr_sel;
+    shslv_nfc0_en    <= sh_en and shslv_nfc0_sel;
     shslv_gpio4_en   <= sh_en and shslv_gpio4_sel;
     shslv_gpio5_en   <= sh_en and shslv_gpio5_sel;
     shslv_gpio0_en   <= sh_en and shslv_gpio0_sel;
@@ -2686,6 +2760,7 @@ begin
             shslv_rd_mtx     <= '0';
             shslv_rd_irtr    <= '0';
             shslv_rd_pwr     <= '0';
+            shslv_rd_nfc0    <= '0';
             shslv_rd_gpio4   <= '0';
             shslv_rd_gpio5   <= '0';
             shslv_rd_gpio0   <= '0';
@@ -2724,6 +2799,7 @@ begin
                 shslv_rd_mtx     <= shslv_mtx_sel;
                 shslv_rd_irtr    <= shslv_irtr_sel;
                 shslv_rd_pwr     <= shslv_pwr_sel;
+                shslv_rd_nfc0    <= shslv_nfc0_sel;
                 shslv_rd_gpio4   <= shslv_gpio4_sel;
                 shslv_rd_gpio5   <= shslv_gpio5_sel;
                 shslv_rd_gpio0   <= shslv_gpio0_sel;
@@ -2786,6 +2862,7 @@ begin
                     mtx_rdata      when shslv_rd_mtx     = '1' else
                     irtr_rdata     when shslv_rd_irtr    = '1' else
                     pwr_rdata      when shslv_rd_pwr     = '1' else
+                    nfc0_sh_rdata  when shslv_rd_nfc0    = '1' else
                     gpio4_sh_rdata when shslv_rd_gpio4   = '1' else
                     gpio5_sh_rdata when shslv_rd_gpio5   = '1' else
                     gpio0_sh_rdata when shslv_rd_gpio0   = '1' else
@@ -2900,6 +2977,40 @@ begin
             rdata  => mtx_rdata
         );
 
+    /* =========================================================================
+       NFC0: ISO 14443A tag / card-emulation engine, page-2 (MUTEX page) sub-slot 2 @0x6200, registered read (no bridge) with no read side effects.
+       Bus/CDC reference clock = smclk (the SYS_CLK_CR=0 rule applies), the whole protocol core runs on the off-die carrier-derived rf_clk, and the four irq_* lines drive vectors 94-97 (field/rxf/txdone/crcerr).
+       The 13.56 MHz RF front end is off-die and unbonded here: rf_clk/field_detect tied low, rf_rx tied high (idle bus), outputs unobserved.
+       ========================================================================= */
+    -- NFC clocks its snapshot latches on en_mem's falling edge, so it takes the falling-mclk re-registered strobe (see snapshot_strobe_reg).
+    nfc0_enq_reg: process(mclk)
+    begin
+        if falling_edge(mclk) then
+            shslv_nfc0_en_q <= shslv_nfc0_en;
+        end if;
+    end process;
+    nfc0_sh_en_n <= not shslv_nfc0_en_q;
+    nfc0: entity work.NFC
+        port map (
+            clk          => smclk,
+            resetn       => resetn,
+            irq_field    => irq_nfc0_field,
+            irq_rxf      => irq_nfc0_rxf,
+            irq_txdone   => irq_nfc0_txdone,
+            irq_crcerr   => irq_nfc0_crcerr,
+            ClkMem       => mclk,
+            EnMemPeriph  => nfc0_sh_en_n,
+            WEn          => sh_wen_n,
+            MABPart      => sh_addr(5 downto 0),
+            wdata        => sh_wdata,
+            rdata_out    => nfc0_sh_rdata,
+            rf_clk       => nfc0_rf_clk,       -- routed from P6.0 AF1 (GPIO5)
+            field_detect => nfc0_field_detect, -- routed from P6.2 AF1 (GPIO5)
+            rf_rx        => nfc0_rf_rx,        -- routed from P6.1 AF1 (GPIO5)
+            rf_txmod     => nfc0_rf_txmod,
+            rf_tx_en     => nfc0_rf_tx_en,
+            afe_en       => nfc0_afe_en);
+
     -- MTCMOS power controller, window slot 11 at 0x4B00: one gate bit per tile hart, and a per-tile FSM sequences the domain controls in the only legal order, iso then rst then rail off to gate, rail on then settle then un-iso then un-rst to wake.
     -- pd_rstn folds into the tile's resetn below, so a wake is a cold boot (shared-ROM fetch, WFI park, loader relaunch); the controller resets all-on, and software must gate only parked or quiesced tiles.
     pwr0: entity work.pwr_ctrl
@@ -2915,13 +3026,91 @@ begin
             pd_iso_en => pd_iso_en,
             pd_sleep  => pd_sleep,
             pd_rstn   => pd_rstn,
-            -- Supervision inputs: PGOOD P6.7 and the harvested-boot strap P6.6 as DIRECT pad taps (always readable, because the gate must work before any software runs); field level tied '0' (no NFC).
+            -- Supervision inputs: PGOOD P6.7 and the harvested-boot strap P6.6 as DIRECT pad taps (always readable, because the gate must work before any software runs); field level from NFC0.
             -- All three are 2-FF synchronized inside pwr_ctrl.
             pgood_pad    => prt6_in(7),
             strap_pad    => prt6_in(6),
-            field_detect => '0',
+            field_detect => nfc0_field_detect,
             pgood_rstn   => pgood_rstn
         );
+
+    -- DEBUG MODULE. dmstatus TRUTH-TELLING against PWRCTRL: a hart is unavailable when its domain is isolated or it is held in reset.
+    -- HART 0 IS NOT IMMUNE: it has no pd_rstn row, but the boot gate can hold it in reset through hart0_rstn, and a DM that reported hart 0 as always-available would lie about exactly the case a debugger attaches in.
+    dbg_unavail(0) <= not hart0_rstn;
+    dbg_unavail(1) <= pd_iso_en(1) or not tile_rstn(1);
+    dbg_unavail(2) <= pd_iso_en(2) or not tile_rstn(2);
+    dbg_unavail(3) <= pd_iso_en(3) or not tile_rstn(3);
+    dbg_unavail(4) <= pd_iso_en(4) or not tile_rstn(4);
+
+    dm0: entity work.debug_module
+        generic map (ENABLE_DEBUG => CORE_ENABLE_DEBUG, NHARTS => 5,
+                     SH_AW => SH_AW,
+                     DATA0_ADDR => x"00010680", FLAGS_ADDR => x"00010700",
+                     ENTRY_ADDR => x"00010780")
+        port map (
+            clk    => mclk,
+            resetn => resetn,
+            -- The MERGED request bus, not the entity ports (see the OR-merge below).
+            -- The RESPONSES are the DM's own outputs and are fanned out to the entity ports AND to dtm0.
+            dmi_req_valid => dm_req_valid,
+            dmi_req_op    => dm_req_op,
+            dmi_req_addr  => dm_req_addr,
+            dmi_req_data  => dm_req_data,
+            dmi_req_ready => dm_req_ready,
+            dmi_rsp_valid => dm_rsp_valid,
+            dmi_rsp_data  => dm_rsp_data,
+            dmi_rsp_op    => dm_rsp_op,
+            dbg_haltreq      => dbg_haltreq,
+            dbg_resethaltreq => dbg_resethaltreq,
+            dbg_halted       => dbg_halted,
+            hart_unavail     => dbg_unavail,
+            -- arbiter MASTER port: slice 5 of arb_* (boundary depth 0, the DMA shape)
+            m_req   => arb_req(5),
+            m_we    => arb_we(23 downto 20),
+            m_addr  => arb_addr(6*SH_AW-1 downto 5*SH_AW),
+            m_wdata => arb_wdata(6*32-1 downto 5*32),
+            m_gnt   => arb_gnt(5),
+            m_done  => arb_done(5),
+            m_rdata => arb_rdata);
+    -- The DM never does LR/SC and never grant-locks (like the DMA), so lrsc/lock are tied here in fabric rather than exported as ports; arb_scfail(5)/arb_resvvld(5) are ignored.
+    -- resv_unit N=nMasters still keys cur=5 on a DM plain write, so a DM write kills matching reservations and cross-hart LR/SC stays sound across one.
+    arb_lrsc(11 downto 10) <= "00";
+    arb_lock(5) <= '0';
+
+    /* JTAG DTM (dtm0): assembly level, beside dm0 and never inside a tile, because TCK must reach the transport while any hart is power-gated and the tile SDC has no clock-to-clock false paths to disturb.
+       The TCK domain is asynchronous to mclk and crosses on ONE toggle each way with the payload HELD (the UART flags_cdc_proc idiom).
+       Its mclk-side master is a ONE-SHOT that retires on dmi_req_ready, because the DM's re-capture lockout is a 9-cycle TIMER and a held request level would earn a second, duplicate accept. */
+    dtm0: entity work.jtag_dtm
+        generic map (ENABLE_DEBUG => CORE_ENABLE_DEBUG,
+                     IDCODE      => x"1CA57EEF",
+                     IDLE_CYCLES => 7)
+        port map (
+            tck    => tck,
+            tms    => tms,
+            tdi    => tdi,
+            tdo    => tdo,
+            trstn  => trstn,
+            clk    => mclk,
+            resetn => resetn,
+            dmi_req_valid => dtm_req_valid,
+            dmi_req_op    => dtm_req_op,
+            dmi_req_addr  => dtm_req_addr,
+            dmi_req_data  => dtm_req_data,
+            dmi_req_ready => dm_req_ready,
+            dmi_rsp_valid => dm_rsp_valid,
+            dmi_rsp_data  => dm_rsp_data,
+            dmi_rsp_op    => dm_rsp_op);
+
+    -- THE OR-MERGE ITSELF. Requests: valid-gated OR of the two masters.
+    -- Responses: the DM's outputs fanned out to the entity ports AND to dtm0, so an accept or a response is visible to whichever master issued it, and to any instrument watching the port.
+    dm_req_valid <= dmi_req_valid or dtm_req_valid;
+    dm_req_op    <= dmi_req_op   when dmi_req_valid = '1' else dtm_req_op;
+    dm_req_addr  <= dmi_req_addr when dmi_req_valid = '1' else dtm_req_addr;
+    dm_req_data  <= dmi_req_data when dmi_req_valid = '1' else dtm_req_data;
+    dmi_req_ready <= dm_req_ready;
+    dmi_rsp_valid <= dm_rsp_valid;
+    dmi_rsp_data  <= dm_rsp_data;
+    dmi_rsp_op    <= dm_rsp_op;
 
     /* =========================================================================
        AFE digital register stubs + shared EIS engine stub: four AFE sites subdivide page-0 slot 12 (0x4C00) into 64 B sub-slots (sub-slot = sh_addr(5:4)), and each answers only for its owner TILE hart (1-4) OR hart 0, the orchestrator (mp_arbiter s_master gate, inside afe_stub).
@@ -2971,6 +3160,7 @@ begin
     arb_lrsc(3 downto 2)    <= tile1_lrsc_raw    when pd_iso_en(1) = '0' else "00";
     arb_lock(1)             <= tile1_lock_raw    when pd_iso_en(1) = '0' else '0';
     a0_1                    <= a0_1_raw          when pd_iso_en(1) = '0' else (others => '0');
+    dbg_halted(1)           <= dbg_halted_raw(1) when pd_iso_en(1) = '0' else '0';
     tcm_ext_rdata(63 downto 32)      <= tile1_tcmrd_raw when pd_iso_en(1) = '0' else (others => '0');
     tcm_ext_done(1)         <= tile1_tcmdone_raw when pd_iso_en(1) = '0' else '0';
 
@@ -2981,6 +3171,7 @@ begin
     arb_lrsc(5 downto 4)    <= tile2_lrsc_raw    when pd_iso_en(2) = '0' else "00";
     arb_lock(2)             <= tile2_lock_raw    when pd_iso_en(2) = '0' else '0';
     a0_2                    <= a0_2_raw          when pd_iso_en(2) = '0' else (others => '0');
+    dbg_halted(2)           <= dbg_halted_raw(2) when pd_iso_en(2) = '0' else '0';
     tcm_ext_rdata(95 downto 64)        <= tile2_tcmrd_raw when pd_iso_en(2) = '0' else (others => '0');
     tcm_ext_done(2)         <= tile2_tcmdone_raw when pd_iso_en(2) = '0' else '0';
 
@@ -2991,6 +3182,7 @@ begin
     arb_lrsc(7 downto 6)    <= tile3_lrsc_raw    when pd_iso_en(3) = '0' else "00";
     arb_lock(3)             <= tile3_lock_raw    when pd_iso_en(3) = '0' else '0';
     a0_3                    <= a0_3_raw          when pd_iso_en(3) = '0' else (others => '0');
+    dbg_halted(3)           <= dbg_halted_raw(3) when pd_iso_en(3) = '0' else '0';
     tcm_ext_rdata(127 downto 96)       <= tile3_tcmrd_raw when pd_iso_en(3) = '0' else (others => '0');
     tcm_ext_done(3)         <= tile3_tcmdone_raw when pd_iso_en(3) = '0' else '0';
 
@@ -3001,6 +3193,7 @@ begin
     arb_lrsc(9 downto 8)    <= tile4_lrsc_raw    when pd_iso_en(4) = '0' else "00";
     arb_lock(4)             <= tile4_lock_raw    when pd_iso_en(4) = '0' else '0';
     a0_4                    <= a0_4_raw          when pd_iso_en(4) = '0' else (others => '0');
+    dbg_halted(4)           <= dbg_halted_raw(4) when pd_iso_en(4) = '0' else '0';
     tcm_ext_rdata(159 downto 128)      <= tile4_tcmrd_raw when pd_iso_en(4) = '0' else (others => '0');
     tcm_ext_done(4)         <= tile4_tcmdone_raw when pd_iso_en(4) = '0' else '0';
 
@@ -3080,11 +3273,12 @@ begin
             PC_RST_VAL     => x"00000000",
             SH_AW          => SH_AW,
             -- Core ISA features (config-driven, work.MemoryMap; MUST be identical on all five tiles, one hardened netlist)
-            ENABLE_MUL        => CORE_ENABLE_MUL,
-            ENABLE_DIV        => CORE_ENABLE_DIV,
+            -- M and B come from TILE_ENABLE_*, NOT CORE_ENABLE_*: the corner tiles are the MINIMAL-ISA harts (rv32iac). Hart 0 / the orchestrator take the full CORE_ENABLE_* set.
+            ENABLE_MUL        => TILE_ENABLE_MUL,
+            ENABLE_DIV        => TILE_ENABLE_DIV,
             ENABLE_ATOMICS    => CORE_ENABLE_ATOMICS,
             ENABLE_COMPRESSED => CORE_ENABLE_COMPRESSED,
-            ENABLE_BITMANIP   => CORE_ENABLE_BITMANIP,
+            ENABLE_BITMANIP   => TILE_ENABLE_BITMANIP,
             ENABLE_ZICOND     => CORE_ENABLE_ZICOND,
             ENABLE_ZCB        => CORE_ENABLE_ZCB,
             ENABLE_ZIMOP      => CORE_ENABLE_ZIMOP,
@@ -3106,7 +3300,8 @@ begin
             ENABLE_UMODE      => CORE_ENABLE_UMODE,
             ENABLE_PMP        => CORE_ENABLE_PMP,
             PMP_ENTRIES       => CORE_PMP_ENTRIES,
-            ENABLE_DEBUG      => CORE_ENABLE_DEBUG
+            ENABLE_DEBUG      => CORE_ENABLE_DEBUG,
+            DEBUG_ENTRY_ADDR  => x"00010780"
         )
         port map (
             clk       => mclk,
@@ -3118,6 +3313,9 @@ begin
             mtip_in   => clint_mtip(1),
             -- ONE external-IRQ wire per tile, the irq_router's registered claim/complete output (routing/masking lives in the router rows; the tile hardwires its three live slots)
             meip_in   => meip(1),
+            dbg_haltreq      => dbg_haltreq(1),
+            dbg_resethaltreq => dbg_resethaltreq(1),
+            dbg_halted       => dbg_halted_raw(1),
             -- Outbound signals land on _raw and pass the iso clamps
             sh_req    => tile1_req_raw,
             sh_we     => tile1_we_raw,
@@ -3151,11 +3349,12 @@ begin
             PC_RST_VAL     => x"00000000",
             SH_AW          => SH_AW,
             -- Core ISA features (config-driven, work.MemoryMap; MUST be identical on all five tiles, one hardened netlist)
-            ENABLE_MUL        => CORE_ENABLE_MUL,
-            ENABLE_DIV        => CORE_ENABLE_DIV,
+            -- M and B come from TILE_ENABLE_*, NOT CORE_ENABLE_*: the corner tiles are the MINIMAL-ISA harts (rv32iac). Hart 0 / the orchestrator take the full CORE_ENABLE_* set.
+            ENABLE_MUL        => TILE_ENABLE_MUL,
+            ENABLE_DIV        => TILE_ENABLE_DIV,
             ENABLE_ATOMICS    => CORE_ENABLE_ATOMICS,
             ENABLE_COMPRESSED => CORE_ENABLE_COMPRESSED,
-            ENABLE_BITMANIP   => CORE_ENABLE_BITMANIP,
+            ENABLE_BITMANIP   => TILE_ENABLE_BITMANIP,
             ENABLE_ZICOND     => CORE_ENABLE_ZICOND,
             ENABLE_ZCB        => CORE_ENABLE_ZCB,
             ENABLE_ZIMOP      => CORE_ENABLE_ZIMOP,
@@ -3177,7 +3376,8 @@ begin
             ENABLE_UMODE      => CORE_ENABLE_UMODE,
             ENABLE_PMP        => CORE_ENABLE_PMP,
             PMP_ENTRIES       => CORE_PMP_ENTRIES,
-            ENABLE_DEBUG      => CORE_ENABLE_DEBUG
+            ENABLE_DEBUG      => CORE_ENABLE_DEBUG,
+            DEBUG_ENTRY_ADDR  => x"00010780"
         )
         port map (
             clk       => mclk,
@@ -3188,6 +3388,9 @@ begin
             msip_in   => clint_msip(2),
             mtip_in   => clint_mtip(2),
             meip_in   => meip(2),
+            dbg_haltreq      => dbg_haltreq(2),
+            dbg_resethaltreq => dbg_resethaltreq(2),
+            dbg_halted       => dbg_halted_raw(2),
             -- Outbound signals land on _raw and pass the iso clamps
             sh_req    => tile2_req_raw,
             sh_we     => tile2_we_raw,
@@ -3221,11 +3424,12 @@ begin
             PC_RST_VAL     => x"00000000",
             SH_AW          => SH_AW,
             -- Core ISA features (config-driven, work.MemoryMap; MUST be identical on all five tiles, one hardened netlist)
-            ENABLE_MUL        => CORE_ENABLE_MUL,
-            ENABLE_DIV        => CORE_ENABLE_DIV,
+            -- M and B come from TILE_ENABLE_*, NOT CORE_ENABLE_*: the corner tiles are the MINIMAL-ISA harts (rv32iac). Hart 0 / the orchestrator take the full CORE_ENABLE_* set.
+            ENABLE_MUL        => TILE_ENABLE_MUL,
+            ENABLE_DIV        => TILE_ENABLE_DIV,
             ENABLE_ATOMICS    => CORE_ENABLE_ATOMICS,
             ENABLE_COMPRESSED => CORE_ENABLE_COMPRESSED,
-            ENABLE_BITMANIP   => CORE_ENABLE_BITMANIP,
+            ENABLE_BITMANIP   => TILE_ENABLE_BITMANIP,
             ENABLE_ZICOND     => CORE_ENABLE_ZICOND,
             ENABLE_ZCB        => CORE_ENABLE_ZCB,
             ENABLE_ZIMOP      => CORE_ENABLE_ZIMOP,
@@ -3247,7 +3451,8 @@ begin
             ENABLE_UMODE      => CORE_ENABLE_UMODE,
             ENABLE_PMP        => CORE_ENABLE_PMP,
             PMP_ENTRIES       => CORE_PMP_ENTRIES,
-            ENABLE_DEBUG      => CORE_ENABLE_DEBUG
+            ENABLE_DEBUG      => CORE_ENABLE_DEBUG,
+            DEBUG_ENTRY_ADDR  => x"00010780"
         )
         port map (
             clk       => mclk,
@@ -3258,6 +3463,9 @@ begin
             msip_in   => clint_msip(3),
             mtip_in   => clint_mtip(3),
             meip_in   => meip(3),
+            dbg_haltreq      => dbg_haltreq(3),
+            dbg_resethaltreq => dbg_resethaltreq(3),
+            dbg_halted       => dbg_halted_raw(3),
             -- Outbound signals land on _raw and pass the iso clamps
             sh_req    => tile3_req_raw,
             sh_we     => tile3_we_raw,
@@ -3291,11 +3499,12 @@ begin
             PC_RST_VAL     => x"00000000",
             SH_AW          => SH_AW,
             -- Core ISA features (config-driven, work.MemoryMap; MUST be identical on all five tiles, one hardened netlist)
-            ENABLE_MUL        => CORE_ENABLE_MUL,
-            ENABLE_DIV        => CORE_ENABLE_DIV,
+            -- M and B come from TILE_ENABLE_*, NOT CORE_ENABLE_*: the corner tiles are the MINIMAL-ISA harts (rv32iac). Hart 0 / the orchestrator take the full CORE_ENABLE_* set.
+            ENABLE_MUL        => TILE_ENABLE_MUL,
+            ENABLE_DIV        => TILE_ENABLE_DIV,
             ENABLE_ATOMICS    => CORE_ENABLE_ATOMICS,
             ENABLE_COMPRESSED => CORE_ENABLE_COMPRESSED,
-            ENABLE_BITMANIP   => CORE_ENABLE_BITMANIP,
+            ENABLE_BITMANIP   => TILE_ENABLE_BITMANIP,
             ENABLE_ZICOND     => CORE_ENABLE_ZICOND,
             ENABLE_ZCB        => CORE_ENABLE_ZCB,
             ENABLE_ZIMOP      => CORE_ENABLE_ZIMOP,
@@ -3317,7 +3526,8 @@ begin
             ENABLE_UMODE      => CORE_ENABLE_UMODE,
             ENABLE_PMP        => CORE_ENABLE_PMP,
             PMP_ENTRIES       => CORE_PMP_ENTRIES,
-            ENABLE_DEBUG      => CORE_ENABLE_DEBUG
+            ENABLE_DEBUG      => CORE_ENABLE_DEBUG,
+            DEBUG_ENTRY_ADDR  => x"00010780"
         )
         port map (
             clk       => mclk,
@@ -3328,6 +3538,9 @@ begin
             msip_in   => clint_msip(4),
             mtip_in   => clint_mtip(4),
             meip_in   => meip(4),
+            dbg_haltreq      => dbg_haltreq(4),
+            dbg_resethaltreq => dbg_resethaltreq(4),
+            dbg_halted       => dbg_halted_raw(4),
             -- Outbound signals land on _raw and pass the iso clamps
             sh_req    => tile4_req_raw,
             sh_we     => tile4_we_raw,
@@ -3693,14 +3906,36 @@ begin
     afunc6_out <= p6_out;
     afunc6_dir <= p6_dir;
     afunc6_ren <= p6_ren;
-    -- AF1 plane unused in this configuration (NFC0 absent): Hi-Z.
-    afunc6_af1_out <= afunc_none;
-    afunc6_af1_dir <= afunc_none;
-    afunc6_af1_ren <= afunc_none;
+    -- AF1 plane: NFC0 outputs on P6.3-5 (txmod/tx_en/afe_en); P6.0-2 are inputs (rf_clk/rf_rx/field_detect), so their AF1 out/dir stay 0 (input).
+    afunc6_af1_out <= (
+        7 => '0',
+        6 => '0',
+        5 => nfc0_afe_en,
+        4 => nfc0_rf_tx_en,
+        3 => nfc0_rf_txmod,
+        2 => '0',
+        1 => '0',
+        0 => '0'
+    );
+    afunc6_af1_dir <= (
+        7 => '0',
+        6 => '0',
+        5 => '1',
+        4 => '1',
+        3 => '1',
+        2 => '0',
+        1 => '0',
+        0 => '0'
+    );
+    afunc6_af1_ren <= p6_ren;
     -- Flatten the 8 AF planes (AF7..AF2 unused = afunc_none, then AF1, AF0)
     afunc6_all_out <= afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc6_af1_out & afunc6_out;
     afunc6_all_dir <= afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc6_af1_dir & afunc6_dir;
     afunc6_all_ren <= afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc6_af1_ren & afunc6_ren;
+    -- NFC0 off-die AFE input muxes: read the P6.0-2 pads when in AF1 mode
+    nfc0_rf_clk       <= prt6_in(0) when p6_afs((3 * 0) + 2 downto 3 * 0) = "001" else '0';
+    nfc0_rf_rx        <= prt6_in(1) when p6_afs((3 * 1) + 2 downto 3 * 1) = "001" else '1';
+    nfc0_field_detect <= prt6_in(2) when p6_afs((3 * 2) + 2 downto 3 * 2) = "001" else '0';
     gpio5: GPIO
         generic map (
             num_pins        => 8,
