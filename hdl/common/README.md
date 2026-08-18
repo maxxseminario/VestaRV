@@ -40,7 +40,7 @@ The **VestaRV** core is a single-issue, in-order, multicycle RISC-V processor im
 | Divider | Multi-cycle hardware divider |
 | Compressed ISA (C) | Split-fetch handler for 16-bit instructions at 4-byte-aligned boundaries |
 | Atomics (A) | LR/SC and AMO instructions |
-| Interrupts | Stack-based recursive interrupt controller — up to 83 vectors, priority-encoded, re-entrant |
+| Interrupts | Stack-based recursive interrupt controller — priority-encoded, re-entrant; the vector count is set by the `NUM_IRQS` generic (121 in the Castalia configuration) |
 | Context switching | Software-managed (standard ABI register save/restore) |
 | Clock gating | Core-wide CPU clock gate (`cg_clk_cpu`) — the whole core freezes on a memory stall, on the external `sleep` pin, and in `SLEEPING`; per-register-bank gating is tool-inserted at synthesis |
 
