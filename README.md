@@ -37,9 +37,9 @@ VestaRV is named after **Vesta**, the Roman goddess of hearth, home, and the ete
 
 ## Example MCU Configuration
 
-Below is an example MCU-level block diagram showing one possible instantiation of VestaRV with various peripherals:
+Below is the whole-chip block diagram for **Castalia**, the five-hart configuration — Figure 2 of the [Castalia TRM](implementations/asic/castalia/docs/TRM.pdf), generated from the chip configuration by `make chip`:
 
-![MCU Block Diagram](assets/ASIC_block_diagram.png)
+![Castalia Block Diagram](assets/castalia_block_diagram.png)
 
 *Note: VestaRV is designed to be highly configurable. The peripheral set, memory architecture, and system features can be customized to match your specific application requirements.*
 
