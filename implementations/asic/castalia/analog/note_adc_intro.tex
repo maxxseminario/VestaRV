@@ -1,0 +1,41 @@
+% HAND-WRITTEN fragment -- placed by Adc.tex.
+%
+% Every number here comes from the generated tables of this section
+% (tab_adc_transfer.tex, tab_adc_power.tex). Re-read them from those tables if
+% the run is repeated.
+%
+% Source data: simarchive/tb_anatop_pixel_adc/adc_transfer.csv, test `adc_dc` of
+% castalia/tb_anatop_pixel_adc (schematic view SARADCTB, maestro view), POST-
+% EXTRACTION netlist of the ADC macro.
+%
+% Device dimensions are proprietary: no W/L and no absolute capacitance is
+% stated here or in any figure or table of this section.
+
+\subsection{SAR Analog-to-Digital Converter}\label{ss:adc}
+
+\texttt{anatop\_pixel\_adc} is a 10-bit single-ended charge-redistribution SAR
+converter (Figure~\ref{fig:adc-sar}). One instance per channel digitises the
+transimpedance output of Section~\ref{ss:pixel}: $v_{\mathrm{out}} =
+V_{\mathrm{CM}} + i_{\mathrm{we}}\cdot R_f$ enters the converter and leaves as a
+10-bit code, offset-binary about the code that corresponds to
+$V_{\mathrm{CM}}$. The capacitor array is both the sampling network and the
+feedback DAC; its layout is Figure~\ref{fig:adc-capdac}.
+
+Conversion is externally clocked. A \SI{20}{\mega\hertz} trigger clock drives 23
+clock periods per conversion --- \SI{1.15}{\micro\second}, or
+\SI{869.6}{\kilo\hertz} conversion rate. The bench steps the input from
+\SIrange{0}{2.5}{\volt} in \SI{0.25}{\volt} steps and reads the code at the
+settled point of the third conversion, where the converter's ready output is
+high at every step.
+
+\paragraph{Coverage.} All data in this section comes from a \emph{post-extraction}
+netlist --- Quantus, C-only coupled parasitic extraction of the ADC macro ---
+and is the only extracted data in this chapter, every other section being
+schematic-level. The distinction is not incidental: the capacitor array exists
+only in layout, so a schematic-level simulation of this block would not be a
+simulation of this converter. Coverage is one test, \texttt{adc\_dc} of
+\texttt{castalia/tb\_anatop\_pixel\_adc}, at the nominal corner,
+\SI{37}{\celsius}, \SI{2.5}{\volt} analog and \SI{1.0}{\volt} digital supplies.
+No corner sweep and no Monte Carlo run exists for this block, so no figure below
+carries a process, temperature, supply or mismatch spread. The \SI{0.25}{\volt}
+sweep step is 157 codes, so nothing here is a DNL or INL measurement either.

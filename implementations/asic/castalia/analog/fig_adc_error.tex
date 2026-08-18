@@ -1,0 +1,34 @@
+%% HAND-WRITTEN figure fragment (matches the maestro2tex house style).
+%% Data: data/adc_error_00.dat, column `err` of
+%% simarchive/tb_anatop_pixel_adc/adc_transfer.csv (measured code minus ideal).
+\providecommand{\MaestroRoot}{include/analog/}
+\begin{figure}[htbp]
+  \centering
+  {\pgfplotsset{compat=1.18}%
+  \begin{tikzpicture}
+    \begin{axis}[
+      width=0.82\linewidth, height=6.0cm,
+      xlabel={Input voltage~[\si{\volt}]}, ylabel={Code error~[LSB]},
+      grid=both,
+      major grid style={line width=0.2pt, draw=black!14},
+      minor grid style={line width=0.2pt, draw=black!7},
+      minor tick num=1,
+      axis line style={line width=0.4pt, draw=black!45},
+      tick style={line width=0.4pt, draw=black!45},
+      tick align=outside,
+      label style={font=\small}, tick label style={font=\small},
+      enlarge x limits=0.03, enlarge y limits=0.10,
+      every axis plot/.append style={line join=round},
+      scaled y ticks=false, scaled x ticks=false,
+      xtick={0,0.5,1,1.5,2,2.5},
+      y tick label style={/pgf/number format/fixed}
+    ]
+      \addplot[mtxA, line width=1.1pt, solid, mark=*, mark size=1.6pt]
+        table {\MaestroRoot data/adc_error_00.dat};
+      \addplot[black!55, line width=0.6pt, dashed, no marks, forget plot]
+        coordinates {(0,0) (2.5,0)};
+    \end{axis}
+  \end{tikzpicture}}
+  \caption[{Code error against input voltage, measured code minus the ideal line, same run,\,\dots}]{Code error against input voltage --- measured code minus the ideal \num{409.6}~codes/V line --- from the same run as Figure~\ref{fig:adc-transfer}. The error is the \num{1.535} slope ratio, not nonlinearity: it reaches \num{-167.8}~LSB at \SI{0.5}{\volt} and \num{+160.8}~LSB at \SI{2.0}{\volt}, crossing zero near the \SI{1.25}{\volt} common mode where the measured and ideal lines intersect. It also returns near zero at \SI{0}{\volt} and \SI{2.5}{\volt}, where the clipped output coincides with the ideal endpoints; those two points are not accuracy. Referred to the fitted line instead, the residual over \SIrange{0.5}{2.0}{\volt} is at most \num{0.43}~LSB.}
+  \label{fig:adc-error}
+\end{figure}

@@ -1,0 +1,23 @@
+%% HAND-WRITTEN table fragment (matches the maestro2tex house style).
+%% Every entry derived from simarchive/tb_anatop_pixel_adc/adc_transfer.csv.
+\begin{table}[htbp]
+  \centering
+  \caption[{Supply currents, total power and conversion energy across the input sweep,\,\dots}]{Supply currents, total power and conversion energy of the extracted \texttt{anatop\_pixel\_adc} across the \SIrange{0}{2.5}{\volt} input sweep, nominal corner, \SI{37}{\celsius}. Min, mean and max are taken over the eleven sweep points; total power is \(\SI{2.5}{\volt}\times(I_{\mathrm{AVDD}}+I_{\mathrm{DVDD25}}) + \SI{1.0}{\volt}\times I_{\mathrm{DVDD10}}\) and the energy row is that power held for one full \SI{1.15}{\micro\second} conversion period. Each current is sampled at the same settled point as the code rather than averaged over the acquisition and conversion phases, so the energy row is exact only if the current is flat within a conversion. Single nominal run: no corner or mismatch spread.}
+  \label{tab:adc-power}
+  \begin{tabular}{llrrr}
+    \toprule
+    Parameter & Unit & Min & Mean & Max \\
+    \midrule
+    Analog supply current, \SI{2.5}{\volt}  & \si{\micro\ampere} & 11.84 & 13.85 & 15.37 \\
+    Digital supply current, \SI{2.5}{\volt} & \si{\micro\ampere} & 2.225 & 2.304 & 2.385 \\
+    Digital supply current, \SI{1.0}{\volt} & \si{\micro\ampere} & 3.249 & 3.448 & 3.698 \\
+    Total power                             & \si{\micro\watt}   & 38.53 & 43.84 & 48.07 \\
+    Energy per conversion                   & \si{\pico\joule}   & 44.31 & 50.42 & 55.27 \\
+    \midrule
+    Trigger clock      & \si{\mega\hertz}      & \multicolumn{3}{c}{20} \\
+    Clocks per conversion &                    & \multicolumn{3}{c}{23} \\
+    Conversion period  & \si{\micro\second}    & \multicolumn{3}{c}{1.150} \\
+    Conversion rate    & kSa/s                 & \multicolumn{3}{c}{869.6} \\
+    \bottomrule
+  \end{tabular}
+\end{table}

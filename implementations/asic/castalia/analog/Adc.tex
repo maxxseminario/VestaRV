@@ -1,0 +1,42 @@
+% Master include for Adc. HAND-WRITTEN: the fragments of this section are not
+% maestro2tex output -- they are derived from the archived CSV named in each
+% fragment header, simarchive/tb_anatop_pixel_adc/adc_transfer.csv.
+%%
+%% Usage from the TRM (which builds with cwd = latex/TRM/):
+%     \input{include/analog/Adc.tex}
+%
+%% Needs pgfplots, booktabs, siunitx, graphicx and placeins -- all already in
+%% packages-commands.tex. \providecolor needs xcolor (also present).
+
+\providecommand{\MaestroRoot}{include/analog/}
+
+% Categorical palette: slots 1-5 of the validated reference palette,
+% in documented order. Dash patterns are a secondary encoding for print.
+\providecolor{mtxA}{HTML}{2A78D6}
+\providecolor{mtxB}{HTML}{EB6834}
+\providecolor{mtxC}{HTML}{1BAF7A}
+\providecolor{mtxD}{HTML}{EDA100}
+\providecolor{mtxE}{HTML}{E87BA4}
+
+% Placeholder float macro, used below for any figure of this section that has
+% not been drawn yet.
+\input{\MaestroRoot duckplaceholder.tex}
+
+% Keep this block's floats inside this block (see placeins).
+\FloatBarrier
+
+\input{\MaestroRoot note_adc_intro.tex}
+\IfFileExists{\MaestroRoot sch_adc_sar.tex}%
+  {\input{\MaestroRoot sch_adc_sar.tex}}%
+  {\duckplaceholder{Generic 10-bit charge-redistribution SAR converter:
+    sampling network, capacitor DAC, comparator and successive-approximation
+    register.}{fig:adc-sar}}
+\input{\MaestroRoot fig_adc_capdac_layout.tex}
+\input{\MaestroRoot note_adc_transfer.tex}
+\input{\MaestroRoot fig_adc_transfer.tex}
+\input{\MaestroRoot fig_adc_error.tex}
+\input{\MaestroRoot tab_adc_transfer.tex}
+\input{\MaestroRoot note_adc_power.tex}
+\input{\MaestroRoot tab_adc_power.tex}
+
+\FloatBarrier

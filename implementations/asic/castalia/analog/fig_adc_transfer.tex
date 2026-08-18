@@ -1,0 +1,40 @@
+%% HAND-WRITTEN figure fragment (matches the maestro2tex house style).
+%% Data: data/adc_transfer_00.dat (measured), data/adc_transfer_01.dat (ideal),
+%% both from simarchive/tb_anatop_pixel_adc/adc_transfer.csv.
+\providecommand{\MaestroRoot}{include/analog/}
+\begin{figure}[htbp]
+  \centering
+  {\pgfplotsset{compat=1.18}%
+  \begin{tikzpicture}
+    \begin{axis}[
+      width=0.82\linewidth, height=6.2cm,
+      xlabel={Input voltage~[\si{\volt}]}, ylabel={Output code},
+      grid=both,
+      major grid style={line width=0.2pt, draw=black!14},
+      minor grid style={line width=0.2pt, draw=black!7},
+      minor tick num=1,
+      axis line style={line width=0.4pt, draw=black!45},
+      tick style={line width=0.4pt, draw=black!45},
+      tick align=outside,
+      label style={font=\small}, tick label style={font=\small},
+      enlarge x limits=0.03, enlarge y limits=0.08,
+      every axis plot/.append style={line join=round},
+      legend style={font=\footnotesize, draw=black!25, fill=white,
+                    fill opacity=0.9, text opacity=1, row sep=1pt},
+      legend cell align=left, legend pos=north west,
+      scaled y ticks=false, scaled x ticks=false,
+      xtick={0,0.5,1,1.5,2,2.5},
+      ytick={0,256,512,768,1024},
+      y tick label style={/pgf/number format/fixed}
+    ]
+      \addplot[mtxA, line width=1.1pt, solid, mark=*, mark size=1.6pt]
+        table {\MaestroRoot data/adc_transfer_00.dat};
+      \addlegendentry{measured, extracted}
+      \addplot[mtxB, line width=1.0pt, dashed, no marks]
+        table {\MaestroRoot data/adc_transfer_01.dat};
+      \addlegendentry{ideal, \num{409.6}~codes/V}
+    \end{axis}
+  \end{tikzpicture}}
+  \caption[{Output code against input voltage, extracted \texttt{anatop\_pixel\_adc},\,\dots}]{Output code against input voltage for the extracted \texttt{anatop\_pixel\_adc}, nominal corner, \SI{37}{\celsius}, \SI{2.5}{\volt} analog and \SI{1.0}{\volt} digital supplies, with the ideal \num{409.6}~codes/V line overlaid. The transfer is monotonic and reaches both code limits, but its slope is \num{628.85}~codes/V --- \num{1.535} times ideal --- so the flat segments below \SI{0.44}{\volt} and above \SI{2.07}{\volt} are the code limits, not the ends of the sweep. Markers are the eleven simulated points; the \SI{0.25}{\volt} step is 157 codes, so the curve between them is interpolation and carries no linearity information.}
+  \label{fig:adc-transfer}
+\end{figure}

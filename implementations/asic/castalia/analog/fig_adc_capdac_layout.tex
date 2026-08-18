@@ -1,0 +1,11 @@
+%% HAND-WRITTEN figure fragment. Image lives in the shared TRM figure store,
+%% platform/common/latex/figures/CDAC_layout.png, which LatexUserGuide copies to
+%% latex/TRM/figures/ at `make chip` time. packages-commands.tex sets
+%% \graphicspath{{./},{./figures/}}, so the path below resolves from the TRM
+%% build directory.
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.8\linewidth]{figures/CDAC_layout.png}
+  \caption[{Floor plan of the 10-bit segmented capacitor array of \texttt{anatop\_pixel\_adc},\,\dots}]{Floor plan of the 10-bit segmented capacitor array of \texttt{anatop\_pixel\_adc}. The five lower bits b0--b4 are binary-weighted within single strips, each strip split into a positive and a negative section whose boundary sets the weight; the upper bits b5--b8 and the MSB b9 are unary, built from repeated identical strips, and every row terminates in CDAC I/O at both ends. Unary segmentation of the large weights makes their ratio a count of identical unit strips rather than the dimension of one large device, so it is set by matching; the dummy rows at the top and bottom of the array give the outermost active strips the same local surroundings as interior ones. The array exists only in layout, which is why this section's data is taken from an extracted netlist.}
+  \label{fig:adc-capdac}
+\end{figure}

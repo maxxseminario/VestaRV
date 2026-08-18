@@ -30,7 +30,8 @@ in Section~\ref{s:regMemMap}.
 Unless stated otherwise, every figure and table in this chapter is taken from
 schematic-level simulation of the block's own testbench (pre-layout, with no
 extracted parasitics), and is therefore a design-intent characterisation rather
-than silicon data. Each block section names the testbench it came from and the
+than silicon data. The SAR ADC section is the one exception and runs on an
+extracted netlist; it says so at its head. Each block section names the testbench it came from and the
 process, temperature and supply points that were simulated, so the coverage behind
 each number is explicit. Numbers are regenerated directly from the simulator's
 results database rather than transcribed by hand.
@@ -42,9 +43,9 @@ the benches use are defined once in Section~\ref{ss:analog-models}. This revisio
 the local bias generator, the class-AB amplifier that serves as both the
 channel's transimpedance amplifier (A2) and its potentiostat control amplifier
 (A1), the complete potentiostat pixel system built from a pair of those
-amplifiers around a three-electrode cell, and the 12-bit R-2R reference DAC
-with the supply block that feeds it; the data converters will be added to this
-chapter as their benches are closed.
+amplifiers around a three-electrode cell, the 10-bit SAR analog-to-digital
+converter that closes the channel, and the 12-bit R-2R reference DAC with the
+supply block that feeds it.
 
 \subsection*{Characterisation coverage}
 
@@ -56,12 +57,15 @@ Block & Section & Benches & Corners & Monte Carlo \\
 Bias generator        & \ref{ss:biasgen-local} & 2 & \checkmark & n/a \\
 Class-AB amplifier    & \ref{ss:ampab}         & 6 & \checkmark & \checkmark \\
 Potentiostat pixel system & \ref{ss:pixel}     & 6 & \checkmark & \checkmark \\
+SAR ADC               & \ref{ss:adc}          & 1 & --- & --- \\
 Reference DAC         & \ref{ss:dacr2r12}      & 6 & \checkmark & \checkmark \\
 \bottomrule
 \end{tabular}
 \end{center}
 
-\noindent Corner runs cover process, temperature and supply at the five points listed in
+\noindent A dash means the run has not been made: the SAR ADC is characterised at the
+nominal corner only, and its section states that limit alongside every number.
+Corner runs cover process, temperature and supply at the five points listed in
 each block section. Monte Carlo runs cover process and mismatch together; a corner figure
 and a Monte Carlo \(\sigma\) are different quantities and are reported separately
 throughout. Design
@@ -82,4 +86,5 @@ reports the measurement.
 \input{include/analog/BiasGenCascWideSwing.tex}
 \input{include/analog/AmpAB.tex}
 \input{include/analog/Pixel.tex}
+\input{include/analog/Adc.tex}
 \input{include/analog/DacR2R12.tex}

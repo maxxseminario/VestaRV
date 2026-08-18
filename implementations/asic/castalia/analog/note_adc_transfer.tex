@@ -1,0 +1,34 @@
+% HAND-WRITTEN fragment -- placed by Adc.tex. Numbers from tab_adc_transfer.tex,
+% fig_adc_transfer.tex and fig_adc_error.tex, all derived from
+% simarchive/tb_anatop_pixel_adc/adc_transfer.csv.
+
+\subsubsection{Transfer Function}\label{sss:adc-transfer}
+
+The converter is monotonic across the whole sweep, reading code 0 at
+\SI{0}{\volt} and code 1023 at \SI{2.5}{\volt} (Figure~\ref{fig:adc-transfer}).
+Codes climb 1.535 times faster than ideal: a least-squares fit to the seven
+unclipped points from \SIrange{0.5}{2.0}{\volt} gives \num{628.85} codes per
+volt against the ideal \num{409.60}, so the effective full-scale input span is
+\SI{1.628}{\volt} rather than the \SI{2.5}{\volt} supply span, and the effective
+LSB is \SI{1.590}{\milli\volt} rather than \SI{2.441}{\milli\volt}
+(Table~\ref{tab:adc-transfer}). Extrapolating that fit puts code 0 at
+\SI{0.441}{\volt} and code 1023 at \SI{2.068}{\volt}, a window centred on
+\SI{1.255}{\volt} --- the \SI{1.25}{\volt} channel common mode. The converter
+clips outside that window, losing \SI{34.9}{\percent} of the intended input
+range, split between the two ends rather than concentrated at one: a
+full-scale transimpedance swing about $V_{\mathrm{CM}}$ is truncated
+symmetrically.
+
+Top-plate parasitic capacitance is the leading explanation. In a
+charge-redistribution SAR the array's own parasitic divides the feedback DAC
+swing by $C_{\mathrm{array}}/(C_{\mathrm{array}} + C_{\mathrm{par}})$, which
+raises the codes-per-volt slope by the reciprocal of that factor and shrinks the
+input span in the same proportion; a ratio of 1.535 implies $C_{\mathrm{par}}
+\approx 0.535\,C_{\mathrm{array}}$. It is consistent with the measured window
+being centred on the common mode instead of offset from it, and with the effect
+appearing only in the extracted netlist. It has not been confirmed by inspecting
+the top-plate node, and no other mechanism has been excluded.
+
+Departure from the fitted line is at most \num{0.43}~LSB over the fitted range
+(Figure~\ref{fig:adc-error}). That is a residual of a seven-point fit at
+157 codes per step, not a linearity figure.
