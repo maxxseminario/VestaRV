@@ -6,11 +6,11 @@
 
 The converter is monotonic across the whole sweep, reading code 0 at
 \SI{0}{\volt} and code 1023 at \SI{2.5}{\volt} (Figure~\ref{fig:adc-transfer}).
-Codes climb 1.535 times faster than ideal: a least-squares fit to the seven
-unclipped points from \SIrange{0.5}{2.0}{\volt} gives \num{628.85} codes per
+Codes climb 1.535 times faster than ideal: a least-squares fit to the 24
+unclipped points of a \SI{0.0625}{\volt} sweep over \SIrange{0.5}{2.0}{\volt} gives \num{628.64} codes per
 volt against the ideal \num{409.60}, so the effective full-scale input span is
-\SI{1.628}{\volt} rather than the \SI{2.5}{\volt} supply span, and the effective
-LSB is \SI{1.590}{\milli\volt} rather than \SI{2.441}{\milli\volt}
+\SI{1.627}{\volt} rather than the \SI{2.5}{\volt} supply span, and the effective
+LSB is \SI{1.591}{\milli\volt} rather than \SI{2.441}{\milli\volt}
 (Table~\ref{tab:adc-transfer}). Extrapolating that fit puts code 0 at
 \SI{0.441}{\volt} and code 1023 at \SI{2.068}{\volt}, a window centred on
 \SI{1.255}{\volt} --- the \SI{1.25}{\volt} channel common mode. The converter
@@ -29,17 +29,17 @@ being centred on the common mode instead of offset from it, and with the effect
 appearing only in the extracted netlist. It has not been confirmed by inspecting
 the top-plate node, and no other mechanism has been excluded.
 
-Departure from the fitted line is at most \num{0.43}~LSB over the fitted range
-(Figure~\ref{fig:adc-error}). That is a residual of a seven-point fit at
-157 codes per step, not a linearity figure.
+Departure from the fitted line is at most \num{0.52}~LSB over the fitted range
+(Figure~\ref{fig:adc-error}). That is a residual of a 24-point fit at
+\num{39} codes per step, not a linearity figure.
 
 Referred to its own range instead of the nominal one the picture separates
 (Table~\ref{tab:adc-transfer}). The usable window is \SIrange{0.441}{2.068}{\volt},
-\SI{1.628}{\volt} wide against the \SI{2.5}{\volt} span and centred on the
+\SI{1.627}{\volt} wide against the \SI{2.5}{\volt} span and centred on the
 common mode (Figure~\ref{fig:adc-range}); \SI{34.9}{\percent} of the nominal
 range is unreachable, split \SI{0.441}{\volt} low and \SI{0.432}{\volt} high.
-Across that window the effective LSB is \SI{1.590}{\milli\volt} rather than
-\SI{2.441}{\milli\volt}, and each code sits within \num{0.429}~LSB of the
-measured line, \num{0.247}~LSB rms (Figure~\ref{fig:adc-inl}). The two defects
+Across that window the effective LSB is \SI{1.591}{\milli\volt} rather than
+\SI{2.441}{\milli\volt}, and each code sits within \num{0.523}~LSB of the
+measured line, \num{0.294}~LSB rms (Figure~\ref{fig:adc-inl}). The two defects
 are therefore separable: the range is short by a third, and within what remains
 the transfer is straight to better than half a code at the sampled inputs.
