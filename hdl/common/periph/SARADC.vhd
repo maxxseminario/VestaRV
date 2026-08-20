@@ -1,6 +1,6 @@
 /* -----------------------------------------------------------------------------
    SARADC.vhd: memory-mapped controller for the off-die 10-bit SAR ADC: it generates the trigger clock, latches ADC_data_i on the rising edge of ADC_ready_i (a capture into a still-full result sets overflow), and raises irq while data is valid and its enable bit is set.
-   The trigger clock is a 16-bit one-hot shift register clocked on the falling edge of clk: bit 14 is the clear phase, bit 12 the sample phase stretched by the SARADC_CR sample-step countdown, and bits 11 down to 1 the conversion phase; the combined waveform is registered once more before leaving the block to keep the shift-register bit off a long output path.
+   The trigger clock is a 16-bit one-hot shift register clocked on the falling edge of clk: bit 14 is the clear phase, bit 12 the sample phase stretched by the SARADC_CR sample-step countdown, and bits 11 down to 1 the conversion phase. The three phase flags are re-registered on the falling edge of clk to keep the shift-register bits off the output path, and the conversion clock is gated with clk combinationally after those registers, so one trigger period carries twelve falling edges: clear, sample, and ten conversion pulses.
    Registers: SARADC_CR control, SARADC_SR status (stored inverted in SARADC_SR_ltch, re-inverted on read, data-valid and overflow are write-1-to-clear), SARADC_DATA result, SARADC_TPR debug test-port select.
    ----------------------------------------------------------------------------- */
 
@@ -92,8 +92,10 @@ architecture rtl of SARADC is
     -- Write-1-to-clear strobes raised by a SARADC_SR write.
    signal clr_data_valid, clr_adc_ovf_if : std_logic;
 
-    -- Registered trigger clock, keeping the hold-critical path off ADC_sync_clock_phase_shift_reg(14).
-    signal adc_sync_clock_reg : std_logic;
+    -- Phase flags re-registered on the falling edge of clk. These, not the shift-register bits, drive the output stage, so no shift-register bit reaches ADC_trigger_clock_o through combinational logic.
+    signal ADC_sync_clock_clear_phase_r      : std_logic;
+    signal ADC_sync_clock_sample_phase_r     : std_logic;
+    signal ADC_sync_clock_conversion_phase_r : std_logic;
 
 begin
 
@@ -247,16 +249,24 @@ begin
     -- Clock waveform generation.
     ADC_trigger_clock_o <= ADC_sync_clock;
 
-    -- Register the waveform here: ADC_sync_clock_clear_phase comes combinationally off shift-register bit 14, so driving ADC_trigger_clock_o directly is a long path from a register bit to an output and violates hold.
-    Clock_Output_Register: process(clk, reset_i)
+    -- Output stage. What leaves this block is a gated clock, so the three phase flags are registered first and the conversion clock is gated combinationally downstream of those registers.
+    -- Registering the flags rather than the finished waveform is what makes the gating survive. The superseded Clock_Output_Register loaded the whole expression on rising_edge(clk), where clk is already '1', so (ADC_sync_clock_conversion_phase and clk) degenerated to ADC_sync_clock_conversion_phase and the flop captured a level: the output emitted one 500 ns block instead of ten 25 ns pulses, three falling edges per trigger period instead of twelve. The off-die SAR register clocks on the negative edge, so that cost four trigger periods per conversion.
+    -- The flags are registered on the FALLING edge of clk, matching the phase shift register they come from. The gate enable therefore changes while clk is low, so every conversion pulse is a full, glitch-free clk high phase. Registering on the rising edge would move the enable transition into the middle of a high phase and chop the first and last pulses.
+    -- This also keeps the hold-critical path the register was added for off the output: ADC_sync_clock_clear_phase comes combinationally off shift-register bit 14, and it is now the flop input, not the pin driver. The async reset on the shift register likewise no longer reaches the pin combinationally, so clearing adc_en cannot glitch the output.
+    Phase_Flag_Register: process(clk, reset_i)
     begin
         if reset_i = '1' then
-            ADC_sync_clock_reg <= '0';
-        elsif rising_edge(clk) then
-            ADC_sync_clock_reg <= ADC_sync_clock_clear_phase or ADC_sync_clock_sample_phase or (ADC_sync_clock_conversion_phase and clk);
+            ADC_sync_clock_clear_phase_r      <= '0';
+            ADC_sync_clock_sample_phase_r     <= '0';
+            ADC_sync_clock_conversion_phase_r <= '0';
+        elsif falling_edge(clk) then
+            ADC_sync_clock_clear_phase_r      <= ADC_sync_clock_clear_phase;
+            ADC_sync_clock_sample_phase_r     <= ADC_sync_clock_sample_phase;
+            ADC_sync_clock_conversion_phase_r <= ADC_sync_clock_conversion_phase;
         end if;
     end process;
-    ADC_sync_clock <= ADC_sync_clock_reg;
+
+    ADC_sync_clock <= ADC_sync_clock_clear_phase_r or ADC_sync_clock_sample_phase_r or (ADC_sync_clock_conversion_phase_r and clk);
 
     -- Memory-mapped register interface.
     en_addr_periph <= slv2uint(addr_periph) when en_mem = '0' else 0;
