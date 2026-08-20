@@ -64,14 +64,14 @@ A single conversion is triggered by writing any value to \texttt{AFE\_ADC\_VAL} 
   \begin{subfigure}[b]{0.44\linewidth}
     \centering
     \includegraphics[width=\linewidth]{figures/fsmstatediagram.png}
-    \caption{DSADC FSM state diagram. The FSM exits idle on a write to \texttt{AFE\_ADC\_VAL} (or immediately in continuous mode), runs the integration and deintegration phases, then asserts \texttt{DATARDYIF}.}
+    \caption{DSADC FSM state diagram. \texttt{start}\,=\,1 (a write to \texttt{AFE\_ADC\_VAL}, or the automatic restart in continuous mode) leaves \texttt{Idle}; the \texttt{Reset}, \texttt{Integrate} and \texttt{Deintegrate} states each dwell until their cycle counter expires, and \texttt{Deintegrate} also exits on the comparator. \texttt{Store} latches the result and raises \texttt{done}, which sets \texttt{DATARDYIF}. The \texttt{sw1}--\texttt{sw3} annotations are the integrator switch controls asserted in each state.}
     \label{fig:afe-fsm}
   \end{subfigure}%
   \hfill
   \begin{subfigure}[b]{0.52\linewidth}
     \centering
     \includegraphics[width=\linewidth]{figures/dsTimingDia.png}
-    \caption{DSADC control signal timing diagram showing the reset, integration, and deintegration phases together with the counter direction and the conversion-done pulse.}
+    \caption{DSADC control-signal timing across one conversion. \texttt{ADC Ready} deasserts for the whole conversion; the switch controls $S_1$, $S_2$ and $S_3$ select the reset, integration and deintegration phases in turn, and \texttt{Conv Done} pulses as the result is latched. The double slashes mark the phases whose length is set by a cycle count and is not to scale.}
     \label{fig:afe-dstiming}
   \end{subfigure}
   \caption{DSADC finite state machine and timing signals.}
@@ -109,7 +109,7 @@ Two status flags in \texttt{AFE\_SR} indicate conversion state:
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.75\linewidth]{figures/peripheral.png}
-  \caption{AFE digital peripheral block. The memory-mapped register interface connects the microcontroller bus to the DSADC FSM, bias DACs, and test port multiplexer. Clock gating minimises power when the AFE is idle.}
+  \caption{AFE digital peripheral block. Inside the peripheral boundary the memory-mapped register file splits into the reference-generator, DSADC and potentiostat trim groups (top) and the \texttt{AFE\_CR}, \texttt{BIAS\_CR} and \texttt{AFE\_SR} registers (bottom); every group drives the analog front end over the same control bus. Widths are the implemented register widths, not the memory-map word size.}
   \label{fig:afe-peripheral}
 \end{figure}
 

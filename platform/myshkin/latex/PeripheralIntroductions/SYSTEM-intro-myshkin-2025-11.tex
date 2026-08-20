@@ -12,7 +12,8 @@ Two clocks, the main clock (MCLK) and the submain clock (SMCLK), form the roots 
 MCLK cannot be turned off, but SMCLK and individual source clocks can be independently disabled via \register{SYSCLKCR}. DCO0 and DCO1 are off by default and must be explicitly powered on by setting \bitfield{DCO0ON} or \bitfield{DCO1ON}. HFXT and LFXT are enabled by default and may be disabled with \bitfield{HFXTOFF} and \bitfield{LFXTOFF}. If a source clock is currently selected by MCLK or SMCLK, that source will be automatically kept enabled regardless of its disable bit in \register{SYSCLKCR}.
 
 \begin{figure}[htpb]
-\includesvg{figures/clocks-myshkin-2025-11}
+\centering
+\includegraphics{figures/clocks-myshkin-2025-11.pdf}
 \caption{MCU Clock System}
 \label{fig:mcu-clock-system}
 \end{figure}

@@ -20,9 +20,9 @@
 \lhead{Technical Reference Manual for \AsicNameForUserGuide}
 \chead{}
 \rhead{\thepage\ of \pageref{LastPage}}
-\lfoot{\small{University of Nebraska--Lincoln}}
+\lfoot{\small{\AsicNameForUserGuide}}
 \cfoot{}
-\rfoot{\small{Department of Electrical \& Computer Engineering}}
+\rfoot{\small{Revised \RevisionDateFull}}
 \renewcommand{\footrulewidth}{0.5pt}
 
 
@@ -37,11 +37,7 @@
 \begin{center}
 	\textbf{Technical Reference Manual for \AsicNameForUserGuide} \\
 	\vspace{2ex}
-	Revised \RevisionDateFull \\
-	\vspace{8ex}
-	University of Nebraska--Lincoln \\
-	Department of Electrical \& Computer Engineering \\
-	\vspace{4ex}
+	Revised \RevisionDateFull
 \end{center}
 
 \newpage
@@ -752,7 +748,79 @@ It is highly suggested to use the provided Python program \bashinline{forthprog.
 Listed are the known issues with the {\AsicNameForUserGuide} MCU:
 
 \begin{itemize}
-	\item 
+	\item \textbf{\peripheral{SARADC} converts at one quarter of the intended rate.}
+	The ADC macro completes one conversion every four trigger periods instead of one.
+	With \bitfield{SAMPLESTEP}~=~7 the trigger period is 23 peripheral-clock cycles,
+	1.15~\si{\micro\second} at 20~\si{\mega\hertz}, so a conversion takes
+	4.60~\si{\micro\second} --- 217~kSa/s in place of the intended 870~kSa/s.
+
+	The trigger waveform is produced by registering the gated expression
+	\texttt{clear or sample or (conversion and clk)} on the rising edge of \texttt{clk}.
+	At a rising edge \texttt{clk} is already~1, so the gating term is a constant and the
+	flip-flop captures a level rather than passing a gated clock. The conversion phase
+	emerges as a single flat 500~\si{\nano\second} high instead of ten
+	25~\si{\nano\second} pulses, leaving three falling edges per trigger period instead
+	of twelve. The converter's successive-approximation register is clocked on the
+	negative edge, so it accumulates its ten bit decisions over four trigger periods.
+	Simulation places the ready strobe at 8.56, 13.16 and 17.76~\si{\micro\second},
+	exactly 4~$\times$~1.15~\si{\micro\second} apart.
+
+	Conversion results are correct: the converter returns the same code it would with the
+	intended waveform and only takes four times as long, so codes read correctly on the
+	bench. Firmware must allow 4.60~\si{\micro\second} per conversion.
+	\bitfield{DATAVALID} and its interrupt remain the correct completion signal, because
+	the result is latched on the rising edge of the macro's ready output, inside the
+	approximately 100~\si{\nano\second} window during which the data bus holds the result
+	before returning to its idle all-ones state; code that instead assumes completion after
+	a fixed delay of one trigger period reads the idle value, not a result.
+
+	There is no workaround on this silicon --- the trigger waveform is fixed in the gate
+	netlist. Continuous-measurement mode (\bitfield{CONTMEAS}) still streams conversions
+	back to back, so the only loss is sample rate. Corrected in the RTL for subsequent
+	chips.
+
+	\item \textbf{The bootloader cannot boot from SPI flash.}
+	Chip select is never deasserted between the flash wake-up command and the read
+	command that follows it. The flash sees one uninterrupted transaction, never decodes
+	the read opcode, and returns no program data, so a program stored in the SPI flash
+	cannot be booted.
+
+	The bootloader drives the flash on \peripheral{SPI0} and controls chip select by hand
+	on \pin{P0.0}, held in primary/GPIO mode, through the \peripheral{GPIO0} output set
+	and clear registers. It clears the CS bit through \register{P0OUTC}, sends the flash
+	wake-up command \texttt{0xAB}, waits for the transfer to complete, then writes
+	\register{P0OUTS} to release CS. The value written is wrong. The CS mask
+	\texttt{0x01} is held in \asminline{a4}, but the store uses \asminline{a2}, which was
+	reloaded with the RAM base address during setup: the ROM image writes
+	\texttt{0x00008000} (\asminline{lui a2,0x8} at \texttt{0x34}, \asminline{sw a2,8(a1)}
+	at \texttt{0x78}), which sets no bit of \register{P0OUTS} and leaves CS asserted. The
+	high-frequency read command \texttt{0x0B}, the 24-bit start address and the dummy byte
+	are then clocked into the transaction that began with \texttt{0xAB}.
+
+	The bootloader resides in mask ROM, so there is no workaround on this silicon. Boot in
+	Forth mode instead: hold \pin{BOOT} LOW, load the program into RAM over
+	\peripheral{UART0} with the ROM Forth interpreter (Section \ref{s:forth}), and jump to
+	its entry point. The flash upload procedure of Section \ref{s:programming} is
+	unaffected, as it runs from Forth mode; only booting from the flash fails.
+
+	\item \textbf{The potentiostat control loop oscillates at the counter electrode.}
+	The counter electrode voltage of the \peripheral{AFE} oscillates. Compensation between
+	the control amplifier $A_1$ and the current-sensing branch is insufficient, and the
+	loop is not unconditionally stable.
+
+	The sensing mirror sits inside the control loop. $A_1$ delivers the cell current to CE
+	through the regulated cascode current mirror $Q_1$--$Q_6$
+	(Figure~\ref{fig:afe-potschem}), which duplicates that current for the transimpedance
+	amplifier $A_2$, so the mirror pole lies in the feedback path that holds
+	$V_\mathrm{RE} = v_\mathrm{pattern}$ and is not compensated. The phase margin above
+	60\degree{} quoted in Section \ref{peripheralAFE} does not hold on silicon.
+
+	Measurements taken while the loop oscillates are not valid: RE is not held at the
+	programmed potential and the mirrored current does not track the cell current, so both
+	the applied potential and the digitised current are wrong. Chronoamperometry and
+	cyclic voltammetry data acquired in this condition must be discarded. No register
+	trims the control-amplifier compensation --- \bitfield{BIAS\_TC\_POT} and
+	\bitfield{BIAS\_LC\_POT} act on $A_2$ --- so there is no workaround on this silicon.
 \end{itemize}
 
 

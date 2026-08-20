@@ -47,6 +47,7 @@ class LatexUserGuide():
 
 	SaveDirectory = None	# {chip root directory}/latex/TRM
 	IncludeDirectory = None	# {SaveDirectory}/include
+	LatexSourceDirectory = None	# {chip root directory}/latex  -- the ONLY place TRM inputs are read from
 
 	# CP6 ANALOG-CHAPTER LINEAGE (see CopyAnalogChapter).
 	#   <lower-cased chipName>  ->  <lower-cased chipName whose analog/ it shares>
@@ -67,6 +68,32 @@ class LatexUserGuide():
 			raise Exception('outDirectoryPath does not exist: ' + str(outDirectoryPath))
 		self.SaveDirectory = outDirectoryPath
 		self.IncludeDirectory = self.SaveDirectory + '/include'
+
+		# CP7 PER-CHIP LATEX SOURCES (2026-08-20).
+		#
+		# Every TRM input -- figures, the master template, packages-commands and the
+		# peripheral introductions -- USED TO be read as
+		# `ThisFileDirectory + '/../latex/...'`, i.e. relative to the directory this
+		# MODULE lives in rather than to the CHIP being built. That is only correct
+		# while exactly one chip uses this module: the moment a second chip's
+		# generator imports it, that chip's manual silently sources its figures out
+		# of the first chip's store (this is how myshkin's TRM came to reference
+		# `dualslopeupd.png`, a file that exists only under platform/common/).
+		#
+		# The path is now derived from the chip generator's own root, so a chip's
+		# manual is built ONLY from that chip's directories. Shared content is
+		# shared by having a COPY of the file in each chip's tree -- deliberately,
+		# not by a cross-tree path -- so pruning one chip's figures can never break
+		# the other's build.
+		#
+		# `ChipRootDirectory` is already absolute and slash-normalised by
+		# ChipGenerator.__init__. For Castalia (platform/common) this resolves to
+		# exactly the old path, so the existing build is unchanged.
+		self.LatexSourceDirectory = os.path.abspath(self.Gen.ChipRootDirectory + '/latex').replace('\\', '/')
+		if not os.path.isdir(self.LatexSourceDirectory):
+			raise Exception('The chip\'s LaTeX source directory does not exist: '
+				+ self.LatexSourceDirectory
+				+ ' (expected <chip root>/latex for chip ' + str(self.Gen.AsicName) + ')')
 		return
 	
 	def Generate(self):
@@ -172,7 +199,7 @@ class LatexUserGuide():
 		for pt in pts:
 			if pt.LatexIntroFileName is None:
 				continue
-			path = self.ThisFileDirectory + '/../latex/PeripheralIntroductions/' + pt.LatexIntroFileName
+			path = self.LatexSourceDirectory + '/PeripheralIntroductions/' + pt.LatexIntroFileName
 			if not os.path.isfile(path):
 				raise Exception('The latex introduction for peripheral ' + pt.NameTemplate + ' does not exist at path ' + path)
 			copyfile(path, self.SaveDirectory + '/include/' + pt.LatexIntroFileName)
@@ -180,17 +207,17 @@ class LatexUserGuide():
 		# Copy any extra intro tex files that the master template inputs directly (e.g. the multi-core chapter)
 		if self.Gen.ExtraLatexIntroFiles is not None:
 			for fileName in self.Gen.ExtraLatexIntroFiles:
-				path = self.ThisFileDirectory + '/../latex/PeripheralIntroductions/' + fileName
+				path = self.LatexSourceDirectory + '/PeripheralIntroductions/' + fileName
 				if not os.path.isfile(path):
 					raise Exception('The extra latex introduction file does not exist at path ' + path)
 				copyfile(path, self.SaveDirectory + '/include/' + fileName)
 
 		# Copy the master MCU User Guide template tex file
-		path = self.ThisFileDirectory + '/../latex/' + self.Gen.McuUserGuideLatexTemplateFileName
+		path = self.LatexSourceDirectory + '/' + self.Gen.McuUserGuideLatexTemplateFileName
 		copyfile(path, self.SaveDirectory + '/TRM.tex')
 
 		# Copy the packages and commands tex file
-		path = self.ThisFileDirectory + '/../latex/packages-commands.template.tex'
+		path = self.LatexSourceDirectory + '/packages-commands.template.tex'
 		copyfile(path, self.SaveDirectory + '/packages-commands.tex')
 
 		## Copy the tikzit.sty file
@@ -201,8 +228,20 @@ class LatexUserGuide():
 		#path = self.ThisFileDirectory + '/../latex/murray.template.tikzstyles'
 		#copyfile(path, self.SaveDirectory + '/murray.tikzstyles')
 
-		# Copy the figures directory
-		path = self.ThisFileDirectory + '/../latex/figures'
+		# Copy the figures directory -- from THIS CHIP's store, never another's.
+		#
+		# CP7. There is no fallback and there is no shared store: a chip that has
+		# no latex/figures/ of its own is a build error, not an invitation to
+		# borrow the neighbouring chip's images. A figure both chips genuinely
+		# need exists as two files, one per tree. The error names the directory it
+		# wanted so the fix is `mkdir` + copy the figures in, which is the intended
+		# answer -- not re-pointing the generator across trees.
+		path = self.LatexSourceDirectory + '/figures'
+		if not os.path.isdir(path):
+			raise Exception('No figures directory for chip ' + str(self.Gen.AsicName)
+				+ ': expected ' + path + '. Each chip owns its own figures; create the'
+				+ ' directory and copy in the figures its TRM references (shared figures'
+				+ ' are duplicated per chip on purpose, never sourced across chip trees).')
 		dst = self.SaveDirectory + '/figures'
 		if not os.path.isdir(dst):
 			os.makedirs(dst)
