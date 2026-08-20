@@ -812,8 +812,11 @@ Listed are the known issues with the {\AsicNameForUserGuide} MCU:
 	through the regulated cascode current mirror $Q_1$--$Q_6$
 	(Figure~\ref{fig:afe-potschem}), which duplicates that current for the transimpedance
 	amplifier $A_2$, so the mirror pole lies in the feedback path that holds
-	$V_\mathrm{RE} = v_\mathrm{pattern}$ and is not compensated. The phase margin above
-	60\degree{} quoted in Section \ref{peripheralAFE} does not hold on silicon.
+	$V_\mathrm{RE} = v_\mathrm{pattern}$ and is not compensated. The mirror is not a
+	passive branch: driving the cell impedance it contributes voltage gain, so the loop
+	closes around two gain stages while only $A_1$ is compensated. The phase margin above
+	60\degree{} quoted in Section \ref{peripheralAFE} is the control amplifier alone; it
+	does not describe the loop that closes on silicon.
 
 	Measurements taken while the loop oscillates are not valid: RE is not held at the
 	programmed potential and the mirrored current does not track the cell current, so both
