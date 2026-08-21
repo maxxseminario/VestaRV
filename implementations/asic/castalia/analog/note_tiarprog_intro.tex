@@ -25,7 +25,8 @@ N = \mathrm{bin}(\texttt{ResEn<5:0>}) + 64\cdot\mathrm{popcount}(\texttt{ThEn<3:
 ladder is a series chain of identical poly units --- a three-unit fixed base, six
 binary-weighted segments of 1 to 32 units, and four thermometer segments of 64
 units --- each switched segment shunted by a CMOS bypass transmission gate
-(the thermometer gates at twice the binary gates' width). A control bit at 1
+(the thermometer gates at twice the binary gates' width;
+Figure~\ref{fig:tiarprog-switch}). A control bit at 1
 opens its gate and inserts the segment; terminals are \texttt{A}, \texttt{B} and
 the ten control bits, with the gate supplies arriving by inherited connection.
 

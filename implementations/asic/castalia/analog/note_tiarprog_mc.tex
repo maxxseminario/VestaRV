@@ -9,9 +9,26 @@
 % device default is 0, which runs MC with no mismatch at all), the netlist
 % contains a real `montecarlo` statement, and mcdata holds 200 varying rows
 % with no sentinel entries.
+%
+% The spec windows and yields in the second paragraph come from the
+% 2026-08-21 spec-evaluated re-run simruns/tb_anatop_tia_rprog_mcspec (same
+% seed/sampling; sample 1 reproduces 19654.6 / 396910.8 / 403793.6 ohm for
+% r_mc_0/63/64, bit-identical to the archived run), whose mcparam carries the
+% limits that tab_tiarprog_mc is regenerated from.
 
 Corners move every code by the same sheet-resistance factor, so matching ---
 the property that decides whether a 64-unit thermometer segment can invert a
 step against 63 binary units --- is invisible to them. The Monte Carlo run
 therefore grades the seam directly, per sample, alongside the absolute spread
 at four codes.
+
+Every graded code carries a \(\pm 5\,\%\) absolute window about its typical
+value, and the seam a monotonicity limit at zero; all five yield 100.0\,\% over
+the 200 samples (Table~\ref{tab:tiarprog-mc}). The margins are not close: the
+nearest limit sits \(14.2\sigma\) from the mean at \(N{=}0\), \(54\sigma\) at
+\(N{=}63\), \(55\sigma\) at \(N{=}64\) and \(134\sigma\) at \(N{=}319\), and
+the worst seam sample is \(14.7\sigma\) above zero. Mismatch is therefore
+nowhere near yield-limiting for this block; the items that need engineering
+attention are the deterministic ones graded in
+Table~\ref{tab:tiarprog-spec} --- bottom-code linearity and slow-corner
+top-code compliance.
