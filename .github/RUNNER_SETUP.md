@@ -29,6 +29,26 @@ this box's libicu ships SUSE-suffixed sonames .NET cannot probe) and `.path`
 (riscv-none-elf toolchain first) pre-written; only `config.sh` (needs a fresh
 registration token from the GUI) and the service install remain.
 
+**DEFECT FOUND 2026-08-21 — the `cadence` label was never applied.** The
+2026-07-18 `config.sh` run was interactive and Enter was pressed at the
+"additional labels" prompt (`_diag/Runner_20260718-183620-utc.log`: `Read
+value: ''`), so runner `atlas` carries only `self-hosted, Linux, X64`.
+`runs-on: [self-hosted, cadence]` therefore NEVER matches: the listener sits
+healthy and idle while every `sim.yml` job queues until the next push's
+concurrency-group entry cancels it — which is why every sim run since July
+shows "cancelled" and `_diag` contains zero `Worker_*.log`. A runner that has
+never taken a job + all-cancelled history = label mismatch, not a runner
+crash. Fix (either one):
+
+* Repo → Settings → Actions → Runners → `atlas` → edit labels → add
+  `cadence`. Takes effect immediately, no re-registration.
+* Or re-run `./config.sh remove` + `./config.sh --labels cadence …` with
+  fresh tokens from that same page.
+
+The queued job backlog does not drain retroactively — cancel any stuck
+`sim.yml` runs in the Actions tab after applying the label, then dispatch
+one manually to verify a `Worker_*.log` finally appears in `_diag/`.
+
 ## 2. Seed the runner workspace (one-time)
 
 The first `sim.yml` run creates the workspace clone at

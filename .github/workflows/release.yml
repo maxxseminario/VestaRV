@@ -1,0 +1,110 @@
+name: Release (tagged version)
+
+# Stable-versioning CD: pushing a tag `vX.Y.Z` produces a GitHub Release whose
+# notes are the CHANGELOG section for that version and whose assets are the
+# re-proven physical results at exactly that tag: the GHDL bridge netlist, the
+# full LibreLane signoff bundle (GDSII, netlists, metrics.json, reports), and
+# the published TRM.
+#
+# The physical flow is not duplicated here — this workflow CALLS physical.yml
+# (workflow_call), so a release runs the same jobs, same gates, same artifact
+# names as the weekly hardening, and the signoff gate (check_metrics.py) must
+# pass before anything is published. A tag on a commit that no longer hardens
+# clean produces no release.
+#
+# The changelog gate makes versioning honest: the tag must have a matching
+# `## [X.Y.Z]` section in CHANGELOG.md (the versioning scheme is defined at
+# the top of that file — semver read against silicon). Tag it AFTER moving the
+# Unreleased notes into a real section, or the release stops here.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  changelog:
+    name: Changelog release-notes gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract this version's section from CHANGELOG.md
+        run: |
+          VER="${GITHUB_REF_NAME#v}"
+          awk -v ver="$VER" '
+            $0 ~ ("^## \\[" ver "\\]") { hit = 1 }
+            hit && seen && /^## \[/ { exit }
+            hit { seen = 1; print }
+          ' CHANGELOG.md > release_notes.md
+          if ! [ -s release_notes.md ]; then
+            echo "::error::CHANGELOG.md has no \"## [$VER]\" section — write the changelog entry, commit it, then re-tag."
+            exit 1
+          fi
+          echo "release notes ($(wc -l < release_notes.md) lines):"
+          cat release_notes.md
+
+      - name: Upload release notes
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: release_notes.md
+          if-no-files-found: error
+
+  # Same jobs, same gates, same artifact names as the weekly run; the called
+  # workflow's uploads land in THIS run, where publish picks them up.
+  physical:
+    name: Physical flow
+    uses: ./.github/workflows/physical.yml
+    with:
+      harden: true
+
+  publish:
+    name: Publish GitHub release
+    needs: [changelog, physical]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download run artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      # artifacts/vesta-sky130-signoff/<runtag>/final/... (upload-artifact
+      # rooted the archive at sky130/runs). One run tag per CI run.
+      - name: Assemble release assets
+        run: |
+          set -eu
+          mkdir -p assets
+          signoff_dir="$(dirname "$(find artifacts/vesta-sky130-signoff -name metrics.json -path '*/final/*' | head -1)")"
+          test -n "$signoff_dir" || { echo "::error::signoff artifact has no final/metrics.json"; exit 1; }
+          cp "$signoff_dir/metrics.json" "assets/vesta-sky130-metrics-${GITHUB_REF_NAME}.json"
+          tar -czf "assets/vesta-sky130-signoff-${GITHUB_REF_NAME}.tar.gz" \
+              -C "$(dirname "$signoff_dir")" final
+          cp artifacts/vesta-verilog/vesta.v "assets/vesta-${GITHUB_REF_NAME}.v"
+          cp implementations/asic/castalia/docs/TRM.pdf "assets/VestaRV-TRM-${GITHUB_REF_NAME}.pdf"
+          ls -l assets/
+
+      # Idempotent: a re-run of this job refreshes the assets on the existing
+      # release instead of failing on "already exists".
+      - name: Create or update the release
+        run: |
+          set -eu
+          title="VestaRV ${GITHUB_REF_NAME}"
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" assets/* --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" assets/* \
+              --verify-tag \
+              --title "$title" \
+              --notes-file artifacts/release-notes/release_notes.md
+          fi
