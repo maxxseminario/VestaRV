@@ -14,6 +14,13 @@ on:
   push:
     branches: [main, multicore-mp]
   pull_request:
+  # Merge queue. GitHub builds each queued candidate on a throwaway
+  # gh-readonly-queue/ branch (PR rebased onto main plus everything ahead of it)
+  # and waits for the required checks THERE, not on the PR head. A required
+  # check whose workflow lacks this trigger never starts, and the queue stalls
+  # until it times out — which is exactly why sim.yml deliberately does not have
+  # one. See .github/MERGE_QUEUE.md.
+  merge_group:
   workflow_dispatch:
 
 permissions:
