@@ -9,9 +9,10 @@ name: Deploy docs to GitHub Pages
 #
 # One-time repo setting: Settings → Pages → Source = "GitHub Actions".
 
+# ── AUTOMATIC DEPLOY DISABLED 2026-08-21 at the owner's request ──
+# (no runs on any runner for now). Manual dispatch only; restore the
+# `push: branches: [main]` trigger from git history to resume CD.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:

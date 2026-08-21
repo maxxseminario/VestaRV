@@ -24,20 +24,18 @@ name: Physical (sky130 RTL-to-GDSII)
 # moves to 26.04 this workflow must not silently change OS underneath it.
 # Bump GHDL_VERSION and the runner image together.
 
+# ── ALL AUTOMATIC TRIGGERS DISABLED 2026-08-21 at the owner's request ──
+# Manual dispatch and the release.yml workflow_call remain. To restore, take
+# the trigger block back from git history (the commit before this one
+# carried: push [main, multicore-mp] / pull_request incl. `labeled` for the
+# run-physical label / merge_group / schedule "30 2 * * 6" /
+# workflow_dispatch / workflow_call — plus the [run-physical] commit-message
+# escape hatch in the harden job's `if`).
 on:
-  push:
-    branches: [main, multicore-mp]
-  pull_request:
-    # `labeled` so attaching `run-physical` starts the harden job on the spot
-    # (the sim.yml `run-sim` pattern).
-    types: [opened, synchronize, reopened, labeled]
-  merge_group:
-  schedule:
-    - cron: "30 2 * * 6"   # weekly full hardening (Saturday 02:30 UTC)
   workflow_dispatch:
   # release.yml calls this workflow so a tagged release re-proves the whole
   # flow and inherits its artifacts (a called workflow's uploads land in the
-  # caller's run).
+  # caller's run). A release is an explicit tag push, so this stays.
   workflow_call:
     inputs:
       harden:
