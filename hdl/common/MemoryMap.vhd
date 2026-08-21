@@ -600,6 +600,8 @@ package MemoryMap is
 
 	------ NPU
 	-- NPUCR
+	constant NPUXPK_LSB				: natural := 27;
+	constant NPUWPK_LSB				: natural := 26;
 	constant NPUACTF_MSB			: natural := 25;
 	constant NPUACTF_LSB			: natural := 23;
 	constant NPUMODE_MSB			: natural := 22;

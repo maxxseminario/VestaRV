@@ -13,6 +13,7 @@ use work.fixed_pkg.all;
 
 /* Fixed-point neural-network peripheral: MLP, CONV1D, XNOR/popcount and GEMM datapaths, selected by NPUCR.MODE.
    Fixed-point widths and the sigmoid RHO are generics; mode, shape, activation and the staging-RAM buffer addresses come from the MMRs.
+   NPUCR.NPUWPK (26) and NPUCR.NPUXPK (27) select the PACKED operand formats, two 16-bit elements per 32-bit staging word; both reset to 0, which is the historical one-element-per-word layout, bit for bit. See the packed-mode block in the declarations for the formats and why each is a bit rather than a silent change.
    NPUSR bit 0 THINKDONE sets on the completion pulse (once per THINK), sticky, W1C by writing '1', set-dominant on a same-cycle collision.
    ThinkDoneIrq is THINKDONE and NPUCR.TDIE, one flop on the free-running Clk, NOT NpuClk, whose gate is off between THINKs.
    CONSTRAINT: MabMmrCLK and Clk must be the SAME clock, because the W1C decode is sampled on Clk. */
@@ -74,12 +75,14 @@ architecture behavioral of NPU is
 
 
 	/* --- Memory Mapped Registers & Bits
-	   NPUCR also carries MODE [22:20] (0 = MLP, the reset default) and ACTF [25:23] (activation select).
+	   NPUCR also carries MODE [22:20] (0 = MLP, the reset default), ACTF [25:23] (activation select), NPUWPK [26] and NPUXPK [27] (packed operand formats, both 0 = legacy one element per word).
 	   MMR word offsets: NPUCFG1 at 5 and NPUCFG2 at 6 (per-mode configuration); offsets 7-15 are reserved and read 0. */
-	signal NPUCR		: std_logic_vector(25 downto 0);		-- NPU Control Register
+	signal NPUCR		: std_logic_vector(27 downto 0);		-- NPU Control Register
 		signal NPUBEN	: std_logic;								-- NPU Bias Input Enable Bit (Enabled For First Layer)
 		signal NPUAEN	: std_logic;								-- NPU Activation Function Enable Bit (Disabled for Last Layer)
 		signal NPUTHINK	: std_logic;								-- NPU Start/Status Bit
+		signal NPUWPK	: std_logic;								-- NPU Packed-Weight Enable Bit (NPUCR.26)
+		signal NPUXPK	: std_logic;								-- NPU Packed-Input Enable Bit (NPUCR.27)
 		signal TDIE		: std_logic;								-- NPU Think-Done Interrupt Enable Bit (NPUCR.19)
 		signal NPUNI	: std_logic_vector(7 downto 0);			-- NPU # Of Inputs
 		signal NPUNN	: std_logic_vector(7 downto 0);			-- NPU # Of Neurons/Outputs
@@ -111,7 +114,9 @@ architecture behavioral of NPU is
 	signal CurrXIndex	: unsigned(7 downto 0);					-- Current Input's Index (0-255)
 	signal CurrW		: std_logic_vector
 							((W_M_BITS + N_BITS) downto 0);		-- Current Weight
-	signal CurrWAddr	: unsigned(11 downto 0);				-- Current Weight's Address (0-4095)
+	/* The weight walk counts ELEMENTS from NPUWVSAR, not words: under NPUWPK two weights share a word, so a running +1 on an address no longer tracks the weight stream, while a running +1 on an element offset does -- in every mode, with no second set of counters.
+	   13 bits because packed mode reaches 8192 elements inside the 4096-word RAM. The derived SRAM address CurrWAddr (combinational, below) stays 12 bits and wraps exactly as the old counter did. */
+	signal CurrWOff		: unsigned(12 downto 0);				-- Current Weight's Element Offset From NPUWVSAR (0-8191)
 	signal CurrYIndex	: unsigned(7 downto 0);					-- Current Outputs's Index (0-255)
 	signal AccOutLtchd	: std_logic_vector
 							((Y_M_BITS+N_BITS) downto 0);		-- M & Accumulator Output Latched
@@ -152,10 +157,10 @@ architecture behavioral of NPU is
 	signal cL			: unsigned(11 downto 0);				-- running c*L
 	signal jS			: unsigned(11 downto 0);				-- running j*S
 	signal conv_yptr	: unsigned(11 downto 0);				-- flat output write pointer
-	signal filter_base	: unsigned(11 downto 0);				-- current filter's weight-block base
+	signal filter_base	: unsigned(12 downto 0);				-- current filter's weight-block base, in the CurrWOff ELEMENT domain
 
 	/* --- XNOR/popcount mode -----
-	   Addressing is exactly the MLP walk: CurrXIndex is the packed-word counter, CurrYIndex the neuron, and CurrWAddr's running +1 lands on each neuron-major weight block with no reload.
+	   Addressing is exactly the MLP walk: CurrXIndex is the packed-word counter, CurrYIndex the neuron, and CurrWOff's running +1 lands on each neuron-major weight block with no reload.
 	   Only the NpuSramD override and the MacClkEn gate are shared with the other modes, and both are inert in modes 0/1. */
 	constant MODE_XNOR	: std_logic_vector(2 downto 0) := "010";
 	signal xnor_aw		: std_logic_vector(31 downto 0);		-- packed activation word (GET_INPUT capture)
@@ -229,6 +234,70 @@ architecture behavioral of NPU is
 		end if;
 		return m;
 	end tail_mask;
+
+	/* --- Packed operand modes (NPUCR.NPUWPK bit 26, NPUCR.NPUXPK bit 27) --------------------------------
+	   Both modes halve a vector's staging-RAM footprint by storing TWO 16-bit elements per 32-bit word: element 2i in bits 15 downto 0, element 2i+1 in bits 31 downto 16.
+	   Addressing moves from one-element-per-word to base + (element >> 1), with element bit 0 selecting the half. Every walker below therefore counts ELEMENTS and the SRAM address is DERIVED, which is what keeps the MLP, CONV1D and GEMM walks coherent under packing without a second set of counters.
+	   Both bits reset to 0, and with both clear this block is inert: the address is base + element, the capture is the old full-width slice, and the design is bit-for-bit what it was.
+
+	   FORMATS. Fixed 16-bit formats, deliberately NOT derived from the generics, because they are a software contract:
+	     packed input  = Q0.15  -- 1 sign + 15 fraction, range [-1, +1), resolution 2^-15
+	     packed weight = Q3.12  -- 1 sign + 3 integer + 12 fraction, range [-8, +8), resolution 2^-12
+	   Unpacking is pure wiring: sign-extend to the datapath width, then shift left by the fraction-bit difference (X_PK_SHIFT / W_PK_SHIFT). Software owns the reverse direction and MUST SATURATE when it packs -- the hardware only ever sees the already-packed half and cannot.
+
+	   WHY Q3.12 FOR WEIGHTS.  At the MCU generics (W_M_BITS=7, N_BITS=24) the unpacked weight is Q7.24, so ANY 16-bit packed form is a genuine precision decision, and the two failure modes are not symmetric: dropping fraction bits degrades an inference smoothly, whereas clipping the RANGE saturates a weight to a rail and can flip the sign of a whole neuron's accumulation.
+	     - Keeping the full Q7.24 range (i.e. the top 16 bits, Q7.8) spends 7 integer bits on a +-128 span no trained layer uses and leaves resolution 2^-8 against weights whose median magnitude across this repo's own golden sets (verification/npu/{conv,gemm}_vectors) is about 0.1 -- roughly 5 effective bits, worse than plain int8 quantization.
+	     - Going the other way to Q1.14 (+-2) buys two more fraction bits but CLIPS. The repo's reference MLP weights (xcelium/NPU/behavioral/npu_fp_weights.txt) run up to 4.07 in magnitude: 8 of its 15 weights would saturate. The bias term rides the same weight stream and is routinely larger still.
+	   Q3.12 clips neither that network nor a typical bias and still leaves about 10 effective bits on a 0.1-magnitude weight.
+	   CONSEQUENCE, STATED PLAINLY: with NPUWPK set the weight range narrows from [-128, +128) to [-8, +8) and the resolution coarsens from 2^-24 to 2^-12. A weight outside [-8, +8) cannot be represented at all.
+
+	   WHY THE INPUT SIDE IS ALSO A BIT AND NOT UNCONDITIONAL.  Outputs stay one per word -- they are Q(Y_M).(N) accumulator or activation words, up to the full 32 bits -- so packing inputs unconditionally would break the NPU's documented multi-layer flow, in which one THINK's OUTPUT vector is the next THINK's INPUT vector. That is exactly what hdl/common/tb/NPU_tb.vhd does across its two layers, and what the TRM tells firmware to do. It would also silently reinterpret every already-staged vector and every golden vector set. Behind a bit, chaining still works untouched and a caller opts in per THINK.
+	   Nor is it lossless in general: at the MCU generics the unpacked input is Q0.24 (25 bits), so packing keeps the range but drops 9 fraction bits. It is exactly lossless only where the input is already at most 16 bits wide, e.g. the NPU_tb bench generics (X_M_BITS=0, N_BITS=15).
+
+	   XNOR MODE IGNORES BOTH BITS. It already packs 32 one-bit operands per word and walks whole words; reinterpreting those words as 16-bit halves would corrupt it. The run shadows below are forced to '0' for MODE_XNOR, so the two features cannot interact.
+	   The *_PACK_OK constants disable a mode outright on a generic configuration whose datapath the fixed format cannot serve, so an out-of-range instantiation degrades to today's behaviour instead of silently mangling operands. */
+	constant XPK_N_BITS	: integer := 15;						-- packed input fraction bits (Q0.15)
+	constant WPK_M_BITS	: integer := 3;							-- packed weight integer bits (Q3.12)
+	constant WPK_N_BITS	: integer := 12;						-- packed weight fraction bits
+
+	-- Non-negative clamp so an unsupported generic set still ELABORATES (the mode is then disabled by the *_PACK_OK constants below, never exercised).
+	function nonneg(x : integer) return natural is
+	begin
+		if (x < 0) then
+			return 0;
+		else
+			return x;
+		end if;
+	end nonneg;
+	function bool_sl(b : boolean) return std_logic is
+	begin
+		if b then
+			return '1';
+		else
+			return '0';
+		end if;
+	end bool_sl;
+
+	constant X_PK_SHIFT	: natural := nonneg(N_BITS - XPK_N_BITS);	-- left shift that lands Q0.15 on Q(X_M).(N)
+	constant W_PK_SHIFT	: natural := nonneg(N_BITS - WPK_N_BITS);	-- left shift that lands Q3.12 on Q(W_M).(N)
+	-- Supported iff the fixed format fits inside the datapath format without truncating either end.
+	constant X_PACK_OK	: boolean := (N_BITS >= XPK_N_BITS) and ((X_M_BITS + N_BITS + 1) >= 16);
+	constant W_PACK_OK	: boolean := (N_BITS >= WPK_N_BITS) and (W_M_BITS >= WPK_M_BITS) and ((W_M_BITS + N_BITS + 1) >= 16);
+	constant X_PACK_EN	: std_logic := bool_sl(X_PACK_OK);
+	constant W_PACK_EN	: std_logic := bool_sl(W_PACK_OK);
+
+	-- Run shadows, latched at NPU_BEGIN alongside mode_run, so a mid-THINK NPUCR write cannot change the operand layout under an in-flight run.
+	signal wpack_run	: std_logic;							-- weight packing active for this THINK
+	signal xpack_run	: std_logic;							-- input packing active for this THINK
+	-- Combinational packing cloud.
+	signal CurrWAddr	: unsigned(11 downto 0);				-- Current Weight's SRAM word address, derived from CurrWOff
+	signal CurrXOff		: unsigned(11 downto 0);				-- Current Input's ELEMENT offset from NPUIVSAR (mode-selected)
+	signal w_half		: std_logic_vector(15 downto 0);		-- selected packed weight half
+	signal x_half		: std_logic_vector(15 downto 0);		-- selected packed input half
+	signal w_unpacked	: std_logic_vector
+							((W_M_BITS + N_BITS) downto 0);		-- w_half widened to Q(W_M).(N)
+	signal x_unpacked	: std_logic_vector
+							((X_M_BITS + N_BITS) downto 0);		-- x_half widened to Q(X_M).(N)
 
 begin
 
@@ -344,7 +413,7 @@ begin
 			NpuDone		<= '0';
 			BiasDone	<= '0';
 			AccResetN	<= '0';
-			CurrWAddr	<= unsigned(NPUWVSAR);
+			CurrWOff	<= (others =>'0');
 			CurrXIndex	<= (others =>'0');
 			CurrYIndex	<= (others =>'0');
 			-- Conv shadows and walkers all reset; mode_run=0 keeps every conv term dead until a CONV THINK latches it.
@@ -376,6 +445,9 @@ begin
 			gemm_yptr	<= (others => '0');
 			-- ACTF shadow reset.
 			actf_run	<= (others => '0');
+			-- Packed-operand shadows reset, so both formats are the legacy one-per-word layout out of reset.
+			wpack_run	<= '0';
+			xpack_run	<= '0';
 		elsif (rising_edge(NpuClk)) then	-- Rising-Edge NPU FSM
 			case NpuState is
 				when NPU_BEGIN =>
@@ -386,10 +458,19 @@ begin
 					AccResetN	<= '0';
 					CurrXIndex	<= (others =>'0');
 					CurrYIndex	<= (others =>'0');
-					CurrWAddr	<= unsigned(NPUWVSAR);
+					CurrWOff	<= (others =>'0');
 					-- Latch the run shadows (mode, activation and conv shape) at the first NpuClk edge of every THINK, and reset the walkers.
 					mode_run	<= NPUCR(22 downto 20);
 					actf_run	<= NPUCR(25 downto 23);
+					/* Packed-operand shadows, frozen for the run exactly like mode_run.
+					   XNOR walks whole 32-bit words, so both are forced off there and the two features can never interact; the *_PACK_EN constants kill a mode this instantiation's datapath cannot represent. */
+					if (NPUCR(22 downto 20) = MODE_XNOR) then
+						wpack_run	<= '0';
+						xpack_run	<= '0';
+					else
+						wpack_run	<= NPUWPK and W_PACK_EN;
+						xpack_run	<= NPUXPK and X_PACK_EN;
+					end if;
 					S_run		<= unsigned(NPUCFG1(3 downto 0));
 					D_run		<= unsigned(NPUCFG1(7 downto 4));
 					L_run		<= unsigned(NPUCFG1(23 downto 8));
@@ -401,7 +482,7 @@ begin
 					cL			<= (others => '0');
 					jS			<= (others => '0');
 					conv_yptr	<= unsigned(NPUOVSAR);
-					filter_base	<= unsigned(NPUWVSAR);
+					filter_base	<= (others => '0');
 					-- XNOR run shadows (dead in modes 0/1).
 					thresh_run	<= NPUCFG1;
 					K_run		<= unsigned(NPUCFG2(12 downto 0));
@@ -426,9 +507,13 @@ begin
 					else
 						-- Ensure Accumulator is no longer resetting
 						AccResetN	<= '1';
-						-- Get Weight From SRAM
-						CurrW		<= SramQ_in((W_M_BITS + N_BITS) downto 0);
-						xnor_ww		<= SramQ_in;	-- full-width packed capture for XNOR
+						-- Get Weight From SRAM. Under NPUWPK the word holds two Q3.12 weights and CurrWOff bit 0 has already selected the half (w_half/w_unpacked, below).
+						if (wpack_run = '1') then
+							CurrW	<= w_unpacked;
+						else
+							CurrW	<= SramQ_in((W_M_BITS + N_BITS) downto 0);
+						end if;
+						xnor_ww		<= SramQ_in;	-- full-width packed capture for XNOR (mode 2 only, where wpack_run is forced '0')
 						-- Weight address will be incremented after MAC
 						-- Update State
 						if ((NPUBEN = '1') and (BiasDone = '0')) then
@@ -448,9 +533,13 @@ begin
 					if MemReady = '0' then
 						MemReady <= '1';
 					else
-						-- Get Input From SRAM
-						CurrX		<= SramQ_in((X_M_BITS + N_BITS) downto 0);
-						xnor_aw		<= SramQ_in;	-- full-width packed capture for XNOR
+						-- Get Input From SRAM. Under NPUXPK the word holds two Q0.15 inputs and CurrXOff bit 0 has already selected the half (x_half/x_unpacked, below).
+						if (xpack_run = '1') then
+							CurrX	<= x_unpacked;
+						else
+							CurrX	<= SramQ_in((X_M_BITS + N_BITS) downto 0);
+						end if;
+						xnor_aw		<= SramQ_in;	-- full-width packed capture for XNOR (mode 2 only, where xpack_run is forced '0')
 						-- Input index will be incremented after MAC
 						-- Update state: time to MAC.
 						NpuState	<= NPU_MAC;
@@ -498,26 +587,26 @@ begin
 							end if;
 						end if;
 					end if;
-					-- Update weight address for next iteration
-					CurrWAddr	<= CurrWAddr + 1;
+					-- Advance to the next weight ELEMENT; the SRAM address follows from it.
+					CurrWOff	<= CurrWOff + 1;
 				when NPU_SET_OUTPUT =>
 					-- 1 cycle runtime: AccOutLtchd and the output address were set last cycle and the activation has settled, so the SRAM takes the write now.
 					-- The FSM then moves on to the next weight or to finish, so MemReady returns to 0.
 					if (mode_run = MODE_CONV) then
-						-- Conv output bookkeeping: within a filter the weight block is REUSED, so CurrWAddr reloads to filter_base and the bias is re-fetched per output.
-						-- At the filter boundary CurrWAddr sits one past the block, so loading filter_base from it snapshots the next filter's base with no multiply.
+						-- Conv output bookkeeping: within a filter the weight block is REUSED, so CurrWOff reloads to filter_base and the bias is re-fetched per output.
+						-- At the filter boundary CurrWOff sits one past the block, so loading filter_base from it snapshots the next filter's base with no multiply. Both live in the ELEMENT domain, so this stays exact under packing.
 						conv_yptr	<= conv_yptr + 1;
 						conv_c		<= (others => '0');
 						cL			<= (others => '0');
 						if (conv_j /= (Lout_run - 1)) then
 							conv_j		<= conv_j + 1;
 							jS			<= jS + S_run;
-							CurrWAddr	<= filter_base;
+							CurrWOff	<= filter_base;
 							NpuState	<= NPU_GET_WEIGHT;
 						else
 							conv_j		<= (others => '0');
 							jS			<= (others => '0');
-							filter_base	<= CurrWAddr;
+							filter_base	<= CurrWOff;
 							CurrYIndex	<= CurrYIndex + 1;
 							if (CurrYIndex = unsigned(NPUNN)) then
 								NpuState	<= NPU_FINISH;
@@ -526,8 +615,8 @@ begin
 							end if;
 						end if;
 					elsif (mode_run = MODE_GEMM) then
-						-- Row-major C via the running flat pointer; within a row CurrWAddr keeps its running +1 across the abutting column-major B columns, with no per-column reload.
-						-- At the row boundary it reloads to the CONSTANT WVSAR (B is reused across rows) and the input row base mK advances by K = NPUNI+1.
+						-- Row-major C via the running flat pointer; within a row CurrWOff keeps its running +1 across the abutting column-major B columns, with no per-column reload.
+						-- At the row boundary it reloads to element 0 of the CONSTANT WVSAR block (B is reused across rows) and the input row base mK advances by K = NPUNI+1. mK counts ELEMENTS, so an odd K straddling a packed word is handled by the address derivation, not here.
 						gemm_yptr	<= gemm_yptr + 1;
 						if (CurrYIndex = unsigned(NPUNN)) then
 							CurrYIndex	<= (others => '0');
@@ -536,7 +625,7 @@ begin
 							else
 								gemm_m		<= gemm_m + 1;
 								mK			<= mK + ("0000" & unsigned(NPUNI)) + 1;
-								CurrWAddr	<= unsigned(NPUWVSAR);
+								CurrWOff	<= (others => '0');
 								NpuState	<= NPU_GET_WEIGHT;
 							end if;
 						else
@@ -624,9 +713,24 @@ begin
 	/* Combinational NPU Signals
 	   Conv takes the multiplier-free 4-input add IVSAR + c*L + j*S + k*D for the input and a flat running pointer for the output; GEMM takes IVSAR + m*K + k (mK is the running row base) and a flat row-major pointer.
 	   Modes 0 and 2 fall through to the plain MLP else arms. */
-	CurrXAddr	<= (unsigned(NPUIVSAR) + cL + jS + kD) when (mode_run = MODE_CONV) else
-				   (unsigned(NPUIVSAR) + mK + ("0000" & CurrXIndex)) when (mode_run = MODE_GEMM) else
-				   (unsigned(NPUIVSAR) + CurrXIndex);
+	/* The input walk is expressed as an ELEMENT offset from NPUIVSAR (CurrXOff) with the address derived from it, so ONE packing rule serves MLP, CONV and GEMM alike.
+	   Unpacked, CurrXAddr is bit-for-bit the old three-arm sum: 12-bit wrapping addition is associative, so grouping the offset terms before adding the base changes nothing. */
+	CurrXOff	<= (cL + jS + kD) when (mode_run = MODE_CONV) else
+				   (mK + ("0000" & CurrXIndex)) when (mode_run = MODE_GEMM) else
+				   ("0000" & CurrXIndex);
+	CurrXAddr	<= (unsigned(NPUIVSAR) + ('0' & CurrXOff(11 downto 1))) when (xpack_run = '1') else
+				   (unsigned(NPUIVSAR) + CurrXOff);
+	/* Weight address from the element offset. Unpacked this is NPUWVSAR + offset, exactly what the old 12-bit CurrWAddr register held -- it was seeded with NPUWVSAR and incremented -- including its wrap at 4096, since the sum is truncated to 12 bits either way. */
+	CurrWAddr	<= (unsigned(NPUWVSAR) + CurrWOff(12 downto 1)) when (wpack_run = '1') else
+				   (unsigned(NPUWVSAR) + CurrWOff(11 downto 0));
+	/* Packed-half selects and the widening to the datapath format.
+	   Both selects collapse to the LOW half whenever the mode is off, which is harmless: the capture in that case takes the full-width SramQ_in slice, not these. The shifts are constants, so the widening is wiring only. */
+	w_half		<= SramQ_in(31 downto 16) when ((wpack_run = '1') and (CurrWOff(0) = '1')) else
+				   SramQ_in(15 downto 0);
+	x_half		<= SramQ_in(31 downto 16) when ((xpack_run = '1') and (CurrXOff(0) = '1')) else
+				   SramQ_in(15 downto 0);
+	w_unpacked	<= std_logic_vector(shift_left(resize(signed(w_half), W_M_BITS + N_BITS + 1), W_PK_SHIFT));
+	x_unpacked	<= std_logic_vector(shift_left(resize(signed(x_half), X_M_BITS + N_BITS + 1), X_PK_SHIFT));
 	CurrYAddr	<= conv_yptr when (mode_run = MODE_CONV) else
 				   gemm_yptr when (mode_run = MODE_GEMM) else
 				   (unsigned(NPUOVSAR) + CurrYIndex);
@@ -708,7 +812,9 @@ begin
 	   --- Memory Mapped Register Interface -----
 	   ------------------------------------------
 	   --- Memory Mapped Register - Bit-Field Mapping
-	   NPUCR(25 downto 0) also holds ACTF [25:23] and MODE [22:20], which the sequencer and activation muxes tap directly. */
+	   NPUCR(27 downto 0) also holds NPUXPK [27], NPUWPK [26], ACTF [25:23] and MODE [22:20], which the sequencer and activation muxes tap directly. */
+	NPUXPK		<= NPUCR(27);
+	NPUWPK		<= NPUCR(26);
 	TDIE		<= NPUCR(19);
 	NPUBEN		<= NPUCR(18);
 	NPUAEN		<= NPUCR(17);
@@ -740,7 +846,7 @@ begin
 							NPUCR(23 downto 17) <= MabMmrD(23 downto 17);
 							NPUTHINK <= MabMmrD(16);
 						end if;
-						if MabMmrWEN(3) = MEM_ASSERT then NPUCR(25 downto 24) <= MabMmrD(25 downto 24); end if;
+						if MabMmrWEN(3) = MEM_ASSERT then NPUCR(27 downto 24) <= MabMmrD(27 downto 24); end if;
 					when MmrAddrNPUCFG1 =>
 						if MabMmrWEN(0) = MEM_ASSERT then NPUCFG1(7 downto 0) <= MabMmrD(7 downto 0); end if;
 						if MabMmrWEN(1) = MEM_ASSERT then NPUCFG1(15 downto 8) <= MabMmrD(15 downto 8); end if;
@@ -792,7 +898,7 @@ begin
 	   NPUTHINK is a separate flop (set from MabMmrD(16), cleared by NpuDone), so it must be re-inserted at bit 16 of the NPUCR readback.
 	   Otherwise bit 16 reads the dead NPUCR(16) and nothing can observe NPUTHINK falling when the NPU finishes. */
 	with MabMmrAInt select
-		MabMmrQ <=	(31 downto 26 => '0') & NPUCR(25 downto 17) & NPUTHINK & NPUCR(15 downto 0)	when MmrAddrNPUCR,
+		MabMmrQ <=	(31 downto 28 => '0') & NPUCR(27 downto 17) & NPUTHINK & NPUCR(15 downto 0)	when MmrAddrNPUCR,
 					(31 downto 12 => '0') & NPUIVSAR	when MmrAddrNPUIVSAR,
 					(31 downto 12 => '0') & NPUWVSAR	when MmrAddrNPUWVSAR,
 					(31 downto 12 => '0') & NPUOVSAR	when MmrAddrNPUOVSAR,

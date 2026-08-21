@@ -19,45 +19,46 @@
 /* VESTA_THEME_BEGIN */
 :root{
   /* ---- Ember palette: DARK (default) ---------------------------------- */
-  --bg:            #14100e;
-  --bg-2:          #0e0b09;
-  --surface:       #1d1713;
-  --surface-2:     #271f19;
-  --surface-3:     #322820;
-  --border:        #3a2e25;
-  --border-strong: #4d3d30;
+  --bg:            #14100e;  /* near-black warm charcoal (the cold hearth)   */
+  --bg-2:          #0e0b09;  /* deepest well — page gutters / behind elev    */
+  --surface:       #1d1713;  /* card / panel base                            */
+  --surface-2:     #271f19;  /* raised surface, table header, input          */
+  --surface-3:     #322820;  /* hover / active surface                       */
+  --border:        #3a2e25;  /* hairline dividers                            */
+  --border-strong: #4d3d30;  /* emphasised borders                          */
 
-  --text:          #f5ede4;
-  --text-muted:    #bcab9c;
-  --text-dim:      #8b7a6c;
+  --text:          #f5ede4;  /* warm off-white primary                       */
+  --text-muted:    #bcab9c;  /* secondary                                    */
+  --text-dim:      #8b7a6c;  /* tertiary / captions / disabled               */
 
-  --accent:        #ff6a1a;
-  --accent-hover:  #ff8438;
-  --accent-press:  #e6560d;
-  --amber:         #ffb020;
-  --amber-deep:    #d98a12;
-  --accent-soft:   rgba(255,106,26,.14);
+  --accent:        #ff6a1a;  /* flame orange — primary accent                */
+  --accent-hover:  #ff8438;  /* brighter flame on hover                      */
+  --accent-press:  #e6560d;  /* pressed                                      */
+  --amber:         #ffb020;  /* ember amber — secondary accent / highlights  */
+  --amber-deep:    #d98a12;  /* amber on light or as underlays               */
+  --accent-soft:   rgba(255,106,26,.14);  /* tinted fills (badges, hero glow)*/
   --amber-soft:    rgba(255,176,32,.14);
-  --on-accent:     #1a0f07;
+  --on-accent:     #1a0f07;  /* text on a solid flame button                 */
 
-  --ok:            #4bbf73;
-  --warn:          #ffb020;
-  --err:           #f0553d;
-  --link:          #ff8f52;
+  --ok:            #4bbf73;  /* pass / green                                 */
+  --warn:          #ffb020;  /* caution (reuses amber)                       */
+  --err:           #f0553d;  /* fail / danger                                */
+  --link:          #ff8f52;  /* inline links on dark                         */
 
   --ok-soft:       rgba(75,191,115,.15);
   --err-soft:      rgba(240,85,61,.15);
 
+  /* ---- Type scale ------------------------------------------------------- */
   --font-sans: system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   --font-mono: ui-monospace,"SFMono-Regular",Menlo,Consolas,"Liberation Mono",monospace;
-  --fs-xs:   .75rem;
-  --fs-sm:   .8125rem;
-  --fs-base: .9375rem;
-  --fs-md:   1.0625rem;
-  --fs-lg:   1.375rem;
-  --fs-xl:   1.875rem;
-  --fs-2xl:  2.5rem;
-  --fs-3xl:  3.25rem;
+  --fs-xs:   .75rem;    /* 12 */
+  --fs-sm:   .8125rem;  /* 13 */
+  --fs-base: .9375rem;  /* 15 */
+  --fs-md:   1.0625rem; /* 17 */
+  --fs-lg:   1.375rem;  /* 22 */
+  --fs-xl:   1.875rem;  /* 30 */
+  --fs-2xl:  2.5rem;    /* 40 */
+  --fs-3xl:  3.25rem;   /* 52 hero */
   --lh-tight: 1.15;
   --lh-body:  1.6;
   --fw-normal: 400;
@@ -65,12 +66,15 @@
   --fw-semi:   600;
   --fw-bold:   700;
 
+  /* ---- Spacing (4px base) ---------------------------------------------- */
   --sp-1: .25rem;  --sp-2: .5rem;   --sp-3: .75rem;  --sp-4: 1rem;
   --sp-5: 1.5rem;  --sp-6: 2rem;    --sp-8: 3rem;    --sp-10: 4rem;
   --sp-12: 6rem;
 
+  /* ---- Radii ------------------------------------------------------------ */
   --r-xs: 4px;  --r-sm: 6px;  --r-md: 10px;  --r-lg: 16px;  --r-pill: 999px;
 
+  /* ---- Elevation / effects --------------------------------------------- */
   --shadow-sm: 0 1px 2px rgba(0,0,0,.4);
   --shadow-md: 0 6px 20px rgba(0,0,0,.45);
   --shadow-glow: 0 0 40px rgba(255,106,26,.18);
@@ -80,6 +84,7 @@
   --trans: 160ms ease;
 }
 
+/* ---- Ember palette: LIGHT ("ash") — warm off-white + ember accents ----- */
 :root[data-theme="light"]{
   --bg:            #f7f1ea;
   --bg-2:          #efe6db;
@@ -93,7 +98,7 @@
   --text-muted:    #6c5b4c;
   --text-dim:      #93806f;
 
-  --accent:        #d2560a;
+  --accent:        #d2560a;  /* deeper flame for AA contrast on light        */
   --accent-hover:  #b8480a;
   --accent-press:  #9c3d06;
   --amber:         #c07d10;
@@ -116,6 +121,9 @@
   --ring: 0 0 0 3px var(--accent-soft);
 }
 
+/* Honour OS preference on first visit (before any stored choice is applied).
+   The boot script promotes a stored choice by setting data-theme explicitly,
+   which wins over this @media rule via specificity of the [data-theme] tokens. */
 @media (prefers-color-scheme: light){
   :root:not([data-theme]){
     --bg:#f7f1ea; --bg-2:#efe6db; --surface:#fffaf3; --surface-2:#f3e9dd;
@@ -131,6 +139,7 @@
   }
 }
 
+/* ---- Base ------------------------------------------------------------- */
 *,*::before,*::after{box-sizing:border-box}
 html{color-scheme:dark}
 :root[data-theme="light"]{color-scheme:light}
@@ -150,6 +159,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 .vesta-accent{color:var(--accent)}
 .vesta-mono{font-family:var(--font-mono)}
 
+/* ---- Shared header / nav --------------------------------------------- */
 .vesta-header{
   position:sticky; top:0; z-index:50;
   background:color-mix(in srgb, var(--bg) 88%, transparent);
@@ -182,6 +192,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 .vesta-nav a:hover{color:var(--text); background:var(--surface-2); text-decoration:none}
 .vesta-nav a[aria-current="page"]{color:var(--accent); background:var(--accent-soft)}
 
+/* ---- Theme toggle ----------------------------------------------------- */
 .vesta-toggle{
   flex:0 0 auto; display:inline-flex; align-items:center; gap:var(--sp-2);
   background:var(--surface-2); color:var(--text); border:1px solid var(--border);
@@ -199,6 +210,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
   :root:not([data-theme]) .vesta-toggle .icon-moon{display:none}
 }
 
+/* ---- Buttons ---------------------------------------------------------- */
 .vesta-btn{
   display:inline-flex; align-items:center; gap:var(--sp-2);
   padding:var(--sp-3) var(--sp-5); border-radius:var(--r-md);
@@ -212,6 +224,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 .vesta-btn-ghost:hover{background:var(--surface-2); border-color:var(--accent); text-decoration:none}
 .vesta-btn:focus-visible{outline:none; box-shadow:var(--ring)}
 
+/* ---- Cards ------------------------------------------------------------ */
 .vesta-card{
   background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg);
   padding:var(--sp-5); transition:var(--trans);
@@ -227,6 +240,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
   text-transform:uppercase; color:var(--accent); margin-bottom:var(--sp-2);
 }
 
+/* ---- Badges ----------------------------------------------------------- */
 .vesta-badge{
   display:inline-flex; align-items:center; gap:var(--sp-1);
   padding:2px var(--sp-2); border-radius:var(--r-pill);
@@ -237,6 +251,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 .vesta-badge-amber{background:var(--amber-soft); color:var(--amber-deep); border-color:transparent}
 .vesta-badge-ok{background:var(--ok-soft); color:var(--ok); border-color:transparent}
 
+/* ---- Tables ----------------------------------------------------------- */
 .vesta-table-wrap{overflow-x:auto; border:1px solid var(--border); border-radius:var(--r-lg)}
 .vesta-table{width:100%; border-collapse:collapse; font-size:var(--fs-base)}
 .vesta-table th,.vesta-table td{
@@ -251,6 +266,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 .vesta-table tbody tr:hover{background:var(--surface)}
 .vesta-table th:first-child{color:var(--text); font-weight:var(--fw-semi); white-space:nowrap}
 
+/* ---- Footer ----------------------------------------------------------- */
 .vesta-footer{
   border-top:1px solid var(--border); margin-top:var(--sp-12);
   padding:var(--sp-8) 0; color:var(--text-dim); font-size:var(--fs-sm);
@@ -5990,12 +6006,54 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 						{
 							"BitFieldName": "Unused",
 							"MSB": 31,
-							"LSB": 26,
+							"LSB": 28,
 							"Accessibility": "r0",
 							"ResetValue": 0,
 							"Unused": true,
 							"Description": "",
 							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "NPUXPK",
+							"MSB": 27,
+							"LSB": 27,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Packed input format enable. When cleared (reset default) each input element occupies its own 32-bit staging word, exactly as before this bit existed. When set, the input vector is stored as TWO 16-bit Q0.15 elements per word -- element 2i in bits 15:0, element 2i+1 in bits 31:16 -- so the vector at NPUIVSAR occupies half as many words, and element i is read from word NPUIVSAR + i/2. Range is unchanged at [-1, +1) but resolution drops from Q0.24 to Q0.15: firmware packs by arithmetic-shifting each Q0.24 input right by 9. The output vector is NOT packed (outputs are full-width accumulator or activation words), so a layer whose outputs feed the next layer's inputs must either leave this bit clear or repack between THINKs. Ignored in XNOR-popcount mode, which already packs 32 one-bit activations per word. The setting is latched when THINK is set; a mid-THINK write takes effect at the next THINK.",
+							"ValueDescriptions": [
+								[
+									0,
+									"One input element per 32-bit word (reset default)",
+									""
+								],
+								[
+									1,
+									"Two 16-bit Q0.15 input elements per 32-bit word",
+									""
+								]
+							]
+						},
+						{
+							"BitFieldName": "NPUWPK",
+							"MSB": 26,
+							"LSB": 26,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Packed weight format enable. When cleared (reset default) each synaptic weight occupies its own 32-bit staging word, exactly as before this bit existed. When set, the weight matrix is stored as TWO 16-bit Q3.12 weights per word -- element 2i in bits 15:0, element 2i+1 in bits 31:16 -- so a weight block occupies half as many words and a maximal 256x256 layer needs 8 re-stagings of the 4096-word staging RAM instead of 16. The element walk is unchanged in every mode, including the convolution filter-block reload and the GEMM per-row reload, so the same weight ORDER is used either way; only the storage layout changes. Q3.12 narrows the representable weight range from [-128, +128) to [-8, +8) and coarsens the resolution from 2^-24 to 2^-12: firmware packs by arithmetic-shifting each Q7.24 weight right by 12 and MUST SATURATE, because a weight outside [-8, +8) has no packed representation and the hardware only ever sees the already-packed half. The bias weight (see NPUBEN) rides the same stream and is subject to the same range. Ignored in XNOR-popcount mode, which already packs 32 one-bit weights per word. The setting is latched when THINK is set; a mid-THINK write takes effect at the next THINK.",
+							"ValueDescriptions": [
+								[
+									0,
+									"One weight per 32-bit word (reset default)",
+									""
+								],
+								[
+									1,
+									"Two 16-bit Q3.12 weights per 32-bit word",
+									""
+								]
+							]
 						},
 						{
 							"BitFieldName": "NPUACTF",
@@ -6130,7 +6188,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"RegisterMemorySlot": 1,
 					"Size": 32,
 					"ResetValue": 0,
-					"Description": "Input vector start word index within the shared NPU staging RAM: the byte offset from the start of the staging RAM (0xC000) divided by 4. For example, an input vector at byte address 0xC100 has word index 0x40. Each input is a signed Q0.24 value stored in bits 24:0 of its 32-bit SRAM word; bits 31:25 are ignored. Bit 24 is the sign bit. The input at index 0 is at word index NPUIVSAR. The input at index 1 is at word index NPUIVSAR + 1. The rest of the inputs follow in consecutive words.",
+					"Description": "Input vector start word index within the shared NPU staging RAM: the byte offset from the start of the staging RAM (0xC000) divided by 4. For example, an input vector at byte address 0xC100 has word index 0x40. Each input is a signed Q0.24 value stored in bits 24:0 of its 32-bit SRAM word; bits 31:25 are ignored. Bit 24 is the sign bit. The input at index 0 is at word index NPUIVSAR. The input at index 1 is at word index NPUIVSAR + 1. The rest of the inputs follow in consecutive words. This one-input-per-word layout is what NPUCR.NPUXPK = 0 (the reset default) selects; with NPUXPK = 1 the vector is packed two 16-bit Q0.15 inputs per word and input index i is read from word index NPUIVSAR + i/2, low half first.",
 					"BitFields": [
 						{
 							"BitFieldName": "Unused",
@@ -6161,7 +6219,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"RegisterMemorySlot": 2,
 					"Size": 32,
 					"ResetValue": 0,
-					"Description": "Synaptic weight matrix start word index within the shared NPU staging RAM: the byte offset from the start of the staging RAM (0xC000) divided by 4. Each weight is a signed Q7.24 value occupying all 32 bits of its SRAM word; bit 31 is the sign bit. Weights are stored row-major, one per 32-bit word, in the following order: for each output neuron (0 through NPUNN), if bias is enabled (NPUBEN = 1), the first word in the row is the bias weight (multiplied by an implicit input of 1.0), followed by NPUNI + 1 synaptic weights for inputs 0 through NPUNI. If bias is disabled, each row contains NPUNI + 1 synaptic weights only.",
+					"Description": "Synaptic weight matrix start word index within the shared NPU staging RAM: the byte offset from the start of the staging RAM (0xC000) divided by 4. Each weight is a signed Q7.24 value occupying all 32 bits of its SRAM word; bit 31 is the sign bit. Weights are stored row-major, one per 32-bit word, in the following order: for each output neuron (0 through NPUNN), if bias is enabled (NPUBEN = 1), the first word in the row is the bias weight (multiplied by an implicit input of 1.0), followed by NPUNI + 1 synaptic weights for inputs 0 through NPUNI. If bias is disabled, each row contains NPUNI + 1 synaptic weights only. This one-weight-per-word layout is what NPUCR.NPUWPK = 0 (the reset default) selects; with NPUWPK = 1 the same weight sequence is packed two 16-bit Q3.12 weights per word, low half first, halving the word count of the block.",
 					"BitFields": [
 						{
 							"BitFieldName": "Unused",
