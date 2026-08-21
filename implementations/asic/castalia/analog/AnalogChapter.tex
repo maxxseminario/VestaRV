@@ -39,7 +39,9 @@ results database rather than transcribed by hand.
 \subsection*{Blocks documented in this revision}
 
 The analog front end is being brought up incrementally. The electrochemical models
-the benches use are defined once in Section~\ref{ss:analog-models}. This revision documents
+the benches use are defined once in Section~\ref{ss:analog-models}, and the nonlinear
+electrode model that cyclic voltammetry needs in Section~\ref{ss:analog-electrode-bc}.
+This revision documents
 the local bias generator, the class-AB amplifier that serves as both the
 channel's transimpedance amplifier (A2) and its potentiostat control amplifier
 (A1), the complete potentiostat pixel system built from a pair of those
@@ -85,6 +87,20 @@ reports the measurement.
 \input{include/analog/note_models.tex}
 \input{include/analog/sch_models_cell.tex}
 \input{include/analog/sch_models_electrode.tex}
+
+% Nonlinear (Butler-Volmer + diffusion) electrode model, used for cyclic
+% voltammetry. Hand-written like the linear models above: it is a simulation
+% model shared by the benches, not a block, so it sits with them.
+\FloatBarrier
+\input{include/analog/note_electrode_intro.tex}
+\input{include/analog/tab_electrode_params.tex}
+\input{include/analog/fig_electrode_validation.tex}
+\input{include/analog/tab_electrode_peaks.tex}
+\input{include/analog/note_electrode_valid.tex}
+\input{include/analog/note_electrode_afe.tex}
+\input{include/analog/tab_electrode_refs.tex}
+\input{include/analog/note_electrode_refs.tex}
+\FloatBarrier
 
 \input{include/analog/BiasGenCascWideSwing.tex}
 \input{include/analog/AmpAB.tex}
