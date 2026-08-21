@@ -176,6 +176,73 @@
   <tr><td>560 kΩ (max gain)</td><td>±2 µA</td><td>≈ 4 nA</td></tr>
 </table></div>
 
+<h3>R<sub>f</sub> sizing against the four-marker panel</h3>
+<p>The 10-bit SAR is fixed. Over the ±1.155 V usable swing against a 2.441 mV code that is
+<strong>473 usable codes per polarity</strong> — a 473:1 (2.68-decade) window whose width
+<em>cannot be changed by R<sub>f</sub></em>. R<sub>f</sub> only slides the window along the
+current axis, so</p>
+<p style="text-align:center;margin:.9rem 0"><code>sensitivity = I<sub>FS</sub> / 473</code></p>
+<p>and the only lever is to make I<sub>FS</sub> no larger than that channel must digitize.
+Each channel owns one marker at one formal potential, so each sees only its own charging
+baseline plus its own peak — the ceilings are per channel, and all four sit
+<strong>above</strong> the 560 kΩ top tap:</p>
+<div class="tablewrap"><table>
+  <tr><th>Channel</th><th>E<sub>p</sub></th><th>Baseline</th><th>Peak, top of range</th><th>I<sub>FS</sub> needed</th><th>R<sub>f</sub> ceiling</th><th>Tap</th><th>LSB</th></tr>
+  <tr><td>CA-125</td><td>&minus;0.15 V</td><td>236 nA</td><td>1571 nA</td><td>1807 nA</td><td>639 kΩ</td><td><strong>630 kΩ</strong></td><td>3.87 nA</td></tr>
+  <tr><td>HE4</td><td>+0.10 V</td><td>331 nA</td><td>1094 nA</td><td>1425 nA</td><td>811 kΩ</td><td><strong>805 kΩ</strong></td><td>3.03 nA</td></tr>
+  <tr><td>CA19-9</td><td>+0.25 V</td><td>409 nA</td><td>824 nA</td><td>1233 nA</td><td>937 kΩ</td><td><strong>910 kΩ</strong></td><td>2.68 nA</td></tr>
+  <tr><td>CEA</td><td>+0.40 V</td><td>509 nA</td><td>494 nA</td><td>1003 nA</td><td>1151 kΩ</td><td><strong>1120 kΩ</strong></td><td>2.18 nA</td></tr>
+</table></div>
+<p>Running all four on 560 kΩ leaves 4.36 nA everywhere, discarding 1.2× to 2.1× of available
+resolution on three of the four channels for nothing. Because <code>+0x2 TIA</code> in the
+frozen 16-word per-site map already carries the gain-range select <em>per site</em>,
+per-channel taps cost no digital-contract change — they are firmware.</p>
+
+<h4 style="font-family:'Helvetica Neue',Arial,sans-serif;font-size:.98rem;margin:1.4rem 0 .5rem">The string change</h4>
+<p>Keep the 35 kΩ unit segment and lengthen the string: <strong>38 × 35 kΩ = 35 kΩ … 1.33 MΩ</strong>,
+tap select 4 bits → 6 bits. This preserves every existing tap including the 35 kΩ / ±33 µA end,
+keeps the unit device identical for matching and trim, and lands within 1–3 % of the ideal tap
+on all four channels. Alternatives hit nearly the same numbers but discard the low-gain end and
+change the unit segment, so they are strictly worse for the same area:</p>
+<div class="tablewrap"><table>
+  <tr><th>String</th><th>Range</th><th>CA-125</th><th>HE4</th><th>CA19-9</th><th>CEA</th><th>Σ LSB</th></tr>
+  <tr><td>as-built 16 × 35 kΩ</td><td>35 k–560 k</td><td>4.36</td><td>4.36</td><td>4.36</td><td>4.36</td><td>17.44 nA</td></tr>
+  <tr><td><strong>38 × 35 kΩ</strong></td><td>35 k–1.33 M</td><td><strong>3.87</strong></td><td><strong>3.03</strong></td><td><strong>2.68</strong></td><td><strong>2.18</strong></td><td><strong>11.77 nA</strong></td></tr>
+  <tr><td>32 × 41 kΩ</td><td>41 k–1.31 M</td><td>3.97</td><td>3.13</td><td>2.71</td><td>2.13</td><td>11.94 nA</td></tr>
+  <tr><td>24 × 55 kΩ</td><td>55 k–1.32 M</td><td>4.03</td><td>3.17</td><td>2.61</td><td>2.22</td><td>12.03 nA</td></tr>
+  <tr><td>16 × 82 kΩ</td><td>82 k–1.31 M</td><td>4.25</td><td>3.31</td><td>2.71</td><td>2.13</td><td>12.39 nA</td></tr>
+  <tr><td colspan="7" style="color:var(--muted);font-size:.88rem;border-bottom:none">Per-channel LSB in nA, best tap that does not clip that channel. Ideal (I<sub>FS</sub>/473) = 3.82 / 3.01 / 2.61 / 2.12 nA.</td></tr>
+</table></div>
+<p>Cost is ~2.4× the poly in the R<sub>f</sub> bank, which the CA0 spec already flags as the
+dominant contributor to the 0.03–0.05 mm² TIA. Noise is a non-issue at every tap: the amp's
+output-referred 191 µV<sub>rms</sub> (implied by 341.5 pA<sub>rms</sub> at 560 kΩ) means
+input-referred current noise falls as 1/R<sub>f</sub>, holding 0.08 LSB throughout — raising
+R<sub>f</sub> improves noise and costs only full scale. Two things need re-verification, since
+the TRM characterizes only the 560 kΩ tap: the C<sub>f</sub> pole moves (22 pF at 1.33 MΩ puts
+it at 5.5 kHz against 12.9 kHz at 560 kΩ — still far above the 10–500 Hz DPV pulse rate, but
+re-run the bench), and phase margin <em>rises</em> with R<sub>f</sub>, so stability is not the
+risk here.</p>
+
+<div class="callout">
+<strong>What R<sub>f</sub> cannot fix.</strong> Best achievable LSB at 10 bits is
+I<sub>FS</sub>/473 = 2.1–3.9 nA per channel. The modeled LOD steps — 20 % above the reagent
+blank — are 1.0 nA (CEA), 1.4 (CA19-9), 1.8 (HE4), 2.4 (CA-125), landing at
+<strong>0.47–0.90 LSB</strong>; and DPV peak height is a difference of two conversions, so
+quantization on ΔI is √2 worse again at 3.0–5.4 nA. <strong>LOD-level detection is closed to
+R<sub>f</sub> at 10 bits on every channel, at any value.</strong> The routes to it are more
+bits, or a baseline-cancellation current DAC at the TIA summing node — subtracting the
+236–509 nA charging residual before conversion would allow R<sub>f</sub> ≈ 10 MΩ and buy
+roughly a decade. What the string change <em>does</em> deliver is resolving a 10 % concentration
+change at each clinical cut-off, from 2.5–7 LSB today to <strong>8–12 LSB</strong>, over the
+full plotted concentration range with no mid-sweep gain change.</div>
+
+<p style="color:var(--muted);font-size:.9rem"><em>Provenance:</em> baselines and peak currents
+are the analytic DPV and four-parameter-logistic models in
+<code>~/work/ieee/ISCAS27/latek/graphics-data/gen_figdata.py</code>, parameterized from published
+assay literature — <strong>no point is measured</strong>, from silicon or from a wet assay. The
+1.0 nA CEA requirement follows entirely from the modeled <code>i_bg</code> = 5 nA blank and moves
+with the real blank current. Sizing added 2026-08-18.</p>
+
 <h3>To verify in simulation (both expected fine at µA-scale wound currents)</h3>
 <ul>
   <li><code>bts_pmos</code> output stage is class-A on the source side (current-source PMOS pull-up MM5) — check worst-case cathodic full-scale drive; if short, bump MM5's bias rather than going class-AB.</li>
@@ -436,7 +503,8 @@
 
 <h2>Four-channel plan for Castalia</h2>
 <ul>
-  <li><strong>Per channel (×4, identical):</strong> control amp + TIA + 16-tap R string + own 10-bit SAR. Per-channel SARs keep the channels truly identical and allow simultaneous sampling — cleaner than a 4:1 mux into a shared SAR.</li>
+  <li><strong>Per channel (×4, identical):</strong> control amp + TIA + R string + own 10-bit SAR. Per-channel SARs keep the channels truly identical and allow simultaneous sampling — cleaner than a 4:1 mux into a shared SAR.</li>
+  <li><strong>R string length:</strong> extend from 16 to <strong>38 × 35 kΩ</strong> (35 kΩ–1.33 MΩ) and select a <em>different tap per channel</em> — 630 k / 805 k / 910 k / 1120 k for CA-125 / HE4 / CA19-9 / CEA. See the sizing section above: the four channels sit at different formal potentials and therefore have different full-scale requirements, and a common 560 kΩ tap wastes up to 2.1× of the fixed 10-bit window on three of them. Tap select widens 4 bits → 6 bits; the per-site <code>+0x2 TIA</code> register already holds it.</li>
   <li><strong>Shared:</strong> <code>BiasGenCascWideSwingGlobal</code> (designed as a global distributor) and the vcm DAC.</li>
   <li><strong>Open decision:</strong> one shared vref DAC (all channels at the same cell potential) vs. per-channel vref (4× <code>Dac2V5R2R14</code>, or one DAC + sample/holds).</li>
   <li><strong>Pads:</strong> each channel now needs a WE pin in addition to CE/RE (rev-1 assumed WE grounded off-chip) → 12 electrode pads total. Check against the Castalia pad budget early (quad die is 2960 × 2960 µm).</li>
@@ -449,7 +517,7 @@
   <li>Castalia's <code>ic/</code> is view-only; new libraries are built and ingested via <code>~/vestarv/signoff_mp</code> (<code>make ingest BLOCK=… [LIB=…]</code>). One home per library.</li>
 </ul>
 
-<p class="footer">Sources: <code>potentiostat_pmos_sch4lay_upd.cdl</code>, <code>potentiostat_final.top_level_sch.schematic.cdl</code>, <code>Better_ADCs.NEW_ADC_Main_2V5_Sync_0p13s_0p70lsb.schematic.cdl</code> (Myshkin LVS netlists). Strategy agreed 2026-07-20. Compensation section added 2026-07-30 from the TB-03 <code>anatop_tb_tia</code> corner run of 2026-07-28 (<code>Interactive.9</code>); measured curve extracted from the TRM data set <code>include/analog/data/tia_zt_00.dat</code>.</p>
+<p class="footer">Sources: <code>potentiostat_pmos_sch4lay_upd.cdl</code>, <code>potentiostat_final.top_level_sch.schematic.cdl</code>, <code>Better_ADCs.NEW_ADC_Main_2V5_Sync_0p13s_0p70lsb.schematic.cdl</code> (Myshkin LVS netlists). Strategy agreed 2026-07-20. Compensation section added 2026-07-30 from the TB-03 <code>anatop_tb_tia</code> corner run of 2026-07-28 (<code>Interactive.9</code>); measured curve extracted from the TRM data set <code>include/analog/data/tia_zt_00.dat</code>. R<sub>f</sub> sizing section added 2026-08-18 from the modeled panel dose-response in <code>gen_figdata.py</code>.</p>
 
 </main>
 </body>
