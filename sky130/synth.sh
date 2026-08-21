@@ -75,6 +75,10 @@ inswap && /^endmodule([[:space:]].*)?$/ { inswap=0; next }
 
 grep -q "sky130_fd_sc_hd__dlclkp_1" "src/${TOP}.v" || {
     echo "error: ICG substitution did not land in src/${TOP}.v" >&2
+    # Diagnostic for the annotation channel: what DID the writer emit? Every
+    # module header, and every line naming the clock gate under any casing.
+    grep -n "^module" "src/${TOP}.v" | head -6 >&2
+    grep -in "clkgate" "src/${TOP}.v" | head -3 >&2
     exit 1
 }
 grep -q "^module ${TOP}" "src/${TOP}.v" || {
