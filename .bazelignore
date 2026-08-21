@@ -1,0 +1,51 @@
+# Directories bazel must never crawl for packages.
+# The EDA working trees below total ~450GB of generated output; without these
+# entries every "bazel build //..." walks all of it looking for BUILD files.
+signoff_mp
+xcelium
+xcelium.d
+innovus
+genus
+std_cells
+cpf
+hardware
+ic_bad
+logo
+.cadence
+.devlog
+
+# Generated / gitignored trees inside otherwise-bazelified areas:
+docs/publications
+verification/isa/build
+verification/isa/build_oneoff
+verification/isa/negctrl
+verification/isa/rcf
+verification/isa/rcf_argus
+verification/isa/rcf_course
+verification/isa/rcf_k03
+verification/isa/rcf_k04
+verification/isa/rcf_k05
+verification/isa/rcf_k06
+verification/isa/rcf_k09
+verification/isa/rcf_k10
+verification/isa/rcf_k17
+verification/isa/rcf_k2d
+verification/isa/rcf_k30
+verification/isa/rcf_k31
+verification/isa/rcf_k32
+verification/isa/rcf_k33
+verification/isa/rcf_k34
+verification/isa/rcf_k51
+verification/isa/rcf_k69
+verification/isa/rcf_k79
+verification/isa/rcf_k82
+verification/isa/rcf_k8f
+verification/isa/rcf_k97
+verification/isa/rcf_kb2
+verification/isa/rcf_kba
+verification/isa/rcf_kc1
+verification/isa/rcf_kd3
+verification/isa/rcf_ked
+verification/isa/rcf_kf0
+verification/isa/rcf_kf8
+opensource_sim/.venv

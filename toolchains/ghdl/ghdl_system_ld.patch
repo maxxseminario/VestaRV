@@ -1,0 +1,19 @@
+--- a/BUILD.bazel	2026-08-21 01:24:12.044404676 -0500
++++ b/BUILD.bazel	2026-08-21 01:24:22.400364781 -0500
+@@ -494,6 +494,16 @@
+             "-lm",
+             "-shared-libgcc",
+             "-Wl,--export-dynamic",
++            # vestarv local patch: prefer the SYSTEM binutils ld over the one
++            # bundled with the pinned GNAT 12.2.0-1 prebuilt.
++            # The bundled ld needs glob@GLIBC_2.27 and cannot execute on this
++            # glibc 2.26 build host, which makes this link the single step of
++            # the whole ghdl build that fails there.
++            # The system /usr/bin/ld is a native x86_64 binutils and links the
++            # GNAT 12.2 objects cleanly.
++            # Same remedy the repo already uses for the xPack RISC-V ld and in
++            # hdl/common/tb/gen_fpu_vectors.sh.
++            "-B/usr/bin",
+         ],
+         "@platforms//os:macos": [
+             "-shared-libgcc",

@@ -1,0 +1,11 @@
+# All hand-written VHDL sources as one filegroup.
+# The *.pre_pack / *.pre_vhdl2008 sidecar files carry different extensions and
+# are therefore excluded by the globs automatically.
+filegroup(
+    name = "vhdl_sources",
+    srcs = glob([
+        "**/*.vhd",
+        "**/*.vhdl",
+    ]),
+    visibility = ["//visibility:public"],
+)

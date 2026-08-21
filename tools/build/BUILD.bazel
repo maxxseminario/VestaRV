@@ -1,0 +1,32 @@
+load("@rules_python//python:defs.bzl", "py_binary")
+
+package(default_visibility = ["//visibility:public"])
+
+# The single canonical bin -> RCF converter (replaces the five divergent
+# od+awk copies in the makefiles). Byte-verified against the pinned
+# software/bootrom_mp/bin/rom.rcf gate artifact.
+py_binary(
+    name = "bin2rcf",
+    srcs = ["scripts/bin2rcf.py"],
+    main = "scripts/bin2rcf.py",
+)
+
+# Out-of-place port of verification/isa/flash_prepend.sh's transform,
+# byte-verified against the bash original's output.
+py_binary(
+    name = "rcf_flash",
+    srcs = ["scripts/rcf_flash.py"],
+    main = "scripts/rcf_flash.py",
+)
+
+# Linker scripts shared by the firmware builds. The .ld files `INCLUDE`
+# memory.x / periph.x and the *_START/_SIZE fragments, so all must travel
+# together.
+filegroup(
+    name = "linker_scripts",
+    srcs = glob([
+        "linker-scripts/*.ld",
+        "linker-scripts/*.x",
+        "linker-scripts/*.txt",
+    ]),
+)
