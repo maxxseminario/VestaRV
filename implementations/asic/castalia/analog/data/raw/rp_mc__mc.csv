@@ -1,10 +1,10 @@
 # maestro2tex monte carlo -- test=rp_mc samples=200
 #@ donominal=no numruns=200 sampling=lds section=castalia_pm_25 seed=12345 temp=25 variations=mismatch
-#! r_mc_0			value(r_mc 0)
-#! r_mc_64			value(r_mc 64)
-#! r_mc_63			value(r_mc 63)
-#! seam_63_64			(r_mc_64 - r_mc_63)
-#! r_mc_319			value(r_mc 319)
+#! r_mc_0	18650.0	20650.0	value(r_mc 0)
+#! r_mc_64	383000.0	424000.0	value(r_mc 64)
+#! r_mc_63	376000.0	416000.0	value(r_mc 63)
+#! seam_63_64	0.0		(r_mc_64 - r_mc_63)
+#! r_mc_319	1834000.0	2027000.0	value(r_mc 319)
 19654.6	403794	396911	6882.83	1932960
 19737.2	403899	396291	7608.1	1932450
 19566.4	403647	396893	6754.3	1931860

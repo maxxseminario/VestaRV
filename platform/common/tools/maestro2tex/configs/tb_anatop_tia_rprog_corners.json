@@ -130,6 +130,7 @@
   ],
   "order": [
     "note_tiarprog_intro",
+    "sch_tiarprog_switch",
     "tab_TiaRprog_corners",
     "fig_tiarprog_r_vs_code",
     "tab_tiarprog_corners",
@@ -139,7 +140,8 @@
     "note_tiarprog_mc",
     "tab_tiarprog_mc",
     "fig_tiarprog_mc_seam",
+    "note_tiarprog_spec",
     "note_tiarprog_scope"
   ],
-  "_note": "Results dir: ~/chips/castalia/simruns/tb_anatop_tia_rprog_code/castalia/tb_anatop_tia_rprog/maestro/results/maestro/Ocean.0. Companion configs: tb_anatop_tia_rprog_lin.json (lin_n0 run), tb_anatop_tia_rprog_mc.json (mc run). Archive + provenance: ~/chips/castalia/simarchive/tb_anatop_tia_rprog/README.md"
+  "_note": "Results dir: ~/chips/castalia/simruns/tb_anatop_tia_rprog_code/castalia/tb_anatop_tia_rprog/maestro/results/maestro/Ocean.0. Companion configs: tb_anatop_tia_rprog_lin.json (lin_n0 run), tb_anatop_tia_rprog_mc.json (mc run, repointed 2026-08-21 at the spec-evaluated _mcspec re-run). Hand-written fragments placed by `order`: note_tiarprog_{intro,mc,spec,scope} and sch_tiarprog_switch; note_tiarprog_spec carries the 14-spec grading table transcribed from the rdb spec evaluation in ~/chips/castalia/simruns/tb_anatop_tia_rprog_specrun (rp_code+rp_lin, 5 corners) and _mcspec (rp_mc). Archive + provenance: ~/chips/castalia/simarchive/tb_anatop_tia_rprog/README.md"
 }

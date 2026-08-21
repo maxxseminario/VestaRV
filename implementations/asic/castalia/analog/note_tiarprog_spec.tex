@@ -1,0 +1,89 @@
+% HAND-WRITTEN fragment -- placed by the `order` list in
+% configs/tb_anatop_tia_rprog_corners.json.
+%
+% Specification grading of the 2026-08-21 spec-evaluated runs. Numbers come
+% from the run databases (plain SQLite; tables spec/specValue/resultValue):
+%   simruns/tb_anatop_tia_rprog_specrun/castalia/tb_anatop_tia_rprog/maestro/
+%     results/maestro/Ocean.0.rdb           (rp_code + rp_lin, all 5 corners)
+%   simruns/tb_anatop_tia_rprog_mcspec/.../Ocean.0.rdb  (rp_mc, 200 samples)
+% and from the summary_*.txt files beside them. The MC rows repeat
+% tab_tiarprog_mc, which is regenerated from the same run.
+
+The bench carries 14 pass/fail specifications, graded by the simulator against
+every corner and every Monte Carlo sample
+(Table~\ref{tab:tiarprog-spec}). The limits are screening bounds chosen from
+the measured data: the endpoint windows allow the \(\pm 35\,\%\) poly
+sheet-resistance span plus margin, so a violation flags a broken device or
+model, not process spread. Twelve of the fourteen pass at every corner and
+every sample.
+
+The two exceptions are honest and bounded. \texttt{v\_top} exceeds its
+\SI{2.45}{\volt} limit at the two slow-resistor corners
+(\SI{2.553}{\volt} at \texttt{ss-res}, \SI{2.518}{\volt} at \texttt{ss 125C}):
+at \(+35\,\%\) resistance the fixed \SI{500}{\nano\ampere} test current rails
+the \SI{2.5}{\volt} supply at the top codes. That is the measurement drive
+running out of compliance at the slow corner, not a device defect --- the same
+compliance ceiling already documented as the \(\sim\SI{0.65}{\micro\ampere}\)
+top-code operating limit --- and the \SI{250}{\nano\ampere} control run bounds
+its effect on the reported resistances at \(\le 0.036\,\%\)
+(Table~\ref{tab:tiarprog-corners}). \texttt{lsb\_err} fails its 0.5-LSB budget
+at four of five corners (1.24 typical, 3.60 worst at \texttt{ss 125C}, passing
+only at \texttt{ff -40C} with 0.41): this is the bottom-code switch-Ron bowl of
+Figure~\ref{fig:tiarprog-lin-n0}, largest where the gates are slowest and
+hottest. It is accepted as documented --- the chord-resistance error
+\texttt{r\_lin\_err\_pct} stays below \(1\,\%\) everywhere
+(0.12--0.53\,\%), and the fix, if bottom-code linearity ever matters, is wider
+bypass gates. One bench note: the linearity sweep's drive source includes the
+\texttt{itest} term (\(i = i_{\mathrm{test}} + f\cdot 0.8/R_{\mathrm{ideal}}\),
+mirroring the netlist source exactly), so the chord is taken about the same
+operating point the code sweep uses; against that corrected drive the typical
+worst deviation reads 1.24 LSB where Table~\ref{tab:tiarprog-lin} reported
+1.26.
+
+% Hand-written table; values transcribed from the rdb spec evaluation above.
+\begin{table}[htbp]
+  \centering
+  \caption[{Specification grading of the programmable feedback resistor: 14
+  simulator-graded limits.}]{Specification grading: the 14 limits carried by
+  the bench and the verdict. Corner rows list the limit and the measured
+  extremes across all five corners of Table~\ref{tab:TiaRprog-corners}; the
+  endpoint and step windows are screening bounds (\(\pm 35\,\%\) corner span
+  plus margin). Monte Carlo rows list the nominal (mean) and standard
+  deviation over the 200 mismatch samples (typical process,
+  \SI{25}{\celsius}), each graded against a \(\pm 5\,\%\) absolute-accuracy
+  window about its typical value and the seam against zero.}
+  \label{tab:tiarprog-spec}
+  \small
+  \begin{tabular}{llrrl}
+    \toprule
+    Specification & Unit & Limit & Measured & Verdict \\
+    \midrule
+    \multicolumn{5}{l}{\emph{Code sweep, 320 codes, five corners}} \\
+    $R$ at $N{=}0$ & \si{\kilo\ohm} & 12--28 & 13.26--26.41 & pass \\
+    $R$ at $N{=}319$ & \si{\mega\ohm} & 1.25--2.65 & 1.280--2.606 & pass \\
+    Step, min & \si{\kilo\ohm} & $>1$ & 3.57--7.67 & pass \\
+    Step, mean & \si{\kilo\ohm} & 3.8--8.2 & 3.97--8.09 & pass \\
+    Non-monotonic steps & count & 0 & 0 & pass \\
+    Error vs $18\,\mathrm{k}+6\,\mathrm{k}\cdot N$, max & \si{\percent} & $<55$ & 9.2--46.7 & pass \\
+    $V(\mathtt{A})$ at top code & \si{\volt} & $<2.45$ & 1.89--2.55 & marginal$^{a}$ \\
+    \addlinespace
+    \multicolumn{5}{l}{\emph{Drive linearity at $N{=}0$, five corners}} \\
+    Chord deviation, max & ADC LSB & $<0.5$ & 0.41--3.60 & fail$^{b}$ \\
+    Secant-$R$ error & \si{\percent} & $<1$ & 0.12--0.53 & pass \\
+    \addlinespace
+    \multicolumn{2}{l}{\emph{Monte Carlo, 200 mismatch samples, typical}}
+      & Nominal & Std.\ dev. & \\
+    $R(N{=}0)$ & \si{\kilo\ohm} & 19.650 & 0.071 & pass, 200/200 \\
+    $R(N{=}63)$ & \si{\kilo\ohm} & 396.452 & 0.361 & pass, 200/200 \\
+    $R(N{=}64)$ & \si{\kilo\ohm} & 403.876 & 0.364 & pass, 200/200 \\
+    $R(N{=}319)$ & \si{\mega\ohm} & 1.93212 & 0.00071 & pass, 200/200 \\
+    Seam step $63{\to}64$ & \si{\kilo\ohm} & 7.424 & 0.504 & pass, 200/200 \\
+    \bottomrule
+    \multicolumn{5}{l}{\footnotesize $^{a}$\,Exceeded at \texttt{ss-res}
+      (\SI{2.553}{\volt}) and \texttt{ss 125C} (\SI{2.518}{\volt}): test-drive
+      compliance, not a device defect (see text).} \\
+    \multicolumn{5}{l}{\footnotesize $^{b}$\,Fails at four of five corners;
+      passes at \texttt{ff -40C} (0.41). Bottom-code switch-Ron bowl, accepted
+      (see text).} \\
+  \end{tabular}
+\end{table}

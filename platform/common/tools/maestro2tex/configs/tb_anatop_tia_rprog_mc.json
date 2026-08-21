@@ -48,7 +48,9 @@
       "id": "tiarprog_mc_seam",
       "kind": "histogram",
       "test": "rp_mc",
-      "signals": ["seam_63_64"],
+      "signals": [
+        "seam_63_64"
+      ],
       "bins": 25,
       "spec_span": 1.5,
       "spec_lo_label": "monotonicity limit (0)",
@@ -64,10 +66,21 @@
       "id": "tiarprog_mc",
       "type": "mcstats",
       "test": "rp_mc",
-      "signals": ["r_mc_0", "r_mc_63", "r_mc_64", "r_mc_319", "seam_63_64"],
-      "stats": ["n", "mean", "sigma", "min", "p1", "p99", "max", "spec", "yield"],
-      "caption": "Monte Carlo of the programmable resistor at four codes plus the per-sample seam step. \\textbf{Mismatch only}, model section \\texttt{castalia\\_pm\\_25}, nominal process, 200 samples, seed 12345, low-discrepancy sampling, \\SI{25}{\\celsius}, \\SI{500}{\\nano\\ampere} test current. Relative spread falls with code as units accumulate: \\(\\sigma/\\mu = 0.359\\,\\%\\) at \\(N{=}0\\) (three ladder units plus ten switch Rons), \\(0.091\\,\\%\\) at \\(N{=}63\\), \\(0.037\\,\\%\\) at \\(N{=}319\\); the gain ratio \\(R(319)/R(0)\\) spreads \\(0.354\\,\\%\\). The only specification graded is seam \\(>0\\) (monotonicity): 200 of 200 pass."
+      "signals": [
+        "r_mc_0",
+        "r_mc_63",
+        "r_mc_64",
+        "r_mc_319",
+        "seam_63_64"
+      ],
+      "stats": [
+        "n",
+        "mean",
+        "sigma",
+        "yield"
+      ],
+      "caption": "Monte Carlo of the programmable resistor at four codes plus the per-sample seam step. \\textbf{Mismatch only}, model section \\texttt{castalia\\_pm\\_25}, nominal process, 200 samples, seed 12345, low-discrepancy sampling, \\SI{25}{\\celsius}, \\SI{500}{\\nano\\ampere} test current. Relative spread falls with code as units accumulate: \\(\\sigma/\\mu = 0.359\\,\\%\\) at \\(N{=}0\\) (three ladder units plus ten switch Rons), \\(0.091\\,\\%\\) at \\(N{=}63\\), \\(0.037\\,\\%\\) at \\(N{=}319\\); the gain ratio \\(R(319)/R(0)\\) spreads \\(0.354\\,\\%\\). Yield grades each code against a \\(\\pm 5\\,\\%\\) absolute window about its typical value and the seam against zero (limits in Table~\\ref{tab:tiarprog-spec}): all five yield 100.0\\,\\% over the 200 samples, with the nearest limit \\(14.2\\sigma\\) from the mean (\\(N{=}0\\))."
     }
   ],
-  "_note": "Results dir: ~/chips/castalia/simruns/tb_anatop_tia_rprog_mc/castalia/tb_anatop_tia_rprog/maestro/results/maestro/Ocean.0 (mcdata/mcparam under psf/rp_mc/monteCarlo). seam_63_64 is computed per sample by the run itself (mcparam row), not derived here."
+  "_note": "Results dir: ~/chips/castalia/simruns/tb_anatop_tia_rprog_mcspec/castalia/tb_anatop_tia_rprog/maestro/results/maestro/Ocean.0 (mcdata/mcparam under psf/rp_mc/monteCarlo) -- the 2026-08-21 spec-evaluated re-run of the original _mc run: same seed 12345/LDS/200 samples (sample 1 bit-identical: 19654.6/396910.8/403793.6 for r_mc_0/63/64), mcparam now carries the +-5% spec windows so the table's Yield column populates for all five outputs (the limits themselves are printed in the hand-written note_tiarprog_spec table, not here). seam_63_64 is computed per sample by the run itself (mcparam row), not derived here."
 }
