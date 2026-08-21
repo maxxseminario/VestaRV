@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Castalia AFE rev-2 — per-analyte CV electrode model (ISCAS27 Fig. 4)</title>
+<style>
+  :root { --ink:#1a1d21; --mut:#5b6270; --line:#d7dbe2; --bg:#ffffff; --panel:#f4f6f9;
+          --acc:#0b5fa5; --ok:#1a7a3c; --warn:#a05a00; --bad:#b3261e; --code:#f0f2f6; }
+  * { box-sizing:border-box; }
+  body { font:15px/1.55 "Segoe UI",system-ui,-apple-system,sans-serif; color:var(--ink);
+         background:var(--bg); margin:0; padding:0 0 6em 0; }
+  main { max-width:1080px; margin:0 auto; padding:0 28px; }
+  h1 { font-size:1.7em; border-bottom:3px solid var(--acc); padding-bottom:.3em; margin-top:1.2em;}
+  h2 { font-size:1.3em; color:var(--acc); border-bottom:1px solid var(--line);
+       padding-bottom:.2em; margin-top:2.2em; }
+  h3 { font-size:1.05em; margin-top:1.6em; }
+  table { border-collapse:collapse; width:100%; margin:.8em 0 1.2em; font-size:.93em; }
+  th, td { border:1px solid var(--line); padding:.35em .6em; text-align:left; vertical-align:top; }
+  th { background:var(--panel); font-weight:600; }
+  code, .mono { font-family:"Consolas","DejaVu Sans Mono",monospace; font-size:.92em; }
+  code { background:var(--code); padding:.08em .3em; border-radius:3px; }
+  pre { background:var(--code); border:1px solid var(--line); border-radius:5px;
+        padding:.7em .9em; overflow-x:auto; font-size:.88em; line-height:1.45; }
+  pre code { background:none; padding:0; }
+  .pass { background:#eef7f0; border-left:4px solid var(--ok); padding:.6em .9em; margin:.8em 0; }
+  .warn { background:#fdf4e7; border-left:4px solid var(--warn); padding:.6em .9em; margin:.8em 0; }
+  .crit { background:#fdecea; border-left:4px solid var(--bad); padding:.6em .9em; margin:.8em 0; }
+  .note { background:var(--panel); border-left:4px solid var(--acc); padding:.6em .9em; margin:.8em 0; }
+  .small { font-size:.85em; color:var(--mut); }
+  #toc { background:var(--panel); border:1px solid var(--line); border-radius:6px;
+         padding:1em 1.4em; margin:1.5em 0; columns:2; column-gap:2.5em; }
+  #toc a { text-decoration:none; color:var(--acc); }
+  #toc li { margin:.15em 0; }
+  .kv td:first-child { white-space:nowrap; font-weight:600; background:var(--panel); width:14em; }
+  @media print { body{font-size:11px} #toc{columns:1} h2{page-break-before:always} }
+</style>
+</head>
+<body>
+<main>
+
+<h1>Per-analyte CV electrode model — replacing ISCAS27 Fig.&nbsp;4</h1>
+<p class="small">Written 2026-08-21 · Library <code>castalia</code> (tsmcN65, IC618, Spectre) ·
+Companion to <code>afe_rev2_strategy.html</code>, <code>afe_rev2_simplan.html</code>,
+<code>afe_rev2_eis.html</code>.<br>
+Plan and hand-off for producing chemically meaningful cyclic-voltammetry figures from
+Cadence/Maestro: a Butler&ndash;Volmer + diffusion electrode model parameterized per
+wound-fluid biomarker, driven by the rev-2 bipolar channel.</p>
+
+<ol id="toc">
+<li><a href="#s1">1 · What Fig. 4 is today (provenance)</a></li>
+<li><a href="#s2">2 · Why a linear Randles cell cannot make this figure</a></li>
+<li><a href="#s3">3 · Candidate models (exploration results)</a></li>
+<li><a href="#s4">4 · Biomarker panel and parameters</a></li>
+<li><a href="#s5">5 · Bench plan (test schematics)</a></li>
+<li><a href="#s6">6 · Library integration recipe</a></li>
+<li><a href="#s7">7 · Open decisions</a></li>
+<li><a href="#s8">8 · References for the paper</a></li>
+</ol>
+
+<h2 id="s1">1 · What Fig. 4 is today (provenance)</h2>
+
+<p>ISCAS27 Fig.&nbsp;4 (<code>docs/publications/iscas27-castalia/Figures/CV_Sim.pdf</code>,
+label <code>fig:cv_sim</code>) is byte-identical to the ISCAS26 myshkin figure of the same
+name: a transient of the <b>rev-1</b> PMOS-mirror potentiostat
+(<code>potentiostat_pmos_sch4lay_upd</code>) performing a 0&rarr;2&rarr;0&nbsp;V triangular
+sweep over 3&nbsp;s. The load is effectively resistive: <code>icell</code> is a straight ramp
+0&rarr;0.75&nbsp;&mu;A with no redox peaks and no hysteresis. The ISCAS26 text uses it to
+claim linearity (NRMSE 0.025&nbsp;%), and notes mirror clipping above 2&nbsp;V.
+Fig.&nbsp;3 (<code>fig:envelope</code>) contains no simulation data at all &mdash; the
+power/latency staircase is analytic, typed directly into the TikZ
+<code>\addplot&nbsp;coordinates</code>.</p>
+
+<div class="crit">Two reasons Fig.&nbsp;4 must be regenerated, not re-captioned: (1) it shows
+no electrochemistry &mdash; a chemical is identified by its peak potential and quantified by
+its peak height, and this trace has neither; (2) it is the <b>unidirectional</b> rev-1 front
+end, while the paper's channel is the rev-2 bipolar grounded-WE design whose whole point is
+cathodic + anodic sensing.</div>
+
+<h2 id="s2">2 · Why a linear Randles cell cannot make this figure</h2>
+
+<p>The Randles cell (R<sub>s</sub> + R<sub>ct</sub>&#8741;C<sub>dl</sub>, optionally +
+Warburg) is a <b>small-signal linear</b> network. Under a triangular sweep every branch
+current is a linear functional of the excitation: the response is a ramp
+(R<sub>ct</sub> path) plus a constant capacitive offset that flips sign at the vertices
+(C<sub>dl</sub>&middot;dV/dt) &mdash; exactly the featureless shape in the current Fig.&nbsp;4.
+Varying R/C per chemical changes slopes, never peak positions. No linear network produces a
+voltammetric peak.</p>
+
+<p>The peak is created by two nonlinearities acting together: <b>Butler&ndash;Volmer
+kinetics</b> (faradaic current exponential in overpotential, onset at the analyte's
+E<sup>0&prime;</sup>) and <b>diffusional depletion</b> (surface concentration collapses as
+current flows, so the current peaks and then falls as t<sup>&minus;1/2</sup>). Both are
+required: BV alone with fixed surface concentration gives a sigmoid, not a peak. Hence the
+model is the Randles <i>topology</i> (R<sub>s</sub>, C<sub>dl</sub> kept as linear elements)
+with the R<sub>ct</sub> branch replaced by a Verilog-A element implementing BV + a
+finite-difference 1-D diffusion layer. The Randles cell remains the correct model for the
+EIS mode (<code>afe_rev2_eis.html</code>) &mdash; EIS is small-signal, CV is not.</p>
+
+<p>Per-chemical parameterization then means physical constants, each citable:
+E<sup>0&prime;</sup> (peak position &mdash; identity), n, k<sup>0</sup>, &alpha;
+(reversibility/shape), D and C<sub>bulk</sub> (peak height &mdash; concentration),
+A (electrode), C<sub>dl</sub>, R<sub>s</sub> (matrix/electrode).</p>
+
+<h2 id="s3">3 · Candidate models — exploration results (2026-08-21, complete)</h2>
+
+<p>All artifacts in <code>~/chips/castalia/electrode_models/</code> (raw Spectre 20.1 +
+<code>ahdl_include</code>, no OA/PDK; <code>./runme.sh</code> regenerates everything in
+~4&nbsp;min; consolidated numbers in <code>report.txt</code>, figures in
+<code>plots/</code>). Common fixture: R<sub>s</sub>=500&nbsp;&Omega;,
+C<sub>dl</sub>=0.2&nbsp;&mu;F (20&nbsp;&mu;F/cm<sup>2</sup>&middot;0.01&nbsp;cm<sup>2</sup>),
+C=1&nbsp;mM, D=5&times;10<sup>&minus;6</sup>&nbsp;cm<sup>2</sup>/s, &plusmn;0.6&nbsp;V
+triangle, 25&ndash;400&nbsp;mV/s.</p>
+
+<table>
+<tr><th>Model</th><th>Files</th><th>CV shape</th></tr>
+<tr><td>1 · linear Randles</td><td><code>net/m1_randles_v*.scs</code></td>
+<td><b>No peaks</b> — extrema pinned at the switching potentials; error vs
+Randles&ndash;&Scaron;ev&#269;&iacute;k grows with v (&minus;36&rarr;&minus;82&nbsp;%): a
+resistor has no &radic;v dependence at all</td></tr>
+<tr><td>2 · Butler&ndash;Volmer, fixed surface conc.</td><td><code>va/bv_fixed.va</code></td>
+<td><b>No peaks</b> — i(E) monotonic by construction with C(0,t) pinned</td></tr>
+<tr><td>3 · BV + 1-D finite-difference diffusion</td><td><code>va/bv_diff.va</code>
+(28 slabs/species, exponic grid, &delta;=1.79&nbsp;mm)</td>
+<td><b>Textbook duck</b>: at 50&nbsp;mV/s i<sub>pc</sub>=&minus;1.279&nbsp;&mu;A,
+i<sub>pa</sub>=+1.140&nbsp;&mu;A, &Delta;E<sub>p</sub>=59.8&nbsp;mV</td></tr>
+<tr><td>3b · finite Nernst layer</td><td><code>va/bv_diff_nl.va</code> (&delta;=93&nbsp;&mu;m)</td>
+<td>Peak survives; reverse peak attenuated (ratio 0.65); cycles identical (layer
+re-equilibrates)</td></tr>
+<tr><td>4 · two couples (2&times; model 3 in parallel)</td><td><code>net/m4_two_v*.scs</code></td>
+<td><b>Four peaks, both polarities</b>: E0&prime;=+0.30&nbsp;V (1&nbsp;mM) and
+&minus;0.25&nbsp;V (0.5&nbsp;mM); scan spans &minus;1.15&hellip;+1.27&nbsp;&mu;A in one
+sweep — the bipolar-front-end argument</td></tr>
+</table>
+
+<h3>3.1 · Validation (model 3)</h3>
+<ul>
+<li><b>Randles&ndash;&Scaron;ev&#269;&iacute;k: +0.08&hellip;+1.86&nbsp;%</b> over
+25&ndash;400&nbsp;mV/s (first cathodic scan); &radic;v scaling 4.07 vs 4.00. Residual fully
+attributed: C<sub>dl</sub> ablation reproduces C<sub>dl</sub>&middot;v/i<sub>p</sub> to two
+decimals; purely faradaic residual is a flat &minus;0.25&hellip;&minus;0.45&nbsp;%
+discretisation bias.</li>
+<li><b>&Delta;E<sub>p</sub> = 57.04&nbsp;mV</b> with R<sub>s</sub>,C<sub>dl</sub>&rarr;0,
+matching Nicholson's reversible 2.218&middot;RT/F = 56.9&nbsp;mV; the 59&ndash;65&nbsp;mV
+at R<sub>s</sub>=500&nbsp;&Omega; is iR distortion, growing with v as it must.</li>
+<li><b>Kinetics knob behaves per Matsuda&ndash;Ayabe</b>: k<sup>0</sup>=0.1&nbsp;cm/s is
+the reversible default; k<sup>0</sup>=10<sup>&minus;3</sup> gives
+&Delta;E<sub>p</sub>=167&nbsp;mV / i<sub>p</sub>&minus;15.5&nbsp;% — the knob for sluggish
+real wound-marker electrodes.</li>
+<li>Grid: nseg&ge;16 sound, default 28 (first-order convergence); timestep not the limit.
+Report cycle 1 against R&ndash;S (cycle 2 sits 3&ndash;5&nbsp;% low from residual surface R
+— physics, not error); plot cycle 2.</li>
+</ul>
+
+<h3>3.2 · Concentration vs AFE range (A=1&nbsp;mm<sup>2</sup>, 50&nbsp;mV/s)</h3>
+<p>0.02&nbsp;mM &rarr; 37&nbsp;nA (N=319 range, 45&nbsp;LSB) &hellip; 1&nbsp;mM &rarr;
+1.35&nbsp;&mu;A (N=63, 336&nbsp;LSB) &hellip; 10&nbsp;mM &rarr; 13.2&nbsp;&mu;A (N=0,
+166&nbsp;LSB). Full table: <code>electrode_models/conc.json</code>.
+<b>Below ~0.1&nbsp;mM the peak is buried in double-layer charging at 50&nbsp;mV/s</b>
+(charging = 37&nbsp;% of a 27&nbsp;nA peak) — a real design limit worth one sentence in the
+paper.</p>
+
+<h3>3.3 · Verdict and traps</h3>
+<div class="pass"><b>Model 3 (<code>va/bv_diff.va</code>) is the basis for per-chemical CV
+figures</b>, one instance per redox couple (model 4 is N parallel instances, no new code).
+Only candidate that peaks at all; validated &lt;2&nbsp;%; every distinguishing parameter
+(E<sup>0&prime;</sup>, n, &alpha;, k<sup>0</sup>, D, C) is a citable physical quantity.
+Keep models 1/2 as the left-hand panels of <code>plots/compare_v050.png</code> — the
+quantitative argument for retiring the resistive placeholder. Use <code>bv_diff</code>
+when comparing to closed forms, <code>bv_diff_nl</code> when the point is the unstirred
+film over a wound sensor; state &delta; in the caption either way.</div>
+
+<ul>
+<li>Zero convergence errors across ~60 runs with plain conservative settings; robustness
+probes to &eta;=&plusmn;12&nbsp;V all passed. <code>$limexp()</code>/clamps kept as
+belt-and-braces — do not claim CV models "need" convergence aids in this fixture.</li>
+<li><code>constants.vams</code> lacks Faraday and Avogadro (<code>`P_NA</code> is a compile
+error); CODATA-2018 values hardcoded.</li>
+<li>Concentrations normalised by 10<sup>&minus;6</sup> before becoming node voltages —
+raw mol/cm<sup>3</sup> is below <code>vabstol</code> and solves to noise.</li>
+<li>Sign: models emit <b>anodic positive</b> (IUPAC / what the TIA measures);
+Bard&nbsp;&amp;&nbsp;Faulkner take cathodic positive — one flip, marked
+<code>SIGN FLIP</code> in source. Spectre <code>-log</code> is parsed as an input file; use
+<code>+log</code>. Working python (numpy/matplotlib) is
+<code>/opt/mentor/calibre/aoj_cal/bin/python3</code>, not <code>/usr/bin/python3</code>.</li>
+<li>Each .va header maps every equation to its source
+(B&amp;F Eq.&nbsp;3.3.11 faradaic law, 4.4.2/4.4.29 diffusion + flux BC, 6.2.19
+R&ndash;&Scaron;; Feldberg 1969 box method; Britz&nbsp;&amp;&nbsp;Strutwolf Ch.&nbsp;3/7;
+Nicholson 1965; Matsuda&nbsp;&amp;&nbsp;Ayabe 1955) — full mapping table in &sect;8.</li>
+</ul>
+
+<h2 id="s4">4 · Biomarker panel and parameters (literature survey complete 2026-08-21)</h2>
+
+<div class="pass"><b>Recommended panel: pyocyanin (&minus;0.27&nbsp;V, cathodic) ·
+H<sub>2</sub>O<sub>2</sub>-via-GOx/Prussian-Blue (0.0&nbsp;V, cathodic) · uric acid
+(+0.38&nbsp;V, anodic) · ascorbate (+0.40&nbsp;V, anodic)</b> — the only four-analyte set
+simultaneously inside &plusmn;0.8&nbsp;V and 0.4&nbsp;nA&ndash;40&nbsp;&mu;A across full
+clinical ranges. Spans 6&nbsp;nA&ndash;4.6&nbsp;&mu;A (three decades &mdash; exercises the
+programmable R<sub>f</sub>, not one gain code). <b>Bipolarity is forced by the chemistry</b>:
+pyocyanin's useful peak IS cathodic, and PB-mediated H<sub>2</sub>O<sub>2</sub> at
+0.0&nbsp;V is the only in-window route selective against urate (direct anodic
+H<sub>2</sub>O<sub>2</sub> at +0.6&nbsp;V is co-oxidised by the panel's own uric acid) —
+rev-1's unidirectional front end could not run this panel at all. Clinically coherent:
+infection / metabolic state / chronicity-necrosis / antioxidant status. Stated weakness
+(keep it): uric acid and ascorbate sit 20&nbsp;mV apart — the textbook unresolvable pair on
+bare carbon, which is the argument for per-channel functionalised electrodes.</div>
+
+<table>
+<tr><th>Analyte</th><th>E vs Ag/AgCl (pH 7.4)</th><th>n</th><th>Kinetics</th>
+<th>D (cm<sup>2</sup>/s)</th><th>Clinical range</th><th>i<sub>p</sub> @ 1&nbsp;mm<sup>2</sup>,
+100&nbsp;mV/s</th></tr>
+<tr><td>Uric acid</td><td>+0.38 (irreversible; &minus;57&nbsp;mV/pH; surface-state prior
+&plusmn;150&nbsp;mV)</td><td>2e&minus;/2H<sup>+</sup></td><td>&alpha;n<sub>a</sub>=0.46&plusmn;0.10;
+no k<sup>0</sup> published; diimine t<sub>&frac12;</sub>&asymp;22&nbsp;ms</td>
+<td>6.5e&minus;6 (homology estimate, not primary)</td>
+<td>220&ndash;750&nbsp;&mu;M exudate; &lt;220 infection, &gt;750 necrosis (bidirectional)</td>
+<td>1.35&ndash;4.60&nbsp;&mu;A (derate 2&ndash;3&times; on bare carbon: measured 3.1&times;
+below R&ndash;&Scaron;)</td></tr>
+<tr><td>Pyocyanin</td><td>&minus;0.266 (&minus;53&nbsp;mV/pH measured pH 2&ndash;11)</td>
+<td>2e&minus;/2H<sup>+</sup></td><td>Quasi-reversible, &Delta;E<sub>p</sub>=53&nbsp;mV @
+100&nbsp;mV/s; fit k<sup>0</sup> from &Delta;E<sub>p</sub></td>
+<td>6.6e&minus;6 aqueous; 3e&minus;7 in mucin-rich matrix (20&times; swing — simulate both)</td>
+<td>1&ndash;100&nbsp;&mu;M; cytotoxicity &ge;10&nbsp;&mu;M</td>
+<td>6.2&ndash;618&nbsp;nA (adsorption-controlled on SPCE: i<sub>p</sub>&prop;v, R&ndash;&Scaron;
+is a lower bound). Do not scan past the destructive +0.65&nbsp;V anodic wave</td></tr>
+<tr><td>H<sub>2</sub>O<sub>2</sub> (glucose proxy)</td><td>0.0 at Prussian Blue, cathodic
+(only selective in-window route)</td><td>2e&minus;</td><td>PB k<sub>el</sub>&gt;0.01&nbsp;cm/s
+(vs Pt &lt;7e&minus;6); surface-confined, &Delta;E<sub>p</sub> 15&ndash;30&nbsp;mV</td>
+<td>1.43e&minus;5 @25&deg;C / 1.83e&minus;5 @37&deg;C (best-supported D in the set)</td>
+<td>GOx: wound-relevant glucose ~0.5&ndash;15&nbsp;mM (dermal ISF 3.1&nbsp;mM healthy,
+8.5&ndash;8.7&nbsp;mM burns) &rarr; ~3&ndash;90&nbsp;&mu;M H<sub>2</sub>O<sub>2</sub> at
+167:1; no human wound-fluid H<sub>2</sub>O<sub>2</sub> ever published</td>
+<td>109&nbsp;nA&ndash;1.09&nbsp;&mu;A (measured PB device 5.91&nbsp;nA/&mu;M agrees within
+1.5&times;). PB is a mediated surface process — R&ndash;&Scaron; is a magnitude check, not a
+valid model; PB dissolves above pH&nbsp;9 (exudate reaches 8.9 — state the margin)</td></tr>
+<tr><td>Ascorbate</td><td>+0.40 on clean carbon (surface-state band +0.35&hellip;+0.70;
+thermodynamic E<sup>0&prime;</sup> = &minus;0.156, i.e. ~0.55&nbsp;V overpotential)</td>
+<td>2e&minus;/2H<sup>+</sup></td><td>Irreversible; &alpha;=0.5&plusmn;0.025;
+k<sup>0</sup> back-calculated 1e&minus;6&hellip;1e&minus;5&nbsp;cm/s (fitted)</td>
+<td>6e&minus;6, factor-2 band</td>
+<td>plasma 40&ndash;120&nbsp;&mu;M; wound fluid unmeasured — assume 20&ndash;150&nbsp;&mu;M
+and label it</td><td>118&ndash;884&nbsp;nA. pH slope measured only pH 0.5&ndash;4 — do not
+extrapolate to 7.4&ndash;8.5</td></tr>
+</table>
+
+<p><b>Rejected:</b> tryptophan (E<sub>pa</sub>&nbsp;+0.80&nbsp;V on the rail; fouls
+catastrophically, RSD 66&nbsp;% by scan 2); xanthine (340&nbsp;pA at the low end — below
+floor; rides the uric-acid tail); hypoxanthine (+1.0&ndash;1.2&nbsp;V, out of compliance);
+lactate (non-electroactive at any bare electrode — enzymatic Michaelis&ndash;Menten, no
+diffusional peak; simulate as chronoamperometric enzyme electrode, not CV — despite having
+the best wound data of the set, 5.6&ndash;80&nbsp;mM, infected&nbsp;&gt;&gt;&nbsp;non-infected
+p=0.001); dopamine (plasma 0.07&nbsp;nM &rarr; 0.4&nbsp;pA; valid only as the benchmark
+couple, whose parameters are the best-characterised of any candidate).</p>
+
+<p><b>Caveats that must survive into the paper:</b> no k<sup>0</sup> in cm/s exists on
+carbon for any of the four — all are fitted to reproduce &Delta;E<sub>p</sub> or
+E<sub>pa</sub>+dE<sub>p</sub>/dlog&nbsp;v (a genuine literature gap, not a search failure);
+pyocyanin is adsorption-controlled (bracket with a Langmuir term); a fixed
+&minus;0.4&hellip;+0.8&nbsp;V sweep covers all four across pH 7.4&ndash;8.5 (uric acid moves
+~65&nbsp;mV toward zero at 8.5 — pH works for us); Randles&ndash;&Scaron;ev&#269;&iacute;k
+validity at 1&nbsp;mm<sup>2</sup>: diffusion layer &le;&nbsp;0.25&middot;r at 100&nbsp;mV/s
+(semi-infinite planar holds) but reaches 0.55&middot;r at 20&nbsp;mV/s — <b>justify
+simulating at 100&nbsp;mV/s on this basis</b> (also resolves the &sect;5.3 timescale
+question: 100&nbsp;mV/s over &minus;0.4&hellip;+0.8&nbsp;V = 24&nbsp;s round trip).
+Two more: the uric-acid single-peak model may fail above pH&nbsp;~8 — a second oxidation
+peak appears in alkaline phosphate (Tyagi&nbsp;&amp;&nbsp;Dryhurst, <i>Bioelectrochem.
+Bioenerg.</i> 13:343, 1984) and exudate reaches 8.9; and a known literature trap:
+&ldquo;3&nbsp;%&nbsp;H<sub>2</sub>O<sub>2</sub>&nbsp;=&nbsp;975&nbsp;&mu;M&rdquo;
+(Zhu 2017) is off by 10<sup>3</sup> (3&nbsp;%&nbsp;&asymp;&nbsp;980&nbsp;mM) — do not
+propagate. Recommended uric-acid BV set: n<sub>total</sub>=2, n<sub>&alpha;</sub>=1,
+&alpha;=0.46&ndash;0.5, k<sup>0</sup> fitted to dE<sub>p</sub>/dlog&nbsp;v&nbsp;&asymp;
+60&nbsp;mV/dec and E<sub>p</sub>&minus;E<sub>p/2</sub>&nbsp;&asymp;&nbsp;100&nbsp;mV.</p>
+
+<p>AFE windows every parameter set must respect (measured, rev-2):</p>
+<table class="kv">
+<tr><td>Current full-scale</td><td>&plusmn;40.7&nbsp;&mu;A (R<sub>f</sub> N=0) &hellip;
+&plusmn;0.414&nbsp;&mu;A (N=319); LSB 0.824&nbsp;nA at max gain
+(<code>anatop_tia_rprog</code>, R&nbsp;=&nbsp;18k&nbsp;+&nbsp;6k&middot;N)</td></tr>
+<tr><td>Potential window</td><td>&plusmn;0.8&nbsp;V about vcm&nbsp;=&nbsp;1.25&nbsp;V
+(SAR window &plusmn;0.815&nbsp;V &cap; TIA compliance &plusmn;0.80&nbsp;V)</td></tr>
+<tr><td>Noise floor</td><td>2&nbsp;nA <code>in_rma</code> budget &mdash; max-gain floor is
+noise-, not quantization-limited</td></tr>
+<tr><td>Top-code compliance</td><td>N=319 physically carries &le;&nbsp;~0.65&nbsp;&mu;A
+before railing</td></tr>
+</table>
+
+<h2 id="s5">5 · Bench plan (test schematics)</h2>
+
+<p>Two benches, in order. Bench A characterizes the electrode model alone and is what the
+model exploration already runs; Bench B puts the rev-2 channel in the loop and is the source
+of the paper figure.</p>
+
+<h3>5.1 · Bench A — electrode model, ideal potentiostat</h3>
+<p>Ideal vsource (triangle, <code>vpwl</code>) applies E&nbsp;=&nbsp;V(re)&minus;V(we)
+directly across the model; <code>icell</code> read by iprobe. Sweep &plusmn;0.6&nbsp;V about
+the formal potential at 50/100/200&nbsp;mV/s. Purpose: per-analyte i&ndash;E validation
+curves, no AFE artifacts. <b>Already realized</b> as the raw-Spectre netlists of &sect;3
+(<code>electrode_models/net/</code>, no OA needed) — an OA/Maestro version of Bench A is
+optional. Note the existing <code>randles_electrode</code> and
+<code>tb_anatop_electrode_randles</code> cells are <b>abandoned stubs</b> (2 res + 1 cap,
+no DUT, no maestro view) &mdash; ignore them; do not treat them as precedent. The real,
+in-use electrode is <code>randles_cell</code> (CE/RE/WE; params
+<code>r_ct/r_u/r_ce/c_dl</code>), instantiated as <code>ECS</code> in the pixel bench.</p>
+
+<h3>5.2 · Bench B — AFE in the loop (paper figure): copy of <code>tb_anatop_pixel/PotFbTB</code></h3>
+<div class="pass"><b>Recon verdict (2026-08-21):</b> the simulate-ready DUT is the flat
+pixel bench <code>tb_anatop_pixel</code>, view <code>PotFbTB</code>, test <code>ps_cv</code>
+&mdash; class-AB <code>anatop_tia_amp_ab</code> as both A1 and A2, <code>randles_cell</code>
+as <code>ECS</code>, ideal <code>R_F</code>, real <code>anatop_biasgen_local</code>,
+<code>tran stop=120m errpreset=conservative temp=37</code>, already validated headless
+(<code>1/1 completed.</code>, <code>i_peak 2.05e-05</code>). Recipe: copy view
+<code>PotFbTB</code>&rarr;<code>CvBvTB</code>, swap only the <code>ECS</code> master
+<code>randles_cell</code>&rarr;<code>electrode_bc</code>, keep the wiring.
+Optionally swap <code>R_F</code>&rarr;<code>anatop_tia_rprog</code>
+(<code>A</code>=<code>V_OUT</code>, <code>B</code>=<code>FB</code>; 10 control bits from an
+<code>ncode</code> variable exactly as <code>tb_anatop_tia_rprog</code> drives them) &mdash;
+never simulated in-loop, budget a debug pass.</div>
+
+<div class="crit"><b>Do NOT target the assembled blocks.</b>
+<code>anatop_pstat</code>: its <code>anatop_tia</code> contains only the amp &mdash; no
+feedback element, <code>tia_gain&lt;15:0&gt;</code> floating (stored check marker) &mdash;
+and both amps are the superseded folded-cascode/<code>bts_pmos</code> pair.
+<code>anatop_channel</code>: never netlisted; stored check errors include an RE/WE label
+collision (would short the electrode) and vdd_25/vdd_10/vss_10 shorts. Fixing these is TIA
+integration work, tracked separately.</div>
+
+<p><b>Sign convention (measured; the simplan TB-07 formula is inverted):</b>
+<code>vout = V_CM + iwe·rf</code>, so <code>imeas = (v("/V_OUT") − VAR("V_CM"))/VAR("rf")</code>.
+Current <code>ps_cv</code> stimulus: triangle 0.75&rarr;1.75&rarr;0.75&nbsp;V over
+100&nbsp;ms (i.e. 20&nbsp;V/s), <code>rf=35k</code>, <code>rct_we=1M cdl_we=1u</code>.
+For the figure, re-center the sweep about vcm to exercise both polarities and slow it per
+&sect;7.</p>
+
+<p>Plotted set mirrors the old figure (V<sub>pattern</sub>; i<sub>cell</sub>/v<sub>out</sub>)
+but the money panel is the i&ndash;E voltammogram with per-analyte peaks of both signs.
+One curve per analyte from the same netlist with
+{E<sup>0&prime;</sup>, n, k<sup>0</sup>, D, C<sub>bulk</sub>} as design variables &mdash;
+but note the headless export <b>flattens an enabled local sweep to its last value</b>:
+run analytes as corners or separate invocations, not a local sweep.</p>
+
+<h3>5.3 · Maestro setup (house style)</h3>
+<ul>
+<li>Transient, <code>tt_25</code> only for the figure; scan rate and vertex potentials as
+<b>design variables</b> (<code>cv_v0</code>, <code>cv_v1</code>, <code>scan_rate</code>),
+never literals in expressions.</li>
+<li><code>save=selected</code> with explicit <code>save</code> on every net an expression
+reads (vout, vfb, icell ammeter, vtri) &mdash; a multi-second transient at
+<code>allpub</code> repeats the 40&nbsp;GB MC mistake.</li>
+<li>Named intermediate outputs (<code>i_cell</code>, <code>e_applied</code>), scalars built
+on them (<code>ip_anodic&nbsp;=&nbsp;ymax(i_cell)</code>,
+<code>ip_cathodic&nbsp;=&nbsp;ymin(i_cell)</code>,
+<code>ep_anodic&nbsp;=&nbsp;xval at ymax</code>); avoid <code>cross()</code>.</li>
+<li>Timescale: 100&nbsp;mV/s over &plusmn;0.6&nbsp;V is a 24&nbsp;s transient. Run the
+analog path unclocked (SAR out of the loop, as rev-1's figure did); if SAR sampling must be
+shown, decimate in post, do not simulate 24&nbsp;s of 1&nbsp;MHz clocking. Alternatively
+compress to 1&ndash;2&nbsp;V/s and say so in the caption &mdash; open decision &sect;7.</li>
+<li>Headless: <code>skill/eis_headless_run.sh -c &lt;cell&gt; -v maestro -t ps_cv -M 7200</code>
+&mdash; transient path validated (existing <code>simruns/tb_anatop_pixel_cv_1M</code>).
+Maestro setup by <b>clone-and-retarget</b>, never from scratch:
+<code>skill/castalia_tia_tb_maestro.py</code> (copy the maestro view, drop the other six
+tests) then <code>rprog_maestro_setup.py</code>-style textual splices for variables/models.
+New variables go in the <b>setup-level</b> <code>&lt;vars&gt;</code> (per-test vars never
+reach the netlister). Model libs are per-test with no API: patch <code>active.state</code>
+AND the highest-numbered <code>test_states/Interactive.&lt;N&gt;.state</code> identically.
+Close every Virtuoso before running; verify from the executed run's
+<code>input.scs</code> (<code>ahdl_include</code> path, <code>ECS</code> master + params,
+tran line, model section). Archive to <code>~/chips/castalia/simarchive/</code>.</li>
+<li>The pixel setup inherits <code>save=allpub currents=all</code> &mdash; switch to
+<code>save=selected</code> + explicit saves before any long transient.</li>
+</ul>
+
+<h2 id="s6">6 · Library integration recipe (recon verified 2026-08-21)</h2>
+
+<h3>6.1 · How Verilog-A cells work in this library</h3>
+<p><code>anatop_eis_zcpe</code> is the precedent, and it was made by a plain
+<code>cp&nbsp;-r</code> of leon's cellview directory (byte-identical, no SKILL script;
+<code>dbCopyCellView</code> cannot open a veriloga view). Cell discovery is by directory
+scan &mdash; a filesystem clone <b>is</b> a valid add. The load-bearing pieces: the
+cell-level <code>data.dm</code> CDF (<code>moduleName</code>, <code>namePrefix "ahdl"</code>,
+<code>termOrder</code>, <code>parameterList</code>) must agree with the <code>module</code>
+in <code>veriloga/veriloga.va</code>; <code>veriloga/netlist.oa</code> is generated by the
+importer and carries <code>portOrder</code>. Netlisting emits
+<code>ahdl_include "&lt;abs path&gt;/veriloga.va"</code> plus a subckt-style instance line
+keyed on <code>moduleName</code>, with parameters passed via the CDF
+<code>parameterList</code> (the <code>busset6</code> instance in the executed CV netlist is
+the working example). The zcpe module/cell name mismatch is a legacy artefact &mdash; name
+the new module identically to its cell.</p>
+
+<h3>6.2 · Creating <code>electrode_bc</code></h3>
+<p><b>Preferred, GUI/CIW</b> (batch has never created a veriloga view here): launch with
+<code>ANATOP_CELL</code>/<code>ANATOP_SYM</code> unset; File&rarr;New&rarr;Cellview, lib
+<code>castalia</code>, view <code>veriloga</code>; module <code>electrode_bc</code>,
+terminals <code>CE RE WE</code>, every biomarker knob a <code>parameter real</code>; save
+&mdash; the importer writes <code>netlist.oa</code>/<code>data.dm</code>/<code>master.tag</code>
+and rewrites the cell CDF; accept auto symbol generation. Verify without trusting return
+values: <code>ddGetObj("castalia" "electrode_bc" "symbol" "symbol.oa")</code>
+non-nil; <code>cdfGetBaseCellCDF(...)~&gt;parameters</code> lists the knobs;
+<code>strings &lt;cell&gt;/data.dm | grep moduleName</code> matches the .va.</p>
+<p><b>Batch fallback</b>: <code>cp -r anatop_eis_zcpe electrode_bc</code>, write the
+new .va, then <code>ahdlUpdateCDBAView</code> + <code>ahdlSymbolGen</code> in batch virtuoso
+(<code>ahdlSck</code> context exists in IC618 but is <b>untested here</b>; a stale
+<code>portOrder</code>/<code>termOrder</code> against a changed port list is a
+silent-wrong-netlist failure). If the clone's <code>vp/vn</code> ports are kept and only
+parameters added, the OA side needs no regeneration &mdash;
+<code>cdfCreateParam</code>&nbsp;+&nbsp;<code>cdfSaveCDF</code> suffices.</p>
+
+<h3>6.3 · Traps that apply</h3>
+<ul>
+<li><code>ic/castalia</code> is unversioned &mdash; snapshot the cell dir (and
+<code>tb_anatop_pixel/</code>) before edits. Never <code>make ingest</code> castalia.</li>
+<li>Fresh Virtuoso session per build; <code>exit(0)</code> + <code>errset</code> in batch;
+unbalanced paren = silent full-timeout hang; <code>foreach(t …)</code> throws
+(<code>t</code> protected); <code>dbClose</code> required, lib <code>data.dm</code> written
+only on clean exit; delete <code>.cdslck</code>/<code>.oa-</code> before diagnosing save
+failures (currently no <code>.cdslck</code> in the lib; ~20 stale <code>.oa-</code> under
+unrelated <code>tb_anatop_eis_*</code> cells).</li>
+<li>Verilog-A modelling: use <code>$limexp()</code> for the BV exponentials (else
+conservative transients stall); give the diffusion branch a finite DC path (a pure
+Warburg/<code>laplace_nd</code> is singular at DC and a CV ramp is effectively DC);
+a Verilog-A element carries <b>no mismatch statistics</b> &mdash; it contributes nothing to
+MC and must never be the thing MC measures.</li>
+<li><code>techGetTechLibName("castalia")</code> = <code>cdsDefTechLib</code>: harmless for
+netlisting/sim, re-attach before layout.</li>
+<li>Do not <code>pkill virtuoso</code> &mdash; the owner's interactive session may be live.</li>
+</ul>
+
+<h3>6.4 · Feasibility today</h3>
+<table>
+<tr><th>Target</th><th>Status</th></tr>
+<tr><td>BV electrode, ideal-source figure (Bench A)</td><td><b>Feasible immediately</b> — no AFE cells needed</td></tr>
+<tr><td>BV electrode in pixel bench (<code>PotFbTB</code> copy, ideal R<sub>f</sub>)</td>
+<td><b>Feasible now</b> — one master swap; <code>ps_cv</code> headless tran validated end-to-end</td></tr>
+<tr><td>+ real <code>anatop_tia_rprog</code> as R<sub>f</sub></td><td>Feasible, modest work; never simulated in-loop — budget a debug pass</td></tr>
+<tr><td>Through <code>anatop_pstat</code></td><td><b>Blocked</b> — no feedback resistor, superseded amps</td></tr>
+<tr><td>Through <code>anatop_channel</code> (ADC codes out)</td><td><b>Blocked</b> — never netlisted; RE/WE label collision, supply shorts</td></tr>
+</table>
+
+<h2 id="s7">7 · Open decisions</h2>
+<table>
+<tr><th>Decision</th><th>Options</th><th>Leaning</th></tr>
+<tr><td>Model for the paper</td><td>Randles / BV-fixed / BV+diffusion / 2-couple</td>
+<td><b>Decided (&sect;3.3):</b> BV+diffusion (<code>bv_diff.va</code>), one instance per
+couple; multi-couple scan for the figure</td></tr>
+<tr><td>Analyte panel (4)</td><td>uric acid, pyocyanin, H<sub>2</sub>O<sub>2</sub>,
+lactate/substitute</td><td><b>Decided (&sect;4):</b> pyocyanin + H<sub>2</sub>O<sub>2</sub>/PB
+(cathodic), uric acid + ascorbate (anodic); lactate rejected (non-electroactive)</td></tr>
+<tr><td>Fig. 4 DUT</td><td>pixel bench (<code>PotFbTB</code> copy) with ideal
+R<sub>f</sub> vs with <code>anatop_tia_rprog</code></td><td><b>Decided by recon:</b> pixel
+bench (assembled blocks blocked, &sect;6.4). Ideal R<sub>f</sub> for the first figure;
+rprog swap is a follow-up</td></tr>
+<tr><td>Scan rate in the figure</td><td>literature-typical 100&nbsp;mV/s (24&nbsp;s tran)
+vs compressed 1&ndash;2&nbsp;V/s</td><td><b>100&nbsp;mV/s is defensible on planar-diffusion
+grounds (&sect;4 caveats)</b>; 24&nbsp;s unclocked tran through the pixel bench is the cost.
+If wall-clock forces compression, note i<sub>p</sub>&prop;&radic;v and re-check TIA
+window</td></tr>
+<tr><td>vfb trace</td><td>keep (rev-1 continuity) vs drop (A1 output is now CE drive)</td>
+<td>Plot CE drive voltage as the analogous internal node</td></tr>
+</table>
+
+<h2 id="s8">8 · References for the paper (survey complete 2026-08-21)</h2>
+
+<div class="note"><b>Novelty finding worth exploiting:</b> no CMOS-potentiostat paper in
+the literature overlays a simulated CV from a physically modelled cell onto the circuit
+simulation — circuit papers simulate into equivalent circuits and separately measure real
+CVs. The co-simulated per-analyte CV is a <i>contribution</i>, not a reproduction. Closest
+precedent (cite it): Jog et al., IEEE SENSORS 2024 (Verilog-A 3-electrode model with
+kinetics + mass transport for co-simulation with interface circuits).</div>
+
+<h3>8.1 · Methodology (model equations)</h3>
+<p>Randles, <i>Discuss. Faraday Soc.</i> 1:11, 1947, doi:10.1039/DF9470100011 (equivalent
+circuit) · Randles, <i>Trans. Faraday Soc.</i> 44:327, 1948, doi:10.1039/TF9484400327 and
+&Scaron;ev&#269;&iacute;k, <i>Coll. Czech. Chem. Commun.</i> 13:349, 1948,
+doi:10.1135/cccc19480349 (peak-current law) · Bard&nbsp;&amp;&nbsp;Faulkner,
+<i>Electrochemical Methods</i>, 2nd&nbsp;ed., Wiley 2001, ISBN 978-0-471-04372-0 — BV
+faradaic law Eq.&nbsp;3.3.11 (as implemented), diffusion Eq.&nbsp;4.4.2, flux BC
+Eq.&nbsp;4.4.29, R&ndash;&Scaron; Eq.&nbsp;6.2.19; <b>3rd&nbsp;ed. 2022
+(ISBN 978-1-119-33406-4) renumbers — cite the edition used</b> ·
+Nicholson&nbsp;&amp;&nbsp;Shain, <i>Anal. Chem.</i> 36:706, 1964, doi:10.1021/ac60210a007 ·
+Nicholson, <i>Anal. Chem.</i> 37:1351, 1965, doi:10.1021/ac60230a016 (k<sup>0</sup> from
+&Delta;E<sub>p</sub>) · Feldberg, <i>Electroanal. Chem.</i> 3:199, 1969 (box method) ·
+Britz&nbsp;&amp;&nbsp;Strutwolf, <i>Digital Simulation in Electrochemistry</i>, 4th&nbsp;ed.,
+Springer 2016, doi:10.1007/978-3-319-30292-8 (Ch.&nbsp;3 discretisation, Ch.&nbsp;7
+expanding grid) · Matsuda&nbsp;&amp;&nbsp;Ayabe, <i>Z. Elektrochem.</i> 59:494, 1955
+(reversibility parameter). The full {model element &rarr; reference} table is in each .va
+header in <code>electrode_models/va/</code>.</p>
+
+<h3>8.2 · Prior art — modelled cell + CMOS co-simulation</h3>
+<p>Jog et al., IEEE SENSORS 2024, doi:10.1109/SENSORS60989.2024.10784491 (closest
+precedent) · Madec et al., <i>IEEE TCAS-I</i> 66(6):2188, 2019,
+doi:10.1109/TCSI.2018.2885223 (FD reaction&ndash;diffusion netlisted into Cadence) ·
+Beltrandi et al., IEEE BioCAS 2011, doi:10.1109/BioCAS.2011.6107792 ·
+Martinoia&nbsp;&amp;&nbsp;Massobrio, <i>Sens. Actuators B</i> 62:182, 2000,
+doi:10.1016/S0925-4005(99)00377-9 · Foo&nbsp;&amp;&nbsp;Chien, <i>IEEE TBioCAS</i>
+20(2):256, 2026, doi:10.1109/TBCAS.2025.3626662.</p>
+
+<h3>8.3 · Prior art — bipolar potentiostats and wound panels</h3>
+<p>Dorta-Quinones et al., <i>IEEE TBioCAS</i> 12(4):894, 2018,
+doi:10.1109/TBCAS.2018.2828828 (64-ch bidirectional — natural comparison) ·
+Mazhab-Jafari&nbsp;&amp;&nbsp;Genov, <i>IEEE TCAS-I</i> 60(5):1149, 2013,
+doi:10.1109/TCSI.2013.2248771 · Ahmadi&nbsp;&amp;&nbsp;Jullien, <i>IEEE TCAS-I</i>
+56(7):1339, 2009, doi:10.1109/TCSI.2008.2005927 (the current-mirror topology rev-1 used —
+cite as the contrast) · Asgharian et al., "WoundMx", 2025, doi:10.21203/rs.3.rs-7274589/v1
+(UA anodic + phenazine cathodic on one device — direct precedent for the split) · Sani et
+al., <i>Sci. Adv.</i> 9(12):eadf7388, 2023, doi:10.1126/sciadv.adf7388.</p>
+
+<h3>8.4 · Per-analyte parameter sources</h3>
+<p><b>Uric acid:</b> Trengove et al., <i>Wound Repair Regen.</i> 4(2):234, 1996,
+doi:10.1046/j.1524-475X.1996.40211.x (220&ndash;750&nbsp;&mu;M exudate) · Fernandez et al.,
+<i>Int. Wound J.</i> 9(2):139, 2012 · Rattanaumpa&nbsp;&amp;&nbsp;Ngamchuea, <i>RSC Adv.</i>
+12:18709, 2022 (&alpha;n<sub>a</sub>) · Tefera et al., <i>Heliyon</i> 7:e07575, 2021
+(pH regression to 8.5) · Arcangeli et al., <i>ACS Sens.</i> 8(4):1593, 2023 ·
+Struck&nbsp;&amp;&nbsp;Elving, <i>Biochemistry</i> 4:1343, 1965 · Dryhurst,
+<i>J. Electrochem. Soc.</i> 119:1659, 1972 · D source to obtain:
+Ernst&nbsp;&amp;&nbsp;Knoll, <i>Anal. Chim. Acta</i> 449:129, 2001,
+doi:10.1016/S0003-2670(01)01350-2.<br>
+<b>Pyocyanin:</b> Friedheim&nbsp;&amp;&nbsp;Michaelis, <i>J. Biol. Chem.</i> 1931
+(E<sup>0&prime;</sup> anchor) · Schneider et al. 2022 (&minus;53&nbsp;mV/pH) · Buzid et al.
+2016 (&Delta;E<sub>p</sub> 53&nbsp;mV, BDD) · Darch et al., <i>PNAS</i> 2018 (D and the
+mucin effect) · Sismaet et al., <i>Biosens. Bioelectron.</i> 97:65, 2017 and <i>Wound
+Repair Regen.</i> 24:366, 2016 (WE-HEAL) · Sharp et al. 2010.<br>
+<b>H<sub>2</sub>O<sub>2</sub>/PB:</b> Karyakin, <i>Electroanalysis</i> 13(10):813, 2001
+(definitive PB reference) · van Stroe-Biezen et al., <i>Anal. Chim. Acta</i> 273:553, 1993
+(D) · Borggaard, <i>Acta Chem. Scand.</i> 26:3393, 1972 (independent D) · Wang et al.,
+<i>Sci. Transl. Med.</i> 17:eadt0882, 2025 (human chronic-wound PB device,
+5.91&nbsp;nA/&mu;M) · von Woedtke et al., <i>Biosens. Bioelectron.</i> 9:65, 1994 (GOx
+167:1) · Roy et al., <i>Mol. Ther.</i> 13:211, 2006 (murine wound H<sub>2</sub>O<sub>2</sub>,
+contested) · Fritea et al., <i>Sensors</i> 13:16312, 2013 (AA/UA interference).<br>
+<b>Ascorbate:</b> Buettner, <i>Arch. Biochem. Biophys.</i> 300:535, 1993 (thermodynamic
+E<sup>0&prime;</sup>) · Stojanov&nbsp;&amp;&nbsp;Mir&#269;eski, <i>J. Electrochem. Soc.</i>
+170:065504, 2023 (&alpha;, D, k<sub>cyc</sub>) · Hu&nbsp;&amp;&nbsp;Kuwana, <i>Anal.
+Chem.</i> 58:3235, 1986 (surface-state spread) · Pullar et al., <i>Nutrients</i> 12:418,
+2020 (plasma) · Rantataro et al., <i>Sci. Rep.</i> 12:20225, 2022.<br>
+<b>Rejections:</b> lactate — L&ouml;ffler et al., <i>Diabet. Med.</i> 28:175, 2011 (wound
+lactate 5.6&ndash;80&nbsp;mM; best wound data in the set, wrong modality for CV) · dopamine
+benchmark — Gerhardt&nbsp;&amp;&nbsp;Adams, <i>Anal. Chem.</i> 54:2618, 1982 (D) ·
+DuVall&nbsp;&amp;&nbsp;McCreery, <i>Anal. Chem.</i> 71:4594, 1999 · tryptophan fouling —
+Moulaee&nbsp;&amp;&nbsp;Neri, <i>Biosensors</i> 11:502, 2021.</p>
+
+<p class="small">Intended paper sentence: &ldquo;each electrode is modelled by
+Butler&ndash;Volmer kinetics with finite-difference 1-D diffusion [B&amp;F; Britz&nbsp;&amp;
+Strutwolf; Jog 2024], with per-analyte parameters from [&sect;8.4 sources]&rdquo;.
+Verify DOIs before submission — agent-gathered, not all independently opened.</p>
+
+</main>
+</body>
+</html>

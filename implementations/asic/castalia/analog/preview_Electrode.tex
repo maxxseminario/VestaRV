@@ -1,0 +1,32 @@
+%% HAND-WRITTEN standalone proof sheet for the voltammetric electrode model
+%% section (the maestro2tex engine does not generate this block). Build with:
+%     cd implementations/asic/castalia/analog && pdflatex preview_Electrode.tex
+% The TRM does NOT use this file; AnalogChapter.tex inputs the fragments directly.
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{caption}
+\usepackage{pgfplots}
+\usepackage{xcolor}
+\usepackage{siunitx}
+\usepackage{amsmath}
+\usepackage{enumitem}
+\usepackage{placeins}
+\usepackage{circuitikz}
+\def\MaestroRoot{}
+\begin{document}
+% Cross-references that live outside this fragment set.
+\newcommand{\stub}[1]{\label{#1}}
+\stub{ss:analog-models}\stub{fig:randles-cell}\stub{ss:pixel}\stub{ss:ampab}
+\stub{ss:biasgen-local}\stub{ss:tiarprog}
+\input{note_electrode_intro.tex}
+\input{tab_electrode_params.tex}
+\input{fig_electrode_validation.tex}
+\input{tab_electrode_peaks.tex}
+\input{note_electrode_valid.tex}
+\input{note_electrode_afe.tex}
+\input{tab_electrode_refs.tex}
+\input{note_electrode_refs.tex}
+\end{document}
