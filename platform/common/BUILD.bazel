@@ -1,0 +1,502 @@
+load("@rules_python//python:defs.bzl", "py_test")
+load("//platform/common/bazel:chipgen.bzl", "chip_artifact", "chip_artifacts")
+
+package(default_visibility = ["//visibility:public"])
+
+# ---------------------------------------------------------------------------
+# THE MEASURED ANALOG CHAPTER IS NOT WIRED IN YET.
+#
+# LatexUserGuide.CopyAnalogChapter reads implementations/asic/<chip>/analog/ and
+# splices it into the TRM. Those files sit in the ROOT package (implementations/
+# has no BUILD file of its own) where their default visibility is private, so
+# they can be neither globbed nor labelled from here, and platform/common is the
+# only package this agent owns.
+#
+# //BUILD.bazel exports the measured analog chapter (data/raw excluded), so the
+# generation stages it and the TRM carries the full chapter;
+# :castalia_analog_chapter_test asserts it stays present.
+CASTALIA_ANALOG = ["//:castalia_analog_chapter"]
+
+# ---------------------------------------------------------------------------
+# Generator inputs that live under the chip root.
+# python/ and bazel/ are their own packages, so the globs here never reach them.
+# ---------------------------------------------------------------------------
+
+filegroup(
+    name = "hdl_template_srcs",
+    srcs = glob(
+        ["hdl_templates/*.vhd"],
+        allow_empty = False,
+    ),
+)
+
+filegroup(
+    name = "peripheral_intro_srcs",
+    srcs = glob(
+        ["latex/PeripheralIntroductions/*.tex"],
+        allow_empty = False,
+    ),
+)
+
+# Everything under latex/ that is an INPUT. latex/TRM/ is generator OUTPUT and is
+# gitignored, so it is not globbed -- except for the two hand-written *_man.tex
+# wrappers, which are tracked on purpose and which the generated TRM \inputs.
+filegroup(
+    name = "latex_srcs",
+    srcs = [":peripheral_intro_srcs"] + glob(
+        [
+            "latex/*.tex",
+            "latex/figures/**",
+            "latex/matplotlib/**",
+        ],
+        allow_empty = False,
+    ) + glob(
+        ["latex/TRM/include/*_man.tex"],
+        allow_empty = False,
+    ),
+)
+
+# The hand-written / hand-exported chip configurations. The three generator
+# OUTPUTS that also land in config/ are excluded: they are results, not inputs,
+# and depending on them would make the action depend on the last local build.
+filegroup(
+    name = "config_srcs",
+    srcs = glob(
+        ["config/*.json"],
+        exclude = [
+            "config/ChipConfig.resolved.json",
+            "config/MemoryMap.json",
+            "config/PadRing.json",
+        ],
+        allow_empty = False,
+    ),
+)
+
+# Inputs the generator reaches for ABOVE the chip root, staged at their
+# workspace-relative paths so LatexUserGuide's '/../../../' arithmetic lands on
+# them unchanged. //hdl:vhdl_sources is coarser than the one file actually read
+# (hdl/common/periph/NPU.vhd), but hdl/ exports no finer label.
+OUT_OF_TREE_SRCS = ["//hdl:vhdl_sources"] + CASTALIA_ANALOG
+
+CHIP_ROOT_SRCS = [
+    ":config_srcs",
+    ":hdl_template_srcs",
+    ":latex_srcs",
+]
+
+# ---------------------------------------------------------------------------
+# The generation actions.
+# ---------------------------------------------------------------------------
+
+chip_artifacts(
+    name = "chip_artifacts_castalia",
+    srcs = ["//platform/common/python:generator_srcs"],
+    chip_root_srcs = CHIP_ROOT_SRCS,
+    out_of_tree_srcs = OUT_OF_TREE_SRCS,
+)
+
+# A second, identical generation. Two separate actions in two separate staged
+# trees, so :generation_determinism_test can byte-compare them and prove the
+# generator has no wall-clock or ordering nondeterminism left in it.
+chip_artifacts(
+    name = "chip_artifacts_castalia_repro",
+    srcs = ["//platform/common/python:generator_srcs"],
+    chip_root_srcs = CHIP_ROOT_SRCS,
+    out_of_tree_srcs = OUT_OF_TREE_SRCS,
+)
+
+# Argus (18 harts, 32 mutexes). There are no identity gates for it -- the tracked
+# RTL is Castalia's -- so the bar is that the configuration still generates and
+# its machine-readable outputs still parse (:argus_generation_test).
+chip_artifacts(
+    name = "chip_artifacts_argus",
+    srcs = ["//platform/common/python:generator_srcs"],
+    chip_root_srcs = CHIP_ROOT_SRCS,
+    config = "config/argus.json",
+    out_of_tree_srcs = ["//hdl:vhdl_sources"],
+)
+
+# ---------------------------------------------------------------------------
+# Named handles on individual artifacts. These are the labels other packages
+# consume; the underlying output-group names are an implementation detail.
+# ---------------------------------------------------------------------------
+
+# The generated LaTeX project for the Castalia TRM, as one directory artifact.
+# This is the contract the PDF build consumes.
+filegroup(
+    name = "trm_latex_tree",
+    srcs = [":chip_artifacts_castalia"],
+    output_group = "trm",
+)
+
+filegroup(
+    name = "castalia_generate_log",
+    srcs = [":chip_artifacts_castalia"],
+    output_group = "log",
+)
+
+# The full peripheral -> register -> bitfield tree, for the register browser.
+chip_artifact(
+    name = "castalia_memorymap_json",
+    rel_path = "out/web/MemoryMap.json",
+    target = ":chip_artifacts_castalia",
+)
+
+chip_artifact(
+    name = "castalia_mcu_vhd",
+    rel_path = "out/hdl/MCU.vhd",
+    target = ":chip_artifacts_castalia",
+)
+
+chip_artifact(
+    name = "castalia_memorymap_vhd",
+    rel_path = "out/hdl/MemoryMap.vhd",
+    target = ":chip_artifacts_castalia",
+)
+
+chip_artifact(
+    name = "castalia_riscv_tb_vhd",
+    rel_path = "out/hdl/riscv_tb.vhd",
+    target = ":chip_artifacts_castalia",
+)
+
+chip_artifact(
+    name = "castalia_mcu_routing_template_vhd",
+    rel_path = "out/hdl/MCU_routing_template.vhd",
+    target = ":chip_artifacts_castalia",
+)
+
+chip_artifact(
+    name = "castalia_memorymap_h",
+    rel_path = "out/software/include/MemoryMap.h",
+    target = ":chip_artifacts_castalia",
+)
+
+chip_artifact(
+    name = "castalia_core_features_h",
+    rel_path = "out/software/include/core_features.h",
+    target = ":chip_artifacts_castalia",
+)
+
+chip_artifact(
+    name = "castalia_periph_s",
+    rel_path = "out/software/include/periph.S",
+    target = ":chip_artifacts_castalia",
+)
+
+chip_artifact(
+    name = "castalia_chip_data_js",
+    rel_path = "out/web/chip_data.js",
+    target = ":chip_artifacts_castalia",
+)
+
+chip_artifact(
+    name = "castalia_config_memorymap_json",
+    rel_path = "config/MemoryMap.json",
+    target = ":chip_artifacts_castalia",
+)
+
+chip_artifact(
+    name = "castalia_resolved_config",
+    rel_path = "config/ChipConfig.resolved.json",
+    target = ":chip_artifacts_castalia",
+)
+
+chip_artifact(
+    name = "castalia_padring_json",
+    rel_path = "config/PadRing.json",
+    target = ":chip_artifacts_castalia",
+)
+
+chip_artifact(
+    name = "castalia_padring_tcl",
+    rel_path = "out/pnr/chip_top_padring.tcl",
+    target = ":chip_artifacts_castalia",
+)
+
+[
+    chip_artifact(
+        name = "castalia_" + f.replace(".", "_").lower(),
+        rel_path = "out/linker-scripts/" + f,
+        target = ":chip_artifacts_castalia",
+    )
+    for f in [
+        "memory.x",
+        "periph.x",
+        "RAM_START.txt",
+        "RAM_SIZE.txt",
+        "ROM_START.txt",
+        "ROM_SIZE.txt",
+    ]
+]
+
+# The generated drop-in RTL, as one group.
+filegroup(
+    name = "castalia_hdl",
+    srcs = [
+        ":castalia_mcu_routing_template_vhd",
+        ":castalia_mcu_vhd",
+        ":castalia_memorymap_vhd",
+        ":castalia_riscv_tb_vhd",
+    ],
+)
+
+# The generated firmware headers, as one group.
+filegroup(
+    name = "castalia_software_include",
+    srcs = [
+        ":castalia_core_features_h",
+        ":castalia_memorymap_h",
+        ":castalia_periph_s",
+    ],
+)
+
+filegroup(
+    name = "castalia_linker_scripts",
+    srcs = [
+        ":castalia_memory_x",
+        ":castalia_periph_x",
+        ":castalia_ram_size_txt",
+        ":castalia_ram_start_txt",
+        ":castalia_rom_size_txt",
+        ":castalia_rom_start_txt",
+    ],
+)
+
+# ---------------------------------------------------------------------------
+# The standing gates, as tests.
+#
+# Every one of them runs through //platform/common/bazel:check_runner, which
+# gives them a scrubbed environment, absolute-path resolution, and (for the two
+# checks that derive their inputs from their own __file__) a staged tree with
+# the layout they expect. No check script is modified and none of them can see
+# the source tree's out/ or config/. Arguments after the bare "--" go to the
+# check script untouched.
+# ---------------------------------------------------------------------------
+
+CHECK_RUNNER = "//platform/common/bazel:check_runner.py"
+
+# The generated MCU.vhd must be a byte-for-byte drop-in for the tracked
+# hdl/common/MCU.vhd, header comment aside. This is the RTL-generation bar.
+py_test(
+    name = "check_mcu_vhd_test",
+    size = "small",
+    srcs = [CHECK_RUNNER],
+    args = [
+        "--script=platform/common/python/check_mcu_vhd.py",
+        "--",
+        "$(rootpath :castalia_mcu_vhd)",
+        "hdl/common/MCU.vhd",
+    ],
+    data = [
+        ":castalia_mcu_vhd",
+        "//hdl:vhdl_sources",
+        "//platform/common/python:check_mcu_vhd.py",
+    ],
+    main = "check_runner.py",
+)
+
+# Constant-by-constant equivalence with the tracked memory-map package. Both
+# paths are explicit: the script's own default rtl path is a ~-hardcoded
+# absolute, which would read the developer's checkout instead of the sandbox.
+py_test(
+    name = "check_memorymap_vhd_test",
+    size = "small",
+    srcs = [CHECK_RUNNER],
+    args = [
+        "--script=platform/common/python/check_memorymap_vhd.py",
+        "--",
+        "hdl/common/MemoryMap.vhd",
+        "$(rootpath :castalia_memorymap_vhd)",
+    ],
+    data = [
+        ":castalia_memorymap_vhd",
+        "//hdl:vhdl_sources",
+        "//platform/common/python:check_memorymap_vhd.py",
+    ],
+    main = "check_runner.py",
+)
+
+# The tb generator must be a no-op at the tracked hart count. Never ran in CI.
+py_test(
+    name = "check_riscv_tb_vhd_test",
+    size = "small",
+    srcs = [CHECK_RUNNER],
+    args = [
+        "--script=platform/common/python/check_riscv_tb_vhd.py",
+        "--",
+        "$(rootpath :castalia_riscv_tb_vhd)",
+        "hdl/common/tb/riscv_tb.vhd",
+    ],
+    data = [
+        ":castalia_riscv_tb_vhd",
+        "//hdl:vhdl_sources",
+        "//platform/common/python:check_riscv_tb_vhd.py",
+    ],
+    main = "check_runner.py",
+)
+
+# The emitted C header must still be #include-able. RISCV_CC is absolutized
+# because check_memorymap_h.py rejects a relative compiler path that is not on
+# PATH, and the hermetic gcc is a runfiles-relative path.
+py_test(
+    name = "check_memorymap_h_test",
+    size = "small",
+    srcs = [CHECK_RUNNER],
+    args = [
+        "--script=platform/common/python/check_memorymap_h.py",
+        "--env=RISCV_CC=abs:$(rootpath @xpack_riscv_gcc//:gcc)",
+        "--",
+        "abs:$(rootpath :castalia_memorymap_h)",
+    ],
+    data = [
+        ":castalia_memorymap_h",
+        "//platform/common/python:check_memorymap_h.py",
+        "@xpack_riscv_gcc//:gcc",
+        "@xpack_riscv_gcc//:toolchain",
+    ],
+    main = "check_runner.py",
+)
+
+# Every \register{}/\bitfield{} name in the hand-written intro chapters must
+# name something the generator actually emits. The script derives its inputs
+# from its own __file__, so it runs inside a staged chip root.
+py_test(
+    name = "check_intro_names_test",
+    size = "small",
+    srcs = [CHECK_RUNNER],
+    args = [
+        "--script=platform/common/python/check_intro_names.py",
+        "--stage=platform/common/python=platform/common/python",
+        "--stage=platform/common/latex/PeripheralIntroductions=platform/common/latex/PeripheralIntroductions",
+        "--stage=$(rootpath :castalia_config_memorymap_json)=platform/common/config/MemoryMap.json",
+    ],
+    data = [
+        ":castalia_config_memorymap_json",
+        ":peripheral_intro_srcs",
+        "//platform/common/python:check_scripts",
+        "//platform/common/python:generate.py",
+    ],
+    main = "check_runner.py",
+)
+
+# docs/chip_configurator.html against the schema, the spliced VESTA_DATA bundle
+# and the derived geometry, at the STRICT bar the Makefile uses.
+py_test(
+    name = "check_configurator_sync_test",
+    size = "small",
+    srcs = [CHECK_RUNNER],
+    args = [
+        "--script=platform/common/python/check_configurator_sync.py",
+        "--stage=platform/common/python=platform/common/python",
+        "--stage=docs/chip_configurator.html=docs/chip_configurator.html",
+        "--stage=$(rootpath :castalia_chip_data_js)=platform/common/out/web/chip_data.js",
+        "--stage=$(rootpath :castalia_resolved_config)=platform/common/config/ChipConfig.resolved.json",
+        "--",
+        "--strict",
+    ],
+    data = [
+        ":castalia_chip_data_js",
+        ":castalia_resolved_config",
+        "//docs:chip_configurator.html",
+        "//platform/common/python:check_scripts",
+        "//platform/common/python:generate.py",
+    ],
+    main = "check_runner.py",
+)
+
+# The VESTA_DATA region spliced into the configurator page must not be stale
+# against the bundle this build emits. Fully explicit paths, no staging.
+py_test(
+    name = "splice_web_data_check_test",
+    size = "small",
+    srcs = [CHECK_RUNNER],
+    args = [
+        "--script=platform/common/python/splice_web_data.py",
+        "--",
+        "--check",
+        "--data",
+        "$(rootpath :castalia_chip_data_js)",
+        "docs/chip_configurator.html",
+    ],
+    data = [
+        ":castalia_chip_data_js",
+        "//docs:chip_configurator.html",
+        "//platform/common/python:splice_web_data.py",
+    ],
+    main = "check_runner.py",
+)
+
+# Two independent generations of the same configuration, byte-compared.
+py_test(
+    name = "generation_determinism_test",
+    size = "small",
+    srcs = ["//platform/common/bazel:compare_trees.py"],
+    args = [
+        "platform/common/chip_artifacts_castalia",
+        "platform/common/chip_artifacts_castalia_repro",
+    ],
+    data = [
+        ":chip_artifacts_castalia",
+        ":chip_artifacts_castalia_repro",
+    ],
+    main = "compare_trees.py",
+)
+
+# Argus still generates, and its machine-readable outputs still parse.
+py_test(
+    name = "argus_generation_test",
+    size = "small",
+    srcs = ["//platform/common/bazel:assert_artifacts.py"],
+    args = [
+        "platform/common/chip_artifacts_argus/out/hdl/MCU.vhd",
+        "platform/common/chip_artifacts_argus/out/hdl/MemoryMap.vhd",
+        "platform/common/chip_artifacts_argus/out/hdl/riscv_tb.vhd",
+        "platform/common/chip_artifacts_argus/out/software/include/MemoryMap.h",
+        "platform/common/chip_artifacts_argus/out/software/include/periph.S",
+        "platform/common/chip_artifacts_argus/out/web/chip_data.js",
+        "platform/common/chip_artifacts_argus/out/web/MemoryMap.json",
+        "platform/common/chip_artifacts_argus/config/ChipConfig.resolved.json",
+        "platform/common/chip_artifacts_argus/config/PadRing.json",
+        "platform/common/chip_artifacts_argus/latex/TRM/",
+    ],
+    data = [":chip_artifacts_argus"],
+    main = "assert_artifacts.py",
+)
+
+# The published TRM tree is complete: the master document, the generated
+# includes, and the figures the chapters reference.
+py_test(
+    name = "trm_latex_tree_test",
+    size = "small",
+    srcs = ["//platform/common/bazel:assert_artifacts.py"],
+    args = [
+        "platform/common/chip_artifacts_castalia/latex/TRM/TRM.tex",
+        "platform/common/chip_artifacts_castalia/latex/TRM/packages-commands.tex",
+        "platform/common/chip_artifacts_castalia/latex/TRM/include/defines.tex",
+        "platform/common/chip_artifacts_castalia/latex/TRM/include/PeripheralSections.tex",
+        "platform/common/chip_artifacts_castalia/latex/TRM/include/InterruptsTable_man.tex",
+        "platform/common/chip_artifacts_castalia/latex/TRM/figures/",
+    ],
+    data = [":trm_latex_tree"],
+    main = "assert_artifacts.py",
+)
+
+# The analog chapter must be present in the generated TRM tree.
+py_test(
+    name = "castalia_analog_chapter_test",
+    size = "small",
+    srcs = ["//platform/common/bazel:assert_artifacts.py"],
+    args = ["platform/common/chip_artifacts_castalia/latex/TRM/include/analog/"],
+    data = [":trm_latex_tree"],
+    main = "assert_artifacts.py",
+)
+
+# The tracked resolved config, for consumers that read it BY PATH
+# (tools/randgen/config.py's DEFAULT_RESOLVED). Distinct from
+# :castalia_resolved_config, which is the regenerated copy in bazel-out.
+filegroup(
+    name = "tracked_resolved_config",
+    srcs = ["config/ChipConfig.resolved.json"],
+    visibility = ["//visibility:public"],
+)

@@ -61,6 +61,19 @@ import re
 EMDASH = '—'
 
 
+def generatedOnStamp():
+	'''The "Generated on ..." wall-clock stamp printed in every emitted file header.
+	   It is the ONLY nondeterministic byte in the generator's output, which makes a
+	   sandboxed rebuild differ from the previous one for no content reason.
+	   SOURCE_DATE_EPOCH (the reproducible-builds convention) pins it when set; unset,
+	   which is every in-tree `make generate`, this is exactly the old
+	   datetime.now() behavior.'''
+	epoch = os.environ.get('SOURCE_DATE_EPOCH', '').strip()
+	if epoch.isdigit():
+		return datetime.datetime.utcfromtimestamp(int(epoch)).strftime('%Y/%m/%d at %H:%M:%S')
+	return datetime.datetime.now().strftime('%Y/%m/%d at %H:%M:%S')
+
+
 def _clog2(n):
 	'''Smallest w with 2**w >= n.'''
 	w = 0
@@ -4502,7 +4515,7 @@ def generateMcuVhd(gen, templatePath, outPath):
 	header = []
 	header.append('/* MCU.vhd: Castalia MCU top-level integration layer (' + str(emitter.nHarts()) + ' harts, MCU_MP)')
 	header.append('   The fixed boilerplate comes from hdl_templates/MCU.template.vhd; the description-driven sections are generated from python/generate.py')
-	header.append('   Generated on ' + datetime.datetime.now().strftime('%Y/%m/%d at %H:%M:%S') + ' with the generate.py chip generator')
+	header.append('   Generated on ' + generatedOnStamp() + ' with the generate.py chip generator')
 	header.append('   WARNING: Do not edit or modify this file!')
 	header.append('   \tEdit hdl_templates/MCU.template.vhd (fixed regions) or python/generate.py + python/mcu_vhd.py (generated regions), then re-run make chip */')
 	header.append('')

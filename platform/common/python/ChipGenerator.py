@@ -8,6 +8,11 @@ from Package import PackageData, PackagePin, PowerDomain
 from GpioConfigurator import GpioConfigurator
 from TabbedTable import TabbedTable
 from LatexUserGuide import LatexUserGuide
+# generatedOnStamp is the shared "Generated on ..." header stamp.
+# It honors SOURCE_DATE_EPOCH so a sandboxed rebuild is byte-reproducible, and falls
+# back to datetime.now() when that is unset, which is every in-tree `make generate`.
+# mcu_vhd owns the definition and imports nothing from this module, so this is safe.
+from mcu_vhd import generatedOnStamp
 
 class ChipGenerator():
 	ThisFileDirectory = str(pathlib.Path(__file__).parent.absolute())
@@ -972,7 +977,7 @@ class ChipGenerator():
 		s += ' **\tMemoryMap.h\n'
 		s += ' **\tMemory map definition header file\n'
 		s += ' **\tDefines the microcontroller peripheral and register addresses, as well as the bit field bit masks\n'
-		s += ' **\tGenerated on ' + datetime.datetime.now().strftime('%Y/%m/%d at %H:%M:%S') + ' with the MemoryMap.py memory map generator\n'
+		s += ' **\tGenerated on ' + generatedOnStamp() + ' with the MemoryMap.py memory map generator\n'
 		s += ' **\tWARNING: Do not edit or modify this file!\n'
 		s += ' **\t\tIf you need to change it, use the MemoryMap.py memory map generator tool\n'
 		s += ' **/\n'
@@ -1643,7 +1648,7 @@ class ChipGenerator():
 		s += ' **\tmemory.x\n'
 		s += ' **\tMemory map linker file\n'
 		s += ' **\tDefines the microcontroller linker memory, including the RAM, ROM, peripheral, and vector spaces\n'
-		s += ' **\tGenerated on ' + datetime.datetime.now().strftime('%Y/%m/%d at %H:%M:%S') + ' with the MemoryMap.py memory map generator\n'
+		s += ' **\tGenerated on ' + generatedOnStamp() + ' with the MemoryMap.py memory map generator\n'
 		s += ' **\tWARNING: Do not edit or modify this file!\n'
 		s += ' **\t\tIf you need to change it, use the MemoryMap.py memory map generator tool\n'
 		s += ' **/\n'
@@ -1737,7 +1742,7 @@ class ChipGenerator():
 		s += ' **\tperiph.x\n'
 		s += ' **\tPeripheral and register address linker file\n'
 		s += ' **\tDefines the microcontroller peipheral and register addresses\n'
-		s += ' **\tGenerated on ' + datetime.datetime.now().strftime('%Y/%m/%d at %H:%M:%S') + ' with the MemoryMap.py memory map generator\n'
+		s += ' **\tGenerated on ' + generatedOnStamp() + ' with the MemoryMap.py memory map generator\n'
 		s += ' **\tWARNING: Do not edit or modify this file!\n'
 		s += ' **\t\tIf you need to change it, use the MemoryMap.py memory map generator tool\n'
 		s += ' **/\n'
@@ -1781,7 +1786,7 @@ class ChipGenerator():
 		s += '// periph.S\n'
 		s += '// Peripheral and register address assembly header\n'
 		s += '// Defines the microcontroller peipheral and register addresses\n'
-		s += '// Generated on ' + datetime.datetime.now().strftime('%Y/%m/%d at %H:%M:%S') + ' with the MemoryMap.py memory map generator\n'
+		s += '// Generated on ' + generatedOnStamp() + ' with the MemoryMap.py memory map generator\n'
 		s += '// WARNING: Do not edit or modify this file!\n'
 		s += '//   If you need to change it, use the MemoryMap.py memory map generator tool\n'
 		
@@ -1954,7 +1959,7 @@ class ChipGenerator():
 		# Create the preamble
 		s += '/* MemoryMap.vhd: memory map VHDL package\n'
 		s += '   Defines the MCU memory map: which RAM and peripheral slots are active, which slot each peripheral occupies, and which slot each register occupies inside its peripheral\n'
-		s += '   Generated on ' + datetime.datetime.now().strftime('%Y/%m/%d at %H:%M:%S') + ' with the MemoryMap.py memory map generator\n'
+		s += '   Generated on ' + generatedOnStamp() + ' with the MemoryMap.py memory map generator\n'
 		s += '   WARNING: Do not edit or modify this file!\n'
 		s += '   \tIf you need to change it, use the MemoryMap.py memory map generator tool */\n'
 		
