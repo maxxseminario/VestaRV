@@ -518,16 +518,16 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 	"PeripheralMemorySlotSize": 256,
 	"PeripheralMemoryEndAddress": 20479,
 	"RamStartAddress": 32768,
-	"RamSize": 16384,
-	"RamMemorySlotSize": 16384,
-	"LastRamMemorySlotSize": 16384,
+	"RamSize": 8192,
+	"RamMemorySlotSize": 8192,
+	"LastRamMemorySlotSize": 8192,
 	"RamMemorySlotsAvailable": [
 		2
 	],
 	"RamMemorySlotsUsed": [
 		2
 	],
-	"RamEndAddress": 49151,
+	"RamEndAddress": 40959,
 	"SpiFlashProgramAddress": 33280,
 	"NativeSpiFlashMemoryReadAccess": true,
 	"NativeSpiFlashMemoryWriteAccess": false,
@@ -537,7 +537,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 	"VectorsEndAddress": 33251,
 	"RamProgramStartAddress": 33252,
 	"ProgramCounterInit": 0,
-	"StackPointerInit": 49152,
+	"StackPointerInit": 40960,
 	"BootloaderUsesSpiFlashCommands": true,
 	"PadOUTPosLogic": true,
 	"PadDIRPosLogic": false,
@@ -572,7 +572,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 	"ENABLE_UMODE": false,
 	"ENABLE_PMP": false,
 	"PMP_ENTRIES": 16,
-	"ENABLE_DEBUG": false,
+	"ENABLE_DEBUG": true,
 	"ENABLE_IRQ_QREGS": false,
 	"MASKED_IRQ": 0,
 	"PROGADDR_IRQ": 36864,
@@ -10536,6 +10536,839 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 									"MTXOWN15_H4"
 								]
 							]
+						}
+					]
+				}
+			]
+		},
+		{
+			"PeripheralName": "NFC0",
+			"PeripheralTemplateName": "NFCx",
+			"BaseAddress": 25088,
+			"PeripheralMemorySlot": null,
+			"isGPIO": false,
+			"InterruptPriority": 94,
+			"Description": "NFC controller: ISO/IEC 14443 Type A (14443A) tag / card-emulation digital protocol engine. Emulates a contactless smart-card / tag to an external reader: it recovers the reader-to-tag frames (Miller decode, byte + odd-parity de-framing, CRC_A check), runs the tag transaction state machine (REQA/WUPA to ATQA, bit-frame anticollision by 4-byte UID to SAK, then a Type-2 READ that auto-answers from a firmware-filled payload window), and load-modulates the tag response (Manchester subcarrier at fc/16). The register read path is registered with no read side effects. The block spans three clock domains: the gated memory bus (ClkMem), a free-running SMCLK reference that hosts the clock-domain-crossing synchronizers and write-1-to-clear retirement (the SYS_CLK_CR=0 rule applies), and the AFE carrier-derived rf_clk that clocks the entire protocol core. The 13.56 MHz RF analog front-end is off-die: the block presents only a small digital AFE interface (demodulated RX envelope, field-detect, load-modulation drive, listen-power enable).",
+			"Registers": [
+				{
+					"RegisterName": "NFC0CR",
+					"Address": 25088,
+					"Offset": 0,
+					"RegisterMemorySlot": 0,
+					"Size": 32,
+					"ResetValue": 0,
+					"Description": "NFC control register. Enables the protocol core, arms the tag to respond, selects the auto-answer path, and holds the interrupt enables and the carrier-division note. Resets to 0 except NFCAUTOREAD, which resets to 1. Program the identity and timing registers before setting NFCEN.",
+					"BitFields": [
+						{
+							"BitFieldName": "Unused",
+							"MSB": 31,
+							"LSB": 20,
+							"Accessibility": "r0",
+							"ResetValue": 0,
+							"Unused": true,
+							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "NFCRFDIV",
+							"MSB": 19,
+							"LSB": 16,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Carrier-division note. Documents the assumed division from the 13.56 MHz carrier to rf_clk (informational; the off-die AFE supplies rf_clk).",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "Unused",
+							"MSB": 15,
+							"LSB": 13,
+							"Accessibility": "r0",
+							"ResetValue": 0,
+							"Unused": true,
+							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "NFCAUTOREAD",
+							"MSB": 12,
+							"LSB": 12,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Auto-answer READ path (resets to 1). When set, hardware answers a Type-2 READ command directly from the payload window without firmware intervention. When clear, standard frames are surfaced to firmware through NFCxRXST and the RX buffer for a firmware-composed response.",
+							"ValueDescriptions": [
+								[
+									0,
+									"Firmware-handled reads",
+									""
+								],
+								[
+									1,
+									"Hardware auto-answer",
+									""
+								]
+							]
+						},
+						{
+							"BitFieldName": "NFCCRCIE",
+							"MSB": 11,
+							"LSB": 11,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "CRC / parity-error interrupt enable. When set, an RX CRC or parity error (NFCCRCERRF or NFCPARERRF) drives interrupt vector 97.",
+							"ValueDescriptions": [
+								[
+									0,
+									"Interrupt disabled",
+									""
+								],
+								[
+									1,
+									"Interrupt enabled",
+									""
+								]
+							]
+						},
+						{
+							"BitFieldName": "NFCTXIE",
+							"MSB": 10,
+							"LSB": 10,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Transmit-done interrupt enable. When set, the NFCTXDONEF flag drives interrupt vector 96.",
+							"ValueDescriptions": [
+								[
+									0,
+									"Interrupt disabled",
+									""
+								],
+								[
+									1,
+									"Interrupt enabled",
+									""
+								]
+							]
+						},
+						{
+							"BitFieldName": "NFCRXFIE",
+							"MSB": 9,
+							"LSB": 9,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Frame-received interrupt enable. When set, the NFCRXFRAMEF flag drives interrupt vector 95.",
+							"ValueDescriptions": [
+								[
+									0,
+									"Interrupt disabled",
+									""
+								],
+								[
+									1,
+									"Interrupt enabled",
+									""
+								]
+							]
+						},
+						{
+							"BitFieldName": "NFCFIELDIE",
+							"MSB": 8,
+							"LSB": 8,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Field-detect interrupt enable. When set, the NFCFIELDF flag drives interrupt vector 94.",
+							"ValueDescriptions": [
+								[
+									0,
+									"Interrupt disabled",
+									""
+								],
+								[
+									1,
+									"Interrupt enabled",
+									""
+								]
+							]
+						},
+						{
+							"BitFieldName": "Unused",
+							"MSB": 7,
+							"LSB": 3,
+							"Accessibility": "r0",
+							"ResetValue": 0,
+							"Unused": true,
+							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "NFCHALTCLR",
+							"MSB": 2,
+							"LSB": 2,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Halt-clear pulse. Writing 1 forces the transaction FSM from the HALT state back to IDLE (a self-clearing, write-1-style event pulse); it reads 0.",
+							"ValueDescriptions": [
+								[
+									0,
+									"No action",
+									""
+								],
+								[
+									1,
+									"Force HALT to IDLE",
+									""
+								]
+							]
+						},
+						{
+							"BitFieldName": "NFCLISTEN",
+							"MSB": 1,
+							"LSB": 1,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Listen arm. When set, the tag responds to reader commands once a field is present; when clear, the tag stays deaf even in a field.",
+							"ValueDescriptions": [
+								[
+									0,
+									"Deaf (no response)",
+									""
+								],
+								[
+									1,
+									"Armed to respond",
+									""
+								]
+							]
+						},
+						{
+							"BitFieldName": "NFCEN",
+							"MSB": 0,
+							"LSB": 0,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "NFC enable. When 0 the rf_clk protocol core is held in reset; it does NOT wipe the UID, CFG, payload window, or status flags (disable-preserves-data rule). Set to 1 to run the tag engine.",
+							"ValueDescriptions": [
+								[
+									0,
+									"Disabled (protocol core in reset)",
+									""
+								],
+								[
+									1,
+									"Enabled",
+									""
+								]
+							]
+						}
+					]
+				},
+				{
+					"RegisterName": "NFC0SR",
+					"Address": 25092,
+					"Offset": 4,
+					"RegisterMemorySlot": 1,
+					"Size": 32,
+					"ResetValue": 0,
+					"Description": "NFC status register. NFCBUSY, NFCFIELDLIVE, NFCHALTED, and NFCSTATE are read-only live status; the five event flags (bits 1-5) are write-1-to-clear (write a 1 to a bit to clear it; writing 0 leaves it unchanged). The volatile bits are captured by the registered pre-latch read.",
+					"BitFields": [
+						{
+							"BitFieldName": "Unused",
+							"MSB": 31,
+							"LSB": 12,
+							"Accessibility": "r0",
+							"ResetValue": 0,
+							"Unused": true,
+							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "NFCSTATE",
+							"MSB": 11,
+							"LSB": 8,
+							"Accessibility": "r",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Transaction FSM state: 0 = POWER_OFF, 1 = IDLE, 2 = READY, 3 = ACTIVE, 4 = HALT.",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "NFCHALTED",
+							"MSB": 7,
+							"LSB": 7,
+							"Accessibility": "r",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Halted. Reads 1 while the transaction FSM is in the HALT state (the tag has been HLTA / halted by the reader).",
+							"ValueDescriptions": [
+								[
+									0,
+									"Not halted",
+									""
+								],
+								[
+									1,
+									"FSM halted",
+									""
+								]
+							]
+						},
+						{
+							"BitFieldName": "NFCFIELDLIVE",
+							"MSB": 6,
+							"LSB": 6,
+							"Accessibility": "r",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Field-live level. The synchronized RF field-present level (1 while a reader field is on the tag).",
+							"ValueDescriptions": [
+								[
+									0,
+									"No field",
+									""
+								],
+								[
+									1,
+									"Field present",
+									""
+								]
+							]
+						},
+						{
+							"BitFieldName": "NFCPARERRF",
+							"MSB": 5,
+							"LSB": 5,
+							"Accessibility": "rw1",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "RX parity-error flag. Set when a received frame fails an odd-parity check; drives vector 97 (folded with NFCCRCERRF) when NFCCRCIE is set. Write 1 to clear.",
+							"ValueDescriptions": [
+								[
+									0,
+									"No event",
+									""
+								],
+								[
+									1,
+									"RX parity error",
+									""
+								]
+							]
+						},
+						{
+							"BitFieldName": "NFCCRCERRF",
+							"MSB": 4,
+							"LSB": 4,
+							"Accessibility": "rw1",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "RX CRC-error flag. Set when a received frame fails the CRC_A check; drives vector 97 when NFCCRCIE is set. Write 1 to clear.",
+							"ValueDescriptions": [
+								[
+									0,
+									"No event",
+									""
+								],
+								[
+									1,
+									"RX CRC error",
+									""
+								]
+							]
+						},
+						{
+							"BitFieldName": "NFCTXDONEF",
+							"MSB": 3,
+							"LSB": 3,
+							"Accessibility": "rw1",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Transmit-done flag. Set when the tag response end-of-frame has been sent; drives vector 96 when NFCTXIE is set. Write 1 to clear.",
+							"ValueDescriptions": [
+								[
+									0,
+									"No event",
+									""
+								],
+								[
+									1,
+									"Tag response sent",
+									""
+								]
+							]
+						},
+						{
+							"BitFieldName": "NFCRXFRAMEF",
+							"MSB": 2,
+							"LSB": 2,
+							"Accessibility": "rw1",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Reader-frame-received flag. Set when a reader frame has landed for firmware (its CRC / parity result is summarized in NFCxRXST); drives vector 95 when NFCRXFIE is set. Write 1 to clear.",
+							"ValueDescriptions": [
+								[
+									0,
+									"No event",
+									""
+								],
+								[
+									1,
+									"Reader frame received",
+									""
+								]
+							]
+						},
+						{
+							"BitFieldName": "NFCFIELDF",
+							"MSB": 1,
+							"LSB": 1,
+							"Accessibility": "rw1",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Field-detect flag. Set on a synchronized rising edge of the RF field-present input; drives vector 94 when NFCFIELDIE is set. Write 1 to clear.",
+							"ValueDescriptions": [
+								[
+									0,
+									"No event",
+									""
+								],
+								[
+									1,
+									"RF field detected",
+									""
+								]
+							]
+						},
+						{
+							"BitFieldName": "NFCBUSY",
+							"MSB": 0,
+							"LSB": 0,
+							"Accessibility": "r",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Busy. Reads 1 while a reader frame is being received or a tag response is in flight.",
+							"ValueDescriptions": [
+								[
+									0,
+									"Idle",
+									""
+								],
+								[
+									1,
+									"RX or TX in progress",
+									""
+								]
+							]
+						}
+					]
+				},
+				{
+					"RegisterName": "NFC0UID",
+					"Address": 25096,
+					"Offset": 8,
+					"RegisterMemorySlot": 2,
+					"Size": 32,
+					"ResetValue": 0,
+					"Description": "Provisioned single-size 4-byte tag UID, used by bit-frame anticollision. Byte order on air is UID byte 0 first: UID[7:0] is the first byte, UID[31:24] the last. Hardware derives the BCC check byte. Latched transaction-locally at the start of each transaction.",
+					"BitFields": [
+						{
+							"BitFieldName": "NFCUID",
+							"MSB": 31,
+							"LSB": 0,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "4-byte UID (UID0 in bits 7:0, first on air).",
+							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "NFC0CFG",
+					"Address": 25100,
+					"Offset": 12,
+					"RegisterMemorySlot": 3,
+					"Size": 32,
+					"ResetValue": 0,
+					"Description": "Tag identity response configuration: the ATQA answer-to-request word and the SAK select-acknowledge byte. Latched transaction-locally.",
+					"BitFields": [
+						{
+							"BitFieldName": "Unused",
+							"MSB": 31,
+							"LSB": 24,
+							"Accessibility": "r0",
+							"ResetValue": 0,
+							"Unused": true,
+							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "NFCSAK",
+							"MSB": 23,
+							"LSB": 16,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Select Acknowledge byte (resets to 0x00) returned after the final anticollision level.",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "NFCATQA",
+							"MSB": 15,
+							"LSB": 0,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Answer To Request, Type A (resets to 0x0044). Bits 7:0 are the first byte on air.",
+							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "NFC0TIM",
+					"Address": 25104,
+					"Offset": 16,
+					"RegisterMemorySlot": 4,
+					"Size": 32,
+					"ResetValue": 0,
+					"Description": "Protocol timing divisors, all in rf_clk ticks, latched transaction-locally so a mid-count reload never glitches. The reset values are the real 13.56 MHz grid; a bench compresses all three for fast simulation.",
+					"BitFields": [
+						{
+							"BitFieldName": "NFCSUBCDIV",
+							"MSB": 31,
+							"LSB": 24,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Subcarrier half-period, in rf_clk ticks (resets to 8, giving the fc/16 load-modulation subcarrier).",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "NFCETU",
+							"MSB": 23,
+							"LSB": 16,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Elementary Time Unit (bit period), in rf_clk ticks (resets to 128).",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "NFCFDT",
+							"MSB": 15,
+							"LSB": 0,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Frame Delay Time, in rf_clk ticks (resets to approximately 1236, the ISO 14443A tag response grid). The composed response is released when the FDT down-counter reaches zero.",
+							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "NFC0RXST",
+					"Address": 25108,
+					"Offset": 20,
+					"RegisterMemorySlot": 5,
+					"Size": 32,
+					"ResetValue": 0,
+					"Description": "Received-frame inspection, for firmware-handled frames (NFCAUTOREAD = 0 or an unrecognized command). Read side-effect-free; the frame byte payload is read separately through the indexed RX buffer (NFCxIDX / NFCxDATA with NFCIDXSEL = 1). Pre-latched.",
+					"BitFields": [
+						{
+							"BitFieldName": "Unused",
+							"MSB": 31,
+							"LSB": 18,
+							"Accessibility": "r0",
+							"ResetValue": 0,
+							"Unused": true,
+							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "NFCRXPAROK",
+							"MSB": 17,
+							"LSB": 17,
+							"Accessibility": "r",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Parity OK for the last received frame.",
+							"ValueDescriptions": [
+								[
+									0,
+									"Parity bad",
+									""
+								],
+								[
+									1,
+									"Parity good",
+									""
+								]
+							]
+						},
+						{
+							"BitFieldName": "NFCRXCRCOK",
+							"MSB": 16,
+							"LSB": 16,
+							"Accessibility": "r",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "CRC OK for the last received frame.",
+							"ValueDescriptions": [
+								[
+									0,
+									"CRC bad",
+									""
+								],
+								[
+									1,
+									"CRC good",
+									""
+								]
+							]
+						},
+						{
+							"BitFieldName": "NFCRXLEN",
+							"MSB": 15,
+							"LSB": 8,
+							"Accessibility": "r",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Received length in bytes, including the CRC.",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "NFCCMD",
+							"MSB": 7,
+							"LSB": 0,
+							"Accessibility": "r",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Command byte: the first byte of the last received standard frame.",
+							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "NFC0IDX",
+					"Address": 25112,
+					"Offset": 24,
+					"RegisterMemorySlot": 6,
+					"Size": 32,
+					"ResetValue": 0,
+					"Description": "Byte-index pointer into one of the two 64-byte windows accessed through NFCxDATA. The index persists across accesses; NFCIDXSEL selects which window. Mirrors the indexed-window idiom used by I3C's Device Address Table.",
+					"BitFields": [
+						{
+							"BitFieldName": "Unused",
+							"MSB": 31,
+							"LSB": 9,
+							"Accessibility": "r0",
+							"ResetValue": 0,
+							"Unused": true,
+							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "NFCIDXSEL",
+							"MSB": 8,
+							"LSB": 8,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Window select for NFCxDATA.",
+							"ValueDescriptions": [
+								[
+									0,
+									"Payload TX window (64 B, firmware-filled, HW-read)",
+									""
+								],
+								[
+									1,
+									"RX frame buffer (64 B, HW-filled, firmware-read)",
+									""
+								]
+							]
+						},
+						{
+							"BitFieldName": "Unused",
+							"MSB": 7,
+							"LSB": 7,
+							"Accessibility": "r0",
+							"ResetValue": 0,
+							"Unused": true,
+							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "NFCIDXAINC",
+							"MSB": 6,
+							"LSB": 6,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Auto-increment. When set, NFCIDX increments after each NFCxDATA access (streaming).",
+							"ValueDescriptions": [
+								[
+									0,
+									"Index held",
+									""
+								],
+								[
+									1,
+									"Auto-increment after each access",
+									""
+								]
+							]
+						},
+						{
+							"BitFieldName": "NFCIDX",
+							"MSB": 5,
+							"LSB": 0,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Byte index (0 to 63) into the selected window.",
+							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "NFC0DATA",
+					"Address": 25116,
+					"Offset": 28,
+					"RegisterMemorySlot": 7,
+					"Size": 32,
+					"ResetValue": 0,
+					"Description": "The byte at NFCIDX in the window selected by NFCIDXSEL. The payload TX window is read/write (firmware fills the record the reader collects; hardware reads it for the auto-answer READ); the RX frame buffer is read-only (hardware fills it from the reader frame; writes are ignored). Auto-increments per NFCIDXAINC. Pre-latched on read (no side effects).",
+					"BitFields": [
+						{
+							"BitFieldName": "Unused",
+							"MSB": 31,
+							"LSB": 8,
+							"Accessibility": "r0",
+							"ResetValue": 0,
+							"Unused": true,
+							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "NFCDATA",
+							"MSB": 7,
+							"LSB": 0,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Window data byte at the current index.",
+							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "NFC0TXCTL",
+					"Address": 25120,
+					"Offset": 32,
+					"RegisterMemorySlot": 8,
+					"Size": 32,
+					"ResetValue": 0,
+					"Description": "Firmware-composed response control (used when NFCAUTOREAD = 0 or for a vendor command). INERT in this MVP (auto-answer is the default path); present in the frozen register map so the firmware-WRITE stage bolts on without a map change.",
+					"BitFields": [
+						{
+							"BitFieldName": "Unused",
+							"MSB": 31,
+							"LSB": 10,
+							"Accessibility": "r0",
+							"ResetValue": 0,
+							"Unused": true,
+							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "NFCTXAPPCRC",
+							"MSB": 9,
+							"LSB": 9,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Append CRC_A to the firmware-composed response.",
+							"ValueDescriptions": [
+								[
+									0,
+									"No CRC appended",
+									""
+								],
+								[
+									1,
+									"Append CRC_A",
+									""
+								]
+							]
+						},
+						{
+							"BitFieldName": "NFCTXGO",
+							"MSB": 8,
+							"LSB": 8,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Launch a firmware-composed response (a lane-0 write is a held-level launch, suppressed unless the FSM is in ACTIVE and awaiting a firmware reply).",
+							"ValueDescriptions": [
+								[
+									0,
+									"No launch",
+									""
+								],
+								[
+									1,
+									"Send response",
+									""
+								]
+							]
+						},
+						{
+							"BitFieldName": "NFCTXLEN",
+							"MSB": 7,
+							"LSB": 0,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Number of payload bytes to send from the payload TX window.",
+							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "NFC0DBG",
+					"Address": 25124,
+					"Offset": 36,
+					"RegisterMemorySlot": 9,
+					"Size": 32,
+					"ResetValue": 0,
+					"Description": "Debug telemetry / bench cross-checks: frame counters. Read-only; resets to 0.",
+					"BitFields": [
+						{
+							"BitFieldName": "NFCTXFRAMECNT",
+							"MSB": 31,
+							"LSB": 16,
+							"Accessibility": "r",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Transmitted-frame count.",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "NFCRXFRAMECNT",
+							"MSB": 15,
+							"LSB": 0,
+							"Accessibility": "r",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Received-frame count.",
+							"ValueDescriptions": []
 						}
 					]
 				}
