@@ -1,0 +1,94 @@
+load("@rules_python//python:defs.bzl", "py_binary", "py_test")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files([
+    "check_doc_links.py",
+    "check_entity_defaults.py",
+    "check_register_browser.py",
+    "npu_vector_regen_diff.py",
+    "run_shell_check.py",
+    "theme_sync.py",
+])
+
+# ---------------------------------------------------------------------------
+# Documentation link integrity
+# ---------------------------------------------------------------------------
+
+py_binary(
+    name = "check_doc_links",
+    srcs = ["check_doc_links.py"],
+    main = "check_doc_links.py",
+)
+
+# The file list the sandboxed run scans. $(SRCS) of a source-file dependency
+# expands to workspace-relative paths, which is exactly what --files-from
+# wants and what check_doc_links resolves against its --root.
+genrule(
+    name = "docs_page_manifest",
+    srcs = ["//docs:pages"],
+    outs = ["docs_page_manifest.txt"],
+    cmd = "for f in $(SRCS); do echo $$f; done > $@",
+)
+
+# SCANS docs/ pages, with the published TRM PDFs staged as link targets.
+# The root README/CHANGELOG/CONTRIBUTING link to assets and per-package
+# READMEs scattered across many bazel packages, so staging their target set
+# is not worth it here; the standalone git-mode default (CI) still covers
+# them.
+# --files-from is the strict mode: an unreadable list or listed file is exit 2,
+# never a quietly empty scan reported as OK.
+py_test(
+    name = "check_doc_links_test",
+    size = "small",
+    srcs = ["check_doc_links.py"],
+    args = [
+        "--files-from",
+        "$(rootpath :docs_page_manifest)",
+    ],
+    data = [
+        ":docs_page_manifest",
+        "//:doc_link_targets",
+        "//docs:site",
+    ],
+    main = "check_doc_links.py",
+)
+
+# ---------------------------------------------------------------------------
+# The theme splicer THEME_ADOPTION.md section 1 promises
+# ---------------------------------------------------------------------------
+
+# Writer: run it in the workspace to re-splice vesta_theme.css into every
+# marked page. The --check side of it is tested by //docs:theme_sync_test.
+py_binary(
+    name = "theme_sync",
+    srcs = ["theme_sync.py"],
+    main = "theme_sync.py",
+)
+
+# ---------------------------------------------------------------------------
+# The entity-default axis scanner
+# ---------------------------------------------------------------------------
+
+# LIVENESS SMOKE, not the graded D1 gate. The bare invocation grades
+# ENABLE_DEBUG against --require-default false and at HEAD that legitimately
+# fails (hart_tile.vhd:61 and orch_tile.vhd:53 both declare it true), which is
+# a finding about the RTL rather than about this build. What bazel asserts is
+# that the scanner is LIVE in the sandbox: --report-only still exits 2 if the
+# ENABLE_TRAPCSR control comes back under --control-min sites, so a stale
+# scanner or a mis-staged tree cannot pass this quietly.
+py_test(
+    name = "check_entity_defaults_test",
+    size = "small",
+    srcs = ["check_entity_defaults.py"],
+    args = [
+        "--generic",
+        "ENABLE_DEBUG",
+        "--report-only",
+    ],
+    data = [
+        "//hdl:vhdl_sources",
+        "//platform/common/python:generator_srcs",
+    ],
+    main = "check_entity_defaults.py",
+)

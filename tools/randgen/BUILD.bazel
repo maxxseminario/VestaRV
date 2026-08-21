@@ -1,0 +1,81 @@
+load("@rules_python//python:defs.bzl", "py_binary", "py_library", "py_test")
+
+package(default_visibility = ["//visibility:public"])
+
+# The K3 random-stream generator, its ISA model and its census instrument.
+# config.py pulls oracle_isa out of tools/cosim and verify_stage out of
+# platform/common/python, so both are real deps rather than sys.path luck.
+py_library(
+    name = "randgen_lib",
+    srcs = [
+        "census.py",
+        "config.py",
+        "emit.py",
+        "isa_model.py",
+        "randgen.py",
+        "rng.py",
+        "stream.py",
+    ],
+    data = glob(["campaign/*"]),
+    imports = ["."],
+    deps = [
+        "//platform/common/python:chipgen_lib",
+        "//tools/cosim:cosim",
+    ],
+)
+
+py_binary(
+    name = "randgen",
+    srcs = ["randgen.py"],
+    main = "randgen.py",
+    deps = [":randgen_lib"],
+)
+
+# The K3 unit tests. The load-bearing case is test_decoder_agrees_with_objdump:
+# every mnemonic the generator can emit is assembled by gas and refereed by
+# `objdump -M no-aliases`, so the hermetic xPack binutils must be on hand.
+# RANDGEN_GCC names the staged driver; test_randgen derives RISCV_PREFIX from
+# it, which is the variable census.py has always read.
+#
+# TWO INPUTS ARE STILL UNREACHABLE, both owned by other packages:
+#
+#  1. config.load()'s default is the TRACKED
+#     platform/common/config/ChipConfig.resolved.json. //platform/common
+#     excludes it from :config_srcs (it is generator output, not input) and
+#     :castalia_resolved_config is the REGENERATED copy at a bazel-out path,
+#     which config.py cannot resolve. A public label for the tracked file is
+#     needed.
+#  2. verification/isa/macros/scalar/*.h. _compile_stream passes
+#     -I<repo>/verification/isa/../env/p, and a path with a '..' component
+#     resolves only if verification/isa exists in the runfiles tree, so
+#     without those headers even the staged env/p headers are unreachable.
+#     //verification/isa needs a public filegroup over macros/scalar/*.h.
+#
+# Measured: with exactly those two staged by hand this test scores 42/43,
+# identical to the standalone run (the one failure is pre-existing at HEAD --
+# campaign.json's recorded asm_sha1 no longer matches what the current
+# resolved config generates for stream k3s01).
+py_test(
+    name = "test_randgen",
+    size = "large",
+    srcs = ["test_randgen.py"],
+    data = [
+        # config.py reaches verify_stage.py by path, and it is not one of
+        # chipgen_lib's declared modules, so the whole generator source set
+        # is staged rather than a private label.
+        "//platform/common:tracked_resolved_config",
+        "//platform/common/python:generator_srcs",
+        "//platform/myshkin/gcc/lib:platform_headers",
+        "//verification/isa:scalar_macros",
+        "//verification:env_headers",
+        "//verification:env_p_linker_scripts",
+        "@xpack_riscv_gcc//:as",
+        "@xpack_riscv_gcc//:gcc",
+        "@xpack_riscv_gcc//:objcopy",
+        "@xpack_riscv_gcc//:objdump",
+        "@xpack_riscv_gcc//:toolchain",
+    ],
+    env = {"RANDGEN_GCC": "$(rootpath @xpack_riscv_gcc//:gcc)"},
+    main = "test_randgen.py",
+    deps = [":randgen_lib"],
+)

@@ -1,0 +1,46 @@
+load("@rules_python//python:defs.bzl", "py_test")
+
+package(default_visibility = ["//visibility:public"])
+
+# Pages with machine-managed spliced regions, consumed by provenance tests.
+exports_files([
+    "chip_configurator.html",
+    "register_browser.html",
+    "vesta_theme.css",
+])
+
+# The static site exactly as pages.yml deploys it (docs/ wholesale).
+# docs/publications is gitignored and .bazelignore'd, so it never appears.
+filegroup(
+    name = "site",
+    srcs = glob([
+        "*.html",
+        "*.css",
+        "*.md",
+        "assets/**",
+    ]),
+)
+
+# Just the prose pages, for the link checker's file list. Assets are staged as
+# link TARGETS by //docs:site but are never scanned for links themselves.
+filegroup(
+    name = "pages",
+    srcs = glob([
+        "*.html",
+        "*.md",
+    ]),
+)
+
+# THEME_ADOPTION.md section 1: the block between /* VESTA_THEME_BEGIN */ and
+# /* VESTA_THEME_END */ in vesta_theme.css is pasted verbatim into every page
+# that adopts the design system. This is the drift check for that copy.
+# Pages carrying no markers (vestarv_roadmap.html, afe_rev2_*) are outside the
+# system and are not discovered, so they are not graded.
+py_test(
+    name = "theme_sync_test",
+    size = "small",
+    srcs = ["//tools/python:theme_sync.py"],
+    args = ["--check"],
+    data = [":site"],
+    main = "//tools/python:theme_sync.py",
+)

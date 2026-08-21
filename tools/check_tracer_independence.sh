@@ -18,7 +18,11 @@
 # tracked record", and overloading it would blur what a failure means.
 
 set -u
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# CHECK_TRACER_ROOT lets a caller that does not keep this script one level
+# below the repo root say where the tree is; the bazel sh_test stages the
+# script and the tracer in separate runfiles subtrees and sets it.
+# Unset, the derivation from $0 is exactly what it always was.
+ROOT="${CHECK_TRACER_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 TRACER="$ROOT/hdl/common/vesta/vesta_tracer.vhd"
 
 if [ ! -f "$TRACER" ]; then

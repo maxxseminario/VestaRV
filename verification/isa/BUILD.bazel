@@ -515,3 +515,25 @@ py_test(
         ":rv32um_rcfs",
     ],
 )
+
+# The -I./macros/scalar headers, as a public label. Staging these also
+# materialises verification/isa/ in a runfiles tree, without which a
+# '-I<repo>/verification/isa/../env/p' path cannot resolve.
+filegroup(
+    name = "scalar_macros",
+    srcs = glob(
+        ["macros/scalar/*.h"],
+        allow_empty = True,
+    ),
+    visibility = ["//visibility:public"],
+)
+
+# The chip-config NPU MLP golden set, consumed by //verification/npu.
+filegroup(
+    name = "npu_data",
+    srcs = glob(
+        ["tests/periph/NPU_data/*"],
+        allow_empty = True,
+    ),
+    visibility = ["//visibility:public"],
+)

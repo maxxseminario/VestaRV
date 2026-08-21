@@ -1,0 +1,126 @@
+load("@rules_python//python:defs.bzl", "py_binary", "py_library", "py_test")
+
+package(default_visibility = ["//visibility:public"])
+
+# The fixed-point reference arithmetic every NPU generator and validator uses.
+# Nothing here reimplements the sfixed semantics; think_layer/mac_step/activate
+# are the single entry point, which is what makes the vectors comparable.
+py_library(
+    name = "npu_fixed",
+    srcs = ["npu_fixed.py"],
+    imports = ["."],
+)
+
+# Every generator source, staged as data for the regeneration tests: the
+# runner copies the whole *.py set into a scratch tree so the generators'
+# __file__-derived OUT_DIR lands there instead of over the tracked vectors.
+filegroup(
+    name = "generator_srcs",
+    srcs = glob(
+        ["*.py"],
+        allow_empty = False,
+    ),
+)
+
+# ---------------------------------------------------------------------------
+# Vector regeneration: the 159 tracked vector files must be exactly what the
+# generators produce today.
+# ---------------------------------------------------------------------------
+
+# gen_gemm_vectors.py calls gen_aen_relu_exp() -- which writes into OUT_DIR --
+# before write_case_files() creates OUT_DIR, so it only runs where the
+# directory already exists. That is a latent bug in the generator, not in this
+# test: --precreate-outdir reproduces the precondition explicitly so the
+# dependency is recorded rather than hidden. Drop the flag when the generator
+# makes its own directory first.
+_REGEN = {
+    "actf": [],
+    "conv": [],
+    "gemm": ["--precreate-outdir"],
+    "xnor": [],
+}
+
+[
+    py_test(
+        name = "regen_%s_vectors_test" % kind,
+        size = "medium",
+        srcs = ["//tools/python:npu_vector_regen_diff.py"],
+        args = [
+            "--generator",
+            "verification/npu/gen_%s_vectors.py" % kind,
+            "--golden",
+            "verification/npu/%s_vectors" % kind,
+        ] + extra,
+        data = [
+            ":generator_srcs",
+        ] + glob(["%s_vectors/*" % kind], allow_empty = False),
+        main = "//tools/python:npu_vector_regen_diff.py",
+    )
+    for kind, extra in _REGEN.items()
+]
+
+# ---------------------------------------------------------------------------
+# The firmware-smoke golden generators. These write nothing: each computes the
+# expected words for its wNNN.S smoke through npu_fixed and then runs its own
+# self-checks, so a non-zero exit is a real arithmetic disagreement.
+# ---------------------------------------------------------------------------
+[
+    py_test(
+        name = "%s_test" % name,
+        size = "small",
+        srcs = [name + ".py"],
+        main = name + ".py",
+        deps = [":npu_fixed"] + ([":xnor_gen_lib"] if name == "gen_wxnpu_golden" else []),
+    )
+    for name in [
+        "gen_wactf_golden",
+        "gen_wgemm_golden",
+        "gen_wnpuconv_golden",
+        "gen_wxnpu_golden",
+    ]
+]
+
+# gen_wxnpu_golden imports the XNOR encoders out of gen_xnor_vectors rather
+# than restating them; importing that module writes nothing (only its main()
+# does), so it is safe as a library dependency.
+py_library(
+    name = "xnor_gen_lib",
+    srcs = ["gen_xnor_vectors.py"],
+    imports = ["."],
+    deps = [":npu_fixed"],
+)
+
+# ---------------------------------------------------------------------------
+# npu_fixed against the real NPU MLP golden files
+# ---------------------------------------------------------------------------
+
+py_binary(
+    name = "validate_mlp",
+    srcs = ["validate_mlp.py"],
+    main = "validate_mlp.py",
+    deps = [":npu_fixed"],
+)
+
+# NOT YET A TEST. The chip-config golden set is
+# verification/isa/tests/periph/NPU_data (npu_fp_inputs.txt,
+# npu_fp_weights.txt, npu_expected_fp_outputs.txt), which is tracked but sits
+# in the //verification/isa package with no public label; the 'bench' golden
+# dirs live under the bazelignored xcelium/ tree and are out of scope by
+# design. Once //verification/isa exposes NPU_data, this becomes:
+#
+py_test(
+    name = "validate_mlp_test",
+    size = "small",
+    srcs = ["validate_mlp.py"],
+    args = [
+        "--data-dir",
+        "verification/isa/tests/periph/NPU_data",
+        "--config",
+        "chip",
+    ],
+    data = ["//verification/isa:npu_data"],
+    main = "validate_mlp.py",
+    deps = [":npu_fixed"],
+)
+#
+# Measured standalone at HEAD: 201/201 bit-exact, rc 0.

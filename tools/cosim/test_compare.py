@@ -45,7 +45,11 @@ import sys
 import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-PY = "/usr/bin/python3.6"
+# The interpreter for the compare.py/mk_inject.py subprocesses. Standalone
+# bench runs invoke this file with /usr/bin/python3.6, so sys.executable
+# preserves that exactly; under bazel it is the hermetic interpreter, which
+# CI needs because ubuntu-latest has no python3.6.
+PY = os.environ.get("COSIM_PYTHON") or sys.executable
 COMPARE = os.path.join(HERE, "compare.py")
 
 sys.path.insert(0, HERE)

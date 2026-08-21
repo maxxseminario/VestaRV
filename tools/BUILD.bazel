@@ -1,0 +1,27 @@
+load("@rules_python//python:defs.bzl", "py_test")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files(["check_tracer_independence.sh"])
+
+# The R-DS5 mechanical guard: vesta_tracer.vhd must implement the retire
+# enumeration with its own logic, so retire_now / inst_retired may not appear
+# in any code line of it. The script carries its own positive control and
+# exits 2 if the grep is not live, so an OK here is not an expected zero.
+#
+# This wants to be an sh_test. Bazel 9 does not define sh_test natively (it
+# moved to the rules_shell module, which this workspace does not depend on),
+# so the script runs through //tools/python:run_shell_check.py, which
+# propagates its exit code unchanged.
+py_test(
+    name = "check_tracer_independence_test",
+    size = "small",
+    srcs = ["//tools/python:run_shell_check.py"],
+    args = ["$(rootpath check_tracer_independence.sh)"],
+    data = [
+        "check_tracer_independence.sh",
+        "//hdl:vhdl_sources",
+    ],
+    env = {"CHECK_TRACER_ROOT": "."},
+    main = "//tools/python:run_shell_check.py",
+)

@@ -1,0 +1,22 @@
+# sky130 open-source physical flow.
+#
+# Nothing in this directory is bazelified as a build or test yet: synth.sh
+# drives yosys and sim/Makefile drives cocotb, and neither tool is a bazel
+# module in this workspace. What IS published here are the two source lists,
+# so //opensource_sim/isa:source_list_sync_test can hold them to the
+# "keep the two lists in sync" comment they both carry.
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files([
+    "synth.sh",
+    "sim/Makefile",
+])
+
+filegroup(
+    name = "vesta_source_lists",
+    srcs = [
+        "sim/Makefile",
+        "synth.sh",
+    ],
+)

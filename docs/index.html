@@ -15,45 +15,46 @@
 /* VESTA_THEME_BEGIN */
 :root{
   /* ---- Ember palette: DARK (default) ---------------------------------- */
-  --bg:            #14100e;
-  --bg-2:          #0e0b09;
-  --surface:       #1d1713;
-  --surface-2:     #271f19;
-  --surface-3:     #322820;
-  --border:        #3a2e25;
-  --border-strong: #4d3d30;
+  --bg:            #14100e;  /* near-black warm charcoal (the cold hearth)   */
+  --bg-2:          #0e0b09;  /* deepest well — page gutters / behind elev    */
+  --surface:       #1d1713;  /* card / panel base                            */
+  --surface-2:     #271f19;  /* raised surface, table header, input          */
+  --surface-3:     #322820;  /* hover / active surface                       */
+  --border:        #3a2e25;  /* hairline dividers                            */
+  --border-strong: #4d3d30;  /* emphasised borders                          */
 
-  --text:          #f5ede4;
-  --text-muted:    #bcab9c;
-  --text-dim:      #8b7a6c;
+  --text:          #f5ede4;  /* warm off-white primary                       */
+  --text-muted:    #bcab9c;  /* secondary                                    */
+  --text-dim:      #8b7a6c;  /* tertiary / captions / disabled               */
 
-  --accent:        #ff6a1a;
-  --accent-hover:  #ff8438;
-  --accent-press:  #e6560d;
-  --amber:         #ffb020;
-  --amber-deep:    #d98a12;
-  --accent-soft:   rgba(255,106,26,.14);
+  --accent:        #ff6a1a;  /* flame orange — primary accent                */
+  --accent-hover:  #ff8438;  /* brighter flame on hover                      */
+  --accent-press:  #e6560d;  /* pressed                                      */
+  --amber:         #ffb020;  /* ember amber — secondary accent / highlights  */
+  --amber-deep:    #d98a12;  /* amber on light or as underlays               */
+  --accent-soft:   rgba(255,106,26,.14);  /* tinted fills (badges, hero glow)*/
   --amber-soft:    rgba(255,176,32,.14);
-  --on-accent:     #1a0f07;
+  --on-accent:     #1a0f07;  /* text on a solid flame button                 */
 
-  --ok:            #4bbf73;
-  --warn:          #ffb020;
-  --err:           #f0553d;
-  --link:          #ff8f52;
+  --ok:            #4bbf73;  /* pass / green                                 */
+  --warn:          #ffb020;  /* caution (reuses amber)                       */
+  --err:           #f0553d;  /* fail / danger                                */
+  --link:          #ff8f52;  /* inline links on dark                         */
 
   --ok-soft:       rgba(75,191,115,.15);
   --err-soft:      rgba(240,85,61,.15);
 
+  /* ---- Type scale ------------------------------------------------------- */
   --font-sans: system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   --font-mono: ui-monospace,"SFMono-Regular",Menlo,Consolas,"Liberation Mono",monospace;
-  --fs-xs:   .75rem;
-  --fs-sm:   .8125rem;
-  --fs-base: .9375rem;
-  --fs-md:   1.0625rem;
-  --fs-lg:   1.375rem;
-  --fs-xl:   1.875rem;
-  --fs-2xl:  2.5rem;
-  --fs-3xl:  3.25rem;
+  --fs-xs:   .75rem;    /* 12 */
+  --fs-sm:   .8125rem;  /* 13 */
+  --fs-base: .9375rem;  /* 15 */
+  --fs-md:   1.0625rem; /* 17 */
+  --fs-lg:   1.375rem;  /* 22 */
+  --fs-xl:   1.875rem;  /* 30 */
+  --fs-2xl:  2.5rem;    /* 40 */
+  --fs-3xl:  3.25rem;   /* 52 hero */
   --lh-tight: 1.15;
   --lh-body:  1.6;
   --fw-normal: 400;
@@ -61,12 +62,15 @@
   --fw-semi:   600;
   --fw-bold:   700;
 
+  /* ---- Spacing (4px base) ---------------------------------------------- */
   --sp-1: .25rem;  --sp-2: .5rem;   --sp-3: .75rem;  --sp-4: 1rem;
   --sp-5: 1.5rem;  --sp-6: 2rem;    --sp-8: 3rem;    --sp-10: 4rem;
   --sp-12: 6rem;
 
+  /* ---- Radii ------------------------------------------------------------ */
   --r-xs: 4px;  --r-sm: 6px;  --r-md: 10px;  --r-lg: 16px;  --r-pill: 999px;
 
+  /* ---- Elevation / effects --------------------------------------------- */
   --shadow-sm: 0 1px 2px rgba(0,0,0,.4);
   --shadow-md: 0 6px 20px rgba(0,0,0,.45);
   --shadow-glow: 0 0 40px rgba(255,106,26,.18);
@@ -76,6 +80,7 @@
   --trans: 160ms ease;
 }
 
+/* ---- Ember palette: LIGHT ("ash") — warm off-white + ember accents ----- */
 :root[data-theme="light"]{
   --bg:            #f7f1ea;
   --bg-2:          #efe6db;
@@ -89,7 +94,7 @@
   --text-muted:    #6c5b4c;
   --text-dim:      #93806f;
 
-  --accent:        #d2560a;
+  --accent:        #d2560a;  /* deeper flame for AA contrast on light        */
   --accent-hover:  #b8480a;
   --accent-press:  #9c3d06;
   --amber:         #c07d10;
@@ -112,6 +117,9 @@
   --ring: 0 0 0 3px var(--accent-soft);
 }
 
+/* Honour OS preference on first visit (before any stored choice is applied).
+   The boot script promotes a stored choice by setting data-theme explicitly,
+   which wins over this @media rule via specificity of the [data-theme] tokens. */
 @media (prefers-color-scheme: light){
   :root:not([data-theme]){
     --bg:#f7f1ea; --bg-2:#efe6db; --surface:#fffaf3; --surface-2:#f3e9dd;
@@ -127,6 +135,7 @@
   }
 }
 
+/* ---- Base ------------------------------------------------------------- */
 *,*::before,*::after{box-sizing:border-box}
 html{color-scheme:dark}
 :root[data-theme="light"]{color-scheme:light}
@@ -146,12 +155,12 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 .vesta-accent{color:var(--accent)}
 .vesta-mono{font-family:var(--font-mono)}
 
+/* ---- Shared header / nav --------------------------------------------- */
 .vesta-header{
   position:sticky; top:0; z-index:50;
-  background:var(--bg);
+  background:color-mix(in srgb, var(--bg) 88%, transparent);
   backdrop-filter:saturate(1.4) blur(10px);
-  border-bottom:1px solid var(--border-strong);
-  box-shadow:var(--shadow-sm);
+  border-bottom:1px solid var(--border);
 }
 .vesta-header-inner{
   max-width:var(--maxw); margin:0 auto; padding:0 var(--sp-5);
@@ -179,6 +188,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 .vesta-nav a:hover{color:var(--text); background:var(--surface-2); text-decoration:none}
 .vesta-nav a[aria-current="page"]{color:var(--accent); background:var(--accent-soft)}
 
+/* ---- Theme toggle ----------------------------------------------------- */
 .vesta-toggle{
   flex:0 0 auto; display:inline-flex; align-items:center; gap:var(--sp-2);
   background:var(--surface-2); color:var(--text); border:1px solid var(--border);
@@ -196,6 +206,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
   :root:not([data-theme]) .vesta-toggle .icon-moon{display:none}
 }
 
+/* ---- Buttons ---------------------------------------------------------- */
 .vesta-btn{
   display:inline-flex; align-items:center; gap:var(--sp-2);
   padding:var(--sp-3) var(--sp-5); border-radius:var(--r-md);
@@ -209,6 +220,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 .vesta-btn-ghost:hover{background:var(--surface-2); border-color:var(--accent); text-decoration:none}
 .vesta-btn:focus-visible{outline:none; box-shadow:var(--ring)}
 
+/* ---- Cards ------------------------------------------------------------ */
 .vesta-card{
   background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg);
   padding:var(--sp-5); transition:var(--trans);
@@ -224,6 +236,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
   text-transform:uppercase; color:var(--accent); margin-bottom:var(--sp-2);
 }
 
+/* ---- Badges ----------------------------------------------------------- */
 .vesta-badge{
   display:inline-flex; align-items:center; gap:var(--sp-1);
   padding:2px var(--sp-2); border-radius:var(--r-pill);
@@ -234,6 +247,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 .vesta-badge-amber{background:var(--amber-soft); color:var(--amber-deep); border-color:transparent}
 .vesta-badge-ok{background:var(--ok-soft); color:var(--ok); border-color:transparent}
 
+/* ---- Tables ----------------------------------------------------------- */
 .vesta-table-wrap{overflow-x:auto; border:1px solid var(--border); border-radius:var(--r-lg)}
 .vesta-table{width:100%; border-collapse:collapse; font-size:var(--fs-base)}
 .vesta-table th,.vesta-table td{
@@ -248,6 +262,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 .vesta-table tbody tr:hover{background:var(--surface)}
 .vesta-table th:first-child{color:var(--text); font-weight:var(--fw-semi); white-space:nowrap}
 
+/* ---- Footer ----------------------------------------------------------- */
 .vesta-footer{
   border-top:1px solid var(--border); margin-top:var(--sp-12);
   padding:var(--sp-8) 0; color:var(--text-dim); font-size:var(--fs-sm);

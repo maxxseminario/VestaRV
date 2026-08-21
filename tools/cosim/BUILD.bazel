@@ -1,0 +1,80 @@
+load("@rules_python//python:defs.bzl", "py_binary", "py_library", "py_test")
+
+package(default_visibility = ["//visibility:public"])
+
+# The cosim comparator and its parsers, as one importable package.
+# imports = ["."] puts tools/cosim on sys.path so the sibling imports the
+# modules already use (from records import ..., import amend) resolve as real
+# bazel deps instead of relying on each script's own sys.path.insert.
+py_library(
+    name = "cosim",
+    srcs = [
+        "amend.py",
+        "compare.py",
+        "disasm.py",
+        "mk_inject.py",
+        "oracle_isa.py",
+        "records.py",
+        "spike_log.py",
+    ],
+    imports = ["."],
+)
+
+# The comparator itself, runnable as a tool.
+py_binary(
+    name = "compare",
+    srcs = ["compare.py"],
+    main = "compare.py",
+    deps = [":cosim"],
+)
+
+# 180 self-contained cases over every comparator exit code.
+# The cases that need the xcelium trace tree or a built vesta_ref self-skip,
+# so the sandboxed run is a strict subset of the standalone run.
+py_test(
+    name = "test_compare",
+    size = "large",
+    srcs = ["test_compare.py"],
+    main = "test_compare.py",
+    deps = [":cosim"],
+)
+
+# The K2 oracle derivation. Reads the real RTL constants out of hdl/common,
+# so the derived Spike ISA / memory windows are measured against the tree
+# rather than against the test's own helper.
+#
+# NOT YET WIRED: test_against_the_real_resolved_config also reads
+# platform/common/config/ChipConfig.resolved.json, which lives in the ROOT
+# bazel package and is not exported there. Until the root BUILD exports it
+# that one test self-skips (it prints "skip real resolved config"), costing
+# 6 of the 80 standalone checks.
+py_test(
+    name = "test_oracle_isa",
+    size = "small",
+    srcs = ["test_oracle_isa.py"],
+    data = ["//hdl:vhdl_sources"],
+    main = "test_oracle_isa.py",
+    deps = [":cosim"],
+)
+
+# The D4 dual-truth gate: the 40-word trampoline table in
+# hdl/common/debug_module.vhd against the assembled
+# software/dbg_trampoline/bin/dbg_trampoline.words.
+# Missing input is rc 2 by design (never a silent skip), so both sides must
+# be real inputs of the test.
+py_test(
+    name = "check_dbg_trampoline_test",
+    size = "small",
+    srcs = ["check_dbg_trampoline.py"],
+    args = [
+        "--vhdl",
+        "hdl/common/debug_module.vhd",
+        "--words",
+        "$(rootpath //software/dbg_trampoline:dbg_trampoline_words)",
+    ],
+    data = [
+        "//hdl:vhdl_sources",
+        "//software/dbg_trampoline:dbg_trampoline_words",
+    ],
+    main = "check_dbg_trampoline.py",
+)
