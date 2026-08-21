@@ -1,0 +1,31 @@
+# Hermetic LaTeX smoke test, isolated in its own package.
+#
+# WHY ITS OWN PACKAGE.  bazel_latex 1.2.2 calls native.sh_binary inside the
+# latex_document macro, and Bazel 9 removed that native.  The failure is at LOAD
+# time, so a single latex_document call can make a whole package unloadable.
+# Keeping the call here, behind the guard in smoke.bzl, means the TRM targets in
+# the parent package are never exposed to it.
+#
+# The document is deliberately minimal: nothing beyond the article class, so a
+# failure here is a toolchain failure and never a missing-package failure.
+#
+# The target exists only when ENABLE_HERMETIC_LATEX_SMOKE in smoke.bzl is True,
+# which is legal only once .bazelrc carries the autoload flag that file names.
+# With both in place:
+#
+#   tools/bin/bazel build //platform/common/latex/bazel/smoke
+#
+# Tagged manual so that even then, a wildcard build does not spend a minute of
+# vendored TeX Live on it.
+
+load(":smoke.bzl", "latex_document_where_supported")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files(["smoke.tex"])
+
+latex_document_where_supported(
+    name = "smoke",
+    main = "smoke.tex",
+    tags = ["manual"],
+)

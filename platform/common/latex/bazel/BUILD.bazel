@@ -1,0 +1,184 @@
+# The TRM PDF build.
+#
+# WHY THIS PACKAGE IS HERE AND NOT AT //platform/common/latex.
+# //platform/common globs latex/*.tex, latex/figures/**, latex/matplotlib/**,
+# latex/PeripheralIntroductions/*.tex and latex/TRM/include/*_man.tex into its
+# own filegroups.  A BUILD file at platform/common/latex/ would cut latex/ out
+# of that package and break every one of those globs.  A BUILD file one level
+# down, in latex/bazel/, is crossed by none of them, so the PDF targets live
+# here instead.
+#
+# TWO BUILD PATHS, ONE RECIPE.
+#   smoke/:smoke     hermetic, vendored TeX Live from bazel_latex.  Proves the
+#                    toolchain runs on this host.  Cannot build the TRM itself
+#                    (see the two blockers below).  It sits in its own package
+#                    so that its load-time dependency on the autoload flag does
+#                    not reach the targets here.
+#   :trm_pdf_local   the real TRM, built with the HOST TeX the Makefile finds.
+#                    Tagged manual/local/no-sandbox: it reads a TeX Live install
+#                    outside the sandbox and so is a bench target, not a CI one.
+#
+# WHY THE TRM IS NOT ON THE HERMETIC PATH.
+# 1. Engine.  bazel_latex hardcodes lualatex (latex.bzl sets _engine to
+#    luahbtex and its engine map holds no other entry).  The TRM is a pdflatex
+#    document and the whole publish gate is a byte-diff against pdflatex output,
+#    which lualatex cannot reproduce.  The vendored TeX Live does ship a pdftex
+#    binary, so an adapter is possible, but it would have to rebuild the format
+#    file and the environment that bazel_latex builds for lualatex.
+# 2. Packages.  bazel_latex curates 153 latex_package targets.  The TRM loads 45
+#    packages, of which 21 have no such target: acronym, bm, bytefield,
+#    circuitikz, cite, epstopdf, floatrow, fontenc, hhline, inconsolata,
+#    libertine, libertinust1math, lipsum, ltablex, mathrsfs, mathtools,
+#    multirow, rotating, svg, textcomp and tikz-timing.  The .sty files are all
+#    present in the vendored texmf tree; what is missing is the dependency
+#    closure each latex_package wrapper encodes, plus the font map and Type 1
+#    font directories that libertine and inconsolata need.
+
+load("@rules_python//python:defs.bzl", "py_binary", "py_test")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files([
+    "build_trm_pdf.py",
+    "check_publish.py",
+    "trm_lint.py",
+])
+
+# The published TRM this chip's docs directory carries, as a workspace-relative
+# path rather than a label: implementations/ has no BUILD file anywhere, so the
+# PDF cannot be a data dependency.  check_publish.py resolves it against the
+# source workspace, which it finds by walking up from its own runfiles symlink.
+# Keep this in step with PUBLISH_PDF in platform/common/Makefile.
+PUBLISHED_TRM_PATH = "implementations/asic/castalia/docs/TRM.pdf"
+
+# ---------------------------------------------------------------------------
+# The local (host TeX) PDF build.
+# ---------------------------------------------------------------------------
+
+# The Bazel port of the Makefile's `pdf` recipe: stage the tree, drop the stale
+# auxiliary files, three pdflatex passes with SOURCE_DATE_EPOCH pinned.
+py_binary(
+    name = "build_trm_pdf",
+    srcs = ["build_trm_pdf.py"],
+    main = "build_trm_pdf.py",
+)
+
+# The TRM PDF, built from the generated LaTeX tree with the host's TeX Live.
+#
+# manual        keeps it out of every wildcard build.
+# local         it needs a TeX Live install that Bazel does not own.
+# no-sandbox    that install lives outside the execroot.
+genrule(
+    name = "trm_pdf_local",
+    srcs = ["//platform/common:trm_latex_tree"],
+    outs = [
+        "TRM.pdf",
+        "TRM.build.log",
+    ],
+    cmd = " ".join([
+        "$(location :build_trm_pdf)",
+        "--tree $(location //platform/common:trm_latex_tree)",
+        "--out $(location TRM.pdf)",
+        "--log $(location TRM.build.log)",
+        "--workdir $(RULEDIR)/trm_pdf_local.build",
+    ]),
+    tags = [
+        "local",
+        "manual",
+        "no-sandbox",
+    ],
+    tools = [":build_trm_pdf"],
+)
+
+# ---------------------------------------------------------------------------
+# Gates over the built PDF.
+# ---------------------------------------------------------------------------
+
+# The Makefile's `check-publish`: is the committed TRM the PDF the current
+# sources produce, or is it stale?
+#
+# KNOWN RED against :trm_pdf_local today, for two reasons that are both
+# upstream of this package and neither of which is a LaTeX problem:
+#   1. The generated tree carries no include/analog/ chapter, which TRM.tex
+#      pulls in under \IfFileExists.  The generator side of the same gap is
+#      //platform/common:castalia_analog_chapter_test, tagged manual for it.
+#   2. The generated tree's include/defines.tex prints a January 1st, 2025
+#      revision date, because the generation action does not set
+#      VESTA_TRM_DATE_EPOCH and LatexUserGuide.py then falls back to
+#      SOURCE_DATE_EPOCH.  The Makefile derives that value from the newest
+#      commit touching python/, latex/ and config/.
+# Both deltas are content, so they change the bytes.  With them closed this
+# test is expected to go green: the same three-pass recipe over the on-disk
+# latex/TRM/ tree reproduces the published TRM byte for byte today.
+py_test(
+    name = "check_publish_test",
+    size = "small",
+    srcs = ["check_publish.py"],
+    args = [
+        "--built",
+        "$(location :TRM.pdf)",
+        "--published",
+        PUBLISHED_TRM_PATH,
+    ],
+    data = [":TRM.pdf"],
+    main = "check_publish.py",
+    tags = [
+        "local",
+        "manual",
+        "no-sandbox",
+    ],
+)
+
+# The Makefile's `trm-lint`: read the rendered text back and look for LaTeX
+# that leaked through as literal characters, or an unresolved cross reference.
+# Uses the host's pdftotext; a hermetic poppler is out of scope.
+py_test(
+    name = "trm_lint_test",
+    size = "small",
+    srcs = ["trm_lint.py"],
+    args = [
+        "--pdf",
+        "$(location :TRM.pdf)",
+    ],
+    data = [":TRM.pdf"],
+    main = "trm_lint.py",
+    tags = [
+        "local",
+        "manual",
+        "no-sandbox",
+    ],
+)
+
+# ---------------------------------------------------------------------------
+# Bench entry points.
+# ---------------------------------------------------------------------------
+
+# The same three scripts, reachable with `bazel run` against the WORKTREE's
+# latex/TRM/ tree instead of the generated one.  That tree is generator output
+# and gitignored, so it cannot be a Bazel input; these targets reach it at run
+# time, which is why they are py_binary rules and not tests.
+#
+#   tools/bin/bazel run //platform/common/latex/bazel:trm_pdf_worktree -- \
+#       --tree platform/common/latex/TRM --out /tmp/TRM.pdf
+#   tools/bin/bazel run //platform/common/latex/bazel:trm_lint_bin -- \
+#       --pdf /tmp/TRM.pdf
+#   tools/bin/bazel run //platform/common/latex/bazel:check_publish_worktree -- \
+#       --built /tmp/TRM.pdf --published implementations/asic/castalia/docs/TRM.pdf
+alias(
+    name = "trm_pdf_worktree",
+    actual = ":build_trm_pdf",
+)
+
+py_binary(
+    name = "check_publish_worktree",
+    srcs = ["check_publish.py"],
+    main = "check_publish.py",
+    tags = ["local"],
+)
+
+py_binary(
+    name = "trm_lint_bin",
+    srcs = ["trm_lint.py"],
+    main = "trm_lint.py",
+    tags = ["local"],
+)
