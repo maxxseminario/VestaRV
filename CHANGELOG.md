@@ -31,7 +31,34 @@ names the commit it is anchored to.
 
 ## [Unreleased]
 
+### Added
+- **Physical CI (tier 3), `physical.yml`.** The sky130 RTL-to-GDSII flow now
+  runs in CI on GitHub-hosted runners: the GHDL Verilog bridge and the cocotb
+  core smoke sim on every PR/push/merge-group (minutes, hosted,
+  required-check-safe), and the full LibreLane hardening weekly / on the
+  `run-physical` PR label / on `workflow_dispatch` / on every release tag.
+  Signoff is gated by `sky130/check_metrics.py` on `final/metrics.json` (six
+  counts, present and zero; missing = fail), never on mid-run logs.
+- **Release automation, `release.yml`.** Pushing a tag `vX.Y.Z` re-proves the
+  physical flow at that tag (via `workflow_call` into `physical.yml`) and
+  publishes a GitHub Release whose notes are that version's CHANGELOG section
+  (a missing section fails the release) and whose assets are the signoff
+  bundle (GDS, netlists, metrics, reports), the bridge netlist, and the TRM.
+- **Merge queue doctrine, `.github/MERGE_QUEUE.md`** + `merge_group` triggers
+  on the tier-1 and tier-3 fast jobs; `sim.yml` and the harden job stay out of
+  the queue by design (shared license seat / 4–5 h wall time).
+
 ### Fixed
+- **The register-browser provenance gate was red on main since `085eef9`** and
+  had no repair tool (the K7/F-K5-2 class): the page's embedded memory map
+  was stale against the generator. `splice_register_browser.py` now exists,
+  `make web` splices and re-checks both docs pages, and the page is respliced.
+- **The self-hosted sim runner never had the `cadence` label** — registered
+  2026-07-18 with the labels prompt skipped, so `runs-on: [self-hosted,
+  cadence]` never matched and every `sim.yml` run since then queued and was
+  cancelled by its successor without a single test executing. Diagnosis and
+  the one-click fix are documented in `.github/RUNNER_SETUP.md`; applying the
+  label needs the repo GUI and is not yet done.
 - The site's "Connect" card linked to a placeholder LinkedIn URL. `pages.yml`
   gates only on the relative-link checker, which classifies external URLs as
   unverified, so nothing caught it.

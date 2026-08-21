@@ -39,6 +39,19 @@ Bootrom + ISA image builds
 All three run on GitHub-hosted runners in a few minutes and need no licenses, so
 a queued PR is never waiting on the bench machine.
 
+Two more hosted, fast, `merge_group`-triggered candidates from `physical.yml`
+(tier 3) are safe to add if you also want the queue to prove GHDL still
+elaborates the tree and the core still executes:
+
+```
+Verilog bridge (GHDL synth)
+Core smoke sim (cocotb on GHDL)
+```
+
+Do **not** add `physical.yml`'s harden job: it is skipped on merge-group events
+by design (a 4–5 h GDSII run has no business in a merge path), so requiring it
+stalls the queue exactly like a `sim.yml` job would.
+
 **Do not add any `sim.yml` job.** That file has no `merge_group:` trigger (see
 its header for why), so a required check pointing at it would have nothing to
 satisfy it and the queue would sit until it times out.
