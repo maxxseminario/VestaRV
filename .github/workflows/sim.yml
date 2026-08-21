@@ -28,11 +28,13 @@ name: Simulation (open source)
 # the toolchain across runs, so warm runs are dominated by the ~139 GHDL
 # sims (~5-10 min at 4 local test jobs).
 
-# ── ALL AUTOMATIC TRIGGERS DISABLED 2026-08-21 at the owner's request ──
-# Manual dispatch only. To restore, take the trigger block back from git
-# history (the commit before this one carried: push [main, multicore-mp] /
-# pull_request / merge_group / schedule "30 8 * * *" / workflow_dispatch).
 on:
+  push:
+    branches: [main, multicore-mp]
+  pull_request:
+  merge_group:
+  schedule:
+    - cron: "30 8 * * *"   # nightly (UTC), same slot the Cadence tier held
   workflow_dispatch:
 
 permissions:

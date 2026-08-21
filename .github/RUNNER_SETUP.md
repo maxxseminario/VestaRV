@@ -1,5 +1,11 @@
 # Self-hosted runner setup (Cadence simulation tier — CURRENTLY UNPLUGGED)
 
+> **OWNER POLICY 2026-08-21: CI is GitHub-hosted only.** ci.yml's
+> "GitHub-hosted-runners-only gate" fails any workflow whose `runs-on`
+> targets a self-hosted runner. Reviving this tier therefore requires
+> deleting that gate in the same commit that reintroduces the job — a
+> deliberate, reviewable act, not a drive-by.
+
 > **2026-08-21:** `sim.yml` no longer targets this runner. The Cadence tier
 > was replaced by the hosted GHDL ISA regression (bazel, `//opensource_sim`)
 > after a month of yellow queued runs traced to the label defect below. The
