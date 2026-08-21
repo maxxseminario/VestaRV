@@ -1,0 +1,23 @@
+# lab10_sync/nobackoff: built exactly as software/course/sdk/course.mk builds it.
+
+load("//toolchains/riscv:defs.bzl", "course_lab", "firmware_image_test")
+
+package(default_visibility = ["//visibility:public"])
+
+# Negative control: the reference solution rebuilt with -DNO_BACKOFF, which
+# removes only the Phase 1 LR/SC spinlock backoff so identical harts livelock.
+# src/main.c is a one line #include of the reference lab's main.c, so that
+# file has to travel into the sandbox even though it is not compiled here.
+course_lab(
+    name = "lab10_nobackoff",
+    defines = ["NO_BACKOFF"],
+    extra_srcs = ["//software/course/labs/lab10_sync/reference:src/main.c"],
+)
+
+# Byte identical to the bench image in rcf/xxxlab10_nobackoff.rcf, which the
+# instructor simulator flow reads. cmp verified at the time this was written.
+firmware_image_test(
+    name = "lab10_nobackoff_flashed_rcf_test",
+    image = "xxxlab10_nobackoff.rcf",
+    golden = "testdata/lab10_nobackoff_flashed_rcf_golden.txt",
+)

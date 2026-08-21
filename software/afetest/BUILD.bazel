@@ -1,0 +1,15 @@
+# afetest: minimal AFE bring-up image. Cloned from software/blinky, only the
+# TARGET differs. Unlike its siblings it has no checked-in rcf/ or bin/
+# artifact, so there is no bench image to compare against at all.
+
+load("//toolchains/riscv:defs.bzl", "firmware_image_test", "myshkin_app")
+
+package(default_visibility = ["//visibility:public"])
+
+myshkin_app(name = "afetest")
+
+firmware_image_test(
+    name = "afetest_flashed_rcf_test",
+    image = "xxxxxxxxxxxafetest.rcf",
+    golden = "testdata/afetest_flashed_rcf_golden.txt",
+)

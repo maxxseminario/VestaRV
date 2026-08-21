@@ -1,0 +1,15 @@
+# lab08_interrupts/reference: built exactly as software/course/sdk/course.mk builds it.
+
+load("//toolchains/riscv:defs.bzl", "course_lab", "firmware_image_test")
+
+package(default_visibility = ["//visibility:public"])
+
+course_lab(name = "lab08_interrupts")
+
+# Byte identical to the bench image in rcf/xxlab08_interrupts.rcf, which the
+# instructor simulator flow reads. cmp verified at the time this was written.
+firmware_image_test(
+    name = "lab08_interrupts_flashed_rcf_test",
+    image = "xxlab08_interrupts.rcf",
+    golden = "testdata/lab08_interrupts_flashed_rcf_golden.txt",
+)

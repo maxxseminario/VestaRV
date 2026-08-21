@@ -1,0 +1,32 @@
+# Myshkin platform support files consumed by the firmware builds.
+#
+# These are checked-in snapshots of the chip generator output. The application
+# makefiles under software/ (blinky and its five siblings) pick this directory
+# over tools/build/linker-scripts whenever it exists, via the
+# PLATFORM_DIR/linker/memory.x wildcard test. It does exist and it is tracked,
+# so the platform branch is the live one and the bazel rules use these files
+# unconditionally rather than replaying the fallback.
+#
+# This BUILD file exists only to give the files a package so they are
+# addressable; nothing here is generated at build time.
+
+package(default_visibility = ["//visibility:public"])
+
+# -I directory contents: the register map header and the assembler view.
+filegroup(
+    name = "platform_headers",
+    srcs = [
+        "include/MemoryMap.h",
+        "include/periph.S",
+    ],
+)
+
+# memory.x and periph.x, pulled in by the INCLUDE lines in MCU.ld. The linker
+# resolves them out of the -L search path.
+filegroup(
+    name = "linker_fragments",
+    srcs = [
+        "linker/memory.x",
+        "linker/periph.x",
+    ],
+)
