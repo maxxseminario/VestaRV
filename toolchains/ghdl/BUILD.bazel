@@ -1,0 +1,20 @@
+# GHDL toolchain wiring for the open-source simulation tier.
+#
+# The patch below is referenced from MODULE.bazel's single_version_override for
+# the ghdl module, so it has to be an exported source file of a real package.
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files(["ghdl_system_ld.patch"])
+
+# Convenience aliases so nothing outside this package has to know that the
+# simulator comes from an external module, or which backend it is built with.
+alias(
+    name = "ghdl",
+    actual = "@ghdl//:ghdl_mcode",
+)
+
+alias(
+    name = "vhdl_libs_v08",
+    actual = "@ghdl//:vhdl_libs_v08",
+)

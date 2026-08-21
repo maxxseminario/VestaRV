@@ -1,0 +1,517 @@
+# Per-test bazel targets for the verification/isa images.
+#
+# This package re-expresses the CI job "Bootrom + ISA image builds", which runs
+# `./build_mp_images.sh 4 rcf_ci`, as one target per test.  build_mp_images.sh
+# builds the eight groups below and stages them, flashed and x-padded, into its
+# destination directory.
+#
+# THE POLARITY IS IN THE ACTION KEY.  The Makefile keys each ELF on its .S
+# alone, so the -march of the suite and the -DNHARTS / -DCORE_ENABLE_* defines
+# can change under a build directory that is never invalidated; that is why
+# build_mp_images.sh must `rm -rf build/` and stamp build/.imgset.  Here every
+# one of those flags is an argument of the compile action, so a polarity change
+# rebuilds precisely the images it affects.
+#
+# Only the p-mode (`-p-`) variants exist: compile_template instantiates
+# $(1)_p_tests, never $(1)_v_tests or $(1)_ps_tests.
+#
+# The test lists below are the <suite>_sc_tests lists of tests/<suite>/Makefrag,
+# which is the authority on what is live.  A .S sitting in a suite directory
+# without a Makefrag entry is NOT built here either: tests/rv32ui/ma_data.S,
+# wntag.S, wntagx.S, tests/rv32ua/d5sess.S, extprobe_template.S and the
+# dbg*mp.S one-offs that tools/build_one_rcf.sh stages by hand.
+
+load(":defs.bzl", "CI_DEFINES", "SHARED_LD", "riscv_isa_image", "riscv_isa_suite")
+load("@rules_python//python:defs.bzl", "py_test")
+
+package(default_visibility = ["//visibility:public"])
+
+# Everything a test compile can read besides its own .S:
+#   * //verification:env_headers -- encoding.h and env/p/*.h, reached through
+#     the Makefile's -I../env/p (riscv_test.h, test_macros.h, mp_boot.h,
+#     core_features.h),
+#   * macros/scalar/*.h -- the Makefile's -I./macros/scalar,
+#   * tests/rv64*/*.S -- the rv32 tests of the shared suites #include their
+#     rv64 counterparts (for example tests/rv32ui/add.S includes
+#     ../rv64ui/add.S), so the rv64 trees are compile inputs even though no
+#     rv64 image is built at XLEN=32,
+#   * tests/*/*.h -- a suite-local header a test includes out of its own
+#     directory, which is how cpp resolves a quoted include first
+#     (tests/rv32uzf/test_macros_zfinx.h is the only one today).
+_COMMON_HDRS = [
+    "//verification:env_headers",
+] + glob(
+    [
+        "macros/scalar/*.h",
+        "tests/rv64*/*.S",
+        "tests/*/*.h",
+    ],
+    allow_empty = True,
+)
+
+# rv32ui_sc_tests, tests/rv32ui/Makefrag.  -march=rv32imc (Makefile:278).
+_RV32UI_TESTS = [
+    "simple",
+    "shmem",
+    "shmem_mp",
+    "shboot",
+    "shwfi",
+    "shclint",
+    "irqctx",
+    "shuart",
+    "shirq",
+    "shtimer",
+    "shperiph",
+    "shi2c",
+    "shnpu",
+    "shmutex",
+    "shexec",
+    "shexecc",
+    "shfault",
+    "shpwr",
+    "shafe",
+    "shorch",
+    "shtcm",
+    "shdma",
+    "shevfab",
+    "wperiph",
+    "wqspi",
+    "wi3c",
+    "wnfc",
+    "wgpio",
+    "wrtc",
+    "wpwm",
+    "wow",
+    "wdma",
+    "wi2ct",
+    "wtrng",
+    "wnpuconv",
+    "wxnpu",
+    "wgemm",
+    "wactf",
+    "afsel",
+    "afselv2",
+    "add",
+    "addi",
+    "and",
+    "andi",
+    "auipc",
+    "beq",
+    "bge",
+    "bgeu",
+    "blt",
+    "bltu",
+    "bne",
+    "jal",
+    "jalr",
+    "lb",
+    "lbu",
+    "lh",
+    "lhu",
+    "lw",
+    "ld_st",
+    "lui",
+    "or",
+    "ori",
+    "sb",
+    "sh",
+    "sw",
+    "st_ld",
+    "sll",
+    "slli",
+    "slt",
+    "slti",
+    "sltiu",
+    "sltu",
+    "sra",
+    "srai",
+    "srl",
+    "srli",
+    "sub",
+    "xor",
+    "xori",
+    "zbk",
+]
+
+# rv32um_sc_tests, tests/rv32um/Makefrag.  -march=rv32imc (Makefile:280).
+_RV32UM_TESTS = [
+    "div",
+    "divu",
+    "mul",
+    "mulh",
+    "mulhsu",
+    "mulhu",
+    "rem",
+    "remu",
+    "dvintmin",
+    "dvbubble",
+]
+
+# rv32ua_sc_tests, tests/rv32ua/Makefrag.  -march=rv32imac (Makefile:290).
+_RV32UA_TESTS = [
+    "amoadd_w",
+    "amoand_w",
+    "amomax_w",
+    "amomaxu_w",
+    "amomin_w",
+    "amominu_w",
+    "amoor_w",
+    "amoxor_w",
+    "amoswap_w",
+    "amoalias",
+    "lrsc",
+    "shlrsc",
+    "shcount",
+    "shspin",
+    "shlock",
+    "shamo",
+    "shzabha",
+    "shzacas",
+    "shcaslr",
+    "shmixw",
+    "shpause",
+    "shwrs",
+    "shcboz",
+    "shcmp",
+    "shcmppush",
+    "shcmt",
+    "extzcmp",
+    "extzcmt",
+    "extjvt",
+    "extzabha",
+    "extzacas",
+    "casgrant",
+    "extzicboz",
+    "extzkne",
+    "extzknd",
+    "extzbkb",
+    "extzbkx",
+    "extzbkrsv",
+    "casill",
+    "amorsv",
+    "cbozill",
+    "extprobe",
+    "extzimop",
+    "extzihint",
+    "extmul",
+    "extdiv",
+    "extamo",
+    "extrvc",
+    "extzb",
+    "extzihpm",
+    "extbadcsr",
+    "extzicond",
+    "extzcb",
+    "extzawrs",
+    "extzawrsx",
+    "extzknh",
+    "extzfinx",
+    "zfopfp",
+    "zffma",
+    "zffms",
+    "zfnms",
+    "zfnma",
+    "zfflw",
+    "zffsw",
+    "zfmvwx",
+    "zfmvxw",
+    "zffflags",
+    "zffrm",
+    "zffcsr",
+    "privmst",
+    "privmsth",
+    "privmtvc",
+    "privmie",
+    "privmip",
+    "privmscr",
+    "privmepc",
+    "privmcau",
+    "privmtvl",
+    "privmtrc",
+    "privmret",
+    "privecal",
+    "privebrk",
+    "privwfi",
+    "privcsr",
+    "privecall",
+    "privirq",
+    "privumode",
+    "privucsr",
+    "privrt1",
+    "privrt2",
+    "privpmpcs",
+    "privpmp",
+    "privpmpmx",
+    "pmprt1",
+    "pmprt2",
+    "pmprt3",
+    "pmprt4",
+    "pmprt5",
+    "pmprt6",
+    "scfailrd",
+    "trapstor",
+    "csrrevrt",
+    "csrleak",
+    "slpleak",
+    "ignleak",
+    "insretov",
+    "iretphan",
+    "lrrs2",
+    "uiretph",
+    "rocsrw",
+    "rocsrwmp",
+    "shapeq",
+    "pmpfq",
+    "packalias",
+    "fk51mp",
+    "idcsrmp",
+    "dbgdenymp",
+    "dbghaltmp",
+    "dbgstepmp",
+    "rdtimemp",
+]
+
+# rv32uc_sc_tests, tests/rv32uc/Makefrag.  -march=rv32imc (Makefile:279).
+_RV32UC_TESTS = [
+    "rvc",
+]
+
+# rv32uzba_sc_tests, tests/rv32uzba/Makefrag.  -march=rv32gc_zba (Makefile:312).
+_RV32UZBA_TESTS = [
+    "sh1add",
+    "sh2add",
+    "sh3add",
+]
+
+# rv32uzbb_sc_tests, tests/rv32uzbb/Makefrag.  -march=rv32gc_zbb (Makefile:313).
+_RV32UZBB_TESTS = [
+    "andn",
+    "clz",
+    "cpop",
+    "ctz",
+    "max",
+    "maxu",
+    "min",
+    "minu",
+    "orc_b",
+    "orn",
+    "rev8",
+    "rol",
+    "ror",
+    "rori",
+    "sext_b",
+    "sext_h",
+    "xnor",
+    "zext_h",
+]
+
+# rv32uzbc_sc_tests, tests/rv32uzbc/Makefrag.  -march=rv32gc_zbc (Makefile:314).
+_RV32UZBC_TESTS = [
+    "clmul",
+    "clmulh",
+    "clmulr",
+]
+
+# rv32uzbs_sc_tests, tests/rv32uzbs/Makefrag.  -march=rv32gc_zbs (Makefile:315).
+_RV32UZBS_TESTS = [
+    "bclr",
+    "bclri",
+    "bext",
+    "bexti",
+    "binv",
+    "binvi",
+    "bset",
+    "bseti",
+]
+
+# rv32uzf_sc_tests, tests/rv32uzf/Makefrag.  -march=rv32imc_zfinx (Makefile:349).
+_RV32UZF_TESTS = [
+    "fadd",
+    "fdiv",
+    "fclass",
+    "fcmp",
+    "fcvt",
+    "fcvt_w",
+    "fmadd",
+    "fmin",
+    "dround",
+    "dsubnrm",
+    "dnan",
+    "dpmzero",
+    "dfcvttab",
+    "daccum",
+    "drdx0",
+    "dsgnj",
+]
+
+# Suite name, -march, test list.  The mabi is ilp32 throughout.
+_CI_SUITES = [
+    ("rv32ui", "rv32imc", _RV32UI_TESTS),
+    ("rv32um", "rv32imc", _RV32UM_TESTS),
+    ("rv32ua", "rv32imac", _RV32UA_TESTS),
+    ("rv32uc", "rv32imc", _RV32UC_TESTS),
+    ("rv32uzba", "rv32gc_zba", _RV32UZBA_TESTS),
+    ("rv32uzbb", "rv32gc_zbb", _RV32UZBB_TESTS),
+    ("rv32uzbc", "rv32gc_zbc", _RV32UZBC_TESTS),
+    ("rv32uzbs", "rv32gc_zbs", _RV32UZBS_TESTS),
+]
+
+# The Makefile's one per-test linker script override (Makefile:235).
+# rv32uc-p-rvc's .text.init is larger than the 8 KiB private TCM, so it links
+# into the shared bulk RAM instead of aliasing over itself.
+_LD_OVERRIDES = {
+    "rv32uc": {"rvc": SHARED_LD},
+}
+
+[
+    riscv_isa_suite(
+        suite = suite,
+        march = march,
+        tests = tests,
+        defines = CI_DEFINES,
+        hdrs = _COMMON_HDRS,
+        ld_overrides = _LD_OVERRIDES.get(suite, {}),
+    )
+    for suite, march, tests in _CI_SUITES
+]
+
+# rv32uzf (X4 Zfinx), Makefile:349.  It is a live suite with its own -march and
+# it builds at the default define set, but build_mp_images.sh does NOT include
+# it in its default group list, so it is NOT part of the CI image set and is
+# kept out of :ci_images below.  Running it against RTL needs the ON polarity
+# (-DCORE_ENABLE_ZFINX), which is a `defines` argument, not a code change.
+riscv_isa_suite(
+    suite = "rv32uzf",
+    march = "rv32imc_zfinx",
+    tests = _RV32UZF_TESTS,
+    defines = CI_DEFINES,
+    hdrs = _COMMON_HDRS,
+)
+
+# --------------------------------------------------------------------------
+# OPEN-SOURCE-SIM (GHDL bare-core) POLARITY
+#
+# The //opensource_sim GHDL harness enables every single-bare-core-verifiable
+# extension generic, and the rv32ua ext-probes dispatch their ON arm on these
+# build-time defines — so it needs the SAME nine suites at a different
+# polarity. This list MUST mirror CORE_ENABLE_DEFS in
+# opensource_sim/isa/run_isa.sh, one for one (that script's make path and
+# these targets must produce interchangeable images). No -DNHARTS: the bare
+# harness is one hart, matching run_isa.sh's own build line.
+# --------------------------------------------------------------------------
+OS_CORE_ENABLE_DEFINES = [
+    "-DCORE_ENABLE_COMPRESSED",
+    "-DCORE_ENABLE_ZICOND",
+    "-DCORE_ENABLE_ZCB",
+    "-DCORE_ENABLE_ZIMOP",
+    "-DCORE_ENABLE_ZIHINT",
+    "-DCORE_ENABLE_ZICBOZ",
+    "-DCORE_ENABLE_ZABHA",
+    "-DCORE_ENABLE_ZACAS",
+    "-DCORE_ENABLE_ZCMP",
+    "-DCORE_ENABLE_ZCMT",
+    "-DCORE_ENABLE_ZBKB",
+    "-DCORE_ENABLE_ZBKC",
+    "-DCORE_ENABLE_ZBKX",
+    "-DCORE_ENABLE_ZKN",
+    "-DCORE_ENABLE_ZFINX",
+]
+
+[
+    riscv_isa_suite(
+        suite = suite,
+        march = march,
+        tests = tests,
+        defines = OS_CORE_ENABLE_DEFINES,
+        hdrs = _COMMON_HDRS,
+        ld_overrides = _LD_OVERRIDES.get(suite, {}),
+        name_prefix = "os_",
+        outdir = "os/",
+    )
+    for suite, march, tests in _CI_SUITES + [("rv32uzf", "rv32imc_zfinx", _RV32UZF_TESTS)]
+]
+
+# The CI image set: exactly what `./build_mp_images.sh 4 rcf_ci` stages.
+filegroup(
+    name = "ci_images",
+    srcs = [":%s_flashed" % suite for suite, _, _ in _CI_SUITES],
+)
+
+filegroup(
+    name = "ci_rcfs",
+    srcs = [":%s_rcfs" % suite for suite, _, _ in _CI_SUITES],
+)
+
+# Every image this package can build, CI set plus rv32uzf, flashed and not.
+filegroup(
+    name = "all_images",
+    srcs = [":ci_images", ":ci_rcfs", ":rv32uzf_flashed", ":rv32uzf_rcfs"],
+)
+
+# --------------------------------------------------------------------------
+# N=5 CROSS-CHECK IMAGES
+#
+# verification/isa/rcf/ holds the canonical Castalia set, and since CPR8/R7 it
+# is stamped NHARTS=5, not the CI job's 4.  These five multi-hart tests are the
+# ones whose emitted code actually depends on NHARTS, and they exist here at
+# N=5 solely so the port can be byte-compared against that on-disk set.  They
+# are also the demonstration of the point of this port: the SAME .S, differing
+# only in a -D, is a different action with a different output, which is exactly
+# what the Makefile cannot express.
+# Not wired into :all_images; build them by name.
+_N5_CROSSCHECK = [
+    ("rv32ui", "rv32imc", "shmem_mp"),
+    ("rv32ui", "rv32imc", "shclint"),
+    ("rv32ui", "rv32imc", "shexec"),
+    ("rv32ua", "rv32imac", "shlrsc"),
+    ("rv32ua", "rv32imac", "shspin"),
+]
+
+[
+    riscv_isa_image(
+        name = "n5_%s-p-%s" % (suite, test),
+        src = "tests/%s/%s.S" % (suite, test),
+        march = march,
+        defines = ["-DNHARTS=5"],
+        hdrs = _COMMON_HDRS,
+        basename = "%s-p-%s" % (suite, test),
+        outdir = "n5/",
+    )
+    for suite, march, test in _N5_CROSSCHECK
+]
+
+filegroup(
+    name = "n5_crosscheck",
+    srcs = [":n5/%s-p-%s.rcf" % (suite, test) for suite, _, test in _N5_CROSSCHECK],
+)
+
+# --------------------------------------------------------------------------
+# CONTRACT TEST
+#
+# tools/cosim/gate/bootrom_mp_rom.rcf is the ONLY tracked .rcf in the tree
+# (.gitignore re-includes tools/cosim/gate/*.rcf over the global *.rcf rule),
+# and it is the MP bootrom image, not an ISA test image, so there is no tracked
+# golden for anything this package produces and no golden diff to wire up.
+# Byte identity against the on-disk verification/isa/rcf/ set was therefore
+# measured by hand and reported; what stands as a test here is the image
+# CONTRACT, which is what a stale or mis-staged image violates first:
+#   * an unflashed image is exactly 20480 words of 32 '0'/'1' characters,
+#   * a flashed image opens with the 0x10adbeef vector-area header, ends with
+#     the 0xcafebabe execute word, and carries no second header,
+#   * the flashed file name is exactly 22 characters.
+py_test(
+    name = "image_contract_test",
+    size = "small",
+    srcs = ["tests_image_contract.py"],
+    main = "tests_image_contract.py",
+    data = [
+        ":rv32uc_flashed",
+        ":rv32uc_rcfs",
+        ":rv32uzba_flashed",
+        ":rv32uzba_rcfs",
+        ":rv32uzbc_flashed",
+        ":rv32uzbc_rcfs",
+        ":rv32um_flashed",
+        ":rv32um_rcfs",
+    ],
+)

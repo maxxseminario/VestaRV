@@ -1,0 +1,35 @@
+# Shared verification sources.
+# The p-mode test environment (headers plus linker scripts) that every ISA test
+# image compiles and links against.
+# The ISA image rules live in //verification/isa; this package only publishes
+# the env/ inputs they consume, because env/ has no BUILD file of its own.
+
+package(default_visibility = ["//visibility:public"])
+
+# Headers reached through the ISA Makefile's -I../env/p, plus encoding.h which
+# riscv_test.h includes as ../encoding.h.
+filegroup(
+    name = "env_headers",
+    srcs = ["env/encoding.h"] + glob(
+        ["env/p/*.h"],
+        allow_empty = True,
+    ),
+)
+
+# The p-mode linker scripts.
+# link.ld is the default for every test; link_shared.ld is the per-test override
+# for an image too large for the private TCM.
+filegroup(
+    name = "env_p_linker_scripts",
+    srcs = glob(
+        ["env/p/*.ld"],
+        allow_empty = True,
+    ),
+)
+
+exports_files([
+    "env/p/link.ld",
+    "env/p/link_shared.ld",
+    "env/p/link_boot.ld",
+    "env/p/link_fem.ld",
+])

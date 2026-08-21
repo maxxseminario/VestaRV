@@ -335,6 +335,18 @@ xcelium/
 innovus.cmd*
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Bazel: convenience symlinks into the output base and per-user rc overrides.
+# MODULE.bazel.lock is intentionally NOT ignored (commit it for reproducibility).
+# ─────────────────────────────────────────────────────────────────────────────
+bazel-bin
+bazel-out
+bazel-testlogs
+bazel-vestarv
+.bazelrc.user
+# The bazelisk binary itself is fetched by tools/get_bazel.sh, not committed.
+tools/bin/bazel
+
+# ─────────────────────────────────────────────────────────────────────────────
 # sky130 open-source physical flow (sky130/): generated bridge netlist,
 # LibreLane run dirs, cocotb smoke-test outputs. All rebuilt by physical.yml.
 # ─────────────────────────────────────────────────────────────────────────────
