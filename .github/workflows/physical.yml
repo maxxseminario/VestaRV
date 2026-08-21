@@ -147,15 +147,20 @@ jobs:
 
   harden:
     name: Full GDSII hardening + signoff gate (LibreLane)
-    # Policy: weekly, manual, release (workflow_call), or the run-physical PR
-    # label. Never on plain pushes/merge groups — a 4–5 h job must not sit in
-    # anyone's merge path.
+    # Policy: weekly, manual, release (workflow_call), the run-physical PR
+    # label, or a push whose head commit message carries "[run-physical]" —
+    # the CLI-only escape hatch for a bench session with no GitHub
+    # credentials (workflow_dispatch and labels both need the API). Never on
+    # plain pushes/merge groups — a 4–5 h job must not sit in anyone's merge
+    # path.
     if: >-
       github.event_name == 'schedule' ||
       github.event_name == 'workflow_dispatch' ||
       inputs.harden == true ||
       (github.event_name == 'pull_request' &&
-       contains(github.event.pull_request.labels.*.name, 'run-physical'))
+       contains(github.event.pull_request.labels.*.name, 'run-physical')) ||
+      (github.event_name == 'push' &&
+       contains(github.event.head_commit.message, '[run-physical]'))
     needs: verilog-bridge
     runs-on: ubuntu-24.04
     # sky130/README.md: ~4–5 h on one fast core. The 6 h hosted-runner ceiling
