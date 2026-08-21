@@ -333,3 +333,13 @@ xcelium/riscv_test/innovus_chip_quad/smoke_run.log
 # ─────────────────────────────────────────────────────────────────────────────
 xcelium/
 innovus.cmd*
+
+# ─────────────────────────────────────────────────────────────────────────────
+# sky130 open-source physical flow (sky130/): generated bridge netlist,
+# LibreLane run dirs, cocotb smoke-test outputs. All rebuilt by physical.yml.
+# ─────────────────────────────────────────────────────────────────────────────
+sky130/src/vesta.v
+sky130/runs/
+sky130/sim/sim_build/
+sky130/sim/results.xml
+sky130/sim/*.vcd

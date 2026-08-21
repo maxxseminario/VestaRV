@@ -57,6 +57,28 @@ python3 -m librelane --pdk-root <PDK_ROOT> config.yaml
 cd sim && make            # results.xml + vesta_smoke.vcd
 ```
 
+## CI (`.github/workflows/physical.yml`)
+
+The flow is tier 3 of the repo's CI, entirely on GitHub-hosted runners:
+
+- **Every PR / push / merge-group:** `verilog-bridge` (synth.sh under GHDL
+  6.0.0) and `sim-smoke` (the cocotb test above). Minutes each; both are safe
+  to require in the merge queue.
+- **Weekly, `workflow_dispatch`, the `run-physical` PR label, and every
+  release tag:** `harden` — the full LibreLane run, gated by
+  `check_metrics.py` on `final/metrics.json` (the six signoff counts above
+  must be present and zero; a missing count fails). GDS + netlists + metrics
+  + reports upload as the `vesta-sky130-signoff` artifact.
+- **Releases:** pushing a tag `vX.Y.Z` runs `release.yml`, which calls this
+  workflow and publishes the signoff bundle, the bridge netlist, and the TRM
+  on the GitHub release — after the CHANGELOG section for that version is
+  found and the signoff gate passes.
+
+The workflow pins `ubuntu-24.04` (the GHDL release tarball is built per-OS)
+and `librelane==3.0.5` via `--dockerized`, which keeps the tool image and the
+open_pdks revision in the lockstep this README already requires. Bump
+`GHDL_VERSION` / `LIBRELANE_VERSION` there together with this file.
+
 ## Notes for anyone modifying the flow
 
 - **`--latches` is required**: the `ClkGate` body and a latched result net in

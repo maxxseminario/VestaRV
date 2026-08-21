@@ -1,0 +1,201 @@
+name: Physical (sky130 RTL-to-GDSII)
+
+# Tier 3 — the open-source physical flow in sky130/ (GHDL bridge → LibreLane →
+# magic/KLayout DRC + netgen LVS + 9-corner STA; see sky130/README.md). Unlike
+# the Cadence tiers, everything here is FOSS and runs on GitHub-hosted runners,
+# so the physical flow is CI-provable from a bare checkout — no bench machine,
+# no licenses, no seeded state.
+#
+# Three jobs, two speeds:
+#   * verilog-bridge + sim-smoke: minutes. Run on every PR/push/merge-group —
+#     they prove the tree still elaborates through GHDL (the strictest VHDL
+#     front end in the loop) and that the core still fetches and executes.
+#     Both are safe to add as required checks (they have merge_group and no
+#     shared-resource concurrency; see .github/MERGE_QUEUE.md).
+#   * harden: the full RTL→GDSII run, ~4–5 h. Never on plain pushes. Runs
+#     weekly, on manual dispatch, on the opt-in `run-physical` PR label, and
+#     for every release via workflow_call from release.yml. Gated on
+#     final/metrics.json by sky130/check_metrics.py — signoff is verified from
+#     metrics, never from the pretty mid-run STA (nom_tt only; see
+#     sky130/config.yaml).
+#
+# Runner pinned to ubuntu-24.04, NOT ubuntu-latest: the GHDL release tarball
+# is built per-OS (v6.0.0 ships ubuntu24.04 only) and the day ubuntu-latest
+# moves to 26.04 this workflow must not silently change OS underneath it.
+# Bump GHDL_VERSION and the runner image together.
+
+on:
+  push:
+    branches: [main, multicore-mp]
+  pull_request:
+    # `labeled` so attaching `run-physical` starts the harden job on the spot
+    # (the sim.yml `run-sim` pattern).
+    types: [opened, synchronize, reopened, labeled]
+  merge_group:
+  schedule:
+    - cron: "30 2 * * 6"   # weekly full hardening (Saturday 02:30 UTC)
+  workflow_dispatch:
+  # release.yml calls this workflow so a tagged release re-proves the whole
+  # flow and inherits its artifacts (a called workflow's uploads land in the
+  # caller's run).
+  workflow_call:
+    inputs:
+      harden:
+        description: "Run the full GDSII hardening job"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+env:
+  # v6.0.0 satisfies the flow's "GHDL >= 5.x" floor (sky130/README.md).
+  GHDL_VERSION: 6.0.0
+  # Must match the LibreLane version the config was verified against
+  # (sky130/README.md pins the open_pdks revision through this).
+  LIBRELANE_VERSION: 3.0.5
+
+jobs:
+  verilog-bridge:
+    name: Verilog bridge (GHDL synth)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Release tarball layout: ghdl-mcode-<v>-ubuntu24.04-x86_64/{bin,lib}.
+      # libgnat is GHDL's Ada runtime — the tarball links it dynamically.
+      - name: Install GHDL (mcode)
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y --no-install-recommends libgnat-13
+          mkdir -p "$HOME/ghdl"
+          curl -sSL "https://github.com/ghdl/ghdl/releases/download/v${GHDL_VERSION}/ghdl-mcode-${GHDL_VERSION}-ubuntu24.04-x86_64.tar.gz" \
+            | tar -xz -C "$HOME/ghdl"
+          echo "$HOME/ghdl/ghdl-mcode-${GHDL_VERSION}-ubuntu24.04-x86_64/bin" >> "$GITHUB_PATH"
+
+      # synth.sh owns the curated 19-file analysis order and self-checks its
+      # output (ICG substitution landed, top module present).
+      - name: VHDL -> Verilog (synth.sh)
+        working-directory: sky130
+        run: |
+          ghdl --version
+          ./synth.sh
+
+      # Consumed by the harden job below; also the netlist a release ships.
+      - name: Upload bridge netlist
+        uses: actions/upload-artifact@v4
+        with:
+          name: vesta-verilog
+          path: sky130/src/vesta.v
+          if-no-files-found: error
+
+  sim-smoke:
+    name: Core smoke sim (cocotb on GHDL)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install GHDL (mcode)
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y --no-install-recommends libgnat-13
+          mkdir -p "$HOME/ghdl"
+          curl -sSL "https://github.com/ghdl/ghdl/releases/download/v${GHDL_VERSION}/ghdl-mcode-${GHDL_VERSION}-ubuntu24.04-x86_64.tar.gz" \
+            | tar -xz -C "$HOME/ghdl"
+          echo "$HOME/ghdl/ghdl-mcode-${GHDL_VERSION}-ubuntu24.04-x86_64/bin" >> "$GITHUB_PATH"
+
+      - name: Install cocotb 2.x
+        run: python3 -m pip install "cocotb~=2.0"
+
+      - name: Run smoke test
+        working-directory: sky130/sim
+        run: make
+
+      # Belt and braces: older cocotb makefiles have returned 0 with failing
+      # tests in results.xml. Parse the JUnit output and fail on any recorded
+      # failure or an empty run.
+      - name: Verify results.xml
+        working-directory: sky130/sim
+        run: |
+          python3 - <<'EOF'
+          import sys, xml.etree.ElementTree as ET
+          root = ET.parse("results.xml").getroot()
+          cases = root.iter("testcase")
+          n, bad = 0, 0
+          for c in cases:
+              n += 1
+              if c.find("failure") is not None or c.find("error") is not None:
+                  bad += 1
+                  print("FAILED:", c.get("classname"), c.get("name"))
+          print("%d test(s), %d failure(s)" % (n, bad))
+          sys.exit(1 if (bad or n == 0) else 0)
+          EOF
+
+  harden:
+    name: Full GDSII hardening + signoff gate (LibreLane)
+    # Policy: weekly, manual, release (workflow_call), or the run-physical PR
+    # label. Never on plain pushes/merge groups — a 4–5 h job must not sit in
+    # anyone's merge path.
+    if: >-
+      github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch' ||
+      inputs.harden == true ||
+      (github.event_name == 'pull_request' &&
+       contains(github.event.pull_request.labels.*.name, 'run-physical'))
+    needs: verilog-bridge
+    runs-on: ubuntu-24.04
+    # sky130/README.md: ~4–5 h on one fast core. The 6 h hosted-runner ceiling
+    # leaves margin, but if this ever times out, the fix is a bigger runner —
+    # not trimming corners out of the signoff set.
+    timeout-minutes: 350
+    concurrency:
+      group: physical-harden-${{ github.ref }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Fetch bridge netlist
+        uses: actions/download-artifact@v4
+        with:
+          name: vesta-verilog
+          path: sky130/src
+
+      # The sky130A PDK (~2 GB) is fetched by LibreLane via ciel on first use,
+      # pinned to the open_pdks revision this LibreLane version wants. Cache it
+      # keyed on that version so reruns skip the download.
+      - name: Cache sky130 PDK
+        uses: actions/cache@v4
+        with:
+          path: ~/.ciel
+          key: ciel-sky130-librelane-${{ env.LIBRELANE_VERSION }}
+
+      # Docker-based install (the documented Ubuntu path): pip provides the
+      # CLI, --dockerized runs the tools inside LibreLane's own pinned image,
+      # so tool versions move in lockstep with LIBRELANE_VERSION.
+      - name: Install LibreLane
+        run: python3 -m pip install "librelane==${LIBRELANE_VERSION}"
+
+      - name: Harden vesta (RTL -> GDSII, DRC, LVS, 9-corner STA)
+        run: |
+          python3 -m librelane --dockerized --pdk-root "$HOME/.ciel" \
+            sky130/config.yaml
+
+      # Signoff is judged HERE, from final/metrics.json — never from logs.
+      - name: Signoff gate (check_metrics.py)
+        run: |
+          metrics="$(ls -t sky130/runs/*/final/metrics.json 2>/dev/null | head -1)"
+          test -n "$metrics" || { echo "::error::no final/metrics.json produced"; exit 1; }
+          python3 sky130/check_metrics.py "$metrics"
+
+      - name: Upload signoff results (GDS, netlists, metrics, reports)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vesta-sky130-signoff
+          path: |
+            sky130/runs/*/final
+            sky130/runs/*/resolved.json
+          if-no-files-found: error
