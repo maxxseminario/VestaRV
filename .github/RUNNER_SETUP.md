@@ -1,4 +1,12 @@
-# Self-hosted runner setup (Tier-2 simulation CI)
+# Self-hosted runner setup (Cadence simulation tier — CURRENTLY UNPLUGGED)
+
+> **2026-08-21:** `sim.yml` no longer targets this runner. The Cadence tier
+> was replaced by the hosted GHDL ISA regression (bazel, `//opensource_sim`)
+> after a month of yellow queued runs traced to the label defect below. The
+> full Cadence workflow is preserved in sim.yml's git history — to bring it
+> back: fix the label, restore those jobs from history (as a separate
+> workflow file or additional jobs), and re-read the license-etiquette
+> header they carry.
 
 `sim.yml` needs a GitHub Actions runner **on the bench machine** (the one with
 Xcelium 20.09 and the `5280@poseidon` licenses). Hosted runners can never run

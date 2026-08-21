@@ -48,6 +48,17 @@ names the commit it is anchored to.
   on the tier-1 and tier-3 fast jobs; `sim.yml` and the harden job stay out of
   the queue by design (shared license seat / 4–5 h wall time).
 
+### Changed
+- **The CI simulation tier is now the open-source GHDL ISA regression, run as
+  bazel tests on hosted runners** (`sim.yml` rewritten; the self-hosted
+  Cadence tier is preserved in git history and documented for revival in
+  `.github/RUNNER_SETUP.md`). `//opensource_sim` wraps
+  `opensource_sim/isa/run_isa.sh` in prebuilt-image mode: one `sh_test` per
+  suite, images from `//verification/isa`'s new ON-polarity `os_*` targets,
+  simulator and VHDL std libraries from the hermetic `@ghdl` module — the
+  runner installs only bazelisk. No more yellow runs queued against a runner
+  that cannot take them.
+
 ### Fixed
 - **The register-browser provenance gate was red on main since `085eef9`** and
   had no repair tool (the K7/F-K5-2 class): the page's embedded memory map
