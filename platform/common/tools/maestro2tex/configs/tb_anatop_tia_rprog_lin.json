@@ -1,0 +1,80 @@
+{
+  "block": "TiaRprogLin",
+  "tex_root": "include/analog/",
+  "nominal_corner": "typ",
+  "supply_var": "vsup",
+  "emit_master": false,
+  "emit_corner_table": false,
+  "points": ["1"],
+  "corner_labels": { "pt1": "typ" },
+  "tests": {
+    "rp_lin": {
+      "dir": "rp_lin",
+      "result": "dc",
+      "xlabel": "Drive current~[\\si{\\micro\\ampere}]",
+      "xunit_tex": "\\si{\\micro\\ampere}",
+      "xscale": 44.444444,
+      "signals": {
+        "verr_lsb": {
+          "expr": "(((VS(\"/A_T\") - VS(\"/B_T\")) - (((value((VS(\"/A_T\") - VS(\"/B_T\")) 0.9) + value((VS(\"/A_T\") - VS(\"/B_T\")) -0.9)) / 2.0) + (((value((VS(\"/A_T\") - VS(\"/B_T\")) 0.9) - value((VS(\"/A_T\") - VS(\"/B_T\")) -0.9)) / 1.8) * xval(VS(\"/A_T\"))))) / 1.592e-3)",
+          "label": "Deviation from endpoint chord",
+          "unit_tex": "ADC LSB",
+          "scale": 1.0,
+          "digits": 3
+        },
+        "r_chord": {
+          "expr": "((((value((VS(\"/A_T\") - VS(\"/B_T\")) 0.9) - value((VS(\"/A_T\") - VS(\"/B_T\")) -0.9)) / 1.8) / (0.8 / 18000.0)) / 1000.0)",
+          "label": "Chord resistance",
+          "unit_tex": "\\si{\\kilo\\ohm}",
+          "scale": 1.0,
+          "digits": 3
+        },
+        "verr_max_mv": {
+          "expr": "(ymax(abs(((VS(\"/A_T\") - VS(\"/B_T\")) - (((value((VS(\"/A_T\") - VS(\"/B_T\")) 0.9) + value((VS(\"/A_T\") - VS(\"/B_T\")) -0.9)) / 2.0) + (((value((VS(\"/A_T\") - VS(\"/B_T\")) 0.9) - value((VS(\"/A_T\") - VS(\"/B_T\")) -0.9)) / 1.8) * xval(VS(\"/A_T\"))))))) * 1000.0)",
+          "label": "Worst deviation",
+          "unit_tex": "\\si{\\milli\\volt}",
+          "scale": 1.0,
+          "digits": 3
+        },
+        "verr_max_lsb": {
+          "expr": "(ymax(abs(((VS(\"/A_T\") - VS(\"/B_T\")) - (((value((VS(\"/A_T\") - VS(\"/B_T\")) 0.9) + value((VS(\"/A_T\") - VS(\"/B_T\")) -0.9)) / 2.0) + (((value((VS(\"/A_T\") - VS(\"/B_T\")) 0.9) - value((VS(\"/A_T\") - VS(\"/B_T\")) -0.9)) / 1.8) * xval(VS(\"/A_T\"))))))) / 1.592e-3)",
+          "label": "Worst deviation",
+          "unit_tex": "ADC LSB",
+          "scale": 1.0,
+          "digits": 3
+        },
+        "rmod_pct": {
+          "expr": "(100.0 * (ymax((VS(\"/A_T\") - VS(\"/B_T\")) / (xval(VS(\"/A_T\")) * (0.8 / 18000.0))) - ymin((VS(\"/A_T\") - VS(\"/B_T\")) / (xval(VS(\"/A_T\")) * (0.8 / 18000.0)))) / value((VS(\"/A_T\") - VS(\"/B_T\")) / (xval(VS(\"/A_T\")) * (0.8 / 18000.0)) 0.9))",
+          "label": "Secant-$R$ modulation",
+          "unit_tex": "\\si{\\percent}",
+          "scale": 1.0,
+          "digits": 3
+        }
+      }
+    }
+  },
+  "figures": [
+    {
+      "id": "tiarprog_lin_n0",
+      "test": "rp_lin",
+      "signals": ["verr_lsb"],
+      "corners": ["typ"],
+      "ylabel": "Deviation from chord~[ADC LSB]",
+      "legendpos": "north west",
+      "caption": "Drive nonlinearity of the bottom code (\\(N=0\\), \\(R\\approx\\SI{19.6}{\\kilo\\ohm}\\)): voltage deviation from the endpoint chord over \\(\\pm 90\\,\\%\\) of full scale (\\(\\pm\\SI{40}{\\micro\\ampere}\\)), typical corner, expressed in \\SI{1.592}{\\milli\\volt} ADC LSB. All ten bypass gates are closed at this code and carry the full signal current; their on-resistance rises with the terminal's excursion from \\(V_{\\mathrm{CM}}\\), so the chord --- pinned at the sweep endpoints where that excursion is largest --- overestimates the mid-range voltage by up to \\(1.25\\,\\mathrm{LSB}\\), and the deviation is bowl-shaped with a slight skew from the gates' voltage asymmetry. The same measurement at \\(N=63\\) and \\(N=319\\), where the ladder dominates and current is 20--100\\(\\times\\) smaller, stays below \\(0.004\\,\\mathrm{LSB}\\) and is tabulated, not plotted."
+    }
+  ],
+  "tables": [
+    {
+      "id": "tiarprog_lin",
+      "type": "matrix",
+      "test": "rp_lin",
+      "stat": "value",
+      "corners": ["typ"],
+      "spread_column": false,
+      "signals": ["r_chord", "verr_max_mv", "verr_max_lsb", "rmod_pct"],
+      "caption": "Drive linearity at the bottom code (\\(N=0\\)), typical corner, sweep \\(\\pm 90\\,\\%\\) of the \\(\\pm\\SI{0.8}{\\volt}\\)-window full scale. The chord is the straight line through the sweep endpoints; the worst deviation of \\SI{1.998}{\\milli\\volt} (\\(1.26\\) ADC LSB) sits at mid-range, where the closed bypass gates run at lower on-resistance than at the endpoints that pin the chord. The companion runs at \\(N=63\\) and \\(N=319\\) measure \\SI{5.03}{\\micro\\volt} (\\(0.0032\\,\\mathrm{LSB}\\)) and \\SI{4.87}{\\micro\\volt} (\\(0.0031\\,\\mathrm{LSB}\\)) respectively (run directories \\texttt{simruns/tb\\_anatop\\_tia\\_rprog\\_lin\\_n63}, \\texttt{\\_n319})."
+    }
+  ],
+  "_note": "Results dir: ~/chips/castalia/simruns/tb_anatop_tia_rprog_lin_n0/castalia/tb_anatop_tia_rprog/maestro/results/maestro/Ocean.0. One run per code because per-test <vars> do not reach the netlist; N=63/319 numbers in the caption come from summaries in ~/chips/castalia/simarchive/tb_anatop_tia_rprog/summaries/."
+}

@@ -1,0 +1,73 @@
+{
+  "block": "TiaRprogMC",
+  "tex_root": "include/analog/",
+  "monte_carlo": true,
+  "emit_master": false,
+  "emit_corner_table": false,
+  "supply_var": "vsup",
+  "tests": {
+    "rp_mc": {
+      "dir": "rp_mc",
+      "signals": {
+        "r_mc_0": {
+          "label": "$R(N{=}0)$",
+          "unit_tex": "\\si{\\kilo\\ohm}",
+          "scale": 0.001,
+          "digits": 3
+        },
+        "r_mc_63": {
+          "label": "$R(N{=}63)$",
+          "unit_tex": "\\si{\\kilo\\ohm}",
+          "scale": 0.001,
+          "digits": 4
+        },
+        "r_mc_64": {
+          "label": "$R(N{=}64)$",
+          "unit_tex": "\\si{\\kilo\\ohm}",
+          "scale": 0.001,
+          "digits": 4
+        },
+        "r_mc_319": {
+          "label": "$R(N{=}319)$",
+          "unit_tex": "\\si{\\mega\\ohm}",
+          "scale": 1e-06,
+          "digits": 5
+        },
+        "seam_63_64": {
+          "label": "Seam step $63{\\to}64$",
+          "unit_tex": "\\si{\\kilo\\ohm}",
+          "scale": 0.001,
+          "digits": 3,
+          "spec_lo": 0.0
+        }
+      }
+    }
+  },
+  "figures": [
+    {
+      "id": "tiarprog_mc_seam",
+      "kind": "histogram",
+      "test": "rp_mc",
+      "signals": ["seam_63_64"],
+      "bins": 25,
+      "spec_span": 1.5,
+      "spec_lo_label": "monotonicity limit (0)",
+      "width": "0.86\\linewidth",
+      "height": "6.0cm",
+      "xlabel": "Seam step $R(64)-R(63)$~[\\si{\\kilo\\ohm}]",
+      "ylabel": "Samples",
+      "caption": "Per-sample step across the first thermometer seam (code 63 to 64: one 64-unit segment switches in while all six binary segments switch out), the code transition most exposed to mismatch. \\textbf{Mismatch only}, model section \\texttt{castalia\\_pm\\_25}, nominal process, 200 samples, seed 12345, low-discrepancy sampling, \\SI{25}{\\celsius}. Mean \\SI{7.42}{\\kilo\\ohm}, \\(\\sigma=\\SI{504}{\\ohm}\\), worst sample \\SI{5.88}{\\kilo\\ohm} --- \\(14.7\\sigma\\) above the monotonicity limit at zero, so no realistic mismatch closes the seam."
+    }
+  ],
+  "tables": [
+    {
+      "id": "tiarprog_mc",
+      "type": "mcstats",
+      "test": "rp_mc",
+      "signals": ["r_mc_0", "r_mc_63", "r_mc_64", "r_mc_319", "seam_63_64"],
+      "stats": ["n", "mean", "sigma", "min", "p1", "p99", "max", "spec", "yield"],
+      "caption": "Monte Carlo of the programmable resistor at four codes plus the per-sample seam step. \\textbf{Mismatch only}, model section \\texttt{castalia\\_pm\\_25}, nominal process, 200 samples, seed 12345, low-discrepancy sampling, \\SI{25}{\\celsius}, \\SI{500}{\\nano\\ampere} test current. Relative spread falls with code as units accumulate: \\(\\sigma/\\mu = 0.359\\,\\%\\) at \\(N{=}0\\) (three ladder units plus ten switch Rons), \\(0.091\\,\\%\\) at \\(N{=}63\\), \\(0.037\\,\\%\\) at \\(N{=}319\\); the gain ratio \\(R(319)/R(0)\\) spreads \\(0.354\\,\\%\\). The only specification graded is seam \\(>0\\) (monotonicity): 200 of 200 pass."
+    }
+  ],
+  "_note": "Results dir: ~/chips/castalia/simruns/tb_anatop_tia_rprog_mc/castalia/tb_anatop_tia_rprog/maestro/results/maestro/Ocean.0 (mcdata/mcparam under psf/rp_mc/monteCarlo). seam_63_64 is computed per sample by the run itself (mcparam row), not derived here."
+}

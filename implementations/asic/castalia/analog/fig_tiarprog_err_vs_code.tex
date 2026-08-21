@@ -1,0 +1,33 @@
+%% maestro2tex -- generated figure; do not edit by hand.
+\providecommand{\MaestroRoot}{include/analog/}
+\begin{figure}[htbp]
+  \centering
+  {\pgfplotsset{compat=1.18}%
+  \begin{tikzpicture}
+    \begin{axis}[
+      width=0.82\linewidth, height=6.2cm,
+      xlabel={Gain code $N$}, ylabel={Error vs $18\,\mathrm{k}+6\,\mathrm{k}\cdot N$~[\si{\percent}]},
+      grid=both,
+      major grid style={line width=0.2pt, draw=black!14},
+      minor grid style={line width=0.2pt, draw=black!7},
+      minor tick num=1,
+      axis line style={line width=0.4pt, draw=black!45},
+      tick style={line width=0.4pt, draw=black!45},
+      tick align=outside,
+      label style={font=\small}, tick label style={font=\small},
+      enlarge x limits=0.02, enlarge y limits=0.10,
+      every axis plot/.append style={line join=round, no marks},
+      legend style={font=\footnotesize, draw=black!25, fill=white,
+                    fill opacity=0.9, text opacity=1, row sep=1pt},
+      legend cell align=left, legend pos=north east,
+      scaled y ticks=false, scaled x ticks=false,
+      y tick label style={/pgf/number format/fixed,
+                          /pgf/number format/precision=1}
+    ]
+      \addplot[mtxA, line width=1.1pt, solid] table {\MaestroRoot data/tiarprog_err_vs_code_00.dat};
+      \addlegendentry{typ}
+    \end{axis}
+  \end{tikzpicture}}
+  \caption[{Typical-corner deviation from the ideal code law.}]{Typical-corner deviation from the ideal code law. The \(+9.2\,\%\) at \(N=0\) is the series resistance of the ten closed bypass switches (\SI{1.65}{\kilo\ohm}, about \SI{165}{\ohm} each), which decays as \(1/R\) once real ladder segments dominate; by \(N=319\) the error is \(-0.063\,\%\). The ripple is the carry structure: at each binary carry and at each thermometer seam the set of closed switches changes, so the Ron term steps while the ladder term is exact.}
+  \label{fig:tiarprog-err-vs-code}
+\end{figure}
