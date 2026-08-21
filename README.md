@@ -37,9 +37,9 @@ VestaRV is named after **Vesta**, the Roman goddess of hearth, home, and the ete
 
 ## Example MCU Configuration
 
-Below is the whole-chip block diagram for a representative VestaRV MCU configuration — the core, the memory system and the peripheral set that a single chip configuration selects:
+Below is the whole-chip block diagram for a representative VestaRV MCU configuration, drawn flat: every master in a band across the top, the multi-hart shared-bus arbiter as the single bus bar it behaves like directly under them, and every peripheral that configuration instantiates in one rank below it, with the package boundary in red and the outside world crossing it. The figure is generated from the chip configuration alongside the RTL and the Technical Reference Manual, so the peripheral set, the instance counts and the hart count in it are that build's and no other's.
 
-![MCU Block Diagram](assets/ASIC_block_diagram.png)
+![MCU Block Diagram](assets/castalia_block_diagram.png)
 
 *Note: VestaRV is designed to be highly configurable. The peripheral set, memory architecture, and system features can be customized to match your specific application requirements.*
 
