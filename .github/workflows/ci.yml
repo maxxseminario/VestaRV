@@ -8,6 +8,18 @@ name: CI
 #   * docs-gates: relative-link check over all HTML/MD + py_compile of the generator.
 #   * software-build: bootrom_mp (reproduces bin/rom.rcf byte-identically with the
 #     pinned toolchain) + the full N=4 MP ISA image set (~90 s).
+#   * bazel-gates: the hermetic gate set - `bazel test //...` minus the GHDL
+#     half, so a bare checkout with NO locally installed toolchain proves chip
+#     generation, every firmware and course-lab golden, the ISA image contract,
+#     the python tooling and the docs gates. Also asserts the build never wrote
+#     into the source tree.
+#   * repo-hygiene: the tools/ci/ guards - CRLF manifest, VHDL ASCII style,
+#     .bazelignore integrity, and no EDA output leaking into git.
+#
+# The first three jobs and bazel-gates overlap deliberately: the make/`gcc`
+# path and the bazel path prove the same generator and firmware two different
+# ways, and a disagreement between them is itself the finding.
+#
 # Simulation lives in sim.yml (GHDL ISA regression via bazel, hosted) — never
 # here. Physical (GHDL bridge / cocotb smoke / LibreLane GDSII) is physical.yml.
 
@@ -26,6 +38,13 @@ on:
 
 permissions:
   contents: read
+
+# Supersede in-flight runs for the same PR branch, never for main pushes or
+# merge-queue candidates: cancelling a merge_group run would leave the queue
+# waiting on a check that will never report.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   # Pinned to the version installed on the bench machine — proven to reproduce
@@ -156,3 +175,165 @@ jobs:
           ./build_mp_images.sh 4 rcf_ci
           test "$(cat rcf_ci/.nharts)" = "4"
           echo "built $(ls rcf_ci/*.rcf | wc -l) rcf images"
+
+  # -------------------------------------------------------------------------
+  # Tier 1b - the hermetic Bazel gate set.
+  #
+  # This is the job that makes a PR provable from a bare checkout with no
+  # locally installed toolchains: bazel provisions python, the pinned xPack
+  # RISC-V cross compiler and a C/C++ toolchain itself. It covers everything
+  # //... carries EXCEPT the GHDL half (//opensource_sim, //hdl/common/tb,
+  # //toolchains) - sim.yml owns those and already pays the from-source GHDL
+  # build. Splitting them keeps this job in the single-digit minutes so it is
+  # safe to require in the merge queue.
+  #
+  # The negative patterns must come after the `--` end-of-options marker;
+  # bazel rejects a bare leading `-//...` as an option.
+  # -------------------------------------------------------------------------
+  bazel-gates:
+    name: Bazel hermetic gates
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Fetch bazelisk
+        run: ./tools/get_bazel.sh
+
+      # Same two-payload cache as sim.yml (action outputs + fetched externals),
+      # on its own key so the two jobs do not fight over one entry.
+      - name: Cache bazel disk + repository cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/bazel-disk-cache
+            ~/.cache/bazel-repo-cache
+          key: bazel-ci-${{ hashFiles('MODULE.bazel.lock', '.bazelversion') }}
+          restore-keys: bazel-ci-
+
+      # Hermeticity: MODULE.bazel.lock must already describe the resolved
+      # dependency graph. --lockfile_mode=error fails instead of silently
+      # re-resolving, so a MODULE.bazel edit that was never locked cannot
+      # merge and leave the next clean checkout fetching something different.
+      - name: MODULE.bazel.lock freshness
+        run: |
+          tools/bin/bazel mod deps \
+            --lockfile_mode=error \
+            --repository_cache=~/.cache/bazel-repo-cache > /dev/null
+
+      # Loading + analysis over the whole non-GHDL graph. A broken BUILD file
+      # or a dangling label fails HERE in seconds, with a real error, instead
+      # of surfacing as a missing test log twenty minutes later.
+      - name: Analyze the build graph
+        run: |
+          tools/bin/bazel build --nobuild \
+            --repository_cache=~/.cache/bazel-repo-cache \
+            -- //... -//opensource_sim/... -//hdl/common/tb/... -//toolchains/...
+
+      # --test_tag_filters=-known_red drops targets that are red for an
+      # adjudicated, tracked reason (today: //tools/randgen:test_randgen's
+      # k3s01 campaign-pin drift). The tag comes off in the same commit that
+      # fixes the underlying pin - see BAZEL.md "Known red".
+      - name: Run the hermetic gate set
+        run: |
+          set -o pipefail
+          tools/bin/bazel test \
+            --repository_cache=~/.cache/bazel-repo-cache \
+            --build_tests_only \
+            --test_tag_filters=-known_red \
+            --test_output=errors \
+            --test_summary=detailed \
+            -- //... -//opensource_sim/... -//hdl/common/tb/... -//toolchains/... \
+            2>&1 | tee bazel_ci.log
+
+      # BAZEL.md's central claim: everything under `bazel build`/`bazel test`
+      # is sandboxed and never touches the source tree (only three deliberate
+      # `bazel run` writers do). This step is that claim as a gate. The
+      # bazel-* convenience symlinks are gitignored, so a clean tree here is
+      # a real result.
+      - name: Prove the build did not write into the source tree
+        run: |
+          # bazel's convenience symlinks are named after the WORKSPACE
+          # directory, which on a hosted runner is the repository name, not
+          # the `bazel-vestarv` that .gitignore lists. Filter them here rather
+          # than widening .gitignore to `bazel-*`; everything else showing up
+          # is a real finding.
+          dirty="$(git status --porcelain | grep -vE '^\?\? bazel-' || true)"
+          if [ -n "$dirty" ]; then
+            echo "::error::a bazel build/test action wrote into the source tree"
+            echo "$dirty"
+            git diff
+            exit 1
+          fi
+          echo "OK: source tree unchanged by the build"
+
+      # Annotations are anonymously readable through the check-runs API; raw
+      # job logs are not. Same diagnostic channel as sim.yml and physical.yml.
+      - name: Surface failure diagnostics as annotations
+        if: failure()
+        run: |
+          if [ -f bazel_ci.log ]; then
+            grep -E "^ERROR:" bazel_ci.log | head -5 | while IFS= read -r line; do
+              echo "::error::bazel: ${line}"
+            done
+          fi
+          find bazel-testlogs -name test.log 2>/dev/null | while read -r f; do
+            if grep -qE "^FAIL|TIMEOUT|ERROR" "$f"; then
+              echo "== $f"
+              tail -20 "$f"
+              grep -E "^(FAIL|TIMEOUT)" "$f" | head -3 | while IFS= read -r line; do
+                echo "::error::${f#bazel-testlogs/}: ${line}"
+              done
+            fi
+          done
+
+  # -------------------------------------------------------------------------
+  # Tier 1c - repo hygiene.
+  #
+  # Four cheap gates that catch the classes of damage this repo has actually
+  # taken: stripped CRLF endings, non-ASCII sneaking into VHDL, a weakened
+  # .bazelignore, and EDA output leaking into version control. Every check is
+  # a script under tools/ci/ so it runs identically on the bench machine; two
+  # of them are also bazel tests and so run again inside //... above.
+  # -------------------------------------------------------------------------
+  repo-hygiene:
+    name: Repo hygiene gates
+    runs-on: ubuntu-latest
+    steps:
+      # Full history: check_repo_hygiene.py --base needs the merge base, and
+      # the line-ending manifest check walks the whole tree.
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # CRLF is load-bearing in much of this tree. A text-mode script edit
+      # that rewrites endings explodes the diff and has burned this project
+      # before; the manifest makes that impossible to merge unnoticed.
+      - name: Line-ending guard (CRLF manifest)
+        run: python3 tools/ci/check_line_endings.py
+
+      # House style: VHDL is 7-bit ASCII, no em-dashes, no unicode arrows.
+      - name: VHDL style gate (ASCII only)
+        run: python3 tools/ci/check_vhdl_style.py
+
+      # ~450 GB of EDA output trees stay out of the bazel graph by name.
+      - name: .bazelignore guard
+        run: python3 tools/ci/check_bazelignore.py
+
+      # No tracked *.rcf (images are locked by testdata/*_golden.txt instead),
+      # no oversized blobs, nothing inside an ignored EDA tree. Scoped to the
+      # PR's own diff when there is one, whole-tree otherwise.
+      - name: Repo hygiene gate
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            python3 tools/ci/check_repo_hygiene.py --base "origin/${{ github.base_ref }}"
+          else
+            python3 tools/ci/check_repo_hygiene.py
+          fi

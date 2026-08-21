@@ -1,5 +1,11 @@
 # Root package of the vestarv workspace.
 
+# .bazelignore keeps roughly 450 GB of EDA output trees out of the build
+# graph. //tools/ci:check_bazelignore_test asserts the required entries are
+# still there, and a label is the only way to hand the file to a sandboxed
+# test, so it is exported here rather than read off the source tree.
+exports_files([".bazelignore"])
+
 # Convenience entry point: bazel run //:generate
 alias(
     name = "generate",

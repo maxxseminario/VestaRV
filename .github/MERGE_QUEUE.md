@@ -27,17 +27,30 @@ workflows are inert until a queue exists.
 
 ## 1. Required status checks
 
-These are the three tier-1 jobs in `ci.yml`. The check name GitHub matches on is
+These are the five tier-1 jobs in `ci.yml`. The check name GitHub matches on is
 the job's `name:`, verbatim:
 
 ```
 Chip generator gates
 Docs link + generator syntax gates
 Bootrom + ISA image builds
+Bazel hermetic gates
+Repo hygiene gates
 ```
 
-All three run on GitHub-hosted runners in a few minutes and need no licenses, so
+All five run on GitHub-hosted runners in a few minutes and need no licenses, so
 a queued PR is never waiting on the bench machine.
+
+`Bazel hermetic gates` is the broadest of them: it is `bazel test //...` minus
+the GHDL half, so it proves chip generation, every firmware and course-lab
+golden, the ISA image contract, the python tooling and the docs gates from a
+checkout with no toolchain installed at all. Its cost is bounded by the bazel
+disk cache the job restores; a cold cache is the only slow case, and it does
+not build GHDL. Requiring it is the single highest-value addition to the queue.
+
+`Repo hygiene gates` is seconds: the `tools/ci/` guards (CRLF manifest, VHDL
+ASCII style, `.bazelignore` integrity, no EDA output tracked). It checks out
+with `fetch-depth: 0` because the hygiene scan is diff-scoped on pull requests.
 
 Two more hosted, fast, `merge_group`-triggered candidates from `physical.yml`
 (tier 3) are safe to add if you also want the queue to prove GHDL still

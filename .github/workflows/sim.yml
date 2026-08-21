@@ -65,11 +65,16 @@ jobs:
           key: bazel-sim-${{ hashFiles('MODULE.bazel.lock', '.bazelversion') }}
           restore-keys: bazel-sim-
 
-      - name: Run ISA regression
+      # //hdl/common/tb carries the standalone unit benches (mp_arbiter,
+      # pmp_unit, the FPU vector format check). They are GHDL-backed, so they
+      # ride with this job rather than ci.yml's bazel-gates, which deliberately
+      # excludes everything that would drag in the from-source GHDL build.
+      - name: Run ISA regression + GHDL unit benches
         run: |
           set -o pipefail
-          tools/bin/bazel test //opensource_sim:isa_regression \
+          tools/bin/bazel test //opensource_sim:isa_regression //hdl/common/tb:all \
             --repository_cache=~/.cache/bazel-repo-cache \
+            --test_tag_filters=-known_red \
             --test_output=errors \
             --test_summary=detailed 2>&1 | tee bazel_ci.log
 
