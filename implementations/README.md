@@ -2,6 +2,66 @@
 
 This directory contains documentation and configuration for specific VestaRV instantiations across different target platforms.
 
+## Building through Bazel
+
+Every chip in this directory is produced by the Bazel-managed `platform/common/`
+generator. Run all commands below **from the repo root**.
+
+One-time bootstrap:
+
+```sh
+sh tools/get_bazel.sh            # fetches bazelisk into tools/bin/bazel
+tools/bin/bazel test //...       # first run downloads all toolchains
+```
+
+### Generation targets
+
+| Target | What it produces |
+|--------|------------------|
+| `//platform/common:chip_artifacts_castalia` | The whole Castalia artifact tree: drop-in RTL (`MCU.vhd`, `MemoryMap.vhd`, `riscv_tb.vhd`), `MemoryMap.h`, `periph.S`, linker scripts, pad-ring JSON/TCL, the web data bundle, and the TRM LaTeX project. |
+| `//platform/common:chip_artifacts_argus` | The same tree for the 18-hart Argus configuration (`platform/common/config/argus.json`). |
+| `//platform/common:chip_artifacts_castalia_repro` | A second, independent Castalia generation; it exists only so the determinism gate has something to byte-compare against. |
+
+Individual outputs have named handles, for example
+`//platform/common:castalia_mcu_vhd`, `//platform/common:castalia_memorymap_h`,
+`//platform/common:castalia_padring_tcl` and
+`//platform/common:castalia_linker_scripts`.
+
+Never run `bazel run //:generate` - that is the raw generator and it writes
+wherever it happens to be invoked. The hermetic path is
+`//platform/common:chip_artifacts_castalia`.
+
+### Gates attached to generation
+
+`tools/bin/bazel test //platform/...` runs all of these:
+
+| Target | What it proves |
+|--------|----------------|
+| `//platform/common:check_mcu_vhd_test` | The regenerated `MCU.vhd` is a byte-for-byte drop-in for the tracked `hdl/common/MCU.vhd`. |
+| `//platform/common:check_memorymap_vhd_test` | Constant-by-constant equivalence with the tracked `hdl/common/MemoryMap.vhd`. |
+| `//platform/common:check_riscv_tb_vhd_test` | The generated `riscv_tb.vhd` still matches the tracked testbench at this hart count. |
+| `//platform/common:check_memorymap_h_test` | The emitted C header still compiles, under the hermetic RISC-V gcc. |
+| `//platform/common:check_intro_names_test` | Every register named in a hand-written peripheral intro is something the generator actually emits. |
+| `//platform/common:check_configurator_sync_test` | `docs/chip_configurator.html` is in sync with the generator, at the strict bar. |
+| `//platform/common:splice_web_data_check_test` | The `VESTA_DATA` block spliced into the configurator page is not stale. |
+| `//platform/common:generation_determinism_test` | Two independent generations are byte-identical - no wall-clock or ordering nondeterminism. |
+| `//platform/common:argus_generation_test` | The Argus configuration still generates and all of its machine-readable outputs are present and parse. |
+| `//platform/common:trm_latex_tree_test` | The generated TRM LaTeX tree is complete: master document, includes, figures. |
+| `//platform/common:castalia_analog_chapter_test` | The analog chapter is present in the generated TRM tree. |
+| `//platform/common/python:check_config_defaults_test` | Each knob's two default literals in `generate.py` agree with each other. |
+
+### Legacy path
+
+`cd platform/common && make chip` still works unchanged; it is the legacy
+in-tree generation path. The Bazel targets above are the verified equivalent
+with the gates attached, so prefer them.
+
+Cadence flows (Genus, Innovus, Pegasus, Xcelium, `make verify`) are permanently
+outside Bazel - they are licensed binaries. Run them exactly as before, via
+`source cdspaths.sh`.
+
+Full map of the Bazel build: [`BAZEL.md`](../BAZEL.md).
+
 ## Directory Structure
 
 ### ASIC Implementations (`asic/`)

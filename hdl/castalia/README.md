@@ -13,6 +13,37 @@ castalia/
     └── riscv_tb.vhd — 5-hart ISA-regression testbench (a0 + a0_1/2/3/4 monitors)
 ```
 
+## Building and testing with Bazel
+
+`MCU.vhd` and `MemoryMap.vhd` in this directory are generated products. Bazel
+runs that generation hermetically, in a sandbox, with the identity checks
+attached; it is the recommended path and the legacy `make chip` still works.
+Every command is run from the repo root.
+
+One-time bootstrap:
+
+```sh
+sh tools/get_bazel.sh            # fetches bazelisk into tools/bin/bazel
+tools/bin/bazel test //...       # first run downloads all toolchains
+```
+
+| Target | Verb | What it proves |
+|---|---|---|
+| `//platform/common:chip_artifacts_castalia` | build | the whole Castalia artifact set is regenerated hermetically - the sandboxed equivalent of `make chip` |
+| `//platform/common:castalia_mcu_vhd` | build | just the generated `MCU.vhd` |
+| `//platform/common:castalia_memorymap_vhd` | build | just the generated `MemoryMap.vhd` |
+| `//platform/common:castalia_riscv_tb_vhd` | build | just the generated `tb/riscv_tb.vhd` |
+| `//platform/common:check_mcu_vhd_test` | test | the tracked `MCU.vhd` is identical to what the generator emits today |
+| `//platform/common:check_memorymap_vhd_test` | test | the same for `MemoryMap.vhd` |
+| `//platform/common:check_riscv_tb_vhd_test` | test | the same for the 5-hart `tb/riscv_tb.vhd` |
+| `//platform/common:generation_determinism_test` | test | two generations of the same config are byte-identical |
+| `//hdl:vhdl_sources` | build | this directory's VHDL is a declared build input of the graph |
+
+Never run `bazel run //:generate`: that is the raw generator and writes wherever
+it happens to run. `chip_artifacts_castalia` is the hermetic path.
+
+The full target map is in [`BAZEL.md`](../../BAZEL.md).
+
 ## ⚠ Source of truth
 
 Castalia is the **default configuration of the shared multi-core tree

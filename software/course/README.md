@@ -5,6 +5,71 @@ Student-facing SDK + labs for the **Argus course chip** (`config/argus_course.js
 a flash image with `course.mk`, and run on physical chips; instructors validate
 firmware in simulation with `sdk/run_sim.sh`.
 
+## Building with Bazel
+
+Bazel is the recommended path for building and gating the lab images: it
+provisions the pinned `riscv-none-elf-` toolchain itself, so students and CI
+need nothing installed, and every lab image is checked against a tracked
+golden. The `course.mk` / `make` flow under "Building a lab" still works and is
+kept as the legacy path (it is also the path `make sim` and `make deploy` use -
+the simulator wrapper and the hardware deploy step are not Bazel-managed).
+
+Run from the repo root:
+
+```sh
+sh tools/get_bazel.sh            # fetches bazelisk into tools/bin/bazel
+tools/bin/bazel test //...       # first run downloads all toolchains
+```
+
+Everything at once:
+
+```sh
+tools/bin/bazel build //software/course/...   # every lab image
+tools/bin/bazel test  //software/course/...   # all 21 golden gates
+```
+
+### Per-lab targets
+
+Each lab variant package builds `:NAME_elf`, `:NAME_bin`, `:NAME_hex`,
+`:NAME_dump`, `:NAME_rcf` and `:NAME_flashed_rcf`, and carries one
+`:NAME_flashed_rcf_test`. The test proves the flash-ready image is
+byte-identical to that package's tracked `testdata/NAME_flashed_rcf_golden.txt`
+- so a lab image cannot drift without the diff showing up in review.
+
+There are 21 lab variants (9 labs as `skeleton` + `reference`, plus `lab10_sync`
+which also carries a `nobackoff` variant). The golden gates:
+
+| Lab | Golden gates |
+|-----|--------------|
+| lab01_hello | `//software/course/labs/lab01_hello/skeleton:lab01_hello_flashed_rcf_test`, `//software/course/labs/lab01_hello/reference:lab01_hello_flashed_rcf_test` |
+| lab02_assembly | `//software/course/labs/lab02_assembly/skeleton:lab02_assembly_flashed_rcf_test`, `//software/course/labs/lab02_assembly/reference:lab02_assembly_flashed_rcf_test` |
+| lab03_c_baremetal | `//software/course/labs/lab03_c_baremetal/skeleton:lab03_c_baremetal_flashed_rcf_test`, `//software/course/labs/lab03_c_baremetal/reference:lab03_c_baremetal_flashed_rcf_test` |
+| lab04_gpio | `//software/course/labs/lab04_gpio/skeleton:lab04_gpio_flashed_rcf_test`, `//software/course/labs/lab04_gpio/reference:lab04_gpio_flashed_rcf_test` |
+| lab05_uart | `//software/course/labs/lab05_uart/skeleton:lab05_uart_flashed_rcf_test`, `//software/course/labs/lab05_uart/reference:lab05_uart_flashed_rcf_test` |
+| lab07_timer | `//software/course/labs/lab07_timer/skeleton:lab07_timer_flashed_rcf_test`, `//software/course/labs/lab07_timer/reference:lab07_timer_flashed_rcf_test` |
+| lab08_interrupts | `//software/course/labs/lab08_interrupts/skeleton:lab08_interrupts_flashed_rcf_test`, `//software/course/labs/lab08_interrupts/reference:lab08_interrupts_flashed_rcf_test` |
+| lab09_multicore_boot | `//software/course/labs/lab09_multicore_boot/skeleton:lab09_mpboot_flashed_rcf_test`, `//software/course/labs/lab09_multicore_boot/reference:lab09_mpboot_flashed_rcf_test` |
+| lab10_sync | `//software/course/labs/lab10_sync/skeleton:lab10_sync_flashed_rcf_test`, `//software/course/labs/lab10_sync/reference:lab10_sync_flashed_rcf_test`, `//software/course/labs/lab10_sync/nobackoff:lab10_nobackoff_flashed_rcf_test` |
+| lab11_npu | `//software/course/labs/lab11_npu/skeleton:lab11_npu_flashed_rcf_test`, `//software/course/labs/lab11_npu/reference:lab11_npu_flashed_rcf_test` |
+
+Note the two target names that do not match their directory: `lab09_mpboot`
+under `lab09_multicore_boot/`, and `lab10_nobackoff` under `lab10_sync/nobackoff/`.
+
+To build one lab image, for example the lab04 skeleton:
+
+```sh
+tools/bin/bazel build //software/course/labs/lab04_gpio/skeleton:lab04_gpio_flashed_rcf
+tools/bin/bazel test  //software/course/labs/lab04_gpio/skeleton:lab04_gpio_flashed_rcf_test
+```
+
+The SDK headers the labs compile against are exported as
+`//software/course/sdk:course_lib_headers`.
+
+Changing a lab's sources means regenerating that package's
+`testdata/*_flashed_rcf_golden.txt` in the same commit.
+
+Full map of the Bazel build: [`BAZEL.md`](../../BAZEL.md).
+
 ## Layout
 
 ```
@@ -35,6 +100,10 @@ software/course/
 ```
 
 ## Building a lab
+
+*Legacy path.* `course.mk` still builds every lab, and `make sim` /
+`make deploy` are only available here. For building and gating the images,
+prefer the Bazel targets above.
 
 Each lab's `makefile` sets `TARGET` + `SRC_SOURCES` and includes `sdk/course.mk`:
 

@@ -14,6 +14,10 @@ hand-maintained `hdl/common/` RTL is never touched.
 
 ## Quick Start
 
+*Legacy in-tree path.* Everything below still works unchanged. The Bazel
+generation (next section) is the verified equivalent with the gates
+attached; prefer it for new work.
+
 ```bash
 cd platform/common
 make chip                # generate every chip artifact AND build the TRM PDF
@@ -27,6 +31,84 @@ make verify              # PROVE the configuration boots: stage the generated RT
                          # (CONFIG= as above; SUITE=full = whole regression; needs the
                          #  Cadence tools and the riscv-none-elf- toolchain)
 ```
+
+## Building with Bazel
+
+Bazel is the recommended path. It runs the same generator hermetically, in a
+sandbox that cannot touch the source tree, with every consistency check wired up
+as a test. The `make chip` / `make generate` flow above still works unchanged
+and is kept as the legacy in-tree path.
+
+Run everything from the repo root:
+
+```sh
+sh tools/get_bazel.sh            # fetches bazelisk into tools/bin/bazel
+tools/bin/bazel test //...       # first run downloads all toolchains
+```
+
+### Chip artifact targets
+
+| Target | What it is / what it proves |
+|--------|-----------------------------|
+| `//platform/common:chip_artifacts_castalia` | The full generated tree for the default Castalia configuration (`out/hdl/`, `out/software/`, `out/web/`, `out/pnr/`, `config/`, `latex/TRM/`). This is the hermetic equivalent of `make generate` |
+| `//platform/common:chip_artifacts_argus` | The same tree for the 18-hart Argus course configuration |
+| `//platform/common:chip_artifacts_castalia_repro` | A second, independent generation of the Castalia configuration; exists only to be byte-compared by the determinism test |
+| `//platform/common:trm_latex_tree` | The generated LaTeX TRM tree alone |
+
+Individual generated files are exported as filegroups off the Castalia tree, for
+example `//platform/common:castalia_mcu_vhd`, `:castalia_memorymap_vhd`,
+`:castalia_riscv_tb_vhd`, `:castalia_memorymap_h`, `:castalia_periph_s`,
+`:castalia_linker_scripts`, `:castalia_padring_json`, `:castalia_padring_tcl`,
+`:castalia_chip_data_js` and `:castalia_resolved_config`.
+
+```sh
+tools/bin/bazel build //platform/common:chip_artifacts_castalia
+tools/bin/bazel test  //platform/...
+```
+
+**Never `bazel run` the raw generator.** It writes wherever it is invoked; the
+hermetic path is `//platform/common:chip_artifacts_castalia`.
+
+### Generator gate tests
+
+| Test target | What it proves |
+|-------------|----------------|
+| `//platform/common:check_mcu_vhd_test` | The generated `MCU.vhd` is a byte-for-byte drop-in for the tracked `hdl/common/MCU.vhd` (header comment aside) |
+| `//platform/common:check_memorymap_vhd_test` | Constant-by-constant equivalence with the tracked `hdl/common/MemoryMap.vhd` |
+| `//platform/common:check_riscv_tb_vhd_test` | The tb generator is a no-op at the tracked hart count |
+| `//platform/common:check_memorymap_h_test` | The emitted C header still compiles, using the hermetic riscv-gcc |
+| `//platform/common:check_intro_names_test` | Every `\register{}` / `\bitfield{}` name in the hand-written intro chapters names something the generator actually emits |
+| `//platform/common:check_configurator_sync_test` | `docs/chip_configurator.html` matches the schema, the spliced data bundle and the derived geometry, at the STRICT bar |
+| `//platform/common:splice_web_data_check_test` | The `VESTA_DATA` region spliced into the configurator page is not stale against the bundle this build emits |
+| `//platform/common:generation_determinism_test` | Two independent generations of the same configuration are byte-identical |
+| `//platform/common:argus_generation_test` | Argus still generates, and its machine-readable outputs still parse |
+| `//platform/common:trm_latex_tree_test` | The published TRM tree is complete: master document, generated includes, referenced figures |
+| `//platform/common:castalia_analog_chapter_test` | The Analog Front-End chapter is present in the generated TRM tree |
+| `//platform/common/python:check_config_defaults_test` | Every knob's two default literals in `generate.py` (schema entry and `_cfg()` call site) agree |
+
+### TRM PDF and writers
+
+The PDF half uses host TeX and is tagged `manual`, so it is not part of
+`bazel test //...`:
+
+```sh
+tools/bin/bazel build //platform/common/latex/bazel:trm_pdf_local
+tools/bin/bazel test  //platform/common/latex/bazel:check_publish_test
+tools/bin/bazel test  //platform/common/latex/bazel:trm_lint_test
+```
+
+`//platform/common/latex/bazel:check_publish_test` is red whenever
+TRM-affecting commits have landed since the last publish; that is the point of
+the gate.
+
+Two `bazel run` targets here deliberately write into the source tree:
+
+```sh
+tools/bin/bazel run //platform/common/python:splice_register_browser -- --data <MemoryMap.json> docs/register_browser.html
+tools/bin/bazel run //platform/common/python:splice_web_data -- --data <chip_data.js> docs/chip_configurator.html
+```
+
+Full map of the Bazel build: [`BAZEL.md`](../../BAZEL.md).
 
 ## Configuring a chip (no RTL editing required)
 

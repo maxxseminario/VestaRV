@@ -2,6 +2,39 @@
 
 Smallest possible firmware to prove the Myshkin AFE peripheral is alive.
 
+## Building with Bazel
+
+Bazel is the recommended path - it provisions the pinned RISC-V toolchain
+itself, so `RISCV_TOOLCHAIN_DIR` need not be set. The `make` flow under
+"Build" below still works and is kept as the legacy path.
+
+Run from the repo root:
+
+```sh
+sh tools/get_bazel.sh            # fetches bazelisk into tools/bin/bazel
+tools/bin/bazel test //...       # first run downloads all toolchains
+```
+
+| Target | What it is / what it proves |
+|--------|-----------------------------|
+| `//software/afetest:afetest_elf` | Linked ELF with debug symbols (GDB / OpenOCD) |
+| `//software/afetest:afetest_bin` | Raw binary |
+| `//software/afetest:afetest_hex` | Intel HEX image |
+| `//software/afetest:afetest_dump` | Disassembly listing |
+| `//software/afetest:afetest_rcf` | RCF image, no flash headers |
+| `//software/afetest:afetest_flashed_rcf` | RCF with the SPI-flash protocol headers |
+| `//software/afetest:afetest_flashed_rcf_test` | Golden gate: proves the flashed image is byte-identical to `testdata/afetest_flashed_rcf_golden.txt` |
+
+```sh
+tools/bin/bazel build //software/afetest:afetest_flashed_rcf
+tools/bin/bazel test  //software/afetest:afetest_flashed_rcf_test
+```
+
+Changing this firmware means regenerating
+`testdata/afetest_flashed_rcf_golden.txt` in the same commit.
+
+Full map of the Bazel build: [`BAZEL.md`](../../BAZEL.md).
+
 ## What it does
 
 1. Enables the on-chip bias generator (`BIAS_CR.EN`, `BIAS_CR.BUFEN`).
@@ -36,6 +69,9 @@ Read them via GDB / OpenOCD, or watch DTP0–DTP3 on a scope to confirm the FSM 
 Connect a single resistor (e.g. 100 kΩ) between RE and WE pads, and tie CE to RE. With `BIAS_REV_POT` ≈ midscale + 1000 LSB the cell sees Δv ≈ +50 mV → I ≈ 500 nA, well inside the TIA range at minimum gain.
 
 ## Build
+
+*Legacy path.* Still works; the recommended path is
+[Building with Bazel](#building-with-bazel) above.
 
 ```bash
 export RISCV_TOOLCHAIN_DIR=~/riscv-toolchain/xpack-riscv-none-elf-gcc-13.2.0-2

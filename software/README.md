@@ -13,6 +13,77 @@ cd blinky
 make all && make sim
 ```
 
+## Building with Bazel
+
+Bazel is the recommended path. It provisions the pinned RISC-V cross-compiler
+itself, so a fresh clone needs no locally installed toolchain, and every image
+is built in a sandbox and checked against a tracked golden. The legacy `make`
+flow documented further down still works unchanged.
+
+Run everything from the repo root:
+
+```sh
+sh tools/get_bazel.sh            # fetches bazelisk into tools/bin/bazel
+tools/bin/bazel test //...       # first run downloads all toolchains
+```
+
+### Per-app targets
+
+Every firmware app builds the same artifact set. Substitute the app's package
+for `PKG` and its target name for `NAME` (the two app rows below give both):
+
+| Target | What it is / what it proves |
+|--------|-----------------------------|
+| `PKG:NAME_elf` | Linked ELF with debug symbols |
+| `PKG:NAME_bin` | Raw binary |
+| `PKG:NAME_hex` | Intel HEX image |
+| `PKG:NAME_dump` | Disassembly listing |
+| `PKG:NAME_rcf` | RCF image for the VHDL testbench |
+| `PKG:NAME_flashed_rcf` | RCF with the SPI-flash protocol headers prepended |
+| `PKG:NAME_flashed_rcf_test` | Golden gate: proves the flashed image is byte-identical to the tracked `PKG/testdata/NAME_flashed_rcf_golden.txt` |
+
+The six apps, package and target name:
+
+| Package | `NAME` | Example build / test |
+|---------|--------|----------------------|
+| `//software/blinky` | `blinky` | `tools/bin/bazel build //software/blinky:blinky_flashed_rcf` / `tools/bin/bazel test //software/blinky:blinky_flashed_rcf_test` |
+| `//software/gpiotoggle` | `gpiotoggle` | `//software/gpiotoggle:gpiotoggle_flashed_rcf`, `//software/gpiotoggle:gpiotoggle_flashed_rcf_test` |
+| `//software/looptest` | `looptest` | `//software/looptest:looptest_flashed_rcf`, `//software/looptest:looptest_flashed_rcf_test` |
+| `//software/slowblink` | `slowblink` | `//software/slowblink:slowblink_flashed_rcf`, `//software/slowblink:slowblink_flashed_rcf_test` |
+| `//software/traptest` | `traptest` | `//software/traptest:traptest_flashed_rcf`, `//software/traptest:traptest_flashed_rcf_test` |
+| `//software/afetest` | `afetest` | `//software/afetest:afetest_flashed_rcf`, `//software/afetest:afetest_flashed_rcf_test` |
+
+### Boot ROM and debug trampoline
+
+| Target | What it is / what it proves |
+|--------|-----------------------------|
+| `//software/bootrom_mp:rom_rcf` | The mask-ROM image (alias for the built `flashboot` RCF) |
+| `//software/bootrom_mp:flashboot_elf` `:flashboot_bin` `:flashboot_hex` `:flashboot_dump` `:flashboot_rcf` | The boot ROM's intermediate artifacts |
+| `//software/bootrom_mp:rom_rcf_reproducibility_test` | Proves the freshly built ROM image is byte-identical to the tracked golden - the mask ROM cannot drift silently |
+| `//software/dbg_trampoline:dbg_trampoline_elf` `:dbg_trampoline_bin` `:dbg_trampoline_dump` `:dbg_trampoline_words` | The debug-module trampoline and its 40-word table |
+| `//software/dbg_trampoline:dbg_trampoline_words_test` | Proves the assembled word table matches its tracked golden |
+| `//tools/cosim:check_dbg_trampoline_test` | Dual-truth gate: proves the word table matches the table hard-coded in `hdl/common/debug_module.vhd` |
+
+### Course labs
+
+All 21 course-lab images build and gate under `//software/course/labs/...`;
+see [`course/README.md`](course/README.md) for the lab-by-lab detail.
+
+```sh
+tools/bin/bazel build //software/course/...   # every lab image
+tools/bin/bazel test  //software/course/...   # all 21 golden gates
+```
+
+### Firmware goldens
+
+Firmware images are locked by tracked `testdata/*_golden.txt` files (`*.rcf` is
+globally gitignored, hence the `.txt` extension). **Changing firmware means
+regenerating the affected golden in the same commit** - the test diff then shows
+exactly which bytes moved. A firmware change committed without its golden update
+lands as a red gate.
+
+Full map of the Bazel build: [`BAZEL.md`](../BAZEL.md).
+
 ## Directory Structure
 
 ### **`bootrom/`** — Boot ROM Firmware
@@ -60,6 +131,10 @@ make clean-all     # Clean all projects
 ```
 
 ## Build System
+
+*Legacy path.* The make-based flow below still works and is kept for the
+bench and Cadence simulation workflows. For new work prefer the Bazel
+targets above.
 
 ### Top-Level Makefile Commands
 
