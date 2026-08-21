@@ -1,0 +1,8 @@
+# Small helpers shared by the firmware regression tests.
+
+package(default_visibility = ["//visibility:public"])
+
+# Byte identity checker used as the main of py_test targets in the firmware
+# packages. Exported as a file rather than wrapped in a py_library because
+# each test needs it as its own entry point with its own arguments.
+exports_files(["compare_text.py"])

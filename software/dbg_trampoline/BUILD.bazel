@@ -1,0 +1,79 @@
+# Debug entry trampoline (D2).
+#
+# One assembly file linked at the fixed entry page 0x10780, turned into the
+# plantable word list the D2 acceptance harnesses read. Transcribed from
+# software/dbg_trampoline/Makefile.
+#
+# The word list is 64 lines, one per word of the entry page 0x10780-0x1087F:
+#   words  0..39  the trampoline, emitted as 32 binary characters, PLANTED
+#   words 40..63  a single '-', LEFT WRITABLE. The Debug Module writes the
+#     abstract body and the epilogue there, and a forced word is read only,
+#     so planting them would break the DM outright.
+#
+# TRAMP_WORDS is 40 and is a coupling, not a convenience: debug_module.vhd's
+# W_ABST/W_EPILOG must agree with the trampoline's
+# `jal x0, _start + 4*W_ABST_INDEX`. bin2rcf --expect-words 40 below fails the
+# build the moment the trampoline changes size, which is the whole point of
+# the assertion the Makefile carried.
+
+load("//toolchains/riscv:defs.bzl", "FIRMWARE_TOOLS", "PRELUDE", "firmware_image_test")
+
+package(default_visibility = ["//visibility:public"])
+
+TRAMP_WORDS = 40
+
+PAGE_WORDS = 64
+
+genrule(
+    name = "dbg_trampoline_elf",
+    srcs = ["dbg_trampoline.S"],
+    outs = ["dbg_trampoline.elf"],
+    cmd = PRELUDE + '"$$CC" -march=rv32imac -mabi=ilp32 -nostdlib -nostartfiles ' +
+          '-Wl,-Ttext=0x00010780 -o "$@" "$<"\n',
+    tools = FIRMWARE_TOOLS,
+)
+
+genrule(
+    name = "dbg_trampoline_bin",
+    srcs = ["dbg_trampoline.elf"],
+    outs = ["dbg_trampoline.bin"],
+    cmd = PRELUDE + '"$$OBJCOPY" -O binary --gap-fill=0x00 "$<" "$@"\n',
+    tools = FIRMWARE_TOOLS,
+)
+
+genrule(
+    name = "dbg_trampoline_dump",
+    srcs = ["dbg_trampoline.elf"],
+    outs = ["dbg_trampoline.dump"],
+    cmd = PRELUDE + '"$$OBJDUMP" -d --disassemble-zeroes "$<" > "$@"\n',
+    tools = FIRMWARE_TOOLS,
+)
+
+# CONTRACT: tools/cosim/check_dbg_trampoline.py consumes this target by name.
+genrule(
+    name = "dbg_trampoline_words",
+    srcs = ["dbg_trampoline.bin"],
+    outs = ["dbg_trampoline.words"],
+    cmd = ("set -euo pipefail\n" +
+           'WORDS="$$(mktemp)"\n' +
+           # --expect-words is the Makefile's `wc -l` guard: the trampoline is
+           # exactly TRAMP_WORDS long or the build stops here.
+           '"$(location //tools/build:bin2rcf)" "$<" "$$WORDS" --expect-words %d\n' % TRAMP_WORDS +
+           'cat "$$WORDS" > "$@"\n' +
+           'i=%d\n' % TRAMP_WORDS +
+           "while [ $$i -lt %d ]; do\n" % PAGE_WORDS +
+           '  printf -- "-   word %s: DM-written, MUST stay writable\\n" "$$i" >> "$@"\n' +
+           "  i=$$((i+1))\n" +
+           "done\n" +
+           'rm -f "$$WORDS"\n'),
+    tools = ["//tools/build:bin2rcf"],
+)
+
+# Locks the planted words. A trampoline edit that changes any instruction has
+# to move this golden too, which is where the debug_module.vhd W_ABST/W_EPILOG
+# review happens.
+firmware_image_test(
+    name = "dbg_trampoline_words_test",
+    golden = "testdata/dbg_trampoline_words_golden.txt",
+    image = "dbg_trampoline.words",
+)

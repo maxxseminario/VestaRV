@@ -1,0 +1,28 @@
+# Shared chip headers used by the firmware builds.
+#
+# The list is explicit rather than a glob on purpose. commune/include also
+# holds MemoryMap.h and periph.S, which are gitignored generator outputs that
+# exist on a developer machine but not in a fresh checkout, and
+# myshkin_s_link.h, which is a symlink that leaves the package. A glob would
+# make the build succeed here and fail in CI.
+
+package(default_visibility = ["//visibility:public"])
+
+# Headers that bootrom_mp compiles against. myshkin.h is the C register view
+# and myshkin_s.h is the assembler view that start.S includes.
+filegroup(
+    name = "chip_headers",
+    srcs = [
+        "include/bits.h",
+        "include/clocks.h",
+        "include/custom_ops.S",
+        "include/flash_memory.h",
+        "include/irq.h",
+        "include/myshkin.h",
+        "include/myshkin_s.h",
+        "include/spi.h",
+        "include/timing.h",
+        "include/uart.h",
+        "include/uart_irq.h",
+    ],
+)

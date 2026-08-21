@@ -1,0 +1,27 @@
+# blinky: the template application the other five packages were cloned from.
+# See the myshkin_app docstring for how the platform-vs-tools linker directory
+# fallback in that makefile was resolved.
+
+load("//toolchains/riscv:defs.bzl", "firmware_image_test", "myshkin_app")
+
+package(default_visibility = ["//visibility:public"])
+
+myshkin_app(
+    name = "blinky",
+    # Present in src/ but not currently included by either source file; listed
+    # so an edit that starts including it does not silently miss the sandbox.
+    hdrs = ["src/platform_fix.h"],
+)
+
+# The linked image is byte identical to the bench copy in bin/blinky.bin
+# (116 bytes, cmp clean). The bench rcf/ image is NOT reproduced, and cannot
+# be: it dates from 2026-04-25, before flash_prepend.sh moved the program load
+# base from 0x8200 to 0x8000 and gained the M19c GAP_MIN/REGION_PAD region
+# rules. The golden below is the current recipe's output, so the gate is
+# reproducibility going forward rather than agreement with a superseded
+# artifact.
+firmware_image_test(
+    name = "blinky_flashed_rcf_test",
+    image = "xxxxxxxxxxxxblinky.rcf",
+    golden = "testdata/blinky_flashed_rcf_golden.txt",
+)

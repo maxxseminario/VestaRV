@@ -1,0 +1,125 @@
+# Multiprocessor boot ROM (the "flashboot" image).
+#
+# This is the mask ROM content of the fabricated part, so the recipe here is a
+# literal transcription of software/bootrom_mp/makefile: same sources in the
+# same order, same flags, same link line, same 16KB zero filled window, same
+# 4096 word RCF. See :rom_rcf_reproducibility_test for the byte level proof
+# against the pinned bench artifact.
+#
+# start.S must stay first in srcs. The linker script places the first input
+# section at the reset vector.
+
+load("@rules_python//python:defs.bzl", "py_test")
+load("//toolchains/riscv:defs.bzl", "rv32_firmware")
+
+package(default_visibility = ["//visibility:public"])
+
+# The makefile's LIB_SOURCES is empty, so nothing from commune/src is linked
+# in. The commune include directory is on the path only for myshkin.h and
+# myshkin_s.h; MemoryMap.h is commented out in every source here, which is why
+# this package builds without the gitignored generator outputs.
+rv32_firmware(
+    name = "flashboot",
+    srcs = [
+        "src/start.S",
+        "src/main.c",
+        "src/rv4th.c",
+        "src/uart.c",
+        "src/spi.c",
+        "src/flash_memory.c",
+    ],
+    copts = [
+        "-Werror",
+        "-Wall",
+        "-Wunused",
+        "-Os",
+        "-flto",
+        "-g",
+    ],
+    defines = ["__nostdlib__"],
+    # The makefile names objects <source>.src.o; keep that so any name
+    # sensitive step inside LTO sees what it always saw.
+    obj_suffix = ".src.o",
+    dump_flags = [
+        "--disassemble-all",
+        "--disassemble-zeroes",
+        "--section=.text",
+        "--section=.text.startup",
+        "--section=.text.init",
+        "--section=.data",
+        "--section=.rodata",
+        "--section=.bss",
+        "--prefix-addresses",
+        "--show-raw-insn",
+    ],
+    # This is mask ROM, not a flash image, so no SPI load header.
+    flash = False,
+    gcc_inc = True,
+    hdrs = [
+        "include/flash_memory.h",
+        "include/rv4th.h",
+        "include/spi.h",
+        "include/uart.h",
+        "//software/commune:chip_headers",
+    ],
+    includes = [
+        "software/bootrom_mp/include",
+        "software/commune/include",
+    ],
+    ld_script = "//tools/build:linker-scripts/MCU-bootrom.ld",
+    # MCU-bootrom.ld does INCLUDE memory.x and INCLUDE periph.x, which the
+    # linker resolves out of the -L directory.
+    ld_srcs = ["//tools/build:linker_scripts"],
+    # LFLAGS from the makefile, in the makefile's order. -lgcc really does
+    # come before the objects there, and static link order is load bearing,
+    # so it is reproduced rather than tidied.
+    link_flags = [
+        "-lgcc",
+        "{march}",
+        "-Os",
+        "-flto",
+        "-nostartfiles",
+        "-Wl,-Bstatic,-T,{ld_script},-Map,{map},--cref",
+        "-Ltools/build/linker-scripts",
+        "-g",
+    ],
+    march = "rv32i",
+    # 16KB boot ROM, 4096 words.
+    pad_bytes = 16384,
+    rcf_name = "rom.rcf",
+)
+
+# The pinned bench copy of the ROM image, tracked under a name that does not
+# collide with the global *.rcf gitignore. Byte identical to the ROM plate.
+filegroup(
+    name = "rom_rcf_golden",
+    srcs = ["testdata/rom_rcf_golden.txt"],
+)
+
+# Proves the hermetic bazel build still reproduces the mask ROM content that
+# was taped out. If this fails, either the toolchain pin moved or a source
+# under src/ changed, and the physical part no longer matches the tree.
+py_test(
+    name = "rom_rcf_reproducibility_test",
+    srcs = ["//software/testtools:compare_text.py"],
+    args = [
+        "$(location rom.rcf)",
+        "$(location testdata/rom_rcf_golden.txt)",
+        "--label",
+        "bazel-built-rom.rcf",
+    ],
+    data = [
+        "rom.rcf",
+        "testdata/rom_rcf_golden.txt",
+    ],
+    main = "//software/testtools:compare_text.py",
+    size = "small",
+)
+
+# The name the rest of the build refers to. The macro derives its target names
+# from the makefile TARGET ("flashboot"), but the artifact everyone means is
+# the ROM image.
+alias(
+    name = "rom_rcf",
+    actual = ":flashboot_rcf",
+)
