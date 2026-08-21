@@ -1,18 +1,17 @@
 # VestaRV course SDK
 
 Student-facing SDK + labs for the **Argus course chip** (`config/argus_course.json`
-= the 18-hart Argus configuration with the NPU restored). Students write C, build
-a flash image with `course.mk`, and run on physical chips; instructors validate
+= the 18-hart Argus configuration with the NPU restored). Students write C and
+build a flash image with Bazel, then run on physical chips; instructors validate
 firmware in simulation with `sdk/run_sim.sh`.
 
 ## Building with Bazel
 
-Bazel is the recommended path for building and gating the lab images: it
-provisions the pinned `riscv-none-elf-` toolchain itself, so students and CI
-need nothing installed, and every lab image is checked against a tracked
-golden. The `course.mk` / `make` flow under "Building a lab" still works and is
-kept as the legacy path (it is also the path `make sim` and `make deploy` use -
-the simulator wrapper and the hardware deploy step are not Bazel-managed).
+Bazel builds and gates the lab images: it provisions the pinned
+`riscv-none-elf-` toolchain itself, so students and CI need nothing installed,
+and every lab image is checked against a tracked golden. The simulator wrapper
+and the hardware deploy step are not Bazel-managed - see
+[Outside Bazel](#outside-bazel) below.
 
 Run from the repo root:
 
@@ -99,23 +98,22 @@ software/course/
       reference/      completed solution   *** PRIVATE -- do not commit ***
 ```
 
-## Building a lab
+## Outside Bazel
 
-*Legacy path.* `course.mk` still builds every lab, and `make sim` /
-`make deploy` are only available here. For building and gating the images,
-prefer the Bazel targets above.
-
-Each lab's `makefile` sets `TARGET` + `SRC_SOURCES` and includes `sdk/course.mk`:
+Two jobs have no Bazel target: running a lab image in the course-config
+simulator, and deploying it to a physical chip. Both are driven from the lab's
+`makefile`, which sets `TARGET` + `SRC_SOURCES` and includes `sdk/course.mk`:
 
 ```bash
 cd software/course/labs/lab01_hello/skeleton
-make            # -> rcf/xxxxxxx<target>.rcf  (SPI-flash image, 22-char name)
 make sim        # instructor: build + run in the course-config simulator
 make deploy     # hardware platform TBD (students flash the SPI boot flash)
-make clean
 ```
 
-Toolchain: `riscv-none-elf-` on PATH, `-march=rv32ima -mabi=ilp32`.
+`make sim` drives `sdk/run_sim.sh`, which needs the Cadence tools; `make deploy`
+targets bench hardware. Both compile through `course.mk`, so they need a
+`riscv-none-elf-` toolchain on PATH (`-march=rv32ima -mabi=ilp32`) rather than
+Bazel's pinned copy.
 
 ## The pass/fail contract
 

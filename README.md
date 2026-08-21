@@ -61,7 +61,7 @@ This repository is organized into the following directories:
 ### Platform Definition
 - **`platform/`** — Automated toolchain generation system
   - Generates C headers, linker scripts, documentation from single source
-  - Run `cd platform && make` or see [`platform/myshkin/README.md`](platform/myshkin/README.md)
+  - Build it with `tools/bin/bazel build //platform/common/...`; see [`platform/common/README.md`](platform/common/README.md)
   - Single Python script defines entire memory map and peripherals
   
 ### Verification
@@ -179,60 +179,28 @@ See [`BAZEL.md`](BAZEL.md) for the full target map, the conventions
 (goldens, CRLF, `.bazelignore`) and what deliberately stays outside Bazel:
 the licensed Cadence flows and the physical bench tooling.
 
-### Legacy path (locally installed toolchains)
-
-The pre-Bazel steps still work and are still supported. Use them when you
-want to drive a single stage by hand.
-
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/maxxseminario/VestaRV.git
-   cd VestaRV
-   ```
-
-2. **Generate toolchain files:**
-   ```bash
-   cd platform
-   make
-   ```
-   This creates headers, linker scripts, and documentation. See [`platform/myshkin/README.md`](platform/myshkin/README.md) for details.
-
-3. **Install RISC-V toolchain and dependencies:**
-
-   See [`tools/build/README.md`](tools/build/README.md) for complete toolchain setup.
-
-4. **Build firmware:**
-   ```bash
-   cd software/bootrom
-   make all
-   ```
-
-5. **Run verification tests:**
-   ```bash
-   cd verification/isa
-   make rv32ui
-   ```
-   See [`verification/isa/README.md`](verification/isa/README.md) for test details.
-
-6. **VHDL Simulation:**
-   See [`hdl/README.md`](hdl/README.md) for complete GHDL/ModelSim setup, compile order, and step-by-step instructions to run a simulation against the ISA test suite.
-
 ---
 
 ## Open-source simulation & verification
 
-A fully open-source path — GHDL + cocotb + the riscv-tests-derived ISA suite, no
-proprietary EDA licenses required — verifies the `vesta` core RTL end-to-end:
+A fully open-source path - GHDL plus the riscv-tests-derived ISA suite, no
+proprietary EDA licenses required - verifies the `vesta` core RTL end-to-end.
+Bazel builds the simulator from source, so there is nothing to install:
 
 ```bash
-git clone https://github.com/maxxseminario/VestaRV.git && cd VestaRV
-./opensource_sim/setup_env.sh && source opensource_sim/env.sh
-./opensource_sim/run_sim.sh
+tools/bin/bazel test //opensource_sim:isa_regression
 ```
 
-See [`opensource_sim/README.md`](opensource_sim/README.md) for the full flow (cocotb
-smoke test + ISA regression) and [`sky130/README.md`](sky130/README.md) for the
-companion open-source flow that takes the same RTL to a signed-off sky130 GDSII.
+The one piece of that flow Bazel does not run is the cocotb smoke test, which
+drives the core through a Python testbench:
+
+```bash
+./opensource_sim/run_sim.sh --smoke-only
+```
+
+See [`opensource_sim/README.md`](opensource_sim/README.md) for the full flow and
+[`sky130/README.md`](sky130/README.md) for the companion open-source flow that
+takes the same RTL to a signed-off sky130 GDSII.
 
 ---
 

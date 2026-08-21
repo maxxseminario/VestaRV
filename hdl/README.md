@@ -7,8 +7,8 @@ This directory contains all VHDL source files for VestaRV, organized into the MC
 ## Building and testing with Bazel
 
 Bazel is the recommended way to build and exercise this RTL. It provisions
-GHDL, the RISC-V cross compiler and Python itself, so nothing below needs a
-local install. Every command is run from the repo root.
+GHDL, the RISC-V cross compiler and Python itself, so a fresh clone needs no
+local toolchain at all. Every command is run from the repo root.
 
 One-time bootstrap:
 
@@ -60,13 +60,15 @@ See the [Castalia TRM](../implementations/asic/castalia/docs/TRM.pdf) for a deta
 
 ---
 
-## Simulation
+## Simulating by hand - outside Bazel
 
-Legacy / manual path. This is the by-hand simulator setup; it still works and
-is what you want for waveform debugging in a specific simulator. The Bazel
-section above runs the same RTL under a GHDL that the build provisions for you.
+Bazel runs the ISA regression against this RTL under a GHDL it provisions, so
+nothing here is needed to prove the design. What Bazel does not do is drive an
+interactive session: browsing waveforms, single-stepping a testbench, or
+reproducing a failure in one specific vendor simulator is done by hand, in a
+simulator you install yourself.
 
-### Prerequisites
+### Simulator requirements
 
 Any **VHDL-2008-compatible** simulator works. Recommended free options:
 

@@ -12,32 +12,10 @@ hand-maintained `hdl/common/` RTL is never touched.
 
 ---
 
-## Quick Start
-
-*Legacy in-tree path.* Everything below still works unchanged. The Bazel
-generation (next section) is the verified equivalent with the gates
-attached; prefer it for new work.
-
-```bash
-cd platform/common
-make chip                # generate every chip artifact AND build the TRM PDF
-make chip CHIP_NAME=Foo  # same configuration, renamed chip (TRM title/prose, file headers)
-make chip CONFIG=f.json  # apply a JSON configuration (see "Configuring a chip" below)
-make generate            # artifacts only (no PDF); make pdf = PDF only
-make web                 # export the machine-readable web bundle (see "Web data export")
-make show                # print the resolved configuration + derived pad ring
-make verify              # PROVE the configuration boots: stage the generated RTL into
-                         # an Xcelium behavioral flow + run the ISA/sh smoke suite
-                         # (CONFIG= as above; SUITE=full = whole regression; needs the
-                         #  Cadence tools and the riscv-none-elf- toolchain)
-```
-
 ## Building with Bazel
 
-Bazel is the recommended path. It runs the same generator hermetically, in a
-sandbox that cannot touch the source tree, with every consistency check wired up
-as a test. The `make chip` / `make generate` flow above still works unchanged
-and is kept as the legacy in-tree path.
+Bazel runs the generator hermetically, in a sandbox that cannot touch the
+source tree, with every consistency check wired up as a test.
 
 Run everything from the repo root:
 
@@ -50,7 +28,7 @@ tools/bin/bazel test //...       # first run downloads all toolchains
 
 | Target | What it is / what it proves |
 |--------|-----------------------------|
-| `//platform/common:chip_artifacts_castalia` | The full generated tree for the default Castalia configuration (`out/hdl/`, `out/software/`, `out/web/`, `out/pnr/`, `config/`, `latex/TRM/`). This is the hermetic equivalent of `make generate` |
+| `//platform/common:chip_artifacts_castalia` | The full generated tree for the default Castalia configuration (`out/hdl/`, `out/software/`, `out/web/`, `out/pnr/`, `config/`, `latex/TRM/`). This is the artifact generation; the TRM PDF is a separate target |
 | `//platform/common:chip_artifacts_argus` | The same tree for the 18-hart Argus course configuration |
 | `//platform/common:chip_artifacts_castalia_repro` | A second, independent generation of the Castalia configuration; exists only to be byte-compared by the determinism test |
 | `//platform/common:trm_latex_tree` | The generated LaTeX TRM tree alone |
@@ -110,10 +88,26 @@ tools/bin/bazel run //platform/common/python:splice_web_data -- --data <chip_dat
 
 Full map of the Bazel build: [`BAZEL.md`](../../BAZEL.md).
 
+## Outside Bazel
+
+One job here has no Bazel target: proving a configuration actually boots. It
+stages the generated RTL into an Xcelium behavioral flow and runs the ISA/sh
+smoke suite, so it needs the licensed Cadence tools and a host
+`riscv-none-elf-` toolchain, and it regenerates in place before it runs.
+
+```bash
+cd platform/common
+make verify                 # smoke suite on the default (Castalia) configuration
+make verify CONFIG=f.json   # same, for a JSON configuration
+make verify SUITE=full      # the whole regression instead of the smoke suite
+```
+
 ## Configuring a chip (no RTL editing required)
 
-The whole configuration is one small JSON file passed as `make chip CONFIG=config.json`
-— produced interactively by **`../docs/chip_configurator.html`** or written by hand.
+The whole configuration is one small JSON file in `config/` - produced interactively by
+**`../docs/chip_configurator.html`** or written by hand. A configuration is built by giving
+it a `chip_artifacts` target in `BUILD.bazel` with `config = "config/<name>.json"`, the way
+`chip_artifacts_argus` names `config/argus.json`.
 Every key is optional (missing keys keep the Castalia defaults) and the schema is
 **validated**: an unknown key or out-of-range value is a hard error, never a silent
 fallback. The knobs (authoritative list: `_CONFIG_SCHEMA` in `python/generate.py`, also
@@ -121,7 +115,7 @@ documented in the generated TRM's "Chip Configuration" section):
 
 | Key | Meaning |
 |-----|---------|
-| `chipName` | Docs-only rename (TRM, headers); `CHIP_NAME=` on the make line wins |
+| `chipName` | Docs-only rename (TRM, headers) |
 | `numHarts` | Hart/tile count — 4 = Castalia golden master, 18 = Argus (sim-proven) |
 | `numMutexes` | HW mutex bank size (16 = Castalia, 32 = Argus) |
 | `registerFileDualPort` | Dual-port regfile (ASIC) vs single-port (FPGA) |
@@ -149,7 +143,7 @@ reserved gaps (the numbering is frozen), and its pins revert to plain GPIO. Work
 configurations live in `config/` (`argus.json` = the 18-hart course chip;
 `castalia_no{i2c1,uart1,spi1,timer1}.json` = the G1a/G1b proof configs).
 
-`make chip` produces the complete Technical Reference Manual for exactly the generated
+Generation produces the complete Technical Reference Manual for exactly the generated
 configuration: the feature list, peripheral chapters (intro LaTeX snippets + register
 tables), memory/address-space diagrams, interrupt tables, and multi-core defines are all
 derived from what `python/generate.py` instantiates. pdflatex is auto-detected from PATH
@@ -181,14 +175,14 @@ flow and otherwise appear as raw macro source in the figure.
 | `out/linker-scripts/memory.x`, `periph.x`, `*.txt` | Linker memory regions (incl. `SHARED_RAM`) and symbols |
 | `out/hdl/MemoryMap.vhd`, `MCU.vhd`, `MCU_routing_template.vhd` | Generated VHDL. `MemoryMap.vhd` (2026-07-04) and `MCU.vhd` (2026-07-05, golden-master templated from `hdl_templates/MCU.template.vhd` + `python/mcu_vhd.py`) are verified **drop-in replacements** for their `hdl/common/` originals (full behavioral_mp regression passes with the cell list pointed at them) but are not wired into the build; the routing template is reference-only |
 | `config/MemoryMap.json` | Machine-readable full memory map |
-| `config/ChipConfig.resolved.json` | The resolved configuration: every knob + derived geometry (`make show` prints it) |
+| `config/ChipConfig.resolved.json` | The resolved configuration: every knob + derived geometry |
 | `config/PadRing.json` | The derived pad ring (package model → pin/side/power-domain list) |
 | `out/web/chip_data.js` | Web data bundle (`const VESTA_DATA = {…}`) — see below |
-| `out/web/MemoryMap.json` | Copy of `config/MemoryMap.json` for the web register browser (`make web`) |
+| `out/web/MemoryMap.json` | Copy of `config/MemoryMap.json` for the web register browser |
 
-## Web data export (`make web`)
+## Web data export
 
-`make web` (also part of `make chip`) emits **`out/web/chip_data.js`**, a single
+Every generation emits **`out/web/chip_data.js`**, a single
 `const VESTA_DATA = { … };` bundle so the web tooling — `../docs/chip_configurator.html`
 and a future register browser — can **consume the generator instead of transcribing it**
 (the old configurator carried a hand-copied second source of truth; see
@@ -206,12 +200,12 @@ and a future register browser — can **consume the generator instead of transcr
 | `memoryRegions` | Region-level address map (ROM, peripheral window, CLINT/mutex/IRQ-router, TCM, shared RAM, flash) |
 | `meta` | Provenance (chip name, source config, note) |
 
-`make web` also copies `config/MemoryMap.json` to `out/web/MemoryMap.json` for the
+Generation also copies `config/MemoryMap.json` to `out/web/MemoryMap.json` for the
 register browser. All outputs stay under `platform/common/out/web/` (golden rule).
 
 **Drift gate.** `python/check_configurator_sync.py` compares the configurator HTML
 against the generator; it now takes **`--strict`** (exit non-zero on any drift) while the
-default stays WARN-only (used by `make generate`). **Consumption contract for the HTML:**
+default stays WARN-only. **Consumption contract for the HTML:**
 the configurator declares a spliceable region
 
 ```html
@@ -239,12 +233,12 @@ Generator engine (`python/`):
 - `Peripheral`/`ChipGenerator.CreatePeripheral` accept `absoluteBaseAddress=` for
   peripherals outside the legacy `0x4000` slot space, and `legacySlot=` for moved
   shared-window peripherals whose old `0x4000`-page slot number the RTL still uses
-- `make chip` emits an "MCU_MP Compatibility" section into `out/hdl/MemoryMap.vhd`
+- The generator emits an "MCU_MP Compatibility" section into `out/hdl/MemoryMap.vhd`
   (per-vector `IRQB_*` names, `RegSlotSYS_*`, GPIO reset values in RTL port numbering,
   `pnum_*` pin constants, slot masks — driven by the `McuMpCompat` block in
   `generate.py`, values transcribed from the RTL package). `python/check_memorymap_vhd.py`
   diffs the generated package against `hdl/common/MemoryMap.vhd` by name/type/value
-- `make chip` also generates the top-level integration RTL `out/hdl/MCU.vhd` by
+- The generator also produces the top-level integration RTL `out/hdl/MCU.vhd` by
   golden-master templating (`hdl_templates/MCU.template.vhd` holds the fixed boilerplate;
   `python/mcu_vhd.py` fills the `--@GEN:*@` regions — IRQ signals/`irq_comb`, shared-window
   slave fabric, dead-window zeroing, per-instance memory-bus port maps — from new
@@ -255,9 +249,9 @@ Generator engine (`python/`):
 - Python 3.6 compatible (`copytree` shim); address-space diagram fixed to use the same
   RAM-slot address formula as `memory.x` (the old code drew RAM at the wrong addresses)
 
-Configuration-driven TRM (2026-07-06, `make chip` = artifacts + PDF):
-- `make chip` now also compiles `latex/TRM/TRM.pdf` (use `make generate` for artifacts only);
-  `CHIP_NAME=<name>` renames the chip everywhere it appears (docs only — the generated RTL
+Configuration-driven TRM (2026-07-06):
+- The TRM PDF (`latex/TRM/TRM.pdf`) is built from the generated LaTeX tree;
+  `chipName` renames the chip everywhere it appears (docs only - the generated RTL
   is name-independent and stays byte-identical to `hdl/common/`)
 - The System Configuration feature list is GENERATED (`include/FeaturesList.tex`) from the
   instantiated peripheral set: each `PeripheralTemplate` carries a `latexFeatureSummary`
@@ -317,6 +311,6 @@ Known TODOs:
 - ~~The description's WDT register order contradicts the RTL~~ FIXED (G5a 2026-07-11):
   the description now carries the RTL order (WDT_PASS=12/WDT_CR=13/WDT_SR=14); the
   stale doc-side `RegSlotWDT*` constants in `hdl/common/MemoryMap.vhd` were aligned the
-  same day (no RTL logic read them). `make chip` is warning-free and
+  same day (no RTL logic read them). Generation is warning-free and
   `check_memorymap_vhd.py` is drop-in clean. (The matching GPIO pin-reset-attribute
   discrepancy was FIXED 2026-07-09 with the multi-AF work.)

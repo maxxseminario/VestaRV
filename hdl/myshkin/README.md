@@ -24,9 +24,10 @@ tools/bin/bazel test //...       # first run downloads all toolchains
 | `//hdl/common/tb:mp_arbiter_tb`, `//hdl/common/tb:pmp_unit_tb` | test | the GHDL unit benches - note they bind the shared `hdl/common/` RTL, not this snapshot |
 | `//opensource_sim:isa_regression` | test | the ISA regression, likewise against `hdl/common/`, not this snapshot |
 
-Two things stay outside Bazel here on purpose: the Myshkin legacy generator
-(`platform/myshkin`) overwrites tracked files in place and is run the old way,
-and the Cadence flows keep their existing scripts.
+Two things stay outside Bazel here on purpose: the Myshkin generator
+(`platform/myshkin`) overwrites tracked files in place, so it is run directly
+by its own scripts, and the Cadence flows are licensed binaries that keep
+theirs.
 
 The full target map is in [`BAZEL.md`](../../BAZEL.md).
 

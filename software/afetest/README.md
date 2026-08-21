@@ -4,9 +4,8 @@ Smallest possible firmware to prove the Myshkin AFE peripheral is alive.
 
 ## Building with Bazel
 
-Bazel is the recommended path - it provisions the pinned RISC-V toolchain
-itself, so `RISCV_TOOLCHAIN_DIR` need not be set. The `make` flow under
-"Build" below still works and is kept as the legacy path.
+Bazel builds this firmware: it provisions the pinned RISC-V toolchain itself,
+so no locally installed toolchain is needed.
 
 Run from the repo root:
 
@@ -67,15 +66,3 @@ Read them via GDB / OpenOCD, or watch DTP0–DTP3 on a scope to confirm the FSM 
 ## Wiring (resistor dummy cell)
 
 Connect a single resistor (e.g. 100 kΩ) between RE and WE pads, and tie CE to RE. With `BIAS_REV_POT` ≈ midscale + 1000 LSB the cell sees Δv ≈ +50 mV → I ≈ 500 nA, well inside the TIA range at minimum gain.
-
-## Build
-
-*Legacy path.* Still works; the recommended path is
-[Building with Bazel](#building-with-bazel) above.
-
-```bash
-export RISCV_TOOLCHAIN_DIR=~/riscv-toolchain/xpack-riscv-none-elf-gcc-13.2.0-2
-make all
-```
-
-Output: `bin/afetest.elf`, `bin/afetest.hex`, `bin/afetest.dump`, `rcf/*afetest.rcf`.

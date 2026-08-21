@@ -7,8 +7,8 @@ This directory contains instruction-level tests for verifying the Vestarv RISC-V
 Bazel is the recommended way to build these images: the RISC-V cross compiler
 is fetched and pinned by the build, the polarity defines are part of each
 compile action's key (so a polarity change rebuilds exactly the images it
-affects), and no `rm -rf build/` dance is needed. The `make` flow below still
-works and is kept as the legacy path. Every command is run from the repo root.
+affects), and no `rm -rf build/` dance is needed. Every command is run from the
+repo root.
 
 One-time bootstrap:
 
@@ -59,27 +59,6 @@ verification/isa/
 ├── macros/            # Test macros and helpers
 └── Makefile           # Build system
 
-```
-
-## Building Tests
-
-Legacy path. The `make` recipes below still work and need a locally installed
-RISC-V toolchain; the Bazel targets above build the same images with a pinned,
-fetched one, and key each image on its polarity defines.
-
-### Build Specific Test Suite
-
-```bash
-make rv32ui      # Build all RV32I user-level integer instruction tests
-make rv32um      # Build all multiply/divide tests
-make rv32ua      # Build all atomic instruction tests
-make periph      # Build peripheral tests
-```
-
-### Build All Tests
-
-```bash
-make all
 ```
 
 ## RCF Files for VHDL Simulation
