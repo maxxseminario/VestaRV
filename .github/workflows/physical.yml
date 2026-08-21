@@ -75,12 +75,24 @@ jobs:
           echo "$HOME/ghdl/ghdl-mcode-${GHDL_VERSION}-ubuntu24.04-x86_64/bin" >> "$GITHUB_PATH"
 
       # synth.sh owns the curated 19-file analysis order and self-checks its
-      # output (ICG substitution landed, top module present).
+      # output (ICG substitution landed, top module present). On failure the
+      # log tail is re-emitted as ::error:: annotations: annotations are
+      # readable anonymously through the check-runs API, raw job logs are not
+      # — this is the only diagnostic channel a credential-less bench session
+      # can see.
       - name: VHDL -> Verilog (synth.sh)
         working-directory: sky130
         run: |
           ghdl --version
-          ./synth.sh
+          if ! ./synth.sh > synth_ci.log 2>&1; then
+            echo "synth.sh FAILED — full log:"
+            cat synth_ci.log
+            tail -8 synth_ci.log | while IFS= read -r line; do
+              echo "::error::synth.sh: ${line}"
+            done
+            exit 1
+          fi
+          tail -3 synth_ci.log
 
       # Consumed by the harden job below; also the netlist a release ships.
       - name: Upload bridge netlist

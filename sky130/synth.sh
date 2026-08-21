@@ -56,8 +56,12 @@ ghdl --synth --std=08 -fsynopsys --latches --workdir="${WORKDIR}" \
      --out=verilog "${TOP}" > "src/${TOP}.v"
 
 echo "== swap behavioral clkgate for the sky130 ICG cell =="
+# Header match tolerates the emission styles GHDL has used across versions:
+# a bare "module clkgate" line (5.x) and a one-line "module clkgate (...);"
+# header, plus an optional \clkgate escaped identifier. The module body is
+# skipped through its endmodule either way; the grep below stays the hard gate.
 awk '
-/^module clkgate$/ { inswap=1
+/^module \\?clkgate([[:space:](].*)?$/ { inswap=1
   print "module clkgate"
   print "  (input  clkin,"
   print "   input  en,"
@@ -65,7 +69,7 @@ awk '
   print "  sky130_fd_sc_hd__dlclkp_1 icg (.CLK(clkin), .GATE(en), .GCLK(clkout));"
   print "endmodule"
   next }
-inswap && /^endmodule$/ { inswap=0; next }
+inswap && /^endmodule([[:space:]].*)?$/ { inswap=0; next }
 !inswap { print }
 ' "src/${TOP}.v" > "src/${TOP}.icg.v" && mv "src/${TOP}.icg.v" "src/${TOP}.v"
 
