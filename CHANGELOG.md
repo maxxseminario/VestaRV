@@ -49,6 +49,11 @@ names the commit it is anchored to.
   the queue by design (shared license seat / 4–5 h wall time).
 
 ### Changed
+- **CI is GitHub-hosted only, by policy and by gate.** Every workflow runs on
+  hosted runners; ci.yml's "GitHub-hosted-runners-only gate" fails any
+  workflow that targets a self-hosted runner, so the exclusion is enforced,
+  not just current. (A brief full stand-down of all triggers the same day
+  was reverted — the request was "no self-hosted runners", not "no CI".)
 - **The CI simulation tier is now the open-source GHDL ISA regression, run as
   bazel tests on hosted runners** (`sim.yml` rewritten; the self-hosted
   Cadence tier is preserved in git history and documented for revival in
