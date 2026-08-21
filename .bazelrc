@@ -3,6 +3,12 @@
 common --@rules_python//python/config_settings:bootstrap_impl=script
 common --repo_env=BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN=1
 
+# bazel_latex 1.2.2 still calls the native sh_binary/py_binary rules that
+# bazel 9 removed; autoload them from their rules_* modules. Flip
+# ENABLE_HERMETIC_LATEX_SMOKE in platform/common/latex/bazel/smoke/smoke.bzl
+# together with this line, never separately.
+common --incompatible_autoload_externally=+sh_binary,+sh_test,+py_binary,+py_library,+py_test
+
 # GNAT prebuilt pin for the ghdl source build: every newer GNAT needs
 # glibc >= 2.28 and cannot run on this host (glibc 2.26).
 common --@rules_ada//ada/settings:version=12.2.0-1

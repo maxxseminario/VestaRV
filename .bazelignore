@@ -21,6 +21,7 @@ verification/isa/build_oneoff
 verification/isa/negctrl
 verification/isa/rcf
 verification/isa/rcf_argus
+verification/isa/rcf_ci
 verification/isa/rcf_course
 verification/isa/rcf_k03
 verification/isa/rcf_k04
