@@ -22,8 +22,16 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$HERE/../.." && pwd)"
 ISA_DIR="$REPO_ROOT/verification/isa"
 COMMON="$REPO_ROOT/hdl/common"
-WORK="$HERE/work"
+# ISA_WORK_DIR: GHDL work-library override, for callers whose source tree is
+# read-only (the bazel sh_test wrapper points it at $TEST_TMPDIR).
+WORK="${ISA_WORK_DIR:-$HERE/work}"
 TB="$HERE/vesta_isa_tb.vhd"
+# ISA_BUILD_DIR: prebuilt-image mode. When set, the make step is skipped and
+# <ISA_BUILD_DIR>/<suite>/*.rcf is run as-is — the CALLER vouches that those
+# images were built at the CORE_ENABLE (ON) polarity this harness assumes
+# (bazel: //verification/isa's os_* suites, whose defines mirror
+# CORE_ENABLE_DEFS below). No riscv toolchain or make is needed in this mode.
+ISA_BUILD_DIR="${ISA_BUILD_DIR:-}"
 
 GHDL="${GHDL:-ghdl}"
 RISCV_PREFIX="${RISCV_PREFIX:-riscv-none-elf-}"
@@ -123,8 +131,10 @@ BASE_GCC_OPTS="-static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfil
 #     0x5010 CLINT mtime) and/or launch harts 1..NHARTS-1 through the mp_boot
 #     ROM. This harness is ONE hart on a single flat RAM at 0x8000 with no
 #     peripherals, so each self-checks FAIL (device reads zero -> a0=DEADBEEF)
-#     or spins on a hart/IRQ that never comes (-> sim-timeout). NON-entries:
-#     shmem/shmem_mp are KEPT (they degrade cleanly to the hart-0 path and PASS).
+#     or spins on a hart/IRQ that never comes (-> sim-timeout). NON-entry:
+#     shmem is KEPT (it degrades cleanly to the hart-0 path and PASSES).
+#     shmem_mp used to be kept too but moved to family (4) below when it was
+#     reworked onto mp_boot.
 #
 # (2) X-series NEGATIVE-CONTROL "poison" probes. The X1-X4 ext-probe idiom
 #     (tests/rv32ua/extprobe_template.S) proves the OFF/illegal polarity of an
@@ -208,6 +218,57 @@ declare -A SKIP=(
     [rv32ua/zfopfp]="Zfinx neg-control (fadd.s, OP-FP 0x53): Zfinx-ON -> executes then RVTEST_FAIL; trap-watch only"
 )
 
+# ---------------------------------------------------------------------------
+# Families (3) and (4), added 2026-08-21 when the bazel CI tier first triaged
+# the tests that landed AFTER this harness was written (~2026-07-19). Every
+# entry below was observed to FAIL or sim-timeout here, and verified (test
+# header + a marker scan for MMIO windows / mp_boot / mtvec-trap machinery)
+# to need capability this bare a0-sentinel TB does not have. None is a
+# bare-core regression. When a NEW test fails here, triage it the same way
+# before adding it — a bare-core-verifiable test that fails is a real bug,
+# and this table must never become where those hide.
+#
+# (3) PRIVILEGED / TRAP / IRQ / DEBUG machinery: the v2.7.0 privileged
+#     architecture suite (priv*/pmprt*), the F-series IRQ_SV detectors
+#     (csrleak/ignleak/slpleak/insretov/iretphan/uiretph/trapstor), the
+#     K-series bus/counter instruments (casgrant/shapeq/rocsrw*/rdtimemp/
+#     idcsrmp/fk51mp), the debug transport (dbg*mp), and diagnostic poisons
+#     (amorsv). They program mtvec / take traps / watch interrupt entry, or
+#     need ENABLE_TRAPCSR / ENABLE_PMP / ENABLE_UMODE / ENABLE_DEBUG —
+#     generics this TB's map predates and leaves off — or read hpm counters
+#     wired to the hart_tile shared bus. Their home is the MCU trap-watch
+#     harness (behavioral_mp), not this TB.
+for t in amorsv casgrant csrleak dbgdenymp dbghaltmp dbgstepmp fk51mp \
+         idcsrmp ignleak insretov iretphan pmpfq pmprt1 pmprt2 pmprt3 \
+         pmprt4 pmprt5 pmprt6 privcsr privebrk privecal privecall privirq \
+         privmcau privmepc privmie privmip privmret privmscr privmst \
+         privmsth privmtrc privmtvc privmtvl privpmp privpmpcs privpmpmx \
+         privrt1 privrt2 privucsr privumode privwfi rdtimemp rocsrw \
+         rocsrwmp shapeq slpleak trapstor uiretph; do
+    SKIP["rv32ua/$t"]="privileged/trap/IRQ/debug machinery — needs trap delivery, TRAPCSR/PMP/UMODE/DEBUG generics, or the hart_tile bus; MCU trap-watch territory (family 3)"
+done
+
+# (4) W-series MCU-peripheral exercisers and the newer sh* system tests
+#     (DMA, EVFAB, NPU-GEMM/conv/XNOR, GPIO, I2C-target, I3C, NFC, OneWire,
+#     PWM, QSPI, RTC, TRNG, ACTF; orch-tile / TCM / exec coordination):
+#     all drive 0x4xxx-0xCxxx MMIO windows or mp_boot harts that do not
+#     exist on this one-hart, peripheral-less harness. shmem_mp moved here
+#     from the old "kept, degrades cleanly" note when it was reworked onto
+#     mp_boot (it now spins on harts that never come up); plain shmem still
+#     degrades cleanly and still runs.
+for t in shdma shevfab shexecc shmem_mp shorch shtcm wactf wdma wgemm \
+         wgpio wi2ct wi3c wnfc wnpuconv wow wperiph wpwm wqspi wrtc wtrng \
+         wxnpu; do
+    SKIP["rv32ui/$t"]="MCU peripheral MMIO / mp_boot system test — devices and harts absent on the bare core (family 4)"
+done
+
+# rv32uc/rvc: since b1c39da the isa Makefile links rvc with link_shared.ld
+# (its .text.init outgrew the 8 KiB private TCM), which places the code
+# outside the flat RAM at 0x8000 this TB models — word 128 (_start) is empty
+# and the sim times out. A TB memory map with the shared window would win it
+# back; until then it is out of reach, not broken.
+SKIP[rv32uc/rvc]="linked with link_shared.ld since b1c39da — code sits outside this TB's flat 0x8000 RAM (needs a shared-window TB map)"
+
 GHDL_FLAGS=(--std=08 -fsynopsys --workdir="$WORK")
 
 # ---------------------------------------------------------------------------
@@ -221,10 +282,14 @@ need() {
     }
 }
 need "$GHDL"                "Install GHDL (>=5.0) — e.g. 'apt-get install ghdl'."
-need "${RISCV_PREFIX}gcc"   "Install the RISC-V toolchain and/or source ../setup_env.sh (sets RISCV_PREFIX and PATH)."
-need "${RISCV_PREFIX}objcopy" "Install the RISC-V toolchain and/or source ../setup_env.sh."
-need make                   "Install make."
 need timeout                "Install coreutils (provides 'timeout')."
+# The toolchain and make are only exercised by the image-build step, which
+# prebuilt-image mode skips entirely.
+if [ -z "$ISA_BUILD_DIR" ]; then
+    need "${RISCV_PREFIX}gcc"   "Install the RISC-V toolchain and/or source ../setup_env.sh (sets RISCV_PREFIX and PATH)."
+    need "${RISCV_PREFIX}objcopy" "Install the RISC-V toolchain and/or source ../setup_env.sh."
+    need make                   "Install make."
+fi
 
 # ---------------------------------------------------------------------------
 # Args
@@ -242,19 +307,26 @@ echo "    prefix : $RISCV_PREFIX"
 echo
 
 # ---------------------------------------------------------------------------
-# 1. Build the test images
+# 1. Build the test images (skipped in prebuilt-image mode)
 # ---------------------------------------------------------------------------
-echo "--- building ISA images (make -C verification/isa ${SUITES[*]}) ---"
-# Clean the build dirs for the suites we are about to (re)build. The rv32ua
-# ext-probes are built with the CORE_ENABLE_DEFS (ON polarity); make keys the
-# .elf on the .S alone, so a build/ left over from an earlier OFF-polarity run
-# would be silently reused with the wrong arm compiled in (the build-order trap
-# documented in extprobe_template.S). A clean rebuild makes the polarity
-# deterministic.
-for s in "${SUITES[@]}"; do rm -rf "$ISA_DIR/build/$s"; done
-make -C "$ISA_DIR" RISCV_PREFIX="$RISCV_PREFIX" \
-     RISCV_GCC_OPTS="$BASE_GCC_OPTS ${CORE_ENABLE_DEFS[*]}" "${SUITES[@]}"
-echo
+if [ -n "$ISA_BUILD_DIR" ]; then
+    BUILD_ROOT="$ISA_BUILD_DIR"
+    echo "--- using prebuilt images from $BUILD_ROOT (ISA_BUILD_DIR set; make skipped) ---"
+    echo
+else
+    BUILD_ROOT="$ISA_DIR/build"
+    echo "--- building ISA images (make -C verification/isa ${SUITES[*]}) ---"
+    # Clean the build dirs for the suites we are about to (re)build. The rv32ua
+    # ext-probes are built with the CORE_ENABLE_DEFS (ON polarity); make keys the
+    # .elf on the .S alone, so a build/ left over from an earlier OFF-polarity run
+    # would be silently reused with the wrong arm compiled in (the build-order trap
+    # documented in extprobe_template.S). A clean rebuild makes the polarity
+    # deterministic.
+    for s in "${SUITES[@]}"; do rm -rf "$ISA_DIR/build/$s"; done
+    make -C "$ISA_DIR" RISCV_PREFIX="$RISCV_PREFIX" \
+         RISCV_GCC_OPTS="$BASE_GCC_OPTS ${CORE_ENABLE_DEFS[*]}" "${SUITES[@]}"
+    echo
+fi
 
 # ---------------------------------------------------------------------------
 # 2. Analyze RTL + TB into work/
@@ -283,7 +355,7 @@ declare -a FAILURES=()
 sanity_checked=0
 
 for suite in "${SUITES[@]}"; do
-    build="$ISA_DIR/build/$suite"
+    build="$BUILD_ROOT/$suite"
     [ -d "$build" ] || { echo "WARN: no build dir for $suite (no tests built?)"; continue; }
     shopt -s nullglob
     rcfs=("$build"/*.rcf)
@@ -351,4 +423,9 @@ if [ "${#FAILURES[@]}" -gt 0 ]; then
     for f in "${FAILURES[@]}"; do echo "  - $f"; done
 fi
 
-[ "$npass" -eq "$ntotal" ] && [ "$ntotal" -gt 0 ]
+# Green iff nothing failed AND the run was not vacuously empty. An all-SKIP
+# suite (today: rv32uc, whose only test rvc is out of the TB's reach since
+# b1c39da) still exits 0 — every skip printed its justification above, which
+# is different from a suite that built nothing at all (ntotal 0, nskip 0:
+# that stays a failure, since it means the images were missing).
+[ "$npass" -eq "$ntotal" ] && { [ "$ntotal" -gt 0 ] || [ "$nskip" -gt 0 ]; }

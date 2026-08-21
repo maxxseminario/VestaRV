@@ -1,129 +1,89 @@
-name: Simulation (self-hosted Cadence)
+name: Simulation (open source)
 
-# Tier 2 — real Xcelium regression on the self-hosted runner registered on the
-# bench machine (see .github/RUNNER_SETUP.md). The runner's workspace is a
-# persistent clone seeded ONCE with the untracked sim state (xcelium/ flow trees,
-# ARM vendor memory models, periph test images); checkout runs with clean: false
-# so that seed is never wiped. Per-commit inputs (bootrom rom.rcf, ISA rcf
-# images) are REBUILT here so the sim always tests the commit, not the seed.
+# Tier 2 — the GHDL ISA regression as bazel tests on GitHub-hosted runners.
 #
-# License etiquette (shared 5280@poseidon pool):
-#   * concurrency group "cadence-license" — one sim job at a time, never cancelled
-#     mid-run (a killed job could strand licenses; the cleanup step guards that).
-#   * MAX_PARALLEL stays modest; the 1-minute rule is enforced per-test by
-#     xrun_parallel.sh's own watchdog, and job-level timeout-minutes backstops it.
-#   * always(): pkill xmsim so a hung run can't hold seats overnight.
+# This REPLACES the self-hosted Cadence/Xcelium tier (2026-08-21): that
+# runner never executed a job (the `cadence` label was never applied — see
+# .github/RUNNER_SETUP.md for the post-mortem and how to bring it back), and
+# every push left a yellow queued run behind it. The full Cadence workflow is
+# preserved in this file's git history for when the bench runner returns;
+# nothing here forecloses that.
 #
-# NO merge_group trigger, on purpose. The `cadence-license` group admits one job
-# at a time and never cancels, so gating the merge queue on this tier would
-# serialize every queued PR behind a full sim seat. Tier 1 (ci.yml) gates the
-# queue; this tier keeps its two existing safety nets — the opt-in `run-sim`
-# label for a pre-merge smoke, and sim-full on push to main, which the queue's
-# own merge commit still fires. Never make a job in this file a required status
-# check: with no merge_group run to satisfy it, the queue would stall.
-# See .github/MERGE_QUEUE.md.
+# What runs: `bazel test //opensource_sim:isa_regression` — one sh_test per
+# ISA suite (9 suites), driving opensource_sim/isa/run_isa.sh in
+# prebuilt-image mode. The explicit suite target, NOT //opensource_sim/...:
+# the per-test ghdl_test port growing in //opensource_sim/isa joins this
+# gate deliberately (see the note in opensource_sim/BUILD.bazel), never by
+# wildcard while it is mid-port. EVERYTHING is hermetic inside bazel: the RISC-V images
+# come from //verification/isa's os_* targets (hermetic xPack GCC), the
+# simulator is @ghdl built from source (mcode), and its VHDL-2008 std/ieee
+# libraries are bazel outputs. The runner needs NO EDA installs — only
+# bazelisk, which tools/get_bazel.sh fetches.
+#
+# The cocotb smoke test is deliberately NOT here: physical.yml's sim-smoke
+# job runs it on every PR/push already.
+#
+# Cost note: the first run on a cold cache builds GHDL from source (GNAT
+# bootstrap + Ada compile, ~15-30 min). The bazel disk cache below carries
+# the toolchain across runs, so warm runs are dominated by the ~139 GHDL
+# sims (~5-10 min at 4 local test jobs).
 
 on:
-  pull_request:
-    types: [labeled, synchronize, reopened]
   push:
-    branches: [main]
+    branches: [main, multicore-mp]
+  pull_request:
+  merge_group:
   schedule:
-    - cron: "30 8 * * *"   # nightly full regression (UTC)
+    - cron: "30 8 * * *"   # nightly (UTC), same slot the Cadence tier held
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  # PR smoke: opt-in via the `run-sim` label (the smoke.txt subset, ~10 min).
-  sim-smoke:
-    # Deliberately no test count in the name: the suite size is whatever the
-    # list holds at this commit, and a hardcoded literal has gone stale twice
-    # (this one said 27 against a 29-entry smoke.txt; the full job said 117
-    # against a standing 141). Name the source, not the number.
-    name: MP smoke suite (smoke.txt)
-    if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'run-sim')
-    runs-on: [self-hosted, cadence]
-    concurrency:
-      group: cadence-license
-      cancel-in-progress: false
-    timeout-minutes: 45
+  isa-regression:
+    name: GHDL ISA regression (bazel)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
     steps:
-      - name: Checkout (preserve seeded sim state)
+      - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Fetch bazelisk
+        run: ./tools/get_bazel.sh
+
+      # One cache, two payloads: the disk cache (action outputs — including
+      # the from-source GHDL build) and the repository cache (downloaded
+      # externals: GNAT, xPack GCC, zig). Keyed on the module lockfile; the
+      # restore-key keeps a stale-but-warm cache useful after a dep bump.
+      - name: Cache bazel disk + repository cache
+        uses: actions/cache@v4
         with:
-          clean: false   # NEVER git-clean this workspace: xcelium/ + ARM models are seeded, untracked state
+          path: |
+            ~/.cache/bazel-disk-cache
+            ~/.cache/bazel-repo-cache
+          key: bazel-sim-${{ hashFiles('MODULE.bazel.lock', '.bazelversion') }}
+          restore-keys: bazel-sim-
 
-      - name: Guard — sim workspace is seeded
+      - name: Run ISA regression
         run: |
-          test -x xcelium/riscv_test/behavioral_mp/xrun_parallel.sh || {
-            echo "::error::Runner workspace is not seeded — see .github/RUNNER_SETUP.md"; exit 1; }
+          tools/bin/bazel test //opensource_sim:isa_regression \
+            --repository_cache=~/.cache/bazel-repo-cache \
+            --test_output=errors \
+            --test_summary=detailed
 
-      - name: Rebuild bootrom at this commit
+      # Raw job logs are auth-only; annotations are anonymously readable via
+      # the check-runs API — the diagnostic channel a credential-less bench
+      # session can see (same pattern as physical.yml).
+      - name: Surface failing test logs as annotations
+        if: failure()
         run: |
-          mkdir -p software/bootrom_mp/obj software/bootrom_mp/bin
-          make -C software/bootrom_mp
-
-      - name: Rebuild N=4 MP images at this commit
-        working-directory: verification/isa
-        run: ./build_mp_images.sh 4 ../../xcelium/riscv_test/rcf
-
-      - name: Run smoke suite
-        run: |
-          source ./cdspaths.sh
-          cd xcelium/riscv_test/behavioral_mp
-          TESTS_FILE=smoke.txt MAX_PARALLEL=6 ./xrun_parallel.sh
-
-      - name: Cleanup — kill any stranded sims
-        if: always()
-        run: pkill -9 xmsim || true
-
-  # Full regression: merge to main, nightly, or manual dispatch.
-  sim-full:
-    name: Full MP regression + peripheral suite
-    if: github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    runs-on: [self-hosted, cadence]
-    concurrency:
-      group: cadence-license
-      cancel-in-progress: false
-    timeout-minutes: 150
-    steps:
-      - name: Checkout (preserve seeded sim state)
-        uses: actions/checkout@v4
-        with:
-          clean: false
-
-      - name: Guard — sim workspace is seeded
-        run: |
-          test -x xcelium/riscv_test/behavioral_mp/xrun_parallel.sh || {
-            echo "::error::Runner workspace is not seeded — see .github/RUNNER_SETUP.md"; exit 1; }
-          test -x xcelium/periph_test/behavioral/xrun_parallel.sh || {
-            echo "::error::periph_test tree missing from seed — see .github/RUNNER_SETUP.md"; exit 1; }
-
-      - name: Rebuild bootrom at this commit
-        run: |
-          mkdir -p software/bootrom_mp/obj software/bootrom_mp/bin
-          make -C software/bootrom_mp
-
-      - name: Rebuild N=4 MP images at this commit
-        working-directory: verification/isa
-        run: ./build_mp_images.sh 4 ../../xcelium/riscv_test/rcf
-
-      - name: Run full MP ISA regression
-        run: |
-          source ./cdspaths.sh
-          cd xcelium/riscv_test/behavioral_mp
-          MAX_PARALLEL=6 ./xrun_parallel.sh
-
-      # Peripheral suite images come from the seeded workspace (their build is not
-      # commit-coupled the way the ISA/bootrom images are).
-      - name: Run peripheral suite
-        run: |
-          source ./cdspaths.sh
-          cd xcelium/periph_test/behavioral
-          MAX_PARALLEL=5 ./xrun_parallel.sh
-
-      - name: Cleanup — kill any stranded sims
-        if: always()
-        run: pkill -9 xmsim || true
+          find bazel-testlogs -name test.log | while read -r f; do
+            if grep -qE "^FAIL|TIMEOUT|ERROR" "$f"; then
+              echo "== $f"
+              tail -20 "$f"
+              grep -E "^(FAIL|TIMEOUT)" "$f" | head -3 | while IFS= read -r line; do
+                echo "::error::${f#bazel-testlogs/}: ${line}"
+              done
+            fi
+          done

@@ -52,9 +52,12 @@ Do **not** add `physical.yml`'s harden job: it is skipped on merge-group events
 by design (a 4–5 h GDSII run has no business in a merge path), so requiring it
 stalls the queue exactly like a `sim.yml` job would.
 
-**Do not add any `sim.yml` job.** That file has no `merge_group:` trigger (see
-its header for why), so a required check pointing at it would have nothing to
-satisfy it and the queue would sit until it times out.
+`sim.yml` is, since 2026-08-21, the **hosted** GHDL ISA regression under bazel
+(the self-hosted Cadence tier it replaced lives in that file's git history).
+It has a `merge_group:` trigger and no shared-license concurrency, so its
+`GHDL ISA regression (bazel)` job MAY be added as a required check — budget
+~10 min warm-cache. The old rule ("never require a sim.yml job") applied to
+the Cadence tier and applies again the day that tier returns.
 
 ## 2. Repo settings
 
@@ -83,10 +86,10 @@ Then open the merge-queue rule's settings:
 
 | Trigger | Runs | Notes |
 | --- | --- | --- |
-| PR opened / pushed | `ci.yml` tier 1 | Fast feedback on the PR head. Duplicated by the queue run later; that is expected and cheap. |
-| PR labelled `run-sim` | `sim.yml` smoke suite | Still opt-in, still one Cadence seat at a time. Unchanged. |
-| Queued for merge | `ci.yml` tier 1 on the rebased candidate | The gate that actually protects `main`. |
-| Queue merges to `main` | `sim.yml` full regression + `pages.yml` deploy | Both key off `push: branches: [main]`, and the queue's merge is such a push. Post-merge safety net, unchanged. |
+| PR opened / pushed | `ci.yml` tier 1 + `sim.yml` ISA regression + `physical.yml` fast jobs | All hosted, license-free. Duplicated by the queue run later; that is expected and cheap. |
+| PR labelled `run-physical` | `physical.yml` harden (full GDSII) | Opt-in, 4–5 h. |
+| Queued for merge | `ci.yml` tier 1 (+ any of the hosted sim/physical jobs made required) on the rebased candidate | The gate that actually protects `main`. |
+| Queue merges to `main` | `sim.yml` regression + `pages.yml` deploy | Both key off `push: branches: [main]`, and the queue's merge is such a push. Post-merge safety net. |
 
 ## 4. Verifying it works
 

@@ -8,7 +8,8 @@ name: CI
 #   * docs-gates: relative-link check over all HTML/MD + py_compile of the generator.
 #   * software-build: bootrom_mp (reproduces bin/rom.rcf byte-identically with the
 #     pinned toolchain) + the full N=4 MP ISA image set (~90 s).
-# Simulation lives in sim.yml (self-hosted Cadence runner) — never here.
+# Simulation lives in sim.yml (GHDL ISA regression via bazel, hosted) — never
+# here. Physical (GHDL bridge / cocotb smoke / LibreLane GDSII) is physical.yml.
 
 on:
   push:

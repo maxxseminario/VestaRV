@@ -40,6 +40,20 @@ one's already on your PATH, otherwise a self-contained download — nothing
 outside this directory is touched). The second runs the cocotb smoke test
 and the full ISA regression and prints a combined pass/fail summary.
 
+## CI (`.github/workflows/sim.yml`)
+
+The ISA regression is also the repo's tier-2 CI, as bazel tests: `bazel test
+//opensource_sim/...` runs one `sh_test` per suite on every PR / push /
+nightly, fully hermetically — the images come from `//verification/isa`'s
+`os_*` targets (hermetic xPack GCC, defines mirroring `run_isa.sh`'s
+`CORE_ENABLE_DEFS`), the simulator is `@ghdl` built from source, and its
+std/ieee libraries are bazel outputs. The runner installs nothing but
+bazelisk. The wrappers drive `run_isa.sh` in prebuilt-image mode
+(`ISA_BUILD_DIR` set ⇒ the make step and the RISC-V-toolchain requirement
+drop away; `ISA_WORK_DIR` keeps GHDL's work library out of the read-only
+runfiles tree). The cocotb smoke test rides in `physical.yml` instead (its
+`sim-smoke` job), so CI covers both halves of `run_sim.sh`.
+
 ## What just ran
 
 **Smoke test** (`sky130/sim`, via `make -C sky130/sim`): a cocotb testbench
@@ -56,15 +70,24 @@ suites `rv32ui` (base integer), `rv32um` (multiply/divide), `rv32ua`
 (atomics **and** the X-series extension probes), `rv32uc` (compressed), the
 bit-manipulation extensions `rv32uzba`/`rv32uzbb`/`rv32uzbc`/`rv32uzbs`, and
 `rv32uzf` (the Zfinx single-precision FP suite — converted rv32uf + directed FP
-vectors, built `-march=rv32imc_zfinx`). The current tree runs **139 individual
-test programs** and reports **45 justified SKIPs** (184 present in total). The skips fall in two documented
-families, both keyed in `run_isa.sh`'s `SKIP` table: MCU / multi-hart
-system-integration tests (peripheral MMIO, the HW-mutex bank, CLINT/IRQ
-routing, or harts launched through the `mp_boot` ROM — none of which exist on
-this one-hart, peripheral-less harness) and X-series negative-control "poison"
-probes (encodings that MUST take the illegal-instruction trap, verified in the
-repo under an external trap-watching harness — this a0-sentinel harness has no
-software trap recovery, so a trap dead-ends rather than reporting a sentinel).
+vectors, built `-march=rv32imc_zfinx`). The run/skip counts come from the run
+summary itself (`ISA RESULTS: <npass>/<ntotal> passed (skipped: <nskip>)`) —
+the suite grows with the tree, so no number is quoted here. The skips fall in
+four documented families, all keyed in `run_isa.sh`'s `SKIP` table: (1) MCU /
+multi-hart system-integration tests (peripheral MMIO, the HW-mutex bank,
+CLINT/IRQ routing, or harts launched through the `mp_boot` ROM — none of
+which exist on this one-hart, peripheral-less harness); (2) X-series
+negative-control "poison" probes (encodings that MUST take the
+illegal-instruction trap, verified in the repo under an external
+trap-watching harness — this a0-sentinel harness has no software trap
+recovery, so a trap dead-ends rather than reporting a sentinel); (3) the
+privileged/trap/IRQ/debug machinery suites (`priv*`/`pmp*`/`dbg*mp` and the
+F/K-series detectors — they need trap delivery, the
+`TRAPCSR`/`PMP`/`UMODE`/`DEBUG` generics the TB predates, or the `hart_tile`
+shared bus); and (4) the W-series MCU-peripheral exercisers plus the newer
+`sh*` system tests. A NEW test failing here gets triaged into a family with
+its reason — never silently dropped, and never listed without being run and
+verified out-of-scope first.
 The POSITIVE, result-checking arm of every bare-verifiable extension IS run and
 passes. Each test is a small assembly program that self-checks and writes a
 sentinel to `a0` (register x10): `0xCAFEBABE` = pass, `0xDEADBEEF` = fail (the
