@@ -6,6 +6,10 @@ The `generator/` directory contains the automated toolchain for generating all c
 
 ## Quick Start
 
+This generator is **not** Bazel-managed and never will be - it overwrites
+tracked files in place. The commands below are the only way to run it; see
+[Building with Bazel](#building-with-bazel) for the detail.
+
 **Using Make (recommended):**
 
 ```bash
@@ -30,8 +34,8 @@ cd generator
 
 **This generator is deliberately NOT Bazel-managed.** It overwrites tracked
 files in place (`config/`, `gcc/lib/`, `latex/`), which is exactly what a
-hermetic, sandboxed build must never do, so no Bazel target runs it. Run it the
-old way, as documented below, and expect it to modify your working tree.
+hermetic, sandboxed build must never do, so no Bazel target runs it. Run it
+directly, as documented in this file, and expect it to modify your working tree.
 
 The only Bazel targets in this directory are two filegroups that hand the
 already-generated, tracked outputs to the firmware builds:
@@ -325,7 +329,7 @@ Files that are **manual** (can edit):
 
 1. **Make changes** to `python/generate.py`
 2. **Regenerate** all files: `make` (or `./regenerate.sh`)
-3. **Rebuild** firmware: `cd ../software && make clean && make`
+3. **Rebuild** firmware: `tools/bin/bazel build //software/...` from the repo root
 4. **Test** in simulation or on hardware
 5. **Commit** changes to git
 
@@ -344,7 +348,7 @@ Files that are **manual** (can edit):
 A: Make sure you're running from `generator/` directory: `./regenerate.sh`
 
 **Q: Linker errors about missing sections**  
-A: Regenerate linker scripts and rebuild: `./regenerate.sh && cd ../software && make clean && make`
+A: Regenerate the linker scripts with `./regenerate.sh`, then rebuild the firmware with `tools/bin/bazel build //software/...`
 
 **Q: Want to create a new chip variant**  
 A: Copy `python/generate.py` to `python/generate_<variant>.py`, modify parameters, and update `ChipGenerator()` to output to different paths or use a different chip name.

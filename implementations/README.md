@@ -50,15 +50,11 @@ wherever it happens to be invoked. The hermetic path is
 | `//platform/common:castalia_analog_chapter_test` | The analog chapter is present in the generated TRM tree. |
 | `//platform/common/python:check_config_defaults_test` | Each knob's two default literals in `generate.py` agree with each other. |
 
-### Legacy path
-
-`cd platform/common && make chip` still works unchanged; it is the legacy
-in-tree generation path. The Bazel targets above are the verified equivalent
-with the gates attached, so prefer them.
+### Outside Bazel
 
 Cadence flows (Genus, Innovus, Pegasus, Xcelium, `make verify`) are permanently
-outside Bazel - they are licensed binaries. Run them exactly as before, via
-`source cdspaths.sh`.
+outside Bazel - they are licensed binaries behind a license server, so no
+hermetic target can wrap them. Run them via `source cdspaths.sh`.
 
 Full map of the Bazel build: [`BAZEL.md`](../BAZEL.md).
 

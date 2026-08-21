@@ -65,17 +65,24 @@ writes wherever it runs; the hermetic path is `chip_artifacts_castalia`.
   under `/opt/cadence` behind a license server. Run them exactly as before
   (`source cdspaths.sh; ...`). They are permanently out of `//...`; any
   future wrapper must be tagged `manual`+`local`+`no-sandbox`.
-- **`make chip` / `make generate`** — still work unchanged, but they are the
-  legacy in-tree path. The Bazel generation is the verified equivalent with
-  the gates attached; prefer it. The `pdf` half is Bazel-wrapped host TeX
-  (`trm_pdf_local`); fully hermetic LaTeX is blocked upstream (bazel_latex
-  is lualatex-only and lacks 21 of the TRM's 45 package wrappers).
+- **In-tree regeneration of tracked artifacts** — Bazel generation is
+  sandboxed and never writes into the source tree, so the one thing it
+  cannot do is UPDATE a tracked generator product such as
+  `hdl/common/MCU.vhd`. `cd platform/common && make chip` is what writes
+  those files; `bazel test //platform/...` is what proves the result. That
+  is the only remaining role of the in-tree `make` targets - they are no
+  longer a documented alternative route for building anything, and the
+  READMEs describe the Bazel path only. The TRM `pdf` half is Bazel-wrapped
+  host TeX (`trm_pdf_local`); fully hermetic LaTeX is blocked upstream
+  (bazel_latex is lualatex-only and lacks 21 of the TRM's 45 package
+  wrappers).
 - **Bench / hardware tools** — the Forth dashboard, `rv4th_terminal.py`,
   flash/chip programmers, PyEmanate: they talk to physical boards over
   serial. Runtime tools, not builds; unmanaged by Bazel (their pip deps are
   also unpinned — lock them first if they ever move in).
-- **Myshkin legacy generator** (`platform/myshkin`) — overwrites tracked
-  files in-place; untouched, run it the old way if you must.
+- **Myshkin generator** (`platform/myshkin`) — overwrites tracked files
+  in-place, so it cannot be sandboxed. It is the only documentation for
+  regenerating the Myshkin platform files; run it directly.
 - **Spike lockstep cosim build** (`tools/cosim/build_vesta_ref.sh`) — pinned
   out-of-repo Spike + conda gcc; a future `http_archive` port is scoped in
   the devlog.

@@ -4,10 +4,10 @@ VestaRV32 implementation taped out to TSMC 65nm process in November 2025.
 
 ## Building through Bazel
 
-Myshkin's own generator is **not** Bazel-managed (see "Legacy and out-of-Bazel
-paths" below), but the tracked Myshkin platform snapshot is what every
-Bazel-built firmware image in the repo compiles against. Run all commands below
-**from the repo root**.
+Myshkin's own generator is **not** Bazel-managed (see "Outside Bazel" below),
+but the tracked Myshkin platform snapshot is what every Bazel-built firmware
+image in the repo compiles against. Run all commands below **from the repo
+root**.
 
 One-time bootstrap:
 
@@ -41,16 +41,18 @@ Nine GHDL ISA suites (`//opensource_sim:isa_rv32ui` and siblings) over
 `//hdl:vhdl_sources`, which includes the frozen `hdl/myshkin/` tree. No
 licensed tools involved.
 
-### Legacy and out-of-Bazel paths
+### Outside Bazel
+
+Three things about this chip are out of Bazel's scope, and this is the only
+place they are documented:
 
 - The Myshkin generator (`platform/myshkin/`) overwrites tracked files in
-  place and is deliberately left out of Bazel. It is a **frozen** tree; run it
-  the old way if you must.
-- Cadence flows (Genus, Innovus, Pegasus, Xcelium, `make verify`) are
-  permanently outside Bazel - licensed binaries. Run them exactly as before,
-  via `source cdspaths.sh`.
-- Bench and silicon-validation tooling talks to physical boards over serial and
-  is likewise unmanaged by Bazel.
+  place, which no hermetic rule can do. It is a **frozen** tree; if you do need
+  to regenerate it, run `platform/myshkin/regenerate.sh` directly.
+- Cadence flows (Genus, Innovus, Pegasus, Xcelium, `make verify`) are licensed
+  binaries behind a license server. Run them via `source cdspaths.sh`.
+- Bench and silicon-validation tooling talks to physical boards over serial, so
+  it is a runtime activity rather than a build.
 
 Full map of the Bazel build: [`BAZEL.md`](../../../BAZEL.md).
 

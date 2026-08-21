@@ -17,8 +17,7 @@ castalia/
 
 `MCU.vhd` and `MemoryMap.vhd` in this directory are generated products. Bazel
 runs that generation hermetically, in a sandbox, with the identity checks
-attached; it is the recommended path and the legacy `make chip` still works.
-Every command is run from the repo root.
+attached. Every command is run from the repo root.
 
 One-time bootstrap:
 
@@ -51,10 +50,11 @@ Castalia is the **default configuration of the shared multi-core tree
 `hart_tile.vhd`, `mp_arbiter.vhd`, …) live there and are shared with Argus.
 The files in this directory are the Castalia instantiation of that tree.
 
-- `MCU.vhd` / `MemoryMap.vhd` are **generated** by `platform/common`
-  (`make chip`) — NEVER hand-edit them, here or in `hdl/common/`.
+- `MCU.vhd` / `MemoryMap.vhd` are **generated** by `platform/common` -
+  NEVER hand-edit them, here or in `hdl/common/`.
   Change `hdl_templates/MCU.template.vhd` or `generate.py`/`mcu_vhd.py`,
-  re-run `make chip`, and verify with `check_mcu_vhd.py` / `check_memorymap_vhd.py`.
+  rebuild `//platform/common:chip_artifacts_castalia`, and verify with
+  `//platform/common:check_mcu_vhd_test` / `:check_memorymap_vhd_test`.
 - The simulation/synthesis flows (`xcelium/riscv_test/*/cell_list_*.txt`,
   genus/innovus flows) currently compile **`hdl/common/`**, not this
   directory. If the copies here and in `hdl/common/` diverge, `hdl/common/`

@@ -6,8 +6,8 @@ This directory contains comprehensive verification infrastructure for the VestaR
 
 Bazel is the recommended way to build the test images and run the gates: it
 fetches the exact pinned RISC-V cross compiler and a from-source GHDL, so a
-fresh clone needs no local toolchain at all. The `make` flows below still work
-and are kept as the legacy path. Every command is run from the repo root.
+fresh clone needs no local toolchain at all. Every command is run from the repo
+root.
 
 One-time bootstrap:
 
@@ -25,8 +25,8 @@ tools/bin/bazel test //...       # first run downloads all toolchains
 | `//verification/npu/...` | test | the NPU golden model: vector regeneration, the firmware-smoke golden generators, and `validate_mlp` against the chip-config golden set |
 | `//opensource_sim:isa_regression` | test | all nine ISA suites actually running against the RTL under GHDL, license free |
 
-`benchmarks/` and `mt/` are not in the Bazel graph; build them with the legacy
-`make` path described below. See [`isa/README.md`](isa/README.md) and
+`benchmarks/` and `mt/` are not in the Bazel graph; their `make` build is in
+the "Outside Bazel" section below. See [`isa/README.md`](isa/README.md) and
 [`npu/README.md`](npu/README.md) for the per-suite and per-generator targets,
 and [`BAZEL.md`](../BAZEL.md) for the full map.
 
@@ -75,19 +75,12 @@ Contains:
 
 **Purpose:** Shared test environment for consistent test execution
 
-## Quick Start
+## Outside Bazel
 
-Legacy path. The `make` recipes below still work and need a locally installed
-RISC-V toolchain; the Bazel targets above build the same images with a pinned,
-fetched one.
-
-### Build ISA Tests
-```bash
-cd isa/
-make rv32ui        # Build user-level integer tests
-make rv32um        # Build multiply/divide tests
-make all           # Build all ISA tests
-```
+`benchmarks/` and `mt/` are the UCB riscv-bmarks Makefiles, carried here
+essentially unmodified. They are not in the Bazel graph and have no equivalent
+target, so they are built with `make` against a locally installed RISC-V
+toolchain (see [Requirements](#requirements) below).
 
 ### Build Benchmarks
 ```bash
@@ -95,22 +88,11 @@ cd benchmarks/
 make all
 ```
 
-### Run in VHDL Simulation
-1. Build tests to generate RCF files:
-   ```bash
-   cd isa/
-   make rv32ui
-   ```
-
-2. RCF files are collected in `isa/rcf/` directory
-
-3. Point your VHDL testbench to load RCF files from this location:
-   ```vhdl
-   -- Example: Load test program into ROM
-   -- ROM initialization file: verification/isa/rcf/rv32ui-p-add.rcf
-   ```
-
-4. See `hdl/myshkin/tb/` for example testbench implementations
+### Build Multi-threaded Tests
+```bash
+cd mt/
+make all
+```
 
 ## Test Organization
 
@@ -139,8 +121,8 @@ make all
 
 ### ISA Tests
 1. Add test source to appropriate `isa/tests/<suite>/` directory
-2. Update `isa/Makefile` if adding new test suite
-3. Run `make <suite>` to build and generate RCF files
+2. Update `isa/BUILD.bazel` (and `isa/Makefile`) if adding a new test suite
+3. Build the suite's images, e.g. `tools/bin/bazel build //verification/isa:rv32ui_rcfs`
 
 ### Benchmarks
 1. Add benchmark source to `benchmarks/<name>/`

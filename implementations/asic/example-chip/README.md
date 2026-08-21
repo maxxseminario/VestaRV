@@ -50,13 +50,11 @@ wherever it happens to be invoked. The hermetic path is the
 Simulate the RTL license-free with
 `tools/bin/bazel test //opensource_sim:isa_regression`.
 
-### Legacy and out-of-Bazel paths
+### Outside Bazel
 
-- `cd platform/common && make chip` still works unchanged; it is the legacy
-  in-tree generation path.
-- Cadence flows (Genus, Innovus, Pegasus, Xcelium, `make verify`) are
-  permanently outside Bazel - licensed binaries. Run them exactly as before,
-  via `source cdspaths.sh`.
+Cadence flows (Genus, Innovus, Pegasus, Xcelium, `make verify`) are permanently
+outside Bazel - they are licensed binaries behind a license server, so no
+hermetic target can wrap them. Run them via `source cdspaths.sh`.
 
 Full map of the Bazel build: [`BAZEL.md`](../../../BAZEL.md).
 

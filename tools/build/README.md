@@ -11,11 +11,10 @@ This directory contains the build infrastructure for the Vestarv RISC-V processo
 
 ## Building with Bazel
 
-Bazel is the recommended path, and it makes the toolchain setup below optional:
-the build fetches and pins the RISC-V cross-compiler itself, so a fresh clone
-compiles firmware with nothing installed locally. The manual toolchain install
-and the `make` flow documented below still work and are kept as the legacy path
-(the bench flows and the Cadence simulations still use them).
+Bazel builds the firmware, and it needs no toolchain installed on the host: it
+fetches and pins the RISC-V cross-compiler itself, so a fresh clone compiles
+firmware with nothing installed locally. The host toolchain install documented
+under "Outside Bazel" below is needed only for the work Bazel does not cover.
 
 Run everything from the repo root:
 
@@ -43,11 +42,14 @@ tools/bin/bazel test  //software/...        # proves both scripts against the go
 
 Full map of the Bazel build: [`BAZEL.md`](../../BAZEL.md).
 
-## Toolchain Setup
+## Outside Bazel
 
-*Legacy path.* Installing the toolchain by hand is only needed for the make
-flow, the bench tools and the Cadence simulations. The Bazel build fetches
-its own pinned copy and ignores `RISCV_TOOLCHAIN_DIR`.
+Some work in this repo runs outside Bazel and needs a `riscv-none-elf-`
+toolchain on the host: the Cadence simulations (`platform/common`'s
+`make verify`, the Xcelium and lockstep gates), the course SDK's `make sim` /
+`make deploy`, and the bench and programmer tools. Those are the only reasons
+to install one - the Bazel build fetches its own pinned copy and ignores
+`RISCV_TOOLCHAIN_DIR`.
 
 ### Required Toolchain
 
@@ -92,24 +94,17 @@ Set the toolchain path in makefiles or environment variable:
 export RISCV_TOOLCHAIN_DIR=~/riscv-toolchain/xpack-riscv-none-elf-gcc-13.2.0-2
 ```
 
-Or edit the `RISCV_DIR` variable in project makefiles (e.g., `firmware/bootrom/makefile`).
-
 ### Python Dependencies
 
-Some build scripts require Python packages:
+The bench and programmer tools (`tools/chip_programmer/`, `tools/flash_programmer/`,
+`tools/PyEmanate/`) read Intel HEX images with a host Python package:
 ```bash
 pip install intelhex
 ```
 
+Bazel supplies its own hermetic Python and needs none of this.
+
 ## Building Firmware
 
-*Legacy path.* See [`software/README.md`](../../software/README.md) for the
-Bazel firmware targets.
-
-Navigate to the firmware project you want to build:
-```bash
-cd ../firmware/bootrom
-make all
-```
-
-See individual firmware project directories for specific build instructions.
+See [`software/README.md`](../../software/README.md) for the firmware targets
+and the per-app conventions.

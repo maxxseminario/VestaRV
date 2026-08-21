@@ -26,29 +26,32 @@ same RTL all the way to a signed-off sky130 GDSII (synthesis, P&R, DRC, LVS);
 this directory just proves the RTL is functionally correct first, with a much
 lighter toolchain (no PDK, no LibreLane).
 
-## Quick start
+## The cocotb smoke test - outside Bazel
+
+The ISA regression is a bazel test (next section). The cocotb smoke test is
+not: cocotb has no hermetic dependency wiring in the build yet, so this shell
+flow is the only way to run it.
 
 ```sh
 git clone https://github.com/maxxseminario/VestaRV.git && cd VestaRV
 ./opensource_sim/setup_env.sh && source opensource_sim/env.sh
-./opensource_sim/run_sim.sh
+./opensource_sim/run_sim.sh --smoke-only
 ```
 
 The first command installs GHDL/gcc/make (via your system package manager),
 a Python venv with cocotb, and a pinned RISC-V GCC toolchain (system-wide if
 one's already on your PATH, otherwise a self-contained download — nothing
-outside this directory is touched). The second runs the cocotb smoke test
-and the full ISA regression and prints a combined pass/fail summary.
+outside this directory is touched). The second runs the cocotb smoke test and
+prints its pass/fail summary.
 
 ## Building and testing with Bazel
 
-The same regression runs as bazel tests, and that is the recommended path: the
-simulator is `@ghdl` built from source, the images come from
-`//verification/isa`'s ON-polarity `os_*` targets, and the RISC-V toolchain is
-fetched and pinned by the build. Nothing is installed on the host, so no GHDL
+The ISA regression runs as bazel tests: the simulator is `@ghdl` built from
+source, the images come from `//verification/isa`'s ON-polarity `os_*` targets,
+and the RISC-V toolchain is fetched and pinned by the build. Nothing is installed on the host, so no GHDL
 version check, no venv, and no container fallback is involved. Every command is
-run from the repo root. The `setup_env.sh` / `run_sim.sh` flow above stays as
-the legacy path, and it is still the only one that runs the cocotb smoke test.
+run from the repo root. The cocotb smoke test is the one thing these targets do
+not cover; it is run as shown above.
 
 One-time bootstrap:
 
@@ -84,7 +87,7 @@ drop away; `ISA_WORK_DIR` keeps GHDL's work library out of the read-only
 runfiles tree). The cocotb smoke test rides in `physical.yml` instead (its
 `sim-smoke` job), so CI covers both halves of `run_sim.sh`.
 
-## What just ran
+## What the two halves cover
 
 **Smoke test** (`sky130/sim`, via `make -C sky130/sim`): a cocotb testbench
 drives the bare `vesta` core against a behavioral 3-instruction program

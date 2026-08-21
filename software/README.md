@@ -4,21 +4,17 @@ This directory contains firmware projects for the VestaRV processor. These are e
 
 ## Quick Start
 
-**New to VestaRV?** See the toolchain and build-system setup in
-[`tools/build/README.md`](../tools/build/README.md).
-
-**Try the blinky example:**
+**Try the blinky example**, from the repo root:
 ```bash
-cd blinky
-make all && make sim
+sh tools/get_bazel.sh
+tools/bin/bazel build //software/blinky:blinky_flashed_rcf
 ```
 
 ## Building with Bazel
 
-Bazel is the recommended path. It provisions the pinned RISC-V cross-compiler
-itself, so a fresh clone needs no locally installed toolchain, and every image
-is built in a sandbox and checked against a tracked golden. The legacy `make`
-flow documented further down still works unchanged.
+Bazel builds every firmware image here. It provisions the pinned RISC-V
+cross-compiler itself, so a fresh clone needs no locally installed toolchain,
+and every image is built in a sandbox and checked against a tracked golden.
 
 Run everything from the repo root:
 
@@ -106,79 +102,29 @@ Communal code shared across firmware projects:
 
 ## Adding New Firmware Projects
 
-### Quick Start with Project Generator
+### Scaffolding a project (not managed by Bazel)
 
-The easiest way to create a new firmware project is using the provided Makefile:
+Bazel has no scaffolding rule, so a new project directory is still created by
+the `software/Makefile` generator:
 
 ```bash
 cd software/
 make new PROJECT=my-app          # Create RAM-based application
 make new PROJECT=my-boot TYPE=rom # Create ROM-based bootloader
+make list                        # List all firmware projects
+make help                        # Show all available commands
 ```
 
-This automatically creates:
-- Complete directory structure (src/, include/, obj/, bin/)
-- Configured makefile with all build targets
-- Template source files (main.c, start.S)
+This creates the directory structure (src/, include/, obj/, bin/) and the
+template source files (main.c, start.S).
 
-**Available Commands:**
-```bash
-make help          # Show all available commands
-make new PROJECT=<name> [TYPE=ram|rom]  # Create new project
-make list          # List all firmware projects
-make build-all     # Build all projects
-make clean-all     # Clean all projects
-```
+### Wiring it into the build
 
-## Build System
-
-*Legacy path.* The make-based flow below still works and is kept for the
-bench and Cadence simulation workflows. For new work prefer the Bazel
-targets above.
-
-### Top-Level Makefile Commands
-
-The `software/Makefile` provides project management:
-
-| Command | Description |
-|---------|-------------|
-| `make help` | Show all available commands |
-| `make new PROJECT=<name>` | Create new project (default: RAM-based) |
-| `make new PROJECT=<name> TYPE=rom` | Create ROM-based project |
-| `make list` | List all firmware projects |
-| `make build-all` | Build all projects |
-| `make clean-all` | Clean all projects |
-
-### Project Makefile Variables
-
-Each project has its own makefile with these key variables:
-
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `TARGET` | Output binary name | `flashboot` |
-| `SRC_SOURCES` | Project source files | `main.c uart.c start.S` |
-| `LIB_SOURCES` | Library source files from common/ | `gpio.c spi.c` |
-| `EXTENSIONS` | RISC-V ISA extensions | `imac` (I+M+A+C) |
-| `LD_SCRIPT` | Linker script path | `MCU-bootrom.ld` or `MCU.ld` |
-
-### Build Targets
-
-Within each project directory:
-
-```bash
-make all          # Build all outputs (.elf, .bin, .hex, .dump, .rcf)
-make clean        # Remove build artifacts
-```
-
-### Output Files
-
-| File Type | Description | Use Case |
-|-----------|-------------|----------|
-| `.elf` | Executable with debug symbols | Debugging, GDB |
-| `.bin` | Raw binary | Programming flash |
-| `.hex` | Intel HEX format | Programming tools |
-| `.dump` | Disassembly listing | Code inspection |
-| `.rcf` | ROM Configuration File | VHDL simulation |
+Add a `BUILD.bazel` next to the new sources with a `myshkin_app` target from
+[`//toolchains/riscv:defs.bzl`](../toolchains/riscv/defs.bzl) - copy
+[`software/blinky/BUILD.bazel`](blinky/BUILD.bazel), which is the template the
+other app packages were cloned from. Pair it with a `firmware_image_test` and a
+tracked golden so the image cannot drift.
 
 ## Memory Layout
 
@@ -224,20 +170,20 @@ Used for:
    make new PROJECT=my-app
    cd my-app/
    ```
+   then add a `BUILD.bazel` as described above.
 
 2. **Write code** in `src/` directory:
    - Edit `src/main.c` with your application logic
    - Add peripheral headers as needed
    - Modify `src/start.S` if custom startup required
 
-3. **Update makefile** (if needed):
-   - Add source files to `SRC_SOURCES`
-   - Add library dependencies to `LIB_SOURCES`
-   - Adjust `EXTENSIONS` for required ISA features
+3. **Update `BUILD.bazel`** (if needed):
+   - Add source files and headers to the `myshkin_app` target
+   - Adjust the ISA extensions for the features you need
 
 4. **Build firmware**:
    ```bash
-   make all
+   tools/bin/bazel build //software/my-app:my-app_flashed_rcf
    ```
 
 5. **Test in simulation**:
@@ -255,9 +201,11 @@ Used for:
 
 ## Requirements
 
-- **RISC-V Toolchain**: `riscv-none-elf-gcc` (see [`tools/build/README.md`](../tools/build/README.md))
-- **Python 3**: For build utilities and RCF generation
-- **Make**: GNU Make for build automation
+Bazel provisions the RISC-V cross-compiler and the Python it needs, so building
+firmware requires nothing installed locally beyond `tools/bin/bazel` (fetched by
+`tools/get_bazel.sh`). A host `riscv-none-elf-` toolchain is needed only for the
+work that sits outside Bazel - the bench and programmer tools and the Cadence
+simulations; see [`tools/build/README.md`](../tools/build/README.md).
 
 ## Example: Creating a Blink Project
 
@@ -294,12 +242,12 @@ int main(void) {
 }
 EOF
 
-# Build
-make all
-
-# Output files created in bin/
-ls bin/
-# blinky.elf  blinky.bin  blinky.hex  blinky.dump  blinky.rcf  blinky.map
+# Build (from the repo root, once BUILD.bazel is in place)
+tools/bin/bazel build //software/blinky:blinky_elf \
+                      //software/blinky:blinky_bin \
+                      //software/blinky:blinky_hex \
+                      //software/blinky:blinky_dump \
+                      //software/blinky:blinky_flashed_rcf
 ```
 
 ## Related Documentation

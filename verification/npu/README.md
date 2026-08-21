@@ -17,8 +17,7 @@ misbehaves.
 ## Building and testing with Bazel
 
 Bazel runs this library's gates hermetically, against its own pinned Python, so
-none of the `python3`-wrapper caveats above apply inside the sandbox. The
-by-hand invocations below still work and are kept as the legacy path. Every
+none of the `python3`-wrapper caveats above apply inside the sandbox. Every
 command is run from the repo root.
 
 One-time bootstrap:

@@ -47,8 +47,7 @@ wherever it happens to be invoked. The hermetic generation path is
 
 Cadence flows (Genus, Innovus, Pegasus, Xcelium, `make verify`) are permanently
 outside Bazel - licensed binaries. Run them exactly as before, via
-`source cdspaths.sh`. The `make` paths under `platform/common/` and
-`verification/` also still work; they are the legacy in-tree route.
+`source cdspaths.sh`.
 
 Full map of what is Bazel-managed and what is not: [`BAZEL.md`](BAZEL.md).
 
@@ -90,9 +89,13 @@ by hand.** To change the top level:
 
 1. Edit `platform/common/hdl_templates/MCU.template.vhd` (fixed regions) or
    `platform/common/python/generate.py` + `mcu_vhd.py` (generated regions).
-2. Run `cd platform/common && make chip`.
+2. Run `cd platform/common && make chip`. Bazel builds the same artifact
+   hermetically as `//platform/common:chip_artifacts_castalia`, but it is
+   sandboxed and never writes into the tree, so the in-tree regeneration is
+   what updates the tracked file.
 3. Copy `platform/common/out/hdl/MCU.vhd` over `hdl/common/MCU.vhd`.
-4. Prove `platform/common/python/check_mcu_vhd.py` exits 0 (byte-identical).
+4. Prove it with `tools/bin/bazel test //platform/...` - the identity gates
+   there are the same ones CI runs, and they fail on any hand-edit.
 
 Generator outputs never leave `platform/common/` on their own — copies into `hdl/`,
 `software/`, or `docs/` are explicit, scripted publish steps.
@@ -215,9 +218,9 @@ identity/determinism gates), `//software/...` (firmware image goldens),
 benches).
 
 Any HDL change that modifies:
-- **The VestaRV core** (`hdl/common/vesta/`) — must pass all ISA tests (`cd verification/isa && make all`)
-- **A peripheral** (`hdl/common/periph/`) — must include or update the corresponding testbench in `hdl/common/tb/` and demonstrate a passing simulation
-- **The memory map** — must regenerate via `cd platform/common && make chip` and confirm it runs without error (and, for a top-level change, that `check_mcu_vhd.py` still passes)
+- **The VestaRV core** (`hdl/common/vesta/`) — must pass the full ISA regression: `tools/bin/bazel test //opensource_sim:isa_regression`
+- **A peripheral** (`hdl/common/periph/`) — must include or update the corresponding testbench in `hdl/common/tb/` and demonstrate a passing simulation: `tools/bin/bazel test //hdl/common/tb:all`
+- **The memory map** — must regenerate via `cd platform/common && make chip`, then pass the identity gates: `tools/bin/bazel test //platform/...`
 
 Simulation can be run with any VHDL-2008-compatible simulator (GHDL, ModelSim, Xcelium, Questa). See [`hdl/README.md`](hdl/README.md) for simulation setup.
 
