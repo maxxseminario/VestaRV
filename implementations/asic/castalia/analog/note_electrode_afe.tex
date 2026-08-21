@@ -38,14 +38,19 @@ rather than being reshaped by it. Current is read from the output voltage as
 \(v_{\mathrm{out}} = V_{\mathrm{CM}} + i_{\mathrm{we}}R_f\). The peak therefore
 moves the output \SI{0.30}{\volt} from \(V_{\mathrm{CM}} = \SI{1.25}{\volt}\),
 \SI{38}{\percent} of the \(\pm\SI{0.80}{\volt}\) transimpedance window at this
-gain, so the sweep is measured unclipped.
+gain, so the sweep is measured unclipped. The four wound-panel analytes run as
+Maestro corners on the same test (each corner overrides
+\(E^{0\prime}\), \(k^0\), \(D\), \(n\) and the bulk concentrations);
+Figure~\ref{fig:electrode-panel} shows the resulting voltammograms.
 
 \paragraph{What these numbers do not cover.} Five limits, each of which changes
 how a figure above must be read.
 
 \begin{itemize}[nosep]
-  \item The in-loop result is a single nominal transient: one process point, one
-    temperature, no corner set and no Monte Carlo.
+  \item The in-loop results are nominal transients: one process point, one
+    temperature, no process-corner set and no Monte Carlo. The analyte corners
+    of Figure~\ref{fig:electrode-panel} vary only the electrode parameters and
+    all run at the nominal process point.
   \item A Verilog-A element carries no mismatch statistics. \texttt{electrode\_bc}
     contributes nothing to a Monte Carlo run and must never be the thing one
     measures; every Monte Carlo \(\sigma\) in this chapter holds the electrode
