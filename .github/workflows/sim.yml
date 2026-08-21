@@ -67,18 +67,25 @@ jobs:
 
       - name: Run ISA regression
         run: |
+          set -o pipefail
           tools/bin/bazel test //opensource_sim:isa_regression \
             --repository_cache=~/.cache/bazel-repo-cache \
             --test_output=errors \
-            --test_summary=detailed
+            --test_summary=detailed 2>&1 | tee bazel_ci.log
 
       # Raw job logs are auth-only; annotations are anonymously readable via
       # the check-runs API — the diagnostic channel a credential-less bench
-      # session can see (same pattern as physical.yml).
-      - name: Surface failing test logs as annotations
+      # session can see (same pattern as physical.yml). Two sources, because
+      # they cover different failure phases: bazel's own ERROR lines catch
+      # loading/analysis failures (a missing package produces NO test.log at
+      # all — learned on 0c0bff1), test.log tails catch actual sim failures.
+      - name: Surface failure diagnostics as annotations
         if: failure()
         run: |
-          find bazel-testlogs -name test.log | while read -r f; do
+          grep -E "^ERROR:" bazel_ci.log | head -5 | while IFS= read -r line; do
+            echo "::error::bazel: ${line}"
+          done
+          find bazel-testlogs -name test.log 2>/dev/null | while read -r f; do
             if grep -qE "^FAIL|TIMEOUT|ERROR" "$f"; then
               echo "== $f"
               tail -20 "$f"
