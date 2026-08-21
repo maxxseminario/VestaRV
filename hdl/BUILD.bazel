@@ -1,11 +1,23 @@
 # All hand-written VHDL sources as one filegroup.
 # The *.pre_pack / *.pre_vhdl2008 sidecar files carry different extensions and
 # are therefore excluded by the globs automatically.
+# hdl/common/tb is its own package (it has a BUILD file), so the glob cannot
+# descend into it; its filegroup is appended explicitly to keep vhdl_sources
+# meaning "every tracked VHDL file under hdl/".
 filegroup(
     name = "vhdl_sources",
     srcs = glob([
         "**/*.vhd",
         "**/*.vhdl",
-    ]),
+    ]) + ["//hdl/common/tb:tb_vhdl_sources"],
+    visibility = ["//visibility:public"],
+)
+
+# Fine-grained handle for the one file the chip generator's TRM diagram
+# scraper reads, so RTL edits elsewhere do not invalidate the generation
+# action.
+filegroup(
+    name = "npu_vhd",
+    srcs = ["common/periph/NPU.vhd"],
     visibility = ["//visibility:public"],
 )

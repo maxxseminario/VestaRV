@@ -5,3 +5,36 @@ alias(
     name = "generate",
     actual = "//platform/common/python:generate",
 )
+
+# The measured analog chapter, spliced into the TRM by
+# LatexUserGuide.CopyAnalogChapter. data/raw/** is 13MB of raw sim dumps that
+# no .tex inputs (it is named only in comments), so it stays out of the action.
+filegroup(
+    name = "castalia_analog_chapter",
+    srcs = glob(
+        ["implementations/asic/castalia/analog/**"],
+        exclude = ["implementations/asic/castalia/analog/data/raw/**"],
+        allow_empty = False,
+    ),
+    visibility = ["//visibility:public"],
+)
+
+# Top-level prose, for the documentation link checker.
+filegroup(
+    name = "root_docs",
+    srcs = glob(
+        ["*.md"],
+        allow_empty = True,
+    ),
+    visibility = ["//visibility:public"],
+)
+
+# Link TARGETS reached from docs/index.html (the published TRM PDFs).
+filegroup(
+    name = "doc_link_targets",
+    srcs = glob(
+        ["implementations/asic/*/docs/TRM.pdf"],
+        allow_empty = True,
+    ),
+    visibility = ["//visibility:public"],
+)
