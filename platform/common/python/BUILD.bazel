@@ -1,0 +1,103 @@
+load("@rules_python//python:defs.bzl", "py_binary", "py_library", "py_test")
+
+package(default_visibility = ["//visibility:public"])
+
+# The chip generator's real library modules, and nothing else.
+#
+# generate.py is deliberately NOT here: it is a SCRIPT, not a module -- importing
+# it runs a whole generation, writing out/, config/*.json and latex/TRM/. The
+# check_* scripts are excluded too; they are standalone textual checkers with no
+# dependency on these modules, and each gets its own target below.
+py_library(
+    name = "chipgen_lib",
+    srcs = [
+        "BitField.py",
+        "CRC.py",
+        "ChipGenerator.py",
+        "GpioConfigurator.py",
+        "LatexUserGuide.py",
+        "Package.py",
+        "Peripheral.py",
+        "Register.py",
+        "TabbedTable.py",
+        "mcu_vhd.py",
+        "tb_vhd.py",
+        "web_export.py",
+    ],
+    imports = ["."],
+)
+
+# generate.py as a runnable binary, for `bazel run //:generate`.
+#
+# WARNING: running this writes into whatever tree it is executed from, which for
+# `bazel run` is the SOURCE tree. The hermetic path is //platform/common:chip_artifacts_castalia,
+# which runs exactly this script inside a staged copy and declares its outputs.
+py_binary(
+    name = "generate",
+    srcs = ["generate.py"],
+    deps = [":chipgen_lib"],
+)
+
+# Every generator source, for staging into the hermetic generation action.
+filegroup(
+    name = "generator_srcs",
+    srcs = glob(
+        ["*.py"],
+        allow_empty = False,
+    ),
+)
+
+# The standing gate scripts, for staging into the check tests.
+filegroup(
+    name = "check_scripts",
+    srcs = glob(
+        [
+            "check_*.py",
+            "splice_*.py",
+        ],
+        allow_empty = False,
+    ),
+)
+
+exports_files(glob(
+    [
+        "check_*.py",
+        "splice_*.py",
+        "generate.py",
+    ],
+    allow_empty = False,
+))
+
+# ---------------------------------------------------------------------------
+# The check_* scripts as runnable binaries. The TESTS that point them at the
+# generated artifacts live in //platform/common, next to the generation rule.
+# ---------------------------------------------------------------------------
+[
+    py_binary(
+        name = script[:-len(".py")],
+        srcs = [script],
+    )
+    for script in [
+        "check_config_defaults.py",
+        "check_configurator_sync.py",
+        "check_intro_names.py",
+        "check_mcu_vhd.py",
+        "check_memorymap_h.py",
+        "check_memorymap_vhd.py",
+        "check_riscv_tb_vhd.py",
+        "splice_web_data.py",
+        "splice_register_browser.py",
+    ]
+]
+
+# Pure textual self-check of generate.py: every knob's two default literals
+# (the _CONFIG_SCHEMA entry and its _cfg() call site) must agree. The Makefile
+# runs this BEFORE generation, so it needs no generated input at all and reads
+# generate.py straight out of the runfiles tree.
+py_test(
+    name = "check_config_defaults_test",
+    size = "small",
+    srcs = ["check_config_defaults.py"],
+    data = ["generate.py"],
+    main = "check_config_defaults.py",
+)

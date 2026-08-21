@@ -1,0 +1,24 @@
+load("@rules_python//python:defs.bzl", "py_binary")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files(["chipgen.bzl"])
+
+# Runs generate.py inside a staged copy of the tree so the source tree is never
+# written to. See the module docstring for the path arithmetic it works around.
+py_binary(
+    name = "stage_generate",
+    srcs = ["stage_generate.py"],
+)
+
+# Shared launcher for the generator's check_* scripts as bazel tests.
+py_binary(
+    name = "check_runner",
+    srcs = ["check_runner.py"],
+)
+
+exports_files([
+    "assert_artifacts.py",
+    "check_runner.py",
+    "compare_trees.py",
+])
