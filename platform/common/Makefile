@@ -198,12 +198,18 @@ web:
 	@if [ -z "$(CONFIG)" ]; then \
 		python3 python/splice_web_data.py ../../docs/chip_configurator.html && \
 		echo "  • spliced VESTA_DATA into docs/chip_configurator.html (S7 consumption contract)"; \
+		python3 python/splice_register_browser.py ../../docs/register_browser.html && \
+		echo "  • spliced VESTA_REGDATA into docs/register_browser.html (register-browser provenance)"; \
 	else \
-		echo "  • CONFIG build — skipping the docs/ splice (the page carries the default bundle)"; \
+		echo "  • CONFIG build — skipping the docs/ splices (the pages carry the default bundle)"; \
 	fi
 	@echo ""
-	@echo "Re-checking the splice under the STRICT gate..."
+	@echo "Re-checking the splices under the STRICT gates..."
 	@python3 python/check_configurator_sync.py --strict
+	@if [ -z "$(CONFIG)" ]; then \
+		python3 ../../tools/python/check_register_browser.py \
+			--page ../../docs/register_browser.html --map out/web/MemoryMap.json; \
+	fi
 
 web-copy:
 	@echo "Exporting machine-readable chip data to out/web/..."
