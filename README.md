@@ -134,6 +134,13 @@ The following peripherals are included in the example configuration shown above.
 
 ## Quick Start
 
+> **Bazel (recommended):** the whole repo builds hermetically with no locally
+> installed toolchains — `sh tools/get_bazel.sh && tools/bin/bazel test //...`
+> covers chip generation, firmware, ISA images, the open-source GHDL
+> regression, and every gate script. See [`BAZEL.md`](BAZEL.md) for the full
+> map, including what deliberately stays outside Bazel (Cadence, bench
+> hardware). The manual steps below remain valid as the legacy path.
+
 1. **Clone the repository:**
    ```bash
    git clone https://github.com/maxxseminario/VestaRV.git
