@@ -12,12 +12,12 @@
 
 VestaRV is a custom 32-bit RISC-V processor core designed as an independent personal project, built from the ground up using the official RISC-V instruction set specification without deriving from any existing core implementations. The core implements **RV32IMAC** with the **Zba/Zbb/Zbc/Zbs** bit-manipulation extensions and the standard **M-mode trap architecture**, and features **stack-based recursive interrupt handling**.
 
-Beyond the single core, this repository is a **chip generator**: a family of SoCs emitted from one configuration source. A config file selects the hart count, the ISA extensions, and which peripherals exist; `make chip` then produces the RTL, the C headers, the linker scripts and the Technical Reference Manual together, and `make verify` proves that configuration boots.
+Beyond the single core, this repository is a **chip generator**: a family of SoCs emitted from one configuration source. A config file selects the hart count, the ISA extensions, and which peripherals exist; one build then produces the RTL, the C headers, the linker scripts and the Technical Reference Manual together, and the attached gates prove that configuration boots. The whole thing runs hermetically under Bazel - see [Quick Start](#quick-start).
 
-**One chip exists in silicon: Myshkin**, a single-core MCU taped out on TSMC 65nm in November 2025. Two further configurations exist as designs only — **Castalia** (4 harts) and **Argus** (18 harts, a teaching chip). Neither has been fabricated.
+**One chip exists in silicon: Myshkin**, a single-core MCU taped out on TSMC 65nm in November 2025. Further multi-core and many-core configurations exist as designs only; none of them has been fabricated.
 
-> 📄 **[Technical Reference Manual — Castalia (revised August 7, 2026)](implementations/asic/castalia/docs/TRM.pdf)**  
-> Complete peripheral register reference, system architecture, debug/JTAG chapter, and programming guide for the Castalia SoC — the 4-hart multi-core VestaRV MCU (TSMC 65nm, tape-out-ready). This is the current manual, generated from the chip configuration by `platform/common`.  
+> 📄 **[Technical Reference Manual — multi-core reference configuration (revised August 7, 2026)](implementations/asic/castalia/docs/TRM.pdf)**  
+> Complete peripheral register reference, system architecture, debug/JTAG chapter, and programming guide for the 4-hart multi-core VestaRV MCU (TSMC 65nm, tape-out-ready). This is the current manual, generated from the chip configuration by `platform/common`.  
 > Also available: the [Myshkin TRM v1.0.0](implementations/asic/myshkin-2025-11/docs/TRM.pdf), documenting the first VestaRV tape-out (TSMC 65nm, November 2025).
 
 > 🏷️ **Current version: v2.11.0** — the multi-core line.  
@@ -37,9 +37,9 @@ VestaRV is named after **Vesta**, the Roman goddess of hearth, home, and the ete
 
 ## Example MCU Configuration
 
-Below is the whole-chip block diagram for **Castalia**, the five-hart configuration — Figure 2 of the [Castalia TRM](implementations/asic/castalia/docs/TRM.pdf), generated from the chip configuration by `make chip`:
+Below is the whole-chip block diagram for a representative VestaRV MCU configuration — the core, the memory system and the peripheral set that a single chip configuration selects:
 
-![Castalia Block Diagram](assets/castalia_block_diagram.png)
+![MCU Block Diagram](assets/ASIC_block_diagram.png)
 
 *Note: VestaRV is designed to be highly configurable. The peripheral set, memory architecture, and system features can be customized to match your specific application requirements.*
 
@@ -134,12 +134,55 @@ The following peripherals are included in the example configuration shown above.
 
 ## Quick Start
 
-> **Bazel (recommended):** the whole repo builds hermetically with no locally
-> installed toolchains — `sh tools/get_bazel.sh && tools/bin/bazel test //...`
-> covers chip generation, firmware, ISA images, the open-source GHDL
-> regression, and every gate script. See [`BAZEL.md`](BAZEL.md) for the full
-> map, including what deliberately stays outside Bazel (Cadence, bench
-> hardware). The manual steps below remain valid as the legacy path.
+Everything in this repository builds and tests through **Bazel**, hermetically:
+a fresh clone needs no locally installed toolchains. Bazel itself provisions
+Python, a C/C++ toolchain, the exact RISC-V cross-compiler the mask ROM was
+pinned to, a from-source GHDL simulator and a hermetic TeX Live - all
+downloaded, versioned and sandboxed by the build.
+
+```bash
+git clone https://github.com/maxxseminario/VestaRV.git
+cd VestaRV
+sh tools/get_bazel.sh            # fetches bazelisk into tools/bin/bazel
+tools/bin/bazel test //...       # first run downloads all toolchains
+```
+
+That one command is the whole gate set: chip generation and its identity
+gates, the mask-ROM byte-reproducibility gate, every firmware and course-lab
+golden, the 259 ISA test images, the open-source GHDL ISA regression, the
+Python tooling and the docs provenance checks. One target is tagged
+`known_red` for a tracked, adjudicated reason and is filtered out in CI with
+`--test_tag_filters=-known_red`; [`BAZEL.md`](BAZEL.md) names it and says why.
+
+### The tooling, by area
+
+Run these from the repository root. Add `<repo>/tools/bin` to `PATH` if you
+want to type plain `bazel`.
+
+| What you want | Command |
+|---|---|
+| The whole gate set | `tools/bin/bazel test //...` |
+| Generate a chip (RTL, headers, linker scripts, TRM sources) | `tools/bin/bazel build //platform/common/...` |
+| Prove the generated RTL matches the tracked RTL | `tools/bin/bazel test //platform/...` |
+| Build the mask-ROM image | `tools/bin/bazel build //software/bootrom_mp:rom_rcf` |
+| Build every firmware app and course lab | `tools/bin/bazel build //software/...` |
+| Build all 259 ISA test images | `tools/bin/bazel build //verification/isa:all_images` |
+| Run the full ISA simulation regression (GHDL, no licenses) | `tools/bin/bazel test //opensource_sim:isa_regression` |
+| Core and peripheral unit testbenches | `tools/bin/bazel test //hdl/common/tb:all` |
+| Python tooling and docs gates | `tools/bin/bazel test //tools/... //docs/...` |
+
+The first build fetches roughly 1 GB of toolchains and compiles GHDL from
+source (10-20 minutes cold); everything after that is cached, including
+across output-base wipes.
+
+See [`BAZEL.md`](BAZEL.md) for the full target map, the conventions
+(goldens, CRLF, `.bazelignore`) and what deliberately stays outside Bazel:
+the licensed Cadence flows and the physical bench tooling.
+
+### Legacy path (locally installed toolchains)
+
+The pre-Bazel steps still work and are still supported. Use them when you
+want to drive a single stage by hand.
 
 1. **Clone the repository:**
    ```bash
