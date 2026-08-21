@@ -11,17 +11,13 @@ name: CI
 # Simulation lives in sim.yml (GHDL ISA regression via bazel, hosted) — never
 # here. Physical (GHDL bridge / cocotb smoke / LibreLane GDSII) is physical.yml.
 
+# ── ALL AUTOMATIC TRIGGERS DISABLED 2026-08-21 at the owner's request ──
+# ("nothing running on any runners for CI at this moment"). Manual dispatch
+# only. To restore, take the trigger block back from git history (the commit
+# before this one carried: push [main, multicore-mp] / pull_request /
+# merge_group / workflow_dispatch — see .github/MERGE_QUEUE.md for why
+# merge_group matters when re-enabling required checks).
 on:
-  push:
-    branches: [main, multicore-mp]
-  pull_request:
-  # Merge queue. GitHub builds each queued candidate on a throwaway
-  # gh-readonly-queue/ branch (PR rebased onto main plus everything ahead of it)
-  # and waits for the required checks THERE, not on the PR head. A required
-  # check whose workflow lacks this trigger never starts, and the queue stalls
-  # until it times out — which is exactly why sim.yml deliberately does not have
-  # one. See .github/MERGE_QUEUE.md.
-  merge_group:
   workflow_dispatch:
 
 permissions:
