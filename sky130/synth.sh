@@ -56,13 +56,16 @@ ghdl --synth --std=08 -fsynopsys --latches --workdir="${WORKDIR}" \
      --out=verilog "${TOP}" > "src/${TOP}.v"
 
 echo "== swap behavioral clkgate for the sky130 ICG cell =="
-# Header match tolerates the emission styles GHDL has used across versions:
-# a bare "module clkgate" line (5.x) and a one-line "module clkgate (...);"
-# header, plus an optional \clkgate escaped identifier. The module body is
-# skipped through its endmodule either way; the grep below stays the hard gate.
+# GHDL 5 emitted "module clkgate"; GHDL 6 uniquifies every module as
+# <entity>_B<architecture> ("module clkgate_Bbehavioral"). The match accepts
+# both plus a one-line "(...);" header, and the replacement KEEPS the emitted
+# name — the parent instantiates the module by exactly that name. Port names
+# are lowercase under both writers (same lowering as the module name itself).
 awk '
-/^module \\?clkgate([[:space:](].*)?$/ { inswap=1
-  print "module clkgate"
+/^module \\?clkgate(_[A-Za-z0-9_]*)?([[:space:](;].*)?$/ { inswap=1
+  name=$2
+  sub(/[(;].*/, "", name)
+  print "module " name
   print "  (input  clkin,"
   print "   input  en,"
   print "   output clkout);"
@@ -73,6 +76,11 @@ inswap && /^endmodule([[:space:]].*)?$/ { inswap=0; next }
 !inswap { print }
 ' "src/${TOP}.v" > "src/${TOP}.icg.v" && mv "src/${TOP}.icg.v" "src/${TOP}.v"
 
+# The suffixing also hits the top entity, but LibreLane's DESIGN_NAME must be
+# plain ${TOP}. Nothing inside the file references the top module, so renaming
+# its header is safe. No-op under a GHDL that already emits the plain name.
+sed -i -E "s/^module ${TOP}_B[A-Za-z0-9_]*/module ${TOP}/" "src/${TOP}.v"
+
 grep -q "sky130_fd_sc_hd__dlclkp_1" "src/${TOP}.v" || {
     echo "error: ICG substitution did not land in src/${TOP}.v" >&2
     # Diagnostic for the annotation channel: what DID the writer emit? Every
@@ -81,8 +89,9 @@ grep -q "sky130_fd_sc_hd__dlclkp_1" "src/${TOP}.v" || {
     grep -in "clkgate" "src/${TOP}.v" | head -3 >&2
     exit 1
 }
-grep -q "^module ${TOP}" "src/${TOP}.v" || {
-    echo "error: src/${TOP}.v does not contain 'module ${TOP}'" >&2
+grep -qE "^module ${TOP}([[:space:](;].*)?$" "src/${TOP}.v" || {
+    echo "error: src/${TOP}.v does not contain 'module ${TOP}' (exact name)" >&2
+    grep -n "^module" "src/${TOP}.v" | tail -4 >&2
     exit 1
 }
 
