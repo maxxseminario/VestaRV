@@ -88,8 +88,17 @@ writes wherever it runs; the hermetic path is `chip_artifacts_castalia`.
   commit — the test diff shows exactly what moved.
 - **Known red**: `//tools/randgen:test_randgen`'s k3s01 case — a
   pre-existing campaign-pin drift (CPR8 re-pin), kept red until adjudicated.
+  It carries the `known_red` tag, and every CI invocation passes
+  `--test_tag_filters=-known_red`, so `bazel test //...` is otherwise a
+  genuinely all-green command. The tag comes off in the same commit that
+  adjudicates the pin — that is the only way the carve-out ends.
   `check_publish_test` (manual) is red whenever TRM-affecting commits have
   landed since the last publish; that is the point of the gate.
+- **Repo hygiene checks** live in `tools/ci/` and run in CI's `repo-hygiene`
+  job: the CRLF manifest guard, the VHDL ASCII style gate, the
+  `.bazelignore` integrity check and the tracked-output check. The two that
+  need no git are also `//tools/ci` bazel tests, so `bazel test //...` runs
+  them too. See `tools/ci/README.md`.
 - **Untracked-file skew**: local `bazel test //...` sees your untracked
   files; CI's clean checkout does not. Before pushing BUILD-graph changes:
   `git stash -u && tools/bin/bazel build //... ; git stash pop` (or use a
@@ -104,8 +113,32 @@ writes wherever it runs; the hermetic path is `chip_artifacts_castalia`.
 
 ## CI
 
-`ci.yml` runs the tier-1 gates and `sim.yml` runs
-`bazel test //opensource_sim:isa_regression` on GitHub-hosted runners —
-first cold run builds GHDL from source (~20–30 min), warm runs are fast.
+Bazel carries two of the five CI jobs, split on one line: whether the job
+needs GHDL.
+
+`ci.yml`'s **`Bazel hermetic gates`** runs the everything-else half from a
+bare checkout with no locally installed toolchain:
+
+```sh
+tools/bin/bazel mod deps --lockfile_mode=error          # the lock is current
+tools/bin/bazel build --nobuild -- //... -//opensource_sim/...     -//hdl/common/tb/... -//toolchains/...              # graph analyzes
+tools/bin/bazel test --build_tests_only     --test_tag_filters=-known_red     -- //... -//opensource_sim/... -//hdl/common/tb/... -//toolchains/...
+```
+
+Note the `--` before the negative patterns; bazel rejects a bare leading
+`-//...` as a malformed option. That set is 58 tests today and finishes in
+minutes on a warm cache, which is what makes it safe to require in the merge
+queue. The job then asserts `git status --porcelain` is empty — BAZEL.md's
+claim that build and test never write into the source tree, enforced.
+
+`sim.yml`'s **`GHDL ISA regression (bazel)`** runs the GHDL half —
+`//opensource_sim:isa_regression` plus the `//hdl/common/tb:all` unit
+benches. First cold run builds GHDL from source (~20–30 min), warm runs are
+fast.
+
+`ci.yml`'s **`Repo hygiene gates`** runs the `tools/ci/` scripts directly
+(they need git history, which a bazel sandbox does not have).
+
 Required-check names are matched verbatim by the merge-queue ruleset: do not
-rename jobs without updating the ruleset in the same breath.
+rename jobs without updating the ruleset in the same breath. See
+`.github/MERGE_QUEUE.md` for which of these are safe to require.

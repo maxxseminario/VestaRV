@@ -1,0 +1,144 @@
+# tools/ci/crlf_manifest.txt -- the files that MUST stay CRLF.
+#
+# Every path below is stored with CRLF line endings and is required to stay
+# that way.
+# tools/ci/check_line_endings.py fails if any of them becomes LF-only or
+# mixed, or if any of them vanishes while this list still names it.
+#
+# Regenerating this file is a DELIBERATE ACT.
+# Run "python3 tools/ci/check_line_endings.py --update" and commit the result
+# in the SAME commit as the change it blesses, so the review sees the
+# blessing next to the thing being blessed.
+# A regeneration on its own, in its own commit, is how the protection gets
+# quietly dropped.
+hdl/common/adddec.vhd
+hdl/common/constants.vhd
+hdl/common/periph/AFE.vhd
+hdl/common/periph/AFE_FSM.vhd
+hdl/common/periph/GPIO.vhd
+hdl/common/periph/SARADC.vhd
+hdl/common/periph/SPI.vhd
+hdl/common/periph/SYSTEM.vhd
+hdl/common/periph/TIMER.vhd
+hdl/common/periph/UART.vhd
+hdl/common/tb/rv4th_tb.vhd
+hdl/common/tb/tb_defs.vhd
+hdl/common/tb/testbench.vhd
+hdl/common/vesta/alu.vhd
+hdl/common/vesta/aludec.vhd
+hdl/common/vesta/c_dec.vhd
+hdl/common/vesta/controller.vhd
+hdl/common/vesta/datapath.vhd
+hdl/common/vesta/div.vhd
+hdl/common/vesta/extend.vhd
+hdl/common/vesta/irq_handler.vhd
+hdl/common/vesta/maindec.vhd
+hdl/common/vesta/pulse_extender.vhd
+hdl/common/vesta/regfile.vhd
+hdl/common/vesta/regfile_firq.vhd
+hdl/common/vesta/regfile_sbirq.vhd
+hdl/myshkin/MCU.vhd
+hdl/myshkin/MemoryMap.vhd
+hdl/myshkin/adddec.vhd
+hdl/myshkin/constants.vhd
+hdl/myshkin/periph/AFE.vhd
+hdl/myshkin/periph/AFE_FSM.vhd
+hdl/myshkin/periph/GPIO.vhd
+hdl/myshkin/periph/SARADC.vhd
+hdl/myshkin/periph/SPI.vhd
+hdl/myshkin/periph/SYSTEM.vhd
+hdl/myshkin/periph/TIMER.vhd
+hdl/myshkin/periph/UART.vhd
+hdl/myshkin/tb/riscv_tb.vhd
+hdl/myshkin/tb/rv4th_tb.vhd
+hdl/myshkin/tb/tb_defs.vhd
+hdl/myshkin/tb/testbench.vhd
+hdl/myshkin/vesta/alu.vhd
+hdl/myshkin/vesta/aludec.vhd
+hdl/myshkin/vesta/c_dec.vhd
+hdl/myshkin/vesta/controller.vhd
+hdl/myshkin/vesta/csr_unit.vhd
+hdl/myshkin/vesta/datapath.vhd
+hdl/myshkin/vesta/div.vhd
+hdl/myshkin/vesta/extend.vhd
+hdl/myshkin/vesta/irq_handler.vhd
+hdl/myshkin/vesta/maindec.vhd
+hdl/myshkin/vesta/pulse_extender.vhd
+hdl/myshkin/vesta/regfile.vhd
+hdl/myshkin/vesta/regfile_firq.vhd
+hdl/myshkin/vesta/regfile_sbirq.vhd
+hdl/myshkin/vesta/vesta.vhd
+platform/common/latex/figures/sar-adc-procedure-plot.pgf
+platform/common/latex/figures/timer-output-compare-plot.pgf
+platform/common/latex/figures/timer-overflow-plot.pgf
+platform/myshkin/latex/figures/timer-output-compare-plot.pgf
+platform/myshkin/latex/figures/timer-overflow-plot.pgf
+software/bootrom/src/uart.c
+software/bootrom_mp/src/uart.c
+software/commune/include/clocks.h
+software/commune/include/i2c_master.h
+software/commune/include/i2c_slave.h
+software/commune/include/myshkin.h
+software/commune/include/timing.h
+software/commune/src/DAC8162.c
+software/commune/src/i2c_master.c
+software/commune/src/i2c_slave.c
+software/commune/src/timing.c
+software/commune/src/uart.c
+software/rv4th/src/uart.c
+tools/PyEmanate/PyEmanate.spec
+tools/PyEmanate/config/PreviousHistogramSetupParameters - Copy.json
+tools/PyEmanate/config/PreviousHistogramSetupParameters-bak-2022-08-26.json
+tools/PyEmanate/config/PreviousHistogramSetupParameters.json
+tools/PyEmanate/config/PyEmanateConfig.json
+tools/PyEmanate/create-executable.bat
+tools/PyEmanate/debug.bat
+tools/PyEmanate/python/OptimizedMLPNN-backup-2020-12-03.py
+tools/PyEmanate/python/PyEmanate.spec
+tools/PyEmanate/python/PyEmanateQt.py
+tools/PyEmanate/qt/AutoRefreshSetupDialog.ui
+tools/PyEmanate/qt/CalibrationDialog.ui
+tools/PyEmanate/qt/CopyPeripheralTo.ui
+tools/PyEmanate/qt/FatfsBrowser.ui
+tools/PyEmanate/qt/HistogramInterface.ui
+tools/PyEmanate/qt/HistogramParametersDialog-backup-2021-02-02.ui
+tools/PyEmanate/qt/HistogramParametersDialog.ui
+tools/PyEmanate/qt/Notes.ui
+tools/PyEmanate/qt/PsdInterface.ui
+tools/PyEmanate/qt/PyEmanateQt.ui
+tools/PyEmanate/qt/RegisterInterface-backup-2020-06-25-1231.ui
+tools/PyEmanate/qt/RegisterInterface-backup-2020-10-26.ui
+tools/PyEmanate/qt/RegisterInterface.ui
+tools/PyEmanate/qt/SerialTerminal.ui
+tools/PyEmanate/run.bat
+tools/PyEmanate/serial-terminal-command-line.bat
+tools/PyEmanate/serial-terminal.bat
+tools/PyEmanate/setup/Invoke Virtual Environment.txt
+tools/PyEmanate/setup/create-venv-windows.bat
+tools/PyEmanate/setup/generate-executables.bat
+tools/build/scripts/generate_test_globals.py
+tools/build/scripts/rcf_insert.py
+tools/python/Afe Terminals.txt
+verification/isa/macros/scalar/myshkin.h
+verification/isa/macros/scalar/myshkin_memmap.h
+verification/isa/tests/boot/boot.S
+verification/isa/tests/periph/AFE.S
+verification/isa/tests/periph/GPIO.S
+verification/isa/tests/periph/GPIO1.S
+verification/isa/tests/periph/GPIO2.S
+verification/isa/tests/periph/IRQ.S
+verification/isa/tests/periph/NPU.S
+verification/isa/tests/periph/NPU_data/npu_expected_fp_outputs.txt
+verification/isa/tests/periph/NPU_data/npu_fp_inputs.txt
+verification/isa/tests/periph/NPU_data/npu_fp_weights.txt
+verification/isa/tests/periph/SARADC.S
+verification/isa/tests/periph/SPI.S
+verification/isa/tests/periph/SPIEM.S
+verification/isa/tests/periph/SPISR.S
+verification/isa/tests/periph/SYSTEM.S
+verification/isa/tests/periph/TIMER.S
+verification/isa/tests/periph/TIMER_nirq.S
+verification/isa/tests/periph/UART.S
+verification/isa/tests/periph/UARTIRQ.S
+verification/isa/tests/periph/UART_irq_old.S
+verification/isa/tests/rv32ziscr/csr.S

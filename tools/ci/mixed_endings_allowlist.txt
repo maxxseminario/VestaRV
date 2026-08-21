@@ -1,0 +1,38 @@
+# tools/ci/mixed_endings_allowlist.txt -- files allowed to mix CRLF and LF.
+#
+# A file that mixes both endings is normally a mistake, so
+# tools/ci/check_line_endings.py fails on any mixed file that is not listed
+# here.
+# The entries below are the ones that are mixed on purpose (generated
+# patches and vendored sources whose bytes must not be touched).
+#
+# Regenerating this file is a DELIBERATE ACT.
+# Run "python3 tools/ci/check_line_endings.py --update" and commit the result
+# in the SAME commit as the change it blesses.
+verification/isa/negctrl/p2_csrcommit_seed.patch
+verification/isa/negctrl/p2_privgate_seed.patch
+verification/isa/negctrl/p2_twignore_seed.patch
+verification/isa/negctrl/p2rt_ucnttm_seed.patch
+verification/isa/negctrl/p2rt_wfiudeny_seed.patch
+verification/isa/negctrl/p3e_addrvalid_seed.patch
+verification/isa/negctrl/p3e_mretugate_seed.patch
+verification/isa/negctrl/x1_zcb_seed.patch
+verification/isa/negctrl/x1_zicond_seed.patch
+verification/isa/negctrl/x1_zihint_seed.patch
+verification/isa/negctrl/x1_zimop_seed.patch
+verification/isa/negctrl/x2_redteam_addr_decouple.patch
+verification/isa/negctrl/x2_redteam_lock_drop.patch
+verification/isa/negctrl/x2_redteam_phase_compare.patch
+verification/isa/negctrl/x2_redteam_premature.patch
+verification/isa/negctrl/x2_zabha_alias_f2.patch
+verification/isa/negctrl/x2_zacas_stale_compare.patch
+verification/isa/negctrl/x3_aes_bs_rotate.patch
+verification/isa/negctrl/x3_aes_sbox_row.patch
+verification/isa/negctrl/x3_redteam_sha512_shift.patch
+verification/isa/negctrl/x3_sha256_rotate_seed.patch
+verification/isa/negctrl/x3_zbkb_pack_swap.patch
+verification/isa/negctrl/x3_zbkx_xperm_identity.patch
+verification/isa/negctrl/x3_zicboz_sibling.patch
+verification/mt/ay_matmul.c
+verification/mt/bj_matmul.c
+verification/mt/cy_matmul.c

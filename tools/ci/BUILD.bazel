@@ -1,0 +1,111 @@
+load("@rules_python//python:defs.bzl", "py_test")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files([
+    "check_bazelignore.py",
+    "check_line_endings.py",
+    "check_repo_hygiene.py",
+    "check_vhdl_style.py",
+])
+
+# ---------------------------------------------------------------------------
+# The VHDL prose style gate
+# ---------------------------------------------------------------------------
+
+# The file list the sandboxed run scans. $(SRCS) of a source-file dependency
+# expands to workspace-relative paths, which is what --files-from wants and
+# what the checker opens relative to the runfiles root. This is the same
+# shape as //tools/python:docs_page_manifest, and for the same reason: args
+# built out of $(rootpaths ...) are shell-tokenized, which quietly loses any
+# path containing a space.
+genrule(
+    name = "vhdl_source_manifest",
+    srcs = ["//hdl:vhdl_sources"],
+    outs = ["vhdl_source_manifest.txt"],
+    cmd = "for f in $(SRCS); do echo $$f; done > $@",
+)
+
+# PROVES that every VHDL file under hdl/ that anyone is allowed to edit is
+# pure 7-bit ASCII, which is the first rule of the house comment style. A
+# failure names path:line:col and the codepoint, and means an em-dash,
+# en-dash, smart quote, unicode arrow or non-breaking space has been pasted
+# into a source file - rewrite it as " - ", "->" or a plain quote.
+#
+# --files-from is the strict mode: an unreadable manifest is exit 2, so a
+# mis-staged tree cannot pass here as an empty scan reported as OK. The
+# checker also exits 2 if its exclusions ever consume the whole file set, so
+# the gate cannot shrink to nothing and still report OK.
+#
+# WHAT IT DOES NOT GRADE. This filegroup is every VHDL file under hdl/, which
+# includes the two frozen trees, and both of them carry banned characters
+# today: hdl/argus/ (133 characters) and hdl/myshkin/ (41). Neither is
+# editable - CONTRIBUTING.md's frozen-trees table marks hdl/myshkin/ "do not
+# touch" and hdl/argus/ a regenerable snapshot - so EXCLUDED_TREES in
+# check_vhdl_style.py skips them, with the reason on each line. Of the 227
+# files this filegroup stages, 154 are graded and 73 are excluded. Live
+# hdl/common/ and hdl/castalia/ are both graded and both clean.
+#
+# Un-freezing either tree means deleting its line from EXCLUDED_TREES in the
+# same commit, and fixing whatever this gate then reports. To see the full
+# unfiltered picture at any time, run the checker with --all.
+py_test(
+    name = "check_vhdl_style_test",
+    size = "small",
+    srcs = ["check_vhdl_style.py"],
+    args = [
+        "--files-from",
+        "$(rootpath :vhdl_source_manifest)",
+    ],
+    data = [
+        ":vhdl_source_manifest",
+        "//hdl:vhdl_sources",
+    ],
+    main = "check_vhdl_style.py",
+)
+
+# ---------------------------------------------------------------------------
+# The .bazelignore guard
+# ---------------------------------------------------------------------------
+
+# PROVES that .bazelignore still names every EDA output tree it is required to
+# guard. Those trees hold roughly 450 GB of generated output, and dropping a
+# single line turns every bazel invocation into a crawl over signoff and
+# place-and-route dumps - slow for everyone, and invisible to whoever made the
+# edit. A failure here names the missing entries; restore them, or, if the
+# removal really is intended, take the name out of REQUIRED_ENTRIES in
+# check_bazelignore.py in the same commit so the decision is reviewable.
+#
+# The required set lives in the script rather than being inferred from
+# .bazelignore itself, because a check that reads its expectations out of the
+# file it is grading cannot fail.
+#
+# --root . resolves against the runfiles root, where //:.bazelignore stages as
+# ".bazelignore". --no-git turns off the second half of the check, which asks
+# git whether any ignored tree carries tracked files: the sandbox has no .git,
+# and an ambient git answering about some other tree would be worse than not
+# asking. CI runs the script bare, from the workspace, and gets that half.
+py_test(
+    name = "check_bazelignore_test",
+    size = "small",
+    srcs = ["check_bazelignore.py"],
+    args = [
+        "--root",
+        ".",
+        "--no-git",
+    ],
+    data = ["//:.bazelignore"],
+    main = "check_bazelignore.py",
+)
+
+# ---------------------------------------------------------------------------
+# NOT WIRED HERE: check_line_endings.py and check_repo_hygiene.py
+# ---------------------------------------------------------------------------
+#
+# Both are git-based by design - one reads the byte-level state of every
+# tracked file, the other asks what a branch added - and a bazel test runs in
+# a sandbox with no .git, so there is nothing for them to grade there. They
+# run CI-side only, straight from the workspace:
+#
+#     python3 tools/ci/check_line_endings.py
+#     python3 tools/ci/check_repo_hygiene.py --base <merge-base>
