@@ -40,6 +40,36 @@ one's already on your PATH, otherwise a self-contained download — nothing
 outside this directory is touched). The second runs the cocotb smoke test
 and the full ISA regression and prints a combined pass/fail summary.
 
+## Building and testing with Bazel
+
+The same regression runs as bazel tests, and that is the recommended path: the
+simulator is `@ghdl` built from source, the images come from
+`//verification/isa`'s ON-polarity `os_*` targets, and the RISC-V toolchain is
+fetched and pinned by the build. Nothing is installed on the host, so no GHDL
+version check, no venv, and no container fallback is involved. Every command is
+run from the repo root. The `setup_env.sh` / `run_sim.sh` flow above stays as
+the legacy path, and it is still the only one that runs the cocotb smoke test.
+
+One-time bootstrap:
+
+```sh
+sh tools/get_bazel.sh            # fetches bazelisk into tools/bin/bazel
+tools/bin/bazel test //...       # first run downloads all toolchains
+```
+
+| Target | Verb | What it proves |
+|---|---|---|
+| `//opensource_sim:isa_regression` | test | the whole nine-suite ISA regression, the tier-2 CI gate |
+| `//opensource_sim:isa_rv32ui` | test | one suite through `run_isa.sh` in prebuilt-image mode; likewise `:isa_rv32um`, `:isa_rv32ua`, `:isa_rv32uc`, `:isa_rv32uzba`, `:isa_rv32uzbb`, `:isa_rv32uzbc`, `:isa_rv32uzbs`, `:isa_rv32uzf` |
+| `//opensource_sim/isa:rv32ui` | test | the finer-grained port: one bazel target per image, so a single failure names itself (pilot scope, rv32ui, CI-polarity images) |
+| `//opensource_sim/isa:rv32ui-p-add` | test | one image on its own - the per-test debug loop, in place of a hand-written `ghdl -r` |
+| `//opensource_sim/isa:vesta_isa_lib` | build | the curated RTL source order plus `vesta_isa_tb.vhd` still analyze clean under `--std=08 -fsynopsys` |
+| `//opensource_sim/isa:source_list_sync_test` | test | that curated order still matches `run_isa.sh`, `sky130/synth.sh` and `sky130/sim/Makefile` |
+| `//verification/isa:os_rv32ui_rcfs` | build | the ON-polarity images a suite consumes, defines mirroring `run_isa.sh`'s `CORE_ENABLE_DEFS` |
+| `//toolchains/ghdl:ghdl` | build | the from-source GHDL (mcode backend) the tests run on |
+
+The full target map is in [`BAZEL.md`](../BAZEL.md).
+
 ## CI (`.github/workflows/sim.yml`)
 
 The ISA regression is also the repo's tier-2 CI, as bazel tests: `bazel test

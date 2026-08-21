@@ -2,6 +2,34 @@
 
 This directory contains comprehensive verification infrastructure for the VestaRV RISC-V processor core, including instruction-level tests, benchmarks, and test environments.
 
+## Building and testing with Bazel
+
+Bazel is the recommended way to build the test images and run the gates: it
+fetches the exact pinned RISC-V cross compiler and a from-source GHDL, so a
+fresh clone needs no local toolchain at all. The `make` flows below still work
+and are kept as the legacy path. Every command is run from the repo root.
+
+One-time bootstrap:
+
+```sh
+sh tools/get_bazel.sh            # fetches bazelisk into tools/bin/bazel
+tools/bin/bazel test //...       # first run downloads all toolchains
+```
+
+| Target | Verb | What it proves |
+|---|---|---|
+| `//verification/isa:all_images` | build | every ISA image this repo builds - the eight CI suites plus `rv32uzf`, flashed and unflashed |
+| `//verification/isa:ci_rcfs`, `//verification/isa:ci_images` | build | exactly the image set `./build_mp_images.sh 4 rcf_ci` stages |
+| `//verification/isa:image_contract_test` | test | the image contract a stale or mis-staged image breaks first (word count, flash header, execute word, file-name length) |
+| `//verification:env_headers`, `//verification:env_p_linker_scripts` | build | the p-mode test environment every image compiles and links against |
+| `//verification/npu/...` | test | the NPU golden model: vector regeneration, the firmware-smoke golden generators, and `validate_mlp` against the chip-config golden set |
+| `//opensource_sim:isa_regression` | test | all nine ISA suites actually running against the RTL under GHDL, license free |
+
+`benchmarks/` and `mt/` are not in the Bazel graph; build them with the legacy
+`make` path described below. See [`isa/README.md`](isa/README.md) and
+[`npu/README.md`](npu/README.md) for the per-suite and per-generator targets,
+and [`BAZEL.md`](../BAZEL.md) for the full map.
+
 ## Directory Structure
 
 ### **`isa/`** — ISA Instruction Tests
@@ -48,6 +76,10 @@ Contains:
 **Purpose:** Shared test environment for consistent test execution
 
 ## Quick Start
+
+Legacy path. The `make` recipes below still work and need a locally installed
+RISC-V toolchain; the Bazel targets above build the same images with a pinned,
+fetched one.
 
 ### Build ISA Tests
 ```bash

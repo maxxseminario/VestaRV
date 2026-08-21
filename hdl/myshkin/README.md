@@ -4,6 +4,34 @@ This directory contains the RTL for the complete VestaRV MCU system — the proc
 
 ---
 
+## Building and testing with Bazel
+
+This is the frozen single-core tape-out snapshot, so it has no Bazel targets of
+its own. What covers it is the tree-wide source handle and the graph-level
+checks. Every command is run from the repo root.
+
+One-time bootstrap:
+
+```sh
+sh tools/get_bazel.sh            # fetches bazelisk into tools/bin/bazel
+tools/bin/bazel test //...       # first run downloads all toolchains
+```
+
+| Target | Verb | What it proves |
+|---|---|---|
+| `//hdl:vhdl_sources` | build | this directory's `*.vhd` files are declared build inputs, so an edit here is visible to the graph instead of silently invisible to it |
+| `//tools:check_tracer_independence_test` | test | the tracer independence guard, which scans every file in `//hdl:vhdl_sources` |
+| `//hdl/common/tb:mp_arbiter_tb`, `//hdl/common/tb:pmp_unit_tb` | test | the GHDL unit benches - note they bind the shared `hdl/common/` RTL, not this snapshot |
+| `//opensource_sim:isa_regression` | test | the ISA regression, likewise against `hdl/common/`, not this snapshot |
+
+Two things stay outside Bazel here on purpose: the Myshkin legacy generator
+(`platform/myshkin`) overwrites tracked files in place and is run the old way,
+and the Cadence flows keep their existing scripts.
+
+The full target map is in [`BAZEL.md`](../../BAZEL.md).
+
+---
+
 ## Architecture Overview
 
 ![MCU Block Diagram](../../assets/ASIC_block_diagram.png)

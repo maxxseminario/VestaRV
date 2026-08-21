@@ -10,6 +10,52 @@ Verified result (2026-07-19): **magic DRC 0 · KLayout DRC 0 · LVS 0 · setup a
 hold clean at all 9 corners** at a 125 ns (8 MHz) clock — 304k instances,
 1.38 mm², sky130_fd_sc_hd. See "Timing honesty" below for why 8 MHz.
 
+## Bazel: which half of this flow is managed, and which is not
+
+**The RTL-to-GDSII flow on this page is NOT Bazel-managed.** `synth.sh`,
+LibreLane/OpenROAD, magic, KLayout, netgen and the cocotb smoke test in `sim/`
+are run exactly as documented under "Run it" below - they are external tool
+installs (and a Docker image) with their own PDK pinning, and nothing here goes
+through `//...`.
+
+**What IS Bazel-managed is the verification of the same RTL** - the GHDL ISA
+regression that proves the `vesta` core before it is hardened, plus the GHDL
+toolchain itself, which Bazel builds from source rather than expecting on the
+host. Run all commands below **from the repo root** (not from `sky130/`).
+
+One-time bootstrap:
+
+```sh
+sh tools/get_bazel.sh            # fetches bazelisk into tools/bin/bazel
+tools/bin/bazel test //...       # first run downloads all toolchains
+```
+
+### The Bazel half
+
+| Target | What it proves / provides |
+|--------|---------------------------|
+| `//opensource_sim:isa_regression` | The whole license-free ISA regression: nine GHDL suites over the same RTL this flow hardens. This is the gate that says the RTL is worth 4-5 hours of LibreLane. |
+| `//opensource_sim:isa_rv32ui`, `:isa_rv32um`, `:isa_rv32ua`, `:isa_rv32uc`, `:isa_rv32uzba`, `:isa_rv32uzbb`, `:isa_rv32uzbc`, `:isa_rv32uzbs`, `:isa_rv32uzf` | The individual suites, one `sh_test` each. |
+| `//opensource_sim/isa:rv32ui` | The finer-grained port: one Bazel test per image, e.g. `//opensource_sim/isa:rv32ui-p-add`. Currently piloting `rv32ui`. |
+| `//opensource_sim/isa:source_list_sync_test` | The per-test port's source list still matches the RTL file set. |
+| `//hdl/common/tb:mp_arbiter_tb`, `//hdl/common/tb:pmp_unit_tb` | Unit benches under the same GHDL. |
+| `//toolchains/ghdl:ghdl` | The GHDL simulator itself, built from source (mcode) by Bazel - no `apt install ghdl` needed for this half. |
+| `//toolchains/ghdl:vhdl_libs_v08` | The pre-analyzed VHDL-2008 libraries that toolchain uses. |
+| `//hdl:vhdl_sources` | Every tracked VHDL source as one filegroup - the same files `synth.sh` reads, though `synth.sh` applies its own curated 19-file analysis order. |
+| `//verification/isa:os_rv32ui_rcfs` and siblings | The ON-polarity test images the suites execute; `//verification/isa:image_contract_test` proves the image set matches its contract. |
+
+Typical use before starting a harden run:
+
+```sh
+tools/bin/bazel test //opensource_sim:isa_regression
+```
+
+Note that the GHDL version Bazel builds is independent of the `GHDL_VERSION`
+pinned in `.github/workflows/physical.yml` for `synth.sh`; the two are
+separate installs on purpose, and only the latter feeds the LibreLane bridge.
+
+Full map of the Bazel build: [`BAZEL.md`](../BAZEL.md).
+
 ## Prerequisites
 
 - **GHDL ≥ 5.x** (Debian trixie: `apt install ghdl`) — the VHDL→Verilog bridge

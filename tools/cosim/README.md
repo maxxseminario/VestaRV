@@ -17,6 +17,44 @@ under `xcelium/` (gitignored).
 
 ---
 
+## Building with Bazel
+
+Bazel is the recommended path for the comparator's own tests: it runs them on a
+hermetic Python with no Cadence environment, no network and no bench host
+needed. It does **not** replace the Xcelium lockstep gates described below -
+those stay outside Bazel because they need licensed Cadence binaries - and the
+direct `/usr/bin/python3.6` invocation documented further down remains the
+contract for anything a runner calls on the bench host.
+
+Run from the repo root:
+
+```sh
+sh tools/get_bazel.sh            # fetches bazelisk into tools/bin/bazel
+tools/bin/bazel test //...       # first run downloads all toolchains
+```
+
+| Target | What it is / what it proves |
+|--------|-----------------------------|
+| `//tools/cosim:cosim` | The comparator and its parsers as one importable library (`amend`, `compare`, `disasm`, `mk_inject`, `oracle_isa`, `records`, `spike_log`) |
+| `//tools/cosim:compare` | The comparator itself, runnable as a tool (`bazel run //tools/cosim:compare -- --rtl ... --spike ... --entry ...`) |
+| `//tools/cosim:test_compare` | The comparator self-tests: 180 self-contained cases exercising every exit code. Cases needing the `xcelium/` trace tree or a built `vesta_ref` self-skip, so the sandboxed run is a strict subset of the standalone run |
+| `//tools/cosim:test_oracle_isa` | The K2 oracle derivation, read against the real RTL constants in `hdl/common/` rather than against the test's own helper |
+| `//tools/cosim:check_dbg_trampoline_test` | The D4 dual-truth gate: proves the 40-word trampoline table in `hdl/common/debug_module.vhd` matches the assembled `//software/dbg_trampoline:dbg_trampoline_words` |
+
+```sh
+tools/bin/bazel test //tools/cosim/...
+tools/bin/bazel test //tools/cosim:check_dbg_trampoline_test
+```
+
+`check_gate_files.py` and the `gate/` drift checker below are NOT Bazel targets:
+they compare tracked copies against live files under the gitignored `xcelium/`
+tree, which a sandbox cannot see. Run them as documented, with
+`/usr/bin/python3.6`.
+
+Full map of the Bazel build: [`BAZEL.md`](../../BAZEL.md).
+
+---
+
 ## `gate/` + `check_gate_files.py` — the gate infrastructure is tracked HERE
 
 **The problem, measured not assumed.** The two standing lockstep gates and the

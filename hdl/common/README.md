@@ -4,6 +4,43 @@ This directory contains the RTL for the complete VestaRV MCU system — the proc
 
 ---
 
+## Building and testing with Bazel
+
+Bazel is the recommended way to build and exercise this RTL. It provisions
+GHDL, the RISC-V cross compiler and Python itself, so nothing below needs a
+local install. Every command is run from the repo root.
+
+One-time bootstrap:
+
+```sh
+sh tools/get_bazel.sh            # fetches bazelisk into tools/bin/bazel
+tools/bin/bazel test //...       # first run downloads all toolchains
+```
+
+Targets that cover this directory:
+
+| Target | Verb | What it proves |
+|---|---|---|
+| `//hdl:vhdl_sources` | build | every tracked VHDL file under `hdl/`, including this tree, is a declared build input |
+| `//hdl/common/tb:tb_vhdl_sources` | build | the `tb/` sources, re-exported so the `//hdl` glob does not lose them |
+| `//hdl/common/tb:mp_arbiter_tb` | test | `mp_arbiter.vhd` under four synthetic masters contending for one shared single-port RAM |
+| `//hdl/common/tb:pmp_unit_tb` | test | `vesta/pmp_unit.vhd` in all three generic shapes (PMP on with 16 and 8 entries, PMP off) in one run |
+| `//hdl/common/tb:fpu_vectors_format_test` | test | the FPU reference-vector generator is deterministic and emits the record format `fpu_tb.vhd` parses |
+| `//opensource_sim:isa_regression` | test | the core in `vesta/` passes all nine GHDL ISA suites; single images rerun on their own, e.g. `//opensource_sim/isa:rv32ui-p-add` |
+| `//platform/common:check_mcu_vhd_test` | test | the tracked `MCU.vhd` is byte-identical to what the generator emits today |
+| `//platform/common:check_memorymap_vhd_test` | test | the same for the generated `MemoryMap.vhd` |
+| `//tools/python:check_entity_defaults_test` | test | the entity-generic defaults in `vesta/vesta.vhd` and `hart_tile.vhd` still agree with the generator and `MemoryMap.vhd` |
+| `//tools:check_tracer_independence_test` | test | `vesta_tracer.vhd` still derives retire from its own logic |
+
+`MCU.vhd` and `MemoryMap.vhd` here are generated, never hand-edited. The
+hermetic regeneration is `tools/bin/bazel build
+//platform/common:chip_artifacts_castalia`; never run `bazel run //:generate`,
+which is the raw generator and writes wherever it happens to run.
+
+The full target map is in [`BAZEL.md`](../../BAZEL.md).
+
+---
+
 ## Architecture Overview
 
 Below is the Castalia configuration of this RTL — five harts on one shared-window arbiter, with the peripheral set on a single rank beneath it. Every block in it is a source file in this directory. The figure is generated from the chip configuration (Figure 2 of the [Castalia TRM](../../implementations/asic/castalia/docs/TRM.pdf)); other configurations drop or repeat blocks.

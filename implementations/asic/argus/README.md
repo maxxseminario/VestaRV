@@ -5,6 +5,68 @@ same identical VestaRV hart tile as Castalia, scaled up to eighteen cores and ph
 assembled as a **3 × 3 tile array**. It is generated from one configuration
 (`config/argus.json`) by the `platform/common/` chip generator.
 
+## Building through Bazel
+
+Argus is generated from `platform/common/config/argus.json` by the same
+Bazel-managed generator as Castalia. Run all commands below **from the repo
+root**.
+
+One-time bootstrap:
+
+```sh
+sh tools/get_bazel.sh            # fetches bazelisk into tools/bin/bazel
+tools/bin/bazel test //...       # first run downloads all toolchains
+```
+
+### Generating the chip
+
+```sh
+tools/bin/bazel build //platform/common:chip_artifacts_argus
+```
+
+| Target | What it produces |
+|--------|------------------|
+| `//platform/common:chip_artifacts_argus` | The whole 18-hart Argus artifact tree: `MCU.vhd`, `MemoryMap.vhd`, `riscv_tb.vhd`, `MemoryMap.h`, `periph.S`, the web data bundle (`chip_data.js`, `MemoryMap.json`), `ChipConfig.resolved.json`, `PadRing.json`, and the TRM LaTeX project. |
+| `//platform/common:chip_artifacts_castalia` | The 4-hart sibling configuration, for comparison. |
+
+Never run `bazel run //:generate` - that is the raw generator and it writes
+wherever it happens to be invoked. The hermetic path is
+`//platform/common:chip_artifacts_argus`.
+
+### Gates attached to those artifacts
+
+| Target | What it proves |
+|--------|----------------|
+| `//platform/common:argus_generation_test` | The Argus configuration still generates, and every machine-readable output listed above is present and parses. |
+| `//platform/common/python:check_config_defaults_test` | Each knob's two default literals in `generate.py` agree with each other. |
+
+There are deliberately **no identity gates for Argus**: the tracked RTL is
+Castalia's, so the identity checks
+(`//platform/common:check_mcu_vhd_test` and siblings, run by
+`tools/bin/bazel test //platform/...`) are measured against the 4-hart
+configuration. The Argus bar is that the configuration still generates.
+
+### License-free simulation of the shared RTL
+
+```sh
+tools/bin/bazel test //opensource_sim:isa_regression
+```
+
+Nine GHDL ISA suites (`//opensource_sim:isa_rv32ui` and siblings) over
+`//hdl:vhdl_sources` - the parameterized tile Argus is built from - plus the
+unit benches `//hdl/common/tb:mp_arbiter_tb` and
+`//hdl/common/tb:pmp_unit_tb`.
+
+### Legacy and out-of-Bazel paths
+
+- `cd platform/common && make chip` still works unchanged; it is the legacy
+  in-tree generation path.
+- Cadence flows (Genus, Innovus, Pegasus, Xcelium, `make verify`) are
+  permanently outside Bazel - licensed binaries. Run them exactly as before,
+  via `source cdspaths.sh`.
+
+Full map of the Bazel build: [`BAZEL.md`](../../../BAZEL.md).
+
 ## Overview
 
 - **Chip Name**: Argus

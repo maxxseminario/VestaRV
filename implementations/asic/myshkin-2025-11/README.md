@@ -2,6 +2,58 @@
 
 VestaRV32 implementation taped out to TSMC 65nm process in November 2025.
 
+## Building through Bazel
+
+Myshkin's own generator is **not** Bazel-managed (see "Legacy and out-of-Bazel
+paths" below), but the tracked Myshkin platform snapshot is what every
+Bazel-built firmware image in the repo compiles against. Run all commands below
+**from the repo root**.
+
+One-time bootstrap:
+
+```sh
+sh tools/get_bazel.sh            # fetches bazelisk into tools/bin/bazel
+tools/bin/bazel test //...       # first run downloads all toolchains
+```
+
+### The Myshkin platform snapshot, as build inputs
+
+| Target | What it is |
+|--------|------------|
+| `//platform/myshkin/gcc/lib:platform_headers` | The tracked `MemoryMap.h` + `periph.S` snapshot of this chip's register map. Every firmware and ISA-image build in the repo compiles with this on its include path. |
+| `//platform/myshkin/gcc/lib:linker_fragments` | The tracked `memory.x` + `periph.x` the linker pulls in through `MCU.ld`. |
+
+### Firmware and image targets that use them
+
+| Target | What it proves |
+|--------|----------------|
+| `//software/bootrom_mp:rom_rcf` | Builds the mask-ROM image; `//software/bootrom_mp:rom_rcf_reproducibility_test` proves it is byte-identical to the tracked golden. |
+| `//software/blinky:blinky_rcf` (also `gpiotoggle`, `looptest`, `slowblink`, `traptest`, `afetest`) | Builds an application image with the hermetic RISC-V cross-compiler; the per-app `//software/blinky:blinky_flashed_rcf_test` and siblings lock it against a tracked golden. |
+| `//verification/isa:all_images` | Builds all 259 ISA test images; `//verification/isa:image_contract_test` proves the image set matches its contract. |
+
+### License-free simulation of the core RTL
+
+```sh
+tools/bin/bazel test //opensource_sim:isa_regression
+```
+
+Nine GHDL ISA suites (`//opensource_sim:isa_rv32ui` and siblings) over
+`//hdl:vhdl_sources`, which includes the frozen `hdl/myshkin/` tree. No
+licensed tools involved.
+
+### Legacy and out-of-Bazel paths
+
+- The Myshkin generator (`platform/myshkin/`) overwrites tracked files in
+  place and is deliberately left out of Bazel. It is a **frozen** tree; run it
+  the old way if you must.
+- Cadence flows (Genus, Innovus, Pegasus, Xcelium, `make verify`) are
+  permanently outside Bazel - licensed binaries. Run them exactly as before,
+  via `source cdspaths.sh`.
+- Bench and silicon-validation tooling talks to physical boards over serial and
+  is likewise unmanaged by Bazel.
+
+Full map of the Bazel build: [`BAZEL.md`](../../../BAZEL.md).
+
 ## Overview
 
 - **Chip Name**: Myshkin

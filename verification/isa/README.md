@@ -2,6 +2,39 @@
 
 This directory contains instruction-level tests for verifying the Vestarv RISC-V processor implementation.
 
+## Building and testing with Bazel
+
+Bazel is the recommended way to build these images: the RISC-V cross compiler
+is fetched and pinned by the build, the polarity defines are part of each
+compile action's key (so a polarity change rebuilds exactly the images it
+affects), and no `rm -rf build/` dance is needed. The `make` flow below still
+works and is kept as the legacy path. Every command is run from the repo root.
+
+One-time bootstrap:
+
+```sh
+sh tools/get_bazel.sh            # fetches bazelisk into tools/bin/bazel
+tools/bin/bazel test //...       # first run downloads all toolchains
+```
+
+| Target | Verb | What it proves |
+|---|---|---|
+| `//verification/isa:all_images` | build | every image this package builds: the eight CI suites plus `rv32uzf`, flashed and unflashed |
+| `//verification/isa:ci_images`, `//verification/isa:ci_rcfs` | build | exactly what `./build_mp_images.sh 4 rcf_ci` stages, flashed and unflashed |
+| `//verification/isa:rv32ui_rcfs`, `//verification/isa:rv32ui_flashed` | build | one suite at CI polarity (`NHARTS=4`, no `-DCORE_ENABLE_*`); same pair for `rv32um`, `rv32ua`, `rv32uc`, `rv32uzba`, `rv32uzbb`, `rv32uzbc`, `rv32uzbs`, `rv32uzf` |
+| `//verification/isa:os_rv32ui_rcfs`, `//verification/isa:os_rv32ui_flashed` | build | the same suites at the open-source-sim ON polarity (the `CORE_ENABLE_*` set mirroring `run_isa.sh`); same pair for each of the nine suites |
+| `//verification/isa:n5_crosscheck` | build | the five `NHARTS`-dependent tests rebuilt at `NHARTS=5` for byte comparison against the tracked `rcf/` set |
+| `//verification/isa:image_contract_test` | test | an unflashed image is 20480 words of 32 binary characters; a flashed one opens with the `0x10adbeef` vector header, ends with the `0xcafebabe` execute word, carries no second header, and has a 22-character name |
+| `//opensource_sim/isa:rv32ui` | test | one GHDL test per bare-core-runnable rv32ui image; a single image reruns on its own, e.g. `//opensource_sim/isa:rv32ui-p-add` |
+| `//opensource_sim:isa_regression` | test | all nine suites end to end under GHDL against the `os_*` images |
+
+Two support filegroups are published for other packages:
+`//verification/isa:scalar_macros` (the `-I./macros/scalar` headers) and
+`//verification/isa:npu_data` (the chip-config NPU golden set consumed by
+`//verification/npu`).
+
+The full target map is in [`BAZEL.md`](../../BAZEL.md).
+
 ## Directory Structure
 
 ```
@@ -29,6 +62,10 @@ verification/isa/
 ```
 
 ## Building Tests
+
+Legacy path. The `make` recipes below still work and need a locally installed
+RISC-V toolchain; the Bazel targets above build the same images with a pinned,
+fetched one, and key each image on its polarity defines.
 
 ### Build Specific Test Suite
 

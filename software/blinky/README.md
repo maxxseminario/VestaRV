@@ -4,6 +4,9 @@ Simple test application for verifying the RISC-V toolchain and Xcelium simulatio
 
 ## Quick Start
 
+*Legacy path.* The make flow in this section still works. The recommended
+path is [Building with Bazel](#building-with-bazel) below.
+
 ### 1. Build the Application
 ```bash
 make all
@@ -27,6 +30,40 @@ make sim
 ```
 
 This copies the flashed RCF file to `verification/isa/rcf/` for use in the testbench.
+
+## Building with Bazel
+
+Bazel is the recommended path - it provisions the pinned RISC-V toolchain
+itself and gates the image against a tracked golden. The `make` flow above
+still works and is kept as the legacy path.
+
+Run from the repo root:
+
+```sh
+sh tools/get_bazel.sh            # fetches bazelisk into tools/bin/bazel
+tools/bin/bazel test //...       # first run downloads all toolchains
+```
+
+| Target | What it is / what it proves |
+|--------|-----------------------------|
+| `//software/blinky:blinky_elf` | Linked ELF with debug symbols (GDB) |
+| `//software/blinky:blinky_bin` | Raw binary |
+| `//software/blinky:blinky_hex` | Intel HEX image |
+| `//software/blinky:blinky_dump` | Disassembly listing |
+| `//software/blinky:blinky_rcf` | RCF image, no flash headers (the `make all` output) |
+| `//software/blinky:blinky_flashed_rcf` | RCF with the SPI-flash protocol headers (the `make flash` output) |
+| `//software/blinky:blinky_flashed_rcf_test` | Golden gate: proves the flashed image is byte-identical to `testdata/blinky_flashed_rcf_golden.txt` |
+
+```sh
+tools/bin/bazel build //software/blinky:blinky_flashed_rcf
+tools/bin/bazel test  //software/blinky:blinky_flashed_rcf_test
+```
+
+Changing this firmware means regenerating
+`testdata/blinky_flashed_rcf_golden.txt` in the same commit.
+
+Full map of the Bazel build: [`BAZEL.md`](../../BAZEL.md).
+Firmware conventions: [`software/README.md`](../README.md).
 
 ## Build Outputs
 

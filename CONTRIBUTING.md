@@ -7,6 +7,7 @@ Thank you for your interest in contributing! VestaRV is an open-source RISC-V co
 ## Table of Contents
 
 - [Ways to Contribute](#ways-to-contribute)
+- [Building and Testing with Bazel](#building-and-testing-with-bazel)
 - [Reporting Bugs](#reporting-bugs)
 - [Proposing Changes](#proposing-changes)
 - [Pull Request Guidelines](#pull-request-guidelines)
@@ -18,6 +19,41 @@ Thank you for your interest in contributing! VestaRV is an open-source RISC-V co
 
 ---
 
+## Building and Testing with Bazel
+
+The repo is Bazel-managed: a fresh clone needs no locally installed toolchains.
+Run all commands below **from the repo root**.
+
+One-time bootstrap:
+
+```sh
+sh tools/get_bazel.sh            # fetches bazelisk into tools/bin/bazel
+tools/bin/bazel test //...       # first run downloads all toolchains
+```
+
+The everyday commands:
+
+```sh
+tools/bin/bazel test //...                            # the whole gate set
+tools/bin/bazel test //opensource_sim:isa_regression  # full ISA sim, license-free
+tools/bin/bazel build //software/bootrom_mp:rom_rcf   # the mask-ROM image
+tools/bin/bazel build //platform/common:chip_artifacts_castalia
+```
+
+Never run `bazel run //:generate` - that is the raw generator and it writes
+wherever it happens to be invoked. The hermetic generation path is
+`//platform/common:chip_artifacts_castalia` (and
+`//platform/common:chip_artifacts_argus`).
+
+Cadence flows (Genus, Innovus, Pegasus, Xcelium, `make verify`) are permanently
+outside Bazel - licensed binaries. Run them exactly as before, via
+`source cdspaths.sh`. The `make` paths under `platform/common/` and
+`verification/` also still work; they are the legacy in-tree route.
+
+Full map of what is Bazel-managed and what is not: [`BAZEL.md`](BAZEL.md).
+
+---
+
 ## Ways to Contribute
 
 | Area | Examples |
@@ -26,7 +62,7 @@ Thank you for your interest in contributing! VestaRV is an open-source RISC-V co
 | **Firmware** | Boot ROM improvements, new firmware examples, Forth interpreter extensions |
 | **Verification** | New ISA test cases, peripheral testbenches, simulation scripts |
 | **Documentation** | Improving READMEs, correcting the user guide, adding application notes |
-| **Build System** | Makefile improvements, new script utilities, toolchain support |
+| **Build System** | Bazel rules and targets (`tools/bin/bazel`, see [Building and Testing with Bazel](#building-and-testing-with-bazel)), Makefile improvements, new script utilities, toolchain support |
 | **FPGA Ports** | New board support packages with pinout and constraints |
 
 ---
@@ -102,9 +138,41 @@ For small fixes (typos, one-line corrections), you can open a PR directly.
 
 4. **Include verification** for HDL changes — at minimum a passing simulation of the affected module. See [Verification Requirements](#verification-requirements).
 
-5. **Update documentation** — if you add or change a register, peripheral, or configuration option, update the relevant README and re-run `make chip` (in `platform/common/`) if the memory map is affected.
+5. **Run the Bazel gate set before you open the PR** - from the repo root, `tools/bin/bazel test //...`. It must be green (except for the known-red cases called out in [`BAZEL.md`](BAZEL.md)). CI runs the same gates. See [Building and Testing with Bazel](#building-and-testing-with-bazel).
 
-6. **Do not commit generated artifacts** — everything under `platform/common/out/` (the generated RTL, headers, linker scripts, and TRM) is a build output. Commit only the source (`platform/common/python/generate.py`, the LaTeX templates, and the peripheral intro files) and let the reviewer regenerate. The published drop-in RTL (`hdl/common/MCU.vhd` / `MemoryMap.vhd`) is committed but is itself a `make chip` product — see [Repository Structure & Frozen Trees](#repository-structure--frozen-trees).
+6. **Update documentation** — if you add or change a register, peripheral, or configuration option, update the relevant README and re-run `make chip` (in `platform/common/`) if the memory map is affected.
+
+7. **Do not commit generated artifacts** — everything under `platform/common/out/` (the generated RTL, headers, linker scripts, and TRM) is a build output. Commit only the source (`platform/common/python/generate.py`, the LaTeX templates, and the peripheral intro files) and let the reviewer regenerate. The published drop-in RTL (`hdl/common/MCU.vhd` / `MemoryMap.vhd`) is committed but is itself a `make chip` product — see [Repository Structure & Frozen Trees](#repository-structure--frozen-trees).
+
+### What CI checks before a merge
+
+Five jobs in `.github/workflows/ci.yml` gate every pull request, and the merge
+queue re-runs them against a candidate rebased onto current `main`
+(see [`.github/MERGE_QUEUE.md`](.github/MERGE_QUEUE.md)):
+
+| Check | What it proves |
+|---|---|
+| `Chip generator gates` | `make generate` is clean, and the tracked `hdl/common/MCU.vhd` / `MemoryMap.vhd` are byte-identical to what the generator emits. A hand-edit of the generated RTL cannot merge. |
+| `Docs link + generator syntax gates` | Every relative link in the HTML and Markdown resolves; the generator byte-compiles; no workflow targets a self-hosted runner. |
+| `Bootrom + ISA image builds` | The mask ROM reproduces byte-identically with the pinned toolchain, and the full N=4 ISA image set still assembles and links. |
+| `Bazel hermetic gates` | `bazel test //...` minus the GHDL half, from a checkout with no toolchain installed: chip generation, every firmware and course-lab golden, the ISA image contract, the python tooling, the docs gates. Also proves the lockfile is current, the whole build graph analyzes, and that no build action wrote into the source tree. |
+| `Repo hygiene gates` | The `tools/ci/` guards: CRLF endings preserved where they are load-bearing, VHDL is 7-bit ASCII, `.bazelignore` still excludes the EDA output trees, and no build output or oversized blob is tracked. |
+
+Two more hosted jobs run on every PR from `.github/workflows/`: the GHDL ISA
+regression in `sim.yml` and the Verilog bridge plus cocotb smoke test in
+`physical.yml`.
+
+You can run all of the hygiene gates locally, from the repo root:
+
+```sh
+python3 tools/ci/check_line_endings.py
+python3 tools/ci/check_vhdl_style.py
+python3 tools/ci/check_bazelignore.py
+python3 tools/ci/check_repo_hygiene.py
+```
+
+See [`tools/ci/README.md`](tools/ci/README.md) for what each one blesses and how
+to regenerate the line-ending manifest when a deliberate change moves it.
 
 ---
 
@@ -133,6 +201,18 @@ Firmware is written in **C (C11)** or **RISC-V assembly (RV32)**.
 ---
 
 ## Verification Requirements
+
+**Before you open a PR, run the full Bazel gate set from the repo root:**
+
+```sh
+tools/bin/bazel test //...
+```
+
+Targeted subsets while you iterate: `//opensource_sim:isa_regression` (the
+license-free GHDL ISA regression), `//platform/...` (chip generation and its
+identity/determinism gates), `//software/...` (firmware image goldens),
+`//hdl/common/tb:mp_arbiter_tb` and `//hdl/common/tb:pmp_unit_tb` (unit
+benches).
 
 Any HDL change that modifies:
 - **The VestaRV core** (`hdl/common/vesta/`) — must pass all ISA tests (`cd verification/isa && make all`)

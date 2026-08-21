@@ -14,6 +14,43 @@ Python 3.6+ compatible (no walrus, no 3.7+ stdlib). **This machine's default
 `/usr/bin/python3` (plain CPython 3.6.12) if `python3 script.py` ever
 misbehaves.
 
+## Building and testing with Bazel
+
+Bazel runs this library's gates hermetically, against its own pinned Python, so
+none of the `python3`-wrapper caveats above apply inside the sandbox. The
+by-hand invocations below still work and are kept as the legacy path. Every
+command is run from the repo root.
+
+One-time bootstrap:
+
+```sh
+sh tools/get_bazel.sh            # fetches bazelisk into tools/bin/bazel
+tools/bin/bazel test //...       # first run downloads all toolchains
+```
+
+`tools/bin/bazel test //verification/npu/...` runs all nine tests of this
+package:
+
+| Target | Verb | What it proves |
+|---|---|---|
+| `//verification/npu:validate_mlp_test` | test | `npu_fixed` reproduces the chip-config MLP golden set (`verification/isa/tests/periph/NPU_data`) bit-exactly, 201/201 |
+| `//verification/npu:regen_actf_vectors_test` | test | the tracked `actf_vectors/` files are exactly what `gen_actf_vectors.py` produces today; regeneration happens in a scratch tree, never over the tracked copies |
+| `//verification/npu:regen_conv_vectors_test` | test | the same for `conv_vectors/` |
+| `//verification/npu:regen_gemm_vectors_test` | test | the same for `gemm_vectors/` |
+| `//verification/npu:regen_xnor_vectors_test` | test | the same for `xnor_vectors/` |
+| `//verification/npu:gen_wactf_golden_test` | test | the `wactf` firmware-smoke golden generator's own self-checks agree with `npu_fixed` |
+| `//verification/npu:gen_wgemm_golden_test` | test | the same for `wgemm` |
+| `//verification/npu:gen_wnpuconv_golden_test` | test | the same for `wnpuconv` |
+| `//verification/npu:gen_wxnpu_golden_test` | test | the same for `wxnpu`, through the shared XNOR encoders |
+| `//verification/npu:validate_mlp` | build | the validation runner as a hermetic binary; `bazel run` it with an absolute `--data-dir` when you want the mismatch trace |
+
+The library targets themselves are `//verification/npu:npu_fixed` (the
+fixed-point arithmetic) and `//verification/npu:xnor_gen_lib` (the XNOR
+encoders), with `//verification/npu:generator_srcs` staging the generator
+sources for the regeneration tests.
+
+The full target map is in [`BAZEL.md`](../../BAZEL.md).
+
 ## Files
 
 - **`npu_fixed.py`** — the arithmetic library. Key functions:

@@ -26,6 +26,39 @@ cd generator
 
 ---
 
+## Building with Bazel
+
+**This generator is deliberately NOT Bazel-managed.** It overwrites tracked
+files in place (`config/`, `gcc/lib/`, `latex/`), which is exactly what a
+hermetic, sandboxed build must never do, so no Bazel target runs it. Run it the
+old way, as documented below, and expect it to modify your working tree.
+
+The only Bazel targets in this directory are two filegroups that hand the
+already-generated, tracked outputs to the firmware builds:
+
+| Target | What it is |
+|--------|------------|
+| `//platform/myshkin/gcc/lib:platform_headers` | The generated `MemoryMap.h` / `periph.S` headers, as build inputs |
+| `//platform/myshkin/gcc/lib:linker_fragments` | The generated `memory.x` / `periph.x` linker fragments |
+
+**The Bazel-managed generator is `platform/common` (Castalia / Argus).** For new
+work use that one - it generates into a sandbox, never into the tree, and it
+carries the full gate set. From the repo root:
+
+```sh
+sh tools/get_bazel.sh            # fetches bazelisk into tools/bin/bazel
+tools/bin/bazel test //...       # first run downloads all toolchains
+```
+
+```sh
+tools/bin/bazel build //platform/common:chip_artifacts_castalia   # the hermetic generation
+tools/bin/bazel build //platform/common:chip_artifacts_argus      # the 18-hart course chip
+tools/bin/bazel test  //platform/...                              # the generator gate tests
+```
+
+See [`platform/common/README.md`](../common/README.md) for that flow, and
+[`BAZEL.md`](../../BAZEL.md) for the full map of the Bazel build.
+
 ## Directory Structure
 
 ```
