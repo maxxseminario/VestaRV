@@ -1,0 +1,40 @@
+%% maestro2tex -- generated figure; do not edit by hand.
+\providecommand{\MaestroRoot}{include/analog/}
+\begin{figure}[htbp]
+  \centering
+  {\pgfplotsset{compat=1.18}%
+  \begin{tikzpicture}
+    \begin{axis}[
+      width=0.82\linewidth, height=6.2cm,
+      xlabel={Gain code $N$}, ylabel={Feedback resistance~[\si{\kilo\ohm}]},
+      grid=both,
+      major grid style={line width=0.2pt, draw=black!14},
+      minor grid style={line width=0.2pt, draw=black!7},
+      minor tick num=1,
+      axis line style={line width=0.4pt, draw=black!45},
+      tick style={line width=0.4pt, draw=black!45},
+      tick align=outside,
+      label style={font=\small}, tick label style={font=\small},
+      enlarge x limits=0.02, enlarge y limits=0.10,
+      every axis plot/.append style={line join=round, no marks},
+      legend style={font=\footnotesize, draw=black!25, fill=white,
+                    fill opacity=0.9, text opacity=1, row sep=1pt},
+      legend cell align=left, legend pos=south east,
+      scaled x ticks=false,
+      ymode=log
+    ]
+      \addplot[mtxA, line width=1.1pt, solid] table {\MaestroRoot data/tiarprog_r_vs_code_00.dat};
+      \addlegendentry{typ}
+      \addplot[mtxB, line width=1.1pt, dashed] table {\MaestroRoot data/tiarprog_r_vs_code_01.dat};
+      \addlegendentry{ff-res}
+      \addplot[mtxC, line width=1.1pt, dotted] table {\MaestroRoot data/tiarprog_r_vs_code_02.dat};
+      \addlegendentry{ss-res}
+      \addplot[mtxD, line width=1.1pt, dashdotted] table {\MaestroRoot data/tiarprog_r_vs_code_03.dat};
+      \addlegendentry{ff -40C}
+      \addplot[mtxE, line width=1.1pt, densely dashed] table {\MaestroRoot data/tiarprog_r_vs_code_04.dat};
+      \addlegendentry{ss 125C}
+    \end{axis}
+  \end{tikzpicture}}
+  \caption[{Measured resistance against gain code at all five corners, \SI{500}{\nano\ampere} forced through the A--B\,\dots}]{Measured resistance against gain code at all five corners, \SI{500}{\nano\ampere} forced through the A--B terminals with B held at \(V_{\mathrm{CM}}=\SI{1.25}{\volt}\). The law is \(R = 18\,\mathrm{k}\Omega + 6\,\mathrm{k}\Omega\cdot N\) with \(N\) the binary value of \texttt{ResEn<5:0>} plus 64 per set \texttt{ThEn<3:0>} thermometer bit; every corner is strictly monotonic over all 320 codes, including the four thermometer seams. The corner families move the absolute value by \(-33\) to \(+35\,\%\), which is the poly sheet-resistance tolerance and must be absorbed by gain calibration, not by code choice.}
+  \label{fig:tiarprog-r-vs-code}
+\end{figure}

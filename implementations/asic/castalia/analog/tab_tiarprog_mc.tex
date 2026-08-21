@@ -1,0 +1,18 @@
+%% maestro2tex -- generated table; do not edit by hand.
+\begin{table}[htbp]
+  \centering
+  \caption[{Monte Carlo of the programmable resistor at four codes plus the per-sample seam step.}]{Monte Carlo of the programmable resistor at four codes plus the per-sample seam step. \textbf{Mismatch only}, model section \texttt{castalia\_pm\_25}, nominal process, 200 samples, seed 12345, low-discrepancy sampling, \SI{25}{\celsius}, \SI{500}{\nano\ampere} test current. Relative spread falls with code as units accumulate: \(\sigma/\mu = 0.359\,\%\) at \(N{=}0\) (three ladder units plus ten switch Rons), \(0.091\,\%\) at \(N{=}63\), \(0.037\,\%\) at \(N{=}319\); the gain ratio \(R(319)/R(0)\) spreads \(0.354\,\%\). The only specification graded is seam \(>0\) (monotonicity): 200 of 200 pass.}
+  \label{tab:tiarprog-mc}
+  \footnotesize
+  \begin{tabular}{lrrrrrrrrrr}
+    \toprule
+    Parameter & Unit & $N$ & Mean & $\sigma$ & Min & $p_{1}$ & $p_{99}$ & Max & Spec & Yield \\
+    \midrule
+    $R(N{=}0)$ & \si{\kilo\ohm} & 200 & 19.650 & 0.071 & 19.477 & 19.492 & 19.819 & 19.845 & -- & -- \\
+    $R(N{=}63)$ & \si{\kilo\ohm} & 200 & 396.4515 & 0.3608 & 395.5830 & 395.6068 & 397.2074 & 397.2610 & -- & -- \\
+    $R(N{=}64)$ & \si{\kilo\ohm} & 200 & 403.8759 & 0.3644 & 402.9290 & 403.0597 & 404.6631 & 404.6820 & -- & -- \\
+    $R(N{=}319)$ & \si{\mega\ohm} & 200 & 1.93212 & 0.00071 & 1.93010 & 1.93072 & 1.93369 & 1.93445 & -- & -- \\
+    Seam step $63{\to}64$ & \si{\kilo\ohm} & 200 & 7.424 & 0.504 & 5.878 & 6.069 & 8.605 & 8.635 & $\geq 0.000$ & 100.0 \\
+    \bottomrule
+  \end{tabular}
+\end{table}

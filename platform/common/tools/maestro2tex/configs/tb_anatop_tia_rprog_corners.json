@@ -1,0 +1,145 @@
+{
+  "block": "TiaRprog",
+  "tex_root": "include/analog/",
+  "nominal_corner": "typ",
+  "supply_var": "vsup",
+  "emit_master": true,
+  "emit_corner_table": true,
+  "points": ["1-5"],
+  "corner_labels": {
+    "pt1": "typ",
+    "tt2": "ff-res",
+    "tt3": "ss-res",
+    "ff": "ff -40C",
+    "ss": "ss 125C"
+  },
+  "corner_table_caption": "Process and temperature points simulated for the programmable feedback resistor. Point 1 is the typical statistical process point (\\texttt{castalia\\_typ\\_25}) at \\SI{27}{\\celsius}. Points 2--3 skew the poly resistor family alone (\\texttt{ff\\_res}/\\texttt{ss\\_res} with typical MOS, \\SI{27}{\\celsius}) and points 4--5 skew MOS and resistor together at the temperature extremes (\\texttt{ff\\_25}+\\texttt{ff\\_res} at \\SI{-40}{\\celsius}, \\texttt{ss\\_25}+\\texttt{ss\\_res} at \\SI{125}{\\celsius}), so the ladder term and the switch-resistance term of each code can be told apart. The \\texttt{\\_res} family has no \\texttt{sf}/\\texttt{fs} sections, so no cross corner exists to run. This is a corner run and carries no device mismatch.",
+  "tests": {
+    "rp_code": {
+      "dir": "rp_code",
+      "result": "dc",
+      "xlabel": "Gain code $N$",
+      "xunit_tex": "",
+      "xscale": 1.0,
+      "signals": {
+        "r_kohm": {
+          "expr": "((VS(\"/A_T\") - VS(\"/B_T\")) / 500e-9)",
+          "label": "Feedback resistance",
+          "unit_tex": "\\si{\\kilo\\ohm}",
+          "scale": 0.001,
+          "digits": 4
+        },
+        "r_err_pct": {
+          "expr": "(100.0 * (((VS(\"/A_T\") - VS(\"/B_T\")) / 500e-9) - (18000.0 + 6000.0 * xval(VS(\"/A_T\")))) / (18000.0 + 6000.0 * xval(VS(\"/A_T\"))))",
+          "label": "Error vs $18\\,\\mathrm{k}+6\\,\\mathrm{k}\\cdot N$",
+          "unit_tex": "\\si{\\percent}",
+          "scale": 1.0,
+          "digits": 3
+        },
+        "r_n0": {
+          "expr": "(value(((VS(\"/A_T\") - VS(\"/B_T\")) / 500e-9) 0) / 1000.0)",
+          "label": "$R(N{=}0)$",
+          "unit_tex": "\\si{\\kilo\\ohm}",
+          "scale": 1.0,
+          "digits": 3
+        },
+        "r_n63": {
+          "expr": "(value(((VS(\"/A_T\") - VS(\"/B_T\")) / 500e-9) 63) / 1000.0)",
+          "label": "$R(N{=}63)$",
+          "unit_tex": "\\si{\\kilo\\ohm}",
+          "scale": 1.0,
+          "digits": 4
+        },
+        "r_n64": {
+          "expr": "(value(((VS(\"/A_T\") - VS(\"/B_T\")) / 500e-9) 64) / 1000.0)",
+          "label": "$R(N{=}64)$",
+          "unit_tex": "\\si{\\kilo\\ohm}",
+          "scale": 1.0,
+          "digits": 4
+        },
+        "r_n319": {
+          "expr": "(value(((VS(\"/A_T\") - VS(\"/B_T\")) / 500e-9) 319) / 1000000.0)",
+          "label": "$R(N{=}319)$",
+          "unit_tex": "\\si{\\mega\\ohm}",
+          "scale": 1.0,
+          "digits": 4
+        },
+        "seam_63_64": {
+          "expr": "((value(((VS(\"/A_T\") - VS(\"/B_T\")) / 500e-9) 64) - value(((VS(\"/A_T\") - VS(\"/B_T\")) / 500e-9) 63)) / 1000.0)",
+          "label": "Seam step $63{\\to}64$",
+          "unit_tex": "\\si{\\kilo\\ohm}",
+          "scale": 1.0,
+          "digits": 3
+        },
+        "step_min": {
+          "expr": "ymin(deriv(((VS(\"/A_T\") - VS(\"/B_T\")) / 500e-9)))",
+          "label": "Step, min",
+          "unit_tex": "\\si{\\ohm}",
+          "scale": 1.0,
+          "digits": 0
+        },
+        "step_max": {
+          "expr": "ymax(deriv(((VS(\"/A_T\") - VS(\"/B_T\")) / 500e-9)))",
+          "label": "Step, max",
+          "unit_tex": "\\si{\\ohm}",
+          "scale": 1.0,
+          "digits": 0
+        },
+        "step_mean": {
+          "expr": "((value(((VS(\"/A_T\") - VS(\"/B_T\")) / 500e-9) 319) - value(((VS(\"/A_T\") - VS(\"/B_T\")) / 500e-9) 0)) / 319.0)",
+          "label": "Step, mean",
+          "unit_tex": "\\si{\\ohm}",
+          "scale": 1.0,
+          "digits": 1
+        }
+      }
+    }
+  },
+  "figures": [
+    {
+      "id": "tiarprog_r_vs_code",
+      "test": "rp_code",
+      "signals": ["r_kohm"],
+      "corners": "all",
+      "ylog": true,
+      "ylabel": "Feedback resistance~[\\si{\\kilo\\ohm}]",
+      "legendpos": "south east",
+      "caption": "Measured resistance against gain code at all five corners, \\SI{500}{\\nano\\ampere} forced through the A--B terminals with B held at \\(V_{\\mathrm{CM}}=\\SI{1.25}{\\volt}\\). The law is \\(R = 18\\,\\mathrm{k}\\Omega + 6\\,\\mathrm{k}\\Omega\\cdot N\\) with \\(N\\) the binary value of \\texttt{ResEn<5:0>} plus 64 per set \\texttt{ThEn<3:0>} thermometer bit; every corner is strictly monotonic over all 320 codes, including the four thermometer seams. The corner families move the absolute value by \\(-33\\) to \\(+35\\,\\%\\), which is the poly sheet-resistance tolerance and must be absorbed by gain calibration, not by code choice."
+    },
+    {
+      "id": "tiarprog_err_vs_code",
+      "test": "rp_code",
+      "signals": ["r_err_pct"],
+      "corners": ["typ"],
+      "ylabel": "Error vs $18\\,\\mathrm{k}+6\\,\\mathrm{k}\\cdot N$~[\\si{\\percent}]",
+      "legendpos": "north east",
+      "caption": "Typical-corner deviation from the ideal code law. The \\(+9.2\\,\\%\\) at \\(N=0\\) is the series resistance of the ten closed bypass switches (\\SI{1.65}{\\kilo\\ohm}, about \\SI{165}{\\ohm} each), which decays as \\(1/R\\) once real ladder segments dominate; by \\(N=319\\) the error is \\(-0.063\\,\\%\\). The ripple is the carry structure: at each binary carry and at each thermometer seam the set of closed switches changes, so the Ron term steps while the ladder term is exact."
+    }
+  ],
+  "tables": [
+    {
+      "id": "tiarprog_corners",
+      "type": "matrix",
+      "test": "rp_code",
+      "stat": "value",
+      "corners": "all",
+      "spread_column": true,
+      "signals": ["r_n0", "r_n63", "r_n64", "r_n319", "seam_63_64", "step_min", "step_max", "step_mean"],
+      "caption": "Code-space summary by corner, \\SI{500}{\\nano\\ampere} test current. \\texttt{step\\_min}/\\texttt{step\\_max} are taken from the point-to-point derivative of the 320-code sweep and \\texttt{step\\_mean} from the endpoints; \\texttt{step\\_min} is positive at every corner, which is the monotonicity statement. The seam step (code 63 to 64, one 64-unit thermometer segment in, six binary segments out) exceeds a normal step everywhere. At \\texttt{ss 125C} the top code reaches \\SI{2.553}{\\volt} at the forced \\SI{500}{\\nano\\ampere} --- \\SI{53}{\\milli\\volt} over the rail; a \\SI{250}{\\nano\\ampere} control run bounds the cost of that at \\(0.0017\\,\\%\\) on the top code and \\(\\le 0.036\\,\\%\\) anywhere, so the values are reported as measured."
+    }
+  ],
+  "order": [
+    "note_tiarprog_intro",
+    "tab_TiaRprog_corners",
+    "fig_tiarprog_r_vs_code",
+    "tab_tiarprog_corners",
+    "fig_tiarprog_err_vs_code",
+    "fig_tiarprog_lin_n0",
+    "tab_tiarprog_lin",
+    "note_tiarprog_mc",
+    "tab_tiarprog_mc",
+    "fig_tiarprog_mc_seam",
+    "note_tiarprog_scope"
+  ],
+  "_note": "Results dir: ~/chips/castalia/simruns/tb_anatop_tia_rprog_code/castalia/tb_anatop_tia_rprog/maestro/results/maestro/Ocean.0. Companion configs: tb_anatop_tia_rprog_lin.json (lin_n0 run), tb_anatop_tia_rprog_mc.json (mc run). Archive + provenance: ~/chips/castalia/simarchive/tb_anatop_tia_rprog/README.md"
+}

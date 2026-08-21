@@ -44,7 +44,8 @@ the local bias generator, the class-AB amplifier that serves as both the
 channel's transimpedance amplifier (A2) and its potentiostat control amplifier
 (A1), the complete potentiostat pixel system built from a pair of those
 amplifiers around a three-electrode cell, the 10-bit SAR analog-to-digital
-converter that closes the channel, and the 12-bit R-2R reference DAC with the
+converter that closes the channel, the programmable feedback resistor that sets
+the channel's transimpedance gain, and the 12-bit R-2R reference DAC with the
 supply block that feeds it.
 
 \subsection*{Characterisation coverage}
@@ -58,6 +59,7 @@ Bias generator        & \ref{ss:biasgen-local} & 2 & \checkmark & n/a \\
 Class-AB amplifier    & \ref{ss:ampab}         & 6 & \checkmark & \checkmark \\
 Potentiostat pixel system & \ref{ss:pixel}     & 6 & \checkmark & \checkmark \\
 SAR ADC               & \ref{ss:adc}          & 1 & --- & --- \\
+Feedback resistor     & \ref{ss:tiarprog}      & 3 & \checkmark & \checkmark \\
 Reference DAC         & \ref{ss:dacr2r12}      & 6 & \checkmark & \checkmark \\
 \bottomrule
 \end{tabular}
@@ -66,7 +68,8 @@ Reference DAC         & \ref{ss:dacr2r12}      & 6 & \checkmark & \checkmark \\
 \noindent A dash means the run has not been made: the SAR ADC is characterised at the
 nominal corner only, and its section states that limit alongside every number.
 Corner runs cover process, temperature and supply at the five points listed in
-each block section. Monte Carlo runs cover process and mismatch together; a corner figure
+each block section. Monte Carlo runs cover process and mismatch together unless a
+table states mismatch-only; a corner figure
 and a Monte Carlo \(\sigma\) are different quantities and are reported separately
 throughout. Design
 targets, where quoted alongside a measurement, are stated in the block section that
@@ -87,4 +90,5 @@ reports the measurement.
 \input{include/analog/AmpAB.tex}
 \input{include/analog/Pixel.tex}
 \input{include/analog/Adc.tex}
+\input{include/analog/TiaRprog.tex}
 \input{include/analog/DacR2R12.tex}

@@ -1,0 +1,38 @@
+%% maestro2tex -- generated Monte Carlo histogram; do not edit by hand.
+\providecommand{\MaestroRoot}{include/analog/}
+\begin{figure}[htbp]
+  \centering
+  {\pgfplotsset{compat=1.18}%
+  \begin{tikzpicture}
+    \begin{axis}[
+      width=0.86\linewidth, height=6.0cm,
+      xlabel={Seam step $R(64)-R(63)$~[\si{\kilo\ohm}]}, ylabel={Samples},
+      grid=both,
+      major grid style={line width=0.2pt, draw=black!14},
+      minor grid style={line width=0.2pt, draw=black!7},
+      minor tick num=1,
+      axis line style={line width=0.4pt, draw=black!45},
+      tick style={line width=0.4pt, draw=black!45},
+      tick align=outside,
+      label style={font=\small}, tick label style={font=\small},
+      enlarge x limits=0.02, enlarge y limits=0.10,
+      every axis plot/.append style={line join=round, no marks},
+      legend style={font=\footnotesize, draw=none, fill=none,
+                    at={(0.5,1.02)}, anchor=south, legend columns=-1,
+                    /tikz/every even column/.append style={column sep=9pt}},
+      legend cell align=left,
+      scaled y ticks=false, scaled x ticks=false,
+      y tick label style={/pgf/number format/fixed,
+                          /pgf/number format/precision=0},
+      ymin=0, ymax=27.3,
+      enlarge x limits=0.04, enlarge y limits=false,
+      area legend
+    ]
+      \addplot[ybar interval, draw=mtxA, fill=mtxA!25, line width=0.7pt] table {\MaestroRoot data/tiarprog_mc_seam_00.dat};
+      \addlegendentry{Seam step $63{\to}64$}
+      \node[anchor=west, font=\footnotesize, align=left, text=black!70] at (rel axis cs:0.02,0.93) {monotonicity limit (0)};
+    \end{axis}
+  \end{tikzpicture}}
+  \caption[{Per-sample step across the first thermometer seam (code 63 to 64: one 64-unit segment switches in while all\,\dots}]{Per-sample step across the first thermometer seam (code 63 to 64: one 64-unit segment switches in while all six binary segments switch out), the code transition most exposed to mismatch. \textbf{Mismatch only}, model section \texttt{castalia\_pm\_25}, nominal process, 200 samples, seed 12345, low-discrepancy sampling, \SI{25}{\celsius}. Mean \SI{7.42}{\kilo\ohm}, \(\sigma=\SI{504}{\ohm}\), worst sample \SI{5.88}{\kilo\ohm} --- \(14.7\sigma\) above the monotonicity limit at zero, so no realistic mismatch closes the seam.}
+  \label{fig:tiarprog-mc-seam}
+\end{figure}

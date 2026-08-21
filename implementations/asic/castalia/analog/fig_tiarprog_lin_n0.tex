@@ -1,0 +1,33 @@
+%% maestro2tex -- generated figure; do not edit by hand.
+\providecommand{\MaestroRoot}{include/analog/}
+\begin{figure}[htbp]
+  \centering
+  {\pgfplotsset{compat=1.18}%
+  \begin{tikzpicture}
+    \begin{axis}[
+      width=0.82\linewidth, height=6.2cm,
+      xlabel={Drive current~[\si{\micro\ampere}]}, ylabel={Deviation from chord~[ADC LSB]},
+      grid=both,
+      major grid style={line width=0.2pt, draw=black!14},
+      minor grid style={line width=0.2pt, draw=black!7},
+      minor tick num=1,
+      axis line style={line width=0.4pt, draw=black!45},
+      tick style={line width=0.4pt, draw=black!45},
+      tick align=outside,
+      label style={font=\small}, tick label style={font=\small},
+      enlarge x limits=0.02, enlarge y limits=0.10,
+      every axis plot/.append style={line join=round, no marks},
+      legend style={font=\footnotesize, draw=black!25, fill=white,
+                    fill opacity=0.9, text opacity=1, row sep=1pt},
+      legend cell align=left, legend pos=north west,
+      scaled y ticks=false, scaled x ticks=false,
+      y tick label style={/pgf/number format/fixed,
+                          /pgf/number format/precision=1}
+    ]
+      \addplot[mtxA, line width=1.1pt, solid] table {\MaestroRoot data/tiarprog_lin_n0_00.dat};
+      \addlegendentry{typ}
+    \end{axis}
+  \end{tikzpicture}}
+  \caption[{Drive nonlinearity of the bottom code (\(N=0\), \(R\approx\SI{19.6}{\kilo\ohm}\)): voltage deviation from the\,\dots}]{Drive nonlinearity of the bottom code (\(N=0\), \(R\approx\SI{19.6}{\kilo\ohm}\)): voltage deviation from the endpoint chord over \(\pm 90\,\%\) of full scale (\(\pm\SI{40}{\micro\ampere}\)), typical corner, expressed in \SI{1.592}{\milli\volt} ADC LSB. All ten bypass gates are closed at this code and carry the full signal current; their on-resistance rises with the terminal's excursion from \(V_{\mathrm{CM}}\), so the chord --- pinned at the sweep endpoints where that excursion is largest --- overestimates the mid-range voltage by up to \(1.25\,\mathrm{LSB}\), and the deviation is bowl-shaped with a slight skew from the gates' voltage asymmetry. The same measurement at \(N=63\) and \(N=319\), where the ladder dominates and current is 20--100\(\times\) smaller, stays below \(0.004\,\mathrm{LSB}\) and is tabulated, not plotted.}
+  \label{fig:tiarprog-lin-n0}
+\end{figure}

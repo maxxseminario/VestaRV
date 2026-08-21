@@ -1,0 +1,20 @@
+% HAND-WRITTEN fragment -- placed by the `order` list in
+% configs/tb_anatop_tia_rprog_corners.json.
+%
+% Scope statement; numbers referenced come from tab_tiarprog_corners,
+% tab_tiarprog_lin and tab_tiarprog_mc.
+
+Three limits on what this section claims. First, everything is a two-terminal
+measurement of the resistor alone: the cell has never been simulated inside the
+TIA loop, so loop stability, noise and settling with the real switches ---
+rather than the ideal \(R_F\) the pixel benches use --- are open. Second, the
+Monte Carlo is mismatch-only at \SI{25}{\celsius} on four codes; no
+process-plus-mismatch statistics exist. Third, the bottom code is the block's
+weak point, and all three of its symptoms share one root cause: the
+\SI{1.65}{\kilo\ohm} closed-switch stack (\(+9.2\,\%\) at \(N=0\)), the
+\(1.26\)-LSB drive nonlinearity, and the \(4\times\) larger relative mismatch
+spread are all the ten bypass gates in series with a three-unit ladder. Absolute
+gain at any code calibrates out against the corner and mismatch spread; if the
+bottom code ever needs uncalibrated accuracy, the fix is wider bypass gates, not
+more ladder. Integration into \texttt{anatop\_tia} (whose legacy 16-bit
+\texttt{tia\_gain} bus becomes these ten control bits) is pending, as is layout.

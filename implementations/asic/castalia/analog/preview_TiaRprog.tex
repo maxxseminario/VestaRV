@@ -1,0 +1,19 @@
+%% maestro2tex -- standalone proof sheet. Build with:
+%     cd /home/mseminario2/vestarv/implementations/asic/castalia/analog && pdflatex preview_TiaRprog.tex
+% The TRM does NOT use this file; it inputs TiaRprog.tex directly.
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{caption}
+\usepackage{pgfplots}
+\usepackage{xcolor}
+\usepackage{siunitx}
+\usepackage{amsmath}
+\usepackage{placeins}
+\usepackage{circuitikz}
+\def\MaestroRoot{}
+\begin{document}
+\section*{TiaRprog: generated characterisation}
+\input{TiaRprog.tex}
+\end{document}

@@ -1,0 +1,17 @@
+% HAND-WRITTEN fragment -- placed by the `order` list in
+% configs/tb_anatop_tia_rprog_corners.json.
+%
+% Numbers come from tab_tiarprog_mc / fig_tiarprog_mc_seam.
+%
+% Source: simruns/tb_anatop_tia_rprog_mc, 200 samples, seed 12345, LDS,
+% variations=mismatch, section castalia_pm_25, 25 C. Verified before use: all
+% 333 rppolywo instances in the executed netlist carry mismatchflag=1 (the
+% device default is 0, which runs MC with no mismatch at all), the netlist
+% contains a real `montecarlo` statement, and mcdata holds 200 varying rows
+% with no sentinel entries.
+
+Corners move every code by the same sheet-resistance factor, so matching ---
+the property that decides whether a 64-unit thermometer segment can invert a
+step against 63 binary units --- is invisible to them. The Monte Carlo run
+therefore grades the seam directly, per sample, alongside the absolute spread
+at four codes.

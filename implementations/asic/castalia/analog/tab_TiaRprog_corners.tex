@@ -1,0 +1,17 @@
+%% maestro2tex -- generated table; do not edit by hand.
+\begin{table}[htbp]
+  \centering
+  \caption[{Process and temperature points simulated for the programmable feedback resistor.}]{Process and temperature points simulated for the programmable feedback resistor. Point 1 is the typical statistical process point (\texttt{castalia\_typ\_25}) at \SI{27}{\celsius}. Points 2--3 skew the poly resistor family alone (\texttt{ff\_res}/\texttt{ss\_res} with typical MOS, \SI{27}{\celsius}) and points 4--5 skew MOS and resistor together at the temperature extremes (\texttt{ff\_25}+\texttt{ff\_res} at \SI{-40}{\celsius}, \texttt{ss\_25}+\texttt{ss\_res} at \SI{125}{\celsius}), so the ladder term and the switch-resistance term of each code can be told apart. The \texttt{\_res} family has no \texttt{sf}/\texttt{fs} sections, so no cross corner exists to run. This is a corner run and carries no device mismatch.}
+  \label{tab:TiaRprog-corners}
+  \begin{tabular}{lrrr}
+    \toprule
+    Point & Process & Temperature & Supply \\
+    \midrule
+    1 & typ & 27\,\si{\celsius} & 2.5\,\si{\volt} \\
+    2 & ff-res & 27\,\si{\celsius} & 2.5\,\si{\volt} \\
+    3 & ss-res & 27\,\si{\celsius} & 2.5\,\si{\volt} \\
+    4 & ff -40C & -40\,\si{\celsius} & 2.5\,\si{\volt} \\
+    5 & ss 125C & 125\,\si{\celsius} & 2.5\,\si{\volt} \\
+    \bottomrule
+  \end{tabular}
+\end{table}

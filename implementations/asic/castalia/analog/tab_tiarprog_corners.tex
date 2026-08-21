@@ -1,0 +1,20 @@
+%% maestro2tex -- generated table; do not edit by hand.
+\begin{table}[htbp]
+  \centering
+  \caption[{Code-space summary by corner, \SI{500}{\nano\ampere} test current.}]{Code-space summary by corner, \SI{500}{\nano\ampere} test current. \texttt{step\_min}/\texttt{step\_max} are taken from the point-to-point derivative of the 320-code sweep and \texttt{step\_mean} from the endpoints; \texttt{step\_min} is positive at every corner, which is the monotonicity statement. The seam step (code 63 to 64, one 64-unit thermometer segment in, six binary segments out) exceeds a normal step everywhere. At \texttt{ss 125C} the top code reaches \SI{2.553}{\volt} at the forced \SI{500}{\nano\ampere} --- \SI{53}{\milli\volt} over the rail; a \SI{250}{\nano\ampere} control run bounds the cost of that at \(0.0017\,\%\) on the top code and \(\le 0.036\,\%\) anywhere, so the values are reported as measured.}
+  \label{tab:tiarprog-corners}
+  \begin{tabular}{lrrrrrrr}
+    \toprule
+    Parameter & Unit & typ & ff-res & ss-res & ff -40C & ss 125C & Spread \\
+    \midrule
+    $R(N{=}0)$ & \si{\kilo\ohm} & 19.648 & 13.579 & 25.947 & 13.263 & 26.407 & 13.143 \\
+    $R(N{=}63)$ & \si{\kilo\ohm} & 396.1817 & 262.8186 & 534.6769 & 269.5412 & 520.7830 & 271.8583 \\
+    $R(N{=}64)$ & \si{\kilo\ohm} & 403.6009 & 268.0920 & 544.3539 & 274.4177 & 531.2663 & 276.2619 \\
+    $R(N{=}319)$ & \si{\mega\ohm} & 1.9308 & 1.2802 & 2.6064 & 1.3137 & 2.5369 & 1.3262 \\
+    Seam step $63{\to}64$ & \si{\kilo\ohm} & 7.419 & 5.273 & 9.677 & 4.876 & 10.483 & 5.607 \\
+    Step, min & \si{\ohm} & 5576 & 3574 & 7668 & 3812 & 7250 & 4094 \\
+    Step, max & \si{\ohm} & 8509 & 6445 & 10618 & 5687 & 11659 & 5972 \\
+    Step, mean & \si{\ohm} & 5991.0 & 3970.5 & 8089.1 & 4076.7 & 7870.0 & 4118.6 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
