@@ -35,6 +35,17 @@ HERE = os.path.abspath(os.path.dirname(__file__))
 if HERE not in sys.path:
     sys.path.insert(0, HERE)
 
+# A hermetic caller (the bazel py_test) has no riscv-none-elf-* on PATH and
+# points RANDGEN_GCC at the driver it staged instead.
+# census.PREFIX already honours RISCV_PREFIX, so the one thing needed here is
+# to derive that prefix from the driver path before census is imported.
+# With RANDGEN_GCC unset nothing changes and the PATH lookup is unaffected.
+_RANDGEN_GCC = os.environ.get('RANDGEN_GCC')
+if _RANDGEN_GCC and not os.environ.get('RISCV_PREFIX'):
+    _drv = os.path.abspath(_RANDGEN_GCC)
+    if _drv.endswith('gcc'):
+        os.environ['RISCV_PREFIX'] = _drv[:-len('gcc')]
+
 import census                                                # noqa: E402
 import config as k3config                                    # noqa: E402
 import emit                                                  # noqa: E402

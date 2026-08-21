@@ -1,0 +1,149 @@
+# Testbench-side host tools and the VHDL testbench sources.
+#
+# NOTE FOR //hdl:vhdl_sources OWNERS.
+# Creating this BUILD file makes hdl/common/tb its own bazel package, so the
+# glob in //hdl:vhdl_sources no longer descends into it.
+# The :tb_vhdl_sources filegroup below re-exports exactly what that glob used
+# to pick up here, so //hdl:vhdl_sources should add it to its srcs.
+
+load("@rules_cc//cc:defs.bzl", "cc_binary")
+load("@rules_python//python:defs.bzl", "py_test")
+load("//toolchains/ghdl:defs.bzl", "ghdl_test", "vhdl_source_set")
+
+package(default_visibility = ["//visibility:public"])
+
+filegroup(
+    name = "tb_vhdl_sources",
+    srcs = glob(
+        [
+            "*.vhd",
+            "*.vhdl",
+        ],
+        allow_empty = True,
+    ),
+)
+
+exports_files([
+    "fpu_vec_gen.c",
+    "gen_fpu_vectors.sh",
+])
+
+# ---------------------------------------------------------------------------
+# FPU reference vector generator.
+#
+# gen_fpu_vectors.sh builds this with a NATIVE x86-64 gcc and documents the
+# binding reference discipline (gatekeeper correction C4): SSE single
+# precision with -msse2 -mfpmath=sse, x87 FORBIDDEN, glibc fmaf for the fused
+# multiply-add family, fesetround / fetestexcept for rounding and IEEE flags.
+# Under bazel the compiler is the registered hermetic zig (clang) toolchain
+# targeting linux_amd64_gnu.2.17, which is NOT the same C library and not the
+# same compiler front end as the reference. See the loud comment on
+# :fpu_vectors_generated below before trusting its output.
+# ---------------------------------------------------------------------------
+cc_binary(
+    name = "fpu_vec_gen",
+    srcs = ["fpu_vec_gen.c"],
+    copts = [
+        "-O2",
+        "-std=c99",
+        "-msse2",
+        "-mfpmath=sse",
+        "-frounding-math",
+    ],
+    linkopts = ["-lm"],
+)
+
+# ---------------------------------------------------------------------------
+# WARNING -- THIS IS NOT A DROP-IN REPLACEMENT FOR gen_fpu_vectors.sh.
+#
+# There is no committed fpu_vectors.txt anywhere in the tree (fpu_tb.vhd reads
+# it through the VECFILE generic and the file is produced on demand), so there
+# is no golden artifact this rule can be proven byte-identical against, and
+# this host has no native gcc to cross-generate one with.
+# The reference discipline above is a statement about a specific libm and a
+# specific compiler; until a run of gen_fpu_vectors.sh under the intended
+# native toolchain has been diffed against this output, the shell script stays
+# authoritative and this target is a convenience only.
+# Do NOT wire it into a signoff flow on the strength of "bazel built it".
+# ---------------------------------------------------------------------------
+genrule(
+    name = "fpu_vectors_generated",
+    outs = ["fpu_vectors.generated.txt"],
+    cmd = "$(location :fpu_vec_gen) $@",
+    tools = [":fpu_vec_gen"],
+)
+
+# Self-check of the generator itself, which is what can be proven here: the
+# emitted file is deterministic (the xorshift RNG is fixed-seeded) and every
+# line matches the fixed-width record format fpu_tb.vhd parses.
+py_test(
+    name = "fpu_vectors_format_test",
+    size = "small",
+    srcs = ["fpu_vectors_format_test.py"],
+    args = ["$(location :fpu_vectors_generated)"],
+    data = [":fpu_vectors_generated"],
+    main = "fpu_vectors_format_test.py",
+)
+
+# ---------------------------------------------------------------------------
+# Unit benches ported from the untracked xcelium/mp_test runners to GHDL.
+#
+# Only benches whose ENTIRE source closure is tracked VHDL are ported. The two
+# below are the smallest such closures; the runners for tcm_port and dbg_iface
+# are deliberately absent, because those benches instantiate ARM_IP_RAM, a
+# vendor macro that is not in this repository.
+#
+# The xcelium runners compile with -V200X and grep the log for the scoreboard
+# banner. GHDL analyzes both benches clean under --std=08 -fsynopsys, so the
+# targets use the tree-wide 2008 settings, and pass_pattern reproduces the
+# banner grep exactly rather than trusting the exit code alone.
+# ---------------------------------------------------------------------------
+
+# The RTL these benches bind lives in the //hdl package, whose source files are
+# not exported; //hdl:vhdl_sources is the public handle.
+vhdl_source_set(
+    name = "mp_arbiter_rtl",
+    paths = ["hdl/common/mp_arbiter.vhd"],
+    pool = ["//hdl:vhdl_sources"],
+)
+
+vhdl_source_set(
+    name = "pmp_unit_rtl",
+    paths = [
+        "hdl/common/constants.vhd",
+        "hdl/common/vesta/pmp_unit.vhd",
+    ],
+    pool = ["//hdl:vhdl_sources"],
+)
+
+# xcelium/mp_test/run_arbiter.sh (M3c): four synthetic masters contending for
+# one shared single-port RAM.
+ghdl_test(
+    name = "mp_arbiter_tb",
+    size = "small",
+    srcs = [
+        ":mp_arbiter_rtl",
+        "mp_arbiter_tb.vhd",
+    ],
+    entity = "mp_arbiter_tb",
+    pass_pattern = "ALL CHECKS PASSED",
+    sim_timeout_s = 90,
+    tags = ["ghdl"],
+)
+
+# xcelium/mp_test/run_pmp_unit.sh (P3): a purely combinational bench that
+# instantiates all three DUT shapes (ENABLE_PMP true with 16 and 8 entries,
+# and ENABLE_PMP false) in one run, so one invocation covers the whole
+# generic matrix.
+ghdl_test(
+    name = "pmp_unit_tb",
+    size = "small",
+    srcs = [
+        ":pmp_unit_rtl",
+        "pmp_unit_tb.vhd",
+    ],
+    entity = "pmp_unit_tb",
+    pass_pattern = "ALL CHECKS PASSED",
+    sim_timeout_s = 90,
+    tags = ["ghdl"],
+)

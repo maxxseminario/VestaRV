@@ -14,11 +14,26 @@ and verifies that each target path exists on disk.
   are skipped.
 - Files under .claude/worktrees/ are skipped.
 
+Two ways to name the files to scan:
+
+    check_doc_links.py                       git ls-files '*.md' + docs/*.html
+    check_doc_links.py --files-from LIST     one repo-relative path per line
+
+--files-from exists for callers that already know the file set and must not
+shell out to git (the bazel sandbox has no .git).  --root overrides the repo
+root the paths are resolved against; it defaults to three levels above this
+file, which is what it always was.
+
+NEITHER MODE MAY FAIL OPEN.  An unreadable file list, an unreadable listed
+file, or a git that will not run is exit 2, never an empty scan reported as
+"OK: no missing relative targets".
+
 Python 3.6 compatible (no f-strings with '=', no walrus operator).
 """
 
 from __future__ import print_function
 
+import argparse
 import os
 import re
 import subprocess
@@ -26,6 +41,10 @@ import sys
 
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
+class InputError(Exception):
+    """An input could not be read. Always fatal: see the header."""
 
 # Markdown inline link / image target:  ](target)   or   ](target "title")
 MD_LINK_RE = re.compile(r"\]\(\s*([^)]+?)\s*\)")
@@ -62,14 +81,42 @@ def strip_fragment(target):
     return target
 
 
-def tracked_md_files():
+def files_from_list(list_path, root):
+    """Read a newline-separated list of repo-relative paths.
+
+    A read failure here is FATAL, not an empty list: an empty scan exits 0 and
+    would be quoted as evidence that the links are fine.
+    """
+    try:
+        with open(list_path, "r") as fh:
+            raw = fh.read()
+    except Exception as exc:
+        raise InputError("cannot read --files-from list " + list_path
+                         + ": " + str(exc))
+    files = []
+    for line in raw.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if ".claude/worktrees/" in line:
+            continue
+        abspath = os.path.join(root, line)
+        if not os.path.isfile(abspath):
+            raise InputError("listed file does not exist: " + line
+                             + " (resolved to " + abspath + ")")
+        files.append(line)
+    if not files:
+        raise InputError("--files-from list " + list_path + " named no files")
+    return files
+
+
+def tracked_md_files(root):
     try:
         out = subprocess.check_output(
-            ["git", "ls-files", "*.md"], cwd=REPO_ROOT
+            ["git", "ls-files", "*.md"], cwd=root
         ).decode("utf-8", "replace")
     except Exception as exc:
-        print("ERROR: git ls-files failed: " + str(exc), file=sys.stderr)
-        return []
+        raise InputError("git ls-files failed: " + str(exc))
     files = []
     for line in out.splitlines():
         line = line.strip()
@@ -81,8 +128,8 @@ def tracked_md_files():
     return files
 
 
-def docs_html_files():
-    docs_dir = os.path.join(REPO_ROOT, "docs")
+def docs_html_files(root):
+    docs_dir = os.path.join(root, "docs")
     files = []
     if not os.path.isdir(docs_dir):
         return files
@@ -92,13 +139,15 @@ def docs_html_files():
     return files
 
 
-def extract_targets(relpath):
+def extract_targets(relpath, root, strict):
     """Yield (target, kind) for one file. kind is 'md' or 'html'."""
-    abspath = os.path.join(REPO_ROOT, relpath)
+    abspath = os.path.join(root, relpath)
     try:
         with open(abspath, "r", encoding="utf-8", errors="replace") as fh:
             text = fh.read()
     except Exception as exc:
+        if strict:
+            raise InputError("could not read " + relpath + ": " + str(exc))
         print("WARN: could not read " + relpath + ": " + str(exc), file=sys.stderr)
         return
 
@@ -122,15 +171,45 @@ def extract_targets(relpath):
             yield m.group(1).strip(), "html"
 
 
-def main():
-    files = tracked_md_files() + docs_html_files()
+def parse_args(argv):
+    ap = argparse.ArgumentParser(
+        description="relative-link checker for VestaRV documentation")
+    ap.add_argument("--files-from", default=None, metavar="LIST",
+                    help="scan exactly the repo-relative paths named in LIST, "
+                         "one per line, instead of asking git")
+    ap.add_argument("--root", default=REPO_ROOT,
+                    help="repo root the relative paths resolve against")
+    return ap.parse_args(argv)
+
+
+def main(argv=None):
+    args = parse_args(sys.argv[1:] if argv is None else argv)
+    root = os.path.abspath(args.root)
+
+    # --files-from is the STRICT mode: every named file must be readable, and
+    # an unreadable one is exit 2 rather than a quietly shorter scan.
+    strict = args.files_from is not None
+    try:
+        if strict:
+            files = files_from_list(args.files_from, root)
+        else:
+            files = tracked_md_files(root) + docs_html_files(root)
+    except InputError as exc:
+        print("check_doc_links: FATAL -- " + str(exc), file=sys.stderr)
+        return 2
+
     missing = []      # list of (source, target)
     info_external = []  # list of (source, target)
     checked = 0
 
     for relpath in files:
-        src_dir = os.path.dirname(os.path.join(REPO_ROOT, relpath))
-        for target, _kind in extract_targets(relpath):
+        src_dir = os.path.dirname(os.path.join(root, relpath))
+        try:
+            targets = list(extract_targets(relpath, root, strict))
+        except InputError as exc:
+            print("check_doc_links: FATAL -- " + str(exc), file=sys.stderr)
+            return 2
+        for target, _kind in targets:
             if not target:
                 continue
             low = target.lower()
