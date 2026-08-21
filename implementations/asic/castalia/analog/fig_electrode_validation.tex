@@ -43,7 +43,7 @@
       \addlegendentry{linear cell}
       \addplot[mtxA, line width=1.1pt, solid, no marks]
         table {\MaestroRoot data/electrode_cv_bc.dat};
-      \addlegendentry{\texttt{electrode\_bc}}
+      \addlegendentry{electrode model}
     \end{axis}
   \end{tikzpicture}\hfill
   \begin{tikzpicture}
@@ -57,11 +57,11 @@
       \addlegendentry{Randles--\v{S}ev\v{c}\'ik}
       \addplot[mtxA, only marks, mark=*, mark size=1.9pt]
         table {\MaestroRoot data/electrode_rs_sim.dat};
-      \addlegendentry{\texttt{electrode\_bc}}
+      \addlegendentry{electrode model}
     \end{axis}
   \end{tikzpicture}}
-  \caption[{Validation of \texttt{electrode\_bc} against closed-form
-  voltammetry.}]{Standalone validation of \texttt{electrode\_bc} against
+  \caption[{Validation of the electrode model against closed-form
+  voltammetry.}]{Standalone validation of the electrode model against
   closed-form voltammetry, ideal potential source, model defaults of
   Table~\ref{tab:electrode-params} with \(R_s = \SI{500}{\ohm}\) and
   \(C_{\mathrm{dl}} = \SI{0.2}{\micro\farad}\) in series and in parallel

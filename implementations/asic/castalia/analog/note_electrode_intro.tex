@@ -5,22 +5,25 @@
 %%
 %% Sources of the statements below, so they can be re-checked:
 %%   model source + equation-to-reference map:
-%%     ic/castalia/electrode_bc/veriloga/veriloga.va (header)
+%%     ic/castalia/electrode_bc/veriloga/veriloga.va  (the equations rendered
+%%     here transcribe the analog block of that file exactly)
 %%   grid constants (nseg, h0, beta, delta): same header, "GRID:" line
-%%   wrapper topology + parameter pass-through:
-%%     simruns/cv_bc_first/.../ps_cv/netlist/input.scs, subckt randles_cell_bc
+%%   wrapper topology + parameter pass-through (cell randles_cell_bc):
+%%     simruns/cv_bc_first/.../ps_cv/netlist/input.scs
 %%   plan/handoff: ~/vestarv/docs/afe_rev2_cv_electrode.html
+%% Library cell names are deliberately kept OUT of the rendered prose (owner
+%% request 2026-08-21); they live in these comments instead.
 %% Parameter defaults live in Table~\ref{tab:electrode-params} -- do not
 %% restate them in prose or captions.
 
 \subsection{Voltammetric Electrode Model}\label{ss:analog-electrode-bc}
 
 This section documents a \emph{simulation model}, not a circuit block and not
-silicon: \texttt{electrode\_bc} is a Verilog-A element in the \texttt{castalia}
-library that stands in for the electrode--electrolyte interface when a bench
-sweeps potential and expects a voltammetric peak. Everything reported here is
-either a standalone Spectre run of the model against closed-form
-electrochemistry, or one transient of the model driven by the rev-2 channel.
+silicon: a Verilog-A element that stands in for the electrode--electrolyte
+interface when a bench sweeps potential and expects a voltammetric peak.
+Everything reported here is either a standalone Spectre run of the model
+against closed-form electrochemistry, or a transient of the model driven by
+the rev-2 channel.
 
 The linear models of Section~\ref{ss:analog-models} cannot produce such a peak.
 \(R_u + R_{\mathrm{ct}} \parallel C_{\mathrm{dl}}\) is a linear network, so
@@ -37,28 +40,61 @@ flows and turns the exponential rise over into a \(t^{-1/2}\) decay.
 Butler--Volmer alone, with the surface concentration pinned at bulk, gives a
 sigmoid rather than a peak.
 
-\texttt{electrode\_bc} implements both. Two coupled one-dimensional diffusion
-ladders, one per species, share a single Butler--Volmer surface flux. Each
-ladder is discretised by the box (finite-volume) method on an exponentially
-expanding grid, \(h_j = h_0\beta^{\,j}\) with 28 slabs per species,
-\(h_0 = \SI{0.5}{\micro\metre}\) and \(\beta = 1.280\); one slab is one internal
-electrical node whose potential carries the slab concentration normalised by
-\SI{1e-6}{\mole\per\cubic\centi\metre}, because raw
+The model implements both. The faradaic terminal current is the Butler--Volmer
+rate law in its heterogeneous-rate-constant form, emitted anodic-positive
+(the polarity the transimpedance amplifier measures; the negative of the
+cathodic-positive convention of the reference text):
+\begin{equation}\label{eq:electrode-bv}
+  i_f \;=\; nFA\,k^{0}\!\left[\,C_R(0,t)\,
+      e^{\,(1-\alpha)\,n f\,(E-E^{0\prime})}
+    \;-\; C_O(0,t)\,
+      e^{\,-\alpha\,n f\,(E-E^{0\prime})}\right],
+  \qquad f = \frac{F}{RT},
+\end{equation}
+with both exponents clamped at \(\pm\)\texttt{expmax} through
+\(\mathrm{limexp}\). The surface concentrations \(C_O(0,t)\), \(C_R(0,t)\) are
+governed by one-dimensional diffusion into a finite Nernst layer,
+\begin{equation}\label{eq:electrode-fick}
+  \frac{\partial C_s}{\partial t} \;=\; D\,
+  \frac{\partial^{2} C_s}{\partial x^{2}},
+  \qquad s \in \{O, R\},
+\end{equation}
+with the shared flux boundary condition at the surface and bulk pinning at the
+layer edge,
+\begin{equation}\label{eq:electrode-bc}
+  D\!\left.\frac{\partial C_O}{\partial x}\right|_{x=0} = +\frac{i_f}{nFA},
+  \qquad
+  D\!\left.\frac{\partial C_R}{\partial x}\right|_{x=0} = -\frac{i_f}{nFA},
+  \qquad
+  C_s(\delta, t) = C_s^{*}.
+\end{equation}
+What the simulator actually solves is the box (finite-volume) discretisation
+of \eqref{eq:electrode-fick} on an exponentially expanding grid of 28 slabs
+per species,
+\begin{equation}\label{eq:electrode-box}
+  h_j\,\frac{\mathrm{d} C_j}{\mathrm{d} t}
+  \;=\; \frac{D}{d_{j-1}}\left(C_{j-1}-C_j\right)
+   \;-\; \frac{D}{d_j}\left(C_j-C_{j+1}\right),
+  \qquad h_j = h_0\,\beta^{\,j},
+\end{equation}
+where \(h_j\) is the width of slab \(j\), \(d_j\) the centre-to-centre
+distance to slab \(j{+}1\), \(h_0 = \SI{0.5}{\micro\metre}\) and
+\(\beta = 1.280\), giving
+\(\delta = h_0(\beta^{28}-1)/(\beta-1) = \SI{1.79}{\milli\metre}\). Each slab
+is one internal electrical node whose potential carries the slab concentration
+normalised by \SI{1e-6}{\mole\per\cubic\centi\metre}, because raw
 \si{\mole\per\cubic\centi\metre} sits below the simulator's default
-\SI{1}{\micro\volt} voltage tolerance and solves to noise. The outer boundary is
-held at bulk concentration at a finite Nernst-layer thickness
-\(\delta = h_0(\beta^{28}-1)/(\beta-1) = \SI{1.79}{\milli\metre}\). Parameters
-are listed in Table~\ref{tab:electrode-params}; they are in the CGS units of the
+\SI{1}{\micro\volt} voltage tolerance and solves to noise. Parameters are
+listed in Table~\ref{tab:electrode-params}; they are in the CGS units of the
 source literature (\si{\centi\metre\per\second},
-\si{\square\centi\metre\per\second}, \si{\mole\per\cubic\centi\metre}), not SI.
-The element emits anodic-positive current, which is the polarity the
-transimpedance amplifier measures and the opposite of the cathodic-positive
-convention of the reference text.
+\si{\square\centi\metre\per\second}, \si{\mole\per\cubic\centi\metre}), not
+SI.
 
-The benches instantiate it through the wrapper \texttt{randles\_cell\_bc}, which
-is the topology of Figure~\ref{fig:randles-cell} with the charge-transfer
-resistor replaced: \(R_{\mathrm{ce}}\), \(R_u\) and \(C_{\mathrm{dl}}\) remain
-linear elements and \texttt{electrode\_bc} sits between
+The benches instantiate the model through a three-terminal electrode cell: the
+topology of Figure~\ref{fig:randles-cell} with the charge-transfer resistor
+replaced, so \(R_{\mathrm{ce}}\), \(R_u\) and \(C_{\mathrm{dl}}\) remain
+linear elements and the faradaic branch of
+\eqref{eq:electrode-bv}--\eqref{eq:electrode-box} sits between
 \(\mathrm{WE_s}\) and WE. The linear cell of Section~\ref{ss:analog-models}
-stays the correct model for small-signal impedance work; only voltammetry needs
-this one.
+stays the correct model for small-signal impedance work; only voltammetry
+needs this one.

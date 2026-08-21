@@ -11,24 +11,24 @@
 \subsection{Electrochemical Models}\label{ss:analog-models}
 
 Every measurement in this chapter that involves an electrode uses one of two lumped
-models from the \texttt{castalia} library, drawn in Figures~\ref{fig:randles-cell}
+models, drawn in Figures~\ref{fig:randles-cell}
 and~\ref{fig:randles-electrode}, with values in Table~\ref{tab:analog-models}. They are stated once here and referenced by the
 block sections rather than repeated, because the electrode impedance is not a detail of
 the setup: it sets the feedback factor of the potentiostat loop and of the
 transimpedance loop, and both blocks' stability figures depend on it directly.
 
-\texttt{randles\_cell} is the three-electrode arrangement the potentiostat actually
+The three-electrode cell is the arrangement the potentiostat actually
 drives. Looking into the working electrode it presents \(R_{\mathrm{ct}} \parallel
 C_{\mathrm{dl}}\) in series with \(R_u\): about \SI{31}{\kilo\ohm} at DC, falling toward
 \(R_u = \SI{1}{\kilo\ohm}\) as \(C_{\mathrm{dl}}\) shorts the charge-transfer branch
-above roughly \SI{5}{\hertz}. \texttt{randles\_electrode} is a single interface as a
+above roughly \SI{5}{\hertz}. The single-interface model is one interface as a
 two-terminal element, with a much smaller double layer and a much larger charge-transfer
 resistance; it is not used by the benches reported here.
 
 \begin{table}[htbp]
   \centering
   \caption[{Component values of the electrochemical models.}]{Component values of the
-  electrochemical models of Figures~\ref{fig:randles-cell} and~\ref{fig:randles-electrode}. The \texttt{randles\_cell}
+  electrochemical models of Figures~\ref{fig:randles-cell} and~\ref{fig:randles-electrode}. The three-electrode
   values are the subcircuit defaults, and are the values the control-amplifier
   benches instantiate. The transimpedance benches override them; the values used are
   stated with each measurement.}
@@ -37,12 +37,12 @@ resistance; it is not used by the benches reported here.
     \toprule
     Model & Element & Value & Represents \\
     \midrule
-    \texttt{randles\_cell}      & $R_{\mathrm{ce}}$  & \SI{1}{\kilo\ohm}    & solution resistance, CE to RE \\
+    three-electrode cell      & $R_{\mathrm{ce}}$  & \SI{1}{\kilo\ohm}    & solution resistance, CE to RE \\
                                 & $R_u$              & \SI{1}{\kilo\ohm}    & uncompensated resistance, RE to WE surface \\
                                 & $R_{\mathrm{ct}}$  & \SI{30}{\kilo\ohm}   & charge transfer at the WE interface \\
                                 & $C_{\mathrm{dl}}$  & \SI{1}{\micro\farad} & double layer at the WE interface \\
     \addlinespace
-    \texttt{randles\_electrode} & $R_s$              & \SI{10}{\kilo\ohm}   & series solution resistance \\
+    single interface & $R_s$              & \SI{10}{\kilo\ohm}   & series solution resistance \\
                                 & $R_{\mathrm{ct}}$  & \SI{1}{\mega\ohm}    & charge transfer \\
                                 & $C_{\mathrm{dl}}$  & \SI{10}{\nano\farad} & double layer \\
     \bottomrule
@@ -56,4 +56,4 @@ response. And they are nominal: no spread is assigned to any element, so no resu
 this chapter accounts for electrode-to-electrode variation, which on a real wound
 interface is likely to exceed the process spread reported alongside it.
 
-\paragraph{Values used by the amplifier application benches.} The closed-loop measurements of Section~\ref{ss:ampab} instantiate \texttt{randles\_cell} with $R_u = \SI{100}{\ohm}$ or \SI{1}{\kilo\ohm}, $R_{\mathrm{ct}} = \SI{10}{\kilo\ohm}$ or \SI{1}{\mega\ohm}, and $C_{\mathrm{dl}} = \SI{100}{\nano\farad}$ or \SI{1}{\micro\farad}, in place of the subcircuit defaults above. The value used is stated with each measurement.
+\paragraph{Values used by the amplifier application benches.} The closed-loop measurements of Section~\ref{ss:ampab} instantiate the three-electrode cell with $R_u = \SI{100}{\ohm}$ or \SI{1}{\kilo\ohm}, $R_{\mathrm{ct}} = \SI{10}{\kilo\ohm}$ or \SI{1}{\mega\ohm}, and $C_{\mathrm{dl}} = \SI{100}{\nano\farad}$ or \SI{1}{\micro\farad}, in place of the subcircuit defaults above. The value used is stated with each measurement.

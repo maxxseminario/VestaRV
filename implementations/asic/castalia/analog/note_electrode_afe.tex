@@ -10,10 +10,10 @@
 %% Sign convention measured on this run; the TB-07 formula in
 %% ~/vestarv/docs/afe_rev2_simplan.html is inverted.
 
-\paragraph{First measurement with the rev-2 channel in the loop.} Bench
-\texttt{tb\_anatop\_pixel}, view \texttt{CvBvTB}, test \texttt{ps\_cv} is the
+\paragraph{First measurement with the rev-2 channel in the loop.} The
+cyclic-voltammetry test is the
 potentiostat bench of Section~\ref{ss:pixel} with the cell master swapped from
-\texttt{randles\_cell} to \texttt{randles\_cell\_bc} and nothing else changed:
+the linear cell to the nonlinear electrode cell and nothing else changed:
 the class-AB amplifier of Section~\ref{ss:ampab} as both A1 and A2, the local
 bias generator of Section~\ref{ss:biasgen-local}, an ideal
 \(R_f = \SI{35}{\kilo\ohm}\) rather than the programmable resistor of
@@ -51,7 +51,7 @@ how a figure above must be read.
     temperature, no process-corner set and no Monte Carlo. The analyte corners
     of Figure~\ref{fig:electrode-panel} vary only the electrode parameters and
     all run at the nominal process point.
-  \item A Verilog-A element carries no mismatch statistics. \texttt{electrode\_bc}
+  \item A Verilog-A element carries no mismatch statistics. The electrode model
     contributes nothing to a Monte Carlo run and must never be the thing one
     measures; every Monte Carlo \(\sigma\) in this chapter holds the electrode
     exactly nominal and reports circuit variation alone.
