@@ -29,6 +29,8 @@ entity orch_tile is
         ENABLE_ATOMICS    : boolean := true;
         ENABLE_COMPRESSED : boolean := true;
         ENABLE_BITMANIP   : boolean := true;
+        -- Fetch-ahead for straddling 32-bit instructions; the default tracks hart_tile's, which tracks vesta's.
+        ENABLE_IF_AHEAD   : boolean := false;
         ENABLE_ZICOND     : boolean := false;
         ENABLE_ZCB        : boolean := false;
         ENABLE_ZIMOP      : boolean := false;
@@ -122,6 +124,7 @@ begin
             ENABLE_ATOMICS    => ENABLE_ATOMICS,
             ENABLE_COMPRESSED => ENABLE_COMPRESSED,
             ENABLE_BITMANIP   => ENABLE_BITMANIP,
+            ENABLE_IF_AHEAD   => ENABLE_IF_AHEAD,
             ENABLE_ZICOND     => ENABLE_ZICOND,
             ENABLE_ZCB        => ENABLE_ZCB,
             ENABLE_ZIMOP      => ENABLE_ZIMOP,
