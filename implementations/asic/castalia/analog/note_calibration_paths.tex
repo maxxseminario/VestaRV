@@ -1,0 +1,86 @@
+% HAND-WRITTEN fragment. Design requirements: none of the five elements below
+% exists in the current schematics. Evidence, so this can be re-checked:
+%   skill/castalia_anatop_build.il buildChannel() wires the transimpedance
+%   output net afe_out straight to the converter's Analog_Input, and brings
+%   CE/RE/WE out of the channel unswitched; SIM_STATUS.md 3.1 confirms the same
+%   for the pixel's schematic_adc view (converter input directly connected).
+% The control bits land in the existing per-site switch-matrix word, so no
+% digital-contract change is implied (include/CqAnalog.tex, offset 0x0C).
+% Library cell names are kept out of the rendered prose.
+
+\subsubsection{Measurement paths the procedure requires}
+\label{sss:calibration-paths}
+
+Every step below is a measurement the channel makes on itself through its own
+converter. Five elements carry those measurements and \textbf{none of them is in
+the current schematics}: the channel as drawn wires the transimpedance output
+straight to the converter input and brings all three electrode nodes out
+unswitched. They are design requirements, listed with what each one is for and
+what it costs.
+
+\begin{enumerate}[label=C\arabic*., leftmargin=*, itemsep=2pt]
+\item \textbf{Series isolation switches in the counter-, reference- and
+  working-electrode paths.} Without them no zero can be measured against
+  anything but the electrode itself. The reference switch carries no current and
+  the counter switch sits inside A1's loop, so only the working-electrode switch
+  has a resistance specification: it carries the full cell current into the
+  virtual ground, so its drop displaces the working electrode by
+  \(i\!\cdot\!R_{\mathrm{on}}\) --- \SI{3.3}{\milli\volt} at
+  \SI{33}{\micro\ampere} through \SI{100}{\ohm}. The current is the measured
+  quantity, so the drop is computable and the requirement is that
+  \(R_{\mathrm{on}}\) be \emph{stable and stored}, not that it be small; a
+  quarter-LSB uncorrected drop at full scale would need \SI{12}{\ohm}.
+\item \textbf{A unity-gain loopback switch around A1}, tying the
+  counter-electrode node back to the amplifier's feedback input with the
+  reference switch open. This is the only way to see A1's offset: it puts the
+  amplifier in unity gain at the same input common mode it operates at, and
+  leaves a low-impedance node to sample. Buffering the reference electrode into
+  the converter instead is rejected --- the converter's sampling capacitor would
+  draw charge from the reference electrode, which is electrochemically
+  forbidden.
+\item \textbf{A converter input multiplexer, at least 4:1}: the transimpedance
+  output (normal operation), the common-mode rail, this channel's reference DAC
+  output, and the counter-electrode node. The first two are the zero
+  measurements, the third carries the reference DAC's own linearity, the fourth
+  carries A1.
+\item \textbf{An on-chip gain reference resistor}, switched between the
+  counter-electrode node and the working-electrode summing node, and built from
+  the same unit device as the feedback ladder. With the electrodes isolated and
+  the loopback closed, the voltage across it is \(v_{\mathrm{ref}} -
+  V_{\mathrm{CM}}\) and the converter reads \(V_{\mathrm{CM}} +
+  (v_{\mathrm{ref}} - V_{\mathrm{CM}})\,R_f/R_{\mathrm{cal}}\). The sheet
+  resistance cancels in that ratio, so the channel measures its own
+  transimpedance to matching accuracy --- \SIrange{0.04}{0.36}{\percent}
+  (Table~\ref{tab:tiarprog-mc}) --- with no external current and no reference of
+  any kind. Take it as a two-point slope, so that both amplifier offsets cancel.
+  Size the resistor near the middle of the ladder and choose the drive amplitude
+  per gain code, or the high-gain codes rail.
+\item \textbf{Control bits, eight to ten per channel.} They fit the per-site
+  switch-matrix and analog-multiplexer word already reserved in the register map
+  (Section~\ref{ss:cqanalog-regs}), so the digital contract does not change.
+\end{enumerate}
+
+\paragraph{Interface to the analog test multiplexer.} Two of the constants are
+absolute and cannot be measured on-die, so two internal nodes must reach a pad
+through the analog debug multiplexer. Both are needed only at production test,
+at DC, and both tolerate a buffer in the path provided its offset is inside a
+converter LSB.
+
+\begin{itemize}[leftmargin=*, itemsep=2pt]
+\item \textbf{Reference DAC output, per channel} --- the potential-axis absolute
+  anchor. A voltmeter at three codes fixes the DAC's offset and step size in
+  volts, which no on-chip measurement can supply.
+\item \textbf{Common-mode rail} --- shared, and the zero of both axes. Measured
+  once alongside the reference DAC so the two are on the same external scale.
+\item \textbf{Counter-electrode node, per channel} --- optional. The loopback of
+  C2 makes A1's offset readable on-die; a pad on the same node makes it directly
+  observable during bring-up and is the cheapest way to prove the loopback
+  itself.
+\item \textbf{Transimpedance output, per channel} --- optional, and the same
+  node the compensation study wants brought out. It turns the converter's own
+  gain and linearity into a measurable quantity instead of an assumed one, which
+  is the one place this chapter has no data at all.
+\end{itemize}
+
+\noindent The current-axis anchor needs no multiplexer: the tester forces its
+reference current into the working-electrode pad, which is already bonded.

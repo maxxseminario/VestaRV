@@ -48,7 +48,10 @@ channel's transimpedance amplifier (A2) and its potentiostat control amplifier
 amplifiers around a three-electrode cell, the 10-bit SAR analog-to-digital
 converter that closes the channel, the programmable feedback resistor that sets
 the channel's transimpedance gain, and the 12-bit R-2R reference DAC with the
-supply block that feeds it.
+supply block that feeds it. Section~\ref{ss:calibration} closes the chapter with
+the per-chip calibration those measurements require: it is a design-intent
+section like the electrode model, and states which of its signal paths do not
+yet exist.
 
 \subsection*{Characterisation coverage}
 
@@ -112,3 +115,18 @@ reports the measurement.
 \input{include/analog/Adc.tex}
 \input{include/analog/TiaRprog.tex}
 \input{include/analog/DacR2R12.tex}
+
+% ---------------------------------------------------------------------
+% Per-chip calibration. HAND-WRITTEN, and last on purpose: it is a system
+% statement built on every block section above and refers to all of them by
+% \ref, so it must follow them. Documents design intent only -- no calibration
+% has been run. See the header comment of each fragment for its sources.
+% ---------------------------------------------------------------------
+\FloatBarrier
+\input{include/analog/note_calibration_intro.tex}
+\input{include/analog/tab_calibration_errors.tex}
+\input{include/analog/note_calibration_paths.tex}
+\input{include/analog/note_calibration_seq.tex}
+\input{include/analog/tab_calibration_constants.tex}
+\input{include/analog/note_calibration_residual.tex}
+\FloatBarrier

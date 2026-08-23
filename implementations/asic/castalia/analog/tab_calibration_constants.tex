@@ -1,0 +1,33 @@
+%% HAND-WRITTEN table fragment. Sizes assume eight stored gain codes per
+%% channel; the per-code reference-DAC residual table is excluded on the
+%% argument in note_calibration_residual (it buys 0.07 mV rms for 4 KiB).
+\begin{table}[htbp]
+  \centering
+  \caption[{Per-chip calibration constants.}]{Per-chip calibration constants,
+  their origin and their refresh rate. \emph{Test} constants need external
+  equipment and are written once; \emph{power-up} constants are re-measured
+  on-die at every start and overwrite the stored copy. At eight stored gain codes
+  per channel --- the full set a channel uses over its concentration range ---
+  the whole block is under 128\,bytes per channel, so
+  it is staged from flash into a channel hart's private memory with its image
+  rather than read back during a measurement.}
+  \label{tab:calibration-constants}
+  \small
+  \begin{tabular}{llll}
+    \toprule
+    Constant & Scope & Set at & Refreshed \\
+    \midrule
+    Bias trim code & chip & test & --- \\
+    Reference DAC offset and step & channel & test & --- \\
+    Reference droop parameter & channel & test & --- \\
+    Converter step size & channel & test & --- \\
+    Working-electrode switch resistance & channel & test & --- \\
+    Transimpedance gain, per gain code & channel & test & scaled at power-up \\
+    \addlinespace
+    Converter zero code & channel & test & power-up, and between steps \\
+    A1 offset and tracking slope & channel & test & power-up \\
+    Current zero, per gain code & channel & test & power-up \\
+    Internal gain ratio, per gain code & channel & test & power-up \\
+    \bottomrule
+  \end{tabular}
+\end{table}
