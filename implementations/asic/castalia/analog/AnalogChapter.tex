@@ -30,8 +30,9 @@ in Section~\ref{s:regMemMap}.
 Unless stated otherwise, every figure and table in this chapter is taken from
 schematic-level simulation of the block's own testbench (pre-layout, with no
 extracted parasitics), and is therefore a design-intent characterisation rather
-than silicon data. The SAR ADC section is the one exception and runs on an
-extracted netlist; it says so at its head. Each block section names the testbench it came from and the
+than silicon data. Two places run on an extracted netlist and say so where they
+do: the SAR ADC section, and the converter readout of the assembled channel.
+Each block section names the testbench it came from and the
 process, temperature and supply points that were simulated, so the coverage behind
 each number is explicit. Numbers are regenerated directly from the simulator's
 results database rather than transcribed by hand.
@@ -45,7 +46,8 @@ This revision documents
 the local bias generator, the class-AB amplifier that serves as both the
 channel's transimpedance amplifier (A2) and its potentiostat control amplifier
 (A1), the complete potentiostat pixel system built from a pair of those
-amplifiers around a three-electrode cell, the 10-bit SAR analog-to-digital
+amplifiers around a three-electrode cell, the assembled channel that replaces
+that system's ideal sources with the silicon intended for tapeout, the 10-bit SAR analog-to-digital
 converter that closes the channel, the programmable feedback resistor that sets
 the channel's transimpedance gain, and the 12-bit R-2R reference DAC with the
 supply block that feeds it. Each block section closes with the register settings
@@ -64,6 +66,7 @@ Block & Section & Benches & Corners & Monte Carlo \\
 Bias generator        & \ref{ss:biasgen-local} & 2 & \checkmark & n/a \\
 Class-AB amplifier    & \ref{ss:ampab}         & 6 & \checkmark & \checkmark \\
 Potentiostat pixel system & \ref{ss:pixel}     & 6 & \checkmark & \checkmark \\
+Assembled channel     & \ref{ss:pixtop}        & 1 & --- & --- \\
 SAR ADC               & \ref{ss:adc}          & 1 & --- & --- \\
 Feedback resistor     & \ref{ss:tiarprog}      & 3 & \checkmark & \checkmark \\
 Reference DAC         & \ref{ss:dacr2r12}      & 6 & \checkmark & \checkmark \\
@@ -71,8 +74,9 @@ Reference DAC         & \ref{ss:dacr2r12}      & 6 & \checkmark & \checkmark \\
 \end{tabular}
 \end{center}
 
-\noindent A dash means the run has not been made: the SAR ADC is characterised at the
-nominal corner only, and its section states that limit alongside every number.
+\noindent A dash means the run has not been made: the SAR ADC and the assembled
+channel are characterised at the
+nominal corner only, and each section states that limit alongside every number.
 Corner runs cover process, temperature and supply at the five points listed in
 each block section. Monte Carlo runs cover process and mismatch together unless a
 table states mismatch-only; a corner figure
@@ -121,6 +125,25 @@ reports the measurement.
 \input{include/analog/note_meas_ampab.tex}
 \input{include/analog/Pixel.tex}
 \input{include/analog/note_meas_pixel.tex}
+
+% Assembled channel -- HAND-WRITTEN throughout (no maestro2tex config behind it;
+% the numbers come from the pre-tapeout verification of the assembled cell,
+% ~/vestarv/docs/afe_rev2_pixel_verify.html, and its runs under
+% ~/chips/castalia/simruns/pixtop2_*). Placed immediately after the pixel
+% section because it is the same channel with every ideal source replaced by
+% silicon, and reads as a diff against it.
+\FloatBarrier
+\input{include/analog/note_pixtop_intro.tex}
+\input{include/analog/tab_pixtop_summary.tex}
+\input{include/analog/note_pixtop_potential.tex}
+\input{include/analog/note_pixtop_zero.tex}
+\input{include/analog/note_pixtop_cv.tex}
+\input{include/analog/fig_pixtop_cv.tex}
+\input{include/analog/note_pixtop_adc.tex}
+\input{include/analog/note_pixtop_open.tex}
+\input{include/analog/note_meas_pixtop.tex}
+\FloatBarrier
+
 \input{include/analog/Adc.tex}
 \input{include/analog/note_meas_adc.tex}
 \input{include/analog/TiaRprog.tex}
