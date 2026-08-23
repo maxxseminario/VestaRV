@@ -158,26 +158,30 @@ begin
 
     read_data <= rdata;
 
-    -- Generics mirror opensource_sim/isa/vesta_isa_tb.vhd exactly, so CPI is measured on the same core configuration the ISA regression proves.
+    /* THIS GENERIC MAP MIRRORS THE SHIPPED CONFIGURATION, and it is the only place that coupling exists.
+       The extension switches mirror opensource_sim/isa/vesta_isa_tb.vhd, so CPI is measured on the same core configuration the ISA regression proves.
+       ENABLE_IF_AHEAD is set from what Castalia SHIPS rather than from that harness: this bench instantiates work.vesta directly, so the core.fetchAhead knob that reaches the chip through MemoryMap.vhd and MCU.vhd does not reach here, and the entity default is FALSE.
+       Keep this map in step with the shipped configuration by hand. Nothing checks it: leaving it behind does not fail, it silently publishes CPI for a core that is not the one in the package. */
     dut : entity work.vesta
         generic map (
-            PC_RST_VAL    => x"00008200",
-            ENABLE_ZICOND => true,
-            ENABLE_ZCB    => true,
-            ENABLE_ZIMOP  => true,
-            ENABLE_ZIHINT => true,
-            ENABLE_ZIHPM  => false,
-            ENABLE_ZAWRS  => false,
-            ENABLE_ZABHA  => true,
-            ENABLE_ZACAS  => true,
-            ENABLE_ZICBOZ => true,
-            ENABLE_ZCMP   => true,
-            ENABLE_ZCMT   => true,
-            ENABLE_ZBKB   => true,
-            ENABLE_ZBKC   => true,
-            ENABLE_ZBKX   => true,
-            ENABLE_ZKN    => true,
-            ENABLE_ZFINX  => true
+            PC_RST_VAL      => x"00008200",
+            ENABLE_IF_AHEAD => true,
+            ENABLE_ZICOND   => true,
+            ENABLE_ZCB      => true,
+            ENABLE_ZIMOP    => true,
+            ENABLE_ZIHINT   => true,
+            ENABLE_ZIHPM    => false,
+            ENABLE_ZAWRS    => false,
+            ENABLE_ZABHA    => true,
+            ENABLE_ZACAS    => true,
+            ENABLE_ZICBOZ   => true,
+            ENABLE_ZCMP     => true,
+            ENABLE_ZCMT     => true,
+            ENABLE_ZBKB     => true,
+            ENABLE_ZBKC     => true,
+            ENABLE_ZBKX     => true,
+            ENABLE_ZKN      => true,
+            ENABLE_ZFINX    => true
         )
         port map (
             clk              => clk,

@@ -15,6 +15,15 @@
     "half; it needs no simulation, so it covers the manual long-benchmark",
     "images too.",
     "",
+    "THIS RECORDING IS THE ENABLE_IF_AHEAD ONE. Castalia ships the C-extension",
+    "fetch-ahead ON (core.fetchAhead, CORE_ENABLE_IF_AHEAD in MemoryMap.vhd),",
+    "so vesta_cpi_tb.vhd now maps ENABLE_IF_AHEAD => true and every count below",
+    "was re-measured on that configuration. Aggregate benchmark CPI moved",
+    "1.523 -> 1.260 and the straddling-fetch penalty 0.230 -> 0.031 CPI. The",
+    "straddleseq and straddlebr micro-kernels are new with this recording: they",
+    "split the old single straddling row into the sequential case the",
+    "fetch-ahead absorbs and the taken-transfer case it cannot.",
+    "",
     "RE-RECORDING. A DELIBERATE core change re-records this file IN THE SAME",
     "COMMIT as the RTL change, together with the affected tables of TRM",
     "Section 12. The counts, the RTL and the document move as one, so a CPI",
@@ -24,6 +33,7 @@
   ],
   "harness": {
     "testbench": "verification/cpi/vesta_cpi_tb.vhd",
+    "core_config": "the shipped Castalia core: ENABLE_IF_AHEAD => true in vesta_cpi_tb.vhd's generic map, mirroring CORE_ENABLE_IF_AHEAD in MemoryMap.vhd, which the bench cannot inherit because it instantiates work.vesta directly",
     "simulator": "@ghdl//:ghdl, --std=08 -fsynopsys, mcode backend",
     "toolchain": "@xpack_riscv_gcc, xPack riscv-none-elf-gcc 13.2.0-2",
     "march": "rv32imac_zicsr_zba_zbb_zbc_zbs",
@@ -37,9 +47,9 @@
   "images": {
     "dhrystone": {
       "status": "PASS",
-      "cyc_total": 359499,
+      "cyc_total": 315887,
       "ins_total": 211726,
-      "cyc_kernel": 345028,
+      "cyc_kernel": 301527,
       "ins_kernel": 200523
     },
     "dhrystone_noc": {
@@ -51,9 +61,9 @@
     },
     "median": {
       "status": "PASS",
-      "cyc_total": 15326,
+      "cyc_total": 14053,
       "ins_total": 10056,
-      "cyc_kernel": 5946,
+      "cyc_kernel": 5611,
       "ins_kernel": 4015
     },
     "median_noc": {
@@ -65,9 +75,9 @@
     },
     "memcpy": {
       "status": "PASS",
-      "cyc_total": 53077,
+      "cyc_total": 47070,
       "ins_total": 31065,
-      "cyc_kernel": 19020,
+      "cyc_kernel": 19018,
       "ins_kernel": 11017
     },
     "memcpy_noc": {
@@ -79,261 +89,289 @@
     },
     "micro_alu16_0": {
       "status": "PASS",
-      "cyc_total": 6020,
+      "cyc_total": 6019,
       "ins_total": 6017,
       "cyc_kernel": 6003,
       "ins_kernel": 6002
     },
     "micro_alu16_64": {
       "status": "PASS",
-      "cyc_total": 134020,
+      "cyc_total": 134019,
       "ins_total": 134017,
       "cyc_kernel": 134003,
       "ins_kernel": 134002
     },
     "micro_alu32_0": {
       "status": "PASS",
-      "cyc_total": 6020,
+      "cyc_total": 6019,
       "ins_total": 6017,
       "cyc_kernel": 6003,
       "ins_kernel": 6002
     },
     "micro_alu32_64": {
       "status": "PASS",
-      "cyc_total": 134023,
+      "cyc_total": 134019,
       "ins_total": 134017,
-      "cyc_kernel": 134004,
+      "cyc_kernel": 134003,
       "ins_kernel": 134002
     },
     "micro_alu32lin_16": {
       "status": "PASS",
-      "cyc_total": 38020,
+      "cyc_total": 38019,
       "ins_total": 38017,
       "cyc_kernel": 38003,
       "ins_kernel": 38002
     },
     "micro_alu32lin_32": {
       "status": "PASS",
-      "cyc_total": 70020,
+      "cyc_total": 70019,
       "ins_total": 70017,
       "cyc_kernel": 70003,
       "ins_kernel": 70002
     },
     "micro_br_nt_0": {
       "status": "PASS",
-      "cyc_total": 6020,
+      "cyc_total": 6019,
       "ins_total": 6017,
       "cyc_kernel": 6003,
       "ins_kernel": 6002
     },
     "micro_br_nt_64": {
       "status": "PASS",
-      "cyc_total": 134023,
+      "cyc_total": 134019,
       "ins_total": 134017,
-      "cyc_kernel": 134004,
+      "cyc_kernel": 134003,
       "ins_kernel": 134002
     },
     "micro_brnotaken_0": {
       "status": "PASS",
-      "cyc_total": 6020,
+      "cyc_total": 6019,
       "ins_total": 6017,
       "cyc_kernel": 6003,
       "ins_kernel": 6002
     },
     "micro_brnotaken_64": {
       "status": "PASS",
-      "cyc_total": 262023,
+      "cyc_total": 262019,
       "ins_total": 262017,
-      "cyc_kernel": 262004,
+      "cyc_kernel": 262003,
       "ins_kernel": 262002
     },
     "micro_brtaken_0": {
       "status": "PASS",
-      "cyc_total": 6020,
+      "cyc_total": 6019,
       "ins_total": 6017,
       "cyc_kernel": 6003,
       "ins_kernel": 6002
     },
     "micro_brtaken_64": {
       "status": "PASS",
-      "cyc_total": 134023,
+      "cyc_total": 134019,
       "ins_total": 134017,
-      "cyc_kernel": 134004,
+      "cyc_kernel": 134003,
       "ins_kernel": 134002
     },
     "micro_csrr_0": {
       "status": "PASS",
-      "cyc_total": 6020,
+      "cyc_total": 6019,
       "ins_total": 6017,
       "cyc_kernel": 6003,
       "ins_kernel": 6002
     },
     "micro_csrr_64": {
       "status": "PASS",
-      "cyc_total": 134023,
+      "cyc_total": 134019,
       "ins_total": 134017,
-      "cyc_kernel": 134004,
+      "cyc_kernel": 134003,
       "ins_kernel": 134002
     },
     "micro_div_0": {
       "status": "PASS",
-      "cyc_total": 770,
+      "cyc_total": 769,
       "ins_total": 767,
       "cyc_kernel": 753,
       "ins_kernel": 752
     },
     "micro_div_64": {
       "status": "PASS",
-      "cyc_total": 576773,
+      "cyc_total": 576769,
       "ins_total": 16767,
-      "cyc_kernel": 576754,
+      "cyc_kernel": 576753,
       "ins_kernel": 16752
     },
     "micro_jalrtaken_0": {
       "status": "PASS",
-      "cyc_total": 6020,
+      "cyc_total": 6019,
       "ins_total": 6017,
       "cyc_kernel": 6003,
       "ins_kernel": 6002
     },
     "micro_jalrtaken_64": {
       "status": "PASS",
-      "cyc_total": 390023,
+      "cyc_total": 390019,
       "ins_total": 390017,
-      "cyc_kernel": 390004,
+      "cyc_kernel": 390003,
       "ins_kernel": 390002
     },
     "micro_jaltaken_0": {
       "status": "PASS",
-      "cyc_total": 6020,
+      "cyc_total": 6019,
       "ins_total": 6017,
       "cyc_kernel": 6003,
       "ins_kernel": 6002
     },
     "micro_jaltaken_64": {
       "status": "PASS",
-      "cyc_total": 134023,
+      "cyc_total": 134019,
       "ins_total": 134017,
-      "cyc_kernel": 134004,
+      "cyc_kernel": 134003,
       "ins_kernel": 134002
     },
     "micro_lb_0": {
       "status": "PASS",
-      "cyc_total": 6020,
+      "cyc_total": 6019,
       "ins_total": 6017,
       "cyc_kernel": 6003,
       "ins_kernel": 6002
     },
     "micro_lb_64": {
       "status": "PASS",
-      "cyc_total": 262023,
+      "cyc_total": 262019,
       "ins_total": 134017,
-      "cyc_kernel": 262004,
+      "cyc_kernel": 262003,
       "ins_kernel": 134002
     },
     "micro_lw_0": {
       "status": "PASS",
-      "cyc_total": 6020,
+      "cyc_total": 6019,
       "ins_total": 6017,
       "cyc_kernel": 6003,
       "ins_kernel": 6002
     },
     "micro_lw_64": {
       "status": "PASS",
-      "cyc_total": 262020,
+      "cyc_total": 262019,
       "ins_total": 134017,
       "cyc_kernel": 262003,
       "ins_kernel": 134002
     },
     "micro_mul_0": {
       "status": "PASS",
-      "cyc_total": 6020,
+      "cyc_total": 6019,
       "ins_total": 6017,
       "cyc_kernel": 6003,
       "ins_kernel": 6002
     },
     "micro_mul_64": {
       "status": "PASS",
-      "cyc_total": 134023,
+      "cyc_total": 134019,
       "ins_total": 134017,
-      "cyc_kernel": 134004,
+      "cyc_kernel": 134003,
       "ins_kernel": 134002
     },
     "micro_rem_0": {
       "status": "PASS",
-      "cyc_total": 770,
+      "cyc_total": 769,
       "ins_total": 767,
       "cyc_kernel": 753,
       "ins_kernel": 752
     },
     "micro_rem_64": {
       "status": "PASS",
-      "cyc_total": 576773,
+      "cyc_total": 576769,
       "ins_total": 16767,
-      "cyc_kernel": 576754,
+      "cyc_kernel": 576753,
       "ins_kernel": 16752
     },
     "micro_sb_0": {
       "status": "PASS",
-      "cyc_total": 6020,
+      "cyc_total": 6019,
       "ins_total": 6017,
       "cyc_kernel": 6003,
       "ins_kernel": 6002
     },
     "micro_sb_64": {
       "status": "PASS",
-      "cyc_total": 262023,
+      "cyc_total": 262019,
       "ins_total": 134017,
-      "cyc_kernel": 262004,
+      "cyc_kernel": 262003,
       "ins_kernel": 134002
     },
     "micro_shift_0": {
       "status": "PASS",
-      "cyc_total": 6020,
+      "cyc_total": 6019,
       "ins_total": 6017,
       "cyc_kernel": 6003,
       "ins_kernel": 6002
     },
     "micro_shift_64": {
       "status": "PASS",
-      "cyc_total": 134023,
+      "cyc_total": 134019,
       "ins_total": 134017,
-      "cyc_kernel": 134004,
+      "cyc_kernel": 134003,
       "ins_kernel": 134002
+    },
+    "micro_straddlebr_0": {
+      "status": "PASS",
+      "cyc_total": 6019,
+      "ins_total": 6017,
+      "cyc_kernel": 6003,
+      "ins_kernel": 6002
+    },
+    "micro_straddlebr_64": {
+      "status": "PASS",
+      "cyc_total": 518019,
+      "ins_total": 390017,
+      "cyc_kernel": 518003,
+      "ins_kernel": 390002
+    },
+    "micro_straddleseq_0": {
+      "status": "PASS",
+      "cyc_total": 6019,
+      "ins_total": 6017,
+      "cyc_kernel": 6003,
+      "ins_kernel": 6002
+    },
+    "micro_straddleseq_64": {
+      "status": "PASS",
+      "cyc_total": 518019,
+      "ins_total": 518017,
+      "cyc_kernel": 518003,
+      "ins_kernel": 518002
     },
     "micro_sw_0": {
       "status": "PASS",
-      "cyc_total": 6020,
+      "cyc_total": 6019,
       "ins_total": 6017,
       "cyc_kernel": 6003,
       "ins_kernel": 6002
     },
     "micro_sw_64": {
       "status": "PASS",
-      "cyc_total": 262020,
+      "cyc_total": 262019,
       "ins_total": 134017,
       "cyc_kernel": 262003,
       "ins_kernel": 134002
     },
     "micro_zbb_0": {
       "status": "PASS",
-      "cyc_total": 6020,
+      "cyc_total": 6019,
       "ins_total": 6017,
       "cyc_kernel": 6003,
       "ins_kernel": 6002
     },
     "micro_zbb_64": {
       "status": "PASS",
-      "cyc_total": 134023,
+      "cyc_total": 134019,
       "ins_total": 134017,
-      "cyc_kernel": 134004,
+      "cyc_kernel": 134003,
       "ins_kernel": 134002
     },
     "multiply": {
       "status": "PASS",
-      "cyc_total": 49857,
+      "cyc_total": 49350,
       "ins_total": 42330,
-      "cyc_kernel": 24393,
+      "cyc_kernel": 24293,
       "ins_kernel": 20892
     },
     "multiply_noc": {
@@ -345,9 +383,9 @@
     },
     "qsort": {
       "status": "PASS",
-      "cyc_total": 379843,
+      "cyc_total": 313873,
       "ins_total": 223882,
-      "cyc_kernel": 211819,
+      "cyc_kernel": 172225,
       "ins_kernel": 123205
     },
     "qsort_noc": {
@@ -359,9 +397,9 @@
     },
     "rsort": {
       "status": "PASS",
-      "cyc_total": 493933,
+      "cyc_total": 452926,
       "ins_total": 321811,
-      "cyc_kernel": 224414,
+      "cyc_kernel": 206984,
       "ins_kernel": 146548
     },
     "rsort_noc": {
@@ -373,16 +411,16 @@
     },
     "spmv": {
       "status": "PASS",
-      "cyc_total": 2342957,
+      "cyc_total": 1851439,
       "ins_total": 1620445,
-      "cyc_kernel": 1161561,
+      "cyc_kernel": 916934,
       "ins_kernel": 802447
     },
     "towers": {
       "status": "PASS",
-      "cyc_total": 14194,
+      "cyc_total": 13132,
       "ins_total": 7870,
-      "cyc_kernel": 6823,
+      "cyc_kernel": 6303,
       "ins_kernel": 3747
     },
     "towers_noc": {
@@ -394,9 +432,9 @@
     },
     "vvadd": {
       "status": "PASS",
-      "cyc_total": 9828,
+      "cyc_total": 8770,
       "ins_total": 6356,
-      "cyc_kernel": 3609,
+      "cyc_kernel": 3309,
       "ins_kernel": 2408
     },
     "vvadd_noc": {
@@ -416,55 +454,55 @@
     },
     "alu32": {
       "trm_row": "Arithmetic and logical (add, andi, lui, auipc)",
-      "delta_cycles": 128001,
+      "delta_cycles": 128000,
       "delta_instructions": 128000,
       "cycles_per_instruction": 1.0
     },
     "br_nt": {
       "trm_row": "Conditional branch, not taken, no redirect",
-      "delta_cycles": 128001,
+      "delta_cycles": 128000,
       "delta_instructions": 128000,
       "cycles_per_instruction": 1.0
     },
     "brnotaken": {
       "trm_row": "Conditional branch, not taken, skipped instruction retires",
-      "delta_cycles": 256001,
+      "delta_cycles": 256000,
       "delta_instructions": 256000,
       "cycles_per_instruction": 1.0
     },
     "brtaken": {
       "trm_row": "Conditional branch, taken, target differs from PC+4",
-      "delta_cycles": 128001,
+      "delta_cycles": 128000,
       "delta_instructions": 128000,
       "cycles_per_instruction": 1.0
     },
     "csrr": {
       "trm_row": "CSR read (csrr)",
-      "delta_cycles": 128001,
+      "delta_cycles": 128000,
       "delta_instructions": 128000,
       "cycles_per_instruction": 1.0
     },
     "div": {
       "trm_row": "Divide and remainder (M): div, divu",
-      "delta_cycles": 576001,
+      "delta_cycles": 576000,
       "delta_instructions": 16000,
       "cycles_per_instruction": 36.0
     },
     "jalrtaken": {
       "trm_row": "Jump and link register (jalr)",
-      "delta_cycles": 384001,
+      "delta_cycles": 384000,
       "delta_instructions": 384000,
       "cycles_per_instruction": 1.0
     },
     "jaltaken": {
       "trm_row": "Jump and link (jal)",
-      "delta_cycles": 128001,
+      "delta_cycles": 128000,
       "delta_instructions": 128000,
       "cycles_per_instruction": 1.0
     },
     "lb": {
       "trm_row": "Load (lb), byte",
-      "delta_cycles": 256001,
+      "delta_cycles": 256000,
       "delta_instructions": 128000,
       "cycles_per_instruction": 2.0
     },
@@ -476,26 +514,38 @@
     },
     "mul": {
       "trm_row": "Multiply (M): mul, mulh, mulhu, mulhsu",
-      "delta_cycles": 128001,
+      "delta_cycles": 128000,
       "delta_instructions": 128000,
       "cycles_per_instruction": 1.0
     },
     "rem": {
       "trm_row": "Divide and remainder (M): rem, remu",
-      "delta_cycles": 576001,
+      "delta_cycles": 576000,
       "delta_instructions": 16000,
       "cycles_per_instruction": 36.0
     },
     "sb": {
       "trm_row": "Store (sb), byte",
-      "delta_cycles": 256001,
+      "delta_cycles": 256000,
       "delta_instructions": 128000,
       "cycles_per_instruction": 2.0
     },
     "shift": {
       "trm_row": "Shift (sll, srl, sra and immediate forms)",
-      "delta_cycles": 128001,
+      "delta_cycles": 128000,
       "delta_instructions": 128000,
+      "cycles_per_instruction": 1.0
+    },
+    "straddlebr": {
+      "trm_row": "Additional penalty: 32-bit instruction straddling a word boundary, reached by a taken branch or jump",
+      "delta_cycles": 512000,
+      "delta_instructions": 384000,
+      "cycles_per_instruction": 1.333
+    },
+    "straddleseq": {
+      "trm_row": "Additional penalty: 32-bit instruction straddling a word boundary, reached sequentially",
+      "delta_cycles": 512000,
+      "delta_instructions": 512000,
       "cycles_per_instruction": 1.0
     },
     "sw": {
@@ -506,7 +556,7 @@
     },
     "zbb": {
       "trm_row": "Bit manipulation (Zba, Zbb, Zbc, Zbs)",
-      "delta_cycles": 128001,
+      "delta_cycles": 128000,
       "delta_instructions": 128000,
       "cycles_per_instruction": 1.0
     }
@@ -520,15 +570,15 @@
   "benchmark_cpi": {
     "AGGREGATE": {
       "instructions": 1314802,
-      "cpi": 1.523
+      "cpi": 1.26
     },
     "dhrystone": {
       "instructions": 200523,
-      "cpi": 1.721
+      "cpi": 1.504
     },
     "median": {
       "instructions": 4015,
-      "cpi": 1.481
+      "cpi": 1.398
     },
     "memcpy": {
       "instructions": 11017,
@@ -536,74 +586,83 @@
     },
     "multiply": {
       "instructions": 20892,
-      "cpi": 1.168
+      "cpi": 1.163
     },
     "qsort": {
       "instructions": 123205,
-      "cpi": 1.719
+      "cpi": 1.398
     },
     "rsort": {
       "instructions": 146548,
-      "cpi": 1.531
+      "cpi": 1.412
     },
     "spmv": {
       "instructions": 802447,
-      "cpi": 1.448
+      "cpi": 1.143
     },
     "towers": {
       "instructions": 3747,
-      "cpi": 1.821
+      "cpi": 1.682
     },
     "vvadd": {
       "instructions": 2408,
-      "cpi": 1.499
+      "cpi": 1.374
     }
   },
   "straddling_fetch": {
     "AGGREGATE": {
-      "cpi_c": 1.642,
+      "cpi_c": 1.443,
       "cpi_noc": 1.412,
-      "cycles_lost_pct": 14.0
+      "penalty_cpi": 0.031,
+      "cycles_lost_pct": 2.2
     },
     "dhrystone": {
-      "cpi_c": 1.721,
+      "cpi_c": 1.504,
       "cpi_noc": 1.481,
-      "cycles_lost_pct": 13.9
+      "penalty_cpi": 0.022,
+      "cycles_lost_pct": 1.5
     },
     "median": {
-      "cpi_c": 1.481,
+      "cpi_c": 1.398,
       "cpi_noc": 1.397,
-      "cycles_lost_pct": 5.7
+      "penalty_cpi": 0.0,
+      "cycles_lost_pct": 0.0
     },
     "memcpy": {
       "cpi_c": 1.726,
       "cpi_noc": 1.726,
+      "penalty_cpi": 0.0,
       "cycles_lost_pct": 0.0
     },
     "multiply": {
-      "cpi_c": 1.168,
+      "cpi_c": 1.163,
       "cpi_noc": 1.014,
-      "cycles_lost_pct": 13.1
+      "penalty_cpi": 0.148,
+      "cycles_lost_pct": 12.8
     },
     "qsort": {
-      "cpi_c": 1.719,
+      "cpi_c": 1.398,
       "cpi_noc": 1.33,
-      "cycles_lost_pct": 22.6
+      "penalty_cpi": 0.068,
+      "cycles_lost_pct": 4.8
     },
     "rsort": {
-      "cpi_c": 1.531,
+      "cpi_c": 1.412,
       "cpi_noc": 1.412,
-      "cycles_lost_pct": 7.8
+      "penalty_cpi": 0.0,
+      "cycles_lost_pct": 0.0
     },
     "towers": {
-      "cpi_c": 1.821,
+      "cpi_c": 1.682,
       "cpi_noc": 1.681,
-      "cycles_lost_pct": 7.7
+      "penalty_cpi": 0.002,
+      "cycles_lost_pct": 0.1
     },
     "vvadd": {
-      "cpi_c": 1.499,
+      "cpi_c": 1.374,
       "cpi_noc": 1.374,
-      "cycles_lost_pct": 8.3
+      "penalty_cpi": 0.0,
+      "cycles_lost_pct": 0.0
     }
   }
 }

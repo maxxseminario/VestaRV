@@ -101,3 +101,33 @@ py_test(
     ],
     main = "check_entity_defaults.py",
 )
+
+# THE SAME GATE, SECOND GENERIC: the C-extension fetch-ahead, shipped ON
+# 2026-08-23. It is a separate target rather than a second flag on the one
+# above because the DECL-site floor is per-generic and each target must state
+# its own measured value: ENABLE_IF_AHEAD is consumed wholly inside vesta.vhd,
+# so it has 4 declaration sites (entity vesta, entity hart_tile, the component
+# vesta inside hart_tile.vhd, entity orch_tile) where ENABLE_DEBUG has 5. A
+# shared floor would either be too high here or too low there, and a floor that
+# is too low is how the scanner goes blind.
+#
+# The MGMT_HART axis is skipped: it is generic-independent and the ENABLE_DEBUG
+# target above already grades it, so running it twice buys nothing.
+py_test(
+    name = "check_entity_defaults_if_ahead_test",
+    size = "small",
+    srcs = ["check_entity_defaults.py"],
+    args = [
+        "--generic",
+        "ENABLE_IF_AHEAD",
+        "--require-min-decls",
+        "4",
+        "--skip-mgmt-hart",
+    ],
+    data = [
+        "//hdl:vhdl_sources",
+        "//platform/common:hdl_template_srcs",
+        "//platform/common/python:generator_srcs",
+    ],
+    main = "check_entity_defaults.py",
+)

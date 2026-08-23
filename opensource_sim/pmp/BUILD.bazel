@@ -1,0 +1,187 @@
+# GHDL privileged-polarity regression: the RTL half of the bare-core PMP gate.
+#
+# //verification/isa's _PMP_DEFINES block builds fifteen rv32ua sources with
+# -DCORE_ENABLE_TRAPCSR -DCORE_ENABLE_UMODE -DCORE_ENABLE_PMP appended to the
+# open-source-sim define set. Those images are the ON arm of tests that at
+# every other polarity in that file compile a trivially-passing arm. This
+# package is the core they are meant to run against: the //opensource_sim/isa
+# core with exactly those three generics turned true, so image polarity and
+# generic polarity are the same statement written twice.
+#
+# ---------------------------------------------------------------------------
+# BOTH POLARITIES OF ENABLE_IF_AHEAD, AND WHY THAT IS THE POINT
+# ---------------------------------------------------------------------------
+# ENABLE_IF_AHEAD re-points the PMP instruction-fetch check at fetch_addr and
+# moves a straddling instruction's upper-half fetch one cycle earlier. The
+# invariant it has to preserve is stated in vesta.vhd at the pmp_f_deny_r
+# declaration: in any EXECUTE cycle, pmp_f_deny_r and pmp_f_addr_r describe
+# the fetch the IMMEDIATELY PRECEDING core cycle issued. Fetching ahead is the
+# one thing that can break that, so a PMP regression run only with fetch-ahead
+# off cannot catch a fetch-ahead PMP regression.
+#
+# Every live image therefore has TWO targets, distinguished by the IF_AHEAD
+# generic the testbench forwards to the core:
+#
+#   rv32ua-p-<test>-ifahead_off    ENABLE_IF_AHEAD false
+#   rv32ua-p-<test>-ifahead_on     ENABLE_IF_AHEAD true
+#
+# Both are DEFAULT. Nothing in this package is tagged manual, and nothing is
+# behind a test_suite that hides it: `bazel test //...` runs the whole matrix.
+# The images are polarity-independent, since ENABLE_IF_AHEAD changes cycle
+# counts only and never an architectural result, so one image feeds both.
+#
+# Three of the live tests are the ones that reach the instruction-fetch check
+# point, per the comment on _PMP_DEFINES:
+#   pmpfq   a fetch fault at a half-word-aligned PC that is NOT a split fetch
+#   pmprt6  a fetch fault on the UPPER half of a straddling 32-bit instruction
+#           reached from a compressed ALU op
+#   pmprt7  the same fenced half-word reached from a compressed LOAD, so a
+#           denied fetch address and a permitted data access share one cycle
+#
+# ---------------------------------------------------------------------------
+# WHAT THIS GATE HAS BEEN MEASURED TO CATCH
+# ---------------------------------------------------------------------------
+# Three mutations of the PMP fetch-check path were injected into vesta.vhd and
+# run through this package. The kill sets are recorded because they say which
+# targets are load bearing for which piece of the path:
+#
+#   f_addr => pc_next in the pmp_unit port map, in place of fetch_addr.
+#     The check address stops following the bus in the two cycles the
+#     fetch-ahead claims.  KILLED pmprt6 and pmprt7 at ifahead_on ONLY; all 11
+#     ifahead_off targets stayed green, which is exactly why one polarity is
+#     not a gate.
+#
+#   pmp_f_addr_r <= pc_next, in place of fetch_addr.
+#     The verdict still follows the bus but the recorded faulting address does
+#     not, so mtval and the mepc the handler checks against it disagree for a
+#     straddling fetch fault.  Same kill set: pmprt6 and pmprt7 at ifahead_on
+#     only.
+#
+#   pmp_f_deny_r <= '0', in place of pmp_f_deny.
+#     The fetch check is disconnected outright.  KILLED 10 of 22: pmpfq,
+#     pmprt1, pmprt6, pmprt7 and privpmp at BOTH polarities.
+#
+# ---------------------------------------------------------------------------
+# RUNTIME
+# ---------------------------------------------------------------------------
+# The live matrix is 22 simulations, each a few seconds of GHDL mcode. The
+# whole package measures under a minute wall clock, so there is no fast subset
+# and no manual tier: everything this package can run, it runs by default.
+
+load("//toolchains/ghdl:defs.bzl", "ghdl_library", "ghdl_test", "vhdl_source_set")
+load(":defs.bzl", "VESTA_PMP_RTL")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files(["vesta_pmp_tb.vhd"])
+
+_IMAGE_PACKAGE = "//verification/isa"
+
+# The a0-sentinel harness of //opensource_sim/isa with the privileged trio on.
+# It loads its RAM image at ELABORATION through a signal initializer, which is
+# why every image needs its own ghdl -r with a real -gTEST_FILE.
+vhdl_source_set(
+    name = "vesta_pmp_srcs",
+    paths = VESTA_PMP_RTL,
+    pool = ["//hdl:vhdl_sources"],
+)
+
+# Build-time check that the curated list plus this testbench still analyze
+# clean. Not consumed by the tests: a GHDL work library is not relocatable
+# across exec roots (measured -- see //toolchains/ghdl:defs.bzl).
+ghdl_library(
+    name = "vesta_pmp_lib",
+    srcs = [
+        ":vesta_pmp_srcs",
+        "vesta_pmp_tb.vhd",
+    ],
+)
+
+# ---------------------------------------------------------------------------
+# SKIP map. Every entry is an image //verification/isa BUILDS at this polarity
+# and this package deliberately does NOT instantiate, never one silently
+# dropped. Each was RUN on this harness first, at ENABLE_IF_AHEAD false, and
+# each reason below is the observed failure, not an assumption.
+#
+# All four are the //opensource_sim/isa "Family 1" class: rv32ua sources that
+# need MCU peripherals or a second hart, which a bare single-core harness with
+# one flat RAM does not have. None of them reaches the instruction-fetch check
+# point, so the fetch-ahead coverage this package exists for is complete
+# without them. Running them needs an MCU-level harness, not a different core
+# configuration.
+# ---------------------------------------------------------------------------
+_SKIP = {
+    "pmprt5": "HW mutex bank (0x6038) plus hart 1 launched through the mp_boot ROM; measured a0=DEADBEEF with mcause=7 mtval=0x00006038, the store into the absent mutex bank",
+    "privpmpmx": "HW mutex bank (0x603C) plus hart 1 launched through the mp_boot ROM; measured sim watchdog timeout polling hart 1's completion flag, which never runs",
+    "privrt2": "CLINT msip[0] at 0x5000 for the U-mode interrupt-delivery phase; measured a0=DEADBEEF at its own 'mip never mirrored msip' check, the MCU CLINT being absent",
+    "privucsr": "CLINT msip[0] at 0x5000 to arm the WFI trap-on-wait phase; measured a0=DEADBEEF at its own 'mip never mirrored msip' check, the MCU CLINT being absent",
+}
+
+# Every test //verification/isa builds at the privileged polarity, kept whole
+# here minus _SKIP so a new image appears as a new target rather than being
+# quietly absent. This list MUST mirror _PMP_TESTS in //verification/isa.
+_PMP_TESTS = [
+    "pmpfq",
+    "pmprt1",
+    "pmprt2",
+    "pmprt3",
+    "pmprt4",
+    "pmprt5",
+    "pmprt6",
+    "pmprt7",
+    "privpmp",
+    "privpmpcs",
+    "privpmpmx",
+    "privrt1",
+    "privrt2",
+    "privucsr",
+    "privumode",
+]
+
+_LIVE = [t for t in _PMP_TESTS if t not in _SKIP]
+
+# (target suffix, ENABLE_IF_AHEAD value handed to the testbench generic).
+_POLARITIES = [
+    ("ifahead_off", "false"),
+    ("ifahead_on", "true"),
+]
+
+[
+    ghdl_test(
+        name = "rv32ua-p-%s-%s" % (test, suffix),
+        size = "medium",
+        srcs = [
+            ":vesta_pmp_srcs",
+            "vesta_pmp_tb.vhd",
+        ],
+        entity = "vesta_pmp_tb",
+        generics = {"IF_AHEAD": value},
+        image = "%s:pmp/rv32ua-p-%s.rcf" % (_IMAGE_PACKAGE, test),
+        # A run log can end at exit 0 for reasons other than the sentinel, so
+        # the banner is required as well; the harness prints it only on
+        # a0 = 0xCAFEBABE.
+        pass_pattern = "TEST PASSED",
+        # The a0-sentinel harness has no software trap recovery, so an unmet
+        # dependency spins until its own 300k-cycle watchdog; this is the
+        # wall-clock backstop around that.
+        sim_timeout_s = 120,
+        tags = ["ghdl"],
+    )
+    for test in _LIVE
+    for suffix, value in _POLARITIES
+]
+
+[
+    test_suite(
+        name = "pmp_%s" % suffix,
+        tags = ["ghdl"],
+        tests = ["rv32ua-p-%s-%s" % (t, suffix) for t in _LIVE],
+    )
+    for suffix, _ in _POLARITIES
+]
+
+test_suite(
+    name = "pmp",
+    tags = ["ghdl"],
+    tests = [":pmp_%s" % suffix for suffix, _ in _POLARITIES],
+)

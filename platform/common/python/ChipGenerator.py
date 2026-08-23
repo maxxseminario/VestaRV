@@ -126,6 +126,11 @@ class ChipGenerator():
 	# MemoryMap.vhd and the C-header/core_features.h define. REQUIRES
 	# ENABLE_TRAPCSR -- generate.py raises, and the vesta entity asserts.
 	ENABLE_DEBUG = None			# D1: debug mode (dcsr/dpc/dscratch0-1, dret, halt, single-step)
+	# Fetch-ahead. Drives CORE_ENABLE_IF_AHEAD in MemoryMap.vhd, which is what
+	# the generated MCU.vhd hands every tile. Microarchitecture only: no CSR, no
+	# instruction, no memory-map change, so there is no C-header define for it
+	# (nothing in software can or should dispatch on it).
+	ENABLE_IF_AHEAD = None		# C-extension straddling-fetch elision (one flip-flop)
 	# ASYMMETRIC ISA (2026-08-16). True = the hardened corner tiles (harts 1..N-1)
 	# are built rv32iac -- M and B dropped -- while hart 0, the soft orchestrator,
 	# keeps the full ISA above. Drives the TILE_ENABLE_* constants, which are what
@@ -211,6 +216,9 @@ class ChipGenerator():
 		# D1 core-side debug mode — default False so every existing caller
 		# (and testbench) keeps a chip with no debug interface at all.
 		ENABLE_DEBUG:bool=False,
+		# Fetch-ahead — default False so every existing caller (and testbench)
+		# keeps the fetch behaviour it had before the knob existed.
+		ENABLE_IF_AHEAD:bool=False,
 		MINIMAL_TILES:bool=False):
 		# Initialize lists
 		self.PeripheralTemplates = []
@@ -488,6 +496,7 @@ class ChipGenerator():
 		self.ENABLE_ZFINX = ENABLE_ZFINX
 		# P0 scaffolded privileged architecture (default false / 16 entries)
 		self.ENABLE_DEBUG = ENABLE_DEBUG
+		self.ENABLE_IF_AHEAD = ENABLE_IF_AHEAD
 		self.MINIMAL_TILES = MINIMAL_TILES
 		self.ENABLE_TRAPCSR = ENABLE_TRAPCSR
 		self.ENABLE_UMODE = ENABLE_UMODE
@@ -2418,6 +2427,12 @@ class ChipGenerator():
 		t.AddRow(['constant CORE_PMP_ENTRIES', ': natural := ' + str(int(self.PMP_ENTRIES)) + ';', '-- PMP entry count {8,16} (only with PMP)'], prefixTabs=1)
 		# D1 core-side debug mode (needs TRAPCSR; generate.py enforces)
 		t.AddRow(['constant CORE_ENABLE_DEBUG', ': boolean := ' + str(bool(self.ENABLE_DEBUG)).lower() + ';', '-- Debug mode (dcsr/dpc/dscratch, dret, halt)'], prefixTabs=1)
+		# Fetch-ahead. This constant is the SHIPPED VALUE and the single
+		# authority for it: MCU.vhd hands it to every tile, and
+		# tools/python/check_entity_defaults.py reads it here to derive what the
+		# hart_tile and orch_tile entity defaults must be, so a bare genus
+		# elaborate cannot harden a tile the assembly then wires the other way.
+		t.AddRow(['constant CORE_ENABLE_IF_AHEAD', ': boolean := ' + str(bool(self.ENABLE_IF_AHEAD)).lower() + ';', '-- C-ext fetch-ahead (straddle, 1 flop)'], prefixTabs=1)
 		# ASYMMETRIC ISA: what the HARDENED CORNER TILES get, as opposed to hart 0.
 		# These exist so the asymmetry has ONE authority. MCU.vhd hands hart 0 (and the
 		# orchestrator) the CORE_ENABLE_* values above and hands hart_tile instances
@@ -2797,6 +2812,7 @@ class ChipGenerator():
 		chip['ENABLE_PMP'] = self.ENABLE_PMP
 		chip['PMP_ENTRIES'] = self.PMP_ENTRIES
 		chip['ENABLE_DEBUG'] = self.ENABLE_DEBUG
+		chip['ENABLE_IF_AHEAD'] = self.ENABLE_IF_AHEAD
 		chip['ENABLE_IRQ_QREGS'] = self.ENABLE_IRQ_QREGS
 		chip['MASKED_IRQ'] = self.MASKED_IRQ
 		chip['PROGADDR_IRQ'] = self.PROGADDR_IRQ

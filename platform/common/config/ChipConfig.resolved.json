@@ -6,6 +6,9 @@
   "orchestrator": true,
   "numMutexes": 16,
   "registerFileDualPort": true,
+  "core": {
+    "fetchAhead": true
+  },
   "isa": {
     "mul": true,
     "fastMul": true,

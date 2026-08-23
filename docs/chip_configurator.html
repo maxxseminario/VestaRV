@@ -752,6 +752,11 @@ const VESTA_DATA = {
       "type": "bool",
       "default": true
     },
+    "core.fetchAhead": {
+      "description": "bool: C-extension fetch-ahead (one flip-flop; removes most of the straddling-fetch stall)",
+      "type": "bool",
+      "default": true
+    },
     "isa.mul": {
       "description": "bool: M multiply",
       "type": "bool",
@@ -1059,6 +1064,7 @@ const VESTA_DATA = {
     "orchestrator": true,
     "numMutexes": 16,
     "registerFileDualPort": true,
+    "core.fetchAhead": true,
     "isa.mul": true,
     "isa.fastMul": true,
     "isa.div": true,
@@ -4150,6 +4156,11 @@ const SCHEMA_TO_CFG = {
   "chipName":"chipName", "numHarts":"numHarts", "orchestrator":"orchestrator",
   "numMutexes":"numMutexes",
   "registerFileDualPort":"ENABLE_REGS_DUALPORT",
+  // Fetch-ahead (2026-08-23) — implemented in the RTL and ON by default: one
+  // flip-flop that serves a C-extension straddling fetch from the word the
+  // core already held, removing most of the straddle stall. No UI toggle:
+  // DEFAULTS seeds it true from VESTA_DATA.defaults; Import can set it false.
+  "core.fetchAhead":"ENABLE_IF_AHEAD",
   "isa.mul":"ENABLE_MUL", "isa.fastMul":"ENABLE_FAST_MUL", "isa.div":"ENABLE_DIV",
   "isa.atomics":"ENABLE_ATOMICS", "isa.compressed":"COMPRESSED_ISA",
   "isa.bitmanip":"ENABLE_BITMANIP", "isa.counters":"ENABLE_COUNTERS",
@@ -4918,6 +4929,11 @@ function configObject(){
     orchestrator: cfg.orchestrator,
     numMutexes: cfg.numMutexes,
     registerFileDualPort: cfg.ENABLE_REGS_DUALPORT,
+    // Fetch-ahead — one flip-flop that holds the word a C-extension straddling
+    // fetch would otherwise re-read, so the straddling instruction dispatches
+    // with no bubble. Real hardware, default ON, no interactive toggle yet, so
+    // it is exported at its cfg value.
+    core: { fetchAhead: cfg.ENABLE_IF_AHEAD },
     isa: {
       mul: cfg.ENABLE_MUL, fastMul: cfg.ENABLE_FAST_MUL, div: cfg.ENABLE_DIV,
       atomics: cfg.ENABLE_ATOMICS, compressed: cfg.COMPRESSED_ISA, bitmanip: cfg.ENABLE_BITMANIP,

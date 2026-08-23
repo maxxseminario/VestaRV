@@ -1223,6 +1223,7 @@ package MemoryMap is
 	constant CORE_ENABLE_PMP		: boolean := false;						-- PMP / Smpmp (needs UMODE)
 	constant CORE_PMP_ENTRIES		: natural := 16;						-- PMP entry count {8,16} (only with PMP)
 	constant CORE_ENABLE_DEBUG		: boolean := true;						-- Debug mode (dcsr/dpc/dscratch, dret, halt)
+	constant CORE_ENABLE_IF_AHEAD	: boolean := true;						-- C-ext fetch-ahead (straddle, 1 flop)
 	-- Corner-tile ISA (harts 1..N-1), 2026-08-16. MCU.vhd hands the four hardened
 	-- hart_tile instances THESE, and hands hart 0 / the orchestrator the
 	-- CORE_ENABLE_* set above: the tiles are the minimal-ISA harts (rv32iac).
