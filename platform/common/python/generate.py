@@ -114,6 +114,20 @@ _CONFIG_SCHEMA = {
 	                         lambda v: _isInt(v) and 1 <= v <= 1024),
 	'registerFileDualPort': ('bool: docs-only, the register file is dual-port in the RTL either way',
 	                         _isBool),
+	# Fetch-ahead (ENABLE_IF_AHEAD, 2026-08-23). A C-extension straddling fetch
+	# costs the core a repeat_if bubble: the second half of a 32-bit instruction
+	# sitting across a word boundary forces a re-fetch of a word the core held
+	# one cycle earlier. Fetch-ahead keeps that word in a single flip-flop and
+	# serves the straddle from it. Measured on the shipped core: 85% of the
+	# straddling-fetch penalty removed, aggregate CPI 1.523 -> 1.260, about 17%
+	# fewer cycles on qsort, and STA shows the added flop is off the critical
+	# path. It has no software-visible effect -- no CSR, no instruction, no
+	# memory-map change -- so it is a pure timing knob and it costs one flop.
+	# Meaningless without the C extension: the straddle it removes only exists
+	# when 16-bit instructions can misalign a 32-bit one, so an isa.compressed
+	# OFF build wires the generic on and the core's own gate keeps it inert.
+	'core.fetchAhead':      ('bool: C-extension fetch-ahead (one flip-flop; removes most of the straddling-fetch stall)',
+	                         _isBool),
 	'isa.mul':              ('bool: M multiply', _isBool),
 	'isa.fastMul':          ('bool: docs-only, the multiplier is already single-cycle', _isBool),
 	'isa.div':              ('bool: M divide', _isBool),
@@ -515,6 +529,17 @@ _CONFIG_META = {
 	'orchestrator':         {'type': 'bool', 'default': True},
 	'numMutexes':           {'type': 'int', 'default': 16, 'min': 1, 'max': 1024},
 	'registerFileDualPort': {'type': 'bool', 'default': True},
+	# Fetch-ahead. SHIPPED ON: the owner directed Castalia to carry it, and the
+	# cost is one flip-flop against a measured CPI 1.523 -> 1.260. THE TWO-PLACES
+	# RULE, as on orchestrator above: this literal is the SCHEMA default and the
+	# OPERATIVE one is the _cfg() fallback at _core below; check_config_defaults.py
+	# is what keeps the two in step. There is a THIRD and a FOURTH place that
+	# behave like defaults and answer to a different rule -- the vesta entity
+	# generic (false, so a core instantiated with no named association is inert)
+	# and the hart_tile/orch_tile wrapper generics (true, tracking the shipped
+	# value so a bare `elaborate` hardens the macro the assembly wires). Those
+	# are policed by tools/python/check_entity_defaults.py.
+	'core.fetchAhead':      {'type': 'bool', 'default': True},
 	'isa.mul':              {'type': 'bool', 'default': True},
 	'isa.fastMul':          {'type': 'bool', 'default': True},
 	'isa.div':              {'type': 'bool', 'default': True},
@@ -1163,6 +1188,17 @@ _debug = {
 if _debug['enable'] and not _priv['trapCsr']:
 	raise Exception('debug.enable requires priv.trapCsr (ebreak and the SYSTEM PRIV decode arm do not exist without it, so a software breakpoint could never be recognised)')
 
+# Fetch-ahead (2026-08-23). Hoisted like _isa/_priv/_debug so the
+# ChipGenerator(...) call and the resolved-config record share ONE value.
+# No ladder entry below: this knob requires nothing and nothing requires it.
+# It is meaningless without the C extension, but it is not ILLEGAL there --
+# vesta.vhd ANDs if_ahead_req with ENABLE_COMPRESSED, so on a compressed-OFF
+# build the arm is statically '0' and the whole path is inert whatever this
+# knob says. A hard error would refuse a legal configuration to no purpose.
+_core = {
+	'fetchAhead': _cfg('core.fetchAhead', True),
+}
+
 _regsDualPort = _cfg('registerFileDualPort', True)
 _romSize = _cfg('memory.romSize', 16384)
 _tcmSize = _cfg('memory.tcmSizePerHart', 8192)
@@ -1440,6 +1476,10 @@ m = ChipGenerator(
 	# D1 core-side debug mode (default false; drives the vesta/hart_tile
 	# ENABLE_DEBUG generic through MemoryMap.vhd's CORE_ENABLE_DEBUG).
 	ENABLE_DEBUG=_debug['enable'],
+	# Fetch-ahead (default false at the generator API; drives the
+	# vesta/hart_tile/orch_tile ENABLE_IF_AHEAD generic through MemoryMap.vhd's
+	# CORE_ENABLE_IF_AHEAD).
+	ENABLE_IF_AHEAD=_core['fetchAhead'],
 	ENABLE_IRQ_FAST_CONTEXT_SWITCHING=False,	# Using fast context switching saves 31.042 us @ 24 MHz (745 cycles) per interrupt, but doubles the size of the CPU register file
 	ENABLE_IRQ_QREGS=False,	# Evidently the ARM register file IPs are called "two-port", but one port is read-only and the other is write-only. This means you need to write your own register file definition in HDL (remember that register x0 is always all '0's!)
 	ENABLE_IRQ_TIMER=False,
@@ -4539,6 +4579,10 @@ _resolvedConfig = [
 	('orchestrator', orchestrator),
 	('numMutexes', numMutexes),
 	('registerFileDualPort', _regsDualPort),
+	# Fetch-ahead. Recorded for the same reason the debug branch is: a build
+	# that carries it must be distinguishable from one that does not in the
+	# artifact scripts read back, not only in the RTL.
+	('core', _core),
 	('isa', _isa),
 	('priv', _priv),
 	# D2: the resolved dump gains the debug branch (d2_probe finding 10 /

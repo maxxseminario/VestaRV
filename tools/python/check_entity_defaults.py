@@ -60,6 +60,32 @@ Deriving the wrapper requirement from the generated constant is what stops
 this checker going stale a second time: flip the knob back and the required
 wrapper default flips with it, in the same commit, with no edit here.
 
+THE CONTRACT IS PER GENERIC, AND THERE ARE NOW TWO OF THEM.
+---------------------------------------------------------------------------
+``ENABLE_IF_AHEAD`` (the C-extension fetch-ahead, shipped ON 2026-08-23) is
+the second core knob to take this shape, and it needed NO new code here: the
+site map, the two classes and the shipped-value oracle are all keyed on the
+generic name, so it is selected with ``-g ENABLE_IF_AHEAD`` and graded by the
+same rule.  Both generics are run as separate graded targets in
+``tools/python/BUILD.bazel``.
+
+The ONE parameter that is per-generic is the DECL-site floor.  It exists so a
+scanner that stopped matching cannot pass as clean, so it must be the MEASURED
+count for the generic under audit, not a shared guess:
+
+    ENABLE_DEBUG      5   entity vesta, two component declarations inside
+                          vesta.vhd (csr_unit and maindec carry it), entity
+                          hart_tile, the component vesta inside hart_tile.vhd,
+                          entity orch_tile, plus debug_module and jtag_dtm
+    ENABLE_IF_AHEAD   4   entity vesta, entity hart_tile, the component vesta
+                          inside hart_tile.vhd, entity orch_tile.  It is
+                          consumed WHOLLY INSIDE vesta.vhd (if_ahead_req), so
+                          no sub-block declaration carries it and neither the
+                          Debug Module nor the JTAG DTM has ever heard of it.
+
+A generic added to a sub-block later RAISES its floor; lowering one is how
+this instrument goes blind, so a drop in the count is a finding.
+
 WHAT IT REPORTS
 ---------------------------------------------------------------------------
 For a named generic, every site in the tree, classified:
@@ -132,6 +158,7 @@ needs it there.  What is graded is that nobody uses it.
 
 USAGE
     /usr/bin/python3.6 tools/python/check_entity_defaults.py               # ENABLE_DEBUG two-class contract + the MGMT_HART axis
+    /usr/bin/python3.6 tools/python/check_entity_defaults.py -g ENABLE_IF_AHEAD --require-min-decls 4 --skip-mgmt-hart
     /usr/bin/python3.6 tools/python/check_entity_defaults.py -g ENABLE_UMODE --tile-default same
     /usr/bin/python3.6 tools/python/check_entity_defaults.py -g ENABLE_TRAPCSR --report-only
     /usr/bin/python3.6 tools/python/check_entity_defaults.py --skip-mgmt-hart
@@ -666,7 +693,10 @@ def main():
     ap.add_argument("--require-min-decls", type=int, default=5,
                     help="fail if fewer than N DECL sites are found (default 5 -- "
                          "the ENABLE_TRAPCSR-measured declaration-site count: the "
-                         "two entities plus the three component declarations)")
+                         "two entities plus the three component declarations). This "
+                         "floor is PER GENERIC and must be the measured count for "
+                         "the one under audit: ENABLE_IF_AHEAD has 4, being consumed "
+                         "wholly inside vesta.vhd (see the header)")
     ap.add_argument("--require-min-consts", type=int, default=1,
                     help="fail if fewer than N generated CORE_<G> constants exist")
     ap.add_argument("--report-only", action="store_true",

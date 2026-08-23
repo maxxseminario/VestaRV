@@ -520,13 +520,17 @@ The RISC-V assembler also includes several pseudo-instructions for convenience. 
 
 
 
-% Core performance and CPI. The per-class cycle costs and the benchmark CPI in
-% this section are MEASURED on the RTL (GHDL, bare core, single hart out of TCM)
-% rather than derived; the methodology subsection says exactly how, so a later
-% core change can be re-measured against the same numbers.
+% Core performance and CPI. The per-class cycle costs, the straddling-fetch
+% residual and the benchmark CPI in this section are MEASURED on the RTL (GHDL,
+% bare core, single hart out of TCM) rather than derived; the methodology
+% subsection says exactly how, so a later core change can be re-measured against
+% the same numbers. Every figure printed here is recorded in
+% verification/cpi/expected.json and gated by //verification/cpi, which is what
+% makes a silent drift impossible: a core change that moves CPI turns that gate
+% red until the numbers here move with it.
 \section{Core Performance and Instruction Timing} \label{s:cpi}
 
-The VestaRV core is a multi-cycle machine on a single unified instruction and data bus, but it issues the fetch of the next instruction during the execute cycle of the current one. Most instructions therefore retire at one per MCLK cycle, and the core's measured cycles-per-instruction (CPI) is much closer to 1 than the term ``multi-cycle'' on its own would suggest. This section collects the per-instruction timings quoted throughout Section~\ref{s:cpu-instructions}, adds the classes that section does not cover, and reports the CPI actually measured on a benchmark suite.
+The VestaRV core is a multi-cycle machine on a single unified instruction and data bus, but it issues the fetch of the next instruction during the execute cycle of the current one. Most instructions therefore retire at one per MCLK cycle, and the core's measured cycles-per-instruction (CPI) is much closer to 1 than the term ``multi-cycle'' on its own would suggest: over the benchmark suite of Section~\ref{ss:cpi-measured} it is 1.260. This section collects the per-instruction timings quoted throughout Section~\ref{s:cpu-instructions}, adds the classes that section does not cover, and reports the CPI actually measured on that suite.
 
 Every figure below is for one hart executing out of its own TCM with no shared-bus contention. An access that crosses the arbiter into the shared window, or that is made while another hart holds the grant, adds stall cycles on top of these numbers (Section~\ref{s:multicore}). The core's clock is gated while it waits, so a stalled cycle is still an MCLK cycle in which nothing retires and it is charged to CPI like any other.
 
@@ -549,38 +553,47 @@ Table~\ref{t:cpi-timing} gives the cost of each instruction class. A row for an 
                                Jump and link (\asminline{jal}, \asminline{jalr}) & 1 \\
 \rowcolor{tablehighlightcolor} CSR read (\asminline{csrr}) & 1 \\
                                Atomic memory operations (A), per Section~\ref{s:cpu-instructions} & 5 \\
-\rowcolor{tablehighlightcolor} \emph{Additional} penalty: 32-bit instruction straddling a word boundary & +1 \\
+\rowcolor{tablehighlightcolor} \emph{Additional} penalty: 32-bit instruction straddling a word boundary, reached sequentially & 0 \\
+                               \emph{Additional} penalty: the same, reached by a taken branch or jump & +1 \\
 \hline
 \end{longtable}
 
 Three entries are worth drawing out. Hardware multiply is single-cycle, so \asminline{mul} costs no more than \asminline{add} and there is no reason to hand-expand a multiplication into shifts and adds. Divide and remainder share one iterative divider and are, by a wide margin, the most expensive instructions the core executes; where the divisor is a constant, the compiler's multiply-and-shift expansion is far faster than \asminline{div} and is worth checking for in the disassembly of any hot loop. And a conditional branch costs the same whether it is taken or not, because the core resolves the condition and issues the redirected fetch in the same cycle: there is no branch predictor, and no misprediction penalty to design around.
 
+The two straddling rows are one instruction class split by how the core arrives at it, and Section~\ref{ss:cpi-align} is about that split.
+
 \subsection{Compressed Instructions and Fetch Alignment} \label{ss:cpi-align}
 
-The core fetches one 32-bit word per bus cycle. With the C extension enabled instructions are only guaranteed 2-byte aligned, so a 32-bit instruction may straddle a word boundary; when it does, the core must fetch both halves before it can decode, and that instruction costs one extra MCLK cycle. Compressed (2-byte) instructions and word-aligned 32-bit instructions are unaffected and retire in a single cycle.
+The core fetches one 32-bit word per bus cycle. With the C extension enabled instructions are only guaranteed 2-byte aligned, so a 32-bit instruction may straddle a word boundary, and the core must have both halves before it can decode. Compressed (2-byte) instructions and word-aligned 32-bit instructions are never affected.
 
-This is not a rare corner. Table~\ref{t:cpi-align} isolates it by rebuilding the whole benchmark suite for RV32IMA instead of RV32IMAC. The compiler emits the identical instruction sequence in both builds --- the retired-instruction counts match exactly, benchmark for benchmark --- and only the encoding differs, so the entire difference in cycle count is the straddling-fetch penalty. Across the suite it costs 0.230 CPI, or 14.0\% of all cycles, and on \texttt{qsort} it reaches 22.6\%.
+The core covers most of that case in hardware, with a fetch-ahead. When it is about to step \emph{sequentially} onto a straddling 32-bit instruction, it can already see that instruction's lower half in the word it is holding, and the fetch its ordinary sequencing would issue is for the word it is holding already --- a bus cycle that would carry nothing new. The fetch-ahead spends that cycle on the \emph{next} word instead and latches the lower half at the same edge, so the straddling instruction dispatches in one cycle and costs nothing at all. The whole mechanism is one flip-flop, it issues no bus cycle the core would not have issued one cycle later, and it changes cycle counts only, never an architectural result. It is the \texttt{core.fetchAhead} knob of Table~\ref{t:chip-config} (the \texttt{ENABLE\_IF\_AHEAD} generic on the core), it is \emph{on} in this build, and turning it off is a performance choice and nothing else.
 
-\begin{longtable}[c]{ l r r r }
-\caption{Cost of straddling fetches: the same code built with and without the C extension} \label{t:cpi-align} \\
-\hline \textbf{Benchmark} & \textbf{CPI (RV32IMAC)} & \textbf{CPI (RV32IMA)} & \textbf{Cycles lost} \\ \hline \endfirsthead
-\hline \textbf{Benchmark} & \textbf{CPI (RV32IMAC)} & \textbf{CPI (RV32IMA)} & \textbf{Cycles lost} \\ \hline \endhead
-                               \texttt{dhrystone} & 1.721 & 1.481 & 13.9\% \\
-\rowcolor{tablehighlightcolor} \texttt{median}    & 1.481 & 1.397 & 5.7\% \\
-                               \texttt{memcpy}    & 1.726 & 1.726 & 0.0\% \\
-\rowcolor{tablehighlightcolor} \texttt{multiply}  & 1.168 & 1.014 & 13.1\% \\
-                               \texttt{qsort}     & 1.719 & 1.330 & 22.6\% \\
-\rowcolor{tablehighlightcolor} \texttt{rsort}     & 1.531 & 1.412 & 7.8\% \\
-                               \texttt{towers}    & 1.821 & 1.681 & 7.7\% \\
-\rowcolor{tablehighlightcolor} \texttt{vvadd}     & 1.499 & 1.374 & 8.3\% \\
+What the fetch-ahead cannot cover is a \emph{taken} control transfer whose target is a half-word-aligned 32-bit instruction. It arms only on a sequential advance, because that is the only case in which the core can prove --- from a half-word it can already see --- what it is about to fetch; after a taken branch or jump the core arrives at the target holding nothing, and genuinely needs two fetches before it can decode. That case still costs one extra cycle, and it is the whole of the residual reported below. Both rows of Table~\ref{t:cpi-timing} are measured directly: a straight-line block in which every 32-bit instruction straddles runs at 1.000 cycles per instruction, while a block of a taken branch, a straddling 32-bit target and a compressed instruction --- three instructions that cost one cycle each on their own --- takes 4 cycles.
+
+Table~\ref{t:cpi-align} isolates what the C extension still costs by rebuilding the whole benchmark suite for RV32IMA instead of RV32IMAC. The compiler emits the identical instruction sequence in both builds --- the retired-instruction counts match exactly, benchmark for benchmark --- and only the encoding differs, so the entire difference in cycle count is the straddling-fetch penalty that survives the fetch-ahead. Across the suite it is 0.031 CPI, or 2.2\% of all cycles.
+
+\begin{longtable}[c]{ l r r r r }
+\caption{Straddling fetches that survive the fetch-ahead: the same code built with and without the C extension} \label{t:cpi-align} \\
+\hline \textbf{Benchmark} & \textbf{CPI (RV32IMAC)} & \textbf{CPI (RV32IMA)} & \textbf{Penalty, CPI} & \textbf{Cycles lost} \\ \hline \endfirsthead
+\hline \textbf{Benchmark} & \textbf{CPI (RV32IMAC)} & \textbf{CPI (RV32IMA)} & \textbf{Penalty, CPI} & \textbf{Cycles lost} \\ \hline \endhead
+                               \texttt{dhrystone} & 1.504 & 1.481 & 0.022 & 1.5\% \\
+\rowcolor{tablehighlightcolor} \texttt{median}    & 1.398 & 1.397 & 0.000 & 0.0\% \\
+                               \texttt{memcpy}    & 1.726 & 1.726 & 0.000 & 0.0\% \\
+\rowcolor{tablehighlightcolor} \texttt{multiply}  & 1.163 & 1.014 & 0.148 & 12.8\% \\
+                               \texttt{qsort}     & 1.398 & 1.330 & 0.068 & 4.8\% \\
+\rowcolor{tablehighlightcolor} \texttt{rsort}     & 1.412 & 1.412 & 0.000 & 0.0\% \\
+                               \texttt{towers}    & 1.682 & 1.681 & 0.002 & 0.1\% \\
+\rowcolor{tablehighlightcolor} \texttt{vvadd}     & 1.374 & 1.374 & 0.000 & 0.0\% \\
 \hline
-                               \textbf{Aggregate} & \textbf{1.642} & \textbf{1.412} & \textbf{14.0\%} \\
+                               \textbf{Aggregate} & \textbf{1.443} & \textbf{1.412} & \textbf{0.031} & \textbf{2.2\%} \\
 \hline
 \end{longtable}
 
 The aggregate row weights each benchmark by its retired-instruction count, and covers the eight benchmarks of Table~\ref{t:cpi-bench} that were rebuilt both ways --- \texttt{spmv} was not, which is why this aggregate differs from the one in that table.
 
-None of this is an argument against the C extension, which is configured on by default and earns its place by shrinking code substantially --- decisive when a hart's private TCM is \TcmSizeKiB{} KiB. It is an argument for aligning code that is genuinely performance-critical. Placing a hot loop body on a 4-byte boundary with \asminline{.p2align 2} removes the penalty for the whole body, provided the body's own instructions are 32-bit; a body built from compressed instructions never pays it in the first place.
+Read the spread against the paragraph above it. Four of the eight benchmarks pay nothing measurable: their straddling instructions are all reached sequentially, and the hardware absorbs every one. What is left is concentrated in short, branch-dense loops, and \texttt{multiply} is the extreme case: its inner loop is seven instructions long and, in the measured build, its head is a half-word-aligned 32-bit \asminline{and}, so the loop's own backward branch lands on a straddling instruction on every one of its iterations, and one loop head accounts for the entire 12.8\%.
+
+That is also the whole of the alignment advice, and it is narrower than it used to be. Aligning a hot loop's \emph{body} no longer buys anything --- the fetch-ahead already covers straight-line code, and a body of compressed instructions never straddled in the first place. What still pays is aligning branch \emph{targets}: loop heads, and the entry of a hot function reached by a call. In C, \texttt{-falign-loops=4} does exactly that across a translation unit, and it complements hand alignment rather than replacing it: rebuilding \texttt{multiply} with it moves that one loop head onto a word boundary and recovers the entire residual, bringing the benchmark back to the RV32IMA figure in the table above, while an assembly hot spot or a computed jump target is still something you align yourself with \asminline{.p2align 2} on the label. None of this is an argument against the C extension, which is configured on by default and earns its place by shrinking code substantially --- decisive when a hart's private TCM is \TcmSizeKiB{} KiB.
 
 \subsection{Measured CPI} \label{ss:cpi-measured}
 
@@ -590,21 +603,21 @@ Table~\ref{t:cpi-bench} reports CPI over nine benchmarks derived from the riscv-
 \caption{Measured CPI by benchmark (timed kernel, single hart, no bus contention)} \label{t:cpi-bench} \\
 \hline \textbf{Benchmark} & \textbf{Instructions retired} & \textbf{CPI} \\ \hline \endfirsthead
 \hline \textbf{Benchmark} & \textbf{Instructions retired} & \textbf{CPI} \\ \hline \endhead
-                               \texttt{multiply}  & 20{,}892  & 1.168 \\
-\rowcolor{tablehighlightcolor} \texttt{spmv}      & 802{,}447 & 1.448 \\
-                               \texttt{median}    & 4{,}015   & 1.481 \\
-\rowcolor{tablehighlightcolor} \texttt{vvadd}     & 2{,}408   & 1.499 \\
-                               \texttt{rsort}     & 146{,}548 & 1.531 \\
-\rowcolor{tablehighlightcolor} \texttt{qsort}     & 123{,}205 & 1.719 \\
-                               \texttt{dhrystone} & 200{,}523 & 1.721 \\
-\rowcolor{tablehighlightcolor} \texttt{memcpy}    & 11{,}017  & 1.726 \\
-                               \texttt{towers}    & 3{,}747   & 1.821 \\
+                               \texttt{spmv}      & 802{,}447 & 1.143 \\
+\rowcolor{tablehighlightcolor} \texttt{multiply}  & 20{,}892  & 1.163 \\
+                               \texttt{vvadd}     & 2{,}408   & 1.374 \\
+\rowcolor{tablehighlightcolor} \texttt{median}    & 4{,}015   & 1.398 \\
+                               \texttt{qsort}     & 123{,}205 & 1.398 \\
+\rowcolor{tablehighlightcolor} \texttt{rsort}     & 146{,}548 & 1.412 \\
+                               \texttt{dhrystone} & 200{,}523 & 1.504 \\
+\rowcolor{tablehighlightcolor} \texttt{towers}    & 3{,}747   & 1.682 \\
+                               \texttt{memcpy}    & 11{,}017  & 1.726 \\
 \hline
-\rowcolor{tablehighlightcolor} \textbf{Aggregate} & \textbf{1{,}314{,}802} & \textbf{1.523} \\
+\rowcolor{tablehighlightcolor} \textbf{Aggregate} & \textbf{1{,}314{,}802} & \textbf{1.260} \\
 \hline
 \end{longtable}
 
-The aggregate is the total cycle count over the total retired-instruction count, so each benchmark contributes in proportion to the work it does. Read against Table~\ref{t:cpi-timing}, the spread has a simple explanation: the further a workload sits above 1.0, the more of its instruction mix is loads and stores, which cost two cycles each on the unified bus, and straddling 32-bit fetches, which cost one extra. \texttt{multiply} is register-bound and runs at 1.168 --- and at 1.014, essentially one instruction per cycle, once its straddling fetches are removed (Table~\ref{t:cpi-align}). \texttt{towers} and \texttt{memcpy} sit at the other end because they are dominated by memory traffic. Branches move none of it, since they are free.
+The aggregate is the total cycle count over the total retired-instruction count, so each benchmark contributes in proportion to the work it does. Read against Table~\ref{t:cpi-timing}, the spread has a simple explanation: the further a workload sits above 1.0, the more of its instruction mix is loads and stores, which cost two cycles each on the unified bus. Fetch alignment barely enters into it any more --- \texttt{multiply} is register-bound and runs at 1.163, of which 0.148 is the one unaligned loop head of Section~\ref{ss:cpi-align} and the rest is its own work --- and \texttt{towers} and \texttt{memcpy} sit at the other end because they are dominated by memory traffic. Branches move none of it, since they are free.
 
 \subsection{Measuring Your Own Code} \label{ss:cpi-measure}
 
@@ -622,9 +635,9 @@ Note that \register{time} and \register{timeh} are \emph{not} implemented in any
 
 \subsection{Measurement Methodology} \label{ss:cpi-method}
 
-The numbers in this section are measured on the RTL, not estimated. Each benchmark is run to completion in a VHDL simulation of the bare core with a one-cycle-latency memory and no bus back-pressure, which is the timing a single hart sees executing from its own TCM. Cycles are counted on the free-running core clock, so any cycle in which the core's clock is gated is still counted. Instructions are counted from the core's internal instruction-retire strobe --- the same signal that increments \register{minstret} --- so the instruction count is architectural rather than an estimate derived from the simulation.
+The numbers in this section are measured on the RTL, not estimated. Each benchmark is run to completion in a VHDL simulation of the bare core with a one-cycle-latency memory and no bus back-pressure, which is the timing a single hart sees executing from its own TCM. Cycles are counted on the free-running core clock, so any cycle in which the core's clock is gated is still counted. Instructions are counted from the core's internal instruction-retire strobe --- the same signal that increments \register{minstret} --- so the instruction count is architectural rather than an estimate derived from the simulation. The core under measurement is configured as this build ships it, fetch-ahead included.
 
-The per-class costs in Table~\ref{t:cpi-timing} come from paired micro-kernels: a loop containing 64 copies of the instruction under test is run against an otherwise identical empty loop, and the difference in cycles divided by the difference in retired instructions gives the marginal cost of that instruction alone, with the loop's own overhead subtracted out. The micro-kernel bodies are word-aligned, so the straddling-fetch penalty of Section~\ref{ss:cpi-align} is measured separately rather than being charged to the instruction under test.
+The per-class costs in Table~\ref{t:cpi-timing} come from paired micro-kernels: a loop containing 64 copies of the instruction under test is run against an otherwise identical empty loop, and the difference in cycles divided by the difference in retired instructions gives the marginal cost of that instruction alone, with the loop's own overhead subtracted out. Every micro-kernel body is word-aligned, so no class is charged a fetch cost that is not its own, with two deliberate exceptions: the two kernels that measure the straddling rows are built to straddle. One is a straight-line block of four instructions, two of them straddling 32-bit ones and every one of them reached sequentially, which measures 1.000 cycles per instruction; the other is a taken branch onto a straddling 32-bit target followed by a compressed instruction, three instructions whose measured classes cost one cycle each, which measures 4 cycles for the block.
 
 \newpage
 

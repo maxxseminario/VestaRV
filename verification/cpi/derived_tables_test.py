@@ -171,17 +171,29 @@ def check_straddling_fetch(data, failures):
             continue
         cpi_c = round(with_c["cyc_kernel"] / float(with_c["ins_kernel"]), _CPI_PLACES)
         cpi_n = round(without_c["cyc_kernel"] / float(without_c["ins_kernel"]), _CPI_PLACES)
+        # The residual penalty in CPI terms, which is the figure the TRM prose
+        # quotes. It is the cycle difference over the RV32IMAC build's retired
+        # count, not the difference of the two rounded CPIs, so that a small
+        # penalty does not vanish into the rounding of two larger numbers.
+        pen = round(
+            (with_c["cyc_kernel"] - without_c["cyc_kernel"]) / float(with_c["ins_kernel"]),
+            _CPI_PLACES,
+        )
         lost = round(
             100.0 * (with_c["cyc_kernel"] - without_c["cyc_kernel"]) / float(with_c["cyc_kernel"]),
             _PCT_PLACES,
         )
-        if (cpi_c, cpi_n, lost) != (want["cpi_c"], want["cpi_noc"], want["cycles_lost_pct"]):
+        if (cpi_c, cpi_n, pen, lost) != (
+            want["cpi_c"], want["cpi_noc"], want["penalty_cpi"], want["cycles_lost_pct"],
+        ):
             _fail(
                 "straddling-fetch %s: measured cpi_c=%.3f cpi_noc=%.3f "
-                "cycles_lost=%.1f%%, expected.json records %.3f / %.3f / %.1f%%"
+                "penalty=%.3f cycles_lost=%.1f%%, expected.json records "
+                "%.3f / %.3f / %.3f / %.1f%%"
                 % (
-                    name, cpi_c, cpi_n, lost,
-                    want["cpi_c"], want["cpi_noc"], want["cycles_lost_pct"],
+                    name, cpi_c, cpi_n, pen, lost,
+                    want["cpi_c"], want["cpi_noc"], want["penalty_cpi"],
+                    want["cycles_lost_pct"],
                 ),
                 failures,
             )
@@ -193,14 +205,19 @@ def check_straddling_fetch(data, failures):
     if ti:
         cpi_c = round(tc / float(ti), _CPI_PLACES)
         cpi_n = round(tn / float(ti), _CPI_PLACES)
+        pen = round((tc - tn) / float(ti), _CPI_PLACES)
         lost = round(100.0 * (tc - tn) / float(tc), _PCT_PLACES)
-        if (cpi_c, cpi_n, lost) != (agg["cpi_c"], agg["cpi_noc"], agg["cycles_lost_pct"]):
+        if (cpi_c, cpi_n, pen, lost) != (
+            agg["cpi_c"], agg["cpi_noc"], agg["penalty_cpi"], agg["cycles_lost_pct"],
+        ):
             _fail(
                 "straddling-fetch aggregate: measured cpi_c=%.3f cpi_noc=%.3f "
-                "cycles_lost=%.1f%%, expected.json records %.3f / %.3f / %.1f%%"
+                "penalty=%.3f cycles_lost=%.1f%%, expected.json records "
+                "%.3f / %.3f / %.3f / %.1f%%"
                 % (
-                    cpi_c, cpi_n, lost,
-                    agg["cpi_c"], agg["cpi_noc"], agg["cycles_lost_pct"],
+                    cpi_c, cpi_n, pen, lost,
+                    agg["cpi_c"], agg["cpi_noc"], agg["penalty_cpi"],
+                    agg["cycles_lost_pct"],
                 ),
                 failures,
             )

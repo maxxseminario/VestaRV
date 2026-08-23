@@ -34,8 +34,10 @@ entity hart_tile is
         ENABLE_BITMANIP   : boolean := true;
         /* Fetch-ahead for straddling 32-bit instructions, routed straight to the vesta core; see the if_ahead declaration in vesta.vhd for the mechanism.
            It changes cycle counts only, never an architectural result, and it is inert unless ENABLE_COMPRESSED is also set.
-           This default must stay equal to vesta.vhd's, since a bare `elaborate hart_tile` takes it from here while an MCU that omits the association takes it from there, and a hardened macro that disagrees with the assembly around it is the shape of the hw_clint_en defect. */
-        ENABLE_IF_AHEAD   : boolean := false;
+           TRUE here for the same reason ENABLE_TRAPCSR and ENABLE_DEBUG are true here: the shipped chip carries the feature, MemoryMap.vhd says so in CORE_ENABLE_IF_AHEAD, and MCU.vhd hands that constant to every tile.
+           A bare `elaborate hart_tile` for macro hardening takes THIS default instead, so a false here would harden a fetch-ahead-OFF macro that the assembly then wires as ON, which is the hw_clint_en defect's shape.
+           The core-side default in vesta.vhd stays FALSE and must: a core instantiated with no named association has to be inert, so enabling the feature is always a named act. */
+        ENABLE_IF_AHEAD   : boolean := true;
         -- Optional ISA extensions, all default false and routed straight to the vesta core.
         ENABLE_ZICOND     : boolean := false;  -- Zicond
         ENABLE_ZCB        : boolean := false;  -- Zcb

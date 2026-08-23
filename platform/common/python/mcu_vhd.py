@@ -2857,6 +2857,15 @@ class McuVhdEmitter():
 		lines.append('            ENABLE_ZBKX       => CORE_ENABLE_ZBKX,')
 		lines.append('            ENABLE_ZKN        => CORE_ENABLE_ZKN,')
 		lines.append('            ENABLE_ZFINX      => CORE_ENABLE_ZFINX,')
+		# Fetch-ahead. Passed UNCONDITIONALLY, on every tile, on both flavours:
+		# the constant carries the value, so there is no knob branch here and no
+		# way for one instance to end up on a different fetch behaviour than its
+		# neighbours. It is also what makes the wrapper entity defaults
+		# load-bearing rather than decorative -- a bare `elaborate hart_tile`
+		# takes the entity default while this line wires the constant, and
+		# tools/python/check_entity_defaults.py holds the two equal.
+		lines.append('            -- Microarchitecture')
+		lines.append('            ENABLE_IF_AHEAD   => CORE_ENABLE_IF_AHEAD,')
 		lines.append('            -- Privileged-architecture features')
 		lines.append('            ENABLE_TRAPCSR    => CORE_ENABLE_TRAPCSR,')
 		lines.append('            ENABLE_UMODE      => CORE_ENABLE_UMODE,')

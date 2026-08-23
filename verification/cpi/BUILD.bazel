@@ -25,7 +25,7 @@
 # ---------------------------------------------------------------------------
 # DEFAULT (`bazel test //verification/cpi/...`, and therefore `bazel test
 # //...`):
-#   * ALL 36 micro-kernels. They are short, deterministic and cheap, and they
+#   * ALL 40 micro-kernels. They are short, deterministic and cheap, and they
 #     are what Table t:cpi-timing is made of, so nothing about the per-class
 #     table is opt-in.
 #   * The three SHORT benchmarks median, towers and vvadd, each in both the
@@ -105,6 +105,13 @@ ghdl_library(
 # One pair per instruction class: NOPS=64 against NOPS=0, subtracted to remove
 # the loop's own overhead. gen_micro.py explains why every body carries
 # `.p2align 2` and why that is not cosmetic.
+#
+# straddleseq and straddlebr are the two kernels that straddle a word boundary
+# ON PURPOSE. With the fetch-ahead in the shipped configuration the straddling
+# penalty is no longer one number --- absorbed when the straddling instruction
+# is reached sequentially, still one cycle when it is reached by a taken
+# control transfer --- and these two measure the two cases separately, so the
+# rows TRM Table t:cpi-timing prints for them are gated like every other row.
 _MICRO_PAIRS = [
     "alu16",
     "alu32",
@@ -121,6 +128,8 @@ _MICRO_PAIRS = [
     "rem",
     "sb",
     "shift",
+    "straddlebr",
+    "straddleseq",
     "sw",
     "zbb",
 ]

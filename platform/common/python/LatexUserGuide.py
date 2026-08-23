@@ -1546,6 +1546,7 @@ class LatexUserGuide():
 		# package knobs never appeared in the TRM config table). Keep in sync with
 		# generate.py _CONFIG_SCHEMA — grouped: core, isa, priv, memory, periph, pkg.
 		keyOrder = ['chipName', 'numHarts', 'orchestrator', 'numMutexes', 'registerFileDualPort',
+			'core.fetchAhead',
 			'isa.mul', 'isa.fastMul', 'isa.div', 'isa.atomics', 'isa.compressed',
 			'isa.bitmanip', 'isa.minimalTiles', 'isa.counters', 'isa.counters64',
 			'isa.zicond', 'isa.zcb', 'isa.zimop', 'isa.zihint', 'isa.zihpm',

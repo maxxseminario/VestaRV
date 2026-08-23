@@ -434,13 +434,18 @@ OS_CORE_ENABLE_DEFINES = [
 # --------------------------------------------------------------------------
 # PRIVILEGED (trapCsr + U-mode + PMP) POLARITY
 #
-# The fourteen rv32ua tests below dispatch their real checking arm on
+# The fifteen rv32ua tests below dispatch their real checking arm on
 # -DCORE_ENABLE_PMP / -DCORE_ENABLE_UMODE / -DCORE_ENABLE_TRAPCSR. At every
 # other polarity in this file those defines are absent, so the sources compile
 # their trivial arm and the tests pass without touching a PMP check point.
-# This third instantiation is the ON arm of the same fourteen sources; it is
+# This third instantiation is the ON arm of the same fifteen sources; it is
 # the image half of a bare-core PMP regression, whose RTL half is a core
 # elaborated with the three matching generics true.
+#
+# That RTL half is //opensource_sim/pmp, which consumes the :pmp/*.rcf outputs
+# below and runs each of them against BOTH polarities of ENABLE_IF_AHEAD. The
+# define list here and the generic list there are the same statement written
+# twice: change one and the probes dispatch the wrong arm.
 #
 # The three that cover the instruction-fetch check point are pmpfq (a fetch
 # fault at a half-word-aligned PC that is NOT a split fetch), pmprt6 (a fetch

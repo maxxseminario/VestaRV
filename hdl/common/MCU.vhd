@@ -2562,6 +2562,8 @@ begin
             ENABLE_ZBKX       => CORE_ENABLE_ZBKX,
             ENABLE_ZKN        => CORE_ENABLE_ZKN,
             ENABLE_ZFINX      => CORE_ENABLE_ZFINX,
+            -- Microarchitecture
+            ENABLE_IF_AHEAD   => CORE_ENABLE_IF_AHEAD,
             -- Privileged-architecture features
             ENABLE_TRAPCSR    => CORE_ENABLE_TRAPCSR,
             ENABLE_UMODE      => CORE_ENABLE_UMODE,
@@ -3295,6 +3297,8 @@ begin
             ENABLE_ZBKX       => CORE_ENABLE_ZBKX,
             ENABLE_ZKN        => CORE_ENABLE_ZKN,
             ENABLE_ZFINX      => CORE_ENABLE_ZFINX,
+            -- Microarchitecture
+            ENABLE_IF_AHEAD   => CORE_ENABLE_IF_AHEAD,
             -- Privileged-architecture features
             ENABLE_TRAPCSR    => CORE_ENABLE_TRAPCSR,
             ENABLE_UMODE      => CORE_ENABLE_UMODE,
@@ -3371,6 +3375,8 @@ begin
             ENABLE_ZBKX       => CORE_ENABLE_ZBKX,
             ENABLE_ZKN        => CORE_ENABLE_ZKN,
             ENABLE_ZFINX      => CORE_ENABLE_ZFINX,
+            -- Microarchitecture
+            ENABLE_IF_AHEAD   => CORE_ENABLE_IF_AHEAD,
             -- Privileged-architecture features
             ENABLE_TRAPCSR    => CORE_ENABLE_TRAPCSR,
             ENABLE_UMODE      => CORE_ENABLE_UMODE,
@@ -3446,6 +3452,8 @@ begin
             ENABLE_ZBKX       => CORE_ENABLE_ZBKX,
             ENABLE_ZKN        => CORE_ENABLE_ZKN,
             ENABLE_ZFINX      => CORE_ENABLE_ZFINX,
+            -- Microarchitecture
+            ENABLE_IF_AHEAD   => CORE_ENABLE_IF_AHEAD,
             -- Privileged-architecture features
             ENABLE_TRAPCSR    => CORE_ENABLE_TRAPCSR,
             ENABLE_UMODE      => CORE_ENABLE_UMODE,
@@ -3521,6 +3529,8 @@ begin
             ENABLE_ZBKX       => CORE_ENABLE_ZBKX,
             ENABLE_ZKN        => CORE_ENABLE_ZKN,
             ENABLE_ZFINX      => CORE_ENABLE_ZFINX,
+            -- Microarchitecture
+            ENABLE_IF_AHEAD   => CORE_ENABLE_IF_AHEAD,
             -- Privileged-architecture features
             ENABLE_TRAPCSR    => CORE_ENABLE_TRAPCSR,
             ENABLE_UMODE      => CORE_ENABLE_UMODE,

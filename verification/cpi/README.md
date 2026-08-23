@@ -8,7 +8,7 @@ published in **TRM Section 12, "Core Performance and Instruction Timing"**
 | TRM table | What it holds | Produced here by |
 | --- | --- | --- |
 | `t:cpi-timing` | cycle cost per instruction class | the `micro_*` kernel pairs |
-| `t:cpi-align`  | RV32IMAC versus RV32IMA, the straddling-fetch cost | each benchmark and its `_noc` twin |
+| `t:cpi-align`  | RV32IMAC versus RV32IMA, the straddling-fetch cost that remains with the fetch-ahead on | each benchmark and its `_noc` twin |
 | `t:cpi-bench`  | CPI per benchmark, timed kernel | the nine benchmark images |
 
 If you change either side, change both: the TRM section and `expected.json`
@@ -22,8 +22,17 @@ result a property of the core rather than of a new memory model:
 
 * a flat RAM at `0x8000`, `mem_ready` tied high, one cycle of read latency,
   `wen` active LOW per lane;
-* the same generic map, so CPI is measured on the same core configuration the
-  ISA regression proves.
+* the same extension switches, so CPI is measured on the same core
+  configuration the ISA regression proves.
+
+One generic does **not** come from that harness. `ENABLE_IF_AHEAD => true` is
+set from what Castalia **ships**: the `core.fetchAhead` knob reaches the chip
+as `CORE_ENABLE_IF_AHEAD` in `MemoryMap.vhd` and through `MCU.vhd`, and this
+bench instantiates `work.vesta` directly, so it inherits none of that and the
+entity default is `false`. **That generic map has to be kept in step with the
+shipped configuration by hand.** Nothing checks it, and getting it wrong does
+not fail: it silently publishes CPI for a core that is not the one being
+taped out.
 
 Two things are deliberate:
 
@@ -55,8 +64,23 @@ unaligned body puts *every* 32-bit instruction in it on that path and silently
 doubles the measured cost of whatever is under test: the first cut of the
 control-transfer kernels read 2.0 cycles for a taken branch entirely because
 of this. The straddling-fetch cost is measured separately, by the
-RV32IMAC/RV32IMA benchmark pairs, and must never be charged to an instruction
-class here. Do not remove the directive.
+RV32IMAC/RV32IMA benchmark pairs and by the two kernels below, and must never
+be charged to an instruction class here. Do not remove the directive.
+
+`micro_straddleseq_*` and `micro_straddlebr_*` are the two kernels that
+straddle **on purpose**, and the only ones. Castalia ships `ENABLE_IF_AHEAD`
+on, so the straddling penalty is no longer a single number: a straddling
+32-bit instruction reached by a sequential advance is absorbed by the
+fetch-ahead, while one reached by a taken branch or jump is not, because the
+fetch-ahead arms only on a sequential advance and a redirect leaves the core
+holding nothing. `straddleseq` is a 12-byte block of four instructions, two of
+them straddling 32-bit ones, all reached sequentially; it measures 1.000
+cycles per instruction, so those straddles are free. `straddlebr` is a taken
+`beq` over a compressed instruction onto a straddling `add`, plus a compressed
+pad to return the next block to a word boundary; its three instructions each
+cost one cycle on their own (`brtaken`, `alu32`, `alu16`), and the block
+measures 4 cycles, so the redirect into a straddling target costs +1. Those
+two measurements are the two straddling rows of TRM Table `t:cpi-timing`.
 
 `micro_alu32lin_16` and `micro_alu32lin_32` are the linearity control: the same
 one-cycle body at two lengths, whose difference must be exactly
@@ -75,7 +99,8 @@ one bare hart to run.
 The `_noc` images are the same sources at `rv32ima_zicsr_zba_zbb_zbc_zbs`. gcc
 emits the identical instruction sequence in both builds, so the retired-
 instruction counts match benchmark for benchmark and the entire cycle
-difference is the straddling-fetch penalty. `spmv` has no `_noc` twin, which is
+difference is the straddling-fetch penalty --- with `ENABLE_IF_AHEAD` shipped,
+specifically the part of it the fetch-ahead does not absorb. `spmv` has no `_noc` twin, which is
 why TRM Table `t:cpi-align` aggregates eight benchmarks and Table
 `t:cpi-bench` aggregates nine.
 
@@ -101,7 +126,7 @@ Default coverage, run by `bazel test //verification/cpi/...` and therefore by
 
 | Target | Coverage |
 | --- | --- |
-| `//verification/cpi:micro` | all 36 micro-kernels, the whole per-class table |
+| `//verification/cpi:micro` | all 40 micro-kernels, the whole per-class table |
 | `//verification/cpi:median`, `:towers`, `:vvadd` | the three short benchmarks, RV32IMAC |
 | `//verification/cpi:median_noc`, `:towers_noc`, `:vvadd_noc` | the same three, RV32IMA |
 | `//verification/cpi:derived_tables_test` | the three TRM tables, recomputed from the recorded counts |

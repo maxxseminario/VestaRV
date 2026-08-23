@@ -29,8 +29,8 @@ entity orch_tile is
         ENABLE_ATOMICS    : boolean := true;
         ENABLE_COMPRESSED : boolean := true;
         ENABLE_BITMANIP   : boolean := true;
-        -- Fetch-ahead for straddling 32-bit instructions; the default tracks hart_tile's, which tracks vesta's.
-        ENABLE_IF_AHEAD   : boolean := false;
+        -- Fetch-ahead for straddling 32-bit instructions; the wrapper default tracks the shipped CORE_ENABLE_IF_AHEAD, as in hart_tile, while the core-side default in vesta.vhd stays FALSE so an omitted association still inherits an inert core.
+        ENABLE_IF_AHEAD   : boolean := true;
         ENABLE_ZICOND     : boolean := false;
         ENABLE_ZCB        : boolean := false;
         ENABLE_ZIMOP      : boolean := false;
