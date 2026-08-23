@@ -520,6 +520,114 @@ The RISC-V assembler also includes several pseudo-instructions for convenience. 
 
 
 
+% Core performance and CPI. The per-class cycle costs and the benchmark CPI in
+% this section are MEASURED on the RTL (GHDL, bare core, single hart out of TCM)
+% rather than derived; the methodology subsection says exactly how, so a later
+% core change can be re-measured against the same numbers.
+\section{Core Performance and Instruction Timing} \label{s:cpi}
+
+The VestaRV core is a multi-cycle machine on a single unified instruction and data bus, but it issues the fetch of the next instruction during the execute cycle of the current one. Most instructions therefore retire at one per MCLK cycle, and the core's measured cycles-per-instruction (CPI) is much closer to 1 than the term ``multi-cycle'' on its own would suggest. This section collects the per-instruction timings quoted throughout Section~\ref{s:cpu-instructions}, adds the classes that section does not cover, and reports the CPI actually measured on a benchmark suite.
+
+Every figure below is for one hart executing out of its own TCM with no shared-bus contention. An access that crosses the arbiter into the shared window, or that is made while another hart holds the grant, adds stall cycles on top of these numbers (Section~\ref{s:multicore}). The core's clock is gated while it waits, so a stalled cycle is still an MCLK cycle in which nothing retires and it is charged to CPI like any other.
+
+\subsection{Instruction Timing} \label{ss:cpi-timing}
+
+Table~\ref{t:cpi-timing} gives the cost of each instruction class. A row for an optional extension applies only when that extension is configured for this build; a disabled extension's instructions raise an illegal-instruction trap instead of executing. Atomic memory operations are the one class not re-measured here --- the bare-core bench has no second master --- and their 5-cycle cost is as stated in Section~\ref{s:cpu-instructions}.
+
+\begin{longtable}[c]{ l l }
+\caption{Measured instruction timing, in MCLK cycles} \label{t:cpi-timing} \\
+\hline \textbf{Instruction class} & \textbf{MCLK cycles} \\ \hline \endfirsthead
+\hline \textbf{Instruction class} & \textbf{MCLK cycles} \\ \hline \endhead
+                               Arithmetic and logical (\asminline{add}, \asminline{andi}, \asminline{lui}, \asminline{auipc}) & 1 \\
+\rowcolor{tablehighlightcolor} Shift (\asminline{sll}, \asminline{srl}, \asminline{sra} and immediate forms) & 1 \\
+                               Comparison (\asminline{slt}, \asminline{sltu} and immediate forms) & 1 \\
+\rowcolor{tablehighlightcolor} Bit manipulation (Zba, Zbb, Zbc, Zbs) & 1 \\
+                               Multiply (M): \asminline{mul}, \asminline{mulh}, \asminline{mulhu}, \asminline{mulhsu} & 1 \\
+\rowcolor{tablehighlightcolor} Divide and remainder (M): \asminline{div}, \asminline{divu}, \asminline{rem}, \asminline{remu} & 36 \\
+                               Load and store (\asminline{lw}, \asminline{lh}, \asminline{lb}, \asminline{sw}, \asminline{sh}, \asminline{sb}) & 2 \\
+\rowcolor{tablehighlightcolor} Conditional branch, whether taken or not taken & 1 \\
+                               Jump and link (\asminline{jal}, \asminline{jalr}) & 1 \\
+\rowcolor{tablehighlightcolor} CSR read (\asminline{csrr}) & 1 \\
+                               Atomic memory operations (A), per Section~\ref{s:cpu-instructions} & 5 \\
+\rowcolor{tablehighlightcolor} \emph{Additional} penalty: 32-bit instruction straddling a word boundary & +1 \\
+\hline
+\end{longtable}
+
+Three entries are worth drawing out. Hardware multiply is single-cycle, so \asminline{mul} costs no more than \asminline{add} and there is no reason to hand-expand a multiplication into shifts and adds. Divide and remainder share one iterative divider and are, by a wide margin, the most expensive instructions the core executes; where the divisor is a constant, the compiler's multiply-and-shift expansion is far faster than \asminline{div} and is worth checking for in the disassembly of any hot loop. And a conditional branch costs the same whether it is taken or not, because the core resolves the condition and issues the redirected fetch in the same cycle: there is no branch predictor, and no misprediction penalty to design around.
+
+\subsection{Compressed Instructions and Fetch Alignment} \label{ss:cpi-align}
+
+The core fetches one 32-bit word per bus cycle. With the C extension enabled instructions are only guaranteed 2-byte aligned, so a 32-bit instruction may straddle a word boundary; when it does, the core must fetch both halves before it can decode, and that instruction costs one extra MCLK cycle. Compressed (2-byte) instructions and word-aligned 32-bit instructions are unaffected and retire in a single cycle.
+
+This is not a rare corner. Table~\ref{t:cpi-align} isolates it by rebuilding the whole benchmark suite for RV32IMA instead of RV32IMAC. The compiler emits the identical instruction sequence in both builds --- the retired-instruction counts match exactly, benchmark for benchmark --- and only the encoding differs, so the entire difference in cycle count is the straddling-fetch penalty. Across the suite it costs 0.230 CPI, or 14.0\% of all cycles, and on \texttt{qsort} it reaches 22.6\%.
+
+\begin{longtable}[c]{ l r r r }
+\caption{Cost of straddling fetches: the same code built with and without the C extension} \label{t:cpi-align} \\
+\hline \textbf{Benchmark} & \textbf{CPI (RV32IMAC)} & \textbf{CPI (RV32IMA)} & \textbf{Cycles lost} \\ \hline \endfirsthead
+\hline \textbf{Benchmark} & \textbf{CPI (RV32IMAC)} & \textbf{CPI (RV32IMA)} & \textbf{Cycles lost} \\ \hline \endhead
+                               \texttt{dhrystone} & 1.721 & 1.481 & 13.9\% \\
+\rowcolor{tablehighlightcolor} \texttt{median}    & 1.481 & 1.397 & 5.7\% \\
+                               \texttt{memcpy}    & 1.726 & 1.726 & 0.0\% \\
+\rowcolor{tablehighlightcolor} \texttt{multiply}  & 1.168 & 1.014 & 13.1\% \\
+                               \texttt{qsort}     & 1.719 & 1.330 & 22.6\% \\
+\rowcolor{tablehighlightcolor} \texttt{rsort}     & 1.531 & 1.412 & 7.8\% \\
+                               \texttt{towers}    & 1.821 & 1.681 & 7.7\% \\
+\rowcolor{tablehighlightcolor} \texttt{vvadd}     & 1.499 & 1.374 & 8.3\% \\
+\hline
+                               \textbf{Aggregate} & \textbf{1.642} & \textbf{1.412} & \textbf{14.0\%} \\
+\hline
+\end{longtable}
+
+The aggregate row weights each benchmark by its retired-instruction count, and covers the eight benchmarks of Table~\ref{t:cpi-bench} that were rebuilt both ways --- \texttt{spmv} was not, which is why this aggregate differs from the one in that table.
+
+None of this is an argument against the C extension, which is configured on by default and earns its place by shrinking code substantially --- decisive when a hart's private TCM is \TcmSizeKiB{} KiB. It is an argument for aligning code that is genuinely performance-critical. Placing a hot loop body on a 4-byte boundary with \asminline{.p2align 2} removes the penalty for the whole body, provided the body's own instructions are 32-bit; a body built from compressed instructions never pays it in the first place.
+
+\subsection{Measured CPI} \label{ss:cpi-measured}
+
+Table~\ref{t:cpi-bench} reports CPI over nine benchmarks derived from the riscv-tests benchmark suite, compiled \texttt{-O2} for RV32IMAC with the Zb* extensions enabled. The measured region is each benchmark's own timed kernel, so it excludes program startup, the cache-warming pass, and result verification.
+
+\begin{longtable}[c]{ l r r }
+\caption{Measured CPI by benchmark (timed kernel, single hart, no bus contention)} \label{t:cpi-bench} \\
+\hline \textbf{Benchmark} & \textbf{Instructions retired} & \textbf{CPI} \\ \hline \endfirsthead
+\hline \textbf{Benchmark} & \textbf{Instructions retired} & \textbf{CPI} \\ \hline \endhead
+                               \texttt{multiply}  & 20{,}892  & 1.168 \\
+\rowcolor{tablehighlightcolor} \texttt{spmv}      & 802{,}447 & 1.448 \\
+                               \texttt{median}    & 4{,}015   & 1.481 \\
+\rowcolor{tablehighlightcolor} \texttt{vvadd}     & 2{,}408   & 1.499 \\
+                               \texttt{rsort}     & 146{,}548 & 1.531 \\
+\rowcolor{tablehighlightcolor} \texttt{qsort}     & 123{,}205 & 1.719 \\
+                               \texttt{dhrystone} & 200{,}523 & 1.721 \\
+\rowcolor{tablehighlightcolor} \texttt{memcpy}    & 11{,}017  & 1.726 \\
+                               \texttt{towers}    & 3{,}747   & 1.821 \\
+\hline
+\rowcolor{tablehighlightcolor} \textbf{Aggregate} & \textbf{1{,}314{,}802} & \textbf{1.523} \\
+\hline
+\end{longtable}
+
+The aggregate is the total cycle count over the total retired-instruction count, so each benchmark contributes in proportion to the work it does. Read against Table~\ref{t:cpi-timing}, the spread has a simple explanation: the further a workload sits above 1.0, the more of its instruction mix is loads and stores, which cost two cycles each on the unified bus, and straddling 32-bit fetches, which cost one extra. \texttt{multiply} is register-bound and runs at 1.168 --- and at 1.014, essentially one instruction per cycle, once its straddling fetches are removed (Table~\ref{t:cpi-align}). \texttt{towers} and \texttt{memcpy} sit at the other end because they are dominated by memory traffic. Branches move none of it, since they are free.
+
+\subsection{Measuring Your Own Code} \label{ss:cpi-measure}
+
+The core implements the \register{cycle}/\register{cycleh} and \register{instret}/\register{instreth} counters, and their machine-mode aliases \register{mcycle} and \register{minstret}, in every configuration. \register{cycle} counts MCLK cycles, free-running and independent of whether the core is stalled; \register{minstret} counts instructions actually retired. Bracketing a region with \asminline{rdcycle} and \asminline{rdinstret} and taking the differences therefore gives that region's exact cycle count and CPI on hardware, with no external instrumentation:
+
+\begin{lstlisting}[style=customC]
+unsigned c0, i0, c1, i1;
+__asm__ volatile ("rdcycle %0; rdinstret %1" : "=r"(c0), "=r"(i0));
+hot_loop();
+__asm__ volatile ("rdcycle %0; rdinstret %1" : "=r"(c1), "=r"(i1));
+/* cycles = c1 - c0, instructions = i1 - i0 */
+\end{lstlisting}
+
+Note that \register{time} and \register{timeh} are \emph{not} implemented in any configuration --- no real-time source is wired to the core --- and reading either raises an illegal-instruction trap. Use \register{cycle} for elapsed time, converting through the known MCLK frequency, or a timer peripheral for wall-clock measurement.
+
+\subsection{Measurement Methodology} \label{ss:cpi-method}
+
+The numbers in this section are measured on the RTL, not estimated. Each benchmark is run to completion in a VHDL simulation of the bare core with a one-cycle-latency memory and no bus back-pressure, which is the timing a single hart sees executing from its own TCM. Cycles are counted on the free-running core clock, so any cycle in which the core's clock is gated is still counted. Instructions are counted from the core's internal instruction-retire strobe --- the same signal that increments \register{minstret} --- so the instruction count is architectural rather than an estimate derived from the simulation.
+
+The per-class costs in Table~\ref{t:cpi-timing} come from paired micro-kernels: a loop containing 64 copies of the instruction under test is run against an otherwise identical empty loop, and the difference in cycles divided by the difference in retired instructions gives the marginal cost of that instruction alone, with the loop's own overhead subtracted out. The micro-kernel bodies are word-aligned, so the straddling-fetch penalty of Section~\ref{ss:cpi-align} is measured separately rather than being charged to the instruction under test.
+
+\newpage
+
 % Forth
 \section{Forth Interpreter} \label{s:forth}
 When the MCU comes out of reset and the \pin{BOOT} pin is LOW, the MCU boots to an interactive Forth interpreter based on the Forth language. Forth is a stack-based language where variables are pushed to a stack in LIFO (last in, first out) order. When a variable is set, it is pushed to the top of the stack (TOS). When a variable is used, it is popped (or consumed) from the TOS. Functions that take arguments pop them from the TOS. Functions that have return values push them to the TOS (after first popping its arguments). Variables are not assigned names, and the only way of distinguishing them from one another is by their order on the stack. All variables are treated as 32-bit signed integers. Variables may be pushed to the stack through the command line by simply typing the variable value into the interpreter as a plain text integer value or as a plain text hexadecimal value. Hexadecimal values must be preceded by the string \forthinlinehl{0x} without spaces in between (e.g. \forthinlinehl{0xA4}), but the value may be upper or lower case and does not need leading zeros. Variables are not pushed or popped and functions are not executed until a newline (or line feed) \forthinlinehl{\\n} character is received, at which point the entire received line will be executed in order. New functions may be declared, and may use the stack and any already defined functions to perform their procedures. If the Forth interpreter does not recognize an input as a variable or a function, it prints the \forthinlinehl{?} char over the UART.
