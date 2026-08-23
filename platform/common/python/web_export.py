@@ -18,7 +18,9 @@ with top-level keys:
                    name, io type, power domain, gpio/af table)
     derivedPresets castalia / argus / cq derived geometry (isa string, shared-
                    window width, banks, flash base, CLINT layout, ...)
-    verifiedHarts  {values:[4,18], note:...} -- the sim-proven hart counts
+    verifiedHarts  {values:[...], note:...} -- the hart counts this tree can
+                   still build AND elaborate, from generate.py's
+                   _VERIFIED_HART_COUNTS record (NOT a second copy: see below)
     memoryRegions  region-level address map (ROM, peripheral window, shared
                    window sections, TCM, flash)
 
@@ -307,12 +309,15 @@ def buildWebData(gen):
 		'defaults': defaults,
 		'packages': gen.PackageModels,
 		'derivedPresets': presets,
-		'verifiedHarts': {
-			'values': [4, 18],
-			'note': 'Only 4 (Castalia golden master, byte-identical drop-in RTL) and 18 '
-				'(Argus, boots in simulation) are verified hart counts. Other values emit '
-				'well-formed but unproven RTL.',
-		},
+		# The verified hart counts come from generate.py's _VERIFIED_HART_COUNTS
+		# record via gen.VerifiedHarts. They used to be a SECOND hardcoded copy
+		# here, and the copy rotted: CPR8 made numHarts=5 the shipped default and
+		# updated generate.py's console note, but this literal kept saying the
+		# golden master was 4 harts, so docs/chip_configurator.html badged the
+		# actual tape-out chip "sim-only (not elaborated)" for eight days. The
+		# fallback is empty, never a literal list: an older generator that does
+		# not attach the record should publish NO claim rather than a stale one.
+		'verifiedHarts': dict(getattr(gen, 'VerifiedHarts', None) or {'values': [], 'note': ''}),
 		'memoryRegions': _memoryRegions(gen),
 	}
 	return data

@@ -45,7 +45,11 @@ entity vesta is
         ENABLE_PMP        : boolean := false;  -- PMP/Smpmp (requires UMODE)
         PMP_ENTRIES       : integer := 16;     -- PMP entry count, 8 or 16
         -- Core-side debug mode: dcsr/dpc/dscratch0/1, DRET, halt request plus halt-on-reset, ebreak-to-debug and single-step.
-        -- Must stay FALSE at every declaration site (check_entity_defaults.py polices it): a silently-enabled debug port is an area and attack-surface surprise. Requires ENABLE_TRAPCSR, see the concurrent assert below.
+        /* Stays FALSE here and at every CORE-side declaration site: the component declarations that stand for this core, and the debug_module and jtag_dtm entities (check_entity_defaults.py polices that class).
+           A top that instantiates this core and names no debug association inherits this default and gets an inert core, because a silently-enabled debug port is an area and attack-surface surprise.
+           Enabling debug is therefore always a named association, never an inherited one.
+           The hart_tile and orch_tile WRAPPERS are the deliberate exception and default TRUE: they must carry whatever CORE_ENABLE_DEBUG in MemoryMap.vhd ships, so a bare elaboration of a tile hardens the same core the generated assembly wires. */
+        -- Requires ENABLE_TRAPCSR, see the concurrent assert below.
         ENABLE_DEBUG      : boolean := false;
         -- Where a debug entry lands: the first free 256-byte slot in the TCM ISR bank, above .isr_eis at 0xBD00 and below the 0xBF00-0xBFEF headroom and the 0xBFF0 stack top, inside the staged-image window so a tile gets its stub from the ordinary image copy.
         -- 0xBB00 must not be used: it is the parking target of every unused IVT slot, so a stray interrupt would enter the stub too. A generic rather than a constant so a bench can re-aim it.

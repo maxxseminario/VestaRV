@@ -20,13 +20,45 @@ in a ``generic map`` silently inherits the entity's:
     7. ``hdl/argus/MCU.vhd`` / ``hdl/common/MCU.vhd`` / the generator templates
        -- every ``hart_tile`` instantiation, whose OMISSION is a decision
 
-Two of those already DISAGREE today for ``ENABLE_TRAPCSR`` (``vesta.vhd``
-says ``false``, ``hart_tile.vhd`` says ``true``), and the frozen
-``hdl/argus/MCU.vhd`` inherits the ``hart_tile`` value for all 18 tiles --
-which is exactly how the Argus suite ran TRAPCSR-ON for two days with no way
-to say so (F-K7-4).  D1's whole inertness claim rests on ``ENABLE_DEBUG``
-being ``false`` everywhere it is DECLARED, so the claim rests on a class of
-drift that has already happened once.  This is the instrument for it.
+Two of those DISAGREE for ``ENABLE_TRAPCSR`` (``vesta.vhd`` says ``false``,
+``hart_tile.vhd`` says ``true``), and the frozen ``hdl/argus/MCU.vhd``
+inherits the ``hart_tile`` value for all 18 tiles -- which is exactly how the
+Argus suite ran TRAPCSR-ON for two days with no way to say so (F-K7-4).  This
+is the instrument for that class of drift.
+
+THE REQUIREMENT IS PER CLASS, NOT ONE VALUE FOR THE WHOLE TREE.
+---------------------------------------------------------------------------
+The original D1 contract was "``ENABLE_DEBUG`` is ``false`` at every DECL
+site".  That was the correct requirement while debug was an opt-in knob, and
+it is the WRONG one now: ``debug.enable`` became a SHIPPED default on
+2026-08-16, ``hdl/common/MemoryMap.vhd`` says ``CORE_ENABLE_DEBUG := true``,
+and ``hart_tile``/``orch_tile`` were flipped to match in the same change.
+The declaration sites are two different kinds of object and they answer to two
+different rules:
+
+  CORE class    ``vesta`` and the component declarations that stand for it,
+                plus ``debug_module`` and ``jtag_dtm``.  These must carry
+                ``--require-default`` (``false``).  A top that instantiates
+                the core, the DM or the DTM and names no debug generic gets an
+                inert unit: enabling debug is always a NAMED association,
+                never an inherited one.  That is the surviving half of the old
+                rationale, and it is what keeps a hand-written bench or a
+                third-party top from acquiring a debug port by omission.
+
+  WRAPPER class ``entity hart_tile`` and ``entity orch_tile``, the units a
+                ``genus elaborate`` hardening run instantiates BARE.  Their
+                default must equal the SHIPPED value, measured from
+                ``CORE_<G>`` in ``hdl/common/MemoryMap.vhd`` rather than
+                written here as a literal.  The hazard is M14's, not the
+                attack-surface one: ``MCU.vhd`` passes
+                ``ENABLE_DEBUG => CORE_ENABLE_DEBUG`` while a bare elaborate
+                takes the entity default, so a wrapper default that disagrees
+                with the shipped constant hardens a macro the assembly then
+                wires the other way, silently.
+
+Deriving the wrapper requirement from the generated constant is what stops
+this checker going stale a second time: flip the knob back and the required
+wrapper default flips with it, in the same commit, with no edit here.
 
 WHAT IT REPORTS
 ---------------------------------------------------------------------------
@@ -99,8 +131,8 @@ needs it there.  What is graded is that nobody uses it.
            cannot pass as clean.
 
 USAGE
-    /usr/bin/python3.6 tools/python/check_entity_defaults.py               # ENABLE_DEBUG D1 contract + the MGMT_HART axis
-    /usr/bin/python3.6 tools/python/check_entity_defaults.py -g ENABLE_UMODE --require-default false
+    /usr/bin/python3.6 tools/python/check_entity_defaults.py               # ENABLE_DEBUG two-class contract + the MGMT_HART axis
+    /usr/bin/python3.6 tools/python/check_entity_defaults.py -g ENABLE_UMODE --tile-default same
     /usr/bin/python3.6 tools/python/check_entity_defaults.py -g ENABLE_TRAPCSR --report-only
     /usr/bin/python3.6 tools/python/check_entity_defaults.py --skip-mgmt-hart
 """
@@ -139,6 +171,21 @@ VHDL_DECL_FILES = [
     "hdl/common/jtag_dtm.vhd",
 ]
 
+# THE WRAPPER CLASS.  Keyed on (file, unit) rather than file, because
+# hart_tile.vhd carries BOTH classes: `entity hart_tile` is a wrapper, while
+# the `component vesta` a few hundred lines below it stands for the core and
+# stays in the core class.  A site not listed here is core-class.
+TILE_DECL_SITES = frozenset([
+    ("hdl/common/hart_tile.vhd", "entity hart_tile"),
+    ("hdl/common/orch_tile.vhd", "entity orch_tile"),
+])
+
+# Where the SHIPPED value of a core knob is recorded: the generated constant
+# the default build's MCU.vhd actually passes to every tile.  This is the
+# oracle for the wrapper class, so the requirement cannot go stale behind a
+# knob flip the way a literal `false` in this file did.
+SHIPPED_CONST_FILE = "hdl/common/MemoryMap.vhd"
+
 VHDL_INST_FILES = [
     "hdl/common/hart_tile.vhd",          # the inner `vesta` instantiation
     "hdl/common/orch_tile.vhd",          # CP2: the inner `hart_tile` pass-through
@@ -175,18 +222,22 @@ AFE_DECL_FILES = [
     "hdl/common/afe_stub.vhd",
 ]
 
-# MCU-class VHDL carrying `afe_stub` instantiations.  These are TRACKED files;
-# a missing one is reported, never skipped.
+# MCU-class VHDL carrying `afe_stub` instantiations.  This one is a TRACKED
+# file; its absence is graded, never skipped, because the golden master going
+# missing is itself the finding.
 AFE_INST_FILES = [
     "hdl/common/MCU.vhd",                       # the N=4 golden master
-    "platform/common/out/hdl/MCU.vhd",          # whatever `make chip` last emitted
 ]
 
-# Generated MCU.vhd copies staged under the gitignored xcelium/ tree.  These are
-# the ONLY on-disk artifacts of a NON-DEFAULT (orchestrator) build, so they are
-# where the eis0 defect actually manifested -- but they are transient, so their
+# Generated MCU.vhd copies under gitignored output trees: whatever `make chip`
+# last emitted, and the staged xcelium/ builds.  The xcelium pair are the ONLY
+# on-disk artifacts of a NON-DEFAULT (orchestrator) build, so they are where the
+# eis0 defect actually manifested.  All of them are TRANSIENT -- absent in a
+# clean checkout and in a bazel sandbox, present in a working tree -- so their
 # absence is REPORTED as reduced coverage rather than graded as a violation.
+# Every one that IS on disk is graded exactly as the tracked file above.
 AFE_INST_OPTIONAL = [
+    "platform/common/out/hdl/MCU.vhd",          # whatever `make chip` last emitted
     "xcelium/riscv_test/verify_castaliapenta/hdl/MCU.vhd",
     "xcelium/riscv_test/verify_pentawound/hdl/MCU.vhd",
 ]
@@ -517,6 +568,10 @@ def audit_mgmt_hart(root, report_only=False):
     for kind, rel, num, unit, val in rows:
         print("   %-8s %-52s:%-5s %-22s %s" %
               (kind, rel, num or "-", unit or "", val or ""))
+        if kind == "SKIPPED":
+            print("   NOT ON DISK: %s -- a generated tree that was never built "
+                  "here, so this run grades fewer instantiations than a working "
+                  "tree would.  Not a violation; not a clean bill either." % rel)
         if kind == "MAP":
             print("FAIL: %s:%s (%s) NAMES MGMT_HART.  CPR3/R1 made hart 0 the "
                   "management hart on EVERY configuration, so the association "
@@ -596,10 +651,18 @@ def main():
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("-g", "--generic", default="ENABLE_DEBUG",
                     help="the generic to audit (default ENABLE_DEBUG)")
-    # The DEFAULTS ARE THE D1 CONTRACT.  A bare invocation must be the gate,
-    # not a vacuous survey: at HEAD (no ENABLE_DEBUG anywhere) it MUST fail.
+    # The DEFAULTS ARE THE CONTRACT.  A bare invocation must be the gate, not
+    # a vacuous survey, so both requirements below are on unless overridden.
     ap.add_argument("--require-default", default="false",
-                    help="every DECL site must carry this default (default: false)")
+                    help="every CORE-class DECL site (the core, its component "
+                         "declarations, debug_module, jtag_dtm) must carry this "
+                         "default (default: false)")
+    ap.add_argument("--tile-default", default="shipped",
+                    help="what the WRAPPER-class DECL sites (entity hart_tile, "
+                         "entity orch_tile) must carry: a literal, or 'shipped' "
+                         "(the default) to require the value of CORE_<G> in "
+                         "%s, or 'same' to hold them to --require-default"
+                         % SHIPPED_CONST_FILE)
     ap.add_argument("--require-min-decls", type=int, default=5,
                     help="fail if fewer than N DECL sites are found (default 5 -- "
                          "the ENABLE_TRAPCSR-measured declaration-site count: the "
@@ -683,6 +746,7 @@ def main():
     absent = [r for r in rows if r[0] == "ABSENT"]
 
     rc = 0
+    want = tile_want = None          # bound below; named here for the verdict
     if not decls:
         # method rule 9: never print a well-formed verdict about an empty set.
         print("FAIL: %s is DECLARED NOWHERE -- there is nothing to audit. "
@@ -703,16 +767,56 @@ def main():
               "(the F-K7-4 shape)." % (rel, args.generic))
     if args.require_default is not None:
         want = args.require_default.strip().lower()
+
+        # The wrapper requirement is MEASURED, not written down here: it is
+        # whatever the generated constant says the chip ships.
+        tile_want = (args.tile_default or "shipped").strip().lower()
+        if tile_want == "same":
+            tile_want = want
+        elif tile_want == "shipped":
+            shipped = [r for r in consts if r[1] == SHIPPED_CONST_FILE]
+            if not shipped:
+                print("FAIL: %s declares no CORE_%s, so the SHIPPED value of "
+                      "%s cannot be measured and the wrapper defaults cannot "
+                      "be graded against it.  Pass --tile-default explicitly "
+                      "or restore the constant."
+                      % (SHIPPED_CONST_FILE, args.generic, args.generic))
+                rc = 1
+                tile_want = None
+            else:
+                tile_want = (shipped[0][4] or "").strip().lower()
+                print("   SHIPPED %s = %s (%s:%s).  The wrapper entities must "
+                      "carry that value; the core class must carry %s."
+                      % (args.generic, tile_want, shipped[0][1], shipped[0][2],
+                         want))
+
         for _, rel, num, unit, val in decls:
-            if (val or "").strip().lower() != want:
-                print("FAIL: %s:%s (%s) declares %s := %s, require %s"
-                      % (rel, num, unit, args.generic, val, want))
+            got = (val or "").strip().lower()
+            if (rel, unit) in TILE_DECL_SITES:
+                if tile_want is None or got == tile_want:
+                    continue
+                print("FAIL: %s:%s (%s) declares %s := %s, require %s -- this "
+                      "is a WRAPPER entity, and a hardening run elaborates it "
+                      "BARE while the generated MCU.vhd wires the same tile as "
+                      "CORE_%s (%s).  A wrapper default that disagrees with the "
+                      "shipped constant hardens the macro one way and wires it "
+                      "the other, which is the M14 shape."
+                      % (rel, num, unit, args.generic, val, tile_want,
+                         args.generic, tile_want))
+                rc = 1
+            elif got != want:
+                print("FAIL: %s:%s (%s) declares %s := %s, require %s -- this "
+                      "is a CORE-class declaration, and an instantiation that "
+                      "names no %s association INHERITS it.  Enabling the "
+                      "feature must be a named act, never an inherited one."
+                      % (rel, num, unit, args.generic, val, want, args.generic))
                 rc = 1
     if missing:
         rc = 1
-    if rc == 0:
-        print("PASS: every %s declaration site carries the required default."
-              % args.generic)
+    if rc == 0 and want is not None:
+        print("PASS: every CORE-class %s declaration carries %s, and every "
+              "WRAPPER entity carries %s -- the value %s ships."
+              % (args.generic, want, tile_want, SHIPPED_CONST_FILE))
     if mgmt_rc:
         rc = mgmt_rc
     return rc
