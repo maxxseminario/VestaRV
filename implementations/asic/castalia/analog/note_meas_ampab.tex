@@ -12,19 +12,23 @@
 
 \subsubsection{Measuring this block on chip}
 
-Input offset is the term that decides yield, and a loopback is the only way to
-see it. Open the reference-electrode isolation switch, close the unity-gain
-loopback around A1, select per-channel slot 5 --- the amplifier output, inboard
-of the counter-electrode isolation switch --- and read it either on
-\texttt{atb\_d} with \texttt{AFE\_DBGDIREN}~=~1 or on-chip by routing the bus
-into the converter with \texttt{AFE\_ADCSRCSEL}~=~4 and averaging. Repeat at
-three reference codes across the working window: the intercept is the input
-offset, \(\sigma = \SI{5.20}{\milli\volt}\)
-(Table~\ref{tab:ampab-mc-offset}), and the slope is the finite-loop-gain
-tracking error. Take the reading unbuffered --- a test buffer built from the
-same devices carries an offset of the same class, so buffering substitutes one
-unknown for another. For the transimpedance role, isolate the working electrode
-and read slot 4 the same way; that reading is output-referred and carries
-\(\sigma = \SI{8.91}{\milli\volt}\) (Table~\ref{tab:tiaab-mc-offset}), which
-divided by the active gain is the channel's zero-current error. This test fabric
-is design intent; it is not yet in the schematics.
+Input offset is the term that decides yield; a loopback is the only way to see
+it.
+\begin{enumerate}[nosep]
+\item Open the reference-electrode isolation switch; close the unity-gain
+  loopback around A1.
+\item Select per-channel slot 5 (the amplifier output, inboard of the
+  counter-electrode isolation switch). Read it on \texttt{atb\_d} with
+  \texttt{AFE\_DBGDIREN}~=~1, or on-chip with \texttt{AFE\_ADCSRCSEL}~=~4 and
+  averaging --- unbuffered either way: a test buffer built from the same
+  devices carries an offset of the same class.
+\item Repeat at three reference codes across the working window. The intercept
+  is the input offset, \(\sigma = \SI{5.20}{\milli\volt}\)
+  (Table~\ref{tab:ampab-mc-offset}); the slope is the finite-loop-gain
+  tracking error.
+\item For the transimpedance role: isolate the working electrode and read
+  slot 4 the same way. That reading is output-referred,
+  \(\sigma = \SI{8.91}{\milli\volt}\) (Table~\ref{tab:tiaab-mc-offset});
+  divided by the active gain it is the channel's zero-current error.
+\end{enumerate}
+This test fabric is design intent; it is not yet in the schematics.

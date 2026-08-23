@@ -13,19 +13,24 @@
 \subsubsection{Measuring this block on chip}
 
 Two nodes separate the four faults that all read as a stuck converter code.
-Select per-channel slot 5 and confirm the counter-electrode drive sits mid-rail
-and follows the reference code; then slot 6, the reference-electrode buffer
-output, which must equal the commanded reference within \SI{16}{\milli\volt}
-(\(3\sigma\) of A1's offset). A railed counter electrode with the summing node
-at the common mode is a control-loop or electrode fault; an unrailed counter
-electrode with the summing node off the common mode is a transimpedance fault;
-the converter reports a rail for both, which is why this pair and not the
-converter is the triage. Read the summing node itself at slot 7, through its
-series guard and with the mid node clamped --- it is a virtual ground at
-\SI{0.824}{\nano\ampere} per LSB at the top gain code, so an ungranted site must
-stay doubly isolated from it. For the zero-current constant, open the
-working-electrode isolation switch so the cell current is zero by construction,
-read the transimpedance output at every gain code the channel will use, and
-subtract the converter's zero code; the uncalibrated spread is \(\sigma =
-12.1\)--\SI{167.3}{LSB} over the four taps (Section~\ref{sss:pixel-mc}). This
-test fabric is design intent; it is not yet in the schematics.
+\begin{enumerate}[nosep]
+\item Select slot 5: the counter-electrode drive must sit mid-rail and follow
+  the reference code.
+\item Select slot 6, the reference-electrode buffer output: it must equal the
+  commanded reference within \SI{16}{\milli\volt} (\(3\sigma\) of A1's
+  offset).
+\item Triage on that pair, not on the converter (it reports a rail for both
+  faults): counter electrode railed with the summing node at common mode =
+  control-loop or electrode fault; counter electrode unrailed with the summing
+  node off common mode = transimpedance fault.
+\item Read the summing node itself at slot 7 only through its series guard and
+  with the mid node clamped: it is a virtual ground at
+  \SI{0.824}{\nano\ampere} per LSB at the top gain code, and an ungranted site
+  must stay doubly isolated from it.
+\item Zero-current constant: open the working-electrode isolation switch (cell
+  current is zero by construction), read the transimpedance output at every
+  gain code the channel will use, subtract the converter's zero code.
+  Uncalibrated spread: \(\sigma = 12.1\)--\SI{167.3}{LSB} over the four taps
+  (Section~\ref{sss:pixel-mc}).
+\end{enumerate}
+This test fabric is design intent; it is not yet in the schematics.

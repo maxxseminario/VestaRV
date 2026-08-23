@@ -14,21 +14,26 @@
 
 \subsubsection{Measuring this block on chip}
 
-Force \(\pm\) full-scale current into the working-electrode pin with no cell
-present and read the transimpedance output at per-channel slot 4 on
-\texttt{atb\_d}, one gain code at a time. Read it at the pad and not through the
-converter: the converter window truncates the samples that rail, and the
-two-point slope wanted here is the end-to-end constant in amperes per code,
-absorbing the resistor's \(\pm35\,\%\) sheet tolerance
-(Table~\ref{tab:tiarprog-corners}), the \SI{1.65}{\kilo\ohm} closed-switch stack
-and the converter's own gain in a single number. Slots 7 and 8 straddle the
-working-electrode isolation switch, so their difference under the same forced
-current is that switch's \(i\!\cdot\!R_{\mathrm{on}}\), which calibration stores
-rather than minimises. To refresh the gain without equipment, switch the on-chip
-reference resistor between the counter-electrode node and the summing node, take
-the same two-point slope, and scale the stored constant by the change in that
-ratio: sheet resistance cancels, leaving matching alone at
-\SIrange{0.04}{0.36}{\percent} (Table~\ref{tab:tiarprog-mc}). Choose the drive
-amplitude per gain code, or the high-gain codes rail, and avoid the bottom code
-entirely --- its drive nonlinearity is 1.26 LSB typical and no two-point slope
-sees it. This test fabric is design intent; it is not yet in the schematics.
+\begin{enumerate}[nosep]
+\item Force \(\pm\)~full-scale current into the working-electrode pin with no
+  cell present; read the transimpedance output at per-channel slot 4 on
+  \texttt{atb\_d}, one gain code at a time. Scale the drive per gain code or
+  the high-gain codes rail; skip the bottom code --- its drive nonlinearity is
+  1.26~LSB typical and no two-point slope sees it.
+\item Read at the pad, not through the converter: the converter window
+  truncates samples that rail, and the two-point slope wanted here is the
+  end-to-end constant in amperes per code, absorbing the resistor's
+  \(\pm35\,\%\) sheet tolerance (Table~\ref{tab:tiarprog-corners}), the
+  \SI{1.65}{\kilo\ohm} closed-switch stack and the converter's own gain in one
+  number.
+\item Switch resistance: slots 7 and 8 straddle the working-electrode
+  isolation switch; their difference under the same forced current is that
+  switch's \(i\!\cdot\!R_{\mathrm{on}}\), which calibration stores rather than
+  minimises.
+\item Gain refresh without equipment: switch the on-chip reference resistor
+  between the counter-electrode node and the summing node, take the same
+  two-point slope, and scale the stored constant by the change in that ratio.
+  Sheet resistance cancels; matching alone remains,
+  \SIrange{0.04}{0.36}{\percent} (Table~\ref{tab:tiarprog-mc}).
+\end{enumerate}
+This test fabric is design intent; it is not yet in the schematics.

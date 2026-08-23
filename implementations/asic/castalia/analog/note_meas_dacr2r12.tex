@@ -12,21 +12,25 @@
 
 \subsubsection{Measuring this block on chip}
 
-Select per-channel slot 2 with \texttt{AFE\_DBGISOEN}~=~1 --- the isolation
-switch is required, not optional, because leakage on an R-2R output is a
-code-dependent error --- and read the reference output on \texttt{atb\_d}. Take
-three codes with a voltmeter to fix the DAC's offset and step in volts: nothing
-on the die can supply that scale, and it anchors the channel's whole potential
-axis. Then sweep all 4096 codes into the converter with
-\texttt{AFE\_ADCSRCSEL}~=~2 --- \SI{75}{\milli\second} per channel at sixteen
-averages --- and fit the one-parameter droop of
-Section~\ref{sss:dacr2r12-supply}, which removes \SI{94}{\percent} of the
-\SI{25.8}{\milli\volt} reference movement. Do not store the per-code residual
-table: measured through this converter each entry carries as much quantisation
-as the error it corrects, so it buys \SI{0.07}{\milli\volt} rms for 4\,KiB per
-channel --- but run the sweep regardless, because it is where a broken ladder
-shows. Chip-level slot 7 reads the DAC supply node directly and is the only
-place the \SI{25.8}{\milli\volt} code-dependent excursion is confirmed or
-refuted on silicon; chip-level slot 6 reads the shared common-mode DAC, forceable
-through \texttt{AFE\_VCMISOEN}. This test fabric is design intent; it is not yet
-in the schematics.
+\begin{enumerate}[nosep]
+\item Select per-channel slot 2 with \texttt{AFE\_DBGISOEN}~=~1 and read the
+  reference output on \texttt{atb\_d}. The isolation switch is required, not
+  optional: leakage on an R-2R output is a code-dependent error.
+\item Absolute anchor: take three codes with a voltmeter to fix the DAC's
+  offset and step in volts. Nothing on the die can supply that scale; it
+  anchors the channel's whole potential axis.
+\item Sweep all 4096 codes into the converter with
+  \texttt{AFE\_ADCSRCSEL}~=~2 (\SI{75}{\milli\second} per channel at sixteen
+  averages) and fit the one-parameter droop of
+  Section~\ref{sss:dacr2r12-supply}: it removes \SI{94}{\percent} of the
+  \SI{25.8}{\milli\volt} reference movement. Do not store the per-code
+  residual table --- through this converter each entry carries as much
+  quantisation as the error it corrects (\SI{0.07}{\milli\volt}~rms for
+  4\,KiB per channel) --- but run the sweep regardless: it is where a broken
+  ladder shows.
+\item Chip-level slot 7 reads the DAC supply node directly --- the only place
+  the \SI{25.8}{\milli\volt} code-dependent excursion is confirmed or refuted
+  on silicon. Chip-level slot 6 reads the shared common-mode DAC, forceable
+  through \texttt{AFE\_VCMISOEN}.
+\end{enumerate}
+This test fabric is design intent; it is not yet in the schematics.
