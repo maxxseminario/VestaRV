@@ -1,0 +1,85 @@
+%% HAND-WRITTEN table fragment (maestro2tex house style; nothing here is
+%% generated). Every value transcribed from
+%% ~/vestarv/docs/afe_rev2_pixel_verify.html, revision 2026-08-23:
+%%   rows 1-4   S7.1 (run simruns/pixtop2_dc)
+%%   rows 5-8   S8.2 (run simruns/pixtop2_gain), S7.3
+%%   rows 9-12  S9.1-S9.3 (run simruns/pixtop2_cv, cv_pixtop.dat)
+%%   rows 13-14 S7.5 (runs simruns/pixtop2_adcx_*, extracted converter)
+%% Flat-bench comparison values (0.814 mV, 8.6658 uA, 6.0553 uA) are the same
+%% document's S10 and S9.2 columns, i.e. tb_anatop_pixel/CvBvTB test ps_cv.
+\begin{table}[!htb]
+  \centering
+  \caption[{Headline measurements on the assembled channel.}]{Headline
+  measurements on the assembled channel, nominal process point,
+  \SI{37}{\celsius}, \SI{2.5}{\volt} supply. Rows 1--8 are dc; rows 9--12 come
+  from the staircase voltammetry run of Figure~\ref{fig:pixtop-cv} and rows
+  13--14 need the extracted converter, everything else in the channel staying
+  at schematic level. The two tracking figures are optimistic by construction:
+  the DAC supply regulators are instantiated but drive nothing, so both ladders
+  run from an ideal rail and the \SI{25.8}{\milli\volt} of code-dependent
+  reference movement of Section~\ref{sss:dacr2r12-supply} is not exercised
+  here.}
+  \label{tab:pixtop-summary}
+  {\footnotesize
+  \setlength{\tabcolsep}{5pt}
+  \begin{tabular}{@{}%
+    >{\raggedright\arraybackslash}p{0.315\textwidth}%
+    >{\raggedleft\arraybackslash}p{0.185\textwidth}%
+    >{\raggedright\arraybackslash}p{0.435\textwidth}@{}}
+    \toprule
+    Quantity & Value & Conditions \\
+    \midrule
+    Reference tracking error &
+      \SI{0.672}{\milli\volt} &
+      dc sweep, \SIrange{0.4}{2.1}{\volt} window; \SI{0.814}{\milli\volt} with
+      an ideal source (\S\ref{ss:pixel}) \\
+    Reference tracking error, full range &
+      \SI{1.419}{\milli\volt} &
+      \SIrange{0}{2.42}{\volt}, all 4096 codes \\
+    Reference DAC step &
+      \SI{610.35}{\micro\volt} &
+      \(\SI{2.5}{\volt}/4096\) from an ideal rail; \SI{-181}{\micro\volt}
+      endpoint error at code 3968 \\
+    Common-mode output &
+      \SI{1.249738}{\volt} &
+      mid-code, \SI{-262}{\micro\volt} from \SI{1.25}{\volt} \\
+    \addlinespace
+    Zero-current output, \(v_{\mathrm{out}} - V_{\mathrm{CM}}\) &
+      \SI{-619.64}{\micro\volt} &
+      inert electrode, \(N = 0\) \\
+    Spread of that zero over gain codes &
+      \SI{0.3}{\nano\volt} &
+      all 320 codes \\
+    A2 input bias current &
+      \SI{2.04}{\pico\ampere} &
+      \SI{3.91}{\micro\volt} of drift over \(\Delta R_f = \SI{1.914}{\mega\ohm}\) \\
+    Uncalibrated current zero &
+      \(34.4\,/\,1.57\,/\,\SI{0.323}{\nano\ampere}\) &
+      \(N = 0\,/\,63\,/\,319\) \\
+    \addlinespace
+    Feedback resistance, in situ &
+      \SI{37.16}{\kilo\ohm} &
+      \(N = 3\), \SI{37}{\celsius}; median, p10--p90
+      \SIrange{36.95}{37.44}{\kilo\ohm} \\
+    Readout against the in-line probe &
+      \(\le \SI{39.4}{\nano\ampere}\) &
+      331 treads above \SI{100}{\nano\ampere}, on \SI{7.7}{\micro\ampere}
+      peaks, i.e. \SI{0.5}{\percent} \\
+    Voltammetric peak potential shift &
+      \(0.3\,/\,\SI{2.3}{\milli\volt}\) &
+      forward\,/\,reverse, against the ideal-source run of
+      \S\ref{ss:analog-electrode-bc} \\
+    Sampled peak height &
+      \(-11.2\,/\,{-}13.9\,\%\) &
+      forward\,/\,reverse, same reference; staircase sampling, not an error \\
+    \addlinespace
+    Converter agreement with its own bench &
+      \(\le \SI{3.3}{LSB}\) &
+      extracted converter, \SIrange{0.62}{1.87}{\volt} \\
+    Current per converter LSB &
+      \(88.5\,/\,\SI{0.825}{\nano\ampere}\) &
+      \(N = 0\,/\,319\); \SI{1.593}{\milli\volt} LSB over the measured
+      \SI{1.63}{\volt} span \\
+    \bottomrule
+  \end{tabular}}
+\end{table}
