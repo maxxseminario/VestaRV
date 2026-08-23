@@ -1,0 +1,203 @@
+%% HAND-WRITTEN table fragment (maestro2tex house style; nothing here is
+%% generated). Every magnitude is transcribed from the table named in the
+%% Magnitude cell; the Residual column is derived in note_calibration_residual.
+%% LSB means the converter's measured 1.591 mV step (tab_adc_transfer) unless
+%% the row says DAC LSB (528.96 uV, tab_dacr2r12_mc_reference).
+{\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{longtable}{@{}%
+  >{\raggedright\arraybackslash}p{0.17\textwidth}%
+  >{\raggedright\arraybackslash}p{0.21\textwidth}%
+  >{\raggedright\arraybackslash}p{0.08\textwidth}%
+  >{\raggedright\arraybackslash}p{0.235\textwidth}%
+  >{\raggedright\arraybackslash}p{0.185\textwidth}@{}}
+  \caption[{Calibratable error sources of one channel.}]{Calibratable error
+  sources of one channel, with the magnitude each block section reports, the
+  measurement that reveals it, and the error it leaves behind. \emph{Class} is
+  \emph{chip} for a term a per-chip constant removes, \emph{trim} for a term an
+  existing analog trim code sets once, and \emph{tolerate} for a term neither
+  can reach. LSB is the converter's measured \SI{1.591}{\milli\volt} step
+  (Table~\ref{tab:adc-transfer}); DAC LSB is \SI{528.96}{\micro\volt}
+  (Table~\ref{tab:dacr2r12-mc-reference}). Monte Carlo \(\sigma\) and corner
+  spreads are different quantities and are labelled as such in each cell.
+  Residuals are derived in Section~\ref{sss:calibration-residual} and assume the
+  full procedure of Section~\ref{sss:calibration-procedure} has run.}
+  \label{tab:calibration-errors} \\
+  \toprule
+  Source & Magnitude & Class & Revealed by & Residual \\
+  \midrule
+  \endfirsthead
+  \multicolumn{5}{@{}l}{\emph{Table~\ref{tab:calibration-errors}, continued}} \\
+  \toprule
+  Source & Magnitude & Class & Revealed by & Residual \\
+  \midrule
+  \endhead
+  \bottomrule
+  \endlastfoot
+
+  \multicolumn{5}{@{}l}{\emph{Potential axis}} \\
+  \addlinespace
+  A1 input offset &
+  \(\sigma = \SI{5.20}{\milli\volt}\), MC (Tab.~\ref{tab:ampab-mc-offset});
+  worst window error \SI{23.1}{\milli\volt} (Tab.~\ref{tab:ampab-mc-tracking}) &
+  chip &
+  A1 in unity-gain loopback, counter-electrode node into the converter &
+  \SI{0.65}{\milli\volt} rms, two-conversion quantisation \\
+  \addlinespace
+  A1 finite loop gain &
+  Tracking slope \SIrange{0.54}{2.44}{\milli\volt\per\volt} across corners
+  (Tab.~\ref{tab:px-ctrl-tracking}) &
+  chip &
+  Same loopback, three command codes across the window &
+  Below the offset residual \\
+  \addlinespace
+  A1 load regulation &
+  \SI{-22}{\micro\volt} at \SI{+10}{\micro\ampere},
+  \SI{+24}{\micro\volt} at \SI{-10}{\micro\ampere}
+  (Tab.~\ref{tab:ampab-mc-regulation}) &
+  tolerate &
+  --- &
+  As measured; \(<\)~\SI{0.1}{LSB} \\
+  \addlinespace
+  Reference movement with code &
+  \SI{25.8}{\milli\volt} pp, 48.8 DAC LSB
+  (Tab.~\ref{tab:dacr2r12-mc-reference}) &
+  chip &
+  Full code sweep into the converter; one-parameter droop fit &
+  \SI{0.93}{\milli\volt} rms (fit residual, \S\ref{sss:dacr2r12-supply}) \\
+  \addlinespace
+  Reference DAC ladder INL &
+  1.49 DAC LSB mean, 3.45 worst
+  (Tab.~\ref{tab:dacr2r12-mc-ideal}) = \SIrange{0.79}{1.83}{\milli\volt} &
+  chip &
+  Same code sweep, per-code residual table &
+  \SI{0.65}{\milli\volt} rms per entry; \SI{0.79}{\milli\volt} if the table is
+  omitted \\
+  \addlinespace
+  Reference DAC DNL &
+  \(-1.74\) DAC LSB mean, \(-6.61\) worst; 40\,\% of samples monotonic
+  (Tab.~\ref{tab:dacr2r12-mc-ideal}) &
+  tolerate &
+  Same code sweep &
+  Local command granularity to \SI{3.5}{\milli\volt}; not removable \\
+  \addlinespace
+  Reference DAC full scale &
+  \SI{2.166}{\volt}, \(\sigma = \SI{56.8}{\milli\volt}\)
+  (Tab.~\ref{tab:dacr2r12-mc-reference}) &
+  chip &
+  Tester voltmeter at the reference test pad, three codes &
+  Tester accuracy \\
+  \addlinespace
+  Common-mode DAC value &
+  Same ladder and supply block as above &
+  chip &
+  Multiplexed into the converter; enters both axes &
+  Folded into the A1 and zero-code residuals \\
+  \addlinespace
+  Working-electrode switch drop &
+  \(i\!\cdot\!R_{\mathrm{on}}\); \SI{3.3}{\milli\volt} at
+  \SI{33}{\micro\ampere} through \SI{100}{\ohm} &
+  chip &
+  Tester forces current, measures the pad; \(i\) is already known &
+  10\,\% of the stored value, \SI{0.33}{\milli\volt} at full scale \\
+  \addlinespace
+  Reference-electrode junction potential &
+  Electrode chemistry, tens of \si{\milli\volt}; not in any run here &
+  tolerate &
+  Indistinguishable from A1 offset in a wet zero &
+  Absorbed only if the zero is taken wet, against that electrode \\
+  \addlinespace
+  \multicolumn{5}{@{}l}{\emph{Current axis}} \\
+  \addlinespace
+  Zero-current offset &
+  \(\sigma = 12.1\)--\SI{167.3}{LSB} over the four taps
+  (\S\ref{sss:pixel-mc}); output offset \(\sigma = \SI{8.91}{\milli\volt}\)
+  (Tab.~\ref{tab:tiaab-mc-offset}) &
+  chip &
+  Working-electrode switch open, then the common mode multiplexed in &
+  \SI{0.65}{LSB} rms, \(\pm1\)~LSB worst \\
+  \addlinespace
+  Feedback resistor, absolute &
+  \(\pm32\)--35\,\% across corners
+  (Tab.~\ref{tab:tiarprog-corners}) &
+  chip &
+  Tester forces \(\pm\) full-scale current at the working-electrode pad &
+  Tester accuracy \(\oplus\) \(\sigma/R\) 0.04--0.36\,\% where extrapolated \\
+  \addlinespace
+  Closed-switch stack &
+  \SI{1.65}{\kilo\ohm}, \(+9.2\,\%\) at \(N = 0\)
+  (\S\ref{ss:tiarprog}) &
+  chip &
+  Same forced current; a fixed term in the measured gain &
+  Included in the gain residual \\
+  \addlinespace
+  Bottom-code drive nonlinearity &
+  1.26 LSB typical, 3.60 worst corner at \(N = 0\);
+  \(\leq\)\,0.004 LSB elsewhere (Tab.~\ref{tab:tiarprog-spec}) &
+  tolerate &
+  Two-point gain measurement does not see it &
+  As measured at \(N = 0\); avoid the bottom code, or widen the gates \\
+  \addlinespace
+  Transimpedance finite loop gain &
+  0.41--0.61 LSB full scale at \SI{35}{\kilo\ohm}
+  (Tab.~\ref{tab:px-acc35}) &
+  chip &
+  It is a slope error; the end-to-end gain constant carries it &
+  Its drift only \\
+  \addlinespace
+  Converter offset &
+  Not separately characterised &
+  chip &
+  Common mode multiplexed into the converter &
+  \(\pm\tfrac{1}{2}\)~LSB, in the zero-code residual \\
+  \addlinespace
+  Converter gain &
+  Slope \(1.535\times\) ideal, effective LSB \SI{1.591}{\milli\volt}
+  (Tab.~\ref{tab:adc-transfer}) &
+  chip &
+  Folded into the end-to-end current gain constant &
+  Chip-to-chip spread unknown: one nominal run \\
+  \addlinespace
+  Converter linearity &
+  0.52 LSB worst, 0.29 rms about the fitted line, at 39 codes per step ---
+  not an INL (Tab.~\ref{tab:adc-transfer}) &
+  tolerate &
+  Needs a precision ramp the chip does not have &
+  Uncharacterised; bounded by the figures quoted \\
+  \addlinespace
+  Converter range &
+  \(\pm\SI{0.815}{\volt}\) about the common mode; 34.9\,\% of the supply span
+  lost (Tab.~\ref{tab:adc-transfer}) &
+  tolerate &
+  --- &
+  Not an error: a constraint on \(R_f \cdot I_{\mathrm{FS}}\) \\
+  \addlinespace
+  Electrode area and kinetics &
+  Not electronics; contributes nothing to any run in this chapter &
+  tolerate &
+  Only a wet standard of known concentration &
+  Sets the current-to-concentration scale; outside this procedure \\
+  \addlinespace
+  \multicolumn{5}{@{}l}{\emph{Shared}} \\
+  \addlinespace
+  Bias generator spread &
+  \(\sigma/\mu = 12.5\,\%\) on \(I_{\mathrm{DD}}\) in MC against 1.2\,\% across
+  corners &
+  trim &
+  Total analog supply current against the 6-bit trim code &
+  \(\pm\tfrac{1}{2}\) code, \(\pm1.4\,\%\); common to all four channels \\
+  \addlinespace
+  Bias rail temperature coefficient &
+  17--\SI{1598}{ppm\per\celsius}
+  (Tab.~\ref{tab:biasgen-tempco}) &
+  tolerate &
+  --- &
+  Enters through the terms below \\
+  \addlinespace
+  Drift of the constants with temperature &
+  No temperature-resolved Monte Carlo exists for any block &
+  chip &
+  Power-up re-measurement of the two zeros and the gain ratio &
+  Unquantified: the largest open item in this section \\
+\end{longtable}
+}
