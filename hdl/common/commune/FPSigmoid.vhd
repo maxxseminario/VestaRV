@@ -40,7 +40,9 @@ architecture behavioral of FPSigmoid is
 begin
 	----- Combinational sigmoid approximation logic
 	-- Approximation arithmetic: scale the magnitude, square it, and halve the result.
-	XSFixed			<= to_sfixed(X, XSFixed'high, XSFixed'low);
+	-- X is converted to std_ulogic_vector so the unresolved to_sfixed overload is the one selected in every VHDL revision.
+	-- The conversion is a type change only and costs no logic.
+	XSFixed			<= to_sfixed(to_stdulogicvector(X), XSFixed'high, XSFixed'low);
 	XSignBit		<= XSFixed(XSFixed'high);
 	XAbs			<= abs(XSFixed);
 	XOutOfRangeF	<= or_reduce(XAbs((XAbs'high) downto (RHO)));

@@ -70,13 +70,19 @@ py_binary(
 # The entity-default axis scanner
 # ---------------------------------------------------------------------------
 
-# LIVENESS SMOKE, not the graded D1 gate. The bare invocation grades
-# ENABLE_DEBUG against --require-default false and at HEAD that legitimately
-# fails (hart_tile.vhd:61 and orch_tile.vhd:53 both declare it true), which is
-# a finding about the RTL rather than about this build. What bazel asserts is
-# that the scanner is LIVE in the sandbox: --report-only still exits 2 if the
-# ENABLE_TRAPCSR control comes back under --control-min sites, so a stale
-# scanner or a mis-staged tree cannot pass this quietly.
+# THE GRADED GATE. It bites: no --report-only. The bare invocation holds
+# ENABLE_DEBUG to its two-class contract -- false at every core-side
+# declaration (vesta and the components standing for it, debug_module,
+# jtag_dtm), and equal to the shipped CORE_ENABLE_DEBUG at the hart_tile and
+# orch_tile wrappers -- and it also runs the MGMT_HART axis. The wrapper
+# requirement is read out of hdl/common/MemoryMap.vhd rather than written into
+# the checker, so a knob flip moves the requirement with it instead of leaving
+# a stale literal behind (which is what --report-only was papering over from
+# 2026-08-21 until this target was re-armed).
+#
+# The scanner's own liveness is still asserted underneath: it exits 2, not 1,
+# if the ENABLE_TRAPCSR control comes back under --control-min sites, so a
+# stale scanner or a mis-staged sandbox cannot pass this quietly either.
 py_test(
     name = "check_entity_defaults_test",
     size = "small",
@@ -84,10 +90,13 @@ py_test(
     args = [
         "--generic",
         "ENABLE_DEBUG",
-        "--report-only",
     ],
     data = [
         "//hdl:vhdl_sources",
+        # MCU.template.vhd is one of the scanned emitter sites. Without it the
+        # scanner reports MISSING FILE and grades itself INCOMPLETE, which is
+        # now a failure rather than a line of console noise.
+        "//platform/common:hdl_template_srcs",
         "//platform/common/python:generator_srcs",
     ],
     main = "check_entity_defaults.py",

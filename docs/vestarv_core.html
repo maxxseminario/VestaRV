@@ -482,7 +482,7 @@ push({id:"storeext",x:480,y:518,w:230,h:54,cls:"dpath",t:"store_ext",s:"SB / SH 
 
 /* ---- csr ---- */
 push({id:"csr",x:1190,y:162,w:310,h:88,cls:"csr",t:"csr_unit  (Zicsr)",s:"mhartid ← hart_id port",a:"mcycle / minstret 64-bit counters",
-  cap:"Zicsr register file. Implements mhartid (sourced from the hart_id port — one netlist for all four tiles) and the 64-bit machine counters mcycle (every cycle) and minstret (per retired instruction), with their read-only user shadows. CSRRW/RS/RC and immediate variants are decoded from funct3. Trap CSRs (mstatus/mtvec/mepc/mcause) are intentionally not present — interrupts are handled structurally through the IVT: the in-core irq_handler for the three hardwired sources, with external sources arriving as meip from the SoC\u2019s irq_router."});
+  cap:"Zicsr register file. Implements mhartid (sourced from the hart_id port — one hardened netlist shared by the four channel tiles; hart 0 is a separate soft orch_tile) and the 64-bit machine counters mcycle (every cycle) and minstret (per retired instruction), with their read-only user shadows. CSRRW/RS/RC and immediate variants are decoded from funct3. Trap CSRs (mstatus/mtvec/mepc/mcause) are present in this configuration, since priv.trapCsr defaults on: the standard and legacy trap architectures coexist in one hart and are selected at run time by a single bit. The legacy IVT path is the one active out of reset — the in-core irq_handler for the three hardwired sources, with external sources arriving as meip from the SoC\u2019s irq_router."});
 
 /* ---- irq ---- */
 push({id:"irqh",x:1190,y:326,w:310,h:96,cls:"irq",t:"irq_handler",s:"3 live sources · ungated clk",a:"meip (ext) · msip · mtip",

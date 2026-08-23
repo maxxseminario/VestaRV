@@ -1241,8 +1241,66 @@ if _isa['counters64'] and not _isa['counters']:
 	print('[generate] WARNING: isa.counters64 without isa.counters — the 64-bit high halves need the base Zicntr counters')
 if (not _isa['atomics']) and numHarts > 1:
 	print('[generate] WARNING: isa.atomics=false on a multi-hart chip breaks the LR/SC + AMO + mutex lock infrastructure the sh tests rely on')
-if _CHIP_CONFIG and numHarts not in (4, 5, 18):
-	print('[generate] NOTE: numHarts=' + str(numHarts) + ' — only 5 (Castalia-Penta golden master since CPR8, byte-identical RTL), 4 (the pre-CPR8 shape, config/castalia4.json) and 18 (Argus, boots in simulation) are verified hart counts')
+# ---------------------------------------------------------------------------
+# THE verified-hart-count record. ONE authority, because this fact is PUBLISHED
+# in two places -- the console NOTE just below, and web_export.py's
+# `verifiedHarts` bundle, which is spliced into docs/chip_configurator.html and
+# drives the per-hart-count badge on that page -- and keeping two copies has
+# already failed twice:
+#
+#   * CPR8 (2026-08-15) made numHarts=5 the shipped default and updated the NOTE
+#     here, but nobody updated the published bundle. For eight days the
+#     configurator called 4 harts "the Castalia golden master" and badged the
+#     actual tape-out chip, 5 harts, "sim-only (not elaborated)".
+#   * Both copies still said 18 (Argus) "boots in simulation" a week after the
+#     8 KiB TCM landed and made that false (see the Argus entry below).
+#
+# So the values and their descriptions live here, and web_export reads
+# m.VerifiedHarts rather than transcribing them a second time.
+#
+# The bar for membership is a hart count this tree can still BUILD AND ELABORATE
+# today, not one that passed a suite once. `argus_generation_test` proves only
+# that a configuration generates and that its JSON parses, which is exactly what
+# the closing sentence of the note calls unproven.
+# ---------------------------------------------------------------------------
+_VERIFIED_HART_COUNTS = [
+	(4, 'the pre-CPR8 four-hart shape, kept as the named matrix row config/castalia4.json'),
+	(5, 'Castalia-Penta golden master since CPR8, the shipped default, byte-identical drop-in RTL'),
+]
+
+# 18 (Argus) IS DELIBERATELY ABSENT, and this is the note that says so rather
+# than leaving a silent gap where a value used to be. Argus was a verified count
+# until 2026-08-16. On that day the shipped per-hart TCM halved to the 8 KiB
+# sram1p8k_hvt_pg macro, and hdl/common/hart_tile.vhd now closes over it with
+# `assert RamSize = 8192 ... severity failure`. RamSize is a MemoryMap package
+# constant, not a generic, so no instance can override it, and every Argus row
+# (config/argus.json, argus_course.json, argus_debug.json, and the frozen
+# hdl/argus/MemoryMap.vhd) asks for memory.tcmSizePerHart = 16384. An 18-hart
+# build therefore still GENERATES -- the schema permits any 1 KiB multiple up to
+# 0x4000 -- and then fails elaboration in all eighteen tiles. That assertion is
+# working as designed; Argus is simply a configuration that no longer satisfies
+# it, and Argus is no longer a development target. Re-proving it means giving it
+# an 8 KiB TCM or giving hart_tile back its 16 KiB macro, re-running
+# `make verify CONFIG=config/argus.json`, and only then adding the row back
+# here. Do not restore it on the strength of the 2026-08-15 run.
+_ARGUS_NOTE = ('18 (Argus) was a verified count until 2026-08-16 and is not one now: '
+	'hdl/common/hart_tile.vhd asserts RamSize = 8192 with severity failure, and every '
+	'Argus configuration asks for memory.tcmSizePerHart = 16384, so an 18-hart build '
+	'still generates but no longer elaborates.')
+
+
+def _verifiedHartsNote():
+	'''The one sentence both publication sites use, built from the record above.'''
+	parts = ['%d (%s)' % (_n, _d) for _n, _d in _VERIFIED_HART_COUNTS]
+	# Guarded, because the list has shrunk before and can shrink again: a bare
+	# ', '.join(parts[:-1]) + ' and ' renders "Only  and 5 (...)" at length 1.
+	joined = parts[0] if len(parts) == 1 else ', '.join(parts[:-1]) + ' and ' + parts[-1]
+	return ('Only ' + joined + ' are verified hart counts. Other values emit '
+		'well-formed but unproven RTL. ' + _ARGUS_NOTE)
+
+
+if _CHIP_CONFIG and numHarts not in [_n for _n, _d in _VERIFIED_HART_COUNTS]:
+	print('[generate] NOTE: numHarts=' + str(numHarts) + ' — ' + _verifiedHartsNote())
 
 # CLINT register-layout formula (A0/A1; must match hdl/common/clint.vhd):
 # msip[h] at word h; mtime lo at word roundup16(4*numHarts)/4; mtimecmp[h]
@@ -4502,7 +4560,16 @@ _resolvedConfig = [
 		('spi1', spi1Present), ('timer1', timer1Present),
 		('cqAfeStubs', cqAfeStubsPresent), ('qspi', qspiPresent), ('i3c', i3cPresent),
 		('nfc', nfcPresent), ('rtc', rtcPresent), ('pwm', pwmPresent),
-		('onewire', onewirePresent), ('dma', dmaPresent),
+		('onewire', onewirePresent),
+		# DP-S3: the field-power knob was declared in _CONFIG_SCHEMA and consumed
+		# everywhere (RstValP6REN, the P6.6/P6.7 pad descriptions, mcu_vhd's pwr0
+		# port wiring) but never recorded here, so the resolved dump could not
+		# report the shape it had built. The TRM's configuration table reads its
+		# rows straight out of this record, so the published manual shipped
+		# "peripherals.fieldPower  None" for the whole life of the knob. Every
+		# other knob in _CONFIG_SCHEMA has a row here; this one is the omission.
+		('fieldPower', fieldPowerPresent),
+		('dma', dmaPresent),
 		('dmaChannels', dmaChannels), ('i2ctarget', i2ctargetPresent),
 		('trng', trngPresent), ('trngRings', trngRings),
 		('eventFabric', eventFabricPresent)]),
@@ -4555,6 +4622,14 @@ m.ConfigSchemaDoc = dict((k, _CONFIG_SCHEMA[k][0]) for k in _CONFIG_SCHEMA)
 # ranges/enums/defaults from the generator rather than re-hardcoding them.
 m.ConfigMeta = dict((k, dict(_CONFIG_META[k])) for k in _CONFIG_META)
 m.ConfigDefaults = dict((k, _CONFIG_META[k]['default']) for k in _CONFIG_META)
+# The verified hart counts, from the single record above, for the same export.
+# web_export.py publishes this verbatim as VESTA_DATA.verifiedHarts; the
+# configurator badges cfg.numHarts on the `values` list, so anything added here
+# renders as a proven hart count on a published page.
+m.VerifiedHarts = {
+	'values': [_n for _n, _d in _VERIFIED_HART_COUNTS],
+	'note': _verifiedHartsNote(),
+}
 
 # Derived pad ring: the package model above IS the pad-ring description
 # (pin order, sides, power domains). Recorded as config/PadRing.json and

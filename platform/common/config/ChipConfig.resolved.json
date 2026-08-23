@@ -61,6 +61,7 @@
     "rtc": false,
     "pwm": false,
     "onewire": false,
+    "fieldPower": true,
     "dma": false,
     "dmaChannels": 4,
     "i2ctarget": false,

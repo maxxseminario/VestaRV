@@ -167,12 +167,110 @@ historical four-identical-tiles shape as a standing matrix row.
 
 ## Silicon Status
 
-- [x] RTL Complete (multi-core `hdl/common/` tree)
+**The last physical cut is `MCU_castalia_penta`, tag `cpr6`, Innovus signoff
+database written 2026-08-17 22:39.** It *is* post-penta: the layout carries a
+soft `orch_tile` as hart 0 and four hardened `hart_tile` macros as harts 1-4.
+But it was hardened from `platform/common/config/penta_wound.json`
+(`chipName = PentaWound`), **not** from the golden-master Castalia
+configuration the rest of this README describes. Nothing physical has run since
+2026-08-18.
+
+Everything below was read out of the untracked EDA trees (`genus/`, `innovus/`,
+`signoff_mp/`), which are gitignored and exist only on the build machine. Dates
+are file mtimes there; they are the only provenance those artifacts carry.
+
+### Where the flow actually stands
+
+- [x] RTL complete (5-hart `hdl/common/` tree)
 - [x] Behavioral verification (multi-core boot/ISA + shared-window suite)
-- [x] Gate-level (post-genus, SDF-annotated) verification
-- [x] Tile hardened and 4× assembly placed & routed
-- [x] Signoff DRC/LVS closure (tile + committed MCU cut)
-- [x] Connected pad-ring chip-top (C0)
+- [x] `hart_tile` re-synthesized rv32iac and re-hardened at an 8 KiB TCM — 2026-08-17 02:20
+- [x] Five-hart top placed & routed with a connected pad ring — `cpr6`, 2026-08-17 22:39
+- [x] Signoff antenna (Calibre `ant25`) clean — 0 violations, 2026-08-18 00:07
+- [ ] Gate-level (post-genus, SDF-annotated) verification — **partial.** All 7 smoke tests
+      pass on the 2026-08-15 `cpr7` netlist, but only one of the seven (`rv32ui-p-simple`)
+      was re-run on the final `cpr6` netlist, 2026-08-17 20:31. It passed. The other six
+      have not been re-run against the netlist that was signed off.
+- [ ] **Signoff DRC is NOT closed** — 2,354 `chipdrc` results, 2026-08-17 23:48
+- [ ] **LVS is NOT closed** — Pegasus reports `MISMATCH`, 2026-08-18 00:21
+- [ ] **The golden-master Castalia configuration has never been hardened** — see below
+
+### What the hardened cut contains
+
+`MCU_castalia_penta` is the pad-ringed chip top. There is no separate
+`chip_top` wrapper any more; the C0-era `chip_top` was deleted 2026-07-27 and
+the pad ring now lives inside this module.
+
+| Measured at signoff | Value |
+|---|---|
+| Die | -155 to 2845 um, i.e. 3.0 x 3.0 mm; core box 1 to 2689 um |
+| Top total | 1,903,469 gates, 84,311 placed cells, 2,284,164 um2 |
+| `mcu0/hart0` (`orch_tile`, soft) | 111,897 gates, 16,180 placed cells, 134,277 um2 |
+| `mcu0/hart1`-`hart4` (`hart_tile` macro, 4x) | 254,500 gates each, 305,400 um2 abstract each |
+| `hart_tile` macro itself | 97,997 gates, 10,852 cells, 117,597 um2; antenna clean; setup +0.200 ns MET, hold +0.023 ns MET |
+| Worst timing at chip signoff | setup +0.030 ns MET, hold +0.010 ns MET |
+| Pad ring | 81 pads: 48 GPIO (`P0_0`-`P5_7`), `TCK`/`TDI`/`TDO`/`TMS`/`TRSTN`, `RESETN`, 8 analog-reserve (`ARSV0`-`ARSV7`), `AVDD`/`AVSS`/`POC`, 3x `VDD`/`VSS`, 3x `VDDPST`/`VSSPST`, 4 corners, 2 ring cuts |
+| Debug | `debug_module dm0` and `jtag_dtm dtm0` are both in the netlist |
+
+The core shape of that build matches this README: `numHarts = 5`,
+`orchestrator = true`, `isa.minimalTiles = true`, 8 KiB TCM per hart, 64 KiB
+shared bulk + 16 KiB NPU staging, 16 mutexes, `castalia-lqfp100`,
+`debug.enable = true`, NPU and NFC on.
+
+The **peripheral set does not match**. `penta_wound.json` turns on the wound
+set — DMA, event fabric, I2C target, I3C, 1-Wire, PWM, QSPI, RTC, TRNG — which
+the golden master leaves off, and it leaves `peripherals.cqAfeStubs` off, which
+the golden master turns on. **No hardened netlist anywhere in the tree contains
+the four `afe_stub` slaves or the EIS engine.** The analog front end this
+README lists as a peripheral has never been through synthesis or place & route.
+
+### What is not closed
+
+**DRC.** The `cpr6` cut reports 2,354 Calibre `chipdrc` results against 1,770
+for the July four-tile `MCU_castalia`. Seventeen routing-layer rule classes are
+open that the July cut did not have at all: `M2.A.1` (177), `M7.S.4` (9),
+`M4.A.1` (5), `M2.S.2` (4), `M4.S.1` (4), `VIA7.S.2` (4), `LUP.6` (3),
+`M3.S.2` (3), `M7.S.3` (3), `M2.S.2.1` (2), and one each of `M1.S.1`,
+`M5.S.3`, `M6.S.3`, `M6.S.4`, `VIA1.R.4:M2`, `VIA7.W.1`, `DM7.S.2`. These are
+real metal spacing and minimum-area violations, not the base-layer and pad-cell
+classes the C6 DRC endgame (2026-07-29) had already triaged as waivable. **The
+"real classes 0" result that closed C6 does not carry over to this cut.**
+
+Innovus agrees: `verifyGeometry` at signoff reports 308 SameNet violations, and
+`verifyConnectivity` reports 2,779 problems (192 unconnected terminals, 967
+special-wire opens, 1,620 regular opens), concentrated on the VSS ring and
+stripes.
+
+**LVS.** Pegasus reports `Run Result : MISMATCH`, with extraction errors,
+connectivity mismatches and parameter mismatches. This is not a penta
+regression — the July `MCU_castalia` (2026-07-29) and `chip_top_wound_quad`
+(2026-07-27) runs record the same `MISMATCH`. **LVS has never closed on any
+chip-level cut in this family**, and any earlier claim in this file that it had
+was wrong.
+
+**RTL drift.** Three commits change RTL that is inside the hardened cut and
+post-date it, so no netlist reflects them: `e81e99a` (2026-08-21, NPU packed
+operand modes — `npu0` is in the cut), `c089dc6` (2026-08-23, Debug Module
+`abstractauto` — `dm0` is in the cut), and `23d3dca` (2026-08-20, `SARADC.vhd`,
+which this build does not instantiate).
+
+### Stale artifacts, for anyone reading the EDA trees
+
+| Artifact | Date | Status |
+|---|---|---|
+| `signoff_mp/MCU_castalia_signoff` | 2026-07-29 | **Pre-penta.** The four-identical-tile cut. This is what the C6 DRC endgame closed. |
+| `signoff_mp/chip_top_wound_quad_signoff` | 2026-07-27 | **Pre-penta.** Stage J wound quad. |
+| `signoff_mp/chip_top_quad_signoff`, `chip_top_dp_signoff` | 2026-07-16 / 07-23 | **Pre-penta**, and `chip_top_dp` is a dead tape-out target. |
+| `innovus/.../pre_tcm8k_bak/`, `signoff_mp/MCU_castalia_penta_base16k` | 2026-08-13 / 08-15 | Post-penta but **pre-8 KiB-TCM**: the `cp5` and `cpr7` cuts, archived when the TCM halved. |
+| All published layout renders under `assets/` | — | Four-identical-tile signoff GDS. Pre-penta by construction. |
+
+### Explicitly unknown
+
+- Whether the golden-master Castalia peripheral set (AFE stubs on, wound
+  peripherals off) closes timing or fits the same die. It has never been run.
+- Whether the 81-pad ring in the cut is the final LQFP-100 bond-out.
+  `package.preliminary` is still `true`.
+- Whether the open DRC classes are fixable by ECO or need a re-route. No
+  triage pass has been run on them.
 
 ## Publications
 

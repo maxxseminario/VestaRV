@@ -4018,9 +4018,9 @@ const VESTA_DATA = {
   "verifiedHarts": {
     "values": [
       4,
-      18
+      5
     ],
-    "note": "Only 4 (Castalia golden master, byte-identical drop-in RTL) and 18 (Argus, boots in simulation) are verified hart counts. Other values emit well-formed but unproven RTL."
+    "note": "Only 4 (the pre-CPR8 four-hart shape, kept as the named matrix row config/castalia4.json) and 5 (Castalia-Penta golden master since CPR8, the shipped default, byte-identical drop-in RTL) are verified hart counts. Other values emit well-formed but unproven RTL. 18 (Argus) was a verified count until 2026-08-16 and is not one now: hdl/common/hart_tile.vhd asserts RamSize = 8192 with severity failure, and every Argus configuration asks for memory.tcmSizePerHart = 16384, so an 18-hart build still generates but no longer elaborates."
   },
   "memoryRegions": [
     {
@@ -4138,7 +4138,11 @@ const SCHEMA          = VESTA_DATA.schema;          // per-key {type,default,min
 const VDEFAULTS       = VESTA_DATA.defaults;        // dotted schema keys -> default value
 const PACKAGES        = VESTA_DATA.packages;        // pad rings, keyed by package model
 const DERIVED_PRESETS = VESTA_DATA.derivedPresets;  // castalia / argus / cq geometry
-const VERIFIED_HARTS  = (VESTA_DATA.verifiedHarts && VESTA_DATA.verifiedHarts.values) || [4, 18];
+/* Empty fallback, never a literal list: this used to read `|| [4, 18]`, a third
+   hand-maintained copy of a fact that had already gone stale in the other two.
+   If the bundle ever lacks the key, badge nothing as proven rather than badge
+   the wrong counts. The authority is generate.py's _VERIFIED_HART_COUNTS. */
+const VERIFIED_HARTS  = (VESTA_DATA.verifiedHarts && VESTA_DATA.verifiedHarts.values) || [];
 
 /* dotted schema key -> internal knob name. The one bridge; the import path
    is its inverse and configObject() re-emits the same dotted keys. */

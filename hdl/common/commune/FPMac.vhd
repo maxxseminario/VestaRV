@@ -34,7 +34,9 @@ architecture behavioral of FPMac is
 begin
 	----- Combinational Logic -----
 	-- MAC logic: multiply A by B, add the held accumulator, resize back to the accumulator format.
-	YInt 	<= resize(((to_sfixed(YAccInt, ACC_M_BITS, -N_BITS)) + (to_sfixed(A, A_M_BITS, -N_BITS) * to_sfixed(B, B_M_BITS, -N_BITS))), YInt'high, YInt'low);
+	-- The slv operands are converted to std_ulogic_vector so the unresolved to_sfixed overload is the one selected in every VHDL revision.
+	-- The conversion is a type change only and costs no logic.
+	YInt 	<= resize(((to_sfixed(to_stdulogicvector(YAccInt), ACC_M_BITS, -N_BITS)) + (to_sfixed(to_stdulogicvector(A), A_M_BITS, -N_BITS) * to_sfixed(to_stdulogicvector(B), B_M_BITS, -N_BITS))), YInt'high, YInt'low);
 	-- Drive the ports from the internal nodes: Y is this cycle's sum, YAcc is the value held in the register.
 	Y		<= to_slv(YInt);
 	YAcc <= YAccInt;

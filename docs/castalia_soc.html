@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Castalia — 4-hart RISC-V multi-core MCU · block diagram</title>
+<title>Castalia — 5-hart RISC-V multi-core MCU · block diagram</title>
 <style>
 /* VESTA_THEME_BEGIN */
 :root{
@@ -269,6 +269,8 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
   --ink:var(--text); --muted:var(--text-muted); --hair:var(--border);
   --panel:var(--surface); --paneledge:var(--border-strong);
   /* schematic block palette — DARK (default) */
+  --orch:#3a1c0e; --orch-edge:#e07a2a; --orch-ink:#ffc79a;
+  --clk:#1a2029;  --clk-edge:#5a6675;  --clk-ink:#aeb9c6;
   --tile:#1a2334; --tile-edge:#4a5e8c; --tile-ink:#b8c8ee;
   --core:#182a45; --core-edge:#4d78c4; --core-ink:#bcd4ff;
   --pmem:#33260f; --pmem-edge:#b78832; --pmem-ink:#f0c878;
@@ -278,6 +280,8 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
   --periph:#13291a; --periph-edge:#4f9a54; --periph-ink:#a8e0ac;
 }
 :root[data-theme="light"]{
+  --orch:#fceadb; --orch-edge:#c8681a; --orch-ink:#8a3d08;
+  --clk:#eef1f4;  --clk-edge:#9aa6b4;  --clk-ink:#495562;
   --tile:#eef2fb; --tile-edge:#8aa0d6; --tile-ink:#2b3a63;
   --core:#dfeaff; --core-edge:#5b86d6; --core-ink:#1e3f7a;
   --pmem:#fdefd6; --pmem-edge:#d9a441; --pmem-ink:#8a5a12;
@@ -287,6 +291,8 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
   --periph:#e6f4e6; --periph-edge:#6fb56f; --periph-ink:#2f6b34;
 }
 @media (prefers-color-scheme:light){:root:not([data-theme]){
+  --orch:#fceadb; --orch-edge:#c8681a; --orch-ink:#8a3d08;
+  --clk:#eef1f4;  --clk-edge:#9aa6b4;  --clk-ink:#495562;
   --tile:#eef2fb; --tile-edge:#8aa0d6; --tile-ink:#2b3a63;
   --core:#dfeaff; --core-edge:#5b86d6; --core-ink:#1e3f7a;
   --pmem:#fdefd6; --pmem-edge:#d9a441; --pmem-ink:#8a5a12;
@@ -301,7 +307,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
   header:not(.vesta-header){padding:16px 22px 12px;border-bottom:1px solid var(--hair)}
   .fig{font-size:12px;letter-spacing:2.5px;text-transform:uppercase;color:var(--muted)}
   h1{margin:4px 0 3px;font-size:21px;font-weight:650;letter-spacing:.2px}
-  .cap{color:var(--muted);font-size:13.5px;max-width:1000px;line-height:1.5}
+  .cap{color:var(--muted);font-size:13.5px;max-width:1400px;line-height:1.5}
   .toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px}
   .btn{background:var(--panel);border:1px solid var(--paneledge);color:var(--ink);
     padding:6px 12px;border-radius:7px;font-size:12.5px;cursor:pointer;font-family:var(--font)}
@@ -310,7 +316,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
   .sp{flex:1}
   .hint{color:var(--muted);font-size:12px}
 
-  .stage{position:relative;width:100%;height:calc(100vh - 250px);min-height:520px;
+  .stage{position:relative;width:100%;height:calc(100vh - 300px);min-height:520px;
     overflow:hidden;background:
       radial-gradient(circle at 1px 1px, var(--hair) 1px, transparent 0) 0 0/26px 26px;
     cursor:grab}
@@ -330,6 +336,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
   .link.bus{stroke-width:3.4;stroke:var(--arb-edge)}
   .link.sig{stroke-dasharray:5 4;stroke:var(--clk-edge)}
   .link.hide{display:none}
+  .link.brk{stroke:var(--muted);stroke-width:1.2;opacity:.55}
   .linklabel{font-family:var(--mono);font-size:10px;fill:var(--muted)}
   .badge{font-size:9.5px;font-weight:700;font-family:var(--mono)}
 
@@ -339,7 +346,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
     padding:14px 16px;box-shadow:0 8px 26px rgba(20,30,50,.14);font-size:13px;line-height:1.55}
   .info h3{margin:0 0 6px;font-size:14.5px}
   .info .k{font-family:var(--mono);font-size:11px;color:var(--muted);display:block;margin-bottom:8px}
-  .info.empty{color:var(--muted)}
+  .info.empty{color:var(--muted);width:auto;max-width:230px}
   .legend{display:flex;gap:14px;flex-wrap:wrap;padding:10px 22px 16px;border-top:1px solid var(--hair)}
   .lg{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
   .lg .sw{width:15px;height:11px;border-radius:3px;border:1.4px solid}
@@ -385,11 +392,15 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 
 <header>
   <div class="fig">Figure 2</div>
-  <h1>Castalia — 4-hart RISC-V multi-core MCU (TSMC 65 nm)</h1>
-  <div class="cap">Four structurally-identical <b>hart tiles</b> — each a VestaRV core with a private tightly-coupled memory (TCM) —
-    share a single boot ROM, bulk RAM, peripheral set, and synchronization primitives through one <b>round-robin serializing arbiter</b>
-    on the free-running <span style="font-family:var(--mono)">mclk</span> domain. Grant is held for a whole transaction, so a shared access is atomic;
-    a <span style="font-family:var(--mono)">LOCKED</span> state extends the grant across a cross-hart atomic read-modify-write.</div>
+  <h1>Castalia — 5-hart RISC-V multi-core MCU (TSMC 65 nm)</h1>
+  <div class="cap">One always-on <b>orchestrator hart</b> (hart 0: the soft <span style="font-family:var(--mono)">orch_tile</span>, full chip ISA
+    <span style="font-family:var(--mono)">rv32imac_zba_zbb_zbs_zbc</span>) plus <b>four uniform, power-gateable tiles</b> (harts 1&#8211;4: one hardened
+    <span style="font-family:var(--mono)">hart_tile</span> netlist placed 4&#215;, built <span style="font-family:var(--mono)">rv32iac</span>).
+    <b>Not four identical cores</b> &#8212; entity, ISA and power intent all differ. Each hart owns an 8&#160;KB TCM (121-entry vector table at its base) and reaches the shared
+    boot ROM, bulk RAM, peripherals and synchronization primitives through one <b>round-robin serializing arbiter</b> on the free-running
+    <span style="font-family:var(--mono)">mclk</span> domain; grant is held for a whole transaction, so a shared access is atomic.
+    Map <b>v2</b> (<span style="font-family:var(--mono)">SH_AW&#160;=&#160;16</span>): five read-only TCM apertures at
+    <span style="font-family:var(--mono)">0x20000&#160;+&#160;0x4000&#183;h</span>, extended flash at <span style="font-family:var(--mono)">0x40000</span>.</div>
   <div class="toolbar">
     <button class="btn on" id="tSig">Signal &amp; clock nets</button>
     <button class="btn on" id="tAddr">Addresses</button>
@@ -400,7 +411,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 </header>
 
 <div class="stage" id="stage">
-  <svg id="svg" viewBox="0 0 1560 900" preserveAspectRatio="xMidYMid meet">
+  <svg id="svg" viewBox="0 0 1920 950" preserveAspectRatio="xMidYMid meet">
     <defs>
       <marker id="arrow" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse">
         <path d="M0,0 L7,3 L0,6 Z" fill="var(--muted)"/>
@@ -415,113 +426,250 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
     <g id="links"></g>
     <g id="blocks"></g>
   </svg>
-  <div class="info empty" id="info">Click any block to read what it does and how it is shared.</div>
+  <div class="info empty" id="info">Click a block for detail.</div>
 </div>
 
 <div class="legend" id="legend"></div>
-<footer>Structure kept in sync by hand against <span style="font-family:var(--mono)">hdl/common/</span> (MCU.vhd, hart_tile.vhd, mp_arbiter.vhd, clint.vhd, mutex_bank.vhd, irq_router.vhd) · memory map per M11/M12/M17 · updated 2026-07-16.</footer>
+<footer>Structure kept in sync by hand against <span style="font-family:var(--mono)">hdl/common/</span> (MCU.vhd, orch_tile.vhd, hart_tile.vhd, adddec.vhd, mp_arbiter.vhd, clint.vhd, mutex_bank.vhd, irq_router.vhd) and against <span style="font-family:var(--mono)">platform/common/config/</span> (ChipConfig.resolved.json, MemoryMap.json) · Castalia Penta shape (CPR3/R1) · memory map v2 (R3) · updated 2026-08-23.</footer>
 
 <script>
 /* ================= palette classes ================= */
 const CLS = {
-  tile:  {fill:"var(--tile)",  edge:"var(--tile-edge)",  ink:"var(--tile-ink)",  name:"Hart tile (private compute)"},
+  orch:  {fill:"var(--orch)",  edge:"var(--orch-edge)",  ink:"var(--orch-ink)",  name:"Orchestrator hart (always-on)"},
+  tile:  {fill:"var(--tile)",  edge:"var(--tile-edge)",  ink:"var(--tile-ink)",  name:"Hart tile (hardened, gateable)"},
   core:  {fill:"var(--core)",  edge:"var(--core-edge)",  ink:"var(--core-ink)",  name:"VestaRV core"},
   pmem:  {fill:"var(--pmem)",  edge:"var(--pmem-edge)",  ink:"var(--pmem-ink)",  name:"Private memory (TCM)"},
   arb:   {fill:"var(--arb)",   edge:"var(--arb-edge)",   ink:"var(--arb-ink)",   name:"Serializing arbiter"},
   smem:  {fill:"var(--smem)",  edge:"var(--smem-edge)",  ink:"var(--smem-ink)",  name:"Shared memory"},
   sync:  {fill:"var(--sync)",  edge:"var(--sync-edge)",  ink:"var(--sync-ink)",  name:"Synchronization / interrupts"},
   periph:{fill:"var(--periph)",edge:"var(--periph-edge)",ink:"var(--periph-ink)",name:"Shared peripheral"},
-  clk:   {fill:"var(--clk)",   edge:"var(--clk-edge)",   ink:"var(--clk-ink)",   name:"Clock / reset"},
+  clk:   {fill:"var(--clk)",   edge:"var(--clk-edge)",   ink:"var(--clk-ink)",   name:"Clock / power / interrupt net"},
 };
+
+/* ================= the chip's shape =========================================
+   THE HART COUNT ENTERS HERE AND NOWHERE ELSE.  Every tile box, every bus tap,
+   every label and every address below is COMPUTED from NHARTS and ORCH, so a
+   change to the chip's hart count moves the drawing instead of silently
+   invalidating it.  What this replaced was a hard-coded four-element array of
+   tile columns, and that array is exactly how this page came to depict a chip
+   that had stopped existing.  Nothing here may grow a per-tile literal again.
+
+   The values mirror platform/common/config/ChipConfig.resolved.json:
+     numHarts 5 · orchestrator true · isa.minimalTiles true · numMutexes 16
+     memory: romSize 16384 · tcmSizePerHart 8192 · sharedBulkRamSize 65536
+             npuStagingRamSize 16384
+     derived: isaString rv32imac_zba_zbb_zbs_zbc · sharedWindowAddrWidth 16
+              flashBaseAddress 0x40000 · vectorsCount 121 · meipVector 85
+   ========================================================================== */
+const NHARTS  = 5;      // ChipConfig numHarts
+const ORCH    = true;   // ChipConfig orchestrator: hart 0 is the always-on orchestrator
+const MINTILE = true;   // ChipConfig isa.minimalTiles: harts 1..N-1 drop M and B
+const NCH     = ORCH ? NHARTS-1 : NHARTS;          // gateable channel tiles
+const TCM_KB  = 8;                                  // memory.tcmSizePerHart / 1024
+const VECTORS = 121;                                // MemoryMap VectorsCount
+const MEIPVEC = 85;                                 // derived.meipVector
+const ISA_ORCH= "rv32imac_zba_zbb_zbs_zbc";         // derived.isaString (hart 0)
+const ISA_TILE= MINTILE ? "rv32iac" : ISA_ORCH;     // the corner tiles
+const hx      = (n)=>"0x"+n.toString(16).toUpperCase();
+const TCM_LO  = 0x8000, TCM_HI = TCM_LO + TCM_KB*1024 - 1;
+const TCM_DEC = TCM_LO + 0x4000 - 1;                // the 16 KB decode window the array mirrors across
+const IVT_HI  = TCM_LO + VECTORS*4 - 1;
+const SP_INIT = TCM_HI + 1;                         // MemoryMap StackPointerInit
+const TCMWIN  = (h)=>0x20000 + h*0x4000;            // read-only aperture base, hart h
+const FLASH   = 0x40000;                            // derived.flashBaseAddress (SH_AW = 16)
+
+/* ================= geometry, all of it derived ============================ */
+const X0=40, X1=1880, CX=(X0+X1)/2;                 // drawing gutters
+const TILEY=54, TILEH=204, TGAP=24;
+/* The orchestrator is a DIFFERENT ENTITY, so it gets its own width; the channel
+   tiles then share what is left, equally, however many of them there are. */
+const ORCHW = ORCH ? 384 : 0;
+const TW    = Math.round((X1-X0-TGAP*(NHARTS-1)-ORCHW)/NCH);
+const isOrch= (h)=> ORCH && h===0;
+const tileW = (h)=> isOrch(h) ? ORCHW : TW;
+const tileX = (h)=>{ let x=X0; for(let i=0;i<h;i++) x+=tileW(i)+TGAP; return x; };
+const TILEB = TILEY+TILEH;                          // bottom of the hart row
+/* Every row below hangs off the row above it. */
+const RAILY = TILEB+30;                             // interrupt fan-out rail
+const ARBY  = TILEB+70, ARBH=96;                    // arbiter band
+const SPINEY= ARBY+ARBH+26;                         // shared slave bus spine
+const SHY   = SPINEY+28, SHH=82;                    // shared slave row
+const PWY   = SHY+SHH+22;                           // peripheral window
+
+/* Lay boxes across [x0,x1] with a fixed gutter and widths in proportion to the
+   weights, so a row re-flows when a block is added, removed or resized. */
+function packRow(x0,x1,gap,items){
+  const span=x1-x0-gap*(items.length-1);
+  const sum=items.reduce((a,b)=>a+b.wgt,0);
+  let x=x0;
+  return items.map(function(it){
+    const w=Math.round(span*it.wgt/sum);
+    const o=Object.assign({},it,{x:x,w:w}); x+=w+gap; return o;
+  });
+}
 
 /* ================= block data ================= */
 const B = [];
 const push=(o)=>{B.push(o);return o;};
 
-// ---- 4 tiles ----
-const TILEY=54, TILEH=176, TW=340, TXS=[40,420,800,1180];
-const tileNotes=[
-  "Boot & management hart. Owns the SPI flash XIP path (adddec ≥0x20000 → SPI0, sleep = XIP stall), SYSTEM0 interrupt controller, and the clock reconfiguration. Copies the program from flash to shared RAM at reset and ignites the other harts via CLINT msip.",
-  "Worker hart. Resets to 0x0, fetches the shared boot ROM, WFI-parks until hart 0 stages its TCM image and sends msip; CLINT slots 83/84 hardwired.",
-  "Worker hart — identical netlist to tiles 1 and 3; only hart_id and IRQ-row wiring differ.",
-  "Worker hart — identical netlist to tiles 1 and 2.",
-];
-TXS.forEach((tx,h)=>{
-  push({id:"tile"+h, x:tx, y:TILEY, w:TW, h:TILEH, cls:"tile", container:true,
-    t:"TILE "+h, s:h===0?"boot / management hart":"worker hart",
-    cap:tileNotes[h], titleTop:true, subRight:true});
-  push({id:"core"+h, x:tx+16, y:TILEY+34, w:150, h:70, cls:"core",
-    t:"vesta core", s:"RV32IMAC + Zicsr", a:"multi-cycle FSM",
-    cap:"The VestaRV CPU: a multi-cycle (Harris-style FSM) RISC-V core implementing RV32I + M (mul/div) + A (atomics) + C (compressed) + Zicsr, with vectored interrupt handling. mhartid = "+h+" arrives on the hart_id port (one netlist for all four tiles). See Figure 1 for its internals."});
-  push({id:"add"+h, x:tx+180, y:TILEY+34, w:144, h:30, cls:"tile",
+/* ---- the hart row: one orchestrator + NCH uniform channel tiles ---------- */
+const orchCap =
+  "Hart 0, the ORCHESTRATOR and the management hart. It is emitted as <em>entity work.orch_tile</em> — a thin wrapper whose only job is to keep the soft core's module names disjoint from the hardened hart_tile netlist, so the tile logic inside it is the same RTL harts 1–"+(NHARTS-1)+" run. "+
+  "It is ALWAYS-ON: it sits in the centre band with no power intent, so pd_sleep, pd_iso_en and tcm_pgen are inert here, and it is arbiter master 0 with no isolation clamps on its address or data. "+
+  "It keeps every hart-0 wiring special the chip already had: the SPI0 flash / XIP quartet (sleep ⇒ sleep_cpu), trap_flag ⇒ the GPIO0 trap pin, a0 ⇒ the testbench pass/fail gate, tcm_pgen ⇒ BLOCKPWR RAMOFF. "+
+  "It runs the FULL chip ISA ("+ISA_ORCH+"), and it is the only hart the read-only TCM apertures answer.";
+const tileCap = (h)=>
+  "Hart "+h+", one of the "+NCH+" uniform CHANNEL TILES. Harts 1–"+(NHARTS-1)+" are instances of ONE hardened hart_tile macro — same netlist, same floorplan, harden once and place "+NCH+"× — differing only in wiring: hart_id, the pwr_ctrl row, the IRQ enable row and the aperture index. "+
+  "They are built "+ISA_TILE+": isa.minimalTiles drops M and B (measured at genus, full vs rv32iac: tile 132,657 → 109,926 µm², core −37.5%, 2.687 → 1.945 mW). A and C stay deliberately — these are exactly the harts that run the shared-fabric LR/SC + AMO locking, and C shrinks code, which matters against an "+TCM_KB+" KB TCM. "+
+  "Each tile has its own PWRCTRL row, MTCMOS domain and isolation clamps, so it can be powered off entirely; hart 0 cannot. NO BINARY MAY MIGRATE between hart 0 and a tile.";
+
+for(let h=0; h<NHARTS; h++){
+  const o=isOrch(h), x=tileX(h), w=tileW(h);
+  const PAD=16, COLG=14, iw=w-2*PAD;
+  const rw=Math.round((iw-COLG)*0.49), cw=iw-COLG-rw;   // core column | decode + TCM column
+  const rx=x+PAD+cw+COLG;
+  push({id:"tile"+h, x:x, y:TILEY, w:w, h:TILEH, cls:o?"orch":"tile",
+    container:true, titleTop:true, subRight:true, emph:o,
+    t:o?("HART "+h+"  ·  ORCHESTRATOR"):("HART "+h+"  ·  TILE"),
+    s:o?"orch_tile · soft · ALWAYS-ON":"hart_tile · hardened · gateable",
+    cap:o?orchCap:tileCap(h)});
+  push({id:"core"+h, x:x+PAD, y:TILEY+38, w:cw, h:70, cls:"core",
+    t:"vesta core", s:"multi-cycle Harris FSM", m:o?ISA_ORCH:ISA_TILE,
+    cap:o
+      ? "The VestaRV CPU: a multi-cycle (Harris-style FSM) RISC-V core implementing RV32I + M (mul/div) + A (atomics) + C (compressed) + Zicsr + Zba/Zbb/Zbs/Zbc, with vectored interrupt handling and the standard M-mode trap CSRs (mtrapctl @0x7C0 resets with LEGACY = 1, so boot stays on the IVT path). mhartid = 0 arrives on the hart_id port. This is the core Figure 1 draws."
+      : "The same VestaRV core RTL as hart 0, elaborated "+ISA_TILE+": TILE_ENABLE_MUL / TILE_ENABLE_DIV / TILE_ENABLE_BITMANIP are false, so M and Zb decode as illegal instructions on this hart. A (LR/SC + AMO) and C stay. mhartid = "+h+" arrives on the hart_id port — one netlist for all "+NCH+" tiles. See Figure 1 for the internals."});
+  push({id:"add"+h, x:rx, y:TILEY+38, w:rw, h:30, cls:o?"orch":"tile",
     t:"adddec", s:"address decode",
-    cap:"Per-tile address decoder. Splits every core access into: private TCM (0x8000–0xBFFF), extended flash / XIP (≥0x20000), or the shared window (everything else) which is routed to the arbiter master port. A tight upper-bit qualifier keeps flash out of the shared window."});
-  push({id:"tcm"+h, x:tx+180, y:TILEY+70, w:144, h:38, cls:"pmem",
-    t:"TCM · 16 KB", a:"0x8000–0xBFFF",
-    cap:"Private tightly-coupled memory (one single-port SRAM per tile). Holds each hart's code, stack (top 0xBFF0), interrupt-vector table and ISR bank. Never contended — the only truly private resource in a tile."});
-  push({id:"mp"+h, x:tx+16, y:TILEY+120, w:308, h:38, cls:"tile",
-    t:"shared-window master port", a:"sh_req/we/addr/wdata → gnt/done/rdata",
-    cap:"The tile's one connection to the rest of the chip. Drives req/byte-strobes/addr/wdata and the LR/SC tag + AMO grant-lock; receives grant, done, read data and the SC-fail verdict. While a shared access is outstanding the core's gated clk_cpu is frozen, so addr/wdata stay stable across the wait."});
-});
+    cap:"Per-tile address decoder, and it serves ONLY the hart-private TCM: region bits 16:14 = \"010\", qualified by the SH_AW-derived upper bits so a wide window cannot alias "+hx(TCMWIN(2))+"–"+hx(TCMWIN(2)+0x3FFF)+" onto it. Everything else in the window is claimed by the master-side sh_sel and goes to the arbiter. Any address at or above 2^(SH_AW+2) = "+hx(FLASH)+" is extended flash / XIP — the EXACT complement of the shared window, because two subsystems claiming one address deadlock the core."});
+  push({id:"tcm"+h, x:rx, y:TILEY+72, w:rw, h:36, cls:"pmem",
+    t:"TCM · "+TCM_KB+" KB", a:hx(TCM_LO)+"–"+hx(TCM_HI),
+    cap:"Private tightly-coupled memory: one sram1p8k_hvt_pg (2048 × 32) per tile. It holds this hart's "+VECTORS+"-entry interrupt vector table at "+hx(TCM_LO)+"–"+hx(IVT_HI)+", then its code, data and stack (SP initialises to "+hx(SP_INIT)+", full-descending, so the first push lands at "+hx(SP_INIT-4)+"). Never contended — the only truly private resource in a tile. "+
+        "THE ARRAY IS "+TCM_KB+" KB BEHIND A 16 KB DECODE: mem_addr is 12 bits either way and the macro's A bus is 11, so the array mirrors twice across "+hx(TCM_LO)+"–"+hx(TCM_DEC)+" — which is exactly what makes the 16 KB read-only aperture show an "+TCM_KB+" KB TCM mirrored. Halved from 16 KB on 2026-08-16; hart_tile selects the macro on the RamSize constant and fails elaboration if the map ever disagrees."});
+  push({id:"mp"+h, x:x+PAD, y:TILEY+116, w:iw, h:36, cls:o?"orch":"tile",
+    t:"shared-window master port", a:"master "+h+(o?" · no iso clamps":" · iso clamps"),
+    cap:"The tile's one connection to the rest of the chip. Drives req / byte-strobes / addr / wdata and the LR/SC tag + AMO grant-lock; receives grant, done, read data and the SC-fail verdict. While a shared access is outstanding the core's gated clk_cpu is frozen, so addr and wdata stay stable across the wait. This is master slice "+h+" of "+(NHARTS+1)+" (masters 0–"+(NHARTS-1)+" are the harts, master "+NHARTS+" is the Debug Module dm0)."+
+        (o?" Slice 0 carries no isolation clamps, because the orchestrator is never powered down."
+          :" A power-gated tile's slice is zeroed by pd_iso_en("+h+"), so an off tile presents no request at all.")});
+  push({id:"strip"+h, x:x+PAD, y:TILEY+158, w:iw, h:34, cls:o?"orch":"clk",
+    t:o?"SPI0 flash / XIP quartet":("PWRCTRL row "+h+" · MTCMOS + iso"),
+    a:o?("extended flash ≥ "+hx(FLASH)):null,
+    s:o?null:("pd_sleep("+h+") · pd_iso_en("+h+") · tcm_pgen"),
+    cap:o
+      ? "The hart-0-only wiring CPR3/R1 kept on the orchestrator. SPI0 drives the boot flash and the execute-in-place path for every address at or above "+hx(FLASH)+", and its FlashActive freezes the core through sleep_cpu while a flash word is fetched. There is no power intent in the centre band, so this tile has no gate to turn off — it is the one hart that is always running."
+      : "pwr_ctrl row "+h+": an MTCMOS switch for the tile's logic, isolation clamps on every output crossing to the always-on side, and tcm_pgen for the TCM macro. PWRCTRL @0x4B00 owns the rows, and row "+h+" exists only because hart 0 became the orchestrator — PWRCR gained a gate bit for what used to be an always-on tile. "+
+        "Because the clamps zero done as well as rdata, a gated tile NEVER COMPLETES a transaction; the aperture bank synthesises a zero completion from the PWRSR row instead of waiting on a wire that is held low on purpose."});
+}
 
-// ---- arbiter ----
-push({id:"arb", x:40, y:300, w:1480, h:96, cls:"arb",
-  t:"mp_arbiter — round-robin serializing arbiter", s:"free-running mclk · one master granted at a time · grant held for the whole transaction",
+/* ---- brackets that name the two kinds of hart --------------------------- */
+const BRK_Y=40, BRK_LAB=30;
+function bracket(xa,xb,label){
+  L.push({d:`M${xa},${BRK_Y} L${xa},${BRK_Y-8} L${xb},${BRK_Y-8} L${xb},${BRK_Y}`, cls:"brk"});
+  L.push({d:``, cls:"brk", labelonly:true, label:label, lx:(xa+xb)/2, ly:BRK_LAB, anchor:"middle"});
+}
+
+/* ---- arbiter ------------------------------------------------------------ */
+push({id:"arb", x:X0, y:ARBY, w:X1-X0, h:ARBH, cls:"arb",
+  t:"mp_arbiter — round-robin serializing arbiter",
+  s:"free-running mclk · "+(NHARTS+1)+" masters, one granted at a time · grant held for the whole transaction",
   a:"FSM: IDLE → LATCH → DATA → LOCKED   ·   wait-for-release masking   ·   s_master attribution",
-  cap:"A full-handshake round-robin arbiter that serializes all four harts onto one single-port shared slave bus. Because a shared access is a multi-cycle registered transaction, the grant is HELD until the transaction completes, then the pointer advances — this makes every shared access atomic and dodges the grant-switching hazard. It runs on the free-running mclk so it can still release a hart whose own clock is gated off. 'Wait-for-release' masking prevents a served master's stale request from being re-granted; the LOCKED state pins the grant across a cross-hart AMO's read+write pair; s_master attributes mutex claim-reads to the owning hart."});
+  cap:"A full-handshake round-robin arbiter that serializes all "+NHARTS+" harts (plus the Debug Module) onto one single-port shared slave bus. Because a shared access is a multi-cycle registered transaction, the grant is HELD until the transaction completes and only then does the pointer advance — this makes every shared access atomic and dodges the grant-switching hazard. It runs on the free-running mclk so it can still release a hart whose own clock is gated off. 'Wait-for-release' masking prevents a served master's stale request from being re-granted; the LOCKED state pins the grant across a cross-hart AMO's read+write pair; s_master attributes mutex claim-reads, IRQ claims and TCM-aperture reads to the owning hart — and it is s_master = 0 that makes the apertures management-hart-only."});
 
-// ---- shared memory row ----
-push({id:"rom", x:40, y:454, w:200, h:82, cls:"smem", t:"Shared boot ROM", a:"0x0000–0x3FFF",
-  cap:"One boot ROM behind the arbiter. All four harts reset to PC 0x0 and fetch it; the bootrom dispatches on mhartid — hart 0 copies the flash image to shared RAM and zeroes the mailbox region, harts 1–3 arm their msip vector and WFI-park until launched."});
-push({id:"npuram", x:260, y:454, w:200, h:82, cls:"smem", t:"NPU staging RAM", a:"0xC000–0xFFFF",
-  cap:"A single-port SRAM the NPU streams vectors through. Any hart stages operands here via the arbiter; during a THINK the in-NPU port mux owns the RAM, so software must poll NPUCR completion before touching it."});
-push({id:"bulk", x:480, y:454, w:280, h:82, cls:"smem", t:"Shared bulk RAM — 64 KB", s:"4 × 16 KB banks", a:"0x10000–0x1FFFF",
-  cap:"The main shared data RAM: four 16 KB banks (bank = address bits 13:12) behind the arbiter. Holds inter-hart mailboxes, spinlock/mutex journals, the bootrom loader rows and the per-hart TCM staging images. Written-before-read by the bootrom (no reset on the macro)."});
-push({id:"clint", x:780, y:454, w:180, h:82, cls:"sync", t:"CLINT", a:"0x5000",
-  cap:"Core-Local Interruptor: per-hart software interrupt (msip), a shared 64-bit mtime, and per-hart mtimecmp. Writing msip[h] wakes hart h even while its gated clk_cpu is off (the irq path clocks on mclk) — this is how hart 0 ignites the workers."});
-push({id:"mutex", x:980, y:454, w:180, h:82, cls:"sync", t:"HW mutex bank", s:"16 × 1-insn mutex", a:"0x6000",
-  cap:"Sixteen hardware mutexes. A single load atomically returns-and-claims (0 = you now own it, else the holder's hartid+1); a store-0 releases. One-instruction acquire, no LR/SC needed — the arbiter's s_master attributes the claim-read. Never LR/SC or AMO these addresses."});
-push({id:"router", x:1180, y:454, w:340, h:82, cls:"sync", t:"IRQ router", s:"PLIC-lite · per-hart enable rows · claim/complete", a:"0x7000",
-  cap:"The PLIC-lite peripheral interrupt controller (M19). Per-hart enable rows (all-masked at reset) select which sources each hart may take; delivery collapses to one registered meip wire per hart — meip(h) = OR of (level AND enabled AND not-in-service). Software reads CLAIM (0x7800) to atomically take the lowest-ID pending source (the arbiter\u2019s s_master attributes the read and sets an in-service gateway for exactly-once delivery), clears the peripheral level, then writes the ID back to COMPLETE (0x7800). The CLINT slots (83/84) never route through meip — they use the hardwired per-hart msip/mtip wires."});
+/* ---- shared slave row --------------------------------------------------- */
+const shRow = packRow(X0, X1, 26, [
+  {id:"rom",    wgt:1.05, cls:"smem", t:"Shared boot ROM",        s:"16 KB · rom_hvt_pg",                          a:"0x0000–0x3FFF"},
+  {id:"npuram", wgt:1.05, cls:"smem", t:"NPU staging RAM",        s:"16 KB · NPU-muxed",                            a:"0xC000–0xFFFF"},
+  {id:"bulk",   wgt:1.30, cls:"smem", t:"Shared bulk RAM — 64 KB", s:"4 × 16 KB banks",                       a:"0x10000–0x1FFFF"},
+  {id:"tcmwin", wgt:1.55, cls:"pmem", t:"TCM read-only apertures", s:NHARTS+" × 16 KB · management hart only", a:hx(TCMWIN(0))+"–"+hx(TCMWIN(NHARTS-1)+0x3FFF)},
+  {id:"clint",  wgt:0.95, cls:"sync", t:"CLINT",                  s:NHARTS+" harts · msip / mtime / mtimecmp",      a:"0x5000 · mtime 0x5020"},
+  {id:"mutex",  wgt:0.95, cls:"sync", t:"HW mutex bank",          s:"16 × 1-insn mutex",                            a:"0x6000"},
+  {id:"router", wgt:1.55, cls:"sync", t:"IRQ router",             s:"PLIC-lite · per-hart enable rows · claim/complete", a:"0x7000 · meip = vector "+MEIPVEC},
+]);
+const shCap = {
+  rom:"One 16 KB boot ROM (rom_hvt_pg) behind the arbiter, read-only. All "+NHARTS+" harts reset to PC 0x0 and fetch it; the bootrom dispatches on mhartid — hart 0 copies the flash image to shared RAM, zeroes the mailbox region and stages each tile's TCM image through the loader rows at 0x10500 + 0x10*hartid, then ignites harts 1–"+(NHARTS-1)+" via CLINT msip. Every tile arms its msip vector and WFI-parks until launched.",
+  npuram:"A single-port SRAM the NPU streams vectors through, 16 KB. Any hart stages operands here via the arbiter; during a THINK the in-NPU port mux owns the RAM, so software must poll NPUCR completion before touching it.",
+  bulk:"The main shared data RAM: four 16 KB banks (bank = s_addr(13:12)) behind the arbiter. Holds the inter-hart mailboxes, spinlock and mutex journals, the bootrom loader rows, the per-hart TCM staging images and, on a debug-enabled build, the Debug Module's 0x10780 entry page. Written-before-read by the bootrom (no reset on the macro).",
+  tcmwin:"MAP v2's aperture bank, and the reason the memory map grew: one 16 KB READ-ONLY window per hart at "+hx(0x20000)+" + 0x4000·h ("+Array.from({length:NHARTS},(_,h)=>hx(TCMWIN(h))).join(", ")+"), through which the management hart reads any hart's private TCM. "+
+     "The aperture address is a TCM WORD index, so window word i is that hart's byte address "+hx(TCM_LO)+" + 4i, and the "+TCM_KB+" KB array mirrors twice across the 16 KB window. "+
+     "Three gates, each answering with ZERO rather than a bus error, a stall or a hang: s_master ≠ 0 is denied (only hart 0 may look), a write is dropped (the tile-side port has no write path at all — WEN is tied to the inactive constant, so no fault on the request wires can produce one), and a power-gated target completes immediately because its isolation clamp zeroes tcm_ext_done as well as rdata, so software checks PWRSR first (zero is a legal TCM value). "+
+     "It is the ONLY slave that stalls the arbiter: an aperture read takes 6 mclk request-to-done against the fixed IDLE/LATCH/DATA walk.",
+  clint:"Core-Local Interruptor for all "+NHARTS+" harts: a per-hart software interrupt (msip at 0x5000 + 4·hartid), a shared 64-bit mtime and per-hart mtimecmp. "+
+     "THE LAYOUT SHIFTS WITH THE HART COUNT — mtime moved 0x5010 → 0x5020 when the chip went to "+NHARTS+" harts, so firmware must derive CLINT addresses from NHARTS rather than hard-code them. "+
+     "msip and mtip land on IVT slots 83 and 84 through hardwired per-hart wires and never route through the router. Writing msip[h] wakes hart h even while its gated clk_cpu is off (the irq path clocks on mclk) — this is how hart 0 ignites the tiles.",
+  mutex:"Sixteen hardware mutexes (numMutexes = 16). A single load atomically returns-and-claims (0 = you now own it, otherwise the holder's hartid+1); a store of 0 releases. One-instruction acquire, no LR/SC needed — the arbiter's s_master attributes the claim-read. Never LR/SC or AMO these addresses. "+
+     "Page 2 carries three more native slaves alongside the bank: NFC0 @0x6200, GPIO4 @0x6300 and GPIO5 @0x6400.",
+  router:"The PLIC-lite peripheral interrupt controller (M19). Per-hart enable rows (all-masked at reset) select which sources each hart may take; delivery collapses to one registered meip wire per hart — meip(h) = OR of (level AND enabled AND not-in-service). Software reads CLAIM (0x7800) to atomically take the lowest-ID pending source (the arbiter's s_master attributes the read and sets an in-service gateway for exactly-once delivery), clears the peripheral level, then writes the ID back to COMPLETE (0x7800). "+
+     "meip is slot "+MEIPVEC+" of the "+VECTORS+"-entry vector table; the CLINT slots (83/84) never route through meip — they use the hardwired per-hart msip/mtip wires.",
+};
+shRow.forEach(function(b){
+  push({id:b.id, x:b.x, y:SHY, w:b.w, h:SHH, cls:b.cls, t:b.t, s:b.s, a:b.a, cap:shCap[b.id]});
+});
+const shById={}; shRow.forEach(b=>shById[b.id]=b);
 
-// ---- peripheral window container ----
-push({id:"pwin", x:40, y:556, w:1480, h:300, cls:"periph", container:true, titleTop:true,
-  t:"Shared peripheral window", s:"0x4000–0x7FFF · page 0 = 16 × 256 B slots at the legacy Myshkin addresses · live for all four harts",
-  cap:"Every peripheral is shared across all harts at its original single-core address. SYSTEM0, SPI0 and GPIO0 remain functionally hart-0-managed (clock/boot/flash-CS); PWRCTRL @0x4B00 is the M17 power controller (a native arbiter slave in the ex-SAR-ADC slot), and 0x4C00 is a reserved gap since the digital-only respin dropped the SARADC/AFE analog front-end. Peripherals whose read is combinational (I2C, NPU) get a bridge register; smclk-domain peripherals (UART/SPI/I2C) require SYS_CLK_CR=0 first."});
+/* ---- peripheral window -------------------------------------------------- */
+/* Page 0 is the 16 x 256 B legacy slot grid; the three entries after it are
+   page 2's native slaves, which sit outside that grid. */
 const PER=[
   ["GPIO0","0x4000","boot"],["GPIO1","0x4100",""],["SPI0","0x4200","flash"],["SPI1","0x4300",""],
   ["UART0","0x4400","console"],["UART1","0x4500",""],["TIMER0","0x4600",""],["TIMER1","0x4700",""],
   ["GPIO2","0x4800",""],["SYSTEM0","0x4900","clk/irq"],["NPU","0x4A00",""],["PWRCTRL","0x4B00","power"],
   ["reserved","0x4C00",""],["GPIO3","0x4D00",""],["I2C0","0x4E00",""],["I2C1","0x4F00",""],
+  ["NFC0","0x6200","page 2"],["GPIO4","0x6300","page 2"],["GPIO5","0x6400","page 2"],
 ];
-const pcols=[70,435,800,1165], prows=[598,660,722,784], PPW=320, PPH=48;
-PER.forEach((p,i)=>{
-  const c=i%4, r=(i/4|0);
-  push({id:"per"+i, x:pcols[c], y:prows[r], w:PPW, h:PPH, cls:"periph", pill:true,
+const PCOLS=4, PPW=400, PGAP=60, PPH=48, PPITCH=58;
+const PROWS=Math.ceil(PER.length/PCOLS);
+const PGX=X0+30, PGY=PWY+58;
+const PWH=(PGY+ (PROWS-1)*PPITCH + PPH + 16) - PWY;
+push({id:"pwin", x:X0, y:PWY, w:X1-X0, h:PWH, cls:"periph", container:true, titleTop:true,
+  t:"Shared peripheral window",
+  s:"0x4000–0x7FFF · page 0 = 16 × 256 B slots at the legacy Myshkin addresses · page 1 CLINT · page 2 MUTEX + NFC0/GPIO4/GPIO5 · page 3 IRQ router · live for all "+NHARTS+" harts",
+  cap:"Every peripheral is shared across all "+NHARTS+" harts at its original single-core address. SYSTEM0, SPI0 and GPIO0 remain functionally hart-0-managed (clock / boot / flash-CS); PWRCTRL @0x4B00 is the M17 power controller (a native arbiter slave in the ex-SAR-ADC slot) and owns one gate row per channel tile; 0x4C00 is a reserved gap since the digital-only respin dropped the SARADC/AFE analog front-end. Peripherals whose read is combinational (I2C, NPU) get a bridge register; smclk-domain peripherals (UART/SPI/I2C) require SYS_CLK_CR = 0 first. The last row is page 2's native slaves, which live outside the 16-slot page-0 grid."});
+PER.forEach(function(p,i){
+  const c=i%PCOLS, r=(i/PCOLS|0);
+  push({id:"per"+i, x:PGX+c*(PPW+PGAP), y:PGY+r*PPITCH, w:PPW, h:PPH, cls:"periph", pill:true,
     t:p[0], a:p[1], badge:p[2],
-    cap:p[0]+" @ "+p[1]+". Shared peripheral in page 0 of the peripheral window."+(p[2]?" ["+p[2]+"]":"")});
+    cap:p[0]+" @ "+p[1]+". "+(p[2]==="page 2"
+      ? "A native arbiter slave in page 2 of the window, outside the 16-slot page-0 grid, shared by every hart."
+      : "Shared peripheral in page 0 of the peripheral window."+(p[2]?" ["+p[2]+"]":""))});
 });
 
 /* ================= links ================= */
-const L=[];
+const L = [];
+/* Everything here is derived too: taps land on block centres, and the drop into
+   the peripheral window picks whichever inter-block gutter is nearest the middle
+   so the feed never crosses a shared slave. */
+bracket(tileX(0), tileX(0)+tileW(0), "hart 0 · soft orch_tile, centre band, always on");
+if(NCH>0) bracket(tileX(1), tileX(NHARTS-1)+tileW(NHARTS-1),
+  "harts 1–"+(NHARTS-1)+" · ONE hardened hart_tile netlist placed "+NCH+"× · "+ISA_TILE+" · power-gateable");
+
 // tile master ports -> arbiter
-TXS.forEach((tx,h)=>{ const cx=tx+TW/2; L.push({d:`M${cx},${TILEY+TILEH} L${cx},300`, cls:"", arrow:"arrow"}); });
-// arbiter -> shared slave bus (fat) then taps
-L.push({d:`M780,396 L780,424`, cls:"bus", arrow:"arrowbus"});               // arbiter to bus spine
-L.push({d:`M140,424 L1350,424`, cls:"bus"});                                // horizontal shared bus
-[["rom",140],["npuram",360],["bulk",620],["clint",870],["mutex",1070],["router",1350]].forEach(([id,x])=>{
-  L.push({d:`M${x},424 L${x},454`, cls:"bus", arrow:"arrowbus"});
-});
-L.push({d:`M770,424 L770,556`, cls:"bus", arrow:"arrowbus"});               // bus to peripheral window (routed through the bulk/CLINT gutter)
-// ---- signal / clock nets (toggle): interrupt fan-out rail + clock note ----
+for(let h=0;h<NHARTS;h++){ const cx=tileX(h)+tileW(h)/2; L.push({d:`M${cx},${TILEB} L${cx},${ARBY}`, cls:"", arrow:"arrow"}); }
+// arbiter -> shared slave bus spine, then one tap per slave
+const spineL=shRow[0].x+shRow[0].w/2, spineR=shRow[shRow.length-1].x+shRow[shRow.length-1].w/2;
+L.push({d:`M${CX},${ARBY+ARBH} L${CX},${SPINEY-2}`, cls:"bus", arrow:"arrowbus"});
+L.push({d:`M${spineL},${SPINEY} L${spineR},${SPINEY}`, cls:"bus"});
+shRow.forEach(function(b){ const cx=b.x+b.w/2; L.push({d:`M${cx},${SPINEY} L${cx},${SHY}`, cls:"bus", arrow:"arrowbus"}); });
+// drop into the peripheral window through the gutter closest to the middle
+const gutters=shRow.slice(0,-1).map((b,i)=>(b.x+b.w+shRow[i+1].x)/2);
+const PWFEED=gutters.reduce((a,g)=>Math.abs(g-CX)<Math.abs(a-CX)?g:a);
+L.push({d:`M${PWFEED},${SPINEY} L${PWFEED},${PWY}`, cls:"bus", arrow:"arrowbus"});
+
+// ---- signal / clock / power nets (toggle) ----
 // interrupt delivery (CLINT msip/mtip + router meip) -> every hart, routed up
-// the right margin to a rail above the tiles (kept clear of the master-port arrows).
-L.push({d:`M1520,495 L1545,495 L1545,258 L120,258`, cls:"sig", sig:true});     // router feeder + rail
-L.push({d:`M960,454 L960,440 L1545,440`, cls:"sig", sig:true});                 // CLINT feeder into the rail
-TXS.forEach((tx)=>{ const cx=tx+TW/2-70; L.push({d:`M${cx},258 L${cx},230`, cls:"sig", arrow:"arrowsig", sig:true}); });
-L.push({d:``, cls:"sig", sig:true, labelonly:true, label:"CLINT msip / mtip  +  router meip  →  every hart", lx:210, ly:251});
-// clock-domain note: SYSTEM0 generates mclk / smclk (tidy label in the peripheral-window header, clear of the slot grid)
-L.push({d:``, cls:"sig", sig:true, labelonly:true, label:"SYSTEM0 → mclk / smclk  (clock domain)", lx:1249, ly:578});
+// the right margin to a rail below the tiles, clear of the master-port arrows.
+const MARGIN=X1+20;
+const railX=(h)=>tileX(h)+tileW(h)*0.30;
+L.push({d:`M${shById.router.x+shById.router.w},${SHY+SHH/2} L${MARGIN},${SHY+SHH/2} L${MARGIN},${RAILY} L${railX(0)-20},${RAILY}`, cls:"sig", sig:true});
+L.push({d:`M${shById.clint.x+shById.clint.w/2},${SHY} L${shById.clint.x+shById.clint.w/2},${SHY-14} L${MARGIN},${SHY-14}`, cls:"sig", sig:true});
+for(let h=0;h<NHARTS;h++){ L.push({d:`M${railX(h)},${RAILY} L${railX(h)},${TILEB}`, cls:"sig", arrow:"arrowsig", sig:true}); }
+L.push({d:``, cls:"sig", sig:true, labelonly:true,
+  label:"CLINT msip / mtip  +  router meip  →  every hart", lx:railX(0)+16, ly:RAILY-7});
+// power-gating note: PWRCTRL owns one row per channel tile, and hart 0 has none
+L.push({d:``, cls:"sig", sig:true, labelonly:true,
+  label:"PWRCTRL rows 1–"+(NHARTS-1)+"  →  tile power gates   (hart 0 has no gate)",
+  lx:tileX(0)+tileW(0)/2+18, ly:RAILY+26});
+// clock-domain note, parked in the peripheral-window header clear of the slot grid
+L.push({d:``, cls:"sig", sig:true, labelonly:true,
+  label:"SYSTEM0 → mclk / smclk  (clock domain)", lx:X1-360, ly:PWY+22});
 
 /* ================= render ================= */
 const NS="http://www.w3.org/2000/svg";
@@ -537,6 +685,7 @@ L.forEach(l=>{
   }
   if(l.label){
     const t=el("text",{x:l.lx,y:l.ly,class:"linklabel"+(l.sig?" signet":"")});
+    if(l.anchor) t.setAttribute("text-anchor",l.anchor);
     t.textContent=l.label; gL.appendChild(t);
   }
 });
@@ -548,6 +697,7 @@ B.forEach(b=>{
   const r=el("rect",{x:b.x,y:b.y,width:b.w,height:b.h,rx:b.pill?9:11,
     fill:c.fill,stroke:c.edge});
   if(b.container){r.setAttribute("fill-opacity",".45");}
+  if(b.emph){r.setAttribute("stroke-width","2.6");}   // the orchestrator is not one of four
   g.appendChild(r);
   const cx=b.x+b.w/2;
   if(b.container && b.titleTop){
@@ -563,6 +713,7 @@ B.forEach(b=>{
     t.textContent=b.t; g.appendChild(t);
     yy+=15;
     if(b.s){const s=el("text",{x:cx,y:yy,class:"s","text-anchor":"middle",fill:c.ink,"fill-opacity":".85"});s.textContent=b.s;g.appendChild(s);yy+=13;}
+    if(b.m){const m=el("text",{x:cx,y:yy,class:"a","text-anchor":"middle",fill:c.ink,"fill-opacity":".9"});m.textContent=b.m;g.appendChild(m);yy+=13;}
     if(b.a){const a=el("text",{x:cx,y:yy,class:"a addr","text-anchor":"middle",fill:c.ink,"fill-opacity":".9"});a.textContent=b.a;g.appendChild(a);}
     if(b.badge){const bd=el("text",{x:b.x+b.w-8,y:b.y+14,class:"badge","text-anchor":"end",fill:c.edge});bd.textContent=b.badge;g.appendChild(bd);}
   }
@@ -596,7 +747,7 @@ document.getElementById("tSig").onclick=(e)=>{
 
 /* ================= pan / zoom ================= */
 const svg=document.getElementById("svg"), stage=document.getElementById("stage");
-let vb={x:0,y:0,w:1560,h:900}; const VB0={...vb};
+let vb={x:0,y:0,w:1920,h:950}; const VB0={...vb};
 function applyVB(){svg.setAttribute("viewBox",`${vb.x} ${vb.y} ${vb.w} ${vb.h}`);}
 stage.addEventListener("wheel",(e)=>{
   e.preventDefault();
