@@ -1,33 +1,92 @@
-%% HAND-WRITTEN table fragment. Sizes assume eight stored gain codes per
-%% channel; the per-code reference-DAC residual table is excluded on the
-%% argument in note_calibration_residual (it buys 0.07 mV rms for 4 KiB).
+%% HAND-WRITTEN table fragment (maestro2tex house style; nothing here is
+%% generated). Rewritten 2026-08-22: this is now the whole of the calibration
+%% section's data, the 23-row error-source longtable having been retired.
+%% Every magnitude is transcribed from the table cited in the same row.
+%% Sizing: eight stored gain codes per channel -> under 128 bytes per channel.
 \begin{table}[htbp]
   \centering
-  \caption[{Per-chip calibration constants.}]{Per-chip calibration constants,
-  their origin and their refresh rate. \emph{Test} constants need external
+  \caption[{Per-chip calibration constants.}]{Per-chip calibration constants ---
+  the complete set of digital knobs. \emph{Test} constants need external
   equipment and are written once; \emph{power-up} constants are re-measured
-  on-die at every start and overwrite the stored copy. At eight stored gain codes
-  per channel --- the full set a channel uses over its concentration range ---
-  the whole block is under 128\,bytes per channel, so
-  it is staged from flash into a channel hart's private memory with its image
-  rather than read back during a measurement.}
+  on-die at every start and overwrite the stored copy. At eight gain codes per
+  channel the whole block is under 128\,bytes per channel, so it is staged from
+  flash with a channel hart's image rather than read back during a measurement.
+  LSB is the converter's measured \SI{1.591}{\milli\volt} step
+  (Table~\ref{tab:adc-transfer}). No calibration has been executed, in
+  simulation or on silicon, and the isolation switches and test multiplexer
+  these measurements need are design intent, not schematics.}
   \label{tab:calibration-constants}
-  \small
-  \begin{tabular}{llll}
+  {\footnotesize
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{@{}%
+    >{\raggedright\arraybackslash}p{0.155\textwidth}%
+    >{\raggedright\arraybackslash}p{0.070\textwidth}%
+    >{\raggedright\arraybackslash}p{0.215\textwidth}%
+    >{\raggedright\arraybackslash}p{0.240\textwidth}%
+    >{\raggedright\arraybackslash}p{0.215\textwidth}@{}}
     \toprule
-    Constant & Scope & Set at & Refreshed \\
+    Constant & Scope & Corrects & Measured by & Applied \\
     \midrule
-    Bias trim code & chip & test & --- \\
-    Reference DAC offset and step & channel & test & --- \\
-    Reference droop parameter & channel & test & --- \\
-    Converter step size & channel & test & --- \\
-    Working-electrode switch resistance & channel & test & --- \\
-    Transimpedance gain, per gain code & channel & test & scaled at power-up \\
+    Bias trim code, 6\,bit &
+    chip &
+    Bias-current spread, \(\sigma/\mu = 12.5\,\%\) in MC &
+    Step the code; keep the one whose total analog supply current is nearest
+    design (Tab.~\ref{tab:biasgen-trim}) &
+    Test; reloaded at power-up before anything else is measured \\
     \addlinespace
-    Converter zero code & channel & test & power-up, and between steps \\
-    A1 offset and tracking slope & channel & test & power-up \\
-    Current zero, per gain code & channel & test & power-up \\
-    Internal gain ratio, per gain code & channel & test & power-up \\
+    Reference DAC offset and step &
+    channel &
+    Absolute potential scale; full scale \SI{2.166}{\volt}, \(\sigma =
+    \SI{56.8}{\milli\volt}\) (Tab.~\ref{tab:dacr2r12-mc-reference}) &
+    Tester voltmeter at three codes, direct test pad &
+    Test only \\
+    \addlinespace
+    Reference droop parameter &
+    channel &
+    \SI{25.8}{\milli\volt} pp movement of the reference with code &
+    4096-code sweep into the converter; one-parameter fit
+    (\S\ref{sss:dacr2r12-supply}) &
+    Test only; applied where the waveform is built \\
+    \addlinespace
+    Converter zero code &
+    channel &
+    Converter offset and the common-mode value together &
+    Convert the common-mode rail and average &
+    Test, power-up, and between potential steps \\
+    \addlinespace
+    A1 offset and tracking slope &
+    channel &
+    Applied-potential error, \(\sigma = \SI{5.20}{\milli\volt}\)
+    (Tab.~\ref{tab:ampab-mc-offset}) &
+    A1 in unity-gain loopback, three reference codes (\S\ref{ss:ampab}) &
+    Test and power-up; applied where the waveform is built \\
+    \addlinespace
+    Current zero, per gain code &
+    channel &
+    Zero-current offset, \(\sigma = 12.1\)--\SI{167.3}{LSB}
+    (\S\ref{sss:pixel-mc}) &
+    Working electrode isolated; read at each gain code &
+    Test and power-up \\
+    \addlinespace
+    Transimpedance gain, per gain code &
+    channel &
+    \(\pm35\,\%\) resistor tolerance, switch stack and converter gain, in one
+    number (Tab.~\ref{tab:tiarprog-corners}) &
+    Tester forces \(\pm\) full-scale current at the working-electrode pad &
+    Test; rescaled at power-up by the ratio below \\
+    \addlinespace
+    Internal gain ratio, per gain code &
+    channel &
+    Drift of the gain constant &
+    Same slope against an on-chip reference resistor (\S\ref{ss:tiarprog}) &
+    Power-up \\
+    \addlinespace
+    Working-electrode switch \(R_{\mathrm{on}}\) &
+    channel &
+    \(i\!\cdot\!R_{\mathrm{on}}\): \SI{3.3}{\milli\volt} at
+    \SI{33}{\micro\ampere} through \SI{100}{\ohm} &
+    Force current; read both sides of the switch &
+    Test; applied per sample \\
     \bottomrule
-  \end{tabular}
+  \end{tabular}}
 \end{table}
