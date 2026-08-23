@@ -486,7 +486,25 @@ begin
 
         -- C14/C15: abstractauto and the dmcs2 group WARL.
         dmi_rd(A_ABSTRACTAUTO, d, rop);
-        chk(d = x"00000000", "C14: abstractauto reads zero");
+        chk(rop = RSP_SUCCESS and d = x"00000000",
+            "C14a: abstractauto reads zero before anything arms it");
+        dmi_wr(A_ABSTRACTAUTO, x"FFFFFFFF");
+        dmi_rd(A_ABSTRACTAUTO, d, rop);
+        chk(d = x"00030001",
+            "C14b: abstractauto is WARL to the words that EXIST -- "
+            & "autoexecdata bit 0 for datacount 1 and autoexecprogbuf bits "
+            & "17:16 for progbufsize 2, so an all-ones write cannot arm a "
+            & "data or progbuf word this DM does not have");
+        dmi_wr(A_ABSTRACTAUTO, x"00020000");
+        dmi_rd(A_ABSTRACTAUTO, d, rop);
+        chk(d = x"00020000",
+            "C14c: the two progbuf words are armed SEPARATELY -- writing "
+            & "only bit 17 reads back only bit 17, which C14b alone cannot "
+            & "tell apart from a stuck field");
+        -- DISARM BEFORE MOVING ON, or every later data0 and progbuf access in this bench re-issues an abstract command behind itself.
+        dmi_wr(A_ABSTRACTAUTO, x"00000000");
+        dmi_rd(A_ABSTRACTAUTO, d, rop);
+        chk(d = x"00000000", "C14d: ...and it disarms again");
 
         dmi_rd(A_DMCS2, d, rop);
         chk(fld(d, 6, 2) = 0, "C15a: dmcs2.group resets to 0 (= no group)");

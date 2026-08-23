@@ -1,11 +1,13 @@
 {
   "config": {
     "chip": "Castalia",
-    "digest": "9ca2e20fb3d2",
-    "identity": "Castalia [isa=atomics+bitmanip+compressed+div+mul priv=(none) harts=4] cfg=9ca2e20fb3d2",
-    "image_defines": [],
-    "knobs": "isa=atomics+bitmanip+compressed+div+mul priv=(none) harts=4",
-    "numHarts": 4,
+    "digest": "1ffadbaf4c85",
+    "identity": "Castalia [isa=atomics+bitmanip+compressed+div+mul priv=trapCsr harts=5] cfg=1ffadbaf4c85",
+    "image_defines": [
+      "-DCORE_ENABLE_TRAPCSR"
+    ],
+    "knobs": "isa=atomics+bitmanip+compressed+div+mul priv=trapCsr harts=5",
+    "numHarts": 5,
     "reference": {
       "isa": "rv32imac_zicsr_zba_zbb_zbs_zbc_zicntr",
       "pmpregions": 0,
@@ -16,7 +18,7 @@
   "group": "rv32uk",
   "streams": [
     {
-      "asm_sha1": "3e592e8964838788d7dc79cfe4e2b03a0e1edb07",
+      "asm_sha1": "b2df46bf8cfd051672ec61bf9a0d8f6c81fb8a95",
       "irq_observe": true,
       "irq_sites": 0,
       "length_requested": 400,
@@ -27,7 +29,7 @@
       "total_instructions": 384
     },
     {
-      "asm_sha1": "75e669097b72e0c882d5f5b13c848c7c9a441b8d",
+      "asm_sha1": "f42465084bf1d63c48d2d8cf853b8cce30e95d17",
       "irq_observe": true,
       "irq_sites": 0,
       "length_requested": 400,
@@ -38,7 +40,7 @@
       "total_instructions": 383
     },
     {
-      "asm_sha1": "3e7ade9fb2dc471ac45e17c3f7073c6a9f3d403d",
+      "asm_sha1": "3fbdd3d47625c4e8e68c1d15cf7bfc5a0be52bcd",
       "irq_observe": true,
       "irq_sites": 0,
       "length_requested": 400,
@@ -49,7 +51,7 @@
       "total_instructions": 392
     },
     {
-      "asm_sha1": "6e0a5b3fd102e0b6e7f10ddfabb099b6093b59dc",
+      "asm_sha1": "f679c2f465267b2c017aff282fa03af1ffc33a9a",
       "irq_observe": true,
       "irq_sites": 0,
       "length_requested": 400,
@@ -60,7 +62,7 @@
       "total_instructions": 399
     },
     {
-      "asm_sha1": "ba855ce0c50a8fcaa8fdef1bb38aceeae176ea33",
+      "asm_sha1": "386ac85c2d55087fa97ce92df31ae8a6858b0b6e",
       "irq_observe": true,
       "irq_sites": 9,
       "length_requested": 400,
@@ -71,7 +73,7 @@
       "total_instructions": 403
     },
     {
-      "asm_sha1": "e9dc6f733c5bd4fdb0e8cb8a5b0b7c8bd6343fba",
+      "asm_sha1": "aa41d3c5f3b02d1d49f7ed56899790d53adc1923",
       "irq_observe": false,
       "irq_sites": 13,
       "length_requested": 400,

@@ -1155,12 +1155,37 @@ def test_default_config_streams_are_unmoved_by_the_new_classes():
     campaign, not asserted."""
     cfg = _cfg()
     idx = json.load(open(os.path.join(randgen.CAMPAIGN_INDEX)))
+    # DIAGNOSE THE CONFIG BEFORE DIAGNOSING THE BYTES.
+    # `randgen verify` already refuses on a digest mismatch rather than
+    # reporting a hash diff, because the two failures need opposite responses:
+    # a moved digest is the tracked config having changed underneath the pin
+    # (re-record), a moved hash at the SAME digest is the generator having
+    # moved (do not re-record, find the defect).  This test used to report
+    # only the second, which made an August 2026 config drift read as a
+    # generator regression for three weeks.  It still FAILS either way.
+    want = (idx.get('config') or {}).get('digest')
+    if want and want != cfg.digest():
+        raise AssertionError(
+            'the campaign was recorded against config digest %s and the '
+            'tracked resolved config is now %s.\n       recorded: %s\n'
+            '       tracked : %s\n       This is a CONFIG move, not a '
+            'generator move.  Confirm the emitted bodies are unchanged '
+            '(diff the .S against the old config) and then re-record with '
+            '`randgen.py campaign --spec campaign/campaign_spec.json`.'
+            % (want, cfg.digest(),
+               (idx.get('config') or {}).get('identity'), cfg.identity()))
+    # Report EVERY stream that moved, not just the first: an eq() inside the
+    # loop hid five of the six the last time this pin came due.
+    moved = []
     for row in idx['streams']:
         _b, text = randgen.build_stream(
             cfg, row['name'], row['seed'], row['profile'],
             row['length_requested'], row['irq_observe'])
-        eq(hashlib.sha1(text.encode('utf-8')).hexdigest(), row['asm_sha1'],
-           'default-config stream %s reproduces' % row['name'])
+        got = hashlib.sha1(text.encode('utf-8')).hexdigest()
+        if got != row['asm_sha1']:
+            moved.append('%s: %s != %s' % (row['name'], got, row['asm_sha1']))
+    ok(not moved, 'default-config streams reproduce:\n       '
+                  + '\n       '.join(moved))
     avail, blocked = isa_model.available_classes(cfg.isa)
     for c in ('zicboz', 'zawrs', 'zihint', 'zcmp', 'zcmt'):
         ok(c not in avail, '%s is not emittable on the default config' % c)

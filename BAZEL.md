@@ -93,12 +93,15 @@ writes wherever it runs; the hermetic path is `chip_artifacts_castalia`.
   `testdata/*_golden.txt` files (`*.rcf` is globally gitignored, hence the
   extension). Changing firmware means regenerating the golden in the same
   commit — the test diff shows exactly what moved.
-- **Known red**: `//tools/randgen:test_randgen`'s k3s01 case — a
-  pre-existing campaign-pin drift (CPR8 re-pin), kept red until adjudicated.
-  It carries the `known_red` tag, and every CI invocation passes
-  `--test_tag_filters=-known_red`, so `bazel test //...` is otherwise a
-  genuinely all-green command. The tag comes off in the same commit that
-  adjudicates the pin — that is the only way the carve-out ends.
+- **Known red**: nothing carries the `known_red` tag today. The tag and CI's
+  `--test_tag_filters=-known_red` remain as the standing mechanism for a red
+  that is understood but not yet adjudicated; the rule is that the tag comes
+  off in the same commit that adjudicates the failure, which is the only way
+  such a carve-out ends. It was last used for
+  `//tools/randgen:test_randgen`'s k3s01 campaign-pin drift, adjudicated
+  2026-08-23 as benign config drift (`priv.trapCsr` and `numHarts` 4->5 moved
+  the resolved-config identity that every stream header carries) and
+  re-recorded; `tools/randgen/BUILD.bazel` holds the evidence.
   `check_publish_test` (manual) is red whenever TRM-affecting commits have
   landed since the last publish; that is the point of the gate.
 - **Repo hygiene checks** live in `tools/ci/` and run in CI's `repo-hygiene`

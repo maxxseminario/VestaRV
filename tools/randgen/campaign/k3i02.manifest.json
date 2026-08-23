@@ -1,5 +1,5 @@
 {
-  "asm_sha1": "e9dc6f733c5bd4fdb0e8cb8a5b0b7c8bd6343fba",
+  "asm_sha1": "aa41d3c5f3b02d1d49f7ed56899790d53adc1923",
   "blocked_classes": [
     [
       "zfinx",
@@ -50,11 +50,13 @@
   },
   "config": {
     "chip": "Castalia",
-    "digest": "9ca2e20fb3d2",
-    "identity": "Castalia [isa=atomics+bitmanip+compressed+div+mul priv=(none) harts=4] cfg=9ca2e20fb3d2",
-    "image_defines": [],
-    "knobs": "isa=atomics+bitmanip+compressed+div+mul priv=(none) harts=4",
-    "numHarts": 4,
+    "digest": "1ffadbaf4c85",
+    "identity": "Castalia [isa=atomics+bitmanip+compressed+div+mul priv=trapCsr harts=5] cfg=1ffadbaf4c85",
+    "image_defines": [
+      "-DCORE_ENABLE_TRAPCSR"
+    ],
+    "knobs": "isa=atomics+bitmanip+compressed+div+mul priv=trapCsr harts=5",
+    "numHarts": 5,
     "reference": {
       "isa": "rv32imac_zicsr_zba_zbb_zbs_zbc_zicntr",
       "pmpregions": 0,
@@ -70,6 +72,11 @@
       "compressed",
       "A",
       "k0 \u00a71.2: `c`, WITNESS c.addi4spn"
+    ],
+    [
+      "trapCsr",
+      "B",
+      "k0 \u00a71.3i/n + K2b F-K2b-2: mret/T record shapes are reconciled by `mret-csr` + `mtrap-t`, but standard delivery needs a write to the CUSTOM CSR mtrapctl (0x7C0), which the reference traps on -- so the knob is NOT judgeable end to end"
     ]
   ],
   "length_requested": 400,

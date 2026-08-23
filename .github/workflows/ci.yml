@@ -232,9 +232,18 @@ jobs:
             -- //... -//opensource_sim/... -//hdl/common/tb/... -//toolchains/...
 
       # --test_tag_filters=-known_red drops targets that are red for an
-      # adjudicated, tracked reason (today: //tools/randgen:test_randgen's
-      # k3s01 campaign-pin drift). The tag comes off in the same commit that
-      # fixes the underlying pin - see BAZEL.md "Known red".
+      # understood, tracked reason. NO TARGET CARRIES THE TAG TODAY - the
+      # //tools/randgen:test_randgen k3s01 campaign-pin drift was adjudicated
+      # 2026-08-23 and the tag came off with it. The filter stays as the
+      # standing mechanism; the rule is that the tag comes off in the same
+      # commit that adjudicates the failure - see BAZEL.md "Known red".
+      #
+      # //verification/cpi is excluded for the same reason as
+      # //opensource_sim and //hdl/common/tb: its tests run GHDL, and pulling
+      # @ghdl into this job would make it build the simulator from source. It
+      # runs in sim.yml instead, which already has the GHDL cache. The
+      # --nobuild analysis step above still covers it, so a broken BUILD file
+      # or a dangling label there fails HERE, in seconds.
       - name: Run the hermetic gate set
         run: |
           set -o pipefail
@@ -245,6 +254,7 @@ jobs:
             --test_output=errors \
             --test_summary=detailed \
             -- //... -//opensource_sim/... -//hdl/common/tb/... -//toolchains/... \
+               -//verification/cpi/... \
             2>&1 | tee bazel_ci.log
 
       # BAZEL.md's central claim: everything under `bazel build`/`bazel test`

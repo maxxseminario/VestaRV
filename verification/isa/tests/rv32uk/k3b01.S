@@ -14,7 +14,7 @@
 #   seed      : 22
 #   profile   : base
 #   length    : 400 emitted instructions requested
-#   config    : Castalia [isa=atomics+bitmanip+compressed+div+mul priv=(none) harts=4] cfg=9ca2e20fb3d2
+#   config    : Castalia [isa=atomics+bitmanip+compressed+div+mul priv=trapCsr harts=5] cfg=1ffadbaf4c85
 #   reference : --isa rv32imac_zicsr_zba_zbb_zbs_zbc_zicntr --priv m --pmpregions 0
 #
 # WHAT A PASS OF THIS FILE IN THE BEHAVIORAL SUITE MEANS

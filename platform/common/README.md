@@ -1,7 +1,8 @@
 # Castalia Chip Generator
 
-Generator for **Castalia**, the 4-hart multi-core VestaRV MCU (`hdl/common/`). This is a
-fork of `platform/` (the single-core Myshkin generator) adapted for the multi-core chip.
+Generator for **Castalia**, the 5-hart multi-core VestaRV MCU (`hdl/common/`) - a soft
+orchestrator on hart 0 plus four hardened rv32iac channel tiles. This is a fork of
+`platform/` (the single-core Myshkin generator) adapted for the multi-core chip.
 One Python description (`python/generate.py`) is the single source of truth for the memory
 map, every peripheral register and bit field, the GPIO/package pinout, and the Technical
 Reference Manual.
@@ -116,17 +117,19 @@ documented in the generated TRM's "Chip Configuration" section):
 | Key | Meaning |
 |-----|---------|
 | `chipName` | Docs-only rename (TRM, headers) |
-| `numHarts` | Hart/tile count — 4 = Castalia golden master, 18 = Argus (sim-proven) |
+| `numHarts` | Hart/tile count — 5 = Castalia golden master, 18 = Argus (sim-proven) |
+| `orchestrator` | `true` (the default) = hart 0 is the always-on soft orchestrator (`orch_tile`) and harts 1..N-1 are gateable channel tiles, on memory map v2; `false` = the historical shape, every hart a hardened `hart_tile` (kept as a standing row by `config/castalia4.json`) |
 | `numMutexes` | HW mutex bank size (16 = Castalia, 32 = Argus) |
 | `registerFileDualPort` | Dual-port regfile (ASIC) vs single-port (FPGA) |
-| `isa.*` | `mul fastMul div atomics compressed bitmanip counters counters64` |
+| `isa.*` | `mul fastMul div atomics compressed bitmanip minimalTiles counters counters64` plus the X-series extension knobs |
+| `isa.minimalTiles` | `true` (the default) = harts 1..N-1 drop M and B and are built rv32iac; hart 0 keeps the full chip ISA. No binary may migrate between hart 0 and a tile, and anything the tiles execute must be built without M/B |
 | `memory.*` | `romSize tcmSizePerHart sharedBulkRamSize npuStagingRamSize` (bytes) |
 | `peripherals.npu` | `false` = Argus-style chip with no NPU at all |
 | `peripherals.i2c1` | `false` = drop the second I²C instance (slot 15 dead, vectors 70–82 reserved, SDA1/SCL1 pins revert to plain GPIO) |
 | `peripherals.uart1` | `false` = drop the second UART (slot 5 dead, vectors 52–54 reserved, TX1/RX1 pins revert to plain GPIO) |
 | `peripherals.spi1` | `false` = drop the second SPI (slot 3 dead, vectors 11–12 reserved, CS1/MISO1/MOSI1/SCK1 pins revert to plain GPIO) |
 | `peripherals.timer1` | `false` = drop the second TIMER (slot 7 dead, vectors 22–27 reserved, T1CMP\*/T1CAP\* pins revert to plain GPIO) |
-| `package.model` | Package model name defined in `generate.py` (`_PACKAGE_MODELS`: `myshkin-qfn44`, `castalia-quad-qfn64`, `castalia-lqfp100`). **Default since 2026-08-16: `castalia-quad-qfn64`** — the Castalia-Quad QFN-64 quad pinout, which also gates the TRM's Analog Front-End chapter. `config/castalia4.json` and the three `argus*.json` rows pin `myshkin-qfn44` (they are not that chip; see their `_packageNote`). |
+| `package.model` | Package model name defined in `generate.py` (`_PACKAGE_MODELS`: `myshkin-qfn44`, `castalia-quad-qfn64`, `castalia-lqfp100`). **Default since 2026-08-16: `castalia-lqfp100`** — the LQFP-100 large pinout (14 × 14 mm, 100 pins), moved there as the pad-side half of the `debug.enable` flip because it is the only model that bonds the JTAG TAP. It also bonds the sixteen electrode pads, which is half of what gates the TRM's Analog Front-End chapter (the other half is the orchestrator shape: `numHarts = 5` with `orchestrator = true`). `config/castalia4.json`, `argus.json` and `argus_course.json` pin `myshkin-qfn44` (they are not that chip; see their `_packageNote`), and `argus_debug.json` pins `castalia-lqfp100` provisionally, to reach the JTAG balls. |
 | `package.preliminary` | `false` = suppress the TRM package-section "Preliminary" banner |
 
 Every build also writes `config/ChipConfig.resolved.json` (all knobs plus the derived
@@ -222,10 +225,10 @@ are added on the HTML side by its owner; the splice tool only needs to exist her
 ## Castalia vs. Myshkin (what changed in this fork)
 
 Chip definition (`python/generate.py`):
-- `asicName='Castalia'`, `vectorsCount=85` (adds CLINT msip=83, mtip=84)
+- `asicName='Castalia'`; the vector count is derived (121 today), with CLINT msip=83, mtip=84 and the router's meip slot at 85
 - New shared-window peripherals with **absolute base addresses** (no legacy slot):
-  `CLINT` @ `0x11000`, `MUTEX` bank @ `0x13000`, `IRQROUTER` @ `0x13900`
-- `ExtraMemorySections`: `SHARED_RAM` @ `0x10000` (1 KiB) for the linker script
+  `CLINT` @ `0x5000`, `MUTEX` bank @ `0x6000`, `IRQROUTER` @ `0x7000`
+- `ExtraMemorySections`: `SHARED_RAM` @ `0x10000` (the whole `memory.sharedBulkRamSize`, 64 KiB today) and, when the NPU is present, `NPU_RAM` @ `0x0C000`, for the linker script
 - `SharedWindowSections`: shared-window rows for the TRM address-space diagram
 - `ExtraLatexIntroFiles`: the hand-written Multi-Core Architecture chapter
 

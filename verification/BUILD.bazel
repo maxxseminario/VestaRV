@@ -33,3 +33,51 @@ exports_files([
     "env/p/link_boot.ld",
     "env/p/link_fem.ld",
 ])
+
+# ---------------------------------------------------------------------------
+# Benchmark sources for //verification/cpi.
+#
+# benchmarks/ has no BUILD file of its own, so its files belong to this
+# package and only this package can publish them. The CPI harness compiles
+# each benchmark's .c set against its own crt and stubs (see
+# //verification/cpi:defs.bzl), which is why the sources are exposed per
+# benchmark rather than as one filegroup: the compile action must name exactly
+# the translation units of the benchmark under test.
+#
+# mm is absent on purpose: it has no main(), it is a multicore thread_entry
+# benchmark, and the CPI harness runs one bare hart.
+# ---------------------------------------------------------------------------
+_CPI_BENCHMARKS = [
+    "dhrystone",
+    "median",
+    "memcpy",
+    "multiply",
+    "qsort",
+    "rsort",
+    "spmv",
+    "towers",
+    "vvadd",
+]
+
+[
+    filegroup(
+        name = "benchmark_%s_srcs" % b,
+        srcs = glob(["benchmarks/%s/*.c" % b]),
+    )
+    for b in _CPI_BENCHMARKS
+]
+
+# Everything a benchmark compile can include: encoding.h reached through
+# -Iverification/env, benchmarks/common/util.h through
+# -Iverification/benchmarks/common, and each benchmark's own dataset and
+# declaration headers through -Iverification/benchmarks/<name>.
+filegroup(
+    name = "benchmark_headers",
+    srcs = ["env/encoding.h"] + glob(
+        [
+            "benchmarks/common/*.h",
+            "benchmarks/*/*.h",
+        ],
+        allow_empty = True,
+    ),
+)
