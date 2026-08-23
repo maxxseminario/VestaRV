@@ -12,20 +12,24 @@
 
 \subsubsection{Measuring this block on chip}
 
-The converter is the one block whose gain has never been checked in system, and
-the one that can be characterised end to end with no analog pad measurement.
-Set \texttt{AFE\_ADCSRCSEL}~=~4 to route the test bus into the converter input,
-drive an external ramp onto \texttt{atb\_d} with \texttt{AFE\_DBGDIREN}~=~1 and
-\texttt{AFE\_DBGBUFEN}~=~0, and fit slope and intercept per die: the
-\(1.535\times\) slope, \SI{0.441}{\volt} code-zero intercept and
-\SI{1.591}{\milli\volt} effective LSB of Table~\ref{tab:adc-transfer} rest on a
-single nominal extracted run with no chip-to-chip data behind them. For the zero
-code, set \texttt{AFE\_ADCSRCSEL}~=~1 and average the common-mode rail; that
-code is the origin of the current axis and carries the converter's offset and
-the common-mode value together, which is the combination a current reading
-needs. Averaging reaches the quantisation floor only if the input dithers, and
-with the electrode isolated the amplifier output noise is tens of microvolts ---
-so step the common-mode DAC over three of its \SI{529}{\micro\volt} codes, which
-span one converter code. Observe the sampling node itself at per-channel slot 9
-between conversions only. This test fabric is design intent; it is not yet in
-the schematics.
+The converter is characterised end to end with no analog pad measurement ---
+and its gain has never been checked in system.
+\begin{enumerate}[nosep]
+\item Gain and intercept: set \texttt{AFE\_ADCSRCSEL}~=~4, drive an external
+  ramp onto \texttt{atb\_d} (\texttt{AFE\_DBGDIREN}~=~1,
+  \texttt{AFE\_DBGBUFEN}~=~0), fit slope and intercept per die. The
+  \(1.535\times\) slope, \SI{0.441}{\volt} intercept and
+  \SI{1.591}{\milli\volt} effective LSB of Table~\ref{tab:adc-transfer} rest
+  on a single nominal extracted run with no chip-to-chip data behind them.
+\item Zero code: set \texttt{AFE\_ADCSRCSEL}~=~1 and average the common-mode
+  rail. That code is the origin of the current axis and carries the
+  converter's offset and the common-mode value together --- the combination a
+  current reading needs.
+\item Dither before averaging: with the electrode isolated the amplifier
+  output noise is tens of microvolts, below one code, so step the common-mode
+  DAC over three of its \SI{529}{\micro\volt} codes (together they span one
+  converter code); only then does averaging reach the quantisation floor.
+\item Observe the sampling node itself at per-channel slot 9 between
+  conversions only.
+\end{enumerate}
+This test fabric is design intent; it is not yet in the schematics.
