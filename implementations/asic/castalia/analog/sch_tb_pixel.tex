@@ -6,6 +6,11 @@
 %% and the shared local bias generator are omitted -- they carry no measurement.
 %% NOTE: the stb/noise tests (PotCtrlTB, PotTiaTB) disable VSRC_PATTERN and I_far and
 %% drive V_InP from a single dc source V0 with the same dc value v_ref.
+%% The cell is the abstracted symbol of sch_cell_symbol.tex -- its internal
+%% network is not drawn anywhere in this chapter; the values are in the models
+%% table.
+\providecommand{\MaestroRoot}{include/analog/}
+\input{\MaestroRoot sch_cell_symbol.tex}
 \begin{figure}[htbp]
   \centering
   \resizebox{\linewidth}{!}{%
@@ -26,6 +31,11 @@
   \node[op amp] (B) at (13.4,0) {};
   \node at (B.center) {\small A2};
 
+  %% ------------------------------------------------- three-electrode cell
+  %% Drawn first so that (cs-ce)/(cs-re)/(cs-we) exist for the wiring below.
+  \CellSymThree{6.0,0}{1.2}
+  \node[opt, anchor=north] at (6.0,-1.62) {three-electrode cell};
+
   %% ------------------------------------------- potential program -> A1 non-inv
   \coordinate (VIP) at (-2.9,0 |- A.+);
   \draw (A.+) -- (VIP);
@@ -43,7 +53,7 @@
   \node[prb] (P1) at (0.8,2.6) {};
   \draw (-1.6,2.6) -- (P1.west);
   \node[nlab, above=2pt] at (P1.north) {\texttt{IPRB1}};
-  \draw (P1.east) -- (4.8,2.6) -- (4.8,0);
+  \draw (P1.east) -- (6.0,2.6) -- (cs-re);
 
   %% ------------------------------- A1 class-AB compensation, C1/C2 back to CE
   \draw (A.up) -- (A.up |- 0,1.5);
@@ -53,21 +63,11 @@
   \draw (A.down |- 0,-1.5) to[C, l_=$C_c$] (2.0,-1.5) -- (2.0,0);
   \node[nlab, anchor=east, xshift=-2pt] at (A.down |- 0,-1.08) {\texttt{C2}};
 
-  %% --------------------------------------------------- three-electrode cell
-  \draw[dashed, black!45] (2.25,-1.5) rectangle (9.75,1.5);
-  \node[opt, anchor=north] at (6.0,-1.62) {\texttt{randles\_cell}};
+  %% ------------------------------------- A1 output -> CE, WE -> the WE node
   \draw (A.out) -- (2.0,0);
   \node[railnode] at (2.0,0){};
-  \node[nlab, anchor=south east, xshift=-1pt, yshift=2pt] at (2.0,0) {\texttt{CE}};
-  \draw (2.0,0) to[R, l=$R_{\mathrm{ce}}$] (4.8,0);
-  \node[railnode] at (4.8,0){};
-  \node[nlab, anchor=south east, xshift=-1pt, yshift=2pt] at (4.8,0) {\texttt{RE}};
-  \draw (4.8,0) to[R, l=$R_u$] (7.2,0);
-  \node[railnode] at (7.2,0){};
-  \node[nlab, anchor=south east, inner sep=2.5pt] at (7.12,0.06) {$\mathrm{WE_s}$};
-  \draw (7.2,0) -- (7.2,0.85) to[R, l=$R_{\mathrm{ct}}$] (9.5,0.85) -- (9.5,0);
-  \draw (7.2,0) -- (7.2,-0.85) to[C, l_=$C_{\mathrm{dl}}$] (9.5,-0.85) -- (9.5,0);
-  \draw (9.5,0) -- (10.0,0);
+  \draw (2.0,0) -- (cs-ce);
+  \draw (cs-we) -- (10.0,0);
 
   %% --------------------------------------------- WE node, I_far, A2 inverting
   \node[railnode] at (10.0,0){};

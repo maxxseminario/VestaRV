@@ -3,9 +3,14 @@
 %% from the class-AB TIA amp bench netlists (Interactive.14, archived under
 %% simarchive/tb_anatop_tia_amp_ab/tia_ab_2026-08-16/). Supplies, the bias rails and
 %% En are omitted -- identical in every bench and carrying no measurement.
+%% The cell is the abstracted symbol of sch_cell_symbol.tex, entered two-terminal
+%% between WE and vcm -- its internal network is not drawn anywhere in this
+%% chapter; the values are in the models table.
+\providecommand{\MaestroRoot}{include/analog/}
+\input{\MaestroRoot sch_cell_symbol.tex}
 \begin{figure}[htbp]
   \centering
-  \resizebox{0.56\linewidth}{!}{%
+  \resizebox{0.58\linewidth}{!}{%
 \ctikzset{bipoles/length=1.0cm, resistors/scale=0.85, capacitors/scale=0.85, sources/scale=0.85}
 \begin{circuitikz}[
     every node/.append style={font=\footnotesize},
@@ -30,8 +35,12 @@
   \node[nlab, anchor=south east, xshift=-1pt, yshift=2pt] at (WE){\texttt{WE}};
   \draw (WE) to[I, l_=$i_{\mathrm{we}}$] (-3.0,-2.8) node[ground]{};
   \draw (WE) -- (ZC);
-  \draw (ZC) to[generic, l_=$Z_{\mathrm{cell}}$] (-4.6,-2.4);
-  \node[nlab, below] at (-4.6,-2.45) {$v_{\mathrm{cm}}$};
+  %% the cell, abstracted: two-terminal from WE down to vcm
+  \CellSymTwoV{-4.6,-1.3}{0.7}{}{}
+  \node[nlab, anchor=east] at (-5.45,-1.3) {$Z_{\mathrm{cell}}$};
+  \draw (ZC) -- (cs-a);
+  \draw (cs-b) -- (-4.6,-2.5);
+  \node[nlab, below] at (-4.6,-2.55) {$v_{\mathrm{cm}}$};
   \draw (WE) -- (-3.0,2.2);
   \node[prb] (PB) at (-2.0,2.2) {};
   \draw (-3.0,2.2) -- (PB.west);
