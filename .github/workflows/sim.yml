@@ -75,11 +75,19 @@ jobs:
       # -march polarities), which gates the numbers TRM Section 12 publishes.
       # The named suite, NOT //verification/cpi/...: the long benchmarks in
       # that package are `manual` and are minutes of simulation each.
+      #
+      # //opensource_sim/pmp:pmp is the PMP regression's RTL half: the fifteen
+      # rv32ua PMP images run against a core elaborated with TRAPCSR, U-mode
+      # and PMP true, at BOTH polarities of ENABLE_IF_AHEAD. Both matter. The
+      # fetch-ahead re-points the instruction-fetch check address, and a
+      # mutation that restores the old one is caught ONLY by the ifahead_on
+      # half, so a single-polarity gate would not see that regression at all.
       - name: Run ISA regression + GHDL unit benches
         run: |
           set -o pipefail
           tools/bin/bazel test //opensource_sim:isa_regression //hdl/common/tb:all \
             //verification/cpi:cpi_default \
+            //opensource_sim/pmp:pmp \
             --repository_cache=~/.cache/bazel-repo-cache \
             --test_tag_filters=-known_red \
             --test_output=errors \
