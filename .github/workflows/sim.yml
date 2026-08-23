@@ -69,10 +69,17 @@ jobs:
       # pmp_unit, the FPU vector format check). They are GHDL-backed, so they
       # ride with this job rather than ci.yml's bazel-gates, which deliberately
       # excludes everything that would drag in the from-source GHDL build.
+      #
+      # //verification/cpi:cpi_default is the CPI measurement harness's fast
+      # set (all 36 micro-kernels plus the three short benchmarks in both
+      # -march polarities), which gates the numbers TRM Section 12 publishes.
+      # The named suite, NOT //verification/cpi/...: the long benchmarks in
+      # that package are `manual` and are minutes of simulation each.
       - name: Run ISA regression + GHDL unit benches
         run: |
           set -o pipefail
           tools/bin/bazel test //opensource_sim:isa_regression //hdl/common/tb:all \
+            //verification/cpi:cpi_default \
             --repository_cache=~/.cache/bazel-repo-cache \
             --test_tag_filters=-known_red \
             --test_output=errors \

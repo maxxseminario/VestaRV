@@ -1,8 +1,38 @@
 # Castalia ASIC Implementation
 
-Castalia is a **4-hart (four-core) multiprocessor** built from four identical VestaRV CPU
-cores. It is derived from the same core as the single-core Myshkin tape-out, and is
-generated from one configuration by the `platform/common/` chip generator.
+Castalia is a **five-hart wound-monitoring MCU**, and it is not five identical cores.
+Hart 0 is the always-on soft **orchestrator**, emitted as `entity work.orch_tile`; harts
+1-4 are the **channel tiles**, four instances of one hardened `hart_tile` macro, uniform
+with each other and individually power-gateable. It is derived from the same core as the
+single-core Myshkin tape-out, and is generated from one configuration by the
+`platform/common/` chip generator.
+
+## Hart 0 and the four tiles
+
+`orchestrator = true` is what makes hart 0 the orchestrator. It keeps every hart-0 wiring
+special the chip already had - the SPI0 flash/XIP quartet, `sleep => sleep_cpu`,
+`trap_flag` on the GPIO0 trap pin, `tcm_pgen => pgen_mem(1)`, arbiter master slice 0 with
+no isolation clamps - and it is the management hart: it runs boot, owns the console and
+the CLINT, and is the only master the read-only per-hart TCM apertures answer. Harts 1-4
+are fully uniform channel tiles - hart IDs 1-4, `pwr_ctrl` rows 1-4 (so PWRCR carries a
+gate bit for every one of them), isolation clamps, `tcm_pgen => pd_sleep(h)`. The
+orchestrator sits outside the MTCMOS fabric entirely, so its PWRCR bit reads 0 and ignores
+writes, and a blanket PWRCR write gates every channel tile and leaves the orchestrator
+running.
+
+`isa.minimalTiles = true` makes the four tiles **rv32iac**: they drop M and B, while hart 0
+keeps the full chip ISA (`rv32imac_zba_zbb_zbs_zbc`). This is the one ISA asymmetry the
+chip has, and it lands on the seam that already exists - hart 0 is soft, harts 1-4 are one
+hardened macro placed four times - so the split costs no extra hardening. A and C are
+deliberately not dropped: the tiles are exactly the harts that run the shared-fabric LR/SC
+and AMO locking, so removing A would break the mutex infrastructure outright, and C is
+decoder-only while it shrinks code, which matters more now that a TCM is 8 KiB. Measured
+at genus on the 8 KiB tile, full ISA vs rv32iac: tile 132,657 -> 109,926 um2 (-17.1%),
+core 60,540 -> 37,808 um2 (-37.5%), 2,576 -> 2,210 flops, 2.687 -> 1.945 mW (-27.6%),
+460 -> 379 uW leakage.
+
+**Software contract.** No binary may migrate between hart 0 and a corner tile, and
+anything the tiles execute must be built without M and B.
 
 ## Building through Bazel
 
@@ -43,7 +73,7 @@ wherever it happens to be invoked. The hermetic path is
 |--------|----------------|
 | `//platform/common:check_mcu_vhd_test` | The regenerated `MCU.vhd` is a byte-for-byte drop-in for the tracked `hdl/common/MCU.vhd`. |
 | `//platform/common:check_memorymap_vhd_test` | Constant-by-constant equivalence with the tracked `hdl/common/MemoryMap.vhd`. |
-| `//platform/common:check_riscv_tb_vhd_test` | The generated `riscv_tb.vhd` still matches the tracked testbench at 4 harts. |
+| `//platform/common:check_riscv_tb_vhd_test` | The generated `riscv_tb.vhd` still matches the tracked 5-hart testbench. |
 | `//platform/common:check_memorymap_h_test` | The emitted `MemoryMap.h` still compiles, under the hermetic RISC-V gcc. |
 | `//platform/common:check_intro_names_test` | Every register named in a hand-written peripheral intro is something the generator actually emits. |
 | `//platform/common:check_configurator_sync_test` | `docs/chip_configurator.html` is in sync with the generator, at the strict bar. |
@@ -88,28 +118,31 @@ Full map of the Bazel build: [`BAZEL.md`](../../../BAZEL.md).
 ## Overview
 
 - **Chip Name**: Castalia
-- **Configuration**: 4-hart multiprocessor, digital-only (D0) configuration
+- **Configuration**: 5-hart chip - one soft orchestrator plus four hardened channel tiles
 - **Process Node**: TSMC 65nm
-- **Package**: QFN-44, 7 × 7 mm, 0.5 mm pitch *(preliminary — inherited from Myshkin, not yet finalized for Castalia)*
+- **Package**: LQFP-100, 14 × 14 mm body, 0.5 mm pitch (`package.model = castalia-lqfp100`) *(preliminary — `package.preliminary` is still true)*
 
 ## Configuration
 
-- **Core**: 4× VestaRV32 (RV32IMAC + Zb*, ISA string `rv32imac_zba_zbb_zbc_zbs`), each with private RAM; hart ID via the `mhartid` CSR
-- **Boot ROM**: 16 KiB shared boot ROM (all four harts reset to PC 0x0)
-- **Private memory**: 16 KiB TCM per hart
+- **Cores**: 5× VestaRV32. Hart 0 (`orch_tile`, soft) is RV32IMAC + Zb*, ISA string `rv32imac_zba_zbb_zbs_zbc`; harts 1-4 (`hart_tile`, hardened, placed 4×) are rv32iac. Every hart has its own private TCM; hart ID via the `mhartid` CSR
+- **Boot ROM**: 16 KiB shared boot ROM (all five harts reset to PC 0x0; the boot ROM dispatches on `mhartid`)
+- **Private memory**: 8 KiB TCM per hart, plus five read-only TCM apertures through which the management hart - and only it - reads any hart's private TCM
 - **Shared memory window** (arbitrated, serializing round-robin): 80 KiB of shared RAM — a 64 KiB shared bulk region (4× 16 KiB banks) plus a 16 KiB NPU staging RAM
 - **Synchronization**: CLINT (inter-processor + per-hart timer interrupts), 16 hardware mutexes, and a per-hart PLIC-style peripheral interrupt router (claim/complete, any-vector-to-any-hart routing)
-- **Interrupt vectors**: 85 (vectors 83/84 are the CLINT software/timer interrupts)
+- **Interrupt vectors**: 121 (vectors 83/84 are the CLINT software/timer interrupts; 85 is the router's MEIP slot)
 
 ### Peripherals
 
-- **GPIO**: 4× 8-pin ports with edge-triggered interrupts and per-pin alternate-function mux (up to 8 AFs per pin)
+- **GPIO**: 6× 8-pin ports (48 pins, all bonded on the LQFP-100) with edge-triggered interrupts and per-pin alternate-function mux (up to 8 AFs per pin)
 - **Communication**:
   - 2× SPI (SPI0 provides memory-mapped access to external flash)
   - 2× UART with hardware parity
   - 2× I²C (master and slave mode)
 - **Timers**: 2× 32-bit timers with PWM outputs and input capture
 - **Compute**: 1× Neural Processing Unit (NPU) co-processor
+- **Analog front end**: 5× `afe_stub` slaves - AFE0-3, one per channel site, owned by harts 1-4 respectively, plus the EIS engine, which stays hart-0/management-only
+- **Near-field**: 1× NFC controller (NFC0)
+- **Debug**: RISC-V debug module with a JTAG DTM (`debug.enable = true`; the LQFP-100 is the model that bonds the TAP)
 - **System Control**: CRC16 engine, 2× digitally controllable oscillators, windowed watchdog timer, power controller (PWRCTRL), per-tile MTCMOS power gating with hardware gate/wake sequencing
 
 ## Directory Contents
@@ -125,9 +158,12 @@ Castalia is the **default (golden-master) configuration** of the `platform/commo
 generator. The entire chip — memory-map headers, linker scripts, drop-in RTL, and the TRM
 — is regenerated from one JSON configuration by
 `//platform/common:chip_artifacts_castalia`; the Cadence `make verify` run proves the
-configuration boots. Key knobs for this build: `numHarts = 4`, `numMutexes = 16`,
+configuration boots. Key knobs for this build: `numHarts = 5`, `orchestrator = true`,
+`isa.minimalTiles = true`, `numMutexes = 16`, `memory.tcmSizePerHart = 8 KiB`,
 `memory.sharedBulkRamSize = 64 KiB`, `memory.npuStagingRamSize = 16 KiB`,
-`peripherals.npu = true`.
+`peripherals.npu = true`, `package.model = castalia-lqfp100`. The tracked resolved form
+is `platform/common/config/ChipConfig.resolved.json`; `config/castalia4.json` keeps the
+historical four-identical-tiles shape as a standing matrix row.
 
 ## Silicon Status
 

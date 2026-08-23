@@ -13,6 +13,9 @@ ic_bad
 logo
 .cadence
 .devlog
+# Agent worktrees. Each one is a FULL second checkout of this repo, so without
+# this entry bazel finds every BUILD file twice and "//..." silently doubles.
+.claude
 
 # Generated / gitignored trees inside otherwise-bazelified areas:
 docs/publications

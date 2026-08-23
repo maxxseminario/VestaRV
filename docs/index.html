@@ -711,12 +711,12 @@ html.nav-overlay-lock, html.nav-overlay-lock body{overflow:hidden}
           </thead>
           <tbody>
             <tr><th scope="row">Base ISA</th><td>RV32I with <b>M</b> (mul/div), <b>A</b> (atomics), <b>C</b> (compressed) and bit-manip <b>Zba&nbsp;/&nbsp;Zbb&nbsp;/&nbsp;Zbc&nbsp;/&nbsp;Zbs</b>. Extensions are generator knobs (<code>misa</code> reflects them).</td></tr>
-            <tr><th scope="row">Harts</th><td><b>1 to 18</b> harts from one RTL source. <b>4 harts = Castalia</b>, <b>18 harts = Argus</b> &mdash; both regression-proven end to end.</td></tr>
+            <tr><th scope="row">Harts</th><td><b>1 to 18</b> harts from one RTL source. <b>5 harts = Castalia</b> (a soft always-on orchestrator on hart 0 plus four hardened rv32iac channel tiles), <b>18 harts = Argus</b> &mdash; both regression-proven end to end.</td></tr>
             <tr><th scope="row">Interrupts</th><td><b>Stack-based recursive interrupts</b> plus a <b>PLIC-lite</b> external fabric with atomic <b>claim / complete</b> delivery and per-hart routing.</td></tr>
             <tr><th scope="row">Synchronization</th><td><b>Hardware mutex bank</b> (1-instruction acquire), <b>LR/SC</b> reservations, and <b>cross-hart AMOs</b> made atomic through the shared-bus arbiter.</td></tr>
             <tr><th scope="row">Accelerator</th><td><b>NPU</b> &mdash; a fixed-point neural-network accelerator with a MAC datapath and shared staging RAM, shared across all harts.</td></tr>
             <tr><th scope="row">Process</th><td><b>TSMC 65&nbsp;nm</b>, full RTL-to-GDS flow (synthesis, place-and-route, signoff DRC/LVS).</td></tr>
-            <tr><th scope="row">Silicon</th><td><b>One tape-out in silicon</b> &mdash; Myshkin (single-core), fabricated on TSMC 65&nbsp;nm in Nov&nbsp;2025. Castalia (4-hart) and Argus (18-hart teaching chip) are <b>signed off and regression-proven</b>, ready to tape out.</td></tr>
+            <tr><th scope="row">Silicon</th><td><b>One tape-out in silicon</b> &mdash; Myshkin (single-core), fabricated on TSMC 65&nbsp;nm in Nov&nbsp;2025. Castalia (5-hart) and Argus (18-hart teaching chip) are <b>signed off and regression-proven</b>, ready to tape out.</td></tr>
           </tbody>
         </table>
       </div>
@@ -747,11 +747,11 @@ html.nav-overlay-lock, html.nav-overlay-lock body{overflow:hidden}
           <div class="vesta-card-eyebrow">Multicore</div>
           <h3>Castalia</h3>
           <div class="meta">
-            <span class="vesta-badge">4 harts</span>
+            <span class="vesta-badge">5 harts</span>
             <span class="vesta-badge vesta-badge-amber">Tape-out ready</span>
             <span class="vesta-badge">Shared bus + NPU</span>
           </div>
-          <p>A symmetric 4-hart SoC: shared boot ROM, hardware mutexes, cross-hart atomics, and a shared NPU behind an arbitrated bus. Signoff-closed and regression-proven &mdash; a future tape-out.</p>
+          <p>A five-hart SoC: an always-on soft orchestrator on hart 0 and four hardened rv32iac channel tiles, over a shared boot ROM, hardware mutexes, cross-hart atomics, and a shared NPU behind an arbitrated bus. Signoff-closed and regression-proven &mdash; a future tape-out.</p>
           <span class="trm">Read the technical reference manual</span>
         </a>
 
@@ -829,9 +829,9 @@ html.nav-overlay-lock, html.nav-overlay-lock body{overflow:hidden}
 
         <figure class="gallery-item">
           <div class="gallery-frame ar-square has-image" id="gallery-die-castalia">
-            <img src="assets/layout_castalia_chip_top.png" alt="Castalia 4-hart chip_top layout inside the connected pad ring" style="max-width:100%; max-height:100%; object-fit:contain">
+            <img src="assets/layout_castalia_chip_top.png" alt="Castalia chip_top layout inside the connected pad ring" style="max-width:100%; max-height:100%; object-fit:contain">
           </div>
-          <figcaption><b>Castalia</b> &mdash; 4-hart <code>chip_top</code> layout, <b>3 &times; 3 mm</b> (signed-off, tape-out ready).</figcaption>
+          <figcaption><b>Castalia</b> &mdash; <code>chip_top</code> layout, <b>3 &times; 3 mm</b> (signed-off, tape-out ready).</figcaption>
         </figure>
 
         <figure class="gallery-item">
@@ -855,9 +855,9 @@ html.nav-overlay-lock, html.nav-overlay-lock body{overflow:hidden}
 
         <figure class="gallery-item">
           <div class="gallery-frame has-image" id="gallery-mcu-layout">
-            <img src="assets/layout_castalia_mcu_assembly.png" alt="Castalia 4-hart MCU core assembly: four tiles plus shared bulk-RAM bank row" style="max-width:100%; max-height:100%; object-fit:contain">
+            <img src="assets/layout_castalia_mcu_assembly.png" alt="Castalia MCU core assembly: the four hardened tiles plus shared bulk-RAM bank row" style="max-width:100%; max-height:100%; object-fit:contain">
           </div>
-          <figcaption>Castalia 4-hart MCU core assembly (4 tiles + shared bulk-RAM bank row).</figcaption>
+          <figcaption>Castalia MCU core assembly (the four hardened tiles + shared bulk-RAM bank row).</figcaption>
         </figure>
 
         <figure class="gallery-item">

@@ -116,6 +116,18 @@ vhdl_source_set(
     pool = ["//hdl:vhdl_sources"],
 )
 
+# The Debug Module's whole source closure is one file: it uses nothing from
+# constants.vhd or MemoryMap.vhd, and every port it needs from the rest of the
+# chip is an entity generic or a defaulted formal.  That is what lets the DM be
+# unit-tested here at all, where dbg_dmi_tb.vhd has to instantiate the whole MCU
+# (and therefore a vendor pad macro, a flash model and a boot image) to reach
+# the same DMI port.
+vhdl_source_set(
+    name = "debug_module_rtl",
+    paths = ["hdl/common/debug_module.vhd"],
+    pool = ["//hdl:vhdl_sources"],
+)
+
 # xcelium/mp_test/run_arbiter.sh (M3c): four synthetic masters contending for
 # one shared single-port RAM.
 ghdl_test(
@@ -145,5 +157,28 @@ ghdl_test(
     entity = "pmp_unit_tb",
     pass_pattern = "ALL CHECKS PASSED",
     sim_timeout_s = 90,
+    tags = ["ghdl"],
+)
+
+# The Debug Module register-level bench: abstractauto (0x18) and the dmstatus
+# havereset lifecycle, graded against a shared-window RAM model and a
+# token-protocol hart model that stand in for the rest of the chip.
+#
+# It carries its own seen-to-fail record.  Against the pre-abstractauto RTL the
+# same file fails 19 of its 48 checks, and each of the four subtle behaviours
+# is separated from its neighbours by a control check that passes in BOTH
+# builds (B2 for "the trigger is the register and not the access", C3 for "the
+# two progbuf bits are armed separately", E1a/E2 for "cmderr suppresses the
+# re-issue", G3/G5c for "havereset is per hart").
+ghdl_test(
+    name = "dbg_module_tb",
+    size = "small",
+    srcs = [
+        ":debug_module_rtl",
+        "dbg_module_tb.vhd",
+    ],
+    entity = "dbg_module_tb",
+    pass_pattern = "ALL CHECKS PASSED",
+    sim_timeout_s = 120,
     tags = ["ghdl"],
 )

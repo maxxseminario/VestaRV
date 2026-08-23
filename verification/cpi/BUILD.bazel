@@ -1,0 +1,292 @@
+# The CPI measurement harness: one bazel test per image, each asserting the
+# cycle and instruction counts recorded in expected.json.
+#
+# These are the numbers TRM Section 12 ("Core Performance and Instruction
+# Timing", label s:cpi) publishes. Before this package existed the TRM quoted
+# measurements that no checked-in gate reproduced; the point of every target
+# here is that a core change which moves CPI cannot land unnoticed.
+#
+# ---------------------------------------------------------------------------
+# WHAT IS MEASURED
+# ---------------------------------------------------------------------------
+# vesta_cpi_tb.vhd is opensource_sim/isa/vesta_isa_tb.vhd's bus contract
+# (flat RAM at 0x8000, mem_ready = '1', one cycle of read latency, wen active
+# LOW) with two counters added on the FREE-RUNNING clk, so a cycle spent with
+# the core's clock gated is still charged to CPI. Instructions are counted
+# from dut.inst_retired through a VHDL-2008 external name, which is the same
+# predicate csr_unit increments minstret on, so the instruction count is
+# architectural rather than a simulation estimate and the RTL needs no new
+# port. A store to 0x00004000 is decoded as the kernel window marker, which is
+# how the benchmarks' OWN setStats(1)/setStats(0) calls delimit the measured
+# region with no edit to any benchmark source.
+#
+# ---------------------------------------------------------------------------
+# DEFAULT COVERAGE versus OPT-IN COVERAGE
+# ---------------------------------------------------------------------------
+# DEFAULT (`bazel test //verification/cpi/...`, and therefore `bazel test
+# //...`):
+#   * ALL 36 micro-kernels. They are short, deterministic and cheap, and they
+#     are what Table t:cpi-timing is made of, so nothing about the per-class
+#     table is opt-in.
+#   * The three SHORT benchmarks median, towers and vvadd, each in both the
+#     RV32IMAC and the RV32IMA build, so both the CPI table and the
+#     straddling-fetch claim have a default-gated instance.
+#
+# OPT-IN (`tags = ["manual"]`, size "enormous"; run them with
+# `bazel test //verification/cpi:cpi_full`):
+#   * The six long benchmarks dhrystone, memcpy, multiply, qsort, rsort and
+#     spmv, plus the five long RV32IMA counterparts. spmv alone is about 2.3M
+#     simulated cycles and GHDL's mcode backend runs at roughly 40k cycles a
+#     second, so the full suite is minutes of wall clock. That is the whole
+#     reason for the split: `bazel test //...` stays fast.
+#
+# This is a runtime split, NOT a coverage drop. Every image in expected.json
+# has a target, and :cpi_full runs all of them. The derived tables the TRM
+# prints are checked by :derived_tables_test, which is DEFAULT and reads the
+# recorded counts for every image including the manual ones, so a hand edit of
+# expected.json that no longer adds up is caught without simulating anything.
+#
+# ---------------------------------------------------------------------------
+# RE-RECORDING
+# ---------------------------------------------------------------------------
+# expected.json is a tracked recorded-value gate, the same idiom as
+# tools/randgen/campaign/campaign.json. A DELIBERATE core change re-records it
+# IN THE SAME COMMIT as the RTL change, together with the affected tables of
+# TRM Section 12, so the numbers, the RTL and the document move as one and
+# drift is never silent. A failing target here is therefore either a
+# regression or an un-recorded intentional change; it is never noise.
+
+load("@rules_python//python:defs.bzl", "py_binary", "py_test")
+load("//opensource_sim/isa:defs.bzl", "VESTA_ISA_RTL")
+load("//toolchains/ghdl:defs.bzl", "ghdl_library", "vhdl_source_set")
+load(
+    ":defs.bzl",
+    "MARCH_C",
+    "MARCH_NOC",
+    "cpi_bmark_image",
+    "cpi_micro_image",
+    "cpi_test",
+)
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files([
+    "vesta_cpi_tb.vhd",
+    "expected.json",
+])
+
+_TB_PATH = "verification/cpi/vesta_cpi_tb.vhd"
+
+# The curated analysis order, shared with the ISA regression so that CPI is
+# measured on exactly the core configuration that regression proves. The tail
+# is this package's testbench.
+_ANALYSIS_ORDER = VESTA_ISA_RTL + [_TB_PATH]
+
+vhdl_source_set(
+    name = "vesta_cpi_srcs",
+    paths = VESTA_ISA_RTL,
+    pool = ["//hdl:vhdl_sources"],
+)
+
+# Build-time check that the RTL plus this testbench still analyze clean, in
+# the same spirit as //opensource_sim/isa:vesta_isa_lib. Not consumed by the
+# tests: a GHDL work library is not relocatable across exec roots.
+ghdl_library(
+    name = "vesta_cpi_lib",
+    srcs = [
+        ":vesta_cpi_srcs",
+        "vesta_cpi_tb.vhd",
+    ],
+)
+
+# ---------------------------------------------------------------------------
+# Micro-kernels
+# ---------------------------------------------------------------------------
+# One pair per instruction class: NOPS=64 against NOPS=0, subtracted to remove
+# the loop's own overhead. gen_micro.py explains why every body carries
+# `.p2align 2` and why that is not cosmetic.
+_MICRO_PAIRS = [
+    "alu16",
+    "alu32",
+    "br_nt",
+    "brnotaken",
+    "brtaken",
+    "csrr",
+    "div",
+    "jalrtaken",
+    "jaltaken",
+    "lb",
+    "lw",
+    "mul",
+    "rem",
+    "sb",
+    "shift",
+    "sw",
+    "zbb",
+]
+
+# The linearity control: the same one-cycle body at two lengths, whose
+# difference must be exactly (32 - 16) * ITERS cycles.
+_MICRO_SINGLES = [
+    "alu32lin_16",
+    "alu32lin_32",
+]
+
+_MICRO_KERNELS = [
+    "micro_%s_%d" % (cls, nops)
+    for cls in _MICRO_PAIRS
+    for nops in [64, 0]
+] + ["micro_" + s for s in _MICRO_SINGLES]
+
+py_binary(
+    name = "gen_micro",
+    srcs = ["gen_micro.py"],
+    main = "gen_micro.py",
+)
+
+genrule(
+    name = "micro_sources",
+    outs = ["micro/%s.S" % k for k in _MICRO_KERNELS],
+    cmd = "$(location :gen_micro) $(RULEDIR)/micro",
+    tools = [":gen_micro"],
+)
+
+[
+    cpi_micro_image(name = k)
+    for k in _MICRO_KERNELS
+]
+
+# ---------------------------------------------------------------------------
+# Benchmarks
+# ---------------------------------------------------------------------------
+# The nine riscv-tests benchmarks that run on a bare single hart. mm is
+# deliberately absent and that is not a silent drop: it has no main(), it is a
+# multicore thread_entry benchmark, so it has nothing to measure here.
+#
+# _SHORT run by default; _LONG are the manual ones. spmv has no RV32IMA
+# counterpart, which is why the aggregate of TRM Table t:cpi-align (eight
+# benchmarks) differs from the one in Table t:cpi-bench (nine).
+_SHORT_BENCHMARKS = [
+    "median",
+    "towers",
+    "vvadd",
+]
+
+_LONG_BENCHMARKS = [
+    "dhrystone",
+    "memcpy",
+    "multiply",
+    "qsort",
+    "rsort",
+    "spmv",
+]
+
+_NOC_BENCHMARKS = [
+    b
+    for b in _SHORT_BENCHMARKS + _LONG_BENCHMARKS
+    if b != "spmv"
+]
+
+[
+    cpi_bmark_image(
+        name = b,
+        benchmark = b,
+        march = MARCH_C,
+    )
+    for b in _SHORT_BENCHMARKS + _LONG_BENCHMARKS
+]
+
+[
+    cpi_bmark_image(
+        name = b + "_noc",
+        benchmark = b,
+        march = MARCH_NOC,
+    )
+    for b in _NOC_BENCHMARKS
+]
+
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
+[
+    cpi_test(
+        name = k,
+        image = k + ".rcf",
+        size = "medium",
+        vhdl_paths = _ANALYSIS_ORDER,
+        vhdl_srcs = ":vesta_cpi_srcs",
+    )
+    for k in _MICRO_KERNELS
+]
+
+[
+    cpi_test(
+        name = b,
+        image = b + ".rcf",
+        size = "medium",
+        vhdl_paths = _ANALYSIS_ORDER,
+        vhdl_srcs = ":vesta_cpi_srcs",
+    )
+    for b in _SHORT_BENCHMARKS + [s + "_noc" for s in _SHORT_BENCHMARKS]
+]
+
+[
+    cpi_test(
+        name = b,
+        image = b + ".rcf",
+        size = "enormous",
+        sim_timeout_s = 2400,
+        tags = ["manual"],
+        vhdl_paths = _ANALYSIS_ORDER,
+        vhdl_srcs = ":vesta_cpi_srcs",
+    )
+    for b in _LONG_BENCHMARKS + [
+        s + "_noc"
+        for s in _LONG_BENCHMARKS
+        if s != "spmv"
+    ]
+]
+
+# Arithmetic over the recorded counts: the per-class costs of TRM Table
+# t:cpi-timing, the RV32IMAC/RV32IMA comparison of Table t:cpi-align and the
+# benchmark CPI of Table t:cpi-bench. No simulation, so it is cheap and it
+# covers the manual images too.
+py_test(
+    name = "derived_tables_test",
+    size = "small",
+    srcs = ["derived_tables_test.py"],
+    args = ["$(rootpath expected.json)"],
+    data = ["expected.json"],
+    main = "derived_tables_test.py",
+)
+
+test_suite(
+    name = "micro",
+    tests = [":" + k for k in _MICRO_KERNELS],
+)
+
+test_suite(
+    name = "cpi_default",
+    tests = [
+        ":derived_tables_test",
+        ":micro",
+    ] + [
+        ":" + b
+        for b in _SHORT_BENCHMARKS + [s + "_noc" for s in _SHORT_BENCHMARKS]
+    ],
+)
+
+# Everything, including the manual long benchmarks. Not reachable from
+# `bazel test //...`: a test_suite does not lift its members' manual tag.
+test_suite(
+    name = "cpi_full",
+    tags = ["manual"],
+    tests = [":cpi_default"] + [
+        ":" + b
+        for b in _LONG_BENCHMARKS + [
+            s + "_noc"
+            for s in _LONG_BENCHMARKS
+            if s != "spmv"
+        ]
+    ],
+)

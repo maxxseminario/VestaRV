@@ -16,8 +16,8 @@ Beyond the single core, this repository is a **chip generator**: a family of SoC
 
 **One chip exists in silicon: Myshkin**, a single-core MCU taped out on TSMC 65nm in November 2025. Further multi-core and many-core configurations exist as designs only; none of them has been fabricated.
 
-> 📄 **[Technical Reference Manual — multi-core reference configuration (revised August 7, 2026)](implementations/asic/castalia/docs/TRM.pdf)**  
-> Complete peripheral register reference, system architecture, debug/JTAG chapter, and programming guide for the 4-hart multi-core VestaRV MCU (TSMC 65nm, tape-out-ready). This is the current manual, generated from the chip configuration by `platform/common`.  
+> 📄 **[Technical Reference Manual — multi-core reference configuration (revised August 21, 2026)](implementations/asic/castalia/docs/TRM.pdf)**  
+> Complete peripheral register reference, system architecture, debug/JTAG chapter, and programming guide for the five-hart multi-core VestaRV MCU (TSMC 65nm, tape-out-ready). This is the current manual, generated from the chip configuration by `platform/common`.  
 > Also available: the [Myshkin TRM v1.0.0](implementations/asic/myshkin-2025-11/docs/TRM.pdf), documenting the first VestaRV tape-out (TSMC 65nm, November 2025).
 
 > 🏷️ **Current version: v2.11.0** — the multi-core line.  
@@ -150,9 +150,11 @@ tools/bin/bazel test //...       # first run downloads all toolchains
 That one command is the whole gate set: chip generation and its identity
 gates, the mask-ROM byte-reproducibility gate, every firmware and course-lab
 golden, the 259 ISA test images, the open-source GHDL ISA regression, the
-Python tooling and the docs provenance checks. One target is tagged
-`known_red` for a tracked, adjudicated reason and is filtered out in CI with
-`--test_tag_filters=-known_red`; [`BAZEL.md`](BAZEL.md) names it and says why.
+Python tooling and the docs provenance checks. No target is tagged
+`known_red` today; CI still passes `--test_tag_filters=-known_red` so that a
+future understood-but-unadjudicated red can be tagged rather than left to rot,
+and [`BAZEL.md`](BAZEL.md) records the rule that the tag comes off in the same
+commit that adjudicates the failure.
 
 ### The tooling, by area
 

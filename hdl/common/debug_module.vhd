@@ -145,6 +145,14 @@ architecture rtl of debug_module is
     signal havereset_r: std_logic_vector(NHARTS-1 downto 0);
     signal cmderr_r   : std_logic_vector(2 downto 0);
     signal busy_r     : std_logic;
+    /* abstractauto (0x18), held as the IMPLEMENTED BITS ONLY so the WARL read-back is structural instead of a mask applied at the read site.
+       datacount is 1 and progbufsize is 2, so autoexecdata is the single bit 0 and autoexecprogbuf is the pair 17:16; every other bit of the register is hardwired zero and a write of all ones reads back 0x00030001.
+       An access to a data or program-buffer register whose bit is set re-issues whatever `command` last accepted, which is how a debugger turns one abstract command into a burst. */
+    signal auto_data_r : std_logic;
+    signal auto_pb_r   : std_logic_vector(1 downto 0);
+    -- Set at the ACCEPT of a data0/progbuf access whose autoexec bit is set and consumed when that access retires, so the access itself completes first and the re-issued command starts behind it.
+    -- That order is the whole point of the register: a read returns the value the PREVIOUS execution left, then the next execution begins.
+    signal auto_pend   : std_logic;
     -- halt groups: 3 bits per hart gives 8 groups, group 0 = "no group" = reset value.
     type grp_t is array (0 to NHARTS-1) of std_logic_vector(2 downto 0);
     signal grp_r      : grp_t;
@@ -158,10 +166,15 @@ architecture rtl of debug_module is
     signal sel_halted : std_logic;
     signal sel_running: std_logic;
 
-    -- edge detect on halted, for resumeack / havereset / halt groups
+    -- edge detect on halted, for resumeack and halt groups
     signal halted_d   : std_logic_vector(NHARTS-1 downto 0);
     signal want_halt  : std_logic_vector(NHARTS-1 downto 0);
     signal resume_pend: std_logic_vector(NHARTS-1 downto 0);
+    /* THE HART-RESET OBSERVATION, and it is the only one the DM has: there is no per-hart reset input on this block.
+       hart_unavail(h) is driven at the instantiation site as "isolated OR held in reset", and the power controller wakes a domain in the order rail on, settle, un-isolate, un-reset, so the LAST thing to happen on a wake is reset release.
+       The FALLING EDGE of hart_unavail is therefore exactly the cycle a hart leaves reset, for a power-gated tile and for hart 0's boot gate alike. */
+    signal unavail_d  : std_logic_vector(NHARTS-1 downto 0);
+    signal rst_edge   : std_logic_vector(NHARTS-1 downto 0);
 
     /* ------------------------------------------------------------------
        Master engine
@@ -471,6 +484,9 @@ begin
         sel_halted  <= sel_exists and not sel_unavail and dbg_halted(sel_safe);
         sel_running <= sel_exists and not sel_unavail and not dbg_halted(sel_safe);
 
+        -- One cycle wide, on the release of a hart's reset; it is read in two places and the two must agree exactly, so it is named once here rather than spelled out twice.
+        rst_edge <= (not hart_unavail) and unavail_d;
+
         -- ---- THE RE-ARMED HALT WIRE ---------------------------------
         -- THE SELECTED-HART ARM MUST **OR** THE GROUP TERM, never replace it: replacing makes a pending group halt vanish for as long as the debugger keeps that hart selected with haltreq low, which is a silent selection-dependent drop.
         gen_hw: for h in 0 to NHARTS-1 generate
@@ -647,8 +663,13 @@ begin
                 rsthalt_r   <= (others => '0');
                 resumeack_r <= (others => '0');
                 havereset_r <= (others => '1');   -- every hart has just reset
+                -- Seeded to "every hart was unavailable", which is the value that AGREES with havereset_r above: the first observation of an available hart then reports a reset that has already been reported, and never a phantom one.
+                unavail_d   <= (others => '1');
                 cmderr_r    <= ERR_NONE;
                 busy_r      <= '0';
+                auto_data_r <= '0';
+                auto_pb_r   <= (others => '0');
+                auto_pend   <= '0';
                 grp_pend    <= (others => '0');
                 halted_d    <= (others => '0');
                 resume_pend <= (others => '0');
@@ -682,6 +703,7 @@ begin
                 ready_r  <= '0';          -- the acknowledge is a ONE-CYCLE pulse
                 rsp_arm  <= '0';
                 halted_d <= dbg_halted;
+                unavail_d <= hart_unavail;
                 if rsp_arm = '1' then
                     rsp_valid_r <= '1';
                     rsp_hold    <= RSP_HOLD_CYCLES;
@@ -719,6 +741,12 @@ begin
                         resumeack_r(i) <= '1';
                         resume_pend(i) <= '0';
                         res_busy       <= '0';
+                    end if;
+                    /* A HART THAT LEAVES RESET OWES THE DEBUGGER A REPORT, and this edge is the whole of the DM's evidence for it.
+                       havereset is a LEVEL that stands until the debugger acknowledges it, so a hart power-cycled by the power controller mid-session, or one whose boot gate re-armed, is still reported when the debugger next reads dmstatus.
+                       The bit is set REGARDLESS of dmactive: a reset that happens while the DM is parked is exactly the one a re-attaching debugger has no other way to learn about. */
+                    if rst_edge(i) = '1' then
+                        havereset_r(i) <= '1';
                     end if;
                 end loop;
 
@@ -770,7 +798,31 @@ begin
                         else
                             rsp_data_r <= m_rd_r;
                         end if;
-                        s_state <= S_IDLE;
+                        s_state   <= S_IDLE;
+                        /* THE ABSTRACTAUTO RE-ISSUE, taken here and nowhere else because here is the one place where the proxied access is finished and the master engine is free again.
+                           The guards are the `command` write's own guards applied to the LATCHED word, in the same order and for the same reasons; only the decode checks are dropped, since a word that never passed them was never latched.
+                           A cleared cmderr is a precondition of starting any abstract command, so a standing error simply suppresses the re-issue rather than being overwritten by it. */
+                        auto_pend <= '0';
+                        if auto_pend = '1' then
+                            if cmderr_r /= ERR_NONE then
+                                null;
+                            elsif cmd_r(22 downto 20) /= "010" then
+                                -- No command has ever been accepted, so there is nothing to re-issue; aarsize is the field that says so, because every accepted word carries "010" there and the reset value does not.
+                                cmderr_r <= ERR_NOTSUP;
+                            elsif sel_halted = '0' then
+                                cmderr_r <= ERR_HALTRES;
+                            else
+                                cmd_hart <= sel_safe;
+                                busy_r   <= '1';
+                                step     <= 0;
+                                poll_to  <= 0;
+                                if epi_done = '1' then
+                                    s_state <= S_IMPL;
+                                else
+                                    s_state <= S_EPI;
+                                end if;
+                            end if;
+                        end if;
 
                     -- ---- stream the trampoline into the entry page ----
                     -- Structurally S_EPI with a longer table and a computed exit: same `step`, same m_go_*/m_start handshake, same one-word-per-m_ack cadence.
@@ -926,13 +978,14 @@ begin
                         if poll_to < POLL_LIMIT then
                             poll_to <= poll_to + 1;
                         end if;
+                        /* A SUCCESSFUL COMPLETION DOES NOT CLEAR cmderr, and the two success arms below are silent about it on purpose.
+                           cmderr is sticky and write-1-to-clear, and no command is ever STARTED with one standing, so a non-zero value seen here can only have been raised DURING this command: by a data0, progbuf, abstractauto or `command` access the debugger issued too early.
+                           Clearing it on the way out would swallow exactly the report that tells that debugger its access was refused, which is the one case where a burst driven by abstractauto silently loses a datum. */
                         if m_ack = '1' then
                             if m_rd_r = conv_std_logic_vector(TOK_DONE, 32) then
-                                cmderr_r <= ERR_NONE;
                                 s_state  <= S_FIN;
                             elsif m_rd_r = conv_std_logic_vector(TOK_PBDONE, 32) then
                                 -- A PROGRAM-BUFFER completion, accepted exactly where DONE is and nowhere else, and as transient as DONE.
-                                cmderr_r <= ERR_NONE;
                                 s_state  <= S_FIN;
                             elsif m_rd_r = conv_std_logic_vector(TOK_HALTED, 32) then
                                 cmderr_r <= ERR_EXCEPT;
@@ -1030,6 +1083,13 @@ begin
                                 tramp_arm   <= '0';
                                 tramp_halt  <= '0';
                                 epi_done    <= '0';
+                                -- abstractauto is pure DM configuration whose reset value is zero, and a stale autoexec bit surviving a DM reset would fire a stale command on the next data0 access, so it clears here with the rest.
+                                auto_data_r <= '0';
+                                auto_pb_r   <= (others => '0');
+                                auto_pend   <= '0';
+                                /* havereset DELIBERATELY DOES NOT CLEAR HERE, and it is the one piece of state in this list that does not.
+                                   Its reset value is all-ones because that value is a claim ABOUT THE HARTS ("every hart has just reset"), true after a chip reset and false after a debugger merely parks and re-arms the DM.
+                                   This block observes hart reset directly through hart_unavail, so it can report the truth instead of the conservative assumption, and asserting the assumption here would manufacture reset reports for harts that never reset. */
                             else
                                 -- THE RISE, and only the rise: every dmstatus poll writes dmcontrol with dmactive set, so a plant armed on the LEVEL would re-arm forever and pin the master engine.
                                 if dmactive = '0' then
@@ -1047,8 +1107,10 @@ begin
                                         resume_pend(hs) <= '1';
                                         resumeack_r(hs) <= '0';
                                     end if;
-                                    -- ackhavereset clears the selected hart's havereset bit.
-                                    if d(28) = '1' then
+                                    /* ackhavereset clears the selected hart's havereset bit, and the SET WINS a same-cycle race against it.
+                                       This decode runs later in the process than the reset-edge bookkeeping above, so a plain assignment here would silently beat it and drop the report of a reset the debugger has not seen yet.
+                                       The acknowledge answers the reset the debugger has ALREADY read out of dmstatus; a reset landing in the very cycle of the acknowledge is a newer one and must stand. */
+                                    if d(28) = '1' and rst_edge(hs) = '0' then
                                         havereset_r(hs) <= '0';
                                     end if;
                                 end if;
@@ -1134,9 +1196,22 @@ begin
                             rsp_data_r <= rsp;
                         end if;
 
-                    -- abstractauto (0x18) is not implemented and reads zero.
+                    /* abstractauto (0x18): autoexecdata is bit 0 and autoexecprogbuf is bits 17:16, because datacount is 1 and progbufsize is 2.
+                       Every other bit is hardwired zero, so this is WARL by construction: an all-ones write reads back 0x00030001 and no unimplemented data or progbuf word can ever be armed.
+                       A WRITE ARRIVING WHILE A COMMAND EXECUTES DOES NOT LAND and reports cmderr = BUSY, the same rule the data and progbuf registers already follow; re-arming the trigger under a running command is exactly the race the rule exists to refuse. */
                     elsif a = A_ABSTAUTO then
-                        rsp_data_r <= (others => '0');      -- read-zero
+                        if wr then
+                            if busy_r = '1' then
+                                cmderr_r <= ERR_BUSY;
+                            else
+                                auto_data_r <= d(0);
+                                auto_pb_r   <= d(17 downto 16);
+                            end if;
+                        else
+                            rsp(0)            := auto_data_r;
+                            rsp(17 downto 16) := auto_pb_r;
+                            rsp_data_r <= rsp;
+                        end if;
 
                     -- dmcs2 (0x32): the halt-group assignment of the selected hart.
                     elsif a = A_DMCS2 then
@@ -1196,6 +1271,15 @@ begin
                             cmderr_r   <= ERR_BUSY;
                             rsp_data_r <= (others => '0');
                         else
+                            -- ABSTRACTAUTO ARMS HERE AND FIRES AT THE RETIRE, so this access is answered from the backing word as it stands and the re-issued command runs afterwards.
+                            -- Reads and writes arm it alike, which is what the debug specification asks for: a read burst pulls results out and a write burst pushes operands in, and both need the command run once per access.
+                            if (a = A_DATA0    and auto_data_r = '1')
+                               or (a = A_PROGBUF0 and auto_pb_r(0) = '1')
+                               or (a = A_PROGBUF1 and auto_pb_r(1) = '1') then
+                                auto_pend <= '1';
+                            else
+                                auto_pend <= '0';
+                            end if;
                             rsp_arm     <= '0';
                             rsp_valid_r <= '0';
                             rsp_hold    <= 0;

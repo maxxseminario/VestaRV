@@ -148,12 +148,22 @@ Components in this directory are used by multiple modules across the design.
 ## Top-Level Integration — `MCU.vhd`
 
 `MCU.vhd` wires together:
-- The VestaRV core
-- Generic ROM and SRAM instances 
-- All peripheral instances
+- One tile per hart. In the Castalia configuration that is `orch_tile.vhd` for
+  hart 0 (the always-on soft orchestrator, which keeps the full chip ISA) and
+  four instances of `hart_tile.vhd` for harts 1-4 (the hardened, individually
+  gateable rv32iac channel tiles). A configuration with `orchestrator = false`
+  emits every hart as a `hart_tile` instead.
+- The shared-window fabric: `mp_arbiter.vhd` (round-robin serializing arbiter)
+  and `resv_unit.vhd` (the global LR/SC reservation table)
+- The shared boot ROM and the shared bulk / NPU-staging SRAM instances
+- All peripheral instances, plus the shared-window blocks `clint.vhd`,
+  `mutex_bank.vhd`, `irq_router.vhd`, `pwr_ctrl.vhd` and `afe_stub.vhd`
+- The debug transport, when `debug.enable` is set: `debug_module.vhd` and
+  `jtag_dtm.vhd`
 - The address decoder (`adddec.vhd`)
 - Pad cells (for ASIC implementation)
-- Clock and reset distribution
+- Clock and reset distribution, including the per-tile MTCMOS gate/wake
+  sequencing
 - IRQ aggregation
 
 The port list of `MCU` directly maps to physical chip pads and is the entry point for both FPGA and testbench instantiation.

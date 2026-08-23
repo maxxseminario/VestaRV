@@ -84,7 +84,7 @@ Use descriptive names that include key identifiers:
 
 ### ASIC
 - **[myshkin-2025-11](asic/myshkin-2025-11/)** — single-core TSMC 65nm tape-out with NPU accelerator and analog front-end (November 2025). Silicon validated; potentiostat design won a best paper award at IEEE ISCAS 2026.
-- **[castalia](asic/castalia/)** — 4-hart multiprocessor derived from the same VestaRV core; digital-only configuration, signoff-closed tile and MCU.
+- **[castalia](asic/castalia/)** — 5-hart wound-monitoring MCU derived from the same VestaRV core: hart 0 is a soft always-on orchestrator, harts 1-4 are four instances of one hardened rv32iac channel tile; signoff-closed tile and MCU.
 - **[argus](asic/argus/)** — 18-hart teaching chip built from the identical hart tile as a 3×3 tile array; generated from `config/argus.json`.
 
 All three chips are produced from one config-driven generator (`platform/common/`); see

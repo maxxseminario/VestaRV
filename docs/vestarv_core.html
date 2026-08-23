@@ -502,7 +502,7 @@ push({id:"resloc",x:70,y:772,w:270,h:64,cls:"atom",t:"local reservation",s:"rese
 push({id:"amoif",x:370,y:772,w:320,h:64,cls:"atom",t:"LR/SC & AMO interface",s:"lr_sc_bus · amo_lock out",a:"sc_fail_ext in",
   cap:"The core's atomic interface to the shared fabric: lr_sc_bus tags the current access (01=LR read, 10=SC write attempt), amo_lock stays high across the whole AMO read-modify-write so the arbiter pins the grant (cross-hart AMO atomicity), and sc_fail_ext returns the global SC verdict which folds into the SC success/fail result."});
 push({id:"resvext",x:730,y:772,w:340,h:64,cls:"atom",dash:true,t:"resv_unit  (shared fabric)",s:"global LR/SC table @ arbiter",a:"external — see Figure 2",
-  cap:"Not part of the core: the global reservation unit sits between the arbiter and shared RAM. It tracks a reservation per master, kills reservations on any matching committed write, and returns sc_fail to the losing hart. This is what makes LR/SC correct across all four harts. See Figure 2 (Castalia SoC)."});
+  cap:"Not part of the core: the global reservation unit sits between the arbiter and shared RAM. It tracks a reservation per master, kills reservations on any matching committed write, and returns sc_fail to the losing hart. This is what makes LR/SC correct across every hart. See Figure 2 (Castalia SoC)."});
 
 /* ================= links (orthogonal routing in clear channels) ================= */
 const L=[];

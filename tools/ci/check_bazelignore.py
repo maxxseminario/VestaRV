@@ -54,6 +54,11 @@ REQUIRED_ENTRIES = (
     "logo",
     ".cadence",
     ".devlog",
+    # Agent worktrees, each a full second checkout of this repo. Dropping this
+    # one does not cost a slow crawl so much as a WRONG graph: every BUILD file
+    # is found twice, "//..." doubles, and targets resolve against a tree that
+    # is not the one being edited.
+    ".claude",
     # Generated trees inside bazelified areas.
     "docs/publications",
     "verification/isa/build",

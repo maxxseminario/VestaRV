@@ -37,32 +37,47 @@ py_binary(
 # RANDGEN_GCC names the staged driver; test_randgen derives RISCV_PREFIX from
 # it, which is the variable census.py has always read.
 #
-# TWO INPUTS ARE STILL UNREACHABLE, both owned by other packages:
+# TWO INPUTS OWNED BY OTHER PACKAGES WERE ONCE STAGED BY HAND. Both are now
+# declared labels in `data` below, and this test runs sandboxed with nothing
+# read out of the source tree:
 #
 #  1. config.load()'s default is the TRACKED
 #     platform/common/config/ChipConfig.resolved.json. //platform/common
 #     excludes it from :config_srcs (it is generator output, not input) and
 #     :castalia_resolved_config is the REGENERATED copy at a bazel-out path,
-#     which config.py cannot resolve. A public label for the tracked file is
-#     needed.
+#     which config.py cannot resolve. //platform/common:tracked_resolved_config
+#     is the public label for the tracked file.
 #  2. verification/isa/macros/scalar/*.h. _compile_stream passes
 #     -I<repo>/verification/isa/../env/p, and a path with a '..' component
 #     resolves only if verification/isa exists in the runfiles tree, so
 #     without those headers even the staged env/p headers are unreachable.
-#     //verification/isa needs a public filegroup over macros/scalar/*.h.
+#     //verification/isa:scalar_macros is that filegroup; staging it also
+#     materialises verification/isa/ so the '..' path resolves.
 #
-# Measured: with exactly those two staged by hand this test scores 42/43,
-# identical to the standalone run (the one failure is pre-existing at HEAD --
-# campaign.json's recorded asm_sha1 no longer matches what the current
-# resolved config generates for stream k3s01).
+# THE k3s01 PIN WAS ADJUDICATED 2026-08-23: BENIGN CONFIG DRIFT, RE-RECORDED.
+# The campaign was recorded 2026-08-03 at 5a0cc19 against config digest
+# 9ca2e20fb3d2 (priv=(none) harts=4). Two later default flips moved it to
+# 1ffadbaf4c85:
+#   * 52130ac (2026-08-04) K7 item 1 -- priv.trapCsr false -> true, which also
+#     turns image_defines into ["-DCORE_ENABLE_TRAPCSR"],
+#   * e9ece88 / 1af1953 (2026-08-14/15) Castalia Penta -- numHarts 4 -> 5.
+# (isa.minimalTiles, also set by 1af1953, is NOT in oracle_isa._REQUIRED_ISA,
+# so it reaches neither the knob line nor the digest.)
 #
-# That one failure makes this target KNOWN RED at HEAD, so it carries
-# tags = ["known_red"] and CI filters it out with
-# --test_tag_filters=-known_red. The tag is not a verdict on the drift: it
-# only keeps a pre-existing, already-understood red out of an otherwise green
-# "bazel test //...". It comes off in the same commit that adjudicates the
-# k3s01 pin, whichever way that goes -- re-record the campaign hash, or fix
-# what moved underneath it.
+# Measured before re-recording, which is what makes this benign rather than
+# assumed: rebuilding all six streams with the CURRENT generator against the
+# 2026-08-03 resolved config reproduces all six recorded hashes byte for byte,
+# and diffing old-config against new-config output moves exactly ONE line in
+# each of the eight tracked default-config .S files -- the `# config :`
+# reproduction comment. No instruction, no class count, no total, no blocked
+# class and no required amendment moved. Neither numHarts nor trapCsr reaches
+# an emitter (numHarts appears only in identity/digest/manifest; trapCsr is
+# oracle verdict B and only adds itself to knobs_on_without_emitter).
+#
+# The recorded "one failure" was itself an artefact: the eq() sat inside the
+# per-stream loop, so it aborted on k3s01 and hid that all six had moved. The
+# test now diagnoses the config digest first and lists every moved stream, and
+# both arms were seen to fail before the tag came off.
 py_test(
     name = "test_randgen",
     size = "large",
@@ -85,6 +100,5 @@ py_test(
     ],
     env = {"RANDGEN_GCC": "$(rootpath @xpack_riscv_gcc//:gcc)"},
     main = "test_randgen.py",
-    tags = ["known_red"],
     deps = [":randgen_lib"],
 )

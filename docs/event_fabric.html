@@ -783,7 +783,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
       a live reconfiguration.</p>
     <p class="prose">Why <span class="vesta-mono">CHENSET</span>/<span class="vesta-mono">CHENCLR</span>
       exist at all, instead of a plain read-modify-write of <span class="vesta-mono">CHEN</span>: on a
-      4-hart chip, two harts enabling different channels at the same moment would race on a
+      multi-hart chip, two harts enabling different channels at the same moment would race on a
       read-modify-write and one write could silently lose the other&rsquo;s bit. The set/clear alias
       registers are write-1-to-act, so hart&nbsp;A setting bit&nbsp;2 and hart&nbsp;B setting bit&nbsp;5
       in the same cycle both land, with no read step to race on.</p>
@@ -908,7 +908,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
         <code>CHEN(n)&#8239;=&#8239;0</code>. Only then set the channel&rsquo;s bit via
         <code>EVFCHENSET</code> and, once, <code>EVFCR.EN</code>.</p></li>
       <li><b>Enable and disable through CHENSET/CHENCLR, never a read-modify-write of CHEN.</b>
-        <p>The write-1-to-act idiom is what makes enabling channels safe across four harts with no
+        <p>The write-1-to-act idiom is what makes enabling channels safe across harts with no
         locking.</p></li>
       <li><b>Give a write 3 mclk before you trust a readback.</b><p><code>CHTRIG</code>/<code>EVTRIG</code>/W1C
         writes take effect 3 clock edges after their bus window opens (2 sync + 1 apply). At

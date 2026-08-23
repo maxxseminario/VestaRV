@@ -1,0 +1,609 @@
+{
+  "_readme": [
+    "Recorded CPI measurements for the VestaRV core. These are the numbers TRM",
+    "Section 12 (\\label{s:cpi}) publishes, and //verification/cpi asserts them",
+    "against the RTL on every bazel test run.",
+    "",
+    "`images` is RAW: four counters per image, taken from the CPIRESULT line",
+    "vesta_cpi_tb prints. Each is proven by its own cpi_test target, EXACTLY,",
+    "with no tolerance. The simulation is deterministic, so any difference is a",
+    "real change in what the core does.",
+    "",
+    "Everything else is DERIVED from `images` by the same arithmetic the TRM",
+    "prints, and is recorded so a reader can diff this file against the TRM by",
+    "eye. derived_tables_test.py proves the derived half follows from the raw",
+    "half; it needs no simulation, so it covers the manual long-benchmark",
+    "images too.",
+    "",
+    "RE-RECORDING. A DELIBERATE core change re-records this file IN THE SAME",
+    "COMMIT as the RTL change, together with the affected tables of TRM",
+    "Section 12. The counts, the RTL and the document move as one, so a CPI",
+    "change is always visible in the diff and drift is never silent. A failing",
+    "target here is therefore either a regression or an un-recorded intentional",
+    "change; it is never noise. See verification/cpi/README.md."
+  ],
+  "harness": {
+    "testbench": "verification/cpi/vesta_cpi_tb.vhd",
+    "simulator": "@ghdl//:ghdl, --std=08 -fsynopsys, mcode backend",
+    "toolchain": "@xpack_riscv_gcc, xPack riscv-none-elf-gcc 13.2.0-2",
+    "march": "rv32imac_zicsr_zba_zbb_zbc_zbs",
+    "march_noc": "rv32ima_zicsr_zba_zbb_zbc_zbs",
+    "benchmark_opts": "-O2 -ffast-math -DPREALLOCATE=1, see //verification/cpi:defs.bzl",
+    "measured_region": "the setStats() kernel window, so startup, the PREALLOCATE warm-up pass and result verification are excluded",
+    "cycle_source": "the free-running clk, so a cycle with the core clock gated is still charged",
+    "instruction_source": "dut.inst_retired, the same predicate csr_unit increments minstret on",
+    "trm_section": "platform/common/latex/TRM.template.tex, \\section{Core Performance and Instruction Timing}, \\label{s:cpi}"
+  },
+  "images": {
+    "dhrystone": {
+      "status": "PASS",
+      "cyc_total": 359499,
+      "ins_total": 211726,
+      "cyc_kernel": 345028,
+      "ins_kernel": 200523
+    },
+    "dhrystone_noc": {
+      "status": "PASS",
+      "cyc_total": 311370,
+      "ins_total": 211726,
+      "cyc_kernel": 297026,
+      "ins_kernel": 200523
+    },
+    "median": {
+      "status": "PASS",
+      "cyc_total": 15326,
+      "ins_total": 10056,
+      "cyc_kernel": 5946,
+      "ins_kernel": 4015
+    },
+    "median_noc": {
+      "status": "PASS",
+      "cyc_total": 14048,
+      "ins_total": 10056,
+      "cyc_kernel": 5610,
+      "ins_kernel": 4015
+    },
+    "memcpy": {
+      "status": "PASS",
+      "cyc_total": 53077,
+      "ins_total": 31065,
+      "cyc_kernel": 19020,
+      "ins_kernel": 11017
+    },
+    "memcpy_noc": {
+      "status": "PASS",
+      "cyc_total": 47069,
+      "ins_total": 31065,
+      "cyc_kernel": 19018,
+      "ins_kernel": 11017
+    },
+    "micro_alu16_0": {
+      "status": "PASS",
+      "cyc_total": 6020,
+      "ins_total": 6017,
+      "cyc_kernel": 6003,
+      "ins_kernel": 6002
+    },
+    "micro_alu16_64": {
+      "status": "PASS",
+      "cyc_total": 134020,
+      "ins_total": 134017,
+      "cyc_kernel": 134003,
+      "ins_kernel": 134002
+    },
+    "micro_alu32_0": {
+      "status": "PASS",
+      "cyc_total": 6020,
+      "ins_total": 6017,
+      "cyc_kernel": 6003,
+      "ins_kernel": 6002
+    },
+    "micro_alu32_64": {
+      "status": "PASS",
+      "cyc_total": 134023,
+      "ins_total": 134017,
+      "cyc_kernel": 134004,
+      "ins_kernel": 134002
+    },
+    "micro_alu32lin_16": {
+      "status": "PASS",
+      "cyc_total": 38020,
+      "ins_total": 38017,
+      "cyc_kernel": 38003,
+      "ins_kernel": 38002
+    },
+    "micro_alu32lin_32": {
+      "status": "PASS",
+      "cyc_total": 70020,
+      "ins_total": 70017,
+      "cyc_kernel": 70003,
+      "ins_kernel": 70002
+    },
+    "micro_br_nt_0": {
+      "status": "PASS",
+      "cyc_total": 6020,
+      "ins_total": 6017,
+      "cyc_kernel": 6003,
+      "ins_kernel": 6002
+    },
+    "micro_br_nt_64": {
+      "status": "PASS",
+      "cyc_total": 134023,
+      "ins_total": 134017,
+      "cyc_kernel": 134004,
+      "ins_kernel": 134002
+    },
+    "micro_brnotaken_0": {
+      "status": "PASS",
+      "cyc_total": 6020,
+      "ins_total": 6017,
+      "cyc_kernel": 6003,
+      "ins_kernel": 6002
+    },
+    "micro_brnotaken_64": {
+      "status": "PASS",
+      "cyc_total": 262023,
+      "ins_total": 262017,
+      "cyc_kernel": 262004,
+      "ins_kernel": 262002
+    },
+    "micro_brtaken_0": {
+      "status": "PASS",
+      "cyc_total": 6020,
+      "ins_total": 6017,
+      "cyc_kernel": 6003,
+      "ins_kernel": 6002
+    },
+    "micro_brtaken_64": {
+      "status": "PASS",
+      "cyc_total": 134023,
+      "ins_total": 134017,
+      "cyc_kernel": 134004,
+      "ins_kernel": 134002
+    },
+    "micro_csrr_0": {
+      "status": "PASS",
+      "cyc_total": 6020,
+      "ins_total": 6017,
+      "cyc_kernel": 6003,
+      "ins_kernel": 6002
+    },
+    "micro_csrr_64": {
+      "status": "PASS",
+      "cyc_total": 134023,
+      "ins_total": 134017,
+      "cyc_kernel": 134004,
+      "ins_kernel": 134002
+    },
+    "micro_div_0": {
+      "status": "PASS",
+      "cyc_total": 770,
+      "ins_total": 767,
+      "cyc_kernel": 753,
+      "ins_kernel": 752
+    },
+    "micro_div_64": {
+      "status": "PASS",
+      "cyc_total": 576773,
+      "ins_total": 16767,
+      "cyc_kernel": 576754,
+      "ins_kernel": 16752
+    },
+    "micro_jalrtaken_0": {
+      "status": "PASS",
+      "cyc_total": 6020,
+      "ins_total": 6017,
+      "cyc_kernel": 6003,
+      "ins_kernel": 6002
+    },
+    "micro_jalrtaken_64": {
+      "status": "PASS",
+      "cyc_total": 390023,
+      "ins_total": 390017,
+      "cyc_kernel": 390004,
+      "ins_kernel": 390002
+    },
+    "micro_jaltaken_0": {
+      "status": "PASS",
+      "cyc_total": 6020,
+      "ins_total": 6017,
+      "cyc_kernel": 6003,
+      "ins_kernel": 6002
+    },
+    "micro_jaltaken_64": {
+      "status": "PASS",
+      "cyc_total": 134023,
+      "ins_total": 134017,
+      "cyc_kernel": 134004,
+      "ins_kernel": 134002
+    },
+    "micro_lb_0": {
+      "status": "PASS",
+      "cyc_total": 6020,
+      "ins_total": 6017,
+      "cyc_kernel": 6003,
+      "ins_kernel": 6002
+    },
+    "micro_lb_64": {
+      "status": "PASS",
+      "cyc_total": 262023,
+      "ins_total": 134017,
+      "cyc_kernel": 262004,
+      "ins_kernel": 134002
+    },
+    "micro_lw_0": {
+      "status": "PASS",
+      "cyc_total": 6020,
+      "ins_total": 6017,
+      "cyc_kernel": 6003,
+      "ins_kernel": 6002
+    },
+    "micro_lw_64": {
+      "status": "PASS",
+      "cyc_total": 262020,
+      "ins_total": 134017,
+      "cyc_kernel": 262003,
+      "ins_kernel": 134002
+    },
+    "micro_mul_0": {
+      "status": "PASS",
+      "cyc_total": 6020,
+      "ins_total": 6017,
+      "cyc_kernel": 6003,
+      "ins_kernel": 6002
+    },
+    "micro_mul_64": {
+      "status": "PASS",
+      "cyc_total": 134023,
+      "ins_total": 134017,
+      "cyc_kernel": 134004,
+      "ins_kernel": 134002
+    },
+    "micro_rem_0": {
+      "status": "PASS",
+      "cyc_total": 770,
+      "ins_total": 767,
+      "cyc_kernel": 753,
+      "ins_kernel": 752
+    },
+    "micro_rem_64": {
+      "status": "PASS",
+      "cyc_total": 576773,
+      "ins_total": 16767,
+      "cyc_kernel": 576754,
+      "ins_kernel": 16752
+    },
+    "micro_sb_0": {
+      "status": "PASS",
+      "cyc_total": 6020,
+      "ins_total": 6017,
+      "cyc_kernel": 6003,
+      "ins_kernel": 6002
+    },
+    "micro_sb_64": {
+      "status": "PASS",
+      "cyc_total": 262023,
+      "ins_total": 134017,
+      "cyc_kernel": 262004,
+      "ins_kernel": 134002
+    },
+    "micro_shift_0": {
+      "status": "PASS",
+      "cyc_total": 6020,
+      "ins_total": 6017,
+      "cyc_kernel": 6003,
+      "ins_kernel": 6002
+    },
+    "micro_shift_64": {
+      "status": "PASS",
+      "cyc_total": 134023,
+      "ins_total": 134017,
+      "cyc_kernel": 134004,
+      "ins_kernel": 134002
+    },
+    "micro_sw_0": {
+      "status": "PASS",
+      "cyc_total": 6020,
+      "ins_total": 6017,
+      "cyc_kernel": 6003,
+      "ins_kernel": 6002
+    },
+    "micro_sw_64": {
+      "status": "PASS",
+      "cyc_total": 262020,
+      "ins_total": 134017,
+      "cyc_kernel": 262003,
+      "ins_kernel": 134002
+    },
+    "micro_zbb_0": {
+      "status": "PASS",
+      "cyc_total": 6020,
+      "ins_total": 6017,
+      "cyc_kernel": 6003,
+      "ins_kernel": 6002
+    },
+    "micro_zbb_64": {
+      "status": "PASS",
+      "cyc_total": 134023,
+      "ins_total": 134017,
+      "cyc_kernel": 134004,
+      "ins_kernel": 134002
+    },
+    "multiply": {
+      "status": "PASS",
+      "cyc_total": 49857,
+      "ins_total": 42330,
+      "cyc_kernel": 24393,
+      "ins_kernel": 20892
+    },
+    "multiply_noc": {
+      "status": "PASS",
+      "cyc_total": 43148,
+      "ins_total": 42330,
+      "cyc_kernel": 21193,
+      "ins_kernel": 20892
+    },
+    "qsort": {
+      "status": "PASS",
+      "cyc_total": 379843,
+      "ins_total": 223882,
+      "cyc_kernel": 211819,
+      "ins_kernel": 123205
+    },
+    "qsort_noc": {
+      "status": "PASS",
+      "cyc_total": 296569,
+      "ins_total": 223882,
+      "cyc_kernel": 163889,
+      "ins_kernel": 123205
+    },
+    "rsort": {
+      "status": "PASS",
+      "cyc_total": 493933,
+      "ins_total": 321811,
+      "cyc_kernel": 224414,
+      "ins_kernel": 146548
+    },
+    "rsort_noc": {
+      "status": "PASS",
+      "cyc_total": 452923,
+      "ins_total": 321811,
+      "cyc_kernel": 206983,
+      "ins_kernel": 146548
+    },
+    "spmv": {
+      "status": "PASS",
+      "cyc_total": 2342957,
+      "ins_total": 1620445,
+      "cyc_kernel": 1161561,
+      "ins_kernel": 802447
+    },
+    "towers": {
+      "status": "PASS",
+      "cyc_total": 14194,
+      "ins_total": 7870,
+      "cyc_kernel": 6823,
+      "ins_kernel": 3747
+    },
+    "towers_noc": {
+      "status": "PASS",
+      "cyc_total": 13114,
+      "ins_total": 7870,
+      "cyc_kernel": 6297,
+      "ins_kernel": 3747
+    },
+    "vvadd": {
+      "status": "PASS",
+      "cyc_total": 9828,
+      "ins_total": 6356,
+      "cyc_kernel": 3609,
+      "ins_kernel": 2408
+    },
+    "vvadd_noc": {
+      "status": "PASS",
+      "cyc_total": 8768,
+      "ins_total": 6356,
+      "cyc_kernel": 3309,
+      "ins_kernel": 2408
+    }
+  },
+  "instruction_classes": {
+    "alu16": {
+      "trm_row": "Arithmetic and logical, compressed 2-byte encoding",
+      "delta_cycles": 128000,
+      "delta_instructions": 128000,
+      "cycles_per_instruction": 1.0
+    },
+    "alu32": {
+      "trm_row": "Arithmetic and logical (add, andi, lui, auipc)",
+      "delta_cycles": 128001,
+      "delta_instructions": 128000,
+      "cycles_per_instruction": 1.0
+    },
+    "br_nt": {
+      "trm_row": "Conditional branch, not taken, no redirect",
+      "delta_cycles": 128001,
+      "delta_instructions": 128000,
+      "cycles_per_instruction": 1.0
+    },
+    "brnotaken": {
+      "trm_row": "Conditional branch, not taken, skipped instruction retires",
+      "delta_cycles": 256001,
+      "delta_instructions": 256000,
+      "cycles_per_instruction": 1.0
+    },
+    "brtaken": {
+      "trm_row": "Conditional branch, taken, target differs from PC+4",
+      "delta_cycles": 128001,
+      "delta_instructions": 128000,
+      "cycles_per_instruction": 1.0
+    },
+    "csrr": {
+      "trm_row": "CSR read (csrr)",
+      "delta_cycles": 128001,
+      "delta_instructions": 128000,
+      "cycles_per_instruction": 1.0
+    },
+    "div": {
+      "trm_row": "Divide and remainder (M): div, divu",
+      "delta_cycles": 576001,
+      "delta_instructions": 16000,
+      "cycles_per_instruction": 36.0
+    },
+    "jalrtaken": {
+      "trm_row": "Jump and link register (jalr)",
+      "delta_cycles": 384001,
+      "delta_instructions": 384000,
+      "cycles_per_instruction": 1.0
+    },
+    "jaltaken": {
+      "trm_row": "Jump and link (jal)",
+      "delta_cycles": 128001,
+      "delta_instructions": 128000,
+      "cycles_per_instruction": 1.0
+    },
+    "lb": {
+      "trm_row": "Load (lb), byte",
+      "delta_cycles": 256001,
+      "delta_instructions": 128000,
+      "cycles_per_instruction": 2.0
+    },
+    "lw": {
+      "trm_row": "Load (lw), word",
+      "delta_cycles": 256000,
+      "delta_instructions": 128000,
+      "cycles_per_instruction": 2.0
+    },
+    "mul": {
+      "trm_row": "Multiply (M): mul, mulh, mulhu, mulhsu",
+      "delta_cycles": 128001,
+      "delta_instructions": 128000,
+      "cycles_per_instruction": 1.0
+    },
+    "rem": {
+      "trm_row": "Divide and remainder (M): rem, remu",
+      "delta_cycles": 576001,
+      "delta_instructions": 16000,
+      "cycles_per_instruction": 36.0
+    },
+    "sb": {
+      "trm_row": "Store (sb), byte",
+      "delta_cycles": 256001,
+      "delta_instructions": 128000,
+      "cycles_per_instruction": 2.0
+    },
+    "shift": {
+      "trm_row": "Shift (sll, srl, sra and immediate forms)",
+      "delta_cycles": 128001,
+      "delta_instructions": 128000,
+      "cycles_per_instruction": 1.0
+    },
+    "sw": {
+      "trm_row": "Store (sw), word",
+      "delta_cycles": 256000,
+      "delta_instructions": 128000,
+      "cycles_per_instruction": 2.0
+    },
+    "zbb": {
+      "trm_row": "Bit manipulation (Zba, Zbb, Zbc, Zbs)",
+      "delta_cycles": 128001,
+      "delta_instructions": 128000,
+      "cycles_per_instruction": 1.0
+    }
+  },
+  "linearity": {
+    "short_image": "micro_alu32lin_16",
+    "long_image": "micro_alu32lin_32",
+    "delta_cycles": 32000,
+    "delta_instructions": 32000
+  },
+  "benchmark_cpi": {
+    "AGGREGATE": {
+      "instructions": 1314802,
+      "cpi": 1.523
+    },
+    "dhrystone": {
+      "instructions": 200523,
+      "cpi": 1.721
+    },
+    "median": {
+      "instructions": 4015,
+      "cpi": 1.481
+    },
+    "memcpy": {
+      "instructions": 11017,
+      "cpi": 1.726
+    },
+    "multiply": {
+      "instructions": 20892,
+      "cpi": 1.168
+    },
+    "qsort": {
+      "instructions": 123205,
+      "cpi": 1.719
+    },
+    "rsort": {
+      "instructions": 146548,
+      "cpi": 1.531
+    },
+    "spmv": {
+      "instructions": 802447,
+      "cpi": 1.448
+    },
+    "towers": {
+      "instructions": 3747,
+      "cpi": 1.821
+    },
+    "vvadd": {
+      "instructions": 2408,
+      "cpi": 1.499
+    }
+  },
+  "straddling_fetch": {
+    "AGGREGATE": {
+      "cpi_c": 1.642,
+      "cpi_noc": 1.412,
+      "cycles_lost_pct": 14.0
+    },
+    "dhrystone": {
+      "cpi_c": 1.721,
+      "cpi_noc": 1.481,
+      "cycles_lost_pct": 13.9
+    },
+    "median": {
+      "cpi_c": 1.481,
+      "cpi_noc": 1.397,
+      "cycles_lost_pct": 5.7
+    },
+    "memcpy": {
+      "cpi_c": 1.726,
+      "cpi_noc": 1.726,
+      "cycles_lost_pct": 0.0
+    },
+    "multiply": {
+      "cpi_c": 1.168,
+      "cpi_noc": 1.014,
+      "cycles_lost_pct": 13.1
+    },
+    "qsort": {
+      "cpi_c": 1.719,
+      "cpi_noc": 1.33,
+      "cycles_lost_pct": 22.6
+    },
+    "rsort": {
+      "cpi_c": 1.531,
+      "cpi_noc": 1.412,
+      "cycles_lost_pct": 7.8
+    },
+    "towers": {
+      "cpi_c": 1.821,
+      "cpi_noc": 1.681,
+      "cycles_lost_pct": 7.7
+    },
+    "vvadd": {
+      "cpi_c": 1.499,
+      "cpi_noc": 1.374,
+      "cycles_lost_pct": 8.3
+    }
+  }
+}

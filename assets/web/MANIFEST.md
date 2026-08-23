@@ -17,8 +17,8 @@ Generated 2026-07-16 by work package S5 (imagery pipeline).
 |-----------------------|------------------------------------|-------|
 | `gallery-die-shot`    | `die_shot_myshkin_labeled.png`     | Labeled Myshkin single-core die photograph — the hero image. |
 | `gallery-tile-layout` | `layout_hart_tile.png`             | One hardened `hart_tile` (RISC-V core + TCM SRAM) — the replicated unit. |
-| `gallery-mcu-layout`  | `layout_castalia_mcu_assembly.png` | Castalia 4-hart MCU core assembly (4 tiles + shared bulk-RAM bank row). |
-| `gallery-chip-top`    | `layout_castalia_chip_top.png`     | Castalia `chip_top` — the 4-hart assembly inside the connected pad ring. |
+| `gallery-mcu-layout`  | `layout_castalia_mcu_assembly.png` | Castalia MCU core assembly (the four hardened tiles + shared bulk-RAM bank row). |
+| `gallery-chip-top`    | `layout_castalia_chip_top.png`     | Castalia `chip_top` — the MCU core assembly inside the connected pad ring. |
 | `gallery-argus`       | `layout_argus_array.png`           | Argus many-core teaching chip — full replicated-tile array + pad ring. |
 | `gallery-block-diagram` | `block_mcu_clock_system.svg`     | MCU clock-system block diagram (scalable, theme-neutral line art). |
 
