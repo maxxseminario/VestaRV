@@ -32,6 +32,10 @@ entity hart_tile is
         ENABLE_ATOMICS    : boolean := true;
         ENABLE_COMPRESSED : boolean := true;
         ENABLE_BITMANIP   : boolean := true;
+        /* Fetch-ahead for straddling 32-bit instructions, routed straight to the vesta core; see the if_ahead declaration in vesta.vhd for the mechanism.
+           It changes cycle counts only, never an architectural result, and it is inert unless ENABLE_COMPRESSED is also set.
+           This default must stay equal to vesta.vhd's, since a bare `elaborate hart_tile` takes it from here while an MCU that omits the association takes it from there, and a hardened macro that disagrees with the assembly around it is the shape of the hw_clint_en defect. */
+        ENABLE_IF_AHEAD   : boolean := false;
         -- Optional ISA extensions, all default false and routed straight to the vesta core.
         ENABLE_ZICOND     : boolean := false;  -- Zicond
         ENABLE_ZCB        : boolean := false;  -- Zcb
@@ -154,6 +158,7 @@ architecture behav of hart_tile is
             ENABLE_ATOMICS    : boolean := true;
             ENABLE_COMPRESSED : boolean := true;
             ENABLE_BITMANIP   : boolean := true;
+            ENABLE_IF_AHEAD   : boolean := false;
             -- optional ISA extensions (all default false)
             ENABLE_ZICOND     : boolean := false;
             ENABLE_ZCB        : boolean := false;
@@ -521,6 +526,7 @@ begin
             ENABLE_ATOMICS    => ENABLE_ATOMICS,
             ENABLE_COMPRESSED => ENABLE_COMPRESSED,
             ENABLE_BITMANIP   => ENABLE_BITMANIP,
+            ENABLE_IF_AHEAD   => ENABLE_IF_AHEAD,
             ENABLE_ZICOND     => ENABLE_ZICOND,
             ENABLE_ZCB        => ENABLE_ZCB,
             ENABLE_ZIMOP      => ENABLE_ZIMOP,

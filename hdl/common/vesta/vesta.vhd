@@ -20,6 +20,11 @@ entity vesta is
         ENABLE_ATOMICS    : boolean := true;   -- A: LR/SC + AMOs
         ENABLE_COMPRESSED : boolean := true;   -- C: 16-bit instructions (c_dec)
         ENABLE_BITMANIP   : boolean := true;   -- Zba/Zbb/Zbs/Zbc
+        /* Fetch-ahead for straddling 32-bit instructions; see the if_ahead declaration for the mechanism.
+           It costs one flip-flop and issues no bus cycle the core would not otherwise issue one cycle later, and it changes cycle counts only, never an architectural result.
+           It has no effect unless ENABLE_COMPRESSED is also set, since a non-C build never reaches a half-word-aligned PC.
+           Default FALSE, like every other optional block: an OFF build is bit-identical to a core that carries no such path at all, so an instantiation that omits this generic gets the fetch behaviour it had before the path existed. */
+        ENABLE_IF_AHEAD   : boolean := false;
         -- Optional ISA extensions, all default false for zero behavioural change, fanned out to maindec, alu, c_dec and csr_unit.
         -- Zawrs, Zacas, Zabha and Zihint are consumed at this FSM/sequencer level.
         ENABLE_ZICOND     : boolean := false;  -- Zicond
@@ -631,6 +636,20 @@ architecture struct of vesta is
     signal clr_repeat_if          : std_logic;  -- Clear repeat fetch flag
     signal ltch_lh_inst           : std_logic;  -- Latch lower half instruction
 
+    /* FETCH-AHEAD (ENABLE_IF_AHEAD). The bubble that repeat_if opens exists only because the cycle before it fetched a word the core ALREADY held.
+       When the PC advances by two inside a word, or by four from a half-word-aligned PC, the word the ordinary fetch address names is the word already on instr, so that bus cycle carries no new information.
+       This path spends it instead on the NEXT word, and latches the half-word at the next PC into instr_lower_half at the same edge, so the straddling instruction dispatches in ONE cycle.
+       It is armed only when the half-word at the next PC is VISIBLE this cycle as instr(31 downto 16) and its quadrant is "11", so the word fetched is the upper half of an instruction the core has already SEEN to be 32-bit, not a guess about where control will go.
+       In the EXECUTE-to-EXECUTE case that address is exactly the one the bubble would have named one cycle later, since the bubble cycle is not interruptible. The one case in which the word is fetched and then discarded is an interrupt, halt or trap taken out of the MEMORY_WAIT that issued it; the address is still within eight bytes of the retiring instruction, which is the same class of early fetch the fall-through path already issues. */
+    signal if_ahead               : std_logic;  -- The lower half of the instruction at pc is in instr_lower_half and instr carries the next word
+    signal if_ahead_req           : std_logic;  -- Arm the fetch-ahead at this edge
+    -- Either half-holding path. A straddling 32-bit instruction dispatches this cycle from instr_lower_half plus the live bus word, whether it got there through the bubble or through the fetch-ahead.
+    signal split_ready            : std_logic;
+    -- The address this cycle presents as an instruction fetch: pc_next, or one word beyond it when the fetch-ahead is armed.
+    signal fetch_addr             : std_logic_vector(XLEN-1 downto 0);
+    signal if_ahead_addr          : std_logic_vector(XLEN-1 downto 0);  -- the word boundary just past the next PC, derived from pc so it stays off the pc_src path
+    signal pc_plus_6              : std_logic_vector(XLEN-1 downto 0);
+
     -- Control signals.
     signal ALU_src                : std_logic;
     signal jump                   : std_logic;
@@ -903,14 +922,17 @@ architecture struct of vesta is
 
     /* PMP check integration (ENABLE_PMP), strict pre-issue; every signal below is statically '0', '1' or zero when ENABLE_PMP is false. hart_tile derives the arbiter request from the ADDRESS ALONE, so "a denied access issues no transaction" is exactly "the denied address never reaches data_addr", and both check points are shaped to that one invariant:
          DATA  : a denial forces mem_access_instr '0' and wen all-ones and gates the sequencer address terms, so data_addr stays on the fetch fall-through; SC's only transaction lives in SC_CHECK, which a denial never enters.
-         FETCH : the fall-through pc_next arm of the data_addr mux is the one place this core issues a fetch, and a denial parks data_addr on PC_RST_VAL, which is fetchable and side-effect-free by construction. */
+         FETCH : the fall-through fetch_addr arm of the data_addr mux is the one place this core issues a fetch, and a denial parks data_addr on PC_RST_VAL, which is fetchable and side-effect-free by construction.
+                 The park arm sits BELOW every data-access arm of that mux, so a fetch address denied in a cycle that is carrying a load, a store or a sequencer access on the bus cannot displace it. */
     signal pmp_cfg_flat_sig       : std_logic_vector(127 downto 0);
     signal pmp_addr_flat_sig      : std_logic_vector(479 downto 0);
-    -- Fetch port; f_addr is pc_next, the address the CURRENT cycle would put on the bus as an instruction fetch.
+    -- Fetch port; f_addr is fetch_addr, the address the CURRENT cycle would put on the bus as an instruction fetch.
     signal pmp_f_grant            : std_logic;
     signal pmp_f_deny             : std_logic;
-    -- The 1-deep clk_cpu pipeline of that port. INVARIANT: in any EXECUTE cycle, pmp_f_deny_r and pmp_f_addr_r describe the fetch the IMMEDIATELY PRECEDING core cycle issued.
-    -- That is always the word this EXECUTE decodes, or on a repeat_if completion the UPPER half of the straddling 32-bit instruction, which is why ONE fetch port covers both halves.
+    /* The 1-deep clk_cpu pipeline of that port. INVARIANT: in any EXECUTE cycle, pmp_f_deny_r and pmp_f_addr_r describe the fetch the IMMEDIATELY PRECEDING core cycle issued.
+       That is always the word this EXECUTE decodes, or on a split-fetch completion the UPPER half of the straddling 32-bit instruction, which is why ONE fetch port covers both halves.
+       The fetch-ahead does not weaken this: it moves the upper half's fetch one cycle earlier, into the cycle that retires the instruction before, and that fetch is still the one the IMMEDIATELY PRECEDING cycle issued when the completion cycle reads the flop.
+       The address is the same one the bubble would have named, since both name the word boundary just past the next PC, so the denial verdict and the mtval it reports are unchanged. */
     signal pmp_f_deny_r           : std_logic;
     signal pmp_f_addr_r           : std_logic_vector(XLEN-1 downto 0);
     -- '1' in the EXECUTE cycle that would consume a fetch which never issued: the decoder is looking at the PARK word, so this cycle must commit NOTHING.
@@ -1034,7 +1056,7 @@ architecture struct of vesta is
                   and not (ENABLE_PMP and pmp_f_deny_r = '1')            -- PMP fetch deny
                   and not ((not ENABLE_COMPRESSED) and pc(1) = '1')      -- misaligned PC on a non-C build
                   and not (pc(1) = '1' and quadrant_upper = "11"
-                           and repeat_if = '0')                          -- the split-fetch bubble
+                           and split_ready = '0')                        -- the split-fetch bubble
                   and trap = '0' and ecall_op = '0' and ebreak_op = '0'  -- trap sub-arms
                   and mret_op = '0'                                      -- retires at MTRAP_RET
                   and not (ENABLE_PMP and pmp_d_deny = '1')              -- PMP data deny
@@ -1225,9 +1247,9 @@ architecture struct of vesta is
 
     /* Zfinx FP control glue, all constant '0' when ENABLE_ZFINX is off so the OFF-build datapath and CSR wiring folds away.
        Latch rs1 and rs2 in the datapath during the EXECUTE dispatch cycle of a multi-cycle or FMA FP op, where the operands are read pre-writeback.
-       The final term excludes the first cycle of a 32-bit split fetch, where instr_curr is HELD at the previous instruction: without it a prior FP op re-latches its operands. The legitimate latch is the repeat_if='1' completion cycle. */
+       The final term excludes the first cycle of a 32-bit split fetch, where instr_curr is HELD at the previous instruction: without it a prior FP op re-latches its operands. The legitimate latch is the split_ready='1' completion cycle, reached by either half-holding path. */
     fp_op_latch <= '1' when (current_state = EXECUTE and (is_fp_multicycle = '1' or is_fp_fma = '1')
-                             and not (pc(1) = '1' and quadrant_upper = "11" and repeat_if = '0')) else '0';
+                             and not (pc(1) = '1' and quadrant_upper = "11" and split_ready = '0')) else '0';
     -- FPU_FETCH3: steer the rs2 read port to rs3 and latch fp_rs3_reg.
     fp_fetch3   <= '1' when (current_state = FPU_FETCH3) else '0';
     -- fpu_start asserts ONLY in FPU_WAIT, so every fp_rs*_reg is stable before the first edge at which the unit can sample start.
@@ -1240,7 +1262,7 @@ architecture struct of vesta is
                    '1' when (current_state = EXECUTE and is_fp_singlecycle = '1' and trap = '0'
                              and pmp_if_squash = '0'
                              and (ENABLE_COMPRESSED or pc(1) = '0')
-                             and not (pc(1) = '1' and quadrant_upper = "11" and repeat_if = '0')) else
+                             and not (pc(1) = '1' and quadrant_upper = "11" and split_ready = '0')) else
                    '0';
     -- The datapath already muxes: fpu_simple flags when result_src=110, otherwise the multi-cycle unit's flags, valid at FPU_DONE with result_src=111.
     fp_flags_val <= fp_flags;
@@ -1251,6 +1273,7 @@ architecture struct of vesta is
         if resetn = '0' then
             current_state <= EXECUTE;
             repeat_if <= '0';
+            if_ahead <= '0';
             pc <= PC_RST_VAL;
             instr_lower_half <= (others => '0');
             pc_next_reg <= PC_RST_VAL;
@@ -1279,9 +1302,19 @@ architecture struct of vesta is
                 repeat_if <= '0';
             end if;
 
-            -- Latch lower half of instruction for split fetch
-            if ltch_lh_inst = '1' then
+            /* Latch lower half of instruction for split fetch. Both arming paths capture the SAME half-word, instr(31 downto 16), and differ only in which cycle they do it.
+               The bubble captures it in a cycle that retires nothing; the fetch-ahead captures it in the retiring cycle before, where instr(31 downto 16) is already the half-word at the next PC.
+               The two are mutually exclusive: the bubble cycle is not a dispatch, and the fetch-ahead requires one. */
+            if ltch_lh_inst = '1' or if_ahead_req = '1' then
                 instr_lower_half <= instr(31 downto 16);
+            end if;
+
+            /* The fetch-ahead flag. It is HELD across the single MEMORY_WAIT cycle of a load or store, where instr carries read data rather than an instruction word and instr_lower_half is untouched, so the half-word survives the data access.
+               Every other transition re-drives it from if_ahead_req, which is '0' outside a sequential EXECUTE retire, so a branch, a trap, an interrupt or any sequencer state clears it by construction rather than by a blacklist. */
+            if current_state = MEMORY_WAIT and next_state = EXECUTE then
+                if_ahead <= if_ahead;
+            else
+                if_ahead <= if_ahead_req;
             end if;
         end if;
     end process;
@@ -1317,7 +1350,7 @@ architecture struct of vesta is
 
     -- The JAL/JALR return address is pc plus the SIZE of the jump instruction, so a compressed c.jal/c.jalr links pc+2 and everything else pc+4.
     -- The conditions mirror the compressed-instruction terms of pc_next_trad below; keep the two in step.
-    pc_link <= pc_plus_2 when (current_state = EXECUTE and pc(1) = '1' and quadrant_upper /= "11" and repeat_if = '0') else
+    pc_link <= pc_plus_2 when (current_state = EXECUTE and pc(1) = '1' and quadrant_upper /= "11" and split_ready = '0') else
                pc_plus_2 when (current_state = EXECUTE and pc(1) = '0' and quadrant_lower /= "11") else
                pc_plus_2 when (current_state = ZCM_JT_WB) else  -- Zcmt cm.jalt links ra = pc+2
                pc_plus_4;
@@ -1328,15 +1361,52 @@ architecture struct of vesta is
     instr_upper_half <= instr(15 downto 0);
     instr_assembled <= instr_upper_half & instr_lower_half;
 
+    /* THE ONE PREDICATE the two half-holding paths share: the lower half of a straddling 32-bit instruction sits in instr_lower_half and instr carries the word holding its upper half.
+       repeat_if reaches it by spending a bubble cycle; if_ahead reaches it with no bubble at all, having spent the previous cycle's otherwise-redundant fetch on the upper word.
+       Where the two differ is that if_ahead is armed only after PROVING the quadrant is "11", so quadrant_upper, which under if_ahead describes the half-word AFTER this instruction, is never consulted to classify it. */
+    split_ready <= repeat_if or if_ahead;
+
+    /* FETCH-AHEAD ARM. Every term is necessary:
+         next_state EXECUTE or MEMORY_WAIT keeps this to the two sequential retire paths, so every sequencer, trap, interrupt and debug trajectory clears the flag instead, none of them being reachable at those two next states;
+         dec_dispatch is the file's own "this cycle decodes a real dispatching instruction" predicate, which excludes the split-fetch bubble, a trap-entry cycle and a PMP-parked fetch's decode;
+         the PC must advance, and it advances at THIS edge for an ALU-class instruction but at the MEMORY_WAIT edge for a load or store, which is why pc_en alone would silently drop every memory op;
+         pc_src = '0' makes that advance SEQUENTIAL, excluding a taken branch or jump, whose target word the core does not hold;
+         instr(17 downto 16) = "11" is the proof the instruction at the next PC is 32-bit and straddles, which is what makes the ahead fetch non-speculative;
+         the two shape terms are the only two sequential advances that land on a half-word-aligned PC inside the word already on instr, so the ordinary fetch address would name a word the core already holds.
+       In both shapes instr(31 downto 16) is the half-word AT the next PC, which is why the same latch serves both. */
+    if_ahead_req <= '1' when (ENABLE_IF_AHEAD and ENABLE_COMPRESSED
+                              and current_state = EXECUTE
+                              and dec_dispatch = '1'
+                              and not (ENABLE_PMP and pmp_d_deny = '1')
+                              and (next_state = EXECUTE or next_state = MEMORY_WAIT)
+                              and (pc_en = '1' or next_state = MEMORY_WAIT)
+                              and pc_src = '0'
+                              and instr(17 downto 16) = "11"
+                              and ((pc(1) = '0' and quadrant_lower /= "11")   -- compressed at a word-aligned PC: the next PC is pc+2, inside this word
+                                   or (pc(1) = '1' and split_ready = '1')))   -- straddling 32-bit completing: the next PC is pc+4, inside the word on instr
+                    else '0';
+
+    /* THE FETCH ADDRESS. It is pc_next in every cycle but the two the fetch-ahead claims, where it is the word boundary just past pc_next.
+       That address is derived from pc and NOT from pc_next, and the difference is a timing one: pc_next is downstream of pc_src, which is downstream of the register read, the ALU and the branch comparator, so an adder placed on pc_next would sit at the far end of the core's longest combinational chain, while pc is a register output and the same adder there has a full cycle of slack.
+       What is left on the late path is one 2-to-1 mux whose data inputs are both already settled.
+       The substitution is exact because the fetch-ahead is armed only where the advance is sequential: from a word-aligned pc the next PC is pc+2, whose following word boundary is pc+4, and from a half-word-aligned pc it is pc+4, whose following word boundary is pc+6.
+       MEMORY_WAIT selects from the same expression because a load or store does not advance the PC in its own dispatch cycle, so pc still holds the memory instruction's own address in the MEMORY_WAIT cycle that issues the fetch. */
+    pc_plus_6     <= std_logic_vector(unsigned(pc) + 6);
+    if_ahead_addr <= pc_plus_4 when pc(1) = '0' else pc_plus_6;
+
+    fetch_addr <= if_ahead_addr when (if_ahead_req = '1' or
+                                      (current_state = MEMORY_WAIT and if_ahead = '1')) else
+                  pc_next;
+
     -- Select the instruction to decompress, by fetch state.
-    instr_to_decomp <= instr_assembled when current_state = EXECUTE and pc(1) = '1' and repeat_if = '1' else
+    instr_to_decomp <= instr_assembled when current_state = EXECUTE and pc(1) = '1' and split_ready = '1' else
                        x"0000" & instr(31 downto 16) when current_state = EXECUTE and pc(1) = '1' and is_compressed = '1' else
                        instr;
 
     -- Current-instruction mux, by state and alignment. Every multi-cycle state holds instr_curr_prev so the dispatching encoding stays stable across it.
     instr_curr <= nop when (resetn = '0' or current_state = INITIALIZE) else
                   instr when (current_state = IRQ_SV) else  -- IVT entries are never compressed
-                  instr_decomp when (current_state = EXECUTE and pc(1) = '1' and repeat_if = '1') else
+                  instr_decomp when (current_state = EXECUTE and pc(1) = '1' and split_ready = '1') else
                   instr_curr_prev when (current_state = EXECUTE and pc(1) = '1' and quadrant_upper = "11" and repeat_if = '0') else
                   instr_decomp when (current_state = EXECUTE and pc(1) = '1' and quadrant_upper /= "11") else
                   instr when (current_state = EXECUTE and pc(1) = '0' and quadrant_lower = "11") else
@@ -1378,8 +1448,8 @@ architecture struct of vesta is
 
     -- Next PC for normal operation, with no interrupt; the PC holds during atomic operations.
     pc_next_trad <= PC_RST_VAL when (resetn = '0' or current_state = INITIALIZE) else
-                    pc_target when ((current_state = EXECUTE or current_state = IRQ_SV) and pc(1) = '1' and repeat_if = '1' and pc_src = '1') else
-                    pc_plus_4 when (current_state = EXECUTE and pc(1) = '1' and repeat_if = '1' and pc_src = '0') else
+                    pc_target when ((current_state = EXECUTE or current_state = IRQ_SV) and pc(1) = '1' and split_ready = '1' and pc_src = '1') else
+                    pc_plus_4 when (current_state = EXECUTE and pc(1) = '1' and split_ready = '1' and pc_src = '0') else
                     pc_plus_2 when (current_state = EXECUTE and pc(1) = '1' and quadrant_upper = "11" and repeat_if = '0') else
                     pc_target when (current_state = EXECUTE and pc(1) = '1' and quadrant_upper /= "11" and pc_src = '1') else
                     pc_plus_2 when (current_state = EXECUTE and pc(1) = '1' and quadrant_upper /= "11" and pc_src = '0') else
@@ -1437,7 +1507,7 @@ architecture struct of vesta is
                  std_logic_vector(unsigned(stack_pointer) - 4) when (current_state = IRQ_SV) else
                  stack_pointer when next_state = IRQ_REST else
                  PC_RST_VAL when pmp_if_park = '1' else
-                 pc_next;
+                 fetch_addr;
 
     -- Memory write data selection: an AMO writes the computed result, an SC writes rs2.
     -- Zabha replicates the computed sub-word result across all byte lanes; the byte-lane wen commits only the addressed lane.
@@ -1772,10 +1842,10 @@ architecture struct of vesta is
     dec_squash     <= trap_entry_seq or pmp_if_squash;
     /* DECODE-DISPATCH QUALIFICATION. A state blacklist is only ever as good as the list, and in IRQ_SV, IRQ_JUMP, FENCE_WAIT, PAUSE_WAIT, WRS_WAIT, TRAP_STATE and the split-fetch bubble instr_curr is NOT the instruction being dispatched, so dec_dispatch takes the POSITIVE form instead: the ONE cycle in which a decoded instruction may commit an FSM-bypassing side effect.
          EXECUTE is the only state in which an explicit CSR write commits, every other state either holding a previous encoding that cannot be a CSR or sleep op or decoding a live word that is not executing; dec_squash inherits the trap-entry suppression and the PMP park squash, both reachable inside EXECUTE.
-         The split-fetch bubble is excluded because nothing drives csr_valid while instr_curr is HELD at the previous instruction, so a just-retired `csrrw rd,csr,rd` would re-fire with csr_wdata read live from rf[rs1] and revert the CSR; the legitimate dispatch is the repeat_if='1' completion cycle, which the term keeps. The last term excludes a halfword-aligned PC on a non-C build, which is a misaligned-address TRAP arm and never a dispatch. */
+         The split-fetch bubble is excluded because nothing drives csr_valid while instr_curr is HELD at the previous instruction, so a just-retired `csrrw rd,csr,rd` would re-fire with csr_wdata read live from rf[rs1] and revert the CSR; the legitimate dispatch is the split_ready='1' completion cycle, which the term keeps. The last term excludes a halfword-aligned PC on a non-C build, which is a misaligned-address TRAP arm and never a dispatch. */
     dec_dispatch   <= '1' when (current_state = EXECUTE
                                 and dec_squash = '0'
-                                and not (pc(1) = '1' and quadrant_upper = "11" and repeat_if = '0')
+                                and not (pc(1) = '1' and quadrant_upper = "11" and split_ready = '0')
                                 and (ENABLE_COMPRESSED or pc(1) = '0'))
                       else '0';
     csr_valid_eff  <= csr_valid and dec_dispatch;
@@ -1821,7 +1891,9 @@ architecture struct of vesta is
     pmp_d_active <= pmp_d_rd or pmp_d_wr;
     pmp_d_deny   <= '1' when (ENABLE_PMP and pmp_d_active = '1' and pmp_d_grant = '0') else '0';
 
-    /* FETCH side. pc_next IS the fetch address: the data_addr mux falls through to it in every cycle that issues an instruction fetch.
+    /* FETCH side. fetch_addr IS the fetch address: the data_addr mux falls through to it in every cycle that issues an instruction fetch, and it is pc_next except in the two cycles the fetch-ahead claims.
+       Checking fetch_addr rather than pc_next is what keeps the pmp_f_deny_r pipeline honest, since that flop must describe the word the bus actually carried.
+       A fetch-ahead denial lands in the EXECUTE that consumes the upper half, which is the cycle that dispatches the straddling instruction, so the squash is at the right instruction; the lower half was checked when its own word was fetched.
        The fetch is X-checked at pmp_f_priv, the current privilege EXCEPT during MTRAP_RET, the one state that both issues a fetch and LOWERS privilege on the same edge, so its fetch is consumed at the post-MRET privilege and must be checked there.
        Every other privilege change raises privilege, so its issued fetch is checked at the stricter old privilege, which is the safe direction. */
     pmp_f_priv <= mret_priv_m when current_state = MTRAP_RET else trap_priv_mode;
@@ -1854,7 +1926,7 @@ architecture struct of vesta is
                 pmp_addr_flat => pmp_addr_flat_sig,
                 -- FETCH: X at the effective fetch privilege, the current privilege or the return privilege during MTRAP_RET.
                 -- Never MPRV-redirected: MPRV governs data accesses only.
-                f_addr        => pc_next,
+                f_addr        => fetch_addr,
                 f_priv_m      => pmp_f_priv,
                 f_grant       => pmp_f_grant,
                 -- DATA: R/W at the EFFECTIVE data privilege, after the mstatus.MPRV redirect.
@@ -1874,7 +1946,7 @@ architecture struct of vesta is
                 pmp_f_addr_r <= (others => '0');
             elsif rising_edge(clk_cpu) then
                 pmp_f_deny_r <= pmp_f_deny;
-                pmp_f_addr_r <= pc_next;
+                pmp_f_addr_r <= fetch_addr;
             end if;
         end process;
 
@@ -1915,8 +1987,8 @@ architecture struct of vesta is
 
 
     -- FSM next-state logic.
-    next_state_logic: process(resetn, current_state, pc, instr, quadrant_upper, quadrant_lower, 
-                             repeat_if, instr_upper_half, instr_lower_half, instr_decomp, 
+    next_state_logic: process(resetn, current_state, pc, instr, quadrant_upper, quadrant_lower,
+                             repeat_if, split_ready, instr_upper_half, instr_lower_half, instr_decomp,
                              irq_save, mem_access_controller, is_div_op, pc_src, pc_target, 
                              pc_plus_4, pc_plus_2, alu_done, irq_save_ack, isr_ret, 
                              reg_write_ctrl, wen_controller, sleep_rq, wake_rq, trap, 
@@ -2025,12 +2097,13 @@ architecture struct of vesta is
                         end if;
                     elsif pc(1) = '1' then
                         -- Current instruction on a half-word boundary.
-                        if quadrant_upper = "11" or repeat_if = '1' then
+                        if quadrant_upper = "11" or split_ready = '1' then
                             -- Not compressed, or fetching the upper half.
                             is_compressed <= '0';
 
-                            if repeat_if = '1' then
+                            if split_ready = '1' then
                                 -- Completing the split fetch of a 32-bit instruction: the full dispatch tree, since this is where a straddling instruction actually issues.
+                                -- Reached with a bubble spent (repeat_if) or with none (if_ahead); the two are indistinguishable from here, both having the lower half in instr_lower_half and the upper half on the bus.
                                 clr_repeat_if <= '1';
 
                                 -- Choose the next state by instruction class.
@@ -3492,7 +3565,9 @@ architecture struct of vesta is
                 instr_lower_half => instr_lower_half,
                 quadrant_upper   => quadrant_upper,
                 quadrant_lower   => quadrant_lower,
-                repeat_if        => repeat_if,
+                -- split_ready, not repeat_if: the tracer classifies the three half-word-aligned shapes from this port, and the fetch-ahead dispatch is the SAME shape as a bubble completion.
+                -- Every tracer term that reads quadrant_upper is qualified by this port being '0', so the half-word that quadrant_upper describes under the fetch-ahead is never consulted there.
+                repeat_if        => split_ready,
                 reg_write        => reg_write_dp,
                 rd_addr          => trc_rd_addr,
                 rd_data          => trc_rd_data,
@@ -3562,15 +3637,39 @@ architecture struct of vesta is
 
             /* (4) The two COMPRESSED EXECUTE arms have NO lr_op, sc_op, amo_op, cboz_op, fence_op, wfi_op, wrs_op or is_fp_* branches at all, which is safe only because no compressed encoding decompresses to any of them, a property of c_dec that nothing in this file enforces.
                    If a future Zc* extension ever emits one, the instruction would silently retire as a plain ALU op with its memory, atomic or FP side effect simply not performed.
-                   The shape terms are spelled out rather than reusing is_compressed, which is an inferred latch: they are written in terms of pc, repeat_if and the quadrant bits, so no latched FSM output is read. */
+                   The shape terms are spelled out rather than reusing is_compressed, which is an inferred latch: they are written in terms of pc, split_ready and the quadrant bits, so no latched FSM output is read. */
             assert not (current_state = EXECUTE
-                        and ((pc(1) = '1' and repeat_if = '0' and quadrant_upper /= "11")
+                        and ((pc(1) = '1' and split_ready = '0' and quadrant_upper /= "11")
                              or (pc(1) = '0' and quadrant_lower /= "11"))
                         and (lr_op = '1' or sc_op = '1' or amo_op = '1' or cboz_op = '1'
                              or fence_op = '1' or wfi_op = '1' or wrs_op = '1'
                              or is_fp_singlecycle = '1' or is_fp_multicycle = '1'
                              or is_fp_fma = '1'))
                 report "F4 ASSERT: c_dec emitted a sequencer/FP encoding -- shapes B/C have no arm for it"
+                severity error;
+
+            /* (5) THE FETCH-AHEAD INVARIANT, in the one form that is cheap to check: in an EXECUTE cycle if_ahead implies a HALF-WORD-ALIGNED pc.
+                   Both arming shapes advance the PC to a half-word-aligned address by construction, pc+2 from an even pc and pc+4 from an odd one, and only a half-word-aligned pc can straddle.
+                   Were it ever set at an even pc the decode would assemble instr(15 downto 0) with a stale instr_lower_half and dispatch an encoding that is in no way the instruction at pc, silently and with a full commit.
+                   MEMORY_WAIT is deliberately outside the scope, and its exclusion is the mechanism rather than an exemption: a load or store does not advance the PC in its own dispatch cycle, so the flag armed there is carried for one cycle alongside a pc that still names the memory instruction, which for a compressed load is word aligned. */
+            assert not (resetn = '1' and current_state = EXECUTE and if_ahead = '1' and pc(1) = '0')
+                report "IF-AHEAD ASSERT: if_ahead set at a word-aligned pc in EXECUTE"
+                severity error;
+
+            /* (6) THE TWO HALF-HOLDING PATHS ARE MUTUALLY EXCLUSIVE, which split_ready's definition as a plain OR quietly assumes.
+                   The bubble cycle retires nothing and the fetch-ahead requires a dispatch, so no cycle can arm both, and the completion cycle asserts clr_repeat_if whichever path reached it.
+                   Were both ever set, clr_repeat_if would clear only one of them and the survivor would make the NEXT half-word-aligned pc decode as a split completion, assembling a stale instr_lower_half into an instruction that is in no way the one at pc. */
+            assert not (resetn = '1' and if_ahead = '1' and repeat_if = '1')
+                report "IF-AHEAD ASSERT: if_ahead and repeat_if both set"
+                severity error;
+
+            /* (7) THE CLEAR-BY-CONSTRUCTION CLAIM, made checked. if_ahead is armed only for the two sequential retire paths, and every other trajectory re-drives it from if_ahead_req, which is '0' outside them.
+                   So the flag must never be observed alive in any state but the EXECUTE that consumes it and the MEMORY_WAIT that carries it across a data access.
+                   This is the one property that covers the trap, interrupt, sleep and debug trajectories together, without naming any of them: a state that could reach EXECUTE with a stale half-word held would fire here first, in whatever state it passed through.
+                   It is the whole safety argument for the divert cases, which are otherwise reachable only from stimulus this core's benches do not generate. */
+            assert not (resetn = '1' and if_ahead = '1'
+                        and current_state /= EXECUTE and current_state /= MEMORY_WAIT)
+                report "IF-AHEAD ASSERT: if_ahead alive outside EXECUTE and MEMORY_WAIT"
                 severity error;
 
         end if;

@@ -431,6 +431,58 @@ OS_CORE_ENABLE_DEFINES = [
     for suite, march, tests in _CI_SUITES + [("rv32uzf", "rv32imc_zfinx", _RV32UZF_TESTS)]
 ]
 
+# --------------------------------------------------------------------------
+# PRIVILEGED (trapCsr + U-mode + PMP) POLARITY
+#
+# The fourteen rv32ua tests below dispatch their real checking arm on
+# -DCORE_ENABLE_PMP / -DCORE_ENABLE_UMODE / -DCORE_ENABLE_TRAPCSR. At every
+# other polarity in this file those defines are absent, so the sources compile
+# their trivial arm and the tests pass without touching a PMP check point.
+# This third instantiation is the ON arm of the same fourteen sources; it is
+# the image half of a bare-core PMP regression, whose RTL half is a core
+# elaborated with the three matching generics true.
+#
+# The three that cover the instruction-fetch check point are pmpfq (a fetch
+# fault at a half-word-aligned PC that is NOT a split fetch), pmprt6 (a fetch
+# fault on the UPPER half of a straddling 32-bit instruction reached from a
+# compressed ALU op, where the lower half's own word was permitted) and
+# pmprt7 (the same fenced half-word reached from a compressed LOAD, so a
+# denied fetch address and a permitted data access share one cycle).
+_PMP_DEFINES = OS_CORE_ENABLE_DEFINES + [
+    "-DCORE_ENABLE_TRAPCSR",
+    "-DCORE_ENABLE_UMODE",
+    "-DCORE_ENABLE_PMP",
+]
+
+# The rv32ua tests whose sources read CORE_ENABLE_PMP.
+_PMP_TESTS = [
+    "pmpfq",
+    "pmprt1",
+    "pmprt2",
+    "pmprt3",
+    "pmprt4",
+    "pmprt5",
+    "pmprt6",
+    "pmprt7",
+    "privpmp",
+    "privpmpcs",
+    "privpmpmx",
+    "privrt1",
+    "privrt2",
+    "privucsr",
+    "privumode",
+]
+
+riscv_isa_suite(
+    suite = "rv32ua",
+    march = "rv32imac",
+    tests = _PMP_TESTS,
+    defines = _PMP_DEFINES,
+    hdrs = _COMMON_HDRS,
+    name_prefix = "pmp_",
+    outdir = "pmp/",
+)
+
 # The CI image set: exactly what `./build_mp_images.sh 4 rcf_ci` stages.
 filegroup(
     name = "ci_images",
