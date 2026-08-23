@@ -2,9 +2,14 @@
 %% the `order` list in configs/anatop_tb_ctrl_amp_ab_corners.json. Topology transcribed
 %% from the Interactive.168 cell-drive bench netlist on 2026-08-16. Supplies, the bias
 %% rails and En are omitted -- identical in every bench and carrying no measurement.
+%% The cell is the abstracted symbol of sch_cell_symbol.tex -- its internal
+%% network is not drawn anywhere in this chapter; the values are in the models
+%% table.
+\providecommand{\MaestroRoot}{include/analog/}
+\input{\MaestroRoot sch_cell_symbol.tex}
 \begin{figure}[htbp]
   \centering
-  \resizebox{0.56\linewidth}{!}{%
+  \resizebox{0.60\linewidth}{!}{%
 \ctikzset{bipoles/length=1.0cm, resistors/scale=0.85, capacitors/scale=0.85, sources/scale=0.85}
 \begin{circuitikz}[
     every node/.append style={font=\footnotesize},
@@ -15,6 +20,9 @@
   ]
   \node[op amp] (A) at (0,0) {};
   \node at (A.center) {\footnotesize A1};
+  %% three-electrode cell, drawn first so its stub ends exist for the wiring
+  \CellSymThree{5.9,0}{0.85}
+  \node[opt, anchor=north] at (5.9,-1.35) {three-electrode\\cell};
   %% Input pins leave horizontally; every branch that meets them is placed at the
   %% pin height with (x,0 |- pin) so no run is ever diagonal.
   \coordinate (Ap) at (A.+);
@@ -28,7 +36,7 @@
   \node[prb] (P) at (-1.8,2.6) {};
   \draw (A.-) -- (FB) -- (-3.0,2.6) -- (P.west);
   \node[nlab, above=2pt] at (P.north) {probe};
-  \draw (P.east) -- (5.3,2.6) -- (5.3,0.85);
+  \draw (P.east) -- (5.9,2.6) -- (cs-re);
   %% external cascode compensation, C1 and C2 back onto the output
   \draw (A.up) -- (A.up |- 0,1.55);
   \draw (A.up |- 0,1.55) to[C, l=$C_c$] (2.2,1.55) -- (2.2,0);
@@ -39,17 +47,12 @@
   %% output node -> counter electrode
   \draw (A.out) -- (2.2,0);
   \node[railnode] at (2.2,0){};
-  \draw (2.2,0) -- (4.35,0);
+  \draw (2.2,0) -- (cs-ce);
   \node[railnode] at (3.4,0){};
-  \node[nlab, anchor=south] at (2.85,0.1){\texttt{CE}};
   \draw (3.4,0) to[C, l=$C_L$] (3.4,-3.0) node[ground]{};
-  %% three-electrode cell
-  \node[draw, minimum width=1.9cm, minimum height=1.7cm, align=center,
-        font=\scriptsize] (CELL) at (5.3,0) {three-electrode\\cell};
-  \node[nlab, anchor=west] at (5.4,1.7){\texttt{RE}};
-  \draw (CELL.south) to[V, l_=$V_{\mathrm{CM}}$] (5.3,-3.0) node[ground]{};
-  \node[nlab, anchor=west] at (5.4,-1.15){\texttt{WE}};
-  \node[opt, anchor=north] at (5.3,-3.45) {cell current\\measured here};
+  %% working electrode held at V_CM; the cell current is measured in that source
+  \draw (cs-we) to[V, l=$V_{\mathrm{CM}}$] (7.23,-3.0) node[ground]{};
+  \node[opt, anchor=north] at (7.23,-3.45) {cell current\\measured here};
 \end{circuitikz}
   }
   \caption[{Cell-drive bench for the control amplifier.}]{Cell-drive bench. The amplifier drives the counter electrode of a three-electrode cell and closes its loop on the reference electrode, with the commanded potential $v_{\mathrm{ref}}$ swept over the full \SIrange{0}{2.5}{\volt} supply range. The working electrode is held at $V_{\mathrm{CM}}$ by an ideal source: no load current is injected, so the cell current is set by the sweep against the cell impedance and is measured in that source, and the regulation errors quoted at \SI{\pm10}{\micro\ampere} are read off the sweep at the points where the cell current reaches those values. The probe in the reference-electrode return measures the loop gain with the cell inside the loop; it is not the amplifier's own gain, and the two are tabulated separately. Cell elements are $R_{\mathrm{ce}} = R_u = \SI{1}{\kilo\ohm}$ and $R_{\mathrm{ct}} = \SI{10}{\kilo\ohm}$ in parallel with $C_{\mathrm{dl}} = \SI{1}{\micro\farad}$ (Figure~\ref{fig:randles-cell}), the load is $C_L = \SI{5}{\pico\farad}$, and each external compensation capacitor $C_c$ is \SI{500}{\femto\farad}.}
