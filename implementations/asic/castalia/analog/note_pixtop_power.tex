@@ -58,7 +58,6 @@ All twenty dc-reachable specs --- reference tracking, the potential range, the
 common mode, the zero-current offsets and the gain-code sweep --- pass at all
 five corners. That is weaker evidence than it looks: the corner rows keep the
 resistor and capacitor models typical, so for a block whose accuracy is set by
-matching they exercise almost nothing. Monte Carlo remains the real test, and
-is now unblocked on this cell by the mismatch flags of
-Section~\ref{sss:pixtop-stability}; it still needs the statistical model
-section this setup does not name.
+matching they exercise almost nothing. Monte Carlo is the real test, and
+Section~\ref{sss:pixtop-mc} puts uncalibrated per-channel yield at
+\SI{0.50}{\percent} on the same specifications these corners all pass.

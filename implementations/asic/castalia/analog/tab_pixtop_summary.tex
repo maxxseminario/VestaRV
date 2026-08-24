@@ -22,6 +22,15 @@
 %% The LSB row's conditions cell now states that 88.5 nA is the NOMINAL-ladder
 %% figure; the measured in-loop Zt(dc) of 19.63 kOhm gives 81.2 nA, which is what
 %% sss:pixtop-noise and fig:pixtop-noise use.
+%%
+%% 2026-08-24: three Monte Carlo rows ADDED at the foot -- sigma 5.754 mV and
+%% 5.552 mV and the 61.5 % / 0.50 % yields, from
+%% simruns/pixmc_20260823/{mc_distributions,yield_table}.txt (200 samples,
+%% process + mismatch, section castalia_pm_25, nominal corner, 37 C).  The
+%% dc rows above are UNCHANGED: they are the typical point, and the nominal run
+%% of the Monte Carlo deck reproduces them to the printed digits.  The tracking
+%% rows' conditions cells now say which of the two ranges is the specification
+%% (the 0.4-2.1 V window, owner decision 2026-08-24, sss:pixtop-mc).
 \begin{table}[!htb]
   \centering
   \caption[{Headline measurements on the assembled channel.}]{Headline
@@ -29,9 +38,11 @@
   \SI{37}{\celsius}, \SI{2.5}{\volt} supply. Rows 1--8 are dc; rows 9--12 come
   from the staircase voltammetry run of Figure~\ref{fig:pixtop-cv}; rows 13--14
   and the power figure need the extracted converter, everything else in the
-  channel staying at schematic level; the last four rows are the post-fix
+  channel staying at schematic level; rows 15--18 are the post-fix
   small-signal, noise and power runs of
-  Sections~\ref{sss:pixtop-stability}--\ref{sss:pixtop-power}. The two tracking
+  Sections~\ref{sss:pixtop-stability}--\ref{sss:pixtop-power}; the final three
+  are Monte Carlo, and their yield is an upper bound for the reason
+  Section~\ref{sss:pixtop-open} gives. The two tracking
   figures are optimistic by construction:
   the DAC supply regulators are instantiated but drive nothing, so both ladders
   run from an ideal rail and the \SI{25.8}{\milli\volt} of code-dependent
@@ -49,11 +60,12 @@
     \midrule
     Reference tracking error &
       \SI{0.672}{\milli\volt} &
-      dc sweep, \SIrange{0.4}{2.1}{\volt} window; \SI{0.814}{\milli\volt} with
+      dc sweep over the specified \SIrange{0.4}{2.1}{\volt} window
+      (\S\ref{sss:pixtop-mc}); \SI{0.814}{\milli\volt} with
       an ideal source (\S\ref{ss:pixel}) \\
     Reference tracking error, full range &
       \SI{1.419}{\milli\volt} &
-      \SIrange{0}{2.42}{\volt}, all 4096 codes \\
+      \SIrange{0}{2.42}{\volt}, all 4096 codes; reported, not specified \\
     Reference DAC step &
       \SI{610.35}{\micro\volt} &
       \(\SI{2.5}{\volt}/4096\) from an ideal rail; \SI{-181}{\micro\volt}
@@ -116,6 +128,19 @@
       \SI{1.642}{\milli\watt} &
       extracted converter; \SI{806.8}{\micro\watt} of it is the two
       unconnected reference-DAC regulators \\
+    \addlinespace
+    Zero-current output, \(\sigma\) &
+      \SI{5.754}{\milli\volt} &
+      200 Monte Carlo samples, process and mismatch
+      (\S\ref{sss:pixtop-mc}); \(\pm\SI{2}{\milli\volt}\) budget \\
+    Reference tracking error, \(\sigma\) &
+      \SI{5.552}{\milli\volt} &
+      same run, mid-code; \SI{5.72}{\milli\volt} on the flat bench
+      (\S\ref{sss:pixel-mc}) \\
+    Per-channel yield, calibrated &
+      \SI{61.5}{\percent} &
+      same run, all 20 specifications, tracking over the specified window;
+      \SI{0.50}{\percent} uncalibrated. Upper bound \\
     \bottomrule
   \end{tabular}}
 \end{table}

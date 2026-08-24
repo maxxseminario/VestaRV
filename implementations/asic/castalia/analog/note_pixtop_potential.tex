@@ -13,17 +13,23 @@
 
 \subsubsection{Potential Axis}\label{sss:pixtop-potential}
 
-The reference electrode follows the commanded DAC output to
-\SI{0.672}{\milli\volt} over the \SIrange{0.4}{2.1}{\volt} window
-Section~\ref{ss:pixel} uses, and to \SI{1.419}{\milli\volt} over the full
-\SIrange{0}{2.42}{\volt} code range --- \(+\SI{0.402}{\milli\volt}\) at code 0,
-\SI{-1.419}{\milli\volt} at code 3968. The ideal-source measurement is
+The \SI{2}{\milli\volt} tracking specification is written over the
+\SIrange{0.4}{2.1}{\volt} commanded window that Section~\ref{ss:pixel} uses;
+Section~\ref{sss:pixtop-mc} gives the reason and the full-range figure is
+reported alongside it throughout. The reference electrode follows the commanded
+DAC output to \SI{0.672}{\milli\volt} over that window, and to
+\SI{1.419}{\milli\volt} over the full \SIrange{0}{2.42}{\volt} code range ---
+\(+\SI{0.402}{\milli\volt}\) at code 0, \SI{-1.419}{\milli\volt} at code 3968.
+The ideal-source measurement is
 \SI{0.814}{\milli\volt} over the same window. Two terms make it up, both
 static: the ladder's own error on a \SI{610.35}{\micro\volt} step, which is
 \SI{-181}{\micro\volt} at the top code, and A1's \SI{-620}{\micro\volt} input
 offset, which is constant across the range. A two-point fit per channel over
 the potential code axis absorbs the pair and leaves a residual well inside the
-\SI{2}{\milli\volt} budget of Section~\ref{ss:ampab}; the offset-and-slope
+\SI{2}{\milli\volt} budget of Section~\ref{ss:ampab} --- inside the window; at
+the ends of the code range A1's input pair leaves its common-mode range and the
+error stops being a constant any fit can absorb
+(Section~\ref{sss:pixtop-mc}). The offset-and-slope
 constant of Table~\ref{tab:calibration-constants} is what stores it. The
 common-mode DAC sits \SI{262}{\micro\volt} below \SI{1.25}{\volt} at mid-code
 and every current referred to that node inherits the error.

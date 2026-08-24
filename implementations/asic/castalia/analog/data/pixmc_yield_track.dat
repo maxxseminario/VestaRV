@@ -1,0 +1,11 @@
+# assembled channel, 200 samples, process + mismatch, castalia_pm_25, nominal corner, 37 C, simruns/pixmc_20260823
+# excluded each end [V]  tracking-spec yield [%]
+0.000108079 9
+0.0781926 14
+0.156404 22
+0.234497 30.5
+0.312926 42
+0.391017 73
+0.469233 96.5
+0.547332 98
+0.62583 99

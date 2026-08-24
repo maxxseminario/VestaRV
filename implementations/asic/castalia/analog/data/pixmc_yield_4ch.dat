@@ -1,0 +1,11 @@
+# assembled channel, 200 samples, process + mismatch, castalia_pm_25, nominal corner, 37 C, simruns/pixmc_20260823
+# excluded each end [V]  four-channel yield [%]
+0.000108079 0.006561
+0.0781926 0.028561
+0.156404 0.130321
+0.234497 0.390625
+0.312926 1.18592
+0.391017 5.53308
+0.469233 14.3054
+0.547332 14.7763
+0.62583 14.7763
