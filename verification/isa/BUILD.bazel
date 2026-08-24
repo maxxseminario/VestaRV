@@ -594,3 +594,30 @@ filegroup(
     ),
     visibility = ["//visibility:public"],
 )
+
+# Every ISA test source, as one label, for checks that must SWEEP the sources
+# rather than build them.
+#
+# Consumed by //tools/cosim:check_knob_classes_test, which proves that no test
+# dispatches at build time on a CORE_ENABLE_* knob that verify_stage.py has
+# classified as unstampable. That check is only as good as the file set it
+# scans, so this is a glob over every suite directory and not a hand-kept list:
+# a new suite is swept the day it appears, and the checker carries its own
+# known-nonzero control so an empty or mis-staged scan fails instead of
+# reporting a clean sweep.
+#
+# Deliberately WIDER than what the image rules build. The per-test targets
+# above are keyed on tests/<suite>/Makefrag entries, so a .S sitting in a suite
+# directory without one is not built -- but it is still a source someone can
+# wire up later, and a stale #ifdef in it is exactly what this sweep is for.
+filegroup(
+    name = "all_test_sources",
+    srcs = glob(
+        [
+            "tests/*/*.S",
+            "tests/*/*.h",
+        ],
+        allow_empty = False,
+    ),
+    visibility = ["//visibility:public"],
+)

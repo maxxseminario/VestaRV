@@ -675,6 +675,106 @@ PRIV_KNOBS = ('trapCsr', 'umode', 'pmp')
 # either that decision taken deliberately or its own explicit -D.
 DEFINE_KNOBS = ISA_KNOBS[5:] + PRIV_KNOBS
 
+# ---------------------------------------------------------------------------
+# THE OTHER HALF OF THE SAME CLASSIFICATION (2026-08-23).
+#
+# `DEFINE_KNOBS` above is a list of SCHEMA KEYS; what a polarity comparison
+# actually holds is a set of RTL CONSTANT SUFFIXES read out of MemoryMap.vhd.
+# The two are not the same alphabet, and for a year they only looked the same
+# because every stampable knob happened to satisfy
+# `CORE_ENABLE_<key.upper()> == <constant name>`.
+#
+# WHAT MAKES A KNOB STAMPABLE. Three properties, all of them required:
+#   1. the generator emits a matching C `#define CORE_ENABLE_<X>` (MemoryMap.h
+#      and the assembly-safe core_features.h companion), so an image CAN be
+#      built at a polarity;
+#   2. some test source dispatches on that define at BUILD time, so the two
+#      polarities produce DIFFERENT images -- that is the whole content of the
+#      "OFF-arm software against ON-polarity hardware, and the failure mode is
+#      a PASS" defect the stamp exists to catch;
+#   3. the RTL polarity is observable as `constant CORE_ENABLE_<X> : boolean`
+#      in the one staged MemoryMap.vhd, so the hardware half can be read back
+#      rather than recomputed.
+# Property 3 alone is NOT enough, and reading the guard as though it were is
+# exactly the defect repaired here.
+#
+# A knob that fails any of the three can never appear in an `.imgset` stamp,
+# so a guard that compares the raw RTL ON-set against the stamp REFUSES EVERY
+# ROW THAT EXISTS the moment such a knob is declared true. That is what
+# happened: CORE_ENABLE_DEBUG went true at the D-series merge (2026-08-15) and
+# CORE_ENABLE_IF_AHEAD at the fetch-ahead merge (2026-08-23), and boot-mode
+# cosim could not run at all for the eight days in between, with the guard
+# reporting a POLARITY MISMATCH that was an artefact of its own arithmetic.
+#
+# So the exempt set is now WRITTEN DOWN instead of being five names inlined in
+# a shell `case`, and `memorymap_on_knobs` REFUSES a constant that is in
+# neither list. A new CORE_ENABLE_* must be classified in the commit that adds
+# it; it can no longer arrive unclassified and take the lockstep gate down.
+#
+# Each entry carries the measurement that put it here, not an assertion.
+NON_DEFINE_KNOBS = (
+    # The five base-ISA knobs, for the reasons measured in the DEFINE_KNOBS
+    # comment above. They fail property 2 (one #ifdef, in a test no runner
+    # selects) at a price of rebuilding the whole canonical image set.
+    'MUL', 'DIV', 'ATOMICS', 'COMPRESSED', 'BITMANIP',
+    # IF_AHEAD fails property 1 OUTRIGHT and by design. ChipGenerator.py emits
+    # no `#define CORE_ENABLE_IF_AHEAD` in either header -- its own comment on
+    # ENABLE_IF_AHEAD says why: "Microarchitecture only: no CSR, no
+    # instruction, no memory-map change, so there is no C-header define for it
+    # (nothing in software can or should dispatch on it)."
+    # Measured against the same sweep the base knobs got: `IF_AHEAD` does not
+    # occur in verification/isa or software/ at all, in any form, let alone in
+    # a preprocessor conditional. It is a straddling-fetch stall elision worth
+    # one flip-flop; verification/cpi records it as a CYCLE-COUNT difference
+    # with identical retired-instruction counts either way.
+    # A knob that cannot change any retired value cannot make the reference and
+    # the DUT execute different arms of anything, which is the only thing the
+    # stamp is for. PERMANENTLY exempt: this one is not deferred, it is
+    # unstampable by construction, and it should be deleted from this list only
+    # if fetch-ahead ever grows a CSR or an instruction.
+    'IF_AHEAD',
+    # DEBUG fails property 2, and it is DEFERRED here rather than permanently
+    # exempt -- the distinction matters, so it is stated.
+    # Property 1 it DOES satisfy: ChipGenerator.py:1188 emits `#define
+    # CORE_ENABLE_DEBUG` into MemoryMap.h and the core_features.h list carries
+    # it, so an image COULD be built at a debug polarity.
+    # Property 2 it does not. The same sweep run over the whole tree --
+    #   grep -rnE '^\s*#\s*(if|ifdef|ifndef|elif).*CORE_ENABLE_DEBUG\b'
+    # -- returns ZERO hits, and `CORE_ENABLE_DEBUG` does not appear anywhere in
+    # verification/ or software/ in any form. That is not an accident of
+    # coverage: config_tags() explains it directly. Every D-series debug
+    # instrument needs a tcl harness to force dbg_haltreq or the DMI port, so
+    # NO CATALOG ROW CARRIES THE `debug` TAG AND NONE CAN; the Debug Module is
+    # proven by xrun_dbg.sh and the dbg_*.tcl harnesses instead of by an image
+    # in the lockstep set.
+    # Admitting DEBUG to DEFINE_KNOBS today would therefore buy ZERO #ifdef
+    # arms -- strictly less than the one tail COMPRESSED would buy -- at a
+    # HIGHER price: debug.enable defaults TRUE, so every image of every config
+    # gains `-DCORE_ENABLE_DEBUG`, every one of the 28 `.imgset` stamps on disk
+    # changes, every rcf_* directory moves to a new tag digit, and the whole
+    # canonical set is rebuilt at a new polarity. Paying that for a define
+    # nothing reads is the opposite of what the stamp is for.
+    # THE TRIGGER IS WRITTEN DOWN, so this stays a decision and not an
+    # oversight: the first `#ifdef CORE_ENABLE_DEBUG` in a test source that a
+    # runner actually selects moves 'debug' into DEFINE_KNOBS (as a third
+    # section alongside isa.* and priv.*, since the schema key is `debug.enable`
+    # and `'CORE_ENABLE_' + key.upper()` does not name the constant) and pays
+    # the rebuild deliberately. tools/cosim/check_knob_classes.py FAILS on that
+    # day rather than leaving it to be noticed.
+    'DEBUG',
+)
+
+
+def knob_classes():
+    """(stampable, exempt) as the RTL CONSTANT SUFFIXES a MemoryMap.vhd holds.
+
+    The one place that maps schema keys onto `CORE_ENABLE_<X>` names, so the
+    shell half of the polarity guard (tools/cosim/gate/xrun_cosim.sh) can read
+    the classification instead of carrying its own copy of half of it.
+    """
+    stampable = tuple(k.upper() for k in DEFINE_KNOBS)
+    return stampable, tuple(NON_DEFINE_KNOBS)
+
 
 def image_defines(cfg):
     """The -DCORE_ENABLE_* list this configuration's images must be built with.
@@ -768,9 +868,31 @@ def memorymap_on_knobs(path):
             m = pat.search(line)
             if m and m.group(2).lower() == 'true':
                 on.add(m.group(1).upper())
-    # Only the knobs a test can dispatch on at build time are comparable; the
-    # five base-ISA constants are true in almost every build and no test
-    # #ifdefs on them (see DEFINE_KNOBS).
+    # Only the knobs a test can dispatch on at build time are comparable (see
+    # DEFINE_KNOBS and NON_DEFINE_KNOBS for the three properties and for the
+    # measurement behind every exemption).
+    #
+    # This used to be a bare `on & DEFINE_KNOBS` intersection, which SILENTLY
+    # dropped anything unrecognised. Silence is what let CORE_ENABLE_IF_AHEAD
+    # land unclassified: this function agreed with it, while the shell guard's
+    # negative filter did not, and the two halves of one comparison drifted
+    # apart without either of them saying so. An unclassified constant is now a
+    # refusal, here and in xrun_cosim.sh, in the same words.
+    unknown = sorted(on - set(k.upper() for k in DEFINE_KNOBS)
+                        - set(NON_DEFINE_KNOBS))
+    if unknown:
+        raise SystemExit(
+            '%s declares CORE_ENABLE_%s true, and that knob is classified\n'
+            '  neither STAMPABLE (verify_stage.DEFINE_KNOBS) nor EXEMPT\n'
+            '  (verify_stage.NON_DEFINE_KNOBS). A polarity comparison cannot\n'
+            '  guess which it is: treated as stampable it refuses every image\n'
+            '  set that exists, treated as exempt it hides a real mismatch.\n'
+            '  Classify it in the commit that adds it. It is STAMPABLE only if\n'
+            '  all three hold: the generator emits a matching\n'
+            '  `#define CORE_ENABLE_%s`, some test source dispatches on that\n'
+            '  define at build time, and the constant is readable here.\n'
+            '  Otherwise it is EXEMPT, with the measurement written down.'
+            % (path, unknown[0], unknown[0]))
     return sorted(on & set(k.upper() for k in DEFINE_KNOBS))
 
 
@@ -913,7 +1035,23 @@ def config_tags(cfg):
     return tags
 
 
+def _print_knob_classes():
+    """`verify_stage.py --knob-classes` -- the classification, for the shell.
+
+    Two lines of RTL constant suffixes, shell-word-safe by construction (the
+    names are [A-Z0-9_]). tools/cosim/gate/xrun_cosim.sh reads this instead of
+    hardcoding half of it, so the two halves of the polarity comparison cannot
+    drift apart again. Needs no resolved config and touches nothing.
+    """
+    stampable, exempt = knob_classes()
+    print('STAMPABLE_KNOBS=%s' % ' '.join(stampable))
+    print('EXEMPT_KNOBS=%s' % ' '.join(exempt))
+
+
 def main():
+    if '--knob-classes' in sys.argv[1:]:
+        _print_knob_classes()
+        return
     if not os.path.isfile(RESOLVED):
         raise SystemExit('config/ChipConfig.resolved.json not found -- run make generate first')
     with open(RESOLVED) as f:

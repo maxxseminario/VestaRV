@@ -5,8 +5,9 @@
   "_orchestratorNote": "CPR8/R7 PIN, added when numHarts=5 + orchestrator=true became the SHIPPED DEFAULT. Argus is the frozen 18-hart teaching chip and has NO orchestrator: hart 0 is a plain hart_tile like the other seventeen, SH_AW is 16 for its 128 KiB shared RAM (not for TCM apertures), and extended flash stays where the Argus map puts it. Without this explicit false the row would INHERIT the new default (the R-DK3 inheritance trap: only the penta/castalia4 configs name this knob), silently turning the teaching chip into an 18-hart orchestrator. Pinned, not changed -- this is the shape argus.json already resolved to before the promotion.",
   "orchestrator": false,
   "numMutexes": 32,
+  "_romSizeNote": "ROM DEPTH FOLLOWS THE MACRO, 2026-08-23. This was 16384 and is now 8192, because the single ROM macro the generated MCU.vhd instantiates at rom0 is rom2k_hvt_pg, 2048 x 32. MCU.vhd's concurrent assert binds RomAddrBits to RomMacroAddrBits, so a 16384 here no longer elaborates -- and the Argus rows are elaboration rows (make verify CONFIG=...). The boot image is 7,376 bytes and every Argus hart resets into the same one, so 8 KiB is not a squeeze. tcmSizePerHart is untouched: the TCM is a different macro and Argus keeps its 16 KiB one. hdl/argus/ is a FROZEN snapshot with its own 16 KiB rom_hvt_pg and is NOT touched by this.",
   "memory": {
-    "romSize": 16384,
+    "romSize": 8192,
     "tcmSizePerHart": 16384,
     "sharedBulkRamSize": 131072
   },

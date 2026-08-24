@@ -46,7 +46,7 @@
     "enable": true
   },
   "memory": {
-    "romSize": 16384,
+    "romSize": 8192,
     "tcmSizePerHart": 8192,
     "sharedBulkRamSize": 65536,
     "npuStagingRamSize": 16384

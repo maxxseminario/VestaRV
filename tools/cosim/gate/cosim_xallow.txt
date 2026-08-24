@@ -28,7 +28,17 @@
 #   as neither a tracer bug nor an RTL bug: undriven input pads in a
 #   behavioural sim have no defined level. Verified stable across two runs
 #   (byte-identical traces, V3 checkpoint 3).
-00000070 00004000
+#   PC RE-PINNED 0x00000070 -> 0x0000005c (2026-08-23). The boot ROM was flipped
+#   rv32i -> rv32ic (software/bootrom_mp/isa.bzl), .text 10,140 -> 7,376 bytes,
+#   so every instruction ahead of this one re-encoded and this read MOVED. The
+#   read itself did not change: same GPIO0 PxIN at 0x4000, same 000000bx, and
+#   the very next instruction is still the `andi a4,a4,128` the rationale above
+#   rests on -- only the ENCODING is now the 16-bit `4198` instead of the 32-bit
+#   `0005a703`, which is the whole point of the C-extension flip.
+#   MEASURED across 8 of 8 fresh COSIM_BOOT=1 traces (rom.rcf md5
+#   cab1bbe82d67d959d514dda9e338e3f9, 2048 words), every one carrying
+#   `# XBITS 00 00000821 data 00000002 000000b1`.
+0000005c 00004000
 #
 # ENTRY 2 — SPI0 RX buffer read before any transfer has completed
 #   pc   0x00000198  `lw x5, 12(x10)`   (encoding 00c52283)
@@ -37,7 +47,13 @@
 #   Rationale: the first read drains a shift register that has never been
 #   loaded; the boot's flash-copy loop discards this first word. v1_report.md
 #   §8.2, same classification. Verified stable across two runs.
-00000198 0000420c
+#   PC RE-PINNED 0x00000198 -> 0x0000015c (2026-08-23), same cause as entry 1.
+#   This one did NOT re-encode: the trace still reads `00c52283`, the exact
+#   `lw x5,12(x10)` named above, at the same 0x420c and with the same
+#   000000xx. Only its address in the ROM moved.
+#   MEASURED across the same 8 of 8 traces:
+#   `# XBITS 00 0000084f data 000000ff 00000000`.
+0000015c 0000420c
 #
 #
 # ---------------------------------------------------------------------------

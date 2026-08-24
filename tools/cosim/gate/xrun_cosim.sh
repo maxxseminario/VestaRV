@@ -325,31 +325,36 @@ BOOT_ENTRY=0x00000000
 # flip bit 4 again, and mk_inject will REFUSE loudly rather than fabricate --
 # which is the guard working. Re-read the driven bits off a fresh trace's
 # `# XBITS` line and re-pin; never widen the guard to make it stop complaining.
-# 2026-08-23 -- THE ROM CONTENTS DID CHANGE, AND THIS PIN WAS NOT RE-MEASURED.
-# The boot ROM was flipped rv32i -> rv32ic (software/bootrom_mp/isa.bzl), .text
-# 10,140 -> 7,376 bytes, so every instruction hart 0 fetches before this `lw`
-# has a different encoding and a different address.
-# By the paragraph above, that is exactly the class of change that can flip
-# bit 4, and the value below is therefore SUSPECT until a fresh trace confirms
-# it.
-# It was left untouched rather than guessed at, because a boot-mode lockstep
-# cannot be run in this tree at all right now, for two reasons that have nothing
-# to do with the ROM:
-#   1. the default `rcf/` row dies on the POLARITY MISMATCH guard below.
-#      hdl/common/MemoryMap.vhd now has CORE_ENABLE_DEBUG and
-#      CORE_ENABLE_IF_AHEAD true, and NEITHER knob is in
-#      verify_stage.DEFINE_KNOBS, so neither can ever appear in an image set's
-#      `.imgset` stamp. RTL_ON_CMP therefore cannot equal IMG_ON_CMP for any
-#      image set that exists.
-#   2. the knobs-on row that does match an image set (COSIM_RCF_LINK=k33 with
-#      COSIM_CELL_LIST=verify_castaliapenta/cell_list_behavioral.txt) elaborates
-#      but dies at 0 FS on a STALE STAGED TREE: `hart_tile: MemoryMap RamSize =
-#      16384 but ram0 is the 8 KiB sram1p8k_hvt_pg macro`. That staging predates
-#      the current hdl/common and needs a re-stage from platform/common.
-# WHEN EITHER IS UNBLOCKED: run one COSIM_BOOT=1 test, expect mk_inject to
-# REFUSE if bit 4 moved, and re-pin off that run's fresh `# XBITS` line.
-# A refusal there is the guard working, not a regression.
-BOOT_ALLOW_X_1=${BOOT_ALLOW_X_1:-'*:00004000:000000a1'}
+# RV32IC RE-PIN (2026-08-23): 0xa1 -> 0xb1, MEASURED, and the CPR8 paragraph
+# above called it in advance. The boot ROM was flipped rv32i -> rv32ic
+# (software/bootrom_mp/isa.bzl), .text 10,140 -> 7,376 bytes, which is the
+# "ROM contents" case of "any change that moves boot timing can flip bit 4".
+# It flipped, straight back: this `lw` now sits at pc=0x5c instead of pc=0x70
+# and is the 16-bit `4198` instead of the 32-bit `0005a703`, and the earlier
+# arrival puts it on the OTHER side of an LFXT edge again, so the driven bits
+# read 0x...b1 (bit4=1). Bit 1 (P0.1 = flash MISO) is still the only UNDRIVEN
+# bit and is still filled with 0.
+# The guard worked exactly as written: the FIRST boot-mode run after the ROM
+# change was mk_inject EXIT_REFUSED --
+#   REFUSED ordinal 1 addr=00004000: the --allow-x substitution 000000a1
+#   CONTRADICTS a bit the RTL actually drove [amendment A10].
+#   observed=000000bx undriven-mask=00000002 driven-bits=000000b1
+# -- so nothing was fabricated and nothing was guessed. The value below is read
+# off that refusal's own driven-bits field.
+# MEASURED, not inferred: 8 of 8 fresh COSIM_BOOT=1 hart-0 traces carry
+# `# XBITS 00 00000821 data 00000002 000000b1` and NO third x-tainted record.
+# THE RUN: 2026-08-23 20:46, RUN_KEY=knobboot2__h1__cosim_tests,
+# COSIM_BOOT=1 COSIM_RCF_LINK=k33 against live hdl/common (RTL ON = TRAPCSR ==
+# IMG ON), boot ROM software/bootrom_mp/bin/rom.rcf md5
+# cab1bbe82d67d959d514dda9e338e3f9 (2048 words), tests rv32ui-p-{add,addi,and,
+# xor,sll}, rv32um-p-mul, rv32ua-p-amoadd_w, rv32uzba-p-sh1add.
+# NOT WIDENED: the undriven mask is still the single bit 1, exactly as before.
+# The comparator half of the same two reads moved with it -- cosim_xallow.txt's
+# two `<pc> <addr>` lines are re-pinned 0x70 -> 0x5c and 0x198 -> 0x15c, same
+# addresses, same rationale, in the same measurement.
+# STILL TIMING-SENSITIVE by construction: the next thing that moves boot timing
+# re-opens this, and mk_inject will refuse again rather than fabricate.
+BOOT_ALLOW_X_1=${BOOT_ALLOW_X_1:-'*:00004000:000000b1'}
 BOOT_ALLOW_X_2=${BOOT_ALLOW_X_2:-'*:0000420c:00000000'}
 XALLOW="${XALLOW:-$HERE/cosim_xallow.txt}"
 ALLOWX_DIR="${ALLOWX_DIR:-$HERE/cosim_allowx}"
@@ -678,11 +683,70 @@ case "$MEMMAP_VHD" in /*) ;; *) MEMMAP_VHD="$CELL_LIST_DIR/$MEMMAP_VHD" ;; esac
 RTL_ON="$(sed 's/--.*//' "$MEMMAP_VHD" \
           | grep -ioE 'constant[[:space:]]+CORE_ENABLE_[A-Z0-9_]+[[:space:]]*:[[:space:]]*boolean[[:space:]]*:=[[:space:]]*true' \
           | sed -E 's/.*CORE_ENABLE_([A-Za-z0-9_]+).*/\1/' | tr 'a-z' 'A-Z' | sort -u | tr '\n' ' ')"
-# The five base-ISA knobs are true in almost every build and no test #ifdefs on
-# them (verify_stage.DEFINE_KNOBS says so, and says why): comparing them would
-# make every row mismatch on MUL/DIV/ATOMICS/COMPRESSED/BITMANIP.
+# WHICH CONSTANTS ARE COMPARABLE -- READ, NOT REPEATED (2026-08-23).
+#
+# This used to be a five-name `case` inlined here: MUL|DIV|ATOMICS|COMPRESSED|
+# BITMANIP, dropped because they are true in almost every build and no test
+# #ifdefs on them. The names were right and the SHAPE was wrong. It was a
+# NEGATIVE filter over a list that only ever grows, so every CORE_ENABLE_*
+# constant added to MemoryMap.vhd after it was written became automatically
+# "comparable" whether or not an image could ever carry the matching -D. Two
+# did: CORE_ENABLE_DEBUG at the D-series merge (2026-08-15) and
+# CORE_ENABLE_IF_AHEAD today, and since neither can appear in an `.imgset`
+# stamp, RTL_ON_CMP could not equal IMG_ON_CMP for ANY image set that exists.
+# The guard refused every row for eight days, and the refusal it printed was
+# not about the tree -- it was about itself.
+#
+# The classification now has ONE home, verify_stage.DEFINE_KNOBS (stampable)
+# and verify_stage.NON_DEFINE_KNOBS (exempt, each entry carrying the
+# measurement that put it there), and this reads it. An unclassified constant
+# is REFUSED below rather than assumed into either bucket, so the next knob
+# cannot repeat this.
+_KC="$("$PY36" "$ROOT/platform/common/python/verify_stage.py" --knob-classes)" \
+    || die "cannot read the knob classification from
+       $ROOT/platform/common/python/verify_stage.py --knob-classes
+       That file is the single source of truth for which CORE_ENABLE_* constants
+       an image set's .imgset stamp can carry, so the RTL/image polarity match
+       cannot be checked without it."
+STAMPABLE_KNOBS="$(printf '%s\n' "$_KC" | sed -n 's/^STAMPABLE_KNOBS=//p')"
+EXEMPT_KNOBS="$(printf '%s\n' "$_KC" | sed -n 's/^EXEMPT_KNOBS=//p')"
+[ -n "$STAMPABLE_KNOBS" ] || die "verify_stage.py --knob-classes printed no
+       STAMPABLE_KNOBS line. Refusing to compare polarities against an empty
+       classification, which would pass everything."
+# A knob in NEITHER list is a classification the tree has not made yet. Refusing
+# is the whole point: guessing "stampable" refuses every row that exists (the
+# bug just fixed), and guessing "exempt" silently stops comparing a knob that
+# images really do dispatch on, which is the PASS-shaped failure this guard is
+# here to prevent.
+_UNCLASSIFIED=""
+for k in $RTL_ON; do
+    _hit=""
+    for _s in $STAMPABLE_KNOBS $EXEMPT_KNOBS; do
+        [ "$k" = "$_s" ] && { _hit=1; break; }
+    done
+    [ -n "$_hit" ] || _UNCLASSIFIED="$_UNCLASSIFIED $k"
+done
+[ -z "$_UNCLASSIFIED" ] || die "UNCLASSIFIED RTL KNOB(S):$_UNCLASSIFIED
+       $MEMMAP_VHD declares them true, and verify_stage.py classifies them
+       neither STAMPABLE (DEFINE_KNOBS) nor EXEMPT (NON_DEFINE_KNOBS).
+       A polarity comparison cannot guess which they are: called stampable they
+       refuse every image set that exists, called exempt they hide a real
+       mismatch. Classify each in verify_stage.py, with the measurement, in the
+       commit that adds it. STAMPABLE needs all three of: the generator emits a
+       matching '#define CORE_ENABLE_<X>', a test source dispatches on that
+       define at build time, and the constant is readable in MemoryMap.vhd."
+# Only the stampable ones are compared. Written as a POSITIVE filter now, so a
+# future constant can only leave this set through the refusal above.
 RTL_ON_CMP="$(for k in $RTL_ON; do
-        case "$k" in MUL|DIV|ATOMICS|COMPRESSED|BITMANIP) ;; *) echo "$k" ;; esac
+        for _s in $STAMPABLE_KNOBS; do
+            [ "$k" = "$_s" ] && { echo "$k"; break; }
+        done
+    done | sort -u | tr '\n' ' ')"
+# ...and, for the banner, the ones that ARE true in the RTL but are exempt.
+RTL_EXEMPT_ON="$(for k in $RTL_ON; do
+        for _s in $EXEMPT_KNOBS; do
+            [ "$k" = "$_s" ] && { echo "$k"; break; }
+        done
     done | sort -u | tr '\n' ' ')"
 IMG_ON_CMP="$(for k in $IMG_ON; do echo "$k"; done | sort -u | tr '\n' ' ')"
 if [ "$RTL_ON_CMP" != "$IMG_ON_CMP" ]; then
@@ -2023,6 +2087,13 @@ fi
 echo "  amendments: ${COMPARE_AMEND:-(none — the default config gates them all off)}"
 echo "  polarity  : RTL ON = ${RTL_ON_CMP:-(none)}   ($MEMMAP_VHD)"
 echo "              IMG ON = ${IMG_ON_CMP:-(none)}   ($COSIM_RCF_LINK/.imgset = '$IMGSET_HAVE')"
+# The knobs the RTL declares TRUE that were NOT compared, named rather than
+# left implicit. A reader who greps MemoryMap.vhd sees DEBUG and IF_AHEAD true
+# and the banner saying "RTL ON = TRAPCSR"; without this line that reads like
+# the guard missing something, which is exactly the confusion that made the
+# eight-day refusal hard to see. verify_stage.NON_DEFINE_KNOBS says why each
+# one is uncomparable.
+echo "              not compared (exempt, verify_stage.NON_DEFINE_KNOBS) = ${RTL_EXEMPT_ON:-(none)}"
 echo "              ref ELFs built at RISCV_GCC_OPTS=$REF_GCC_OPTS"
 echo "  images    : ../$COSIM_RCF_LINK   cell list: $CELL_LIST"
 echo "  injector  : $MK_INJECT (ordered replay, amendment A6)"

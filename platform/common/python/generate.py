@@ -285,7 +285,7 @@ _CONFIG_SCHEMA = {
 	# all-zero). Default 16
 	'priv.pmpEntries':      ('int, 8 or 16: PMP entry count when priv.pmp is true (default 16)',
 	                         lambda v: _isInt(v) and v in (8, 16)),
-	'memory.romSize':            ('int bytes, 1 KiB multiple <= 0x4000: boot ROM (0x0-0x3FFF)',
+	'memory.romSize':            ('int bytes, 1 KiB multiple <= 0x4000: boot ROM (0x0-0x1FFF at the shipped 8 KiB; the page runs to 0x3FFF and its tail is unmapped)',
 	                              lambda v: _isMemSize(v, 0x4000)),
 	'memory.tcmSizePerHart':     ('int bytes, 1 KiB multiple <= 0x4000: per-hart TCM based at 0x8000 (top = 0x8000 + size - 1; 0x9FFF at the shipped 8 KiB)',
 	                              lambda v: _isMemSize(v, 0x4000)),
@@ -595,7 +595,20 @@ _CONFIG_META = {
 	# the _cfg() fallback in _debug below, and check_config_defaults.py is what
 	# keeps the two in step.
 	'debug.enable':         {'type': 'bool', 'default': True},
-	'memory.romSize':            {'type': 'int', 'default': 16384, 'min': 0x400, 'max': 0x4000, 'step': 0x400},
+	# DEFAULT HALVED 16384 -> 8192 on 2026-08-23, and this one is a MACRO change,
+	# not just a map change. The boot image became rv32ic and measures 7,376
+	# bytes, 816 under 8,192, so the 16 KiB plate was more than half empty. The
+	# 2048x32 ROM rom2k_hvt_pg was compiled to replace it and is 156.525 x 181.41
+	# against rom_hvt_pg's 156.525 x 325.055 -- SAME WIDTH, 143.645 um shorter,
+	# 22,484 um2 (44.19%) off the MCU floor, and slightly faster at every corner.
+	# MCU.template.vhd instantiates rom2k_hvt_pg and mcu_vhd.py's
+	# ROM_MACRO_ADDR_BITS is 11, so this literal and those two move TOGETHER: the
+	# concurrent assert at rom0 refuses to elaborate any other combination.
+	# The schema max stays 0x4000. It is the address-space ceiling the memory map
+	# reserves for the ROM page, not a claim that a 16 KiB macro is instantiated;
+	# asking for one now fails elaboration rather than silently shipping a map the
+	# array does not honour.
+	'memory.romSize':            {'type': 'int', 'default': 8192, 'min': 0x400, 'max': 0x4000, 'step': 0x400},
 	# DEFAULT HALVED 16384 -> 8192 on 2026-08-16 (USER directive: use the 8 KiB
 	# SRAM for each core's private TCM, "make each tile as small as possible").
 	# The 8 KiB macro sram1p8k_hvt_pg is 319.65 x 208.675 against the 16 KiB
@@ -1200,7 +1213,7 @@ _core = {
 }
 
 _regsDualPort = _cfg('registerFileDualPort', True)
-_romSize = _cfg('memory.romSize', 16384)
+_romSize = _cfg('memory.romSize', 8192)
 _tcmSize = _cfg('memory.tcmSizePerHart', 8192)
 # The TCM's top address + 1, and therefore the stack pointer's reset value: the
 # stack starts at the top of the private TCM and grows down. THIS USED TO BE THE
@@ -1376,7 +1389,7 @@ Castalia: 4-hart multi-core VestaRV MCU (hdl/common), M11 memory map +
 M12 single-ROM boot. Per-hart PRIVATE view: ONLY the 16 KiB TCM at
 0x8000-0xBFFF (same local address in every tile). Everything else is the
 arbitrated SHARED window, reachable by ALL harts through the mp_arbiter:
-	0x00000-0x03FFF  THE shared boot ROM (one rom_hvt_pg, read-only; all
+	0x00000-0x01FFF  THE shared boot ROM (one rom2k_hvt_pg, read-only; all
 	                 four harts reset to PC 0x0 and dispatch on mhartid --
 	                 tiles park in WFI until loaded/ignited through the
 	                 bootrom loader mailboxes at 0x10400 + CLINT msip)
@@ -1404,7 +1417,7 @@ m = ChipGenerator(
 	mcuUserGuideLatexTemplateFileName='TRM.template.tex',
 	numHarts=numHarts,	# multiprocessor hart count (default 4) — drives the TRM's \NumHarts/\NumHartsWord defines, the multi-core feature bullets, AND (since A1) the per-hart generated MCU.vhd regions + CLINT/IRQROUTER register loops below
 	romStartAddress=0x0000,
-	romSize=_romSize,	# 16 KiB (region 0x0-0x3FFF; do not exceed 0x4000)
+	romSize=_romSize,	# 8 KiB (region 0x0-0x1FFF; the page reserves 0x0-0x3FFF, so do not exceed 0x4000)
 	peripheralMemoryStartAddress=0x4000,
 	peripheralMemorySlotCount=16,
 	registerMemorySlotsPerPeripheralMemorySlot=64, #Bytes between each peripheral's register memory slots.
