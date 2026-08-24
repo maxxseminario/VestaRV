@@ -6,7 +6,13 @@
 %     (+0.402 mV at code 0, -1.419 mV at code 3968); v_pattern 104.09 uV at
 %     code 0 and 2.421694 V at code 3968 (ideal 2.421875 V, -181 uV);
 %     v_cm_dc 1.249738 V; A2 offset -619.64 uV from S8.2.
-%   S4 F-4 for the unconnected DAC supply regulators and the 25.8 mV figure.
+%   S4 F-4 for the DAC supply regulators and the 25.8 mV figure.
+% 2026-08-24 RE-BASELINE (simruns/rebase_20260824): every dc quantity in this
+%   fragment is reproduced to the printed digits on the new OA
+%   (dc_table.txt: re_err 0.6723514 / 1.4194261 mV, v_pattern 0.1040884 mV /
+%   2.4216938 V, v_cm_dc 1.2497380 V, A2 offset -619.6434 uV; worst delta 3.0 nV,
+%   numerical).  What changed is the CAUSE of the ideal supply: DAC_VP_PSU and
+%   DAC_VCM_PSU are DELETED from the cell, not merely unconnected (S1.1).
 % The 528.96 uV/LSB and 2.166 V full scale quoted for comparison are the
 % reference-DAC section's own numbers (tab_dacr2r12_mc_reference), measured on
 % the shunt-clamp regulator that is absent from this cell's supply path.
@@ -36,10 +42,10 @@ and every current referred to that node inherits the error.
 
 The step is \SI{610.35}{\micro\volt}, \(\SI{2.5}{\volt}/4096\), not the
 \SI{528.96}{\micro\volt} of Section~\ref{ss:dacr2r12}, because in this cell
-both ladders run from the \SI{2.5}{\volt} rail directly: the DAC supply
-regulators are instantiated but their outputs reach nothing. The
-\SI{25.8}{\milli\volt} of code-dependent reference movement measured in
+both ladders run from the \SI{2.5}{\volt} analog rail directly: the channel
+carries no reference-DAC supply regulator. The \SI{25.8}{\milli\volt} of
+code-dependent reference movement measured in
 Section~\ref{sss:dacr2r12-supply} is therefore absent from every potential
-number here. It is \(40\times\) the tracking error above and will dominate the
-potential axis the moment the regulators are placed in the path --- the reason
+number here. It is \(40\times\) the tracking error above and would dominate the
+potential axis if a regulator were ever put in the path --- the reason
 to read \SI{0.672}{\milli\volt} as a missing stimulus rather than a result.

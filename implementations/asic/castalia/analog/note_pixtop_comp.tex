@@ -20,6 +20,28 @@
 %     tables, PM_ctrl/GM_ctrl/fx_ctrl columns.
 %   f3dB pre -> post at Cdl 100 nF, Rct 1 M: 116.6k -> 85.77k (N=0),
 %     13.59k -> 10.00k (63), 7356 -> 4642 (191), 5412 -> 3415 (319).
+%
+% 2026-08-24 RE-BASELINE, simruns/rebase_20260824/stb/stb_table.txt (same grid,
+% same engine, same probes, on the new OA).  ALL 24 STILL PASS; worst PM_tia
+% still 75.71 deg at cdl100n_rct1M_n63.  The two new buffers are OUTSIDE both
+% loops (BUF_ADC between ADC_MUX and the converter, BUF_ATP between ATP_MUX and
+% ATP), so neither enters stbF (DUT.TIA.IPRB_F) or stbC (DUT.IPRB1).  Everything
+% that moved is C_CMP1/2_CTRL becoming a real mimcap_sin, lt=wt=15.58u ~ 492 fF,
+% against the ideal capacitor c=cc_ab = 500 fF it replaced:
+%   PM_tia  +0.36 deg everywhere except n63 (unchanged) -> 79.30-79.69 deg
+%   GM_tia  -0.43 .. -0.74 dB -> 20.72-21.97 dB
+%   PM_ctrl -0.08 .. -0.09 deg -> 79.68-81.68 deg
+%   GM_ctrl +1.0 dB at n63/191/319 -> 36.46-39.13 dB
+%   GM_ctrl at ncode = 0: spectre reports "No gain margin. Phase does not reach
+%     0 Deg" with stb_state "The circuit is stable." -- UNCONDITIONAL stability,
+%     i.e. unbounded gain margin, NOT a missing measurement (was 40.71 dB).
+%   peaking, Zt(1 Hz), f3dB unchanged to every printed digit.
+% stb_buf/buf_stb_table.txt: the buffers' own loops, iprobe spliced into each
+%   follower's feedback -- BUF_ADC 78.41 deg / 17.83 dB / 21.9 MHz, BUF_ATP
+%   80.89 deg / 20.25 dB / 18.0 MHz, identical at N = 0 / 63 / 319.
+% NOT RE-MEASURED on this OA: the five-corner stability run
+%   (simruns/postfix_corner_stb).  The 72.37 deg slow-corner figure below is
+%   therefore the pre-edit cell's, flagged as such in the prose.
 % Library cell names are kept out of the rendered prose (owner request).
 
 \subsubsection{Compensation and Stability}\label{sss:pixtop-stability}
@@ -27,7 +49,10 @@
 The transimpedance stage carries a \SI{22.0}{\pico\farad} capacitor across
 \(R_f\), a four-unit metal--insulator--metal array occupying
 \SI{10853}{\micro\meter\squared} per channel. All three capacitors in that
-stage now carry mismatch statistics.
+stage carry mismatch statistics. Every compensation capacitor in the channel is
+now a real metal--insulator--metal device: A1's pair and each buffer's are
+\SI{492}{\femto\farad}, against the \SI{500}{\femto\farad} the ideal elements
+they replaced carried.
 
 It exists because the assembled loop did not close without it. With the
 programmable ladder and the real reference in the loop --- neither of which
@@ -37,9 +62,10 @@ of peaking at the nominal corner and to \SI{30.00}{\degree} with
 \SI{5.96}{\decibel} at the slow one. With the capacitor all 24 points pass:
 the worst cell is \(C_{\mathrm{dl}} = \SI{100}{\nano\farad}\),
 \(R_{\mathrm{ct}} = \SI{1}{\mega\ohm}\), \(N = 63\) at \SI{75.71}{\degree} and
-\SI{1.068}{\decibel}, and it holds \SI{72.37}{\degree} and
-\SI{1.379}{\decibel} at the slow corner. Gain margin is at least
-\SI{21.15}{\decibel} everywhere. The grid spans
+\SI{1.068}{\decibel}, and it held \SI{72.37}{\degree} and
+\SI{1.379}{\decibel} at the slow corner --- the one figure here measured on the
+previous revision of the cell, the five-corner run not having been repeated.
+Gain margin is at least \SI{20.72}{\decibel} everywhere. The grid spans
 \(C_{\mathrm{dl}} = \SI{100}{\nano\farad}\,/\,\SI{1}{\micro\farad}\,/\,\SI{10}{\micro\farad}\),
 \(R_{\mathrm{ct}} = \SI{10}{\kilo\ohm}\,/\,\SI{1}{\mega\ohm}\) and
 \(N = 0\,/\,63\,/\,191\,/\,319\), and the two worst cells were re-run at five
@@ -48,9 +74,19 @@ corners.
 The capacitor also lands in the control loop, because it ties the
 transimpedance output to the working electrode and therefore sits inside A1's
 path through the electrode: A1's gain margin rises from \SI{21}{\decibel} to
-\SIrange{35.5}{40.7}{\decibel}, its crossover falls from \SI{18}{\mega\hertz}
-to \SI{6.0}{\mega\hertz}, and its phase margin from
-\SIrange{68.1}{71.4}{\degree} to \SIrange{79.0}{81.8}{\degree}.
+\SIrange{36.5}{39.1}{\decibel} and its crossover falls from \SI{18}{\mega\hertz}
+to \SI{6.0}{\mega\hertz}; its phase margin, \SIrange{68.1}{71.4}{\degree}
+before, is now \SIrange{79.7}{81.7}{\degree}. At minimum gain
+the control loop's phase never reaches zero, so its gain margin is unbounded.
+
+Making A1's compensation pair a real device rather than an ideal element costs
+\SIrange{0.4}{0.7}{\decibel} of transimpedance gain margin and buys
+\SI{0.36}{\degree} of transimpedance phase margin and \SI{1.0}{\decibel} of
+control-loop gain margin. Peaking, transimpedance and bandwidth do not move at
+any printed digit. The two multiplexer buffers sit outside both loops and
+appear in neither; their own loops close at \SI{78.4}{\degree} and
+\SI{80.9}{\degree} of phase margin with \SI{17.8}{\decibel} and
+\SI{20.3}{\decibel} of gain margin, unchanged across gain codes.
 
 The cost is closed-loop bandwidth, which falls by a third to a half at every
 code: \SIrange{116.6}{85.8}{\kilo\hertz} at \(N = 0\),

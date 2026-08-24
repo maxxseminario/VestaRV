@@ -5,12 +5,17 @@
 % schematic: the converter's 16:1 input multiplexer and its 4-bit select pin
 % (slot 0 = transimpedance output, 1 = common mode, 2 = commanded potential,
 % 3 = reserved for a buffered RE tap and floating, 4 = analog test point,
-% 5 = ground). What does not exist: the RE buffer (F-5c), the common-mode
-% buffer (the S7.5 finding), the test-port mux inputs (F-3), the electrode
-% isolation switches and the on-chip gain reference resistor.
+% 5 = ground), and now a unity-gain buffer on the multiplexer output.  What
+% does not exist: the RE buffer (F-5c), the test-port mux inputs (F-3), the
+% electrode isolation switches and the on-chip gain reference resistor.
 % Numbers: bit-9 inversion and 88.5 nA/LSB at N = 0 (sss:pixtop-adc); 0.3 nV
-% zero spread over 320 codes and 0.825 nA/LSB at N = 319 (sss:pixtop-zero);
-% 0.731 V / 16 mV collapse of the common-mode slot (sss:pixtop-open).
+% zero spread over 320 codes and 0.825 nA/LSB at N = 319 (sss:pixtop-zero).
+% 2026-08-24 RE-BASELINE: step 3 used to forbid taking the zero through the
+%   common-mode slot.  simruns/rebase_20260824/mux/mux_disturbance_table.txt
+%   slot 1 NEW: V_CM 0.834 mV, V_OUT 1.75 mV = 1.1 LSB, settled in 0.540 us to
+%   a sub-nV residual (PRE: 518 mV / 1233 mV, 149 mV never recovered).  The step
+%   is now the recommended route.  adc_decode.txt: slot 1 converts to code 508,
+%   0.4 LSB from the standalone bench, three consistent conversions per run.
 % Library cell names are kept out of the rendered prose.
 
 \subsubsection{Measuring this block on chip}
@@ -26,10 +31,10 @@ step needs the tester.
   measurement calibrates every code --- but at the bottom code one LSB is
   \SI{88.5}{\nano\ampere} against \SI{34}{\nano\ampere} of offset and the
   measurement is quantisation noise.
-\item Do not take that zero through the common-mode slot until that tap is
-  buffered: sampling it pulls the common mode to \SI{0.731}{\volt} and the
-  output to \SI{16}{\milli\volt} at every conversion, and the channel never
-  settles.
+\item Take the common-mode reference for that zero through slot 1. Sampling it
+  moves the common mode by \SI{0.83}{\milli\volt} and the transimpedance output
+  by \SI{1.1}{LSB}, both recovered within \SI{0.54}{\micro\second} --- well
+  inside one conversion, so consecutive readings do not interact.
 \item Read the commanded potential at slot 2 to separate a DAC fault from an
   amplifier fault. A1's own contribution is not observable: slot 3 is reserved
   for a buffered reference-electrode tap that does not exist, and the raw

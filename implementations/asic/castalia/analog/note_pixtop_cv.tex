@@ -17,6 +17,12 @@
 % Netlist-level in one respect: the 12-bit potential bus is driven by per-bit
 % PWL sources so the programme is a real code sequence, and the SAR clock is
 % held static.
+% 2026-08-24 RE-BASELINE: this 1 s transient was NOT repeated on the edited cell
+%   and nothing in simruns/rebase_20260824 moves it.  The two new buffers are
+%   outside both loops; deleting the DAC supply regulators left every dc value
+%   bit-identical; and stb/stb_table.txt reproduces Zt(1 Hz), peaking and f3dB
+%   at every printed digit, so Rf_eff, the peak positions and the readout
+%   residual are unaffected.  Re-run it if the loop is ever recompensated.
 
 \subsubsection{Cyclic Voltammetry Through the Complete Chain}\label{sss:pixtop-cv}
 

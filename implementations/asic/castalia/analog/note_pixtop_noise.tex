@@ -28,6 +28,20 @@
 % NOTE the `in 0.1-10M` column of noise_table.txt is spectre's in(f) integral and
 % is NOT a per-sample error -- it divides by a rolled-off transimpedance and comes
 % out gain-independent at ~1170 nA.  Do not publish it.
+%
+% 2026-08-24 RE-BASELINE, simruns/rebase_20260824/noise/noise_table.txt: the
+% input-referred noise is UNCHANGED -- all 60 numbers match the pre-buffer cell
+% to four significant figures (4.5883 / 4.3778 / 4.3767 / 4.3765 nA at
+% N = 0/63/191/319, Cdl 100 nF), and the Dirichlet boxcar table reproduces
+% postfix_noise/boxcar_table.txt in every cell (sigma_tread 2.889 / 1.707 /
+% 1.559 / 1.475 nA).  fig_pixtop_noise.tex and its five .dat files therefore
+% stand as they are; verified cell by cell at N = 0/63/191/319.
+% noise_adc/adcin_noise_table.txt -- a second `noise (DUT.ADC_IN DUT.V_CM)` in
+% the same deck, adc_sel = 0, answering whether BUF_ADC adds noise where the
+% converter actually samples: 0.1 Hz - 1 kHz ratio ADC_IN/V_OUT is 1.0404 at
+% N = 0, 1.0001 at 63, 1.0000 at 319; over the full 0.1 Hz - 10 MHz band it is a
+% flat 1.2 % at every code.  At N = 0 the 2.889 nA tread average is 0.036 LSB,
+% so 4 % there is 35x inside the quantiser.
 % Library cell names are kept out of the rendered prose.
 
 \subsubsection{Noise and the Sampled Readout}\label{sss:pixtop-noise}
@@ -54,6 +68,14 @@ quantisation-limited --- which is what the ladder was sized for. The
 compensation capacitor of Section~\ref{sss:pixtop-stability} does not change
 any of this: it divides output noise and transimpedance by the same factor, and
 the input-referred figures are unchanged by it to four digits.
+
+Measured at the converter input rather than at the transimpedance output, the
+buffer of Section~\ref{sss:pixtop-adc} adds \SI{4.0}{\percent} at \(N = 0\) and
+nothing measurable above it. At minimum gain the \SI{19.6}{\kilo\ohm}
+transimpedance makes the buffer's own voltage noise a visible fraction once
+referred to the input; from \(N = 63\) up the transimpedance swamps it. The
+\SI{4}{\percent} lands on a tread-averaged \SI{0.036}{LSB}, \(35\times\) inside
+the quantiser.
 
 The electrode sets the floor at larger area. At
 \(C_{\mathrm{dl}} = \SI{1}{\micro\farad}\) the tread-averaged noise is
