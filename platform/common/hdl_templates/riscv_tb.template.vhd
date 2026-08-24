@@ -64,9 +64,6 @@ architecture behavioral of riscv_tb is
             prt6_ren		: out	std_logic_vector(7 downto 0);
 
 
-            -- Test Port
-            a0  : out std_logic_vector(31 downto 0);
-
             --@GEN:tb-a0-component-ports@
 
         );
@@ -259,9 +256,6 @@ end component;
         prt6_ren	=> prt6_ren,
 
 
-
-        -- Test Port
-        a0          => a0,
 
         --@GEN:tb-a0-portmap@
     );

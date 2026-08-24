@@ -112,7 +112,10 @@ begin
 
     -- Coverage asserts on elaboration-time constants, so no hardware is built.
     -- The PWRCR gate bits must fit one 32-bit word, and PWRCR plus the PWRSR array must fit the 16 decoded words of addr(3:0).
-    assert NHARTS >= 2 and NHARTS <= 32
+    -- NHARTS = 1 IS LEGAL and is the single-hart MCU_hart shape: there are no gateable tiles, so every per-tile object here is a null range and every per-tile loop runs zero times.
+    -- The block is still instantiated at NHARTS = 1 because the FIELD-POWER BOOT GATE above it (PWRWAKE, PWRSTS, pgood_rstn) is not per-tile hardware and every configuration has it.
+    -- PWRCR then degenerates to its reserved always-on bit 0, and PWRSR0 to the all-zero hart-0 nibble, which is what the register map says a single-hart chip has.
+    assert NHARTS >= 1 and NHARTS <= 32
         report "pwr_ctrl: NHARTS out of range (PWRCR is one 32-bit word)"
         severity failure;
     assert 1 + NSRW <= 16

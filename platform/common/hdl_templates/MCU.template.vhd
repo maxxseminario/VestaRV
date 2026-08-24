@@ -52,9 +52,6 @@ entity MCU is
 		prt6_ren		: out	std_logic_vector(7 downto 0);
 
 
-        -- Testing Purposes Only
-        a0  : out std_logic_vector(31 downto 0);
-
         --@GEN:a0-ports@
         --@GEN:dmi-ports@
         --@GEN:jtag-ports@
@@ -982,8 +979,6 @@ begin
 
     --@GEN:shared-ram-banks@
 
-    -- The tile harts: each is a full core plus its own adddec and private TCM (RAM0 at 0x8000), reset to PC 0x0 to fetch the shared boot ROM through the arbiter, where the bootrom's mhartid dispatch parks them in WFI until hart 0 loads and ignites them over CLINT msip and the boot mailboxes.
-    -- Each tile is also an arbiter master, its sh_* ports mapping onto that master's slice of the flattened arb_* buses; hart_id is a port, each hart's a0 is brought out for the testbench, and sleep/flash/tcm_pgen ride their entity defaults because only hart 0 wires them.
     --@GEN:tile-instances@
     --@GEN:tcm-apertures@
 

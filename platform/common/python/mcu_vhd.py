@@ -1297,7 +1297,7 @@ class McuVhdEmitter():
 		lines = []
 		# NOTE the comment spells the ARBITER port name (s_addr), the code the
 		# fabric net (sh_addr) — transcribed from the golden master.
-		lines.append(ind + '-- Page select on s_addr(' + str(self.shAw - 1) + ':12): page ' + self.pageBits(0) + ' is the shared boot ROM (the single rom2k_hvt_pg all ' + self.hartsWord() + ' harts reset into), page ' + self.pageBits(2) + ' is the TCM region (tile-private, never arrives here).')
+		lines.append(ind + '-- Page select on s_addr(' + str(self.shAw - 1) + ':12): page ' + self.pageBits(0) + ' is the shared boot ROM (the single rom2k_hvt_pg ' + self.allHartsPhrase() + (' resets' if self.nHarts() == 1 else ' reset') + ' into), page ' + self.pageBits(2) + ' is the TCM region (tile-private, never arrives here).')
 		lines.append(ind + '-- The ROM select is the exception to the page decode: it is sized by RomSize, so a ROM smaller than its page leaves the tail of page ' + self.pageBits(0) + ' unmapped instead of mirrored.')
 		lines.append(ind + 'shslv_rom_sel'.ljust(16) + ' <= \'1\' when sh_addr(SH_AW-1 downto RomAddrBits) = RomSelZeros else \'0\';')
 		lines.append(ind + 'shslv_perwin_sel'.ljust(16) + ' <= \'1\' when ' + psl + ' = "' + self.pageBits(1) + '" else \'0\';')
@@ -1360,7 +1360,7 @@ class McuVhdEmitter():
 		else:
 			# digperiphs #1: no EIS stub — irq_router owns the whole page 3.
 			lines.append(ind + 'shslv_irtr_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + irtrBits + '" else \'0\';')
-		lines.append(ind + '-- page-0 slots (slot = sh_addr(9:6)) at the LEGACY 0x4000 numbering: every peripheral at its original Myshkin address, shared by all ' + str(self.nHarts()) + ' harts')
+		lines.append(ind + '-- page-0 slots (slot = sh_addr(9:6)) at the LEGACY 0x4000 numbering: every peripheral at its original Myshkin address, shared by ' + self.allHartsPhrase(spelled=False))
 		for name in self.pg0SelOrder:
 			selName = 'shslv_' + self.shslv[name]['sel'] + '_sel'
 			lines.append(ind + selName.ljust(16) + ' <= shslv_pg0_sel when sh_addr(9 downto 6) = "'
@@ -2667,9 +2667,18 @@ class McuVhdEmitter():
 	# ------------------------------------------------------------------
 
 	def nHarts(self):
+		'''SINGLE HART IS ALLOWED (mcu_hart, 2026-08-24).
+		The floor used to be 2 because every N-hart region emitter below indexes
+		harts 1..N-1 and an N = 1 build walked into backwards ranges and empty
+		port lists rather than into an error anyone could read.
+		Those emitters now fold their tile regions away at N = 1 (the a0 ports,
+		the power-domain vectors, the tile generate loops and the aperture
+		fabric), so the floor is 1 and the shape it emits is one hart 0, the
+		fabric it masters, and no tiles.
+		Nothing about the N >= 2 emission changed.'''
 		n = self.gen.NumHarts
-		if type(n) != int or n < 2:
-			raise Exception('MCU.vhd emitter: numHarts must be an int >= 2 for the MCU_MP template, got ' + str(n))
+		if type(n) != int or n < 1:
+			raise Exception('MCU.vhd emitter: numHarts must be an int >= 1 for the MCU_MP template, got ' + str(n))
 		return n
 
 	def nMasters(self):
@@ -2706,6 +2715,16 @@ class McuVhdEmitter():
 		'''Count prose for "identical on all <N> tiles".'''
 		return _HARTS_WORD.get(self.nHarts(), str(self.nHarts()))
 
+	def allHartsPhrase(self, spelled=True):
+		'''The subject of "... shared by <this>": "all four harts" at N >= 2,
+		"the one hart" at N = 1, where "all one harts" is what the arithmetic
+		would otherwise produce.
+		`spelled` picks the count word the call site already used, because the
+		golden master spells it in two places and prints the digit in two.'''
+		if self.nHarts() == 1:
+			return 'the one hart'
+		return 'all ' + (self.hartsWord() if spelled else str(self.nHarts())) + ' harts'
+
 	def sigDecl(self, name, rest):
 		'''Architecture signal declaration at the golden master's name pad.'''
 		return ' ' * 8 + 'signal ' + name.ljust(max(17, len(name) + 1)) + ': ' + rest
@@ -2731,11 +2750,26 @@ class McuVhdEmitter():
 		return _clog2(maxSlot + 1)
 
 	def emitA0Ports(self):
+		'''The pass/fail observation ports: hart 0's plain `a0`, then one a0_h per
+		tile hart.
+		THE HART-0 PORT MOVED INTO THIS EMITTER (mcu_hart, 2026-08-24) and it is
+		emitted here character for character as the template carried it, so the
+		N >= 2 entity is unchanged.
+		It moved because its trailing separator is not a property of that port.
+		At N = 1 there is no a0_h after it and no tile-hart comment either, so on
+		a debug-off single-hart chip `a0` is the LAST port in the entity and must
+		not carry a semicolon; the template could not know that, and left one
+		standing in front of the closing parenthesis.'''
 		n = self.nHarts()
-		lines = [' ' * 8 + '-- Per-hart pass/fail observation (a0 of the ' + str(n - 1) + ' private-memory harts)']
-		# D2: when the DMI ports follow (debug.enable), the LAST a0_N port is no
-		# longer the last port in the entity and needs its separator.
+		# When the DMI ports follow (debug.enable), the last port emitted here is
+		# no longer the last port in the entity and needs its separator (D2).
 		last = ';' if self.debug else ''
+		lines = [' ' * 8 + '-- Testing Purposes Only',
+			' ' * 8 + 'a0  : out std_logic_vector(31 downto 0)' + (';' if n > 1 else last)]
+		if n == 1:
+			return lines
+		lines.append('')
+		lines.append(' ' * 8 + '-- Per-hart pass/fail observation (a0 of the ' + str(n - 1) + ' private-memory harts)')
 		for h in range(1, n):
 			lines.append(' ' * 8 + 'a0_' + str(h) + ' : out std_logic_vector(31 downto 0)' + (';' if h != n - 1 else last))
 		return lines
@@ -2754,7 +2788,12 @@ class McuVhdEmitter():
 		lines.append(self.sigDecl('arb_scfail', 'std_logic_vector(' + Mm1 + ' downto 0);'))
 		lines.append(self.sigDecl('arb_resvvld', 'std_logic_vector(' + Mm1 + ' downto 0);  -- Zawrs: per-master reservation-valid level'))
 		lines.append(self.sigDecl('sh_we_raw', 'std_logic_vector(3 downto 0);  -- arbiter s_we, pre resv gating'))
-		if self.orch:
+		if n == 1:
+			# Single hart: there is no tile range to name, and "masters 1-0"
+			# is what naming it anyway produces.
+			masterComment = (' ' * 8 + '-- arbiter master buses (master 0 = hart 0, the only hart; '
+				'no tile masters')
+		elif self.orch:
 			# CPR3/R2: master 0 is the orchestrator (an orch_tile, not a
 			# hart_tile) and every other master slice is an ordinary corner
 			# tile. The SLICE LAYOUT is unchanged -- that is the point of
@@ -2923,6 +2962,10 @@ class McuVhdEmitter():
 		lines.append('    /* =========================================================================')
 		if self.orch:
 			lines.append('       ORCHESTRATOR HART (hart 0): the boot master and the management hart, running the SAME tile logic as harts 1-' + nm1 + ' (core, adddec, TCM, shared-window machinery, wait-for-boot-fetch reset release, qualified ack, clk_cpu-staged consumption register, nop-force; see hart_tile.vhd), but as SOFT logic in the centre band instead of a hardened corner macro, so it comes in through the orch_tile wrapper; the tile netlist and the orchestrator netlist must share no module name, or the assembly strip step deletes this subtree and gate sim sees two definitions of one module.')
+		elif self.nHarts() == 1:
+			# There are no harts 1-N-1 to be the same as: hart 0 is the chip's
+			# only hart and this is the only hart_tile instance in the design.
+			lines.append('       Hart 0 is the chip\'s ONLY hart, and it is an ordinary hart_tile: core, adddec, TCM and shared-window machinery all live inside the tile, including the wait-for-boot-fetch reset release, the qualified ack, the clk_cpu-staged consumption register and the nop-force (see hart_tile.vhd).')
 		else:
 			lines.append('       Hart 0 is the SAME hart_tile as harts 1-' + nm1 + ': core, adddec, TCM and shared-window machinery all live inside the tile, including the wait-for-boot-fetch reset release, the qualified ack, the clk_cpu-staged consumption register and the nop-force (see hart_tile.vhd).')
 		lines.append("       Hart 0's specials are pure WIRING on that identical tile: sleep and the flash/XIP ports go to SPI0 (tiles have no SPI0 behind them), tcm_pgen takes pgen_mem(1) for BLOCKPWR RAM gating, trap_flag drives the GPIO0 trap pin, a0 drives the tb pass/fail gate, and arbiter master slice 0 is direct with no isolation clamps.")
@@ -2932,7 +2975,7 @@ class McuVhdEmitter():
 		lines.append('        generic map (')
 		lines.append('            PC_RST_VAL     => x"00000000",')
 		lines.append('            SH_AW          => SH_AW,')
-		lines.append('            -- Core ISA features (config-driven, work.MemoryMap; MUST be identical on all ' + self.hartsWord() + ' tiles, one hardened netlist)')
+		lines.append('            -- Core ISA features (config-driven, work.MemoryMap; MUST be identical on ' + ('this one tile' if self.nHarts() == 1 else 'all ' + self.hartsWord() + ' tiles') + ', one hardened netlist)')
 		lines.extend(self.coreGenericLines())
 		lines.append('        )')
 		lines.append('        port map (')
@@ -3289,7 +3332,7 @@ class McuVhdEmitter():
 		mw = self.masterW()
 		lines = []
 		lines.append('    /* PLIC-lite: THE peripheral interrupt controller, with per-hart routing rows (any hart programs any row through the arbiter; resv-gated sh_we like the CLINT) plus CLAIM/COMPLETE delivery @0x7800.')
-		lines.append('       The deglitched source vector TERMINATES here; delivery to harts 0-' + nm1 + ' is the one registered meip wire each (IVT slot 85), and sh_master attributes claim reads (the mutex-bank idiom).')
+		lines.append('       The deglitched source vector TERMINATES here; delivery to ' + ('hart 0' if self.nHarts() == 1 else 'harts 0-' + nm1) + ' is the one registered meip wire each (IVT slot 85), and sh_master attributes claim reads (the mutex-bank idiom).')
 		lines.append('       It resets all-masked, so the block is a provable NO-OP until software routes an IRQ; the wdt_* hooks carry the watchdog contract into SYSTEM0 (source 0 routed/EOI state). */')
 		lines.append('    irtr0: entity work.irq_router')
 		lines.append('        generic map (NHARTS => ' + str(n) + ', NUM_SRCS => NUM_IRQ_SRCS'
@@ -3717,7 +3760,7 @@ class McuVhdEmitter():
 			+ ' the arbiter word address covers ALL of 0x00000-0x%05X (word addr = data_addr(%d:2)) and the slave sub-decode selects on s_addr(%d:12):'
 			% (self.windowTop(), self.shAw + 1, self.shAw - 1))
 		romRow = (ind + '     ' + self.pageBits(0) + ' = boot ROM 0x0-' + self.romTopHex()
-			+ ' (one rom2k_hvt_pg, read-only slave; all ' + self.hartsWord() + ' harts reset here)')
+			+ ' (one rom2k_hvt_pg, read-only slave; ' + self.allHartsPhrase() + (' resets' if self.nHarts() == 1 else ' reset') + ' here)')
 		if self.romUnmappedHex() is not None:
 			romRow += ', ' + self.romUnmappedHex() + ' = unmapped (the ROM is smaller than its page; reads zero)'
 		lines.append(romRow)
@@ -3770,7 +3813,7 @@ class McuVhdEmitter():
 		pw = self.shAw - 12
 		lines = []
 		lines.append(ind + '-- Slave fabric: page select on s_addr(' + str(self.shAw - 1) + ':12) (see the SH_AW comment above for the map).')
-		lines.append(ind + '-- The peripheral window sub-decodes on s_addr(11:10) into 4 pages; page 0 = 16 x 256B slots at the LEGACY 0x4000 slot numbering (slot = s_addr(9:6)), so every peripheral sits at its original Myshkin address, shared by all ' + str(self.nHarts()) + ' harts.')
+		lines.append(ind + '-- The peripheral window sub-decodes on s_addr(11:10) into 4 pages; page 0 = 16 x 256B slots at the LEGACY 0x4000 slot numbering (slot = s_addr(9:6)), so every peripheral sits at its original Myshkin address, shared by ' + self.allHartsPhrase(spelled=False) + '.')
 		def decl(name, comment=None):
 			line = ind + 'signal ' + name.ljust(17) + ': std_logic;'
 			if comment is not None:
@@ -4191,7 +4234,7 @@ class McuVhdEmitter():
 		lines.append('        generic map (')
 		lines.append('            PC_RST_VAL     => x"00000000",')
 		lines.append('            SH_AW          => SH_AW,')
-		lines.append('            -- Core ISA features (config-driven, work.MemoryMap; MUST be identical on all ' + self.hartsWord() + ' tiles, one hardened netlist)')
+		lines.append('            -- Core ISA features (config-driven, work.MemoryMap; MUST be identical on ' + ('this one tile' if self.nHarts() == 1 else 'all ' + self.hartsWord() + ' tiles') + ', one hardened netlist)')
 		lines.append('            -- M and B come from TILE_ENABLE_*, NOT CORE_ENABLE_*: the corner tiles are the MINIMAL-ISA harts (rv32iac). Hart 0 / the orchestrator take the full CORE_ENABLE_* set.')
 		lines.extend(self.coreGenericLines(tile=True))
 		lines.append('        )')
@@ -4243,7 +4286,14 @@ class McuVhdEmitter():
 		# and rides the hart0-instance region (bound to orch_tile there), so
 		# this loop no longer stops short of anything and the CP2
 		# --@GEN:orch-instance@ region is retired.
-		lines = []
+		# The two-line banner moved in from the template (mcu_hart, 2026-08-24) so
+		# it goes away with the instances it introduces: at N = 1 there are no
+		# tiles and a heading over nothing describes hardware this chip has not
+		# got. Emitted character for character as the template carried it.
+		if self.tileTop() <= 1:
+			return []
+		lines = ["    -- The tile harts: each is a full core plus its own adddec and private TCM (RAM0 at 0x8000), reset to PC 0x0 to fetch the shared boot ROM through the arbiter, where the bootrom's mhartid dispatch parks them in WFI until hart 0 loads and ignites them over CLINT msip and the boot mailboxes.",
+			"    -- Each tile is also an arbiter master, its sh_* ports mapping onto that master's slice of the flattened arb_* buses; hart_id is a port, each hart's a0 is brought out for the testbench, and sleep/flash/tcm_pgen ride their entity defaults because only hart 0 wires them."]
 		for h in range(1, self.tileTop()):
 			if h > 1:
 				lines.append('')
@@ -4572,7 +4622,7 @@ def generateMcuVhd(gen, templatePath, outPath):
 		templateLines = f.read().split('\n')
 
 	header = []
-	header.append('/* MCU.vhd: Castalia MCU top-level integration layer (' + str(emitter.nHarts()) + ' harts, MCU_MP)')
+	header.append('/* MCU.vhd: Castalia MCU top-level integration layer (' + str(emitter.nHarts()) + (' hart' if emitter.nHarts() == 1 else ' harts') + ', MCU_MP)')
 	header.append('   The fixed boilerplate comes from hdl_templates/MCU.template.vhd; the description-driven sections are generated from python/generate.py')
 	header.append('   Generated on ' + generatedOnStamp() + ' with the generate.py chip generator')
 	header.append('   WARNING: Do not edit or modify this file!')

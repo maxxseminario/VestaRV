@@ -84,6 +84,10 @@ load(":defs.bzl", "RV4TH_RTL")
 
 package(default_visibility = ["//visibility:public"])
 
+# The behavioural TSMC pad cell, so //opensource_sim/mcu_hart's boot bench can
+# name it instead of carrying a second copy.
+exports_files(["pads_sim.vhd"])
+
 # The one-constant VHDL package that tells the ROM macro model where its image
 # is. Generated, so the path is the build's own $(rootpath) and never a
 # hand-written string that can rot.
