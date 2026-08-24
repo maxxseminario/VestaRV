@@ -12,11 +12,23 @@
 %   and 5 corners (simruns/postfix_stb, simruns/postfix_corner_stb).
 % REMOVED: "Noise, power, corners. None." -- all three now measured
 %   (sss:pixtop-noise, sss:pixtop-power; simruns/postfix_{noise,decim,pwr,corner}).
-% CHANGED: the Monte Carlo bullet.  One of its two blockers is gone -- all three
-%   mimcap_sin in anatop_tia now carry mismatchflag=1 (owner's edit 2026-08-23,
-%   confirmed in simruns/postfix_canon/input.scs).  The model section
-%   castalia_typ_25 this setup names still carries no statistics; the section
-%   that does is castalia_pm_25 (CLAUDE.md, and the DacR2R12 MC runs).
+% REVISED AGAIN 2026-08-24 after simruns/pixmc_20260823 (the first Monte Carlo
+%   on this cell, 200 samples, process + mismatch, section castalia_pm_25).
+% REMOVED: the Monte Carlo bullet -- run, sss:pixtop-mc, tab:pixtop-mc,
+%   fig:pixtop-mc.  Both of its blockers are gone: the three mimcap_sin in
+%   anatop_tia carry mismatchflag=1 (owner's edit 2026-08-23) and the deck was
+%   spliced onto castalia_pm_25 rather than the typical-only castalia_typ_25
+%   the setup names.
+% ADDED: the four raw-model devices in the amplifier (anatop_tia_amp_ab M48/M49
+%   nch_25, M57/M58 pch_25 -- present in BOTH A1 and A2), which drew no mismatch
+%   and make every yield in sss:pixtop-mc an upper bound.  They cannot be fixed
+%   from a splice: they are schematic instances.  README.md "Owner-fixes" of
+%   simruns/pixmc_20260823 lists the rest of the census (biasgen_local,
+%   pixel_dac_psu, amux_2, the sample switch and level shifters), all of them in
+%   blocks the ablation shows contribute nothing.
+% CHANGED: the Wiring bullet's common-mode item now states what it costs --
+%   it is the tap the calibration of sss:pixtop-mc is measured through, so the
+%   9.00 % / 61.50 % calibrated yields cannot be realised until it is buffered.
 % ADDED: the readout path (no run has converted a real electrode current through
 %   the on-chip converter -- sss:pixtop-cv reads currents from an in-line probe
 %   and from Zt, not from a code), and the layout parasitics on the new
@@ -29,12 +41,13 @@
 \subsubsection{Not Yet Verified}\label{sss:pixtop-open}
 
 \begin{itemize}[nosep]
-  \item \textbf{Monte Carlo.} The compensation capacitors now carry mismatch
-    statistics, which was one of the two blockers; the other stands. The model
-    section this setup names is typical-only, and a run against it completes
-    and yields a tidy, empty distribution. Nothing in this section is a yield
-    number, and for a channel whose accuracy is set by matching that is the gap
-    that matters.
+  \item \textbf{Four amplifier devices outside the statistics.} Two n-channel
+    and two p-channel devices in the enable and class-AB bias network
+    instantiate raw model cards rather than the mismatch-enabled wrappers, so
+    the Monte Carlo of Section~\ref{sss:pixtop-mc} drew no mismatch on them.
+    They sit in both A1 and A2, which are the blocks that set every
+    distribution there, so every yield in that section is an upper bound. The
+    fix is a schematic edit, and the run must then be repeated.
   \item \textbf{The converter at schematic level.} Its capacitor array exists
     only in the extracted view (Section~\ref{sss:pixtop-adc}), so the code the
     schematic tests report is stuck and is deliberately left unspecced.
@@ -62,7 +75,10 @@
     throwing the transimpedance output from \SI{1.25}{\volt} to
     \SI{16}{\milli\volt} for more than \SI{4}{\micro\second}, at every
     conversion. It collapses the one measurement the gain-independent zero of
-    Section~\ref{sss:pixtop-zero} depends on. The output slot is quiet by
+    Section~\ref{sss:pixtop-zero} depends on, and with it the calibration that
+    carries per-channel yield from \SI{0.50}{\percent} to
+    \SI{61.50}{\percent}: until that tap is buffered, no calibrated figure in
+    Section~\ref{sss:pixtop-mc} can be realised. The output slot is quiet by
     comparison: \SI{0.74}{\milli\volt} on the common mode and
     \SI{3.5}{\milli\volt} on the output over a whole \SI{21}{\micro\second}
     run.

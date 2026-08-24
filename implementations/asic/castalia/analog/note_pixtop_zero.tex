@@ -17,7 +17,8 @@ below the common mode, and it is the same \SI{619.64}{\micro\volt} at every one
 of the 320 gain codes: \SI{0.3}{\nano\volt} of spread. No current flows in
 \(R_f\), so the output carries A2's input offset alone and nothing that scales
 with the tap. \textbf{One zero measurement therefore calibrates every gain
-code} --- the result the per-gain-code current zero of
+code} --- and it holds per sample under mismatch, not only at this typical
+point (Section~\ref{sss:pixtop-mc}). It is the result the per-gain-code current zero of
 Table~\ref{tab:calibration-constants} rests on, and the reason the common-mode
 slot on the converter multiplexer is worth its silicon.
 
