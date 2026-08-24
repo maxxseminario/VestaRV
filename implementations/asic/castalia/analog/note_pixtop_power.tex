@@ -28,6 +28,10 @@
 %   power is bit-identical to the pre-C_F figures at every corner and in every
 %     block (simruns/pixchar_pwr/power_table.txt): a capacitor draws no dc
 %     current and the dependency repoint changed no device.
+% 2026-08-24, OWNER INSTRUCTION "do not talk about pixel level yield yet": the
+%   closing sentence quoted sss:pixtop-mc's 0.50 % uncalibrated per-channel
+%   yield; replaced with the distributional statement.  yield_table.txt in
+%   simruns/pixmc_20260823 still holds the figure.
 % Library cell names are kept out of the rendered prose.
 
 \subsubsection{Power and Corners}\label{sss:pixtop-power}
@@ -59,5 +63,5 @@ common mode, the zero-current offsets and the gain-code sweep --- pass at all
 five corners. That is weaker evidence than it looks: the corner rows keep the
 resistor and capacitor models typical, so for a block whose accuracy is set by
 matching they exercise almost nothing. Monte Carlo is the real test, and
-Section~\ref{sss:pixtop-mc} puts uncalibrated per-channel yield at
-\SI{0.50}{\percent} on the same specifications these corners all pass.
+Section~\ref{sss:pixtop-mc} spreads several of these same quantities by more
+than their budget.
