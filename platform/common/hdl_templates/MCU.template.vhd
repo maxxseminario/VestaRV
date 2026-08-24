@@ -1342,17 +1342,32 @@ begin
     /* =============================================================================
        Memory Blocks
        =============================================================================
-       The shared boot ROM at 0x0-0x3FFF is an arbiter slave like the bulk banks: every hart resets to PC 0x0 and fetches its first instruction from here, and BLOCKPWR's ROMOFF bit gates the macro through pgen_mem(0).
+       The shared boot ROM based at 0x0 is an arbiter slave like the bulk banks: every hart resets to PC 0x0 and fetches its first instruction from here, and BLOCKPWR's ROMOFF bit gates the macro through pgen_mem(0).
+       Its extent is RomSize, not a page: the decode above stops at RomAddrBits, so the macro sees a zero on every address bit the map does not reach and its full bus can be driven straight from sh_addr.
        CEN is sampled with the address at the s_en cycle's ending edge on the free-running mclk and Q is valid the next cycle, so the macro is the one-cycle registered read; with no WEN pin the page is read-only and a write completes at the arbiter and is discarded. */
     rom0: entity work.rom_hvt_pg
         port map (
             Q    => rom_q,
             CLK  => mclk,
             CEN  => rom_cen_n,
-            A    => sh_addr(11 downto 0),
+            A    => sh_addr(RomMacroAddrBits - 1 downto 0),
             EMA  => "000",
             PGEN => pgen_mem(0)
     );
+
+    /* The macro above answers RomMacroAddrBits of word address and the memory map asks for RomAddrBits.
+       If they ever differ, FAIL HERE rather than ship a chip whose linker scripts, MemoryMap.h and TRM all promise a boot ROM the array does not have.
+       Changing memory.romSize therefore means editing TWO things once a macro of that size exists: the entity here and RomMacroAddrBits in the declarations above.
+       That is deliberate manual work, not a knob, because rom0 is named explicitly at THIS level of hierarchy by the genus SDC (set_false_path -to pin:MCU_MP/rom0/PGEN). */
+    assert RomAddrBits = RomMacroAddrBits
+        report "MCU: MemoryMap RomSize = " & integer'image(RomSize)
+             & " bytes needs a " & integer'image(RomAddrBits)
+             & "-bit ROM address, but rom0 is the rom_hvt_pg macro, which is "
+             & integer'image(2 ** RomMacroAddrBits * 4) & " bytes with a "
+             & integer'image(RomMacroAddrBits) & "-bit address. Swap the entity and "
+             & "RomMacroAddrBits for a ROM macro of that size, or set memory.romSize = "
+             & integer'image(2 ** RomMacroAddrBits * 4) & "."
+        severity failure;
 
     -- Hart 0's TCM macro lives inside its tile; BLOCKPWR's RAMOFF gating reaches it through the tile's tcm_pgen port, wired to pgen_mem(1) at the hart0 instance.
 

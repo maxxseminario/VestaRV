@@ -5,7 +5,6 @@ TARGET      = flashboot
 # WARNING: start.S must be first in the SRC_SOURCES list. This is to ensure it is placed in the appropriate memory location
 SRC_SOURCES	= start.S main.c rv4th.c uart.c spi.c flash_memory.c
 LIB_SOURCES	= 
-EXTENSIONS	= i
 
 # Chip Global Libraries and Linker Script
 LIB_DIR		= ../commune
@@ -33,9 +32,21 @@ ROM_SIZE	= `cat $(LD_DIR)/ROM_SIZE.txt`
 # Note: the -flto flag initiates link time optimization. It seems to force the compiler/linker to include only the functions explicitly used by the main function in the final output file. It also seems to require interrupts to have the __attribute__ prefix. This means that only the functions that are called by the main function and the interrupts will be added to the final binary file.
 OPTIMIZATION_FLAGS = -Os -flto
 #OPTIMIZATION_FLAGS = -flto
-ARCH	= rv32$(EXTENSIONS)
-CFLAGS	= -Werror -Wall -Wunused -march=$(ARCH) $(OPTIMIZATION_FLAGS) -D__nostdlib__ -I $(GCC_INC_DIR) -I $(INC_DIR) -I $(LIB_INC_DIR) -g
-LFLAGS	= -lgcc -march=$(ARCH) $(OPTIMIZATION_FLAGS) -nostartfiles -Wl,-Bstatic,-T,$(LD_SCRIPT),-Map,$(BIN_DIR)/$(TARGET).map,--cref -L $(LD_DIR) -g
+
+# ISA string and size-coupled flags: single authority, read from isa.bzl.
+# BUILD.bazel loads that same file, so the make and bazel build paths cannot
+# disagree about what the mask ROM is compiled for.
+# There used to be an EXTENSIONS variable here and a march= attribute there,
+# and flipping one of them left the other silently building the old ISA.
+ISA_BZL	= isa.bzl
+ARCH	:= $(shell sed -n 's/^BOOTROM_MARCH = "\([^"]*\)".*/\1/p' $(ISA_BZL))
+SIZE_FLAGS	:= $(shell sed -n 's/^BOOTROM_SIZE_COPTS = \[\(.*\)\].*/\1/p' $(ISA_BZL) | tr -d '",')
+ifeq ($(strip $(ARCH)),)
+$(error could not read BOOTROM_MARCH out of $(ISA_BZL))
+endif
+
+CFLAGS	= -Werror -Wall -Wunused -march=$(ARCH) $(OPTIMIZATION_FLAGS) $(SIZE_FLAGS) -D__nostdlib__ -I $(GCC_INC_DIR) -I $(INC_DIR) -I $(LIB_INC_DIR) -g
+LFLAGS	= -lgcc -march=$(ARCH) $(OPTIMIZATION_FLAGS) $(SIZE_FLAGS) -nostartfiles -Wl,-Bstatic,-T,$(LD_SCRIPT),-Map,$(BIN_DIR)/$(TARGET).map,--cref -L $(LD_DIR) -g
 
 ##################################################
 ### TOOLCHAIN DIRECTORIES
@@ -79,7 +90,7 @@ LIB_OBJECTS	= $(patsubst %,%.lib.o,$(LIB_SOURCES))
 SOURCES		= $(patsubst %,$(SRC_DIR)/%,$(SRC_SOURCES)) $(patsubst %,$(LIB_DIR)/%,$(LIB_SOURCES))
 OBJECTS     = $(patsubst %,$(OBJ_DIR)/%,$(SRC_OBJECTS)) $(patsubst %,$(OBJ_DIR)/%,$(LIB_OBJECTS))
 
-HEADERS     =  $(wildcard $(GCC_INC_DIR)/*.h) $(wildcard $(LIB_INC_DIR)/*.h) $(wildcard $(INC_DIR)/*.h)
+HEADERS     =  $(wildcard $(GCC_INC_DIR)/*.h) $(wildcard $(LIB_INC_DIR)/*.h) $(wildcard $(INC_DIR)/*.h) $(ISA_BZL)
 
 ##################################################
 ### COMPILATION RULES
@@ -199,7 +210,7 @@ $(OBJ_DIR)/rv4th_for_dump.o: $(SRC_DIR)/rv4th.c $(HEADERS)
 	@echo ""
 	@echo "> Compiling rv4th.c without LTO for disassembly"
 	@echo ""
-	$(CC) -c -march=$(ARCH) -Os -D__nostdlib__ \
+	$(CC) -c -march=$(ARCH) -Os $(SIZE_FLAGS) -D__nostdlib__ \
 		-I $(GCC_INC_DIR) -I $(INC_DIR) -I $(LIB_INC_DIR) \
 		-g $(SRC_DIR)/rv4th.c -o $@
 

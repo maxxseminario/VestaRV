@@ -324,6 +324,11 @@ GATE_FILES = [
     # stream the reference runs from pc=0, the behavioural ROM model reads by
     # hardcoded path, and the four pins are measured against — so a silent
     # change to it is a silent change to the gate.
+    #
+    # RE-CUT 2026-08-23 (ISA flip, not drift): the ROM is now built rv32ic with
+    # -fno-tree-loop-distribute-patterns, .text 10,140 -> 7,376 bytes. Every
+    # word of the image moved, so this mirror moved with it in the same change,
+    # together with software/bootrom_mp/testdata/rom_rcf_golden.txt.
     ('bootrom_mp_rom.rcf',
      'software/bootrom_mp/bin/rom.rcf',
      'the boot ROM image the COSIM_BOOT reference and the behavioural ROM '
