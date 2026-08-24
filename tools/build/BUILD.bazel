@@ -23,29 +23,36 @@ py_binary(
 # memory.x / periph.x and the *_START/_SIZE fragments, so all must travel
 # together.
 #
-# THE .x AND .txt FILES HERE ARE NOT A COPY OF GENERATOR OUTPUT.
-# They are the frozen link environment the taped-out rom2k_hvt_pg plate was
-# compiled from, and they are older than the current chip: 16 KiB ROM where the
-# part now has 8 KiB, and one flat RAM window 0x0814C-0x0FFFF where the part now
-# has an 8 KiB TCM, a hole, NPU_RAM and SHARED_RAM.
+# THE .x AND .txt FILES HERE ARE THE LINK ENVIRONMENT THE MASK PLATE WAS
+# COMPILED FROM, and as of 2026-08-23 they are also a verbatim copy of
+# //platform/common:castalia_linker_scripts.  The recorded divergence is empty.
 #
-# They are kept, rather than refreshed from
-# //platform/common:castalia_linker_scripts, for a measured reason:
-#   * software/bootrom_mp DOES NOT LINK against the generated set at all.
-#     rv4th.c puts 0x5D70 bytes of Forth interpreter arrays in .noinit, which
-#     needs the old 32436-byte RAM window; against the generated 7708-byte
-#     window the link fails outright with "region `RAM' overflowed by 16212
-#     bytes".  Reconciling the two is a bootrom_mp source change, and any such
-#     change moves the boot image, its two recorded goldens
-#     (software/bootrom_mp/testdata/rom_rcf_golden.txt and
-#     tools/cosim/gate/bootrom_mp_rom.rcf) and the physical mask plate together.
-#   * the six MCU.ld firmware images DO link against either set, and were built
-#     both ways on 2026-08-23: every .rcf and .hex is byte identical.  Only the
-#     .elf symbol table moves, because periph.x contributes absolute symbols.
-# So refreshing buys nothing downstream and costs a plate re-cut.
+# They were NOT a copy until then.  They were frozen at 2026/04/20 and had gone
+# stale under the chip: 16 KiB ROM where the part has 8 KiB, and one flat RAM
+# window 0x0814C-0x0FFFF where the part has an 8 KiB TCM, a mirror of it, then
+# NPU_RAM and SHARED_RAM.  Refreshing them was blocked by ONE thing, and it was
+# a real defect rather than a packaging problem: rv4th.c put 0x5D70 bytes of
+# Forth interpreter arrays in .noinit, which fits the old 32436-byte window and
+# overflows the real 7708-byte one by 16212 bytes.  The stale script is why that
+# never failed a build.  On the part it did not fail at all -- it wrote through
+# the TCM mirror at 0xA000 back onto the vector table and the stack, and past
+# 0xC000 into the shared NPU staging RAM.
 #
-# What refreshing WOULD have hidden is that the divergence grew unnoticed for
-# months.  :rom_plate_link_env_test is the guard against that happening again.
+# That was fixed at source (see THE TCM BUDGET in software/bootrom_mp/src/rv4th.c
+# and the ASSERT at the bottom of linker-scripts/MCU-bootrom.ld), so the boot ROM
+# now links against the true map.  The boot image moved with it, and its two
+# recorded goldens (software/bootrom_mp/testdata/rom_rcf_golden.txt and
+# tools/cosim/gate/bootrom_mp_rom.rcf) and the physical rom2k_hvt_pg plate were
+# re-cut in the same change.  Five files, one md5:
+#     d177e8314f2de080150070762b3d80f7   (was cab1bbe82d67d959d514dda9e338e3f9)
+#
+# The six MCU.ld firmware images were unaffected: they link against either set,
+# and were built both ways on 2026-08-23 with every .rcf and .hex byte identical.
+# Only the .elf symbol table moves, because periph.x contributes absolute symbols.
+#
+# :rom_plate_link_env_test still guards this directory, and its job did not
+# change: the two sets are allowed to diverge again when the chip map moves, but
+# never in silence.  A divergence that reappears means the plate is stale again.
 filegroup(
     name = "linker_scripts",
     srcs = glob([
@@ -109,4 +116,157 @@ py_test(
         for f in LINK_ENV_FILES
     ],
     main = "scripts/check_plate_link_env.py",
+)
+
+# ---------------------------------------------------------------------------
+# IMAGE-vs-MEMORY-MAP GATE
+#
+# The guard above proves the FROZEN link environment has not drifted. It says
+# nothing about whether an image LINKED through some linker script actually
+# fits the part, and that is the hole the boot ROM fell through:
+#
+#   flashboot.elf  .noinit  NOBITS  0x0000814C  0x5D70 bytes -> ends 0x0000DEBB
+#   the chip's TCM                              0x8000-0x9FFF (8 KiB)
+#
+# 16,060 bytes past the end of RAM, for over a week, with every gate green.
+# Nothing was wrong with the link: MCU-bootrom.ld INCLUDEs a memory.x frozen on
+# 2026/04/20 that still describes a 16 KiB TCM, the real TCM halved on
+# 2026-08-16, and the linker cheerfully honoured the description it was given.
+# A linker script is a claim about the chip, and no gate was checking the claim
+# against the chip.
+#
+# :check_image_regions.py closes that. It reads the section headers out of the
+# built ELF and the regions out of the CURRENT generated memory map, and never
+# consults a linker script for its bar -- a linker script that lies is the
+# defect, so it cannot also be the reference.
+#
+# See the script's docstring for exactly what counts as a violation (NOBITS
+# sections do; zero-size placeholders and non-allocated debug sections do not;
+# the NPU staging window and the shared RAM are legitimate homes, so the bar is
+# "inside SOME declared region", never "inside the TCM").
+#
+# WHY BOTH TESTS LIVE HERE AND NOT NEXT TO THEIR IMAGES.
+# ci.yml's bazel-gates job runs `//...` minus //opensource_sim/..., minus
+# //hdl/common/tb/..., minus //toolchains/..., and minus //verification/cpi/...
+# (that last one because its tests drag in the from-source GHDL build). A check
+# on the CPI images placed in //verification/cpi would therefore run in NEITHER
+# workflow: ci.yml excludes the package, and sim.yml takes explicit targets and
+# would not name it. Placing both tests in //tools/build puts them inside
+# ci.yml's wildcard while the images they read stay plain genrule outputs that
+# need no simulator. Nothing had to be named in sim.yml.
+
+# The product firmware: everything that is meant to run on a Castalia part.
+# The seven images that link through linker-scripts/ (bootrom_mp via
+# MCU-bootrom.ld, the blinky family via MCU.ld), the debug trampoline that
+# lives in the shared window, and the twenty-one course lab images, which link
+# through software/course/sdk/course.ld and pin .ivt at 0x8000 by hand.
+PRODUCT_IMAGES = [
+    "//software/bootrom_mp:flashboot.elf",
+    "//software/afetest:afetest.elf",
+    "//software/blinky:blinky.elf",
+    "//software/gpiotoggle:gpiotoggle.elf",
+    "//software/looptest:looptest.elf",
+    "//software/slowblink:slowblink.elf",
+    "//software/traptest:traptest.elf",
+    "//software/dbg_trampoline:dbg_trampoline.elf",
+] + [
+    "//software/course/labs/%s/%s:%s.elf" % (lab, variant, stem)
+    for lab, variant, stem in [
+        ("lab01_hello", "reference", "lab01_hello"),
+        ("lab01_hello", "skeleton", "lab01_hello"),
+        ("lab02_assembly", "reference", "lab02_assembly"),
+        ("lab02_assembly", "skeleton", "lab02_assembly"),
+        ("lab03_c_baremetal", "reference", "lab03_c_baremetal"),
+        ("lab03_c_baremetal", "skeleton", "lab03_c_baremetal"),
+        ("lab04_gpio", "reference", "lab04_gpio"),
+        ("lab04_gpio", "skeleton", "lab04_gpio"),
+        ("lab05_uart", "reference", "lab05_uart"),
+        ("lab05_uart", "skeleton", "lab05_uart"),
+        ("lab07_timer", "reference", "lab07_timer"),
+        ("lab07_timer", "skeleton", "lab07_timer"),
+        ("lab08_interrupts", "reference", "lab08_interrupts"),
+        ("lab08_interrupts", "skeleton", "lab08_interrupts"),
+        ("lab09_multicore_boot", "reference", "lab09_mpboot"),
+        ("lab09_multicore_boot", "skeleton", "lab09_mpboot"),
+        ("lab10_sync", "reference", "lab10_sync"),
+        ("lab10_sync", "skeleton", "lab10_sync"),
+        ("lab10_sync", "nobackoff", "lab10_nobackoff"),
+        ("lab11_npu", "reference", "lab11_npu"),
+        ("lab11_npu", "skeleton", "lab11_npu"),
+    ]
+]
+
+# The memory map, straight from the generator, in both the forms the check
+# needs: the JSON is authoritative for ROM/peripheral/TCM, and memory.x is the
+# only machine-readable statement of the NPU staging and shared RAM windows.
+# The check cross-checks the two before trusting either.
+MAP_ARGS = [
+    "--memory-map-json",
+    "$(rootpath //platform/common:castalia_config_memorymap_json)",
+    "--memory-x",
+    "$(rootpath //platform/common:castalia_memory_x)",
+]
+
+MAP_DATA = [
+    "//platform/common:castalia_config_memorymap_json",
+    "//platform/common:castalia_memory_x",
+]
+
+# --min-images is a floor, not a count: a data list that stops resolving would
+# otherwise turn this into a green check of nothing. --require-nobits is the
+# standing control that .bss/.noinit really do reach the comparison, since a
+# NOBITS section is what the motivating defect was.
+py_test(
+    name = "firmware_image_map_test",
+    size = "small",
+    srcs = ["scripts/check_image_regions.py"],
+    args = MAP_ARGS + [
+        "--min-images",
+        "29",
+        "--require-nobits",
+    ] + ["$(rootpaths %s)" % i for i in PRODUCT_IMAGES],
+    data = MAP_DATA + PRODUCT_IMAGES,
+    main = "scripts/check_image_regions.py",
+)
+
+# The verification images. Same check, same script, separate target because
+# these are red today for a reason that is understood and is NOT the same
+# defect as the boot ROM's.
+#
+# KNOWN RED. The 2026-08-16 TCM halving (0x8000-0xBFFF -> 0x8000-0x9FFF) left
+# verification/env/p/link.ld and verification/env/p/link_shared.ld pinning the
+# whole ISR bank and the NPU ideal-output vector into what is now a hole:
+#   .npu0_yhat     0xB000     comment still reads "(TCM)"
+#   .isr_meip      0xB100
+#   .isr_afe_shared / .isr_eis / .isr_uart0_tc  0xB700-0xBDFF, inside the bank
+#                              the script documents as "0xB200-0xBAFF, TCM"
+# and it left nine verification/cpi benchmarks whose working sets run past the
+# end of the TCM (spmv's .rodata by 35,744 bytes, rsort_noc's .data by 10,056,
+# dhrystone's NOBITS .bss by 6,584).
+# 47 images and 61 sections out of the 595 this target sweeps. Run the target
+# to see every one; the ISA half is 19 rv32ui sources (the sh*/w* peripheral
+# tests, the only ones that instantiate an ISR) at two polarities each.
+#
+# THE TAG COMES OFF in the commit that repoints those two linker scripts off
+# the 0xA000-0xBFFF hole and re-homes the oversized CPI working sets, per
+# BAZEL.md "Known red". It is NOT a carve-out for the boot ROM: flashboot.elf
+# sits in :firmware_image_map_test above, untagged, and that target reported it
+# 16,060 bytes over before the .noinit fix landed on 2026-08-23.
+py_test(
+    name = "verification_image_map_test",
+    size = "small",
+    srcs = ["scripts/check_image_regions.py"],
+    args = MAP_ARGS + [
+        "--min-images",
+        "590",
+    ] + [
+        "$(rootpaths //verification/isa:all_elfs)",
+        "$(rootpaths //verification/cpi:cpi_elfs)",
+    ],
+    data = MAP_DATA + [
+        "//verification/isa:all_elfs",
+        "//verification/cpi:cpi_elfs",
+    ],
+    main = "scripts/check_image_regions.py",
+    tags = ["known_red"],
 )

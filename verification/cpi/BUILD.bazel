@@ -214,6 +214,20 @@ _NOC_BENCHMARKS = [
     for b in _NOC_BENCHMARKS
 ]
 
+# Every linked benchmark and micro-kernel image, as one label.
+#
+# Consumed by //tools/build:verification_image_map_test. link_bmark.ld places
+# .text at a fixed 0x8200 and lets the benchmark's own working set run on from
+# there, so a benchmark whose arrays outgrow the private TCM overruns it
+# silently: the link succeeds, the .rcf has the right word count, and only the
+# runtime is wrong.
+filegroup(
+    name = "cpi_elfs",
+    srcs = ["%s.elf" % k for k in _MICRO_KERNELS] +
+           ["%s.elf" % b for b in _SHORT_BENCHMARKS + _LONG_BENCHMARKS] +
+           ["%s_noc.elf" % b for b in _NOC_BENCHMARKS],
+)
+
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------

@@ -93,11 +93,19 @@ writes wherever it runs; the hermetic path is `chip_artifacts_castalia`.
   `testdata/*_golden.txt` files (`*.rcf` is globally gitignored, hence the
   extension). Changing firmware means regenerating the golden in the same
   commit — the test diff shows exactly what moved.
-- **Known red**: nothing carries the `known_red` tag today. The tag and CI's
-  `--test_tag_filters=-known_red` remain as the standing mechanism for a red
-  that is understood but not yet adjudicated; the rule is that the tag comes
-  off in the same commit that adjudicates the failure, which is the only way
-  such a carve-out ends. It was last used for
+- **Known red**: one target carries the `known_red` tag today,
+  `//tools/build:verification_image_map_test`. It sweeps the 595
+  `//verification/isa` and `//verification/cpi` images for sections that fall
+  outside the chip's declared memory regions, and 47 of them do: the
+  2026-08-16 TCM halving left `verification/env/p/link.ld`'s ISR bank pinned in
+  the 0xA000-0xBFFF hole, and nine CPI benchmark working sets run past the end
+  of the TCM. The tag comes off in the commit that repoints those scripts. The
+  product-firmware half of the same check,
+  `//tools/build:firmware_image_map_test`, is untagged and green.
+  The tag and CI's `--test_tag_filters=-known_red` are the standing mechanism
+  for a red that is understood but not yet adjudicated; the rule is that the
+  tag comes off in the same commit that adjudicates the failure, which is the
+  only way such a carve-out ends. It was previously used for
   `//tools/randgen:test_randgen`'s k3s01 campaign-pin drift, adjudicated
   2026-08-23 as benign config drift (`priv.trapCsr` and `numHarts` 4->5 moved
   the resolved-config identity that every stream header carries) and

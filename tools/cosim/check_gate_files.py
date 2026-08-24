@@ -333,6 +333,13 @@ GATE_FILES = [
     # image is 8,192 bytes and this file is 2,048 lines, not 4,096. The tail
     # that went away was all zeros -- the first 2,048 lines are unchanged.
     # software/bootrom_mp/testdata/rom_rcf_golden.txt moved with it both times.
+    #
+    # AND A THIRD TIME the same day: the rv4th .noinit arrays were sized to the
+    # real 8 KiB TCM and the boot ROM was re-linked against the true generated
+    # memory.x, so every absolute data address in the image moved.  md5
+    # cab1bbe82d67d959d514dda9e338e3f9 -> d177e8314f2de080150070762b3d80f7.
+    # The first 0x304 bytes are unchanged, so the boot-mode X pins in
+    # xrun_cosim.sh (pc 0x5c and 0x15c) were re-measured and still hold.
     ('bootrom_mp_rom.rcf',
      'software/bootrom_mp/bin/rom.rcf',
      'the boot ROM image the COSIM_BOOT reference and the behavioural ROM '

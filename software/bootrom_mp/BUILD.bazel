@@ -113,6 +113,20 @@ rv32_firmware(
 # The mirror the cosim gate reads, tools/cosim/gate/bootrom_mp_rom.rcf, was
 # re-cut in the same change both times; the two and
 # software/bootrom_mp/bin/rom.rcf are one md5.
+#
+# RE-CUT A THIRD TIME ON 2026-08-23, and this one moved the PHYSICAL PLATE.
+# The Forth interpreter's .noinit arrays in src/rv4th.c were 23,920 bytes
+# against 7,708 bytes of usable TCM, and only the frozen 2026/04 memory.x let
+# that link.  Fixing it meant sizing the arrays to the real 8 KiB TCM and
+# installing the true generated link environment, so every absolute data
+# address in the image moved (the first changed ROM word is 0x304, the
+# `add a5,a5,484` that now points at 0x81E4 instead of 0x814C; bytes 0x000
+# through 0x303 are unchanged, which is why the cosim boot-mode X pins at
+# pc 0x5c and 0x15c still hold).  ~/chips/myshkin/ip/rom2k_hvt_pg was
+# recompiled from this image in the same change; the superseded plate is kept
+# alongside it as rom2k_hvt_pg.pre_noinit_fix.  Same 156.525 x 181.41 um
+# footprint, same 51 pins, byte-identical .dat timing.
+#     cab1bbe82d67d959d514dda9e338e3f9 -> d177e8314f2de080150070762b3d80f7
 filegroup(
     name = "rom_rcf_golden",
     srcs = ["testdata/rom_rcf_golden.txt"],
