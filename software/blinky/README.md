@@ -39,7 +39,7 @@ Firmware conventions: [`software/README.md`](../README.md).
 
 The application uses the platform-generated memory configuration:
 
-- **ROM**: 0x0000 - 0x3FFF (16KB)
+- **ROM**: 0x0000 - 0x1FFF (8KB)
 - **Peripherals**: 0x4000 - 0x4FFF (4KB)  
 - **RAM**: 0x8000 - 0xFFFF (32KB)
 

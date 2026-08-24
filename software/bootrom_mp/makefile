@@ -146,12 +146,17 @@ $(BIN_DIR)/%.lst: $(BIN_DIR)/%.elf
 # instead of ihex2rcf.py — this machine's python3 (Calibre aoj_cal wrapper)
 # has no intelhex module. Output format is identical: ROM_SIZE/4 lines of
 # 32 '0'/'1' chars, line N = the little-endian word at ROM byte 4*N.
+#
+# 16384/4096 -> 8192/2048 on 2026-08-23. The ROM macro at rom0 is now
+# rom2k_hvt_pg, 2048 x 32, so a 4096-line file is no longer an image of the
+# part: the padding width here and the ROM's depth are the same number, and
+# the line check below is what keeps them the same number.
 $(BIN_DIR)/rom.rcf: $(BIN_DIR)/$(TARGET).elf
 	@echo ""
 	@echo "> Creating boot ROM RCF file $@"
 	@echo ""
 	$(OBJCOPY) -O binary --gap-fill=0x00 $< $(BIN_DIR)/$(TARGET).rom.bin
-	dd if=/dev/zero of=$(BIN_DIR)/$(TARGET).rom_padded.bin bs=16384 count=1 2>/dev/null
+	dd if=/dev/zero of=$(BIN_DIR)/$(TARGET).rom_padded.bin bs=8192 count=1 2>/dev/null
 	dd if=$(BIN_DIR)/$(TARGET).rom.bin of=$(BIN_DIR)/$(TARGET).rom_padded.bin bs=1 conv=notrunc 2>/dev/null
 	@od -v -An -tx4 -w4 $(BIN_DIR)/$(TARGET).rom_padded.bin | awk '\
 	{ \
@@ -179,8 +184,8 @@ $(BIN_DIR)/rom.rcf: $(BIN_DIR)/$(TARGET).elf
 	    print bin; \
 	}' > $@
 	@lines=$$(wc -l < $@); \
-	if [ $$lines -ne 4096 ]; then \
-	    echo "Error: $@ has $$lines lines (expected 4096)"; \
+	if [ $$lines -ne 2048 ]; then \
+	    echo "Error: $@ has $$lines lines (expected 2048)"; \
 	    exit 1; \
 	fi
 

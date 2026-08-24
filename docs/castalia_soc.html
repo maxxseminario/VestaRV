@@ -576,7 +576,7 @@ push({id:"arb", x:X0, y:ARBY, w:X1-X0, h:ARBH, cls:"arb",
 
 /* ---- shared slave row --------------------------------------------------- */
 const shRow = packRow(X0, X1, 26, [
-  {id:"rom",    wgt:1.05, cls:"smem", t:"Shared boot ROM",        s:"16 KB · rom_hvt_pg",                          a:"0x0000–0x3FFF"},
+  {id:"rom",    wgt:1.05, cls:"smem", t:"Shared boot ROM",        s:"8 KB · rom2k_hvt_pg",                         a:"0x0000–0x1FFF"},
   {id:"npuram", wgt:1.05, cls:"smem", t:"NPU staging RAM",        s:"16 KB · NPU-muxed",                            a:"0xC000–0xFFFF"},
   {id:"bulk",   wgt:1.30, cls:"smem", t:"Shared bulk RAM — 64 KB", s:"4 × 16 KB banks",                       a:"0x10000–0x1FFFF"},
   {id:"tcmwin", wgt:1.55, cls:"pmem", t:"TCM read-only apertures", s:NHARTS+" × 16 KB · management hart only", a:hx(TCMWIN(0))+"–"+hx(TCMWIN(NHARTS-1)+0x3FFF)},
@@ -585,7 +585,7 @@ const shRow = packRow(X0, X1, 26, [
   {id:"router", wgt:1.55, cls:"sync", t:"IRQ router",             s:"PLIC-lite · per-hart enable rows · claim/complete", a:"0x7000 · meip = vector "+MEIPVEC},
 ]);
 const shCap = {
-  rom:"One 16 KB boot ROM (rom_hvt_pg) behind the arbiter, read-only. All "+NHARTS+" harts reset to PC 0x0 and fetch it; the bootrom dispatches on mhartid — hart 0 copies the flash image to shared RAM, zeroes the mailbox region and stages each tile's TCM image through the loader rows at 0x10500 + 0x10*hartid, then ignites harts 1–"+(NHARTS-1)+" via CLINT msip. Every tile arms its msip vector and WFI-parks until launched.",
+  rom:"One 8 KB boot ROM (rom2k_hvt_pg, 2048 x 32) behind the arbiter, read-only. Halved from 16 KB on 2026-08-23: the image is 7,376 bytes, MCU.vhd sizes the decode on the RomSize constant and asserts it against the macro, and 0x2000–0x3FFF is unmapped (reads zero, never a mirror). All "+NHARTS+" harts reset to PC 0x0 and fetch it; the bootrom dispatches on mhartid — hart 0 copies the flash image to shared RAM, zeroes the mailbox region and stages each tile's TCM image through the loader rows at 0x10500 + 0x10*hartid, then ignites harts 1–"+(NHARTS-1)+" via CLINT msip. Every tile arms its msip vector and WFI-parks until launched.",
   npuram:"A single-port SRAM the NPU streams vectors through, 16 KB. Any hart stages operands here via the arbiter; during a THINK the in-NPU port mux owns the RAM, so software must poll NPUCR completion before touching it.",
   bulk:"The main shared data RAM: four 16 KB banks (bank = s_addr(13:12)) behind the arbiter. Holds the inter-hart mailboxes, spinlock and mutex journals, the bootrom loader rows, the per-hart TCM staging images and, on a debug-enabled build, the Debug Module's 0x10780 entry page. Written-before-read by the bootrom (no reset on the macro).",
   tcmwin:"MAP v2's aperture bank, and the reason the memory map grew: one 16 KB READ-ONLY window per hart at "+hx(0x20000)+" + 0x4000·h ("+Array.from({length:NHARTS},(_,h)=>hx(TCMWIN(h))).join(", ")+"), through which the management hart reads any hart's private TCM. "+

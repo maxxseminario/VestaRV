@@ -568,7 +568,7 @@ push({id:"arb",x:X0,y:ARBY,w:X1-X0,h:ARBH,cls:"arb",
 
 /* ---- shared slave row --------------------------------------------------- */
 const shRow = packRow(X0, X1, 26, [
-  {id:"rom",    wgt:1.05, cls:"smem", t:"Shared boot ROM",         s:"16 KB · rom_hvt_pg",                     a:"0x0000–0x3FFF"},
+  {id:"rom",    wgt:1.05, cls:"smem", t:"Shared boot ROM",         s:"8 KB · rom2k_hvt_pg",                    a:"0x0000–0x1FFF"},
   {id:"npuram", wgt:1.05, cls:"smem", t:"NPU staging RAM",         s:"16 KB · NPU-muxed",                      a:"0xC000–0xFFFF"},
   {id:"bulk",   wgt:1.30, cls:"smem", t:"Shared bulk RAM — 64 KB", s:"4 × 16 KB banks",                        a:"0x10000–0x1FFFF"},
   {id:"tcmwin", wgt:1.55, cls:"pmem", t:"TCM read-only apertures", s:NHARTS+" × 16 KB · management hart only", a:hx(TCMWIN(0))+"–"+hx(TCMWIN(NHARTS-1)+0x3FFF)},
@@ -577,7 +577,7 @@ const shRow = packRow(X0, X1, 26, [
   {id:"router", wgt:1.55, cls:"sync", t:"IRQ router",              s:"PLIC-lite · per-hart enable rows · claim/complete", a:"0x7000 · meip = vector "+MEIPVEC},
 ]);
 const shCap={
-  rom:"One 16 KB boot ROM behind the arbiter; all "+NHARTS+" harts reset to 0x0 and dispatch on mhartid. Hart 0 copies the flash image to shared RAM and stages each tile's TCM image through the loader rows at 0x10500 + 0x10·hartid; the tiles arm their msip vector and WFI-park until launched.",
+  rom:"One 8 KB boot ROM (rom2k_hvt_pg, 2048 x 32) behind the arbiter; all "+NHARTS+" harts reset to 0x0 and dispatch on mhartid. The image is 7,376 bytes, so 0x1CD0–0x1FFF is zero padding and 0x2000–0x3FFF is unmapped and reads zero rather than mirroring the array. Hart 0 copies the flash image to shared RAM and stages each tile's TCM image through the loader rows at 0x10500 + 0x10·hartid; the tiles arm their msip vector and WFI-park until launched.",
   npuram:"Single-port SRAM the NPU streams vectors through, 16 KB; owned by the NPU port-mux during a THINK.",
   bulk:"Main shared data RAM (4 × 16 KB banks, bank = s_addr(13:12)): inter-hart mailboxes, spinlock/mutex journals, bootrom loader rows, TCM staging images, and the Debug Module's 0x10780 entry page.",
   tcmwin:"MAP v2's aperture bank: one 16 KB READ-ONLY window per hart at "+hx(0x20000)+" + 0x4000·h ("+Array.from({length:NHARTS},(_,h)=>hx(TCMWIN(h))).join(", ")+"), through which the management hart reads any hart's private TCM. The address is a TCM word index, so window word i is that hart's byte address "+hx(TCM_LO)+" + 4i and the "+TCM_KB+" KB array mirrors twice. Three gates, each answering with ZERO: s_master ≠ 0 is denied, a write is dropped (the tile port has no write side), and a power-gated target completes immediately from its PWRSR row. The only slave that stalls the arbiter — 6 mclk request-to-done.",

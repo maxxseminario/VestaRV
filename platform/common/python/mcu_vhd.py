@@ -82,13 +82,20 @@ def _clog2(n):
 	return w
 
 
-# Address-bus width of the rom_hvt_pg macro rom0 instantiates in the fixed
-# region of MCU.template.vhd: 4096 x 32, A(11:0), i.e. 16 KiB. This is a MACRO
+# Address-bus width of the rom2k_hvt_pg macro rom0 instantiates in the fixed
+# region of MCU.template.vhd: 2048 x 32, A(10:0), i.e. 8 KiB. This is a MACRO
 # FACT, never a knob — memory.romSize can ask for any 1 KiB multiple up to
-# 0x4000, and the kit provides exactly one ROM. Emitting it as a named constant
-# is what lets MCU.vhd check the map's ROM against the array it actually has;
-# swapping the entity for another ROM macro means changing this number with it.
-ROM_MACRO_ADDR_BITS = 12
+# 0x4000, and the entity at rom0 answers exactly 8 KiB of it. Emitting it as a
+# named constant is what lets MCU.vhd check the map's ROM against the array it
+# actually has; swapping the entity for another ROM macro means changing this
+# number with it.
+#
+# 12 -> 11 on 2026-08-23, with memory.romSize 16384 -> 8192 in generate.py and
+# `entity work.rom_hvt_pg` -> `entity work.rom2k_hvt_pg` in MCU.template.vhd.
+# rom2k_hvt_pg was compiled from the final rv32ic boot image (1,844 of 2,048
+# words used) and installed beside rom_hvt_pg, which stays where it is because
+# the IP directory is shared with the taped-out Myshkin part.
+ROM_MACRO_ADDR_BITS = 11
 
 # Prose spelling of small hart counts ("identical on all four tiles"); larger
 # counts fall back to digits ("identical on all 18 tiles").
@@ -135,7 +142,7 @@ CAPTURE_CLOCK = {'SPI0', 'SPI1', 'UART0', 'UART1', 'TIMER0', 'TIMER1',
 # M11/M12 memory slaves (structural — hard macros, not description
 # peripherals): sel spelling -> the macro Q net that feeds sh_rdata_mux
 # directly (the macro IS the 1-cycle registered read). 'rom' = the M12
-# shared boot ROM at page 000 (read-only rom_hvt_pg).
+# shared boot ROM at page 000 (read-only rom2k_hvt_pg).
 MEMSLV = {
 	'rom': 'rom_q',
 	'npuram': 'npuram_q',
@@ -1290,7 +1297,7 @@ class McuVhdEmitter():
 		lines = []
 		# NOTE the comment spells the ARBITER port name (s_addr), the code the
 		# fabric net (sh_addr) — transcribed from the golden master.
-		lines.append(ind + '-- Page select on s_addr(' + str(self.shAw - 1) + ':12): page ' + self.pageBits(0) + ' is the shared boot ROM (the single rom_hvt_pg all ' + self.hartsWord() + ' harts reset into), page ' + self.pageBits(2) + ' is the TCM region (tile-private, never arrives here).')
+		lines.append(ind + '-- Page select on s_addr(' + str(self.shAw - 1) + ':12): page ' + self.pageBits(0) + ' is the shared boot ROM (the single rom2k_hvt_pg all ' + self.hartsWord() + ' harts reset into), page ' + self.pageBits(2) + ' is the TCM region (tile-private, never arrives here).')
 		lines.append(ind + '-- The ROM select is the exception to the page decode: it is sized by RomSize, so a ROM smaller than its page leaves the tail of page ' + self.pageBits(0) + ' unmapped instead of mirrored.')
 		lines.append(ind + 'shslv_rom_sel'.ljust(16) + ' <= \'1\' when sh_addr(SH_AW-1 downto RomAddrBits) = RomSelZeros else \'0\';')
 		lines.append(ind + 'shslv_perwin_sel'.ljust(16) + ' <= \'1\' when ' + psl + ' = "' + self.pageBits(1) + '" else \'0\';')
@@ -3710,7 +3717,7 @@ class McuVhdEmitter():
 			+ ' the arbiter word address covers ALL of 0x00000-0x%05X (word addr = data_addr(%d:2)) and the slave sub-decode selects on s_addr(%d:12):'
 			% (self.windowTop(), self.shAw + 1, self.shAw - 1))
 		romRow = (ind + '     ' + self.pageBits(0) + ' = boot ROM 0x0-' + self.romTopHex()
-			+ ' (one rom_hvt_pg, read-only slave; all ' + self.hartsWord() + ' harts reset here)')
+			+ ' (one rom2k_hvt_pg, read-only slave; all ' + self.hartsWord() + ' harts reset here)')
 		if self.romUnmappedHex() is not None:
 			romRow += ', ' + self.romUnmappedHex() + ' = unmapped (the ROM is smaller than its page; reads zero)'
 		lines.append(romRow)
@@ -3746,13 +3753,13 @@ class McuVhdEmitter():
 			+ '-- shared-window word-address width')
 		lines.append('')
 		lines.append(ind + '/* The boot ROM is the only slave whose size is a configuration knob, so its select is DERIVED from the memory map instead of being spelled as a whole page.')
-		lines.append(ind + '   RomAddrBits is the word-address width RomSize asks for; RomMacroAddrBits is the width the rom_hvt_pg macro at rom0 actually has, and the two are checked against each other there.')
+		lines.append(ind + '   RomAddrBits is the word-address width RomSize asks for; RomMacroAddrBits is the width the rom2k_hvt_pg macro at rom0 actually has, and the two are checked against each other there.')
 		lines.append(ind + '   A ROM smaller than its page leaves the remainder of page ' + self.pageBits(0) + ' UNMAPPED, so it reads zero through the no-slave arm of sh_rdata_mux rather than mirroring the array across the page.')
 		lines.append(ind + '   Zeros are not a legal RISC-V encoding, so a wild fetch above the ROM traps on an illegal instruction instead of quietly re-executing boot code. */')
 		lines.append((ind + 'constant RomAddrBits      : natural := ceil_log2(RomSize / 4);').ljust(78)
 			+ '-- boot ROM word-address width, from RomSize (the macro is 32 bits wide)')
 		lines.append((ind + 'constant RomMacroAddrBits : natural := ' + str(ROM_MACRO_ADDR_BITS) + ';').ljust(78)
-			+ '-- the rom_hvt_pg macro is ' + str(1 << ROM_MACRO_ADDR_BITS) + ' x 32')
+			+ '-- the rom2k_hvt_pg macro is ' + str(1 << ROM_MACRO_ADDR_BITS) + ' x 32')
 		lines.append(ind + '-- The address bits above the ROM, every one of which must be 0 for a ROM access.')
 		lines.append(ind + "constant RomSelZeros      : std_logic_vector(SH_AW-1 downto RomAddrBits) := (others => '0');")
 		lines.append('')

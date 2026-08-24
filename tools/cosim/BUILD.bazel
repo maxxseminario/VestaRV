@@ -78,3 +78,45 @@ py_test(
     ],
     main = "check_dbg_trampoline.py",
 )
+
+# ---------------------------------------------------------------------------
+# The CORE_ENABLE_* classification tripwire.
+#
+# verify_stage.DEFINE_KNOBS / NON_DEFINE_KNOBS is the single source of truth for
+# which RTL knobs an image set's `.imgset` stamp can carry, read by BOTH halves
+# of the polarity apparatus (verify_stage.memorymap_on_knobs and the guard in
+# tools/cosim/gate/xrun_cosim.sh). This proves the classification is TOTAL over
+# what ChipGenerator.py can emit, and that no test dispatches at build time on a
+# knob the classification says is unstampable.
+#
+# The manifest is the same shape as //tools/ci:vhdl_source_manifest, and for the
+# same reason: $(SRCS) of a source-file dependency expands to workspace-relative
+# paths, while args built out of $(rootpaths ...) are shell-tokenized and
+# quietly lose any path containing a space.
+genrule(
+    name = "isa_source_manifest",
+    srcs = ["//verification/isa:all_test_sources"],
+    outs = ["isa_source_manifest.txt"],
+    cmd = "for f in $(SRCS); do echo $$f; done > $@",
+)
+
+# --files-from is the STRICT mode: an unreadable or empty manifest is exit 2, so
+# a mis-staged sandbox cannot pass here as an empty scan reported as OK. The
+# checker also carries its own known-nonzero control (TRAPCSR/UMODE/PMP must be
+# found dispatched on) and FATALs if the sweep finds none of them, so a clean
+# result cannot come from looking at the wrong files.
+py_test(
+    name = "check_knob_classes_test",
+    size = "small",
+    srcs = ["check_knob_classes.py"],
+    args = [
+        "--files-from",
+        "$(rootpath :isa_source_manifest)",
+    ],
+    data = [
+        ":isa_source_manifest",
+        "//platform/common/python:generator_srcs",
+        "//verification/isa:all_test_sources",
+    ],
+    main = "check_knob_classes.py",
+)

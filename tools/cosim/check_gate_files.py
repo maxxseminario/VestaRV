@@ -325,10 +325,14 @@ GATE_FILES = [
     # hardcoded path, and the four pins are measured against — so a silent
     # change to it is a silent change to the gate.
     #
-    # RE-CUT 2026-08-23 (ISA flip, not drift): the ROM is now built rv32ic with
-    # -fno-tree-loop-distribute-patterns, .text 10,140 -> 7,376 bytes. Every
-    # word of the image moved, so this mirror moved with it in the same change,
-    # together with software/bootrom_mp/testdata/rom_rcf_golden.txt.
+    # RE-CUT TWICE ON 2026-08-23, both times deliberately, neither time drift.
+    # First the ISA flip: the ROM is now built rv32ic with
+    # -fno-tree-loop-distribute-patterns, .text 10,140 -> 7,376 bytes, so every
+    # word of the image moved. Then the DEPTH change: memory.romSize went 16384
+    # -> 8192 and rom0 became the 2048 x 32 rom2k_hvt_pg macro, so the padded
+    # image is 8,192 bytes and this file is 2,048 lines, not 4,096. The tail
+    # that went away was all zeros -- the first 2,048 lines are unchanged.
+    # software/bootrom_mp/testdata/rom_rcf_golden.txt moved with it both times.
     ('bootrom_mp_rom.rcf',
      'software/bootrom_mp/bin/rom.rcf',
      'the boot ROM image the COSIM_BOOT reference and the behavioural ROM '

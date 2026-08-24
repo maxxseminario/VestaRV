@@ -81,7 +81,8 @@ Everything below the extended flash region except each hart's private TCM is beh
 \begin{center}
 \begin{tabular}{ l l l }
 	\textbf{Address range} & \textbf{Device} & \textbf{Notes} \\ \hline
-	\texttt{0x00000}--\texttt{0x03FFF} & Boot ROM (16\,KiB) & Shared, read-only; all harts reset here \\
+	\texttt{0x00000}--\texttt{0x01FFF} & Boot ROM (8\,KiB) & Shared, read-only; all harts reset here \\
+	\texttt{0x02000}--\texttt{0x03FFF} & Unmapped & The ROM is smaller than its page; reads return zero \\
 	\texttt{0x04000}--\texttt{0x04FFF} & Peripheral slots & 16 slots of 256 bytes, legacy numbering \\
 	\texttt{0x05000}--\texttt{0x05FFF} & \peripheral{CLINT} & IPIs (\register{MSIPx}), \register{MTIME}/\register{MTIMECMPx} \\
 	\texttt{0x06000}--\texttt{0x06FFF} & \peripheral{MUTEX} bank & \NumMutexes{} hardware mutexes \\

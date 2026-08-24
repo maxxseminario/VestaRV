@@ -911,9 +911,9 @@ const VESTA_DATA = {
       "step": 8
     },
     "memory.romSize": {
-      "description": "int bytes, 1 KiB multiple <= 0x4000: boot ROM (0x0-0x3FFF)",
+      "description": "int bytes, 1 KiB multiple <= 0x4000: boot ROM (0x0-0x1FFF at the shipped 8 KiB; the page runs to 0x3FFF and its tail is unmapped)",
       "type": "int",
-      "default": 16384,
+      "default": 8192,
       "min": 1024,
       "max": 16384,
       "step": 1024
@@ -1095,7 +1095,7 @@ const VESTA_DATA = {
     "priv.pmp": false,
     "priv.pmpEntries": 16,
     "debug.enable": true,
-    "memory.romSize": 16384,
+    "memory.romSize": 8192,
     "memory.tcmSizePerHart": 8192,
     "memory.sharedBulkRamSize": 65536,
     "memory.npuStagingRamSize": 16384,
@@ -4032,7 +4032,7 @@ const VESTA_DATA = {
     {
       "name": "Boot ROM",
       "start": "0x0",
-      "end": "0x3FFF",
+      "end": "0x1FFF",
       "kind": "shared",
       "description": "Shared boot ROM (all harts reset to 0x0 and dispatch on mhartid)"
     },

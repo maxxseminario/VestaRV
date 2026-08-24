@@ -24,7 +24,7 @@ package MemoryMap is
 
 
 	---------- Memory Information ----------
-	constant RomSize				: natural := 16384;	-- 0x4000 (the shared boot ROM at 0x0; MCU.vhd sizes its ROM decode on THIS constant and asserts it against the rom_hvt_pg macro it instantiates)
+	constant RomSize				: natural := 8192;	-- 0x2000 (2026-08-23: the shared boot ROM halved to the 2048x32 rom2k_hvt_pg macro; MCU.vhd sizes its ROM decode on THIS constant and asserts it against the macro it instantiates)
 	constant RamStartAddress		: natural := 32768;	-- 0x8000
 	constant RamSize				: natural := 8192;	-- 0x2000 (2026-08-16: per-hart private TCM halved to the 8 KiB sram1p8k_hvt_pg macro; hart_tile selects the macro on THIS constant)
 

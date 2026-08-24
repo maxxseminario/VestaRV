@@ -2003,7 +2003,7 @@ class ChipGenerator():
 		t.AddLine('---------- Memory Information ----------', prefixTabs=1)
 		# RomSize is the ONE authority the RTL reads for the boot ROM: MCU.vhd
 		# sizes the ROM decode from it and asserts it against the width of the
-		# rom_hvt_pg macro it instantiates, so a romSize that no macro can answer
+		# rom2k_hvt_pg macro it instantiates, so a romSize that no macro can answer
 		# fails elaboration instead of shipping a map the array does not honour.
 		t.AddRow(['constant RomSize', ': natural := ' + str(self.RomSize) + ';', '-- ' + self.fmthex(self.RomSize) + ' (the shared boot ROM at ' + self.fmthex(self.RomStartAddress) + '; MCU.vhd sizes its decode on THIS constant)'], prefixTabs=1)
 		t.AddRow(['constant RamStartAddress', ': natural := ' + str(self.RamStartAddress) + ';', '-- ' + self.fmthex(self.RamStartAddress)], prefixTabs=1)

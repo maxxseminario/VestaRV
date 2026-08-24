@@ -1345,7 +1345,7 @@ begin
        The shared boot ROM based at 0x0 is an arbiter slave like the bulk banks: every hart resets to PC 0x0 and fetches its first instruction from here, and BLOCKPWR's ROMOFF bit gates the macro through pgen_mem(0).
        Its extent is RomSize, not a page: the decode above stops at RomAddrBits, so the macro sees a zero on every address bit the map does not reach and its full bus can be driven straight from sh_addr.
        CEN is sampled with the address at the s_en cycle's ending edge on the free-running mclk and Q is valid the next cycle, so the macro is the one-cycle registered read; with no WEN pin the page is read-only and a write completes at the arbiter and is discarded. */
-    rom0: entity work.rom_hvt_pg
+    rom0: entity work.rom2k_hvt_pg
         port map (
             Q    => rom_q,
             CLK  => mclk,
@@ -1362,7 +1362,7 @@ begin
     assert RomAddrBits = RomMacroAddrBits
         report "MCU: MemoryMap RomSize = " & integer'image(RomSize)
              & " bytes needs a " & integer'image(RomAddrBits)
-             & "-bit ROM address, but rom0 is the rom_hvt_pg macro, which is "
+             & "-bit ROM address, but rom0 is the rom2k_hvt_pg macro, which is "
              & integer'image(2 ** RomMacroAddrBits * 4) & " bytes with a "
              & integer'image(RomMacroAddrBits) & "-bit address. Swap the entity and "
              & "RomMacroAddrBits for a ROM macro of that size, or set memory.romSize = "

@@ -2,8 +2,8 @@
 #
 # This is the mask ROM content of the fabricated part, so the recipe here is a
 # literal transcription of software/bootrom_mp/makefile: same sources in the
-# same order, same flags, same link line, same 16KB zero filled window, same
-# 4096 word RCF. See :rom_rcf_reproducibility_test for the byte level proof
+# same order, same flags, same link line, same 8KB zero filled window, same
+# 2048 word RCF. See :rom_rcf_reproducibility_test for the byte level proof
 # against the pinned bench artifact.
 #
 # start.S must stay first in srcs. The linker script places the first input
@@ -91,20 +91,28 @@ rv32_firmware(
     # The ISA string is not spelled here on purpose. See isa.bzl: the makefile
     # reads the same assignment, so the two build paths cannot drift apart.
     march = BOOTROM_MARCH,
-    # 16KB boot ROM, 4096 words.
-    pad_bytes = 16384,
+    # 8KB boot ROM, 2048 words: the depth of the rom2k_hvt_pg macro at rom0.
+    # Halved from 16384/4096 on 2026-08-23 with the makefile's dd/line check.
+    pad_bytes = 8192,
     rcf_name = "rom.rcf",
 )
 
 # The pinned bench copy of the ROM image, tracked under a name that does not
 # collide with the global *.rcf gitignore. Byte identical to the ROM plate.
 #
-# RE-CUT 2026-08-23, and it is NOT drift. The ISA string in isa.bzl went from
-# rv32i to rv32ic and -fno-tree-loop-distribute-patterns was added, so every
-# word of the image moved. .text went 10,140 bytes to 7,376, which is 816 bytes
-# under the 8,192 byte target. The mirror the cosim gate reads,
-# tools/cosim/gate/bootrom_mp_rom.rcf, was re-cut in the same change; the two
-# and software/bootrom_mp/bin/rom.rcf are one md5.
+# RE-CUT TWICE ON 2026-08-23, and neither cut is drift.
+# First the ISA string in isa.bzl went from rv32i to rv32ic and
+# -fno-tree-loop-distribute-patterns was added, so every word of the image
+# moved. .text went 10,140 bytes to 7,376, which is 816 bytes under the 8,192
+# byte target.
+# Then the ROM itself was halved: memory.romSize 16384 -> 8192 and rom0 became
+# the 2048 x 32 rom2k_hvt_pg macro, so pad_bytes above is 8192 and this file is
+# 2,048 lines. The 2,048 lines that went away were the zero padding; the words
+# that remain are byte for byte what the first cut produced, and they are the
+# code file the physical macro was compiled from.
+# The mirror the cosim gate reads, tools/cosim/gate/bootrom_mp_rom.rcf, was
+# re-cut in the same change both times; the two and
+# software/bootrom_mp/bin/rom.rcf are one md5.
 filegroup(
     name = "rom_rcf_golden",
     srcs = ["testdata/rom_rcf_golden.txt"],
