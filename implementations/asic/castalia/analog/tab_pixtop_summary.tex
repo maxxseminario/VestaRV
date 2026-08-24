@@ -7,14 +7,32 @@
 %%   rows 13-14 S7.5 (runs simruns/pixtop2_adcx_*, extracted converter)
 %% Flat-bench comparison values (0.814 mV, 8.6658 uA, 6.0553 uA) are the same
 %% document's S10 and S9.2 columns, i.e. tb_anatop_pixel/CvBvTB test ps_cv.
+%%
+%% 2026-08-23, post-C_F: rows 1-14 are UNCHANGED -- simruns/postfix_corner/
+%% corner_table.txt reproduces every dc value at tt to the printed digits, and
+%% the capacitor moves only the transient zero, in the 4th digit (1.6 uV,
+%% attributed in simruns/postfix_cfattrib).  Four rows ADDED at the foot:
+%%   PM 75.71 deg / 1.068 dB worst of 24, 72.37 deg at ss
+%%       -- simruns/postfix_stb/stb_table.txt, postfix_corner_stb/
+%%   f3dB 85.77 kHz (N=0) / 3415 Hz (N=319) at Cdl 100 nF, Rct 1 M -- same table
+%%   sigma_tread 1.475-2.889 nA = 0.036-1.781 LSB over 16 codes
+%%       -- simruns/trmnoise_gain/noise_vs_gain_table.txt
+%%   1.6424 mW, of which 806.758 uW is the two DAC supply regulators
+%%       -- simruns/postfix_pwr/power_table.txt (extracted converter)
+%% The LSB row's conditions cell now states that 88.5 nA is the NOMINAL-ladder
+%% figure; the measured in-loop Zt(dc) of 19.63 kOhm gives 81.2 nA, which is what
+%% sss:pixtop-noise and fig:pixtop-noise use.
 \begin{table}[!htb]
   \centering
   \caption[{Headline measurements on the assembled channel.}]{Headline
   measurements on the assembled channel, nominal process point,
   \SI{37}{\celsius}, \SI{2.5}{\volt} supply. Rows 1--8 are dc; rows 9--12 come
-  from the staircase voltammetry run of Figure~\ref{fig:pixtop-cv} and rows
-  13--14 need the extracted converter, everything else in the channel staying
-  at schematic level. The two tracking figures are optimistic by construction:
+  from the staircase voltammetry run of Figure~\ref{fig:pixtop-cv}; rows 13--14
+  and the power figure need the extracted converter, everything else in the
+  channel staying at schematic level; the last four rows are the post-fix
+  small-signal, noise and power runs of
+  Sections~\ref{sss:pixtop-stability}--\ref{sss:pixtop-power}. The two tracking
+  figures are optimistic by construction:
   the DAC supply regulators are instantiated but drive nothing, so both ladders
   run from an ideal rail and the \SI{25.8}{\milli\volt} of code-dependent
   reference movement of Section~\ref{sss:dacr2r12-supply} is not exercised
@@ -79,7 +97,25 @@
     Current per converter LSB &
       \(88.5\,/\,\SI{0.825}{\nano\ampere}\) &
       \(N = 0\,/\,319\); \SI{1.593}{\milli\volt} LSB over the measured
-      \SI{1.63}{\volt} span \\
+      \SI{1.63}{\volt} span, on the nominal ladder. The measured in-loop
+      \(R_f\) puts the bottom code at \SI{81.2}{\nano\ampere} \\
+    \addlinespace
+    Transimpedance phase margin &
+      \SI{75.7}{\degree} &
+      worst of 24 electrode\(\,\times\,\)gain points, \SI{1.07}{\decibel}
+      peaking; \SI{72.4}{\degree} at the slow corner \\
+    Closed-loop bandwidth &
+      \(85.8\,/\,\SI{3.4}{\kilo\hertz}\) &
+      \(N = 0\,/\,319\), \(C_{\mathrm{dl}} = \SI{100}{\nano\farad}\), with the
+      \SI{22.0}{\pico\farad} compensation capacitor \\
+    Input-referred noise, one tread &
+      \SIrange{1.5}{2.9}{\nano\ampere} &
+      \SI{2}{\milli\second} average; \(0.036\)--\(1.78\,\)LSB as the gain code
+      rises \\
+    Channel power &
+      \SI{1.642}{\milli\watt} &
+      extracted converter; \SI{806.8}{\micro\watt} of it is the two
+      unconnected reference-DAC regulators \\
     \bottomrule
   \end{tabular}}
 \end{table}
