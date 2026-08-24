@@ -6937,8 +6937,22 @@ class LatexUserGuide():
 		barFact = 'every ordinary load and store, one at a time'
 		barNote = '\\textit{the extended-flash range is not decoded here and never arrives}'
 
+		# The band's top slack is the shadow stack's if a stack is drawn and a flat
+		# 0.34 if it is not, and yBandT below already said so.
+		# heightOf used to reserve the STACKED value unconditionally, which agreed
+		# with yBandT on every configuration that draws a stack and disagreed by
+		# 0.20 cm on every configuration that does not.
+		# No shipped chip drew a stackless band until the single-hart mcu_hart row,
+		# whose master band is one box (there is no `harts 1..N-1' box at N = 1), so
+		# the E17 guard below fired on the first N <= 2 build: drawn 14.08 against a
+		# justified 14.28.
+		# Both sites now read the same value from one place.
+		def bandSlack():
+			return (max(0.34, stackDy * (maxShadow - 1) + 0.14)
+				if any(m['stack'] > 1 for m in masters) else 0.34)
+
 		def heightOf(bh):
-			return (0.34 + max(0.34, stackDy * (maxShadow - 1) + 0.14) + hMaster + gap1 + bh
+			return (0.34 + bandSlack() + hMaster + gap1 + bh
 				+ gap2 + hRank + (0.42 + hSel if xipOn else 0.0) + 0.44 + 0.62 + hExt)
 
 		def layoutRank(spread):
@@ -6988,8 +7002,7 @@ class LatexUserGuide():
 			xb += m['w'] + gapM
 
 		yRedT = -0.34
-		yBandT = yRedT - max(0.34, (stackDy * (maxShadow - 1) + 0.14)
-			if any(m['stack'] > 1 for m in masters) else 0.34)
+		yBandT = yRedT - bandSlack()
 		yBandB = yBandT - hMaster
 		yBarT = yBandB - gap1
 		yBarB = yBarT - barH

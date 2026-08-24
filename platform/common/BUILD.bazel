@@ -116,6 +116,21 @@ chip_artifacts(
     out_of_tree_srcs = ["//hdl:vhdl_sources"],
 )
 
+# MCU_hart (1 hart, no orchestrator, minimal peripheral set). The DRC/LVS
+# vehicle: one hardened hart_tile, the shared fabric it masters, and the AFE
+# stub bank, with everything optional dropped. There are no identity gates for
+# it either -- the tracked RTL is Castalia's -- so the bar here is that the
+# configuration generates and its machine-readable outputs parse
+# (:mcu_hart_generation_test). What it emits is ALSO elaborated and BOOTED, by
+# //opensource_sim/mcu_hart, which consumes the two labels below.
+chip_artifacts(
+    name = "chip_artifacts_mcu_hart",
+    srcs = ["//platform/common/python:generator_srcs"],
+    chip_root_srcs = CHIP_ROOT_SRCS,
+    config = "config/mcu_hart.json",
+    out_of_tree_srcs = ["//hdl:vhdl_sources"],
+)
+
 # ---------------------------------------------------------------------------
 # Named handles on individual artifacts. These are the labels other packages
 # consume; the underlying output-group names are an implementation detail.
@@ -441,6 +456,41 @@ py_test(
         ":chip_artifacts_castalia_repro",
     ],
     main = "compare_trees.py",
+)
+
+# The single-hart RTL, as the two labels //opensource_sim/mcu_hart splices
+# into the MCU analysis order in place of the tracked five-hart pair.
+chip_artifact(
+    name = "mcu_hart_mcu_vhd",
+    rel_path = "out/hdl/MCU.vhd",
+    target = ":chip_artifacts_mcu_hart",
+)
+
+chip_artifact(
+    name = "mcu_hart_memorymap_vhd",
+    rel_path = "out/hdl/MemoryMap.vhd",
+    target = ":chip_artifacts_mcu_hart",
+)
+
+# MCU_hart still generates, and its machine-readable outputs still parse.
+py_test(
+    name = "mcu_hart_generation_test",
+    size = "small",
+    srcs = ["//platform/common/bazel:assert_artifacts.py"],
+    args = [
+        "platform/common/chip_artifacts_mcu_hart/out/hdl/MCU.vhd",
+        "platform/common/chip_artifacts_mcu_hart/out/hdl/MemoryMap.vhd",
+        "platform/common/chip_artifacts_mcu_hart/out/hdl/riscv_tb.vhd",
+        "platform/common/chip_artifacts_mcu_hart/out/software/include/MemoryMap.h",
+        "platform/common/chip_artifacts_mcu_hart/out/software/include/periph.S",
+        "platform/common/chip_artifacts_mcu_hart/out/web/chip_data.js",
+        "platform/common/chip_artifacts_mcu_hart/out/web/MemoryMap.json",
+        "platform/common/chip_artifacts_mcu_hart/config/ChipConfig.resolved.json",
+        "platform/common/chip_artifacts_mcu_hart/config/PadRing.json",
+        "platform/common/chip_artifacts_mcu_hart/latex/TRM/",
+    ],
+    data = [":chip_artifacts_mcu_hart"],
+    main = "assert_artifacts.py",
 )
 
 # Argus still generates, and its machine-readable outputs still parse.

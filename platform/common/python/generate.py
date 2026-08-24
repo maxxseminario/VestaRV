@@ -1313,9 +1313,23 @@ if (not _isa['atomics']) and numHarts > 1:
 # the closing sentence of the note calls unproven.
 # ---------------------------------------------------------------------------
 _VERIFIED_HART_COUNTS = [
+	(1, 'the single-hart DRC/LVS vehicle, the named matrix row config/mcu_hart.json'),
 	(4, 'the pre-CPR8 four-hart shape, kept as the named matrix row config/castalia4.json'),
 	(5, 'Castalia-Penta golden master since CPR8, the shipped default, byte-identical drop-in RTL'),
 ]
+
+# 1 EARNED ITS ROW ON 2026-08-24, against the bar in the note above and not
+# against a generation run. //opensource_sim/mcu_hart:mcu_hart_elaborate binds
+# the hierarchy the mcu_hart configuration emits and runs it to time zero, so
+# MCU.vhd's RomAddrBits assert and hart_tile.vhd's RamSize assert both execute;
+# //opensource_sim/mcu_hart:mcu_hart_boot then boots that chip out of the real
+# mask-ROM image and grades the banner the ROM monitor prints on UART0. Both
+# are standing bazel tests over the GENERATED RTL, not a run somebody did once.
+# What getting there cost, listed because it is the answer to "why was 1 not
+# already here": the MCU.vhd and riscv_tb.vhd emitters indexed harts 1..N-1
+# with no N = 1 arm, pwr_ctrl.vhd asserted NHARTS >= 2, and PWRCR's gate field
+# was emitted msb = 0, lsb = 1. Every one of those is fixed at the source and
+# the N >= 2 emission is byte-identical.
 
 # 18 (Argus) IS DELIBERATELY ABSENT, and this is the note that says so rather
 # than leaving a silent gap where a value used to be. Argus was a verified count
@@ -2399,7 +2413,14 @@ m.AddPeripheralTemplate(p)
 r = RegisterTemplate(nameTemplate='PWRCR', registerMemorySlot=0, size=32, description='Power gate control. Setting GATE bit h powers tile hart h down (isolation, reset, rail off); clearing it powers the tile back up and cold-boots it. A request made while the sequencer is mid-sequence is honored when the sequence completes (no aborts). Bit 0 (hart 0) is reserved: always-on, reads 0, writes ignored.')
 p.AddRegisterTemplate(r)
 r.AddBitField(BitField(unused=True, msb=31, lsb=numHarts))
-r.AddBitField(BitField(name='PWRGATE', msb=numHarts - 1, lsb=1, accessibility='rw', description='Gate request per tile hart: bit h = 1 powers tile hart h down, 0 powers it up (cold boot). Poll PWRSR for sequencer completion.', valueDescriptions=[(0, 'All tile harts powered', '_NONE')]))
+# SINGLE-HART DEGENERACY (mcu_hart, 2026-08-24). PWRGATE spans the GATEABLE
+# tile harts, bits numHarts-1 downto 1, and at numHarts = 1 that range is empty.
+# The field is therefore omitted rather than emitted backwards; the whole
+# register degenerates to the reserved bits above plus the always-on PWRH0 bit,
+# which is the truth on a chip whose only hart is the always-on management hart.
+# At numHarts >= 2 nothing here moves, so the Castalia emission is untouched.
+if numHarts > 1:
+	r.AddBitField(BitField(name='PWRGATE', msb=numHarts - 1, lsb=1, accessibility='rw', description='Gate request per tile hart: bit h = 1 powers tile hart h down, 0 powers it up (cold boot). Poll PWRSR for sequencer completion.', valueDescriptions=[(0, 'All tile harts powered', '_NONE')]))
 r.AddBitField(BitField(name='PWRH0', msb=0, lsb=0, accessibility='r', description='Hart 0 is always-on: reads 0, writes ignored.'))
 
 # PWRSR nibble array (A2 regrow, user decision 2026-07-10): the 4-bit state

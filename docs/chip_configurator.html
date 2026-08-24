@@ -4023,10 +4023,11 @@ const VESTA_DATA = {
   },
   "verifiedHarts": {
     "values": [
+      1,
       4,
       5
     ],
-    "note": "Only 4 (the pre-CPR8 four-hart shape, kept as the named matrix row config/castalia4.json) and 5 (Castalia-Penta golden master since CPR8, the shipped default, byte-identical drop-in RTL) are verified hart counts. Other values emit well-formed but unproven RTL. 18 (Argus) was a verified count until 2026-08-16 and is not one now: hdl/common/hart_tile.vhd asserts RamSize = 8192 with severity failure, and every Argus configuration asks for memory.tcmSizePerHart = 16384, so an 18-hart build still generates but no longer elaborates."
+    "note": "Only 1 (the single-hart DRC/LVS vehicle, the named matrix row config/mcu_hart.json), 4 (the pre-CPR8 four-hart shape, kept as the named matrix row config/castalia4.json) and 5 (Castalia-Penta golden master since CPR8, the shipped default, byte-identical drop-in RTL) are verified hart counts. Other values emit well-formed but unproven RTL. 18 (Argus) was a verified count until 2026-08-16 and is not one now: hdl/common/hart_tile.vhd asserts RamSize = 8192 with severity failure, and every Argus configuration asks for memory.tcmSizePerHart = 16384, so an 18-hart build still generates but no longer elaborates."
   },
   "memoryRegions": [
     {
