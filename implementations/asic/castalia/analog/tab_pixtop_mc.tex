@@ -3,7 +3,7 @@
 %% ~/chips/castalia/simruns/pixmc_20260823/ -- 200 samples, process and
 %% mismatch, model section castalia_pm_25, nominal corner, 37 C, 1070 random
 %% variables, 200/200 converged, no 1.11e36 sentinel:
-%%   rows 1-10  mc_distributions.txt + yield_table.txt (UNCALIBRATED block)
+%%   rows 1-10  mc_distributions.txt
 %%   rows 11-12 stb_table.txt (a separate 200-sample run at the worst point of
 %%              the postfix_stb grid: Cdl = 100 nF, Rct = 1 M, N = 63)
 %% Means and sigmas re-derived from samples/main200.json and cross-checked
@@ -11,77 +11,78 @@
 %% headline table rounds it to 610.22, the extracted data does not) and
 %% v_cm_dc 1.249697 V (README quotes 1.24966).
 %% Gain margins, not tabulated: 21.57 +- 0.88 dB (transimpedance loop, min
-%% 19.37) and 38.17 +- 0.64 dB (control loop, min 36.07), both 100 %.
-%% The yield column is the UNCALIBRATED fraction; the calibrated scenarios are
-%% in the prose of sss:pixtop-mc and in yield_table.txt.
+%% 19.37) and 38.17 +- 0.64 dB (control loop, min 36.07).
+%%
+%% 2026-08-24, OWNER INSTRUCTION "do not talk about pixel level yield yet":
+%% the Yield column (the uncalibrated fraction of samples inside each
+%% specification) was REMOVED, together with the caption's yield sentences.
+%% The Specification column stays -- it is the budget, not a score against it.
+%% yield_table.txt in the archive still holds the removed figures.
 %% Library cell names are kept out of the rendered prose.
 \begin{table}[!htb]
   \centering
   \caption[{Monte Carlo distributions on the assembled channel.}]{Monte Carlo
   distributions on the assembled channel: 200 samples, process and mismatch
   together, nominal process point, \SI{37}{\celsius}, \SI{2.5}{\volt} supply,
-  \num{1070} random variables, all 200 converged. Specifications and yields are
-  those the channel's own bench carries, scored \emph{uncalibrated}; the
-  calibrated figures are in the text. The two tracking rows are the same
-  measurement over two ranges --- the \SIrange{0.4}{2.1}{\volt} row is the
-  specification (Section~\ref{sss:pixtop-potential}), the full-sweep row is
-  reported because the bench writes it that way. Phase margins come from a
-  separate 200-sample run at the worst electrode-by-gain point of
-  Section~\ref{sss:pixtop-stability}. \textbf{Every yield here is an upper
-  bound}: four devices in each amplifier instantiate raw model cards instead of
-  the mismatch-enabled wrappers and therefore contributed no variance
-  (Section~\ref{sss:pixtop-open}).}
+  \num{1070} random variables, all 200 converged. The specification column is
+  the budget each quantity is designed against, uncalibrated; the two constants
+  that remove the additive part of these spreads are in
+  Section~\ref{ss:calibration}. The two tracking rows are the same measurement
+  over two ranges --- the \SIrange{0.4}{2.1}{\volt} row is the specification
+  (Section~\ref{sss:pixtop-potential}), the full-sweep row is reported because
+  the bench writes it that way. Phase margins come from a separate 200-sample
+  run at the worst electrode-by-gain point of
+  Section~\ref{sss:pixtop-stability}.}
   \label{tab:pixtop-mc}
   {\footnotesize
   \setlength{\tabcolsep}{5pt}
   \begin{tabular}{@{}%
-    >{\raggedright\arraybackslash}p{0.335\textwidth}%
-    >{\raggedleft\arraybackslash}p{0.135\textwidth}%
-    >{\raggedleft\arraybackslash}p{0.135\textwidth}%
-    >{\raggedleft\arraybackslash}p{0.155\textwidth}%
-    >{\raggedleft\arraybackslash}p{0.105\textwidth}@{}}
+    >{\raggedright\arraybackslash}p{0.435\textwidth}%
+    >{\raggedleft\arraybackslash}p{0.150\textwidth}%
+    >{\raggedleft\arraybackslash}p{0.150\textwidth}%
+    >{\raggedleft\arraybackslash}p{0.185\textwidth}@{}}
     \toprule
-    Quantity & Mean & \(\sigma\) & Specification & Yield \\
+    Quantity & Mean & \(\sigma\) & Specification \\
     \midrule
     Zero-current output, \(v_{\mathrm{out}} - V_{\mathrm{CM}}\) &
       \SI{-0.425}{\milli\volt} & \SI{5.754}{\milli\volt} &
-      \(\pm\SI{2}{\milli\volt}\) & \SI{22.0}{\percent} \\
+      \(\pm\SI{2}{\milli\volt}\) \\
     Reference tracking error, mid-code &
       \SI{-0.279}{\milli\volt} & \SI{5.552}{\milli\volt} &
-      \(\pm\SI{2}{\milli\volt}\) & \SI{31.5}{\percent} \\
+      \(\pm\SI{2}{\milli\volt}\) \\
     Reference tracking error, worst over \SIrange{0.4}{2.1}{\volt} &
       \SI{4.850}{\milli\volt} & \SI{3.800}{\milli\volt} &
-      \(<\SI{2}{\milli\volt}\) & \SI{25.5}{\percent} \\
+      \(<\SI{2}{\milli\volt}\) \\
     Reference tracking error, worst over \SIrange{0}{2.42}{\volt} &
       \SI{9.751}{\milli\volt} & \SI{6.303}{\milli\volt} &
-      \(<\SI{2}{\milli\volt}\) & \SI{5.0}{\percent} \\
+      \(<\SI{2}{\milli\volt}\) \\
     \addlinespace
     Zero-current offset referred to current, \(N = 0\) &
       \SI{-23.6}{\nano\ampere} & \SI{319.7}{\nano\ampere} &
-      \(\pm\SI{100}{\nano\ampere}\) & \SI{20.5}{\percent} \\
+      \(\pm\SI{100}{\nano\ampere}\) \\
     Same at maximum gain, \(N = 319\) &
       \SI{2.470}{\nano\ampere} & \SI{1.671}{\nano\ampere} &
-      \(<\SI{2}{\nano\ampere}\) & \SI{46.5}{\percent} \\
+      \(<\SI{2}{\nano\ampere}\) \\
     \addlinespace
     Reference-electrode floor &
       \SI{4.428}{\milli\volt} & \SI{5.913}{\milli\volt} &
-      \(<\SI{5}{\milli\volt}\) & \SI{65.5}{\percent} \\
+      \(<\SI{5}{\milli\volt}\) \\
     Reference-electrode ceiling &
       \SI{2.4211}{\volt} & \SI{10.7}{\milli\volt} &
-      \(>\SI{2.4}{\volt}\) & \SI{97.0}{\percent} \\
+      \(>\SI{2.4}{\volt}\) \\
     Common-mode output &
       \SI{1.24970}{\volt} & \SI{0.684}{\milli\volt} &
-      \SIrange{1.245}{1.255}{\volt} & \SI{100}{\percent} \\
+      \SIrange{1.245}{1.255}{\volt} \\
     Reference DAC step &
       \SI{610.25}{\micro\volt} & \SI{0.171}{\micro\volt} &
-      --- & --- \\
+      --- \\
     \addlinespace
     Transimpedance phase margin &
       \SI{74.11}{\degree} & \SI{3.07}{\degree} &
-      \(>\SI{45}{\degree}\) & \SI{100}{\percent} \\
+      \(>\SI{45}{\degree}\) \\
     Control-loop phase margin &
       \SI{79.94}{\degree} & \SI{1.06}{\degree} &
-      \(>\SI{45}{\degree}\) & \SI{100}{\percent} \\
+      \(>\SI{45}{\degree}\) \\
     \bottomrule
   \end{tabular}}
 \end{table}

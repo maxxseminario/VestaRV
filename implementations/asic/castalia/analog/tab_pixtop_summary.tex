@@ -23,10 +23,12 @@
 %% figure; the measured in-loop Zt(dc) of 19.63 kOhm gives 81.2 nA, which is what
 %% sss:pixtop-noise and fig:pixtop-noise use.
 %%
-%% 2026-08-24: three Monte Carlo rows ADDED at the foot -- sigma 5.754 mV and
-%% 5.552 mV and the 61.5 % / 0.50 % yields, from
-%% simruns/pixmc_20260823/{mc_distributions,yield_table}.txt (200 samples,
-%% process + mismatch, section castalia_pm_25, nominal corner, 37 C).  The
+%% 2026-08-24: two Monte Carlo rows ADDED at the foot -- sigma 5.754 mV and
+%% 5.552 mV, from simruns/pixmc_20260823/mc_distributions.txt (200 samples,
+%% process + mismatch, section castalia_pm_25, nominal corner, 37 C).  A third
+%% row, "Per-channel yield, calibrated 61.5 % / 0.50 % uncalibrated", was
+%% written and then REMOVED the same day on the owner's instruction "do not
+%% talk about pixel level yield yet"; yield_table.txt still holds it.  The
 %% dc rows above are UNCHANGED: they are the typical point, and the nominal run
 %% of the Monte Carlo deck reproduces them to the printed digits.  The tracking
 %% rows' conditions cells now say which of the two ranges is the specification
@@ -40,8 +42,8 @@
   and the power figure need the extracted converter, everything else in the
   channel staying at schematic level; rows 15--18 are the post-fix
   small-signal, noise and power runs of
-  Sections~\ref{sss:pixtop-stability}--\ref{sss:pixtop-power}; the final three
-  are Monte Carlo, and their yield is an upper bound for the reason
+  Sections~\ref{sss:pixtop-stability}--\ref{sss:pixtop-power}; the final two
+  are Monte Carlo, and are narrower than the built channel's for the reason
   Section~\ref{sss:pixtop-open} gives. The two tracking
   figures are optimistic by construction:
   the DAC supply regulators are instantiated but drive nothing, so both ladders
@@ -137,10 +139,6 @@
       \SI{5.552}{\milli\volt} &
       same run, mid-code; \SI{5.72}{\milli\volt} on the flat bench
       (\S\ref{sss:pixel-mc}) \\
-    Per-channel yield, calibrated &
-      \SI{61.5}{\percent} &
-      same run, all 20 specifications, tracking over the specified window;
-      \SI{0.50}{\percent} uncalibrated. Upper bound \\
     \bottomrule
   \end{tabular}}
 \end{table}
