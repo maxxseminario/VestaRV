@@ -82,12 +82,21 @@ jobs:
       # fetch-ahead re-points the instruction-fetch check address, and a
       # mutation that restores the old one is caught ONLY by the ifahead_on
       # half, so a single-polarity gate would not see that regression at all.
+      # //opensource_sim/mcu:mcu_elaborate is the only thing in the estate that
+      # elaborates hdl/common/MCU.vhd. Every other GHDL target here, this
+      # workflow's whole ISA regression included, instantiates the bare CORE.
+      # MCU.vhd is GENERATED and moves on every knob change, and its size
+      # asserts against the ROM and TCM macros execute at time zero, so the
+      # target is a 1 ns run and not just an analysis. It is named explicitly
+      # for the reason the header gives: this job takes targets, never
+      # //opensource_sim/... by wildcard.
       - name: Run ISA regression + GHDL unit benches
         run: |
           set -o pipefail
           tools/bin/bazel test //opensource_sim:isa_regression //hdl/common/tb:all \
             //verification/cpi:cpi_default \
             //opensource_sim/pmp:pmp \
+            //opensource_sim/mcu:mcu_elaborate \
             --repository_cache=~/.cache/bazel-repo-cache \
             --test_tag_filters=-known_red \
             --test_output=errors \
