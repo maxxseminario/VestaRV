@@ -252,6 +252,17 @@ $(1)_tests_dump = $$(addsuffix .dump, $$($(1)_tests))
 $(1): $$($(1)_tests_dump)
 	@$$(MAKE) pad_rcf_filenames_$(1)
 	@$$(MAKE) collect_rcf_$(1)
+	@if [ -z "$$(filter $(1)-flash,$$(MAKECMDGOALS))" ]; then \
+	  echo "WARNING: 'make $(1)' PUBLISHED UN-FLASHED images into rcf/."; \
+	  echo "         collect_rcf_$(1) copies the raw $$(WORD_COUNT)-word padded images"; \
+	  echo "         straight into the canonical rcf/, and only './flash_prepend.sh'"; \
+	  echo "         (which the '$(1)-flash' target runs AFTER this) turns one into"; \
+	  echo "         something the SPI-flash loader can execute. An image left in this"; \
+	  echo "         state is $$(WORD_COUNT) lines / 675840 bytes, loads nothing, and"; \
+	  echo "         dies on the testbench's 100 ms watchdog with no other symptom."; \
+	  echo "         Run 'make $(1)-flash' (or ./build_mp_images.sh) instead, then"; \
+	  echo "         'make check-rcf-flashed' to prove rcf/ is sane."; \
+	fi
 
 .PHONY: $(1)
 
@@ -630,6 +641,48 @@ pad_all_rcf:
 	    if [ "$$f" != "$$newname" ]; then mv "$$f" "$$newname"; fi; \
 	  done; \
 	fi
+
+# Prove every image in rcf/ carries the SPI-flash header.
+#
+# WHY THIS EXISTS (2026-08-23).  Ten rv32um images sat in the canonical rcf/ at
+# 675,840 bytes each -- the raw 20,480-word padded form, published by a bare
+# `make rv32um` whose collect_rcf_ step copies into rcf/ but whose flash_prepend
+# step never ran.  The testbench loads such a file, finds no 0x10ADBEEF command
+# word, executes nothing, and dies on the 100 ms watchdog.  Ten identical
+# watchdog deaths in the behavioural gate, with nothing in any log naming the
+# image as the cause.
+#
+# The test is CONTENT-based and exact, the same predicate flash_prepend.sh's own
+# idempotency guard uses: line 1 of a flashed image is the command word, and it
+# cannot be the first word of an un-flashed one (that is the program's own first
+# instruction).  Deliberately not a size or mtime check -- what is being detected
+# is "this file carries the header", and that is a property of the bytes.
+FLASH_CMD_WORD := 00010000101011011011111011101111
+
+# The directory to check. Defaults to the canonical set; build_mp_images.sh
+# passes its own $DEST so an out-of-tree set (rcf_argus, rcf_ci, a verify_ stage)
+# is proved by the same instrument that proves rcf/.
+RCF_DIR ?= rcf
+
+.PHONY: check-rcf-flashed
+check-rcf-flashed:
+	@bad=0; n=0; \
+	for f in $(RCF_DIR)/*.rcf; do \
+	  [ -e "$$f" ] || continue; \
+	  case "$$(basename $$f)" in boot-p-boot.rcf) continue;; esac; \
+	  n=$$((n + 1)); \
+	  if [ "$$(sed -n '1p' "$$f")" != "$(FLASH_CMD_WORD)" ]; then \
+	    echo "UN-FLASHED: $$f ($$(wc -l < $$f) lines, $$(wc -c < $$f) bytes)"; \
+	    bad=$$((bad + 1)); \
+	  fi; \
+	done; \
+	if [ $$bad -ne 0 ]; then \
+	  echo "FAIL: $$bad of $$n images in $(RCF_DIR)/ carry no SPI-flash header."; \
+	  echo "      Rebuild the group with 'make <group>-flash', or the whole"; \
+	  echo "      canonical set with ./build_mp_images.sh 5 ../../xcelium/riscv_test/rcf"; \
+	  exit 1; \
+	fi; \
+	echo "check-rcf-flashed: OK -- all $$n images in $(RCF_DIR)/ carry the header"
 
 # Collect all RCF files from all test suites to central rcf/ directory
 .PHONY: collect-all-rcf

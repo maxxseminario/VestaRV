@@ -211,6 +211,20 @@ if [ "$GOT_IMGSET" != "$IMGSET_IDENTITY" ]; then
     echo "       with no record: verify.sh would REUSE it as the wrong polarity." >&2
     exit 2
 fi
+# --- THE HEADER ASSERTION (2026-08-23) ---------------------------------------
+# The stamps above prove the set's POLARITY. They say nothing about whether each
+# image is EXECUTABLE, and that is a separate failure mode with its own history:
+# ten rv32um images sat in rcf/ at 675,840 bytes -- the raw padded form -- because
+# a bare `make rv32um` published them through collect_rcf_ without ever reaching
+# flash_prepend.sh. The behavioural gate showed ten 100 ms watchdog deaths and
+# named no cause. `check-rcf-flashed` reads line 1 of every image and demands the
+# 0x10ADBEEF command word, the same content predicate flash_prepend.sh's own
+# idempotency guard uses.
+if ! make check-rcf-flashed RCF_DIR="$DEST"; then
+    echo "FATAL: $DEST holds images with no SPI-flash header -- they load nothing" >&2
+    echo "       and die on the testbench watchdog. The build above did not finish." >&2
+    exit 2
+fi
 echo "  read-back OK: $DEST/.nharts=$GOT_DEST  rcf/.nharts=$GOT_RCF"
 echo "                $DEST/.imgset=$GOT_IMGSET"
 echo "=== done: $(ls "$DEST"/*.rcf | wc -l) rcf files in $DEST (NHARTS=$NH) ==="

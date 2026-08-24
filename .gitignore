@@ -101,8 +101,12 @@ software/*/obj/
 software/*/bin/
 # tools/build/linker-scripts/{memory.x,periph.x,*_START.txt,*_SIZE.txt} are
 # TRACKED since the CI bring-up (2026-07-18): they are frozen build INPUTS of
-# software/bootrom_mp (the Castalia generator never writes to tools/ — golden
+# software/bootrom_mp (the Castalia generator never writes to tools/, golden
 # rule), and the hosted CI bootrom build needs them from a bare checkout.
+# They are the link environment the taped-out rom2k_hvt_pg plate was compiled
+# from, NOT a copy of the current generator output, and the boot ROM does not
+# link against the current output at all (rv4th .noinit overflows the 8 KiB
+# TCM).  //tools/build:rom_plate_link_env_test pins how far the two may drift.
 
 # Software headers (auto-generated)
 software/commune/include/MemoryMap.h

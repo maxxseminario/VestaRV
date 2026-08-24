@@ -4,7 +4,13 @@ This directory contains the build infrastructure for the Vestarv RISC-V processo
 
 ## Contents
 
-- **linker-scripts/** - Linker scripts for different memory configurations (bootrom, main MCU)
+- **linker-scripts/** - Linker scripts for different memory configurations (bootrom, main MCU).
+  The two `.ld` files are hand written. The `memory.x` / `periph.x` / `*_START.txt` /
+  `*_SIZE.txt` files are NOT a copy of the chip generator's current output: they are the
+  frozen link environment the taped-out `rom2k_hvt_pg` mask plate was compiled from, and
+  `software/bootrom_mp` will not link against the current output at all. Refreshing them
+  relinks the boot image and invalidates the plate. See the comment in `BUILD.bazel` and
+  `//tools/build:rom_plate_link_env_test`
 - **makefiles/** - Common makefiles and build configuration
 - **scripts/** - Build and conversion utilities (Python scripts for hex conversion, RCF generation, etc.)
 - **templates/** - Project templates for C, C++, and testbench code
@@ -30,6 +36,7 @@ tools/bin/bazel test //...       # first run downloads all toolchains
 | `//tools/build:bin2rcf` | The single canonical bin -> RCF converter, runnable with `bazel run`. It replaces the five divergent `od`+`awk` copies that used to live in the makefiles, and is byte-verified against the pinned boot-ROM RCF artifact |
 | `//tools/build:rcf_flash` | Out-of-place port of `verification/isa/flash_prepend.sh`: prepends the SPI-flash protocol headers to an RCF. Byte-verified against the bash original's output |
 | `//tools/build:linker_scripts` | The shared linker scripts as one filegroup - the `.ld` files `INCLUDE` `memory.x` / `periph.x` and the `*_START`/`*_SIZE` fragments, so they must travel together |
+| `//tools/build:rom_plate_link_env_test` | Pins how far the frozen link environment in `linker-scripts/` may drift from the live chip memory map (`//platform/common:castalia_linker_scripts`). The two are known to differ and the recorded difference is `testdata/rom_plate_link_env.diff`; the test fails when that difference changes |
 
 Both scripts are exercised end to end by the firmware golden gates rather than
 by unit tests: every firmware image in `//software/...` is produced through them

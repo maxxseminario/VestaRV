@@ -1,4 +1,4 @@
-load("@rules_python//python:defs.bzl", "py_binary")
+load("@rules_python//python:defs.bzl", "py_binary", "py_test")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -22,6 +22,30 @@ py_binary(
 # Linker scripts shared by the firmware builds. The .ld files `INCLUDE`
 # memory.x / periph.x and the *_START/_SIZE fragments, so all must travel
 # together.
+#
+# THE .x AND .txt FILES HERE ARE NOT A COPY OF GENERATOR OUTPUT.
+# They are the frozen link environment the taped-out rom2k_hvt_pg plate was
+# compiled from, and they are older than the current chip: 16 KiB ROM where the
+# part now has 8 KiB, and one flat RAM window 0x0814C-0x0FFFF where the part now
+# has an 8 KiB TCM, a hole, NPU_RAM and SHARED_RAM.
+#
+# They are kept, rather than refreshed from
+# //platform/common:castalia_linker_scripts, for a measured reason:
+#   * software/bootrom_mp DOES NOT LINK against the generated set at all.
+#     rv4th.c puts 0x5D70 bytes of Forth interpreter arrays in .noinit, which
+#     needs the old 32436-byte RAM window; against the generated 7708-byte
+#     window the link fails outright with "region `RAM' overflowed by 16212
+#     bytes".  Reconciling the two is a bootrom_mp source change, and any such
+#     change moves the boot image, its two recorded goldens
+#     (software/bootrom_mp/testdata/rom_rcf_golden.txt and
+#     tools/cosim/gate/bootrom_mp_rom.rcf) and the physical mask plate together.
+#   * the six MCU.ld firmware images DO link against either set, and were built
+#     both ways on 2026-08-23: every .rcf and .hex is byte identical.  Only the
+#     .elf symbol table moves, because periph.x contributes absolute symbols.
+# So refreshing buys nothing downstream and costs a plate re-cut.
+#
+# What refreshing WOULD have hidden is that the divergence grew unnoticed for
+# months.  :rom_plate_link_env_test is the guard against that happening again.
 filegroup(
     name = "linker_scripts",
     srcs = glob([
@@ -29,4 +53,60 @@ filegroup(
         "linker-scripts/*.x",
         "linker-scripts/*.txt",
     ]),
+)
+
+# The six generator-written names in linker-scripts/. The two .ld files are
+# hand written and have no generated counterpart, so they are not in this list.
+LINK_ENV_FILES = [
+    "memory.x",
+    "periph.x",
+    "RAM_START.txt",
+    "RAM_SIZE.txt",
+    "ROM_START.txt",
+    "ROM_SIZE.txt",
+]
+
+# The frozen link environment above must diverge from the live chip memory map
+# in exactly the recorded way, and no other. This fails loudly when the chip's
+# generated map moves again, or when somebody edits the frozen copy.
+#
+# It is deliberately not a "these two must be equal" check: they are known to be
+# unequal, and the point is to make the inequality reviewed rather than silent.
+#
+# Re-record the baseline (only after deciding the plate still ships as is) with:
+#   tools/bin/bazel build //platform/common:castalia_linker_scripts
+#   python3 tools/build/scripts/check_plate_link_env.py --update \
+#     --baseline tools/build/testdata/rom_plate_link_env.diff \
+#     --file memory.x tools/build/linker-scripts/memory.x \
+#       bazel-bin/platform/common/chip_artifacts_castalia/out/linker-scripts/memory.x \
+#     ... one --file triple per name below ...
+py_test(
+    name = "rom_plate_link_env_test",
+    size = "small",
+    srcs = ["scripts/check_plate_link_env.py"],
+    args = [
+        "--baseline",
+        "$(rootpath testdata/rom_plate_link_env.diff)",
+    ] + [
+        arg
+        for f in LINK_ENV_FILES
+        for arg in [
+            "--file",
+            f,
+            "$(rootpath linker-scripts/" + f + ")",
+            "$(rootpath //platform/common:castalia_" + f.replace(".", "_").lower() + ")",
+        ]
+    ],
+    # Every label named by a $(rootpath) above has to be its own data entry;
+    # a filegroup that merely contains the file does not satisfy $(rootpath).
+    data = [
+        "testdata/rom_plate_link_env.diff",
+    ] + [
+        "linker-scripts/" + f
+        for f in LINK_ENV_FILES
+    ] + [
+        "//platform/common:castalia_" + f.replace(".", "_").lower()
+        for f in LINK_ENV_FILES
+    ],
+    main = "scripts/check_plate_link_env.py",
 )

@@ -214,7 +214,7 @@ if [ "$arc" -ne 0 ]; then
 fi
 
 timeout {timeout_s} "$GHDL" -r --std={std} {flags} "-P$LIBROOT" "--workdir=$WORK" \
-    {entity} {generics} > "$WORK/run.log" 2>&1
+    {entity} {generics} {run_options} > "$WORK/run.log" 2>&1
 rc=$?
 
 if [ "$rc" -eq 124 ]; then
@@ -258,6 +258,13 @@ def _ghdl_test_impl(ctx):
         image_files = [image]
         generics.append("-g%s=%s" % (ctx.attr.image_generic, image.short_path))
 
+    # GHDL run options go AFTER the top-level unit name, unlike the analysis
+    # flags. --stop-time bounds a design that has no self-terminating stimulus
+    # of its own, which is what an elaboration-and-asserts check is.
+    run_options = []
+    if ctx.attr.stop_time:
+        run_options.append("--stop-time=" + ctx.attr.stop_time)
+
     pass_check = ""
     if ctx.attr.pass_pattern:
         pass_check = _PASS_PATTERN_CHECK.format(
@@ -277,6 +284,7 @@ def _ghdl_test_impl(ctx):
             srcs = " ".join([_quote(f.short_path) for f in srcs]),
             entity = _quote(ctx.attr.entity),
             generics = " ".join([_quote(g) for g in generics]),
+            run_options = " ".join([_quote(o) for o in run_options]),
             timeout_s = str(ctx.attr.sim_timeout_s),
             name = ctx.label.name,
             pass_check = pass_check,
@@ -339,6 +347,12 @@ rather than to report.
             doc = "vhdl_source_set targets or plain files, in analysis order.",
         ),
         "std": attr.string(default = _STD_DEFAULT),
+        "stop_time": attr.string(
+            doc = "If set, a GHDL --stop-time value such as \"1ns\". Required " +
+                  "for a top level with no stimulus of its own, whose whole " +
+                  "verdict is elaboration plus the concurrent asserts that " +
+                  "execute once at time zero.",
+        ),
         "vhdl_libs": attr.label(default = "@ghdl//:vhdl_libs_v08"),
     },
     test = True,

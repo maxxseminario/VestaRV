@@ -1,0 +1,134 @@
+# GHDL MCU elaboration gate: proof that hdl/common/MCU.vhd builds a design.
+#
+# ---------------------------------------------------------------------------
+# THE GAP THIS CLOSES
+# ---------------------------------------------------------------------------
+# Nothing else in the test estate elaborates the MCU. opensource_sim/isa's
+# SOURCES list stops at MemoryMap.vhd, and every GHDL suite in the tree
+# instantiates the bare CORE (vesta_isa_tb, vesta_pmp_tb), never the MCU that
+# wraps it. MCU.vhd is GENERATED, from platform/common/python/mcu_vhd.py and
+# hdl_templates/MCU.template.vhd, so it changes on every knob move -- and the
+# only thing that had been catching a generated MCU that does not elaborate
+# was somebody running ghdl by hand.
+#
+# ---------------------------------------------------------------------------
+# WHY IT IS A RUN AND NOT JUST AN ELABORATION
+# ---------------------------------------------------------------------------
+# `ghdl -e` binds the hierarchy; it does not execute anything. MCU.vhd and
+# hart_tile.vhd each carry a concurrent assert that checks the MemoryMap size
+# constant against the memory macro actually instantiated:
+#
+#   MCU.vhd        assert RomAddrBits = RomMacroAddrBits   (rom0, rom2k_hvt_pg)
+#   hart_tile.vhd  assert RamSize = 8192                   (tcm, sram1p8k_hvt_pg)
+#
+# A concurrent assertion statement executes ONCE at time zero, so it needs a
+# simulation, not an elaboration. `--stop-time=1ns` is the whole run: time
+# zero happens, the asserts fire or they do not, and the simulator stops. The
+# design has no stimulus and reaches no interesting state, and it is not meant
+# to -- this target's verdict is "the MCU elaborates and its size contracts
+# hold", nothing more.
+#
+# -frelaxed is not optional: hdl/common/periph/SYSTEM.vhd:465 associates one
+# element of a port array with `open`, which is an error under plain --std=08.
+#
+# ---------------------------------------------------------------------------
+# THE MEMORY MACROS, AND WHY THIS PACKAGE SHIPS ITS OWN
+# ---------------------------------------------------------------------------
+# MCU.vhd instantiates rom2k_hvt_pg and sram1p16k_hvt_pg, and hart_tile.vhd
+# instantiates sram1p8k_hvt_pg. All three behavioural models live in
+# hdl/common/sim/ARM_IP_ROM.vhd and hdl/common/sim/ARM_IP_RAM.vhd, which
+# .gitignore excludes through the `*ARM*` pattern under its "# ARM IP"
+# heading and which have never been tracked. A fresh clone does not have
+# them, so no hermetic target can name them, and //hdl:vhdl_sources only
+# appears to contain them because its glob is evaluated against a working
+# tree that happens to have them on disk. ARM_IP_ROM.vhd is worse than
+# untracked for a test: its ROM loader opens an ABSOLUTE path under
+# /home/mseminario2/vestarv/software/bootrom_mp.
+#
+# mem_macros_stub.vhd is this package's answer: a tracked, hand-written
+# stand-in that declares the same three entities with the same port lists,
+# backed by a plain synchronous array. That is exactly enough for the question
+# this target asks, because a 1 ns run reads no memory contents. It is NOT a
+# substitute for the real models -- ARM_IP_ROM.vhd loads the boot ROM image
+# and ARM_IP_RAM.vhd honours INIT_FILE, and the stub refuses a non-empty
+# INIT_FILE rather than run silently empty.
+#
+# This is the tree's EXISTING answer to the same problem one level down, not
+# a new one. `ClkGate` has two architectures of one entity: the technology
+# cell wrapper in hdl/common/commune/ClkGate_cmn65gp_ARM.vhd, which the same
+# `*ARM*` pattern hides, and the tracked behavioural model in
+# hdl/common/sim/ClkGate.vhd that every open-source-sim list names instead
+# (//opensource_sim/isa:defs.bzl calls that substitution load bearing). The
+# stub sits in THIS package rather than in hdl/common/sim/ only because
+# ARM_IP_RAM.vhd and ARM_IP_ROM.vhd declare these same entities in that
+# directory, and //hdl:vhdl_sources is a glob: two files declaring one entity
+# in one globbed directory is a trap the ClkGate split avoids by living in a
+# different directory from its counterpart.
+#
+# WHAT WOULD RETIRE THIS FILE: all twelve paths the `*ARM*` pattern hides are
+# hand-written behavioural VHDL, not vendor deliverables -- the compiled
+# macros themselves live outside the repo, in the shared IP tree that
+# tools/cosim's cell lists reach by absolute path. Narrowing the ignore
+# pattern so these models become tracked is a REPO-POLICY call for the repo
+# owner, not something a test package should decide. If it happens, delete
+# this file and name ARM_IP_ROM.vhd and ARM_IP_RAM.vhd in VESTA_MCU_RTL.
+#
+# WHAT THE STUB CANNOT CATCH, stated so it is not mistaken for coverage: a
+# port-list change made to the real macro models and not mirrored here would
+# leave this target green. The direction that matters is covered -- the MCU
+# naming a pin no macro has fails here at analysis -- but stub-versus-real
+# drift is not. If ARM_IP_ROM.vhd or ARM_IP_RAM.vhd ever becomes tracked, this
+# file should be deleted and those two named in VESTA_MCU_RTL instead.
+
+load("//toolchains/ghdl:defs.bzl", "ghdl_library", "ghdl_test", "vhdl_source_set")
+load(":defs.bzl", "VESTA_MCU_RTL")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files(["mem_macros_stub.vhd"])
+
+# The MCU RTL, core spine first. The macro stub is NOT here: it is not under
+# hdl/, so it is not in the //hdl:vhdl_sources pool, and it is prepended at
+# each consumer instead. Direct `entity work.x` instantiation binds at
+# ANALYSIS, so the stub has to precede hart_tile.vhd and MCU.vhd; putting it
+# first satisfies that and depends on nothing but ieee.
+vhdl_source_set(
+    name = "vesta_mcu_srcs",
+    paths = VESTA_MCU_RTL,
+    pool = ["//hdl:vhdl_sources"],
+)
+
+# Build-time check that the list analyzes clean. Not consumed by the test: a
+# GHDL work library is not relocatable across exec roots (measured -- see
+# //toolchains/ghdl:defs.bzl).
+ghdl_library(
+    name = "vesta_mcu_lib",
+    srcs = [
+        "mem_macros_stub.vhd",
+        ":vesta_mcu_srcs",
+    ],
+    flags = [
+        "-fsynopsys",
+        "-frelaxed",
+    ],
+)
+
+ghdl_test(
+    name = "mcu_elaborate",
+    size = "small",
+    srcs = [
+        "mem_macros_stub.vhd",
+        ":vesta_mcu_srcs",
+    ],
+    entity = "MCU",
+    flags = [
+        "-fsynopsys",
+        "-frelaxed",
+    ],
+    # Measured: 0.2 s to analyze 62 files, 1.5 s to elaborate and reach 1 ns.
+    # The cap is a backstop against an elaboration that does not terminate,
+    # not a budget.
+    sim_timeout_s = 45,
+    stop_time = "1ns",
+    tags = ["ghdl"],
+)
