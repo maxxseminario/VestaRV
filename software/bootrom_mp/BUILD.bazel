@@ -8,9 +8,13 @@
 #
 # start.S must stay first in srcs. The linker script places the first input
 # section at the reset vector.
+#
+# The -march string and the size-coupled compile flags are NOT written twice.
+# They live in isa.bzl, which this file loads and the makefile reads with sed.
 
 load("@rules_python//python:defs.bzl", "py_test")
 load("//toolchains/riscv:defs.bzl", "rv32_firmware")
+load(":isa.bzl", "BOOTROM_MARCH", "BOOTROM_SIZE_COPTS")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -35,7 +39,7 @@ rv32_firmware(
         "-Os",
         "-flto",
         "-g",
-    ],
+    ] + BOOTROM_SIZE_COPTS,
     defines = ["__nostdlib__"],
     # The makefile names objects <source>.src.o; keep that so any name
     # sensitive step inside LTO sees what it always saw.
@@ -78,12 +82,15 @@ rv32_firmware(
         "{march}",
         "-Os",
         "-flto",
+    ] + BOOTROM_SIZE_COPTS + [
         "-nostartfiles",
         "-Wl,-Bstatic,-T,{ld_script},-Map,{map},--cref",
         "-Ltools/build/linker-scripts",
         "-g",
     ],
-    march = "rv32i",
+    # The ISA string is not spelled here on purpose. See isa.bzl: the makefile
+    # reads the same assignment, so the two build paths cannot drift apart.
+    march = BOOTROM_MARCH,
     # 16KB boot ROM, 4096 words.
     pad_bytes = 16384,
     rcf_name = "rom.rcf",
@@ -91,6 +98,13 @@ rv32_firmware(
 
 # The pinned bench copy of the ROM image, tracked under a name that does not
 # collide with the global *.rcf gitignore. Byte identical to the ROM plate.
+#
+# RE-CUT 2026-08-23, and it is NOT drift. The ISA string in isa.bzl went from
+# rv32i to rv32ic and -fno-tree-loop-distribute-patterns was added, so every
+# word of the image moved. .text went 10,140 bytes to 7,376, which is 816 bytes
+# under the 8,192 byte target. The mirror the cosim gate reads,
+# tools/cosim/gate/bootrom_mp_rom.rcf, was re-cut in the same change; the two
+# and software/bootrom_mp/bin/rom.rcf are one md5.
 filegroup(
     name = "rom_rcf_golden",
     srcs = ["testdata/rom_rcf_golden.txt"],

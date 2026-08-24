@@ -5,11 +5,11 @@ TARGET      = flashboot
 # WARNING: start.S must be first in the SRC_SOURCES list. This is to ensure it is placed in the appropriate memory location
 SRC_SOURCES	= start.S main.c rv4th.c uart.c spi.c flash_memory.c
 LIB_SOURCES	= 
-EXTENSIONS	= i
+EXTENSIONS	= ic
 
 # Chip Global Libraries and Linker Script
 LIB_DIR		= ../commune
-LD_DIR		= ../../build-system/linker-scripts
+LD_DIR		= ../../tools/build/linker-scripts
 LD_SCRIPT	= $(LD_DIR)/MCU-bootrom.ld
 
 # MCU Libraries
@@ -34,8 +34,18 @@ ROM_SIZE	= `cat $(LD_DIR)/ROM_SIZE.txt`
 OPTIMIZATION_FLAGS = -Os -flto
 #OPTIMIZATION_FLAGS = -flto
 ARCH	= rv32$(EXTENSIONS)
-CFLAGS	= -Werror -Wall -Wunused -march=$(ARCH) $(OPTIMIZATION_FLAGS) -D__nostdlib__ -I $(GCC_INC_DIR) -I $(INC_DIR) -I $(LIB_INC_DIR) -g
-LFLAGS	= -lgcc -march=$(ARCH) $(OPTIMIZATION_FLAGS) -nostartfiles -Wl,-Bstatic,-T,$(LD_SCRIPT),-Map,$(BIN_DIR)/$(TARGET).map,--cref -L $(LD_DIR) -g
+
+# -fno-tree-loop-distribute-patterns declines gcc's transform of ordinary loops
+# in rv4th.c into calls to memset and memmove.
+# Neither routine is called by name anywhere in this program, so declining the
+# transform is behaviour-preserving by construction and keeps the libgcc string
+# routines out of the image.
+# It has to appear on the link line too, because with -flto the loop passes run
+# during link-time codegen.
+SIZE_FLAGS	= -fno-tree-loop-distribute-patterns
+
+CFLAGS	= -Werror -Wall -Wunused -march=$(ARCH) $(OPTIMIZATION_FLAGS) $(SIZE_FLAGS) -D__nostdlib__ -I $(GCC_INC_DIR) -I $(INC_DIR) -I $(LIB_INC_DIR) -g
+LFLAGS	= -lgcc -march=$(ARCH) $(OPTIMIZATION_FLAGS) $(SIZE_FLAGS) -nostartfiles -Wl,-Bstatic,-T,$(LD_SCRIPT),-Map,$(BIN_DIR)/$(TARGET).map,--cref -L $(LD_DIR) -g
 
 ##################################################
 ### TOOLCHAIN DIRECTORIES
@@ -50,7 +60,7 @@ LFLAGS	= -lgcc -march=$(ARCH) $(OPTIMIZATION_FLAGS) -nostartfiles -Wl,-Bstatic,-
 RISCV_DIR	= ~/riscv-toolchain/xpack-riscv-none-elf-gcc-13.2.0-2
 
 RISCV_TOOLCHAIN_DIR	= $(RISCV_DIR)
-PYTHON_DIR	= ../../build-system/scripts
+PYTHON_DIR	= ../../tools/build/scripts
 GCC_INC_DIR	= $(RISCV_TOOLCHAIN_DIR)/riscv-none-elf/include
 CC			= $(RISCV_TOOLCHAIN_DIR)/bin/riscv-none-elf-gcc
 LD			= $(RISCV_TOOLCHAIN_DIR)/bin/riscv-none-elf-ld

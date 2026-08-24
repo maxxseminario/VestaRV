@@ -325,6 +325,30 @@ BOOT_ENTRY=0x00000000
 # flip bit 4 again, and mk_inject will REFUSE loudly rather than fabricate --
 # which is the guard working. Re-read the driven bits off a fresh trace's
 # `# XBITS` line and re-pin; never widen the guard to make it stop complaining.
+# 2026-08-23 -- THE ROM CONTENTS DID CHANGE, AND THIS PIN WAS NOT RE-MEASURED.
+# The boot ROM was flipped rv32i -> rv32ic (software/bootrom_mp/isa.bzl), .text
+# 10,140 -> 7,376 bytes, so every instruction hart 0 fetches before this `lw`
+# has a different encoding and a different address.
+# By the paragraph above, that is exactly the class of change that can flip
+# bit 4, and the value below is therefore SUSPECT until a fresh trace confirms
+# it.
+# It was left untouched rather than guessed at, because a boot-mode lockstep
+# cannot be run in this tree at all right now, for two reasons that have nothing
+# to do with the ROM:
+#   1. the default `rcf/` row dies on the POLARITY MISMATCH guard below.
+#      hdl/common/MemoryMap.vhd now has CORE_ENABLE_DEBUG and
+#      CORE_ENABLE_IF_AHEAD true, and NEITHER knob is in
+#      verify_stage.DEFINE_KNOBS, so neither can ever appear in an image set's
+#      `.imgset` stamp. RTL_ON_CMP therefore cannot equal IMG_ON_CMP for any
+#      image set that exists.
+#   2. the knobs-on row that does match an image set (COSIM_RCF_LINK=k33 with
+#      COSIM_CELL_LIST=verify_castaliapenta/cell_list_behavioral.txt) elaborates
+#      but dies at 0 FS on a STALE STAGED TREE: `hart_tile: MemoryMap RamSize =
+#      16384 but ram0 is the 8 KiB sram1p8k_hvt_pg macro`. That staging predates
+#      the current hdl/common and needs a re-stage from platform/common.
+# WHEN EITHER IS UNBLOCKED: run one COSIM_BOOT=1 test, expect mk_inject to
+# REFUSE if bit 4 moved, and re-pin off that run's fresh `# XBITS` line.
+# A refusal there is the guard working, not a regression.
 BOOT_ALLOW_X_1=${BOOT_ALLOW_X_1:-'*:00004000:000000a1'}
 BOOT_ALLOW_X_2=${BOOT_ALLOW_X_2:-'*:0000420c:00000000'}
 XALLOW="${XALLOW:-$HERE/cosim_xallow.txt}"

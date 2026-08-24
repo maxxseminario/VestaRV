@@ -1,6 +1,6 @@
 /* MCU.vhd: Castalia MCU top-level integration layer (5 harts, MCU_MP)
    The fixed boilerplate comes from hdl_templates/MCU.template.vhd; the description-driven sections are generated from python/generate.py
-   Generated on 2026/08/17 at 13:34:51 with the generate.py chip generator
+   Generated on 2026/08/23 at 18:29:11 with the generate.py chip generator
    WARNING: Do not edit or modify this file!
    	Edit hdl_templates/MCU.template.vhd (fixed regions) or python/generate.py + python/mcu_vhd.py (generated regions), then re-run make chip */
 
@@ -517,6 +517,16 @@ architecture behav of MCU is
              1000-1100 = READ-ONLY TCM APERTURES 0x20000-0x33FFF (one 16 KiB window per hart at 0x20000 + 0x4000*h; management hart 0 only, read-only, a gated tile completes with zeros)
              1101-1111 = unmapped (window power-of-two round-up gap; reads zero) */
         constant SH_AW : natural := 16;                -- shared-window word-address width
+
+        /* The boot ROM is the only slave whose size is a configuration knob, so its select is DERIVED from the memory map instead of being spelled as a whole page.
+           RomAddrBits is the word-address width RomSize asks for; RomMacroAddrBits is the width the rom_hvt_pg macro at rom0 actually has, and the two are checked against each other there.
+           A ROM smaller than its page leaves the remainder of page 0000 UNMAPPED, so it reads zero through the no-slave arm of sh_rdata_mux rather than mirroring the array across the page.
+           Zeros are not a legal RISC-V encoding, so a wild fetch above the ROM traps on an illegal instruction instead of quietly re-executing boot code. */
+        constant RomAddrBits      : natural := ceil_log2(RomSize / 4);        -- boot ROM word-address width, from RomSize (the macro is 32 bits wide)
+        constant RomMacroAddrBits : natural := 12;                            -- the rom_hvt_pg macro is 4096 x 32
+        -- The address bits above the ROM, every one of which must be 0 for a ROM access.
+        constant RomSelZeros      : std_logic_vector(SH_AW-1 downto RomAddrBits) := (others => '0');
+
         -- Global LR/SC reservation unit
         signal arb_lrsc         : std_logic_vector(6*2-1 downto 0);
         signal arb_scfail       : std_logic_vector(5 downto 0);
@@ -2657,7 +2667,8 @@ begin
     -- Every slave obeys the same 1-cycle registered-read contract (the SRAM macros natively, peripherals via their clk_mem-registered reads), so the arbiter's IDLE, LATCH, DATA timing is untouched, the shslv_rd_* selects are registered at the access cycle and steer s_rdata during DATA, and resv_unit snoops every transaction with its s_we_gated driving ALL slaves so a suppressed SC write cannot touch a peripheral either.
     -- =========================================================================
     -- Page select on s_addr(15:12): page 0000 is the shared boot ROM (the single rom_hvt_pg all five harts reset into), page 0010 is the TCM region (tile-private, never arrives here).
-    shslv_rom_sel    <= '1' when sh_addr(15 downto 12) = "0000" else '0';
+    -- The ROM select is the exception to the page decode: it is sized by RomSize, so a ROM smaller than its page leaves the tail of page 0000 unmapped instead of mirrored.
+    shslv_rom_sel    <= '1' when sh_addr(SH_AW-1 downto RomAddrBits) = RomSelZeros else '0';
     shslv_perwin_sel <= '1' when sh_addr(15 downto 12) = "0001" else '0';
     shslv_npuram_sel <= '1' when sh_addr(15 downto 12) = "0011" else '0';
     shslv_bank0_sel  <= '1' when sh_addr(15 downto 12) = "0100" else '0';
@@ -4393,17 +4404,32 @@ begin
     /* =============================================================================
        Memory Blocks
        =============================================================================
-       The shared boot ROM at 0x0-0x3FFF is an arbiter slave like the bulk banks: every hart resets to PC 0x0 and fetches its first instruction from here, and BLOCKPWR's ROMOFF bit gates the macro through pgen_mem(0).
+       The shared boot ROM based at 0x0 is an arbiter slave like the bulk banks: every hart resets to PC 0x0 and fetches its first instruction from here, and BLOCKPWR's ROMOFF bit gates the macro through pgen_mem(0).
+       Its extent is RomSize, not a page: the decode above stops at RomAddrBits, so the macro sees a zero on every address bit the map does not reach and its full bus can be driven straight from sh_addr.
        CEN is sampled with the address at the s_en cycle's ending edge on the free-running mclk and Q is valid the next cycle, so the macro is the one-cycle registered read; with no WEN pin the page is read-only and a write completes at the arbiter and is discarded. */
     rom0: entity work.rom_hvt_pg
         port map (
             Q    => rom_q,
             CLK  => mclk,
             CEN  => rom_cen_n,
-            A    => sh_addr(11 downto 0),
+            A    => sh_addr(RomMacroAddrBits - 1 downto 0),
             EMA  => "000",
             PGEN => pgen_mem(0)
     );
+
+    /* The macro above answers RomMacroAddrBits of word address and the memory map asks for RomAddrBits.
+       If they ever differ, FAIL HERE rather than ship a chip whose linker scripts, MemoryMap.h and TRM all promise a boot ROM the array does not have.
+       Changing memory.romSize therefore means editing TWO things once a macro of that size exists: the entity here and RomMacroAddrBits in the declarations above.
+       That is deliberate manual work, not a knob, because rom0 is named explicitly at THIS level of hierarchy by the genus SDC (set_false_path -to pin:MCU_MP/rom0/PGEN). */
+    assert RomAddrBits = RomMacroAddrBits
+        report "MCU: MemoryMap RomSize = " & integer'image(RomSize)
+             & " bytes needs a " & integer'image(RomAddrBits)
+             & "-bit ROM address, but rom0 is the rom_hvt_pg macro, which is "
+             & integer'image(2 ** RomMacroAddrBits * 4) & " bytes with a "
+             & integer'image(RomMacroAddrBits) & "-bit address. Swap the entity and "
+             & "RomMacroAddrBits for a ROM macro of that size, or set memory.romSize = "
+             & integer'image(2 ** RomMacroAddrBits * 4) & "."
+        severity failure;
 
     -- Hart 0's TCM macro lives inside its tile; BLOCKPWR's RAMOFF gating reaches it through the tile's tcm_pgen port, wired to pgen_mem(1) at the hart0 instance.
 
