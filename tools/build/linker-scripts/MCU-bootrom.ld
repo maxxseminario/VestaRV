@@ -89,6 +89,22 @@ SECTIONS
 		_ebss = .;         /* define a global symbol at bss end; used by startup code */
 	} > RAM
 	
+	/* Uninitialised data that startup must NOT clear.
+	   The Forth interpreter's arrays live here.
+	   This used to be an ORPHAN section, which is exactly how 23,920 bytes of
+	   it ran off the end of the TCM without anything noticing.  Naming it puts
+	   it in the map file next to the region it has to fit in, and (NOLOAD)
+	   pins it as NOBITS so it can never be emitted into the ROM image. */
+	.noinit (NOLOAD) :
+	{
+		. = ALIGN(4);
+		_snoinit = .;      /* define a global symbol at noinit start */
+		*(.noinit)
+		*(.noinit*)
+		. = ALIGN(4);
+		_enoinit = .;      /* define a global symbol at noinit end */
+	} > RAM
+
 	/* this is to define the start of the heap, and make sure we have a minimum size */
 	.heap :
 	{
@@ -96,11 +112,23 @@ SECTIONS
 		_heap_start = .;    /* define a global symbol at heap start */
 	} > RAM
 	
-	/*
-	.stack (ORIGIN (RAM) + LENGTH(RAM))
-	{
-		PROVIDE (__stack = .);
-		*(.stack)
-	}
-	*/
+	/* The stack is not an output section: start.S loads sp directly with
+	   SP_INIT_VAL, the top word of the private TCM.  Reserve the top of RAM for
+	   it so that the ASSERT below can catch anything growing up into it. */
+	_stack_size  = 1K;
+	_stack_top   = ORIGIN(RAM) + LENGTH(RAM);
+	_stack_limit = _stack_top - _stack_size;
+	PROVIDE (__stack = _stack_top);
 }
+
+/* THE BOUND THAT WAS MISSING.
+   RAM here is the per-hart private TCM, and it is the only private memory the
+   tile has.  Anything the link places past the end of it does not fail and does
+   not disappear: 0xA000-0xBFFF is the same 8 KiB array mirrored (the macro's
+   top address bit is unconnected), and 0xC000 upwards is the shared NPU staging
+   RAM behind the arbiter.  So an overflow here corrupts this hart's vectors and
+   stack, and then other masters' memory, at run time only, silently.
+   _stack_size is a reserve, not an allocation; measured worst case for this
+   image is a 304 byte frame in execVM on a chain of about 500 bytes. */
+ASSERT(_heap_start <= _stack_limit,
+	"boot ROM RAM overflow: .data + .bss + .noinit have grown into the reserved stack area at the top of the private TCM. Shrink the rv4th arrays (see THE TCM BUDGET in rv4th.c), or lower _stack_size above and record why.")

@@ -542,6 +542,32 @@ filegroup(
     srcs = [":n5/%s-p-%s.rcf" % (suite, test) for suite, _, test in _N5_CROSSCHECK],
 )
 
+# Every linked image this package produces, at every polarity, as one label.
+#
+# Consumed by //tools/build:verification_image_map_test, which reads section
+# headers and asserts each one fits a region the CURRENT chip memory map
+# declares. The env under verification/env/ pins sections at ABSOLUTE
+# addresses (the ISR bank, the NPU vectors), so these images go stale the
+# moment the chip's memory moves under them, and they do it silently: the link
+# still succeeds and the .rcf still has the right word count.
+#
+# It is an aggregate over the suite lists rather than a hand-kept list, so a
+# suite added above is swept the day it appears.
+filegroup(
+    name = "all_elfs",
+    srcs = [":%s_elfs" % suite for suite, _, _ in _CI_SUITES] + [
+        ":rv32uzf_elfs",
+    ] + [
+        ":os_%s_elfs" % suite
+        for suite, _, _ in _CI_SUITES + [("rv32uzf", "", [])]
+    ] + [
+        ":pmp_rv32ua_elfs",
+    ] + [
+        ":n5/%s-p-%s.elf" % (suite, test)
+        for suite, _, test in _N5_CROSSCHECK
+    ],
+)
+
 # --------------------------------------------------------------------------
 # CONTRACT TEST
 #

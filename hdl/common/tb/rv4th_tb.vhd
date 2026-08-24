@@ -59,42 +59,24 @@ architecture behavior of rv4th_tb is
     signal resetn_ren : std_logic;
     signal resetn_in : std_logic;
 
-    -- AFE Connections
-    signal use_dac_glb_bias :  std_logic;
-    signal en_bias_buf  :  std_logic;
-    signal en_bias_gen  :  std_logic;
+    -- GPIO4/GPIO5 have no package pads in this testbench.
+    -- Their inputs are driven idle low below and their outputs are left unobserved.
+    signal prt5_in  : std_logic_vector(7 downto 0);
+    signal prt5_out : std_logic_vector(7 downto 0);
+    signal prt5_dir : std_logic_vector(7 downto 0);
+    signal prt5_ren : std_logic_vector(7 downto 0);
 
-    -- Biasing Signals
-    signal BIAS_ADJ    : std_logic_vector(5 downto 0);
-    signal BIAS_DBP    : std_logic_vector(13 downto 0);
-    signal BIAS_DBN    : std_logic_vector(13 downto 0);
-    signal BIAS_DBPC   : std_logic_vector(13 downto 0);
-    signal BIAS_DBNC   : std_logic_vector(13 downto 0);
-    signal BIAS_TC_POT    : std_logic_vector(5 downto 0);
-    signal BIAS_LC_POT : std_logic_vector(5 downto 0);
-    signal BIAS_TIA_G_POT: std_logic_vector(16 downto 0);
-    signal BIAS_DSADC_VCM : std_logic_vector(13 downto 0);
-    signal BIAS_REV_POT: std_logic_vector(13 downto 0);
-    signal BIAS_TC_DSADC : std_logic_vector(5 downto 0);
-    signal BIAS_LC_DSADC : std_logic_vector(5 downto 0);
-    signal BIAS_RIN_DSADC : std_logic_vector(5 downto 0);
-    signal BIAS_RFB_DSADC : std_logic_vector(5 downto 0);
+    signal prt6_in  : std_logic_vector(7 downto 0);
+    signal prt6_out : std_logic_vector(7 downto 0);
+    signal prt6_dir : std_logic_vector(7 downto 0);
+    signal prt6_ren : std_logic_vector(7 downto 0);
 
-    -- DSADC Output signals
-    signal dsadc_conv_done : std_logic := '0';
-    signal dsadc_en       : std_logic;
-    signal dsadc_clk      : std_logic;
-    signal dsadc_switch    : std_logic_vector(2 downto 0);
-    signal adc_ext_in      : std_logic;
-    signal adc_sel         : std_logic;
-    signal atp_en         : std_logic;
-    signal atp_sel        : std_logic;
-
-    -- ADC Output signals 
-    signal saradc_rdy   : std_logic := '0';
-    signal saradc_rst   : std_logic;
-    signal saradc_data  : std_logic_vector(9 downto 0) := (others => '0');
-    signal saradc_clk   : std_logic;
+    -- Per hart pass/fail observation, unused here.
+    -- The Forth monitor runs on hart 0 and is graded over UART0, not through a0.
+    signal a0_1 : std_logic_vector(31 downto 0);
+    signal a0_2 : std_logic_vector(31 downto 0);
+    signal a0_3 : std_logic_vector(31 downto 0);
+    signal a0_4 : std_logic_vector(31 downto 0);
 
     signal a0 : std_logic_vector(31 downto 0);
 
@@ -120,78 +102,82 @@ architecture behavior of rv4th_tb is
 
     component MCU
         port (
+            
             -- Resetn Pad
-            resetn_in	: in	std_logic;
-            resetn_out	: out	std_logic;
-            resetn_dir	: out	std_logic;
-            resetn_ren	: out	std_logic;
+            resetn_in	: in	std_logic;	-- '0' = reset asserted, '1' = system running
+            resetn_out	: out	std_logic;	-- Don't care
+            resetn_dir	: out	std_logic;	-- Must be set to input mode
+            resetn_ren	: out	std_logic;	-- Set to enable pullup resistor
 
-            --GPIO0 Connections
+            --GPIO0 Connections (SPI0, CLKHFXT, CLKLFXT)
             prt1_in		    : in	std_logic_vector(7 downto 0);
             prt1_out		: out	std_logic_vector(7 downto 0);
             prt1_dir		: out	std_logic_vector(7 downto 0);
             prt1_ren		: out	std_logic_vector(7 downto 0);
 
-            --GPIO1 Connections
+            --GPIO1 Connections (SPI1, UART0, UART1)
             prt2_in		    : in	std_logic_vector(7 downto 0);
             prt2_out		: out	std_logic_vector(7 downto 0);
             prt2_dir		: out	std_logic_vector(7 downto 0);
             prt2_ren		: out	std_logic_vector(7 downto 0);
 
-            --GPIO2 Connections
+            --GPIO2 Connections (TIMER0, TIMER1)
             prt3_in		    : in	std_logic_vector(7 downto 0);
             prt3_out		: out	std_logic_vector(7 downto 0);
             prt3_dir		: out	std_logic_vector(7 downto 0);
             prt3_ren		: out	std_logic_vector(7 downto 0);
 
-            --GPIO3 Connections
+            --GPIO3 Connections (TBD)
             prt4_in		    : in	std_logic_vector(7 downto 0);
             prt4_out		: out	std_logic_vector(7 downto 0);
             prt4_dir		: out	std_logic_vector(7 downto 0);
             prt4_ren		: out	std_logic_vector(7 downto 0);
 
-            -- AFE Connections
-            use_dac_glb_bias : out std_logic;
-            en_bias_buf  : out std_logic;
-            en_bias_gen  : out std_logic;
+            prt5_in		    : in	std_logic_vector(7 downto 0);
+            prt5_out		: out	std_logic_vector(7 downto 0);
+            prt5_dir		: out	std_logic_vector(7 downto 0);
+            prt5_ren		: out	std_logic_vector(7 downto 0);
 
-            -- Biasing Connections
-            BIAS_ADJ		: out	std_logic_vector(5 downto 0);	
-            BIAS_DBP		: out	std_logic_vector(13 downto 0);
-            BIAS_DBN		: out	std_logic_vector(13 downto 0);
-            BIAS_DBPC		: out	std_logic_vector(13 downto 0);
-            BIAS_DBNC		: out	std_logic_vector(13 downto 0);
-            BIAS_TC_POT     : out   std_logic_vector(5 downto 0);
-            BIAS_LC_POT     : out   std_logic_vector(5 downto 0);
-            BIAS_TIA_G_POT  : out   std_logic_vector(16 downto 0); 
-            BIAS_REV_POT    : out   std_logic_vector(13 downto 0);
-            BIAS_TC_DSADC  : out   std_logic_vector(5 downto 0);
-            BIAS_LC_DSADC  : out   std_logic_vector(5 downto 0);
-            BIAS_RIN_DSADC : out   std_logic_vector(5 downto 0);
-            BIAS_RFB_DSADC : out   std_logic_vector(5 downto 0);
-            BIAS_DSADC_VCM : out   std_logic_vector(13 downto 0);
+            prt6_in		    : in	std_logic_vector(7 downto 0);
+            prt6_out		: out	std_logic_vector(7 downto 0);
+            prt6_dir		: out	std_logic_vector(7 downto 0);
+            prt6_ren		: out	std_logic_vector(7 downto 0);
 
-            -- DSADC Connections
-            dsadc_conv_done : in std_logic;
-            dsadc_en        : out std_logic;
-            dsadc_clk       : out std_logic;
-            dsadc_switch    : out std_logic_vector(2 downto 0);
-            adc_ext_in      : out std_logic;
-            atp_en          : out std_logic;
-            atp_sel         : out std_logic;
-            adc_sel         : out std_logic;
-
-            -- SARADC Connections
-            saradc_clk      : out std_logic;
-            saradc_rdy      : in std_logic;
-            saradc_rst      : out std_logic;
-            saradc_data     : in std_logic_vector(9 downto 0); 
 
             -- Test Port
-            a0  : out std_logic_vector(31 downto 0) 
+            a0  : out std_logic_vector(31 downto 0);
+
+            -- Per-hart pass/fail observation (a0 of the 4 private-memory harts)
+            a0_1 : out std_logic_vector(31 downto 0);
+            a0_2 : out std_logic_vector(31 downto 0);
+            a0_3 : out std_logic_vector(31 downto 0);
+            a0_4 : out std_logic_vector(31 downto 0)
+
         );
-    end component;
+end component;
     
+    /* Sends one command to the ROM monitor one character at a time, leaving the line idle for sixteen bit times between frames.
+       The monitor's receive path is a polled loop that echoes each character as it takes it, and it has no flow control, so a line delivered back to back at 115200 baud loses characters.
+       Measured on this testbench, "123 0x04C00 !" arrives as "123 0x0C00": two characters of thirteen are lost, identically before and after the 2026-08-23 .noinit repair, so it is a standing property of the ROM and not a regression.
+       It is also not what an interactive terminal does, which is the mode this monitor is documented for, so the stimulus here is paced like a typist.
+       Sending back to back instead is what kept every test after the boot banner from grading anything. */
+    procedure UartSendCmdPaced
+    (
+        constant baudratePeriod : in    time;
+        signal   RX             : out   std_logic;
+        signal   RXing          : out   std_logic;
+        variable Cmd            : in    string
+    ) is
+        variable ch : string(1 to 1);
+    begin
+        for i in Cmd'range loop
+            ch(1) := Cmd(i);
+            UartSendStrNToRX(baudratePeriod, 1, RX, RXing, ch);
+            wait for baudratePeriod * 16;
+        end loop;
+    end procedure;
+
+
 begin
 
     -- 24 MHz crystal oscillator driven onto the HFXT pad.
@@ -305,6 +291,35 @@ begin
         wait for clk_hfxt_period;
         ReceivedSync <= '0';
 
+        /* Test 1.4b: a user-defined word.
+           This is the test that measures the dictionary, which is what the 2026-08-23 .noinit repair shrank.
+           `: sq dup * ;` writes into cmdList, progOpcodes and prog, and `7 sq .` then looks the word up, calls it through the address stack and returns. */
+        UartReceiveStringFromTXUntil(baudratePeriodROM, '>', TX0, TXing, str);
+        TXStr <= str;
+        wait for clk_hfxt_period;
+        if str(1 to 15) = ": sq dup * ;" & lf & lf & ">" then
+            report "User word defined: " & str(1 to 15);
+        else
+            report "Error: incorrect definition response: " & str(1 to 15) severity error;
+            AllTestsPassed <= false;
+        end if;
+        ReceivedSync <= '1';
+        wait for clk_hfxt_period;
+        ReceivedSync <= '0';
+
+        UartReceiveStringFromTXUntil(baudratePeriodROM, '>', TX0, TXing, str);
+        TXStr <= str;
+        wait for clk_hfxt_period;
+        if str(1 to 12) = "7 sq ." & lf & "49 " & lf & ">" then
+            report "User word executed correctly: " & str(1 to 12);
+        else
+            report "Error: incorrect user-word result: " & str(1 to 12) severity error;
+            AllTestsPassed <= false;
+        end if;
+        ReceivedSync <= '1';
+        wait for clk_hfxt_period;
+        ReceivedSync <= '0';
+
         -- Test 1.5a: echo of writing `jal x0, 0` (0x0000006F, a one-instruction infinite loop) to 0x8200.
         -- Expected echo is "0x6F 0x8200 !" (13 chars) plus lf, lf and ">", 16 in total.
         len := 16;
@@ -384,7 +399,7 @@ begin
         report "Test 1.2: Memory write and read test";
         
         report "Sending first write command: 123 0x04C00 !";
-        UartSendStrToRX(baudratePeriodROM, RX0, RXing, "123 0x04C00 !" & lf);
+        UartSendCmdPaced(baudratePeriodROM, RX0, RXing, "123 0x04C00 !" & lf);
         SentSync <= '1';
         wait for clk_hfxt_period;
         SentSync <= '0';
@@ -393,7 +408,7 @@ begin
         report "Sending second write command: 124 0x04D00 ! (DISABLED)";
 
         report "Sending first read command: 0x04C00 @ .";
-        UartSendStrToRX(baudratePeriodROM, RX0, RXing, "0x04C00 @ ." & lf);
+        UartSendCmdPaced(baudratePeriodROM, RX0, RXing, "0x04C00 @ ." & lf);
         SentSync <= '1';
         wait for clk_hfxt_period;
         SentSync <= '0';
@@ -403,7 +418,7 @@ begin
 
         -- Test 1.3: Clock frequency test
         report "Test 1.3: Get MCLK frequency";
-        UartSendStrToRX(baudratePeriodROM, RX0, RXing, "3 1 clk ." & lf);
+        UartSendCmdPaced(baudratePeriodROM, RX0, RXing, "3 1 clk ." & lf);
         SentSync <= '1';
         wait for clk_hfxt_period;
         SentSync <= '0';
@@ -412,7 +427,21 @@ begin
 
         -- Test 1.4: Arithmetic test
         report "Test 1.4: Multiply command test";
-        UartSendStrToRX(baudratePeriodROM, RX0, RXing, "-500 75689 * ." & lf);
+        UartSendCmdPaced(baudratePeriodROM, RX0, RXing, "-500 75689 * ." & lf);
+        SentSync <= '1';
+        wait for clk_hfxt_period;
+        SentSync <= '0';
+        wait until ReceivedSync = '1';
+
+        -- Test 1.4b: define a word and run it, exercising the dictionary.
+        report "Test 1.4b: user-defined word";
+        UartSendCmdPaced(baudratePeriodROM, RX0, RXing, ": sq dup * ;" & lf);
+        SentSync <= '1';
+        wait for clk_hfxt_period;
+        SentSync <= '0';
+        wait until ReceivedSync = '1';
+
+        UartSendCmdPaced(baudratePeriodROM, RX0, RXing, "7 sq ." & lf);
         SentSync <= '1';
         wait for clk_hfxt_period;
         SentSync <= '0';
@@ -421,19 +450,25 @@ begin
         -- Test 1.5: RAM upload then jump.
         -- 1.5a writes `jal x0, 0` (0x0000006F, an infinite loop) to 0x8200; 1.5b jumps to it via `call0`, which leaves the Forth prompt for good.
         report "Test 1.5a: Store `jal x0, 0` (0x6F) at 0x8200";
-        UartSendStrToRX(baudratePeriodROM, RX0, RXing, "0x6F 0x8200 !" & lf);
+        UartSendCmdPaced(baudratePeriodROM, RX0, RXing, "0x6F 0x8200 !" & lf);
         SentSync <= '1';
         wait for clk_hfxt_period;
         SentSync <= '0';
         wait until ReceivedSync = '1';
 
         report "Test 1.5b: Jump to 0x8200 via call0";
-        UartSendStrToRX(baudratePeriodROM, RX0, RXing, "0x8200 call0" & lf);
+        UartSendCmdPaced(baudratePeriodROM, RX0, RXing, "0x8200 call0" & lf);
         SentSync <= '1';
         wait for clk_hfxt_period;
         SentSync <= '0';
         wait until ReceivedSync = '1';
 
+        /* Let ProcReceiveFromTX reach its verdict before the stop below.
+           It prints one clk_hfxt_period after raising ReceivedSync, which is the edge this process just resumed on.
+           Without this wait the severity error stops the simulation first and the verdict is never printed. */
+        wait for 10 * clk_hfxt_period;
+
+        -- severity error is the stop, not a failure: xmsim breaks here.
         report "===== All test commands sent =====" severity error;
         
         wait;
@@ -468,46 +503,29 @@ begin
         prt4_dir	=> prt4_dir,
         prt4_ren	=> prt4_ren,
 
-        -- AFE Connections
-        use_dac_glb_bias => use_dac_glb_bias,
-        en_bias_buf  => en_bias_buf,
-        en_bias_gen  => en_bias_gen,
+        prt5_in		=> prt5_in,
+        prt5_out	=> prt5_out,
+        prt5_dir	=> prt5_dir,
+        prt5_ren	=> prt5_ren,
 
-        -- Biasing Connections
-        BIAS_ADJ    => BIAS_ADJ,
-        BIAS_DBP    => BIAS_DBP,
-        BIAS_DBN    => BIAS_DBN,
-        BIAS_DBPC   => BIAS_DBPC,
-        BIAS_DBNC   => BIAS_DBNC,
-        BIAS_TC_POT    => BIAS_TC_POT,
-        BIAS_LC_POT => BIAS_LC_POT,
-        BIAS_TIA_G_POT=> BIAS_TIA_G_POT,
-        BIAS_REV_POT=> BIAS_REV_POT,
-        BIAS_TC_DSADC => BIAS_TC_DSADC,
-        BIAS_LC_DSADC => BIAS_LC_DSADC,
-        BIAS_RIN_DSADC => BIAS_RIN_DSADC,
-        BIAS_RFB_DSADC => BIAS_RFB_DSADC,
-        BIAS_DSADC_VCM => BIAS_DSADC_VCM,
-
-        -- DSADC Connections
-        dsadc_conv_done => dsadc_conv_done,
-        dsadc_en        => dsadc_en,
-        dsadc_clk       => dsadc_clk,
-        dsadc_switch    => dsadc_switch,
-        adc_ext_in      => adc_ext_in,
-        atp_en          => atp_en,
-        atp_sel         => atp_sel,
-        adc_sel         => adc_sel,
-
-        -- SARADC Connections
-        saradc_clk      => saradc_clk,
-        saradc_rdy      => saradc_rdy,
-        saradc_rst      => saradc_rst,
-        saradc_data     => saradc_data,
+        prt6_in		=> prt6_in,
+        prt6_out	=> prt6_out,
+        prt6_dir	=> prt6_dir,
+        prt6_ren	=> prt6_ren,
 
         -- Test Port
-        a0          => a0
+        a0          => a0,
+
+        -- Private-memory harts 1-4
+        a0_1        => a0_1,
+        a0_2        => a0_2,
+        a0_3        => a0_3,
+        a0_4        => a0_4
     );
+
+    -- GPIO4/GPIO5 (prt5/prt6) have no package pads in this testbench.
+    prt5_in <= (others => '0');
+    prt6_in <= (others => '0');
 
     -- Pad Instantiations
     reset_pad: entity work.PDUW16SDGZ_G

@@ -337,6 +337,7 @@ def riscv_isa_suite(
     """
     rcfs = []
     flashed = []
+    elfs = []
     for test in tests:
         base = "%s-p-%s" % (suite, test)
         target = name_prefix + base
@@ -355,6 +356,18 @@ def riscv_isa_suite(
         )
         rcfs.append(":" + outdir + base + ".rcf")
         flashed.append(":" + outdir + FLASH_SUBDIR + flashed_rcf_name(base))
+        elfs.append(":" + outdir + base + ".elf")
+
+    # The linked images themselves, for checks that read section headers rather
+    # than image words. //tools/build:verification_image_map_test is the one:
+    # this env's linker scripts pin sections at absolute addresses, so they are
+    # exactly the artifacts that go stale when the chip memory map moves.
+    native.filegroup(
+        name = name_prefix + suite + "_elfs",
+        srcs = elfs,
+        tags = tags,
+        visibility = visibility,
+    )
 
     native.filegroup(
         name = name_prefix + suite + "_rcfs",

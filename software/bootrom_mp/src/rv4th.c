@@ -36,23 +36,58 @@
 
 
 /** Defines **/
-#define MATH_STACK_SIZE 512	// * 4 bytes
-#define ADDR_STACK_SIZE 512	// * 4 bytes
+/*
+ * THE TCM BUDGET.  Read this before raising any size below.
+ *
+ * The seven arrays declared further down are the whole of the interpreter's
+ * mutable state, and they all live in .noinit, which MCU-bootrom.ld places at
+ * the top of the private TCM.
+ * The TCM is 8 KiB (MemoryMap RamSize), its first 484 bytes are the interrupt
+ * vector table, and MCU-bootrom.ld reserves the top 1 KiB for the C stack.
+ * Everything here has to fit in the 6684 bytes between those two.
+ * The sizes below use 5696 bytes of that, plus 48 bytes of scalars.
+ *
+ * These were 512, 512, 4096, 128, 2048, 1024 and 64, which is 23872 bytes of
+ * array against 7708 bytes of usable TCM.
+ * Nothing complained, for two reasons.
+ * .noinit is NOBITS, so the oversize never reached the ROM image and no size
+ * check ever saw it.
+ * And the boot image was linked against a frozen 2026/04 copy of memory.x that
+ * still described a 16 KiB TCM behind a 32436 byte RAM window, so the link had
+ * room for it.
+ *
+ * On the real part the overflow ran past 0x9FFF into 0xA000-0xBFFF, which is
+ * not empty space.
+ * That range is the TCM's own upper mirror: the 8 KiB array answers a 16 KiB
+ * decode with its top address bit unconnected, so a write at 0xA000 lands at
+ * 0x8000, on the vector table, on the interpreter's own scalars, and on the C
+ * stack.
+ * Past 0xC000 the writes left the tile altogether and landed in the shared NPU
+ * staging RAM, which is neither private to this hart nor free.
+ *
+ * The ASSERT at the bottom of MCU-bootrom.ld now fails the link if the total
+ * stops fitting, so raising a size here is a decision and not an accident.
+ */
+
+//math and address stack depths, in 32-bit cells
+#define MATH_STACK_SIZE 128	// * 4 bytes = 512
+#define ADDR_STACK_SIZE 64	// * 4 bytes = 256
 
 //total length of all user programs in opcodes
-#define USER_PROG_SIZE 4096	// * 2 bytes
+//NOTE: 4 bytes per opcode, not 2; progArray became int32_t (see its declaration).
+#define USER_PROG_SIZE 1024	// * 4 bytes = 4096
 
 //max number of user-defined words
-#define USER_OPCODE_MAPPING_SIZE 128	// * 2 bytes
+#define USER_OPCODE_MAPPING_SIZE 64	// * 2 bytes = 128
 
 //total string length of all word names (+ 1x<space> each)
-#define USER_CMD_LIST_SIZE 2048	// * 1 byte
+#define USER_CMD_LIST_SIZE 512	// * 1 byte = 512
 
 //maximum input line length
-#define LINE_BUFFER_SIZE 1024	// * 1 byte
+#define LINE_BUFFER_SIZE 128	// * 1 byte = 128
 
 //maximum word character width
-#define WORD_BUFFER_SIZE 64	// * 1 byte
+#define WORD_BUFFER_SIZE 64	// * 1 byte = 64
 
 // our "special" pointer, direct word access to all absolute address space
 #define dirMemory ((int32_t *) 0)
@@ -76,9 +111,11 @@ __attribute__ ((section(".noinit"))) int16_t progIdx;       // next open space f
 __attribute__ ((section(".noinit"))) int16_t cmdListIdx;    // next open space for user word strings
 
 /*
- * The ".noinit" section should be placed so these vectors are the last part
- * of allocated RAM.  All space beyond, up until 0xff00, is empty or unused.
- * This keeps all the rv4th global variables in RAM in one continuous block.
+ * The ".noinit" section is placed by MCU-bootrom.ld as the last allocated part
+ * of the private TCM, below the reserved stack area at the top.
+ * There is no free space beyond it: 0xA000-0xBFFF mirrors the TCM back onto
+ * itself and 0xC000 upwards belongs to other masters.
+ * See THE TCM BUDGET at the top of this file.
  */
 __attribute__ ((section(".noinit"))) int32_t mathStackArray[MATH_STACK_SIZE];
 __attribute__ ((section(".noinit"))) int32_t addrStackArray[ADDR_STACK_SIZE];
