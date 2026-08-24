@@ -6,40 +6,64 @@
 %   from 1.25 V to 16 mV, recovering over more than 4 us, at every conversion;
 %   with the output slot selected V_CM moves 0.74 mV and V_OUT 3.5 mV over the
 %   whole 21 us run.
-% MC blockers: model section castalia_typ_25 carries no statistics, and the two
-% mimcap_sin compensation capacitors in the TIA still have mismatchflag = 0.
-% A stability test on the assembled channel is being set up (px_stb, S11.3
-% item 5); DO NOT quote a number for it -- none exists.
+%
+% REVISED 2026-08-23 after the C_F fix and the post-fix characterisation.
+% REMOVED: the stability bullet -- measured, sss:pixtop-stability, 24 grid points
+%   and 5 corners (simruns/postfix_stb, simruns/postfix_corner_stb).
+% REMOVED: "Noise, power, corners. None." -- all three now measured
+%   (sss:pixtop-noise, sss:pixtop-power; simruns/postfix_{noise,decim,pwr,corner}).
+% CHANGED: the Monte Carlo bullet.  One of its two blockers is gone -- all three
+%   mimcap_sin in anatop_tia now carry mismatchflag=1 (owner's edit 2026-08-23,
+%   confirmed in simruns/postfix_canon/input.scs).  The model section
+%   castalia_typ_25 this setup names still carries no statistics; the section
+%   that does is castalia_pm_25 (CLAUDE.md, and the DacR2R12 MC runs).
+% ADDED: the readout path (no run has converted a real electrode current through
+%   the on-chip converter -- sss:pixtop-cv reads currents from an in-line probe
+%   and from Zt, not from a code), and the layout parasitics on the new
+%   capacitor's node (4 x 52.09 um mimcap_sin on the TIA summing node, 10 853
+%   um^2; no extracted view of anatop_tia exists).
+% F-4 (the two DAC supply regulators still placed) is now quantified in
+%   sss:pixtop-power and stays in the Wiring bullet as an open item.
+% Library cell names are kept out of the rendered prose.
 
 \subsubsection{Not Yet Verified}\label{sss:pixtop-open}
 
 \begin{itemize}[nosep]
-  \item \textbf{Stability.} No ac or loop-gain run exists on the assembled
-    channel; one is being set up and is not yet reported. The phase margins of
-    Section~\ref{sss:pixel-grid} were measured with an ideal \(R_f\) and an
-    ideal reference, and the programmable ladder has never been simulated
-    inside the loop.
-  \item \textbf{Noise, power, corners.} None. Every number here is one process
-    point at one temperature, and no test carries a supply-current output.
-  \item \textbf{Monte Carlo.} Blocked twice over: the model section this setup
-    names carries no statistics, and A2's two compensation capacitors still
-    have their mismatch flag clear. Either alone produces a run that completes
-    and yields a tidy, wrong distribution.
+  \item \textbf{Monte Carlo.} The compensation capacitors now carry mismatch
+    statistics, which was one of the two blockers; the other stands. The model
+    section this setup names is typical-only, and a run against it completes
+    and yields a tidy, empty distribution. Nothing in this section is a yield
+    number, and for a channel whose accuracy is set by matching that is the gap
+    that matters.
   \item \textbf{The converter at schematic level.} Its capacitor array exists
     only in the extracted view (Section~\ref{sss:pixtop-adc}), so the code the
     schematic tests report is stuck and is deliberately left unspecced.
+  \item \textbf{Current read as a code.} No run has taken a real electrode
+    current through the on-chip converter. The voltammogram of
+    Section~\ref{sss:pixtop-cv} reads current from an in-line probe and from
+    the measured transimpedance; the converter figures of
+    Section~\ref{sss:pixtop-adc} come from known voltages applied at the
+    multiplexer. The two have not been closed into one measurement.
+  \item \textbf{Layout parasitics on the compensation node.} The
+    \SI{10853}{\micro\meter\squared} of capacitor added by
+    Section~\ref{sss:pixtop-stability} sits on the transimpedance summing node,
+    the one node in the channel where stray capacitance costs phase margin. No
+    stability or noise figure here carries its wiring parasitics: the stage has
+    no extracted view.
   \item \textbf{Wiring.} Three items are drawn but not connected. The sixteen
     test-port multiplexer inputs are undriven, so the debug path selects
     between floating nodes on demand. The two DAC supply blocks' outputs reach
     nothing, which is why the supply-modulation defect of
-    Section~\ref{sss:dacr2r12-supply} is not exercised in this cell. And there
-    is no buffer between the common-mode rail and the converter multiplexer:
-    selecting that slot loads the bare ladder output --- which is also A2's
-    reference --- pulling the common mode to \SI{0.731}{\volt} and throwing the
-    transimpedance output from \SI{1.25}{\volt} to \SI{16}{\milli\volt} for
-    more than \SI{4}{\micro\second}, at every conversion. It collapses the one
-    measurement the gain-independent zero of Section~\ref{sss:pixtop-zero}
-    depends on. The output slot is quiet by comparison:
-    \SI{0.74}{\milli\volt} on the common mode and \SI{3.5}{\milli\volt} on the
-    output over a whole \SI{21}{\micro\second} run.
+    Section~\ref{sss:dacr2r12-supply} is not exercised in this cell and why
+    \SI{806.8}{\micro\watt} of Section~\ref{sss:pixtop-power} buys nothing. And
+    there is no buffer between the common-mode rail and the converter
+    multiplexer: selecting that slot loads the bare ladder output --- which is
+    also A2's reference --- pulling the common mode to \SI{0.731}{\volt} and
+    throwing the transimpedance output from \SI{1.25}{\volt} to
+    \SI{16}{\milli\volt} for more than \SI{4}{\micro\second}, at every
+    conversion. It collapses the one measurement the gain-independent zero of
+    Section~\ref{sss:pixtop-zero} depends on. The output slot is quiet by
+    comparison: \SI{0.74}{\milli\volt} on the common mode and
+    \SI{3.5}{\milli\volt} on the output over a whole \SI{21}{\micro\second}
+    run.
 \end{itemize}

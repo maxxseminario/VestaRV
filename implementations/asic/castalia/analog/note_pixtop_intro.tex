@@ -27,7 +27,9 @@ counter electrode, A2 holding the working electrode at the common mode through
     DACs (Section~\ref{ss:dacr2r12}), one per channel, at
     \SI{610.35}{\micro\volt} per code.
   \item \(R_f\) is the 320-code programmable ladder of
-    Section~\ref{ss:tiarprog}, not an ideal resistor.
+    Section~\ref{ss:tiarprog}, not an ideal resistor, and carries a
+    \SI{22.0}{\pico\farad} compensation capacitor across it, without which the
+    assembled loop does not close (Section~\ref{sss:pixtop-stability}).
   \item The 10-bit converter of Section~\ref{ss:adc} closes the channel behind
     a 16:1 input multiplexer whose slots select the transimpedance output, the
     common-mode rail, the commanded potential and the analog test point.
@@ -40,11 +42,14 @@ are no isolation switches, no reference-electrode buffer and no on-chip gain
 reference resistor, so the fabric several of the calibration steps of
 Section~\ref{ss:calibration} assume is not yet present.
 
-All data below is schematic-level at the nominal process point, \SI{37}{\celsius}
-and a \SI{2.5}{\volt} analog supply, from three tests --- a dc sweep of the
-potential code, a transient with the electrode inert, and a dc sweep of all 320
-gain codes --- plus a netlist-level staircase voltammetry run
-(Section~\ref{sss:pixtop-cv}). Section~\ref{sss:pixtop-adc} is the exception and
-is stated there: the converter's capacitor array exists only in layout, so every
-converter number comes from a netlist in which the extracted converter replaces
-the schematic one.
+All data below is schematic-level, at the nominal process point unless a corner
+is named, \SI{37}{\celsius} and a \SI{2.5}{\volt} analog supply. It comes from
+three dc and transient tests --- a sweep of the potential code, a transient with
+the electrode inert, and a sweep of all 320 gain codes --- a netlist-level
+staircase voltammetry run (Section~\ref{sss:pixtop-cv}), and loop-gain, noise,
+transient-noise and supply-current runs on the netlist those tests produce
+(Sections~\ref{sss:pixtop-stability}--\ref{sss:pixtop-power}).
+Section~\ref{sss:pixtop-adc} is the exception and is stated there: the
+converter's capacitor array exists only in layout, so every converter number
+comes from a netlist in which the extracted converter replaces the schematic
+one.
