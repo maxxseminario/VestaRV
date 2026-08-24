@@ -217,6 +217,15 @@ timeout {timeout_s} "$GHDL" -r --std={std} {flags} "-P$LIBROOT" "--workdir=$WORK
     {entity} {generics} {run_options} > "$WORK/run.log" 2>&1
 rc=$?
 
+# The run log is the only record of what a bench actually PRINTED, and for a
+# multi-minute sim that is worth keeping whatever the verdict. bazel collects
+# this directory into bazel-testlogs/<target>/test.outputs/, or into
+# outputs.zip beside it when --zip_undeclared_test_outputs is on.
+if [ -n "${{TEST_UNDECLARED_OUTPUTS_DIR:-}}" ]; then
+    mkdir -p "$TEST_UNDECLARED_OUTPUTS_DIR"
+    cp "$WORK/analyze.log" "$WORK/run.log" "$TEST_UNDECLARED_OUTPUTS_DIR/" 2>/dev/null || true
+fi
+
 if [ "$rc" -eq 124 ]; then
     echo "FAIL {name}: wall-clock timeout after {timeout_s}s"
     tail -40 "$WORK/run.log"
@@ -234,9 +243,21 @@ echo "PASS {name}"
 exit 0
 """
 
+# A bench that states its verdict through pass_pattern rather than the exit
+# code has usually ALREADY said which check failed, hundreds of lines above the
+# end of the log, so tail alone can miss it. The error grep is what makes the
+# red result name the failing check instead of just the missing banner.
 _PASS_PATTERN_CHECK = """
-if ! grep -q {pattern} "$WORK/run.log"; then
+if grep -q {pattern} "$WORK/run.log"; then
+    echo "{name}: $(grep -m 1 {pattern} "$WORK/run.log")"
+else
     echo "FAIL {name}: ghdl exited 0 but the pass banner {pattern} is absent"
+    errs="$(grep -in -m 20 error "$WORK/run.log" || true)"
+    if [ -n "$errs" ]; then
+        echo "--- lines reporting an error ---"
+        echo "$errs"
+        echo "--- end of run log ---"
+    fi
     tail -40 "$WORK/run.log"
     exit 1
 fi
@@ -264,6 +285,7 @@ def _ghdl_test_impl(ctx):
     run_options = []
     if ctx.attr.stop_time:
         run_options.append("--stop-time=" + ctx.attr.stop_time)
+    run_options.extend(ctx.attr.run_options)
 
     pass_check = ""
     if ctx.attr.pass_pattern:
@@ -292,7 +314,8 @@ def _ghdl_test_impl(ctx):
     )
 
     runfiles = ctx.runfiles(
-        files = [ctx.executable.ghdl] + srcs + lib_files + image_files,
+        files = [ctx.executable.ghdl] + srcs + lib_files + image_files +
+                ctx.files.data,
     )
     runfiles = runfiles.merge(ctx.attr.ghdl[DefaultInfo].default_runfiles)
 
@@ -313,6 +336,14 @@ rather than to report.
 """,
     implementation = _ghdl_test_impl,
     attrs = {
+        "data": attr.label_list(
+            allow_files = True,
+            doc = "Runtime files placed in the test's runfiles and NOT named " +
+                  "on any GHDL command line. A VHDL model that opens a file " +
+                  "by a path it holds internally reaches it this way; the " +
+                  "path is runfiles relative, which is what the test's " +
+                  "working directory is.",
+        ),
         "entity": attr.string(
             mandatory = True,
             doc = "Top-level entity to elaborate and run.",
@@ -337,6 +368,14 @@ rather than to report.
         "pass_pattern": attr.string(
             doc = "If set, this fixed string must appear in the run log.",
         ),
+        "run_options": attr.string_list(
+            doc = "Extra GHDL run options, placed after the top-level unit " +
+                  "name alongside --stop-time. --assert-level=failure lives " +
+                  "here: a testbench whose end-of-run marker is a `severity " +
+                  "error` report would otherwise make GHDL exit non-zero on " +
+                  "a passing run, and such a bench must state its verdict " +
+                  "through pass_pattern instead of the exit code.",
+        ),
         "sim_timeout_s": attr.int(
             default = 90,
             doc = "Wall-clock cap on the ghdl -r step, matching run_isa.sh.",
@@ -351,7 +390,9 @@ rather than to report.
             doc = "If set, a GHDL --stop-time value such as \"1ns\". Required " +
                   "for a top level with no stimulus of its own, whose whole " +
                   "verdict is elaboration plus the concurrent asserts that " +
-                  "execute once at time zero.",
+                  "execute once at time zero, and for a bench that runs to a " +
+                  "verdict but never stops itself. Set the stop time HERE, " +
+                  "not in run_options, so there is one place to look for it.",
         ),
         "vhdl_libs": attr.label(default = "@ghdl//:vhdl_libs_v08"),
     },

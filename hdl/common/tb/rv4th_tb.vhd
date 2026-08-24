@@ -11,7 +11,14 @@ use work.MemoryMap.all;
 use work.tb_defs.all;
 use work.TestBenchLibrary.all;
 
+/* CLK_MEASURE selects whether test 1.3 runs, and it is a RUNTIME knob, not a coverage one.
+   `3 1 clk .` measures the clock by counting crystal edges for a fixed interval, so the reply takes 131 ms of simulated time out of the run's 178 ms.
+   Every other check together costs 47 ms, which is why the default bazel target turns this one off and a second target runs the whole bench.
+   The default here is true, so a flow that passes no generics, which is every xcelium runner, sees the bench it has always seen. */
 entity rv4th_tb is
+    generic (
+        CLK_MEASURE : boolean := true
+    );
 end rv4th_tb;
 
 architecture behavior of rv4th_tb is
@@ -160,13 +167,15 @@ end component;
        The monitor's receive path is a polled loop that echoes each character as it takes it, and it has no flow control, so a line delivered back to back at 115200 baud loses characters.
        Measured on this testbench, "123 0x04C00 !" arrives as "123 0x0C00": two characters of thirteen are lost, identically before and after the 2026-08-23 .noinit repair, so it is a standing property of the ROM and not a regression.
        It is also not what an interactive terminal does, which is the mode this monitor is documented for, so the stimulus here is paced like a typist.
-       Sending back to back instead is what kept every test after the boot banner from grading anything. */
+       Sending back to back instead is what kept every test after the boot banner from grading anything.
+       DO NOT REMOVE THE PACING to make the run shorter: without it the checks below stop grading the monitor and start grading how many characters the ROM happens to drop. */
     procedure UartSendCmdPaced
     (
         constant baudratePeriod : in    time;
         signal   RX             : out   std_logic;
         signal   RXing          : out   std_logic;
-        variable Cmd            : in    string
+        -- The class is `constant` and not `variable` so that a string literal is a legal actual, which is what standard VHDL requires and what GHDL enforces.
+        constant Cmd            : in    string
     ) is
         variable ch : string(1 to 1);
     begin
@@ -266,15 +275,19 @@ begin
         wait for clk_hfxt_period;
         ReceivedSync <= '0';
 
-        -- Test 1.3: Clock frequency response
-        wait for 100 ms;
-        UartReceiveStringFromTXUntil(baudratePeriodROM, '>', TX0, TXing, str);
-        TXStr <= str;
-        wait for clk_hfxt_period;
-        report "Measured MCLK frequency: " & str(1 to 50);  -- Show first 50 chars
-        ReceivedSync <= '1';
-        wait for clk_hfxt_period;
-        ReceivedSync <= '0';
+        -- Test 1.3: Clock frequency response.
+        -- The reply is reported, not compared: it is a measurement of this testbench's own 24 MHz crystal, so a digit of it is not a contract.
+        -- The 100 ms wait skips the idle line while the monitor counts; the reply itself lands at about 131 ms.
+        if CLK_MEASURE then
+            wait for 100 ms;
+            UartReceiveStringFromTXUntil(baudratePeriodROM, '>', TX0, TXing, str);
+            TXStr <= str;
+            wait for clk_hfxt_period;
+            report "Measured MCLK frequency: " & str(1 to 50);  -- Show first 50 chars
+            ReceivedSync <= '1';
+            wait for clk_hfxt_period;
+            ReceivedSync <= '0';
+        end if;
 
         -- Test 1.4: Multiply command response
         len := 27;
@@ -416,14 +429,19 @@ begin
 
         report "Sending second read command: 0x04D00 @ . (DISABLED)";
 
-        -- Test 1.3: Clock frequency test
-        report "Test 1.3: Get MCLK frequency";
-        UartSendCmdPaced(baudratePeriodROM, RX0, RXing, "3 1 clk ." & lf);
-        SentSync <= '1';
-        wait for clk_hfxt_period;
-        SentSync <= '0';
-        wait until ReceivedSync = '1';
-        wait for 5 ms;
+        -- Test 1.3: Clock frequency test.
+        -- Both halves are under the same generic, so the lockstep between this process and ProcReceiveFromTX holds whether or not the command is sent.
+        if CLK_MEASURE then
+            report "Test 1.3: Get MCLK frequency";
+            UartSendCmdPaced(baudratePeriodROM, RX0, RXing, "3 1 clk ." & lf);
+            SentSync <= '1';
+            wait for clk_hfxt_period;
+            SentSync <= '0';
+            wait until ReceivedSync = '1';
+            wait for 5 ms;
+        else
+            report "Test 1.3: Get MCLK frequency -- SKIPPED (CLK_MEASURE false)";
+        end if;
 
         -- Test 1.4: Arithmetic test
         report "Test 1.4: Multiply command test";
