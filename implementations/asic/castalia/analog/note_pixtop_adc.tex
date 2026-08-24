@@ -16,6 +16,34 @@
 %     already carried both definitions; no document stated the consequence.
 % At schematic level the CDAC subckt has zero devices, so the code is stuck at
 % 1022 and RDY never rails (v_rdy_p 0.536 V) -- deliberately not specced.
+%
+% 2026-08-24 RE-BASELINE, simruns/rebase_20260824/mux/ (five 21 us transients,
+% extracted converter, real gated SAR clock simstim/adc/adc_clk_gated.pwl,
+% strobeperiod 5n, errpreset=conservative, Cdl 100n, ncode 0, tt @37 C; PRE =
+% the SAME test on the pre-buffer cell, re-extracted from the archived raw files
+% of simruns/pixtop2_adcx_*, i.e. a genuine matched pair, not a quoted number).
+% mux_disturbance_table.txt, peak |dV| against the node's own quiescent value:
+%   slot 1 V_CM     518.4 mV -> 0.834 mV (622x); residual 1.5 uV -> 0
+%   slot 1 V_OUT    1233 mV  -> 1.75  mV (705x); residual 149 mV NEVER SETTLED
+%                                             -> -0.6 nV, settling 0.540 us
+%   slot 2 V_OUT    1228.4 mV -> 0.207 mV (5930x); residual -99.9 mV (vp 1024)
+%                   / -180.7 mV (vp 3072) NEVER SETTLED -> +0.2 nV
+%   slot 0 V_OUT    3.022 mV -> 0.060 mV (51x); the 5.6 mV sampling kick now
+%                   lands on ADC_IN, the buffer's output
+% adc_decode.txt: codes 508/508/508/527/0 on slots 0/1/2/4/5, each within
+%   0.4 LSB of the standalone bench, three consistent conversions per run.
+%   Slot 0 at N = 0: i_adc -73.3 nA against i_analog -34.4 nA -- the bottom-code
+%   quantisation argument below, re-measured (it was -130 nA on the PRE cell,
+%   where the reading was also corrupted by the sampling disturbance).
+% buf/sel2_vpsweep: BUF_ADC offset -619.64 uV at 1.2497 V, span 2.9 uV over
+%   1.20-1.30 V, 65.5 uV over 0.4-2.1 V, 1820 uV over the full 0-2.42 V.
+% mc100_bufcm/buf_cmrr_table.txt, 100 MC samples: offset at vcm mean -0.529 mV
+%   sigma 5.579 mV; residual after the zero subtraction 0.619 mV mean / 0.419
+%   sigma / 2.068 mV worst over vcm +- 0.8 V, and 0.031 / 0.024 / 0.112 mV over
+%   vcm +- 0.15 V.  Full 0-2.42 V reaches 33.8 mV worst -- outside the TIA's own
+%   +-0.80 V compliance, so not reachable by a readout.
+% stb_buf/buf_stb_table.txt: BUF_ADC 78.41 deg / 17.83 dB / 21.9 MHz, BUF_ATP
+%   80.89 deg / 20.25 dB / 18.0 MHz, identical at N = 0 / 63 / 319.
 
 \subsubsection{Converter Readout}\label{sss:pixtop-adc}
 
@@ -27,16 +55,51 @@ extracted converter replaces the schematic one and nothing else changes.
 Against known voltages the channel's transfer matches the standalone
 characterisation of Section~\ref{ss:adc} to within \SI{3.3}{LSB} across
 \SIrange{0.62}{1.87}{\volt}, and three conversions in one run repeat to
-\SI{2}{LSB}. One LSB is \SI{1.593}{\milli\volt} over the converter's measured
+\SI{2}{LSB}; on the four levels re-measured through the buffered multiplexer
+described below the agreement is \SI{0.4}{LSB}. One LSB is
+\SI{1.593}{\milli\volt} over the converter's measured
 \SI{1.63}{\volt} span, so what it resolves in current is set by \(R_f\) alone:
 \SI{88.5}{\nano\ampere} at \(N = 0\), \SI{4.02}{\nano\ampere} at \(N = 63\) and
 \SI{0.825}{\nano\ampere} at \(N = 319\). The zero calibration consequently
 cannot be taken at the bottom gain code, where the whole
-\SI{34.4}{\nano\ampere} offset is sub-LSB: measured there it reads
-\SI{-1.5}{LSB}, \SI{-130}{\nano\ampere} of apparent current on a
-\SI{-34}{\nano\ampere} signal. It must be taken at a high-gain tap, where one
-LSB is smaller than the offset being measured --- which the gain-independent
-zero of Section~\ref{sss:pixtop-zero} makes free.
+\SI{34.4}{\nano\ampere} offset is sub-LSB: measured there the code corresponds
+to \SI{-73}{\nano\ampere} of apparent current on a \SI{-34}{\nano\ampere}
+signal, which is quantisation and not a reading. It must be taken at a
+high-gain tap, where one LSB is smaller than the offset being measured --- which
+the gain-independent zero of Section~\ref{sss:pixtop-zero} makes free.
+
+\paragraph{The multiplexer no longer disturbs the channel.} A unity-gain buffer
+stands between the multiplexer and the converter, so the sample switch draws its
+charge from the buffer and the multiplexer drives only a gate. Selecting the
+common-mode slot moves that rail by \SI{0.834}{\milli\volt} and the
+transimpedance output by \SI{1.75}{\milli\volt} --- \SI{1.1}{LSB} --- both
+recovered inside one conversion, the output settling in
+\SI{0.54}{\micro\second} to a residual below \SI{1}{\nano\volt}. Without the
+buffer the same measurement dragged the common mode \SI{518}{\milli\volt} and
+threw the output \SI{1233}{\milli\volt}, with \SI{149}{\milli\volt} still
+un-recovered at the end of a \SI{21}{\micro\second} record: it never settled, at
+every conversion. \textbf{The gain-independent zero measurement of
+Section~\ref{sss:pixtop-zero} is therefore executable on this cell.} The
+commanded-potential slot was broken the same way and worse on the residual
+(\SI{-99.9}{\milli\volt} at the end of the record) and now peaks at
+\SI{0.207}{\milli\volt}; the readout slot is \(51\times\) quieter as a side
+effect, its \SI{5.6}{\milli\volt} sampling kick now landing on the buffer's
+output where the channel does not see it. Both buffer loops are stable ---
+\SI{78.4}{\degree} of phase margin with \SI{17.8}{\decibel} of gain margin at
+the converter, \SI{80.9}{\degree} and \SI{20.3}{\decibel} at the test port, and
+neither moves with the gain code.
+
+\paragraph{The buffer's offset cancels in the subtraction.} The buffer is the
+same amplifier as A2 at the same operating point, so it contributes that
+amplifier's own input offset, \SI{-619.6}{\micro\volt}, directly at the
+converter input. One buffer downstream of the multiplexer rather than one per
+source is what makes this free: every slot is read through it, so the offset
+subtracts out of a zero-referenced reading exactly and only its variation with
+input level survives. Over 100 Monte Carlo samples that residual is
+\SI{0.62}{\milli\volt} mean and \SI{2.07}{\milli\volt} worst across the full
+\(\pm\SI{0.8}{\volt}\) readout swing, and \SI{0.031}{\milli\volt} mean,
+\SI{0.11}{\milli\volt} worst over \(\pm\SI{150}{\milli\volt}\) --- against a
+\SI{5.58}{\milli\volt} \(\sigma\) on the offset itself.
 
 \paragraph{Bit 9 is inverted (firmware-critical).} The raw output bus carries
 its most significant bit inverted --- the two's-complement form of the

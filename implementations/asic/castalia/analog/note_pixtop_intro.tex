@@ -8,8 +8,25 @@
 %   bench and Maestro setup                S5, S6 (3 tests px_dc/px_zero/px_gain,
 %                                          nominal, 37 C, section castalia_typ_25)
 %   flat-bench-vs-assembled difference list S10
-%   F-4 (DAC supply regulators unconnected) S4
 % Runs: ~/chips/castalia/simruns/pixtop2_{dc,zero,gain,cv,adcx_*}, 2026-08-23.
+%
+% 2026-08-24 RE-BASELINE, ~/chips/castalia/simruns/rebase_20260824/README.md.
+% The owner edited anatop_pixel/schematic at 03:53 and anatop_tia_amp_ab at
+% 04:04; the whole characterisation was re-run on the new OA.  Inventory changes
+% reflected in the bullets below (S1.1 instance census, 17 instances):
+%   + BUF_ADC   anatop_tia_amp_ab, unity-gain, ADC_MXY -> ADC_IN
+%   + BUF_ATP   anatop_tia_amp_ab, unity-gain, ATPY -> ATP
+%     -- so anatop_tia_amp_ab is now instantiated FOUR times per channel
+%        (CONTROLAMP = A1, TIA.TIAAMP = A2, BUF_ADC, BUF_ATP)
+%   + C0-C3     mimcap_sin lt=wt=15.58u ~ 492 fF, buffer compensation
+%   ~ C_CMP1_CTRL / C_CMP2_CTRL now mimcap_sin (492 fF) instead of an ideal
+%     capacitor c=cc_ab (500 fF)
+%   - DAC_VP_PSU, DAC_VCM_PSU and the whole anatop_pixel_dac_psu subckt DELETED,
+%     with anatop_inv_sm I1 -- F-4 is closed, and both ladders now run from the
+%     2.5 V analog rail directly (which they effectively already did)
+%   ~ M48/M49 (nch_25->nch_25_mac) and M57/M58 (pch_25->pch_25_mac) inside
+%     anatop_tia_amp_ab now carry mismatchflag=1
+% Every number in this subsection now comes from rebase_20260824.
 % Library cell names are deliberately kept OUT of the rendered prose (owner
 % request 2026-08-21); they live in these comments instead. The cell is
 % castalia/anatop_pixel, bench castalia/tb_anatop_pixel_top view PixelTopTB.
@@ -25,14 +42,22 @@ counter electrode, A2 holding the working electrode at the common mode through
 \begin{itemize}[nosep]
   \item The potential program and the common mode come from two 12-bit R-2R
     DACs (Section~\ref{ss:dacr2r12}), one per channel, at
-    \SI{610.35}{\micro\volt} per code.
+    \SI{610.35}{\micro\volt} per code. Both ladders run from the
+    \SI{2.5}{\volt} analog rail directly; the cell carries no reference-DAC
+    supply regulator.
   \item \(R_f\) is the 320-code programmable ladder of
     Section~\ref{ss:tiarprog}, not an ideal resistor, and carries a
     \SI{22.0}{\pico\farad} compensation capacitor across it, without which the
     assembled loop does not close (Section~\ref{sss:pixtop-stability}).
   \item The 10-bit converter of Section~\ref{ss:adc} closes the channel behind
     a 16:1 input multiplexer whose slots select the transimpedance output, the
-    common-mode rail, the commanded potential and the analog test point.
+    common-mode rail, the commanded potential and the analog test point. A
+    unity-gain buffer stands between that multiplexer and the converter input,
+    and a second buffers the test-port multiplexer output, so the class-AB
+    amplifier of Section~\ref{ss:ampab} appears four times per channel: A1, A2
+    and the two followers. Each buffer carries its own
+    \SI{492}{\femto\farad} metal--insulator--metal compensation pair, as does
+    A1.
   \item Bias comes from the local generator of Section~\ref{ss:biasgen-local}
     at trim code 37.
 \end{itemize}
@@ -47,8 +72,9 @@ is named, \SI{37}{\celsius} and a \SI{2.5}{\volt} analog supply. It comes from
 three dc and transient tests --- a sweep of the potential code, a transient with
 the electrode inert, and a sweep of all 320 gain codes --- a netlist-level
 staircase voltammetry run (Section~\ref{sss:pixtop-cv}), and loop-gain, noise,
-transient-noise and supply-current runs on the netlist those tests produce
-(Sections~\ref{sss:pixtop-stability}--\ref{sss:pixtop-power}).
+transient-noise, supply-current and 200-sample Monte Carlo runs on the netlist
+those tests produce
+(Sections~\ref{sss:pixtop-stability}--\ref{sss:pixtop-mc}).
 Section~\ref{sss:pixtop-adc} is the exception and is stated there: the
 converter's capacitor array exists only in layout, so every converter number
 comes from a netlist in which the extracted converter replaces the schematic

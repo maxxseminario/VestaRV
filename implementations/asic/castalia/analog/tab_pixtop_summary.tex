@@ -23,33 +23,52 @@
 %% figure; the measured in-loop Zt(dc) of 19.63 kOhm gives 81.2 nA, which is what
 %% sss:pixtop-noise and fig:pixtop-noise use.
 %%
-%% 2026-08-24: two Monte Carlo rows ADDED at the foot -- sigma 5.754 mV and
-%% 5.552 mV, from simruns/pixmc_20260823/mc_distributions.txt (200 samples,
-%% process + mismatch, section castalia_pm_25, nominal corner, 37 C).  A third
-%% row, "Per-channel yield, calibrated 61.5 % / 0.50 % uncalibrated", was
-%% written and then REMOVED the same day on the owner's instruction "do not
-%% talk about pixel level yield yet"; yield_table.txt still holds it.  The
-%% dc rows above are UNCHANGED: they are the typical point, and the nominal run
-%% of the Monte Carlo deck reproduces them to the printed digits.  The tracking
-%% rows' conditions cells now say which of the two ranges is the specification
-%% (the 0.4-2.1 V window, owner decision 2026-08-24, sss:pixtop-mc).
+%% 2026-08-24: two Monte Carlo rows ADDED at the foot.  A third row,
+%% "Per-channel yield, calibrated 61.5 % / 0.50 % uncalibrated", was written and
+%% then REMOVED the same day on the owner's instruction "do not talk about pixel
+%% level yield yet"; yield_table.txt still holds it.  The tracking rows'
+%% conditions cells say which of the two ranges is the specification (the
+%% 0.4-2.1 V window, owner decision 2026-08-24, sss:pixtop-mc).
+%%
+%% 2026-08-24 RE-BASELINE against simruns/rebase_20260824 (the cell was edited
+%% at 03:53/04:04 and everything re-measured).  Changed here:
+%%   power  1.6424 -> 1.3228 mW  (pwr/power_table.txt, extracted converter:
+%%          528.7005 uA on 2.5 V + 1.0391 uA on 1.0 V).  Attribution closes to
+%%          0.05 uW: -806.758 uW of deleted DAC PSU regulators, +243.776 uW
+%%          BUF_ADC, +243.347 uW BUF_ATP.  Corner 2.5 V rail 432.0 (ss) to
+%%          913.6 (ff) uA, was 517.1 / 1075.2.
+%%   MC     sigma 5.754 -> 5.488 mV (tia_offset) and 5.552 -> 5.287 mV
+%%          (re_track), mc_sigma_table.txt, 200 samples, 1264 random variables.
+%%          v_adcin row ADDED: mean 1.24815 V, sigma 8.040 mV.
+%%   ADDED  converter-input zero row (dc_table.txt: v_adcin 1.2484987 V, i.e.
+%%          -619.6 uV = BUF_ADC's own offset below V_OUT) and the calibration-
+%%          slot disturbance row (mux/mux_disturbance_table.txt slot 1 NEW).
+%%   CAPTION: the "regulators instantiated but drive nothing" clause is gone --
+%%          they are deleted from the cell.  The tracking figures are still
+%%          optimistic, for the same reason stated the other way round.
+%% Every dc row above is UNCHANGED and re-verified: rebase_20260824/dc_table.txt
+%% reproduces all of them to the printed digits (worst delta 3.0 nV), and
+%% corner/corner_table_raw.txt still passes 20/20 at tt/ff/fs/sf/ss.  Rows 15-16
+%% (stability, noise) are unchanged; stb/stb_table.txt gives the same 75.71 deg
+%% worst of 24 and noise/noise_table.txt the same tread-averaged 1.475-2.889 nA.
+%% The 72.37 deg slow-corner figure is NOT re-measured on this OA -- the
+%% five-corner stability run predates the edit; the nominal grid moved +0.36 deg.
 \begin{table}[!htb]
   \centering
   \caption[{Headline measurements on the assembled channel.}]{Headline
   measurements on the assembled channel, nominal process point,
-  \SI{37}{\celsius}, \SI{2.5}{\volt} supply. Rows 1--8 are dc; rows 9--12 come
-  from the staircase voltammetry run of Figure~\ref{fig:pixtop-cv}; rows 13--14
+  \SI{37}{\celsius}, \SI{2.5}{\volt} supply. Rows 1--9 are dc; rows 10--13 come
+  from the staircase voltammetry run of Figure~\ref{fig:pixtop-cv}; rows 14--16
   and the power figure need the extracted converter, everything else in the
-  channel staying at schematic level; rows 15--18 are the post-fix
-  small-signal, noise and power runs of
-  Sections~\ref{sss:pixtop-stability}--\ref{sss:pixtop-power}; the final two
+  channel staying at schematic level; rows 17--20 are the small-signal,
+  noise and power runs of
+  Sections~\ref{sss:pixtop-stability}--\ref{sss:pixtop-power}; the final three
   are Monte Carlo, and are narrower than the built channel's for the reason
   Section~\ref{sss:pixtop-open} gives. The two tracking
-  figures are optimistic by construction:
-  the DAC supply regulators are instantiated but drive nothing, so both ladders
-  run from an ideal rail and the \SI{25.8}{\milli\volt} of code-dependent
-  reference movement of Section~\ref{sss:dacr2r12-supply} is not exercised
-  here.}
+  figures are optimistic by construction: both ladders run from the
+  \SI{2.5}{\volt} rail, so the \SI{25.8}{\milli\volt} of code-dependent
+  reference movement Section~\ref{sss:dacr2r12-supply} measures on the supply
+  block is not exercised here.}
   \label{tab:pixtop-summary}
   {\footnotesize
   \setlength{\tabcolsep}{5pt}
@@ -88,6 +107,10 @@
     Uncalibrated current zero &
       \(34.4\,/\,1.57\,/\,\SI{0.323}{\nano\ampere}\) &
       \(N = 0\,/\,63\,/\,319\) \\
+    Converter-input zero &
+      \SI{1.248499}{\volt} &
+      inert electrode, readout slot; \SI{-619.6}{\micro\volt} from the
+      transimpedance output, which is the input buffer's own offset \\
     \addlinespace
     Feedback resistance, in situ &
       \SI{37.16}{\kilo\ohm} &
@@ -113,11 +136,16 @@
       \(N = 0\,/\,319\); \SI{1.593}{\milli\volt} LSB over the measured
       \SI{1.63}{\volt} span, on the nominal ladder. The measured in-loop
       \(R_f\) puts the bottom code at \SI{81.2}{\nano\ampere} \\
+    Calibration-slot disturbance &
+      \SI{1.75}{\milli\volt} &
+      peak on the transimpedance output over a \SI{21}{\micro\second} record
+      with the common-mode slot selected; settles in
+      \SI{0.54}{\micro\second}, residual below \SI{1}{\nano\volt} \\
     \addlinespace
     Transimpedance phase margin &
       \SI{75.7}{\degree} &
       worst of 24 electrode\(\,\times\,\)gain points, \SI{1.07}{\decibel}
-      peaking; \SI{72.4}{\degree} at the slow corner \\
+      peaking; both buffer loops \(\ge \SI{78.4}{\degree}\) \\
     Closed-loop bandwidth &
       \(85.8\,/\,\SI{3.4}{\kilo\hertz}\) &
       \(N = 0\,/\,319\), \(C_{\mathrm{dl}} = \SI{100}{\nano\farad}\), with the
@@ -127,18 +155,22 @@
       \SI{2}{\milli\second} average; \(0.036\)--\(1.78\,\)LSB as the gain code
       rises \\
     Channel power &
-      \SI{1.642}{\milli\watt} &
-      extracted converter; \SI{806.8}{\micro\watt} of it is the two
-      unconnected reference-DAC regulators \\
+      \SI{1.323}{\milli\watt} &
+      extracted converter; \SI{487.1}{\micro\watt} of it is the two
+      unity-gain buffers \\
     \addlinespace
     Zero-current output, \(\sigma\) &
-      \SI{5.754}{\milli\volt} &
+      \SI{5.488}{\milli\volt} &
       200 Monte Carlo samples, process and mismatch
       (\S\ref{sss:pixtop-mc}); \(\pm\SI{2}{\milli\volt}\) budget \\
     Reference tracking error, \(\sigma\) &
-      \SI{5.552}{\milli\volt} &
+      \SI{5.287}{\milli\volt} &
       same run, mid-code; \SI{5.72}{\milli\volt} on the flat bench
       (\S\ref{sss:pixel-mc}) \\
+    Converter-input zero, \(\sigma\) &
+      \SI{8.040}{\milli\volt} &
+      same run; the transimpedance offset and the buffer's own, uncorrelated.
+      It cancels in the zero subtraction (\S\ref{sss:pixtop-mc}) \\
     \bottomrule
   \end{tabular}}
 \end{table}

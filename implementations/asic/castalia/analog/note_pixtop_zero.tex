@@ -9,6 +9,12 @@
 %   i_off = -34.4247 nA (N = 0), -1.5651 nA (N = 63), -0.3227 nA (N = 319).
 % The 2 nA input-referred noise budget is the in_rma spec used throughout this
 % tree (see ss:tiarprog).
+% 2026-08-24 RE-BASELINE (simruns/rebase_20260824/dc_table.txt): unchanged to
+%   1 nV.  V(WE)-V_CM flat to 0.300 nV over all 320 codes; V_OUT-V_CM
+%   -619.6454 uV (N=0) ... -623.5535 uV (N=319), spread 3.9081 uV, 2.04 pA;
+%   i_off -34.42475 / -1.56509 / -0.32275 nA.  The common-mode multiplexer slot
+%   is now BUFFERED (mux/mux_disturbance_table.txt slot 1: V_CM 0.834 mV,
+%   V_OUT 1.75 mV, settled in 0.54 us) -- the last sentence used to hedge it.
 
 \subsubsection{Zero-Current Axis}\label{sss:pixtop-zero}
 
@@ -19,8 +25,9 @@ of the 320 gain codes: \SI{0.3}{\nano\volt} of spread. No current flows in
 with the tap. \textbf{One zero measurement therefore calibrates every gain
 code} --- and it holds per sample under mismatch, not only at this typical
 point (Section~\ref{sss:pixtop-mc}). It is the result the per-gain-code current zero of
-Table~\ref{tab:calibration-constants} rests on, and the reason the common-mode
-slot on the converter multiplexer is worth its silicon.
+Table~\ref{tab:calibration-constants} rests on, and it is measured through the
+common-mode slot of the converter multiplexer, which the input buffer of
+Section~\ref{sss:pixtop-adc} makes readable.
 
 What survives that calibration is input bias current. The output drifts a
 further \SI{3.91}{\micro\volt} between \(N = 0\) and \(N = 319\) while \(R_f\)

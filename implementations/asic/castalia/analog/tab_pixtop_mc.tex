@@ -1,17 +1,20 @@
 %% HAND-WRITTEN table fragment (maestro2tex house style; nothing here is
 %% generated). Every value transcribed from
-%% ~/chips/castalia/simruns/pixmc_20260823/ -- 200 samples, process and
-%% mismatch, model section castalia_pm_25, nominal corner, 37 C, 1070 random
+%% ~/chips/castalia/simruns/rebase_20260824/ -- 200 samples, process and
+%% mismatch, model section castalia_pm_25, nominal corner, 37 C, 1264 random
 %% variables, 200/200 converged, no 1.11e36 sentinel:
-%%   rows 1-10  mc_distributions.txt
-%%   rows 11-12 stb_table.txt (a separate 200-sample run at the worst point of
-%%              the postfix_stb grid: Cdl = 100 nF, Rct = 1 M, N = 63)
-%% Means and sigmas re-derived from samples/main200.json and cross-checked
-%% against mc_distributions.txt; dac_step 610.2484 uV (the archive README's
-%% headline table rounds it to 610.22, the extracted data does not) and
-%% v_cm_dc 1.249697 V (README quotes 1.24966).
+%%   rows 1-11  mc_sigma_table.txt, re-derived from mc200.json
+%%   rows 12-13 pixmc_20260823/stb_table.txt -- the previous revision's separate
+%%              200-sample run at the worst point of the stability grid
+%%              (Cdl = 100 nF, Rct = 1 M, N = 63); NOT repeated on this OA.  At
+%%              that point the nominal PM_tia is unchanged at 75.71 deg and
+%%              GM_tia fell 0.49 dB (rebase_20260824/stb/stb_table.txt).
 %% Gain margins, not tabulated: 21.57 +- 0.88 dB (transimpedance loop, min
-%% 19.37) and 38.17 +- 0.64 dB (control loop, min 36.07).
+%% 19.37) and 38.17 +- 0.64 dB (control loop, min 36.07) -- same earlier run.
+%% v_adcin row ADDED 2026-08-24: mean 1.24815 V, sigma 8.040 mV.  It is the
+%% transimpedance offset plus BUF_ADC's own (sigma 5.325 mV, r = 0.055), and it
+%% CANCELS in a zero-referenced reading -- see sss:pixtop-adc.  The spec cell
+%% carries the same 1.245-1.255 V window the setup grades it against.
 %%
 %% 2026-08-24, OWNER INSTRUCTION "do not talk about pixel level yield yet":
 %% the Yield column (the uncalibrated fraction of samples inside each
@@ -24,15 +27,19 @@
   \caption[{Monte Carlo distributions on the assembled channel.}]{Monte Carlo
   distributions on the assembled channel: 200 samples, process and mismatch
   together, nominal process point, \SI{37}{\celsius}, \SI{2.5}{\volt} supply,
-  \num{1070} random variables, all 200 converged. The specification column is
+  \num{1264} random variables, all 200 converged. The specification column is
   the budget each quantity is designed against, uncalibrated; the two constants
   that remove the additive part of these spreads are in
   Section~\ref{ss:calibration}. The two tracking rows are the same measurement
   over two ranges --- the \SIrange{0.4}{2.1}{\volt} row is the specification
   (Section~\ref{sss:pixtop-potential}), the full-sweep row is reported because
-  the bench writes it that way. Phase margins come from a separate 200-sample
+  the bench writes it that way. The converter-input row is the widest here and
+  the least consequential: it carries the input buffer's own offset as well as
+  A2's, and both cancel in a zero-referenced reading
+  (Section~\ref{sss:pixtop-adc}). Phase margins come from a separate 200-sample
   run at the worst electrode-by-gain point of
-  Section~\ref{sss:pixtop-stability}.}
+  Section~\ref{sss:pixtop-stability}, taken on the previous revision of the cell
+  and not repeated; the nominal phase margin at that point is unchanged.}
   \label{tab:pixtop-mc}
   {\footnotesize
   \setlength{\tabcolsep}{5pt}
@@ -45,36 +52,39 @@
     Quantity & Mean & \(\sigma\) & Specification \\
     \midrule
     Zero-current output, \(v_{\mathrm{out}} - V_{\mathrm{CM}}\) &
-      \SI{-0.425}{\milli\volt} & \SI{5.754}{\milli\volt} &
+      \SI{-1.004}{\milli\volt} & \SI{5.488}{\milli\volt} &
       \(\pm\SI{2}{\milli\volt}\) \\
     Reference tracking error, mid-code &
-      \SI{-0.279}{\milli\volt} & \SI{5.552}{\milli\volt} &
+      \SI{-0.637}{\milli\volt} & \SI{5.287}{\milli\volt} &
       \(\pm\SI{2}{\milli\volt}\) \\
     Reference tracking error, worst over \SIrange{0.4}{2.1}{\volt} &
-      \SI{4.850}{\milli\volt} & \SI{3.800}{\milli\volt} &
+      \SI{4.766}{\milli\volt} & \SI{3.494}{\milli\volt} &
       \(<\SI{2}{\milli\volt}\) \\
     Reference tracking error, worst over \SIrange{0}{2.42}{\volt} &
-      \SI{9.751}{\milli\volt} & \SI{6.303}{\milli\volt} &
+      \SI{9.534}{\milli\volt} & \SI{5.939}{\milli\volt} &
       \(<\SI{2}{\milli\volt}\) \\
     \addlinespace
     Zero-current offset referred to current, \(N = 0\) &
-      \SI{-23.6}{\nano\ampere} & \SI{319.7}{\nano\ampere} &
+      \SI{-55.8}{\nano\ampere} & \SI{304.9}{\nano\ampere} &
       \(\pm\SI{100}{\nano\ampere}\) \\
     Same at maximum gain, \(N = 319\) &
-      \SI{2.470}{\nano\ampere} & \SI{1.671}{\nano\ampere} &
+      \SI{2.308}{\nano\ampere} & \SI{1.729}{\nano\ampere} &
       \(<\SI{2}{\nano\ampere}\) \\
     \addlinespace
     Reference-electrode floor &
-      \SI{4.428}{\milli\volt} & \SI{5.913}{\milli\volt} &
+      \SI{4.100}{\milli\volt} & \SI{5.809}{\milli\volt} &
       \(<\SI{5}{\milli\volt}\) \\
     Reference-electrode ceiling &
-      \SI{2.4211}{\volt} & \SI{10.7}{\milli\volt} &
+      \SI{2.4205}{\volt} & \SI{9.97}{\milli\volt} &
       \(>\SI{2.4}{\volt}\) \\
     Common-mode output &
-      \SI{1.24970}{\volt} & \SI{0.684}{\milli\volt} &
+      \SI{1.24975}{\volt} & \SI{0.769}{\milli\volt} &
+      \SIrange{1.245}{1.255}{\volt} \\
+    Converter-input voltage &
+      \SI{1.24815}{\volt} & \SI{8.040}{\milli\volt} &
       \SIrange{1.245}{1.255}{\volt} \\
     Reference DAC step &
-      \SI{610.25}{\micro\volt} & \SI{0.171}{\micro\volt} &
+      \SI{610.22}{\micro\volt} & \SI{0.184}{\micro\volt} &
       --- \\
     \addlinespace
     Transimpedance phase margin &

@@ -3,14 +3,15 @@
 %% database). Precedent: fig_pixtop_noise.tex -- pgfplotsset style, \MaestroRoot,
 %% the mtxA/mtxB colours.
 %%
-%% Data: data/pixmc_track_{sigma,res}.dat, written by
-%% ~/chips/castalia/skill/pixmc_trm_fig.py from
-%% ~/chips/castalia/simruns/pixmc_20260823/samples/main200.json -- 200 samples,
-%% process and mismatch, model section castalia_pm_25, nominal corner, 37 C,
-%% 1070 random variables, 200/200 converged.  It reproduces that run's
-%% tracking_vs_code.txt to the printed digits.  sigma_res is zero at the
-%% mid-code point by construction (it is where the constant is measured) and
-%% falls off the bottom of the log axis there.
+%% Data: data/pixmc_track_{sigma,res}.dat, regenerated 2026-08-24 from
+%% ~/chips/castalia/simruns/rebase_20260824/mc200.json -- 200 samples, process
+%% and mismatch, model section castalia_pm_25, nominal corner, 37 C, 1264 random
+%% variables, 200/200 converged.  Same reduction as
+%% ~/chips/castalia/skill/pixmc_trm_fig.py panel_a: per sweep point, sigma of
+%% vec_err and sigma of (vec_err - re_track).  sigma_res is zero at the mid-code
+%% point by construction (it is where the constant is measured) and falls off
+%% the bottom of the log axis there.  Against the pre-edit run the residual
+%% moved 0.364 -> 0.357 mV at 0.63 V and 3.52 -> 3.44 mV at 0.31 V.
 %%
 %% 2026-08-24, OWNER INSTRUCTION "do not talk about pixel level yield yet":
 %% the right-hand panel (yield vs excluded potential, three curves: tracking

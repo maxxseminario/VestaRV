@@ -129,9 +129,18 @@ reports the measurement.
 % Assembled channel -- HAND-WRITTEN throughout (no maestro2tex config behind it;
 % the numbers come from the pre-tapeout verification of the assembled cell,
 % ~/vestarv/docs/afe_rev2_pixel_verify.html, and its runs under
-% ~/chips/castalia/simruns/pixtop2_*). Placed immediately after the pixel
+% ~/chips/castalia/simruns/). Placed immediately after the pixel
 % section because it is the same channel with every ideal source replaced by
 % silicon, and reads as a diff against it.
+% RE-BASELINED 2026-08-24 against ~/chips/castalia/simruns/rebase_20260824 --
+% the owner edited the cell (two unity-gain multiplexer buffers added, both
+% reference-DAC supply regulators deleted, A1's compensation pair made real MIM
+% devices, four amplifier devices moved onto the mismatch-enabled wrappers) and
+% the whole characterisation was re-run: dc, a 24-point stability grid, noise,
+% power, five corners, a 200-sample Monte Carlo and a multiplexer-disturbance
+% study.  NOT repeated on the new OA, and flagged in the fragments that use
+% them: the staircase voltammetry run, the five-corner stability run, and the
+% Monte Carlo attribution/ablation and stability runs.
 \FloatBarrier
 \input{include/analog/note_pixtop_intro.tex}
 \input{include/analog/tab_pixtop_summary.tex}
@@ -140,17 +149,20 @@ reports the measurement.
 \input{include/analog/note_pixtop_cv.tex}
 \input{include/analog/fig_pixtop_cv.tex}
 \input{include/analog/note_pixtop_adc.tex}
-% Post-C_F characterisation, 2026-08-23: runs under ~/chips/castalia/simruns/
-% postfix_* (stability grid, corners, noise, transient-noise decimation, power)
-% and simruns/trmnoise_gain (the 16-code noise sweep behind fig_pixtop_noise).
+% Small-signal, noise and power: simruns/rebase_20260824/{stb,stb_buf,noise,
+% noise_adc,pwr,corner} on the 2026-08-24 OA, with simruns/trmnoise_gain (the
+% 16-code noise sweep behind fig_pixtop_noise, whose numbers the re-baseline
+% reproduces to four significant figures) and simruns/postfix_decim (the
+% transient-noise decimation records).
 \input{include/analog/note_pixtop_comp.tex}
 \input{include/analog/note_pixtop_noise.tex}
 \input{include/analog/fig_pixtop_noise.tex}
 \input{include/analog/note_pixtop_power.tex}
-% First Monte Carlo on the assembled cell, 2026-08-23:
-% ~/chips/castalia/simruns/pixmc_20260823 (200 samples, process + mismatch,
-% section castalia_pm_25, nominal corner, 37 C).  Figure data written by
-% ~/chips/castalia/skill/pixmc_trm_fig.py.
+% Monte Carlo on the assembled cell, 2026-08-24:
+% ~/chips/castalia/simruns/rebase_20260824/{mc200.json,mc_sigma_table.txt} (200
+% samples, process + mismatch, section castalia_pm_25, nominal corner, 37 C,
+% 1264 random variables) and mc100_bufcm (the buffer's CMRR under mismatch).
+% Figure data reduced as ~/chips/castalia/skill/pixmc_trm_fig.py panel_a does.
 \input{include/analog/note_pixtop_mc.tex}
 \input{include/analog/tab_pixtop_mc.tex}
 \input{include/analog/fig_pixtop_mc.tex}
