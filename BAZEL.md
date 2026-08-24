@@ -36,7 +36,7 @@ automatic shims — the xPack toolchain's `ld` is wrapped at fetch time when
 | Course labs (all 21, incl. skeletons) | `//software/course/labs/...` | per-lab golden tests |
 | Debug trampoline | `//software/dbg_trampoline:dbg_trampoline_words` | `:dbg_trampoline_words_test`, `//tools/cosim:check_dbg_trampoline_test` |
 | ISA test images (259, polarity in the action key) | `//verification/isa:all_images`, per-suite `:rv32ui_rcfs` / `:rv32ui_flashed` ... plus ON-polarity `os_*` variants | `:image_contract_test` |
-| Open-source simulation (GHDL, no licenses) | toolchain: `//toolchains/ghdl:ghdl` (`@ghdl//:ghdl_mcode`, built from source) | `//opensource_sim:isa_rv32ui` ... `:isa_rv32uzf` (9 suites, `:isa_regression` aggregate), per-test `//opensource_sim/isa:rv32ui-p-*`, unit benches `//hdl/common/tb:mp_arbiter_tb`, `:pmp_unit_tb` |
+| Open-source simulation (GHDL, no licenses) | toolchain: `//toolchains/ghdl:ghdl` (`@ghdl//:ghdl_mcode`, built from source) | `//opensource_sim:isa_rv32ui` ... `:isa_rv32uzf` (9 suites, `:isa_regression` aggregate), per-test `//opensource_sim/isa:rv32ui-p-*`, unit benches `//hdl/common/tb:mp_arbiter_tb`, `:pmp_unit_tb`, MCU-level `//opensource_sim/mcu:mcu_elaborate` and `//opensource_sim/rv4th:rv4th_forth` (boot ROM Forth monitor over UART0; `:rv4th_forth_full` is the `manual` whole-bench variant) |
 | Python tooling | `//tools/cosim`, `//tools/randgen`, `//tools/python`, `//verification/npu` | comparator, oracle, randgen, tracer-independence, entity-defaults, doc-links, NPU golden regen + validate_mlp |
 | Docs provenance | — | `//docs:theme_sync_test`, register-browser gate under `//platform/common` |
 | TRM PDF | `//platform/common/latex/bazel:trm_pdf_local` (manual; host TeX) | `:check_publish_test`, `:trm_lint_test` (manual) |
@@ -151,8 +151,13 @@ claim that build and test never write into the source tree, enforced.
 
 `sim.yml`'s **`GHDL ISA regression (bazel)`** runs the GHDL half —
 `//opensource_sim:isa_regression` plus the `//hdl/common/tb:all` unit
-benches. First cold run builds GHDL from source (~20–30 min), warm runs are
-fast.
+benches, `//verification/cpi:cpi_default`, `//opensource_sim/pmp:pmp`,
+`//opensource_sim/mcu:mcu_elaborate` and `//opensource_sim/rv4th:rv4th_forth`.
+First cold run builds GHDL from source (~20–30 min), warm runs are fast.
+That job takes **explicit targets, never `//opensource_sim/...` by wildcard**,
+and `ci.yml` excludes `//opensource_sim/...` wholesale so it never builds GHDL
+from source. A new GHDL target therefore runs in `bazel test //...` locally
+and in **neither** workflow until it is named in `sim.yml`.
 
 `ci.yml`'s **`Repo hygiene gates`** runs the `tools/ci/` scripts directly
 (they need git history, which a bazel sandbox does not have).

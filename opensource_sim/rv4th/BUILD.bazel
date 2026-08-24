@@ -1,0 +1,188 @@
+# The boot ROM's interactive Forth monitor, booted and driven over UART0.
+#
+# ---------------------------------------------------------------------------
+# THE GAP THIS CLOSES
+# ---------------------------------------------------------------------------
+# hdl/common/tb/rv4th_tb.vhd has been in the tree for a long time and nothing
+# ran it. It had rotted to the point of not elaborating -- it still declared a
+# Myshkin-era analog `component MCU` -- and the only runner was an untracked
+# xcelium directory. So the ROM Forth monitor, which is the interactive face
+# of the fabricated part, had no gate at all: the image could stop booting,
+# stop echoing, lose its dictionary or mis-multiply and every green check in
+# this repository would stay green.
+#
+# What it grades, in the order the bench sends it:
+#
+#   1.1   the boot banner and the `>` prompt
+#   1.2a  a peripheral-space write, echoed
+#   1.2c  the read-back of that write, printing 123
+#   1.3   `3 1 clk .`, the on-chip clock-frequency measurement (reported, not
+#         compared: it is a measurement of the testbench's own 24 MHz crystal)
+#   1.4   `-500 75689 * .` = -37844500, the multiplier through the interpreter
+#   1.4b  `: sq dup * ;` then `7 sq .` = 49, which is the DICTIONARY: it writes
+#         cmdList, progOpcodes and prog, the .noinit arrays that were re-sized
+#         from 16,384 to 4,096 bytes on 2026-08-23
+#   1.5a  writing `jal x0, 0` (0x0000006F) into RAM at 0x8200
+#   1.5b  `0x8200 call0`, then SILENCE -- the interpreter is gone and the CPU
+#         is spinning in the instruction the monitor just wrote
+#
+# ---------------------------------------------------------------------------
+# WHY THIS RUNS UNDER GHDL AT ALL, WHICH IS NOT OBVIOUS
+# ---------------------------------------------------------------------------
+# Two things had to be built, and both are the same kind of substitution the
+# tree already makes for ClkGate.
+#
+# THE PADS. rv4th_tb instantiates PDUW16SDGZ_G on all 33 package pins. The
+# signoff model is Verilog, in the TSMC pad library outside this repository,
+# and GHDL reads no Verilog -- that is exactly why //opensource_sim/mcu's
+# source list had to exclude riscv_tb.vhd. pads_sim.vhd in this package is a
+# tracked behavioural VHDL cell transcribed from that Verilog's gate net.
+# The pad is not decoration here: UART0 TX and RX, the two crystals and the
+# BOOT strap all pass through one, and the receiver's pull-up behaviour is
+# what makes an undriven pin read as a defined level.
+#
+# THE ROM CONTENTS. This bench's whole subject is what the boot image does, so
+# an empty ROM model is useless -- and hdl/common/sim/ARM_IP_ROM.vhd, the one
+# model that loads an image, is untracked AND opens
+# /home/mseminario2/vestarv/software/bootrom_mp/bin/rom.rcf by absolute path.
+# //opensource_sim/mcu:mem_macros_sim.vhd now carries the loader instead, and
+# takes its path from work.rom_image_pkg, which :rv4th_rom_image is generated
+# to hold. That path is $(rootpath) of //software/bootrom_mp:rom_rcf, so it is
+# runfiles relative, the image is a real bazel dependency, and a ROM source
+# change rebuilds the image and re-runs this test rather than leaving it
+# grading a stale file.
+#
+# ---------------------------------------------------------------------------
+# THE PACING, WHICH IS LOAD BEARING -- DO NOT "OPTIMISE" IT AWAY
+# ---------------------------------------------------------------------------
+# rv4th_tb sends each command one character at a time with sixteen bit times
+# of idle between frames, the way a person types. That is not politeness. The
+# monitor's receive path is a polled loop with NO FLOW CONTROL, and a line
+# delivered back to back at 115,200 baud loses characters: "123 0x04C00 !"
+# arrives as "123 0x0C00". That is a standing defect of the ROM -- it
+# reproduces identically on the pre-2026-08-23 boot image -- and it is a
+# PRODUCT decision to fix, not a testbench one. Deleting the pacing does not
+# make this test faster, it makes it grade how many characters the ROM drops.
+# See the comment on UartSendCmdPaced in the testbench.
+#
+# ---------------------------------------------------------------------------
+# THE VERDICT IS THE BANNER, NOT THE EXIT CODE
+# ---------------------------------------------------------------------------
+# The bench ends with `report "===== All test commands sent =====" severity
+# error`, which is how it breaks xmsim back to the prompt, so a PASSING run
+# would exit non-zero under GHDL's default assert level. --assert-level=failure
+# demotes that to a message and --stop-time ends the run; the verdict is
+# pass_pattern, which is the bench's own "ALL FORTH TESTS PASSED" line, printed
+# only when every check above set no error. A failed check reports at severity
+# error, leaves AllTestsPassed false, and the banner never appears.
+# A `severity failure` -- a missing ROM image, a code file deeper than the
+# macro -- still aborts the run outright.
+
+load("//opensource_sim/mcu:defs.bzl", "rom_image_pkg")
+load("//toolchains/ghdl:defs.bzl", "ghdl_test", "vhdl_source_set")
+load(":defs.bzl", "RV4TH_RTL")
+
+package(default_visibility = ["//visibility:public"])
+
+# The one-constant VHDL package that tells the ROM macro model where its image
+# is. Generated, so the path is the build's own $(rootpath) and never a
+# hand-written string that can rot.
+rom_image_pkg(
+    name = "rv4th_rom_image",
+    image = "//software/bootrom_mp:rom_rcf",
+)
+
+vhdl_source_set(
+    name = "rv4th_srcs",
+    paths = RV4TH_RTL,
+    pool = ["//hdl:vhdl_sources"],
+)
+
+_SRCS = [
+    # Order is analysis order. The generated path package must precede the
+    # macro model that reads it, and both must precede MCU.vhd, because a
+    # direct `entity work.x` instantiation binds at ANALYSIS.
+    ":rv4th_rom_image",
+    "//opensource_sim/mcu:mem_macros_sim.vhd",
+    "pads_sim.vhd",
+    ":rv4th_srcs",
+]
+
+_FLAGS = [
+    "-fsynopsys",
+    # hdl/common/periph/SYSTEM.vhd:465 associates one element of a port array
+    # with `open`, which is an error under plain --std=08.
+    "-frelaxed",
+]
+
+# ---------------------------------------------------------------------------
+# THE DEFAULT / MANUAL SPLIT, AND WHAT IT DOES AND DOES NOT COST
+# ---------------------------------------------------------------------------
+# MEASURED on this bench machine, GHDL mcode, one core:
+#
+#   whole bench, stop 180 ms, last check at 178.37 ms   15 min 05 s
+#   test 1.3 off, stop 45 ms, last check at  42.43 ms   217.7 s
+#
+# `3 1 clk .` counts crystal edges over a fixed interval, so its reply alone is
+# 131 ms of the 178 ms the bench runs -- 73 % of the wall clock for one check
+# whose result is REPORTED AND NOT COMPARED, because it measures the frequency
+# of the testbench's own oscillator process.
+#
+# So :rv4th_forth runs everything else and is the target CI names, and
+# :rv4th_forth_full runs the whole bench and is `manual`. Coverage is not
+# dropped, it is moved: the ONLY thing outside the default target is test 1.3,
+# and it is named here so nobody has to diff two rules to find out.
+# For reference, xcelium runs the whole bench in 101 s including compile
+# (xcelium/rv4th_mp/), so the bench flow keeps the full set cheaply.
+
+ghdl_test(
+    name = "rv4th_forth",
+    # MEASURED at 217.7 s on this 128-core bench machine. `large` is a 900 s
+    # bazel timeout, which bazel itself calls oversized -- deliberately: a
+    # GitHub-hosted runner has a fraction of this per-core budget, and the
+    # `moderate` 300 s bucket would leave no room for it. sim_timeout_s below
+    # cuts in first, so a hang is reported by this rule with a log tail rather
+    # than by bazel killing the test with none.
+    size = "large",
+    srcs = _SRCS,
+    # The image itself, named nowhere on the GHDL command line: the ROM model
+    # opens it by the path :rv4th_rom_image carries, so it has to be in
+    # runfiles or that open fails.
+    data = ["//software/bootrom_mp:rom_rcf"],
+    entity = "rv4th_tb",
+    flags = _FLAGS,
+    generics = {"CLK_MEASURE": "false"},
+    pass_pattern = "ALL FORTH TESTS PASSED",
+    # The bench does not end itself, so --stop-time is what ends the run. See
+    # the header: with --assert-level=failure the closing `severity error`
+    # report no longer stops GHDL.
+    run_options = ["--assert-level=failure"],
+    sim_timeout_s = 750,
+    # 42.43 ms is where the last check lands with test 1.3 off; the rest is
+    # slack, not budget.
+    stop_time = "45ms",
+    tags = ["ghdl"],
+)
+
+ghdl_test(
+    name = "rv4th_forth_full",
+    size = "enormous",
+    srcs = _SRCS,
+    data = ["//software/bootrom_mp:rom_rcf"],
+    entity = "rv4th_tb",
+    flags = _FLAGS,
+    pass_pattern = "ALL FORTH TESTS PASSED",
+    run_options = ["--assert-level=failure"],
+    sim_timeout_s = 2400,
+    # 178.37 ms is where the last check lands; the margin is one crystal
+    # period of slack, not a budget.
+    stop_time = "180ms",
+    # `manual` keeps it out of //... and therefore out of the CI gate set. It
+    # is the same bench with test 1.3 back, and it is the target to run by hand
+    # after anything that touches the SYSTEM clock counter or the ROM's `clk`
+    # word.
+    tags = [
+        "ghdl",
+        "manual",
+    ],
+)

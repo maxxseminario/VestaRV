@@ -90,6 +90,13 @@ jobs:
       # target is a 1 ns run and not just an analysis. It is named explicitly
       # for the reason the header gives: this job takes targets, never
       # //opensource_sim/... by wildcard.
+      #
+      # //opensource_sim/rv4th:rv4th_forth boots that same MCU out of the REAL
+      # boot ROM image and drives the Forth monitor over UART0 -- the only gate
+      # anywhere on the interactive face of the fabricated part. It is the
+      # slowest test in this job at about 4 minutes, and it is the fast half of
+      # its bench: :rv4th_forth_full adds the 131 ms clock-frequency
+      # measurement and is `manual`. Named explicitly, same rule as above.
       - name: Run ISA regression + GHDL unit benches
         run: |
           set -o pipefail
@@ -97,6 +104,7 @@ jobs:
             //verification/cpi:cpi_default \
             //opensource_sim/pmp:pmp \
             //opensource_sim/mcu:mcu_elaborate \
+            //opensource_sim/rv4th:rv4th_forth \
             --repository_cache=~/.cache/bazel-repo-cache \
             --test_tag_filters=-known_red \
             --test_output=errors \
