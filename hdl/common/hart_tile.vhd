@@ -128,12 +128,13 @@ entity hart_tile is
 
         /* =====================================================================
            READ-ONLY EXTERNAL TCM SLAVE PORT: mclk domain, boundary-registered at the SAME depth 1 as the req/gnt set, but its OWN transaction set, since the one-depth rule is about skew between signals of ONE transaction.
-           PROTOCOL, deliberately the sh_done shape: tcm_ext_req is held until tcm_ext_done, a ONE-mclk PULSE with tcm_ext_rdata valid alongside it and holding until the next completion; tcm_ext_addr is a TCM WORD index (12 bits = the ram0 A bus = data_addr(13:2)), so word i is byte address 0x8000 + 4*i.
+           PROTOCOL, deliberately the sh_done shape: tcm_ext_req is held until tcm_ext_done, a ONE-mclk PULSE with tcm_ext_rdata valid alongside it and holding until the next completion; tcm_ext_addr is a TCM WORD index (11 bits = the ram0 A bus = data_addr(12:2)), so word i is byte address 0x8000 + 4*i.
+           THE PORT IS THE ARRAY'S WIDTH, NOT THE APERTURE'S: the MCU aperture is a 16 KiB window over this 8 KiB array, so the requester drops the window word index's top bit before it reaches this port, and that drop IS the documented mirroring of the array across the upper half of the window.
            AFTER done, tcm_ext_req MUST RETURN LOW FOR AT LEAST ONE mclk: the sequencer's one-shot rearms on req being low, so a requester holding req high across two transactions gets ONE done and then waits forever.
            All three inputs default to the FAIL-SAFE direction, req = '0' being "nobody is asking", which leaves the stall term constant '0' and the ram0 mux constant on the core side, so a top naming none of these ports behaves bit-identically; the port is memory architecture, not a knob-gated feature.
            ===================================================================== */
         tcm_ext_req   : in  std_logic := '0';
-        tcm_ext_addr  : in  std_logic_vector(11 downto 0) := (others => '0');
+        tcm_ext_addr  : in  std_logic_vector(10 downto 0) := (others => '0');
         tcm_ext_rdata : out std_logic_vector(31 downto 0);
         tcm_ext_done  : out std_logic;
 
@@ -357,7 +358,7 @@ architecture behav of hart_tile is
        =========================================================================
        Depth-1 inbound boundary stage. */
     signal tx_req_r      : std_logic := '0';
-    signal tx_addr_r     : std_logic_vector(11 downto 0) := (others => '0');
+    signal tx_addr_r     : std_logic_vector(10 downto 0) := (others => '0');
     -- Depth-1 outbound boundary stage.
     -- tx_rdata_r is SIMULTANEOUSLY the Q landing register and the boundary register, ONE flop and not two: that identity is what keeps rdata aligned with the done pulse, since the same edge of the same process writes both.
     signal tx_rdata_r    : std_logic_vector(31 downto 0) := (others => '0');
@@ -385,7 +386,7 @@ architecture behav of hart_tile is
     signal ram_cen       : std_logic;
     signal ram_wen       : std_logic_vector(3 downto 0);
     signal ram_gwen      : std_logic;
-    signal ram_a         : std_logic_vector(11 downto 0);
+    signal ram_a         : std_logic_vector(10 downto 0);
     signal ram_d         : std_logic_vector(31 downto 0);
     signal tcm_q         : std_logic_vector(31 downto 0);
 
@@ -777,7 +778,8 @@ begin
     ram_cen  <= tx_cen     when tx_sel = '1' else mem_en(1);
     ram_wen  <= "1111"     when tx_sel = '1' else wen_fe;      -- READ-ONLY
     ram_gwen <= '1'        when tx_sel = '1' else GWEN;        -- READ-ONLY
-    ram_a    <= tx_addr_r  when tx_sel = '1' else mem_addr;
+    -- mem_addr is the core's 12-bit TCM word index and the array answers 11 of them, so THIS MUX IS WHERE THE CORE SIDE'S TOP BIT IS DROPPED; see the aliasing note at ram0.
+    ram_a    <= tx_addr_r  when tx_sel = '1' else mem_addr(10 downto 0);
     ram_d    <= (others => '0') when tx_sel = '1' else write_data;
 
     /* -------------------------------------------------------------------------
@@ -842,7 +844,10 @@ begin
        Selecting on the constant rather than editing the entity name keeps ONE authority for the TCM size: memory.tcmSizePerHart -> RamSize -> this generate. Hardcoding the 8 KiB macro would have let a 16 KiB configuration emit a memory map promising 0x8000-0xBFFF over an array that answers only half of it.
        A configuration that asks for neither size fails ELABORATION here rather than quietly picking one; the sizes the knob permits and the macros the kit provides are not the same set (the knob allows any 1 KiB multiple up to 0x4000), so this is a real guard, not a formality.
 
-       ADDRESS ALIASING, stated because the map depends on it: mem_addr and tx_addr_r are 12 bits either way. At 8 KiB the top bit is simply not connected, so the array repeats twice across the 16 KiB the decode still routes here -- which is exactly what makes the 16 KiB read-only aperture at 0x20000 + 0x4000*h show an 8 KiB TCM MIRRORED, the behaviour generate.py documents and the TRM draws.
+       ADDRESS ALIASING, stated because the map depends on it: the decode still routes 16 KiB here and the array answers 8 KiB, so the array repeats twice across the window.
+       The repeat is built by DROPPING the word index's top bit, once on each side: the core's mem_addr(11) is dropped at the ram0 mux above, and the aperture requester drops sh_addr(11) before it drives tcm_ext_addr.
+       Both sides therefore land on the same physical word for the same byte address, which is what makes the 16 KiB read-only aperture at 0x20000 + 0x4000*h show an 8 KiB TCM MIRRORED, the behaviour generate.py documents and the TRM draws.
+       NO SIGNAL CARRIES THE DROPPED BIT: tx_addr_r, ram_a and the tcm_ext_addr port are all 11 bits, so the tile has no unloaded address bit for LVS to report as an extra top-cell pin.
        ------------------------------------------------------------------------- */
     -- THE INSTANCE NAME ram0 IS A FLOW CONTRACT, not a preference. It is named
     -- EXPLICITLY, at THIS level of hierarchy, by: genus/hart_tile SDC
@@ -860,7 +865,7 @@ begin
             CLK   => ram_clk,
             CEN   => ram_cen,
             WEN   => ram_wen,
-            A     => ram_a(10 downto 0),   -- ram_a(11) unused: see the aliasing note above
+            A     => ram_a,
             D     => ram_d,
             EMA   => "000",
             GWEN  => ram_gwen,
@@ -868,11 +873,10 @@ begin
             PGEN  => tcm_pgen
         );
 
-    -- The macro above is 8 KiB. If the memory map ever says otherwise, FAIL HERE
-    -- rather than ship a chip whose map promises more RAM than the array answers.
-    -- Changing memory.tcmSizePerHart back to 16384 means editing TWO things here:
-    -- the entity (sram1p16k_hvt_pg) and the A width (ram_a, all 12 bits). That is
-    -- deliberate manual work, not a knob, for the flow-contract reason above.
+    /* The macro above is 8 KiB.
+       If the memory map ever says otherwise, FAIL HERE rather than ship a chip whose map promises more RAM than the array answers.
+       Going back to memory.tcmSizePerHart = 16384 means widening the whole word index by one bit and not just the entity name: the entity (sram1p16k_hvt_pg), ram_a, the mem_addr slice feeding it, tx_addr_r, the tcm_ext_addr ports on this entity and on orch_tile, and the tcm_ext_addr signal plus its sh_addr slice in mcu_vhd.py.
+       That is deliberate manual work, not a knob, for the flow-contract reason above. */
     assert RamSize = 8192
         report "hart_tile: MemoryMap RamSize = " & integer'image(RamSize)
              & " but ram0 is the 8 KiB sram1p8k_hvt_pg macro. Swap the entity and "

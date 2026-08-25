@@ -90,14 +90,14 @@ entity orch_tile is
         sh_resv_valid : in std_logic := '1';
         sh_lock   : out std_logic;
 
-        -- Own 16 KiB TCM, never gated: tcm_pgen is '0' and tcm_retn is '1'.
+        -- Own TCM, never gated: tcm_pgen is '0' and tcm_retn is '1'.
         tcm_pgen  : in  std_logic := '0';
         tcm_retn  : in  std_logic := '1';
 
         -- Read-only external TCM slave port, passed straight through to hart_tile; the orchestrator's TCM gets the h=0 aperture at 0x20000 so the indexing stays uniform.
         -- This is the one aperture that is never gated: no power domain, no clamp, no zero-completion bypass. Defaults match hart_tile's declaration.
         tcm_ext_req   : in  std_logic := '0';
-        tcm_ext_addr  : in  std_logic_vector(11 downto 0) := (others => '0');
+        tcm_ext_addr  : in  std_logic_vector(10 downto 0) := (others => '0');
         tcm_ext_rdata : out std_logic_vector(31 downto 0);
         tcm_ext_done  : out std_logic;
 

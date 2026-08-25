@@ -1566,9 +1566,10 @@ flashBase = 1 << (shAw + 2)
 # the MCU aperture sub-decode off its 16 KiB s_addr(15:12) granularity (the
 # codes 1000..1100), so the stride stays 0x4000 and the DECODE IS UNTOUCHED.
 # CONSEQUENCE, stated plainly because the alternative is a figure that lies:
-# the tile answers an aperture read with tcm_ext_addr, whose top bit is now
-# unused, so AN 8 KiB TCM APPEARS TWICE IN ITS 16 KiB APERTURE -- the upper half
-# is a MIRROR of the lower, not unmapped space and not zeros. The TRM says so.
+# the aperture sequencer carries only sh_addr(10:0) to the tile's tcm_ext_addr,
+# because that port is the 8 KiB array's width, so AN 8 KiB TCM APPEARS TWICE IN
+# ITS 16 KiB APERTURE -- the upper half is a MIRROR of the lower, not unmapped
+# space and not zeros. The TRM says so.
 _tcmApertureSize = 0x4000
 if _tcmApertureSize % _tcmSize != 0:
 	raise Exception('TCM aperture stride 0x%X is not a whole multiple of the TCM size 0x%X, '

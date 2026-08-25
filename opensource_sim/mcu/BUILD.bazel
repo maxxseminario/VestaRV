@@ -113,6 +113,15 @@ vhdl_source_set(
     pool = ["//hdl:vhdl_sources"],
 )
 
+# The tile's external-TCM-port unit bench, analyzed AFTER the list above
+# because it binds hart_tile by direct `entity work.hart_tile` instantiation,
+# which resolves at analysis and not at elaboration.
+vhdl_source_set(
+    name = "tcm_port_tb_srcs",
+    paths = ["hdl/common/tb/tcm_port_tb.vhd"],
+    pool = ["//hdl:vhdl_sources"],
+)
+
 # Build-time check that the list analyzes clean. Not consumed by the test: a
 # GHDL work library is not relocatable across exec roots (measured -- see
 # //toolchains/ghdl:defs.bzl).
@@ -127,6 +136,81 @@ ghdl_library(
         "-fsynopsys",
         "-frelaxed",
     ],
+)
+
+# ---------------------------------------------------------------------------
+# THE TILE'S EXTERNAL TCM SLAVE PORT, as a graded gate.
+# ---------------------------------------------------------------------------
+#
+# hdl/common/tb/tcm_port_tb.vhd is the unit bench for hart_tile's read-only
+# external TCM port -- the aperture side of the CPR3 TCM windows. It reached no
+# build target until 2026-08-24, and the cost of that was measured: the port's
+# tcm_ext_addr stayed 12 bits wide for eight days after the TCM halved to 8 KiB
+# and its top bit lost its load, and the thing that eventually reported the dead
+# bit was tile LVS ("Top Cell Has Extra Pins"), not a test.
+#
+# hdl/common/tb/BUILD.bazel hosts the sibling unit benches and says the runners
+# for tcm_port and dbg_iface are "deliberately absent, because those benches
+# instantiate ARM_IP_RAM, a vendor macro that is not in this repository". That
+# was true and is no longer: mem_macros_sim.vhd in THIS package is the tracked
+# stand-in for exactly that macro, which is why the bench lives here rather than
+# beside its siblings. It binds hart_tile alone and carries its own shared-bus
+# BFM and program image, so this package's source list plus that model is its
+# whole closure.
+#
+# The bench ends in `wait` and never stops the simulation, so stop_time is
+# mandatory. It reaches its verdict at 279 us of simulated time; 400 us is the
+# headroom. A run truncated before the verdict prints no banner and the
+# pass_pattern turns that into a failure rather than a silent pass -- which is
+# the reason the verdict is the banner and not the exit code, since a failing
+# check here reports at `severity warning` and GHDL still exits 0.
+#
+# NEGATIVE CONTROL, measured 2026-08-24. Two mutations of hart_tile.vhd, each
+# analyzed and run through this bench and then restored byte-exact:
+#
+#   ram_a <= tx_addr_r ... else mem_addr(10 downto 0)   ->   mem_addr(11 downto 1)
+#     the core's own TCM word index shifts one bit.  RED: 10 CHECK FAILED lines,
+#     banner "failures = 8", no ALL CHECKS PASSED.  The red set spans both sides
+#     of the port -- "T1: all 17 externally-read words match what the core
+#     planted" and "T2: the CORE still reads its own TCM correctly".
+#
+#   tx_addr_r <= tcm_ext_addr   ->   tx_addr_r <= (others => '0')
+#     the external port ignores the address it is handed.  RED: 7 CHECK FAILED
+#     lines, banner "failures = 7", no ALL CHECKS PASSED.
+#
+# T5b ("tcm_ext_done is exactly ONE mclk wide") and T5c ("rdata HELD its value
+# for 200 mclk after done, and no spurious done fired") stayed GREEN under both.
+# They are the control that says these are address-path failures and not a bench
+# that has simply stopped working: the handshake shape is still correct, only
+# the word it delivers is wrong.
+#
+# READ THE BANNER, NOT THE COUNT. Mutation A produced 10 CHECK FAILED lines and
+# a "failures = 8" banner, because `fails` is a SIGNAL incremented inside chk()
+# and consecutive failing checks with no wait between them collapse into one
+# scheduled update. The count under-reports; the zero/non-zero verdict that
+# gates the ALL CHECKS PASSED banner does not, which is why pass_pattern keys
+# on the banner.
+ghdl_test(
+    name = "tcm_port_tb",
+    size = "small",
+    srcs = [
+        ":rom_image_empty",
+        "mem_macros_sim.vhd",
+        ":vesta_mcu_srcs",
+        ":tcm_port_tb_srcs",
+    ],
+    entity = "tcm_port_tb",
+    flags = [
+        "-fsynopsys",
+        "-frelaxed",
+    ],
+    # The verdict is the banner, not the exit code: a failed check in this
+    # bench reports at `severity warning` and GHDL exits 0 regardless.
+    pass_pattern = "ALL CHECKS PASSED",
+    # Measured: 0.6 s wall for analysis, elaboration and the whole 400 us run.
+    sim_timeout_s = 90,
+    stop_time = "400us",
+    tags = ["ghdl"],
 )
 
 ghdl_test(

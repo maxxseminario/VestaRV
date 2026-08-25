@@ -51,9 +51,13 @@ entity pwr_ctrl is
 
         -- Per-tile MTCMOS controls, harts 1..NHARTS-1; hart 0 has no row because it is always-on.
         -- pd_iso_en is the isolation clamp enable, also routed into the tile for its isolation cells' EN legs; pd_sleep is HEAD switch SLEEP, ACTIVE-HIGH meaning rail OFF; pd_rstn is the cold-gate reset ANDed into the tile's resetn at the top level.
-        pd_iso_en : out std_logic_vector(NHARTS-1 downto 1);
-        pd_sleep  : out std_logic_vector(NHARTS-1 downto 1);
-        pd_rstn   : out std_logic_vector(NHARTS-1 downto 1);
+        -- The high index is FLOORED AT 1 so the range is never null.
+        -- At NHARTS = 1 there are no gateable rows and NHARTS-1 downto 1 would be 0 downto 1, an empty range.
+        -- That is legal VHDL and it simulates, but Genus rejects a PORT with an empty range outright (CDFG-235), so a single-hart chip could elaborate and boot and still not synthesize.
+        -- maximum() is the VHDL-2008 std.standard function and both toolchains here read 2008 (ghdl --std=08, genus hdl_vhdl_read_version 2008); for every NHARTS >= 2 it returns NHARTS-1 and the width is unchanged.
+        pd_iso_en : out std_logic_vector(maximum(NHARTS-1, 1) downto 1);
+        pd_sleep  : out std_logic_vector(maximum(NHARTS-1, 1) downto 1);
+        pd_rstn   : out std_logic_vector(maximum(NHARTS-1, 1) downto 1);
 
         -- Field-powered-mode pads: ASYNC inputs, 2-FF synchronized inside this block on the always-on mclk domain.
         pgood_pad    : in  std_logic;  -- PGOOD supervisor level (P6.7); tie '1' when unused.
@@ -73,6 +77,17 @@ architecture behav of pwr_ctrl is
     -- PWRSR word count, 8 state nibbles per word.
     constant NSRW : natural := (NHARTS + 7) / 8;
 
+    /* PD_HI is the per-tile-row high index, FLOORED AT 1 so the range is never null.
+       At NHARTS = 1 there are no gateable rows and NHARTS-1 downto 1 is 0 downto 1, an empty range.
+       An empty range is legal VHDL and it SIMULATES, which is why the single-hart chip elaborates and boots; it is synthesis that rejects it, in two separate ways.
+       A PORT with an empty range is refused outright (Genus CDFG-235), and an `others` aggregate assigned to an empty-range target leaves the tool unable to infer the aggregate's bounds (Genus CDFG-252).
+       maximum() is the VHDL-2008 std.standard function and both toolchains here read 2008 (ghdl --std=08, genus hdl_vhdl_read_version 2008).
+       For every NHARTS >= 2 PD_HI is exactly NHARTS-1, so every declaration below is unchanged on every multi-hart configuration.
+       EVERY per-tile-row object below carries PD_HI, including the PWRCR gate_req and TASKWKM task_wkm vectors and the rdata_reg/wdata slices they exchange bits with, because Genus cannot bound a null slice of a constant either and a half-floored block does not elaborate.
+       THE ONE VISIBLE CONSEQUENCE, and it is at NHARTS = 1 only: PWRCR bit 1 and TASKWKM bit 1 become read/write scratch bits instead of reading back reserved zero.
+       No hardware acts on them, because every consumer is a `for h in 1 to NHARTS-1` loop that runs zero times, so the bits drive nothing and the always-on hart 0 is unaffected. */
+    constant PD_HI : natural := maximum(NHARTS-1, 1);
+
     -- FSM state encodings, identical to the PWRSR nibble values documented above.
     constant S_ON     : std_logic_vector(3 downto 0) := x"0";
     constant S_ISO    : std_logic_vector(3 downto 0) := x"1";
@@ -82,15 +97,17 @@ architecture behav of pwr_ctrl is
     constant S_UNISO  : std_logic_vector(3 downto 0) := x"5";
 
     -- One sequencer state and one delay counter per gateable tile.
-    type state_arr_t is array(1 to NHARTS-1) of std_logic_vector(3 downto 0);
-    type cnt_arr_t   is array(1 to NHARTS-1) of natural range 0 to 65535;
+    type state_arr_t is array(1 to PD_HI) of std_logic_vector(3 downto 0);
+    type cnt_arr_t   is array(1 to PD_HI) of natural range 0 to 65535;
 
     signal state     : state_arr_t;
     signal cnt       : cnt_arr_t;
-    signal gate_req  : std_logic_vector(NHARTS-1 downto 1);   -- PWRCR gate bits.
-    signal iso_r     : std_logic_vector(NHARTS-1 downto 1);   -- Registered pd_iso_en.
-    signal sleep_r   : std_logic_vector(NHARTS-1 downto 1);   -- Registered pd_sleep.
-    signal rstn_r    : std_logic_vector(NHARTS-1 downto 1);   -- Registered pd_rstn.
+    signal gate_req  : std_logic_vector(PD_HI downto 1);   -- PWRCR gate bits.
+    -- These three carry the SAME floor as the pd_* ports they drive, so the assignments stay width-exact at NHARTS = 1.
+    -- At NHARTS = 1 the reset branch drives them and the per-tile loops (1 to NHARTS-1) never run, so the floored bit is a constant that synthesis folds away rather than an undriven register.
+    signal iso_r     : std_logic_vector(PD_HI downto 1);   -- Registered pd_iso_en.
+    signal sleep_r   : std_logic_vector(PD_HI downto 1);   -- Registered pd_sleep.
+    signal rstn_r    : std_logic_vector(PD_HI downto 1);   -- Registered pd_rstn.
     signal rdata_reg : std_logic_vector(31 downto 0);         -- One-cycle registered read.
 
     -- Boot-gate and wake-source state, all on the always-on domain; word offsets as in the header map.
@@ -104,7 +121,7 @@ architecture behav of pwr_ctrl is
     signal strap_valid   : std_logic;        -- Strap sample complete.
     signal strap_cnt     : natural range 0 to 65535;   -- Counts out STRAP_SETTLE.
     signal wake_cr       : std_logic_vector(4 downto 0);  -- PWRWAKE bits 4:0.
-    signal task_wkm      : std_logic_vector(NHARTS-1 downto 1);  -- Task-wake mask.
+    signal task_wkm      : std_logic_vector(PD_HI downto 1);  -- Task-wake mask.
     signal rls_latch     : std_logic;        -- Sticky release, one-shot mode.
     signal boot_hold_r   : std_logic;        -- Registered gate state ('1' = hold).
 
@@ -184,12 +201,12 @@ begin
                 widx := conv_integer(addr);
                 rdata_reg <= (others => '0');
                 if widx = 0 then
-                    rdata_reg(NHARTS-1 downto 1) <= gate_req;
+                    rdata_reg(PD_HI downto 1) <= gate_req;
                 elsif widx <= NSRW then
                     -- PWRSR0..NSRW-1 from +0x4 up.
                     rdata_reg <= sr(32*widx - 1 downto 32*(widx-1));
                 elsif widx = W_TASKWKM then
-                    rdata_reg(NHARTS-1 downto 1) <= task_wkm;
+                    rdata_reg(PD_HI downto 1) <= task_wkm;
                 elsif widx = W_PWRWAKE then
                     -- PWRWAKE readback.
                     rdata_reg(4 downto 0) <= wake_cr;
@@ -206,7 +223,7 @@ begin
                 -- PWRCR write, qualified by byte lane 0.
                 -- The gate bits are ONE field even when NHARTS-1:1 spans lanes, so software uses full-word stores; bit 0, hart 0, has no storage and can never be gated.
                 if widx = 0 and we(0) = '1' then
-                    gate_req <= wdata(NHARTS-1 downto 1);
+                    gate_req <= wdata(PD_HI downto 1);
                 end if;
                 -- PWRWAKE write, byte-lane-0-qualified like PWRCR.
                 if widx = W_PWRWAKE and we(0) = '1' then
@@ -214,7 +231,7 @@ begin
                 end if;
                 -- Task-wake mask write, byte-lane-0-qualified like PWRCR.
                 if widx = W_TASKWKM and we(0) = '1' then
-                    task_wkm <= wdata(NHARTS-1 downto 1);
+                    task_wkm <= wdata(PD_HI downto 1);
                 end if;
             end if;
 
