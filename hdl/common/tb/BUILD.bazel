@@ -89,9 +89,15 @@ py_test(
 # Unit benches ported from the untracked xcelium/mp_test runners to GHDL.
 #
 # Only benches whose ENTIRE source closure is tracked VHDL are ported. The two
-# below are the smallest such closures; the runners for tcm_port and dbg_iface
-# are deliberately absent, because those benches instantiate ARM_IP_RAM, a
-# vendor macro that is not in this repository.
+# below are the smallest such closures; the runner for dbg_iface is deliberately
+# absent, because that bench instantiates ARM_IP_RAM, a vendor macro that is not
+# in this repository.
+#
+# tcm_port was absent for the same reason and NO LONGER IS. It is now
+# //opensource_sim/mcu:tcm_port_tb, and it lives in that package rather than
+# beside its siblings here because the tracked stand-in for the vendor macro
+# (mem_macros_sim.vhd) and the source list that reaches hart_tile both live
+# there. What that eight-day gap cost is written on the target.
 #
 # The xcelium runners compile with -V200X and grep the log for the scoreboard
 # banner. GHDL analyzes both benches clean under --std=08 -fsynopsys, so the

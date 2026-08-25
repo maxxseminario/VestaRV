@@ -1,6 +1,6 @@
 /* MCU.vhd: Castalia MCU top-level integration layer (5 harts, MCU_MP)
    The fixed boilerplate comes from hdl_templates/MCU.template.vhd; the description-driven sections are generated from python/generate.py
-   Generated on 2026/08/23 at 20:43:00 with the generate.py chip generator
+   Generated on 2026/08/24 at 13:06:38 with the generate.py chip generator
    WARNING: Do not edit or modify this file!
    	Edit hdl_templates/MCU.template.vhd (fixed regions) or python/generate.py + python/mcu_vhd.py (generated regions), then re-run make chip */
 
@@ -585,7 +585,7 @@ architecture behav of MCU is
         signal shmem_gwen_n     : std_logic;   -- shared-macro global write enable (active-low)
 
         /* =====================================================================
-           READ-ONLY TCM APERTURES: one 16 KiB window per hart at 0x20000 + 0x4000*h (h = 0..4), through which the management hart (hart 0) reads any hart's private TCM; the aperture address is a TCM WORD index, sh_addr(11:0), so window word i is that hart's byte address 0x8000 + 4*i.
+           READ-ONLY TCM APERTURES: one 16 KiB window per hart at 0x20000 + 0x4000*h (h = 0..4), through which the management hart (hart 0) reads any hart's private TCM; the aperture address is a TCM WORD index, and only sh_addr(10:0) is carried to the tile because the window is 16 KiB over an 8 KiB array, so window word i is that hart's byte address 0x8000 + 4*(i mod 2048) and the upper half of every window MIRRORS the lower.
            Three gates, each answering with ZERO instead of a bus error, a stall or a hang: sh_master /= 0 is denied, a write is dropped (the tile port has no write side, and writing a live core's memory is a coherence hazard), and a power-gated target completes immediately because its iso clamp zeroes tcm_ext_done as well as rdata, so software checks PWRSR first (zero is a legal TCM value).
            The only slave that stalls the arbiter: a tcm_ext read takes 6 mclk request-to-done against the fixed IDLE/LATCH/DATA walk, so the aperture holds s_stall ('0' everywhere else) while the grant is already pinned to this master.
            ===================================================================== */
@@ -617,7 +617,7 @@ architecture behav of MCU is
         signal tcmw_q           : std_logic_vector(31 downto 0);   -- rdata of the in-flight tile
         -- Tile-facing port nets: addr is ONE bus fanned to every tile (only the tile whose req is high samples it); rdata/done arrive per hart, and for harts 1..4 they arrive through the isolation clamps.
         signal tcm_ext_req      : std_logic_vector(4 downto 0);
-        signal tcm_ext_addr     : std_logic_vector(11 downto 0);
+        signal tcm_ext_addr     : std_logic_vector(10 downto 0);
         signal tcm_ext_rdata    : std_logic_vector(159 downto 0);
         signal tcm_ext_done     : std_logic_vector(4 downto 0);
         -- CLINT: peripheral-window page 1 at 0x5000
@@ -3636,7 +3636,8 @@ begin
                 if tcmw_en_any = '1' then
                     -- One decision per access, taken in the enable-strobe cycle.
                     -- The zeroing is the DENIED/DROPPED/DARK answer and it is unconditional: a refused access must never return the previous window's word.
-                    tcm_ext_addr <= sh_addr(11 downto 0);
+                    -- sh_addr(11) is DELIBERATELY NOT CARRIED: the tile port is the 8 KiB array's width, and dropping the window word index's top bit here is what mirrors the array across the upper half of the 16 KiB window.
+                    tcm_ext_addr <= sh_addr(10 downto 0);
                     tcmw_rdata   <= (others => '0');
                     if tcmw_launch = '1' then
                         tcm_ext_req <= tcmw_target;

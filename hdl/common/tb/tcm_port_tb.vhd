@@ -116,7 +116,7 @@ architecture sim of tcm_port_tb is
 
     -- THE PORT UNDER TEST
     signal x_req     : std_logic := '0';
-    signal x_addr    : std_logic_vector(11 downto 0) := (others => '0');
+    signal x_addr    : std_logic_vector(10 downto 0) := (others => '0');
     signal x_rdata   : std_logic_vector(31 downto 0);
     signal x_done    : std_logic;
 
@@ -168,7 +168,7 @@ architecture sim of tcm_port_tb is
        ------------------------------------------------------------------------- */
     procedure ext_read(signal   clk_s   : in  std_logic;
                        signal   req_s   : out std_logic;
-                       signal   addr_s  : out std_logic_vector(11 downto 0);
+                       signal   addr_s  : out std_logic_vector(10 downto 0);
                        signal   done_s  : in  std_logic;
                        signal   rdata_s : in  std_logic_vector(31 downto 0);
                        constant widx    : in  integer;
@@ -178,7 +178,7 @@ architecture sim of tcm_port_tb is
         variable n : integer := 0;
     begin
         req_s   <= '1';
-        addr_s  <= conv_std_logic_vector(widx, 12);
+        addr_s  <= conv_std_logic_vector(widx, 11);
         timeout := false;
         loop
             wait until rising_edge(clk_s);
@@ -347,7 +347,7 @@ begin
            ===================================================================== */
         resetn <= '0';
         x_req  <= '1';
-        x_addr <= conv_std_logic_vector(POISON_IDX, 12);
+        x_addr <= conv_std_logic_vector(POISON_IDX, 11);
         saw_done := false;
         for n in 0 to 39 loop
             wait until rising_edge(mclk);
@@ -508,7 +508,7 @@ begin
            ===================================================================== */
         -- T5b: done is exactly ONE mclk wide, and rdata is valid with it.
         x_req  <= '1';
-        x_addr <= conv_std_logic_vector(POISON_IDX, 12);
+        x_addr <= conv_std_logic_vector(POISON_IDX, 11);
         n_bad  := 0;
         to_flag := false;
         for n in 0 to W_XACT-1 loop

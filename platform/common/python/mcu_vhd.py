@@ -2835,7 +2835,21 @@ class McuVhdEmitter():
 		# is EVERY hart but hart 0 in both shapes now -- the orchestrator is
 		# hart 0, which has no domain, and the CP2 shortening is gone.
 		rng = 'std_logic_vector(' + str(self.pwrHarts() - 1) + ' downto 1);'
-		lines = [self.sigDecl(nm, rng) for nm in ('pd_iso_en', 'pd_sleep', 'pd_rstn', 'tile_rstn')]
+		# The three signals that BIND TO pwr_ctrl PORTS carry the same width
+		# floor the entity does, so the association is width-exact at N = 1.
+		# pwr_ctrl declares pd_iso_en/pd_sleep/pd_rstn over
+		# maximum(NHARTS-1,1) downto 1 because a null-range PORT is legal VHDL
+		# and simulates, but Genus rejects it (CDFG-235), so a single-hart chip
+		# would elaborate and boot and still fail to synthesize.
+		# For every pwrHarts() >= 2 this is str(pwrHarts()-1) exactly as before,
+		# so the emission stays byte-identical on every multi-hart chip.
+		# tile_rstn is NOT floored: it is a top-level signal rather than a
+		# pwr_ctrl port, and at N = 1 it is a null vector that nothing reads.
+		pdrng = ('std_logic_vector(' + str(max(self.pwrHarts() - 1, 1))
+			 + ' downto 1);')
+		lines = [self.sigDecl(nm, pdrng)
+			 for nm in ('pd_iso_en', 'pd_sleep', 'pd_rstn')]
+		lines.append(self.sigDecl('tile_rstn', rng))
 		# DP-S3: the HOLD-IN-RESET boot gate (pwr0 output, reset '1' = release)
 		# and hart 0's folded reset (hart 0 never had a fold before the gate).
 		lines.append(self.sigDecl('pgood_rstn', "std_logic := '1';"))
@@ -3869,7 +3883,7 @@ class McuVhdEmitter():
 		n = len(apx)
 		lines = ['']
 		lines.append(ind + '/* =====================================================================')
-		lines.append(ind + '   READ-ONLY TCM APERTURES: one 16 KiB window per hart at 0x20000 + 0x4000*h (h = 0..' + str(n - 1) + '), through which the management hart (hart 0) reads any hart\'s private TCM; the aperture address is a TCM WORD index, sh_addr(11:0), so window word i is that hart\'s byte address 0x8000 + 4*i.')
+		lines.append(ind + '   READ-ONLY TCM APERTURES: one 16 KiB window per hart at 0x20000 + 0x4000*h (h = 0..' + str(n - 1) + '), through which the management hart (hart 0) reads any hart\'s private TCM; the aperture address is a TCM WORD index, and only sh_addr(10:0) is carried to the tile because the window is 16 KiB over an 8 KiB array, so window word i is that hart\'s byte address 0x8000 + 4*(i mod 2048) and the upper half of every window MIRRORS the lower.')
 		lines.append(ind + '   Three gates, each answering with ZERO instead of a bus error, a stall or a hang: sh_master /= 0 is denied, a write is dropped (the tile port has no write side, and writing a live core\'s memory is a coherence hazard), and a power-gated target completes immediately because its iso clamp zeroes tcm_ext_done as well as rdata, so software checks PWRSR first (zero is a legal TCM value).')
 		lines.append(ind + '   The only slave that stalls the arbiter: a tcm_ext read takes 6 mclk request-to-done against the fixed IDLE/LATCH/DATA walk, so the aperture holds s_stall (\'0\' everywhere else) while the grant is already pinned to this master.')
 		lines.append(ind + '   ===================================================================== */')
@@ -3893,7 +3907,7 @@ class McuVhdEmitter():
 		lines.append(ind + 'signal ' + 'tcmw_q'.ljust(17) + ': std_logic_vector(31 downto 0);   -- rdata of the in-flight tile')
 		lines.append(ind + '-- Tile-facing port nets: addr is ONE bus fanned to every tile (only the tile whose req is high samples it); rdata/done arrive per hart, and for harts 1..' + str(n - 1) + ' they arrive through the isolation clamps.')
 		lines.append(ind + 'signal ' + 'tcm_ext_req'.ljust(17) + ': std_logic_vector(' + str(n - 1) + ' downto 0);')
-		lines.append(ind + 'signal ' + 'tcm_ext_addr'.ljust(17) + ': std_logic_vector(11 downto 0);')
+		lines.append(ind + 'signal ' + 'tcm_ext_addr'.ljust(17) + ': std_logic_vector(10 downto 0);')
 		lines.append(ind + 'signal ' + 'tcm_ext_rdata'.ljust(17) + ': std_logic_vector(' + str(32 * n - 1) + ' downto 0);')
 		lines.append(ind + 'signal ' + 'tcm_ext_done'.ljust(17) + ': std_logic_vector(' + str(n - 1) + ' downto 0);')
 		return lines
@@ -3994,7 +4008,8 @@ class McuVhdEmitter():
 		lines.append(ind * 4 + "if tcmw_en_any = '1' then")
 		lines.append(ind * 5 + '-- One decision per access, taken in the enable-strobe cycle.')
 		lines.append(ind * 5 + '-- The zeroing is the DENIED/DROPPED/DARK answer and it is unconditional: a refused access must never return the previous window\'s word.')
-		lines.append(ind * 5 + 'tcm_ext_addr <= sh_addr(11 downto 0);')
+		lines.append(ind * 5 + '-- sh_addr(11) is DELIBERATELY NOT CARRIED: the tile port is the 8 KiB array\'s width, and dropping the window word index\'s top bit here is what mirrors the array across the upper half of the 16 KiB window.')
+		lines.append(ind * 5 + 'tcm_ext_addr <= sh_addr(10 downto 0);')
 		lines.append(ind * 5 + 'tcmw_rdata   <= ' + zeros + ';')
 		lines.append(ind * 5 + "if tcmw_launch = '1' then")
 		lines.append(ind * 6 + 'tcm_ext_req <= tcmw_target;')
