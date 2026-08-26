@@ -31,6 +31,8 @@ Two nodes separate the four faults that all read as a stuck converter code.
   current is zero by construction), read the transimpedance output at every
   gain code the channel will use, subtract the converter's zero code.
   Uncalibrated spread: \(\sigma = 12.1\)--\SI{167.3}{LSB} over the four taps
-  (Section~\ref{sss:pixel-mc}).
+  (Section~\ref{sss:pixel-mc}), on the nominal \SI{2.441}{\milli\volt} step;
+  multiply by \num{1.535} for the converter's measured
+  \SI{1.591}{\milli\volt} step (Table~\ref{tab:adc-transfer}).
 \end{enumerate}
 This test fabric is design intent; it is not yet in the schematics.

@@ -5,6 +5,12 @@
 % Source runs: simruns/tb_anatop_pixel_iacc2 (crossover waveform),
 % Interactive.20 points 81-85 (35k/10k accuracy table),
 % simruns/tb_anatop_pixel_iacc_hg_1M_corners (560k/1M accuracy table).
+%
+% LSB basis: both tables were graded against the NOMINAL 2.5 V / 1024 =
+% 2.441 mV step; the converter's measured step is 1.591 mV (tab_adc_transfer),
+% so every LSB figure here is 1.535x optimistic as a count of converter codes.
+% The numbers are left on their own basis -- the source runs of the 35k table
+% are gone -- and the basis is stated instead.
 
 \subsubsection{Bipolar Accuracy}\label{sss:pixel-accuracy}
 
@@ -33,3 +39,8 @@ full $\pm\SI{33}{\micro\ampere}$ span, improving to 0.21--0.30~LSB over the
 $\pm\SI{2.3}{\micro\ampere}$ subrange. The growth toward full scale is the
 $1/T$ gain error of the transimpedance loop; the \SI{560}{\kilo\ohm} figure is
 already a full-scale measurement at its gain.
+
+Every LSB in this subsection is referred to the nominal
+\SI{2.441}{\milli\volt} converter step; the measured step is
+\SI{1.591}{\milli\volt} (Table~\ref{tab:adc-transfer}), so multiply by
+\num{1.535} to read these errors as converter codes.
