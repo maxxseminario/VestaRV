@@ -1769,6 +1769,48 @@ def _stat_value(d, stat, ss, tspec, spec):
 # ---------------------------------------------------------------------------
 
 
+def check_superseded(cfg, cfgpath):
+    """Refuse to regenerate a fragment that later work has corrected.
+
+    A generated fragment can be superseded by a measurement this config cannot
+    reproduce -- a different bench, a corrected corner set -- and replaced by a
+    hand-written file of the same name-and-label. Nothing then stopped the next
+    regeneration from writing the stale numbers back over it and re-listing it
+    in the master, because both the table spec and the `order` entry were still
+    in the config. That is exactly what happened to tab_biasgen_dcop, whose
+    supply-current corner spread read 0.30 uA against a true 17.6 uA (the
+    imported corners pinned the degeneration resistor at typical in every
+    corner).
+
+    `superseded` is a map fragment-name -> reason. The fragment must not be
+    declared in `figures`/`tables` and must not appear in `order`; either one
+    is a hard error naming the reason, so the mistake is caught before any
+    LaTeX is written rather than after it is published.
+    """
+    sup = cfg.get('superseded') or {}
+    if not sup:
+        return
+    bad = []
+    for spec in cfg.get('tables', []):
+        n = 'tab_%s' % spec.get('id')
+        if n in sup:
+            bad.append('%s is still declared in `tables`' % n)
+    for spec in cfg.get('figures', []):
+        n = 'fig_%s' % spec.get('id')
+        if n in sup:
+            bad.append('%s is still declared in `figures`' % n)
+    for n in cfg.get('order', []):
+        if n in sup:
+            bad.append('%s is still listed in `order`' % n)
+    if bad:
+        die('%s declares superseded fragments that would be regenerated:\n%s'
+            % (os.path.basename(cfgpath),
+               '\n'.join('       %s\n         reason: %s'
+                         % (b, sup[b.split()[0]]) for b in bad)))
+    for n, why in sorted(sup.items()):
+        info('superseded, not generated: %-24s %s' % (n, why))
+
+
 def emit_master(cfg, outdir, texroot, written, corners):
     block = cfg.get('block', 'block')
     path = os.path.join(outdir, '%s.tex' % block)
@@ -1797,8 +1839,23 @@ def emit_master(cfg, outdir, texroot, written, corners):
             f.write(intro.rstrip() + '\n\n')
         names = order if order else (tabs + figs)
         for n in names:
+            # An `order` entry starting with '%' is a LaTeX comment, written
+            # through verbatim. The master is rewritten from the config on
+            # every run, so a note added to this file by hand does not survive
+            # -- which is how the tab_biasgen_dcop supersession came to rely on
+            # a comment that the next regeneration would have deleted. Put the
+            # note in `order` and it is regenerated with the input list it
+            # explains.
+            if n.lstrip().startswith('%'):
+                f.write(n.rstrip() + '\n')
+                continue
             if os.path.isfile(os.path.join(outdir, n + '.tex')):
                 f.write('\\input{\\MaestroRoot %s.tex}\n' % n)
+            else:
+                # Silent skipping is how a renamed or mistyped fragment drops
+                # out of a section without anyone noticing.
+                info('order names %s.tex, absent from %s -- NOT input'
+                     % (n, outdir))
         f.write('\n\\FloatBarrier\n')
     return path
 
@@ -1875,6 +1932,7 @@ def main():
             os.makedirs(d)
 
     print('maestro2tex: %s' % block)
+    check_superseded(cfg, args.config)
     have_results = os.path.isdir(results)
     if not have_results and not args.no_extract:
         die('results directory not found: %s' % results)

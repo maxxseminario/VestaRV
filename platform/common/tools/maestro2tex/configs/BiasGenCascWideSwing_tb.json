@@ -1,9 +1,46 @@
 {
+  "_note": [
+    "SECTION MASTER for the local wide-swing cascode bias generator",
+    "(castalia/anatop_biasgen_local, drawn from BiasGenCascWideSwing). Its",
+    "`order` places every fragment of the published section, including the",
+    "hand-written sch_biasgen_core / sch_biasgen_startup / tab_biasgen_dcop_free",
+    "fragments, which are NOT generated.",
+    "",
+    "SOURCE: .../BiasGenCascWideSwing_tb/maestro/results/maestro/Interactive.32,",
+    "points 1-5 = tt/ff/fs/sf/ss. That run is 2026-07-25; the cell was re-checked",
+    "against it on 2026-08-25 (simruns/bgladder_20260825, Task A cross-check) and",
+    "reproduces the tt column to 0.05 mV / 0.0002 uA, so the fragments below are",
+    "current for the cell as it stands.",
+    "",
+    "THE DC OPERATING POINT IS NOT GENERATED HERE -- read this before adding it",
+    "back. The DCOpTB test and its `biasgen_dcop` table were removed 2026-08-25.",
+    "Two independent reasons:",
+    "  1. The numbers were wrong. Every imported tsmcN65_typ_* corner carries",
+    "     cor_res.scs section=\"tt_res\", pinning the poly resistor that sets the",
+    "     reference current, so the supply-current corner spread read 0.30 uA",
+    "     against a true 18.375 (ss) - 35.965 (ff) uA = 17.6 uA. The rail rows",
+    "     were pinned the same way (V_BNM ff 551.0 / ss 677.5 mV).",
+    "  2. It cannot be re-extracted anyway: no DCOpTB__*.csv was ever committed",
+    "     to data/raw, so a --no-extract regeneration emitted a table of dashes",
+    "     while reporting success (verified 2026-08-25), and a full re-extraction",
+    "     against Interactive.32 would restore the pinned-resistor numbers.",
+    "The published table is the hand-written tab_biasgen_dcop_free.tex, whose",
+    "source is castalia/tb_anatop_bg_startup (simruns/bgladder_20260825/tables/",
+    "bg_startup_matrix.tsv, rows r1u_*, resistor corner moved with the MOS",
+    "corner). That bench is not this bench, so no config here can regenerate it;",
+    "the `superseded` key below makes re-declaring the old table a hard error.",
+    "To publish a GENERATED dcop table again, write a companion config",
+    "(emit_master=false) pointed at a tb_anatop_bg_startup run, drop the name",
+    "from `superseded`, and swap the `order` entry."
+  ],
   "block": "BiasGenCascWideSwing",
+  "superseded": {
+    "tab_biasgen_dcop": "corner definitions pinned the degeneration resistor at typical (cor_res.scs section=tt_res in every corner), so I_DD's corner spread read 0.30 uA against a true 17.6 uA; replaced by the hand-written tab_biasgen_dcop_free.tex from simruns/bgladder_20260825"
+  },
   "tex_root": "include/analog/",
   "nominal_corner": "tt",
   "supply_var": "VDD25",
-  "intro_tex": "\\subsection{Local Wide-Swing Cascode Bias Generator}\\label{ss:biasgen-local}\n\nThe local bias generator (schematic cell \\texttt{anatop\\_biasgen\\_local}, drawn from\n\\texttt{BiasGenCascWideSwing}) is the cell each analog block instantiates to develop\nits own cascode bias rails, as distinct from the single chip-level\n\\texttt{BiasGenCascWideSwingGlobal} that drives the global \\texttt{bn!}/\\texttt{bp!}\nnets. It presents four outputs: the NMOS mirror and cascode gates\n($V_{\\mathrm{BNM}}$, $V_{\\mathrm{BNC}}$) and the PMOS mirror and cascode gates\n($V_{\\mathrm{BPM}}$, $V_{\\mathrm{BPC}}$). These are generated from a resistor-degenerated\nreference core in the wide-swing cascode arrangement, so the cascode gates sit only\none saturation voltage away from the mirror gates and the mirrors keep their output\ndevices in saturation over a wide compliance range. An \\texttt{En} input gates the\ncell, and a start-up branch guarantees it leaves the degenerate zero-current state at\npower-up. A 6-bit trim word, \\texttt{BiasAdj\\textless5:0\\textgreater}, moves the\nreference current so the operating point can be corrected after silicon.\n\nThe characterisation below is from schematic-level simulation (no extracted\nparasitics) of the \\texttt{BiasGenCascWideSwing\\allowbreak\\_tb} testbench, over the process,\ntemperature and supply points of\nTable~\\ref{tab:BiasGenCascWideSwing-corners}. All rail voltages are referred to\n\\texttt{vss!}, and the cell is enabled throughout.\n",
+  "intro_tex": "\\subsection{Local Wide-Swing Cascode Bias Generator}\\label{ss:biasgen-local}\n\nThe local bias generator (schematic cell \\texttt{anatop\\_biasgen\\_local}, drawn from\n\\texttt{BiasGenCascWideSwing}) is the cell each analog block instantiates to develop\nits own cascode bias rails, as distinct from the single chip-level\n\\texttt{BiasGenCascWideSwingGlobal} that drives the global \\texttt{bn!}/\\texttt{bp!}\nnets. It presents four outputs, the NMOS mirror and cascode gates\n($V_{\\mathrm{BNM}}$, $V_{\\mathrm{BNC}}$) and the PMOS mirror and cascode gates\n($V_{\\mathrm{BPM}}$, $V_{\\mathrm{BPC}}$), generated from a resistor-degenerated\nreference core in the wide-swing cascode arrangement, so the cascode gates sit only\none saturation voltage away from the mirror gates and the mirrors keep their output\ndevices in saturation over a wide compliance range. An \\texttt{En} input gates the\ncell, and a start-up branch guarantees it leaves the degenerate zero-current state at\npower-up. A 6-bit trim word, \\texttt{BiasAdj\\textless5:0\\textgreater}, moves the\nreference current so the operating point can be corrected after silicon.\n\nThe characterisation below is from schematic-level simulation (no extracted\nparasitics) of the \\texttt{BiasGenCascWideSwing\\allowbreak\\_tb} testbench, over the process,\ntemperature and supply points of\nTable~\\ref{tab:BiasGenCascWideSwing-corners}. All rail voltages are referred to\n\\texttt{vss!}, and the cell is enabled throughout.\n",
   "corner_table_caption": "Process, temperature and supply points simulated for the local bias generator.",
   "signals": {
     "vbnm": {
@@ -57,9 +94,6 @@
     }
   },
   "tests": {
-    "DCOpTB": {
-      "result": "dcOp"
-    },
     "bg_temp": {
       "result": "dc",
       "xlabel": "Temperature~[\\si{\\celsius}]",
@@ -183,7 +217,7 @@
       ],
       "corners": "all",
       "yprec": 0,
-      "caption": "Trim characteristic: $V_{\\mathrm{BNM}}$ against the \\texttt{BiasAdj} word over all process corners. The bench sweeps the trim word as a continuous variable, so only the six codes 0, 12.6, 25.2, 37.8, 50.4 and 63 are sampled; this is the shape of the trim law, not a per-code characterisation.",
+      "caption": "Trim characteristic: $V_{\\mathrm{BNM}}$ against the \\texttt{BiasAdj} word over all process corners. The bench sweeps the trim word as a continuous variable, so only the six codes 0, 12.6, 25.2, 37.8, 50.4 and 63 are sampled: this is the shape of the trim law, not a per-code characterisation.",
       "width": "0.80\\linewidth",
       "height": "6.0cm"
     },
@@ -230,21 +264,6 @@
     }
   ],
   "tables": [
-    {
-      "id": "biasgen_dcop",
-      "type": "matrix",
-      "test": "DCOpTB",
-      "stat": "value",
-      "signals": [
-        "vbnm",
-        "vbnc",
-        "vbpm",
-        "vbpc",
-        "idd"
-      ],
-      "corners": "all",
-      "caption": "DC operating point of the local bias generator at the nominal trim code (\\texttt{BiasAdj}~=~33), by process corner. The last column is the spread across corners."
-    },
     {
       "id": "biasgen_tempco",
       "type": "matrix",
@@ -339,7 +358,16 @@
     "sch_biasgen_core",
     "sch_biasgen_startup",
     "tab_BiasGenCascWideSwing_corners",
-    "tab_biasgen_dcop",
+    "% The DC operating point comes from the HAND-WRITTEN tab_biasgen_dcop_free.tex,",
+    "% not from this bench.  The generated tab_biasgen_dcop was superseded on",
+    "% 2026-08-25: the imported tsmcN65_typ_* corners carry cor_res.scs",
+    "% section=\"tt_res\" in EVERY corner, pinning the poly resistor that sets the",
+    "% reference current, so its I_DD corner spread read 0.30 uA against a true",
+    "% 18.375 (ss) - 35.965 (ff) uA = 17.6 uA.  The corrected numbers come from",
+    "% castalia/tb_anatop_bg_startup (simruns/bgladder_20260825/tables/",
+    "% bg_startup_matrix.tsv, rows r1u_*), a bench this config cannot read.  See",
+    "% the `superseded` key: regenerating the old table is now a hard error.",
+    "tab_biasgen_dcop_free",
     "fig_biasgen_rails_vs_temp",
     "tab_biasgen_temp_stats",
     "tab_biasgen_tempco",
