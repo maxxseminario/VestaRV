@@ -1,0 +1,1215 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Castalia AFE Rev-2 — Channel Rebuild and Test Fabric</title>
+<style>
+  :root {
+    --bg: #faf9f6; --fg: #1e222a; --muted: #5c6470; --accent: #7a2e2e;
+    --card: #ffffff; --line: #d8d4cc; --code-bg: #f0eee8; --good: #2e6b3f; --bad: #8a4b2e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161b; --fg: #e4e2dc; --muted: #9aa0ab; --accent: #d98c8c;
+      --card: #1c1f26; --line: #333842; --code-bg: #22262e; --good: #7fc294; --bad: #d9a37e;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 16px/1.6 Georgia, 'Times New Roman', serif;
+  }
+  main { max-width: 900px; margin: 0 auto; padding: 3rem 1.5rem 5rem; }
+  h1, h2, h3, h4 { font-family: 'Helvetica Neue', Arial, sans-serif; line-height: 1.2; }
+  h1 { font-size: 1.9rem; margin: 0 0 .25rem; }
+  h2 { font-size: 1.25rem; margin: 2.5rem 0 .75rem; border-bottom: 1px solid var(--line); padding-bottom: .35rem; }
+  h3 { font-size: 1.05rem; margin: 1.5rem 0 .5rem; }
+  h4 { font-size: .95rem; margin: 1.2rem 0 .4rem; color: var(--muted);
+       text-transform: uppercase; letter-spacing: .04em; }
+  .subtitle { color: var(--muted); margin: 0 0 2rem; font-style: italic; }
+  code, .mono { font-family: 'SF Mono', Menlo, Consolas, monospace; font-size: .86em;
+    background: var(--code-bg); padding: .1em .35em; border-radius: 3px; }
+  pre { background: var(--code-bg); border: 1px solid var(--line); border-radius: 6px;
+    padding: .8rem 1rem; overflow-x: auto; font-family: 'SF Mono', Menlo, Consolas, monospace;
+    font-size: .82rem; line-height: 1.45; }
+  pre code { background: none; padding: 0; font-size: 1em; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: .93rem; }
+  th, td { text-align: left; padding: .45rem .7rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: .78rem; text-transform: uppercase;
+    letter-spacing: .05em; color: var(--muted); }
+  .tablewrap { overflow-x: auto; }
+  .callout { background: var(--card); border-left: 4px solid var(--accent); padding: .9rem 1.1rem;
+    margin: 1.25rem 0; border-radius: 0 6px 6px 0; }
+  .callout strong:first-child { color: var(--accent); }
+  .note { background: var(--card); border-left: 4px solid var(--muted); padding: .8rem 1.1rem;
+    margin: 1rem 0; border-radius: 0 6px 6px 0; font-size: .95rem; }
+  .warn { background: var(--card); border-left: 4px solid var(--bad); padding: .8rem 1.1rem;
+    margin: 1rem 0; border-radius: 0 6px 6px 0; font-size: .95rem; }
+  .verdict-keep { color: var(--good); font-weight: 600; }
+  .verdict-drop { color: var(--bad); font-weight: 600; }
+  figure { margin: 1.5rem 0; background: var(--card); border: 1px solid var(--line);
+    border-radius: 8px; padding: 1.25rem; overflow-x: auto; }
+  figcaption { font-size: .85rem; color: var(--muted); margin-top: .75rem;
+    font-family: 'Helvetica Neue', Arial, sans-serif; }
+  svg text { font-family: 'Helvetica Neue', Arial, sans-serif; fill: var(--fg); }
+  svg .lbl-muted { fill: var(--muted); }
+  svg .wire { stroke: var(--fg); stroke-width: 1.4; fill: none; }
+  svg .blockbox { fill: none; stroke: var(--accent); stroke-width: 1.7; }
+  svg .softbox { fill: none; stroke: var(--muted); stroke-width: 1.1; stroke-dasharray: 5 4; }
+  svg .bus { stroke: var(--accent); stroke-width: 2.4; fill: none; }
+  svg .note { font-size: 11px; fill: var(--fg); }
+  ul, ol { padding-left: 1.4rem; }
+  li { margin: .3rem 0; }
+  ol.proc > li { margin: .45rem 0; }
+  .tag { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: .7rem; font-weight: 700;
+    letter-spacing: .05em; padding: .12em .45em; border-radius: 3px; vertical-align: .1em; }
+  .tag-new { background: #2e6b3f; color: #fff; }
+  .tag-del { background: #8a4b2e; color: #fff; }
+  .tag-keep { background: #5c6470; color: #fff; }
+  .footer { margin-top: 3rem; color: var(--muted); font-size: .85rem;
+    border-top: 1px solid var(--line); padding-top: 1rem; }
+  .toc { background: var(--card); border: 1px solid var(--line); border-radius: 8px;
+    padding: .9rem 1.2rem; font-family: 'Helvetica Neue', Arial, sans-serif; font-size: .9rem; }
+  .toc ol { margin: .3rem 0; }
+  .toc ol ol { font-size: .93em; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+
+<h1>Castalia AFE Rev-2 — Channel Rebuild and Test Fabric</h1>
+<p class="subtitle">Schematic-entry manual. Every step names the cell, the instance, the pin and the net. Written to be followed by hand in the Virtuoso GUI, 2026-08-23.</p>
+
+<div class="toc">
+<ol>
+  <li><a href="#state">What exists today, and what to delete</a></li>
+  <li><a href="#tia">Rebuild <code>anatop_tia</code></a></li>
+  <li><a href="#pstat">Rebuild <code>anatop_pstat</code></a></li>
+  <li><a href="#fabric">Build <code>anatop_testmux</code> — the per-channel debug fabric</a></li>
+  <li><a href="#channel">Rebuild <code>anatop_channel</code></a></li>
+  <li><a href="#chip">Chip level — <code>anatop</code>, the shared mux and the two ATB pads</a></li>
+  <li><a href="#verify">Verification after each chapter</a></li>
+  <li><a href="#decisions">Open decisions</a></li>
+  <li><a href="#conflicts">Conflicts found</a></li>
+</ol>
+<div class="note"><b>Sources this guide consolidates and must not contradict:</b>
+<code>~/chips/castalia/CLAUDE.md</code> (architecture, cell inventory, batch traps);
+<code>afe_rev2_debug_mux.html</code> (fabric requirements C1–C5, §11 slot map, register fields);
+<code>afe_rev2_eis_lite.html</code> §4 (the per-site RE buffer);
+the six <code>note_meas_*.tex</code> TRM fragments (the on-chip measurement procedures the fabric
+must serve); and the flat bench <code>castalia/tb_anatop_pixel</code> view <code>CvBvTB</code>,
+which is the proven-good wiring reference for the potentiostat core.</div>
+</div>
+
+<h2 id="state">1 · What exists today, and what to delete</h2>
+
+<p>The four assembled blocks were built in 2026-07 by script and have never been netlisted.
+Read this section before opening anything; the first job in each of chapters 2–5 is deletion.</p>
+
+<h3>1.1 Current contents, read from the OA files</h3>
+
+<div class="tablewrap"><table>
+  <tr><th>Cell</th><th>Pins as drawn</th><th>Instances</th><th>Stored defects</th></tr>
+  <tr>
+    <td><code>anatop_tia</code></td>
+    <td><code>we_sense vcm vout en tia_gain&lt;15:0&gt; lb&lt;5:0&gt; tb&lt;5:0&gt;</code></td>
+    <td><code>I0 → anatop_tiaamp</code> only</td>
+    <td><code>Pin "tia_gain&lt;15:0&gt;": floating output.</code> There is no feedback element of any
+        kind — the cell is an open-loop amplifier.</td>
+  </tr>
+  <tr>
+    <td><code>anatop_pstat</code></td>
+    <td><code>CE RE WE vref vcm vout en tia_gain&lt;15:0&gt; lb&lt;5:0&gt; tb&lt;5:0&gt;</code></td>
+    <td><code>I0 → anatop_controlamp</code>, <code>I1 → anatop_tia</code></td>
+    <td>No <code>bpc!</code> net exists in the cell, so <code>I0</code>'s <code>vbpc</code> terminal is
+        unconnected — the known "stale GUI session ate the stubs" failure.</td>
+  </tr>
+  <tr>
+    <td><code>anatop_channel</code></td>
+    <td><code>CE RE WE vref vcm en tia_gain&lt;15:0&gt; lb&lt;5:0&gt; tb&lt;5:0&gt; adc_clk adc_rst
+        dout&lt;9:0&gt; adc_rdy vdd_25 vdd_10 vss_25 vss_10</code></td>
+    <td><code>I0 → anatop_pstat</code>, <code>I1 → anatop_sar</code>,
+        <code>IBIAS_LOC0 → anatop_biasgen_local</code></td>
+    <td>Four stored errors, quoted verbatim in §5.1.</td>
+  </tr>
+  <tr>
+    <td><code>anatop</code></td>
+    <td>—  (no symbol view)</td>
+    <td><code>I0 → anatop_biasgen</code>, <code>I1/I2 → anatop_dac</code> (vcm, vref),
+        <code>I3…I6 → anatop_channel</code></td>
+    <td>Only <b>one</b> vref DAC, i.e. a shared reference — contradicting the 2026-08-16
+        per-channel-vref decision (§9, item 8).</td>
+  </tr>
+</table></div>
+
+<h3>1.2 What is superseded</h3>
+
+<div class="tablewrap"><table>
+  <tr><th>Delete</th><th>Replace with</th><th>Why</th></tr>
+  <tr><td><code>anatop_controlamp</code> (A1, folded cascode)</td>
+      <td><code>anatop_tia_amp_ab</code></td>
+      <td>The folded cascode sourced 14 µA and sank 3.5 µA; the class-AB cell delivers
+          ±2.2 mA at 50 mV error and 53.27 dB of loop gain at 10 kHz into the cell.</td></tr>
+  <tr><td><code>anatop_tiaamp</code> (A2, <code>bts_pmos</code>)</td>
+      <td><code>anatop_tia_amp_ab</code></td>
+      <td>2/60 full-scale delivery under mismatch, and it is the source of the retired
+          15–38° phase-margin collapse.</td></tr>
+  <tr><td><code>tia_gain&lt;15:0&gt;</code>, <code>lb&lt;5:0&gt;</code>, <code>tb&lt;5:0&gt;</code></td>
+      <td><code>ResEn&lt;5:0&gt;</code>, <code>ThEn&lt;3:0&gt;</code></td>
+      <td>The 16-tap 35 kΩ string was never built. <code>anatop_tia_rprog</code> is built and
+          measured: R = 18 kΩ + 6 kΩ·N, N = 0…319. <code>lb</code>/<code>tb</code> were the
+          <code>bts_pmos</code> lead-compensation and tail trims and have no counterpart in
+          the class-AB cell.</td></tr>
+</table></div>
+
+<h3>1.3 Session hygiene — do this before every editing session</h3>
+<ol class="proc">
+  <li>Confirm <code>ANATOP_CELL</code> and <code>ANATOP_SYM</code> are unset in the launching
+      shell, or <code>castalia_anatop_build.il</code> will auto-build and exit.</li>
+  <li>Launch Virtuoso from <code>~/chips/castalia/ic</code> — <code>cds.lib</code> is resolved from
+      the working directory, and launching from inside a view directory scaffolds a stray library
+      tree there.</li>
+  <li>Delete any <code>sch.oa.cdslck*</code> and <code>sch.oa-</code> files left by an aborted
+      session before opening a cell; they silently block every later save.</li>
+  <li>Use a fresh Virtuoso session per chapter. Re-running edits in a stale session drops
+      individual terminals without an error.</li>
+  <li>After any wire or label edit, run <b>Check and Save</b> (not Save). Connectivity is
+      re-extracted by the checker; a bare save keeps the old instTerm-to-net binding.</li>
+  <li>Never write into <code>~/chips/myshkin/ic</code> or through a Castalia symlink into it.</li>
+</ol>
+
+<h2 id="tia">2 · Rebuild <code>anatop_tia</code></h2>
+
+<p>Target: the A2 transimpedance stage of the <code>CvBvTB</code> topology, in hierarchical form —
+class-AB amplifier, programmable feedback resistor, two 500 fF compensation capacitors.</p>
+
+<h3>2.1 Pin list</h3>
+
+<div class="tablewrap"><table>
+  <tr><th>Pin</th><th>Type</th><th>Domain</th><th>Carries</th></tr>
+  <tr><td><code>we_sense</code></td><td>inputOutput</td><td>2.5 V analog</td>
+      <td>A2 inverting input = summing node; <code>B</code> terminal of the feedback ladder</td></tr>
+  <tr><td><code>vout</code></td><td>output</td><td>2.5 V analog</td>
+      <td>A2 output; <code>A</code> terminal of the feedback ladder</td></tr>
+  <tr><td><code>vcm</code></td><td>input</td><td>2.5 V analog</td><td>A2 non-inverting reference</td></tr>
+  <tr><td><code>en</code></td><td>input</td><td>2.5 V logic</td><td>A2 <code>En</code></td></tr>
+  <tr><td><code>ResEn&lt;5:0&gt;</code></td><td>input</td><td>2.5 V logic</td>
+      <td>binary segment select, active high = segment inserted</td></tr>
+  <tr><td><code>ThEn&lt;3:0&gt;</code></td><td>input</td><td>2.5 V logic</td>
+      <td>thermometer segment select, 64 units each, active high = inserted</td></tr>
+</table></div>
+
+<p><b>No bias or supply pins.</b> <code>anatop_tia_amp_ab</code> and <code>anatop_tia_rprog</code>
+carry their bias and supplies as inherited connections
+(<code>inh_bn inh_bnc inh_bp inh_bpc inh_vdd inh_vdd_sub inh_vss inh_vss_sub</code>) which resolve to
+the globals <code>bn! bnc! bp! bpc! vdd! vss!</code>. That is exactly what the
+<code>CvBvTB</code> netlist does. Do not add pins for them.</p>
+
+<h3>2.2 Procedure</h3>
+<ol class="proc">
+  <li>Open <code>castalia/anatop_tia</code> view <code>schematic</code> for edit.</li>
+  <li>Select all and delete. The cell keeps only its cellview identity.</li>
+  <li>Place <code>castalia/anatop_tia_amp_ab</code> at the origin; name the instance
+      <code>A2</code>.</li>
+  <li>Place <code>castalia/anatop_tia_rprog</code> above <code>A2</code>; name it
+      <code>R_F</code>.</li>
+  <li>Place two <code>analogLib/cap</code> instances; name them <code>C_CMP1</code> and
+      <code>C_CMP2</code>; set <code>c = 500f</code> on both.</li>
+  <li>Draw the pins of §2.1 with <b>Create → Pin</b>, using the exact names and directions in that
+      table. Enter buses as <code>ResEn&lt;5:0&gt;</code> and <code>ThEn&lt;3:0&gt;</code>, one pin
+      figure each.</li>
+  <li>Wire per §2.3. Label every wire; an unlabelled stub that merely touches a pin figure is not
+      connectivity.</li>
+  <li>Run <b>Check and Save</b>. Required result: 0 errors, 0 warnings.</li>
+  <li>Regenerate the symbol from the schematic
+      (<code>schSchemToPinList</code> → <code>schPinListToSymbol</code>), then confirm
+      <code>symbol.oa</code> exists on disk with
+      <code>ddGetObj("castalia" "anatop_tia" "symbol" "symbol.oa")</code>. Do not trust the return
+      value of the generator alone.</li>
+</ol>
+
+<h3>2.3 Connection table</h3>
+
+<div class="tablewrap"><table>
+  <tr><th>Instance</th><th>Master</th><th>Pin</th><th>Net</th></tr>
+  <tr><td rowspan="6"><code>A2</code></td><td rowspan="6"><code>anatop_tia_amp_ab</code></td>
+      <td><code>InM</code></td><td><code>we_sense</code></td></tr>
+  <tr><td><code>InP</code></td><td><code>vcm</code></td></tr>
+  <tr><td><code>Out</code></td><td><code>vout</code></td></tr>
+  <tr><td><code>En</code></td><td><code>en</code></td></tr>
+  <tr><td><code>C1</code></td><td><code>cc1</code></td></tr>
+  <tr><td><code>C2</code></td><td><code>cc2</code></td></tr>
+  <tr><td rowspan="4"><code>R_F</code></td><td rowspan="4"><code>anatop_tia_rprog</code></td>
+      <td><code>A</code></td><td><code>vout</code></td></tr>
+  <tr><td><code>B</code></td><td><code>we_sense</code></td></tr>
+  <tr><td><code>ResEn&lt;5:0&gt;</code></td><td><code>ResEn&lt;5:0&gt;</code></td></tr>
+  <tr><td><code>ThEn&lt;3:0&gt;</code></td><td><code>ThEn&lt;3:0&gt;</code></td></tr>
+  <tr><td><code>C_CMP1</code></td><td><code>analogLib/cap 500f</code></td>
+      <td><code>PLUS</code> / <code>MINUS</code></td><td><code>cc1</code> / <code>vout</code></td></tr>
+  <tr><td><code>C_CMP2</code></td><td><code>analogLib/cap 500f</code></td>
+      <td><code>PLUS</code> / <code>MINUS</code></td><td><code>cc2</code> / <code>vout</code></td></tr>
+</table></div>
+
+<div class="note"><b>Orientation of A2's inputs.</b> <code>InM</code> is the summing node and
+<code>InP</code> is <code>vcm</code>. The pixel bench was drawn the other way round once
+(<code>TIAAMP</code> placed mirrored) and the swap was only found in simulation. Verify by reading
+the instTerm-to-net binding after Check and Save, not by looking at the placement.</div>
+
+<div class="note"><b>Direction of the compensation caps.</b> Both capacitors run from the
+amplifier's own compensation taps to the amplifier's own output — <code>C1→Out</code> and
+<code>C2→Out</code> — not to ground and not to each other. This is the arrangement measured at
+PM 89.3–93.3° over the whole electrode grid.</div>
+
+<h3>2.4 Gain codes to know while wiring</h3>
+
+<div class="tablewrap"><table>
+  <tr><th>N</th><th><code>ResEn&lt;5:0&gt;</code></th><th><code>ThEn&lt;3:0&gt;</code></th>
+      <th>R nominal</th><th>Full scale</th><th>LSB</th></tr>
+  <tr><td>0</td><td><code>000000</code></td><td><code>0000</code></td><td>18 kΩ</td>
+      <td>±40.7 µA</td><td>79.5 nA</td></tr>
+  <tr><td>3</td><td><code>000011</code></td><td><code>0000</code></td><td>36 kΩ</td>
+      <td>±22.2 µA</td><td>43.4 nA</td></tr>
+  <tr><td>63</td><td><code>111111</code></td><td><code>0000</code></td><td>396 kΩ</td>
+      <td>±2.02 µA</td><td>4.02 nA</td></tr>
+  <tr><td>319</td><td><code>111111</code></td><td><code>1111</code></td><td>1.932 MΩ</td>
+      <td>±0.414 µA</td><td>0.824 nA</td></tr>
+</table></div>
+
+<p>N = binary(<code>ResEn&lt;5:0&gt;</code>) + 64·popcount(<code>ThEn&lt;3:0&gt;</code>). Code 3 is
+the nearest available code to the 35 kΩ ideal resistor used in the reference bench and is what
+chapter 7 compares against.</p>
+
+<h2 id="pstat">3 · Rebuild <code>anatop_pstat</code></h2>
+
+<p>Target: the whole <code>CvBvTB</code> loop in hierarchical form, plus the C1/C2/C4 fabric
+hardware and the per-site RE buffer. Everything that touches an electrode node lives here, next to
+the node, rather than in the mux block.</p>
+
+<figure>
+<svg viewBox="0 0 860 340" width="860" height="340" role="img" aria-label="Rebuilt anatop_pstat block diagram">
+  <!-- A1 -->
+  <polygon class="blockbox" points="120,60 120,120 178,90"/>
+  <text x="130" y="95" font-size="13">A1</text>
+  <text x="112" y="72" font-size="11" text-anchor="end">vref</text>
+  <line class="wire" x1="80" y1="68" x2="120" y2="68"/>
+  <text x="112" y="116" font-size="11" text-anchor="end">re_amp</text>
+  <line class="wire" x1="60" y1="112" x2="120" y2="112"/>
+  <!-- ce_amp -->
+  <line class="wire" x1="178" y1="90" x2="250" y2="90"/>
+  <text x="196" y="82" font-size="11">ce_amp</text>
+  <!-- SW_CE -->
+  <rect class="blockbox" x="250" y="80" width="34" height="20"/>
+  <text x="267" y="94" font-size="9" text-anchor="middle">iso_ce</text>
+  <line class="wire" x1="284" y1="90" x2="345" y2="90"/>
+  <text x="300" y="82" font-size="11">CE</text>
+  <!-- cell -->
+  <rect class="softbox" x="345" y="45" width="120" height="180" rx="8"/>
+  <text x="405" y="38" font-size="11" class="lbl-muted">electrode</text>
+  <!-- RE tap -->
+  <line class="wire" x1="405" y1="150" x2="405" y2="255"/>
+  <line class="wire" x1="405" y1="255" x2="200" y2="255"/>
+  <text x="330" y="268" font-size="11">re_pad (RE)</text>
+  <!-- SW_RE -->
+  <rect class="blockbox" x="166" y="245" width="34" height="20"/>
+  <text x="183" y="259" font-size="9" text-anchor="middle">iso_re</text>
+  <line class="wire" x1="166" y1="255" x2="60" y2="255"/>
+  <line class="wire" x1="60" y1="255" x2="60" y2="112"/>
+  <!-- loopback -->
+  <line class="wire" x1="214" y1="90" x2="214" y2="190"/>
+  <rect class="blockbox" x="100" y="180" width="34" height="20"/>
+  <text x="117" y="194" font-size="9" text-anchor="middle">lb_en</text>
+  <line class="wire" x1="214" y1="190" x2="134" y2="190"/>
+  <line class="wire" x1="100" y1="190" x2="60" y2="190"/>
+  <!-- RE buffer -->
+  <polygon class="blockbox" points="250,280 250,320 288,300"/>
+  <text x="257" y="304" font-size="10">BUF</text>
+  <line class="wire" x1="230" y1="300" x2="250" y2="300"/>
+  <line class="wire" x1="230" y1="255" x2="230" y2="300"/>
+  <line class="wire" x1="288" y1="300" x2="330" y2="300"/>
+  <text x="296" y="294" font-size="10">t_re_buf</text>
+  <!-- WE -->
+  <line class="wire" x1="465" y1="150" x2="530" y2="150"/>
+  <text x="478" y="142" font-size="11">WE</text>
+  <rect class="blockbox" x="530" y="140" width="34" height="20"/>
+  <text x="547" y="154" font-size="9" text-anchor="middle">iso_we</text>
+  <line class="wire" x1="564" y1="150" x2="640" y2="150"/>
+  <text x="578" y="142" font-size="11">we_sum</text>
+  <!-- A2 -->
+  <polygon class="blockbox" points="640,120 640,180 700,150"/>
+  <text x="650" y="155" font-size="13">A2</text>
+  <text x="634" y="176" font-size="11" text-anchor="end">vcm</text>
+  <line class="wire" x1="600" y1="172" x2="640" y2="172"/>
+  <!-- Rf -->
+  <line class="wire" x1="612" y1="150" x2="612" y2="100"/>
+  <rect class="blockbox" x="630" y="90" width="80" height="18"/>
+  <text x="670" y="83" font-size="10" text-anchor="middle">R_F  anatop_tia_rprog</text>
+  <line class="wire" x1="612" y1="100" x2="630" y2="100"/>
+  <line class="wire" x1="710" y1="100" x2="742" y2="100"/>
+  <line class="wire" x1="742" y1="100" x2="742" y2="150"/>
+  <line class="wire" x1="700" y1="150" x2="800" y2="150"/>
+  <text x="754" y="142" font-size="11">vout</text>
+  <!-- Rcal -->
+  <line class="wire" x1="214" y1="90" x2="214" y2="30"/>
+  <line class="wire" x1="214" y1="30" x2="560" y2="30"/>
+  <rect class="blockbox" x="330" y="20" width="88" height="18"/>
+  <text x="374" y="14" font-size="10" text-anchor="middle">R_CAL (fixed code)</text>
+  <rect class="blockbox" x="470" y="20" width="40" height="18"/>
+  <text x="490" y="33" font-size="9" text-anchor="middle">rcal_en</text>
+  <line class="wire" x1="560" y1="30" x2="560" y2="150"/>
+  <text x="70" y="330" class="lbl-muted" font-size="11">Dashed box = off-chip electrode. Switch boxes are T-gates; the label is the enable net.</text>
+</svg>
+<figcaption>The rebuilt <code>anatop_pstat</code>. A1 and A2 are both <code>anatop_tia_amp_ab</code>;
+the loop is the <code>CvBvTB</code> topology unchanged. Everything else is fabric: three series
+isolation T-gates (C1) splitting each electrode node into an amplifier side and a pad side, the
+unity loopback around A1 (C2), the on-chip gain reference resistor from <code>ce_amp</code> to
+<code>we_sum</code> behind its own switch (C4), and the RE buffer, whose input is on the
+<em>electrode</em> side of <code>iso_re</code> so it still observes RE when the loop is opened for
+the loopback measurement.</figcaption>
+</figure>
+
+<h3>3.1 Pin list</h3>
+
+<div class="tablewrap"><table>
+  <tr><th>Pin</th><th>Type</th><th>Domain</th><th>Function</th><th>Reset</th></tr>
+  <tr><td><code>CE</code></td><td>inputOutput</td><td>2.5 V analog</td><td>counter electrode pad net</td><td>—</td></tr>
+  <tr><td><code>RE</code></td><td>inputOutput</td><td>2.5 V analog</td><td>reference electrode pad net</td><td>—</td></tr>
+  <tr><td><code>WE</code></td><td>inputOutput</td><td>2.5 V analog</td><td>working electrode pad net</td><td>—</td></tr>
+  <tr><td><code>vref</code></td><td>input</td><td>2.5 V analog</td><td>A1 non-inverting reference, post-isolation</td><td>—</td></tr>
+  <tr><td><code>vcm</code></td><td>input</td><td>2.5 V analog</td><td>A2 reference and guard clamp level</td><td>—</td></tr>
+  <tr><td><code>vout</code></td><td>output</td><td>2.5 V analog</td><td>transimpedance output to the ADC mux</td><td>—</td></tr>
+  <tr><td><code>t_vout</code></td><td>output</td><td>2.5 V analog</td><td>slot 4 tap, behind 1 kΩ</td><td>—</td></tr>
+  <tr><td><code>t_ce_amp</code></td><td>output</td><td>2.5 V analog</td><td>slot 5 tap, behind 1 kΩ</td><td>—</td></tr>
+  <tr><td><code>t_re_buf</code></td><td>output</td><td>2.5 V analog</td><td>slot 6 tap, RE buffer output</td><td>—</td></tr>
+  <tr><td><code>t_we_sum</code></td><td>output</td><td>2.5 V analog</td><td>slot 7 tap, behind the double guard</td><td>—</td></tr>
+  <tr><td><code>t_we_pad</code></td><td>output</td><td>2.5 V analog</td><td>slot 8 tap, behind a single guard</td><td>—</td></tr>
+  <tr><td><code>en</code></td><td>input</td><td>2.5 V logic</td><td>A1 and A2 enable</td><td>0</td></tr>
+  <tr><td><code>ResEn&lt;5:0&gt;</code></td><td>input</td><td>2.5 V logic</td><td>feedback gain code, binary segments</td><td>0</td></tr>
+  <tr><td><code>ThEn&lt;3:0&gt;</code></td><td>input</td><td>2.5 V logic</td><td>feedback gain code, thermometer segments</td><td>0</td></tr>
+  <tr><td><code>iso_ce</code></td><td>input</td><td>2.5 V logic</td><td>C1 — close the CE path</td><td>0 (open)</td></tr>
+  <tr><td><code>iso_re</code></td><td>input</td><td>2.5 V logic</td><td>C1 — close the RE path</td><td>0 (open)</td></tr>
+  <tr><td><code>iso_we</code></td><td>input</td><td>2.5 V logic</td><td>C1 — close the WE path</td><td>0 (open)</td></tr>
+  <tr><td><code>lb_en</code></td><td>input</td><td>2.5 V logic</td><td>C2 — close the A1 unity loopback</td><td>0</td></tr>
+  <tr><td><code>rcal_en</code></td><td>input</td><td>2.5 V logic</td><td>C4 — insert the gain reference resistor</td><td>0</td></tr>
+  <tr><td><code>buf_en</code></td><td>input</td><td>2.5 V logic</td><td>power the RE buffer</td><td>0</td></tr>
+  <tr><td><code>guard_en</code></td><td>input</td><td>2.5 V logic</td><td>open the slot 7/8 series guards; drive from the granted <code>AFE_DBGEN</code></td><td>0</td></tr>
+</table></div>
+
+<p>Bias and supplies are the globals <code>bn! bnc! bp! bpc! vdd! vss!</code> through inherited
+connections. No pins.</p>
+
+<div class="callout"><strong>Reset state of the isolation switches is OPEN.</strong> This is a
+medical device with electrodes on a patient. Out of reset the three C1 switches present no path
+from any amplifier to any electrode; firmware closes them as part of channel start-up. The debug
+fabric's own reset-all-open rule (<code>AFE_DBGOWNSEL</code> = 0, <code>guard_en</code> = 0) is
+the same rule applied to the observation side.</div>
+
+<h3>3.2 Procedure</h3>
+<ol class="proc">
+  <li>Open <code>castalia/anatop_pstat</code> view <code>schematic</code> for edit.</li>
+  <li>Select all and delete. In particular this removes <code>I0 → anatop_controlamp</code> and
+      the incomplete bias stubs that left <code>vbpc</code> floating.</li>
+  <li>Place <code>castalia/anatop_tia_amp_ab</code>; name it <code>A1</code>.</li>
+  <li>Place two <code>analogLib/cap</code>, <code>c = 500f</code>; name them
+      <code>C_CMP1_CTRL</code> and <code>C_CMP2_CTRL</code>.</li>
+  <li>Place the rebuilt <code>castalia/anatop_tia</code>; name it <code>I_TIA</code>.</li>
+  <li>Place <code>castalia/anatop_tgate_p16</code> twice; name them <code>SW_CE</code> and
+      <code>SW_WE</code>. These two carry the cell current; everything else here is
+      minimum strength.</li>
+  <li>Place <code>castalia/anatop_tgate</code> seven times; name them <code>SW_RE</code>,
+      <code>SW_LB</code>, <code>SW_CAL</code>, <code>SW_G1</code>, <code>SW_G2</code>,
+      <code>SW_G3</code> and <code>SW_GC</code> (the mid-node clamp).</li>
+  <li>Place <code>castalia/anatop_inv</code>; name it <code>INV_G</code>. It generates
+      <code>guard_enb</code> locally, because <code>anatop_tgate</code> takes an active-high
+      <code>En</code> and the clamp must close when the guard opens.</li>
+  <li>Place <code>castalia/anatop_tia_rprog</code>; name it <code>R_CAL</code>.</li>
+  <li>Place <code>castalia/anatop_eis_ota_p</code>; name it <code>BUF_RE</code>.</li>
+  <li>Place two <code>tsmcN65/rppolywo</code>; name them <code>R_TVO</code> and
+      <code>R_TCE</code>; set both to 1 kΩ (see §8, decision D-5, before committing the value).</li>
+  <li>Draw the pins of §3.1.</li>
+  <li>Wire per §3.3, then tie <code>R_CAL</code>'s code bits per §3.4.</li>
+  <li>Run <b>Check and Save</b>. Required: 0 errors, 0 warnings, and no floating-pin warning on
+      any of the eleven control pins.</li>
+  <li>Regenerate the symbol and confirm <code>symbol.oa</code> on disk.</li>
+</ol>
+
+<h3>3.3 Connection table</h3>
+
+<div class="tablewrap"><table>
+  <tr><th>Instance</th><th>Master</th><th>Pin → Net</th></tr>
+  <tr><td><code>A1</code></td><td><code>anatop_tia_amp_ab</code></td>
+      <td><code>InP→vref</code>, <code>InM→re_amp</code>, <code>Out→ce_amp</code>,
+          <code>En→en</code>, <code>C1→cc1_a1</code>, <code>C2→cc2_a1</code></td></tr>
+  <tr><td><code>C_CMP1_CTRL</code></td><td><code>analogLib/cap 500f</code></td>
+      <td><code>PLUS→cc1_a1</code>, <code>MINUS→ce_amp</code></td></tr>
+  <tr><td><code>C_CMP2_CTRL</code></td><td><code>analogLib/cap 500f</code></td>
+      <td><code>PLUS→cc2_a1</code>, <code>MINUS→ce_amp</code></td></tr>
+  <tr><td><code>I_TIA</code></td><td><code>anatop_tia</code></td>
+      <td><code>we_sense→we_sum</code>, <code>vout→vout</code>, <code>vcm→vcm</code>,
+          <code>en→en</code>, <code>ResEn&lt;5:0&gt;→ResEn&lt;5:0&gt;</code>,
+          <code>ThEn&lt;3:0&gt;→ThEn&lt;3:0&gt;</code></td></tr>
+  <tr><td><code>SW_CE</code></td><td><code>anatop_tgate_p16</code></td>
+      <td><code>A→ce_amp</code>, <code>B→CE</code>, <code>En→iso_ce</code></td></tr>
+  <tr><td><code>SW_RE</code></td><td><code>anatop_tgate</code></td>
+      <td><code>A→RE</code>, <code>B→re_amp</code>, <code>En→iso_re</code></td></tr>
+  <tr><td><code>SW_WE</code></td><td><code>anatop_tgate_p16</code></td>
+      <td><code>A→WE</code>, <code>B→we_sum</code>, <code>En→iso_we</code></td></tr>
+  <tr><td><code>SW_LB</code></td><td><code>anatop_tgate</code></td>
+      <td><code>A→ce_amp</code>, <code>B→re_amp</code>, <code>En→lb_en</code></td></tr>
+  <tr><td><code>R_CAL</code></td><td><code>anatop_tia_rprog</code></td>
+      <td><code>A→ce_amp</code>, <code>B→rcal_x</code>, code bits per §3.4</td></tr>
+  <tr><td><code>SW_CAL</code></td><td><code>anatop_tgate</code></td>
+      <td><code>A→rcal_x</code>, <code>B→we_sum</code>, <code>En→rcal_en</code></td></tr>
+  <tr><td><code>BUF_RE</code></td><td><code>anatop_eis_ota_p</code></td>
+      <td><code>VInP→RE</code>, <code>VInM→t_re_buf</code>, <code>VOut→t_re_buf</code>,
+          <code>En→buf_en</code></td></tr>
+  <tr><td><code>R_TVO</code></td><td><code>tsmcN65/rppolywo</code></td>
+      <td><code>PLUS→vout</code>, <code>MINUS→t_vout</code></td></tr>
+  <tr><td><code>R_TCE</code></td><td><code>tsmcN65/rppolywo</code></td>
+      <td><code>PLUS→ce_amp</code>, <code>MINUS→t_ce_amp</code></td></tr>
+  <tr><td><code>SW_G1</code></td><td><code>anatop_tgate</code></td>
+      <td><code>A→we_sum</code>, <code>B→we_g</code>, <code>En→guard_en</code></td></tr>
+  <tr><td><code>SW_G2</code></td><td><code>anatop_tgate</code></td>
+      <td><code>A→we_g</code>, <code>B→t_we_sum</code>, <code>En→guard_en</code></td></tr>
+  <tr><td><code>SW_GC</code></td><td><code>anatop_tgate</code></td>
+      <td><code>A→we_g</code>, <code>B→vcm</code>, <code>En→guard_enb</code></td></tr>
+  <tr><td><code>SW_G3</code></td><td><code>anatop_tgate</code></td>
+      <td><code>A→WE</code>, <code>B→t_we_pad</code>, <code>En→guard_en</code></td></tr>
+  <tr><td><code>INV_G</code></td><td><code>anatop_inv</code></td>
+      <td><code>A→guard_en</code>, <code>Y→guard_enb</code></td></tr>
+</table></div>
+
+<div class="note"><b>The RE buffer input is on the electrode side.</b>
+<code>BUF_RE.VInP</code> connects to <code>RE</code>, not to <code>re_amp</code>. The A1 offset
+measurement (<code>note_meas_ampab</code> step 1) opens <code>iso_re</code> and closes
+<code>lb_en</code>; with the buffer on the amplifier side it would then report the loopback voltage
+instead of the electrode, and the measurement would be circular.</div>
+
+<div class="note"><b>Switch sizing per path.</b> <code>SW_WE</code> and <code>SW_CE</code> carry
+the cell current and use <code>anatop_tgate_p16</code>; their R<sub>on</sub> drop is a potential
+error at the electrode, not a current error, because the current still passes through R<sub>f</sub>
+by KCL. <code>SW_RE</code> carries no current and uses minimum-strength
+<code>anatop_tgate</code>, because off-state leakage on a reference electrode is the spec driver.
+See §8 decision D-2 for the R<sub>on</sub> target.</div>
+
+<h3>3.4 The on-chip gain reference resistor (C4)</h3>
+
+<p><code>R_CAL</code> is a second instance of <code>anatop_tia_rprog</code> with its code bus tied
+to a constant. This costs no new cell, guarantees the same unit device
+(<code>rppolywo</code>, w = 400 n, l = 2.71 µ) as the feedback ladder so sheet resistance cancels
+exactly, and leaves only matching — 0.04–0.36 %.</p>
+
+<ol class="proc">
+  <li>Tie <code>R_CAL.ThEn&lt;3&gt;</code> and <code>ThEn&lt;2&gt;</code> to <code>vss!</code>.</li>
+  <li>Tie <code>R_CAL.ThEn&lt;1&gt;</code> and <code>ThEn&lt;0&gt;</code> to <code>vdd!</code>.</li>
+  <li>Tie <code>R_CAL.ResEn&lt;5&gt;</code> to <code>vdd!</code>.</li>
+  <li>Tie <code>R_CAL.ResEn&lt;4:0&gt;</code> to <code>vss!</code>.</li>
+</ol>
+
+<p>That is N = 128 + 32 = 160, R<sub>cal</sub> = 978 kΩ nominal. Calibration takes two vref codes
+with A1 in loopback: I<sub>cal</sub> = Δvref / R<sub>cal</sub>, Δvout = I<sub>cal</sub>·R<sub>f</sub>,
+so the measured quantity is the ratio R<sub>f</sub>/R<sub>cal</sub> and the ±35 % sheet tolerance
+cancels. Δvref is scaled per gain code so the output never rails: 2.4 V at N = 0, 0.4 V at N = 319.</p>
+
+<h3>3.5 Fabric operating modes this cell now supports</h3>
+
+<div class="tablewrap"><table>
+  <tr><th>Mode</th><th><code>iso_ce</code></th><th><code>iso_re</code></th><th><code>iso_we</code></th>
+      <th><code>lb_en</code></th><th><code>rcal_en</code></th><th>Serves</th></tr>
+  <tr><td>Normal acquisition</td><td>1</td><td>1</td><td>1</td><td>0</td><td>0</td>
+      <td>everything in the TRM pixel section</td></tr>
+  <tr><td>A1 offset loopback</td><td>0</td><td>0</td><td>1</td><td>1</td><td>0</td>
+      <td><code>note_meas_ampab</code> 1–3</td></tr>
+  <tr><td>Zero-current per gain code</td><td>1</td><td>1</td><td>0</td><td>0</td><td>0</td>
+      <td><code>note_meas_pixel</code> 5, <code>note_meas_ampab</code> 4</td></tr>
+  <tr><td>Forced-current gain anchor</td><td>0</td><td>0</td><td>1</td><td>0</td><td>0</td>
+      <td><code>note_meas_tiarprog</code> 1–3 (SMU at the WE pad, no cell)</td></tr>
+  <tr><td>On-chip gain refresh</td><td>0</td><td>0</td><td>0</td><td>1</td><td>1</td>
+      <td><code>note_meas_tiarprog</code> 4</td></tr>
+</table></div>
+
+<h2 id="fabric">4 · Build <code>anatop_testmux</code> — the per-channel debug fabric</h2>
+
+<p>New cell, one per site. It is a pure observation mux: the 16:1 tree, its level shifters, and the
+grant switch onto the ATB bus. Every series guard, series resistor and isolation switch already sits
+in <code>anatop_pstat</code>, next to the node it protects.</p>
+
+<h3>4.1 Pin list</h3>
+
+<div class="tablewrap"><table>
+  <tr><th>Pin</th><th>Type</th><th>Domain</th><th>Function</th></tr>
+  <tr><td><code>atb</code></td><td>inputOutput</td><td>2.5 V analog</td>
+      <td>shared analog test bus; high-Z unless <code>DbgEn</code> is 1</td></tr>
+  <tr><td><code>vssa</code></td><td>input</td><td>2.5 V analog</td><td>slot 0, reset park, and the tie-off for slots 12–15</td></tr>
+  <tr><td><code>vdda</code></td><td>input</td><td>2.5 V analog</td><td>slot 1</td></tr>
+  <tr><td><code>vref</code></td><td>input</td><td>2.5 V analog</td><td>slot 2, post-isolation local vref</td></tr>
+  <tr><td><code>vcm_ch</code></td><td>input</td><td>2.5 V analog</td><td>slot 3</td></tr>
+  <tr><td><code>t_vout</code></td><td>input</td><td>2.5 V analog</td><td>slot 4</td></tr>
+  <tr><td><code>t_ce_amp</code></td><td>input</td><td>2.5 V analog</td><td>slot 5</td></tr>
+  <tr><td><code>t_re_buf</code></td><td>input</td><td>2.5 V analog</td><td>slot 6</td></tr>
+  <tr><td><code>t_we_sum</code></td><td>input</td><td>2.5 V analog</td><td>slot 7</td></tr>
+  <tr><td><code>t_we_pad</code></td><td>input</td><td>2.5 V analog</td><td>slot 8</td></tr>
+  <tr><td><code>adc_in</code></td><td>input</td><td>2.5 V analog</td><td>slot 9</td></tr>
+  <tr><td><code>vbn_ch</code></td><td>input</td><td>2.5 V analog</td><td>slot 10</td></tr>
+  <tr><td><code>vbp_ch</code></td><td>input</td><td>2.5 V analog</td><td>slot 11</td></tr>
+  <tr><td><code>Sel&lt;3:0&gt;</code></td><td>input</td><td>1.0 V logic</td><td><code>AFE_DBGSEL</code></td></tr>
+  <tr><td><code>DbgEn</code></td><td>input</td><td>1.0 V logic</td><td><code>AFE_DBGEN</code> already ANDed with the chip-level grant in RTL</td></tr>
+  <tr><td><code>vdd_10</code></td><td>inputOutput</td><td>1.0 V supply</td><td>level-shifter input side</td></tr>
+  <tr><td><code>vss_10</code></td><td>inputOutput</td><td>1.0 V ground</td><td>level-shifter input side</td></tr>
+</table></div>
+
+<p>The 2.5 V side of the level shifter is wired to the globals <code>vdd!</code> and
+<code>vss!</code> inside the cell; no 2.5 V supply pins.</p>
+
+<h3>4.2 Procedure</h3>
+<ol class="proc">
+  <li>Create <code>castalia/anatop_testmux</code>, view <code>schematic</code>.</li>
+  <li>Place <code>castalia/anatop_amux_16</code>; name it <code>MUX</code>.</li>
+  <li>Place <code>castalia/anatop_lvl_d10a25_x6</code>; name it <code>LVL</code>.</li>
+  <li>Place <code>castalia/anatop_tgate</code>; name it <code>SW_GRANT</code>.</li>
+  <li>Draw the pins of §4.1.</li>
+  <li>Wire <code>LVL</code>: <code>A&lt;0&gt;→Sel&lt;0&gt;</code>,
+      <code>A&lt;1&gt;→Sel&lt;1&gt;</code>, <code>A&lt;2&gt;→Sel&lt;2&gt;</code>,
+      <code>A&lt;3&gt;→Sel&lt;3&gt;</code>, <code>A&lt;4&gt;→DbgEn</code>,
+      <code>A&lt;5&gt;→vss_10</code>;
+      <code>Y&lt;3:0&gt;→sel25&lt;3:0&gt;</code>, <code>Y&lt;4&gt;→dbgen25</code>,
+      <code>Y&lt;5&gt;</code> left open;
+      <code>Vdd10→vdd_10</code>, <code>Gnd10→vss_10</code>, <code>Vdd25→vdd!</code>,
+      <code>Gnd25→vss!</code>.</li>
+  <li>Wire <code>MUX.Sel&lt;3:0&gt;→sel25&lt;3:0&gt;</code> and
+      <code>MUX.Y→mux_y</code>.</li>
+  <li>Wire <code>MUX.A&lt;0:15&gt;</code> exactly per the slot table of §4.3. Draw sixteen
+      individual wires, not a bus — the slot assignments are not contiguous with any pin bus.</li>
+  <li>Wire <code>SW_GRANT</code>: <code>A→mux_y</code>, <code>B→atb</code>,
+      <code>En→dbgen25</code>.</li>
+  <li>Run <b>Check and Save</b> (0/0) and generate the symbol.</li>
+</ol>
+
+<h3>4.3 Slot table — <code>AFE_DBGSEL[3:0]</code>, ×4 identical</h3>
+
+<p>The select is straight binary and needs no decode: <code>AFE_DBGSEL</code> = n selects
+<code>A&lt;n&gt;</code>.</p>
+
+<div class="tablewrap"><table>
+  <tr><th>Slot</th><th><code>MUX</code> pin</th><th>Net in <code>anatop_testmux</code></th>
+      <th>Origin in <code>anatop_pstat</code> / <code>anatop_channel</code></th>
+      <th>Series guard or buffer</th><th>Pad</th></tr>
+  <tr><td>0</td><td><code>A&lt;0&gt;</code></td><td><code>vssa</code></td>
+      <td>channel <code>vss_25</code></td><td>none</td><td>either</td></tr>
+  <tr><td>1</td><td><code>A&lt;1&gt;</code></td><td><code>vdda</code></td>
+      <td>channel <code>vdd_25</code></td><td>none</td><td>either</td></tr>
+  <tr><td>2</td><td><code>A&lt;2&gt;</code></td><td><code>vref</code></td>
+      <td><code>vref_loc</code>, downstream of <code>SW_VREFISO</code></td>
+      <td>DAC isolation T-gate upstream (<code>AFE_DBGISOEN</code>)</td><td><code>atb_d</code></td></tr>
+  <tr><td>3</td><td><code>A&lt;3&gt;</code></td><td><code>vcm_ch</code></td>
+      <td>channel <code>vcm</code> distribution</td><td>none</td><td><code>atb_d</code></td></tr>
+  <tr><td>4</td><td><code>A&lt;4&gt;</code></td><td><code>t_vout</code></td>
+      <td><code>vout</code> through <code>R_TVO</code></td><td>1 kΩ <code>rppolywo</code></td><td><code>atb_d</code></td></tr>
+  <tr><td>5</td><td><code>A&lt;5&gt;</code></td><td><code>t_ce_amp</code></td>
+      <td><code>ce_amp</code> through <code>R_TCE</code>, inboard of <code>SW_CE</code></td>
+      <td>1 kΩ <code>rppolywo</code></td><td><code>atb_d</code></td></tr>
+  <tr><td>6</td><td><code>A&lt;6&gt;</code></td><td><code>t_re_buf</code></td>
+      <td><code>BUF_RE.VOut</code></td><td>buffered at source (<code>anatop_eis_ota_p</code>)</td>
+      <td><code>atb_d</code> — reading it on <code>atb_o</code> stacks two buffer offsets</td></tr>
+  <tr><td>7</td><td><code>A&lt;7&gt;</code></td><td><code>t_we_sum</code></td>
+      <td><code>we_sum</code> through <code>SW_G1</code>+<code>SW_G2</code></td>
+      <td>two <code>anatop_tgate</code> in series, mid node <code>we_g</code> clamped to
+          <code>vcm</code> by <code>SW_GC</code> whenever <code>guard_en</code> = 0</td>
+      <td><code>atb_d</code>; never with <code>AFE_ADCSRCSEL</code> = 4</td></tr>
+  <tr><td>8</td><td><code>A&lt;8&gt;</code></td><td><code>t_we_pad</code></td>
+      <td><code>WE</code> through <code>SW_G3</code></td><td>one <code>anatop_tgate</code></td>
+      <td><code>atb_d</code></td></tr>
+  <tr><td>9</td><td><code>A&lt;9&gt;</code></td><td><code>adc_in</code></td>
+      <td><code>anatop_amux_8.Y</code> in <code>anatop_channel</code></td><td>none</td>
+      <td><code>atb_d</code>, between conversions only</td></tr>
+  <tr><td>10</td><td><code>A&lt;10&gt;</code></td><td><code>vbn_ch</code></td>
+      <td>global <code>bn!</code>, tapped at the channel</td><td>none</td>
+      <td><code>atb_o</code> only</td></tr>
+  <tr><td>11</td><td><code>A&lt;11&gt;</code></td><td><code>vbp_ch</code></td>
+      <td>global <code>bp!</code>, tapped at the channel</td><td>none</td>
+      <td><code>atb_o</code> only</td></tr>
+  <tr><td>12</td><td><code>A&lt;12&gt;</code></td><td><code>vssa</code></td>
+      <td>spare — tie, never leave open</td><td>none</td><td>—</td></tr>
+  <tr><td>13</td><td><code>A&lt;13&gt;</code></td><td><code>vssa</code></td><td>spare</td><td>none</td><td>—</td></tr>
+  <tr><td>14</td><td><code>A&lt;14&gt;</code></td><td><code>vssa</code></td><td>spare</td><td>none</td><td>—</td></tr>
+  <tr><td>15</td><td><code>A&lt;15&gt;</code></td><td><code>vssa</code></td><td>spare</td><td>none</td><td>—</td></tr>
+</table></div>
+
+<div class="warn"><b>Slots 10 and 11 are a layout distinction, not a schematic one.</b> The AFE bias
+rails are globals: in the schematic <code>vbn_ch</code> and chip-level slot 2 are the same net, and a
+netlist comparison will show them shorted. What separates them is <em>where the wire is tapped</em>.
+The layout must take slots 10/11 at the channel end of the bias route and the chip-level slots at
+the generator; otherwise the pair carries no information and the IR-drop measurement of
+<code>note_meas_biasgen</code> step 1 cannot be made. Annotate both taps in the schematic so the
+apparent redundancy is not optimised away. The same applies to <code>vssa</code>/<code>vdda</code>
+against the chip-level sense slots.</div>
+
+<h3>4.4 The ADC input mux (C3) — new cell <code>anatop_amux_8</code></h3>
+
+<p><code>AFE_ADCSRCSEL[2:0]</code> needs 8:1 and the library has 16:1, 4:1 and 2:1. Compose the 8:1
+from the existing copies rather than wasting an <code>anatop_amux_16</code>: 3 cells, 34 MOS, and
+the same straight-binary select.</p>
+
+<ol class="proc">
+  <li>Create <code>castalia/anatop_amux_8</code>, view <code>schematic</code>.</li>
+  <li>Place <code>castalia/anatop_amux_4</code> twice; name them <code>MA</code> and
+      <code>MB</code>.</li>
+  <li>Place <code>castalia/anatop_amux_2</code> once; name it <code>MC</code>.</li>
+  <li>Draw pins <code>A&lt;0:7&gt;</code> (input), <code>Y</code> (inputOutput),
+      <code>Sel&lt;2:0&gt;</code> (input, 2.5 V logic).</li>
+  <li>Wire <code>MA.A&lt;0:3&gt;→A&lt;0:3&gt;</code>, <code>MA.Sel&lt;1:0&gt;→Sel&lt;1:0&gt;</code>,
+      <code>MA.Y→ya</code>.</li>
+  <li>Wire <code>MB.A&lt;0:3&gt;→A&lt;4:7&gt;</code>, <code>MB.Sel&lt;1:0&gt;→Sel&lt;1:0&gt;</code>,
+      <code>MB.Y→yb</code>.</li>
+  <li>Wire <code>MC.A0→ya</code>, <code>MC.A1→yb</code>, <code>MC.Sel→Sel&lt;2&gt;</code>,
+      <code>MC.Y→Y</code>.</li>
+  <li>Check and Save (0/0); generate the symbol.</li>
+</ol>
+
+<div class="tablewrap"><table>
+  <tr><th><code>AFE_ADCSRCSEL</code></th><th>Pin</th><th>Net in <code>anatop_channel</code></th><th>Purpose</th></tr>
+  <tr><td>0</td><td><code>A&lt;0&gt;</code></td><td><code>vout</code></td><td>normal acquisition</td></tr>
+  <tr><td>1</td><td><code>A&lt;1&gt;</code></td><td><code>vcm</code></td><td>zero-code calibration, <code>note_meas_adc</code> 2</td></tr>
+  <tr><td>2</td><td><code>A&lt;2&gt;</code></td><td><code>vref_loc</code></td><td>4096-code DAC sweep, <code>note_meas_dacr2r12</code> 3</td></tr>
+  <tr><td>3</td><td><code>A&lt;3&gt;</code></td><td><code>t_re_buf</code></td>
+      <td>RE tap — <b>the buffer output, never the electrode</b> (§9, item 1)</td></tr>
+  <tr><td>4</td><td><code>A&lt;4&gt;</code></td><td><code>atb</code></td>
+      <td>any mux node on-chip; external ramp in, <code>note_meas_adc</code> 1</td></tr>
+  <tr><td>5–7</td><td><code>A&lt;5:7&gt;</code></td><td><code>vss_25</code></td><td>tie</td></tr>
+</table></div>
+
+<h2 id="channel">5 · Rebuild <code>anatop_channel</code></h2>
+
+<h3>5.1 The four stored errors, and what each one is</h3>
+
+<div class="tablewrap"><table>
+  <tr><th>Stored message (verbatim)</th><th>Meaning</th><th>Correct construction</th></tr>
+  <tr><td><code>Ignored label 'WE' because multiple labels exist on wire 'RE'.</code></td>
+      <td>One wire carries both the <code>RE</code> and the <code>WE</code> label. Netlisted, this
+          shorts the reference and working electrodes together — the loop would servo RE to vref
+          while A2 holds the same node at vcm.</td>
+      <td>One wire per electrode, one label per wire. <code>CE</code>, <code>RE</code> and
+          <code>WE</code> must remain three distinct nets from the <code>anatop_pstat</code>
+          instance to the three pins.</td></tr>
+  <tr><td><code>Short between 'vdd_25' and 'vdd_10'.</code></td>
+      <td>The 2.5 V analog rail and the 1.0 V core rail are the same net.</td>
+      <td>Two separate nets. <code>vdd_25</code> reaches <code>anatop_sar.VDDA25</code> and
+          <code>VDDD25</code>; <code>vdd_10</code> reaches <code>anatop_sar.VDDD10</code> and
+          <code>anatop_testmux.vdd_10</code> only.</td></tr>
+  <tr><td><code>Short between 'vss_10' and 'vdd_10'.</code></td>
+      <td>Supply shorted to ground.</td>
+      <td>Nothing on the 1.0 V rail may share a wire with the ground net.</td></tr>
+  <tr><td><code>Ignored label 'vss_25' because multiple labels exist on wire 'vss_10'.</code></td>
+      <td>Two ground labels on one wire.</td>
+      <td>There is only one ground in this design — <code>anatop_sar.VSSD</code> and
+          <code>VSSA25</code> both return to it. Keep the single name <code>vss_25</code>, delete
+          the <code>vss_10</code> label and the <code>vss_10</code> pin, and drive
+          <code>anatop_testmux.vss_10</code> from <code>vss_25</code>. Aliasing two names is what
+          produced this error; removing one name removes the class of error.</td></tr>
+</table></div>
+
+<h3>5.2 Pin list</h3>
+
+<div class="tablewrap"><table>
+  <tr><th>Pin</th><th>Type</th><th>Domain</th><th>Function</th></tr>
+  <tr><td><code>CE</code>, <code>RE</code>, <code>WE</code></td><td>inputOutput</td><td>2.5 V analog</td><td>electrode pads</td></tr>
+  <tr><td><code>vref</code></td><td>input</td><td>2.5 V analog</td><td>reference DAC output, pre-isolation</td></tr>
+  <tr><td><code>vcm</code></td><td>input</td><td>2.5 V analog</td><td>shared common-mode distribution</td></tr>
+  <tr><td><code>atb</code></td><td>inputOutput</td><td>2.5 V analog</td><td>shared analog test bus</td></tr>
+  <tr><td><code>dout&lt;9:0&gt;</code></td><td>output</td><td>1.0 V logic</td><td>SAR data</td></tr>
+  <tr><td><code>adc_rdy</code></td><td>output</td><td>1.0 V logic</td><td>SAR ready</td></tr>
+  <tr><td><code>adc_clk</code>, <code>adc_rst</code></td><td>input</td><td>1.0 V logic</td><td>SAR clock and reset</td></tr>
+  <tr><td><code>en</code></td><td>input</td><td>1.0 V logic</td><td>channel enable</td></tr>
+  <tr><td><code>ResEn&lt;5:0&gt;</code>, <code>ThEn&lt;3:0&gt;</code></td><td>input</td><td>1.0 V logic</td><td><code>AFE&lt;h&gt;_TIA</code> gain code</td></tr>
+  <tr><td><code>AdcSrcSel&lt;2:0&gt;</code></td><td>input</td><td>1.0 V logic</td><td><code>AFE_ADCSRCSEL</code></td></tr>
+  <tr><td><code>DbgSel&lt;3:0&gt;</code></td><td>input</td><td>1.0 V logic</td><td><code>AFE_DBGSEL</code></td></tr>
+  <tr><td><code>DbgEn</code></td><td>input</td><td>1.0 V logic</td><td><code>AFE_DBGEN</code> AND grant</td></tr>
+  <tr><td><code>DbgIsoEn</code></td><td>input</td><td>1.0 V logic</td><td><code>AFE_DBGISOEN</code> — open the vref isolation switch</td></tr>
+  <tr><td><code>IsoCe</code>, <code>IsoRe</code>, <code>IsoWe</code></td><td>input</td><td>1.0 V logic</td><td>C1 electrode isolation, new SWM bits</td></tr>
+  <tr><td><code>LbEn</code></td><td>input</td><td>1.0 V logic</td><td>C2 A1 loopback, new SWM bit</td></tr>
+  <tr><td><code>RcalEn</code></td><td>input</td><td>1.0 V logic</td><td>C4 gain reference resistor, new SWM bit</td></tr>
+  <tr><td><code>BufEn</code></td><td>input</td><td>1.0 V logic</td><td>RE buffer power, new SWM bit</td></tr>
+  <tr><td><code>vdd_25</code>, <code>vss_25</code>, <code>vdd_10</code></td><td>inputOutput</td><td>supply</td><td>see §5.1 — there is no <code>vss_10</code> pin</td></tr>
+</table></div>
+
+<div class="note"><b>The control pins are 1.0 V.</b> Every one of them crosses the domain inside
+this cell through <code>anatop_lvl_d10a25_x6</code> / <code>_x14</code> instances, except
+<code>Sel</code>/<code>DbgEn</code>, whose shifter is already inside <code>anatop_testmux</code>.
+Twenty-two bits per site cross the boundary; budget three <code>_x6</code> and one
+<code>_x14</code>, or one <code>_x14</code> plus two <code>_x6</code> if
+<code>ResEn</code>/<code>ThEn</code> share a shifter with the fabric bits.</div>
+
+<h3>5.3 Procedure</h3>
+<ol class="proc">
+  <li>Open <code>castalia/anatop_channel</code> view <code>schematic</code>; select all; delete.</li>
+  <li>Place the rebuilt <code>castalia/anatop_pstat</code>; name it <code>PSTAT</code>.</li>
+  <li>Place <code>castalia/anatop_sar</code>; name it <code>SAR</code>.</li>
+  <li>Place <code>castalia/anatop_amux_8</code>; name it <code>ADCMUX</code>.</li>
+  <li>Place <code>castalia/anatop_testmux</code>; name it <code>TMUX</code>.</li>
+  <li>Place <code>castalia/anatop_biasgen_local</code>; name it <code>BIASGEN_LOC</code>.</li>
+  <li>Place <code>castalia/anatop_tgate</code>; name it <code>SW_VREFISO</code>.</li>
+  <li>Place <code>castalia/anatop_inv</code>; name it <code>INV_ISO</code>.</li>
+  <li>Place level shifters for the 1.0 V control pins per §5.2's note.</li>
+  <li>Draw the pins of §5.2. Do <b>not</b> draw a <code>vss_10</code> pin.</li>
+  <li>Wire per §5.4.</li>
+  <li>Run <b>Check and Save</b>. Required: 0 errors, 0 warnings, and specifically none of the four
+      messages in §5.1.</li>
+  <li>Generate the symbol.</li>
+</ol>
+
+<h3>5.4 Connection table</h3>
+
+<div class="tablewrap"><table>
+  <tr><th>Instance</th><th>Pin → Net</th></tr>
+  <tr><td><code>PSTAT</code></td>
+      <td><code>CE→CE</code>, <code>RE→RE</code>, <code>WE→WE</code>,
+          <code>vref→vref_loc</code>, <code>vcm→vcm</code>, <code>vout→vout</code>,
+          <code>t_vout→t_vout</code>, <code>t_ce_amp→t_ce_amp</code>,
+          <code>t_re_buf→t_re_buf</code>, <code>t_we_sum→t_we_sum</code>,
+          <code>t_we_pad→t_we_pad</code>, <code>en→en25</code>,
+          <code>ResEn&lt;5:0&gt;→resen25&lt;5:0&gt;</code>,
+          <code>ThEn&lt;3:0&gt;→then25&lt;3:0&gt;</code>,
+          <code>iso_ce→isoce25</code>, <code>iso_re→isore25</code>,
+          <code>iso_we→isowe25</code>, <code>lb_en→lben25</code>,
+          <code>rcal_en→rcalen25</code>, <code>buf_en→bufen25</code>,
+          <code>guard_en→dbgen25</code></td></tr>
+  <tr><td><code>SW_VREFISO</code></td>
+      <td><code>A→vref</code>, <code>B→vref_loc</code>, <code>En→isoen25b</code></td></tr>
+  <tr><td><code>INV_ISO</code></td>
+      <td><code>A→dbgisoen25</code>, <code>Y→isoen25b</code> — the register bit <em>opens</em> the
+          switch, so it must be inverted</td></tr>
+  <tr><td><code>ADCMUX</code></td>
+      <td><code>A&lt;0&gt;→vout</code>, <code>A&lt;1&gt;→vcm</code>,
+          <code>A&lt;2&gt;→vref_loc</code>, <code>A&lt;3&gt;→t_re_buf</code>,
+          <code>A&lt;4&gt;→atb</code>, <code>A&lt;5:7&gt;→vss_25</code>,
+          <code>Sel&lt;2:0&gt;→adcsrc25&lt;2:0&gt;</code>, <code>Y→adc_in</code></td></tr>
+  <tr><td><code>SAR</code></td>
+      <td><code>Analog_Input→adc_in</code>, <code>Clock_Input→adc_clk</code>,
+          <code>Reset_Input→adc_rst</code>, <code>Data_Output&lt;9:0&gt;→dout&lt;9:0&gt;</code>,
+          <code>Ready_Output→adc_rdy</code>, <code>VDDA25→vdd_25</code>,
+          <code>VDDD25→vdd_25</code>, <code>VDDD10→vdd_10</code>,
+          <code>VSSA25→vss_25</code>, <code>VSSD→vss_25</code></td></tr>
+  <tr><td><code>TMUX</code></td>
+      <td><code>vssa→vss_25</code>, <code>vdda→vdd_25</code>, <code>vref→vref_loc</code>,
+          <code>vcm_ch→vcm</code>, <code>t_vout→t_vout</code>, <code>t_ce_amp→t_ce_amp</code>,
+          <code>t_re_buf→t_re_buf</code>, <code>t_we_sum→t_we_sum</code>,
+          <code>t_we_pad→t_we_pad</code>, <code>adc_in→adc_in</code>,
+          <code>vbn_ch→bn!</code>, <code>vbp_ch→bp!</code>,
+          <code>Sel&lt;3:0&gt;→DbgSel&lt;3:0&gt;</code>, <code>DbgEn→DbgEn</code>,
+          <code>vdd_10→vdd_10</code>, <code>vss_10→vss_25</code>, <code>atb→atb</code></td></tr>
+  <tr><td><code>BIASGEN_LOC</code></td>
+      <td><code>BiasAdj&lt;5:0&gt;</code> per the chip-level trim, <code>En→en25</code>,
+          <code>V_BNM→bn!</code>, <code>V_BNC→bnc!</code>, <code>V_BPM→bp!</code>,
+          <code>V_BPC→bpc!</code></td></tr>
+</table></div>
+
+<div class="warn"><b>Never combine <code>AFE_ADCSRCSEL</code> = 4 with
+<code>AFE_DBGSEL</code> = 7.</b> That routes the SAR's sampling capacitor onto the TIA summing
+node through the debug bus. It is the same objection that rejected buffering RE into the converter,
+one node further in, and at 0.824 nA/LSB the kickback is signal. The combination should be
+blocked in firmware and, preferably, in the SWM decode.</div>
+
+<h2 id="chip">6 · Chip level — <code>anatop</code>, the shared mux and the two ATB pads</h2>
+
+<h3>6.1 New cell <code>anatop_testmux_g</code></h3>
+
+<p>Identical in construction to <code>anatop_testmux</code> — <code>anatop_amux_16</code> +
+<code>anatop_lvl_d10a25_x6</code> + one grant <code>anatop_tgate</code> — with a different slot
+list and <code>GSel&lt;3:0&gt;</code> / <code>GEn</code> in place of
+<code>Sel&lt;3:0&gt;</code> / <code>DbgEn</code>. <code>GEn</code> is
+<code>AFE_DBGOWNSEL</code> == 5, decoded in RTL.</p>
+
+<div class="tablewrap"><table>
+  <tr><th>Slot</th><th>Signal</th><th>Net at chip level</th><th>Pad</th><th>Note</th></tr>
+  <tr><td>0</td><td><code>vssa_sense</code></td><td><code>vss_25</code></td><td>either</td>
+      <td>reset park; measured against board ground it is the bond-wire IR drop</td></tr>
+  <tr><td>1</td><td><code>vdda_sense</code></td><td><code>vdd_25</code></td><td>either</td><td>—</td></tr>
+  <tr><td>2</td><td><code>bn!</code></td><td><code>bn!</code></td><td><code>atb_o</code> only</td><td>612.8 mV at tt</td></tr>
+  <tr><td>3</td><td><code>bnc!</code></td><td><code>bnc!</code></td><td><code>atb_o</code> only</td><td>775.8 mV at tt</td></tr>
+  <tr><td>4</td><td><code>bp!</code></td><td><code>bp!</code></td><td><code>atb_o</code> only</td><td>1817.1 mV at tt</td></tr>
+  <tr><td>5</td><td><code>bpc!</code></td><td><code>bpc!</code></td><td><code>atb_o</code> only</td><td>1589.3 mV at tt</td></tr>
+  <tr><td>6</td><td><code>vcm</code></td><td><code>vcm</code>, downstream of <code>SW_VCMISO</code></td>
+      <td>both</td><td>forceable; the node the ATB buffer is characterised against</td></tr>
+  <tr><td>7</td><td><code>VddDac</code></td><td>DAC supply node — see §9 item 6</td><td><code>atb_d</code></td>
+      <td>the only place the 25.8 mV code-dependent excursion is confirmed</td></tr>
+  <tr><td>8</td><td><code>ExtBN</code></td><td><code>anatop_biasgen.ExtBN</code></td><td><code>atb_d</code></td>
+      <td rowspan="4">bias override, four rails one at a time, with
+          <code>anatop_biasgen.UseExt</code> = 1. Replaces the single "iref_ovr" slot, which has
+          no counterpart on the cell (§9 item 5)</td></tr>
+  <tr><td>9</td><td><code>ExtBNC</code></td><td><code>anatop_biasgen.ExtBNC</code></td><td><code>atb_d</code></td></tr>
+  <tr><td>10</td><td><code>ExtBP</code></td><td><code>anatop_biasgen.ExtBP</code></td><td><code>atb_d</code></td></tr>
+  <tr><td>11</td><td><code>ExtBPC</code></td><td><code>anatop_biasgen.ExtBPC</code></td><td><code>atb_d</code></td></tr>
+  <tr><td>12–15</td><td>spare</td><td><code>vss_25</code></td><td>—</td><td>tie, never leave open</td></tr>
+</table></div>
+
+<h3>6.2 New cell <code>anatop_atbpad</code> — the bus exit</h3>
+
+<ol class="proc">
+  <li>Create <code>castalia/anatop_atbpad</code>, view <code>schematic</code>.</li>
+  <li>Place <code>tsmcN65/rppolywo</code> twice, 200 Ω each; name them <code>R_ESD_D</code> and
+      <code>R_ESD_O</code>.</li>
+  <li>Place <code>castalia/anatop_tgate_p16</code>; name it <code>SW_DIR</code>. It must carry
+      force current, so it is the ×16 cell.</li>
+  <li>Place the test buffer (see §8, decision D-1); name it <code>BUF_ATB</code>.</li>
+  <li>Draw pins <code>atb</code> (inputOutput), <code>pad_atb_d</code> (inputOutput),
+      <code>pad_atb_o</code> (output), <code>DirEn</code>, <code>BufEn</code> (input, 2.5 V logic).</li>
+  <li>Wire <code>pad_atb_d → R_ESD_D → atbd_x</code>, then
+      <code>SW_DIR: A→atbd_x, B→atb, En→DirEn</code>.</li>
+  <li>Wire <code>BUF_ATB</code> in unity feedback: input from <code>atb</code>, output to
+      <code>atbo_x</code>, its inverting input to <code>atbo_x</code>, enable from
+      <code>BufEn</code>.</li>
+  <li>Wire <code>atbo_x → R_ESD_O → pad_atb_o</code>.</li>
+  <li>Check and Save (0/0); generate the symbol.</li>
+</ol>
+
+<div class="note">Both series resistors sit between the pad and everything else, so the buffer is
+inside the pad's resistor rather than outside it, and no 2.5 V thin-oxide switch is ever the CDM
+conduction path.</div>
+
+<h3>6.3 Rebuild <code>anatop</code></h3>
+
+<ol class="proc">
+  <li>Open <code>castalia/anatop</code> view <code>schematic</code>; select all; delete.</li>
+  <li>Place <code>castalia/anatop_channel</code> four times; name them <code>CH0…CH3</code>.</li>
+  <li>Place <code>castalia/anatop_biasgen</code>; name it <code>BIASGEN</code>.</li>
+  <li>Place <code>castalia/anatop_dac</code> once for vcm; name it <code>DAC_VCM</code>.</li>
+  <li>Place <code>castalia/anatop_dac</code> <b>four</b> times for vref; name them
+      <code>DAC_VREF0…3</code>. The existing cell has one shared vref DAC; the 2026-08-16 decision
+      is one per site (§9 item 8).</li>
+  <li>Place <code>castalia/anatop_testmux_g</code>; name it <code>GMUX</code>.</li>
+  <li>Place <code>castalia/anatop_atbpad</code>; name it <code>ATBPAD</code>.</li>
+  <li>Place <code>castalia/anatop_tgate</code>; name it <code>SW_VCMISO</code>. Place
+      <code>castalia/anatop_inv</code>; name it <code>INV_VCMISO</code>.</li>
+  <li>Wire <code>DAC_VCM.Out→vcm_dac</code>,
+      <code>SW_VCMISO: A→vcm_dac, B→vcm, En→vcmiso_b</code>,
+      <code>INV_VCMISO: A→AfeVcmIsoEn, Y→vcmiso_b</code>. The register bit opens the switch, so it
+      is inverted, exactly as <code>DbgIsoEn</code> is in the channel.</li>
+  <li>Wire <code>DAC_VREF&lt;n&gt;.Out→vref&lt;n&gt;→CH&lt;n&gt;.vref</code>.</li>
+  <li>Wire the ATB bus: <code>CH0…CH3.atb</code>, <code>GMUX.atb</code> and
+      <code>ATBPAD.atb</code> all to the single net <code>atb</code>.</li>
+  <li>Wire <code>ATBPAD.pad_atb_d</code> and <code>pad_atb_o</code> to the two new top-level pins
+      of the same names.</li>
+  <li>Wire <code>GMUX</code>'s slot inputs per §6.1.</li>
+  <li>Check and Save (0/0); generate the symbol.</li>
+</ol>
+
+<div class="callout"><strong>Arbitration is one net with five drivers, and only RTL keeps it
+safe.</strong> <code>atb</code> is a single bus reached by five grant T-gates. Under the
+orchestrator each <code>AFE&lt;h&gt;</code> block is owned by a different hart, so the AND of every
+per-site <code>AFE_DBGEN</code> with the hart-0 <code>AFE_DBGOWNSEL</code> decode must be hardware
+in the 0x7C00 block, not a software convention. The analog cells take one already-granted enable
+each; nothing in the schematic can prevent contention if that AND is omitted. Add the
+<code>AFE_DBGKEY</code> write key to the same block: a debug switch closing mid-measurement
+corrupts a clinical result silently.</div>
+
+<h2 id="verify">7 · Verification after each chapter</h2>
+
+<h3>7.1 The gate every chapter must pass</h3>
+<ol class="proc">
+  <li>Run <b>Check and Save</b> on the edited cell; require 0 errors and 0 warnings.</li>
+  <li>Confirm <code>schematic/sch.oa</code> and <code>symbol/symbol.oa</code> both exist on disk;
+      <code>dbSave</code> alone does not finalise a cellview and library metadata is written only
+      on a clean exit.</li>
+  <li>Netlist the cell headlessly through its bench with
+      <code>skill/eis_headless_run.sh -c &lt;bench&gt; -v maestro -t &lt;test&gt; -o &lt;outdir&gt;</code>
+      and read the generated <code>input.scs</code>. The netlist of the run that executed is the
+      only trustworthy source; setup files are not.</li>
+  <li>In that <code>input.scs</code>, confirm the <code>subckt</code> line of the new cell lists
+      exactly the pins of this guide's table, and that no <code>inh_*</code> pin resolves to an
+      unexpected net.</li>
+  <li>Confirm <code>mismatchflag=1</code> on the matched devices before any Monte Carlo, and that
+      the model include line reads <code>section=castalia_pm_25</code>, not a <code>tt_*</code>
+      list.</li>
+</ol>
+
+<h3>7.2 Equivalence against the flat reference bench</h3>
+
+<p>The reference is <code>castalia/tb_anatop_pixel</code> view <code>CvBvTB</code>, test
+<code>ps_cv</code>, archived at <code>simruns/cv_panel</code>. It is flat: <code>CONTROLAMP</code>
+and <code>TIAAMP</code> are two <code>anatop_tia_amp_ab</code> instances, <code>R_F</code> is an
+ideal 35 kΩ resistor, the four <code>cc_ab</code> = 500 fF caps are at top level, and
+<code>ECS</code> is <code>randles_cell_bc</code>.</p>
+
+<ol class="proc">
+  <li>Copy view <code>CvBvTB</code> to a new view <code>PstatHierTB</code> in the same bench cell.</li>
+  <li>In <code>PstatHierTB</code>, delete <code>CONTROLAMP</code>, <code>TIAAMP</code>,
+      <code>R_F</code>, <code>IPRB_F</code>, <code>IPRB1</code> and the four
+      <code>C_CMP*</code> instances.</li>
+  <li>Place one <code>castalia/anatop_pstat</code>; name it <code>PSTAT</code>.</li>
+  <li>Wire <code>PSTAT.CE→CE</code>, <code>RE→RE</code>, <code>WE→WE</code>,
+      <code>vref→V_InP</code>, <code>vcm→V_CM</code>, <code>vout→V_OUT</code>.</li>
+  <li>Tie <code>PSTAT.en</code>, <code>iso_ce</code>, <code>iso_re</code>, <code>iso_we</code> to
+      <code>vdd!</code>; tie <code>lb_en</code>, <code>rcal_en</code>, <code>buf_en</code>,
+      <code>guard_en</code> to <code>vss!</code>; leave the five <code>t_*</code> taps open.</li>
+  <li>Tie <code>PSTAT.ResEn&lt;5:0&gt;</code> to code 3 (<code>ResEn&lt;1&gt;</code> and
+      <code>ResEn&lt;0&gt;</code> to <code>vdd!</code>, the rest to <code>vss!</code>) and
+      <code>ThEn&lt;3:0&gt;</code> to <code>vss!</code>.</li>
+  <li>Keep every design variable, the model section <code>castalia_pm_25</code>, and
+      <code>temp = 37</code> unchanged. Temperature is a plain parameter; a bench that does not set
+      it silently reverts the electrode kinetics to 25 °C.</li>
+  <li>Run <code>ps_cv</code> headlessly. Success is <code>1/1 completed.</code> and a non-empty
+      summary.</li>
+</ol>
+
+<h4>Comparison numbers</h4>
+
+<div class="tablewrap"><table>
+  <tr><th>Quantity</th><th>Flat reference</th><th>Accept</th><th>If it fails</th></tr>
+  <tr><td><code>i_peak</code>, nominal analyte, <code>ps_cv</code></td>
+      <td><b>8.667521 µA</b> (<code>simruns/cv_panel/summary_ps_cv.txt</code>)</td>
+      <td>within 1 %, with the bench variable <code>rf</code> set to the code-3 resistance actually
+          netlisted (nominal 36 kΩ plus the closed-switch stack)</td>
+      <td>a large deviation is a wiring error, not a modelling difference — the cell current is set
+          by the electrode and the applied potential, not by R<sub>f</sub></td></tr>
+  <tr><td>Four analyte corners</td>
+      <td>Ascorbate 2.526114 µA · H2O2_PB 2.641166 µA · Pyocyanin 1.592966 µA · UricAcid 11.64965 µA</td>
+      <td>same 1 %</td><td>as above</td></tr>
+  <tr><td>dcOp at <code>iwe</code> = 0</td>
+      <td><code>V(CE)</code>, <code>V(RE)</code>, <code>V(WE)</code>, <code>V(V_OUT)</code> from the
+          reference run's <code>finalTimeOP</code></td>
+      <td><code>V(RE)</code> and <code>V(V_OUT)</code> within 1 mV; <code>V(WE)</code> shifted by
+          I·R<sub>on</sub> of <code>SW_WE</code>, which is expected and is the number calibration
+          stores</td>
+      <td>an offset on <code>V(RE)</code> means the A1 input polarity is swapped</td></tr>
+  <tr><td><code>ierr_lsb_max</code>, <code>ps_iacc</code> at code 3</td>
+      <td>0.539 LSB over ±33 µA at rf = 35 k</td>
+      <td>&lt; 1 LSB</td><td>check the R<sub>f</sub> orientation: <code>A</code> on
+          <code>vout</code>, <code>B</code> on <code>we_sense</code></td></tr>
+</table></div>
+
+<h3>7.3 Per-chapter bench</h3>
+
+<div class="tablewrap"><table>
+  <tr><th>Chapter</th><th>Bench to re-run</th><th>What it proves</th></tr>
+  <tr><td>2 — <code>anatop_tia</code></td>
+      <td><code>tb_anatop_tia_rprog</code> views <code>rprog_loop</code> (stb + ac)</td>
+      <td>the ladder still sweeps monotonically 19.65 kΩ–1.9308 MΩ over all 320 codes and the
+          in-loop phase margin stays ≥ 74.9°</td></tr>
+  <tr><td>3 — <code>anatop_pstat</code></td>
+      <td><code>tb_anatop_pixel/PstatHierTB</code> per §7.2, plus <code>PotFbTB</code>'s
+          <code>PotCtrlTB</code>/<code>PotTiaTB</code> retargeted at the hierarchical DUT</td>
+      <td>topological equivalence to the flat bench, then loop gain and phase margin unchanged</td></tr>
+  <tr><td>3 — RE buffer</td>
+      <td><code>tb_anatop_rebuf</code> views <code>rebuf_ac</code> and <code>rebuf_kick</code></td>
+      <td>buffer input current shifts RE by &lt; 100 µV and phase error at 10 kHz stays &lt; 0.2°
+          — <b>re-run after the bias-domain decision D-3</b>, because the published AOL 76.6 dB /
+          UGB 3.51 MHz / 28.3 µA were taken with the EIS island's bias levels</td></tr>
+  <tr><td>4 — <code>anatop_testmux</code></td>
+      <td>new DC leakage test: <code>anatop_amux_16</code> at 40 °C, <code>A&lt;7&gt;</code> at
+          <code>vcm</code>, the other fifteen inputs at rails, <code>Sel</code> selecting another
+          slot</td>
+      <td>off-state leakage into slot 7 against the 20 pA budget. This is the retirement sim the
+          debug plan leaves open</td></tr>
+  <tr><td>5 — <code>anatop_channel</code></td>
+      <td><code>anatop_tb_channel</code> tests <code>ch_3pt</code>, <code>ch_kick</code></td>
+      <td>codes out at iwe = −FS/2, 0, +FS/2 within ±2 codes; SAR kickback on <code>vout</code>
+          recovers to &lt; ½ LSB before the next decision</td></tr>
+  <tr><td>6 — <code>anatop</code></td>
+      <td><code>anatop_tb_top</code>, dc first</td>
+      <td>four channels bias up, the ATB bus is high-Z with <code>AFE_DBGOWNSEL</code> = 0, and no
+          two grant switches close together</td></tr>
+</table></div>
+
+<h2 id="decisions">8 · Open decisions</h2>
+
+<p>Each of these changes drawn geometry. None is chosen here.</p>
+
+<div class="tablewrap"><table>
+  <tr><th>#</th><th>Decision</th><th>Options</th><th>Consequence</th></tr>
+  <tr><td>D-1</td><td>Test-buffer cell for <code>atb_o</code></td>
+      <td><b>(a)</b> copy pingora2 <code>AdcBufferOpamp</code> — not in the castalia library today,
+          needs its own copy script.
+          <b>(b)</b> reuse <code>anatop_tia_amp_ab</code>, which is that cell's descendant
+          (<code>AdcBufferOpamp → SarAdcBufferOpamp → OpampRRIO → OpampAdcDriver</code>) and is
+          already characterised in this library.
+          <b>(c)</b> a third instance of <code>anatop_eis_ota_p</code>.</td>
+      <td>The buffer must cover <code>bn!</code> at 0.61 V and <code>bp!</code> at 1.82 V with
+          ≤ 20 pA of input current and 50 pF of drive. <code>anatop_tia_amp_ab</code> is
+          PMOS-input; confirm its input common-mode range actually reaches 1.82 V before
+          committing (b), which is otherwise the cheapest by far.</td></tr>
+  <tr><td>D-2</td><td>R<sub>on</sub> of <code>SW_WE</code> (and <code>SW_CE</code>)</td>
+      <td><b>(a)</b> <code>anatop_tgate</code>, minimum, ≈ 1.5 kΩ → 61 mV at 40.7 µA.
+          <b>(b)</b> <code>anatop_tgate_p16</code>, ≈ 190 Ω → 7.7 mV, ≈ 5 ADC LSB.
+          <b>(c)</b> a parallel bank of <code>anatop_tgate_p16</code> for ≈ 50 Ω.</td>
+      <td>The drop is a shift in the applied cell potential, not a current error — the current
+          still passes through R<sub>f</sub> by KCL. Calibration stores it (slots 7 minus 8), so
+          the driver is compliance and potential accuracy, not measurement accuracy. The 12 Ω that
+          an uncorrected ¼-LSB would need is not achievable. This guide assumes (b).</td></tr>
+  <tr><td>D-3</td><td>Bias domain for the RE buffer</td>
+      <td><b>(a) AFE domain.</b> Leave <code>BUF_RE</code>'s inherited connections at their
+          defaults; they already resolve to <code>bn! bnc! bp! bpc!</code>, which is what the AFE
+          <code>anatop_biasgen</code> drives. Zero extra cells, zero extra globals, zero wiring.
+          <b>(b) EIS domain.</b> Rename the island's globals to
+          <code>eis_bnm! eis_bnc! eis_bpm! eis_bpc!</code>, instantiate one
+          <code>anatop_eis_biasgen</code>, and override <code>BUF_RE</code>'s inherited
+          connections onto them.</td>
+      <td>Naming is free either way, because the bias pins are inherited connections and can be
+          pointed at any net at instantiation. What differs is the <em>levels</em>: the published
+          E-02 / V-3x numbers (AOL 76.6 dB, UGB 3.51 MHz, offset −87.6 µV, 28.3 µA) were measured
+          with <code>anatop_eis_biasgen</code> driving those nets. (a) changes the operating point
+          and invalidates them until <code>tb_anatop_rebuf</code> is re-run with
+          <code>anatop_biasgen_local</code> substituted; (b) preserves them and permanently
+          resolves the <code>bnc!</code>/<code>bpc!</code> collision, at the cost of one more bias
+          generator and four more globals inside the analog island.</td></tr>
+  <tr><td>D-4</td><td><code>R_CAL</code> code: tied or programmable</td>
+      <td><b>(a)</b> tie to N = 160 as in §3.4 — 0 register bits.
+          <b>(b)</b> route the 10 code bits to registers — a per-code calibration current, at
+          10 more SWM bits per site.</td>
+      <td>(a) is sufficient because Δvref is already programmable to 14 bits, which covers the
+          whole gain range by scaling the calibration current instead of the resistor. (b) only
+          buys accuracy at the bottom gain codes, which <code>note_meas_tiarprog</code> step 1
+          explicitly skips.</td></tr>
+  <tr><td>D-5</td><td>Series isolation R on the <code>vout</code> and <code>ce_amp</code> taps</td>
+      <td><b>(a)</b> 1 kΩ. <b>(b)</b> larger, if ATB settling permits.</td>
+      <td>1 kΩ is the starting value from the debug plan. It must decouple ATB's ≈ 200 fF from A2's
+          output without adding error, and it stacks with the mux tree's ≈ 5 kΩ and the pad's
+          200 Ω when sizing settling. Fix it from an ATB settling simulation, not by assumption.</td></tr>
+  <tr><td>D-6</td><td>Compensation capacitor device</td>
+      <td><b>(a)</b> <code>analogLib/cap</code>, exactly as the reference bench.
+          <b>(b)</b> <code>tsmcN65/mimcap_sin</code> sized to 500 fF.</td>
+      <td>(a) reproduces the reference numbers bit-for-bit and is the right choice for the §7.2
+          equivalence run. (b) is mandatory before layout. Run the equivalence with (a), then swap
+          and re-run, recording the delta.</td></tr>
+  <tr><td>D-7</td><td>Pad cells for <code>atb_d</code> / <code>atb_o</code></td>
+      <td><b>(a)</b> one <code>PDB3A_G</code> per signal, 25 µm of island each.
+          <b>(b)</b> Myshkin's bond-pad-plus-companion-ESD-cell pattern, 50 µm each.</td>
+      <td>The north analog island is 250 µm against 18 slots already claimed. If the companion
+          pattern returns, the two ATB pads cost 100 µm rather than 50 µm and the ring cuts move
+          further. Owned by the pad-ring owner, but it gates the floorplan estimate.</td></tr>
+  <tr><td>D-8</td><td>The 200 kΩ vref source impedance against the SAR</td>
+      <td><b>(a)</b> extend the SAR's acquisition window for <code>AFE_ADCSRCSEL</code> = 2.
+          <b>(b)</b> add a hold capacitor on <code>vref_loc</code>.
+          <b>(c)</b> buffer the vref tap.
+          <b>(d)</b> accept a code-independent gain error and calibrate it out.</td>
+      <td>The 14-bit DAC presents ≈ 200 kΩ at every code. Into the SAR's sampling capacitor that is
+          ≈ 200 ns per time constant, and ten-bit settling needs about seven of them — longer than
+          one conversion period at 869.6 kS/s. The 4096-code sweep of
+          <code>note_meas_dacr2r12</code> step 3 depends on this being resolved.</td></tr>
+</table></div>
+
+<h2 id="conflicts">9 · Conflicts found</h2>
+
+<p>Every item below is a disagreement between the approved slot map, a TRM measurement step, and
+what the cells in <code>castalia</code> actually contain. Resolve each before the schematic is
+frozen.</p>
+
+<ol class="proc">
+  <li><b><code>AFE_ADCSRCSEL</code> = 3 is labelled "RE" but must be
+      <code>re_buf</code>.</b> The debug plan §6.3 names code 3 "RE (the RE-tap fallback)", while its
+      own C2 note rejects buffering RE into the converter because the sampling capacitor draws
+      charge from the reference electrode, and §11.4 retires the RE tap in favour of a buffer at
+      source. Routing the raw electrode to <code>ADCMUX.A&lt;3&gt;</code> would reinstate exactly the
+      rejected structure. This guide wires <code>A&lt;3&gt;</code> to <code>t_re_buf</code>. The
+      register-map prose should be corrected to say so.</li>
+
+  <li><b>Chip-level slot 8, "iref_ovr", does not exist on
+      <code>anatop_biasgen</code>.</b> The cell's terminals are
+      <code>BiasAdj&lt;5:0&gt;, DacBN/DacBNC/DacBP/DacBPC&lt;13:0&gt;, EnBuf, EnGen, UseDac,
+      Vdd10, Gnd10, Vdd25, Gnd25, ExtBP, ExtBPC, ExtBNC, ExtBN, UseExt</code> — four separate external
+      override inputs and a 14-bit DAC override per rail, not one reference-current node.
+      <code>note_meas_biasgen</code> step 5 ("chip-level slot 8 drives the reference-current node")
+      cannot be executed as written. §6.1 above remaps slots 8–11 onto
+      <code>ExtBN/ExtBNC/ExtBP/ExtBPC</code>, forced one rail at a time with
+      <code>UseExt</code> = 1; the TRM step needs the same rewording.</li>
+
+  <li><b>Per-channel slots 10/11 are electrically identical to chip-level slots 2/4 in the
+      schematic.</b> The AFE bias rails are globals reached by inherited connections, so
+      <code>vbn_ch</code> and <code>bn!</code> are one net. The distinction the slot map intends —
+      generation versus distribution — exists only in layout, and only if the taps are physically
+      placed at opposite ends of the bias route. A netlist-level equivalence check will report them
+      shorted, correctly. Annotate the intent on both taps.</li>
+
+  <li><b>The amux family still references <code>teewinot</code>.</b> String inspection of
+      <code>anatop_amux_16</code> and <code>anatop_amux_4</code> reports
+      <code>teewinot.MUX2A</code> as an instance master, and <code>anatop_amux_2</code> reports
+      <code>teewinot.TGP8A/TGN8A/TGP1A/TGN1A</code>; <code>anatop_mux2</code> reports the same set
+      plus stored <code>Unsync</code> warnings. The debug plan §11.1 states the copy repointed all
+      headers and verified "0 foreign-library references". OA string tables are append-only and
+      retain stale masters, so this is not proof — but it must be settled before the muxes are used,
+      because <code>teewinot</code> is another user's live home directory. <b>Check:</b> netlist
+      <code>anatop_amux_16</code> and grep the result for <code>teewinot</code>; if it appears, run
+      the repoint pass again over the schematic <em>and</em> layout hierarchies.</li>
+
+  <li><b><code>anatop_biasgen</code>'s children were never repointed.</b> Its sub-masters still
+      resolve through <code>AFE_ECS</code> (<code>BiasGenCascWideSwing</code>,
+      <code>Dac2V5R2R14</code>, <code>DacPowerSupply</code>, <code>MUX2A</code>,
+      <code>OpAmpCurrentMirrorP</code>, <code>TGN16A</code>, <code>TGP16A</code>) rather than onto
+      the <code>anatop_*</code> copies, unlike every other repaired cell. That is legal — the
+      library is single-homed by design — but it means editing the chip bias generator means
+      editing frozen Myshkin collateral. Copy the sub-cells explicitly before touching them.</li>
+
+  <li><b><code>VddDac</code> has no cell to tap.</b> Chip-level slot 7 requires the DAC supply node,
+      but <code>anatop_dacsupply</code> does not exist in the library; the supply appears only as
+      <code>AFE_ECS/DacPowerSupply</code> inside <code>anatop_biasgen</code> and as the separate
+      bench cell <code>anatop_pixel_dac_psu</code>. Either expose the node as a terminal on
+      <code>anatop_biasgen</code>, or promote <code>anatop_pixel_dac_psu</code> to a real block.
+      Until then <code>note_meas_dacr2r12</code> step 4 — the only on-silicon confirmation of the
+      25.8 mV excursion — has no path.</li>
+
+  <li><b>The C1/C2/C4 control bits are not in the approved register map.</b> §6.1 of the debug plan
+      allocates nine bits (<code>AFE_DBGSEL[3:0]</code>, <code>AFE_DBGEN</code>,
+      <code>AFE_FRCSEL[6:5]</code>, <code>AFE_FRCEN</code>, <code>AFE_DBGISOEN</code>) and reserves
+      31:9. The rebuilt <code>anatop_pstat</code> needs six more per site —
+      <code>IsoCe</code>, <code>IsoRe</code>, <code>IsoWe</code>, <code>LbEn</code>,
+      <code>RcalEn</code>, <code>BufEn</code>. Proposed: <code>AFE_ISOCE</code> bit 9,
+      <code>AFE_ISORE</code> 10, <code>AFE_ISOWE</code> 11, <code>AFE_LBEN</code> 12,
+      <code>AFE_RCALEN</code> 13, <code>AFE_BUFEN</code> 14, keeping 31:15 reserved. This is within
+      C5's "8–10 control bits" only if C5 is read as the observe-path bits alone; it is 15 in total.</li>
+
+  <li><b><code>anatop</code> has one shared vref DAC.</b> The built top level instantiates
+      <code>anatop_dac</code> twice — once for vcm, once for vref — while CLAUDE.md records the
+      2026-08-16 decision as per-channel vref so that each site runs an independent potential
+      program. Chapter 6 assumes per-channel. If the shared DAC is kept, four sites cannot hold four
+      different formal potentials, and the four different R<sub>f</sub> taps of the marker panel
+      lose their purpose.</li>
+
+  <li><b>The force path is the observation mux itself.</b> The register map defines
+      <code>AFE_FRCSEL</code> and <code>AFE_FRCEN</code> as if dedicated force switches exist. They
+      are not needed: the mux tree is transmission gates and passes current in both directions, so
+      any slot can be driven from <code>atb_d</code>. <code>AFE_DBGISOEN</code> and
+      <code>AFE_VCMISOEN</code> already release the DAC. Either delete
+      <code>AFE_FRCSEL</code>/<code>AFE_FRCEN</code>, or define them as a safety interlock that
+      merely qualifies <code>AFE_DBGDIREN</code>. Note that forcing through the mux puts ≈ 5 kΩ of
+      tree plus 200 Ω of pad resistance in series, which is harmless for
+      <code>vref</code>/<code>vcm</code> — they carry no DC current — but is an error term for the
+      bias-override slots 8–11.</li>
+
+  <li><b>Triage step 6 reads slot 6 on the buffered pad.</b> §9 of the debug plan predates §11: it
+      says "DBGSEL = RE, buffered", but slot 6 is already the RE buffer output, so
+      <code>atb_o</code> stacks two amplifier offsets of the same class on a measurement whose
+      tolerance is ±16 mV. Read slot 6 on <code>atb_d</code>.</li>
+
+  <li><b>Sign convention.</b> The strategy document gives
+      v<sub>out</sub> = v<sub>cm</sub> − I<sub>we</sub>·R<sub>f</sub>; the pixel bench settled
+      empirically on v<sub>out</sub> = V_CM + i<sub>we</sub>·r<sub>f</sub> for its source
+      convention, and the CV figure script uses anodic-positive =
+      (V_CM − V_OUT)/r<sub>f</sub>. All three are the same circuit with different current-direction
+      conventions. State one convention in the TRM and in firmware; the bench expression
+      <code>cv_i = (VT("/V_OUT") - VAR("V_CM")) / VAR("rf")</code> is the one the archived numbers
+      were produced with.</li>
+
+  <li><b>Every TRM measurement step is served by this design except two.</b> Items 2 and 6 above are
+      the only steps that cannot be executed as written —
+      <code>note_meas_biasgen</code> step 5 and <code>note_meas_dacr2r12</code> step 4. Everything
+      else maps: <code>note_meas_adc</code> 1–4 to <code>ADCMUX.A&lt;4&gt;</code>,
+      <code>A&lt;1&gt;</code>, the vcm DAC code and slot 9; <code>note_meas_ampab</code> 1–4 to
+      <code>lb_en</code>/<code>iso_re</code>, slots 5 and 4, and the per-site vref DAC;
+      <code>note_meas_dacr2r12</code> 1–3 to slot 2, <code>SW_VREFISO</code> and
+      <code>ADCMUX.A&lt;2&gt;</code> (subject to D-8); <code>note_meas_pixel</code> 1–5 to slots 5,
+      6, 7 and <code>iso_we</code>; <code>note_meas_tiarprog</code> 1–4 to slot 4, slots 7/8 and
+      <code>R_CAL</code>/<code>rcal_en</code>.</li>
+</ol>
+
+<p class="footer">Cells, terminals and current cell contents read read-only from
+<code>~/chips/castalia/ic/castalia</code> (symbol <code>portOrder</code> properties and archived
+netlists) on 2026-08-23; no locks taken. Topology transcribed from
+<code>simruns/cv_panel/.../ps_cv/netlist/input.scs</code> (design cell
+<code>tb_anatop_pixel</code>, view <code>CvBvTB</code>, 2026-08-21) and
+<code>simruns/eisx_v3x/ac_rre10k_cdl1u/input.scs</code> (V-3x RE-buffer bench). Measured comparison
+numbers from <code>simruns/cv_panel/summary_ps_cv.txt</code>. Requirements from
+<code>afe_rev2_debug_mux.html</code> §11 and <code>afe_rev2_eis_lite.html</code> §4; measurement
+procedures from <code>~/vestarv/implementations/asic/castalia/analog/note_meas_*.tex</code>.</p>
+
+</main>
+</body>
+</html>

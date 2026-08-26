@@ -63,8 +63,12 @@ averaged floor is \SIrange{1.5}{1.9}{\nano\ampere} at every code above the
 bottom one and \SI{2.9}{\nano\ampere} at \(N = 0\), while one LSB falls
 \(98\times\) across the ladder. What survives a \SI{2}{\milli\second} average
 is the low-frequency input-referred noise of A2, which is a property of the
-amplifier and not of \(R_f\), so the top gain codes are noise-limited and not
-quantisation-limited --- which is what the ladder was sized for. The
+amplifier and not of \(R_f\), so over this band the top gain codes are
+noise-limited and not quantisation-limited. Section~\ref{ss:tiarprog} reaches
+the opposite verdict for the same codes, integrating only the amperometric
+decade where that amplifier noise falls an order below the current quantum:
+which term binds is set by the measurement bandwidth, not by the gain code, so
+neither figure carries meaning without its band. The
 compensation capacitor of Section~\ref{sss:pixtop-stability} does not change
 any of this: it divides output noise and transimpedance by the same factor, and
 the input-referred figures are unchanged by it to four digits.

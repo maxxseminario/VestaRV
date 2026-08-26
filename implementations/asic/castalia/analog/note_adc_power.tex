@@ -1,18 +1,31 @@
-% HAND-WRITTEN fragment -- placed by Adc.tex. Numbers from tab_adc_power.tex,
-% derived from simarchive/tb_anatop_pixel_adc/adc_transfer.csv.
+% HAND-WRITTEN fragment -- placed by Adc.tex. Numbers from tab_adc_power.tex
+% and tab_adc_corners.tex.
+%
+% REWRITTEN 2026-08-25 together with tab_adc_power.tex; see that file's header
+% for why the previous numbers were withdrawn.  Source:
+% ~/chips/castalia/simruns/adcchar_20260825/README.md S2 (corner power) and S3
+% (the two protocols), with S5 (the maestro_char headless run, 9 points, which
+% reproduces the as-delivered row to 0.02 uA).
 
 \subsubsection{Supply Current and Conversion Energy}\label{sss:adc-power}
 
-Total power spans \SIrange{38.5}{48.1}{\micro\watt} over the input sweep about a
-mean of \SI{43.8}{\micro\watt}, with no monotonic dependence on input level
-(Table~\ref{tab:adc-power}). The analog \SI{2.5}{\volt} rail dominates at
-\SIrange{11.8}{15.4}{\micro\ampere}; the digital rails average
-\SI{2.30}{\micro\ampere} at \SI{2.5}{\volt} and \SI{3.45}{\micro\ampere} at
-\SI{1.0}{\volt}. Over the \SI{1.15}{\micro\second} conversion that is
-\SIrange{44.3}{55.3}{\pico\joule} per conversion, mean
-\SI{50.4}{\pico\joule}.
+Power depends on which clock protocol the converter is driven with, so both are
+reported (Table~\ref{tab:adc-power}). On the stimulus as delivered a conversion
+takes \SI{4.600}{\micro\second} and costs \SI{12.95}{\micro\watt},
+\SI{59.6}{\pico\joule} per conversion; at the design rate the same converter
+draws \SI{18.09}{\micro\watt} and \SI{20.8}{\pico\joule}. Four times the
+throughput for \SI{40}{\percent} more power is the expected trade --- the static
+term is carried four times longer in the slow case --- and the energy per
+conversion is the figure that changes, by \(2.9\times\).
 
-Each current is sampled at the same settled point as the code, not averaged over
-the acquisition and conversion phases, and the energy column is that power held
-for the full conversion period. A converter whose instantaneous current differs
-between phases will not integrate to these figures.
+Power corners by \(2.7\times\) where the transfer does not
+(Table~\ref{tab:adc-corners}): \SIrange{15.8}{43.1}{\micro\watt} across the five
+process points, the slow corner alone a factor of two above the other four. That
+signature is leakage and bias rather than switching, consistent with the
+\SI{1.0}{\volt} core logic slowing down.
+
+Currents are averaged over one whole conversion, and they depend on the sweep
+step: the nominal point reads \SI{6.36}{\micro\ampere} on a 63-code step and
+\SI{12.56}{\micro\ampere} on a 220-code step, because the switching term
+dominates. A converter current quoted without its code step is not a comparable
+number.

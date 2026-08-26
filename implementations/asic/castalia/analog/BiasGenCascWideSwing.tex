@@ -45,7 +45,15 @@ Table~\ref{tab:BiasGenCascWideSwing-corners}. All rail voltages are referred to
 \input{\MaestroRoot sch_biasgen_core.tex}
 \input{\MaestroRoot sch_biasgen_startup.tex}
 \input{\MaestroRoot tab_BiasGenCascWideSwing_corners.tex}
-\input{\MaestroRoot tab_biasgen_dcop.tex}
+% 2026-08-25: tab_biasgen_dcop.tex is SUPERSEDED and removed from this input
+% list -- its corner definitions pinned the degeneration resistor at typical,
+% which made the I_DD corner spread read 0.30 uA instead of 17.6 uA.  It could
+% not be regenerated (the corrected run has no maestro2tex config), so the
+% replacement is the hand-written tab_biasgen_dcop_free.tex, which carries the
+% same table with the resistor freed.  The generated file is left on disk,
+% unreferenced.  NOTE for whoever regenerates this master: this one line will
+% come back; make the same swap, or teach the config the new run.
+\input{\MaestroRoot tab_biasgen_dcop_free.tex}
 \input{\MaestroRoot fig_biasgen_rails_vs_temp.tex}
 \input{\MaestroRoot tab_biasgen_temp_stats.tex}
 \input{\MaestroRoot tab_biasgen_tempco.tex}

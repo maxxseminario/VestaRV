@@ -5,8 +5,9 @@
 % ~/vestarv/docs/afe_rev2_debug_mux.html: per-channel slot 2 = vref, gated by
 % AFE_DBGISOEN because leakage on an R-2R output is a code-dependent error;
 % chip-level slot 7 = VddDac, slot 6 = shared vcm; AFE_ADCSRCSEL = 2 reads vref
-% through the SAR (§6.3). Timing: one conversion 1.15 us (note_adc_intro), so
-% 4096 codes x 16 averages = 75 ms per channel. Droop fit and its 94 % / 931 uV
+% through the SAR (§6.3). Timing: one conversion 1.15 us at the DESIGN rate
+% (note_adc_intro; 4.600 us on the clock pattern as delivered, 2026-08-25), so
+% 4096 codes x 16 averages = 75 ms per channel, 302 ms as delivered. Droop fit and its 94 % / 931 uV
 % rms residual from sss:dacr2r12-supply; per-code table costs 4 KiB per channel
 % and buys 0.07 mV rms. No cell names in prose.
 
@@ -21,7 +22,9 @@
   anchors the channel's whole potential axis.
 \item Sweep all 4096 codes into the converter with
   \texttt{AFE\_ADCSRCSEL}~=~2 (\SI{75}{\milli\second} per channel at sixteen
-  averages) and fit the one-parameter droop of
+  averages and the design conversion rate, four times that on the clock
+  pattern as delivered --- Section~\ref{sss:adc-power}) and fit the
+  one-parameter droop of
   Section~\ref{sss:dacr2r12-supply}: it removes \SI{94}{\percent} of the
   \SI{25.8}{\milli\volt} reference movement. Do not store the per-code
   residual table --- through this converter each entry carries as much

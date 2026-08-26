@@ -1,0 +1,31 @@
+%% HAND-WRITTEN table fragment (matches the maestro2tex house style).
+%% Source: ~/chips/castalia/simruns/adcchar_20260825/corners/corner_table.txt,
+%% run 2026-08-25 on the extracted (av_extracted, Quantus C-only) converter.
+%% Five corners: typical at 37 C plus tsmcN65_typ_{ff,fs,sf,ss} at 25 C, the
+%% corner definitions already imported into tb_anatop_pixel_adc's maestro view.
+%% 20-point staircase 0.30-2.20 V in 0.1 V steps, fit over 0.55-1.95 V (15
+%% points, 63 codes apart), design-rate burst stimulus (adcchar_stim.py
+%% --mode burst).  Power is averaged over one whole conversion, NOT sampled.
+\begin{table}[htbp]
+  \centering
+  \caption[{Transfer, timing and power of the extracted converter at five process corners.}]{Transfer, timing and power of the extracted converter at five process corners: typical at \SI{37}{\celsius} and the four skew corners at \SI{25}{\celsius}, on a 20-point staircase at \SI{0.1}{\volt} (63 codes apart) fitted over \SIrange{0.55}{1.95}{\volt}. The transfer is invariant to \SI{0.10}{\percent} because it is a ratio of extracted fixed capacitances, which the corner rows do not move; the residuals are departures from that fit at 63 codes per step, not an INL. Supply current is averaged over one whole conversion at the design-rate protocol of Section~\ref{sss:adc-power}, and depends on the sweep step because the switching term dominates.}
+  \label{tab:adc-corners}
+  \begin{tabular}{lrrrrrr}
+    \toprule
+    Parameter & Unit & tt \SI{37}{\celsius} & ff & fs & sf & ss \\
+    \midrule
+    Fitted slope       & codes/V & 628.59 & 628.59 & 628.40 & 628.73 & 628.13 \\
+    Effective LSB      & \si{\milli\volt} & 1.5909 & 1.5909 & 1.5914 & 1.5905 & 1.5920 \\
+    Input at code 0    & \si{\volt} & 0.4408 & 0.4408 & 0.4407 & 0.4408 & 0.4399 \\
+    Usable span        & \si{\volt} & 1.6274 & 1.6274 & 1.6280 & 1.6271 & 1.6286 \\
+    Worst residual     & LSB & 0.495 & 0.495 & 0.490 & 0.477 & 0.484 \\
+    RMS residual       & LSB & 0.294 & 0.294 & 0.277 & 0.288 & 0.302 \\
+    Monotonic points   &     & 20/20 & 20/20 & 20/20 & 20/20 & 20/20 \\
+    \midrule
+    Conversion period  & \si{\micro\second} & 1.150 & 1.150 & 1.150 & 1.150 & 1.150 \\
+    Analog supply current & \si{\micro\ampere} & 6.360 & 4.787 & 5.453 & 8.437 & 15.429 \\
+    Total power        & \si{\micro\watt} & 18.09 & 16.77 & 15.77 & 23.74 & 43.06 \\
+    Energy per conversion & \si{\pico\joule} & 20.8 & 19.3 & 18.1 & 27.3 & 49.5 \\
+    \bottomrule
+  \end{tabular}
+\end{table}

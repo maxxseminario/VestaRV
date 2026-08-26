@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Castalia AFE rev-2 — analog physical verification (DRC / LVS)</title>
+<style>
+  :root { --ink:#1a1d21; --mut:#5b6270; --line:#d7dbe2; --bg:#ffffff; --panel:#f4f6f9;
+          --acc:#0b5fa5; --ok:#1a7a3c; --warn:#a05a00; --bad:#b3261e; --code:#f0f2f6; }
+  * { box-sizing:border-box; }
+  body { font:15px/1.55 "Segoe UI",system-ui,-apple-system,sans-serif; color:var(--ink);
+         background:var(--bg); margin:0; padding:0 0 6em 0; }
+  main { max-width:1080px; margin:0 auto; padding:0 28px; }
+  h1 { font-size:1.7em; border-bottom:3px solid var(--acc); padding-bottom:.3em; margin-top:1.2em;}
+  h2 { font-size:1.3em; color:var(--acc); border-bottom:1px solid var(--line);
+       padding-bottom:.2em; margin-top:2.2em; }
+  h3 { font-size:1.05em; margin-top:1.6em; }
+  table { border-collapse:collapse; width:100%; margin:.8em 0 1.2em; font-size:.93em; }
+  th, td { border:1px solid var(--line); padding:.35em .6em; text-align:left; vertical-align:top; }
+  th { background:var(--panel); font-weight:600; }
+  td.n { text-align:right; font-family:"Consolas","DejaVu Sans Mono",monospace; }
+  code, .mono { font-family:"Consolas","DejaVu Sans Mono",monospace; font-size:.92em; }
+  code { background:var(--code); padding:.08em .3em; border-radius:3px; }
+  pre { background:var(--code); border:1px solid var(--line); border-radius:5px;
+        padding:.7em .9em; overflow-x:auto; font-size:.88em; line-height:1.45; }
+  pre code { background:none; padding:0; }
+  .tag { display:inline-block; font-size:.75em; font-weight:700; letter-spacing:.03em;
+         padding:.1em .5em; border-radius:3px; color:#fff; vertical-align:middle; }
+  .t-ok{background:#1a7a3c}.t-bad{background:#b3261e}.t-warn{background:#a05a00}.t-na{background:#777}
+  .pass { background:#eef7f0; border-left:4px solid var(--ok); padding:.6em .9em; margin:.8em 0; }
+  .warn { background:#fdf4e7; border-left:4px solid var(--warn); padding:.6em .9em; margin:.8em 0; }
+  .crit { background:#fdecea; border-left:4px solid var(--bad); padding:.6em .9em; margin:.8em 0; }
+  .note { background:var(--panel); border-left:4px solid var(--acc); padding:.6em .9em; margin:.8em 0; }
+  .small { font-size:.85em; color:var(--mut); }
+  #toc { background:var(--panel); border:1px solid var(--line); border-radius:6px;
+         padding:1em 1.4em; margin:1.5em 0; columns:2; column-gap:2.5em; }
+  #toc a { text-decoration:none; color:var(--acc); }
+  #toc li { margin:.15em 0; }
+  ol.proc > li { margin:.55em 0; }
+  @media print { body{font-size:11px} #toc{columns:1} h2{page-break-before:always} }
+</style>
+</head>
+<body>
+<main>
+
+<h1>Castalia AFE rev-2 — analog physical verification (DRC / LVS)</h1>
+<p class="small">Run 2026-08-24 · Library <code>castalia</code> (tsmcN65, IC618) ·
+Calibre <code>celldrc</code> + Pegasus LVS ·
+Companion to <code>afe_rev2_strategy.html</code>, <code>afe_rev2_eis.html</code>,
+<code>afe_rev2_pixel_verify.html</code>.<br>
+First physical verification of the analog side. 37 <code>castalia</code> cells carry a
+<code>layout</code> view; 36 streamed, 36 ran DRC, 36 ran LVS.</p>
+
+<div class="pass"><b>Headline.</b> 15 of 36 cells are DRC-clean and 25 of 36 are LVS
+<b>MATCH</b>. Of the 21 dirty DRC cells, 14 report nothing but minimum-density and latch-up
+guideline rules, which a standalone cell cannot satisfy; 7 carry real geometry violations. Two
+defects dominate: a <b>2 nm off-grid placement of the SAR
+instance inside <code>anatop_pixel</code></b> that alone generates 550 242 of the run's
+550 268 DRC results, and the <b><code>anatop_pixel</code> layout carrying 9 pin labels against
+75 schematic ports</b>. Both are single-edit fixes.</p></div>
+
+<ol id="toc">
+<li><a href="#s1">1 · Safety — the ingest hazard</a></li>
+<li><a href="#s2">2 · Flow, and why it differs from the digital path</a></li>
+<li><a href="#s3">3 · Procedure — DRC</a></li>
+<li><a href="#s4">4 · Procedure — LVS</a></li>
+<li><a href="#s5">5 · DRC results</a></li>
+<li><a href="#s6">6 · Reading the rule families</a></li>
+<li><a href="#s7">7 · LVS results</a></li>
+<li><a href="#s8">8 · Prioritised fix list</a></li>
+<li><a href="#s9">9 · Not run, and why</a></li>
+<li><a href="#s10">10 · Traps hit</a></li>
+</ol>
+
+<h2 id="s1">1 · Safety — the ingest hazard</h2>
+
+<div class="crit">
+<b>NEVER ingest <code>castalia</code>.</b>
+<code>~/vestarv/signoff_mp/ingest_layout.sh</code> line 74 is <code>rm -rf "$lib"</code>, and the
+signoff Makefile's <code>drc:</code>, <code>ant:</code>, <code>lvs:</code> and
+<code>signoff:</code> targets <b>all</b> depend on <code>ingest</code>. A single
+<code>make drc LIB=castalia</code> (or <code>./ingest_layout.sh castalia …</code>) deletes
+<code>~/chips/castalia/ic/castalia</code>, which is hand-authored source with no git backup and
+no other home. There is no undo.
+<ul>
+<li>The ingest target library must always be a <b>new, disposable</b> name. The convention
+established by this run is <code><b>castalia_sign</b></code>, created under
+<code>~/vestarv/signoff_mp/</code> and safe to delete at any time.</li>
+<li><code>~/chips/castalia/ic</code> is streamed <b>out of</b>, read-only. Nothing in this flow
+writes there; every artifact lands in scratch or in <code>~/chips/castalia/simruns/</code>.</li>
+<li><code>~/chips/myshkin/ic</code> (frozen tapeout) is read for decks and for the reference
+LVS results only.</li>
+<li>Echo the command and read the first argument before every ingest.</li>
+</ul>
+</div>
+
+<p>The one ingest actually performed in this run, verbatim:</p>
+<pre><code>cd ~/vestarv/signoff_mp
+./ingest_layout.sh castalia_sign anatop_biasswitch_casc &lt;scratch&gt;/gds/anatop_biasswitch_casc.gds
+#                  ^^^^^^^^^^^^^ disposable lib, NOT `castalia`</code></pre>
+
+<h2 id="s2">2 · Flow, and why it differs from the digital path</h2>
+
+<p>Every existing <code>BLOCKS</code> entry in the signoff Makefile is a digital block: an
+Innovus GDS ingested into a signoff OA library, DRC'd with <code>blockdrc</code>, and LVS'd
+against a Verilog netlist through <code>v2cdl</code>. None of that shape fits an analog leaf
+cell, so <b>no BLOCKS entries were added</b>; the runners were called directly with explicit
+library/cell arguments. Three deviations, each justified:</p>
+
+<ol class="proc">
+<li><b>Per-cell stream, not library-wide.</b> A single <code>strmout -library castalia -view
+layout</code> aborts at structure 538 on <code>castalia/OpAmpCurrentMirrorP/layout</code>
+(XSTRM-341, see §9). Per-cell streaming isolates that failure to one cell.</li>
+
+<li><b>Calibre driven off the GDS for the ADC-bearing cells, not off an OA library.</b>
+<code>ingest_layout.sh</code> calls <code>strmin_gds.sh</code>, whose
+<code>-refLibList</code> carries <code>myshkin_tapeout</code>. The SAR sub-cells
+(<code>Comparator_2V5_Mei</code>, <code>Cap_DAC_2V5_D_0p13s_0p70lsb</code>,
+<code>Cap_DAC_Driver_2V5_r1</code>, <code>Sample_Switch_2V5_r1</code>, <code>LS*TO*</code>,
+<code>DFF*_Spacing_Modded</code>, <code>Logic_Main_Neg_Out_Only_Sync</code>) carry the <b>same
+names</b> in <code>myshkin_tapeout</code>, so strmin would reference that library's masters
+instead of translating ours — the PG4 phantom-geometry class. <code>strmin_gds.sh</code>'s own
+gate correctly refuses, and it is right to. <code>drc.sh</code>'s first act is to
+<code>strmout</code> the OA library back to a GDS, so handing Calibre the streamed GDS directly
+is the same input with one fewer name-resolution hazard. Cross-checked on
+<code>anatop_tia_amp_ab</code>: the ingest path and the direct path produce
+<b>byte-identical rule statistics</b>.</li>
+
+<li><b>LVS uses an auCdl schematic netlist, not <code>lvs.sh</code>.</b> <code>lvs.sh</code>
+takes a Verilog <code>.lvs.v</code> and converts it with <code>v2cdl</code>; there is no
+Verilog for an analog cell. The precedent is Myshkin's own analog flow
+(<code>~/chips/myshkin/ic/pvs/lvs_cdl_only</code> and the run dirs under
+<code>pvs/potentiostat_final/</code>): <code>si -batch -command netlist</code> with
+<code>simSimulator = "auCdl"</code> produces the source CDL, and <code>pegasus -lvs
+-check_schematic</code> compares it against the streamed layout. That template
+(<code>pvs/si.env</code>) was reused unmodified.</li>
+</ol>
+
+<h2 id="s3">3 · Procedure — DRC</h2>
+
+<p>Deck: <code>celldrc</code> =
+<code>/home/mseminario2/chips/myshkin/ic/calibre/celldrc.rul</code>, the
+CLN65S_9M_6X1Z1U v2.5a deck with <code>FULL_CHIP</code> <b>off</b>. The local
+<code>decks/blockdrc.rul</code> (main.rul v2.6_2a) also has <code>FULL_CHIP</code> off but
+exists specifically for blocks containing <code>sram1p16k_hvt_pg</code>; nothing analog needs
+it. With <code>FULL_CHIP</code> off, <code>CHECK_LOW_DENSITY</code> stays off, so the deck
+choice does <b>not</b> change the result for any cell here — the density rules that do fire
+(<code>*.DN.*</code>) are unconditional in both decks.</p>
+
+<ol class="proc">
+<li>Source the environment and build a read-only view of the castalia library chain, so no tool
+ever runs with <code>~/chips/castalia/ic</code> as its working directory:
+<pre><code>source ~/vestarv/cdspaths.sh
+mkdir -p $PV &amp;&amp; cd $PV
+cat &gt; cds.lib &lt;&lt;'EOF'
+INCLUDE /home/mseminario2/chips/castalia/ic/cds.lib
+EOF</code></pre></li>
+
+<li>Enumerate the cells that have a layout view:
+<pre><code>( cd ~/chips/castalia/ic/castalia &amp;&amp; ls -d */layout ) | sed 's#/layout##' | sort &gt; cells.txt</code></pre></li>
+
+<li>Stream each cell out, full hierarchy, read-only:
+<pre><code>strmout -library castalia -topCell $c -view layout \
+        -strmFile $PV/gds/$c.gds -techlib tsmcN65 \
+        -layerMap /opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap \
+        -logFile $PV/log/strmout_$c.log</code></pre>
+Verify: <code>rc=0</code>, non-zero file, no <code>^ERROR</code> in the console. 36/37 pass;
+<code>OpAmpCurrentMirrorP</code> fails (§9).</li>
+
+<li>Ingest into the disposable library and run <code>drc.sh</code> — the sanctioned path, used
+for the 33 cells whose hierarchy has no myshkin name collision:
+<pre><code>cd ~/vestarv/signoff_mp
+./ingest_layout.sh castalia_sign $c $PV/gds/$c.gds
+./drc.sh           castalia_sign $c celldrc
+# report: calibre/castalia_sign/$c/results/celldrc.rpt</code></pre>
+<code>ingest_layout.sh</code> <code>rm -rf</code>s its target on every call, so
+<code>castalia_sign</code> holds exactly one cell at a time; the per-cell report directories
+under <code>calibre/castalia_sign/</code> persist.</li>
+
+<li>For <code>anatop_pixel</code>, <code>anatop_pixel_adc</code> and
+<code>NEW_ADC_Main_2V5_Sync_0p13s_0p70lsb</code>, run Calibre on the streamed GDS
+(<code>scripts/analog_drc.sh</code> in the archive, same runset as <code>drc.sh</code>):
+<pre><code>./analog_drc.sh $PV/gds/$c.gds $c celldrc $PV/direct/$c</code></pre></li>
+
+<li>Read the verdict from
+<code>TOTAL DRC Results Generated:</code> and the per-rule table under
+<code>RULECHECK RESULTS STATISTICS (BY CELL)</code>. Never read a <code>.rc</code> file.</li>
+</ol>
+
+<p class="small">Runtime: 4–9 s per cell, whole sweep under 4 minutes. Licenses are shared;
+the sweep is serial.</p>
+
+<h2 id="s4">4 · Procedure — LVS</h2>
+
+<ol class="proc">
+<li>Re-stream every layout <b>with pin text</b> — the DRC stream has none, and without labels
+Pegasus has no port correspondence to seed on:
+<pre><code>strmout -library castalia -topCell $c -view layout \
+        -strmFile $PV/gds_lvs/$c.gds -techlib tsmcN65 \
+        -layerMap /opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap \
+        -convertPin geometryAndText -noWarn "20 32 33 35 315" \
+        -logFile $PV/log/strmoutlvs_$c.log</code></pre></li>
+
+<li>Instantiate Myshkin's auCdl template per cell and netlist the schematic. <code>si</code>
+must run from a directory holding a <code>cds.lib</code> that resolves
+<code>castalia</code>; it only opens cellviews for read:
+<pre><code>sed -e "s/\$lib/castalia/g" -e "s/\$cell/$c/g" \
+    &lt; ~/chips/myshkin/ic/pvs/si.env &gt; $PV/lvs/$c/si.env
+cd $PV &amp;&amp; si $PV/lvs/$c -batch -command netlist</code></pre>
+Output: <code>castalia.$c.schematic.cdl</code>. A <code>.simrc</code> in the same directory
+declares <code>powerNets</code>/<code>groundNets</code>.</li>
+
+<li>Compare with Pegasus and the stock kit deck. The kit's <code>source.added</code> is
+<b>mandatory</b> — without it every cell containing <code>rppolywo</code>,
+<code>rnpolywo</code> or <code>mimcap_sin</code> dies with
+<code>ERROR (NVN-13010): Cell &lt;x&gt; is not defined</code> and <code>rc=1</code>
+(12 of 36 cells on the first pass):
+<pre><code>cd $PV/lvs/$c
+pegasus -lvs -check_schematic \
+  -gds $PV/gds_lvs/$c.gds -layout_top_cell $c -source_top_cell $c \
+  -source_cdl /opt/design_kits/TSMC65-PDK/kit/PVS/LVS/DFM_LVS_RC_PVS_N65RF_1P9M_ALRDL_v1.6b/source.added \
+  -source_cdl $PV/lvs/$c/castalia.$c.schematic.cdl \
+  -run_dir $PV/lvs/$c \
+  /opt/design_kits/TSMC65-PDK/kit/PVS/LVS/pvs.lvs</code></pre></li>
+
+<li>Read <code>Run Result</code> from <code>lvs.rep.cls</code>. <b>Pegasus exits 0 on
+MISMATCH</b> — the exit code is not the verdict, exactly as <code>lvs.sh</code>'s 2026-08-24
+header warns. The useful detail is the <code>CELL COMPARISON</code> block: the
+<code>Pins</code> and <code>Nets</code> rows of <code>STATISTICS</code>, then
+<code>MISMATCHED INSTANCES</code> / <code>UNMATCHED SCHEMATIC PIN LABELS</code> /
+<code>SHORTS AND OPENS</code>.</li>
+</ol>
+
+<p class="small">Runtime: 2–4 s per cell.</p>
+
+<h2 id="s5">5 · DRC results</h2>
+
+<p>All runs <code>celldrc</code>. Columns split the total by rule family: <b>dens</b> =
+<code>*.DN.*</code> minimum density, <b>grid</b> = <code>G.1:*</code> off-grid, <b>sugg</b> =
+<code>SUGGESTED.NW.S.3__NW.S.4</code> (optional conservative option), <b>lup</b> =
+<code>LUP.6</code> latch-up guideline, <b>real</b> = everything else. §6 explains which of these
+mean anything for a standalone cell.</p>
+
+<table>
+<tr><th>Cell</th><th>Deck</th><th class="n">total</th><th class="n">dens</th><th class="n">grid</th>
+    <th class="n">sugg</th><th class="n">lup</th><th class="n">real</th><th>Top real rules</th></tr>
+<tr><td><code>anatop_pixel</code></td><td>celldrc</td><td class="n">550268</td><td class="n">12</td><td class="n">550242</td><td class="n">2</td><td class="n">0</td><td class="n">12</td><td>M1.A.1=9, NW.S.5=2, M1.S.1=1</td></tr>
+<tr><td><code>anatop_pixel_adc</code></td><td>celldrc</td><td class="n">2</td><td class="n">2</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td>—</td></tr>
+<tr><td><code>anatop_pixel_dacR2R12</code></td><td>celldrc</td><td class="n">8</td><td class="n">8</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td>—</td></tr>
+<tr><td><code>anatop_pixel_dac_psu</code></td><td>celldrc</td><td class="n">9</td><td class="n">9</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td>—</td></tr>
+<tr><td><code>anatop_pixel_tia_rfb</code></td><td>celldrc</td><td class="n">10</td><td class="n">10</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td>—</td></tr>
+<tr><td><code>anatop_tia_amp_ab</code></td><td>celldrc</td><td class="n">8</td><td class="n">8</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td>—</td></tr>
+<tr><td><code>anatop_biasgen_local</code></td><td>celldrc</td><td class="n">8</td><td class="n">8</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td>—</td></tr>
+<tr><td><code>anatop_biasswitch_casc</code></td><td>celldrc</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td>clean</td></tr>
+<tr><td><code>anatop_amux_16</code></td><td>celldrc</td><td class="n">7</td><td class="n">7</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td>—</td></tr>
+<tr><td><code>anatop_amux_4</code></td><td>celldrc</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td>clean</td></tr>
+<tr><td><code>anatop_amux_2</code></td><td>celldrc</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td>clean</td></tr>
+<tr><td><code>anatop_tgate_p2</code></td><td>celldrc</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td>clean</td></tr>
+<tr><td><code>anatop_inv_sm</code></td><td>celldrc</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td>clean</td></tr>
+<tr><td><code>anatop_inv_x1a</code></td><td>celldrc</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td>clean</td></tr>
+<tr><td colspan="9" style="background:var(--panel)"><b>Tier 2 — imported <code>anatop_eis_*</code> island (leon) and frozen reference cells</b></td></tr>
+<tr><td><code>anatop_eis_idac</code></td><td>celldrc</td><td class="n">215</td><td class="n">10</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">205</td><td>G.4:M1i=137, M1.S.2=18, M1.S.1=16, M1.S.2.1=12, OD.S.1=7, PP.S.1=4, NP.S.1=4, M2.A.1=3</td></tr>
+<tr><td><code>anatop_eis_cbia</code></td><td>celldrc</td><td class="n">186</td><td class="n">12</td><td class="n">0</td><td class="n">87</td><td class="n">48</td><td class="n">39</td><td>M1.A.1=8, G.4:M1i=4, NW.S.2=3, NW.S.3=2, NW.S.6=2, NW.S.7=2, OD2.S.*=7</td></tr>
+<tr><td><code>anatop_eis_cbia_tia</code></td><td>celldrc</td><td class="n">33</td><td class="n">12</td><td class="n">0</td><td class="n">3</td><td class="n">18</td><td class="n">0</td><td>—</td></tr>
+<tr><td><code>anatop_eis_ota_sn</code></td><td>celldrc</td><td class="n">19</td><td class="n">10</td><td class="n">0</td><td class="n">1</td><td class="n">8</td><td class="n">0</td><td>—</td></tr>
+<tr><td><code>anatop_eis_ota_p</code></td><td>celldrc</td><td class="n">16</td><td class="n">6</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">10</td><td>G.4:M1i=10</td></tr>
+<tr><td><code>anatop_eis_tgate_amux16</code></td><td>celldrc</td><td class="n">11</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">11</td><td>G.4:M1i=10, M1.S.2=1</td></tr>
+<tr><td><code>anatop_eis_rprog_lpf2</code></td><td>celldrc</td><td class="n">10</td><td class="n">10</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td>—</td></tr>
+<tr><td><code>anatop_eis_rprog_lpf1</code></td><td>celldrc</td><td class="n">10</td><td class="n">10</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td>—</td></tr>
+<tr><td><code>anatop_eis_idac_core</code></td><td>celldrc</td><td class="n">9</td><td class="n">9</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td>—</td></tr>
+<tr><td><code>anatop_eis_biasgen</code></td><td>celldrc</td><td class="n">8</td><td class="n">8</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td>—</td></tr>
+<tr><td><code>anatop_eis_biasswitch</code></td><td>celldrc</td><td class="n">6</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">6</td><td>G.4:M1i=6</td></tr>
+<tr><td><code>anatop_eis_tgate_p2</code></td><td>celldrc</td><td class="n">4</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">4</td><td>G.4:M1i=4</td></tr>
+<tr><td><code>anatop_eis_chop_d16</code></td><td>celldrc</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td>clean</td></tr>
+<tr><td><code>anatop_eis_tgate_d16</code>, <code>_d2</code>, <code>_n16</code>, <code>_n2</code>, <code>_p16</code></td><td>celldrc</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td>clean (5 cells)</td></tr>
+<tr><td><code>anatop_eis_inv_sm</code>, <code>anatop_eis_inv_x1a</code></td><td>celldrc</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td>clean (2 cells)</td></tr>
+<tr><td><code>NEW_ADC_Main_2V5_Sync_0p13s_0p70lsb</code></td><td>celldrc</td><td class="n">2</td><td class="n">2</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td>—</td></tr>
+<tr><td><code>LVLA25D10PP</code></td><td>celldrc</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td>clean</td></tr>
+<tr><td><code>OpAmpCurrentMirrorP</code></td><td>—</td><td class="n" colspan="6">blocked — layout will not stream</td><td>see §9</td></tr>
+</table>
+
+<p><b>15 cells are DRC-clean outright</b> (zero results of any family):
+<code>anatop_amux_2</code>, <code>anatop_amux_4</code>, <code>anatop_biasswitch_casc</code>,
+<code>anatop_tgate_p2</code>, <code>anatop_inv_sm</code>, <code>anatop_inv_x1a</code>,
+<code>anatop_eis_chop_d16</code>, <code>anatop_eis_inv_sm</code>,
+<code>anatop_eis_inv_x1a</code>, <code>anatop_eis_tgate_{d16,d2,n16,n2,p16}</code>,
+<code>LVLA25D10PP</code>.
+<b>A further 12 report minimum density only</b> — including every remaining tapeout-channel
+cell — and 2 more (<code>anatop_eis_cbia_tia</code>, <code>anatop_eis_ota_sn</code>) add only
+<code>LUP.6</code>/<code>SUGGESTED</code> guidelines. All 14 are clean for signoff purposes at
+cell level. Real geometry violations exist in 7 cells, 6 of them imported leon cells and one
+(<code>anatop_pixel</code>) traceable to a single misplacement.</p>
+
+<h2 id="s6">6 · Reading the rule families</h2>
+
+<table>
+<tr><th>Family</th><th>What it is</th><th>Verdict</th></tr>
+<tr><td><code>*.DN.*</code><br><span class="small">M1–M9.DN.1/2, OD.DN.2, PO.DN.2</span></td>
+    <td>Minimum layer density measured in a 20 µm or 150 µm window
+    (<code>DENSITY … WINDOW … INSIDE OF LAYER CHIPx</code>).</td>
+    <td><span class="tag t-na">artifact</span> A cell smaller than the window, or with no M8/M9
+    at all, can never pass. Meaningful only after the cell is placed in a chip that carries
+    fill. Ignore at cell level; re-check at top.</td></tr>
+<tr><td><code>G.1:*</code></td>
+    <td><code>OFFGRID &lt;layer&gt; 5</code> — every vertex must land on the 5 nm grid
+    (DB precision 1 nm).</td>
+    <td><span class="tag t-bad">real</span> Fires only on <code>anatop_pixel</code>, and there
+    from a single cause (§8, fix 1).</td></tr>
+<tr><td><code>G.4:M1i</code></td>
+    <td>M1 edges shorter than minimum width with a vertex count &gt; 4 — small jogs and
+    notches.</td>
+    <td><span class="tag t-bad">real</span> Hand-drawn M1 artefacts, all in imported leon
+    cells. Cosmetic-to-yield, not a short; fix by squaring the jog.</td></tr>
+<tr><td><code>LUP.6</code></td>
+    <td>Latch-up guideline: any point in a MOS source/drain must be within
+    <code>LUP_6</code> of a well/substrate strap of the same well.</td>
+    <td><span class="tag t-warn">context</span> Enabled by <code>#DEFINE GUIDELINE_LUP</code>
+    in this deck. A leaf cell that expects the parent to supply the guard ring will always
+    fire. Re-check inside <code>anatop_eis</code> before treating as real.</td></tr>
+<tr><td><code>SUGGESTED.NW.S.3__NW.S.4</code></td>
+    <td>Conservative N-well spacing, enabled by <code>#DEFINE NW_SUGGESTED</code>.</td>
+    <td><span class="tag t-warn">optional</span> Not a required rule. The hard
+    <code>NW.S.1/2/3/5/6/7</code> results on <code>anatop_eis_cbia</code> are separate and are
+    real.</td></tr>
+<tr><td><code>M1.S.*</code>, <code>M2.S.*</code>, <code>OD.S.*</code>, <code>OD2.S.*</code>,
+        <code>NW.S.*</code>, <code>PP.S.1</code>, <code>NP.S.1</code>, <code>M1.A.1</code>,
+        <code>M2.A.1</code></td>
+    <td>Spacing and minimum-area, action-required.</td>
+    <td><span class="tag t-bad">real</span> Concentrated in
+    <code>anatop_eis_idac</code> (205) and <code>anatop_eis_cbia</code> (39).</td></tr>
+</table>
+
+<div class="note"><b>No fill/seal-ring contamination was found.</b> The imported leon cells
+carry no foreign dummy or seal-ring context — the layouts stream and check as ordinary
+standalone cells. The only cross-workspace hazard that materialised was the
+<code>myshkin_tapeout</code> <b>name</b> collision on the SAR sub-cells (§2 item 2), and it was
+caught by the existing gate rather than silently absorbed.</div>
+
+<h2 id="s7">7 · LVS results</h2>
+
+<p>Source = auCdl netlist of the <code>schematic</code> view; layout = the same cell streamed
+with pin text. 25 MATCH, 11 MISMATCH, 1 blocked.</p>
+
+<table>
+<tr><th>Cell</th><th>Verdict</th><th>Pins lay:sch</th><th>Nets lay:sch</th><th>Devices lay:sch</th><th>Diagnosis</th></tr>
+<tr><td><code>anatop_tia_amp_ab</code></td><td><span class="tag t-ok">MATCH</span></td><td>—</td><td>—</td><td>—</td><td>Clean. Shorts file empty.</td></tr>
+<tr><td><code>anatop_pixel_dacR2R12</code>, <code>anatop_pixel_dac_psu</code>, <code>anatop_pixel_tia_rfb</code></td><td><span class="tag t-ok">MATCH</span></td><td>—</td><td>—</td><td>—</td><td>Clean.</td></tr>
+<tr><td><code>anatop_amux_16</code>, <code>_4</code>, <code>_2</code>, <code>anatop_biasswitch_casc</code>, <code>anatop_tgate_p2</code>, <code>anatop_inv_sm</code>, <code>anatop_inv_x1a</code>, <code>LVLA25D10PP</code></td><td><span class="tag t-ok">MATCH</span></td><td>—</td><td>—</td><td>—</td><td>Clean (8 cells).</td></tr>
+<tr><td><code>anatop_eis_{biasswitch, chop_d16, idac_core, inv_sm, inv_x1a, rprog_lpf1, rprog_lpf2, tgate_d16, tgate_d2, tgate_n16, tgate_n2, tgate_p16, tgate_p2}</code></td><td><span class="tag t-ok">MATCH</span></td><td>—</td><td>—</td><td>—</td><td>Clean (13 cells).</td></tr>
+<tr><td><code>anatop_pixel</code></td><td><span class="tag t-bad">MISMATCH</span></td><td><b>9 : 75</b></td><td>842 : 909</td><td>2513 : 2735</td><td>The layout carries 9 pin labels — <code>CE RE WE vdd! vss! bn! bp! bnc! bpc!</code>, all sitting in a row at y ≈ −1.2 µm — against 75 schematic ports. Every digital control, DAC code and ADC output bus is unlabelled, so nothing downstream of the boundary can correspond. 222 fewer devices than the schematic on top of that.</td></tr>
+<tr><td><code>anatop_pixel_adc</code><br><code>NEW_ADC_Main_2V5_Sync_0p13s_0p70lsb</code></td><td><span class="tag t-warn">MISMATCH<br>(inherited)</span></td><td>19 : 19</td><td>498 : 498</td><td>1156 : 982</td><td>Pins and nets match exactly. One unmatched schematic instance: <code>XI0 / Cap_DAC_2V5_D_0p13s_0p70lsb</code>, whose auCdl subckt has 21 pins and <b>no devices</b> — the cap array is layout-only. <b>Myshkin's own LVS on this cell reports the same MISMATCH with the same single instance</b> (<code>~/chips/myshkin/ic/pvs/Better_ADCs/…/lvs.rep.cls</code>), so this is inherited, not introduced by the copy.</td></tr>
+<tr><td><code>anatop_biasgen_local</code><br><code>anatop_eis_biasgen</code></td><td><span class="tag t-bad">MISMATCH</span></td><td>13 : 13</td><td>16 : 16</td><td>45 : 44</td><td>All pins and all nets match. Exactly one unmatched device: a layout NMOS <code>M1 @(27.045, 0.770)</code> with no schematic counterpart. One extra transistor, or one missing from the schematic. Closest cell to a pass in the whole set.</td></tr>
+<tr><td><code>anatop_eis_ota_p</code></td><td><span class="tag t-bad">MISMATCH</span></td><td>9 : 10</td><td>19 : 20</td><td>52 : 52</td><td>All 52 devices matched, zero unmatched. Single cause: <code>UNMATCHED SCHEMATIC PIN LABELS — bn! → ** missing pin ** / ** missing net **</code>. The layout is labelled <code>bp! bnc! bpc! vdd! vss! En VInM VInP VOut</code>; <code>bn!</code> is absent. One label from MATCH — and this is the <code>bn!</code>/<code>bnm!</code> global-name collision flagged in CLAUDE.md showing up physically.</td></tr>
+<tr><td><code>anatop_eis_tgate_amux16</code></td><td><span class="tag t-bad">MISMATCH</span></td><td>7 : 7</td><td>4 : 0</td><td>4 : 4</td><td>Pins and devices all match. Two <code>SHORTS AND OPENS</code> entries: <code>vdd!</code> splits into 2 layout nets, <code>X</code> splits into 2. This is a layout-only dependency of the IDAC/CBIA layouts, meant to be strapped by the parent — likely a standalone-context artifact, but must be re-confirmed inside the parent.</td></tr>
+<tr><td><code>anatop_eis_cbia</code></td><td><span class="tag t-bad">MISMATCH</span></td><td><b>0</b> : 14</td><td>423 : 42</td><td>512 : 103</td><td>The layout has <b>zero pin text</b>, so the comparison is never seeded and the net counts are meaningless. The 5× device count also needs explaining. Fix labels first; do not read the deltas before then.</td></tr>
+<tr><td><code>anatop_eis_cbia_tia</code></td><td><span class="tag t-bad">MISMATCH</span></td><td><b>0</b> : 14</td><td>150 : 26</td><td>422 : 66</td><td>Same: no pin text in the layout.</td></tr>
+<tr><td><code>anatop_eis_ota_sn</code></td><td><span class="tag t-bad">MISMATCH</span></td><td><b>0</b> : 6</td><td>32 : 4</td><td>9 : 9</td><td>Same: no pin text. Device counts agree 9:9, so the cell is probably right and only unlabelled.</td></tr>
+<tr><td><code>anatop_eis_idac</code></td><td><span class="tag t-bad">MISMATCH</span></td><td>19 : 19</td><td>111 : 161</td><td>1180 : 377</td><td>Seeded correctly (all 19 pins matched) and still 242 schematic devices unmatched. A genuine structural divergence between leon's IDAC layout and the schematic we copied. Not on the tapeout channel; needs a leon-side reference before it is worth chasing.</td></tr>
+<tr><td><code>OpAmpCurrentMirrorP</code></td><td><span class="tag t-na">BLOCKED</span></td><td colspan="4">Layout will not stream — see §9.</td></tr>
+</table>
+
+<div class="note">Every MATCH also has an <b>empty shorts file</b>. Per <code>lvs.sh</code>'s
+sentinel doctrine that proves nothing on its own: no conflicting power texts were injected, so
+<code>LVS_FIND_SHORTS</code> was text-blind. Treat the shorts result as <i>not armed</i>
+throughout this run.</div>
+
+<h2 id="s8">8 · Prioritised fix list</h2>
+
+<ol class="proc">
+<li><b>Snap the SAR instance in <code>anatop_pixel</code> to the 5 nm grid.</b> The instance
+<code>anatop_pixel_adc</code> sits at <code>(44.260, 115.997)</code> µm. The Y is 2 nm off a
+5 nm grid; every shape in the ADC's subtree therefore reports off-grid, and that single
+placement produces <b>550 242 of the cell's 550 268</b> DRC results. Move it to
+<code>115.995</code> or <code>116.000</code> and re-run. Verify afterwards whether the residual
+<code>M1.A.1</code>×9, <code>NW.S.5</code>×2 and <code>M1.S.1</code>×1 also clear — 2 nm
+slivers at an abutment are the obvious suspect. Command to re-find the offender:
+<pre><code>python3 scripts/offgrid_scan.py $PV/gds/anatop_pixel.gds     # archived with this run</code></pre></li>
+
+<li><b>Label the <code>anatop_pixel</code> boundary.</b> 9 pin labels against 75 schematic
+ports. Until the digital control, DAC-code, <code>ResEn</code>/<code>ThEn</code> and
+<code>SARADC_*</code> buses carry pin text, the pixel LVS verdict carries no information. This
+is the single blocker on a meaningful top-level analog LVS.</li>
+
+<li><b><code>anatop_eis_ota_p</code>: add the <code>bn!</code> label.</b> One label from MATCH,
+all 52 devices already correspond. Confirm which physical rail is the NMOS bias in that layout
+before labelling — this is the <code>bn!</code>/<code>bnm!</code> collision CLAUDE.md flags as
+open, and labelling the wrong rail would bury it.</li>
+
+<li><b><code>anatop_biasgen_local</code> / <code>anatop_eis_biasgen</code>: resolve the extra
+NMOS at (27.045, 0.770).</b> Everything else matches. Either it is an undocumented
+dummy/decoupling device that belongs in the schematic, or it is a stray.</li>
+
+<li><b>Label <code>anatop_eis_cbia</code>, <code>anatop_eis_cbia_tia</code>,
+<code>anatop_eis_ota_sn</code>.</b> Zero pin text; nothing about those three can be concluded
+until they have labels. <code>ota_sn</code> already agrees 9:9 on devices and will probably
+match immediately.</li>
+
+<li><b><code>anatop_eis_idac</code>: 205 action-required DRC results and 242 unmatched
+schematic devices.</b> The largest genuine defect count in the set, and the only cell where DRC
+and LVS both point at real geometry. Off the tapeout channel — schedule it with the EIS
+island, not before.</li>
+
+<li><b><code>anatop_eis_cbia</code>: 39 action-required DRC results</b> (NW/OD2 spacing, M1
+minimum area). Same schedule.</li>
+
+<li><b><code>G.4:M1i</code> small-jog cleanup</b> — 137 in <code>anatop_eis_idac</code>, 10 each
+in <code>anatop_eis_ota_p</code> and <code>anatop_eis_tgate_amux16</code>, 6 in
+<code>anatop_eis_biasswitch</code>, 4 in <code>anatop_eis_tgate_p2</code>. Low severity, high
+count; batch it.</li>
+
+<li><b>Repoint <code>OpAmpCurrentMirrorP</code>'s layout</b> (§9), or delete the cell if the
+current-mirror OTA is no longer a candidate.</li>
+
+<li><b>Re-check density and <code>LUP.6</code> at assembly, not now.</b> Nothing on the
+<code>*.DN.*</code> or <code>LUP.6</code> lists is actionable at cell level.</li>
+</ol>
+
+<h2 id="s9">9 · Not run, and why</h2>
+
+<ol class="proc">
+<li><b><code>OpAmpCurrentMirrorP</code> — no DRC, no LVS.</b> Its <code>layout</code> view
+instantiates <code>potentiostat_final/BiasSwitchCascode/layout</code>, and
+<code>potentiostat_final</code> does not exist on disk (the known dangling-library break).
+<code>strmout</code> aborts:
+<pre><code>ERROR (XSTRM-341): Translation failed while processing 'castalia/OpAmpCurrentMirrorP/layout'
+because of the following reason: Cannot open design potentiostat_final/BiasSwitchCascode/layout:
+"Library potentiostat_final not found."</code></pre>
+The instance header carries three historical fallbacks —
+<code>potentiostat_final</code>, <code>socdemo_adc</code>, <code>teewinot</code> — none
+resolvable. <b><code>castalia_anatop_repair.il</code> repointed schematic instance headers
+only; layout headers were left broken.</b> The replacement master already exists in the library
+as <code>anatop_biasswitch_casc</code> (which is itself DRC-clean and LVS MATCH), so the repair
+is a one-line repoint. This also aborts any library-wide <code>strmout</code>, which is why the
+sweep streams per cell.</li>
+
+<li><b><code>anatop_tia_rprog</code> — no layout view exists.</b> Confirmed against the library:
+the cell has <code>schematic</code> and <code>symbol</code> only, consistent with CLAUDE.md's
+"no layout (source layout is the 223-unit cell)". Nothing to verify. Its ancestor
+<code>anatop_eis_rprog_lpf2</code> <i>was</i> verified: DRC density-only, LVS MATCH — which is
+the best available evidence that the resistor ladder style is physically sound.</li>
+
+<li><b>Antenna (<code>ant25</code>) not run.</b> Antenna ratios are a routing-length property
+measured against the full net, including the parent's routing. A standalone leaf run would
+report only artifacts. Schedule it on <code>anatop_pixel</code> after fix 1, and at chip
+level.</li>
+
+<li><b><code>anatop</code>, <code>anatop_channel</code>, <code>anatop_pstat</code>,
+<code>anatop_tia</code> — schematic only.</b> These four assembled blocks have no layout view,
+so there is nothing to verify. <code>anatop_pixel</code> is the only assembled analog cell with
+layout.</li>
+
+<li><b>ERC not evaluated.</b> Pegasus wrote <code>erc.sum</code> for every cell but reports
+"Empty, non-executed ERC operations exist" — the stock kit deck's ERC checks need connectivity
+seeding this flow does not supply. Not a gap worth closing before the labelling fixes.</li>
+</ol>
+
+<h2 id="s10">10 · Traps hit</h2>
+
+<ol class="proc">
+<li><b>A library-wide <code>strmout</code> is all-or-nothing.</b> It translated 538 structures
+and then discarded the run on one unresolvable master. Stream per top cell.</li>
+
+<li><b><code>strmin</code>'s PG4 gate fires on the SAR sub-cells, correctly.</b> Nine
+<code>Better_ADCs</code> cell names collide with <code>myshkin_tapeout</code>; the gate refuses
+rather than let them resolve to the other chip's masters. Do not "fix" this by widening the
+cellmap — bypass strmin instead, or the phantom-geometry class comes back.</li>
+
+<li><b>Pegasus needs the kit's <code>source.added</code> for PDK passives.</b> Without it,
+<code>rppolywo</code>, <code>rnpolywo</code> and <code>mimcap_sin</code> are undefined,
+pegasus exits 1, and the sweep reports "no verdict" on 12 of 36 cells — a failure mode that
+looks like a tool problem rather than a missing include.</li>
+
+<li><b>Pegasus exits 0 on MISMATCH.</b> The exit code is not the verdict. Read
+<code>Run Result</code> from <code>*.cls</code>.</li>
+
+<li><b><code>set -u</code> before <code>source ~/vestarv/cdspaths.sh</code> kills the script
+silently.</b> The environment script trips an unbound variable and the shell exits with rc=1
+and no output. Source first, then <code>set -u</code>.</li>
+
+<li><b><code>drc.sh</code> greps its own strmout log case-insensitively for "error"</b> and so
+prints "strmout reported errors:" for the benign line
+<code>Translation completed. '0' error(s)</code> — the same false alarm <code>lvs.sh</code> was
+already patched for. Harmless, but do not read it as a failure.</li>
+
+<li><b>The owner's Virtuoso (pid 61745) was live throughout</b> and saved
+<code>anatop_tia_amp_ab/schematic</code> at 04:04:44, mid-sweep. The auCdl netlist for that cell
+was cut at 04:08:49, so the comparison used the newer schematic against a layout that was not
+touched — but a concurrent GUI save is a real staleness hazard for this flow, and the streams
+and netlists are not timestamp-gated the way <code>lvs.sh</code> gates its labels. This flow
+took no OA locks in <code>castalia</code> (verified: no <code>*.cdslck</code> under the
+library) and wrote nothing there.</li>
+
+<li><b>The DRC stream and the LVS stream are different files.</b> DRC does not want pin text;
+LVS cannot work without it (<code>-convertPin geometryAndText</code>). Reusing one for the
+other silently degrades the LVS to an unseeded comparison — which is exactly the state three
+leon cells are in for a different reason.</li>
+</ol>
+
+<h2>Artifacts</h2>
+
+<p>Raw reports, netlists and the driver scripts are archived at
+<code>~/chips/castalia/simruns/pv_20260824/</code>:</p>
+
+<table>
+<tr><th>Path</th><th>Contents</th></tr>
+<tr><td><code>drc/&lt;cell&gt;.celldrc.rpt</code></td><td>36 Calibre summary reports.</td></tr>
+<tr><td><code>lvs/&lt;cell&gt;/</code></td><td><code>lvs.rep</code>, <code>lvs.rep.cls</code>, <code>lvs.rep.shorts</code>, the extracted <code>.ports</code> table and the auCdl source netlist, per cell.</td></tr>
+<tr><td><code>scripts/</code></td><td><code>run_drc_all.sh</code>, <code>run_lvs_all.sh</code>, <code>analog_drc.sh</code>, <code>si.cdl.env</code>, the read-only <code>cds.lib</code> and <code>.simrc</code>.</td></tr>
+<tr><td><code>drc_summary.txt</code>, <code>lvs_summary.txt</code>, <code>strmout_summary.txt</code>, <code>cells.txt</code></td><td>One-line-per-cell sweep results.</td></tr>
+<tr><td><code>logs/strmout_librarywide_FAILED.console</code></td><td>The XSTRM-341 abort, for the <code>OpAmpCurrentMirrorP</code> repair.</td></tr>
+</table>
+
+<p class="small">The disposable ingest library <code>~/vestarv/signoff_mp/castalia_sign</code>
+holds whichever cell was ingested last and may be deleted freely. Published Calibre run
+directories are under <code>~/vestarv/signoff_mp/calibre/castalia_sign/&lt;cell&gt;/</code>.</p>
+
+</main>
+</body>
+</html>

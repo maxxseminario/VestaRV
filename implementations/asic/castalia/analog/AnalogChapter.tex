@@ -30,8 +30,9 @@ in Section~\ref{s:regMemMap}.
 Unless stated otherwise, every figure and table in this chapter is taken from
 schematic-level simulation of the block's own testbench (pre-layout, with no
 extracted parasitics), and is therefore a design-intent characterisation rather
-than silicon data. Two places run on an extracted netlist and say so where they
-do: the SAR ADC section, and the converter readout of the assembled channel.
+than silicon data. Three places run on an extracted netlist and say so where they
+do: the SAR ADC section, the converter readout of the assembled channel, and the
+code-level probe of the impedance mode.
 Each block section names the testbench it came from and the
 process, temperature and supply points that were simulated, so the coverage behind
 each number is explicit. Numbers are regenerated directly from the simulator's
@@ -47,10 +48,15 @@ the local bias generator, the class-AB amplifier that serves as both the
 channel's transimpedance amplifier (A2) and its potentiostat control amplifier
 (A1), the complete potentiostat pixel system built from a pair of those
 amplifiers around a three-electrode cell, the assembled channel that replaces
-that system's ideal sources with the silicon intended for tapeout, the 10-bit SAR analog-to-digital
+that system's ideal sources with the silicon intended for tapeout, the analog
+multiplexer fabric through which the converter and the test port see that
+channel, the 10-bit SAR analog-to-digital
 converter that closes the channel, the programmable feedback resistor that sets
 the channel's transimpedance gain, and the 12-bit R-2R reference DAC with the
-supply block that feeds it. Each block section closes with the register settings
+supply block that feeds it. Section~\ref{ss:eis} documents not a block but a
+second measurement mode of that channel: impedance spectroscopy performed by the
+potentiostat itself, with no impedance hardware.
+Each block section closes with the register settings
 that observe that block on a real die, and Section~\ref{ss:calibration} lists the
 per-chip constants those measurements produce. Both are design intent: the analog
 test bus and the electrode isolation switches they use are not yet in the
@@ -63,20 +69,30 @@ schematics.
 \toprule
 Block & Section & Benches & Corners & Monte Carlo \\
 \midrule
-Bias generator        & \ref{ss:biasgen-local} & 2 & \checkmark & n/a \\
+Bias generator        & \ref{ss:biasgen-local} & 3 & \checkmark & n/a \\
 Class-AB amplifier    & \ref{ss:ampab}         & 6 & \checkmark & \checkmark \\
 Potentiostat pixel system & \ref{ss:pixel}     & 6 & \checkmark & \checkmark \\
 Assembled channel     & \ref{ss:pixtop}        & 1 & \checkmark & \checkmark \\
-SAR ADC               & \ref{ss:adc}          & 1 & --- & --- \\
-Feedback resistor     & \ref{ss:tiarprog}      & 3 & \checkmark & \checkmark \\
+Input multiplexer     & \ref{sss:pixtop-mux}   & 2 & \checkmark & n/a \\
+Impedance spectroscopy & \ref{ss:eis}          & 1 & --- & --- \\
+SAR ADC               & \ref{ss:adc}          & 2 & \checkmark & \checkmark \\
+Feedback resistor     & \ref{ss:tiarprog}      & 5 & \checkmark & \checkmark \\
 Reference DAC         & \ref{ss:dacr2r12}      & 6 & \checkmark & \checkmark \\
 \bottomrule
 \end{tabular}
 \end{center}
 
-\noindent A dash means the run has not been made: the SAR ADC is characterised
-at the nominal corner only, and its section states that limit alongside every
-number.
+\noindent Every block now carries a corner run. The impedance row is not a
+block: its dashes record a mode that adds no devices and has been measured at
+the nominal point only (Section~\ref{sss:eis-open}).
+\emph{n/a} marks a block whose
+section reports no Monte Carlo because the devices at issue carry no
+per-instance mismatch terms: the multiplexer's ninety pass gates per tree, and
+the bias generator's start-up branch, sit on model cards that give a mismatch
+run a spread of zero from exactly the devices under test. The converter's Monte
+Carlo has been run and is reported as a negative result for a related reason
+(Section~\ref{sss:adc-mc}); nothing in this chapter quotes a converter gain or
+offset \(\sigma\).
 Corner runs cover process, temperature and supply at the five points listed in
 each block section. Monte Carlo runs cover process and mismatch together unless a
 table states mismatch-only; a corner figure
@@ -120,6 +136,11 @@ reports the measurement.
 % the masters are maestro2tex output and are overwritten on every regeneration.
 
 \input{include/analog/BiasGenCascWideSwing.tex}
+% Start-up verification, 2026-08-25. HAND-WRITTEN: it comes from a bench built
+% after the maestro2tex config was frozen (castalia/tb_anatop_bg_startup, one
+% test bg_su, 101 corners), so it is input here rather than from the generated
+% master. Source ~/chips/castalia/simruns/bgladder_20260825/README.md, Task A.
+\input{include/analog/note_biasgen_startup.tex}
 \input{include/analog/note_meas_biasgen.tex}
 \input{include/analog/AmpAB.tex}
 \input{include/analog/note_meas_ampab.tex}
@@ -149,6 +170,13 @@ reports the measurement.
 \input{include/analog/note_pixtop_cv.tex}
 \input{include/analog/fig_pixtop_cv.tex}
 \input{include/analog/note_pixtop_adc.tex}
+% The multiplexer fabric that stands between the channel and both the converter
+% and the test port. Kept inside this section rather than promoted to a block
+% section of its own: it is fabric in the channel's signal path, and its two
+% consequences (a sibling-voltage rule and a settling wait) are channel-level
+% procedures that the readout paragraph above already depends on.
+% Source ~/chips/castalia/simruns/muxchar_20260825/README.md.
+\input{include/analog/note_pixtop_mux.tex}
 % Small-signal, noise and power: simruns/rebase_20260824/{stb,stb_buf,noise,
 % noise_adc,pwr,corner} on the 2026-08-24 OA, with simruns/trmnoise_gain (the
 % 16-code noise sweep behind fig_pixtop_noise, whose numbers the re-baseline
@@ -168,6 +196,25 @@ reports the measurement.
 \input{include/analog/fig_pixtop_mc.tex}
 \input{include/analog/note_pixtop_open.tex}
 \input{include/analog/note_meas_pixtop.tex}
+\FloatBarrier
+
+% Impedance spectroscopy -- HAND-WRITTEN throughout, from
+% ~/chips/castalia/simruns/eisdemo_20260825/README.md and the run data beside it
+% (campaign of 2026-08-25: 30 AC runs, 24 fixed-ratio runs, 17 real-DAC
+% transients, an extracted-converter probe, and the bench cell
+% castalia/tb_anatop_eisdemo whose four Maestro tests verify headlessly at 13/13
+% specs).  Placed here, as a subsection of its own immediately after the
+% assembled channel, because it is a measurement MODE of that channel -- it adds
+% no hardware -- while spanning the reference DAC, both amplifiers, the
+% programmable feedback resistor, the converter and the firmware demodulator.
+% The placement argument in full is at the head of note_eis_intro.tex.
+\input{include/analog/note_eis_intro.tex}
+\input{include/analog/note_eis_accuracy.tex}
+\input{include/analog/fig_eis_error.tex}
+\input{include/analog/note_eis_coverage.tex}
+\input{include/analog/note_eis_excitation.tex}
+\input{include/analog/note_eis_rules.tex}
+\input{include/analog/note_eis_open.tex}
 \FloatBarrier
 
 \input{include/analog/Adc.tex}

@@ -1,8 +1,12 @@
 %% HAND-WRITTEN table fragment (matches the maestro2tex house style).
 %% Every entry derived from simarchive/tb_anatop_pixel_adc/adc_transfer.csv.
+%% 2026-08-25: every VALUE here is confirmed unchanged by
+%% ~/chips/castalia/simruns/adcchar_20260825 (README S1.4 -- the transfer
+%% reproduces at every corner on a different stimulus, so it is not a
+%% measurement artifact).  Only the coverage sentence of the caption changed.
 \begin{table}[htbp]
   \centering
-  \caption[{Transfer parameters of the extracted \texttt{anatop\_pixel\_adc}, test \texttt{adc\_dc},\,\dots}]{Transfer parameters of the extracted \texttt{anatop\_pixel\_adc} from test \texttt{adc\_dc}, nominal corner, \SI{37}{\celsius}, \SI{2.5}{\volt} analog and \SI{1.0}{\volt} digital supplies. The slope is a least-squares fit to the 24 unclipped points of a \SI{0.0625}{\volt} sweep over \SIrange{0.5}{2.0}{\volt}; the code-0, code-1023 and centre voltages are extrapolations of that fit and are not measured points. The worst and rms residuals are the departure of those 24 points from the fit, not an INL: the step is \num{39} codes. Single nominal run --- no corner, temperature, supply or mismatch spread attaches to any entry.}
+  \caption[{Transfer parameters of the extracted \texttt{anatop\_pixel\_adc}, test \texttt{adc\_dc},\,\dots}]{Transfer parameters of the extracted \texttt{anatop\_pixel\_adc} from test \texttt{adc\_dc}, nominal corner, \SI{37}{\celsius}, \SI{2.5}{\volt} analog and \SI{1.0}{\volt} digital supplies. The slope is a least-squares fit to the 24 unclipped points of a \SI{0.0625}{\volt} sweep over \SIrange{0.5}{2.0}{\volt}; the code-0, code-1023 and centre voltages are extrapolations of that fit and are not measured points. The worst and rms residuals are the departure of those 24 points from the fit, not an INL: the step is \num{39} codes. Every entry is reproduced to \SI{0.10}{\percent} at all five process corners (Table~\ref{tab:adc-corners}); no mismatch spread attaches to any entry, and none can be measured from this netlist (Section~\ref{sss:adc-mc}).}
   \label{tab:adc-transfer}
   \begin{tabular}{llr}
     \toprule
