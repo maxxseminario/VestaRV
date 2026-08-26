@@ -19,8 +19,11 @@ and its gain has never been checked in system.
   ramp onto \texttt{atb\_d} (\texttt{AFE\_DBGDIREN}~=~1,
   \texttt{AFE\_DBGBUFEN}~=~0), fit slope and intercept per die. The
   \(1.535\times\) slope, \SI{0.441}{\volt} intercept and
-  \SI{1.591}{\milli\volt} effective LSB of Table~\ref{tab:adc-transfer} rest
-  on a single nominal extracted run with no chip-to-chip data behind them.
+  \SI{1.591}{\milli\volt} effective LSB of Table~\ref{tab:adc-transfer} hold
+  to \SI{0.10}{\percent} across process corners in simulation; their
+  die-to-die spread is neither measured nor simulable
+  (Section~\ref{sss:adc-mc}), which is what makes this step per-die rather
+  than per-lot.
 \item Zero code: set \texttt{AFE\_ADCSRCSEL}~=~1 and average the common-mode
   rail. That code is the origin of the current axis and carries the
   converter's offset and the common-mode value together --- the combination a

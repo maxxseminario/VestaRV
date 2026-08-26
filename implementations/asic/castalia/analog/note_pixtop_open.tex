@@ -71,20 +71,23 @@
 
 \begin{itemize}[nosep]
   \item \textbf{Devices outside the statistics.} Of the 742 mismatch-capable
-    device instances in the executed netlist, 573 carry mismatch, 18 have it
-    explicitly switched off and 151 sit on raw model cards. The four amplifier
-    devices that used to be outside the statistics are now inside them, so the
-    remaining entry that can move a number is this: \textbf{eight resistors
-    inside the converter carry mismatch switched off, and they are the divider
-    whose tap sets the comparator's reference} --- a matched pair defining the
-    converter's threshold, with its matching disabled. It is the reason every
-    \(\sigma\) in Table~\ref{tab:pixtop-mc} is still narrower than the built
-    channel's. Six compensation capacitors added to the channel are outside the
-    statistics too, and four more on the local bias generator's rails are
-    flagged out by intent: they decouple, they do not match. The rest of the 151
-    are the converter's sample switch, its level shifters, the multiplexer pass
-    gates and the digital cells of the successive-approximation logic, where
-    matching does not enter.
+    device instances in the executed netlist, 587 carry mismatch, four have it
+    explicitly switched off and 151 sit on raw model cards. No matched structure
+    is excluded: the four are bias-rail decoupling capacitors, out by intent
+    because they decouple rather than match, and the 151 are the converter's
+    sample switch and level shifters, the multiplexer pass gates, the bias
+    generator's start-up branch and the digital cells of the
+    successive-approximation logic. Two structures were admitted after
+    Table~\ref{tab:pixtop-mc} was measured, and neither moves it: capacitor
+    mismatch is invisible to a dc campaign by construction, and the divider that
+    sets the converter's threshold is isolated from the readout by the
+    buffer. That divider is worth its own note --- with its matching disabled it
+    reported a threshold of exactly \SI{1.250000}{\volt} in all 200 samples,
+    because process cancels in a ratio of identical resistors and a matched pair
+    switched off reads as an ideal reference rather than a disabled one. Enabled
+    it carries \SI{0.968}{\milli\volt}, \num{0.607} of a converter code ---
+    dormant while the array is unpopulated, and a converter offset as soon as a
+    code is scored.
   \item \textbf{The converter at schematic level.} Its capacitor array exists
     only in the extracted view (Section~\ref{sss:pixtop-adc}), so the code the
     schematic tests report is stuck and is deliberately left unspecced.
@@ -100,12 +103,15 @@
     the one node in the channel where stray capacitance costs phase margin. No
     stability or noise figure here carries its wiring parasitics: the stage has
     no extracted view.
-  \item \textbf{Wiring.} The sixteen test-port multiplexer inputs are undriven,
+  \item \textbf{Wiring.} All sixteen test-port multiplexer inputs are undriven,
     so the debug path selects between floating nodes on demand --- and its
     output now carries a buffer, which spends \SI{243}{\micro\watt} of
     Section~\ref{sss:pixtop-power} driving them. Either the inputs get something
     to look at or the buffer goes; as built it is the second-largest consumer in
-    the channel. One converter multiplexer slot, reserved for a buffered
-    reference-electrode tap that does not exist, is reachable from the select
-    bus and will read a floating node.
+    the channel. Eleven of the converter multiplexer's sixteen slots are
+    undriven the same way, and one of them is the level-1 sibling of the
+    commanded-potential output, so it injects its accumulated charge into that
+    output on every toggle of the lowest select bit
+    (Section~\ref{sss:pixtop-mux}). The fix is one wire per input, to the
+    common mode rather than to local ground.
 \end{itemize}

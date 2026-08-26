@@ -87,3 +87,97 @@ worst deviation reads 1.24 LSB where Table~\ref{tab:tiarprog-lin} reported
       (see text).} \\
   \end{tabular}
 \end{table}
+
+% =====================================================================
+% 2026-08-25 ADDITION -- in-loop noise.  HAND-WRITTEN; appended here rather
+% than given its own fragment because TiaRprog.tex is maestro2tex output and
+% its input list cannot be hand-extended.
+%
+% Source: ~/chips/castalia/simruns/bgladder_20260825/README.md Task B2, with
+% tables/rprog_noise.tsv, rprog_noise/summary_rp_noise.txt and the A/B decks
+% under rprog_noise/ab_idealRf/.  Bench castalia/tb_anatop_tia_rprog_noise/
+% maestro test rp_noise; design pointer on castalia/tb_anatop_tia_amp_ab/
+% TiaFbRprogTB, i.e. the real ladder inside the real TIA loop.  stb + ac +
+% noise at 37 C, C_dl = 100 nF, R_u = 100 ohm, R_ct = 1 Mohm, C_f = 22 pF,
+% section castalia_typ_25, noise 0.1 Hz - 1 MHz at 20 pts/dec.  Six corners =
+% six gain codes.
+%
+% i_n is DERIVED, not asked of spectre: noise and ac share the frequency axis
+% and I_WE carries mag=1, so i_n(f) = v_n(f)/|Z_T(f)| is exact.  The analysis's
+% inType/inIsrc fields netlist to nothing in this state schema and getData("in")
+% then errors, silently dropping the output.
+%
+%   N     R_f      i_n 0.1-10 Hz  i_n 0.1-1 kHz  ladder Johnson  ladder share
+%   0     19.63k   1060.5 pA      3303.5 pA      934 fA/rtHz     0.0008 %
+%   63    394.8k     81.4 pA      3005.2 pA      208             0.0065 %
+%   127   777.1k     60.0 pA      3004.0 pA      148             0.0061 %
+%   191   1.159M     53.6 pA      3003.6 pA      122             0.0051 %
+%   255   1.542M     50.6 pA      3003.5 pA      105             0.0043 %
+%   319   1.924M     48.9 pA      3003.4 pA       94             0.0037 %
+%   i_n at 1 kHz is 132-133 fA/rtHz at EVERY code; 0.1-10 kHz is 26.7 nA at
+%   every code.  PM 74.94 deg (N=63) - 92.86 deg (N=319), GM 21.65-21.79 dB,
+%   Zt peaking <= 1.098 dB -- identical to the V-1x grid, so the noise run did
+%   not perturb the operating point.
+%   A/B against a single ideal resistor of the MEASURED value, standalone
+%   spectre decks: N=0 1060.509 vs 1060.508 pA (-0.0001 %), N=63 81.372 vs
+%   81.374 (+0.0020 %), N=319 48.845 vs 48.854 (+0.0179 %).
+%   "Amplifier" here means everything that is not the feedback resistor: the
+%   class-AB amplifier, the bias generator through it, and the electrode's own
+%   R_u/R_ct.  noiseSummary() could not be driven headlessly, so the split is
+%   not finer than that.
+% One electrode and one process corner only (see note_tiarprog_scope).
+% =====================================================================
+
+\subsubsection{In-loop noise}\label{sss:tiarprog-noise}
+
+Inside the transimpedance loop the ladder is not a noise contributor. Its own
+Johnson noise is \SIrange{0.0008}{0.0065}{\percent} of the input-referred noise
+power in the dc-amperometric band, four to five orders below the amplifier
+(Table~\ref{tab:tiarprog-noise}), and replacing the whole switched ladder by a
+single ideal resistor of the measured value changes the answer by
+\SI{0.02}{\percent} at the worst code. The roughly three hundred open bypass
+switches contribute nothing measurable. Loop stability is unchanged by the noise
+run --- phase margin \SIrange{74.9}{92.9}{\degree}, gain margin
+\SIrange{21.65}{21.79}{\decibel} --- so these are the operating points the
+stability grid already reports.
+
+\textbf{No noise figure for this block is meaningful without its band.} Over
+\SIrange{0.1}{10}{\hertz} the input-referred current noise is
+\SIrange{48.9}{1060}{\pico\ampere} depending on gain code. Over
+\SI{0.1}{\hertz}--\SI{1}{\kilo\hertz} it is \SI{3.00}{\nano\ampere} at
+\emph{every} code, and over \SI{0.1}{\hertz}--\SI{10}{\kilo\hertz}
+\SI{26.7}{\nano\ampere} at every code. That is not a ladder defect: above the frequency at which the feedback
+impedance exceeds the electrode impedance the noise gain is set by the electrode
+capacitance, so the input-referred noise becomes independent of \(R_f\) --- which
+is what the identical \(\SI{132}{\femto\ampere}/\sqrt{\si{\hertz}}\) spot
+noise at \SI{1}{\kilo\hertz} across six decades of \(R_f\) shows. The same design is
+\SI{49}{\pico\ampere} or \SI{27}{\nano\ampere} according to where the integral
+stops, so the band edges are fixed design variables rather than tracked to each
+code's own bandwidth --- letting them follow would make the slow, high-gain
+codes report less noise merely for being slower.
+
+Against the \SI{2}{\nano\ampere} input-referred budget in the amperometric band,
+codes \(N \ge 63\) sit \(25\times\) to \(40\times\) under it and the bottom code
+\(1.9\times\) under. At the top code the measured \SI{48.9}{\pico\ampere} is
+\(17\times\) below the \SI{0.824}{\nano\ampere} current quantum, so the
+resolution floor at maximum gain is quantisation, not noise.
+
+\begin{table}[htbp]
+  \centering
+  \caption[{Input-referred current noise of the assembled transimpedance loop against gain code.}]{Input-referred current noise of the assembled transimpedance loop against gain code, \SI{37}{\celsius}, nominal process, at a \SI{100}{\nano\farad} double-layer capacitance and the \SI{22}{\pico\farad} compensation capacitor. Noise is referred through the measured transimpedance rather than by an input-referral option, which does not reach the netlist from this setup. The last column is the feedback resistor's own Johnson noise as a fraction of the noise power in the \SIrange{0.1}{10}{\hertz} band. The two bands differ because the noise gain above the feedback/electrode impedance crossover is set by the electrode, not by \(R_f\).}
+  \label{tab:tiarprog-noise}
+  \begin{tabular}{rrrrr}
+    \toprule
+    $N$ & $R_f$ & \multicolumn{2}{c}{Input-referred noise, rms} & Ladder share \\
+    \cmidrule(lr){3-4}
+     & & \SIrange{0.1}{10}{\hertz} & \SI{0.1}{\hertz}--\SI{1}{\kilo\hertz} & of noise power \\
+    \midrule
+    0   & \SI{19.63}{\kilo\ohm} & \SI{1060.5}{\pico\ampere} & \SI{3.304}{\nano\ampere} & \SI{0.0008}{\percent} \\
+    63  & \SI{394.8}{\kilo\ohm} & \SI{81.4}{\pico\ampere}   & \SI{3.005}{\nano\ampere} & \SI{0.0065}{\percent} \\
+    127 & \SI{777.1}{\kilo\ohm} & \SI{60.0}{\pico\ampere}   & \SI{3.004}{\nano\ampere} & \SI{0.0061}{\percent} \\
+    191 & \SI{1.159}{\mega\ohm} & \SI{53.6}{\pico\ampere}   & \SI{3.004}{\nano\ampere} & \SI{0.0051}{\percent} \\
+    255 & \SI{1.542}{\mega\ohm} & \SI{50.6}{\pico\ampere}   & \SI{3.003}{\nano\ampere} & \SI{0.0043}{\percent} \\
+    319 & \SI{1.924}{\mega\ohm} & \SI{48.9}{\pico\ampere}   & \SI{3.003}{\nano\ampere} & \SI{0.0037}{\percent} \\
+    \bottomrule
+  \end{tabular}
+\end{table}

@@ -1,12 +1,28 @@
 % HAND-WRITTEN fragment -- placed by Adc.tex.
 %
-% Every number here comes from the generated tables of this section
-% (tab_adc_transfer.tex, tab_adc_power.tex). Re-read them from those tables if
-% the run is repeated.
+% Every number here comes from the tables of this section (tab_adc_transfer,
+% tab_adc_corners, tab_adc_power). Re-read them from those tables if the run is
+% repeated.
 %
 % Source data: simarchive/tb_anatop_pixel_adc/adc_transfer.csv, test `adc_dc` of
 % castalia/tb_anatop_pixel_adc (schematic view SARADCTB, maestro view), POST-
 % EXTRACTION netlist of the ADC macro.
+%
+% 2026-08-25 CORRECTIONS, from ~/chips/castalia/simruns/adcchar_20260825/README.md:
+%  - S3: the shipped stimulus simstim/adc/adc_clk_gated.pwl holds the convert
+%    phase statically high (one falling edge where the macro needs ten; it
+%    advances one bit trial per falling edge), so READY asserts every 4.600 us
+%    (measured 8.552 / 13.152 / 17.752 us), i.e. 217.4 kSa/s, not 869.6 kSa/s.
+%    adcchar_stim.py --mode burst puts ten 20 MHz pulses in the same 500 ns
+%    window: READY at 5.076 us and every 1.150 us after, IDENTICAL codes
+%    (0.5 V -> 37, 1.0 -> 351, 1.5 -> 666, 2.0 -> 980).  Stimulus defect, not a
+%    converter defect; the generating line is commented out at SARADC.vhd:260.
+%  - S3: "third conversion" was wrong for the archived adc_dc run -- t_stop
+%    8.65 us, t_probe 8.56 us, so only the FIRST conversion had completed.
+%  - S2/S4: five corners (corners/corner_table.txt) and 100 MC samples
+%    (mc/mc_results.txt) now exist; the coverage sentence is rewritten.
+%  - New Maestro view `maestro_char` of the same cell carries both tests;
+%    maestro/GUI_STEPS.md has the opening instructions.
 %
 % Device dimensions are proprietary: no W/L and no absolute capacitance is
 % stated here or in any figure or table of this section.
@@ -21,12 +37,25 @@ V_{\mathrm{CM}} + i_{\mathrm{we}}\cdot R_f$ enters the converter and leaves as a
 $V_{\mathrm{CM}}$. The capacitor array is both the sampling network and the
 feedback DAC; its layout is Figure~\ref{fig:adc-capdac}.
 
-Conversion is externally clocked. A \SI{20}{\mega\hertz} trigger clock drives 23
-clock periods per conversion --- \SI{1.15}{\micro\second}, or
-\SI{869.6}{\kilo\hertz} conversion rate. The bench steps the input from
-\SIrange{0}{2.5}{\volt} in \SI{0.25}{\volt} steps and reads the code at the
-settled point of the third conversion, where the converter's ready output is
-high at every step.
+Conversion is externally clocked from a \SI{20}{\mega\hertz} trigger clock, and
+the macro advances one bit trial per falling edge of that clock. The bench steps
+the input from \SIrange{0}{2.5}{\volt} in \SI{0.25}{\volt} steps and reads the
+code at the settled point of the first completed conversion, where the
+converter's ready output is high at every step.
+
+\paragraph{The delivered stimulus converts four times too slowly.} The clock
+pattern the converter peripheral emits carries three pulse groups per
+\SI{1150}{\nano\second} --- clear, sample, convert --- but holds the convert
+phase statically high, so it presents a single falling edge where the ten bit
+trials need ten. The ten trials therefore consume the falling edges of the following three
+groups, and ready asserts every \SI{4.600}{\micro\second}: \SI{217.4}{kSa/s},
+not the \SI{869.6}{kSa/s} the \SI{1150}{\nano\second} group period implies.
+Replacing the held level with ten \SI{20}{\mega\hertz} pulses in the same
+\SI{500}{\nano\second} window and changing nothing else closes each conversion
+in \SI{1150}{\nano\second} and returns \emph{identical codes} at every input
+level. The defect is in the stimulus, not the converter: the fix is one
+commented-out line of the peripheral's register-transfer source, and both
+protocols are reported separately throughout Section~\ref{sss:adc-power}.
 
 \paragraph{Coverage.} All data in this section comes from a \emph{post-extraction}
 netlist --- Quantus, C-only coupled parasitic extraction of the ADC macro ---
@@ -35,12 +64,14 @@ this same macro into the channel, the only extracted data in this chapter; every
 other section is
 schematic-level. The distinction is not incidental: the capacitor array exists
 only in layout, so a schematic-level simulation of this block would not be a
-simulation of this converter. Coverage is one test, \texttt{adc\_dc} of
-\texttt{castalia/tb\_anatop\_pixel\_adc}, at the nominal corner,
-\SI{37}{\celsius}, \SI{2.5}{\volt} analog and \SI{1.0}{\volt} digital supplies.
-No corner sweep and no Monte Carlo run exists for this block, so no figure below
-carries a process, temperature, supply or mismatch spread. The \SI{0.25}{\volt}
-sweep step is 157 codes. A second sweep of the unclipped window in
-\SI{0.0625}{\volt} steps, \num{39} codes apart, carries the linearity
-figures. Neither grid resolves individual codes, so nothing here is a DNL or
-INL measurement.
+simulation of this converter. The transfer, timing and power figures are
+measured at five process corners (Table~\ref{tab:adc-corners}) and the nominal
+point is \SI{37}{\celsius}, \SI{2.5}{\volt} analog and \SI{1.0}{\volt} digital
+supplies. A 100-sample process-and-mismatch Monte Carlo also exists, and its
+result is that this netlist cannot produce a matching distribution at all
+(Section~\ref{sss:adc-mc}); no gain or offset \(\sigma\) is quoted anywhere
+below. The \SI{0.25}{\volt} sweep step is 157 codes. A second sweep of the
+unclipped window in \SI{0.0625}{\volt} steps, \num{39} codes apart, carries the
+linearity figures, and the corner runs use a 20-point staircase at
+\SI{0.1}{\volt}, 63 codes apart. No grid resolves individual codes, so nothing
+here is a DNL or INL measurement.

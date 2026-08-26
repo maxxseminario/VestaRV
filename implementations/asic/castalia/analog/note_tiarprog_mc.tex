@@ -15,6 +15,28 @@
 % seed/sampling; sample 1 reproduces 19654.6 / 396910.8 / 403793.6 ohm for
 % r_mc_0/63/64, bit-identical to the archived run), whose mcparam carries the
 % limits that tab_tiarprog_mc is regenerated from.
+%
+% 2026-08-25 ADDITION -- the all-seam run.  Source
+% ~/chips/castalia/simruns/bgladder_20260825/README.md Task B1, with
+% tables/rprog_seam_mc.tsv and netlists/rp_seam_mc.scs.  Bench
+% castalia/tb_anatop_tia_rprog_seam/maestro test rp_seam (a NEW cell whose
+% design pointer is put back on tb_anatop_tia_rprog/schematic, so the DUT stays
+% single-homed and the published tb_anatop_tia_rprog numbers still reproduce).
+% 200 mismatch samples, seed 12345, sampling=lds, nominal corner, 25 C,
+% section=castalia_pm_25, itest 500 nA; readiness verified on the executed
+% netlist: mismatchflag=1 x 333, =0 x 0, a real `montecarlo' statement,
+% save=selected.  Each sample sweeps ncode 0..319, so all four seams come out
+% of one waveform.
+%   seam 63->64   mean 7424.4 ohm, sigma 504.0 (6.79 %), 14.73 sigma to zero
+%   seam 127->128      8002.6        458.6 (5.73 %), 17.45
+%   seam 191->192      8494.3        481.3 (5.67 %), 17.65
+%   seam 255->256      8249.5        468.5 (5.68 %), 17.61
+%   n_nonmono 0 in 200/200 samples over all 320 codes
+%   step_min  5470.3 ohm worst sample (mean 5582.5, sigma 40.0) = 137 sigma
+%   th_bin_ratio (R(64)-R(0))/(R(63)-R(0)) = 1.01970 +- 0.00135 (0.132 %),
+%     range 1.01557-1.02297, ideal 64/63 = 1.015873
+%   v_top 2.2161 +- 0.0004 V -- compliance held throughout
+% seam_63 reproduces the 2026-08-21 run exactly (7424.4 / 504.0, same seed).
 
 Corners move every code by the same sheet-resistance factor, so matching ---
 the property that decides whether a 64-unit thermometer segment can invert a
@@ -32,3 +54,40 @@ nowhere near yield-limiting for this block; the items that need engineering
 attention are the deterministic ones graded in
 Table~\ref{tab:tiarprog-spec} --- bottom-code linearity and slow-corner
 top-code compliance.
+
+\paragraph{All four seams, all 320 codes.} A second 200-sample run sweeps the
+whole code space in every sample, so each sample is graded at all four
+thermometer seams and none can contribute to one seam and not another
+(Table~\ref{tab:tiarprog-seams}). \textbf{No sample is non-monotonic anywhere:}
+zero codes with a negative step, in 200 samples across 320 codes. The nearest
+approach to zero is not a seam but the smallest ordinary step,
+\SI{5470}{\ohm} in the worst sample, \(137\sigma\) from zero on its own
+distribution; the four seam steps clear zero by \numrange{14.7}{17.7} standard
+deviations. The worst of them is the first, and predictably so: it is the only
+seam at which a thermometer segment switches in with no thermometer segment
+already in circuit, so its step is the smallest and its relative spread the
+largest.
+
+The ratio the seams rest on measures well. Sixty-four thermometer units against
+sixty-three binary units read \num{1.0197} against an ideal \num{1.015873} ---
+\SI{0.38}{\percent} high, which is switch resistance and does not cancel between
+the two differences --- with a spread of \SI{0.132}{\percent}, i.e.
+\SI{0.13}{\percent} on one thermometer segment. It is the spread and not the
+offset that decides monotonicity, and the offset calibrates out.
+
+\begin{table}[htbp]
+  \centering
+  \caption[{Monte Carlo of the four thermometer seam steps.}]{Monte Carlo of the four thermometer seam steps, 200 mismatch samples, seed 12345, low-discrepancy sampling, nominal process, \SI{25}{\celsius}, \SI{500}{\nano\ampere} test current. Each sample sweeps all 320 codes, so every sample is graded at every seam. The last column is the margin from a negative step, in standard deviations of that seam's own distribution; the minimum step anywhere in the code space is \(137\sigma\) from zero.}
+  \label{tab:tiarprog-seams}
+  \begin{tabular}{lrrrrr}
+    \toprule
+    Seam & Mean & $\sigma$ & $\sigma/\mu$ & Worst sample & Margin \\
+     & \si{\kilo\ohm} & \si{\ohm} & \si{\percent} & \si{\kilo\ohm} & $\sigma$ \\
+    \midrule
+    $N = 63 \to 64$   & 7.424 & 504.0 & 6.79 & 5.878 & 14.7 \\
+    $N = 127 \to 128$ & 8.003 & 458.6 & 5.73 & 6.590 & 17.5 \\
+    $N = 191 \to 192$ & 8.494 & 481.3 & 5.67 & 7.214 & 17.7 \\
+    $N = 255 \to 256$ & 8.250 & 468.5 & 5.68 & 6.782 & 17.6 \\
+    \bottomrule
+  \end{tabular}
+\end{table}

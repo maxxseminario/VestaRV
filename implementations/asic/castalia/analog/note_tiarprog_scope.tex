@@ -3,13 +3,23 @@
 %
 % Scope statement; numbers referenced come from tab_tiarprog_corners,
 % tab_tiarprog_lin and tab_tiarprog_mc.
+%
+% REVISED 2026-08-25 against ~/chips/castalia/simruns/bgladder_20260825:
+%  - Task B2 put the real ladder inside the real TIA loop
+%    (tb_anatop_tia_rprog_noise, design pointer on tb_anatop_tia_amp_ab/
+%    TiaFbRprogTB), so "the cell has never been simulated inside the TIA loop"
+%    no longer holds for noise or stability.  Settling is still untested, and
+%    B2 is one electrode (Cdl 100 nF, Ru 100 ohm, Rct 1 Mohm) and one corner.
+%  - Task B1 (tb_anatop_tia_rprog_seam) grades all 320 codes in all 200
+%    samples, not four codes, so "on four codes" is dropped.  Still
+%    mismatch-only at 25 C.
 
-Three limits on what this section claims. First, everything is a two-terminal
-measurement of the resistor alone: the cell has never been simulated inside the
-TIA loop, so loop stability, noise and settling with the real switches ---
-rather than the ideal \(R_F\) the pixel benches use --- are open. Second, the
-Monte Carlo is mismatch-only at \SI{25}{\celsius} on four codes; no
-process-plus-mismatch statistics exist. Third, the bottom code is the block's
+Three limits on what this section claims. First, the resistance, linearity and
+mismatch data are two-terminal measurements of the ladder alone; only noise and
+loop stability have been measured with the ladder inside the transimpedance loop
+(Section~\ref{sss:tiarprog-noise}), at one electrode and one process corner, and
+settling with the real switches is still open. Second, the Monte Carlo is
+mismatch-only at \SI{25}{\celsius}; no process-plus-mismatch statistics exist. Third, the bottom code is the block's
 weak point, and all three of its symptoms share one root cause: the
 \SI{1.65}{\kilo\ohm} closed-switch stack (\(+9.2\,\%\) at \(N=0\)), the
 \(1.26\)-LSB drive nonlinearity, and the \(4\times\) larger relative mismatch

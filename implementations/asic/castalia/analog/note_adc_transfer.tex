@@ -1,6 +1,23 @@
 % HAND-WRITTEN fragment -- placed by Adc.tex. Numbers from tab_adc_transfer.tex,
 % fig_adc_transfer.tex and fig_adc_error.tex, all derived from
 % simarchive/tb_anatop_pixel_adc/adc_transfer.csv.
+%
+% 2026-08-25: the MECHANISM paragraph was WRONG and is replaced.  Source
+% ~/chips/castalia/simruns/adcchar_20260825/README.md S1, with cdac_array.txt
+% (the plate-by-plate extraction) and probes/probe_table.txt (7 runs):
+%   1.535 = 1.235 (differencing topology, sum of physical plates / sum of
+%           weights) x 1.243 (top-plate parasitic + comparator input).
+%   Extracted DACIO->VSSA25 parasitic is 0.226 x the physical array, NOT the
+%   0.535 x C_array this fragment used to infer.
+%   Closed form slope = C_top,total/(V_ref*C_unit) -> 627.8 vs 628.59 measured.
+%   Probes: +100 fF and +300 fF on DACIO predict 721.9 / 908.5 against measured
+%   722.09 / 908.50 (0.03 % / 0.00 %); vdd25 2.5->2.0 V scales the slope by
+%   exactly 2.5/2.0 and moves the centre to 1.003 V; forcing the comparator
+%   reference to 1.0 V moves the centre to 1.000 V and leaves the slope at
+%   628.57 (0.003 %); halving / removing the N-side plates takes the worst
+%   residual from 0.50 LSB to 7.02 / 10.36 LSB.
+% NUMBERS IN THIS SECTION ARE UNCHANGED -- only the explanation was wrong.
+% Absolute capacitances are deliberately not stated (see note_adc_intro).
 
 \subsubsection{Transfer Function}\label{sss:adc-transfer}
 
@@ -19,15 +36,39 @@ range, split between the two ends rather than concentrated at one: a
 full-scale transimpedance swing about $V_{\mathrm{CM}}$ is truncated
 symmetrically.
 
-Top-plate parasitic capacitance is the leading explanation. In a
-charge-redistribution SAR the array's own parasitic divides the feedback DAC
-swing by $C_{\mathrm{array}}/(C_{\mathrm{array}} + C_{\mathrm{par}})$, which
-raises the codes-per-volt slope by the reciprocal of that factor and shrinks the
-input span in the same proportion; a ratio of 1.535 implies $C_{\mathrm{par}}
-\approx 0.535\,C_{\mathrm{array}}$. It is consistent with the measured window
-being centred on the common mode instead of offset from it, and with the effect
-appearing only in the extracted netlist. It has not been confirmed by inspecting
-the top-plate node, and no other mechanism has been excluded.
+\paragraph{Mechanism.} The 1.535 factor is a product of two, and the smaller of
+them is the parasitic. The array is a \emph{differencing} capacitor DAC: each bit
+drives two plates in antiphase, so the charge it injects is proportional to the
+difference of the two, and it is that difference which is binary --- to four
+figures over the 512:1 weight range --- while the physical plates are not; the
+positive and negative segments of each bit row are visible in
+Figure~\ref{fig:adc-capdac}. Building the sub-LSB weights as small differences of
+much larger plates is what makes them matchable, and the price is that all of
+that plate loads the top node:
+the summed physical plate is 1.235 times the summed weight. The extracted
+top-plate parasitic and the comparator input add a further 1.243, and
+\(1.235\times 1.243 = 1.535\). The parasitic alone is \num{0.226} of the physical
+array, not the \num{0.535} of the array a single-mechanism reading infers. The
+slope then closes in one expression,
+\[
+  m \;=\; \frac{C_{\mathrm{top,total}}}{V_{\mathrm{ref}}\,C_{\mathrm{unit}}},
+\]
+giving \num{627.8} codes per volt against the \num{628.59} the corner staircase
+measures (Table~\ref{tab:adc-corners}), \SI{0.13}{\percent}.
+
+Seven perturbation runs separate the terms. Two known capacitances added to the
+top plate predict the perturbed slope from one fitted \(C_{\mathrm{top}}\) to
+better than \SI{0.03}{\percent}, with nothing else in the converter changed.
+Lowering the analog supply scales the slope by exactly the reference ratio and
+moves the window centre with it, while forcing the comparator's reference alone
+moves the centre and leaves the slope unchanged to \SI{0.003}{\percent} --- so
+the span is set by the reference and the centre by the comparator's own
+supply-halving resistor divider, and the \SI{1.25}{\volt} centre is that divider
+rather than an offset. Halving and then removing the antiphase plates moves the
+slope the predicted way and destroys the binary weighting at the same time,
+taking the worst residual about the fitted line from \num{0.50}~LSB to
+\num{7.02} and \num{10.36}~LSB. Nothing here is a layout defect that a
+parasitic-free layout would remove: the larger factor is the topology.
 
 Departure from the fitted line is at most \num{0.52}~LSB over the fitted range
 (Figure~\ref{fig:adc-error}). That is a residual of a 24-point fit at

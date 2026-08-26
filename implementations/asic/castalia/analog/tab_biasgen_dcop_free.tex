@@ -1,0 +1,35 @@
+%% HAND-WRITTEN table fragment, in the maestro2tex house style.
+%%
+%% SUPERSEDES the generated tab_biasgen_dcop.tex, which remains on disk but is
+%% no longer input by BiasGenCascWideSwing.tex.  It could not be regenerated:
+%% the corrected data comes from a bench (castalia/tb_anatop_bg_startup) that
+%% no maestro2tex config points at, and the configs live outside this
+%% directory.  The generated table's I_DD row (24.46 / 24.32 / 24.23 / 24.53 /
+%% 24.49 uA, spread 0.30) is an artefact of the corner DEFINITIONS, not of the
+%% block: the imported tsmcN65_typ_* corners carry cor_res.scs section="tt_res"
+%% in EVERY corner, pinning the poly resistor that sets the reference current.
+%% Its rail columns are pinned the same way (V_BNM ff 551.0 / ss 677.5 mV).
+%%
+%% Source: ~/chips/castalia/simruns/bgladder_20260825/tables/bg_startup_matrix.tsv,
+%% rows r1u_{tt,ff,fs,sf,ss} -- 1 us supply ramp, 25 C, BiasAdj = 33, with
+%% cor_res.scs moved with the MOS corner (ss_res with ss_25, ff_res with
+%% ff_25).  fs and sf keep tt_res because the resistor family has no such
+%% section, which is exactly why those two columns still reproduce the old
+%% table to three digits.  The nominal cross-check at 27 C reproduces the old
+%% tt column to 0.05 mV / 0.0002 uA (README Task A).
+\begin{table}[htbp]
+  \centering
+  \caption[{DC operating point of the local bias generator at the nominal trim code, by process corner.}]{DC operating point of the local bias generator at the nominal trim code (\texttt{BiasAdj}~=~33), \SI{25}{\celsius}, by process corner; the last column is the spread across corners. The degeneration resistor is moved with the process corner here. An earlier corner set held it at typical in every corner and reported a supply-current spread of \SI{0.30}{\micro\ampere}: that resistor sets the reference current, so pinning it removed almost all of the block's corner spread, and the \texttt{fs} and \texttt{sf} columns still agree with it because the resistor family has no skew section.}
+  \label{tab:biasgen-dcop}
+  \begin{tabular}{lrrrrrrr}
+    \toprule
+    Parameter & Unit & tt & ff & fs & sf & ss & Spread \\
+    \midrule
+    $V_{\mathrm{BNM}}$ & \si{\milli\volt} & 614.3 & 578.9 & 584.6 & 644.0 & 657.5 & 78.6 \\
+    $V_{\mathrm{BNC}}$ & \si{\milli\volt} & 776.2 & 765.4 & 745.4 & 807.1 & 805.7 & 61.7 \\
+    $V_{\mathrm{BPM}}$ & \si{\milli\volt} & 1815.4 & 1841.7 & 1804.2 & 1826.6 & 1777.6 & 64.1 \\
+    $V_{\mathrm{BPC}}$ & \si{\milli\volt} & 1589.3 & 1571.3 & 1578.4 & 1600.2 & 1575.2 & 28.9 \\
+    $I_{\mathrm{DD}}$ & \si{\micro\ampere} & 24.38 & 35.97 & 24.23 & 24.52 & 18.38 & 17.59 \\
+    \bottomrule
+  \end{tabular}
+\end{table}

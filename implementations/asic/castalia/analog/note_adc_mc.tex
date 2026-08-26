@@ -1,0 +1,66 @@
+% HAND-WRITTEN fragment -- placed by Adc.tex.  NEW 2026-08-25.
+%
+% Source: ~/chips/castalia/simruns/adcchar_20260825/README.md S4, with
+%   mc/mc_readiness.txt      the three readiness checks off the executed netlist
+%   mc/mismatch_census.txt   0 devices at mismatchflag=1, 8 explicitly at 0,
+%                            1128 with no mismatchflag parameter at all
+%   mc/mc_variation_probes.txt   8 samples each: variations=mismatch -> 8 random
+%                            vars, sigma(code) 0.000 and sigma(i_avdd) 0.000 uA;
+%                            variations=process -> 14 vars, sigma(i_avdd)
+%                            1.516 uA; variations=all -> 22 vars, reproduces
+%                            `process' to every printed digit
+%   mc/mc_results.txt        100 samples: code 509 at 1.25 V and 886 at 1.85 V
+%                            in EVERY sample (sigma = 0); 131 or 132 at 0.65 V
+%                            (mean 131.72, sigma 0.451).  I_AVDD 4.748 uA mean,
+%                            sigma 0.542 (11.4 %); power 12.971 uW mean, sigma
+%                            1.356 (10.5 %), range 10.487-16.357 uW.  READY at
+%                            8.555 and 13.155 us in every sample.
+%   mc/mc_rdiv/              15 samples, mismatchflag forced to 1 on the eight
+%                            rppolywo of the comparator reference divider,
+%                            variations=mismatch: sigma(code-zero) 0.821 mV =
+%                            0.52 LSB, range 439.10-441.71 mV, code at 1.25 V
+%                            508-510, sigma(slope) 0.078 codes/V (0.012 %).
+% Run conditions: 100 samples, variations=all, section castalia_pm_25, nominal
+% corner, 37 C, four spectre jobs of 25 sharing seed 1 (firstrun 1/26/51/76);
+% 0 errors, 100/100 decoded.  Spectre reports 22 random variables, of which
+% 5 of the 6 subckt-based mismatch parameters are non-referenced.
+% Precedent CDAC matching benches in myshkin: Cap_DAC_2V5D_Mismatch_Test and
+% Cap_DAC_MOM_Pcell_Mismatch_Test.  No cell or device names in the prose.
+
+\subsubsection{Monte Carlo: What This Netlist Cannot Measure}\label{sss:adc-mc}
+
+A 100-sample process-and-mismatch Monte Carlo of the extracted converter runs
+clean and measures nothing about matching. Two of the three input levels return
+the same code in all 100 samples; the third dithers between the two codes
+adjacent to the boundary it already sits on. A mismatch-only control returns
+\(\sigma = 0\) on every level and on the supply current, and the full run
+reproduces the process-only run to every printed digit.
+
+Three structures account for it, and none is fixable in post-processing.
+Extraction flattens away the inline model wrappers in which the kit's
+per-instance mismatch parameters are declared, so the converter's transistors
+sit on raw model cards that the statistical block has no path to --- the
+simulator reports five of its six mismatch parameters as non-referenced. The
+capacitor array is extracted linear capacitors with no statistical model of any
+kind, so the matching that actually sets a charge-redistribution converter's
+linearity is not represented at all. The one remaining matched structure, the
+resistor divider that sets the comparator's reference, ships with its mismatch
+flag cleared, which multiplies the model's mismatch terms to zero.
+
+\textbf{The \(\sigma\) on this converter's gain and offset are therefore
+unmeasured, not small.} Nothing below should be read as a matching result. What
+the run does establish is the analog bias spread, which is process and is real:
+\SI{11.4}{\percent} on the analog supply current and \SI{10.5}{\percent} on
+total power, \SIrange{10.5}{16.4}{\micro\watt}, with conversion timing identical
+in every sample.
+
+Forcing the reference divider's mismatch on bounds the one contribution the
+netlist can express: \SI{0.821}{\milli\volt}, \(0.52\) LSB of \(1\sigma\) on the
+converter zero, \(\pm 1\) code, and \SI{0.012}{\percent} on gain --- the divider
+moves the comparison threshold, not the array's charge balance. That is small
+against the three-code offset the nominal converter already carries and smaller
+still than the channel's own loop offset. Measuring the array itself needs a
+different bench: a schematic capacitor DAC built from the kit's statistical
+metal-fringe capacitor device rather than from extracted linear elements. A
+precedent bench for exactly that exists in the legacy library and has not been
+run against this array.

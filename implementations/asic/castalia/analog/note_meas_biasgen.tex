@@ -6,7 +6,9 @@
 % ~/vestarv/docs/afe_rev2_debug_mux.html §6 (fields) and §11 (slots) --
 % chip-level slots 2-5 = bn!/bnc!/bp!/bpc!, per-channel slots 10/11 = vbn_ch/
 % vbp_ch (observe through atb_o only), chip-level slot 8 = iref_ovr.
-% Rail values from tab_biasgen_dcop; trim span from tab_biasgen_trim; MC
+% Rail values from tab_biasgen_dcop_free (2026-08-25; the superseded
+% tab_biasgen_dcop had them at a pinned resistor corner); trim span from
+% tab_biasgen_trim; MC
 % sigma/mu 12.5 % from bg_mc (Plan.4.Run.2). Bring-up ordering from §9.
 % Library cell names are kept out of the rendered prose.
 
@@ -20,9 +22,9 @@
   \texttt{AFE\_DBGBUFEN}~=~1, never on the direct pad: these are gate nets
   with picoamperes of drive, and the direct path moves what it measures.
 \item Compare against the tt column of Table~\ref{tab:biasgen-dcop}:
-  \SI{612.8}{\milli\volt} and \SI{775.8}{\milli\volt} on the NMOS pair,
-  \SI{1817.1}{\milli\volt} and \SI{1589.3}{\milli\volt} on the PMOS pair,
-  corner spread \SIrange{117}{142}{\milli\volt}. A rail or near-zero on any of
+  \SI{614.3}{\milli\volt} and \SI{776.2}{\milli\volt} on the NMOS pair,
+  \SI{1815.4}{\milli\volt} and \SI{1589.3}{\milli\volt} on the PMOS pair,
+  corner spread \SIrange{29}{79}{\milli\volt}. A rail or near-zero on any of
   the four means the start-up branch did not fire; no measurement elsewhere on
   the die is meaningful until it does.
 \item Trim from the supply pin, not through the multiplexer: step the 6-bit

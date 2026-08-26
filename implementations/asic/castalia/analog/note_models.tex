@@ -10,27 +10,30 @@
 
 \subsection{Electrochemical Models}\label{ss:analog-models}
 
-Every measurement in this chapter that involves an electrode uses one of two lumped
-models, symbolised in Figures~\ref{fig:randles-cell}
-and~\ref{fig:randles-electrode} and defined element by element in Table~\ref{tab:analog-models}. They are stated once here and referenced by the
-block sections rather than repeated, because the electrode impedance is not a detail of
-the setup: it sets the feedback factor of the potentiostat loop and of the
-transimpedance loop, and both blocks' stability figures depend on it directly.
+Every electrode measurement in this chapter uses one of the two lumped models of
+Figures~\ref{fig:randles-cell} and~\ref{fig:randles-electrode}, valued in
+Table~\ref{tab:analog-models}. The electrode impedance sets the feedback factor
+of both the potentiostat and the transimpedance loop, so those blocks' stability
+figures depend on it directly.
 
-The three-electrode cell is the arrangement the potentiostat actually
-drives. Looking into the working electrode it presents \(R_{\mathrm{ct}} \parallel
-C_{\mathrm{dl}}\) in series with \(R_u\): about \SI{31}{\kilo\ohm} at DC, falling toward
-\(R_u = \SI{1}{\kilo\ohm}\) as \(C_{\mathrm{dl}}\) shorts the charge-transfer branch
-above roughly \SI{5}{\hertz}. The single-interface model is one interface as a
-two-terminal element, with a much smaller double layer and a much larger charge-transfer
-resistance; it is not used by the benches reported here.
+The three-electrode cell is what the potentiostat drives: into the working
+electrode, \(R_{\mathrm{ct}} \parallel C_{\mathrm{dl}}\) in series with
+\(R_u\), about \SI{31}{\kilo\ohm} at DC and falling toward
+\(R_u = \SI{1}{\kilo\ohm}\) above roughly \SI{5}{\hertz}. No bench reported here
+uses the single-interface model.
+
+Both models are linear and frequency-independent, with no Warburg term and no
+potential dependence, so they give small-signal behaviour about a bias point
+rather than a full electrochemical response. Both are also nominal: no element
+carries a spread, so nothing in this chapter accounts for electrode-to-electrode
+variation, which on a real wound interface is likely to exceed the process
+spread reported beside it.
 
 \begin{table}[htbp]
   \centering
-  \caption[{Component values of the electrochemical models.}]{Component values of the
-  electrochemical models of Figures~\ref{fig:randles-cell} and~\ref{fig:randles-electrode}. The three-electrode
-  values are the subcircuit defaults, and are the values the control-amplifier
-  benches instantiate. The transimpedance benches override them; the values used are
+  \caption[{Component values of the electrochemical models.}]{Component values of
+  the electrochemical models. The three-electrode values are the subcircuit
+  defaults; the transimpedance benches override them, and the values used are
   stated with each measurement.}
   \label{tab:analog-models}
   \begin{tabular}{llrl}
@@ -49,11 +52,8 @@ resistance; it is not used by the benches reported here.
   \end{tabular}
 \end{table}
 
-Two limits apply to every number derived through these models. Both are linear and
-frequency-independent: there is no Warburg diffusion term and no potential dependence,
-so they describe small-signal behaviour about a bias point, not a full electrochemical
-response. And they are nominal: no spread is assigned to any element, so no result in
-this chapter accounts for electrode-to-electrode variation, which on a real wound
-interface is likely to exceed the process spread reported alongside it.
-
-\paragraph{Values used by the amplifier application benches.} The closed-loop measurements of Section~\ref{ss:ampab} instantiate the three-electrode cell with $R_u = \SI{100}{\ohm}$ or \SI{1}{\kilo\ohm}, $R_{\mathrm{ct}} = \SI{10}{\kilo\ohm}$ or \SI{1}{\mega\ohm}, and $C_{\mathrm{dl}} = \SI{100}{\nano\farad}$ or \SI{1}{\micro\farad}, in place of the subcircuit defaults above. The value used is stated with each measurement.
+The closed-loop measurements of Section~\ref{ss:ampab} override the defaults with
+$R_u = \SI{100}{\ohm}$ or \SI{1}{\kilo\ohm}, $R_{\mathrm{ct}} =
+\SI{10}{\kilo\ohm}$ or \SI{1}{\mega\ohm}, and $C_{\mathrm{dl}} =
+\SI{100}{\nano\farad}$ or \SI{1}{\micro\farad}; the value used is stated with
+each measurement.
