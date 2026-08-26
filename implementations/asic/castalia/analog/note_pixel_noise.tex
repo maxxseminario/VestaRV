@@ -13,7 +13,9 @@ Table~\ref{tab:px-grid-noise} gives output and input-referred noise over the
 same electrode grid. Output noise spans \SIrange{0.129}{11.97}{\milli\volt}
 across the full twelve-cell grid; at $R_f = \SI{35}{\kilo\ohm}$ it stays under
 \SI{0.75}{\milli\volt} everywhere, but at $R_f = \SI{560}{\kilo\ohm}$ it grows
-to \SIrange{2.0}{12}{\milli\volt} -- one half to five ADC LSBs. The growth
+to \SIrange{2.0}{12}{\milli\volt} -- \numrange{1.3}{7.5} ADC LSB on the
+converter's measured \SI{1.591}{\milli\volt} step
+(Table~\ref{tab:adc-transfer}). The growth
 tracks $C_{\mathrm{dl}}$, not $R_{\mathrm{ct}}$: the closed-loop noise gain is
 $e_n\cdot(1 + R_f/Z_{\mathrm{electrode}})$, and $\lvert Z_{\mathrm{electrode}}
 \rvert$ falls with $C_{\mathrm{dl}}$ over the integration band, so a larger

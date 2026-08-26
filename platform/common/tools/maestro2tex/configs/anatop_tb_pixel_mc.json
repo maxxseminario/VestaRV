@@ -137,7 +137,7 @@
       "height": "6.0cm",
       "xlabel": "Zero-current offset~[LSB]",
       "ylabel": "Samples",
-      "caption": "Zero-current output offset at $R_f = \\SI{35}{\\kilo\\ohm}$, referred to the \\SI{2.441}{\\milli\\volt} ADC LSB. \\textbf{Mismatch only}, \\SI{25}{\\celsius} nominal process, 200 samples, $R_{\\mathrm{ct}} = \\SI{10}{\\kilo\\ohm}$ electrode. The limit shown is the $\\pm 1$~LSB entered on the test in Assembler -- comparable in kind across the four gain taps but mechanically harder to meet as $R_f$ rises, since the underlying offset is closer to gain-independent in current (Table~\\ref{tab:px-mc-izero}). Statistics are in Table~\\ref{tab:px-mc-izero}."
+      "caption": "Zero-current output offset at $R_f = \\SI{35}{\\kilo\\ohm}$, in nominal \\SI{2.441}{\\milli\\volt} ADC LSB. \\textbf{Mismatch only}, \\SI{25}{\\celsius} nominal process, 200 samples, $R_{\\mathrm{ct}} = \\SI{10}{\\kilo\\ohm}$ electrode. The limit shown is the $\\pm 1$~LSB entered on the test in Assembler -- comparable in kind across the four gain taps but mechanically harder to meet as $R_f$ rises, since the underlying offset is closer to gain-independent in current (Table~\\ref{tab:px-mc-izero}). The converter's measured step is \\SI{1.591}{\\milli\\volt}, not the nominal \\SI{2.441}{\\milli\\volt} (Table~\\ref{tab:adc-transfer}); multiply the axis and the limit by \\num{1.535} to read them as converter codes. Statistics are in Table~\\ref{tab:px-mc-izero}."
     },
     {
       "id": "px_mc_izero_560k",
