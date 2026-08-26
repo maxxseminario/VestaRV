@@ -19,6 +19,45 @@
 %   RE tap worth: A vs D gap, 0.0208 % on pureR/N=0 at 0.1 Hz, 0.187 % on
 %     fouled/N=0 at 100 Hz.
 % The eps(f) model of afe_rev2_eis_lite.html is graded in note_eis_coverage.
+%
+% CORNER AND MONTE CARLO (~/chips/castalia/simruns/eiscorner_20260825):
+%   corner_tables.txt S2 -- |Z| error per corner.  pureR/N=0 at 0.1 Hz: 0.0231
+%     (ss) 0.0294 (tt) 0.0410 (tt_T85).  fresh/N=63 at 5 kHz: 1.8367 (ss)
+%     2.6315 (sf) 2.6676 (fs) 2.8091 (tt) 3.6677 (tt_T85) 3.6756 (ff) -> the
+%     1.84-3.68 % quoted.  Phase at that point 4.5700 (ff) - 4.7903 (ss) deg.
+%     typical/N=20 at 1 kHz: process box 0.7002 (ss) - 1.3956 (ff), temperature
+%     box 0.8772 (tt_T0) - 1.4635 (tt_T85).  85 C is the worst point of the set
+%     for magnitude on every load and code; ss is the worst for phase.
+%   mc_summary.txt S2 -- R_f = |Zt| at 0.1 Hz, N = 0, 100/100/200 samples:
+%     process only  mean 19899.4 sigma 2279  = 11.451 %  (14439 - 26565)
+%     mismatch only mean 19630.9 sigma 80.65 =  0.411 %  (19366 - 19807)
+%     both          mean 19969.5 sigma 2203  = 11.030 %  (14334 - 26507)
+%     N = 63: mean 402.16 k, sigma 47.97 k = 11.93 % (286.6 - 543.2 k).
+%   mc_summary.txt S3 / mc/mc_*.json -- the four architectures, 200 paired
+%     samples.  A = current measured at every frequency (the bound, not
+%     buildable); B_law = stored 18k + 6k N; B_dc = per-chip dc calibration of
+%     R_f; C = ratiometric against a known impedance at the same frequency.
+%     typical N=0 vs 11.0 k standard (ratio 9.16):
+%       0.1 Hz  A 0.0033 +- 0.0006 | B_dc 0.0033 +- 0.0006
+%               B_law -8.7618 +- 10.1638 (min -32.06, max +25.31)
+%               C -0.0317 +- 0.1816
+%      10 kHz  A 0.3536 +- 0.0642 | B_dc 0.3923 +- 0.0706 | C 0.3161 +- 0.1962
+%     typical N=0 vs 100.8 k standard (MATCHED, ratio 1.00):
+%       0.1 Hz  C -0.0000 +- 0.0002 ;  1 kHz C 0.3109 +- 0.0533 (A 0.3142 +-
+%               0.0539) ; 5 kHz C 0.3266 +- 0.0567 ; 10 kHz C 0.3521 +- 0.0635
+%       phase   C 0.4553 +- 0.0668 deg at 5 kHz against B_dc's 1.0810 +- 0.1546
+%     fouled N=0 vs 11.0 k standard (MATCHED, ratio 1.00): A/B_dc 0.0306 +-
+%               0.0053 at dc, C 0.0000 +- 0.0002 -> sigma(B_dc)/sigma(C) = 24.5x
+%     fresh N=63 vs 11.0 k standard (ratio 90.82):
+%       0.1 Hz  B_law -0.1140 +- 12.0862 (min -27.10, max +38.19)
+%               C -0.2728 +- 0.0953   <- the nominal campaign's fixed -0.2745 %
+%       5 kHz   A 3.0648 +- 0.9224 | B_dc 7.0282 +- 1.8391 | C 2.5622 +- 0.7960
+%      10 kHz   A 9.3419 +- 2.7676 | B_dc 25.3402 +- 6.7122 | C 8.2910 +- 2.4566
+%               sigma(B_dc)/sigma(C) = 2.3x at 5 kHz, 2.7x at 10 kHz
+%     mc_summary.txt S4.5: B_law and B_dc report BYTE-IDENTICAL phase in every
+%     table -- R_f is a real scale factor and drops out of phase entirely.
+%   The stored-law sample range quoted below (-32 % to +39 %) is taken below the
+%   feedback pole, where the law is the only error term; see note_eis_intro.
 % Library cell names are kept out of the rendered prose.
 
 \subsubsection{Accuracy}\label{sss:eis-accuracy}
@@ -30,7 +69,8 @@ A known \SI{11.000}{\kilo\ohm} resistor reads \SI{11003}{\ohm} at
 \(1 + R_f/|Z|\) at the frequency being measured, not by the electrode's
 chemistry (Figure~\ref{fig:eis-error}): the fresh case at gain code 63 is the
 most accurate of the three below \SI{100}{\hertz} at \(0.005\,\%\) and the worst
-above \SI{1}{\kilo\hertz} --- \SI{2.8}{\percent} at \SI{5}{\kilo\hertz} ---
+above \SI{1}{\kilo\hertz} --- \SI{2.8}{\percent} at \SI{5}{\kilo\hertz}, and
+\SIrange{1.84}{3.68}{\percent} across the corner set ---
 because its impedance falls from \SI{999}{\kilo\ohm} to \(R_u\) across the sweep
 while \(R_f\) does not move. The fouled case, at the bottom gain code
 throughout, stays within \SI{0.44}{\percent} and \SI{1.02}{\degree} from
@@ -47,9 +87,9 @@ impedance at every frequency and taking the ratio removes that term entirely ---
 errors partly cancelling. Second, a magnitude mismatch between that calibration
 impedance and the load: a \SI{999}{\kilo\ohm} load calibrated against
 \SI{11}{\kilo\ohm} at the same gain code carries a fixed \(-0.27\,\%\), exactly
-the difference of the two loop errors (\num{0.278} against \(0.003\,\%\)), so
-either match the calibration impedance to the decade being measured or correct
-for the difference. Third, the loop error itself, which scales exactly with the
+the difference of the two loop errors (\num{0.278} against \(0.003\,\%\)). At a
+fixed process point that is a correction; across a wafer it is a spread, and the
+requirement below. Third, the loop error itself, which scales exactly with the
 noise gain: \num{0.120}, \num{0.330}, \num{0.660} and \SI{1.322}{\percent} at
 \(R_f/|Z| =\) \num{7.3}, \num{20}, \num{40} and \num{80}. Last, the
 reference-electrode tap, worth \SIrange{0.02}{0.2}{\percent} of magnitude ---
@@ -57,3 +97,60 @@ the difference between reading the applied potential at the electrode and
 assuming the commanded one arrives. On this axis it is not the limiting term;
 what earns it its multiplexer input is the excitation, where the same assumption
 costs up to \SI{3.5}{\percent} (Section~\ref{sss:eis-excitation}).
+
+\paragraph{Across corners the error spans a factor of two.} It is monotone in
+the amplifiers' transconductance, so \SI{85}{\celsius}
+is the worst point of the set for every load and every gain code and the slow
+corner the best: the calibration resistor reads \SIrange{0.023}{0.041}{\percent}
+about its nominal \(0.029\,\%\), and the typical electrode at gain code 20 and
+\SI{1}{\kilo\hertz} spans \SIrange{0.70}{1.40}{\percent} over the process corners
+and \SIrange{0.88}{1.46}{\percent} over \SIrange{0}{85}{\celsius}. Temperature is
+the larger axis, and the two do not add, because the fast corner and
+\SI{85}{\celsius} lie at the same end. Phase moves far less: the fresh case at
+gain code 63 and \SI{5}{\kilo\hertz} spans \SIrange{4.57}{4.79}{\degree} where
+its magnitude error doubles, because phase is set by pole positions and this
+corner set does not move them --- for the same reason it does not move \(R_f\),
+which is the caveat of Section~\ref{ss:eis}.
+
+\paragraph{Across a wafer the spread is the feedback resistance, and it is
+process rather than mismatch.} At the bottom gain code, \num{200} samples give
+\(\sigma = \SI{11.45}{\percent}\) with process variation alone against
+\SI{0.41}{\percent} with mismatch alone; at gain code 63 the same quantity is
+\SI{11.93}{\percent}, and the fresh electrode's \SI{2.8}{\percent} at
+\SI{5}{\kilo\hertz} becomes \(3.06 \pm \SI{0.92}{\percent}\). The poly sheet
+resistance moves all four channels of a die together, so no amount of averaging
+removes it and a single measurement does; what a single measurement cannot
+remove, the channel-to-channel residual, is that \SI{0.41}{\percent}. That orders
+the ways firmware can turn two converter readings into an impedance. \textbf{A
+stored nominal resistance law is unusable as a calibration constant}: it puts the
+whole spread on the answer --- \(\sigma = \SI{10.2}{\percent}\) of magnitude at
+gain code 0 and \SI{12.1}{\percent} at code 63, individual dies reading
+\(-32\,\%\) to \(+39\,\%\) below the feedback pole --- on top of the
+\SI{9}{\percent} nominal offset the law already carries at the bottom code.
+\textbf{One dc measurement of the feedback resistance per chip removes
+essentially all of it}: \(\sigma = \SI{0.0006}{\percent}\), four orders of
+magnitude better and indistinguishable from measuring the current at every
+frequency, which is the bound and would need a current reference the die does not
+carry. That is a fourth independent reason for the calibration impedance. Phase
+escapes the argument entirely --- the feedback resistance is a real scale factor,
+so the stored-law and dc-calibrated architectures report identical phase in every
+case measured, and a chip with no gain calibration at all still reports phase to
+the accuracy above.
+
+\paragraph{The calibration impedance must be switchable across decades.} Against
+a standard matched to the load, the ratiometric measurement reaches the bound
+above in mean and in \(\sigma\) at every frequency, and beats it at dc where the two loop
+errors are identical and cancel outright: \(\sigma = \SI{0.0002}{\percent}\)
+against the bound's own \SI{0.0006}{\percent} on the typical load and
+\SI{0.0053}{\percent} on the fouled one. Against a standard \num{9.2} times away
+in magnitude it instead \emph{injects} spread, \(\sigma = \SI{0.18}{\percent}\),
+\num{300} times worse than the dc calibration it replaces. Above the feedback
+pole, where a dc calibration cannot help at all, it is the only thing that does:
+on the fresh electrode at gain code 63 and \SI{5}{\kilo\hertz} a stored dc
+resistance gives \(7.03 \pm \SI{1.84}{\percent}\) and the ratio
+\(2.56 \pm \SI{0.80}{\percent}\) even against a standard \num{91} times away ---
+\num{2.7} times less bias and \num{2.3} times less spread. The fixed
+\(-0.27\,\%\) above is therefore a distribution,
+\(-0.27 \pm \SI{0.10}{\percent}\), and matching the calibration impedance to the
+decade being measured is a requirement on the hardware, not a refinement of the
+firmware.

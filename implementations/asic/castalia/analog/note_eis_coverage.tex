@@ -28,6 +28,38 @@
 %   Model grading (README S3.4(1)): reproduces the measured error to <= 7 % at
 %   noise gain >= 13; 42 % optimistic at noise gain 2.8 (0.0294 % measured vs
 %   0.0207 % model).
+%
+% CORNER NUMBERS (~/chips/castalia/simruns/eiscorner_20260825):
+%   corner_tables.txt S3-S4, band/band_results.json -- 42 runs, same frozen-ratio
+%   experiment as ratio/band_edges.txt above, repeated over the seven corner
+%   points.  The resistor is sized from the NOMINAL R_f, so the achieved ratio
+%   moves slightly with the corner (39.28 at ff/N=0 to 41.12 at ss/N=0) and is
+%   reported in the source table.  tab:eis-band-corner is S4 verbatim with the
+%   nominal columns from S3's tt rows:
+%     N     f(+-1%) tt   worst        at      f(0.573d) tt  worst      at
+%     0     22.67k       10.93k       tt_T85  5527          5290       ss
+%     20    14.13k       12.83k       tt_T85  5760          5575       ss
+%     63     9849         9089        tt_T85  6930          6472       ss
+%     102    9102         8369        tt_T85  >100k         >100k      --
+%     191   13.87k       11.88k       tt_T85  >100k         >100k      --
+%     319   >100k        >100k        --      >100k         >100k      --
+%   Full range over the whole set: f(+-1%) 8369 Hz (tt_T85/N=102) to 27.05 kHz
+%   (tt_T0/N=0); f(0.573d) 5290 Hz (ss/N=0) to 7532 Hz (ff/N=63).
+%   dc error at ratio 40, N = 0: 0.5174 % (ss) - 0.9183 % (tt_T85) about the
+%   nominal 0.6603 % -- 1/A0 x noise gain with A0 walking over its corner range.
+%   Coverage window per corner (corner_tables.txt S5): |Z|min 231.7 (ff) -
+%   242.6 (ss) ohm, |Z|max 14.580 (tt_T85) - 14.984 (tt_T0) MOhm, 4.79 - 4.81
+%   decades everywhere.  It TRANSLATES with R_f and does not change width.
+%   Feedback pole per corner (S1): N=20 51.55-52.54 kHz, N=319 3.683-3.797 kHz,
+%   i.e. +-1.2 % -- but cor_mim stays tt_mim and cor_res stays tt_res, so with
+%   the poly cornered too (ac_resmim/resmim_table.txt) the N=319 pole is
+%   2.399 kHz (ss+res+mim) to 6.611 kHz (ff+res+mim).  R_f vs the law at N = 0
+%   is +7.1 % (ff) to +12.1 % (ss) across the corners and sigma = 11.0 % across
+%   dies (mc_summary.txt S2).
+%   The band edges survive the poly caveat and the coverage window does not,
+%   because the band experiment freezes R_f/|Z| = 40 by construction while the
+%   window edges scale with R_f.  True poly-cornered window: 158 ohm - 20.0 MOhm,
+%   same span (all 320 taps are the same poly), removable by one calibration.
 % Library cell names are kept out of the rendered prose.
 
 \subsubsection{Coverage and Bandwidth}\label{sss:eis-coverage}
@@ -50,21 +82,46 @@ low-frequency end. That pole is measured here and confirms the
 \SI{52.0}{\kilo\hertz} against \SI{52.2}{\kilo\hertz} predicted at gain code 20,
 \SI{3.75}{\kilo\hertz} against \SI{3.76}{\kilo\hertz} at code 319.
 
+\textbf{The capacitor is confirmed; the pole is not a constant.} It moves by
+\(\pm\SI{1.2}{\percent}\) over the corner set, which holds the poly at typical,
+and by \SIrange{2.40}{6.61}{\kilo\hertz} at code 319 once the poly is cornered
+too --- because the pole is \(1/2\pi R_f C_F\) and \(R_f\) is an
+\SI{11}{\percent} process quantity (Section~\ref{sss:eis-accuracy}). The window
+itself translates with \(R_f\) for the same reason: it holds to
+\SIrange{232}{243}{\ohm} and \SIrange{14.58}{14.98}{\mega\ohm} over the corner
+set, \numrange{4.79}{4.81} decades everywhere, but a poly-cornered die runs from
+\SI{158}{\ohm} to \SI{20.0}{\mega\ohm}. Every tap is the same poly, so the span
+is unchanged and one dc calibration recovers the absolute edges.
+
 \paragraph{The band edge is a phase specification, not a magnitude one.}
 Presenting each gain code with a pure resistor of exactly \(R_f/40\) freezes the
 noise gain across the sweep and measures the edge directly. The dc error then
 scales exactly with that ratio --- \num{0.120}, \num{0.330}, \num{0.660},
 \SI{1.322}{\percent} at \num{7.3}, \num{20}, \num{40}, \num{80} --- so the form
-of the design equation holds. Its bandwidth prediction does not: the
-\(\pm\SI{1}{\percent}\) magnitude edge measures \SIrange{9.1}{22.7}{\kilo\hertz}
-across the gain codes against \SI{5.56}{\kilo\hertz} predicted, \num{1.6} to
-\(4\times\) pessimistic, while the \(\pm\SI{0.573}{\degree}\) phase edge measures
-\SIrange{5.53}{6.93}{\kilo\hertz} --- the predicted value. \textbf{The usable
-band is therefore \SI{0.1}{\hertz} to \SI{5.5}{\kilo\hertz} set by phase}, with
-magnitude in specification to at least \SI{9.1}{\kilo\hertz}. The same model
-under-predicts the error itself by \SI{42}{\percent} where the noise gain is
-near unity (\num{0.029} measured against \(0.021\,\%\)), which at that size
-changes nothing.
+of the design equation holds, and it holds across corners too, at
+\SIrange{0.52}{0.92}{\percent} about the nominal \SI{0.660}{\percent} at ratio
+\num{40}, with only the amplifier's open-loop gain moving. Its bandwidth
+prediction does not hold: the \(\pm\SI{1}{\percent}\) magnitude edge measures
+\SIrange{9.1}{22.7}{\kilo\hertz} across the gain codes against
+\SI{5.56}{\kilo\hertz} predicted, \num{1.6} to \(4\times\) pessimistic, while the
+\(\pm\SI{0.573}{\degree}\) phase edge measures \SIrange{5.53}{6.93}{\kilo\hertz}
+--- the predicted value. The same model under-predicts the error itself by
+\SI{42}{\percent} where the noise gain is near unity (\num{0.029} measured
+against \(0.021\,\%\)), which at that size changes nothing.
+
+\paragraph{The band holds across corners, and the phase gate stays the binding
+one.} Repeating the fixed-ratio measurement over the seven corner points moves
+the phase gate by \SI{-4.3}{\percent} at worst
+(Table~\ref{tab:eis-band-corner}): \SI{5.29}{\kilo\hertz} at the slow corner
+against \SI{5.53}{\kilo\hertz} nominal, and \SIrange{5.29}{7.53}{\kilo\hertz}
+over every corner and gain code. The magnitude edge spans
+\SIrange{8.4}{27.1}{\kilo\hertz} against \SIrange{9.1}{22.7}{\kilo\hertz}
+nominal, its minimum at \SI{85}{\celsius} and gain code 102, still
+\(1.6\times\) above the phase gate at that worst point. \textbf{The usable band
+is therefore \SI{0.1}{\hertz} to \SI{5.3}{\kilo\hertz} set by phase}, with
+magnitude in specification to at least \SI{8.4}{\kilo\hertz} --- a conclusion
+the corners make firmer, since the two gates are worst at opposite ends of the
+set.
 
 \begin{table}[htbp]
   \centering
@@ -78,7 +135,13 @@ changes nothing.
   edge because the peak is what rails, and the fundamental sets the upper edge
   because the fundamental is what the demodulator reads. Adjacent windows overlap
   by more than a decade. The last column is the \SI{-3}{\decibel} frequency of
-  the measured transimpedance, i.e. the real \SI{22}{\pico\farad} feedback pole.}
+  the measured transimpedance, i.e. the real \SI{22}{\pico\farad} feedback pole.
+  Every column but the first scales with \(R_f\), and \(R_f\) is neither a
+  constant nor a corner-free quantity: the \(+9.06\,\%\) at \(N = 0\) is
+  \(+7.1\,\%\) to \(+12.1\,\%\) across the process corners and
+  carries \(\sigma = \SI{11.0}{\percent}\) across dies
+  (Section~\ref{sss:eis-accuracy}), so this table is one die and the window it
+  gives is recovered per chip by one dc calibration.}
   \label{tab:eis-coverage}
   \begin{tabular}{rrrrrr}
     \toprule
@@ -93,5 +156,38 @@ changes nothing.
     \bottomrule
     \multicolumn{6}{l}{\footnotesize $^{a}$\,Outside the \SI{100}{\kilo\hertz}
       sweep; the element values put it at \SI{368}{\kilo\hertz}.} \\
+  \end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+  \centering
+  \caption[{Band edges per gain code, nominal and worst corner.}]{Band edges per
+  gain code at the nominal point and at the worst of seven corner points --- the
+  four process corners at \SI{25}{\celsius}, plus \SI{0}{\celsius} and
+  \SI{85}{\celsius} on the nominal models --- with each gain code presented a
+  pure resistor of exactly \(R_f/40\) so that the noise gain is frozen across the
+  sweep. The magnitude gate is where the error crosses \(\pm\SI{1}{\percent}\)
+  and the phase gate where it crosses \(\pm\SI{0.573}{\degree}\); a dash means
+  the error never reaches that gate inside the \SI{100}{\kilo\hertz} sweep. The
+  two gates move in opposite directions, so the worst magnitude edge and the
+  worst phase edge are never the same die. The frozen ratio makes these edges
+  insensitive to a global shift in \(R_f\) by construction, which is why they
+  survive the poly caveat of Section~\ref{ss:eis} and the impedance window of
+  Table~\ref{tab:eis-coverage} does not.}
+  \label{tab:eis-band-corner}
+  \begin{tabular}{rrrlrrl}
+    \toprule
+    & \multicolumn{3}{c}{\(\pm\SI{1}{\percent}\) magnitude} &
+      \multicolumn{3}{c}{\(\pm\SI{0.573}{\degree}\) phase} \\
+    \cmidrule(lr){2-4}\cmidrule(lr){5-7}
+    $N$ & Nominal & Worst & at & Nominal & Worst & at \\
+    \midrule
+    0   & \SI{22.7}{\kilo\hertz} & \SI{10.9}{\kilo\hertz} & \SI{85}{\celsius} & \SI{5.53}{\kilo\hertz} & \SI{5.29}{\kilo\hertz} & ss \\
+    20  & \SI{14.1}{\kilo\hertz} & \SI{12.8}{\kilo\hertz} & \SI{85}{\celsius} & \SI{5.76}{\kilo\hertz} & \SI{5.58}{\kilo\hertz} & ss \\
+    63  & \SI{9.85}{\kilo\hertz} & \SI{9.09}{\kilo\hertz} & \SI{85}{\celsius} & \SI{6.93}{\kilo\hertz} & \SI{6.47}{\kilo\hertz} & ss \\
+    102 & \SI{9.10}{\kilo\hertz} & \SI{8.37}{\kilo\hertz} & \SI{85}{\celsius} & \(>\SI{100}{\kilo\hertz}\) & \(>\SI{100}{\kilo\hertz}\) & --- \\
+    191 & \SI{13.9}{\kilo\hertz} & \SI{11.9}{\kilo\hertz} & \SI{85}{\celsius} & \(>\SI{100}{\kilo\hertz}\) & \(>\SI{100}{\kilo\hertz}\) & --- \\
+    319 & \(>\SI{100}{\kilo\hertz}\) & \(>\SI{100}{\kilo\hertz}\) & --- & \(>\SI{100}{\kilo\hertz}\) & \(>\SI{100}{\kilo\hertz}\) & --- \\
+    \bottomrule
   \end{tabular}
 \end{table}
