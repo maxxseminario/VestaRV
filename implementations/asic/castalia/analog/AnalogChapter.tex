@@ -69,24 +69,26 @@ schematics.
 \toprule
 Block & Section & Benches & Corners & Monte Carlo \\
 \midrule
-Bias generator        & \ref{ss:biasgen-local} & 3 & \checkmark & n/a \\
-Class-AB amplifier    & \ref{ss:ampab}         & 6 & \checkmark & \checkmark \\
-Potentiostat pixel system & \ref{ss:pixel}     & 6 & \checkmark & \checkmark \\
-Assembled channel     & \ref{ss:pixtop}        & 1 & \checkmark & \checkmark \\
+Bias generator        & \ref{ss:biasgen-local} & 3 & \checkmark$^{\dagger}$ & n/a \\
+Class-AB amplifier    & \ref{ss:ampab}         & 6 & \checkmark$^{\dagger}$ & \checkmark \\
+Potentiostat pixel system & \ref{ss:pixel}     & 6 & \checkmark$^{\dagger}$ & \checkmark \\
+Assembled channel     & \ref{ss:pixtop}        & 1 & \checkmark$^{\dagger}$ & \checkmark \\
 Input multiplexer     & \ref{sss:pixtop-mux}   & 2 & \checkmark & n/a \\
-Impedance spectroscopy & \ref{ss:eis}          & 1 & \checkmark & \checkmark \\
+Impedance spectroscopy & \ref{ss:eis}          & 1 & \checkmark$^{\dagger}$ & \checkmark \\
 SAR ADC               & \ref{ss:adc}          & 2 & \checkmark & \checkmark \\
 Feedback resistor     & \ref{ss:tiarprog}      & 5 & \checkmark & \checkmark \\
-Reference DAC         & \ref{ss:dacr2r12}      & 6 & \checkmark & \checkmark \\
+Reference DAC         & \ref{ss:dacr2r12}      & 6 & \checkmark$^{\dagger}$ & \checkmark \\
 \bottomrule
+\multicolumn{5}{l}{\footnotesize $^{\dagger}$\,Corner run with the passive model
+  rows pinned at typical --- a lower bound. See below.} \\
 \end{tabular}
 \end{center}
 
-\noindent Every block now carries a corner run. The impedance row is not a block
-but a mode that adds no devices, and its corner and Monte Carlo runs cover the
-small-signal measurement only; the corner set that serves this chapter holds the
-poly resistor at typical, so the impedance section's corner figures are a lower
-bound on the true spread (Section~\ref{sss:eis-open}).
+\noindent Every block now carries a corner run, but a corner run is not the same
+claim in every row: the six rows marked \(\dagger\) are cornered over the
+transistors alone, for the reason set out immediately below. The impedance row is
+not a block but a mode that adds no devices, and its corner and Monte Carlo runs
+cover the small-signal measurement only.
 \emph{n/a} marks a block whose
 section reports no Monte Carlo because the devices at issue carry no
 per-instance mismatch terms: the multiplexer's ninety pass gates per tree, and
@@ -102,6 +104,94 @@ and a Monte Carlo \(\sigma\) are different quantities and are reported separatel
 throughout. Design
 targets, where quoted alongside a measurement, are stated in the block section that
 reports the measurement.
+
+% =====================================================================
+% THE PINNED-PASSIVE CAVEAT. HAND-WRITTEN, and the single authored place where
+% this defect is explained: every affected caption points here in one clause
+% ("pinned-passive caveat, page~\pageref{p:pinned-passives}") rather than
+% restating it. Source: ~/vestarv/docs/afe_rev2_corner_audit.html and the runs
+% archived in ~/chips/castalia/simruns/cornaudit_20260825/ (README.md S3 for the
+% headline table, results_tables.txt for the four measured tables, corner_scan.txt
+% for the sweep over every setup). Caught twice independently before that audit:
+% simruns/bgladder_20260825 (the bias generator, which is why
+% tab_biasgen_dcop_free exists) and simruns/eiscorner_20260825 S2.5 (the
+% impedance campaign, which is why note_eis_intro.tex already carried a
+% section-scoped version -- now reduced to a pointer plus its own numbers).
+% NOTHING HERE IS A RE-MEASUREMENT of a published table: the affected numbers
+% stand in the chapter exactly as they were, marked as a lower bound. Re-running
+% them is the owner's decision.
+% Model section and kit file names are named here, unlike everywhere else in the
+% chapter, because the recommendation is only actionable if the names are exact.
+% =====================================================================
+
+\paragraph{The pinned-passive caveat.}\label{p:pinned-passives}
+The corner set that serves this chapter moves the sixteen transistor model rows
+only. The resistor, capacitor and metal-capacitor rows hold their typical
+sections in every corner, so poly sheet resistance --- a
+\(\pm\SI{35}{\percent}\) quantity --- does not move at all. It sets the
+programmable feedback resistor of Section~\ref{ss:tiarprog} directly, and it
+sets the reference resistor of the local bias generator, and through that the
+tail current, transconductance, bandwidth and supply current of every amplifier
+in this chapter. Every corner column marked \(\dagger\) above is therefore the
+spread of the transistors alone, and is a lower bound on the true spread.
+
+Measured on the same benches with the passive rows freed: the control
+amplifier's unity-gain frequency spreads \SIrange{15.89}{36.09}{\mega\hertz}
+against the published \SIrange{22.36}{22.91}{\mega\hertz}, a box \(36\times\)
+wider, and its supply current \SIrange{81.5}{193.8}{\micro\ampere} against
+\SIrange{110.0}{136.7}{\micro\ampere}, \(4.2\times\); worst-case gain margin
+falls from \SI{8.10}{\decibel} to \SI{7.60}{\decibel}. On the transimpedance
+loop at gain code 63 the feedback resistance spreads \(-33.4\,\%\) and
+\(+35.5\,\%\) against the published \(+0.44\,\%\), a box \(157\times\) wider;
+its \SI{-3}{\decibel} frequency spreads \SIrange{8.53}{16.14}{\kilo\hertz}
+against \SIrange{10.90}{11.32}{\kilo\hertz}, \(18\times\); and worst-case loop
+phase margin falls from \SI{71.69}{\degree} to \SI{61.52}{\degree}.
+
+The two mixed corners cannot be repaired. The foundry ships the passive families
+with fast, slow and typical sections only --- there is no mixed-corner section
+for a resistor or a capacitor --- so fs and sf had to pin those rows, and the
+pinned table was then cloned into ff and ss, where a real section does exist.
+That is why the tables look partly right: the bias generator's fs and sf columns
+agree with the freed matrix to three digits while its ff and ss columns diverge
+by \SI{47}{\percent} and \SI{25}{\percent}, because the two columns that were
+always going to be pinned are the two that are still correct. Only ff and ss can
+carry the true spread.
+
+\textbf{The Monte Carlo has been the only honest process bound in this chapter
+all along.} Its statistical model section varies the resistors, and the
+\SI{11.45}{\percent} process \(\sigma\) it measures on the feedback resistance is
+\(3\sigma \approx \SI{34}{\percent}\) --- the box the corner set was missing.
+Every Monte Carlo table and figure in this chapter therefore stands as published.
+So does the converter of Section~\ref{ss:adc}, whose extracted array carries no
+capacitor model card and whose poly strips are fill with no dc path; the
+multiplexer measurements of Section~\ref{sss:pixtop-mux}, which contain no poly,
+MIM or MOM device at all; the programmable feedback resistor of
+Section~\ref{ss:tiarprog}, whose corner axis is the resistor family by
+construction and which is the one section that already shows the
+\(\pm\SI{35}{\percent}\) band; the offset and tracking tables, which are
+matching-limited and move \emph{less} when the passives are freed than the
+published corner box already allows; and the reference DAC's zero-scale,
+full-scale and LSB columns, which are ratiometric and identical to six digits
+pinned or freed.
+
+\paragraph{The corrected corner set.} Define it once as a file rather than as a
+table typed into each setup, so that a corrected table cannot be cloned with its
+defects: one section per corner, each a complete model-row list. Five sections,
+named so that the pin is visible from a corner label ---
+\texttt{castalia\_tt}, \texttt{castalia\_ff\_all} and \texttt{castalia\_ss\_all}
+with every row moved, plus \texttt{castalia\_fs\_mos} and
+\texttt{castalia\_sf\_mos}, which cannot move the passives and never will.
+Verify from the netlist that executed, never from the setup:
+
+\begin{quote}\small
+\verb+grep -E 'cor_(res|mim|rtmom)\.scs' <run>/input.scs+
+\end{quote}
+
+\noindent must show the corner letter on the passive rows. One gap survives the
+fix: the statistical model section omits the MIM statistics, so MIM capacitor
+variation is bounded by neither the corner set nor the Monte Carlo today --- the
+\SI{22}{\pico\farad} compensation capacitor of Section~\ref{ss:ampab} is the
+device that makes that matter.
 
 % ---------------------------------------------------------------------
 % Generated block sections. Each is produced by tools/maestro2tex from a

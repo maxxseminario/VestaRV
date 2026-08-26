@@ -11,7 +11,7 @@
   "corner_labels": {
     "pt1": "tt"
   },
-  "corner_table_caption": "Process, temperature and supply points simulated for the class-AB amplifier in its control-amplifier role. Point 1 is the typical statistical process point, evaluated with zero statistical offset; points 2--5 are the imported foundry skew corners. Temperature is uniform across the seven benches of this run at every point: \\SI{37}{\\celsius} at point 1 and \\SI{25}{\\celsius} at points 2--5, so the typical point carries the body-temperature condition and the skew corners do not. Every figure and table in this section is schematic-level.",
+  "corner_table_caption": "Process, temperature and supply points simulated for the class-AB amplifier in its control-amplifier role. Point 1 is the typical statistical process point, evaluated with zero statistical offset; points 2--5 are the imported foundry skew corners. Temperature is uniform across the seven benches of this run at every point: \\SI{37}{\\celsius} at point 1 and \\SI{25}{\\celsius} at points 2--5, so the typical point carries the body-temperature condition and the skew corners do not. Every figure and table in this section is schematic-level. These points move the sixteen transistor model rows only --- the resistor and capacitor rows stay at their typical sections --- so every corner spread in this section is a lower bound (pinned-passive caveat, page~\\pageref{p:pinned-passives}).",
   "tests": {
     "cab_unity_stb": {
       "dir": "UnityFeedbackTB",
@@ -299,7 +299,7 @@
         "uf_pm",
         "uf_gm"
       ],
-      "caption": "Amplifier stability in unity-gain feedback by process corner. Unity-feedback bench (Figure~\\ref{fig:tb-unityfb}) at $v_{\\mathrm{cm}} = \\SI{1.25}{\\volt}$, $C_L = \\SI{5}{\\pico\\farad}$, $C_c = \\SI{500}{\\femto\\farad}$, \\SI{2.5}{\\volt} supply; the typical point is at \\SI{37}{\\celsius} and the four skew corners at \\SI{25}{\\celsius}. Measured through a probe in the feedback wire, so the quantity is the loop gain of the unity-gain configuration and not the amplifier loaded by an application network. Gain margin is read at the first crossing of zero loop phase above the unity-gain frequency."
+      "caption": "Amplifier stability in unity-gain feedback by process corner. Unity-feedback bench (Figure~\\ref{fig:tb-unityfb}) at $v_{\\mathrm{cm}} = \\SI{1.25}{\\volt}$, $C_L = \\SI{5}{\\pico\\farad}$, $C_c = \\SI{500}{\\femto\\farad}$, \\SI{2.5}{\\volt} supply; the typical point is at \\SI{37}{\\celsius} and the four skew corners at \\SI{25}{\\celsius}. Measured through a probe in the feedback wire, so the quantity is the loop gain of the unity-gain configuration and not the amplifier loaded by an application network. Gain margin is read at the first crossing of zero loop phase above the unity-gain frequency. These corner spreads are a lower bound: the corner set holds the passive model rows at typical (pinned-passive caveat, page~\\pageref{p:pinned-passives})."
     },
     {
       "id": "ampab_openloop",
@@ -314,7 +314,7 @@
         "ol_f3db",
         "ol_fu"
       ],
-      "caption": "Open-loop small-signal response by process corner. The amplifier is driven differentially about mid-supply with no feedback, $C_L = \\SI{5}{\\pico\\farad}$, $C_c = \\SI{500}{\\femto\\farad}$, \\SI{2.5}{\\volt} supply, \\SI{37}{\\celsius} at the typical point and \\SI{25}{\\celsius} at the four skew corners. The input offset is nulled before the sweep and the DC operating point is linear at every point (output \\SIrange{0.60}{1.78}{\\volt} across corners), so the open-loop numbers are valid; they agree with the unity-feedback loop gain of Table~\\ref{tab:ampab-unity} to within \\SI{1.8}{\\decibel} and the phase margins to within \\SI{0.6}{\\degree}. The \\SI{-3}{\\decibel} frequency varies inversely with the DC gain at a unity-gain frequency that is nearly corner-independent."
+      "caption": "Open-loop small-signal response by process corner. The amplifier is driven differentially about mid-supply with no feedback, $C_L = \\SI{5}{\\pico\\farad}$, $C_c = \\SI{500}{\\femto\\farad}$, \\SI{2.5}{\\volt} supply, \\SI{37}{\\celsius} at the typical point and \\SI{25}{\\celsius} at the four skew corners. The input offset is nulled before the sweep and the DC operating point is linear at every point (output \\SIrange{0.60}{1.78}{\\volt} across corners), so the open-loop numbers are valid; they agree with the unity-feedback loop gain of Table~\\ref{tab:ampab-unity} to within \\SI{1.8}{\\decibel} and the phase margins to within \\SI{0.6}{\\degree}. The \\SI{-3}{\\decibel} frequency varies inversely with the DC gain at a unity-gain frequency that is nearly corner-independent. These corner spreads are a lower bound: the corner set holds the passive model rows at typical (pinned-passive caveat, page~\\pageref{p:pinned-passives})."
     },
     {
       "id": "ampab_offset",
@@ -340,7 +340,7 @@
         "i_sink_50m",
         "Rout_cl"
       ],
-      "caption": "Output drive by process corner. The amplifier is in unity-gain feedback at $v_{\\mathrm{cm}} = \\SI{1.25}{\\volt}$ with $C_L = \\SI{5}{\\pico\\farad}$, $C_c = \\SI{500}{\\femto\\farad}$, \\SI{2.5}{\\volt} supply and the load current swept \\SIrange{-10}{10}{\\milli\\ampere}; the typical point is at \\SI{37}{\\celsius} and the four skew corners at \\SI{25}{\\celsius}. The first two entries are the load current at which the output departs from $v_{\\mathrm{cm}}$ by \\SI{50}{\\milli\\volt}, not a hard current limit; load current is signed positive out of the amplifier, so the sinking entry is negative. Output resistance is the slope of the same curve at zero load and is the quantity that sets load regulation in Table~\\ref{tab:ampab-tracking}."
+      "caption": "Output drive by process corner. The amplifier is in unity-gain feedback at $v_{\\mathrm{cm}} = \\SI{1.25}{\\volt}$ with $C_L = \\SI{5}{\\pico\\farad}$, $C_c = \\SI{500}{\\femto\\farad}$, \\SI{2.5}{\\volt} supply and the load current swept \\SIrange{-10}{10}{\\milli\\ampere}; the typical point is at \\SI{37}{\\celsius} and the four skew corners at \\SI{25}{\\celsius}. The first two entries are the load current at which the output departs from $v_{\\mathrm{cm}}$ by \\SI{50}{\\milli\\volt}, not a hard current limit; load current is signed positive out of the amplifier, so the sinking entry is negative. Output resistance is the slope of the same curve at zero load and is the quantity that sets load regulation in Table~\\ref{tab:ampab-tracking}. These corner spreads are a lower bound: the corner set holds the passive model rows at typical (pinned-passive caveat, page~\\pageref{p:pinned-passives})."
     },
     {
       "id": "ampab_power",
@@ -353,7 +353,7 @@
         "ol_itot",
         "ol_ptot"
       ],
-      "caption": "Quiescent supply current and dissipation by process corner, at the DC operating point of the open-loop bench with both inputs at mid-supply and no load. \\SI{2.5}{\\volt} supply, \\SI{37}{\\celsius} at the typical point and \\SI{25}{\\celsius} at the four skew corners. The measurement is taken at the supply terminal of the bench and therefore covers the amplifier together with the local bias generator that feeds it; at the typical point the amplifier draws \\SI{97}{\\micro\\ampere} of the \\SI{121}{\\micro\\ampere} total and the bias generator the remainder. One local bias generator serves one channel, so this is the per-channel budget."
+      "caption": "Quiescent supply current and dissipation by process corner, at the DC operating point of the open-loop bench with both inputs at mid-supply and no load. \\SI{2.5}{\\volt} supply, \\SI{37}{\\celsius} at the typical point and \\SI{25}{\\celsius} at the four skew corners. The measurement is taken at the supply terminal of the bench and therefore covers the amplifier together with the local bias generator that feeds it; at the typical point the amplifier draws \\SI{97}{\\micro\\ampere} of the \\SI{121}{\\micro\\ampere} total and the bias generator the remainder. One local bias generator serves one channel, so this is the per-channel budget. These corner spreads are a lower bound: the corner set holds the passive model rows at typical (pinned-passive caveat, page~\\pageref{p:pinned-passives})."
     },
     {
       "id": "ampab_cellstab",
@@ -367,7 +367,7 @@
         "cell_ugf",
         "cell_pm"
       ],
-      "caption": "Control-loop stability driving an electrochemical cell, by process corner. Cell-drive bench (Figure~\\ref{fig:tb-celldrive}): Randles cell with $R_{\\mathrm{CE}} = \\SI{1}{\\kilo\\ohm}$, $R_u = \\SI{1}{\\kilo\\ohm}$, $R_{\\mathrm{ct}} = \\SI{10}{\\kilo\\ohm}$, $C_{\\mathrm{dl}} = \\SI{1}{\\micro\\farad}$, working electrode at \\SI{1.25}{\\volt}, $C_L = \\SI{5}{\\pico\\farad}$, $C_c = \\SI{500}{\\femto\\farad}$, \\SI{2.5}{\\volt} supply, \\SI{37}{\\celsius} at the typical point and \\SI{25}{\\celsius} at the four skew corners. The probe sits in the reference-electrode sense wire, so the loop measured here includes the cell; it is a different loop from Table~\\ref{tab:ampab-unity} and the two are not comparable. Loop gain is \\SI{10}{\\decibel} lower than the unity-feedback figure because the cell's \\SI{12}{\\kilo\\ohm} loads an open-loop output resistance of about \\SI{25}{\\kilo\\ohm}; crossover halves with it and the phase margin improves."
+      "caption": "Control-loop stability driving an electrochemical cell, by process corner. Cell-drive bench (Figure~\\ref{fig:tb-celldrive}): Randles cell with $R_{\\mathrm{CE}} = \\SI{1}{\\kilo\\ohm}$, $R_u = \\SI{1}{\\kilo\\ohm}$, $R_{\\mathrm{ct}} = \\SI{10}{\\kilo\\ohm}$, $C_{\\mathrm{dl}} = \\SI{1}{\\micro\\farad}$, working electrode at \\SI{1.25}{\\volt}, $C_L = \\SI{5}{\\pico\\farad}$, $C_c = \\SI{500}{\\femto\\farad}$, \\SI{2.5}{\\volt} supply, \\SI{37}{\\celsius} at the typical point and \\SI{25}{\\celsius} at the four skew corners. The probe sits in the reference-electrode sense wire, so the loop measured here includes the cell; it is a different loop from Table~\\ref{tab:ampab-unity} and the two are not comparable. Loop gain is \\SI{10}{\\decibel} lower than the unity-feedback figure because the cell's \\SI{12}{\\kilo\\ohm} loads an open-loop output resistance of about \\SI{25}{\\kilo\\ohm}; crossover halves with it and the phase margin improves. These corner spreads are a lower bound: the corner set holds the passive model rows at typical (pinned-passive caveat, page~\\pageref{p:pinned-passives})."
     },
     {
       "id": "ampab_tracking",
@@ -397,7 +397,7 @@
         "i_src_max",
         "i_sink_max"
       ],
-      "caption": "Counter-electrode compliance and delivered cell current by process corner, conditions as Table~\\ref{tab:ampab-cellstab}. The first two rows are the extremes of the counter-electrode potential over the full \\SIrange{0}{2.5}{\\volt} command sweep (Figure~\\ref{fig:ampab-cell-ce}); they are measured directly at the electrode and are independent of the loop offset, which is why compliance is published from them. Headroom to each rail is under \\SI{40}{\\milli\\volt}. The current rows are the largest anodic and cathodic currents reached in the same sweep; with \\SI{12}{\\kilo\\ohm} between the counter and working electrodes they are the compliance limits divided by that resistance, so they are a property of this load and do not transfer to another electrode."
+      "caption": "Counter-electrode compliance and delivered cell current by process corner, conditions as Table~\\ref{tab:ampab-cellstab}. The first two rows are the extremes of the counter-electrode potential over the full \\SIrange{0}{2.5}{\\volt} command sweep (Figure~\\ref{fig:ampab-cell-ce}); they are measured directly at the electrode and are independent of the loop offset, which is why compliance is published from them. Headroom to each rail is under \\SI{40}{\\milli\\volt}. The current rows are the largest anodic and cathodic currents reached in the same sweep; with \\SI{12}{\\kilo\\ohm} between the counter and working electrodes they are the compliance limits divided by that resistance, so they are a property of this load and do not transfer to another electrode. These corner spreads are a lower bound: the corner set holds the passive model rows at typical (pinned-passive caveat, page~\\pageref{p:pinned-passives})."
     }
   ],
   "order": [
@@ -519,6 +519,22 @@
     "  CellDriveTB re_err_slope_at -- it locates the worst slope, and in 200 Monte",
     "    Carlo samples it lands on one of the two window edges every time, so it",
     "    carries no information beyond the window definition.",
-    "  DriveTB i_src_1m/i_sink_1m/voff/itot -- see the note in the MC config."
+    "  DriveTB i_src_1m/i_sink_1m/voff/itot -- see the note in the MC config.",
+    "",
+    "PINNED-PASSIVE CAVEAT ADDED 2026-08-26 (captions only -- no measured value in",
+    "this config changed, and nothing was re-simulated).  The imported",
+    "tsmcN65_typ_<c> corner family assigns the corner letter to the 16 MOS rows",
+    "only: cor_res.scs stays tt_res, cor_mim.scs tt_mim, cor_rtmom.scs tt_rtmom in",
+    "EVERY corner, so poly sheet resistance -- which sets R_f and the bias",
+    "generator's R_SET, and through it the tail current, gm, bandwidth and supply",
+    "current of every amplifier -- never moves.  Audit and measurements:",
+    "~/vestarv/docs/afe_rev2_corner_audit.html, runs in",
+    "~/chips/castalia/simruns/cornaudit_20260825/.  The mechanism is explained ONCE,",
+    "in AnalogChapter.tex (\"The pinned-passive caveat\", label p:pinned-passives);",
+    "the captions patched here carry a one-clause pointer to it and nothing more.",
+    "Do NOT expand those clauses into a second copy of the explanation, and do not",
+    "drop them without re-running the affected tests on a corner set that moves the",
+    "passive rows (castalia_ff_all / castalia_ss_all; fs and sf can never move them,",
+    "the kit ships no fs_res or sf_mim section)."
   ]
 }

@@ -31,7 +31,23 @@
     "the `superseded` key below makes re-declaring the old table a hard error.",
     "To publish a GENERATED dcop table again, write a companion config",
     "(emit_master=false) pointed at a tb_anatop_bg_startup run, drop the name",
-    "from `superseded`, and swap the `order` entry."
+    "from `superseded`, and swap the `order` entry.",
+    "",
+    "PINNED-PASSIVE CAVEAT ADDED 2026-08-26 (captions only -- no measured value in",
+    "this config changed, and nothing was re-simulated).  The imported",
+    "tsmcN65_typ_<c> corner family assigns the corner letter to the 16 MOS rows",
+    "only: cor_res.scs stays tt_res, cor_mim.scs tt_mim, cor_rtmom.scs tt_rtmom in",
+    "EVERY corner, so poly sheet resistance -- which sets R_f and the bias",
+    "generator's R_SET, and through it the tail current, gm, bandwidth and supply",
+    "current of every amplifier -- never moves.  Audit and measurements:",
+    "~/vestarv/docs/afe_rev2_corner_audit.html, runs in",
+    "~/chips/castalia/simruns/cornaudit_20260825/.  The mechanism is explained ONCE,",
+    "in AnalogChapter.tex (\"The pinned-passive caveat\", label p:pinned-passives);",
+    "the captions patched here carry a one-clause pointer to it and nothing more.",
+    "Do NOT expand those clauses into a second copy of the explanation, and do not",
+    "drop them without re-running the affected tests on a corner set that moves the",
+    "passive rows (castalia_ff_all / castalia_ss_all; fs and sf can never move them,",
+    "the kit ships no fs_res or sf_mim section)."
   ],
   "block": "BiasGenCascWideSwing",
   "superseded": {
@@ -41,7 +57,7 @@
   "nominal_corner": "tt",
   "supply_var": "VDD25",
   "intro_tex": "\\subsection{Local Wide-Swing Cascode Bias Generator}\\label{ss:biasgen-local}\n\nThe local bias generator (schematic cell \\texttt{anatop\\_biasgen\\_local}, drawn from\n\\texttt{BiasGenCascWideSwing}) is the cell each analog block instantiates to develop\nits own cascode bias rails, as distinct from the single chip-level\n\\texttt{BiasGenCascWideSwingGlobal} that drives the global \\texttt{bn!}/\\texttt{bp!}\nnets. It presents four outputs, the NMOS mirror and cascode gates\n($V_{\\mathrm{BNM}}$, $V_{\\mathrm{BNC}}$) and the PMOS mirror and cascode gates\n($V_{\\mathrm{BPM}}$, $V_{\\mathrm{BPC}}$), generated from a resistor-degenerated\nreference core in the wide-swing cascode arrangement, so the cascode gates sit only\none saturation voltage away from the mirror gates and the mirrors keep their output\ndevices in saturation over a wide compliance range. An \\texttt{En} input gates the\ncell, and a start-up branch guarantees it leaves the degenerate zero-current state at\npower-up. A 6-bit trim word, \\texttt{BiasAdj\\textless5:0\\textgreater}, moves the\nreference current so the operating point can be corrected after silicon.\n\nThe characterisation below is from schematic-level simulation (no extracted\nparasitics) of the \\texttt{BiasGenCascWideSwing\\allowbreak\\_tb} testbench, over the process,\ntemperature and supply points of\nTable~\\ref{tab:BiasGenCascWideSwing-corners}. All rail voltages are referred to\n\\texttt{vss!}, and the cell is enabled throughout.\n",
-  "corner_table_caption": "Process, temperature and supply points simulated for the local bias generator.",
+  "corner_table_caption": "Process, temperature and supply points simulated for the local bias generator. These points move the sixteen transistor model rows only --- the resistor and capacitor rows stay at their typical sections --- so every corner spread in this section is a lower bound (pinned-passive caveat, page~\\pageref{p:pinned-passives}).",
   "signals": {
     "vbnm": {
       "expr": "v(\"/V_BNM\")",
@@ -169,7 +185,7 @@
       ],
       "corners": "all",
       "yprec": 0,
-      "caption": "NMOS mirror bias $V_{\\mathrm{BNM}}$ against temperature over all process corners.",
+      "caption": "NMOS mirror bias $V_{\\mathrm{BNM}}$ against temperature over all process corners. The corner separation drawn here is a lower bound: the corner set holds the passive model rows at typical (pinned-passive caveat, page~\\pageref{p:pinned-passives}).",
       "width": "0.80\\linewidth",
       "height": "6.0cm"
     },
@@ -181,7 +197,7 @@
       ],
       "corners": "all",
       "yprec": 1,
-      "caption": "Quiescent supply current of the bias generator against temperature over all process corners.",
+      "caption": "Quiescent supply current of the bias generator against temperature over all process corners. The corner separation drawn here is a lower bound: the corner set holds the passive model rows at typical (pinned-passive caveat, page~\\pageref{p:pinned-passives}).",
       "width": "0.80\\linewidth",
       "height": "6.0cm"
     },
@@ -193,7 +209,7 @@
       ],
       "corners": "all",
       "yprec": 0,
-      "caption": "Supply rejection of the NMOS mirror bias: $V_{\\mathrm{BNM}}$ against $V_{\\mathrm{DD}}$ over all process corners.",
+      "caption": "Supply rejection of the NMOS mirror bias: $V_{\\mathrm{BNM}}$ against $V_{\\mathrm{DD}}$ over all process corners. The corner separation drawn here is a lower bound: the corner set holds the passive model rows at typical (pinned-passive caveat, page~\\pageref{p:pinned-passives}).",
       "width": "0.80\\linewidth",
       "height": "6.0cm"
     },
@@ -205,7 +221,7 @@
       ],
       "corners": "all",
       "yprec": 1,
-      "caption": "Quiescent supply current against supply voltage over all process corners.",
+      "caption": "Quiescent supply current against supply voltage over all process corners. The corner separation drawn here is a lower bound: the corner set holds the passive model rows at typical (pinned-passive caveat, page~\\pageref{p:pinned-passives}).",
       "width": "0.80\\linewidth",
       "height": "6.0cm"
     },
@@ -217,7 +233,7 @@
       ],
       "corners": "all",
       "yprec": 0,
-      "caption": "Trim characteristic: $V_{\\mathrm{BNM}}$ against the \\texttt{BiasAdj} word over all process corners. The bench sweeps the trim word as a continuous variable, so only the six codes 0, 12.6, 25.2, 37.8, 50.4 and 63 are sampled: this is the shape of the trim law, not a per-code characterisation.",
+      "caption": "Trim characteristic: $V_{\\mathrm{BNM}}$ against the \\texttt{BiasAdj} word over all process corners. The bench sweeps the trim word as a continuous variable, so only the six codes 0, 12.6, 25.2, 37.8, 50.4 and 63 are sampled: this is the shape of the trim law, not a per-code characterisation. The corner separation drawn here is a lower bound: the corner set holds the passive model rows at typical (pinned-passive caveat, page~\\pageref{p:pinned-passives}).",
       "width": "0.80\\linewidth",
       "height": "6.0cm"
     },
@@ -229,7 +245,7 @@
       ],
       "corners": "all",
       "yprec": 1,
-      "caption": "Trim characteristic: quiescent supply current against the \\texttt{BiasAdj} word over all process corners, at the same six sampled codes. The current is strongly monotonic in the trim word, falling by a factor of about 3.4 from code 0 to code 63.",
+      "caption": "Trim characteristic: quiescent supply current against the \\texttt{BiasAdj} word over all process corners, at the same six sampled codes. The current is strongly monotonic in the trim word, falling by a factor of about 3.4 from code 0 to code 63. The corner separation drawn here is a lower bound: the corner set holds the passive model rows at typical (pinned-passive caveat, page~\\pageref{p:pinned-passives}).",
       "width": "0.80\\linewidth",
       "height": "6.0cm"
     },
@@ -258,7 +274,7 @@
       ],
       "corners": "all",
       "yprec": 0,
-      "caption": "Power-up settling of $V_{\\mathrm{BNM}}$ over all process corners.",
+      "caption": "Power-up settling of $V_{\\mathrm{BNM}}$ over all process corners. The corner separation drawn here is a lower bound: the corner set holds the passive model rows at typical (pinned-passive caveat, page~\\pageref{p:pinned-passives}).",
       "width": "0.80\\linewidth",
       "height": "6.0cm"
     }
@@ -280,7 +296,7 @@
       ],
       "corners": "all",
       "spread_column": false,
-      "caption": "Temperature coefficient of each bias rail and of the supply current, taken as the total variation over the simulated temperature range normalised to the mean."
+      "caption": "Temperature coefficient of each bias rail and of the supply current, taken as the total variation over the simulated temperature range normalised to the mean. These corner spreads are a lower bound: the corner set holds the passive model rows at typical (pinned-passive caveat, page~\\pageref{p:pinned-passives})."
     },
     {
       "id": "biasgen_line",
@@ -298,7 +314,7 @@
       ],
       "corners": "all",
       "spread_column": false,
-      "caption": "Line sensitivity: total variation over the simulated supply range, normalised to the mean and to the swept supply span. The PMOS rails are supply-referred (they track $V_{\\mathrm{DD}}$ by design), so it is the supply-referred drops $V_{\\mathrm{DD}}-V_{\\mathrm{BPM}}$ and $V_{\\mathrm{DD}}-V_{\\mathrm{BPC}}$ that are quoted here, not the raw rail voltages, whose sensitivity against \\texttt{vss!} would simply restate that tracking."
+      "caption": "Line sensitivity: total variation over the simulated supply range, normalised to the mean and to the swept supply span. The PMOS rails are supply-referred (they track $V_{\\mathrm{DD}}$ by design), so it is the supply-referred drops $V_{\\mathrm{DD}}-V_{\\mathrm{BPM}}$ and $V_{\\mathrm{DD}}-V_{\\mathrm{BPC}}$ that are quoted here, not the raw rail voltages, whose sensitivity against \\texttt{vss!} would simply restate that tracking. These corner spreads are a lower bound: the corner set holds the passive model rows at typical (pinned-passive caveat, page~\\pageref{p:pinned-passives})."
     },
     {
       "id": "biasgen_trim",
@@ -314,7 +330,7 @@
       ],
       "corners": "all",
       "spread_column": false,
-      "caption": "Trim range: total swing of each quantity between the lowest and highest sampled \\texttt{BiasAdj} code (0 and 63)."
+      "caption": "Trim range: total swing of each quantity between \\texttt{BiasAdj} codes 0 and 63. Those are the extremes of the six codes the bench samples. These corner spreads are a lower bound: the corner set holds the passive model rows at typical (pinned-passive caveat, page~\\pageref{p:pinned-passives})."
     },
     {
       "id": "biasgen_temp_stats",
@@ -351,7 +367,7 @@
       ],
       "corners": "all",
       "spread_column": false,
-      "caption": "Power-up settling time of each bias rail, defined as the last instant at which the rail is still outside a \\SI{1}{\\percent} band around its final value."
+      "caption": "Power-up settling time of each bias rail, defined as the last instant at which the rail is still outside a \\SI{1}{\\percent} band around its final value. These corner spreads are a lower bound: the corner set holds the passive model rows at typical (pinned-passive caveat, page~\\pageref{p:pinned-passives})."
     }
   ],
   "order": [
