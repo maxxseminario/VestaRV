@@ -70,7 +70,7 @@
       "corners": "all",
       "spread_column": true,
       "signals": ["ierr_lsb_max", "ierr_0", "slope_err_0"],
-      "caption": "Bipolar accuracy at the $R_f = \\SI{560}{\\kilo\\ohm}$ gain tap, the operational point at the $R_{\\mathrm{ct}} = \\SI{1}{\\mega\\ohm}$ electrode, by process corner -- \\textbf{the headline rev-2 accuracy figure}. Truth current swept $\\pm\\SI{2.3}{\\micro\\ampere}$ (full scale is \\SI{2.06}{\\micro\\ampere}), error referred to the nominal \\SI{2.441}{\\milli\\volt} ADC LSB and clipped to $\\pm$ full scale before taking the worst case. The converter's measured step is \\SI{1.591}{\\milli\\volt}, not the nominal \\SI{2.441}{\\milli\\volt} (Table~\\ref{tab:adc-transfer}); multiply every LSB figure here by \\num{1.535} to read it as converter codes."
+      "caption": "Bipolar accuracy at the $R_f = \\SI{560}{\\kilo\\ohm}$ gain tap, the operational point at the $R_{\\mathrm{ct}} = \\SI{1}{\\mega\\ohm}$ electrode, by process corner -- \\textbf{the headline rev-2 accuracy figure}. Truth current swept $\\pm\\SI{2.3}{\\micro\\ampere}$ (full scale is \\SI{2.06}{\\micro\\ampere}), error referred to the nominal \\SI{2.441}{\\milli\\volt} ADC LSB and clipped to $\\pm$ full scale before taking the worst case. The converter's measured step is \\SI{1.591}{\\milli\\volt}, not the nominal \\SI{2.441}{\\milli\\volt} (Table~\\ref{tab:adc-transfer}); multiply every LSB figure here by \\num{1.535} to read it as converter codes. These corner spreads are a lower bound: the corner set holds the passive model rows at typical (pinned-passive caveat, page~\\pageref{p:pinned-passives})."
     }
   ],
   "order": [],
@@ -96,6 +96,22 @@
     "cell's -0.39% in PixelHG -- consistent with T being far higher at this",
     "electrode).",
     "",
-    "EXPRESSIONS verbatim from tb_anatop_pixel_iacc_hg_1M_corners/run.ocn."
+    "EXPRESSIONS verbatim from tb_anatop_pixel_iacc_hg_1M_corners/run.ocn.",
+    "",
+    "PINNED-PASSIVE CAVEAT ADDED 2026-08-26 (captions only -- no measured value in",
+    "this config changed, and nothing was re-simulated).  The imported",
+    "tsmcN65_typ_<c> corner family assigns the corner letter to the 16 MOS rows",
+    "only: cor_res.scs stays tt_res, cor_mim.scs tt_mim, cor_rtmom.scs tt_rtmom in",
+    "EVERY corner, so poly sheet resistance -- which sets R_f and the bias",
+    "generator's R_SET, and through it the tail current, gm, bandwidth and supply",
+    "current of every amplifier -- never moves.  Audit and measurements:",
+    "~/vestarv/docs/afe_rev2_corner_audit.html, runs in",
+    "~/chips/castalia/simruns/cornaudit_20260825/.  The mechanism is explained ONCE,",
+    "in AnalogChapter.tex (\"The pinned-passive caveat\", label p:pinned-passives);",
+    "the captions patched here carry a one-clause pointer to it and nothing more.",
+    "Do NOT expand those clauses into a second copy of the explanation, and do not",
+    "drop them without re-running the affected tests on a corner set that moves the",
+    "passive rows (castalia_ff_all / castalia_ss_all; fs and sf can never move them,",
+    "the kit ships no fs_res or sf_mim section)."
   ]
 }

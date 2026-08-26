@@ -11,7 +11,7 @@
   "corner_labels": {
     "pt1": "tt"
   },
-  "corner_table_caption": "Process, temperature and supply points simulated for the 12-bit R-2R DAC and its supply block. Point 1 is the typical statistical process point evaluated at nominal; points 2--5 are the imported foundry skew corners. Temperature is not uniform across this run: the two DAC benches are at \\SI{25}{\\celsius} at all five points, the four supply-block benches (load regulation, line regulation, output impedance, startup) at \\SI{27}{\\celsius} at point 1 and \\SI{25}{\\celsius} at points 2--5; the column below reports the DAC benches. Solver tolerances split the same way --- the DAC benches run \\texttt{reltol}~=~\\num{1e-6}, \\texttt{vabstol}~=~\\num{1e-9}, \\texttt{iabstol}~=~\\num{1e-15}, the supply-block benches the ADE defaults \\num{1e-3}, \\num{1e-6}, \\num{1e-12}. This is a corner run and carries no device mismatch; R-2R linearity is a matching property, so every nonlinearity figure in this section is a systematic term and none of it is a yield statement.",
+  "corner_table_caption": "Process, temperature and supply points simulated for the 12-bit R-2R DAC and its supply block. Point 1 is the typical statistical process point evaluated at nominal; points 2--5 are the imported foundry skew corners. Temperature is not uniform across this run: the two DAC benches are at \\SI{25}{\\celsius} at all five points, the four supply-block benches (load regulation, line regulation, output impedance, startup) at \\SI{27}{\\celsius} at point 1 and \\SI{25}{\\celsius} at points 2--5; the column below reports the DAC benches. Solver tolerances split the same way --- the DAC benches run \\texttt{reltol}~=~\\num{1e-6}, \\texttt{vabstol}~=~\\num{1e-9}, \\texttt{iabstol}~=~\\num{1e-15}, the supply-block benches the ADE defaults \\num{1e-3}, \\num{1e-6}, \\num{1e-12}. This is a corner run and carries no device mismatch; R-2R linearity is a matching property, so every nonlinearity figure in this section is a systematic term and none of it is a yield statement. These points move the sixteen transistor model rows only --- the resistor and capacitor rows stay at their typical sections --- so every corner spread in this section is a lower bound (pinned-passive caveat, page~\\pageref{p:pinned-passives}).",
   "tests": {
     "dr_ideal": {
       "dir": "DacNonlinTB",
@@ -500,7 +500,7 @@
         "dnl_min",
         "dnl_lsb"
       ],
-      "caption": "Static accuracy of the ladder on an ideal \\SI{2.5}{\\volt} rail by process corner, \\texttt{DacTB}, \\SI{25}{\\celsius}, all 4096 codes, \\texttt{reltol}~=~\\num{1e-6}. The ideal endpoints for this bench are \\SI{2.499390}{\\volt} full scale and \\SI{610.35}{\\micro\\volt} per LSB (\\(2.5 \\times 4095/4096\\)); the measured LSB is within \\SI{0.35}{\\micro\\volt} of that at every corner. INL and DNL are referred to the endpoint line through each corner's own zero- and full-scale outputs, so gain and offset are removed and only shape is reported. The bench saves the output node only and records no current, so no supply current is measured on it; the supply block's quiescent current is Table~\\ref{tab:dacr2r12-linereg}. Corner run, no device mismatch: these are systematic terms."
+      "caption": "Static accuracy of the ladder on an ideal \\SI{2.5}{\\volt} rail by process corner, \\texttt{DacTB}, \\SI{25}{\\celsius}, all 4096 codes, \\texttt{reltol}~=~\\num{1e-6}. The ideal endpoints for this bench are \\SI{2.499390}{\\volt} full scale and \\SI{610.35}{\\micro\\volt} per LSB (\\(2.5 \\times 4095/4096\\)); the measured LSB is within \\SI{0.35}{\\micro\\volt} of that at every corner. INL and DNL are referred to the endpoint line through each corner's own zero- and full-scale outputs, so gain and offset are removed and only shape is reported. The bench saves the output node only and records no current, so no supply current is measured on it; the supply block's quiescent current is Table~\\ref{tab:dacr2r12-linereg}. Corner run, no device mismatch: these are systematic terms. The scale columns stand: zero scale, full scale and the LSB are ratiometric and identical to six digits whether the passive model rows are pinned at typical or freed. The INL and DNL columns are a lower bound, because the pass-gate on-resistance is a transistor quantity against a poly ladder --- freed, worst DNL is \\num{-0.755} and worst INL \\num{-0.617} LSB (pinned-passive caveat, page~\\pageref{p:pinned-passives})."
     },
     {
       "id": "dacr2r12_wpsu",
@@ -550,7 +550,7 @@
         "dvddac_load",
         "load_reg"
       ],
-      "caption": "Supply-block load regulation by process corner: \\(V_{\\mathrm{DDDAC}}\\) against an external load current swept \\SIrange{0}{100}{\\micro\\ampere}, \\texttt{DacPSUTB}, \\SI{27}{\\celsius} at point 1 and \\SI{25}{\\celsius} at points 2--5, ADE default tolerances. Load regulation is the chord across the whole sweep, not the slope at the origin, and runs \\SIrange{18}{51}{\\percent} above the small-signal \\(|Z_{\\mathrm{out}}|\\) of Table~\\ref{tab:dacr2r12-zout}. The ladder is not connected on this bench; its own code-dependent current is Figure~\\ref{fig:dacr2r12-vddac}."
+      "caption": "Supply-block load regulation by process corner: \\(V_{\\mathrm{DDDAC}}\\) against an external load current swept \\SIrange{0}{100}{\\micro\\ampere}, \\texttt{DacPSUTB}, \\SI{27}{\\celsius} at point 1 and \\SI{25}{\\celsius} at points 2--5, ADE default tolerances. Load regulation is the chord across the whole sweep, not the slope at the origin, and runs \\SIrange{18}{51}{\\percent} above the small-signal \\(|Z_{\\mathrm{out}}|\\) of Table~\\ref{tab:dacr2r12-zout}. The ladder is not connected on this bench; its own code-dependent current is Figure~\\ref{fig:dacr2r12-vddac}. These corner spreads are a lower bound: the corner set holds the passive model rows at typical (pinned-passive caveat, page~\\pageref{p:pinned-passives})."
     },
     {
       "id": "dacr2r12_linereg",
@@ -565,7 +565,7 @@
         "line_reg",
         "i_q"
       ],
-      "caption": "Supply-block line regulation and quiescent current by process corner: \\(V_{\\mathrm{DDDAC}}\\) with the supply swept \\SIrange{2.25}{2.75}{\\volt} at zero external load, \\texttt{DacPSUTB}, \\SI{27}{\\celsius} at point 1 and \\SI{25}{\\celsius} at points 2--5. With no feedback loop, \\SIrange{0.102}{0.323}{\\volt\\per\\volt} of any supply movement reaches the reference, and every absolute output voltage of the DAC moves with it; the ratiometric rows of Table~\\ref{tab:dacr2r12-wpsu} are what survives. The current is read at the bench supply terminal and covers the supply block only --- the ladder is not connected on this bench."
+      "caption": "Supply-block line regulation and quiescent current by process corner: \\(V_{\\mathrm{DDDAC}}\\) with the supply swept \\SIrange{2.25}{2.75}{\\volt} at zero external load, \\texttt{DacPSUTB}, \\SI{27}{\\celsius} at point 1 and \\SI{25}{\\celsius} at points 2--5. With no feedback loop, \\SIrange{0.102}{0.323}{\\volt\\per\\volt} of any supply movement reaches the reference, and every absolute output voltage of the DAC moves with it; the ratiometric rows of Table~\\ref{tab:dacr2r12-wpsu} are what survives. The current is read at the bench supply terminal and covers the supply block only --- the ladder is not connected on this bench. The quiescent-current column is a lower bound: the corner set holds the passive model rows at typical (pinned-passive caveat, page~\\pageref{p:pinned-passives})."
     },
     {
       "id": "dacr2r12_zout",
@@ -581,7 +581,7 @@
         "zout_max",
         "f_zout_peak"
       ],
-      "caption": "Supply-block small-signal output impedance by process corner, \\texttt{DacPSUTB} AC sweep from \\SI{1}{\\hertz} to \\SI{1}{\\giga\\hertz} at 20 points per decade, \\SI{27}{\\celsius} at point 1 and \\SI{25}{\\celsius} at points 2--5. The AC load source carries unit magnitude, so \\(|V_{\\mathrm{DDDAC}}|\\) reads directly in ohms. The impedance is flat to \\SI{100}{\\kilo\\hertz}, within \\SI{0.3}{\\ohm} of the \\SI{1}{\\hertz} value at every corner, and peaks three decades higher in frequency at two to four times the flat value. Grid points are \\SI{12}{\\percent} apart, so the peak frequency is located only to that resolution and the ff entry is one grid step from the other four."
+      "caption": "Supply-block small-signal output impedance by process corner, \\texttt{DacPSUTB} AC sweep from \\SI{1}{\\hertz} to \\SI{1}{\\giga\\hertz} at 20 points per decade, \\SI{27}{\\celsius} at point 1 and \\SI{25}{\\celsius} at points 2--5. The AC load source carries unit magnitude, so \\(|V_{\\mathrm{DDDAC}}|\\) reads directly in ohms. The impedance is flat to \\SI{100}{\\kilo\\hertz}, within \\SI{0.3}{\\ohm} of the \\SI{1}{\\hertz} value at every corner, and peaks three decades higher in frequency at two to four times the flat value. Grid points are \\SI{12}{\\percent} apart, so the peak frequency is located only to that resolution and the ff entry is one grid step from the other four. These corner spreads are a lower bound: the corner set holds the passive model rows at typical (pinned-passive caveat, page~\\pageref{p:pinned-passives})."
     }
   ],
   "order": [
@@ -723,6 +723,22 @@
     "compiles standalone with no unresolved references. The final interleaved order --",
     "hand-written note_dacr2r12_* / sch_dacr2r12_* and the DacR2R12MC fragments woven",
     "in -- is set by the section owner; names listed there that do not exist are",
-    "skipped silently."
+    "skipped silently.",
+    "",
+    "PINNED-PASSIVE CAVEAT ADDED 2026-08-26 (captions only -- no measured value in",
+    "this config changed, and nothing was re-simulated).  The imported",
+    "tsmcN65_typ_<c> corner family assigns the corner letter to the 16 MOS rows",
+    "only: cor_res.scs stays tt_res, cor_mim.scs tt_mim, cor_rtmom.scs tt_rtmom in",
+    "EVERY corner, so poly sheet resistance -- which sets R_f and the bias",
+    "generator's R_SET, and through it the tail current, gm, bandwidth and supply",
+    "current of every amplifier -- never moves.  Audit and measurements:",
+    "~/vestarv/docs/afe_rev2_corner_audit.html, runs in",
+    "~/chips/castalia/simruns/cornaudit_20260825/.  The mechanism is explained ONCE,",
+    "in AnalogChapter.tex (\"The pinned-passive caveat\", label p:pinned-passives);",
+    "the captions patched here carry a one-clause pointer to it and nothing more.",
+    "Do NOT expand those clauses into a second copy of the explanation, and do not",
+    "drop them without re-running the affected tests on a corner set that moves the",
+    "passive rows (castalia_ff_all / castalia_ss_all; fs and sf can never move them,",
+    "the kit ships no fs_res or sf_mim section)."
   ]
 }

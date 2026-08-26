@@ -11,7 +11,7 @@
   "corner_labels": {
     "pt1": "tt"
   },
-  "corner_table_caption": "Process, temperature and supply points simulated for the transimpedance application. Point 1 is the typical statistical process point, evaluated with zero statistical offset, at the \\SI{37}{\\celsius} on-body temperature; points 2--5 are the imported foundry skew corners at \\SI{25}{\\celsius}. Every figure and table in this part is schematic-level and covers only the $R_f = \\SI{560}{\\kilo\\ohm}$ feedback tap; nothing here characterises the other fifteen taps of the gain string.",
+  "corner_table_caption": "Process, temperature and supply points simulated for the transimpedance application. Point 1 is the typical statistical process point, evaluated with zero statistical offset, at the \\SI{37}{\\celsius} on-body temperature; points 2--5 are the imported foundry skew corners at \\SI{25}{\\celsius}. Every figure and table in this part is schematic-level and covers only the $R_f = \\SI{560}{\\kilo\\ohm}$ feedback tap; nothing here characterises the other fifteen taps of the gain string. These points move the sixteen transistor model rows only --- the resistor and capacitor rows stay at their typical sections --- so every corner spread in this section is a lower bound (pinned-passive caveat, page~\\pageref{p:pinned-passives}).",
   "tests": {
     "ab_tiafb_dc": {
       "dir": "TiaFbTB",
@@ -194,7 +194,7 @@
       "yprec": 0,
       "legendpos": "south west",
       "ylabel": "Loop gain $|T|$~[\\si{\\decibel}]",
-      "caption": "Transimpedance loop gain over five process corners, measured through a probe in series with the feedback network (Figure~\\ref{fig:tb-tiafb}). $R_f = \\SI{560}{\\kilo\\ohm}$, $C_f = \\SI{22}{\\pico\\farad}$, $C_L = \\SI{5}{\\pico\\farad}$, $C_c = \\SI{500}{\\femto\\farad}$, \\texttt{BiasAdj}~=~37, \\SI{2.5}{\\volt}, Randles electrode with $R_s = \\SI{100}{\\ohm}$, $R_{\\mathrm{ct}} = \\SI{1}{\\mega\\ohm}$, $C_{\\mathrm{dl}} = \\SI{100}{\\nano\\farad}$. \\texttt{tt} is at \\SI{37}{\\celsius}, the four skew corners at \\SI{25}{\\celsius}. This is the loop around the amplifier, the feedback network and the electrode together, not the amplifier's own gain; the two are tabulated separately in Table~\\ref{tab:tiaab-stability} and Table~\\ref{tab:ampab-unity}."
+      "caption": "Transimpedance loop gain over five process corners, measured through a probe in series with the feedback network (Figure~\\ref{fig:tb-tiafb}). $R_f = \\SI{560}{\\kilo\\ohm}$, $C_f = \\SI{22}{\\pico\\farad}$, $C_L = \\SI{5}{\\pico\\farad}$, $C_c = \\SI{500}{\\femto\\farad}$, \\texttt{BiasAdj}~=~37, \\SI{2.5}{\\volt}, Randles electrode with $R_s = \\SI{100}{\\ohm}$, $R_{\\mathrm{ct}} = \\SI{1}{\\mega\\ohm}$, $C_{\\mathrm{dl}} = \\SI{100}{\\nano\\farad}$. \\texttt{tt} is at \\SI{37}{\\celsius}, the four skew corners at \\SI{25}{\\celsius}. This is the loop around the amplifier, the feedback network and the electrode together, not the amplifier's own gain; the two are tabulated separately in Table~\\ref{tab:tiaab-stability} and Table~\\ref{tab:ampab-unity}. The corner separation drawn here is a lower bound: the corner set holds the passive model rows at typical (pinned-passive caveat, page~\\pageref{p:pinned-passives})."
     },
     {
       "id": "tiaab_zt",
@@ -209,7 +209,7 @@
       "ylog": true,
       "legendpos": "south west",
       "ylabel": "$|Z_t|$~[\\si{\\kilo\\ohm}]",
-      "caption": "Closed-loop transimpedance magnitude over five process corners, conditions as Figure~\\ref{fig:tiaab-loopgain}. The AC stimulus is a \\SI{1}{\\ampere} current into the working electrode, so the ordinate is transimpedance directly. The feedback resistor is an ideal element here rather than the 16-tap string, which is why the corners separate only near the band edge; the numbers are in Table~\\ref{tab:tiaab-transfer}."
+      "caption": "Closed-loop transimpedance magnitude over five process corners, conditions as Figure~\\ref{fig:tiaab-loopgain}. The AC stimulus is a \\SI{1}{\\ampere} current into the working electrode, so the ordinate is transimpedance directly. The feedback resistor is an ideal element here rather than the 16-tap string, which is why the corners separate only near the band edge; the numbers are in Table~\\ref{tab:tiaab-transfer}. The corner separation drawn here is a lower bound: the corner set holds the passive model rows at typical (pinned-passive caveat, page~\\pageref{p:pinned-passives})."
     }
   ],
   "tables": [
@@ -225,7 +225,7 @@
         "gain_err",
         "inl_lsb"
       ],
-      "caption": "DC accuracy by process corner. Closed transimpedance loop bench (Figure~\\ref{fig:tb-tiafb}): $R_f = \\SI{560}{\\kilo\\ohm}$, $C_f = \\SI{22}{\\pico\\farad}$, $C_L = \\SI{5}{\\pico\\farad}$, $C_c = \\SI{500}{\\femto\\farad}$, \\texttt{BiasAdj}~=~37, $v_{\\mathrm{cm}} = \\SI{1.25}{\\volt}$, \\SI{2.5}{\\volt} supply, Randles electrode with $R_s = \\SI{100}{\\ohm}$, $R_{\\mathrm{ct}} = \\SI{1}{\\mega\\ohm}$, $C_{\\mathrm{dl}} = \\SI{100}{\\nano\\farad}$. Point \\texttt{tt} is the typical statistical point at \\SI{37}{\\celsius}; the four skew corners are at \\SI{25}{\\celsius}. Gain error and INL are evaluated over the central \\(\\pm 0.9\\) of the full-scale input-current range and are referred to the nominal \\SI{2.441}{\\milli\\volt} ADC LSB; the converter's measured step is \\SI{1.591}{\\milli\\volt} (Table~\\ref{tab:adc-transfer}), so multiply the LSB row by \\num{1.535} to read it as converter codes. These are corner figures with zero statistical offset: the offset a manufactured channel carries is the Monte Carlo result of Table~\\ref{tab:tiaab-mc-offset}."
+      "caption": "DC accuracy by process corner. Closed transimpedance loop bench (Figure~\\ref{fig:tb-tiafb}): $R_f = \\SI{560}{\\kilo\\ohm}$, $C_f = \\SI{22}{\\pico\\farad}$, $C_L = \\SI{5}{\\pico\\farad}$, $C_c = \\SI{500}{\\femto\\farad}$, \\texttt{BiasAdj}~=~37, $v_{\\mathrm{cm}} = \\SI{1.25}{\\volt}$, \\SI{2.5}{\\volt} supply, Randles electrode with $R_s = \\SI{100}{\\ohm}$, $R_{\\mathrm{ct}} = \\SI{1}{\\mega\\ohm}$, $C_{\\mathrm{dl}} = \\SI{100}{\\nano\\farad}$. Point \\texttt{tt} is the typical statistical point at \\SI{37}{\\celsius}; the four skew corners are at \\SI{25}{\\celsius}. Gain error and INL are evaluated over the central \\(\\pm 0.9\\) of the full-scale input-current range and are referred to the nominal \\SI{2.441}{\\milli\\volt} ADC LSB; the converter's measured step is \\SI{1.591}{\\milli\\volt} (Table~\\ref{tab:adc-transfer}), so multiply the LSB row by \\num{1.535} to read it as converter codes. These are corner figures with zero statistical offset: the offset a manufactured channel carries is the Monte Carlo result of Table~\\ref{tab:tiaab-mc-offset}. These corner spreads are a lower bound: the corner set holds the passive model rows at typical (pinned-passive caveat, page~\\pageref{p:pinned-passives})."
     },
     {
       "id": "tiaab_transfer",
@@ -240,7 +240,7 @@
         "f3db",
         "peaking_db"
       ],
-      "caption": "Small-signal transimpedance by process corner, bench and conditions as Table~\\ref{tab:tiaab-accuracy}. The feedback resistor is ideal in this measurement, so the deviation of $Z_t(\\SI{1}{\\hertz})$ from $R_f$ is set by finite loop gain alone and carries no resistor tolerance. Peaking is referred to $Z_t(\\SI{1}{\\hertz})$ and the bandwidth is the \\SI{-3}{\\decibel} point of the same curve."
+      "caption": "Small-signal transimpedance by process corner, bench and conditions as Table~\\ref{tab:tiaab-accuracy}. The feedback resistor is ideal in this measurement, so the deviation of $Z_t(\\SI{1}{\\hertz})$ from $R_f$ is set by finite loop gain alone and carries no resistor tolerance. Peaking is referred to $Z_t(\\SI{1}{\\hertz})$ and the bandwidth is the \\SI{-3}{\\decibel} point of the same curve. These corner spreads are a lower bound: the corner set holds the passive model rows at typical (pinned-passive caveat, page~\\pageref{p:pinned-passives})."
     },
     {
       "id": "tiaab_stability",
@@ -255,7 +255,7 @@
         "stb_pm",
         "stb_gm"
       ],
-      "caption": "Transimpedance loop stability by process corner, conditions as Table~\\ref{tab:tiaab-accuracy}. Measured through the feedback probe of Figure~\\ref{fig:tb-tiafb}, so the loop includes the amplifier, the feedback network and the electrode; the amplifier's own margins are in Table~\\ref{tab:ampab-unity}. Gain margin is read at the first crossing of zero loop phase above the unity-gain frequency."
+      "caption": "Transimpedance loop stability by process corner, conditions as Table~\\ref{tab:tiaab-accuracy}. Measured through the feedback probe of Figure~\\ref{fig:tb-tiafb}, so the loop includes the amplifier, the feedback network and the electrode; the amplifier's own margins are in Table~\\ref{tab:ampab-unity}. Gain margin is read at the first crossing of zero loop phase above the unity-gain frequency. These corner spreads are a lower bound: the corner set holds the passive model rows at typical (pinned-passive caveat, page~\\pageref{p:pinned-passives})."
     },
     {
       "id": "tiaab_noise",
@@ -270,7 +270,7 @@
         "in_rms_100",
         "in_rms_1k"
       ],
-      "caption": "Noise by process corner, conditions as Table~\\ref{tab:tiaab-accuracy}. The noise analysis runs \\SI{0.1}{\\hertz} to \\SI{10}{\\kilo\\hertz} at 20 points per decade; the three input-referred rows are the output noise integrated to \\SI{10}{\\hertz}, \\SI{100}{\\hertz} and \\SI{1}{\\kilo\\hertz} and divided by $R_f$, and no figure is integrated beyond the analysis stop frequency. The input-referred rows therefore scale inversely with the selected gain tap."
+      "caption": "Noise by process corner, conditions as Table~\\ref{tab:tiaab-accuracy}. The noise analysis runs \\SI{0.1}{\\hertz} to \\SI{10}{\\kilo\\hertz} at 20 points per decade; the three input-referred rows are the output noise integrated to \\SI{10}{\\hertz}, \\SI{100}{\\hertz} and \\SI{1}{\\kilo\\hertz} and divided by $R_f$, and no figure is integrated beyond the analysis stop frequency. The input-referred rows therefore scale inversely with the selected gain tap. These corner spreads are a lower bound: the corner set holds the passive model rows at typical (pinned-passive caveat, page~\\pageref{p:pinned-passives})."
     }
   ],
   "_note": [
@@ -318,6 +318,22 @@
     "RESTRUCTURE 2026-08-16 (amp_ab_trm_prompt): the cell now serves both A1 and A2;",
     "device-level content (unity-feedback, drive, power) moved to the control-bench",
     "blocks AmpAB/AmpABMC (configs/anatop_tb_ctrl_amp_ab_*.json). This block now covers",
-    "only the A2 application and no longer emits the section master -- AmpAB does."
+    "only the A2 application and no longer emits the section master -- AmpAB does.",
+    "",
+    "PINNED-PASSIVE CAVEAT ADDED 2026-08-26 (captions only -- no measured value in",
+    "this config changed, and nothing was re-simulated).  The imported",
+    "tsmcN65_typ_<c> corner family assigns the corner letter to the 16 MOS rows",
+    "only: cor_res.scs stays tt_res, cor_mim.scs tt_mim, cor_rtmom.scs tt_rtmom in",
+    "EVERY corner, so poly sheet resistance -- which sets R_f and the bias",
+    "generator's R_SET, and through it the tail current, gm, bandwidth and supply",
+    "current of every amplifier -- never moves.  Audit and measurements:",
+    "~/vestarv/docs/afe_rev2_corner_audit.html, runs in",
+    "~/chips/castalia/simruns/cornaudit_20260825/.  The mechanism is explained ONCE,",
+    "in AnalogChapter.tex (\"The pinned-passive caveat\", label p:pinned-passives);",
+    "the captions patched here carry a one-clause pointer to it and nothing more.",
+    "Do NOT expand those clauses into a second copy of the explanation, and do not",
+    "drop them without re-running the affected tests on a corner set that moves the",
+    "passive rows (castalia_ff_all / castalia_ss_all; fs and sf can never move them,",
+    "the kit ships no fs_res or sf_mim section)."
   ]
 }

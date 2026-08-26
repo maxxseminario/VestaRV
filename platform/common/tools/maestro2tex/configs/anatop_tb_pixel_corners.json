@@ -7,7 +7,7 @@
   "emit_corner_table": true,
   "points": ["81-85"],
   "corner_labels": { "pt81": "tt" },
-  "corner_table_caption": "Process, temperature and supply points simulated for the potentiostat pixel system (design point 17 of the archived Interactive.20 run: $R_f = \\SI{35}{\\kilo\\ohm}$, $R_{\\mathrm{ct}} = \\SI{10}{\\kilo\\ohm}$, $C_{\\mathrm{dl}} = \\SI{100}{\\nano\\farad}$). Point 1 is the typical statistical process point at \\SI{37}{\\celsius}; points 2--5 are the imported foundry skew corners at \\SI{25}{\\celsius}. Every figure and table in this section is schematic-level.",
+  "corner_table_caption": "Process, temperature and supply points simulated for the potentiostat pixel system (design point 17 of the archived Interactive.20 run: $R_f = \\SI{35}{\\kilo\\ohm}$, $R_{\\mathrm{ct}} = \\SI{10}{\\kilo\\ohm}$, $C_{\\mathrm{dl}} = \\SI{100}{\\nano\\farad}$). Point 1 is the typical statistical process point at \\SI{37}{\\celsius}; points 2--5 are the imported foundry skew corners at \\SI{25}{\\celsius}. Every figure and table in this section is schematic-level. These points move the sixteen transistor model rows only --- the resistor and capacitor rows stay at their typical sections --- so every corner spread in this section is a lower bound (pinned-passive caveat, page~\\pageref{p:pinned-passives}).",
   "tests": {
     "px_ctrl_dc": {
       "dir": "PotCtrlTB",
@@ -197,7 +197,7 @@
       "yprec": 0,
       "legendpos": "south west",
       "ylabel": "Loop gain $|T|$~[\\si{\\decibel}]",
-      "caption": "Potentiostat control-loop gain over five process corners, measured through the \\SI{0}{\\volt} probe \\texttt{IPRB1} in the RE feedback path (Figure~\\ref{fig:tb-pixel}). $R_f = \\SI{35}{\\kilo\\ohm}$, cell $R_{\\mathrm{ce}} = R_u = \\SI{1}{\\kilo\\ohm}$, $R_{\\mathrm{ct}} = \\SI{10}{\\kilo\\ohm}$, $C_{\\mathrm{dl}} = \\SI{100}{\\nano\\farad}$, \\SI{2.5}{\\volt} supply. This is the full loop -- A1, A2, both feedback networks and the electrode together -- and is not the open-loop amplifier gain of Section~\\ref{ss:ampab}. \\texttt{tt} is at \\SI{37}{\\celsius}, the four skew corners at \\SI{25}{\\celsius}."
+      "caption": "Potentiostat control-loop gain over five process corners, measured through the \\SI{0}{\\volt} probe \\texttt{IPRB1} in the RE feedback path (Figure~\\ref{fig:tb-pixel}). $R_f = \\SI{35}{\\kilo\\ohm}$, cell $R_{\\mathrm{ce}} = R_u = \\SI{1}{\\kilo\\ohm}$, $R_{\\mathrm{ct}} = \\SI{10}{\\kilo\\ohm}$, $C_{\\mathrm{dl}} = \\SI{100}{\\nano\\farad}$, \\SI{2.5}{\\volt} supply. This is the full loop -- A1, A2, both feedback networks and the electrode together -- and is not the open-loop amplifier gain of Section~\\ref{ss:ampab}. \\texttt{tt} is at \\SI{37}{\\celsius}, the four skew corners at \\SI{25}{\\celsius}. The corner separation drawn here is a lower bound: the corner set holds the passive model rows at typical (pinned-passive caveat, page~\\pageref{p:pinned-passives})."
     }
   ],
   "tables": [
@@ -209,7 +209,7 @@
       "corners": "all",
       "spread_column": true,
       "signals": ["aol_db", "ugf", "pm"],
-      "caption": "Potentiostat control-loop stability by process corner, conditions as Figure~\\ref{fig:px-ctrl-loopgain}. Every corner exceeds the \\SI{60}{\\degree} phase-margin and \\SI{60}{\\decibel} DC-gain limits entered on the bench by a wide margin."
+      "caption": "Potentiostat control-loop stability by process corner, conditions as Figure~\\ref{fig:px-ctrl-loopgain}. Every corner exceeds the \\SI{60}{\\degree} phase-margin and \\SI{60}{\\decibel} DC-gain limits entered on the bench by a wide margin. These corner spreads are a lower bound: the corner set holds the passive model rows at typical (pinned-passive caveat, page~\\pageref{p:pinned-passives})."
     },
     {
       "id": "px_ctrl_tracking",
@@ -239,7 +239,7 @@
       "corners": "all",
       "spread_column": true,
       "signals": ["ce_hi", "ce_lo", "i_src_max", "i_sink_max", "i_tot"],
-      "caption": "Counter-electrode compliance, delivered cell current and supply current by process corner, conditions as Table~\\ref{tab:px-ctrl-tracking}. Cell current is measured through the TIA feedback probe \\texttt{IPRB\\_F}, which carries the entire working-electrode current by KCL since no truth current is injected on this bench; both directions clear the \\SI{33}{\\micro\\ampere} limits entered on the test by more than \\SI{50}{\\percent}. Supply current covers both amplifiers, both local bias generators and the shared global bias generator."
+      "caption": "Counter-electrode compliance, delivered cell current and supply current by process corner, conditions as Table~\\ref{tab:px-ctrl-tracking}. Cell current is measured through the TIA feedback probe \\texttt{IPRB\\_F}, which carries the entire working-electrode current by KCL since no truth current is injected on this bench; both directions clear the \\SI{33}{\\micro\\ampere} limits entered on the test by more than \\SI{50}{\\percent}. Supply current covers both amplifiers, both local bias generators and the shared global bias generator. These corner spreads are a lower bound: the corner set holds the passive model rows at typical (pinned-passive caveat, page~\\pageref{p:pinned-passives})."
     },
     {
       "id": "px_acc35",
@@ -249,7 +249,7 @@
       "corners": "all",
       "spread_column": true,
       "signals": ["ierr_lsb_max", "ierr_0", "slope_err_0"],
-      "caption": "Bipolar accuracy at the $R_f = \\SI{35}{\\kilo\\ohm}$ gain tap, the operational point at the $R_{\\mathrm{ct}} = \\SI{10}{\\kilo\\ohm}$ electrode, by process corner. Truth current \\texttt{iwe} swept \\SIrange{-36}{36}{\\micro\\ampere} (full scale is \\SI{33}{\\micro\\ampere}), error referred to the nominal \\SI{2.441}{\\milli\\volt} ADC LSB and clipped to $\\pm$ full scale before taking the worst case. Over the full range the worst-case error is 0.41--0.61 LSB across corners; over the $\\pm\\SI{2.3}{\\micro\\ampere}$ subrange it improves to 0.21--0.30 LSB, the error growing toward full scale as the finite transimpedance loop gain ($\\varepsilon \\propto 1/T$). The converter's measured step is \\SI{1.591}{\\milli\\volt}, not the nominal \\SI{2.441}{\\milli\\volt} (Table~\\ref{tab:adc-transfer}); multiply every LSB figure here by \\num{1.535} to read it as converter codes."
+      "caption": "Bipolar accuracy at the $R_f = \\SI{35}{\\kilo\\ohm}$ gain tap, the operational point at the $R_{\\mathrm{ct}} = \\SI{10}{\\kilo\\ohm}$ electrode, by process corner. Truth current \\texttt{iwe} swept \\SIrange{-36}{36}{\\micro\\ampere} (full scale is \\SI{33}{\\micro\\ampere}), error referred to the nominal \\SI{2.441}{\\milli\\volt} ADC LSB and clipped to $\\pm$ full scale before taking the worst case. Over the full range the worst-case error is 0.41--0.61 LSB across corners; over the $\\pm\\SI{2.3}{\\micro\\ampere}$ subrange it improves to 0.21--0.30 LSB, the error growing toward full scale as the finite transimpedance loop gain ($\\varepsilon \\propto 1/T$). The converter's measured step is \\SI{1.591}{\\milli\\volt}, not the nominal \\SI{2.441}{\\milli\\volt} (Table~\\ref{tab:adc-transfer}); multiply every LSB figure here by \\num{1.535} to read it as converter codes. These corner spreads are a lower bound: the corner set holds the passive model rows at typical (pinned-passive caveat, page~\\pageref{p:pinned-passives})."
     }
   ],
   "order": [
@@ -344,6 +344,22 @@
     "dc sweep but not published as separate rows here -- vref_range/we_range and",
     "ce_hi/ce_lo already carry the compliance information the task plan asks for;",
     "adding the raw thresholds would restate them (same trap AmpAB's _note",
-    "documents for head_hi/head_lo/rail_hi/rail_lo)."
+    "documents for head_hi/head_lo/rail_hi/rail_lo).",
+    "",
+    "PINNED-PASSIVE CAVEAT ADDED 2026-08-26 (captions only -- no measured value in",
+    "this config changed, and nothing was re-simulated).  The imported",
+    "tsmcN65_typ_<c> corner family assigns the corner letter to the 16 MOS rows",
+    "only: cor_res.scs stays tt_res, cor_mim.scs tt_mim, cor_rtmom.scs tt_rtmom in",
+    "EVERY corner, so poly sheet resistance -- which sets R_f and the bias",
+    "generator's R_SET, and through it the tail current, gm, bandwidth and supply",
+    "current of every amplifier -- never moves.  Audit and measurements:",
+    "~/vestarv/docs/afe_rev2_corner_audit.html, runs in",
+    "~/chips/castalia/simruns/cornaudit_20260825/.  The mechanism is explained ONCE,",
+    "in AnalogChapter.tex (\"The pinned-passive caveat\", label p:pinned-passives);",
+    "the captions patched here carry a one-clause pointer to it and nothing more.",
+    "Do NOT expand those clauses into a second copy of the explanation, and do not",
+    "drop them without re-running the affected tests on a corner set that moves the",
+    "passive rows (castalia_ff_all / castalia_ss_all; fs and sf can never move them,",
+    "the kit ships no fs_res or sf_mim section)."
   ]
 }

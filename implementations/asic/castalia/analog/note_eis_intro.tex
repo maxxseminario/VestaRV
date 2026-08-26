@@ -50,6 +50,12 @@
 %   the sixteen MOS rows ONLY -- cor_res.scs stays tt_res and cor_mim.scs stays
 %   tt_mim -- which is why the closing paragraph of this fragment exists and why
 %   it is stated here rather than only in note_eis_open.
+%   REDUCED 2026-08-26: the 2026-08-25 audit (docs/afe_rev2_corner_audit.html,
+%   runs in simruns/cornaudit_20260825) showed the defect is chapter-wide, not
+%   EIS-specific, so the generic mechanism now lives once in AnalogChapter.tex
+%   ("The pinned-passive caveat", label p:pinned-passives) and this paragraph
+%   keeps only the pointer and the numbers that are this section's own.  Do not
+%   restate the mechanism here; it would then have two homes that drift apart.
 %   Monte Carlo: castalia_pm_25, nominal corner, 37 C, 200 samples (100 for the
 %   process-only / mismatch-only decomposition), seed 12345, 1264 random
 %   variables, 587 devices mismatchflag=1, save=selected.
@@ -100,11 +106,9 @@ Section~\ref{ss:analog-models} with \(R_u = \SI{1}{\kilo\ohm}\) throughout;
 \SI{100}{\kilo\ohm} \(\parallel\) \SI{1}{\micro\farad} and
 \SI{10}{\kilo\ohm} \(\parallel\) \SI{10}{\micro\farad}.
 
-\textbf{One caveat governs every corner number in this section: the corner set
-holds the poly resistor at its typical value.} The imported corner table moves
-the sixteen transistor model rows only, so the ladder that is \(R_f\) and the
-capacitor that sets the feedback pole do not corner, and what the corners report
-is a lower bound on the true spread. Cornering the poly as well moves \(R_f\) by
+\textbf{The pinned-passive caveat of page~\pageref{p:pinned-passives} governs
+every corner number in this section.} Neither the ladder that is \(R_f\) nor the
+capacitor that sets the feedback pole corners here. Cornering the poly as well moves \(R_f\) by
 \(-33.4\,\%\) and \(+35.5\,\%\) and the feedback pole at the top
 gain code to \SIrange{2.40}{6.61}{\kilo\hertz}, against the
 \(\pm\SI{1.2}{\percent}\) the corner set alone reports. The Monte Carlo does vary
