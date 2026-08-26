@@ -12,7 +12,7 @@
   channel the whole block is under 128\,bytes per channel, so it is staged from
   flash with a channel hart's image rather than read back during a measurement.
   LSB is the converter's measured \SI{1.591}{\milli\volt} step
-  (Table~\ref{tab:adc-transfer}). No calibration has been executed, in
+  (Table~\ref{tab:adc-transfer}) unless a row states otherwise. No calibration has been executed, in
   simulation or on silicon, and the isolation switches and test multiplexer
   these measurements need are design intent, not schematics.}
   \label{tab:calibration-constants}
@@ -64,7 +64,8 @@
     Current zero, per gain code &
     channel &
     Zero-current offset, \(\sigma = 12.1\)--\SI{167.3}{LSB}
-    (\S\ref{sss:pixel-mc}) &
+    (\S\ref{sss:pixel-mc}), that row on the nominal \SI{2.441}{\milli\volt}
+    step &
     Working electrode isolated; read at each gain code &
     Test and power-up \\
     \addlinespace

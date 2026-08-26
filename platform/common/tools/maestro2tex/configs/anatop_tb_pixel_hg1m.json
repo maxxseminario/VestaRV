@@ -58,7 +58,7 @@
       "yprec": 2,
       "legendpos": "south east",
       "ylabel": "Accuracy error~[LSB]",
-      "caption": "Accuracy error at the operational max-gain point, $R_f = \\SI{560}{\\kilo\\ohm}$ into $R_{\\mathrm{ct}} = \\SI{1}{\\mega\\ohm}$, typical process point, \\SI{37}{\\celsius}. The truth current sweep is $\\pm\\SI{2.3}{\\micro\\ampere}$, just beyond the \\SI{2.06}{\\micro\\ampere} full-scale current at this gain tap; the crossing at zero is smooth, with no kink, over the full swept range shown."
+      "caption": "Accuracy error at the operational max-gain point, $R_f = \\SI{560}{\\kilo\\ohm}$ into $R_{\\mathrm{ct}} = \\SI{1}{\\mega\\ohm}$, typical process point, \\SI{37}{\\celsius}. The truth current sweep is $\\pm\\SI{2.3}{\\micro\\ampere}$, just beyond the \\SI{2.06}{\\micro\\ampere} full-scale current at this gain tap; the crossing at zero is smooth, with no kink, over the full swept range shown. The error axis is referred to the nominal \\SI{2.441}{\\milli\\volt} step; the converter's measured step is \\SI{1.591}{\\milli\\volt} (Table~\\ref{tab:adc-transfer}), so multiply by \\num{1.535} to read it as converter codes."
     }
   ],
   "tables": [
