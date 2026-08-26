@@ -91,14 +91,74 @@ example. Keys:
 | `tests` | per test: `result` (`dc`/`tran`/`dcOp`/`ac`/`stb`/`noise`/…), `dir`, `xlabel`, `xunit_tex`, `xscale`, `nominal_x`, and `signals` overrides |
 | `figures` | `id`, `test`, `signals`, `corners` (list or `"all"`), `caption`, `legendpos`, `yprec`, `xlog`, `ylog`, `axis_extra`, `width`, `height`; or `kind: "heatmap"` / `"sweepline"` / `"histogram"` (see below) |
 | `tables` | `id`, `type` `matrix` (signals × corners), `bycorner` (corners × signals), `stats` (signals × statistics), or `mcstats` (Monte Carlo, see below) |
-| `order` | explicit order of fragments in the master file |
+| `order` | explicit order of fragments in the master file; an entry starting with `%` is written through as a LaTeX comment |
+| `superseded` | fragment name → reason; regenerating it is a hard error (see below) |
 | `emit_master` | `false` for a companion config that only contributes fragments |
 | `emit_corner_table` | `false` to suppress the point/process/temp/supply legend table |
 | `points` | `["1-130", "136"]` — which numeric point directories this config claims |
 | `monte_carlo` | `true` to read a Monte Carlo run instead of corner points (see below) |
+| `_note` | free text (string or list of lines), ignored by the tool: which run this config reads, and every caveat the next reader needs |
 
 `id` is mandatory on every figure and table: it names the fragment (`fig_<id>.tex`,
 `tab_<id>.tex`), the `\label`, and the entry you list in `order`.
+
+`order` may name fragments this config does not generate — hand-written `sch_*`,
+`note_*` and the occasional hand-written table — and that is how a section places
+them. A named fragment that does not exist is skipped, with a line in the log; it
+does not stop the run, because a companion config's fragments may not have been
+rendered yet.
+
+## Superseding a generated fragment
+
+Later work sometimes corrects a published number that this config cannot reproduce,
+because the correction comes from a different bench. The fragment is then replaced by
+a hand-written file of the same name and `\label`, and its name swapped in `order`.
+Both halves are load-bearing: leaving the table in `figures`/`tables` means the next
+run writes the stale numbers back over the replacement, and leaving its name in
+`order` means the next run re-inputs it.
+
+`superseded` closes that off. It is a map from fragment name to the reason:
+
+```json
+"superseded": {
+  "tab_biasgen_dcop": "corner definitions pinned the degeneration resistor at
+     typical, so I_DD's corner spread read 0.30 uA against a true 17.6 uA;
+     replaced by the hand-written tab_biasgen_dcop_free.tex"
+}
+```
+
+If the fragment is still declared, or still listed in `order`, the run dies naming
+the reason before it writes any LaTeX. Put the same explanation in `order` as `%`
+comment lines: the master is rewritten from the config every time, so a note added to
+the master by hand does not survive its next regeneration.
+
+The replacement fragment keeps the superseded one's `\label`, so every `\ref` in the
+prose stays valid. Delete the dead generated `.tex`: nothing inputs it, and an
+unreferenced file full of wrong numbers reads like live output.
+
+## Checking the published chapter against the configs (`check_fragments.py`)
+
+```
+python3 check_fragments.py [--outdir DIR] [--configs DIR] [--quiet]
+```
+
+Reads only; exits 1 on any error, so it can gate a build or a CI step. It catches the
+drift that a regeneration would otherwise apply silently:
+
+- a config's `order` and the master `.tex` on disk disagreeing — i.e. the published
+  input list would be rewritten;
+- a `superseded` fragment still declared, still in `order`, or still input;
+- a fragment named in `order` that does not exist;
+- a generated fragment on disk that nothing inputs (warning);
+- **forbidden values** — `configs/guards.json` lists literal number patterns that must
+  not appear anywhere the chapter reaches. This is the only check that does not depend
+  on a config staying correct: deleting a `superseded` entry also deletes the guard it
+  provides, but a wrong *number* cannot come back by any route without failing here.
+  Key each pattern on a whole row of corner values, narrow enough that the corrected
+  number cannot match it.
+
+It does not check that a fragment's numbers are current with the cell — only the
+`_note`'s source run against the cell's own mtime tells you that.
 
 `signals` is per-test overridable because the same quantity is often a different node
 in a different testbench — in the bias generator the supply current is

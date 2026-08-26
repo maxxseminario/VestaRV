@@ -1,0 +1,27 @@
+{
+  "_note": [
+    "Literal numbers that must never appear in the published analog chapter,",
+    "checked by check_fragments.py over every fragment the chapter reaches.",
+    "",
+    "This is the last line of defence, and the only one that does not depend on",
+    "a config staying correct: maestro2tex's own `superseded` key stops a",
+    "fragment being regenerated, but deleting that key removes the guard along",
+    "with it.  A wrong NUMBER cannot come back through any route -- regenerated,",
+    "hand-copied, or restored from an old file -- without failing this check.",
+    "",
+    "Add an entry when a published number is found to be wrong and the fragment",
+    "that carried it is superseded.  Keep the pattern narrow enough that the",
+    "CORRECTED number cannot match it: the guards below key on the full row of",
+    "corner values, not on a single figure."
+  ],
+  "forbidden": [
+    {
+      "pattern": "24\\.46 & 24\\.32 & 24\\.23 & 24\\.53 & 24\\.49",
+      "why": "biasgen I_DD corner row from the pinned-resistor corner set (spread 0.30 uA); the real spread is 18.375 (ss) - 35.965 (ff) uA. Superseded 2026-08-25 by tab_biasgen_dcop_free.tex, source simruns/bgladder_20260825/tables/bg_startup_matrix.tsv"
+    },
+    {
+      "pattern": "551\\.0 & 584\\.6 & 644\\.1 & 677\\.5",
+      "why": "biasgen V_BNM corner row from the same pinned-resistor corner set; freed, the ff/ss ends are 578.9 / 657.5 mV"
+    }
+  ]
+}
