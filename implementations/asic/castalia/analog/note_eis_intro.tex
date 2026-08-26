@@ -59,11 +59,38 @@
 %   Monte Carlo: castalia_pm_25, nominal corner, 37 C, 200 samples (100 for the
 %   process-only / mismatch-only decomposition), seed 12345, 1264 random
 %   variables, 587 devices mismatchflag=1, save=selected.
-%   The B_law sample range quoted in note_eis_accuracy is -32.1 % (typ/N=0) to
-%   +38.7 % (fresh/N=63) taken BELOW the feedback pole, where the stored law is
-%   the only error term.  The README's "-32 % to +55 %" takes the maximum over
-%   all frequencies including 10 kHz on fresh/N=63, where the pole contributes
-%   a further +24 % of mean; that point is not a measure of the R_f spread.
+%
+% THE 2026-08-26 CAMPAIGN (~/chips/castalia/simruns/eisdeep_20260826/README.md
+% and the run data beside it).  Same engine and same textual splice, on a deck
+% netlisted 2026-08-26 04:02 after the owner's RE-mux edit; the whole diff to
+% the deck the two earlier campaigns used is two mux instance lines, and no
+% published number moves by more than 0.0012 percentage points (S1).  It
+% supersedes the earlier campaigns wherever it measures the same quantity, and
+% it is the source for:
+%     S2   impedance from converter codes    code_report/, csv/codelevel.csv
+%     S3   dec = 20 from 0.01 Hz, 30 runs    ac_dense/, csv/nyquist_*.csv
+%     S3.1 the accuracy envelope             accuracy_envelope.txt
+%     S4   settling, replaced                settle/, csv/settle_*.csv
+%     S5   band edge with poly+mim cornered  band_dense/, band_ff40/, band_ss40/
+%     S6   model-free validation             gaincode_selfconsistency.txt, amp/
+%     S7   Monte Carlo at n = 643-663        mc/, mc_report/
+%   Monte Carlo: castalia_pm_25, nominal corner, 37 C, seed 12345, n = 643-663
+%   with process and mismatch together and n = 500 on each of the two
+%   decompositions; every sigma carries an exact chi2 95 % interval.  Stopped
+%   short of 1000 on purpose (S7.1): the standard error of sigma is +-2.8 % at
+%   n = 650 against +-2.2 % at n = 1000, and the comparison it feeds is 10.24 %
+%   against 0.0006 %.  The freed cores went to the code-level records.
+%   Grid density (S3): 10 points/decade puts the chord polygon 0.651 % of the
+%   arc radius off the true arc, 2.2x the instrument's own 0.30 % error at those
+%   frequencies; 20 points/decade puts it at 0.165 %, and 30 at 0.074 % for
+%   twice the cost.  All three electrode models have R_ct*C_dl = 0.1 s, so every
+%   semicircle peaks at 1.59 Hz and the archived 0.1 Hz start left the typical
+%   arc 3.6 deg short of its dc intercept.
+%   The B_law sample range quoted in note_eis_accuracy is now ONE run's own:
+%   -32.1 % to +30.6 %, typ_n0 at 0.1 Hz, below the feedback pole.  Never quote
+%   a union over runs and frequencies -- the source README's "-32 % to +55 %"
+%   is such a union, and the "-32 % to +39 %" this section used to carry was a
+%   union over two runs.
 %
 % The four firmware architectures of the source campaign are named in prose
 % rather than lettered:  A = "reading the potential at the reference electrode
@@ -84,19 +111,29 @@ records in quadrature against its own reference. The excitation is a toggle
 between two DAC codes, so the mode adds a clock divider and an accumulate to the
 channel of Section~\ref{ss:pixtop} and nothing else.
 
-Everything below is schematic-level on the assembled channel's own netlist at a
-\SI{2.5}{\volt} analog supply. At the nominal process point and
+Everything below is on the assembled channel's own netlist at a
+\SI{2.5}{\volt} analog supply, and schematic-level except where the converter
+appears, which it does as its extracted view. At the nominal process point and
 \SI{37}{\celsius}: 30 small-signal runs, five electrode loads against six gain
-codes over \SI{0.1}{\hertz}--\SI{100}{\kilo\hertz}; 24 runs against pure
+codes over \SI{0.01}{\hertz}--\SI{100}{\kilo\hertz} at \num{20} points per
+decade; 24 runs against pure
 resistors chosen to hold the ratio \(R_f/|Z|\) fixed across the sweep; and 17
 transient runs in which the twelve potential-code lines are driven individually,
 so the excitation is produced by the real ladder rather than by an ideal source.
-Across process and temperature: the first two of those repeated over the
+Twenty points per decade and not ten because at ten the chord through the
+plotted points departs the true arc by \SI{0.65}{\percent} of its radius,
+twice the instrument's own error there, and at twenty by \SI{0.165}{\percent}.
+Through the converter: one record of \num{256} conversions of the extracted
+converter, the excitation synthesised by the real reference ladder and both
+channels read through the input multiplexer. Across process and temperature:
+the small-signal and fixed-ratio runs repeated over the
 chapter's four process corners at \SI{25}{\celsius} and over
-\SIrange{0}{85}{\celsius} on the nominal models, 252 runs. Across a wafer: eight
+\SIrange{0}{85}{\celsius} on the nominal models, 252 runs, and again on a dense
+grid with the poly ladder and the feedback capacitor cornered as well. Across a wafer: eight
 Monte Carlo runs of the small-signal measurement at the nominal corner, six of
-\num{200} samples with process and mismatch together and two of \num{100} that
-separate them. The demodulator is the firmware one --- an
+\numrange{643}{663} samples with process and mismatch together and two of
+\num{500} that separate them, every \(\sigma\) carrying an exact
+\SI{95}{\percent} interval. The demodulator is the firmware one --- an
 I/Q multiply--accumulate over an integer number of excitation periods, no window,
 no detrending. The electrodes are the linear cell model of
 Section~\ref{ss:analog-models} with \(R_u = \SI{1}{\kilo\ohm}\) throughout;
@@ -112,5 +149,7 @@ capacitor that sets the feedback pole corners here. Cornering the poly as well m
 \(-33.4\,\%\) and \(+35.5\,\%\) and the feedback pole at the top
 gain code to \SIrange{2.40}{6.61}{\kilo\hertz}, against the
 \(\pm\SI{1.2}{\percent}\) the corner set alone reports. The Monte Carlo does vary
-the poly, and measures the same quantity as \(\sigma = \SI{11.5}{\percent}\)
-(Section~\ref{sss:eis-accuracy}).
+the poly, and measures the same quantity as \(\sigma = \SI{11.1}{\percent}\)
+(Section~\ref{sss:eis-accuracy}). It also moves the phase band edge by a factor
+of three at a frozen noise gain, which is measured in
+Section~\ref{sss:eis-coverage} rather than bounded.

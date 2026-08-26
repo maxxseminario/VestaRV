@@ -53,6 +53,46 @@
 %   ocnxlRun(?mode 'montecarlo) aborts ocean with SIGABRT on this setup
 %   (sdbaccess.cpp:478); the Monte Carlo test was verified by netlisting it in
 %   ADE XL and running that netlist under spectre.  Not a TRM-facing fact.
+%
+% CLOSED AND NEWLY OPEN 2026-08-26 (~/chips/castalia/simruns/eisdeep_20260826):
+%   The "no demodulated result at code level" bullet is CLOSED.  Both obstacles
+%   it named are gone: the owner's 2026-08-26 03:23 edit wires ten dangling
+%   ADC_MUX inputs, putting RE on slot 6 (WE 3, CE 11, the four bias nets 7-10),
+%   verified from a fresh netlist of tb_anatop_pixel_top/maestro
+%   (canon/input.scs, S1.1) and functionally by a 10-conversion interleave probe
+%   that tracks RE to 0.62 mV (S1.2); and driving the select word as a
+%   per-conversion pwl carries both channels in ONE record, halving the cost.
+%   S2's codeA_re_n20 is that record.  The edit moves no published number by
+%   more than 0.0012 percentage points, at 100 kHz only (S1.3).
+%   WHAT REPLACES IT, all from S2 / S9:
+%     one frequency (13 586.9565 Hz) on one resistive load (11.000 kOhm, N = 20)
+%     -- a 294 us record of the extracted converter costs ~3.5 h of wall, and
+%     1 kHz would be 4 ms of record, ~8 h and 550 MB;
+%     codeC_rc_n0, the complex-load record (1486 ohm at -42.3 deg), RAILED at
+%     max |V_OUT - vcm| = 1.0900 V = 136 % of the +-0.80 V window and is
+%     excluded -- |Z|min had been checked against |Z|(f_exc) and a square's
+%     edges carry the peak current at the load's HF limit, R_u = 100 ohm against
+%     the code's 236 ohm floor.  The compliant repro is --rct 2k --param
+%     r_u=1k --param cdl_we=5.86e-9 (2235 ohm at -26.6 deg, V_OUT peak 378 mV),
+%     another 2 h record, not run.
+%   KRAMERS-KRONIG (S6.1, S7.4, kk/, mc_report/kk_*.txt).  Reported here as the
+%   NON-result it is.  A 60-time-constant Voigt fit gives 0.0003-0.012 % rms on
+%   the measured spectra over 0.01 Hz - 100 kHz.  But an ac analysis of a linear
+%   time-invariant network is K-K compliant by construction, so the test cannot
+%   fail on this data; the residual is the FIT's floor, which is why the
+%   analytic control must be run through the identical fit -- and on cal_n63
+%   (0.02348 % vs the control's 0.02361 %) and cal101k (0.00267 % vs 0.00271 %)
+%   the MEASURED residual comes out BELOW the exactly-compliant control.  Its
+%   one non-vacuous output is negative: typical_n63 carries 32.245 % of
+%   magnitude error and fouled_n20 26.998 % and both pass, because the
+%   instrument's error is itself a linear causal transfer function.  Where it
+%   would have teeth is a transient-derived spectrum (non-stationarity), and
+%   this chip's affordable transient band, 100 Hz - 20 kHz, sits on the flat
+%   |Z| ~ R_u tail of all three electrodes where it has no discriminating power.
+%   Do NOT let this read as validation of accuracy; the independent checks that
+%   do carry weight are the six-gain-code self-consistency (0.0142 % over a 98x
+%   span of R_f), the 64x amplitude sweep (+-0.0001 %), and the code-level
+%   record itself.
 % Library cell names are kept out of the rendered prose.
 
 \subsubsection{Not Yet Verified}\label{sss:eis-open}
@@ -69,15 +109,28 @@
     the seven corner points, but its ideal feedback element moves
     \SI{0.01}{\percent} across them where the real ladder moves
     \SI{4.6}{\percent}, so it bounds the amplifiers and not the channel.
-  \item \textbf{Current read as a code, demodulated.} The extracted converter
-    does convert a live impedance record --- three conversions decoded while the
-    transimpedance output moves \SI{317}{\milli\volt} peak to peak --- so the
-    readout is alive, but no demodulated result exists at code level. Two
-    obstacles, one structural: the converter multiplexer has no
-    reference-electrode input (Section~\ref{sss:pixtop-adc}), so the potential
-    channel can only be the commanded potential; and a coherent record of four
-    excitation cycles at \num{64} conversions per cycle costs about
-    \num{7.5} hours of simulation per multiplexer slot.
+  \item \textbf{The code-level measurement is one frequency on one load.} The
+    complete chain has been demodulated from converter codes once:
+    \SI{13.587}{\kilo\hertz}, an \SI{11}{\kilo\ohm} resistive load, gain code 20
+    (Section~\ref{sss:eis-accuracy}). One record costs about \num{3.5} hours of
+    simulation and a decade lower in frequency costs an order of magnitude more,
+    so neither the diagnostic band nor a complex load is covered at code level.
+    The one complex-load record run saturated, at \SI{136}{\percent} of the
+    output compliance window, and is excluded: a two-level excitation's peak
+    current is set by the load's high-frequency limit \(R_u\) rather than by its
+    impedance at the excitation frequency, which is what that record's gain code
+    had been chosen against.
+  \item \textbf{Kramers--Kronig consistency is not evidence of accuracy here.}
+    The measured spectra pass at \SIrange{0.0003}{0.012}{\percent} rms, but a
+    small-signal analysis of a linear network satisfies the relations by
+    construction, so the test cannot fail on this data --- and on two of the
+    Monte Carlo configurations the measured residual comes out \emph{below} that
+    of the analytic impedance put through the identical fit, which is the direct
+    demonstration that the number is the fit's floor. A spectrum carrying
+    \SI{33}{\percent} of magnitude error passes, because the instrument's own
+    error is itself a linear causal transfer function. The test would have power
+    on a transient-derived spectrum, whose failure mode is non-stationarity;
+    that is not what has been run.
   \item \textbf{The reference-modulation term is unmodelled, not absent.} The
     supply regulator whose output moved \SI{25.8}{\milli\volt} with the code word
     (Section~\ref{sss:dacr2r12-supply}) has been deleted from the channel, and
@@ -89,7 +142,7 @@
   \item \textbf{What the corner and Monte Carlo runs still do not cover.} Three
     things. The corner table is the pinned one of
     page~\pageref{p:pinned-passives}, so \(R_f\) does not
-    corner and every corner figure here is a lower bound: with the poly cornered
+    corner and every figure taken from it is a lower bound: with the poly cornered
     too, \(R_f\) moves \(-33.4\,\%\) and \(+35.5\,\%\), the
     feedback pole at the top gain code becomes
     \SIrange{2.40}{6.61}{\kilo\hertz}, and the error above that pole moves by

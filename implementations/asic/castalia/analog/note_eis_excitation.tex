@@ -29,6 +29,19 @@
 %             13.7 LSB, |RE| 7.68 LSB, per-sample noise 3.37 LSB.
 %     N = 63: bias -0.5554 %, |V_OUT| 274.7 LSB, sigma/|Z| 0.2615 % at 1 cycle.
 %     Per-sample Monte Carlo at 4 cycles reproduces the predicted sigma to -0.5 %.
+%
+% SQUARE VERSUS SINE -- CORRECTED 2026-08-26 from
+% ~/chips/castalia/simruns/eisdeep_20260826 README S2.4 (code_report/,
+% deskew_test.txt).  The equivalence above is a DENSELY SAMPLED result: the
+% wave_square_vs_sine.txt records carry 870 samples per period.  Read through
+% one converter at 32 conversions per channel per period, with the potential and
+% current channels interleaved so their aperture grids differ by half a
+% conversion, point sampling quantises the square's EDGES onto two different
+% grids: the square then returns +0.336 % / -2.986 deg where a pure sinusoid on
+% the identical grid returns 0.0000 % / 0.0000 deg -- exact.  So the sine buys
+% nothing dense and 2.99 deg sparse.  The deterministic fix (rotate by
+% 180*f/f_s) and the +-0.573 deg / 2.77 kHz contract are in note_eis_accuracy
+% and rule 7 of note_eis_rules; this fragment states only the excitation's half.
 % The 2.5 V / 4096 = 610.35 uV per code figure is the assembled channel's, quoted
 % in note_pixtop_intro; the 529 uV of note_dacr2r12_intro is the LSB through the
 % deleted supply regulator and does not apply to this cell.
@@ -50,7 +63,7 @@ same amplitude at \SI{100}{\hertz}, \SI{1}{\kilo\hertz} and
 \SI{10}{\kilo\hertz} in every printed digit --- so it is a static property of
 the code pair, removed either by choosing the pair or by calibrating it once.
 
-\paragraph{Two levels beat a synthesised sine.} For the same code excursion the
+\paragraph{Two levels beat a synthesised sine, densely sampled.} For the same code excursion the
 two-level square delivers \(1.28\times\) the fundamental of a stepped sine,
 against \(4/\pi = \num{1.273}\) predicted, and the measured impedance is
 identical for both to five significant figures --- \SI{11003.45}{\ohm} against
@@ -60,6 +73,16 @@ accurate excitation, \SI{-2.4}{\percent} of amplitude against the square's
 \SI{-1.5}{\percent}, since each of its steps visits a different code carrying its
 own linearity error. The square costs less firmware and delivers
 \SI{2.2}{\decibel} more signal.
+
+\textbf{Sampled sparsely, the sine buys \SI{2.99}{\degree}.} Those records carry
+\num{870} samples per excitation period. Read instead through one converter that
+interleaves the two channels, at the \num{32} conversions per channel per period
+the converter can deliver, point sampling quantises the square's edges onto two
+aperture grids half a conversion apart and the measurement loses
+\SI{2.99}{\degree} of phase and \(0.34\,\%\) of magnitude, where a sinusoid on
+the identical grid loses nothing at all. \textbf{The equivalence is a statement
+about sampling density, not about waveforms}, and the phase term of it is
+deterministic and correctable (Section~\ref{sss:eis-accuracy}).
 
 \paragraph{Averaging buys \(\sqrt{N}\), and then stops at a bias.} Process gain
 is exactly \(\sqrt{N}\) over four decades of record length: at the bottom gain

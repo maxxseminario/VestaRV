@@ -56,10 +56,33 @@
 %   2.399 kHz (ss+res+mim) to 6.611 kHz (ff+res+mim).  R_f vs the law at N = 0
 %   is +7.1 % (ff) to +12.1 % (ss) across the corners and sigma = 11.0 % across
 %   dies (mc_summary.txt S2).
-%   The band edges survive the poly caveat and the coverage window does not,
-%   because the band experiment freezes R_f/|Z| = 40 by construction while the
-%   window edges scale with R_f.  True poly-cornered window: 158 ohm - 20.0 MOhm,
-%   same span (all 320 taps are the same poly), removable by one calibration.
+%   True poly-cornered window: 158 ohm - 20.0 MOhm, same span (all 320 taps are
+%   the same poly), removable by one calibration.
+%
+% THE BAND EDGE UNDER A CORNERED POLY AND MIMCAP -- CORRECTED 2026-08-26 from
+% ~/chips/castalia/simruns/eisdeep_20260826 (band_dense/, band_ff40/, band_ss40/,
+% corner_dense/, README S5).  This fragment previously repeated eiscorner
+% S2.5's claim that the frozen ratio makes the band edges "insensitive to a
+% global R_f shift by construction".  Measured, that is true of the dc error and
+% FALSE of the band edge.  Two experiments, 54 band runs, dec = 20 from 0.01 Hz:
+%   EXP-1, calibration resistor sized from the NOMINAL R_f (what a fixed DUT
+%     sees on a real die), so the achieved ratio moves with the poly:
+%       ff+res+mim ratio 26.91  err(dc) 0.484 %  f(0.573 deg) 15.36 kHz
+%       tt         ratio 40.00  err(dc) 0.661 %  f(0.573 deg)  5527 Hz
+%       ss+res+mim ratio 53.96  err(dc) 0.706 %  f(0.573 deg)  2523 Hz
+%   EXP-2, resistor re-sized per corner so the ACHIEVED ratio is 40 -- the doc's
+%     own claim, tested directly (tt is the same run in both):
+%       ff+res+mim 0.720 %  f(0.573 deg) 10.36 kHz  f(+-1 %) 37.6 kHz
+%       tt         0.661 %  f(0.573 deg)  5527 Hz   f(+-1 %) 22.7 kHz
+%       ss+res+mim 0.523 %  f(0.573 deg)  3398 Hz   f(+-1 %) 16.8 kHz
+%   The dc error obeys the noise-gain law to three digits even under a +-35 %
+%   poly shift: 0.484 x 40/26.91 = 0.719 % against 0.720 measured; 0.706 x
+%   40/53.96 = 0.523 % against 0.523.  The edge does not, because it is set by
+%   the feedback pole, which is a poly AND mimcap quantity: S5.1 measures the
+%   pole moving 1.77x / 0.64x where R_f alone moves 1.50x / 0.74x (N = 20:
+%   91.76 kHz ff / 51.97 tt / 33.34 ss; N = 319: 6628 / 3750 / 2405 Hz).
+%   The ff/ss cor_res sections are roughly +-3 sigma of the 11.1 % process
+%   spread of sss:eis-accuracy, so these are worst-case and not typical edges.
 % Library cell names are kept out of the rendered prose.
 
 \subsubsection{Coverage and Bandwidth}\label{sss:eis-coverage}
@@ -117,11 +140,31 @@ against \SI{5.53}{\kilo\hertz} nominal, and \SIrange{5.29}{7.53}{\kilo\hertz}
 over every corner and gain code. The magnitude edge spans
 \SIrange{8.4}{27.1}{\kilo\hertz} against \SIrange{9.1}{22.7}{\kilo\hertz}
 nominal, its minimum at \SI{85}{\celsius} and gain code 102, still
-\(1.6\times\) above the phase gate at that worst point. \textbf{The usable band
-is therefore \SI{0.1}{\hertz} to \SI{5.3}{\kilo\hertz} set by phase}, with
-magnitude in specification to at least \SI{8.4}{\kilo\hertz} --- a conclusion
-the corners make firmer, since the two gates are worst at opposite ends of the
-set.
+\(1.6\times\) above the phase gate at that worst point. \textbf{At nominal poly
+the usable band is therefore \SI{0.1}{\hertz} to \SI{5.3}{\kilo\hertz} set by
+phase}, with magnitude in specification to at least \SI{8.4}{\kilo\hertz} --- a
+conclusion the corners make firmer, since the two gates are worst at opposite
+ends of the set.
+
+\paragraph{Freezing the noise gain does not freeze the band edge.} With the poly
+ladder and the metal--insulator--metal capacitor cornered as well, the phase
+edge at the bottom gain code runs \SIrange{3.40}{10.36}{\kilo\hertz} at a frozen
+ratio of \num{40}, and \SIrange{2.52}{15.36}{\kilo\hertz} for a fixed
+calibration resistor sized from the nominal \(R_f\) --- a factor of three and a
+factor of six on a headline specification. \textbf{The frozen ratio protects the
+dc error and not the edge.} It protects the dc error exactly: scaling each
+cornered run's error by the ratio it actually achieved reproduces the
+frozen-ratio value to three digits, \(0.484\,\% \times 40/26.9 = 0.719\,\%\)
+against \(0.720\,\%\) measured and \(0.706\,\% \times 40/54.0 = 0.523\,\%\)
+against \(0.523\,\%\). The edge is set by the feedback pole instead, and the
+pole is a poly and capacitor quantity: it moves \(1.77\times\) and
+\(0.64\times\) where \(R_f\) alone moves \(1.50\times\) and \(0.74\times\).
+\textbf{Under that caveat the usable band is \SI{2.52}{\kilo\hertz}} and the
+\(\pm\SI{1}{\percent}\) magnitude edge \SIrange{5.9}{37.6}{\kilo\hertz}, still
+at least \(1.6\times\) above the phase gate everywhere, so the band stays a
+phase specification. The fast and slow passive sections sit at about
+\(\pm3\sigma\) of the process spread of Section~\ref{sss:eis-accuracy}: that
+\SI{2.52}{\kilo\hertz} is a worst-case die, not a typical one.
 
 \begin{table}[htbp]
   \centering
@@ -139,7 +182,7 @@ set.
   Every column but the first scales with \(R_f\), and \(R_f\) is neither a
   constant nor a corner-free quantity: the \(+9.06\,\%\) at \(N = 0\) is
   \(+7.1\,\%\) to \(+12.1\,\%\) across the process corners and
-  carries \(\sigma = \SI{11.0}{\percent}\) across dies
+  carries \(\sigma = \SI{11.1}{\percent}\) across dies
   (Section~\ref{sss:eis-accuracy}), so this table is one die and the window it
   gives is recovered per chip by one dc calibration.}
   \label{tab:eis-coverage}
@@ -170,10 +213,10 @@ set.
   and the phase gate where it crosses \(\pm\SI{0.573}{\degree}\); a dash means
   the error never reaches that gate inside the \SI{100}{\kilo\hertz} sweep. The
   two gates move in opposite directions, so the worst magnitude edge and the
-  worst phase edge are never the same die. The frozen ratio makes these edges
-  insensitive to a global shift in \(R_f\) by construction, which is why they
-  survive the poly caveat of Section~\ref{ss:eis} and the impedance window of
-  Table~\ref{tab:eis-coverage} does not.}
+  worst phase edge are never the same die. The frozen ratio holds the dc error
+  against a global shift in \(R_f\) but not these edges, which the feedback pole
+  sets: with the poly and the capacitor cornered too, the phase edge at
+  \(N = 0\) spans \SIrange{3.40}{10.36}{\kilo\hertz} at that same frozen ratio.}
   \label{tab:eis-band-corner}
   \begin{tabular}{rrrlrrl}
     \toprule
