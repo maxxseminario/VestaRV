@@ -1,0 +1,3 @@
+lvs_exclude_hcell hart_tile;
+lvs_report_max -all;
+lvs_cpoint VDD_SW_H0 "Xhart0/VDD_SW";

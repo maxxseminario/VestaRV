@@ -1,25 +1,133 @@
-# ─────────────────────────────────────────────────────────────────────────────
-# EDA tool working directories (Cadence) — entirely generated, never committed
-# ─────────────────────────────────────────────────────────────────────────────
-# genus  = synthesis, innovus = place & route, xcelium = simulation, .cadence = session state
-genus/
-# innovus/myshkin is frozen single-core PD output -- entirely generated, never committed.
-# innovus/common (was innovus_mp/) holds hand-maintained tcl/sh/Makefile source PLUS a
-# large amount of generated + PDK-derived P&R output (dbs/ out/ log/ rpt/ work/
-# timingReports/, qrc/voltus logs, timing files, via-viol reports, netlists...).
-# 2026-07-18: untracked from git entirely (was previously force-added source under
-# innovus/common/) -- both trees stay on disk and are ignored wholesale, nothing
-# under innovus/ is tracked anymore.
-innovus/myshkin/
-innovus/common/
+# -----------------------------------------------------------------------------
+# EDA tool working directories (Cadence) -- DEFAULT-DENY WITH A SOURCE ALLOW-LIST
+# -----------------------------------------------------------------------------
+# genus = synthesis, innovus = place & route, signoff_mp = Pegasus DRC/LVS,
+# cpf = Common Power Format, xcelium = simulation, .cadence = session state.
+#
+# 2026-08-25 (flow-source continuity).  These four trees used to be ignored
+# WHOLESALE because they hold roughly 450 GB of generated output.  They also
+# hold the ONLY copy of every hand-written flow script in the project: the
+# Genus and Innovus run scripts, the signoff Makefile, lvs.sh and its
+# lvs_include_* files, the LVS netlist derivations under signoff_mp/tcl/, the
+# Pegasus control files, and the OA reference-library builders.  None of it was
+# recoverable from a fresh clone.
+#
+# So each tree is now default-deny with a narrow re-include of its source.
+# Two properties are deliberate:
+#
+#   1. The re-includes name specific DIRECTORIES (tcl/, pvs/, strmin/) instead
+#      of using "**".  git descends only where a negation tells it to, so
+#      "git status" still never walks out/, rpt/, log/, dbs/, in/, work/ or
+#      fv/.  The 450 GB stays uncrawled, and a tool writing a new report or
+#      database can never turn the tree red.
+#   2. This block sits at the TOP of the file on purpose.  Every foundry/NDA
+#      rule below it (*.gds *.lef *.def *.cdl *.oa *.spef *tsmc*) is evaluated
+#      later and therefore WINS over these negations.  A re-include here can
+#      never resurrect PDK data.
+#
+# What stays out, and why: */out/ */rpt/ */log/ */dbs/ */in/ */work/
+# */timingReports/ (tool output); genus/*/fv/ (Genus write_do_lec dumps -- the
+# fv_map.map.do files alone are 6.8 MB and are NOT source despite the .do
+# extension); signoff_mp/decks/ (877 KB TSMC rule deck, NDA);
+# signoff_mp/strmin/gds2cds.map (TSMC layer map, NDA); the OA libraries
+# (binary, 34 MB for rom2k_hvt_pg alone -- rebuilt by build_rom2k_ref.sh,
+# which IS tracked); attic/ .tmp/ scratch/ (stashes); *.pre_* and *.bak*
+# (hand-made sidecars -- git is the versioning now); *.gen.tcl (written by
+# platform/common "make chip", it says so in its own header).
+#
+# .bazelignore still names all four trees and MUST keep doing so: tracking a
+# file in git and hiding it from bazel are independent concerns and both have
+# to hold.  tools/ci/check_bazelignore.py and tools/ci/check_repo_hygiene.py
+# police WHICH paths may be tracked here, per-path, so a stray GDS, report or
+# database still fails the gate.
+
+# genus: the top Makefile, genus/<block>/*.{sh,py} and genus/<block>/tcl/*.{tcl,py}
+genus/*
+!genus/*/
+!genus/Makefile
+genus/*/*
+!genus/*/*.sh
+!genus/*/*.py
+!genus/*/tcl/
+genus/*/tcl/*
+!genus/*/tcl/*.tcl
+!genus/*/tcl/*.py
+
+# innovus: the common Makefile, <block>/tcl/*.tcl, <block>/*.sh, shared/*.tcl
+innovus/*
+!innovus/*/
+innovus/*/*
+!innovus/common/Makefile
+!innovus/common/*/
+!innovus/myshkin/tcl/
+innovus/common/*/*
+!innovus/common/*/tcl/
+!innovus/common/*/*.sh
+!innovus/common/*/*.py
+!innovus/common/shared/*.tcl
+innovus/common/*/tcl/*
+!innovus/common/*/tcl/*.tcl
+!innovus/common/*/tcl/*.py
+innovus/myshkin/tcl/*
+!innovus/myshkin/tcl/*.tcl
+!innovus/myshkin/tcl/*.sh
+
+# signoff_mp: top-level scripts, tcl/, and the LVS control/collateral files.
+# pvs/ and strmin/ are otherwise pure output; only the hand-written control
+# files, the strmin reference-library list and its cell maps come out of them.
+signoff_mp/*
+!signoff_mp/Makefile
+!signoff_mp/*.sh
+!signoff_mp/*.py
+!signoff_mp/lvs_include_*
+!signoff_mp/tcl/
+!signoff_mp/pvs/
+!signoff_mp/strmin/
+signoff_mp/tcl/*
+!signoff_mp/tcl/*.tcl
+signoff_mp/pvs/*
+!signoff_mp/pvs/*_ctl
+!signoff_mp/pvs/*lvsctl
+signoff_mp/strmin/*
+!signoff_mp/strmin/reflib.list
+# NOT strmin/via_rename.cellmap -- strmin_gds.sh WRITES it on every run
+# (lines 39-66), so it is output that happens to look like a small input.
+# signoff_mp/ also carries its OWN .gitignore, predating the wholesale rule
+# above and never before consulted because git never descended this far. Now
+# that it does, that file is the second layer of this policy (it names the OA
+# work libraries and the pvs/ result types), so track it too.
+!signoff_mp/.gitignore
+
+# cpf: the power-format source
+cpf/*
+!cpf/*.cpf
+
+# Re-drop the traps inside the trees above (last matching pattern wins).
+genus/**/fv/
+genus/common/attic/
+genus/common/scratch/
+innovus/common/attic/
+innovus/**/.tmp/
+signoff_mp/attic/
+signoff_mp/decks/
+signoff_mp/__pycache__/
+genus/**/*.gen.tcl
+innovus/**/*.gen.tcl
+genus/**/*.pre_*
+innovus/**/*.pre_*
+signoff_mp/**/*.pre_*
+genus/**/*.bak*
+innovus/**/*.bak*
+signoff_mp/**/*.bak*
+genus/**/*~
+innovus/**/*~
+signoff_mp/**/*~
+
 .cadence/
-# cpf/ (Common Power Format), std_cells/ (PDK-derived .lef under foundry NDA),
-# signoff_mp/ (DRC/LVS signoff runs+scripts), hardware/ (VHDL sources -- superseded
-# by hdl/), .claude/skills/ (local skill defs) -- untracked from git 2026-07-18,
-# stay on disk only.
-cpf/
+# std_cells/ (PDK-derived .lef under foundry NDA), hardware/ (VHDL sources --
+# superseded by hdl/), .claude/skills/ (local skill defs) -- untracked from git
+# 2026-07-18, stay on disk only.
 std_cells/
-signoff_mp/
 hardware/
 .claude/skills/
 # Pegasus/Calibre DRC-LVS run logs:

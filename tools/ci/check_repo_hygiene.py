@@ -30,6 +30,7 @@ instrument is not live (git missing or failing).
 
 import argparse
 import os
+import re
 import subprocess
 import sys
 
@@ -66,13 +67,115 @@ DEFAULT_MAX_BYTES = 16 * 1024 * 1024
 # ---------------------------------------------------------------------------
 RCF_BLESSED_DIR = "tools/cosim/gate"
 
-# Ignored directories that legitimately carry tracked files. Kept in step
-# with TRACKED_CONTENT_EXPECTED in tools/ci/check_bazelignore.py; the
-# negative-control seed patches under verification/isa/negctrl are
-# hand-written inputs sitting next to generated output.
-TRACKED_CONTENT_EXPECTED = frozenset([
-    "verification/isa/negctrl",
-])
+# ---------------------------------------------------------------------------
+# WHAT MAY BE TRACKED UNDER AN IGNORED TREE.
+#
+# KEPT IN STEP with TRACKED_CONTENT_ALLOWED in tools/ci/check_bazelignore.py.
+# The two checks grade the same question from opposite ends - that one walks
+# the ignored trees, this one walks the tracked files - so a pattern added to
+# one belongs in the other in the same commit.
+#
+# The EDA trees above are ignored by bazel because ~374 GB of what is in them
+# is generated output and none of it is a build input. That is still true.
+#
+# But those same directories are where every hand-written flow script in the
+# project lives - the Genus and Innovus run scripts, the signoff Makefile,
+# lvs.sh and its lvs_include_* files, the LVS netlist derivations, the OA
+# reference-library builders - and until 2026-08-25 none of it was in version
+# control at all. .gitignore now tracks that source (222 files, 2.4 MB, out of
+# 70,657 files and 374 GB on disk).
+#
+# So the rule here is NOT "this tree may carry tracked files". It is "this
+# tree may carry tracked files THAT MATCH THESE PATTERNS". A blanket
+# exemption would retire the leak detector for the tree; a pattern list keeps
+# it, and keeps it aimed at exactly the thing it was built to catch - a GDS,
+# a report, a database or a netlist arriving under signoff_mp/ or innovus/ by
+# way of a wide "git add -f".
+#
+# Widening a list here is how that protection gets hollowed out, so a diff
+# that adds a pattern needs the matching .gitignore negation and a reason.
+# "**" means the whole tree is exempt and should be used only where the
+# directory is hand-written input throughout.
+#
+# Patterns are shell globs matched against the workspace-relative path. "*"
+# does NOT cross a "/"; "**" does.
+# ---------------------------------------------------------------------------
+TRACKED_CONTENT_ALLOWED = {
+    # The negative-control seed patches: hand-written inputs that happen to
+    # live next to generated output. Exempt throughout, as they always were -
+    # "**" is the whole-tree form and crosses directory separators.
+    "verification/isa/negctrl": ("**",),
+
+    # Synthesis: the top Makefile and the per-block run scripts.
+    "genus": (
+        "genus/Makefile",
+        "genus/*/tcl/*.tcl",
+        "genus/*/tcl/*.py",
+        "genus/*/*.sh",
+        "genus/*/*.py",
+    ),
+
+    # Place and route: the common Makefile, the per-block run scripts and
+    # netlist-prep shells, and the shared proc library.
+    "innovus": (
+        "innovus/common/Makefile",
+        "innovus/common/*/tcl/*.tcl",
+        "innovus/common/*/tcl/*.py",
+        "innovus/common/*/*.sh",
+        "innovus/common/*/*.py",
+        "innovus/common/shared/*.tcl",
+        "innovus/myshkin/tcl/*.tcl",
+        "innovus/myshkin/tcl/*.sh",
+    ),
+
+    # Pegasus DRC/LVS signoff. pvs/ and strmin/ are otherwise pure output;
+    # only the hand-written Pegasus control files and the strmin reference
+    # library list come out of them. signoff_mp/.gitignore is the second
+    # layer of the ignore policy and is tracked for that reason.
+    "signoff_mp": (
+        "signoff_mp/.gitignore",
+        "signoff_mp/Makefile",
+        "signoff_mp/*.sh",
+        "signoff_mp/*.py",
+        "signoff_mp/lvs_include_*",
+        "signoff_mp/tcl/*.tcl",
+        "signoff_mp/pvs/*_ctl",
+        "signoff_mp/pvs/*lvsctl",
+        "signoff_mp/strmin/reflib.list",
+    ),
+
+    # Common Power Format: one hand-written file, no output at all.
+    "cpf": ("cpf/*.cpf",),
+}
+
+
+def _glob_to_regex(pattern):
+    """A shell glob where '*' never crosses a '/' but '**' may."""
+    out = ["^"]
+    i = 0
+    while i < len(pattern):
+        ch = pattern[i]
+        if ch == "*" and pattern[i:i + 2] == "**":
+            out.append(".*")
+            i += 2
+            continue
+        if ch == "*":
+            out.append("[^/]*")
+        elif ch == "?":
+            out.append("[^/]")
+        else:
+            out.append(re.escape(ch))
+        i += 1
+    out.append("$")
+    return re.compile("".join(out))
+
+
+def allowed_under(tree, rel):
+    """True if this tracked path is one the ignored tree may legitimately hold."""
+    for pattern in TRACKED_CONTENT_ALLOWED.get(tree, ()):
+        if _glob_to_regex(pattern).match(rel):
+            return True
+    return False
 
 
 class ToolError(Exception):
@@ -126,8 +229,6 @@ def ignored_trees(root):
         text = line.strip().rstrip("/")
         if not text or text.startswith("#"):
             continue
-        if text in TRACKED_CONTENT_EXPECTED:
-            continue
         trees.append(text)
     return trees
 
@@ -172,7 +273,8 @@ def main(argv):
             rcf.append(rel)
         for tree in trees:
             if under(rel, tree):
-                in_ignored.append((rel, tree))
+                if not allowed_under(tree, rel):
+                    in_ignored.append((rel, tree))
                 break
         abspath = os.path.join(root, rel)
         try:
@@ -207,12 +309,14 @@ def main(argv):
 
     if in_ignored:
         failed = True
-        print("FAIL: %d tracked file(s) live under a .bazelignore'd tree:"
-              % len(in_ignored))
+        print("FAIL: %d tracked file(s) live under a .bazelignore'd tree and"
+              " are not on its allow-list:" % len(in_ignored))
         for rel, tree in in_ignored:
             print("  %s (ignored tree: %s)" % (rel, tree))
-        print("  Those directories are ignored because nothing in them is a")
-        print("  build input, so nothing in them should be tracked.")
+        print("  Those directories are ignored because almost nothing in them")
+        print("  is a build input. The hand-written flow source that is has an")
+        print("  explicit pattern in TRACKED_CONTENT_ALLOWED above; anything")
+        print("  else reaching git from there is generated output.")
 
     if failed:
         return 1
