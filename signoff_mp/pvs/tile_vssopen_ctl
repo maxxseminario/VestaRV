@@ -1,0 +1,6 @@
+// VSS-open forensics on hart_tile (2026-08-25).
+// Uncap the report and KEEP the extracted layout netlist so the 8 VSS
+// fragments (1, X3/3733, X4/4946, X4/4947, 3746..3749) can be traced to
+// the devices and instances that own them.
+lvs_report_max -all;
+lvs_keep_data yes;

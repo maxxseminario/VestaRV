@@ -1,0 +1,68 @@
+// hart_tile LVS control file.
+//
+// NET-TEXT-ONLY LAYER FOR THE VDD_SW VIRTUAL-CONNECT LABELS (2026-08-25).
+//
+// The tile presents exactly two supply ports, VDD and VSS.  VDD_SW is an
+// INTERNAL net made by the 727 HEADBUF16MA10TH header switches; it is not a
+// boundary supply and must never be declared as one.
+//
+// The 407 "VDD_SW:" texts exist to unify the M1 pieces of that internal net
+// (VIRTUAL_CONNECT -COLON YES) and to give FIND_SHORTS a name that conflicts
+// with the VSS: sentinel, which is the only instrument at this level able to
+// see a VDD_SW-vs-VSS power short.  They were emitted on GDS layer 131, and
+// the TSMC deck says of that layer BOTH
+//     TEXT_LAYER      metal1_text;   // name the net
+//     PORT -TEXT_LAYER metal1_text;  // AND declare a port
+// so each text also declared a top-cell PORT.  The layout therefore carried
+// 284 pins against the schematic's 283 -- one phantom VDD_SW pin.
+//
+// Pegasus keeps those two roles on separate rules (pegasusref, `port`:
+// "Text ports processing does not depend on the text_layer command"), so the
+// fix is to put the VDD_SW texts on a layer that is text_layer'd and attached
+// but is NOT a port -text_layer.  Layer 231 is unused by the deck, by
+// tsmcN65.layermap and by the layout.  Connectivity, virtual connect and
+// FIND_SHORTS see the texts exactly as before; the port list does not.
+layer_def vddsw_net_text 231;
+text_layer vddsw_net_text;
+attach vddsw_net_text metal1;
+
+// BUS-BIT DELIMITER NORMALISATION (2026-08-25).
+//
+// LVS_COMPARE_PORT_NAMES is YES in the TSMC deck, and it compares the layout
+// pin TEXT against the schematic pin NAME character for character.  The two
+// sides reach Pegasus with different bus-bit delimiters:
+//   layout    : strmout -convertPin geometryAndText writes the OA/LEF pin
+//               names, which are  a0[0] ... hart_id[31]
+//   schematic : lvs.sh already rewrites the v2cdl output  [n] -> <n>  because
+//               the kit macro CDLs named in lvs_include_* use the CDL <n>
+//               convention, and the instance pin bindings have to agree.
+// Every bussed pin therefore matched by position and net but was reported as
+// a name discrepancy -- 283 of them, which is the whole "pin mismatches"
+// residual once the phantom VDD_SW pin above is gone.
+//
+// This applies the SAME rewrite to the layout side, so both sides speak <n>.
+// It is a notation change only: the base name and the bit index are both
+// preserved, so a genuine swap (a0<3> labelled onto a0<4>, or VDD labelled
+// onto VSS) is still reported.  layout_rename_text does not affect netlists.
+layout_rename_text "/[[]([0-9]+)[]]/<\\1>/g";
+//
+// SYNTAX, MEASURED THE HARD WAY (three aborted/ignored runs):
+//   * the option letters (g, e/b, i/m) go INSIDE the quoted delimited string,
+//     after the third delimiter.  Written outside -- layout_rename_text "/a/b/" g;
+//     -- Pegasus reads "g" as a second EXPRESSION and warns
+//     'invalid expression "g" ... the expression is ignored'.
+//   * the rule-file string parser eats one level of backslash BEFORE the
+//     regexp engine sees it.  "/\[/</g" reached the engine as the regex '['
+//     and pegasus aborted outright with rc=1, "Failed to compile regular
+//     expression ... 'Invalid regular expression'".  So a literal bracket is
+//     written as the character class [[] / []], and the \1 backreference in
+//     the replacement has to be doubled to \\1.
+//   * it must be ONE statement, not two.  Per pegasusref layout_rename_text,
+//     "if this statement edits a particular text, subsequent
+//     layout_rename_text statements are not applied to this text" -- so a
+//     [ -> < pass followed by a ] -> > pass leaves every name half-converted.
+//
+// POSITIVE CONTROL for this statement: pvs/hart_tile_poscontrol/
+// run_namecontrol.sh swaps the layout pin texts a0[3] and a0[4] in the GDS and
+// re-runs with this same control file.  Verdict MISMATCH, reported as
+// MISMATCHED INSTANCES on XFE_OFC307_a0_3 -- the name check is still live.

@@ -1,0 +1,29 @@
+# OA work libraries (binary, regenerable from GDS via strmin_*.sh)
+hart_tile_mp/
+MCU_MP_signoff/
+tsmc65_sc_adv10_pmk/
+sram1p16k_sq/
+f2probe_lib/
+trial*_lib/
+mcu_trial_lib/
+.cadence/
+# run outputs (GDS flats, calibre/pegasus result DBs, netlists, logs)
+calibre/*/
+pvs/*/
+pvs/*.lvs.v
+pvs/*.cdl
+pvs/*.log
+pvs/*.logv
+pvs/*.cmd
+pvs/*.lvslabels
+strmin/*.log
+strmin/via_rename.cellmap
+innovus.cmd
+innovus.log*
+*minarea_sites*.txt
+*.cdslck
+cds.log*
+libManager.log*
+xStrmOut_cellMap.txt
+# copied foundry rule decks (TSMC-licensed — recreate per pg3_completion_note.md)
+decks/

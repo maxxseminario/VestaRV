@@ -11,6 +11,7 @@
 # blessing next to the thing being blessed.
 # A regeneration on its own, in its own commit, is how the protection gets
 # quietly dropped.
+genus/MCU/tcl/MCU.genus.tcl
 hdl/common/adddec.vhd
 hdl/common/constants.vhd
 hdl/common/periph/AFE.vhd

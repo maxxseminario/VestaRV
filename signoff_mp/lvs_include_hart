@@ -1,0 +1,46 @@
+* lvs_include_hart -- LVS macro/std-cell CDL set for the MCU_hart block.
+*
+* BLOCK level, so there is deliberately NO pad content: no tphn pad .spi, no
+* pad_filler_stubs.  Compare with lvs_include_chip_penta, which needs both.
+*
+* THE RULE THIS FILE EXISTS TO ENFORCE: every cell the design instantiates must
+* have a subckt here.  When one is missing Pegasus does not warn, it ABORTS:
+*   ERROR (NVN-13010): Cell <name> is not defined.
+* That is what killed the 2026-08-16 TCM swap (sram1p8k_hvt_pg absent from
+* lvs_include_chip) and it is flagged again at lvs_include_chip_penta:11.
+* prep_top_netlist_hart.sh prints a macro census of the actual netlist for
+* exactly this cross-check -- read it against the list below before every run.
+*
+* rom2k_hvt_pg is the NEW 2048x32 boot ROM (A[10:0], SIZE 156.525 BY 181.41).
+* It has never appeared in any other include file in this tree.  rom_hvt_pg,
+* the 16 KiB plate, stays listed: a config staged before the 8 KiB flip binds
+* rom0 to it, and an unused .include_cdl costs nothing.
+*
+* sram1p8k_hvt_pg is the PRIVATE TCM inside hart_tile.  The tile is an excluded
+* hcell in this flow, but the tile netlist is CONCATENATED into the source
+* netlist (pvs/hart_tile.lvs.v; a boxed or stubbed tile aborts the compare at
+* the matcher threshold), so the macro is present in the CDL and must resolve.
+* sram1p16k_hvt_pg is the shared bulk-RAM / NPU-staging family at MCU level.
+.include_cdl "/opt/design_kits/TSMC65-PDK/kit/Assura/lvs_rcx/source.added"
+* WELL-BULK VARIANT (2026-08-25): the bulk-ported std-cell CDL, not _no_bulk.
+* _no_bulk collapses every device bulk onto the cell's OWN VDD / VSS port, so
+* in a header-gated row it asserts n-well = VDD_SW while the layout has the
+* n-well on always-on VDD (addWellTap FILLBIASA10TH, globalNetConnect
+* VNW->VDD).  That mismatch produced ~60k "B: VDD | ** missing connection **"
+* terminal lines per power net and made a real well-bias defect unreportable.
+* lvs.sh binds VNW=VDD VPW=VSS on every A10TH instance line.
+* See lvs_include_tile for the long-form note.
+.include_cdl "/opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/lvs_netlist/tsmc65_hvt_sc_adv10.cdl"
+.include_cdl "/opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10-pmk/lvs_netlist/tsmc65_hvt_sc_adv10_pmk.cdl"
+.include_cdl "/home/mseminario2/chips/myshkin/ip/sram1p16k_hvt_pg/sram1p16k_hvt_pg.cdl"
+.include_cdl "/home/mseminario2/chips/myshkin/ip/sram1p8k_hvt_pg/sram1p8k_hvt_pg.cdl"
+.include_cdl "/home/mseminario2/chips/myshkin/ip/rom2k_hvt_pg/rom2k_hvt_pg.cdl"
+.include_cdl "/home/mseminario2/chips/myshkin/ip/rom_hvt_pg/rom_hvt_pg.cdl"
+* 2026-08-25: the three analog component CDLs are now the LOCAL de-collided
+* copies in signoff_mp/component_cdls/.  They redefine six ARM sc-adv10 cell
+* names with a different port order, and the collision made the binding depend
+* on the reader's duplicate-subckt precedence.  See the header of
+* component_cdls/OscillatorCurrentStarved.cdl.
+.include_cdl "/home/mseminario2/vestarv/signoff_mp/component_cdls/GlitchFilter.cdl"
+.include_cdl "/home/mseminario2/vestarv/signoff_mp/component_cdls/PowerOnResetCheng.cdl"
+.include_cdl "/home/mseminario2/vestarv/signoff_mp/component_cdls/OscillatorCurrentStarved.cdl"
