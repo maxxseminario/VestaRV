@@ -56,8 +56,68 @@
 %               sigma(B_dc)/sigma(C) = 2.3x at 5 kHz, 2.7x at 10 kHz
 %     mc_summary.txt S4.5: B_law and B_dc report BYTE-IDENTICAL phase in every
 %     table -- R_f is a real scale factor and drops out of phase entirely.
-%   The stored-law sample range quoted below (-32 % to +39 %) is taken below the
-%   feedback pole, where the law is the only error term; see note_eis_intro.
+%
+% CODE LEVEL, DENSE GRID AND THE RE-RUN MONTE CARLO
+% (~/chips/castalia/simruns/eisdeep_20260826 -- campaign of 2026-08-26 on
+%  canon/input.scs, netlisted after the owner's 2026-08-26 RE-mux edit; that
+%  edit moves no number in this section by more than 0.0012 percentage points,
+%  README S1.3).  These numbers SUPERSEDE the eisdemo/eiscorner ones above where
+%  they measure the same quantity.
+%   S2, code_report/, csv/codelevel.csv -- codeA_re_n20: 256 conversions of the
+%     extracted converter (av_extracted, 4451 devices) at 869 565.2 S/s, 64 per
+%     excitation period -> f_exc = 13 586.9565 Hz exactly; excitation from the
+%     real 12-bit ladder (code pair 2032/2064); both channels through the on-chip
+%     mux, interleaved slot 0 (V_OUT) / slot 6 (RE); load 11.000 kOhm at N = 20;
+%     max |V_OUT - vcm| 0.132 V of the +-0.80 V window.  AC analysis of the same
+%     load and gain code: 11 032.43 ohm / +0.3603 deg.
+%       Z_analog  11 046.35 / +0.3475 = +0.1262 % / -0.0127 deg
+%       Z_sampled 11 140.67 / -2.5346 = +0.9812 % / -2.8949 deg
+%       Z_code    11 070.28 / -2.5780 = +0.3431 % / -2.9383 deg
+%     Converter term: incremental gain 628.00 codes/V on V_OUT (fundamental
+%     92.7 LSB) against 624.04 on RE (7.7 LSB) = +0.6359 % inter-channel gain
+%     mismatch; predicts -0.632 pp, measured Z_sampled -> Z_code -0.638 pp;
+%     0.006 pp left for quantisation, dither and aperture together.  Aperture fit
+%     nominal + 0 ns, 0.8 LSB rms; the three per-cycle code phasors agree to
+%     0.0000 %.
+%   S2.4, code_report/deskew_test.txt -- the -2.94 deg is the excitation grid,
+%     not the converter: the two slots sample T_conv/2 apart -> 180*f/f_s =
+%     2.8125 deg.  Pure sine on the same interleaved grid 0.0000 % / 0.0000 deg;
+%     deskewed by 180*f/f_s -0.0819 deg; two records on one grid +0.0670 % /
+%     +0.0828 deg.  +-0.573 deg caps an uncorrected interleaved read at 2768 Hz
+%     = 0.00318*f_s.
+%   S2.5, codeD_pat_n20 -- architecture D through real codes +2.9339 % /
+%     -3.3805 deg against A's +0.3431 % / -2.9383 deg = 2.59 percentage points.
+%     SUPERSEDES the 0.02-0.2 % ac gap above: in an ac analysis the excitation is
+%     an ideal source and V_PATTERN IS the commanded excitation, so that gap
+%     carries A1's loop error alone and cannot contain the ladder's own code-pair
+%     error (note_eis_excitation).
+%   S3.1, accuracy_envelope.txt -- error of the best gain code in compliance at
+%     each frequency, no calibration, architecture A, 20 points/decade: 0.44 % /
+%     1.04 deg over 0.01 Hz - 20 kHz on all five loads; 0.33 % / 0.29 deg at and
+%     below 5 kHz; 0.030 % / 0.010 deg at and below 1 Hz.
+%   S7, mc/, mc_report/ -- the Monte Carlo re-run at n = 643-663 (500 on the two
+%     decompositions), castalia_pm_25, nominal corner, 37 C, seed 12345, every
+%     sigma with an exact chi2 95 % interval.  R_f at N = 0:
+%       process only  10.9074 % (n = 500) [10.271 - 11.629]
+%       mismatch only  0.4262 % (n = 500) [0.4013 - 0.4544]
+%       both          11.1190 % (n = 654) [10.547 - 11.757]
+%     sqrt(10.907^2 + 0.4262^2) = 10.916 %, inside the third interval.  This
+%     REPLACES the archived 11.451 % (n = 100) against 11.030 % (n = 200), whose
+%     ordering -- process-only ABOVE process-and-mismatch -- is impossible for
+%     independent contributions and was sampling error.
+%     N = 63: sigma(R_f) 12.1295 % (fresh_n63, n = 652).
+%     typ_n0 (n = 649) vs the 11.0 k standard: 0.1 Hz A/B_dc 0.0033 +- 0.0006,
+%       B_law -7.6271 +- 10.2423 with that run's OWN range -32.0596 .. +30.6335,
+%       C -0.0234 +- 0.1791; 10 kHz A 0.3499 +- 0.0686, B_dc 0.3877 +- 0.0752.
+%     typ_n0 vs the MATCHED 100.8 k standard (n = 643): 0.1 Hz C -0.0000 +-
+%       0.0002; 10 kHz C 0.3486 +- 0.0680.
+%     fouled_n0 (n = 654) matched: 0.1 Hz A/B_dc 0.0303 +- 0.0056, C 0.0000 +-
+%       0.0002.
+%     fresh_n63 (n = 652) vs the 11.0 k standard: 0.1 Hz C -0.2609 +- 0.1083;
+%       5 kHz A 2.9948 +- 0.9646, B_dc 6.8508 +- 1.8784, C 2.5124 +- 0.8301.
+%     Quote ONE run's own sample range, never a union: the source README's
+%     "-32 % to +55 %" is a union over eight runs and seven frequencies, and the
+%     "-32 % to +39 %" this fragment used to carry was a union over two.
 % Library cell names are kept out of the rendered prose.
 
 \subsubsection{Accuracy}\label{sss:eis-accuracy}
@@ -72,9 +132,47 @@ most accurate of the three below \SI{100}{\hertz} at \(0.005\,\%\) and the worst
 above \SI{1}{\kilo\hertz} --- \SI{2.8}{\percent} at \SI{5}{\kilo\hertz}, and
 \SIrange{1.84}{3.68}{\percent} across the corner set ---
 because its impedance falls from \SI{999}{\kilo\ohm} to \(R_u\) across the sweep
-while \(R_f\) does not move. The fouled case, at the bottom gain code
-throughout, stays within \SI{0.44}{\percent} and \SI{1.02}{\degree} from
-\SI{0.1}{\hertz} to \SI{20}{\kilo\hertz}.
+while \(R_f\) does not move. Gain-ranged to the lowest code in compliance and
+with no calibration applied, the channel holds \SI{0.44}{\percent} of magnitude
+and \SI{1.04}{\degree} of phase from \SI{0.01}{\hertz} to \SI{20}{\kilo\hertz}
+on all five loads, \SI{0.33}{\percent} and \SI{0.29}{\degree} at and below
+\SI{5}{\kilo\hertz}, and \SI{0.030}{\percent} and \SI{0.010}{\degree} at and
+below \SI{1}{\hertz}. Ranging badly costs an order of magnitude: the worst code
+still in compliance reads \(+0.43\,\%\) on the calibration resistor at dc where
+the best reads \(0.029\,\%\).
+
+\paragraph{Measured through the converter.} An \SI{11.000}{\kilo\ohm} load at
+gain code 20, excited by the reference ladder and read through the input
+multiplexer and an extracted converter, demodulates from \num{256} converter
+codes --- \num{64} per excitation period at \SI{13.587}{\kilo\hertz} --- to
+\(+0.343\,\%\) of magnitude and \SI{-2.94}{\degree} of phase against the
+small-signal analysis of the same load and gain code. Three demodulations of
+that one record separate the terms: the analog nets give \(+0.126\,\%\) and
+\SI{-0.013}{\degree}, reading them at the conversion apertures adds
+\(+0.855\) points and \SI{-2.882}{\degree}, and decoding the codes takes
+\num{0.638} points back off. \textbf{The converter's whole cost is one number.}
+Its incremental gain is \num{628.00} codes per volt on the current channel and
+\num{624.04} on the potential channel, which swings over \(12\times\) less of
+the transfer curve; a ratio cancels a common gain exactly and a different one
+not at all. That \(+0.636\,\%\) mismatch predicts \(-0.632\) points against the
+\(-0.638\) measured, leaving \num{0.006} points for quantisation, dither and
+aperture together. \textbf{The converter is a two-point gain calibration, not a
+noise floor.}
+
+\paragraph{The phase error is the excitation grid, not the converter.} One
+converter serving two channels samples them half a conversion apart, and point
+sampling then quantises the two-level excitation's edges onto two grids that
+differ by that half conversion. The cost is \(180\,f/f_s\) degrees ---
+\SI{2.81}{\degree} at this frequency against the \SI{2.94}{\degree} measured.
+Three measurements fix the mechanism: a sinusoidal excitation on the same
+interleaved grid returns \SI{0.0000}{\degree}, rotating the interleaved answer
+at the apertures by \(180\,f/f_s\) leaves \SI{0.08}{\degree} of residual, and
+two records taken on one grid measure \SI{0.08}{\degree} on the other side of
+zero. \textbf{Against the \(\pm\SI{0.573}{\degree}\) gate
+an uncorrected interleaved read is capped at \SI{2.77}{\kilo\hertz}},
+\num{0.0032} of the conversion rate. The rotation is deterministic and needs no
+calibration; a stepped sine removes the term outright and two records on one
+grid cost twice the record time.
 
 \paragraph{What limits accuracy, in falling order.} First the uncalibrated
 feedback capacitor: on the fresh electrode at gain code 63 and
@@ -84,19 +182,22 @@ magnitude and \SI{15}{\degree} of phase on top of the loop's own
 compensation capacitor puts in the feedback impedance. Measuring a known
 impedance at every frequency and taking the ratio removes that term entirely ---
 \SI{2.33}{\percent} at the same point, below the loop error itself, the two
-errors partly cancelling. Second, a magnitude mismatch between that calibration
-impedance and the load: a \SI{999}{\kilo\ohm} load calibrated against
+errors partly cancelling. Second, the reference-electrode tap: through real
+converter codes, demodulating the commanded potential instead of the
+electrode's own reads \(+2.934\,\%\) where the tap reads \(+0.343\,\%\), so
+\textbf{the tap is worth \num{2.59} percentage points of magnitude}. The
+small-signal figure for the same comparison is \SIrange{0.02}{0.2}{\percent}
+and it is superseded rather than contradicted: an ideal excitation source makes
+the commanded potential exact by construction, so that figure carries A1's loop
+error alone and none of the ladder's own code-pair error, which reaches
+\SI{3.5}{\percent} (Section~\ref{sss:eis-excitation}). Third, a magnitude
+mismatch between that calibration impedance and the load: a \SI{999}{\kilo\ohm} load calibrated against
 \SI{11}{\kilo\ohm} at the same gain code carries a fixed \(-0.27\,\%\), exactly
 the difference of the two loop errors (\num{0.278} against \(0.003\,\%\)). At a
 fixed process point that is a correction; across a wafer it is a spread, and the
-requirement below. Third, the loop error itself, which scales exactly with the
+requirement below. Last, the loop error itself, which scales exactly with the
 noise gain: \num{0.120}, \num{0.330}, \num{0.660} and \SI{1.322}{\percent} at
-\(R_f/|Z| =\) \num{7.3}, \num{20}, \num{40} and \num{80}. Last, the
-reference-electrode tap, worth \SIrange{0.02}{0.2}{\percent} of magnitude ---
-the difference between reading the applied potential at the electrode and
-assuming the commanded one arrives. On this axis it is not the limiting term;
-what earns it its multiplexer input is the excitation, where the same assumption
-costs up to \SI{3.5}{\percent} (Section~\ref{sss:eis-excitation}).
+\(R_f/|Z| =\) \num{7.3}, \num{20}, \num{40} and \num{80}.
 
 \paragraph{Across corners the error spans a factor of two.} It is monotone in
 the amplifiers' transconductance, so \SI{85}{\celsius}
@@ -113,19 +214,22 @@ corner set does not move them --- for the same reason it does not move \(R_f\),
 which is the caveat of Section~\ref{ss:eis}.
 
 \paragraph{Across a wafer the spread is the feedback resistance, and it is
-process rather than mismatch.} At the bottom gain code, \num{200} samples give
-\(\sigma = \SI{11.45}{\percent}\) with process variation alone against
-\SI{0.41}{\percent} with mismatch alone; at gain code 63 the same quantity is
-\SI{11.93}{\percent}, and the fresh electrode's \SI{2.8}{\percent} at
-\SI{5}{\kilo\hertz} becomes \(3.06 \pm \SI{0.92}{\percent}\). The poly sheet
+process rather than mismatch.} At the bottom gain code, \num{500} samples give
+\(\sigma = \SI{10.91}{\percent}\) with process variation alone and
+\SI{0.43}{\percent} with mismatch alone, against \SI{11.12}{\percent} with both
+over \num{654}; the two add in quadrature to \SI{10.92}{\percent}, inside the
+third measurement's own interval. At gain code 63 the same quantity is
+\SI{12.13}{\percent}, and the fresh electrode's \SI{2.8}{\percent} at
+\SI{5}{\kilo\hertz} becomes \(2.99 \pm \SI{0.96}{\percent}\). The poly sheet
 resistance moves all four channels of a die together, so no amount of averaging
 removes it and a single measurement does; what a single measurement cannot
-remove, the channel-to-channel residual, is that \SI{0.41}{\percent}. That orders
+remove, the channel-to-channel residual, is that \SI{0.43}{\percent}. That orders
 the ways firmware can turn two converter readings into an impedance. \textbf{A
 stored nominal resistance law is unusable as a calibration constant}: it puts the
 whole spread on the answer --- \(\sigma = \SI{10.2}{\percent}\) of magnitude at
-gain code 0 and \SI{12.1}{\percent} at code 63, individual dies reading
-\(-32\,\%\) to \(+39\,\%\) below the feedback pole --- on top of the
+gain code 0 and \SI{12.3}{\percent} at code 63, the bottom-code run's own
+\num{649} dies reading \(-32.1\,\%\) to \(+30.6\,\%\) below the feedback
+pole --- on top of the
 \SI{9}{\percent} nominal offset the law already carries at the bottom code.
 \textbf{One dc measurement of the feedback resistance per chip removes
 essentially all of it}: \(\sigma = \SI{0.0006}{\percent}\), four orders of
@@ -142,15 +246,15 @@ a standard matched to the load, the ratiometric measurement reaches the bound
 above in mean and in \(\sigma\) at every frequency, and beats it at dc where the two loop
 errors are identical and cancel outright: \(\sigma = \SI{0.0002}{\percent}\)
 against the bound's own \SI{0.0006}{\percent} on the typical load and
-\SI{0.0053}{\percent} on the fouled one. Against a standard \num{9.2} times away
+\SI{0.0056}{\percent} on the fouled one, with non-overlapping intervals. Against a standard \num{9.2} times away
 in magnitude it instead \emph{injects} spread, \(\sigma = \SI{0.18}{\percent}\),
 \num{300} times worse than the dc calibration it replaces. Above the feedback
 pole, where a dc calibration cannot help at all, it is the only thing that does:
 on the fresh electrode at gain code 63 and \SI{5}{\kilo\hertz} a stored dc
-resistance gives \(7.03 \pm \SI{1.84}{\percent}\) and the ratio
-\(2.56 \pm \SI{0.80}{\percent}\) even against a standard \num{91} times away ---
+resistance gives \(6.85 \pm \SI{1.88}{\percent}\) and the ratio
+\(2.51 \pm \SI{0.83}{\percent}\) even against a standard \num{91} times away ---
 \num{2.7} times less bias and \num{2.3} times less spread. The fixed
 \(-0.27\,\%\) above is therefore a distribution,
-\(-0.27 \pm \SI{0.10}{\percent}\), and matching the calibration impedance to the
+\(-0.26 \pm \SI{0.11}{\percent}\), and matching the calibration impedance to the
 decade being measured is a requirement on the hardware, not a refinement of the
 firmware.

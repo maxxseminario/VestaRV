@@ -19,6 +19,15 @@
 %% The band-edge frequencies quoted in the text come from the fixed-ratio
 %% campaign (ratio/band_edges.txt), NOT from these curves: here the ratio
 %% R_f/|Z| moves with frequency because |Z| does.
+%%
+%% DENSER DATA EXISTS (2026-08-26): simruns/eisdeep_20260826/ac_dense/ repeats
+%% the identical 30 cells at 20 points/decade from 0.01 Hz on the post-RE-mux
+%% deck, with csv/nyquist_<load>_n<code>.csv per cell.  The two agree -- worst
+%% cell-by-cell change 0.0012 percentage points, at 100 kHz only (that README
+%% S1.3) -- so these curves are not stale, only sparser than the campaign the
+%% prose now describes.  Regenerating from ac_dense/ac_results.json would extend
+%% the left-hand end to 0.01 Hz and take the chord error from 0.65 % to 0.165 %
+%% of the arc radius; it needs xmin lowered to 1e-2 in both axes here.
 \providecommand{\MaestroRoot}{include/analog/}
 \providecolor{mtxA}{HTML}{2A78D6}
 \providecolor{mtxB}{HTML}{EB6834}
