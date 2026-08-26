@@ -18,7 +18,10 @@
 %   Rf tolerance / matching   tab_tiarprog_corners, tab_tiarprog_mc
 %   quantisation floor        1.591/sqrt(12) = 0.459 mV; two conversions = 0.650 mV
 %   potential residual        RSS(0.650, 0.931, 0.788) = 1.38 mV rms
-%   current residual          RSS(0.650, 0.294) = 0.71 LSB
+%   current residual          RSS(0.650, 0.294) = 0.713 mV rms = 0.45 LSB on the
+%                             measured 1.591 mV step. Published as 0.71 LSB until
+%                             2026-08-25: the RSS is of two VOLTAGES (mV), and the
+%                             unit was asserted, not converted.
 %   range condition           0.815 V / (3 x 5.7176 mV) = 47.5
 %   uncalibrated potential sigma  5.7176 mV (tab_ampab_mc_tracking)
 % Library cell names are deliberately kept OUT of the rendered prose (owner
@@ -56,11 +59,11 @@ that floor, the \SI{0.93}{\milli\volt} droop-fit residual and
 specified \SIrange{0.4}{2.1}{\volt} window only: outside it the tracking error
 is no longer a constant and no stored constant removes it
 (Section~\ref{sss:pixtop-mc}). On the current axis it is
-\SI{0.71}{LSB} plus \SIrange{0.1}{0.4}{\percent} of reading, against
-\SIrange{12.1}{167.3}{LSB} uncalibrated --- that uncalibrated spread is
-referred to the nominal \SI{2.441}{\milli\volt} step and is \num{1.535} times
-larger against the converter's measured \SI{1.591}{\milli\volt} step
-(Table~\ref{tab:adc-transfer}). A constant removes the current zero only
+\SI{0.71}{\milli\volt} rms --- \SI{0.45}{LSB} on the converter's measured
+\SI{1.591}{\milli\volt} step (Table~\ref{tab:adc-transfer}) --- plus
+\SIrange{0.1}{0.4}{\percent} of reading, against \SIrange{12.1}{167.3}{LSB}
+uncalibrated, which are on the nominal \SI{2.441}{\milli\volt} step.
+A constant removes the current zero only
 while that zero stays inside the converter window, which requires
 \(R_f/R_{\mathrm{cell}} < 47.5\); the \SI{560}{\kilo\ohm} tap into a
 \SI{10}{\kilo\ohm} electrode (Section~\ref{sss:pixel-mc}) is outside it and those

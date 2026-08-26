@@ -37,7 +37,7 @@
       "yprec": 2,
       "legendpos": "south east",
       "ylabel": "Accuracy error~[LSB]",
-      "caption": "Bipolar accuracy error against injected working-electrode current, $R_f = \\SI{35}{\\kilo\\ohm}$, $R_{\\mathrm{ct}} = \\SI{10}{\\kilo\\ohm}$ electrode, typical process point, \\SI{37}{\\celsius}, full $\\pm\\SI{36}{\\micro\\ampere}$ sweep (full scale $\\pm\\SI{33}{\\micro\\ampere}$). The zero crossing is smooth with no kink or discontinuity between the sourcing and sinking halves of the sweep: the error's slope through zero is $-1/T$ exactly (Table~\\ref{tab:px-acc35}) and the same single \\texttt{anatop\\_tia\\_amp\\_ab} TIA feedback path serves both current directions, unlike the rev-1 PMOS-only mirror it replaces."
+      "caption": "Bipolar accuracy error against injected working-electrode current, $R_f = \\SI{35}{\\kilo\\ohm}$, $R_{\\mathrm{ct}} = \\SI{10}{\\kilo\\ohm}$ electrode, typical process point, \\SI{37}{\\celsius}, full $\\pm\\SI{36}{\\micro\\ampere}$ sweep (full scale $\\pm\\SI{33}{\\micro\\ampere}$). The zero crossing is smooth with no kink or discontinuity between the sourcing and sinking halves of the sweep: the error's slope through zero is $-1/T$ exactly (Table~\\ref{tab:px-acc35}) and the same single \\texttt{anatop\\_tia\\_amp\\_ab} TIA feedback path serves both current directions, unlike the rev-1 PMOS-only mirror it replaces. The error axis is referred to the nominal \\SI{2.441}{\\milli\\volt} step; the converter's measured step is \\SI{1.591}{\\milli\\volt} (Table~\\ref{tab:adc-transfer}), so multiply by \\num{1.535} to read it as converter codes."
     }
   ],
   "tables": [],
