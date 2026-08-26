@@ -31,6 +31,34 @@
 %   Architecture background (NOT a source of numbers -- this campaign supersedes
 %   its derivation): ~/vestarv/docs/afe_rev2_eis_lite.html.
 %
+% CORNER AND MONTE CARLO NUMBERS (added 2026-08-25):
+%   ~/chips/castalia/simruns/eiscorner_20260825/README.md and the run data beside
+%   it.  Same bench, same engine (skill/eiscorner_campaign.py imports
+%   eisdemo_engine.build(), eisdemo_extract.impedances() and the five loads of
+%   eisdemo_ac_campaign.LOADS verbatim), one axis added.  The nominal-corner rows
+%   reproduce the nominal campaign to the last printed digit, which is the
+%   cross-check that it is the same experiment.
+%     S2   corners, 210 ac runs      ac/, corner_tables.txt
+%     S2.3 band edges, 42 runs       band/band_results.json, corner_tables.txt S3-S4
+%     S2.4 coverage per corner       corner_tables.txt S5
+%     S2.5 poly/mimcap cornered too  ac_resmim/resmim_table.txt  <- THE CAVEAT
+%     S3   temperature               corner_tables.txt (tt_T0 / tt_T85 rows)
+%     S4   Monte Carlo, 8 runs       mc/, mc_summary.txt, mc/mc_*.json
+%     S5.3 Maestro corner verify     maestro_verify/ac_corners/ (35/35 specs)
+%   Corner set = the chapter's own imported 46-row table: nominal at 37 C plus
+%   ff/fs/sf/ss at 25 C, plus tt_0C / tt_85C on the nominal models.  It corners
+%   the sixteen MOS rows ONLY -- cor_res.scs stays tt_res and cor_mim.scs stays
+%   tt_mim -- which is why the closing paragraph of this fragment exists and why
+%   it is stated here rather than only in note_eis_open.
+%   Monte Carlo: castalia_pm_25, nominal corner, 37 C, 200 samples (100 for the
+%   process-only / mismatch-only decomposition), seed 12345, 1264 random
+%   variables, 587 devices mismatchflag=1, save=selected.
+%   The B_law sample range quoted in note_eis_accuracy is -32.1 % (typ/N=0) to
+%   +38.7 % (fresh/N=63) taken BELOW the feedback pole, where the stored law is
+%   the only error term.  The README's "-32 % to +55 %" takes the maximum over
+%   all frequencies including 10 kHz on fresh/N=63, where the pole contributes
+%   a further +24 % of mean; that point is not a measure of the R_f spread.
+%
 % The four firmware architectures of the source campaign are named in prose
 % rather than lettered:  A = "reading the potential at the reference electrode
 % and the current at the transimpedance output"; B = "a stored feedback
@@ -50,19 +78,35 @@ records in quadrature against its own reference. The excitation is a toggle
 between two DAC codes, so the mode adds a clock divider and an accumulate to the
 channel of Section~\ref{ss:pixtop} and nothing else.
 
-Everything below is schematic-level at the nominal process point,
-\SI{37}{\celsius} and a \SI{2.5}{\volt} analog supply, from three campaigns on
-the assembled channel's own netlist: 30 small-signal runs, five electrode loads
-against six gain codes over \SI{0.1}{\hertz}--\SI{100}{\kilo\hertz}; 24 runs against
-pure resistors chosen to hold the ratio \(R_f/|Z|\) fixed across the sweep; and
-17 transient runs in which the twelve potential-code lines are driven
-individually, so the excitation is produced by the real ladder rather than by an
-ideal source. The demodulator is the firmware one --- an I/Q
-multiply--accumulate over an integer number of excitation periods, no window, no
-detrending. The electrodes are the linear cell model of
+Everything below is schematic-level on the assembled channel's own netlist at a
+\SI{2.5}{\volt} analog supply. At the nominal process point and
+\SI{37}{\celsius}: 30 small-signal runs, five electrode loads against six gain
+codes over \SI{0.1}{\hertz}--\SI{100}{\kilo\hertz}; 24 runs against pure
+resistors chosen to hold the ratio \(R_f/|Z|\) fixed across the sweep; and 17
+transient runs in which the twelve potential-code lines are driven individually,
+so the excitation is produced by the real ladder rather than by an ideal source.
+Across process and temperature: the first two of those repeated over the
+chapter's four process corners at \SI{25}{\celsius} and over
+\SIrange{0}{85}{\celsius} on the nominal models, 252 runs. Across a wafer: eight
+Monte Carlo runs of the small-signal measurement at the nominal corner, six of
+\num{200} samples with process and mismatch together and two of \num{100} that
+separate them. The demodulator is the firmware one --- an
+I/Q multiply--accumulate over an integer number of excitation periods, no window,
+no detrending. The electrodes are the linear cell model of
 Section~\ref{ss:analog-models} with \(R_u = \SI{1}{\kilo\ohm}\) throughout;
 \emph{fresh}, \emph{typical} and \emph{fouled} name
 \(R_{\mathrm{ct}} \parallel C_{\mathrm{dl}}\) of
 \SI{1}{\mega\ohm} \(\parallel\) \SI{100}{\nano\farad},
 \SI{100}{\kilo\ohm} \(\parallel\) \SI{1}{\micro\farad} and
 \SI{10}{\kilo\ohm} \(\parallel\) \SI{10}{\micro\farad}.
+
+\textbf{One caveat governs every corner number in this section: the corner set
+holds the poly resistor at its typical value.} The imported corner table moves
+the sixteen transistor model rows only, so the ladder that is \(R_f\) and the
+capacitor that sets the feedback pole do not corner, and what the corners report
+is a lower bound on the true spread. Cornering the poly as well moves \(R_f\) by
+\(-33.4\,\%\) and \(+35.5\,\%\) and the feedback pole at the top
+gain code to \SIrange{2.40}{6.61}{\kilo\hertz}, against the
+\(\pm\SI{1.2}{\percent}\) the corner set alone reports. The Monte Carlo does vary
+the poly, and measures the same quantity as \(\sigma = \SI{11.5}{\percent}\)
+(Section~\ref{sss:eis-accuracy}).

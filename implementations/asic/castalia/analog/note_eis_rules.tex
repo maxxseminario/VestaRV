@@ -25,16 +25,23 @@
 %      this load, not 1/n -- so the high orders fold into the fundamental bin.
 %   6  coverage_map.txt (README S5): +9.06 % at N = 0, within 0.5 % at every code
 %      from N = 20 up.  Same root cause as the +9.2 % of note_tiarprog_scope.
+%      REWRITTEN 2026-08-25 from eiscorner_20260825 mc_summary.txt S2/S3: the
+%      +9.06 % is a nominal-corner offset on top of sigma = 11.03 % of process
+%      spread on R_f itself (0.411 % from mismatch alone), which puts
+%      sigma = 10.16 % on the measured magnitude if the law is stored.  A dc
+%      calibration of R_f per chip takes that to 0.0006 %.  So the rule is no
+%      longer "not at the bottom code" but "not at all".
 % The calibration impedance is NOT a numbered rule here because it is established
-% three times in the sections above (feedback pole, code-pair error, quantisation
-% bias); the lead sentence says so.
+% four times in the sections above (feedback pole, code-pair error, quantisation
+% bias, and the process spread of the feedback resistance); the lead sentence
+% says so, and the switchability requirement is in note_eis_accuracy.
 % Library cell names are kept out of the rendered prose.
 
 \subsubsection{Rules for a Record}\label{sss:eis-rules}
 
-A calibration impedance is required, for the three independent reasons above.
-These six rules are what a record needs beyond it, and each carries the measured
-cost of ignoring it.
+A calibration impedance is required, for the four independent reasons above, and
+it must be switchable across decades. These six rules are what a record needs
+beyond it, and each carries the measured cost of ignoring it.
 
 \begin{enumerate}[nosep]
   \item \textbf{Choose an excitation code pair that does not cross a major
@@ -66,10 +73,14 @@ cost of ignoring it.
     per period is \(1.3\times\) worse than a boxcar and not monotonic in rate,
     and a record kept at \num{256} samples per period reads \SI{5}{\percent}
     high where the small-signal analysis says \SI{0.03}{\percent}.
-  \item \textbf{Do not use the nominal feedback-resistance law at the bottom
-    gain code.} Measured in the loop it is \SI{9.1}{\percent} above
-    \(\SI{18}{\kilo\ohm} + \SI{6}{\kilo\ohm}\,N\) at \(N = 0\) and within
-    \SI{0.5}{\percent} of it at every code above \(N = 20\)
-    (Table~\ref{tab:eis-coverage}); the cause is the closed-switch stack of
-    Section~\ref{ss:tiarprog}. Gain constants are stored per code, not computed.
+  \item \textbf{Measure the feedback resistance on every chip; never compute it.}
+    The law \(\SI{18}{\kilo\ohm} + \SI{6}{\kilo\ohm}\,N\) is already
+    \SI{9.1}{\percent} low at \(N = 0\) at the nominal point --- the
+    closed-switch stack of Section~\ref{ss:tiarprog}, and within
+    \SI{0.5}{\percent} at every code above \(N = 20\)
+    (Table~\ref{tab:eis-coverage}) --- and it carries \(\sigma =
+    \SI{11}{\percent}\) of process spread on top of that, so storing it costs
+    \(\sigma = \SI{10.2}{\percent}\) of measured magnitude. One dc measurement
+    per chip takes that to \SI{0.0006}{\percent}
+    (Section~\ref{sss:eis-accuracy}). Gain constants are per die, not per design.
 \end{enumerate}

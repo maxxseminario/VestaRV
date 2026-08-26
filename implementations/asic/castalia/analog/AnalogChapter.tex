@@ -74,7 +74,7 @@ Class-AB amplifier    & \ref{ss:ampab}         & 6 & \checkmark & \checkmark \\
 Potentiostat pixel system & \ref{ss:pixel}     & 6 & \checkmark & \checkmark \\
 Assembled channel     & \ref{ss:pixtop}        & 1 & \checkmark & \checkmark \\
 Input multiplexer     & \ref{sss:pixtop-mux}   & 2 & \checkmark & n/a \\
-Impedance spectroscopy & \ref{ss:eis}          & 1 & --- & --- \\
+Impedance spectroscopy & \ref{ss:eis}          & 1 & \checkmark & \checkmark \\
 SAR ADC               & \ref{ss:adc}          & 2 & \checkmark & \checkmark \\
 Feedback resistor     & \ref{ss:tiarprog}      & 5 & \checkmark & \checkmark \\
 Reference DAC         & \ref{ss:dacr2r12}      & 6 & \checkmark & \checkmark \\
@@ -82,9 +82,11 @@ Reference DAC         & \ref{ss:dacr2r12}      & 6 & \checkmark & \checkmark \\
 \end{tabular}
 \end{center}
 
-\noindent Every block now carries a corner run. The impedance row is not a
-block: its dashes record a mode that adds no devices and has been measured at
-the nominal point only (Section~\ref{sss:eis-open}).
+\noindent Every block now carries a corner run. The impedance row is not a block
+but a mode that adds no devices, and its corner and Monte Carlo runs cover the
+small-signal measurement only; the corner set that serves this chapter holds the
+poly resistor at typical, so the impedance section's corner figures are a lower
+bound on the true spread (Section~\ref{sss:eis-open}).
 \emph{n/a} marks a block whose
 section reports no Monte Carlo because the devices at issue carry no
 per-instance mismatch terms: the multiplexer's ninety pass gates per tree, and
@@ -203,7 +205,11 @@ reports the measurement.
 % (campaign of 2026-08-25: 30 AC runs, 24 fixed-ratio runs, 17 real-DAC
 % transients, an extracted-converter probe, and the bench cell
 % castalia/tb_anatop_eisdemo whose four Maestro tests verify headlessly at 13/13
-% specs).  Placed here, as a subsection of its own immediately after the
+% specs), plus ~/chips/castalia/simruns/eiscorner_20260825/README.md (the same
+% bench and extractor with a corner/temperature axis added: 210 corner AC runs,
+% 42 corner band-edge runs, 24 runs with the poly and mimcap cornered too, eight
+% 200-sample Monte Carlo runs, and eis_ac over seven corners at 35/35 specs).
+% Placed here, as a subsection of its own immediately after the
 % assembled channel, because it is a measurement MODE of that channel -- it adds
 % no hardware -- while spanning the reference DAC, both amplifiers, the
 % programmable feedback resistor, the converter and the firmware demodulator.

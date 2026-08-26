@@ -27,8 +27,32 @@
 %         modelled.  The retirement sim V-2x measured 1.2-4.2 mV of droop with
 %         the regulator in place; this campaign measures 0.006-0.302 mV without
 %         it.  The term returns on silicon through the rail impedance.
-%   Coverage: nominal castalia_typ_25 at 37 C throughout; no corner run and no
-%   Monte Carlo of the measurement itself.
+%   Coverage: the small-signal measurement now carries a corner campaign and a
+%   Monte Carlo (simruns/eiscorner_20260825).  What it still does NOT carry:
+%     (a) cor_res.scs stays tt_res and cor_mim.scs stays tt_mim in the imported
+%         46-row corner table, so the poly ladder and the mimcap do not corner.
+%         ac_resmim/resmim_table.txt, 24 runs with both cornered:
+%           R_f at N = 20:  92 450 (ff+res+mim) / 138 722 (tt) / 187 937 (ss)
+%                           = -33.36 % / +35.48 %
+%           pole at N=319:  6.611 kHz (ff) / 3.737 (tt) / 2.399 (ss)
+%           fresh/N=63 at 10 kHz: 3.191 % (ff) / 8.639 (tt) / 19.97 (ss) -- 6x
+%           fresh/N=63 at 0.1 Hz: 0.0023 / 0.0031 / 0.0030 % -- nothing moves,
+%             because below the pole a global R_f shift moves the noise gain and
+%             the transimpedance together.
+%     (b) castalia_pm_25 holds tt_mim, so the 22 pF feedback capacitor does not
+%         vary in ANY of the eight Monte Carlo runs.  mc_res does vary the poly.
+%     (c) only the ac and the fixed-ratio band experiments were repeated over
+%         corners.  The 17 real-DAC transients, the demodulator study and the
+%         code-level probe remain nominal-point results.
+%     (d) the electrode is a linear R||C with no temperature coefficient; the
+%         0-85 C runs move the amplifiers and not the interface.
+%   Maestro corner verification (README S5.3): eis_ac over all seven corner
+%   points, 35/35 specs pass, maestro_verify/ac_corners/.  rf_meas moves 0.01 %
+%   there where the real ladder moves 4.6 %, because the bench's R_F is ideal --
+%   the S7.2 caveat of the nominal campaign, now with a corner number.
+%   ocnxlRun(?mode 'montecarlo) aborts ocean with SIGABRT on this setup
+%   (sdbaccess.cpp:478); the Monte Carlo test was verified by netlisting it in
+%   ADE XL and running that netlist under spectre.  Not a TRM-facing fact.
 % Library cell names are kept out of the rendered prose.
 
 \subsubsection{Not Yet Verified}\label{sss:eis-open}
@@ -41,7 +65,10 @@
     optimistic above a few kilohertz at the high-gain codes: at gain code 63 it
     reports \SI{2.73}{\percent} where the complete channel measures
     \SI{2.84}{\percent} at \SI{1}{\kilo\hertz}, and \SI{3.17}{\percent} against
-    \SI{5.18}{\percent} at \SI{5}{\kilo\hertz}.
+    \SI{5.18}{\percent} at \SI{5}{\kilo\hertz}. It passes all \num{35} specs over
+    the seven corner points, but its ideal feedback element moves
+    \SI{0.01}{\percent} across them where the real ladder moves
+    \SI{4.6}{\percent}, so it bounds the amplifiers and not the channel.
   \item \textbf{Current read as a code, demodulated.} The extracted converter
     does convert a live impedance record --- three conversions decoded while the
     transimpedance output moves \SI{317}{\milli\volt} peak to peak --- so the
@@ -58,10 +85,27 @@
     \SI{2.5}{\volt} rail; what the excitation table measures is the ladder's own
     linearity between two codes and nothing else. On silicon the term returns in
     proportion to the impedance between the regulator and the ladder, which is a
-    fourth reason the calibration impedance is not optional.
-  \item \textbf{Corners and mismatch.} Every number in this section is the
-    nominal process point at \SI{37}{\celsius}. The mode adds no devices and the
-    blocks it uses carry their own corner and Monte Carlo runs, but the
-    measurement itself has been run at one point only, so nothing here bounds how
-    the impedance error spreads across a wafer.
+    fifth reason the calibration impedance is not optional.
+  \item \textbf{What the corner and Monte Carlo runs still do not cover.} Three
+    things. The corner table moves the transistor rows only, so \(R_f\) does not
+    corner and every corner figure here is a lower bound: with the poly cornered
+    too, \(R_f\) moves \(-33.4\,\%\) and \(+35.5\,\%\), the
+    feedback pole at the top gain code becomes
+    \SIrange{2.40}{6.61}{\kilo\hertz}, and the error above that pole moves by
+    \(6\times\) --- the fresh electrode at gain code 63 and
+    \SI{10}{\kilo\hertz} reads \SI{3.19}{\percent}, \SI{8.64}{\percent} and
+    \SI{19.97}{\percent} at the fast, nominal and slow poly. Below the pole
+    nothing moves, because a global shift in \(R_f\) moves the noise gain and
+    the transimpedance together. The statistical model section likewise holds
+    the feedback capacitor at typical, so no run in this section spreads the
+    \SI{22}{\pico\farad}. And only the small-signal measurement was
+    repeated: the delivered excitation, the demodulator and the code-level
+    readout remain nominal-point results.
+  \item \textbf{The electrode carries no temperature coefficient.} The cell
+    model is a linear \(R \parallel C\), so the \SIrange{0}{85}{\celsius} runs
+    move the amplifiers and not the interface. On silicon the charge-transfer
+    resistance is strongly Arrhenius, which moves the load; since the error is a
+    function of the noise gain and not of the chemistry that is a gain-ranging
+    problem rather than an accuracy one --- but that is an argument here, not a
+    measurement.
 \end{itemize}
