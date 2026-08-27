@@ -99,6 +99,22 @@
 % frequency"; D = "assuming the commanded potential reaches the electrode".
 % Library cell names are deliberately kept OUT of the rendered prose (owner
 % request 2026-08-21); they live in these comments instead.
+%
+%% FIGURE PLACEMENT, 2026-08-26 -- READ BEFORE MOVING ANYTHING.
+%% The \input line(s) below sit in this prose fragment and not in
+%% AnalogChapter.tex, which is where every other figure of this chapter is
+%% input from.  That file was held uncommitted by another session for the whole
+%% of this change and could not be touched.  The figure environments themselves
+%% are ordinary hand-written fig_eis_*.tex files, exactly like fig_eis_error.tex;
+%% only the \input is displaced.  NORMALISING THIS is one move per figure: cut
+%% the \input line from here and put it back in AnalogChapter.tex beside the
+%% fig_eis_error.tex input line, in the reading order recorded at
+%% each call site below.  Nothing else has to change -- the labels, the data
+%% paths and the captions are already in the house form.
+%% Here: fig_eis_nyquist.tex, input after the paragraph that argues the
+%% 20-points-per-decade grid, because that paragraph IS the figure's argument.
+%% In AnalogChapter.tex it belongs immediately after this fragment's own input
+%% line and before note_eis_accuracy.
 
 \subsection{Impedance Spectroscopy}\label{ss:eis}
 
@@ -122,7 +138,8 @@ transient runs in which the twelve potential-code lines are driven individually,
 so the excitation is produced by the real ladder rather than by an ideal source.
 Twenty points per decade and not ten because at ten the chord through the
 plotted points departs the true arc by \SI{0.65}{\percent} of its radius,
-twice the instrument's own error there, and at twenty by \SI{0.165}{\percent}.
+twice the instrument's own error there, and at twenty by \SI{0.165}{\percent}
+(Figure~\ref{fig:eis-nyquist}).
 Through the converter: one record of \num{256} conversions of the extracted
 converter, the excitation synthesised by the real reference ladder and both
 channels read through the input multiplexer. Across process and temperature:
@@ -142,6 +159,8 @@ Section~\ref{ss:analog-models} with \(R_u = \SI{1}{\kilo\ohm}\) throughout;
 \SI{1}{\mega\ohm} \(\parallel\) \SI{100}{\nano\farad},
 \SI{100}{\kilo\ohm} \(\parallel\) \SI{1}{\micro\farad} and
 \SI{10}{\kilo\ohm} \(\parallel\) \SI{10}{\micro\farad}.
+
+\input{include/analog/fig_eis_nyquist.tex}
 
 \textbf{The pinned-passive caveat of page~\pageref{p:pinned-passives} governs
 every corner number in this section.} Neither the ladder that is \(R_f\) nor the

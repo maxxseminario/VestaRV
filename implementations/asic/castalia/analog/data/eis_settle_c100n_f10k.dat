@@ -1,0 +1,12 @@
+# assembled channel, EIS record-start sweep, nominal castalia_typ_25 at 37 C, N = 0
+# simruns/eisdeep_20260826/settle via simruns/eisfigs2_20260826/data/fig4a_set_c100n_f10k.dat
+t err
+0.0000 -10.512
+1.0100 -4.00182
+2.0200 -1.37987
+3.0300 -0.385484
+4.0400 -0.017009
+5.0500 0.118352
+6.0600 0.167919
+7.0700 0.186049
+8.0800 0.192677

@@ -4,15 +4,17 @@
 %% convention.
 %%
 %% Data: data/eis_err_*.dat and data/eis_dph_*.dat, written by
-%% ~/chips/castalia/skill/eis_trm_fig.py from
-%% ~/chips/castalia/simruns/eisdemo_20260825/ac/ac_results.json (30 AC runs,
-%% 0.1 Hz - 100 kHz at 10 pts/dec plus exact points at 5 kHz and 20 kHz,
-%% nominal castalia_typ_25 at 37 C).  Plotted quantity is err_re / ph_err_re,
-%% i.e. the chain's own error with the current measured and the applied
-%% potential read at RE ("architecture A" of the campaign), against the
-%% analytic Randles impedance of the load.  Values are |.| and floored at
-%% 1e-4 so the log axis has nothing to swallow; the magnitude series never
-%% reaches the floor, the phase series does below ~1 Hz on the resistor.
+%% ~/chips/castalia/skill/eis_trm_fig.py --run
+%% ~/chips/castalia/simruns/eisdeep_20260826/ac_dense/ac_results.json (30 AC
+%% runs, 5 loads x 6 gain codes, 0.01 Hz - 100 kHz at 20 pts/dec plus exact
+%% points at 5 kHz and 20 kHz, 143 frequencies per cell, nominal
+%% castalia_typ_25 at 37 C, post-RE-mux deck canon/input.scs).  Plotted
+%% quantity is err_re / ph_err_re, i.e. the chain's own error with the current
+%% measured and the applied potential read at RE ("architecture A" of the
+%% campaign), against the analytic Randles impedance of the load.  Values are
+%% |.| and floored at 1e-4 so the log axis has nothing to swallow; the
+%% magnitude series never reaches the floor, the phase series does below
+%% ~1 Hz on the resistor.
 %% Series = load at the gain code that ranges it: pureR/N=0, fouled/N=0,
 %% typical/N=20, fresh/N=63 (the campaign's own choices, README S3.2-S3.3).
 %% Guide lines are the +-1 % and +-0.573 deg gates of afe_rev2_eis_lite.html S1.
@@ -20,14 +22,14 @@
 %% campaign (ratio/band_edges.txt), NOT from these curves: here the ratio
 %% R_f/|Z| moves with frequency because |Z| does.
 %%
-%% DENSER DATA EXISTS (2026-08-26): simruns/eisdeep_20260826/ac_dense/ repeats
-%% the identical 30 cells at 20 points/decade from 0.01 Hz on the post-RE-mux
-%% deck, with csv/nyquist_<load>_n<code>.csv per cell.  The two agree -- worst
-%% cell-by-cell change 0.0012 percentage points, at 100 kHz only (that README
-%% S1.3) -- so these curves are not stale, only sparser than the campaign the
-%% prose now describes.  Regenerating from ac_dense/ac_results.json would extend
-%% the left-hand end to 0.01 Hz and take the chord error from 0.65 % to 0.165 %
-%% of the arc radius; it needs xmin lowered to 1e-2 in both axes here.
+%% REGENERATED 2026-08-26 from eisdeep_20260826/ac_dense, replacing the
+%% eisdemo_20260825/ac data (10 pts/dec from 0.1 Hz) this figure shipped with.
+%% The two campaigns agree cell by cell to 0.0012 percentage points (eisdeep
+%% README S1.3), so nothing here was wrong -- it was sparser and two decades
+%% shorter than the prose describes.  xmin is 1e-2 on both axes accordingly,
+%% and the guide-line domains follow it.  Chord error of the plotted polygon
+%% against the true arc: 0.651 % of the arc radius at the archived density,
+%% 0.165 % at this one, against a 0.30 % instrument error (eisdeep S3).
 \providecommand{\MaestroRoot}{include/analog/}
 \providecolor{mtxA}{HTML}{2A78D6}
 \providecolor{mtxB}{HTML}{EB6834}
@@ -50,9 +52,9 @@
                     fill opacity=0.85, text opacity=1, row sep=1pt,
                     legend columns=2, column sep=4pt},
       every axis plot/.append style={line join=round, line width=0.9pt,
-                                     mark size=1.0pt},
+                                     mark size=1.0pt, mark repeat=4},
       xlabel={Frequency~[\si{\hertz}]},
-      xmin=0.1, xmax=1e5, xtick={1e-1,1e0,1e1,1e2,1e3,1e4,1e5},
+      xmin=1e-2, xmax=1e5, xtick={1e-2,1e-1,1e0,1e1,1e2,1e3,1e4,1e5},
     }}%
   \begin{tikzpicture}
     \begin{axis}[eisax, xmode=log, ymode=log,
@@ -69,7 +71,7 @@
       \addplot[mtxD, mark=diamond*] table {\MaestroRoot data/eis_err_fresh.dat};
       \addlegendentry{fresh, \(N=63\)}
       \addplot[black!55, line width=0.7pt, densely dotted, no marks,
-        domain=0.1:1e5, samples=2] {1};
+        domain=1e-2:1e5, samples=2] {1};
     \end{axis}
   \end{tikzpicture}\hfill
   \begin{tikzpicture}
@@ -87,14 +89,17 @@
       \addplot[mtxD, mark=diamond*] table {\MaestroRoot data/eis_dph_fresh.dat};
       \addlegendentry{fresh, \(N=63\)}
       \addplot[black!55, line width=0.7pt, densely dotted, no marks,
-        domain=0.1:1e5, samples=2] {0.573};
+        domain=1e-2:1e5, samples=2] {0.573};
     \end{axis}
   \end{tikzpicture}}
   \caption[{Measured impedance error against frequency for four loads.}]{Measured
   impedance error against frequency --- magnitude (left) and phase (right) ---
   for the calibration resistor and the three electrode cases, each at the gain
   code that ranges it, with the applied potential read at the reference electrode
-  and the current measured. Error is taken against the analytic impedance of the
+  and the current measured, over \SI{0.01}{\hertz} to \SI{100}{\kilo\hertz} at
+  \num{20} points per decade at the nominal process point and \SI{37}{\celsius}. Every
+  frequency is drawn; markers are thinned to one point in four so the curves stay
+  legible. Error is taken against the analytic impedance of the
   load, so these are the chain's errors and not the model's; dotted lines are the
   \SI{1}{\percent} and \SI{0.573}{\degree} gates. Each curve turns up where the
   electrode's impedance has collapsed toward \(R_u = \SI{1}{\kilo\ohm}\) and the

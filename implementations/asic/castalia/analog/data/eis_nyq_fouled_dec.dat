@@ -1,0 +1,8 @@
+# assembled channel, EIS architecture A, nominal castalia_typ_25 at 37 C
+# simruns/eisdeep_20260826/ac_dense via simruns/eisfigs2_20260826/data/fig1_fouled_mark.dat
+x y f
+10999.61 62.82937 0.01
+10960.68 625.8478 0.1
+8169.568 4504.772 1
+1247.045 1552.231 10
+1002.532 159.1146 100
