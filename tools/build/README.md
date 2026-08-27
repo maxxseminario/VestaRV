@@ -103,11 +103,14 @@ export RISCV_TOOLCHAIN_DIR=~/riscv-toolchain/xpack-riscv-none-elf-gcc-13.2.0-2
 
 ### Python Dependencies
 
-The bench and programmer tools (`tools/chip_programmer/`, `tools/flash_programmer/`,
-`tools/PyEmanate/`) read Intel HEX images with a host Python package:
+The bench and programmer host tools (`tools/chip_programmer/`,
+`tools/flash_programmer/`, `tools/PyEmanate/`) read Intel HEX images with a host
+Python package:
 ```bash
 pip install intelhex
 ```
+Those three are untracked as of 2026-08-27 and live only on the bench machine;
+a clone does not carry them.
 
 Bazel supplies its own hermetic Python and needs none of this.
 
