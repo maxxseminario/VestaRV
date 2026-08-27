@@ -259,6 +259,16 @@ xcelium/**/*_actual_*.txt
 # Publications / conference materials copied in for local reference (not for the repo)
 docs/publications/
 
+# AFE rev2 engineering notes (2026-08-27, owner decision): 14 pages of internal
+# analog design work -- corner audit, Monte Carlo, pixel/physical verify, EIS,
+# debug mux, firmware contract, channel build, CV electrode, sim plan, strategy,
+# lit survey.  GitHub Pages served them publicly while docs/index.html linked
+# them from nowhere; they only cross-link each other, so nothing else in the
+# site loses a link target.  Kept on disk: 24 .tex files under
+# implementations/asic/castalia/analog/ cite them by local path in comments as
+# the provenance for their numbers.
+docs/afe_rev2_*.html
+
 
 # The interactive roadmap + block-diagram pages (docs/vestarv_roadmap.html,
 # docs/castalia_soc.html, docs/vestarv_core.html, docs/castalia_full.html) are
