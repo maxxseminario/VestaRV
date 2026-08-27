@@ -113,7 +113,34 @@ sed -i 's/\[\([0-9]*\)\]/\<\1\>/g' "$WORK/${lib}_${cell}.cdl"
 # The append lands on the line carrying $PINS even when the instance
 # continues onto '+' lines: CDL concatenates continuations, and v2cdl emits
 # NAMED connections, so position does not matter.
-sed -i -E '/^X[^ ]+ +[A-Za-z0-9_]*A10TH +\$PINS/ s/$/ VNW=VDD VPW=VSS/' "$WORK/${lib}_${cell}.cdl"
+#
+# 2026-08-26: THE '^X' ANCHOR WAS NOT ENOUGH, AND THE MISS WAS SILENT.
+# v2cdl wraps a long instance NAME onto its own line, putting the cell name and
+# $PINS on the FIRST CONTINUATION instead:
+#     Xadd_442_114_Y_add_331_66_Y_sub_333_66_Y_add_430_93_Y_add_436_113_g2916
+#     + XOR2X1MA10TH  $PINS A=... B=...
+#     + Y=... VSS=VSS
+#     + VDD=VDD
+# The rule above cannot match that shape, so those instances kept floating
+# VNW/VPW. Measured on MCU_castalia_penta cpr8: 95,024 A10TH instances matched
+# on their own line and 147 did not (75 ADDHX1MA10TH, 34 XOR2X1MA10TH, 31
+# ADDFX1MA10TH, 7 others), and each one produced two unmatched schematic nets
+# -- 294 of the block's 325, i.e. the entire net residual bar 31. They are
+# ordinary std cells in the orchestrator core and the NPU, NOT the _ANLG
+# component cells: those live inside .include_cdl bodies, are never touched by
+# this sed either way, and are a different question.
+#
+# 95,024 + 147 = 95,171 = every line in that CDL mentioning an A10TH cell, and
+# the two shapes are the only two that occur (no case of the cell name on the X
+# line with $PINS on a continuation, and no bare '+ $PINS'). Appending to the
+# continuation is as safe as appending to the first line: CDL concatenates the
+# continuations before parsing and the bindings are named.
+#
+# NO-OP FOR THE TILE, VERIFIED BEFORE THE CHANGE: hart_tile's own CDL has
+# 11,110 A10TH instances, all on a single line, and zero continuations -- the
+# tile's hard-won MATCH cannot move because of this rule.
+sed -i -E '/^X[^ ]+ +[A-Za-z0-9_]*A10TH +\$PINS/ s/$/ VNW=VDD VPW=VSS/;
+           /^\+ +[A-Za-z0-9_]*A10TH +\$PINS/     s/$/ VNW=VDD VPW=VSS/' "$WORK/${lib}_${cell}.cdl"
 
 # Macro/std-cell subckt definitions
 printf '.INCLUDE %s\n' "$(readlink -f "$incfile")" | cat - "$WORK/${lib}_${cell}.cdl" > "$WORK/.tmp" && mv "$WORK/.tmp" "$WORK/${lib}_${cell}.cdl"

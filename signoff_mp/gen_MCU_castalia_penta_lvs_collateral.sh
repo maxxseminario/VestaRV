@@ -53,7 +53,31 @@ cd "$(dirname "$0")"
 SKIP=${1:-}
 INN=../innovus/common/MCU_castalia_penta
 PVS=pvs
-TILE_NETLIST=$PVS/hart_tile.lvs.v
+# TILE_NETLIST is an OVERRIDE (2026-08-26).
+#
+# pvs/hart_tile.lvs.v is SHARED collateral owned by the tile lineage, and it
+# moves on the tile's schedule, not this chip's. The penta layout of record is
+# a frozen cut: cpr8's GDS embeds the hart_tile GDS that existed on 2026-08-25
+# 02:09, and its chip netlist was elaborated against the hart_tile LEF of that
+# same moment. Appending whatever tile netlist happens to be on disk today is
+# a cross-cut compare, and it is NOT caught by any of the gates below -- they
+# check the tile netlist against the tile's OWN lef/labels, never against the
+# chip cut.
+#
+# MEASURED INSTANCE, 2026-08-26: the chip netlist binds a TWELVE-element
+# concatenation to hart_tile's .tcm_ext_addr (FE_OFN964_tcm_ext_addr_11 down
+# to _0). The tile netlist embedded in the _full file of record declares
+# "input [11:0] tcm_ext_addr" and agrees. The CURRENT pvs/hart_tile.lvs.v --
+# from the post-re-LEF tile cut -- declares "input [10:0] tcm_ext_addr". A
+# 12-wide expression onto an 11-wide port truncates and shifts every bit of
+# that bus, silently, in Verilog. Innovus only WARNS about the same skew
+# (IMPVL-361) and continues.
+#
+# So until penta is re-hardened onto the current tile, point this at the tile
+# netlist that matches the frozen cut:
+#   TILE_NETLIST=pvs/hart_tile.lvs.v.pre_tcm11 ./gen_MCU_castalia_penta_lvs_collateral.sh
+# The width gate in stage 2b refuses the pairing if it is wrong either way.
+TILE_NETLIST=${TILE_NETLIST:-$PVS/hart_tile.lvs.v}
 BASE=MCU_castalia_penta
 TCL=tcl/${BASE}_lvs_netlist.tcl
 PATCHER=patch_chip_pads_wound.py
@@ -68,10 +92,24 @@ esac
 # ---- shared tile-cut gates (A7 / G0) ----------------------------------------
 [ -f "$TILE_NETLIST" ] || die "$TILE_NETLIST missing -- regen via tcl/hart_tile_lvs_netlist.tcl"
 [ -f "$PVS/hart_tile.lvslabels" ] || die "$PVS/hart_tile.lvslabels missing (same tcl dumps it)"
-[ "$TILE_NETLIST" -nt "$INN/../hart_tile/out/hart_tile.lef" ] || \
-    die "$TILE_NETLIST predates $INN/../hart_tile/out/hart_tile.lef -- not this tile cut"
-[ ! "$PVS/hart_tile.lvslabels" -ot "$TILE_NETLIST" ] || \
-    die "$PVS/hart_tile.lvslabels is older than $TILE_NETLIST -- re-dump both from one cut"
+if [ "$TILE_NETLIST" = "$PVS/hart_tile.lvs.v" ]; then
+    # DEFAULT PATH: the tile netlist must be the CURRENT tile cut.
+    [ "$TILE_NETLIST" -nt "$INN/../hart_tile/out/hart_tile.lef" ] || \
+        die "$TILE_NETLIST predates $INN/../hart_tile/out/hart_tile.lef -- not this tile cut"
+    [ ! "$PVS/hart_tile.lvslabels" -ot "$TILE_NETLIST" ] || \
+        die "$PVS/hart_tile.lvslabels is older than $TILE_NETLIST -- re-dump both from one cut"
+else
+    # PINNED PATH: TILE_NETLIST was overridden to match a FROZEN chip cut, so
+    # "newer than the tile LEF" is the wrong question and would reject exactly
+    # the file that is correct. The invariant that still has to hold is
+    # port-width agreement with the chip netlist, and stage 2b checks it.
+    echo "==== $BASE : TILE_NETLIST PINNED to $TILE_NETLIST (tile-recency gates skipped) ===="
+    echo "     the port-width gate in stage 2b is what proves this pairing."
+fi
+# The label coordinates are cut-independent in this lineage (every
+# hart_tile.lvslabels sidecar from 2026-08-24 through 2026-08-26 carries
+# byte-identical layer-stripped coordinates; only the VDD_SW text LAYER moved
+# 131 -> 231), so the labels are read from the current file on both paths.
 
 netlist=$PVS/$BASE.lvs.v
 labels=$PVS/$BASE.lvslabels
@@ -93,8 +131,14 @@ full=$PVS/${BASE}_full.lvs.v
 # no-op ECO product is worse bookkeeping than signing off the cut that was
 # actually measured. If a future cut needs a closure ECO again, point CUTSEL back
 # at it -- the selection is a variable now, not a literal, for exactly that reason.
-CUTSEL="${CUTSEL:-cpr6.signoff}"
-XSIMSEL="${XSIMSEL:-cpr6}"
+# 2026-08-26: DEFAULT MOVED cpr6 -> cpr8. The collateral of record in pvs/ was
+# built on 2026-08-25 02:11 from dbs/MCU_castalia_penta.cpr8.signoff.innovus.dat
+# and the signoff OA lib was streamed from out/MCU_castalia_penta.cpr8.gds2, so
+# the cpr6 default here was a cross-cut trap: an argument-free re-run rebuilds
+# the netlist from the PREVIOUS cut while the layout stays cpr8. Keep this in
+# step with PENTA_CUT in Makefile and CUTSEL/XSIMSEL in the netlist tcl.
+CUTSEL="${CUTSEL:-cpr8.signoff}"
+XSIMSEL="${XSIMSEL:-cpr8}"
 CUTDB=""
 for c in ${BASE}.${CUTSEL}; do
     [ -d "$INN/dbs/$c.innovus.dat" ] && { CUTDB=$c; break; }
@@ -144,6 +188,101 @@ grep -q "^module hart_tile" "$full" || die "$full has no hart_tile module -- con
 n_orch=$(grep -c '^module orch_' "$full" || true)
 [ "$n_orch" -gt 0 ] || die "$full contains NO orch_* modules -- the orchestrator subtree is missing"
 echo "     $full  $(wc -c < "$full") bytes, $(grep -c '^module ' "$full") modules, $n_orch orch_* modules"
+
+echo "==== $BASE : stage 2c -- hart_tile PORT-WIDTH AGREEMENT gate ===="
+# WHY THIS GATE EXISTS (2026-08-26). The chip netlist and the appended tile
+# netlist come from two different P&R runs on two different schedules. Every
+# other gate in this script checks the tile collateral against the TILE's own
+# products; none of them checks it against the CHIP cut it is about to be
+# concatenated into. Verilog does not complain when the two disagree: a
+# 12-element concatenation bound to an 11-bit port is truncated and every bit
+# of the bus shifts, silently. Innovus, elaborating the same skew, emits only
+# a warning (IMPVL-361) and continues.
+#
+# MEASURED: cpr8's chip netlist binds twelve terms to .tcm_ext_addr; the tile
+# netlist of the matching vintage declares [11:0]; the post-re-LEF tile cut
+# declares [10:0]. Pairing cpr8 with the newer tile would have handed LVS a
+# quietly wrong address bus on all four hardened harts.
+#
+# The check is structural, not tcm-specific: for every bussed port of
+# hart_tile it compares the width the tile module DECLARES against the number
+# of terms the chip netlist BINDS at each hart_tile instantiation.
+python3 - "$full" <<'PY' || die "hart_tile port-width disagreement (see above)"
+import re, sys
+txt = open(sys.argv[1]).read()
+
+m = re.search(r'^module hart_tile\s*\((.*?)\);(.*?)^endmodule', txt, re.S | re.M)
+if not m:
+    print("PORTGATE FATAL: no 'module hart_tile' found in", sys.argv[1]); sys.exit(1)
+body = m.group(2)
+declared = {}
+for d in re.finditer(r'^\s*(?:input|output|inout)\s*\[\s*(\d+)\s*:\s*(\d+)\s*\]\s*([A-Za-z_][\w$]*)\s*;', body, re.M):
+    hi, lo, name = int(d.group(1)), int(d.group(2)), d.group(3)
+    declared[name] = abs(hi - lo) + 1
+print("PORTGATE: hart_tile declares %d bussed ports" % len(declared))
+
+insts = [mm for mm in re.finditer(r'^\s{2,}hart_tile\s+(\S+)\s*\(', txt, re.M)]
+if not insts:
+    print("PORTGATE FATAL: no hart_tile INSTANTIATION found"); sys.exit(1)
+print("PORTGATE: %d hart_tile instantiations to check" % len(insts))
+
+bad = 0
+for mm in insts:
+    inst = mm.group(1)
+    # slice the instantiation: from '(' to the matching ');' at depth 0
+    i = txt.index('(', mm.end() - 1)
+    depth = 0
+    for j in range(i, len(txt)):
+        if txt[j] == '(':
+            depth += 1
+        elif txt[j] == ')':
+            depth -= 1
+            if depth == 0:
+                break
+    blob = txt[i + 1:j]
+    for pm in re.finditer(r'\.([A-Za-z_][\w$]*)\s*\(', blob):
+        port = pm.group(1)
+        if port not in declared:
+            continue
+        k = pm.end() - 1
+        d = 0
+        for t in range(k, len(blob)):
+            if blob[t] == '(':
+                d += 1
+            elif blob[t] == ')':
+                d -= 1
+                if d == 0:
+                    break
+        expr = blob[k + 1:t].strip()
+        if expr.startswith('{'):
+            inner = expr[1:expr.rindex('}')]
+            # top-level comma count inside the concatenation
+            d2 = 0
+            n = 1
+            for c in inner:
+                if c in '{[(':
+                    d2 += 1
+                elif c in '}])':
+                    d2 -= 1
+                elif c == ',' and d2 == 0:
+                    n += 1
+            bound = n
+        else:
+            # a bare identifier binds the whole port; nothing to compare
+            continue
+        if bound != declared[port]:
+            print("PORTGATE MISMATCH: %s .%s -- chip binds %d bits, tile declares %d"
+                  % (inst, port, bound, declared[port]))
+            bad += 1
+if bad:
+    print("PORTGATE FATAL: %d port-width disagreements between the chip netlist and the" % bad)
+    print("                appended tile netlist. These are SILENT in Verilog: the extra")
+    print("                bits are dropped and the bus shifts. Pair the chip cut with the")
+    print("                tile netlist of its own vintage (TILE_NETLIST=<file>), or")
+    print("                re-harden the chip onto the current tile.")
+    sys.exit(1)
+print("PORTGATE: all bussed hart_tile ports agree -- OK")
+PY
 
 echo "==== $BASE : stage 3 -- restamp labels after the concat ===="
 touch "$labels"

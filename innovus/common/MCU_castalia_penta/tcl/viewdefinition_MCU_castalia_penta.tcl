@@ -12,6 +12,22 @@
 # orchestrator is ever hardened into its own macro (it is not, and CP1 D6 says
 # it must not be), this file gains an orch_tile ETM entry.
 #
+#
+# TILE_OUT (2026-08-26): the hart_tile ETM libraries below are TILE-lineage
+# products and are re-written by every tile harden, so a frozen chip cut that
+# re-reads them is re-timed -- and, worse, re-INTERFACED -- against a tile it
+# was never built with. On 2026-08-26 the cpr8 LVS-netlist regen died in
+# init_design with
+#   **ERROR: (IMPDB-2163): Cell 'hart_tile' has inconsistent pin definitions
+#            between timing library and LEF ... 'tcm_ext_addr[11]'
+#   **ERROR: (IMPDB-2160): Bus 'tcm_ext_addr' ... timing library ([10:0]) and
+#            LEF ([11:11])
+# because the LEF had been pinned to the cut's own tile while these libs still
+# followed the current one. Pin BOTH together:
+#   TILE_OUT=../hart_tile/out.pre_tcm11   (the cpr8-vintage tile)
+# Default is unchanged, so the P&R flow behaves exactly as before.
+set TILE_OUT [expr {[info exists ::env(TILE_OUT)] ? $::env(TILE_OUT) : "../hart_tile/out"}]
+
 create_library_set \
     -name max_library_set \
     -timing [list \
@@ -19,7 +35,7 @@ create_library_set \
         "$IP_DIR/rom_hvt_pg/rom_hvt_pg_nldm_ss_0p90v_0p90v_125c_syn.lib" \
         "$IP_DIR/sram1p16k_hvt_pg/sram1p16k_hvt_pg_nldm_ss_0p90v_0p90v_125c_syn.lib" \
         "$IP_DIR/sram1p8k_hvt_pg/sram1p8k_hvt_pg_nldm_ss_0p90v_0p90v_125c_syn.lib" \
-        "../hart_tile/out/hart_tile.etm_ss.lib" \
+        "$TILE_OUT/hart_tile.etm_ss.lib" \
 		]
 create_library_set \
     -name typical_library_set \
@@ -28,7 +44,7 @@ create_library_set \
         "$IP_DIR/rom_hvt_pg/rom_hvt_pg_nldm_tt_1p00v_1p00v_25c_syn.lib" \
         "$IP_DIR/sram1p16k_hvt_pg/sram1p16k_hvt_pg_nldm_tt_1p00v_1p00v_25c_syn.lib" \
         "$IP_DIR/sram1p8k_hvt_pg/sram1p8k_hvt_pg_nldm_tt_1p00v_1p00v_25c_syn.lib" \
-        "../hart_tile/out/hart_tile.etm_ss.lib" \
+        "$TILE_OUT/hart_tile.etm_ss.lib" \
 		]
 create_library_set \
     -name min_library_set \
@@ -37,7 +53,7 @@ create_library_set \
         "$IP_DIR/rom_hvt_pg/rom_hvt_pg_nldm_ff_1p10v_1p10v_m40c_syn.lib" \
         "$IP_DIR/sram1p16k_hvt_pg/sram1p16k_hvt_pg_nldm_ff_1p10v_1p10v_m40c_syn.lib" \
         "$IP_DIR/sram1p8k_hvt_pg/sram1p8k_hvt_pg_nldm_ff_1p10v_1p10v_m40c_syn.lib" \
-        "../hart_tile/out/hart_tile.etm_ff.lib" \
+        "$TILE_OUT/hart_tile.etm_ff.lib" \
 		]
 
 create_rc_corner \

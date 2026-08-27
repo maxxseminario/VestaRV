@@ -268,7 +268,29 @@ mcu_castalia_penta_CELL    := MCU_castalia_penta
 # follows CUTSEL. The cpr7 antenna argument no longer applies: this cut
 # measures Antenna 0 / dangling 0 in its own signoff verifyGeometry +
 # verifyConnectivity reports.
-mcu_castalia_penta_GDS     := $(INN)/MCU_castalia_penta/out/MCU_castalia_penta.cpr6.gds2
+#
+# CPR8 RETARGET (2026-08-26) AND WHY THIS IS NOW A VARIABLE.
+# The stated intent above -- "the default now follows CUTSEL" -- was never
+# implemented: the value stayed the cpr6 literal while the collateral moved on.
+# The cut of record is cpr8: pvs/MCU_castalia_penta.lvs.v and .lvslabels were
+# written on 2026-08-25 02:11 from dbs/MCU_castalia_penta.cpr8.signoff.innovus.dat
+# (log/MCU_castalia_penta_lvs_regen.log records the DEF it parsed), and the
+# signoff OA lib's .ingest_stamp names out/MCU_castalia_penta.cpr8.gds2.
+#
+# THE COST OF THE SKEW WAS NOT "the wrong report". `make lvs` depends on
+# `ingest`, and ingest_layout.sh does `rm -rf $(LIB)` before re-streaming --
+# so a bare `make lvs BLOCK=mcu_castalia_penta` would have DESTROYED the cpr8
+# signoff library and rebuilt it from the pre-keepout cpr6 layout, the one
+# still carrying the real VDD-VSS ring short, and then compared the cpr8
+# netlist against it. The observed result is a 29,645:1,228 collapsed-graph
+# explosion and a 10.7 GB report.
+#
+# PENTA_CUT is the single knob now. Keep it equal to the CUTSEL/XSIMSEL used
+# by gen_MCU_castalia_penta_lvs_collateral.sh (CUTSEL=$(PENTA_CUT).signoff,
+# XSIMSEL=$(PENTA_CUT)) -- those two scripts still default to cpr6, so pass
+# them explicitly until they are retargeted too.
+PENTA_CUT                  ?= cpr8
+mcu_castalia_penta_GDS     := $(INN)/MCU_castalia_penta/out/MCU_castalia_penta.$(PENTA_CUT).gds2
 mcu_castalia_penta_RULE    := chipdrc
 mcu_castalia_penta_NETLIST := pvs/MCU_castalia_penta_full.lvs.v
 # INC RETARGET (2026-08-18, LVS setup fix): the penta chip instantiates the
