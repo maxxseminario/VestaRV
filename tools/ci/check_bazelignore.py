@@ -103,46 +103,12 @@ TRACKED_CONTENT_ALLOWED = {
     # "**" is the whole-tree form and crosses directory separators.
     "verification/isa/negctrl": ("**",),
 
-    # Synthesis: the top Makefile and the per-block run scripts.
-    "genus": (
-        "genus/Makefile",
-        "genus/*/tcl/*.tcl",
-        "genus/*/tcl/*.py",
-        "genus/*/*.sh",
-        "genus/*/*.py",
-    ),
-
-    # Place and route: the common Makefile, the per-block run scripts and
-    # netlist-prep shells, and the shared proc library.
-    "innovus": (
-        "innovus/common/Makefile",
-        "innovus/common/*/tcl/*.tcl",
-        "innovus/common/*/tcl/*.py",
-        "innovus/common/*/*.sh",
-        "innovus/common/*/*.py",
-        "innovus/common/shared/*.tcl",
-        "innovus/myshkin/tcl/*.tcl",
-        "innovus/myshkin/tcl/*.sh",
-    ),
-
-    # Pegasus DRC/LVS signoff. pvs/ and strmin/ are otherwise pure output;
-    # only the hand-written Pegasus control files and the strmin reference
-    # library list come out of them. signoff_mp/.gitignore is the second
-    # layer of the ignore policy and is tracked for that reason.
-    "signoff_mp": (
-        "signoff_mp/.gitignore",
-        "signoff_mp/Makefile",
-        "signoff_mp/*.sh",
-        "signoff_mp/*.py",
-        "signoff_mp/lvs_include_*",
-        "signoff_mp/tcl/*.tcl",
-        "signoff_mp/pvs/*_ctl",
-        "signoff_mp/pvs/*lvsctl",
-        "signoff_mp/strmin/reflib.list",
-    ),
-
-    # Common Power Format: one hand-written file, no output at all.
-    "cpf": ("cpf/*.cpf",),
+    # genus / innovus / signoff_mp / cpf carried pattern lists here from
+    # 2026-08-25 (93da38c), when their flow scripts were tracked. Those trees
+    # were untracked again on 2026-08-27 at the owner's request and .gitignore
+    # ignores them wholesale, so nothing under them may be tracked at all and
+    # the lists are gone. Re-adding one needs the matching .gitignore negation
+    # and a reason, in the same commit -- see the header above.
 }
 
 
