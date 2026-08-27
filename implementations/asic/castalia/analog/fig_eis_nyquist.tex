@@ -52,6 +52,38 @@
 %% "the current measured" became "the current at the transimpedance output",
 %% which is the architecture the run used.  Done with the same pass that
 %% replaced fig_eis_codelevel with tab_eis_codelevel.
+%%
+%% 2026-08-27, SECOND PASS -- CONTENT CUT, NOT WORDING.  The earlier pass above
+%% was wording only and left the caption at 5 sentences but TWELVE rendered
+%% lines (163 pt in the built PDF), which is over the chapter's 2-5 sentence
+%% caption style by volume even though it met it by count.  Now 4 sentences.
+%% WHAT LEFT THE CAPTION, and where it still lives:
+%%   - THE DENSITY CLAIM AND THE CHORD-DEVIATION RESULT, cut together as a
+%%     unit: "all 143" of the plotted points, the 0.165 % chord deviation of
+%%     the plotted polygon from the true arc, the 0.651 % at ten points per
+%%     decade and the 0.30 % instrument error against which both were read.
+%%     The rule is that a number keeps its qualifier or goes with it: the
+%%     0.165 % only means anything beside the instrument error, and the
+%%     instrument error only means anything beside the density claim it
+%%     licenses, so all four go together rather than any one standing bare.
+%%     ARCHIVE: ~/chips/castalia/simruns/eisfigs2_20260826, README S1 (and the
+%%     0.074 % at 30 points/decade, which was never in the caption).  All 143
+%%     points ARE still plotted -- no mark thinning -- see the note above.
+%%   - "with the applied potential read at the reference electrode and the
+%%     current at the transimpedance output": the sensing architecture, still
+%%     stated in the section's own opening paragraph ("A1 applies it at the
+%%     reference electrode, A2 and the converter read the resulting current
+%%     through the same programmable feedback resistor"), so it is present in
+%%     the section, once, and not repeated here.
+%%   - the explicit \SIlist of ring frequencies -> "rings mark the decades".
+%%     NOT a content cut: every ring carries its own printed label inside the
+%%     panels (0.01 Hz / 0.1 Hz / 1 Hz / 10 Hz / 100 Hz nodes), so the list was
+%%     the caption reading the figure aloud.
+%% WHAT HAD TO STAY, and did: the INDEPENDENT panel scales and the equal axes
+%% (without both, a reader misreads the arcs); the agreement figures and where
+%% they degrade (0.44 % / 1.03 deg below 20 kHz -> 2.94 % / 4.67 deg at
+%% 100 kHz); the gain-code coverage limit (236 ohm - 150.9 kOhm at code 0, so
+%% the fresh arm above 151 kOhm is a code-20 read in firmware).
 \providecommand{\MaestroRoot}{include/analog/}
 \providecolor{mtxA}{HTML}{2A78D6}
 \begin{figure}[htbp]
@@ -144,23 +176,17 @@
   \end{tikzpicture}}
   \caption[{Nyquist arcs of the three electrode models, measured against
   analytic.}]{Nyquist arcs of the three electrode models measured by the
-  channel itself (dots, all \num{143}) against the analytic impedance of the
-  load (line), \SI{0.01}{\hertz} to \SI{100}{\kilo\hertz} at \num{20} points
-  per decade, gain code 0, nominal process point, \SI{37}{\celsius}, with the
-  applied potential read at the reference electrode and the current at the
-  transimpedance output; rings mark the decades
-  \SIlist{0.01;0.1;1;10;100}{\hertz}. \textbf{The three panels have independent
-  scales} --- \SI{1}{\mega\ohm}, \SI{100}{\kilo\ohm} and \SI{10}{\kilo\ohm} ---
-  and each has equal axes, so a departure from a circle is a measurement and
-  not an aspect ratio. The plotting grid is not the limit: the chord polygon
-  through the plotted points departs the true arc by \SI{0.165}{\percent} of
-  the arc radius, against \SI{0.651}{\percent} at ten points per decade and an
-  instrument error of \SI{0.30}{\percent}. Agreement is within
-  \SI{0.44}{\percent} of magnitude and \SI{1.03}{\degree} of phase below
-  \SI{20}{\kilo\hertz} on all three loads, rising to \SI{2.94}{\percent} and
-  \SI{4.67}{\degree} at \SI{100}{\kilo\hertz}. A small-signal analysis has no
-  dynamic-range limit, which the readout does: gain code 0 covers
-  \SI{236}{\ohm} to \SI{150.9}{\kilo\ohm}, so the fresh arm above
-  \SI{151}{\kilo\ohm} would be taken at gain code 20 in firmware.}
+  channel (dots) against the analytic impedance of the load (line),
+  \SI{0.01}{\hertz} to \SI{100}{\kilo\hertz} at \num{20} points per decade,
+  gain code 0, nominal process point, \SI{37}{\celsius}; rings mark the
+  decades. \textbf{The three panels have independent scales} ---
+  \SI{1}{\mega\ohm}, \SI{100}{\kilo\ohm}, \SI{10}{\kilo\ohm} --- and each has
+  equal axes, so a departure from a circle is a measurement and not an aspect
+  ratio. Agreement is within \SI{0.44}{\percent} of magnitude and
+  \SI{1.03}{\degree} of phase below \SI{20}{\kilo\hertz} on all three loads,
+  rising to \SI{2.94}{\percent} and \SI{4.67}{\degree} at
+  \SI{100}{\kilo\hertz}. Gain code 0 covers \SI{236}{\ohm} to
+  \SI{150.9}{\kilo\ohm}, a limit the small-signal sweep does not have, so the
+  fresh arm above \SI{151}{\kilo\ohm} is a gain-code-20 read in firmware.}
   \label{fig:eis-nyquist}
 \end{figure}

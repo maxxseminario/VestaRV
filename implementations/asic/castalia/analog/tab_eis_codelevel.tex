@@ -94,22 +94,50 @@
 %% carries it is what \maxdepth exists to police.  It renders identically to
 %% the default alignment here (byte-identical PDF) -- it is insurance against a
 %% future reflow that lands the block elsewhere on a page.
+%%
+%% 2026-08-27, CAPTION CUT (nine rendered lines / 122 pt -> six).  Four
+%% sentences before and after; the sentences were the long thing, not the
+%% count.  WHAT LEFT, and where it still lives:
+%%   - "the excitation synthesised by the real 12-bit ladder": the section's
+%%     own prose already says the record was "excited by the real reference
+%%     ladder and read through the input multiplexer and an extracted
+%%     converter" (note_eis_accuracy.tex), so the condition is stated once in
+%%     the section instead of twice.  Provenance for it is unchanged above:
+%%     code pair 2032/2064 out of the real ladder.
+%%   - "three successive readings of that one record" -> "magnitude rows
+%%     accumulate to the total", which is the part a reader must have to read
+%%     the block (and which stops the phase rows being summed the same way).
+%%     The count of three is the three rows themselves.
+%%   - "64 conversions per excitation period": ARITHMETIC ON TWO NUMBERS THAT
+%%     ARE BOTH STILL IN THE CAPTION -- 869 565 / 13 587 = 64.0 exactly, which
+%%     is also what makes the -180 f/f_s row 2.8125 deg.  Dropped as derived,
+%%     not as a measured quantity; it is still in the provenance block above.
+%%   - "one record of" in the opening sentence, because the closing sentence
+%%     says "One record, one die, one frequency" in bold and the caveat is
+%%     stated once and tersely rather than twice.
+%% NOTHING NUMERIC LEFT.  The two caveats that change how a number reads are
+%% both still here and still attached to their number: the reference for BOTH
+%% blocks is the small-signal analysis, itself +0.295 % and 0.405 deg from the
+%% analytic load (without which the +0.343 % total reads as an absolute error
+%% and is not one); and ONE record, ONE die, ONE frequency into a RESISTIVE
+%% load with no noise sources -- a deterministic attribution, nothing to quote
+%% a sigma from.  Archive for everything in and around this table:
+%% ~/chips/castalia/simruns/eisfigs2_20260826 (data/fig5a_attribution.csv,
+%% data/fig5b_phase.csv) and ~/chips/castalia/simruns/eisdeep_20260826
+%% (code_report/).
 \par\addvspace{\intextsep}
 \noindent\parbox[b]{\textwidth}{%
   \captionof{table}[{Impedance from converter codes: magnitude attribution and the phase
   mechanism.}]{Impedance demodulated from the ten-bit words of the extracted
-  converter, on one record of \num{256} conversions at
-  \SI{869565}{\per\second} with the input multiplexer interleaving the
-  transimpedance output and the reference electrode, \num{64} conversions per
-  excitation period at \SI{13.587}{\kilo\hertz}, the excitation synthesised by
-  the real \num{12}-bit ladder into \SI{11.000}{\kilo\ohm} at gain code 20.
-  The magnitude rows are three successive readings of that one record and
-  accumulate to the total; the phase rows are independent readings of it, and
-  \(-180\,f/f_s\) is the analytic half-conversion grid offset that the two
-  interleaved readings sit on. The reference for both blocks is the
-  small-signal analysis of the same load and gain code, itself \(+0.295\,\%\)
-  and \SI{0.405}{\degree} from the analytic load. \textbf{One record, one die,
-  one frequency into a resistive load}, with no noise sources in the deck: a
+  converter: \num{256} conversions at \SI{869565}{\per\second}, the
+  multiplexer interleaving the transimpedance output and the reference
+  electrode, excitation \SI{13.587}{\kilo\hertz} into \SI{11.000}{\kilo\ohm} at
+  gain code 20. Magnitude rows accumulate to the total; phase rows are
+  independent, and \(-180\,f/f_s\) is the analytic half-conversion grid offset
+  the two interleaved ones sit on. Both are referred to the small-signal
+  analysis of the same load and gain code, itself \(+0.295\,\%\) and
+  \SI{0.405}{\degree} from the analytic load. \textbf{One record, one die, one
+  frequency into a resistive load}, no noise sources in the deck: a
   deterministic attribution with no distribution behind it.}%
   \label{tab:eis-codelevel}%
   \par\nobreak
