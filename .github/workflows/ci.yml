@@ -10,7 +10,7 @@ name: CI
 #     pinned toolchain) + the full N=4 MP ISA image set (~90 s).
 #   * bazel-gates: the hermetic gate set - `bazel test //...` minus the GHDL
 #     half, so a bare checkout with NO locally installed toolchain proves chip
-#     generation, every firmware and course-lab golden, the ISA image contract,
+#     generation, every firmware golden, the ISA image contract,
 #     the python tooling and the docs gates. Also asserts the build never wrote
 #     into the source tree.
 #   * repo-hygiene: the tools/ci/ guards - CRLF manifest, VHDL ASCII style,

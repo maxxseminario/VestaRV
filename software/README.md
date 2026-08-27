@@ -62,13 +62,10 @@ The six apps, package and target name:
 
 ### Course labs
 
-All 21 course-lab images build and gate under `//software/course/labs/...`;
-see [`course/README.md`](course/README.md) for the lab-by-lab detail.
-
-```sh
-tools/bin/bazel build //software/course/...   # every lab image
-tools/bin/bazel test  //software/course/...   # all 21 golden gates
-```
+`software/course/` (21 labs, skeleton and reference, plus the course SDK) is
+untracked as of 2026-08-27 by owner decision. It is still on the bench machine
+and still builds and gates there under `//software/course/...`, but it is not
+repository content and a clone does not carry it.
 
 ### Firmware goldens
 

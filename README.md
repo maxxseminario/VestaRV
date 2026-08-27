@@ -148,8 +148,7 @@ tools/bin/bazel test //...       # first run downloads all toolchains
 ```
 
 That one command is the whole gate set: chip generation and its identity
-gates, the mask-ROM byte-reproducibility gate, every firmware and course-lab
-golden, the 259 ISA test images, the open-source GHDL ISA regression, the
+gates, the mask-ROM byte-reproducibility gate, every firmware golden, the 259 ISA test images, the open-source GHDL ISA regression, the
 Python tooling and the docs provenance checks. No target is tagged
 `known_red` today; CI still passes `--test_tag_filters=-known_red` so that a
 future understood-but-unadjudicated red can be tagged rather than left to rot,
@@ -167,7 +166,7 @@ want to type plain `bazel`.
 | Generate a chip (RTL, headers, linker scripts, TRM sources) | `tools/bin/bazel build //platform/common/...` |
 | Prove the generated RTL matches the tracked RTL | `tools/bin/bazel test //platform/...` |
 | Build the mask-ROM image | `tools/bin/bazel build //software/bootrom_mp:rom_rcf` |
-| Build every firmware app and course lab | `tools/bin/bazel build //software/...` |
+| Build every firmware app | `tools/bin/bazel build //software/...` |
 | Build all 259 ISA test images | `tools/bin/bazel build //verification/isa:all_images` |
 | Run the full ISA simulation regression (GHDL, no licenses) | `tools/bin/bazel test //opensource_sim:isa_regression` |
 | Core and peripheral unit testbenches | `tools/bin/bazel test //hdl/common/tb:all` |
