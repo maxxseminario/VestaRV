@@ -1,7 +1,0 @@
-{
-	"FileType": "PyEmanateConfig",
-	"ChipRootDirectories": [
-		"~/sync/Chips/teewinot",
-		"~/sync/Chips/washakie"
-	]
-}

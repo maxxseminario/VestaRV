@@ -1,5 +1,0 @@
-On Windows:
-call venv\Scripts\activate.bat
-
-On Linux:
-source venv/Scripts/activate

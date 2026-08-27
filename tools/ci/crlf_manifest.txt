@@ -86,36 +86,6 @@ software/commune/src/i2c_slave.c
 software/commune/src/timing.c
 software/commune/src/uart.c
 software/rv4th/src/uart.c
-tools/PyEmanate/PyEmanate.spec
-tools/PyEmanate/config/PreviousHistogramSetupParameters - Copy.json
-tools/PyEmanate/config/PreviousHistogramSetupParameters-bak-2022-08-26.json
-tools/PyEmanate/config/PreviousHistogramSetupParameters.json
-tools/PyEmanate/config/PyEmanateConfig.json
-tools/PyEmanate/create-executable.bat
-tools/PyEmanate/debug.bat
-tools/PyEmanate/python/OptimizedMLPNN-backup-2020-12-03.py
-tools/PyEmanate/python/PyEmanate.spec
-tools/PyEmanate/python/PyEmanateQt.py
-tools/PyEmanate/qt/AutoRefreshSetupDialog.ui
-tools/PyEmanate/qt/CalibrationDialog.ui
-tools/PyEmanate/qt/CopyPeripheralTo.ui
-tools/PyEmanate/qt/FatfsBrowser.ui
-tools/PyEmanate/qt/HistogramInterface.ui
-tools/PyEmanate/qt/HistogramParametersDialog-backup-2021-02-02.ui
-tools/PyEmanate/qt/HistogramParametersDialog.ui
-tools/PyEmanate/qt/Notes.ui
-tools/PyEmanate/qt/PsdInterface.ui
-tools/PyEmanate/qt/PyEmanateQt.ui
-tools/PyEmanate/qt/RegisterInterface-backup-2020-06-25-1231.ui
-tools/PyEmanate/qt/RegisterInterface-backup-2020-10-26.ui
-tools/PyEmanate/qt/RegisterInterface.ui
-tools/PyEmanate/qt/SerialTerminal.ui
-tools/PyEmanate/run.bat
-tools/PyEmanate/serial-terminal-command-line.bat
-tools/PyEmanate/serial-terminal.bat
-tools/PyEmanate/setup/Invoke Virtual Environment.txt
-tools/PyEmanate/setup/create-venv-windows.bat
-tools/PyEmanate/setup/generate-executables.bat
 tools/build/scripts/generate_test_globals.py
 tools/build/scripts/rcf_insert.py
 tools/python/Afe Terminals.txt

@@ -36,6 +36,18 @@ hardware/
 # outside the tree ever depended on it: no BUILD.bazel outside
 # software/course/ names a //software/course target.
 software/course/
+
+# Bench and programmer host tools (2026-08-27, owner decision): the PyEmanate
+# GUI (64 files, PyInstaller .spec + .bat launchers + saved 2022 bench config),
+# the Forth flash programmer (9) and the UART chip programmer (8). 81 files.
+# Untracked, still on disk. None of the three is wired into anything: no
+# BUILD.bazel, no bazel dependency, no workflow, and no markdown link pointed
+# into them -- the only mention was one prose sentence in tools/build/README.md
+# about `pip install intelhex`, corrected in the same commit. Last touched
+# 2026-04/05. NOTE this does NOT include tools/debug, which is active.
+tools/PyEmanate/
+tools/flash_programmer/
+tools/chip_programmer/
 # Pegasus/Calibre DRC-LVS run logs:
 ic_bad/
 # logo/ contained *.gds:
