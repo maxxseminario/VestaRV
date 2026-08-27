@@ -11,6 +11,10 @@ exports_files([
 
 # The static site exactly as pages.yml deploys it (docs/ wholesale).
 # docs/publications is gitignored and .bazelignore'd, so it never appears.
+# docs/afe_rev2_*.html is gitignored too (untracked 2026-08-27): it is in
+# this glob on the bench machine, where the files are on disk, and absent
+# from it in CI, which builds from a clone. Neither page carries theme
+# markers, so theme_sync_test grades the same set either way.
 filegroup(
     name = "site",
     srcs = glob([
