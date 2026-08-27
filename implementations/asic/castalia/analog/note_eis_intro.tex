@@ -19,6 +19,65 @@
 % fig_eis_mccal.tex (the wafer-calibration histogram), the latter with the
 % note_eis_accuracy paragraph that argued it.
 %
+% ----------------------------------------------------------------------
+% THIRD CUT 2026-08-27, OWNER'S EXPLICIT INSTRUCTION: "two pages or fewer".
+% THE SECTION NOW HAS NO FIGURE AT ALL.  fig_eis_nyquist.tex is no longer
+% input -- its \input line and the Figure~\ref were both here -- and is LEFT ON
+% DISK UNEDITED apart from its own header note, so restoring it is putting the
+% \input back and restoring the reference.  Archive that holds the figure and
+% its data: ~/chips/castalia/simruns/eisfigs2_20260826.  Section 8.6 is now two
+% prose fragments and one inline table, and spans two pages measured.
+%
+% EVERY FACT THAT LIVED ONLY IN THAT CAPTION, AND WHAT BECAME OF IT.  Nothing
+% moved into the prose: each item either duplicates a headline the prose
+% already states, is arithmetic on numbers the prose already states, or is a
+% figure-reading caveat with no figure left to misread.
+%   - Agreement 0.44 % of magnitude / 1.03 deg of phase below 20 kHz on the
+%     three electrode models at gain code 0.  DUPLICATE, and the weaker of the
+%     two: note_eis_accuracy's headline states 0.44 % / 1.04 deg from 0.01 Hz
+%     to 20 kHz on ALL FIVE loads, gain-ranged to the lowest code in
+%     compliance.  Restating it at one fixed code on three loads would have
+%     narrowed the claim, not qualified it.
+%   - Rising to 2.94 % and 4.67 deg at 100 kHz.  THE ONE GENUINELY UNIQUE
+%     NUMBER IN THE CAPTION, AND IT IS CUT, NOT MOVED.  It is the far end of
+%     the same code-0 envelope, so it cannot be attached to the prose headline
+%     (different loads, different ranging) without restating that envelope's
+%     whole condition; and it describes a decade above the usable band the
+%     section states as 0.1 Hz to 5.3 kHz.  Per the rule, it goes with the
+%     qualifier rather than standing bare.  Source
+%     ~/chips/castalia/simruns/eisdeep_20260826 S3, csv/nyquist_*_n0.csv,
+%     reduced in eisfigs2_20260826 data/fig1_*.dat.
+%   - Gain code 0 covers 236 ohm to 150.9 kOhm.  DERIVED from two numbers the
+%     prose still carries: 236 ohm and 639.3x = 2.81 decades per code
+%     (236.01 * 639.3 = 150.9 k).  Cut as arithmetic, not as a measurement.
+%   - "so the fresh arm above 151 kOhm is a gain-code-20 read in firmware".
+%     A FIGURE-READING CAVEAT: it existed to stop a reader taking one plotted
+%     arc as a single-code measurement.  There is no arc.
+%   - The independent panel scales (1 MOhm / 100 kOhm / 10 kOhm) and the equal
+%     axes.  Same class: they describe how to read three panels.
+%   - Sweep conditions 0.01 Hz - 100 kHz, 20 points per decade, gain code 0,
+%     nominal, 37 C, decade rings.  The density and the nominal point are in
+%     this fragment's own conditions paragraph; the rest is the figure's.
+%
+% WHAT THIS PASS ALSO REMOVED FROM THE PROSE OF THIS FRAGMENT:
+%   - The load NAMES.  \emph{fresh}, \emph{typical} and \emph{fouled} were
+%     defined here and, once fig_eis_nyquist went, used by nothing that
+%     renders -- the panels' titles were their only consumer.  The three
+%     R_ct || C_dl VALUES STAY, because they are what qualifies "all five
+%     loads" in note_eis_accuracy's headline; only the naming clause went.
+%     The names are still in fig_eis_nyquist.tex and in the archives.
+%   - "cornering the poly as well moves the phase band edge by a factor of
+%     three at a frozen noise gain".  The consequence is stated concretely and
+%     worse in note_eis_accuracy's own band sentence -- 5.3 kHz falling to
+%     2.5 kHz with the poly and the capacitor cornered, on a worst-case die --
+%     so the section keeps the sharper number and drops the spread.  THE
+%     CAVEAT ITSELF IS UNTOUCHED: neither R_f nor the feedback capacitor
+%     corners here, and it still governs every corner number in the section.
+%     Source ~/chips/castalia/simruns/eisdeep_20260826 S5 (band_ff40/,
+%     band_ss40/): 3398 Hz (ss) to 10.36 kHz (ff) at a ratio held at 40.
+% NOTHING MEASURED IS LOST BY THIS PASS EITHER.
+% ----------------------------------------------------------------------
+%
 % WHAT THIS SECOND PASS REMOVED FROM THIS FRAGMENT, AND WHERE IT IS:
 %   - the chain enumeration in the evidence paragraph ("reference DAC, both
 %     amplifiers, the programmable feedback resistor and the converter"): it
@@ -102,19 +161,15 @@ appears, which it does as its extracted view. The nominal point is the typical
 process corner at \SI{37}{\celsius}; only the small-signal measurement was
 repeated over the chapter's four process corners at \SI{25}{\celsius}, over
 \SIrange{0}{85}{\celsius}, and over Monte Carlo. The electrodes are the linear
-cell model of Section~\ref{ss:analog-models} with
-\(R_u = \SI{1}{\kilo\ohm}\) throughout; \emph{fresh}, \emph{typical} and
-\emph{fouled} name \(R_{\mathrm{ct}} \parallel C_{\mathrm{dl}}\) of
+cell model of Section~\ref{ss:analog-models}, \(R_u = \SI{1}{\kilo\ohm}\)
+throughout, with \(R_{\mathrm{ct}} \parallel C_{\mathrm{dl}}\) of
 \SI{1}{\mega\ohm} \(\parallel\) \SI{100}{\nano\farad},
 \SI{100}{\kilo\ohm} \(\parallel\) \SI{1}{\micro\farad} and
 \SI{10}{\kilo\ohm} \(\parallel\) \SI{10}{\micro\farad}. Sweeps carry \num{20}
-points per decade (Figure~\ref{fig:eis-nyquist}).
-
-\input{include/analog/fig_eis_nyquist.tex}
+points per decade.
 
 \textbf{The pinned-passive caveat of page~\pageref{p:pinned-passives} governs
 every corner number in this section.} Neither the ladder that is \(R_f\) nor the
-capacitor that sets the feedback pole corners here; cornering the poly as well
-moves the phase band edge by a factor of three at a frozen noise gain. The Monte
+capacitor that sets the feedback pole corners here. The Monte
 Carlo does vary the poly, and measures \(\sigma = \SI{11.1}{\percent}\) on
 \(R_f\) with process and mismatch together at the nominal corner.
