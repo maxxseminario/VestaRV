@@ -31,6 +31,52 @@
 %     eiscorner_20260825 mc_summary.txt S3.
 %   - narrative summary: ~/vestarv/docs/afe_rev2_eis_lite.html.
 % NOTHING MEASURED IS LOST.
+%
+% SECOND CUT 2026-08-26, OWNER'S EXPLICIT INSTRUCTION: "about two pages" (see
+% note_eis_intro's header for the scope).  This fragment is now two paragraphs
+% and one figure.
+%
+% WHAT THIS SECOND PASS REMOVED FROM THIS FRAGMENT, AND WHERE IT IS:
+%   - THE WHOLE WAFER-CALIBRATION PARAGRAPH ("Across a wafer the spread is the
+%     feedback resistance") and with it \input fig_eis_mccal.tex, which is left
+%     on disk unedited and is no longer input by anything.  Everything that
+%     paragraph carried leaves the rendered prose together, so no number in it
+%     is left under-qualified: the process/mismatch/both decomposition
+%     (10.91 / 0.43 / 11.12 % over 500/500/654 samples), the stored-law cost
+%     (sigma = 10.2 % of magnitude, that run's own -32.1 .. +30.6 % over 649
+%     dies, on top of the law's +9 % nominal offset at N = 0), the per-chip dc
+%     calibration residue (sigma = 0.0006 %), the phase-escapes-the-argument
+%     clause, the above-the-pole ratiometric comparison (6.85 +- 1.88 % against
+%     2.51 +- 0.83 % on the fresh electrode at N = 63 and 5 kHz) and the
+%     switchable-calibration-impedance requirement (0.0002 % matched against
+%     0.18 % at 9.2x away).  Sources are unchanged and listed below:
+%     ~/chips/castalia/simruns/eisdeep_20260826 S7 (mc/, mc_report/),
+%     eiscorner_20260825 mc_summary.txt S2-S4, eisdemo_20260825
+%     coverage_map.txt, the figure data in eisfigs2_20260826, and the narrative
+%     ~/vestarv/docs/afe_rev2_eis_lite.html.  The section keeps ONE wafer
+%     number, the sigma = 11.1 % of note_eis_intro's pinned-passive paragraph.
+%     The per-chip gain constant this paragraph justified is a live requirement
+%     elsewhere in the chapter: it is a row of tab_calibration_constants.
+%   - the corner sentence of the lead paragraph ("Across the corner set the
+%     error spans a factor of two, worst at 85 C on every load and gain code,
+%     while phase moves far less, because this corner set does not move the
+%     poles"): eiscorner_20260825 corner_tables.txt S2.  The corner claim the
+%     section still makes is the band edge in the same paragraph, which
+%     note_eis_intro's pinned-passive paragraph qualifies.
+%   - the 0.030 % / 0.010 deg accuracy tier at and below 1 Hz -- below the
+%     0.1 Hz usable band the paragraph states: eisdeep_20260826 S3.1
+%     accuracy_envelope.txt.
+%   - the closing sentence of the code-level paragraph ("One record, one die,
+%     one frequency, one resistive load: a deterministic attribution, not a
+%     distribution").  THE CAVEAT IS NOT DROPPED: fig_eis_codelevel's caption
+%     carries it in bold, in a stronger form ("with no noise sources in the
+%     deck"), and the sentence that quotes +0.343 % points at that figure.
+%     Do not delete it from the caption.
+%   - "on a two-level excitation" was KEPT when the phase clause was tightened:
+%     180*f/f_s is the square wave's term and a sinusoid on the identical grid
+%     returns 0.0000 deg (eisdeep_20260826 S2.4), so the clause is a qualifier
+%     and not a flourish.
+% NOTHING MEASURED IS LOST BY THIS PASS EITHER.
 % ======================================================================
 %
 % SOURCE OF EVERY SURVIVING NUMBER:
@@ -104,20 +150,17 @@
 being measured, not by the electrode's chemistry.} Gain-ranged to the lowest
 code in compliance and with no calibration applied, the channel holds
 \SI{0.44}{\percent} of magnitude and \SI{1.04}{\degree} of phase from
-\SI{0.01}{\hertz} to \SI{20}{\kilo\hertz} on all five loads,
-\SI{0.33}{\percent} and \SI{0.29}{\degree} at and below \SI{5}{\kilo\hertz}, and
-\SI{0.030}{\percent} and \SI{0.010}{\degree} at and below \SI{1}{\hertz};
-ranging badly costs an order of magnitude. Across the corner set the error spans
-a factor of two, worst at \SI{85}{\celsius} on every load and gain code, while
-phase moves far less, because this corner set does not move the poles. The
+\SI{0.01}{\hertz} to \SI{20}{\kilo\hertz} on all five loads, and
+\SI{0.33}{\percent} and \SI{0.29}{\degree} at and below \SI{5}{\kilo\hertz};
+ranging badly costs an order of magnitude. The
 320-tap ladder covers \SI{236}{\ohm} to \SI{14.79}{\mega\ohm}, \num{4.80}
 decades, each gain code spanning \num{2.81} of them between the
 \(\pm\SI{0.80}{\volt}\) output compliance and one converter code of output
 fundamental; adjacent codes overlap by more than a decade, so there are no
 impedance seams. The usable band is \SI{0.1}{\hertz} to \SI{5.3}{\kilo\hertz},
-set by a \(\pm\SI{0.573}{\degree}\) phase gate and not by magnitude. The
-feedback pole sets that gate, so it is a poly and capacitor quantity: cornered
-as well, it falls to \SI{2.5}{\kilo\hertz} on a worst-case die.
+set by a \(\pm\SI{0.573}{\degree}\) phase gate at the feedback pole and not by
+magnitude; with the poly and the capacitor cornered as well it falls to
+\SI{2.5}{\kilo\hertz} on a worst-case die.
 
 \paragraph{Measured through the converter.} An \SI{11.000}{\kilo\ohm} load at
 gain code 20, excited by the real reference ladder and read through the input
@@ -128,37 +171,10 @@ the small-signal analysis of the same load and gain code
 attribute the magnitude error completely, and \textbf{the converter's whole cost
 is one number}: a \(+0.636\,\%\) inter-channel gain mismatch, which two points
 of gain calibration remove. The phase term is the sampling grid and not the
-converter --- one converter serving two channels samples them half a conversion
-apart, which costs \(180\,f/f_s\) on a two-level excitation --- so it is
-deterministic and needs no calibration; uncorrected, the
-\(\pm\SI{0.573}{\degree}\) gate caps an interleaved read at
-\SI{2.77}{\kilo\hertz}. One record, one die, one frequency, one resistive load:
-a deterministic attribution, not a distribution.
+converter: one converter serving two channels samples them half a conversion
+apart, costing \(180\,f/f_s\) on a two-level excitation --- deterministic, so it
+needs no calibration;
+uncorrected, the \(\pm\SI{0.573}{\degree}\) gate caps an interleaved read at
+\SI{2.77}{\kilo\hertz}.
 
 \input{include/analog/fig_eis_codelevel.tex}
-
-\paragraph{Across a wafer the spread is the feedback resistance.} At the bottom
-gain code and the nominal corner, \num{500} samples give
-\(\sigma = \SI{10.91}{\percent}\) with process variation alone and
-\SI{0.43}{\percent} with mismatch alone, against \SI{11.12}{\percent} with both
-over \num{654}. \textbf{A stored nominal resistance law is
-therefore unusable as a calibration constant}: it puts that whole spread on the
-answer, \(\sigma = \SI{10.2}{\percent}\) of magnitude, the bottom-code run's own
-\num{649} dies reading \(-32.1\,\%\) to \(+30.6\,\%\) below the feedback pole,
-on top of the \SI{9}{\percent} nominal offset the law already carries at that
-code. \textbf{One dc measurement of the feedback resistance per chip removes
-essentially all of it}: \(\sigma = \SI{0.0006}{\percent}\)
-(Figure~\ref{fig:eis-mccal}). Phase escapes the argument --- the feedback
-resistance is a real scale factor, so a chip with no gain calibration at all
-still reports phase to the accuracy above. Above the feedback pole a dc
-calibration cannot help and only a ratio against a known impedance measured at
-the same frequency does: on the fresh electrode at gain code 63 and
-\SI{5}{\kilo\hertz} a stored dc resistance gives
-\(6.85 \pm \SI{1.88}{\percent}\) against the ratio's
-\(2.51 \pm \SI{0.83}{\percent}\). \textbf{That calibration impedance must be
-switchable across decades}: matched to the load it reaches
-\(\sigma = \SI{0.0002}{\percent}\); against a standard \num{9.2} times away in
-magnitude it injects \SI{0.18}{\percent}, \num{300} times worse than the dc
-calibration it replaces.
-
-\input{include/analog/fig_eis_mccal.tex}

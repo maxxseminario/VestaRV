@@ -8,6 +8,39 @@
 % (note_eis_intro, note_eis_accuracy, note_eis_rules), three figures and no
 % subsubsections.  \label{ss:eis} is kept; every sss:eis-* label is gone.
 %
+% SECOND CUT 2026-08-26, OWNER'S EXPLICIT INSTRUCTION: "about two pages".  The
+% four-page section is now two: TWO prose fragments (this one and
+% note_eis_accuracy) and TWO figures (fig_eis_nyquist, fig_eis_codelevel).
+% No longer input, and left ON DISK UNEDITED so that restoring them is putting
+% an \input back: note_eis_rules.tex (the firmware-rules paragraph) and
+% fig_eis_mccal.tex (the wafer-calibration histogram), the latter with the
+% note_eis_accuracy paragraph that argued it.
+%
+% WHAT THIS SECOND PASS REMOVED FROM THIS FRAGMENT, AND WHERE IT IS:
+%   - the chain enumeration in the evidence paragraph ("reference DAC, both
+%     amplifiers, the programmable feedback resistor and the converter"): it
+%     repeats the first paragraph verbatim and carries no number.
+%   - "no window, no detrending" from the demodulator sentence: it says what is
+%     NOT done, and the clause that carries the requirement ("over whole
+%     excitation periods") stays.  Source eisdemo_20260825 README S6.2.
+%   - the chord-deviation sentence (0.165 % of the arc radius at 20 points per
+%     decade against a 0.30 % instrument error): unchanged and stated in full
+%     in the caption of fig_eis_nyquist, which is where the reader meets it.
+%     Source ~/chips/castalia/simruns/eisdeep_20260826 README S3.
+%   - the -33.4 % / +35.5 % cornered spread of R_f: identical numbers stand in
+%     the chapter's own pinned-passive paragraph (label p:pinned-passives),
+%     which this paragraph already points at.  Source
+%     ~/chips/castalia/simruns/eiscorner_20260825 S2.5 (ac_resmim/
+%     resmim_table.txt).
+%   - the sigma = 11.1 % Monte Carlo figure STAYS, but it is now the section's
+%     only wafer number: the qualifier that used to reach the reader through
+%     fig_eis_mccal's caption (process and mismatch together, nominal corner
+%     only) is stated inline here instead.  Sources unchanged:
+%     ~/chips/castalia/simruns/eisdeep_20260826 S7 (mc/, mc_report/) and
+%     eisfigs2_20260826 (the histogram's own data), narrative in
+%     ~/vestarv/docs/afe_rev2_eis_lite.html.
+% NOTHING MEASURED IS LOST BY THIS PASS EITHER.
+%
 % WHAT WAS CUT FROM THIS FRAGMENT, AND WHERE IT IS:
 %   - the run inventory (30 ac runs, 24 fixed-ratio runs, 17 real-DAC
 %     transients, 252 corner runs, eight Monte Carlo runs, the extracted-
@@ -56,12 +89,11 @@ rides on the reference-DAC setpoint of Section~\ref{ss:dacr2r12}, A1 applies it
 at the reference electrode, A2 and the converter read the resulting current
 through the same programmable feedback resistor a dc measurement uses
 (Section~\ref{ss:tiarprog}), and firmware demodulates the two records in
-quadrature --- an I/Q multiply--accumulate over whole excitation periods, no
-window, no detrending. The excitation is a toggle between two DAC codes, so the
+quadrature --- an I/Q multiply--accumulate over whole excitation
+periods. The excitation is a toggle between two DAC codes, so the
 mode adds a clock divider and an accumulate to the channel and nothing else.
 
-Everything below runs on the netlist of one complete channel --- reference DAC,
-both amplifiers, the programmable feedback resistor and the converter --- at a
+Everything below runs on the netlist of that complete channel at a
 \SI{2.5}{\volt} analog supply, and is schematic-level except where the converter
 appears, which it does as its extracted view. The nominal point is the typical
 process corner at \SI{37}{\celsius}; only the small-signal measurement was
@@ -73,15 +105,13 @@ cell model of Section~\ref{ss:analog-models} with
 \SI{1}{\mega\ohm} \(\parallel\) \SI{100}{\nano\farad},
 \SI{100}{\kilo\ohm} \(\parallel\) \SI{1}{\micro\farad} and
 \SI{10}{\kilo\ohm} \(\parallel\) \SI{10}{\micro\farad}. Sweeps carry \num{20}
-points per decade, which puts the chord through the plotted points
-\SI{0.165}{\percent} of the arc radius off the true arc against an instrument
-error of \SI{0.30}{\percent} (Figure~\ref{fig:eis-nyquist}).
+points per decade (Figure~\ref{fig:eis-nyquist}).
 
 \input{include/analog/fig_eis_nyquist.tex}
 
 \textbf{The pinned-passive caveat of page~\pageref{p:pinned-passives} governs
 every corner number in this section.} Neither the ladder that is \(R_f\) nor the
-capacitor that sets the feedback pole corners here. Cornering the poly as well
-moves \(R_f\) by \(-33.4\,\%\) and \(+35.5\,\%\), and moves the phase band edge
-by a factor of three at a frozen noise gain. The Monte Carlo does vary the poly,
-and measures the same quantity as \(\sigma = \SI{11.1}{\percent}\).
+capacitor that sets the feedback pole corners here; cornering the poly as well
+moves the phase band edge by a factor of three at a frozen noise gain. The Monte
+Carlo does vary the poly, and measures \(\sigma = \SI{11.1}{\percent}\) on
+\(R_f\) with process and mismatch together at the nominal corner.
