@@ -37,6 +37,15 @@ hardware/
 # software/course/ names a //software/course target.
 software/course/
 
+# The Argus course-chip generator config (2026-08-27, owner decision), removed
+# with the course material it belongs to. Hand-written input, not a generator
+# output. Nothing is wired to it by name: no BUILD.bazel names it, no gate
+# carries a hardcoded config list, and platform/common:config_srcs reaches it
+# only through glob(["config/*.json"]) -- which still satisfies its
+# allow_empty=False with the remaining 50 configs. Still on disk, so
+# `make verify CONFIG=config/argus_course.json` still runs here.
+platform/common/config/argus_course.json
+
 # Bench and programmer host tools (2026-08-27, owner decision): the PyEmanate
 # GUI (64 files, PyInstaller .spec + .bat launchers + saved 2022 bench config),
 # the Forth flash programmer (9) and the UART chip programmer (8). 81 files.
