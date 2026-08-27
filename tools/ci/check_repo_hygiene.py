@@ -78,18 +78,18 @@ RCF_BLESSED_DIR = "tools/cosim/gate"
 # The EDA trees above are ignored by bazel because ~374 GB of what is in them
 # is generated output and none of it is a build input. That is still true.
 #
-# But those same directories are where every hand-written flow script in the
+# Those same directories are also where every hand-written flow script in the
 # project lives - the Genus and Innovus run scripts, the signoff Makefile,
 # lvs.sh and its lvs_include_* files, the LVS netlist derivations, the OA
-# reference-library builders - and until 2026-08-25 none of it was in version
-# control at all. .gitignore now tracks that source (222 files, 2.4 MB, out of
-# 70,657 files and 374 GB on disk).
+# reference-library builders. Those were tracked between 2026-08-25 and
+# 2026-08-27 and are now untracked again by owner decision, so the EDA trees
+# carry nothing tracked at all and git is not their backup.
 #
-# So the rule here is NOT "this tree may carry tracked files". It is "this
-# tree may carry tracked files THAT MATCH THESE PATTERNS". A blanket
-# exemption would retire the leak detector for the tree; a pattern list keeps
-# it, and keeps it aimed at exactly the thing it was built to catch - a GDS,
-# a report, a database or a netlist arriving under signoff_mp/ or innovus/ by
+# The rule here is NOT "this tree may carry tracked files". It is "this tree
+# may carry tracked files THAT MATCH THESE PATTERNS". A blanket exemption
+# would retire the leak detector for the tree; a pattern list keeps it, and
+# keeps it aimed at exactly the thing it was built to catch - a GDS, a
+# report, a database or a netlist arriving under signoff_mp/ or innovus/ by
 # way of a wide "git add -f".
 #
 # Widening a list here is how that protection gets hollowed out, so a diff
@@ -106,46 +106,12 @@ TRACKED_CONTENT_ALLOWED = {
     # "**" is the whole-tree form and crosses directory separators.
     "verification/isa/negctrl": ("**",),
 
-    # Synthesis: the top Makefile and the per-block run scripts.
-    "genus": (
-        "genus/Makefile",
-        "genus/*/tcl/*.tcl",
-        "genus/*/tcl/*.py",
-        "genus/*/*.sh",
-        "genus/*/*.py",
-    ),
-
-    # Place and route: the common Makefile, the per-block run scripts and
-    # netlist-prep shells, and the shared proc library.
-    "innovus": (
-        "innovus/common/Makefile",
-        "innovus/common/*/tcl/*.tcl",
-        "innovus/common/*/tcl/*.py",
-        "innovus/common/*/*.sh",
-        "innovus/common/*/*.py",
-        "innovus/common/shared/*.tcl",
-        "innovus/myshkin/tcl/*.tcl",
-        "innovus/myshkin/tcl/*.sh",
-    ),
-
-    # Pegasus DRC/LVS signoff. pvs/ and strmin/ are otherwise pure output;
-    # only the hand-written Pegasus control files and the strmin reference
-    # library list come out of them. signoff_mp/.gitignore is the second
-    # layer of the ignore policy and is tracked for that reason.
-    "signoff_mp": (
-        "signoff_mp/.gitignore",
-        "signoff_mp/Makefile",
-        "signoff_mp/*.sh",
-        "signoff_mp/*.py",
-        "signoff_mp/lvs_include_*",
-        "signoff_mp/tcl/*.tcl",
-        "signoff_mp/pvs/*_ctl",
-        "signoff_mp/pvs/*lvsctl",
-        "signoff_mp/strmin/reflib.list",
-    ),
-
-    # Common Power Format: one hand-written file, no output at all.
-    "cpf": ("cpf/*.cpf",),
+    # genus / innovus / signoff_mp / cpf carried pattern lists here from
+    # 2026-08-25 (93da38c), when their flow scripts were tracked. Those trees
+    # were untracked again on 2026-08-27 at the owner's request and .gitignore
+    # ignores them wholesale, so nothing under them may be tracked at all and
+    # the lists are gone. Re-adding one needs the matching .gitignore negation
+    # and a reason, in the same commit -- see the header above.
 }
 
 

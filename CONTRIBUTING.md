@@ -100,61 +100,31 @@ by hand.** To change the top level:
 Generator outputs never leave `platform/common/` on their own — copies into `hdl/`,
 `software/`, or `docs/` are explicit, scripted publish steps.
 
-### The EDA trees: source is tracked, output is not
+### The EDA trees: nothing is tracked
 
 `genus/`, `innovus/`, `signoff_mp/` and `cpf/` hold about 374 GB across 70,657
 files, and almost all of it is generated: databases, GDS, netlists, reports,
-logs. They were ignored wholesale for that reason. They are also where every
-hand-written flow script lives, and until 2026-08-25 none of it was in version
-control at all.
+logs. `.gitignore` ignores all four trees **wholesale** and nothing under them
+is tracked.
 
-Since then `.gitignore` treats each tree as **default-deny with a narrow
-allow-list of source** — 222 files, 2.4 MB, 0.3% of the files and 0.0006% of
-the bytes. What is tracked:
+Between 2026-08-25 and 2026-08-27 each tree was default-deny with a narrow
+allow-list that tracked the 222 hand-written flow scripts (the Genus and
+Innovus run scripts, the signoff `Makefile`, `lvs.sh` and its `lvs_include_*`
+files, the LVS netlist derivations, the Pegasus control files, the OA
+reference-library builders, `cpf/hart_tile.cpf`). That was reverted by owner
+decision on 2026-08-27: the trees are a local working area, not repository
+content.
 
-| Path | What it is |
-|------|------------|
-| `genus/Makefile`, `genus/<block>/tcl/*.tcl` | synthesis run scripts |
-| `genus/<block>/*.sh`, `genus/<block>/*.py` | per-block synthesis helpers |
-| `innovus/common/Makefile` | P&R driver |
-| `innovus/common/<block>/tcl/*.{tcl,py}` | P&R run scripts and floorplan/pad checks |
-| `innovus/common/<block>/*.sh` | netlist-prep and SDC-generation shells |
-| `innovus/common/shared/*.tcl` | the shared proc library (`procedures.tcl`, `constants.tcl`) |
-| `innovus/myshkin/tcl/*` | the frozen single-core flow, for the record |
-| `signoff_mp/*.sh`, `signoff_mp/*.py`, `signoff_mp/Makefile` | DRC/LVS drivers, collateral generators, OA library builders |
-| `signoff_mp/tcl/*.tcl` | LVS netlist derivations and ECO passes |
-| `signoff_mp/lvs_include_*` | the macro/std-cell CDL sets |
-| `signoff_mp/pvs/*_ctl`, `signoff_mp/pvs/*lvsctl` | Pegasus LVS control files |
-| `signoff_mp/strmin/reflib.list` | the strmin reference-library resolution order |
-| `signoff_mp/.gitignore` | the second layer of this policy |
-| `cpf/*.cpf` | the power-format source |
+**Know what that costs.** Git is not the backup for any of it. A fresh clone
+cannot run a synthesis, a place-and-route or a signoff job, and the only copy
+of every flow script is the bench machine's disk. If those scripts matter to
+you, back them up somewhere that is not this repository.
 
-Everything else stays out, and three categories are worth naming because
-extension alone gets them wrong:
-
-* `genus/<block>/fv/` is Genus `write_do_lec` output. `fv_map.map.do` is 6.8 MB
-  across the tree and is **not** source despite the `.do` extension.
-* `*.gen.tcl` is written by `platform/common` `make chip` and says so in its
-  own header.
-* `signoff_mp/decks/blockdrc.rul` (877 KB) and `signoff_mp/strmin/gds2cds.map`
-  (26 KB) are TSMC PDK data under NDA — the latter byte-identical to
-  `/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap`, so it costs a `cp` to
-  restore rather than a place in git. The EDA allow-list sits at the **top**
-  of `.gitignore` precisely so that the foundry rules below it (`*.gds`,
-  `*.lef`, `*.def`, `*.cdl`, `*.oa`, `*tsmc*`) are evaluated later and win over
-  every negation above.
-
-`.pre_*` and `*.bak*` sidecars are not tracked. They were the versioning before
-this; git is the versioning now.
-
-**`.bazelignore` is unchanged and must stay that way.** Tracking a file in git
-and hiding it from bazel are independent concerns and both have to hold: bazel
-must never crawl these trees. `tools/ci/check_bazelignore.py` and
-`tools/ci/check_repo_hygiene.py` both carry `TRACKED_CONTENT_ALLOWED`, a
-per-path list of what may be tracked under an ignored tree — so a report, a
-database or a GDS arriving there by way of a wide `git add -f` still fails the
-gate. Adding a pattern to one script means adding it to the other and to
-`.gitignore` in the same commit.
+`tools/ci/check_repo_hygiene.py` and `tools/ci/check_bazelignore.py` enforce
+the rule from both ends — one walks the tracked files, the other walks the
+ignored trees — so a file that slips in under `git add -f` fails CI. Their
+`TRACKED_CONTENT_ALLOWED` tables are the exception list; adding a pattern
+needs the matching `.gitignore` negation in the same commit.
 
 ### Rebuilding what is not tracked
 
@@ -171,7 +141,7 @@ All of these run from `signoff_mp/` after `source ~/vestarv/cdspaths.sh`:
 | `signoff_mp/strmin/via_rename.cellmap` | 77 B | written by `strmin_gds.sh` | — |
 | `signoff_mp/pvs/*.lvs.v`, `*.lvslabels` | 100s of MB | `./gen_*_lvs_collateral.sh`, `gen_*_lvslabels.py` | the Innovus databases |
 | `signoff_mp/strmin/gds2cds.map` | 26 KB | `cp /opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap signoff_mp/strmin/gds2cds.map` | byte-identical to the PDK file; every `strmin` above needs it |
-| `genus/<block>/out/`, `innovus/common/<block>/{dbs,out,rpt}/` | ~374 GB | `make` in `genus/` or `innovus/common/` | tracked `tcl/` + generated `in/` netlists |
+| `genus/<block>/out/`, `innovus/common/<block>/{dbs,out,rpt}/` | ~374 GB | `make` in `genus/` or `innovus/common/` | the untracked `tcl/` scripts + generated `in/` netlists |
 
 Both `build_*_ref.sh` scripts carry their full forensic rationale in the file
 header and end in a proof gate that refuses to publish an empty-outline master

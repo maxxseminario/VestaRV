@@ -1,7 +1,0 @@
-// PG3 MCU LVS control: blackbox the 3 analog macros (kickoff-sanctioned).
-// Their layouts are the Myshkin-taped-out cells (myshkin_tapeout OA lib) and
-// their CDLs semi-bind only: the component CDLs carry rppolywo poly
-// resistors and mimcap_sin MIM caps that the GDS-path extraction does not
-// recover (48 resistors + 6 caps unmatched, all inside irq_gf0-2/dco0-1/
-// por0). Interface connectivity (pins to MCU nets) is still compared.
-lvs_black_box GlitchFilter PowerOnResetCheng OscillatorCurrentStarved;

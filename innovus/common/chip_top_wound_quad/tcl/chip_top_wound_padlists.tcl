@@ -1,1 +1,0 @@
-../../MCU_castalia/tcl/chip_top_wound_padlists.tcl
