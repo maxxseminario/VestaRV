@@ -39,6 +39,10 @@
 %% Not drawn: corner overlays.  The 120 dense corner spectra exist (csv/corner_*)
 %% but 5 corners x 3 panels destroys the one thing this figure is for.
 %% Library cell names are kept out of the rendered prose.
+%% 2026-08-26: the Table~\ref{tab:eis-coverage} pointer was dropped from the
+%% caption -- that table went with the cut of note_eis_coverage.tex.  The 236 ohm
+%% - 150.9 kOhm window it named is stated inline here and its source is
+%% ~/chips/castalia/simruns/eisdemo_20260825/coverage_map.txt.
 \providecommand{\MaestroRoot}{include/analog/}
 \providecolor{mtxA}{HTML}{2A78D6}
 \begin{figure}[htbp]
@@ -148,7 +152,7 @@
   three loads, rising to \SI{2.94}{\percent} and \SI{4.67}{\degree} at
   \SI{100}{\kilo\hertz}. A small-signal analysis has no dynamic-range limit,
   which the readout does: gain code 0 covers \SI{236}{\ohm} to
-  \SI{150.9}{\kilo\ohm} (Table~\ref{tab:eis-coverage}), so the fresh arm above
+  \SI{150.9}{\kilo\ohm}, so the fresh arm above
   \SI{151}{\kilo\ohm} would be taken at gain code 20 in firmware.}
   \label{fig:eis-nyquist}
 \end{figure}

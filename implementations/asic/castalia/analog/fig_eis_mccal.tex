@@ -40,6 +40,10 @@
 %% is what rescues it; no samples censored or held out, all 649 plotted; the
 %% range is this run's own (mc/typ_n0) and not a union over the campaign.
 %% Library cell names are kept out of the rendered prose.
+%% 2026-08-26: the Section~\ref{sss:eis-accuracy} pointer was dropped from the
+%% caption -- the impedance section no longer carries subsubsections.  The claim
+%% it pointed at (above the feedback pole a dc calibration stops working) is in
+%% note_eis_accuracy.tex, in the same section.
 \providecommand{\MaestroRoot}{include/analog/}
 %% mtxE and mtxC are the chapter's own palette slots and carry the same
 %% values here; \providecolor is therefore a no-op if an earlier fragment
@@ -106,6 +110,6 @@
   \SI{22}{\pico\farad} feedback capacitor does not vary here and the figure
   bounds the feedback resistance rather than the pole --- which matters because
   \SI{0.1}{\hertz} is below that pole, and above it a dc calibration stops
-  working at all (Section~\ref{sss:eis-accuracy}).}
+  working at all.}
   \label{fig:eis-mccal}
 \end{figure}

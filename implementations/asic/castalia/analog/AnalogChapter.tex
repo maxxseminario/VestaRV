@@ -30,9 +30,8 @@ in Section~\ref{s:regMemMap}.
 Unless stated otherwise, every figure and table in this chapter is taken from
 schematic-level simulation of the block's own testbench (pre-layout, with no
 extracted parasitics), and is therefore a design-intent characterisation rather
-than silicon data. Three places run on an extracted netlist and say so where they
-do: the SAR ADC section, the converter readout of the assembled channel, and the
-code-level probe of the impedance mode.
+than silicon data. Two places run on an extracted netlist and say so where they
+do: the SAR ADC section and the code-level probe of the impedance mode.
 Each block section names the testbench it came from and the
 process, temperature and supply points that were simulated, so the coverage behind
 each number is explicit. Numbers are regenerated directly from the simulator's
@@ -47,14 +46,11 @@ This revision documents
 the local bias generator, the class-AB amplifier that serves as both the
 channel's transimpedance amplifier (A2) and its potentiostat control amplifier
 (A1), the complete potentiostat pixel system built from a pair of those
-amplifiers around a three-electrode cell, the assembled channel that replaces
-that system's ideal sources with the silicon intended for tapeout, the analog
-multiplexer fabric through which the converter and the test port see that
-channel, the 10-bit SAR analog-to-digital
+amplifiers around a three-electrode cell, the 10-bit SAR analog-to-digital
 converter that closes the channel, the programmable feedback resistor that sets
 the channel's transimpedance gain, and the 12-bit R-2R reference DAC with the
 supply block that feeds it. Section~\ref{ss:eis} documents not a block but a
-second measurement mode of that channel: impedance spectroscopy performed by the
+second measurement mode of the channel: impedance spectroscopy performed by the
 potentiostat itself, with no impedance hardware.
 Each block section closes with the register settings
 that observe that block on a real die, and Section~\ref{ss:calibration} lists the
@@ -72,8 +68,6 @@ Block & Section & Benches & Corners & Monte Carlo \\
 Bias generator        & \ref{ss:biasgen-local} & 3 & \checkmark$^{\dagger}$ & n/a \\
 Class-AB amplifier    & \ref{ss:ampab}         & 6 & \checkmark$^{\dagger}$ & \checkmark \\
 Potentiostat pixel system & \ref{ss:pixel}     & 6 & \checkmark$^{\dagger}$ & \checkmark \\
-Assembled channel     & \ref{ss:pixtop}        & 1 & \checkmark$^{\dagger}$ & \checkmark \\
-Input multiplexer     & \ref{sss:pixtop-mux}   & 2 & \checkmark & n/a \\
 Impedance spectroscopy & \ref{ss:eis}          & 1 & \checkmark$^{\dagger}$ & \checkmark \\
 SAR ADC               & \ref{ss:adc}          & 2 & \checkmark & \checkmark \\
 Feedback resistor     & \ref{ss:tiarprog}      & 5 & \checkmark & \checkmark \\
@@ -85,14 +79,14 @@ Reference DAC         & \ref{ss:dacr2r12}      & 6 & \checkmark$^{\dagger}$ & \c
 \end{center}
 
 \noindent Every block now carries a corner run, but a corner run is not the same
-claim in every row: the six rows marked \(\dagger\) are cornered over the
+claim in every row: the five rows marked \(\dagger\) are cornered over the
 transistors alone, for the reason set out immediately below. The impedance row is
 not a block but a mode that adds no devices, and its corner and Monte Carlo runs
 cover the small-signal measurement only.
 \emph{n/a} marks a block whose
 section reports no Monte Carlo because the devices at issue carry no
-per-instance mismatch terms: the multiplexer's ninety pass gates per tree, and
-the bias generator's start-up branch, sit on model cards that give a mismatch
+per-instance mismatch terms: the bias generator's start-up branch sits on model
+cards that give a mismatch
 run a spread of zero from exactly the devices under test. The converter's Monte
 Carlo has been run and is reported as a negative result for a related reason
 (Section~\ref{sss:adc-mc}); nothing in this chapter quotes a converter gain or
@@ -164,8 +158,7 @@ all along.} Its statistical model section varies the resistors, and the
 Every Monte Carlo table and figure in this chapter therefore stands as published.
 So does the converter of Section~\ref{ss:adc}, whose extracted array carries no
 capacitor model card and whose poly strips are fill with no dc path; the
-multiplexer measurements of Section~\ref{sss:pixtop-mux}, which contain no poly,
-MIM or MOM device at all; the programmable feedback resistor of
+programmable feedback resistor of
 Section~\ref{ss:tiarprog}, whose corner axis is the resistor family by
 construction and which is the one section that already shows the
 \(\pm\SI{35}{\percent}\) band; the offset and tracking tables, which are
@@ -254,40 +247,57 @@ device that makes that matter.
 % study.  NOT repeated on the new OA, and flagged in the fragments that use
 % them: the staircase voltammetry run, the five-corner stability run, and the
 % Monte Carlo attribution/ablation and stability runs.
-\FloatBarrier
-\input{include/analog/note_pixtop_intro.tex}
-\input{include/analog/tab_pixtop_summary.tex}
-\input{include/analog/note_pixtop_potential.tex}
-\input{include/analog/note_pixtop_zero.tex}
-\input{include/analog/note_pixtop_cv.tex}
-\input{include/analog/fig_pixtop_cv.tex}
-\input{include/analog/note_pixtop_adc.tex}
+% =====================================================================
+% ASSEMBLED-CHANNEL SECTION -- COMMENTED OUT 2026-08-26, OWNER'S EXPLICIT
+% INSTRUCTION, to shorten the chapter.  COMMENTED OUT, NOT DELETED: every
+% fragment below is still on disk in this directory, unedited, with its own
+% provenance header, and restoring the section is uncommenting these fourteen
+% \input lines.  Removed with it: the "Assembled channel" and "Input
+% multiplexer" rows of the coverage table above, the multiplexer clause of the
+% pinned-passive paragraph, and the labels ss:pixtop, sss:pixtop-*,
+% tab:pixtop-* and fig:pixtop-*.  Four sentences elsewhere in the chapter were
+% rewritten so they no longer reference those labels: the extracted-netlist
+% sentence and the blocks-documented paragraph above, note_adc_intro's Coverage
+% paragraph (now pointing at ss:eis, which splices the same extracted macro),
+% and note_calibration's Residual paragraph (the ref dropped; the sentence
+% stands without it).
+%
+% \FloatBarrier
+% \input{include/analog/note_pixtop_intro.tex}
+% \input{include/analog/tab_pixtop_summary.tex}
+% \input{include/analog/note_pixtop_potential.tex}
+% \input{include/analog/note_pixtop_zero.tex}
+% \input{include/analog/note_pixtop_cv.tex}
+% \input{include/analog/fig_pixtop_cv.tex}
+% \input{include/analog/note_pixtop_adc.tex}
 % The multiplexer fabric that stands between the channel and both the converter
 % and the test port. Kept inside this section rather than promoted to a block
 % section of its own: it is fabric in the channel's signal path, and its two
 % consequences (a sibling-voltage rule and a settling wait) are channel-level
 % procedures that the readout paragraph above already depends on.
 % Source ~/chips/castalia/simruns/muxchar_20260825/README.md.
-\input{include/analog/note_pixtop_mux.tex}
+% \input{include/analog/note_pixtop_mux.tex}
 % Small-signal, noise and power: simruns/rebase_20260824/{stb,stb_buf,noise,
 % noise_adc,pwr,corner} on the 2026-08-24 OA, with simruns/trmnoise_gain (the
 % 16-code noise sweep behind fig_pixtop_noise, whose numbers the re-baseline
 % reproduces to four significant figures) and simruns/postfix_decim (the
 % transient-noise decimation records).
-\input{include/analog/note_pixtop_comp.tex}
-\input{include/analog/note_pixtop_noise.tex}
-\input{include/analog/fig_pixtop_noise.tex}
-\input{include/analog/note_pixtop_power.tex}
+% \input{include/analog/note_pixtop_comp.tex}
+% \input{include/analog/note_pixtop_noise.tex}
+% \input{include/analog/fig_pixtop_noise.tex}
+% \input{include/analog/note_pixtop_power.tex}
 % Monte Carlo on the assembled cell, 2026-08-24:
 % ~/chips/castalia/simruns/rebase_20260824/{mc200.json,mc_sigma_table.txt} (200
 % samples, process + mismatch, section castalia_pm_25, nominal corner, 37 C,
 % 1264 random variables) and mc100_bufcm (the buffer's CMRR under mismatch).
 % Figure data reduced as ~/chips/castalia/skill/pixmc_trm_fig.py panel_a does.
-\input{include/analog/note_pixtop_mc.tex}
-\input{include/analog/tab_pixtop_mc.tex}
-\input{include/analog/fig_pixtop_mc.tex}
-\input{include/analog/note_pixtop_open.tex}
-\input{include/analog/note_meas_pixtop.tex}
+% \input{include/analog/note_pixtop_mc.tex}
+% \input{include/analog/tab_pixtop_mc.tex}
+% \input{include/analog/fig_pixtop_mc.tex}
+% \input{include/analog/note_pixtop_open.tex}
+% \input{include/analog/note_meas_pixtop.tex}
+% \FloatBarrier
+% ===================== end of the commented-out section =====================
 \FloatBarrier
 
 % Impedance spectroscopy -- HAND-WRITTEN throughout, from
@@ -304,13 +314,21 @@ device that makes that matter.
 % no hardware -- while spanning the reference DAC, both amplifiers, the
 % programmable feedback resistor, the converter and the firmware demodulator.
 % The placement argument in full is at the head of note_eis_intro.tex.
+% CUT BY ~85 % on 2026-08-26, OWNER'S EXPLICIT INSTRUCTION: "a few paragraphs
+% and a few figures, not a subsection tree".  Three prose fragments survive and
+% carry no subsubsection; four are no longer input and stay on disk, unedited,
+% with their own provenance headers -- note_eis_coverage.tex,
+% note_eis_excitation.tex, note_eis_open.tex and the figure fig_eis_error.tex,
+% plus fig_eis_settling.tex, which note_eis_rules.tex no longer inputs.  Each
+% surviving fragment's header records what left it and which run holds it.
+% Nothing measured is lost: the campaigns are ~/chips/castalia/simruns/
+% {eisdemo,eiscorner}_20260825, eisdeep_20260826 and eisfigs2_20260826, and the
+% narrative is ~/vestarv/docs/afe_rev2_eis_lite.html.
+% Figures kept: fig_eis_nyquist (input from note_eis_intro), fig_eis_codelevel
+% and fig_eis_mccal (both input from note_eis_accuracy).
 \input{include/analog/note_eis_intro.tex}
 \input{include/analog/note_eis_accuracy.tex}
-\input{include/analog/fig_eis_error.tex}
-\input{include/analog/note_eis_coverage.tex}
-\input{include/analog/note_eis_excitation.tex}
 \input{include/analog/note_eis_rules.tex}
-\input{include/analog/note_eis_open.tex}
 \FloatBarrier
 
 \input{include/analog/Adc.tex}
