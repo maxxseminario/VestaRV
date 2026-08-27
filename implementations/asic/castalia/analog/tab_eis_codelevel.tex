@@ -1,0 +1,109 @@
+%% HAND-WRITTEN table fragment (maestro2tex house style; nothing here is
+%% generated -- one transient record decoded by hand, not a Maestro results
+%% database, and there is no maestro2tex config for any *_eis_* fragment).
+%%
+%% 2026-08-27, OWNER'S EXPLICIT INSTRUCTION: THIS TABLE REPLACES THE FIGURE
+%% fig_eis_codelevel.tex, which took a full page to print ten scalars on the
+%% face of a chart.  That fragment is LEFT ON DISK UNEDITED and is no longer
+%% input by anything -- restoring it is putting an \input back and moving the
+%% \label.  Its header carries the same note and the full provenance.  Nothing
+%% measured is lost: every plotted value is a row here, at the precision of the
+%% source data rather than of a bar top.
+%%
+%% WHAT THE FIGURE CARRIED SPATIALLY AND THIS TABLE CARRIES OTHERWISE:
+%%   - filled vs open markers (measured vs corrected vs analytic control) ->
+%%     the Reading column.
+%%   - the +-0.573 deg gate band -> the gate column.
+%%   - the dashed -180 f/f_s line the two interleaved reads sit on -> a row of
+%%     its own, adjacent to them, marked analytic.
+%%
+%% Source of every number: ~/chips/castalia/simruns/eisfigs2_20260826/
+%%   data/fig5a_attribution.csv (magnitude block, column step_delta_pp) and
+%%   data/fig5b_phase.csv (phase block, columns dphase_vs_ac_deg and kind),
+%%   reduced from ~/chips/castalia/simruns/eisdeep_20260826/
+%%   code_report/codeA_re_n20.json -- the headline record, 256 conversions,
+%%     mux interleaved slot 0 (transimpedance output) <-> slot 6 (RE), 294 us,
+%%     869 565.2 S/s, 64 conversions per excitation period -> f_exc =
+%%     13 586.9565 Hz exactly; excitation from the real 12-bit ladder (code pair
+%%     2032/2064); 11.000 kOhm load at N = 20; max |V_OUT - vcm| 0.132 V of the
+%%     +-0.80 V window; extracted converter, 4451 device lines.
+%%   code_report/pair_F0_F6.json -- the two-record scheme (codeF0_n20 +
+%%     codeF6_n20), the "two records, one grid" row.
+%%   code_report/deskew_test.txt, csv/codelevel.csv, sampling_prediction.txt.
+%% AC analysis of the same load and gain code: 11 032.43 ohm / +0.3603 deg.
+%%   Z_analog  +0.1262 % / -0.0127 deg   (20 ns strobe grid, boxcar-decimated,
+%%                                        no sampling -- the transient path)
+%%   Z_sampled +0.9812 % / -2.8949 deg   (same analog nets at the apertures)
+%%   Z_code    +0.3431 % / -2.9383 deg   (the ten-bit words themselves)
+%% Steps +0.126 / +0.855 / -0.638 pp.  Inter-channel gain mismatch +0.6359 %
+%% (628.00 codes/V on the current channel, fundamental 92.79 LSB; 624.04 on the
+%% potential channel, fundamental 7.65 LSB) predicts -0.632 pp against -0.638
+%% measured -> 0.006 pp for quantisation, dither and aperture together.
+%% Aperture fitted at nominal + 0 ns, 0.78 LSB rms; the three per-cycle code
+%% phasors agree to 0.0000 %.  Half-conversion grid offset 180*f/f_s = 2.8125
+%% deg; deskewed -0.082 deg (codes -0.126); two records on one grid +0.083 deg
+%% measured; pure sine on the same grids 0.000 deg.  +-0.573 deg caps an
+%% uncorrected interleaved read at 2768 Hz = 0.00318*f_s.
+%%
+%% THE PURE-SINE ROW IS COMPUTED, NOT SIMULATED: an ideal excitation on the
+%% analytic load with a single-pole Z_t fitted to the record's own zt_ac, point
+%% sampled on the two interleaved grids and demodulated exactly as the extractor
+%% does.  The same model driven with a two-code square returns +0.2727 % /
+%% -2.9802 deg against the campaign's own sampling_prediction.txt value of
+%% +0.2728 % / -2.9807 deg at 64 conversions per period -- four decimals, which
+%% is what licenses the row.  The -180 f/f_s row is exact arithmetic on f/f_s.
+%% Every other row is measured, save the deskewed row, which is a measured read
+%% less that exact angle.
+%%
+%% Caveats that had to survive into the caption: both blocks are referred to the
+%% AC ANALYSIS OF THE SAME LOAD AND GAIN CODE, whose own error against the
+%% analytic load is +0.295 % and +0.405 deg (against the analytic load the codes
+%% read +0.639 % and -2.533 deg); ONE record, ONE die, ONE frequency, ONE
+%% resistive load, no noise sources in the deck -- a deterministic attribution
+%% and not a distribution, so there is nothing behind this table to quote a
+%% sigma from.  The record is demodulated over cycles 1-2; cycle 0 carries the
+%% TIA's step response to the first DAC edge and the last cycle demodulates
+%% 1.6 deg off in the boxcar path (eisdeep S10).  The complex-load code record
+%% (codeC_rc_n0) saturated at 136 % of the compliance window and is excluded, so
+%% this is a resistive-load result -- which is also why the magnitude
+%% attribution is unambiguous.
+%% Library cell names are kept out of the rendered prose.
+\begin{table}[htbp]
+  \centering
+  \caption[{Impedance from converter codes: magnitude attribution and the phase
+  mechanism.}]{Impedance demodulated from the ten-bit words of the extracted
+  converter, on one record of \num{256} conversions at
+  \SI{869565}{\per\second} with the input multiplexer interleaving the
+  transimpedance output and the reference electrode, \num{64} conversions per
+  excitation period at \SI{13.587}{\kilo\hertz}, the excitation synthesised by
+  the real \num{12}-bit ladder into \SI{11.000}{\kilo\ohm} at gain code 20.
+  The magnitude rows are three successive readings of that one record and
+  accumulate to the total; the phase rows are independent readings of it, and
+  \(-180\,f/f_s\) is the analytic half-conversion grid offset that the two
+  interleaved readings sit on. The reference for both blocks is the
+  small-signal analysis of the same load and gain code, itself \(+0.295\,\%\)
+  and \SI{0.405}{\degree} from the analytic load. \textbf{One record, one die,
+  one frequency into a resistive load}, with no noise sources in the deck: a
+  deterministic attribution with no distribution behind it.}
+  \label{tab:eis-codelevel}
+  \begin{tabular}{llrcl}
+    \toprule
+    Quantity & Unit & Value & \(\pm\SI{0.573}{\degree}\) gate & Reading \\
+    \midrule
+    \multicolumn{5}{l}{\emph{Magnitude, against the small-signal analysis}} \\
+    Transient path                 & points & \(+0.126\) & & measured \\
+    Sampled system                 & points & \(+0.855\) & & measured \\
+    Gain mismatch                  & points & \(-0.638\) & & measured \\
+    Total, from codes              & points & \(+0.343\) & & measured \\
+    \midrule
+    \multicolumn{5}{l}{\emph{Phase, departure from the small-signal analysis}} \\
+    From codes, interleaved        & \si{\degree} & \(-2.938\) & --- & measured \\
+    Sampled, interleaved           & \si{\degree} & \(-2.895\) & --- & measured \\
+    Predicted, \(-180\,f/f_s\)     & \si{\degree} & \(-2.813\) & --- & analytic \\
+    Analog, no sampling            & \si{\degree} & \(-0.013\) & \checkmark & measured \\
+    Deskewed by \(180\,f/f_s\)     & \si{\degree} & \(-0.082\) & \checkmark & corrected \\
+    Two records, one grid          & \si{\degree} & \(+0.083\) & \checkmark & measured \\
+    Pure sine, same grids          & \si{\degree} & \(0.000\)  & \checkmark & analytic control \\
+    \bottomrule
+  \end{tabular}
+\end{table}

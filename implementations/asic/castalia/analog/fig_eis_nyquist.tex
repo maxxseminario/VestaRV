@@ -45,6 +45,13 @@
 %% caption -- that table went with the cut of note_eis_coverage.tex.  The 236 ohm
 %% - 150.9 kOhm window it named is stated inline here and its source is
 %% ~/chips/castalia/simruns/eisdemo_20260825/coverage_map.txt.
+%% 2026-08-27: the caption was TIGHTENED (wording only -- no number, condition
+%% or caveat removed).  Cut: "of them" after all 143; "the loads span" before
+%% the three decade scales; "a semicircle reads as a semicircle and" (the
+%% second half of the clause says it); "no longer"/"the archived" as filler.
+%% "the current measured" became "the current at the transimpedance output",
+%% which is the architecture the run used.  Done with the same pass that
+%% replaced fig_eis_codelevel with tab_eis_codelevel.
 \providecommand{\MaestroRoot}{include/analog/}
 \providecolor{mtxA}{HTML}{2A78D6}
 \begin{figure}[htbp]
@@ -137,24 +144,23 @@
   \end{tikzpicture}}
   \caption[{Nyquist arcs of the three electrode models, measured against
   analytic.}]{Nyquist arcs of the three electrode models measured by the
-  channel itself (dots, all \num{143} of them) against the analytic impedance
-  of the load (line), \SI{0.01}{\hertz} to \SI{100}{\kilo\hertz} at \num{20}
-  points per decade, gain code 0, nominal process point, \SI{37}{\celsius}, with the
-  applied potential read at the reference electrode and the current measured;
-  rings mark the decades \SIlist{0.01;0.1;1;10;100}{\hertz}. \textbf{The three
-  panels have independent scales} --- the loads span
-  \SI{1}{\mega\ohm}, \SI{100}{\kilo\ohm} and \SI{10}{\kilo\ohm} --- and each has
-  equal axes, so a semicircle reads as a semicircle and a departure from a
-  circle is a measurement and not an aspect ratio. The plotting grid is no
-  longer the limit: the chord polygon through the plotted points departs the
-  true arc by \SI{0.165}{\percent} of the arc radius, against
-  \SI{0.651}{\percent} at the archived ten points per decade and an instrument
-  error of \SI{0.30}{\percent}. Agreement is within \SI{0.44}{\percent} of
-  magnitude and \SI{1.03}{\degree} of phase below \SI{20}{\kilo\hertz} on all
-  three loads, rising to \SI{2.94}{\percent} and \SI{4.67}{\degree} at
-  \SI{100}{\kilo\hertz}. A small-signal analysis has no dynamic-range limit,
-  which the readout does: gain code 0 covers \SI{236}{\ohm} to
-  \SI{150.9}{\kilo\ohm}, so the fresh arm above
+  channel itself (dots, all \num{143}) against the analytic impedance of the
+  load (line), \SI{0.01}{\hertz} to \SI{100}{\kilo\hertz} at \num{20} points
+  per decade, gain code 0, nominal process point, \SI{37}{\celsius}, with the
+  applied potential read at the reference electrode and the current at the
+  transimpedance output; rings mark the decades
+  \SIlist{0.01;0.1;1;10;100}{\hertz}. \textbf{The three panels have independent
+  scales} --- \SI{1}{\mega\ohm}, \SI{100}{\kilo\ohm} and \SI{10}{\kilo\ohm} ---
+  and each has equal axes, so a departure from a circle is a measurement and
+  not an aspect ratio. The plotting grid is not the limit: the chord polygon
+  through the plotted points departs the true arc by \SI{0.165}{\percent} of
+  the arc radius, against \SI{0.651}{\percent} at ten points per decade and an
+  instrument error of \SI{0.30}{\percent}. Agreement is within
+  \SI{0.44}{\percent} of magnitude and \SI{1.03}{\degree} of phase below
+  \SI{20}{\kilo\hertz} on all three loads, rising to \SI{2.94}{\percent} and
+  \SI{4.67}{\degree} at \SI{100}{\kilo\hertz}. A small-signal analysis has no
+  dynamic-range limit, which the readout does: gain code 0 covers
+  \SI{236}{\ohm} to \SI{150.9}{\kilo\ohm}, so the fresh arm above
   \SI{151}{\kilo\ohm} would be taken at gain code 20 in firmware.}
   \label{fig:eis-nyquist}
 \end{figure}

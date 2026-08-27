@@ -68,15 +68,23 @@
 %     accuracy_envelope.txt.
 %   - the closing sentence of the code-level paragraph ("One record, one die,
 %     one frequency, one resistive load: a deterministic attribution, not a
-%     distribution").  THE CAVEAT IS NOT DROPPED: fig_eis_codelevel's caption
+%     distribution").  THE CAVEAT IS NOT DROPPED: tab_eis_codelevel's caption
 %     carries it in bold, in a stronger form ("with no noise sources in the
-%     deck"), and the sentence that quotes +0.343 % points at that figure.
+%     deck"), and the sentence that quotes +0.343 % points at that table.
 %     Do not delete it from the caption.
 %   - "on a two-level excitation" was KEPT when the phase clause was tightened:
 %     180*f/f_s is the square wave's term and a sinusoid on the identical grid
 %     returns 0.0000 deg (eisdeep_20260826 S2.4), so the clause is a qualifier
 %     and not a flourish.
 % NOTHING MEASURED IS LOST BY THIS PASS EITHER.
+%
+% 2026-08-27, OWNER'S EXPLICIT INSTRUCTION: the code-level FIGURE became a
+% TABLE.  This fragment now inputs tab_eis_codelevel.tex and its code-level
+% paragraph points at Table~\ref{tab:eis-codelevel}; fig_eis_codelevel.tex is
+% left ON DISK UNEDITED and is no longer input by anything.  The figure printed
+% all ten of its scalars on its own face and cost a full page; the table states
+% them, plus the +-0.573 deg gate and the -180 f/f_s offset the figure showed
+% spatially, in a fraction of the space.  NOTHING MEASURED IS LOST.
 % ======================================================================
 %
 % SOURCE OF EVERY SURVIVING NUMBER:
@@ -167,7 +175,7 @@ gain code 20, excited by the real reference ladder and read through the input
 multiplexer and an extracted converter, demodulates from \num{256} converter
 codes to \(+0.343\,\%\) of magnitude and \SI{-2.94}{\degree} of phase against
 the small-signal analysis of the same load and gain code
-(Figure~\ref{fig:eis-codelevel}). Three demodulations of that one record
+(Table~\ref{tab:eis-codelevel}). Three demodulations of that one record
 attribute the magnitude error completely, and \textbf{the converter's whole cost
 is one number}: a \(+0.636\,\%\) inter-channel gain mismatch, which two points
 of gain calibration remove. The phase term is the sampling grid and not the
@@ -177,4 +185,4 @@ needs no calibration;
 uncorrected, the \(\pm\SI{0.573}{\degree}\) gate caps an interleaved read at
 \SI{2.77}{\kilo\hertz}.
 
-\input{include/analog/fig_eis_codelevel.tex}
+\input{include/analog/tab_eis_codelevel.tex}
