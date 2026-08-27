@@ -119,6 +119,21 @@
 %     "-32 % to +55 %" is a union over eight runs and seven frequencies, and the
 %     "-32 % to +39 %" this fragment used to carry was a union over two.
 % Library cell names are kept out of the rendered prose.
+%
+%% FIGURE PLACEMENT, 2026-08-26 -- READ BEFORE MOVING ANYTHING.
+%% The \input lines below sit in this prose fragment and not in
+%% AnalogChapter.tex, which is where every other figure of this chapter is
+%% input from.  That file was held uncommitted by another session for the whole
+%% of this change and could not be touched.  The figure environments themselves
+%% are ordinary hand-written fig_eis_*.tex files, exactly like fig_eis_error.tex;
+%% only the \input is displaced.  NORMALISING THIS is one move per figure: cut
+%% the \input line from here and put it back in AnalogChapter.tex beside the
+%% fig_eis_error.tex input line, in the reading order recorded at
+%% each call site below.  Nothing else has to change -- the labels, the data
+%% paths and the captions are already in the house form.
+%% Here, in chapter order: fig_eis_codelevel.tex belongs after this fragment's
+%% \input line and BEFORE fig_eis_error.tex; fig_eis_mccal.tex after
+%% fig_eis_error.tex and before note_eis_coverage.
 
 \subsubsection{Accuracy}\label{sss:eis-accuracy}
 
@@ -146,7 +161,8 @@ gain code 20, excited by the reference ladder and read through the input
 multiplexer and an extracted converter, demodulates from \num{256} converter
 codes --- \num{64} per excitation period at \SI{13.587}{\kilo\hertz} --- to
 \(+0.343\,\%\) of magnitude and \SI{-2.94}{\degree} of phase against the
-small-signal analysis of the same load and gain code. Three demodulations of
+small-signal analysis of the same load and gain code
+(Figure~\ref{fig:eis-codelevel}). Three demodulations of
 that one record separate the terms: the analog nets give \(+0.126\,\%\) and
 \SI{-0.013}{\degree}, reading them at the conversion apertures adds
 \(+0.855\) points and \SI{-2.882}{\degree}, and decoding the codes takes
@@ -158,6 +174,8 @@ not at all. That \(+0.636\,\%\) mismatch predicts \(-0.632\) points against the
 \(-0.638\) measured, leaving \num{0.006} points for quantisation, dither and
 aperture together. \textbf{The converter is a two-point gain calibration, not a
 noise floor.}
+
+\input{include/analog/fig_eis_codelevel.tex}
 
 \paragraph{The phase error is the excitation grid, not the converter.} One
 converter serving two channels samples them half a conversion apart, and point
@@ -232,7 +250,8 @@ gain code 0 and \SI{12.3}{\percent} at code 63, the bottom-code run's own
 pole --- on top of the
 \SI{9}{\percent} nominal offset the law already carries at the bottom code.
 \textbf{One dc measurement of the feedback resistance per chip removes
-essentially all of it}: \(\sigma = \SI{0.0006}{\percent}\), four orders of
+essentially all of it}: \(\sigma = \SI{0.0006}{\percent}\)
+(Figure~\ref{fig:eis-mccal}), four orders of
 magnitude better and indistinguishable from measuring the current at every
 frequency, which is the bound and would need a current reference the die does not
 carry. That is a fourth independent reason for the calibration impedance. Phase
@@ -240,6 +259,8 @@ escapes the argument entirely --- the feedback resistance is a real scale factor
 so the stored-law and dc-calibrated architectures report identical phase in every
 case measured, and a chip with no gain calibration at all still reports phase to
 the accuracy above.
+
+\input{include/analog/fig_eis_mccal.tex}
 
 \paragraph{The calibration impedance must be switchable across decades.} Against
 a standard matched to the load, the ratiometric measurement reaches the bound

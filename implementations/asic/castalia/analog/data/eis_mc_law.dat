@@ -1,0 +1,32 @@
+# assembled channel, EIS Monte Carlo, castalia_pm_25 nominal corner, 37 C, n = 649
+# simruns/eisdeep_20260826/mc_report via simruns/eisfigs2_20260826/data/fig2_hist_law.dat
+x n
+-35 0
+-32.5 5
+-30 12
+-27.5 8
+-25 21
+-22.5 19
+-20 32
+-17.5 49
+-15 68
+-12.5 74
+-10 64
+-7.5 60
+-5 45
+-2.5 37
+0 43
+2.5 35
+5 22
+7.5 20
+10 15
+12.5 12
+15 3
+17.5 2
+20 0
+22.5 1
+25 1
+27.5 0
+30 1
+32.5 0
+35 0
