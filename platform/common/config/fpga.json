@@ -1,0 +1,33 @@
+{
+  "_comment": "FPGA bring-up vehicle, 2026-08-25. The SMALLEST VestaRV that still runs the boot ROM and the ISA regression, cut down for an FPGA rather than for area: one hart, no second peripheral instances, and nothing that has no FPGA counterpart. Generate it with: make -C platform/common generate CONFIG=config/fpga.json (then plain make -C platform/common generate, to put out/ and the tracked resolved config back to Castalia).",
+
+  "chipName": "FPGA",
+
+  "numHarts": 1,
+
+  "orchestrator": false,
+  "_orchestratorNote": "FALSE, pinned rather than inherited: orchestrator=true has been the SHIPPED DEFAULT since CPR8, and at numHarts=1 it would emit hart 0 as orch_tile and leave the design with NO hart_tile at all. false makes hart 0 an ordinary hart_tile, keeps the memory map at v1 (SH_AW=15), emits no TCM apertures, and leaves extended flash at 0x20000 where the boot ROM expects it.",
+
+  "isa": { "compressed": false, "bitmanip": false, "minimalTiles": false },
+  "_isaNote": "mul, div and atomics STAY ON: every firmware image in software/ is compiled -march=rv32ima (toolchains/riscv/defs.bzl), so turning M or A off would break the boot ROM and every application. C and Zb are off because rv32ima uses neither, which is the supported castalia_norvc / castalia_nobitmanip shape. minimalTiles is RTL-inert at numHarts=1 (it only feeds the TILE_ENABLE_* constants read by harts 1..N-1, and that loop emits nothing here); false keeps the generated map and the manual honest about a chip whose only hart takes the full ISA.",
+
+  "peripherals": {
+    "npu": false,
+    "nfc": false,
+    "cqAfeStubs": false,
+    "fieldPower": false,
+    "i2c1": false,
+    "uart1": false,
+    "spi1": false,
+    "timer1": false
+  },
+  "_peripheralsNote": "Everything optional is off. The NPU goes first: NPU.vhd uses ieee.fixed_pkg, the likeliest single source of Vivado grief, and its 16 KiB staging RAM is the largest block on the die. NFC and the AFE stub bank model analog front ends that have no FPGA counterpart, and fieldPower is pad-side wiring only. The four SECOND instances i2c1/uart1/spi1/timer1 are duplicates of blocks this chip still carries as instance 0. WHAT CANNOT BE TURNED OFF, and is not meant to be: UART0, SPI0, TIMER0, I2C0 and the GPIO ports are unconditional, and the boot sequence needs UART0 for the console and SPI0 for the flash. trng, dma, qspi, i3c, rtc, pwm, onewire, i2ctarget and eventFabric are all default-false already and are left to their defaults.",
+
+  "debug": { "enable": false },
+  "_debugNote": "FALSE, and pinned rather than inherited: debug.enable became the SHIPPED DEFAULT on 2026-08-16. Off, the fabric stays single-master, which is one less thing to bring up first. Turn it ON, with a TAP-bearing package such as castalia-lqfp100, only for the OpenOCD stretch goal: _checkDebugTransportBonded() is a hard error if the package bonds no JTAG TAP.",
+
+  "package": { "model": "myshkin-qfn44" },
+  "_packageNote": "The smallest pinout the generator models, and the third inherited-default pin: castalia-lqfp100 has been the default since 2026-08-16. QFN-44 bonds no JTAG TAP, agreeing with debug.enable=false above, and no electrode group, which keeps the AFE chapter and the AfeSystemDiagram off. That figure asserts the five-hart orchestrator shape by name and would fail the build on a one-hart chip.",
+
+  "_memoryNote": "memory.* is left entirely at the shipped defaults. romSize 8192 matches the rom2k_hvt_pg macro MCU.vhd binds RomAddrBits to, and tcmSizePerHart 8192 matches the sram1p8k_hvt_pg that hart_tile.vhd asserts RamSize against. Both asserts execute during elaboration, so the FPGA BRAM models must be built to these same depths or the design will not elaborate."
+}
