@@ -324,11 +324,26 @@ device that makes that matter.
 % Nothing measured is lost: the campaigns are ~/chips/castalia/simruns/
 % {eisdemo,eiscorner}_20260825, eisdeep_20260826 and eisfigs2_20260826, and the
 % narrative is ~/vestarv/docs/afe_rev2_eis_lite.html.
-% Figures kept: fig_eis_nyquist (input from note_eis_intro), fig_eis_codelevel
-% and fig_eis_mccal (both input from note_eis_accuracy).
+% CUT AGAIN on 2026-08-26 to ABOUT TWO PAGES, OWNER'S EXPLICIT INSTRUCTION.
+% Two prose fragments and two figures now: note_eis_intro (which inputs
+% fig_eis_nyquist) and note_eis_accuracy (which inputs fig_eis_codelevel).
+% Newly no longer input, and left ON DISK UNEDITED like the four above:
+% note_eis_rules.tex (the firmware-rules paragraph -- its \input line was here)
+% and fig_eis_mccal.tex (the wafer-calibration histogram, whose \input line and
+% arguing paragraph were in note_eis_accuracy).  Restoring either is putting an
+% \input back.  What left the rendered prose with them, and which run holds it,
+% is recorded in the headers of note_eis_intro.tex and note_eis_accuracy.tex.
+% No cross-reference elsewhere in the chapter breaks: the only \ref into the
+% removed material was note_eis_accuracy's own pointer to fig:eis-mccal, which
+% went with the paragraph that carried it.  The coverage table's Monte Carlo
+% tick for the impedance row still stands on a reported sigma -- the 11.1 % of
+% note_eis_intro's pinned-passive paragraph, now the section's only wafer
+% number.  Three sentences inside the section were rewritten to survive the
+% cut; see the two fragment headers.  The figure kept over the histogram
+% is the Nyquist: it is the only picture of what the mode produces, and the
+% histogram's argument left the prose with the wafer-calibration paragraph.
 \input{include/analog/note_eis_intro.tex}
 \input{include/analog/note_eis_accuracy.tex}
-\input{include/analog/note_eis_rules.tex}
 \FloatBarrier
 
 \input{include/analog/Adc.tex}
