@@ -28,6 +28,14 @@ cpf/
 std_cells/
 hardware/
 .claude/skills/
+
+# software/course/ (2026-08-27, owner decision): the 21 teaching labs
+# (skeleton + reference), the course SDK and the .divcheck harness. 140 files.
+# Untracked, still on disk -- `bazel test //software/course/...` still runs
+# here, it just no longer runs in CI, which builds from a clone. Nothing
+# outside the tree ever depended on it: no BUILD.bazel outside
+# software/course/ names a //software/course target.
+software/course/
 # Pegasus/Calibre DRC-LVS run logs:
 ic_bad/
 # logo/ contained *.gds:

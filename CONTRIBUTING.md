@@ -218,7 +218,7 @@ queue re-runs them against a candidate rebased onto current `main`
 | `Chip generator gates` | `make generate` is clean, and the tracked `hdl/common/MCU.vhd` / `MemoryMap.vhd` are byte-identical to what the generator emits. A hand-edit of the generated RTL cannot merge. |
 | `Docs link + generator syntax gates` | Every relative link in the HTML and Markdown resolves; the generator byte-compiles; no workflow targets a self-hosted runner. |
 | `Bootrom + ISA image builds` | The mask ROM reproduces byte-identically with the pinned toolchain, and the full N=4 ISA image set still assembles and links. |
-| `Bazel hermetic gates` | `bazel test //...` minus the GHDL half, from a checkout with no toolchain installed: chip generation, every firmware and course-lab golden, the ISA image contract, the python tooling, the docs gates. Also proves the lockfile is current, the whole build graph analyzes, and that no build action wrote into the source tree. |
+| `Bazel hermetic gates` | `bazel test //...` minus the GHDL half, from a checkout with no toolchain installed: chip generation, every firmware golden, the ISA image contract, the python tooling, the docs gates. Also proves the lockfile is current, the whole build graph analyzes, and that no build action wrote into the source tree. |
 | `Repo hygiene gates` | The `tools/ci/` guards: CRLF endings preserved where they are load-bearing, VHDL is 7-bit ASCII, `.bazelignore` still excludes the EDA output trees, and no build output or oversized blob is tracked. |
 
 Two more hosted jobs run on every PR from `.github/workflows/`: the GHDL ISA

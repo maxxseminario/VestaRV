@@ -42,8 +42,8 @@ All five run on GitHub-hosted runners in a few minutes and need no licenses, so
 a queued PR is never waiting on the bench machine.
 
 `Bazel hermetic gates` is the broadest of them: it is `bazel test //...` minus
-the GHDL half, so it proves chip generation, every firmware and course-lab
-golden, the ISA image contract, the python tooling and the docs gates from a
+the GHDL half, so it proves chip generation, every firmware golden,
+the ISA image contract, the python tooling and the docs gates from a
 checkout with no toolchain installed at all. Its cost is bounded by the bazel
 disk cache the job restores; a cold cache is the only slow case, and it does
 not build GHDL. Requiring it is the single highest-value addition to the queue.
