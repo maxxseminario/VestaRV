@@ -60,13 +60,6 @@ The six apps, package and target name:
 | `//software/dbg_trampoline:dbg_trampoline_words_test` | Proves the assembled word table matches its tracked golden |
 | `//tools/cosim:check_dbg_trampoline_test` | Dual-truth gate: proves the word table matches the table hard-coded in `hdl/common/debug_module.vhd` |
 
-### Course labs
-
-`software/course/` (21 labs, skeleton and reference, plus the course SDK) is
-untracked as of 2026-08-27 by owner decision. It is still on the bench machine
-and still builds and gates there under `//software/course/...`, but it is not
-repository content and a clone does not carry it.
-
 ### Firmware goldens
 
 Firmware images are locked by tracked `testdata/*_golden.txt` files (`*.rcf` is

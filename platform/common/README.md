@@ -30,7 +30,7 @@ tools/bin/bazel test //...       # first run downloads all toolchains
 | Target | What it is / what it proves |
 |--------|-----------------------------|
 | `//platform/common:chip_artifacts_castalia` | The full generated tree for the default Castalia configuration (`out/hdl/`, `out/software/`, `out/web/`, `out/pnr/`, `config/`, `latex/TRM/`). This is the artifact generation; the TRM PDF is a separate target |
-| `//platform/common:chip_artifacts_argus` | The same tree for the 18-hart Argus course configuration |
+| `//platform/common:chip_artifacts_argus` | The same tree for the 18-hart Argus configuration |
 | `//platform/common:chip_artifacts_castalia_repro` | A second, independent generation of the Castalia configuration; exists only to be byte-compared by the determinism test |
 | `//platform/common:trm_latex_tree` | The generated LaTeX TRM tree alone |
 
@@ -129,7 +129,7 @@ documented in the generated TRM's "Chip Configuration" section):
 | `peripherals.uart1` | `false` = drop the second UART (slot 5 dead, vectors 52–54 reserved, TX1/RX1 pins revert to plain GPIO) |
 | `peripherals.spi1` | `false` = drop the second SPI (slot 3 dead, vectors 11–12 reserved, CS1/MISO1/MOSI1/SCK1 pins revert to plain GPIO) |
 | `peripherals.timer1` | `false` = drop the second TIMER (slot 7 dead, vectors 22–27 reserved, T1CMP\*/T1CAP\* pins revert to plain GPIO) |
-| `package.model` | Package model name defined in `generate.py` (`_PACKAGE_MODELS`: `myshkin-qfn44`, `castalia-quad-qfn64`, `castalia-lqfp100`). **Default since 2026-08-16: `castalia-lqfp100`** — the LQFP-100 large pinout (14 × 14 mm, 100 pins), moved there as the pad-side half of the `debug.enable` flip because it is the only model that bonds the JTAG TAP. It also bonds the sixteen electrode pads, which is half of what gates the TRM's Analog Front-End chapter (the other half is the orchestrator shape: `numHarts = 5` with `orchestrator = true`). `config/castalia4.json`, `argus.json` and `argus_course.json` (the last untracked since 2026-08-27, bench-machine only) pin `myshkin-qfn44` (they are not that chip; see their `_packageNote`), and `argus_debug.json` pins `castalia-lqfp100` provisionally, to reach the JTAG balls. |
+| `package.model` | Package model name defined in `generate.py` (`_PACKAGE_MODELS`: `myshkin-qfn44`, `castalia-quad-qfn64`, `castalia-lqfp100`). **Default since 2026-08-16: `castalia-lqfp100`** — the LQFP-100 large pinout (14 × 14 mm, 100 pins), moved there as the pad-side half of the `debug.enable` flip because it is the only model that bonds the JTAG TAP. It also bonds the sixteen electrode pads, which is half of what gates the TRM's Analog Front-End chapter (the other half is the orchestrator shape: `numHarts = 5` with `orchestrator = true`). `config/castalia4.json` and `argus.json` pin `myshkin-qfn44` (they are not that chip; see their `_packageNote`), and `argus_debug.json` pins `castalia-lqfp100` provisionally, to reach the JTAG balls. |
 | `package.preliminary` | `false` = suppress the TRM package-section "Preliminary" banner |
 
 Every build also writes `config/ChipConfig.resolved.json` (all knobs plus the derived
@@ -143,7 +143,7 @@ figure is generated from the same model. The peripheral *set* is otherwise fixed
 template content — the NPU and every second instance (I²C1, UART1, SPI1, TIMER1) are
 real drop knobs (G1a/G1b): a dropped instance's window reads zero, its vectors become
 reserved gaps (the numbering is frozen), and its pins revert to plain GPIO. Working
-configurations live in `config/` (`argus.json` = the 18-hart course chip;
+configurations live in `config/` (`argus.json` = the 18-hart Argus chip;
 `castalia_no{i2c1,uart1,spi1,timer1}.json` = the G1a/G1b proof configs).
 
 Generation produces the complete Technical Reference Manual for exactly the generated

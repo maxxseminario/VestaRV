@@ -742,7 +742,7 @@ if orchestrator and numHarts < 2:
 	raise Exception('orchestrator requires numHarts >= 2 (hart 0 is the orchestrator, '
 		+ 'harts 1..numHarts-1 are the tiles — a one-hart orchestrator has nothing to orchestrate)')
 
-# Mutex count (A2/Argus: 32 for the 18-hart course chip, 16 = the Castalia
+# Mutex count (A2/Argus: 32 for the 18-hart Argus chip, 16 = the Castalia
 # default). Word-mapped at 0x6000 + 4*i; the page has room for far more, the
 # RTL addr port width is clog2(numMutexes) (mutex_bank NMUTEX generic).
 numMutexes = _cfg('numMutexes', 16)
@@ -1337,7 +1337,7 @@ _VERIFIED_HART_COUNTS = [
 # sram1p8k_hvt_pg macro, and hdl/common/hart_tile.vhd now closes over it with
 # `assert RamSize = 8192 ... severity failure`. RamSize is a MemoryMap package
 # constant, not a generic, so no instance can override it, and every Argus row
-# (config/argus.json, argus_course.json, argus_debug.json, and the frozen
+# (config/argus.json, argus_debug.json, and the frozen
 # hdl/argus/MemoryMap.vhd) asks for memory.tcmSizePerHart = 16384. An 18-hart
 # build therefore still GENERATES -- the schema permits any 1 KiB multiple up to
 # 0x4000 -- and then fails elaboration in all eighteen tiles. That assertion is

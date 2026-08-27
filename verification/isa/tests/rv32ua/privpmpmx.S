@@ -37,8 +37,8 @@
 #
 # SHARED-WORD LEDGER (CLAUDE.md rule: everything a test uses stays < 0x10500
 # and inside the bootrom zero range < 0x10800). This test takes the TOP TWO
-# words of the course-reserved band 0x102A0-0x1037F — the band grows from the
-# bottom for the ECEN 4xx labs, so the top is the lowest-collision choice.
+# words of the reserved band 0x102A0-0x1037F — the band grows from the
+# bottom, so the top is the lowest-collision choice.
 # BOTH are N-agnostic scalars (no per-hart array), so they are correct at
 # NHARTS=4 and NHARTS=18 alike:
 #     0x10378  PMPMX_MRD    what hart 1 read from mutex 15 (0 = it was FREE)

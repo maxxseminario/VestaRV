@@ -18,6 +18,7 @@ logo
 .claude
 
 # Generated / gitignored trees inside otherwise-bazelified areas:
+software/course
 docs/publications
 verification/isa/build
 verification/isa/build_oneoff

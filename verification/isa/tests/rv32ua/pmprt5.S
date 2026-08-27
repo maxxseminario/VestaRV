@@ -37,7 +37,7 @@
 #   second (hart 0's fence gone).
 #
 # SHARED-WORD LEDGER (CLAUDE.md: everything < 0x10500, inside the bootrom zero
-# range).  Two N-agnostic scalars from the course-reserved band
+# range).  Two N-agnostic scalars from the reserved band
 # 0x102A0-0x1037F, just below privpmpmx's pair:
 #     0x10368  PMPRT5_W      the fenced shared word (hart 1 writes it)
 #     0x1036C  PMPRT5_DONE1  hart 1's completion flag (0x50BE0001)

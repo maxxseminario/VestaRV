@@ -29,21 +29,14 @@ std_cells/
 hardware/
 .claude/skills/
 
-# software/course/ (2026-08-27, owner decision): the 21 teaching labs
-# (skeleton + reference), the course SDK and the .divcheck harness. 140 files.
-# Untracked, still on disk -- `bazel test //software/course/...` still runs
-# here, it just no longer runs in CI, which builds from a clone. Nothing
-# outside the tree ever depended on it: no BUILD.bazel outside
-# software/course/ names a //software/course target.
+# Teaching material and its chip configuration (2026-08-27, owner decision).
+# Untracked, still on disk. Nothing tracked is wired to either one: the bazel
+# macro and the image list that used to name them were removed in the same
+# commit, and platform/common:config_srcs reaches the config only through
+# glob(["config/*.json"]), which still satisfies its allow_empty=False.
+# The labs tree is also named in .bazelignore, so the local `bazel test //...`
+# skips it rather than failing on a package it can no longer build.
 software/course/
-
-# The Argus course-chip generator config (2026-08-27, owner decision), removed
-# with the course material it belongs to. Hand-written input, not a generator
-# output. Nothing is wired to it by name: no BUILD.bazel names it, no gate
-# carries a hardcoded config list, and platform/common:config_srcs reaches it
-# only through glob(["config/*.json"]) -- which still satisfies its
-# allow_empty=False with the remaining 50 configs. Still on disk, so
-# `make verify CONFIG=config/argus_course.json` still runs here.
 platform/common/config/argus_course.json
 
 # Bench and programmer host tools (2026-08-27, owner decision): the PyEmanate

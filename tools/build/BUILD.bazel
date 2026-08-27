@@ -157,9 +157,8 @@ py_test(
 
 # The product firmware: everything that is meant to run on a Castalia part.
 # The seven images that link through linker-scripts/ (bootrom_mp via
-# MCU-bootrom.ld, the blinky family via MCU.ld), the debug trampoline that
-# lives in the shared window, and the twenty-one course lab images, which link
-# through software/course/sdk/course.ld and pin .ivt at 0x8000 by hand.
+# MCU-bootrom.ld, the blinky family via MCU.ld) and the debug trampoline that
+# lives in the shared window.
 PRODUCT_IMAGES = [
     "//software/bootrom_mp:flashboot.elf",
     "//software/afetest:afetest.elf",
@@ -169,31 +168,6 @@ PRODUCT_IMAGES = [
     "//software/slowblink:slowblink.elf",
     "//software/traptest:traptest.elf",
     "//software/dbg_trampoline:dbg_trampoline.elf",
-] + [
-    "//software/course/labs/%s/%s:%s.elf" % (lab, variant, stem)
-    for lab, variant, stem in [
-        ("lab01_hello", "reference", "lab01_hello"),
-        ("lab01_hello", "skeleton", "lab01_hello"),
-        ("lab02_assembly", "reference", "lab02_assembly"),
-        ("lab02_assembly", "skeleton", "lab02_assembly"),
-        ("lab03_c_baremetal", "reference", "lab03_c_baremetal"),
-        ("lab03_c_baremetal", "skeleton", "lab03_c_baremetal"),
-        ("lab04_gpio", "reference", "lab04_gpio"),
-        ("lab04_gpio", "skeleton", "lab04_gpio"),
-        ("lab05_uart", "reference", "lab05_uart"),
-        ("lab05_uart", "skeleton", "lab05_uart"),
-        ("lab07_timer", "reference", "lab07_timer"),
-        ("lab07_timer", "skeleton", "lab07_timer"),
-        ("lab08_interrupts", "reference", "lab08_interrupts"),
-        ("lab08_interrupts", "skeleton", "lab08_interrupts"),
-        ("lab09_multicore_boot", "reference", "lab09_mpboot"),
-        ("lab09_multicore_boot", "skeleton", "lab09_mpboot"),
-        ("lab10_sync", "reference", "lab10_sync"),
-        ("lab10_sync", "skeleton", "lab10_sync"),
-        ("lab10_sync", "nobackoff", "lab10_nobackoff"),
-        ("lab11_npu", "reference", "lab11_npu"),
-        ("lab11_npu", "skeleton", "lab11_npu"),
-    ]
 ]
 
 # The memory map, straight from the generator, in both the forms the check
@@ -213,7 +187,10 @@ MAP_DATA = [
 ]
 
 # --min-images is a floor, not a count: a data list that stops resolving would
-# otherwise turn this into a green check of nothing. --require-nobits is the
+# otherwise turn this into a green check of nothing. It was 29 while
+# PRODUCT_IMAGES also carried twenty-one lab images; it tracks the list, so
+# moving it DOWN is only ever correct alongside a deliberate removal from
+# PRODUCT_IMAGES, never to make a red target green. --require-nobits is the
 # standing control that .bss/.noinit really do reach the comparison, since a
 # NOBITS section is what the motivating defect was.
 py_test(
@@ -222,7 +199,7 @@ py_test(
     srcs = ["scripts/check_image_regions.py"],
     args = MAP_ARGS + [
         "--min-images",
-        "29",
+        "8",
         "--require-nobits",
     ] + ["$(rootpaths %s)" % i for i in PRODUCT_IMAGES],
     data = MAP_DATA + PRODUCT_IMAGES,
