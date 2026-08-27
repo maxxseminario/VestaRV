@@ -53,8 +53,8 @@ Full map of the Bazel build: [`BAZEL.md`](../../BAZEL.md).
 
 Some work in this repo runs outside Bazel and needs a `riscv-none-elf-`
 toolchain on the host: the Cadence simulations (`platform/common`'s
-`make verify`, the Xcelium and lockstep gates), the course SDK's `make sim` /
-`make deploy`, and the bench and programmer tools. Those are the only reasons
+`make verify`, the Xcelium and lockstep gates) and the bench and programmer
+tools. Those are the only reasons
 to install one - the Bazel build fetches its own pinned copy and ignores
 `RISCV_TOOLCHAIN_DIR`.
 

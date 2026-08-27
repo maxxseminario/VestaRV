@@ -72,8 +72,8 @@ cd "$(dirname "$0")"
 # The build TRANSITS through rcf/: the Makefile's *-flash recipes write there
 # unconditionally. So an OUT-OF-TREE build (e.g. the Argus N=18 set staged into
 # rcf_argus/) used to leave rcf/ holding foreign-N images AND stamped
-# rcf/.nharts with $NH -- poisoning the Castalia suite, both lockstep gates and
-# the course runner until a manual rebuild (M19b war story; harness probe G4).
+# rcf/.nharts with $NH -- poisoning the Castalia suite and both lockstep gates
+# until a manual rebuild (M19b war story; harness probe G4).
 # CPR8/R7: the canonical set is NHARTS=5 now (the shipped five-hart
 # orchestrator chip); it was 4 until 2026-08-15.
 # We now snapshot rcf/ BEFORE the build and restore it after staging, so an

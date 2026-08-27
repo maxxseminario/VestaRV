@@ -56,7 +56,7 @@ tools/bin/bazel test //...       # first run downloads all toolchains
 
 ```sh
 tools/bin/bazel build //platform/common:chip_artifacts_castalia   # the hermetic generation
-tools/bin/bazel build //platform/common:chip_artifacts_argus      # the 18-hart course chip
+tools/bin/bazel build //platform/common:chip_artifacts_argus      # the 18-hart Argus chip
 tools/bin/bazel test  //platform/...                              # the generator gate tests
 ```
 
