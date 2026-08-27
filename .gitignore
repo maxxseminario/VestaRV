@@ -151,6 +151,17 @@ hardware/MCU/periph/AFE_FSM.vhd
 
 # ARM IP
 *ARM*
+# NARROW EXCEPTION, hdl/fpga/ ONLY (2026-08-27). ARM_IP_RAM.vhd and
+# ARM_IP_ROM.vhd there are hand-written SYNTHESIZABLE STAND-INS for the
+# compiled macros -- project VHDL that carries no vendor code, named to mirror
+# the files they replace, which is the only reason *ARM* catches them. Without
+# this the FPGA substitution set ships two of its four cells and hdl/fpga's own
+# table lists two files a clone does not have.
+# This does NOT extend to hdl/common/: the twelve behavioural models the
+# pattern hides there stay hidden, and un-hiding them is a separate repo-policy
+# call (see the note in opensource_sim/mcu/BUILD.bazel).
+!hdl/fpga/ARM_IP_RAM.vhd
+!hdl/fpga/ARM_IP_ROM.vhd
 
 # Compiled binaries
 *.o

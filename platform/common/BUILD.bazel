@@ -131,6 +131,20 @@ chip_artifacts(
     out_of_tree_srcs = ["//hdl:vhdl_sources"],
 )
 
+# FPGA (1 hart, no orchestrator, nothing that has no FPGA counterpart). The
+# bring-up vehicle for the synthesizable cells in hdl/fpga/. The tracked RTL is
+# Castalia's here too, so the bar is that the configuration still generates and
+# its machine-readable outputs still parse (:fpga_generation_test). What binds
+# against it is not built here: hdl/fpga/README.md carries the elaboration
+# recipe, which needs a simulator this build does not provision.
+chip_artifacts(
+    name = "chip_artifacts_fpga",
+    srcs = ["//platform/common/python:generator_srcs"],
+    chip_root_srcs = CHIP_ROOT_SRCS,
+    config = "config/fpga.json",
+    out_of_tree_srcs = ["//hdl:vhdl_sources"],
+)
+
 # ---------------------------------------------------------------------------
 # Named handles on individual artifacts. These are the labels other packages
 # consume; the underlying output-group names are an implementation detail.
@@ -490,6 +504,28 @@ py_test(
         "platform/common/chip_artifacts_mcu_hart/latex/TRM/",
     ],
     data = [":chip_artifacts_mcu_hart"],
+    main = "assert_artifacts.py",
+)
+
+# The FPGA configuration still generates, and its machine-readable outputs still
+# parse. This is what keeps config/fpga.json from rotting against a knob rename.
+py_test(
+    name = "fpga_generation_test",
+    size = "small",
+    srcs = ["//platform/common/bazel:assert_artifacts.py"],
+    args = [
+        "platform/common/chip_artifacts_fpga/out/hdl/MCU.vhd",
+        "platform/common/chip_artifacts_fpga/out/hdl/MemoryMap.vhd",
+        "platform/common/chip_artifacts_fpga/out/hdl/riscv_tb.vhd",
+        "platform/common/chip_artifacts_fpga/out/software/include/MemoryMap.h",
+        "platform/common/chip_artifacts_fpga/out/software/include/periph.S",
+        "platform/common/chip_artifacts_fpga/out/web/chip_data.js",
+        "platform/common/chip_artifacts_fpga/out/web/MemoryMap.json",
+        "platform/common/chip_artifacts_fpga/config/ChipConfig.resolved.json",
+        "platform/common/chip_artifacts_fpga/config/PadRing.json",
+        "platform/common/chip_artifacts_fpga/latex/TRM/",
+    ],
+    data = [":chip_artifacts_fpga"],
     main = "assert_artifacts.py",
 )
 
