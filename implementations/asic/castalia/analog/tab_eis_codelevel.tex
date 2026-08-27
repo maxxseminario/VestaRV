@@ -68,9 +68,35 @@
 %% this is a resistive-load result -- which is also why the magnitude
 %% attribution is unambiguous.
 %% Library cell names are kept out of the rendered prose.
-\begin{table}[htbp]
-  \centering
-  \caption[{Impedance from converter codes: magnitude attribution and the phase
+%%
+%% SET INLINE, NOT AS A FLOAT (2026-08-27).  The section's prose ends part-way
+%% down its last page and the \FloatBarrier that closes it turned a deferred
+%% float into a \newpage (placeins), so a 12-row table was costing a whole page
+%% of its own.  Written as an ordinary vertical box in the text stream instead:
+%% the table counter, the \label and the short-form List of Tables entry are
+%% unchanged because \captionof{table} steps and writes exactly what \caption
+%% does inside a table environment.
+%% NOT \begin{table}[H]: the float package, which defines the H specifier, is
+%% commented out in platform/common/latex/packages-commands.template.tex (that
+%% preamble is shared across chips and is not ours to add to).  caption IS
+%% loaded there, so \captionof is the available route.
+%% The box must not break across a page -- caption on one page and body on the
+%% next is worse than the float was -- hence the \parbox, with the \addvspace
+%% pair standing in for the float's \intextsep.
+%% THE \parbox IS LOAD-BEARING, not cosmetic.  Written as loose vertical
+%% material the block was unbreakable anyway, but \captionof's
+%% \addcontentsline whatsit is NOT: the page builder flushed it to the page
+%% BEFORE the one the table landed on, and the List of Tables then printed the
+%% wrong page number (114 for a table on 115) while \ref and the hyperlink were
+%% both right -- a wrong number that no lint and no log line reports.  Inside a
+%% box the whatsit ships with the box.  Verified in the built TRM.lot.
+%% [b] so the box is all height and no depth: a 320 pt depth on the line that
+%% carries it is what \maxdepth exists to police.  It renders identically to
+%% the default alignment here (byte-identical PDF) -- it is insurance against a
+%% future reflow that lands the block elsewhere on a page.
+\par\addvspace{\intextsep}
+\noindent\parbox[b]{\textwidth}{%
+  \captionof{table}[{Impedance from converter codes: magnitude attribution and the phase
   mechanism.}]{Impedance demodulated from the ten-bit words of the extracted
   converter, on one record of \num{256} conversions at
   \SI{869565}{\per\second} with the input multiplexer interleaving the
@@ -84,8 +110,10 @@
   small-signal analysis of the same load and gain code, itself \(+0.295\,\%\)
   and \SI{0.405}{\degree} from the analytic load. \textbf{One record, one die,
   one frequency into a resistive load}, with no noise sources in the deck: a
-  deterministic attribution with no distribution behind it.}
-  \label{tab:eis-codelevel}
+  deterministic attribution with no distribution behind it.}%
+  \label{tab:eis-codelevel}%
+  \par\nobreak
+  \centering
   \begin{tabular}{llrcl}
     \toprule
     Quantity & Unit & Value & \(\pm\SI{0.573}{\degree}\) gate & Reading \\
@@ -105,5 +133,6 @@
     Two records, one grid          & \si{\degree} & \(+0.083\) & \checkmark & measured \\
     Pure sine, same grids          & \si{\degree} & \(0.000\)  & \checkmark & analytic control \\
     \bottomrule
-  \end{tabular}
-\end{table}
+  \end{tabular}%
+}
+\par\addvspace{\intextsep}
