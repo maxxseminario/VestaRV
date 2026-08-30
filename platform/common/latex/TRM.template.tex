@@ -28,7 +28,7 @@
 \titleformat{\section}{\normalfont\Large\bfseries}{\thesection}{0.8em}{}
 \titleformat{\subsection}{\normalfont\large\bfseries}{\thesubsection}{0.8em}{}
 \titleformat{\subsubsection}{\normalfont\normalsize\bfseries}{\thesubsubsection}{0.8em}{}
-\setcounter{tocdepth}{1}
+\setcounter{tocdepth}{3}
 \setcounter{secnumdepth}{3}
 
 % Running heads and footers: chapter number and title on the left, page on
@@ -47,19 +47,14 @@
 \begin{document}
 
 % The title page
-\thispagestyle{empty}
-\vspace*{22ex}
+\vspace*{30ex}
 \begin{center}
-	{\fontsize{44}{50}\selectfont\bfseries \AsicNameForUserGuide} \\[4ex]
-	{\LARGE Technical Reference Manual} \\[10ex]
-	{\large Revision \RevisionDateFull} \\[1.5ex]
-	{\large Build \texttt{\BuildHash}} \\[10ex]
-	\begin{minipage}{0.8\linewidth}
-		\centering\small
-		Preliminary. This manual describes the RTL as generated from the chip configuration of this build (\texttt{make chip}); every address, vector number, register and pin in it is derived from that configuration.
-	\end{minipage}
+	\textbf{Technical Reference Manual for \AsicNameForUserGuide} \\
+	\vspace{2ex}
+	Revised \RevisionDateFull
 \end{center}
-\clearpage
+
+\newpage
 
 % Table of contents
 \tableofcontents
