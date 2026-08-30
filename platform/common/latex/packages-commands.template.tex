@@ -101,7 +101,11 @@
 \definecolor{vestaRedText}{rgb}{0.70,0,0}
 \definecolor{vestaInk}{rgb}{0,0,0}
 \tikzset{
-	% Boxes. Three weights of fill, one stroke, one corner radius.
+	% Boxes. Three weights of fill, one stroke, one corner radius. The block
+	% diagrams draw with vbox: a white box with the thin grey outline, the
+	% RP2040 datasheet look; the filled weights stay defined for the figures
+	% that tell two kinds of node apart by weight.
+	vbox/.style={line width=0.6pt, rounded corners=2pt, draw=black!70, fill=white},
 	vblock/.style={thick, rounded corners=2pt, draw=vestaInk, fill=black!8},
 	vblocklt/.style={thick, rounded corners=2pt, draw=vestaInk, fill=black!3},
 	vblockw/.style={thick, rounded corners=2pt, draw=vestaInk, fill=white},
@@ -113,19 +117,30 @@
 	% that leaves the paper white, because a solid band behind a figure is the
 	% single thing that made these drawings look machine-made.
 	vregion/.style={draw=black!35, line width=0.5pt, dashed, rounded corners=3pt},
-	% Text. Sans throughout; italic is for asides only, never for a block name.
-	vhd/.style={font=\sffamily\scriptsize, align=center, inner sep=1pt, anchor=north},
-	vbc/.style={font=\sffamily\scriptsize, align=center, inner sep=1pt},
-	vsm/.style={font=\sffamily\tiny, align=center, inner sep=1pt},
-	vnote/.style={font=\sffamily\scriptsize\itshape, text=black!55, align=left, inner sep=1.5pt},
+	% Text. Sans throughout, in exactly TWO sizes: vname (\small) for the name
+	% of a block and vlab (\footnotesize) for everything secondary. Nothing in
+	% a diagram is set below \footnotesize, so the smallest label on the page
+	% is 8 pt whenever the figure is input at natural size. The older names
+	% stay defined for the emitters that still use them, at the same floor.
+	vname/.style={font=\sffamily\small, align=center, inner sep=1pt},
+	vlab/.style={font=\sffamily\footnotesize, align=center, inner sep=1pt},
+	vhd/.style={font=\sffamily\footnotesize, align=center, inner sep=1pt, anchor=north},
+	vbc/.style={font=\sffamily\footnotesize, align=center, inner sep=1pt},
+	vsm/.style={font=\sffamily\footnotesize, align=center, inner sep=1pt},
+	vnote/.style={font=\sffamily\footnotesize\itshape, text=black!55, align=left, inner sep=1.5pt},
 	vgroup/.style={font=\sffamily\small\itshape, text=black!55, align=left, fill=white, inner sep=1.5pt},
 	vredlab/.style={font=\sffamily\small\bfseries, text=vestaRedText, align=left},
-	% Lines. One arrow head for the whole manual.
+	% Lines. One arrow head for the whole manual: Stealth, on every style that
+	% carries a head, and a junction dot where a wire really joins another.
 	vwire/.style={semithick, draw=vestaInk},
-	vflow/.style={->, >=Stealth, semithick, draw=vestaInk},
-	vbus/.style={<->, >=Stealth, thick, draw=vestaInk},
-	vaccent/.style={->, >=Stealth, semithick, draw=vestaRed},
+	vflow/.style={->, >={Stealth[length=2mm]}, semithick, draw=vestaInk},
+	vbus/.style={<->, >={Stealth[length=2mm]}, thick, draw=vestaInk},
+	vaccent/.style={->, >={Stealth[length=2mm]}, semithick, draw=vestaRed},
 	vghost/.style={dashed, draw=black!45, semithick},
+	vdot/.style={circle, fill=vestaInk, inner sep=0pt, minimum size=3pt},
+	% A mux, drawn the STM32 way: a trapezium standing on its narrow side,
+	% inputs on the wide (left) edge, the select code beside each input.
+	vmux/.style={trapezium, trapezium angle=70, shape border rotate=270, line width=0.6pt, draw=black!70, fill=white, inner sep=1pt},
 }
 
 % Cross-references and register names are visibly clickable, in the theme's
@@ -166,6 +181,33 @@
 		\texttt{#2} % print end address
 	}%
 	\bitbox{16}{\sffamily\small #4}	% print box with caption, sans (figure theme)
+}
+% A row of the address column labelled at its lower edge only: the start
+% address sits on the boundary it names and the row above supplies the other.
+\newcommand{\memrow}[3]{%
+	\bytefieldsetup{bitheight=#2\baselineskip}%
+	\bitbox[]{10}{%
+		\texttt{#1}
+		\\
+		\vspace{#2\baselineskip}
+		\vspace{-2\baselineskip}
+		\vspace{-#2pt}
+		\mbox{}
+	}%
+	\bitbox{16}{\sffamily\small #3}%
+}
+% An unmapped row: the same geometry, a plain grey fill and no words.
+\newcommand{\memgap}[2]{%
+	\bytefieldsetup{bitheight=#2\baselineskip}%
+	\bitbox[]{10}{%
+		\texttt{#1}
+		\\
+		\vspace{#2\baselineskip}
+		\vspace{-2\baselineskip}
+		\vspace{-#2pt}
+		\mbox{}
+	}%
+	\bitbox{16}[bgcolor=black!8]{}%
 }
 
 % Add a macro for tikz-timing time axis (from https://tex.stackexchange.com/questions/67821/tikz-timing-is-there-a-straightforward-way-to-add-a-numbered-time-axis)

@@ -253,12 +253,6 @@ A caution looks like this. Software must satisfy the condition it states, becaus
 % ---------------------------------------------------------------------------
 The \AsicNameForUserGuide{} microcontroller (MCU) is a \NumHartsWord-hart multiprocessor built from \NumHartsWord{} identical VestaRV cores, a 32-bit RISC-V processor, together with a boot ROM that contains the boot loader and a ROM monitor, a private tightly coupled memory (TCM) per hart, an arbitrated shared memory window for inter-hart communication, and the peripherals listed below. The multi-core architecture is described in Chapter~\ref{s:multicore}, and Figure~\ref{fig:chip-system-flat-diagram} shows the top-level organisation of this configuration.
 
-% The old top-level block diagram (include/SystemBlockDiagram.tex) and the
-% portrait whole-chip figure (include/ChipSystemDiagram.tex) were retired from
-% the manual (2026-08-16 and 2026-08-25): both drew the same generated content
-% as the flat figure below. Their emitters still run and still write the files;
-% nothing inputs them, so either can be taken back unchanged.
-
 \section{Features}
 
 \begin{itemize}[itemsep=1pt]
@@ -269,19 +263,16 @@ The \AsicNameForUserGuide{} microcontroller (MCU) is a \NumHartsWord-hart multip
 
 \section{Block diagram}
 
-Figure~\ref{fig:chip-system-flat-diagram} is the view to read first: the bus masters in a band above the arbiter, the arbiter drawn as the single bus bar it behaves like, every peripheral this configuration instantiates in one rank below it, and the package boundary in red with the outside world crossing it. It is generated from the configuration, so the peripheral set, the instance counts and the addresses in it are this build's. The memory system's own view of the chip, the one address column all \NumHartsWord{} harts share, is Figure~\ref{fig:address-space} in Chapter~\ref{s:addressSpace}, and the per-pin bonding is Chapter~\ref{s:pinsConfig}.\ifcqanalog{} The analog front end is drawn as one site per hart, as a hat on the hart that owns it, because there is no per-hart wire to an analog site, only the ownership gate printed in each one and hart 0's reach over all of them (Section~\ref{ss:cqanalog-gate}).\fi{}
+Figure~\ref{fig:chip-system-flat-diagram} is the view to read first: the bus masters above the arbiter, the arbiter drawn as the single bus bar it behaves like, the memories and every peripheral family this configuration instantiates on one rank below it, and the package boundary in red with the pin groups that cross it. It is generated from the configuration, so the peripheral set and the instance counts in it are this build's. The memory system's own view of the chip, the one address column all \NumHartsWord{} harts share, is Figure~\ref{fig:address-space} in Chapter~\ref{s:addressSpace}, and the per-pin bonding is Chapter~\ref{s:pinsConfig}.
 
-% Generated, configuration-driven whole-chip diagram (make chip). Landscape,
-% so it is set on a rotated page to keep its labels legible. Ungated (the
-% emitter degrades on a configuration with no analog row), so both polarities
-% resolve every \ref to it.
-\begin{sidewaysfigure}
+% Generated, configuration-driven whole-chip diagram (make chip). Drawn to the
+% text width at natural size, so no \resizebox: every label is 8 pt or larger.
+\begin{figure}[htbp]
 	\centering
-	\resizebox{\textheight}{!}{\input{include/ChipSystemFlatDiagram.tex}}
-	\caption[{\AsicNameForUserGuide{} whole-chip diagram}]{\AsicNameForUserGuide{} whole-chip diagram: the masters above one \texttt{mp\_arbiter} bus bar, every peripheral on one rank below it, and the package boundary in red.}
+	\input{include/ChipSystemFlatDiagram.tex}
+	\caption[{\AsicNameForUserGuide{} whole-chip diagram}]{\AsicNameForUserGuide{} whole-chip diagram: the bus masters above the \texttt{mp\_arbiter} bus, the memories and peripherals on one rank below it, and the package boundary in red.}
 	\label{fig:chip-system-flat-diagram}
-\end{sidewaysfigure}
-\clearpage
+\end{figure}
 
 \section{Chip configuration} \label{ss:chipConfig}
 
@@ -309,7 +300,9 @@ The package model for this configuration ({\PackageTypeName}-{\PackagePinCount})
 % generate.py (the same model that emits config/PadRing.json and Table \ref{t:package-pins})
 \begin{figure}[htbp]
 	\centering
-	\resizebox{0.98\linewidth}{!}{\input{include/PackagePinoutDiagram.tex}}
+	% Natural size where it fits; scaled down to the text width only when it
+	% does not (the emitter draws the pin band to land at about the text width).
+	\resizebox{\ifdim\width>\linewidth \linewidth\else\width\fi}{!}{\input{include/PackagePinoutDiagram.tex}}
 	\caption[{{\PackageTypeName}-{\PackagePinCount} pinout, top view}]{{\PackageTypeName}-{\PackagePinCount} pinout, top view ($\PackageSize \times \PackageSize$ {\PackageUnits}, {\PackagePinPitch} {\PackageUnits} pitch); GPIO pins carry their AF0 function and power-rail pins are shaded.}
 	\label{fig:package}
 \end{figure}
@@ -343,7 +336,8 @@ When a pin is in alternate function mode (its \register{PxSEL} bit is 1), its 3-
 % \iforchpresent sentence below.
 \begin{figure}[!ht]
 	\centering
-	\resizebox{!}{0.75\height}{\input{include/AddressSpaceDiagram.tex}}
+	% Natural size: the column is drawn to fit, and its labels are 8 pt.
+	\input{include/AddressSpaceDiagram.tex}
 	\caption[{\AsicNameForUserGuide{} address space: one column for all \NumHartsWord{} harts}]{\AsicNameForUserGuide{} address space: one gapless 32-bit column, drawn once for all \NumHartsWord{} harts; grey rows are unmapped and read zero.}
 	\label{fig:address-space}
 \end{figure}
