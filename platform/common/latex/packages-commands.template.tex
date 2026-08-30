@@ -37,7 +37,6 @@
 % Extra packages
 \usepackage{acronym}                % Glossary of terms and abbreviations (chapter 1)
 \usepackage{titlesec}               % Compact chapter and part headings (report class)
-\usepackage{tcolorbox}              % Note and Caution callout boxes
 \usepackage{verbatim}
 \usepackage{fancyhdr}
 \pagestyle{fancy}
@@ -132,19 +131,16 @@
 % Cross-references and register names are visibly clickable, in the theme's
 % text red. Set here rather than in the \usepackage line because the colour is
 % defined above, after hyperref is loaded.
-\hypersetup{colorlinks=true, linkcolor=vestaRedText, citecolor=vestaRedText, urlcolor=vestaRedText, filecolor=vestaRedText}
+\hypersetup{hidelinks}
 
 % Running head needs 14pt with the Libertine face; fancyhdr warns on every page otherwise.
 \setlength{\headheight}{14pt}
 
 % Callouts. Exactly two tiers: Note (advisory) and Caution (the hardware
-% misbehaves if the text is ignored). Both draw from the theme colours only.
-\tcbset{
-	vestanote/.style={colback=black!3, colframe=black!35, coltitle=black, fonttitle=\sffamily\bfseries, boxrule=0.5pt, arc=2pt, left=4pt, right=4pt, top=2pt, bottom=2pt, before skip=6pt, after skip=8pt},
-	vestacaution/.style={colback=black!3, colframe=vestaRed, coltitle=vestaRedText, fonttitle=\sffamily\bfseries, boxrule=0.8pt, arc=2pt, left=4pt, right=4pt, top=2pt, bottom=2pt, before skip=6pt, after skip=8pt},
-}
-\newtcolorbox{Note}{vestanote, title=Note}
-\newtcolorbox{Caution}{vestacaution, title=Caution}
+% misbehaves if the text is ignored). Both are run-in labelled paragraphs in
+% the ST reference-manual manner, with no box and no colour.
+\newenvironment{Note}{\par\medskip\noindent\textbf{Note:}\space\ignorespaces}{\par\medskip}
+\newenvironment{Caution}{\par\medskip\noindent\textbf{Caution:}\space\ignorespaces}{\par\medskip}
 
 % Heading-level shift for an included file that still uses article levels.
 % Use inside a group: {\ShiftHeadingsUp \input{file}}. The per-implementation
