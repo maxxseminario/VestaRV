@@ -24,7 +24,7 @@ Each mutex word holds either 0 (free) or the marker of the hart that holds it, $
 \begin{figure}[htpb]
 	\centering
 	\input{include/MutexClaimDiagram.tex}
-	\caption{Two harts racing for the same mutex.}
+	\caption{Two harts racing for the same mutex: the first read returns 0 and takes the word, the second returns the holder's marker (\register{mhartid} $+ 1$) and must retry, and the holder releases with \asminline{sw x0}.}
 	\label{fig:mutex-claim}
 \end{figure}
 

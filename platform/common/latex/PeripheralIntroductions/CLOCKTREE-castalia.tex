@@ -17,12 +17,12 @@ Two clocks form the roots of the tree in Figure \ref{fig:mcu-clock-system}: the 
 
 \begin{figure}[htpb]
 	\centering
-	\resizebox{\linewidth}{!}{\input{include/ClockSystemDiagram.tex}}
-	\caption{The MCU clock system: sources, the MCLK and SMCLK bars, and the blocks they clock.}
+	\input{include/ClockSystemDiagram.tex}
+	\caption{The clock tree: the four sources, the two selects and dividers, the SMCLK gate, and the blocks each root clocks.}
 	\label{fig:mcu-clock-system}
 \end{figure}
 
-MCLK drives all \NumHartsWord{} harts, the multi-core arbiter and every always-on block, and it cannot be turned off. SMCLK drives the serial engines of the \peripheral{SPIx}, \peripheral{UARTx}, \peripheral{I2Cx} and \peripheral{NFCx} peripherals and is one of the \peripheral{TIMERx} sources; it can be stopped with \bitfield{SMCLKOFF}. The register interface of every peripheral is clocked from MCLK even where its engine runs on SMCLK, so a peripheral stays readable with SMCLK stopped. The blocks under \emph{Independent domains} in the figure are clocked from outside this tree, and \register{SYSCLKCR} does not reach them.
+MCLK drives all \NumHartsWord{} harts, the multi-core arbiter and every always-on block, and it cannot be turned off. SMCLK drives the serial engines of the \peripheral{SPIx}, \peripheral{UARTx}, \peripheral{I2Cx} and \peripheral{NFCx} peripherals and is one of the \peripheral{TIMERx} sources; it can be stopped with \bitfield{SMCLKOFF}. The register interface of every peripheral is clocked from MCLK even where its engine runs on SMCLK, so a peripheral stays readable with SMCLK stopped. Two clocks come from outside this tree and are not reached by \register{SYSCLKCR}: the NFC protocol core runs on the carrier recovered off die, and the debug TAP runs on the probe's \pin{TCK}.
 
 \subsection{Clock state at reset and after boot}
 

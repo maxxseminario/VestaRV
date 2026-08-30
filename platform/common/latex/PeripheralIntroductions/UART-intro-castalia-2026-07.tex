@@ -22,7 +22,20 @@ Figure \ref{fig:uart-connection-diagram} shows the two-wire connection to an ext
 
 \begin{figure}[htpb]
 	\centering
-	\includegraphics{figures/uart-connection-diagram}
+	\begin{tikzpicture}[x=1cm, y=1cm,
+		boxhd/.style={vhd, font=\sffamily\footnotesize},
+		pinlab/.style={font=\sffamily\footnotesize, inner sep=1.5pt}]
+		\draw[vblockw] (0.45, -1.70) rectangle (3.25, 0.00);
+		\node[boxhd] at (1.85, -0.10) {{\small\bfseries \peripheral{UARTx}}};
+		\draw[vblockw] (6.85, -1.70) rectangle (9.65, 0.00);
+		\node[boxhd] at (8.25, -0.10) {{\small\bfseries external device}};
+		\draw[vflow] (3.25, -0.85) -- (6.85, -0.85);
+		\node[pinlab, above] at (5.05, -0.85) {\pin{TXx} to RX};
+		\draw[vflow] (6.85, -1.35) -- (3.25, -1.35);
+		\node[pinlab, above] at (5.05, -1.35) {\pin{RXx} from TX};
+		\draw[vbound, rounded corners=3pt] (0.00, -2.15) rectangle (3.70, 0.45);
+		\node[font=\sffamily\footnotesize, text=vestaRedText, anchor=south west] at (0.00, 0.47) {chip boundary};
+	\end{tikzpicture}
 	\caption{UART connection to an external device.}
 	\label{fig:uart-connection-diagram}
 \end{figure}

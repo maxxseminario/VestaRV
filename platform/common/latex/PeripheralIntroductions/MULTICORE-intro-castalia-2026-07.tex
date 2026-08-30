@@ -60,8 +60,8 @@ Figure~\ref{fig:tcm-aperture} follows one aperture read through the hardware, be
 % and every \ref to it fold away together on a configuration without apertures.
 \begin{figure}[htpb]
 	\centering
-	\resizebox{\linewidth}{!}{\input{include/TcmApertureDiagram.tex}}
-	\caption{Block diagram of one read through a TCM aperture.}
+	\input{include/TcmApertureDiagram.tex}
+	\caption{One read through a TCM aperture, from hart 0 to the target tile's TCM and back.}
 	\label{fig:tcm-aperture}
 \end{figure}
 \fi
@@ -106,7 +106,7 @@ An \texttt{AMO} (atomic read-modify-write) instruction holds the arbiter grant a
 \begin{figure}[htpb]
 	\centering
 	\input{include/ArbiterHandshakeDiagram.tex}
-	\caption[{Timing diagram of one uncontended shared-window read at the \texttt{mp\_arbiter} pins.}]{Timing diagram of one uncontended shared-window read at the \texttt{mp\_arbiter} pins.}
+	\caption[{Timing diagram of one uncontended shared-window read at the \texttt{mp\_arbiter} pins.}]{Timing diagram of one uncontended shared-window read at the \texttt{mp\_arbiter} pins; in the dashed ghost window \register{req} is stale-high for one cycle after \register{done} and is masked by \register{need\_release}.}
 	\label{fig:arbiter-handshake}
 \end{figure}
 
@@ -120,7 +120,7 @@ One slave does not fit that walk. A read through a TCM aperture has to leave the
 \begin{figure}[htpb]
 	\centering
 	\input{include/ArbiterStallDiagram.tex}
-	\caption{Timing diagram of one stalled shared-window read through a TCM aperture.}
+	\caption{Timing diagram of one stalled shared-window read through a TCM aperture; the grey tick marks where an unstalled read would have completed, and the tile read (\textit{SETTLE}, \textit{READ}, \textit{LATCH}, then one \register{mclk} of \register{tcm\_ext\_done}) runs while \register{s\_stall} is high.}
 	\label{fig:arbiter-stall}
 \end{figure}
 \fi
