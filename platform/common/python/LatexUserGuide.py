@@ -2008,208 +2008,1559 @@ class LatexUserGuide():
 				+ P(x1 - 0.06) + ', ' + P(y1 - 0.06) + ') {$\\times$' + str(badge) + '};\n')
 		return s
 
-	def _chipFigFamilies(self, names):
-		'''"TIMER0, TIMER1, CLINT" as [("TIMER", 2), ("CLINT", 1)]: the numbered
-		   instances of one family collapse to a stem and a count, in the order
-		   the names arrive.'''
-		out = []
-		for n in names:
-			m = re.match(r'^([A-Za-z0-9]*?)\d+$', n)
-			stem = m.group(1) if m else n
-			for i, (st, c) in enumerate(out):
-				if st == stem:
-					out[i] = (st, c + 1)
-					break
-			else:
-				out.append((stem, 1))
-		return out
-
 	def GenerateChipSystemFlatDiagram(self):
-		'''include/ChipSystemFlatDiagram.tex, the whole-chip block diagram.
-		   The datasheet idiom: the bus masters above one bus bar, the memories
-		   and the peripheral families on one rank below it, and the package
-		   boundary in red with the pin groups that cross it.
-		   Every box is derived from the configuration.
-		   The instance set comes through _ChipSystemBoxes, whose E17 assertion
-		   still proves the drawn set is the configured one, the masters through
-		   _ChipSystemMasters, the memories from the generator's memory objects,
-		   and the pin groups from the package model.
-		   The drawing is input at natural size, 16.4 cm wide, so the names are
-		   the theme's \\small and everything else its \\footnotesize.'''
+		'''include/ChipSystemFlatDiagram.tex — the whole-chip figure the manual
+		   prints. It began as the FLAT companion to the portrait cut
+		   (GenerateChipSystemDiagram, retired 2026-08-25): the same
+		   configuration and the same derived content, drawn as a datasheet block
+		   diagram instead of a portrait page. Five things differ from that cut,
+		   and each is the point:
+
+		   ONE BAR, ONE RANK. The portrait figure runs the bus down the left
+		   margin and back along a rib, because three shelves of tall boxes
+		   cannot all touch one horizontal bar. Here every peripheral is cut to
+		   a name and one line and hangs off ONE rank below the bar, each box
+		   tapping it straight up. There is no trunk, no rib, no second bar
+		   segment and no second rank whose taps have to find a lane: the two
+		   ranks the first cut needed cost 2.7 cm of height and a bisection
+		   search for a width at which every rank-2 tap could stay straight.
+
+		   THE TILE IS DRAWN AS THE TILE. A hart box is split into the two
+		   compartments the RTL builds it from — the VestaRV core and its
+		   private TCM — instead of naming the TCM in a note and drawing its
+		   shared-window apertures three metres away on the memory rank. That
+		   is where the TCM physically is, and it takes the memory rank down to
+		   the two memories that really are behind the bar.
+
+		   THE SITE IS A HAT ON ITS HART. Each analog site is its own box,
+		   sitting directly on the box of the hart that owns it and exactly as
+		   wide, with air between channels: the pair reads as one channel. The
+		   arrow between the two is thin, short and unlabelled, and it IS what
+		   makes a site its hart's — the caption says
+		   \\emph{owns} once, where five printings of it were five labels in the
+		   one strip this row keeps clear. Hart 0's privilege is one comparison
+		   against the granted-master index, so it is ONE heavy rail under the
+		   row with a drop into every site — visibly reaching all of them, in
+		   the room the old banner band used to take, and drawn with a real gap
+		   wherever a column's ownership arrow passes through it so that no
+		   crossing can be read as a junction. Those two marks are the WHOLE of the
+		   access story, and now the only of it. Two things have come OUT of this
+		   row by USER DIRECTIVE and both went for the same reason. The first was
+		   the arbiter's own grey strip, run the length of the row behind the site
+		   boxes with one drop down the right lane into the bar: only hart 0 or
+		   the site's own hart may read a site and both are drawn already, so the
+		   strip was buying the fact that the sites are ordinary arbiter slaves
+		   reached only through the bar, which is true of every block in the
+		   drawing and which the caption carries for nothing. The second
+		   (2026-08-16) is the register-level GATE itself, which used to be
+		   printed inside every site box (\\texttt{s\\_master} = its own hart
+		   \\emph{or} 0) and again up the margin of hart 0's rail: five printings
+		   of one signal name, in the one strip this row keeps clear, saying what
+		   the two marks already draw. A site box is its NAME now, the identifier
+		   belongs to the caption and to the analog chapter, and \\texttt{s\\_master}
+		   appears nowhere in this drawing.
+
+		   THE RANK IS GROUPED BY TYPE. Ten boxes in a line is a list; the same
+		   ten under \\emph{Memory}, \\emph{Comms}, \\emph{Timing \\& Sync} and the
+		   rest is an organisation. The idiom is the user's own Myshkin block
+		   diagram's: the blocks of one kind stand together under a type label,
+		   with a thin outline round them. The label is set BIG (user directive,
+		   2026-08-16: \\large italic grey, bigger than the block titles under it,
+		   because a heading is read before the things it heads) and in Title
+		   Case, and where it will not fit its lane on one line the layout sets it
+		   on two rather than the list shortening the English again. The outline
+		   goes round EVERY type of more than one box, and a GLUED box of several
+		   compartments counts as more than one (same directive): the emitter used
+		   to give those types the label alone, on the argument that a rectangle
+		   2 mm outside a rectangle is a doubled border rather than a group, and
+		   at the bigger heading size the unframed types read as captions floating
+		   over the rank while the framed ones read as groups. The outlines are cut
+		   with a REAL GAP at every bus tap, every partner wire and the harvested
+		   supply rail where it rises back through one, the same rule hart 0's
+		   rail is drawn by. The FRAME is what gets dealt out along the rank now, so the
+		   pin-facing types still spread their partners under themselves. What a
+		   frame may never do is imply a block or drop one, and the emitter
+		   asserts exactly that and nothing more — every frame member is a drawn
+		   block and every drawn block is in one frame — because a frame is
+		   decoration and decoration does not get to make claims.
+
+		   THE DEBUG PATH IS DRAWN, AND DRAWN SOLID. The Debug
+		   Module is a bus MASTER — Figure \\ref{fig:debug-stack-diagram} draws it
+		   reading and writing memory as one more master on this bar — so it
+		   belongs in the master band, at the end of it, with the five JTAG pins
+		   coming down out of an off-chip probe across the boundary into it. On
+		   a debug-enabled build the column carries the two derived names (dtm0,
+		   the TAP and its transport; dm0, the Debug Module). It used to go DASHED
+		   with the knob off — the analog-IP idiom, drawn and not in this build —
+		   under a polarity ASSERTED against the knob, and by USER DIRECTIVE
+		   (2026-08-16) it is SOLID in every configuration instead, the default
+		   manual included. The assertion is not dropped, it is turned round: the
+		   emitter now proves the column is solid EVERYWHERE and that the
+		   knob-derived fact is carried in words, by the \\emph{debug builds only}
+		   clause printed in the box, which the emitter also refuses to ship
+		   missing. Whether those pins reach a BALL is a second and separate fact,
+		   and a package one (the QFN-64 has no room for them; the LQFP-100 takes
+		   five of its NC balls): the probe used to be dashed for that too, so
+		   that clause is now printed whenever it is true rather than only on a
+		   debug-enabled build.
+
+		   NFC IS TWO PATHS, AND THE SECOND ONE IS THE SUPPLY. The digital core
+		   reads the tag through the bar like any peripheral and its RF front end
+		   is off-die, so the antenna is an off-chip partner — that half this
+		   figure already had. The half it did not is that on a field-powered
+		   board the harvested field is what RUNS the chip, and it does not
+		   arrive through NFC0: \\texttt{peripherals.fieldPower} wires PWRCTRL's
+		   supervision inputs to real pads (\\texttt{PGOOD} and the harvested-boot
+		   strap, plain-GPIO direct taps readable before any software runs) and
+		   the boot gate they hold is ANDed into every hart's outer reset. So the
+		   supply is drawn as what it is — a board-level RAIL in the off-chip
+		   band, heavier and greyer than any signal in the drawing, running from
+		   the antenna to under PWRCTRL and crossing the boundary there, cut with
+		   a real gap at every partner wire it passes — and never as a wire out
+		   of the NFC block. The RAIL is the one stroke in this drawing that still
+		   changes with the configuration: it is dashed where the chip is not run
+		   off the field, and it has a third condition of its own besides the
+		   block and the knob, because the two pads are GPIO46/47, which the QFN
+		   packages do not bring out at all. The NFC BLOCK and its antenna do not:
+		   by USER DIRECTIVE (2026-08-16, the directive that made the debug column
+		   solid) they are drawn solid in every configuration, and what a build
+		   really contains is the caption's to say. The rail's own label was
+		   trimmed to what the rail IS, `harvested field power', in the same pass:
+		   the pads it lands on are a PWRCTRL fact, they are in the pin table and
+		   in the caption, and on a whole-chip overview they were two lines of
+		   \\texttt{} in the one band the rail runs through.
+
+		   THE BAR SAYS WHAT IT IS. It used to be labelled \\texttt{mp\\_arbiter},
+		   which is the VHDL entity's name and not a name at all to a reader
+		   meeting this chip on page 17. The bar now carries the English — the
+		   multi-hart shared-bus arbiter — over the three facts a whole-chip
+		   overview owes a reader who is about to assume a crossbar; the
+		   identifier is explained once, in the caption, where the reader who
+		   wants to grep the RTL will find it.
+
+		   THE ROW IS THE CHANNELS, AND THE ENGINE IS NOT DRAWN. Every column of
+		   this row is one channel — a three-electrode cell, the site that
+		   measures it, the hart that owns it. The shared EIS sweep engine's
+		   register site is hart 0's, and it is NOT one: it brings out no
+		   electrodes, it is nobody's channel, and by user directive (2026-08-16)
+		   it is left out of this overview altogether, because the central-engine
+		   topology is being reworked to a per-channel EIS and this figure is not
+		   to assert a shape that is on its way out. A cut of this figure drew
+		   that engine's site as hart 0's hat with a dashed trapezoid selecting
+		   one channel's electrodes into it; both are gone. The omission is
+		   CURATION and is named as such in the emitter, checked by name against
+		   the block model's own site list (a site that vanishes silently is a
+		   site the figure forgot), and it changes nothing else: hart 0 keeps its
+		   column and its reach over every site drawn, and the as-built EIS
+		   register stub is still documented by the CQ analog chapter and still
+		   drawn by the portrait figure.
+
+		   ELECTRODES, DRAWN. Each site brings out its own WE/RE/CE triple
+		   straight up out of its own box, on unbroken vertical wires that cross
+		   the red boundary and carry a pad square where they cross it; the pad
+		   name is printed inside the cell, above its stub, never on the wire (a
+		   white label box on a wire reads as an open circuit — the AFE figure
+		   was rejected for exactly that, and this reuses its cleaned pattern).
+		   Every off-chip partner below the boundary is reached the same way: a
+		   straight vertical wire down from the tap, entering the partner's top
+		   edge off-centre where the partner had to be nudged aside, because a
+		   jogged wire in a clear lane buys nothing and reads as a detour.
+
+		   COUNT, TWICE. A block instantiated N times says $\\times N$ in its
+		   title AND wears N offset squares: the numeral is the count exactly,
+		   the squares are the count at a glance, and the two are read by
+		   different passes over the page. Every square in a stack is the SAME
+		   box — same fill, same border as the one in front — because N copies of
+		   one peripheral is what it is counting; the white back copies of the
+		   first cut drew a shadow, not a count. The one thing squares cannot do is sit
+		   behind a GLUED compartment — a single stack behind a box whose
+		   compartments have different instance counts is a lie with no way to
+		   qualify it — so a multi-instance block is never glued, and the case
+		   that proves it (config/penta\\_wound.json's five serial blocks, at 1,
+		   2, 3 and 4 instances) is a build error rather than a drawing.
+
+		   IT DEGRADES INSTEAD OF LYING. The electrode/site row is drawn only
+		   where the configuration is the shape it asserts (the shared
+		   _ChipSystemAnalogRow test: an orchestrator, one site per channel
+		   hart, a column for every owner, and bonded pads). Anything else gets
+		   a uniform hart band — still split core/TCM — and the analog block, if
+		   any, back on the rank as an ordinary peripheral. The figure is
+		   therefore emitted and \\input UNGATED in both polarities, and every
+		   \\ref to it resolves in both.'''
 		gen = self.Gen
-		geo = getattr(gen, 'McuMpGeometry', None) or {}
+		geo = getattr(gen, 'McuMpGeometry', None)
 		aboveBoxes, belowBoxes = self._ChipSystemBoxes()
-		boxOf = dict((b['key'], b) for b in aboveBoxes + belowBoxes)
+		allBoxes = aboveBoxes + belowBoxes
 		N = gen.NumHarts
 		orch = bool(geo.get('orchestrator'))
-		pkg = gen.Package
-		funcs = set(p.FuncName for p in pkg.Pins if p.FuncName is not None)
-		padNames = set(p.Name for p in pkg.Pins)
-		P = lambda v: '%.2f' % v
+		L = self._chipFigLines
+		padNames = set(p.Name for p in gen.Package.Pins)
 
-		def kiB(n):
-			return str(n // 1024) + '\\,KiB'
+		def P(v):
+			return '%.2f' % v
 
-		def fam(key):
-			names = [p.Name for p in gen.Peripherals if self._CHIP_FIG_BUCKET.get(p.Template.NameTemplate) == key]
-			return self._chipFigFamilies(names)
+		# THE STACKED-SHADOW EXPERIMENT, SECOND CUT. A block instantiated N times
+		# is drawn as N offset squares AND says $\times N$ in its title: the
+		# squares are the quantity at a glance, the numeral is the quantity
+		# exactly, and neither is the other's spare. The first cut of this figure
+		# dropped the squares because at stackStep 0.15 cm they read as a printing
+		# slur and because the separate $\times N$ BADGE node collided with the
+		# bar above the rank. Both faults were the badge's and the step's, not the
+		# idiom's: the count now lives in the title (so `badge' emits nothing) and
+		# the step is 0.22 cm, which is 1.8 mm on the page at this figure's own
+		# scale. The one thing squares cannot do is sit behind a GLUED
+		# compartment, so a multi-instance block is never glued (see `specs').
+		SHADOWS = True
+		# Whether the serial blocks are GLUED into one compartmented box or stand
+		# as one slim box each. RENDERED BOTH WAYS (see the report): glued costs
+		# 1.1 cm less width but cannot carry a stack, and a single stack behind a
+		# box whose three compartments have three different instance counts is a
+		# lie the drawing has no way to qualify. Split.
+		SERIAL_SPLIT = True
 
-		def famLines(keys, pretty=None):
-			lines = []
-			for k in keys:
-				for stem, c in fam(k):
-					nm = (pretty or {}).get(stem, fmttex(stem))
-					lines.append(nm + (' $\\times$' + str(c) if c > 1 else ''))
-			return lines
+		# ---- type metrics, in cm. Every height is a LINE COUNT times a
+		# baseline, never a guess: a TikZ node whose contents outgrow its box
+		# does not clip, it spills.
+		hTitle, hLine, pad = 0.44, 0.37, 0.13
+		xEdge, gapM = 0.30, 0.42
+		gapRank, gapExt = 0.62, 0.18
+		# The rank's two gaps, since it now has two: `gapIn' between the boxes
+		# INSIDE one type frame (tight -- proximity is half of what says they
+		# belong together) and the justified remainder BETWEEN frames, which is
+		# never allowed below `gapRank'.
+		gapIn = 0.22
+		# The type frame: how far its outline stands off the boxes it encloses,
+		# where its top edge sits above them (clear of a stacked box's squares,
+		# which climb 0.40 cm), and how wide a gap it opens for every wire that
+		# crosses it.
+		frmPad, frmTop, frmBot, frmGap = 0.18, 0.78, 0.20, 0.13
+		# The offset squares: 0.12 cm across, 0.20 cm up. The x step is the SMALL
+		# one on purpose -- horizontally a stack eats the gap to the next block on a
+		# justified rank, vertically it eats the 0.52 cm riser, which is dead space.
+		stackDx, stackDy, maxShadow = 0.12, 0.20, 3
+		# Two risers, not one: the band drops onto the bar in 0.52 cm, but the
+		# rank has to get its type frames and their labels in under the bar as
+		# well, and a label that shares a lane with the bus taps is a label on a
+		# wire.
+		barH, riser, riserR = 1.02, 0.52, 1.30
+		hCmp = 0.24                    # the core|TCM compartment strip, plus its lines
+		xReach = 0.42                  # hart 0's reach, up the left margin
 
-		# ---- the rank, left to right: memories, then the peripheral families
-		rank = []
-		rank.append({'title': 'Boot ROM', 'subs': [kiB(gen.RomSize)], 'pin': None})
-		shared = [sec for sec in (gen.SharedWindowSections or []) if sec[0] == 'Shared RAM']
-		if shared:
-			subs = [kiB(1 + shared[0][2] - shared[0][1])]
-			stage = [sec for sec in (gen.SharedWindowSections or []) if sec[0] == 'NPU staging RAM']
-			if stage:
-				subs.append('NPU staging ' + kiB(1 + stage[0][2] - stage[0][1]))
-			rank.append({'title': 'Shared RAM', 'subs': subs, 'pin': None})
-		if 'io' in boxOf:
-			ports = sorted(set(int(m.group(1)) for m in
-				(re.match(r'^P(\d+)\.\d+$', p.Name) for p in pkg.Pins) if m))
-			nPads = len([p for p in pkg.Pins if p.Gpio is not None])
-			pin = None
-			if ports:
-				pin = 'P' + str(ports[0]) + ' to P' + str(ports[-1]) + '\\\\ ' + str(nPads) + ' pads'
-			lines = famLines(['io'])
-			rank.append({'title': lines[0], 'subs': lines[1:] + ['AF0 to AF7'], 'pin': pin})
-		serial = famLines(['spi', 'uart', 'i2c', 'ow'], {'I2C': 'I\\textsuperscript{2}C', 'I2CT': 'I\\textsuperscript{2}C target', 'OW': '1-Wire'})
-		if serial:
-			pin = 'boot flash\\\\ (SPI0)' if 'CS_FLASH' in funcs else None
-			rank.append({'title': serial[0], 'subs': serial[1:], 'pin': pin})
-		timing = famLines(['timer', 'sync'])
-		if timing:
-			rank.append({'title': timing[0], 'subs': timing[1:], 'pin': None})
-		sysp = famLines(['system', 'power'])
-		if sysp:
-			pins = [n for n in ('LFXT', 'HFXT') if n in funcs]
-			rst = [n for n in ('RESETN', 'POC') if n in padNames]
-			pin = None
-			if pins or rst:
-				pin = '\\\\ '.join(x for x in (', '.join(pins), ', '.join(rst)) if x)
-			rank.append({'title': sysp[0], 'subs': sysp[1:], 'pin': pin})
-		if 'npu' in boxOf:
-			rank.append({'title': famLines(['npu'])[0], 'subs': ['inference engine'], 'pin': None})
-		if 'nfc' in boxOf:
-			rank.append({'title': famLines(['nfc'])[0], 'subs': ['protocol core'], 'pin': 'antenna\\\\ front end'})
-		engine = famLines(['engine'])
-		if engine:
-			rank.append({'title': engine[0], 'subs': engine[1:], 'pin': None})
-		blocks = getattr(gen, 'DocSubSlotBlocks', None) or []
-		if blocks:
-			sites = [b['name'] for b in blocks if b['name'].startswith('AFE')]
-			rest = [b['name'] for b in blocks if not b['name'].startswith('AFE')]
-			stubs = [e for e in ('WE', 'RE', 'CE')
-				if all((e + '_' + str(i)) in padNames for i in range(len(sites)))]
-			pin = None
-			if stubs and sites:
-				pin = ', '.join(stubs) + '\\\\ $\\times$' + str(len(sites))
-			title = 'AFE' + (' $\\times$' + str(len(sites)) if len(sites) > 1 else '')
-			subs = ['front end'] + ([', '.join(fmttex(n) for n in rest)] if rest else [])
-			rank.append({'title': title, 'subs': subs, 'pin': pin})
+		# _chipFigWidth's flat 0.125 cm/char was calibrated on the PORTRAIT
+		# figure, every line of which is broken by hand. Nothing here is: a chip
+		# carries one unbroken subtitle, and a subtitle that wraps does not clip,
+		# it prints the extra line through the box floor. MEASURED across two
+		# renders: "boots and manages the chip" needs ~0.145/char, but
+		# "CLINT, MUTEX, IRQROUTER" needs ~0.185 -- ALL-CAPS instance names are
+		# half again as wide as the lower-case prose the flat rule was fitted to,
+		# and every one of this figure's derived name lists is all-caps. So the
+		# rule here is per-character and knows three classes.
+		def TWs(t, bold=1.0):
+			best = 0.0
+			for line in (t or '').split('\\\\'):
+				u = re.sub(r'\\[a-zA-Z]+', '', line)
+				for ch in '{}$\\':
+					u = u.replace(ch, '')
+				w = 0.0
+				for ch in u.strip():
+					w += (0.185 if (ch.isupper() or ch.isdigit())
+						else 0.085 if ch in ' .,:;/|!\'ilj' else 0.145)
+				best = max(best, w * bold)
+			return best
 
-		# ---- the masters: the harts as one box, then the other bus masters
+		# A title is \small\bfseries and a body line is \scriptsize: 9 pt against
+		# 7 pt, bold against roman. 1.40, measured -- at 1.10 "host terminal" and
+		# "two-wire bus" both wrapped their own titles.
+		tBold = 1.40
+		# ...and a type heading is now \large italic against that same \scriptsize
+		# body: 12 pt against 7, which TWs knows nothing about. Every width TWs
+		# returns for a heading is therefore scaled by this, and the ONLY thing
+		# those widths are used for is deciding which tap-free interval a heading
+		# fits in -- so an under-estimate here does not make the drawing slightly
+		# tight, it puts a white label box on a bus wire. 12/7 = 1.71, and the
+		# extra 0.06 is the italic's own overhang plus the node's inner sep.
+		tLab = 1.77
+
+		def wOf(title, sub, minw=1.95, maxw=4.80):
+			return min(maxw, max(minw, 0.36 + max(TWs(title, tBold), TWs(sub))))
+
+		# ---- the masters, and the analog row's eligibility -------------------
 		masters = self._ChipSystemMasters(brief=True)
-		tcmKiB = gen.RamMemorySlotSize // 1024
-		hartSub = [str(tcmKiB) + '\\,KiB private TCM each',
-			'hart 0 is the orchestrator' if orch else 'hart 0 boots the chip']
-		band = [{'title': 'VestaRV harts' + (' $\\times$' + str(N) if N > 1 else ''), 'subs': hartSub,
-			'pin': None, 'w': 4.6}]
-		if any(m['title'] == 'DMA0' for m in masters):
-			band.append({'title': 'DMA0', 'subs': ['engine master'], 'pin': None, 'w': 2.4})
+		columns = dict((m['harts'][0], m) for m in masters if m['harts'])
+
+		# ---- THE DEBUG PATH, AND WHY IT IS DASHED HERE -----------------------
+		# The Debug Module is a BUS MASTER (Figure \ref{fig:debug-stack-diagram}:
+		# "reads and writes memory as one more master on the bus"), so its place
+		# in this drawing is the master band, not the rank -- and the shared
+		# master pass already puts it there on a debug-enabled build. What this
+		# figure adds is the rest of the path a reader looks for: the five JTAG
+		# pins crossing the boundary from an off-chip probe.
+		#
+		# THE POLARITY IS ASSERTED, NOT ASSUMED. `debug' is one knob (D2/D3:
+		# OFF emits no ports, no dtm0, no dm0, no arbiter master), so the column
+		# is SOLID exactly where the configuration builds it and DASHED --- the
+		# analog-IP idiom, "drawn, and not in this build" --- exactly where it
+		# does not. Where the shared pass and the knob disagree the build fails
+		# rather than shipping a picture of the wrong chip.
 		dbgOn = bool(geo.get('debug'))
-		# Drawn solid in every configuration (USER directive, 2026-08-16); the
-		# knob is carried in words, and the pin group only where the package
-		# bonds the TAP.
-		band.append({'title': 'dm0', 'subs': ['debug module'] + ([] if dbgOn else ['debug builds only']),
-			'pin': 'JTAG' if 'TCK' in padNames else None, 'w': 2.6})
-
-		# ---- geometry (cm)
-		W = 16.4
-		yBndB, yBndT = 1.05, 6.55
-		yRankB, yRankT = 1.65, 3.50
-		yBarB, yBarT = 4.05, 4.45
-		yBandB, yBandT = 5.05, 6.25
-		xM = 0.15
-		gap = 0.12
-		# A box is never narrower than its name; the secondary lines wrap.
-		minW, natW = [], []
-		for b in rank:
-			words = []
-			for x in b['subs']:
-				words += x.replace('\\\\', ' ').split(' ')
-			tw = self._vTextWidth(b['title'], 'small') + 0.42
-			ww = max([0.0] + [self._vTextWidth(x, 'footnotesize') + 0.34 for x in words])
-			minW.append(max(1.30, tw, ww))
-			natW.append(max(minW[-1], max([0.0] + [self._vTextWidth(x, 'footnotesize') + 0.34 for x in b['subs']])))
-		avail = W - 2 * xM - gap * (len(rank) - 1)
-		if sum(natW) <= avail:
-			extra = (avail - sum(natW)) / len(rank)
-			widths = [w + extra for w in natW]
-		elif sum(minW) <= avail:
-			slack = sum(natW) - sum(minW)
-			room = avail - sum(minW)
-			widths = [m + (n - m) * room / slack for m, n in zip(minW, natW)]
+		dmCols = [m for m in masters if m['title'] == 'dm0']
+		if bool(dmCols) != dbgOn:
+			raise Exception('ChipSystemFlatDiagram: this configuration has debug='
+				+ str(dbgOn) + ' but the master band ' + ('carries' if dmCols else 'carries no')
+				+ ' dm0 column — the debug block would be drawn '
+				+ ('solid' if dmCols else 'dashed') + ' against the knob.')
+		# The five pins, TRANSCRIBED from generate.py:202-203 (the D3 port group
+		# tck/tms/tdi/tdo/trstn, the last entity port group the debug knob adds)
+		# and checked against the package model: a pad ring that bonds SOME of
+		# them is a pad ring this drawing does not understand.
+		JTAG_PINS = ('TCK', 'TMS', 'TDI', 'TDO', 'TRSTn')
+		bondedJ = [n for n in JTAG_PINS if n in padNames]
+		if bondedJ and len(bondedJ) != len(JTAG_PINS):
+			raise Exception('ChipSystemFlatDiagram: this package model bonds ' + str(bondedJ)
+				+ ' of the JTAG port ' + str(list(JTAG_PINS)) + ' — the debug figure would draw '
+				'a probe on a port this package brings out only in part.')
+		jtagBonded = len(bondedJ) == len(JTAG_PINS)
+		# ONE clause, and it names the thing that is actually missing. On a
+		# build without the knob nothing behind the pins exists at all; on a
+		# build WITH it, whether the pins reach a ball is a PACKAGE fact (the
+		# QFN-64 has no room for them; the LQFP-100 takes five of its NC balls),
+		# and the clause printed in the box says so.
+		if not dbgOn:
+			dbgM = {'title': 'JTAG TAP', 'sub': 'debug module',
+				'note': '\\textit{debug builds only}', 'harts': [], 'stack': 1, 'weight': 0.90,
+				'tcm': None}
+			masters.append(dbgM)
 		else:
-			f = avail / sum(minW)
-			widths = [w * f for w in minW]
-		x = xM
-		for b, w in zip(rank, widths):
-			b['x0'], b['x1'] = x, x + w
-			x += w + gap
-		bw = sum(b['w'] for b in band) + gap * (len(band) - 1)
-		x = (W - bw) / 2.0
-		for b in band:
-			b['x0'], b['x1'] = x, x + b['w']
-			x += b['w'] + gap
+			# The derived names, both of them: the knob builds dtm0 (the TAP and
+			# its transport) beside dm0 (the Debug Module), and the five pins
+			# land on the first while the bus tap belongs to the second.
+			dbgM = dmCols[0]
+			dbgM['title'] = 'dtm0 \\& dm0'
+			dbgM['sub'] = 'TAP \\& debug module'
+		dbgM['debug'] = True
+		# ---- USER DIRECTIVE, 2026-08-16: THE DEBUG COLUMN IS DRAWN SOLID ----
+		# The dashed-optional idiom (drawn, and not built in THIS configuration)
+		# used to own this column, and the emitter ASSERTED the stroke against the
+		# `debug' knob so the drawing could not go solid on a chip with no debug
+		# module in it. The USER has chosen the SOLID presentation for the JTAG /
+		# debug column in every configuration, the default manual included, so
+		# that polarity assertion is retired here. What replaces it is not
+		# nothing: the column is asserted SOLID everywhere, and where the knob is
+		# off the configuration-derived fact is carried in WORDS instead of in the
+		# stroke, by the `debug builds only' clause printed in the box and by the
+		# caption's own sentence. The check below is what keeps that clause from
+		# going missing, because with the stroke retired it is the only thing left
+		# saying this build has no debug module in it.
+		dbgM['dash'] = False
+		probeSub = ('\\texttt{TCK} \\texttt{TMS} \\texttt{TDI}\\\\ \\texttt{TDO} \\texttt{TRSTn}')
+		# Whether the five pins reach a BALL is the second, separate, package
+		# fact, and the probe stroke used to carry it too. Same directive, same
+		# consequence: it is printed whenever it is true, not only on a
+		# debug-enabled build.
+		if not jtagBonded:
+			probeSub += '\\\\ \\textit{no ball on this package}'
+		dbgCols = [m for m in masters if m.get('debug')]
+		if len(dbgCols) != 1 or dbgCols[0]['dash']:
+			raise Exception('ChipSystemFlatDiagram: the debug column set ' + str(dbgCols)
+				+ ' is not exactly one SOLID column (user directive 2026-08-16).')
+		if not dbgOn and 'debug builds only' not in str(dbgM.get('note') or ''):
+			raise Exception('ChipSystemFlatDiagram: debug=' + str(dbgOn) + ' and the solid JTAG '
+				'column carries no "debug builds only" clause. With the dashed stroke retired by '
+				'user directive that clause is the only thing in the drawing that says this '
+				'configuration builds no debug module.')
+		afeRow, siteOf = self._ChipSystemAnalogRow(allBoxes, columns, orch, N)
+		stubs = list((afeRow['ext'].get('stubs') or []) if (afeRow and afeRow['ext']) else [])
+		if not stubs:
+			# No bonded electrode pads: there is no top row to draw, so the AFE
+			# block goes back on the rank like any other peripheral.
+			afeRow, siteOf = None, {}
+		# AIR BETWEEN THE CHANNELS. A site is drawn as a HAT on its own hart --
+		# same width, directly above it -- so what separates one channel from
+		# the next has to be a gap wide enough to read as one. The band is
+		# justified across a width the rank has already fixed, so this gap costs
+		# the drawing nothing: it comes out of column width the columns do not
+		# need.
+		if afeRow is not None:
+			gapM = 0.85
 
-		s = '% Generated whole-chip block diagram (make chip): the bus masters above\n'
-		s += '% the mp_arbiter bar, the memories and peripheral families on one rank\n'
-		s += '% below it, the package boundary in red. Input at natural size.\n'
-		s += '\\begin{tikzpicture}[x=1cm, y=1cm]\n'
-		s += '\\draw[vbound] (0, ' + P(yBndB) + ') rectangle (' + P(W) + ', ' + P(yBndT) + ');\n'
-		s += ('\\node[vredlab, anchor=north east, inner sep=3pt] at (' + P(W) + ', ' + P(yBndT)
-			+ ') {\\AsicNameForUserGuide};\n')
-		# the bus bar
-		s += ('\\draw[vbar] (' + P(xM) + ', ' + P(yBarB) + ') rectangle (' + P(W - xM) + ', '
-			+ P(yBarT) + ');\n')
-		s += ('\\node[vname] at (' + P(W / 2.0) + ', ' + P((yBarB + yBarT) / 2.0)
-			+ ') {\\textbf{mp\\_arbiter} shared-bus arbiter};\n')
-		# the masters
-		for b in band:
-			s += self._vBox(b['x0'], yBandB, b['x1'], yBandT, b['title'], b['subs'])
-			cx = (b['x0'] + b['x1']) / 2.0
-			s += '\\draw[vbus] (' + P(cx) + ', ' + P(yBandB) + ') -- (' + P(cx) + ', ' + P(yBarT) + ');\n'
-			if b['pin']:
-				s += ('\\draw[vwire] (' + P(cx) + ', ' + P(yBandT) + ') -- (' + P(cx) + ', '
-					+ P(yBndT + 0.30) + ');\n')
-				s += ('\\fill[vestaInk] (' + P(cx - 0.07) + ', ' + P(yBndT - 0.07) + ') rectangle ('
-					+ P(cx + 0.07) + ', ' + P(yBndT + 0.07) + ');\n')
-				s += ('\\node[vlab, anchor=south] at (' + P(cx) + ', ' + P(yBndT + 0.33) + ') {'
-					+ b['pin'] + '};\n')
-		# the rank
-		for b in rank:
-			s += self._vBox(b['x0'], yRankB, b['x1'], yRankT, b['title'], b['subs'])
-			cx = (b['x0'] + b['x1']) / 2.0
-			s += '\\draw[vbus] (' + P(cx) + ', ' + P(yBarB) + ') -- (' + P(cx) + ', ' + P(yRankT) + ');\n'
-			if b['pin']:
-				s += ('\\draw[vwire] (' + P(cx) + ', ' + P(yRankB) + ') -- (' + P(cx) + ', '
-					+ P(yBndB - 0.30) + ');\n')
-				s += ('\\fill[vestaInk] (' + P(cx - 0.07) + ', ' + P(yBndB - 0.07) + ') rectangle ('
-					+ P(cx + 0.07) + ', ' + P(yBndB + 0.07) + ');\n')
-				s += ('\\node[vlab, anchor=north] at (' + P(cx) + ', ' + P(yBndB - 0.33) + ') {'
-					+ b['pin'] + '};\n')
+		# The electrode-bearing sites, in pad-suffix order, and the E17 check
+		# over the twelve names this drawing prints: every one of them is
+		# re-derived from the site list and looked up in the package model, so a
+		# pad-ring change the figure does not cover fails `make generate`.
+		padOf = {}
+		if afeRow is not None:
+			afeNames = [st[0] for st in afeRow['sites'] if st[0].startswith('AFE')]
+			idxOf = dict((nm, i) for i, nm in enumerate(afeNames))
+			for h, st in siteOf.items():
+				if st[0] not in idxOf:
+					continue
+				names = [e + '_' + str(idxOf[st[0]]) for e in stubs]
+				missing = [n for n in names if n not in padNames]
+				if missing:
+					raise Exception('ChipSystemFlatDiagram: the figure would draw electrode pads '
+						+ str(missing) + ' for site ' + str(st[0]) + ', which this package model '
+						'does not bond.')
+				padOf[h] = names
+			drawn = sorted(sum(padOf.values(), []))
+			expect = sorted(e + '_' + str(i) for i in range(len(afeNames)) for e in stubs)
+			if drawn != expect:
+				raise Exception('ChipSystemFlatDiagram: the drawn electrode set ' + str(drawn)
+					+ ' is not this configuration\'s ' + str(expect))
+
+		# ---- THE ONE SITE THIS FIGURE DOES NOT DRAW --------------------------
+		# CURATION, and named as such. The row this figure draws is the CHANNELS:
+		# a three-electrode cell, the site that measures it and the hart that owns
+		# it, one column each. The hart-0 site is not one of those -- it is the
+		# register stub of the shared EIS sweep engine -- and by USER DIRECTIVE
+		# (2026-08-16) it is left out of this overview entirely, because the
+		# central-engine topology it belongs to is being reworked to a per-channel
+		# EIS and this figure is not to assert the shape that is on its way out.
+		# Nothing else moves: hart 0 keeps its column and its reach over every
+		# site it may read, the as-built EIS register stub is still documented by
+		# the CQ analog chapter (Section \ref{s:cqanalog}) and still drawn by the
+		# portrait figure, and an earlier cut's shared engine + analog multiplexer
+		# (a dashed trapezoid selecting one channel's electrodes) is gone with it.
+		#
+		# The exclusion is EXPLICIT, not a side effect of some other test: it is
+		# this list, it is checked against the electrode set below, and the drawn
+		# set is still proved against the block model's own site list further
+		# down (see `reached'). A site that is dropped silently is a site the
+		# figure forgot.
+		cols = sorted(siteOf)
+		omitOwners = [h for h in cols if h == 0]
+		omitSites = [siteOf[h][0] for h in omitOwners]
+		drawnCols = [h for h in cols if h not in omitOwners]
+		for h in omitOwners:
+			if h in padOf:
+				raise Exception('ChipSystemFlatDiagram: the curated omission would drop site '
+					+ str(siteOf[h][0]) + ', which brings out the bonded electrode group '
+					+ str(padOf[h]) + ', and this figure omits the shared engine\'s register '
+					'site, never a channel.')
+		if afeRow is not None and not drawnCols:
+			# Every site this configuration has is the one that is omitted, so
+			# there is no channel row left to draw at all: the AFE block goes back
+			# on the rank as an ordinary peripheral, which is the same degrade a
+			# configuration with no bonded electrode pads takes.
+			afeRow, siteOf, padOf = None, {}, {}
+			cols, omitOwners, omitSites, drawnCols = [], [], [], []
+
+		# ---- the hart box, split into the two things a tile IS ---------------
+		# The TCM stops being a note under the hart's name and becomes the
+		# compartment beside its core, which is what the RTL builds (hart_tile =
+		# VestaRV + one private TCM behind a registered boundary). E17: the size
+		# in that compartment is re-derived here and checked against the same
+		# generator field the memory map is built from, so a TCM resize that the
+		# drawing does not cover fails `make generate`.
+		wantTcm = str(gen.RamMemorySlotSize // 1024) + '\\,KiB TCM'
+		# An aperture is a WINDOW onto that TCM, not a memory of its own, so it
+		# leaves the rank (where the portrait figure's memory box, and this
+		# figure's first cut, both put it) and is said in the caption, against
+		# the compartment it windows. It is NOT a second line in that
+		# compartment: MEASURED, "windowed read-only" is 2.5 cm of a hart column
+		# and there are five to eighteen of them, which is 5 cm of figure width
+		# and 5% off every letter in the drawing, for a fact the caption carries
+		# for nothing.
+		for m in masters:
+			m['cells'] = ['VestaRV core', m['tcm']] if m.get('tcm') else []
+			if m['cells']:
+				# what the compartment now says, the note no longer has to
+				m['note'] = ''
+			isTile = m['title'].startswith('hart')
+			if isTile != bool(m['cells']):
+				raise Exception('ChipSystemFlatDiagram: master "' + str(m['title']) + '" is '
+					+ ('' if isTile else 'not ') + 'a hart tile but '
+					+ ('carries no' if isTile else 'carries a') + ' TCM compartment.')
+			if m['cells'] and m['cells'][1] != wantTcm:
+				raise Exception('ChipSystemFlatDiagram: the hart boxes would be drawn with a "'
+					+ str(m['cells'][1]) + '" compartment, but this configuration\'s private TCM '
+					'is ' + wantTcm + '.')
+
+		# ---- the peripheral chips: a name and ONE line each -------------------
+		def chip(key, title, sub, stack=1, ext=None):
+			return {'key': key, 'title': title, 'sub': sub or '', 'stack': stack, 'ext': ext,
+				'w': 0.0, 'cx': 0.0, 'tx': 0.0}
+
+		rest = [b for b in allBoxes if b is not afeRow]
+		byKey, order = {}, []
+		for b in rest:
+			cs = []
+			if b['parts']:
+				# One compartment per memory, glued into one box with one tap.
+				for t, sub in b['parts']:
+					cs.append(chip(b['key'], t, sub))
+			else:
+				cs.append(chip(b['key'], b['title'],
+					b['brief'] or (b['sub'] or '').split('\\\\')[0], b['stack'], b['ext']))
+			byKey[b['key']] = cs
+			order.append(b['key'])
+
+		# ---- NFC: THE TAG READS, AND THE FIELD FEEDS ------------------------
+		# NFC0 is TWO paths and this figure used to draw one. The digital core is
+		# on the die and its RF front end is off it (config/wound.json: "NFC's
+		# digital AFE / RF interface is off-die"), so the antenna is an off-chip
+		# partner like the serial flash — that half was already here. The half
+		# that was not is the POWER: on a field-powered board the harvested
+		# supply is what runs the chip, and it arrives at PWRCTRL, not at NFC0.
+		#
+		# TRANSCRIBED, from generate.py:798-808 and the PWRWAKE/PWRSTS templates
+		# at :2225-2249 — peripherals.fieldPower wires pwr0's supervision inputs
+		# to real pads (PGOOD on GPIO47, the harvested-boot strap on GPIO46, both
+		# plain-GPIO DIRECT taps of the pad-input plane, readable before any
+		# software runs) and adds NFC0's field_detect level as an optional
+		# release source. The boot gate they control is pgood_rstn, ANDed into
+		# every hart's outer reset. So the power path is drawn as what it is: a
+		# board-level supply rail in the off-chip band that crosses the boundary
+		# into PWRCTRL, in a heavier grey stroke than any signal in the drawing,
+		# and NOT as a wire out of the NFC block.
+		nfcOn = 'nfc' in byKey
+		if bool(geo.get('nfc')) != nfcOn:
+			raise Exception('ChipSystemFlatDiagram: this configuration has nfc='
+				+ str(bool(geo.get('nfc'))) + ' but the bucketing pass '
+				+ ('carries' if nfcOn else 'carries no') + ' NFC block.')
+		fieldOn = bool(geo.get('fieldPower'))
+		fieldPads = sorted(p.Name for p in gen.Package.Pins
+			if p.Gpio is not None and p.Gpio.PrimaryName in ('GPIO46', 'GPIO47'))
+		fieldBonded = len(fieldPads) == 2
+		# The dashed-optional half of the rank: a block this configuration does
+		# NOT build, drawn so the reader of the default manual can see where it
+		# goes. It is tracked BY KEY so the drawn-set assertion below still holds
+		# as an equality — a synthetic block that is not declared here would be
+		# indistinguishable from a real one that the bucketing pass lost.
+		synthKeys = set()
+		if not nfcOn:
+			byKey['nfc'] = [chip('nfc', 'NFC', 'digital protocol core', 1,
+				{'title': 'NFC antenna', 'sub': None, 'w': 2.70})]
+			# ---- USER DIRECTIVE, 2026-08-16: THE NFC BLOCK IS DRAWN SOLID ----
+			# Same directive and same reasoning as the debug column above: the
+			# USER has chosen the solid presentation for NFC and its antenna in
+			# every configuration, the default manual included, so the block this
+			# pass synthesises for a chip that does not build one is drawn like
+			# every other block on the rank. The configuration-derived fact is
+			# still stated, in the caption, which is where it now lives alone.
+			byKey['nfc'][0]['dash'] = False
+			order.append('nfc')
+			synthKeys.add('nfc')
+		nfcChip = byKey['nfc'][0]
+		# ONE partner box, BOTH roles named in it. The antenna is where the tag
+		# link and the harvested field both come from, and a reader who is told
+		# that once does not need it labelled twice on two wires.
+		nfcChip['ext']['title'] = 'NFC antenna'
+		# Broken by hand, and short: this partner is the one box in the drawing
+		# whose subtitle is a sentence, and on the narrow branch (maxw = 2.30,
+		# config/penta_wound.json) a line the box cannot hold is a line set in
+		# two -- which the height now counts, but which reads as "RF front / end,
+		# off-die" and is nobody's idea of a caption.
+		# The `field-powered builds' clause is GONE by user directive (2026-08-16):
+		# it qualified the harvested half of this partner's job, the rail below
+		# already carries that condition in its own stroke, and the caption says
+		# it in a sentence. What is left is what the antenna IS.
+		nfcChip['ext']['sub'] = ('RF front end\\\\ \\textit{off-die}\\\\ data readout \\&\\\\ '
+			'harvested field')
+		nfcChip['ext']['w'] = 3.30
+		# The supply rail is SOLID only where the chip really runs off it: the
+		# block built, the supervision inputs wired, and the two pads bonded on
+		# this package (they are GPIO46/47, which the QFN models do not bring
+		# out at all).
+		powerSolid = nfcOn and fieldOn and fieldBonded
+
+		# Related blocks are GLUED into one compartmented box (the portrait
+		# figure's compartment idiom): fewer boxes on a rank that now carries
+		# every peripheral on the chip, and one bus tap where the drawing would
+		# otherwise carry three that say the same thing.
+		serialKeys, clockKeys = ('spi', 'uart', 'i2c', 'nfc', 'ow'), ('system', 'power')
+		# ...EXCEPT that a glued compartment cannot carry a stack of offset
+		# squares, and the serial blocks are exactly the ones this chip
+		# instantiates twice. RENDERED BOTH WAYS at 150 dpi (the report carries
+		# both): glued is 1.1 cm narrower and its three names sit closer together,
+		# but the only stack it can take is ONE behind the whole group, which
+		# either says nothing (the group is not instantiated N times) or says the
+		# wrong number the moment two compartments differ. Split wins on the
+		# honesty, and the width it costs is width this rank has.
+		serialSpec = [(k,) for k in serialKeys] if SERIAL_SPLIT else [serialKeys]
+		specs = [('mem',), ('timer',), ('sync',), ('npu',), ('engine',), ('io',)]
+		specs += serialSpec + [clockKeys]
+		specs += [(k,) for k in order if not any(k in sp for sp in specs)]
+		groups = []
+		for sp in specs:
+			ms = sum([byKey[k] for k in sp if k in byKey], [])
+			if ms:
+				groups.append({'members': ms, 'w': 0.0, 'cx': 0.0})
+		# E17: nothing this configuration carries may fall out of the drawing on
+		# its way from the shared bucketing pass into the rank.
+		placed = set(c['key'] for g in groups for c in g['members'])
+		placed |= set([afeRow['key']] if afeRow else [])
+		if placed != set(b['key'] for b in allBoxes) | synthKeys:
+			raise Exception('ChipSystemFlatDiagram: the drawn block set ' + str(sorted(placed))
+				+ ' is not the bucketing pass\'s ' + str(sorted(b['key'] for b in allBoxes))
+				+ ' plus the dashed not-in-this-build set ' + str(sorted(synthKeys)))
+
+		# ---- THE RANK IS GROUPED BY TYPE ------------------------------------
+		# A rank that carries every peripheral on the chip is ten boxes in a
+		# line, which is a LIST, not an organisation. So the boxes of one kind
+		# stand together under a small type label, in the idiom of the user's
+		# own Myshkin block diagram: proximity first, then a thin outline round
+		# them where there is more than one box to enclose.
+		#
+		# WHERE A TYPE IS ONE BOX THE LABEL IS THE WHOLE OF IT. A rectangle
+		# 2.6 mm outside a rectangle is a doubled border, not a group, so the
+		# glued memory box and the glued SYSTEM/PWRCTRL box get their type
+		# label -- which is exactly the header the Myshkin diagram gives its own
+		# compartmented boxes -- and no second outline. The outline is drawn
+		# only where it is doing work, and it is drawn with a REAL GAP at every
+		# bus tap and every partner wire that crosses it: the rule hart 0's rail
+		# is already drawn by, for the same reason (a line that touches a wire
+		# it does not join is a junction the drawing did not mean).
+		#
+		# The labels are also what the two ranks of the first cut lost when
+		# their banner heads went: "serial interfaces" over SPI/UART/I2C cost
+		# 0.70 cm of height as a banner band, and costs one line of small grey
+		# text here.
+		# The labels are SHORT because of where they have to sit, and SHORTER
+		# again now that they are set BIGGER (user directive, 2026-08-16: the
+		# headings were too small to read at the size this figure lands on the
+		# page). A type label rides on its frame's top edge, in the same 1.3 cm
+		# lane every bus tap on the rank rises through, so it goes in the
+		# leftmost tap-free interval it FITS in -- and a label too long for any
+		# of them has nowhere to stand that is not on a wire. Two consequences
+		# of the bigger type, and each is written down where it is paid for:
+		#   * `Communications' measures 3.16 cm at the heading size against its
+		#     frame's widest tap-free interval of 2.29, and had nowhere to stand
+		#     at all. The USER's own shortening, `Comms', is 1.35 and fits. That
+		#     is the trade the size bought, and it is the only one: one word of
+		#     formality for a heading a reader can actually read.
+		#   * every OTHER label is left in full English, because a heading that
+		#     does not fit its lane on one line is now SET IN TWO by `typeLabel'
+		#     rather than shortened. Written here in one line, as it should be
+		#     read; the break is the layout's business, not this list's.
+		TYPES = [('Memory', ('mem',)),
+			('Digital I/O', ('io',)),
+			('Comms', tuple(k for k in serialKeys if k != 'nfc')),
+			# NFC stands apart from the blocks that only move data: it is the one
+			# block on this rank with TWO off-chip roles, and the harvested supply
+			# rail starts under it.
+			('NFC \\& Field Power', ('nfc',)),
+			('Timing \\& Sync', ('timer', 'sync')),
+			('Compute', ('npu', 'engine')),
+			('Analog', ('afe',)),
+			('System \\& Power', clockKeys)]
+		typeOf = {}
+		for lab, ks in TYPES:
+			for k in ks:
+				typeOf[k] = lab
+		# E17, and the ONLY thing the frames are allowed to assert: every member
+		# of every frame is a block this drawing actually draws, and every block
+		# it draws is in exactly one frame. (The frames are decoration -- what
+		# they may never do is imply a block, or quietly drop one.)
+		unknown = sorted(set(c['key'] for g in groups for c in g['members']) - set(typeOf))
+		if unknown:
+			raise Exception('ChipSystemFlatDiagram: rank block(s) ' + str(unknown) + ' belong to '
+				'no type frame. Add the key to TYPES and decide what kind of block it is — '
+				'otherwise the rank would carry a box under no heading at all.')
+		units = []
+		for lab, ks in TYPES:
+			gs = [g for g in groups if g['members'][0]['key'] in ks]
+			if gs:
+				units.append({'label': lab, 'groups': gs, 'w': 0.0, 'x0': 0.0, 'x1': 0.0})
+		framed = [c['key'] for u in units for g in u['groups'] for c in g['members']]
+		if sorted(framed) != sorted(c['key'] for g in groups for c in g['members']):
+			raise Exception('ChipSystemFlatDiagram: the type frames cover ' + str(sorted(framed))
+				+ ', which is not the rank\'s own block set '
+				+ str(sorted(c['key'] for g in groups for c in g['members'])))
+
+		# The off-chip partners are the reason the rank cannot simply be sorted
+		# by function: a partner hangs on a STRAIGHT wire under its own
+		# compartment, so a rank with all its pin-facing frames bunched at one
+		# end cannot spread the partners under them. The pin-facing frames are
+		# therefore dealt out evenly through the rank -- the FRAME is the unit
+		# that moves now, because the boxes inside one may not be separated.
+		def hasExt(u):
+			return any(c['ext'] for g in u['groups'] for c in g['members'])
+		A = [u for u in units if hasExt(u)]
+		B = [u for u in units if not hasExt(u)]
+		nAll = len(units)
+		slot, taken = {}, set()
+		for i, u in enumerate(A):
+			j = min(nAll - 1, int((i + 0.5) * nAll / max(1, len(A))))
+			while j in taken:
+				j = (j + 1) % nAll
+			taken.add(j)
+			slot[j] = u
+		it = iter(B)
+		units = [slot.get(j) or next(it) for j in range(nAll)]
+		groups = [g for u in units for g in u['groups']]
+
+		# ---- widths -----------------------------------------------------------
+		# WHICH SUBTITLES THE ONE RANK CAN PAY FOR. Its width is what sets the
+		# type size of the WHOLE drawing, so a line that says what the name above
+		# it already says is not free, it is 4% off every letter. Two rules, and
+		# each names its own reason:
+		#   * a glued box of four or more compartments keeps its NAMES and drops
+		#     its subtitle lines (MEASURED on config/penta_wound.json, whose
+		#     serial group is five blocks wide: with a subtitle each it is 12 cm
+		#     of a rank that now has to hold every peripheral on the chip);
+		#   * the serial blocks drop them at any size -- "asynchronous serial"
+		#     under UART is a line the audience of a technical reference manual
+		#     can afford to lose, and the count and the name are not.
+		# `timer' and `npu' used to be muted with them, on the arithmetic that
+		# "capture / compare" and "inference engine" were 1.8 cm of rank between
+		# them. They are back: those two lines say what the block DOES, which a
+		# timer called `timers' and an accelerator called `NPU' do not, and 1.8 cm
+		# is 5% of a rank that the split serial boxes have already widened.
+		# Everything else keeps its line too, because everything else is a DERIVED
+		# fact (sizes, bank counts, port counts, instance names) that the reader
+		# cannot get from the title.
+		mute = serialKeys
+		for u in units:
+			cs = [c for g in u['groups'] for c in g['members']]
+			if len(cs) >= 4 or all(c['key'] in mute for c in cs):
+				for c in cs:
+					c['sub'] = ''
+
+		def titleOf(c, solo):
+			# The numeral rides in the title AND the box wears its stack of
+			# squares: one is read at a glance, the other is read exactly.
+			if c['stack'] < 2:
+				return c['title']
+			return c['title'] + ' $\\times$' + str(c['stack'])
+
+		# NO CORNER GLYPHS. A cut of this figure carried a hand-drawn pictogram in
+		# the top-left corner of every block whose subject has an unambiguous one
+		# (a stopwatch on `timers', a crystal on SYSTEM, a chip on the memories).
+		# They were REJECTED on the render: at this figure's scale a 1.6 mm
+		# silhouette is a smudge beside a name, and the width each one reserved --
+		# a clear glyph cell at BOTH ends of a centred title -- was 1.42 cm of rank
+		# bought for decoration. A box on this rank is a name and one line, and
+		# nothing else is drawn in it.
+
+		def measure():
+			for g in groups:
+				solo = len(g['members']) == 1
+				for c in g['members']:
+					c['w'] = c['wBase'] = max(c['w'], wOf(titleOf(c, solo), c['sub'],
+						minw=(1.70 if not c['sub'] else 1.95)))
+				g['w'] = sum(c['w'] for c in g['members'])
+				# A STACK TAKES ROOM TO ITS RIGHT, and now that the rank is
+				# grouped there is something for it to run into: 2.4 mm of offset
+				# squares against the next box in the frame, or against the
+				# frame's own edge. MEASURED at 300 dpi on the first cut of the
+				# frames -- SPI's squares touched UART's box and I2C's touched
+				# the outline.
+				g['padR'] = (stackDx * (min(max(c['stack'] for c in g['members']),
+					maxShadow) - 1)) if SHADOWS else 0.0
+		measure()
+
+		for m in masters:
+			m['min'] = min(6.60, 0.30 + max(TWs(m['title'], tBold), TWs(m['sub']), TWs(m['note']),
+				sum(TWs(t) for t in m['cells']) + 0.30 * len(m['cells'])))
+		# The debug column also has to be wide enough for the probe box that
+		# sits on it, because the probe is drawn AT the column's width.
+		dbgM['min'] = max(dbgM['min'], 0.20 + TWs('debug probe', tBold), TWs(probeSub) + 0.24)
+		exts = [c for g in groups for c in g['members'] if c['ext']]
+
+		def sizeExts(maxw):
+			'''The partner boxes, and HOW MANY LINES THEIR TITLES TAKE. A node
+			   whose title is wider than its box does not clip, it wraps and
+			   prints the extra line through the floor -- so a cap on the partner
+			   width is only safe if the height knows about it.'''
+			for c in exts:
+				e = c['ext']
+				e['dw'] = wOf(e['title'], e.get('sub'), minw=2.10, maxw=maxw)
+				n, wt = 1, TWs(e['title'], tBold)
+				while wt > n * (e['dw'] - 0.20) + 0.01:
+					n += 1
+				e['tl'] = n
+				# ...and the SUB wraps too. It never used to matter, because
+				# every partner subtitle was two short signal names; the NFC
+				# antenna's is a sentence about what it does, and on the narrow
+				# branch (maxw = 2.30) it wrapped and printed its last line
+				# through the box floor. Same arithmetic, same reason: the height
+				# of a box in this drawing is a line count, so the line count has
+				# to be the one that will actually be set.
+				e['sl'] = 0
+				for line in (e.get('sub') or '').split('\\\\'):
+					k, wl = 1, TWs(line)
+					while wl > k * (e['dw'] - 0.20) + 0.01:
+						k += 1
+					e['sl'] += k
+
+		# ONE reserved lane flanks the master band where the analog row exists,
+		# and hart 0's reach goes up it. There used to be a second on the right,
+		# for the row's own bus drop; that drop is gone (see the emission), and
+		# the 0.78 cm it reserved goes back into the columns.
+		xLane = 0.78 if afeRow is not None else 0.0
+		xBandL = xEdge + xLane
+		# (An earlier cut reserved 1.75 cm of extra air in ONE gap of the master
+		# band, between hart 0's column and the first channel's, for the shared
+		# engine's multiplexer to stand in. The multiplexer is gone with the
+		# engine's site, and so is the reserve: the band is justified across a
+		# width the rank fixes, so that 1.75 cm goes straight back into the
+		# columns.)
+
+		def rankWidth():
+			return (sum(g['w'] + g['padR'] for g in groups)
+				+ gapIn * (len(groups) - len(units))
+				+ gapRank * (len(units) - 1) + 2 * xEdge)
+
+		def widthNeeded():
+			return max([sum(m['min'] for m in masters) + gapM * (len(masters) - 1)
+					+ xBandL + xEdge,
+				rankWidth(),
+				sum(c['ext']['dw'] for c in exts) + gapExt * (len(exts) - 1) + 2 * xEdge])
+
+		# ---- the rank, and the partners hanging straight off it ---------------
+		def applyExtra():
+			for c in exts:
+				c['w'] = c['wBase'] + c['extra']
+			for g in groups:
+				g['w'] = sum(c['w'] for c in g['members'])
+
+		def layoutRank(width):
+			applyExtra()
+			for u in units:
+				u['w'] = (sum(g['w'] + g['padR'] for g in u['groups'])
+					+ gapIn * (len(u['groups']) - 1))
+			span = (width - 2 * xEdge) - sum(u['w'] for u in units)
+			gp = span / float(len(units) - 1) if len(units) > 1 else 0.0
+			x = xEdge
+			for u in units:
+				u['x0'] = x
+				for g in u['groups']:
+					g['cx'] = x + g['w'] / 2.0
+					xc = x
+					for c in g['members']:
+						c['cx'] = c['tx'] = xc + c['w'] / 2.0
+						xc += c['w']
+					# THE TAP MUST NOT LAND ON A DIVIDER. A glued box's centre is
+					# where two of its compartments meet as often as not (a
+					# two-compartment group: always), and an arrowhead that lands
+					# exactly on a rule reads as a drawing error, not as a tap. It
+					# moves to the centre of the compartment it fell in.
+					g['tx'] = g['cx']
+					for c in g['members']:
+						if abs(c['cx'] - c['w'] / 2.0 - g['cx']) < 0.25 or abs(
+								c['cx'] + c['w'] / 2.0 - g['cx']) < 0.25:
+							if abs(c['cx'] - g['cx']) < c['w'] / 2.0 + 0.26:
+								g['tx'] = c['cx']
+					x += g['w'] + g['padR'] + gapIn
+				u['x1'] = x - gapIn
+				x = u['x1'] + gp
+
+		def placeExts(width):
+			'''Minimum displacement under a separation constraint, the standard
+			   two passes, then a third: a partner pushed left by the forward
+			   sweep must not be shifted again (MEASURED on
+			   config/penta_wound.json, eight partners: one sweep plus a global
+			   shift piled the left three on top of each other).'''
+			exts.sort(key=lambda c: c['tx'])
+			sep = [0.0] + [(exts[i - 1]['ext']['dw'] + exts[i]['ext']['dw']) / 2.0 + gapExt
+				for i in range(1, len(exts))]
+			xs = [c['tx'] for c in exts]
+			for _ in range(2):
+				for i in range(len(exts)):
+					xs[i] = max(xs[i], xEdge + exts[i]['ext']['dw'] / 2.0,
+						(xs[i - 1] + sep[i]) if i else 0.0)
+				for i in range(len(exts) - 1, -1, -1):
+					xs[i] = min(xs[i], width - xEdge - exts[i]['ext']['dw'] / 2.0,
+						(xs[i + 1] - sep[i + 1]) if i + 1 < len(exts) else width)
+			return xs
+
+		# THE WIRE IS STRAIGHT, SO THE BOX MOVES UNDER IT. A partner's wire drops
+		# vertically out of its own compartment and enters the partner's top edge
+		# wherever it lands -- off its centre is fine, off the box entirely is
+		# not. Where a partner had to be nudged so far aside that its own wire
+		# would miss it, the COMPARTMENT is widened (which spreads its
+		# neighbours' taps too) and the rank re-laid.
+		#
+		# The widening is driven by the MEASURED miss, not by the difference
+		# between a compartment and its partner: a partner may enter its box off
+		# centre, so a run of partners wider than the compartments under them
+		# needs only the SHORTFALL after that drift is spent. MEASURED on the
+		# default configuration, the first cut's deficit-driven version paid the
+		# whole difference and took the three serial compartments to 7.6 cm, a
+		# drawing whose SPI box is as wide as its memory box because of where a
+		# partner had to sit. The assertion below is what proves the fixed point
+		# rather than the drawing shipping a wire into space.
+		def entryMiss(c, xe):
+			return abs(xe - c['tx']) - (c['ext']['dw'] / 2.0 - 0.10)
+
+		def solve(maxw):
+			sizeExts(maxw)
+			for c in exts:
+				c['extra'] = 0.0
+			applyExtra()
+			width = widthNeeded()
+			# UNDER-RELAXED, and it has to be. Every partner's miss is measured
+			# with all the OTHER partners still missing too, so paying each one
+			# in full double-counts the same shortfall down a run of them:
+			# MEASURED on config/penta_wound.json (eight partners, five of them
+			# on one glued box) a full-payment step overshot 33.4 cm to 44.2 in
+			# ONE pass and then converged there. Paying a fraction per pass and
+			# iterating approaches the same fixed point from below.
+			for _ in range(28):
+				layoutRank(width)
+				pos = placeExts(width)
+				miss = [max(0.0, entryMiss(c, xe)) for c, xe in zip(exts, pos)]
+				if max(miss + [0.0]) <= 0.0:
+					break
+				for c, ms in zip(exts, miss):
+					if ms > 0.0:
+						c['extra'] += 0.55 * ms + 0.02
+				width = max(width, widthNeeded())
+			layoutRank(width)
+			return width, placeExts(width)
+		W, xs = solve(3.40)
+		# PAST A POINT THE PARTNERS GIVE INSTEAD. A one-line partner title is
+		# worth its width until the drawing is so wide that every letter in it is
+		# unreadable: MEASURED on config/penta_wound.json, whose rank carries
+		# five serial blocks and eight partners, one-line titles put the figure
+		# at 45.5 cm -- resized to the text width that is 2.5 pt type. Wrapping
+		# the partner titles costs one line of height, once, and takes it to
+		# 36 cm. The threshold is where the type crosses ~4.5 pt.
+		if W > 34.0:
+			W, xs = solve(2.30)
+		for c, xe in zip(exts, xs):
+			if entryMiss(c, xe) > 0.02:
+				raise Exception('ChipSystemFlatDiagram: the straight wire under ' + str(c['title'])
+					+ ' would enter "' + str(c['ext']['title']) + '" ' + P(abs(xe - c['tx']))
+					+ ' cm from its centre, which is off the box.')
+
+		# ---- heights ----------------------------------------------------------
+		hCells = hCmp + hLine * max([L(t) for m in masters for t in m['cells']] or [0])
+		hMaster = max(pad + hTitle * max(1, L(m['title'])) + hLine * (L(m['sub']) + L(m['note']))
+			+ (hCells if m['cells'] else 0.0) + pad for m in masters)
+		hRank = pad + hTitle + hLine * max(1, max(L(c['sub']) for g in groups
+			for c in g['members'])) + pad
+		hExt = max([pad + hTitle * c['ext']['tl'] + hLine * c['ext']['sl'] + pad
+			for c in exts] or [0.90])
+		# The site row is ONE line tall now that the gate line inside each box has
+		# gone (user directive; see the emission), and nothing else runs inside
+		# it: the depth an earlier cut kept there for the multiplexer's channel
+		# lanes to pass BEHIND the site boxes went with the multiplexer. The line
+		# is a TITLE line, not a body line, because what is left in the box is
+		# the site's name.
+		hSite = pad + hTitle + pad
+		# The electrode cells carry the only pad names in the drawing and they
+		# are what a board engineer opens this figure for, so they are drawn at
+		# the body type size, not the tiny one, in a box with room around them.
+		hCell, pitch, yStubOff = 1.46, 1.06, 0.26
+		# The debug probe is an off-chip partner like any other, and it is drawn
+		# in the row the electrode cells are in -- above the boundary, over the
+		# column whose block its pins reach. Where there is no analog row that
+		# row exists for the probe alone, which is why the top of this drawing
+		# is no longer conditional on the analog front end.
+		hProbe = pad + hTitle + hLine * L(probeSub) + pad
+		jPitch = 0.50                  # the five pins, as a bundle
+
+		y = 0.0
+		yCellT = y
+		yCellB = y - max(hCell if afeRow is not None else 0.0, hProbe)
+		yRedT = yCellB - 0.55
+		ySiteT = yRedT - 0.30
+		ySiteB = ySiteT - hSite
+		# Where there is no analog row the master band sits straight under the red
+		# boundary, and a STACKED master's squares climb out of the top of it: the
+		# clearance is the stack's own height, not a constant measured before the
+		# squares came back.
+		mShadow = (stackDy * (maxShadow - 1) + 0.14) if (SHADOWS
+			and any(m['stack'] > 1 for m in masters)) else 0.0
+		yBandT = ((ySiteB - 0.76) if afeRow is not None
+			else (yRedT - max(0.34, mShadow)))
+		yBandB = yBandT - hMaster
+		yBarT = yBandB - riser
+		yBarB = yBarT - barH
+		yRankT = yBarB - riserR
+		yRankB = yRankT - hRank
+		yRedB = yRankB - 0.42
+		# The off-chip band opens up to take the harvested supply rail and its
+		# label: the rail runs along it, under the boundary and over the partner
+		# boxes, with a real gap at every partner wire it crosses.
+		yExtT = yRedB - 1.28
+		yPwr = yExtT + 0.34
+
+		# ---- emission ---------------------------------------------------------
+		s = ('% Generated whole-chip system diagram, FLAT companion (harts=' + str(N)
+			+ ', orchestrator=' + str(orch) + ', analogRow=' + str(afeRow is not None)
+			+ ', shadows=' + str(SHADOWS)
+			+ ', serialSplit=' + str(SERIAL_SPLIT) + ', sitesOmitted=' + str(omitSites)
+			+ ', debug=' + str(dbgOn) + ', jtagBonded=' + str(jtagBonded)
+			+ ', rank=' + str([(u['label'], [c['key'] for g in u['groups']
+				for c in g['members']]) for u in units]) + ')\n')
+		s += '\\begin{tikzpicture}[\n'
+		s += '\thd/.style={font=\\sffamily\\scriptsize, align=center, inner sep=1pt, anchor=north},\n'
+		s += '\tbc/.style={font=\\sffamily\\scriptsize, align=center, inner sep=1pt},\n'
+		s += '\tbadge/.style={font=\\sffamily\\small\\bfseries, align=center, inner sep=1pt},\n'
+		s += '\tbus/.style={<->, >=Stealth, thick},\n'
+		s += '\town/.style={->, >=Stealth, semithick},\n'
+		s += '\treach/.style={->, >=Stealth, line width=1.4pt},\n'
+		s += '\twire/.style={semithick},\n'
+		s += '\tpadlab/.style={font=\\sffamily\\small, align=center, inner sep=1pt},\n'
+		# (The `lane' style is retired with the rotated \texttt{s\_master}
+		# annotation it was the only user of.)
+		# The type label: BIG, grey, italic, roman weight. It was \scriptsize --
+		# 7 pt in a drawing that lands on the page at 0.48 scale, which is 3.4 pt
+		# of print and not a heading anybody reads -- and by user directive
+		# (2026-08-16) it is now \large, which is bigger than the block titles
+		# under it. That is deliberate and it is the ONE place in this figure
+		# where a grey label outsizes a black one: a heading is read before the
+		# things it heads. The hierarchy is kept by WEIGHT and COLOUR instead, as
+		# it always was: the titles are bold black, this is roman grey italic, so
+		# the rank still has exactly one kind of bold in it.
+		s += ('\ttyp/.style={font=\\sffamily\\large\\itshape, black!55, align=left, '
+			'fill=white, inner sep=1.5pt, anchor=west},\n')
+		# The rail annotation keeps the size the type headings left behind: it is
+		# a note on ONE wire in the off-chip band, not a heading over a row of
+		# blocks, and it has to stay out of the partner boxes it runs above.
+		s += ('\trail/.style={font=\\sffamily\\scriptsize\\itshape, black!55, align=left, '
+			'fill=white, inner sep=1.5pt, anchor=west},\n')
+		s += '\tredlab/.style={font=\\sffamily\\small\\bfseries, red!70!black, align=left}]\n'
+
+		def frame(cx, yTop, w, h, fill, opts='thick'):
+			return ('\\draw[' + opts + ', fill=' + fill + '] (' + P(cx - w / 2.0) + ', '
+				+ P(yTop - h) + ') rectangle (' + P(cx + w / 2.0) + ', ' + P(yTop) + ');\n')
+
+		def head(cx, yTop, w, title, sub, note=None):
+			tex = '{\\small\\bfseries ' + title + '}'
+			for extra in (sub, note):
+				if extra:
+					tex += '\\\\[1pt] ' + extra
+			return ('\\node[hd, text width=' + P(w - 0.20) + 'cm] at (' + P(cx) + ', '
+				+ P(yTop - pad) + ') {' + tex + '};\n')
+
+		def shadows(cx, yTop, w, h, n, fill, opts='thick'):
+			'''THE BACK COPIES ARE THE SAME BOX. The first cut filled them with
+			   paper, on the reasoning that a white back copy cannot be mistaken for
+			   a block with content in it. What it actually drew was N-1 EMPTY
+			   outlines behind one grey block -- a shadow, or a ghost, but not a
+			   count. Every layer now carries the FRONT box's own fill and the front
+			   box's own border, so the stack reads as what it is: N identical chips
+			   of the same kind, offset so you can see there are N.'''
+			out = ''
+			if not SHADOWS:
+				return out
+			for k in range(min(n, maxShadow) - 1, 0, -1):
+				out += frame(cx + stackDx * k, yTop + stackDy * k, w, h, fill, opts)
+			return out
+
+		def badge(x, ymid, n, side='east'):
+			# DEAD, and kept dead deliberately. A separate $\\times N$ node beside a
+			# stacked box would be the THIRD place this figure says the same number
+			# (the title says it, the squares show it), and on a single rank the only
+			# room for it is the 0.52 cm riser between the rank and the bar, which is
+			# where it collided with the bar the first time round.
+			return ''
+			if not SHADOWS:
+				return ''
+			dx = 0.12 if side == 'west' else -0.12
+			return ('\\node[badge, anchor=' + side + ', fill=white, inner sep=1.5pt] at ('
+				+ P(x + dx) + ', ' + P(ymid) + ') {$\\times$' + str(n) + '};\n')
+
+		# ---- the red package boundary, drawn first ---------------------------
+		s += ('\\draw[red!75!black, line width=1.2pt] (0.00, ' + P(yRedB) + ') rectangle ('
+			+ P(W) + ', ' + P(yRedT) + ');\n')
+		s += ('\\node[redlab, anchor=south west] at (0.00, ' + P(yRedT + 0.10)
+			+ ') {chip boundary};\n')
+
+		# ---- the master band --------------------------------------------------
+		xBandR = W - xEdge - 0.40
+		avail = (xBandR - xBandL) - gapM * (len(masters) - 1)
+		wsum = sum(m['weight'] for m in masters)
+		spare = avail - sum(m['min'] for m in masters)
+		for m in masters:
+			m['w'] = min(6.60, m['min'] + max(0.0, spare) * m['weight'] / wsum)
+		x = xBandL + max(0.0, (avail - sum(m['w'] for m in masters))) / 2.0
+		for m in masters:
+			m['cx'] = x + m['w'] / 2.0
+			m['tx'] = m['cx'] - (0.22 * m['w'] if (SHADOWS and m['stack'] > 1) else 0.0)
+			x += m['w'] + gapM
+		for m in masters:
+			# A stacked master's title is a RANGE ("hart 1--17"), which already
+			# counts the instances; it never takes the $\times N$ the rank's
+			# stacked blocks take in place of their shadow squares.
+			# DASHED IS NOT-IN-THIS-BUILD, and it takes the paper fill with it:
+			# a dashed border round the band's own grey would read as one more
+			# master with a decorated edge.
+			mOpts = 'thick, rounded corners=2pt' + (', dashed' if m.get('dash') else '')
+			mFill = 'white' if m.get('dash') else 'black!8'
+			s += shadows(m['cx'], yBandT, m['w'], hMaster, m['stack'], mFill, mOpts)
+			s += frame(m['cx'], yBandT, m['w'], hMaster, mFill, mOpts)
+			s += head(m['cx'], yBandT, m['w'], m['title'], m['sub'], m['note'])
+			if m['cells']:
+				# the tile, drawn as the two things it is built from
+				yD = yBandB + hCells
+				s += ('\\draw[semithick] (' + P(m['cx'] - m['w'] / 2.0) + ', ' + P(yD) + ') -- ('
+					+ P(m['cx'] + m['w'] / 2.0) + ', ' + P(yD) + ');\n')
+				k = len(m['cells'])
+				for i, t in enumerate(m['cells']):
+					xL = m['cx'] - m['w'] / 2.0 + m['w'] * i / float(k)
+					if i:
+						s += ('\\draw[semithick] (' + P(xL) + ', ' + P(yD) + ') -- (' + P(xL)
+							+ ', ' + P(yBandB) + ');\n')
+					s += ('\\node[bc, text width=' + P(m['w'] / float(k) - 0.16) + 'cm] at ('
+						+ P(xL + m['w'] / (2.0 * k)) + ', ' + P(yBandB + hCells / 2.0) + ') {' + t
+						+ '};\n')
+			if m['stack'] > 1:
+				s += badge(m['cx'] - m['w'] / 2.0 - 0.22, yBandB + hMaster / 2.0, m['stack'], 'east')
+			s += ('\\draw[bus' + (', dashed' if m.get('dash') else '') + '] (' + P(m['tx']) + ', '
+				+ P(yBandB) + ') -- (' + P(m['tx']) + ', ' + P(yBarT) + ');\n')
+
+		# ---- THE BUS: one bar, edge to edge, tapped from both sides -----------
+		# THE BAR SAYS WHAT IT IS, IN WORDS. It used to be labelled mp\_arbiter,
+		# which is the VHDL entity's name and not a name at all to a reader
+		# meeting this chip on page 17: the identifier is explained once, in the
+		# caption, where the reader who wants to grep the RTL will find it. The
+		# bar itself carries the English -- and the three facts under it are the
+		# ones a whole-chip overview owes a reader who is about to assume a
+		# crossbar.
+		s += ('\\draw[thick, fill=black!15] (' + P(xEdge) + ', ' + P(yBarB) + ') rectangle ('
+			+ P(W - xEdge) + ', ' + P(yBarT) + ');\n')
+		s += ('\\node[bc, text width=' + P(W - 2 * xEdge - 0.40) + 'cm] at (' + P(W / 2.0) + ', '
+			+ P(yBarB + barH / 2.0)
+			+ ') {{\\small\\bfseries multi-hart shared-bus arbiter} \\quad one shared-window '
+			'transaction at a time \\quad round-robin \\quad grant-locked AMOs\\\\ \\textit{every '
+			'master reaches the whole shared window, and only through the bar}};\n')
+
+		# ---- THE TYPE FRAMES, drawn first so the boxes sit on top -------------
+		def brokenLine(y, x0, x1, cuts, opts):
+			'''One edge of a frame, with a real gap at every wire that crosses
+			   it. The gaps are not cosmetic: this drawing has FOUR line weights
+			   in it already, and a thin grey rule that touches a bus tap is a
+			   junction until the reader gets close enough to see it is not.'''
+			out, x = '', x0
+			for cut in sorted(c for c in cuts if x0 + frmGap < c < x1 - frmGap):
+				if cut - frmGap > x + 0.02:
+					out += ('\\draw[' + opts + '] (' + P(x) + ', ' + P(y) + ') -- ('
+						+ P(cut - frmGap) + ', ' + P(y) + ');\n')
+				x = cut + frmGap
+			if x1 > x + 0.02:
+				out += ('\\draw[' + opts + '] (' + P(x) + ', ' + P(y) + ') -- (' + P(x1) + ', '
+					+ P(y) + ');\n')
+			return out
+
+		def labelIvs(xL, xR, taps):
+			'''The tap-free intervals of one label lane, left to right.'''
+			ivs, lo = [], xL + 0.10
+			for t in sorted(t for t in taps if xL < t < xR):
+				ivs.append((lo, t - 0.10))
+				lo = t + 0.10
+			ivs.append((lo, xR - 0.10))
+			return ivs
+
+		def labelAt(xL, xR, taps, wLab, lab):
+			'''WHERE A HEADING MAY STAND. The label lane is the riser, and every
+			   box on the rank sends its bus tap straight up through it, so the
+			   label goes in the leftmost gap BETWEEN taps that it fits in --
+			   left where it can be (a heading belongs at the start of what it
+			   heads), further along where the first box is too narrow. A label
+			   that fits nowhere is not nudged, it fails the build: a white label
+			   box sitting on a bus wire is the exact fault the AFE figure was
+			   rejected for, and it must not be able to ship by accident.'''
+			ivs = labelIvs(xL, xR, taps)
+			fits = [iv for iv in ivs if iv[1] - iv[0] >= wLab]
+			if not fits:
+				raise Exception('ChipSystemFlatDiagram: the label "' + lab + '" is '
+					+ P(wLab) + ' cm wide at its own type size and the widest tap-free interval '
+					'of its lane is ' + P(max(iv[1] - iv[0] for iv in ivs)) + ' cm: it would sit '
+					'on a wire.')
+			return fits[0][0]
+
+		def typeLabel(xL, xR, taps, lab):
+			'''A TYPE HEADING, SET IN AS FEW LINES AS ITS LANE WILL TAKE. Returns
+			   (x, text).
+
+			   The headings were \\scriptsize when TYPES was written and every one
+			   of them fitted its lane on one line. At \\large -- the size the USER
+			   asked for, 1.77x the widths TWs measures -- some do not, and the
+			   answer is not to keep shortening English until it does: a heading
+			   may be SET IN TWO LINES, and the interval test cares only about the
+			   widest of them, because both lines stand in one node and a bus tap
+			   is vertical (so a lane that is clear is clear for the node's whole
+			   height).
+
+			   The break is tried, not written into TYPES, and it is tried in this
+			   order: the label as written, then broken after its conjunction. One
+			   line is preferred wherever one line fits, because a two-line node
+			   is centred on the frame's top edge and its second line hangs into
+			   the frame's own standoff -- room this figure has, but not room it
+			   should spend where it does not have to. A label that fits nowhere
+			   in either form still fails the build, by the rule above.'''
+			ivs = labelIvs(xL, xR, taps)
+			room = max(iv[1] - iv[0] for iv in ivs)
+			forms = [lab]
+			if '\\\\' not in lab and ' \\& ' in lab:
+				forms.append(lab.replace(' \\& ', ' \\&\\\\ ', 1))
+			for form in forms:
+				if TWs(form) * tLab <= room:
+					return labelAt(xL, xR, taps, TWs(form) * tLab, form), form
+			# Neither form fits: report against the LAST one tried, which is the
+			# narrowest, so the message names the real shortfall.
+			return labelAt(xL, xR, taps, TWs(forms[-1]) * tLab, forms[-1]), forms[-1]
+
+		# THE WIRES THAT CROSS A FRAME'S BOTTOM EDGE. Every partner hangs on a
+		# straight wire dropped out of its own compartment, and the harvested
+		# supply rail comes back UP into PWRCTRL on one of its own. Both cross
+		# the rank, so both get a real gap where they pass a frame outline -- and
+		# the rail's is easy to forget, because it is the only wire in the
+		# drawing that crosses the rank from below. Its x is computed here, once,
+		# and used again where the rail itself is drawn.
+		pwrChip = None
+		for g in groups:
+			for c in g['members']:
+				if c['key'] == 'power':
+					pwrChip = c
+		xPwrRise = (pwrChip['cx'] + max(0.50, pwrChip['w'] / 2.0 - 0.34)) if pwrChip else None
+
+		yFrmT, yFrmB = yRankT + frmTop, yRankB - frmBot
+		for u in units:
+			cs = [c for g in u['groups'] for c in g['members']]
+			xL, xR = u['x0'] - frmPad, u['x1'] + frmPad
+			taps = [g['tx'] for g in u['groups']]
+			# EVERY TYPE THAT HAS MORE THAN ONE BOX IS ENCLOSED, and a GLUED box
+			# of several compartments counts (user directive, 2026-08-16). The
+			# emitter used to give the glued types -- the memory box, the
+			# SYSTEM/PWRCTRL box -- their heading and no outline, on the argument
+			# that a rectangle 1.8 mm outside a rectangle is a doubled border
+			# rather than a group. RENDERED: with the headings set big the
+			# unframed types read as captions floating over the rank while the
+			# framed ones read as groups, and the rank stopped looking like one
+			# organisation. So the frame is now drawn wherever the heading is,
+			# and the two say the same thing everywhere.
+			if len(cs) > 1:
+				fo = 'black!45, line width=0.5pt'
+				s += brokenLine(yFrmT, xL, xR, taps, fo)
+				bCuts = [c['tx'] for c in cs if c['ext']]
+				if xPwrRise is not None and any(c['key'] == 'power' for c in cs):
+					bCuts.append(xPwrRise)
+				s += brokenLine(yFrmB, xL, xR, bCuts, fo)
+				s += ('\\draw[' + fo + '] (' + P(xL) + ', ' + P(yFrmB) + ') -- (' + P(xL) + ', '
+					+ P(yFrmT) + ');\n')
+				s += ('\\draw[' + fo + '] (' + P(xR) + ', ' + P(yFrmB) + ') -- (' + P(xR) + ', '
+					+ P(yFrmT) + ');\n')
+			else:
+				xL, xR = u['x0'] - 0.04, u['x1'] + 0.04
+			# A HEADING OVER ONE BOX IS THAT BOX'S TITLE AGAIN. "Compute" over a
+			# box called NPU, "Digital I/O" over a box called GPIO: the reader
+			# has already read it, and the second printing is one more thing in
+			# the one lane the bus taps have to get through (MEASURED: the GPIO
+			# box is 2.50 cm, its tap halves it, and "Digital I/O" is 2.50 at the
+			# heading size -- it does not fit beside its own wire, and at this
+			# size nothing of that length would). The label is drawn where it is
+			# doing work: over two or more blocks that are one kind of thing,
+			# which is exactly where the frame is drawn too.
+			if len(cs) > 1:
+				xLab, tLabel = typeLabel(xL, xR, taps, u['label'])
+				s += ('\\node[typ] at (' + P(xLab) + ', ' + P(yFrmT) + ') {' + tLabel + '};\n')
+
+		# ---- THE RANK: every peripheral, one row, one straight tap each -------
+		for g in groups:
+			solo = len(g['members']) == 1
+			# THE STACK BELONGS TO A BOX, AND A GLUED BOX IS ONE BOX. Squares
+			# behind a compartmented group say "N of this group", which is true
+			# only where every compartment in it has the same count -- and a lie
+			# with no way to qualify it the moment two differ. Where they differ,
+			# nothing is drawn rather than something wrong (and `specs' keeps the
+			# multi-instance blocks unglued so it never comes to that).
+			counts = set(c['stack'] for c in g['members'])
+			if solo:
+				nStack = g['members'][0]['stack']
+			elif len(counts) == 1:
+				nStack = g['members'][0]['stack']
+			else:
+				if max(counts) > 1:
+					raise Exception('ChipSystemFlatDiagram: the glued box '
+						+ str([c['key'] for c in g['members']]) + ' has compartments with '
+						+ str(sorted(counts)) + ' instances, so no single stack of squares '
+						'behind it is true. Ungroup it (see SERIAL_SPLIT).')
+				nStack = 1
+			gDash = any(c.get('dash') for c in g['members'])
+			gOpts = 'thick, dashed' if gDash else 'thick'
+			gFill = 'white' if gDash else 'black!5'
+			s += shadows(g['cx'], yRankT, g['w'], hRank, nStack, gFill, gOpts)
+			s += frame(g['cx'], yRankT, g['w'], hRank, gFill, gOpts)
+			for j, c in enumerate(g['members']):
+				if j:
+					xL = c['cx'] - c['w'] / 2.0
+					s += ('\\draw[semithick] (' + P(xL) + ', ' + P(yRankT) + ') -- (' + P(xL)
+						+ ', ' + P(yRankB) + ');\n')
+				s += head(c['cx'], yRankT, c['w'], titleOf(c, solo), c['sub'])
+			s += ('\\draw[bus' + (', dashed' if gDash else '') + '] (' + P(g['tx']) + ', '
+				+ P(yRankT) + ') -- (' + P(g['tx']) + ', ' + P(yBarB) + ');\n')
+			if solo and g['members'][0]['stack'] > 1:
+				s += badge(g['tx'], yRankT + stackDy * (maxShadow - 1) + 0.14,
+					g['members'][0]['stack'])
+
+		# ---- the outside world, below the boundary, on straight wires ---------
+		xNfcExt = None
+		for c, xe in zip(exts, xs):
+			e = c['ext']
+			cDash = ', dashed' if c.get('dash') else ''
+			s += frame(xe, yExtT, e['dw'], hExt, 'white' if c.get('dash') else 'black!3',
+				'thick' + cDash)
+			s += head(xe, yExtT, e['dw'], e['title'], e.get('sub'))
+			s += ('\\draw[bus' + cDash + '] (' + P(c['tx']) + ', ' + P(yRankB) + ') -- ('
+				+ P(c['tx']) + ', ' + P(yExtT) + ');\n')
+			s += ('\\fill[red!70!black] (' + P(c['tx'] - 0.07) + ', ' + P(yRedB - 0.07)
+				+ ') rectangle (' + P(c['tx'] + 0.07) + ', ' + P(yRedB + 0.07) + ');\n')
+			if c is nfcChip:
+				xNfcExt = xe
+
+		# ---- THE HARVESTED SUPPLY: the second thing the antenna does ---------
+		# It is not a signal and it is not drawn like one. A field-powered board
+		# rectifies the reader's field and that supply is what brings the chip
+		# up: it reaches PWRCTRL's two supervision pads, and the boot gate they
+		# hold releases every hart. So it is a RAIL -- heavier than any wire
+		# here, grey, one arrowhead, running along the off-chip band from the
+		# antenna to under PWRCTRL and crossing the boundary there -- and it is
+		# cut with a real gap at every partner wire it passes, the same rule the
+		# type frames and hart 0's rail are drawn by.
+		# (`pwrChip' and its rise-in x are computed once, up where the type frames
+		# needed a gap cut in the bottom edge the rail crosses.)
+		if xNfcExt is not None and pwrChip is not None:
+			pDash = '' if powerSolid else ', dashed'
+			po = 'black!55, line width=1.5pt' + pDash
+			x0 = xNfcExt + nfcChip['ext']['dw'] / 2.0 - 0.34
+			x1 = xPwrRise
+			s += ('\\draw[' + po + '] (' + P(x0) + ', ' + P(yExtT) + ') -- (' + P(x0) + ', '
+				+ P(yPwr) + ');\n')
+			s += brokenLine(yPwr, min(x0, x1), max(x0, x1),
+				[c['tx'] for c in exts if abs(c['tx'] - x0) > 0.02], po)
+			s += ('\\draw[' + po + ', ->, >=Stealth] (' + P(x1) + ', ' + P(yPwr) + ') -- ('
+				+ P(x1) + ', ' + P(yRankB) + ');\n')
+			s += ('\\fill[red!70!black] (' + P(x1 - 0.07) + ', ' + P(yRedB - 0.07)
+				+ ') rectangle (' + P(x1 + 0.07) + ', ' + P(yRedB + 0.07) + ');\n')
+			# The label goes where the rail is clear of the wires that cross it,
+			# by the same rule the type headings are placed by. It names WHAT THE
+			# RAIL IS and nothing else: the second line, which named the two
+			# supervision pads it lands on, is gone by user directive
+			# (2026-08-16). Those pad names are a PWRCTRL fact, they are in the
+			# pin table and in the caption, and on a whole-chip overview they
+			# were two lines of \texttt{} in the one band the rail runs through.
+			lab = 'harvested field power'
+			s += ('\\node[rail, text=black!60, anchor=south west] at ('
+				+ P(labelAt(min(x0, x1), max(x0, x1), [c['tx'] for c in exts],
+					TWs(lab), lab)) + ', ' + P(yPwr + 0.10) + ') {' + lab + '};\n')
+
+		# ---- the analog sites, their electrodes, and who may reach them -------
+		if afeRow is not None:
+			# THE AIR BETWEEN THE CHANNELS STAYS AIR, AND SO DOES THE STRIP
+			# BEHIND THEM. The first cut ran BOTH the bus and hart 0's reach
+			# along the row at two heights, entering each site's left and right
+			# edges: at 300 dpi that is two double-headed arrows in every gap,
+			# and what it reads as is the sites wired to each other -- the one
+			# thing the row must not say. The second cut kept the bus as a grey
+			# strip running the length of the row behind the boxes, with one
+			# drop down the right lane into the bar.
+			#
+			# That strip is GONE (USER). The access story the row has to tell is
+			# WHO MAY READ A SITE, and it is told twice already and in full, by
+			# the two things that are DRAWN: the thin arrow from a hart into its
+			# own site, and hart 0's heavy rail underneath reaching all of them.
+			# The sites are still ordinary arbiter slaves and are still reached
+			# only through the bar -- that is a fact of the fabric, it is the same
+			# fact for every block in the drawing, and it is now carried by the
+			# caption rather than by a strip that put a second grey bar across
+			# the one row this figure keeps clear.
+			yReach = yBandT + 0.30
+			xOwnGap, xReachDrop = 0.11, 1.00
+
+			# Hart 0's reach: ONE heavy rail out of its own box, along the strip
+			# under the row, with a drop into every site drawn. The privilege is one
+			# comparison against the arbiter's granted-master index, so it is one
+			# line and not four more wires. The rail is drawn with a REAL GAP where
+			# each column's thin ownership arrow passes through it, so a crossing
+			# cannot be read as a junction. It is unchanged by the curated omission
+			# above: what hart 0 may read is every site on the row, and every site
+			# on the row that this figure draws is a channel's.
+			cuts = sorted([columns[h]['cx'] for h in drawnCols])
+			xr = xReach
+			s += ('\\draw[reach, -] (' + P(columns[0]['cx'] - columns[0]['w'] / 2.0) + ', '
+				+ P(yBandT - hMaster / 2.0) + ') -- (' + P(xr) + ', '
+				+ P(yBandT - hMaster / 2.0) + ') -- (' + P(xr) + ', ' + P(yReach) + ');\n')
+			for cut in cuts:
+				s += ('\\draw[reach, -] (' + P(xr) + ', ' + P(yReach) + ') -- ('
+					+ P(cut - xOwnGap) + ', ' + P(yReach) + ');\n')
+				xr = cut + xOwnGap
+			s += ('\\draw[reach, -] (' + P(xr) + ', ' + P(yReach) + ') -- ('
+				+ P(cuts[-1] + xReachDrop) + ', ' + P(yReach) + ');\n')
+			# NO \texttt{s\_master} ANYWHERE IN THIS DRAWING (user directive,
+			# 2026-08-16). The rail used to carry `s\_master = 0' rotated up its
+			# own margin and every site box printed its own copy of the gate. The
+			# ownership story is now told by the two things that are drawn: the
+			# thin arrow from a hart into its own site, and this heavy rail out of
+			# hart 0 reaching all of them. The signal's name, and what the gate
+			# compares, are the caption's and Section \ref{ss:cqanalog-gate}'s --
+			# a register-level identifier repeated five times across the one strip
+			# this row keeps clear was five labels buying one fact.
+
+			reached = []
+			for h in drawnCols:
+				nm = siteOf[h][0]
+				m = columns[h]
+				s += frame(m['cx'], ySiteT, m['w'], hSite, 'black!5')
+				# The site box is its NAME, and that is the whole of it now that
+				# the gate line has gone: one line, set at the same \small\bfseries
+				# the hart under it is set in, because the pair is one channel and
+				# the two halves of it should read as one weight.
+				s += ('\\node[bc, text width=' + P(m['w'] - 0.30) + 'cm] at (' + P(m['cx']) + ', '
+					+ P(ySiteB + hSite / 2.0) + ') {{\\small\\bfseries ' + fmttex(nm)
+					+ '} site};\n')
+				# THE OWNERSHIP MARK: a short direct arrow into the site from the
+				# hart whose index the gate inside it admits. Thin, so it cannot
+				# be read as one of the bus wires. It used to carry the word
+				# `owns' beside it, once per column; the caption says it once, and
+				# four repetitions of a word the reader has already met are four
+				# labels in the one strip the row keeps clear.
+				s += ('\\draw[own] (' + P(m['cx']) + ', ' + P(yBandT) + ') -- (' + P(m['cx'])
+					+ ', ' + P(ySiteB) + ');\n')
+				# and hart 0's reach, up into this site out of the rail below it
+				s += ('\\draw[reach] (' + P(m['cx'] + xReachDrop) + ', ' + P(yReach) + ') -- ('
+					+ P(m['cx'] + xReachDrop) + ', ' + P(ySiteB) + ');\n')
+				reached.append(nm)
+
+			# E17: the rail and the drop are drawn per site from the same list the
+			# sites themselves come from, so a site the layout forgot cannot ship as
+			# a site nothing reaches -- and the one site this figure deliberately
+			# does NOT draw has to be accounted for BY NAME on the other side of the
+			# same equality, so the omission stays a decision and can never become a
+			# drop.
+			if sorted(reached + omitSites) != sorted(st[0] for st in afeRow['sites']):
+				raise Exception('ChipSystemFlatDiagram: the drawn site set ' + str(sorted(reached))
+					+ ' plus the curated omission ' + str(sorted(omitSites))
+					+ ' is not this configuration\'s '
+					+ str(sorted(st[0] for st in afeRow['sites'])))
+
+			# ---- the electrodes, one triple straight up out of its own site ---
+			for h in sorted(padOf):
+				names = padOf[h]
+				cx = columns[h]['cx']
+				n = len(names)
+				wCell = pitch * (n - 1) + 1.60
+				s += ('\\draw[thick, rounded corners=3pt, fill=black!3] (' + P(cx - wCell / 2.0)
+					+ ', ' + P(yCellB) + ') rectangle (' + P(cx + wCell / 2.0) + ', '
+					+ P(yCellT) + ');\n')
+				# The caption of the cell is set at the PAD-LABEL size (user
+				# directive, 2026-08-16): it was \scriptsize, which is 3.4 pt of
+				# print at the scale this figure lands on the page, and it names
+				# the one thing in the drawing that is not on the die at all.
+				s += ('\\node[padlab, anchor=north] at (' + P(cx) + ', ' + P(yCellT - 0.10)
+					+ ') {' + str(n) + '-electrode cell};\n')
+				yStub = yCellB + yStubOff
+				for k, nm in enumerate(names):
+					xk = cx + (k - (n - 1) / 2.0) * pitch
+					# ONE unbroken vertical wire: site box -> boundary -> stub.
+					# Nothing is drawn over it but the pad square, and the name
+					# sits above the stub inside the cell, never on the wire.
+					s += ('\\draw[wire] (' + P(xk) + ', ' + P(ySiteT) + ') -- (' + P(xk) + ', '
+						+ P(yStub) + ');\n')
+					s += ('\\draw[wire, line width=1.4pt] (' + P(xk - 0.24) + ', ' + P(yStub)
+						+ ') -- (' + P(xk + 0.24) + ', ' + P(yStub) + ');\n')
+					s += ('\\node[padlab, anchor=south, inner sep=1.5pt] at (' + P(xk) + ', '
+						+ P(yStub + 0.06) + ') {\\texttt{' + fmttex(nm) + '}};\n')
+					s += ('\\fill[red!70!black] (' + P(xk - 0.07) + ', ' + P(yRedT - 0.07)
+						+ ') rectangle (' + P(xk + 0.07) + ', ' + P(yRedT + 0.07) + ');\n')
+
+		# ---- the debug probe, its five pins, and the boundary they cross ------
+		# The partner idiom, upward: an off-chip box above the boundary, its
+		# signal names printed INSIDE it (the serial flash's CS/SCK MOSI/MISO,
+		# exactly), and straight vertical wires down into the block they reach,
+		# each carrying a boundary square where it crosses the red line. Five
+		# wires and not one, because five is the fact a reader opens a
+		# whole-chip figure for.
+		#
+		# The probe is a HAT ON ITS BLOCK, the way a site is a hat on its hart:
+		# same centre, no wider than the column, so the pair reads as one path
+		# and nothing has to be labelled to say which block the pins reach.
+		probeW = min(dbgM['w'], 3.60)
+		yProbeB = yCellT - hProbe
+		# SOLID, with the column it stands on (user directive, 2026-08-16; see
+		# where dbgM['dash'] is set). The probe box and its five pin wires used to
+		# be dashed on two separate conditions -- the knob, and whether the pins
+		# reach a ball on this package -- and both of those facts are now printed
+		# in the box in words instead.
+		dashJ = ''
+		s += ('\\draw[thick, rounded corners=3pt, fill=white' + dashJ + '] ('
+			+ P(dbgM['cx'] - probeW / 2.0) + ', ' + P(yProbeB) + ') rectangle ('
+			+ P(dbgM['cx'] + probeW / 2.0) + ', ' + P(yCellT) + ');\n')
+		s += head(dbgM['cx'], yCellT, probeW, 'debug probe', probeSub)
+		for k in range(len(JTAG_PINS)):
+			xk = dbgM['cx'] + (k - (len(JTAG_PINS) - 1) / 2.0) * jPitch
+			s += ('\\draw[wire' + dashJ + '] (' + P(xk) + ', ' + P(yBandT) + ') -- (' + P(xk)
+				+ ', ' + P(yProbeB) + ');\n')
+			s += ('\\fill[red!70!black] (' + P(xk - 0.07) + ', ' + P(yRedT - 0.07)
+				+ ') rectangle (' + P(xk + 0.07) + ', ' + P(yRedT + 0.07) + ');\n')
+		# E17: the probe is in the same row as the electrode cells, and a cell is
+		# WIDER than the column it sits on. Two boxes that overlap in a row this
+		# figure draws by construction is not something to find on a render.
+		for h in sorted(padOf):
+			cx = columns[h]['cx']
+			wCell = pitch * (len(padOf[h]) - 1) + 1.60
+			if abs(cx - dbgM['cx']) < (wCell + probeW) / 2.0 + 0.10:
+				raise Exception('ChipSystemFlatDiagram: the debug probe box would overlap the '
+					+ str(len(padOf[h])) + '-electrode cell of hart ' + str(h) + ' — the top row '
+					'has no room for both at this width.')
+
 		s += '\\end{tikzpicture}\n'
+		# The drawn extent, in the figure's own centimetres, recorded in the file
+		# it describes: this figure is \resizebox'd to the text width, so its
+		# ASPECT is what decides how much page height it costs and how small its
+		# type lands -- and neither is visible in any other artefact of the build.
+		hAll = yCellT - yExtT + hExt
+		s = (s.split('\n', 1)[0][:-1] + ', width=' + P(W) + 'cm, height=' + P(hAll)
+			+ 'cm, aspect=' + P(W / hAll) + ')\n' + s.split('\n', 1)[1])
 		self._writeInclude('ChipSystemFlatDiagram.tex', s)
 		return
+
+	@staticmethod
+	def _chipFigWidth(tex, unit=0.125):
+		'''A deliberately crude width, in cm, for the widest line of a
+		   \\scriptsize sans block. It exists for one reason: the height of every
+		   box in this drawing is a LINE COUNT, and a line the box is too narrow
+		   to hold does not clip, it WRAPS — adding a row nobody reserved and
+		   spilling the box. MEASURED on the six-column band of the debug
+		   configuration, where "behind the registered" and "owns EIS, reads
+		   every site" each wrapped and pushed a line through the box floor.'''
+		if not tex:
+			return 0.0
+		best = 0.0
+		for line in tex.split('\\\\'):
+			bold = ('textbf' in line) or ('bfseries' in line)
+			t = re.sub(r'\\[a-zA-Z]+', '', line)
+			for ch in '{}$\\':
+				t = t.replace(ch, '')
+			best = max(best, len(t.strip()) * (unit * 1.12 if bold else unit))
+		return best
+
+	def _ChipSystemAnalogRow(self, allBoxes, columns, orch, N):
+		'''Is this configuration the shape an analog OWNERSHIP row asserts — an
+		   orchestrator, one site per channel hart, and a column of its own for
+		   every owner? Returns (afeBox or None, {ownerHart: site}); anything
+		   else returns (None, {}) and the caller degrades to the compact box,
+		   so neither whole-chip figure lies about ownership.
+
+		   E17: the gate the figures print is re-derived here from the owner and
+		   checked against the gate the block model carries, so an ownership
+		   change that the drawings do not cover fails the build instead of
+		   shipping figures that disagree with the table on the facing page.'''
+		afe = None
+		for b in allBoxes:
+			if b['key'] == 'afe':
+				afe = b
+		if afe is None or not afe.get('sites'):
+			return None, {}
+		owners = [st[2] for st in afe['sites']]
+		if not (orch and len(set(owners)) == len(owners)
+				and set(owners) <= set(columns) and set(range(1, N)) <= set(owners)):
+			return None, {}
+		siteOf = dict((st[2], st) for st in afe['sites'])
+		for h in sorted(siteOf):
+			want = ('s\\_master = 0' if h == 0
+				else 's\\_master = ' + str(h) + ' or s\\_master = 0')
+			got = siteOf[h][3]
+			if got and got != want:
+				raise Exception('ChipSystemDiagram: block ' + str(siteOf[h][0])
+					+ ' is owned by hart ' + str(h) + ' but its gate reads "' + str(got)
+					+ '", not "' + want + '" — the ownership row would print a gate this '
+					'configuration does not implement.')
+		return afe, siteOf
 
 	def GenerateClockSystemDiagram(self):
 		'''include/ClockSystemDiagram.tex, the clock tree drawn the STM32 way,
