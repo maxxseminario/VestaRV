@@ -1,28 +1,89 @@
-The Core-Local Interruptor (\peripheral{CLINT}) provides the two interrupt sources that make multi-core software possible: per-hart \textit{software interrupts} (the inter-processor interrupt, or IPI, mechanism) and per-hart \textit{timer interrupts} driven by a shared free-running 64-bit counter. It lives in the shared window behind the multi-core arbiter, so \textbf{any hart can raise, clear, or program any hart's interrupts}. The main features are listed below:
+% CLINT chapter. Configuration-driven: hart counts, vector numbers and
+% addresses come from include/defines.tex. Section order is the per-peripheral
+% template enforced by python/check_intro_names.py.
+\section{Overview}
+
+The Core-Local Interruptor (\peripheral{CLINT}) provides the two interrupt sources on which multi-core software is built: a per-hart software interrupt, used as the inter-processor interrupt (IPI), and a per-hart timer interrupt driven by one shared free-running 64-bit counter. The block sits in the shared window behind the multi-core arbiter, so any hart can raise, clear or program any hart's interrupts.
 
 \begin{itemize}
-	\item One software interrupt (IPI) register per hart (\register{MSIP0}--\register{MSIP\MaxHartIndex}), writable by any hart
-	\item Shared free-running 64-bit \register{MTIME} counter, incrementing once per MCLK cycle
-	\item One 64-bit compare register per hart (\register{MTIMECMP0}--\register{MTIMECMP\MaxHartIndex}); hart $h$'s timer interrupt is asserted while $\register{MTIME} \geq \register{MTIMECMP}h$
-	\item Level-sensitive interrupt delivery into interrupt vectors 83 (software) and 84 (timer)
-	\item Wakes harts sleeping via the custom \asminline{sleep} instruction, enabling zero-power hart parking
-	\item Compare registers reset to all-ones, so no timer interrupt fires until one is programmed
+	\item One software-interrupt register per hart (\register{MSIP0} to \register{MSIP\MaxHartIndex}), writable by any hart
+	\item One shared free-running 64-bit counter (\register{MTIMEL}/\register{MTIMEH}), incrementing once per MCLK cycle
+	\item One 64-bit compare register per hart (\register{MTIMECMP0L}/\register{MTIMECMP0H} to \register{MTIMECMP\MaxHartIndex L}/\register{MTIMECMP\MaxHartIndex H})
+	\item Level-sensitive delivery on two hardwired vectors per hart: \ClintMsipVector{} (software) and \ClintMtipVector{} (timer)
+	\item Wakes a hart parked by the \asminline{sleep} instruction, so parked harts consume no dynamic power
+	\item Compare registers reset to all ones, so no timer interrupt fires before one is programmed
 \end{itemize}
 
-The \peripheral{CLINT} runs on the free-running MCLK, the same clock as each hart's interrupt handler, so a software interrupt can wake a hart whose gated CPU clock is currently off.
+\section{Functional description}
 
-\subsection{Software Interrupts (IPIs)}
+\subsection{Software interrupts}
 
-Writing 1 to \register{MSIPh} raises the software-interrupt level into hart $h$ (interrupt vector 83); writing 0 clears it. Because the interrupt is \textbf{level-sensitive}, hart $h$'s interrupt service routine must write 0 to its own \register{MSIPh} register before returning, or the interrupt immediately re-triggers.
+Writing 1 to \register{MSIPh} asserts the software-interrupt level into hart $h$; writing 0 deasserts it. The interrupt is a level, so the handler on hart $h$ must write 0 to its own \register{MSIPh} before returning, because the level would otherwise re-enter the handler immediately.
 
-The canonical use is waking a parked hart: the parked hart enables interrupt vector 83 and executes the custom \asminline{sleep} instruction (see Section \ref{ss:sleep}); another hart writes 1 to the sleeper's \register{MSIP} register. The sleeper's interrupt service routine runs, clears its \register{MSIP}, and must execute the custom \asminline{wake} instruction before returning; otherwise the hart goes back to sleep when the service routine returns.
+The software interrupt is the wake mechanism for a parked hart: a hart that has enabled vector \ClintMsipVector{} and executed \asminline{sleep} resumes when any hart writes 1 to its \register{MSIPh}. The woken hart's handler clears the level and executes \asminline{wake} before returning, because a handler that returns without \asminline{wake} puts the hart back to sleep (Section \ref{ss:sleep}). The boot ROM uses this same path to launch a freshly loaded tile (Section \ref{ss:multicore-boot}).
 
-\subsection{Timer Interrupts}
+\subsection{Timer interrupts}
 
-\register{MTIME} is a single 64-bit counter shared by all \NumHartsWord{} harts. Each hart has its own 64-bit compare value; the timer interrupt level for hart $h$ (interrupt vector 84) is asserted while $\register{MTIME} \geq \register{MTIMECMP}h$ and cleared by moving \register{MTIMECMP}$h$ into the future (or by wrapping it back to all-ones to disarm it).
+The counter is one 64-bit value shared by all \NumHartsWord{} harts and clocked by the free-running MCLK. Each hart owns one 64-bit compare value; the timer level into hart $h$ is asserted while the counter is greater than or equal to hart $h$'s compare value, and it is deasserted by moving the compare value into the future or back to all ones (the disarmed reset value).
 
-Because the registers are 32 bits wide, 64-bit values are accessed as low/high pairs. To read a coherent 64-bit time: read \register{MTIMEH}, then \register{MTIMEL}, then \register{MTIMEH} again, and retry if the two \register{MTIMEH} reads differ. To program a compare value without a spurious interrupt: write all-ones to \register{MTIMECMPxH}, then the new low half to \register{MTIMECMPxL}, then the real high half to \register{MTIMECMPxH}.
+The registers are 32 bits wide, so every 64-bit value is a low/high pair. The counter cannot be read atomically; Section \ref{ss:clint-programming} gives the read sequence that tolerates a carry between the two halves.
 
-\subsection{Addressing Note}
+\subsection{Clocking}
 
-The \peripheral{CLINT} lives in shared-window page 1 at base address \texttt{\ClintBaseAddress}. The register layout scales with the hart count: the software-interrupt registers are word-mapped from the base (\register{MSIP}$h$ at \texttt{\ClintBaseAddress}${}+4h$), the shared \register{MTIME} low/high pair begins at \texttt{\ClintMtimeAddress}, and hart $h$'s \register{MTIMECMP}$h$ low/high pair is at \texttt{\ClintMtimecmpBaseAddress}${}+8h$. The block decodes only the low bits of the address, so its registers alias every \ClintAliasBytes{} bytes throughout \texttt{\ClintBaseAddress}--\texttt{0x5FFF}. Always use the canonical addresses.
+The \peripheral{CLINT} runs on MCLK and is never clock-gated, because a hart whose own clock is stopped by \asminline{sleep} can only be woken by logic that keeps running. The counter therefore advances through every sleep state, and its rate follows the MCLK divider in \register{CLKDIVCR}.
+
+\subsection{Address decoding}
+
+The block occupies shared-window page 1 from \texttt{\ClintBaseAddress}. \register{MSIPh} is at \texttt{\ClintBaseAddress}${}+4h$, the counter pair starts at \texttt{\ClintMtimeAddress}, and hart $h$'s compare pair is at \texttt{\ClintMtimecmpBaseAddress}${}+8h$. Only the low address bits are decoded, so the registers alias every \ClintAliasBytes{} bytes up to \texttt{0x5FFF}; software uses the canonical addresses because the alias pattern is not part of the register interface and may change with the hart count.
+
+\section{Interrupts and events}
+
+Both vectors are hardwired into every hart's interrupt controller and do not pass through the \peripheral{IRQROUTER}: each hart receives only its own \register{MSIPh} and its own compare match. Table \ref{t:clint-irq} lists them.
+
+\begin{table}[htb]
+	\centering
+	\caption{\peripheral{CLINT} interrupt vectors.}
+	\label{t:clint-irq}
+	\begin{tabular}{ l p{4.2cm} p{4.0cm} p{4.6cm} }
+	\textbf{Vector} & \textbf{Condition} & \textbf{Set by} & \textbf{Cleared by} \\ \hline
+	\ClintMsipVector{} & Software interrupt to hart $h$ & Any hart writing 1 to \register{MSIPh} & Writing 0 to \register{MSIPh} \\
+	\rowcolor{tablehighlightcolor}
+	\ClintMtipVector{} & Timer match for hart $h$ & Counter reaching hart $h$'s compare value & Writing a compare value above the counter \\
+	\hline
+	\end{tabular}
+\end{table}
+
+\section{Programming} \label{ss:clint-programming}
+
+\subsection{Reading the counter}
+
+\begin{enumerate}
+	\item Read \register{MTIMEH}.
+	\item Read \register{MTIMEL}.
+	\item Read \register{MTIMEH} again; if it differs from the first read, repeat from step 1, because the low half wrapped between the two reads.
+\end{enumerate}
+
+\subsection{Arming a timer interrupt for hart $h$}
+
+\begin{enumerate}
+	\item Write all ones to \register{MTIMECMPhH}, so that no intermediate compare value can be below the counter.
+	\item Write the low half of the target time to \register{MTIMECMPhL}.
+	\item Write the high half of the target time to \register{MTIMECMPhH}.
+	\item Enable vector \ClintMtipVector{} in hart $h$'s interrupt controller.
+\end{enumerate}
+
+\subsection{Sending a software interrupt to hart $h$}
+
+\begin{enumerate}
+	\item Write 1 to \register{MSIPh}.
+\end{enumerate}
+
+\section{Usage notes}
+
+\paragraph{Clear the software-interrupt level before returning.} The level stays asserted until \register{MSIPh} is written 0; a handler that returns first is re-entered at once.
+
+\paragraph{Execute \asminline{wake} in the handler of a sleeping hart.} A hart woken by an interrupt returns to sleep after the handler unless the handler executed \asminline{wake} (Section \ref{ss:sleep}).
+
+\paragraph{Program the compare pair high half first.} Writing the low half first can momentarily produce a compare value below the counter and raise a spurious timer interrupt.
+
+\paragraph{Do not send a software interrupt to a hart whose loader mailbox row is incomplete.} The boot ROM consumes the row when the parked hart wakes, so the row must be written before \register{MSIPh} (Section \ref{ss:multicore-boot}).

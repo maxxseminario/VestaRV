@@ -27,7 +27,6 @@
 \usepackage{mathrsfs}               % Fancy cursive math characters
 \usepackage{subcaption}             % Newest/best way to add multiple figures in one figure
 \usepackage{cite}                   % Fancy ordering of multi-citations
-\usepackage{lipsum}                 % Add text filler
 \usepackage{colortbl}
 %\usepackage{float}                  % Figures that can float around the document
 \usepackage{placeins}               % \FloatBarrier -- flush pending floats at a boundary
@@ -36,7 +35,9 @@
 \usepackage{relsize}
 
 % Extra packages
-\usepackage{acronym}
+\usepackage{acronym}                % Glossary of terms and abbreviations (chapter 1)
+\usepackage{titlesec}               % Compact chapter and part headings (report class)
+\usepackage{tcolorbox}              % Note and Caution callout boxes
 \usepackage{verbatim}
 \usepackage{fancyhdr}
 \pagestyle{fancy}
@@ -75,7 +76,7 @@
 
 % Last packages
 \usepackage{csquotes}               % Required by siunitx
-\usepackage[hidelinks]{hyperref}    % Hyperlinks
+\usepackage{hyperref}               % Hyperlinks; the link colours are set after the theme colours below
 
 
 % declare the path(s) where your graphic files are
@@ -83,6 +84,72 @@
 % and their extensions so you won't have to specify these with
 % every instance of \includegraphics
 \DeclareGraphicsExtensions{.pdf,.eps,.svg,.SVG,.png,.PNG,.jpeg,.jpg,.JPEG,.JPG}
+
+% ---------------------------------------------------------------------------
+% FIGURE THEME.
+% Every generated block diagram in this manual draws from this one palette and
+% this one style set, so the figures read as one hand-made set rather than as
+% thirty independent drawings.
+% The theme is the whole-chip figure's (Figure 1): a red package boundary and
+% red accents, greyscale blocks, sans-serif labels throughout.
+% vestaRed is exactly red!75!black and vestaRedText exactly red!70!black, which
+% is what that figure was already drawn in.
+% Emitters should reach for a v-prefixed style below rather than spelling a
+% fill or a line width inline. A one-off that genuinely needs its own value
+% should still be written as a modification of one of these.
+% ---------------------------------------------------------------------------
+\definecolor{vestaRed}{rgb}{0.75,0,0}
+\definecolor{vestaRedText}{rgb}{0.70,0,0}
+\definecolor{vestaInk}{rgb}{0,0,0}
+\tikzset{
+	% Boxes. Three weights of fill, one stroke, one corner radius.
+	vblock/.style={thick, rounded corners=2pt, draw=vestaInk, fill=black!8},
+	vblocklt/.style={thick, rounded corners=2pt, draw=vestaInk, fill=black!3},
+	vblockw/.style={thick, rounded corners=2pt, draw=vestaInk, fill=white},
+	vblockem/.style={line width=1.1pt, rounded corners=2pt, draw=vestaInk, fill=black!12},
+	% The bus bar, and the package boundary.
+	vbar/.style={thick, draw=vestaInk, fill=black!15},
+	vbound/.style={draw=vestaRed, line width=1.2pt},
+	% A grouping region. Never a full-bleed grey band: a thin dashed outline
+	% that leaves the paper white, because a solid band behind a figure is the
+	% single thing that made these drawings look machine-made.
+	vregion/.style={draw=black!35, line width=0.5pt, dashed, rounded corners=3pt},
+	% Text. Sans throughout; italic is for asides only, never for a block name.
+	vhd/.style={font=\sffamily\scriptsize, align=center, inner sep=1pt, anchor=north},
+	vbc/.style={font=\sffamily\scriptsize, align=center, inner sep=1pt},
+	vsm/.style={font=\sffamily\tiny, align=center, inner sep=1pt},
+	vnote/.style={font=\sffamily\scriptsize\itshape, text=black!55, align=left, inner sep=1.5pt},
+	vgroup/.style={font=\sffamily\small\itshape, text=black!55, align=left, fill=white, inner sep=1.5pt},
+	vredlab/.style={font=\sffamily\small\bfseries, text=vestaRedText, align=left},
+	% Lines. One arrow head for the whole manual.
+	vwire/.style={semithick, draw=vestaInk},
+	vflow/.style={->, >=Stealth, semithick, draw=vestaInk},
+	vbus/.style={<->, >=Stealth, thick, draw=vestaInk},
+	vaccent/.style={->, >=Stealth, semithick, draw=vestaRed},
+	vghost/.style={dashed, draw=black!45, semithick},
+}
+
+% Cross-references and register names are visibly clickable, in the theme's
+% text red. Set here rather than in the \usepackage line because the colour is
+% defined above, after hyperref is loaded.
+\hypersetup{colorlinks=true, linkcolor=vestaRedText, citecolor=vestaRedText, urlcolor=vestaRedText, filecolor=vestaRedText}
+
+% Running head needs 14pt with the Libertine face; fancyhdr warns on every page otherwise.
+\setlength{\headheight}{14pt}
+
+% Callouts. Exactly two tiers: Note (advisory) and Caution (the hardware
+% misbehaves if the text is ignored). Both draw from the theme colours only.
+\tcbset{
+	vestanote/.style={colback=black!3, colframe=black!35, coltitle=black, fonttitle=\sffamily\bfseries, boxrule=0.5pt, arc=2pt, left=4pt, right=4pt, top=2pt, bottom=2pt, before skip=6pt, after skip=8pt},
+	vestacaution/.style={colback=black!3, colframe=vestaRed, coltitle=vestaRedText, fonttitle=\sffamily\bfseries, boxrule=0.8pt, arc=2pt, left=4pt, right=4pt, top=2pt, bottom=2pt, before skip=6pt, after skip=8pt},
+}
+\newtcolorbox{Note}{vestanote, title=Note}
+\newtcolorbox{Caution}{vestacaution, title=Caution}
+
+% Heading-level shift for an included file that still uses article levels.
+% Use inside a group: {\ShiftHeadingsUp \input{file}}. The per-implementation
+% analog chapter is the one consumer; it is not owned by this template.
+\newcommand{\ShiftHeadingsUp}{\let\subsubsection\subsection \let\subsection\section \let\section\chapter}
 
 % Table highlight color
 \definecolor{tablehighlightcolor}{gray}{0.925}
@@ -102,7 +169,7 @@
 		\vspace{-#3pt}
 		\texttt{#2} % print end address
 	}%
-	\bitbox{16}{#4}	% print box with caption
+	\bitbox{16}{\sffamily\small #4}	% print box with caption, sans (figure theme)
 }
 
 % Add a macro for tikz-timing time axis (from https://tex.stackexchange.com/questions/67821/tikz-timing-is-there-a-straightforward-way-to-add-a-numbered-time-axis)

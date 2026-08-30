@@ -36,6 +36,13 @@ def fmtbin(num:int, minDigits:int=8, usePrefix:bool=True):
 		return '0b' + fmtstr.format(num)
 	return fmtstr.format(num)
 
+def fmtprose(s:str):
+	'''Model text for the rendered page: TeX-escaped, with every dash spelled out (house rule: no en or em dashes).'''
+	s = re.sub(r'\s*---\s*', ', ', s)
+	s = re.sub(r'(?<=[0-9A-Fa-fx])--(?=[0-9A-Fa-fx])', ' to ', s)
+	s = re.sub(r'\s*--\s*', ', ', s)
+	return fmttex(s)
+
 def fmttex(s:str):
 	s = s.replace('_', '\\_').replace('|', '{\\textbar}').replace('&', '{\\&}').replace('~', '{\\textasciitilde}').replace('%', '{\\%}').replace('^', '{\\textasciicircum}')
 	return s
@@ -178,6 +185,8 @@ class LatexUserGuide():
 		self.GenerateDebugModeStateDiagram()
 		self.GeneratePackagePinoutDiagram()
 		self.GenerateInterruptsTable()
+		self.GenerateAccessLegend()
+		self.GenerateAddressSpaceTable()
 		self.GeneratePackagePinsConfigurationTable()
 		self.GenerateGpioPinsConfigurationTable()
 		self.GenerateGpioAltFunctionMatrixTable()
@@ -553,6 +562,13 @@ class LatexUserGuide():
 		defines['BootMailboxBase'] = fmthex(0x10500)
 		defines['TcmSizeKiB'] = str(self.Gen.RamMemorySlotSize // 1024)
 		defines['TcmWords'] = str(self.Gen.RamMemorySlotSize // 4)
+		# The ISA string and the TCM aperture stride, both from the generator's own records.
+		# The template tests \ifdefined for each, so a configuration without them still builds.
+		isa = ((getattr(self.Gen, 'ResolvedConfig', None) or {}).get('derived') or {}).get('isaString')
+		if isa:
+			defines['IsaString'] = fmttex(str(isa))
+		if geo and geo.get('tcmApertureSize'):
+			defines['TcmApertureStride'] = fmthex(int(geo['tcmApertureSize']))
 		# Watchdog passwords (single source: generate.py's wdt*Password, which
 		# equal hdl/common/constants.vhd WDT_UNLCK_PASSWD / WDT_CLR_PASSWD).
 		defines['WdtUnlockPassword'] = fmthex(getattr(self.Gen, 'WdtUnlockPassword', 0x5F3759DF), minDigits=8)
@@ -823,6 +839,11 @@ class LatexUserGuide():
 		if self.Gen.ExtraLatexIntroFiles is not None:
 			for fileName in self.Gen.ExtraLatexIntroFiles:
 				s += '\\input{include/' + fileName + '}\n'
+				# One include per role (include/ExtraIntro-MULTICORE.tex and so on).
+				# The template can then place a chapter by role without knowing the file's revision name.
+				role = fileName.split('-intro')[0].upper()
+				self._writeInclude('ExtraIntro-' + role + '.tex',
+					'% Generated from ChipGenerator.ExtraLatexIntroFiles, do not edit\n\\input{include/' + fileName + '}\n')
 
 		if not os.path.isdir(self.IncludeDirectory):
 			os.makedirs(self.IncludeDirectory)
@@ -837,7 +858,7 @@ class LatexUserGuide():
 		'''include/AfeSystemDiagram.tex — the analog-front-end companion to the
 		   system block diagram (GenerateSystemBlockDiagram, whose figure was
 		   retired from the manual on 2026-08-16, so the emitted prose now cites
-		   Figure \\ref{fig:chip-system-diagram} instead), drawn
+		   Figure \\ref{fig:chip-system-flat-diagram} instead), drawn
 		   ONLY where the AFE bank exists (the CQ package model declares
 		   DocSubSlotBlocks; \\ifcqanalog gates the chapter that \\inputs this).
 
@@ -998,26 +1019,49 @@ class LatexUserGuide():
 
 		s = ('% Generated AFE connectivity diagram (sites=' + str(len(afe))
 			+ ', owners=' + str(owners) + ', harts=' + str(N) + ')\n')
+		# EVERY STYLE HERE IS AN ALIAS ONTO THE MANUAL'S FIGURE THEME.
+		# This figure is the whole-chip figure's companion and is meant to be read
+		# as the same drawing, so it must not carry greys, line widths or reds of
+		# its own: the hart boxes are the theme's vblock, the management hart is
+		# its vblockem, the arbiter is its vbar, the die edge is its vbound, and
+		# the analog compartments are vghost, which is the theme's word for
+		# something that is not present in this build.
 		s += '\\begin{tikzpicture}[\n'
-		s += '\tblk/.style={draw, thick, align=center, fill=white, font=\\sffamily\\small},\n'
-		s += '\ttile/.style={blk, fill=black!6},\n'
-		s += '\torch/.style={blk, fill=black!12, line width=1.1pt},\n'
-		s += '\tsite/.style={blk, fill=black!8},\n'
-		s += '\tana/.style={draw, densely dashed, align=center, fill=white, font=\\sffamily\\scriptsize},\n'
-		s += '\tbus/.style={<->, >=Stealth, thick},\n'
-		s += '\treach/.style={->, >=Stealth, line width=1.3pt},\n'
-		s += '\twire/.style={semithick},\n'
-		s += '\tban/.style={font=\\sffamily\\scriptsize\\bfseries, black!65, align=center},\n'
-		s += '\tnote/.style={font=\\sffamily\\scriptsize, align=left},\n'
-		s += '\tlab/.style={font=\\sffamily\\scriptsize, align=center},\n'
-		s += '\tpadlab/.style={font=\\sffamily\\tiny, align=center},\n'
-		s += '\tredlab/.style={font=\\sffamily\\scriptsize\\bfseries, red!70!black, align=left}]\n'
+		s += '\ttile/.style={vblock, align=center, font=\\sffamily\\small},\n'
+		s += '\torch/.style={vblockem, align=center, font=\\sffamily\\small},\n'
+		s += '\tsite/.style={vblock, align=center, font=\\sffamily\\small},\n'
+		s += '\tbar/.style={vbar, align=center, font=\\sffamily\\small},\n'
+		s += '\tana/.style={vghost, rounded corners=2pt, fill=white, align=center, font=\\sffamily\\scriptsize},\n'
+		s += '\tbus/.style={vbus},\n'
+		s += '\treach/.style={vflow, line width=1.3pt},\n'
+		s += '\twire/.style={vwire},\n'
+		s += '\tban/.style={vgroup, align=center, fill=none, font=\\sffamily\\scriptsize\\itshape},\n'
+		s += '\tnote/.style={vbc, align=left},\n'
+		s += '\tlab/.style={vbc},\n'
+		s += '\tpadlab/.style={vsm},\n'
+		# The one modification of a theme style in this figure, and it buys a
+		# measured fix rather than a taste. vredlab is \\small where this heading
+		# used to be \\scriptsize, and the heading wraps inside a 4.60 cm lane, so
+		# the wider type let TeX hyphenate `electrode\' across two lines. The lane
+		# cannot grow (the first electrode cell begins 5 mm past its right edge),
+		# so hyphenation is turned off instead and the heading breaks between
+		# words, which is what it did before.
+		s += '\tredlab/.style={vredlab, execute at begin node={\\hyphenpenalty=10000\\relax}}]\n'
 
-		# ---- the two banded regions of the system block diagram, and their banners
-		s += '\\fill[black!4] (' + P(aX0) + ', ' + P(yBnd) + ') rectangle (' + P(aX1) + ', ' + P(yTop) + ');\n'
-		s += '\\fill[black!9] (' + P(bX0 - 0.20) + ', ' + P(yBnd) + ') rectangle (' + P(bX1 + 0.20) + ', ' + P(yTop) + ');\n'
-		s += '\\fill[black!14] (' + P(aX0) + ', ' + P(yBan) + ') rectangle (' + P(aX1) + ', ' + P(yTop) + ');\n'
-		s += '\\fill[black!20] (' + P(bX0 - 0.20) + ', ' + P(yBan) + ') rectangle (' + P(bX1 + 0.20) + ', ' + P(yTop) + ');\n'
+		# ---- the two regions of the system block diagram, and their headings.
+		# They are thin dashed outlines over white paper, not the four full-bleed
+		# grey rectangles the first cut painted here in four different greys. A
+		# solid band behind a figure is the single thing that made these drawings
+		# read as machine output; only the heading strip carries a fill, and it
+		# carries the lightest one the palette has. The fills go down before the
+		# outlines, so that no outline is left half painted over.
+		s += ('\\draw[vregion, fill=black!3, draw=none] (' + P(aX0) + ', ' + P(yBan) + ') rectangle ('
+			+ P(aX1) + ', ' + P(yTop) + ');\n')
+		s += ('\\draw[vregion, fill=black!3, draw=none] (' + P(bX0 - 0.20) + ', ' + P(yBan) + ') rectangle ('
+			+ P(bX1 + 0.20) + ', ' + P(yTop) + ');\n')
+		s += ('\\draw[vregion] (' + P(aX0) + ', ' + P(yBnd) + ') rectangle (' + P(aX1) + ', ' + P(yTop) + ');\n')
+		s += ('\\draw[vregion] (' + P(bX0 - 0.20) + ', ' + P(yBnd) + ') rectangle ('
+			+ P(bX1 + 0.20) + ', ' + P(yTop) + ');\n')
 		s += ('\\node[ban, text width=' + P(aX1 - aX0 - 0.30) + 'cm] at (' + P(mgmtX) + ', '
 			+ P((yBan + yTop) / 2.0) + ') {the management hart\\\\ reaches every site};\n')
 		s += ('\\node[ban, text width=' + P(bX1 - bX0 - 0.30) + 'cm] at (' + P((bX0 + bX1) / 2.0) + ', '
@@ -1036,20 +1080,21 @@ class LatexUserGuide():
 				+ ' \\scriptsize \\textbf{owns ' + b['name'] + '}};\n')
 
 		# ---- the registered tile boundary and the arbiter, exactly as the system block diagram
-		s += '\\draw[dashed, thick] (' + P(bX0 - 0.20) + ', ' + P(yBnd) + ') -- (' + P(bX1 + 0.20) + ', ' + P(yBnd) + ');\n'
+		s += ('\\draw[vregion, line width=0.8pt] (' + P(bX0 - 0.20) + ', ' + P(yBnd) + ') -- ('
+			+ P(bX1 + 0.20) + ', ' + P(yBnd) + ');\n')
 		# \tiny, and that is a clearance decision, not a taste one: this label sits
 		# in the lane between two masters' bus arrows (2.85 cm apart), and at
 		# \scriptsize its white fill reached to within a millimetre of both.
 		s += ('\\node[lab, font=\\sffamily\\tiny, fill=white, inner sep=1.5pt] at ('
 			+ P((col[0] + col[1]) / 2.0) + ', '
 			+ P((yBnd + yArb + arbH / 2.0) / 2.0) + ') {registered tile boundary\\\\ (1 cycle each way)};\n')
-		s += ('\\node[blk, fill=black!15, minimum width=' + P(bX1 - aX0) + 'cm, minimum height=' + P(arbH)
+		s += ('\\node[bar, minimum width=' + P(bX1 - aX0) + 'cm, minimum height=' + P(arbH)
 			+ 'cm] (arb) at (' + P((aX0 + bX1) / 2.0) + ', ' + P(yArb)
 			+ ') {\\textbf{mp\\_arbiter}: one transaction at a time; the granted master\'s index \\textbf{is} \\texttt{s\\_master}};\n')
 
 		# ---- the analog row's band: one region, so hart 0's reach into ALL of
 		# it is a property of the drawing rather than five more arrows.
-		s += ('\\draw[fill=black!5, draw=black!45, thick, rounded corners=3pt] (' + P(reachX + 0.60) + ', '
+		s += ('\\draw[vregion] (' + P(reachX + 0.60) + ', '
 			+ P(bandB) + ') rectangle (' + P(bX1 + 0.20) + ', ' + P(bandT) + ');\n')
 
 		# the five masters onto the bar, the five column drops off it, and the
@@ -1098,13 +1143,13 @@ class LatexUserGuide():
 			+ 'opens every gate.};\n')
 
 		# ---- the chip boundary, the electrode pads, and the cells
-		s += ('\\draw[red, densely dotted, line width=1.1pt] (' + P(reachX - 0.10) + ', ' + P(yRed)
+		s += ('\\draw[vbound] (' + P(reachX - 0.10) + ', ' + P(yRed)
 			+ ') -- (' + P(bX1 + 0.40) + ', ' + P(yRed) + ');\n')
 		s += ('\\node[redlab, anchor=north west, text width=4.60cm] at (' + P(aX0 + 0.10) + ', ' + P(yRed - 0.14)
 			+ ') {chip boundary: twelve electrode pads, three per site, leave the die here};\n')
 		for i, b in enumerate(afe):
 			c = col[i]
-			s += ('\\draw[thick, rounded corners=3pt, fill=black!3] (' + P(c - cellW / 2.0) + ', ' + P(cellB)
+			s += ('\\draw[vblocklt, rounded corners=3pt] (' + P(c - cellW / 2.0) + ', ' + P(cellB)
 				+ ') rectangle (' + P(c + cellW / 2.0) + ', ' + P(cellT) + ');\n')
 			s += ('\\node[lab, anchor=south, text width=' + P(cellW - 0.30) + 'cm] at (' + P(c) + ', '
 				+ P(cellB + 0.05) + ') {three-electrode cell};\n')
@@ -1114,14 +1159,13 @@ class LatexUserGuide():
 				# -> stub. Nothing is drawn over it but the pad square.
 				s += '\\draw[wire] (' + P(x) + ', ' + P(anaB) + ') -- (' + P(x) + ', ' + P(yStub) + ');\n'
 				s += '\\draw[wire, line width=1.2pt] (' + P(x - 0.15) + ', ' + P(yStub) + ') -- (' + P(x + 0.15) + ', ' + P(yStub) + ');\n'
-				s += ('\\fill[red!70!black] (' + P(x - 0.07) + ', ' + P(yRed - 0.07) + ') rectangle ('
+				s += ('\\fill[vestaRed] (' + P(x - 0.07) + ', ' + P(yRed - 0.07) + ') rectangle ('
 					+ P(x + 0.07) + ', ' + P(yRed + 0.07) + ');\n')
 				s += ('\\node[padlab, anchor=north, inner sep=1pt] at (' + P(x) + ', ' + P(yPad)
 					+ ') {\\texttt{' + fmttex(e + '_' + str(i)) + '}};\n')
 		s += '\\end{tikzpicture}\n'
 		self._writeInclude('AfeSystemDiagram.tex', s)
 		return
-
 	def GenerateCqAnalogChapter(self):
 		# Config-gated chapter for the CQ analog front-end (AFE0-3 + EIS). Rendered
 		# ONLY when the config declares DocSubSlotBlocks (the CQ package model); the
@@ -1166,26 +1210,20 @@ class LatexUserGuide():
 		# sees a dangling reference (the both-polarity \ref rule).
 		# W5 (2026-08-16): this used to cite the top-level block diagram
 		# (fig:system-block-diagram), which was retired from TRM.template.tex.
-		# It now cites the whole-chip portrait figure, which carries the same
-		# hart band and the same arbiter bar and is the figure this one is
-		# actually the companion to.
+		# The whole-chip PORTRAIT figure it was re-pointed at was itself retired
+		# on 2026-08-25, so the citation is now the flat whole-chip figure, which
+		# carries the same hart band and the same arbiter bar.
 		s += ('Figure \\ref{fig:afe-system-diagram} is the arrangement: the same five harts '
-			'and the same arbiter as Figure \\ref{fig:chip-system-diagram}, with the analog '
+			'and the same arbiter as Figure \\ref{fig:chip-system-flat-diagram}, with the analog '
 			'register sites in the row underneath and the electrodes leaving the die at the '
 			'bottom.\n\n')
-		s += '\\begin{figure}[htpb]\n\t\\centering\n'
-		s += '\t\\resizebox{\\linewidth}{!}{\\input{include/AfeSystemDiagram.tex}}\n'
+		# A landscape page of its own: on a portrait page the labels fell to 3 pt.
+		s += '\\begin{sidewaysfigure}\n\t\\centering\n'
+		s += '\t\\resizebox{\\textheight}{!}{\\input{include/AfeSystemDiagram.tex}}\n'
 		s += ('\t\\caption[{Analog front-end connectivity: who reaches which site, and what leaves the die.}]'
-			'{Analog front-end connectivity: who reaches which site, and what leaves the die. Each channel '
-			'hart owns exactly one measurement site and reaches no other; hart 0, the orchestrator, opens '
-			'every gate in the row, because the gate compares the arbiter\'s granted-master index against a '
-			'single owner and against 0. The analog stages are drawn dashed because they are not yet '
-			'integrated: what the chip carries today is the digital register site in front of each one '
-			'(and the pads behind them). Each site brings out a three-electrode cell: \\texttt{WE} the '
-			'working electrode, \\texttt{RE} the reference, \\texttt{CE} the counter. A fourth pad per site, '
-			'\\texttt{RE2}\\textsubscript{$h$}, is bonded as well and is not drawn: it is the second sense '
-			'electrode of the optional four-terminal (Kelvin) configuration.}\n')
-		s += '\t\\label{fig:afe-system-diagram}\n\\end{figure}\n\n'
+			'{Analog front-end connectivity: each channel hart owns one measurement site, hart 0 opens every '
+			'gate, and the dashed analog stages are not yet integrated.}\n')
+		s += '\t\\label{fig:afe-system-diagram}\n\\end{sidewaysfigure}\n\n'
 
 		# --- Address map + ownership table -------------------------------------
 		s += '\\subsection{Blocks, addresses, and ownership} \\label{ss:cqanalog-map}\n\n'
@@ -1207,7 +1245,7 @@ class LatexUserGuide():
 			'attribution the hardware mutex bank and the IRQ-router CLAIM use. Because '
 			'each block decodes only its low four address bits, its 16 words fill its '
 			'64-byte sub-slot exactly; the EIS block additionally aliases across the '
-			'\\texttt{0x7C00}--\\texttt{0x7FFF} quarter it owns.\n\n')
+			'\\texttt{0x7C00} to \\texttt{0x7FFF} quarter it owns.\n\n')
 
 		# --- Ownership / gating semantics --------------------------------------
 		s += '\\subsection{Ownership gating} \\label{ss:cqanalog-gate}\n\n'
@@ -1252,7 +1290,7 @@ class LatexUserGuide():
 			loByte = regs[i][0] * 4
 			hiByte = regs[j][0] * 4
 			if j > i:
-				offStr = '\\texttt{' + fmthex(loByte, 2) + '}--\\texttt{' + fmthex(hiByte, 2) + '}'
+				offStr = '\\texttt{' + fmthex(loByte, 2) + '} to \\texttt{' + fmthex(hiByte, 2) + '}'
 			else:
 				offStr = '\\texttt{' + fmthex(loByte, 2) + '}'
 			if name in ('—', '-', ''):
@@ -1333,9 +1371,16 @@ class LatexUserGuide():
 	# Access-class labels for the figure's group braces. Each brace is one
 	# access class, so the private carve-out visibly interrupts the shared
 	# window instead of being hidden inside it.
-	_ADDR_GROUP_SHARED = 'Shared window\\\\(all harts, arbitrated)'
-	_ADDR_GROUP_PRIVATE = 'Private to each hart\\\\(not arbitrated)'
-	_ADDR_GROUP_APERTURE = 'Shared window\\\\(hart 0\'s read-only view\\\\of each hart\'s TCM)'
+	_ADDR_GROUP_SHARED = '\\sffamily\\footnotesize Shared window\\\\(all harts, arbitrated)'
+	# The private band is the one row in the column whose contents differ per
+	# hart, so it carries the theme's red the way a boundary does elsewhere.
+	# The colour does not survive the row break inside a rightwordgroup label,
+	# so each line has to set it for itself.
+	_ADDR_GROUP_PRIVATE = ('\\sffamily\\footnotesize\\bfseries\\color{vestaRedText}'
+		'Private to each hart\\\\'
+		'\\sffamily\\footnotesize\\bfseries\\color{vestaRedText}(not arbitrated)')
+	_ADDR_GROUP_APERTURE = ('\\sffamily\\footnotesize Shared window\\\\(hart 0\'s read-only view'
+		'\\\\of each hart\'s TCM)')
 	_ADDR_GROUP_FLASH = 'External SPI flash\\\\(hart 0 only)'
 	_ADDR_TOP = 0xFFFFFFFF
 
@@ -1350,7 +1395,7 @@ class LatexUserGuide():
 		   that TILES the 32-bit space — gapless, strictly increasing, by
 		   construction. group is a brace label or None (no brace).'''
 		gen = self.Gen
-		unmappedLines = ['\\textit{\\color{lightgray}Unmapped}', '\\textit{\\color{lightgray}(reads zero)}']
+		unmappedLines = ['\\textit{\\color{black!55}Unmapped}', '\\textit{\\color{black!55}(reads zero)}']
 
 		# --- which shared sections are the per-hart TCM apertures ----------
 		# Read off the resolved config's derived geometry rather than matching
@@ -1607,7 +1652,7 @@ class LatexUserGuide():
 		drv = rc.get('derived', {})
 		derivedRows = [
 			('ISA string (march)', '\\texttt{' + fmttex(str(drv.get('isaString'))) + '}', 'Advertised in the read-only \\register{misa} CSR'),
-			('Shared-window address width', '\\texttt{' + str(drv.get('sharedWindowAddrWidth')) + '} bits (words)', 'Arbiter/tile word-address width; the window is \\texttt{0x0}\\,--\\,$2^{w+2}-1$'),
+			('Shared-window address width', '\\texttt{' + str(drv.get('sharedWindowAddrWidth')) + '} bits (words)', 'Arbiter/tile word-address width; the window is \\texttt{0x0} to $2^{w+2}-1$'),
 			('Shared RAM banks', '\\texttt{' + str(drv.get('sharedRamBanks')) + '}' + ' $\\times$ 16\\,KiB', 'One SRAM macro per bank behind the arbiter'),
 			('Extended flash base', '\\texttt{' + fmttex(str(drv.get('flashBaseAddress'))) + '}', 'First address decoded to the SPI-flash XIP path (hart 0 only); strictly the complement of the shared window'),
 			('Interrupt vectors', '\\texttt{' + str(drv.get('vectorsCount')) + '}', 'Vectors ' + str(drv.get('clintMsipVector')) + '/' + str(drv.get('clintMtipVector')) + ' are the CLINT software/timer interrupts'),
@@ -1982,8 +2027,11 @@ class LatexUserGuide():
 		return s
 
 	# ------------------------------------------------------------------
-	# WHOLE-CHIP SYSTEM DIAGRAM (TRM Section \ref{s:config}, Figure
-	# \ref{fig:chip-system-diagram}).
+	# WHOLE-CHIP SYSTEM DIAGRAM. RETIRED from the manual on 2026-08-25: the flat
+	# companion below (GenerateChipSystemFlatDiagram) carries the section alone.
+	# This emitter still runs and still writes include/ChipSystemDiagram.tex;
+	# nothing \input{}s it, so the file is generated and unused rather than
+	# deleted.
 	#
 	# The system block diagram (GenerateSystemBlockDiagram, no longer printed in
 	# the manual) answered one half of "what is this
@@ -2169,9 +2217,9 @@ class LatexUserGuide():
 			e = None
 			if gpioPads:
 				e = ext('GPIO pins', str(len(gpioPads)) + ' bonded pads\\\\ '
-					+ fmttex(gpioPads[0].Name) + '--' + fmttex(gpioPads[-1].Name), w=3.05)
+					+ fmttex(gpioPads[0].Name) + ' to ' + fmttex(gpioPads[-1].Name), w=3.05)
 			above['io'] = box('io', 'GPIO', self._chipFigNames([p.Name for p in ps]),
-				str(len(ps[0].Pins)) + ' pins per port\\\\ AF0--AF7 planes',
+				str(len(ps[0].Pins)) + ' pins per port\\\\ AF0 to AF7 planes',
 				stack=len(ps), w=3.05, ext=e,
 				brief=str(len(ps)) + ' ports $\\times$ ' + str(len(ps[0].Pins)) + ' pins')
 
@@ -2390,14 +2438,14 @@ class LatexUserGuide():
 					masters.append({'title': 'hart ' + str(h), 'sub': 'channel tile',
 						'harts': [h], 'stack': 1, 'note': tileNote, 'weight': 1.0})
 			else:
-				masters.append({'title': 'hart 1--' + str(N - 1), 'sub': 'channel tile',
+				masters.append({'title': 'hart 1 to ' + str(N - 1), 'sub': 'channel tile',
 					'harts': [], 'stack': N - 1, 'note': tileNote, 'weight': 2.4})
 		elif N <= 6:
 			for h in range(N):
 				masters.append({'title': 'hart ' + str(h), 'sub': 'hart tile', 'harts': [h],
 					'stack': 1, 'note': tileNote, 'weight': 1.0})
 		else:
-			masters.append({'title': 'hart 0--' + str(N - 1), 'sub': 'hart tile', 'harts': [],
+			masters.append({'title': 'hart 0 to ' + str(N - 1), 'sub': 'hart tile', 'harts': [],
 				'stack': N, 'note': tileNote, 'weight': 3.2})
 		if geo.get('dma'):
 			masters.append({'title': 'DMA0', 'sub': 'engine master', 'harts': [], 'stack': 1,
@@ -2891,10 +2939,12 @@ class LatexUserGuide():
 		return
 
 	def GenerateChipSystemFlatDiagram(self):
-		'''include/ChipSystemFlatDiagram.tex — the FLAT companion to Figure
-		   \\ref{fig:chip-system-diagram}: the same configuration, the same
-		   derived content, drawn as a datasheet block diagram instead of a
-		   portrait page. Five things differ, and each is the point:
+		'''include/ChipSystemFlatDiagram.tex — the whole-chip figure the manual
+		   prints. It began as the FLAT companion to the portrait cut
+		   (GenerateChipSystemDiagram, retired 2026-08-25): the same
+		   configuration and the same derived content, drawn as a datasheet block
+		   diagram instead of a portrait page. Five things differ from that cut,
+		   and each is the point:
 
 		   ONE BAR, ONE RANK. The portrait figure runs the bus down the left
 		   margin and back along a rib, because three shelves of tall boxes
@@ -3314,7 +3364,7 @@ class LatexUserGuide():
 			if h in padOf:
 				raise Exception('ChipSystemFlatDiagram: the curated omission would drop site '
 					+ str(siteOf[h][0]) + ', which brings out the bonded electrode group '
-					+ str(padOf[h]) + ' -- this figure omits the shared engine\'s register '
+					+ str(padOf[h]) + ', and this figure omits the shared engine\'s register '
 					'site, never a channel.')
 		if afeRow is not None and not drawnCols:
 			# Every site this configuration has is the one that is omitted, so
@@ -4448,6 +4498,15 @@ class LatexUserGuide():
 		   ways, and the two spines leave the block at opposite ends into their
 		   own bars.
 
+		   GATED AND FREE-RUNNING ARE DRAWN, NOT NAMED IN A GREY. Both clock bars
+		   are the bus-bar idiom of Figure \\ref{fig:chip-system-flat-diagram},
+		   and every block that taps one taps it straight. What separates the
+		   two is the SMCLKOFF gate: everything hanging under the SMCLK bar is
+		   downstream of it, so those taps are dashed, and the MCLK taps, which
+		   no chip-wide bit can stop, stay solid. The block that picks its own
+		   source therefore shows both at once, one of each, and the key states
+		   the convention in a line. Nothing here is said with a fill level.
+
 		   THE ONE WIRE THAT CANNOT BE STRAIGHT is \\bitfield{MCLKSEL} code 01,
 		   because it is not a source at all: it is SMCLK, taken (SYSTEM.vhd,
 		   \\texttt{mclk\\_mux ClkIn(1) => smclk}) AFTER the SMCLK divider and
@@ -4977,22 +5036,25 @@ class LatexUserGuide():
 				for v, k, nm in mcLegs]) + ', ratios=' + str(len(ratM)) + ', independent='
 			+ str([b['title'] for b in ind]) + ', briefRank=' + str(briefRank) + ')\n')
 		s += '\\begin{tikzpicture}[\n'
-		s += '\thd/.style={font=\\sffamily\\scriptsize, align=center, inner sep=1pt, anchor=north},\n'
-		s += '\tbc/.style={font=\\sffamily\\scriptsize, align=center, inner sep=1pt},\n'
-		s += '\tcode/.style={font=\\sffamily\\scriptsize, align=center, inner sep=1pt},\n'
-		s += '\twire/.style={->, >=Stealth, semithick},\n'
-		s += '\tplain/.style={semithick},\n'
-		s += '\tspine/.style={->, >=Stealth, thick},\n'
-		s += ('\tnote/.style={font=\\sffamily\\scriptsize\\itshape, black!55, align=left, '
-			'fill=white, inner sep=1.5pt},\n')
-		s += ('\ttyp/.style={font=\\sffamily\\large\\itshape, black!55, align=left, '
-			'fill=white, inner sep=1.5pt, anchor=west},\n')
-		s += ('\tkey/.style={draw, thick, dashed, align=left, font=\\sffamily\\scriptsize, '
-			'fill=white, inner sep=4pt},\n')
-		s += '\tredlab/.style={font=\\sffamily\\small\\bfseries, red!70!black, align=left}]\n'
+		s += '\thd/.style={vhd},\n'
+		s += '\tbc/.style={vbc},\n'
+		s += '\tcode/.style={vbc},\n'
+		s += '\twire/.style={vflow},\n'
+		s += '\tplain/.style={vwire},\n'
+		s += '\tspine/.style={vflow, thick},\n'
+		# A tap taken from the SMCLK bar is a clock a single bit can stop, so it
+		# is drawn dashed. A tap off MCLK is free-running and stays solid. The
+		# key names the convention; nothing here is said with a grey level.
+		s += '\tgated/.style={vghost, ->, >=Stealth},\n'
+		s += '\tnote/.style={vnote, fill=white},\n'
+		s += ('\ttyp/.style={vgroup, font=\\sffamily\\large\\itshape, '
+			'anchor=west},\n')
+		s += ('\tkey/.style={vregion, fill=white, align=left, '
+			'font=\\sffamily\\scriptsize, inner sep=4pt},\n')
+		s += '\tredlab/.style={vredlab}]\n'
 
-		def frame(cx, yTop, w, h, fill, opts='thick'):
-			return ('\\draw[' + opts + ', fill=' + fill + '] (' + P(cx - w / 2.0) + ', '
+		def frame(cx, yTop, w, h, sty):
+			return ('\\draw[' + sty + '] (' + P(cx - w / 2.0) + ', '
 				+ P(yTop - h) + ') rectangle (' + P(cx + w / 2.0) + ', ' + P(yTop) + ');\n')
 
 		def head(cx, yTop, w, title, subs):
@@ -5002,22 +5064,21 @@ class LatexUserGuide():
 			return ('\\node[hd, text width=' + P(w - 0.18) + 'cm] at (' + P(cx) + ', '
 				+ P(yTop - pad) + ') {' + tex + '};\n')
 
-		def drawBox(b, yTop, fill='black!8'):
+		def drawBox(b, yTop, sty='vblock'):
 			out = ''
 			for k in range(min(b['stack'], maxShadow) - 1, 0, -1):
-				out += frame(b['cx'] + stackDx * k, yTop + stackDy * k, b['w'], b['h'], fill,
-					'thick, rounded corners=2pt')
-			out += frame(b['cx'], yTop, b['w'], b['h'], fill, 'thick, rounded corners=2pt')
+				out += frame(b['cx'] + stackDx * k, yTop + stackDy * k, b['w'], b['h'], sty)
+			out += frame(b['cx'], yTop, b['w'], b['h'], sty)
 			out += head(b['cx'], yTop, b['w'], b['title'], b['subs'])
 			if b['cells']:
 				yD = yTop - b['h'] + hCells
-				out += ('\\draw[semithick] (' + P(b['cx'] - b['w'] / 2.0) + ', ' + P(yD)
+				out += ('\\draw[vwire] (' + P(b['cx'] - b['w'] / 2.0) + ', ' + P(yD)
 					+ ') -- (' + P(b['cx'] + b['w'] / 2.0) + ', ' + P(yD) + ');\n')
 				n = len(b['cells'])
 				for i, t in enumerate(b['cells']):
 					xL = b['cx'] - b['w'] / 2.0 + b['w'] * i / float(n)
 					if i:
-						out += ('\\draw[semithick] (' + P(xL) + ', ' + P(yD) + ') -- (' + P(xL)
+						out += ('\\draw[vwire] (' + P(xL) + ', ' + P(yD) + ') -- (' + P(xL)
 							+ ', ' + P(yTop - b['h']) + ');\n')
 					out += ('\\node[bc, text width=' + P(b['w'] / float(n) - 0.14) + 'cm] at ('
 						+ P(xL + b['w'] / (2.0 * n)) + ', ' + P(yTop - b['h'] + hCells / 2.0)
@@ -5070,11 +5131,11 @@ class LatexUserGuide():
 			return '\\node[typ] at (' + P(best[0]) + ', ' + P(y) + ') {' + lab + '};\n'
 
 		def padSquare(x, y):
-			return ('\\draw[fill=black] (' + P(x - 0.085) + ', ' + P(y - 0.085)
+			return ('\\draw[vwire, fill=vestaInk] (' + P(x - 0.085) + ', ' + P(y - 0.085)
 				+ ') rectangle (' + P(x + 0.085) + ', ' + P(y + 0.085) + ');\n')
 
 		# ---- the package boundary, first --------------------------------------
-		s += ('\\draw[red!75!black, line width=1.2pt] (' + P(xDie0) + ', ' + P(yRedB)
+		s += ('\\draw[vbound] (' + P(xDie0) + ', ' + P(yRedB)
 			+ ') rectangle (' + P(W) + ', ' + P(yRedT) + ');\n')
 		s += ('\\node[redlab, anchor=north west] at (' + P(xDie0) + ', ' + P(yRedB - 0.12)
 			+ ') {chip boundary};\n')
@@ -5088,7 +5149,7 @@ class LatexUserGuide():
 		xRailM = xRailS = xGen0
 
 		def rail(yB, yT, x0, title, note):
-			out = ('\\draw[thick, fill=black!15] (' + P(x0) + ', ' + P(yB) + ') rectangle ('
+			out = ('\\draw[vbar] (' + P(x0) + ', ' + P(yB) + ') rectangle ('
 				+ P(W - 0.30) + ', ' + P(yT) + ');\n')
 			out += ('\\node[bc, text width=' + P(W - 0.60 - x0) + 'cm] at ('
 				+ P((x0 + W - 0.30) / 2.0) + ', ' + P((yB + yT) / 2.0) + ') {{\\small\\bfseries '
@@ -5106,7 +5167,7 @@ class LatexUserGuide():
 			i = pb['row']
 			yLane = yXLane[j]
 			pb['cx'] = 0.20 + wXtal / 2.0
-			s += drawBox(pb, yLane + hXtal / 2.0, 'white')
+			s += drawBox(pb, yLane + hXtal / 2.0, 'vblockw')
 			lane = [ln for ln in lanes if ln['kind'] == 'pad' and ln['row'] == i]
 			xw = lane[0]['x'] if lane else xSrcC
 			# across the boundary on one straight horizontal, then down its own
@@ -5125,7 +5186,7 @@ class LatexUserGuide():
 					+ P(yRowC[i] + hRow / 2.0) + ');\n')
 		for i, b in enumerate(srcBoxes):
 			b['cx'] = xSrcC
-			s += drawBox(b, yRowC[i] + hRow / 2.0, 'white')
+			s += drawBox(b, yRowC[i] + hRow / 2.0, 'vblockw')
 		# The heading sits in the band the two selects use for their own, and it
 		# keeps out of the one wire that crosses that band (the top row's pad).
 		s += typeLabel(xSrc - 0.10, xSrc + wSrc + 0.10, [xSrcC], 'Clock Sources',
@@ -5133,13 +5194,13 @@ class LatexUserGuide():
 
 		# ---- the two glitch-free selects -------------------------------------
 		def muxBox(x0, w, title, sub, rows):
-			out = frame(x0 + w / 2.0, yMuxT, w, yMuxT - yMuxB, 'black!4', 'thick')
+			out = frame(x0 + w / 2.0, yMuxT, w, yMuxT - yMuxB, 'vblocklt')
 			out += ('\\node[bc, text width=' + P(w - 0.20) + 'cm] at (' + P(x0 + w / 2.0) + ', '
 				+ P(yMuxT - hMuxHd / 2.0) + ') {{\\small\\bfseries ' + title + '}\\\\[1pt] '
 				+ sub + '};\n')
 			for i, (codeTex, nameTex) in enumerate(rows):
-				out += frame(x0 + w / 2.0, yRowC[i] + hRow / 2.0, w - 0.30, hRow, 'white',
-					'semithick, rounded corners=1pt')
+				out += frame(x0 + w / 2.0, yRowC[i] + hRow / 2.0, w - 0.30, hRow,
+					'vblockw, semithick')
 				out += ('\\node[code] at (' + P(x0 + w / 2.0) + ', ' + P(yRowC[i])
 					+ ') {\\texttt{' + codeTex + '}\\\\[1pt] {\\bfseries ' + nameTex + '}};\n')
 			return out
@@ -5205,7 +5266,7 @@ class LatexUserGuide():
 			+ P(yRailST) + ');\n')
 
 		# ---- the ranks -------------------------------------------------------
-		fo = 'black!45, line width=0.5pt'
+		fo = 'vregion'
 
 		def drawFrame(g, yB, yT, cutsB, cutsT, label, yLab):
 			out = brokenH(yB, g['x0'], g['x1'], cutsB, fo)
@@ -5235,7 +5296,9 @@ class LatexUserGuide():
 				s += drawFrame(g, yFrmSB, yFrmST, drops, taps, g['label'], yFrmST)
 			for b in g['boxes']:
 				if b.get('partner') is None and 'partner' not in b:
-					s += ('\\draw[wire] (' + P(b['tx']) + ', ' + P(yRailSB) + ') -- ('
+					# Everything hanging under the SMCLK bar is downstream of the
+					# one gate that stops it, so its tap is drawn dashed.
+					s += ('\\draw[gated] (' + P(b['tx']) + ', ' + P(yRailSB) + ') -- ('
 						+ P(b['tx']) + ', ' + P(yBoxST) + ');\n')
 				s += drawBox(b, yBoxST)
 				if b.get('partner'):
@@ -5243,7 +5306,7 @@ class LatexUserGuide():
 						'subs': ['\\textit{off die}']}
 					sizeBox(pb)
 					pb['h'], pb['cx'] = hPart, b['cx']
-					s += drawBox(pb, yPartT, 'white')
+					s += drawBox(pb, yPartT, 'vblockw')
 					s += ('\\draw[wire] (' + P(b['cx']) + ', ' + P(yPartT) + ') -- ('
 						+ P(b['cx']) + ', ' + P(yBoxSB) + ');\n')
 					s += padSquare(b['cx'], yRedB)
@@ -5258,14 +5321,17 @@ class LatexUserGuide():
 					+ P(b['cx'] - 0.55) + ', ' + P(yMidT) + ');\n')
 				# UP FROM THE BAR'S TOP EDGE, never from inside it: a tap that
 				# starts at the far edge is drawn straight through the clock it
-				# is tapping.
-				s += ('\\draw[wire] (' + P(b['cx'] + 0.55) + ', ' + P(yRailST) + ') -- ('
+				# is tapping. This one comes off SMCLK, so it is a gated tap and
+				# the MCLK tap beside it is not; that is the whole point of a
+				# block that picks its own source.
+				s += ('\\draw[gated] (' + P(b['cx'] + 0.55) + ', ' + P(yRailST) + ') -- ('
 					+ P(b['cx'] + 0.55) + ', ' + P(yMidB) + ');\n')
 
 		# ---- the key, in the dead space between the spines --------------------
 		s += ('\\node[key, anchor=north east, text width=' + P(wKey - 0.40) + 'cm] at ('
 			+ P(W - 0.40) + ', ' + P(yRailMB - 0.55) + ') {\\textbf{how to read this}\\\\[2pt] '
 			'a grey bar is a clock, and every block on it taps it straight\\\\[1pt] '
+			'a solid tap is free-running; a dashed tap is a clock one bit can stop\\\\[1pt] '
 			'a box on a wire is a real gate, named by the bit that opens it\\\\[1pt] '
 			'$\\times N$ and the squares behind a box are $N$ copies of it, each with its own '
 			'gate\\\\[1pt] '
@@ -5276,7 +5342,6 @@ class LatexUserGuide():
 			+ 'cm, aspect=' + P(W / hAll) + ')\n' + s.split('\n', 1)[1])
 		self._writeInclude('ClockSystemDiagram.tex', s)
 		return
-
 	def GenerateTcmApertureDiagram(self):
 		'''include/TcmApertureDiagram.tex — what ONE read through a TCM aperture
 		   actually does. Emitted unconditionally (the DEBUG-figure precedent);
@@ -5359,27 +5424,39 @@ class LatexUserGuide():
 
 		s = ('% Generated TCM aperture mechanism figure (' + str(len(windows))
 			+ ' windows of ' + str(tcmKiB) + ' KiB from ' + fmthex(windows[0]) + ')\n')
+		# Local aliases onto the manual's shared figure theme
+		# (packages-commands.template.tex).  Nothing here spells a fill or a
+		# line width of its own: a figure that invents its own greys is what
+		# made this set look like thirty unrelated drawings.
 		s += '\\begin{tikzpicture}[\n'
-		s += '\tblk/.style={draw, thick, align=center, fill=white, font=\\sffamily\\small},\n'
-		s += '\tunit/.style={blk, fill=black!12},\n'
-		s += '\tzero/.style={blk, fill=black!20},\n'
-		s += '\tsig/.style={->, >=Stealth, thick},\n'
-		s += '\tbus/.style={<->, >=Stealth, thick},\n'
-		s += '\tcross/.style={->, >=Stealth, line width=1.5pt},\n'
-		s += '\tban/.style={font=\\sffamily\\scriptsize\\bfseries, black!65, align=center},\n'
-		s += '\tlab/.style={font=\\sffamily\\scriptsize, align=center},\n'
-		s += '\tnote/.style={font=\\sffamily\\scriptsize, align=left}]\n'
+		s += '\tblk/.style={vblockw, align=center, font=\\sffamily\\small},\n'
+		s += '\tunit/.style={vblock, align=center, font=\\sffamily\\small},\n'
+		s += '\tzero/.style={vblockem, align=center, font=\\sffamily\\small},\n'
+		s += '\tsig/.style={vflow},\n'
+		s += '\tbus/.style={vbus},\n'
+		s += '\tcross/.style={vflow, line width=1.2pt},\n'
+		s += '\tban/.style={vgroup, align=center, fill=none},\n'
+		s += '\tlab/.style={vbc},\n'
+		s += '\tnote/.style={vbc, align=left}]\n'
 
-		# ---- the three bands
-		s += '\\fill[black!4] (' + P(fX0) + ', ' + P(yBot) + ') rectangle (' + P(fX1) + ', ' + P(yTop) + ');\n'
-		s += '\\fill[black!11] (' + P(wX0) + ', ' + P(yBot) + ') rectangle (' + P(wX1) + ', ' + P(yTop) + ');\n'
-		s += '\\fill[black!6] (' + P(iX0) + ', ' + P(yBot) + ') rectangle (' + P(iX1) + ', ' + P(yTop) + ');\n'
-		s += '\\fill[black!14] (' + P(fX0) + ', ' + P(yBan) + ') rectangle (' + P(fX1) + ', ' + P(yTop) + ');\n'
-		s += '\\fill[black!22] (' + P(wX0) + ', ' + P(yBan) + ') rectangle (' + P(wX1) + ', ' + P(yTop) + ');\n'
-		s += '\\fill[black!18] (' + P(iX0) + ', ' + P(yBan) + ') rectangle (' + P(iX1) + ', ' + P(yTop) + ');\n'
+		# ---- the three bands.  Outlines, not fills: the tile boundary is the
+		# one that means something, so it is the red one, in the same grammar
+		# the whole-chip figure uses red in (Figure \ref{fig:chip-system-flat-diagram}
+		# draws the package boundary and nothing else in red).  The other two
+		# are thin dashed grey regions over white paper.  This replaced six
+		# full-bleed grey rectangles, which is what made the figure read as
+		# machine output rather than as a drawing.
+		s += '\\draw[vregion] (' + P(fX0) + ', ' + P(yBot) + ') rectangle (' + P(fX1) + ', ' + P(yTop) + ');\n'
+		s += ('\\draw[vbound, dashed, rounded corners=3pt] (' + P(wX0) + ', ' + P(yBot) + ') rectangle ('
+			+ P(wX1) + ', ' + P(yTop) + ');\n')
+		s += '\\draw[vregion] (' + P(iX0) + ', ' + P(yBot) + ') rectangle (' + P(iX1) + ', ' + P(yTop) + ');\n'
+		s += ('\\draw[vregion, fill=black!3, draw=none] (' + P(fX0) + ', ' + P(yBan) + ') rectangle ('
+			+ P(fX1) + ', ' + P(yTop) + ');\n')
+		s += ('\\draw[vregion, fill=black!3, draw=none] (' + P(iX0) + ', ' + P(yBan) + ') rectangle ('
+			+ P(iX1) + ', ' + P(yTop) + ');\n')
 		s += ('\\node[ban, text width=' + P(fX1 - fX0 - 0.30) + 'cm] at (' + P(fCx) + ', ' + P((yBan + yTop) / 2.0)
 			+ ') {the shared fabric, always on};\n')
-		s += ('\\node[ban, text width=' + P(wX1 - wX0 - 0.30) + 'cm] at (' + P((wX0 + wX1) / 2.0) + ', '
+		s += ('\\node[ban, text=vestaRedText, text width=' + P(wX1 - wX0 - 0.30) + 'cm] at (' + P((wX0 + wX1) / 2.0) + ', '
 			+ P((yBan + yTop) / 2.0) + ') {the registered tile boundary};\n')
 		s += ('\\node[ban, text width=' + P(iX1 - iX0 - 0.30) + 'cm] at (' + P((iX0 + iX1) / 2.0) + ', '
 			+ P((yBan + yTop) / 2.0) + ') {inside hart $h$\'s tile};\n')
@@ -5392,7 +5469,7 @@ class LatexUserGuide():
 		s += ('\\node[unit, minimum width=8.60cm, minimum height=' + P(arbH) + 'cm] (arb) at (' + P(fCx) + ', '
 			+ P(yArb) + ') {\\textbf{mp\\_arbiter}\\\\ \\scriptsize \\textit{IDLE} $\\to$ \\textit{LATCH} $\\to$ \\textit{DATA}, the grant pinned to hart 0};\n')
 		s += '\\draw[sig] (' + P(xLoad) + ', ' + P(yH0 - h0H / 2.0) + ') -- (' + P(xLoad) + ', ' + P(yArb + arbH / 2.0) + ');\n'
-		s += ('\\node[lab, anchor=west, fill=black!4, inner sep=1pt] at (' + P(xLoad + 0.18) + ', '
+		s += ('\\node[lab, anchor=west, fill=black!3, inner sep=1pt] at (' + P(xLoad + 0.18) + ', '
 			+ P((yH0 - h0H / 2.0 + yArb + arbH / 2.0) / 2.0) + ') {one ordinary shared-window load};\n')
 		s += ('\\node[blk, minimum width=8.60cm, minimum height=' + P(slvH) + 'cm] (slv) at (' + P(fCx) + ', '
 			+ P(ySlv) + ') {\\textbf{the aperture slave}\\\\ \\scriptsize is the reader hart 0? is it a read?\\\\'
@@ -5420,18 +5497,18 @@ class LatexUserGuide():
 		s += '\\draw[cross] (' + P(fX1 - 0.60) + ', ' + P(yReq) + ') -- (' + P(seqCx - seqW / 2.0) + ', ' + P(yReq) + ');\n'
 		# Both band-2 captions are anchored to the EDGE they must clear, never
 		# centred on a guessed midpoint: a centred node's height is whatever the
-		# wrapped text turns out to be, and the response caption's fill=black!11
-		# used to reach 0.05 cm INTO the clamp — repainting the band colour over
+		# wrapped text turns out to be, and the response caption's fill
+		# used to reach 0.05 cm INTO the clamp, painting over
 		# its bottom border and shipping a three-sided box. anchor=north/south
 		# makes the clearance the thing that is specified.
-		s += ('\\node[lab, fill=black!11, inner sep=2pt, text width=2.55cm, anchor=south] at ('
+		s += ('\\node[lab, fill=white, inner sep=2pt, text width=2.55cm, anchor=south] at ('
 			+ P((wX0 + wX1) / 2.0) + ', ' + P(yReq + 0.30)
 			+ ') {\\register{tcm\\_ext\\_req} and a 12-bit TCM word index};\n')
 		s += '\\draw[cross] (' + P(seqCx - seqW / 2.0) + ', ' + P(yRsp) + ') -- (' + P(clCx + clW / 2.0) + ', ' + P(yRsp) + ');\n'
 		s += ('\\node[unit, minimum width=' + P(clW) + 'cm, minimum height=' + P(clH) + 'cm, font=\\sffamily\\scriptsize] (clamp) at ('
 			+ P(clCx) + ', ' + P(yRsp) + ') {isolation\\\\ clamp};\n')
 		s += '\\draw[cross] (' + P(clCx - clW / 2.0) + ', ' + P(yRsp) + ') -- (' + P(fX1 - 0.60) + ', ' + P(yRsp) + ');\n'
-		s += ('\\node[lab, fill=black!11, inner sep=2pt, text width=2.55cm, anchor=north] at ('
+		s += ('\\node[lab, fill=white, inner sep=2pt, text width=2.55cm, anchor=north] at ('
 			+ P((wX0 + wX1) / 2.0) + ', ' + P(yRsp - clH / 2.0 - 0.35)
 			+ ') {the word, six \\register{mclk} later, or nothing at all, because this clamp zeroes a dark tile\'s \\register{tcm\\_ext\\_done} too};\n')
 
@@ -5448,7 +5525,8 @@ class LatexUserGuide():
 		s += ('\\node[note, anchor=west] at (' + P(seqCx + 0.18) + ', '
 			+ P((ySeq - seqH / 2.0 + yMux + muxH / 2.0) / 2.0) + ') {takes the pins, and\\\\ stops the core\'s clock};\n')
 		s += ('\\node[blk, minimum width=3.60cm, minimum height=' + P(leafH) + 'cm] (tcm) at (13.90, ' + P(yLeaf)
-			+ ') {' + str(tcmKiB) + '\\,KiB TCM\\\\ \\scriptsize \\texttt{0x8000}--\\texttt{0xBFFF}};\n')
+			+ ') {' + str(tcmKiB) + '\\,KiB TCM\\\\ \\scriptsize \\texttt{' + fmthex(self.Gen.RamStartAddress) + '} to \\texttt{'
+			+ fmthex(self.Gen.RamStartAddress + self.Gen.RamMemorySlotSize - 1) + '}};\n')
 		s += ('\\node[blk, minimum width=3.20cm, minimum height=' + P(leafH) + 'cm] (cre) at (18.10, ' + P(yLeaf)
 			+ ') {the VestaRV core};\n')
 		s += '\\draw[bus] (13.90, ' + P(yMux - muxH / 2.0) + ') -- (13.90, ' + P(yLeaf + leafH / 2.0) + ');\n'
@@ -5665,21 +5743,26 @@ class LatexUserGuide():
 		   THE HOUSE THEME, NOT A THEME OF ITS OWN. The same review found the
 		   figure off-house: it had three tinted bands under three darker banner
 		   strips, which is a colour ladder no other figure in this manual uses.
-		   It now uses the clock-tree figure\'s idiom exactly — white ground, one
-		   light grey wash on the ONE band that needs emphasis, thin grey frames
-		   with Title Case italic grey headings sitting on their top edge, grey
-		   filled blocks, and one grey spine. There is NO red in it, and that is
-		   deliberate: red is this manual\'s package/off-die idiom (the pinout,
-		   SPI-flash and clock figures all spend it on a chip boundary), and the
-		   NPU is entirely on-die, so a red line here would name a boundary that
-		   does not exist.
+		   It now draws from the manual\'s one style set (the v-styles in
+		   packages-commands): white ground, three thin dashed grouping regions
+		   with Title Case italic grey headings on their top edge, blocks in the
+		   three sanctioned greys, and one grey bar for the port.
+
+		   THE RED IS THE BORROWED PORT, AND IT IS THE ONLY RED. The staging RAM
+		   has ONE port and two possible owners, and that is the whole subject of
+		   the figure, so that path is the accent: the hart side into the
+		   multiplexer, the multiplexer down into the RAM, and the multiplexer
+		   out to the engine\'s compute port. Nothing else in the drawing is red.
+		   No boundary is claimed by it, because the NPU is entirely on-die and
+		   there is no boundary here to claim; this is the manual\'s other use of
+		   red, the one path a figure is about.
 
 		   THREE BANDS, LEFT TO RIGHT, BECAUSE OWNERSHIP IS WHAT SPLITS THEM.
 		   The harts\' side, the staging RAM, and the engine. The RAM is in the
-		   middle and is the only washed band because it is the contested thing:
-		   it has ONE port, and the whole figure is about which side of it is
-		   driving that port. The two outer bands never touch each other; every
-		   line between them lands on something in the middle band.
+		   middle because it is the contested thing: it has ONE port, and the
+		   whole figure is about which side of it is driving that port. The two
+		   outer bands never touch each other; every line between them lands on
+		   something in the middle band.
 
 		   THE MUX IS DRAWN AS A MUX, AND ITS SELECT IS A SECOND COMPARTMENT.
 		   The select is not a decoration and not an arbitration: it is one flop,
@@ -5739,12 +5822,12 @@ class LatexUserGuide():
 		# the CEILING, so the heights below are small and the drawing is short
 		# enough that \resizebox does not have to shrink the type.
 		yBot, yTop = 0.15, 12.60
-		# The three bands are FRAMES with a clear channel between them, not
+		# The three bands are REGIONS with a clear channel between them, not
 		# abutting tinted columns: the wires that cross from one to the next
-		# have to be seen leaving one frame and entering the next.
-		bands = [(0.00, 4.70, 'white', 'The Harts\' Side'),
-			(5.00, 11.20, 'black!6', 'The Staging RAM'),
-			(11.50, 23.35, 'white', 'Inside the NPU')]
+		# have to be seen leaving one region and entering the next.
+		bands = [(0.00, 4.70, 'The Harts\' Side'),
+			(5.00, 11.20, 'The Staging RAM'),
+			(11.50, 23.35, 'Inside the NPU')]
 		hX1 = bands[0][1]
 		mCx = (bands[1][0] + bands[1][1]) / 2.0
 		hCx, hartW = 2.35, 4.20
@@ -5789,33 +5872,36 @@ class LatexUserGuide():
 		# inherits it.
 		s += '\\begin{tikzpicture}[\n'
 		s += '\tnb/.style={execute at begin node={\\hyphenpenalty=10000\\relax}},\n'
-		s += '\tblk/.style={draw, thick, align=center, fill=white, font=\\sffamily\\small, nb},\n'
-		s += '\tunit/.style={blk, fill=black!8},\n'
-		s += '\tmuxb/.style={blk, fill=black!12, line width=1.1pt},\n'
-		s += '\tsel/.style={blk, fill=black!18, font=\\sffamily\\scriptsize, line width=1.1pt},\n'
-		s += '\tstripe/.style={blk, fill=black!8, font=\\sffamily\\scriptsize},\n'
-		s += '\tsmallb/.style={blk, fill=black!8, font=\\sffamily\\scriptsize},\n'
-		s += '\tsig/.style={->, >=Stealth, thick},\n'
-		s += '\tbus/.style={<->, >=Stealth, line width=1.5pt},\n'
-		s += '\tcross/.style={->, >=Stealth, line width=1.5pt},\n'
-		# The frame-heading idiom of the clock-tree figure: Title Case, italic,
-		# grey, sitting ON the frame's top edge. `ban' is the same thing one
+		s += '\tblk/.style={vblockw, align=center, font=\\sffamily\\small, nb},\n'
+		s += '\tunit/.style={vblock, align=center, font=\\sffamily\\small, nb},\n'
+		s += '\tmuxb/.style={vblockem, align=center, font=\\sffamily\\small, nb},\n'
+		s += ('\tsel/.style={vbar, rounded corners=2pt, line width=1.1pt, align=center, '
+			+ 'font=\\sffamily\\scriptsize, nb},\n')
+		s += '\tstripe/.style={vblock, align=center, font=\\sffamily\\scriptsize, nb},\n'
+		s += '\tsmallb/.style={vblock, align=center, font=\\sffamily\\scriptsize, nb},\n'
+		s += '\tsig/.style={vflow},\n'
+		# The one path this figure is about: the single SRAM port and the two
+		# sides that borrow it. Carried by line weight rather than by colour,
+		# because in a block diagram red is reserved for a boundary.
+		s += '\tbus/.style={vbus, line width=1.2pt},\n'
+		s += '\tcross/.style={vflow, line width=1.2pt},\n'
+		# The region-heading idiom of the clock-tree figure: Title Case, italic,
+		# grey, sitting ON the region's top edge. `ban' is the same thing one
 		# step larger, for the three bands themselves.
-		s += ('\tban/.style={font=\\sffamily\\small\\itshape, black!50, align=center, '
-			+ 'inner sep=2pt},\n')
-		s += ('\ttyp/.style={font=\\sffamily\\scriptsize\\itshape, black!55, align=center, '
+		s += '\tban/.style={vgroup, align=center, inner sep=2pt},\n'
+		s += ('\ttyp/.style={vgroup, font=\\sffamily\\scriptsize\\itshape, align=center, '
 			+ 'inner sep=1.5pt},\n')
-		s += '\tlab/.style={font=\\sffamily\\scriptsize, align=center, nb},\n'
-		s += '\tnote/.style={font=\\sffamily\\scriptsize\\itshape, align=center, nb}]\n'
+		s += '\tlab/.style={vbc, nb},\n'
+		s += '\tnote/.style={vbc, font=\\sffamily\\scriptsize\\itshape, nb}]\n'
 
-		# ---- the three bands: a wash on the contested one, a frame on each
-		for x0, x1, fill, title in bands:
-			if fill != 'white':
-				s += ('\\fill[' + fill + '] (' + P(x0) + ', ' + P(yBot) + ') rectangle ('
-					+ P(x1) + ', ' + P(yTop) + ');\n')
-			s += ('\\draw[semithick, black!45] (' + P(x0) + ', ' + P(yBot) + ') rectangle ('
+		# ---- the three bands, as thin dashed regions over white paper. A
+		# full-bleed grey wash behind a band is the one thing that makes a
+		# generated drawing read as machine output, so the contested middle
+		# band earns its emphasis from the red port path instead.
+		for x0, x1, title in bands:
+			s += ('\\draw[vregion] (' + P(x0) + ', ' + P(yBot) + ') rectangle ('
 				+ P(x1) + ', ' + P(yTop) + ');\n')
-			s += ('\\node[ban, fill=' + fill + '] at (' + P((x0 + x1) / 2.0) + ', ' + P(yTop)
+			s += ('\\node[ban] at (' + P((x0 + x1) / 2.0) + ', ' + P(yTop)
 				+ ') {' + title + '};\n')
 
 		# ---- band 1: who asks, on which of the two wires, and under what rule
@@ -5827,7 +5913,7 @@ class LatexUserGuide():
 			+ 'cm, text width=' + P(hartW - 0.40) + 'cm] (key) at (' + P(hCx) + ', ' + P(yKey)
 			+ ') {\\textbf{the ownership rule is software\'s}\\\\ \\scriptsize poll'
 			+ ' \\bitfield{NPUTHINK} for 0 before touching \\texttt{' + fmthex(facts['base'])
-			+ '}--\\texttt{' + fmthex(facts['last']) + '}};\n')
+			+ '} to \\texttt{' + fmthex(facts['last']) + '}};\n')
 		s += ('\\node[unit, minimum width=' + P(hartW) + 'cm, minimum height=' + P(irqH)
 			+ 'cm, text width=' + P(hartW - 0.40) + 'cm] (irq) at (' + P(hCx) + ', ' + P(yIrq)
 			+ ') {\\textbf{interrupt vector ' + str(vec) + '}\\\\ \\scriptsize one more source'
@@ -5835,7 +5921,7 @@ class LatexUserGuide():
 
 		# ---- the two lanes out of the harts' box
 		s += '\\draw[cross] (' + P(xOut) + ', ' + P(yReg) + ') -- (' + P(ptrX0) + ', ' + P(yReg) + ');\n'
-		s += ('\\node[lab, fill=' + bands[1][2] + ', inner sep=2pt, anchor=south] at (' + P(mCx)
+		s += ('\\node[lab, fill=white, inner sep=2pt, anchor=south] at (' + P(mCx)
 			+ ', ' + P(yReg + 0.14) + ') {the register bus};\n')
 		s += '\\draw[bus] (' + P(xOut) + ', ' + P(yPort) + ') -- (' + P(muxX0) + ', ' + P(yPort) + ');\n'
 
@@ -5851,25 +5937,25 @@ class LatexUserGuide():
 
 		# The RAM: one word array and three tapped regions. What firmware owns
 		# and what the sequencer does not check is the caption's sentence.
-		s += ('\\draw[thick, fill=white] (' + P(ramX0) + ', ' + P(ramY0) + ') rectangle ('
+		s += ('\\draw[vblockw] (' + P(ramX0) + ', ' + P(ramY0) + ') rectangle ('
 			+ P(ramX1) + ', ' + P(ramY1) + ');\n')
 		s += ('\\node[lab, text width=' + P(ramX1 - ramX0 - 0.40) + 'cm, anchor=north] at (' + P(ramCx) + ', '
 			+ P(ramY1 - 0.16) + ') {\\textbf{\\small NPU staging RAM}\\\\ \\texttt{' + fmthex(facts['base'])
-			+ '}--\\texttt{' + fmthex(facts['last']) + '}, ' + str(facts['words']) + ' words};\n')
+			+ '} to \\texttt{' + fmthex(facts['last']) + '}, ' + str(facts['words']) + ' words};\n')
 		stripeNames = ['input vector', 'weight matrix', 'output vector']
 		for i, yS in enumerate(stripeY):
 			s += ('\\node[stripe, minimum width=' + P(stripeW) + 'cm, minimum height=' + P(stripeH)
 				+ 'cm] (st' + str(i) + ') at (' + P(ramCx) + ', ' + P(yS) + ') {' + stripeNames[i] + '};\n')
 		s += ('\\draw[bus] (' + P(ramCx) + ', ' + P(ySel - selH / 2.0) + ') -- (' + P(ramCx) + ', '
 			+ P(ramY1) + ');\n')
-		s += ('\\node[lab, anchor=west, fill=' + bands[1][2] + ', inner sep=1.5pt] at ('
+		s += ('\\node[lab, anchor=west, fill=white, inner sep=1.5pt] at ('
 			+ P(ramCx + 0.14) + ', ' + P((ySel - selH / 2.0 + ramY1) / 2.0) + ') {the one port};\n')
 
 		# ---- band 3, left column: the registers, and the three pointer taps
 		s += ('\\node[unit, minimum width=' + P(regW) + 'cm, minimum height=' + P(crH) + 'cm, text width='
 			+ P(regW - 0.34) + 'cm] (cr) at (' + P(regCx) + ', ' + P(yCr) + ') {\\textbf{\\small NPUCR}\\\\'
 			+ ' \\scriptsize mode, counts, \\bitfield{NPUTHINK}};\n')
-		s += ('\\draw[thin, black!55] (' + P(ptrX0) + ', ' + P(ptrFrameY0) + ') rectangle ('
+		s += ('\\draw[vregion] (' + P(ptrX0) + ', ' + P(ptrFrameY0) + ') rectangle ('
 			+ P(ptrX1) + ', ' + P(ptrFrameY1) + ');\n')
 		s += ('\\node[typ, fill=white] at (' + P(regCx) + ', ' + P(ptrFrameY1)
 			+ ') {The Vector Pointers};\n')
@@ -5885,7 +5971,7 @@ class LatexUserGuide():
 			+ str(facts['ptrBits']) + '-bit word indices};\n')
 
 		# ---- the one port between the RAM and the engine, drawn as a spine
-		s += ('\\fill[black!15, draw=black, thick] (' + P(spX0) + ', ' + P(spY0) + ') rectangle ('
+		s += ('\\draw[vbar] (' + P(spX0) + ', ' + P(spY0) + ') rectangle ('
 			+ P(spX1) + ', ' + P(spY1) + ');\n')
 		s += ('\\node[lab, rotate=90] at (' + P((spX0 + spX1) / 2.0) + ', ' + P((spY0 + spY1) / 2.0)
 			+ ') {\\textbf{the NPU\'s compute port}};\n')
@@ -5894,7 +5980,7 @@ class LatexUserGuide():
 			+ P(yPort - 0.16) + ') {one word per access};\n')
 
 		# ---- band 3, right column: the sequencer, the MAC, the activation
-		s += ('\\draw[thin, black!55] (' + P(engX0) + ', ' + P(seqY0) + ') rectangle ('
+		s += ('\\draw[vregion] (' + P(engX0) + ', ' + P(seqY0) + ') rectangle ('
 			+ P(engX1) + ', ' + P(seqY1) + ');\n')
 		s += ('\\node[typ, fill=white] at (' + P(engCx) + ', ' + P(seqY1)
 			+ ') {The Mode Sequencer};\n')
@@ -5917,7 +6003,7 @@ class LatexUserGuide():
 			+ ' $\\times$ ' + Q(facts['wq']) + ' $\\to$ ' + Q(facts['aq'])
 			+ ', saturating at $\\pm$' + str(facts['sat']) + ' every step};\n')
 
-		s += ('\\draw[thin, black!55] (' + P(engX0) + ', ' + P(actY0) + ') rectangle ('
+		s += ('\\draw[vregion] (' + P(engX0) + ', ' + P(actY0) + ') rectangle ('
 			+ P(engX1) + ', ' + P(actY1) + ');\n')
 		s += ('\\node[typ, fill=white] at (' + P(engCx) + ', ' + P(actY1) + ') {The Activation Taps};\n')
 		actW, actGap, actH = 1.30, 0.10, 0.95
@@ -5943,13 +6029,12 @@ class LatexUserGuide():
 			+ ') {\\textbf{the completion event}\\\\ \\scriptsize clears \\bitfield{NPUTHINK},'
 			+ ' sets \\bitfield{NPUTHINKDONE}};\n')
 		s += '\\draw[cross] (' + P(engX0) + ', ' + P(yDone) + ') -- (' + P(xOut) + ', ' + P(yDone) + ');\n'
-		s += ('\\node[lab, fill=' + bands[1][2] + ', inner sep=2pt, anchor=south] at (' + P(mCx) + ', '
+		s += ('\\node[lab, fill=white, inner sep=2pt, anchor=south] at (' + P(mCx) + ', '
 			+ P(yDone + 0.14) + ') {the think-done level};\n')
 
 		s += '\\end{tikzpicture}\n'
 		self._writeInclude('NpuDatapathDiagram.tex', s)
 		return
-
 	def GenerateBootFlowDiagram(self):
 		'''include/BootFlowDiagram.tex — the M12 single-ROM boot flow chart
 		   (mhartid dispatch, hart-0 SPI boot, tile WFI park + msip loader).
@@ -5983,25 +6068,41 @@ class LatexUserGuide():
 		s = '% Generated boot flow chart (M12 single-ROM boot, numHarts=' + str(N) + ')\n'
 		s += '% Drawn at natural size: the chapter \\inputs this WITHOUT a \\resizebox.\n'
 		s += '\\begin{tikzpicture}[\n'
-		s += '\tstp/.style={draw, semithick, rounded corners=2pt, align=center, font=\\sffamily\\scriptsize, text width=4.15cm, inner sep=3pt},\n'
-		s += '\tterm/.style={stp, fill=black!12},\n'
-		s += '\tdec/.style={draw, semithick, diamond, aspect=2.6, align=center, font=\\sffamily\\scriptsize, inner sep=1pt},\n'
-		s += '\tflow/.style={->, >=Stealth, semithick},\n'
-		s += '\tlab/.style={font=\\sffamily\\tiny, align=center, fill=white, inner sep=1.2pt}]\n'
-		s += '\\node[term, text width=9.0cm] (rst) at (' + str(xC) + ', 13.00) {\\textbf{Power-on / reset}\\\\ all ' + str(N) + ' harts: PC $=$ \\texttt{0x0}, fetching THE shared boot ROM through the arbiter};\n'
+		# HOUSE THEME. Every style below is an alias onto a v-style from
+		# packages-commands.template.tex, so this chart carries the manual's one
+		# palette, one corner radius and one arrow head rather than its own.
+		# Ordinary steps are white boxes, the states a hart comes to rest in are
+		# the black!8 fill, and reset -- the single entry point -- is the one
+		# emphasised box.
+		s += '\tstp/.style={vblockw, align=center, font=\\sffamily\\scriptsize, text width=4.15cm, inner sep=3pt},\n'
+		s += '\tterm/.style={vblock, align=center, font=\\sffamily\\scriptsize, text width=4.15cm, inner sep=3pt},\n'
+		s += '\tstart/.style={vblockem, align=center, font=\\sffamily\\scriptsize, inner sep=3pt},\n'
+		s += '\tdec/.style={vblockw, diamond, aspect=2.6, align=center, font=\\sffamily\\scriptsize, inner sep=1pt},\n'
+		s += '\tflow/.style={vflow},\n'
+		# Red is the one path the chart is about and nothing else in it: power-on,
+		# the \register{mhartid} dispatch, and the hart-0 branch that brings the
+		# chip up. The tile branch hangs off it thinner. The main run is heavy
+		# ink rather than red: this figure has no boundary in it, and red in a
+		# block diagram means a boundary.
+		s += '\tmain/.style={vflow, line width=1.0pt},\n'
+		# Software actions, not ROM steps: the launch box and the two edges that
+		# reach it are the dashed grey of something the boot ROM does not do.
+		s += '\tghost/.style={vghost, ->, >=Stealth},\n'
+		s += '\tlab/.style={vsm, fill=white, inner sep=1.2pt}]\n'
+		s += '\\node[start, text width=9.0cm] (rst) at (' + str(xC) + ', 13.00) {\\textbf{Power-on / reset}\\\\ all ' + str(N) + ' harts: PC $=$ \\texttt{0x0}, fetching THE shared boot ROM through the arbiter};\n'
 		s += '\\node[dec] (who) at (' + str(xC) + ', 11.05) {\\register{mhartid} $= 0$?};\n'
 		# Hart 0 branch (left)
 		s += '\\node[stp] (h0a) at (' + str(xL) + ', 9.00) {Configure \\peripheral{GPIO0}/\\peripheral{SPI0}, read the BOOT strap pin};\n'
-		s += '\\node[stp] (h0b) at (' + str(xL) + ', 6.90) {Copy the program from SPI flash to \\texttt{0x8000}--\\texttt{0xFFFC}; zero the mailbox region \\texttt{0x10000}--\\texttt{0x107FF}};\n'
+		s += '\\node[stp] (h0b) at (' + str(xL) + ', 6.90) {Copy the program from SPI flash to \\texttt{0x8000} to \\texttt{0xFFFC}; zero the mailbox region \\texttt{0x10000} to \\texttt{0x107FF}};\n'
 		s += '\\node[term] (h0c) at (' + str(xL) + ', 4.95) {Jump to \\texttt{\\SpiFlashProgramAddress}: application runs on hart 0};\n'
-		s += '\\node[stp, dashed] (launch) at (' + str(xL) + ', 2.60) {\\textbf{Launching a tile $h$:} stage its image in shared RAM, write \\register{SRC[h]}/\\register{LEN[h]}/\\register{ENTRY[h]} at \\texttt{\\BootMailboxBase}$+16h$, then write $1$ to \\register{MSIPx} (\\texttt{0x5000}$+4h$)};\n'
+		s += '\\node[stp, vghost] (launch) at (' + str(xL) + ', 2.60) {\\textbf{Launching a tile $h$:} stage its image in shared RAM, write \\register{SRC[h]}/\\register{LEN[h]}/\\register{ENTRY[h]} at \\texttt{\\BootMailboxBase}$+16h$, then write $1$ to \\register{MSIPx} (\\texttt{0x5000}$+4h$)};\n'
 		# Tile branch (right)
 		s += '\\node[stp] (t1) at (' + str(xR) + ', 9.00) {Set $\\mathtt{sp}$ to the top of the private TCM; arm the software-interrupt vector};\n'
 		s += '\\node[term] (t2) at (' + str(xR) + ', 6.85) {\\textbf{Park}: low-power sleep, waiting for a \\peripheral{CLINT} software interrupt};\n'
 		s += '\\node[stp] (t3) at (' + str(xR) + ', 4.55) {ROM loader: clear the \\register{MSIPx} level, read \\register{SRC}/\\register{LEN}/\\register{ENTRY} at \\texttt{\\BootMailboxBase}$+16h$, copy \\register{LEN} words into the TCM at \\texttt{0x8000}};\n'
 		s += '\\node[term] (t4) at (' + str(xR) + ', 2.30) {Enter \\register{ENTRY} with $\\mathtt{sp}$ at the top of the TCM: tile runs};\n'
 		# Edges
-		s += '\\draw[flow] (rst) -- (who);\n'
+		s += '\\draw[main] (rst) -- (who);\n'
 		# The two branch labels ride the MIDDLE of their own horizontal run, and
 		# the run is drawn as an explicit two-segment path rather than `-|' so
 		# that `pos' means what it says (the SyncPrimitiveDecisionTree idiom in
@@ -6012,22 +6113,21 @@ class LatexUserGuide():
 			yesLab = 'yes: hart 0\\\\ (orchestrator)'
 		else:
 			yesLab = 'yes: hart 0'
-		s += '\\draw[flow] (who.west) -- node[lab] {' + yesLab + '} (h0a.north |- who.west) -- (h0a.north);\n'
-		s += '\\draw[flow] (who.east) -- node[lab] {no: harts 1--' + str(N - 1) + '} (t1.north |- who.east) -- (t1.north);\n'
-		s += '\\draw[flow] (h0a) -- (h0b);\n'
-		s += '\\draw[flow] (h0b) -- (h0c);\n'
-		s += '\\draw[flow, dashed] (h0c) -- (launch);\n'
+		s += '\\draw[main] (who.west) -- node[lab] {' + yesLab + '} (h0a.north |- who.west) -- (h0a.north);\n'
+		s += '\\draw[flow] (who.east) -- node[lab] {no: harts 1 to ' + str(N - 1) + '} (t1.north |- who.east) -- (t1.north);\n'
+		s += '\\draw[main] (h0a) -- (h0b);\n'
+		s += '\\draw[main] (h0b) -- (h0c);\n'
+		s += '\\draw[ghost] (h0c) -- (launch);\n'
 		s += '\\draw[flow] (t1) -- (t2);\n'
 		# Hung to the RIGHT of its arrow, not centred on it: the arrow is short
 		# and a centred label with a white fill would swallow it.
 		s += '\\draw[flow] (t2) -- node[lab, right=2pt] {\\register{MSIPx} interrupt} (t3);\n'
 		s += '\\draw[flow] (t3) -- (t4);\n'
-		s += '\\draw[flow, dashed] (launch.east) -- node[lab, above, sloped] {\\peripheral{CLINT} msip} (t2.south west);\n'
+		s += '\\draw[ghost] (launch.east) -- node[lab, above, sloped] {\\peripheral{CLINT} msip} (t2.south west);\n'
 		s += '\\end{tikzpicture}\n'
 		with open(self.IncludeDirectory + '/BootFlowDiagram.tex', 'w') as f:
 			f.write(s)
 		return
-
 	def GenerateSyncPrimitiveDecisionTree(self):
 		'''include/SyncPrimitiveDecisionTree.tex — which synchronization
 		   primitive to use (HW mutex vs AMO vs LR/SC), as a decision tree.'''
@@ -6040,13 +6140,21 @@ class LatexUserGuide():
 		# to contain them.
 		s = '% Generated synchronization-primitive decision tree\n'
 		s += '\\begin{tikzpicture}[\n'
-		s += '\tdec/.style={draw, semithick, diamond, aspect=2.2, align=center, font=\\sffamily\\scriptsize, inner sep=1pt},\n'
+		# HOUSE THEME. The questions are white boxes and the answers are the
+		# black!8 fill, so the two kinds of node are told apart by weight rather
+		# than by a fill invented for this figure.
+		s += '\tdec/.style={vblockw, diamond, aspect=2.2, align=center, font=\\sffamily\\scriptsize, inner sep=1pt},\n'
 		# Auto-hyphenation inside a 3.7cm box produces "in-struction"/"cy-cles"; the
 		# leaves are short enough to wrap without it. The penalty MUST go in
 		# `execute at begin node` — in `font=` its number scan swallows the
 		# align=center skip assignments and "0pt plus2em" gets typeset into the box.
-		s += '\tleaf/.style={draw, semithick, rounded corners=2pt, align=center, font=\\sffamily\\scriptsize, execute at begin node={\\hyphenpenalty=10000\\relax}, text width=3.7cm, inner sep=4pt, fill=black!8},\n'
-		s += '\tflow/.style={->, >=Stealth, semithick},\n'
+		s += '\tleaf/.style={vblock, align=center, font=\\sffamily\\scriptsize, execute at begin node={\\hyphenpenalty=10000\\relax}, text width=3.7cm, inner sep=4pt},\n'
+		# The recommended answer is the one emphasised box, and the three
+		# branches that reach it are the one red path through the chart. Red
+		# means the path the figure is about here and nowhere else in it.
+		s += '\tpick/.style={leaf, vblockem, text width=3.7cm, inner sep=4pt},\n'
+		s += '\tflow/.style={vflow},\n'
+		s += '\tmain/.style={vflow, line width=1.0pt},\n'
 		# The yes/no labels anchor to the branch vertex itself (pos=0 + a corner
 		# anchor) rather than riding the path at a fixed pos= — the six branch runs
 		# have different lengths, so a midway/pos=0.3 label sat on the diamond's
@@ -6058,45 +6166,25 @@ class LatexUserGuide():
 		s += '\\node[dec] (q2) at (9.7, 6.6) {Guarding a multi-word\\\\critical section?};\n'
 		s += '\\node[dec] (q3) at (5.9, 4.1) {Hardware mutex free?\\\\[1pt](\\NumMutexes{} in the bank)};\n'
 		s += '\\node[leaf] (lrfree) at (13.5, 4.1) {\\textbf{LR/SC} retry loop\\\\[1pt]lock-free structures; failed \\asminline{SC} never writes};\n'
-		s += '\\node[leaf] (mtx) at (2.4, 1.6) {\\textbf{Hardware mutex}\\\\(preferred)\\\\[1pt]\\asminline{lw} claims (0 $=$ yours), \\asminline{sw 0} releases: one instruction, no retry state};\n'
+		s += '\\node[pick] (mtx) at (2.4, 1.6) {\\textbf{Hardware mutex}\\\\(preferred)\\\\[1pt]\\asminline{lw} claims (0 $=$ yours), \\asminline{sw 0} releases: one instruction, no retry state};\n'
 		s += '\\node[leaf] (lrlock) at (9.3, 1.6) {\\textbf{LR/SC spinlock}\\\\in shared RAM\\\\[1pt]reservation-based lock};\n'
 		# Each branch is an explicit two-segment path (out of the vertex, then down)
 		# so the label sits on the horizontal run, clear of both shapes.
 		s += '\\draw[flow] (q1.west) -- node[yeslab] {yes} (amo.north |- q1.west) -- (amo.north);\n'
-		s += '\\draw[flow] (q1.east) -- node[nolab] {no} (q2.north |- q1.east) -- (q2.north);\n'
-		s += '\\draw[flow] (q2.west) -- node[yeslab] {yes} (q3.north |- q2.west) -- (q3.north);\n'
+		s += '\\draw[main] (q1.east) -- node[nolab] {no} (q2.north |- q1.east) -- (q2.north);\n'
+		s += '\\draw[main] (q2.west) -- node[yeslab] {yes} (q3.north |- q2.west) -- (q3.north);\n'
 		s += '\\draw[flow] (q2.east) -- node[nolab] {no} (lrfree.north |- q2.east) -- (lrfree.north);\n'
-		s += '\\draw[flow] (q3.west) -- node[yeslab] {yes} (mtx.north |- q3.west) -- (mtx.north);\n'
+		s += '\\draw[main] (q3.west) -- node[yeslab] {yes} (mtx.north |- q3.west) -- (mtx.north);\n'
 		s += '\\draw[flow] (q3.east) -- node[nolab] {no} (lrlock.north |- q3.east) -- (lrlock.north);\n'
-		s += '\\node[draw, semithick, dashed, align=left, font=\\sffamily\\scriptsize, text width=14.9cm, inner sep=5pt] at (7.75, -0.6) {'
+		# The footer is an aside about the whole chart, not a step in it, so it
+		# is a grouping region over white paper rather than another drawn box.
+		s += '\\node[vregion, align=left, font=\\sffamily\\scriptsize, text width=14.9cm, inner sep=5pt] at (7.75, -0.6) {'
 		s += '\\textbf{Rules that apply to every branch:} never use \\asminline{LR}/\\asminline{SC} or AMO instructions on \\peripheral{MUTEX} bank addresses (the claim-on-read side effect fires); '
 		s += 'every retry loop needs a hart-scaled backoff ($\\mathtt{delay} \\propto \\register{mhartid}+1$) and a bounded retry count, because identical harts on the fair round-robin arbiter can otherwise livelock.};\n'
 		s += '\\end{tikzpicture}\n'
 		with open(self.IncludeDirectory + '/SyncPrimitiveDecisionTree.tex', 'w') as f:
 			f.write(s)
 		return
-
-	# -------------------------------------------------------------------------
-	# Timing / waveform diagrams (tikz-timing + plain TikZ).
-	#
-	# These replaced three matplotlib .pgf figures. Two rules learned building
-	# them, both of which fail SILENTLY:
-	#   * \timing carries its OWN x unit (default ~1ex). timing/xunit MUST be set
-	#     to the enclosing picture's x= or the digital rows do not line up with
-	#     anything else drawn in the picture.
-	#   * the clock char C is a HALF period per unit. One full cycle per unit is
-	#     `2{0.5C}` — `C` alone draws half as many cycles as you counted.
-	# Annotations are plain TikZ over \timing rows rather than a
-	# tikztimingtable's \extracode: the table's row pitch is not 1 unit/row, so
-	# overlay coordinates silently land on the wrong signal.
-	# -------------------------------------------------------------------------
-
-	# Waveform row geometry. _ROW_H is the high-to-low height of a signal and
-	# therefore the height of a bus cell — it is what sets how large the text
-	# inside a D{} cell can be. _ROW_PITCH must exceed it or rows collide.
-	# The two track the D-cell font: _CELL_FONT is \small (10 pt against the
-	# 11 pt body), so the rows are tall enough that a bus label reads at
-	# essentially body size rather than as fine print.
 	_ROW_H = '0.92cm'
 	_ROW_PITCH = 1.38
 
@@ -6134,7 +6222,12 @@ class LatexUserGuide():
 		s = '\\begin{tikzpicture}[\n'
 		s += '\tx=' + xunit + ', y=1cm,\n'
 		s += '\tlbl/.style={font=' + labelFont + ', anchor=east},\n'
-		s += '\tguide/.style={densely dotted, gray!65},\n'
+		s += '\tguide/.style={densely dotted, black!35},\n'
+		# The waveform cell fills, on the figure theme's three greys: a data
+		# cell is the faint one and a don't-care cell is the darker one, so
+		# the two never have to be told apart by shape alone.
+		s += '\ttiming/d/background/.style={draw=none, fill=black!3},\n'
+		s += '\ttiming/u/background/.style={draw=none, fill=black!15},\n'
 		s += '\tann/.style={font=' + noteFont + ', inner sep=1.5pt},\n'
 		s += '\ttim/.style={timing/xunit=' + xunit + ', timing/yunit=' + rowH + ', semithick,\n'
 		s += '\t            timing/d/text/.style={font=' + cellFont + '}}' + extra + ']\n'
@@ -6148,22 +6241,25 @@ class LatexUserGuide():
 		s += self._timingPreamble('0.62cm')
 		s += '\\def\\NPER{4}\\def\\PER{3}\\def\\HR{2.0}\\def\\CMPTWO{0.75}\n'
 		s += '\\foreach \\k in {1,...,4} { \\draw[guide] ({\\k*\\PER}, {\\HR*\\CMPTWO}) -- ({\\k*\\PER}, -0.45); }\n'
-		s += '\\draw[semithick] (0,0) -- (0,\\HR);\n'
-		s += '\\draw[densely dashed] (0,{\\HR*\\CMPTWO}) -- ({\\NPER*\\PER},{\\HR*\\CMPTWO});\n'
+		s += '\\draw[vwire] (0,0) -- (0,\\HR);\n'
+		s += '\\draw[densely dashed, black!55] (0,{\\HR*\\CMPTWO}) -- ({\\NPER*\\PER},{\\HR*\\CMPTWO});\n'
+		# The count-up ramp is an ordinary signal and is drawn in ink.
+		# The vertical fall at the end of each period is the rollover instant.
+		# That is the one event this figure exists to show, so it is the accent.
 		s += '\\foreach \\k in {0,...,3} {\n'
-		s += '\t\\draw[red, semithick] ({\\k*\\PER},0) -- ({\\k*\\PER+\\PER},{\\HR*\\CMPTWO}) -- ({\\k*\\PER+\\PER},0);\n'
+		s += '\t\\draw[vwire] ({\\k*\\PER},0) -- ({\\k*\\PER+\\PER},{\\HR*\\CMPTWO});\n'
+		s += '\t\\draw[vbound] ({\\k*\\PER+\\PER},{\\HR*\\CMPTWO}) -- ({\\k*\\PER+\\PER},0);\n'
 		s += '}\n'
 		s += '\\node[lbl] at (0,0) {0};\n'
 		s += '\\node[lbl] at (0,{\\HR*\\CMPTWO}) {\\register{TIMxCMP2}};\n'
 		s += '\\node[lbl] at (0,\\HR) {$2^{32}-1$ (max)};\n'
 		s += '\\node[ann, rotate=90, anchor=south] at (-4.3,{\\HR/2}) {Timer Value};\n'
-		s += '\\draw[<->, >=Stealth] (0,-0.45) -- (\\PER,-0.45);\n'
+		s += '\\draw[vbus] (0,-0.45) -- (\\PER,-0.45);\n'
 		s += '\\node[ann, below] at (1.5,-0.47) {rollover period};\n'
 		s += '\\node[ann, anchor=west] at ({\\NPER*\\PER+0.4}, 0) {Time $\\rightarrow$};\n'
 		s += '\\end{tikzpicture}\n'
 		self._writeInclude('TimerRolloverDiagram.tex', s)
 		return
-
 	def GenerateTimerOutputCompareDiagram(self):
 		'''include/TimerOutputCompareDiagram.tex — the counter ramp AND the two
 		   TxCMP0 pin polarities in ONE picture on ONE x-axis, with dotted guides
@@ -6179,18 +6275,23 @@ class LatexUserGuide():
 		# dropped the HIGH-time arrow onto the waveform when the row grew.
 		s += '\\def\\NPER{4}\\def\\PER{3}\\def\\HR{2.0}\\def\\ROWH{' + self._ROW_H[:-2] + '}\n'
 		s += '\\def\\CMPTWO{0.75}\\def\\CMPZERO{0.25}\\def\\YONE{-1.60}\\def\\YTWO{-3.00}\n'
+		# The TIMxCMP0 crossing is the compare match.
+		# That is the one event this figure is about, so the guide that ties it
+		# down to the pin edge it causes is the accent stroke.
+		# The rollover guide beside it stays a plain grey tick.
 		s += '\\foreach \\k in {0,...,3} {\n'
-		s += '\t\\draw[guide] ({\\k*\\PER+1}, {\\HR*\\CMPZERO}) -- ({\\k*\\PER+1}, \\YTWO);\n'
+		s += ('\t\\draw[guide, draw=vestaRed, densely dashed, line width=0.7pt] '
+			'({\\k*\\PER+1}, {\\HR*\\CMPZERO}) -- ({\\k*\\PER+1}, \\YTWO);\n')
 		s += '\t\\draw[guide] ({\\k*\\PER+\\PER}, {\\HR*\\CMPTWO}) -- ({\\k*\\PER+\\PER}, \\YTWO);\n'
 		s += '}\n'
-		s += '\\draw[semithick] (0,0) -- (0,\\HR);\n'
-		s += '\\draw[densely dashed] (0,{\\HR*\\CMPTWO}) -- ({\\NPER*\\PER},{\\HR*\\CMPTWO});\n'
-		s += '\\draw[densely dashed] (0,{\\HR*\\CMPZERO}) -- ({\\NPER*\\PER},{\\HR*\\CMPZERO});\n'
+		s += '\\draw[vwire] (0,0) -- (0,\\HR);\n'
+		s += '\\draw[densely dashed, black!55] (0,{\\HR*\\CMPTWO}) -- ({\\NPER*\\PER},{\\HR*\\CMPTWO});\n'
+		s += '\\draw[densely dashed, black!55] (0,{\\HR*\\CMPZERO}) -- ({\\NPER*\\PER},{\\HR*\\CMPZERO});\n'
 		s += '\\foreach \\k in {0,...,3} {\n'
-		s += '\t\\draw[red, semithick] ({\\k*\\PER},0) -- ({\\k*\\PER+\\PER},{\\HR*\\CMPTWO}) -- ({\\k*\\PER+\\PER},0);\n'
+		s += '\t\\draw[vwire] ({\\k*\\PER},0) -- ({\\k*\\PER+\\PER},{\\HR*\\CMPTWO}) -- ({\\k*\\PER+\\PER},0);\n'
 		s += '}\n'
 		s += '\\node[lbl] at (0,0) {0};\n'
-		s += '\\node[lbl] at (0,{\\HR*\\CMPZERO}) {\\register{TIMxCMP0}};\n'
+		s += '\\node[lbl, text=vestaRedText] at (0,{\\HR*\\CMPZERO}) {\\register{TIMxCMP0}};\n'
 		s += '\\node[lbl] at (0,{\\HR*\\CMPTWO}) {\\register{TIMxCMP2}};\n'
 		s += '\\node[lbl] at (0,\\HR) {$2^{32}-1$ (max)};\n'
 		s += '\\node[ann, rotate=90, anchor=south] at (-4.3,{\\HR/2}) {Timer Value};\n'
@@ -6202,15 +6303,14 @@ class LatexUserGuide():
 		s += '\\node[lbl] at (0,\\YTWO) {LOW};   \\node[lbl] at (0,{\\YTWO+\\ROWH}) {HIGH};\n'
 		s += '\\node[lbl, align=right] at (-2.5,{\\YONE+0.5*\\ROWH}) {Pin \\pin{TxCMP0}\\\\\\register{TIMCMP0H} $=0$};\n'
 		s += '\\node[lbl, align=right] at (-2.5,{\\YTWO+0.5*\\ROWH}) {Pin \\pin{TxCMP0}\\\\\\register{TIMCMP0H} $=1$};\n'
-		s += '\\draw[<->, >=Stealth, red] (1,{\\YONE+\\ROWH}) -- (\\PER,{\\YONE+\\ROWH});\n'
-		s += '\\node[ann, above, text=red] at (2,{\\YONE+\\ROWH+0.02}) {HIGH time};\n'
-		s += '\\draw[<->, >=Stealth] (0,{\\YTWO-0.40}) -- (\\PER,{\\YTWO-0.40});\n'
+		s += '\\draw[vbus] (1,{\\YONE+\\ROWH}) -- (\\PER,{\\YONE+\\ROWH});\n'
+		s += '\\node[ann, above] at (2,{\\YONE+\\ROWH+0.02}) {HIGH time};\n'
+		s += '\\draw[vbus] (0,{\\YTWO-0.40}) -- (\\PER,{\\YTWO-0.40});\n'
 		s += '\\node[ann, below] at (1.5,{\\YTWO-0.42}) {PWM period};\n'
 		s += '\\node[ann, anchor=west] at ({\\NPER*\\PER+0.4}, {\\YONE+0.5*\\ROWH}) {Time $\\rightarrow$};\n'
 		s += '\\end{tikzpicture}\n'
 		self._writeInclude('TimerOutputCompareDiagram.tex', s)
 		return
-
 	def GenerateArbiterHandshakeDiagram(self):
 		'''include/ArbiterHandshakeDiagram.tex — one uncontended shared-window
 		   read at the mp_arbiter pins. CYCLE-ACCURATE against hdl/common/
@@ -6231,8 +6331,18 @@ class LatexUserGuide():
 			('4U 3D{mem}',                            '\\register{rdata}'),
 		]
 		ann = ''
-		ann += '\\draw[<->, >=Stealth] (1,{\\YBOT-0.45}) -- (4,{\\YBOT-0.45});\n'
-		ann += '\\node[ann, below] at (2.5,{\\YBOT-0.47}) {3 \\register{mclk}, arbiter pins (uncontended)};\n'
+		# THE SHADED WINDOW IS A REGION, NOT A GREY BAND. It used to be a
+		# full-bleed fill over the two cycles it names, which is the single
+		# thing that made these figures read as machine output; it is now the
+		# house vghost outline over white paper, which is also what it means:
+		# the cycle inside it carries a req that is no longer a request.
+		ann += '\\draw[vghost, rounded corners=3pt] (5,\\YTOP) rectangle (6,\\YBOT);\n'
+		# THE RED IS THE TRANSACTION. This figure traces exactly one uncontended
+		# read, and the span that measures it is the one thing in the drawing
+		# that is about that read rather than about the pins, so it is the one
+		# red stroke here. That is the grammar the whole-chip figure uses red in.
+		ann += '\\draw[vaccent, <->] (1,{\\YBOT-0.45}) -- (4,{\\YBOT-0.45});\n'
+		ann += '\\node[ann, below, text=vestaRedText] at (2.5,{\\YBOT-0.47}) {3 \\register{mclk}, arbiter pins (uncontended)};\n'
 		# THE GHOST NOTE HANGS UNDER THE FIGURE, NOT OFF ITS RIGHT EDGE, AND
 		# THAT IS WHAT CENTRES THE FIGURE (2026-08-15, USER: "centred on the
 		# page"). \centering centres the tikzpicture's BOUNDING BOX, and this
@@ -6241,73 +6351,26 @@ class LatexUserGuide():
 		# right than anything visible, and centring the box pushed the visible
 		# waveform left of the text block by half of that. The note is now
 		# centred on the figure's own mid-cycle on a second annotation row,
-		# with a leader dropping from the shaded cycle it describes, so the box
+		# with a leader dropping from the outlined ghost cycle it describes, so the box
 		# is symmetric about the drawing and \centering does what it says.
-		ann += '\\draw[gray!65] (5.5,\\YBOT) -- (5.5,{\\YBOT-0.95});\n'
+		ann += '\\draw[black!35] (5.5,\\YBOT) -- (5.5,{\\YBOT-0.95});\n'
 		ann += '\\node[ann, align=center, anchor=north] at (3.5,{\\YBOT-0.97})\n'
 		ann += '\t{\\textit{ghost window:} \\register{req} is stale-high for one cycle\\\\[-2pt]\n'
 		ann += '\t after \\register{done}, masked by \\register{need\\_release}};\n'
 		s = '% Generated mp_arbiter handshake diagram\n'
-		s += self._cycleFigure('1.15cm', rows, 6, ann, shade=('5', '6'),
+		# HOUSE THEME, FOR THIS FIGURE ONLY. tikz-timing draws a don't-care cell
+		# in a flat 50 percent gray and a bus cell unfilled, which is two more
+		# greys than the manual has. The group below puts both on the palette
+		# (black!15 and black!3) without leaking the change into the SPI, UART
+		# and I2C figures, which are drawn through the same shared helper.
+		s += '\\begingroup\n'
+		s += '\\tikzset{timing/u/background/.style={draw=none, fill=black!15},\n'
+		s += '\t timing/d/background/.style={draw=none, fill=black!3}}%\n'
+		s += self._cycleFigure('1.15cm', rows, 6, ann,
 			rowH=self._ARB_ROW_H, pitch=self._ARB_ROW_PITCH, fonts=self._ARB_FONTS)
+		s += '\\endgroup\n'
 		self._writeInclude('ArbiterHandshakeDiagram.tex', s)
 		return
-
-	# =====================================================================
-	# THE STALLED TRANSACTION (CPR3/R3). The companion to the handshake
-	# figure above: the SAME pins, on the one slave in the design that cannot
-	# answer in the three-cycle walk that figure draws.
-	#
-	# THE CYCLE TABLE BELOW IS A TRANSCRIPTION, and every row of it cites the
-	# line that produced it. Cycles are mclk cycles, numbered as the figure
-	# draws them (cycle c occupies x = c .. c+1); a signal listed in cycle c is
-	# what the pin CARRIES during c, i.e. it was registered at the edge
-	# ENTERING c. That is the same convention the handshake figure uses, and it
-	# is the one thing to get right: s_en is registered at the edge LEAVING
-	# IDLE (mp_arbiter.vhd:229-241), so it is high in the FIRST LATCH cycle,
-	# not in the IDLE one.
-	#
-	#  c  state  what the RTL does at the edge ENTERING this cycle    source
-	#  -- ------ ---------------------------------------------------- ------
-	#  0  IDLE   nothing yet; req(0) rises during c0                  arbiter:216
-	#  1  IDLE   the pick runs on this cycle's req                    arbiter:219-228
-	#  2  LATCH  gnt(0)/s_en/s_addr/s_master registered here;         arbiter:229-241
-	#            the decode is combinational on s_addr+s_en, so
-	#            tcmw_launch — and therefore s_stall — is ALREADY
-	#            high in this cycle, which is what the arbiter
-	#            samples at the edge that would have taken it to
-	#            DATA                                                 MCU:3696-3706
-	#  3  LATCH  tcm_ext_req <= tcmw_target, tcmw_busy <= '1',        MCU:3720-3736
-	#            tcmw_rdata <= 0 (the unconditional zeroing);
-	#            s_stall now rides on busy, not on launch
-	#  4  LATCH  the tile's inbound boundary register takes the       hart_tile:767-774
-	#            request — THIS EDGE IS "E" in hart_tile's own
-	#            cycle table (:1067-1080); tx_state still IDLE
-	#  5  LATCH  tx_state = SETTLE  (E+1): the SRAM pin mux moves     hart_tile:1160-1165
-	#  6  LATCH  tx_state = READ    (E+2): tx_cen low, the single     hart_tile:1166-1169
-	#            tx_ext_clk pulse happens at the edge LEAVING c6
-	#  7  LATCH  tx_state = LATCH   (E+3): Q is valid                 hart_tile:1170-1177
-	#  8  LATCH  tcm_ext_done pulses for exactly one mclk with        hart_tile:1174-1176,
-	#            tcm_ext_rdata valid ON it (E+4, one edge, both       :1357-1358
-	#            outputs — that is what makes it value-with-pulse)
-	#  9  LATCH  the aperture slave captured the word (E+5):          MCU:3738-3742
-	#            tcmw_rdata <= tcmw_q, tcm_ext_req <= 0,
-	#            tcmw_busy <= '0' — so s_stall is LOW during c9 and
-	#            s_rdata carries the word. Six mclk of tcm_ext_req
-	#            (c3..c8) = the "6 mclk request-to-done" of
-	#            hart_tile:1082-1086 counted from the drive edge.
-	# 10  DATA   the arbiter left LATCH at the edge entering c10      arbiter:250-256
-	# 11  IDLE   done(0) pulses, rdata <= s_rdata, grant held         arbiter:258-268
-	#            through the done cycle
-	# 12  IDLE   grant released; req(0) is still stale-high (the
-	#            ghost window the handshake figure annotates)         arbiter:150-172
-	#
-	# The 4-state tile sequencer is NOT drawn as its own row: at this xunit a
-	# one-cycle D{} cell cannot hold the word "SETTLE" (tikz-timing does not
-	# shrink cell text — the I2C figure's note), and the aperture mechanism
-	# figure already draws that sequencer. It is named in the span annotation
-	# instead.
-	# =====================================================================
 	_ARB_STALL_NCYC = 13          # cycles drawn, c0..c12
 	_ARB_STALL_LATCH = (2, 9)     # first/last cycle the arbiter is held in LATCH
 	_ARB_STALL_SSTALL = (2, 8)    # first/last cycle s_stall is high
@@ -6503,46 +6566,42 @@ class LatexUserGuide():
 				'%d holds it for %d' % (lat1 - lat0 + 1, stallCycles, stallCycles + 1))
 
 		ann = ''
+		# THE STALL WINDOW IS A REGION, NOT A GREY BAND. This used to be a
+		# full-bleed fill over two thirds of the figure, which is the single
+		# thing that made these drawings read as machine output; it is now the
+		# house grouping outline over white paper.
+		ann += '\\draw[vregion, draw=black!55] (%d,\\YTOP) rectangle (%d,\\YBOT);\n' % (lat0, lat1 + 1)
 		# where an UNSTALLED transaction would have completed: the pick in c1,
 		# LATCH in c2, DATA in c3, done in c4 — on the zero s_rdata is holding.
 		unst = self._ARB_STALL_REQSEEN + self._ARB_BASE_LATENCY
-		ann += '\\draw[gray!65] (%d,\\YTOP) -- (%d,{\\YTOP+0.40});\n' % (unst, unst)
+		ann += '\\draw[black!35] (%d,\\YTOP) -- (%d,{\\YTOP+0.40});\n' % (unst, unst)
 		ann += ('\\node[ann, above] at (%d,{\\YTOP+0.38}) {without \\register{s\\_stall} the arbiter '
 			'would complete here, on that zero};\n' % unst)
 		ann += '\\draw[<->, >=Stealth] (%d,{\\YBOT-0.45}) -- (%d,{\\YBOT-0.45});\n' % (st0, st1 + 1)
 		ann += ('\\node[ann, below] at (%.1f,{\\YBOT-0.47}) {\\register{s\\_stall}, the tile read '
 			'runs here: \\textit{SETTLE}, \\textit{READ}, \\textit{LATCH}, then one \\register{mclk} '
 			'of \\register{tcm\\_ext\\_done} with the word on it};\n' % ((st0 + st1 + 1) / 2.0))
-		ann += '\\draw[<->, >=Stealth] (%d,{\\YBOT-1.25}) -- (%d,{\\YBOT-1.25});\n' % (
+		ann += '\\draw[vaccent, <->] (%d,{\\YBOT-1.25}) -- (%d,{\\YBOT-1.25});\n' % (
 			self._ARB_STALL_REQSEEN, self._ARB_STALL_DONE)
-		ann += ('\\node[ann, below] at (%.1f,{\\YBOT-1.27}) {%d \\register{mclk} at the arbiter pins '
+		ann += ('\\node[ann, below, text=vestaRedText] at (%.1f,{\\YBOT-1.27}) {%d \\register{mclk} at the arbiter pins '
 			'while every other shared-window slave still completes in %d};\n'
 			% ((self._ARB_STALL_REQSEEN + self._ARB_STALL_DONE) / 2.0, total,
 			   self._ARB_BASE_LATENCY))
 		s = '%% Generated mp_arbiter stalled-transaction diagram (TCM aperture, window %s)\n' % fmthex(windows[h])
+		# HOUSE THEME, FOR THIS FIGURE ONLY, and identical to the handshake
+		# figure's group so a row of one still reads like a row of the other.
+		# tikz-timing draws a don't-care cell in a flat 50 percent gray and a
+		# bus cell unfilled, which is two greys the manual does not have; this
+		# puts both on the palette without leaking into the SPI, UART and I2C
+		# figures, which come through the same shared helper.
+		s += '\\begingroup\n'
+		s += '\\tikzset{timing/u/background/.style={draw=none, fill=black!15},\n'
+		s += '\t timing/d/background/.style={draw=none, fill=black!3}}%\n'
 		s += self._cycleFigure('0.84cm', rows, N - 1, ann,
-			shade=(str(lat0), str(lat1 + 1)),
 			rowH=self._ARB_ROW_H, pitch=self._ARB_ROW_PITCH, fonts=self._ARB_FONTS)
+		s += '\\endgroup\n'
 		self._writeInclude('ArbiterStallDiagram.tex', s)
 		return
-
-	# House style for the tikztimingtable-based figures (SPI/UART/I2C). These
-	# keep the table form — it gives row labels and grouping for free, and
-	# \vertlines works correctly in \extracode (only ABSOLUTE-y overlays are
-	# unreliable there, see the comment block above). The four SPI/UART figures
-	# were hand-written in the intro .tex files in body-serif at body size;
-	# moving them here put every waveform in the TRM on one style.
-	# Height of one signal in the table figures. tikz-timing's default yunit is
-	# 1.6ex — FONT-RELATIVE, so at a 10 pt label font a bus cell came out ~2.5 mm
-	# and body-size text filled it edge to edge. An ABSOLUTE yunit decouples the
-	# two: the row is tall enough for \small text to sit inside the cell rather
-	# than against its outline. This is safe here (an earlier note in this file
-	# claimed otherwise): the table places its rows at multiples of
-	# rowdist*yunit and its row labels in the same coordinate system, so raising
-	# yunit scales the waveforms, the row pitch and the label positions
-	# together. What does NOT scale with it is an \extracode overlay written in
-	# absolute units (mm/ex) — those are the coordinates to re-check after a
-	# change here, not the rows.
 	_TABLE_YUNIT = '3.8mm'
 
 	# Row pitch, in yunits. The package default of 2 put the rows exactly one
@@ -6801,7 +6860,7 @@ class LatexUserGuide():
 		masters = [{'title': 'hart 0', 'sub': ('orchestrator' if orch else 'management hart'),
 			'note': '\\textit{the chip\'s only flash path}', 'stack': 1, 'cells': list(cells)}]
 		if N > 1:
-			masters.append({'title': ('hart 1' if N == 2 else 'hart 1--' + str(N - 1)),
+			masters.append({'title': ('hart 1' if N == 2 else 'hart 1 to ' + str(N - 1)),
 				'sub': 'the same tile', 'stack': N - 1, 'cells': list(cells),
 				'note': ('\\textit{same port, nothing behind it:}\\\\ '
 					'\\textit{reads zeros, never stalls}')})
@@ -7021,21 +7080,33 @@ class LatexUserGuide():
 			+ str([p.Name for p in spis]) + ', xip=' + str(xipOn) + ', flashBase='
 			+ fmthex(flashBase) + ', flashPads=' + str(flashPads) + ', spi1Pads='
 			+ str(spi1Pads) + ')\n')
+		# EVERY STYLE HERE IS AN ALIAS ONTO THE MANUAL-WIDE FIGURE THEME.
+		# The theme is defined once, in packages-commands.template.tex, and the
+		# point of aliasing rather than spelling a fill or a line width inline is
+		# that this figure cannot drift away from the whole-chip figure it is
+		# drawn in the style of. The local names are kept because the emission
+		# below reads better with them and because they say what each style is
+		# FOR here.
 		s += '\\begin{tikzpicture}[\n'
-		s += '\thd/.style={font=\\sffamily\\scriptsize, align=center, inner sep=1pt, anchor=north},\n'
-		s += '\tbc/.style={font=\\sffamily\\scriptsize, align=center, inner sep=1pt},\n'
-		s += '\tbus/.style={<->, >=Stealth, thick},\n'
-		s += '\tsig/.style={->, >=Stealth, semithick},\n'
-		s += '\treach/.style={->, >=Stealth, line width=1.4pt},\n'
-		s += '\twire/.style={semithick},\n'
-		s += ('\tpadlab/.style={font=\\sffamily\\scriptsize\\ttfamily, align=center, '
-			'inner sep=1pt},\n')
-		s += ('\trail/.style={font=\\sffamily\\scriptsize\\itshape, black!55, align=left, '
-			'fill=white, inner sep=1.5pt, anchor=south west},\n')
-		s += '\tredlab/.style={font=\\sffamily\\small\\bfseries, red!70!black, align=left}]\n'
+		s += '\thd/.style={vhd},\n'
+		s += '\tbc/.style={vbc},\n'
+		s += '\tbus/.style={vbus},\n'
+		s += '\tsig/.style={vflow},\n'
+		# The private extended-flash path is the one path this drawing is about,
+		# so it is the figure's accent, carried as the heaviest ink run in the
+		# drawing. The red belongs to the package boundary and the pads.
+		s += '\treach/.style={vflow, line width=1.4pt},\n'
+		s += '\twire/.style={vwire},\n'
+		s += '\tpadlab/.style={vbc, font=\\sffamily\\scriptsize\\ttfamily},\n'
+		s += '\trail/.style={vnote, fill=white, anchor=south west},\n'
+		s += '\tredlab/.style={vredlab}]\n'
 
-		def frame(cx, yTop, w, h, fill, opts='thick'):
-			return ('\\draw[' + opts + ', fill=' + fill + '] (' + P(cx - w / 2.0) + ', '
+		def frame(cx, yTop, w, h, style):
+			'''One box, in one of the theme's box styles. Nothing here names a
+			   fill or a corner radius of its own: the three box weights this
+			   figure uses are vblock, vblocklt and vblockw, which is the whole
+			   of the grey scale the manual allows a drawing.'''
+			return ('\\draw[' + style + '] (' + P(cx - w / 2.0) + ', '
 				+ P(yTop - h) + ') rectangle (' + P(cx + w / 2.0) + ', ' + P(yTop) + ');\n')
 
 		def head(cx, yTop, w, title, sub, note=None):
@@ -7046,13 +7117,13 @@ class LatexUserGuide():
 			return ('\\node[hd, text width=' + P(w - 0.20) + 'cm] at (' + P(cx) + ', '
 				+ P(yTop - pad) + ') {' + tex + '};\n')
 
-		def shadows(cx, yTop, w, h, n, fill, opts='thick'):
+		def shadows(cx, yTop, w, h, n, style):
 			'''N copies of one tile, offset so you can see there are N. Every
 			   layer carries the FRONT box's fill and border: white back copies
 			   draw a shadow, not a count.'''
 			out = ''
 			for k in range(min(n, maxShadow) - 1, 0, -1):
-				out += frame(cx + stackDx * k, yTop + stackDy * k, w, h, fill, opts)
+				out += frame(cx + stackDx * k, yTop + stackDy * k, w, h, style)
 			return out
 
 		def compartments(cx, yTop, yBot, w, cs):
@@ -7061,20 +7132,20 @@ class LatexUserGuide():
 			   this drawing can be seen to leave the SAME decoder.'''
 			out = ''
 			yD = yBot + hCells
-			out += ('\\draw[semithick] (' + P(cx - w / 2.0) + ', ' + P(yD) + ') -- ('
+			out += ('\\draw[wire] (' + P(cx - w / 2.0) + ', ' + P(yD) + ') -- ('
 				+ P(cx + w / 2.0) + ', ' + P(yD) + ');\n')
 			k = len(cs)
 			for i, t in enumerate(cs):
 				xL = cx - w / 2.0 + w * i / float(k)
 				if i:
-					out += ('\\draw[semithick] (' + P(xL) + ', ' + P(yD) + ') -- (' + P(xL)
+					out += ('\\draw[wire] (' + P(xL) + ', ' + P(yD) + ') -- (' + P(xL)
 						+ ', ' + P(yBot) + ');\n')
 				out += ('\\node[bc, text width=' + P(w / float(k) - 0.16) + 'cm] at ('
 					+ P(xL + w / (2.0 * k)) + ', ' + P(yBot + hCells / 2.0) + ') {' + t + '};\n')
 			return out
 
 		def redSquare(xk, yline):
-			return ('\\fill[red!70!black] (' + P(xk - 0.07) + ', ' + P(yline - 0.07)
+			return ('\\fill[vestaRed] (' + P(xk - 0.07) + ', ' + P(yline - 0.07)
 				+ ') rectangle (' + P(xk + 0.07) + ', ' + P(yline + 0.07) + ');\n')
 
 		def brokenLine(yline, x0, x1, cuts, opts, gapw=0.14):
@@ -7111,16 +7182,15 @@ class LatexUserGuide():
 			return fits[0][0]
 
 		# ---- the red package boundary, drawn first ---------------------------
-		s += ('\\draw[red!75!black, line width=1.2pt] (0.00, ' + P(yRedB) + ') rectangle ('
+		s += ('\\draw[vbound, rounded corners=2pt] (0.00, ' + P(yRedB) + ') rectangle ('
 			+ P(W) + ', ' + P(yRedT) + ');\n')
 		s += ('\\node[redlab, anchor=south west] at (0.00, ' + P(yRedT + 0.10)
 			+ ') {chip boundary};\n')
 
 		# ---- the masters ------------------------------------------------------
 		for m in masters:
-			s += shadows(m['cx'], yBandT, m['w'], hMaster, m['stack'], 'black!8',
-				'thick, rounded corners=2pt')
-			s += frame(m['cx'], yBandT, m['w'], hMaster, 'black!8', 'thick, rounded corners=2pt')
+			s += shadows(m['cx'], yBandT, m['w'], hMaster, m['stack'], 'vblock')
+			s += frame(m['cx'], yBandT, m['w'], hMaster, 'vblock')
 			s += head(m['cx'], yBandT, m['w'], m['title'], m['sub'], m['note'])
 			s += compartments(m['cx'], yBandT, yBandB, m['w'], m['cells'])
 			# The two wires that leave a tile, BOTH out of the bottom of its
@@ -7141,7 +7211,7 @@ class LatexUserGuide():
 		# END of it. That is the one thing in this drawing claimed by geometry
 		# rather than by a caption: a rail crossing under a full-width bar would
 		# be a rail the reader has to be TOLD does not touch it.
-		s += ('\\draw[thick, fill=black!15] (' + P(barL) + ', ' + P(yBarB) + ') rectangle ('
+		s += ('\\draw[vbar] (' + P(barL) + ', ' + P(yBarB) + ') rectangle ('
 			+ P(W - xEdge) + ', ' + P(yBarT) + ');\n')
 		barTex = ('{' + barTitle + '} \\quad ' + barFact if barOneLine
 			else '{' + barTitle + '}\\\\ ' + barFact)
@@ -7151,7 +7221,12 @@ class LatexUserGuide():
 
 		# ---- the rank ---------------------------------------------------------
 		for c in rank:
-			s += frame(c['cx'], yRankT, c['w'], hRank, 'black!5')
+			# SPI0 IS THE ONE BLOCK THIS FIGURE IS ABOUT, so it is the one drawn
+			# in the theme's emphasis weight; every other block in the drawing
+			# carries the ordinary one. A figure with two emphasised blocks has
+			# none.
+			s += frame(c['cx'], yRankT, c['w'], hRank,
+				'vblockem' if c is spi0Chip else 'vblock')
 			s += head(c['cx'], yRankT, c['w'], c['title'], c['sub'])
 			if c['cells']:
 				s += compartments(c['cx'], yRankT, yRankB, c['w'], c['cells'])
@@ -7171,7 +7246,7 @@ class LatexUserGuide():
 			s += ('\\draw[reach, -] (' + P(m0['xFlash']) + ', ' + P(yBandB) + ') -- ('
 				+ P(m0['xFlash']) + ', ' + P(yBandB - gap1 / 2.0) + ') -- (' + P(xRail) + ', '
 				+ P(yBandB - gap1 / 2.0) + ') -- (' + P(xRail) + ', ' + P(yRail) + ');\n')
-			s += brokenLine(yRail, xRail, xDrop, taps, 'line width=1.4pt')
+			s += brokenLine(yRail, xRail, xDrop, taps, 'reach, -')
 			s += ('\\draw[reach] (' + P(xDrop) + ', ' + P(yRail) + ') -- (' + P(xDrop) + ', '
 				+ P(yRankT) + ');\n')
 			s += ('\\node[rail] at (' + P(labelAt(xRail, xDrop, taps, TWs(railLab), railLab))
@@ -7196,7 +7271,7 @@ class LatexUserGuide():
 			n = len(c['pads'])
 			c['lanes'] = [c['cx'] + (k - (n - 1) / 2.0) * c['pitch'] for k in range(n)]
 			wExt = 2 * c['half']
-			s += frame(c['cx'], yExtT, wExt, hExt, 'black!3')
+			s += frame(c['cx'], yExtT, wExt, hExt, 'vblocklt')
 			for k, xk in enumerate(c['lanes']):
 				if xipOn and c is spi0Chip and c['pads'][k] == 'CS_FLASH':
 					pass         # this one comes through the driver-select box below
@@ -7255,7 +7330,7 @@ class LatexUserGuide():
 			for xk in (gTap, csLane):
 				s += ('\\draw[sig] (' + P(xk) + ', ' + P(yRankB) + ') -- (' + P(xk) + ', '
 					+ P(ySelT) + ');\n')
-			s += frame((selL + selR) / 2.0, ySelT, selR - selL, hSel, 'white')
+			s += frame((selL + selR) / 2.0, ySelT, selR - selL, hSel, 'vblockw')
 			s += head((selL + selR) / 2.0, ySelT, selR - selL, selTitle, '\\\\ '.join(selLines))
 			s += ('\\draw[wire] (' + P(csLane) + ', ' + P(ySelB) + ') -- (' + P(csLane) + ', '
 				+ P(yExtT - 0.24) + ');\n')
@@ -7274,13 +7349,16 @@ class LatexUserGuide():
 			+ 'cm, aspect=' + P(W / hAll) + ')\n' + s.split('\n', 1)[1])
 		self._writeInclude('SpiFlashDiagram.tex', s)
 		return
-
 	def GenerateSpiTimingDiagram(self):
 		'''include/SpiTimingDiagram.tex — all four SPI modes. Waveform content is
 		   the proven hand-written original; only the styling changed. The two
 		   vertical-line families are SEMANTIC (leading vs trailing SCK edge —
 		   which one samples depends on CPHA), so they are kept as two
-		   distinguishable families rather than flattened to one guide style.'''
+		   distinguishable families rather than flattened to one guide style. The
+		   LEADING edge is the one the figure is about, so it is the family drawn
+		   in the manual accent colour and the trailing one is a plain grey guide;
+		   the red/blue pair it replaces was two saturated colours that belong to
+		   no other figure in this manual.'''
 		rows = [
 			('CPOL $=0$', 'LL 15{T} LL'),
 			('CPOL $=1$', 'HH 15{T} HH'),
@@ -7294,11 +7372,19 @@ class LatexUserGuide():
 			('MISO',      'D{z}U R 8{2Q} D{z}'),
 			('MOSI',      'D{z}U R 8{2Q} D{z}'),
 		]
+		# THE ONE GREY PAIR THE WAVEFORM FIGURES SHARE. A bus cell is the light
+		# grey of a faint block and an undefined stretch is the ordinary block
+		# grey, so the five waveform figures in this manual are shaded out of the
+		# same two levels the block diagrams use. tikz-timing's own default for an
+		# undefined stretch is a 50 per cent grey, which is darker than anything
+		# else printed in this manual.
+		cellFills = ('timing/d/background/.style={draw=none, fill=black!3}, '
+			'timing/u/background/.style={draw=none, fill=black!15}')
 		extra = ''
 		extra += '\t\\begin{pgfonlayer}{background}\n'
 		extra += '\t\t\\begin{scope}[semithick]\n'
-		extra += '\t\t\t\\vertlines[red!55, densely dotted]{2.1,4.1,...,17.1}\n'
-		extra += '\t\t\t\\vertlines[blue!55, densely dashed]{3.1,5.1,...,17.1}\n'
+		extra += '\t\t\t\\vertlines[vestaRed, densely dotted]{2.1,4.1,...,17.1}\n'
+		extra += '\t\t\t\\vertlines[black!35, densely dashed]{3.1,5.1,...,17.1}\n'
 		extra += '\t\t\\end{scope}\n'
 		extra += '\t\\end{pgfonlayer}\n'
 		# Group labels for the three bands of rows. These are anchored to the
@@ -7320,11 +7406,10 @@ class LatexUserGuide():
 		# than the row labels, so this is the tightest figure in the manual for
 		# width. Its cells hold one digit, which needs almost none of the unit.
 		s = '% Generated SPI timing diagram (all four SPI modes)\n'
-		s += self._timingTable(rows, extraOpts='timing/xunit=6.3mm, timing/d/background/.style={fill=white}',
+		s += self._timingTable(rows, extraOpts='timing/xunit=6.3mm, ' + cellFills,
 		                       extracode=extra)
 		self._writeInclude('SpiTimingDiagram.tex', s)
 		return
-
 	def GenerateSpiByteOrderingDiagram(self):
 		'''include/SpiByteOrderingDiagram.tex — SPITXSB/SPIRXSB byte swapping.'''
 		rows = [
@@ -7332,13 +7417,41 @@ class LatexUserGuide():
 			('16-bit transfers, byte swap', '[X] D{byte 1} D{byte 0} D{byte 3} D{byte 2} D{byte 5} D{byte 4} D{byte 7} D{byte 6} D{\\ldots}'),
 			('32-bit transfers, byte swap', '[X] D{byte 3} D{byte 2} D{byte 1} D{byte 0} D{byte 7} D{byte 6} D{byte 5} D{byte 4} D{\\ldots}'),
 		]
+		# THE ONE GREY PAIR THE WAVEFORM FIGURES SHARE. A bus cell is the light
+		# grey of a faint block and an undefined stretch is the ordinary block
+		# grey, so the five waveform figures in this manual are shaded out of the
+		# same two levels the block diagrams use. tikz-timing's own default for an
+		# undefined stretch is a 50 per cent grey, which is darker than anything
+		# else printed in this manual.
+		cellFills = ('timing/d/background/.style={draw=none, fill=black!3}, '
+			'timing/u/background/.style={draw=none, fill=black!15}')
+
+		# THE ONE CELL THIS FIGURE IS ABOUT, TRACED IN THE ACCENT COLOUR. Each row
+		# is the same data in a different order, and what the reader has to see is
+		# where one named cell has MOVED to; a thin accent-coloured rule under
+		# that cell in every row draws the staircase it walks. The cell is found
+		# by reading the emitted rows back, so it cannot name a cell the figure
+		# does not draw, and nothing about the rows themselves changes.
+		def traceCell(want):
+			out = '\t\\begin{scope}[vestaRed, semithick]\n'
+			for n, (label, chars) in enumerate(rows):
+				cells = re.findall(r'D\{(.*?)\}', chars)
+				if want not in cells:
+					raise Exception('%s: row "%s" has no cell "%s" to trace.'
+						% ('SpiByteOrderingDiagram', label, want))
+				k = cells.index(want)
+				out += ('\t\t\\draw (%.2f,%.2f) -- (%.2f,%.2f);\n'
+					% (k + 0.15, -n * self._TABLE_ROWDIST - 0.30,
+					   k + 0.85, -n * self._TABLE_ROWDIST - 0.30))
+			out += '\t\\end{scope}\n'
+			return out
 		# 9 units; the long row labels ("32-bit transfers, byte swap") take the
 		# rest. Cells hold "byte 0", so the unit cannot go much below 13 mm.
 		s = '% Generated SPI byte-ordering diagram\n'
-		s += self._timingTable(rows, extraOpts='timing/xunit=13.1mm')
+		s += self._timingTable(rows, extraOpts='timing/xunit=13.1mm, ' + cellFills,
+		                       extracode=traceCell('byte 0'))
 		self._writeInclude('SpiByteOrderingDiagram.tex', s)
 		return
-
 	def GenerateSpiBitOrderingDiagram(self):
 		'''include/SpiBitOrderingDiagram.tex — bit order for a 16-bit transfer,
 		   showing that MSB/LSB-first is applied BEFORE the byte swap.'''
@@ -7352,12 +7465,40 @@ class LatexUserGuide():
 			('No byte swap, MSB-first', seq(msb)),
 			('Byte swap, MSB-first',    seq(msb[8:] + msb[:8])),
 		]
+		# THE ONE GREY PAIR THE WAVEFORM FIGURES SHARE. A bus cell is the light
+		# grey of a faint block and an undefined stretch is the ordinary block
+		# grey, so the five waveform figures in this manual are shaded out of the
+		# same two levels the block diagrams use. tikz-timing's own default for an
+		# undefined stretch is a 50 per cent grey, which is darker than anything
+		# else printed in this manual.
+		cellFills = ('timing/d/background/.style={draw=none, fill=black!3}, '
+			'timing/u/background/.style={draw=none, fill=black!15}')
+
+		# THE ONE CELL THIS FIGURE IS ABOUT, TRACED IN THE ACCENT COLOUR. Each row
+		# is the same data in a different order, and what the reader has to see is
+		# where one named cell has MOVED to; a thin accent-coloured rule under
+		# that cell in every row draws the staircase it walks. The cell is found
+		# by reading the emitted rows back, so it cannot name a cell the figure
+		# does not draw, and nothing about the rows themselves changes.
+		def traceCell(want):
+			out = '\t\\begin{scope}[vestaRed, semithick]\n'
+			for n, (label, chars) in enumerate(rows):
+				cells = re.findall(r'D\{(.*?)\}', chars)
+				if want not in cells:
+					raise Exception('%s: row "%s" has no cell "%s" to trace.'
+						% ('SpiBitOrderingDiagram', label, want))
+				k = cells.index(want)
+				out += ('\t\t\\draw (%.2f,%.2f) -- (%.2f,%.2f);\n'
+					% (k + 0.15, -n * self._TABLE_ROWDIST - 0.30,
+					   k + 0.85, -n * self._TABLE_ROWDIST - 0.30))
+			out += '\t\\end{scope}\n'
+			return out
 		# 17 units; cells hold at most two digits.
 		s = '% Generated SPI bit-ordering diagram (16-bit transfer)\n'
-		s += self._timingTable(rows, extraOpts='timing/xunit=7.1mm')
+		s += self._timingTable(rows, extraOpts='timing/xunit=7.1mm, ' + cellFills,
+		                       extracode=traceCell('0'))
 		self._writeInclude('SpiBitOrderingDiagram.tex', s)
 		return
-
 	def GenerateUartFrameDiagram(self):
 		'''include/UartFrameDiagram.tex — one UART frame. The K/J metachars label
 		   a held level in the middle of its cell (idle/start/stop); they are the
@@ -7367,11 +7508,27 @@ class LatexUserGuide():
 		meta += 'timing/metachar={{J}[2]{#1L !{++(-.5\\xunit + 0.5*\\slope\\xunit, +.5\\yunit)} N[rectangle,scale=.8]{#2} !{++(.5\\xunit - 0.5*\\slope\\xunit, -.5\\yunit)}}}'
 		rows = [('TX or RX',
 		         'K{IDLE} J{START} D{D0} D{D1} D{D2} D{D3} D{D4} D{D5} D{D6} D{D7} D{\\mbox{[P]}} K{STOP} K{IDLE}')]
+		# THE ONE GREY PAIR THE WAVEFORM FIGURES SHARE. A bus cell is the light
+		# grey of a faint block and an undefined stretch is the ordinary block
+		# grey, so the five waveform figures in this manual are shaded out of the
+		# same two levels the block diagrams use. tikz-timing's own default for an
+		# undefined stretch is a 50 per cent grey, which is darker than anything
+		# else printed in this manual.
+		cellFills = ('timing/d/background/.style={draw=none, fill=black!3}, '
+			'timing/u/background/.style={draw=none, fill=black!15}')
 		# Single-row figure, so the span arrow hangs a fixed distance under row 1
 		# and does not depend on the row pitch.
+		# THE START BIT IS WHAT THE FIGURE IS ABOUT, so it is the one thing in it
+		# drawn in the manual accent colour. The bit-period span already runs from
+		# unit 1 to unit 2, which is exactly the start bit's own cell, so the span
+		# takes the accent and two thin accent droppers carry its two edges up to
+		# the waveform. No waveform is coloured and no text changes.
 		extra = ''
 		extra += '\t\\begin{scope}[font=' + self._NOTE_FONT + ']\n'
-		extra += '\t\t\\draw[<->, >=Stealth] (1,-1.75) -- (2,-1.75);\n'
+		for xEdge in ('1', '2'):
+			extra += ('\t\t\\draw[vestaRed, densely dotted, semithick] (' + xEdge
+				+ ',1.15) -- (' + xEdge + ',-1.75);\n')
+		extra += '\t\t\\draw[vaccent, <->] (1,-1.75) -- (2,-1.75);\n'
 		extra += '\t\t\\node[below, inner sep=2pt] at (1.5,-2.00) {one bit period $=1/\\textrm{baud}$};\n'
 		extra += '\t\\end{scope}\n'
 		s = '% Generated UART data-frame diagram\n'
@@ -7379,11 +7536,10 @@ class LatexUserGuide():
 		# other table figure, and the K/J metachars are written in \yunit so they
 		# follow it. 13 units.
 		s += self._timingTable(rows,
-		                       extraOpts='timing/xunit=10.8mm, timing/d/background/.style={fill=white}, ' + meta,
+		                       extraOpts='timing/xunit=10.8mm, ' + cellFills + ', ' + meta,
 		                       extracode=extra)
 		self._writeInclude('UartFrameDiagram.tex', s)
 		return
-
 	def GenerateI2cTransactionDiagram(self):
 		'''include/I2cTransactionDiagram.tex — one complete I2C byte write. Bus
 		   protocol (START/address+R\\overline{W}/ACK/data/STOP), not chip
@@ -7396,15 +7552,40 @@ class LatexUserGuide():
 			('\\pin{SDAx}', 'H D{A6} D{A5} D{A4} D{A3} D{A2} D{A1} D{A0} D{R/W} D{ACK} '
 			               'D{D7} D{D6} D{D5} D{D4} D{D3} D{D2} D{D1} D{D0} D{ACK} H'),
 		]
+		# THE ONE GREY PAIR THE WAVEFORM FIGURES SHARE. A bus cell is the light
+		# grey of a faint block and an undefined stretch is the ordinary block
+		# grey, so the five waveform figures in this manual are shaded out of the
+		# same two levels the block diagrams use. tikz-timing's own default for an
+		# undefined stretch is a 50 per cent grey, which is darker than anything
+		# else printed in this manual.
+		cellFills = ('timing/d/background/.style={draw=none, fill=black!3}, '
+			'timing/u/background/.style={draw=none, fill=black!15}')
 		# The bus-condition strip sits a fixed 0.9 units under the SDAx row, and
 		# the SDAx row is one _TABLE_ROWDIST under the SCLx row — so this y is
 		# DERIVED, not a literal. A hardcoded one slides up onto the waveform the
 		# next time the row pitch moves.
 		annY = '%.2f' % (-(self._TABLE_ROWDIST + 0.9))
+		# THE TWO ACK BITS ARE WHAT THE FIGURE IS ABOUT: they are the only two
+		# cells the ADDRESSED DEVICE drives and the only two the master reads
+		# back, so they are the one thing in it drawn in the manual accent
+		# colour. Each takes the accent text colour and a thin accent leader up
+		# to the bottom of its own \pin{SDAx} cell; START and STOP stay black,
+		# no waveform is coloured, and no label text changes.
+		# The leader's top is the \pin{SDAx} row's own baseline, which is one
+		# _TABLE_ROWDIST under row 1 -- derived from the row pitch exactly as
+		# annY is, not written as a literal.
+		sdaY = '%.2f' % (-self._TABLE_ROWDIST)
 		extra = ''
 		extra += '\t\\begin{scope}[font=' + self._NOTE_FONT + ']\n'
 		for x, text in [('0.8', 'START'), ('9.5', 'ACK'), ('18.5', 'ACK'), ('20.9', 'STOP')]:
-			extra += '\t\t\\node[below, inner sep=2pt] at (' + x + ',' + annY + ') {' + text + '};\n'
+			if text == 'ACK':
+				extra += ('\t\t\\draw[vestaRed, densely dotted, semithick] (' + x + ','
+					+ sdaY + ') -- (' + x + ',' + annY + ');\n')
+				extra += ('\t\t\\node[below, inner sep=2pt, text=vestaRedText] at ('
+					+ x + ',' + annY + ') {' + text + '};\n')
+			else:
+				extra += ('\t\t\\node[below, inner sep=2pt] at (' + x + ',' + annY
+					+ ') {' + text + '};\n')
 		extra += '\t\\end{scope}\n'
 		# THE ONE FIGURE THAT CANNOT CARRY BODY-SIZE CELL TEXT. Every cell here is
 		# one SCL bit period, so they must all be the same width, and there are
@@ -7415,12 +7596,11 @@ class LatexUserGuide():
 		# protocol, which is the whole point of the figure.
 		s = '% Generated I2C transaction diagram\n'
 		s += self._timingTable(rows,
-		                       extraOpts='timing/xunit=6.9mm, '
+		                       extraOpts='timing/xunit=6.9mm, ' + cellFills + ', '
 		                                 'timing/d/text/.style={font=\\sffamily\\footnotesize}',
 		                       extracode=extra)
 		self._writeInclude('I2cTransactionDiagram.tex', s)
 		return
-
 	def _cycleFigure(self, xunit, rows, guides, annotations, shade=None,
 	                 rowH=None, pitch=None, fonts=None):
 		'''Shared shape for the cycle-level contract waveforms (arbiter, IRQ
@@ -7474,18 +7654,33 @@ class LatexUserGuide():
 			('3U 2D{CLAIM} 4D{handler} 2D{COMPLETE} U',    'hart bus'),
 			('5L 6H L',                                    '\\textit{in\\_service}(i)'),
 		]
+		# The claim/complete pair is the whole subject, so it is the accent: a
+		# dashed red marker at each of the two instants, tied together by the
+		# red span that is the masking window between them.
+		# This replaced a full-bleed grey band behind the same six units, which
+		# is the single thing that made the figure read as machine output.
 		ann = ''
-		ann += '\\draw[<->, >=Stealth] (5,{\\YBOT-0.55}) -- (11,{\\YBOT-0.55});\n'
-		ann += '\\node[ann, below] at (8,{\\YBOT-0.58}) {source masked on every hart: exactly-once delivery};\n'
+		ann += '\\draw[vbound, dashed, line width=0.9pt] (5,\\YTOP) -- (5,{\\YBOT-0.55});\n'
+		ann += '\\draw[vbound, dashed, line width=0.9pt] (11,\\YTOP) -- (11,{\\YBOT-0.55});\n'
+		ann += '\\draw[vbound, <->, >=Stealth] (5,{\\YBOT-0.55}) -- (11,{\\YBOT-0.55});\n'
+		ann += ('\\node[ann, below, text=vestaRedText] at (8,{\\YBOT-0.58}) '
+			'{source masked on every hart: exactly-once delivery};\n')
 		ann += '\\node[ann, align=left, anchor=north west] at (0,{\\YBOT-1.15})\n'
 		ann += '\t{The handler clears the level at the peripheral \\emph{before} the dispatcher completes;\\\\[-2pt]\n'
 		ann += '\t if the level is still high at COMPLETE the source simply re-pends.\\\\[-2pt]\n'
 		ann += '\t The \\textsf{handler} cell stands for many \\register{mclk} cycles of software.};\n'
 		s = '% Generated IRQROUTER claim/complete diagram\n'
-		s += self._cycleFigure('1.05cm', rows, 11, ann, shade=('5', '11'))
+		# HOUSE GREYS, FOR THIS FIGURE ONLY. tikz-timing fills a don't-care cell
+		# in a flat 50 percent gray, which is a grey the manual does not have and
+		# which lands as the darkest thing on the page. The group below puts it
+		# on the palette without leaking the change into the other figures drawn
+		# through the same shared helper.
+		s += '\\begingroup\n'
+		s += '\\tikzset{timing/u/background/.style={draw=none, fill=black!15}}%\n'
+		s += self._cycleFigure('1.05cm', rows, 11, ann)
+		s += '\\endgroup\n'
 		self._writeInclude('IrqClaimCompleteDiagram.tex', s)
 		return
-
 	def GenerateIrqFabricDiagram(self):
 		'''include/IrqFabricDiagram.tex — the interrupt fabric of the whole chip
 		   in one landscape view: where every interrupt vector on the die comes
@@ -7805,28 +8000,35 @@ class LatexUserGuide():
 			+ ', meip=' + str(meipVec) + ', msip=' + str(msipVec) + ', mtip=' + str(mtipVec)
 			+ ', enableWords=' + str(nWords) + ', elided=' + str(elided)
 			+ ', types=' + str([(x['label'], x['n'], x['stack']) for x in srcs]) + ')\n')
+		# Every style below is the house figure theme, aliased to the short local
+		# names this emitter already used, so the fabric is drawn in the same
+		# greyscale-on-white the rest of the manual's figures are.
+		# The one colour is the accent, and it is spent on the bypass rails.
 		s += '\\begin{tikzpicture}[\n'
-		s += '\thd/.style={font=\\sffamily\\scriptsize, align=center, inner sep=1pt, anchor=north},\n'
-		s += '\tbc/.style={font=\\sffamily\\scriptsize, align=center, inner sep=1pt},\n'
-		s += '\tsig/.style={->, >=Stealth, semithick},\n'
-		# The bypass rails are the heaviest stroke in the drawing on purpose:
-		# at 1.5 pt they read as one more box border on the whole-page view.
-		s += '\trail/.style={line width=1.9pt, black!70},\n'
-		s += ('\ttyp/.style={font=\\sffamily\\large\\itshape, black!55, align=left, '
-			'inner sep=1.5pt, anchor=south west},\n')
-		s += ('\tlane/.style={font=\\sffamily\\scriptsize, align=center, fill=white, '
-			'inner sep=1.5pt, anchor=south},\n')
-		s += ('\tnote/.style={font=\\sffamily\\scriptsize, black!60, align=left, '
-			'inner sep=1.5pt, anchor=north west}]\n')
+		s += '\thd/.style={vhd},\n'
+		s += '\tbc/.style={vbc},\n'
+		s += '\tsig/.style={vflow},\n'
+		# The bypass rails are the heaviest stroke in the drawing on purpose,
+		# and they are the one path this figure exists to teach, so they are
+		# the red one: a boundary weight the eye follows round the router.
+		s += '\trail/.style={vbound, line width=1.6pt},\n'
+		s += ('\ttyp/.style={vgroup, fill=none, font=\\sffamily\\large\\itshape, '
+			'anchor=south west},\n')
+		s += '\tlane/.style={vbc, fill=white, anchor=south},\n'
+		s += ('\tnote/.style={vbc, text=black!55, align=left, inner sep=1.5pt, '
+			'anchor=north west}]\n')
 
-		def frame(cx, yTop, w, h, fill, opts='thick'):
-			return ('\\draw[' + opts + ', fill=' + fill + '] (' + P(cx - w / 2.0) + ', '
+		# Every rectangle in the drawing goes through here and names a theme
+		# style, so there is exactly one corner radius and one stroke weight for
+		# ordinary boxes in the figure and no fill is ever spelled inline.
+		def frame(cx, yTop, w, h, style):
+			return ('\\draw[' + style + '] (' + P(cx - w / 2.0) + ', '
 				+ P(yTop - h) + ') rectangle (' + P(cx + w / 2.0) + ', ' + P(yTop) + ');\n')
 
-		def shadows(cx, yTop, w, h, n, fill, opts='thick'):
+		def shadows(cx, yTop, w, h, n, style):
 			out = ''
 			for k in range(min(n, maxShadow) - 1, 0, -1):
-				out += frame(cx + stackDx * k, yTop + stackDy * k, w, h, fill, opts)
+				out += frame(cx + stackDx * k, yTop + stackDy * k, w, h, style)
 			return out
 
 		def head(cx, yTop, w, title, sub=None):
@@ -7847,22 +8049,25 @@ class LatexUserGuide():
 
 		# ---- the router spine -------------------------------------------------
 		hRtr = yRtrT - yRtrB
-		s += frame(xRtrC, yRtrT, wRtr, hRtr, 'black!8')
+		# The spine is the faintest fill in the theme, not a grey slab: it is a
+		# container for the rows and the claim box, and the paper it stands on
+		# has to stay white for the rows inside it to read as boxes at all.
+		s += frame(xRtrC, yRtrT, wRtr, hRtr, 'vblocklt')
 		s += head(xRtrC, yRtrT, wRtr, 'IRQROUTER', rtrSub)
-		s += ('\\draw[semithick, black!45] (' + P(xRtrL) + ', ' + P(yRtrT - hHead) + ') -- ('
+		s += ('\\draw[vwire, draw=black!35] (' + P(xRtrL) + ', ' + P(yRtrT - hHead) + ') -- ('
 			+ P(xRtrR) + ', ' + P(yRtrT - hHead) + ');\n')
 		s += ('\\node[bc, text width=' + P(wRtr - 0.30) + 'cm] at (' + P(xRtrC) + ', '
 			+ P(yRtrT - hHead - hRowHd / 2.0) + ') {' + rowHeadTx + '};\n')
 		wRow = wRtr - 0.44
 		for i, h in enumerate(shown):
 			if h is None:
-				s += ('\\node[font=\\sffamily\\Large] at (' + P(xRtrC) + ', ' + P(yc[i])
-					+ ') {$\\cdots$};\n')
+				s += ('\\node[font=\\sffamily\\Large, text=black!55] at (' + P(xRtrC) + ', '
+					+ P(yc[i]) + ') {$\\cdots$};\n')
 				continue
-			s += frame(xRtrC, yc[i] + hRow / 2.0, wRow, hRow, 'white')
+			s += frame(xRtrC, yc[i] + hRow / 2.0, wRow, hRow, 'vblockw')
 			s += ('\\node[bc] at (' + P(xRtrC) + ', ' + P(yc[i]) + ') {' + rowTxt[h] + '};\n')
 		# the claim/pend/in-service machinery, one compact box
-		s += frame(xRtrC, yClaimT, wRow, hClaim, 'white')
+		s += frame(xRtrC, yClaimT, wRow, hClaim, 'vblockw')
 		s += head(xRtrC, yClaimT, wRow, 'Claim / Pend / In-Service', claimSub)
 		# ...and the ONE annotation this drawing carries
 		s += ('\\node[bc, text width=' + P(wRtr - 0.36) + 'cm] at (' + P(xRtrC) + ', '
@@ -7879,8 +8084,8 @@ class LatexUserGuide():
 		for i, sp in enumerate(srcs):
 			yT = ySrcT - i * (hSrc + gapSrc)
 			cy = yT - hSrc / 2.0
-			s += shadows(xSrcC - stackDx, yT, wSrc - stackDx * 2, hSrc, sp['stack'], 'white')
-			s += frame(xSrcC - stackDx, yT, wSrc - stackDx * 2, hSrc, 'white')
+			s += shadows(xSrcC - stackDx, yT, wSrc - stackDx * 2, hSrc, sp['stack'], 'vblockw')
+			s += frame(xSrcC - stackDx, yT, wSrc - stackDx * 2, hSrc, 'vblockw')
 			s += head(xSrcC - stackDx, yT, wSrc - stackDx * 2, sp['title'], sp['sub'])
 			s += ('\\draw[sig] (' + P(xSrcR - stackDx) + ', ' + P(cy) + ') -- (' + P(xRtrL)
 				+ ', ' + P(cy) + ');\n')
@@ -7893,7 +8098,9 @@ class LatexUserGuide():
 				+ str(sorted(x['label'] for x in srcs)) + ' with the CLINT outside it.')
 
 		# ---- the CLINT, and the two rails that go round the router ------------
-		s += frame(xSrcC, yClintT, wSrc, hClint, 'black!8')
+		# The CLINT is the one emphasised block in the figure: it is where the
+		# two rails that make the drawing's point come from.
+		s += frame(xSrcC, yClintT, wSrc, hClint, 'vblockem')
 		s += head(xSrcC, yClintT, wSrc, 'CLINT', clintTx)
 		# The bypass annotation sits UNDER the two rails, in the lane they run
 		# along, so it reads as a note on them and not on the router above.
@@ -7901,8 +8108,7 @@ class LatexUserGuide():
 			+ P(yByT) + ') {' + byTx + '};\n')
 		# The total: one grey strip across the whole drawing, which is where the
 		# source population and the bypass pair finally add up to one number.
-		s += ('\\draw[thick, fill=black!15] (' + P(xSrcL) + ', ' + P(yTotT - hTot)
-			+ ') rectangle (' + P(xRailB) + ', ' + P(yTotT) + ');\n')
+		s += frame((xSrcL + xRailB) / 2.0, yTotT, xRailB - xSrcL, hTot, 'vbar')
 		s += ('\\node[bc, text width=' + P(xRailB - xSrcL - 0.30) + 'cm] at ('
 			+ P((xSrcL + xRailB) / 2.0) + ', ' + P(yTotT - hTot / 2.0) + ') {' + totTx + '};\n')
 
@@ -7910,11 +8116,10 @@ class LatexUserGuide():
 		portM, portT = 0.26, 0.26
 		for i, h in enumerate(shown):
 			if h is None:
-				s += ('\\node[font=\\sffamily\\Large] at (' + P(xHartC) + ', ' + P(yc[i])
-					+ ') {$\\cdots$};\n')
+				s += ('\\node[font=\\sffamily\\Large, text=black!55] at (' + P(xHartC) + ', '
+					+ P(yc[i]) + ') {$\\cdots$};\n')
 				continue
-			s += frame(xHartC, yc[i] + hHart / 2.0, wHart, hHart, 'black!8',
-				'thick, rounded corners=2pt')
+			s += frame(xHartC, yc[i] + hHart / 2.0, wHart, hHart, 'vblock')
 			s += ('\\node[bc] at (' + P(xHartC) + ', ' + P(yc[i])
 				+ ') {{\\small\\bfseries hart ' + str(h) + '}};\n')
 			# meip, straight out of this hart's own routing row
@@ -7942,9 +8147,11 @@ class LatexUserGuide():
 		# a lane name is 13 mm wide: side by side they printed through each other.
 		s += ('\\node[lane] at (' + P((xRtrR + xHartL) / 2.0) + ', ' + P(yc[0] + 0.55)
 			+ ') {\\texttt{meip}\\\\ vector ' + str(meipVec) + '};\n')
-		s += ('\\node[lane] at (' + P(xRailA) + ', ' + P(yTopA)
+		# The two bypass lanes are named in the accent, because the name and the
+		# rail under it are the same fact.
+		s += ('\\node[lane, text=vestaRedText] at (' + P(xRailA) + ', ' + P(yTopA)
 			+ ') {\\texttt{msip}\\\\ vector ' + str(msipVec) + '};\n')
-		s += ('\\node[lane] at (' + P(xRailB) + ', ' + P(yTopB)
+		s += ('\\node[lane, text=vestaRedText] at (' + P(xRailB) + ', ' + P(yTopB)
 			+ ') {\\texttt{mtip}\\\\ vector ' + str(mtipVec) + '};\n')
 
 		s += '\\end{tikzpicture}\n'
@@ -7953,7 +8160,6 @@ class LatexUserGuide():
 			+ 'cm, aspect=' + P(W / hAll) + ')\n' + s.split('\n', 1)[1])
 		self._writeInclude('IrqFabricDiagram.tex', s)
 		return
-
 	def GenerateMutexClaimDiagram(self):
 		'''include/MutexClaimDiagram.tex — the return-old-and-claim read that
 		   makes the MUTEX bank a one-instruction lock (hdl/common/mutex_bank.vhd).
@@ -7982,14 +8188,32 @@ class LatexUserGuide():
 			('5U D{' + str(lo + 1) + '} 3U',                             'hart ' + hiS + ' result'),
 		]
 		ann = ''
+		# THE RED IS THE ONE CLAIM THIS FIGURE TRACES. Everything in the drawing
+		# turns on a single mclk edge: the one where hart LO's read returns 0,
+		# the owner word goes from free to owned, and hart HI's later read is
+		# therefore answered with a marker instead. That edge is the figure's
+		# only red stroke, drawn in the same grammar the whole-chip figure uses
+		# red in, and the bold zero in the note below is coloured with it so the
+		# note names the mark rather than sitting beside it.
+		ann += '\\draw[vbound, dashed] (3,\\YTOP) -- (3,\\YBOT);\n'
 		ann += '\\node[ann, align=left, anchor=north west] at (0,{\\YBOT-0.35})\n'
-		ann += '\t{\\textbf{0} = the mutex was free and is now yours. A non-zero result is the holder\'s\\\\[-2pt]\n'
+		ann += ('\t{\\textcolor{vestaRedText}{\\textbf{0}} = the mutex was free and is now yours. '
+			'A non-zero result is the holder\'s\\\\[-2pt]\n')
 		ann += '\t \\register{mhartid}$+1$, so hart ' + hiS + ' must back off and retry. Release with \\asminline{sw x0}.};\n'
 		s = '% Generated MUTEX claim/release diagram\n'
+		# HOUSE THEME, FOR THIS FIGURE ONLY. tikz-timing draws a don't-care cell
+		# in a flat 50 percent gray and a bus cell unfilled, which is two greys
+		# the manual does not have; this puts both on the palette (black!15 and
+		# black!3) so a hart's idle bus recedes behind the instruction it issues.
+		# It is scoped so the SPI, UART and I2C figures, which come through the
+		# same shared helper, are untouched.
+		s += '\\begingroup\n'
+		s += '\\tikzset{timing/u/background/.style={draw=none, fill=black!15},\n'
+		s += '\t timing/d/background/.style={draw=none, fill=black!3}}%\n'
 		s += self._cycleFigure('1.15cm', rows, 8, ann)
+		s += '\\endgroup\n'
 		self._writeInclude('MutexClaimDiagram.tex', s)
 		return
-
 	def GeneratePowerDomainDiagram(self):
 		'''include/PowerDomainDiagram.tex — the chip's power architecture: ONE
 		   always-on domain and N-1 switched tile rails, and what a PWRCR gate
@@ -8028,6 +8252,17 @@ class LatexUserGuide():
 		   MODEL (generate.py's PWRGATE / PWRH0 bit fields, the same source
 		   MemoryMap.h's PWRGATE_MASK comes from). The tile columns are checked
 		   against N-1 including the elided ones.
+
+		   THE THEME IS THE MANUAL'S, AND RED IS THE BOUNDARY. This figure draws
+		   from the v-styles in packages-commands and spends no grey of its own.
+		   It used to sit on four full-bleed grey bands, which is the single
+		   thing that made the generated figures read as machine output; the
+		   always-on side is now a thin dashed region over white paper and the
+		   switched side is a red outline, because a power domain is a real
+		   boundary and red is what this manual spends on a boundary (Figure
+		   \\ref{fig:chip-system-flat-diagram} draws the package edge and nothing
+		   else in red). The domain's own name is therefore the red label, and
+		   the boundary label sits on the edge it names.
 
 		   LAYOUT is a GRID, and that is the whole readability argument: the four
 		   horizontal layers are the mechanism (clamps / header switches / the
@@ -8141,34 +8376,40 @@ class LatexUserGuide():
 		s = '% Generated power-domain diagram (numHarts=' + str(N) + ', orchestrator='
 		s += ('yes' if orch else 'no') + ', gate mask ' + fmthex(drawnMask, minDigits=2) + ')\n'
 		s += '\\begin{tikzpicture}[\n'
-		s += '\tblk/.style={draw, thick, align=center, fill=white, font=\\sffamily\\small},\n'
-		s += '\tunit/.style={blk, fill=black!12},\n'
-		s += '\taob/.style={blk, fill=black!6},\n'
-		s += '\tclamp/.style={blk, fill=black!16, font=\\sffamily\\scriptsize},\n'
-		s += '\thead/.style={blk, fill=black!22, font=\\sffamily\\scriptsize},\n'
-		s += '\tcore/.style={blk, fill=white, font=\\sffamily\\scriptsize},\n'
-		s += '\ttcm/.style={blk, fill=black!8, font=\\sffamily\\scriptsize},\n'
-		s += '\tcell/.style={draw, thick, fill=white, font=\\sffamily\\scriptsize, '
+		s += '\tblk/.style={vblockw, align=center, font=\\sffamily\\small},\n'
+		s += '\tunit/.style={vblockem, align=center, font=\\sffamily\\small},\n'
+		s += '\taob/.style={vblocklt, align=center, font=\\sffamily\\small},\n'
+		s += '\tclamp/.style={vblock, align=center, font=\\sffamily\\scriptsize},\n'
+		s += '\thead/.style={vbar, rounded corners=2pt, align=center, '
+		s += 'font=\\sffamily\\scriptsize},\n'
+		s += '\tcore/.style={vblockw, align=center, font=\\sffamily\\scriptsize},\n'
+		s += '\ttcm/.style={vblocklt, align=center, font=\\sffamily\\scriptsize},\n'
+		s += '\tcell/.style={vblockw, font=\\sffamily\\scriptsize, '
 		s += 'minimum height=' + P(cellH) + 'cm, inner sep=0pt},\n'
-		s += '\tctrl/.style={->, >=Stealth, thick},\n'
-		s += '\tban/.style={font=\\sffamily\\small\\bfseries, black!60},\n'
-		s += '\tlab/.style={font=\\sffamily\\scriptsize, align=left},\n'
-		s += '\tkey/.style={draw, thick, dashed, align=left, font=\\sffamily\\scriptsize, '
-		s += 'fill=white, inner sep=4pt}]\n'
+		s += '\tctrl/.style={vflow},\n'
+		s += '\tban/.style={vgroup, align=center},\n'
+		s += '\tlab/.style={vbc, align=left},\n'
+		s += '\tkey/.style={vregion, fill=white, align=left, font=\\sffamily\\scriptsize, '
+		s += 'inner sep=4pt}]\n'
 
-		# ---- the two bands, drawn first so everything sits on top of them
-		s += '\\fill[black!7] (0, ' + P(yBnd) + ') rectangle (' + P(W) + ', ' + P(yTop) + ');\n'
-		s += '\\fill[black!14] (0, ' + P(yBan) + ') rectangle (' + P(W) + ', ' + P(yTop) + ');\n'
-		s += '\\fill[black!3] (0, ' + P(ySwB) + ') rectangle (' + P(W) + ', ' + P(yBnd) + ');\n'
-		s += '\\fill[black!10] (0, ' + P(ySwB) + ') rectangle (' + P(W) + ', ' + P(ySwBan) + ');\n'
+		# ---- the two domains, drawn first so everything sits on top of them.
+		# Neither is a filled band. A full-bleed grey rectangle behind a figure
+		# is the one thing that makes a generated drawing read as machine
+		# output, so the always-on side is a thin dashed region over white
+		# paper and the switched side is what red is for in this manual: a real
+		# boundary, drawn the way the whole-chip figure draws the package edge.
+		s += '\\draw[vregion] (0, ' + P(yBnd) + ') rectangle (' + P(W) + ', ' + P(yTop) + ');\n'
+		s += '\\draw[vbound, rounded corners=3pt] (0, ' + P(ySwB) + ') rectangle ('
+		s += P(W) + ', ' + P(yBnd) + ');\n'
 		s += '\\node[ban] at (' + P(W / 2.0) + ', ' + P((yBan + yTop) / 2.0) + ') '
 		s += '{the always-on domain: \\texttt{VDD}, never switched};\n'
-		s += '\\node[ban] at (' + P(W / 2.0) + ', ' + P((ySwB + ySwBan) / 2.0) + ') '
+		s += '\\node[vredlab, align=center, fill=white, inner sep=1.5pt] at ('
+		s += P(W / 2.0) + ', ' + P((ySwB + ySwBan) / 2.0) + ') '
 		s += '{' + _numberWord(len(tiles)) + ' switched tile rails: \\texttt{VDD\\_SW}, '
 		s += 'one per channel tile, each gated on its own};\n'
-		# THE boundary: a real line, labelled, with the one true claim on it
-		s += '\\draw[line width=1.4pt, black!60] (0, ' + P(yBnd) + ') -- (' + P(W) + ', ' + P(yBnd) + ');\n'
-		s += '\\node[font=\\sffamily\\scriptsize\\bfseries, black!60, fill=black!5, inner sep=2pt] '
+		# THE boundary is the red rectangle's own top edge, and it carries the
+		# one true claim on it.
+		s += '\\node[vredlab, font=\\sffamily\\scriptsize\\bfseries, fill=white, inner sep=2pt] '
 		s += 'at (' + P(W - 3.10) + ', ' + P(yBnd) + ') {the power-domain boundary};\n'
 
 		# ---- band A: hart 0, the fabric it shares, and the controller
@@ -8207,19 +8448,19 @@ class LatexUserGuide():
 		for role, b, w in strip:
 			cx = xc + w / 2.0
 			if role == 'reserved':
-				body, fill, tick = '{\\textbf{31:' + str(N) + '}}', 'fill=black!5', 'resv'
+				body, fill, tick = '{\\textbf{31:' + str(N) + '}}', 'fill=black!3', 'resv'
 			elif role == 'ro':
-				body, fill, tick = '{\\textbf{0}}', 'fill=black!30', 'hart 0'
+				body, fill, tick = '{\\textbf{0}}', 'fill=black!15', 'hart 0'
 			else:
-				body, fill, tick = '{\\textbf{' + str(b) + '}}', 'fill=black!12', 'tile ' + str(b)
+				body, fill, tick = '{\\textbf{' + str(b) + '}}', 'fill=black!8', 'tile ' + str(b)
 			s += '\\node[cell, ' + fill + ', minimum width=' + P(w) + 'cm] at ('
 			s += P(cx) + ', ' + P(yStrip) + ') ' + body + ';\n'
-			s += '\\node[font=\\sffamily\\tiny, rotate=90, anchor=east] at (' + P(cx) + ', '
+			s += '\\node[vsm, rotate=90, anchor=east] at (' + P(cx) + ', '
 			s += P(yStrip - 0.36) + ') {' + tick + '};\n'
 			xc += w
 		s += '\\node[lab, anchor=west, text width=' + P(noteW) + 'cm] at ('
 		s += P(xStrip0 + stripW + 0.30) + ', ' + P(yStrip) + ') '
-		s += '{\\register{PWRCR}: bits 1--' + str(N - 1) + ' (mask \\texttt{'
+		s += '{\\register{PWRCR}: bits 1 to ' + str(N - 1) + ' (mask \\texttt{'
 		s += fmthex(drawnMask, minDigits=2) + '}) request a gate; bit 0 is read-only 0, because '
 		s += 'hart 0 has no domain to switch.};\n'
 
@@ -8251,7 +8492,7 @@ class LatexUserGuide():
 		s += '\\register{PWRSR} $h$: 0 ON, 1 ISO, 2 RSTOFF, 3 OFF, 4 RAIL, 5 UNISO};\n'
 
 		# ---- the always-on control riser, and its four reaches
-		s += '\\draw[thick] (pwr.south) -- (' + P((pwX0 + pwX1) / 2.0) + ', ' + P(yRis)
+		s += '\\draw[vwire] (pwr.south) -- (' + P((pwX0 + pwX1) / 2.0) + ', ' + P(yRis)
 		s += ') -- (' + P(xRis) + ', ' + P(yRis) + ') -- (' + P(xRis) + ', '
 		s += P((yTcT + yTcB) / 2.0) + ');\n'
 		for yA, yB in ((yClT, yClB), (yHdT, yHdB), (yCoT, yCoB), (yTcT, yTcB)):
@@ -8261,14 +8502,14 @@ class LatexUserGuide():
 		# ---- the columns: one per channel tile, four layers deep
 		for t, cx, w in cols:
 			if t is None:
-				s += '\\node[font=\\sffamily\\scriptsize, align=center] at (' + P(cx) + ', '
+				s += '\\node[vbc] at (' + P(cx) + ', '
 				s += P(yHead) + ') {' + str(elided) + '\\\\ more};\n'
 				for y in ((yClT + yClB) / 2.0, (yHdT + yHdB) / 2.0,
 						(yCoT + yCoB) / 2.0, (yTcT + yTcB) / 2.0):
-					s += '\\node[font=\\sffamily\\Large] at (' + P(cx) + ', ' + P(y) + ') {$\\cdots$};\n'
+					s += '\\node[vbc, font=\\sffamily\\Large] at (' + P(cx) + ', ' + P(y) + ') {$\\cdots$};\n'
 				continue
 			ts = str(t)
-			s += '\\node[font=\\sffamily\\scriptsize, align=center] at (' + P(cx) + ', ' + P(yHead)
+			s += '\\node[vbc] at (' + P(cx) + ', ' + P(yHead)
 			s += ') {\\textbf{tile ' + ts + '}\\\\ {\\tiny \\register{PWRCR} bit ' + ts
 			s += ' $\\cdot$ \\register{PWRSR} nibble ' + ts + '}};\n'
 			s += '\\node[clamp, minimum width=' + P(w) + 'cm, minimum height=' + P(yClT - yClB)
@@ -8287,8 +8528,6 @@ class LatexUserGuide():
 		s += '\\end{tikzpicture}\n'
 		self._writeInclude('PowerDomainDiagram.tex', s)
 		return
-
-
 	def GenerateTimerCaptureDiagram(self):
 		'''include/TimerCaptureDiagram.tex — input capture (TIMER chapter had no
 		   figure for it). Bit-field names are the GENERATED ones (CAP0EN/CAP0FE/
@@ -8302,16 +8541,27 @@ class LatexUserGuide():
 			('3L 4H L',         '\\bitfield{CAP0IF}'),
 		]
 		ann = ''
-		ann += '\\draw[gray!65] (3,\\YTOP) -- (3,{\\YTOP+0.35});\n'
-		ann += '\\node[ann, above] at (3,{\\YTOP+0.33}) {capture edge (\\bitfield{CAP0FE} $=0$: rising)};\n'
+		# The capture edge is the one event the figure is about, so its tick and
+		# its name carry the accent and everything else stays greyscale.
+		ann += '\\draw[vbound, dashed, line width=0.9pt] (3,\\YTOP) -- (3,\\YBOT);\n'
+		ann += '\\draw[vbound] (3,\\YTOP) -- (3,{\\YTOP+0.35});\n'
+		ann += ('\\node[ann, above, text=vestaRedText] at (3,{\\YTOP+0.33}) '
+			'{capture edge (\\bitfield{CAP0FE} $=0$: rising)};\n')
 		ann += '\\node[ann, align=left, anchor=north west] at (0,{\\YBOT-0.35})\n'
 		ann += '\t{The edge latches \\register{TIMxVAL} into \\register{TIMxCAP0} and sets \\bitfield{CAP0IF}.\\\\[-2pt]\n'
 		ann += '\t Clear the flag by writing 1 to it in \\register{TIMxSR} before the next capture.};\n'
 		s = '% Generated timer input-capture diagram\n'
+		# HOUSE GREYS, FOR THIS FIGURE ONLY. tikz-timing fills a don't-care cell
+		# in a flat 50 percent gray, which is a grey the manual does not have and
+		# which lands as the darkest thing on the page. The group below puts it
+		# on the palette without leaking the change into the other figures drawn
+		# through the same shared helper.
+		s += '\\begingroup\n'
+		s += '\\tikzset{timing/u/background/.style={draw=none, fill=black!15}}%\n'
 		s += self._cycleFigure('1.20cm', rows, 7, ann)
+		s += '\\endgroup\n'
 		self._writeInclude('TimerCaptureDiagram.tex', s)
 		return
-
 	def _writeInclude(self, name, contents):
 		if not os.path.isdir(self.IncludeDirectory):
 			os.makedirs(self.IncludeDirectory)
@@ -8415,69 +8665,72 @@ class LatexUserGuide():
 
 		s = '% Generated debug stack block diagram (numHarts=' + str(N) + ')\n'
 		s += '\\begin{tikzpicture}[\n'
-		s += '\tblk/.style={draw, thick, align=center, fill=white, font=\\sffamily\\small},\n'
-		s += '\ttile/.style={blk, fill=black!6},\n'
+		s += '\tblk/.style={vblockw, align=center, font=\\sffamily\\small},\n'
+		s += '\ttile/.style={vblock, align=center, font=\\sffamily\\small},\n'
 		if orch:
 			# emitted only where it is used, so a configuration without an
 			# orchestrator keeps a byte-identical include
-			s += '\torch/.style={blk, fill=black!14},\n'
-		s += '\tunit/.style={blk, fill=black!12},\n'
-		s += '\tpage/.style={blk, fill=black!25, font=\\sffamily\\scriptsize},\n'
-		s += '\tbus/.style={<->, >=Stealth, thick},\n'
-		s += '\tsig/.style={->, >=Stealth, thick},\n'
-		s += '\tcross/.style={->, >=Stealth, line width=1.6pt},\n'
-		s += '\tban/.style={font=\\sffamily\\small\\bfseries, black!60},\n'
-		s += '\tlab/.style={font=\\sffamily\\scriptsize, align=center},\n'
-		s += '\tvrb/.style={font=\\sffamily\\scriptsize, align=left}]\n'
+			s += '\torch/.style={vblockem, align=center, font=\\sffamily\\small},\n'
+		s += '\tunit/.style={vblock, align=center, font=\\sffamily\\small},\n'
+		s += '\tmem/.style={vblocklt, align=center, font=\\sffamily\\small},\n'
+		s += '\tbar/.style={vbar, align=center, font=\\sffamily\\small},\n'
+		s += '\tpage/.style={vblockem, align=center, font=\\sffamily\\scriptsize},\n'
+		s += '\tbus/.style={vbus},\n'
+		s += '\tsig/.style={vflow},\n'
+		s += '\tcross/.style={vflow, line width=1.2pt},\n'
+		s += '\tban/.style={vgroup, align=center},\n'
+		s += '\twall/.style={vredlab, align=center, fill=white, inner sep=2pt},\n'
+		s += '\tlab/.style={vbc, fill=white},\n'
+		s += '\tnote/.style={vnote, align=center},\n'
+		s += '\tvrb/.style={vbc, align=left}]\n'
 
-		# ---- the three bands, drawn first so everything else sits on top
-		s += '\\fill[black!8] (' + P(aX0) + ', ' + P(yBot) + ') rectangle (' + P(aX1) + ', ' + P(yTop) + ');\n'
-		s += '\\fill[black!4] (' + P(wX1) + ', ' + P(yBot) + ') rectangle (' + P(bX1) + ', ' + P(yTop) + ');\n'
-		s += '\\fill[black!4] (' + P(wX0) + ', ' + P(yBot) + ') rectangle (' + P(wX1) + ', ' + P(yTop) + ');\n'
-		# The wall reads as a real barrier: hatched masonry, in THREE segments
-		# with a gap at each crossing height. The gaps are the point of the
-		# figure -- the only two signals in the design that cross this line
-		# are the two that pass through them.
+		# ---- the two sides, and the wall between them.
+		# These are outlines, not fills, so the paper stays white: a full-bleed
+		# grey band behind a figure is the single thing that made these
+		# drawings read as machine output rather than as a drawing.
+		s += '\\draw[vregion] (' + P(aX0) + ', ' + P(yBot) + ') rectangle (' + P(aX1) + ', ' + P(yTop) + ');\n'
+		s += '\\draw[vregion] (' + P(wX1) + ', ' + P(yBot) + ') rectangle (' + P(bX1) + ', ' + P(yTop) + ');\n'
+		# The wall is a genuine boundary, so it is the red one, in the same
+		# grammar the whole-chip figure uses red in (that figure draws the
+		# package boundary and nothing else in red).
+		# It is drawn in THREE segments with a gap at each crossing height.
+		# The gaps are the point of the figure: the only two signals in the
+		# design that cross this line are the two that pass through them, and
+		# those two are the only red arrows here.
+		wallX = (wX0 + wX1) / 2.0
 		for (y0, y1) in [(yBot, yRsp - gap), (yRsp + gap, yReq - gap), (yReq + gap, yTop)]:
-			s += '\\fill[black!22] (' + P(wX0) + ', ' + P(y0) + ') rectangle (' + P(wX1) + ', ' + P(y1) + ');\n'
-			s += '\\begin{scope}\n'
-			s += '\\clip (' + P(wX0) + ', ' + P(y0) + ') rectangle (' + P(wX1) + ', ' + P(y1) + ');\n'
-			s += '\\foreach \\i in {0,...,' + str(int((y1 - y0) / 0.42) + 3) + '} {\n'
-			s += '\t\\draw[black!45, line width=0.5pt] (' + P(wX0) + ', ' + P(y0 - 0.90) + '+\\i*0.42) -- (' + P(wX1) + ', ' + P(y0) + '+\\i*0.42);\n'
-			s += '}\n'
-			s += '\\end{scope}\n'
-			s += '\\draw[black!45, line width=0.9pt] (' + P(wX0) + ', ' + P(y0) + ') -- (' + P(wX0) + ', ' + P(y1) + ');\n'
-			s += '\\draw[black!45, line width=0.9pt] (' + P(wX1) + ', ' + P(y0) + ') -- (' + P(wX1) + ', ' + P(y1) + ');\n'
-		# banners
-		s += '\\fill[black!18] (' + P(aX0) + ', ' + P(yBan) + ') rectangle (' + P(aX1) + ', ' + P(yTop) + ');\n'
-		s += '\\fill[black!12] (' + P(wX1) + ', ' + P(yBan) + ') rectangle (' + P(bX1) + ', ' + P(yTop) + ');\n'
+			s += '\\draw[vbound, dashed] (' + P(wallX) + ', ' + P(y0) + ') -- (' + P(wallX) + ', ' + P(y1) + ');\n'
+		# Headings sit on a thin rule inside each region rather than on a
+		# filled banner strip.
+		s += '\\draw[black!35, line width=0.5pt] (' + P(aX0) + ', ' + P(yBan) + ') -- (' + P(aX1) + ', ' + P(yBan) + ');\n'
+		s += '\\draw[black!35, line width=0.5pt] (' + P(wX1) + ', ' + P(yBan) + ') -- (' + P(bX1) + ', ' + P(yBan) + ');\n'
 		s += '\\node[ban] at (' + P(aCx) + ', ' + P((yBan + yTop) / 2.0) + ') {the \\register{TCK} side};\n'
 		s += '\\node[ban] at (' + P((wX1 + bX1) / 2.0) + ', ' + P((yBan + yTop) / 2.0) + ') {the chip: everything here runs on \\register{mclk}};\n'
-		s += '\\node[ban, rotate=90] at (' + P((wX0 + wX1) / 2.0) + ', 1.30) {clock-domain crossing};\n'
+		s += '\\node[wall, rotate=90] at (' + P(wallX) + ', 1.30) {clock-domain crossing};\n'
 
 		# ---- band A: the probe, its five pins, and the transport
 		s += '\\node[blk, dashed, minimum width=3.5cm, minimum height=1.05cm] (probe) at (' + P(aCx) + ', 8.20) {external\\\\ debug probe};\n'
 		s += '\\node[unit, minimum width=4.1cm, minimum height=3.10cm] (dtm) at (' + P(aCx) + ', 4.55) {\\textbf{dtm0}\\\\ TAP $+$ transport\\\\[2pt] \\scriptsize the sixteen-state port,\\\\ \\scriptsize the instruction register,\\\\ \\scriptsize and the \\register{dmi} shift register};\n'
 		s += '\\draw[bus] (probe.south) -- (dtm.north);\n'
-		s += '\\node[lab, fill=black!8, inner sep=2pt] at (' + P(aCx) + ', 7.05) {\\textbf{5 pins}\\\\ \\pin{TCK} \\pin{TMS} \\pin{TDI}\\\\ \\pin{TDO} \\pin{TRSTn}};\n'
-		s += '\\node[lab] at (' + P(aCx) + ', 1.30) {\\textit{on the chip, but clocked by}\\\\ \\textit{the probe: nothing in this}\\\\ \\textit{band moves unless \\pin{TCK} does}};\n'
+		s += '\\node[lab, inner sep=2pt] at (' + P(aCx) + ', 7.05) {\\textbf{5 pins}\\\\ \\pin{TCK} \\pin{TMS} \\pin{TDI}\\\\ \\pin{TDO} \\pin{TRSTn}};\n'
+		s += '\\node[note] at (' + P(aCx) + ', 1.30) {on the chip, but clocked by\\\\ the probe: nothing in this\\\\ band moves unless \\pin{TCK} does};\n'
 
 		# ---- the two crossings: one toggle each way, payload held still
 		s += '\\draw[cross] (' + P(dtmX1) + ', ' + P(yReq) + ') -- (' + P(junX0) + ', ' + P(yReq) + ');\n'
 		s += '\\draw[cross, rounded corners] (' + P(dmCx - 1.00) + ', ' + P(yDmBot) + ') -- (' + P(dmCx - 1.00) + ', ' + P(yRsp) + ') -- (' + P(dtmX1) + ', ' + P(yRsp) + ');\n'
-		s += '\\node[lab, fill=black!4, inner sep=2.5pt] at (7.95, ' + P(yReq) + ') {\\register{req\\_tgl} $+$ a 41-bit request};\n'
-		s += '\\node[lab, fill=black!4, inner sep=2.5pt] at (7.95, ' + P(yRsp) + ') {\\register{rsp\\_tgl} $+$ a 34-bit response};\n'
-		s += '\\node[lab] at (7.95, ' + P((yReq + yRsp) / 2.0) + ') {\\textit{two signals, and no others:}\\\\ \\textit{each payload is held still}\\\\ \\textit{while its toggle crosses}};\n'
+		s += '\\node[lab, inner sep=2.5pt] at (7.95, ' + P(yReq) + ') {\\register{req\\_tgl} $+$ a 41-bit request};\n'
+		s += '\\node[lab, inner sep=2.5pt] at (7.95, ' + P(yRsp) + ') {\\register{rsp\\_tgl} $+$ a 34-bit response};\n'
+		s += '\\node[note] at (7.95, ' + P((yReq + yRsp) / 2.0) + ') {two signals, and no others:\\\\ each payload is held still\\\\ while its toggle crosses};\n'
 
 		# ---- the merge, the raw ports, and the one Debug Module
 		s += '\\node[unit, minimum width=' + P(junX1 - junX0) + 'cm, minimum height=1.35cm, font=\\sffamily\\scriptsize] (jun) at (' + P((junX0 + junX1) / 2.0) + ', ' + P(yDm) + ') {\\textbf{either master}\\\\ drives the same port};\n'
 		s += '\\node[blk, dashed, minimum width=3.2cm, minimum height=1.0cm, font=\\sffamily\\scriptsize] (ext) at (' + P((junX0 + junX1) / 2.0) + ', 8.20) {raw \\register{dmi\\_*} ports\\\\ (what a bench drives)};\n'
 		s += '\\draw[sig] (ext.south) -- (jun.north);\n'
 		s += '\\node[unit, minimum width=' + P(dmX1 - dmX0) + 'cm, minimum height=1.90cm] (dm) at (' + P(dmCx) + ', ' + P(yDm) + ') {\\textbf{dm0}\\\\ the Debug Module\\\\ \\scriptsize one, for the whole chip};\n'
-		s += '\\draw[cross] (jun.east) -- (dm.west);\n'
+		s += '\\draw[sig] (jun.east) -- (dm.west);\n'
 
 		# ---- the fabric: one arbiter, N tiles, the shared RAM, the page
-		s += '\\node[blk, fill=black!15, minimum width=' + P(arbX1 - arbX0) + 'cm, minimum height=' + P(arbH) + 'cm] (arb) at (' + P((arbX0 + arbX1) / 2.0) + ', ' + P(yArb) + ') {\\textbf{mp\\_arbiter}: ' + str(N) + ' harts and \\textbf{dm0}, all masters on one shared bus};\n'
+		s += '\\node[bar, minimum width=' + P(arbX1 - arbX0) + 'cm, minimum height=' + P(arbH) + 'cm] (arb) at (' + P((arbX0 + arbX1) / 2.0) + ', ' + P(yArb) + ') {\\textbf{mp\\_arbiter}: ' + str(N) + ' harts and \\textbf{dm0}, all masters on one shared bus};\n'
 		for t, tcx, w in xs:
 			if t is None:
 				s += '\\node[font=\\sffamily\\Large] at (' + P(tcx) + ', ' + P(yTile) + ') {$\\cdots$};\n'
@@ -8490,14 +8743,14 @@ class LatexUserGuide():
 			s += '\\node[' + style + ', minimum width=' + P(w) + 'cm, minimum height=' + P(tileH) + 'cm, font=\\sffamily\\scriptsize] (t' + str(t) + ') at (' + P(tcx) + ', ' + P(yTile) + ') ' + body + ';\n'
 			s += '\\draw[bus] (' + P(tcx) + ', ' + P(yTile + tileH / 2.0) + ') -- (' + P(tcx) + ', ' + P(yArb - arbH / 2.0) + ');\n'
 			s += '\\draw[bus] (' + P(tcx) + ', ' + P(yTrunk) + ') -- (' + P(tcx) + ', ' + P(yTile - tileH / 2.0) + ');\n'
-		s += '\\node[blk, fill=black!8, minimum width=' + P(ramW) + 'cm, minimum height=1.75cm] (ram) at (' + P(ramCx) + ', 1.03) {};\n'
-		s += '\\node[font=\\sffamily\\scriptsize] at (' + P(ramCx) + ', 1.62) {shared RAM \\texttt{0x10000}};\n'
-		s += '\\node[page, minimum width=' + P(ramW - 0.40) + 'cm, minimum height=0.62cm] (pg) at (' + P(ramCx) + ', 0.85) {\\textbf{debug program page}\\\\ \\texttt{0x10680}--\\texttt{0x1087F}};\n'
+		s += '\\node[mem, minimum width=' + P(ramW) + 'cm, minimum height=1.75cm] (ram) at (' + P(ramCx) + ', 1.03) {};\n'
+		s += '\\node[vbc] at (' + P(ramCx) + ', 1.62) {shared RAM \\texttt{0x10000}};\n'
+		s += '\\node[page, minimum width=' + P(ramW - 0.40) + 'cm, minimum height=0.62cm] (pg) at (' + P(ramCx) + ', 0.85) {\\textbf{debug program page}\\\\ \\texttt{0x10680} to \\texttt{0x1087F}};\n'
 		s += '\\draw[bus] (' + P(ramCx) + ', 1.90) -- (' + P(ramCx) + ', ' + P(yArb - arbH / 2.0) + ');\n'
 
 		# ---- dm0's three reaches, each an arm of its own, each a verb
 		# 1. run control: direct wires, down the outside and along under the tiles
-		s += '\\draw[thick, rounded corners] (' + P(dmCx + 0.10) + ', ' + P(yDmBot) + ') -- (' + P(dmCx + 0.10) + ', 3.45) -- (' + P(trunkX) + ', 3.45) -- (' + P(trunkX) + ', ' + P(yTrunk) + ') -- (' + P(xs[-1][1]) + ', ' + P(yTrunk) + ');\n'
+		s += '\\draw[vwire, rounded corners] (' + P(dmCx + 0.10) + ', ' + P(yDmBot) + ') -- (' + P(dmCx + 0.10) + ', 3.45) -- (' + P(trunkX) + ', 3.45) -- (' + P(trunkX) + ', ' + P(yTrunk) + ') -- (' + P(xs[-1][1]) + ', ' + P(yTrunk) + ');\n'
 		s += '\\node[lab, anchor=west] at (' + P(trunkX) + ', ' + P(yTrunk - 0.62) + ') {\\textbf{halts and resumes} every hart: \\register{haltreq} / \\register{resumereq} out, \\register{halted} / \\register{unavail} back, on direct wires};\n'
 		# 2. memory: one more master on the arbiter
 		s += '\\draw[bus] (' + P(dmCx + 1.10) + ', ' + P(yDmBot) + ') -- (' + P(dmCx + 1.10) + ', ' + P(yArb + arbH / 2.0) + ');\n'
@@ -8508,12 +8761,6 @@ class LatexUserGuide():
 		s += '\\end{tikzpicture}\n'
 		self._writeInclude('DebugStackDiagram.tex', s)
 		return
-
-	# TAP state names and the transition table, TRANSCRIBED from
-	# hdl/common/jtag_dtm.vhd:185-200 (the ST_* encoding) and :204-208 (the
-	# TAP_NEXT aggregate, which that file in turn transcribed from Spike
-	# jtag_dtm.cc:60-77). next[state][tms]. If jtag_dtm.vhd changes, this
-	# changes with it -- the figure is a picture of THIS table and nothing else.
 	_TAP_STATES = ['Test-Logic-Reset', 'Run-Test/Idle',
 		'Select-DR', 'Capture-DR', 'Shift-DR', 'Exit1-DR', 'Pause-DR',
 		'Exit2-DR', 'Update-DR',
@@ -8595,13 +8842,17 @@ class LatexUserGuide():
 		# to come down with it; the edge labels are single digits and go a step
 		# smaller still so a `0' sitting on a channel never reads as loud as a
 		# state name.
-		s += '\tst/.style={draw, semithick, rounded corners=1.5pt, align=center, font=\\sffamily\\fontsize{5.0}{6.0}\\selectfont, inner sep=0.8pt, minimum width=' + P(2 * HW) + 'cm, minimum height=' + P(2 * HH) + 'cm, fill=black!4},\n'
-		s += '\ttlr/.style={st, fill=black!18, thick},\n'
-		s += '\ttms0/.style={->, >=Stealth, thin},\n'
-		s += '\ttms1/.style={->, >=Stealth, thin, densely dashed},\n'
-		s += '\tel/.style={font=\\sffamily\\fontsize{5.0}{6.0}\\selectfont, inner sep=0.8pt, fill=white},\n'
-		s += '\tkey/.style={font=\\sffamily\\fontsize{6.0}{7.0}\\selectfont, align=left, text width=2.60cm},\n'
-		s += '\tkeylab/.style={font=\\sffamily\\fontsize{6.0}{7.0}\\selectfont, anchor=west}]\n'
+		s += '\tst/.style={vblock, align=center, font=\\sffamily\\fontsize{5.0}{6.0}\\selectfont, inner sep=0.8pt, minimum width=' + P(2 * HW) + 'cm, minimum height=' + P(2 * HH) + 'cm, semithick},\n'
+		# Test-Logic-Reset is the entry state and the state the five-ones
+		# recovery lands in, so it is the one emphasised box in the figure and
+		# the one edge that arrives there is the one red stroke.
+		s += '\ttlr/.style={st, vblockem},\n'
+		s += '\ttms0/.style={vflow, thin},\n'
+		s += '\ttms1/.style={vflow, vghost, thin, densely dashed},\n'
+		s += '\trec/.style={vflow, densely dashed, line width=0.9pt},\n'
+		s += '\tel/.style={vsm, font=\\sffamily\\fontsize{5.0}{6.0}\\selectfont, inner sep=0.8pt, fill=white},\n'
+		s += '\tkey/.style={vbc, font=\\sffamily\\fontsize{6.0}{7.0}\\selectfont, align=left, text width=2.60cm},\n'
+		s += '\tkeylab/.style={vbc, font=\\sffamily\\fontsize{6.0}{7.0}\\selectfont, anchor=west}]\n'
 		for i, name in enumerate(self._TAP_STATES):
 			style = 'tlr' if i == 0 else 'st'
 			s += '\\node[' + style + '] (s' + str(i) + ') at (' + P(pos[i][0]) + ', ' + P(pos[i][1]) + ') {' + name + '};\n'
@@ -8611,10 +8862,12 @@ class LatexUserGuide():
 		# TABLE decides what is drawn, the geometry only decides where.
 		edges = []
 
-		def emit(src, tms, path, lx, ly):
+		def emit(src, tms, path, lx, ly, sty=None):
 			dst = self._TAP_NEXT[src][tms]
 			edges.append((src, dst))
-			sty = 'tms1' if tms else 'tms0'
+			# `sty' names a style for the one edge that is drawn as the accent;
+			# every other edge takes its style from the sampled TMS bit.
+			sty = sty or ('tms1' if tms else 'tms0')
 			s_ = '\\draw[' + sty + ', rounded corners] ' + path + ';\n'
 			s_ += '\\node[el] at (' + P(lx) + ', ' + P(ly) + ') {' + str(tms) + '};\n'
 			return s_
@@ -8654,7 +8907,7 @@ class LatexUserGuide():
 		s += emit(9, 0, '(s9.south) -- (s10.north)', cx['ir'] + 0.20, (TOP - HH + rows[0] + HH) / 2.0)
 		# Select-IR on a 1 is the last hop of the five-ones recovery.
 		s += emit(9, 1, '(s9.north) -- (' + P(cx['ir']) + ', ' + P(yWrapT) + ') -- (' + P(xTLR) + ', ' + P(yWrapT) + ') -- (s0.north)',
-			(cx['ir'] + xTLR) / 2.0 + 2.60, yWrapT)
+			(cx['ir'] + xTLR) / 2.0 + 2.60, yWrapT, sty='rec')
 
 		# ---- the two lobes, identical in shape --------------------------
 		# sgn = which side is the OUTWARD one for this lobe.
@@ -8739,11 +8992,10 @@ class LatexUserGuide():
 		s += '\\node[keylab] at (' + P(kx + 0.74) + ', -1.60) {\\pin{TMS} sampled \\textbf{0}};\n'
 		s += '\\draw[tms1] (' + P(kx) + ', -2.15) -- (' + P(kx + 0.62) + ', -2.15);\n'
 		s += '\\node[keylab] at (' + P(kx + 0.74) + ', -2.15) {\\pin{TMS} sampled \\textbf{1}};\n'
-		s += '\\node[key, anchor=north west] at (' + P(kx) + ', -2.70) {\\textbf{Five} \\pin{TMS}$=$\\textbf{1} clocks reach Test-Logic-Reset from \\textit{any} state in the graph, the recovery a debugger uses when it has lost track of the machine.};\n'
+		s += '\\node[key, anchor=north west] at (' + P(kx) + ', -2.70) {{\\bfseries Five} \\pin{TMS}$=$\\textbf{1} clocks reach Test-Logic-Reset from \\textit{any} state in the graph, the recovery a debugger uses when it has lost track of the machine. Its last hop is the heavy dashed edge.};\n'
 		s += '\\end{tikzpicture}\n'
 		self._writeInclude('TapStateDiagram.tex', s)
 		return
-
 	def GenerateJtagScanDiagram(self):
 		'''include/JtagScanDiagram.tex — one four-bit DR scan, TAP states from
 		   _TAP_NEXT. TDO is drawn HALF A UNIT LATE on purpose: jtag_dtm.vhd
@@ -8759,7 +9011,10 @@ class LatexUserGuide():
 			('D{RTI} D{Sel} D{Cap} 4D{Shift-DR} D{Ex1} D{Upd} D{RTI}',     '\\textit{TAP state}'),
 		]
 		ann = ''
-		ann += '\\draw[<->, >=Stealth] (3,{\\YBOT-0.45}) -- (7,{\\YBOT-0.45});\n'
+		# The shift window is a grouping region, so it is a thin dashed outline
+		# over the waveform rather than a grey band behind it.
+		ann += '\\draw[vregion] (3,{\\YTOP}) rectangle (7,{\\YBOT});\n'
+		ann += '\\draw[vbus] (3,{\\YBOT-0.45}) -- (7,{\\YBOT-0.45});\n'
 		ann += '\\node[ann, below] at (5,{\\YBOT-0.47}) {shift: LSB first, one bit per \\pin{TCK}};\n'
 		ann += '\\node[ann, align=left, anchor=north west] at (0,{\\YBOT-1.05})\n'
 		ann += '\t{\\textbf{Capture} loads the register in parallel from what it shadows; \\textbf{Update} commits\\\\[-2pt]\n'
@@ -8770,7 +9025,6 @@ class LatexUserGuide():
 		s += self._cycleFigure('1.25cm', rows, 9, ann)
 		self._writeInclude('JtagScanDiagram.tex', s)
 		return
-
 	def GenerateDmiCrossingDiagram(self):
 		'''include/DmiCrossingDiagram.tex — one DMI transaction across the
 		   TCK<->mclk boundary. CYCLE-ACCURATE against hdl/common/jtag_dtm.vhd:
@@ -8801,8 +9055,12 @@ class LatexUserGuide():
 			('7L 5H',                             '\\register{rsp\\_tgl}'),
 		]
 		ann = ''
+		# The one-shot window is a grouping region, so it is a thin dashed
+		# outline over the waveform rather than the grey band this figure used
+		# to shade behind it.
+		ann += '\\draw[vregion] (4,{\\YTOP}) rectangle (6,{\\YBOT});\n'
 		# the one-shot, and why it is one
-		ann += '\\draw[<->, >=Stealth] (4,{\\YTOP+0.45}) -- (6,{\\YTOP+0.45});\n'
+		ann += '\\draw[vbus] (4,{\\YTOP+0.45}) -- (6,{\\YTOP+0.45});\n'
 		ann += '\\node[ann, above] at (5,{\\YTOP+0.47}) {\\register{valid} high exactly \\textbf{2} \\register{mclk}, retired on the \\emph{registered} \\register{ready}};\n'
 		ann += '\\node[ann, align=left, anchor=north west] at (0,{\\YBOT-0.35})\n'
 		ann += '\t{The Debug Module\'s re-accept lockout is a \\textbf{timer}, not a handshake: it reopens\\\\[-2pt]\n'
@@ -8812,21 +9070,23 @@ class LatexUserGuide():
 		ann += '\t the \\emph{previous} answer. Two cycles leaves seven inside the window.};\n'
 		ann += '\\node[ann, align=left, anchor=north west] at (0,{\\YBOT-2.55})\n'
 		ann += '\t{\\textbf{Where \\bitfield{idle} $=7$ comes from.} A debugger sees the result no earlier than\\\\[-2pt]\n'
-		ann += '\t 3 \\pin{TCK} (this response synchroniser) $+$ $\\lceil t_{\\mathrm{DM}} / T_{\\pin{TCK}}\\rceil$. Here $t_{\\mathrm{DM}}$ is 8--10 \\register{mclk} for a\\\\[-2pt]\n'
+		ann += '\t 3 \\pin{TCK} (this response synchroniser) $+$ $\\lceil t_{\\mathrm{DM}} / T_{\\pin{TCK}}\\rceil$. Here $t_{\\mathrm{DM}}$ is 8 to 10 \\register{mclk} for a\\\\[-2pt]\n'
 		ann += '\t Debug Module register, and \\emph{tens} for \\register{data0} or a program-buffer word, which are\\\\[-2pt]\n'
 		ann += '\t proxied into shared RAM through the arbiter. At \\pin{TCK} $\\leq$ 7.14\\,MHz against a 24\\,MHz\\\\[-2pt]\n'
 		ann += '\t \\register{mclk} that is 6 cycles for the worst class; \\textbf{7} adds one of margin and is the largest\\\\[-2pt]\n'
 		ann += '\t value the 3-bit field can hold. Faster \\pin{TCK}, or a contended bus, can still report busy.};\n'
-		# mark the two TCK-domain events
-		ann += '\\node[ann, anchor=south west, align=left] at (0.05,{\\YTOP+1.05}) {\\textbf{Update-DR} (\\register{TCK}): the 41-bit\\\\[-2pt] payload is written and \\emph{held}, and \\register{req\\_tgl} flips};\n'
-		ann += '\\draw[gray!65] (1,{\\YTOP+1.02}) -- (1,\\YTOP);\n'
-		ann += '\\node[ann, anchor=south east, align=right] at (11.95,{\\YTOP+1.05}) {\\register{rsp\\_tgl} crosses back through\\\\[-2pt] 3 \\pin{TCK} flops, then the shadow updates};\n'
-		ann += '\\draw[gray!65] (7,{\\YTOP+1.02}) -- (7,\\YTOP);\n'
+		# Mark the two TCK-domain events. This figure is about a clock-domain
+		# crossing, so the two events that happen on the OTHER side of it get
+		# the red boundary treatment: red leaders, and a red heading word. They
+		# are the only red strokes in the figure.
+		ann += '\\node[ann, anchor=south west, align=left] at (0.05,{\\YTOP+1.05}) {{\\color{vestaRedText}\\textbf{Update-DR} (\\register{TCK})}: the 41-bit\\\\[-2pt] payload is written and \\emph{held}, and \\register{req\\_tgl} flips};\n'
+		ann += '\\draw[vbound, densely dashed, line width=0.6pt] (1,{\\YTOP+1.02}) -- (1,\\YTOP);\n'
+		ann += '\\node[ann, anchor=south east, align=right] at (11.95,{\\YTOP+1.05}) {\\register{rsp\\_tgl} crosses back through\\\\[-2pt] {\\color{vestaRedText}3 \\pin{TCK} flops}, then the shadow updates};\n'
+		ann += '\\draw[vbound, densely dashed, line width=0.6pt] (7,{\\YTOP+1.02}) -- (7,\\YTOP);\n'
 		s = '% Generated DMI clock-crossing diagram (mclk timebase)\n'
-		s += self._cycleFigure('1.15cm', rows, 11, ann, shade=('4', '6'))
+		s += self._cycleFigure('1.15cm', rows, 11, ann)
 		self._writeInclude('DmiCrossingDiagram.tex', s)
 		return
-
 	def GenerateDebugSwimlaneDiagram(self):
 		'''include/DebugSwimlaneDiagram.tex — the twelve numbered steps of the
 		   worked halt/read/resume, across the four agents that perform them.
@@ -8851,14 +9111,16 @@ class LatexUserGuide():
 		]
 		s = '% Generated debug halt/read/resume swimlane\n'
 		s += '\\begin{tikzpicture}[\n'
-		s += '\tlane/.style={font=\\sffamily\\small, anchor=east},\n'
-		s += '\tband/.style={fill=black!4},\n'
-		s += '\tstp/.style={draw, thick, rounded corners=2pt, align=center, font=\\sffamily\\scriptsize, minimum width=1.30cm, minimum height=0.95cm, fill=white, inner sep=2pt},\n'
-		s += '\tnum/.style={circle, draw, thick, fill=black!12, font=\\sffamily\\scriptsize, inner sep=1.2pt},\n'
-		s += '\tflow/.style={->, >=Stealth, semithick, gray!75},\n'
-		s += '\tnote/.style={font=\\sffamily\\scriptsize, align=left}]\n'
+		s += '\tlane/.style={vgroup, anchor=east, fill=none},\n'
+		s += '\tband/.style={vregion},\n'
+		s += '\tstp/.style={vblockw, align=center, font=\\sffamily\\scriptsize, minimum width=1.30cm, minimum height=0.95cm, inner sep=2pt},\n'
+		s += '\tnum/.style={vblock, circle, font=\\sffamily\\scriptsize, inner sep=1.2pt},\n'
+		s += '\tflow/.style={vflow},\n'
+		s += '\tnote/.style={vnote, align=left}]\n'
+		# A lane is a grouping region, so it is a thin dashed outline over white
+		# paper with an italic heading beside it, not a filled grey band.
 		for name, y in lanes:
-			s += '\\fill[band] (-0.2, ' + '%.2f' % (y - 0.62) + ') rectangle (18.6, ' + '%.2f' % (y + 0.62) + ');\n'
+			s += '\\draw[band] (-0.2, ' + '%.2f' % (y - 0.62) + ') rectangle (18.6, ' + '%.2f' % (y + 0.62) + ');\n'
 			s += '\\node[lane] at (-0.35, ' + '%.2f' % y + ') {' + name + '};\n'
 		prev = None
 		for n, li, x, txt in steps:
@@ -8868,42 +9130,45 @@ class LatexUserGuide():
 			if prev is not None:
 				s += '\\draw[flow] (p' + str(prev) + ') -- (p' + str(n) + ');\n'
 			prev = n
-		s += '\\draw[->, >=Stealth, thick] (-0.2, -1.05) -- (18.6, -1.05);\n'
+		s += '\\draw[vflow] (-0.2, -1.05) -- (18.6, -1.05);\n'
 		s += '\\node[note, anchor=north east] at (18.6, -1.15) {time $\\rightarrow$ (not to scale)};\n'
 		s += '\\node[note, anchor=north west] at (-0.2, -1.15) {Step numbers are the numbered list in this section.};\n'
 		s += '\\end{tikzpicture}\n'
 		self._writeInclude('DebugSwimlaneDiagram.tex', s)
 		return
-
 	def GenerateDmiFieldDiagram(self):
 		'''include/DmiFieldDiagram.tex — the 41-bit dmi data register.
 		   Field split from hdl/common/jtag_dtm.vhd:222 and :573-575:
 		   op(1 downto 0), data(33 downto 2), address(40 downto 34). Widths are
 		   drawn for legibility, not to scale -- the bit numbers carry the
 		   truth, and saying so in the caption is cheaper than a 41-cell bar.'''
+		# The fourth column names the style each field is drawn in. op is the
+		# emphasised one, because the note under the bar is entirely about op:
+		# it is the field that goes in and comes out first, and the field that
+		# carries the command on the way in and the status on the way out.
 		fields = [
-			(3.4, '\\register{address}', '40:34', '7 bits: the DMI address'),
-			(6.4, '\\register{data}', '33:2', '32 bits: read result or write value'),
-			(2.6, '\\register{op}', '1:0', '2 bits'),
+			(3.4, '\\register{address}', '40:34', '7 bits: the DMI address', 'fld'),
+			(6.4, '\\register{data}', '33:2', '32 bits: read result or write value', 'fld'),
+			(2.6, '\\register{op}', '1:0', '2 bits', 'fldem'),
 		]
 		s = '% Generated 41-bit DMI data-register field bar\n'
 		s += '\\begin{tikzpicture}[\n'
-		s += '\tfld/.style={draw, thick, align=center, font=\\sffamily\\small, minimum height=1.0cm, fill=black!6},\n'
-		s += '\tbit/.style={font=\\sffamily\\scriptsize},\n'
-		s += '\tnote/.style={font=\\sffamily\\scriptsize, align=center}]\n'
+		s += '\tfld/.style={vblock, align=center, font=\\sffamily\\small, minimum height=1.0cm},\n'
+		s += '\tfldem/.style={fld, vblockem},\n'
+		s += '\tbit/.style={vsm},\n'
+		s += '\tnote/.style={vbc}]\n'
 		x = 0.0
-		for w, name, bits, desc in fields:
+		for w, name, bits, desc, sty in fields:
 			cx = x + w / 2.0
-			s += '\\node[fld, minimum width=' + '%.2f' % w + 'cm] at (' + '%.2f' % cx + ', 0) {' + name + '};\n'
+			s += '\\node[' + sty + ', minimum width=' + '%.2f' % w + 'cm] at (' + '%.2f' % cx + ', 0) {' + name + '};\n'
 			s += '\\node[bit, anchor=south west] at (' + '%.2f' % x + ', 0.52) {' + bits.split(':')[0] + '};\n'
 			s += '\\node[bit, anchor=south east] at (' + '%.2f' % (x + w) + ', 0.52) {' + bits.split(':')[1] + '};\n'
 			s += '\\node[note, anchor=north] at (' + '%.2f' % cx + ', -0.55) {' + desc + '};\n'
 			x += w
-		s += '\\node[note, anchor=north west, align=left] at (0, -1.30) {\\textbf{Shifted LSB first}, so \\register{op} goes in and comes out first. On the way \\emph{in}: \\texttt{00} no-op, \\texttt{01} read, \\texttt{10} write.\\\\ On the way \\emph{out}: \\texttt{00} success, \\texttt{10} failed, \\texttt{11} busy. Field widths here are for legibility; the bit numbers are exact.};\n'
+		s += '\\node[vbc, anchor=north west, align=left] at (0, -1.30) {\\textbf{Shifted LSB first}, so \\register{op} goes in and comes out first. On the way \\emph{in}: \\texttt{00} no-op, \\texttt{01} read, \\texttt{10} write.\\\\ On the way \\emph{out}: \\texttt{00} success, \\texttt{10} failed, \\texttt{11} busy. Field widths here are for legibility; the bit numbers are exact.};\n'
 		s += '\\end{tikzpicture}\n'
 		self._writeInclude('DmiFieldDiagram.tex', s)
 		return
-
 	def GenerateDebugPageDiagram(self):
 		'''include/DebugPageDiagram.tex — the debug program page, drawn to the
 		   LANDED ledger in hdl/common/debug_module.vhd:53-79 and its address
@@ -8914,23 +9179,41 @@ class LatexUserGuide():
 		   0x10800 line is where the write-before-read contract stops covering
 		   the page -- above it every word is DM-written CODE.'''
 		# (height, addr label, contents, fill)
+		# THREE FILLS, NOT SIX. The nine segments used to carry five ad-hoc grey
+		# levels between black!4 and black!20, which is what made a simple stack
+		# of rows look machine-generated. They collapse onto the house greys:
+		# black!15 for the words the Debug Module and the stub exchange, black!8
+		# for ordinary content, black!3 for what is not used. The trampoline is
+		# the one emphasised segment and it earns that with a heavier rule above
+		# and below it, not with a sixth grey.
 		segs = [
-			(0.62, '\\texttt{0x10680}', '\\register{data0}: the abstract data word', 'black!14'),
-			(0.62, '\\texttt{0x10684}', '\\register{progbuf0}, \\register{progbuf1}, implicit third word', 'black!10'),
-			(0.62, '\\texttt{0x10690}', 'reserved for the Debug Module', 'black!4'),
-			(0.62, '\\texttt{0x106F0}', 'saved \\asminline{s0} / \\asminline{s1}, written by the stub, never by the DM', 'black!10'),
-			(0.82, '\\texttt{0x10700}', 'per-hart handshake word \\ \\texttt{0x10700}$+4h$', 'black!14'),
-			(1.05, '\\texttt{0x10780}', '\\textbf{trampoline}, 40 words, \\emph{planted by the Debug Module}', 'black!20'),
-			(0.62, '\\texttt{0x10820}', 'abstract command body (DM-written per command)', 'black!10'),
-			(0.62, '\\texttt{0x10840}', 'epilogue (DM-written once)', 'black!10'),
-			(0.52, '\\texttt{0x10864}', 'spare', 'black!4'),
+			(0.62, '\\texttt{0x10680}', '\\register{data0}: the abstract data word', 'black!15'),
+			(0.62, '\\texttt{0x10684}', '\\register{progbuf0}, \\register{progbuf1}, implicit third word', 'black!8'),
+			(0.62, '\\texttt{0x10690}', 'reserved for the Debug Module', 'black!3'),
+			(0.62, '\\texttt{0x106F0}', 'saved \\asminline{s0} / \\asminline{s1}, written by the stub, never by the DM', 'black!8'),
+			(0.82, '\\texttt{0x10700}', 'per-hart handshake word \\ \\texttt{0x10700}$+4h$', 'black!15'),
+			(1.05, '\\texttt{0x10780}', '\\textbf{trampoline}, 40 words, \\emph{planted by the Debug Module}', 'black!15'),
+			(0.62, '\\texttt{0x10820}', 'abstract command body (DM-written per command)', 'black!8'),
+			(0.62, '\\texttt{0x10840}', 'epilogue (DM-written once)', 'black!8'),
+			(0.52, '\\texttt{0x10864}', 'spare', 'black!3'),
 		]
 		W = 10.4
+		hTot = sum(h for h, _, _, _ in segs)
 		s = '% Generated debug program page map (landed D4 ledger)\n'
 		s += '\\begin{tikzpicture}[\n'
-		s += '\tseg/.style={draw, thick, align=center, font=\\sffamily\\small, minimum width=' + '%.2f' % W + 'cm},\n'
+		s += '\tseg/.style={align=center, font=\\sffamily\\small, minimum width=' + '%.2f' % W + 'cm, draw=none, rounded corners=0pt},\n'
+		s += '\trule/.style={vwire, draw=black!35, line width=0.5pt},\n'
+		s += '\tem/.style={vwire, line width=1.1pt},\n'
+		s += '\ttxt/.style={vbc, font=\\sffamily\\small},\n'
 		s += '\tadr/.style={font=\\sffamily\\scriptsize\\ttfamily, anchor=east},\n'
-		s += '\tnote/.style={font=\\sffamily\\scriptsize, align=left}]\n'
+		s += '\tnote/.style={vbc, align=left}]\n'
+		# The page is ONE rounded box with nine rows in it, not nine boxes: rows
+		# that abut cannot each carry a corner radius without leaving a notch at
+		# every join. The fills are therefore clipped to the rounded outline and
+		# the divisions between them are thin rules.
+		xL, xR = -W / 2.0, W / 2.0
+		s += '\\begin{scope}\n'
+		s += '\\clip[rounded corners=2pt] (' + '%.2f' % xL + ', 0) rectangle (' + '%.2f' % xR + ', ' + '%.2f' % -hTot + ');\n'
 		# LOW ADDRESS AT THE TOP, matching the table this figure sits beside:
 		# each segment's start address labels its OWN TOP edge, and the band's
 		# end address labels the bottom edge of the last one.
@@ -8939,29 +9222,40 @@ class LatexUserGuide():
 		yTramp = None
 		for h, addr, txt, fill in segs:
 			s += '\\node[seg, minimum height=' + '%.2f' % h + 'cm, fill=' + fill + ', anchor=north] at (0, ' + '%.2f' % y + ') {};\n'
+			y -= h
+		s += '\\end{scope}\n'
+		y = 0.0
+		for k, (h, addr, txt, fill) in enumerate(segs):
+			if k > 0:
+				s += '\\draw[rule] (' + '%.2f' % xL + ', ' + '%.2f' % y + ') -- (' + '%.2f' % xR + ', ' + '%.2f' % y + ');\n'
 			s += '\\node[adr] at (' + '%.2f' % xAdr + ', ' + '%.2f' % y + ') {' + addr + '};\n'
 			if 'trampoline' in txt:
 				# the 0x10800 line crosses this band, so its text sits in the
 				# UPPER part of the band, clear of the line at word 32 of 40
 				yTramp = y
-				s += '\\node[font=\\sffamily\\small, anchor=north] at (0, ' + '%.2f' % (y - 0.06) + ') {' + txt + '};\n'
+				s += '\\node[txt, anchor=north] at (0, ' + '%.2f' % (y - 0.06) + ') {' + txt + '};\n'
+				# the one emphasised segment, marked by its rules and not by a
+				# grey of its own
+				s += '\\draw[em] (' + '%.2f' % xL + ', ' + '%.2f' % y + ') -- (' + '%.2f' % xR + ', ' + '%.2f' % y + ');\n'
+				s += '\\draw[em] (' + '%.2f' % xL + ', ' + '%.2f' % (y - h) + ') -- (' + '%.2f' % xR + ', ' + '%.2f' % (y - h) + ');\n'
 			else:
-				s += '\\node[font=\\sffamily\\small] at (0, ' + '%.2f' % (y - h / 2.0) + ') {' + txt + '};\n'
+				s += '\\node[txt] at (0, ' + '%.2f' % (y - h / 2.0) + ') {' + txt + '};\n'
 			y -= h
+		s += '\\draw[vblockw, fill=none, rounded corners=2pt] (' + '%.2f' % xL + ', 0) rectangle (' + '%.2f' % xR + ', ' + '%.2f' % -hTot + ');\n'
 		s += '\\node[adr] at (' + '%.2f' % xAdr + ', ' + '%.2f' % y + ') {0x1087F};\n'
 		# The zero-range boundary. 0x10800 is word 32 of the 40-word trampoline,
 		# i.e. 32/40 of the way down that band -- NOT a band edge.
 		yBoundary = yTramp - 1.05 * (32.0 / 40.0)
 		xNote = W / 2.0 + 0.20
-		s += '\\draw[very thick, densely dashed] (' + '%.2f' % (-W / 2.0 - 0.05) + ', ' + '%.2f' % yBoundary + ') -- (' + '%.2f' % (W / 2.0 + 6.6) + ', ' + '%.2f' % yBoundary + ');\n'
+		# The zero-fill line is a genuine boundary, so it is the red one.
+		s += '\\draw[vbound, densely dashed] (' + '%.2f' % (-W / 2.0 - 0.05) + ', ' + '%.2f' % yBoundary + ') -- (' + '%.2f' % (W / 2.0 + 6.6) + ', ' + '%.2f' % yBoundary + ');\n'
 		# anchored ACROSS the line, so the two blocks cannot overprint
-		s += '\\node[note, anchor=south west] at (' + '%.2f' % xNote + ', ' + '%.2f' % (yBoundary + 0.10) + ') {\\textbf{\\texttt{0x10800}}: above this line the boot ROM does \\emph{not}\\\\ zero-fill. Everything up here is CODE the Debug Module\\\\ writes before anything reads it: the trampoline\'s last\\\\ eight words, the command body and the epilogue.};\n'
-		s += '\\node[note, anchor=north west] at (' + '%.2f' % xNote + ', ' + '%.2f' % (yBoundary - 0.10) + ') {Below \\texttt{0x10800} the boot ROM zeroes \\texttt{0x10000}--\\texttt{0x107FF}\\\\ at every boot, so every DM-written \\emph{data} word starts\\\\ from a known value.};\n'
-		s += '\\node[note, anchor=north west] at (' + '%.2f' % (-W / 2.0) + ', ' + '%.2f' % (y - 0.40) + ') {The whole span \\texttt{0x10680}--\\texttt{0x1087F} is reserved. It is ordinary shared RAM, and it cannot be read-only,\\\\ because the Debug Module rewrites the command body at every abstract command.};\n'
+		s += '\\node[note, anchor=south west] at (' + '%.2f' % xNote + ', ' + '%.2f' % (yBoundary + 0.10) + ') {{\\color{vestaRedText}\\textbf{\\texttt{0x10800}}}: above this line the boot ROM does \\emph{not}\\\\ zero-fill. Everything up here is CODE the Debug Module\\\\ writes before anything reads it: the trampoline\'s last\\\\ eight words, the command body and the epilogue.};\n'
+		s += '\\node[note, anchor=north west] at (' + '%.2f' % xNote + ', ' + '%.2f' % (yBoundary - 0.10) + ') {Below \\texttt{0x10800} the boot ROM zeroes \\texttt{0x10000} to \\texttt{0x107FF}\\\\ at every boot, so every DM-written \\emph{data} word starts\\\\ from a known value.};\n'
+		s += '\\node[note, anchor=north west] at (' + '%.2f' % (-W / 2.0) + ', ' + '%.2f' % (y - 0.40) + ') {The whole span \\texttt{0x10680} to \\texttt{0x1087F} is reserved. It is ordinary shared RAM, and it cannot be read-only,\\\\ because the Debug Module rewrites the command body at every abstract command.};\n'
 		s += '\\end{tikzpicture}\n'
 		self._writeInclude('DebugPageDiagram.tex', s)
 		return
-
 	def GenerateDebugModeStateDiagram(self):
 		'''include/DebugModeStateDiagram.tex — debug mode from the hart's side.
 		   Entry causes and their dcsr.cause encodings are vesta.vhd:2648-2654
@@ -8971,15 +9265,18 @@ class LatexUserGuide():
 		   outside debug mode (maindec.vhd:1112-1131).'''
 		s = '% Generated hart debug-mode state diagram\n'
 		s += '\\begin{tikzpicture}[\n'
-		s += '\tst/.style={draw, thick, rounded corners=3pt, align=center, font=\\sffamily\\small, minimum width=3.5cm, minimum height=1.25cm},\n'
-		s += '\trun/.style={st, fill=black!5},\n'
-		s += '\tdbg/.style={st, fill=black!16},\n'
-		s += '\tflow/.style={->, >=Stealth, thick},\n'
-		s += '\tel/.style={font=\\sffamily\\scriptsize, align=center, fill=white, inner sep=2pt},\n'
-		s += '\tnote/.style={font=\\sffamily\\scriptsize, align=left}]\n'
+		s += '\tst/.style={align=center, font=\\sffamily\\small, minimum width=3.5cm, minimum height=1.25cm},\n'
+		s += '\trun/.style={st, vblock},\n'
+		# Debug mode is what the figure is about, so it is the one emphasised
+		# box, and the one path into it is the one red arrow.
+		s += '\tdbg/.style={st, vblockem},\n'
+		s += '\tflow/.style={vflow},\n'
+		s += '\tentry/.style={vflow, line width=1.0pt},\n'
+		s += '\tel/.style={vbc, fill=white, inner sep=2pt},\n'
+		s += '\tnote/.style={vbc, align=left}]\n'
 		s += '\\node[run] (run) at (0, 3.2) {\\textbf{running}\\\\ \\scriptsize M-mode or U-mode};\n'
 		s += '\\node[dbg] (dbg) at (0, 0) {\\textbf{debug mode}\\\\ \\scriptsize executing the stub at\\\\ \\scriptsize \\texttt{0x00010780}};\n'
-		s += '\\draw[flow] (-1.15, 2.58) -- node[el, anchor=east, xshift=-3pt] {\\textbf{entry}: taken at an instruction\\\\ boundary; \\register{dpc} and \\register{dcsr}.\\bitfield{cause}\\\\ are written, then the hart jumps} (-1.15, 0.62);\n'
+		s += '\\draw[entry] (-1.15, 2.58) -- node[el, anchor=east, xshift=-3pt] {{\\color{vestaRedText}\\textbf{entry}}: taken at an instruction\\\\ boundary; \\register{dpc} and \\register{dcsr}.\\bitfield{cause}\\\\ are written, then the hart jumps} (-1.15, 0.62);\n'
 		s += '\\draw[flow] (1.15, 0.62) -- node[el, anchor=west, xshift=3pt] {\\asminline{dret}: \\register{dpc} restores the\\\\ program counter, \\register{dcsr}.\\bitfield{prv} the\\\\ privilege level} (1.15, 2.58);\n'
 		s += '\\node[note, anchor=north west, align=left] at (5.9, 3.55) {\\textbf{Four ways in}, each recorded in \\register{dcsr}.\\bitfield{cause}:\\\\[3pt]\n'
 		s += '\t\\texttt{3} \\ a halt request from the Debug Module,\\\\ \\hspace*{1.1em}unmaskable, and recognised even in the\\\\ \\hspace*{1.1em}terminal trap state\\\\[2pt]\n'
@@ -8991,7 +9288,6 @@ class LatexUserGuide():
 		s += '\\end{tikzpicture}\n'
 		self._writeInclude('DebugModeStateDiagram.tex', s)
 		return
-
 	def GeneratePackagePinoutDiagram(self):
 		'''include/PackagePinoutDiagram.tex — fully labeled package top view,
 		   derived from the same package model as config/PadRing.json.'''
@@ -9012,13 +9308,25 @@ class LatexUserGuide():
 				return '\\textbf{' + name + '}'
 			return name
 
+		# THE STYLES ARE THE MANUAL'S FIGURE THEME, NOT THIS FIGURE'S OWN.
+		# A pin lands in one of exactly two fills: the palette's lightest for an
+		# ordinary pin, and its bus-bar grey for a pin that carries a power rail.
+		# That is the only distinction this drawing makes by shading, and it used
+		# to be the only thing on the page that was not plain black on white.
 		s = '% Generated package pinout (derived from the package model; see config/PadRing.json)\n'
-		s += '\\begin{tikzpicture}[x=10mm, y=10mm]\n'
-		s += '\\draw[thick] (' + '%.3f' % -half + ',' + '%.3f' % -half + ') rectangle (' + '%.3f' % half + ',' + '%.3f' % half + ');\n'
+		s += '\\begin{tikzpicture}[x=10mm, y=10mm,\n'
+		s += '\tpin/.style={vblocklt, rounded corners=0.4pt},\n'
+		s += '\tpwr/.style={pin, fill=black!15},\n'
+		s += '\tnum/.style={vsm},\n'
+		s += '\tlab/.style={vsm, inner sep=1.5pt},\n'
+		s += '\tctr/.style={vbc, font=\\sffamily}]\n'
+		# The package body is a boundary, so it is drawn in the one colour this
+		# manual reserves for boundaries, and its name is that boundary's label.
+		s += '\\draw[vbound] (' + '%.3f' % -half + ',' + '%.3f' % -half + ') rectangle (' + '%.3f' % half + ',' + '%.3f' % half + ');\n'
 		# Center annotation
-		s += '\\node[align=center, font=\\sffamily] at (0,0) {\\textbf{\\AsicNameForUserGuide}\\\\ ' + pkg.PackageType + '-' + str(pkg.PinCount) + ', top view\\\\ \\footnotesize ' + str(pkg.Dimensions[0]) + '$\\times$' + str(pkg.Dimensions[1]) + '\\,' + pkg.Units + ', ' + str(pkg.PinPitch) + '\\,' + pkg.Units + ' pitch};\n'
+		s += '\\node[ctr] at (0,0) {\\textcolor{vestaRedText}{\\textbf{\\AsicNameForUserGuide}}\\\\ ' + pkg.PackageType + '-' + str(pkg.PinCount) + ', top view\\\\ \\footnotesize ' + str(pkg.Dimensions[0]) + '$\\times$' + str(pkg.Dimensions[1]) + '\\,' + pkg.Units + ', ' + str(pkg.PinPitch) + '\\,' + pkg.Units + ' pitch};\n'
 		# Pin-1 dot
-		s += '\\fill (' + '%.3f' % (-half + 0.55) + ',' + '%.3f' % (half - 0.55) + ') circle (0.09);\n'
+		s += '\\fill[vestaInk] (' + '%.3f' % (-half + 0.55) + ',' + '%.3f' % (half - 0.55) + ') circle (0.09);\n'
 
 		sideCount = {'W': 0, 'S': 0, 'E': 0, 'N': 0}
 		for pin in pkg.Pins:
@@ -9028,71 +9336,31 @@ class LatexUserGuide():
 			n = sideCount[pin.Side]
 			j = sideIdx[pin.Side]
 			sideIdx[pin.Side] += 1
-			fill = ', fill=black!15' if pin.IsPowerDomainPin else ''
+			box = 'pwr' if pin.IsPowerDomainPin else 'pin'
 			if pin.Side == 'W':
 				y = ((n - 1) / 2.0 - j) * pitch
-				s += '\\draw[thick' + fill + '] (' + '%.3f' % (-half - 0.001) + ',' + '%.3f' % (y - pw / 2) + ') rectangle (' + '%.3f' % (-half + pd) + ',' + '%.3f' % (y + pw / 2) + ');\n'
-				s += '\\node[font=\\tiny, anchor=west, inner sep=1pt] at (' + '%.3f' % (-half + pd + 0.06) + ',' + '%.3f' % y + ') {' + str(pin.PackagePinNumber) + '};\n'
-				s += '\\node[font=\\tiny\\sffamily, anchor=east, inner sep=1.5pt] at (' + '%.3f' % (-half - 0.12) + ',' + '%.3f' % y + ') {' + pinLabel(pin) + '};\n'
+				s += '\\draw[' + box + '] (' + '%.3f' % (-half - 0.001) + ',' + '%.3f' % (y - pw / 2) + ') rectangle (' + '%.3f' % (-half + pd) + ',' + '%.3f' % (y + pw / 2) + ');\n'
+				s += '\\node[num, anchor=west] at (' + '%.3f' % (-half + pd + 0.06) + ',' + '%.3f' % y + ') {' + str(pin.PackagePinNumber) + '};\n'
+				s += '\\node[lab, anchor=east] at (' + '%.3f' % (-half - 0.12) + ',' + '%.3f' % y + ') {' + pinLabel(pin) + '};\n'
 			elif pin.Side == 'S':
 				xq = (j - (n - 1) / 2.0) * pitch
-				s += '\\draw[thick' + fill + '] (' + '%.3f' % (xq - pw / 2) + ',' + '%.3f' % (-half - 0.001) + ') rectangle (' + '%.3f' % (xq + pw / 2) + ',' + '%.3f' % (-half + pd) + ');\n'
-				s += '\\node[font=\\tiny, anchor=west, inner sep=1pt, rotate=90] at (' + '%.3f' % xq + ',' + '%.3f' % (-half + pd + 0.06) + ') {' + str(pin.PackagePinNumber) + '};\n'
-				s += '\\node[font=\\tiny\\sffamily, anchor=east, inner sep=1.5pt, rotate=90] at (' + '%.3f' % xq + ',' + '%.3f' % (-half - 0.12) + ') {' + pinLabel(pin) + '};\n'
+				s += '\\draw[' + box + '] (' + '%.3f' % (xq - pw / 2) + ',' + '%.3f' % (-half - 0.001) + ') rectangle (' + '%.3f' % (xq + pw / 2) + ',' + '%.3f' % (-half + pd) + ');\n'
+				s += '\\node[num, anchor=west, rotate=90] at (' + '%.3f' % xq + ',' + '%.3f' % (-half + pd + 0.06) + ') {' + str(pin.PackagePinNumber) + '};\n'
+				s += '\\node[lab, anchor=east, rotate=90] at (' + '%.3f' % xq + ',' + '%.3f' % (-half - 0.12) + ') {' + pinLabel(pin) + '};\n'
 			elif pin.Side == 'E':
 				y = (j - (n - 1) / 2.0) * pitch
-				s += '\\draw[thick' + fill + '] (' + '%.3f' % (half - pd) + ',' + '%.3f' % (y - pw / 2) + ') rectangle (' + '%.3f' % (half + 0.001) + ',' + '%.3f' % (y + pw / 2) + ');\n'
-				s += '\\node[font=\\tiny, anchor=east, inner sep=1pt] at (' + '%.3f' % (half - pd - 0.06) + ',' + '%.3f' % y + ') {' + str(pin.PackagePinNumber) + '};\n'
-				s += '\\node[font=\\tiny\\sffamily, anchor=west, inner sep=1.5pt] at (' + '%.3f' % (half + 0.12) + ',' + '%.3f' % y + ') {' + pinLabel(pin) + '};\n'
+				s += '\\draw[' + box + '] (' + '%.3f' % (half - pd) + ',' + '%.3f' % (y - pw / 2) + ') rectangle (' + '%.3f' % (half + 0.001) + ',' + '%.3f' % (y + pw / 2) + ');\n'
+				s += '\\node[num, anchor=east] at (' + '%.3f' % (half - pd - 0.06) + ',' + '%.3f' % y + ') {' + str(pin.PackagePinNumber) + '};\n'
+				s += '\\node[lab, anchor=west] at (' + '%.3f' % (half + 0.12) + ',' + '%.3f' % y + ') {' + pinLabel(pin) + '};\n'
 			else:	# N
 				xq = ((n - 1) / 2.0 - j) * pitch
-				s += '\\draw[thick' + fill + '] (' + '%.3f' % (xq - pw / 2) + ',' + '%.3f' % (half - pd) + ') rectangle (' + '%.3f' % (xq + pw / 2) + ',' + '%.3f' % (half + 0.001) + ');\n'
-				s += '\\node[font=\\tiny, anchor=east, inner sep=1pt, rotate=90] at (' + '%.3f' % xq + ',' + '%.3f' % (half - pd - 0.06) + ') {' + str(pin.PackagePinNumber) + '};\n'
-				s += '\\node[font=\\tiny\\sffamily, anchor=west, inner sep=1.5pt, rotate=90] at (' + '%.3f' % xq + ',' + '%.3f' % (half + 0.12) + ') {' + pinLabel(pin) + '};\n'
+				s += '\\draw[' + box + '] (' + '%.3f' % (xq - pw / 2) + ',' + '%.3f' % (half - pd) + ') rectangle (' + '%.3f' % (xq + pw / 2) + ',' + '%.3f' % (half + 0.001) + ');\n'
+				s += '\\node[num, anchor=east, rotate=90] at (' + '%.3f' % xq + ',' + '%.3f' % (half - pd - 0.06) + ') {' + str(pin.PackagePinNumber) + '};\n'
+				s += '\\node[lab, anchor=west, rotate=90] at (' + '%.3f' % xq + ',' + '%.3f' % (half + 0.12) + ') {' + pinLabel(pin) + '};\n'
 		s += '\\end{tikzpicture}\n'
 		with open(self.IncludeDirectory + '/PackagePinoutDiagram.tex', 'w') as f:
 			f.write(s)
 		return
-
-	def GenerateInterruptsTable(self):
-		# Get all of the peripherals that generate interrupt signals
-		interruptPeripherals = [p for p in self.Gen.Peripherals if p.InterruptPriority is not None]
-		interruptPeripherals.sort(key=lambda p: p.InterruptPriority)
-
-		# Create the interrupts table tex file
-		s = '\\begin{longtable}[c]{ l l }\n'
-		s += '\\caption{Interrupt Vectors} \\label{t:interrupt-vectors} \\\\ \n'
-		
-		s += '\\hline \\textbf{Priority} & \\textbf{Interrupt Source} \\\\ \\hline \\endfirsthead\n'
-
-		s += '\\multicolumn{2}{c}{\\textit{Continued from previous page}} \\\\ \\hline\n'
-		s += '\\hline \\textbf{Priority} & \\textbf{Interrupt Source} \\\\ \\hline \\endhead\n'
-
-		s += '0 & CPU Internal Timer \\\\\n'
-		s += '\\rowcolor{tablehighlightcolor} 1 & EBREAK, ECALL, or Illegal Instruction \\\\\n'
-		s += '2 & Bus Error (unaligned memory access) \\\\\n'
-
-		thisRowColored = True
-		for p in interruptPeripherals:
-			if thisRowColored:
-				s += '\\rowcolor{tablehighlightcolor} '
-			s += str(p.InterruptPriority) + ' & \\peripheral{' + fmttex(p.Name) + '}\\\\\n'
-			thisRowColored = not thisRowColored
-		
-		# Remove the \\ from the final entry and add an ending horizontal line
-		s = s[:-3] + r'\\' + '\n' + r'\hline' + '\n'
-		
-		s += '\\end{longtable}\n'
-
-		if not os.path.isdir(self.IncludeDirectory):
-			os.makedirs(self.IncludeDirectory)
-		
-		path = self.IncludeDirectory + '/InterruptsTable.tex'
-		with open(path, 'w') as f:
-			f.write(s)
-		
-		return
-	
 	def GeneratePackagePinsConfigurationTable(self):
 		s = '\\begin{longtable}[c]{ l l l l l }\n'
 		s += '\\caption{Package Pins} \\label{t:package-pins} \\\\ \n'
@@ -9120,7 +9388,7 @@ class LatexUserGuide():
 			s += str(pin.PackagePinNumber) + ' & '
 
 			if pin.NoConnect:
-				s += '\\textit{NC} & -- & -- & -- \\\\\n'
+				s += '\\textit{NC} & - & - & - \\\\\n'
 				continue
 
 			s += fmttex(pin.Name) + ' & ' + pin.IOString + ' & ' + pin.PowerDomain.Description + ' & ' + fmttex(pin.PowerDomain.PositiveRailPackagePin.Name) + '/' + fmttex(pin.PowerDomain.NegativeRailPackagePin.Name) + ' \\\\\n'
@@ -9176,12 +9444,12 @@ class LatexUserGuide():
 				if len(pin.PrimaryName) > 0:
 					s += '\\pin{' + fmttex(pin.PrimaryName) + '} & '
 				else:
-					s += '-- & '
+					s += '- & '
 
 				if len(pin.FuncName) > 0:
 					s += '\\pin{' + fmttex(pin.FuncName) + '} & '
 				else:
-					s += '-- & '
+					s += '- & '
 
 				if pin.RstSEL == 1:
 					s += '1 \\textit{(Alternate)} & '
@@ -9626,241 +9894,944 @@ class LatexUserGuide():
 		
 		return s
 	
+
+	# -----------------------------------------------------------------
+	# Register description format (TRM standard, section 4) and the
+	# per-peripheral generated tables (section 5).
+	# Everything below emits self-contained LaTeX.
+	# The only theme dependencies are the tablehighlightcolor colour and the
+	# ltablex package, both of which the packages file has carried for years.
+	# -----------------------------------------------------------------
+
+	# Flip this to True once every field carries a description.
+	# While it is False an empty description prints a WARNING and the build continues.
+	# Chapter titles read as a long name followed by the acronym, the way every vendor manual titles a peripheral chapter.
+	# A PeripheralTemplate may carry its own LongName attribute; this table is the fallback keyed by the template name.
+	_PERIPHERAL_LONG_NAMES = {
+		'CLINT': 'Core-local interruptor',
+		'DMAx': 'Direct memory access controller',
+		'EVFAB': 'Event fabric',
+		'GPIOx': 'General-purpose input and output',
+		'I2CTx': 'I2C target',
+		'I2Cx': 'Inter-integrated circuit interface',
+		'I3Cx': 'Improved inter-integrated circuit interface',
+		'IRQROUTER': 'Interrupt router',
+		'MUTEX': 'Hardware mutexes',
+		'NFCx': 'Near-field communication interface',
+		'NPU': 'Neural processing unit',
+		'OWx': '1-Wire interface',
+		'PCT': 'Pin control',
+		'PWMx': 'Pulse-width modulator',
+		'PWRCTRL': 'Power control',
+		'QSPIx': 'Quad serial peripheral interface',
+		'RTCx': 'Real-time clock',
+		'SPIx': 'Serial peripheral interface',
+		'SYSTEM': 'System control',
+		'TIMERx': 'Timer',
+		'TRNGx': 'True random number generator',
+		'UARTx': 'Universal asynchronous receiver and transmitter',
+	}
+	EMPTY_FIELD_DESCRIPTION_IS_ERROR = True
+
+	# Plain-English meaning of every accessibility code BitField.py accepts.
+	# The accepted set itself is read out of BitField.py at build time, and a
+	# code that has no entry here fails the build, so the legend cannot drift.
+	_ACCESS_LEGEND = {
+		'rw': ('Read/write', 'Returns the current value.', 'Sets the field to the written value.'),
+		'r': ('Read only', 'Returns the current value.', 'Ignored.'),
+		'r0': ('Reserved, reads zero', 'Returns 0.', 'Ignored. Write 0.'),
+		'r1': ('Reserved, reads one', 'Returns 1.', 'Ignored. Write 1.'),
+		'rw0': ('Read, write 0 to act', 'Returns the current value.', 'A 0 in a bit position acts on that bit; a 1 leaves it unchanged.'),
+		'rw1': ('Read, write 1 to act', 'Returns the current value.', 'A 1 in a bit position acts on that bit (clears a flag, or applies the register\'s set, clear or toggle operation); a 0 leaves it unchanged.'),
+		'w': ('Write only', 'Not defined by this manual.', 'Sets the field to the written value.'),
+		'w0': ('Write 0 to trigger', 'Not defined by this manual.', 'A 0 triggers the action; a 1 has no effect.'),
+		'w1': ('Write 1 to trigger', 'Not defined by this manual.', 'A 1 triggers the action (a command strobe); a 0 has no effect.'),
+	}
+
+	def _AcceptedAccessCodes(self):
+		'''The accessibility strings BitField.py validates against, read from its source.'''
+		path = os.path.join(self.ThisFileDirectory, 'BitField.py')
+		with open(path) as f:
+			src = f.read()
+		m = re.search(r'a\s+in\s+\[([^\]]*)\]', src)
+		if m is None:
+			raise Exception('AccessLegend: could not find the accepted accessibility list in ' + path)
+		codes = re.findall(r"'([^']+)'", m.group(1))
+		if len(codes) < 1:
+			raise Exception('AccessLegend: the accepted accessibility list in ' + path + ' is empty')
+		return codes
+
+	def GenerateAccessLegend(self):
+		'''include/AccessLegend.tex: the register access-type legend for the front matter.'''
+		codes = self._AcceptedAccessCodes()
+		for c in codes:
+			if c not in self._ACCESS_LEGEND:
+				raise Exception('AccessLegend: BitField.py accepts accessibility "' + c + '" but LatexUserGuide._ACCESS_LEGEND has no entry for it')
+		s = self._TablePreamble()
+		s += '\\begin{tabularx}{\\textwidth}{ l l X X }\n'
+		s += '\\caption{Register access types} \\label{t:access-types} \\\\\n'
+		s += '\\hline \\textbf{Type} & \\textbf{Meaning} & \\textbf{Read effect} & \\textbf{Write effect} \\\\ \\hline \\endfirsthead\n'
+		s += '\\hline \\textbf{Type} & \\textbf{Meaning} & \\textbf{Read effect} & \\textbf{Write effect} \\\\ \\hline \\endhead\n'
+		s += '\\hline \\endfoot\n'
+		s += '\\hline \\endlastfoot\n'
+		for i, c in enumerate(codes):
+			meaning, rd, wr = self._ACCESS_LEGEND[c]
+			if i % 2 == 1:
+				s += '\\rowcolor{tablehighlightcolor} '
+			s += '\\texttt{' + fmttex(c) + '} & ' + fmttex(meaning) + ' & ' + fmttex(rd) + ' & ' + fmttex(wr) + ' \\\\\n'
+		s += '\\end{tabularx}\n'
+		self._writeInclude('AccessLegend.tex', s)
+		return
+
+	def _TablePreamble(self):
+		'''Guarded definitions every generated table file can rely on, whatever the template carries.'''
+		return ('\\ifdefined\\FloatBarrier\\else\\providecommand{\\FloatBarrier}{}\\fi\n'
+			# Under the article class (before the template moves to report) a chapter is a section.
+			# The chapter counter exists only in the report and book classes, so it is the reliable test.
+			'\\makeatletter\\ifdefined\\c@chapter\\else\\let\\chapter\\section\\fi\\makeatother\n'
+			'\\providecommand{\\peripheral}[1]{\\texttt{#1}}\n'
+			'\\providecommand{\\register}[1]{\\texttt{#1}}\n'
+			'\\providecommand{\\bitfield}[1]{\\texttt{#1}}\n'
+			'\\providecommand{\\pin}[1]{\\texttt{#1}}\n')
+
+	# ---- small formatting helpers ------------------------------------
+
+	def _FieldValueString(self, value, size):
+		'''Binary for fields of four bits or fewer, hex (plus decimal) above that, a bare digit for one bit.'''
+		if size == 1:
+			return str(value)
+		if size <= 4:
+			return fmtbin(value, minDigits=size, usePrefix=True)
+		digits = (size + 3) // 4
+		return fmthex(value, minDigits=digits) + ' (' + str(value) + ')'
+
+	def _FieldResetString(self, value, size):
+		'''Like the value string, but without the decimal echo, which is noise in a reset column.'''
+		if size == 1:
+			return str(value)
+		if size <= 4:
+			return fmtbin(value, minDigits=size, usePrefix=True)
+		return fmthex(value, minDigits=(size + 3) // 4)
+
+	def _RegisterResetString(self, rt, size):
+		return fmthex(rt.ResetValue if rt.ResetValue is not None else 0, minDigits=max(2, (size + 3) // 4))
+
+	def _SentenceCount(self, text):
+		return len(re.findall(r'[.!?](?:\s|$)', text.strip()))
+
+	def _ShortTitle(self, description):
+		'''The first sentence of a description when it is short enough to serve as a heading, else None.'''
+		d = description.strip()
+		if len(d) < 1:
+			return None
+		m = re.match(r'(.+?)(?:\.\s|\.$|$)', d)
+		first = m.group(1).strip() if m else d
+		if len(first) > 72 or '\n' in first:
+			return None
+		return first
+
+	def _AccessSummary(self, fields):
+		order = ['rw', 'r', 'rw1', 'rw0', 'w', 'w1', 'w0', 'r1', 'r0']
+		seen = []
+		for bf in fields:
+			if bf.Unused:
+				continue
+			if bf.Accessibility not in seen:
+				seen.append(bf.Accessibility)
+		if len(seen) < 1:
+			return 'r0'
+		seen.sort(key=lambda a: order.index(a) if a in order else len(order))
+		return '/'.join(seen)
+
+	def _BitFieldDisplayName(self, pt, name):
+		if type(pt.BitFieldPrefix) == str and name.startswith(pt.BitFieldPrefix) and len(name) > len(pt.BitFieldPrefix):
+			return name[len(pt.BitFieldPrefix):]
+		return name
+
+	def _RangesString(self, numbers):
+		'''Sorted integers as "1 to 8, 12, 16 to 21" without dashes.'''
+		nums = sorted(set(numbers))
+		parts = []
+		i = 0
+		while i < len(nums):
+			j = i
+			while (j + 1) < len(nums) and nums[j + 1] == nums[j] + 1:
+				j += 1
+			if j > i:
+				parts.append(str(nums[i]) + ' to ' + str(nums[j]))
+			else:
+				parts.append(str(nums[i]))
+			i = j + 1
+		return ', '.join(parts)
+
+	# ---- register arrays (standard 4.4) ------------------------------
+
+	def _Templatize(self, strings, indices):
+		'''One string with every varying decimal index replaced by n, or None when the strings do not differ by the index alone.
+		   Each string is split into digit runs and the text between them; the text must agree everywhere,
+		   and every digit run is either the same in all members or equal to that member's index.'''
+		if all(s == strings[0] for s in strings):
+			return strings[0]
+		tokens = [re.split(r'(\d+)', s) for s in strings]
+		n = len(tokens[0])
+		if any(len(t) != n for t in tokens):
+			return None
+		out = []
+		for pos in range(n):
+			col = [t[pos] for t in tokens]
+			if pos % 2 == 0:
+				if any(c != col[0] for c in col):
+					return None
+				out.append(col[0])
+			elif all(c == col[0] for c in col):
+				out.append(col[0])
+			elif all(c == str(i) for c, i in zip(col, indices)):
+				out.append('n')
+			else:
+				return None
+		return ''.join(out)
+
+	def _FieldSignature(self, bf):
+		return (bf.MSB, bf.LSB, bf.Accessibility, bf.ResetValue, bf.Unused, tuple(v[0] for v in bf.ValueDescriptions))
+
+	def _TryRegisterArray(self, members):
+		'''members: list of (index, rt) with the same name key. Returns the array record or None.'''
+		members = sorted(members, key=lambda m: m[0])
+		idx = [m[0] for m in members]
+		rts = [m[1] for m in members]
+		if len(rts) < 2:
+			return None
+		for k in range(1, len(idx)):
+			if idx[k] != idx[k - 1] + 1:
+				return None
+		stride = rts[1].Offset - rts[0].Offset
+		if stride <= 0:
+			return None
+		for k in range(1, len(rts)):
+			if rts[k].Offset - rts[k - 1].Offset != stride:
+				return None
+		if any(rt.Size != rts[0].Size for rt in rts):
+			return None
+		nf = len(rts[0].BitFields)
+		if any(len(rt.BitFields) != nf for rt in rts):
+			return None
+		for f in range(nf):
+			sig = self._FieldSignature(rts[0].BitFields[f])
+			if any(self._FieldSignature(rt.BitFields[f]) != sig for rt in rts):
+				return None
+		# Every piece of text must differ by the index alone.
+		desc = self._Templatize([rt.Description for rt in rts], idx)
+		if desc is None:
+			return None
+		fields = []
+		for f in range(nf):
+			bfs = [rt.BitFields[f] for rt in rts]
+			name = self._Templatize([bf.Name for bf in bfs], idx)
+			fdesc = self._Templatize([bf.Description for bf in bfs], idx)
+			if name is None or fdesc is None:
+				return None
+			vds = []
+			for v in range(len(bfs[0].ValueDescriptions)):
+				vname = self._Templatize([bf.ValueDescriptions[v][2] for bf in bfs], idx)
+				vdesc = self._Templatize([bf.ValueDescriptions[v][1] for bf in bfs], idx)
+				if vname is None or vdesc is None:
+					return None
+				vds.append((bfs[0].ValueDescriptions[v][0], vdesc, vname))
+			fields.append((bfs[0], name, fdesc, vds))
+		return {'indices': idx, 'members': rts, 'stride': stride, 'description': desc, 'fields': fields}
+
+	def _RegisterBlocks(self, pt):
+		'''The registers of a peripheral template as an ordered list of blocks.
+		   A block is either a single register template or a detected array of them.'''
+		candidates = {}
+		for rt in pt.RegisterTemplates:
+			for m in re.finditer(r'\d+', rt.NameTemplate):
+				key = rt.NameTemplate[:m.start()] + 'n' + rt.NameTemplate[m.end():]
+				candidates.setdefault(key, []).append((int(m.group(0)), rt))
+		used = set()
+		arrays = {}
+		for key in candidates:
+			members = [(i, rt) for (i, rt) in candidates[key] if id(rt) not in used]
+			arr = self._TryRegisterArray(members)
+			if arr is None:
+				continue
+			arr['name'] = key
+			for rt in arr['members']:
+				used.add(id(rt))
+			arrays[id(arr['members'][0])] = arr
+		blocks = []
+		for rt in pt.RegisterTemplates:
+			if id(rt) in arrays:
+				blocks.append(arrays[id(rt)])
+			elif id(rt) not in used:
+				blocks.append({'name': rt.NameTemplate, 'members': [rt], 'indices': None, 'stride': 0,
+					'description': rt.Description,
+					'fields': [(bf, bf.Name, bf.Description, list(bf.ValueDescriptions)) for bf in rt.BitFields]})
+		return blocks
+
+	def _BlockLabel(self, pt, block):
+		return 'reg:' + pt.NameTemplate.replace('_', '') + ':' + block['name'].replace('_', '')
+
+	def _BlockHeadingName(self, block):
+		if block['indices'] is None:
+			return block['name']
+		return block['name'] + ' (n = ' + str(block['indices'][0]) + '..' + str(block['indices'][-1]) + ')'
+
+	def _BlockOffsetString(self, block):
+		first = block['members'][0]
+		if block['indices'] is None:
+			return fmthex(first.Offset, minDigits=2)
+		base = first.Offset - block['indices'][0] * block['stride']
+		return fmthex(base, minDigits=2) + ' + ' + str(block['stride']) + 'n'
+
+	def _BlockSize(self, pt, block):
+		'''The widest instance size of the block's first register, so a GPIO port widened per instance is honoured.'''
+		rt = block['members'][0]
+		sizes = []
+		for p in self.Gen.Peripherals:
+			if p.Template is not pt:
+				continue
+			for r in p.Registers:
+				if r.Template is rt:
+					sizes.append(r.Size)
+		# The instances are the truth: a GPIO port template is declared 32 bits wide and narrowed per instance.
+		if len(sizes) > 0:
+			return max(sizes)
+		return rt.Size
+
+	# ---- pins and vectors per peripheral -----------------------------
+
+	def _FunctionOwner(self, name, description, peripheralHint):
+		'''The peripheral instance a pin function belongs to, or None.
+		   An explicit hint on the model wins; otherwise the function's description names its instance.'''
+		if peripheralHint is not None:
+			for p in self.Gen.Peripherals:
+				if p.Name == peripheralHint:
+					return p
+		if name is None or len(name) < 1:
+			return None
+		best = None
+		for p in self.Gen.Peripherals:
+			if re.match(re.escape(p.Name) + r'(?![A-Za-z0-9])', description or ''):
+				if best is None or len(p.Name) > len(best.Name):
+					best = p
+		return best
+
+	def _PeripheralSignals(self, p):
+		'''[(signalName, ioType, description, [(portLabel, afIndex), ...])] for one instance.'''
+		sig = {}
+		order = []
+		for g in self.Gen.Peripherals:
+			if not g.IsGPIO():
+				continue
+			for pin in g.Pins:
+				if pin.NoConnect:
+					continue
+				label = 'P' + g.GetGPIOPortLabel() + '.' + str(pin.BitNumber)
+				funcs = [(pin.FuncName, pin.FuncIOType, pin.Description, 0, getattr(pin, 'Peripheral', None))]
+				for af in pin.AltFuncs:
+					funcs.append((af.Name, af.IOType, getattr(af, 'Description', ''), af.Index, getattr(af, 'Peripheral', None)))
+				for (name, io, desc, afIdx, hint) in funcs:
+					if name is None or len(name) < 1:
+						continue
+					if self._FunctionOwner(name, desc, hint) is not p:
+						continue
+					if name not in sig:
+						sig[name] = [io, desc, []]
+						order.append(name)
+					elif afIdx == 0:
+						sig[name][1] = desc
+					sig[name][2].append((label, afIdx))
+		out = []
+		for name in order:
+			io, desc, locs = sig[name]
+			out.append((name, io, desc, locs))
+		return out
+
+	def _CleanFunctionDescription(self, desc):
+		d = re.sub(r'\s*\((?:second |third )?alternate location\)', '', desc or '')
+		d = re.sub(r'\s*\(alt plane AF\d\)', '', d)
+		return d.strip()
+
+	def _IoTypeWord(self, io):
+		return {'I': 'Input', 'O': 'Output', 'IO': 'Bidirectional'}.get(io or '', '')
+
+	def _VectorOwners(self):
+		'''One peripheral (or None) per interrupt vector, from the generator's vector list.'''
+		compat = getattr(self.Gen, 'McuMpCompat', None) or {}
+		vecs = list(compat.get('irqVectors') or [])
+		owners = []
+		byFirst = {}
+		for p in self.Gen.Peripherals:
+			if p.InterruptPriority is not None:
+				byFirst[p.InterruptPriority] = p
+		for v, (name, desc) in enumerate(vecs):
+			token = name[len('IRQB_'):].split('_')[0] if name.startswith('IRQB_') else name
+			owner = None
+			if v in byFirst:
+				owner = byFirst[v]
+			elif not token.startswith('RSVD'):
+				exact = [p for p in self.Gen.Peripherals if p.Name == token]
+				if len(exact) == 1:
+					owner = exact[0]
+				else:
+					m = re.match(r'([A-Za-z]+)(\d*)$', token)
+					if m:
+						alpha, digits = m.group(1), m.group(2)
+						cands = [p for p in self.Gen.Peripherals
+							if p.Name.startswith(alpha) and (p.NameIndex == digits or (p.NameIndex == '' and digits in ('', '0')))]
+						if len(cands) == 1:
+							owner = cands[0]
+						elif len(cands) > 1:
+							print('WARNING: interrupt vector ' + str(v) + ' (' + name + ') matches several peripherals: ' + ', '.join(c.Name for c in cands))
+			owners.append(owner)
+		for p in self.Gen.Peripherals:
+			if p.InterruptPriority is not None and p.InterruptPriority < len(owners) and owners[p.InterruptPriority] is not p:
+				print('WARNING: vector ' + str(p.InterruptPriority) + ' is declared as the first vector of ' + p.Name + ' but the vector list does not agree')
+		return vecs, owners
+
+	def _VectorsOf(self, p, vecs, owners):
+		return [(v, vecs[v][0], vecs[v][1]) for v in range(len(vecs)) if owners[v] is p]
+
+	def _ClearMethod(self, p, vectorName):
+		'''The model may carry a per-vector or per-peripheral clear method; otherwise the chapter says.'''
+		compat = getattr(self.Gen, 'McuMpCompat', None) or {}
+		fromGen = compat.get('irqClearMethods') or {}
+		if type(fromGen) == dict and fromGen.get(vectorName):
+			return fromGen[vectorName]
+		perVector = getattr(p, 'InterruptClearMethods', None) or getattr(p.Template, 'InterruptClearMethods', None)
+		if type(perVector) == dict and perVector.get(vectorName):
+			return perVector[vectorName]
+		single = getattr(p, 'InterruptClearMethod', None) or getattr(p.Template, 'InterruptClearMethod', None)
+		if type(single) == str and len(single) > 0:
+			return single
+		return 'See chapter'
+
+	# ---- interrupt vector table (standard section 3, chapter 8) ------
+
+	def GenerateInterruptsTable(self):
+		'''include/InterruptsTable.tex: one row per vector, reserved slots included.
+		   The CPU-internal causes go to include/CpuExceptionsTable.tex so they cannot collide with vector numbers.'''
+		vecs, owners = self._VectorOwners()
+		if len(vecs) < 1:
+			# A configuration without the vector list falls back to the peripherals' first vectors.
+			for p in sorted([p for p in self.Gen.Peripherals if p.InterruptPriority is not None], key=lambda p: p.InterruptPriority):
+				while len(vecs) < p.InterruptPriority:
+					vecs.append(('IRQB_RSVD' + str(len(vecs)), 'Reserved'))
+					owners.append(None)
+				vecs.append(('IRQB_' + p.Name, p.Name + ' interrupt'))
+				owners.append(p)
+		s = self._TablePreamble()
+		s += '{\\small\n'
+		s += '\\begin{tabularx}{\\textwidth}{ l l X X l }\n'
+		s += '\\caption{Interrupt vectors} \\label{t:interrupt-vectors} \\\\\n'
+		head = '\\hline \\textbf{Vector} & \\textbf{Source} & \\textbf{Description} & \\textbf{Clear method} & \\textbf{Chapter} \\\\ \\hline'
+		s += head + ' \\endfirsthead\n'
+		s += head + ' \\endhead\n'
+		s += '\\hline \\endfoot\n'
+		s += '\\hline \\endlastfoot\n'
+		for v, (name, desc) in enumerate(vecs):
+			p = owners[v]
+			if v % 2 == 1:
+				s += '\\rowcolor{tablehighlightcolor} '
+			if p is None:
+				s += str(v) + ' & Reserved & ' + fmttex(desc) + ' & - & - \\\\\n'
+				continue
+			label = 'peripheral' + p.Template.NameTemplate.replace('_', '')
+			s += (str(v) + ' & \\peripheral{' + fmttex(p.Name) + '} & ' + fmttex(desc)
+				+ ' \\newline \\texttt{\\footnotesize ' + fmttex(name) + '}'
+				+ ' & ' + fmttex(self._ClearMethod(p, name))
+				+ ' & \\ref{' + label + '} \\\\\n')
+		s += '\\end{tabularx}\n}\n'
+		self._writeInclude('InterruptsTable.tex', s)
+		self.GenerateCpuExceptionsTable()
+		return
+
+	def GenerateCpuExceptionsTable(self):
+		'''include/CpuExceptionsTable.tex: the CPU-internal causes, in their own table.
+		   These three rows are the legacy causes the old vector table hard-coded; they are not vector numbers.'''
+		s = self._TablePreamble()
+		s += '\\begin{tabularx}{\\textwidth}{ l X }\n'
+		s += '\\caption{CPU-internal interrupt causes} \\label{t:cpu-exceptions} \\\\\n'
+		s += '\\hline \\textbf{Cause} & \\textbf{Description} \\\\ \\hline \\endfirsthead\n'
+		s += '\\hline \\textbf{Cause} & \\textbf{Description} \\\\ \\hline \\endhead\n'
+		s += '\\hline \\endfoot\n'
+		s += '\\hline \\endlastfoot\n'
+		s += 'Timer & CPU internal timer \\\\\n'
+		s += '\\rowcolor{tablehighlightcolor} Instruction & EBREAK, ECALL, or illegal instruction \\\\\n'
+		s += 'Bus error & Unaligned memory access \\\\\n'
+		s += '\\end{tabularx}\n'
+		self._writeInclude('CpuExceptionsTable.tex', s)
+		return
+
+	# ---- memory map table (standard section 3, chapter 4) -----------
+
+	def _RegionAttributes(self, group, title):
+		t = title.lower()
+		if group is None:
+			return '-'
+		if group == self._ADDR_GROUP_APERTURE:
+			return 'R'
+		if group == self._ADDR_GROUP_FLASH:
+			return 'R/X'
+		if 'rom' in t:
+			return 'R/X'
+		if 'ram' in t or 'tcm' in t:
+			return 'R/W/X'
+		return 'R/W'
+
+	def _StripTex(self, text):
+		t = re.sub(r'\\(?:textit|textbf|color)\{[^{}]*\}', '', text)
+		t = re.sub(r'\\[A-Za-z]+', '', t)
+		return t.replace('{', '').replace('}', '').strip()
+
+	def GenerateAddressSpaceTable(self):
+		'''include/AddressSpaceTable.tex: the address-space column as a table with an attribute column.'''
+		rows = self._AddressSpaceRows()
+		s = self._TablePreamble()
+		s += '\\begin{tabularx}{\\textwidth}{ l l l X l }\n'
+		s += ('\\caption{Address map (R = readable, W = writable, X = executable; unmapped rows read zero)}'
+			' \\label{t:address-map} \\\\\n')
+		head = '\\hline \\textbf{Start} & \\textbf{End} & \\textbf{Size} & \\textbf{Region} & \\textbf{Attr.} \\\\ \\hline'
+		s += head + ' \\endfirsthead\n'
+		s += head + ' \\endhead\n'
+		s += '\\hline \\endfoot\n'
+		s += '\\hline \\endlastfoot\n'
+		for i, (start, end, group, lines) in enumerate(rows):
+			if group is None:
+				title = 'Unmapped (reads zero)'
+			else:
+				title = self._StripTex(lines[0])
+				extra = [self._StripTex(l) for l in lines[1:] if not self._StripTex(l).startswith('Size')]
+				if group == self._ADDR_GROUP_PRIVATE:
+					extra.insert(0, 'private to each hart')
+				elif group == self._ADDR_GROUP_APERTURE:
+					extra.insert(0, 'hart 0 read-only view of a hart\'s TCM')
+				elif group == self._ADDR_GROUP_FLASH:
+					extra.insert(0, 'hart 0 only')
+				if len(extra) > 0:
+					title += ' (' + '; '.join(extra) + ')'
+			if i % 2 == 1:
+				s += '\\rowcolor{tablehighlightcolor} '
+			s += ('\\texttt{' + fmthex(start, minDigits=8) + '} & \\texttt{' + fmthex(end, minDigits=8) + '} & '
+				+ self._AddressSpaceSizeString(1 + end - start) + ' & ' + fmttex(title) + ' & '
+				+ self._RegionAttributes(group, title) + ' \\\\\n')
+		s += '\\end{tabularx}\n\n'
+		# The one sentence on register widths, derived from the model.
+		narrow = {}
+		for p in self.Gen.Peripherals:
+			for r in p.Registers:
+				if r.Size != 32:
+					narrow.setdefault(p.Template.NameTemplate, set()).add(r.Template.NameTemplate)
+		if len(narrow) > 0:
+			names = []
+			for t in sorted(narrow):
+				names.append('\\peripheral{' + fmttex(t) + '} (' + ', '.join('\\register{' + fmttex(n) + '}' for n in sorted(narrow[t])) + ')')
+			s += ('Every register owns one word-aligned 4-byte slot, and registers are 32 bits wide except those of '
+				+ '; '.join(names) + ', which are narrower and occupy the low-order bits of their slot.\n')
+		else:
+			s += 'Every register owns one word-aligned 4-byte slot and is 32 bits wide.\n'
+		self._writeInclude('AddressSpaceTable.tex', s)
+		return
+
+	# ---- per-peripheral tables (standard 5.X.2) ----------------------
+
+	def _InstancesOf(self, pt):
+		return [p for p in self.Gen.Peripherals if p.Template is pt]
+
+	def GeneratePeripheralTables(self, pt, vecs, owners):
+		'''include/<TEMPLATE>-tables.tex: the Instances and signals section of one peripheral chapter.'''
+		tag = pt.NameTemplate.replace('_', '')
+		instances = self._InstancesOf(pt)
+		s = self._TablePreamble()
+		s += '\\section{Instances and signals} \\label{inst:' + tag + '}\n\n'
+		# Instances table.
+		s += '\\begin{tabularx}{\\textwidth}{ l l l X }\n'
+		s += '\\caption{\\peripheral{' + fmttex(pt.NameTemplate) + '} instances} \\label{t:' + tag + '-instances} \\\\\n'
+		head = '\\hline \\textbf{Instance} & \\textbf{Base address} & \\textbf{Interrupt vector(s)} & \\textbf{Pins (AF)} \\\\ \\hline'
+		s += head + ' \\endfirsthead\n' + head + ' \\endhead\n'
+		s += '\\hline \\endfoot\n\\hline \\endlastfoot\n'
+		anyPins = False
+		signalsPerInstance = {}
+		for i, p in enumerate(instances):
+			pv = self._VectorsOf(p, vecs, owners)
+			vecCell = self._RangesString([v for (v, n, d) in pv]) if len(pv) > 0 else 'none'
+			if p.IsGPIO():
+				pins = [pin for pin in p.Pins if not pin.NoConnect]
+				pinCell = ('P' + p.GetGPIOPortLabel() + '.' + str(pins[0].BitNumber) + ' to P' + p.GetGPIOPortLabel() + '.' + str(pins[-1].BitNumber)) if len(pins) > 0 else 'none'
+				if len(pins) > 0:
+					anyPins = True
+			else:
+				sigs = self._PeripheralSignals(p)
+				signalsPerInstance[p.Name] = sigs
+				# The instances table names each signal at its lowest AF plane only.
+				# Every location is in the signals table below.
+				cells = []
+				for (name, io, desc, locs) in sigs:
+					lo = sorted(locs, key=lambda t: (t[1], t[0]))[0]
+					cells.append('\\pin{' + fmttex(name) + '} ' + lo[0] + ' (AF' + str(lo[1]) + ')')
+				pinCell = ', '.join(cells) if len(cells) > 0 else 'none'
+				if len(cells) > 0:
+					anyPins = True
+			if i % 2 == 1:
+				s += '\\rowcolor{tablehighlightcolor} '
+			s += '\\peripheral{' + fmttex(p.Name) + '} & \\texttt{' + fmthex(p.BaseAddress) + '} & ' + vecCell + ' & ' + pinCell + ' \\\\\n'
+		s += '\\end{tabularx}\n\n'
+		# Signals table.
+		if anyPins:
+			s += '\\begin{tabularx}{\\textwidth}{ l l X X }\n'
+			s += '\\caption{\\peripheral{' + fmttex(pt.NameTemplate) + '} signals} \\label{t:' + tag + '-signals} \\\\\n'
+			head = '\\hline \\textbf{Signal} & \\textbf{Direction} & \\textbf{Description} & \\textbf{Pin (AF)} \\\\ \\hline'
+			s += head + ' \\endfirsthead\n' + head + ' \\endhead\n'
+			s += '\\hline \\endfoot\n\\hline \\endlastfoot\n'
+			row = 0
+			for p in instances:
+				if p.IsGPIO():
+					for pin in p.Pins:
+						if pin.NoConnect:
+							continue
+						label = 'P' + p.GetGPIOPortLabel() + '.' + str(pin.BitNumber)
+						afs = []
+						if len(pin.FuncName) > 0:
+							afs.append('AF0 \\pin{' + fmttex(pin.FuncName) + '}')
+						for af in pin.AltFuncs:
+							afs.append('AF' + str(af.Index) + ' \\pin{' + fmttex(af.Name) + '}')
+						desc = 'General-purpose I/O'
+						if len(pin.PrimaryName) > 0:
+							desc += ' \\pin{' + fmttex(pin.PrimaryName) + '}'
+						if len(afs) > 0:
+							desc += '; ' + ', '.join(afs)
+						if row % 2 == 1:
+							s += '\\rowcolor{tablehighlightcolor} '
+						s += label + ' & Bidirectional & ' + desc + ' & ' + label + ' \\\\\n'
+						row += 1
+				else:
+					for (name, io, desc, locs) in signalsPerInstance.get(p.Name, []):
+						if row % 2 == 1:
+							s += '\\rowcolor{tablehighlightcolor} '
+						s += ('\\pin{' + fmttex(name) + '} & ' + self._IoTypeWord(io) + ' & '
+							+ fmttex(self._CleanFunctionDescription(desc)) + ' & '
+							+ ', '.join(l + ' (AF' + str(a) + ')' for (l, a) in locs) + ' \\\\\n')
+						row += 1
+			s += '\\end{tabularx}\n\n'
+		# Interrupt vectors table.
+		allVecs = []
+		for p in instances:
+			allVecs += [(v, n, d, p) for (v, n, d) in self._VectorsOf(p, vecs, owners)]
+		if len(allVecs) > 0:
+			s += '\\begin{tabularx}{\\textwidth}{ l l X X }\n'
+			s += '\\caption{\\peripheral{' + fmttex(pt.NameTemplate) + '} interrupt vectors} \\label{t:' + tag + '-vectors} \\\\\n'
+			head = '\\hline \\textbf{Vector} & \\textbf{Instance} & \\textbf{Description} & \\textbf{Clear method} \\\\ \\hline'
+			s += head + ' \\endfirsthead\n' + head + ' \\endhead\n'
+			s += '\\hline \\endfoot\n\\hline \\endlastfoot\n'
+			for i, (v, n, d, p) in enumerate(sorted(allVecs, key=lambda t: t[0])):
+				if i % 2 == 1:
+					s += '\\rowcolor{tablehighlightcolor} '
+				s += (str(v) + ' & \\peripheral{' + fmttex(p.Name) + '} & ' + fmttex(d) + ' \\newline \\texttt{\\footnotesize ' + fmttex(n) + '} & '
+					+ fmttex(self._ClearMethod(p, n)) + ' \\\\\n')
+			s += '\\end{tabularx}\n\n'
+		fileName = tag + '-tables.tex'
+		self._writeInclude(fileName, s)
+		return fileName
+
+	def _SpliceIntoIntro(self, introPath, inputLine, tablesFileName):
+		'''Place the generated Instances and signals section after the intro's first (Overview) section.
+		   The intro source is untouched; only the copy in include/ is edited.
+		   An intro may name the spot itself with \\PeripheralInstancesAndSignals or by inputting the file.'''
+		with open(introPath) as f:
+			content = f.read()
+		if tablesFileName in content:
+			return
+		if '\\PeripheralInstancesAndSignals' in content:
+			content = content.replace('\\PeripheralInstancesAndSignals', inputLine, 1)
+		else:
+			inserted = False
+			for level in ('section', 'subsection', 'subsubsection'):
+				heads = [m.start() for m in re.finditer(r'^\\' + level + r'\*?\s*[\[{]', content, flags=re.M)]
+				if len(heads) < 1:
+					continue
+				if len(heads) >= 2:
+					content = content[:heads[1]] + inputLine + '\n\n' + content[heads[1]:]
+				else:
+					content = content.rstrip('\n') + '\n\n' + inputLine + '\n'
+				inserted = True
+				break
+			if not inserted:
+				content = content.rstrip('\n') + '\n\n' + inputLine + '\n'
+		with open(introPath, 'w') as f:
+			f.write(content)
+		return
+
+	# ---- the peripheral chapters -------------------------------------
+
+	def _EnumerationLines(self, bf, vds):
+		lines = []
+		for (value, description, name) in vds:
+			line = '\\texttt{' + self._FieldValueString(value, bf.Size) + '}'
+			if len(name) > 0:
+				line += ' \\texttt{' + fmttex(name) + '}'
+			if len(description) > 0:
+				line += ': ' + fmtprose(description)
+			lines.append(line)
+		return lines
+
+	def _FieldRows(self, pt, block, size):
+		'''The five-column field table rows of one block, MSB first, reserved runs collapsed.'''
+		rows = []
+		fields = sorted(block['fields'], key=lambda f: f[0].MSB, reverse=True)
+		pending = None
+		for (bf, name, desc, vds) in fields:
+			if bf.LSB >= size:
+				continue
+			# A template field wider than the instance register is clipped to the register width.
+			msb = min(bf.MSB, size - 1)
+			if bf.Unused:
+				if pending is None:
+					pending = [msb, bf.LSB]
+				elif pending[1] == msb + 1:
+					pending[1] = bf.LSB
+				else:
+					rows.append(self._ReservedRow(pending))
+					pending = [msb, bf.LSB]
+				continue
+			if pending is not None:
+				rows.append(self._ReservedRow(pending))
+				pending = None
+			bits = str(msb) if msb == bf.LSB else str(msb) + ':' + str(bf.LSB)
+			width = msb - bf.LSB + 1
+			text = desc.strip()
+			if len(text) < 1:
+				self._NoteEmptyDescription(pt, block, name)
+				title = self._ShortTitle(block['description'])
+				text = title if (bf.SameNameAsRegister and title) else ''
+			if self._SentenceCount(text) > 3:
+				self.LongFieldDescriptions.append(pt.NameTemplate + '.' + block['name'] + '.' + name)
+			enum = self._EnumerationLines(bf, vds)
+			if len(enum) < 1:
+				text, enum = self._CodedListFromProse(bf, text)
+			cell = fmtprose(text)
+			if len(enum) > 0:
+				cell += ('\\newline ' if len(cell) > 0 else '') + ' \\newline '.join(enum)
+			rows.append(bits + ' & \\texttt{' + fmttex(self._BitFieldDisplayName(pt, name)) + '} & \\texttt{' + bf.Accessibility
+				+ '} & \\texttt{' + self._FieldResetString(bf.ResetValue, width) + '} & ' + cell + ' \\\\\n')
+		if pending is not None:
+			rows.append(self._ReservedRow(pending))
+		return rows
+
+	def _CodedListFromProse(self, bf, text):
+		'''A description written as "0 = ..., 1 = ..., Codes a-b are reserved ..." becomes prose plus enumeration rows.
+		   Fields that carry explicit value descriptions never reach this; the model keeps the prose form because
+		   other emitters parse it back.'''
+		sentences = re.split(r'(?<=\.)\s+', text.strip())
+		codes = []
+		kept = []
+		for sent in sentences:
+			m = re.match(r'^(\d+)\s*=\s*(.+?)\.?$', sent)
+			r = re.match(r'^Codes\s+(\d+)-(\d+)\s+are\s+reserved\s*(.*?)\.?$', sent)
+			if m:
+				codes.append((int(m.group(1)), None, m.group(2)))
+			elif r:
+				codes.append((int(r.group(1)), int(r.group(2)), 'reserved' + ((', ' + r.group(3)) if r.group(3) else '')))
+			else:
+				kept.append(sent)
+		if len(codes) < 2:
+			return text, []
+		lines = []
+		for (lo, hi, desc) in codes:
+			v = '\\texttt{' + self._FieldValueString(lo, bf.Size) + '}'
+			if hi is not None:
+				v += ' to \\texttt{' + self._FieldValueString(hi, bf.Size) + '}'
+			lines.append(v + ': ' + fmtprose(desc))
+		return ' '.join(kept), lines
+
+	def _ReservedRow(self, span):
+		bits = str(span[0]) if span[0] == span[1] else str(span[0]) + ':' + str(span[1])
+		return bits + ' & - & - & - & Reserved. Reads zero; write zero. \\\\\n'
+
+	def _NoteEmptyDescription(self, pt, block, fieldName):
+		where = pt.NameTemplate + '.' + block['name'] + '.' + fieldName
+		if self.EMPTY_FIELD_DESCRIPTION_IS_ERROR:
+			raise Exception('Empty bit field description: ' + where)
+		if where not in self.EmptyFieldDescriptions:
+			self.EmptyFieldDescriptions.append(where)
+			print('WARNING: empty bit field description: ' + where)
+		return
+
+	def _RegisterBlockTex(self, pt, block, instances, shortLabelOk):
+		tag = pt.NameTemplate.replace('_', '')
+		name = block['name']
+		size = self._BlockSize(pt, block)
+		first = block['members'][0]
+		title = self._ShortTitle(block['description'])
+		heading = '\\texttt{' + fmttex(self._BlockHeadingName(block)) + '}'
+		if title:
+			heading += ': ' + fmttex(title)
+		plain = self._BlockHeadingName(block) + ((': ' + title) if title else '')
+		s = '\\subsection{\\texorpdfstring{' + heading + '}{' + fmttex(plain) + '}}\n'
+		s += '\\label{' + self._BlockLabel(pt, block) + '}'
+		for rt in block['members']:
+			s += ' \\label{ss:' + rt.NameTemplate.replace('_', '') + '}'
+		if shortLabelOk:
+			s += ' \\label{reg:' + name.replace('_', '') + '}'
+		s += '\n'
+		# The offset line.
+		line = ('\\noindent \\textbf{Offset} \\texttt{' + self._BlockOffsetString(block) + '} \\quad '
+			+ '\\textbf{Reset} \\texttt{' + self._RegisterResetString(first, size) + '} \\quad '
+			+ '\\textbf{Width} ' + str(size))
+		if block['indices'] is None and len(instances) <= 4 and len(instances) > 0:
+			addrs = []
+			for p in instances:
+				for r in p.Registers:
+					if r.Template is first:
+						addrs.append('\\texttt{' + fmthex(r.Address) + '}' + ((' (' + fmttex(p.Name) + ')') if len(instances) > 1 else ''))
+			line += ' \\quad \\textbf{Address} ' + ', '.join(addrs)
+		elif len(instances) > 4:
+			line += ' \\quad \\textbf{Address} see Table~\\ref{t:' + tag + '-instances}'
+		s += line + '\n\n'
+		desc = block['description'].strip()
+		if len(desc) > 0 and not (title and desc.rstrip('.') == title):
+			if self._SentenceCount(desc) > 3:
+				self.LongRegisterDescriptions.append(pt.NameTemplate + '.' + name)
+			s += '\\noindent ' + fmtprose(desc) + '\n\n'
+		s += '\\begin{tabularx}{\\textwidth}{ l l l l X }\n'
+		head = '\\hline \\textbf{Bits} & \\textbf{Field} & \\textbf{Type} & \\textbf{Reset} & \\textbf{Description} \\\\ \\hline'
+		s += head + ' \\endfirsthead\n' + head + ' \\endhead\n'
+		s += '\\hline \\endfoot\n\\hline \\endlastfoot\n'
+		rows = self._FieldRows(pt, block, size)
+		for i, r in enumerate(rows):
+			if i % 2 == 1:
+				s += '\\rowcolor{tablehighlightcolor} '
+			s += r
+		s += '\\end{tabularx}\n\n'
+		return s
+
 	def GeneratePeripheralSections(self):
-		# Get all the peripheral templates
+		self.EmptyFieldDescriptions = []
+		self.LongFieldDescriptions = []
+		self.LongRegisterDescriptions = []
 		pts = []
 		for p in self.Gen.Peripherals:
 			if p.Template not in pts:
 				pts.append(p.Template)
-		
-		# Generate the tex file for each peripheral template
-		s = ''
+		vecs, owners = self._VectorOwners()
+		# A register template name shared by two peripheral templates cannot carry the short reg: label.
+		nameCount = {}
 		for pt in pts:
-			# Is this the GPIO peripheral?
-			gpioBits = None
-			if pt.NameTemplate == 'GPIOx':
-				# What is the maximum number of bits in each of the GPIO ports?
-				gpioBits = 8
-				for p in self.Gen.Peripherals:
-					if not p.IsGPIO():
-						continue
-					if p.Registers[0].Size > gpioBits:
-						gpioBits = p.Size
-			
-			# Start the peripheral's section
-			s += '\\section{\\peripheral{' + fmttex(pt.NameTemplate) + '} Peripheral} \\label{peripheral' + pt.NameTemplate.replace('_', '') + '}\n'
+			for block in self._RegisterBlocks(pt):
+				nameCount[block['name']] = nameCount.get(block['name'], 0) + 1
 
-			# Add the latex intro file or the description
+		s = self._TablePreamble()
+		for pt in pts:
+			tag = pt.NameTemplate.replace('_', '')
+			instances = self._InstancesOf(pt)
+			longName = getattr(pt, 'LongName', None)
+			if not (type(longName) == str and len(longName) > 0):
+				longName = self._PERIPHERAL_LONG_NAMES.get(pt.NameTemplate, None)
+			if type(longName) == str and len(longName) > 0:
+				chapterTitle = fmttex(longName) + ' (\\texorpdfstring{\\peripheral{' + fmttex(pt.NameTemplate) + '}}{' + fmttex(pt.NameTemplate) + '})'
+			else:
+				chapterTitle = '\\texorpdfstring{\\peripheral{' + fmttex(pt.NameTemplate) + '}}{' + fmttex(pt.NameTemplate) + '}'
+			s += '\\chapter{' + chapterTitle + '} \\label{peripheral' + tag + '}\n'
+
+			tablesFile = self.GeneratePeripheralTables(pt, vecs, owners)
+			inputLine = '\\input{include/' + tablesFile + '}'
 			if pt.LatexIntroFileName is not None:
-				s += '\\input{include/' + pt.LatexIntroFileName + '}\n\n\\newpage\n\n'
+				introPath = self.SaveDirectory + '/include/' + pt.LatexIntroFileName
+				self._SpliceIntoIntro(introPath, inputLine, tablesFile)
+				s += '\\input{include/' + pt.LatexIntroFileName + '}\n\n\\FloatBarrier\n\n'
 			else:
-				s += fmttex(pt.Description) + '\n\n'
-			
-			# Add the registers
-			s += '\\subsection{Register Description}\n\n'
-			for rt in pt.RegisterTemplates:
-				size = rt.Size
-				if gpioBits is not None:
-					size = gpioBits
-				
-				# Add the register subsection
-				# Strip the 'x' from the register name for display (but keep it in the label for hyperlinks)
-				displayRegisterName = rt.NameTemplate.replace('x', '')
-				s += '\\subsubsection{\\texttt{' + fmttex(displayRegisterName) + '} Register} \\label{ss:' + rt.NameTemplate.replace('_', '') + '}\n'
+				s += fmttex(pt.Description) + '\n\n' + inputLine + '\n\n\\FloatBarrier\n\n'
 
-				# Add the memory address, register slot, offset, and size
-				addS = ''
-				if size > 8:
-					addS = 's'
-				s += '\\noindent \\textit{Register memory slot:} ' + str(rt.RegisterMemorySlot) + ', \\textit{offset:} ' + str(rt.Offset) + ' bytes, \\textit{size:} ' + str(size // 8) + ' byte' + addS + '\n\n'
-
-				# Add the register description
-				s += '\\noindent ' + fmttex(rt.Description) + '\n\n'
-
-				# Add the bytefield
-				s += '\\begin{center}\n'
-				s += '\\begin{bytefield}[endianness=big, bitwidth=0.125\\linewidth]{8}\n'
-
-				for byteNum in reversed(range(4)):
-					# Add each bytefield byte
-					if byteNum >= 2 and size <= 16:
-						continue
-					if byteNum >= 1 and size <= 8:
-						continue
-					
-					lineLSB = byteNum * 8
-					lineMSB = lineLSB + 7
-
-					# Make the bit header
-					s += '\\bitheader[lsb=' + str(lineLSB) + ']{' + str(lineLSB) + '-' + str(lineMSB) + '} \\\\\n'
-
-					# Make the bit fields for this byte
-					# For GPIO registers with multi-bit fields spanning the entire register, render each bit individually
-					# Otherwise, group consecutive bits with the same bitfield
-					isGPIO = (pt.NameTemplate == 'GPIOx')
-					bfs = []
-					for bitNum in reversed(range(lineLSB, lineMSB + 1)):
-						bf = rt.GetBitFieldAt(bitNum)
-						if bf is None:
-							bfs.append((None, bitNum))
-						elif isGPIO and bf.Size > 1 and bf.MSB == rt.Size - 1 and bf.LSB == 0:
-							# GPIO multi-bit field spanning entire register - render each bit separately
-							bfs.append((bf, bitNum))
-						elif len(bfs) == 0 or bfs[-1][0] != bf:
-							# New bitfield or different from previous
-							bfs.append((bf, bitNum))
-					
-					for bf_info in bfs:
-						bf, bitNum = bf_info
-						if bf is None:
-							s += '\\bitbox{1}{} & '
-							continue
-						
-						# Check if this is a GPIO multi-bit field spanning entire register
-						if isGPIO and bf.Size > 1 and bf.MSB == rt.Size - 1 and bf.LSB == 0:
-							# Render single bit with index for GPIO only
-							length = 1
-							displayName = bf.Name
-							if type(pt.BitFieldPrefix) == str and bf.Name.startswith(pt.BitFieldPrefix):
-								displayName = bf.Name[len(pt.BitFieldPrefix):]
-							s += '\\bitbox{' + str(length) + '}{\\texttt{' + fmttex(displayName) + '[' + str(bitNum) + ']}} & '
-						else:
-							# Normal grouped rendering
-							length = 1 + min(bf.MSB, lineMSB) - max(bf.LSB, lineLSB)
-							if bf.Unused:
-								s += '\\bitbox{' + str(length) + '}{\\textit{\\color{lightgray}Unused}} & '
-							else:
-								displayName = bf.Name
-								if type(pt.BitFieldPrefix) == str and bf.Name.startswith(pt.BitFieldPrefix):
-									displayName = bf.Name[len(pt.BitFieldPrefix):]
-								s += '\\bitbox{' + str(length) + '}{\\texttt{' + fmttex(displayName) + '}} & '
-					s = s[:-2] + '\\\\\n'
-				
-					# Make the read/write/reset fields
-					for bitNum in reversed(range(lineLSB, lineMSB + 1)):
-						bf = rt.GetBitFieldAt(bitNum)
-
-						if bf is None or bf.Unused:
-							s += '\\bitbox[t]{1}{} & '
-						else:
-							s += '\\bitbox[t]{1}{\\tiny ' + bf.Accessibility + '-(' + str(rt.GetBitResetValue(bitNum)) + ')} & '
-					s = s[:-2] + '\\\\\n'
-				
-				s += '\\end{bytefield}\n'
-				s += '\\end{center}\n\n'
-
-				# Add the value descriptions table
-				skip = True
-				for bf in rt.BitFields:
-					if bf.Unused:
-						continue
-					if bf.SameNameAsRegister and (len(bf.ValueDescriptions) == 0):
-						continue
-					skip = False
-				
-				if not skip:
-					s += '\\begin{tabularx}{\\textwidth}{ l l l X }\n'
-					s += '\\textbf{Bitfield} & \\textbf{Range} & \\multicolumn{2}{X}{\\textbf{Description}} \\\\ \\hline\n'
-					
-					for i, bf in enumerate(rt.BitFields):
-						if bf.Unused:
-							s += '\\textit{Unused} & '
-						else:
-							# Strip the peripheral prefix from the bitfield name for display
-							displayName = bf.Name
-							if type(pt.BitFieldPrefix) == str and bf.Name.startswith(pt.BitFieldPrefix):
-								displayName = bf.Name[len(pt.BitFieldPrefix):]
-							s += '\\texttt{' + fmttex(displayName) + '} & '
-						
-						if bf.Size > 1:
-							s += 'Bits ' + str(bf.MSB) + '-' + str(bf.LSB) + ' & '
-						else:
-							s += 'Bit ' + str(bf.MSB) + ' & '
-						
-						s += '\\multicolumn{2}{X}{' + fmttex(bf.Description) + '} \\\\\n'
-
-						thisRowColored = False
-
-						for vd in bf.ValueDescriptions:
-							value, description, name = vd
-							s += ' & & '
-
-							if thisRowColored:
-								s += '\\cellcolor{tablehighlightcolor}'
-							
-							s += '\\texttt{' + fmtbin(value, minDigits=bf.Size, usePrefix=False) + '} & '
-
-							if thisRowColored:
-								s += '\\cellcolor{tablehighlightcolor}'
-							
-							if len(name) > 0:
-								s += '\\texttt{' + fmttex(name) + '}: '
-							
-							s += fmttex(description) + ' \\\\\n'
-
-							thisRowColored = not thisRowColored
-						
-						if (i + 1) < len(rt.BitFields):
-							# Not the last line
-							s += '\\hline\n'
-					
-					# Remove the \\ from the final entry and add an ending horizontal line
-					s = s[:-3] + r'\\' + '\n' + r'\hline' + '\n'
-					s += '\\end{tabularx}\n\n'
-			
-			s += '\\newpage\n\n\n\n'
-
-		if not os.path.isdir(self.IncludeDirectory):
-			os.makedirs(self.IncludeDirectory)
-		
-		path = self.IncludeDirectory + '/PeripheralSections.tex'
-		with open(path, 'w') as f:
-			f.write(s)
-		
-		return
-	
-	def GeneratePeripheralAndRegistersList(self):
-		# Generate the tex file for each peripheral template
-		s = ''
-		for p in self.Gen.Peripherals:
-			# Start the peripheral's section
-			s += '\\subsection{\\peripheral{' + fmttex(p.Name) + '} Peripheral}\n'
-
-			# Add the base address and peripheral memory slot
-			if p.PeripheralMemorySlot is None:
-				s += '\\noindent Base address: \\texttt{' + fmthex(p.BaseAddress) + '} (shared window, arbitrated across all harts)\n\n'
-			else:
-				s += '\\noindent Base address: \\texttt{' + fmthex(p.BaseAddress) + '}, peripheral memory slot: ' + str(p.PeripheralMemorySlot) + '\n\n'
-			
-			# Add the table of all the register templates
+			# The Registers section.
+			blocks = self._RegisterBlocks(pt)
+			s += '\\section{Registers} \\label{regs:' + tag + '}\n\n'
+			bases = ', '.join('\\peripheral{' + fmttex(p.Name) + '} \\texttt{' + fmthex(p.BaseAddress) + '}' for p in instances)
+			if len(instances) > 0:
+				s += ('Register offsets in this chapter are relative to the instance base address in Table~\\ref{t:' + tag + '-instances} ('
+					+ bases + '); the generated header names each base \\texttt{' + fmttex(instances[0].Name) + '\\_BASE}'
+					+ (' and so on' if len(instances) > 1 else '') + '.\n\n')
+			# The register summary table.
 			s += '\\begin{tabularx}{\\textwidth}{ l l l l X }\n'
-			s += '\\textbf{Register} & \\textbf{Address} & \\textbf{Slot} & \\textbf{Offset (bytes)} & \\textbf{Size (bytes)} \\\\ \\hline\n'
-
-			thisRowColored = False
-			for r in p.Registers:
-				if thisRowColored:
+			s += '\\caption{\\peripheral{' + fmttex(pt.NameTemplate) + '} register summary} \\label{t:' + tag + '-regsummary} \\\\\n'
+			head = '\\hline \\textbf{Offset} & \\textbf{Name} & \\textbf{Access} & \\textbf{Reset} & \\textbf{Description} \\\\ \\hline'
+			s += head + ' \\endfirsthead\n' + head + ' \\endhead\n'
+			s += '\\hline \\endfoot\n\\hline \\endlastfoot\n'
+			row = 0
+			nextOffset = None
+			for block in blocks:
+				first = block['members'][0]
+				last = block['members'][-1]
+				if nextOffset is not None and first.Offset > nextOffset:
+					if row % 2 == 1:
+						s += '\\rowcolor{tablehighlightcolor} '
+					s += ('\\texttt{' + fmthex(nextOffset, minDigits=2) + '} to \\texttt{' + fmthex(first.Offset - 1, minDigits=2)
+						+ '} & - & - & - & Reserved \\\\\n')
+					row += 1
+				size = self._BlockSize(pt, block)
+				title = self._ShortTitle(block['description']) or ''
+				if row % 2 == 1:
 					s += '\\rowcolor{tablehighlightcolor} '
-				s += '\\hyperref[ss:' + r.Template.NameTemplate.replace('_', '') + ']{\\texttt{' + fmttex(r.Name) + '}} & '
-				s += '\\texttt{' + fmthex(r.Address) + '} & '
-				s += str(r.RegisterMemorySlot) + ' & '
-				s += str(r.Offset) + ' & '
-				s += str(r.Size // 8) + ' \\\\\n'
-
-				thisRowColored = not thisRowColored
-			
-			# Remove the \\ from the final entry and add an ending horizontal line
-			s = s[:-3] + r'\\' + '\n' + r'\hline' + '\n'
+				s += ('\\texttt{' + self._BlockOffsetString(block) + '} & \\hyperref[' + self._BlockLabel(pt, block) + ']{\\texttt{'
+					+ fmttex(self._BlockHeadingName(block)) + '}} & \\texttt{' + self._AccessSummary([f[0] for f in block['fields']])
+					+ '} & \\texttt{' + self._RegisterResetString(first, size) + '} & ' + fmttex(title) + ' \\\\\n')
+				row += 1
+				nextOffset = last.Offset + 4
 			s += '\\end{tabularx}\n\n'
+			# One block per register.
+			for block in blocks:
+				s += self._RegisterBlockTex(pt, block, instances, nameCount.get(block['name'], 0) == 1)
+			s += '\n'
 
-		if not os.path.isdir(self.IncludeDirectory):
-			os.makedirs(self.IncludeDirectory)
-		
-		path = self.IncludeDirectory + '/PeripheralAndRegistersList.tex'
-		with open(path, 'w') as f:
-			f.write(s)
-		
+		# Report the cells the standard wants moved into the functional description.
+		for what, names in (('register descriptions', self.LongRegisterDescriptions), ('field descriptions', self.LongFieldDescriptions)):
+			if len(names) > 0:
+				print('NOTE: ' + str(len(names)) + ' ' + what + ' run past three sentences: ' + ', '.join(names))
+		if len(self.EmptyFieldDescriptions) > 0:
+			print('WARNING: ' + str(len(self.EmptyFieldDescriptions)) + ' bit fields have no description (set LatexUserGuide.EMPTY_FIELD_DESCRIPTION_IS_ERROR = True to fail the build on them)')
+		self._writeInclude('PeripheralSections.tex', s)
 		return
-			
 
-
-	
+	def GeneratePeripheralAndRegistersList(self):
+		'''include/PeripheralAndRegistersList.tex: the flat register index of the appendix, arrays collapsed.'''
+		s = self._TablePreamble()
+		s += '{\\small\n'
+		s += '\\begin{tabularx}{\\textwidth}{ l l l l l X }\n'
+		s += '\\caption{Register index} \\label{t:register-index} \\\\\n'
+		head = '\\hline \\textbf{Register} & \\textbf{Address} & \\textbf{Offset} & \\textbf{Size} & \\textbf{Access} & \\textbf{Reset} \\\\ \\hline'
+		s += head + ' \\endfirsthead\n' + head + ' \\endhead\n'
+		s += '\\hline \\endfoot\n\\hline \\endlastfoot\n'
+		for p in self.Gen.Peripherals:
+			pt = p.Template
+			label = 'peripheral' + pt.NameTemplate.replace('_', '')
+			s += ('\\multicolumn{6}{l}{\\textbf{\\hyperref[' + label + ']{\\peripheral{' + fmttex(p.Name) + '}}} base \\texttt{'
+				+ fmthex(p.BaseAddress) + '}' + (' (shared window)' if p.PeripheralMemorySlot is None else '') + '} \\\\ \\hline\n')
+			row = 0
+			for block in self._RegisterBlocks(pt):
+				first = block['members'][0]
+				reg = None
+				for r in p.Registers:
+					if r.Template is first:
+						reg = r
+				if reg is None:
+					continue
+				if block['indices'] is None:
+					name = reg.Name
+					addr = fmthex(reg.Address)
+					off = fmthex(reg.Offset, minDigits=2)
+				else:
+					name = block['name'].replace('x', p.NameIndex) if 'x' in block['name'] else block['name']
+					name += ' (n = ' + str(block['indices'][0]) + '..' + str(block['indices'][-1]) + ')'
+					base = reg.Offset - block['indices'][0] * block['stride']
+					addr = fmthex(p.BaseAddress + base) + ' + ' + str(block['stride']) + 'n'
+					off = fmthex(base, minDigits=2) + ' + ' + str(block['stride']) + 'n'
+				size = self._BlockSize(pt, block)
+				if row % 2 == 1:
+					s += '\\rowcolor{tablehighlightcolor} '
+				s += ('\\hyperref[' + self._BlockLabel(pt, block) + ']{\\texttt{' + fmttex(name) + '}} & \\texttt{' + addr + '} & \\texttt{' + off
+					+ '} & ' + str(size // 8) + ' & \\texttt{' + self._AccessSummary([f[0] for f in block['fields']]) + '} & \\texttt{'
+					+ self._RegisterResetString(first, size) + '} \\\\\n')
+				row += 1
+			s += '\\hline\n'
+		s += '\\end{tabularx}\n}\n'
+		self._writeInclude('PeripheralAndRegistersList.tex', s)
+		return

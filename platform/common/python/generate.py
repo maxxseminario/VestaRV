@@ -82,7 +82,7 @@ _PACKAGE_MODELS = ('myshkin-qfn44', 'castalia-quad-qfn64', 'castalia-lqfp100')
 _CONFIG_SCHEMA = {
 	'chipName':             ('non-empty string: renames the chip in the TRM and headers (CHIP_NAME env wins)',
 	                         lambda v: isinstance(v, str) and len(v.strip()) > 0),
-	'numHarts':             ('int 1..32: hart/tile count (5 = Castalia default, 18 = Argus)',
+	'numHarts':             ('int 1..32: hart count; hart 0 is the always-on management hart and harts 1..N-1 are the power-gateable tiles',
 	                         lambda v: _isInt(v) and 1 <= v <= 32),
 	# Long form, preserved from the pre-2026-08-15 schema (the TRM chapters and this file's
 	# own notes are where this detail belongs; the string below is the table cell): bool —
@@ -110,7 +110,7 @@ _CONFIG_SCHEMA = {
 	# firmware must derive CLINT addresses from NHARTS)
 	'orchestrator':         ('bool: hart 0 is the always-on orchestrator; harts 1..N-1 are gateable tiles',
 	                         _isBool),
-	'numMutexes':           ('int 1..1024: HW mutex bank size (16 = Castalia, 32 = Argus)',
+	'numMutexes':           ('int 1..1024: hardware mutex bank size, the number of MUTEXn registers',
 	                         lambda v: _isInt(v) and 1 <= v <= 1024),
 	'registerFileDualPort': ('bool: docs-only, the register file is dual-port in the RTL either way',
 	                         _isBool),
@@ -497,7 +497,7 @@ _CONFIG_SCHEMA = {
 	# "castalia-quad-qfn64" QFN-64 quad pinout, "castalia-lqfp100" LQFP-100 single-MCU large
 	# package [Stage G2, 2026-07-22: all 48 GPIO bonded] — new pinouts are added as Python
 	# models, never as free-form config pin lists)
-	'package.model':        ('string: package pinout model, one of myshkin-qfn44, castalia-quad-qfn64 or castalia-lqfp100',
+	'package.model':        ('string: package pinout model, one of the pinout models defined in the generator (QFN-44, QFN-64 quad, or LQFP-100)',
 	                         lambda v: isinstance(v, str) and v in _PACKAGE_MODELS),
 	'package.preliminary':  ('bool: prints the Preliminary note in the TRM package section',
 	                         _isBool),
@@ -1661,15 +1661,15 @@ r.AddBitField(BitField(name='SYSSMCLKDIV', msb=5, lsb=3, accessibility='rw', des
 r.AddBitField(BitField(name='SYSMCLKDIV', msb=2, lsb=0, accessibility='rw', description='MCLK clock division selection. Division is applied after clock source selection through glitch-free divider multiplexer.', valueDescriptions=[(0b000, '/1 (no division)', '_1'), (0b001, '/2', '_2'), (0b010, '/4', '_4'), (0b011, '/8', '_8'), (0b100, '/16', '_16'), (0b101, '/32', '_32'), (0b110, '/64', '_64'), (0b111, '/128', '_128')]))
 
 # BLOCKPWR
-r = RegisterTemplate(nameTemplate='BLOCKPWR', registerMemorySlot=2, description='Block power control register. Controls power gating for on-chip memory blocks. All bits reset to 0 (every block powered). DP-S3: bits 6:3 gate the four low shared bulk-RAM banks individually; a gated bank LOSES ITS CONTENTS (no retention) and stops responding, so software must keep the bank holding its stack, mailboxes, or live payload powered, and must treat a re-powered bank as uninitialized (the boot-ROM zero-fill contract is write-before-read anyway). In configurations with more than four banks, banks 4 and up are hardwired always-on.', size=8)
+r = RegisterTemplate(nameTemplate='BLOCKPWR', registerMemorySlot=2, description='Block power control register. Controls power gating for the on-chip memory blocks; all bits reset to 0 (every block powered). Bits 6:3 gate the four low shared bulk-RAM banks individually: a gated bank loses its contents and stops responding, so software must keep the bank holding its stack, mailboxes or live data powered and must treat a re-powered bank as uninitialized. In configurations with more than four banks, banks 4 and up are always on.', size=8)
 p.AddRegisterTemplate(r)
 
 r.AddBitField(BitField(unused=True, msb=7, lsb=7))
 for _b in range(3, -1, -1):
 	r.AddBitField(BitField(name='SYSSHB' + str(_b) + 'OFF', msb=3 + _b, description='Shared bulk-RAM bank ' + str(_b) + ' (0x' + format(0x10000 + _b * 0x4000, 'X') + '-0x' + format(0x10000 + _b * 0x4000 + 0x3FFF, 'X') + ') power control. When set, the bank is powered off: contents are LOST and accesses no longer respond. Reduces static power (a gated sram1p16k halves its leakage).', accessibility='rw', valueDescriptions=[(0b0, 'Bank ' + str(_b) + ' powered on'), (0b1, 'Bank ' + str(_b) + ' powered off (contents lost)')]))
-r.AddBitField(BitField(name='SYSRAM1OFF', msb=2, description='RAM block 1 power control. When set, RAM block 1 is powered off. All data becomes undefined and the block no longer responds to memory access. Reduces static power consumption.', accessibility='rw', valueDescriptions=[(0b0, 'RAM block 1 powered on'), (0b1, 'RAM block 1 powered off')]))
-r.AddBitField(BitField(name='SYSRAM0OFF', msb=1, description='RAM block 0 power control. When set, RAM block 0 is powered off. All data becomes undefined and the block no longer responds to memory access. Reduces static power consumption.', accessibility='rw', valueDescriptions=[(0b0, 'RAM block 0 powered on'), (0b1, 'RAM block 0 powered off')]))
-r.AddBitField(BitField(name='SYSROMOFF', msb=0, description='ROM power control. When set, boot ROM is powered off. ROM no longer responds to read access. Reduces static power consumption.', accessibility='rw', valueDescriptions=[(0b0, 'ROM powered on'), (0b1, 'ROM powered off')]))
+r.AddBitField(BitField(name='SYSRAM1OFF', msb=2, description='RAM block 1 power control. When set, the block is powered off: its contents are lost and accesses to it no longer respond.', accessibility='rw', valueDescriptions=[(0b0, 'RAM block 1 powered on'), (0b1, 'RAM block 1 powered off')]))
+r.AddBitField(BitField(name='SYSRAM0OFF', msb=1, description='RAM block 0 power control. When set, the block is powered off: its contents are lost and accesses to it no longer respond.', accessibility='rw', valueDescriptions=[(0b0, 'RAM block 0 powered on'), (0b1, 'RAM block 0 powered off')]))
+r.AddBitField(BitField(name='SYSROMOFF', msb=0, description='ROM power control. When set, the boot ROM is powered off and no longer responds to reads.', accessibility='rw', valueDescriptions=[(0b0, 'ROM powered on'), (0b1, 'ROM powered off')]))
 
 # CRCDATA
 r = RegisterTemplate(nameTemplate='CRCDATA', registerMemorySlot=3, description='CRC input data register. Write the next byte of data to this register to update the CRC calculation. Uses CRC16-CDMA2000 polynomial 0xC857.', size=8)
@@ -1693,19 +1693,19 @@ r.AddBitField(BitField(name='SYSCRCSTATE', msb=15, lsb=0, accessibility='rw', de
 r = RegisterTemplate(nameTemplate='WDTCR', registerMemorySlot=13, size=8, description='Watchdog timer control register. This register is protected and requires password unlock via WDTPASS before writing. Configures watchdog operation mode and timeout period.')
 p.AddRegisterTemplate(r)
 
-r.AddBitField(BitField(name='SYSWDTEN', msb=7, accessibility='rw', description='Watchdog timer enable. When set, watchdog counter increments on MCLK. Watchdog generates interrupt and/or reset when counter bit selected by WDTCDIV transitions from 0 to 1. Register is write-protected; unlock with WDTPASS first.', valueDescriptions=[(0b0, 'Watchdog disabled'), (0b1, 'Watchdog enabled')]))
+r.AddBitField(BitField(name='SYSWDTEN', msb=7, accessibility='rw', description='Watchdog enable. When set, the 24-bit watchdog counter counts MCLK cycles and a timeout occurs when the counter bit selected by SYSWDTCDIV rises. WDTCR is write protected: unlock it through WDTPASS first.', valueDescriptions=[(0b0, 'Watchdog disabled'), (0b1, 'Watchdog enabled')]))
 r.AddBitField(BitField(unused=True, msb=6))
-r.AddBitField(BitField(name='SYSWDTCDIV', msb=5, lsb=2, accessibility='rw', description='Watchdog timer clock divider select. Selects which bit of the 24-bit counter triggers watchdog event. Event occurs when selected bit transitions from 0 to 1. Timeout period = 2^(WDTCDIV+16) MCLK cycles.', valueDescriptions=[(0b0000, 'Bit 16: 65,536 MCLK cycles', '_65536'), (0b0001, 'Bit 17: 131,072 MCLK cycles', '_131072'), (0b0010, 'Bit 18: 262,144 MCLK cycles', '_262144'), (0b0011, 'Bit 19: 524,288 MCLK cycles', '_524288'), (0b0100, 'Bit 20: 1,048,576 MCLK cycles', '_1048576'), (0b0101, 'Bit 21: 2,097,152 MCLK cycles', '_2097152'), (0b0110, 'Bit 22: 4,194,304 MCLK cycles', '_4194304'), (0b0111, 'Bit 23: 8,388,608 MCLK cycles', '_8388608'), (0b1000, 'Bit 24: 16,777,216 MCLK cycles', '_16777216'), (0b1001, 'Bit 25: 33,554,432 MCLK cycles', '_33554432'), (0b1010, 'Bit 26: 67,108,864 MCLK cycles', '_67108864'), (0b1011, 'Bit 27: 134,217,728 MCLK cycles', '_134217728'), (0b1100, 'Bit 28: 268,435,456 MCLK cycles', '_268435456'), (0b1101, 'Bit 29: 536,870,912 MCLK cycles', '_536870912'), (0b1110, 'Bit 30: 1,073,741,824 MCLK cycles', '_1073741824'), (0b1111, 'Bit 31: 2,147,483,648 MCLK cycles', '_2147483648')]))
-r.AddBitField(BitField(name='SYSWDTIE', msb=1, accessibility='rw', description='Watchdog timer interrupt enable. When set, watchdog timeout raises the watchdog interrupt level (vector 0), delivered to whichever hart the IRQROUTER routes it to. After the servicing hart completes the claim (IRQROUTER CLAIM/COMPLETE), the system resets if SYSWDTHWRST is set. If the vector is not routed to any hart, the reset (when enabled) occurs immediately on timeout.', valueDescriptions=[(0b0, 'Watchdog interrupt disabled'), (0b1, 'Watchdog interrupt enabled')]))
-r.AddBitField(BitField(name='SYSWDTHWRST', msb=0, accessibility='rw', description='Watchdog hardware reset enable. When set, watchdog timeout causes system reset. If WDTIE is set, reset occurs after interrupt service routine completes. If WDTIE is cleared or IRQ is not enabled, reset occurs immediately on timeout.', valueDescriptions=[(0b0, 'Watchdog reset disabled'), (0b1, 'Watchdog reset enabled')]))
+r.AddBitField(BitField(name='SYSWDTCDIV', msb=5, lsb=2, accessibility='rw', description='Watchdog timeout select. The timeout event occurs when counter bit SYSWDTCDIV + 16 rises, so the period is 2^(SYSWDTCDIV + 16) MCLK cycles.', valueDescriptions=[(0b0000, 'Bit 16: 65,536 MCLK cycles', '_65536'), (0b0001, 'Bit 17: 131,072 MCLK cycles', '_131072'), (0b0010, 'Bit 18: 262,144 MCLK cycles', '_262144'), (0b0011, 'Bit 19: 524,288 MCLK cycles', '_524288'), (0b0100, 'Bit 20: 1,048,576 MCLK cycles', '_1048576'), (0b0101, 'Bit 21: 2,097,152 MCLK cycles', '_2097152'), (0b0110, 'Bit 22: 4,194,304 MCLK cycles', '_4194304'), (0b0111, 'Bit 23: 8,388,608 MCLK cycles', '_8388608'), (0b1000, 'Bit 24: 16,777,216 MCLK cycles', '_16777216'), (0b1001, 'Bit 25: 33,554,432 MCLK cycles', '_33554432'), (0b1010, 'Bit 26: 67,108,864 MCLK cycles', '_67108864'), (0b1011, 'Bit 27: 134,217,728 MCLK cycles', '_134217728'), (0b1100, 'Bit 28: 268,435,456 MCLK cycles', '_268435456'), (0b1101, 'Bit 29: 536,870,912 MCLK cycles', '_536870912'), (0b1110, 'Bit 30: 1,073,741,824 MCLK cycles', '_1073741824'), (0b1111, 'Bit 31: 2,147,483,648 MCLK cycles', '_2147483648')]))
+r.AddBitField(BitField(name='SYSWDTIE', msb=1, accessibility='rw', description='Watchdog interrupt enable. When set, a timeout sets SYSWDTIF and raises the watchdog interrupt (vector 0) to the harts the IRQROUTER routes it to; with SYSWDTHWRST also set, the system reset follows the servicing hart completing the interrupt. If the vector is routed to no hart, the reset (when enabled) occurs immediately on timeout.', valueDescriptions=[(0b0, 'Watchdog interrupt disabled'), (0b1, 'Watchdog interrupt enabled')]))
+r.AddBitField(BitField(name='SYSWDTHWRST', msb=0, accessibility='rw', description='Watchdog reset enable. When set, a timeout resets the system: immediately if the watchdog interrupt is disabled or routed to no hart, otherwise after the servicing hart completes the interrupt.', valueDescriptions=[(0b0, 'Watchdog reset disabled'), (0b1, 'Watchdog reset enabled')]))
 
 # WDTSR
 r = RegisterTemplate(nameTemplate='WDTSR', registerMemorySlot=14, size=8, description='Watchdog timer status register. Contains flags indicating watchdog reset and interrupt events. Flags are cleared by writing 1 to the respective bit.')
 p.AddRegisterTemplate(r)
 
 r.AddBitField(BitField(unused=True, msb=7, lsb=2))
-r.AddBitField(BitField(name='SYSWDTIF', msb=1, accessibility='rw1', description='Watchdog timer interrupt flag. Set when watchdog timeout occurs and WDTIE is enabled. Cleared by writing 1 to this bit. If not cleared before next timeout, indicates watchdog event occurred.', valueDescriptions=[(0b0, 'No watchdog interrupt pending'), (0b1, 'Watchdog interrupt occurred')]))
-r.AddBitField(BitField(name='SYSWDTRF', msb=0, accessibility='rw1', description='Watchdog timer reset flag. Set when system reset was caused by watchdog timer. Persists across resets until cleared by software. Cleared by writing 1 to this bit.', valueDescriptions=[(0b0, 'Reset not caused by watchdog'), (0b1, 'Reset caused by watchdog')]))
+r.AddBitField(BitField(name='SYSWDTIF', msb=1, accessibility='rw1', description='Watchdog interrupt flag, set on a timeout while SYSWDTIE = 1 and held until software writes 1 to it.', valueDescriptions=[(0b0, 'No watchdog interrupt pending'), (0b1, 'Watchdog interrupt occurred')]))
+r.AddBitField(BitField(name='SYSWDTRF', msb=0, accessibility='rw1', description='Watchdog reset flag, set when the last system reset was caused by the watchdog and held across resets until software writes 1 to it.', valueDescriptions=[(0b0, 'Reset not caused by watchdog'), (0b1, 'Reset caused by watchdog')]))
 
 # WDTPASS
 r = RegisterTemplate(nameTemplate='WDTPASS', registerMemorySlot=12, size=32, description='Watchdog timer password register. Write-only register for two security functions: (1) Write ' + _wdtUnlockHex + ' to unlock WDTCR for 64 MCLK cycles, enabling writes to watchdog configuration. (2) Write ' + _wdtClearHex + ' to clear watchdog counter to 0, preventing timeout. Reading always returns 0.')
@@ -1745,10 +1745,10 @@ r = RegisterTemplate(nameTemplate='SPIxCR', registerMemorySlot=0, description='S
 p.AddRegisterTemplate(r)
 
 r.AddBitField(BitField(msb=31, lsb=20, unused=True))
-r.AddBitField(BitField(name='SPIFEN', msb=19, accessibility='rw', description='SPI Flash extended memory enable. When enabled, allows native read-only memory access to the SPI flash memory via the system memory bus. The SPI peripheral automatically handles flash read commands and provides transparent memory-mapped access. Available only on SPI0; reads as 0 on SPI1.', valueDescriptions=[(0b0, 'Flash extended memory disabled'), (0b1, 'Flash extended memory enabled')]))
-r.AddBitField(BitField(name='SPISM', msb=18, accessibility='rw', description='SPI slave mode select. Configures the SPI peripheral for master or slave operation. SPI0 is master-only; this bit has no effect on SPI0. SPI1 supports both master and slave modes.', valueDescriptions=[(0b0, 'Master mode'), (0b1, 'Slave mode')]))
-r.AddBitField(BitField(name='SPITXSB', msb=17, accessibility='rw', description='SPI TX swap bytes. Swaps the byte order in 16- and 32-bit transmissions. In 32-bit transmissions, bytes 3 and 0 are swapped and bytes 2 and 1 are swapped. In 16-bit transmissions, bytes 1 and 0 are swapped. Does not affect 8-bit transmissions.', valueDescriptions=[(0b0, 'Bytes not swapped'), (0b1, 'Bytes swapped')]))
-r.AddBitField(BitField(name='SPIRXSB', msb=16, accessibility='rw', description='SPI RX swap bytes. Swaps the byte order in 16- and 32-bit receptions. In 32-bit receptions, bytes 3 and 0 are swapped and bytes 2 and 1 are swapped. In 16-bit receptions, bytes 1 and 0 are swapped. Does not affect 8-bit receptions.', valueDescriptions=[(0b0, 'Bytes not swapped'), (0b1, 'Bytes swapped')]))
+r.AddBitField(BitField(name='SPIFEN', msb=19, accessibility='rw', description='Flash extended memory enable. When set, reads of the extended flash address range are served by the SPI peripheral, which issues the flash read command and returns the data over the system bus. Implemented on SPI0 only; reads 0 on SPI1.', valueDescriptions=[(0b0, 'Flash extended memory disabled'), (0b1, 'Flash extended memory enabled')]))
+r.AddBitField(BitField(name='SPISM', msb=18, accessibility='rw', description='Slave mode select. Effective on SPI1 only: SPI0 is master only and ignores this bit.', valueDescriptions=[(0b0, 'Master mode'), (0b1, 'Slave mode')]))
+r.AddBitField(BitField(name='SPITXSB', msb=17, accessibility='rw', description='Transmit byte swap. When set, 32-bit transfers swap bytes 3 with 0 and 2 with 1, and 16-bit transfers swap bytes 1 and 0; 8-bit transfers are unaffected.', valueDescriptions=[(0b0, 'Bytes not swapped'), (0b1, 'Bytes swapped')]))
+r.AddBitField(BitField(name='SPIRXSB', msb=16, accessibility='rw', description='Receive byte swap. When set, 32-bit receptions swap bytes 3 with 0 and 2 with 1, and 16-bit receptions swap bytes 1 and 0; 8-bit receptions are unaffected.', valueDescriptions=[(0b0, 'Bytes not swapped'), (0b1, 'Bytes swapped')]))
 r.AddBitField(BitField(name='SPIBR', msb=15, lsb=8, description='SPI clock (SCK) baud rate control for master mode. Baud rate = SMCLK / (2 * (1 + SPIBR)). For example, with SMCLK at 24 MHz: SPIBR=0 gives 12 MHz, SPIBR=1 gives 8 MHz, SPIBR=2 gives 6 MHz, SPIBR=5 gives 4 MHz, SPIBR=11 gives 2 MHz, SPIBR=23 gives 1 MHz.', accessibility='rw'))
 r.AddBitField(BitField(name='SPIEN', msb=7, description='SPI enable. When disabled, all SPI operations cease and the peripheral is held in reset state.', accessibility='rw', valueDescriptions=[(0b0, 'Disabled'), (0b1, 'Enabled')]))
 r.AddBitField(BitField(name='SPIMSB', msb=6, description='Bit endianness select. Determines whether data is transmitted and received MSB-first or LSB-first.', accessibility='rw', valueDescriptions=[(0b0, 'LSB-first'), (0b1, 'MSB-first')]))
@@ -1765,26 +1765,26 @@ p.AddRegisterTemplate(r)
 r.AddBitField(BitField(msb=7, lsb=3, unused=True))
 r.AddBitField(BitField(name='SPIBUSY', msb=2, description='Indicates whether a SPI transfer is currently in progress. In master mode, set when a transfer starts and cleared when complete. In slave mode, set when chip select is asserted (driven low) and cleared when deasserted.', accessibility='r', valueDescriptions=[(0b0, 'SPI is idle'), (0b1, 'SPI transfer in progress')]))
 r.AddBitField(BitField(name='SPITCIF', msb=1, description='SPI transfer complete interrupt flag. Set when a SPI transfer completes. Must be cleared by writing 1 to this bit or by reading SPIxRX register.', accessibility='rw1', valueDescriptions=[(0b0, 'No transfer completed'), (0b1, 'Transfer completed')]))
-r.AddBitField(BitField(name='SPITEIF', msb=0, description='SPI transmit register empty interrupt flag. Set when SPIxTX register is empty and ready to accept new data. The data will not be transmitted until any current transfer completes. Must be cleared by writing 1 to this bit.', accessibility='rw1', valueDescriptions=[(0b0, 'SPIxTX not empty'), (0b1, 'SPIxTX empty and ready')]))
+r.AddBitField(BitField(name='SPITEIF', msb=0, description='Transmit register empty interrupt flag, set when the transmitter has taken the SPIxTX contents so the register can accept the next word; a word written while a transfer is in progress is sent after it. Write 1 to clear.', accessibility='rw1', valueDescriptions=[(0b0, 'SPIxTX not empty'), (0b1, 'SPIxTX empty and ready')]))
 
 # SPIxTX
 r = RegisterTemplate(nameTemplate='SPIxTX', registerMemorySlot=2, description='SPI transmit buffer register. In master mode, writing to this register initiates a new SPI transfer. In slave mode, writing to this register queues data to be transmitted during the next master-initiated transfer. Actual number of bits transmitted is determined by SPIDL setting.', size=32)
 p.AddRegisterTemplate(r)
 
-r.AddBitField(BitField(name='SPITX', msb=31, lsb=0, accessibility='rw'))
+r.AddBitField(BitField(name='SPITX', msb=31, lsb=0, accessibility='rw', description='Transmit data. In master mode a write starts a transfer of the low 8, 16 or 32 bits as selected by SPIDL; in slave mode the write loads the data shifted out during the next master-driven transfer. Reads return the last value written; resets to 0.'))
 
 # SPIxRX
 r = RegisterTemplate(nameTemplate='SPIxRX', registerMemorySlot=3, description='SPI receive buffer register. Contains the data received during the most recent SPI transfer. Reading this register also clears the SPITCIF flag. Valid data width depends on SPIDL setting; unused upper bits read as 0.', size=32)
 p.AddRegisterTemplate(r)
 
-r.AddBitField(BitField(name='SPIRX', msb=31, lsb=0, accessibility='r'))
+r.AddBitField(BitField(name='SPIRX', msb=31, lsb=0, accessibility='r', description='Received data from the most recent transfer, right aligned in the width selected by SPIDL with the unused upper bits reading 0. Reading this register clears SPITCIF.'))
 
 # SPIxFOS
 r = RegisterTemplate(nameTemplate='SPIxFOS', registerMemorySlot=4, description='SPI Flash memory address offset. This 24-bit value is added to memory access addresses when flash extended memory mode is enabled (SPIFEN=1). Allows remapping of flash memory to different virtual addresses. The addition wraps around at 0x00FFFFFF. Available only on SPI0; reads as 0 on SPI1.', size=32)
 p.AddRegisterTemplate(r)
 
 r.AddBitField(BitField(msb=31, lsb=24, unused=True))
-r.AddBitField(BitField(name='SPIFOS', msb=23, lsb=0, accessibility='rw'))
+r.AddBitField(BitField(name='SPIFOS', msb=23, lsb=0, accessibility='rw', description='Flash address offset, added to the bus address of every flash extended memory read while SPIFEN = 1; the 24-bit sum wraps. Resets to 0. Implemented on SPI0 only; on SPI1 the field reads 0.'))
 
 
 
@@ -1796,67 +1796,67 @@ m.AddPeripheralTemplate(p)
 r = RegisterTemplate(nameTemplate='PxIN', registerMemorySlot=0, description='GPIO read pin register. Each bit corresponds to the input logic state of the GPIO pin of the same number. The register is latched on the falling edge of the memory enable signal. Reading a 0 in a bit indicates a logic low pin state; reading a 1 indicates a logic high state. This register always reflects the pin state regardless of pin direction or peripheral select settings.', size=32)
 p.AddRegisterTemplate(r)
 
-r.AddBitField(BitField(name='PxIN', msb=31, lsb=0, accessibility='r'))
+r.AddBitField(BitField(name='PxIN', msb=31, lsb=0, accessibility='r', description='Pin input levels. Bit y reads the logic level of pin y as sampled at the start of the bus access, regardless of the pin direction or PxSEL setting. Bits 31:8 read 0.'))
 
 # PxOUT
 r = RegisterTemplate(nameTemplate='PxOUT', registerMemorySlot=1, description='GPIO output drive register. Each bit corresponds to the output logic state of the GPIO pin of the same number. Only has an effect if the pin is configured as an output in PxDIR and is set to GPIO (primary) mode in PxSEL. Write a 0 to the desired bit to make the corresponding pin output a logic low value; write a 1 to output a logic high value.', size=32)
 p.AddRegisterTemplate(r)
 
-r.AddBitField(BitField(name='PxOUT', msb=31, lsb=0, accessibility='rw'))
+r.AddBitField(BitField(name='PxOUT', msb=31, lsb=0, accessibility='rw', description='Output drive levels. Bit y is the level driven on pin y while the pin is an output (PxDIR bit y = 1) in GPIO mode (PxSEL bit y = 0). Resets to 0; bits 31:8 read 0 and ignore writes.'))
 
 # PxOUTS
 r = RegisterTemplate(nameTemplate='PxOUTS', registerMemorySlot=2, description='GPIO output drive set register. Each bit corresponds to the output logic state of the GPIO pin of the same number. Only has an effect if the pin is configured as an output in PxDIR and is in GPIO (primary) mode in PxSEL. Write a 1 to the desired bit to set the corresponding pin (make the pin output a logic high value). Writing a 0 has no effect. Reading this register is equivalent to reading the output drive register PxOUT.', size=32)
 p.AddRegisterTemplate(r)
 
-r.AddBitField(BitField(name='PxOUTS', msb=31, lsb=0, accessibility='rw1'))
+r.AddBitField(BitField(name='PxOUTS', msb=31, lsb=0, accessibility='rw1', description='Output set. Writing 1 to bit y sets PxOUT bit y; writing 0 has no effect. Reads return the current PxOUT value.'))
 
 # PxOUTC
 r = RegisterTemplate(nameTemplate='PxOUTC', registerMemorySlot=3, description='GPIO output drive clear register. Each bit corresponds to the output logic state of the GPIO pin of the same number. Only has an effect if the pin is configured as an output in PxDIR and is in GPIO (primary) mode in PxSEL. Write a 1 to the desired bit to clear the corresponding pin (make the pin output a logic low value). Writing a 0 has no effect. Reading this register yields the inversion of the output drive register PxOUT.', size=32)
 p.AddRegisterTemplate(r)
 
-r.AddBitField(BitField(name='PxOUTC', msb=31, lsb=0, accessibility='rw1'))
+r.AddBitField(BitField(name='PxOUTC', msb=31, lsb=0, accessibility='rw1', description='Output clear. Writing 1 to bit y clears PxOUT bit y; writing 0 has no effect. Reads return the inverse of the current PxOUT value.'))
 
 # PxOUTT
 r = RegisterTemplate(nameTemplate='PxOUTT', registerMemorySlot=4, description='GPIO output drive toggle register. Each bit corresponds to the output logic state of the GPIO pin of the same number. Only has an effect if the pin is configured as an output in PxDIR and is in GPIO (primary) mode in PxSEL. Write a 1 to the desired bit to toggle the corresponding pin state. Writing a 0 has no effect. Reading this register is equivalent to reading the output drive register PxOUT.', size=32)
 p.AddRegisterTemplate(r)
 
-r.AddBitField(BitField(name='PxOUTT', msb=31, lsb=0, accessibility='rw1'))
+r.AddBitField(BitField(name='PxOUTT', msb=31, lsb=0, accessibility='rw1', description='Output toggle. Writing 1 to bit y inverts PxOUT bit y; writing 0 has no effect. Reads return the current PxOUT value.'))
 
 # PxDIR
 r = RegisterTemplate(nameTemplate='PxDIR', registerMemorySlot=5, description='GPIO pin direction register. Each bit corresponds to the GPIO pin of the same number. Only has an effect if the pin is configured in GPIO (primary) mode in PxSEL. Write a 0 to the desired bit to set the corresponding pin to input mode; write a 1 to set to output mode.', size=32)
 p.AddRegisterTemplate(r)
 
-r.AddBitField(BitField(name='PxDIR', msb=31, lsb=0, accessibility='rw'))
+r.AddBitField(BitField(name='PxDIR', msb=31, lsb=0, accessibility='rw', description='Pin direction. Bit y = 0 makes pin y an input and 1 makes it an output, effective only while the pin is in GPIO mode (PxSEL bit y = 0). Resets to 0 (all inputs); bits 31:8 read 0 and ignore writes.'))
 
 # PxIF
 r = RegisterTemplate(nameTemplate='PxIF', registerMemorySlot=6, description='GPIO interrupt flag register. Each bit corresponds to the GPIO pin of the same number. The register is latched on the falling edge of the memory enable signal. Reading a 0 in a bit indicates there is no pending interrupt for the corresponding pin; reading a 1 indicates there is a new interrupt pending for the corresponding pin. Write a 1 to each bit for which you wish to clear the interrupt flag. Writing 0 has no effect.', size=32)
 p.AddRegisterTemplate(r)
 
-r.AddBitField(BitField(name='PxIF', msb=31, lsb=0, accessibility='rw1'))
+r.AddBitField(BitField(name='PxIF', msb=31, lsb=0, accessibility='rw1', description='Interrupt flags. Hardware sets bit y when the edge selected by PxIES occurs on pin y while PxIE bit y is 1, and holds it until software writes 1 to the bit; writing 0 has no effect. Each flag drives the interrupt vector of its pin directly, and bits 31:8 read 0.'))
 
 # PxIES
 r = RegisterTemplate(nameTemplate='PxIES', registerMemorySlot=7, description='GPIO interrupt edge select register. Each bit corresponds to the GPIO pin of the same number. Write a 0 to the desired bit to set the corresponding pin interrupt to trigger on low-to-high (rising) edge; write a 1 to set to high-to-low (falling) edge triggering.', size=32)
 p.AddRegisterTemplate(r)
 
-r.AddBitField(BitField(name='PxIES', msb=31, lsb=0, accessibility='rw'))
+r.AddBitField(BitField(name='PxIES', msb=31, lsb=0, accessibility='rw', description='Interrupt edge select. Bit y = 0 makes a rising edge on pin y set PxIF bit y, 1 selects a falling edge. Resets to 0.'))
 
 # PxIE
 r = RegisterTemplate(nameTemplate='PxIE', registerMemorySlot=8, description='GPIO interrupt enable register. Each bit corresponds to the GPIO pin of the same number. Write a 0 to the desired bit to disable the pin interrupt; write a 1 to enable the pin interrupt. Each pin has an individual interrupt output that connects to the system interrupt vector table. Interrupts function in both GPIO (primary) and secondary function (peripheral) modes.', size=32)
 p.AddRegisterTemplate(r)
 
-r.AddBitField(BitField(name='PxIE', msb=31, lsb=0, accessibility='rw'))
+r.AddBitField(BitField(name='PxIE', msb=31, lsb=0, accessibility='rw', description='Interrupt enable. Bit y = 1 allows the selected edge on pin y to set PxIF bit y; with the bit at 0 no flag is captured for the pin. Resets to 0.'))
 
 # PxSEL
 r = RegisterTemplate(nameTemplate='PxSEL', registerMemorySlot=9, description='GPIO peripheral select register. Each bit corresponds to the GPIO pin of the same number. Write a 0 to the desired bit to set the corresponding pin to GPIO (primary) mode; write a 1 to set the pin to alternate function (peripheral) mode. When a pin is in alternate function (peripheral) mode, the governing peripheral takes control of the pin output, direction, and resistor enable states, and the PxOUT, PxDIR, and PxREN registers have no effect on the pin. WHICH alternate function governs the pin is selected by the pin\'s field in the PxAFS register: at reset all PxAFS fields are 0, selecting alternate function 0 (AF0). Pin interrupts remain available when in alternate function (peripheral) mode in addition to any interrupts the governing peripheral may generate. If a pin has no alternate function defined at the selected PxAFS plane, setting PxSEL to 1 will configure the pin as a high-impedance input.', size=32)
 p.AddRegisterTemplate(r)
 
-r.AddBitField(BitField(name='PxSEL', msb=31, lsb=0, accessibility='rw'))
+r.AddBitField(BitField(name='PxSEL', msb=31, lsb=0, accessibility='rw', description='Pin function select. Bit y = 0 gives pin y to the GPIO registers, 1 hands its output level, direction and resistor enable to the alternate function chosen by the PxAFS field of the pin. Resets to 0; bits 31:8 read 0 and ignore writes.'))
 
 # PxREN
 r = RegisterTemplate(nameTemplate='PxREN', registerMemorySlot=10, description='GPIO resistor enable register. Each bit corresponds to the GPIO pin of the same number. Only has an effect if the pin is configured in GPIO (primary) mode in PxSEL. Write a 0 to the desired bit to disable the pin pullup/pulldown resistor; write a 1 to enable the pin pullup/pulldown resistor.', size=32)
 p.AddRegisterTemplate(r)
 
-r.AddBitField(BitField(name='PxREN', msb=31, lsb=0, accessibility='rw'))
+r.AddBitField(BitField(name='PxREN', msb=31, lsb=0, accessibility='rw', description='Pull resistor enable. Bit y = 1 enables the pull resistor of pin y while the pin is in GPIO mode (PxSEL bit y = 0); in alternate function mode the peripheral controls the resistor. Resets to 0; bits 31:8 read 0 and ignore writes.'))
 
 # PxAFS
 r = RegisterTemplate(nameTemplate='PxAFS', registerMemorySlot=11, description='GPIO alternate function select register. One 4-bit field per pin (pin y occupies bits 4y+3 downto 4y; only the low 3 bits of each field are implemented, the top bit is reserved and reads 0). When a pin is in alternate function (peripheral) mode (PxSEL bit = 1), the value of its PxAFS field selects WHICH alternate function (AF0-AF7) controls the pin. Each pin\'s available alternate functions are listed in the pin configuration table in Section \\ref{s:pinsConfig}. The register resets to 0, so every pin comes out of reset selecting its AF0 (legacy) function. Selecting an AF plane with no function defined for the pin configures the pin as a high-impedance input. While a pin is in GPIO (primary) mode its PxAFS field has no effect on the pad, but it still routes relocatable peripheral INPUTS: a peripheral input function relocated to this pin (e.g. a UART receiver or timer capture) observes the pin whenever the PxAFS field selects it, regardless of PxSEL.', size=32)
@@ -1878,7 +1878,7 @@ for _pin in range(8):
 r = RegisterTemplate(nameTemplate='PxTASK', registerMemorySlot=12, description='GPIO event-fabric task pin-select register. Each bit corresponds to the GPIO pin of the same number and selects whether that pin participates in the EVFAB0 event-fabric output tasks: when the fabric fires the port\'s OUT-SET task, every pin whose PxTASK bit is 1 has its PxOUT bit set; when it fires the OUT-CLR task, every selected pin has its PxOUT bit cleared. The two task pulses are applied AFTER the CPU register write in the same cycle (a task wins its own pins against a coincident PxOUT write) and CLR is applied after SET (a same-cycle set+clear on an overlapping pin resolves to CLEAR, the safe direction). A toggle task is deliberately not offered. Resets to 0, so no pin is fabric-driven out of reset. In a configuration WITHOUT the event fabric (peripherals.eventFabric false) the register is still readable and writable but has no effect, because both task inputs are tied inactive. Only the port\'s implemented pins have bits; the rest read 0.', size=32)
 p.AddRegisterTemplate(r)
 
-r.AddBitField(BitField(name='PxTASK', msb=31, lsb=0, accessibility='rw'))
+r.AddBitField(BitField(name='PxTASK', msb=31, lsb=0, accessibility='rw', description='Event fabric task pin select. Bit y = 1 lets the EVFAB0 output set and output clear tasks of this port set or clear PxOUT bit y; with the bit at 0 the tasks leave pin y untouched. Resets to 0, so no pin responds to a task until software selects it.'))
 
 ## PxOCEN
 #r = RegisterTemplate(nameTemplate='PxOCEN', registerMemorySlot=10, description='GPIO open collector register. Each bit corresponds to the GPIO pin of the same number. Only has an effect if the pin is configured in GPIO (primary) mode in PxSEL. Write a 0 to the desired bit to disable the pin open-collector mode; write a 1 to enable the pin open-collector mode.', size=32)
@@ -2041,9 +2041,9 @@ r.AddBitField(BitField(name='I2CSAIE', msb=12, accessibility='rw', description='
 r.AddBitField(BitField(name='I2CMDIV', msb=16, lsb=13, accessibility='rw', description='I2C master mode clock divider. The master mode finite state machine clock source is SMCLK, which is divided by a factor of 4 * 2**I2CMDIV.', valueDescriptions=[(0, '/1 (no division)', '_1'), (1, '/2', '_2'), (2, '/4', '_4'), (3, '/8', '_8'), (4, '/16', '_16'), (5, '/32', '_32'), (6, '/64', '_64'), (7, '/128', '_128'), (8, '/256', '_256'), (9, '/512', '_512'), (10, '/1,024', '_1024'), (11, '/2,048', '_2048'), (12, '/4,096', '_4096'), (13, '/8,192', '_8192'), (14, '/16,384', '_16384'), (15, '/32,768', '_32768')]))
 r.AddBitField(BitField(name='I2CGCE', msb=17, accessibility='rw', description='I2C slave general call enable. When enabled, this slave will be addressed if a global call is issued on the bus.', valueDescriptions=[(0b0, 'Disabled'), (0b1, 'Enabled')]))
 r.AddBitField(BitField(name='I2CSCS', msb=18, accessibility='rw', description='I2C slave clock stretching enable. When enabled, this slave will hold the SCL line low during the ACK phase of the transmission to allow this slave more time. Note that the master will be left waiting for the ACK/NACK as long as this bit is set to 1.', valueDescriptions=[(0b0, 'Disabled'), (0b1, 'Enabled')]))
-r.AddBitField(BitField(name='I2CSN', msb=19, accessibility='rw', description='I2C slave NACK next byte received. When enabled, this slave will reply with a NACK whenever it receives its address or whenever it receives a byte from a master. When disabled, it will send an ACK in those situations. If clock stretching is enabled, this bit can be changed in accordance with the desired ACK/NACK reply before allowing a rising edge of SCL.', valueDescriptions=[(0b0, 'ACK'), (0b1, 'NACK')]))
-r.AddBitField(BitField(name='I2CSEN', msb=20, accessibility='rw', description='I2C slave enable. When enabled, this device behaves as an I2C slave and begins listening for its address. If master mode is also enabled on this device, then this device will act as a slave until commanded to send a start condition with I2CMST, whereupon it will begin acting as a master. Once the master transfer is complete, it will resume acting as a slave.', valueDescriptions=[(0b0, 'Disabled'), (0b1, 'Enabled')]))
-r.AddBitField(BitField(name='I2CMEN', msb=21, accessibility='rw', description='I2C master enable. When enabled, this device awaits a command to send a start condition with I2CMST, and then begins acting as a master until commanded to send a stop condition with I2CMSP. If master mode is also enabled on this device, then this device will act as a slave until commanded to send a start condition with I2CMST, whereupon it will begin acting as a master. Once the master transfer is complete, it will resume acting as a slave.', valueDescriptions=[(0b0, 'Disabled'), (0b1, 'Enabled')]))
+r.AddBitField(BitField(name='I2CSN', msb=19, accessibility='rw', description='Slave NACK select. When set, the slave answers its address and every received byte with a NACK instead of an ACK. With clock stretching enabled, software can change this bit before releasing SCL to choose the reply for the current byte.', valueDescriptions=[(0b0, 'ACK'), (0b1, 'NACK')]))
+r.AddBitField(BitField(name='I2CSEN', msb=20, accessibility='rw', description='Slave enable. When set, the device listens for its address as an I2C slave. If master mode is also enabled, the device acts as a slave until I2CMST starts a master transfer and returns to slave operation when that transfer completes.', valueDescriptions=[(0b0, 'Disabled'), (0b1, 'Enabled')]))
+r.AddBitField(BitField(name='I2CMEN', msb=21, accessibility='rw', description='Master enable. When set, the device waits for I2CMST, acts as a master from that start condition until the stop condition commanded by I2CMSP, and then resumes slave operation if I2CSEN is also set.', valueDescriptions=[(0b0, 'Disabled'), (0b1, 'Enabled')]))
 r.AddBitField(BitField(msb=31, lsb=22, unused=True))
 
 # I2CxFCR
@@ -2051,9 +2051,9 @@ r = RegisterTemplate(nameTemplate='I2CxFCR', registerMemorySlot=1, description='
 p.AddRegisterTemplate(r)
 
 r.AddBitField(BitField(name='I2CMRB', msb=0, accessibility='w1', description='I2C master read byte command. Set this bit to 1 while in master receiver mode to read one byte from the slave. This master is required to have already sent the slave address and received an ACK from the slave before initiating this command.', valueDescriptions=[(0b0, 'No effect'), (0b1, 'Read next byte')]))
-r.AddBitField(BitField(name='I2CMSP', msb=1, accessibility='w1', description='I2C master send stop condition command. Set this bit to 1 while this master is in control of the bus to send a stop condition. This master is required to have already sent a start condition and at least one address frame before initiating this command. If this master is busy with a transaction when this bit is set, then it will send the stop condition immediately after it finishes the transaction.', valueDescriptions=[(0b0, 'No effect'), (0b1, 'Send a stop condition')]))
-r.AddBitField(BitField(name='I2CMST', msb=2, accessibility='w1', description='I2C master send start condition command. Set this bit to 1 to send a start condition or a repeated start condition. Once this bit is set, this master is required to send at least one address frame before initiating this command again. If another master has control of the bus when this bit is set, this master will wait until the bus is idle before seizing control of it and sending the start condition. If this master is busy with a transaction when this bit is set, then it will send a restart condition immediately after it finishes the transaction.', valueDescriptions=[(0b0, 'No effect'), (0b1, 'Send a start condition')]))
-r.AddBitField(BitField(name='I2CSC', msb=3, accessibility='w1', description='I2C slave continue command. When clock stretching is enabled in slave mode, set this bit to tell the slave to continue with the ACK/NACK phase of the current byte by releasing SCL. This may only be set if clock stretching is enabled, slave mode is enabled, and the slave transfer complete flag has just been set.', valueDescriptions=[(0b0, 'No effect'), (0b1, 'Send a start condition')]))
+r.AddBitField(BitField(name='I2CMSP', msb=1, accessibility='w1', description='Master send stop command. Writing 1 sends a stop condition once this master has sent a start condition and at least one address frame. If this master is mid-transaction the stop follows the transaction.', valueDescriptions=[(0b0, 'No effect'), (0b1, 'Send a stop condition')]))
+r.AddBitField(BitField(name='I2CMST', msb=2, accessibility='w1', description='Master send start command. Writing 1 sends a start condition, or a repeated start if this master already controls the bus, after which at least one address frame must be sent before the command is used again. If the bus is busy the start is sent once it becomes idle, and if this master is mid-transaction the repeated start follows the transaction.', valueDescriptions=[(0b0, 'No effect'), (0b1, 'Send a start condition')]))
+r.AddBitField(BitField(name='I2CSC', msb=3, accessibility='w1', description='I2C slave continue command. When clock stretching is enabled in slave mode, set this bit to tell the slave to continue with the ACK/NACK phase of the current byte by releasing SCL. This may only be set if clock stretching is enabled, slave mode is enabled, and the slave transfer complete flag has just been set.', valueDescriptions=[(0b0, 'No effect'), (0b1, 'Continue: release SCL for the ACK/NACK phase')]))
 r.AddBitField(BitField(msb=7, lsb=4, unused=True))
 
 # I2CxSR
@@ -2062,18 +2062,18 @@ p.AddRegisterTemplate(r)
 
 r.AddBitField(BitField(name='I2CSPR', msb=0, accessibility='rw1', description='I2C stop condition received interrupt flag. This flag is set whenever a stop condition condition is detected on the bus, regardless of which device sent it. Write a 1 to this bit to clear it.', valueDescriptions=[(0b0, 'No pending interrupt'), (0b1, 'Pending interrupt')]))
 r.AddBitField(BitField(name='I2CSTR', msb=1, accessibility='rw1', description='I2C start condition received interrupt flag. This flag is set whenever a start condition or repeated start condition is detected on the bus, regardless of if this master or another sent it. Write a 1 to this bit to clear it.', valueDescriptions=[(0b0, 'No pending interrupt'), (0b1, 'Pending interrupt')]))
-r.AddBitField(BitField(name='I2CMXC', msb=2, accessibility='rw1', description='I2C master transfer complete interrupt flag. In master transmitter mode, this flag is set after this master has sent the data byte and the slave has sent an ACK/NACK. In master receiver mode, this flag is set after the slave has sent the data byte and before this master sends an ACK/NACK. Write a 1 to this bit to clear it.', valueDescriptions=[(0b0, 'No pending interrupt'), (0b1, 'Pending interrupt')]))
-r.AddBitField(BitField(name='I2CMNR', msb=3, accessibility='rw1', description='I2C master mode NACK received interrupt flag. This flag is set in master transmitter mode after ACK/NACK bit is sent if the slave sends a NACK. It is not set if the slave sends an ACK. Write a 1 to this bit to clear it.', valueDescriptions=[(0b0, 'No pending interrupt'), (0b1, 'Pending interrupt')]))
+r.AddBitField(BitField(name='I2CMXC', msb=2, accessibility='rw1', description='Master transfer complete interrupt flag, set in master transmitter mode after the data byte and the slave ACK/NACK, and in master receiver mode after the data byte and before this master sends its ACK/NACK. Write 1 to clear.', valueDescriptions=[(0b0, 'No pending interrupt'), (0b1, 'Pending interrupt')]))
+r.AddBitField(BitField(name='I2CMNR', msb=3, accessibility='rw1', description='Master NACK received interrupt flag, set in master transmitter mode when the slave answers with a NACK; an ACK does not set it. Write 1 to clear.', valueDescriptions=[(0b0, 'No pending interrupt'), (0b1, 'Pending interrupt')]))
 r.AddBitField(BitField(name='I2CMTXE', msb=4, accessibility='rw1', description='I2C master transmit register empty interrupt flag. This bit is set when this master latches the data stored in the master transmit register to indicate that the master transmit register is ready to accept another byte and queue it for transmission. Write a 1 to this bit to clear it.', valueDescriptions=[(0b0, 'No pending interrupt'), (0b1, 'Pending interrupt')]))
-r.AddBitField(BitField(name='I2CMARB', msb=5, accessibility='rw1', description='I2C master mode arbitration loss interrupt flag. This bit is set when this master detects that the value it tried to write to SDA is being overridden by another master. After it detects the arbitration loss, this master releases control of the bus. Write a 1 to this bit to clear it.', valueDescriptions=[(0b0, 'No pending interrupt'), (0b1, 'Pending interrupt')]))
+r.AddBitField(BitField(name='I2CMARB', msb=5, accessibility='rw1', description='Master arbitration loss interrupt flag, set when the value this master drives on SDA is overridden by another master; this master then releases the bus. Write 1 to clear.', valueDescriptions=[(0b0, 'No pending interrupt'), (0b1, 'Pending interrupt')]))
 r.AddBitField(BitField(name='I2CMSPS', msb=6, accessibility='rw1', description='I2C master mode stop condition sent interrupt flag. This flag is set after this master sends a stop condition. Write a 1 to this bit to clear it.', valueDescriptions=[(0b0, 'No pending interrupt'), (0b1, 'Pending interrupt')]))
 r.AddBitField(BitField(name='I2CMSTS', msb=7, accessibility='rw1', description='I2C master mode start condition sent interrupt flag. This flag is set after this master sends a start condition or repeated start condition. Write a 1 to this bit to clear it.', valueDescriptions=[(0b0, 'No pending interrupt'), (0b1, 'Pending interrupt')]))
 r.AddBitField(BitField(name='I2CSXC', msb=8, accessibility='rw1', description='I2C slave mode transfer complete interrupt flag. This bit is set after this slave receives a byte of data from a master, but before this slave sends an ACK/NACK. Write a 1 to this bit to clear it.', valueDescriptions=[(0b0, 'No pending interrupt'), (0b1, 'Pending interrupt')]))
-r.AddBitField(BitField(name='I2CSNR', msb=9, accessibility='rw1', description='I2C slave mode NACK received from master interrupt flag. This bit is set in slave transmitter mode if the master responds with a NACK after this slave sends it a byte of data. This bit is not set if the master responds with an ACK. Write a 1 to this bit to clear it.', valueDescriptions=[(0b0, 'No pending interrupt'), (0b1, 'Pending interrupt')]))
+r.AddBitField(BitField(name='I2CSNR', msb=9, accessibility='rw1', description='Slave NACK received interrupt flag, set in slave transmitter mode when the master answers a transmitted byte with a NACK; an ACK does not set it. Write 1 to clear.', valueDescriptions=[(0b0, 'No pending interrupt'), (0b1, 'Pending interrupt')]))
 r.AddBitField(BitField(name='I2CSOVF', msb=10, accessibility='rw1', description='I2C slave receive register overflow interrupt flag. Indicates that this slave has failed to read one or more bytes from the I2CxSRX register before they were overwritten by another transmission. Write a 1 to this bit to clear it.', valueDescriptions=[(0b0, 'No pending interrupt'), (0b1, 'Pending interrupt')]))
-r.AddBitField(BitField(name='I2CSTXE', msb=11, accessibility='rw1', description='I2C slave transmit register empty interrupt flag. This bit is set when this slave latches the data stored in the masslaveter transmit register to indicate that the slave transmit register is ready to accept another byte and queue it for transmission. Write a 1 to this bit to clear it.', valueDescriptions=[(0b0, 'No pending interrupt'), (0b1, 'Pending interrupt')]))
+r.AddBitField(BitField(name='I2CSTXE', msb=11, accessibility='rw1', description='Slave transmit register empty interrupt flag, set when the slave latches the byte held in I2CxSTX for transmission, so the register can take the next byte. Write 1 to clear.', valueDescriptions=[(0b0, 'No pending interrupt'), (0b1, 'Pending interrupt')]))
 r.AddBitField(BitField(name='I2CSA', msb=12, accessibility='rw1', description='I2C slave mode addressed interrupt flag. Indicates that this slave has been addressed by another master. Write a 1 to this bit to clear it.', valueDescriptions=[(0b0, 'No pending interrupt'), (0b1, 'Pending interrupt')]))
-r.AddBitField(BitField(name='I2CSTM', msb=13, accessibility='r', description='I2C slave transmitter mode indicator. Indicates for which mode this slave has been addressed. Only valid if I2CSA is 1. This bit cannot be cleared by writing to the status register.', valueDescriptions=[(0b0, 'Slave receiver mode'), (0b1, 'Slave transmitter mode')]))
+r.AddBitField(BitField(name='I2CSTM', msb=13, accessibility='r', description='Slave transmitter mode indicator: the mode this slave was addressed for, valid only while I2CSA = 1. Read only; a status register write does not clear it.', valueDescriptions=[(0b0, 'Slave receiver mode'), (0b1, 'Slave transmitter mode')]))
 r.AddBitField(BitField(name='I2CMCB', msb=14, accessibility='r', description='I2C master controls bus indicator. This bit cannot be cleared by writing to the status register.', valueDescriptions=[(0b0, 'This master does not control the bus'), (0b1, 'This master controls the bus')]))
 r.AddBitField(BitField(name='I2CBS', msb=15, accessibility='r', description='I2C bus state indicator. This bit cannot be cleared by writing to the status register.', valueDescriptions=[(0b0, 'The I2C bus is idle'), (0b1, 'The I2C bus is active')]))
 
@@ -2081,38 +2081,38 @@ r.AddBitField(BitField(name='I2CBS', msb=15, accessibility='r', description='I2C
 r = RegisterTemplate(nameTemplate='I2CxMTX', registerMemorySlot=3, description='I2C master transmit register. Write the desired slave address and read/write bit to this register after sending a start condition to begin a transmission with a slave. Note that the desired slave address must occupy the upper seven bits and the read/write bit must occupy the least significant bit. If the read bit is 0, the master enters master transmitter mode. If the read bit is 1, the master enters master receiver mode. Write a byte of data to this register after sending the address frame or a data frame to send that byte of data to the slave. If this master is busy with a transmission when this register is written, it will send the byte after it finishes the transmission.', size=8)
 p.AddRegisterTemplate(r)
 
-r.AddBitField(BitField(name='I2CxMTX', msb=7, lsb=0, accessibility='rw'))
+r.AddBitField(BitField(name='I2CxMTX', msb=7, lsb=0, accessibility='rw', description='Master transmit data. While I2CMEN = 1 a write loads the byte and starts sending it: the first byte after a start condition is the 7-bit slave address in bits 7:1 with the read/write bit in bit 0, and later bytes are data. Reads return the last byte written; resets to 0.'))
 
 # I2CxMRX
 r = RegisterTemplate(nameTemplate='I2CxMRX', registerMemorySlot=4, description='I2C master receive register. When in master receiver mode, read this register after the master transfer complete interrupt flag (I2CMXC) is set to get the received data byte.', size=8)
 p.AddRegisterTemplate(r)
 
-r.AddBitField(BitField(name='I2CxMRX', msb=7, lsb=0, accessibility='r'))
+r.AddBitField(BitField(name='I2CxMRX', msb=7, lsb=0, accessibility='r', description='Master receive data. Hardware loads the byte received from the slave when I2CMXC is set in master receiver mode. Resets to 0.'))
 
 # I2CxSTX
 r = RegisterTemplate(nameTemplate='I2CxSTX', registerMemorySlot=5, description='I2C slave transmit register. When in slave transmitter mode, write to this register after the slave addressed flag (I2CSA) or the slave transaction complete flag (I2CSXC) has been set to queue the next byte to send to the master.', size=8)
 p.AddRegisterTemplate(r)
 
-r.AddBitField(BitField(name='I2CxSTX', msb=7, lsb=0, accessibility='rw'))
+r.AddBitField(BitField(name='I2CxSTX', msb=7, lsb=0, accessibility='rw', description='Slave transmit data. The byte written here is sent to the master during the next slave transmitter data phase, after which I2CSTXE is set. Resets to 0.'))
 
 # I2CxSRX
 r = RegisterTemplate(nameTemplate='I2CxSRX', registerMemorySlot=6, description='I2C slave receive register. When in slave receiver mode, read this register after the slave transaction complete flag (I2CSXC) has been set to get the data byte sent from the master. Note that if this slave fails to clear the status register before another byte is received, the slave receive overflow flag (I2CSOVF) will be set.', size=8)
 p.AddRegisterTemplate(r)
 
-r.AddBitField(BitField(name='I2CxSRX', msb=7, lsb=0, accessibility='r'))
+r.AddBitField(BitField(name='I2CxSRX', msb=7, lsb=0, accessibility='r', description='Slave receive data. Hardware loads the byte received from the master when I2CSXC is set in slave receiver mode; a new byte arriving before the previous one is read sets I2CSOVF. Resets to 0.'))
 
 # I2CxAR
 r = RegisterTemplate(nameTemplate='I2CxAR', registerMemorySlot=7, description='I2C this slave address register. When in slave mode, any master that sends an address frame containing this address will activate this slave.', size=8)
 p.AddRegisterTemplate(r)
 
-r.AddBitField(BitField(name='I2CxAR', msb=6, lsb=0, accessibility='rw'))
+r.AddBitField(BitField(name='I2CxAR', msb=6, lsb=0, accessibility='rw', description='Own 7-bit slave address. A received address frame that matches this value under the I2CxAMR mask addresses this slave. Resets to the default slave address of the instance (0x79 for I2C0, 0x23 for I2C1).'))
 r.AddBitField(BitField(msb=7, unused=True))
 
 # I2CxAMR
 r = RegisterTemplate(nameTemplate='I2CxAMR', registerMemorySlot=8, description='I2C this slave address mask register. Any bit set to 1 in this register indicates that the corresponding bit in the slave address register is a wildcard. Only the slave address register bits that correspond to 0s in this register will be compared to the received slave address.', size=8)
 p.AddRegisterTemplate(r)
 
-r.AddBitField(BitField(name='I2CxAMR', msb=6, lsb=0, accessibility='rw'))
+r.AddBitField(BitField(name='I2CxAMR', msb=6, lsb=0, accessibility='rw', description='Slave address mask. A 1 in bit i makes bit i of I2CxAR a wildcard for address matching; a 0 compares the bit. Resets to 0 (every bit compared).'))
 r.AddBitField(BitField(msb=7, unused=True))
 
 ''' NPU '''
@@ -2128,14 +2128,14 @@ r = RegisterTemplate(nameTemplate='NPUCR', registerMemorySlot=0, description='NP
 p.AddRegisterTemplate(r)
 
 r.AddBitField(BitField(msb=31, lsb=28, unused=True))
-r.AddBitField(BitField(name='NPUXPK', msb=27, description='Packed input format enable. When cleared (reset default) each input element occupies its own 32-bit staging word, exactly as before this bit existed. When set, the input vector is stored as TWO 16-bit Q0.15 elements per word -- element 2i in bits 15:0, element 2i+1 in bits 31:16 -- so the vector at NPUIVSAR occupies half as many words, and element i is read from word NPUIVSAR + i/2. Range is unchanged at [-1, +1) but resolution drops from Q0.24 to Q0.15: firmware packs by arithmetic-shifting each Q0.24 input right by 9. The output vector is NOT packed (outputs are full-width accumulator or activation words), so a layer whose outputs feed the next layer\'s inputs must either leave this bit clear or repack between THINKs. Ignored in XNOR-popcount mode, which already packs 32 one-bit activations per word. The setting is latched when THINK is set; a mid-THINK write takes effect at the next THINK.', accessibility='rw', valueDescriptions=[(0b0, 'One input element per 32-bit word (reset default)'), (0b1, 'Two 16-bit Q0.15 input elements per 32-bit word')]))
-r.AddBitField(BitField(name='NPUWPK', msb=26, description='Packed weight format enable. When cleared (reset default) each synaptic weight occupies its own 32-bit staging word, exactly as before this bit existed. When set, the weight matrix is stored as TWO 16-bit Q3.12 weights per word -- element 2i in bits 15:0, element 2i+1 in bits 31:16 -- so a weight block occupies half as many words and a maximal 256x256 layer needs 8 re-stagings of the 4096-word staging RAM instead of 16. The element walk is unchanged in every mode, including the convolution filter-block reload and the GEMM per-row reload, so the same weight ORDER is used either way; only the storage layout changes. Q3.12 narrows the representable weight range from [-128, +128) to [-8, +8) and coarsens the resolution from 2^-24 to 2^-12: firmware packs by arithmetic-shifting each Q7.24 weight right by 12 and MUST SATURATE, because a weight outside [-8, +8) has no packed representation and the hardware only ever sees the already-packed half. The bias weight (see NPUBEN) rides the same stream and is subject to the same range. Ignored in XNOR-popcount mode, which already packs 32 one-bit weights per word. The setting is latched when THINK is set; a mid-THINK write takes effect at the next THINK.', accessibility='rw', valueDescriptions=[(0b0, 'One weight per 32-bit word (reset default)'), (0b1, 'Two 16-bit Q3.12 weights per 32-bit word')]))
-r.AddBitField(BitField(name='NPUACTF', msb=25, lsb=23, description='Post-accumulator activation function select, effective when NPUAEN = 1 (P4 architecture family; NPUAEN = 0 is always raw passthrough regardless of this field). 0 = logistic sigmoid approximation (the legacy activation; reset default), output Q0.24 in [0,1). 1 = ReLU (max(0, x)), output Q7.24 -- note a ReLU output at or above 1.0 is not a valid Q0.24 next-layer input. 2 = tanh approximation computed as 2*sigmoid(2x)-1 through the same sigmoid hardware, output in [-1,1) sign-extended (the low 25 bits are a valid Q0.24 next-layer input); saturates for |x| >= 2. 3 = clamp (hardtanh): the identity saturated to the Q0.24 rails [-1, 1), sign-extended. 4 = exponential approximation 2*sigmoid(x), output Q1.24 in [0,2), for the softmax leg -- hardware emits per-element scores only, firmware performs the sum and normalize (subtracting the maximum logit first is recommended, mapping the maximum to exactly 1.0). Codes 5-7 are reserved and behave as 0 (sigmoid). The selection is latched when THINK is set; a mid-THINK write takes effect at the next THINK.', accessibility='rw'))
-r.AddBitField(BitField(name='NPUMODE', msb=22, lsb=20, description='Datapath mode select for the NPU architecture family (P4). 0 = multilayer-perceptron mode (the legacy datapath; reset default). 1 = one-dimensional convolution mode. 2 = XNOR-popcount binary mode (1-bit activations/weights packed 32 per word, LSB-first; NPUBEN and NPUAEN must be 0 in this mode). 3 = general matrix-multiply (GEMM) mode: C = A x B with A (M x K, row-major at NPUIVSAR, Q0.24 elements in [-1,1)), B (K x N, column-major at NPUWVSAR, Q7.24), C (M x N, row-major at NPUOVSAR, Q7.24 or Q0.24 through the sigmoid when NPUAEN=1); K-1 in NPUNI, N-1 in NPUNN, M-1 in NPUCFG1 bits 7:0; NPUBEN must be 0 in this mode; the working set M*K + K*N + M*N must fit the 4096-word staging RAM (larger problems tile by re-pointing the start-address registers between THINKs; there is no hardware accumulation across tiles). Codes 4-7 are reserved. Reserved and unimplemented codes behave as mode 0.', accessibility='rw'))
-r.AddBitField(BitField(name='NPUTDIE', msb=19, description='Think-done interrupt enable. When set, NPUSR.THINKDONE drives the NPU think-done interrupt (vector 120). When cleared (reset default) the NPU is polling-only, exactly as before the interrupt existed.', accessibility='rw', valueDescriptions=[(0b0, 'Interrupt disabled (polling only)'), (0b1, 'Interrupt enabled')]))
+r.AddBitField(BitField(name='NPUXPK', msb=27, description='Packed input format enable: when set, the input vector holds two 16-bit Q0.15 elements per staging word (element 2i in bits 15:0, element 2i+1 in bits 31:16), so element i is read from word NPUIVSAR + i/2; when clear each input occupies its own 32-bit word as Q0.24. The setting is latched when NPUTHINK is set and is ignored in XNOR-popcount mode. See the packed operand formats in the functional description.', accessibility='rw', valueDescriptions=[(0b0, 'One input element per 32-bit word (reset default)'), (0b1, 'Two 16-bit Q0.15 input elements per 32-bit word')]))
+r.AddBitField(BitField(name='NPUWPK', msb=26, description='Packed weight format enable: when set, the weight matrix holds two 16-bit Q3.12 weights per staging word (element 2i in bits 15:0, element 2i+1 in bits 31:16) in the same element order as the unpacked layout; when clear each weight occupies its own 32-bit word as Q7.24. The setting is latched when NPUTHINK is set and is ignored in XNOR-popcount mode. See the packed operand formats in the functional description for the range and saturation rules.', accessibility='rw', valueDescriptions=[(0b0, 'One weight per 32-bit word (reset default)'), (0b1, 'Two 16-bit Q3.12 weights per 32-bit word')]))
+r.AddBitField(BitField(name='NPUACTF', msb=25, lsb=23, description='Activation function applied to the accumulator output while NPUAEN = 1; with NPUAEN = 0 the raw accumulator passes through regardless of this field. 0 = logistic sigmoid approximation (reset default), output Q0.24 in [0, 1). 1 = ReLU, output Q7.24. 2 = tanh approximation, output in [-1, 1). 3 = clamp to [-1, 1). 4 = exponential approximation 2*sigmoid(x), output Q1.24 in [0, 2). Codes 5-7 are reserved and behave as 0. The selection is latched when NPUTHINK is set; see the activation functions in the functional description for the exact formulas and output formats.', accessibility='rw'))
+r.AddBitField(BitField(name='NPUMODE', msb=22, lsb=20, description='Datapath mode select. 0 = multilayer-perceptron mode (reset default). 1 = one-dimensional convolution mode. 2 = XNOR-popcount binary mode (NPUBEN and NPUAEN must be 0). 3 = general matrix-multiply (GEMM) mode (NPUBEN must be 0). Codes 4-7 are reserved and behave as mode 0. The mode is latched when NPUTHINK is set; see the datapath modes in the functional description for the operand layout of each mode.', accessibility='rw'))
+r.AddBitField(BitField(name='NPUTDIE', msb=19, description='Think-done interrupt enable. When set, NPUSR.NPUTHINKDONE drives the NPU think-done interrupt (vector 120); when clear the flag is available for polling only.', accessibility='rw', valueDescriptions=[(0b0, 'Interrupt disabled (polling only)'), (0b1, 'Interrupt enabled')]))
 r.AddBitField(BitField(name='NPUBEN', msb=18, description='Bias enable. When set, the first weight of each output neuron\'s row in the weight matrix is used as a bias term: it is multiplied by an implicit input of 1.0 and accumulated before the synaptic weights.', accessibility='rw', valueDescriptions=[(0b0, 'Disabled'), (0b1, 'Enabled')]))
 r.AddBitField(BitField(name='NPUAEN', msb=17, description='Activation function enable. When set, the logistic sigmoid approximation activation function is applied to the accumulator output. When cleared, the raw accumulator output is used (linear/identity).', accessibility='rw', valueDescriptions=[(0b0, 'Disabled (linear output)'), (0b1, 'Enabled (logistic sigmoid approximation)')]))
-r.AddBitField(BitField(name='NPUTHINK', msb=16, description='NPU computation start and status bit. Write 1 to start the NPU. Self-clears when the computation is complete. Poll this bit to determine when results are ready.', accessibility='rw1', valueDescriptions=[(0b0, 'Idle (computation complete or not started)'), (0b1, 'Running (write 1 to start)')]))
+r.AddBitField(BitField(name='NPUTHINK', msb=16, description='Computation start and busy flag. Writing 1 starts the NPU; the bit reads 1 until the computation completes, when hardware clears it. While it reads 1 the staging RAM belongs to the NPU.', accessibility='rw1', valueDescriptions=[(0b0, 'Idle (computation complete or not started)'), (0b1, 'Running (write 1 to start)')]))
 r.AddBitField(BitField(name='NPUNI', msb=15, lsb=8, description='Number of inputs in the input vector minus 1. The actual number of inputs is NPUNI + 1.', accessibility='rw'))
 r.AddBitField(BitField(name='NPUNN', msb=7, lsb=0, description='Number of output neurons minus 1. The actual number of outputs is NPUNN + 1.', accessibility='rw'))
 
@@ -2161,11 +2161,11 @@ r.AddBitField(BitField(msb=31, lsb=12, unused=True))
 r.AddBitField(BitField(name='NPUOVSAR', msb=11, lsb=0, description='Output vector start word index within the NPU staging RAM (byte offset from 0xC000 divided by 4)', accessibility='rw'))
 
 # NPUSR (DP-SG 2026-07-22: think-done IRQ rider, vector 120)
-r = RegisterTemplate(nameTemplate='NPUSR', registerMemorySlot=4, description='NPU status register. THINKDONE is write-1-to-clear (write a 1 to bit 0 to clear it; writing 0 leaves it unchanged) and is never cleared by a read. The NPU think-done interrupt (vector 120) is THINKDONE and NPUCR.NPUTDIE. Clearing THINKDONE does not affect NPUCR.NPUTHINK, which self-clears at completion as before; the staging-RAM ownership contract is unchanged (no hart may access 0xC000-0xFFFF until NPUCR bit 16 reads 0 again).', size=32)
+r = RegisterTemplate(nameTemplate='NPUSR', registerMemorySlot=4, description='NPU status register. NPUTHINKDONE is write-1-to-clear and is never cleared by a read; the think-done interrupt (vector 120) is NPUTHINKDONE and NPUCR.NPUTDIE. Clearing NPUTHINKDONE does not affect NPUCR.NPUTHINK, and the staging RAM stays owned by the NPU until NPUCR.NPUTHINK reads 0.', size=32)
 p.AddRegisterTemplate(r)
 
 r.AddBitField(BitField(msb=31, lsb=1, unused=True))
-r.AddBitField(BitField(name='NPUTHINKDONE', msb=0, accessibility='rw1', description='Think-done flag. Set once per computation, when the NPU finishes (the same event that self-clears NPUCR.NPUTHINK); sticky. Drives the think-done interrupt (vector 120) when NPUCR.NPUTDIE is set. Write 1 to clear. On a same-cycle collision between a completing computation and a write-1-to-clear, the set wins (a completion is never lost).', valueDescriptions=[(0b0, 'No completed computation pending'), (0b1, 'A computation has completed')]))
+r.AddBitField(BitField(name='NPUTHINKDONE', msb=0, accessibility='rw1', description='Think-done flag, set by hardware when a computation finishes (the same event that clears NPUTHINK) and held until software writes 1 to it. It drives the think-done interrupt (vector 120) while NPUTDIE = 1. A completion that coincides with a write of 1 leaves the flag set.', valueDescriptions=[(0b0, 'No completed computation pending'), (0b1, 'A computation has completed')]))
 
 # NPUCFG1/NPUCFG2 (P4.1 architecture family, npu_family_spec.md 2026-07-23):
 # per-mode configuration words behind the 4-bit MMR decode; word offsets 7-15
@@ -2322,11 +2322,11 @@ for h in range(numHarts):
 	r.AddBitField(BitField(name='IRQRH' + str(h) + 'ENM', msb=31, lsb=0, accessibility='rw', description='Interrupt enable bits for vectors 63:32, routed to hart ' + str(h) + '.'))
 
 	if _irqrUMsb == 31:
-		r = RegisterTemplate(nameTemplate='H' + str(h) + 'ENU', registerMemorySlot=4 * h + 2, size=32, description='Hart ' + str(h) + ' interrupt routing register, vectors 95:64. Unlike the retired SYSTEM IRQENU register of the single-core chip, the packing here is contiguous in both directions. Bits 19 and 20 correspond to the CLINT vectors 83 and 84, which are delivered on dedicated hardwired wires and never through meip: these two bits are writable but have no effect.')
+		r = RegisterTemplate(nameTemplate='H' + str(h) + 'ENU', registerMemorySlot=4 * h + 2, size=32, description='Hart ' + str(h) + ' interrupt routing register, vectors 95:64. Bits 19 and 20 correspond to the CLINT vectors 83 and 84, which are delivered on dedicated hardwired wires and never through meip: these two bits are writable but have no effect.')
 		p.AddRegisterTemplate(r)
 		r.AddBitField(BitField(name='IRQRH' + str(h) + 'ENU', msb=31, lsb=0, accessibility='rw', description='Interrupt enable bits for vectors 95:64, routed to hart ' + str(h) + '.'))
 	else:
-		r = RegisterTemplate(nameTemplate='H' + str(h) + 'ENU', registerMemorySlot=4 * h + 2, size=32, description='Hart ' + str(h) + ' interrupt routing register, vectors ' + str(_irqrUTop) + ':64 (bits ' + str(_irqrUMsb) + ':0; bits 31:' + str(_irqrUMsb + 1) + ' read as 0). Unlike the retired SYSTEM IRQENU register of the single-core chip, the packing here is contiguous in both directions. Bits 19 and 20 correspond to the CLINT vectors 83 and 84, which are delivered on dedicated hardwired wires and never through meip: these two bits are writable but have no effect.')
+		r = RegisterTemplate(nameTemplate='H' + str(h) + 'ENU', registerMemorySlot=4 * h + 2, size=32, description='Hart ' + str(h) + ' interrupt routing register, vectors ' + str(_irqrUTop) + ':64 (bits ' + str(_irqrUMsb) + ':0; bits 31:' + str(_irqrUMsb + 1) + ' read as 0). Bits 19 and 20 correspond to the CLINT vectors 83 and 84, which are delivered on dedicated hardwired wires and never through meip: these two bits are writable but have no effect.')
 		p.AddRegisterTemplate(r)
 		r.AddBitField(BitField(unused=True, msb=31, lsb=_irqrUMsb + 1))
 		r.AddBitField(BitField(name='IRQRH' + str(h) + 'ENU', msb=_irqrUMsb, lsb=0, accessibility='rw', description='Interrupt enable bits for vectors ' + str(_irqrUTop) + ':64, routed to hart ' + str(h) + '.'))
@@ -2411,7 +2411,7 @@ _pwrOrchNote = (' The orchestrator sits outside the MTCMOS fabric entirely (ther
 p = PeripheralTemplate(nameTemplate='PWRCTRL', description='Power controller for the switchable hart-tile power domains (M17 MTCMOS cold-gating). Each tile hart (1-' + str(numHarts - 1) + ') sits in its own header-switched power domain; setting that hart\'s gate bit walks a hardware sequencer through the only legal order: isolation clamps on, tile reset asserted, header switches opened (rail off). Clearing the bit reverses it: switches closed, a rail-settle delay, clamps released, reset released, at which point the tile COLD-BOOTS through the shared boot ROM (all state was lost), parks in WFI, and can be relaunched through the boot-ROM loader rows and a CLINT msip exactly as at chip power-on. ' + _pwrHart0Clause + _pwrOrchNote + ' Gate only a parked or otherwise quiesced tile: the hardware cannot deadlock (a clamped request looks released to the arbiter), but any in-flight work on the tile is destroyed; that is what cold-gating means.', bitFieldPrefix='PWR', latexIntroFileName='PWRCTRL-intro-castalia-2026-07.tex', latexFeatureSummary='Per-tile MTCMOS power gating with hardware gate/wake sequencing (cold-boot wake)')
 m.AddPeripheralTemplate(p)
 
-r = RegisterTemplate(nameTemplate='PWRCR', registerMemorySlot=0, size=32, description='Power gate control. Setting GATE bit h powers tile hart h down (isolation, reset, rail off); clearing it powers the tile back up and cold-boots it. A request made while the sequencer is mid-sequence is honored when the sequence completes (no aborts). Bit 0 (hart 0) is reserved: always-on, reads 0, writes ignored.')
+r = RegisterTemplate(nameTemplate='PWRCR', registerMemorySlot=0, size=32, description='Power gate control. Setting PWRGATE bit h powers tile hart h down (isolation, reset, rail off); clearing it powers the tile back up and cold-boots it. A request made while the sequencer is mid-sequence is honored when the sequence completes. Bit 0 (hart 0) is always on: it reads 0 and ignores writes.')
 p.AddRegisterTemplate(r)
 r.AddBitField(BitField(unused=True, msb=31, lsb=numHarts))
 # SINGLE-HART DEGENERACY (mcu_hart, 2026-08-24). PWRGATE spans the GATEABLE
@@ -2421,7 +2421,7 @@ r.AddBitField(BitField(unused=True, msb=31, lsb=numHarts))
 # which is the truth on a chip whose only hart is the always-on management hart.
 # At numHarts >= 2 nothing here moves, so the Castalia emission is untouched.
 if numHarts > 1:
-	r.AddBitField(BitField(name='PWRGATE', msb=numHarts - 1, lsb=1, accessibility='rw', description='Gate request per tile hart: bit h = 1 powers tile hart h down, 0 powers it up (cold boot). Poll PWRSR for sequencer completion.', valueDescriptions=[(0, 'All tile harts powered', '_NONE')]))
+	r.AddBitField(BitField(name='PWRGATE', msb=numHarts - 1, lsb=1, accessibility='rw', description='Gate request mask, one bit per tile hart: bit h = 1 powers tile hart h down and 0 powers it up, with a cold boot on the way up. Poll the PWRSR nibble of the hart for sequencer completion. Only the all-powered value is enumerated; any combination of bits is valid.', valueDescriptions=[(0, 'All tile harts powered', '_NONE')]))
 r.AddBitField(BitField(name='PWRH0', msb=0, lsb=0, accessibility='r', description='Hart 0 is always-on: reads 0, writes ignored.'))
 
 # PWRSR nibble array (A2 regrow, user decision 2026-07-10): the 4-bit state
@@ -2455,22 +2455,22 @@ for _w in range(_pwrsrWords):
 # (ANDed into every hart's outer reset at the top level). The registers exist
 # in every configuration; peripherals.fieldPower only decides whether the
 # pad-side inputs (PGOOD P6.7, strap P6.6, NFC field level) are wired or tied.
-r = RegisterTemplate(nameTemplate='PWRWAKE', registerMemorySlot=5, size=32, description='Boot-gate / wake-source control (DP-S3 field-powered mode). The harvested-boot STRAP drives the hardware defaults (a strapped board self-arms the gate, waits on PGOOD, and re-holds on brownout with no software involvement); these bits OR-IN software overrides on top. Resets to 0 = no software override = the gate is released on every normal boot. Write with full-word stores (byte-lane-0 qualified, like PWRCR).')
+r = RegisterTemplate(nameTemplate='PWRWAKE', registerMemorySlot=5, size=32, description='Boot gate and wake source control. The harvested-boot strap drives the hardware defaults (a strapped board arms the gate, waits on PGOOD and re-holds on brownout with no software involvement); these bits OR software overrides on top. Resets to 0 (no override), so the gate is released on every normal boot. Write with full-word stores (byte lane 0 qualified, like PWRCR).')
 r.AddBitField(BitField(unused=True, msb=31, lsb=5))
-r.AddBitField(BitField(name='PWREHOLD', msb=4, lsb=4, accessibility='rw', description='Re-hold policy override: 1 = re-assert the boot hold when the release condition drops (brownout re-hold; PGOOD return then cold-boots the harts through the shared ROM). 0 = one-shot: once released, stays released (see PWRSTS.PWRRLSLATCH). The strap ORs this in on a harvested board.'))
-r.AddBitField(BitField(name='PWSWRLS', msb=3, lsb=3, accessibility='rw', description='Software-forced release: 1 releases an armed gate unconditionally (test/override, or "software says proceed"). With no release source enabled, an armed gate holds until this bit, the negative-control proof that the gate is load-bearing.'))
-r.AddBitField(BitField(name='PWRLSFIELD', msb=2, lsb=2, accessibility='rw', description='1 = the synchronized NFC field level (PWRSTS.PWFIELDLIV) is a release condition, the field_detect WAKE source: a reader arriving releases the boot gate. No IRQ vector is involved. Reads as tied-0 field when NFC is absent or fieldPower is off.'))
-r.AddBitField(BitField(name='PWRLSPGOOD', msb=1, lsb=1, accessibility='rw', description='1 = the synchronized PGOOD pad level (PWRSTS.PWPGOODLIV) is a release condition. The strap ORs this in on a harvested board (it always waits on the supply supervisor).'))
-r.AddBitField(BitField(name='PWGATEEN', msb=0, lsb=0, accessibility='rw', description='Software boot-gate arm: 1 arms the HOLD-IN-RESET gate (every hart\'s outer reset held until a release condition fires). The harvested-boot strap ORs this in, so a strapped board arms with no software.'))
+r.AddBitField(BitField(name='PWREHOLD', msb=4, lsb=4, accessibility='rw', description='Re-hold policy: 1 re-asserts the boot hold whenever the release condition drops (a later PGOOD return then cold-boots the harts through the shared ROM); 0 makes the release one-shot, latched in PWRSTS.PWRRLSLATCH. The strap ORs this bit in on a harvested board.'))
+r.AddBitField(BitField(name='PWSWRLS', msb=3, lsb=3, accessibility='rw', description='Software release: 1 releases an armed boot gate unconditionally. With no other release source enabled, an armed gate holds until this bit is set.'))
+r.AddBitField(BitField(name='PWRLSFIELD', msb=2, lsb=2, accessibility='rw', description='Field release enable: 1 makes the synchronized NFC field level (PWRSTS.PWFIELDLIV) a release condition, so a reader arriving releases the boot gate. The field level is tied to 0 when NFC is absent or field power is disabled.'))
+r.AddBitField(BitField(name='PWRLSPGOOD', msb=1, lsb=1, accessibility='rw', description='PGOOD release enable: 1 makes the synchronized PGOOD pad level (PWRSTS.PWPGOODLIV) a release condition. The strap ORs this bit in on a harvested board, which always waits on the supply supervisor.'))
+r.AddBitField(BitField(name='PWGATEEN', msb=0, lsb=0, accessibility='rw', description='Boot gate arm: 1 holds every hart in reset until a release condition fires. The strap ORs this bit in, so a strapped board arms with no software.'))
 p.AddRegisterTemplate(r)
-r = RegisterTemplate(nameTemplate='PWRSTS', registerMemorySlot=6, size=32, description='Boot-gate / wake-source status (read-only). The synchronized live pad levels, the one-shot strap sample (THE bootrom harvested-boot branch bit), and the gate state.')
+r = RegisterTemplate(nameTemplate='PWRSTS', registerMemorySlot=6, size=32, description='Boot gate and wake source status, read only: the synchronized live pad levels, the one-shot strap sample that selects the harvested-boot branch of the boot ROM, and the gate state.')
 r.AddBitField(BitField(unused=True, msb=31, lsb=6))
-r.AddBitField(BitField(name='PWRRLSLATCH', msb=5, lsb=5, accessibility='r', description='One-shot release has latched (sticky until reset; only meaningful with PWREHOLD = 0).'))
-r.AddBitField(BitField(name='PWBOOTHOLD', msb=4, lsb=4, accessibility='r', description='Current gate state: 1 = the boot gate is holding every hart in reset (pgood_rstn asserted).'))
-r.AddBitField(BitField(name='PWSTRAPVLD', msb=3, lsb=3, accessibility='r', description='Strap sample complete (the one-shot sample lands a few mclk after reset release; poll before consuming PWSTRAP).'))
-r.AddBitField(BitField(name='PWSTRAP', msb=2, lsb=2, accessibility='r', description='Latched harvested-boot strap sample: 1 = harvested boot (the bootrom skips the SPI-flash copy and runs the ROM-resident service loop), 0 = normal SPI boot. Sampled ONCE after reset; mid-run strap changes are ignored.'))
-r.AddBitField(BitField(name='PWFIELDLIV', msb=1, lsb=1, accessibility='r', description='Synchronized NFC field_detect level (0 when NFC is absent or fieldPower is off).'))
-r.AddBitField(BitField(name='PWPGOODLIV', msb=0, lsb=0, accessibility='r', description='Synchronized PGOOD pad level (P6.7). Reads 0 = power-not-good when the pin is unconnected (reset pull-down).'))
+r.AddBitField(BitField(name='PWRRLSLATCH', msb=5, lsb=5, accessibility='r', description='One-shot release latched: set when an armed gate has been released with PWREHOLD = 0 and held until reset.'))
+r.AddBitField(BitField(name='PWBOOTHOLD', msb=4, lsb=4, accessibility='r', description='Boot gate state: 1 while the gate holds every hart in reset.'))
+r.AddBitField(BitField(name='PWSTRAPVLD', msb=3, lsb=3, accessibility='r', description='Strap sample valid: set a few MCLK cycles after reset release once the one-shot strap sample has been taken. Poll it before reading PWSTRAP.'))
+r.AddBitField(BitField(name='PWSTRAP', msb=2, lsb=2, accessibility='r', description='Harvested-boot strap sample: 1 = harvested boot (the boot ROM skips the SPI flash copy and runs the ROM-resident service loop), 0 = normal SPI boot. Sampled once after reset; later strap changes are ignored.'))
+r.AddBitField(BitField(name='PWFIELDLIV', msb=1, lsb=1, accessibility='r', description='Synchronized NFC field detect level; 0 when NFC is absent or field power is disabled.'))
+r.AddBitField(BitField(name='PWPGOODLIV', msb=0, lsb=0, accessibility='r', description='Synchronized PGOOD pad level (P6.7); reads 0 (power not good) when the pin is unconnected, because of the reset pull-down.'))
 p.AddRegisterTemplate(r)
 
 
@@ -4255,6 +4255,61 @@ for _present, _names in _libraryTailEmit:
 			_mcuMpIrqVectors.append(('IRQB_RSVD' + str(_vec),
 				'Reserved (vector ' + str(_vec) + '; ' + _nm[len('IRQB_'):]
 				+ ' source, disabled by this configuration)'))
+# Per-vector interrupt CLEAR METHODS for the TRM interrupt tables, keyed by IRQB name.
+# Derived from the RTL flag registers of the peripherals whose flags are documented here.
+# The table is optional: a vector with no entry prints no clear method, so every
+# configuration (any hart count, any dropped peripheral) still builds.
+_I2C_IRQ_FLAGS = {'STR': 'I2CSTR', 'spr': 'I2CSPR', 'msts': 'I2CMSTS', 'msps': 'I2CMSPS',
+	'marb': 'I2CMARB', 'mtxe': 'I2CMTXE', 'mnr': 'I2CMNR', 'mxc': 'I2CMXC', 'sa': 'I2CSA',
+	'stxe': 'I2CSTXE', 'sovf': 'I2CSOVF', 'snr': 'I2CSNR', 'sxc': 'I2CSXC'}
+_TIM_IRQ_FLAGS = {'CAP0': 'CAP0IF', 'CAP1': 'CAP1IF', 'OVF': 'OVIF', 'CMP0': 'CMP0IF', 'CMP1': 'CMP1IF', 'CMP2': 'CMP2IF'}
+_NFC_IRQ_FLAGS = {'FIELD': 'NFCFIELDF', 'RXF': 'NFCRXFRAMEF', 'TXDONE': 'NFCTXDONEF'}
+
+def _irqClearMethod(irqbName):
+	"""The software action that clears the source of one interrupt vector, or None when not documented here."""
+	import re as _re
+	if irqbName == 'IRQB_SYS_WDT':
+		return 'Write 1 to WDTSR.SYSWDTIF'
+	_m = _re.match(r'^IRQB_GPIO(\d)_B(\d)$', irqbName)
+	if _m:
+		return 'Write 1 to P' + _m.group(1) + 'IF bit ' + _m.group(2)
+	_m = _re.match(r'^IRQB_SPI(\d)_(TC|TE)$', irqbName)
+	if _m:
+		if _m.group(2) == 'TC':
+			return 'Write 1 to SPI' + _m.group(1) + 'SR.SPITCIF, or read SPI' + _m.group(1) + 'RX'
+		return 'Write 1 to SPI' + _m.group(1) + 'SR.SPITEIF'
+	_m = _re.match(r'^IRQB_UART(\d)_(RC|TE|TC)$', irqbName)
+	if _m:
+		if _m.group(2) == 'RC':
+			return 'Write 1 to UART' + _m.group(1) + 'SR.RCIF, or read UART' + _m.group(1) + 'RX'
+		return 'Write 1 to UART' + _m.group(1) + 'SR.' + _m.group(2) + 'IF'
+	_m = _re.match(r'^IRQB_TIM(\d)_(\w+)$', irqbName)
+	if _m and _m.group(2) in _TIM_IRQ_FLAGS:
+		return 'Write 1 to TIM' + _m.group(1) + 'SR.' + _TIM_IRQ_FLAGS[_m.group(2)]
+	_m = _re.match(r'^IRQB_I2C(\d)_(\w+)$', irqbName)
+	if _m and _m.group(2) in _I2C_IRQ_FLAGS:
+		return 'Write 1 to I2C' + _m.group(1) + 'SR.' + _I2C_IRQ_FLAGS[_m.group(2)]
+	if irqbName == 'IRQB_CLINT_MSIP':
+		return 'Write 0 to the MSIPn register of the hart'
+	if irqbName == 'IRQB_CLINT_MTIP':
+		return 'Write MTIMECMPn of the hart to a value above mtime'
+	_m = _re.match(r'^IRQB_NFC(\d)_(\w+)$', irqbName)
+	if _m and _m.group(2) in _NFC_IRQ_FLAGS:
+		return 'Write 1 to NFC' + _m.group(1) + 'SR.' + _NFC_IRQ_FLAGS[_m.group(2)]
+	if _m and _m.group(2) == 'CRCERR':
+		return 'Write 1 to NFC' + _m.group(1) + 'SR.NFCCRCERRF and NFCPARERRF'
+	if irqbName == 'IRQB_NPU0_TD':
+		return 'Write 1 to NPUSR.NPUTHINKDONE'
+	_m = _re.match(r'^IRQB_DMA(\d)_(DONE|ERR)$', irqbName)
+	if _m:
+		return 'Write 1 to the set DMA' + _m.group(1) + 'SR.DMA' + _m.group(2) + ' channel bits'
+	return None
+
+_mcuMpIrqClearMethods = {}
+for _nm, _desc in _mcuMpIrqVectors:
+	_cm = _irqClearMethod(_nm)
+	if _cm is not None:
+		_mcuMpIrqClearMethods[_nm] = _cm
 _expectedVectorCount = _tailHigh
 if len(_mcuMpIrqVectors) != _expectedVectorCount:
 	raise Exception('MCU_MP IRQB vector list must have ' + str(_expectedVectorCount)
@@ -4446,6 +4501,7 @@ m.McuMpCompat = {
 	'sysRegSlots': _mcuMpSysRegSlots,
 	'npuMmrAddr': _mcuMpNpuMmrAddr,
 	'irqVectors': _mcuMpIrqVectors,
+	'irqClearMethods': _mcuMpIrqClearMethods,	# optional per-vector clear method text, keyed by IRQB name
 	'irqFirstVector': _mcuMpIrqFirstVector,
 	'rstVals': _mcuMpRstVals,
 	'pnums': _mcuMpPnums,

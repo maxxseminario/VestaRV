@@ -1,0 +1,33 @@
+% Clock tree material for the consolidated "Reset, clocks and power" chapter.
+% Input by TRM.template.tex, which owns the \chapter; this file carries the
+% \section{Clock tree} (label s:clocktree, referenced by the template) and
+% \subsection headings under it. Extracted from the SYSTEM intro (2026-08); the SYSTEM chapter
+% keeps the register-level description of SYSCLKCR/CLKDIVCR and points here.
+\section{Clock tree} \label{s:clocktree}
+
+\subsection{Clock sources}
+
+The chip has four clock sources. HFXT and LFXT are external clocks supplied on the \pin{HFXT} and \pin{LFXT} pin functions (Section \ref{s:pinsConfig}); DCO0 and DCO1 are on-chip digitally controlled oscillators whose frequency is set by the bias values in \register{DCO0BIAS} and \register{DCO1BIAS}, a higher bias giving a higher frequency. The design is characterised for a maximum clock frequency of 24 MHz, so HFXT must not exceed 24 MHz; LFXT is intended to be 32.768 kHz so that time can be measured accurately. Operation above 24 MHz, from HFXT or from a DCO, is outside the characterised range and is not guaranteed.
+
+HFXT and LFXT are enabled at reset and can be stopped with \bitfield{HFXTOFF} and \bitfield{LFXTOFF}; DCO0 and DCO1 are off at reset and are started with \bitfield{DCO0ON} and \bitfield{DCO1ON}. A source that is currently selected by either clock tree root stays enabled whatever its own bit says, so a mistaken write cannot stop the clock the chip is running on.
+
+\subsection{Roots and dividers}
+
+Two clocks form the roots of the tree in Figure \ref{fig:mcu-clock-system}: the main clock MCLK and the sub-main clock SMCLK. \bitfield{SMCLKSEL} picks SMCLK's source from the four sources; \bitfield{MCLKSEL} picks MCLK's from three of them and, on code \texttt{01}, from SMCLK itself. That tap is taken after the SMCLK divider but before the \bitfield{SMCLKOFF} gate, so a chip running MCLK out of SMCLK keeps its main clock when SMCLK is stopped for the peripherals. Each root may then be divided again by \bitfield{SYSMCLKDIV} and \bitfield{SYSSMCLKDIV} in \register{CLKDIVCR}. Both roots use glitch-free multiplexers, so a source can be changed while the chip runs.
+
+\begin{figure}[htpb]
+	\centering
+	\resizebox{\linewidth}{!}{\input{include/ClockSystemDiagram.tex}}
+	\caption{The MCU clock system: sources, the MCLK and SMCLK bars, and the blocks they clock.}
+	\label{fig:mcu-clock-system}
+\end{figure}
+
+MCLK drives all \NumHartsWord{} harts, the multi-core arbiter and every always-on block, and it cannot be turned off. SMCLK drives the serial engines of the \peripheral{SPIx}, \peripheral{UARTx}, \peripheral{I2Cx} and \peripheral{NFCx} peripherals and is one of the \peripheral{TIMERx} sources; it can be stopped with \bitfield{SMCLKOFF}. The register interface of every peripheral is clocked from MCLK even where its engine runs on SMCLK, so a peripheral stays readable with SMCLK stopped. The blocks under \emph{Independent domains} in the figure are clocked from outside this tree, and \register{SYSCLKCR} does not reach them.
+
+\subsection{Clock state at reset and after boot}
+
+Both roots select HFXT at reset, so a valid clock on \pin{HFXT} is required while the chip boots; the board must keep the oscillator driving \pin{HFXT} running across reset rather than gating it from a pin the chip drives only after boot. After boot, software may move MCLK to another source and then stop HFXT.
+
+The boot ROM reprograms the clock system during the SPI-flash boot and may leave SMCLK on LFXT when it enters the application. The SMCLK source at application entry is therefore a boot-ROM implementation detail, and every application that uses an SMCLK-domain peripheral, or a \peripheral{TIMERx} clock source switch, selects its own SMCLK source in \register{SYSCLKCR} first.
+
+Because MCLK clocks every hart, a change to \register{SYSCLKCR} or \register{CLKDIVCR} changes the clock of all \NumHartsWord{} harts at once. By convention only hart 0 reconfigures the clocks, after the other harts have been quiesced.

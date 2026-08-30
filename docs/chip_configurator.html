@@ -729,7 +729,7 @@ const VESTA_DATA = {
       "default": "Castalia"
     },
     "numHarts": {
-      "description": "int 1..32: hart/tile count (5 = Castalia default, 18 = Argus)",
+      "description": "int 1..32: hart count; hart 0 is the always-on management hart and harts 1..N-1 are the power-gateable tiles",
       "type": "int",
       "default": 5,
       "min": 1,
@@ -741,7 +741,7 @@ const VESTA_DATA = {
       "default": true
     },
     "numMutexes": {
-      "description": "int 1..1024: HW mutex bank size (16 = Castalia, 32 = Argus)",
+      "description": "int 1..1024: hardware mutex bank size, the number of MUTEXn registers",
       "type": "int",
       "default": 16,
       "min": 1,
@@ -1043,7 +1043,7 @@ const VESTA_DATA = {
       "default": false
     },
     "package.model": {
-      "description": "string: package pinout model, one of myshkin-qfn44, castalia-quad-qfn64 or castalia-lqfp100",
+      "description": "string: package pinout model, one of the pinout models defined in the generator (QFN-44, QFN-64 quad, or LQFP-100)",
       "type": "enum",
       "default": "castalia-lqfp100",
       "enum": [

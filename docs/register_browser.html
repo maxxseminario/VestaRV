@@ -619,7 +619,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "r",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Pin input levels. Bit y reads the logic level of pin y as sampled at the start of the bus access, regardless of the pin direction or PxSEL setting. Bits 31:8 read 0.",
 							"ValueDescriptions": []
 						}
 					]
@@ -640,7 +640,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Output drive levels. Bit y is the level driven on pin y while the pin is an output (PxDIR bit y = 1) in GPIO mode (PxSEL bit y = 0). Resets to 0; bits 31:8 read 0 and ignore writes.",
 							"ValueDescriptions": []
 						}
 					]
@@ -661,7 +661,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw1",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Output set. Writing 1 to bit y sets PxOUT bit y; writing 0 has no effect. Reads return the current PxOUT value.",
 							"ValueDescriptions": []
 						}
 					]
@@ -682,7 +682,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw1",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Output clear. Writing 1 to bit y clears PxOUT bit y; writing 0 has no effect. Reads return the inverse of the current PxOUT value.",
 							"ValueDescriptions": []
 						}
 					]
@@ -703,7 +703,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw1",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Output toggle. Writing 1 to bit y inverts PxOUT bit y; writing 0 has no effect. Reads return the current PxOUT value.",
 							"ValueDescriptions": []
 						}
 					]
@@ -724,7 +724,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Pin direction. Bit y = 0 makes pin y an input and 1 makes it an output, effective only while the pin is in GPIO mode (PxSEL bit y = 0). Resets to 0 (all inputs); bits 31:8 read 0 and ignore writes.",
 							"ValueDescriptions": []
 						}
 					]
@@ -745,7 +745,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw1",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Interrupt flags. Hardware sets bit y when the edge selected by PxIES occurs on pin y while PxIE bit y is 1, and holds it until software writes 1 to the bit; writing 0 has no effect. Each flag drives the interrupt vector of its pin directly, and bits 31:8 read 0.",
 							"ValueDescriptions": []
 						}
 					]
@@ -766,7 +766,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Interrupt edge select. Bit y = 0 makes a rising edge on pin y set PxIF bit y, 1 selects a falling edge. Resets to 0.",
 							"ValueDescriptions": []
 						}
 					]
@@ -787,7 +787,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Interrupt enable. Bit y = 1 allows the selected edge on pin y to set PxIF bit y; with the bit at 0 no flag is captured for the pin. Resets to 0.",
 							"ValueDescriptions": []
 						}
 					]
@@ -808,7 +808,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Pin function select. Bit y = 0 gives pin y to the GPIO registers, 1 hands its output level, direction and resistor enable to the alternate function chosen by the PxAFS field of the pin. Resets to 0; bits 31:8 read 0 and ignore writes.",
 							"ValueDescriptions": []
 						}
 					]
@@ -829,7 +829,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Pull resistor enable. Bit y = 1 enables the pull resistor of pin y while the pin is in GPIO mode (PxSEL bit y = 0); in alternate function mode the peripheral controls the resistor. Resets to 0; bits 31:8 read 0 and ignore writes.",
 							"ValueDescriptions": []
 						}
 					]
@@ -1021,7 +1021,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Event fabric task pin select. Bit y = 1 lets the EVFAB0 output set and output clear tasks of this port set or clear PxOUT bit y; with the bit at 0 the tasks leave pin y untouched. Resets to 0, so no pin responds to a task until software selects it.",
 							"ValueDescriptions": []
 						}
 					]
@@ -1053,7 +1053,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "r",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Pin input levels. Bit y reads the logic level of pin y as sampled at the start of the bus access, regardless of the pin direction or PxSEL setting. Bits 31:8 read 0.",
 							"ValueDescriptions": []
 						}
 					]
@@ -1074,7 +1074,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Output drive levels. Bit y is the level driven on pin y while the pin is an output (PxDIR bit y = 1) in GPIO mode (PxSEL bit y = 0). Resets to 0; bits 31:8 read 0 and ignore writes.",
 							"ValueDescriptions": []
 						}
 					]
@@ -1095,7 +1095,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw1",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Output set. Writing 1 to bit y sets PxOUT bit y; writing 0 has no effect. Reads return the current PxOUT value.",
 							"ValueDescriptions": []
 						}
 					]
@@ -1116,7 +1116,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw1",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Output clear. Writing 1 to bit y clears PxOUT bit y; writing 0 has no effect. Reads return the inverse of the current PxOUT value.",
 							"ValueDescriptions": []
 						}
 					]
@@ -1137,7 +1137,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw1",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Output toggle. Writing 1 to bit y inverts PxOUT bit y; writing 0 has no effect. Reads return the current PxOUT value.",
 							"ValueDescriptions": []
 						}
 					]
@@ -1158,7 +1158,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Pin direction. Bit y = 0 makes pin y an input and 1 makes it an output, effective only while the pin is in GPIO mode (PxSEL bit y = 0). Resets to 0 (all inputs); bits 31:8 read 0 and ignore writes.",
 							"ValueDescriptions": []
 						}
 					]
@@ -1179,7 +1179,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw1",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Interrupt flags. Hardware sets bit y when the edge selected by PxIES occurs on pin y while PxIE bit y is 1, and holds it until software writes 1 to the bit; writing 0 has no effect. Each flag drives the interrupt vector of its pin directly, and bits 31:8 read 0.",
 							"ValueDescriptions": []
 						}
 					]
@@ -1200,7 +1200,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Interrupt edge select. Bit y = 0 makes a rising edge on pin y set PxIF bit y, 1 selects a falling edge. Resets to 0.",
 							"ValueDescriptions": []
 						}
 					]
@@ -1221,7 +1221,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Interrupt enable. Bit y = 1 allows the selected edge on pin y to set PxIF bit y; with the bit at 0 no flag is captured for the pin. Resets to 0.",
 							"ValueDescriptions": []
 						}
 					]
@@ -1242,7 +1242,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Pin function select. Bit y = 0 gives pin y to the GPIO registers, 1 hands its output level, direction and resistor enable to the alternate function chosen by the PxAFS field of the pin. Resets to 0; bits 31:8 read 0 and ignore writes.",
 							"ValueDescriptions": []
 						}
 					]
@@ -1263,7 +1263,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Pull resistor enable. Bit y = 1 enables the pull resistor of pin y while the pin is in GPIO mode (PxSEL bit y = 0); in alternate function mode the peripheral controls the resistor. Resets to 0; bits 31:8 read 0 and ignore writes.",
 							"ValueDescriptions": []
 						}
 					]
@@ -1455,7 +1455,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Event fabric task pin select. Bit y = 1 lets the EVFAB0 output set and output clear tasks of this port set or clear PxOUT bit y; with the bit at 0 the tasks leave pin y untouched. Resets to 0, so no pin responds to a task until software selects it.",
 							"ValueDescriptions": []
 						}
 					]
@@ -1497,7 +1497,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "SPI Flash extended memory enable. When enabled, allows native read-only memory access to the SPI flash memory via the system memory bus. The SPI peripheral automatically handles flash read commands and provides transparent memory-mapped access. Available only on SPI0; reads as 0 on SPI1.",
+							"Description": "Flash extended memory enable. When set, reads of the extended flash address range are served by the SPI peripheral, which issues the flash read command and returns the data over the system bus. Implemented on SPI0 only; reads 0 on SPI1.",
 							"ValueDescriptions": [
 								[
 									0,
@@ -1518,7 +1518,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "SPI slave mode select. Configures the SPI peripheral for master or slave operation. SPI0 is master-only; this bit has no effect on SPI0. SPI1 supports both master and slave modes.",
+							"Description": "Slave mode select. Effective on SPI1 only: SPI0 is master only and ignores this bit.",
 							"ValueDescriptions": [
 								[
 									0,
@@ -1539,7 +1539,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "SPI TX swap bytes. Swaps the byte order in 16- and 32-bit transmissions. In 32-bit transmissions, bytes 3 and 0 are swapped and bytes 2 and 1 are swapped. In 16-bit transmissions, bytes 1 and 0 are swapped. Does not affect 8-bit transmissions.",
+							"Description": "Transmit byte swap. When set, 32-bit transfers swap bytes 3 with 0 and 2 with 1, and 16-bit transfers swap bytes 1 and 0; 8-bit transfers are unaffected.",
 							"ValueDescriptions": [
 								[
 									0,
@@ -1560,7 +1560,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "SPI RX swap bytes. Swaps the byte order in 16- and 32-bit receptions. In 32-bit receptions, bytes 3 and 0 are swapped and bytes 2 and 1 are swapped. In 16-bit receptions, bytes 1 and 0 are swapped. Does not affect 8-bit receptions.",
+							"Description": "Receive byte swap. When set, 32-bit receptions swap bytes 3 with 0 and 2 with 1, and 16-bit receptions swap bytes 1 and 0; 8-bit receptions are unaffected.",
 							"ValueDescriptions": [
 								[
 									0,
@@ -1811,7 +1811,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw1",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "SPI transmit register empty interrupt flag. Set when SPIxTX register is empty and ready to accept new data. The data will not be transmitted until any current transfer completes. Must be cleared by writing 1 to this bit.",
+							"Description": "Transmit register empty interrupt flag, set when the transmitter has taken the SPIxTX contents so the register can accept the next word; a word written while a transfer is in progress is sent after it. Write 1 to clear.",
 							"ValueDescriptions": [
 								[
 									0,
@@ -1843,7 +1843,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Transmit data. In master mode a write starts a transfer of the low 8, 16 or 32 bits as selected by SPIDL; in slave mode the write loads the data shifted out during the next master-driven transfer. Reads return the last value written; resets to 0.",
 							"ValueDescriptions": []
 						}
 					]
@@ -1864,7 +1864,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "r",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Received data from the most recent transfer, right aligned in the width selected by SPIDL with the unused upper bits reading 0. Reading this register clears SPITCIF.",
 							"ValueDescriptions": []
 						}
 					]
@@ -1895,7 +1895,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Flash address offset, added to the bus address of every flash extended memory read while SPIFEN = 1; the 24-bit sum wraps. Resets to 0. Implemented on SPI0 only; on SPI1 the field reads 0.",
 							"ValueDescriptions": []
 						}
 					]
@@ -1937,7 +1937,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "SPI Flash extended memory enable. When enabled, allows native read-only memory access to the SPI flash memory via the system memory bus. The SPI peripheral automatically handles flash read commands and provides transparent memory-mapped access. Available only on SPI0; reads as 0 on SPI1.",
+							"Description": "Flash extended memory enable. When set, reads of the extended flash address range are served by the SPI peripheral, which issues the flash read command and returns the data over the system bus. Implemented on SPI0 only; reads 0 on SPI1.",
 							"ValueDescriptions": [
 								[
 									0,
@@ -1958,7 +1958,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "SPI slave mode select. Configures the SPI peripheral for master or slave operation. SPI0 is master-only; this bit has no effect on SPI0. SPI1 supports both master and slave modes.",
+							"Description": "Slave mode select. Effective on SPI1 only: SPI0 is master only and ignores this bit.",
 							"ValueDescriptions": [
 								[
 									0,
@@ -1979,7 +1979,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "SPI TX swap bytes. Swaps the byte order in 16- and 32-bit transmissions. In 32-bit transmissions, bytes 3 and 0 are swapped and bytes 2 and 1 are swapped. In 16-bit transmissions, bytes 1 and 0 are swapped. Does not affect 8-bit transmissions.",
+							"Description": "Transmit byte swap. When set, 32-bit transfers swap bytes 3 with 0 and 2 with 1, and 16-bit transfers swap bytes 1 and 0; 8-bit transfers are unaffected.",
 							"ValueDescriptions": [
 								[
 									0,
@@ -2000,7 +2000,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "SPI RX swap bytes. Swaps the byte order in 16- and 32-bit receptions. In 32-bit receptions, bytes 3 and 0 are swapped and bytes 2 and 1 are swapped. In 16-bit receptions, bytes 1 and 0 are swapped. Does not affect 8-bit receptions.",
+							"Description": "Receive byte swap. When set, 32-bit receptions swap bytes 3 with 0 and 2 with 1, and 16-bit receptions swap bytes 1 and 0; 8-bit receptions are unaffected.",
 							"ValueDescriptions": [
 								[
 									0,
@@ -2251,7 +2251,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw1",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "SPI transmit register empty interrupt flag. Set when SPIxTX register is empty and ready to accept new data. The data will not be transmitted until any current transfer completes. Must be cleared by writing 1 to this bit.",
+							"Description": "Transmit register empty interrupt flag, set when the transmitter has taken the SPIxTX contents so the register can accept the next word; a word written while a transfer is in progress is sent after it. Write 1 to clear.",
 							"ValueDescriptions": [
 								[
 									0,
@@ -2283,7 +2283,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Transmit data. In master mode a write starts a transfer of the low 8, 16 or 32 bits as selected by SPIDL; in slave mode the write loads the data shifted out during the next master-driven transfer. Reads return the last value written; resets to 0.",
 							"ValueDescriptions": []
 						}
 					]
@@ -2304,7 +2304,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "r",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Received data from the most recent transfer, right aligned in the width selected by SPIDL with the unused upper bits reading 0. Reading this register clears SPITCIF.",
 							"ValueDescriptions": []
 						}
 					]
@@ -2335,7 +2335,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Flash address offset, added to the bus address of every flash extended memory read while SPIFEN = 1; the 24-bit sum wraps. Resets to 0. Implemented on SPI0 only; on SPI1 the field reads 0.",
 							"ValueDescriptions": []
 						}
 					]
@@ -4693,7 +4693,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "r",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Pin input levels. Bit y reads the logic level of pin y as sampled at the start of the bus access, regardless of the pin direction or PxSEL setting. Bits 31:8 read 0.",
 							"ValueDescriptions": []
 						}
 					]
@@ -4714,7 +4714,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Output drive levels. Bit y is the level driven on pin y while the pin is an output (PxDIR bit y = 1) in GPIO mode (PxSEL bit y = 0). Resets to 0; bits 31:8 read 0 and ignore writes.",
 							"ValueDescriptions": []
 						}
 					]
@@ -4735,7 +4735,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw1",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Output set. Writing 1 to bit y sets PxOUT bit y; writing 0 has no effect. Reads return the current PxOUT value.",
 							"ValueDescriptions": []
 						}
 					]
@@ -4756,7 +4756,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw1",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Output clear. Writing 1 to bit y clears PxOUT bit y; writing 0 has no effect. Reads return the inverse of the current PxOUT value.",
 							"ValueDescriptions": []
 						}
 					]
@@ -4777,7 +4777,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw1",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Output toggle. Writing 1 to bit y inverts PxOUT bit y; writing 0 has no effect. Reads return the current PxOUT value.",
 							"ValueDescriptions": []
 						}
 					]
@@ -4798,7 +4798,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Pin direction. Bit y = 0 makes pin y an input and 1 makes it an output, effective only while the pin is in GPIO mode (PxSEL bit y = 0). Resets to 0 (all inputs); bits 31:8 read 0 and ignore writes.",
 							"ValueDescriptions": []
 						}
 					]
@@ -4819,7 +4819,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw1",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Interrupt flags. Hardware sets bit y when the edge selected by PxIES occurs on pin y while PxIE bit y is 1, and holds it until software writes 1 to the bit; writing 0 has no effect. Each flag drives the interrupt vector of its pin directly, and bits 31:8 read 0.",
 							"ValueDescriptions": []
 						}
 					]
@@ -4840,7 +4840,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Interrupt edge select. Bit y = 0 makes a rising edge on pin y set PxIF bit y, 1 selects a falling edge. Resets to 0.",
 							"ValueDescriptions": []
 						}
 					]
@@ -4861,7 +4861,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Interrupt enable. Bit y = 1 allows the selected edge on pin y to set PxIF bit y; with the bit at 0 no flag is captured for the pin. Resets to 0.",
 							"ValueDescriptions": []
 						}
 					]
@@ -4882,7 +4882,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Pin function select. Bit y = 0 gives pin y to the GPIO registers, 1 hands its output level, direction and resistor enable to the alternate function chosen by the PxAFS field of the pin. Resets to 0; bits 31:8 read 0 and ignore writes.",
 							"ValueDescriptions": []
 						}
 					]
@@ -4903,7 +4903,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Pull resistor enable. Bit y = 1 enables the pull resistor of pin y while the pin is in GPIO mode (PxSEL bit y = 0); in alternate function mode the peripheral controls the resistor. Resets to 0; bits 31:8 read 0 and ignore writes.",
 							"ValueDescriptions": []
 						}
 					]
@@ -5095,7 +5095,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Event fabric task pin select. Bit y = 1 lets the EVFAB0 output set and output clear tasks of this port set or clear PxOUT bit y; with the bit at 0 the tasks leave pin y untouched. Resets to 0, so no pin responds to a task until software selects it.",
 							"ValueDescriptions": []
 						}
 					]
@@ -5429,7 +5429,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"RegisterMemorySlot": 2,
 					"Size": 8,
 					"ResetValue": 0,
-					"Description": "Block power control register. Controls power gating for on-chip memory blocks. All bits reset to 0 (every block powered). DP-S3: bits 6:3 gate the four low shared bulk-RAM banks individually; a gated bank LOSES ITS CONTENTS (no retention) and stops responding, so software must keep the bank holding its stack, mailboxes, or live payload powered, and must treat a re-powered bank as uninitialized (the boot-ROM zero-fill contract is write-before-read anyway). In configurations with more than four banks, banks 4 and up are hardwired always-on.",
+					"Description": "Block power control register. Controls power gating for the on-chip memory blocks; all bits reset to 0 (every block powered). Bits 6:3 gate the four low shared bulk-RAM banks individually: a gated bank loses its contents and stops responding, so software must keep the bank holding its stack, mailboxes or live data powered and must treat a re-powered bank as uninitialized. In configurations with more than four banks, banks 4 and up are always on.",
 					"BitFields": [
 						{
 							"BitFieldName": "Unused",
@@ -5532,7 +5532,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "RAM block 1 power control. When set, RAM block 1 is powered off. All data becomes undefined and the block no longer responds to memory access. Reduces static power consumption.",
+							"Description": "RAM block 1 power control. When set, the block is powered off: its contents are lost and accesses to it no longer respond.",
 							"ValueDescriptions": [
 								[
 									0,
@@ -5553,7 +5553,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "RAM block 0 power control. When set, RAM block 0 is powered off. All data becomes undefined and the block no longer responds to memory access. Reduces static power consumption.",
+							"Description": "RAM block 0 power control. When set, the block is powered off: its contents are lost and accesses to it no longer respond.",
 							"ValueDescriptions": [
 								[
 									0,
@@ -5574,7 +5574,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "ROM power control. When set, boot ROM is powered off. ROM no longer responds to read access. Reduces static power consumption.",
+							"Description": "ROM power control. When set, the boot ROM is powered off and no longer responds to reads.",
 							"ValueDescriptions": [
 								[
 									0,
@@ -5669,7 +5669,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "Watchdog timer enable. When set, watchdog counter increments on MCLK. Watchdog generates interrupt and/or reset when counter bit selected by WDTCDIV transitions from 0 to 1. Register is write-protected; unlock with WDTPASS first.",
+							"Description": "Watchdog enable. When set, the 24-bit watchdog counter counts MCLK cycles and a timeout occurs when the counter bit selected by SYSWDTCDIV rises. WDTCR is write protected: unlock it through WDTPASS first.",
 							"ValueDescriptions": [
 								[
 									0,
@@ -5700,7 +5700,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "Watchdog timer clock divider select. Selects which bit of the 24-bit counter triggers watchdog event. Event occurs when selected bit transitions from 0 to 1. Timeout period = 2^(WDTCDIV+16) MCLK cycles.",
+							"Description": "Watchdog timeout select. The timeout event occurs when counter bit SYSWDTCDIV + 16 rises, so the period is 2^(SYSWDTCDIV + 16) MCLK cycles.",
 							"ValueDescriptions": [
 								[
 									0,
@@ -5791,7 +5791,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "Watchdog timer interrupt enable. When set, watchdog timeout raises the watchdog interrupt level (vector 0), delivered to whichever hart the IRQROUTER routes it to. After the servicing hart completes the claim (IRQROUTER CLAIM/COMPLETE), the system resets if SYSWDTHWRST is set. If the vector is not routed to any hart, the reset (when enabled) occurs immediately on timeout.",
+							"Description": "Watchdog interrupt enable. When set, a timeout sets SYSWDTIF and raises the watchdog interrupt (vector 0) to the harts the IRQROUTER routes it to; with SYSWDTHWRST also set, the system reset follows the servicing hart completing the interrupt. If the vector is routed to no hart, the reset (when enabled) occurs immediately on timeout.",
 							"ValueDescriptions": [
 								[
 									0,
@@ -5812,7 +5812,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "Watchdog hardware reset enable. When set, watchdog timeout causes system reset. If WDTIE is set, reset occurs after interrupt service routine completes. If WDTIE is cleared or IRQ is not enabled, reset occurs immediately on timeout.",
+							"Description": "Watchdog reset enable. When set, a timeout resets the system: immediately if the watchdog interrupt is disabled or routed to no hart, otherwise after the servicing hart completes the interrupt.",
 							"ValueDescriptions": [
 								[
 									0,
@@ -5854,7 +5854,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw1",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "Watchdog timer interrupt flag. Set when watchdog timeout occurs and WDTIE is enabled. Cleared by writing 1 to this bit. If not cleared before next timeout, indicates watchdog event occurred.",
+							"Description": "Watchdog interrupt flag, set on a timeout while SYSWDTIE = 1 and held until software writes 1 to it.",
 							"ValueDescriptions": [
 								[
 									0,
@@ -5875,7 +5875,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw1",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "Watchdog timer reset flag. Set when system reset was caused by watchdog timer. Persists across resets until cleared by software. Cleared by writing 1 to this bit.",
+							"Description": "Watchdog reset flag, set when the last system reset was caused by the watchdog and held across resets until software writes 1 to it.",
 							"ValueDescriptions": [
 								[
 									0,
@@ -6021,7 +6021,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "Packed input format enable. When cleared (reset default) each input element occupies its own 32-bit staging word, exactly as before this bit existed. When set, the input vector is stored as TWO 16-bit Q0.15 elements per word -- element 2i in bits 15:0, element 2i+1 in bits 31:16 -- so the vector at NPUIVSAR occupies half as many words, and element i is read from word NPUIVSAR + i/2. Range is unchanged at [-1, +1) but resolution drops from Q0.24 to Q0.15: firmware packs by arithmetic-shifting each Q0.24 input right by 9. The output vector is NOT packed (outputs are full-width accumulator or activation words), so a layer whose outputs feed the next layer's inputs must either leave this bit clear or repack between THINKs. Ignored in XNOR-popcount mode, which already packs 32 one-bit activations per word. The setting is latched when THINK is set; a mid-THINK write takes effect at the next THINK.",
+							"Description": "Packed input format enable: when set, the input vector holds two 16-bit Q0.15 elements per staging word (element 2i in bits 15:0, element 2i+1 in bits 31:16), so element i is read from word NPUIVSAR + i/2; when clear each input occupies its own 32-bit word as Q0.24. The setting is latched when NPUTHINK is set and is ignored in XNOR-popcount mode. See the packed operand formats in the functional description.",
 							"ValueDescriptions": [
 								[
 									0,
@@ -6042,7 +6042,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "Packed weight format enable. When cleared (reset default) each synaptic weight occupies its own 32-bit staging word, exactly as before this bit existed. When set, the weight matrix is stored as TWO 16-bit Q3.12 weights per word -- element 2i in bits 15:0, element 2i+1 in bits 31:16 -- so a weight block occupies half as many words and a maximal 256x256 layer needs 8 re-stagings of the 4096-word staging RAM instead of 16. The element walk is unchanged in every mode, including the convolution filter-block reload and the GEMM per-row reload, so the same weight ORDER is used either way; only the storage layout changes. Q3.12 narrows the representable weight range from [-128, +128) to [-8, +8) and coarsens the resolution from 2^-24 to 2^-12: firmware packs by arithmetic-shifting each Q7.24 weight right by 12 and MUST SATURATE, because a weight outside [-8, +8) has no packed representation and the hardware only ever sees the already-packed half. The bias weight (see NPUBEN) rides the same stream and is subject to the same range. Ignored in XNOR-popcount mode, which already packs 32 one-bit weights per word. The setting is latched when THINK is set; a mid-THINK write takes effect at the next THINK.",
+							"Description": "Packed weight format enable: when set, the weight matrix holds two 16-bit Q3.12 weights per staging word (element 2i in bits 15:0, element 2i+1 in bits 31:16) in the same element order as the unpacked layout; when clear each weight occupies its own 32-bit word as Q7.24. The setting is latched when NPUTHINK is set and is ignored in XNOR-popcount mode. See the packed operand formats in the functional description for the range and saturation rules.",
 							"ValueDescriptions": [
 								[
 									0,
@@ -6063,7 +6063,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "Post-accumulator activation function select, effective when NPUAEN = 1 (P4 architecture family; NPUAEN = 0 is always raw passthrough regardless of this field). 0 = logistic sigmoid approximation (the legacy activation; reset default), output Q0.24 in [0,1). 1 = ReLU (max(0, x)), output Q7.24 -- note a ReLU output at or above 1.0 is not a valid Q0.24 next-layer input. 2 = tanh approximation computed as 2*sigmoid(2x)-1 through the same sigmoid hardware, output in [-1,1) sign-extended (the low 25 bits are a valid Q0.24 next-layer input); saturates for |x| >= 2. 3 = clamp (hardtanh): the identity saturated to the Q0.24 rails [-1, 1), sign-extended. 4 = exponential approximation 2*sigmoid(x), output Q1.24 in [0,2), for the softmax leg -- hardware emits per-element scores only, firmware performs the sum and normalize (subtracting the maximum logit first is recommended, mapping the maximum to exactly 1.0). Codes 5-7 are reserved and behave as 0 (sigmoid). The selection is latched when THINK is set; a mid-THINK write takes effect at the next THINK.",
+							"Description": "Activation function applied to the accumulator output while NPUAEN = 1; with NPUAEN = 0 the raw accumulator passes through regardless of this field. 0 = logistic sigmoid approximation (reset default), output Q0.24 in [0, 1). 1 = ReLU, output Q7.24. 2 = tanh approximation, output in [-1, 1). 3 = clamp to [-1, 1). 4 = exponential approximation 2*sigmoid(x), output Q1.24 in [0, 2). Codes 5-7 are reserved and behave as 0. The selection is latched when NPUTHINK is set; see the activation functions in the functional description for the exact formulas and output formats.",
 							"ValueDescriptions": []
 						},
 						{
@@ -6073,7 +6073,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "Datapath mode select for the NPU architecture family (P4). 0 = multilayer-perceptron mode (the legacy datapath; reset default). 1 = one-dimensional convolution mode. 2 = XNOR-popcount binary mode (1-bit activations/weights packed 32 per word, LSB-first; NPUBEN and NPUAEN must be 0 in this mode). 3 = general matrix-multiply (GEMM) mode: C = A x B with A (M x K, row-major at NPUIVSAR, Q0.24 elements in [-1,1)), B (K x N, column-major at NPUWVSAR, Q7.24), C (M x N, row-major at NPUOVSAR, Q7.24 or Q0.24 through the sigmoid when NPUAEN=1); K-1 in NPUNI, N-1 in NPUNN, M-1 in NPUCFG1 bits 7:0; NPUBEN must be 0 in this mode; the working set M*K + K*N + M*N must fit the 4096-word staging RAM (larger problems tile by re-pointing the start-address registers between THINKs; there is no hardware accumulation across tiles). Codes 4-7 are reserved. Reserved and unimplemented codes behave as mode 0.",
+							"Description": "Datapath mode select. 0 = multilayer-perceptron mode (reset default). 1 = one-dimensional convolution mode. 2 = XNOR-popcount binary mode (NPUBEN and NPUAEN must be 0). 3 = general matrix-multiply (GEMM) mode (NPUBEN must be 0). Codes 4-7 are reserved and behave as mode 0. The mode is latched when NPUTHINK is set; see the datapath modes in the functional description for the operand layout of each mode.",
 							"ValueDescriptions": []
 						},
 						{
@@ -6083,7 +6083,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "Think-done interrupt enable. When set, NPUSR.THINKDONE drives the NPU think-done interrupt (vector 120). When cleared (reset default) the NPU is polling-only, exactly as before the interrupt existed.",
+							"Description": "Think-done interrupt enable. When set, NPUSR.NPUTHINKDONE drives the NPU think-done interrupt (vector 120); when clear the flag is available for polling only.",
 							"ValueDescriptions": [
 								[
 									0,
@@ -6146,7 +6146,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw1",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "NPU computation start and status bit. Write 1 to start the NPU. Self-clears when the computation is complete. Poll this bit to determine when results are ready.",
+							"Description": "Computation start and busy flag. Writing 1 starts the NPU; the bit reads 1 until the computation completes, when hardware clears it. While it reads 1 the staging RAM belongs to the NPU.",
 							"ValueDescriptions": [
 								[
 									0,
@@ -6282,7 +6282,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"RegisterMemorySlot": 4,
 					"Size": 32,
 					"ResetValue": 0,
-					"Description": "NPU status register. THINKDONE is write-1-to-clear (write a 1 to bit 0 to clear it; writing 0 leaves it unchanged) and is never cleared by a read. The NPU think-done interrupt (vector 120) is THINKDONE and NPUCR.NPUTDIE. Clearing THINKDONE does not affect NPUCR.NPUTHINK, which self-clears at completion as before; the staging-RAM ownership contract is unchanged (no hart may access 0xC000-0xFFFF until NPUCR bit 16 reads 0 again).",
+					"Description": "NPU status register. NPUTHINKDONE is write-1-to-clear and is never cleared by a read; the think-done interrupt (vector 120) is NPUTHINKDONE and NPUCR.NPUTDIE. Clearing NPUTHINKDONE does not affect NPUCR.NPUTHINK, and the staging RAM stays owned by the NPU until NPUCR.NPUTHINK reads 0.",
 					"BitFields": [
 						{
 							"BitFieldName": "Unused",
@@ -6301,7 +6301,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw1",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "Think-done flag. Set once per computation, when the NPU finishes (the same event that self-clears NPUCR.NPUTHINK); sticky. Drives the think-done interrupt (vector 120) when NPUCR.NPUTDIE is set. Write 1 to clear. On a same-cycle collision between a completing computation and a write-1-to-clear, the set wins (a completion is never lost).",
+							"Description": "Think-done flag, set by hardware when a computation finishes (the same event that clears NPUTHINK) and held until software writes 1 to it. It drives the think-done interrupt (vector 120) while NPUTDIE = 1. A completion that coincides with a write of 1 leaves the flag set.",
 							"ValueDescriptions": [
 								[
 									0,
@@ -6387,7 +6387,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"RegisterMemorySlot": 0,
 					"Size": 32,
 					"ResetValue": 0,
-					"Description": "Power gate control. Setting GATE bit h powers tile hart h down (isolation, reset, rail off); clearing it powers the tile back up and cold-boots it. A request made while the sequencer is mid-sequence is honored when the sequence completes (no aborts). Bit 0 (hart 0) is reserved: always-on, reads 0, writes ignored.",
+					"Description": "Power gate control. Setting PWRGATE bit h powers tile hart h down (isolation, reset, rail off); clearing it powers the tile back up and cold-boots it. A request made while the sequencer is mid-sequence is honored when the sequence completes. Bit 0 (hart 0) is always on: it reads 0 and ignores writes.",
 					"BitFields": [
 						{
 							"BitFieldName": "Unused",
@@ -6406,7 +6406,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "Gate request per tile hart: bit h = 1 powers tile hart h down, 0 powers it up (cold boot). Poll PWRSR for sequencer completion.",
+							"Description": "Gate request mask, one bit per tile hart: bit h = 1 powers tile hart h down and 0 powers it up, with a cold boot on the way up. Poll the PWRSR nibble of the hart for sequencer completion. Only the all-powered value is enumerated; any combination of bits is valid.",
 							"ValueDescriptions": [
 								[
 									0,
@@ -6505,7 +6505,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"RegisterMemorySlot": 5,
 					"Size": 32,
 					"ResetValue": 0,
-					"Description": "Boot-gate / wake-source control (DP-S3 field-powered mode). The harvested-boot STRAP drives the hardware defaults (a strapped board self-arms the gate, waits on PGOOD, and re-holds on brownout with no software involvement); these bits OR-IN software overrides on top. Resets to 0 = no software override = the gate is released on every normal boot. Write with full-word stores (byte-lane-0 qualified, like PWRCR).",
+					"Description": "Boot gate and wake source control. The harvested-boot strap drives the hardware defaults (a strapped board arms the gate, waits on PGOOD and re-holds on brownout with no software involvement); these bits OR software overrides on top. Resets to 0 (no override), so the gate is released on every normal boot. Write with full-word stores (byte lane 0 qualified, like PWRCR).",
 					"BitFields": [
 						{
 							"BitFieldName": "Unused",
@@ -6524,7 +6524,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "Re-hold policy override: 1 = re-assert the boot hold when the release condition drops (brownout re-hold; PGOOD return then cold-boots the harts through the shared ROM). 0 = one-shot: once released, stays released (see PWRSTS.PWRRLSLATCH). The strap ORs this in on a harvested board.",
+							"Description": "Re-hold policy: 1 re-asserts the boot hold whenever the release condition drops (a later PGOOD return then cold-boots the harts through the shared ROM); 0 makes the release one-shot, latched in PWRSTS.PWRRLSLATCH. The strap ORs this bit in on a harvested board.",
 							"ValueDescriptions": []
 						},
 						{
@@ -6534,7 +6534,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "Software-forced release: 1 releases an armed gate unconditionally (test/override, or \"software says proceed\"). With no release source enabled, an armed gate holds until this bit, the negative-control proof that the gate is load-bearing.",
+							"Description": "Software release: 1 releases an armed boot gate unconditionally. With no other release source enabled, an armed gate holds until this bit is set.",
 							"ValueDescriptions": []
 						},
 						{
@@ -6544,7 +6544,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "1 = the synchronized NFC field level (PWRSTS.PWFIELDLIV) is a release condition, the field_detect WAKE source: a reader arriving releases the boot gate. No IRQ vector is involved. Reads as tied-0 field when NFC is absent or fieldPower is off.",
+							"Description": "Field release enable: 1 makes the synchronized NFC field level (PWRSTS.PWFIELDLIV) a release condition, so a reader arriving releases the boot gate. The field level is tied to 0 when NFC is absent or field power is disabled.",
 							"ValueDescriptions": []
 						},
 						{
@@ -6554,7 +6554,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "1 = the synchronized PGOOD pad level (PWRSTS.PWPGOODLIV) is a release condition. The strap ORs this in on a harvested board (it always waits on the supply supervisor).",
+							"Description": "PGOOD release enable: 1 makes the synchronized PGOOD pad level (PWRSTS.PWPGOODLIV) a release condition. The strap ORs this bit in on a harvested board, which always waits on the supply supervisor.",
 							"ValueDescriptions": []
 						},
 						{
@@ -6564,7 +6564,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "Software boot-gate arm: 1 arms the HOLD-IN-RESET gate (every hart's outer reset held until a release condition fires). The harvested-boot strap ORs this in, so a strapped board arms with no software.",
+							"Description": "Boot gate arm: 1 holds every hart in reset until a release condition fires. The strap ORs this bit in, so a strapped board arms with no software.",
 							"ValueDescriptions": []
 						}
 					]
@@ -6576,7 +6576,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"RegisterMemorySlot": 6,
 					"Size": 32,
 					"ResetValue": 0,
-					"Description": "Boot-gate / wake-source status (read-only). The synchronized live pad levels, the one-shot strap sample (THE bootrom harvested-boot branch bit), and the gate state.",
+					"Description": "Boot gate and wake source status, read only: the synchronized live pad levels, the one-shot strap sample that selects the harvested-boot branch of the boot ROM, and the gate state.",
 					"BitFields": [
 						{
 							"BitFieldName": "Unused",
@@ -6595,7 +6595,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "r",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "One-shot release has latched (sticky until reset; only meaningful with PWREHOLD = 0).",
+							"Description": "One-shot release latched: set when an armed gate has been released with PWREHOLD = 0 and held until reset.",
 							"ValueDescriptions": []
 						},
 						{
@@ -6605,7 +6605,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "r",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "Current gate state: 1 = the boot gate is holding every hart in reset (pgood_rstn asserted).",
+							"Description": "Boot gate state: 1 while the gate holds every hart in reset.",
 							"ValueDescriptions": []
 						},
 						{
@@ -6615,7 +6615,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "r",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "Strap sample complete (the one-shot sample lands a few mclk after reset release; poll before consuming PWSTRAP).",
+							"Description": "Strap sample valid: set a few MCLK cycles after reset release once the one-shot strap sample has been taken. Poll it before reading PWSTRAP.",
 							"ValueDescriptions": []
 						},
 						{
@@ -6625,7 +6625,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "r",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "Latched harvested-boot strap sample: 1 = harvested boot (the bootrom skips the SPI-flash copy and runs the ROM-resident service loop), 0 = normal SPI boot. Sampled ONCE after reset; mid-run strap changes are ignored.",
+							"Description": "Harvested-boot strap sample: 1 = harvested boot (the boot ROM skips the SPI flash copy and runs the ROM-resident service loop), 0 = normal SPI boot. Sampled once after reset; later strap changes are ignored.",
 							"ValueDescriptions": []
 						},
 						{
@@ -6635,7 +6635,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "r",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "Synchronized NFC field_detect level (0 when NFC is absent or fieldPower is off).",
+							"Description": "Synchronized NFC field detect level; 0 when NFC is absent or field power is disabled.",
 							"ValueDescriptions": []
 						},
 						{
@@ -6645,7 +6645,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "r",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "Synchronized PGOOD pad level (P6.7). Reads 0 = power-not-good when the pin is unconnected (reset pull-down).",
+							"Description": "Synchronized PGOOD pad level (P6.7); reads 0 (power not good) when the pin is unconnected, because of the reset pull-down.",
 							"ValueDescriptions": []
 						}
 					]
@@ -6677,7 +6677,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "r",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Pin input levels. Bit y reads the logic level of pin y as sampled at the start of the bus access, regardless of the pin direction or PxSEL setting. Bits 31:8 read 0.",
 							"ValueDescriptions": []
 						}
 					]
@@ -6698,7 +6698,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Output drive levels. Bit y is the level driven on pin y while the pin is an output (PxDIR bit y = 1) in GPIO mode (PxSEL bit y = 0). Resets to 0; bits 31:8 read 0 and ignore writes.",
 							"ValueDescriptions": []
 						}
 					]
@@ -6719,7 +6719,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw1",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Output set. Writing 1 to bit y sets PxOUT bit y; writing 0 has no effect. Reads return the current PxOUT value.",
 							"ValueDescriptions": []
 						}
 					]
@@ -6740,7 +6740,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw1",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Output clear. Writing 1 to bit y clears PxOUT bit y; writing 0 has no effect. Reads return the inverse of the current PxOUT value.",
 							"ValueDescriptions": []
 						}
 					]
@@ -6761,7 +6761,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw1",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Output toggle. Writing 1 to bit y inverts PxOUT bit y; writing 0 has no effect. Reads return the current PxOUT value.",
 							"ValueDescriptions": []
 						}
 					]
@@ -6782,7 +6782,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Pin direction. Bit y = 0 makes pin y an input and 1 makes it an output, effective only while the pin is in GPIO mode (PxSEL bit y = 0). Resets to 0 (all inputs); bits 31:8 read 0 and ignore writes.",
 							"ValueDescriptions": []
 						}
 					]
@@ -6803,7 +6803,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw1",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Interrupt flags. Hardware sets bit y when the edge selected by PxIES occurs on pin y while PxIE bit y is 1, and holds it until software writes 1 to the bit; writing 0 has no effect. Each flag drives the interrupt vector of its pin directly, and bits 31:8 read 0.",
 							"ValueDescriptions": []
 						}
 					]
@@ -6824,7 +6824,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Interrupt edge select. Bit y = 0 makes a rising edge on pin y set PxIF bit y, 1 selects a falling edge. Resets to 0.",
 							"ValueDescriptions": []
 						}
 					]
@@ -6845,7 +6845,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Interrupt enable. Bit y = 1 allows the selected edge on pin y to set PxIF bit y; with the bit at 0 no flag is captured for the pin. Resets to 0.",
 							"ValueDescriptions": []
 						}
 					]
@@ -6866,7 +6866,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Pin function select. Bit y = 0 gives pin y to the GPIO registers, 1 hands its output level, direction and resistor enable to the alternate function chosen by the PxAFS field of the pin. Resets to 0; bits 31:8 read 0 and ignore writes.",
 							"ValueDescriptions": []
 						}
 					]
@@ -6887,7 +6887,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Pull resistor enable. Bit y = 1 enables the pull resistor of pin y while the pin is in GPIO mode (PxSEL bit y = 0); in alternate function mode the peripheral controls the resistor. Resets to 0; bits 31:8 read 0 and ignore writes.",
 							"ValueDescriptions": []
 						}
 					]
@@ -7079,7 +7079,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Event fabric task pin select. Bit y = 1 lets the EVFAB0 output set and output clear tasks of this port set or clear PxOUT bit y; with the bit at 0 the tasks leave pin y untouched. Resets to 0, so no pin responds to a task until software selects it.",
 							"ValueDescriptions": []
 						}
 					]
@@ -7121,7 +7121,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "I2C master enable. When enabled, this device awaits a command to send a start condition with I2CMST, and then begins acting as a master until commanded to send a stop condition with I2CMSP. If master mode is also enabled on this device, then this device will act as a slave until commanded to send a start condition with I2CMST, whereupon it will begin acting as a master. Once the master transfer is complete, it will resume acting as a slave.",
+							"Description": "Master enable. When set, the device waits for I2CMST, acts as a master from that start condition until the stop condition commanded by I2CMSP, and then resumes slave operation if I2CSEN is also set.",
 							"ValueDescriptions": [
 								[
 									0,
@@ -7142,7 +7142,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "I2C slave enable. When enabled, this device behaves as an I2C slave and begins listening for its address. If master mode is also enabled on this device, then this device will act as a slave until commanded to send a start condition with I2CMST, whereupon it will begin acting as a master. Once the master transfer is complete, it will resume acting as a slave.",
+							"Description": "Slave enable. When set, the device listens for its address as an I2C slave. If master mode is also enabled, the device acts as a slave until I2CMST starts a master transfer and returns to slave operation when that transfer completes.",
 							"ValueDescriptions": [
 								[
 									0,
@@ -7163,7 +7163,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "I2C slave NACK next byte received. When enabled, this slave will reply with a NACK whenever it receives its address or whenever it receives a byte from a master. When disabled, it will send an ACK in those situations. If clock stretching is enabled, this bit can be changed in accordance with the desired ACK/NACK reply before allowing a rising edge of SCL.",
+							"Description": "Slave NACK select. When set, the slave answers its address and every received byte with a NACK instead of an ACK. With clock stretching enabled, software can change this bit before releasing SCL to choose the reply for the current byte.",
 							"ValueDescriptions": [
 								[
 									0,
@@ -7620,7 +7620,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 								],
 								[
 									1,
-									"Send a start condition",
+									"Continue: release SCL for the ACK/NACK phase",
 									""
 								]
 							]
@@ -7632,7 +7632,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "w1",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "I2C master send start condition command. Set this bit to 1 to send a start condition or a repeated start condition. Once this bit is set, this master is required to send at least one address frame before initiating this command again. If another master has control of the bus when this bit is set, this master will wait until the bus is idle before seizing control of it and sending the start condition. If this master is busy with a transaction when this bit is set, then it will send a restart condition immediately after it finishes the transaction.",
+							"Description": "Master send start command. Writing 1 sends a start condition, or a repeated start if this master already controls the bus, after which at least one address frame must be sent before the command is used again. If the bus is busy the start is sent once it becomes idle, and if this master is mid-transaction the repeated start follows the transaction.",
 							"ValueDescriptions": [
 								[
 									0,
@@ -7653,7 +7653,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "w1",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "I2C master send stop condition command. Set this bit to 1 while this master is in control of the bus to send a stop condition. This master is required to have already sent a start condition and at least one address frame before initiating this command. If this master is busy with a transaction when this bit is set, then it will send the stop condition immediately after it finishes the transaction.",
+							"Description": "Master send stop command. Writing 1 sends a stop condition once this master has sent a start condition and at least one address frame. If this master is mid-transaction the stop follows the transaction.",
 							"ValueDescriptions": [
 								[
 									0,
@@ -7748,7 +7748,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "r",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "I2C slave transmitter mode indicator. Indicates for which mode this slave has been addressed. Only valid if I2CSA is 1. This bit cannot be cleared by writing to the status register.",
+							"Description": "Slave transmitter mode indicator: the mode this slave was addressed for, valid only while I2CSA = 1. Read only; a status register write does not clear it.",
 							"ValueDescriptions": [
 								[
 									0,
@@ -7790,7 +7790,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw1",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "I2C slave transmit register empty interrupt flag. This bit is set when this slave latches the data stored in the masslaveter transmit register to indicate that the slave transmit register is ready to accept another byte and queue it for transmission. Write a 1 to this bit to clear it.",
+							"Description": "Slave transmit register empty interrupt flag, set when the slave latches the byte held in I2CxSTX for transmission, so the register can take the next byte. Write 1 to clear.",
 							"ValueDescriptions": [
 								[
 									0,
@@ -7832,7 +7832,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw1",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "I2C slave mode NACK received from master interrupt flag. This bit is set in slave transmitter mode if the master responds with a NACK after this slave sends it a byte of data. This bit is not set if the master responds with an ACK. Write a 1 to this bit to clear it.",
+							"Description": "Slave NACK received interrupt flag, set in slave transmitter mode when the master answers a transmitted byte with a NACK; an ACK does not set it. Write 1 to clear.",
 							"ValueDescriptions": [
 								[
 									0,
@@ -7916,7 +7916,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw1",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "I2C master mode arbitration loss interrupt flag. This bit is set when this master detects that the value it tried to write to SDA is being overridden by another master. After it detects the arbitration loss, this master releases control of the bus. Write a 1 to this bit to clear it.",
+							"Description": "Master arbitration loss interrupt flag, set when the value this master drives on SDA is overridden by another master; this master then releases the bus. Write 1 to clear.",
 							"ValueDescriptions": [
 								[
 									0,
@@ -7958,7 +7958,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw1",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "I2C master mode NACK received interrupt flag. This flag is set in master transmitter mode after ACK/NACK bit is sent if the slave sends a NACK. It is not set if the slave sends an ACK. Write a 1 to this bit to clear it.",
+							"Description": "Master NACK received interrupt flag, set in master transmitter mode when the slave answers with a NACK; an ACK does not set it. Write 1 to clear.",
 							"ValueDescriptions": [
 								[
 									0,
@@ -7979,7 +7979,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw1",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "I2C master transfer complete interrupt flag. In master transmitter mode, this flag is set after this master has sent the data byte and the slave has sent an ACK/NACK. In master receiver mode, this flag is set after the slave has sent the data byte and before this master sends an ACK/NACK. Write a 1 to this bit to clear it.",
+							"Description": "Master transfer complete interrupt flag, set in master transmitter mode after the data byte and the slave ACK/NACK, and in master receiver mode after the data byte and before this master sends its ACK/NACK. Write 1 to clear.",
 							"ValueDescriptions": [
 								[
 									0,
@@ -8053,7 +8053,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Master transmit data. While I2CMEN = 1 a write loads the byte and starts sending it: the first byte after a start condition is the 7-bit slave address in bits 7:1 with the read/write bit in bit 0, and later bytes are data. Reads return the last byte written; resets to 0.",
 							"ValueDescriptions": []
 						}
 					]
@@ -8074,7 +8074,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "r",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Master receive data. Hardware loads the byte received from the slave when I2CMXC is set in master receiver mode. Resets to 0.",
 							"ValueDescriptions": []
 						}
 					]
@@ -8095,7 +8095,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Slave transmit data. The byte written here is sent to the master during the next slave transmitter data phase, after which I2CSTXE is set. Resets to 0.",
 							"ValueDescriptions": []
 						}
 					]
@@ -8116,7 +8116,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "r",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Slave receive data. Hardware loads the byte received from the master when I2CSXC is set in slave receiver mode; a new byte arriving before the previous one is read sets I2CSOVF. Resets to 0.",
 							"ValueDescriptions": []
 						}
 					]
@@ -8147,7 +8147,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Own 7-bit slave address. A received address frame that matches this value under the I2CxAMR mask addresses this slave. Resets to the default slave address of the instance (0x79 for I2C0, 0x23 for I2C1).",
 							"ValueDescriptions": []
 						}
 					]
@@ -8178,7 +8178,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Slave address mask. A 1 in bit i makes bit i of I2CxAR a wildcard for address matching; a 0 compares the bit. Resets to 0 (every bit compared).",
 							"ValueDescriptions": []
 						}
 					]
@@ -8220,7 +8220,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "I2C master enable. When enabled, this device awaits a command to send a start condition with I2CMST, and then begins acting as a master until commanded to send a stop condition with I2CMSP. If master mode is also enabled on this device, then this device will act as a slave until commanded to send a start condition with I2CMST, whereupon it will begin acting as a master. Once the master transfer is complete, it will resume acting as a slave.",
+							"Description": "Master enable. When set, the device waits for I2CMST, acts as a master from that start condition until the stop condition commanded by I2CMSP, and then resumes slave operation if I2CSEN is also set.",
 							"ValueDescriptions": [
 								[
 									0,
@@ -8241,7 +8241,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "I2C slave enable. When enabled, this device behaves as an I2C slave and begins listening for its address. If master mode is also enabled on this device, then this device will act as a slave until commanded to send a start condition with I2CMST, whereupon it will begin acting as a master. Once the master transfer is complete, it will resume acting as a slave.",
+							"Description": "Slave enable. When set, the device listens for its address as an I2C slave. If master mode is also enabled, the device acts as a slave until I2CMST starts a master transfer and returns to slave operation when that transfer completes.",
 							"ValueDescriptions": [
 								[
 									0,
@@ -8262,7 +8262,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "I2C slave NACK next byte received. When enabled, this slave will reply with a NACK whenever it receives its address or whenever it receives a byte from a master. When disabled, it will send an ACK in those situations. If clock stretching is enabled, this bit can be changed in accordance with the desired ACK/NACK reply before allowing a rising edge of SCL.",
+							"Description": "Slave NACK select. When set, the slave answers its address and every received byte with a NACK instead of an ACK. With clock stretching enabled, software can change this bit before releasing SCL to choose the reply for the current byte.",
 							"ValueDescriptions": [
 								[
 									0,
@@ -8719,7 +8719,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 								],
 								[
 									1,
-									"Send a start condition",
+									"Continue: release SCL for the ACK/NACK phase",
 									""
 								]
 							]
@@ -8731,7 +8731,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "w1",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "I2C master send start condition command. Set this bit to 1 to send a start condition or a repeated start condition. Once this bit is set, this master is required to send at least one address frame before initiating this command again. If another master has control of the bus when this bit is set, this master will wait until the bus is idle before seizing control of it and sending the start condition. If this master is busy with a transaction when this bit is set, then it will send a restart condition immediately after it finishes the transaction.",
+							"Description": "Master send start command. Writing 1 sends a start condition, or a repeated start if this master already controls the bus, after which at least one address frame must be sent before the command is used again. If the bus is busy the start is sent once it becomes idle, and if this master is mid-transaction the repeated start follows the transaction.",
 							"ValueDescriptions": [
 								[
 									0,
@@ -8752,7 +8752,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "w1",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "I2C master send stop condition command. Set this bit to 1 while this master is in control of the bus to send a stop condition. This master is required to have already sent a start condition and at least one address frame before initiating this command. If this master is busy with a transaction when this bit is set, then it will send the stop condition immediately after it finishes the transaction.",
+							"Description": "Master send stop command. Writing 1 sends a stop condition once this master has sent a start condition and at least one address frame. If this master is mid-transaction the stop follows the transaction.",
 							"ValueDescriptions": [
 								[
 									0,
@@ -8847,7 +8847,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "r",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "I2C slave transmitter mode indicator. Indicates for which mode this slave has been addressed. Only valid if I2CSA is 1. This bit cannot be cleared by writing to the status register.",
+							"Description": "Slave transmitter mode indicator: the mode this slave was addressed for, valid only while I2CSA = 1. Read only; a status register write does not clear it.",
 							"ValueDescriptions": [
 								[
 									0,
@@ -8889,7 +8889,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw1",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "I2C slave transmit register empty interrupt flag. This bit is set when this slave latches the data stored in the masslaveter transmit register to indicate that the slave transmit register is ready to accept another byte and queue it for transmission. Write a 1 to this bit to clear it.",
+							"Description": "Slave transmit register empty interrupt flag, set when the slave latches the byte held in I2CxSTX for transmission, so the register can take the next byte. Write 1 to clear.",
 							"ValueDescriptions": [
 								[
 									0,
@@ -8931,7 +8931,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw1",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "I2C slave mode NACK received from master interrupt flag. This bit is set in slave transmitter mode if the master responds with a NACK after this slave sends it a byte of data. This bit is not set if the master responds with an ACK. Write a 1 to this bit to clear it.",
+							"Description": "Slave NACK received interrupt flag, set in slave transmitter mode when the master answers a transmitted byte with a NACK; an ACK does not set it. Write 1 to clear.",
 							"ValueDescriptions": [
 								[
 									0,
@@ -9015,7 +9015,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw1",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "I2C master mode arbitration loss interrupt flag. This bit is set when this master detects that the value it tried to write to SDA is being overridden by another master. After it detects the arbitration loss, this master releases control of the bus. Write a 1 to this bit to clear it.",
+							"Description": "Master arbitration loss interrupt flag, set when the value this master drives on SDA is overridden by another master; this master then releases the bus. Write 1 to clear.",
 							"ValueDescriptions": [
 								[
 									0,
@@ -9057,7 +9057,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw1",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "I2C master mode NACK received interrupt flag. This flag is set in master transmitter mode after ACK/NACK bit is sent if the slave sends a NACK. It is not set if the slave sends an ACK. Write a 1 to this bit to clear it.",
+							"Description": "Master NACK received interrupt flag, set in master transmitter mode when the slave answers with a NACK; an ACK does not set it. Write 1 to clear.",
 							"ValueDescriptions": [
 								[
 									0,
@@ -9078,7 +9078,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw1",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "I2C master transfer complete interrupt flag. In master transmitter mode, this flag is set after this master has sent the data byte and the slave has sent an ACK/NACK. In master receiver mode, this flag is set after the slave has sent the data byte and before this master sends an ACK/NACK. Write a 1 to this bit to clear it.",
+							"Description": "Master transfer complete interrupt flag, set in master transmitter mode after the data byte and the slave ACK/NACK, and in master receiver mode after the data byte and before this master sends its ACK/NACK. Write 1 to clear.",
 							"ValueDescriptions": [
 								[
 									0,
@@ -9152,7 +9152,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Master transmit data. While I2CMEN = 1 a write loads the byte and starts sending it: the first byte after a start condition is the 7-bit slave address in bits 7:1 with the read/write bit in bit 0, and later bytes are data. Reads return the last byte written; resets to 0.",
 							"ValueDescriptions": []
 						}
 					]
@@ -9173,7 +9173,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "r",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Master receive data. Hardware loads the byte received from the slave when I2CMXC is set in master receiver mode. Resets to 0.",
 							"ValueDescriptions": []
 						}
 					]
@@ -9194,7 +9194,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Slave transmit data. The byte written here is sent to the master during the next slave transmitter data phase, after which I2CSTXE is set. Resets to 0.",
 							"ValueDescriptions": []
 						}
 					]
@@ -9215,7 +9215,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "r",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Slave receive data. Hardware loads the byte received from the master when I2CSXC is set in slave receiver mode; a new byte arriving before the previous one is read sets I2CSOVF. Resets to 0.",
 							"ValueDescriptions": []
 						}
 					]
@@ -9246,7 +9246,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Own 7-bit slave address. A received address frame that matches this value under the I2CxAMR mask addresses this slave. Resets to the default slave address of the instance (0x79 for I2C0, 0x23 for I2C1).",
 							"ValueDescriptions": []
 						}
 					]
@@ -9277,7 +9277,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Slave address mask. A 1 in bit i makes bit i of I2CxAR a wildcard for address matching; a 0 compares the bit. Resets to 0 (every bit compared).",
 							"ValueDescriptions": []
 						}
 					]
@@ -11458,7 +11458,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "r",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Pin input levels. Bit y reads the logic level of pin y as sampled at the start of the bus access, regardless of the pin direction or PxSEL setting. Bits 31:8 read 0.",
 							"ValueDescriptions": []
 						}
 					]
@@ -11479,7 +11479,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Output drive levels. Bit y is the level driven on pin y while the pin is an output (PxDIR bit y = 1) in GPIO mode (PxSEL bit y = 0). Resets to 0; bits 31:8 read 0 and ignore writes.",
 							"ValueDescriptions": []
 						}
 					]
@@ -11500,7 +11500,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw1",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Output set. Writing 1 to bit y sets PxOUT bit y; writing 0 has no effect. Reads return the current PxOUT value.",
 							"ValueDescriptions": []
 						}
 					]
@@ -11521,7 +11521,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw1",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Output clear. Writing 1 to bit y clears PxOUT bit y; writing 0 has no effect. Reads return the inverse of the current PxOUT value.",
 							"ValueDescriptions": []
 						}
 					]
@@ -11542,7 +11542,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw1",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Output toggle. Writing 1 to bit y inverts PxOUT bit y; writing 0 has no effect. Reads return the current PxOUT value.",
 							"ValueDescriptions": []
 						}
 					]
@@ -11563,7 +11563,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Pin direction. Bit y = 0 makes pin y an input and 1 makes it an output, effective only while the pin is in GPIO mode (PxSEL bit y = 0). Resets to 0 (all inputs); bits 31:8 read 0 and ignore writes.",
 							"ValueDescriptions": []
 						}
 					]
@@ -11584,7 +11584,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw1",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Interrupt flags. Hardware sets bit y when the edge selected by PxIES occurs on pin y while PxIE bit y is 1, and holds it until software writes 1 to the bit; writing 0 has no effect. Each flag drives the interrupt vector of its pin directly, and bits 31:8 read 0.",
 							"ValueDescriptions": []
 						}
 					]
@@ -11605,7 +11605,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Interrupt edge select. Bit y = 0 makes a rising edge on pin y set PxIF bit y, 1 selects a falling edge. Resets to 0.",
 							"ValueDescriptions": []
 						}
 					]
@@ -11626,7 +11626,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Interrupt enable. Bit y = 1 allows the selected edge on pin y to set PxIF bit y; with the bit at 0 no flag is captured for the pin. Resets to 0.",
 							"ValueDescriptions": []
 						}
 					]
@@ -11647,7 +11647,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Pin function select. Bit y = 0 gives pin y to the GPIO registers, 1 hands its output level, direction and resistor enable to the alternate function chosen by the PxAFS field of the pin. Resets to 0; bits 31:8 read 0 and ignore writes.",
 							"ValueDescriptions": []
 						}
 					]
@@ -11668,7 +11668,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Pull resistor enable. Bit y = 1 enables the pull resistor of pin y while the pin is in GPIO mode (PxSEL bit y = 0); in alternate function mode the peripheral controls the resistor. Resets to 0; bits 31:8 read 0 and ignore writes.",
 							"ValueDescriptions": []
 						}
 					]
@@ -11860,7 +11860,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Event fabric task pin select. Bit y = 1 lets the EVFAB0 output set and output clear tasks of this port set or clear PxOUT bit y; with the bit at 0 the tasks leave pin y untouched. Resets to 0, so no pin responds to a task until software selects it.",
 							"ValueDescriptions": []
 						}
 					]
@@ -11892,7 +11892,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "r",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Pin input levels. Bit y reads the logic level of pin y as sampled at the start of the bus access, regardless of the pin direction or PxSEL setting. Bits 31:8 read 0.",
 							"ValueDescriptions": []
 						}
 					]
@@ -11913,7 +11913,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Output drive levels. Bit y is the level driven on pin y while the pin is an output (PxDIR bit y = 1) in GPIO mode (PxSEL bit y = 0). Resets to 0; bits 31:8 read 0 and ignore writes.",
 							"ValueDescriptions": []
 						}
 					]
@@ -11934,7 +11934,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw1",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Output set. Writing 1 to bit y sets PxOUT bit y; writing 0 has no effect. Reads return the current PxOUT value.",
 							"ValueDescriptions": []
 						}
 					]
@@ -11955,7 +11955,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw1",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Output clear. Writing 1 to bit y clears PxOUT bit y; writing 0 has no effect. Reads return the inverse of the current PxOUT value.",
 							"ValueDescriptions": []
 						}
 					]
@@ -11976,7 +11976,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw1",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Output toggle. Writing 1 to bit y inverts PxOUT bit y; writing 0 has no effect. Reads return the current PxOUT value.",
 							"ValueDescriptions": []
 						}
 					]
@@ -11997,7 +11997,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Pin direction. Bit y = 0 makes pin y an input and 1 makes it an output, effective only while the pin is in GPIO mode (PxSEL bit y = 0). Resets to 0 (all inputs); bits 31:8 read 0 and ignore writes.",
 							"ValueDescriptions": []
 						}
 					]
@@ -12018,7 +12018,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw1",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Interrupt flags. Hardware sets bit y when the edge selected by PxIES occurs on pin y while PxIE bit y is 1, and holds it until software writes 1 to the bit; writing 0 has no effect. Each flag drives the interrupt vector of its pin directly, and bits 31:8 read 0.",
 							"ValueDescriptions": []
 						}
 					]
@@ -12039,7 +12039,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Interrupt edge select. Bit y = 0 makes a rising edge on pin y set PxIF bit y, 1 selects a falling edge. Resets to 0.",
 							"ValueDescriptions": []
 						}
 					]
@@ -12060,7 +12060,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Interrupt enable. Bit y = 1 allows the selected edge on pin y to set PxIF bit y; with the bit at 0 no flag is captured for the pin. Resets to 0.",
 							"ValueDescriptions": []
 						}
 					]
@@ -12081,7 +12081,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Pin function select. Bit y = 0 gives pin y to the GPIO registers, 1 hands its output level, direction and resistor enable to the alternate function chosen by the PxAFS field of the pin. Resets to 0; bits 31:8 read 0 and ignore writes.",
 							"ValueDescriptions": []
 						}
 					]
@@ -12102,7 +12102,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Pull resistor enable. Bit y = 1 enables the pull resistor of pin y while the pin is in GPIO mode (PxSEL bit y = 0); in alternate function mode the peripheral controls the resistor. Resets to 0; bits 31:8 read 0 and ignore writes.",
 							"ValueDescriptions": []
 						}
 					]
@@ -12294,7 +12294,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "",
+							"Description": "Event fabric task pin select. Bit y = 1 lets the EVFAB0 output set and output clear tasks of this port set or clear PxOUT bit y; with the bit at 0 the tasks leave pin y untouched. Resets to 0, so no pin responds to a task until software selects it.",
 							"ValueDescriptions": []
 						}
 					]
@@ -12359,7 +12359,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"RegisterMemorySlot": 2,
 					"Size": 32,
 					"ResetValue": 0,
-					"Description": "Hart 0 interrupt routing register, vectors 95:64. Unlike the retired SYSTEM IRQENU register of the single-core chip, the packing here is contiguous in both directions. Bits 19 and 20 correspond to the CLINT vectors 83 and 84, which are delivered on dedicated hardwired wires and never through meip: these two bits are writable but have no effect.",
+					"Description": "Hart 0 interrupt routing register, vectors 95:64. Bits 19 and 20 correspond to the CLINT vectors 83 and 84, which are delivered on dedicated hardwired wires and never through meip: these two bits are writable but have no effect.",
 					"BitFields": [
 						{
 							"BitFieldName": "IRQRH0ENU",
@@ -12453,7 +12453,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"RegisterMemorySlot": 6,
 					"Size": 32,
 					"ResetValue": 0,
-					"Description": "Hart 1 interrupt routing register, vectors 95:64. Unlike the retired SYSTEM IRQENU register of the single-core chip, the packing here is contiguous in both directions. Bits 19 and 20 correspond to the CLINT vectors 83 and 84, which are delivered on dedicated hardwired wires and never through meip: these two bits are writable but have no effect.",
+					"Description": "Hart 1 interrupt routing register, vectors 95:64. Bits 19 and 20 correspond to the CLINT vectors 83 and 84, which are delivered on dedicated hardwired wires and never through meip: these two bits are writable but have no effect.",
 					"BitFields": [
 						{
 							"BitFieldName": "IRQRH1ENU",
@@ -12547,7 +12547,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"RegisterMemorySlot": 10,
 					"Size": 32,
 					"ResetValue": 0,
-					"Description": "Hart 2 interrupt routing register, vectors 95:64. Unlike the retired SYSTEM IRQENU register of the single-core chip, the packing here is contiguous in both directions. Bits 19 and 20 correspond to the CLINT vectors 83 and 84, which are delivered on dedicated hardwired wires and never through meip: these two bits are writable but have no effect.",
+					"Description": "Hart 2 interrupt routing register, vectors 95:64. Bits 19 and 20 correspond to the CLINT vectors 83 and 84, which are delivered on dedicated hardwired wires and never through meip: these two bits are writable but have no effect.",
 					"BitFields": [
 						{
 							"BitFieldName": "IRQRH2ENU",
@@ -12641,7 +12641,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"RegisterMemorySlot": 14,
 					"Size": 32,
 					"ResetValue": 0,
-					"Description": "Hart 3 interrupt routing register, vectors 95:64. Unlike the retired SYSTEM IRQENU register of the single-core chip, the packing here is contiguous in both directions. Bits 19 and 20 correspond to the CLINT vectors 83 and 84, which are delivered on dedicated hardwired wires and never through meip: these two bits are writable but have no effect.",
+					"Description": "Hart 3 interrupt routing register, vectors 95:64. Bits 19 and 20 correspond to the CLINT vectors 83 and 84, which are delivered on dedicated hardwired wires and never through meip: these two bits are writable but have no effect.",
 					"BitFields": [
 						{
 							"BitFieldName": "IRQRH3ENU",
@@ -12735,7 +12735,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"RegisterMemorySlot": 18,
 					"Size": 32,
 					"ResetValue": 0,
-					"Description": "Hart 4 interrupt routing register, vectors 95:64. Unlike the retired SYSTEM IRQENU register of the single-core chip, the packing here is contiguous in both directions. Bits 19 and 20 correspond to the CLINT vectors 83 and 84, which are delivered on dedicated hardwired wires and never through meip: these two bits are writable but have no effect.",
+					"Description": "Hart 4 interrupt routing register, vectors 95:64. Bits 19 and 20 correspond to the CLINT vectors 83 and 84, which are delivered on dedicated hardwired wires and never through meip: these two bits are writable but have no effect.",
 					"BitFields": [
 						{
 							"BitFieldName": "IRQRH4ENU",

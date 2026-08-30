@@ -8,9 +8,7 @@
 % documents only the privileged hardware it actually contains.
 % Sources (do not write this chapter from memory of the RTL): the frozen
 % P-series specifications and the phase reports.
-\newpage
-
-\section{Privileged Architecture} \label{s:privarch}
+\chapter{Privileged Architecture} \label{s:privarch}
 
 Every VestaRV hart executes at the RISC-V \textit{machine} (M) privilege level, the level that owns the whole address space and every control register. What differs between configurations is how a hart \textit{takes a trap} (an interrupt or an exception) and whether it can drop to the \textit{user} (U) privilege level and be fenced off from memory it does not own.
 
@@ -19,10 +17,10 @@ Two trap architectures exist in this family. The \textbf{legacy} architecture is
 \ifprivtrapcsr
 This configuration includes the standard trap architecture; the sections below document it.
 \else
-\textbf{This configuration does not include the standard trap architecture.} The machine trap control and status registers (\register{mstatus}, \register{mstatush}, \register{mtvec}, \register{mie}, \register{mip}, \register{mscratch}, \register{mepc}, \register{mcause}, \register{mtval} and the custom \register{mtrapctl}) are not implemented: any attempt to read or write one, and any \asminline{MRET}, \asminline{ECALL}, \asminline{EBREAK} or \asminline{WFI} instruction, is an illegal instruction. Since there is no standard trap architecture to take an exception with, an illegal instruction \textit{halts the hart}: the program counter freezes and the hart makes no further progress until reset (Section \ref{ss:priv-legacy}). The counter-enable register \register{mcounteren} (\texttt{0x306}) is a legal register but is hard-wired to zero. The five read-only machine information registers (\texttt{0xF11}--\texttt{0xF15}, Section \ref{ss:priv-idcsrs}) and the cycle and instruction counters are not part of the trap architecture, and \textit{reading} them is unaffected. \textbf{Writing one is not.} A CSR instruction in a write form aimed at any address in the read-only quadrant (\texttt{csr[11:10] = 11}, which is \register{mhartid} and the whole \texttt{cycle}/\texttt{time}/\texttt{instret}/\texttt{hpmcounter} range) is an illegal instruction, in every configuration, and therefore halts the hart here. Note that \asminline{unimp} assembles to \texttt{0xC0001073}, which is exactly such a write (\asminline{csrrw x0, cycle, x0}): reaching an \asminline{unimp} on this chip halts the hart, as it is meant to. Building a chip with \texttt{priv.trapCsr} enabled adds the standard architecture without changing any of this: the legacy mechanism stays selected at reset.
+\textbf{This configuration does not include the standard trap architecture.} The machine trap control and status registers (\register{mstatus}, \register{mstatush}, \register{mtvec}, \register{mie}, \register{mip}, \register{mscratch}, \register{mepc}, \register{mcause}, \register{mtval} and the custom \register{mtrapctl}) are not implemented: any attempt to read or write one, and any \asminline{MRET}, \asminline{ECALL}, \asminline{EBREAK} or \asminline{WFI} instruction, is an illegal instruction. Since there is no standard trap architecture to take an exception with, an illegal instruction \textit{halts the hart}: the program counter freezes and the hart makes no further progress until reset (Section \ref{ss:priv-legacy}). The counter-enable register \register{mcounteren} (\texttt{0x306}) is a legal register but is hard-wired to zero. The five read-only machine information registers (\texttt{0xF11} to \texttt{0xF15}, Section \ref{ss:priv-idcsrs}) and the cycle and instruction counters are not part of the trap architecture, and \textit{reading} them is unaffected. \textbf{Writing one is not.} A CSR instruction in a write form aimed at any address in the read-only quadrant (\texttt{csr[11:10] = 11}, which is \register{mhartid} and the whole \texttt{cycle}/\texttt{time}/\texttt{instret}/\texttt{hpmcounter} range) is an illegal instruction, in every configuration, and therefore halts the hart here. Note that \asminline{unimp} assembles to \texttt{0xC0001073}, which is exactly such a write (\asminline{csrrw x0, cycle, x0}): reaching an \asminline{unimp} on this chip halts the hart, as it is meant to. Building a chip with \texttt{priv.trapCsr} enabled adds the standard architecture without changing any of this: the legacy mechanism stays selected at reset.
 \fi
 
-\subsection{Machine Information Registers} \label{ss:priv-idcsrs}
+\section{Machine Information Registers} \label{ss:priv-idcsrs}
 
 Five read-only registers identify the hart and the implementation. They are present in \textit{every} configuration (they are not part of the trap architecture and are not affected by \texttt{priv.trapCsr}), and reading any of them is always legal, at machine level, in either delivery mode.
 
@@ -41,7 +39,7 @@ Five read-only registers identify the hart and the implementation. They are pres
 
 \textbf{Writing one is an illegal instruction.} All five sit in the read-only quadrant of the register address space (\texttt{csr[11:10] = 11}), and any CSR instruction in a \textit{write} form aimed at that quadrant traps, in every configuration, including the read-modify-write forms that would write back an unchanged value. Reading with \asminline{csrr} (or any form whose source operand is \asminline{x0}, which the hardware recognizes as a pure read) is the only legal access.
 
-\subsection{The Legacy Trap Mechanism} \label{ss:priv-legacy}
+\section{The Legacy Trap Mechanism} \label{ss:priv-legacy}
 
 The legacy mechanism is a pure \textit{interrupt} architecture: it delivers the hardware interrupt sources of Section \ref{s:interrupts} and nothing else.
 
@@ -57,7 +55,7 @@ Because the legacy mechanism pushes to the stack on entry, it assumes the stack 
 
 \ifprivtrapcsr
 
-\subsection{Selecting a Delivery Mode: \register{mtrapctl}} \label{ss:priv-mtrapctl}
+\section{Selecting a Delivery Mode: \register{mtrapctl}} \label{ss:priv-mtrapctl}
 
 The two architectures are selected by bit 0 (\bitfield{LEGACY}) of the custom machine register \register{mtrapctl} at address \texttt{0x7C0}, which lives in the architecturally reserved custom machine read/write range. All other bits read zero and ignore writes.
 
@@ -75,7 +73,7 @@ The two architectures are selected by bit 0 (\bitfield{LEGACY}) of the custom ma
 
 The two custom instruction groups keep their encodings in both modes. \asminline{retirq} is only \textit{defined} in legacy mode, where an interrupt sequence is in progress for it to acknowledge; executing it in standard mode is a software error whose only consequence is the stack-pointer damage the instruction itself does.
 
-\subsection{The Machine Trap Registers} \label{ss:priv-csrs}
+\section{The Machine Trap Registers} \label{ss:priv-csrs}
 
 Table \ref{t:priv-csrs} lists every control register the standard trap architecture adds, with the behavior of each field. Fields not listed read as zero and ignore writes; every field is WARL (write any value, read a legal value), so software must read back what it wrote rather than assume a value took.
 
@@ -97,7 +95,7 @@ Table \ref{t:priv-csrs} lists every control register the standard trap architect
 \hline
 \end{longtable}
 
-\subsection{Trap Entry, Trap Return, and Causes} \label{ss:priv-entry}
+\section{Trap Entry, Trap Return, and Causes} \label{ss:priv-entry}
 
 In standard mode a trap entry performs \textbf{no memory transaction at all}. In one atomic step the hardware writes \register{mepc}, \register{mcause} and \register{mtval} per Table \ref{t:priv-causes}, copies \bitfield{MIE} into \bitfield{MPIE} and clears \bitfield{MIE} (so the handler starts with interrupts disabled), records the interrupted privilege level in \bitfield{MPP}, enters machine mode, and sets the program counter to \register{mtvec}'s \bitfield{BASE}. The stack pointer is not read, not written and not adjusted, which is the entire point, because the interrupted stack pointer may belong to untrusted code.
 
@@ -145,7 +143,7 @@ Load access fault (memory protection) & \texttt{5} & The faulting data address &
 \hline
 \end{longtable}
 
-Three details of Table \ref{t:priv-causes} are worth stating explicitly.
+Three details of Table \ref{t:priv-causes} need stating explicitly.
 
 \begin{itemize}
 	\item \textbf{The illegal-instruction value for a compressed instruction is the expanded encoding, not the raw halfword.} When a 16-bit compressed instruction traps, \register{mtval} carries the 32-bit instruction the decompressor produced from it, which is what the core actually rejected. The specification permits either the faulting encoding or zero here; reporting the expansion is more informative than zero and costs nothing, but a debugger that expects the raw halfword will not find it. This is a deliberate, documented deviation.
@@ -153,7 +151,7 @@ Three details of Table \ref{t:priv-causes} are worth stating explicitly.
 	\item \textbf{Interrupts are sampled at instruction boundaries only}, and the multi-cycle instruction sequences (the compressed push/pop sequences, the cache-block zero instruction, and the table-jump sequence) run to completion uninterrupted, exactly as in the legacy mechanism.
 \end{itemize}
 
-\subsection{Waiting for an Interrupt} \label{ss:priv-wfi}
+\section{Waiting for an Interrupt} \label{ss:priv-wfi}
 
 Two instructions park a hart, and they are not interchangeable.
 
@@ -168,7 +166,7 @@ Because \asminline{WFI} waits on $\register{mip} \wedge \register{mie}$, a hart 
 
 \ifprivumode
 
-\subsection{User Mode} \label{ss:priv-umode}
+\section{User Mode} \label{ss:priv-umode}
 
 This configuration implements the user privilege level. Each hart carries a one-bit privilege register, reset to machine mode, and the \texttt{U} bit (bit 20) of \register{misa} reads 1 to advertise it.
 
@@ -176,7 +174,7 @@ This configuration implements the user privilege level. Each hart carries a one-
 
 \textbf{Leaving user mode} is a trap: an \asminline{ECALL} (cause 8), an interrupt, or any of the exceptions in Table \ref{t:priv-causes}. Trap entry saves the interrupted privilege in \bitfield{MPP}, and the matching \asminline{MRET} restores it and then clears \bitfield{MPP} to \texttt{00}, so a stray second \asminline{MRET} cannot promote a task to machine mode.
 
-\subsubsection{What Traps in User Mode}
+\subsection{What Traps in User Mode}
 
 Every one of the following raises an illegal-instruction exception (cause 2) when executed in user mode, and \textbf{commits nothing}: the denied instruction updates no register, writes no memory and changes no control register, in the trapping cycle or afterwards.
 
@@ -188,11 +186,11 @@ Every one of the following raises an illegal-instruction exception (cause 2) whe
 	\item \textbf{The user-visible counters}, unless machine mode has enabled them. A user read of \texttt{cycle}, \texttt{time}, \texttt{instret} or performance counters 3 and 4 requires the matching \bitfield{CY}/\bitfield{TM}/\bitfield{IR}/\bitfield{HPM3}/\bitfield{HPM4} bit of \register{mcounteren}, which resets to zero, so a fresh chip denies all of them. Performance counters 5 and above always trap in user mode, because their enable bits are pinned to zero and can never be set. Machine-mode reads of every counter are unaffected.
 \end{itemize}
 
-\subsubsection{Machine-Mode Accesses with User Privilege: \bitfield{MPRV}}
+\subsection{Machine-Mode Accesses with User Privilege: \bitfield{MPRV}}
 
 Machine-mode software often has to touch memory \textit{on behalf of} a user task (copying a system-call argument, for instance), and it should do so with the task's rights, not its own. Setting \bitfield{MPRV} (bit 17 of \register{mstatus}) makes every \textbf{data} access use the privilege level in \bitfield{MPP} instead of the current one. Instruction fetches are never affected: the handler keeps fetching with machine privilege. Clearing \bitfield{MPRV} restores ordinary behavior, and an \asminline{MRET} that returns to a level below machine also clears it, so the bit cannot leak into user mode.
 
-\subsubsection{What User Mode Does and Does Not Protect} \label{sss:priv-umode-safety}
+\subsection{What User Mode Does and Does Not Protect} \label{sss:priv-umode-safety}
 
 \textbf{User mode is a privilege boundary, not a memory boundary.} \ifprivpmp Until the memory-protection entries of Section \ref{ss:priv-pmp} are programmed, \else On a chip built without physical memory protection, \fi a user-mode task has \textit{unrestricted access to the whole address space}. It cannot execute a privileged instruction or read a machine control register, but nothing stops it from storing to any address it can name, and on this chip that includes:
 
@@ -209,13 +207,13 @@ This is documented design, not a defect: privilege separation and memory protect
 
 \ifprivpmp
 
-\subsection{Physical Memory Protection} \label{ss:priv-pmp}
+\section{Physical Memory Protection} \label{ss:priv-pmp}
 
 Physical memory protection (PMP) is the mechanism that turns the privilege boundary of Section \ref{ss:priv-umode} into a memory boundary. It is a set of \PmpEntries{} address-range entries, each granting read, write and execute permission for one naturally-aligned region; every instruction fetch, load and store is checked against them.
 
-\subsubsection{The Entry Registers}
+\subsection{The Entry Registers}
 
-Each entry is one 8-bit configuration byte and one address register. The configuration bytes are packed four to a word in \register{pmpcfg0} through \register{pmpcfg3} (addresses \texttt{0x3A0}--\texttt{0x3A3}), entry $i$ occupying byte $i \bmod 4$ of word $\lfloor i/4 \rfloor$; the addresses live in \register{pmpaddr0} through \register{pmpaddr15} (addresses \texttt{0x3B0}--\texttt{0x3BF}). The register map is always the full 16-entry set: on a configuration with fewer entries the surplus registers remain legal registers that read zero and ignore writes, so the same driver code runs on either. All of them reset to zero, which means every entry is off and nothing is locked.
+Each entry is one 8-bit configuration byte and one address register. The configuration bytes are packed four to a word in \register{pmpcfg0} through \register{pmpcfg3} (addresses \texttt{0x3A0} to \texttt{0x3A3}), entry $i$ occupying byte $i \bmod 4$ of word $\lfloor i/4 \rfloor$; the addresses live in \register{pmpaddr0} through \register{pmpaddr15} (addresses \texttt{0x3B0} to \texttt{0x3BF}). The register map is always the full 16-entry set: on a configuration with fewer entries the surplus registers remain legal registers that read zero and ignore writes, so the same driver code runs on either. All of them reset to zero, which means every entry is off and nothing is locked.
 
 \begin{center}
 \begin{tabular}{ l l p{10.0cm} }
@@ -242,7 +240,7 @@ The reserved combination write-without-read is not representable: writing \textt
 \hline
 \end{longtable}
 
-\subsubsection{Matching and Permission}
+\subsection{Matching and Permission}
 
 An access matches an entry when its word address falls inside that entry's region. (Every access this core makes is at most four bytes and never crosses a word boundary, and every region boundary is word-aligned, so the specification's byte-span rule reduces to a word comparison with no partial-overlap cases.)
 
@@ -254,7 +252,7 @@ An access matches an entry when its word address falls inside that entry's regio
 	\item When no entry matches at all, machine mode is granted and user mode is denied. Programming the first entry therefore does not open a hole; it closes the address space for user mode.
 \end{itemize}
 
-\subsubsection{Locking}
+\subsection{Locking}
 
 Setting the lock bit of an entry makes both its configuration byte and its address register immutable until the next reset: further writes are ignored, and the entry keeps enforcing, in machine mode as well. Three details matter when programming a lock:
 
@@ -264,7 +262,7 @@ Setting the lock bit of an entry makes both its configuration byte and its addre
 	\item Locking an entry that is \texttt{OFF} is legal and useful: it permanently retires that entry (and, with a \texttt{TOR} successor, the boundary it supplies).
 \end{itemize}
 
-\subsubsection{Faults, and the Pre-Issue Guarantee}
+\subsection{Faults, and the Pre-Issue Guarantee}
 
 A denied access raises an exception in machine mode with cause 1 (instruction fetch), 5 (load) or 7 (store or atomic); \register{mtval} holds the faulting address and \register{mepc} the faulting instruction, per Table \ref{t:priv-causes}. A multi-word instruction sequence (a compressed push or pop, a cache-block zero, a table jump) checks \textit{every} address it generates before issuing it, and a fault aborts the whole sequence with no register or stack-pointer update; \register{mepc} names the sequence's own instruction.
 
@@ -272,7 +270,7 @@ A denied access raises an exception in machine mode with cause 1 (instruction fe
 
 \textbf{Delivery mode.} Protection faults are exceptions, so they need the standard delivery mode of Section \ref{ss:priv-mtrapctl} to be recoverable. In legacy mode the denial still happens (no transaction issues, and the guarantee above holds), but there is no exception mechanism to take, so the hart lands in the terminal trap state and stops. Run memory-protection software with \register{mtrapctl}'s \bitfield{LEGACY} bit cleared.
 
-\subsubsection{A Typical Configuration}
+\subsection{A Typical Configuration}
 
 A machine-mode supervisor that wants to run a user task in a fenced region programs, in order of decreasing priority: a \texttt{NAPOT} entry granting \texttt{R}\,+\,\texttt{X} over the task's code, a \texttt{NAPOT} entry granting \texttt{R}\,+\,\texttt{W} over the task's data and stack, and nothing else. Every other address falls through to the no-match rule (denied in user mode, allowed in machine mode), so the supervisor keeps full access while the task is fenced to two regions. The task's system-call path is an \asminline{ECALL}, which the supervisor services in machine mode, using \bitfield{MPRV} when it needs to touch the task's buffers with the task's own rights.
 
