@@ -265,16 +265,15 @@ The \AsicNameForUserGuide{} microcontroller (MCU) is a \NumHartsWord-hart multip
 
 Figure~\ref{fig:chip-system-flat-diagram} is the view to read first: the bus masters above the arbiter, the arbiter drawn as the single bus bar it behaves like, the memories and every peripheral family this configuration instantiates on one rank below it, and the package boundary in red with the pin groups that cross it. It is generated from the configuration, so the peripheral set and the instance counts in it are this build's. The memory system's own view of the chip, the one address column all \NumHartsWord{} harts share, is Figure~\ref{fig:address-space} in Chapter~\ref{s:addressSpace}, and the per-pin bonding is Chapter~\ref{s:pinsConfig}.
 
-% Generated, configuration-driven whole-chip diagram (make chip). Landscape, on
-% a rotated page with the top of the drawing at the right edge of the page, and
-% scaled to the page height so its labels stay legible.
-\begin{sidewaysfigure}
+% Generated, configuration-driven whole-chip diagram (make chip). Upright and
+% scaled to the text width, kept with the paragraph that introduces it.
+\begin{figure}[!htb]
 	\centering
-	\resizebox{\textheight}{!}{\input{include/ChipSystemFlatDiagram.tex}}
+	\resizebox{\linewidth}{!}{\input{include/ChipSystemFlatDiagram.tex}}
 	\caption[{\AsicNameForUserGuide{} whole-chip diagram}]{\AsicNameForUserGuide{} whole-chip diagram: the masters above one \texttt{mp\_arbiter} bus bar, every peripheral on one rank below it, and the package boundary in red.}
 	\label{fig:chip-system-flat-diagram}
-\end{sidewaysfigure}
-\clearpage
+\end{figure}
+\FloatBarrier
 
 \section{Chip configuration} \label{ss:chipConfig}
 
