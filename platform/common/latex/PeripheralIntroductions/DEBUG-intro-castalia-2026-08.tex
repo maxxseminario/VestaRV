@@ -1,473 +1,247 @@
 % Debug chapter (D-series, 2026-08). CONFIGURATION-DRIVEN.
-% The chapter itself always renders: what JTAG is and what the RISC-V debug
-% stack does are architecture-level material that a reader of ANY build needs,
-% and a build without the debug system still has something true to say -- that
-% the four debug CSRs are illegal, that DRET is illegal, and that there is no
-% debug port. That negative statement is the honest description of the default
-% hardware, exactly as the Privileged Architecture chapter's legacy-trap
-% opening is. The implementation sections are wrapped in \ifdebugenable,
-% emitted by LatexUserGuide.GenerateDefinesFile() from debug.enable, so a build
-% documents only the debug hardware it actually contains.
+% The chapter always renders: the JTAG port and the RISC-V debug stack are
+% architecture-level material, and a build without the debug system still
+% documents that the four debug CSRs and DRET are illegal and that there is no
+% debug port. The implementation sections are wrapped in \ifdebugenable,
+% emitted by LatexUserGuide.GenerateDefinesFile() from debug.enable.
 % Sources (do not write this chapter from memory of the RTL): the frozen
 % D-series specifications d1_spec.md / d2_spec.md / d3_spec.md /
 % d3_cdc_spec.md, the RTL headers of hdl/common/jtag_dtm.vhd and
 % hdl/common/debug_module.vhd, and the phase reports.
-\newpage
+% Section order is the per-peripheral template (Overview, Block diagram,
+% Functional description, Interrupts and events, Programming, Usage notes).
+\chapter{Debug} \label{s:debug}
 
-\section{Debug Support} \label{s:debug}
+\section{Overview}
 
-Every program eventually needs a way to ask the hardware what it is actually
-doing. The chapters so far have described two: the Forth interpreter over
-\peripheral{UART0} (Section \ref{s:forth}), which lets you poke at a running
-system from a terminal, and the disassembly listings the compiler emits with
-\texttt{-g}, which let you read what the machine was told to do. Both are
-\textit{cooperative}: they need the chip to still be executing your code,
-correctly enough to talk back.
+Hardware debug reaches into the chip over dedicated wires that depend on no software: it stops a hart between instructions, reads and writes its registers and memory, and starts it again. It works on a hart stuck in a loop, on a hart that has taken an illegal instruction and stopped retiring, and, with halt-on-reset armed, on a hart before its first instruction. The Forth monitor over \peripheral{UART0} (Section \ref{s:forth}) is the cooperative alternative and needs the chip to be executing correctly enough to answer.
 
-\textbf{Hardware debug is the non-cooperative kind.} It reaches into the chip
-over dedicated wires that do not depend on any software running, stops a
-processor between instructions, reads and writes its registers and memory, and
-starts it again. It works on a hart that is stuck in an infinite loop, on a hart
-that has taken an illegal instruction and stopped retiring, and, with one
-configuration bit set, on a hart before it has executed its first
-instruction. That is what this chapter is about.
+\begin{itemize}
+	\item IEEE 1149.1 JTAG transport on five pins, with a 5-bit instruction register and a 41-bit DMI data register
+	\item One Debug Module for the whole chip, reaching every hart, implementing RISC-V debug specification 1.0 (\bitfield{version} = 3)
+	\item Halt, resume, halt-on-reset and single-step per hart; halt groups across harts
+	\item Abstract access-register commands with one data word and a two-word program buffer plus an implicit third word
+	\item Debug mode in the hart with four CSRs (\register{dcsr}, \register{dpc}, \register{dscratch0}, \register{dscratch1}) and the \asminline{DRET} instruction
+	\item Memory access through the halted hart's own load and store instructions; no system bus access, no hardware triggers
+\end{itemize}
 
 \ifdebugenable
 This configuration includes the debug system; the sections below document it.
 \else
-\textbf{This configuration does not include the debug system.} The four
-Debug-Mode control registers \register{dcsr}, \register{dpc},
-\register{dscratch0} and \register{dscratch1} (\texttt{0x7B0}--\texttt{0x7B3})
-are not implemented: any CSR instruction naming an address in the range
-\texttt{0x7B0}--\texttt{0x7BF} is an illegal instruction, from any privilege
-level. The \asminline{DRET} instruction (\texttt{0x7B200073}) is an illegal
-instruction. There is no JTAG port, no Debug Transport Module and no Debug
-Module, and no external agent can halt, inspect or resume a hart. Sections
-\ref{ss:debug-jtag} and \ref{ss:debug-stack} below describe the architecture
-this family implements when it \textit{is} configured, and are included because
-they are useful background; everything after them documents hardware this build
-does not contain and is therefore omitted. Building a chip with
-\texttt{debug.enable} set (Table \ref{t:chip-config}) adds all of it. Note that
-the \texttt{-g} compiler and linker flag remains useful without it: it produces
-the source-to-assembly correspondence in \texttt{.lst} listings, which is a
-build-time facility and needs no hardware at all (Section \ref{s:software}).
+\textbf{This configuration does not include the debug system.} The four Debug-Mode control registers \register{dcsr}, \register{dpc}, \register{dscratch0} and \register{dscratch1} (\texttt{0x7B0} to \texttt{0x7B3}) are not implemented: any CSR instruction naming an address in \texttt{0x7B0} to \texttt{0x7BF} is an illegal instruction from any privilege level, and the \asminline{DRET} instruction (\texttt{0x7B200073}) is an illegal instruction. There is no JTAG port, no Debug Transport Module and no Debug Module, and no external agent can halt, inspect or resume a hart. Sections \ref{ss:debug-jtag} and \ref{ss:debug-stack} describe the architecture this family implements when it is configured; everything after them documents hardware this build does not contain and is omitted. Building a chip with \texttt{debug.enable} set (Table \ref{t:chip-config}) adds all of it. The \texttt{-g} compiler flag remains useful without it, because the source-to-assembly listings it produces are a build-time facility (Section \ref{s:software}).
 \fi
 
-\subsection{What JTAG Is} \label{ss:debug-jtag}
+\section{Block diagram}
 
-JTAG is a serial protocol standardised as IEEE 1149.1 (four mandatory wires
-plus an optional fifth) that was invented to test the solder joints on a
-circuit board and has since become the way almost every processor in the world
-is debugged. Understanding it is worth twenty minutes, because everything above
-it in the stack is built on one very simple idea.
-
-The wires are:
-
-\begin{center}
-\begin{tabular}{ l l p{9.2cm} }
-	\textbf{Wire} & \textbf{Direction} & \textbf{Purpose} \\ \hline
-	\pin{TCK} & in & Test clock. Everything on the port is synchronous to it, and it is supplied by the debug probe, not by the chip. It has no relationship to any clock inside the chip. \\
-	\rowcolor{tablehighlightcolor} \pin{TMS} & in & Test mode select. Sampled on every rising \pin{TCK} edge; this one wire drives the entire state machine. \\
-	\pin{TDI} & in & Test data in: the serial input to whichever shift register is currently selected. \\
-	\rowcolor{tablehighlightcolor} \pin{TDO} & out & Test data out: the serial output of that register. \\
-	\pin{TRSTn} & in & The optional fifth wire: an asynchronous reset for the port. Not required by the standard, which can always reset the port with \pin{TMS} alone, but present here. \\ \hline
-\end{tabular}
-\end{center}
-
-Inside the chip these wires drive a \textbf{Test Access Port}, or TAP: a
-sixteen-state finite state machine whose only input is \pin{TMS}. The states
-are fixed by the standard and every JTAG device in the world has the same
-sixteen. They form two nearly identical lobes, one for scanning an
-\textit{instruction} and one for scanning \textit{data}, joined at a common
-idle state:
-
-\begin{itemize}
-	\item \textbf{Test-Logic-Reset} is the top of the graph and the reset state. \textbf{Holding \pin{TMS} high for five \pin{TCK} clocks reaches it from anywhere in the graph}, which is the standard's guaranteed recovery: a debugger that has lost track of where the state machine is does not need to know, it just clocks five ones.
-	\item \textbf{Run-Test/Idle} is the resting state between operations.
-	\item The \textbf{IR lobe} (Select-IR, Capture-IR, Shift-IR, Exit1-IR, Pause-IR, Exit2-IR, Update-IR) shifts a new value into the \textit{instruction register}.
-	\item The \textbf{DR lobe} (the same seven states with DR in place of IR) shifts a value through whichever \textit{data register} the current instruction has selected.
-\end{itemize}
-
-Figure \ref{fig:tap-state-graph} is the whole machine, with every transition this chip implements.
-
-% Generated by LatexUserGuide.GenerateTapStateDiagram (make chip).
-% NO \resizebox: the emitter draws this graph in printed centimetres and sizes
-% the state boxes, the type and the air between them independently (see the
-% geometry block in GenerateTapStateDiagram). A \resizebox here would take that
-% back over: it scales the boxes, the labels and the gaps by one factor, so
-% a layout with more air in it would simply be squeezed until it had less.
-\begin{figure}[htpb]
-	\centering
-	\input{include/TapStateDiagram.tex}
-	\caption[{The sixteen-state JTAG test access port.}]{The sixteen-state JTAG test access port. Solid arrows are taken when \pin{TMS} is sampled low, dashed when it is sampled high. The two lobes hanging below Select-DR and Select-IR are the same seven states drawn as mirror images of one another, one scanning a data register and one the instruction register. Note that five consecutive high samples reach Test-Logic-Reset from every state in the graph, which is the recovery a debugger uses when it does not know where the machine is.}
-	\label{fig:tap-state-graph}
-\end{figure}
-
-The operation you actually perform is called a \textbf{scan}, and it has three
-phases that matter. In \textbf{Capture}, the selected register is loaded in
-parallel from whatever it is shadowing. In \textbf{Shift}, the register behaves
-as a shift chain: on each \pin{TCK} it takes one bit from \pin{TDI} and presents
-one bit on \pin{TDO}, least-significant bit first. In \textbf{Update}, the value
-that has just been shifted in is committed. \textbf{So one scan simultaneously
-reads the old contents and writes the new ones}, which is why a debugger's
-traffic always looks like a stream of fixed-length shifts rather than the
-read-then-write pairs a parallel bus would use. Figure \ref{fig:jtag-scan}
-follows one four-bit scan through those phases.
-
-% Generated by LatexUserGuide.GenerateJtagScanDiagram (make chip).
-\begin{figure}[htpb]
-	\centering
-	\input{include/JtagScanDiagram.tex}
-	\caption[{One four-bit data-register scan.}]{One four-bit data-register scan. The state row is the sequence the port walks under the \pin{TMS} pattern above it. Data is shifted least-significant bit first, one bit per \pin{TCK}; \pin{TDI} is sampled on the rising edge and \pin{TDO} changes on the falling one, which is why the two rows are offset by half a cycle. A real scan is 32 or 41 bits wide rather than four, but the shape is exactly this.}
-	\label{fig:jtag-scan}
-\end{figure}
-
-The instruction register selects \textit{which} data register a subsequent DR
-scan will reach. Every JTAG device is therefore fully described by three things:
-the width of its instruction register, the set of instruction values it
-recognises, and the width and meaning of the data register each one selects.\ifdebugenable{}
-For this chip, that is Table \ref{t:debug-ir}.\fi
-
-Two consequences are worth stating because they surprise people. First, the port
-is entirely passive with respect to the chip's own clocks: it will answer while
-the processor is running, while it is stopped, and while it is held in reset.
-Second, because the standard defines a \textbf{BYPASS} instruction that selects a
-single flip-flop, several devices can be wired in a chain (\pin{TDO} of one to
-\pin{TDI} of the next), and a debugger can talk to any one of them while the
-others contribute one bit each of padding.
-
-\subsection{The RISC-V Debug Stack} \label{ss:debug-stack}
-
-JTAG by itself only gives you a way to shift bits in and out. The RISC-V debug
-specification defines what those bits \textit{mean}, and it does so in four
-layers. Each layer knows nothing about the internals of the one below it, which
-is what allows the same debugger software to drive very different chips.
-
-\begin{center}
-\begin{tabular}{ l p{11.0cm} }
-	\textbf{Layer} & \textbf{What it is} \\ \hline
-	\textbf{DTM} & The \textit{Debug Transport Module}. It is the JTAG-facing half: the TAP itself, plus the logic that turns one DR scan into one transaction on the interface below. Its job is transport and nothing else; it has no idea what a hart is. \\
-	\rowcolor{tablehighlightcolor} \textbf{DMI} & The \textit{Debug Module Interface}. A tiny address/data bus, here 7 address bits and 32 data bits, with three operations: no-op, read, write. This is the seam. Anything that can drive a DMI can debug the chip; JTAG is merely the transport this chip provides. \\
-	\textbf{DM} & The \textit{Debug Module}. A block of registers sitting on the DMI that implements \textit{run control}: select a hart, halt it, ask what state it is in, run a small program on it, resume it. There is one DM for the whole chip and it can reach every hart. \\
-	\rowcolor{tablehighlightcolor} \textbf{Debug mode} & A state of the \textit{hart itself}, effectively a privilege level above machine mode. A hart in debug mode has stopped executing your program, is executing the debugger's code instead, and has a small set of control registers that only exist while it is there. \\ \hline
-\end{tabular}
-\end{center}
-
-The layer that most often confuses newcomers is the last one. \textbf{A halted
-hart is not a frozen hart.} On this architecture, halting a processor does not
-stop its clock and freeze it mid-instruction; it \textit{diverts} it, between
-instructions, to a fixed address where the debugger's own code is waiting. The
-hart then sits in a loop at that address, still fetching and executing, waiting
-to be told what to do. When the debugger wants to read a register, it does not
-reach into the register file with wires; it writes a two- or three-instruction
-program into memory, tells the hart to run it, and reads back where the program
-put the answer.
-
-This is the single most important thing to understand about RISC-V debug, and
-almost every property in the rest of this chapter follows from it: that the
-debugger needs somewhere in memory to put code, that reading a register can
-report an \textit{exception}, that the hart's own \asminline{s0} and
-\asminline{s1} registers need saving before anything else can happen, and that
-memory accesses on behalf of the debugger go through the ordinary bus, with
-ordinary arbitration, exactly as the program's own would.
-
-Figure \ref{fig:debug-stack} shows those layers as they are actually built, in a
-configuration that includes the debug system: which clock each part runs on,
-what crosses between them, and the three ways the Debug Module reaches the rest
-of the chip.
+Figure \ref{fig:debug-stack} shows the debug path as built in a configuration with the debug system: the clock each part runs on, what crosses between them, and the three ways the Debug Module reaches the rest of the chip.
 
 % Generated by LatexUserGuide.GenerateDebugStackDiagram (make chip).
 \begin{figure}[htpb]
 	\centering
 	\resizebox{\linewidth}{!}{\input{include/DebugStackDiagram.tex}}
-	\caption[{The debug path, from the probe to a hart.}]{The debug path, from the probe to a hart, in a configuration built with debug support. The transport and the Debug Module sit in \textit{different clock domains}, and the wall between them is crossed by exactly two signals: one toggle each way, each carrying a payload that is held still while its toggle is in flight. Everything to the right of that wall is ordinary chip fabric, and the one Debug Module reaches it in three ways: it halts and resumes the harts over direct wires, it reads and writes memory as one more master on the same arbiter the harts use, and it plants its own trampoline into the debug program page. The count of hart tiles follows this configuration.}
+	\caption{Block diagram of the debug path, from the probe to the harts.}
 	\label{fig:debug-stack}
 \end{figure}
 
+\section{Functional description}
+
+\subsection{JTAG} \label{ss:debug-jtag}
+
+JTAG is the IEEE 1149.1 serial protocol: four mandatory wires and an optional fifth, driving a sixteen-state Test Access Port (TAP) whose only input is \pin{TMS}.
+
+\begin{center}
+\begin{tabular}{ l l p{9.2cm} }
+	\textbf{Wire} & \textbf{Direction} & \textbf{Purpose} \\ \hline
+	\pin{TCK} & in & Test clock, supplied by the probe. Everything on the port is synchronous to it; it has no relationship to any clock inside the chip. \\
+	\rowcolor{tablehighlightcolor} \pin{TMS} & in & Test mode select, sampled on every rising \pin{TCK} edge; this one wire drives the state machine. \\
+	\pin{TDI} & in & Serial input to the selected shift register. \\
+	\rowcolor{tablehighlightcolor} \pin{TDO} & out & Serial output of that register. \\
+	\pin{TRSTn} & in & Optional asynchronous reset of the port; present on this chip. \\ \hline
+\end{tabular}
+\end{center}
+
+The states form two lobes, one for scanning an instruction and one for scanning data, joined at a common idle state. Test-Logic-Reset is the reset state, and holding \pin{TMS} high for five \pin{TCK} clocks reaches it from any state, which is the standard's guaranteed recovery for a probe that has lost track of the machine. The IR lobe (Select-IR, Capture-IR, Shift-IR, Exit1-IR, Pause-IR, Exit2-IR, Update-IR) loads the instruction register; the DR lobe loads whichever data register the current instruction selects. Figure \ref{fig:tap-state-graph} is the machine with every transition this chip implements.
+
+% Generated by LatexUserGuide.GenerateTapStateDiagram (make chip).
+% NO \resizebox: the emitter sizes the boxes, the type and the spacing
+% independently in printed centimetres.
+\begin{figure}[htpb]
+	\centering
+	\input{include/TapStateDiagram.tex}
+	\caption{State diagram of the sixteen-state JTAG test access port.}
+	\label{fig:tap-state-graph}
+\end{figure}
+
+A scan has three phases: Capture loads the selected register in parallel from what it shadows, Shift moves one bit in from \pin{TDI} and one out on \pin{TDO} per \pin{TCK} (least-significant bit first), and Update commits the shifted-in value. One scan therefore reads the old contents and writes the new ones at once, so a debugger's traffic is a stream of fixed-length shifts rather than read-then-write pairs. Figure \ref{fig:jtag-scan} follows one four-bit scan.
+
+% Generated by LatexUserGuide.GenerateJtagScanDiagram (make chip).
+\begin{figure}[htpb]
+	\centering
+	\input{include/JtagScanDiagram.tex}
+	\caption{Timing diagram of one four-bit JTAG data-register scan.}
+	\label{fig:jtag-scan}
+\end{figure}
+
+The port is passive with respect to the chip's own clocks: it answers while the harts run, while they are halted, and while they are held in reset. Because the standard's BYPASS instruction selects a single flip-flop, several devices can be chained (\pin{TDO} of one to \pin{TDI} of the next) and a debugger addresses one while the others contribute one bit of padding each.
+
+\subsection{The RISC-V debug stack} \label{ss:debug-stack}
+
+The RISC-V debug specification defines the meaning of the scanned bits in four layers, each independent of the internals of the one below it, so that one debugger drives different chips.
+
+\begin{center}
+\begin{tabular}{ l p{11.0cm} }
+	\textbf{Layer} & \textbf{What it is} \\ \hline
+	\textbf{DTM} & The Debug Transport Module: the TAP plus the logic that turns one DR scan into one transaction on the interface below. It has no knowledge of harts. \\
+	\rowcolor{tablehighlightcolor} \textbf{DMI} & The Debug Module Interface: a 7-bit address, 32-bit data bus with three operations (no-op, read, write). Anything that drives a DMI can debug the chip; JTAG is the transport this chip provides. \\
+	\textbf{DM} & The Debug Module: registers on the DMI implementing run control (select a hart, halt it, query its state, run a short program on it, resume it). One DM serves every hart. \\
+	\rowcolor{tablehighlightcolor} \textbf{Debug mode} & A state of the hart, effectively a privilege level above machine mode, in which the hart executes the debugger's code and has control registers that exist only there. \\ \hline
+\end{tabular}
+\end{center}
+
+A halted hart is not a frozen hart. Halting does not stop the clock; it diverts the hart, between instructions, to a fixed address where the debugger's code waits, and the hart executes there until told what to do. To read a register the debugger writes a two- or three-instruction program into memory, has the hart run it, and reads back where the program put the answer. Every property that follows derives from this: the debugger needs memory for its code, a register read can report an exception, the hart's \asminline{s0} and \asminline{s1} must be saved before anything else, and memory accesses on the debugger's behalf go through the ordinary bus with ordinary arbitration.
+
 \ifdebugenable
 
-\subsection{The Debug Port} \label{ss:debug-port}
+\subsection{Debug port} \label{ss:debug-port}
 
-The debug port occupies five pins, which are present only on the LQFP-100
-package; a configuration built for a smaller package has the debug system in
-silicon but nowhere to bond it.
+The debug port occupies five pins, present only on the LQFP-100 package; a smaller package has the debug system in silicon with nowhere to bond it. The pins are ordinary 3.3 V digital I/O on the \texttt{VDDPST}/\texttt{VSSPST} domain, may be left unconnected, and are placed on the south and east edges away from the analog band.
 
 \begin{center}
 \begin{tabular}{ l l l p{6.6cm} }
 	\textbf{Pin} & \textbf{Signal} & \textbf{I/O} & \textbf{Idle state when unconnected} \\ \hline
-	47 & \pin{TCK} & Input & Pulled \textbf{low}. \pin{TCK} idles low. \\
-	\rowcolor{tablehighlightcolor} 48 & \pin{TMS} & Input & Pulled \textbf{high}. This is what IEEE 1149.1 requires, and it is what allows five clocks from a disconnected probe to still return the port to Test-Logic-Reset. \\
-	49 & \pin{TDI} & Input & Pulled \textbf{high}. \\
-	\rowcolor{tablehighlightcolor} 50 & \pin{TDO} & Output & Driven. Held quiet between shift states rather than toggling, so the pin is well behaved in a multi-device chain. \\
-	51 & \pin{TRSTn} & Input & Pulled \textbf{low}; see below. \\ \hline
+	47 & \pin{TCK} & Input & Pulled low. \\
+	\rowcolor{tablehighlightcolor} 48 & \pin{TMS} & Input & Pulled high, as IEEE 1149.1 requires, so that five clocks from a disconnected probe still reach Test-Logic-Reset. \\
+	49 & \pin{TDI} & Input & Pulled high. \\
+	\rowcolor{tablehighlightcolor} 50 & \pin{TDO} & Output & Driven; held quiet between shift states so the pin is well behaved in a chain. \\
+	51 & \pin{TRSTn} & Input & Pulled low; see below. \\ \hline
 \end{tabular}
 \end{center}
 
-\textbf{The pull on \pin{TRSTn} is a deliberate, documented deviation from IEEE
-1149.1.} The standard wants \pin{TRSTn} to idle high, so that a port with a
-floating reset pin is available to a probe that turns up later. This chip pulls
-it \textit{low}, which holds the TAP in reset. The reasoning is that the debug
-transport here is optional: a board that does not use it leaves all five pins
-unconnected, and in that case the desirable behaviour is a port that is
-completely inert (issuing nothing, clocking nothing, and unable to reach the
-Debug Module at all) rather than a port that is quietly attachable by anyone
-who touches the pins. \textbf{Fail-safe-inert was chosen over
-fail-safe-attachable.} A board that wants to use the port must therefore drive
-\pin{TRSTn} high, and cannot rely on the pull to do it.
+The pull on \pin{TRSTn} is a deliberate deviation from IEEE 1149.1, which wants the pin to idle high so that a port with a floating reset is available to a probe. This chip pulls it low, holding the TAP in reset, because the transport is optional: a board that does not use it leaves all five pins unconnected, and the desired behaviour is then a port that is inert rather than one that is attachable by anyone who touches the pins. A board that uses the port drives \pin{TRSTn} high.
 
-The five pins are ordinary digital I/O on the 3.3~V \texttt{VDDPST}/\texttt{VSSPST}
-domain and may be left unconnected; the chip is unaffected. They are deliberately
-placed on the south and east edges, away from the analog band on the north edge.
+A DR scan of IDCODE returns \texttt{0x1CA57EEF}: version \texttt{1}, part number \texttt{0xCA57}, manufacturer \texttt{0x777}, mandatory LSB \texttt{1}. The manufacturer field is not a valid JEDEC JEP106 code and is not registered to anyone; the value is deliberately invalid rather than borrowed, so discovery software identifies the part by its full IDCODE.
 
-\textbf{Identification.} A DR scan of the IDCODE register returns a 32-bit value
-that identifies the part before the debugger knows anything else about it:
+\subsection{Debug Transport Module} \label{ss:debug-dtm}
 
-\begin{center}
-\begin{tabular}{ l l p{8.0cm} }
-	\textbf{Chip} & \textbf{IDCODE} & \textbf{Decomposition} \\ \hline
-	Castalia & \texttt{0x1CA57EEF} & version \texttt{1}, part number \texttt{0xCA57}, manufacturer \texttt{0x777}, mandatory LSB \texttt{1} \\
-	\rowcolor{tablehighlightcolor} Argus & \texttt{0x1A265EEF} & version \texttt{1}, part number \texttt{0xA265}, manufacturer \texttt{0x777}, mandatory LSB \texttt{1} \\ \hline
-\end{tabular}
-\end{center}
-
-The manufacturer field is \texttt{0x777}, which is \textit{not} a valid JEDEC
-JEP106 code and is not registered to anyone. That is intentional and it is the
-honest answer for a non-commercial teaching chip: rather than borrow an
-identifier belonging to a real company, the field carries a value that is
-recognisably invalid. Discovery software should identify this part by its full
-IDCODE, not by its manufacturer field.
-
-\subsection{The Debug Transport Module} \label{ss:debug-dtm}
-
-The DTM implements the TAP described in Section \ref{ss:debug-jtag} and four
-data registers. Its instruction register is \textbf{five bits} wide and resets
-to the IDCODE instruction.
+The DTM implements the TAP and four data registers. The instruction register is five bits wide and resets to IDCODE (Table \ref{t:debug-ir}).
 
 \begin{table}[htb]
 	\centering
+	\caption{Debug Transport Module instruction register values.}
+	\label{t:debug-ir}
 	\begin{tabular}{ l l l p{6.4cm} }
-	\caption{Debug Transport Module instruction register values} \label{t:debug-ir}
 	\textbf{IR value} & \textbf{Instruction} & \textbf{DR width} & \textbf{Selects} \\ \hline
-	\texttt{0x01} & IDCODE & 32 & The identification value above. This is the reset instruction, so the first DR scan after a port reset always returns the IDCODE. \\
-	\rowcolor{tablehighlightcolor} \texttt{0x10} & DTMCS & 32 & The transport's own control and status register. \\
+	\texttt{0x01} & IDCODE & 32 & The identification value. The reset instruction, so the first DR scan after a port reset returns the IDCODE. \\
+	\rowcolor{tablehighlightcolor} \texttt{0x10} & DTMCS & 32 & The transport's control and status register. \\
 	\texttt{0x11} & DMI & 41 & One transaction on the Debug Module Interface. \\
-	\rowcolor{tablehighlightcolor} \texttt{0x1F} & BYPASS & 1 & A single flip-flop, for use in a multi-device chain. \\
-	\textit{anything else} & -- & 1 & \textbf{BYPASS.} Every unrecognised instruction selects the one-bit chain, so the length of the selected register never depends on what was scanned before. \\
+	\rowcolor{tablehighlightcolor} \texttt{0x1F} & BYPASS & 1 & A single flip-flop, for a multi-device chain. \\
+	\textit{any other} & BYPASS & 1 & Every unrecognised instruction selects the one-bit chain, so the selected length never depends on what was scanned before. \\
 	\hline
 	\end{tabular}
 \end{table}
 
-\textbf{Test-Logic-Reset sets the instruction register to IDCODE and does
-nothing else.} In particular it does \textit{not} clear the sticky status
-described below, and does not discard a result waiting to be read. That is what
-the \bitfield{dmireset} strobe is for, and it is why a debugger that has just
-recovered a lost TAP still has to clear the status explicitly. \pin{TRSTn}, by
-contrast, resets the entire transport.
+Test-Logic-Reset sets the instruction register to IDCODE and nothing else: it does not clear the sticky status below and does not discard a waiting result, so a debugger that has recovered a lost TAP still clears the status with \bitfield{dmireset}. \pin{TRSTn} resets the entire transport.
 
-\textbf{DTMCS} reports what the transport can do and carries the two recovery
-strobes:
+DTMCS reports the transport's capabilities and carries the two recovery strobes:
 
 \begin{center}
 \begin{tabular}{ l l p{8.6cm} }
 	\textbf{Bits} & \textbf{Field} & \textbf{Meaning} \\ \hline
-	\texttt{[3:0]} & \bitfield{version} & \texttt{1}: this transport satisfies both the 0.13 and the 1.0 debug specifications. \\
-	\rowcolor{tablehighlightcolor} \texttt{[9:4]} & \bitfield{abits} & \texttt{7}: the DMI address is seven bits wide, so the DMI data register is $7 + 32 + 2 = 41$ bits. \\
-	\texttt{[11:10]} & \bitfield{dmistat} & Sticky transaction status; see below. \\
-	\rowcolor{tablehighlightcolor} \texttt{[14:12]} & \bitfield{idle} & \texttt{7}: the number of Run-Test/Idle clocks the debugger should insert between a DMI scan and the scan that collects its result. \\
-	\texttt{[16]} & \bitfield{dmireset} & Write \texttt{1} to clear \bitfield{dmistat} and abandon any outstanding transaction. Reads as \texttt{0}. \\
-	\rowcolor{tablehighlightcolor} \texttt{[17]} & \bitfield{dmihardreset} & Write \texttt{1} to do the above \textit{and} clear the stored result. Reads as \texttt{0}. \\ \hline
+	\texttt{[3:0]} & \bitfield{version} & \texttt{1}: satisfies the 0.13 and 1.0 debug specifications. \\
+	\rowcolor{tablehighlightcolor} \texttt{[9:4]} & \bitfield{abits} & \texttt{7}: the DMI address is seven bits, so the DMI register is $7 + 32 + 2 = 41$ bits. \\
+	\texttt{[11:10]} & \bitfield{dmistat} & Sticky transaction status. \\
+	\rowcolor{tablehighlightcolor} \texttt{[14:12]} & \bitfield{idle} & \texttt{7}: Run-Test/Idle clocks to insert between a DMI scan and the scan that collects its result. \\
+	\texttt{[16]} & \bitfield{dmireset} & Write \texttt{1} to clear \bitfield{dmistat} and abandon any outstanding transaction. Reads \texttt{0}. \\
+	\rowcolor{tablehighlightcolor} \texttt{[17]} & \bitfield{dmihardreset} & Write \texttt{1} to do the above and clear the stored result. Reads \texttt{0}. \\ \hline
 \end{tabular}
 \end{center}
 
-\textbf{The \bitfield{idle} value is truthful, and that is a deviation worth
-knowing about.} Many implementations advertise \texttt{0} here while in fact
-requiring idle clocks, leaving the debugger to discover the requirement by
-failing. The value \texttt{7} reported here is derived from the real latency of
-the slowest transaction class. A DMI access to one of the Debug Module's own
-registers completes in eight to ten cycles of the internal main clock; an access
-to \register{data0} or a program-buffer word is \textit{proxied} into shared
-memory through the arbiter and takes tens of cycles. Against an assumed
-\pin{TCK} period of at least 140~ns (that is, \pin{TCK} at or below
-7.14~MHz) against a 24~MHz main clock, the worst class needs six idle cycles,
-and \texttt{7} gives one cycle of margin. It is also the largest value a
-three-bit field can express.
+The \bitfield{idle} value is derived from the real latency of the slowest transaction class. A DMI access to one of the Debug Module's own registers completes in eight to ten cycles of the main clock; an access to \register{data0} or a program-buffer word is proxied into shared memory through the arbiter and takes tens of cycles. Against a \pin{TCK} period of at least 140 ns (7.14 MHz or below) and a 24 MHz main clock, the worst class needs six idle cycles and \texttt{7} gives one cycle of margin. It is a recommendation, not a guarantee: at a faster \pin{TCK}, or while the harts contend for the shared bus, a transaction can still be outstanding when the debugger returns, which is reported as busy and answered by clearing the status and reissuing.
 
-\textbf{\bitfield{idle} is a recommendation, not a guarantee.} At a faster
-\pin{TCK}, or while the shared bus is heavily contended by the harts, a
-transaction can still be outstanding when the debugger comes back for it. That
-is not an error; it is reported as \textit{busy} and the correct response is to
-clear the status and reissue.
-
-\textbf{The DMI data register} is 41 bits, laid out as in Figure
-\ref{fig:dmi-field}: \bitfield{op}\texttt{[1:0]}, \bitfield{data}\texttt{[33:2]},
-\bitfield{address}\texttt{[40:34]}.
+The DMI data register is 41 bits (Figure \ref{fig:dmi-field}): \bitfield{op} \texttt{[1:0]}, \bitfield{data} \texttt{[33:2]}, \bitfield{address} \texttt{[40:34]}. On the way in, \bitfield{op} is \texttt{00} for no operation, \texttt{01} for read and \texttt{10} for write; on the way out it is \texttt{00} for success, \texttt{10} for failed and \texttt{11} for busy. A no-operation scan starts nothing, which makes a capture-only scan (zeros shifted in to read the previous result) safe.
 
 % Generated by LatexUserGuide.GenerateDmiFieldDiagram (make chip).
 \begin{figure}[htpb]
 	\centering
 	\input{include/DmiFieldDiagram.tex}
-	\caption[{The 41-bit DMI data register.}]{The 41-bit DMI data register. One scan of it is one transaction on the Debug Module Interface.}
+	\caption{Field layout of the 41-bit DMI data register.}
 	\label{fig:dmi-field}
-\end{figure} On the way \textit{in}, \bitfield{op} is
-\texttt{00} for no-operation, \texttt{01} for read and \texttt{10} for write. On
-the way \textit{out}, it is \texttt{00} for success, \texttt{10} for failed and
-\texttt{11} for busy. \textbf{A no-operation scan never starts anything}, which
-is what makes a capture-only scan (shifting in zeros purely to read out the
-previous result) safe.
+\end{figure}
 
-\textbf{\bitfield{dmistat} is sticky, and it has two flavours.} It takes the
-value \texttt{3} (busy) if a scan is captured while a transaction is still in
-flight, or if a new transaction is scanned in while one is outstanding; and
-\texttt{2} (failed) if a transaction completes with a failure, which happens,
-for instance, on a DMI access to an address the Debug Module does not implement.
-\textbf{While \bitfield{dmistat} is nonzero, in either flavour, further DMI
-scans are dropped.} This is deliberate: it stops a debugger from issuing a long
-sequence of writes into the void after the first one failed. The recovery is
-always the same (write \bitfield{dmireset}, then reissue), and the status is
-cleared by \bitfield{dmireset} or \bitfield{dmihardreset} and by nothing else.
-Neither Test-Logic-Reset nor a system reset clears it.
-
-Figure \ref{fig:dmi-crossing} follows a single transaction across the clock
-boundary, and is where the \bitfield{idle} value above comes from.
+\bitfield{dmistat} is sticky with two values: \texttt{3} (busy) if a scan is captured while a transaction is in flight or a new transaction is scanned in while one is outstanding, and \texttt{2} (failed) if a transaction fails, for instance on a DMI address the Debug Module does not implement. While \bitfield{dmistat} is nonzero, further DMI scans are dropped, so that a debugger cannot issue a long sequence of writes after the first one failed. The status is cleared by \bitfield{dmireset} or \bitfield{dmihardreset} and by nothing else; neither Test-Logic-Reset nor a system reset clears it. Figure \ref{fig:dmi-crossing} follows one transaction across the clock boundary.
 
 % Generated by LatexUserGuide.GenerateDmiCrossingDiagram (make chip).
 \begin{figure}[htpb]
 	\centering
 	\resizebox{\linewidth}{!}{\input{include/DmiCrossingDiagram.tex}}
-	\caption[{One DMI transaction crossing between the two clock domains.}]{One DMI transaction crossing between the two clock domains, drawn on the internal clock. The two events in the debug probe's own clock domain are marked above the waveforms rather than drawn, because the ratio between the two clocks is a board-level choice. The shaded cycles are the request handshake: the request is presented for exactly two cycles and retired as soon as the acceptance is observed, and the note below explains why holding it any longer would make the same request be answered twice.}
+	\caption{Timing diagram of one DMI transaction crossing between the two clock domains.}
 	\label{fig:dmi-crossing}
 \end{figure}
 
-\subsection{The Debug Module} \label{ss:debug-dm}
+\subsection{Debug Module} \label{ss:debug-dm}
 
-There is one Debug Module for the whole chip. It sits on the always-running main
-clock, it is reachable by the DTM through the DMI, and, because it must be
-able to place instructions where a hart will fetch them, it is also a
-\textit{master} on the shared-memory arbiter, alongside the harts (Section
-\ref{s:multicore}). Table \ref{t:debug-dmi} is its DMI address map.
+There is one Debug Module for the chip. It runs on the always-running main clock, is reached by the DTM through the DMI, and, because it must place instructions where a hart will fetch them, it is also a master on the shared-memory arbiter alongside the harts (Section \ref{s:multicore}). Table \ref{t:debug-dmi} is its DMI address map.
 
 \begin{center}
 \begin{longtable}[c]{ l l p{9.0cm} }
-\caption{Debug Module registers, at their DMI addresses} \label{t:debug-dmi} \\
+\caption{Debug Module registers at their DMI addresses.} \label{t:debug-dmi} \\
 \hline \textbf{DMI} & \textbf{Register} & \textbf{Purpose} \\ \hline \endfirsthead
 \multicolumn{3}{c}{\textit{\tablename\ \thetable\ continued from previous page}} \\ \hline
 \textbf{DMI} & \textbf{Register} & \textbf{Purpose} \\ \hline \endhead
 \hline \multicolumn{3}{c}{\textit{\tablename\ \thetable\ continued on next page}} \\ \endfoot \hline \endlastfoot
-\texttt{0x04} & \register{data0} & The single abstract-command data word. Backed by shared memory, not by a flip-flop. \\
+\texttt{0x04} & \register{data0} & The abstract-command data word, backed by shared memory. \\
 \rowcolor{tablehighlightcolor} \texttt{0x10} & \register{dmcontrol} & Run control: enable the module, select a hart, halt it, resume it. \\
-\texttt{0x11} & \register{dmstatus} & The selected hart's state, and the module's capabilities. Read-only. \\
-\rowcolor{tablehighlightcolor} \texttt{0x12} & \register{hartinfo} & Reads \texttt{0x00000000}: no scratch registers, no debugger-visible \register{data0} address. Read-only, and the zero is deliberate; see below. \\
-\texttt{0x13} & \register{haltsum1} & Reads zero. Present, and answering successfully, because debuggers probe it. \\
-\rowcolor{tablehighlightcolor} \texttt{0x16} & \register{abstractcs} & Abstract-command status: busy, error code, and the module's sizes. \\
+\texttt{0x11} & \register{dmstatus} & The selected hart's state and the module's capabilities. Read-only. \\
+\rowcolor{tablehighlightcolor} \texttt{0x12} & \register{hartinfo} & Reads zero: no scratch registers and no debugger-visible \register{data0} address. Read-only. \\
+\texttt{0x13} & \register{haltsum1} & Reads zero. Present because debuggers probe it during discovery. \\
+\rowcolor{tablehighlightcolor} \texttt{0x16} & \register{abstractcs} & Abstract-command status: busy, error code, sizes. \\
 \texttt{0x17} & \register{command} & Write to start an abstract command. Reads zero. \\
-\rowcolor{tablehighlightcolor} \texttt{0x18} & \register{abstractauto} & Reads zero; automatic command re-execution is not implemented. \\
-\texttt{0x20} & \register{progbuf0} & Program-buffer word 0. Backed by shared memory. \\
-\rowcolor{tablehighlightcolor} \texttt{0x21} & \register{progbuf1} & Program-buffer word 1. Backed by shared memory. \\
+\rowcolor{tablehighlightcolor} \texttt{0x18} & \register{abstractauto} & Reads zero; automatic re-execution is not implemented. \\
+\texttt{0x20} & \register{progbuf0} & Program-buffer word 0, backed by shared memory. \\
+\rowcolor{tablehighlightcolor} \texttt{0x21} & \register{progbuf1} & Program-buffer word 1, backed by shared memory. \\
 \texttt{0x32} & \register{dmcs2} & Halt-group membership of the selected hart. \\
 \rowcolor{tablehighlightcolor} \texttt{0x40} & \register{haltsum0} & One bit per hart: halted and reachable. The only status register that ignores the hart selection. \\
 \hline
 \end{longtable}
 \end{center}
 
-\textbf{\register{hartinfo} reads zero on purpose, and a debugger should want it
-to.} The register exists to advertise per-hart scratch registers and the address
-of \register{data0}, so that a debugger can use them directly. This
-implementation advertises neither: its \texttt{nscratch}, \texttt{dataaccess},
-\texttt{datasize} and \texttt{dataaddr} fields are all zero. With
-\texttt{dataaccess}~$=0$ a conforming debugger does not consult
-\texttt{dataaddr} at all and reaches memory through the program buffer and its
-own work area instead, which is the only path this chip supports anyway (there is
-no System Bus Access; see Section \ref{ss:debug-limits}). Advertising an address
-here would also have been actively wrong: the field is twelve bits wide, and the
-real \register{data0} address does not fit in it. A truthful zero is better than
-a truncated pointer into somebody else's memory.
+Any other DMI address returns failed, which because \bitfield{dmistat} is sticky also stalls the transport until cleared. \register{haltsum1} and \register{abstractauto} answer with a successful zero because debuggers routinely read them during discovery. \register{hartinfo} reads zero on purpose: with \texttt{dataaccess} = 0 a conforming debugger does not consult \texttt{dataaddr} and reaches memory through the program buffer, which is the only path this chip supports, and the real \register{data0} address does not fit the twelve-bit field.
 
-\textbf{Any other DMI address returns \textit{failed}}, which, because
-\bitfield{dmistat} is sticky, will also stall the transport until the debugger
-clears it. Probing for unimplemented registers is therefore not free, and this is
-why \register{haltsum1} and \register{abstractauto} answer with a successful zero
-instead of a failure: they are addresses debuggers routinely read during
-discovery, and failing them would punish a debugger for being thorough.
+\register{dmcontrol} is where every session starts. \bitfield{dmactive} (bit 0) must be written 1 before the module does anything; writing 0 resets the module's own state but not the harts. \bitfield{hartsel} (bits \texttt{[25:16]}) selects the hart the status and command registers refer to; all ten bits are implemented, and an index that does not exist is reported as nonexistent rather than clamped, which is what makes hart-count discovery work. \bitfield{haltreq} (bit 31) is a level that asks the selected hart to halt while set. \bitfield{resumereq} (bit 30) is a write-one request that is queued rather than refused and ignored for a hart that is not halted or not reachable. \bitfield{setresethaltreq} and \bitfield{clrresethaltreq} (bits 3 and 2) arm and disarm halt-on-reset for the selected hart. \bitfield{ndmreset}, \bitfield{hartreset} and \bitfield{hasel} are not implemented; they read zero and ignore writes.
 
-\textbf{\register{dmcontrol}} is the register everything starts with.
-\bitfield{dmactive} (bit 0) must be written \texttt{1} before the module will do
-anything; writing it \texttt{0} resets the module's own state, but
-\textit{not} the harts. \bitfield{hartsel} (bits \texttt{[25:16]}) selects which
-hart the status and command registers refer to; all ten bits are implemented, and
-selecting a hart index that does not exist is reported honestly as
-\textit{nonexistent} rather than silently clamped to the highest real hart, which
-is what makes hart-count discovery work. \bitfield{haltreq} (bit 31) is a level:
-while it is set, the selected hart is asked to halt. \bitfield{resumereq} (bit 30)
-is a write-one request to resume; it is queued rather than refused, and it is
-ignored for a hart that is not halted or is not reachable.
-\bitfield{setresethaltreq} and \bitfield{clrresethaltreq} (bits 3 and 2) arm and
-disarm halt-on-reset for the selected hart. \bitfield{ndmreset},
-\bitfield{hartreset} and \bitfield{hasel} are not implemented; they read zero and
-ignore writes.
+\register{dmstatus} reports \bitfield{version} = 3 (specification 1.0), \bitfield{authenticated} = 1 (no authentication), \bitfield{hasresethaltreq} = 1 and \bitfield{impebreak} = 1. Hart state is reported through six pairs of bits, and because one hart is selected at a time both bits of each pair carry the same value:
+\begin{itemize}
+	\item \bitfield{allhalted}, \bitfield{anyhalted}
+	\item \bitfield{allrunning}, \bitfield{anyrunning}
+	\item \bitfield{allunavail}, \bitfield{anyunavail}
+	\item \bitfield{allnonexistent}, \bitfield{anynonexistent}
+	\item \bitfield{allresumeack}, \bitfield{anyresumeack}
+	\item \bitfield{allhavereset}, \bitfield{anyhavereset}
+\end{itemize}
 
-\textbf{\register{dmstatus}} reports \bitfield{version}~$=3$ (debug specification
-1.0), \bitfield{authenticated}~$=1$ (there is no authentication on this chip),
-\bitfield{hasresethaltreq}~$=1$ and \bitfield{impebreak}~$=1$. Its state is
-reported through the usual paired bits: \bitfield{allhalted}/\bitfield{anyhalted},
-\bitfield{allrunning}/\bitfield{anyrunning}, \bitfield{allunavail}/\bitfield{anyunavail},
-\bitfield{allnonexistent}/\bitfield{anynonexistent},
-\bitfield{allresumeack}/\bitfield{anyresumeack},
-\bitfield{allhavereset}/\bitfield{anyhavereset}. Because only one hart is ever
-selected, both bits of every pair always carry the same value.
-
-\textbf{\register{abstractcs}} reports \bitfield{progbufsize}~$=2$ and
-\bitfield{datacount}~$=1$: two program-buffer words and one data word.
-\bitfield{busy} (bit 12) is set while a command is running, and the module
-remains readable while it is, so the debugger can poll. \bitfield{cmderr} (bits
-\texttt{[10:8]}) is the error code, and it is \textbf{write-one-to-clear}:
+\register{abstractcs} reports \bitfield{progbufsize} = 2 and \bitfield{datacount} = 1. \bitfield{busy} (bit 12) is set while a command runs, and the module stays readable so the debugger can poll. \bitfield{cmderr} (bits \texttt{[10:8]}) is write-one-to-clear:
 
 \begin{center}
 \begin{tabular}{ l l p{9.2cm} }
 	\textbf{\bitfield{cmderr}} & \textbf{Meaning} & \textbf{Raised when} \\ \hline
-	\texttt{0} & none & -- \\
-	\rowcolor{tablehighlightcolor} \texttt{1} & busy & A command was written while one was running, or \register{data0}/a program-buffer word was accessed while the module's bus engine was busy. \\
+	\texttt{0} & none & No error. \\
+	\rowcolor{tablehighlightcolor} \texttt{1} & busy & A command was written while one was running, or \register{data0} or a program-buffer word was accessed while the bus engine was busy. \\
 	\texttt{2} & not supported & The command type is not access-register, or the transfer size is not 32-bit. \\
 	\rowcolor{tablehighlightcolor} \texttt{3} & exception & The hart took an exception while executing the command. \\
 	\texttt{4} & halt/resume & The selected hart was not halted when the command was written. \\
-	\rowcolor{tablehighlightcolor} \texttt{7} & other & A command did not complete within the module's internal timeout. \\ \hline
+	\rowcolor{tablehighlightcolor} \texttt{7} & other & The command did not complete within the module's internal timeout. \\ \hline
 \end{tabular}
 \end{center}
 
-\textbf{A command written while \bitfield{cmderr} is already nonzero is ignored
-entirely}: it does not run, and it does not clear the error on its way past.
-Software must clear \bitfield{cmderr} before issuing the next command.
+A command written while \bitfield{cmderr} is nonzero is ignored entirely: it does not run and does not clear the error.
 
-\textbf{\register{command}} implements one command type: \textbf{access
-register}. It transfers one 32-bit value between \register{data0} and a register
-of the halted hart, optionally executing the program buffer afterwards. The
-fields are \bitfield{aarsize} (\texttt{[22:20]}, which must be \texttt{2} for
-32-bit), \bitfield{postexec} (bit 18), \bitfield{transfer} (bit 17),
-\bitfield{write} (bit 16) and \bitfield{regno} (\texttt{[15:0]}). Register
-numbers \texttt{0x1000}--\texttt{0x101F} are the general-purpose registers
-\asminline{x0}--\asminline{x31}; any other number is treated as a control and
-status register address. \textbf{Access memory is deliberately not
-implemented} and returns \textit{not supported}. Memory is reached instead by
-writing an \asminline{lw} or \asminline{sw} into the program buffer and executing
-it on the halted hart; see Section \ref{ss:debug-limits}.
+\register{command} implements one command type, access register: it transfers one 32-bit value between \register{data0} and a register of the halted hart, optionally executing the program buffer afterwards. The fields are \bitfield{aarsize} (\texttt{[22:20]}, which must be 2), \bitfield{postexec} (bit 18), \bitfield{transfer} (bit 17), \bitfield{write} (bit 16) and \bitfield{regno} (\texttt{[15:0]}). Register numbers \texttt{0x1000} to \texttt{0x101F} are \asminline{x0} to \asminline{x31}; any other number is a CSR address. Access memory is not implemented and returns not supported; memory is reached by executing \asminline{lw} or \asminline{sw} from the program buffer.
 
-\textbf{\register{data0} and the program-buffer words are memory, not
-registers.} A DMI access to \texttt{0x04}, \texttt{0x20} or \texttt{0x21}
-becomes a read or write of a word in shared memory, issued by the Debug Module
-through the ordinary arbiter. This is why those three addresses are the slow
-class that sets \bitfield{idle} to \texttt{7}, and why an access to them while
-the module's bus engine is busy answers successfully with zero data \textit{and}
-sets \bitfield{cmderr} to \textit{busy}: the answer arrives, but it is not the
-answer you wanted, and the error code is how you find out.
+\register{data0} and the program-buffer words are shared memory, not flip-flops: a DMI access to \texttt{0x04}, \texttt{0x20} or \texttt{0x21} becomes a read or write of a word in shared memory issued by the Debug Module through the arbiter. That is why those addresses are the slow class behind \bitfield{idle} = 7, and why an access to them while the bus engine is busy answers with zero data and sets \bitfield{cmderr} to busy. The program buffer is two DMI-visible words plus an implicit third word supplied by hardware, which is why \bitfield{impebreak} reads 1.
 
-The program buffer is two DMI-visible words plus an \textbf{implicit third
-word}, which is why \bitfield{impebreak} reads \texttt{1}. Software may therefore
-place up to three instructions' worth of work in the buffer, with the third slot
-supplied by hardware.
+\subsection{Debug mode in the hart} \label{ss:debug-hart}
 
-\subsection{Debug Mode in the Hart} \label{ss:debug-hart}
-
-A hart enters debug mode for one of four reasons, recorded in
-\register{dcsr}.\bitfield{cause}:
+A hart enters debug mode for one of four reasons, recorded in \register{dcsr}.\bitfield{cause}:
 
 \begin{center}
 \begin{tabular}{ l l p{9.0cm} }
@@ -475,103 +249,53 @@ A hart enters debug mode for one of four reasons, recorded in
 	\texttt{1} & \asminline{EBREAK} & A software breakpoint, taken only when \register{dcsr}.\bitfield{ebreakm} is set (or when the hart is already in debug mode). \\
 	\rowcolor{tablehighlightcolor} \texttt{3} & Halt request & The Debug Module asserted \bitfield{haltreq}. \\
 	\texttt{4} & Single step & The one instruction permitted by \register{dcsr}.\bitfield{step} has retired. \\
-	\rowcolor{tablehighlightcolor} \texttt{5} & Halt on reset & \bitfield{setresethaltreq} was armed when this hart came out of reset. \\ \hline
+	\rowcolor{tablehighlightcolor} \texttt{5} & Halt on reset & \bitfield{setresethaltreq} was armed when this hart left reset. \\ \hline
 \end{tabular}
 \end{center}
 
-On entry, the hart saves its program counter to \register{dpc}, records the
-cause and its previous privilege level in \register{dcsr}, sets debug mode, and
-jumps to a fixed address, \textbf{\texttt{0x00010780}}, in the shared memory
-window. It is now executing the debugger's code.
-
-Four control registers exist while it is there, and \textbf{only} while it is
-there:
+On entry the hart saves its program counter to \register{dpc}, records the cause and previous privilege level in \register{dcsr}, sets debug mode, and jumps to the fixed address \texttt{0x00010780} in the shared window. Four CSRs exist only in debug mode:
 
 \begin{center}
 \begin{tabular}{ l l p{9.2cm} }
 	\textbf{Address} & \textbf{Register} & \textbf{Contents} \\ \hline
-	\texttt{0x7B0} & \register{dcsr} & Debug control and status: \bitfield{xdebugver} \texttt{[31:28]} reads \texttt{4}; \bitfield{ebreakm} (15) makes \asminline{EBREAK} enter debug mode; \bitfield{ebreaku} (12) does the same for user mode, where user mode is configured; \bitfield{cause} \texttt{[8:6]} is read-only and set by hardware; \bitfield{step} (2) enables single-stepping; \bitfield{prv} \texttt{[1:0]} is the privilege level to return to. \\
+	\texttt{0x7B0} & \register{dcsr} & \bitfield{xdebugver} \texttt{[31:28]} reads 4; \bitfield{ebreakm} (15) makes \asminline{EBREAK} enter debug mode; \bitfield{ebreaku} (12) does the same for user mode where it is configured; \bitfield{cause} \texttt{[8:6]} is read-only; \bitfield{step} (2) enables single-stepping; \bitfield{prv} \texttt{[1:0]} is the privilege level to return to. \\
 	\rowcolor{tablehighlightcolor} \texttt{0x7B1} & \register{dpc} & The saved program counter. Bit 0 is hardwired zero; bit 1 is writable only where the compressed extension is configured. \\
-	\texttt{0x7B2} & \register{dscratch0} & A 32-bit scratch word for the debugger's own use. \\
-	\rowcolor{tablehighlightcolor} \texttt{0x7B3} & \register{dscratch1} & A second scratch word. \\ \hline
+	\texttt{0x7B2} & \register{dscratch0} & Scratch word for the debugger. \\
+	\rowcolor{tablehighlightcolor} \texttt{0x7B3} & \register{dscratch1} & Second scratch word. \\ \hline
 \end{tabular}
 \end{center}
 
-\textbf{Accessing any of them from machine or user mode is an illegal
-instruction, and the denial is wider than the four addresses.} Every CSR
-instruction naming an address in \texttt{0x7B0}--\texttt{0x7BF} is rejected
-outside debug mode. This is not an optimisation: it means a program cannot
-accidentally, or deliberately, read the debugger's saved state or forge an
-entry.
+Every CSR instruction naming an address in \texttt{0x7B0} to \texttt{0x7BF} is an illegal instruction outside debug mode, so a program cannot read the debugger's saved state or forge an entry. \asminline{DRET} (\texttt{0x7B200073}) leaves debug mode, restoring the program counter from \register{dpc} and the privilege level from \register{dcsr}.\bitfield{prv}; outside debug mode it is an illegal instruction.
 
-\textbf{\asminline{DRET} (\texttt{0x7B200073}) leaves debug mode}, restoring the
-program counter from \register{dpc} and the privilege level from
-\register{dcsr}.\bitfield{prv}. Outside debug mode it is an illegal instruction.
-
-Five behaviours are worth calling out because they are the ones that decide
-whether a debug session works:
+Five behaviours decide whether a session works:
 
 \begin{itemize}
-	\item \textbf{The halt request is unmaskable.} It is recognised at fourteen points in the processor's instruction sequencer: the thirteen at which an interrupt is recognised, \textit{plus the terminal trap state}. A hart that has taken an illegal instruction and stopped retiring, which is otherwise unrecoverable short of reset (Section \ref{ss:priv-legacy}), can therefore be halted and inspected. Neither \register{mstatus}.\bitfield{MIE} nor \register{mtrapctl}.\bitfield{LEGACY} has any effect on it. Note that this rescues a wedged hart only if something is there to request the halt: with no debugger attached the wedge is exactly as terminal as it always was.
-	\item \textbf{An \asminline{EBREAK} records its own address in \register{dpc}}, not the address after it. A debugger resuming past a software breakpoint must add the instruction's length itself. Every other cause is taken between instructions, so \register{dpc} is already the resume address.
-	\item \textbf{No interrupt is taken in debug mode.} Interrupt sources remain pending as levels and are delivered after the \asminline{DRET}, so a debug session neither loses interrupts nor lets the application's handlers run underneath it.
-	\item \textbf{An exception taken in debug mode re-enters debug mode} at the same fixed address, leaving \register{dpc} and \register{dcsr} untouched, and without disturbing \register{mepc}, \register{mcause} or \register{mtval}. This is what makes a faulting abstract command (reading a CSR the configuration does not implement, say) report \bitfield{cmderr}~$=3$ instead of destroying the session.
-	\item \textbf{Halt-on-reset is sampled once, at reset release.} Arming \bitfield{setresethaltreq} affects the \textit{next} time that hart comes out of reset; it will not halt a hart that is already running. This is what lets a debugger catch a hart before its first instruction, and it is why arming it does not disturb a running system.
+	\item \textbf{The halt request is unmaskable.} It is recognised at the thirteen sequencer points at which an interrupt is recognised plus the terminal trap state, so a hart that has taken an illegal instruction and stopped retiring (Section \ref{ss:priv-legacy}) can be halted and inspected. Neither \register{mstatus}.\bitfield{MIE} nor \register{mtrapctl}.\bitfield{LEGACY} affects it.
+	\item \textbf{An \asminline{EBREAK} records its own address in \register{dpc}}, not the address after it, so a debugger resuming past a software breakpoint adds the instruction's length itself. Every other cause is taken between instructions and \register{dpc} is the resume address.
+	\item \textbf{No interrupt is taken in debug mode.} Sources stay pending as levels and are delivered after \asminline{DRET}, so a session neither loses interrupts nor runs the application's handlers underneath the debugger.
+	\item \textbf{An exception in debug mode re-enters debug mode} at the same fixed address, leaving \register{dpc}, \register{dcsr}, \register{mepc}, \register{mcause} and \register{mtval} untouched, which is what makes a faulting abstract command report \bitfield{cmderr} = 3 instead of ending the session.
+	\item \textbf{Halt-on-reset is sampled once, at reset release.} Arming \bitfield{setresethaltreq} affects the next time the hart leaves reset and does not halt a running hart.
 \end{itemize}
 
-Finally: \textbf{single-step diverts at the stepped instruction's own dispatch},
-so exactly one instruction retires per step. Stepping is inactive while in debug
-mode, so the debugger's own stub does not step itself.
-
-Figure \ref{fig:debug-mode-state} collects the whole of the above into the two
-states a hart can be in.
+Single-step diverts at the stepped instruction's own dispatch, so exactly one instruction retires per step; stepping is inactive inside debug mode. Figure \ref{fig:debug-mode-state} collects the two states.
 
 % Generated by LatexUserGuide.GenerateDebugModeStateDiagram (make chip).
 \begin{figure}[htpb]
 	\centering
 	\resizebox{\linewidth}{!}{\input{include/DebugModeStateDiagram.tex}}
-	\caption[{Debug mode, from the hart's point of view.}]{Debug mode, from the hart's point of view. Debug mode behaves as a privilege level above machine mode: the hart has not stopped, it has been diverted to code the debugger controls, and it returns by executing \asminline{dret}. The self-loop is the property that makes a faulting abstract command recoverable rather than fatal.}
+	\caption{State diagram of debug mode, from the hart's point of view.}
 	\label{fig:debug-mode-state}
 \end{figure}
 
-\subsection{Halt Groups and Unavailable Harts} \label{ss:debug-groups}
+\subsection{Halt groups and unavailable harts} \label{ss:debug-groups}
 
-Two facilities exist because this is a multi-hart chip.
+\register{dmcs2} assigns the selected hart to one of eight halt groups; group 0, the reset value, is no group. When any member of a group halts for any reason, including its own \asminline{EBREAK}, the Debug Module requests a halt of every other member, so a breakpoint in one hart stops the cooperating set at very nearly the same instant. Halting is grouped; resuming is done per hart.
 
-\textbf{Halt groups} solve the problem that stopping one hart of a
-cooperating set, while the others run on, changes the very behaviour you were
-trying to observe. \register{dmcs2} assigns the selected hart to one of eight
-groups; group \texttt{0}, the reset value, means ``no group''. \textbf{When any
-member of a group halts, for any reason, including its own
-\asminline{EBREAK}, the Debug Module requests a halt of every other member.}
-Setting a breakpoint in one hart therefore stops the whole group at very nearly
-the same instant. Note that this is halt-only: resuming a group is done by
-resuming its members individually.
+Unavailable is a third state, distinct from halted. A hart whose power domain is off cannot answer the Debug Module, and the signals that would report its state are clamped to zero at the domain boundary; a clamped not-halted is indistinguishable from running, so the module takes a separate unavailable signal from the power controller and consults it before halted or running. The reported state resolves in the order nonexistent, unavailable, halted, running, and a gated hart reports \bitfield{allunavail}/\bitfield{anyunavail} with both halted and running clear. A halt request to a gated hart does nothing; the debugger powers the hart up through \peripheral{PWRCTRL} first, and because a hart returning from power-down cold-boots the ROM and parks, halt-on-reset is armed before powering it up to catch it on its first instruction.
 
-\textbf{Unavailable is a third state, and it is not the same as halted.} This
-chip power-gates the harts (Section \ref{s:multicore}); a hart whose power domain
-is off cannot answer the Debug Module at all, and the signals that would report
-its state are clamped to zero at the domain boundary. A clamped ``not halted'' is
-indistinguishable from ``running'', so the Debug Module does not rely on it: it
-takes a separate, deliberate \textit{unavailable} signal from the power
-controller, and consults it \textbf{before} halted or running. The reported state
-is therefore resolved in strict order (\textbf{nonexistent, then unavailable,
-then halted, then running}), and a gated hart reports
-\bitfield{allunavail}/\bitfield{anyunavail} with both halted and running clear.
-It is never misreported as running.
+\subsection{Debug program page} \label{ss:debug-page}
 
-Two consequences follow. First, a halt request aimed at a gated hart does
-nothing; the debugger must power the hart up first, through the power controller,
-exactly as software would. Second, \textbf{a hart returning from power-down
-cold-boots the boot ROM and parks; it does not resume where it left off}. If
-you want to catch it as it comes back, arm halt-on-reset before powering it up.
-Note that hart 0 is not exempt from any of this.
-
-\subsection{The Debug Program Page} \label{ss:debug-page}
-
-Because a halted hart executes code, the debug system needs memory it owns. It
-uses one 512-byte region of the shared window, listed here so that application
-software does not collide with it.
+Because a halted hart executes code, the debug system owns one 512-byte region of the shared window:
 
 \begin{center}
 \begin{tabular}{ l p{9.6cm} }
@@ -580,189 +304,96 @@ software does not collide with it.
 	\rowcolor{tablehighlightcolor} \texttt{0x10684} & \register{progbuf0} \\
 	\texttt{0x10688} & \register{progbuf1} \\
 	\rowcolor{tablehighlightcolor} \texttt{0x1068C} & The implicit third program-buffer word, written by the Debug Module. \\
-	\texttt{0x10690}--\texttt{0x106EC} & Reserved for the Debug Module. \\
-	\rowcolor{tablehighlightcolor} \texttt{0x106F0}, \texttt{0x106F4} & The entry stub's private repair copies of \asminline{s0} and \asminline{s1}. They are not where a debugger reads those registers from; see below. \\
-	\texttt{0x10700}\,$+$\,$4h$ & The per-hart handshake word between the Debug Module and hart $h$. \\
-	\rowcolor{tablehighlightcolor} \texttt{0x10780}--\texttt{0x1087F} & The debug entry page, 64 words: the entry stub, the area into which the Debug Module writes each abstract command, and the common exit sequence. \\ \hline
+	\texttt{0x10690} to \texttt{0x106EC} & Reserved for the Debug Module. \\
+	\rowcolor{tablehighlightcolor} \texttt{0x106F0}, \texttt{0x106F4} & The entry stub's repair copies of \asminline{s0} and \asminline{s1}; not where a debugger reads those registers from. \\
+	\texttt{0x10700} $+$ $4h$ & The per-hart handshake word between the Debug Module and hart $h$. \\
+	\rowcolor{tablehighlightcolor} \texttt{0x10780} to \texttt{0x1087F} & The debug entry page, 64 words: the entry stub, the area into which the Debug Module writes each abstract command, and the common exit sequence. \\ \hline
 \end{tabular}
 \end{center}
-
-Figure \ref{fig:debug-page} draws the same region to scale, with the one
-boundary inside it that software has to know about.
 
 % Generated by LatexUserGuide.GenerateDebugPageDiagram (make chip).
 \begin{figure}[htpb]
 	\centering
 	\resizebox{\linewidth}{!}{\input{include/DebugPageDiagram.tex}}
-	\caption[{The debug program page.}]{The debug program page. The boot ROM zero-fills shared memory only up to \texttt{0x107FF}, so the dashed line marks where that guarantee stops: everything above it is code the Debug Module writes before anything can read it, which is why the page needs no staging and cannot be read-only memory.}
+	\caption{Memory map of the debug program page in shared memory.}
 	\label{fig:debug-page}
 \end{figure}
 
-\textbf{The whole region \texttt{0x10680}--\texttt{0x1087F} is reserved.}
-Application software, including software on harts that are not being debugged,
-must not write to it in a configuration built with debug support. A stray store
-into the entry page does not merely corrupt data; it corrupts the code a
-halted hart is executing.
+The Debug Module writes the entry page itself, once when \bitfield{dmactive} is raised and again before acting on any hart it has just seen halt, so nothing is staged in advance and the page cannot be read-only memory. The page is assembled without compressed instructions, because execution of compressed or misaligned instructions from the shared window is outside the tested envelope (Section \ref{s:multicore}).
 
-Two details matter to anyone writing code that runs \textit{in} that page. It is
-assembled without compressed instructions, because execution of compressed or
-misaligned instructions from the shared window is outside the tested envelope
-(Section \ref{s:multicore}).
+While a hart is halted, the single home of the interrupted program's \asminline{s0} and \asminline{s1} is the CSR pair \register{dscratch0} and \register{dscratch1}: a debugger that reads or writes \asminline{s0} reads or writes \register{dscratch0}, and a program-buffer change to \asminline{s0} survives to the next read because the exit sequence adopts the architectural pair into the CSRs first. The two words at \texttt{0x106F0} and \texttt{0x106F4} are the stub's own repair copies for a hart that re-enters debug mode from inside the page; the Debug Module writes them only when it authored a new value, and nothing else reads them. A plain halt and resume with no register writes leaves \asminline{s0} and \asminline{s1} as it found them.
 
-And the debug system needs two working registers of its own, which is why
-\asminline{s0} and \asminline{s1} are handled differently from every other
-register. While a hart is halted, \textbf{the single home of the interrupted
-program's \asminline{s0} and \asminline{s1} is the pair of CSRs
-\register{dscratch0} and \register{dscratch1}}. A debugger that reads
-\asminline{s0} gets the value out of \register{dscratch0}; one that writes
-\asminline{s0} writes \register{dscratch0}; and code in the program buffer that
-changes \asminline{s0} has that change survive to the debugger's next read,
-because the exit sequence adopts the architectural pair into
-the \register{dscratch0}/\register{dscratch1} pair before it does anything else. The two words at
-\texttt{0x106F0} and \texttt{0x106F4} are the entry stub's own repair copies,
-used to rebuild that pair if a hart re-enters debug mode from inside
-the page; the Debug Module writes them only when it is itself the author of a
-new value, and nothing else should read them at all. The visible consequence is
-the one that matters: \textbf{you see the interrupted program's values, not the
-stub's working values}, and a plain halt-and-resume with no debugger register
-writes leaves the program's \asminline{s0} and \asminline{s1} exactly as it
-found them.
+\section{Interrupts and events}
 
-\subsection{A Worked Halt, Read and Resume} \label{ss:debug-worked}
+Not applicable. The debug system raises no interrupt vector; a halted hart is observed through \register{dmstatus}, and interrupts pending on a hart in debug mode are delivered after \asminline{DRET}.
 
-The following is a complete session at the DMI level: attach, halt hart 2, read
-its \asminline{a1} register, and resume it. Each numbered step is one or more
-JTAG scans. A ``DMI read'' is two scans (one to issue the read, and one, after
-the recommended idle clocks, to collect the result), because the transport
-returns the \textit{previous} transaction's result on every capture.
+\section{Programming}
+
+\subsection{Halt, read a register, resume} \label{ss:debug-worked}
+
+The following session halts hart 2, reads its \asminline{a1} register and resumes it. Each step is one or more JTAG scans; a DMI read is two scans (one to issue the read and one, after the idle clocks, to collect the result), because the transport returns the previous transaction's result on every capture. Figure \ref{fig:debug-swimlane} draws the same steps across the four agents that perform them.
 
 \begin{enumerate}
-	\item \textbf{Reset the port and identify the chip.} Drive \pin{TRSTn} high, then clock \pin{TMS} high for five \pin{TCK} cycles to reach Test-Logic-Reset. The instruction register is now IDCODE, so a 32-bit DR scan returns \texttt{0x1CA57EEF}.
-	\item \textbf{Read DTMCS.} Scan \texttt{0x10} into the instruction register, then a 32-bit DR scan. Confirm \bitfield{version}~$=1$ and \bitfield{abits}~$=7$, and note \bitfield{idle}~$=7$: insert seven Run-Test/Idle clocks after every DMI scan from here on.
-	\item \textbf{Select the DMI register.} Scan \texttt{0x11} into the instruction register. Every scan below is a 41-bit DR scan carrying $\{$\bitfield{address}, \bitfield{data}, \bitfield{op}$\}$.
-	\item \textbf{Enable the Debug Module.} Write \texttt{0x00000001} to \register{dmcontrol} (\texttt{0x10}): $\{$\texttt{0x10}, \texttt{0x00000001}, write$\}$.
-	\item \textbf{Select hart 2 and request a halt.} Write \texttt{0x80020001} to \register{dmcontrol}: \bitfield{haltreq} set (bit 31), \bitfield{hartsel}~$=2$ (bits \texttt{[25:16]}), \bitfield{dmactive} set.
-	\item \textbf{Wait for the halt.} Read \register{dmstatus} (\texttt{0x11}) repeatedly until \bitfield{allhalted} (bit 9) is set. If \bitfield{allunavail} is set instead, hart 2 is powered down; power it up before continuing. If \bitfield{allnonexistent} is set, this configuration has fewer than three harts.
-	\item \textbf{Drop the halt request.} Write \texttt{0x00020001} to \register{dmcontrol}, leaving hart 2 selected. The hart stays halted; halting is a state of the hart, not a level the Debug Module holds.
-	\item \textbf{Clear any stale error.} Write \texttt{0x00000700} to \register{abstractcs} (\texttt{0x16}) to clear \bitfield{cmderr}. A command written while an error stands is ignored.
-	\item \textbf{Read \asminline{a1}.} \asminline{a1} is \asminline{x11}, so \bitfield{regno}~$=$~\texttt{0x100B}. Write \texttt{0x0022100B} to \register{command} (\texttt{0x17}): \bitfield{aarsize}~$=2$ (\texttt{0x00200000}) $+$ \bitfield{transfer} (\texttt{0x00020000}) $+$ \bitfield{regno}.
-	\item \textbf{Wait for the command.} Read \register{abstractcs} until \bitfield{busy} (bit 12) is clear, then check \bitfield{cmderr} \texttt{[10:8]}. Zero means the value is ready.
-	\item \textbf{Collect the value.} Read \register{data0} (\texttt{0x04}). This one is proxied through shared memory, so it is the transaction the seven idle clocks were sized for.
-	\item \textbf{Resume.} Write \texttt{0x40020001} to \register{dmcontrol}: \bitfield{resumereq} (bit 30), hart 2 still selected. Poll \register{dmstatus} until \bitfield{allresumeack} (bit 17) is set.
+	\item Drive \pin{TRSTn} high, then clock \pin{TMS} high for five \pin{TCK} cycles. The instruction register is now IDCODE; a 32-bit DR scan returns \texttt{0x1CA57EEF}.
+	\item Scan \texttt{0x10} (DTMCS) into the instruction register and read it: \bitfield{version} = 1, \bitfield{abits} = 7, \bitfield{idle} = 7. Insert seven Run-Test/Idle clocks after every DMI scan from here on.
+	\item Scan \texttt{0x11} (DMI) into the instruction register. Every scan below is a 41-bit DR scan of \{\bitfield{address}, \bitfield{data}, \bitfield{op}\}.
+	\item Write \texttt{0x00000001} to \register{dmcontrol} (\texttt{0x10}): \bitfield{dmactive}.
+	\item Write \texttt{0x80020001} to \register{dmcontrol}: \bitfield{haltreq}, \bitfield{hartsel} = 2, \bitfield{dmactive}.
+	\item Read \register{dmstatus} (\texttt{0x11}) until \bitfield{allhalted} (bit 9) is set. \bitfield{allunavail} means hart 2 is powered down; \bitfield{allnonexistent} means this configuration has fewer than three harts.
+	\item Write \texttt{0x00020001} to \register{dmcontrol} to drop the halt request. The hart stays halted, because halting is a state of the hart, not a level the module holds.
+	\item Write \texttt{0x00000700} to \register{abstractcs} (\texttt{0x16}) to clear any stale \bitfield{cmderr}.
+	\item Write \texttt{0x0022100B} to \register{command} (\texttt{0x17}): \bitfield{aarsize} = 2, \bitfield{transfer}, \bitfield{regno} = \texttt{0x100B} (\asminline{x11}).
+	\item Read \register{abstractcs} until \bitfield{busy} (bit 12) is clear, then check \bitfield{cmderr}.
+	\item Read \register{data0} (\texttt{0x04}); this access is proxied through shared memory and is the one the seven idle clocks are sized for.
+	\item Write \texttt{0x40020001} to \register{dmcontrol}: \bitfield{resumereq}, hart 2 selected. Read \register{dmstatus} until \bitfield{allresumeack} (bit 17) is set.
 \end{enumerate}
 
 % Generated by LatexUserGuide.GenerateDebugSwimlaneDiagram (make chip).
 \begin{figure}[htpb]
 	\centering
 	\resizebox{\linewidth}{!}{\input{include/DebugSwimlaneDiagram.tex}}
-	\caption[{The twelve steps, across the four agents that perform them.}]{The twelve steps above, across the four agents that perform them. The numbers are the list items. Note how little of the sequence is the debugger talking to the hart directly: most of it is the debugger arranging for the \textit{hart} to do the work, which is the consequence of there being no independent path from the debug port to memory.}
+	\caption{Swimlane diagram of the twelve steps across the four agents that perform them.}
 	\label{fig:debug-swimlane}
 \end{figure}
 
-To write a register instead of reading one, put the value in \register{data0}
-first and set \bitfield{write} (bit 16) in the command. \textbf{To read or write
-\textit{memory}}, put an \asminline{lw} or \asminline{sw} in the program buffer,
-put the address in a register of the halted hart, and issue a command with
-\bitfield{postexec} set; the hart executes your instruction with its own
-privilege and its own view of the address space.
+To write a register, put the value in \register{data0} first and set \bitfield{write} (bit 16) in the command. To read or write memory, put an \asminline{lw} or \asminline{sw} in the program buffer, put the address in a register of the halted hart, and issue a command with \bitfield{postexec} set; the hart executes the instruction with its own privilege and its own view of the address space. If a scan returns \bitfield{op} = \texttt{10} or \texttt{11}, the transport has latched a sticky status and is dropping scans: read DTMCS, write \bitfield{dmireset}, and reissue.
 
-If a scan ever returns \bitfield{op}~$=$~\texttt{10} or \texttt{11}, the
-transport has latched a sticky status and is dropping further scans. Read
-DTMCS, write \bitfield{dmireset}, and reissue.
+\subsection{Connecting a debugger} \label{ss:debug-connect}
 
-\subsection{Connecting a Debugger} \label{ss:debug-connect}
-
-The sequences above are at the DMI level. In practice a debugger generates them,
-and this part has been brought up end to end against stock, unmodified tools:
-\textbf{OpenOCD 0.12.0} and \textbf{\texttt{riscv-none-elf-gdb} 13.2}. Nothing in
-either was patched. Four facts about that combination are worth knowing before
-the first session, because each of them is invisible until it costs an afternoon.
-
-\paragraph{Clock the adapter at 3\,MHz or below.} The Debug Transport Module
-reports \bitfield{idle}~$=7$, meaning it needs seven Run-Test/Idle cycles after a
-DMI scan before the result is ready. A debugger that honours that field may clock
-TCK at up to the port's rated \SI{7.14}{\mega\hertz}. \textbf{Stock OpenOCD does
-not honour it}: it learns the required delay by observing failures, starting from
-zero. What sets the safe speed is then the requirement that three TCK periods
-cover one DMI transaction's time in the module's own clock domain,
-$3\,T_{\mathrm{TCK}} \ge t_{\mathrm{DM}}$, which gives
+The part has been brought up end to end against unmodified OpenOCD 0.12.0 and \texttt{riscv-none-elf-gdb} 13.2, which attach, enumerate every hart, halt and resume harts individually, read and write registers and memory, set software breakpoints and single-step. The adapter clock bound and the other constraints of that combination are in Section \ref{ss:debug-limits}. The bound follows from the requirement that three \pin{TCK} periods cover one DMI transaction in the module's clock domain, because stock OpenOCD does not honour \bitfield{idle} and learns the delay from failures:
 
 \begin{center}
 \begin{tabular}{ l l l }
 	\textbf{Traffic} & \textbf{Minimum $T_{\mathrm{TCK}}$} & \textbf{Maximum $f_{\mathrm{TCK}}$} \\ \hline
-	Register-class (\register{dmcontrol}, \register{dmstatus}, \ldots) & \SI{139}{\nano\second} & \SI{7.19}{\mega\hertz} \\
+	Register class (\register{dmcontrol}, \register{dmstatus}, \ldots) & \SI{139}{\nano\second} & \SI{7.19}{\mega\hertz} \\
 	\rowcolor{tablehighlightcolor} Program-buffer class (all memory access) & \SI{278}{\nano\second} & \SI{3.60}{\mega\hertz} \\ \hline
 \end{tabular}
 \end{center}
 
-The program-buffer figure is the one that binds, because every memory access and
-every software breakpoint goes through the program buffer, and it shrinks further
-when other harts are contending for the shared bus. \textbf{Set the adapter to
-\SI{3}{\mega\hertz} or below}; \SI{3.60}{\mega\hertz} is a hard bound, not a
-target. The \SI{7.14}{\mega\hertz} rating applies only to a master that honours
-\bitfield{idle}.
+\section{Usage notes} \label{ss:debug-limits}
 
-\paragraph{\texttt{reset halt} succeeds and resets nothing.} The Debug Module has
-no system reset (\bitfield{ndmreset} is unimplemented), so the command degrades:
-it asserts halt on every hart, re-reads the ID code, and \textbf{reports
-success}. Nothing is reset: memory keeps its contents, harts keep their
-execution state, and a running hart's counters carry on from where they were
-rather than restarting. The failure is silent, so do not infer a reset from the
-absence of an error. Where a genuine halt-on-reset is needed, arm
-\bitfield{setresethaltreq} for the hart and power-cycle its tile through the
-power controller (Section \ref{s:multicore}).
+\paragraph{Clock the adapter at 3 MHz or below.} Every memory access and software breakpoint goes through the program buffer, whose bound is 3.60 MHz and shrinks under shared-bus contention; the 7.14 MHz port rating applies only to a master that honours \bitfield{idle}.
 
-\paragraph{That recovery works for harts 1 to $N-1$ only.} The per-tile power
-controller is the lever behind every recovery procedure here: the wedged-first-word
-case of Section \ref{ss:debug-limits}, and halt-on-reset above. \textbf{Hart 0 has
-no such lever}: it is always on, its power-controller bit ignores writes, and
-\bitfield{ndmreset} and \bitfield{hartreset} read zero. The only thing that
-resets hart 0 is the \pin{resetn} pin, which also resets the Debug Module and
-therefore ends the debug session. Plan accordingly when choosing which hart to
-experiment on.
+\paragraph{Do not infer a reset from \texttt{reset halt}.} The module has no system reset (\bitfield{ndmreset} is unimplemented), so the command halts every hart, re-reads the IDCODE and reports success while resetting nothing. For a genuine halt-on-reset, arm \bitfield{setresethaltreq} and power-cycle the hart's tile through \peripheral{PWRCTRL}.
 
-\paragraph{An \asminline{EBREAK} written into the program buffer becomes a jump.}
-Debuggers terminate short program-buffer sequences with an explicit
-\asminline{EBREAK}. On this Debug Module a program must instead leave through the
-common exit sequence, which is what signals completion and restores
-\register{dscratch0} and \register{dscratch1}; an \asminline{EBREAK} that bypasses it would be reported as
-an exception even though the work had been done. So a DMI write of exactly the
-32-bit \asminline{EBREAK} encoding into \register{progbuf0} or \register{progbuf1}
-stores a jump to that exit sequence instead. Reading the word back returns the
-jump, not the \asminline{EBREAK}; the substitution is not hidden. Only that
-exact encoding in those two registers is affected: \register{data0} stores
-whatever it is given, and a word one bit away from \asminline{EBREAK} is stored
-verbatim. A program that genuinely traps still never reaches the exit sequence
-and is still reported as an exception, so this does not blunt error reporting.
+\paragraph{Experiment on harts 1 to \MaxHartIndex{}, not hart 0.} The per-tile power controller is the lever behind every recovery procedure here; hart 0 has no gate bit, and the only thing that resets it is the \pin{resetn} pin, which also resets the Debug Module and ends the session.
 
-\subsection{Limitations and Status} \label{ss:debug-limits}
+\paragraph{Leave the program buffer through the exit sequence, not \asminline{EBREAK}.} A DMI write of exactly the 32-bit \asminline{EBREAK} encoding into \register{progbuf0} or \register{progbuf1} stores a jump to the common exit sequence instead, and reads back as that jump; only that encoding in those two registers is substituted. A program that genuinely traps is still reported as an exception.
 
-This section states plainly what the debug system does not do, and what is not
-yet finished.
+\paragraph{Write memory one word at a time.} \register{abstractauto} is unimplemented, and a debugger that assumes it, as OpenOCD's burst-write path does, writes only the first word of a block and drops the rest; loading a program image over the debug port does not work.
 
-\begin{itemize}
-	\item \textbf{There is no System Bus Access, and there never will be.} Many RISC-V Debug Modules include a second bus master that reads and writes memory directly, independently of any hart. This one does not, by design. Memory is reached only by executing \asminline{lw} and \asminline{sw} on a halted hart through the program buffer. The consequences are worth understanding: memory accesses on behalf of the debugger go through the same arbiter, with the same permissions and the same view of the address space, as the hart's own (which is a feature, not a workaround), but they require a hart that is halted and healthy, so a chip with no hart in a debuggable state cannot have its memory inspected.
-	\item \textbf{There are no hardware triggers.} Address and data watchpoints, and hardware breakpoints on instruction fetch, are not implemented; the trigger registers are absent. Breakpoints are software breakpoints: replace the instruction with \asminline{EBREAK} and set \register{dcsr}.\bitfield{ebreakm}. This means breakpoints cannot be set in the boot ROM or in any read-only region.
-	\item \textbf{The debug system requires the standard trap architecture.} \texttt{debug.enable} cannot be configured without \texttt{priv.trapCsr} (Section \ref{s:privarch}); the generator rejects the combination. \asminline{EBREAK} is decoded on the standard privileged instruction path, so a chip without it could not recognise a software breakpoint at all.
-	\item \textbf{The debug system is a configuration option and is off by default.} A build without \texttt{debug.enable} contains none of this hardware (no debug port, no Debug Module, no debug mode), and its processor is bit-identical to one built before the debug system existed. See Table \ref{t:chip-config} for the setting in this build.
-	\item \textbf{\bitfield{ndmreset} and \bitfield{hartreset} are not implemented.} A debugger cannot reset the system or an individual hart through the Debug Module; they read zero and ignore writes. Resetting the chip is done with the \pin{resetn} pin (Section \ref{s:startup}).
-	\item \textbf{Resume groups are not implemented.} Halt groups stop a set of harts together; resuming them is done one at a time.
-	\item \textbf{The entry page is volatile, and a wrong first word wedges the hart that halts into it.} The code a hart runs when it enters debug mode occupies \texttt{0x10780} onwards, and the Debug Module places it there itself: once when a debugger raises \bitfield{dmactive}, and again before it acts on any hart it has just seen halt. A production part therefore needs nothing staged in advance, and there is no debug ROM: that page \textit{cannot} be read-only memory, because the Debug Module rewrites part of it at every abstract command. What it is instead is ordinary shared RAM, so any master on the chip can overwrite it. Most such damage repairs itself, because the next halt rewrites the page before the Debug Module depends on it, but not damage to the \textbf{first} word. A hart that halts into a wrong first word takes an exception, re-enters at that same address, and asks the bus for the same word again; the tile answers from the copy it is already holding, so it never observes the repair and spins there, retiring nothing. Recovering that hart requires a power cycle of its tile through the power controller (Section \ref{s:multicore}); \bitfield{ndmreset}, being unimplemented, cannot do it.
-	\item \textbf{Debugger support exists, and its rough edges are known.} Stock OpenOCD 0.12.0 and GDB 13.2 attach, enumerate every hart, halt and resume individually, read and write registers and memory, set software breakpoints and single-step (Section \ref{ss:debug-connect}). Two limits are worth stating with it. The adapter must be clocked at \SI{3}{\mega\hertz} or below, for the reason given in that section. And \textbf{bulk memory writes are not yet usable}: \register{abstractauto} is unimplemented, and a debugger that assumes it, as OpenOCD's burst-write path does, writes only the first word of a block and silently drops the rest, which is why loading a program image over the debug port does not currently work. One word at a time is correct; a block is not. Single-stepping is also slow enough that data watchpoints implemented by stepping are impractical.
-	\item \textbf{The debug port is not yet part of a signed-off physical implementation.} The five pins exist in the chip-level netlist and in the LQFP-100 package definition, but the current signed-off layout predates them.
-\end{itemize}
+\paragraph{Reach memory only through a halted, healthy hart.} There is no system bus access: memory is read and written by \asminline{lw} and \asminline{sw} executed from the program buffer, with the hart's own permissions and view of the address space, so a chip with no debuggable hart cannot have its memory inspected.
 
-One further note for anyone comparing this implementation against the RISC-V
-debug specification or against a reference simulator. Several behaviours here
-differ deliberately from the most widely used reference model, and in every case
-this implementation follows the specification's text where the reference does
-not: an unrecognised JTAG instruction selects BYPASS rather than leaving the
-previous register selected; \bitfield{dmistat} is actually driven, and reports
-sticky failure as well as sticky busy; \bitfield{idle} reports the real
-requirement instead of zero; an out-of-range hart selection reports
-\textit{nonexistent} rather than being clamped to the highest hart; and
-\register{dmstatus}.\bitfield{version} reports \texttt{3} for specification 1.0.
-A debugger written against the specification will find this part conformant; one
-written against a particular simulator's quirks may not.
+\paragraph{Use software breakpoints only.} There are no hardware triggers: no watchpoints and no fetch breakpoints. A breakpoint replaces the instruction with \asminline{EBREAK} under \register{dcsr}.\bitfield{ebreakm}, so breakpoints cannot be set in the boot ROM or any read-only region; data watchpoints by stepping are impractical.
+
+\paragraph{Keep application software out of \texttt{0x10680} to \texttt{0x1087F}.} The region is ordinary shared RAM, so any master can overwrite it. Most damage repairs itself at the next halt, but a wrong first word at \texttt{0x10780} wedges the hart that halts into it: it takes an exception, re-enters at the same address, and is answered from the copy the tile already holds, so it never observes the repair. Recovery is a power cycle of that tile through \peripheral{PWRCTRL}.
+
+\paragraph{Build with \texttt{priv.trapCsr} when enabling debug.} \texttt{debug.enable} requires the standard trap architecture (Section \ref{s:privarch}); the generator rejects the combination without it, because \asminline{EBREAK} is decoded on the standard privileged path.
+
+\paragraph{Resume group members one at a time.} Halt groups stop a set together; resume groups are not implemented.
+
+\paragraph{Expect specification behaviour, not simulator behaviour.} An unrecognised JTAG instruction selects BYPASS; \bitfield{dmistat} is driven and reports sticky failure as well as sticky busy; \bitfield{idle} reports the real requirement; an out-of-range \bitfield{hartsel} reports nonexistent; \register{dmstatus}.\bitfield{version} is 3. A debugger written against the specification finds the part conformant; one written against a particular simulator's quirks may not.
+
+\paragraph{The debug port is not yet in a signed-off layout.} The five pins exist in the chip-level netlist and the LQFP-100 package definition; the current signed-off layout predates them.
 
 \fi

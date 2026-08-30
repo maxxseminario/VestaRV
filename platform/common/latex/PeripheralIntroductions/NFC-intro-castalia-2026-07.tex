@@ -1,28 +1,92 @@
-The NFC controller (\peripheral{NFCx}) is an ISO/IEC 14443 Type A (14443A) tag / card-emulation digital protocol engine. It emulates a passive contactless tag to an external reader: it recovers the reader-to-tag frames, runs the tag transaction state machine, and load-modulates the tag's response. The 13.56\,MHz RF analog front-end is \emph{off-die}: this block is strictly digital and presents only a small digital interface to an external AFE (a demodulated receive envelope, a field-detect level, an AFE-derived carrier clock, and the load-modulation drive / listen-enable outputs). The register read path is registered with no read side effects. The main features of the NFC controller are listed below:
+% NFC chapter. Section order is the per-peripheral template enforced by
+% python/check_intro_names.py. Vector numbers are frozen by the generator
+% (python/generate.py, _mcuMpIrqVectors).
+\section{Overview}
+
+The NFC controller (\peripheral{NFCx}) is an ISO/IEC 14443 Type A tag emulation engine. It presents a passive contactless tag to an external reader: it decodes the reader-to-tag frames, runs the tag transaction state machine, and load-modulates the tag's response. The 13.56 MHz analog front end is off-die; the block is digital only and connects to an external front end through a small demodulated interface.
 
 \begin{itemize}
-	\item ISO 14443A tag emulation: REQA / WUPA to ATQA, bit-frame anticollision by 4-byte UID to SAK, then a Type-2 READ that auto-answers from a firmware-filled payload window (\register{NFCAUTOREAD})
-	\item Miller decode of the reader-to-tag frames and Manchester / subcarrier (fc/16) load-modulation of the tag response
-	\item Byte framing with odd parity and the ISO 14443A CRC\_A (reflected \texttt{0x8408}, init \texttt{0x6363})
-	\item A provisioned 4-byte UID (\register{NFCxUID}), programmable ATQA and SAK (\register{NFCxCFG}), and hardware BCC derivation
-	\item Two 64-byte indexed windows behind one index / data pair (\register{NFCxIDX}, \register{NFCxDATA}): the payload window the reader collects (firmware-filled) and the raw received-frame buffer (firmware-read)
-	\item Register-programmable protocol timing (\register{NFCxTIM}): the bit-period ETU, the subcarrier divisor, and the Frame Delay Time; a bench compresses all three for fast simulation
-	\item Registered read path: register reads have \emph{no} side effects
-	\item Four interrupt sources: RF field detected, reader frame received, tag response transmit done, and RX CRC / parity error
+	\item ISO 14443A tag emulation: REQA/WUPA to ATQA, bit-frame anticollision with a 4-byte UID to SAK, then Type-2 READ answered from a firmware-filled payload window (\bitfield{NFCAUTOREAD})
+	\item Miller decoding of reader frames; Manchester subcarrier (fc/16) load modulation of tag responses
+	\item Byte framing with odd parity and CRC\_A (reflected \texttt{0x8408}, initial value \texttt{0x6363})
+	\item Provisioned 4-byte UID (\register{NFCxUID}), programmable ATQA and SAK (\register{NFCxCFG}), hardware BCC
+	\item Two 64-byte indexed windows behind one index/data pair (\register{NFCxIDX}, \register{NFCxDATA}): the payload window and the received-frame buffer
+	\item Programmable protocol timing (\register{NFCxTIM}): bit period, subcarrier divisor, frame delay time
+	\item Registered read path: no register read has a side effect
+	\item Four interrupt sources, vectors 94 to 97
 \end{itemize}
 
-\subsection{Digital AFE Boundary}
+\section{Functional description}
 
-\peripheral{NFCx} does not touch the 13.56\,MHz carrier. It connects to an external analog front-end through a digital interface: a demodulated receive envelope (\texttt{1} = field, \texttt{0} = a reader pause), an asynchronous field-present level, and the AFE carrier-derived clock \texttt{rf\_clk} that clocks the entire protocol core, plus a load-modulation drive output, a transmit-active window, and an AFE listen-power enable. Because these signals cross into the memory-bus domain, the block spans three clock domains: the gated bus clock (\texttt{ClkMem}), a free-running SMCLK reference that hosts the clock-domain-crossing synchronizers and the write-1-to-clear retirement, and \texttt{rf\_clk}. Quasi-static configuration (UID, ATQA, SAK, timing) is latched transaction-locally so a multi-bit value is never sampled mid-update; the received-frame bytes cross by a flag-gated data handshake (the RX buffer is written before \register{NFCRXFRAMEF} is raised). As with the SPI, UART, and I2C peripherals, software must set \register{\register{SYSCLKCR}} to 0 (SMCLK from HFXT) before using the controller.
+\subsection{Analog front-end boundary}
 
-\subsection{Provisioning and the Payload Window}
+The block never touches the carrier. Its interface to the external front end is a demodulated receive envelope (1 = field present, 0 = a reader pause), an asynchronous field-present level, the carrier-derived clock \texttt{rf\_clk} that clocks the protocol core, a load-modulation drive output, a transmit-active window, and a listen-power enable. These wires are alternate functions on port 6 (Section \ref{s:pinsConfig}).
 
-Before enabling the tag, program its identity: write the 4-byte UID to \register{NFCxUID} and the answer-to-request / select-acknowledge bytes to \register{NFCxCFG} (\register{NFCATQA}, \register{NFCSAK}). Fill the record the reader will collect through the indexed payload window: select it with \register{NFCIDXSEL} $=$ 0 in \register{NFCxIDX}, set \register{NFCIDX} to the starting byte, optionally set \register{NFCIDXAINC} for streaming, and write successive bytes to \register{NFCxDATA}. Set \register{NFCEN} to run the protocol core and \register{NFCLISTEN} to arm the tag to respond, along with any interrupt enables in \register{NFCxCR}.
+The block spans three clock domains: the bus clock for the register interface, a free-running SMCLK reference that hosts the synchronizers and the write-1-to-clear retirement, and \texttt{rf\_clk}. Quasi-static configuration (UID, ATQA, SAK, timing) is latched per transaction so that a multi-byte value is never sampled while software is updating it, and received-frame bytes cross by a flag-gated handshake: the buffer is written before \bitfield{NFCRXFRAMEF} is raised, so a handler that sees the flag can read the frame.
 
-With \register{NFCAUTOREAD} set (its reset value), hardware answers a Type-2 READ directly from the payload window with no firmware intervention. When a reader frame arrives for firmware (an unrecognized command, or \register{NFCAUTOREAD} cleared), \register{NFCRXFRAMEF} is set and the frame is surfaced through \register{NFCxRXST} (command byte, length, and the CRC / parity result) and the RX frame buffer (\register{NFCIDXSEL} $=$ 1 in \register{NFCxIDX}, read through \register{NFCxDATA}). The status flags \register{NFCFIELDF}, \register{NFCRXFRAMEF}, \register{NFCTXDONEF}, \register{NFCCRCERRF}, and \register{NFCPARERRF} are write-1-to-clear: write a 1 to a bit to clear it. Reads of the status, receive-inspection, and window-data registers have no side effects.
+\subsection{Transaction engine}
 
-The protocol timing register \register{NFCxTIM} carries the bit-period (\register{NFCETU}), the subcarrier half-period (\register{NFCSUBCDIV}), and the Frame Delay Time (\register{NFCFDT}), all counted in \texttt{rf\_clk} ticks. The reset values follow the real 13.56\,MHz grid; a simulation bench writes them small to compress the protocol time.
+With \bitfield{NFCEN} set the protocol core runs; with \bitfield{NFCLISTEN} also set it answers readers. The engine walks the 14443A sequence on its own: REQA or WUPA is answered with the ATQA from \register{NFCxCFG}, the anticollision cascade with the UID from \register{NFCxUID} and its hardware-derived BCC, and SELECT with the SAK. With \bitfield{NFCAUTOREAD} set (its reset value), a Type-2 READ is answered directly from the payload window without firmware. Any other command, or every command when \bitfield{NFCAUTOREAD} is clear, is surfaced to firmware: \bitfield{NFCRXFRAMEF} is set, \register{NFCxRXST} reports the command byte, length and CRC/parity result, and the raw frame is readable through the frame buffer. Firmware answers with \register{NFCxTXCTL}: it fills the payload window, writes the length to \bitfield{NFCTXLEN}, selects CRC appending with \bitfield{NFCTXAPPCRC}, and sets \bitfield{NFCTXGO}.
 
-\subsection{Shared Access on \AsicNameForUserGuide}
+\subsection{Indexed windows}
 
-In configurations that include it, \peripheral{NFC0} lives in the shared peripheral window behind the multi-core arbiter (see Section \ref{s:multicore}) in the mutex-bank page, sub-slot 2 at \texttt{0x6200}, so any hart can use it. Its four interrupt sources occupy vectors 94 through 97 (field detected, reader frame received, transmit done, and CRC / parity error, in that order), delivered through the interrupt router like every other shared-peripheral source. These sources sit above the external-interrupt (meip) delivery vector, which stays fixed at vector 85, and above the I3C sources at vectors 86 through 93.
+Both 64-byte windows are reached through one index/data pair: \bitfield{NFCIDXSEL} in \register{NFCxIDX} selects the payload window (0) or the received-frame buffer (1), \bitfield{NFCIDX} selects the byte, and each access to \register{NFCxDATA} reads or writes it. With \bitfield{NFCIDXAINC} set the index advances after every access, so a record is streamed with consecutive data accesses.
+
+\subsection{Protocol timing}
+
+\register{NFCxTIM} carries the bit period (\bitfield{NFCETU}), the subcarrier half period (\bitfield{NFCSUBCDIV}) and the frame delay time (\bitfield{NFCFDT}), all counted in \texttt{rf\_clk} ticks. The reset values follow the 13.56 MHz grid; a simulation bench writes them small to compress protocol time.
+
+\section{Interrupts and events}
+
+The four flags in \register{NFCxSR} are write-1-to-clear and each has an enable in \register{NFCxCR}. Table \ref{t:nfc-irq} lists them. The field-detect level is also available to the boot gate in \peripheral{PWRCTRL} as a wake source, which does not use a vector.
+
+\begin{table}[htb]
+	\centering
+	\caption{\peripheral{NFC0} interrupt vectors.}
+	\label{t:nfc-irq}
+	\begin{tabular}{ l p{4.6cm} l l }
+	\textbf{Vector} & \textbf{Condition} & \textbf{Set by} & \textbf{Cleared by} \\ \hline
+	94 & RF field detected & \bitfield{NFCFIELDF} & Writing 1 to \bitfield{NFCFIELDF} \\
+	\rowcolor{tablehighlightcolor}
+	95 & Reader frame received for firmware & \bitfield{NFCRXFRAMEF} & Writing 1 to \bitfield{NFCRXFRAMEF} \\
+	96 & Tag response transmit done & \bitfield{NFCTXDONEF} & Writing 1 to \bitfield{NFCTXDONEF} \\
+	\rowcolor{tablehighlightcolor}
+	97 & Receive CRC or parity error & \bitfield{NFCCRCERRF}, \bitfield{NFCPARERRF} & Writing 1 to the flag \\
+	\hline
+	\end{tabular}
+\end{table}
+
+\section{Programming}
+
+\subsection{Provisioning and arming the tag}
+
+\begin{enumerate}
+	\item Write \register{SYSCLKCR} so that SMCLK runs from HFXT (Section \ref{ss:clocks}).
+	\item Set the \register{PxSEL} bits and \register{PxAFS} fields of the six front-end pins on port 6.
+	\item Write the UID to \register{NFCxUID}.
+	\item Write \register{NFCxCFG}.\bitfield{NFCATQA} and \register{NFCxCFG}.\bitfield{NFCSAK}.
+	\item Write \register{NFCxIDX} with \bitfield{NFCIDXSEL} = 0, \bitfield{NFCIDX} = 0 and \bitfield{NFCIDXAINC} = 1.
+	\item Write each payload byte to \register{NFCxDATA}.
+	\item Set the interrupt enables required in \register{NFCxCR}.
+	\item Set \register{NFCxCR}.\bitfield{NFCEN} and \register{NFCxCR}.\bitfield{NFCLISTEN}.
+\end{enumerate}
+
+\subsection{Servicing a frame delivered to firmware}
+
+\begin{enumerate}
+	\item Read \register{NFCxRXST} for the command, length and CRC/parity result.
+	\item Write \register{NFCxIDX} with \bitfield{NFCIDXSEL} = 1 and \bitfield{NFCIDXAINC} = 1, then read the frame bytes from \register{NFCxDATA}.
+	\item Fill the payload window with the response.
+	\item Write \register{NFCxTXCTL} with \bitfield{NFCTXLEN}, \bitfield{NFCTXAPPCRC} and \bitfield{NFCTXGO}.
+	\item Write 1 to \register{NFCxSR}.\bitfield{NFCRXFRAMEF}.
+\end{enumerate}
+
+\section{Usage notes}
+
+\paragraph{Keep SMCLK on HFXT while the tag is armed.} The synchronizers and flag retirement run on SMCLK; a stopped or slow SMCLK stalls them.
+
+\paragraph{Use a byte store to arm LISTEN when the payload is auto-read.} A full-word write of \register{NFCxCR} also writes the byte lane holding \bitfield{NFCAUTOREAD}; writing 0 there disables the hardware answer to READ.
+
+\paragraph{Provision before enabling.} The UID, ATQA, SAK and timing are latched per transaction, so a value written while a reader is mid-transaction takes effect at the next one.
+
+\paragraph{Do not read the block through an alias when it is absent.} In a configuration without the NFC block its address range aliases the \peripheral{MUTEX} page, and a read there claims a mutex.

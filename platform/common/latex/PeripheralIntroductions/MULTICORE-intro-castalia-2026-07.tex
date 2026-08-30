@@ -8,9 +8,9 @@
 \begin{itemize}
 	\item \NumHarts{} identical VestaRV harts, each identified by the read-only \register{mhartid} CSR (address \texttt{0xF14})
 	\item One shared boot ROM at \texttt{0x0}: all \NumHartsWord{} harts reset to PC \texttt{0x0} and dispatch on \register{mhartid} (see Section \ref{ss:multicore-boot})
-	\item 16\,KiB of private TCM per hart at \texttt{0x8000}--\texttt{0xBFFF} (the same local address in every hart), holding each hart's vector table, code, data, and stack
+	\item \TcmSizeKiB\,KiB of private TCM per hart at \texttt{\RamStartAddress} to \texttt{\RamEndAddress} (the same local address in every hart), holding each hart's vector table, code, data, and stack
 	\item All peripherals shared by all \NumHartsWord{} harts at their legacy \texttt{0x4000}-page addresses, with the arbiter guaranteeing register-access atomicity
-	\item \SharedRamSizeKiB\,KiB of shared bulk RAM at \texttt{0x10000}--\texttt{\SharedRamEndAddress} for locks, mailboxes, staged tile programs, and inter-hart data
+	\item \SharedRamSizeKiB\,KiB of shared bulk RAM at \texttt{0x10000} to \texttt{\SharedRamEndAddress} for locks, mailboxes, staged tile programs, and inter-hart data
 	\item \peripheral{CLINT} with per-hart software interrupts (inter-processor interrupts) and a shared 64-bit \register{mtime} with per-hart compare registers
 	\item \NumMutexes{} single-instruction hardware mutexes (\peripheral{MUTEX} bank)
 	\item Claim/complete peripheral interrupt delivery (\peripheral{IRQROUTER}): any peripheral interrupt can be routed to any hart over one external-interrupt wire per hart, with exactly-once claiming
@@ -20,7 +20,7 @@
 
 
 
-\subsection{Harts and Roles}
+\section{Harts and Roles}
 
 All \NumHartsWord{} harts are instances of the same \textit{hart tile}: an unmodified VestaRV core plus its own private TCM, replicating the proven single-core memory path, with every connection to the rest of the chip registered at the tile boundary. Since every hart sees the same address map (shared boot ROM, shared peripherals, private TCM at the same local address), the \NumHartsWord{} harts are architecturally identical and code is hart-portable by construction.
 
@@ -43,12 +43,12 @@ All \NumHartsWord{} harts are instances of the same \textit{hart tile}: an unmod
 Hart 0 is additionally the \textit{management hart}.{} It is the only hart attached to the SPI-flash boot path and the extended flash region ($\geq$\,\texttt{\FlashBaseAddress}), and by convention it owns system management: the \peripheral{SYSTEM} controller's clock configuration registers reprogram the master clock that all \NumHartsWord{} harts run on, so only the management hart may touch them, and only after quiescing the other harts (see the \peripheral{SYSTEM} chapter). Peripheral interrupts are uniform across harts: every hart, hart 0 included, routes and receives them through its \peripheral{IRQROUTER} row and the claim/complete mechanism (see the \peripheral{IRQROUTER} chapter).
 
 \iforchpresent
-Hart \OrchHartIndex{} (\register{mhartid} zero, the management and boot hart) is additionally the \textit{orchestrator}, and it is the one hart that is not a corner tile. The channel harts, \register{mhartid} 1 through \MaxHartIndex{}, are hardened \textit{hart tile} macros at the corners of the die; the orchestrator is soft logic placed in the centre band alongside the shared fabric, with its own 16\,KiB TCM at the same private \texttt{0x8000}--\texttt{0xBFFF} window. It is architecturally identical to the tiles (same ISA, same private memory map, same \register{mhartid} discovery) and differs in exactly three ways that software can observe:
+Hart \OrchHartIndex{} (\register{mhartid} zero, the management and boot hart) is additionally the \textit{orchestrator}, and it is the one hart that is not a corner tile. The channel harts, \register{mhartid} 1 through \MaxHartIndex{}, are hardened \textit{hart tile} macros at the corners of the die; the orchestrator is soft logic placed in the centre band alongside the shared fabric, with its own \TcmSizeKiB\,KiB TCM at the same private \texttt{\RamStartAddress} to \texttt{\RamEndAddress} window. It is architecturally identical to the tiles (same ISA, same private memory map, same \register{mhartid} discovery) and differs in exactly three ways that software can observe:
 
 \begin{itemize}
-	\item \textbf{It is always on, and every other hart is not.} The orchestrator sits outside the switched-rail power fabric entirely: there are no header switches for the centre band, so \register{PWRCR}'s bit 0 reads 0 and ignores writes, as it always has. What changes in this configuration is the other side of that sentence: \emph{every} channel hart 1--\MaxHartIndex{} now has a gate bit, including the corner tile that a four-hart chip would have called hart 0 and kept always-on. A blanket \register{PWRCR} write therefore gates all \MaxHartIndex{} channel tiles and leaves the orchestrator running (see the \peripheral{PWRCTRL} chapter).
+	\item \textbf{It is always on, and every other hart is not.} The orchestrator sits outside the switched-rail power fabric entirely: there are no header switches for the centre band, so \register{PWRCR}'s bit 0 reads 0 and ignores writes, as it always has. What changes in this configuration is the other side of that sentence: \emph{every} channel hart 1 to \MaxHartIndex{} now has a gate bit, including the corner tile that a four-hart chip would have called hart 0 and kept always-on. A blanket \register{PWRCR} write therefore gates all \MaxHartIndex{} channel tiles and leaves the orchestrator running (see the \peripheral{PWRCTRL} chapter).
 	\item \textbf{It boots the chip and starts the others.} Boot mastership is the orchestrator's, because the orchestrator is hart 0: it is the hart attached to the SPI-flash boot path and the extended flash region, it stages each channel hart's image into that hart's loader mailbox row and ignites it with a \peripheral{CLINT} software interrupt (Section \ref{ss:multicore-boot}), and it holds the management privilege from reset rather than receiving it in a hand-over.
-	\item \textbf{It can read every hart's private TCM.} Each hart's TCM is also visible read-only in the shared window, hart $h$ at \texttt{0x20000 + 0x4000}$\,\times\,h$ (the orchestrator's own included, at \texttt{0x20000}), so the indexing is uniform. Only the management hart may read them; any other hart reads zero and has its write dropped, and writes are dropped for everyone (the windows are read-only by design: a write path into a running core's memory is a coherence hazard). A window belonging to a power-gated tile completes normally and returns zeros, so software checks the \peripheral{PWRCTRL} sequencer state before trusting what it reads; zero is a legal TCM value.
+	\item \textbf{It can read every hart's private TCM.} Each hart's TCM is also visible read-only in the shared window, hart $h$ at \texttt{\FirstTcmWindowAddress}${} + \texttt{0x4000} \times h$ (the orchestrator's own included, at \texttt{\FirstTcmWindowAddress}), so the indexing is uniform. Each aperture is 16\,KiB wide and the \TcmSizeKiB\,KiB TCM repeats through it, because the aperture decode keeps the full window and the tile drops the top word-index bit. Only the management hart may read them; any other hart reads zero and has its write dropped, and writes are dropped for everyone (the windows are read-only by design: a write path into a running core's memory is a coherence hazard). A window belonging to a power-gated tile completes normally and returns zeros, so software checks the \peripheral{PWRCTRL} sequencer state before trusting what it reads; zero is a legal TCM value.
 \end{itemize}
 
 The intended firmware model follows: the orchestrator boots the chip, starts and coordinates the channel harts, owns the front-end and its interrupts, inspects any channel hart's working memory through its TCM window, and stays up across any power-gating of the tiles.
@@ -61,7 +61,7 @@ Figure~\ref{fig:tcm-aperture} follows one aperture read through the hardware, be
 \begin{figure}[htpb]
 	\centering
 	\resizebox{\linewidth}{!}{\input{include/TcmApertureDiagram.tex}}
-	\caption[{One read through a TCM aperture}]{One read through a TCM aperture. The management hart issues an ordinary shared-window load; the aperture slave decides, in the cycle the arbiter presents it, which of three answers this access gets. Two of them the slave produces itself, in the three cycles every other shared-window slave takes: a read by any other hart, and any write, are answered with zeros, and so is a read of a tile that is powered off: the isolation clamp that zeroes a dark tile's data also zeroes its \register{tcm\_ext\_done}, so a slave that simply waited for the tile would park the management hart on the bus forever. The third answer is a real transaction: the slave holds the arbiter still with \register{s\_stall} (it is the only slave that does, because a tile read takes six \register{mclk} and the arbiter's walk is built for a slave that answers in one) and drives the addressed tile's read port. Inside the tile that port takes the TCM's pins for four cycles, with the core's clock gated off and its write strobes held inactive, which is what makes the window read-only in the hardware rather than by convention. Software still checks the \peripheral{PWRCTRL} state before trusting a word: zero is a legal TCM value.}
+	\caption{Block diagram of one read through a TCM aperture.}
 	\label{fig:tcm-aperture}
 \end{figure}
 \fi
@@ -74,29 +74,29 @@ Software discovers which hart it is running on by reading the \register{mhartid}
 
 
 
-\subsection{The Shared Window}
+\section{The Shared Window}
 
 Everything below the extended flash region except each hart's private TCM is behind the arbiter. Every hart sees the same physical devices at the same addresses:
 
 \begin{center}
-\begin{tabular}{ l l l }
+\begin{tabular}{ l l p{6.0cm} }
 	\textbf{Address range} & \textbf{Device} & \textbf{Notes} \\ \hline
-	\texttt{0x00000}--\texttt{0x01FFF} & Boot ROM (8\,KiB) & Shared, read-only; all harts reset here \\
-	\texttt{0x02000}--\texttt{0x03FFF} & Unmapped & The ROM is smaller than its page; reads return zero \\
-	\texttt{0x04000}--\texttt{0x04FFF} & Peripheral slots & 16 slots of 256 bytes, legacy numbering \\
-	\texttt{0x05000}--\texttt{0x05FFF} & \peripheral{CLINT} & IPIs (\register{MSIPx}), \register{MTIME}/\register{MTIMECMPx} \\
-	\texttt{0x06000}--\texttt{0x06FFF} & \peripheral{MUTEX} bank & \NumMutexes{} hardware mutexes \\
-	\texttt{0x07000}--\texttt{0x07FFF} & \peripheral{IRQROUTER} & Per-hart routing rows + CLAIM/COMPLETE \\
-	\ifnpupresent \texttt{0x0C000}--\texttt{0x0FFFF} & NPU staging RAM (16\,KiB) & Vector storage; NPU-owned during a run \\ \fi
-	\texttt{0x10000}--\texttt{\SharedRamEndAddress} & Shared bulk RAM (\SharedRamSizeKiB\,KiB) & Locks, mailboxes, inter-hart data \\ \hline
+	\texttt{0x00000} to \texttt{0x01FFF} & Boot ROM (8\,KiB) & Shared, read-only; all harts reset here \\
+	\texttt{0x02000} to \texttt{0x03FFF} & Unmapped & The ROM is smaller than its page; reads return zero \\
+	\texttt{0x04000} to \texttt{0x04FFF} & Peripheral slots & 16 slots of 256 bytes, legacy numbering \\
+	\texttt{0x05000} to \texttt{0x05FFF} & \peripheral{CLINT} & IPIs (\register{MSIPx}), \register{MTIME}/\register{MTIMECMPx} \\
+	\texttt{0x06000} to \texttt{0x06FFF} & \peripheral{MUTEX} bank & \NumMutexes{} hardware mutexes \\
+	\texttt{0x07000} to \texttt{0x07FFF} & \peripheral{IRQROUTER} & Per-hart routing rows + CLAIM/COMPLETE \\
+	\ifnpupresent \texttt{0x0C000} to \texttt{0x0FFFF} & NPU staging RAM (16\,KiB) & Vector storage; NPU-owned during a run \\ \fi
+	\texttt{0x10000} to \texttt{\SharedRamEndAddress} & Shared bulk RAM (\SharedRamSizeKiB\,KiB) & Locks, mailboxes, inter-hart data \\ \hline
 \end{tabular}
 \end{center}
 
-(\texttt{0x08000}--\texttt{0x0BFFF} is each hart's \textbf{private} TCM and never reaches the arbiter.) The sixteen peripheral slots at \texttt{0x4000} keep the original single-core VestaRV slot numbering (\peripheral{GPIO0} at \texttt{0x4000}, \peripheral{UART0} at \texttt{0x4400}, \peripheral{SYSTEM} at \texttt{0x4900}, and so on), so single-core driver code runs unchanged; the difference is that every hart can now reach every peripheral.
+(\texttt{\RamStartAddress} to \texttt{\RamEndAddress} is each hart's \textbf{private} TCM and never reaches the arbiter.) The sixteen peripheral slots at \texttt{0x4000} keep the original single-core VestaRV slot numbering (\peripheral{GPIO0} at \texttt{0x4000}, \peripheral{UART0} at \texttt{0x4400}, \peripheral{SYSTEM} at \texttt{0x4900}, and so on), so single-core driver code runs unchanged; the difference is that every hart can now reach every peripheral.
 
 Instruction fetch from the shared window is supported: the boot flow depends on it, and programs may execute directly from shared RAM. One caveat: compressed (RVC) instructions in shared-window code are not currently validated; code intended to execute from shared memory should be built without the C extension. Code in the private TCM has no such restriction.
 
-\subsubsection{Arbitration and Stalling}
+\subsection{Arbitration and Stalling}
 
 A round-robin arbiter serializes all shared-window transactions. The arbiter grants one hart at a time and holds the grant until that hart's whole transaction completes, then advances the round-robin pointer, so no hart can be starved. While a hart waits for its grant, its clock is stalled transparently; software never sees a partial transaction and needs no special code for shared accesses. Because a stalled hart contributes nothing until its turn comes, frequently-polled data structures (spin locks in particular) should use a backoff strategy (see Section \ref{ss:multicore-sync}).
 
@@ -106,7 +106,7 @@ An \texttt{AMO} (atomic read-modify-write) instruction holds the arbiter grant a
 \begin{figure}[htpb]
 	\centering
 	\input{include/ArbiterHandshakeDiagram.tex}
-	\caption[{One uncontended shared-window read, at the \texttt{mp\_arbiter} pins.}]{One uncontended shared-window read, at the \texttt{mp\_arbiter} pins. The arbiter walks \textit{IDLE} $\rightarrow$ \textit{LATCH} $\rightarrow$ \textit{DATA}: the transaction is presented to the slave for one cycle, the synchronous slave returns data the following cycle, and \register{done} and \register{rdata} are registered together at the edge leaving \textit{DATA}, three \register{mclk} from an observed \register{req}. The hart itself sees about two cycles more, one in each direction across the registered tile boundary. In the shaded cycle the master's \register{req} is still high although its transaction is over; the arbiter masks that stale request until it is observed low, which is what stops a completed access from being served twice.}
+	\caption[{Timing diagram of one uncontended shared-window read at the \texttt{mp\_arbiter} pins.}]{Timing diagram of one uncontended shared-window read at the \texttt{mp\_arbiter} pins.}
 	\label{fig:arbiter-handshake}
 \end{figure}
 
@@ -120,14 +120,14 @@ One slave does not fit that walk. A read through a TCM aperture has to leave the
 \begin{figure}[htpb]
 	\centering
 	\input{include/ArbiterStallDiagram.tex}
-	\caption[{One stalled shared-window read: the management hart through a TCM aperture.}]{One stalled shared-window read: the management hart through a TCM aperture, at the same \texttt{mp\_arbiter} pins as Figure~\ref{fig:arbiter-handshake}. Up to the shaded region it is the ordinary walk: the grant, the one-cycle \register{s\_en} strobe, the address presented. The aperture slave raises \register{s\_stall} in that same cycle, and the arbiter stays in \textit{LATCH}: grant pinned, address still presented, only the completion moves. Underneath, the tile's read port takes one SRAM read and returns the word on a single \register{mclk} of \register{tcm\_ext\_done}; the slave captures it, drops \register{s\_stall}, and the arbiter finishes the transaction it was holding. Without the stall it would have completed on the marked cycle, handing back the zero the slave had not filled in yet.}
+	\caption{Timing diagram of one stalled shared-window read through a TCM aperture.}
 	\label{fig:arbiter-stall}
 \end{figure}
 \fi
 
 
 
-\subsection{Boot and Tile Loading} \label{ss:multicore-boot}
+\section{Boot and Tile Loading} \label{ss:multicore-boot}
 
 All \NumHartsWord{} harts come out of reset at PC \texttt{0x0} and fetch the shared boot ROM through the arbiter. The ROM immediately dispatches on \register{mhartid}; the whole flow is summarized in Figure~\ref{fig:boot-flow}:
 
@@ -135,13 +135,13 @@ All \NumHartsWord{} harts come out of reset at PC \texttt{0x0} and fetch the sha
 \begin{figure}[h]
 	\centering
 	\input{include/BootFlowDiagram.tex}
-	\caption[{Boot and tile-loading flow.}]{Boot and tile-loading flow. All harts execute the same shared boot ROM; hart 0 runs the legacy SPI-flash boot while every other hart parks in low-power sleep until it is loaded and released through its loader mailbox row and a \peripheral{CLINT} software interrupt.}
+	\caption{Flow chart of boot and tile loading across the harts.}
 	\label{fig:boot-flow}
 \end{figure}
 
-\textbf{Hart 0} runs the full boot sequence, exactly as on the single-core chip: it configures \peripheral{GPIO0}/\peripheral{SPI0}, copies the program from SPI flash into the load window \texttt{0x8000}--\texttt{0xFFFC}\ifnpupresent{} (its TCM plus the NPU staging RAM)\fi, and jumps to the program at \texttt{0x8200}. Before any tile can be released, the boot ROM zeroes the shared-RAM mailbox region \texttt{0x10000}--\texttt{0x107FF}: shared RAM powers up with \textit{unknown} contents on silicon, and this write-before-read guarantee is what makes ``mailbox reads as zero'' checks safe.
+\textbf{Hart 0} runs the full boot sequence, exactly as on the single-core chip: it configures \peripheral{GPIO0}/\peripheral{SPI0}, copies the program from SPI flash into the load window \texttt{0x8000} to \texttt{0xFFFC}\ifnpupresent{} (its TCM plus the NPU staging RAM)\fi, and jumps to the program at \texttt{0x8200}. Before any tile can be released, the boot ROM zeroes the shared-RAM mailbox region \texttt{0x10000} to \texttt{0x107FF}: shared RAM powers up with \textit{unknown} contents on silicon, and this write-before-read guarantee is what makes ``mailbox reads as zero'' checks safe.
 
-\textbf{Harts 1--\MaxHartIndex} set up a minimal interrupt context (a stack at the top of their TCM and a software-interrupt vector) and park in low-power sleep. A parked tile wakes only when hart 0 (or any running program) sends it a \peripheral{CLINT} software interrupt. On wake, the ROM-resident loader reads the tile's \textit{loader mailbox row} in shared RAM:
+\textbf{Harts 1 to \MaxHartIndex{}} set up a minimal interrupt context (a stack at the top of their TCM and a software-interrupt vector) and park in low-power sleep. A parked tile wakes only when hart 0 (or any running program) sends it a \peripheral{CLINT} software interrupt. On wake, the ROM-resident loader reads the tile's \textit{loader mailbox row} in shared RAM:
 
 \begin{center}
 \begin{tabular}{ l l l }
@@ -152,13 +152,13 @@ All \NumHartsWord{} harts come out of reset at PC \texttt{0x0} and fetch the sha
 \end{tabular}
 \end{center}
 
-The loader clears the tile's own \register{MSIP} level, copies \register{LEN[h]} words from \register{SRC[h]} into the tile's private TCM at \texttt{0x8000} (a \register{LEN} of \TcmWords{} loads the full \TcmSizeKiB\,KiB image: vector table, code, and interrupt handlers included), and enters \register{ENTRY[h]} with the stack pointer set to the top of the tile's TCM and all other registers undefined.
+The loader clears the tile's own \register{MSIP} level, copies \register{LEN[h]} words from \register{SRC[h]} into the tile's private TCM at \texttt{\RamStartAddress} (a \register{LEN} of \TcmWords{} loads the full \TcmSizeKiB\,KiB image: vector table, code, and interrupt handlers included), and enters \register{ENTRY[h]} with the stack pointer set to the top of the tile's TCM and all other registers undefined.
 
 The canonical release sequence for hart $h$ is therefore: stage the tile's program somewhere in shared RAM, write \register{SRC[h]} and \register{LEN[h]} and \register{ENTRY[h]}, then write $1$ to the hart's \register{MSIP} register (\texttt{0x5000} + $4h$). Because the mailbox row is consumed by the ROM only at wake time, the row must be complete \textit{before} the \register{MSIP} write. Software interrupts sent to a tile \textit{after} it has been loaded are handled by the loaded program's own vector table, so the same \peripheral{CLINT} mechanism serves both boot-time loading and run-time inter-processor interrupts.
 
 \textbf{Stacks:} each hart needs its own stack in its own private TCM. When an interrupt is taken, the hardware pushes the return program counter at $\mathtt{sp}-4$ (see Section \ref{s:interrupts}), so every hart, including a freshly loaded tile hart, must have a valid stack pointer before enabling interrupts or sleeping. The boot ROM guarantees this for parked and freshly-entered tiles; application code keeps the convention of placing each hart's stack at the top of its TCM, growing downward.
 
-\subsubsection{Harvested (field-powered) boot}
+\subsection{Harvested (field-powered) boot} \label{ss:multicore-harvested}
 
 In configurations wired for field power, hart 0's boot path has a second entry, selected by a hardware strap sampled at reset and reported by the \peripheral{PWRCTRL} controller. Before any SPI or flash activity, hart 0 polls the strap-valid flag and, if the harvested-boot strap is set, branches to a ROM-resident service path instead of the SPI-flash download described above. This path is built for a chip running on harvested field energy, where the multi-kilobyte flash copy is the single most power-hungry cold-start step and is therefore skipped entirely.
 
@@ -169,12 +169,12 @@ On a configuration built without the NFC block, the NFC register writes land in 
 The exact sequence, in the order the ROM executes it (register addresses in the peripheral chapters):
 
 \begin{enumerate}
-\item \textbf{Common entry (shared with the SPI path):} interrupts off, all memory blocks powered, stack pointer set, and the shared-RAM mailbox region \texttt{0x10000}--\texttt{0x107FC} zeroed (the write-before-read contract). At a 24\,MHz \texttt{MCLK} this zeroing, 512 word writes through the shared-bus arbiter, dominates the harvested cold-start (about 625\,\textmu s of the roughly 690\,\textmu s from gate release to sleep).
+\item \textbf{Common entry (shared with the SPI path):} interrupts off, all memory blocks powered, stack pointer set, and the shared-RAM mailbox region \texttt{0x10000} to \texttt{0x107FC} zeroed (the write-before-read contract). At a 24\,MHz \texttt{MCLK} this zeroing, 512 word writes through the shared-bus arbiter, dominates the harvested cold-start (about 625\,\textmu s of the roughly 690\,\textmu s from gate release to sleep).
 \item \textbf{Strap branch:} poll \register{PWRSTS} until \bitfield{PWSTRAPVLD}, then branch on \bitfield{PWSTRAP}. (The sample completed a handful of cycles after reset release, long before this code runs; the poll is cheap insurance.)
 \item \textbf{Clock story, explicitly:} write \register{SYSCLKCR}\,=\,0; both \texttt{MCLK} and \texttt{SMCLK} stay on \texttt{HFXT}. The SPI path's mid-boot switch of \texttt{SMCLK} to \texttt{LFXT} never runs on this path, so the choice is written rather than inherited.
 \item \textbf{Gate the tiles:} write all-ones to \peripheral{PWRCTRL} \register{PWRCR}. The register masks the write to the tile bits that exist, so the same ROM gates every tile hart at any hart count; the tiles are parked in their boot-ROM \texttt{WFI}, the sanctioned quiesced state.
-\item \textbf{Pin mux:} select the alternate-function planes for the six off-die NFC AFE wires on port~6 pins 0--5 (\texttt{PxSEL}, then the AF-select fields). Pins 6 and 7 (the strap and \texttt{PGOOD}) are untouched and stay plain inputs.
-\item \textbf{Provision the tag:} write the ROM-default identity (UID \texttt{0xC0FFEE01}, \texttt{ATQA}~\texttt{0x0044}, \texttt{SAK}~\texttt{0x00}), point the payload index register at byte 0 with auto-increment, and write a three-byte status payload: \texttt{'H'}, \texttt{'V'}, then the live \register{PWRSTS} snapshot, the honest ``sensor record'' of the base chip. A fielded product replaces all of this by relaunching with real firmware.
+\item \textbf{Pin mux:} select the alternate-function planes for the six off-die NFC AFE wires on port~6 pins 0 to 5 (\texttt{PxSEL}, then the AF-select fields). Pins 6 and 7 (the strap and \texttt{PGOOD}) are untouched and stay plain inputs.
+\item \textbf{Provision the tag:} write the ROM-default identity (UID \texttt{0xC0FFEE01}, \texttt{ATQA}~\texttt{0x0044}, \texttt{SAK}~\texttt{0x00}), point the payload index register at byte 0 with auto-increment, and write a three-byte status payload: \texttt{'H'}, \texttt{'V'}, then the live \register{PWRSTS} snapshot, the status record of the base chip. A fielded product replaces all of this by relaunching with real firmware.
 \item \textbf{Arm LISTEN:} a \textit{byte} store of \texttt{NFCEN}\,$|$\,\texttt{LISTEN} to the NFC control register's low lane. A full-word store would also write the second byte lane and clear the auto-read enable, whose reset default is set; auto-read is what lets the hardware answer Type-2 \texttt{READ}s with the processor asleep.
 \item \textbf{Stray-interrupt guard:} arm interrupt-vector slot~83 (the software interrupt) in hart~0's own TCM with a return stub, so an unexpected \texttt{msip} is cleared and returns the hart to sleep instead of vectoring into uninitialized memory.
 \item \textbf{Slow down and sleep:} divide \texttt{MCLK} by eight (\register{CLKDIVCR}), then sleep. The clock reconfiguration is legal here because every other bus master is gated. From this point the NFC hardware serves readers autonomously; a field arrival can be taken as an interrupt only if firmware later opts in.
@@ -182,7 +182,7 @@ The exact sequence, in the order the ROM executes it (register addresses in the 
 
 
 
-\subsection{Synchronization} \label{ss:multicore-sync}
+\section{Synchronization} \label{ss:multicore-sync}
 
 \AsicNameForUserGuide{} offers three synchronization mechanisms, from cheapest to most flexible. Figure~\ref{fig:sync-decision} summarizes how to choose between them:
 
@@ -192,7 +192,7 @@ The exact sequence, in the order the ROM executes it (register addresses in the 
 	% Input at NATURAL SIZE. A \resizebox to \linewidth here scaled the picture UP
 	% (natural width < \linewidth), magnifying every node font past the body text.
 	\input{include/SyncPrimitiveDecisionTree.tex}
-	\caption{Choosing a synchronization primitive. The dashed box lists the two rules that apply to every branch.}
+	\caption{Decision chart for choosing a synchronization primitive.}
 	\label{fig:sync-decision}
 \end{figure}
 
@@ -207,7 +207,7 @@ Two rules apply to all of them:
 \begin{itemize}
 	\item \textbf{Never} use \texttt{LR}/\texttt{SC} or \texttt{AMO} instructions on \peripheral{MUTEX} bank addresses; hardware mutexes are claimed with plain loads and released with plain stores only.
 	\item Under contention, spin with a \textit{hart-scaled backoff}: delay between retries by an amount proportional to \register{mhartid} (for example $\mathtt{delay} = k \cdot (\register{mhartid} + 1)$) and bound the retry count. Multiple harts hammering the arbiter in lockstep can otherwise livelock a naive retry loop.
-	\ifnpupresent\item Additionally, do not access the NPU staging RAM (\texttt{0xC000}--\texttt{0xFFFF}) while an NPU run may be active; poll the NPU's busy flag first (see the \peripheral{NPU} chapter).\fi
+	\ifnpupresent\item Additionally, do not access the NPU staging RAM (\texttt{0xC000} to \texttt{0xFFFF}) while an NPU run may be active; poll the NPU's busy flag first (see the \peripheral{NPU} chapter).\fi
 \end{itemize}
 
 There are no data caches, so there is no cache-coherence protocol to consider: a shared-RAM write is globally visible as soon as the arbiter completes the transaction.

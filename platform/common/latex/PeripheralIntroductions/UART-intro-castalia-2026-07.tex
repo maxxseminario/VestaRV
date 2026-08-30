@@ -1,186 +1,124 @@
-The Universal Asynchronous Receiver/Transmitter (UART) is an asynchronous, full-duplex serial interface with hardware parity support. The main features of the UART are listed below:
+% UART chapter. Section order is the per-peripheral template enforced by
+% python/check_intro_names.py. Vector numbers are frozen by the generator
+% (python/generate.py, _mcuMpIrqVectors). Pin lists are generated, not
+% written here.
+\section{Overview}
+
+The Universal Asynchronous Receiver/Transmitter (\peripheral{UARTx}) is a two-wire, full-duplex asynchronous serial interface with hardware parity. \peripheral{UART0} is the console port used by the boot ROM's Forth interpreter; \peripheral{UART1}, in configurations that include it, is identical.
 
 \begin{itemize}
-	\item Full-duplex, independent receive and transmit operation
-	\item Asynchronous (no serial clock wire)
-	\item Two wires, one for TX and one for RX
-	\item Communicates with one external device
-	\item 8-bit data frames
-	\item Adjustable baud generator with 16× oversampling
-	\item Hardware parity generation and checking (even or odd)
-	\item Error detection: framing error, parity error, and receive overflow flags
-	\item Three separate interrupt sources: receive complete, transmit complete, and TX register empty
-	\item Latched register reads for noise immunity
+	\item Independent transmitter and receiver, 8-bit frames, one stop bit
+	\item Baud generator from SMCLK with 16 times oversampling (\register{UARTxBR})
+	\item Even or odd parity, generated and checked in hardware (\bitfield{UPEN}, \bitfield{PSEL})
+	\item Framing, parity and receive-overflow error flags (\bitfield{FEF}, \bitfield{PEF}, \bitfield{OVF})
+	\item One-deep transmit queue for back-to-back frames
+	\item Three interrupts per port: receive complete, transmit register empty, transmit complete
+	\item Latched register reads for stable status during reception
 \end{itemize}
 
+\section{Block diagram}
 
-
-\subsection{UART Pins}
-
-The \peripheral{UARTx} peripheral has two pins: \pin{RXx} and \pin{TXx}.
-
-The \pin{TXx} pin transmits each data bit from this \peripheral{UARTx} peripheral to the external device. It must be attached to the RX pin of the external device. When the corresponding \register{PxSEL[y]} bit is a 1, the \peripheral{UARTx} peripheral seizes control of the \texttt{DIR}, \texttt{OUT}, and \texttt{REN} controls of \pin{TXx}, making it an output.
-
-The \pin{RXx} pin receives each data bit from the external device. It must be attached to the TX pin of the external device. When the corresponding \register{PxSEL[y]} bit is a 1, the \peripheral{UARTx} peripheral seizes control of the \texttt{DIR}, \texttt{OUT}, and \texttt{REN} controls of \pin{RXx}, making it a high impedance input.
-
-The UART transmitter and receiver are independent of one another. Thus, transmissions and receptions need not occur at the same time or with the same external device. Indeed, both pins do not necessarily need to be used if one-way communications are all that is needed.
-
-A connection diagram for the UART is displayed in Figure \ref{fig:uart-connection-diagram}.
+Figure \ref{fig:uart-connection-diagram} shows the two-wire connection to an external device.
 
 \begin{figure}[htpb]
+	\centering
 	\includegraphics{figures/uart-connection-diagram}
-	\caption{UART Connection Diagram}
+	\caption{UART connection to an external device.}
 	\label{fig:uart-connection-diagram}
 \end{figure}
 
+\section{Functional description}
 
+\subsection{Frame}
 
-\subsection{Shared Access on \AsicNameForUserGuide}
-
-The UARTs live in the shared peripheral window behind the multi-core arbiter (see Section \ref{s:multicore}), so any hart can use them, each at its original memory-mapped slot: \peripheral{UART0} at \texttt{0x4400}, and \peripheral{UART1} (in configurations that include it) at \texttt{0x4500}. \peripheral{UART0} is the \textit{console UART}: it carries the boot-time Forth console.
-
-The arbiter makes every individual register access atomic: one hart's read or write of \register{UARTxTX}, \register{UARTxSR}, and so on completes as a whole before any other hart's access is served. Message-level ownership, however, is software's responsibility: if two harts transmit at the same time, their \textit{bytes} interleave on the wire. Software that shares a UART between harts should serialize whole messages with a lock: claim a hardware mutex (\peripheral{MUTEX} bank) or an \texttt{LR}/\texttt{SC} session lock in shared RAM, transmit the message, then release. See Section \ref{ss:multicore-sync}.
-
-The UART interrupt lines (receive complete, TX register empty, transmit complete) are wired to hart 0's interrupt enables in the \peripheral{SYSTEM} peripheral and can additionally be routed to any other hart through the \peripheral{IRQROUTER} peripheral. A hart's interrupt service routine must clear the interrupt flag (through the shared window) before returning.
-
-Note that the UART core runs in the SMCLK clock domain, and the boot ROM may leave SMCLK sourced from LFXT (32.768~\si{\kilo\hertz}) when it jumps to the application; in that state UART frames take roughly 10~\si{\milli\second} each. Always configure the SMCLK source in the \peripheral{SYSTEM} peripheral (Section \ref{ss:clocks}) before using a UART, rather than relying on the boot-time clock state.
-
-
-
-\subsection{Generalized UART Transmission Process}
+Each wire is unidirectional and idles high. A frame is a start bit (low for one bit time $T_B = 1/\textrm{baud}$), eight data bits LSB first, an optional parity bit, and a stop bit (high for $T_B$). The transmitter may start the next frame immediately after the stop bit or leave the wire idle. Figure \ref{fig:uart-timing-diagram} shows one frame.
 
 \begin{figure}[htpb]
-		% Generated by LatexUserGuide.GenerateUartFrameDiagram (make chip).
+	% Generated by LatexUserGuide.GenerateUartFrameDiagram (make chip).
 	\input{include/UartFrameDiagram.tex}
-	\caption{UART Data Frame Timing Diagram}
+	\caption{One UART frame with the optional parity bit.}
 	\label{fig:uart-timing-diagram}
 \end{figure}
 
-Each UART wire is unidirectional, with the TX pin of the transmitting device driving the logic level of the wire and the RX pin of the receiving device reading the level of the pin. The only distinction between the two wires is the direction that data travels, and as such, this section will only depict one wire.
+\subsection{Baud generation}
 
-When no UART transmission is occurring, the UART wire is idle, and the TX pin drives the UART wire high. To start a transmission, the TX pin transmits a start bit by driving the wire low for $T_B = 1 / \textrm{baud}$ seconds. It then begins transmitting each data bit, LSB-first, every $T_B$ seconds until all 8 bits have been transmitted. Then, it optionally transmits a parity bit, which helps detect transmission errors. Finally, it transmits a stop bit by driving the wire high for $T_B$ seconds. After that point, it may begin another transmission by sending another start bit, or it can let the wire be idle.
-
-Figure \ref{fig:uart-timing-diagram} shows a timing diagram for the UART transmission process. Note that the parity bit [P] is optional.
-
-
-
-\subsection{UART Baud Generation}
-
-Both devices communicating over the UART must agree on the baud rate, or the number of bits transmitted per second. In the absence of a clock wire, the UART uses the baud rate to sample the RX wire every $T_B = 1/\ \textrm{baud}$ seconds, recording the logic levels in sequence. The transmitter must send bits at that same rate. Any significant deviation of the baud rate can result in bit errors.
-
-The UART uses 16× oversampling for improved noise immunity and accurate bit detection. The baud rate for the \peripheral{UARTx} peripheral is configured through the 12-bit \register{UARTxBR} register:
-
+Both ends must agree on the baud rate, because the receiver has no clock wire and samples each bit at the centre of its expected period. The receiver oversamples at 16 times the baud rate for noise immunity, and the rate is set by the 12-bit \register{UARTxBR}:
 \begin{equation*}
-	\textrm{UART baud} = \frac{f_\textrm{SMCLK}}{16 \times (\bitfield{BR} + 1)}
+\textrm{baud} = \frac{f_\textrm{SMCLK}}{16 \times (\bitfield{BR} + 1)}
 \end{equation*}
+With SMCLK at 24 MHz, \bitfield{BR} = 12 gives 115,385 baud, \bitfield{BR} = 25 gives 57,692 baud and \bitfield{BR} = 51 gives 28,846 baud, each within 0.2\,\% of the standard rate. The serial engine runs on SMCLK and the register interface on MCLK, so the registers stay readable with SMCLK stopped.
 
-For example, with SMCLK running at 24 MHz:
-\begin{itemize}
-	\item \bitfield{BR} = 12 gives 115,385 baud (within 0.2\,\% of standard 115,200)
-	\item \bitfield{BR} = 25 gives 57,692 baud (within 0.2\,\% of standard 57,600)
-	\item \bitfield{BR} = 51 gives 28,846 baud (within 0.2\,\% of standard 28,800)
-\end{itemize}
+\subsection{Parity}
 
+With \bitfield{UPEN} set the transmitter appends $p = b_7 \oplus \cdots \oplus b_0 \oplus \bitfield{PSEL}$, which is even parity for \bitfield{PSEL} = 0 and odd for 1, and the receiver checks the same function and sets \bitfield{PEF} on a mismatch. Parity detects any odd number of bit errors in a frame and misses any even number.
 
+\subsection{Transmit queue}
 
-\subsection{Parity Bit}
+A write to \register{UARTxTX} queues one byte. If no frame is in progress the frame starts at once and \bitfield{TEIF} is set immediately; otherwise the byte starts when the current frame ends, and \bitfield{TEIF} is set then. The queue holds one byte, so software waits for \bitfield{TEIF} = 1 or \bitfield{TXBF} = 0 before each write. \bitfield{TCIF} is set when the last stop bit has been sent and the transmitter is idle.
 
-A UART frame has an optional parity bit after the last data bit and before the stop bit. The purpose of the parity bit is to verify that the data received is indeed the data that was transmitted. If the received parity bit does not match the expected parity bit, then the receiver knows that the received data has been corrupted.
+\subsection{Reception and status}
 
-If the parity bit is enabled with \bitfield{UPEN}, the transmitter calculates the parity of the byte to transmit by taking the exclusive OR of all 8 bits in the transmitted byte, the result of which is then put through a final exclusive OR gate with the parity select bit \bitfield{PSEL}:
-\begin{equation*}
-p = b_7 \oplus b_6 \oplus \cdots \oplus b_1 \oplus b_0 \oplus \bitfield{PSEL}
-\end{equation*}
-When \bitfield{PSEL} is 0, the parity is said to be ``even'', and when it is 1, ``odd''. This operation is functionally counting how many bits are 1s in the transmitted byte. When even parity is selected, the parity bit is 0 when the number of 1s is even and 1 when the number of 1s is odd. That result is inverted when odd parity is selected.
+\bitfield{RXBF} is 1 while a frame is being received. When the stop bit has been sampled, the byte is placed in \register{UARTxRX}, \bitfield{RCIF} is set, and \bitfield{FEF}, \bitfield{PEF} and \bitfield{OVF} are updated: \bitfield{FEF} when the stop bit was not high, which usually means the two ends disagree on rate or format; \bitfield{PEF} on a parity mismatch; \bitfield{OVF} when the previous byte had not been read, in which case it is lost. A byte received with \bitfield{FEF} or \bitfield{PEF} set is corrupt. Reading \register{UARTxRX} clears \bitfield{RCIF}, \bitfield{FEF}, \bitfield{PEF} and \bitfield{OVF}; \register{UARTxSR} and \register{UARTxRX} are latched on the falling edge of the memory enable signal, so a read during reception returns one stable sample.
 
-On the receiver end, the parity bit is capable of detecting a single bit error in the transmission. That is, if one of the eight data bits (or the parity bit itself) is incorrectly received, then the parity error flag \bitfield{PEF} will detect a bit error. However, if two bits are incorrectly received, then the parity error flag will not detect the bit error. Note that if the number of bit errors is an odd number, the parity error flag will detect the error, but will not when the number of bit errors is even.
+\section{Interrupts and events}
 
-If a parity bit is enabled on the transmitter side, it must also be enabled on the receiver side with \bitfield{UPEN}.
+The three interrupt flags in \register{UARTxSR} have enables in \register{UARTxCR} (\bitfield{CIE}, \bitfield{TEIE}, \bitfield{TCIE}); each interrupt is a level asserted while both are set. Table \ref{t:uart-irq} lists the vectors.
 
+\begin{table}[htb]
+	\centering
+	\caption{\peripheral{UARTx} interrupt vectors.}
+	\label{t:uart-irq}
+	\begin{tabular}{ l l p{3.8cm} l p{4.6cm} }
+	\textbf{Vector} & \textbf{Port} & \textbf{Condition} & \textbf{Set by} & \textbf{Cleared by} \\ \hline
+	13 & \peripheral{UART0} & Byte received & \bitfield{RCIF} & Reading \register{UARTxRX}, or writing 1 \\
+	\rowcolor{tablehighlightcolor}
+	14 & \peripheral{UART0} & Transmit register empty & \bitfield{TEIF} & Writing 1 \\
+	15 & \peripheral{UART0} & Transmission complete & \bitfield{TCIF} & Writing 1 \\
+	\rowcolor{tablehighlightcolor}
+	52 & \peripheral{UART1} & Byte received & \bitfield{RCIF} & Reading \register{UARTxRX}, or writing 1 \\
+	53 & \peripheral{UART1} & Transmit register empty & \bitfield{TEIF} & Writing 1 \\
+	\rowcolor{tablehighlightcolor}
+	54 & \peripheral{UART1} & Transmission complete & \bitfield{TCIF} & Writing 1 \\
+	\hline
+	\end{tabular}
+\end{table}
 
+\section{Programming}
 
-\subsection{Transmit Buffer Register Queue}
+\subsection{Initialisation}
 
-Writing to the UART transmit buffer register \register{UARTxTX} queues up the byte written to it as the next frame to transmit. If a transmission is not currently ongoing, the \peripheral{UARTx} peripheral immediately begins transmitting the byte written to \register{UARTxTX}, and \bitfield{TEIF} is set immediately. If a transfer is currently ongoing, the \peripheral{UARTx} peripheral waits for the current frame to finish transferring. As soon as it finishes, the \peripheral{UARTx} peripheral begins transmitting the new frame written to \register{UARTxTX} and sets \bitfield{TEIF}.
+\begin{enumerate}
+	\item Select the SMCLK source in \register{SYSCLKCR} (Section \ref{ss:clocks}).
+	\item Set the \register{PxSEL} bits of the \pin{TXx} and \pin{RXx} pins, and their \register{PxAFS} fields if the port is relocated.
+	\item Write \register{UARTxBR}.\bitfield{BR} for the baud rate.
+	\item Write \register{UARTxCR}.\bitfield{UPEN} and \register{UARTxCR}.\bitfield{PSEL} for parity.
+	\item Set the interrupt enables required in \register{UARTxCR}.
+	\item Set \register{UARTxCR}.\bitfield{UEN}; while it is 0 the port is held in reset.
+\end{enumerate}
 
-The TX queue allows the \peripheral{UARTx} peripheral to constantly transfer data without any dead time in between frames, ensuring maximum transfer speed. However, the user must take care not to overflow the queue, which happens if the \register{UARTxTX} is written two or more times during a single frame transfer. Queue overflows can be prevented by waiting for the \bitfield{TEIF} flag to be 1 or \bitfield{TXBF} to be 0 before writing to \register{UARTxTX}.
+\subsection{Transmitting a byte}
 
+\begin{enumerate}
+	\item Wait for \bitfield{TXBF} = 0 or \bitfield{TEIF} = 1.
+	\item Write the byte to \register{UARTxTX}.
+\end{enumerate}
 
+\subsection{Receiving a byte}
 
-\subsection{Flags and Interrupts}
+\begin{enumerate}
+	\item Wait for \bitfield{RCIF} = 1.
+	\item Read \register{UARTxSR} and reject the byte if \bitfield{FEF} or \bitfield{PEF} is set.
+	\item Read \register{UARTxRX}; the read clears the flags.
+\end{enumerate}
 
-The \peripheral{UARTx} peripheral has five status flags and three interrupt flags in the \register{UARTxSR} register. If the corresponding interrupts are enabled in the \register{UARTxCR} register and the \peripheral{UARTx} ISR is not masked, then the three interrupt flags will generate an interrupt whenever they are equal to 1. Any and all interrupt flags must be cleared before the \peripheral{UARTx} ISR returns, else the ISR will mistakenly re-execute immediately upon the prior return.
+\section{Usage notes}
 
-The \register{UARTxSR} and \register{UARTxRX} registers are latched on the falling edge of the memory enable signal for improved noise immunity during reads.
+\paragraph{Select the SMCLK source before the first frame.} With SMCLK on LFXT (32.768 kHz), as the boot ROM may leave it, each frame takes about 10 \si{\milli\second}.
 
-The UART receiver busy flag \bitfield{RXBF} shows when the \peripheral{UARTx} peripheral is currently receiving a byte of data when it is 1. Likewise, \bitfield{TXBF} indicates that a transmission is ongoing or pending when 1.
+\paragraph{Read the status before the data.} Reading \register{UARTxRX} clears the error flags, so a handler that reads the byte first cannot tell whether it was corrupt.
 
-The UART framing error flag \bitfield{FEF} indicates that a framing error occurred on the last reception when it is a 1. A framing error typically occurs if the UART transmitter settings do not match the receiver settings, such as baud rate, number of bits to transmit, or the presence/absence of a parity bit. Specifically, a framing error is detected if the receiver does not detect a high level at the expected stop bit time. If \bitfield{FEF} is a 1 after a reception, that reception must be treated as unrecoverable, corrupted data. \bitfield{FEF} is cleared when the \register{UARTxRX} register is read.
+\paragraph{Serialize whole messages between harts.} The arbiter makes each register access atomic; bytes from two harts interleave on the wire (Section \ref{ss:multicore-sync}).
 
-The UART parity error flag \bitfield{PEF} indicates that a parity error occurred on the last reception when it is a 1. A parity error can only happen if the parity bit is enabled by setting \bitfield{UPEN} to 1. A parity error occurs when the parity bit appended to the received data byte does not match the expected value calculated from the received data. If \bitfield{PEF} is a 1 after a reception, that reception must be treated as corrupted data. \bitfield{PEF} is cleared when the \register{UARTxRX} register is read.
+\paragraph{Clear \bitfield{TEIF} and \bitfield{TCIF} with a 1 before returning.} Both are levels into the interrupt controller.
 
-The UART receive data overflow flag \bitfield{OVF} indicates that the user did not read the \register{UARTxRX} register in time before another byte of data was received by the \peripheral{UARTx} peripheral when it is a 1. In this case, the previous received data has been lost and must be treated as incomplete. \bitfield{OVF} is cleared when the \register{UARTxRX} register is read.
-
-The UART receive complete interrupt flag \bitfield{RCIF} is set to 1 immediately when the \peripheral{UARTx} peripheral finishes receiving a frame of data from the transmitter. The new data byte becomes available in the \register{UARTxRX} register as soon as \bitfield{RCIF} is set. This is also the moment that \bitfield{FEF}, \bitfield{PEF}, and \bitfield{OVF} flags will be updated, if the proper conditions are met. \bitfield{RCIF} is cleared when the \register{UARTxRX} register is read or by writing a 1 to this bit in \register{UARTxSR}.
-
-The UART transmit register empty interrupt flag \bitfield{TEIF} is set the moment the UART TX buffer register \register{UARTxTX} becomes empty (i.e., is ready to queue up the next byte to transmit). If a frame is not currently being transmitted, the flag is set immediately when a new byte is written to \register{UARTxTX}. If a frame is currently being transmitted, it is set as soon as the current transfer is completed, whereupon the value in the \register{UARTxTX} register begins to be transmitted. Write a 1 to this bit in \register{UARTxSR} to clear \bitfield{TEIF}.
-
-The UART transmit complete interrupt flag \bitfield{TCIF} is set the moment the UART transmission completes (all bits sent) and the transmitter becomes idle. Write a 1 to this bit in \register{UARTxSR} to clear \bitfield{TCIF}.
-
-
-
-\subsection{Transmit Procedure}
-
-To transmit a byte of data via the UART, first initialize the \peripheral{UARTx} peripheral by configuring the \register{UARTxCR} register and setting the baud rate with the \register{UARTxBR} register. Of note, the UART enable bit \bitfield{UEN} must be a 1 to activate the UART. When \bitfield{UEN} is 0, the UART peripheral is held in reset state. The GPIO pin multiplexed with \pin{TXx} must be set to secondary/peripheral mode in the corresponding \register{PxSEL} register.
-
-To transmit a byte of data over the UART, first clear the status register by reading it and discarding its value. Then, wait until the UART is not transmitting (when \bitfield{TXBF} is 0) or the UART TX buffer is empty (when \bitfield{TEIF} is 1). Next, write the byte to transmit to the \register{UARTxTX} register. The byte will be finished transmitting once \bitfield{TXBF} is 0.
-
-A simplified procedure for transmitting a byte over the UART is shown in Listing \ref{lst:uart-tx}.
-
-\begin{lstlisting}[style=customC, label=lst:uart-tx, caption={Example Function for UART Transmissions}]
-/** Includes **/
-#include <MemoryMap.h>
-
-/** Function Definitions **/
-void uartx_putc(char tx_data)
-{
-	// Wait for the transmitter to finish any previous transmissions
-	while (UARTxSR & TXBF) { }
-	
-	// Send the new data byte
-	UARTxTX = tx_data;
-}
-\end{lstlisting}
-
-
-
-\subsection{Receive Procedure}
-
-To receive a byte of data via the UART, first initialize the \peripheral{UARTx} peripheral by configuring the \register{UARTxCR} register and setting the baud rate with the \register{UARTxBR} register. Of note, the UART enable bit \bitfield{UEN} must be a 1 to activate the UART. The GPIO pin multiplexed with \pin{RXx} must be set to secondary/peripheral mode in the corresponding \register{PxSEL} register.
-
-Once done setting up the UART, wait for the UART receive complete interrupt flag \bitfield{RCIF} to be 1. Then, read the received byte contained in the \register{UARTxRX} register. Reading \register{UARTxRX} automatically clears the \bitfield{RCIF}, \bitfield{FEF}, \bitfield{PEF}, and \bitfield{OVF} flags.
-
-A simplified procedure for receiving a byte over the UART is shown in Listing \ref{lst:uart-rx}.
-
-\begin{lstlisting}[style=customC, label=lst:uart-rx, caption={Example Function for UART Receptions}]
-/** Includes **/
-#include <MemoryMap.h>
-
-/** Function Definitions **/
-char uartx_getc()
-{
-	// Wait for the UART to receive a new character
-	while ((UARTxSR & RCIF) == 0) { }
-	
-	// Return the new character that is in the receive buffer register
-	return UARTxRX;
-}
-\end{lstlisting}
-
-
-
-\subsection{\peripheral{UART0} Boot Behavior}
-
-When booting in Forth interpreter mode, the \peripheral{UART0} peripheral provides an interactive command processor with an external device, such as computer with a USB to UART device attached. When the MCU is powered up or reset and the \pin{BOOT} pin is low, the Forth interpreter will launch over \peripheral{UART0}, which can be used to program or debug the MCU.
-
-Section \ref{s:startup} elaborates on the power up and reset behavior of the MCU.
+\paragraph{Leave \peripheral{UART0} to the console during boot.} The boot ROM's Forth interpreter owns \peripheral{UART0} at 115,200 baud until the application starts (Section \ref{s:startup}).

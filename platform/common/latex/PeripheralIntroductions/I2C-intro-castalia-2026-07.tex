@@ -1,32 +1,125 @@
-The \peripheral{I2Cx} peripherals are general-purpose I\textsuperscript{2}C interfaces, each able to act as a bus master or as an addressed slave. Master and slave are driven through two separate sets of register bits sharing one pin pair, so a port can be configured for either role (or, with both enabled, participate in a multi-master bus). The main features are listed below:
+% I2C chapter. Section order is the per-peripheral template enforced by
+% python/check_intro_names.py. Vector numbers are frozen by the generator
+% (python/generate.py, _mcuMpIrqVectors).
+\section{Overview}
+
+The \peripheral{I2Cx} peripherals are general-purpose I\textsuperscript{2}C interfaces, each able to act as a bus master or as an addressed slave. Master and slave are driven through separate sets of control and status bits that share one pin pair, so a port can be configured for either role, or for both on a multi-master bus.
 
 \begin{itemize}
-	\item Master transmitter and master receiver modes, with START, repeated-START and STOP generation (\bitfield{I2CMST}, \bitfield{I2CMSP}) and a programmable bus clock divider (\bitfield{I2CMDIV})
-	\item Multi-master arbitration: losing the bus releases it and raises \bitfield{I2CMARB}
-	\item Slave transmitter and slave receiver modes with a 7-bit address (\register{I2CxAR}), a per-bit address mask (\register{I2CxAMR}) for responding to a range of addresses, and an optional general-call response (\bitfield{I2CGCE})
-	\item Optional slave clock stretching (\bitfield{I2CSCS}): the port holds \pin{SCLx} low through the ACK bit until firmware releases it, trading bus latency for lossless flow control
-	\item Separate transmit and receive data registers for each role (\register{I2CxMTX}/\register{I2CxMRX}, \register{I2CxSTX}/\register{I2CxSRX})
-	\item Individually maskable interrupt sources for transfer complete, arbitration loss, NACK received, address match, START and STOP detection, and receive overrun
+	\item Master transmitter and master receiver modes with START, repeated START and STOP generation (\bitfield{I2CMST}, \bitfield{I2CMSP}) and a programmable bus clock divider (\bitfield{I2CMDIV})
+	\item Multi-master arbitration: losing the bus releases it and sets \bitfield{I2CMARB}
+	\item Slave transmitter and slave receiver modes with a 7-bit address (\register{I2CxAR}), a per-bit address mask (\register{I2CxAMR}) and optional general-call response (\bitfield{I2CGCE})
+	\item Optional slave clock stretching (\bitfield{I2CSCS}) through the ACK bit
+	\item Separate transmit and receive data registers per role (\register{I2CxMTX}/\register{I2CxMRX}, \register{I2CxSTX}/\register{I2CxSRX})
+	\item Thirteen individually maskable interrupt sources, one vector each
 \end{itemize}
 
-\subsection{The Wire Protocol}
+\section{Functional description}
 
-Both roles speak the same two-wire protocol. \pin{SDAx} and \pin{SCLx} are open-drain and require external pull-up resistors: a device drives a bit low by pulling the line down and releases it to let the pull-up present a one. Because every device can only pull down, two devices driving at once cannot damage each other, and that is what makes both multi-master arbitration and slave clock stretching possible on the same pair of wires.
+\subsection{Wire protocol}
 
-A transfer is framed by two conditions that are deliberately illegal during data: \textbf{START} is a falling edge on \pin{SDAx} while \pin{SCLx} is high, and \textbf{STOP} is a rising edge on \pin{SDAx} while \pin{SCLx} is high. Between them, \pin{SDAx} may only change while \pin{SCLx} is low, so every data bit is stable across the whole \pin{SCLx} high period and any receiver may sample it there. After the address byte and after each data byte, the transmitter releases \pin{SDAx} for one clock and the receiver answers by pulling it low for an ACK or leaving it high for a NACK. Figure \ref{fig:i2c-transaction} shows one complete byte write.
+Both roles use the same two-wire protocol on \pin{SDAx} and \pin{SCLx}. Both lines are open drain and require external pull-up resistors: a device drives a bit low by pulling the line down and releases it to let the pull-up present a one. Because every device can only pull down, two devices driving at once cannot damage each other, and that is what makes multi-master arbitration and slave clock stretching possible on the same pair of wires.
+
+A transfer is framed by two conditions that are illegal during data: START is a falling edge on \pin{SDAx} while \pin{SCLx} is high, and STOP is a rising edge on \pin{SDAx} while \pin{SCLx} is high. Between them \pin{SDAx} changes only while \pin{SCLx} is low, so every data bit is stable across the whole \pin{SCLx} high period and any receiver may sample it there. After the address byte and after each data byte, the transmitter releases \pin{SDAx} for one clock and the receiver pulls it low for an ACK or leaves it high for a NACK. Figure \ref{fig:i2c-transaction} shows one byte write.
 
 % Generated by LatexUserGuide.GenerateI2cTransactionDiagram (make chip).
 \begin{figure}[htpb]
 	\centering
 	\input{include/I2cTransactionDiagram.tex}
-	\caption[{One I2C byte write on the wire: START, the 7-bit address and direction bit, the addressed device's ACK, one\,\dots}]{One I2C byte write on the wire: START, the 7-bit address and direction bit, the addressed device's ACK, one data byte, its ACK, then STOP. START and STOP are the two transitions of \pin{SDAx} that occur while \pin{SCLx} is high; every data bit is stable across the \pin{SCLx} high period.}
+	\caption{One I2C byte write on the wire: START, address, ACK, data byte, ACK, STOP.}
 	\label{fig:i2c-transaction}
 \end{figure}
 
-The address byte carries the 7-bit slave address in its most significant bits and the direction in its least significant bit: 0 selects a write (master transmitter), 1 a read (master receiver). A master that wants to change direction or address without giving up the bus issues a repeated START instead of a STOP.
+The address byte carries the 7-bit slave address in its upper bits and the direction in its least significant bit: 0 selects a write (master transmitter), 1 a read (master receiver). A master that changes direction or address without giving up the bus issues a repeated START instead of a STOP.
 
-\subsection{Clock Domain}
+\subsection{Master operation}
 
-The \peripheral{I2Cx} cores are clocked from SMCLK, and \bitfield{I2CMDIV} divides that down to the bus rate. The boot ROM may leave SMCLK sourced from LFXT (32.768\,kHz), which would put the bus in the low-kilohertz range; configure the SMCLK source through \register{SYSCLKCR} (see the \peripheral{SYSTEM} chapter) before relying on any I\textsuperscript{2}C timing, rather than inheriting whatever the boot path left behind.
+With \bitfield{I2CMEN} set, the port drives \pin{SCLx} at the rate set by \bitfield{I2CMDIV}. Setting \bitfield{I2CMST} in \register{I2CxFCR} sends a START (or a repeated START while the bus is held) followed by the byte in \register{I2CxMTX}; each subsequent write to \register{I2CxMTX} sends one byte, and each received byte lands in \register{I2CxMRX}. \bitfield{I2CMXC} marks the end of each byte: in transmitter mode after the slave's ACK/NACK, in receiver mode before this master sends its own ACK/NACK, so software chooses the acknowledge before the next byte. \bitfield{I2CMNR} reports a NACK from the slave. Setting \bitfield{I2CMSP} sends a STOP. If another master wins the bus during arbitration, the port releases the lines and sets \bitfield{I2CMARB}, because continuing to drive would corrupt the winner's transfer.
 
-The step-by-step register sequences for each of the four roles are given with the register descriptions below.
+\subsection{Slave operation}
+
+With \bitfield{I2CSEN} set, the port compares every address byte against \register{I2CxAR} under the mask in \register{I2CxAMR} (a masked bit matches either value), and against the general-call address when \bitfield{I2CGCE} is set. A match sets \bitfield{I2CSA}, with \bitfield{I2CSTM} reporting the direction. In slave receiver mode each byte lands in \register{I2CxSRX} and sets \bitfield{I2CSXC}; a byte arriving before the previous one was read sets \bitfield{I2CSOVF}. In slave transmitter mode each byte is taken from \register{I2CxSTX}, and \bitfield{I2CSTXE} asks for the next one. With \bitfield{I2CSCS} set, the port holds \pin{SCLx} low through the ACK bit until firmware has serviced the flag, which trades bus latency for lossless flow control on a port whose hart may be busy elsewhere.
+
+\subsection{Clocking}
+
+The bus engine runs on SMCLK, divided by \bitfield{I2CMDIV} to the bus rate; the register interface runs on MCLK, so the registers stay readable with SMCLK stopped. The boot ROM may leave SMCLK on LFXT (32.768 kHz), which would put the bus in the low kilohertz range.
+
+\section{Interrupts and events}
+
+Each flag in \register{I2CxSR} has its own enable in \register{I2CxCR} and its own vector. All thirteen flags are write-1-to-clear. Table \ref{t:i2c-irq} lists them for \peripheral{I2C0}; \peripheral{I2C1}, in configurations that include it, uses the same order from vector 70 (70 to 82).
+
+\begin{table}[htb]
+	\centering
+	\caption{\peripheral{I2C0} interrupt vectors; \peripheral{I2C1} follows the same order from vector 70.}
+	\label{t:i2c-irq}
+	\begin{tabular}{ l p{5.4cm} l l }
+	\textbf{Vector} & \textbf{Condition} & \textbf{Set by} & \textbf{Cleared by} \\ \hline
+	57 & START or repeated START seen on the bus & \bitfield{I2CSTR} & Writing 1 to \bitfield{I2CSTR} \\
+	\rowcolor{tablehighlightcolor}
+	58 & STOP seen on the bus & \bitfield{I2CSPR} & Writing 1 to \bitfield{I2CSPR} \\
+	59 & Master START sent & \bitfield{I2CMSTS} & Writing 1 to \bitfield{I2CMSTS} \\
+	\rowcolor{tablehighlightcolor}
+	60 & Master STOP sent & \bitfield{I2CMSPS} & Writing 1 to \bitfield{I2CMSPS} \\
+	61 & Master arbitration lost & \bitfield{I2CMARB} & Writing 1 to \bitfield{I2CMARB} \\
+	\rowcolor{tablehighlightcolor}
+	62 & Master transmit register empty & \bitfield{I2CMTXE} & Writing 1 to \bitfield{I2CMTXE} \\
+	63 & Master received NACK & \bitfield{I2CMNR} & Writing 1 to \bitfield{I2CMNR} \\
+	\rowcolor{tablehighlightcolor}
+	64 & Master byte transfer complete & \bitfield{I2CMXC} & Writing 1 to \bitfield{I2CMXC} \\
+	65 & Slave addressed & \bitfield{I2CSA} & Writing 1 to \bitfield{I2CSA} \\
+	\rowcolor{tablehighlightcolor}
+	66 & Slave transmit register empty & \bitfield{I2CSTXE} & Writing 1 to \bitfield{I2CSTXE} \\
+	67 & Slave receive overflow & \bitfield{I2CSOVF} & Writing 1 to \bitfield{I2CSOVF} \\
+	\rowcolor{tablehighlightcolor}
+	68 & Slave received NACK & \bitfield{I2CSNR} & Writing 1 to \bitfield{I2CSNR} \\
+	69 & Slave byte transfer complete & \bitfield{I2CSXC} & Writing 1 to \bitfield{I2CSXC} \\
+	\hline
+	\end{tabular}
+\end{table}
+
+\section{Programming}
+
+\subsection{Initialisation as a master}
+
+\begin{enumerate}
+	\item Select the SMCLK source in \register{SYSCLKCR} (Section \ref{ss:clocks}).
+	\item Set the \register{PxSEL} bits of the \pin{SDAx} and \pin{SCLx} pins, and their \register{PxAFS} fields if the bus is relocated.
+	\item Write \register{I2CxCR}.\bitfield{I2CMDIV} for the bus rate.
+	\item Set the interrupt enables required in \register{I2CxCR}.
+	\item Set \register{I2CxCR}.\bitfield{I2CMEN}.
+\end{enumerate}
+
+\subsection{Initialisation as a slave}
+
+\begin{enumerate}
+	\item Select the SMCLK source in \register{SYSCLKCR}.
+	\item Set the \register{PxSEL} bits of the \pin{SDAx} and \pin{SCLx} pins.
+	\item Write the slave address to \register{I2CxAR} and the mask to \register{I2CxAMR}.
+	\item Set \register{I2CxCR}.\bitfield{I2CSCS} if clock stretching is wanted, and \bitfield{I2CGCE} for general-call response.
+	\item Set the interrupt enables required in \register{I2CxCR}.
+	\item Set \register{I2CxCR}.\bitfield{I2CSEN}.
+\end{enumerate}
+
+\subsection{Master write of one byte}
+
+\begin{enumerate}
+	\item Write the address byte (address and direction 0) to \register{I2CxMTX}.
+	\item Set \register{I2CxFCR}.\bitfield{I2CMST}.
+	\item Wait for \bitfield{I2CMXC}; if \bitfield{I2CMNR} is set, abort with a STOP.
+	\item Write the data byte to \register{I2CxMTX} and wait for \bitfield{I2CMXC}.
+	\item Set \register{I2CxFCR}.\bitfield{I2CMSP}.
+\end{enumerate}
+
+The register descriptions in Section \ref{peripheralI2Cx} give the remaining sequences (master read, slave transmit, slave receive) field by field.
+
+\section{Usage notes}
+
+\paragraph{Set the SMCLK source before using the bus.} The bus clock is derived from SMCLK, and the boot-time SMCLK source is a boot-ROM implementation detail.
+
+\paragraph{Choose the acknowledge before the next byte in master receiver mode.} \bitfield{I2CMXC} is raised before the master's ACK/NACK, because the last byte of a read must be answered with a NACK to end the transfer cleanly.
+
+\paragraph{Handle arbitration loss by retrying the whole transfer.} After \bitfield{I2CMARB} the port has released the bus mid-transfer; the winner's transaction must complete before a new START.
+
+\paragraph{Serialize whole transactions between harts.} The arbiter makes each register access atomic but not a transaction; a hart that shares a port claims a mutex around each transfer (Section \ref{ss:multicore-sync}).
+
+\paragraph{Clear every flag with a 1.} Writing 0 to \register{I2CxSR} has no effect; a handler that returns with its flag set is re-entered.

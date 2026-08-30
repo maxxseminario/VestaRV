@@ -1,4 +1,4 @@
-\documentclass[11pt,pdftex,portrait,letterpaper]{article}
+\documentclass[11pt,pdftex,openany,letterpaper]{report}
 \usepackage[hdivide={1in,*,1in},
             vdivide={1in,*,1in},
 %            showframe
@@ -7,8 +7,9 @@
 % Include the packages and commands
 \input{packages-commands.tex}
 
-
-
+% Build hash, written by the Makefile's pdf target (latex/TRM/buildhash.tex).
+% A git-less export has no such file and prints "unversioned".
+\IfFileExists{buildhash.tex}{\input{buildhash.tex}}{\newcommand{\BuildHash}{unversioned}}
 
 % Default margins are too wide all the way around. Reset them here
 \setlength{\topmargin}{-.5in}
@@ -16,530 +17,633 @@
 \setlength{\oddsidemargin}{0in}
 \setlength{\textwidth}{6.5in}
 
-% Add the headers and footers
-\lhead{Technical Reference Manual for \AsicNameForUserGuide}
-\chead{}
-\rhead{\thepage\ of \pageref{LastPage}}
-\lfoot{\small{\AsicNameForUserGuide}}
-\cfoot{}
-\rfoot{\small{Revised \RevisionDateFull}}
+% Heading styling (titlesec). Chapters open on the page in hand, on a
+% three-line block, with no blank page before them. Part pages carry one
+% title line. Heading levels in this template are one above the old
+% article-class ones: chapter, section, subsection.
+\titleformat{\chapter}[hang]{\normalfont\LARGE\bfseries}{\thechapter}{0.8em}{}
+\titlespacing*{\chapter}{0pt}{0pt}{14pt}
+\titleformat{\part}[hang]{\normalfont\Huge\bfseries}{\partname~\thepart}{0.8em}{}
+\titlespacing*{\part}{0pt}{0pt}{20pt}
+\titleformat{\section}{\normalfont\Large\bfseries}{\thesection}{0.8em}{}
+\titleformat{\subsection}{\normalfont\large\bfseries}{\thesubsection}{0.8em}{}
+\titleformat{\subsubsection}{\normalfont\normalsize\bfseries}{\thesubsubsection}{0.8em}{}
+\setcounter{tocdepth}{1}
+\setcounter{secnumdepth}{3}
+
+% Running heads and footers: chapter number and title on the left, page on
+% the right; chip name and revision date in the footer.
+\renewcommand{\chaptermark}[1]{\markboth{\thechapter\quad #1}{}}
+\fancyhf{}
+\fancyhead[L]{\small\nouppercase{\leftmark}}
+\fancyhead[R]{\small\thepage}
+\fancyfoot[L]{\small\AsicNameForUserGuide}
+\fancyfoot[R]{\small Revision \RevisionDateFull}
+\renewcommand{\headrulewidth}{0.5pt}
 \renewcommand{\footrulewidth}{0.5pt}
-
-
-
-
+\fancypagestyle{plain}{\fancyhf{}\fancyfoot[L]{\small\AsicNameForUserGuide}\fancyfoot[R]{\small Revision \RevisionDateFull}\renewcommand{\headrulewidth}{0pt}}
 
 % Begin the document
 \begin{document}
-	
-% The title page
-\vspace*{30ex}
-\begin{center}
-	\textbf{Technical Reference Manual for \AsicNameForUserGuide} \\
-	\vspace{2ex}
-	Revised \RevisionDateFull
-\end{center}
 
-\newpage
+% The title page
+\thispagestyle{empty}
+\vspace*{22ex}
+\begin{center}
+	{\fontsize{44}{50}\selectfont\bfseries \AsicNameForUserGuide} \\[4ex]
+	{\LARGE Technical Reference Manual} \\[10ex]
+	{\large Revision \RevisionDateFull} \\[1.5ex]
+	{\large Build \texttt{\BuildHash}} \\[10ex]
+	\begin{minipage}{0.8\linewidth}
+		\centering\small
+		Preliminary. This manual describes the RTL as generated from the chip configuration of this build (\texttt{make chip}); every address, vector number, register and pin in it is derived from that configuration.
+	\end{minipage}
+\end{center}
+\clearpage
 
 % Table of contents
 \tableofcontents
-\newpage
+\clearpage
 
 % Figure and table indexes. Both are listed in the table of contents itself
-% (\listof* does not add its own entry in the article class).
+% (\listof* does not add its own entry in the report class).
 \phantomsection
-\addcontentsline{toc}{section}{List of Figures}
+\addcontentsline{toc}{chapter}{List of Figures}
 \listoffigures
-\newpage
+\clearpage
 
 \phantomsection
-\addcontentsline{toc}{section}{List of Tables}
+\addcontentsline{toc}{chapter}{List of Tables}
 \listoftables
-\newpage
+\clearpage
 
 
 
-% System configuration
-\section{System Configuration} \label{s:config}
-The microcontroller (MCU) described in this document is a \NumHartsWord-hart (\NumHartsWord-core) multiprocessor built from \NumHartsWord{} identical VestaRV CPU cores, a custom 32-bit RISC-V processor. The microcontroller is composed of the \NumHartsWord{} VestaRV harts, a ROM that contains boot software and a Forth interpreter, private RAM memory cells per hart, an arbitrated shared memory window for inter-hart communication, and several peripherals. The multi-core architecture is described in Section~\ref{s:multicore}. The modular architecture enables customization of the peripheral set, memory configuration, and system features to match specific application requirements. Figure~\ref{fig:chip-system-diagram} shows the top-level organization of this configuration.
+% ===========================================================================
+\part{System}
+% ===========================================================================
 
-% The old top-level block diagram (include/SystemBlockDiagram.tex) used to sit
-% here as Figure 1. It was RETIRED from the manual (2026-08-16): it was one of
-% three drawings of the same chip inside four pages, and the oldest idiom of the
-% three (addresses inside the boxes, a different arrow grammar), while the two
-% whole-chip figures below say everything it said in one vocabulary. The
-% emitter still runs and still writes include/SystemBlockDiagram.tex; nothing
-% \input{}s it, so the file is generated and unused rather than deleted, and any
-% chapter that wants the memory-system view again can take it back unchanged.
+% ---------------------------------------------------------------------------
+\chapter{About this manual} \label{s:about}
+% ---------------------------------------------------------------------------
 
-% TODO: add Castalia layout/bonding figures once the chip has been laid out
-%\begin{figure}[h]
-%	\centering
-%	\includegraphics[width=0.5\linewidth]{figures/castalia_layout.png}
-%	\caption{Castalia MCU Layout Image}
-%	\label{fig:chip-layout-photo}
-%\end{figure}
+\section{Scope and audience}
 
-The following list details the MCU configuration:
-\begin{itemize}
+This manual is the technical reference for the \AsicNameForUserGuide{} microcontroller. It is written for firmware developers and board designers, and it assumes familiarity with 32-bit microcontrollers, memory-mapped peripherals and the RISC-V instruction set. It describes the hardware as implemented: the address map, every peripheral and its registers, the interrupt fabric, the boot ROM and the processor core's configuration. The RISC-V specifications are normative for the instruction set and for the privileged architecture; where this manual restates them it does so only to say which parts are implemented and how. Where the implementation deviates from a specification, the deviation is stated where it applies.
+
+Everything in this manual is generated from one chip configuration, the same one that produces the RTL, the C headers and the linker scripts (Section~\ref{ss:chipConfig}), so a value printed here is the value built.
+
+\section{Organisation of this manual}
+
+\begin{description}[style=nextline, leftmargin=0pt, itemsep=2pt]
+	\item[Part I, System] What is on the chip, its package and pins, the address map, the multi-core architecture, and reset, clocks and power. Read this part first.
+	\item[Part II, Processor] The VestaRV core: its instruction set, control and status registers, privileged architecture, interrupts and exceptions, instruction timing, and the debug system.
+	\item[Part III, Peripherals] One chapter per peripheral, each with a functional description, a programming sequence, usage notes and the complete register description.
+	\item[Part IV, Analog front end] The mixed-signal front end and its characterisation.
+	\item[Part V, Boot ROM and software] The ROM monitor and the boot image format the boot ROM loads.
+	\item[Appendices] A software development quick start, the register index, errata, and the revision history of this document.
+\end{description}
+
+\section{Related documents} \label{ss:related}
+
+Table~\ref{t:related-docs} lists the documents this manual relies on and the generated artifacts that accompany it. This manual does not contain electrical characteristics, absolute maximum ratings, package mechanical drawings, or errata for individual silicon revisions; those belong to the datasheet and the errata sheet of a specific silicon revision.
+
+\begin{tabularx}{\textwidth}{p{5.6cm} X}
+\caption{Documents and generated artifacts related to this manual.} \label{t:related-docs} \\
+\hline \textbf{Document or artifact} & \textbf{Role} \\ \hline \endfirsthead
+\hline \textbf{Document or artifact} & \textbf{Role} \\ \hline \endhead
+RISC-V Instruction Set Manual, Volume I: Unprivileged ISA, version 20191213, with the ratified Bit-Manipulation extensions (Zba, Zbb, Zbc, Zbs, version 1.0) & Normative for the instruction set (Chapter~\ref{s:cpu-instructions}). \\
+\rowcolor{tablehighlightcolor} RISC-V Instruction Set Manual, Volume II: Privileged Architecture, version 1.12 & Normative for the machine-mode control and status registers and the trap architecture (Chapters~\ref{s:cpu-instructions} and~\ref{s:privarch}). \\
+RISC-V External Debug Support, version 1.0 & Normative for the debug transport and debug module (Chapter~\ref{s:debug}). \\
+\rowcolor{tablehighlightcolor} \texttt{platform/common/out/} \texttt{software/include/MemoryMap.h}, \texttt{core\_features.h}, \texttt{periph.S} & Generated C and assembly headers: every base address, register offset, field mask and vector number in this manual under the header symbol names. \\
+\texttt{platform/common/out/} \texttt{linker-scripts/memory.x}, \texttt{periph.x} & Generated linker script fragments for the memory map of this build. \\
+\rowcolor{tablehighlightcolor} \texttt{docs/register\_browser.html} & Interactive register browser built from the same memory map. \\
+\texttt{docs/chip\_configurator.html} & Interactive editor for the chip configuration file. \\
+\hline
+\end{tabularx}
+
+\section{Conventions} \label{ss:conventions}
+
+\begin{description}[style=nextline, leftmargin=0pt, itemsep=2pt]
+	\item[Numbers] Hexadecimal numbers carry the prefix \texttt{0x} (\texttt{0x4600}); binary numbers carry the prefix \texttt{0b} (\texttt{0b101}); decimal numbers have no prefix. A value of the form \texttt{0x8000 + 4n} is an address formula in which $n$ is the array index.
+	\item[Units] Capacities are binary: 1 KiB is 1024 bytes. Rates and frequencies are decimal: 115,200 baud, 24 MHz. A word is 32 bits, a half-word 16 bits and a byte 8 bits.
+	\item[Registers and fields] A register is named by its peripheral template and register name, and a field by the dotted form \texttt{PERIPHERAL.\allowbreak REGISTER.\allowbreak FIELD}, for example \register{TIMx.TIMxCR.TEN}. In prose, register names are the template form (\register{PxIN}, \register{TIMxCR}), where \texttt{x} stands for the instance number; the instance form (\register{P0IN}, \register{TIM0CR}) appears only in the per-instance address tables and in the generated headers.
+	\item[Bit ranges] Bits are numbered from 0 at the least significant end. A range is written \texttt{[h:l]} with the high bit first; \texttt{[7:4]} is four bits. A single bit is written \texttt{[n]}.
+	\item[Set and clear] A bit is set when it holds 1 and cleared when it holds 0. Asserted means the active level of a signal, whatever its polarity; an active-low pin is named with a trailing \texttt{N} (\pin{RESETN}).
+	\item[Reserved] A reserved bit reads as zero and must be written as zero. No exception is raised by an access to a reserved bit or to a reserved register offset inside a peripheral's window.
+	\item[Register width] Every register is described at its natural width, 8 or 32 bits, and every register occupies one 4-byte slot at a 4-byte aligned offset regardless of its width; the unused upper bytes of an 8-bit register are reserved.
+	\item[Narrow accesses] The bus carries four byte-lane write strobes, so a byte or half-word store reaches the peripheral with only the addressed lanes asserted. Reads always return the full word of the addressed slot. Whether a partial write is honoured is a property of the register: an 8-bit register lives in byte lane 0, and a register described as requiring a full-word write commits only stores that assert lane 0.
+\end{description}
+
+\section{Register access types} \label{ss:access-types}
+
+Each field in a register description carries an access type from the list in Table~\ref{t:access-types}. The list is the set the chip generator accepts, so it cannot drift from the register descriptions.
+
+% Emitted by the generator from the accepted set in BitField.py. The
+% hand-written table in the \else branch is a stopgap for a build made before
+% the generator emits the file, and it is superseded the moment it exists.
+\IfFileExists{include/AccessLegend.tex}{\input{include/AccessLegend.tex}}{%
+\begin{tabularx}{\textwidth}{l X X}
+\caption{Register field access types.} \label{t:access-types} \\
+\hline \textbf{Type} & \textbf{Read effect} & \textbf{Write effect} \\ \hline \endfirsthead
+\hline \textbf{Type} & \textbf{Read effect} & \textbf{Write effect} \\ \hline \endhead
+\texttt{rw} & Returns the field value. & Sets the field to the written value. \\
+\rowcolor{tablehighlightcolor} \texttt{r} & Returns the field value. & Ignored. \\
+\texttt{r0} & Returns zero. Used for reserved bits. & Ignored; write zero. \\
+\rowcolor{tablehighlightcolor} \texttt{r1} & Returns one. & Ignored. \\
+\texttt{rw1} & Returns the field value. & Writing 1 has the effect described for the field (set, clear or trigger); writing 0 has no effect. \\
+\rowcolor{tablehighlightcolor} \texttt{rw0} & Returns the field value. & Writing 0 has the effect described for the field; writing 1 has no effect. \\
+\texttt{w} & Returns zero. & Sets the field to the written value. \\
+\rowcolor{tablehighlightcolor} \texttt{w1} & Returns zero. & Writing 1 has the effect described for the field; writing 0 has no effect. \\
+\texttt{w0} & Returns zero. & Writing 0 has the effect described for the field; writing 1 has no effect. \\
+\hline
+\end{tabularx}
+}
+
+\section{The anatomy of a register description} \label{ss:anatomy}
+
+Every register in Part~III is described in the same layout. The example below is a fictitious register, \register{DUMMY.DUMMYCR}, chosen to show every element once; the callouts after it name each element.
+
+\begin{center}
+\begin{minipage}{0.96\linewidth}
+\subsection*{DUMMYxCR: Dummy control register}
+\noindent \textbf{Offset} \texttt{0x04} \quad \textbf{Reset} \texttt{0x00000000} \quad \textbf{Width} 32
+
+\noindent Controls the dummy function. One or two sentences say what the register is for and point to the functional section that explains it.
+
+\begin{tabularx}{\linewidth}{l l l l X}
+\hline \textbf{Bits} & \textbf{Field} & \textbf{Type} & \textbf{Reset} & \textbf{Description} \\ \hline
+\texttt{[31:8]} & - & - & - & Reserved. Reads zero; write zero. \\
+\rowcolor{tablehighlightcolor} \texttt{[7:4]} & \texttt{DIV} & \texttt{rw} & \texttt{0x0} & Clock divider. The dummy clock is the source divided by $2^{\mathtt{DIV}}$. \\
+\texttt{[3:2]} & \texttt{MODE} & \texttt{rw} & \texttt{0b00} & Operating mode. \newline \texttt{0b00} = \texttt{DMODE\_OFF}: the function is off. \newline \texttt{0b01} = \texttt{DMODE\_ONCE}: one operation, then off. \newline \texttt{0b10} = \texttt{DMODE\_CONT}: continuous. \newline \texttt{0b11} = reserved. \\
+\rowcolor{tablehighlightcolor} \texttt{[1]} & \texttt{DIF} & \texttt{rw1} & \texttt{0} & Done interrupt flag. Set by hardware when an operation completes; write 1 to clear. \\
+\texttt{[0]} & \texttt{DEN} & \texttt{rw} & \texttt{0} & Enable. 0 = disabled, 1 = enabled. Write this bit last. \\
+\hline
+\end{tabularx}
+\end{minipage}
+\end{center}
+
+\begin{description}[style=nextline, leftmargin=0pt, itemsep=1pt]
+	\item[Heading] The register's template name and a short title. The heading appears in the chapter's own register list, not in the main table of contents. The \texttt{x} in the name is the instance number.
+	\item[Offset, Reset, Width] The byte offset from the instance base address (the base addresses are in the chapter's instance table), the reset value of the whole register, and its width in bits.
+	\item[Summary sentence] What the register is for, in one to three sentences, with a pointer to the functional description for anything longer.
+	\item[Field rows] One row per field, most significant first, every bit covered. \textbf{Bits} is the range, \textbf{Field} the name used in prose and in the generated headers (with the peripheral's field prefix), \textbf{Type} the access type of Table~\ref{t:access-types}, \textbf{Reset} the field's reset value at the field's width.
+	\item[Enumerated values] Listed inside the description cell as \texttt{value} = \texttt{SYMBOL}: meaning. The symbol is the macro name in the generated header. Values are binary for fields of four bits or fewer and hexadecimal for wider fields.
+	\item[Reserved runs] Consecutive reserved bits are collapsed into one row whose field, type and reset are a dash.
+\end{description}
+
+\section{Callouts} \label{ss:callouts}
+
+Two kinds of callout appear in this manual, and only two. A \emph{Note} is advisory: it adds context or a recommendation, and nothing breaks if it is skipped. A \emph{Caution} states a constraint the hardware enforces: ignoring it causes a wrong result, a hang, or lost data.
+
+\begin{Note}
+A note looks like this. It is at most a few sentences long.
+\end{Note}
+
+\begin{Caution}
+A caution looks like this. Software must satisfy the condition it states, because the hardware does not check it.
+\end{Caution}
+
+\section{Glossary of terms and abbreviations} \label{ss:glossary}
+
+\begin{acronym}[IRQROUTER]
+	\acro{ABI}{Application binary interface: the register-usage and calling convention of Table~\ref{t:cpu-registers}.}
+	\acro{AF}{Alternate function: a peripheral signal a GPIO pin can carry instead of its plain I/O function; a pin has up to eight AF planes.}
+	\acro{AFE}{Analog front end: the mixed-signal circuitry of Part~IV.}
+	\acro{CLINT}{Core-local interruptor: the peripheral that provides each hart's software interrupt and timer interrupt.}
+	\acro{CPI}{Cycles per instruction.}
+	\acro{CRC}{Cyclic redundancy check.}
+	\acro{CSR}{Control and status register: a register inside the processor core reached by the \asminline{csr*} instructions.}
+	\acro{DM}{Debug module: the on-chip block that halts, resumes and inspects harts on behalf of an external debugger.}
+	\acro{DMI}{Debug module interface: the register bus between the debug transport module and the debug module.}
+	\acro{DTM}{Debug transport module: the JTAG-side block that converts scans into DMI accesses.}
+	\acro{EIS}{Electrochemical impedance spectroscopy: the swept-frequency impedance measurement the analog front end performs.}
+	\acro{GPIO}{General-purpose input and output.}
+	\acro{hart}{Hardware thread: one RISC-V execution context. Every hart on this chip is a separate core with its own TCM.}
+	\acro{I2C}[I\textsuperscript{2}C]{Inter-integrated circuit: the two-wire serial bus.}
+	\acro{IPI}{Inter-processor interrupt: a CLINT software interrupt sent from one hart to another.}
+	\acro{IRQROUTER}{Interrupt router: the peripheral that routes every interrupt source to any hart and provides the claim and complete registers.}
+	\acro{ISA}{Instruction set architecture.}
+	\acro{ISR}{Interrupt service routine.}
+	\acro{IVT}{Interrupt vector table: the table of jump instructions at the base of each hart's TCM.}
+	\acro{JTAG}{The IEEE 1149.1 test access port over which the debug transport operates.}
+	\acro{MCU}{Microcontroller unit.}
+	\acro{MTCMOS}{Multi-threshold CMOS power gating: the header switches that cut the supply of a hart tile.}
+	\acro{MUTEX}{Hardware mutual-exclusion bank: the peripheral that provides atomically claimable locks.}
+	\acro{NFC}{Near-field communication: the peripheral that reads a 13.56 MHz tag interface and, on a field-powered board, supplies the chip.}
+	\acro{NPU}{Neural processing unit: the fixed-point matrix accelerator.}
+	\acro{PGOOD}{Power good: the supply-supervisor input that releases the boot gate on a field-powered board.}
+	\acro{PMP}{Physical memory protection: the RISC-V machine-mode memory protection unit, a configuration option.}
+	\acro{POC}{Power-on control: the input of the I/O pad ring that holds the pads in a safe state while the I/O supply rises. It is not a boot strap.}
+	\acro{POR}{Power-on reset.}
+	\acro{PWRCTRL}{Power controller: the peripheral that gates hart tiles and holds the boot gate.}
+	\acro{QSPI}{Quad serial peripheral interface: a four-data-line SPI variant, a configuration option.}
+	\acro{ROM}{Read-only memory: the boot ROM at address \texttt{\RomStartAddress}.}
+	\acro{SPI}{Serial peripheral interface.}
+	\acro{TCM}{Tightly coupled memory: the private RAM of one hart, \TcmSizeKiB{} KiB at \texttt{\RamStartAddress}, reached without arbitration.}
+	\acro{TRNG}{True random number generator, a configuration option.}
+	\acro{UART}{Universal asynchronous receiver and transmitter.}
+	\acro{W1C}{Write one to clear: a flag bit that is cleared by writing 1 to it (access type \texttt{rw1}).}
+	\acro{WARL}{Write any, read legal: a CSR field that accepts any written value and reads back a legal one.}
+	\acro{XIP}{Execute in place: fetching instructions directly from the external SPI flash through the extended-flash window.}
+\end{acronym}
+
+\clearpage
+
+
+
+% ---------------------------------------------------------------------------
+% Overview (was: System Configuration)
+\chapter{Overview} \label{s:config}
+% ---------------------------------------------------------------------------
+The \AsicNameForUserGuide{} microcontroller (MCU) is a \NumHartsWord-hart multiprocessor built from \NumHartsWord{} identical VestaRV cores, a 32-bit RISC-V processor, together with a boot ROM that contains the boot loader and a ROM monitor, a private tightly coupled memory (TCM) per hart, an arbitrated shared memory window for inter-hart communication, and the peripherals listed below. The multi-core architecture is described in Chapter~\ref{s:multicore}, and Figure~\ref{fig:chip-system-flat-diagram} shows the top-level organisation of this configuration.
+
+% The old top-level block diagram (include/SystemBlockDiagram.tex) and the
+% portrait whole-chip figure (include/ChipSystemDiagram.tex) were retired from
+% the manual (2026-08-16 and 2026-08-25): both drew the same generated content
+% as the flat figure below. Their emitters still run and still write the files;
+% nothing inputs them, so either can be taken back unchanged.
+
+\section{Features}
+
+\begin{itemize}[itemsep=1pt]
 	\input{include/SystemConfigurationList_man.tex}
 	% Feature bullets are generated from the instantiated peripheral set (make chip)
 	\input{include/FeaturesList.tex}
 \end{itemize}
 
-Figure~\ref{fig:chip-system-diagram} is the view to read first if the question is \emph{what is on this chip}: the masters in a band across the top, the arbiter drawn as the single bus bar it behaves like directly under them, every peripheral this configuration instantiates hanging off it, the shared memories, and the package boundary in red with the outside world crossing it. Figure~\ref{fig:chip-system-flat-diagram} is that same generated content drawn \emph{flat}, for the whole chip in one landscape view: one bus bar, the masters above it, and the peripherals cut to a name and a line in one rank below it. Both figures are generated from the same configuration, so the peripheral set, the instance counts and the addresses in them are this build's and no other's; the memory system's own view of the chip, the one address column all \NumHartsWord{} harts share, is Figure~\ref{fig:address-space} in Section~\ref{s:addressSpace}, and the per-pin bonding is Section~\ref{s:pinsConfig}.\ifcqanalog{} Both draw the analog front end the way Figure~\ref{fig:afe-system-diagram} does --- one site per hart, in the column of the hart that owns it: a row under the bus bar in the first, a hat on each channel hart in the second --- because that alignment \emph{is} the claim: there is no per-hart wire to an analog site, only the gate printed in each one and hart 0's reach over all of them (Section~\ref{ss:cqanalog-gate}).\fi{}
+\section{Block diagram}
 
-% Generated, configuration-driven whole-chip diagram (make chip). Portrait, on
-% its own page: the masters band at the top, the bus under it, the shelves
-% below, and the outside world across the boundary at top and bottom.
-\begin{figure}[p]
-	\centering
-	\resizebox{\linewidth}{!}{\input{include/ChipSystemDiagram.tex}}
-	\caption[{\AsicNameForUserGuide{} whole-chip diagram: the bus and the peripherals}]{\AsicNameForUserGuide{} whole-chip diagram: the bus and the peripherals. One serializing shared-window bus reaches everything on the die, so the \texttt{mp\_arbiter} is drawn as the grey bar every block taps --- run down the margin and along the lower shelves, because one bar cannot touch three shelves without a tap crossing a box. Masters on top; the pin-facing shelf against the red package boundary, its outside world beyond it; an $\times N$ badge is $N$ instances of one peripheral, not one block.\ifcqanalog{} In the analog row the \emph{column is the ownership}: a site sits under the hart that owns it, and what enforces that is the gate printed inside it --- a comparison against the arbiter's granted-master index, not a wire; hart 0's margin arrow is the same comparison from the other side.\fi{} Everything drawn is generated from this configuration.}
-	\label{fig:chip-system-diagram}
-\end{figure}
-\clearpage
+Figure~\ref{fig:chip-system-flat-diagram} is the view to read first: the bus masters in a band above the arbiter, the arbiter drawn as the single bus bar it behaves like, every peripheral this configuration instantiates in one rank below it, and the package boundary in red with the outside world crossing it. It is generated from the configuration, so the peripheral set, the instance counts and the addresses in it are this build's. The memory system's own view of the chip, the one address column all \NumHartsWord{} harts share, is Figure~\ref{fig:address-space} in Chapter~\ref{s:addressSpace}, and the per-pin bonding is Chapter~\ref{s:pinsConfig}.\ifcqanalog{} The analog front end is drawn as one site per hart, as a hat on the hart that owns it, because there is no per-hart wire to an analog site, only the ownership gate printed in each one and hart 0's reach over all of them (Section~\ref{ss:cqanalog-gate}).\fi{}
 
-% Generated, configuration-driven whole-chip diagram, FLAT companion (make chip).
-% Landscape: the electrode cells and the analog sites at the top, the masters
-% band, ONE bus bar, and every peripheral on ONE rank below it. Ungated like the
-% figure above (the emitter degrades on a configuration with no analog row), so
-% both polarities resolve every \ref to it.
-\begin{figure}[p]
+% Generated, configuration-driven whole-chip diagram (make chip). Landscape,
+% so it is set on a rotated page to keep its labels legible. Ungated (the
+% emitter degrades on a configuration with no analog row), so both polarities
+% resolve every \ref to it.
+\begin{sidewaysfigure}
 	\centering
-	\resizebox{\linewidth}{!}{\input{include/ChipSystemFlatDiagram.tex}}
-	\caption[{\AsicNameForUserGuide{} whole-chip diagram, flat companion}]{\AsicNameForUserGuide{} whole-chip diagram, flat companion to Figure~\ref{fig:chip-system-diagram}: the same generated content on \emph{one} bus bar and \emph{one} rank. The bar is the \texttt{mp\_arbiter} entity of the RTL. Every master taps it from above and every peripheral taps it from below, straight up, so there is one bus in this drawing and no second segment of it. A hart box is split into the two things the tile is built from --- the VestaRV core and its private TCM.\iforchpresent{} Each of those TCMs is also windowed read-only into the shared map (Section~\ref{s:addressSpace}), which is why the rank carries no aperture box of its own.\fi{} Peripheral boxes carry a name and one line only; the addresses are in Section~\ref{s:addressSpace}, and a $\times N$ in a title --- with the offset squares stacked behind the box --- is $N$ instances of one peripheral, not one block. The rank is grouped by type: the grey headings, and the thin outlines round every type that has more than one box or compartment, are organisation only --- every block under them is an arbiter slave in its own right, tapping the bar on its own wire. Every off-chip partner hangs on a straight vertical wire dropped from the tap above it, entering the partner's top edge off-centre where the partner had to be nudged aside. The JTAG/debug column and the NFC block are drawn \emph{solid} in every build, whether or not this configuration contains them: what a given build actually has is the \texttt{debug.enable} and \texttt{peripherals.nfc} knobs of Table~\ref{t:chip-config}, and the JTAG column prints \emph{debug builds only} in the box where this build has no debug module in it. The one stroke in the drawing that still changes with the configuration is the harvested-supply rail, drawn \emph{dashed} where this build does not run the chip off the field. The Debug Module is one more master on the bar, reached over five JTAG pins from an off-chip probe, and is present in debug-enabled builds only. NFC has two roles and this view draws both: its digital core reads the tag through the bar like any peripheral --- the RF front end is off-die --- and on a field-powered board the harvested field is the chip's \emph{supply}, which is the heavy grey rail running along the off-chip band into \texttt{PWRCTRL}'s \texttt{PGOOD} and boot-strap taps, whose boot gate holds every hart in reset until that supply is good.\ifcqanalog{} This view is the \emph{channels}: each channel's analog site is drawn as a hat on the hart that owns it, with a thin arrow between the two --- that arrow is the ownership gate the site enforces (a comparison against the arbiter's granted-master index), not a wire of its own. The analog IP is not integrated. The sites are ordinary arbiter slaves and no site is reached except through the bar, like everything else in this drawing; what the row draws is the narrower fact, which is \emph{who may reach one}: each site's own arrow down from the hart it admits, and hart~0's heavy rail under the row, which is the same comparison from the other side, reaching every site at once. The register that enforces it is Section~\ref{ss:cqanalog-gate}'s: the row carries the reach and leaves the register name to the text. Each channel brings its own three-electrode cell straight up across the boundary on unbroken wires. The shared EIS sweep engine has no channel of its own and is omitted here; its register site is in Section~\ref{s:cqanalog} and in Figure~\ref{fig:chip-system-diagram}.\fi{} Everything drawn is generated from this configuration.}
+	\resizebox{\textheight}{!}{\input{include/ChipSystemFlatDiagram.tex}}
+	\caption[{\AsicNameForUserGuide{} whole-chip diagram}]{\AsicNameForUserGuide{} whole-chip diagram: the masters above one \texttt{mp\_arbiter} bus bar, every peripheral on one rank below it, and the package boundary in red.}
 	\label{fig:chip-system-flat-diagram}
-\end{figure}
+\end{sidewaysfigure}
 \clearpage
 
-\subsection{Chip Configuration} \label{ss:chipConfig}
+\section{Chip configuration} \label{ss:chipConfig}
 
-This document, the memory-map headers, the linker scripts, and the drop-in RTL are all generated from one chip configuration by \texttt{make chip}. The configuration is a small JSON document (every key optional; missing keys keep the \AsicNameForUserGuide{} defaults) passed as \texttt{make chip CONFIG=config.json}; an interactive front-end for producing it ships with the generator (\texttt{docs/chip\_configurator.html}). Table~\ref{t:chip-config} lists every configuration knob together with the value used to build \emph{this} document, and Table~\ref{t:chip-config-derived} lists the geometry derived from those knobs. The resolved configuration is also written to \texttt{config/ChipConfig.resolved.json} at every build, and \texttt{make verify [CONFIG=config.json]} \emph{proves} a configuration: it stages the generated RTL into a behavioral simulation environment and runs the multi-core boot/ISA smoke suite against it. The core peripheral set and the pad ring are not configuration knobs; they are fixed template content, and the pad ring (Section~\ref{s:pinsConfig}) is derived from the generator's package model. The second-instance peripherals (\peripheral{UART1}, \peripheral{SPI1}, \peripheral{TIMER1}, \peripheral{I2C1}) and the \peripheral{NPU}, however, are individually droppable through the \texttt{peripherals} section: a dropped instance's register window reads zero, its interrupt vectors are reserved (the numbering is frozen), and its pins revert to plain GPIO.
+This document, the memory-map headers, the linker scripts, and the drop-in RTL are all generated from one chip configuration by \texttt{make chip}. The configuration is a small JSON document (every key optional; a missing key keeps the \AsicNameForUserGuide{} default) passed as \texttt{make chip CONFIG=config.json}; an interactive front end for producing it ships with the generator (\texttt{docs/chip\_configurator.html}). Table~\ref{t:chip-config} lists every configuration knob together with the value used to build this document, and Table~\ref{t:chip-config-derived} lists the geometry derived from those knobs. The resolved configuration is also written to \texttt{config/ChipConfig.resolved.json} at every build, and \texttt{make verify [CONFIG=config.json]} proves a configuration by staging the generated RTL into a behavioural simulation environment and running the multi-core boot and ISA smoke suite against it. The core peripheral set and the pad ring are not configuration knobs; they are fixed template content, and the pad ring (Chapter~\ref{s:pinsConfig}) is derived from the generator's package model. The second-instance peripherals (\peripheral{UART1}, \peripheral{SPI1}, \peripheral{TIMER1}, \peripheral{I2C1}) and the \peripheral{NPU} are individually droppable through the \texttt{peripherals} section: a dropped instance's register window reads zero, its interrupt vectors are reserved (the numbering is frozen), and its pins revert to plain GPIO.
 
 \input{include/ChipConfigurationTable.tex}
 
-\newpage
+\clearpage
 
 
 
-% Pin configuration
-\section{Packaging and Pins Configuration} \label{s:pinsConfig}
+% ---------------------------------------------------------------------------
+\chapter{Package and pins} \label{s:pinsConfig}
+% ---------------------------------------------------------------------------
 
 % Config-driven (G4): package.preliminary=false suppresses this banner once a
 % chip's package is finalized (its own model in generate.py's _PACKAGE_MODELS).
 \ifpackagepreliminary
-\textbf{Preliminary:} the package model for this configuration ({\PackageTypeName}-{\PackagePinCount}) has not been finalized for \AsicNameForUserGuide{}; the bonding shown here is the planned assignment, not a confirmed bond-out. Pin assignments, package type, and pin count are subject to change.
+\begin{Note}
+The package model for this configuration ({\PackageTypeName}-{\PackagePinCount}) has not been finalised for \AsicNameForUserGuide{}; the bonding shown here is the planned assignment, not a confirmed bond-out. Pin assignments, package type, and pin count are subject to change.
+\end{Note}
 \fi
 
 % Generated, fully-labeled pinout diagram, derived from the package model in
 % generate.py (the same model that emits config/PadRing.json and Table \ref{t:package-pins})
-\begin{figure}[h]
+\begin{figure}[htbp]
 	\centering
 	\resizebox{0.98\linewidth}{!}{\input{include/PackagePinoutDiagram.tex}}
-	\caption[{{\PackageTypeName}-{\PackagePinCount} pinout, top view}]{{\PackageTypeName}-{\PackagePinCount} pinout, top view ($\PackageSize \times \PackageSize$ {\PackageUnits}, {\PackagePinPitch} {\PackageUnits} pitch). Each pin is labeled with its pad name and, for GPIO pins, its AF0 (reset-selected) alternate function; power-rail pins are shaded and bold. The full per-pin alternate-function matrix is in Table \ref{t:gpio-afs}.}
+	\caption[{{\PackageTypeName}-{\PackagePinCount} pinout, top view}]{{\PackageTypeName}-{\PackagePinCount} pinout, top view ($\PackageSize \times \PackageSize$ {\PackageUnits}, {\PackagePinPitch} {\PackageUnits} pitch); GPIO pins carry their AF0 function and power-rail pins are shaded.}
 	\label{fig:package}
 \end{figure}
 
-The chip package is a {\PackageTypeName}-{\PackagePinCount} with dimensions $\PackageSize \times \PackageSize$ {\PackageUnits} and pitch {\PackagePinPitch} {\PackageUnits}. The package footprint (as seen from the top down) is shown in Figure \ref{fig:package}. The pins on the package are listed in Table \ref{t:package-pins}. The pin ordering, side assignment, and power domains in both the figure and the table are derived from the generator's package model and are also exported machine-readably to \texttt{config/PadRing.json} at every \texttt{make chip} build.
+The chip package is a {\PackageTypeName}-{\PackagePinCount} with dimensions $\PackageSize \times \PackageSize$ {\PackageUnits} and pitch {\PackagePinPitch} {\PackageUnits}. The package footprint, seen from the top, is shown in Figure~\ref{fig:package}, and the pins are listed in Table~\ref{t:package-pins}. The pin ordering, side assignment, and power domains in both the figure and the table are derived from the generator's package model and are also exported machine-readably to \texttt{config/PadRing.json} at every \texttt{make chip} build.
 
 \input{include/PackagePinsConfigurationTable.tex}
 
-Many of the digital I/O pins are GPIO pins. These pins can be in either primary/GPIO mode, or secondary/peripheral mode (see Section \ref{peripheralGPIOx} on the GPIO peripherals for more details). A list of all the GPIO pins, along with their primary function, their reset-selected alternate function (AF0), and the reset state of their \register{PxSEL}, \register{PxOUT}, \register{PxDIR}, and \register{PxREN} bits, is shown in Table \ref{t:gpio-pins}. The remaining alternate functions each pin can select (AF1--AF7) are listed separately in the alternate-function matrix, Table \ref{t:gpio-afs}.
+\section{GPIO pins and alternate functions}
+
+Most of the digital I/O pins are GPIO pins. A GPIO pin is in either primary (GPIO) mode or alternate function (peripheral) mode; see the \peripheral{GPIOx} chapter (Chapter~\ref{peripheralGPIOx}). Table~\ref{t:gpio-pins} lists every GPIO pin with its primary function, its reset-selected alternate function (AF0), and the reset state of its \register{PxSEL}, \register{PxOUT}, \register{PxDIR}, and \register{PxREN} bits. The remaining alternate functions each pin can select (AF1 to AF7) are in the alternate-function matrix, Table~\ref{t:gpio-afs}.
 
 \input{include/GpioPinsConfigurationTable.tex}
 
-When a pin is in alternate function (peripheral) mode (its \register{PxSEL} bit = 1), its 3-bit \register{PxAFS} field selects which of up to eight alternate functions (AF0--AF7) drives the pad. Table \ref{t:gpio-afs} lists, for every GPIO pin, the exact function selected by each \register{PxAFS} value. Plane 0 is the pin's AF0 (legacy secondary) function and is the reset selection; planes marked \textbf{Hi-Z} have no function assigned for that pin and configure the pad as a high-impedance input. The superscript on each function denotes its direction (\textsuperscript{\scriptsize in} input, \textsuperscript{\scriptsize out} output, \textsuperscript{\scriptsize io} bidirectional), and a \textsuperscript{$\dagger$} marks each pin's reset plane (its \register{PxAFS} reset value). While a pin is in GPIO (primary) mode the selected plane has no effect on the pad, but it still routes relocatable peripheral \emph{inputs} (see the \peripheral{GPIOx} chapter, Section \ref{peripheralGPIOx}).
+When a pin is in alternate function mode (its \register{PxSEL} bit is 1), its 3-bit \register{PxAFS} field selects which of up to eight alternate functions (AF0 to AF7) drives the pad. Table~\ref{t:gpio-afs} lists, for every GPIO pin, the function selected by each \register{PxAFS} value. Plane 0 is the pin's AF0 function and is the reset selection; planes marked \textbf{Hi-Z} have no function assigned for that pin and configure the pad as a high-impedance input. The superscript on each function denotes its direction (\textsuperscript{\scriptsize in} input, \textsuperscript{\scriptsize out} output, \textsuperscript{\scriptsize io} bidirectional), and a \textsuperscript{$\dagger$} marks each pin's reset plane (its \register{PxAFS} reset value). While a pin is in primary mode the selected plane has no effect on the pad, but it still routes relocatable peripheral inputs (Chapter~\ref{peripheralGPIOx}).
 
 \input{include/GpioAltFunctionMatrixTable.tex}
 
-\newpage
+\clearpage
 
 
 
-% Address space
-\section{Address Space} \label{s:addressSpace}
+% ---------------------------------------------------------------------------
+\chapter{Memory map} \label{s:addressSpace}
+% ---------------------------------------------------------------------------
 
-% Generated, configuration-driven address-space column (make chip). It used to
-% sit here bare, with no caption, no number and no List of Figures entry, and
-% the prose below called it "the figure"; it is a float now so it can be cited
-% by number from anywhere in the manual. Placement is [!ht] on purpose: the
-% column IS this section's subject and the prose walks it, so the `!' suspends
-% the float-size limits and keeps it at the head of the section rather than
-% letting a two-thirds-page float be deferred to the back of the section.
-% The caption is written to BOTH POLARITIES: the aperture band exists only
-% where the configuration has an orchestrator (the emitter classifies a shared
-% row as an aperture from derived.tcmWindowAddresses, which is empty otherwise,
-% so the whole brace disappears), hence the \iforchpresent sentence.
+% Generated, configuration-driven address-space column (make chip). Placement
+% is [!ht] on purpose: the column IS this chapter's subject and the prose
+% walks it. The caption is written to BOTH POLARITIES: the aperture band
+% exists only where the configuration has an orchestrator, hence the
+% \iforchpresent sentence below.
 \begin{figure}[!ht]
 	\centering
 	\resizebox{!}{0.75\height}{\input{include/AddressSpaceDiagram.tex}}
-	\caption[{\AsicNameForUserGuide{} address space: one column for all \NumHartsWord{} harts}]{\AsicNameForUserGuide{} address space: one 32-bit column, drawn once for all \NumHartsWord{} harts. Every row is a decoded region and the column is gapless; the grey rows are unmapped and read zero. The braces down the right name the \emph{access class} of each band rather than the device in it, because two views overlap in one address space: the shared window, which every hart reaches through the arbiter, and the private band carved out of it, where the identical address selects a different \TcmSizeKiB{} KiB of tightly-coupled RAM in each hart.\iforchpresent{} The aperture brace is the one sanctioned crossing between the two, and it is read-only and hart 0's alone.\fi{} Every region, size and address here is derived from this build's memory map, the same map the headers and linker scripts are generated from; the text below walks the column.}
+	\caption[{\AsicNameForUserGuide{} address space: one column for all \NumHartsWord{} harts}]{\AsicNameForUserGuide{} address space: one gapless 32-bit column, drawn once for all \NumHartsWord{} harts; grey rows are unmapped and read zero.}
 	\label{fig:address-space}
 \end{figure}
 
-The 32-bit memory bus on the MCU is in the von Neumann architecture. All addressable memory elements (i.e. the ROM, RAM, and memory mapped registers) are all located on a single bus. A pointer can access any of these locations in memory.
+The 32-bit memory bus is a single von Neumann address space: the ROM, the RAMs and the memory-mapped peripheral registers are all reached through one bus, and a pointer can address any of them. An access to an unmapped address reads zero, and a write to one is ignored; no bus error is raised.
 
-The ROM cell contains boot code, which is read-only. Each SRAM cell can be read or written to, and may contain both program and variable information. The chip carries no on-die non-volatile memory: it boots from an \emph{external} SPI flash device, and hart 0, and only hart 0, can additionally read that flash directly, and execute in place from it, through the extended-flash window at \texttt{\FlashBaseAddress} and above (the last region in Figure~\ref{fig:address-space}; see Section \ref{ss:spi-flash-xip}). At reset every hart fetches from the boot ROM at \texttt{\RomStartAddress} and dispatches on its hart ID: hart 0 copies the application image out of the flash into memory and enters it, and the remaining harts park until hart 0 loads and launches them (Section \ref{ss:multicore-boot}). Each SRAM and ROM cell can be individually powered off or on using the \peripheral{SYSTEM} peripheral. When powered off, the cells use less power and cannot be read or written to. SRAM cells that are powered off do not retain their previous data, and the data becomes undefined.
+The ROM holds the boot loader and the ROM monitor and is read-only. Each RAM can be read and written and may hold both code and data. The chip carries no on-die non-volatile memory: it boots from an external SPI flash device, and hart 0, and only hart 0, can additionally read that flash directly, and execute in place from it, through the extended-flash window at \texttt{\FlashBaseAddress} and above (the last region in Figure~\ref{fig:address-space}; see Section~\ref{ss:spi-flash-xip}). At reset every hart fetches from the boot ROM at \texttt{\RomStartAddress} and dispatches on its hart ID: hart 0 copies the application image out of the flash into memory and enters it, and the remaining harts park until hart 0 loads and launches them (Section~\ref{ss:multicore-boot}). Each RAM and ROM block can be individually powered off and on through the \peripheral{SYSTEM} peripheral; a block that is powered off draws less static power, does not respond, and a RAM loses its contents.
 
+Figure~\ref{fig:address-space} is a single address column drawn for all \NumHartsWord{} harts, and its braces name who reaches each region. Everything below \texttt{\FlashBaseAddress} other than the private band is the shared window: every hart reaches it through the arbiter, and all \NumHartsWord{} harts see the same memory there (Chapter~\ref{s:multicore}). The private band is the exception: at those addresses a hart reaches its own TCM instead of the shared bus, so the same address names a different \TcmSizeKiB{} KiB of RAM in each hart, and no hart can reach another's directly.
 
-The interrupt vector table (IVT) begins at address \texttt{\VectorsStartAddress} and contains jump instructions to the interrupt service routines (ISRs). When an interrupt occurs, the CPU directly vectors to the corresponding entry in the IVT, which then jumps to the appropriate ISR. Each IVT entry is 4 bytes and typically contains a RISC-V jump instruction (e.g., \asminline{j handler}). The IVT can be initialized and configured in software, allowing flexible interrupt routing and handler assignment at runtime.
-
-Figure~\ref{fig:address-space} is a single address column drawn for all \NumHartsWord{} harts, and its braces name who reaches each region. Everything below \texttt{\FlashBaseAddress} other than the private band is the \emph{shared window}: every hart reaches it through the arbiter, and all \NumHartsWord{} harts see the same memory there (Section~\ref{s:multicore}). The private band is the exception: at those addresses a hart reaches its own tightly-coupled memory (TCM) instead of the shared bus, so the same address names a different \TcmSizeKiB{} KiB of RAM in each hart, and no hart can reach another's directly.
+Table~\ref{t:address-map} is the same column as a table, one row per decoded region with its access attributes; the register-level index of every peripheral is Appendix~\ref{s:regMemMap}.
+\IfFileExists{include/AddressSpaceTable.tex}{\input{include/AddressSpaceTable.tex}}{}
 \iforchpresent
-The TCM apertures are the one sanctioned way across that line: hart 0, the orchestrator, reads hart $h$'s private TCM through the aperture at \texttt{\FirstTcmWindowAddress}${} + h \times{}$\TcmSizeKiB{} KiB. The apertures are read-only, and any other hart reading them gets zeros (Section~\ref{s:multicore}).
+% Aperture stride: 0x4000 (16 KiB) per hart regardless of the TCM size. It is
+% _tcmApertureSize in python/generate.py and the s_addr(15:12) decode in
+% hdl/common/hart_tile.vhd; a TCM smaller than the stride mirrors inside its
+% aperture. There is no define for the stride yet; the literal is kept here
+% until the generator exports one.
+The TCM apertures are the one sanctioned way across that line: hart \OrchHartIndex, the orchestrator, reads hart $h$'s private TCM through the aperture at \texttt{\FirstTcmWindowAddress}${} + h \times{}$\texttt{0x4000}. The aperture stride is 16 KiB whatever the TCM size, so a \TcmSizeKiB{} KiB TCM is mirrored inside its aperture. The apertures are read-only, and any other hart reading them gets zeros (Chapter~\ref{s:multicore}).
 \fi
 The extended-flash window is likewise hart 0's alone; the other harts' accesses in that range read zeros without stalling.
 
-\newpage
+The interrupt vector table (IVT) begins at \texttt{\VectorsStartAddress}, the base of each hart's TCM, and holds one 4-byte jump instruction per vector (Chapter~\ref{s:interrupts}).
+
+Peripheral registers occupy one 4-byte slot each, at 4-byte aligned offsets from the instance base address, whatever their width. The \peripheral{GPIOx} port registers are 8 bits wide, one bit per pin, and occupy byte lane 0 of their slot; a 32-bit register uses the whole slot. The register index in Appendix~\ref{s:regMemMap} gives the width of every register.
+
+\clearpage
 
 
 
-% Multi-core architecture
-\section{Multi-Core Architecture} \label{s:multicore}
+% ---------------------------------------------------------------------------
+\chapter{Multi-core architecture} \label{s:multicore}
+% ---------------------------------------------------------------------------
 
+% The generator copies every registered intro file into include/. The
+% multi-core chapter body is the first of the ExtraLatexIntroFiles; the other
+% two (privileged architecture, debug) are chapters of Part II and are input
+% there by name. A build whose file set differs falls back to the generated
+% wrapper, which inputs all three in a row, so every configuration still builds.
+\IfFileExists{include/MULTICORE-intro-castalia-2026-07.tex}{%
+\input{include/MULTICORE-intro-castalia-2026-07.tex}
+}{%
 \input{include/ExtraIntroChapters.tex}
+}
 
-\newpage
-
-% Analog front-end subsystem (CQ). Config-gated: \ifcqanalog is set true only
-% when the chip config declares AFE/EIS documentation sub-slot blocks (the CQ
-% package model). For every other config the branch is skipped, so both the
-% generated CqAnalog.tex chapter and this \input are inert and the TRM is
-% byte-identical to a build without this feature.
-\ifcqanalog
-\input{include/CqAnalog.tex}
-\newpage
-\fi
-
-% Per-implementation analog chapter. The digital chapters above are shared by
-% every chip built from this platform; the analog circuitry is not, so each
-% implementation supplies its own chapter in
-% implementations/asic/<chip>/analog/, which LatexUserGuide.CopyAnalogChapter
-% copies to include/analog/ at generation time. A chip that ships no such
-% directory takes the empty branch and its TRM is byte-identical to a build
-% without this feature, so this is safe for every existing configuration.
-\IfFileExists{include/analog/AnalogChapter.tex}{%
-\input{include/analog/AnalogChapter.tex}
-\newpage
-}{}
+\clearpage
 
 
 
-% Startup and reset behavior
-\section{Startup and Reset Behavior} \label{s:startup}
-To place the MCU in reset mode, drive the \pin{resetn} pin LOW (asserted). To take the MCU out of reset mode, let the \pin{resetn} pin go high (deasserted). The \pin{resetn} pin has an internal 47~\si{\kilo\ohm} pullup resistor which constantly attempts to pull the \pin{resetn} pin HIGH. If the user does not wish to use the \pin{resetn} pin, it is safe to leave it unconnected.
+% ---------------------------------------------------------------------------
+\chapter{Reset, clocks and power} \label{s:startup}
+% ---------------------------------------------------------------------------
 
-When the MCU is first powered up, a power-on reset (POR) circuit resets the MCU. As the core voltage, beginning at 0~V, begins to climb, the POR circuit does not assert the internal reset. Once the core voltage reaches a particular value (which is temperature and process dependent, but typically around 0.7~V), the POR circuit asserts the internal reset signal for about 20 ns and then deasserts it. If either the \pin{resetn} pin or the POR reset signal is asserted, the MCU will be in reset mode. In reset, the memory mapped registers and CPU state variables are all reset to their powerup values.
+\section{Reset}
 
-When the MCU comes out of reset, it immediately begins to execute the bootloader stored in the ROM, setting the program counter to address \texttt{0x0000}. If the \pin{BOOT} pin is LOW, the bootloader launches a Forth interpreter which communicates over \peripheral{UART0} at 115,200 baud (see Section \ref{s:forth} for details concerning the Forth interpreter). If the \pin{BOOT} pin is HIGH, the bootloader reads and executes the program stored on an external SPI flash on \peripheral{SPI0} (see Section \ref{s:programming} for details on how to program the MCU). When the bootloader reads the program stored in the SPI flash, it dumps the contents of the SPI flash directly into RAM, completely filling the RAM from beginning to end using an address-to-address copy. After the bootloader has copied the program stored in the SPI flash into RAM, it jumps (moves the program counter) to address \texttt{\SpiFlashProgramAddress} and begins executing the code.
+The chip is held in reset while the \pin{RESETN} pin is low and leaves reset when it is released high. A power-on reset circuit asserts the internal reset while the core supply rises from zero and releases it once the supply has reached its operating level; the chip is in reset whenever either \pin{RESETN} or the power-on reset is asserted. In reset, every memory-mapped register and every core state register is at its reset value. The \pin{RESETN} input has an internal pull-up and may be left unconnected.
 
-Only hart 0 executes the boot ROM and the SPI-flash boot sequence described above. Harts 1--\MaxHartIndex{} come out of reset executing from their private RAM and park until hart 0 releases them through the boot mailboxes in shared RAM; see Section \ref{ss:multicore-boot}.
+Every hart leaves reset fetching from the boot ROM at \texttt{\RomStartAddress}. Hart 0 runs the boot loader; harts 1 to \MaxHartIndex{} park in the ROM until hart 0 releases them through the boot mailboxes in shared RAM (Section~\ref{ss:multicore-boot}). The \peripheral{PWRCTRL} boot gate can hold every hart in reset until a supply supervisor reports power good; see Section~\ref{s:powerdomains} and Chapter~\ref{peripheralPWRCTRL}.
 
-Note that the boot ROM reprograms the clock system during boot, so the SMCLK source at application entry is a boot-ROM implementation detail; in particular, it may be left on the slow LFXT (32.768~\si{\kilo\hertz}) source. Applications that use SMCLK-domain peripherals (the UARTs, SPIs, I\textsuperscript{2}Cs, or a timer clock-source switch) should therefore always select their desired SMCLK source in the \peripheral{SYSTEM} peripheral first, rather than relying on the boot-time clock state; see Section \ref{ss:clocks} and the clock handoff note in the \peripheral{TIMERx} chapter.
+\section{Boot mode selection} \label{ss:bootmode}
 
-\newpage
+% The strap is GPIO port 0, pin 7 (package pin "P0.7(BOOT)"), read by the boot
+% ROM through P0IN with mask 0x80: software/bootrom_mp/src/start.S
+% (check_boot_mode) and software/commune/include/myshkin.h (GPIO0_BOOT_MASK).
+% There is no dedicated BOOT pin in the pad ring.
+Hart 0's boot loader samples one strap after reset: GPIO pin \pin{P0.7}, marked \pin{BOOT} in Table~\ref{t:gpio-pins}. The pin is read once, through \register{P0IN}, after the boot loader has configured the \peripheral{SPI0} pins; it is an ordinary GPIO pin at every other time. Table~\ref{t:boot-modes} gives the two modes.
 
+\begin{tabularx}{\textwidth}{l l X}
+\caption{Boot mode selected by the \pin{P0.7} strap.} \label{t:boot-modes} \\
+\hline \textbf{\pin{P0.7} at reset} & \textbf{Mode} & \textbf{Behaviour} \\ \hline \endfirsthead
+\hline \textbf{\pin{P0.7} at reset} & \textbf{Mode} & \textbf{Behaviour} \\ \hline \endhead
+Low & ROM monitor & Hart 0 runs the interactive ROM monitor over \peripheral{UART0} at 115,200 baud (Chapter~\ref{s:forth}). \\
+\rowcolor{tablehighlightcolor} High & SPI flash & Hart 0 reads the boot image from the SPI flash on \peripheral{SPI0}, copies its segments into RAM and enters it (Chapter~\ref{s:programming}). \\
+\hline
+\end{tabularx}
 
+On a field-powered board the harvested-boot strap sampled by \peripheral{PWRCTRL} (\register{PWRSTS}) takes precedence: when it reads 1, hart 0 takes the harvested-boot path described in Chapter~\ref{peripheralPWRCTRL} before the \pin{P0.7} strap is consulted.
 
-% Interrupts
-\section{Interrupts} \label{s:interrupts}
+\begin{Note}
+The boot ROM reprograms the clock system during boot, so the SMCLK source at application entry is a boot-ROM implementation detail and may be the slow LFXT source. An application that uses an SMCLK-domain peripheral (a UART, SPI, I\textsuperscript{2}C or a timer clock-source switch) selects its SMCLK source in the \peripheral{SYSTEM} peripheral first (Section~\ref{ss:clocks}).
+\end{Note}
 
-\input{include/InterruptsTable_man.tex}
+% The clock tree figure and its text are maintained with the SYSTEM peripheral
+% introduction. The generator copies only registered intro files into include/,
+% so this hook reads the file from the source tree by a relative path (pdflatex
+% runs in latex/TRM). Until the file exists, the section points at the SYSTEM
+% chapter, which carries the same material.
+\IfFileExists{../PeripheralIntroductions/CLOCKTREE-castalia.tex}{%
+\input{../PeripheralIntroductions/CLOCKTREE-castalia.tex}
+}{%
+\section{Clock tree} \label{s:clocktree}
+The clock sources, the MCLK and SMCLK selection and division, and the clock tree figure are described with the \peripheral{SYSTEM} peripheral in Section~\ref{ss:clocks}; the \peripheral{SYSTEM} register descriptions are in Chapter~\ref{peripheralSYSTEM}.
+}
 
-The VestaRV CPU implements an interrupt system with \VectorsCount{} interrupt vectors, numbered 0--\TopVector, whose sources are enumerated in the table above. The numbering is frozen: a vector belongs to the block that owns it whether or not this configuration instantiates that block, so vectors whose block is absent are reserved and counted with the rest rather than shifting the ones above them. Two of the \VectorsCount{} are the \peripheral{CLINT} pair (\ClintMsipVector, software/inter-processor interrupt; \ClintMtipVector, timer interrupt) added for multi-core operation; the other \RoutedVectorsCount{} sit on the \peripheral{IRQROUTER} side of the fabric --- the peripheral and system sources, the reserved slots frozen among them, and \texttt{meip}'s own slot. Each hart takes three interrupt lines: its own \peripheral{CLINT} software and timer interrupts (vectors \ClintMsipVector{} and \ClintMtipVector, hardwired enabled, delivered on dedicated per-hart wires) and the external interrupt \texttt{meip} (vector \MeipVector, a slot of its own that no source pends on), which delivers \textit{all} peripheral and system sources through the \peripheral{IRQROUTER}'s claim/complete mechanism: the vector-\MeipVector{} handler reads the router's \register{CLAIM} register to discover and claim the pending source, dispatches on the returned vector number, and writes it back to complete (see the \peripheral{IRQROUTER} chapter). Which sources reach which hart is programmed per hart in the router's routing rows, identical for every hart, hart 0 included. All peripheral sources are masked by default upon MCU reset and must be explicitly routed in software before use; source priority is fixed (the lowest pending vector number is claimed first). Additionally, peripherals generating interrupts must be configured to enable interrupt generation at the peripheral level.
+% Same hook as the clock tree: the power-domain material is maintained with the
+% PWRCTRL introduction and read here by relative path until it is registered.
+\IfFileExists{../PeripheralIntroductions/POWERDOMAINS-castalia.tex}{%
+\input{../PeripheralIntroductions/POWERDOMAINS-castalia.tex}
+}{%
+\section{Power domains} \label{s:powerdomains}
+The hart-tile power domains, the gating sequencer, the boot gate and the wake sources are described with the \peripheral{PWRCTRL} peripheral in Chapter~\ref{peripheralPWRCTRL}; the memory-block power switches are \peripheral{SYSTEM} registers (Section~\ref{ss:power-saving}), and the CPU sleep mode is Section~\ref{ss:sleep}.
+}
 
-Figure~\ref{fig:irq-fabric-diagram} is that whole fabric in one view: the source population of the table above collapsed by type, the \peripheral{IRQROUTER} as the spine every one of those sources terminates in, and the \NumHartsWord{} harts with the three lines each of them takes. It is the drawing to read before the vector table, because it is where the one asymmetry lives: \texttt{meip} arrives from the router, and \texttt{msip} and \texttt{mtip} do not go near it.
-
-% Generated, configuration-driven interrupt-fabric overview (make chip).
-% Ungated, like the section that holds it: the emitter derives the source
-% buckets, the vector total and the hart count from this configuration, so both
-% polarities resolve every \ref to it.
-\begin{figure}[htpb]
-	\centering
-	\resizebox{\linewidth}{!}{\input{include/IrqFabricDiagram.tex}}
-	\caption[{\AsicNameForUserGuide{} interrupt fabric: sources, router, and the CLINT bypass}]{\AsicNameForUserGuide{} interrupt fabric. Every one of this configuration's \VectorsCount{} interrupt vectors is on this page: the left column collapses Table~\ref{t:interrupt-vectors}'s source population into types, each with the number of blocks that feed it and the number of vectors it owns, and the reserved slots are counted with the rest because the vector numbering is frozen --- a dropped or not-yet-built block keeps its slot rather than shifting the ones above it. All of those terminate in the \peripheral{IRQROUTER}, which holds one routing row per hart --- one enable bit per vector, all zero out of reset --- and one claim/complete stage; each row is drawn at the height of the hart it belongs to, so a row's \texttt{meip} wire runs straight across into that hart. \textbf{The two heavy rails are the point of the figure}: the \peripheral{CLINT}'s \texttt{msip} and \texttt{mtip} are per-hart \emph{hardwired} levels that run under the router, up the far margin, and into each hart from the opposite side. They are never enabled, never pending, never claimed and never completed; the router's row bits at those two vector numbers are writable but inert, and its \register{CLAIM} never returns them. A hart's interrupt service routine clears an \texttt{msip} by writing its \register{MSIP} register and an \texttt{mtip} by advancing its \register{MTIMECMP}, not by completing a claim (Section~\ref{peripheralCLINT}). Both blocks run on the free-running MCLK, which is what lets an interrupt wake a hart whose gated CPU clock is off. The register layout behind all of it is Section~\ref{peripheralIRQROUTER}'s; no address appears here. Everything drawn is generated from this configuration.}
-	\label{fig:irq-fabric-diagram}
-\end{figure}
-
-\subsection{Interrupt Vector Table}
-
-The interrupt vector table (IVT) is located at the base of RAM, beginning at address \texttt{\VectorsStartAddress}. Unlike traditional pointer-based interrupt vector tables, the VestaRV IVT contains direct jump instructions to the interrupt service routines (ISRs). Each entry in the IVT is a 4-byte RISC-V jump instruction (e.g., \asminline{j handler}) that vectors execution immediately to the corresponding ISR when an interrupt occurs. This architecture eliminates the indirection overhead of loading function pointers and provides deterministic, low-latency interrupt response.
-
-While the VestaRV hardware does not mandate a specific IVT structure, it is strongly recommended to populate the IVT with jump instructions during system initialization. The automatic code generation tools produce linker scripts and initialization code that configure the IVT at the beginning of RAM. The memory map header files provide macros to facilitate proper ISR placement and IVT entry configuration.
-
-\subsection{Interrupt Entry, Exit, and Recursion}
-
-When an interrupt is taken, the hardware saves a minimal context: it pushes the return program counter (one 32-bit word) onto the system stack at $\mathtt{sp}-4$, decrements \asminline{sp} by 4, and vectors execution through the IVT entry for the interrupt. \textbf{No other state is saved by hardware.} Software is responsible for saving and restoring every general-purpose register the interrupt service routine (ISR) uses. The generated runtime provides an interrupt entry wrapper (in the startup code) that saves the general-purpose registers on the stack (about 120 bytes per interrupt level), calls the C-level handler, restores the registers, and returns with the \asminline{retirq} instruction, so C-coded ISRs need no special handling. Hand-written assembly ISRs must perform the equivalent save/restore themselves. Executing \asminline{retirq} pops the hardware-saved program counter, increments \asminline{sp} by 4, and resumes execution at the interrupted location.
-
-Because the very first thing interrupt entry does is a store at $\mathtt{sp}-4$, \textbf{the stack pointer must point at valid, writable private memory before interrupts are enabled}. This applies to every hart: a freshly released tile hart must load its stack pointer before unmasking interrupts or going to sleep (see Section \ref{s:multicore}).
-
-Interrupt handling is non-recursive: a running ISR is never preempted, and further pending interrupts (including a pending \peripheral{CLINT} interrupt during a vector-85 service) are taken after the current ISR returns. Stack allocation must cover one interrupt level: the 4-byte hardware-saved return address plus the handler's register frame (about 120 bytes for the runtime wrapper) and the ISR's local variables. (The single-core chip's priority-tier and recursion machinery was retired together with the \peripheral{SYSTEM} interrupt registers; source arbitration now happens in the \peripheral{IRQROUTER}.)
-
-\subsection{Sleep Mode and Interrupt Wake-Up}
-
-If an interrupt occurs while the CPU is in sleep mode, the processor will automatically wake from sleep and service the interrupt. Upon execution of the \asminline{retirq} instruction, the CPU will return to sleep mode unless the ISR or woken code explicitly reconfigures the clock and power settings. During sleep mode, the CPU clock is gated to conserve power, but all register contents and the program counter are retained. If the clock source for MCLK is disabled during sleep, any enabled interrupt will automatically power up and enable the source clock for the duration of interrupt servicing.
-
-Clock and power management, including sleep mode configuration, are controlled through the \peripheral{SYSTEM} peripheral. Note that if SMCLK is disabled, peripherals may be unable to assert interrupt signals, potentially preventing wake from sleep.
-
-\newpage
+\clearpage
 
 
 
-% Assembly
-\section{CPU Instructions and Assembly} \label{s:cpu-instructions}
+% ===========================================================================
+\part{Processor}
+% ===========================================================================
 
-The \AsicNameForUserGuide{} MCU integrates the VestaRV CPU core, a custom 32-bit RISC-V processor implementing the RV32IMAC instruction set with bit manipulation extensions (Zba, Zbb, Zbc, Zbs). This configuration provides integer arithmetic (I), hardware multiplication and division (M), atomic operations (A), compressed 16-bit instructions (C), and enhanced bit manipulation capabilities. The RISC-V instruction set architecture (ISA) defines the binary encoding of machine instructions, their operational semantics, and the register architecture used for computation and control flow.
+% ---------------------------------------------------------------------------
+\chapter{VestaRV core} \label{s:cpu-instructions}
+% ---------------------------------------------------------------------------
 
-\subsection{CPU Registers}
+Every hart of the \AsicNameForUserGuide{} MCU is a VestaRV core, a 32-bit RISC-V processor with a single unified instruction and data bus. This chapter states what the core implements: its instruction set, its register conventions, its hart identities and its control and status registers. The RISC-V specifications named in Section~\ref{ss:related} are normative for the instructions and registers themselves and are not restated here.
 
-There are 32 CPU registers defined in the RISC-V ISA. Though the user can technically use any register for any purpose (except for \asminline{x0}/\asminline{zero}, which is read-only and is always equal to 0x00000000), it is generally advisable to use each register for its intended purpose and follow the convention that the RISC-V ISA describes. The convention was created to create a standard use for each register so that assembly functions can be written that will be compatible with any RISC-V assembly program. The RISC-V compiler always follows this convention. Therefore, if the user also follows the convention, then the user's assembly code will be drop-in compatible with other compiled code (such as C code). If the user does not follow the convention, then it may cause many runtime errors.
+\section{Instruction set} \label{ss:isa}
 
-Each register has a specific purpose and a designated ``saver'' that is allowed to write to it. The saver is either the caller (the code that calls a function) or the callee (the function that was called). This allows for communication between caller and callee such that arguments can be passed from caller to callee and returned data can be sent back from callee to caller. For example, the registers \asminline{a0-a7} are intended for function arguments and are written to by the caller. Registers \asminline{s0-s11} are preserved across function calls and are written to by the callee. Furthermore, registers \asminline{t0-t6} are temporary register that can be used for any purpose and are written to by the caller.
+The ISA string of this build, the \texttt{-march} value the toolchain is given, is listed under \emph{ISA string} in Table~\ref{t:chip-config-derived}\ifdefined\IsaString{} and is \texttt{\IsaString}\fi. The same information is available at run time in the read-only \register{misa} register (Section~\ref{ss:csrs}). The extensions the core family implements are listed below with the configuration knob that selects each; which ones are present in this build is exactly what the ISA string says.
 
-In assembly, registers can be referred to interchangibly by their register number or name (e.g. you can either type \asminline{x1} or \asminline{ra} to refer to the same register). Generally, one should only use the register names since they give hints as to the purpose of the register.
+\begin{itemize}[itemsep=1pt]
+	\item \textbf{RV32I}, the base integer instruction set: 32 registers of 32 bits, integer arithmetic, logic, shifts, comparisons, loads and stores of bytes, half-words and words, branches and jumps. Always present.
+	\item \textbf{M} (\texttt{isa.mul}, \texttt{isa.div}): hardware multiply, divide and remainder, signed and unsigned. Multiply is single-cycle; divide is iterative (Chapter~\ref{s:cpi}).
+	\item \textbf{A} (\texttt{isa.atomics}): load-reserved and store-conditional, and the atomic read-modify-write operations on 32-bit words. An atomic operation holds the shared-window arbiter grant across its whole read-modify-write pair, so it is atomic with respect to every hart (Section~\ref{ss:multicore-sync}).
+	\item \textbf{C} (\texttt{isa.compressed}): 16-bit encodings of the most common instructions. Code built with it is substantially smaller; its fetch-alignment cost is measured in Section~\ref{ss:cpi-align}.
+	\item \textbf{Zba, Zbb, Zbc, Zbs} (\texttt{isa.bitmanip}): address generation (shift-and-add), basic bit manipulation (count, min and max, rotate, sign and zero extension, byte reversal), carry-less multiplication, and single-bit set, clear, invert and extract.
+	\item \textbf{Zicsr}: the CSR access instructions. Always present.
+	\item \textbf{Zicntr}: the \register{cycle} and \register{instret} counters, readable from the user views. Always present; \register{time} is not implemented (Section~\ref{ss:csrs}).
+\end{itemize}
 
-A CPU instruction can have up to two source register \asminline{rs1} and \asminline{rs2}, and up to one destination register \asminline{rd}. \asminline{rs1}, \asminline{rs2}, and \asminline{rd} can be any of the 32 CPU registers (e.g. \asminline{sp}, \asminline{t6}, \asminline{zero}, etc.). The source registers are used as ``arguments'' to the instruction and are not modified by the instruction, and the destination register is modified by the instruction as its output. 
+An instruction of an extension that is not configured into the build raises an illegal-instruction exception; what happens next depends on the trap delivery mode (Section~\ref{ss:csr-unimplemented}).
 
-A list of all 32 CPU registers is provided in Table~\ref{t:cpu-registers}.
+Three instructions are specific to this core and are used by the runtime: \asminline{retirq} returns from a legacy-mode interrupt (Chapter~\ref{s:interrupts}), \asminline{sleep} gates the hart's clock until an interrupt arrives (Section~\ref{ss:sleep}), and \asminline{wake} is its counterpart. Their encodings are in the generated \texttt{periph.S}.
+
+\section{Registers and calling convention} \label{ss:abi}
+
+The 32 general-purpose registers and their roles under the standard RISC-V calling convention (the \texttt{ilp32} ABI) are listed in Table~\ref{t:cpu-registers}. The compiler follows this convention, so hand-written assembly that follows it is drop-in compatible with compiled code. A register whose saver is the caller may be overwritten by any function call; a register whose saver is the callee is preserved across calls.
 
 \begin{longtable}[c]{ l l l l }
-\caption{CPU Registers} \label{t:cpu-registers} \\
-\hline \textbf{Register} & \textbf{Name} & \textbf{Description} & \textbf{Saver} \\ \hline \endfirsthead
-\hline \textbf{Register} & \textbf{Name} & \textbf{Description} & \textbf{Saver} \\ \hline \endhead
-                               \asminline{x0} & \asminline{zero} & Hard-wired zero (read-only) & N/A \\
-\rowcolor{tablehighlightcolor} \asminline{x1} & \asminline{ra} & Return Address & Caller \\
-                               \asminline{x2} & \asminline{sp} & Stack Pointer & Callee \\
-\rowcolor{tablehighlightcolor} \asminline{x3} & \asminline{gp} & Global Pointer & -- \\
-                               \asminline{x4} & \asminline{tp} & Thread Pointer & -- \\
-\rowcolor{tablehighlightcolor} \asminline{x5} & \asminline{t0} & Temporary/Alternate Link Register & Caller \\
-                               \asminline{x6-x7} & \asminline{t1-t2} & Temporary Registers & Caller \\
-\rowcolor{tablehighlightcolor} \asminline{x8} & \asminline{s0/fp} & Saved Register/Frame Pointer & Callee \\
-                               \asminline{x9} & \asminline{s1} & Saved Register & Callee \\
-\rowcolor{tablehighlightcolor} \asminline{x10-x11} & \asminline{a0-a1} & Function Arguments/Return Values & Caller \\
-                               \asminline{x12-x17} & \asminline{a2-a7} & Function Arguments & Caller \\
-\rowcolor{tablehighlightcolor} \asminline{x18-x27} & \asminline{s2-s11} & Saved Registers & Callee \\
-                               \asminline{x28-x31} & \asminline{t3-t6} & Temporary Registers & Caller \\
+\caption{General-purpose registers and their ABI roles.} \label{t:cpu-registers} \\
+\hline \textbf{Register} & \textbf{ABI name} & \textbf{Role} & \textbf{Saver} \\ \hline \endfirsthead
+\hline \textbf{Register} & \textbf{ABI name} & \textbf{Role} & \textbf{Saver} \\ \hline \endhead
+                               \asminline{x0} & \asminline{zero} & Hard-wired zero (writes ignored) & none \\
+\rowcolor{tablehighlightcolor} \asminline{x1} & \asminline{ra} & Return address & Caller \\
+                               \asminline{x2} & \asminline{sp} & Stack pointer & Callee \\
+\rowcolor{tablehighlightcolor} \asminline{x3} & \asminline{gp} & Global pointer & none \\
+                               \asminline{x4} & \asminline{tp} & Thread pointer & none \\
+\rowcolor{tablehighlightcolor} \asminline{x5} & \asminline{t0} & Temporary, alternate link register & Caller \\
+                               \asminline{x6}, \asminline{x7} & \asminline{t1}, \asminline{t2} & Temporaries & Caller \\
+\rowcolor{tablehighlightcolor} \asminline{x8} & \asminline{s0}/\asminline{fp} & Saved register, frame pointer & Callee \\
+                               \asminline{x9} & \asminline{s1} & Saved register & Callee \\
+\rowcolor{tablehighlightcolor} \asminline{x10}, \asminline{x11} & \asminline{a0}, \asminline{a1} & Function arguments and return values & Caller \\
+                               \asminline{x12} to \asminline{x17} & \asminline{a2} to \asminline{a7} & Function arguments & Caller \\
+\rowcolor{tablehighlightcolor} \asminline{x18} to \asminline{x27} & \asminline{s2} to \asminline{s11} & Saved registers & Callee \\
+                               \asminline{x28} to \asminline{x31} & \asminline{t3} to \asminline{t6} & Temporaries & Caller \\
 \hline
 \end{longtable}
 
+\section{Hart identities} \label{ss:hartids}
 
-\subsection{Load/Store Memory Instructions}
+Each hart reads its own identity in \register{mhartid}: \texttt{0} to \texttt{\MaxHartIndex}. The boot ROM dispatches on it (Section~\ref{ss:multicore-boot}), and it selects the hart's own \peripheral{CLINT} and \peripheral{IRQROUTER} rows.\iforchpresent{} Hart \OrchHartIndex{} is the orchestrator: it is always powered, it runs the boot loader and the ROM monitor, and it alone reaches the TCM apertures and the extended-flash window (Chapter~\ref{s:multicore}).\fi
 
-These instructions interface between the memory bus (containing RAM, ROM, and memory-mapped registers) and the CPU registers. They are used to load data from memory into a CPU register or store data from a CPU register into memory. The immediate parameter (\asminline{i}) refers to a hard-coded 12-bit constant that is stored inside the CPU instruction itself and is added to the value of one of the registers. All load/store instructions take 2 MCLK cycles to execute.
+\section{Control and status registers} \label{ss:csrs}
 
-\begin{itemize}
-	\item Load Signed Byte: \asminlinehl{lb rd, I(rs1)}: loads the signed byte (8 bits) stored at memory location pointed to by (\asminline{rs1} + \asminline{I}) into the destination CPU register \asminline{rd}
-	\item Load Unsigned Byte: \asminlinehl{lbu rd, I(rs1)}: loads the unsigned byte (8 bits) stored at memory location pointed to by (\asminline{rs1} + \asminline{I}) into the destination CPU register \asminline{rd}
-	\item Load Signed Half Word: \asminlinehl{lh rd, I(rs1)}: loads the signed half word (16 bits) stored at memory location pointed to by (\asminline{rs1} + \asminline{I}) into the destination CPU register \asminline{rd}
-	\item Load Unsigned Half Word: \asminlinehl{lhu rd, I(rs1)}: loads the unsigned half word (16 bits) stored at memory location pointed to by (\asminline{rs1} + \asminline{I}) into the destination CPU register \asminline{rd}
-	\item Load Word: \asminlinehl{lw rd, I(rs1)}: loads the signed or unsigned word (32 bits) stored at memory location pointed to by (\asminline{rs1} + \asminline{I}) into the destination CPU register \asminline{rd}
-	\item Store byte: \asminlinehl{sb rs1, I(rs2)}: stores the signed or unsigned byte (8 bits) from source CPU regsiter 1 \asminline{rs1} into the memory location pointed to by (\asminline{rs2} + \asminline{I})
-	\item Store half word: \asminlinehl{sh rs1, I(rs2)}: stores the signed or unsigned half word (16 bits) from source CPU regsiter 1 \asminline{rs1} into the memory location pointed to by (\asminline{rs2} + \asminline{I})
-	\item Store word: \asminlinehl{sh rs1, I(rs2)}: stores the signed or unsigned word (32 bits) from source CPU regsiter 1 \asminline{rs1} into the memory location pointed to by (\asminline{rs2} + \asminline{I})
-\end{itemize}
+Tables~\ref{t:csr-always} to~\ref{t:csr-optional} list the CSRs the core implements, by the numbering of the RISC-V Privileged Architecture, version 1.12. The tables are partial in the sense the specification allows: a CSR not listed is not implemented, and Section~\ref{ss:csr-unimplemented} says what an access to it does. The trap CSRs of Table~\ref{t:csr-optional} are described field by field in Chapter~\ref{s:privarch}, and the debug CSRs in Chapter~\ref{s:debug}.
 
-\subsection{Shift Instructions}
+\begin{longtable}[c]{ p{3.0cm} p{3.6cm} p{1.7cm} p{6.6cm} }
+\caption{CSRs present in every configuration (partial list, Privileged Architecture 1.12 numbering).} \label{t:csr-always} \\
+\hline \textbf{Number} & \textbf{Name} & \textbf{Access} & \textbf{Implementation} \\ \hline \endfirsthead
+\hline \textbf{Number} & \textbf{Name} & \textbf{Access} & \textbf{Implementation} \\ \hline \endhead
+                               \texttt{0x301} & \register{misa} & read-only & \texttt{MXL} = 1 (RV32) and one letter bit per configured extension. Writes are ignored. \\
+\rowcolor{tablehighlightcolor} \texttt{0xF11} & \register{mvendorid} & read-only & Reads zero (not a commercial vendor). \\
+                               \texttt{0xF12} & \register{marchid} & read-only & Reads zero. \\
+\rowcolor{tablehighlightcolor} \texttt{0xF13} & \register{mimpid} & read-only & Reads zero. \\
+                               \texttt{0xF14} & \register{mhartid} & read-only & The hart's identity, \texttt{0} to \texttt{\MaxHartIndex}. \\
+\rowcolor{tablehighlightcolor} \texttt{0xF15} & \register{mconfigptr} & read-only & Reads zero (no configuration structure). \\
+                               \texttt{0xB00}, \texttt{0xB80} & \register{mcycle}, \register{mcycleh} & read/write & 64-bit MCLK cycle counter, free-running; counts while the hart is stalled. \\
+\rowcolor{tablehighlightcolor} \texttt{0xB02}, \texttt{0xB82} & \register{minstret}, \register{minstreth} & read/write & 64-bit count of retired instructions. \\
+                               \texttt{0xC00}, \texttt{0xC80} & \register{cycle}, \register{cycleh} & read-only & User view of \register{mcycle}. \\
+\rowcolor{tablehighlightcolor} \texttt{0xC02}, \texttt{0xC82} & \register{instret}, \register{instreth} & read-only & User view of \register{minstret}. \\
+                               \texttt{0x306} & \register{mcounteren} & WARL & Hard-wired zero unless user mode is configured. \\
+\rowcolor{tablehighlightcolor} \texttt{0x320} & \register{mcountinhibit} & WARL & Hard-wired zero: the counters cannot be inhibited. Writes are ignored. \\
+                               \texttt{0xB03} to \texttt{0xB1F}, \texttt{0xB83} to \texttt{0xB9F} & \register{mhpmcounter3} to \register{mhpmcounter31} and their high halves & WARL & Hard-wired zero. Writes are ignored. \\
+\rowcolor{tablehighlightcolor} \texttt{0x323} to \texttt{0x33F} & \register{mhpmevent3} to \register{mhpmevent31} & WARL & Hard-wired zero. Writes are ignored. \\
+                               \texttt{0xC03} to \texttt{0xC1F}, \texttt{0xC83} to \texttt{0xC9F} & \register{hpmcounter3} to \register{hpmcounter31} and their high halves & read-only & Read zero. \\
+\hline
+\end{longtable}
 
-These instructions perform bit shift operations (e.g. \cinline{<<}). The immediate parameter (\asminline{I}) refers to a hard-coded 12-bit constant that is stored inside the CPU instruction itself and is used as the number of bits to shift. Each shift instruction takes 1 MCLK cycle to execute.
+\begin{longtable}[c]{ p{2.8cm} p{3.4cm} p{2.6cm} p{6.2cm} }
+\caption{CSRs present only in some configurations (partial list, Privileged Architecture 1.12 and Debug 1.0 numbering).} \label{t:csr-optional} \\
+\hline \textbf{Number} & \textbf{Name} & \textbf{Configured by} & \textbf{Implementation} \\ \hline \endfirsthead
+\hline \textbf{Number} & \textbf{Name} & \textbf{Configured by} & \textbf{Implementation} \\ \hline \endhead
+                               \texttt{0x300} & \register{mstatus} & \texttt{priv.trapCsr} (\ifprivtrapcsr present\else absent\fi{} here) & \texttt{MIE}, \texttt{MPIE}, \texttt{MPP}; \texttt{MPRV} and \texttt{TW} only with user mode. Chapter~\ref{s:privarch}. \\
+\rowcolor{tablehighlightcolor} \texttt{0x310} & \register{mstatush} & \texttt{priv.trapCsr} & Reads zero; writes are ignored. \\
+                               \texttt{0x305} & \register{mtvec} & \texttt{priv.trapCsr} & \texttt{BASE} read/write; \texttt{MODE} pinned to direct. \\
+\rowcolor{tablehighlightcolor} \texttt{0x304}, \texttt{0x344} & \register{mie}, \register{mip} & \texttt{priv.trapCsr} & Bits \texttt{MSIE}/\texttt{MSIP} (3), \texttt{MTIE}/\texttt{MTIP} (7), \texttt{MEIE}/\texttt{MEIP} (11). \register{mip} is read-only. \\
+                               \texttt{0x340} & \register{mscratch} & \texttt{priv.trapCsr} & Read/write scratch. \\
+\rowcolor{tablehighlightcolor} \texttt{0x341}, \texttt{0x342}, \texttt{0x343} & \register{mepc}, \register{mcause}, \register{mtval} & \texttt{priv.trapCsr} & Written by hardware on a standard-mode trap entry (Table~\ref{t:priv-causes}); \register{mcause} keeps bit 31 and bits 3:0. \\
+                               \texttt{0x7C0} & \register{mtrapctl} & \texttt{priv.trapCsr} & Custom: bit 0 \texttt{LEGACY} selects the trap delivery mode; resets to 1 (legacy). \\
+\rowcolor{tablehighlightcolor} \texttt{0x3A0} to \texttt{0x3A3}, \texttt{0x3B0} to \texttt{0x3BF} & \register{pmpcfg0} to \register{pmpcfg3}, \register{pmpaddr0} to \register{pmpaddr15} & \texttt{priv.pmp} (\ifprivpmp present\else absent\fi{} here) & \PmpEntries{} entries; entries above the count read WARL zero. Chapter~\ref{s:privarch}. \\
+                               \texttt{0x7B0} to \texttt{0x7B3} & \register{dcsr}, \register{dpc}, \register{dscratch0}, \register{dscratch1} & \texttt{debug.enable} (\ifdebugenable present\else absent\fi{} here) & Accessible in debug mode only; an access outside debug mode is an illegal instruction. Chapter~\ref{s:debug}. \\
+\hline
+\end{longtable}
 
-\begin{itemize}
-	\item Shift Left: \asminlinehl{sll rd, rs1, rs2}: Logical shifts the value in \asminline{rs1} left by \asminline{rs2} bits and stores the result in \asminline{rd}.
-	\item Shift Left Immediate: \asminlinehl{slli rd, rs1, I}: Logical shifts the value in \asminline{rs1} left by \asminline{I} bits and stores the result in \asminline{rd}.
-	\item Shift Right: \asminlinehl{sll rd, rs1, rs2}: Logical shifts the value in \asminline{rs1} right by \asminline{rs2} bits and stores the result in \asminline{rd}.
-	\item Shift Right Immediate: \asminlinehl{slli rd, rs1, I}: Logical shifts the value in \asminline{rs1} right by \asminline{I} bits and stores the result in \asminline{rd}.
-	\item Shift Right Arithmetic: \asminlinehl{sll rd, rs1, rs2}: Arithmetic shifts the value in \asminline{rs1} right by \asminline{rs2} bits and stores the result in \asminline{rd}.
-	\item Shift Right Arithmetic Immediate: \asminlinehl{slli rd, rs1, I}: Arithmetic shifts the value in \asminline{rs1} right by \asminline{I} bits and stores the result in \asminline{rd}.
-\end{itemize}
+\subsection{Unimplemented CSRs and illegal accesses} \label{ss:csr-unimplemented}
 
-\subsection{Arithmetic Instructions}
+% Source of the rules below: hdl/common/vesta/maindec.vhd (csr_addr_valid,
+% csr_ro_denied, dbg_csr_denied, u_csr_denied) and hdl/common/vesta/csr_unit.vhd.
+A CSR instruction naming a register that is not in Tables~\ref{t:csr-always} and~\ref{t:csr-optional} for this build is an illegal instruction (exception code 2). In particular \register{time} and \register{timeh} (\texttt{0xC01}, \texttt{0xC81}) are not implemented, because no real-time source is wired to the core; use \register{cycle} and the known MCLK frequency instead. Two further rules apply in every configuration: a CSR instruction in a write form (any form other than a pure read with \asminline{x0} as the source) aimed at the read-only quadrant (\texttt{0xC00} to \texttt{0xFFF}) is illegal even when the register exists, and an access to the debug CSRs outside debug mode is illegal. A write to a WARL register listed as hard-wired (\register{misa}, \register{mip}, \register{mstatush}, \register{mcountinhibit}, the \register{mhpm*} ranges) is not illegal; it is accepted and ignored. An illegal CSR instruction commits nothing: no register, memory or CSR is changed.
 
-These instructions perform arithmetic operations. The immediate parameter (\asminline{I}) refers to a hard-coded 12-bit signed integer that is stored inside the CPU instruction itself and is added to the operation (except for in the \asminline{auipc} instruction). These instructions take 1 MCLK cycle to execute.
+What an illegal instruction does next depends on the trap delivery mode of Chapter~\ref{s:privarch}. In the legacy mode, which every configuration selects at reset, there is no recoverable exception: the hart enters a terminal trap state and retires no further instruction until reset. In the standard mode, available where \texttt{priv.trapCsr} is configured and selected by clearing \register{mtrapctl}.\bitfield{LEGACY}, the hart traps to \register{mtvec} with \register{mcause} = 2 and \register{mtval} holding the faulting encoding.
 
-\begin{itemize}
-	\item Addition: \asminlinehl{add rd, rs1, rs2}: Adds the signed/unsigned integer values in \asminline{rs1} and \asminline{rs2} together and stores the sum in \asminline{rd}
-	\item Addition Immediate: \asminlinehl{addi rd, rs1, I}: Adds the signed/unsigned integer value in \asminline{rs1} with the immediate 12-bit signed integer \asminline{I} together and stores the sum in \asminline{rd}
-	\item Subtraction: \asminlinehl{sub rd, rs1, rs2}: Subtracts the signed/unsigned integer values in \asminline{rs1} from \asminline{rs2} and stores the result in \asminline{rd} (i.e. \asminline{rd} $\leftarrow$ \asminline{rs1} $-$ \asminline{rs2})
-	\item Load Upper Immediate: \asminlinehl{lui rd, I}: Loads the 20-bit immediate value \asminline{I} into the upper 20 bits of the destination CPU register \asminline{rd} (the lower 12 bits are all cleared to 0s)
-	\item Add Upper Immediate to PC: \asminlinehl{auipc rd, I}: Adds the 12-bit signed integer immediate \asminline{I} to the program counter to jump the program's execution to a location \asminline{I} away from the current program counter. Note that \asminline{I} can be negative.
-\end{itemize}
+\begin{Caution}
+The \asminline{unimp} pseudo-instruction assembles to a CSR write to \register{cycle} (\texttt{0xC0001073}), which is exactly the read-only-quadrant write described above. Reaching an \asminline{unimp} in legacy delivery mode halts the hart until reset.
+\end{Caution}
 
-\subsection{Bitwise Instructions}
+\clearpage
 
-These instructions perform bitwise operations. The immediate parameter (\asminline{I}) refers to a hard-coded 12-bit signed integer that is stored inside the CPU instruction itself and is used as one of the operands of the bitwise operations. These instructions take 1 MCLK cycle to execute.
-
-\begin{itemize}
-	\item Bitwise exclusive OR: \asminlinehl{xor rd, rs1, rs2}: Performs the bitwise XOR of \asminline{rs1} and \asminline{rs2} and stores the result in \asminline{rd}. 
-	\item Bitwise exclusive OR Immediate: \asminlinehl{xori rd, rs1, I}: Performs the bitwise XOR of \asminline{rs1} and the immediate \asminline{I} and stores the result in \asminline{rd}.
-	\item Bitwise OR: \asminlinehl{or rd, rs1, rs2}: Performs the bitwise OR of \asminline{rs1} and \asminline{rs2} and stores the result in \asminline{rd}. 
-	\item Bitwise OR Immediate: \asminlinehl{ori rd, rs1, I}: Performs the bitwise OR of \asminline{rs1} and the immediate \asminline{I} and stores the result in \asminline{rd}.
-	\item Bitwise AND: \asminlinehl{and rd, rs1, rs2}: Performs the bitwise AND of \asminline{rs1} and \asminline{rs2} and stores the result in \asminline{rd}. 
-	\item Bitwise AND Immediate: \asminlinehl{andi rd, rs1, I}: Performs the bitwise AND of \asminline{rs1} and the immediate \asminline{I} and stores the result in \asminline{rd}.
-\end{itemize}
-
-\subsection{Comparison Instructions}
-
-These instructions perform comparison operations. The results of these instructions are either true (0x00000001) or false (0x00000000). The immediate parameter (\asminline{I}) refers to a hard-coded 12-bit signed or unsigned integer that is stored inside the CPU instruction itself and is used as one of the operands of the bitwise operations. These instructions take 1 MCLK cycle to execute.
-
-\begin{itemize}
-	\item Set when Less Than: \asminlinehl{slt rd, rs1, rs2}: If \asminline{rs1 < rs2} (using signed integers), the destination register \asminline{rd} is set to 0x00000001, otherwise it is set to 0x00000000.
-	\item Set when Less Than Immediate: \asminlinehl{slti rd, rs1, I}: If \asminline{rs1 < I} (using signed integers), the destination register \asminline{rd} is set to 0x00000001, otherwise it is set to 0x00000000.
-	\item Set when Less Than Unsigned: \asminlinehl{sltu rd, rs1, rs2}: If \asminline{rs1 < rs2} (using unsigned integers), the destination register \asminline{rd} is set to 0x00000001, otherwise it is set to 0x00000000.
-	\item Set when Less Than Immediate Unsigned: \asminlinehl{sltiu rd, rs1, I}: If \asminline{rs1 < I} (using unsigned integers), the destination register \asminline{rd} is set to 0x00000001, otherwise it is set to 0x00000000.
-\end{itemize}
-
-\subsection{Branch Instructions}
-
-These instructions are conditional instructions that branch (jump) the program execution to a new location if the condition is met, or proceed on to the next instruction like normal if the condition is not met. The immediate parameter (\asminline{I}) refers to a hard-coded 12-bit signed integer that is stored inside the CPU instruction itself and is added to the program counter if the condition is met. Usually, in assembly, the program writer can simply provide the \textit{label} to the desired branch location/function in the program (e.g. \asminline{labelToFunction:}) rather than its actual memory location, which is usually not known before being built. These instructions take 1 MCLK cycle to execute regardless of whether the branch is taken or not.
-
-\begin{itemize}
-	\item Branch if Equal: \asminlinehl{beq rs1, rs2, I}: Branches to PC + \asminline{I} if \asminline{rs1} $=$ \asminline{rs2}, proceeds to the next instruction like normal otherwise.
-	\item Branch if Not Equal: \asminlinehl{bne rs1, rs2, I}: Branches to PC + \asminline{I} if \asminline{rs1} $\neq$ \asminline{rs2}, proceeds to the next instruction like normal otherwise.
-	\item Branch if Less Than: \asminlinehl{blt rs1, rs2, I}: Branches to PC + \asminline{I} if \asminline{rs1} $<$ \asminline{rs2} (signed integers), proceeds to the next instruction like normal otherwise.
-	\item Branch if Greater Than or Equal: \asminlinehl{bge rs1, rs2, I}: Branches to PC + \asminline{I} if \asminline{rs1} $\geq$ \asminline{rs2} (signed integers), proceeds to the next instruction like normal otherwise.
-	\item Branch if Less Than Unsigned: \asminlinehl{bltu rs1, rs2, I}: Branches to PC + \asminline{I} if \asminline{rs1} $<$ \asminline{rs2} (unsigned integers), proceeds to the next instruction like normal otherwise.
-	\item Branch if Greater Than or Equal Unsigned: \asminlinehl{bgeu rs1, rs2, I}: Branches to PC + \asminline{I} if \asminline{rs1} $\geq$ \asminline{rs2} (unsigned integers), proceeds to the next instruction like normal otherwise.
-\end{itemize}
-
-\subsection{Jump and Link Instructions}
-
-The jump and link instructions write the address of the next consecutive instruction in the program to the destination register, but then jump the program counter to another location in memory. These instructions are used to call new functions while preserving the ``return address'', or the memory location of the instruction to go back to after the function returns. The immediate parameter (\asminline{I}) refers to a hard-coded 20-bit signed integer that is stored inside the CPU instruction itself and is used to modify the program counter. Usually, in assembly, the program writer can simply provide the \textit{label} to the desired location/function in the program (e.g. \asminline{labelToFunction:}) rather than its actual memory location, which is usually not known before being built. All jump and link instructions take 1 MCLK cycle to execute.
-
-\begin{itemize}
-	\item Jump and Link: \asminlinehl{jal rd, I} Stores the return address to \asminline{rd} (which is usually the return address register \asminline{ra}) and then adds \asminline{I} to the program counter, effectively jumping to PC + \asminline{I}. 
-	\item Jump and Link Register: \asminlinehl{jalr rd, rs1, I} Stores the return address to \asminline{rd} (which is usually the return address register \asminline{ra}) and then sets the program counter to \asminline{rs1} + \asminline{I}, effectively jumping to \asminline{rd1} + \asminline{I}.
-\end{itemize}
+% ---------------------------------------------------------------------------
+% Privileged architecture (hand-written chapter, copied into include/ by the
+% generator). It carries its own \chapter heading and label s:privarch.
+\IfFileExists{include/PRIVARCH-intro-castalia-2026-07.tex}{%
+\input{include/PRIVARCH-intro-castalia-2026-07.tex}
+\clearpage
+}{}
+% ---------------------------------------------------------------------------
 
 
 
-\subsection{Atomic Memory Operations (A Extension)}
+% ---------------------------------------------------------------------------
+\chapter{Interrupts and exceptions} \label{s:interrupts}
+% ---------------------------------------------------------------------------
 
-The VestaRV core implements the RISC-V Atomic (A) extension, providing atomic read-modify-write operations for multiprocessor synchronization. On the \AsicNameForUserGuide{} MCU these instructions are the standard way to build locks and shared counters in the arbitrated shared RAM: an \asminline{AMO} instruction holds the shared-window arbiter grant across its whole read-modify-write pair, and a failed \asminline{sc.w} has its write suppressed by the reservation unit, so both are atomic with respect to all \NumHartsWord{} harts (see Section \ref{ss:multicore-sync}). Do not use atomic instructions on hardware mutex addresses (see the \peripheral{MUTEX} peripheral chapter). All atomic memory operations operate on 32-bit words and take 5 MCLK cycles to execute.
+The VestaRV CPU implements an interrupt system with \VectorsCount{} interrupt vectors, numbered 0 to \TopVector, whose sources are enumerated in Table~\ref{t:interrupt-vectors}. The numbering is frozen: a vector belongs to the block that owns it whether or not this configuration instantiates that block, so vectors whose block is absent are reserved and counted with the rest rather than shifting the ones above them. Two of the \VectorsCount{} are the \peripheral{CLINT} pair (\ClintMsipVector, the software or inter-processor interrupt; \ClintMtipVector, the timer interrupt) added for multi-core operation; the other \RoutedVectorsCount{} sit on the \peripheral{IRQROUTER} side of the fabric: the peripheral and system sources, the reserved slots frozen among them, and \texttt{meip}'s own slot. Each hart takes three interrupt lines: its own \peripheral{CLINT} software and timer interrupts (vectors \ClintMsipVector{} and \ClintMtipVector, hardwired enabled, delivered on dedicated per-hart wires) and the external interrupt \texttt{meip} (vector \MeipVector, a slot of its own that no source pends on), which delivers all peripheral and system sources through the \peripheral{IRQROUTER}'s claim and complete mechanism: the vector-\MeipVector{} handler reads the router's \register{CLAIM} register to discover and claim the pending source, dispatches on the returned vector number, and writes it back to complete (Chapter~\ref{peripheralIRQROUTER}). Which sources reach which hart is programmed per hart in the router's routing rows, identical for every hart, hart 0 included. All peripheral sources are masked at reset and must be routed in software before use; source priority is fixed (the lowest pending vector number is claimed first). A peripheral must additionally be configured to generate its interrupt at the peripheral level.
 
-\begin{itemize}
-	\item Load Reserved: \asminlinehl{lr.w rd, (rs1)}: Loads a 32-bit word from memory address in \asminline{rs1} into \asminline{rd} and reserves the memory location for atomic access.
-	\item Store Conditional: \asminlinehl{sc.w rd, rs2, (rs1)}: Conditionally stores the 32-bit word in \asminline{rs2} to the memory address in \asminline{rs1}. Returns 0 in \asminline{rd} on success, nonzero on failure.
-	\item Atomic Swap: \asminlinehl{amoswap.w rd, rs2, (rs1)}: Atomically swaps the 32-bit word at memory address in \asminline{rs1} with the value in \asminline{rs2}, storing the original memory value in \asminline{rd}.
-	\item Atomic Add: \asminlinehl{amoadd.w rd, rs2, (rs1)}: Atomically adds \asminline{rs2} to the 32-bit word at memory address in \asminline{rs1}, storing the original memory value in \asminline{rd}.
-	\item Atomic XOR: \asminlinehl{amoxor.w rd, rs2, (rs1)}: Atomically performs bitwise XOR of \asminline{rs2} with the 32-bit word at memory address in \asminline{rs1}, storing the original memory value in \asminline{rd}.
-	\item Atomic AND: \asminlinehl{amoand.w rd, rs2, (rs1)}: Atomically performs bitwise AND of \asminline{rs2} with the 32-bit word at memory address in \asminline{rs1}, storing the original memory value in \asminline{rd}.
-	\item Atomic OR: \asminlinehl{amoor.w rd, rs2, (rs1)}: Atomically performs bitwise OR of \asminline{rs2} with the 32-bit word at memory address in \asminline{rs1}, storing the original memory value in \asminline{rd}.
-	\item Atomic Minimum: \asminlinehl{amomin.w rd, rs2, (rs1)}: Atomically compares \asminline{rs2} with the 32-bit signed word at memory address in \asminline{rs1}, storing the minimum value to memory and the original memory value in \asminline{rd}.
-	\item Atomic Maximum: \asminlinehl{amomax.w rd, rs2, (rs1)}: Atomically compares \asminline{rs2} with the 32-bit signed word at memory address in \asminline{rs1}, storing the maximum value to memory and the original memory value in \asminline{rd}.
-	\item Atomic Minimum Unsigned: \asminlinehl{amominu.w rd, rs2, (rs1)}: Atomically compares \asminline{rs2} with the 32-bit unsigned word at memory address in \asminline{rs1}, storing the minimum value to memory and the original memory value in \asminline{rd}.
-	\item Atomic Maximum Unsigned: \asminlinehl{amomaxu.w rd, rs2, (rs1)}: Atomically compares \asminline{rs2} with the 32-bit unsigned word at memory address in \asminline{rs1}, storing the maximum value to memory and the original memory value in \asminline{rd}.
-\end{itemize}
+% The vector table itself is generated (include/InterruptsTable_man.tex ->
+% InterruptsTable.tex): one row per vector, reserved rows included.
+\input{include/InterruptsTable_man.tex}
 
-\subsection{Bit Manipulation Instructions (Zb* Extensions)}
+Figure~\ref{fig:irq-fabric-diagram}, in the \peripheral{IRQROUTER} chapter (Chapter~\ref{peripheralIRQROUTER}), draws the whole fabric in one view: the source population of Table~\ref{t:interrupt-vectors} collapsed by type, the \peripheral{IRQROUTER} as the spine every one of those sources terminates in, and the \NumHartsWord{} harts with the three lines each of them takes. It shows the one asymmetry: \texttt{meip} arrives from the router, and \texttt{msip} and \texttt{mtip} do not go near it.
 
-The VestaRV core implements several bit manipulation extensions (Zba, Zbb, Zbc, Zbs) that provide efficient operations for bit-level data manipulation, cryptographic primitives, and address generation. All bit manipulation instructions execute in 1 MCLK cycle.
+\section{Exceptions}
 
-\subsubsection{Address Generation (Zba)}
+In the legacy trap delivery mode selected at reset there is no recoverable exception: an illegal instruction, including an access to an unimplemented CSR, puts the hart into a terminal trap state (Section~\ref{ss:csr-unimplemented}). Where the standard delivery mode is configured and selected, exceptions vector through \register{mtvec} with the \register{mcause} codes of Table~\ref{t:priv-causes} in Chapter~\ref{s:privarch}. Table~\ref{t:cpu-exceptions} lists the causes that originate inside the hart rather than on a numbered vector.
+\IfFileExists{include/CpuExceptionsTable.tex}{\input{include/CpuExceptionsTable.tex}}{}
 
-\begin{itemize}
-	\item Shift Left Add: \asminlinehl{sh1add rd, rs1, rs2}: Shifts \asminline{rs1} left by 1 bit, adds \asminline{rs2}, and stores result in \asminline{rd}. Equivalent to \asminline{rd = (rs1 << 1) + rs2}.
-	\item Shift Left Add 2: \asminlinehl{sh2add rd, rs1, rs2}: Shifts \asminline{rs1} left by 2 bits, adds \asminline{rs2}, and stores result in \asminline{rd}. Equivalent to \asminline{rd = (rs1 << 2) + rs2}.
-	\item Shift Left Add 3: \asminlinehl{sh3add rd, rs1, rs2}: Shifts \asminline{rs1} left by 3 bits, adds \asminline{rs2}, and stores result in \asminline{rd}. Equivalent to \asminline{rd = (rs1 << 3) + rs2}.
-\end{itemize}
+\section{Interrupt vector table}
 
-\subsubsection{Basic Bit Manipulation (Zbb)}
+The interrupt vector table (IVT) is located at the base of each hart's TCM, beginning at address \texttt{\VectorsStartAddress}. Unlike a pointer-based vector table, the VestaRV IVT contains direct jump instructions to the interrupt service routines (ISRs): each entry is a 4-byte RISC-V jump instruction (for example \asminline{j handler}) that vectors execution immediately to the corresponding ISR when an interrupt occurs. This eliminates the indirection of loading a function pointer and gives a deterministic, low-latency interrupt response.
 
-\begin{itemize}
-	\item AND with Inverted: \asminlinehl{andn rd, rs1, rs2}: Performs bitwise AND of \asminline{rs1} with the bitwise complement of \asminline{rs2}, storing result in \asminline{rd}.
-	\item OR with Inverted: \asminlinehl{orn rd, rs1, rs2}: Performs bitwise OR of \asminline{rs1} with the bitwise complement of \asminline{rs2}, storing result in \asminline{rd}.
-	\item XOR with Inverted: \asminlinehl{xnor rd, rs1, rs2}: Performs bitwise XOR of \asminline{rs1} with the bitwise complement of \asminline{rs2}, storing result in \asminline{rd}.
-	\item Count Leading Zeros: \asminlinehl{clz rd, rs1}: Counts the number of consecutive zero bits starting from the most significant bit in \asminline{rs1}, storing the count in \asminline{rd}.
-	\item Count Trailing Zeros: \asminlinehl{ctz rd, rs1}: Counts the number of consecutive zero bits starting from the least significant bit in \asminline{rs1}, storing the count in \asminline{rd}.
-	\item Count Population: \asminlinehl{cpop rd, rs1}: Counts the number of set bits (1s) in \asminline{rs1}, storing the count in \asminline{rd}.
-	\item Maximum: \asminlinehl{max rd, rs1, rs2}: Stores the maximum of \asminline{rs1} and \asminline{rs2} (signed comparison) in \asminline{rd}.
-	\item Maximum Unsigned: \asminlinehl{maxu rd, rs1, rs2}: Stores the maximum of \asminline{rs1} and \asminline{rs2} (unsigned comparison) in \asminline{rd}.
-	\item Minimum: \asminlinehl{min rd, rs1, rs2}: Stores the minimum of \asminline{rs1} and \asminline{rs2} (signed comparison) in \asminline{rd}.
-	\item Minimum Unsigned: \asminlinehl{minu rd, rs1, rs2}: Stores the minimum of \asminline{rs1} and \asminline{rs2} (unsigned comparison) in \asminline{rd}.
-	\item Sign Extend Byte: \asminlinehl{sext.b rd, rs1}: Sign-extends the least significant byte in \asminline{rs1} to 32 bits, storing result in \asminline{rd}.
-	\item Sign Extend Halfword: \asminlinehl{sext.h rd, rs1}: Sign-extends the least significant halfword (16 bits) in \asminline{rs1} to 32 bits, storing result in \asminline{rd}.
-	\item Zero Extend Halfword: \asminlinehl{zext.h rd, rs1}: Zero-extends the least significant halfword in \asminline{rs1} to 32 bits, storing result in \asminline{rd}.
-	\item Rotate Left: \asminlinehl{rol rd, rs1, rs2}: Rotates \asminline{rs1} left by the number of bits specified in the lower 5 bits of \asminline{rs2}, storing result in \asminline{rd}.
-	\item Rotate Right: \asminlinehl{ror rd, rs1, rs2}: Rotates \asminline{rs1} right by the number of bits specified in the lower 5 bits of \asminline{rs2}, storing result in \asminline{rd}.
-	\item Rotate Right Immediate: \asminlinehl{rori rd, rs1, shamt}: Rotates \asminline{rs1} right by \asminline{shamt} bits, storing result in \asminline{rd}.
-	\item OR Combine: \asminlinehl{orc.b rd, rs1}: Sets each byte in \asminline{rd} to 0xFF if the corresponding byte in \asminline{rs1} is nonzero, otherwise sets to 0x00.
-	\item Byte Reverse: \asminlinehl{rev8 rd, rs1}: Reverses the byte order in \asminline{rs1}, storing result in \asminline{rd} (converts between big-endian and little-endian).
-\end{itemize}
+The hardware does not mandate a specific IVT content, so software populates the IVT with jump instructions during initialisation. The generated linker scripts and startup code place the IVT at the beginning of the TCM, and the generated header files provide macros for ISR placement and IVT entry configuration.
 
-\subsubsection{Carryless Multiplication (Zbc)}
+\section{Interrupt entry, exit and recursion}
 
-\begin{itemize}
-	\item Carryless Multiply Low: \asminlinehl{clmul rd, rs1, rs2}: Performs carryless multiplication of \asminline{rs1} and \asminline{rs2}, storing the lower 32 bits of the result in \asminline{rd}. Useful for CRC calculations and cryptographic operations.
-	\item Carryless Multiply High: \asminlinehl{clmulh rd, rs1, rs2}: Performs carryless multiplication of \asminline{rs1} and \asminline{rs2}, storing the upper 32 bits of the result in \asminline{rd}.
-	\item Carryless Multiply Reversed: \asminlinehl{clmulr rd, rs1, rs2}: Performs carryless multiplication with a bit-reversed result, storing bits [62:31] of the 64-bit carryless product in \asminline{rd}.
-\end{itemize}
+When an interrupt is taken, the hardware saves a minimal context: it pushes the return program counter (one 32-bit word) onto the stack at $\mathtt{sp}-4$, decrements \asminline{sp} by 4, and vectors execution through the IVT entry for the interrupt. No other state is saved by hardware. Software is responsible for saving and restoring every general-purpose register the ISR uses. The generated runtime provides an interrupt entry wrapper (in the startup code) that saves the general-purpose registers on the stack (about 120 bytes per interrupt level), calls the C-level handler, restores the registers, and returns with the \asminline{retirq} instruction, so C-coded ISRs need no special handling. Hand-written assembly ISRs must perform the equivalent save and restore themselves. Executing \asminline{retirq} pops the hardware-saved program counter, increments \asminline{sp} by 4, and resumes execution at the interrupted location.
 
-\subsubsection{Single-Bit Manipulation (Zbs)}
+\begin{Caution}
+Because the first thing interrupt entry does is a store at $\mathtt{sp}-4$, the stack pointer must point at valid, writable private memory before interrupts are enabled. This applies to every hart: a freshly released tile hart must load its stack pointer before unmasking interrupts or going to sleep (Chapter~\ref{s:multicore}).
+\end{Caution}
 
-\begin{itemize}
-	\item Bit Clear: \asminlinehl{bclr rd, rs1, rs2}: Clears the bit in \asminline{rs1} at the position specified by the lower 5 bits of \asminline{rs2}, storing result in \asminline{rd}.
-	\item Bit Clear Immediate: \asminlinehl{bclri rd, rs1, shamt}: Clears the bit in \asminline{rs1} at position \asminline{shamt}, storing result in \asminline{rd}.
-	\item Bit Extract: \asminlinehl{bext rd, rs1, rs2}: Extracts the bit in \asminline{rs1} at the position specified by the lower 5 bits of \asminline{rs2}, storing the single bit (zero-extended) in \asminline{rd}.
-	\item Bit Extract Immediate: \asminlinehl{bexti rd, rs1, shamt}: Extracts the bit in \asminline{rs1} at position \asminline{shamt}, storing the single bit (zero-extended) in \asminline{rd}.
-	\item Bit Invert: \asminlinehl{binv rd, rs1, rs2}: Inverts the bit in \asminline{rs1} at the position specified by the lower 5 bits of \asminline{rs2}, storing result in \asminline{rd}.
-	\item Bit Invert Immediate: \asminlinehl{binvi rd, rs1, shamt}: Inverts the bit in \asminline{rs1} at position \asminline{shamt}, storing result in \asminline{rd}.
-	\item Bit Set: \asminlinehl{bset rd, rs1, rs2}: Sets the bit in \asminline{rs1} at the position specified by the lower 5 bits of \asminline{rs2}, storing result in \asminline{rd}.
-	\item Bit Set Immediate: \asminlinehl{bseti rd, rs1, shamt}: Sets the bit in \asminline{rs1} at position \asminline{shamt}, storing result in \asminline{rd}.
-\end{itemize}
+Interrupt handling is non-recursive: a running ISR is never preempted, and further pending interrupts (including a pending \peripheral{CLINT} interrupt during a vector-\MeipVector{} service) are taken after the current ISR returns. Stack allocation must cover one interrupt level: the 4-byte hardware-saved return address plus the handler's register frame (about 120 bytes for the runtime wrapper) and the ISR's local variables. Source arbitration happens in the \peripheral{IRQROUTER}; the core itself has no priority tiers.
 
-\subsection{Pseudo-Instructions}
+\section{Sleep mode and interrupt wake-up}
 
-The RISC-V assembler also includes several pseudo-instructions for convenience. These pseudo-instructions are actually special cases of regular instructions, and can all be expressed as regular instructions.
+If an interrupt occurs while the CPU is in sleep mode, the processor wakes from sleep and services the interrupt. On execution of the \asminline{retirq} instruction, the CPU returns to sleep mode unless the ISR or the woken code reconfigures the clock and power settings. During sleep mode the CPU clock is gated to conserve power, and all register contents and the program counter are retained. If the clock source for MCLK is disabled during sleep, an enabled interrupt powers up and enables the source clock for the duration of interrupt servicing.
 
-\begin{itemize}
-	\item No operation: \asminlinehl{nop} $\rightarrow$ \asminlinehl{addi zero, zero, 0}
-	\item Move: \asminlinehl{mv rd, rs1} $\rightarrow$ \asminlinehl{addi rd, rs1, 0}
-	\item Bitwise Complement/Inversion: \asminlinehl{not rd, rs1} $\rightarrow$ \asminlinehl{xor rd, rs1, -1}
-	\item Set if Equal to Zero: \asminlinehl{seqz rd, rs1} $\rightarrow$ \asminlinehl{sltiu rd, rs1, 1}
-	\item Set if Not Equal to Zero: \asminlinehl{snez rd, rs1} $\rightarrow$ \asminlinehl{sltu rd, zero, rs1}
-	\item Set if Less Than Zero: \asminlinehl{sltz rd, rs1} $\rightarrow$ \asminlinehl{slt rd, rs1, zero}
-	\item Set if Greater Than Zero: \asminlinehl{sgtz rd, rs1} $\rightarrow$ \asminlinehl{slt rd, zero, rs1}
-	\item Jump (without linking): \asminlinehl{j I} $\rightarrow$ \asminlinehl{jal zero, I}
-	\item Return: \asminlinehl{ret} $\rightarrow$ \asminlinehl{jalr zero, ra, 0}
-	\item Call function: \asminlinehl{call I} $\rightarrow$ \asminlinehl{auipc t1 I; jalr ra t1 I}
-	\item Load immediate: \asminlinehl{li rd, I} \textit{(this could compile to several instructions)}
-	\item Branch if Greater Than: \asminlinehl{bgt rs1, rs2, I} $\rightarrow$ \asminlinehl{blt rs2, rs1, I}
-	\item Branch if Less Than or Equal To: \asminlinehl{ble rs1, rs2, I} $\rightarrow$ \asminlinehl{bge rs2, rs1, I}
-	\item Branch if Greater Than Unsigned: \asminlinehl{bgtu rs1, rs2, I} $\rightarrow$ \asminlinehl{bltu rs2, rs1, I}
-	\item Branch if Less Than or Equal To Unsigned: \asminlinehl{bleu rs1, rs2, I} $\rightarrow$ \asminlinehl{bgeu rs2, rs1, I}
-	\item Branch if Equal to Zero: \asminlinehl{beqz rs1, I} $\rightarrow$ \asminlinehl{beq rs1, zero, I}
-	\item Branch if Not Equal to Zero: \asminlinehl{bnez rs1, I} $\rightarrow$ \asminlinehl{bne rs1, zero, I}
-	\item Branch if Less Than or Equal To Zero: \asminlinehl{blez rs1, I} $\rightarrow$ \asminlinehl{bge zero, rs1, I}
-	\item Branch if Greater Than or Equal To Zero: \asminlinehl{bgez, rs1, I} $\rightarrow$ \asminlinehl{bge rs1, zero, I}
-	\item Branch if Less Than Zero: \asminlinehl{bltz rs1, I} $\rightarrow$ \asminlinehl{blt rs1, zero, I}
-	\item Branch if Greater Than Zero: \asminlinehl{bgtz rs1, I}  $\rightarrow$ \asminlinehl{blt zero, rs1, I}
-\end{itemize}
+Clock and power management, including sleep mode configuration, are controlled through the \peripheral{SYSTEM} peripheral (Section~\ref{ss:sleep}). If SMCLK is disabled, peripherals in the SMCLK domain cannot assert their interrupts and cannot wake the CPU.
 
-\newpage
-	
+\clearpage
 
 
 
+% ---------------------------------------------------------------------------
 % Core performance and CPI. The per-class cycle costs, the straddling-fetch
-% residual and the benchmark CPI in this section are MEASURED on the RTL (GHDL,
+% residual and the benchmark CPI in this chapter are MEASURED on the RTL (GHDL,
 % bare core, single hart out of TCM) rather than derived; the methodology
-% subsection says exactly how, so a later core change can be re-measured against
+% section says exactly how, so a later core change can be re-measured against
 % the same numbers. Every figure printed here is recorded in
 % verification/cpi/expected.json and gated by //verification/cpi, which is what
 % makes a silent drift impossible: a core change that moves CPI turns that gate
 % red until the numbers here move with it.
-\section{Core Performance and Instruction Timing} \label{s:cpi}
+\chapter{Core performance and instruction timing} \label{s:cpi}
+% ---------------------------------------------------------------------------
 
-The VestaRV core is a multi-cycle machine on a single unified instruction and data bus, but it issues the fetch of the next instruction during the execute cycle of the current one. Most instructions therefore retire at one per MCLK cycle, and the core's measured cycles-per-instruction (CPI) is much closer to 1 than the term ``multi-cycle'' on its own would suggest: over the benchmark suite of Section~\ref{ss:cpi-measured} it is 1.260. This section collects the per-instruction timings quoted throughout Section~\ref{s:cpu-instructions}, adds the classes that section does not cover, and reports the CPI actually measured on that suite.
+The VestaRV core is a multi-cycle machine on a single unified instruction and data bus, but it issues the fetch of the next instruction during the execute cycle of the current one. Most instructions therefore retire at one per MCLK cycle, and the core's measured cycles-per-instruction (CPI) is much closer to 1 than the term ``multi-cycle'' on its own would suggest: over the benchmark suite of Section~\ref{ss:cpi-measured} it is 1.260. This chapter gives the cost of every instruction class and reports the CPI measured on that suite.
 
-Every figure below is for one hart executing out of its own TCM with no shared-bus contention. An access that crosses the arbiter into the shared window, or that is made while another hart holds the grant, adds stall cycles on top of these numbers (Section~\ref{s:multicore}). The core's clock is gated while it waits, so a stalled cycle is still an MCLK cycle in which nothing retires and it is charged to CPI like any other.
+Every figure below is for one hart executing out of its own TCM with no shared-bus contention. An access that crosses the arbiter into the shared window, or that is made while another hart holds the grant, adds stall cycles on top of these numbers (Chapter~\ref{s:multicore}). The core's clock is gated while it waits, so a stalled cycle is still an MCLK cycle in which nothing retires and it is charged to CPI like any other.
 
-\subsection{Instruction Timing} \label{ss:cpi-timing}
+\section{Instruction timing} \label{ss:cpi-timing}
 
-Table~\ref{t:cpi-timing} gives the cost of each instruction class. A row for an optional extension applies only when that extension is configured for this build; a disabled extension's instructions raise an illegal-instruction trap instead of executing. Atomic memory operations are the one class not re-measured here --- the bare-core bench has no second master --- and their 5-cycle cost is as stated in Section~\ref{s:cpu-instructions}.
+Table~\ref{t:cpi-timing} gives the cost of each instruction class. A row for an optional extension applies only when that extension is configured for this build; a disabled extension's instructions raise an illegal-instruction trap instead of executing. Atomic memory operations are the one class not re-measured here, because the bare-core bench has no second master; their 5-cycle cost is the design value.
 
 \begin{longtable}[c]{ l l }
-\caption{Measured instruction timing, in MCLK cycles} \label{t:cpi-timing} \\
+\caption{Measured instruction timing, in MCLK cycles.} \label{t:cpi-timing} \\
 \hline \textbf{Instruction class} & \textbf{MCLK cycles} \\ \hline \endfirsthead
 \hline \textbf{Instruction class} & \textbf{MCLK cycles} \\ \hline \endhead
                                Arithmetic and logical (\asminline{add}, \asminline{andi}, \asminline{lui}, \asminline{auipc}) & 1 \\
@@ -552,7 +656,7 @@ Table~\ref{t:cpi-timing} gives the cost of each instruction class. A row for an 
 \rowcolor{tablehighlightcolor} Conditional branch, whether taken or not taken & 1 \\
                                Jump and link (\asminline{jal}, \asminline{jalr}) & 1 \\
 \rowcolor{tablehighlightcolor} CSR read (\asminline{csrr}) & 1 \\
-                               Atomic memory operations (A), per Section~\ref{s:cpu-instructions} & 5 \\
+                               Atomic memory operations (A) & 5 \\
 \rowcolor{tablehighlightcolor} \emph{Additional} penalty: 32-bit instruction straddling a word boundary, reached sequentially & 0 \\
                                \emph{Additional} penalty: the same, reached by a taken branch or jump & +1 \\
 \hline
@@ -562,18 +666,18 @@ Three entries are worth drawing out. Hardware multiply is single-cycle, so \asmi
 
 The two straddling rows are one instruction class split by how the core arrives at it, and Section~\ref{ss:cpi-align} is about that split.
 
-\subsection{Compressed Instructions and Fetch Alignment} \label{ss:cpi-align}
+\section{Compressed instructions and fetch alignment} \label{ss:cpi-align}
 
 The core fetches one 32-bit word per bus cycle. With the C extension enabled instructions are only guaranteed 2-byte aligned, so a 32-bit instruction may straddle a word boundary, and the core must have both halves before it can decode. Compressed (2-byte) instructions and word-aligned 32-bit instructions are never affected.
 
-The core covers most of that case in hardware, with a fetch-ahead. When it is about to step \emph{sequentially} onto a straddling 32-bit instruction, it can already see that instruction's lower half in the word it is holding, and the fetch its ordinary sequencing would issue is for the word it is holding already --- a bus cycle that would carry nothing new. The fetch-ahead spends that cycle on the \emph{next} word instead and latches the lower half at the same edge, so the straddling instruction dispatches in one cycle and costs nothing at all. The whole mechanism is one flip-flop, it issues no bus cycle the core would not have issued one cycle later, and it changes cycle counts only, never an architectural result. It is the \texttt{core.fetchAhead} knob of Table~\ref{t:chip-config} (the \texttt{ENABLE\_IF\_AHEAD} generic on the core), it is \emph{on} in this build, and turning it off is a performance choice and nothing else.
+The core covers most of that case in hardware, with a fetch-ahead. When it is about to step sequentially onto a straddling 32-bit instruction, it can already see that instruction's lower half in the word it is holding, and the fetch its ordinary sequencing would issue is for the word it is holding already, a bus cycle that would carry nothing new. The fetch-ahead spends that cycle on the next word instead and latches the lower half at the same edge, so the straddling instruction dispatches in one cycle and costs nothing at all. The whole mechanism is one flip-flop, it issues no bus cycle the core would not have issued one cycle later, and it changes cycle counts only, never an architectural result. It is the \texttt{core.fetchAhead} knob of Table~\ref{t:chip-config} (the \texttt{ENABLE\_IF\_AHEAD} generic on the core), it is on in this build, and turning it off is a performance choice and nothing else.
 
-What the fetch-ahead cannot cover is a \emph{taken} control transfer whose target is a half-word-aligned 32-bit instruction. It arms only on a sequential advance, because that is the only case in which the core can prove --- from a half-word it can already see --- what it is about to fetch; after a taken branch or jump the core arrives at the target holding nothing, and genuinely needs two fetches before it can decode. That case still costs one extra cycle, and it is the whole of the residual reported below. Both rows of Table~\ref{t:cpi-timing} are measured directly: a straight-line block in which every 32-bit instruction straddles runs at 1.000 cycles per instruction, while a block of a taken branch, a straddling 32-bit target and a compressed instruction --- three instructions that cost one cycle each on their own --- takes 4 cycles.
+What the fetch-ahead cannot cover is a taken control transfer whose target is a half-word-aligned 32-bit instruction. It arms only on a sequential advance, because that is the only case in which the core can prove, from a half-word it can already see, what it is about to fetch; after a taken branch or jump the core arrives at the target holding nothing, and genuinely needs two fetches before it can decode. That case still costs one extra cycle, and it is the whole of the residual reported below. Both rows of Table~\ref{t:cpi-timing} are measured directly: a straight-line block in which every 32-bit instruction straddles runs at 1.000 cycles per instruction, while a block of a taken branch, a straddling 32-bit target and a compressed instruction (three instructions that cost one cycle each on their own) takes 4 cycles.
 
-Table~\ref{t:cpi-align} isolates what the C extension still costs by rebuilding the whole benchmark suite for RV32IMA instead of RV32IMAC. The compiler emits the identical instruction sequence in both builds --- the retired-instruction counts match exactly, benchmark for benchmark --- and only the encoding differs, so the entire difference in cycle count is the straddling-fetch penalty that survives the fetch-ahead. Across the suite it is 0.031 CPI, or 2.2\% of all cycles.
+Table~\ref{t:cpi-align} isolates what the C extension still costs by rebuilding the whole benchmark suite for RV32IMA instead of RV32IMAC. The compiler emits the identical instruction sequence in both builds (the retired-instruction counts match exactly, benchmark for benchmark) and only the encoding differs, so the entire difference in cycle count is the straddling-fetch penalty that survives the fetch-ahead. Across the suite it is 0.031 CPI, or 2.2\% of all cycles.
 
 \begin{longtable}[c]{ l r r r r }
-\caption{Straddling fetches that survive the fetch-ahead: the same code built with and without the C extension} \label{t:cpi-align} \\
+\caption{Straddling fetches that survive the fetch-ahead, measured with and without the C extension.} \label{t:cpi-align} \\
 \hline \textbf{Benchmark} & \textbf{CPI (RV32IMAC)} & \textbf{CPI (RV32IMA)} & \textbf{Penalty, CPI} & \textbf{Cycles lost} \\ \hline \endfirsthead
 \hline \textbf{Benchmark} & \textbf{CPI (RV32IMAC)} & \textbf{CPI (RV32IMA)} & \textbf{Penalty, CPI} & \textbf{Cycles lost} \\ \hline \endhead
                                \texttt{dhrystone} & 1.504 & 1.481 & 0.022 & 1.5\% \\
@@ -589,18 +693,18 @@ Table~\ref{t:cpi-align} isolates what the C extension still costs by rebuilding 
 \hline
 \end{longtable}
 
-The aggregate row weights each benchmark by its retired-instruction count, and covers the eight benchmarks of Table~\ref{t:cpi-bench} that were rebuilt both ways --- \texttt{spmv} was not, which is why this aggregate differs from the one in that table.
+The aggregate row weights each benchmark by its retired-instruction count, and covers the eight benchmarks of Table~\ref{t:cpi-bench} that were rebuilt both ways; \texttt{spmv} was not, which is why this aggregate differs from the one in that table.
 
-Read the spread against the paragraph above it. Four of the eight benchmarks pay nothing measurable: their straddling instructions are all reached sequentially, and the hardware absorbs every one. What is left is concentrated in short, branch-dense loops, and \texttt{multiply} is the extreme case: its inner loop is seven instructions long and, in the measured build, its head is a half-word-aligned 32-bit \asminline{and}, so the loop's own backward branch lands on a straddling instruction on every one of its iterations, and one loop head accounts for the entire 12.8\%.
+Four of the eight benchmarks pay nothing measurable: their straddling instructions are all reached sequentially, and the hardware absorbs every one. What is left is concentrated in short, branch-dense loops, and \texttt{multiply} is the extreme case: its inner loop is seven instructions long and, in the measured build, its head is a half-word-aligned 32-bit \asminline{and}, so the loop's own backward branch lands on a straddling instruction on every iteration, and one loop head accounts for the entire 12.8\%.
 
-That is also the whole of the alignment advice, and it is narrower than it used to be. Aligning a hot loop's \emph{body} no longer buys anything --- the fetch-ahead already covers straight-line code, and a body of compressed instructions never straddled in the first place. What still pays is aligning branch \emph{targets}: loop heads, and the entry of a hot function reached by a call. In C, \texttt{-falign-loops=4} does exactly that across a translation unit, and it complements hand alignment rather than replacing it: rebuilding \texttt{multiply} with it moves that one loop head onto a word boundary and recovers the entire residual, bringing the benchmark back to the RV32IMA figure in the table above, while an assembly hot spot or a computed jump target is still something you align yourself with \asminline{.p2align 2} on the label. None of this is an argument against the C extension, which is configured on by default and earns its place by shrinking code substantially --- decisive when a hart's private TCM is \TcmSizeKiB{} KiB.
+That is the whole of the alignment advice. Aligning a hot loop's body buys nothing: the fetch-ahead already covers straight-line code, and a body of compressed instructions never straddled in the first place. What still pays is aligning branch targets: loop heads, and the entry of a hot function reached by a call. In C, \texttt{-falign-loops=4} does exactly that across a translation unit, and it complements hand alignment rather than replacing it: rebuilding \texttt{multiply} with it moves that one loop head onto a word boundary and recovers the entire residual, bringing the benchmark back to the RV32IMA figure in the table above, while an assembly hot spot or a computed jump target is aligned by hand with \asminline{.p2align 2} on the label. None of this is an argument against the C extension, which is configured on by default and earns its place by shrinking code substantially, decisive when a hart's private TCM is \TcmSizeKiB{} KiB.
 
-\subsection{Measured CPI} \label{ss:cpi-measured}
+\section{Measured CPI} \label{ss:cpi-measured}
 
 Table~\ref{t:cpi-bench} reports CPI over nine benchmarks derived from the riscv-tests benchmark suite, compiled \texttt{-O2} for RV32IMAC with the Zb* extensions enabled. The measured region is each benchmark's own timed kernel, so it excludes program startup, the cache-warming pass, and result verification.
 
 \begin{longtable}[c]{ l r r }
-\caption{Measured CPI by benchmark (timed kernel, single hart, no bus contention)} \label{t:cpi-bench} \\
+\caption{Measured CPI by benchmark (timed kernel, single hart, no bus contention).} \label{t:cpi-bench} \\
 \hline \textbf{Benchmark} & \textbf{Instructions retired} & \textbf{CPI} \\ \hline \endfirsthead
 \hline \textbf{Benchmark} & \textbf{Instructions retired} & \textbf{CPI} \\ \hline \endhead
                                \texttt{spmv}      & 802{,}447 & 1.143 \\
@@ -617,9 +721,9 @@ Table~\ref{t:cpi-bench} reports CPI over nine benchmarks derived from the riscv-
 \hline
 \end{longtable}
 
-The aggregate is the total cycle count over the total retired-instruction count, so each benchmark contributes in proportion to the work it does. Read against Table~\ref{t:cpi-timing}, the spread has a simple explanation: the further a workload sits above 1.0, the more of its instruction mix is loads and stores, which cost two cycles each on the unified bus. Fetch alignment barely enters into it any more --- \texttt{multiply} is register-bound and runs at 1.163, of which 0.148 is the one unaligned loop head of Section~\ref{ss:cpi-align} and the rest is its own work --- and \texttt{towers} and \texttt{memcpy} sit at the other end because they are dominated by memory traffic. Branches move none of it, since they are free.
+The aggregate is the total cycle count over the total retired-instruction count, so each benchmark contributes in proportion to the work it does. Read against Table~\ref{t:cpi-timing}, the spread has a simple explanation: the further a workload sits above 1.0, the more of its instruction mix is loads and stores, which cost two cycles each on the unified bus. Fetch alignment barely enters into it: \texttt{multiply} is register-bound and runs at 1.163, of which 0.148 is the one unaligned loop head of Section~\ref{ss:cpi-align} and the rest is its own work, and \texttt{towers} and \texttt{memcpy} sit at the other end because they are dominated by memory traffic. Branches move none of it, since they are free.
 
-\subsection{Measuring Your Own Code} \label{ss:cpi-measure}
+\section{Measuring application code} \label{ss:cpi-measure}
 
 The core implements the \register{cycle}/\register{cycleh} and \register{instret}/\register{instreth} counters, and their machine-mode aliases \register{mcycle} and \register{minstret}, in every configuration. \register{cycle} counts MCLK cycles, free-running and independent of whether the core is stalled; \register{minstret} counts instructions actually retired. Bracketing a region with \asminline{rdcycle} and \asminline{rdinstret} and taking the differences therefore gives that region's exact cycle count and CPI on hardware, with no external instrumentation:
 
@@ -631,31 +735,101 @@ __asm__ volatile ("rdcycle %0; rdinstret %1" : "=r"(c1), "=r"(i1));
 /* cycles = c1 - c0, instructions = i1 - i0 */
 \end{lstlisting}
 
-Note that \register{time} and \register{timeh} are \emph{not} implemented in any configuration --- no real-time source is wired to the core --- and reading either raises an illegal-instruction trap. Use \register{cycle} for elapsed time, converting through the known MCLK frequency, or a timer peripheral for wall-clock measurement.
+\register{time} and \register{timeh} are not implemented in any configuration, because no real-time source is wired to the core, and reading either raises an illegal-instruction trap. Use \register{cycle} for elapsed time, converting through the known MCLK frequency, or a timer peripheral for wall-clock measurement.
 
-\subsection{Measurement Methodology} \label{ss:cpi-method}
+\section{Measurement methodology} \label{ss:cpi-method}
 
-The numbers in this section are measured on the RTL, not estimated. Each benchmark is run to completion in a VHDL simulation of the bare core with a one-cycle-latency memory and no bus back-pressure, which is the timing a single hart sees executing from its own TCM. Cycles are counted on the free-running core clock, so any cycle in which the core's clock is gated is still counted. Instructions are counted from the core's internal instruction-retire strobe --- the same signal that increments \register{minstret} --- so the instruction count is architectural rather than an estimate derived from the simulation. The core under measurement is configured as this build ships it, fetch-ahead included.
+The numbers in this chapter are measured on the RTL, not estimated. Each benchmark is run to completion in a VHDL simulation of the bare core with a one-cycle-latency memory and no bus back-pressure, which is the timing a single hart sees executing from its own TCM. Cycles are counted on the free-running core clock, so any cycle in which the core's clock is gated is still counted. Instructions are counted from the core's internal instruction-retire strobe, the same signal that increments \register{minstret}, so the instruction count is architectural rather than an estimate derived from the simulation. The core under measurement is configured as this build ships it, fetch-ahead included.
 
 The per-class costs in Table~\ref{t:cpi-timing} come from paired micro-kernels: a loop containing 64 copies of the instruction under test is run against an otherwise identical empty loop, and the difference in cycles divided by the difference in retired instructions gives the marginal cost of that instruction alone, with the loop's own overhead subtracted out. Every micro-kernel body is word-aligned, so no class is charged a fetch cost that is not its own, with two deliberate exceptions: the two kernels that measure the straddling rows are built to straddle. One is a straight-line block of four instructions, two of them straddling 32-bit ones and every one of them reached sequentially, which measures 1.000 cycles per instruction; the other is a taken branch onto a straddling 32-bit target followed by a compressed instruction, three instructions whose measured classes cost one cycle each, which measures 4 cycles for the block.
 
-\newpage
+\clearpage
 
-% Forth
-\section{Forth Interpreter} \label{s:forth}
-When the MCU comes out of reset and the \pin{BOOT} pin is LOW, the MCU boots to an interactive Forth interpreter based on the Forth language. Forth is a stack-based language where variables are pushed to a stack in LIFO (last in, first out) order. When a variable is set, it is pushed to the top of the stack (TOS). When a variable is used, it is popped (or consumed) from the TOS. Functions that take arguments pop them from the TOS. Functions that have return values push them to the TOS (after first popping its arguments). Variables are not assigned names, and the only way of distinguishing them from one another is by their order on the stack. All variables are treated as 32-bit signed integers. Variables may be pushed to the stack through the command line by simply typing the variable value into the interpreter as a plain text integer value or as a plain text hexadecimal value. Hexadecimal values must be preceded by the string \forthinlinehl{0x} without spaces in between (e.g. \forthinlinehl{0xA4}), but the value may be upper or lower case and does not need leading zeros. Variables are not pushed or popped and functions are not executed until a newline (or line feed) \forthinlinehl{\\n} character is received, at which point the entire received line will be executed in order. New functions may be declared, and may use the stack and any already defined functions to perform their procedures. If the Forth interpreter does not recognize an input as a variable or a function, it prints the \forthinlinehl{?} char over the UART.
 
-The Forth interpreter contained in the ROM of the MCU communicates over \peripheral{UART0} at 115,200 baud. The baud may be changed by reconfiguring SMCLK and the \peripheral{UART0} peripheral. When the Forth interpreter first starts up, it prints the string \forthinlinehl{myshkin rv4th-rom!\\n\\n>}, and is then ready to receive characters over the UART. The Forth interpreter does not perform error handling on stack underflows. In the case of a stack underflow, it simply uses the value 0 as the TOS. By default, the echo is enabled, which repeates all characters received by the Forth interpreter back to the host. This is useful for typing into a terminal emulator manually, but may be switched off with the command \forthinlinehl{0 echo}
 
-Several useful built-in Forth functions are listed below. The syntax is read as follows: The Forth function keyword is surrounded by quotations (though you do not actually type the quotes into the Forth interpreter), and is followed by the list of arguments and return values in parentheses. Left of the double dash is the list of arguments in the order that they would be typed into the Forth interpreter (reverse stack order), and right of the double dash is the list of return values in reverse stack order. Reverse stack order means that the rightmost item is at the TOS, and items to the left of it are below it on the stack. Arguments are always popped from the stack before the function executes, and return values are always pushed to the stack after the function finishes.
+% ---------------------------------------------------------------------------
+% Debug support (hand-written chapter, copied into include/ by the generator).
+% It carries its own \chapter heading and label s:debug.
+\IfFileExists{include/DEBUG-intro-castalia-2026-08.tex}{%
+\input{include/DEBUG-intro-castalia-2026-08.tex}
+\clearpage
+}{}
+% ---------------------------------------------------------------------------
+
+
+
+% ===========================================================================
+\part{Peripherals}
+% ===========================================================================
+
+% Peripheral chapters, one per peripheral template, generated by make chip.
+\input{include/PeripheralSections.tex}
+
+
+
+% ===========================================================================
+\part{Analog front end}
+% ===========================================================================
+
+% Analog front-end subsystem (CQ). Config-gated: \ifcqanalog is set true only
+% when the chip config declares AFE/EIS documentation sub-slot blocks (the CQ
+% package model). For every other config the branch is skipped, so both the
+% generated CqAnalog.tex chapter and this \input are inert.
+\ifcqanalog
+\input{include/CqAnalog.tex}
+\clearpage
+\fi
+
+% Per-implementation analog chapter. The digital chapters above are shared by
+% every chip built from this platform; the analog circuitry is not, so each
+% implementation supplies its own chapter in
+% implementations/asic/<chip>/analog/, which LatexUserGuide.CopyAnalogChapter
+% copies to include/analog/ at generation time. A chip that ships no such
+% directory takes the empty branch. The chapter is written at the old article
+% heading levels, so its headings are shifted up one level here, inside a
+% group, to match the rest of the manual.
+\IfFileExists{include/analog/AnalogChapter.tex}{%
+{\ShiftHeadingsUp
+\input{include/analog/AnalogChapter.tex}
+}
+\clearpage
+}{}
+
+
+
+% ===========================================================================
+\part{Boot ROM and software}
+% ===========================================================================
+
+% ---------------------------------------------------------------------------
+\chapter{ROM monitor} \label{s:forth}
+% ---------------------------------------------------------------------------
+
+When the chip leaves reset with the \pin{P0.7} strap low (Section~\ref{ss:bootmode}), hart 0 runs the ROM monitor: an interactive Forth interpreter stored in the boot ROM that communicates over \peripheral{UART0} at 115,200 baud, 8 data bits, no parity, one stop bit. The monitor is a bring-up console and the flash programming path of Chapter~\ref{s:programming}; it is not a development environment.
+
+% The banner is printed by software/bootrom_mp/src/rv4th.c as
+% ASIC_NAME " rv4th-rom!", with ASIC_NAME from software/commune/include/myshkin.h.
+% The leading word is therefore the name compiled into that header, not this
+% chip's name, and the manual does not quote it.
+On start-up the monitor prints a one-line banner ending in \forthinline{rv4th-rom!}, an empty line, and the prompt \forthinline{>}, and is then ready to receive characters. The leading word of the banner is the \texttt{ASIC\_NAME} string compiled into the ROM source and does not name this chip.
+
+\section{Interpreter model}
+
+Forth is a stack language. Every value is a 32-bit signed integer on one data stack, the top of which is called TOS. Typing a number pushes it: a plain decimal integer, or a hexadecimal value with the prefix \forthinline{0x} in either case and without leading zeros (\forthinline{0xA4}). Typing a word (a function name) executes it; a word pops its arguments from the stack and pushes its results. Nothing is executed until a line feed is received, at which point the whole line is executed left to right. An input the interpreter does not recognise as a number or a word prints \forthinline{?}. Stack underflow is not an error: a pop from an empty stack yields 0.
+
+By default the monitor echoes every received character back to the host, which suits a terminal emulator; \forthinline{0 echo} switches the echo off for a programmatic host.
+
+\section{Word list}
+
+The words below are listed with their stack effect in the usual Forth notation: the items left of the double dash are the arguments as they are typed (the rightmost is the TOS when the word runs), and the items right of it are the results, rightmost on top. Arguments are popped before the word executes and results are pushed after it finishes.
 
 \input{include/ForthCommandsItemized.tex}
 
+\section{Interpreter limits} \label{ss:forthlimits}
 
-\subsection{Interpreter Limits} \label{ss:forthlimits}
-The interpreter keeps all of its mutable state in the private TCM of the hart that runs it, hart 0. That TCM is 8\,KiB, of which the interrupt vector table takes the first 484 bytes and the C stack is reserved the top 1\,KiB, so the interpreter's arrays are sized to what is left. The capacities are therefore fixed by the ROM and are not configurable at run time:
+The interpreter keeps all of its mutable state in hart 0's TCM, of which the interrupt vector table takes the first \VectorsCount{} words and the top 1 KiB is reserved for the C stack; the interpreter's arrays are sized to what is left. The capacities are fixed by the ROM and are not configurable at run time:
 
-\begin{itemize}
+\begin{itemize}[itemsep=1pt]
 	\item Data (math) stack: 128 cells of 32 bits.
 	\item Return (address) stack: 64 cells of 32 bits. Each active \forthinline{do loop} uses three of them, so loop nesting is bounded well below that.
 	\item Dictionary: 64 user-defined words, 512 bytes total of word names including the separating space after each, and 1024 opcodes of compiled body shared by all of them.
@@ -663,203 +837,130 @@ The interpreter keeps all of its mutable state in the private TCM of the hart th
 	\item Word buffer: 64 characters, so a single word name is at most 63 characters.
 \end{itemize}
 
-Only three of these are checked at run time: math stack underflow, input line overflow and word buffer overflow. Exceeding the dictionary capacities or underflowing the return stack is not detected and corrupts interpreter state. The interpreter is intended as an interactive monitor and a flash programming path, not as a development environment for large programs; a program that outgrows these limits belongs in the SPI flash boot mode described in Section~\ref{s:programming}.
+Only three of these are checked at run time: math stack underflow, input line overflow and word buffer overflow. Exceeding the dictionary capacities or underflowing the return stack is not detected and corrupts interpreter state. A program that outgrows these limits belongs in the SPI flash boot mode of Chapter~\ref{s:programming}.
 
-Note also that the interpreter's receive path is a polled loop with no flow control. A host that delivers a line back to back at 115,200 baud can lose characters, because the interpreter echoes each character as it takes it. Typing at a terminal, or a host that leaves a character time of idle line between frames, does not.
+\begin{Caution}
+The monitor's receive path is a polled loop with no flow control, and it echoes each character as it takes it. A host that delivers a line back to back at 115,200 baud can lose characters; a host that leaves one character time of idle line between frames does not.
+\end{Caution}
 
-\subsection{Creating New Forth Functions}
-To create a new Forth function on-the-fly, simply use the syntax \forthinlinehl{: funcname definition ;} where \forthinline{funcname} is the name of the new function and \forthinline{definition} is the body of the function. The new function may be called at any time after the semicolon (even before a new line, though it will not actually be executed until a new line) by typing the function name, just like all other Forth functions. New Forth functions can only add or remove variables from the stack and call other defined Forth functions. The arguments to custom Forth functions are the initial values on the stack that the custom function pops off the TOS. Likewise, the return values are any new values the custom function pushes to the TOS.
+\section{Defining words}
 
-Listed below is an example program that increments the TOS by one when it is called:
+A new word is defined with \forthinline{: name body ;}, where \forthinline{body} is any sequence of numbers and words. The new word may be used as soon as the semicolon has been read, even later on the same line. A user-defined word can only push and pop the stack and call other words. For example, a word that increments the TOS:
 
 \noindent\forthinlinehl{: inc 1 + ;}
 
+\section{Conditionals}
 
-\subsection{Conditionals}
-The \forthinlinehl{if then} functions implement a conditional statement which may only be used inside a user defined function. The conditional is used with the syntax:
+\forthinline{if} and \forthinline{then} form a conditional and may only be used inside a word definition. \forthinline{if} pops the TOS and executes the words up to the matching \forthinline{then} only when the popped value is nonzero. An \forthinline{else} clause is optional:
 
-\noindent\forthinlinehl{if procedureIfTrue then}
+\noindent\forthinlinehl{cond if wordsIfTrue else wordsIfFalse then}
 
-\noindent inside a function (do not forget the space and semicolon which must come after forthinline{then}). The \forthinlinehl{if} function pops the TOS and then executes whatever is defined within \forthinline{procedureIfTrue} if and only if the TOS is true (nonzero). The \forthinlinehl{then} function makrks the end of the conditional procedure. For example, a function to print the text \forthinline{cool} if the TOS is equal to 5 might look like this:
+\noindent For example, a word that prints \forthinline{cool} when the TOS equals 5:
 
 \noindent\forthinlinehl{: cool? 5 == if 108 111 111 99 emit emit emit emit then ;}
 
-The \forthinlinehl{else} keyword may be inserted after \forthinlinehl{procedureIfTrue} if you want to execute something if the conditional is false. The syntax then becomes:
+\section{Loops}
 
-\noindent\forthinlinehl{if procedureIfTrue else procedureIfFalse then}
-
-
-\subsection{Loops}
-Forth has the equivalent of C-like \forthinline{while} loops (or, more accurately, \forthinline{do while} loops) with its \forthinlinehl{begin until} loops, which may only be executed inside a user defined function. The syntax is:
-
-\noindent\forthinlinehl{begin loopProcedure until}
-
-\noindent which first executes the loop procedure. When it gets to the \forthinlinehl{until} statement, it then checks if the TOS is true (nonzero) or false (zero). If the TOS is false, it loops back to the beginning of the loop. If true, it exits the loop and continues on.
-
-Forth also has the equivalent of C-like \forthinline{for} loops with its \forthinlinehl{do loop} functions. Again, this may only be used inside a user defined function. It uses the syntax:
-
-\noindent\forthinlinehl{stop start do loopProcedure loop}
-
-\noindent where \forthinline{stop} is the index the loop stops on (it does NOT execute the loop procedure when the index is equal to \forthinline{stop}), \forthinline{start} is the first loop index, and \forthinline{loopProcedure} is any functions or variables that you want to execute inside the loop. There is a special function \forthinlinehl{i} that may only be called from within a loop which pushes the loop index to the TOS. The functions \forthinlinehl{j} and \forthinlinehl{k} behave similarly, except they return the indices of the second and third nested loops respectively when using nested loops. The \forthinlinehl{i} function always returns the index of the deepest (or most frequent) loop.
-
-Below is an example Forth program that prints the numbers from 0 to 9 using a \forthinlinehl{do loop} procedure:
+Two loop forms exist, and both may only be used inside a word definition. \forthinline{begin ... until} executes its body, then pops the TOS at \forthinline{until} and repeats the body while the popped value is zero. \forthinline{stop start do ... loop} is a counted loop: it runs its body with the index taking the values \forthinline{start} to \forthinline{stop - 1}. Inside a counted loop the word \forthinline{i} pushes the index of the innermost loop, and \forthinline{j} and \forthinline{k} the indices of the two enclosing loops. For example, a word that prints the numbers 0 to 9:
 
 \noindent\forthinlinehl{: looptest 10 0 do i . loop ;}
 
+\clearpage
 
 
-% Software development
-\section{Software Development and Build Process} \label{s:software}
 
-\subsection{The RISC-V Toolchain and its Extensions}
-To compile software for the VestaRV CPU core, you will need the RISC-V GNU toolchain, an open source compiler suite supporting multiple programming languages. The base instruction set, RV32I (Integer), provides fundamental integer arithmetic operations, excluding multiplication, division, and modulo. All RV32I instructions are 32 bits in length without exception.
+% ---------------------------------------------------------------------------
+\chapter{Boot image format} \label{s:programming}
+% ---------------------------------------------------------------------------
 
-The \AsicNameForUserGuide{} MCU's VestaRV core implements several standard and extended instruction sets beyond the base RV32I:
+% Source of every address in this chapter: software/bootrom_mp/src/start.S
+% (spi_flash_boot, getCommandWord, loadSegmentToRAM, eraseSegmentFromRAM,
+% executeProgram and the BOOT_ENTRY_VEC dispatch), software/commune/include/
+% myshkin_s.h (PROG_BASE_ADDR 0x8200, BOOT_ENTRY_VEC 0x10640, RAM_SIZE), and
+% verification/isa/flash_prepend.sh (the image builder). The generated define
+% \SpiFlashProgramAddress (0x8200) is the RAM ENTRY address, not a flash
+% address: the ROM reads the flash from offset 0, and the old text that placed
+% the image at flash 0x8200 or copied it to RAM 0x8000 word for word was wrong.
+When the \pin{P0.7} strap is high at reset (Section~\ref{ss:bootmode}), hart 0's boot loader reads a boot image from the SPI flash on \peripheral{SPI0}, copies its segments into RAM and enters it. The image is a stream of 32-bit words beginning at flash offset \texttt{0x000000}, read with one continuous high-frequency read command. Table~\ref{t:boot-image} is the authoritative description of the stream.
 
-\begin{itemize}
-	\item \textbf{M Extension (Integer Multiplication and Division):} Adds hardware multiply (\asminline{mul}), divide (\asminline{div}), and modulo/remainder (\asminline{rem}) instructions with both signed and unsigned variants. Without this extension, the compiler must emulate these operations in software, significantly impacting performance.
-	
-	\item \textbf{A Extension (Atomic Instructions):} Provides atomic memory operations including load-reserved/store-conditional (\asminline{lr.w}/\asminline{sc.w}) and atomic read-modify-write operations (\asminline{amoadd.w}, \asminline{amoswap.w}, etc.). While primarily designed for multiprocessor synchronization, these instructions ensure atomic operations in interrupt-driven single-core systems.
-	
-	\item \textbf{C Extension (Compressed Instructions):} Introduces 16-bit compressed encodings for frequently used instructions, reducing program size by approximately 20-30\% according to RISC-V documentation. Uncompressed instructions on non-4-byte-aligned addresses may incur additional execution cycles. This extension significantly improves code density without sacrificing functionality.
-	
-	\item \textbf{Zba Extension (Address Generation):} Provides shift-and-add instructions (\asminline{sh1add}, \asminline{sh2add}, \asminline{sh3add}) optimized for efficient array indexing and pointer arithmetic, particularly beneficial for accessing elements in arrays with 2, 4, or 8-byte strides.
-	
-	\item \textbf{Zbb Extension (Basic Bit Manipulation):} Includes instructions for bit counting (\asminline{clz}, \asminline{ctz}, \asminline{cpop}), logical operations with inverted operands (\asminline{andn}, \asminline{orn}, \asminline{xnor}), min/max operations, sign/zero extension, rotations, and byte manipulation. These instructions accelerate bit-level algorithms, cryptographic primitives, and data packing/unpacking.
-	
-	\item \textbf{Zbc Extension (Carryless Multiplication):} Implements carryless multiplication instructions (\asminline{clmul}, \asminline{clmulh}, \asminline{clmulr}) essential for efficient CRC calculations, error detection codes, and certain cryptographic operations such as Galois field arithmetic.
-	
-	\item \textbf{Zbs Extension (Single-Bit Manipulation):} Offers single-bit set, clear, invert, and extract operations (\asminline{bset}, \asminline{bclr}, \asminline{binv}, \asminline{bext}) with both register and immediate variants, facilitating efficient manipulation of bit fields and flags.
-\end{itemize}
+\begin{tabularx}{\textwidth}{l p{4.4cm} X}
+\caption{Boot image stream, as read by the boot ROM from flash offset \texttt{0x000000}.} \label{t:boot-image} \\
+\hline \textbf{Command word} & \textbf{Following words} & \textbf{Effect} \\ \hline \endfirsthead
+\hline \textbf{Command word} & \textbf{Following words} & \textbf{Effect} \\ \hline \endhead
+\texttt{0x10ADBEEF} & \texttt{START}, \texttt{END}, then $(\mathtt{END}-\mathtt{START})/4$ data words & Load segment: the data words are stored to RAM at \texttt{START}, \texttt{START + 4}, \dots, \texttt{END - 4}. \texttt{END} is exclusive. \\
+\rowcolor{tablehighlightcolor} \texttt{0xDEADBEEF} & \texttt{START}, \texttt{END}, \texttt{VALUE} & Fill segment: every word from \texttt{START} to \texttt{END - 4} is set to \texttt{VALUE}. \\
+\texttt{0xCAFEBABE} & none & Execute: the loader ends the flash read, restores the \peripheral{SPI0} pins, selects the boot clocks, clears the registers and enters the image. \\
+\hline
+\end{tabularx}
 
-When compiling for the \AsicNameForUserGuide{} MCU, specify the complete architecture string \\ \bashinline{-march=rv32imac\_zba\_zbb\_zbc\_zbs} to enable all supported extensions. Individual extensions may be selectively disabled by omitting them from the \bashinline{-march} flag if desired for compatibility testing or code size optimization.
+Every segment must lie inside the load window: \texttt{\RamStartAddress} $\le$ \texttt{START} $<$ \texttt{END} $\le$ \texttt{\SharedRamEndAddress} + 1, which spans the private TCM, the NPU staging RAM and the shared RAM. A segment outside the window, or any other command word, traps the boot loader. The entry address is the word at \texttt{0x10640} in shared RAM if the image has loaded a nonzero value there, and \texttt{\SpiFlashProgramAddress} otherwise; the loader zeroes the shared-RAM mailbox region before reading the flash, so an image that publishes nothing enters at \texttt{\SpiFlashProgramAddress}.
 
-\subsection{Getting the RISC-V Toolchain on Linux} \label{ss:linuxinstall}
-There are two primary methods for obtaining the RISC-V toolchain on Linux: installing a prebuilt binary distribution or building from source. For most users, the prebuilt xPack distribution is recommended due to its simplicity and time savings.
+Words are transferred most-significant byte first: the flash byte at offset $4k$ is bits 31:24 of word $k$. A tool that writes the flash from a little-endian memory image must therefore reverse the byte order within every word.
 
-\subsubsection{Option 1: Prebuilt xPack Toolchain (Recommended)}
+A standard image, as produced by the build scripts, consists of a fill or load segment that zeroes the vector table region \texttt{\RamStartAddress} to \texttt{\SpiFlashProgramAddress}, one load segment per contiguous run of nonzero program words (a run of eight or more zero words separates segments, and each segment is padded by two trailing zero words), and the execute word. The image's first instruction is at \texttt{\SpiFlashProgramAddress} in the TCM unless it publishes an entry address; an image larger than the TCM executes from the shared RAM and publishes its entry there. The vector table itself is written by the image's startup code.
 
-The xPack project provides precompiled RISC-V GCC toolchains with support for all standard extensions including RV32IMAC and bit manipulation (Zb*). This is the fastest and simplest installation method.
+\section{Programming the flash from the ROM monitor}
 
-\begin{enumerate}
-\item Download the latest xPack RISC-V Embedded GCC release from:
+The ROM monitor (Chapter~\ref{s:forth}) writes, erases and reads the flash in 256-byte pages, and the provided \texttt{forthprog.py} script (Appendix~\ref{s:software}) drives it to program a whole image from an Intel hex file. The image occupies flash pages from offset \texttt{0x000000} upward, as many as its length requires.
 
-\href{https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack/releases}{https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack/releases}
+\begin{description}[style=nextline, leftmargin=0pt, itemsep=2pt]
+	\item[\texttt{bin addr fw}] Writes one page at flash address \forthinline{addr}, which must be a multiple of 256. If \forthinline{bin} is nonzero the monitor expects 256 bytes of binary data; if zero, a 512-character ASCII hex string. After the line feed the monitor prints \forthinline{\$} when it is ready for the data. When the data has arrived it prints the CRC of the page as four hex characters (CRC16/CDMA2000: polynomial \texttt{0xC857}, initial value \texttt{0xFFFF}, no final XOR, no reflection). The host answers with a single \forthinline{Y} to commit the write; any other character aborts it and leaves the flash unchanged.
+	\item[\texttt{conf addr fe}] Erases the page at \forthinline{addr} to \texttt{0xFF} when \forthinline{conf} equals 123 and pushes 1; otherwise does nothing and pushes 0. Erasing is faster than writing and is the right way to handle a blank page.
+	\item[\texttt{fr}] Reads the flash back; see Section~\ref{ss:forthflash}.
+\end{description}
 
-Select the appropriate package for your system (typically \bashinline{xpack-riscv-none-elf-gcc-*-linux-x64.tar.gz} for 64-bit Linux systems).
+\begin{Note}
+The flash device specifies a page program time of up to 25 ms (typically 10 ms) and a page erase time of up to 25 ms (typically 6 ms). The handshake of \forthinline{fw} is long enough that no extra delay is needed between writes; consecutive erases at a high baud rate may need one.
+\end{Note}
 
-\item Create a directory for the toolchain and extract the archive:
+After the image is written, the chip runs it after a reset with the \pin{P0.7} strap high. The \forthinline{rst} word restarts hart 0 at the boot ROM without a pin reset, so a host that controls the strap can switch modes without toggling \pin{RESETN}.
 
-\bashinlinehl{mkdir -p \~/riscv-toolchain}
+\clearpage
 
-\bashinlinehl{tar -xf xpack-riscv-none-elf-gcc-*.tar.gz -C \~/riscv-toolchain/}
 
-\item Set the toolchain path as an environment variable. Add the following to your \bashinline{\~/.bashrc} or \bashinline{\~/.profile} file:
 
-\bashinlinehl{export RISCV\_TOOLCHAIN\_DIR=\~/riscv-toolchain/xpack-riscv-none-elf-gcc-13.2.0-2}
+% ===========================================================================
+\appendix
+% ===========================================================================
 
-\bashinlinehl{export PATH=\$RISCV\_TOOLCHAIN\_DIR/bin:\$PATH}
+% ---------------------------------------------------------------------------
+\chapter{Software development quick start} \label{s:software}
+% ---------------------------------------------------------------------------
 
-Replace \bashinline{13.2.0-2} with your downloaded version number.
+This appendix lists the commands needed to build a program for the \AsicNameForUserGuide{} MCU and load it into the SPI flash. The memory map header, the linker script fragments and the startup code are generated by \texttt{make chip} (Section~\ref{ss:related}).
 
-\item Reload your shell configuration or open a new terminal:
+\section{Toolchain} \label{ss:linuxinstall}
 
-\bashinlinehl{source \~/.bashrc}
+The RISC-V GNU toolchain is required. The prebuilt xPack distribution supports every extension the core implements and is the quickest route on Linux; Windows users run the same steps under the Windows Subsystem for Linux.
 
-\item Verify the installation:
-
-\bashinlinehl{riscv-none-elf-gcc --version}
-
-You should see the GCC version information confirming successful installation.
+\begin{enumerate}[itemsep=1pt]
+	\item Download the current release archive (\texttt{xpack-riscv-none-elf-gcc-*-linux-x64.tar.gz}) from \url{https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack/releases}.
+	\item Extract it and export its location; the version number in the path is the one downloaded:
+\begin{lstlisting}[language=bash]
+mkdir -p ~/riscv-toolchain
+tar -xf xpack-riscv-none-elf-gcc-*.tar.gz -C ~/riscv-toolchain/
+export RISCV_TOOLCHAIN_DIR=~/riscv-toolchain/xpack-riscv-none-elf-gcc-13.2.0-2
+export PATH=$RISCV_TOOLCHAIN_DIR/bin:$PATH
+\end{lstlisting}
+	The two \texttt{export} lines belong in the shell profile (\texttt{\~{}/.bashrc} or \texttt{\~{}/.profile}). The build system requires \texttt{RISCV\_TOOLCHAIN\_DIR}.
+	\item Check the installation with \bashinline{riscv-none-elf-gcc --version}.
 \end{enumerate}
 
-\subsubsection{Option 2: Building from Source}
-
-Building the toolchain from source provides maximum flexibility and ensures the latest features, but requires significantly more time and disk space. You can find the source code for the RISC-V toolchain at \href{https://github.com/riscv/riscv-gnu-toolchain}{https://github.com/riscv/riscv-gnu-toolchain}, which also contains instructions for building the toolchain. The following procedure builds a toolchain with full support for RV32IMAC and bit manipulation extensions.
-
-First, install the required build dependencies on Ubuntu or Linux Mint:
+Building the toolchain from source is an alternative when a specific version is needed. On Ubuntu or Linux Mint:
 
 \begin{lstlisting}[language=bash]
 sudo apt install autoconf automake autotools-dev curl libmpc-dev libmpfr-dev libgmp-dev gawk build-essential bison flex texinfo gperf libtool patchutils bc zlib1g-dev libexpat-dev
+git clone --recursive https://github.com/riscv/riscv-gnu-toolchain
+cd riscv-gnu-toolchain && mkdir build && cd build
+../configure --with-arch=rv32imac_zba_zbb_zbc_zbs --prefix=/opt/riscv
+sudo make
 \end{lstlisting}
 
-The instructions are as follows:
-\begin{enumerate}
-\item Switch to your home directory with
+\noindent The tools are then installed under \texttt{/opt/riscv/bin} with the prefix \texttt{riscv32-unknown-elf-}; the commands below use the xPack prefix \texttt{riscv-none-elf-}, and the two are interchangeable.
 
-\bashinlinehl{cd \~}
-\item Make a new directory with
+\section{Compiling}
 
-\bashinlinehl{mkdir riscv-download}
-
-and go into it with
-
-\bashinlinehl{cd riscv-download}
-\item Download the RV32IMC toolchain with
-
-\bashinline{git clone --recursive https://github.com/riscv/riscv-gnu-toolchain riscv-gnu-toolchain-rv32imc}
-\item Enter into the new directory with
-
-\bashinlinehl{cd riscv-gnu-toolchain-rv32imc}
-\item Create a build directory with
-
-\bashinlinehl{mkdir build}
-
-Enter into the new build directory with \bashinlinehl{cd build}
-\item Configure the build with
-
-\bashinlinehl{../configure --with-arch=rv32imc --prefix=/opt/riscv/rv32imc}
-\item Begin the build process with
-
-\bashinlinehl{sudo make}
-
-This will take quite a while. If you wish to speed up the process, you can allocate more CPU cores to the build process by using \bashinlinehl{make -jn} instead of \bashinlinehl{make} where \bashinline{n} can be replaced by the number of CPU cores you want to use to build the toolchain.). Once the build process has finished successfully, the toolchan will be located at \bashinline{/opt/riscv/rv32imc}
-
-\item Add a permanent environment variable to your system that defines the location of the \bashinlinehl{riscv} directory (perhaps in your \bashinline{.bashrc} script) with something like
-
-\bashinlinehl{export RISCV=/opt/riscv}
-
-You may also wish to add the \bashinline{/opt/riscv/rv32imc/bin} directory to your PATH, though this is optional.
-\item You may now safely delete the \bashinline{riscv-download} directory with
-
-\bashinlinehl{sudo rm -rf \~/riscv-download}
-\end{enumerate}
-
-
-
-\subsection{Getting the RISC-V Toolchain on Windows}
-The RISC-V toolchain has no official support for Windows, but several options exist to get it working. For Windows 10 users, it is recommended to install the Windows Subsystem for Linux (WSL) in Ubuntu mode, which can be found in the Microsoft Store app. Then, in WSL, follow the installation instructions in Section \ref{ss:linuxinstall}. You must then use WSL to compile all software for the RISC-V MCU.
-If you have an older version of Windows, it is suggested that you use an Ubuntu or Linux Mint virtual machine to build the RISC-V toolchain and compile your MCU software.
-
-\subsection{Compilation}
-The RISC-V toolchain includes a GCC compiler. Thus, the compilation process is similar to other toolchains that use GCC. To compile a source file into an object file, use:
-
-\noindent\bashinlinehl{riscv32-unknown-elf-gcc -c \$CFLAGS srcFile -o objectFile.o}
-
-\noindent or for the xPack toolchain:
-
-\noindent\bashinlinehl{riscv-none-elf-gcc -c \$CFLAGS srcFile -o objectFile.o}
-
-\noindent where \bashinline{\$CFLAGS} should be replaced by any compilation flags, \bashinline{srcFile} is the source code file (C, C++, assembly, or other GCC-supported languages), and \bashinline{objectFile.o} is the output object file. The compiler determines which launguage is used in a source file by the file extension (\bashinline{.c} is for C, \bashinline{.cpp} is for C++, \bashinline{.S} is for assembly code which must be preprocessed, and \bashinline{.s} is for assembly code which is not preprocessed).
-
-There are several compilation flags that are suggested:
-\begin{itemize}
-\item \bashinlinehl{-march=rv32imac\_zba\_zbb\_zbc\_zbs} Architecture flag. This specifies which ISA extensions are enabled during compilation. For the \AsicNameForUserGuide{} MCU with full VestaRV capabilities, use the complete architecture string as shown to enable the base integer instructions (I), hardware multiplication/division (M), atomic operations (A), compressed instructions (C), and all bit manipulation extensions (Zba, Zbb, Zbc, Zbs). Individual extensions may be selectively disabled by omitting them from the string (e.g., \bashinline{-march=rv32imc} for basic support without atomics or bit manipulation, or \bashinline{-march=rv32imac} to include atomics but exclude bit manipulation extensions).
-
-\item \bashinlinehl{-mabi=ilp32} Application Binary Interface (ABI) flag. Specifies the calling convention and data model. Use \bashinline{ilp32} for integer-only ABI without floating point support, which is appropriate for the VestaRV core.
-
-\item \bashinlinehl{-Os} Optimize for program size flag. Attempts to minimize the compiled program size, which is particularly important for memory-constrained embedded systems.
-
-\item \bashinlinehl{-O<number>} Optimization level flag. Controls compiler optimization aggressiveness. Common values are \bashinline{-O0} (no optimization, useful for debugging), \bashinline{-O1} (basic optimizations), \bashinline{-O2} (recommended for production), \bashinline{-O3} (aggressive optimizations, may increase code size), and \bashinline{-Og} (optimize for debugging experience).
-
-\item \bashinlinehl{-I <include\_directory>} Include directory flag. Adds the specified directory to the list of directories searched for header files. Any files in the include directory may be included with the \forthinline{\#include <filename.h>} preprocessor directive.
-
-\item \bashinlinehl{-g} GDB debugger enable flag. Includes debugging symbols in the compiled output. Adding the \bashinline{-g} flag to both the compiler and linker commands will allow disassembly listings (\bashinline{.lst} files) to show the correspondence between source code and generated assembly instructions.
-
-\item \bashinlinehl{-Wall -Wextra} Warning flags. Enable comprehensive compiler warnings to catch potential issues during development. The \bashinline{-Wall} flag enables common warnings, while \bashinline{-Wextra} adds additional checks.
-\end{itemize}
-
-\textbf{Example compilation command for the \AsicNameForUserGuide{} MCU:}
+Each source file is compiled to an object file:
 
 \begin{lstlisting}[language=bash]
 riscv-none-elf-gcc -c \
@@ -869,104 +970,86 @@ riscv-none-elf-gcc -c \
   main.c -o main.o
 \end{lstlisting}
 
-You must compile every source file that you wish to use in your project. If your project is in C or C++, it is suggested that you use the provided \bashinline{start.S} assembly file to call your main function. This assembly file needs to have its first instruction at address \texttt{\SpiFlashProgramAddress}, so it must be the first file to be given to the linker. You must have one and only one \bashinline{int main()} function throughout all of your source files in a single project. For C++ projects, you need to start the main function with \bashinline{extern "C" int main()} to prevent the C++ compiler from name-mangling the main function.
-
-
-\subsection{Linking}
-Once all source files have been compiled, they must be linked to produce the output program binary file, the \bashinline{.elf} file. The linker assigns memory addresses to every variable and function. The MCU contains no writable non-volatile memory, so the program and the variables all share the RAM (with a notable exception for the bootloader and Forth interpreter stored on the ROM). The linker must be aware of the RAM and ROM start address and size, the interrupt vector table (IVT) start address and size (along with the address of each ISR pointer within the IVT), the first program instruction address that the bootloader jumps to after loading the program into RAM, and the address of the master interrupt handler. 
-
-Defining the aforementioned memory segments and addresses is done using a linker script. It is highly suggested to use the provided linker script \bashinline{MCU.ld} and its include files and tweak it to suit your need.
-
-To execute the linker, use:
-
-\noindent\bashinlinehl{riscv32-unknown-elf-gcc $LFLAGS $OBJECTS -o program.elf}
-
-\noindent where \bashinline{$LFLAGS} is a list of linker flags, \bashinline{$OBJECTS} is a list of all the compiled object files needed for the project, and \bashinline{program.elf} is the output ELF binary containing the program.
-
-There are several linker flags that are suggested:
-\begin{itemize}
-\item \bashinlinehl{-march=rv32imac_zba_zbb_zbc_zbs} Architecture flag. This specifies which extensions are enabled in the linking process. The VestaRV core supports the RV32IMAC instruction set plus the Zba, Zbb, Zbc, and Zbs bit manipulation extensions. This flag must match the architecture flags used during compilation.
-\item \bashinlinehl{-flto} Link-time optimization flag. This instructs the linker to perform optimizations to the final binary.
-\item \bashinlinehl{-nostdlib} Disables the use of the standard library for linking, decreasing software bloat. However, using the flag precludes using standard library functions such as software emulation of integer multiplication and division, floating point numbers, initialization routines, memory allocation, etc. It is suggested that you only use this flag if you have a specific need to reduce the software size.
-\item \bashinlinehl{-T linker_script.ld} Path to the linker script
-\item \bashinlinehl{-Map mapfile.map} Path to the output map file, which contains the symbol table for your project with their addresses
-\item \bashinlinehl{-L linkerfiles_dir} Path to the linker scripts directory that contains any files that are included in the main linker script
-\item \bashinlinehl{-g} GDB debugger enable flag. Adding the \bashinline{-g} flag to both the compiler and linker commands will allow the \bashinline{.lst} file to show the assembly commands your code compiles into.
+\begin{itemize}[itemsep=1pt]
+	\item \bashinline{-march=...} names the extensions the compiler may use and must match this build's ISA string (Table~\ref{t:chip-config-derived}); the value above is the full VestaRV set. An extension can be omitted from the string for compatibility testing or size comparison.
+	\item \bashinline{-mabi=ilp32} selects the integer calling convention of Table~\ref{t:cpu-registers}.
+	\item \bashinline{-O2} is the recommended optimisation level; \bashinline{-Os} minimises size, \bashinline{-Og} favours debugging.
+	\item \bashinline{-I} adds an include directory, such as the generated \texttt{MemoryMap.h} location.
+	\item \bashinline{-g} keeps debugging symbols, which the disassembly listing and the debugger use.
 \end{itemize}
 
+The provided \texttt{start.S} must be the first object given to the linker: its first instruction is placed at \texttt{\SpiFlashProgramAddress}, the address the boot loader enters (Chapter~\ref{s:programming}), and it initialises the vector table and calls \texttt{main}. A C++ project declares \cinline{extern "C" int main()} so the entry symbol is not mangled, and may pass \bashinline{-fno-exceptions -fno-unwind-tables -fno-asynchronous-unwind-tables} to shrink or remove the \texttt{.eh\_frame} section.
 
-\subsection{Intel Hex File Generation}
-Once the final ELF file has been created from the linker, an Intel hex file can be created, which converts the binary program data into an easy-to-read ASCII file. Furthermore, the Python package \texttt{IntelHex} can read the file, allowing you to use Python to upload a new program to the SPI flash. A Python program that utilizes \texttt{IntelHex} to upload new programs, called \bashinline{forthprog.py}, is provided.
+\section{Linking}
 
+The objects are linked with the provided linker script, which defines the ROM and RAM regions, the vector table, the entry address and the interrupt handler symbol from the generated fragments:
 
-\subsection{A Note on Using C++}
-C++ generates some extra data sections that C and assembly do not use. In particular, it generates the \texttt{.eh\_frame} section, which is used for exception handling. You may not need exception handling, in which case you can pass in the compiler flags:
+\begin{lstlisting}[language=bash]
+riscv-none-elf-gcc -march=rv32imac_zba_zbb_zbc_zbs -mabi=ilp32 \
+  -T MCU.ld -L linkerfiles_dir -Wl,-Map=program.map -g \
+  start.o main.o -o program.elf
+\end{lstlisting}
 
-\noindent\bashinlinehl{-fno-exceptions -fno-unwind-tables -fno-asynchronous-unwind-tables}
+\begin{itemize}[itemsep=1pt]
+	\item \bashinline{-T MCU.ld} names the linker script and \bashinline{-L} the directory of the fragments it includes (\texttt{memory.x}, \texttt{periph.x}).
+	\item \bashinline{-Wl,-Map=} writes the map file with every symbol's address.
+	\item \bashinline{-flto} enables link-time optimisation.
+	\item \bashinline{-nostdlib} drops the C library; it also drops its software integer and floating-point routines and its initialisation code, so it is used only when size demands it.
+\end{itemize}
 
-\noindent which will significantly reduce the size of \texttt{.eh\_frame}. If you wish to eliminate it entirely, you can create a phony section in the linker script at an unused memory address and point the \texttt{.eh\_frame} section to it.
+\section{Loading the program}
 
-\newpage
+An Intel hex file is produced from the ELF and written to the SPI flash through the ROM monitor by the provided script, which also switches the strap and resets the chip on boards that support it:
 
+\begin{lstlisting}[language=bash]
+riscv-none-elf-objcopy -O ihex program.elf program.hex
+python3 forthprog.py program.hex --port /dev/ttyUSB0 --verify
+\end{lstlisting}
 
+\noindent The script needs the \texttt{IntelHex} Python package. Its \texttt{-{}-skipBlank} option skips erasing pages the image does not use, and \texttt{-{}-verify} reads the flash back after writing. The byte order and page handshake it implements are those of Chapter~\ref{s:programming}.
 
-% Programming
-\section{Uploading Program to SPI Flash} \label{s:programming}
-
-\subsection{SPI Flash Boot Process}
-In order to boot in SPI flash mode, there must first be a vaild program stored in the SPI flash memory in the proper location. In SPI flash mode, the bootloader reads the data in the SPI flash memory starting at address \texttt{\SpiFlashProgramAddress} and copies every 32-bit word into RAM, also starting at address \texttt{\RamStartAddress}. This particular address is the beginning of the RAM on the MCU. The bootloader stops copying from the SPI flash once completely fills the RAM.
-
-Note the distinction between copying 32-bit words as opposed to 8-bit bytes. Though bytes and words are both MSB-first, they are also transmitted starting with the lowest address to the greatest address from the SPI flash. If the bootloader copied every 8-bit byte, the transmission sequence it would expect would be:
-
-\noindent\texttt{byte0, byte1, byte2, byte3, byte4, byte5, byte6, byte7 ...}
-
-\noindent However, because the bootloader expects MSB-first 32-bit words, the sequence must be:
-
-\noindent\texttt{byte3, byte2, byte1, byte0, byte7, byte6, byte5, byte4 ...}
-
-\noindent Therefore, the program data on the SPI flash must follow the 32-bit word sequence.
-
-\subsection{Upload Process}
-The Forth boot mode has a mechanism for writing data to the SPI flash, which may be used to upload a new program for use in the SPI flash boot mode. When in Forth boot mode, the flash write \forthinlinehl{fw} function writes a page of data (which is exactly 256 bytes long and begins on an address that is a multiple of 256) to the SPI flash. The Forth function is used with the syntax:
-
-\noindent\forthinlinehl{bin addr fw}
-
-If \forthinline{bin} is true (nonzero), the command expects 256 bytes of binary data to be transmitted over the UART. If false, it expects a 512-character long ASCII hex string representing the data to be transmitted over the UART. The \forthinline{addr} argument must be the address of the beginning of the 256-byte page, and must be aligned to a 256-byte boundary.
-
-To execute the command, a newline (or line feed) character must be transmitted to the MCU over the UART. Once the command begins executing, it initiates some handshaking to ensure a proper transaction. The MCU prints a \forthinline{\$} character to indicate it is ready for the page data to be transmitted. After that, you must transmit the page data in the format specified by the \forthinline{bin} argument. Remember to transmit the data in the proper order (byte3, byte2, byte1, byte0, byte7, byte6, byte5, byte4 ...). Once the page data has been transmitted, the MCU will compute a CRC value upon the data using the CRC16\_CDMA2000 algorithm (polynomial = 0xC857, initial CRC value = 0xFFFF, no final XOR, no data reflection, no output reflection) and then transmit the CRC value as a 4-character long hex string. If this value matches your own CRC computation (or if you do not care and simply want it to write the data), transmit a single \forthinline{Y} character without anything else to tell the MCU to write the data to the SPI flash. Any other character will abort the process, leaving the SPI flash memory unchanged. You are technically supposed to wait an average of 10 ms (25 ms at the greatest) before writing more data to the SPI flash. However, the substantial handshaking and transmission times likely fulfill this requirement, and it is likely that no delay is needed.
-
-If the entire page is blank, you may instead use the flash erase \forthinlinehl{fe} function to erase the page, making every byte in the page equal to 0xFF. This is much quicker than writing data to the SPI flash, and can speed up programming times substantially for smaller programs. The syntax to use it is:
-
-\noindent\forthinlinehl{conf addr fe}
-
-If the \forthinline{conf} parameter is equal to 123, the function will erase the 256-byte page at address \forthinline{addr} (which must be 256-byte aligned) and then return 1. If not equal to 123, it will not erase the page and will return 0. You are technically supposed to wait an average of 6~ms (25~ms at the greatest) before another erase or write operation. Because the erase function is much quicker than the write function, it may become necessary to delay between erases at higher bauds.
-
-You may read back the data stored on the SPI flash with the \forthinlinehl{fr} function. See Section \ref{ss:forthflash} for details.
-
-In order to write an entire program to the SPI flash, you must write/erase a total of \RamNumPages\ pages (each with a length of 256 bytes) beginning with page address \RamStartAddress. After the data is written, you may execute the newly uploaded program by putting the MCU in reset, setting the \pin{BOOT} pin to SPI flash mode, and taking the chip out of reset. Or, you can simply set the \pin{BOOT} pin and move the program counter to address 0x0000, which may be done with the \forthinlinehl{rst} Forth function.
-
-It is highly suggested to use the provided Python program \bashinline{forthprog.py} to upload new programs to the SPI flash, which takes an Intel hex file containing the new program and sends it to the MCU and the SPI flash using the process described above.
-
-\newpage
+\clearpage
 
 
 
-% Peripheral sections
-\input{include/PeripheralSections.tex}
+% ---------------------------------------------------------------------------
+\chapter{Register index} \label{s:regMemMap}
+% ---------------------------------------------------------------------------
+This appendix lists every peripheral instance of this build with its base address and every register with its absolute address, offset and size. Each register name links to its description in Part~III.
 
-
-
-% Register and peripheral memory map
-\section{Register and Peripheral Memory Map} \label{s:regMemMap}
 \input{include/PeripheralAndRegistersList.tex}
 
-\newpage
+\clearpage
 
-% Errata
-\section{Errata} \label{s:errata}
-There are no known errata for the {\AsicNameForUserGuide} MCU at this time. This section will list hardware issues, their impact, and software workarounds as they are discovered.
 
+
+% ---------------------------------------------------------------------------
+\chapter{Errata} \label{s:errata}
+% ---------------------------------------------------------------------------
+This appendix lists known deviations of the hardware from this manual. Each entry gives the affected silicon revision, a reference number, a description of the fault, the circumstances in which it occurs, its effect, and the recommended software workaround. There are no known errata for the \AsicNameForUserGuide{} MCU at the time of this revision.
+
+\begin{longtable}[c]{ l l p{3.2cm} p{2.6cm} p{2.6cm} p{2.8cm} }
+\caption{Errata.} \label{t:errata} \\
+\hline \textbf{Ref.} & \textbf{Affects} & \textbf{Description} & \textbf{Conditions} & \textbf{Effect} & \textbf{Workaround} \\ \hline \endfirsthead
+\hline \textbf{Ref.} & \textbf{Affects} & \textbf{Description} & \textbf{Conditions} & \textbf{Effect} & \textbf{Workaround} \\ \hline \endhead
+none & all & None known. & & & \\
+\hline
+\end{longtable}
+
+\clearpage
+
+
+
+% ---------------------------------------------------------------------------
+\chapter{Revision history} \label{s:revhistory}
+% ---------------------------------------------------------------------------
+
+\begin{longtable}[c]{ l l p{10.5cm} }
+\caption{Revision history of this manual.} \label{t:revhistory} \\
+\hline \textbf{Revision} & \textbf{Date} & \textbf{Summary} \\ \hline \endfirsthead
+\hline \textbf{Revision} & \textbf{Date} & \textbf{Summary} \\ \hline \endhead
+1 & 2026-08-29 & Restructured into parts and chapters with a front matter chapter (conventions, access types, register anatomy, glossary). Register descriptions reformatted with summary tables, per-register reset values and field tables. Per-peripheral instance, signal and interrupt tables generated from the chip configuration. Reset, clocks and power consolidated into one chapter; the boot image format corrected from the ROM source; the hand-written instruction listing replaced by the ISA and CSR summary; software material moved to Appendix~\ref{s:software}. \\
+\hline
+\end{longtable}
 
 \end{document}
-
-

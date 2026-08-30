@@ -1,90 +1,125 @@
-The MCU has several \peripheral{GPIOx} peripherals, each of which controls a set of general purpose input/output (GPIO) pins. The VestaRV implementation supports GPIO ports with 8, 16, or 32 pins; every port on this device has 8 pins. Each GPIO peripheral (typically called a port) constitutes a parallel port, allowing all pins in the port to be updated simultaneously. Each GPIO pin may also be configured and updated individually, allowing for design flexibility. Each GPIO pin is referred to as Px.y, where x refers to the port number and y refers to the corresponding bit in the GPIO registers that controls the pin. For example, P2.5 refers to port 2, bit 5. Like every peripheral on this multi-core device, the GPIO ports live in the shared peripheral window and are accessible to all harts through the bus arbiter.
+% GPIO chapter. Section order is the per-peripheral template enforced by
+% python/check_intro_names.py. Vector numbers are frozen by the generator
+% (python/generate.py, _mcuMpIrqVectors).
+\section{Overview}
 
-Every GPIO pin on the MCU can be in one of two modes: primary/GPIO mode, or alternate function (peripheral) mode. In alternate function mode, each pin further selects \emph{which} of up to 8 alternate functions (AF0 through AF7) governs it, using the pin's field in the \register{PxAFS} register. Section \ref{s:pinsConfig} details the alternate functions available at each GPIO pin.
+Each \peripheral{GPIOx} peripheral is one 8-pin general-purpose input/output port. A port is a parallel register set, so all eight pins are updated in one access, and every pin is also configurable on its own. Pin $y$ of port $x$ is written P$x$.$y$ and is controlled by bit $y$ of each port register. Every pin is either in GPIO mode, driven by the port registers, or in alternate-function mode, driven by one of up to eight peripheral functions selected per pin.
 
+\begin{itemize}
+	\item 8 pins per port, individually configurable as input, output, or resistor-terminated input
+	\item Atomic set, clear and toggle registers (\register{PxOUTS}, \register{PxOUTC}, \register{PxOUTT}), so no read-modify-write is needed
+	\item Alternate-function mode per pin (\register{PxSEL}) with an 8-way function select per pin (\register{PxAFS})
+	\item Relocatable peripheral inputs, routed by \register{PxAFS} independently of \register{PxSEL}
+	\item One interrupt per pin, 8 vectors per port, with programmable edge (\register{PxIES})
+	\item Event-fabric task select per pin (\register{PxTASK}) in configurations with the event fabric
+\end{itemize}
 
+\section{Functional description}
 
-\subsection{Primary/GPIO Mode Functionality}
+\subsection{GPIO mode}
 
-In primary/GPIO mode, the GPIO pin state is controlled by the GPIO registers \register{PxDIR}, \register{PxOUT}, and \register{PxREN}. The \register{PxDIR} register determines if the pin is in input or output mode, the \register{PxOUT} register determines if the pin outputs a logic high or logic low level when the pin is in output mode, and the \register{PxREN} register enables or disables the internal pullup/pulldown resistor. Table \ref{t:gpio-config} shows the various states available to every GPIO pin.
+In GPIO mode the pin is controlled by \register{PxDIR}, \register{PxOUT} and \register{PxREN}: \register{PxDIR} selects input or output, \register{PxOUT} selects the output level, and \register{PxREN} enables the internal pull resistor on an input. Table \ref{t:gpio-config} lists the four states.
 
 \begin{table}[htb]
 	\centering
-	\begin{tabular}{ c c c c }
-	\caption{GPIO Configurations} \label{t:gpio-config}
-	\textbf{\register{PxDIR[y]}} & \textbf{\register{PxOUT[y]}} & \textbf{\register{PxREN[y]}} & \textbf{Px.y State} \\ \hline
-	0 & - & 0 & High impedance input, resistor disabled \\
+	\caption{GPIO pin states.}
+	\label{t:gpio-config}
+	\begin{tabular}{ c c c l }
+	\textbf{\register{PxDIR}[y]} & \textbf{\register{PxOUT}[y]} & \textbf{\register{PxREN}[y]} & \textbf{P$x$.$y$ state} \\ \hline
+	0 & - & 0 & High-impedance input, resistor disabled \\
 	\rowcolor{tablehighlightcolor}
-	0 & - & 1 & Pullup/pulldown resistor enabled \\
-	1 & 0 & - & Output, strongly driven low \\
+	0 & - & 1 & Input with pull resistor enabled \\
+	1 & 0 & - & Output driven low \\
 	\rowcolor{tablehighlightcolor}
-	1 & 1 & - & Output, strongly driven high \\
+	1 & 1 & - & Output driven high \\
 	\hline
 	\end{tabular}
 \end{table}
 
-The \register{PxIN} register always reads the digital state of the pin, regardless of whether it is in input or output mode, and regardless of whether it is in primary/GPIO mode or alternate function mode. The pin Px.y is at logic low level if \register{PxIN[y]} is 0, and is at logic high level if it is 1. Note that \register{PxIN} is latched on the falling edge of the memory enable signal to ensure stable readings during memory access.
+\register{PxIN} always reads the digital level of the pad, in both directions and in both modes. The read value is latched on the falling edge of the memory enable signal, so a pin that changes during the access returns one stable sample.
 
-\subsection{Register Access Convenience Features}
+\subsection{Set, clear and toggle registers}
 
-The GPIO peripheral provides convenient set, clear, and toggle registers for efficient bit manipulation without read-modify-write operations:
+Writing 1 to a bit of \register{PxOUTS}, \register{PxOUTC} or \register{PxOUTT} sets, clears or toggles the corresponding \register{PxOUT} bit; writing 0 has no effect. Each is a single write, so two harts, or a handler and the code it interrupted, can change different pins of one port without a read-modify-write race. \register{PxOUTS} and \register{PxOUTT} read back \register{PxOUT}; \register{PxOUTC} reads back its complement.
 
-\begin{itemize}
-\item \register{PxOUTS}: Writing 1 to a bit sets the corresponding output pin high. Writing 0 has no effect. Reading returns the current \register{PxOUT} value.
-\item \register{PxOUTC}: Writing 1 to a bit clears the corresponding output pin low. Writing 0 has no effect. Reading returns the inverted \register{PxOUT} value.
-\item \register{PxOUTT}: Writing 1 to a bit toggles the corresponding output pin. Writing 0 has no effect. Reading returns the current \register{PxOUT} value.
-\end{itemize}
+\subsection{Alternate-function mode}
 
-These registers eliminate race conditions in interrupt-driven or multi-threaded code where multiple code paths may modify GPIO outputs.
+Two registers together decide what drives a pin. \register{PxSEL}[y] = 1 puts P$x$.$y$ in alternate-function mode, and the 4-bit field $y$ of \register{PxAFS} (bits $4y+3$ to $4y$, of which the low three are implemented) selects which function, AF0 to AF7, governs it. \register{PxAFS} resets to 0, so a pin in alternate-function mode drives its AF0 function, which is the pin's home peripheral function; software that only writes \register{PxSEL} therefore obtains the home function. Section \ref{s:pinsConfig} tabulates every pin's plane assignment.
 
+In alternate-function mode the selected function owns the pin's direction, output and resistor controls, and \register{PxDIR}[y], \register{PxOUT}[y] and \register{PxREN}[y] have no effect until \register{PxSEL}[y] returns to 0. A field value that selects a plane on which the pin has no function leaves the pin as a high-impedance input. Some peripheral inputs, such as the timer capture pins, are inputs on every plane and are governed by \register{PxDIR} regardless of \register{PxSEL}, because the peripheral never drives them.
 
-\subsection{Alternate Function (Peripheral) Mode}
+The planes above AF0 carry a shared pool of relocatable output functions (the \peripheral{UARTx} transmitters, the \peripheral{TIMERx} compare outputs, the \peripheral{SPI1} clock and master-out) fanned across the ports, so a peripheral output can be placed on whichever pin suits the board. Because there is one instance of each function, selecting it on several pins drives the same signal on all of them. A few plane slots carry bidirectional bus completions so that whole buses relocate as a set: both I2C pairs, the \peripheral{UART0} receiver alongside its transmitter, and the \peripheral{SPI1} master-in alongside its clock and master-out. A function that belongs to a peripheral this configuration omits leaves the pool, and its slots become high-impedance inputs.
 
-Most GPIO pins have one or more alternate functions, each controlled by one of the peripherals in the MCU. Two registers together determine what drives a pin:
+\subsection{Relocatable peripheral inputs}
 
-\begin{itemize}
-\item \register{PxSEL} selects the pin's \emph{mode}: if \register{PxSEL[y]} is 0, Px.y is in primary/GPIO mode; if it is 1, Px.y is in alternate function mode.
-\item \register{PxAFS} selects \emph{which} alternate function governs the pin while it is in alternate function mode. Each pin owns a 4-bit field in \register{PxAFS} (pin y occupies bits $4y{+}3$ downto $4y$; only the low 3 bits are implemented). A field value of $n$ selects alternate function AF$n$.
-\end{itemize}
+A peripheral input that appears at more than one pin (UART receivers, timer captures, I2C data and clock) is routed from the pin whose \register{PxAFS} field selects its plane, and from its home pin otherwise, regardless of \register{PxSEL}. Input routing ignores \register{PxSEL} so that the routing mirrors \register{PxIN}, which is always visible; a pin can therefore stay in GPIO output mode while its \register{PxAFS} field routes the pad into a peripheral input, which gives a software loopback for self-test. If the same input is selected on more than one pin, a fixed priority (newest alternate location first, then the older alternate, then home) picks one, so the outcome of that configuration error is deterministic.
 
-\register{PxAFS} resets to 0, so out of reset every pin in alternate function mode drives its AF0 function. AF0 is the pin's classic (legacy) peripheral function, and software that only ever touches \register{PxSEL} behaves exactly as it did before multiple alternate functions existed.
+\subsection{Pin interrupts}
 
-When in alternate function mode, the selected peripheral function seizes control over the pin's \register{DIR}, \register{OUT}, and \register{REN} controls, overriding \register{PxDIR[y]}, \register{PxOUT[y]}, and \register{PxREN[y]}. For example, when the \pin{SCK1} pin is in alternate function mode with AF0 selected, the \peripheral{SPI1} peripheral controls the state of the pin, and the corresponding \register{PxDIR[y]}, \register{PxOUT[y]}, and \register{PxREN[y]} registers have no effect until \register{PxSEL[y]} returns to 0. If the pin's \register{PxAFS} field selects an AF plane for which the pin has no function defined, the pin becomes a high-impedance input.
+Each pin has its own interrupt. With \register{PxIE}[y] set, the edge selected by \register{PxIES}[y] (0 = rising, 1 = falling) sets \register{PxIF}[y] and raises the pin's vector. Pin interrupts stay available in alternate-function mode alongside any interrupt the governing peripheral raises. \register{PxIF} is latched on the falling edge of the memory enable signal, so a handler reads one stable sample.
 
-To make board layout easy, the alternate-function planes are populated generously with a shared pool of relocatable \emph{output} functions fanned across all four ports: the \peripheral{UART0}/\peripheral{UART1} transmitters, the \peripheral{TIMER0}/\peripheral{TIMER1} compare (PWM) outputs, and the \peripheral{SPI1} clock and master-out. Each of these output functions is therefore reachable on roughly two dozen pins, so a peripheral output can be routed to whichever pin is most convenient for the PCB. Because there is exactly one instance of each peripheral resource, a given function is \emph{selected} on at most one pin at a time (like the Raspberry Pi's fixed alternate-function map): populating many pins provides placement choice, not duplicate peripherals. Functions belonging to a peripheral that a configuration omits simply leave the pool: their plane slots become unassigned (high-impedance input). Section \ref{s:pinsConfig} tabulates every pin's full AF plane assignment.
+\subsection{Event-fabric tasks}
 
-A handful of plane slots carry \emph{bidirectional bus completions} rather than pool outputs, so that whole buses (not just their output halves) can land on alternate pins: both I2C buses relocate as pairs (\pin{SDA0}/\pin{SCL0} on P1.6/7 or P2.6/7, and \pin{SDA1}/\pin{SCL1} on P2.2/3 or P1.4/5), \pin{RX0} on P3.5 AF2 pairs with \pin{TX0} on P3.4 AF2 to form a complete relocated \peripheral{UART0}, and \pin{MISO1} on P3.6 AF7 joins \pin{SCK1}/\pin{MOSI1} on P3.4/P3.5 AF7 to complete an \peripheral{SPI1} master bus on the DTP pins.
+\register{PxTASK} selects which pins respond to the event fabric's OUT-SET and OUT-CLR tasks for this port; in a configuration without the event fabric the register is writable and has no effect. A task pulse is applied after any coincident register write in the same cycle, and CLR after SET, so a same-cycle conflict resolves to the cleared, safe direction.
 
-For example, to output the \pin{T0CMP0} compare waveform (TIMER0 PWM) on pin P1.0 (where it is alternate function 1) instead of on its home pin P2.0:
+\section{Interrupts and events}
+
+Port $x$ owns eight consecutive vectors, one per pin, in the order listed in Table \ref{t:gpio-irq}. The interrupt is a level derived from \register{PxIF}[y] and \register{PxIE}[y].
+
+\begin{table}[htb]
+	\centering
+	\caption{\peripheral{GPIOx} interrupt vectors; pin $y$ uses the port's base vector plus $y$.}
+	\label{t:gpio-irq}
+	\begin{tabular}{ l l p{3.6cm} p{2.8cm} p{3.0cm} }
+	\textbf{Port} & \textbf{Vectors} & \textbf{Condition} & \textbf{Set by} & \textbf{Cleared by} \\ \hline
+	\peripheral{GPIO0} & 1 to 8 & Selected edge on P0.$y$ & \register{PxIF}[y] & Writing 1 to \register{PxIF}[y] \\
+	\rowcolor{tablehighlightcolor}
+	\peripheral{GPIO1} & 28 to 35 & Selected edge on P1.$y$ & \register{PxIF}[y] & Writing 1 to \register{PxIF}[y] \\
+	\peripheral{GPIO2} & 36 to 43 & Selected edge on P2.$y$ & \register{PxIF}[y] & Writing 1 to \register{PxIF}[y] \\
+	\rowcolor{tablehighlightcolor}
+	\peripheral{GPIO3} & 44 to 51 & Selected edge on P3.$y$ & \register{PxIF}[y] & Writing 1 to \register{PxIF}[y] \\
+	\peripheral{GPIO4} & 98 to 105 & Selected edge on P4.$y$ & \register{PxIF}[y] & Writing 1 to \register{PxIF}[y] \\
+	\rowcolor{tablehighlightcolor}
+	\peripheral{GPIO5} & 106 to 113 & Selected edge on P5.$y$ & \register{PxIF}[y] & Writing 1 to \register{PxIF}[y] \\
+	\hline
+	\end{tabular}
+\end{table}
+
+\section{Programming}
+
+\subsection{Configuring a pin as an output}
 
 \begin{enumerate}
-\item Write 1 to the pin's \register{PxAFS} field: \register{P1AFS} $\mathrel{|}=$ \texttt{0x1} (field of pin 0)
-\item Set the pin to alternate function mode: \register{P1SEL[0]} = 1
+	\item Write the initial level to \register{PxOUT}[y].
+	\item Clear \register{PxSEL}[y].
+	\item Set \register{PxDIR}[y].
 \end{enumerate}
 
-Some pins with alternate functions may only be used as inputs by the peripheral. For example, timer capture pins like \pin{T0CAP0} must be manually configured as inputs in \register{PxDIR} before use, even when \register{PxSEL[y]} is set to enable the alternate function.
+\subsection{Routing a peripheral output to an alternate pin}
 
-\subsubsection{Relocatable Peripheral Inputs}
-
-Peripheral \emph{input} functions (for example UART receivers, timer captures, and the I2C data/clock lines) that appear at more than one pin observe the pad selected by \register{PxAFS} \emph{regardless of} \register{PxSEL}, mirroring the always-visible behavior of \register{PxIN}: a peripheral input is routed from a pin whenever that pin's \register{PxAFS} field selects the function's AF plane, and from its home (AF0) pin otherwise. If the same input function is selected at more than one pin simultaneously, a fixed priority applies: candidate locations are checked in a fixed order (the newest alternate location first, then the older alternate, then home; the pin function tables in Section \ref{s:pinsConfig} list each function's locations), and the highest-priority selected pin sources the input. Selecting the same input on two pins at once is a software configuration error; the priority merely makes the outcome deterministic. Because input routing ignores \register{PxSEL}, a pin can be left in GPIO output mode while its \register{PxAFS} field routes the pad into a peripheral input, a useful software loopback for self-test.
-
-Note that output functions may be mapped to (and driven on) multiple pins simultaneously by selecting the function's plane on each pin; each pin's mux is independent.
-
-
-
-\subsection{Pin Interrupts}
-
-The VestaRV GPIO implementation provides individual interrupt outputs for each GPIO pin. Each pin can generate an interrupt independently, allowing for flexible interrupt handling through the system's interrupt vector table. Pin interrupts remain available in alternate function mode in addition to any interrupts the governing peripheral may generate.
-
-To enable interrupts on a pin:
 \begin{enumerate}
-\item Unmask the corresponding GPIO pin interrupt in the system interrupt controller
-\item Set \register{PxIE[y]} to 1 for the desired pin Px.y
-\item Configure the interrupt edge using \register{PxIES[y]}: 0 for low-to-high (rising edge), 1 for high-to-low (falling edge)
+	\item Write the function's plane number to field $y$ of \register{PxAFS}.
+	\item Set \register{PxSEL}[y].
 \end{enumerate}
 
-When the pin Px.y experiences the edge selected by \register{PxIES[y]} while \register{PxIE[y]} is enabled, the interrupt flag \register{PxIF[y]} is immediately set to 1 and the corresponding pin-specific ISR is executed. The interrupt flag must be cleared by writing 1 to \register{PxIF[y]} before the ISR returns, otherwise the interrupt will re-trigger.
+\subsection{Enabling a pin interrupt}
 
-\textbf{Important:} Modifying \register{PxIES[y]} while \register{PxIE[y]} is enabled may immediately generate a spurious interrupt. Always disable the pin interrupt (\register{PxIE[y]} = 0) before changing \register{PxIES[y]}.
+\begin{enumerate}
+	\item Clear \register{PxIE}[y].
+	\item Write the edge to \register{PxIES}[y].
+	\item Write 1 to \register{PxIF}[y] to discard any stale flag.
+	\item Enable the pin's vector in the hart's \peripheral{IRQROUTER} row.
+	\item Set \register{PxIE}[y].
+\end{enumerate}
 
-The \register{PxIF} register is also latched on the falling edge of the memory enable signal to ensure stable readings during interrupt service routines.
+\section{Usage notes}
+
+\paragraph{Disable the pin interrupt before changing its edge.} Writing \register{PxIES}[y] while \register{PxIE}[y] is set can raise a spurious interrupt, because the edge detector sees the selection change as an edge.
+
+\paragraph{Clear \register{PxIF}[y] with a 1 before returning.} The interrupt is a level; a handler that returns with the flag set is re-entered.
+
+\paragraph{Configure capture pins as inputs in \register{PxDIR}.} A timer capture input is governed by \register{PxDIR} on every plane, so setting \register{PxSEL}[y] alone does not make the pad an input.
+
+\paragraph{Select an input function on one pin only.} The priority among several selected pins is fixed and makes the error deterministic, not correct.
+
+\paragraph{Use the set, clear and toggle registers from shared code.} A read-modify-write of \register{PxOUT} from two harts loses one of the two updates.

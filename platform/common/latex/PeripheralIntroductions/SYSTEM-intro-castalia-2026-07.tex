@@ -1,113 +1,111 @@
-The \peripheral{SYSTEM} peripheral manages a potpourri of system-level blocks, including the MCU clocks, the watchdog timer, and a CRC data verification module.
+% SYSTEM chapter. Section order is the per-peripheral template enforced by
+% python/check_intro_names.py. The clock tree figure and source description
+% live in CLOCKTREE-castalia.tex (the consolidated reset/clocks/power
+% chapter); this chapter keeps the register-level clock control.
+\section{Overview}
 
-Its effects are global (MCLK clocks all harts and SMCLK clocks the peripherals), so by convention only hart 0 (the management hart) reconfigures the clocks, after quiescing the other harts. Interrupt routing, masking and delivery are \textbf{not} managed here: every hart, hart 0 included, enables peripheral interrupts through its \peripheral{IRQROUTER} row and takes them via the claim/complete mechanism, and the \peripheral{CLINT} software/timer interrupts (vectors 83 and 84) are hardwired enabled in every hart. (The single-core chip's \register{IRQENx}/\register{IRQPRIx}/\register{IRQCR} registers are retired; their register slots are reserved and read as zero.)
+The \peripheral{SYSTEM} peripheral groups the chip-level control blocks: the clock tree roots and dividers, the memory block power gates, a CRC16 accumulator and the watchdog timer. Its effects are global (MCLK clocks all harts and SMCLK clocks the peripherals), so by convention only hart 0 reconfigures the clocks, after quiescing the other harts.
 
-\subsection{System Clocks and Clock Management} \label{ss:clocks}
-The MCU has four clock sources: HFXT, LFXT, DCO0, and DCO1. HFXT and LFXT are external clock sources, which must be provided to the MCU on the \pin{HFXT} and \pin{LFXT} pin functions (Section \ref{s:pinsConfig}), respectively. DCO0 and DCO1 are internal, programmable frequency clock sources provided by digitally controllable oscillator circuits.
+\begin{itemize}
+	\item Source selection and enables for MCLK and SMCLK (\register{SYSCLKCR}), dividers for both (\register{CLKDIVCR}), and bias control of the two on-chip oscillators (\register{DCO0BIAS}, \register{DCO1BIAS})
+	\item Power gates in \register{BLOCKPWR} for the ROM, the per-hart memory blocks and the first four shared RAM banks
+	\item CRC16-CDMA2000 accumulator (\register{CRCDATA}, \register{CRCSTATE})
+	\item 24-bit watchdog with sixteen timeouts, password-protected control, optional interrupt and hardware reset (\register{WDTCR}, \register{WDTPASS}, \register{WDTSR}, \register{WDTVAL})
+	\item One interrupt: watchdog timeout, vector 0
+\end{itemize}
 
-The \AsicNameForUserGuide{} MCU is designed and characterised for operation with a maximum clock frequency of 24~\si{\mega\hertz}. HFXT should therefore not exceed 24~\si{\mega\hertz}. LFXT is suggested to be exactly 32.768~\si{\kilo\hertz} to provide an accurate method of measuring time. The frequencies of DCO0 and DCO1 are configured with the \register{DCO0BIAS} and \register{DCO1BIAS} registers; higher bias values produce higher frequencies.
+Interrupt routing is not managed here: every hart enables peripheral interrupts through its \peripheral{IRQROUTER} row, and the \peripheral{CLINT} vectors are hardwired into every hart. The register slots of the single-core chip's vectored interrupt controller (\register{IRQENx}, \register{IRQPRIx}, \register{IRQCR}) are reserved and read as zero.
 
-\textbf{Note on overclocking:} It is possible to operate the \AsicNameForUserGuide{} MCU beyond 24~\si{\mega\hertz} by supplying a higher-frequency signal on the \pin{HFXT} pin function or by configuring the internal DCOs to produce frequencies above 24~\si{\mega\hertz}. As with any digital circuit operated beyond its rated frequency, doing so may produce setup-time violations, incorrect computational results, and unpredictable behaviour. Operation above 24~\si{\mega\hertz} is \textbf{not guaranteed} and is undertaken entirely at the user's risk.
+\section{Functional description}
 
-Two clocks, the main clock (MCLK) and the submain clock (SMCLK), form the roots of the MCU clock tree, shown in Figure \ref{fig:mcu-clock-system}. \bitfield{SMCLKSEL} picks SMCLK's base from the four sources above. \bitfield{MCLKSEL} picks MCLK's from three of them and, on code \texttt{01}, from SMCLK itself: that input is taken after the SMCLK divider but \emph{before} the \bitfield{SMCLKOFF} gate, so a chip running MCLK out of SMCLK keeps its main clock when SMCLK is switched off for the peripherals. Either clock may then be divided again with \register{CLKDIVCR}. MCLK drives all \NumHartsWord{} harts, the multi-core arbiter and the always-on blocks, while SMCLK drives the serial engines of most peripherals; the register interface of every peripheral is clocked from MCLK, so a peripheral stays readable with SMCLK stopped. Both clocks use glitch-free multiplexers to prevent spurious transitions when switching sources.
+\subsection{Clock control} \label{ss:clocks}
 
-MCLK cannot be turned off, but SMCLK and individual source clocks can be independently disabled via \register{SYSCLKCR}. DCO0 and DCO1 are off by default and must be explicitly powered on by setting \bitfield{DCO0ON} or \bitfield{DCO1ON}. HFXT and LFXT are enabled by default and may be disabled with \bitfield{HFXTOFF} and \bitfield{LFXTOFF}. If a source clock is currently selected by MCLK or SMCLK, that source will be automatically kept enabled regardless of its disable bit in \register{SYSCLKCR}.
+The clock tree, its four sources and the clock state at reset and after boot are described in the Reset, clocks and power chapter (Section \ref{s:clocktree}). \register{SYSCLKCR} holds the root selects and the source enables: \bitfield{MCLKSEL} and \bitfield{SMCLKSEL} pick the source of each root, \bitfield{SMCLKOFF} stops SMCLK, \bitfield{HFXTOFF} and \bitfield{LFXTOFF} stop the external sources, and \bitfield{DCO0ON} and \bitfield{DCO1ON} start the on-chip oscillators. A source selected by either root stays enabled regardless of its enable bit, so the running clock cannot be stopped by mistake. \register{CLKDIVCR} divides each root after its multiplexer, and \register{DCO0BIAS} and \register{DCO1BIAS} set the oscillator frequencies. Both root multiplexers are glitch-free, so a source change while running produces no runt pulse.
 
-\begin{figure}[htpb]
+Because MCLK clocks every hart and SMCLK clocks the peripheral engines, writing \register{SYSCLKCR} or \register{CLKDIVCR} changes the timing of all \NumHartsWord{} harts and every serial peripheral at once. Reducing the MCLK frequency, through the divider, a slower source or a lower DCO bias, is the main lever on dynamic power.
+
+\subsection{Memory block power} \label{ss:system-blockpwr}
+
+\register{BLOCKPWR} gates the supply of the ROM (\bitfield{SYSROMOFF}), the two per-hart memory blocks (\bitfield{SYSRAM0OFF}, \bitfield{SYSRAM1OFF}) and the first four shared RAM banks individually (\bitfield{SYSSHB0OFF} to \bitfield{SYSSHB3OFF}); banks beyond the fourth are permanently powered. A gated block reduces leakage and loses its contents, because the gate disconnects the array's supply rail and there is no retention; an access to a gated block returns undefined data. All blocks power up on at reset, and the contents of a block that has been gated are undefined until written.
+
+\subsection{Hart sleep} \label{ss:sleep}
+
+Each hart can stop its own clock with the \asminline{sleep} instruction, which reduces that hart's dynamic power to zero while the peripherals and the other harts continue. A sleeping hart is woken only by an interrupt (a \peripheral{CLINT} software or timer interrupt, or a peripheral interrupt routed to it) or by reset. On an interrupt the clock is re-enabled for the handler; when every pending interrupt has been serviced the hart returns to sleep, unless a handler executed the \asminline{wake} instruction, in which case the hart stays awake and continues after the \asminline{sleep}. The average power of a duty-cycled hart is its running power scaled by $t_\textrm{on} / (t_\textrm{on} + t_\textrm{off})$.
+
+\subsection{CRC accumulator}
+
+The CRC module computes CRC16-CDMA2000 over a byte sequence: width 16, polynomial \texttt{0xC857}, initial value \texttt{0xFFFF}, no input or output reflection, no output XOR. \register{CRCSTATE} holds the running value and \register{CRCDATA} accepts one byte per write.
+
+\subsection{Watchdog}
+
+The watchdog is a 24-bit counter that increments on every MCLK cycle while \bitfield{SYSWDTEN} is set. \bitfield{SYSWDTCDIV} selects which counter bit, 16 to 31, raises the event on its 0-to-1 transition, so the timeout is $2^{\bitfield{SYSWDTCDIV} + 16}$ MCLK cycles: at 24 MHz from about 2.73 \si{\milli\second} to about 89.5 \si{\second}. On the event, \bitfield{SYSWDTIF} is set; if \bitfield{SYSWDTIE} is set and vector 0 is routed to some hart, the interrupt is delivered through the \peripheral{IRQROUTER} and, if \bitfield{SYSWDTHWRST} is also set, the chip resets after that hart completes the claim. If the interrupt is disabled or unrouted, the chip resets immediately on the event when \bitfield{SYSWDTHWRST} is set.
+
+\register{WDTCR} is write-protected: a write of the unlock password \texttt{\WdtUnlockPassword} to \register{WDTPASS} opens a 64-MCLK-cycle window in which \register{WDTCR} accepts a write, so that a runaway program cannot disable the watchdog by chance. A write of the clear password \texttt{\WdtClearPassword} to \register{WDTPASS} resets the counter to zero. \bitfield{SYSWDTRF} in \register{WDTSR} records that the last reset was caused by the watchdog and survives reset. \register{WDTVAL} reads the counter, or zero while the watchdog is disabled.
+
+\section{Interrupts and events}
+
+Table \ref{t:system-irq} lists the one vector.
+
+\begin{table}[htb]
 	\centering
-	\resizebox{\linewidth}{!}{\input{include/ClockSystemDiagram.tex}}
-	\caption[{MCU clock system}]{The MCU clock system, generated from this configuration. The layout is a mirror: the sources stand in one column, in the order \bitfield{SMCLKSEL} enumerates them, the SMCLK chain runs left out of that column and down into its own bar, and the MCLK chain runs right out of it and up into its own, so every source leg is a straight horizontal at its own row. Each select box prints \emph{every} code it has, with the name of what that code picks, and those rows are built from the register model itself rather than drawn by hand. One code is not a source: \bitfield{MCLKSEL}~01 takes SMCLK, tapped after the SMCLK divider and \emph{before} the \bitfield{SMCLKOFF} gate, which is why stopping SMCLK never stops MCLK; it is the one wire in the drawing that has to leave its row, and it hops the legs it crosses rather than touching them. A source that either select is using stays enabled whatever its own bit says. Every block on a bar taps it straight up or straight down; the sleep gate is drawn where the hardware puts it, inside each core, so the stack of \NumHartsWord{} harts is a stack of \NumHartsWord{} gates. A block with a select of its own names every code it has and taps the two bars it can reach, so the crystal sources it may also pick are named in its box rather than drawn as two more wires across the page. The blocks under \emph{Independent Domains} are on neither bar: they are clocked from outside this tree entirely, and \register{SYSCLKCR} does not reach them. The register interface of every peripheral is clocked from MCLK even where its engine runs on SMCLK, which is why a peripheral stays readable with SMCLK stopped.}
-	\label{fig:mcu-clock-system}
-\end{figure}
+	\caption{\peripheral{SYSTEM} interrupt vector.}
+	\label{t:system-irq}
+	\begin{tabular}{ l p{4.6cm} p{3.4cm} p{4.4cm} }
+	\textbf{Vector} & \textbf{Condition} & \textbf{Set by} & \textbf{Cleared by} \\ \hline
+	0 & Watchdog timeout & \bitfield{SYSWDTIF} & Writing 1 to \bitfield{SYSWDTIF} \\
+	\hline
+	\end{tabular}
+\end{table}
 
+\section{Programming}
 
+\subsection{Selecting the clock sources}
 
-\subsection{Power Saving Features} \label{ss:power-saving}
-The MCU has several power-saving features.
+\begin{enumerate}
+	\item Quiesce the other harts, because the change reaches every hart.
+	\item Set \register{SYSCLKCR}.\bitfield{DCO0ON} or \register{SYSCLKCR}.\bitfield{DCO1ON} if a DCO is to be used, and write its bias register.
+	\item Write \register{CLKDIVCR}.\bitfield{SYSMCLKDIV} and \register{CLKDIVCR}.\bitfield{SYSSMCLKDIV}.
+	\item Write \register{SYSCLKCR}.\bitfield{SMCLKSEL}.
+	\item Write \register{SYSCLKCR}.\bitfield{MCLKSEL}.
+	\item Set \register{SYSCLKCR}.\bitfield{HFXTOFF} or \register{SYSCLKCR}.\bitfield{LFXTOFF} for any source no longer needed.
+\end{enumerate}
 
-The CPU is the most power-hungry part of the MCU, and its dynamic power consumption is proportional to the CPU clock frequency. Reducing the frequency of MCLK is the primary avenue for reducing total dynamic power consumption. This can be done by utilising the MCLK clock divider in \register{CLKDIVCR}, by switching MCLK to a lower-frequency source via \bitfield{MCLKSEL}, or by reducing the frequency of the currently-selected source. The internal DCOs offer a wide range of programmable frequencies through their bias settings and can be used as a low-power clock source when HFXT is disabled.
+\subsection{Computing a CRC}
 
-Another method to save power is to turn off unused clocks. Remember, however, that HFXT is the reset selection of both \bitfield{MCLKSEL} and \bitfield{SMCLKSEL}, so a valid clock signal is required on the \pin{HFXT} pin function while the MCU boots. Failure to provide one may cause the chip to boot improperly, or not at all: the board must therefore hold the external oscillator driving \pin{HFXT} enabled across reset, rather than gating it from a pin the MCU itself only drives after boot. After boot, the user may switch MCLK to another source and then safely disable \pin{HFXT}.
+\begin{enumerate}
+	\item Write \texttt{0xFFFF} to \register{CRCSTATE}.
+	\item Write each byte, in order, to \register{CRCDATA}.
+	\item Read the result from \register{CRCSTATE}.
+\end{enumerate}
 
-The static (leakage) power can be reduced by powering off unused on-chip memory blocks with \register{BLOCKPWR}. The ROM and RAM blocks include power-gating circuitry that physically disconnects their supply rail. The ROM can be powered down by setting \bitfield{SYSROMOFF}, and the block RAMs by setting \bitfield{SYSRAM0OFF} and \bitfield{SYSRAM1OFF}, respectively. In addition, \register{BLOCKPWR} gates the first four shared bulk-RAM banks (banks 0--3) individually, one bit per bank, so unused banks may be powered down while the bank holding live stack or payload data stays on; any bank beyond the fourth is permanently powered. Each powered-down block or bank reduces leakage. Any access to a powered-down block or bank will fail and produce undefined results. All blocks and banks power up on at reset, and the entire contents of a RAM block or bank are lost when it is powered down (there is no retention), so data are undefined when it is powered back on until explicitly overwritten. Care must be taken to track the power state of each block and bank, and to keep at least the bank in active use powered, to avoid undefined behaviour.
+\subsection{Starting the watchdog}
 
+\begin{enumerate}
+	\item Route vector 0 to the servicing hart in its \peripheral{IRQROUTER} row if the interrupt is wanted.
+	\item Write \texttt{\WdtUnlockPassword} to \register{WDTPASS}.
+	\item Write \register{WDTCR} with \bitfield{SYSWDTCDIV}, \bitfield{SYSWDTIE}, \bitfield{SYSWDTHWRST} and \bitfield{SYSWDTEN} set in the same write, within 64 MCLK cycles of the unlock.
+	\item Write \texttt{\WdtClearPassword} to \register{WDTPASS} periodically, within the timeout.
+\end{enumerate}
 
+\subsection{Putting a hart to sleep}
 
-\subsection{CPU Sleep Mode} \label{ss:sleep}
+\begin{enumerate}
+	\item Set a valid stack pointer, because interrupt entry stores to it.
+	\item Enable the wake source's vector in the hart's interrupt controller.
+	\item Execute \asminline{sleep}.
+	\item In the handler, execute \asminline{wake} before returning if the hart is to stay awake.
+\end{enumerate}
 
-Another way to conserve power is to run the CPU only when needed and switch it off when idle. Because the CPU accounts for the majority of dynamic power, duty-cycling its clock can yield significant savings. Peripherals can continue to operate while the CPU sleeps and may wake it when events occur. Long-term average CPU power is:
-$$P_\textrm{CPU} = P_\textrm{CPU,\,100\%} \times \frac{t_\textrm{on}}{t_\textrm{on} + t_\textrm{off}}$$
+\section{Usage notes}
 
-Sleep mode is per hart: each hart can execute the custom \asminline{sleep} instruction independently, which gates off that hart's CPU clock and reduces its dynamic power to zero. A sleeping hart can only be woken by an interrupt (typically a \peripheral{CLINT} software interrupt or a peripheral interrupt routed to it through the \peripheral{IRQROUTER}) or a system reset. When an interrupt fires, the CPU clock is re-enabled for the duration of that interrupt service routine (ISR). Once all pending interrupts have been serviced the CPU returns to sleep, unless one of the ISRs executed the custom \asminline{wake} instruction, in which case the CPU remains awake and returns to the point in the main program where it went to sleep.
+\paragraph{Reconfigure the clocks from hart 0 only, with the other harts quiesced.} \register{SYSCLKCR} and \register{CLKDIVCR} change the clock of every hart and every peripheral engine at once.
 
-A code example to put the CPU to sleep is included in Listing \ref{lst:sleep}.
+\paragraph{Keep HFXT running across reset.} Both roots select HFXT at reset; a board that gates the oscillator from a chip-driven pin does not boot.
 
-\begin{lstlisting}[style=customC, label=lst:sleep, caption={Example program to use CPU sleep mode}]
-/** Includes **/
-#include <MemoryMap.h>
-#include <irq.h>
+\paragraph{Select the SMCLK source before using an SMCLK-domain peripheral.} The boot ROM may leave SMCLK on LFXT (32.768 kHz).
 
-/** Interrupt Service Routine Declaration Macros **/
-RVISR(IRQ_TIMER1_VECTOR, ISR_TIMER1)
+\paragraph{Keep the bank in use powered.} A gated shared RAM bank or memory block loses its contents and returns undefined data; track which banks hold live stack or payload data before writing \register{BLOCKPWR}.
 
-/** Main Function **/
-int main()
-{
-	// Set up TIMER1 here
+\paragraph{Write \register{WDTCR} in one access within the unlock window.} The window closes 64 MCLK cycles after the unlock password; a read-modify-write that straddles it is discarded.
 
-	// Enable interrupts by unmasking them
-	enable_all_interrupts();
-
-	// Go to sleep
-	cpu_sleep();
-
-	// Insert code to execute after ISR wakes the CPU
-
-	// Wait forever
-	while (1) {}
-}
-
-/** Interrupt Service Routines **/
-void ISR_TIMER1()
-{
-	// Do ISR processing here
-
-	// Wake the CPU
-	cpu_wake();
-}
-\end{lstlisting}
-
-
-
-\subsection{CRC Module}
-The CRC module enables the computation of a CRC16 checksum over an array of bytes. The checksum can be used to verify the integrity of data in a communication channel or in memory.
-
-The module implements the CRC16-CDMA2000 standard with the following parameters:
-\begin{itemize}
-\item CRC width: 16 bits
-\item Polynomial: \texttt{0xC857}
-\item Initial value: \texttt{0xFFFF}
-\item No output XOR
-\item No input reflection
-\item No output reflection
-\end{itemize}
-
-To compute a CRC over a byte array, first write \texttt{0xFFFF} to \register{CRCSTATE} to initialise the accumulator. Then write each byte of the array sequentially to \register{CRCDATA}; each write updates the running CRC. After the last byte has been written, read \register{CRCSTATE} to obtain the final CRC16 value.
-
-
-
-\subsection{Watchdog Timer}
-
-The watchdog timer improves system reliability by automatically taking corrective action if software fails to service the watchdog within a configurable timeout period. The watchdog is controlled by \register{WDTCR}, which is write-protected and must be unlocked via \register{WDTPASS} before any configuration change.
-
-The watchdog uses a 24-bit up-counter that increments on every MCLK cycle when enabled via \bitfield{SYSWDTEN}. The timeout period is selected by \bitfield{SYSWDTCDIV}, which chooses which bit of the counter triggers the watchdog event. A watchdog event occurs on the 0-to-1 transition of the selected bit, giving a timeout of $2^{\texttt{WDTCDIV}+16}$ MCLK cycles. At 24~\si{\mega\hertz} the timeout ranges from approximately 2.73~\si{\milli\second} (\texttt{WDTCDIV = 0000}, bit 16) to approximately 89.5~\si{\second} (\texttt{WDTCDIV = 1111}, bit 31).
-
-On a watchdog event, the response depends on the configuration:
-\begin{itemize}
-  \item If \bitfield{SYSWDTIE} is set \textbf{and} the watchdog vector (vector 0) is routed to some hart in the \peripheral{IRQROUTER}, the watchdog interrupt is delivered through the claim/complete mechanism and the servicing hart executes its handler. If \bitfield{SYSWDTHWRST} is also set, the system resets after that hart completes the claim.
-  \item If \bitfield{SYSWDTIE} is clear, or vector 0 is not routed to any hart, the system resets immediately on timeout provided \bitfield{SYSWDTHWRST} is set.
-\end{itemize}
-
-To prevent timeout, software must periodically write the clear password (\texttt{\WdtClearPassword}) to \register{WDTPASS}, which resets the counter to zero. To modify \register{WDTCR}, first write the unlock password (\texttt{\WdtUnlockPassword}) to \register{WDTPASS}; this opens a 64-MCLK-cycle window during which \register{WDTCR} is writable.
-
-The \register{WDTSR} status register holds two sticky flags. \bitfield{SYSWDTRF} is set when the last system reset was caused by the watchdog and persists across resets; it is cleared by writing 1 to the bit. \bitfield{SYSWDTIF} is set when a watchdog timeout event occurs and is likewise cleared by writing 1. The current counter value is readable at any time from \register{WDTVAL}; the register reads as zero when the watchdog is disabled.
+\paragraph{Clear \bitfield{SYSWDTIF} with a 1 in the handler.} The interrupt is a level; with \bitfield{SYSWDTHWRST} set the chip resets after the claim is completed regardless.
