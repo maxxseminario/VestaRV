@@ -19,9 +19,10 @@
 # One rcf basename per line; blank lines and #-comments are ignored. Every entry
 # is 22 chars so that "../rcf/" + name is exactly the 29-char TEST_FILE generic.
 #
-# Staged per ~/vesta_docs/lockstep/v4_design.md §4.9/§4.10. Classification is by
-# MECHANISM, mechanically censused from the sources. The stage order is
-# simplest-first so that each stage adds ONE new piece of machinery.
+# Staged per ~/work/chip_docs/castalia/lockstep/v4_design.md §4.9/§4.10.
+# Classification is by MECHANISM, mechanically censused from the sources. The
+# stage order is simplest-first so that each stage adds ONE new piece of
+# machinery.
 #
 # WHAT LOCKSTEP DOES NOT PROVE HERE (v4_design.md §4.8 — read before quoting a
 # pass): each hart's own architectural stream is compared; inter-hart ORDERING,

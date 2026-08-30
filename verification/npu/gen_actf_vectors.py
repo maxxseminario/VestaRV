@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """gen_actf_vectors.py -- FROZEN golden-vector generator for the NPU ACTF
-activation mux (MODE=0/MLP, `~/vesta_docs/digperiphs/npu_actf_design.md`
-D9/D10, adjudicated 2026-07-23 with amendments A1/A2), built entirely on
-npu_fixed.py's validated, bit-exact MAC/sigmoid/activate model. Emits one
-case per design-doc GROUP into actf_vectors/, at the FROZEN MCU/chip
-generics:
+activation mux (MODE=0/MLP,
+`~/work/chip_docs/castalia/digperiphs/npu_actf_design.md` D9/D10, adjudicated
+2026-07-23 with amendments A1/A2), built entirely on npu_fixed.py's validated,
+bit-exact MAC/sigmoid/activate model. Emits one case per design-doc GROUP into
+actf_vectors/, at the FROZEN MCU/chip generics:
 
     X_M=0  W_M=7  Y_M=7  N=24  RHO=2      (Q0.24 in, Q7.24 weight/acc/out)
 

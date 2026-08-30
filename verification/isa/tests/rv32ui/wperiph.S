@@ -14,8 +14,8 @@
 # dispatcher is not armed here; the wound-config vectors 55/56/86-97 are
 # left unarmed on purpose).
 #
-# Register picks (see ~/vesta_docs/digperiphs -- qspi_spec.md / i3c_spec.md /
-# nfc_spec.md "Driver note" tables):
+# Register picks (see ~/work/chip_docs/castalia/digperiphs -- qspi_spec.md /
+# i3c_spec.md / nfc_spec.md "Driver note" tables):
 #   QSPI0ADR (0x4C08) -- plain 32-bit address-holding register; a write here
 #     never launches a transaction (only a QSPI0CMD write does, per the
 #     qspi_spec.md launch sequence) -- inert write/readback, pattern 0xA5.

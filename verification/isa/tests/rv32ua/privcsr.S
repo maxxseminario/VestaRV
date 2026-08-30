@@ -4,7 +4,8 @@
 # privcsr.S   (P1 standard M-mode trap CSR file — WARL / readback sweep)
 #-----------------------------------------------------------------------------
 # ON-ONLY DIRECTED TEST. Proves the ten P1 CSRs implemented in csr_unit.vhd
-# behave EXACTLY as frozen in ~/vesta_docs/priv_arch/p0_specs.md 2.1:
+# behave EXACTLY as frozen in
+# ~/work/chip_docs/castalia/priv_arch/p0_specs.md 2.1:
 #
 #   0x300 mstatus   MIE(3)/MPIE(7)/MPP(12:11 WARL {11}); every other bit reads 0
 #   0x310 mstatush  legal, read-zero / write-ignore

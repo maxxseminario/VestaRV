@@ -2105,11 +2105,11 @@ class McuVhdEmitter():
 		return self.evfabInsertTaps(lines, '            irq_trng    => irq_trng0,', 'trng0')
 
 	# ------------------------------------------------------------------
-	# digperiphs (EVFAB): the event/trigger fabric — page-2 sub-slot 11
-	# @0x6B00 — plus the whole producer/consumer crossbar wiring. The
-	# EVSEL/TASKSEL id tables below are the FROZEN ABI of
-	# ~/vesta_docs/digperiphs/event_fabric_spec.md §2/§3: (id, net, source
-	# block flag attribute, human note). A row whose block is absent from
+	# digperiphs (EVFAB): the event/trigger fabric — page-2 sub-slot 11 @0x6B00 —
+	# plus the whole producer/consumer crossbar wiring. The EVSEL/TASKSEL id tables
+	# below are the FROZEN ABI of
+	# ~/work/chip_docs/castalia/digperiphs/event_fabric_spec.md §2/§3: (id, net,
+	# source block flag attribute, human note). A row whose block is absent from
 	# the configuration TIES '0' (design-doc D23) — never left open.
 	# ------------------------------------------------------------------
 	EVFAB_GPIO_EV = 15		# EVFAB EV_GPIO_IDX generic: the event served by the GPIO0 front end

@@ -6,7 +6,7 @@
 # ON-ONLY DIRECTED TEST (needs a trapCsr+umode build). privcsr proves the P1 CSR
 # file and privecall proves P1 delivery; THIS file proves the P2 privilege
 # machinery in csr_unit + the ECALL cause mux in vesta, against
-# ~/vesta_docs/priv_arch/p0_specs.md §3 / §3.1:
+# ~/work/chip_docs/castalia/priv_arch/p0_specs.md §3 / §3.1:
 #
 #   misa.U (bit 20)        set iff ENABLE_UMODE — the program's ONE misa change
 #   mstatus.MPP WARL       {00,11}: a written 00 STAYS 00; the two UNSUPPORTED

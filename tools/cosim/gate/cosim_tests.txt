@@ -1,5 +1,5 @@
 # V2 lockstep sweep list — ELIGIBLE (104) + TRIAGE-EXPECTED (1) from
-# ~/vesta_docs/lockstep/v2_test_set.md sections 5 and 6.
+# ~/work/chip_docs/castalia/lockstep/v2_test_set.md sections 5 and 6.
 # One rcf basename per line; blank lines and #-comments ignored.
 rv32ua-p-amomaxu_w.rcf
 rv32ua-p-amominu_w.rcf

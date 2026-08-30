@@ -4,8 +4,8 @@
 # privirq.S   (P1 standard M-mode trap DELIVERY — INTERRUPTS through mtvec)
 #-----------------------------------------------------------------------------
 # ON-ONLY DIRECTED TEST, the interrupt half of the P1 delivery proof (privecall
-# is the exception half). Frozen contract, ~/vesta_docs/priv_arch/p0_specs.md
-# 2.2/2.3:
+# is the exception half). Frozen contract,
+# ~/work/chip_docs/castalia/priv_arch/p0_specs.md 2.2/2.3:
 #
 #   take iff  mstatus.MIE and (mip and mie) /= 0     (priority MEI > MSI > MTI)
 #   machine software irq (CLINT msip level) -> mcause 0x80000003, mtval 0,

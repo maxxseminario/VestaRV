@@ -8330,7 +8330,7 @@ class LatexUserGuide():
 	# SOURCES — do not edit these from memory of the RTL:
 	#   hdl/common/jtag_dtm.vhd       (TAP table, IR/DR, the crossing, idle)
 	#   hdl/common/debug_module.vhd   (DMI map, the entry page, THE PLANT)
-	#   ~/vesta_docs/d_series/d3_spec.md, d3_cdc_spec.md, d4_spec.md
+	#   ~/work/chip_docs/castalia/d_series/d3_spec.md, d3_cdc_spec.md, d4_spec.md
 	# -----------------------------------------------------------------
 
 	def GenerateDebugStackDiagram(self):

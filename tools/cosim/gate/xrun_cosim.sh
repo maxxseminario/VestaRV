@@ -1078,7 +1078,8 @@ participation_of() {
 # window a launched tile has to boot from the shared ROM, take its msip ISR and
 # copy its image before hart 0 ends the sim; measured at ~1,011 cycles against a
 # 32,768-cycle copy in shmem_mp (8.0 cycles/word x 4096, MEASURED), i.e. ~32x
-# short -- finding T1 in ~/vesta_docs/lockstep/rtl_findings.md. n/a = launched nobody.
+# short -- finding T1 in ~/work/chip_docs/castalia/lockstep/rtl_findings.md. n/a
+# = launched nobody.
 launch_margin_audit() {
     local tr="$1" out="$2"
     printf 'n/a\t-\t-\t-\n' > "$out" 2>/dev/null || return 0

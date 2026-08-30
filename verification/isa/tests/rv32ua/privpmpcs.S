@@ -4,7 +4,8 @@
 # privpmpcs.S   (P3 PMP CSR bank — WARL / readback / LOCK sweep)
 #-----------------------------------------------------------------------------
 # ON-ONLY DIRECTED TEST. Proves the twenty P3 CSRs implemented in csr_unit.vhd
-# behave EXACTLY as frozen in ~/vesta_docs/priv_arch/p0_specs.md 4 / 4.1:
+# behave EXACTLY as frozen in
+# ~/work/chip_docs/castalia/priv_arch/p0_specs.md 4 / 4.1:
 #
 #   0x3A0-0x3A3 pmpcfg0-3    four packed entry cfg BYTES each
 #                            (entry 4n+j = bits 8j+7 downto 8j)

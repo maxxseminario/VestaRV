@@ -185,12 +185,12 @@ flow and otherwise appear as raw macro source in the figure.
 
 ## Web data export
 
-Every generation emits **`out/web/chip_data.js`**, a single
-`const VESTA_DATA = { … };` bundle so the web tooling — `../docs/chip_configurator.html`
-and a future register browser — can **consume the generator instead of transcribing it**
-(the old configurator carried a hand-copied second source of truth; see
-`~/vesta_docs/vesta_showcase/audit_findings.md` §4.1). It is written by
-`python/web_export.py`, wired into `ChipGenerator.Generate()` next to
+Every generation emits **`out/web/chip_data.js`**, a single `const VESTA_DATA =
+{ … };` bundle so the web tooling — `../docs/chip_configurator.html` and a
+future register browser — can **consume the generator instead of transcribing
+it** (the old configurator carried a hand-copied second source of truth; see
+`~/work/chip_docs/castalia/vesta_showcase/audit_findings.md` §4.1). It is
+written by `python/web_export.py`, wired into `ChipGenerator.Generate()` next to
 `generateMemoryMapJson`, and is deterministic (no timestamps). Top-level keys:
 
 | Key | Contents |

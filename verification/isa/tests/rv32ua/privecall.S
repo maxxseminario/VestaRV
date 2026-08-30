@@ -6,7 +6,7 @@
 # ON-ONLY DIRECTED TEST. privcsr proves the CSR FILE; this file proves the
 # DELIVERY hardware in vesta's FSM (states MTRAP_SV -> MTRAP_JUMP, and the MRET
 # arm MTRAP_RET) against the frozen cause table in
-# ~/vesta_docs/priv_arch/p0_specs.md 2.2:
+# ~/work/chip_docs/castalia/priv_arch/p0_specs.md 2.2:
 #
 #   ECALL from M          -> mcause 11, mtval 0, mepc = the ECALL's OWN pc
 #   EBREAK                -> mcause  3, mtval 0, mepc = its own pc

@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """gen_xnor_vectors.py -- golden-vector generator for the NPU XNOR/popcount
-binary mode (digperiphs P4.2, `~/vesta_docs/digperiphs/npu_family_spec.md`
-D6/D9/D17 -- SPEC-FROZEN bit-level semantics; the file-format details below
-are marked PROVISIONAL and await the design doc).
+binary mode (digperiphs P4.2,
+`~/work/chip_docs/castalia/digperiphs/npu_family_spec.md` D6/D9/D17 --
+SPEC-FROZEN bit-level semantics; the file-format details below are marked
+PROVISIONAL and await the design doc).
 
 XNOR is a NEW datapath (no MAC, no sigmoid -- D9): this file does NOT
 import npu_fixed.py (that library is the FPMac/FPSigmoid MLP/CONV/GEMM

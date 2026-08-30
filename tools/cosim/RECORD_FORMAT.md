@@ -723,12 +723,12 @@ Amendments are numbered, dated, and never silently rewrite frozen semantics.
       the ghost census cannot explain.
 
   (c) **The full remedy is formal, not comparative.** `resv_unit`'s adjudication
-      is the thing being taken as true, and the durable fix is to prove it rather
-      than to sample it — the **`resv_unit` properties** step on the core-RTL
-      roadmap (`~/vesta_docs/core_rtl_roadmap.md`). Lockstep structurally cannot
-      supply it: §4.8's "atomicity is taken as true" is a statement about the
-      method, not about this implementation. Cross-referenced here so the gap has
-      an owner.
+      is the thing being taken as true, and the durable fix is to prove it
+      rather than to sample it — the **`resv_unit` properties** step on the
+      core-RTL roadmap (`~/work/chip_docs/castalia/core_rtl_roadmap.md`).
+      Lockstep structurally cannot supply it: §4.8's "atomicity is taken as
+      true" is a statement about the method, not about this implementation.
+      Cross-referenced here so the gap has an owner.
   Scale, measured: `shcount` hart 0 issued **29,096** loads at `0x10080` for
   **64** committed increments, so ~29,000 `F` records for one hart of one test.
 
@@ -787,11 +787,11 @@ somewhere, which is the one failure mode of the whole design (`v4_design.md`
   R 00 0003ce05 00008374 0002a383 07 0000115c     <- lw from the same address
   M 00 0003ce05 L 0001000c 4 0000115c             <- reads the OLD word back
   ```
-  and at the other site the `0000dead` "store" to `00010044` is never observed by
-  anyone: hart 1 later writes `01c0ffee` there and reads back `01c0ffee`.
+  and at the other site the `0000dead` "store" to `00010044` is never observed
+  by anyone: hart 1 later writes `01c0ffee` there and reads back `01c0ffee`.
   **Memory was not modified. This is NOT a silicon bug** — see
-  `~/vesta_docs/lockstep/rtl_findings.md` finding T2 for the tracer-limitation
-  note.
+  `~/work/chip_docs/castalia/lockstep/rtl_findings.md` finding T2 for the
+  tracer-limitation note.
 
   **The rule.** An `M … S` that immediately follows an `sc.w` retire whose `rd`
   is nonzero is **DROPPED from the compared stream**, because it describes a write

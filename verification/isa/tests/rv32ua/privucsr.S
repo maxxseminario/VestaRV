@@ -7,7 +7,7 @@
 # privilege ROUND TRIP; this file proves the U-mode DECODE GATE in maindec —
 # every privileged thing a U-mode program can reach must take the
 # illegal-instruction trap (mcause 2) at its OWN pc, per
-# ~/vesta_docs/priv_arch/p0_specs.md §3 / §3.1:
+# ~/work/chip_docs/castalia/priv_arch/p0_specs.md §3 / §3.1:
 #
 #   csr_addr(9:8) /= "00"   ONE comparator covering every machine (0x3xx/0xBxx/
 #                           0xFxx) and custom (0x7C0 mtrapctl) CSR — reads AND
