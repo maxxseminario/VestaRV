@@ -169,7 +169,7 @@ Stdlib only — no external dependencies, no network, no Xcelium, no Cadence env
 | code | meaning | runner action |
 |---:|---|---|
 | **0** | **match.** Either both streams ended together, or the `--max-records` bound was reached with no divergence. | PASS |
-| **1** | **divergence.** A compared field differs; **or** an RTL `T` record (trap entry) was reached — in V2 that is a control-flow divergence, because Spike's commit log carries no trap information at all (`RECORD_FORMAT.md` §4); **or** the entry PC is never reached on one side. | DIVERGE — triage per D5, log in `~/vesta_docs/lockstep/divergences.md` |
+| **1** | **divergence.** A compared field differs; **or** an RTL `T` record (trap entry) was reached — in V2 that is a control-flow divergence, because Spike's commit log carries no trap information at all (`RECORD_FORMAT.md` §4); **or** the entry PC is never reached on one side. | DIVERGE — triage per D5, log in `~/work/chip_docs/castalia/lockstep/divergences.md` |
 | **2** | **RTL stream exhausted early** — every record matched, then the RTL trace ended while Spike continued. | see *The exit-2 question* below |
 | **3** | **Spike stream exhausted while the RTL continues.** **NEVER success.** A trapping instruction makes Spike print *no* line and then terminate with `rc=0` and no diagnostic (`RECORD_FORMAT.md` §4, `v0_report.md` §10.3), so a truncated log is the *normal shape* of an illegal-instruction or unmapped-access divergence. | DIVERGE / INVESTIGATE |
 | **4** | **an Amendment-A5 x-corrupted record was reached** inside the compared window. A literal `x` nibble means the tracer sampled a non-0/1 `std_logic` rather than inventing a value. Never a match, never silently skipped. | INVESTIGATE |
@@ -342,4 +342,5 @@ skipped with a `SKIP` line when the artifacts are absent.
   objdump declines to decode and this decoder does (correctly — e.g. the Zba
   `sh1add` that objdump's default `-march` rejects).
 * **Interrupts, MMIO and multi-hart are out of scope** (V3/V4). The V2 test set
-  is `~/vesta_docs/lockstep/v2_test_set.md` — 104 ELIGIBLE, 1 TRIAGE-EXPECTED.
+  is `~/work/chip_docs/castalia/lockstep/v2_test_set.md` — 104 ELIGIBLE, 1
+  TRIAGE-EXPECTED.

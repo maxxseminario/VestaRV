@@ -4,10 +4,10 @@ P1 trap-CSR file negative control — seeded-bug repro (Agent A, 2026-07-28)
 Seed: p1_mepcwarl_seed.patch DROPS the mepc bit-0 WARL mask in
 hdl/common/vesta/csr_unit.vhd — mepc_r widens to (31 downto 0), the CSR write
 arm stores csr_new_val(0), and the read arm returns the stored bit instead of a
-hardwired '0'. Spec (~/vesta_docs/priv_arch/p0_specs.md §2.1) requires mepc bit0
-to be ALWAYS 0 (bit1 writable iff ENABLE_COMPRESSED). This is the kickoff §3b
-class-4 bug (readback incompleteness): a field that stores more than the spec
-allows.
+hardwired '0'. Spec (~/work/chip_docs/castalia/priv_arch/p0_specs.md §2.1)
+requires mepc bit0 to be ALWAYS 0 (bit1 writable iff ENABLE_COMPRESSED). This is
+the kickoff §3b class-4 bug (readback incompleteness): a field that stores more
+than the spec allows.
 
 privcsr CHECK 19 writes 0xDEADBEEF to mepc and requires the readback 0xDEADBEEE;
 CHECK 20 writes 0x00008001 and requires 0x00008000. With the seed both read the

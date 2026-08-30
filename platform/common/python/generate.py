@@ -1007,7 +1007,7 @@ _LIBRARY_TAIL_SPEC = [
 	# DP-SG (2026-07-22): vector 120 = NPU think-done, gated by the EXISTING
 	# peripherals.npu knob (no new schema key — npu_irq_spec.md). 121 = TRNG0
 	# (digperiphs TRNG, 2026-07-22), gated by the new peripherals.trng knob.
-	# See ~/vesta_docs/digperiphs/irq_budget_phase0.md §1.
+	# See ~/work/chip_docs/castalia/digperiphs/irq_budget_phase0.md §1.
 	('npu_thinkdone', npuPresent, 1),  # vector 120  (NPU0 think-done, DP-SG Part A)
 	('trng', trngPresent, 1),          # vector 121  (TRNG0 combined data-ready/alarm)
 	('i2ctarget', i2ctargetPresent, 2),  # vectors 122, 123  (I2CT0_AE, I2CT0_DATA)

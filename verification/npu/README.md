@@ -111,9 +111,9 @@ The full target map is in [`BAZEL.md`](../../BAZEL.md).
 
 - **`gen_xnor_vectors.py`** — **PENDING-DESIGN-DOC (file format only).** Golden-vector
   generator for the NPU XNOR/popcount binary mode (digperiphs P4.2,
-  `~/vesta_docs/digperiphs/npu_family_spec.md` D6/D9/D17). Unlike the conv
-  generator, this is a **new, standalone datapath** — no MAC, no sigmoid,
-  no dependency on `npu_fixed.py` — implementing exactly the frozen
+  `~/work/chip_docs/castalia/digperiphs/npu_family_spec.md` D6/D9/D17). Unlike
+  the conv generator, this is a **new, standalone datapath** — no MAC, no
+  sigmoid, no dependency on `npu_fixed.py` — implementing exactly the frozen
   bit-level contract:
   ```
   value_n = 2*popcount(XNOR(a, w_n)) - K     (LSB-first packing, tail-masked)

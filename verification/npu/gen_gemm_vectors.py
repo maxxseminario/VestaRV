@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""gen_gemm_vectors.py -- FROZEN golden-vector generator for the NPU GEMM
-mode (MODE=3, `~/vesta_docs/digperiphs/npu_gemm_design.md` D2/D10, adjudicated
-2026-07-23), built entirely on npu_fixed.py's validated, bit-exact MAC model.
-Emits one case per design-doc case roster into gemm_vectors/, at the FROZEN
-MCU/chip generics:
+"""gen_gemm_vectors.py -- FROZEN golden-vector generator for the NPU GEMM mode
+(MODE=3, `~/work/chip_docs/castalia/digperiphs/npu_gemm_design.md` D2/D10,
+adjudicated 2026-07-23), built entirely on npu_fixed.py's validated, bit-exact
+MAC model. Emits one case per design-doc case roster into gemm_vectors/, at the
+FROZEN MCU/chip generics:
 
     X_M=0  W_M=7  Y_M=7  N=24  RHO=2      (Q0.24 in, Q7.24 weight/acc/out)
 

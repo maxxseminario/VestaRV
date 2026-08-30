@@ -5,8 +5,8 @@
 #-----------------------------------------------------------------------------
 # ON-ONLY DIRECTED MP TEST (needs a trapCsr+umode+pmp build). privpmp proves
 # that a denied access TRAPS with the right cause/mtval/mepc. THIS file proves
-# the harder half of ~/vesta_docs/priv_arch/p0_specs.md §4 / §4.1 — the
-# STRICT PRE-ISSUE guarantee (user ruling D5):
+# the harder half of ~/work/chip_docs/castalia/priv_arch/p0_specs.md §4 / §4.1 —
+# the STRICT PRE-ISSUE guarantee (user ruling D5):
 #
 #     a denied access performs NO BUS TRANSACTION, so the SIDE-EFFECTING READS
 #     in the shared window are never triggered by a faulting access.

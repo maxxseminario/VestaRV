@@ -5,7 +5,7 @@
 #-----------------------------------------------------------------------------
 # ON-ONLY DIRECTED TEST (needs a trapCsr+umode+pmp build). privpmpcs proves the
 # CSR BANK in csr_unit; THIS file proves the CHECK INTEGRATION in vesta.vhd
-# against ~/vesta_docs/priv_arch/p0_specs.md §4 / §4.1:
+# against ~/work/chip_docs/castalia/priv_arch/p0_specs.md §4 / §4.1:
 #
 #   * a U-mode LOAD  that PMP denies -> mcause 5, mtval = the data address,
 #     mepc = the load's own PC

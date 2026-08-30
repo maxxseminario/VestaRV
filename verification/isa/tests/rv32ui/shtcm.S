@@ -8,8 +8,8 @@
 # keys on the AFE/EIS stub bank and is therefore penta-only (wound drops
 # cqAfeStubs); the TCM apertures exist wherever the ORCHESTRATOR does, so this
 # file's CATALOG tag is `tiles orch` and it is selected on penta AND
-# penta_wound. It is the rehearsed successor of the CPR3 scratch file
-# `zztcmw.S` (parked in ~/vesta_docs/castalia_penta/): leg A below is that
+# penta_wound. It is the rehearsed successor of the CPR3 scratch file `zztcmw.S`
+# (parked in ~/work/chip_docs/castalia/castalia_penta/): leg A below is that
 # file's graded self-read leg, absorbed verbatim, because it is the ONLY
 # chip-level coverage of the A3 fix.
 #
