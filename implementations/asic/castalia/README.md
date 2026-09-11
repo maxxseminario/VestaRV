@@ -82,6 +82,27 @@ wherever it happens to be invoked. The hermetic path is
 | `//platform/common:trm_latex_tree_test` | The generated TRM tree is complete: master document, includes, figures. |
 | `//platform/common:castalia_analog_chapter_test` | The analog chapter is present in the generated TRM tree. |
 | `//platform/common/python:check_config_defaults_test` | Each knob's two default literals in `generate.py` agree with each other. |
+| `//platform/common:rdl_vs_vhdl_afe2_test`, `:rdl_vs_vhdl_biasg_test`, `:rdl_vs_vhdl_uart_test` | The SystemRDL register description and the VHDL that decodes it agree on offsets, reset values and implemented-bit masks. |
+| `//platform/common:rdl_vs_generator_test` | The same descriptions equal the generator's slot map and register data, and the pilot's TRM tables byte-identically. |
+| `//platform/common:rdl_negative_control_test` | Each of those comparisons is shown failing on a one-token mutation of the description it grades. |
+
+### Register maps under SystemRDL
+
+Three peripherals — `UARTx` (the pilot), `AFEx` and the shared bias generator —
+also carry a SystemRDL description in `hdl/common/periph/rdl/`, next to the RTL
+that decodes them. Nothing in the generator depends on it: the descriptions are
+additive, so every artifact of every configuration is byte-identical whether the
+SystemRDL toolchain is present or not, and the hermetic generation action
+deliberately carries no such dependency. What they buy is the one check the chip
+did not have — `//platform/common:rdl_vs_vhdl_afe2_test` and its two siblings
+re-derive the word offsets, reset values and implemented-bit masks out of
+`AFE2.vhd`, `BIASG.vhd` and `UART.vhd` and compare them against the description,
+and `//platform/common:rdl_vs_generator_test` compares the same description
+against the generator's own register data down to the prose. That gate found
+`AFE2.vhd`'s `CR.SAMPLESTEP = 7` and `MUX.ATPSEL = 0xF` resets being published as
+zero by the generator, i.e. a TRM reset column and a firmware header describing a
+chip that does not exist. The adoption plan, the emitters and the pinned
+toolchain are in [`tools/rdl/README.md`](../../../tools/rdl/README.md).
 
 ### TRM PDF
 

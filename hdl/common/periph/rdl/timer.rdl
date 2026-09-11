@@ -1,0 +1,392 @@
+// ===========================================================================
+// timer.rdl: the register map of hdl/common/periph/TIMER.vhd.
+//
+// THE VHDL IS THE AUTHORITY: eight slots from MemoryMap.vhd's RegSlotTIMx*,
+// control_reg 19:0 and status_reg 7:0 from the signal declarations, and an
+// all-zero reset branch.
+//
+// TIMxVAL is the one register with NO byte granularity: its write arm is
+// `if wen /= "1111"` and it then loads the whole 32-bit word, so a byte
+// store to any lane writes all four.
+// ===========================================================================
+
+`include "vesta_udp.rdl"
+
+enum timxcr_div_e {
+    DIV_1 = 4'h0 { desc = "/1 (no division)"; };
+    DIV_2 = 4'h1 { desc = "/2"; };
+    DIV_4 = 4'h2 { desc = "/4"; };
+    DIV_8 = 4'h3 { desc = "/8"; };
+    DIV_16 = 4'h4 { desc = "/16"; };
+    DIV_32 = 4'h5 { desc = "/32"; };
+    DIV_64 = 4'h6 { desc = "/64"; };
+    DIV_128 = 4'h7 { desc = "/128"; };
+    DIV_256 = 4'h8 { desc = "/256"; };
+    DIV_512 = 4'h9 { desc = "/512"; };
+    DIV_1024 = 4'hA { desc = "/1,024"; };
+    DIV_2048 = 4'hB { desc = "/2,048"; };
+    DIV_4096 = 4'hC { desc = "/4,096"; };
+    DIV_8192 = 4'hD { desc = "/8,192"; };
+    DIV_16384 = 4'hE { desc = "/16,384"; };
+    DIV_32768 = 4'hF { desc = "/32,768"; };
+};
+enum timxcr_cmp1ih_e {
+    PWM_OUTPUT_STARTS_LOW = 1'h0 { desc = "PWM output starts LOW"; };
+    PWM_OUTPUT_STARTS_HIGH = 1'h1 { desc = "PWM output starts HIGH"; };
+};
+enum timxcr_cmp0ih_e {
+    PWM_OUTPUT_STARTS_LOW = 1'h0 { desc = "PWM output starts LOW"; };
+    PWM_OUTPUT_STARTS_HIGH = 1'h1 { desc = "PWM output starts HIGH"; };
+};
+enum timxcr_cap1fe_e {
+    CAPTURE_ON_RISING_EDGE = 1'h0 { desc = "Capture on rising edge"; };
+    CAPTURE_ON_FALLING_EDGE = 1'h1 { desc = "Capture on falling edge"; };
+};
+enum timxcr_cap0fe_e {
+    CAPTURE_ON_RISING_EDGE = 1'h0 { desc = "Capture on rising edge"; };
+    CAPTURE_ON_FALLING_EDGE = 1'h1 { desc = "Capture on falling edge"; };
+};
+enum timxcr_cap1en_e {
+    CAPTURE_1_DISABLED = 1'h0 { desc = "Capture 1 disabled"; };
+    CAPTURE_1_ENABLED = 1'h1 { desc = "Capture 1 enabled"; };
+};
+enum timxcr_cap0en_e {
+    CAPTURE_0_DISABLED = 1'h0 { desc = "Capture 0 disabled"; };
+    CAPTURE_0_ENABLED = 1'h1 { desc = "Capture 0 enabled"; };
+};
+enum timxcr_ssel_e {
+    SSEL_SMCLK = 2'h0 { desc = "SMCLK"; };
+    SSEL_MCLK = 2'h1 { desc = "MCLK"; };
+    SSEL_LFXT = 2'h2 { desc = "LFXT (low frequency crystal)"; };
+    SSEL_HFXT = 2'h3 { desc = "HFXT (high frequency crystal)"; };
+};
+enum timxcr_cmp2rst_e {
+    FREE_RUNNING_MODE_RESETS = 1'h0 { desc = "Free-running mode (resets at 2³²-1)"; };
+    RESETS_ON_TIMXVAL_TIMXCMP2 = 1'h1 { desc = "Resets on TIMxVAL = TIMxCMP2"; };
+};
+enum timxcr_ten_e {
+    TIMER_DISABLED = 1'h0 { desc = "Timer disabled"; };
+    TIMER_ENABLED = 1'h1 { desc = "Timer enabled"; };
+};
+enum timxcr_cap1ie_e {
+    INTERRUPT_DISABLED = 1'h0 { desc = "Interrupt disabled"; };
+    INTERRUPT_ENABLED = 1'h1 { desc = "Interrupt enabled"; };
+};
+enum timxcr_cap0ie_e {
+    INTERRUPT_DISABLED = 1'h0 { desc = "Interrupt disabled"; };
+    INTERRUPT_ENABLED = 1'h1 { desc = "Interrupt enabled"; };
+};
+enum timxcr_ovie_e {
+    INTERRUPT_DISABLED = 1'h0 { desc = "Interrupt disabled"; };
+    INTERRUPT_ENABLED = 1'h1 { desc = "Interrupt enabled"; };
+};
+enum timxcr_cmp2ie_e {
+    INTERRUPT_DISABLED = 1'h0 { desc = "Interrupt disabled"; };
+    INTERRUPT_ENABLED = 1'h1 { desc = "Interrupt enabled"; };
+};
+enum timxcr_cmp1ie_e {
+    INTERRUPT_DISABLED = 1'h0 { desc = "Interrupt disabled"; };
+    INTERRUPT_ENABLED = 1'h1 { desc = "Interrupt enabled"; };
+};
+enum timxcr_cmp0ie_e {
+    INTERRUPT_DISABLED = 1'h0 { desc = "Interrupt disabled"; };
+    INTERRUPT_ENABLED = 1'h1 { desc = "Interrupt enabled"; };
+};
+enum timxsr_cmp1out_e {
+    TXCMP1_OUTPUT_LOW = 1'h0 { desc = "TxCMP1 output LOW"; };
+    TXCMP1_OUTPUT_HIGH = 1'h1 { desc = "TxCMP1 output HIGH"; };
+};
+enum timxsr_cmp0out_e {
+    TXCMP0_OUTPUT_LOW = 1'h0 { desc = "TxCMP0 output LOW"; };
+    TXCMP0_OUTPUT_HIGH = 1'h1 { desc = "TxCMP0 output HIGH"; };
+};
+enum timxsr_cap1if_e {
+    NO_PENDING_CAPTURE_1 = 1'h0 { desc = "No pending capture 1 interrupt"; };
+    CAPTURE_1_INTERRUPT_PENDING = 1'h1 { desc = "Capture 1 interrupt pending"; };
+};
+enum timxsr_cap0if_e {
+    NO_PENDING_CAPTURE_0 = 1'h0 { desc = "No pending capture 0 interrupt"; };
+    CAPTURE_0_INTERRUPT_PENDING = 1'h1 { desc = "Capture 0 interrupt pending"; };
+};
+enum timxsr_ovif_e {
+    NO_PENDING_OVERFLOW_INTERRUPT = 1'h0 { desc = "No pending overflow interrupt"; };
+    OVERFLOW_INTERRUPT_PENDING = 1'h1 { desc = "Overflow interrupt pending"; };
+};
+enum timxsr_cmp2if_e {
+    NO_PENDING_COMPARE_2 = 1'h0 { desc = "No pending compare 2 interrupt"; };
+    COMPARE_2_INTERRUPT_PENDING = 1'h1 { desc = "Compare 2 interrupt pending"; };
+};
+enum timxsr_cmp1if_e {
+    NO_PENDING_COMPARE_1 = 1'h0 { desc = "No pending compare 1 interrupt"; };
+    COMPARE_1_INTERRUPT_PENDING = 1'h1 { desc = "Compare 1 interrupt pending"; };
+};
+enum timxsr_cmp0if_e {
+    NO_PENDING_COMPARE_0 = 1'h0 { desc = "No pending compare 0 interrupt"; };
+    COMPARE_0_INTERRUPT_PENDING = 1'h1 { desc = "Compare 0 interrupt pending"; };
+};
+
+// TEN (bit 6) is hw=rw: the EVFAB task_start / task_stop pulses set and clear it outside the bus qualifier, stop winning a same-cycle overlap.
+reg TIMxCR_t {
+    regwidth = 32;
+    desc = "Timer/Counter control register. Configures clock source, clock divider, capture/compare settings, and interrupt enables.";
+    field {
+        sw = rw; hw = r;
+        reset = 4'h0;
+        vesta_access = "rw";
+        encode = timxcr_div_e;
+        vesta_named_values = true;
+        desc = "Timer/Counter clock divider. Divides the clock source selected by SSEL to generate the timer clock for TIMxVAL increments.";
+    } DIV[19:16];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = timxcr_cmp1ih_e;
+        desc = "Compare 1 initial PWM output level. Sets the TxCMP1 pin level when TIMxVAL < TIMxCMP1.";
+    } CMP1IH[15:15];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = timxcr_cmp0ih_e;
+        desc = "Compare 0 initial PWM output level. Sets the TxCMP0 pin level when TIMxVAL < TIMxCMP0.";
+    } CMP0IH[14:14];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = timxcr_cap1fe_e;
+        desc = "Capture 1 edge select. Selects which edge on TxCAP1 pin triggers a capture event.";
+    } CAP1FE[13:13];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = timxcr_cap0fe_e;
+        desc = "Capture 0 edge select. Selects which edge on TxCAP0 pin triggers a capture event.";
+    } CAP0FE[12:12];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = timxcr_cap1en_e;
+        desc = "Capture 1 enable. Enables input capture on TxCAP1 pin.";
+    } CAP1EN[11:11];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = timxcr_cap0en_e;
+        desc = "Capture 0 enable. Enables input capture on TxCAP0 pin.";
+    } CAP0EN[10:10];
+    field {
+        sw = rw; hw = r;
+        reset = 2'h0;
+        vesta_access = "rw";
+        encode = timxcr_ssel_e;
+        vesta_named_values = true;
+        desc = "Timer/Counter clock source select. Glitch-free multiplexer prevents spurious transitions when switching sources.";
+    } SSEL[9:8];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = timxcr_cmp2rst_e;
+        desc = "Timer/Counter reset on Compare 2 enable. Resets TIMxVAL to 0 when TIMxVAL equals TIMxCMP2.";
+    } CMP2RST[7:7];
+    field {
+        sw = rw; hw = rw;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = timxcr_ten_e;
+        desc = "Timer/Counter enable. When disabled, timer clock is gated off and TIMxVAL holds its value.";
+    } TEN[6:6];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = timxcr_cap1ie_e;
+        desc = "Capture 1 interrupt enable. Enables interrupt when CAP1IF flag is set.";
+    } CAP1IE[5:5];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = timxcr_cap0ie_e;
+        desc = "Capture 0 interrupt enable. Enables interrupt when CAP0IF flag is set.";
+    } CAP0IE[4:4];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = timxcr_ovie_e;
+        desc = "Timer/Counter overflow interrupt enable. Enables interrupt when OVIF flag is set.";
+    } OVIE[3:3];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = timxcr_cmp2ie_e;
+        desc = "Compare 2 interrupt enable. Enables interrupt when CMP2IF flag is set.";
+    } CMP2IE[2:2];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = timxcr_cmp1ie_e;
+        desc = "Compare 1 interrupt enable. Enables interrupt when CMP1IF flag is set.";
+    } CMP1IE[1:1];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = timxcr_cmp0ie_e;
+        desc = "Compare 0 interrupt enable. Enables interrupt when CMP0IF flag is set.";
+    } CMP0IE[0:0];
+};
+
+// Lane-0 write only; CMP0OUT/CMP1OUT (bits 6/7) are read-only compare-output levels and ignore writes.
+reg TIMxSR_t {
+    regwidth = 8;
+    desc = "Timer/Counter status register. Contains current compare output levels and interrupt flags. The register is latched on the falling edge of the memory enable signal for stable reads.";
+    field {
+        sw = r; hw = w;
+        reset = 1'h0;
+        vesta_access = "r";
+        encode = timxsr_cmp1out_e;
+        desc = "Current value of the Compare 1 output pin TxCMP1. Reflects the actual PWM output level.";
+    } CMP1OUT[7:7];
+    field {
+        sw = r; hw = w;
+        reset = 1'h0;
+        vesta_access = "r";
+        encode = timxsr_cmp0out_e;
+        desc = "Current value of the Compare 0 output pin TxCMP0. Reflects the actual PWM output level.";
+    } CMP0OUT[6:6];
+    field {
+        sw = rw; hw = w; onwrite = woclr;
+        reset = 1'h0;
+        vesta_access = "rw1";
+        encode = timxsr_cap1if_e;
+        desc = "Capture 1 interrupt flag. Set when TxCAP1 pin triggers a capture event. Write 1 to clear.";
+    } CAP1IF[5:5];
+    field {
+        sw = rw; hw = w; onwrite = woclr;
+        reset = 1'h0;
+        vesta_access = "rw1";
+        encode = timxsr_cap0if_e;
+        desc = "Capture 0 interrupt flag. Set when TxCAP0 pin triggers a capture event. Write 1 to clear.";
+    } CAP0IF[4:4];
+    field {
+        sw = rw; hw = w; onwrite = woclr;
+        reset = 1'h0;
+        vesta_access = "rw1";
+        encode = timxsr_ovif_e;
+        desc = "Timer/Counter overflow interrupt flag. Set when timer overflows from 2³²-1 to 0. Write 1 to clear.";
+    } OVIF[3:3];
+    field {
+        sw = rw; hw = w; onwrite = woclr;
+        reset = 1'h0;
+        vesta_access = "rw1";
+        encode = timxsr_cmp2if_e;
+        desc = "Compare 2 interrupt flag. Set when TIMxVAL equals TIMxCMP2. Write 1 to clear.";
+    } CMP2IF[2:2];
+    field {
+        sw = rw; hw = w; onwrite = woclr;
+        reset = 1'h0;
+        vesta_access = "rw1";
+        encode = timxsr_cmp1if_e;
+        desc = "Compare 1 interrupt flag. Set when TIMxVAL equals TIMxCMP1. Write 1 to clear.";
+    } CMP1IF[1:1];
+    field {
+        sw = rw; hw = w; onwrite = woclr;
+        reset = 1'h0;
+        vesta_access = "rw1";
+        encode = timxsr_cmp0if_e;
+        desc = "Compare 0 interrupt flag. Set when TIMxVAL equals TIMxCMP0. Write 1 to clear.";
+    } CMP0IF[0:0];
+};
+
+reg TIMxVAL_t {
+    regwidth = 32;
+    desc = "Timer/Counter value register. Reads the current timer count. Writes immediately update the timer value regardless of enable state. The value is latched on the falling edge of the memory enable signal for stable reads.";
+    // NO byte lanes: `if wen /= "1111"` then the full 32-bit write_data is loaded. Reads return the clk_mem-domain copy of the free-running counter.
+    field {
+        sw = rw; hw = rw;
+        reset = 32'h0;
+        vesta_access = "rw";
+        desc = "Current timer count value";
+    } VAL[31:0];
+};
+
+reg TIMxCMP0_t {
+    regwidth = 32;
+    desc = "Timer/Counter Compare 0 threshold register. When TIMxVAL equals this value, CMP0IF is set and the TxCMP0 PWM output toggles.";
+    field {
+        sw = rw; hw = r;
+        reset = 32'h0;
+        vesta_access = "rw";
+        desc = "Compare 0 threshold value";
+    } CMP0[31:0];
+};
+
+reg TIMxCMP1_t {
+    regwidth = 32;
+    desc = "Timer/Counter Compare 1 threshold register. When TIMxVAL equals this value, CMP1IF is set and the TxCMP1 PWM output toggles.";
+    field {
+        sw = rw; hw = r;
+        reset = 32'h0;
+        vesta_access = "rw";
+        desc = "Compare 1 threshold value";
+    } CMP1[31:0];
+};
+
+reg TIMxCMP2_t {
+    regwidth = 32;
+    desc = "Timer/Counter Compare 2 threshold register. When TIMxVAL equals this value, CMP2IF is set. If CMP2RST is enabled, timer resets to 0 (PWM period control).";
+    field {
+        sw = rw; hw = r;
+        reset = 32'h0;
+        vesta_access = "rw";
+        desc = "Compare 2 threshold value (PWM period)";
+    } CMP2[31:0];
+};
+
+reg TIMxCAP0_t {
+    regwidth = 32;
+    desc = "Timer/Counter Capture 0 value register. Automatically latches TIMxVAL when TxCAP0 pin edge triggers a capture event. The captured value is latched on the falling edge of the memory enable signal for stable reads.";
+    // Readback is `not capture0_latched`, latched on falling_edge(en_mem).
+    field {
+        sw = r; hw = w;
+        reset = 32'h0;
+        vesta_access = "r";
+        desc = "Captured timer value from TxCAP0 event";
+    } CAP0[31:0];
+};
+
+reg TIMxCAP1_t {
+    regwidth = 32;
+    desc = "Timer/Counter Capture 1 value register. Automatically latches TIMxVAL when TxCAP1 pin edge triggers a capture event. The captured value is latched on the falling edge of the memory enable signal for stable reads.";
+    // Readback is `not capture1_latched`, latched on falling_edge(en_mem).
+    field {
+        sw = r; hw = w;
+        reset = 32'h0;
+        vesta_access = "r";
+        desc = "Captured timer value from TxCAP1 event";
+    } CAP1[31:0];
+};
+addrmap timer {
+    name = "TIMERx";
+    desc = "32-bit Timer/Counter with input capture, output compare, and pulse-width modulation functionality";
+    vesta_peripheral = "TIMERx";
+    vesta_word_base = 0;
+
+    TIMxCR_t   TIMxCR   @0x00;
+    TIMxSR_t   TIMxSR   @0x04;
+    TIMxVAL_t  TIMxVAL  @0x08;
+    TIMxCMP0_t TIMxCMP0 @0x0C;
+    TIMxCMP1_t TIMxCMP1 @0x10;
+    TIMxCMP2_t TIMxCMP2 @0x14;
+    TIMxCAP0_t TIMxCAP0 @0x18;
+    TIMxCAP1_t TIMxCAP1 @0x1C;
+};

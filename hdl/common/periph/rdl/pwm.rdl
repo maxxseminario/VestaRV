@@ -1,0 +1,274 @@
+// ===========================================================================
+// pwm.rdl: the register map of hdl/common/periph/PWM.vhd.
+//
+// THE VHDL IS THE AUTHORITY: nine slots from the block's SLOT_* constants,
+// all resets zero. Slots 4, 5 and 7 (DTY2, DTY3, DT) are reserved headroom
+// for the 4-channel and dead-time bolt-ons: they read 0 and ignore writes.
+//
+// PWMxPER, PWMxDTY0 and PWMxDTY1 are BUFFERED: a write stages the value and
+// arms UPDF, and the shadow commits at the next period boundary. PWMxPOL is
+// immediate.
+// ===========================================================================
+
+`include "vesta_udp.rdl"
+
+enum pwmxcr_flttrig_e {
+    TRIP_THE_FAULT_IF = 1'h1 { desc = "Trip the fault (if FLTEN set)"; };
+};
+enum pwmxcr_flten_e {
+    FAULT_SYSTEM_DISABLED_FLTTRIG = 1'h0 { desc = "Fault system disabled (FLTTRIG ignored)"; };
+    FAULT_SYSTEM_ENABLED = 1'h1 { desc = "Fault system enabled"; };
+};
+enum pwmxcr_fltie_e {
+    INTERRUPT_DISABLED = 1'h0 { desc = "Interrupt disabled"; };
+    INTERRUPT_ENABLED = 1'h1 { desc = "Interrupt enabled"; };
+};
+enum pwmxcr_pevie_e {
+    INTERRUPT_DISABLED = 1'h0 { desc = "Interrupt disabled"; };
+    INTERRUPT_ENABLED = 1'h1 { desc = "Interrupt enabled"; };
+};
+enum pwmxcr_ch1en_e {
+    CH1_DRIVES_SAFE_LEVEL = 1'h0 { desc = "CH1 drives safe level"; };
+    CH1_DRIVES_THE_WAVEFORM = 1'h1 { desc = "CH1 drives the waveform"; };
+};
+enum pwmxcr_ch0en_e {
+    CH0_DRIVES_SAFE_LEVEL = 1'h0 { desc = "CH0 drives safe level"; };
+    CH0_DRIVES_THE_WAVEFORM = 1'h1 { desc = "CH0 drives the waveform"; };
+};
+enum pwmxcr_pwmen_e {
+    DISABLED_COUNTER_HELD_OUTPUTS = 1'h0 { desc = "Disabled (counter held, outputs safe)"; };
+    RUNNING = 1'h1 { desc = "Running"; };
+};
+enum pwmxpol_safe1_e {
+    DRIVE_LOW = 1'h0 { desc = "Drive low"; };
+    DRIVE_HIGH = 1'h1 { desc = "Drive high"; };
+};
+enum pwmxpol_safe0_e {
+    DRIVE_LOW = 1'h0 { desc = "Drive low"; };
+    DRIVE_HIGH = 1'h1 { desc = "Drive high"; };
+};
+enum pwmxpol_pol1_e {
+    ACTIVE_HIGH = 1'h0 { desc = "Active-high"; };
+    ACTIVE_LOW_INVERT = 1'h1 { desc = "Active-low (invert)"; };
+};
+enum pwmxpol_pol0_e {
+    ACTIVE_HIGH = 1'h0 { desc = "Active-high"; };
+    ACTIVE_LOW_INVERT = 1'h1 { desc = "Active-low (invert)"; };
+};
+enum pwmxsr_updf_e {
+    STAGING_ABSORBED = 1'h0 { desc = "Staging absorbed"; };
+    COMMIT_PENDING = 1'h1 { desc = "Commit pending"; };
+};
+enum pwmxsr_pevf_e {
+    NO_EVENT = 1'h0 { desc = "No event"; };
+    PERIOD_EVENT = 1'h1 { desc = "Period event"; };
+};
+enum pwmxsr_fltf_e {
+    NO_FAULT = 1'h0 { desc = "No fault"; };
+    FAULT_LATCHED_OUTPUTS_SAFE = 1'h1 { desc = "Fault latched (outputs safe)"; };
+};
+
+// FLTTRIG (bit 14) is a lane-1 write-1 pulse that flips flt_req_tgl and reads 0; the FLTEN gate is applied in the clk domain, not at the write.
+reg PWMxCR_t {
+    regwidth = 32;
+    desc = "PWM control register. Enables the prescaler + main counter (PWMEN) and each channel output (CH0EN/CH1EN), holds the two interrupt enables (PEVIE/FLTIE), the fault-system enable (FLTEN) and the write-1 software fault trip (FLTTRIG), and the 4-bit prescaler (PSC, divide by 2^PSC). Resets to 0 (disabled, outputs safe). The reserved bits are provisioned for the 4-channel (CH2EN/CH3EN), center-aligned (CNTMODE), deadtime (DTEN) and HW-fault-polarity (FLTPOL) bolt-ons.";
+    field {
+        sw = rw; hw = r;
+        reset = 4'h0;
+        vesta_access = "rw";
+        desc = "Prescaler: the main counter advances once every 2^PSC MCLK cycles (PSC=0 -> every cycle). Frequency = f_MCLK / 2^PSC / (PER+1).";
+    } PSC[19:16];
+    field {
+        sw = w; hw = r; singlepulse;
+        reset = 1'h0;
+        vesta_access = "w1";
+        encode = pwmxcr_flttrig_e;
+        desc = "Software fault trip (write-1 self-clearing command; reads 0). Writing 1 requests a trip: while FLTEN is set it latches SR.FLTF and forces both outputs safe within one clock. Re-arm by write-1-clearing SR.FLTF.";
+    } FLTTRIG[14:14];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = pwmxcr_flten_e;
+        desc = "Fault-system enable. Gates the software trip: a FLTTRIG write latches SR.FLTF only while FLTEN is set; with FLTEN clear the FLTTRIG write is ignored.";
+    } FLTEN[12:12];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = pwmxcr_fltie_e;
+        desc = "Fault interrupt enable. When set, SR.FLTF drives the PWM0_FAULT interrupt (vector 115).";
+    } FLTIE[8:8];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = pwmxcr_pevie_e;
+        desc = "Period-event interrupt enable. When set, SR.PEVF drives the PWM0_EVT interrupt (vector 116).";
+    } PEVIE[7:7];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = pwmxcr_ch1en_e;
+        desc = "Channel 1 output enable. When clear, CH1 drives its absolute safe level (POL.SAFE1) regardless of the waveform.";
+    } CH1EN[2:2];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = pwmxcr_ch0en_e;
+        desc = "Channel 0 output enable. When clear, CH0 drives its absolute safe level (POL.SAFE0) regardless of the waveform.";
+    } CH0EN[1:1];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = pwmxcr_pwmen_e;
+        desc = "Master enable. When set, the prescaler and 16-bit main counter run; when clear the counter holds at 0 (clean restart on enable) and both outputs drive their safe levels.";
+    } PWMEN[0:0];
+};
+
+reg PWMxPER_t {
+    regwidth = 32;
+    desc = "PWM period modulus (buffered, D9). The waveform period is (PER+1) prescale ticks: frequency = f_MCLK / 2^PSC / (PER+1). READ returns the last written value (bus-domain staging readback, no side effects). WRITE stages the value and arms SR.UPDF; it commits to the live waveform at the next period boundary (glitch-free).";
+    // Staged: the write arms upd_req_tgl and the shadow commits at the next period boundary. A read returns the STAGED value, not the active one.
+    field {
+        sw = rw; hw = r;
+        reset = 16'h0;
+        vesta_access = "rw";
+        desc = "Period modulus (0 to 65535); the counter wraps 0..PER, so the period is PER+1 ticks.";
+    } PWMPER[15:0];
+};
+
+reg PWMxDTY0_t {
+    regwidth = 32;
+    desc = "Channel 0 duty compare (buffered, D9). CH0 is active for the first DTY0 prescale ticks of each period (DTY0=0 -> constant inactive; DTY0 >= PER+1 -> constant active). READ returns the staging value; WRITE stages and arms SR.UPDF (commits at the next period boundary).";
+    // Staged like PWMxPER; a read returns the staged value.
+    field {
+        sw = rw; hw = r;
+        reset = 16'h0;
+        vesta_access = "rw";
+        desc = "Channel 0 duty compare (0 to 65535).";
+    } PWMDTY0[15:0];
+};
+
+reg PWMxDTY1_t {
+    regwidth = 32;
+    desc = "Channel 1 duty compare (buffered, D9). CH1 is active for the first DTY1 prescale ticks of each period (same corner rules as DTY0). READ returns the staging value; WRITE stages and arms SR.UPDF (commits at the next period boundary).";
+    // Staged like PWMxPER; a read returns the staged value.
+    field {
+        sw = rw; hw = r;
+        reset = 16'h0;
+        vesta_access = "rw";
+        desc = "Channel 1 duty compare (0 to 65535).";
+    } PWMDTY1[15:0];
+};
+
+reg PWMxDTY2_t {
+    regwidth = 32;
+    desc = "Reserved for the channel 2 duty compare (4-channel bolt-on, D16). Reads 0, writes ignored; provisioned so >2 channels bolt on without a register-map break.";
+    field {
+        sw = r;  hw = na;
+        reset = 32'h0;
+        desc = "Reserved.";
+    } RESERVED[31:0];
+};
+
+reg PWMxDTY3_t {
+    regwidth = 32;
+    desc = "Reserved for the channel 3 duty compare (4-channel bolt-on, D16). Reads 0, writes ignored.";
+    field {
+        sw = r;  hw = na;
+        reset = 32'h0;
+        desc = "Reserved.";
+    } RESERVED[31:0];
+};
+
+reg PWMxPOL_t {
+    regwidth = 32;
+    desc = "Per-channel polarity and absolute safe/off level (immediate, NOT buffered, D11; program before enabling). POLn inverts the channel waveform; SAFEn is the ABSOLUTE pin level (0 = drive low, 1 = drive high) forced when the channel is disabled or faulted, and it is polarity-independent, so the fault/idle physical state is deterministic. Resets to 0 (active-high, safe = low). The reserved bits hold the CH2/CH3 polarity and safe fields (4-channel bolt-on, D16).";
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = pwmxpol_safe1_e;
+        desc = "Channel 1 absolute safe/off pin level (driven when CH1 is disabled or faulted).";
+    } SAFE1[5:5];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = pwmxpol_safe0_e;
+        desc = "Channel 0 absolute safe/off pin level (driven when CH0 is disabled or faulted).";
+    } SAFE0[4:4];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = pwmxpol_pol1_e;
+        desc = "Channel 1 polarity.";
+    } POL1[1:1];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = pwmxpol_pol0_e;
+        desc = "Channel 0 polarity.";
+    } POL0[0:0];
+};
+
+reg PWMxDT_t {
+    regwidth = 32;
+    desc = "Reserved for the deadtime value (deadtime / complementary-pair bolt-on, D16). Reads 0, writes ignored; provisioned so deadtime bolts on without a register-map break.";
+    field {
+        sw = r;  hw = na;
+        reset = 32'h0;
+        desc = "Reserved.";
+    } RESERVED[31:0];
+};
+
+// Lane-0 write-1-to-clear on FLTF and PEVF; UPDF (bit 2) is a read-only pending level.
+reg PWMxSR_t {
+    regwidth = 32;
+    desc = "PWM status register. FLTF and PEVF are sticky write-1-to-clear event flags (write a 1 to a bit to clear it; writing 0 leaves it unchanged; never cleared by a read; a set arriving the same cycle as a clear survives). UPDF is read-only. PWM0_FAULT (vector 115) = FLTF and CR.FLTIE; PWM0_EVT (vector 116) = PEVF and CR.PEVIE (both combinational). The reserved DIR bit is the center-aligned count direction (D19).";
+    field {
+        sw = r; hw = w;
+        reset = 1'h0;
+        vesta_access = "r";
+        encode = pwmxsr_updf_e;
+        desc = "Buffered-update pending. Reads 1 from a staged PER/DTY0/DTY1 write until that write has been absorbed at the next period boundary.";
+    } UPDF[2:2];
+    field {
+        sw = rw; hw = w; onwrite = woclr;
+        reset = 1'h0;
+        vesta_access = "rw1";
+        encode = pwmxsr_pevf_e;
+        desc = "Period-event flag. Set at every active period boundary. Write 1 to clear.";
+    } PEVF[1:1];
+    field {
+        sw = rw; hw = w; onwrite = woclr;
+        reset = 1'h0;
+        vesta_access = "rw1";
+        encode = pwmxsr_fltf_e;
+        desc = "Fault flag. Set when a FLTTRIG trip is accepted (FLTEN set); while set both outputs are forced to their safe levels. Write 1 to clear (re-arm).";
+    } FLTF[0:0];
+};
+addrmap pwm {
+    name = "PWMx";
+    desc = "Buffered PWM Generator: a glitch-free 2-channel edge-aligned PWM engine (16-bit period + two 16-bit per-channel duties) with double-buffered waveform update, per-channel polarity and an absolute programmable safe/off level, a software fault trip that forces both outputs safe the same cycle, and a period-event tick";
+    vesta_peripheral = "PWMx";
+    vesta_word_base = 0;
+
+    default regwidth = 32;
+
+    PWMxCR_t   PWMxCR   @0x00;
+    PWMxPER_t  PWMxPER  @0x04;
+    PWMxDTY0_t PWMxDTY0 @0x08;
+    PWMxDTY1_t PWMxDTY1 @0x0C;
+    PWMxDTY2_t PWMxDTY2 @0x10;
+    PWMxDTY3_t PWMxDTY3 @0x14;
+    PWMxPOL_t  PWMxPOL  @0x18;
+    PWMxDT_t   PWMxDT   @0x1C;
+    PWMxSR_t   PWMxSR   @0x20;
+};

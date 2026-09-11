@@ -1,0 +1,413 @@
+// ===========================================================================
+// system.rdl: the register map of hdl/common/periph/SYSTEM.vhd.
+//
+// THE VHDL IS THE AUTHORITY. Two reset values are NOT zero and both come
+// from hdl/common/constants.vhd:
+//   DCO0BIAS.SYSDCO0BIAS = 0x800   (DCO0_BIAS_DEFAULT = "100000000000")
+//   DCO1BIAS.SYSDCO1BIAS = 0x800   (DCO1_BIAS_DEFAULT)
+// The generator models both as resetting to 0; the RTL mid-scale default is
+// what silicon comes up with.
+//
+// WDTCR is the only register in the chip whose write is gated by another
+// register: `if unlocked = '1' and wen(0) = '0'`, the unlock window being
+// the 64 cycles a WDTPASS write of WDT_UNLCK_PASSWD (0x5F3759DF) opens.
+// WDTPASS itself accepts FULL-WORD stores only (`if wen = "0000"`), and the
+// second password WDT_CLR_PASSWD (0xA0C8A620) petts the dog.
+// ===========================================================================
+
+`include "vesta_udp.rdl"
+
+enum sysclkcr_dco1on_e {
+    DCO1_POWERED_OFF = 1'h0 { desc = "DCO1 powered off"; };
+    DCO1_POWERED_ON = 1'h1 { desc = "DCO1 powered on"; };
+};
+enum sysclkcr_dco0on_e {
+    DCO0_POWERED_OFF = 1'h0 { desc = "DCO0 powered off"; };
+    DCO0_POWERED_ON = 1'h1 { desc = "DCO0 powered on"; };
+};
+enum sysclkcr_hfxtoff_e {
+    HFXT_ENABLED = 1'h0 { desc = "HFXT enabled"; };
+    HFXT_DISABLED = 1'h1 { desc = "HFXT disabled"; };
+};
+enum sysclkcr_lfxtoff_e {
+    LFXT_ENABLED = 1'h0 { desc = "LFXT enabled"; };
+    LFXT_DISABLED = 1'h1 { desc = "LFXT disabled"; };
+};
+enum sysclkcr_smclkoff_e {
+    SMCLK_ENABLED = 1'h0 { desc = "SMCLK enabled"; };
+    SMCLK_DISABLED = 1'h1 { desc = "SMCLK disabled"; };
+};
+enum sysclkcr_smclksel_e {
+    SMCLKSEL_HFXT = 2'h0 { desc = "High Frequency Crystal Clock"; };
+    SMCLKSEL_LFXT = 2'h1 { desc = "Low Frequency Crystal Clock"; };
+    SMCLKSEL_DCO0 = 2'h2 { desc = "Digitally Controlled Oscillator 0"; };
+    SMCLKSEL_DCO1 = 2'h3 { desc = "Digitally Controlled Oscillator 1"; };
+};
+enum sysclkcr_mclksel_e {
+    MCLKSEL_HFXT = 2'h0 { desc = "High Frequency Crystal Clock"; };
+    MCLKSEL_SMCLK = 2'h1 { desc = "Submain Clock"; };
+    MCLKSEL_DCO0 = 2'h2 { desc = "Digitally Controlled Oscillator 0"; };
+    MCLKSEL_DCO1 = 2'h3 { desc = "Digitally Controlled Oscillator 1"; };
+};
+enum clkdivcr_syssmclkdiv_e {
+    SYSSMCLKDIV_1 = 3'h0 { desc = "/1 (no division)"; };
+    SYSSMCLKDIV_2 = 3'h1 { desc = "/2"; };
+    SYSSMCLKDIV_4 = 3'h2 { desc = "/4"; };
+    SYSSMCLKDIV_8 = 3'h3 { desc = "/8"; };
+    SYSSMCLKDIV_16 = 3'h4 { desc = "/16"; };
+    SYSSMCLKDIV_32 = 3'h5 { desc = "/32"; };
+    SYSSMCLKDIV_64 = 3'h6 { desc = "/64"; };
+    SYSSMCLKDIV_128 = 3'h7 { desc = "/128"; };
+};
+enum clkdivcr_sysmclkdiv_e {
+    SYSMCLKDIV_1 = 3'h0 { desc = "/1 (no division)"; };
+    SYSMCLKDIV_2 = 3'h1 { desc = "/2"; };
+    SYSMCLKDIV_4 = 3'h2 { desc = "/4"; };
+    SYSMCLKDIV_8 = 3'h3 { desc = "/8"; };
+    SYSMCLKDIV_16 = 3'h4 { desc = "/16"; };
+    SYSMCLKDIV_32 = 3'h5 { desc = "/32"; };
+    SYSMCLKDIV_64 = 3'h6 { desc = "/64"; };
+    SYSMCLKDIV_128 = 3'h7 { desc = "/128"; };
+};
+enum blockpwr_sysshb3off_e {
+    BANK_3_POWERED_ON = 1'h0 { desc = "Bank 3 powered on"; };
+    BANK_3_POWERED_OFF = 1'h1 { desc = "Bank 3 powered off (contents lost)"; };
+};
+enum blockpwr_sysshb2off_e {
+    BANK_2_POWERED_ON = 1'h0 { desc = "Bank 2 powered on"; };
+    BANK_2_POWERED_OFF = 1'h1 { desc = "Bank 2 powered off (contents lost)"; };
+};
+enum blockpwr_sysshb1off_e {
+    BANK_1_POWERED_ON = 1'h0 { desc = "Bank 1 powered on"; };
+    BANK_1_POWERED_OFF = 1'h1 { desc = "Bank 1 powered off (contents lost)"; };
+};
+enum blockpwr_sysshb0off_e {
+    BANK_0_POWERED_ON = 1'h0 { desc = "Bank 0 powered on"; };
+    BANK_0_POWERED_OFF = 1'h1 { desc = "Bank 0 powered off (contents lost)"; };
+};
+enum blockpwr_sysram1off_e {
+    RAM_BLOCK_1_POWERED = 1'h0 { desc = "RAM block 1 powered on"; };
+    RAM_BLOCK_1_POWERED_2 = 1'h1 { desc = "RAM block 1 powered off"; };
+};
+enum blockpwr_sysram0off_e {
+    RAM_BLOCK_0_POWERED = 1'h0 { desc = "RAM block 0 powered on"; };
+    RAM_BLOCK_0_POWERED_2 = 1'h1 { desc = "RAM block 0 powered off"; };
+};
+enum blockpwr_sysromoff_e {
+    ROM_POWERED_ON = 1'h0 { desc = "ROM powered on"; };
+    ROM_POWERED_OFF = 1'h1 { desc = "ROM powered off"; };
+};
+enum wdtcr_syswdten_e {
+    WATCHDOG_DISABLED = 1'h0 { desc = "Watchdog disabled"; };
+    WATCHDOG_ENABLED = 1'h1 { desc = "Watchdog enabled"; };
+};
+enum wdtcr_syswdtcdiv_e {
+    SYSWDTCDIV_65536 = 4'h0 { desc = "Bit 16: 65,536 MCLK cycles"; };
+    SYSWDTCDIV_131072 = 4'h1 { desc = "Bit 17: 131,072 MCLK cycles"; };
+    SYSWDTCDIV_262144 = 4'h2 { desc = "Bit 18: 262,144 MCLK cycles"; };
+    SYSWDTCDIV_524288 = 4'h3 { desc = "Bit 19: 524,288 MCLK cycles"; };
+    SYSWDTCDIV_1048576 = 4'h4 { desc = "Bit 20: 1,048,576 MCLK cycles"; };
+    SYSWDTCDIV_2097152 = 4'h5 { desc = "Bit 21: 2,097,152 MCLK cycles"; };
+    SYSWDTCDIV_4194304 = 4'h6 { desc = "Bit 22: 4,194,304 MCLK cycles"; };
+    SYSWDTCDIV_8388608 = 4'h7 { desc = "Bit 23: 8,388,608 MCLK cycles"; };
+    SYSWDTCDIV_16777216 = 4'h8 { desc = "Bit 24: 16,777,216 MCLK cycles"; };
+    SYSWDTCDIV_33554432 = 4'h9 { desc = "Bit 25: 33,554,432 MCLK cycles"; };
+    SYSWDTCDIV_67108864 = 4'hA { desc = "Bit 26: 67,108,864 MCLK cycles"; };
+    SYSWDTCDIV_134217728 = 4'hB { desc = "Bit 27: 134,217,728 MCLK cycles"; };
+    SYSWDTCDIV_268435456 = 4'hC { desc = "Bit 28: 268,435,456 MCLK cycles"; };
+    SYSWDTCDIV_536870912 = 4'hD { desc = "Bit 29: 536,870,912 MCLK cycles"; };
+    SYSWDTCDIV_1073741824 = 4'hE { desc = "Bit 30: 1,073,741,824 MCLK cycles"; };
+    SYSWDTCDIV_2147483648 = 4'hF { desc = "Bit 31: 2,147,483,648 MCLK cycles"; };
+};
+enum wdtcr_syswdtie_e {
+    WATCHDOG_INTERRUPT_DISABLED = 1'h0 { desc = "Watchdog interrupt disabled"; };
+    WATCHDOG_INTERRUPT_ENABLED = 1'h1 { desc = "Watchdog interrupt enabled"; };
+};
+enum wdtcr_syswdthwrst_e {
+    WATCHDOG_RESET_DISABLED = 1'h0 { desc = "Watchdog reset disabled"; };
+    WATCHDOG_RESET_ENABLED = 1'h1 { desc = "Watchdog reset enabled"; };
+};
+enum wdtsr_syswdtif_e {
+    NO_WATCHDOG_INTERRUPT_PENDING = 1'h0 { desc = "No watchdog interrupt pending"; };
+    WATCHDOG_INTERRUPT_OCCURRED = 1'h1 { desc = "Watchdog interrupt occurred"; };
+};
+enum wdtsr_syswdtrf_e {
+    RESET_NOT_CAUSED_BY = 1'h0 { desc = "Reset not caused by watchdog"; };
+    RESET_CAUSED_BY_WATCHDOG = 1'h1 { desc = "Reset caused by watchdog"; };
+};
+
+reg SYSCLKCR_t {
+    regwidth = 16;
+    desc = "System clock control register";
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = sysclkcr_dco1on_e;
+        desc = "Digitally controlled oscillator 1 (DCO1) power enable. Set to power on DCO1. DCO1 is automatically kept on if it is currently selected as the source for MCLK or SMCLK, regardless of this bit.";
+    } DCO1ON[8:8];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = sysclkcr_dco0on_e;
+        desc = "Digitally controlled oscillator 0 (DCO0) power enable. Set to power on DCO0. DCO0 is automatically kept on if it is currently selected as the source for MCLK or SMCLK, regardless of this bit.";
+    } DCO0ON[7:7];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = sysclkcr_hfxtoff_e;
+        desc = "High frequency external crystal clock disable. Cannot be disabled if it is currently selected as the source for MCLK or SMCLK.";
+    } HFXTOFF[6:6];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = sysclkcr_lfxtoff_e;
+        desc = "Low frequency external crystal clock disable. Cannot be disabled if it is currently selected as the source for SMCLK.";
+    } LFXTOFF[5:5];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = sysclkcr_smclkoff_e;
+        desc = "Submain clock disable. Globally and unconditionally disables SMCLK, gating all peripherals clocked from SMCLK.";
+    } SMCLKOFF[4:4];
+    field {
+        sw = rw; hw = r;
+        reset = 2'h0;
+        vesta_access = "rw";
+        encode = sysclkcr_smclksel_e;
+        vesta_named_values = true;
+        desc = "Submain clock source select";
+    } SMCLKSEL[3:2];
+    field {
+        sw = rw; hw = r;
+        reset = 2'h0;
+        vesta_access = "rw";
+        encode = sysclkcr_mclksel_e;
+        vesta_named_values = true;
+        desc = "Main clock source select (also CPU clock source select)";
+    } MCLKSEL[1:0];
+};
+
+reg CLKDIVCR_t {
+    regwidth = 8;
+    desc = "MCLK and SMCLK clock divider control register. Configures clock division for main and submain clocks using glitch-free multiplexers.";
+    field {
+        sw = rw; hw = r;
+        reset = 3'h0;
+        vesta_access = "rw";
+        encode = clkdivcr_syssmclkdiv_e;
+        vesta_named_values = true;
+        desc = "SMCLK clock division selection. Division is applied after clock source selection through glitch-free divider multiplexer.";
+    } SYSSMCLKDIV[5:3];
+    field {
+        sw = rw; hw = r;
+        reset = 3'h0;
+        vesta_access = "rw";
+        encode = clkdivcr_sysmclkdiv_e;
+        vesta_named_values = true;
+        desc = "MCLK clock division selection. Division is applied after clock source selection through glitch-free divider multiplexer.";
+    } SYSMCLKDIV[2:0];
+};
+
+// Lane-0 write; the storage is 7 bits (SYS_BLOCK_PWR 6 downto 0).
+reg BLOCKPWR_t {
+    regwidth = 8;
+    desc = "Block power control register. Controls power gating for the on-chip memory blocks; all bits reset to 0 (every block powered). Bits 6:3 gate the four low shared bulk-RAM banks individually: a gated bank loses its contents and stops responding, so software must keep the bank holding its stack, mailboxes or live data powered and must treat a re-powered bank as uninitialized. In configurations with more than four banks, banks 4 and up are always on.";
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = blockpwr_sysshb3off_e;
+        desc = "Shared bulk-RAM bank 3 (0x1C000-0x1FFFF) power control. When set, the bank is powered off: contents are LOST and accesses no longer respond. Reduces static power (a gated sram1p16k halves its leakage).";
+    } SYSSHB3OFF[6:6];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = blockpwr_sysshb2off_e;
+        desc = "Shared bulk-RAM bank 2 (0x18000-0x1BFFF) power control. When set, the bank is powered off: contents are LOST and accesses no longer respond. Reduces static power (a gated sram1p16k halves its leakage).";
+    } SYSSHB2OFF[5:5];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = blockpwr_sysshb1off_e;
+        desc = "Shared bulk-RAM bank 1 (0x14000-0x17FFF) power control. When set, the bank is powered off: contents are LOST and accesses no longer respond. Reduces static power (a gated sram1p16k halves its leakage).";
+    } SYSSHB1OFF[4:4];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = blockpwr_sysshb0off_e;
+        desc = "Shared bulk-RAM bank 0 (0x10000-0x13FFF) power control. When set, the bank is powered off: contents are LOST and accesses no longer respond. Reduces static power (a gated sram1p16k halves its leakage).";
+    } SYSSHB0OFF[3:3];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = blockpwr_sysram1off_e;
+        desc = "RAM block 1 power control. When set, the block is powered off: its contents are lost and accesses to it no longer respond.";
+    } SYSRAM1OFF[2:2];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = blockpwr_sysram0off_e;
+        desc = "RAM block 0 power control. When set, the block is powered off: its contents are lost and accesses to it no longer respond.";
+    } SYSRAM0OFF[1:1];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = blockpwr_sysromoff_e;
+        desc = "ROM power control. When set, the boot ROM is powered off and no longer responds to reads.";
+    } SYSROMOFF[0:0];
+};
+
+reg CRCDATA_t {
+    regwidth = 8;
+    desc = "CRC input data register. Write the next byte of data to this register to update the CRC calculation. Uses CRC16-CDMA2000 polynomial 0xC857.";
+    // WRITE SIDE EFFECT: a lane-0 write both stores the byte and advances the CRC16 (poly 0xC857) over it, seeding from CRCSTATE when the previous access was a CRCSTATE write.
+    field {
+        sw = rw; hw = r;
+        reset = 8'h0;
+        vesta_access = "rw";
+        desc = "CRC data input byte. Writing to this register feeds the byte into the CRC calculation and updates CRCSTATE.";
+    } SYSCRCDATA[7:0];
+};
+
+reg CRCSTATE_t {
+    regwidth = 16;
+    desc = "CRC state register. Contains the current CRC16 calculation result. Write to this register to initialize or restart the CRC calculation. Read to obtain the computed CRC16 checksum.";
+    // Write and read are different nets: a write seeds crc_prev (lanes 0 and 1) and sets first_crc_flag; a read returns the CRC16 core's combinational output over the last CRCDATA byte.
+    field {
+        sw = rw; hw = rw;
+        reset = 16'h0;
+        vesta_access = "rw";
+        desc = "CRC state value. Initialize to 0xFFFF before starting CRC calculation. Read after processing all data bytes to get final CRC16 checksum.";
+    } SYSCRCSTATE[15:0];
+};
+
+reg WDTPASS_t {
+    regwidth = 32;
+    desc = "Watchdog timer password register. Write-only register for two security functions: (1) Write 0x5F3759DF to unlock WDTCR for 64 MCLK cycles, enabling writes to watchdog configuration. (2) Write 0xA0C8A620 to clear watchdog counter to 0, preventing timeout. Reading always returns 0.";
+    // Write-only, FULL-WORD ONLY (`if wen = "0000"`). 0x5F3759DF opens the 64-cycle WDTCR unlock window; 0xA0C8A620 clears the counter. Any other value is a no-op. Reads return 0.
+    field {
+        sw = w; hw = r;
+        reset = 32'h0;
+        vesta_access = "w";
+        desc = "Watchdog password. Write 0x5F3759DF (unlock password) to enable WDTCR writes for 64 MCLK cycles. Write 0xA0C8A620 (clear password) to reset watchdog counter to 0.";
+    } SYSWDTPASS[31:0];
+};
+
+// Writes are accepted only while the WDTPASS unlock window is open (`if unlocked = '1'`); outside it a write is silently dropped.
+reg WDTCR_t {
+    regwidth = 8;
+    desc = "Watchdog timer control register. This register is protected and requires password unlock via WDTPASS before writing. Configures watchdog operation mode and timeout period.";
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = wdtcr_syswdten_e;
+        desc = "Watchdog enable. When set, the 24-bit watchdog counter counts MCLK cycles and a timeout occurs when the counter bit selected by SYSWDTCDIV rises. WDTCR is write protected: unlock it through WDTPASS first.";
+    } SYSWDTEN[7:7];
+    field {
+        sw = rw; hw = r;
+        reset = 4'h0;
+        vesta_access = "rw";
+        encode = wdtcr_syswdtcdiv_e;
+        vesta_named_values = true;
+        desc = "Watchdog timeout select. The timeout event occurs when counter bit SYSWDTCDIV + 16 rises, so the period is 2^(SYSWDTCDIV + 16) MCLK cycles.";
+    } SYSWDTCDIV[5:2];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = wdtcr_syswdtie_e;
+        desc = "Watchdog interrupt enable. When set, a timeout sets SYSWDTIF and raises the watchdog interrupt (vector 0) to the harts the IRQROUTER routes it to; with SYSWDTHWRST also set, the system reset follows the servicing hart completing the interrupt. If the vector is routed to no hart, the reset (when enabled) occurs immediately on timeout.";
+    } SYSWDTIE[1:1];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = wdtcr_syswdthwrst_e;
+        desc = "Watchdog reset enable. When set, a timeout resets the system: immediately if the watchdog interrupt is disabled or routed to no hart, otherwise after the servicing hart completes the interrupt.";
+    } SYSWDTHWRST[0:0];
+};
+
+reg WDTSR_t {
+    regwidth = 8;
+    desc = "Watchdog timer status register. Contains flags indicating watchdog reset and interrupt events. Flags are cleared by writing 1 to the respective bit.";
+    field {
+        sw = rw; hw = w; onwrite = woclr;
+        reset = 1'h0;
+        vesta_access = "rw1";
+        encode = wdtsr_syswdtif_e;
+        desc = "Watchdog interrupt flag, set on a timeout while SYSWDTIE = 1 and held until software writes 1 to it.";
+    } SYSWDTIF[1:1];
+    field {
+        sw = rw; hw = w; onwrite = woclr;
+        reset = 1'h0;
+        vesta_access = "rw1";
+        encode = wdtsr_syswdtrf_e;
+        desc = "Watchdog reset flag, set when the last system reset was caused by the watchdog and held across resets until software writes 1 to it.";
+    } SYSWDTRF[0:0];
+};
+
+reg WDTVAL_t {
+    regwidth = 32;
+    desc = "Watchdog timer value register. Read-only register containing current watchdog counter value. Counter increments on MCLK when watchdog is enabled. Returns 0 when watchdog is disabled.";
+    field {
+        sw = r; hw = w;
+        reset = 24'h0;
+        vesta_access = "r";
+        desc = "Watchdog counter value. 24-bit up-counter that increments on MCLK cycles. Watchdog event occurs when bit selected by WDTCDIV transitions from 0 to 1.";
+    } SYSWDTVAL[23:0];
+};
+
+reg DCO0BIAS_t {
+    regwidth = 16;
+    desc = "Digitally controlled oscillator 0 bias register. Controls DCO0 output frequency through bias voltage adjustment. Higher bias values generally produce higher frequencies.";
+    // Resets to DCO0_BIAS_DEFAULT = 0x800, not 0.
+    field {
+        sw = rw; hw = r;
+        reset = 12'h800;
+        vesta_access = "rw";
+        desc = "DCO0 bias adjustment value. 12-bit bias control for DCO0 frequency tuning. Default value loaded from constants on reset.";
+    } SYSDCO0BIAS[11:0];
+};
+
+reg DCO1BIAS_t {
+    regwidth = 16;
+    desc = "Digitally controlled oscillator 1 bias register. Controls DCO1 output frequency through bias voltage adjustment. Higher bias values generally produce higher frequencies.";
+    // Resets to DCO1_BIAS_DEFAULT = 0x800, not 0.
+    field {
+        sw = rw; hw = r;
+        reset = 12'h800;
+        vesta_access = "rw";
+        desc = "DCO1 bias adjustment value. 12-bit bias control for DCO1 frequency tuning. Default value loaded from constants on reset.";
+    } SYSDCO1BIAS[11:0];
+};
+addrmap system {
+    name = "SYSTEM";
+    desc = "Controls the entire system, including the clocking and power state";
+    vesta_peripheral = "SYSTEM";
+    vesta_vector = 0;
+    vesta_word_base = 0;
+
+    SYSCLKCR_t SYSCLKCR @0x00;
+    CLKDIVCR_t CLKDIVCR @0x04;
+    BLOCKPWR_t BLOCKPWR @0x08;
+    CRCDATA_t  CRCDATA  @0x0C;
+    CRCSTATE_t CRCSTATE @0x10;
+    WDTPASS_t  WDTPASS  @0x30;
+    WDTCR_t    WDTCR    @0x34;
+    WDTSR_t    WDTSR    @0x38;
+    WDTVAL_t   WDTVAL   @0x3C;
+    DCO0BIAS_t DCO0BIAS @0x40;
+    DCO1BIAS_t DCO1BIAS @0x44;
+};

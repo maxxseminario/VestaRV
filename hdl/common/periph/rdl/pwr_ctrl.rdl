@@ -1,0 +1,258 @@
+// ===========================================================================
+// pwr_ctrl.rdl: the register map of hdl/common/pwr_ctrl.vhd.
+//
+// THE VHDL IS THE AUTHORITY, and it carries ONE REGISTER THE GENERATOR DID
+// NOT MODEL AT ALL until R3: TASKWKM at word 7 (0x1C), the event-fabric
+// task-wake mask, one bit per gateable tile. It is read (`elsif widx =
+// W_TASKWKM then rdata_reg(PD_HI downto 1) <= task_wkm`) and written (`if
+// widx = W_TASKWKM and we(0) = '1'`) exactly like PWRCR, and the task_wake
+// pulse clears the gate_req bits it selects.
+//
+// Every write in this block is byte-lane-0 qualified, so software uses
+// full-word stores; the gate mask is ONE field even where it spans lanes.
+// Bit 0 of PWRCR and of TASKWKM has no storage: hart 0 is always on.
+//
+// PARAMETERISED (report R7), on NHARTS alone:
+//
+//   PWRCR.PWRGATE and TASKWKM.PWRTASKWKM span harts NHARTS-1 downto 1, a
+//   range that is EMPTY at NHARTS = 1 (fpga, mcu_hart). SystemRDL has no
+//   conditional instantiation, so the field is declared one bit wide there
+//   and removed by `vesta_live = NHARTS > 1`; its bits fall into the
+//   reserved run, which is the truth on a chip whose only hart is the
+//   always-on management hart.
+//
+//   PWRSR is ceil(NHARTS/8) consecutive words of one 4-bit state nibble per
+//   hart. A SystemRDL field cannot be an array and the LAST word is short
+//   (harts 16-17 on argus), so the word 0 register -- the only one that
+//   carries hart 0's special nibble -- is declared on its own and the rest
+//   follow as a full-word array plus a short last word, all three under the
+//   guard VESTA_PWR_MULTIWORD. That guard is ABSENT below 9 harts, which is
+//   every configuration but argus, so a bare compile of this file is the
+//   default five-hart chip. VESTA_PWR_MIDWORDS additionally guards the
+//   full-word array, because a SystemRDL array dimension "must be greater
+//   than zero" and there are no middle words at 9..16 harts.
+// ===========================================================================
+
+`include "vesta_udp.rdl"
+
+enum pwrcr_pwrgate_e {
+    PWRGATE_NONE = 4'h0 { desc = "All tile harts powered"; };
+};
+
+// Bit 0 (hart 0) has no flop: `rdata_reg(PD_HI downto 1) <= gate_req` leaves it 0 and `gate_req <= wdata(PD_HI downto 1)` never writes it.
+reg PWRCR_t #(longint unsigned NHARTS = 5) {
+    regwidth = 32;
+    desc = "Power gate control. Setting PWRGATE bit h powers tile hart h down (isolation, reset, rail off); clearing it powers the tile back up and cold-boots it. A request made while the sequencer is mid-sequence is honored when the sequence completes. Bit 0 (hart 0) is always on: it reads 0 and ignores writes.";
+    field {
+        sw = rw; hw = r;
+        reset = 0;
+        vesta_access = "rw";
+        encode = pwrcr_pwrgate_e;
+        vesta_named_values = true;
+        vesta_live = NHARTS > 1;
+        desc = "Gate request mask, one bit per tile hart: bit h = 1 powers tile hart h down and 0 powers it up, with a cold boot on the way up. Poll the PWRSR nibble of the hart for sequencer completion. Only the all-powered value is enumerated; any combination of bits is valid.";
+    } PWRGATE[(NHARTS > 1 ? NHARTS - 1 : 1):1];
+    field {
+        sw = r; hw = w;
+        reset = 1'h0;
+        vesta_access = "r";
+        desc = "Hart 0 is always-on: reads 0, writes ignored.";
+    } PWRH0[0:0];
+};
+
+// Read-only nibble array, 4 bits per hart: 0 ON, 1 ISO, 2 RSTOFF, 3 OFF, 4 RAIL, 5 UNISO. Hart 0's nibble reads 0.
+// Word 0. Its nibble 0 is hart 0's, which reads 0 for a different reason from
+// every other nibble (there is no MTCMOS header for the always-on domain), so
+// it carries its own prose and this word cannot be an element of the array.
+reg PWRSR0_t #(longint unsigned NHARTS = 5) {
+    regwidth = 32;
+    vesta_name = "PWRSR";
+    desc = "Power sequencer state, one read-only nibble per hart (bits 4h+3:4h). 0 = ON, 1 = ISO (clamps asserting), 2 = RSTOFF (reset held, rail dying), 3 = OFF (gated), 4 = RAIL (waking, rail settling), 5 = UNISO (clamps releasing). Hart 0's nibble always reads 0. A tile is safely gated when its nibble reads 3, and fully awake (booting or parked in the ROM) when it returns to 0.";
+    field { sw = r; hw = w; reset = 4'h0; vesta_access = "r"; vesta_live = NHARTS > 7;
+            vesta_name = "PWRST{8*i+7}"; desc = "Tile hart {8*i+7} sequencer state."; } PWRST_7[31:28];
+    field { sw = r; hw = w; reset = 4'h0; vesta_access = "r"; vesta_live = NHARTS > 6;
+            vesta_name = "PWRST{8*i+6}"; desc = "Tile hart {8*i+6} sequencer state."; } PWRST_6[27:24];
+    field { sw = r; hw = w; reset = 4'h0; vesta_access = "r"; vesta_live = NHARTS > 5;
+            vesta_name = "PWRST{8*i+5}"; desc = "Tile hart {8*i+5} sequencer state."; } PWRST_5[23:20];
+    field { sw = r; hw = w; reset = 4'h0; vesta_access = "r"; vesta_live = NHARTS > 4;
+            vesta_name = "PWRST{8*i+4}"; desc = "Tile hart {8*i+4} sequencer state."; } PWRST_4[19:16];
+    field { sw = r; hw = w; reset = 4'h0; vesta_access = "r"; vesta_live = NHARTS > 3;
+            vesta_name = "PWRST{8*i+3}"; desc = "Tile hart {8*i+3} sequencer state."; } PWRST_3[15:12];
+    field { sw = r; hw = w; reset = 4'h0; vesta_access = "r"; vesta_live = NHARTS > 2;
+            vesta_name = "PWRST{8*i+2}"; desc = "Tile hart {8*i+2} sequencer state."; } PWRST_2[11:8];
+    field { sw = r; hw = w; reset = 4'h0; vesta_access = "r"; vesta_live = NHARTS > 1;
+            vesta_name = "PWRST{8*i+1}"; desc = "Tile hart {8*i+1} sequencer state."; } PWRST_1[7:4];
+    field { sw = r; hw = w; reset = 4'h0; vesta_access = "r";
+            desc = "Hart 0 state: always 0 (ON, always-on domain)."; } PWRST0[3:0];
+};
+
+`ifdef VESTA_PWR_MULTIWORD
+// A full word of eight nibbles: harts 8i..8i+7.
+reg PWRSRF_t {
+    regwidth = 32;
+    vesta_name = "PWRSR{i}";
+    vesta_index = 1;
+    desc = "Power sequencer state for harts {8*i}-{8*i+7}, one read-only nibble per hart (hart h in bits 4(h-{8*i})+3:4(h-{8*i})). 0 = ON, 1 = ISO (clamps asserting), 2 = RSTOFF (reset held, rail dying), 3 = OFF (gated), 4 = RAIL (waking, rail settling), 5 = UNISO (clamps releasing). Hart 0's nibble always reads 0. A tile is safely gated when its nibble reads 3, and fully awake (booting or parked in the ROM) when it returns to 0.";
+    field { sw = r; hw = w; reset = 4'h0; vesta_access = "r";
+            vesta_name = "PWRST{8*i+7}"; desc = "Tile hart {8*i+7} sequencer state."; } PWRST_7[31:28];
+    field { sw = r; hw = w; reset = 4'h0; vesta_access = "r";
+            vesta_name = "PWRST{8*i+6}"; desc = "Tile hart {8*i+6} sequencer state."; } PWRST_6[27:24];
+    field { sw = r; hw = w; reset = 4'h0; vesta_access = "r";
+            vesta_name = "PWRST{8*i+5}"; desc = "Tile hart {8*i+5} sequencer state."; } PWRST_5[23:20];
+    field { sw = r; hw = w; reset = 4'h0; vesta_access = "r";
+            vesta_name = "PWRST{8*i+4}"; desc = "Tile hart {8*i+4} sequencer state."; } PWRST_4[19:16];
+    field { sw = r; hw = w; reset = 4'h0; vesta_access = "r";
+            vesta_name = "PWRST{8*i+3}"; desc = "Tile hart {8*i+3} sequencer state."; } PWRST_3[15:12];
+    field { sw = r; hw = w; reset = 4'h0; vesta_access = "r";
+            vesta_name = "PWRST{8*i+2}"; desc = "Tile hart {8*i+2} sequencer state."; } PWRST_2[11:8];
+    field { sw = r; hw = w; reset = 4'h0; vesta_access = "r";
+            vesta_name = "PWRST{8*i+1}"; desc = "Tile hart {8*i+1} sequencer state."; } PWRST_1[7:4];
+    field { sw = r; hw = w; reset = 4'h0; vesta_access = "r";
+            vesta_name = "PWRST{8*i}"; desc = "Tile hart {8*i} sequencer state."; } PWRST_0[3:0];
+};
+
+// The last word: NLAST = NHARTS - 8*(NWORDS-1) nibbles, 1..8 of them.
+reg PWRSRL_t #(longint unsigned NLAST = 8) {
+    regwidth = 32;
+    vesta_name = "PWRSR{i}";
+    desc = "Power sequencer state for harts {8*i}-{min(8*i+7,NHARTS-1)}, one read-only nibble per hart (hart h in bits 4(h-{8*i})+3:4(h-{8*i})). 0 = ON, 1 = ISO (clamps asserting), 2 = RSTOFF (reset held, rail dying), 3 = OFF (gated), 4 = RAIL (waking, rail settling), 5 = UNISO (clamps releasing). Hart 0's nibble always reads 0. A tile is safely gated when its nibble reads 3, and fully awake (booting or parked in the ROM) when it returns to 0.";
+    field { sw = r; hw = w; reset = 4'h0; vesta_access = "r"; vesta_live = NLAST > 7;
+            vesta_name = "PWRST{8*i+7}"; desc = "Tile hart {8*i+7} sequencer state."; } PWRST_7[31:28];
+    field { sw = r; hw = w; reset = 4'h0; vesta_access = "r"; vesta_live = NLAST > 6;
+            vesta_name = "PWRST{8*i+6}"; desc = "Tile hart {8*i+6} sequencer state."; } PWRST_6[27:24];
+    field { sw = r; hw = w; reset = 4'h0; vesta_access = "r"; vesta_live = NLAST > 5;
+            vesta_name = "PWRST{8*i+5}"; desc = "Tile hart {8*i+5} sequencer state."; } PWRST_5[23:20];
+    field { sw = r; hw = w; reset = 4'h0; vesta_access = "r"; vesta_live = NLAST > 4;
+            vesta_name = "PWRST{8*i+4}"; desc = "Tile hart {8*i+4} sequencer state."; } PWRST_4[19:16];
+    field { sw = r; hw = w; reset = 4'h0; vesta_access = "r"; vesta_live = NLAST > 3;
+            vesta_name = "PWRST{8*i+3}"; desc = "Tile hart {8*i+3} sequencer state."; } PWRST_3[15:12];
+    field { sw = r; hw = w; reset = 4'h0; vesta_access = "r"; vesta_live = NLAST > 2;
+            vesta_name = "PWRST{8*i+2}"; desc = "Tile hart {8*i+2} sequencer state."; } PWRST_2[11:8];
+    field { sw = r; hw = w; reset = 4'h0; vesta_access = "r"; vesta_live = NLAST > 1;
+            vesta_name = "PWRST{8*i+1}"; desc = "Tile hart {8*i+1} sequencer state."; } PWRST_1[7:4];
+    field { sw = r; hw = w; reset = 4'h0; vesta_access = "r";
+            vesta_name = "PWRST{8*i}"; desc = "Tile hart {8*i} sequencer state."; } PWRST_0[3:0];
+};
+`endif
+
+reg PWRWAKE_t {
+    regwidth = 32;
+    desc = "Boot gate and wake source control. The harvested-boot strap drives the hardware defaults (a strapped board arms the gate, waits on PGOOD and re-holds on brownout with no software involvement); these bits OR software overrides on top. Resets to 0 (no override), so the gate is released on every normal boot. Write with full-word stores (byte lane 0 qualified, like PWRCR).";
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        desc = "Re-hold policy: 1 re-asserts the boot hold whenever the release condition drops (a later PGOOD return then cold-boots the harts through the shared ROM); 0 makes the release one-shot, latched in PWRSTS.PWRRLSLATCH. The strap ORs this bit in on a harvested board.";
+    } PWREHOLD[4:4];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        desc = "Software release: 1 releases an armed boot gate unconditionally. With no other release source enabled, an armed gate holds until this bit is set.";
+    } PWSWRLS[3:3];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        desc = "Field release enable: 1 makes the synchronized NFC field level (PWRSTS.PWFIELDLIV) a release condition, so a reader arriving releases the boot gate. The field level is tied to 0 when NFC is absent or field power is disabled.";
+    } PWRLSFIELD[2:2];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        desc = "PGOOD release enable: 1 makes the synchronized PGOOD pad level (PWRSTS.PWPGOODLIV) a release condition. The strap ORs this bit in on a harvested board, which always waits on the supply supervisor.";
+    } PWRLSPGOOD[1:1];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        desc = "Boot gate arm: 1 holds every hart in reset until a release condition fires. The strap ORs this bit in, so a strapped board arms with no software.";
+    } PWGATEEN[0:0];
+};
+
+reg PWRSTS_t {
+    regwidth = 32;
+    desc = "Boot gate and wake source status, read only: the synchronized live pad levels, the one-shot strap sample that selects the harvested-boot branch of the boot ROM, and the gate state.";
+    field {
+        sw = r; hw = w;
+        reset = 1'h0;
+        vesta_access = "r";
+        desc = "One-shot release latched: set when an armed gate has been released with PWREHOLD = 0 and held until reset.";
+    } PWRRLSLATCH[5:5];
+    field {
+        sw = r; hw = w;
+        reset = 1'h0;
+        vesta_access = "r";
+        desc = "Boot gate state: 1 while the gate holds every hart in reset.";
+    } PWBOOTHOLD[4:4];
+    field {
+        sw = r; hw = w;
+        reset = 1'h0;
+        vesta_access = "r";
+        desc = "Strap sample valid: set a few MCLK cycles after reset release once the one-shot strap sample has been taken. Poll it before reading PWSTRAP.";
+    } PWSTRAPVLD[3:3];
+    field {
+        sw = r; hw = w;
+        reset = 1'h0;
+        vesta_access = "r";
+        desc = "Harvested-boot strap sample: 1 = harvested boot (the boot ROM skips the SPI flash copy and runs the ROM-resident service loop), 0 = normal SPI boot. Sampled once after reset; later strap changes are ignored.";
+    } PWSTRAP[2:2];
+    field {
+        sw = r; hw = w;
+        reset = 1'h0;
+        vesta_access = "r";
+        desc = "Synchronized NFC field detect level; 0 when NFC is absent or field power is disabled.";
+    } PWFIELDLIV[1:1];
+    field {
+        sw = r; hw = w;
+        reset = 1'h0;
+        vesta_access = "r";
+        desc = "Synchronized PGOOD pad level (P6.7); reads 0 (power not good) when the pin is unconnected, because of the reset pull-down.";
+    } PWPGOODLIV[0:0];
+};
+
+reg TASKWKM_t #(longint unsigned NHARTS = 5) {
+    regwidth = 32;
+    desc = "Event-fabric task-wake mask, one bit per gateable tile hart. A task_wake pulse from the event fabric clears the PWRCR gate bits selected here, waking those tiles through the same MTCMOS rail-up sequence a register-cleared gate uses; the tap never touches the boot-gate release logic. Byte-lane-0 qualified like PWRCR, and bit 0 (hart 0, always on) has no storage. Resets to 0, so task-wake is inert out of reset.";
+    field {
+        sw = rw; hw = r;
+        reset = 0;
+        vesta_access = "rw";
+        vesta_live = NHARTS > 1;
+        desc = "Task-wake mask, one bit per tile hart: bit h = 1 lets a fabric task_wake pulse clear PWRCR.PWRGATE[h] and power tile hart h back up.";
+    } PWRTASKWKM[(NHARTS > 1 ? NHARTS - 1 : 1):1];
+    // Bit 0 is reserved EXPLICITLY rather than left to the reserved fill, so it
+    // stays its own run at NHARTS = 1 where the mask field is gone and the fill
+    // would otherwise swallow the whole word into one 31:0 run.
+    field {
+        sw = r;  hw = na;
+        reset = 1'h0;
+        desc = "Reserved.";
+    } RESERVED[0:0];
+};
+
+addrmap pwr_ctrl #(longint unsigned NHARTS = 5) {
+    name = "PWRCTRL";
+    desc = "Power controller for the switchable hart-tile power domains (M17 MTCMOS cold-gating)";
+    vesta_peripheral = "PWRCTRL";
+    vesta_word_base = 0;
+    vesta_indexed = true;
+
+    default regwidth = 32;
+
+    PWRCR_t #(.NHARTS(NHARTS))  PWRCR  @0x00;
+    PWRSR0_t #(.NHARTS(NHARTS)) PWRSR0 @0x04;
+`ifdef VESTA_PWR_MULTIWORD
+    PWRSR0->vesta_name = "PWRSR{i}";
+    PWRSR0->desc = "Power sequencer state for harts {8*i}-{8*i+7}, one read-only nibble per hart (hart h in bits 4(h-{8*i})+3:4(h-{8*i})). 0 = ON, 1 = ISO (clamps asserting), 2 = RSTOFF (reset held, rail dying), 3 = OFF (gated), 4 = RAIL (waking, rail settling), 5 = UNISO (clamps releasing). Hart 0's nibble always reads 0. A tile is safely gated when its nibble reads 3, and fully awake (booting or parked in the ROM) when it returns to 0.";
+`ifdef VESTA_PWR_MIDWORDS
+    PWRSRF_t PWRSRF[(NHARTS + 7) / 8 - 2] @0x08 += 0x4;
+`endif
+    PWRSRL_t #(.NLAST(NHARTS - 8 * ((NHARTS + 7) / 8 - 1)))
+             PWRSRL @(0x04 + 4 * ((NHARTS + 7) / 8 - 1));
+    PWRSRL->vesta_index = (NHARTS + 7) / 8 - 1;
+`endif
+    PWRWAKE_t                     PWRWAKE @0x14;
+    PWRSTS_t                      PWRSTS  @0x18;
+    TASKWKM_t #(.NHARTS(NHARTS))  TASKWKM @0x1C;
+};

@@ -1,0 +1,43 @@
+# The SystemRDL toolchain's pinned requirement files. Everything that imports
+# systemrdl or peakrdl depends on @rdl_deps//... , which MODULE.bazel resolves
+# from requirements_lock.txt; these labels exist so the lock is a build input
+# and so a smoke target can prove the interpreter can import all three packages.
+load("@rules_python//python:defs.bzl", "py_test")
+load("@rdl_deps//:requirements.bzl", "requirement")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files([
+    "requirements.in",
+    "requirements_lock.txt",
+])
+
+# Provisioning smoke: the hermetic 3.11 interpreter can import the compiler and
+# both exporters, and the versions are the pinned ones. This is the target to
+# run first when the toolchain looks broken.
+py_test(
+    name = "toolchain_smoke_test",
+    size = "small",
+    srcs = ["toolchain_smoke_test.py"],
+    main = "toolchain_smoke_test.py",
+    deps = [
+        requirement("systemrdl-compiler"),
+        requirement("peakrdl-cheader"),
+        requirement("peakrdl-markdown"),
+    ],
+)
+
+# The tracked descriptions are valid SystemRDL that STOCK PeakRDL exporters
+# consume. This is the justification for the format, so it is a test.
+py_test(
+    name = "peakrdl_export_test",
+    size = "small",
+    srcs = ["peakrdl_export_test.py"],
+    data = ["//hdl:rdl_sources"],
+    main = "peakrdl_export_test.py",
+    deps = [
+        requirement("peakrdl-cheader"),
+        requirement("peakrdl-markdown"),
+        requirement("systemrdl-compiler"),
+    ],
+)

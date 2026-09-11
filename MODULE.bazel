@@ -104,3 +104,18 @@ python.toolchain(
     is_default = True,
     python_version = "3.11",
 )
+
+# The SystemRDL toolchain (tools/rdl/README.md), provisioned the way every other
+# external tool in this repo is: pinned version, pinned artifact hash, fetched
+# once and then served from the disk cache. tools/rdl/requirements_lock.txt is
+# the authority; tools/rdl/requirements.in holds the three direct requirements.
+# Wheel-only, so no build step and no C compiler is involved -- systemrdl-compiler
+# ships a manylinux2014 abi3 wheel and everything else is pure python.
+pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
+pip.parse(
+    hub_name = "rdl_deps",
+    python_version = "3.11",
+    requirements_lock = "//tools/rdl:requirements_lock.txt",
+)
+use_repo(pip, "rdl_deps")
+

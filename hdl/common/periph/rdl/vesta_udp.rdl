@@ -1,0 +1,129 @@
+// =============================================================================
+// vesta_udp.rdl: the user-defined properties every VestaRV .rdl description uses.
+//
+// SystemRDL says everything about a register that a generic tool needs. It does
+// not say the two things this repo's emitters need on top: the exact access code
+// the generator's BitField model uses, and whether a field's enumeration members
+// carry emitted names or are documentation only. Both are carried here rather
+// than inferred, because inference is where a register description silently
+// changes meaning.
+//
+// `vesta_access` is REDUNDANT BY DESIGN. platform/common/python/rdl_model.py
+// re-derives it from sw/hw/onwrite/singlepulse and REFUSES to compile a file
+// where the two disagree, so the code cannot drift away from the semantics.
+// =============================================================================
+
+`ifndef VESTA_UDP_RDL
+`define VESTA_UDP_RDL
+
+property vesta_access {
+    type = string;
+    component = field;
+};
+
+// false (the default): the enum member identifiers are documentation only and
+// the generator emits value descriptions with an empty name, so no C macro is
+// created for them. true: the member identifier IS the emitted name and becomes
+// a `#define <name> (<value> << lsb)` in MemoryMap.h, as TIMER's DIV_1..DIV_32768
+// and SSEL_MCLK do today.
+property vesta_named_values {
+    type = boolean;
+    component = field;
+    default = false;
+};
+
+// The generator's peripheral TEMPLATE name (`UARTx`, `AFEx`), i.e. the name with
+// the instance index still written as a literal `x`. This is the key that ties an
+// .rdl file to a PeripheralTemplate in generate.py.
+property vesta_peripheral {
+    type = string;
+    component = addrmap;
+};
+
+// Interrupt vector number, when the block owns one. Absent = no interrupt.
+property vesta_vector {
+    type = number;
+    component = addrmap;
+};
+
+// Word offset of the first register inside the owning peripheral's sub-slot.
+// Only needed by a block that is overlaid on another block's address range, as
+// BIASG is on AFE2 site 0's.
+property vesta_word_base {
+    type = number;
+    component = addrmap;
+};
+
+// =============================================================================
+// PARAMETERISED BLOCKS (report R7, 2026-09-10). Four blocks -- CLINT, MUTEX,
+// IRQROUTER and PWRCTRL -- size their register SET and their FIELD GEOMETRY off
+// the configuration (numHarts, numMutexes, the arbiter master width masterW(),
+// vectorsCount). They are written as SystemRDL components with parameters and
+// register arrays, and elaborated by rdl_model with the generator's own values.
+// SystemRDL carries the structure; the four properties below carry the three
+// things it has no syntax for.
+//
+// They apply ONLY inside an addrmap that sets `vesta_indexed = true`, so no
+// other description's prose can be touched by the {expression} rendering. A
+// block that does not set it is loaded exactly as before, character for
+// character.
+// =============================================================================
+
+// Opt in to {expression} rendering of this block's names and descriptions.
+property vesta_indexed {
+    type = boolean;
+    component = addrmap;
+    default = false;
+};
+
+// The generator's spelling of a register or field, with {expression} holes.
+// SystemRDL register arrays name their elements MSIP[0], not MSIP0, and carry
+// one `desc` for the whole array; the generator's published names are MSIP0 and
+// its published prose says "hart 0". `vesta_name` is that published spelling and
+// `desc` is that published prose, both written ONCE with the index rendered
+// where the generator's loop rendered it:
+//
+//     vesta_name = "MTIMECMP{i}L";
+//     desc = "Hart {i} timer compare register, lower 32 bits. ...";
+//
+// Inside the braces: `i` (this component's index -- the array index plus
+// `vesta_index`), the block's own parameters by name, `+ - * / % ( )` and
+// min/max. A field inherits its register's `i`, so a nibble at a fixed position
+// inside an indexed word writes {8*i+3}. An expression that does not evaluate is
+// an error naming the component, never a silently literal brace.
+property vesta_name {
+    type = string;
+    component = reg | field;
+};
+
+// The index of the FIRST element of an array, or the index of a lone component
+// that continues one (PWRCTRL's last PWRSR word). Added to the array index.
+property vesta_index {
+    type = longint unsigned;
+    component = reg | regfile;
+};
+
+// false removes the component from the emitted map, leaving its bits reserved.
+// SystemRDL has no conditional instantiation, and a field that exists only above
+// a hart count cannot be written any other way: PWRCR.PWRGATE spans harts
+// numHarts-1 downto 1, which is EMPTY at numHarts = 1. The expression is a
+// parameter expression evaluated by the SystemRDL compiler, not by rdl_model.
+property vesta_live {
+    type = boolean;
+    component = reg | field;
+};
+
+// A run of value descriptions whose COUNT is a parameter. A SystemRDL enum is a
+// static type and its member values must fit the field, so it cannot enumerate
+// "one marker per hart" for a field that is 4 bits wide here and 6 on argus --
+// the compiler rejects it with "Field 'MTXOWN' is not wide enough to encode as
+// enum 'owner_e'". These four properties are that enumeration: `count` values
+// starting at `first`, named and described by templates in which `{v}` is the
+// ordinal (0-based) and `{i}` is the component index. They are APPENDED to the
+// members of `encode`, which carries the values that do not repeat.
+property vesta_values_count { type = longint unsigned; component = field; };
+property vesta_values_first { type = longint unsigned; component = field; };
+property vesta_values_name  { type = string;           component = field; };
+property vesta_values_desc  { type = string;           component = field; };
+
+`endif   // VESTA_UDP_RDL

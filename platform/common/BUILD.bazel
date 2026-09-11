@@ -1,4 +1,4 @@
-load("@rules_python//python:defs.bzl", "py_test")
+load("@rules_python//python:defs.bzl", "py_binary", "py_test")
 load("//platform/common/bazel:chipgen.bzl", "chip_artifact", "chip_artifacts")
 
 package(default_visibility = ["//visibility:public"])
@@ -59,6 +59,14 @@ filegroup(
 # The hand-written / hand-exported chip configurations. The three generator
 # OUTPUTS that also land in config/ are excluded: they are results, not inputs,
 # and depending on them would make the action depend on the last local build.
+# The per-peripheral SystemRDL adoption flags (tools/rdl/README.md). Named on its
+# own so the RDL emitters and gates depend on this one file rather than on the
+# whole config glob.
+filegroup(
+    name = "rdl_config",
+    srcs = ["config/rdl.json"],
+)
+
 filegroup(
     name = "config_srcs",
     srcs = glob(
@@ -813,6 +821,124 @@ py_test(
         "@xpack_riscv_gcc//:toolchain",
     ],
     main = "check_runner.py",
+)
+
+# ---------------------------------------------------------------------------
+# SystemRDL gates (tools/rdl/README.md, report R1).
+#
+# rdl_vs_vhdl_<periph>_test: the .rdl description and the VHDL that implements it
+# decode the same registers. The VHDL is the authority, so these read the RTL
+# source, not a generated artifact: AFE2.vhd's W_* / IMPL / RSTVAL tables,
+# BIASG.vhd's WORD_BASE / IMPL / RSTVAL, and for the UART pilot the RegSlotUARTx*
+# constants of the tracked memory-map package plus UART.vhd's own storage signals,
+# reset branch and write-1-to-clear arm.
+#
+# rdl_vs_generator_test: the .rdl offsets equal the generated slot map, and then
+# every register, field, reset value and description config/MemoryMap.json carries.
+# Since report R5 most peripherals' templates ARE built from the .rdl, so for them
+# this is a self-consistency check on the loader and the emitters rather than a
+# comparison of two authors; for CLINT, MUTEX, IRQROUTER and PWRCTRL, whose tables
+# are still hand-written because their register set is a function of the
+# configuration, it remains the original cross-check. It also holds
+# config/rdl.json's registerSource flags and generate.py to the same story, which
+# is what stops a deleted table from quietly coming back. It runs against
+# penta_wound_afe_pt, the only configuration that instantiates every flagged
+# peripheral (AFE2 needs peripherals.afe2 and BIASG needs afeTopology = per_tile).
+# ---------------------------------------------------------------------------
+
+# The SystemRDL emission as a runnable target: the same code generate.py calls,
+# but with @rdl_deps in its runfiles, so it actually runs. It writes into the
+# SOURCE tree, exactly as `bazel run //:generate` does and for the same reason
+# (the artifacts are additive documentation, not build inputs).
+py_binary(
+    name = "rdl_generate",
+    srcs = ["//platform/common/python:rdl_emit.py"],
+    data = [
+        "//hdl:rdl_sources",
+        ":rdl_config",
+    ],
+    main = "rdl_emit.py",
+    deps = ["//platform/common/python:rdl_lib"],
+)
+
+[
+    py_test(
+        name = "rdl_vs_vhdl_" + periph + "_test",
+        size = "small",
+        srcs = ["//platform/common/python:rdl_vs_vhdl_test.py"],
+        args = ["--periph=" + periph],
+        data = [
+            "//hdl:rdl_sources",
+            "//hdl:vhdl_sources",
+        ],
+        main = "rdl_vs_vhdl_test.py",
+        deps = ["//platform/common/python:rdl_test_lib"],
+    )
+    for periph in [
+        "afe2",
+        "biasg",
+        "uart",
+        # The twenty house-style blocks (R2, 2026-09-10). One shared reader --
+        # makeGenericReader in rdl_vs_vhdl_test.py -- covers all of them: slot
+        # constants (local SLOT_*, the memory-map package's RegSlot*, NPU's
+        # MmrAddr*, or a literal table guarded by `require` patterns) and the
+        # reset branch of the register-write process.
+        "clint",
+        "dma",
+        "evfab",
+        "gpio",
+        "i2c",
+        "i2ctarget",
+        "i3c",
+        "irq_router",
+        "mutex_bank",
+        "nfc",
+        "npu",
+        "onewire",
+        "pwm",
+        "pwr_ctrl",
+        "qspi",
+        "rtc",
+        "spi",
+        "system",
+        "timer",
+        "trng",
+    ]
+]
+
+# The negative control: each gate is shown failing on a one-token mutation of the
+# .rdl it grades, and passing on the unmutated copy in the same run.
+py_test(
+    name = "rdl_negative_control_test",
+    size = "small",
+    srcs = ["//platform/common/python:rdl_negative_control_test.py"],
+    data = [
+        "//hdl:rdl_sources",
+        "//hdl:vhdl_sources",
+    ],
+    main = "rdl_negative_control_test.py",
+    deps = ["//platform/common/python:rdl_test_lib"],
+)
+
+py_test(
+    name = "rdl_vs_generator_test",
+    size = "small",
+    srcs = ["//platform/common/python:rdl_vs_generator_test.py"],
+    args = [
+        "$(rootpath :penta_wound_afe_pt_config_memorymap_json)",
+        "$(rootpath :rdl_config)",
+        "$(rootpath :penta_wound_afe_pt_trm_tree)",
+        "$(rootpath //platform/common/python:generate.py)",
+    ],
+    data = [
+        ":penta_wound_afe_pt_config_memorymap_json",
+        ":penta_wound_afe_pt_trm_tree",
+        ":rdl_config",
+        "//hdl:rdl_sources",
+        "//platform/common/python:generate.py",
+    ],
+    main = "rdl_vs_generator_test.py",
+    deps = ["//platform/common/python:rdl_test_lib"],
 )
 
 # The generated TRM tree of the per-tile AFE configuration, as one directory.

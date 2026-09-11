@@ -1,0 +1,221 @@
+{
+  "_comment": "Per-peripheral SystemRDL registry (tools/rdl/README.md). This file is the ONE place that says which .rdl file describes a peripheral, which addrmap in it is the block, which generate.py PeripheralTemplate its registers belong to, and where those registers come from: registerSource \"rdl\" means generate.py BUILDS the template from the description and carries no register data of its own; \"generator\" means the template is still hand-written, which since report R7 no peripheral is -- the four whose register set or field geometry is a function of the configuration are SystemRDL components with PARAMETERS, and the `parameters` field names them; \"none\" means the block is not a memory-mapped peripheral at all. rdl:false switches a peripheral off entirely. //platform/common:rdl_vs_generator_test grades every entry against the generated register map, which for a \"generator\" entry is a real comparison and for an \"rdl\" entry is the self-consistency check that the loader and the emitters agree.",
+  "peripherals": {
+    "UARTx": {
+      "rdl": true,
+      "source": "uart.rdl",
+      "top": "uart",
+      "registerPrefix": "UARTx",
+      "bitFieldPrefix": "U",
+      "note": "The pilot. Its .rdl is byte-equivalent to the UARTx PeripheralTemplate in generate.py, descriptions included.",
+      "registerSource": "rdl"
+    },
+    "AFEx": {
+      "rdl": true,
+      "source": "afe2.rdl",
+      "top": "afe2_site",
+      "registerPrefix": "AFEx",
+      "bitFieldPrefix": "AFE",
+      "note": "hdl/common/periph/AFE2.vhd, words 0 to 8 of a site's sub-slot. Present only when peripherals.afe2 is true.",
+      "registerSource": "rdl"
+    },
+    "AFExBIASG": {
+      "rdl": true,
+      "source": "biasg.rdl",
+      "top": "biasg",
+      "peripheral": "AFEx",
+      "registerPrefix": "AFEx",
+      "bitFieldPrefix": "AFE",
+      "note": "hdl/common/periph/BIASG.vhd, words 9 to 13 of AFE2 SITE 0's sub-slot. Present only when afeTopology is per_tile.",
+      "registerSource": "rdl"
+    },
+    "GPIOx": {
+      "rdl": true,
+      "source": "gpio.rdl",
+      "top": "gpio",
+      "registerPrefix": "Px",
+      "bitFieldPrefix": "Px",
+      "note": "hdl/common/periph/GPIO.vhd, six 8-pin ports. PxOUTT / PxIF / PxTASK are num_pins wide in the RTL, not 32, and the RstValPx* reset generics differ per port.",
+      "registerSource": "rdl"
+    },
+    "SPIx": {
+      "rdl": true,
+      "source": "spi.rdl",
+      "top": "spi",
+      "registerPrefix": "SPIx",
+      "bitFieldPrefix": "SPI",
+      "note": "hdl/common/periph/SPI.vhd. SPIxFOS exists only on SPI0 (ENABLE_EXTENDED_MEM); any access to SPIxRX clears SPITCIF.",
+      "registerSource": "rdl"
+    },
+    "TIMERx": {
+      "rdl": true,
+      "source": "timer.rdl",
+      "top": "timer",
+      "registerPrefix": "TIMx",
+      "bitFieldPrefix": "T",
+      "note": "hdl/common/periph/TIMER.vhd. TIMxVAL has no byte lanes: any enabled lane writes the whole word.",
+      "registerSource": "rdl"
+    },
+    "SYSTEM": {
+      "rdl": true,
+      "source": "system.rdl",
+      "top": "system",
+      "bitFieldPrefix": "SYS",
+      "note": "hdl/common/periph/SYSTEM.vhd. DCO0BIAS/DCO1BIAS reset to 0x800; WDTCR writes need the WDTPASS unlock window.",
+      "registerSource": "rdl"
+    },
+    "NPU": {
+      "rdl": true,
+      "source": "npu.rdl",
+      "top": "npu",
+      "registerPrefix": "NPU",
+      "bitFieldPrefix": "NPU",
+      "note": "hdl/common/periph/NPU.vhd MMR block. NPUTHINK is a separate flop written with the raw bit and cleared by NpuDone.",
+      "registerSource": "rdl"
+    },
+    "PWRCTRL": {
+      "rdl": true,
+      "source": "pwr_ctrl.rdl",
+      "top": "pwr_ctrl",
+      "bitFieldPrefix": "PWR",
+      "note": "hdl/common/pwr_ctrl.vhd. Carries TASKWKM (word 7), a register generate.py does not model at all.",
+      "registerSource": "rdl",
+      "parameters": "PARAMETERISED (R7): NHARTS. The guards VESTA_PWR_MULTIWORD / VESTA_PWR_MIDWORDS carry the PWRSR word count, which a parameter cannot: a SystemRDL array dimension must be greater than zero, and the one-word register is named PWRSR while the multi-word ones are PWRSR0/1/2."
+    },
+    "QSPIx": {
+      "rdl": true,
+      "source": "qspi.rdl",
+      "top": "qspi",
+      "registerPrefix": "QSPIx",
+      "bitFieldPrefix": "QSPI",
+      "note": "hdl/common/periph/QSPI.vhd. SR is slot 5, not slot 1; a lane-0 QSPIxCMD write is the sole launch.",
+      "registerSource": "rdl"
+    },
+    "I2Cx": {
+      "rdl": true,
+      "source": "i2c.rdl",
+      "top": "i2c",
+      "registerPrefix": "I2Cx",
+      "bitFieldPrefix": "I2C",
+      "note": "hdl/common/periph/I2C.vhd. I2CxAR resets to the default_SAD generic: 0x79 on I2C0, 0x23 on I2C1.",
+      "registerSource": "rdl"
+    },
+    "CLINT": {
+      "rdl": true,
+      "source": "clint.rdl",
+      "top": "clint",
+      "bitFieldPrefix": "CLINT",
+      "note": "hdl/common/clint.vhd. Every MTIMECMP word resets to all-ones so mtip starts low.",
+      "registerSource": "rdl",
+      "parameters": "PARAMETERISED (R7): NHARTS, NHARTS_WORD (the count spelled, as _spelled() prints it), MTIME_W, CMP_W. MSIPh is a register array; the MTIMECMPhL/H pair is a regfile array on an 8-byte stride, because two interleaved register arrays overlap."
+    },
+    "MUTEX": {
+      "rdl": true,
+      "source": "mutex_bank.rdl",
+      "top": "mutex_bank",
+      "bitFieldPrefix": "MTX",
+      "note": "hdl/common/mutex_bank.vhd. A READ claims the mutex; the owner field is MW+1 = 4 bits, not 32.",
+      "registerSource": "rdl",
+      "parameters": "PARAMETERISED (R7): NMUTEX, MW (= mcu_vhd masterW()), NHARTS. The owner markers are a parameterised run of value descriptions, because a SystemRDL enum is a static type whose member values must fit the field and 32 harts need 6 bits in a 4-bit field."
+    },
+    "I3Cx": {
+      "rdl": true,
+      "source": "i3c.rdl",
+      "top": "i3c",
+      "registerPrefix": "I3Cx",
+      "bitFieldPrefix": "I3C",
+      "note": "hdl/common/periph/I3C.vhd. I3CxCR resets to 0x4 (SDAPP = 1).",
+      "registerSource": "rdl"
+    },
+    "NFCx": {
+      "rdl": true,
+      "source": "nfc.rdl",
+      "top": "nfc",
+      "registerPrefix": "NFCx",
+      "bitFieldPrefix": "NFC",
+      "note": "hdl/common/periph/NFC.vhd. Three non-zero resets: CR 0x1000, CFG 0x44, TIM 0x088004D4.",
+      "registerSource": "rdl"
+    },
+    "RTCx": {
+      "rdl": true,
+      "source": "rtc.rdl",
+      "top": "rtc",
+      "registerPrefix": "RTCx",
+      "bitFieldPrefix": "RTC",
+      "note": "hdl/common/periph/RTC.vhd. SEC/SUB write staged values and read the live counter.",
+      "registerSource": "rdl"
+    },
+    "PWMx": {
+      "rdl": true,
+      "source": "pwm.rdl",
+      "top": "pwm",
+      "registerPrefix": "PWMx",
+      "bitFieldPrefix": "PWM",
+      "note": "hdl/common/periph/PWM.vhd. Slots 4, 5 and 7 are reserved headroom and read 0.",
+      "registerSource": "rdl"
+    },
+    "OWx": {
+      "rdl": true,
+      "source": "onewire.rdl",
+      "top": "onewire",
+      "registerPrefix": "OWx",
+      "bitFieldPrefix": "OW",
+      "note": "hdl/common/periph/OneWire.vhd. An OWxCMD write snapshots OWODS and OWxTX into the descriptor and launches.",
+      "registerSource": "rdl"
+    },
+    "DMAx": {
+      "rdl": true,
+      "source": "dma.rdl",
+      "top": "dma",
+      "registerPrefix": "DMAx",
+      "bitFieldPrefix": "DMA",
+      "note": "hdl/common/periph/DMA.vhd. CRC resets to 0xFFFF; CnSRC/CnDST/CnLEN are full 32-bit stores; GO/ABORT read 0.",
+      "registerSource": "rdl"
+    },
+    "TRNGx": {
+      "rdl": true,
+      "source": "trng.rdl",
+      "top": "trng",
+      "registerPrefix": "TRNGx",
+      "bitFieldPrefix": "TRNG",
+      "note": "hdl/common/periph/TRNG.vhd. TRNGxDR is the library's one read-consume register.",
+      "registerSource": "rdl"
+    },
+    "I2CTx": {
+      "rdl": true,
+      "source": "i2ctarget.rdl",
+      "top": "i2ctarget",
+      "registerPrefix": "I2CTx",
+      "bitFieldPrefix": "I2CT",
+      "note": "hdl/common/periph/I2CTarget.vhd. An I2CTxTX write loads and launches.",
+      "registerSource": "rdl"
+    },
+    "EVFAB": {
+      "rdl": true,
+      "source": "evfab.rdl",
+      "top": "evfab",
+      "registerPrefix": "EVF",
+      "bitFieldPrefix": "EVF",
+      "note": "hdl/common/periph/EVFAB.vhd. EVFCAP is the hardwired constant 0x010A1008; CHENSET/CHENCLR are w1s/w1c aliases of CHEN.",
+      "registerSource": "rdl"
+    },
+    "IRQROUTER": {
+      "rdl": true,
+      "source": "irq_router.rdl",
+      "top": "irq_router",
+      "bitFieldPrefix": "IRQR",
+      "note": "hdl/common/irq_router.vhd. CLAIM (word 512) has no storage: a read claims, a write completes.",
+      "registerSource": "rdl",
+      "parameters": "PARAMETERISED (R7): NHARTS, VECTORS, UMSB, UTOP, XMSB. The guards VESTA_IRQR_NO_XWORDS / VESTA_IRQR_U_NARROW carry the two shapes below 97 interrupt sources; no configuration emitted today defines either."
+    },
+    "DEBUG": {
+      "rdl": true,
+      "source": "debug_module.rdl",
+      "top": "debug_module",
+      "peripheral": null,
+      "registerSource": "none",
+      "registerSourceReason": "The Debug Module is not memory-mapped: its registers live in the DMI address space, reachable only through the JTAG DTM, so there is no generate.py PeripheralTemplate for them and no register-index row. The description is compiled and exported (//tools/rdl:peakrdl_export_test) and is linked from the debug chapter as its own table.",
+      "note": "hdl/common/dbg/*.vhd. DMI space, not the memory map."
+    }
+  }
+}

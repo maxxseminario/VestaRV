@@ -1,0 +1,237 @@
+// ===========================================================================
+// gpio.rdl: the register map of hdl/common/periph/GPIO.vhd.
+//
+// Six 8-pin ports (num_pins = 8 on every instance in this chip; the block
+// asserts num_pins <= 8 because PxAFS packs one nibble per pin).
+// THE VHDL IS THE AUTHORITY: the slot numbers are MemoryMap.vhd's
+// RegSlotPx* constants plus the LOCAL constant RegSlotPxTASK = 12, the
+// widths come from `signal Px* : std_logic_vector(num_pins-1 downto 0)`
+// and the resets from the RstValPx* generics, which differ PER PORT and are
+// applied at the instance in castalia_penta_wound_afe.rdl.
+//
+// Three registers the generator models 32 bits wide are only num_pins wide
+// in the RTL: PxOUTT, PxIF and PxTASK all loop `for i in 0 to (num_pins/8)-1`
+// on the write side and read back `read_data_buff(num_pins-1 downto 0)`. They
+// are 32 in the emitted map because Peripheral.ChangeGPIOPortSize's
+// registersToChange list names P?IFG, P?RIF and P?FIF -- registers this GPIO
+// does not have -- and never mentions P?OUTT, P?IF or P?TASK, so the narrowing
+// that reaches the other ten misses those three. PxAFS is genuinely 32: it is
+// a nibble per pin.
+// PxOUT is hw=rw because the event fabric's task_outset / task_outclr write
+// it directly (CLR wins a same-cycle overlap).
+// ===========================================================================
+
+`include "vesta_udp.rdl"
+
+reg PxIN_t {
+    regwidth = 8;
+    desc = "GPIO read pin register. Each bit corresponds to the input logic state of the GPIO pin of the same number. The register is latched on the falling edge of the memory enable signal. Reading a 0 in a bit indicates a logic low pin state; reading a 1 indicates a logic high state. This register always reflects the pin state regardless of pin direction or peripheral select settings.";
+    // Readback is `not PxINLat`, and PxINLat is latched on falling_edge(en): a read returns the pin state sampled at the END of the previous bus access, not the live pad.
+    field {
+        sw = r; hw = w;
+        reset = 8'h0;
+        vesta_access = "r";
+        desc = "Pin input levels. Bit y reads the logic level of pin y as sampled at the start of the bus access, regardless of the pin direction or PxSEL setting. Bits 31:8 read 0.";
+    } PxIN[7:0];
+};
+
+reg PxOUT_t {
+    regwidth = 8;
+    desc = "GPIO output drive register. Each bit corresponds to the output logic state of the GPIO pin of the same number. Only has an effect if the pin is configured as an output in PxDIR and is set to GPIO (primary) mode in PxSEL. Write a 0 to the desired bit to make the corresponding pin output a logic low value; write a 1 to output a logic high value.";
+    // hw=rw: the EVFAB task_outset/task_outclr pulses set or clear the PxTASK-selected bits of this register outside the bus qualifier.
+    field {
+        sw = rw; hw = rw;
+        reset = 8'h0;
+        vesta_access = "rw";
+        desc = "Output drive levels. Bit y is the level driven on pin y while the pin is an output (PxDIR bit y = 1) in GPIO mode (PxSEL bit y = 0). Resets to 0; bits 31:8 read 0 and ignore writes.";
+    } PxOUT[7:0];
+};
+
+reg PxOUTS_t {
+    regwidth = 8;
+    desc = "GPIO output drive set register. Each bit corresponds to the output logic state of the GPIO pin of the same number. Only has an effect if the pin is configured as an output in PxDIR and is in GPIO (primary) mode in PxSEL. Write a 1 to the desired bit to set the corresponding pin (make the pin output a logic high value). Writing a 0 has no effect. Reading this register is equivalent to reading the output drive register PxOUT.";
+    // Write-1-to-SET alias of PxOUT (`if write_data(j) = '1' then PxOUT(j) <= '1'`); reads return PxOUT.
+    field {
+        sw = rw; hw = rw; onwrite = woset;
+        reset = 8'h0;
+        vesta_access = "rw1";
+        desc = "Output set. Writing 1 to bit y sets PxOUT bit y; writing 0 has no effect. Reads return the current PxOUT value.";
+    } PxOUTS[7:0];
+};
+
+reg PxOUTC_t {
+    regwidth = 8;
+    desc = "GPIO output drive clear register. Each bit corresponds to the output logic state of the GPIO pin of the same number. Only has an effect if the pin is configured as an output in PxDIR and is in GPIO (primary) mode in PxSEL. Write a 1 to the desired bit to clear the corresponding pin (make the pin output a logic low value). Writing a 0 has no effect. Reading this register yields the inversion of the output drive register PxOUT.";
+    // Write-1-to-CLEAR alias of PxOUT. The read mux returns `(not PxOUT)` for this slot, so PxOUTC reads back the COMPLEMENT of the port while PxOUTS and PxOUTT read PxOUT itself; the GPIO chapter states that asymmetry, so it is intended, not a decode slip.
+    field {
+        sw = rw; hw = rw; onwrite = woclr;
+        reset = 8'h0;
+        vesta_access = "rw1";
+        desc = "Output clear. Writing 1 to bit y clears PxOUT bit y; writing 0 has no effect. Reads return the inverse of the current PxOUT value.";
+    } PxOUTC[7:0];
+};
+
+reg PxOUTT_t {
+    regwidth = 8;
+    desc = "GPIO output drive toggle register. Each bit corresponds to the output logic state of the GPIO pin of the same number. Only has an effect if the pin is configured as an output in PxDIR and is in GPIO (primary) mode in PxSEL. Write a 1 to the desired bit to toggle the corresponding pin state. Writing a 0 has no effect. Reading this register is equivalent to reading the output drive register PxOUT.";
+    // Write-1-to-TOGGLE alias of PxOUT; reads return PxOUT. Only bits num_pins-1:0 exist (the generator models 31:0).
+    field {
+        sw = rw; hw = rw; onwrite = wot;
+        reset = 8'h0;
+        vesta_access = "rw1";
+        desc = "Output toggle. Writing 1 to bit y inverts PxOUT bit y; writing 0 has no effect. Reads return the current PxOUT value.";
+    } PxOUTT[7:0];
+};
+
+reg PxDIR_t {
+    regwidth = 8;
+    desc = "GPIO pin direction register. Each bit corresponds to the GPIO pin of the same number. Only has an effect if the pin is configured in GPIO (primary) mode in PxSEL. Write a 0 to the desired bit to set the corresponding pin to input mode; write a 1 to set to output mode.";
+    field {
+        sw = rw; hw = r;
+        reset = 8'h0;
+        vesta_access = "rw";
+        desc = "Pin direction. Bit y = 0 makes pin y an input and 1 makes it an output, effective only while the pin is in GPIO mode (PxSEL bit y = 0). Resets to 0 (all inputs); bits 31:8 read 0 and ignore writes.";
+    } PxDIR[7:0];
+};
+
+reg PxIF_t {
+    regwidth = 8;
+    desc = "GPIO interrupt flag register. Each bit corresponds to the GPIO pin of the same number. The register is latched on the falling edge of the memory enable signal. Reading a 0 in a bit indicates there is no pending interrupt for the corresponding pin; reading a 1 indicates there is a new interrupt pending for the corresponding pin. Write a 1 to each bit for which you wish to clear the interrupt flag. Writing 0 has no effect.";
+    // Only bits num_pins-1:0 exist. Readback is `not PxIF_ltch`, latched on falling_edge(en) like PxIN.
+    field {
+        sw = rw; hw = w; onwrite = woclr;
+        reset = 8'h0;
+        vesta_access = "rw1";
+        desc = "Interrupt flags. Hardware sets bit y when the edge selected by PxIES occurs on pin y while PxIE bit y is 1, and holds it until software writes 1 to the bit; writing 0 has no effect. Each flag drives the interrupt vector of its pin directly, and bits 31:8 read 0.";
+    } PxIF[7:0];
+};
+
+reg PxIES_t {
+    regwidth = 8;
+    desc = "GPIO interrupt edge select register. Each bit corresponds to the GPIO pin of the same number. Write a 0 to the desired bit to set the corresponding pin interrupt to trigger on low-to-high (rising) edge; write a 1 to set to high-to-low (falling) edge triggering.";
+    field {
+        sw = rw; hw = r;
+        reset = 8'h0;
+        vesta_access = "rw";
+        desc = "Interrupt edge select. Bit y = 0 makes a rising edge on pin y set PxIF bit y, 1 selects a falling edge. Resets to 0.";
+    } PxIES[7:0];
+};
+
+reg PxIE_t {
+    regwidth = 8;
+    desc = "GPIO interrupt enable register. Each bit corresponds to the GPIO pin of the same number. Write a 0 to the desired bit to disable the pin interrupt; write a 1 to enable the pin interrupt. Each pin has an individual interrupt output that connects to the system interrupt vector table. Interrupts function in both GPIO (primary) and secondary function (peripheral) modes.";
+    field {
+        sw = rw; hw = r;
+        reset = 8'h0;
+        vesta_access = "rw";
+        desc = "Interrupt enable. Bit y = 1 allows the selected edge on pin y to set PxIF bit y; with the bit at 0 no flag is captured for the pin. Resets to 0.";
+    } PxIE[7:0];
+};
+
+reg PxSEL_t {
+    regwidth = 8;
+    desc = "GPIO peripheral select register. Each bit corresponds to the GPIO pin of the same number. Write a 0 to the desired bit to set the corresponding pin to GPIO (primary) mode; write a 1 to set the pin to alternate function (peripheral) mode. When a pin is in alternate function (peripheral) mode, the governing peripheral takes control of the pin output, direction, and resistor enable states, and the PxOUT, PxDIR, and PxREN registers have no effect on the pin. WHICH alternate function governs the pin is selected by the pin's field in the PxAFS register: at reset all PxAFS fields are 0, selecting alternate function 0 (AF0). Pin interrupts remain available when in alternate function (peripheral) mode in addition to any interrupts the governing peripheral may generate. If a pin has no alternate function defined at the selected PxAFS plane, setting PxSEL to 1 will configure the pin as a high-impedance input.";
+    field {
+        sw = rw; hw = r;
+        reset = 8'h0;
+        vesta_access = "rw";
+        desc = "Pin function select. Bit y = 0 gives pin y to the GPIO registers, 1 hands its output level, direction and resistor enable to the alternate function chosen by the PxAFS field of the pin. Resets to 0; bits 31:8 read 0 and ignore writes.";
+    } PxSEL[7:0];
+};
+
+reg PxREN_t {
+    regwidth = 8;
+    desc = "GPIO resistor enable register. Each bit corresponds to the GPIO pin of the same number. Only has an effect if the pin is configured in GPIO (primary) mode in PxSEL. Write a 0 to the desired bit to disable the pin pullup/pulldown resistor; write a 1 to enable the pin pullup/pulldown resistor.";
+    field {
+        sw = rw; hw = r;
+        reset = 8'h0;
+        vesta_access = "rw";
+        desc = "Pull resistor enable. Bit y = 1 enables the pull resistor of pin y while the pin is in GPIO mode (PxSEL bit y = 0); in alternate function mode the peripheral controls the resistor. Resets to 0; bits 31:8 read 0 and ignore writes.";
+    } PxREN[7:0];
+};
+
+// Nibble per pin, low 3 bits used; bit 3 of each nibble is reserved and reads 0. Write lane i/2 covers pins 2i and 2i+1.
+reg PxAFS_t {
+    regwidth = 32;
+    desc = "GPIO alternate function select register. One 4-bit field per pin (pin y occupies bits 4y+3 downto 4y; only the low 3 bits of each field are implemented, the top bit is reserved and reads 0). When a pin is in alternate function (peripheral) mode (PxSEL bit = 1), the value of its PxAFS field selects WHICH alternate function (AF0-AF7) controls the pin. Each pin's available alternate functions are listed in the pin configuration table in Section \\ref{s:pinsConfig}. The register resets to 0, so every pin comes out of reset selecting its AF0 (legacy) function. Selecting an AF plane with no function defined for the pin configures the pin as a high-impedance input. While a pin is in GPIO (primary) mode its PxAFS field has no effect on the pad, but it still routes relocatable peripheral INPUTS: a peripheral input function relocated to this pin (e.g. a UART receiver or timer capture) observes the pin whenever the PxAFS field selects it, regardless of PxSEL.";
+    field {
+        sw = rw; hw = r;
+        reset = 3'h0;
+        vesta_access = "rw";
+        desc = "Alternate function select for pin 7 (0 = AF0 ... 7 = AF7)";
+    } PxAFS7[30:28];
+    field {
+        sw = rw; hw = r;
+        reset = 3'h0;
+        vesta_access = "rw";
+        desc = "Alternate function select for pin 6 (0 = AF0 ... 7 = AF7)";
+    } PxAFS6[26:24];
+    field {
+        sw = rw; hw = r;
+        reset = 3'h0;
+        vesta_access = "rw";
+        desc = "Alternate function select for pin 5 (0 = AF0 ... 7 = AF7)";
+    } PxAFS5[22:20];
+    field {
+        sw = rw; hw = r;
+        reset = 3'h0;
+        vesta_access = "rw";
+        desc = "Alternate function select for pin 4 (0 = AF0 ... 7 = AF7)";
+    } PxAFS4[18:16];
+    field {
+        sw = rw; hw = r;
+        reset = 3'h0;
+        vesta_access = "rw";
+        desc = "Alternate function select for pin 3 (0 = AF0 ... 7 = AF7)";
+    } PxAFS3[14:12];
+    field {
+        sw = rw; hw = r;
+        reset = 3'h0;
+        vesta_access = "rw";
+        desc = "Alternate function select for pin 2 (0 = AF0 ... 7 = AF7)";
+    } PxAFS2[10:8];
+    field {
+        sw = rw; hw = r;
+        reset = 3'h0;
+        vesta_access = "rw";
+        desc = "Alternate function select for pin 1 (0 = AF0 ... 7 = AF7)";
+    } PxAFS1[6:4];
+    field {
+        sw = rw; hw = r;
+        reset = 3'h0;
+        vesta_access = "rw";
+        desc = "Alternate function select for pin 0 (0 = AF0 ... 7 = AF7)";
+    } PxAFS0[2:0];
+};
+
+reg PxTASK_t {
+    regwidth = 8;
+    desc = "GPIO event-fabric task pin-select register. Each bit corresponds to the GPIO pin of the same number and selects whether that pin participates in the EVFAB0 event-fabric output tasks: when the fabric fires the port's OUT-SET task, every pin whose PxTASK bit is 1 has its PxOUT bit set; when it fires the OUT-CLR task, every selected pin has its PxOUT bit cleared. The two task pulses are applied AFTER the CPU register write in the same cycle (a task wins its own pins against a coincident PxOUT write) and CLR is applied after SET (a same-cycle set+clear on an overlapping pin resolves to CLEAR, the safe direction). A toggle task is deliberately not offered. Resets to 0, so no pin is fabric-driven out of reset. In a configuration WITHOUT the event fabric (peripherals.eventFabric false) the register is still readable and writable but has no effect, because both task inputs are tied inactive. Only the port's implemented pins have bits; the rest read 0.";
+    // Only bits num_pins-1:0 exist (the generator models 31:0).
+    field {
+        sw = rw; hw = r;
+        reset = 8'h0;
+        vesta_access = "rw";
+        desc = "Event fabric task pin select. Bit y = 1 lets the EVFAB0 output set and output clear tasks of this port set or clear PxOUT bit y; with the bit at 0 the tasks leave pin y untouched. Resets to 0, so no pin responds to a task until software selects it.";
+    } PxTASK[7:0];
+};
+addrmap gpio {
+    name = "GPIOx";
+    desc = "General Purpose Input Output";
+    vesta_peripheral = "GPIOx";
+    vesta_word_base = 0;
+
+    PxIN_t   PxIN   @0x00;
+    PxOUT_t  PxOUT  @0x04;
+    PxOUTS_t PxOUTS @0x08;
+    PxOUTC_t PxOUTC @0x0C;
+    PxOUTT_t PxOUTT @0x10;
+    PxDIR_t  PxDIR  @0x14;
+    PxIF_t   PxIF   @0x18;
+    PxIES_t  PxIES  @0x1C;
+    PxIE_t   PxIE   @0x20;
+    PxSEL_t  PxSEL  @0x24;
+    PxREN_t  PxREN  @0x28;
+    PxAFS_t  PxAFS  @0x2C;
+    PxTASK_t PxTASK @0x30;
+};

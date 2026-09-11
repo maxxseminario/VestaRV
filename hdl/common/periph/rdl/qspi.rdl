@@ -1,0 +1,280 @@
+// ===========================================================================
+// qspi.rdl: the register map of hdl/common/periph/QSPI.vhd.
+//
+// THE VHDL IS THE AUTHORITY: the slot numbers are the block's own SLOT_*
+// constants (CR 0, CMD 1, ADR 2, TX 3, RX 4, SR 5 -- note SR is LAST, not
+// second), the widths are the signal declarations (QSPIxCR 28:0, QSPIxCMD
+// 10:0, QSPIxSR 3:0) and the reset branch zeroes CR, CMD, ADR and TX.
+//
+// A lane-0 write to QSPIxCMD is the SOLE transaction trigger; the content is
+// always captured and only the launch pulse is suppressed while QSPIEN = 0
+// or BUSY = 1.
+// ===========================================================================
+
+`include "vesta_udp.rdl"
+
+enum qspixcr_qspirxfie_e {
+    INTERRUPT_DISABLED = 1'h0 { desc = "Interrupt disabled"; };
+    INTERRUPT_ENABLED = 1'h1 { desc = "Interrupt enabled"; };
+};
+enum qspixcr_qspitcie_e {
+    INTERRUPT_DISABLED = 1'h0 { desc = "Interrupt disabled"; };
+    INTERRUPT_ENABLED = 1'h1 { desc = "Interrupt enabled"; };
+};
+enum qspixcr_qspiawid_e {
+    NO_ADDRESS_PHASE = 2'h0 { desc = "No address phase"; };
+    V24_BIT_ADDRESS_LOW = 2'h1 { desc = "24-bit address (low 24 bits of QSPIxADR)"; };
+    V32_BIT_ADDRESS = 2'h2 { desc = "32-bit address"; };
+    RESERVED = 2'h3 { desc = "Reserved"; };
+};
+enum qspixcr_qspicpha_e {
+    SAMPLE_ON_THE_LEADING = 1'h0 { desc = "Sample on the leading edge"; };
+    SAMPLE_ON_THE_TRAILING = 1'h1 { desc = "Sample on the trailing edge"; };
+};
+enum qspixcr_qspicpol_e {
+    SCK_IDLES_LOW = 1'h0 { desc = "SCK idles low"; };
+    SCK_IDLES_HIGH = 1'h1 { desc = "SCK idles high"; };
+};
+enum qspixcr_qspidatw_e {
+    V1_BIT_SINGLE_LANE = 2'h0 { desc = "1-bit (single lane, IO0 only)"; };
+    V2_BIT_DUAL_LANE = 2'h1 { desc = "2-bit (dual lane, IO0-1)"; };
+    V4_BIT_QUAD_LANE = 2'h2 { desc = "4-bit (quad lane, IO0-3)"; };
+    RESERVED = 2'h3 { desc = "Reserved"; };
+};
+enum qspixcr_qspiadrw_e {
+    V1_BIT_SINGLE_LANE = 2'h0 { desc = "1-bit (single lane, IO0 only)"; };
+    V2_BIT_DUAL_LANE = 2'h1 { desc = "2-bit (dual lane, IO0-1)"; };
+    V4_BIT_QUAD_LANE = 2'h2 { desc = "4-bit (quad lane, IO0-3)"; };
+    RESERVED = 2'h3 { desc = "Reserved"; };
+};
+enum qspixcr_qspicmdw_e {
+    V1_BIT_SINGLE_LANE = 2'h0 { desc = "1-bit (single lane, IO0 only)"; };
+    V2_BIT_DUAL_LANE = 2'h1 { desc = "2-bit (dual lane, IO0-1)"; };
+    V4_BIT_QUAD_LANE = 2'h2 { desc = "4-bit (quad lane, IO0-3)"; };
+    RESERVED = 2'h3 { desc = "Reserved"; };
+};
+enum qspixcr_qspien_e {
+    DISABLED = 1'h0 { desc = "Disabled"; };
+    ENABLED = 1'h1 { desc = "Enabled"; };
+};
+enum qspixcmd_qspidir_e {
+    WRITE_DRIVE_QSPIXTX_OUT = 1'h0 { desc = "Write (drive QSPIxTX out on the IO lines)"; };
+    READ_CAPTURE_THE_IO = 1'h1 { desc = "Read (capture the IO lines into QSPIxRX)"; };
+};
+enum qspixcmd_qspidlen_e {
+    NO_DATA_PHASE = 2'h0 { desc = "No data phase"; };
+    V8_BIT = 2'h1 { desc = "8-bit"; };
+    V16_BIT = 2'h2 { desc = "16-bit"; };
+    V32_BIT = 2'h3 { desc = "32-bit"; };
+};
+enum qspixsr_qspitcif_e {
+    NO_EVENT = 1'h0 { desc = "No event"; };
+    TRANSFER_COMPLETE = 1'h1 { desc = "Transfer complete"; };
+};
+enum qspixsr_qspirxfull_e {
+    NO_EVENT = 1'h0 { desc = "No event"; };
+    RECEIVE_REGISTER_FULL = 1'h1 { desc = "Receive register full"; };
+};
+enum qspixsr_qspitxeif_e {
+    NO_EVENT = 1'h0 { desc = "No event"; };
+    TRANSMIT_REGISTER_EMPTY = 1'h1 { desc = "Transmit register empty"; };
+};
+enum qspixsr_qspibusy_e {
+    IDLE = 1'h0 { desc = "Idle"; };
+    TRANSACTION_IN_PROGRESS = 1'h1 { desc = "Transaction in progress"; };
+};
+
+reg QSPIxCR_t {
+    regwidth = 32;
+    desc = "QSPI control register. Configures the per-phase lane widths, SPI mode, address size, dummy cycles, chip select, baud rate, and interrupt enables. Take care to reconfigure this register only while the controller is idle (QSPIBUSY = 0).";
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = qspixcr_qspirxfie_e;
+        desc = "Receive-full interrupt enable. When set, the QSPIRXFULL flag drives interrupt vector 56.";
+    } QSPIRXFIE[28:28];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = qspixcr_qspitcie_e;
+        desc = "Transfer-complete interrupt enable. When set, the QSPITCIF flag drives interrupt vector 55.";
+    } QSPITCIE[27:27];
+    field {
+        sw = rw; hw = r;
+        reset = 8'h0;
+        vesta_access = "rw";
+        desc = "Baud-rate divider. The serial clock is SCK = SMCLK / (2 * (1 + QSPIBR)), so 0 gives the fastest clock (SMCLK/2). SMCLK is the SYSTEM clock source (write SYS_CLK_CR = 0 to run SMCLK from HFXT before using the controller).";
+    } QSPIBR[26:19];
+    field {
+        sw = rw; hw = r;
+        reset = 3'h0;
+        vesta_access = "rw";
+        desc = "Chip-select index. Selects which chip-select output drives the transaction. In this MVP only CS0 is wired to a pin; write 0.";
+    } QSPICSSEL[18:16];
+    field {
+        sw = rw; hw = r;
+        reset = 5'h0;
+        vesta_access = "rw";
+        desc = "Dummy SCK cycles inserted after the address phase and before the data phase, with the bus released (all IO lines tri-stated). Required for dual/quad fast-read commands (at least 1 dummy cycle); set to 0 for commands with no dummy phase.";
+    } QSPIDUMMY[15:11];
+    field {
+        sw = rw; hw = r;
+        reset = 2'h0;
+        vesta_access = "rw";
+        encode = qspixcr_qspiawid_e;
+        desc = "Address-phase width in bits. Selects whether the transaction emits an address phase and how wide it is (from QSPIxADR).";
+    } QSPIAWID[10:9];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = qspixcr_qspicpha_e;
+        desc = "Clock phase. Selects the SCK edge on which data is sampled.";
+    } QSPICPHA[8:8];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = qspixcr_qspicpol_e;
+        desc = "Clock polarity. Sets the idle level of SCK.";
+    } QSPICPOL[7:7];
+    field {
+        sw = rw; hw = r;
+        reset = 2'h0;
+        vesta_access = "rw";
+        encode = qspixcr_qspidatw_e;
+        desc = "Data-phase lane width. Selects how many IO lines carry the payload.";
+    } QSPIDATW[6:5];
+    field {
+        sw = rw; hw = r;
+        reset = 2'h0;
+        vesta_access = "rw";
+        encode = qspixcr_qspiadrw_e;
+        desc = "Address-phase lane width. Selects how many IO lines carry the transaction address (when QSPIAWID is non-zero).";
+    } QSPIADRW[4:3];
+    field {
+        sw = rw; hw = r;
+        reset = 2'h0;
+        vesta_access = "rw";
+        encode = qspixcr_qspicmdw_e;
+        desc = "Command-phase lane width. Selects how many IO lines carry the 8-bit opcode.";
+    } QSPICMDW[2:1];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = qspixcr_qspien_e;
+        desc = "QSPI enable. When 0 the controller is held idle: the serial pins are released, no transaction launches, and a write to QSPIxCMD is ignored. Set to 1 before launching a transaction.";
+    } QSPIEN[0:0];
+};
+
+// LAUNCH: `if WEn(0) = '0' then QSPIxCMD(7 downto 0) <= wdata(7 downto 0); if q_en = '1' and busy = '0' then qspi_launch <= '1'`. TX/ADR/CR writes never launch.
+reg QSPIxCMD_t {
+    regwidth = 32;
+    desc = "QSPI command register. Holds the opcode, data length, and direction of the next transaction. Writing this register with byte lane 0 asserted LAUNCHES the transaction (the write is ignored when QSPIEN = 0 or QSPIBUSY = 1). Program QSPIxCR, QSPIxADR, and (for writes) QSPIxTX first, then write QSPIxCMD last.";
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = qspixcmd_qspidir_e;
+        desc = "Data-phase direction.";
+    } QSPIDIR[10:10];
+    field {
+        sw = rw; hw = r;
+        reset = 2'h0;
+        vesta_access = "rw";
+        encode = qspixcmd_qspidlen_e;
+        desc = "Data-phase length. Selects how many payload bits the data phase transfers (right-justified in QSPIxTX / QSPIxRX).";
+    } QSPIDLEN[9:8];
+    field {
+        sw = rw; hw = r;
+        reset = 8'h0;
+        vesta_access = "rw";
+        desc = "Command opcode, shifted out most-significant bit first during the command phase at the QSPICMDW lane width.";
+    } QSPICMD[7:0];
+};
+
+reg QSPIxADR_t {
+    regwidth = 32;
+    desc = "QSPI transaction address. Emitted during the address phase at the QSPIADRW lane width when QSPIAWID is non-zero. When QSPIAWID selects 24-bit, only the low 24 bits are used.";
+    field {
+        sw = rw; hw = r;
+        reset = 32'h0;
+        vesta_access = "rw";
+        desc = "Transaction address value.";
+    } QSPIADR[31:0];
+};
+
+reg QSPIxTX_t {
+    regwidth = 32;
+    desc = "QSPI transmit data. Holds the write-direction payload, right-justified (the low QSPIDLEN bits are significant). Writing this register never triggers a transaction; only a QSPIxCMD write does.";
+    field {
+        sw = rw; hw = r;
+        reset = 32'h0;
+        vesta_access = "rw";
+        desc = "Write payload, right-justified.";
+    } QSPITX[31:0];
+};
+
+reg QSPIxRX_t {
+    regwidth = 32;
+    desc = "QSPI receive data. A snapshot of the most recent read-direction data phase, right-justified (the low QSPIDLEN bits are significant). Reads have NO side effects: reading QSPIxRX does not clear any flag or advance any state (deliberately unlike the SPI RX-read-clears-TCIF behaviour).";
+    // Read-only; writes to this slot are explicitly a no-op with no side effect. Readback is un-inverted from the falling_edge(EnMemPeriph) pre-latch.
+    field {
+        sw = r; hw = w;
+        reset = 32'h0;
+        vesta_access = "r";
+        desc = "Read payload snapshot, right-justified.";
+    } QSPIRX[31:0];
+};
+
+// Lane-0 write-1-to-clear on TXEIF/RXFULL/TCIF; BUSY (bit 0) is hardware-driven and ignores writes.
+reg QSPIxSR_t {
+    regwidth = 32;
+    desc = "QSPI status register. QSPIBUSY is read-only; the three event flags are write-1-to-clear (write a 1 to a bit to clear it; writing 0 leaves it unchanged).";
+    field {
+        sw = rw; hw = w; onwrite = woclr;
+        reset = 1'h0;
+        vesta_access = "rw1";
+        encode = qspixsr_qspitcif_e;
+        desc = "Transfer-complete flag. Set when a transaction finishes; drives vector 55 when QSPITCIE is set. Write 1 to clear.";
+    } QSPITCIF[3:3];
+    field {
+        sw = rw; hw = w; onwrite = woclr;
+        reset = 1'h0;
+        vesta_access = "rw1";
+        encode = qspixsr_qspirxfull_e;
+        desc = "Receive-full flag. Set when a read-direction data phase has captured a fresh word into QSPIxRX; drives vector 56 when QSPIRXFIE is set. Write 1 to clear. (Reading QSPIxRX does NOT clear it.)";
+    } QSPIRXFULL[2:2];
+    field {
+        sw = rw; hw = w; onwrite = woclr;
+        reset = 1'h0;
+        vesta_access = "rw1";
+        encode = qspixsr_qspitxeif_e;
+        desc = "Transmit-empty flag. Set when the transmit path has consumed QSPIxTX and can accept the next word. Write 1 to clear.";
+    } QSPITXEIF[1:1];
+    field {
+        sw = r; hw = w;
+        reset = 1'h0;
+        vesta_access = "r";
+        encode = qspixsr_qspibusy_e;
+        desc = "Busy. Reads 1 while a transaction is in progress; a QSPIxCMD launch is ignored while this bit is set.";
+    } QSPIBUSY[0:0];
+};
+addrmap qspi {
+    name = "QSPIx";
+    desc = "Quad Serial Peripheral Interface flash controller";
+    vesta_peripheral = "QSPIx";
+    vesta_word_base = 0;
+
+    default regwidth = 32;
+
+    QSPIxCR_t  QSPIxCR  @0x00;
+    QSPIxCMD_t QSPIxCMD @0x04;
+    QSPIxADR_t QSPIxADR @0x08;
+    QSPIxTX_t  QSPIxTX  @0x0C;
+    QSPIxRX_t  QSPIxRX  @0x10;
+    QSPIxSR_t  QSPIxSR  @0x14;
+};

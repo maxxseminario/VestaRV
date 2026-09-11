@@ -1,0 +1,234 @@
+// =============================================================================
+// uart.rdl: the register map of hdl/common/periph/UART.vhd, and the PILOT for
+// the SystemRDL adoption (tools/rdl/README.md).
+//
+// UART is the pilot because its decode is the easiest in the tree to read back
+// mechanically: five slots, one `case en_addr_periph is` per direction, one
+// `signal UART_<REG> : std_logic_vector(N downto 0)` per storage register, and
+// a reset branch that names every one of them.
+// //platform/common:rdl_vs_vhdl_uart_test re-derives the five slot numbers from
+// hdl/common/MemoryMap.vhd, the storage widths from the signal declarations and
+// the resets from the reg_write_proc reset branch, and compares all three.
+//
+// The whole file is byte-equivalent to the UARTx PeripheralTemplate in
+// generate.py, descriptions and value descriptions included; that equivalence is
+// //platform/common:rdl_vs_generator_test, and it is the claim that makes this a
+// pilot rather than a second copy of the register map.
+//
+// Everything resets to zero. UARTxSR and UARTxRX hold no software-writable
+// state: SR is eight hardware flags of which three take a write-1-to-clear, and
+// RX is the receive holding register.
+// =============================================================================
+
+`include "vesta_udp.rdl"
+
+enum uartxcr_uen_e {
+    UEN_UART_DISABLED = 1'h0 { desc = "UART disabled"; };
+    UEN_UART_ENABLED = 1'h1 { desc = "UART enabled"; };
+};
+enum uartxcr_upen_e {
+    UPEN_PARITY_DISABLED = 1'h0 { desc = "Parity disabled"; };
+    UPEN_PARITY_ENABLED = 1'h1 { desc = "Parity enabled"; };
+};
+enum uartxcr_psel_e {
+    PSEL_EVEN_PARITY = 1'h0 { desc = "Even parity"; };
+    PSEL_ODD_PARITY = 1'h1 { desc = "Odd parity"; };
+};
+enum uartxcr_cie_e {
+    CIE_RX_COMPLETE_INTERRUPT_DISABLED = 1'h0 { desc = "RX complete interrupt disabled"; };
+    CIE_RX_COMPLETE_INTERRUPT_ENABLED = 1'h1 { desc = "RX complete interrupt enabled"; };
+};
+enum uartxcr_teie_e {
+    TEIE_TX_EMPTY_INTERRUPT_DISABLED = 1'h0 { desc = "TX empty interrupt disabled"; };
+    TEIE_TX_EMPTY_INTERRUPT_ENABLED = 1'h1 { desc = "TX empty interrupt enabled"; };
+};
+enum uartxcr_tcie_e {
+    TCIE_TX_COMPLETE_INTERRUPT_DISABLED = 1'h0 { desc = "TX complete interrupt disabled"; };
+    TCIE_TX_COMPLETE_INTERRUPT_ENABLED = 1'h1 { desc = "TX complete interrupt enabled"; };
+};
+enum uartxsr_rxbf_e {
+    RXBF_RECEIVER_IDLE = 1'h0 { desc = "Receiver idle"; };
+    RXBF_RECEPTION_IN_PROGRESS = 1'h1 { desc = "Reception in progress"; };
+};
+enum uartxsr_txbf_e {
+    TXBF_TRANSMITTER_IDLE = 1'h0 { desc = "Transmitter idle"; };
+    TXBF_TRANSMISSION_IN_PROGRESS = 1'h1 { desc = "Transmission in progress"; };
+};
+enum uartxsr_fef_e {
+    FEF_NO_FRAMING_ERROR = 1'h0 { desc = "No framing error"; };
+    FEF_FRAMING_ERROR_DETECTED_ON = 1'h1 { desc = "Framing error detected on last reception"; };
+};
+enum uartxsr_pef_e {
+    PEF_NO_PARITY_ERROR = 1'h0 { desc = "No parity error"; };
+    PEF_PARITY_ERROR_DETECTED_ON = 1'h1 { desc = "Parity error detected on last reception"; };
+};
+enum uartxsr_ovf_e {
+    OVF_NO_RECEIVE_DATA_OVERRUN = 1'h0 { desc = "No receive data overrun"; };
+    OVF_RECEIVE_DATA_OVERFLOW_DETECTED = 1'h1 { desc = "Receive data overflow detected"; };
+};
+enum uartxsr_rcif_e {
+    RCIF_NO_PENDING_RX_COMPLETE = 1'h0 { desc = "No pending RX complete interrupt"; };
+    RCIF_RX_COMPLETE_INTERRUPT_PENDING = 1'h1 { desc = "RX complete interrupt pending"; };
+};
+enum uartxsr_teif_e {
+    TEIF_NO_PENDING_TX_EMPTY = 1'h0 { desc = "No pending TX empty interrupt"; };
+    TEIF_TX_EMPTY_INTERRUPT_PENDING = 1'h1 { desc = "TX empty interrupt pending"; };
+};
+enum uartxsr_tcif_e {
+    TCIF_NO_PENDING_TX_COMPLETE = 1'h0 { desc = "No pending TX complete interrupt"; };
+    TCIF_TX_COMPLETE_INTERRUPT_PENDING = 1'h1 { desc = "TX complete interrupt pending"; };
+};
+
+reg UARTxCR_t {
+    regwidth = 8;
+    desc = "UART control register. Controls UART enable, parity configuration, and interrupt enable bits. When UCR.EN is disabled, the UART peripheral is held in reset state.";
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = uartxcr_uen_e;
+        desc = "UART enable. When disabled, the UART peripheral is in reset state and the transmitter is idle.";
+    } UEN[5:5];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = uartxcr_upen_e;
+        desc = "Parity enable. Enables parity generation on transmit and parity checking on receive.";
+    } UPEN[4:4];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = uartxcr_psel_e;
+        desc = "Parity select. Selects even or odd parity when parity is enabled.";
+    } PSEL[3:3];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = uartxcr_cie_e;
+        desc = "Receive complete interrupt enable. Enables interrupt generation when a byte is successfully received.";
+    } CIE[2:2];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = uartxcr_teie_e;
+        desc = "Transmit empty interrupt enable. Enables interrupt generation when the transmit buffer becomes empty and ready for new data.";
+    } TEIE[1:1];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = uartxcr_tcie_e;
+        desc = "Transmit complete interrupt enable. Enables interrupt generation when transmission is complete and the transmitter is idle.";
+    } TCIE[0:0];
+};
+
+reg UARTxSR_t {
+    regwidth = 8;
+    desc = "UART status register. Contains receiver and transmitter status flags and interrupt flags. Error flags (FEF, PEF, OVF, RCIF) are cleared by reading UARTxRX. Interrupt flags (RCIF, TEIF, TCIF) can also be cleared by writing a 1 to the respective bit.";
+    field {
+        sw = r;  hw = w;
+        reset = 1'h0;
+        vesta_access = "r";
+        encode = uartxsr_rxbf_e;
+        desc = "Receiver busy flag. Set while the UART receiver is actively receiving a byte.";
+    } RXBF[7:7];
+    field {
+        sw = r;  hw = w;
+        reset = 1'h0;
+        vesta_access = "r";
+        encode = uartxsr_txbf_e;
+        desc = "Transmitter busy flag. Set while the UART transmitter is actively transmitting a byte or has a pending transmission.";
+    } TXBF[6:6];
+    field {
+        sw = r;  hw = w;
+        reset = 1'h0;
+        vesta_access = "r";
+        encode = uartxsr_fef_e;
+        desc = "Framing error flag. Set when the stop bit is not detected (RX line not high at expected stop bit time). Cleared by reading UARTxRX.";
+    } FEF[5:5];
+    field {
+        sw = r;  hw = w;
+        reset = 1'h0;
+        vesta_access = "r";
+        encode = uartxsr_pef_e;
+        desc = "Parity error flag. Set when received parity does not match expected parity (when parity is enabled). Cleared by reading UARTxRX.";
+    } PEF[4:4];
+    field {
+        sw = r;  hw = w;
+        reset = 1'h0;
+        vesta_access = "r";
+        encode = uartxsr_ovf_e;
+        desc = "Receive overflow flag. Set when a new byte is received before the previous byte in UARTxRX was read by the processor. Cleared by reading UARTxRX.";
+    } OVF[3:3];
+    field {
+        sw = rw; hw = w; onwrite = woclr;
+        reset = 1'h0;
+        vesta_access = "rw1";
+        encode = uartxsr_rcif_e;
+        desc = "Receive complete interrupt flag. Set when a byte is successfully received and placed in UARTxRX. Cleared by reading UARTxRX or writing a 1 to this bit.";
+    } RCIF[2:2];
+    field {
+        sw = rw; hw = w; onwrite = woclr;
+        reset = 1'h0;
+        vesta_access = "rw1";
+        encode = uartxsr_teif_e;
+        desc = "Transmit empty interrupt flag. Set when the transmit buffer is empty and ready to accept new data. Write a 1 to this bit to clear it.";
+    } TEIF[1:1];
+    field {
+        sw = rw; hw = w; onwrite = woclr;
+        reset = 1'h0;
+        vesta_access = "rw1";
+        encode = uartxsr_tcif_e;
+        desc = "Transmit complete interrupt flag. Set when transmission is complete (all bits sent) and the transmitter is idle. Write a 1 to this bit to clear it.";
+    } TCIF[0:0];
+};
+
+reg UARTxBR_t {
+    regwidth = 16;
+    desc = "UART baud rate register. Configures the baud rate divisor for the UART. The UART uses 16× oversampling.";
+    field {
+        sw = rw; hw = r;
+        reset = 12'h0;
+        vesta_access = "rw";
+        desc = "Baud rate divisor. UART baud rate = SMCLK ÷ (16 × (BR + 1)). For example, with SMCLK = 48 MHz: BR = 25 gives 115,200 baud; BR = 51 gives 57,600 baud; BR = 103 gives 28,800 baud.";
+    } BR[11:0];
+};
+
+reg UARTxRX_t {
+    regwidth = 8;
+    desc = "UART receive buffer register. Contains the last received byte. Reading this register clears the FEF, PEF, OVF, and RCIF flags in UARTxSR. The value is latched on the falling edge of the memory enable signal.";
+    field {
+        sw = r;  hw = w;
+        reset = 8'h0;
+        vesta_access = "r";
+        desc = "Received data byte";
+    } RX[7:0];
+};
+
+reg UARTxTX_t {
+    regwidth = 8;
+    desc = "UART transmit buffer register. Writing to this register loads the byte to transmit and initiates transmission. Do not write to this register while TXBF is set in UARTxSR.";
+    field {
+        sw = rw; hw = r;
+        reset = 8'h0;
+        vesta_access = "rw";
+        desc = "Transmit data byte";
+    } TX[7:0];
+};
+
+addrmap uart {
+    name = "UARTx";
+    desc = "Full-duplex Universal Asynchronous Receiver/Transmitter with hardware parity support";
+    vesta_peripheral = "UARTx";
+    vesta_word_base = 0;
+
+    UARTxCR_t UARTxCR @0x00;
+    UARTxSR_t UARTxSR @0x04;
+    UARTxBR_t UARTxBR @0x08;
+    UARTxRX_t UARTxRX @0x0C;
+    UARTxTX_t UARTxTX @0x10;
+};

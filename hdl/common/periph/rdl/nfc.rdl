@@ -1,0 +1,424 @@
+// ===========================================================================
+// nfc.rdl: the register map of hdl/common/periph/NFC.vhd.
+//
+// THE VHDL IS THE AUTHORITY and THREE of this block's reset values are not
+// zero, all in the reg_write reset branch:
+//   NFCxCR  = 0x00001000   NFCAUTOREAD = 1
+//   NFCxCFG = 0x00000044   ATQA = 0x0044, SAK = 0x00
+//   NFCxTIM = 0x088004D4   SUBCDIV = 8, ETU = 128, FDT = 1236
+// The generator models all three as resetting to 0, which would come up as a
+// tag that answers no ATQA and has no frame-delay time.
+//
+// NFCxCR.NFCHALTCLR is a self-clearing write pulse: the write case forces
+// `NFCxCR(3 downto 2) <= "00"` and toggles halt_req_tgl, so the bit reads 0.
+// ===========================================================================
+
+`include "vesta_udp.rdl"
+
+enum nfcxcr_nfcautoread_e {
+    FIRMWARE_HANDLED_READS = 1'h0 { desc = "Firmware-handled reads"; };
+    HARDWARE_AUTO_ANSWER = 1'h1 { desc = "Hardware auto-answer"; };
+};
+enum nfcxcr_nfccrcie_e {
+    INTERRUPT_DISABLED = 1'h0 { desc = "Interrupt disabled"; };
+    INTERRUPT_ENABLED = 1'h1 { desc = "Interrupt enabled"; };
+};
+enum nfcxcr_nfctxie_e {
+    INTERRUPT_DISABLED = 1'h0 { desc = "Interrupt disabled"; };
+    INTERRUPT_ENABLED = 1'h1 { desc = "Interrupt enabled"; };
+};
+enum nfcxcr_nfcrxfie_e {
+    INTERRUPT_DISABLED = 1'h0 { desc = "Interrupt disabled"; };
+    INTERRUPT_ENABLED = 1'h1 { desc = "Interrupt enabled"; };
+};
+enum nfcxcr_nfcfieldie_e {
+    INTERRUPT_DISABLED = 1'h0 { desc = "Interrupt disabled"; };
+    INTERRUPT_ENABLED = 1'h1 { desc = "Interrupt enabled"; };
+};
+enum nfcxcr_nfchaltclr_e {
+    NO_ACTION = 1'h0 { desc = "No action"; };
+    FORCE_HALT_TO_IDLE = 1'h1 { desc = "Force HALT to IDLE"; };
+};
+enum nfcxcr_nfclisten_e {
+    DEAF_NO_RESPONSE = 1'h0 { desc = "Deaf (no response)"; };
+    ARMED_TO_RESPOND = 1'h1 { desc = "Armed to respond"; };
+};
+enum nfcxcr_nfcen_e {
+    DISABLED_PROTOCOL_CORE_IN = 1'h0 { desc = "Disabled (protocol core in reset)"; };
+    ENABLED = 1'h1 { desc = "Enabled"; };
+};
+enum nfcxsr_nfchalted_e {
+    NOT_HALTED = 1'h0 { desc = "Not halted"; };
+    FSM_HALTED = 1'h1 { desc = "FSM halted"; };
+};
+enum nfcxsr_nfcfieldlive_e {
+    NO_FIELD = 1'h0 { desc = "No field"; };
+    FIELD_PRESENT = 1'h1 { desc = "Field present"; };
+};
+enum nfcxsr_nfcparerrf_e {
+    NO_EVENT = 1'h0 { desc = "No event"; };
+    RX_PARITY_ERROR = 1'h1 { desc = "RX parity error"; };
+};
+enum nfcxsr_nfccrcerrf_e {
+    NO_EVENT = 1'h0 { desc = "No event"; };
+    RX_CRC_ERROR = 1'h1 { desc = "RX CRC error"; };
+};
+enum nfcxsr_nfctxdonef_e {
+    NO_EVENT = 1'h0 { desc = "No event"; };
+    TAG_RESPONSE_SENT = 1'h1 { desc = "Tag response sent"; };
+};
+enum nfcxsr_nfcrxframef_e {
+    NO_EVENT = 1'h0 { desc = "No event"; };
+    READER_FRAME_RECEIVED = 1'h1 { desc = "Reader frame received"; };
+};
+enum nfcxsr_nfcfieldf_e {
+    NO_EVENT = 1'h0 { desc = "No event"; };
+    RF_FIELD_DETECTED = 1'h1 { desc = "RF field detected"; };
+};
+enum nfcxsr_nfcbusy_e {
+    IDLE = 1'h0 { desc = "Idle"; };
+    RX_OR_TX_IN = 1'h1 { desc = "RX or TX in progress"; };
+};
+enum nfcxrxst_nfcrxparok_e {
+    PARITY_BAD = 1'h0 { desc = "Parity bad"; };
+    PARITY_GOOD = 1'h1 { desc = "Parity good"; };
+};
+enum nfcxrxst_nfcrxcrcok_e {
+    CRC_BAD = 1'h0 { desc = "CRC bad"; };
+    CRC_GOOD = 1'h1 { desc = "CRC good"; };
+};
+enum nfcxidx_nfcidxsel_e {
+    PAYLOAD_TX_WINDOW_64 = 1'h0 { desc = "Payload TX window (64 B, firmware-filled, HW-read)"; };
+    RX_FRAME_BUFFER_64 = 1'h1 { desc = "RX frame buffer (64 B, HW-filled, firmware-read)"; };
+};
+enum nfcxidx_nfcidxainc_e {
+    INDEX_HELD = 1'h0 { desc = "Index held"; };
+    AUTO_INCREMENT_AFTER_EACH = 1'h1 { desc = "Auto-increment after each access"; };
+};
+enum nfcxtxctl_nfctxappcrc_e {
+    NO_CRC_APPENDED = 1'h0 { desc = "No CRC appended"; };
+    APPEND_CRC_A = 1'h1 { desc = "Append CRC_A"; };
+};
+enum nfcxtxctl_nfctxgo_e {
+    NO_LAUNCH = 1'h0 { desc = "No launch"; };
+    SEND_RESPONSE = 1'h1 { desc = "Send response"; };
+};
+
+// NFCAUTOREAD resets to 1. NFCHALTCLR is a write-1 pulse that reads 0 (`NFCxCR(3 downto 2) <= "00"` on every lane-0 write); bit 3 is reserved.
+reg NFCxCR_t {
+    regwidth = 32;
+    desc = "NFC control register. Enables the protocol core, arms the tag to respond, selects the auto-answer path, and holds the interrupt enables and the carrier-division note. Resets to 0 except NFCAUTOREAD, which resets to 1. Program the identity and timing registers before setting NFCEN.";
+    field {
+        sw = rw; hw = r;
+        reset = 4'h0;
+        vesta_access = "rw";
+        desc = "Carrier-division note. Documents the assumed division from the 13.56 MHz carrier to rf_clk (informational; the off-die AFE supplies rf_clk).";
+    } NFCRFDIV[19:16];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h1;
+        vesta_access = "rw";
+        encode = nfcxcr_nfcautoread_e;
+        desc = "Auto-answer READ path (resets to 1). When set, hardware answers a Type-2 READ command directly from the payload window without firmware intervention. When clear, standard frames are surfaced to firmware through NFCxRXST and the RX buffer for a firmware-composed response.";
+    } NFCAUTOREAD[12:12];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = nfcxcr_nfccrcie_e;
+        desc = "CRC / parity-error interrupt enable. When set, an RX CRC or parity error (NFCCRCERRF or NFCPARERRF) drives interrupt vector 97.";
+    } NFCCRCIE[11:11];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = nfcxcr_nfctxie_e;
+        desc = "Transmit-done interrupt enable. When set, the NFCTXDONEF flag drives interrupt vector 96.";
+    } NFCTXIE[10:10];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = nfcxcr_nfcrxfie_e;
+        desc = "Frame-received interrupt enable. When set, the NFCRXFRAMEF flag drives interrupt vector 95.";
+    } NFCRXFIE[9:9];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = nfcxcr_nfcfieldie_e;
+        desc = "Field-detect interrupt enable. When set, the NFCFIELDF flag drives interrupt vector 94.";
+    } NFCFIELDIE[8:8];
+    field {
+        sw = w; hw = r; singlepulse;
+        reset = 1'h0;
+        vesta_access = "w1";
+        encode = nfcxcr_nfchaltclr_e;
+        desc = "Halt-clear pulse. Writing 1 forces the transaction FSM from the HALT state back to IDLE (a self-clearing, write-1-style event pulse); it reads 0.";
+    } NFCHALTCLR[2:2];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = nfcxcr_nfclisten_e;
+        desc = "Listen arm. When set, the tag responds to reader commands once a field is present; when clear, the tag stays deaf even in a field.";
+    } NFCLISTEN[1:1];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = nfcxcr_nfcen_e;
+        desc = "NFC enable. When 0 the rf_clk protocol core is held in reset; it does NOT wipe the UID, CFG, payload window, or status flags (disable-preserves-data rule). Set to 1 to run the tag engine.";
+    } NFCEN[0:0];
+};
+
+// Lane-0 write-1-to-clear on bits 5:1; BUSY, FIELDLIVE, HALTED and STATE are read-only.
+reg NFCxSR_t {
+    regwidth = 32;
+    desc = "NFC status register. NFCBUSY, NFCFIELDLIVE, NFCHALTED, and NFCSTATE are read-only live status; the five event flags (bits 1-5) are write-1-to-clear (write a 1 to a bit to clear it; writing 0 leaves it unchanged). The volatile bits are captured by the registered pre-latch read.";
+    field {
+        sw = r; hw = w;
+        reset = 4'h0;
+        vesta_access = "r";
+        desc = "Transaction FSM state: 0 = POWER_OFF, 1 = IDLE, 2 = READY, 3 = ACTIVE, 4 = HALT.";
+    } NFCSTATE[11:8];
+    field {
+        sw = r; hw = w;
+        reset = 1'h0;
+        vesta_access = "r";
+        encode = nfcxsr_nfchalted_e;
+        desc = "Halted. Reads 1 while the transaction FSM is in the HALT state (the tag has been HLTA / halted by the reader).";
+    } NFCHALTED[7:7];
+    field {
+        sw = r; hw = w;
+        reset = 1'h0;
+        vesta_access = "r";
+        encode = nfcxsr_nfcfieldlive_e;
+        desc = "Field-live level. The synchronized RF field-present level (1 while a reader field is on the tag).";
+    } NFCFIELDLIVE[6:6];
+    field {
+        sw = rw; hw = w; onwrite = woclr;
+        reset = 1'h0;
+        vesta_access = "rw1";
+        encode = nfcxsr_nfcparerrf_e;
+        desc = "RX parity-error flag. Set when a received frame fails an odd-parity check; drives vector 97 (folded with NFCCRCERRF) when NFCCRCIE is set. Write 1 to clear.";
+    } NFCPARERRF[5:5];
+    field {
+        sw = rw; hw = w; onwrite = woclr;
+        reset = 1'h0;
+        vesta_access = "rw1";
+        encode = nfcxsr_nfccrcerrf_e;
+        desc = "RX CRC-error flag. Set when a received frame fails the CRC_A check; drives vector 97 when NFCCRCIE is set. Write 1 to clear.";
+    } NFCCRCERRF[4:4];
+    field {
+        sw = rw; hw = w; onwrite = woclr;
+        reset = 1'h0;
+        vesta_access = "rw1";
+        encode = nfcxsr_nfctxdonef_e;
+        desc = "Transmit-done flag. Set when the tag response end-of-frame has been sent; drives vector 96 when NFCTXIE is set. Write 1 to clear.";
+    } NFCTXDONEF[3:3];
+    field {
+        sw = rw; hw = w; onwrite = woclr;
+        reset = 1'h0;
+        vesta_access = "rw1";
+        encode = nfcxsr_nfcrxframef_e;
+        desc = "Reader-frame-received flag. Set when a reader frame has landed for firmware (its CRC / parity result is summarized in NFCxRXST); drives vector 95 when NFCRXFIE is set. Write 1 to clear.";
+    } NFCRXFRAMEF[2:2];
+    field {
+        sw = rw; hw = w; onwrite = woclr;
+        reset = 1'h0;
+        vesta_access = "rw1";
+        encode = nfcxsr_nfcfieldf_e;
+        desc = "Field-detect flag. Set on a synchronized rising edge of the RF field-present input; drives vector 94 when NFCFIELDIE is set. Write 1 to clear.";
+    } NFCFIELDF[1:1];
+    field {
+        sw = r; hw = w;
+        reset = 1'h0;
+        vesta_access = "r";
+        encode = nfcxsr_nfcbusy_e;
+        desc = "Busy. Reads 1 while a reader frame is being received or a tag response is in flight.";
+    } NFCBUSY[0:0];
+};
+
+reg NFCxUID_t {
+    regwidth = 32;
+    desc = "Provisioned single-size 4-byte tag UID, used by bit-frame anticollision. Byte order on air is UID byte 0 first: UID[7:0] is the first byte, UID[31:24] the last. Hardware derives the BCC check byte. Latched transaction-locally at the start of each transaction.";
+    field {
+        sw = rw; hw = r;
+        reset = 32'h0;
+        vesta_access = "rw";
+        desc = "4-byte UID (UID0 in bits 7:0, first on air).";
+    } NFCUID[31:0];
+};
+
+// Resets to 0x000044: ATQA = 0x0044, SAK = 0x00.
+reg NFCxCFG_t {
+    regwidth = 32;
+    desc = "Tag identity response configuration: the ATQA answer-to-request word and the SAK select-acknowledge byte. Latched transaction-locally.";
+    field {
+        sw = rw; hw = r;
+        reset = 8'h0;
+        vesta_access = "rw";
+        desc = "Select Acknowledge byte (resets to 0x00) returned after the final anticollision level.";
+    } NFCSAK[23:16];
+    field {
+        sw = rw; hw = r;
+        reset = 16'h44;
+        vesta_access = "rw";
+        desc = "Answer To Request, Type A (resets to 0x0044). Bits 7:0 are the first byte on air.";
+    } NFCATQA[15:0];
+};
+
+// Resets to 0x088004D4: SUBCDIV = 8, ETU = 128, FDT = 1236.
+reg NFCxTIM_t {
+    regwidth = 32;
+    desc = "Protocol timing divisors, all in rf_clk ticks, latched transaction-locally so a mid-count reload never glitches. The reset values are the real 13.56 MHz grid; a bench compresses all three for fast simulation.";
+    field {
+        sw = rw; hw = r;
+        reset = 8'h8;
+        vesta_access = "rw";
+        desc = "Subcarrier half-period, in rf_clk ticks (resets to 8, giving the fc/16 load-modulation subcarrier).";
+    } NFCSUBCDIV[31:24];
+    field {
+        sw = rw; hw = r;
+        reset = 8'h80;
+        vesta_access = "rw";
+        desc = "Elementary Time Unit (bit period), in rf_clk ticks (resets to 128).";
+    } NFCETU[23:16];
+    field {
+        sw = rw; hw = r;
+        reset = 16'h4D4;
+        vesta_access = "rw";
+        desc = "Frame Delay Time, in rf_clk ticks (resets to approximately 1236, the ISO 14443A tag response grid). The composed response is released when the FDT down-counter reaches zero.";
+    } NFCFDT[15:0];
+};
+
+reg NFCxRXST_t {
+    regwidth = 32;
+    desc = "Received-frame inspection, for firmware-handled frames (NFCAUTOREAD = 0 or an unrecognized command). Read side-effect-free; the frame byte payload is read separately through the indexed RX buffer (NFCxIDX / NFCxDATA with NFCIDXSEL = 1). Pre-latched.";
+    field {
+        sw = r; hw = w;
+        reset = 1'h0;
+        vesta_access = "r";
+        encode = nfcxrxst_nfcrxparok_e;
+        desc = "Parity OK for the last received frame.";
+    } NFCRXPAROK[17:17];
+    field {
+        sw = r; hw = w;
+        reset = 1'h0;
+        vesta_access = "r";
+        encode = nfcxrxst_nfcrxcrcok_e;
+        desc = "CRC OK for the last received frame.";
+    } NFCRXCRCOK[16:16];
+    field {
+        sw = r; hw = w;
+        reset = 8'h0;
+        vesta_access = "r";
+        desc = "Received length in bytes, including the CRC.";
+    } NFCRXLEN[15:8];
+    field {
+        sw = r; hw = w;
+        reset = 8'h0;
+        vesta_access = "r";
+        desc = "Command byte: the first byte of the last received standard frame.";
+    } NFCCMD[7:0];
+};
+
+reg NFCxIDX_t {
+    regwidth = 32;
+    desc = "Byte-index pointer into one of the two 64-byte windows accessed through NFCxDATA. The index persists across accesses; NFCIDXSEL selects which window. Mirrors the indexed-window idiom used by I3C's Device Address Table.";
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = nfcxidx_nfcidxsel_e;
+        desc = "Window select for NFCxDATA.";
+    } NFCIDXSEL[8:8];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = nfcxidx_nfcidxainc_e;
+        desc = "Auto-increment. When set, NFCIDX increments after each NFCxDATA access (streaming).";
+    } NFCIDXAINC[6:6];
+    field {
+        sw = rw; hw = r;
+        reset = 6'h0;
+        vesta_access = "rw";
+        desc = "Byte index (0 to 63) into the selected window.";
+    } NFCIDX[5:0];
+};
+
+reg NFCxDATA_t {
+    regwidth = 32;
+    desc = "The byte at NFCIDX in the window selected by NFCIDXSEL. The payload TX window is read/write (firmware fills the record the reader collects; hardware reads it for the auto-answer READ); the RX frame buffer is read-only (hardware fills it from the reader frame; writes are ignored). Auto-increments per NFCIDXAINC. Pre-latched on read (no side effects).";
+    // ACCESS SIDE EFFECT: any access to this slot, read or write, advances NFCxIDX by one modulo 64 while NFCIDXAINC = 1. A write commits only when NFCIDXSEL = 0 (the payload window); the RX buffer is hardware-owned and ignores writes.
+    field {
+        sw = rw; hw = r;
+        reset = 8'h0;
+        vesta_access = "rw";
+        desc = "Window data byte at the current index.";
+    } NFCDATA[7:0];
+};
+
+reg NFCxTXCTL_t {
+    regwidth = 32;
+    desc = "Firmware-composed response control (used when NFCAUTOREAD = 0 or for a vendor command). INERT in this MVP (auto-answer is the default path); present in the frozen register map so the firmware-WRITE stage bolts on without a map change.";
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = nfcxtxctl_nfctxappcrc_e;
+        desc = "Append CRC_A to the firmware-composed response.";
+    } NFCTXAPPCRC[9:9];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = nfcxtxctl_nfctxgo_e;
+        desc = "Launch a firmware-composed response (a lane-0 write is a held-level launch, suppressed unless the FSM is in ACTIVE and awaiting a firmware reply).";
+    } NFCTXGO[8:8];
+    field {
+        sw = rw; hw = r;
+        reset = 8'h0;
+        vesta_access = "rw";
+        desc = "Number of payload bytes to send from the payload TX window.";
+    } NFCTXLEN[7:0];
+};
+
+// Read-only frame counters, un-inverted from the pre-latch.
+reg NFCxDBG_t {
+    regwidth = 32;
+    desc = "Debug telemetry / bench cross-checks: frame counters. Read-only; resets to 0.";
+    field {
+        sw = r; hw = w;
+        reset = 16'h0;
+        vesta_access = "r";
+        desc = "Transmitted-frame count.";
+    } NFCTXFRAMECNT[31:16];
+    field {
+        sw = r; hw = w;
+        reset = 16'h0;
+        vesta_access = "r";
+        desc = "Received-frame count.";
+    } NFCRXFRAMECNT[15:0];
+};
+addrmap nfc {
+    name = "NFCx";
+    desc = "NFC controller: ISO/IEC 14443 Type A (14443A) tag / card-emulation digital protocol engine";
+    vesta_peripheral = "NFCx";
+    vesta_word_base = 0;
+
+    default regwidth = 32;
+
+    NFCxCR_t    NFCxCR    @0x00;
+    NFCxSR_t    NFCxSR    @0x04;
+    NFCxUID_t   NFCxUID   @0x08;
+    NFCxCFG_t   NFCxCFG   @0x0C;
+    NFCxTIM_t   NFCxTIM   @0x10;
+    NFCxRXST_t  NFCxRXST  @0x14;
+    NFCxIDX_t   NFCxIDX   @0x18;
+    NFCxDATA_t  NFCxDATA  @0x1C;
+    NFCxTXCTL_t NFCxTXCTL @0x20;
+    NFCxDBG_t   NFCxDBG   @0x24;
+};
