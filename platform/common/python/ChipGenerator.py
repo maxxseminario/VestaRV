@@ -2017,9 +2017,14 @@ class ChipGenerator():
 		# sizes the ROM decode from it and asserts it against the width of the
 		# rom2k_hvt_pg macro it instantiates, so a romSize that no macro can answer
 		# fails elaboration instead of shipping a map the array does not honour.
-		t.AddRow(['constant RomSize', ': natural := ' + str(self.RomSize) + ';', '-- ' + self.fmthex(self.RomSize) + ' (the shared boot ROM at ' + self.fmthex(self.RomStartAddress) + '; MCU.vhd sizes its decode on THIS constant)'], prefixTabs=1)
+		t.AddRow(['constant RomSize', ': natural := ' + str(self.RomSize) + ';', '-- ' + self.fmthex(self.RomSize) + ' (the shared boot ROM at ' + self.fmthex(self.RomStartAddress) + '; MCU.vhd sizes its ROM decode on THIS constant and asserts it against the macro it instantiates)'], prefixTabs=1)
 		t.AddRow(['constant RamStartAddress', ': natural := ' + str(self.RamStartAddress) + ';', '-- ' + self.fmthex(self.RamStartAddress)], prefixTabs=1)
-		t.AddRow(['constant RamSize', ': natural := ' + str(self.RamSize) + ';', '-- ' + self.fmthex(self.RamSize)], prefixTabs=1)
+		# The RAM comment carries the same 'THIS constant is the authority' clause the
+		# ROM one does. Both were hand-added to hdl/common/MemoryMap.vhd under its
+		# do-not-edit banner and would be lost on a verbatim regeneration; both are
+		# generically true, because hart_tile.vhd asserts its SRAM macro depth against
+		# RamSize exactly as MCU.vhd asserts its ROM macro depth against RomSize.
+		t.AddRow(['constant RamSize', ': natural := ' + str(self.RamSize) + ';', '-- ' + self.fmthex(self.RamSize) + ' (per-hart private TCM; hart_tile selects and asserts its SRAM macro on THIS constant)'], prefixTabs=1)
 		
 		t.AddBlankLines(3)
 		
@@ -2036,14 +2041,27 @@ class ChipGenerator():
 		
 		t.AddBlankLine()
 		
-		# Add the SRAM slot enables
+		# Add the SRAM slot enables.
+		# `slotIndex * RamMemorySlotSize` is a BYTE ADDRESS only when the RAM
+		# region starts at 0 -- the same assumption the StackPointerInit check
+		# above documents. Castalia's TCM is based at RamStartAddress 0x8000 and
+		# occupies slot 2, so that form printed 2 * 0x2000 = 0x4000: the address
+		# of the PERIPHERAL page, in a comment naming the TCM. It was corrected
+		# by hand in hdl/common/MemoryMap.vhd (a file headed "Do not edit"),
+		# which is how it was found. Anchor to the region's real base instead:
+		# slot `min(RamMemorySlotsUsed)` sits at RamStartAddress and the slots
+		# are contiguous (enforced at construction), so each later slot is one
+		# RamMemorySlotSize further up. This is byte-identical wherever the old
+		# form was accidentally right (Argus: 0x8000 base, 0x4000 slots, slot 2).
 		t.AddLine('-- SRAM Slot Enables/Disables', prefixTabs=1)
+		ramSlotZero = min(self.RamMemorySlotsUsed)
 		for i in self.RamMemorySlotsAvailable:
 			available = 'false'
 			if i in self.RamMemorySlotsUsed:
 				available = 'true'
 			
-			t.AddRow(['constant UseSRAM' + self.fmtint(i, 2), ': boolean := ' + available + ';', '-- base address = ' + self.fmthex(i * self.RamMemorySlotSize)], prefixTabs=1)
+			slotBase = self.RamStartAddress + (i - ramSlotZero) * self.RamMemorySlotSize
+			t.AddRow(['constant UseSRAM' + self.fmtint(i, 2), ': boolean := ' + available + ';', '-- base address = ' + self.fmthex(slotBase)], prefixTabs=1)
 		
 		t.AddBlankLines(3)
 		
@@ -2461,7 +2479,15 @@ class ChipGenerator():
 		# Only M and B differ. A and C are NEVER dropped on a tile: the tiles run the
 		# shared-fabric LR/SC + AMO locking, and C is decoder-only but shrinks code.
 		_tmin = bool(self.MINIMAL_TILES)
-		t.AddLine('-- Corner-tile ISA (harts 1..N-1). Equal to CORE_ENABLE_* unless the tiles are minimal.', prefixTabs=1)
+		# The emitted comment carries the generic-default warning, not just the value
+		# rule: it was hand-added to hdl/common/MemoryMap.vhd under its do-not-edit
+		# banner and a verbatim regeneration would drop it. It is the ENABLE_DEBUG
+		# lesson in one line -- a hart_tile generic default silently wins over a
+		# memory-map constant in a tile-only elaborate -- and it is config-independent.
+		t.AddLine('-- Corner-tile ISA (harts 1..N-1). MCU.vhd hands the hardened hart_tile instances THESE and hands hart 0 / the', prefixTabs=1)
+		t.AddLine('-- orchestrator the CORE_ENABLE_* set above; equal to CORE_ENABLE_* unless the tiles are minimal.', prefixTabs=1)
+		t.AddLine("-- hart_tile's own generics still default to the FULL ISA, so a tile-only `elaborate hart_tile` must override", prefixTabs=1)
+		t.AddLine('-- them by name -- see genus/hart_tile/tcl/hart_tile.genus.tcl.', prefixTabs=1)
 		t.AddRow(['constant TILE_ENABLE_MUL', ': boolean := ' + str(bool(self.ENABLE_MUL) and not _tmin).lower() + ';', '-- M on the corner tiles'], prefixTabs=1)
 		t.AddRow(['constant TILE_ENABLE_DIV', ': boolean := ' + str(bool(self.ENABLE_DIV) and not _tmin).lower() + ';', '-- M on the corner tiles'], prefixTabs=1)
 		t.AddRow(['constant TILE_ENABLE_BITMANIP', ': boolean := ' + str(bool(self.ENABLE_BITMANIP) and not _tmin).lower() + ';', '-- Zba/Zbb/Zbs/Zbc on the corner tiles'], prefixTabs=1)

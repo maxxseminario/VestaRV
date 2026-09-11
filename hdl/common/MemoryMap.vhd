@@ -1,6 +1,6 @@
 /* MemoryMap.vhd: memory map VHDL package
    Defines the MCU memory map: which RAM and peripheral slots are active, which slot each peripheral occupies, and which slot each register occupies inside its peripheral
-   Generated on 2026/08/16 at 00:51:16 with the MemoryMap.py memory map generator
+   Generated on 2026/09/10 at 20:31:21 with the MemoryMap.py memory map generator
    WARNING: Do not edit or modify this file!
    	If you need to change it, use the MemoryMap.py memory map generator tool */
 
@@ -24,9 +24,9 @@ package MemoryMap is
 
 
 	---------- Memory Information ----------
-	constant RomSize				: natural := 8192;	-- 0x2000 (2026-08-23: the shared boot ROM halved to the 2048x32 rom2k_hvt_pg macro; MCU.vhd sizes its ROM decode on THIS constant and asserts it against the macro it instantiates)
+	constant RomSize				: natural := 8192;	-- 0x2000 (the shared boot ROM at 0x0000; MCU.vhd sizes its ROM decode on THIS constant and asserts it against the macro it instantiates)
 	constant RamStartAddress		: natural := 32768;	-- 0x8000
-	constant RamSize				: natural := 8192;	-- 0x2000 (2026-08-16: per-hart private TCM halved to the 8 KiB sram1p8k_hvt_pg macro; hart_tile selects the macro on THIS constant)
+	constant RamSize				: natural := 8192;	-- 0x2000 (per-hart private TCM; hart_tile selects and asserts its SRAM macro on THIS constant)
 
 
 
@@ -126,6 +126,7 @@ package MemoryMap is
 	constant RegSlotPWRSR			: natural := 01;	-- offset = 4 bytes
 	constant RegSlotPWRWAKE			: natural := 05;	-- offset = 20 bytes
 	constant RegSlotPWRSTS			: natural := 06;	-- offset = 24 bytes
+	constant RegSlotTASKWKM			: natural := 07;	-- offset = 28 bytes
 
 	-- I2Cx
 	constant RegSlotI2CxCR			: natural := 00;	-- offset = 0 bytes
@@ -174,6 +175,18 @@ package MemoryMap is
 	constant RegSlotMUTEX13			: natural := 13;	-- offset = 52 bytes
 	constant RegSlotMUTEX14			: natural := 14;	-- offset = 56 bytes
 	constant RegSlotMUTEX15			: natural := 15;	-- offset = 60 bytes
+
+	-- NFCx
+	constant RegSlotNFCxCR			: natural := 00;	-- offset = 0 bytes
+	constant RegSlotNFCxSR			: natural := 01;	-- offset = 4 bytes
+	constant RegSlotNFCxUID			: natural := 02;	-- offset = 8 bytes
+	constant RegSlotNFCxCFG			: natural := 03;	-- offset = 12 bytes
+	constant RegSlotNFCxTIM			: natural := 04;	-- offset = 16 bytes
+	constant RegSlotNFCxRXST		: natural := 05;	-- offset = 20 bytes
+	constant RegSlotNFCxIDX			: natural := 06;	-- offset = 24 bytes
+	constant RegSlotNFCxDATA		: natural := 07;	-- offset = 28 bytes
+	constant RegSlotNFCxTXCTL		: natural := 08;	-- offset = 32 bytes
+	constant RegSlotNFCxDBG			: natural := 09;	-- offset = 36 bytes
 
 	-- IRQROUTER
 	constant RegSlotH0ENL			: natural := 00;	-- offset = 0 bytes
@@ -673,6 +686,10 @@ package MemoryMap is
 	constant PWFIELDLIV_LSB			: natural := 01;
 	constant PWPGOODLIV_LSB			: natural := 00;
 
+	-- TASKWKM
+	constant PWRTASKWKM_MSB			: natural := 04;
+	constant PWRTASKWKM_LSB			: natural := 01;
+
 
 	------ I2Cx
 	-- I2CxCR
@@ -813,68 +830,142 @@ package MemoryMap is
 
 	------ MUTEX
 	-- MUTEX0
-	constant MTXOWN0_MSB			: natural := 31;
+	constant MTXOWN0_MSB			: natural := 03;
 	constant MTXOWN0_LSB			: natural := 00;
 
 	-- MUTEX1
-	constant MTXOWN1_MSB			: natural := 31;
+	constant MTXOWN1_MSB			: natural := 03;
 	constant MTXOWN1_LSB			: natural := 00;
 
 	-- MUTEX2
-	constant MTXOWN2_MSB			: natural := 31;
+	constant MTXOWN2_MSB			: natural := 03;
 	constant MTXOWN2_LSB			: natural := 00;
 
 	-- MUTEX3
-	constant MTXOWN3_MSB			: natural := 31;
+	constant MTXOWN3_MSB			: natural := 03;
 	constant MTXOWN3_LSB			: natural := 00;
 
 	-- MUTEX4
-	constant MTXOWN4_MSB			: natural := 31;
+	constant MTXOWN4_MSB			: natural := 03;
 	constant MTXOWN4_LSB			: natural := 00;
 
 	-- MUTEX5
-	constant MTXOWN5_MSB			: natural := 31;
+	constant MTXOWN5_MSB			: natural := 03;
 	constant MTXOWN5_LSB			: natural := 00;
 
 	-- MUTEX6
-	constant MTXOWN6_MSB			: natural := 31;
+	constant MTXOWN6_MSB			: natural := 03;
 	constant MTXOWN6_LSB			: natural := 00;
 
 	-- MUTEX7
-	constant MTXOWN7_MSB			: natural := 31;
+	constant MTXOWN7_MSB			: natural := 03;
 	constant MTXOWN7_LSB			: natural := 00;
 
 	-- MUTEX8
-	constant MTXOWN8_MSB			: natural := 31;
+	constant MTXOWN8_MSB			: natural := 03;
 	constant MTXOWN8_LSB			: natural := 00;
 
 	-- MUTEX9
-	constant MTXOWN9_MSB			: natural := 31;
+	constant MTXOWN9_MSB			: natural := 03;
 	constant MTXOWN9_LSB			: natural := 00;
 
 	-- MUTEX10
-	constant MTXOWN10_MSB			: natural := 31;
+	constant MTXOWN10_MSB			: natural := 03;
 	constant MTXOWN10_LSB			: natural := 00;
 
 	-- MUTEX11
-	constant MTXOWN11_MSB			: natural := 31;
+	constant MTXOWN11_MSB			: natural := 03;
 	constant MTXOWN11_LSB			: natural := 00;
 
 	-- MUTEX12
-	constant MTXOWN12_MSB			: natural := 31;
+	constant MTXOWN12_MSB			: natural := 03;
 	constant MTXOWN12_LSB			: natural := 00;
 
 	-- MUTEX13
-	constant MTXOWN13_MSB			: natural := 31;
+	constant MTXOWN13_MSB			: natural := 03;
 	constant MTXOWN13_LSB			: natural := 00;
 
 	-- MUTEX14
-	constant MTXOWN14_MSB			: natural := 31;
+	constant MTXOWN14_MSB			: natural := 03;
 	constant MTXOWN14_LSB			: natural := 00;
 
 	-- MUTEX15
-	constant MTXOWN15_MSB			: natural := 31;
+	constant MTXOWN15_MSB			: natural := 03;
 	constant MTXOWN15_LSB			: natural := 00;
+
+
+	------ NFCx
+	-- NFCxCR
+	constant NFCRFDIV_MSB			: natural := 19;
+	constant NFCRFDIV_LSB			: natural := 16;
+	constant NFCAUTOREAD_LSB		: natural := 12;
+	constant NFCCRCIE_LSB			: natural := 11;
+	constant NFCTXIE_LSB			: natural := 10;
+	constant NFCRXFIE_LSB			: natural := 09;
+	constant NFCFIELDIE_LSB			: natural := 08;
+	constant NFCHALTCLR_LSB			: natural := 02;
+	constant NFCLISTEN_LSB			: natural := 01;
+	constant NFCEN_LSB				: natural := 00;
+
+	-- NFCxSR
+	constant NFCSTATE_MSB			: natural := 11;
+	constant NFCSTATE_LSB			: natural := 08;
+	constant NFCHALTED_LSB			: natural := 07;
+	constant NFCFIELDLIVE_LSB		: natural := 06;
+	constant NFCPARERRF_LSB			: natural := 05;
+	constant NFCCRCERRF_LSB			: natural := 04;
+	constant NFCTXDONEF_LSB			: natural := 03;
+	constant NFCRXFRAMEF_LSB		: natural := 02;
+	constant NFCFIELDF_LSB			: natural := 01;
+	constant NFCBUSY_LSB			: natural := 00;
+
+	-- NFCxUID
+	constant NFCUID_MSB				: natural := 31;
+	constant NFCUID_LSB				: natural := 00;
+
+	-- NFCxCFG
+	constant NFCSAK_MSB				: natural := 23;
+	constant NFCSAK_LSB				: natural := 16;
+	constant NFCATQA_MSB			: natural := 15;
+	constant NFCATQA_LSB			: natural := 00;
+
+	-- NFCxTIM
+	constant NFCSUBCDIV_MSB			: natural := 31;
+	constant NFCSUBCDIV_LSB			: natural := 24;
+	constant NFCETU_MSB				: natural := 23;
+	constant NFCETU_LSB				: natural := 16;
+	constant NFCFDT_MSB				: natural := 15;
+	constant NFCFDT_LSB				: natural := 00;
+
+	-- NFCxRXST
+	constant NFCRXPAROK_LSB			: natural := 17;
+	constant NFCRXCRCOK_LSB			: natural := 16;
+	constant NFCRXLEN_MSB			: natural := 15;
+	constant NFCRXLEN_LSB			: natural := 08;
+	constant NFCCMD_MSB				: natural := 07;
+	constant NFCCMD_LSB				: natural := 00;
+
+	-- NFCxIDX
+	constant NFCIDXSEL_LSB			: natural := 08;
+	constant NFCIDXAINC_LSB			: natural := 06;
+	constant NFCIDX_MSB				: natural := 05;
+	constant NFCIDX_LSB				: natural := 00;
+
+	-- NFCxDATA
+	constant NFCDATA_MSB			: natural := 07;
+	constant NFCDATA_LSB			: natural := 00;
+
+	-- NFCxTXCTL
+	constant NFCTXAPPCRC_LSB		: natural := 09;
+	constant NFCTXGO_LSB			: natural := 08;
+	constant NFCTXLEN_MSB			: natural := 07;
+	constant NFCTXLEN_LSB			: natural := 00;
+
+	-- NFCxDBG
+	constant NFCTXFRAMECNT_MSB		: natural := 31;
+	constant NFCTXFRAMECNT_LSB		: natural := 16;
+	constant NFCRXFRAMECNT_MSB		: natural := 15;
+	constant NFCRXFRAMECNT_LSB		: natural := 00;
 
 
 	------ IRQROUTER
@@ -1000,313 +1091,318 @@ package MemoryMap is
 	-- Constants hdl/common/MemoryMap.vhd defines beyond the sections above, emitted so this package is a drop-in replacement for it.
 
 	-- Memory Block Memory Slot Assignments
-	constant MemSlotROM				: natural := 00;						-- base address = 0x00000
-	constant MemSlotRAM0			: natural := 01;						-- base address = 0x08000
-	constant MemSlotRAM1			: natural := 02;						-- base address = 0x0C000
-	constant MemSlotPeriph			: natural := 04;						-- base address = 0x04000
+	constant MemSlotROM							: natural := 00;						-- base address = 0x00000
+	constant MemSlotRAM0						: natural := 01;						-- base address = 0x08000
+	constant MemSlotRAM1						: natural := 02;						-- base address = 0x0C000
+	constant MemSlotPeriph						: natural := 04;						-- base address = 0x04000
 
 	-- Peripheral legacy slot numbers (RTL spelling; slots of moved peripherals are still used to zero their dead 0x4000-page windows)
-	constant PeriphSlotGPIO0		: natural := 00;						-- base address = 0x4000 (legacy; peripheral now at 0x4000)
-	constant PeriphSlotGPIO1		: natural := 01;						-- base address = 0x4100 (legacy; peripheral now at 0x4100)
-	constant PeriphSlotSPI0			: natural := 02;						-- base address = 0x4200 (legacy; peripheral now at 0x4200)
-	constant PeriphSlotSPI1			: natural := 03;						-- base address = 0x4300 (legacy; peripheral now at 0x4300)
-	constant PeriphSlotUART0		: natural := 04;						-- base address = 0x4400 (legacy; peripheral now at 0x4400)
-	constant PeriphSlotUART1		: natural := 05;						-- base address = 0x4500 (legacy; peripheral now at 0x4500)
-	constant PeriphSlotTIMER0		: natural := 06;						-- base address = 0x4600 (legacy; peripheral now at 0x4600)
-	constant PeriphSlotTIMER1		: natural := 07;						-- base address = 0x4700 (legacy; peripheral now at 0x4700)
-	constant PeriphSlotGPIO2		: natural := 08;						-- base address = 0x4800 (legacy; peripheral now at 0x4800)
-	constant PeriphSlotSystem0		: natural := 09;						-- base address = 0x4900 (legacy; peripheral now at 0x4900)
-	constant PeriphSlotNPU0			: natural := 10;						-- base address = 0x4A00 (legacy; peripheral now at 0x4A00)
-	constant PeriphSlotPWRCTRL		: natural := 11;						-- base address = 0x4B00 (legacy; peripheral now at 0x4B00)
-	constant PeriphSlotGPIO3		: natural := 13;						-- base address = 0x4D00 (legacy; peripheral now at 0x4D00)
-	constant PeriphSlotI2C0			: natural := 14;						-- base address = 0x4E00 (legacy; peripheral now at 0x4E00)
-	constant PeriphSlotI2C1			: natural := 15;						-- base address = 0x4F00 (legacy; peripheral now at 0x4F00)
+	constant PeriphSlotGPIO0					: natural := 00;						-- base address = 0x4000 (legacy; peripheral now at 0x4000)
+	constant PeriphSlotGPIO1					: natural := 01;						-- base address = 0x4100 (legacy; peripheral now at 0x4100)
+	constant PeriphSlotSPI0						: natural := 02;						-- base address = 0x4200 (legacy; peripheral now at 0x4200)
+	constant PeriphSlotSPI1						: natural := 03;						-- base address = 0x4300 (legacy; peripheral now at 0x4300)
+	constant PeriphSlotUART0					: natural := 04;						-- base address = 0x4400 (legacy; peripheral now at 0x4400)
+	constant PeriphSlotUART1					: natural := 05;						-- base address = 0x4500 (legacy; peripheral now at 0x4500)
+	constant PeriphSlotTIMER0					: natural := 06;						-- base address = 0x4600 (legacy; peripheral now at 0x4600)
+	constant PeriphSlotTIMER1					: natural := 07;						-- base address = 0x4700 (legacy; peripheral now at 0x4700)
+	constant PeriphSlotGPIO2					: natural := 08;						-- base address = 0x4800 (legacy; peripheral now at 0x4800)
+	constant PeriphSlotSystem0					: natural := 09;						-- base address = 0x4900 (legacy; peripheral now at 0x4900)
+	constant PeriphSlotNPU0						: natural := 10;						-- base address = 0x4A00 (legacy; peripheral now at 0x4A00)
+	constant PeriphSlotPWRCTRL					: natural := 11;						-- base address = 0x4B00 (legacy; peripheral now at 0x4B00)
+	constant PeriphSlotGPIO3					: natural := 13;						-- base address = 0x4D00 (legacy; peripheral now at 0x4D00)
+	constant PeriphSlotI2C0						: natural := 14;						-- base address = 0x4E00 (legacy; peripheral now at 0x4E00)
+	constant PeriphSlotI2C1						: natural := 15;						-- base address = 0x4F00 (legacy; peripheral now at 0x4F00)
 
 	-- Peripheral slot masks
-	constant GPIO0_MASK				: natural := 2 ** PeriphSlotGPIO0;
-	constant GPIO1_MASK				: natural := 2 ** PeriphSlotGPIO1;
-	constant SPI0_MASK				: natural := 2 ** PeriphSlotSPI0;
-	constant SPI1_MASK				: natural := 2 ** PeriphSlotSPI1;
-	constant UART0_MASK				: natural := 2 ** PeriphSlotUART0;
-	constant UART1_MASK				: natural := 2 ** PeriphSlotUART1;
-	constant TIMER0_MASK			: natural := 2 ** PeriphSlotTIMER0;
-	constant TIMER1_MASK			: natural := 2 ** PeriphSlotTIMER1;
-	constant GPIO2_MASK				: natural := 2 ** PeriphSlotGPIO2;
-	constant SYSTEM0_MASK			: natural := 2 ** PeriphSlotSystem0;
-	constant NPU0_MASK				: natural := 2 ** PeriphSlotNPU0;
-	constant PWRCTRL_MASK			: natural := 2 ** PeriphSlotPWRCTRL;
-	constant GPIO3_MASK				: natural := 2 ** PeriphSlotGPIO3;
-	constant I2C0_MASK				: natural := 2 ** PeriphSlotI2C0;
-	constant I2C1_MASK				: natural := 2 ** PeriphSlotI2C1;
+	constant GPIO0_MASK							: natural := 2 ** PeriphSlotGPIO0;
+	constant GPIO1_MASK							: natural := 2 ** PeriphSlotGPIO1;
+	constant SPI0_MASK							: natural := 2 ** PeriphSlotSPI0;
+	constant SPI1_MASK							: natural := 2 ** PeriphSlotSPI1;
+	constant UART0_MASK							: natural := 2 ** PeriphSlotUART0;
+	constant UART1_MASK							: natural := 2 ** PeriphSlotUART1;
+	constant TIMER0_MASK						: natural := 2 ** PeriphSlotTIMER0;
+	constant TIMER1_MASK						: natural := 2 ** PeriphSlotTIMER1;
+	constant GPIO2_MASK							: natural := 2 ** PeriphSlotGPIO2;
+	constant SYSTEM0_MASK						: natural := 2 ** PeriphSlotSystem0;
+	constant NPU0_MASK							: natural := 2 ** PeriphSlotNPU0;
+	constant PWRCTRL_MASK						: natural := 2 ** PeriphSlotPWRCTRL;
+	constant GPIO3_MASK							: natural := 2 ** PeriphSlotGPIO3;
+	constant I2C0_MASK							: natural := 2 ** PeriphSlotI2C0;
+	constant I2C1_MASK							: natural := 2 ** PeriphSlotI2C1;
 
 	-- GPIO Constants
-	constant gpio_dir_out			: std_logic := '1';						-- GPIO output direction
-	constant gpio_dir_in			: std_logic := '0';						-- GPIO input direction
-	constant gpio_ren_en			: std_logic := '1';						-- GPIO resistor enable
-	constant gpio_ren_dis			: std_logic := '0';						-- GPIO resistor disable
-	constant gpio_out_high			: std_logic := '1';						-- GPIO output high
-	constant gpio_out_low			: std_logic := '0';						-- GPIO output low
+	constant gpio_dir_out						: std_logic := '1';						-- GPIO output direction
+	constant gpio_dir_in						: std_logic := '0';						-- GPIO input direction
+	constant gpio_ren_en						: std_logic := '1';						-- GPIO resistor enable
+	constant gpio_ren_dis						: std_logic := '0';						-- GPIO resistor disable
+	constant gpio_out_high						: std_logic := '1';						-- GPIO output high
+	constant gpio_out_low						: std_logic := '0';						-- GPIO output low
 
 	-- SYSTEM register slots (RTL spelling; slot values from hdl/common/MemoryMap.vhd)
-	constant RegSlotSYS_CLK_CR		: natural := 00;						-- offset = 0 bytes
-	constant RegSlotSYS_CLK_DIV_CR	: natural := 01;						-- offset = 4 bytes
-	constant RegSlotSYS_BLOCK_PWR	: natural := 02;						-- offset = 8 bytes
-	constant RegSlotSYS_CRC_DATA	: natural := 03;						-- offset = 12 bytes
-	constant RegSlotSYS_CRC_STATE	: natural := 04;						-- offset = 16 bytes
-	constant RegSlotSYS_WDT_PASS	: natural := 12;						-- offset = 48 bytes
-	constant RegSlotSYS_WDT_CR		: natural := 13;						-- offset = 52 bytes
-	constant RegSlotSYS_WDT_SR		: natural := 14;						-- offset = 56 bytes
-	constant RegSlotSYS_WDT_VAL		: natural := 15;						-- offset = 60 bytes
-	constant RegSlotDCO0_BIAS		: natural := 16;						-- offset = 64 bytes
-	constant RegSlotDCO1_BIAS		: natural := 17;						-- offset = 68 bytes
+	constant RegSlotSYS_CLK_CR					: natural := 00;						-- offset = 0 bytes
+	constant RegSlotSYS_CLK_DIV_CR				: natural := 01;						-- offset = 4 bytes
+	constant RegSlotSYS_BLOCK_PWR				: natural := 02;						-- offset = 8 bytes
+	constant RegSlotSYS_CRC_DATA				: natural := 03;						-- offset = 12 bytes
+	constant RegSlotSYS_CRC_STATE				: natural := 04;						-- offset = 16 bytes
+	constant RegSlotSYS_WDT_PASS				: natural := 12;						-- offset = 48 bytes
+	constant RegSlotSYS_WDT_CR					: natural := 13;						-- offset = 52 bytes
+	constant RegSlotSYS_WDT_SR					: natural := 14;						-- offset = 56 bytes
+	constant RegSlotSYS_WDT_VAL					: natural := 15;						-- offset = 60 bytes
+	constant RegSlotDCO0_BIAS					: natural := 16;						-- offset = 64 bytes
+	constant RegSlotDCO1_BIAS					: natural := 17;						-- offset = 68 bytes
 
 	-- NPU register slots (RTL spelling)
-	constant MmrAddrNPUCR			: natural := 00;						-- offset = 0 bytes
-	constant MmrAddrNPUIVSAR		: natural := 01;						-- offset = 4 bytes
-	constant MmrAddrNPUWVSAR		: natural := 02;						-- offset = 8 bytes
-	constant MmrAddrNPUOVSAR		: natural := 03;						-- offset = 12 bytes
-	constant MmrAddrNPUSR			: natural := 04;						-- offset = 16 bytes
-	constant MmrAddrNPUCFG1			: natural := 05;						-- offset = 20 bytes
-	constant MmrAddrNPUCFG2			: natural := 06;						-- offset = 24 bytes
+	constant MmrAddrNPUCR						: natural := 00;						-- offset = 0 bytes
+	constant MmrAddrNPUIVSAR					: natural := 01;						-- offset = 4 bytes
+	constant MmrAddrNPUWVSAR					: natural := 02;						-- offset = 8 bytes
+	constant MmrAddrNPUOVSAR					: natural := 03;						-- offset = 12 bytes
+	constant MmrAddrNPUSR						: natural := 04;						-- offset = 16 bytes
+	constant MmrAddrNPUCFG1						: natural := 05;						-- offset = 20 bytes
+	constant MmrAddrNPUCFG2						: natural := 06;						-- offset = 24 bytes
 
 	-- Interrupt Bit Assignments (per-vector; names from hdl/common/MemoryMap.vhd)
-	constant IVT_BASE_ADDR			: integer := 16#8000#;					-- IVT base address = 0x8000
-	constant IRQB_SYS_WDT			: natural := 00;						-- Watchdog Timer Interrupt, IVT address = 0x8000
-	constant IRQB_GPIO0_B0			: natural := 01;						-- GPIO0 Bit 0 Interrupt, IVT address = 0x8004
-	constant IRQB_GPIO0_B1			: natural := 02;						-- GPIO0 Bit 1 Interrupt, IVT address = 0x8008
-	constant IRQB_GPIO0_B2			: natural := 03;						-- GPIO0 Bit 2 Interrupt, IVT address = 0x800C
-	constant IRQB_GPIO0_B3			: natural := 04;						-- GPIO0 Bit 3 Interrupt, IVT address = 0x8010
-	constant IRQB_GPIO0_B4			: natural := 05;						-- GPIO0 Bit 4 Interrupt, IVT address = 0x8014
-	constant IRQB_GPIO0_B5			: natural := 06;						-- GPIO0 Bit 5 Interrupt, IVT address = 0x8018
-	constant IRQB_GPIO0_B6			: natural := 07;						-- GPIO0 Bit 6 Interrupt, IVT address = 0x801C
-	constant IRQB_GPIO0_B7			: natural := 08;						-- GPIO0 Bit 7 Interrupt, IVT address = 0x8020
-	constant IRQB_SPI0_TC			: natural := 09;						-- SPI0 Transmission Complete Interrupt, IVT address = 0x8024
-	constant IRQB_SPI0_TE			: natural := 10;						-- SPI0 Transmission Buffer Empty Interrupt, IVT address = 0x8028
-	constant IRQB_SPI1_TC			: natural := 11;						-- SPI1 Transmission Complete Interrupt, IVT address = 0x802C
-	constant IRQB_SPI1_TE			: natural := 12;						-- SPI1 Transmission Buffer Empty Interrupt, IVT address = 0x8030
-	constant IRQB_UART0_RC			: natural := 13;						-- UART0 Receive Complete Interrupt, IVT address = 0x8034
-	constant IRQB_UART0_TE			: natural := 14;						-- UART0 Transmission Buffer Empty Interrupt, IVT address = 0x8038
-	constant IRQB_UART0_TC			: natural := 15;						-- UART0 Transmission Complete Interrupt, IVT address = 0x803C
-	constant IRQB_TIM0_CAP0			: natural := 16;						-- TIMER0 Capture 0 Interrupt, IVT address = 0x8040
-	constant IRQB_TIM0_CAP1			: natural := 17;						-- TIMER0 Capture 1 Interrupt, IVT address = 0x8044
-	constant IRQB_TIM0_OVF			: natural := 18;						-- TIMER0 Overflow Interrupt, IVT address = 0x8048
-	constant IRQB_TIM0_CMP0			: natural := 19;						-- TIMER0 Compare 0 Interrupt, IVT address = 0x804C
-	constant IRQB_TIM0_CMP1			: natural := 20;						-- TIMER0 Compare 1 Interrupt, IVT address = 0x8050
-	constant IRQB_TIM0_CMP2			: natural := 21;						-- TIMER0 Compare 2 Interrupt, IVT address = 0x8054
-	constant IRQB_TIM1_CAP0			: natural := 22;						-- TIMER1 Capture 0 Interrupt, IVT address = 0x8058
-	constant IRQB_TIM1_CAP1			: natural := 23;						-- TIMER1 Capture 1 Interrupt, IVT address = 0x805C
-	constant IRQB_TIM1_OVF			: natural := 24;						-- TIMER1 Overflow Interrupt, IVT address = 0x8060
-	constant IRQB_TIM1_CMP0			: natural := 25;						-- TIMER1 Compare 0 Interrupt, IVT address = 0x8064
-	constant IRQB_TIM1_CMP1			: natural := 26;						-- TIMER1 Compare 1 Interrupt, IVT address = 0x8068
-	constant IRQB_TIM1_CMP2			: natural := 27;						-- TIMER1 Compare 2 Interrupt, IVT address = 0x806C
-	constant IRQB_GPIO1_B0			: natural := 28;						-- GPIO1 Bit 0 Interrupt, IVT address = 0x8070
-	constant IRQB_GPIO1_B1			: natural := 29;						-- GPIO1 Bit 1 Interrupt, IVT address = 0x8074
-	constant IRQB_GPIO1_B2			: natural := 30;						-- GPIO1 Bit 2 Interrupt, IVT address = 0x8078
-	constant IRQB_GPIO1_B3			: natural := 31;						-- GPIO1 Bit 3 Interrupt, IVT address = 0x807C
-	constant IRQB_GPIO1_B4			: natural := 32;						-- GPIO1 Bit 4 Interrupt, IVT address = 0x8080
-	constant IRQB_GPIO1_B5			: natural := 33;						-- GPIO1 Bit 5 Interrupt, IVT address = 0x8084
-	constant IRQB_GPIO1_B6			: natural := 34;						-- GPIO1 Bit 6 Interrupt, IVT address = 0x8088
-	constant IRQB_GPIO1_B7			: natural := 35;						-- GPIO1 Bit 7 Interrupt, IVT address = 0x808C
-	constant IRQB_GPIO2_B0			: natural := 36;						-- GPIO2 Bit 0 Interrupt, IVT address = 0x8090
-	constant IRQB_GPIO2_B1			: natural := 37;						-- GPIO2 Bit 1 Interrupt, IVT address = 0x8094
-	constant IRQB_GPIO2_B2			: natural := 38;						-- GPIO2 Bit 2 Interrupt, IVT address = 0x8098
-	constant IRQB_GPIO2_B3			: natural := 39;						-- GPIO2 Bit 3 Interrupt, IVT address = 0x809C
-	constant IRQB_GPIO2_B4			: natural := 40;						-- GPIO2 Bit 4 Interrupt, IVT address = 0x80A0
-	constant IRQB_GPIO2_B5			: natural := 41;						-- GPIO2 Bit 5 Interrupt, IVT address = 0x80A4
-	constant IRQB_GPIO2_B6			: natural := 42;						-- GPIO2 Bit 6 Interrupt, IVT address = 0x80A8
-	constant IRQB_GPIO2_B7			: natural := 43;						-- GPIO2 Bit 7 Interrupt, IVT address = 0x80AC
-	constant IRQB_GPIO3_B0			: natural := 44;						-- GPIO3 Bit 0 Interrupt, IVT address = 0x80B0
-	constant IRQB_GPIO3_B1			: natural := 45;						-- GPIO3 Bit 1 Interrupt, IVT address = 0x80B4
-	constant IRQB_GPIO3_B2			: natural := 46;						-- GPIO3 Bit 2 Interrupt, IVT address = 0x80B8
-	constant IRQB_GPIO3_B3			: natural := 47;						-- GPIO3 Bit 3 Interrupt, IVT address = 0x80BC
-	constant IRQB_GPIO3_B4			: natural := 48;						-- GPIO3 Bit 4 Interrupt, IVT address = 0x80C0
-	constant IRQB_GPIO3_B5			: natural := 49;						-- GPIO3 Bit 5 Interrupt, IVT address = 0x80C4
-	constant IRQB_GPIO3_B6			: natural := 50;						-- GPIO3 Bit 6 Interrupt, IVT address = 0x80C8
-	constant IRQB_GPIO3_B7			: natural := 51;						-- GPIO3 Bit 7 Interrupt, IVT address = 0x80CC
-	constant IRQB_UART1_RC			: natural := 52;						-- UART1 Receive Complete Interrupt, IVT address = 0x80D0
-	constant IRQB_UART1_TE			: natural := 53;						-- UART1 Transmission Buffer Empty Interrupt, IVT address = 0x80D4
-	constant IRQB_UART1_TC			: natural := 54;						-- UART1 Transmission Complete Interrupt, IVT address = 0x80D8
-	constant IRQB_RSVD55			: natural := 55;						-- Reserved (vector 55; formerly AFE0 Receive Complete), IVT address = 0x80DC
-	constant IRQB_RSVD56			: natural := 56;						-- Reserved (vector 56; formerly SARADC0 Conversion Complete), IVT address = 0x80E0
-	constant IRQB_I2C0_STR			: natural := 57;						-- I2C0 start received Interrupt, IVT address = 0x80E4
-	constant IRQB_I2C0_spr			: natural := 58;						-- I2C0 stop received Interrupt, IVT address = 0x80E8
-	constant IRQB_I2C0_msts			: natural := 59;						-- I2C0 master mode start condition sent Interrupt, IVT address = 0x80EC
-	constant IRQB_I2C0_msps			: natural := 60;						-- I2C0 master mode stop condition sent Interrupt, IVT address = 0x80F0
-	constant IRQB_I2C0_marb			: natural := 61;						-- I2C0 master mode arbitration lost Interrupt, IVT address = 0x80F4
-	constant IRQB_I2C0_mtxe			: natural := 62;						-- I2C0 master mode transmit empty Interrupt, IVT address = 0x80F8
-	constant IRQB_I2C0_mnr			: natural := 63;						-- I2C0 master mode NACK received Interrupt, IVT address = 0x80FC
-	constant IRQB_I2C0_mxc			: natural := 64;						-- I2C0 master mode transfer complete Interrupt, IVT address = 0x8100
-	constant IRQB_I2C0_sa			: natural := 65;						-- I2C0 slave address Interrupt, IVT address = 0x8104
-	constant IRQB_I2C0_stxe			: natural := 66;						-- I2C0 slave transmit empty Interrupt, IVT address = 0x8108
-	constant IRQB_I2C0_sovf			: natural := 67;						-- I2C0 slave overflow Interrupt, IVT address = 0x810C
-	constant IRQB_I2C0_snr			: natural := 68;						-- I2C0 slave mode NACK received Interrupt, IVT address = 0x8110
-	constant IRQB_I2C0_sxc			: natural := 69;						-- I2C0 slave mode transfer complete Interrupt, IVT address = 0x8114
-	constant IRQB_I2C1_STR			: natural := 70;						-- I2C1 start received Interrupt, IVT address = 0x8118
-	constant IRQB_I2C1_spr			: natural := 71;						-- I2C1 stop received Interrupt, IVT address = 0x811C
-	constant IRQB_I2C1_msts			: natural := 72;						-- I2C1 master mode start condition sent Interrupt, IVT address = 0x8120
-	constant IRQB_I2C1_msps			: natural := 73;						-- I2C1 master mode stop condition sent Interrupt, IVT address = 0x8124
-	constant IRQB_I2C1_marb			: natural := 74;						-- I2C1 master mode arbitration lost Interrupt, IVT address = 0x8128
-	constant IRQB_I2C1_mtxe			: natural := 75;						-- I2C1 master mode transmit empty Interrupt, IVT address = 0x812C
-	constant IRQB_I2C1_mnr			: natural := 76;						-- I2C1 master mode NACK received Interrupt, IVT address = 0x8130
-	constant IRQB_I2C1_mxc			: natural := 77;						-- I2C1 master mode transfer complete Interrupt, IVT address = 0x8134
-	constant IRQB_I2C1_sa			: natural := 78;						-- I2C1 slave address Interrupt, IVT address = 0x8138
-	constant IRQB_I2C1_stxe			: natural := 79;						-- I2C1 slave transmit empty Interrupt, IVT address = 0x813C
-	constant IRQB_I2C1_sovf			: natural := 80;						-- I2C1 slave overflow Interrupt, IVT address = 0x8140
-	constant IRQB_I2C1_snr			: natural := 81;						-- I2C1 slave mode NACK received Interrupt, IVT address = 0x8144
-	constant IRQB_I2C1_sxc			: natural := 82;						-- I2C1 slave mode transfer complete Interrupt, IVT address = 0x8148
-	constant IRQB_CLINT_MSIP		: natural := 83;						-- CLINT software interrupt (IPI), IVT address = 0x814C
-	constant IRQB_CLINT_MTIP		: natural := 84;						-- CLINT timer interrupt, IVT address = 0x8150
-	constant IRQB_RSVD85			: natural := 85;						-- Reserved (vector 85; coincides with the meip external-interrupt IVT slot, never a pending source), IVT address = 0x8154
-	constant IRQB_RSVD86			: natural := 86;						-- Reserved (vector 86; I3C0 disabled by this configuration), IVT address = 0x8158
-	constant IRQB_RSVD87			: natural := 87;						-- Reserved (vector 87; I3C0 disabled by this configuration), IVT address = 0x815C
-	constant IRQB_RSVD88			: natural := 88;						-- Reserved (vector 88; I3C0 disabled by this configuration), IVT address = 0x8160
-	constant IRQB_RSVD89			: natural := 89;						-- Reserved (vector 89; I3C0 disabled by this configuration), IVT address = 0x8164
-	constant IRQB_RSVD90			: natural := 90;						-- Reserved (vector 90; I3C0 disabled by this configuration), IVT address = 0x8168
-	constant IRQB_RSVD91			: natural := 91;						-- Reserved (vector 91; I3C0 disabled by this configuration), IVT address = 0x816C
-	constant IRQB_RSVD92			: natural := 92;						-- Reserved (vector 92; I3C0 disabled by this configuration), IVT address = 0x8170
-	constant IRQB_RSVD93			: natural := 93;						-- Reserved (vector 93; I3C0 disabled by this configuration), IVT address = 0x8174
-	constant IRQB_NFC0_FIELD 	: natural := 94;						-- NFC0 RF Field-Detect Interrupt, IVT address = 0x8178
-	constant IRQB_NFC0_RXF   	: natural := 95;						-- NFC0 Reader-Frame Received Interrupt, IVT address = 0x817C
-	constant IRQB_NFC0_TXDONE	: natural := 96;						-- NFC0 Tag-Response Transmit-Done Interrupt, IVT address = 0x8180
-	constant IRQB_NFC0_CRCERR	: natural := 97;						-- NFC0 RX CRC / Parity Error Interrupt, IVT address = 0x8184
-	constant IRQB_GPIO4_B0			: natural := 98;						-- GPIO4 Bit 0 Interrupt, IVT address = 0x8188
-	constant IRQB_GPIO4_B1			: natural := 99;						-- GPIO4 Bit 1 Interrupt, IVT address = 0x818C
-	constant IRQB_GPIO4_B2			: natural := 100;						-- GPIO4 Bit 2 Interrupt, IVT address = 0x8190
-	constant IRQB_GPIO4_B3			: natural := 101;						-- GPIO4 Bit 3 Interrupt, IVT address = 0x8194
-	constant IRQB_GPIO4_B4			: natural := 102;						-- GPIO4 Bit 4 Interrupt, IVT address = 0x8198
-	constant IRQB_GPIO4_B5			: natural := 103;						-- GPIO4 Bit 5 Interrupt, IVT address = 0x819C
-	constant IRQB_GPIO4_B6			: natural := 104;						-- GPIO4 Bit 6 Interrupt, IVT address = 0x81A0
-	constant IRQB_GPIO4_B7			: natural := 105;						-- GPIO4 Bit 7 Interrupt, IVT address = 0x81A4
-	constant IRQB_GPIO5_B0			: natural := 106;						-- GPIO5 Bit 0 Interrupt, IVT address = 0x81A8
-	constant IRQB_GPIO5_B1			: natural := 107;						-- GPIO5 Bit 1 Interrupt, IVT address = 0x81AC
-	constant IRQB_GPIO5_B2			: natural := 108;						-- GPIO5 Bit 2 Interrupt, IVT address = 0x81B0
-	constant IRQB_GPIO5_B3			: natural := 109;						-- GPIO5 Bit 3 Interrupt, IVT address = 0x81B4
-	constant IRQB_GPIO5_B4			: natural := 110;						-- GPIO5 Bit 4 Interrupt, IVT address = 0x81B8
-	constant IRQB_GPIO5_B5			: natural := 111;						-- GPIO5 Bit 5 Interrupt, IVT address = 0x81BC
-	constant IRQB_GPIO5_B6			: natural := 112;						-- GPIO5 Bit 6 Interrupt, IVT address = 0x81C0
-	constant IRQB_GPIO5_B7			: natural := 113;						-- GPIO5 Bit 7 Interrupt, IVT address = 0x81C4
-	constant IRQB_RSVD114			: natural := 114;						-- Reserved (vector 114; RTC0 source, disabled by this configuration), IVT address = 0x81C8
-	constant IRQB_RSVD115			: natural := 115;						-- Reserved (vector 115; PWM0_FAULT source, disabled by this configuration), IVT address = 0x81CC
-	constant IRQB_RSVD116			: natural := 116;						-- Reserved (vector 116; PWM0_EVT source, disabled by this configuration), IVT address = 0x81D0
-	constant IRQB_RSVD117			: natural := 117;						-- Reserved (vector 117; OW0 source, disabled by this configuration), IVT address = 0x81D4
-	constant IRQB_RSVD118			: natural := 118;						-- Reserved (vector 118; DMA0_DONE source, disabled by this configuration), IVT address = 0x81D8
-	constant IRQB_RSVD119			: natural := 119;						-- Reserved (vector 119; DMA0_ERR source, disabled by this configuration), IVT address = 0x81DC
-	constant IRQB_NPU0_TD			: natural := 120;						-- NPU0 think-done Interrupt, IVT address = 0x81E0
-	constant IRQB_EXT_MEIP			: natural := 85;						-- External (peripheral) interrupt via IRQROUTER claim/complete, IVT address = 0x8154
-	constant NUM_IRQ_SRCS			: natural := 121;						-- Peripheral IRQ SOURCES (deglitch/irq_router width; CLINT slots delivered per-hart)
-	constant NUM_IRQS				: natural := 121;						-- Core IVT slot count = max(sources, meip slot + 1)
-	constant NUM_GF_INSTANCES		: natural := (NUM_IRQ_SRCS + 31) / 32;	-- glitch-filter instance count
+	constant IVT_BASE_ADDR						: integer := 16#8000#;					-- IVT base address = 0x8000
+	constant IRQB_SYS_WDT						: natural := 00;						-- Watchdog Timer Interrupt, IVT address = 0x8000
+	constant IRQB_GPIO0_B0						: natural := 01;						-- GPIO0 Bit 0 Interrupt, IVT address = 0x8004
+	constant IRQB_GPIO0_B1						: natural := 02;						-- GPIO0 Bit 1 Interrupt, IVT address = 0x8008
+	constant IRQB_GPIO0_B2						: natural := 03;						-- GPIO0 Bit 2 Interrupt, IVT address = 0x800C
+	constant IRQB_GPIO0_B3						: natural := 04;						-- GPIO0 Bit 3 Interrupt, IVT address = 0x8010
+	constant IRQB_GPIO0_B4						: natural := 05;						-- GPIO0 Bit 4 Interrupt, IVT address = 0x8014
+	constant IRQB_GPIO0_B5						: natural := 06;						-- GPIO0 Bit 5 Interrupt, IVT address = 0x8018
+	constant IRQB_GPIO0_B6						: natural := 07;						-- GPIO0 Bit 6 Interrupt, IVT address = 0x801C
+	constant IRQB_GPIO0_B7						: natural := 08;						-- GPIO0 Bit 7 Interrupt, IVT address = 0x8020
+	constant IRQB_SPI0_TC						: natural := 09;						-- SPI0 Transmission Complete Interrupt, IVT address = 0x8024
+	constant IRQB_SPI0_TE						: natural := 10;						-- SPI0 Transmission Buffer Empty Interrupt, IVT address = 0x8028
+	constant IRQB_SPI1_TC						: natural := 11;						-- SPI1 Transmission Complete Interrupt, IVT address = 0x802C
+	constant IRQB_SPI1_TE						: natural := 12;						-- SPI1 Transmission Buffer Empty Interrupt, IVT address = 0x8030
+	constant IRQB_UART0_RC						: natural := 13;						-- UART0 Receive Complete Interrupt, IVT address = 0x8034
+	constant IRQB_UART0_TE						: natural := 14;						-- UART0 Transmission Buffer Empty Interrupt, IVT address = 0x8038
+	constant IRQB_UART0_TC						: natural := 15;						-- UART0 Transmission Complete Interrupt, IVT address = 0x803C
+	constant IRQB_TIM0_CAP0						: natural := 16;						-- TIMER0 Capture 0 Interrupt, IVT address = 0x8040
+	constant IRQB_TIM0_CAP1						: natural := 17;						-- TIMER0 Capture 1 Interrupt, IVT address = 0x8044
+	constant IRQB_TIM0_OVF						: natural := 18;						-- TIMER0 Overflow Interrupt, IVT address = 0x8048
+	constant IRQB_TIM0_CMP0						: natural := 19;						-- TIMER0 Compare 0 Interrupt, IVT address = 0x804C
+	constant IRQB_TIM0_CMP1						: natural := 20;						-- TIMER0 Compare 1 Interrupt, IVT address = 0x8050
+	constant IRQB_TIM0_CMP2						: natural := 21;						-- TIMER0 Compare 2 Interrupt, IVT address = 0x8054
+	constant IRQB_TIM1_CAP0						: natural := 22;						-- TIMER1 Capture 0 Interrupt, IVT address = 0x8058
+	constant IRQB_TIM1_CAP1						: natural := 23;						-- TIMER1 Capture 1 Interrupt, IVT address = 0x805C
+	constant IRQB_TIM1_OVF						: natural := 24;						-- TIMER1 Overflow Interrupt, IVT address = 0x8060
+	constant IRQB_TIM1_CMP0						: natural := 25;						-- TIMER1 Compare 0 Interrupt, IVT address = 0x8064
+	constant IRQB_TIM1_CMP1						: natural := 26;						-- TIMER1 Compare 1 Interrupt, IVT address = 0x8068
+	constant IRQB_TIM1_CMP2						: natural := 27;						-- TIMER1 Compare 2 Interrupt, IVT address = 0x806C
+	constant IRQB_GPIO1_B0						: natural := 28;						-- GPIO1 Bit 0 Interrupt, IVT address = 0x8070
+	constant IRQB_GPIO1_B1						: natural := 29;						-- GPIO1 Bit 1 Interrupt, IVT address = 0x8074
+	constant IRQB_GPIO1_B2						: natural := 30;						-- GPIO1 Bit 2 Interrupt, IVT address = 0x8078
+	constant IRQB_GPIO1_B3						: natural := 31;						-- GPIO1 Bit 3 Interrupt, IVT address = 0x807C
+	constant IRQB_GPIO1_B4						: natural := 32;						-- GPIO1 Bit 4 Interrupt, IVT address = 0x8080
+	constant IRQB_GPIO1_B5						: natural := 33;						-- GPIO1 Bit 5 Interrupt, IVT address = 0x8084
+	constant IRQB_GPIO1_B6						: natural := 34;						-- GPIO1 Bit 6 Interrupt, IVT address = 0x8088
+	constant IRQB_GPIO1_B7						: natural := 35;						-- GPIO1 Bit 7 Interrupt, IVT address = 0x808C
+	constant IRQB_GPIO2_B0						: natural := 36;						-- GPIO2 Bit 0 Interrupt, IVT address = 0x8090
+	constant IRQB_GPIO2_B1						: natural := 37;						-- GPIO2 Bit 1 Interrupt, IVT address = 0x8094
+	constant IRQB_GPIO2_B2						: natural := 38;						-- GPIO2 Bit 2 Interrupt, IVT address = 0x8098
+	constant IRQB_GPIO2_B3						: natural := 39;						-- GPIO2 Bit 3 Interrupt, IVT address = 0x809C
+	constant IRQB_GPIO2_B4						: natural := 40;						-- GPIO2 Bit 4 Interrupt, IVT address = 0x80A0
+	constant IRQB_GPIO2_B5						: natural := 41;						-- GPIO2 Bit 5 Interrupt, IVT address = 0x80A4
+	constant IRQB_GPIO2_B6						: natural := 42;						-- GPIO2 Bit 6 Interrupt, IVT address = 0x80A8
+	constant IRQB_GPIO2_B7						: natural := 43;						-- GPIO2 Bit 7 Interrupt, IVT address = 0x80AC
+	constant IRQB_GPIO3_B0						: natural := 44;						-- GPIO3 Bit 0 Interrupt, IVT address = 0x80B0
+	constant IRQB_GPIO3_B1						: natural := 45;						-- GPIO3 Bit 1 Interrupt, IVT address = 0x80B4
+	constant IRQB_GPIO3_B2						: natural := 46;						-- GPIO3 Bit 2 Interrupt, IVT address = 0x80B8
+	constant IRQB_GPIO3_B3						: natural := 47;						-- GPIO3 Bit 3 Interrupt, IVT address = 0x80BC
+	constant IRQB_GPIO3_B4						: natural := 48;						-- GPIO3 Bit 4 Interrupt, IVT address = 0x80C0
+	constant IRQB_GPIO3_B5						: natural := 49;						-- GPIO3 Bit 5 Interrupt, IVT address = 0x80C4
+	constant IRQB_GPIO3_B6						: natural := 50;						-- GPIO3 Bit 6 Interrupt, IVT address = 0x80C8
+	constant IRQB_GPIO3_B7						: natural := 51;						-- GPIO3 Bit 7 Interrupt, IVT address = 0x80CC
+	constant IRQB_UART1_RC						: natural := 52;						-- UART1 Receive Complete Interrupt, IVT address = 0x80D0
+	constant IRQB_UART1_TE						: natural := 53;						-- UART1 Transmission Buffer Empty Interrupt, IVT address = 0x80D4
+	constant IRQB_UART1_TC						: natural := 54;						-- UART1 Transmission Complete Interrupt, IVT address = 0x80D8
+	constant IRQB_RSVD55						: natural := 55;						-- Reserved (vector 55; formerly AFE0 Receive Complete), IVT address = 0x80DC
+	constant IRQB_RSVD56						: natural := 56;						-- Reserved (vector 56; formerly SARADC0 Conversion Complete), IVT address = 0x80E0
+	constant IRQB_I2C0_STR						: natural := 57;						-- I2C0 start received Interrupt, IVT address = 0x80E4
+	constant IRQB_I2C0_spr						: natural := 58;						-- I2C0 stop received Interrupt, IVT address = 0x80E8
+	constant IRQB_I2C0_msts						: natural := 59;						-- I2C0 master mode start condition sent Interrupt, IVT address = 0x80EC
+	constant IRQB_I2C0_msps						: natural := 60;						-- I2C0 master mode stop condition sent Interrupt, IVT address = 0x80F0
+	constant IRQB_I2C0_marb						: natural := 61;						-- I2C0 master mode arbitration lost Interrupt, IVT address = 0x80F4
+	constant IRQB_I2C0_mtxe						: natural := 62;						-- I2C0 master mode transmit empty Interrupt, IVT address = 0x80F8
+	constant IRQB_I2C0_mnr						: natural := 63;						-- I2C0 master mode NACK received Interrupt, IVT address = 0x80FC
+	constant IRQB_I2C0_mxc						: natural := 64;						-- I2C0 master mode transfer complete Interrupt, IVT address = 0x8100
+	constant IRQB_I2C0_sa						: natural := 65;						-- I2C0 slave address Interrupt, IVT address = 0x8104
+	constant IRQB_I2C0_stxe						: natural := 66;						-- I2C0 slave transmit empty Interrupt, IVT address = 0x8108
+	constant IRQB_I2C0_sovf						: natural := 67;						-- I2C0 slave overflow Interrupt, IVT address = 0x810C
+	constant IRQB_I2C0_snr						: natural := 68;						-- I2C0 slave mode NACK received Interrupt, IVT address = 0x8110
+	constant IRQB_I2C0_sxc						: natural := 69;						-- I2C0 slave mode transfer complete Interrupt, IVT address = 0x8114
+	constant IRQB_I2C1_STR						: natural := 70;						-- I2C1 start received Interrupt, IVT address = 0x8118
+	constant IRQB_I2C1_spr						: natural := 71;						-- I2C1 stop received Interrupt, IVT address = 0x811C
+	constant IRQB_I2C1_msts						: natural := 72;						-- I2C1 master mode start condition sent Interrupt, IVT address = 0x8120
+	constant IRQB_I2C1_msps						: natural := 73;						-- I2C1 master mode stop condition sent Interrupt, IVT address = 0x8124
+	constant IRQB_I2C1_marb						: natural := 74;						-- I2C1 master mode arbitration lost Interrupt, IVT address = 0x8128
+	constant IRQB_I2C1_mtxe						: natural := 75;						-- I2C1 master mode transmit empty Interrupt, IVT address = 0x812C
+	constant IRQB_I2C1_mnr						: natural := 76;						-- I2C1 master mode NACK received Interrupt, IVT address = 0x8130
+	constant IRQB_I2C1_mxc						: natural := 77;						-- I2C1 master mode transfer complete Interrupt, IVT address = 0x8134
+	constant IRQB_I2C1_sa						: natural := 78;						-- I2C1 slave address Interrupt, IVT address = 0x8138
+	constant IRQB_I2C1_stxe						: natural := 79;						-- I2C1 slave transmit empty Interrupt, IVT address = 0x813C
+	constant IRQB_I2C1_sovf						: natural := 80;						-- I2C1 slave overflow Interrupt, IVT address = 0x8140
+	constant IRQB_I2C1_snr						: natural := 81;						-- I2C1 slave mode NACK received Interrupt, IVT address = 0x8144
+	constant IRQB_I2C1_sxc						: natural := 82;						-- I2C1 slave mode transfer complete Interrupt, IVT address = 0x8148
+	constant IRQB_CLINT_MSIP					: natural := 83;						-- CLINT software interrupt (IPI), IVT address = 0x814C
+	constant IRQB_CLINT_MTIP					: natural := 84;						-- CLINT timer interrupt, IVT address = 0x8150
+	constant IRQB_RSVD85						: natural := 85;						-- Reserved (vector 85; coincides with the meip external-interrupt IVT slot, never a pending source), IVT address = 0x8154
+	constant IRQB_RSVD86						: natural := 86;						-- Reserved (vector 86; I3C0 disabled by this configuration), IVT address = 0x8158
+	constant IRQB_RSVD87						: natural := 87;						-- Reserved (vector 87; I3C0 disabled by this configuration), IVT address = 0x815C
+	constant IRQB_RSVD88						: natural := 88;						-- Reserved (vector 88; I3C0 disabled by this configuration), IVT address = 0x8160
+	constant IRQB_RSVD89						: natural := 89;						-- Reserved (vector 89; I3C0 disabled by this configuration), IVT address = 0x8164
+	constant IRQB_RSVD90						: natural := 90;						-- Reserved (vector 90; I3C0 disabled by this configuration), IVT address = 0x8168
+	constant IRQB_RSVD91						: natural := 91;						-- Reserved (vector 91; I3C0 disabled by this configuration), IVT address = 0x816C
+	constant IRQB_RSVD92						: natural := 92;						-- Reserved (vector 92; I3C0 disabled by this configuration), IVT address = 0x8170
+	constant IRQB_RSVD93						: natural := 93;						-- Reserved (vector 93; I3C0 disabled by this configuration), IVT address = 0x8174
+	constant IRQB_NFC0_FIELD					: natural := 94;						-- NFC0 RF Field-Detect Interrupt, IVT address = 0x8178
+	constant IRQB_NFC0_RXF						: natural := 95;						-- NFC0 Reader-Frame Received Interrupt, IVT address = 0x817C
+	constant IRQB_NFC0_TXDONE					: natural := 96;						-- NFC0 Tag-Response Transmit-Done Interrupt, IVT address = 0x8180
+	constant IRQB_NFC0_CRCERR					: natural := 97;						-- NFC0 RX CRC / Parity Error Interrupt, IVT address = 0x8184
+	constant IRQB_GPIO4_B0						: natural := 98;						-- GPIO4 Bit 0 Interrupt, IVT address = 0x8188
+	constant IRQB_GPIO4_B1						: natural := 99;						-- GPIO4 Bit 1 Interrupt, IVT address = 0x818C
+	constant IRQB_GPIO4_B2						: natural := 100;						-- GPIO4 Bit 2 Interrupt, IVT address = 0x8190
+	constant IRQB_GPIO4_B3						: natural := 101;						-- GPIO4 Bit 3 Interrupt, IVT address = 0x8194
+	constant IRQB_GPIO4_B4						: natural := 102;						-- GPIO4 Bit 4 Interrupt, IVT address = 0x8198
+	constant IRQB_GPIO4_B5						: natural := 103;						-- GPIO4 Bit 5 Interrupt, IVT address = 0x819C
+	constant IRQB_GPIO4_B6						: natural := 104;						-- GPIO4 Bit 6 Interrupt, IVT address = 0x81A0
+	constant IRQB_GPIO4_B7						: natural := 105;						-- GPIO4 Bit 7 Interrupt, IVT address = 0x81A4
+	constant IRQB_GPIO5_B0						: natural := 106;						-- GPIO5 Bit 0 Interrupt, IVT address = 0x81A8
+	constant IRQB_GPIO5_B1						: natural := 107;						-- GPIO5 Bit 1 Interrupt, IVT address = 0x81AC
+	constant IRQB_GPIO5_B2						: natural := 108;						-- GPIO5 Bit 2 Interrupt, IVT address = 0x81B0
+	constant IRQB_GPIO5_B3						: natural := 109;						-- GPIO5 Bit 3 Interrupt, IVT address = 0x81B4
+	constant IRQB_GPIO5_B4						: natural := 110;						-- GPIO5 Bit 4 Interrupt, IVT address = 0x81B8
+	constant IRQB_GPIO5_B5						: natural := 111;						-- GPIO5 Bit 5 Interrupt, IVT address = 0x81BC
+	constant IRQB_GPIO5_B6						: natural := 112;						-- GPIO5 Bit 6 Interrupt, IVT address = 0x81C0
+	constant IRQB_GPIO5_B7						: natural := 113;						-- GPIO5 Bit 7 Interrupt, IVT address = 0x81C4
+	constant IRQB_RSVD114						: natural := 114;						-- Reserved (vector 114; RTC0 source, disabled by this configuration), IVT address = 0x81C8
+	constant IRQB_RSVD115						: natural := 115;						-- Reserved (vector 115; PWM0_FAULT source, disabled by this configuration), IVT address = 0x81CC
+	constant IRQB_RSVD116						: natural := 116;						-- Reserved (vector 116; PWM0_EVT source, disabled by this configuration), IVT address = 0x81D0
+	constant IRQB_RSVD117						: natural := 117;						-- Reserved (vector 117; OW0 source, disabled by this configuration), IVT address = 0x81D4
+	constant IRQB_RSVD118						: natural := 118;						-- Reserved (vector 118; DMA0_DONE source, disabled by this configuration), IVT address = 0x81D8
+	constant IRQB_RSVD119						: natural := 119;						-- Reserved (vector 119; DMA0_ERR source, disabled by this configuration), IVT address = 0x81DC
+	constant IRQB_NPU0_TD						: natural := 120;						-- NPU0 think-done Interrupt, IVT address = 0x81E0
+	constant IRQB_EXT_MEIP						: natural := 85;						-- External (peripheral) interrupt via IRQROUTER claim/complete, IVT address = 0x8154
+	constant NUM_IRQ_SRCS						: natural := 121;						-- Peripheral IRQ SOURCES (deglitch/irq_router width; CLINT slots delivered per-hart)
+	constant NUM_IRQS							: natural := 121;						-- Core IVT slot count = max(sources, meip slot + 1)
+	constant NUM_GF_INSTANCES					: natural := (NUM_IRQ_SRCS + 31) / 32;	-- glitch-filter instance count
 
 	-- Core ISA Features (drive the hart_tile/vesta ENABLE_* generics; every tile identical)
-	constant CORE_ENABLE_MUL		: boolean := true;						-- M: MUL/MULH/MULHU/MULHSU
-	constant CORE_ENABLE_DIV		: boolean := true;						-- M: DIV/DIVU/REM/REMU + the iterative divider
-	constant CORE_ENABLE_ATOMICS	: boolean := true;						-- A: LR/SC + AMOs (disabling breaks the mutex/lock infrastructure)
-	constant CORE_ENABLE_COMPRESSED	: boolean := true;						-- C: 16-bit instructions
-	constant CORE_ENABLE_BITMANIP	: boolean := true;						-- Zba/Zbb/Zbs/Zbc
-	constant CORE_ENABLE_ZICOND		: boolean := false;						-- Zicond czero.eqz/nez
-	constant CORE_ENABLE_ZCB		: boolean := false;						-- Zcb extra compressed insns
-	constant CORE_ENABLE_ZIMOP		: boolean := false;						-- Zimop+Zcmop may-be-ops
-	constant CORE_ENABLE_ZIHINT		: boolean := false;						-- Zihintpause+Zihintntl
-	constant CORE_ENABLE_ZIHPM		: boolean := false;						-- Zihpm hw perf counters
-	constant CORE_ENABLE_ZAWRS		: boolean := false;						-- Zawrs wait-on-reservation
-	constant CORE_ENABLE_ZABHA		: boolean := false;						-- Zabha byte/half AMOs
-	constant CORE_ENABLE_ZACAS		: boolean := false;						-- Zacas amocas.w
-	constant CORE_ENABLE_ZICBOZ		: boolean := false;						-- Zicboz cbo.zero block-zero
-	constant CORE_ENABLE_ZCMP		: boolean := false;						-- Zcmp push/pop + reg-moves
-	constant CORE_ENABLE_ZCMT		: boolean := false;						-- Zcmt table jump + jvt CSR
-	constant CORE_ENABLE_ZBKB		: boolean := false;						-- Zbkb crypto bit-manip
-	constant CORE_ENABLE_ZBKC		: boolean := false;						-- Zbkc carryless multiply
-	constant CORE_ENABLE_ZBKX		: boolean := false;						-- Zbkx crossbar permute
-	constant CORE_ENABLE_ZKN		: boolean := false;						-- Zkn AES+SHA (Zknd+Zkne+Zknh)
-	constant CORE_ENABLE_ZFINX		: boolean := false;						-- Zfinx single-prec FP in x-regs
-	constant CORE_ENABLE_TRAPCSR	: boolean := true;						-- Standard M-mode trap CSRs + MRET
-	constant CORE_ENABLE_UMODE		: boolean := false;						-- U-mode (needs TRAPCSR)
-	constant CORE_ENABLE_PMP		: boolean := false;						-- PMP / Smpmp (needs UMODE)
-	constant CORE_PMP_ENTRIES		: natural := 16;						-- PMP entry count {8,16} (only with PMP)
-	constant CORE_ENABLE_DEBUG		: boolean := true;						-- Debug mode (dcsr/dpc/dscratch, dret, halt)
-	constant CORE_ENABLE_IF_AHEAD	: boolean := true;						-- C-ext fetch-ahead (straddle, 1 flop)
-	-- Corner-tile ISA (harts 1..N-1), 2026-08-16. MCU.vhd hands the four hardened
-	-- hart_tile instances THESE, and hands hart 0 / the orchestrator the
-	-- CORE_ENABLE_* set above: the tiles are the minimal-ISA harts (rv32iac).
-	-- hart_tile's own generics still default to the FULL ISA, so a tile-only
-	-- `elaborate hart_tile` must override them by name -- see hart_tile.genus.tcl.
-	constant TILE_ENABLE_MUL		: boolean := false;						-- M on the corner tiles
-	constant TILE_ENABLE_DIV		: boolean := false;						-- M on the corner tiles
-	constant TILE_ENABLE_BITMANIP	: boolean := false;						-- Zba/Zbb/Zbs/Zbc on the corner tiles
+	constant CORE_ENABLE_MUL					: boolean := true;						-- M: MUL/MULH/MULHU/MULHSU
+	constant CORE_ENABLE_DIV					: boolean := true;						-- M: DIV/DIVU/REM/REMU + the iterative divider
+	constant CORE_ENABLE_ATOMICS				: boolean := true;						-- A: LR/SC + AMOs (disabling breaks the mutex/lock infrastructure)
+	constant CORE_ENABLE_COMPRESSED				: boolean := true;						-- C: 16-bit instructions
+	constant CORE_ENABLE_BITMANIP				: boolean := true;						-- Zba/Zbb/Zbs/Zbc
+	constant CORE_ENABLE_ZICOND					: boolean := false;						-- Zicond czero.eqz/nez
+	constant CORE_ENABLE_ZCB					: boolean := false;						-- Zcb extra compressed insns
+	constant CORE_ENABLE_ZIMOP					: boolean := false;						-- Zimop+Zcmop may-be-ops
+	constant CORE_ENABLE_ZIHINT					: boolean := false;						-- Zihintpause+Zihintntl
+	constant CORE_ENABLE_ZIHPM					: boolean := false;						-- Zihpm hw perf counters
+	constant CORE_ENABLE_ZAWRS					: boolean := false;						-- Zawrs wait-on-reservation
+	constant CORE_ENABLE_ZABHA					: boolean := false;						-- Zabha byte/half AMOs
+	constant CORE_ENABLE_ZACAS					: boolean := false;						-- Zacas amocas.w
+	constant CORE_ENABLE_ZICBOZ					: boolean := false;						-- Zicboz cbo.zero block-zero
+	constant CORE_ENABLE_ZCMP					: boolean := false;						-- Zcmp push/pop + reg-moves
+	constant CORE_ENABLE_ZCMT					: boolean := false;						-- Zcmt table jump + jvt CSR
+	constant CORE_ENABLE_ZBKB					: boolean := false;						-- Zbkb crypto bit-manip
+	constant CORE_ENABLE_ZBKC					: boolean := false;						-- Zbkc carryless multiply
+	constant CORE_ENABLE_ZBKX					: boolean := false;						-- Zbkx crossbar permute
+	constant CORE_ENABLE_ZKN					: boolean := false;						-- Zkn AES+SHA (Zknd+Zkne+Zknh)
+	constant CORE_ENABLE_ZFINX					: boolean := false;						-- Zfinx single-prec FP in x-regs
+	constant CORE_ENABLE_TRAPCSR				: boolean := true;						-- Standard M-mode trap CSRs + MRET
+	constant CORE_ENABLE_UMODE					: boolean := false;						-- U-mode (needs TRAPCSR)
+	constant CORE_ENABLE_PMP					: boolean := false;						-- PMP / Smpmp (needs UMODE)
+	constant CORE_PMP_ENTRIES					: natural := 16;						-- PMP entry count {8,16} (only with PMP)
+	constant CORE_ENABLE_DEBUG					: boolean := true;						-- Debug mode (dcsr/dpc/dscratch, dret, halt)
+	constant CORE_ENABLE_IF_AHEAD				: boolean := true;						-- C-ext fetch-ahead (straddle, 1 flop)
+	-- Corner-tile ISA (harts 1..N-1). MCU.vhd hands the hardened hart_tile instances THESE and hands hart 0 / the
+	-- orchestrator the CORE_ENABLE_* set above; equal to CORE_ENABLE_* unless the tiles are minimal.
+	-- hart_tile's own generics still default to the FULL ISA, so a tile-only `elaborate hart_tile` must override
+	-- them by name -- see genus/hart_tile/tcl/hart_tile.genus.tcl.
+	constant TILE_ENABLE_MUL					: boolean := false;						-- M on the corner tiles
+	constant TILE_ENABLE_DIV					: boolean := false;						-- M on the corner tiles
+	constant TILE_ENABLE_BITMANIP				: boolean := false;						-- Zba/Zbb/Zbs/Zbc on the corner tiles
 
 	-- GPIO0 Pin Assignments (Serial Flash)
-	constant pnum_gpio0_cs_flash	: natural := 00;						-- P1.0
-	constant pnum_gpio0_miso		: natural := 01;						-- P1.1
-	constant pnum_gpio0_mosi		: natural := 02;						-- P1.2
-	constant pnum_gpio0_spi_clk		: natural := 03;						-- P1.3
-	constant pnum_gpio0_lfxt		: natural := 04;						-- P1.4
-	constant pnum_gpio0_hfxt		: natural := 05;						-- P1.5
-	constant pnum_gpio0_trap		: natural := 06;						-- P1.6
-	constant pnum_gpio0_boot		: natural := 07;						-- P1.7
+	constant pnum_gpio0_cs_flash				: natural := 00;						-- P1.0
+	constant pnum_gpio0_miso					: natural := 01;						-- P1.1
+	constant pnum_gpio0_mosi					: natural := 02;						-- P1.2
+	constant pnum_gpio0_spi_clk					: natural := 03;						-- P1.3
+	constant pnum_gpio0_lfxt					: natural := 04;						-- P1.4
+	constant pnum_gpio0_hfxt					: natural := 05;						-- P1.5
+	constant pnum_gpio0_trap					: natural := 06;						-- P1.6
+	constant pnum_gpio0_boot					: natural := 07;						-- P1.7
 
 	-- GPIO1 Pin Assignments (SPI1, UART0, UART1)
-	constant pnum_gpio1_cs1			: natural := 00;						-- P2.0
-	constant pnum_gpio1_miso1		: natural := 01;						-- P2.1
-	constant pnum_gpio1_mosi1		: natural := 02;						-- P2.2
-	constant pnum_gpio1_sck1		: natural := 03;						-- P2.3
-	constant pnum_gpio1_tx0			: natural := 04;						-- P2.4
-	constant pnum_gpio1_rx0			: natural := 05;						-- P2.5
-	constant pnum_gpio1_tx1			: natural := 06;						-- P2.6
-	constant pnum_gpio1_rx1			: natural := 07;						-- P2.7
+	constant pnum_gpio1_cs1						: natural := 00;						-- P2.0
+	constant pnum_gpio1_miso1					: natural := 01;						-- P2.1
+	constant pnum_gpio1_mosi1					: natural := 02;						-- P2.2
+	constant pnum_gpio1_sck1					: natural := 03;						-- P2.3
+	constant pnum_gpio1_tx0						: natural := 04;						-- P2.4
+	constant pnum_gpio1_rx0						: natural := 05;						-- P2.5
+	constant pnum_gpio1_tx1						: natural := 06;						-- P2.6
+	constant pnum_gpio1_rx1						: natural := 07;						-- P2.7
 
 	-- GPIO2 Pin Assignments (TIMER0, TIMER1)
-	constant pnum_gpio2_t0_cmp0		: natural := 00;						-- P3.0
-	constant pnum_gpio2_t0_cmp1		: natural := 01;						-- P3.1
-	constant pnum_gpio2_t0_cap0		: natural := 02;						-- P3.2
-	constant pnum_gpio2_t0_cap1		: natural := 03;						-- P3.3
-	constant pnum_gpio2_t1_cmp0		: natural := 04;						-- P3.4
-	constant pnum_gpio2_t1_cmp1		: natural := 05;						-- P3.5
-	constant pnum_gpio2_t1_cap0		: natural := 06;						-- P3.6
-	constant pnum_gpio2_t1_cap1		: natural := 07;						-- P3.7
+	constant pnum_gpio2_t0_cmp0					: natural := 00;						-- P3.0
+	constant pnum_gpio2_t0_cmp1					: natural := 01;						-- P3.1
+	constant pnum_gpio2_t0_cap0					: natural := 02;						-- P3.2
+	constant pnum_gpio2_t0_cap1					: natural := 03;						-- P3.3
+	constant pnum_gpio2_t1_cmp0					: natural := 04;						-- P3.4
+	constant pnum_gpio2_t1_cmp1					: natural := 05;						-- P3.5
+	constant pnum_gpio2_t1_cap0					: natural := 06;						-- P3.6
+	constant pnum_gpio2_t1_cap1					: natural := 07;						-- P3.7
 
 	-- GPIO3 Pin Assignments (DTP)
-	constant pnum_gpio3_sda0		: natural := 00;						-- P4.0
-	constant pnum_gpio3_scl0		: natural := 01;						-- P4.1
-	constant pnum_gpio3_sda1		: natural := 02;						-- P4.2
-	constant pnum_gpio3_scl1		: natural := 03;						-- P4.3
-	constant pnum_gpio3_dtp0		: natural := 04;						-- P4.4
-	constant pnum_gpio3_dtp1		: natural := 05;						-- P4.5
-	constant pnum_gpio3_dtp2		: natural := 06;						-- P4.6
-	constant pnum_gpio3_dtp3		: natural := 07;						-- P4.7
+	constant pnum_gpio3_sda0					: natural := 00;						-- P4.0
+	constant pnum_gpio3_scl0					: natural := 01;						-- P4.1
+	constant pnum_gpio3_sda1					: natural := 02;						-- P4.2
+	constant pnum_gpio3_scl1					: natural := 03;						-- P4.3
+	constant pnum_gpio3_dtp0					: natural := 04;						-- P4.4
+	constant pnum_gpio3_dtp1					: natural := 05;						-- P4.5
+	constant pnum_gpio3_dtp2					: natural := 06;						-- P4.6
+	constant pnum_gpio3_dtp3					: natural := 07;						-- P4.7
 
 	-- GPIO1 (P2) AF1: TIMER compare (PWM) relocations + I2C1 relocation (v2) + I2C0 relocation
-	constant pnum_gpio1_af1_t0_cmp0	: natural := 00;						-- P2.0
-	constant pnum_gpio1_af1_t0_cmp1	: natural := 01;						-- P2.1
-	constant pnum_gpio1_af1_t1_cmp0	: natural := 02;						-- P2.2
-	constant pnum_gpio1_af1_t1_cmp1	: natural := 03;						-- P2.3
-	constant pnum_gpio1_af1_sda1	: natural := 04;						-- P2.4
-	constant pnum_gpio1_af1_scl1	: natural := 05;						-- P2.5
-	constant pnum_gpio1_af1_sda0	: natural := 06;						-- P2.6
-	constant pnum_gpio1_af1_scl0	: natural := 07;						-- P2.7
+	constant pnum_gpio1_af1_t0_cmp0				: natural := 00;						-- P2.0
+	constant pnum_gpio1_af1_t0_cmp1				: natural := 01;						-- P2.1
+	constant pnum_gpio1_af1_t1_cmp0				: natural := 02;						-- P2.2
+	constant pnum_gpio1_af1_t1_cmp1				: natural := 03;						-- P2.3
+	constant pnum_gpio1_af1_sda1				: natural := 04;						-- P2.4
+	constant pnum_gpio1_af1_scl1				: natural := 05;						-- P2.5
+	constant pnum_gpio1_af1_sda0				: natural := 06;						-- P2.6
+	constant pnum_gpio1_af1_scl0				: natural := 07;						-- P2.7
 
 	-- GPIO2 (P3) AF1: UART0/UART1 + I2C1 relocations + I2C0 relocation (v2)
-	constant pnum_gpio2_af1_tx1		: natural := 00;						-- P3.0
-	constant pnum_gpio2_af1_rx1		: natural := 01;						-- P3.1
-	constant pnum_gpio2_af1_sda1	: natural := 02;						-- P3.2
-	constant pnum_gpio2_af1_scl1	: natural := 03;						-- P3.3
-	constant pnum_gpio2_af1_tx0		: natural := 04;						-- P3.4
-	constant pnum_gpio2_af1_rx0		: natural := 05;						-- P3.5
-	constant pnum_gpio2_af1_sda0	: natural := 06;						-- P3.6
-	constant pnum_gpio2_af1_scl0	: natural := 07;						-- P3.7
+	constant pnum_gpio2_af1_tx1					: natural := 00;						-- P3.0
+	constant pnum_gpio2_af1_rx1					: natural := 01;						-- P3.1
+	constant pnum_gpio2_af1_sda1				: natural := 02;						-- P3.2
+	constant pnum_gpio2_af1_scl1				: natural := 03;						-- P3.3
+	constant pnum_gpio2_af1_tx0					: natural := 04;						-- P3.4
+	constant pnum_gpio2_af1_rx0					: natural := 05;						-- P3.5
+	constant pnum_gpio2_af1_sda0				: natural := 06;						-- P3.6
+	constant pnum_gpio2_af1_scl0				: natural := 07;						-- P3.7
 
 	-- GPIO3 (P4) AF1: TIMER capture + compare relocations
-	constant pnum_gpio3_af1_t0_cap0	: natural := 00;						-- P4.0
-	constant pnum_gpio3_af1_t0_cap1	: natural := 01;						-- P4.1
-	constant pnum_gpio3_af1_t1_cap0	: natural := 02;						-- P4.2
-	constant pnum_gpio3_af1_t1_cap1	: natural := 03;						-- P4.3
-	constant pnum_gpio3_af1_t0_cmp0	: natural := 04;						-- P4.4
-	constant pnum_gpio3_af1_t0_cmp1	: natural := 05;						-- P4.5
-	constant pnum_gpio3_af1_t1_cmp0	: natural := 06;						-- P4.6
-	constant pnum_gpio3_af1_t1_cmp1	: natural := 07;						-- P4.7
+	constant pnum_gpio3_af1_t0_cap0				: natural := 00;						-- P4.0
+	constant pnum_gpio3_af1_t0_cap1				: natural := 01;						-- P4.1
+	constant pnum_gpio3_af1_t1_cap0				: natural := 02;						-- P4.2
+	constant pnum_gpio3_af1_t1_cap1				: natural := 03;						-- P4.3
+	constant pnum_gpio3_af1_t0_cmp0				: natural := 04;						-- P4.4
+	constant pnum_gpio3_af1_t0_cmp1				: natural := 05;						-- P4.5
+	constant pnum_gpio3_af1_t1_cmp0				: natural := 06;						-- P4.6
+	constant pnum_gpio3_af1_t1_cmp1				: natural := 07;						-- P4.7
 
 	-- GPIO4 (P5) AF1: P5.0-5 reserved (QSPI0 absent) + P5.6/7 reserved (I3C0 absent)
 
-	-- GPIO5 (P6) AF1: P6.0-5 reserved (NFC0 absent)
+	-- GPIO5 (P6) AF1: NFC0 digital-AFE on P6.0-5
+	constant pnum_gpio5_af1_nfc_rf_clk			: natural := 00;						-- P6.0
+	constant pnum_gpio5_af1_nfc_rf_rx			: natural := 01;						-- P6.1
+	constant pnum_gpio5_af1_nfc_field_detect	: natural := 02;						-- P6.2
+	constant pnum_gpio5_af1_nfc_rf_txmod		: natural := 03;						-- P6.3
+	constant pnum_gpio5_af1_nfc_rf_tx_en		: natural := 04;						-- P6.4
+	constant pnum_gpio5_af1_nfc_afe_en			: natural := 05;						-- P6.5
 
 
 

@@ -4880,6 +4880,55 @@ m.McuMpCompat = {
 	'pnums': _mcuMpPnums,
 }
 
+# ---------------------------------------------------------------------------
+# PER-INSTANCE RESET VALUES (2026-09-10)
+# ---------------------------------------------------------------------------
+# A RegisterTemplate carries ONE reset value, but two peripherals reset the same
+# register differently per INSTANCE, because the RTL passes the value in as a
+# generic: GPIO's RstValPx{OUT,DIR,SEL,REN,AFS} (the _mcuMpRstVals table above,
+# transcribed from hdl/common/MemoryMap.vhd) and I2C's default_SAD
+# (hdl/common/constants.vhd i2c0_default_SAD / i2c1_default_SAD). Until now the
+# register table and MemoryMap.h published 0x00 for all of them on every
+# instance -- 22 register-index rows describing a chip that does not exist.
+# Applied to the INSTANCE registers, after ChangeGPIOPortSize has narrowed them,
+# so the template (and therefore //platform/common:rdl_vs_generator_test, which
+# grades templates) is untouched and the per-instance values reach the emitted
+# artifacts. The .rdl side assigns exactly these at the top addrmap
+# (hdl/common/periph/rdl/castalia_penta_wound_afe.rdl).
+i2cDefaultSad = {'0': 0x79, '1': 0x23}	# hdl/common/constants.vhd: i2c{0,1}_default_SAD
+
+def _setInstanceReset(peripheralName, registerName, value):
+	'''Set one INSTANCE register's reset value and redistribute it over its bit
+	   fields. Reserved (unused) bits are dropped, exactly as
+	   RegisterTemplate.CheckBitFields computes a template reset, so a
+	   nibble-packed register like PxAFS lands in the right 3-bit fields.'''
+	per = None
+	for cand in m.Peripherals:
+		if cand.Name == peripheralName:
+			per = cand
+			break
+	if per is None:
+		return False
+	for r in per.Registers:
+		if r.Name != registerName:
+			continue
+		rv = 0
+		for bf in r.BitFields:
+			if bf.Unused:
+				continue
+			bf.ResetValue = (value >> bf.LSB) & ((1 << bf.Size) - 1)
+			rv |= bf.ResetValue << bf.LSB
+		r.ResetValue = rv
+		return True
+	raise Exception('_setInstanceReset: peripheral "' + peripheralName + '" has no register "' + registerName + '"')
+
+for _gpioName, _entries in _mcuMpRstVals:
+	for _rstName, _rstValue, _rstComment in _entries:
+		_setInstanceReset(_gpioName, 'P' + _gpioName[len('GPIO'):] + _rstName[-3:], _rstValue)
+
+for _i2cIdx, _sad in sorted(i2cDefaultSad.items()):
+	_setInstanceReset('I2C' + _i2cIdx, 'I2C' + _i2cIdx + 'AR', _sad)
+
 # A2 (Argus): shared-window geometry for mcu_vhd.py's generated regions —
 # the SH_AW constant, the bank row and the NPU staging plumbing all derive
 # from these three values (computed with the memory sections above).

@@ -337,7 +337,14 @@ class Peripheral():
 		if size not in [8, 16, 32]:
 			raise Exception('size must be 8, 16, or 32')
 		
-		registersToChange = ['P?IN', 'P?OUT', 'P?OUTS', 'P?OUTC', 'P?DIR', 'P?IFG', 'P?IES', 'P?IE', 'P?SEL', 'P?REN', 'P?RIE', 'P?FIE', 'P?RIF', 'P?FIF']	# 'P?OCEN'
+		# Every register whose width is num_pins in GPIO.vhd. P?OUTT, P?IF and P?TASK
+		# were missing (their write side loops `for i in 0 to (num_pins/8)-1` and the
+		# read mux returns `read_data_buff(num_pins-1 downto 0)`, exactly like the
+		# other ten), so the map published them 32 bits wide -- 2026-09-10, caught by
+		# //platform/common:rdl_vs_generator_test against gpio.rdl. P?IFG, P?RIF and
+		# P?FIF name registers this GPIO does not have and are kept only so a port
+		# built from an older template still narrows.
+		registersToChange = GPIO_PIN_WIDTH_REGISTERS
 		
 		for r in self.Registers:
 			for wildcardRegisterName in registersToChange:
