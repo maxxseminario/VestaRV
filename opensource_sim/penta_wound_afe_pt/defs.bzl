@@ -27,8 +27,10 @@ _MCU = "hdl/common/MCU.vhd"
 _HART_TILE = "hdl/common/hart_tile.vhd"
 
 _WOUND_EXTRA = [
+    "hdl/common/periph/dma_regs_pkg.vhd",
     "hdl/common/periph/DMA.vhd",
     "hdl/common/periph/TrngRoEnsemble_sim.vhd",
+    "hdl/common/periph/trng_regs_pkg.vhd",
     "hdl/common/periph/TRNG.vhd",
     "hdl/common/periph/afe2_regs_pkg.vhd",
     "hdl/common/periph/AFE2.vhd",

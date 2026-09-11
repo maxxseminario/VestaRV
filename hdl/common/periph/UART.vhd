@@ -3,7 +3,11 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 library work;
 use work.constants.all;
-use work.MemoryMap.all;
+-- Word offsets, field ranges, resets and implemented-bit masks, generated from
+-- hdl/common/periph/rdl/uart.rdl (tools/rdl/README.md). It declares the same
+-- RegSlotUARTx* constants work.MemoryMap did, so this REPLACES that clause:
+-- using both would make every slot name an ambiguous homograph.
+use work.uart_regs_pkg.all;
 
 -- UART with a 16x oversampled receiver, optional parity, and memory-mapped CR/SR/BR/TX/RX registers.
 -- The serial side runs on gated baud clocks; every firmware-visible flag is a sticky W1C bit in the clk_mem domain.
@@ -654,4 +658,4 @@ begin
         end if;
     end process;
 
-end Behavioral;
+end Behavioral;

@@ -1,6 +1,12 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
+-- Word slots inside this peripheral's 256B window (decoded from MABPart(7:2)),
+-- field ranges, resets and implemented-bit masks, generated from
+-- hdl/common/periph/rdl/evfab.rdl (tools/rdl/README.md). EVFAB is not in
+-- MemoryMap.vhd; SLOT_CR .. SLOT_CH0CFG were file-local constants until then.
+-- CHCFG_SLOTS stays local: it is the register-array size, not a word slot.
+use work.evfab_regs_pkg.all;
 
 /* ===========================================================================
    EVFAB: event/trigger fabric, a PPI-style crossbar; ONE instance, EVFAB0 @ 0x6B00, zero pins, vectorless (irq_evfab is a hard constant '0').
@@ -72,20 +78,6 @@ architecture behavioral of EVFAB is
                             [31] ENR = RO mirror of CHEN(n); other bits r0
          32-63 reserved r0
        Every write is lane-0 qualified (WEn(0)='0'); reserved bits ignore writes and read 0; CHnCFG slots with n >= N_CH read 0 and ignore writes; EVSTAT bits >= N_EV read 0. */
-    constant SLOT_CR       : natural := 0;
-    constant SLOT_SR       : natural := 1;
-    constant SLOT_IE       : natural := 2;
-    constant SLOT_CAP      : natural := 3;
-    constant SLOT_CHEN     : natural := 4;
-    constant SLOT_CHENSET  : natural := 5;
-    constant SLOT_CHENCLR  : natural := 6;
-    constant SLOT_CHTRIG   : natural := 7;
-    constant SLOT_FIRED    : natural := 8;
-    constant SLOT_OVR      : natural := 9;
-    constant SLOT_EVSTAT   : natural := 10;
-    constant SLOT_EVTRIG   : natural := 11;
-    constant SLOT_GPIOMASK : natural := 15;
-    constant SLOT_CH0CFG   : natural := 16;   -- CHnCFG = 16+n, n = 0 .. 15
     constant CHCFG_SLOTS   : natural := 16;   -- register-array size, NOT N_CH
 
     -- EVFCAP RO constant: VER & N_TASK & N_EV & N_CH, LIVE line counts.

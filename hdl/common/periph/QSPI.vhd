@@ -4,6 +4,11 @@ use ieee.std_logic_arith.all;
 use ieee.std_logic_unsigned.all;
 library work;
 use work.constants.all;
+-- Word slots inside this peripheral's 256B window (decoded from MABPart(7:2)),
+-- field ranges, resets and implemented-bit masks, generated from
+-- hdl/common/periph/rdl/qspi.rdl (tools/rdl/README.md). QSPI is not in
+-- MemoryMap.vhd; SLOT_CR .. SLOT_SR were file-local constants until then.
+use work.qspi_regs_pkg.all;
 
 /* QSPI: quad-SPI controller peripheral, one transaction at a time, CS0 only.
    Registers CR/CMD/ADR/TX/RX/SR occupy word slots 0 to 5 of this peripheral's 256B window; a write to CMD is the sole transaction trigger.
@@ -38,15 +43,6 @@ architecture behavioral of QSPI is
     -- BUSY is state /= IDLE, so DONE still reads busy.
     type QState_t is (ST_IDLE, ST_CMD, ST_ADDR, ST_DUMMY, ST_DATA, ST_DONE);
     signal state : QState_t;
-
-    -- Local register-slot numbering: word slots inside this peripheral's 256B window, decoded from MABPart(7:2).
-    -- Private constants, since QSPI is not wired into MemoryMap.vhd.
-    constant SLOT_CR  : natural := 0;
-    constant SLOT_CMD : natural := 1;
-    constant SLOT_ADR : natural := 2;
-    constant SLOT_TX  : natural := 3;
-    constant SLOT_RX  : natural := 4;
-    constant SLOT_SR  : natural := 5;
 
     -- Lane-width encoding: 00 = 1-bit, 01 = 2-bit, 10 = 4-bit, 11 reserved and treated as 1-bit.
     function width_bits(w : std_logic_vector(1 downto 0)) return natural is

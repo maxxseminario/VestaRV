@@ -3,6 +3,12 @@ use ieee.std_logic_1164.all;
 use ieee.std_logic_arith.all;
 use ieee.std_logic_unsigned.all;
 
+-- Word slots inside this peripheral's 256B window (decoded from MABPart(7:2)),
+-- field ranges, resets and implemented-bit masks, generated from
+-- hdl/common/periph/rdl/pwm.rdl (tools/rdl/README.md). PWM is not in
+-- MemoryMap.vhd; SLOT_CR .. SLOT_SR were file-local constants until then.
+use work.pwm_regs_pkg.all;
+
 /* PWM: buffered 2-channel generator with a software fault trip and a period-event tick.
    Interface: pwm_out(1 downto 0) channel outputs, irq_fault (vector 115), irq_evt (vector 116).
    The engine (prescaler, counter, compare, output stage, sticky flags) runs on the free-running clk; the register file runs on the gated bus clock ClkMem.
@@ -46,17 +52,6 @@ entity PWM is
 end PWM;
 
 architecture behavioral of PWM is
-
-    -- ---- word-slot map ---------------------------------------------------
-    constant SLOT_CR   : natural := 0;
-    constant SLOT_PER  : natural := 1;
-    constant SLOT_DTY0 : natural := 2;
-    constant SLOT_DTY1 : natural := 3;
-    constant SLOT_DTY2 : natural := 4;   -- reserved (4-channel bolt-on)
-    constant SLOT_DTY3 : natural := 5;   -- reserved (4-channel bolt-on)
-    constant SLOT_POL  : natural := 6;
-    constant SLOT_DT   : natural := 7;   -- reserved (deadtime bolt-on)
-    constant SLOT_SR   : natural := 8;
 
     -- ---- register-file storage (ClkMem domain) ---------------------------
     signal pwmen_r, ch0en_r, ch1en_r : std_logic;        -- CR[2:0]

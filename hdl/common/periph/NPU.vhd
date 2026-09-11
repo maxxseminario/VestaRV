@@ -5,7 +5,11 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 library work;
 use work.constants.all;
-use work.MemoryMap.all;
+-- Word offsets, field ranges, resets and implemented-bit masks, generated from
+-- hdl/common/periph/rdl/npu.rdl (tools/rdl/README.md). It declares the same
+-- MmrAddrNPU* constants work.MemoryMap did, so this REPLACES that clause:
+-- using both would make every slot name an ambiguous homograph.
+use work.npu_regs_pkg.all;
 -- Synthesizable Fixed Point libraries created by David Bishop for VHDL 2008 (Compatible with '93)
 use work.fixed_float_types.all;
 use work.fixed_pkg.all;

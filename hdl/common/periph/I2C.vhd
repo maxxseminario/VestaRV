@@ -4,7 +4,11 @@ use ieee.std_logic_arith.all;
 use ieee.std_logic_unsigned.all;
 library work;
 use work.Constants.all;
-use work.MemoryMap.all;
+-- Word offsets, field ranges, resets and implemented-bit masks, generated from
+-- hdl/common/periph/rdl/i2c.rdl (tools/rdl/README.md). It declares the same
+-- RegSlotI2Cx* constants work.MemoryMap did, so this REPLACES that clause:
+-- using both would make every slot name an ambiguous homograph.
+use work.i2c_regs_pkg.all;
 
 -- Combined I2C master/slave peripheral: memory-mapped registers, open-drain pads and one interrupt line per event.
 -- I2C specification: https://www.nxp.com/docs/en/user-guide/UM10204.pdf

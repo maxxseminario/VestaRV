@@ -3,6 +3,12 @@ use ieee.std_logic_1164.all;
 use ieee.std_logic_arith.all;
 use ieee.std_logic_unsigned.all;
 
+-- Word slots inside this peripheral's 256B window (decoded from MABPart(7:2)),
+-- field ranges, resets and implemented-bit masks, generated from
+-- hdl/common/periph/rdl/trng.rdl (tools/rdl/README.md). TRNG is not in
+-- MemoryMap.vhd; SLOT_CR .. SLOT_HT were file-local constants until then.
+use work.trng_regs_pkg.all;
+
 /* TRNG: ring-oscillator entropy source plus harvest engine at base 0x6900, zero pins, one combined data-ready/health-alarm IRQ (vector 121).
    The decimator, word assembler, RCT health test, DRDY lifecycle, sticky ALMF and IRQ combiner all ride the free-running `clk`; the register file rides the gated `ClkMem`, the same mclk net at integration.
    Every hand-off between the two domains is a toggle or a held/quasi-static level, NEVER an async clear crossing a domain, and the ONE genuine metastability CDC is the ring tap `ro_raw`, 2-FF synchronized into `clk` before any use and never a clock: no async FIFO, no clock gate in the harvest datapath, no flop clocked by a pad or async bit.
@@ -47,12 +53,6 @@ entity TRNG is
 end TRNG;
 
 architecture behavioral of TRNG is
-
-    -- ---- word-slot map ---------------------------------------------------
-    constant SLOT_CR : natural := 0;
-    constant SLOT_SR : natural := 1;
-    constant SLOT_DR : natural := 2;
-    constant SLOT_HT : natural := 3;
 
     -- ---- register-file storage (ClkMem domain) -----------------------------
     signal trng_cr   : std_logic_vector(11 downto 0);   -- EN/DRDYIE/ALMIE/ROSEL/DECIM
