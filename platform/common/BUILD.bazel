@@ -605,42 +605,15 @@ filegroup(
 #
 # penta_wound: config/penta_wound.json, the CPR3 wound chip. There is no
 # tracked RTL for it (genus/common/in/penta_wound_hdl is a flow input, not a
-# gate), so the bar is that it still generates and its outputs parse.
-#
-# penta_wound_afe: penta_wound + peripherals.afe2 (2026-09-05), the AFE-bearing
-# re-cut. Same generation bar, plus the hand-written AFE intro is checked
-# against the names this configuration emits (the default castalia config has
-# afe2 off, so :check_intro_names_test never sees the AFE chapter), and
-# //opensource_sim/penta_wound_afe:penta_wound_afe_elaborate elaborates the
-# generated MCU.vhd under GHDL.
+# gate), so the bar is that it still generates and its outputs parse. It is also
+# the configuration the REGISTER gates are handed, because it is the one that
+# instantiates every peripheral config/rdl.json flags.
 # ---------------------------------------------------------------------------
 chip_artifacts(
     name = "chip_artifacts_penta_wound",
     srcs = ["//platform/common/python:generator_srcs"],
     chip_root_srcs = CHIP_ROOT_SRCS,
     config = "config/penta_wound.json",
-    out_of_tree_srcs = OUT_OF_TREE_SRCS,
-)
-
-chip_artifacts(
-    name = "chip_artifacts_penta_wound_afe",
-    srcs = ["//platform/common/python:generator_srcs"],
-    chip_root_srcs = CHIP_ROOT_SRCS,
-    config = "config/penta_wound_afe.json",
-    out_of_tree_srcs = OUT_OF_TREE_SRCS,
-)
-
-# penta_wound_afe_pt: penta_wound_afe + afeTopology = "per_tile" (topology B,
-# 2026-09-06). Same AFE2 peripheral, same register map, same vector; the four
-# sites' pins are internal nets to four `hart_tile_pt` channel tiles instead of
-# MCU entity ports, and the entity carries only biasg_code/biasg_en for the
-# shared anatop_biasgen_g. chipName is PentaWoundPt so it gets its own verify
-# stage rather than sharing verify_pentawound with the topology-A config.
-chip_artifacts(
-    name = "chip_artifacts_penta_wound_afe_pt",
-    srcs = ["//platform/common/python:generator_srcs"],
-    chip_root_srcs = CHIP_ROOT_SRCS,
-    config = "config/penta_wound_afe_pt.json",
     out_of_tree_srcs = OUT_OF_TREE_SRCS,
 )
 
@@ -667,47 +640,44 @@ chip_artifacts(
     )
     for cfg in [
         "penta_wound",
-        "penta_wound_afe",
-        "penta_wound_afe_pt",
     ]
 ]
 
 chip_artifact(
-    name = "penta_wound_afe_mcu_vhd",
-    rel_path = "out/hdl/MCU.vhd",
-    target = ":chip_artifacts_penta_wound_afe",
-)
-
-chip_artifact(
-    name = "penta_wound_afe_memorymap_vhd",
-    rel_path = "out/hdl/MemoryMap.vhd",
-    target = ":chip_artifacts_penta_wound_afe",
-)
-
-chip_artifact(
-    name = "penta_wound_afe_memorymap_h",
+    name = "penta_wound_memorymap_h",
     rel_path = "out/software/include/MemoryMap.h",
-    target = ":chip_artifacts_penta_wound_afe",
+    target = ":chip_artifacts_penta_wound",
 )
 
 chip_artifact(
-    name = "penta_wound_afe_config_memorymap_json",
+    name = "penta_wound_config_memorymap_json",
     rel_path = "config/MemoryMap.json",
-    target = ":chip_artifacts_penta_wound_afe",
+    target = ":chip_artifacts_penta_wound",
 )
 
 chip_artifact(
-    name = "penta_wound_afe_padring_tcl",
+    name = "penta_wound_padring_tcl",
     rel_path = "out/pnr/chip_top_padring.tcl",
-    target = ":chip_artifacts_penta_wound_afe",
+    target = ":chip_artifacts_penta_wound",
 )
 
-# The AFE intro chapter's \register{} names against what this configuration emits.
-# Was tagged manual while nine wound-configuration intros (DMA, EVFAB, I2CT, I3C,
-# OneWire, PWM, QSPI, RTC, TRNG) lacked the template's \section skeleton; those were
-# restructured on 2026-09-05 (F15), so the gate runs with //platform/... again.
+# The generated TRM tree of the tape-out configuration, as one directory.
+# latex/TRM is a declared DIRECTORY output, so a single file inside it has no
+# label of its own; the gate is handed the directory and reads
+# include/PeripheralSections.tex out of it.
+filegroup(
+    name = "penta_wound_trm_tree",
+    srcs = [":chip_artifacts_penta_wound"],
+    output_group = "trm",
+)
+
+# Every intro chapter's \\register{} names against what the tape-out configuration
+# emits. Was tagged manual while nine wound-configuration intros (DMA, EVFAB,
+# I2CT, I3C, OneWire, PWM, QSPI, RTC, TRNG) lacked the template's \\section
+# skeleton; those were restructured on 2026-09-05 (F15), so the gate runs with
+# //platform/... again.
 py_test(
-    name = "penta_wound_afe_intro_names_test",
+    name = "penta_wound_intro_names_test",
     size = "small",
     srcs = [CHECK_RUNNER],
     args = [
@@ -717,10 +687,10 @@ py_test(
         # check_intro_names re-derives the template register/field spellings from
         # hdl/common/regs/rdl/ now that generate.py no longer writes them out.
         "--stage=hdl/common/regs/rdl=hdl/common/regs/rdl",
-        "--stage=$(rootpath :penta_wound_afe_config_memorymap_json)=platform/common/config/MemoryMap.json",
+        "--stage=$(rootpath :penta_wound_config_memorymap_json)=platform/common/config/MemoryMap.json",
     ],
     data = [
-        ":penta_wound_afe_config_memorymap_json",
+        ":penta_wound_config_memorymap_json",
         ":peripheral_intro_srcs",
         "//hdl:rdl_sources",
         "//platform/common/python:check_scripts",
@@ -729,97 +699,19 @@ py_test(
     main = "check_runner.py",
 )
 
-chip_artifact(
-    name = "penta_wound_afe_pt_mcu_vhd",
-    rel_path = "out/hdl/MCU.vhd",
-    target = ":chip_artifacts_penta_wound_afe_pt",
-)
-
-chip_artifact(
-    name = "penta_wound_afe_pt_memorymap_vhd",
-    rel_path = "out/hdl/MemoryMap.vhd",
-    target = ":chip_artifacts_penta_wound_afe_pt",
-)
-
-chip_artifact(
-    name = "penta_wound_afe_pt_memorymap_h",
-    rel_path = "out/software/include/MemoryMap.h",
-    target = ":chip_artifacts_penta_wound_afe_pt",
-)
-
-chip_artifact(
-    name = "penta_wound_afe_pt_config_memorymap_json",
-    rel_path = "config/MemoryMap.json",
-    target = ":chip_artifacts_penta_wound_afe_pt",
-)
-
-chip_artifact(
-    name = "penta_wound_afe_pt_padring_tcl",
-    rel_path = "out/pnr/chip_top_padring.tcl",
-    target = ":chip_artifacts_penta_wound_afe_pt",
-)
-
-# The intro chapters' \\register{} names against what the per-tile configuration
-# emits. NOT manual: the nine wound-configuration chapters that blocked the
-# topology-A test were given the section skeleton in F15, and the per-tile config
-# adds exactly one generated name (AFE0BIASG's fields), which no chapter has to
-# mention for this gate to pass.
+# The emitted C header for the tape-out configuration must still be #include-able.
 py_test(
-    name = "penta_wound_afe_pt_intro_names_test",
-    size = "small",
-    srcs = [CHECK_RUNNER],
-    args = [
-        "--script=platform/common/python/check_intro_names.py",
-        "--stage=platform/common/python=platform/common/python",
-        "--stage=platform/common/latex/PeripheralIntroductions=platform/common/latex/PeripheralIntroductions",
-        # check_intro_names re-derives the template register/field spellings from
-        # hdl/common/regs/rdl/ now that generate.py no longer writes them out.
-        "--stage=hdl/common/regs/rdl=hdl/common/regs/rdl",
-        "--stage=$(rootpath :penta_wound_afe_pt_config_memorymap_json)=platform/common/config/MemoryMap.json",
-    ],
-    data = [
-        ":penta_wound_afe_pt_config_memorymap_json",
-        ":peripheral_intro_srcs",
-        "//hdl:rdl_sources",
-        "//platform/common/python:check_scripts",
-        "//platform/common/python:generate.py",
-    ],
-    main = "check_runner.py",
-)
-
-# The emitted C header for the per-tile AFE configuration must still be #include-able.
-py_test(
-    name = "penta_wound_afe_pt_memorymap_h_test",
+    name = "penta_wound_memorymap_h_test",
     size = "small",
     srcs = [CHECK_RUNNER],
     args = [
         "--script=platform/common/python/check_memorymap_h.py",
         "--env=RISCV_CC=abs:$(rootpath @xpack_riscv_gcc//:gcc)",
         "--",
-        "abs:$(rootpath :penta_wound_afe_pt_memorymap_h)",
+        "abs:$(rootpath :penta_wound_memorymap_h)",
     ],
     data = [
-        ":penta_wound_afe_pt_memorymap_h",
-        "//platform/common/python:check_memorymap_h.py",
-        "@xpack_riscv_gcc//:gcc",
-        "@xpack_riscv_gcc//:toolchain",
-    ],
-    main = "check_runner.py",
-)
-
-# The emitted C header for the AFE configuration must still be #include-able.
-py_test(
-    name = "penta_wound_afe_memorymap_h_test",
-    size = "small",
-    srcs = [CHECK_RUNNER],
-    args = [
-        "--script=platform/common/python/check_memorymap_h.py",
-        "--env=RISCV_CC=abs:$(rootpath @xpack_riscv_gcc//:gcc)",
-        "--",
-        "abs:$(rootpath :penta_wound_afe_memorymap_h)",
-    ],
-    data = [
-        ":penta_wound_afe_memorymap_h",
+        ":penta_wound_memorymap_h",
         "//platform/common/python:check_memorymap_h.py",
         "@xpack_riscv_gcc//:gcc",
         "@xpack_riscv_gcc//:toolchain",
@@ -832,8 +724,7 @@ py_test(
 #
 # rdl_vs_vhdl_<periph>_test: the .rdl description and the VHDL that implements it
 # decode the same registers. The VHDL is the authority, so these read the RTL
-# source, not a generated artifact: AFE2.vhd's W_* / IMPL / RSTVAL tables,
-# BIASG.vhd's WORD_BASE / IMPL / RSTVAL, and for the UART pilot the RegSlotUARTx*
+# source, not a generated artifact: for the UART pilot the RegSlotUARTx*
 # constants of the tracked memory-map package plus UART.vhd's own storage signals,
 # reset branch and write-1-to-clear arm.
 #
@@ -846,8 +737,8 @@ py_test(
 # configuration, it remains the original cross-check. It also holds
 # config/rdl.json's registerSource flags and generate.py to the same story, which
 # is what stops a deleted table from quietly coming back. It runs against
-# penta_wound_afe_pt, the only configuration that instantiates every flagged
-# peripheral (AFE2 needs peripherals.afe2 and BIASG needs afeTopology = per_tile).
+# penta_wound, the tape-out configuration, which instantiates every peripheral
+# config/rdl.json flags.
 # ---------------------------------------------------------------------------
 
 # The SystemRDL emission as a runnable target: the same code generate.py calls,
@@ -879,8 +770,6 @@ py_binary(
         deps = ["//platform/common/python:rdl_test_lib"],
     )
     for periph in [
-        "afe2",
-        "biasg",
         "uart",
         # The twenty house-style blocks (R2, 2026-09-10). One shared reader --
         # makeGenericReader in rdl_vs_vhdl_test.py -- covers all of them: slot
@@ -910,11 +799,11 @@ py_binary(
     ]
 ]
 
-# SystemRDL LEVEL 2 (report R6). AFE2.vhd and BIASG.vhd no longer declare their
-# own word offsets, field ranges, IMPL masks or reset tables: those are generated
-# from the .rdl into hdl/common/regs/vhdl/{afe2,biasg}_regs_pkg.vhd, which the two
-# entities `use`. Two gates hold that down, and they are deliberately different
-# kinds of gate:
+# SystemRDL LEVEL 2 (report R6). A migrated entity no longer declares its own
+# word offsets, field ranges, IMPL masks or reset tables: those are generated
+# from the .rdl into hdl/common/regs/vhdl/<block>_regs_pkg.vhd, which the entity
+# `use`s. Two gates hold that down, and they are deliberately different kinds of
+# gate:
 #
 #   rdl_vhdl_pkg_test       the TRACKED package is byte-identical to a fresh
 #                           emission -- the same role check_memorymap_vhd_test
@@ -923,7 +812,7 @@ py_binary(
 #                           hand-written constant it replaced, transcribed from
 #                           the pre-migration revision. This is the leg of the
 #                           argument that does NOT run through the .rdl: with the
-#                           decode's independent copy gone, rdl_vs_vhdl_afe2_test
+#                           decode's independent copy gone, rdl_vs_vhdl_<periph>_test
 #                           now reads the package, so something outside the
 #                           SystemRDL path has to hold the numbers.
 py_test(
@@ -945,8 +834,7 @@ py_test(
     size = "small",
     srcs = ["//platform/common/python:rdl_pkg_vs_legacy_test.py"],
     data = [
-        # The frozen table for the twenty-two blocks of report R8a. AFE2's and
-        # BIASG's are transcribed inside the test itself (report R6).
+        # The frozen table for the twenty-two blocks of report R8a.
         "//platform/common/python:rdl_legacy_constants.json",
         "//hdl:vhdl_sources",
     ],
@@ -958,19 +846,19 @@ py_test(
 # from the chip addrmap through stock PeakRDL-cheader. Three gates.
 # ---------------------------------------------------------------------------
 
-# Identity + address consistency. The MemoryMap.h handed in is the per-tile AFE
-# configuration's: the only one that publishes AFE0BIASG0..CR, and its bases are
-# identical to the topology-A AFE configuration's.
+# Identity + address consistency. The MemoryMap.h handed in is the tape-out
+# configuration's, the one that instantiates every peripheral these headers
+# describe.
 py_test(
     name = "regs_headers_identity_test",
     size = "small",
     srcs = ["//platform/common/python:regs_headers_test.py"],
     args = [
-        "--memorymap-h=$(rootpath :penta_wound_afe_pt_memorymap_h)",
+        "--memorymap-h=$(rootpath :penta_wound_memorymap_h)",
         "TestHeadersAreCurrent",
     ],
     data = [
-        ":penta_wound_afe_pt_memorymap_h",
+        ":penta_wound_memorymap_h",
         ":rdl_config",
         "//hdl:rdl_sources",
         "//software/include:regs_headers",
@@ -984,11 +872,11 @@ py_test(
     size = "small",
     srcs = ["//platform/common/python:regs_headers_test.py"],
     args = [
-        "--memorymap-h=$(rootpath :penta_wound_afe_pt_memorymap_h)",
+        "--memorymap-h=$(rootpath :penta_wound_memorymap_h)",
         "TestHeadersAgreeWithMemoryMapH",
     ],
     data = [
-        ":penta_wound_afe_pt_memorymap_h",
+        ":penta_wound_memorymap_h",
         ":rdl_config",
         "//hdl:rdl_sources",
         "//software/include:regs_headers",
@@ -1010,10 +898,10 @@ py_test(
         "--",
         "abs:software/include/regs",
         "--memorymap-h",
-        "abs:$(rootpath :penta_wound_afe_pt_memorymap_h)",
+        "abs:$(rootpath :penta_wound_memorymap_h)",
     ],
     data = [
-        ":penta_wound_afe_pt_memorymap_h",
+        ":penta_wound_memorymap_h",
         "//platform/common/python:check_regs_headers.py",
         "//software/include:regs_headers",
         "@xpack_riscv_gcc//:gcc",
@@ -1041,28 +929,18 @@ py_test(
     size = "small",
     srcs = ["//platform/common/python:rdl_vs_generator_test.py"],
     args = [
-        "$(rootpath :penta_wound_afe_pt_config_memorymap_json)",
+        "$(rootpath :penta_wound_config_memorymap_json)",
         "$(rootpath :rdl_config)",
-        "$(rootpath :penta_wound_afe_pt_trm_tree)",
+        "$(rootpath :penta_wound_trm_tree)",
         "$(rootpath //platform/common/python:generate.py)",
     ],
     data = [
-        ":penta_wound_afe_pt_config_memorymap_json",
-        ":penta_wound_afe_pt_trm_tree",
+        ":penta_wound_config_memorymap_json",
+        ":penta_wound_trm_tree",
         ":rdl_config",
         "//hdl:rdl_sources",
         "//platform/common/python:generate.py",
     ],
     main = "rdl_vs_generator_test.py",
     deps = ["//platform/common/python:rdl_test_lib"],
-)
-
-# The generated TRM tree of the per-tile AFE configuration, as one directory.
-# latex/TRM is a declared DIRECTORY output, so a single file inside it has no
-# label of its own; the gate is handed the directory and reads
-# include/PeripheralSections.tex out of it.
-filegroup(
-    name = "penta_wound_afe_pt_trm_tree",
-    srcs = [":chip_artifacts_penta_wound_afe_pt"],
-    output_group = "trm",
 )

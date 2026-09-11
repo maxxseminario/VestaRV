@@ -7,7 +7,7 @@
 // RegSlotPx* constants plus the LOCAL constant RegSlotPxTASK = 12, the
 // widths come from `signal Px* : std_logic_vector(num_pins-1 downto 0)`
 // and the resets from the RstValPx* generics, which differ PER PORT and are
-// applied at the instance in castalia_penta_wound_afe.rdl.
+// applied at the instance in castalia_penta_wound.rdl.
 //
 // Three registers the generator models 32 bits wide are only num_pins wide
 // in the RTL: PxOUTT, PxIF and PxTASK all loop `for i in 0 to (num_pins/8)-1`

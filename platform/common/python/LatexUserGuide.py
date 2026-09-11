@@ -67,9 +67,9 @@ class LatexUserGuide():
 	# measured analog data is an explicit, per-chip decision.
 	AnalogChapterLineage = {
 		'castaliapenta': 'castalia',
-		# 2026-09-05: penta_wound.json / penta_wound_afe.json set chipName
+		# 2026-09-05: penta_wound.json sets chipName
 		# "PentaWound", which has no implementations/asic/pentawound/analog, so
-		# generating from either config silently dropped the entire 60-page
+		# generating from that config silently dropped the entire 60-page
 		# analog chapter (CopyAnalogChapter rmtree's include/analog and takes the
 		# empty branch). Same physical chip, same analog IP: inherit Castalia's.
 		'pentawound': 'castalia',
@@ -1486,7 +1486,7 @@ class LatexUserGuide():
 		# at the pre-X-series key set, so X-series ISA, priv, newer-peripheral and
 		# package knobs never appeared in the TRM config table). Keep in sync with
 		# generate.py _CONFIG_SCHEMA — grouped: core, isa, priv, memory, periph, pkg.
-		keyOrder = ['chipName', 'numHarts', 'orchestrator', 'afeTopology', 'numMutexes', 'registerFileDualPort',
+		keyOrder = ['chipName', 'numHarts', 'orchestrator', 'numMutexes', 'registerFileDualPort',
 			'core.fetchAhead',
 			'isa.mul', 'isa.fastMul', 'isa.div', 'isa.atomics', 'isa.compressed',
 			'isa.bitmanip', 'isa.minimalTiles', 'isa.counters', 'isa.counters64',
@@ -1499,7 +1499,7 @@ class LatexUserGuide():
 			'memory.npuStagingRamSize',
 			'peripherals.npu', 'peripherals.i2c1', 'peripherals.uart1',
 			'peripherals.spi1', 'peripherals.timer1', 'peripherals.cqAfeStubs',
-			'peripherals.qspi', 'peripherals.afe2', 'peripherals.i3c', 'peripherals.nfc',
+			'peripherals.qspi', 'peripherals.i3c', 'peripherals.nfc',
 			'peripherals.rtc', 'peripherals.pwm', 'peripherals.onewire',
 			'peripherals.fieldPower', 'peripherals.dma', 'peripherals.dmaChannels',
 			'peripherals.i2ctarget', 'peripherals.trng', 'peripherals.trngRings',
@@ -1821,10 +1821,11 @@ class LatexUserGuide():
 			# re-assignment of an owner cannot move one figure and not the other.
 			above['afe']['sites'] = [(b['name'], b['base'], b['ownerHart'],
 				b.get('gate') or '') for b in blocks]
-		# AFE2 (2026-09-05): the rev-2 sites ARE peripherals (AFEx at 0x6C00 + 0x100*h),
-		# so they come through the bucket like every other block. The ownership row is
-		# derived the way mcu_vhd.emitAfe2Instance derives OWNER_HART (tile h+1 on an
-		# orchestrator configuration), and the electrode stubs from the package model.
+		# An analog front end declared as PERIPHERALS (AFEx instances) comes through the
+		# bucket like every other block. The ownership row is derived the way the MCU
+		# emitter derives OWNER_HART (tile h+1 on an orchestrator configuration), and the
+		# electrode stubs from the package model. No configuration in the public tree
+		# declares such peripherals; the branch is inert here.
 		ps = claim('afe')
 		if ps and not blocks:
 			sites = [p.Name for p in ps]

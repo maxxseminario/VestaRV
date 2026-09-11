@@ -134,8 +134,6 @@ def snapshot():
     out['_frozen'] = time.strftime('%Y-%m-%d', time.gmtime(1757548800))
     blocks = collections.OrderedDict()
     for spec in rdl_vhdl.RTL_PACKAGES:
-        if spec['package'] in ('afe2_regs_pkg', 'biasg_regs_pkg'):
-            continue        # transcribed by hand in the test itself (report R6)
         block, regs, fields = _emitted(spec)
         decode, sources = _decodeConstants(spec, block)
         entry = collections.OrderedDict()

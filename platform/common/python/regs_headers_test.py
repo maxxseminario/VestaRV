@@ -20,9 +20,8 @@ Two gates in one file, because they grade the same artifact from two directions:
 
     regs_headers_test.py --memorymap-h <MemoryMap.h> [--regs <dir>]
 
-The MemoryMap.h handed in is the PER-TILE AFE configuration's: it is the only
-one that publishes AFE0BIASG0..CR, and the bases are identical in the
-topology-A AFE configuration.
+The MemoryMap.h handed in is the tape-out configuration's (penta_wound), the
+one that instantiates every peripheral these headers describe.
 """
 
 import os
@@ -119,7 +118,10 @@ class TestHeadersAgreeWithMemoryMapH(unittest.TestCase):
             if have != want:
                 bad.append('%s: regs 0x%X, MemoryMap.h 0x%X' % (instName, have, want))
         self.assertEqual(bad, [], '\n'.join(bad))
-        self.assertGreaterEqual(n, 34, 'only %d instances graded' % n)
+        # A FLOOR, not a count: it tracks the instance list and moves DOWN only
+        # alongside a deliberate removal. 34 before the four AFE sites left the
+        # public tree on 2026-09-11.
+        self.assertGreaterEqual(n, 30, 'only %d instances graded' % n)
         sys.stderr.write('  bases graded: %d\n' % n)
 
     def test_every_register_address_matches(self):
@@ -140,12 +142,16 @@ class TestHeadersAgreeWithMemoryMapH(unittest.TestCase):
                                % (instName, name, base + rt.Offset, want))
         self.assertEqual(bad, [], '%d of %d register addresses differ:\n%s'
                                   % (len(bad), n + len(bad), '\n'.join(bad[:40])))
-        self.assertGreaterEqual(n, 350, 'only %d register addresses graded' % n)
+        # Same floor discipline: 350 before the four AFE sites' 9 registers each
+        # left the public tree on 2026-09-11.
+        self.assertGreaterEqual(n, 323, 'only %d register addresses graded' % n)
         sys.stderr.write('  register addresses graded: %d\n' % n)
 
     def test_overlay_blocks_match(self):
-        """BIASG is not in the top addrmap (SystemRDL cannot overlay one addrmap on
-           another), so its registers are graded against the host's base here."""
+        """An overlay block is not in the top addrmap (SystemRDL cannot overlay one
+           addrmap on another), so its registers are graded against the host's base
+           here. No block in the public tree is an overlay today, which makes this a
+           vacuous pass rather than a removed check."""
         bad = []
         for (entry, flag, block) in rdl_cheader_regs.overlays(rdl_emit.DEFAULT_CONFIG):
             base = self.mm[entry['host'] + '_BASE']

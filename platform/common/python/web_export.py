@@ -125,7 +125,6 @@ def _libraryTailVectorsCount(cfg):
 		(periph.get('npu', True), 1),   # vector 120 (NPU0 think-done, DP-SG Part A; npu defaults TRUE)
 		(periph.get('trng', False), 1),   # vector 121 (TRNG0 combined data-ready/health-alarm)
 		(periph.get('i2ctarget', False), 2),  # vectors 122, 123 (I2CT0_AE, I2CT0_DATA)
-		(periph.get('afe2', False), 1),  # vector 124 (AFE0-3 combined, OR of the four sites)
 	]
 	base = 114
 	v = base

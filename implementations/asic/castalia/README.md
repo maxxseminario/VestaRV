@@ -7,6 +7,12 @@ with each other and individually power-gateable. It is derived from the same cor
 single-core Myshkin tape-out, and is generated from one configuration by the
 `platform/common/` chip generator.
 
+**The analog interfacing collateral is kept outside the public tree.** The AFE2 and
+BIASG RTL, their register descriptions and C headers, the AFE-bearing configurations
+and their benches, ISA tests and lab tools live in `private/analog/` (gitignored),
+which mirrors their original paths; see `private/analog/README.md`. The measured
+analog chapter under `analog/` and the AFE summary in `docs/` stay here.
+
 ## Hart 0 and the four tiles
 
 `orchestrator = true` is what makes hart 0 the orchestrator. It keeps every hart-0 wiring
@@ -82,25 +88,23 @@ wherever it happens to be invoked. The hermetic path is
 | `//platform/common:trm_latex_tree_test` | The generated TRM tree is complete: master document, includes, figures. |
 | `//platform/common:castalia_analog_chapter_test` | The analog chapter is present in the generated TRM tree. |
 | `//platform/common/python:check_config_defaults_test` | Each knob's two default literals in `generate.py` agree with each other. |
-| `//platform/common:rdl_vs_vhdl_afe2_test`, `:rdl_vs_vhdl_biasg_test`, `:rdl_vs_vhdl_uart_test` | The SystemRDL register description and the VHDL that decodes it agree on offsets, reset values and implemented-bit masks. |
+| `//platform/common:rdl_vs_vhdl_uart_test` and its twenty siblings | The SystemRDL register description and the VHDL that decodes it agree on offsets, reset values and implemented-bit masks. |
 | `//platform/common:rdl_vs_generator_test` | The same descriptions equal the generator's slot map and register data, and the pilot's TRM tables byte-identically. |
 | `//platform/common:rdl_negative_control_test` | Each of those comparisons is shown failing on a one-token mutation of the description it grades. |
 
 ### Register maps under SystemRDL
 
-Three peripherals — `UARTx` (the pilot), `AFEx` and the shared bias generator —
-also carry a SystemRDL description in `hdl/common/regs/rdl/`. Nothing in the generator depends on it: the descriptions are
+Every register-bearing peripheral carries a SystemRDL description in
+`hdl/common/regs/rdl/`. Nothing in the generator depends on it: the descriptions are
 additive, so every artifact of every configuration is byte-identical whether the
 SystemRDL toolchain is present or not, and the hermetic generation action
 deliberately carries no such dependency. What they buy is the one check the chip
-did not have — `//platform/common:rdl_vs_vhdl_afe2_test` and its two siblings
-re-derive the word offsets, reset values and implemented-bit masks out of
-`AFE2.vhd`, `BIASG.vhd` and `UART.vhd` and compare them against the description,
-and `//platform/common:rdl_vs_generator_test` compares the same description
-against the generator's own register data down to the prose. That gate found
-`AFE2.vhd`'s `CR.SAMPLESTEP = 7` and `MUX.ATPSEL = 0xF` resets being published as
-zero by the generator, i.e. a TRM reset column and a firmware header describing a
-chip that does not exist. The adoption plan, the emitters and the pinned
+did not have — `//platform/common:rdl_vs_vhdl_<block>_test` re-derives the word
+offsets, reset values and implemented-bit masks out of the VHDL and compares them
+against the description, and `//platform/common:rdl_vs_generator_test` compares the
+same description against the generator's own register data down to the prose. That
+gate found non-zero RTL resets being published as zero by the generator, i.e. a TRM
+reset column and a firmware header describing a chip that does not exist. The adoption plan, the emitters and the pinned
 toolchain are in [`tools/rdl/README.md`](../../../tools/rdl/README.md).
 
 ### TRM PDF

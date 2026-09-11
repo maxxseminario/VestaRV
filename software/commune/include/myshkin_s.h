@@ -47,14 +47,12 @@ extern "C" {
 // 0x4B00, which on this chip is PWRCTRL (MemoryMap.vhd:1020 PeriphSlotPWRCTRL
 // = 11, start.S:63 PWRCTRL_BASE), so a firmware author's "SARADC" write landed
 // on PWRCR and blind-gated the tiles. Castalia emits no SARADC registers at all
-// (generate.py:2186 "SARADC removed from Castalia") and vectors 55/56 are
-// IRQB_RSVD55/56; the converter is inside the analog macro and reaches software
-// through the new AFE2 peripheral, not through this slot.
+// (generate.py "SARADC removed from Castalia") and vectors 55/56 are
+// IRQB_RSVD55/56; the converter is inside the analog macro and does not reach
+// software through this slot.
 // 0x4C00 is the four 64 B afe_stub sub-slots of page-0 slot 12 (MCU.vhd:2714,
 // :3133-3151), one per site on sh_addr(5:4), each ownership-gated on s_master.
-// TODO(AFE2): when the AFE2 peripheral lands (four sites at 0x6C00 + 0x100*h,
-// 256 B each, plus the shared block), add its bases here and retire
-// PERIPH_AFE0_BASE with the afe_stub bank it names.
+// PERIPH_AFE0_BASE names the rev-1 afe_stub bank; it retires with that bank.
 #define PERIPH_AFE0_BASE        0x4C00  // rev-1 afe_stub site 0 (64 B sub-slot)
 #define PERIPH_GPIO3_BASE       0x4D00
 
@@ -223,10 +221,10 @@ extern "C" {
 #define BIAS_RFB_DSADC          0x48      //  offset = 72 bytes
 
 //  ---------- SARADC Register Offsets (STALE, myshkin-only) ----------
-// Kept as the rev-1 reference for the AFE2 sequencer work and nothing else.
-// hdl/common/periph/SARADC.vhd does not analyze against hdl/common/MemoryMap.vhd
-// (its RegSlotSARADC_TPR exists only in hdl/myshkin/MemoryMap.vhd:163), and no
-// Castalia configuration instantiates it. THESE OFFSETS HAVE NO BASE ADDRESS ON
+// Kept as the rev-1 reference and nothing else. The rev-1 SARADC RTL is no
+// longer in the public tree (private/analog/), it never analyzed against
+// hdl/common/MemoryMap.vhd (its RegSlotSARADC_TPR exists only in
+// hdl/myshkin/MemoryMap.vhd), and no Castalia configuration instantiates it. THESE OFFSETS HAVE NO BASE ADDRESS ON
 // THIS CHIP -- see the note where PERIPH_SARADC0_BASE used to be.
 #define SARADC_CR               0x00      //  offset = 0 bytes
 #define SARADC_CDIV             0x04      //  offset = 4 bytes

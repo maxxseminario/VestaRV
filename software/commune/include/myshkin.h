@@ -44,8 +44,7 @@ extern "C" {
 // PERIPH_SARADC0_BASE removed 2026-09-05 (report 08 finding 8): 0x4B00 is
 // PWRCTRL on Castalia (MemoryMap.vhd:1020), so the name pointed a SARADC write
 // at PWRCR. See the fuller note in myshkin_s.h.
-// TODO(AFE2): AFE2 sites land at 0x6C00 + 0x100*h; retire PERIPH_AFE0_BASE with
-// the rev-1 afe_stub bank it names.
+// PERIPH_AFE0_BASE names the rev-1 afe_stub bank; it retires with that bank.
 #define PERIPH_AFE0_BASE        (0x4C00)  // rev-1 afe_stub site 0 (64 B sub-slot)
 #define PERIPH_GPIO3_BASE       (0x4D00)
 #define PERIPH_I2C0_BASE        (0x4E00) 

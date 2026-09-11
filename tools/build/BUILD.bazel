@@ -166,7 +166,6 @@ py_test(
 # lives in the shared window.
 PRODUCT_IMAGES = [
     "//software/bootrom_mp:flashboot.elf",
-    "//software/afetest:afetest.elf",
     "//software/blinky:blinky.elf",
     "//software/gpiotoggle:gpiotoggle.elf",
     "//software/looptest:looptest.elf",
@@ -204,7 +203,7 @@ py_test(
     srcs = ["scripts/check_image_regions.py"],
     args = MAP_ARGS + [
         "--min-images",
-        "8",
+        "7",
         "--require-nobits",
     ] + ["$(rootpaths %s)" % i for i in PRODUCT_IMAGES],
     data = MAP_DATA + PRODUCT_IMAGES,

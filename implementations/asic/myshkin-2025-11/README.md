@@ -28,7 +28,7 @@ tools/bin/bazel test //...       # first run downloads all toolchains
 | Target | What it proves |
 |--------|----------------|
 | `//software/bootrom_mp:rom_rcf` | Builds the mask-ROM image; `//software/bootrom_mp:rom_rcf_reproducibility_test` proves it is byte-identical to the tracked golden. |
-| `//software/blinky:blinky_rcf` (also `gpiotoggle`, `looptest`, `slowblink`, `traptest`, `afetest`) | Builds an application image with the hermetic RISC-V cross-compiler; the per-app `//software/blinky:blinky_flashed_rcf_test` and siblings lock it against a tracked golden. |
+| `//software/blinky:blinky_rcf` (also `gpiotoggle`, `looptest`, `slowblink`, `traptest`) | Builds an application image with the hermetic RISC-V cross-compiler; the per-app `//software/blinky:blinky_flashed_rcf_test` and siblings lock it against a tracked golden. |
 | `//verification/isa:all_images` | Builds all 259 ISA test images; `//verification/isa:image_contract_test` proves the image set matches its contract. |
 
 ### License-free simulation of the core RTL

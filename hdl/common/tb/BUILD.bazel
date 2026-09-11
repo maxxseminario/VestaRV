@@ -207,9 +207,8 @@ ghdl_test(
 #                 chip instantiates NHARTS=5, T_SEQ=4, T_RAIL=256 (MCU.vhd:3030)
 #                 and that shape had NEVER been run; it failed 12 checks on the
 #                 bench's fixed poll budget until the guard was scaled.
-#   irq_router_tb xcelium 2026-07-22, five shapes, none of them the shipped
-#                 NHARTS=5, MW=3, NUM_SRCS=125 (the tape-out config's generated
-#                 MemoryMap.vhd:1990; 121 was the pre-AFE2 default-config count).
+#   irq_router_tb xcelium 2026-07-22, five shapes, none of them NHARTS=5, MW=3,
+#                 NUM_SRCS=125, the shape that needs four enable words.
 #   irq_sys_tb    xcelium 2026-07-12, compiled from the pre-restructure
 #                 hdl/MCU_MP path that no longer exists.
 #   arb_lat_tb    xcelium 2026-07-06 at N_MASTERS=4; the arbiter ships with
@@ -376,10 +375,12 @@ ghdl_test(
 )
 
 # xcelium/mp_test/run_irq_router.sh, at the shipped PLIC-lite shape.
-# NUM_SRCS tracks NUM_IRQ_SRCS in the TAPE-OUT config's generated MemoryMap
-# (bazel-bin/platform/common/chip_artifacts_penta_wound_afe/out/hdl/MemoryMap.vhd:1990
-# = 125 with peripherals.afe2 on: IRQB_AFE = 124 is the last source). Take the
-# number from that file, never from a report.
+# NUM_SRCS is 125, one MORE than the tape-out configuration's generated
+# NUM_IRQ_SRCS. It is kept at 125 deliberately: that is the shape the router was
+# proved at, and it is the one that needs four enable words, so it covers the
+# shipped shape rather than sitting under it. Take the shipped number from
+# bazel-bin/platform/common/chip_artifacts_penta_wound/out/hdl/MemoryMap.vhd,
+# never from a report.
 ghdl_test(
     name = "irq_router_tb",
     size = "small",
@@ -541,43 +542,5 @@ ghdl_test(
     entity = "GPIO_tb",
     pass_pattern = "GPIO_TB PASS (1 expected negative-control failure)",
     sim_timeout_s = 300,
-    tags = ["ghdl"],
-)
-
-# ---------------------------------------------------------------------------
-# AFE2: the rev-2 analog front-end site (register file for the 50 anatop_pixel
-# control bits + the SAR converter sequencer). Two-file closure: AFE2.vhd and its
-# generated register package, and neither reads constants/MemoryMap, so the bench
-# still binds the entity alone.
-# The bench instantiates two sites on one mclk with a behavioural converter
-# model (12 falling edges per conversion, READY after the twelfth, bit 9
-# inverted inside a 100 ns window) and grades the protocol, the FIFO, both
-# interrupts, the shared simultaneous-sample trigger and the swap engine.
-# ---------------------------------------------------------------------------
-vhdl_source_set(
-    name = "afe2_rtl",
-    # afe2_regs_pkg.vhd first: AFE2.vhd `use work.afe2_regs_pkg.all` since the
-    # SystemRDL level-2 move (report R6), so the package must be analysed before
-    # the entity. The closure is still two files and still reads nothing from
-    # constants/MemoryMap, so the bench still binds the entity alone.
-    paths = [
-        "hdl/common/regs/vhdl/afe2_regs_pkg.vhd",
-        "hdl/common/periph/AFE2.vhd",
-    ],
-    pool = ["//hdl:vhdl_sources"],
-)
-
-ghdl_test(
-    name = "AFE2_tb",
-    size = "small",
-    srcs = [
-        ":afe2_rtl",
-        "periph_tb_pkg.vhd",
-        "AFE2_tb.vhd",
-    ],
-    entity = "AFE2_tb",
-    pass_pattern = "ALL CHECKS PASSED",
-    sim_timeout_s = 180,
-    stop_time = "200us",
     tags = ["ghdl"],
 )

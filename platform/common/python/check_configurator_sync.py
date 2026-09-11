@@ -251,7 +251,6 @@ DERIVED_FRAGMENTS = [
     '[cfg.npu, 1]',
     '[cfg.trng, 1]',
     '[cfg.i2ctarget, 2]',
-    '[cfg.afe2, 1]',
     'vtail += c; if (p) vhigh = vtail;',
     'vectors: vhigh, msipVec: 83, mtipVec: 84',
 ]

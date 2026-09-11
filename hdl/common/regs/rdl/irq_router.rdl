@@ -2,10 +2,9 @@
 // irq_router.rdl: the register map of hdl/common/irq_router.vhd.
 //
 // THE VHDL IS THE AUTHORITY. The enable rows are 4 words per hart at 4*h,
-// the fourth (HhENX) existing only because NUM_SRCS (125 in this
-// configuration, the AFE2 vector 124 being the highest) exceeds 96;
-// NUM_EN_WORDS = ceil(NUM_SRCS/32) = 4 and the live width of the top word is
-// NUM_SRCS - 96 = 29 bits.
+// the fourth (HhENX) existing only because NUM_SRCS (124 in this
+// configuration) exceeds 96; NUM_EN_WORDS = ceil(NUM_SRCS/32) = 4 and the live
+// width of the top word is NUM_SRCS - 96 = 28 bits.
 //
 // PARAMETERISED (report R7). Four routing words per hart, and the live MSB of
 // the U and X words follows the interrupt count:
@@ -89,7 +88,7 @@ reg HENU_t #(longint unsigned UMSB = 31) {
 };
 
 `ifndef VESTA_IRQR_NO_XWORDS
-reg HENX_t #(longint unsigned XMSB = 28) {
+reg HENX_t #(longint unsigned XMSB = 27) {
     regwidth = 32;
     vesta_name = "H{i}ENX";
     desc = "Hart {i} interrupt routing register, vectors {VECTORS-1}:96 (bits {XMSB}:0; upper bits read as 0).";
@@ -106,7 +105,7 @@ reg HENX_t #(longint unsigned XMSB = 28) {
 // One hart's routing row: four consecutive words at 4*h, whether or not the
 // fourth is implemented (the slot is reserved either way, as it was before the
 // X words existed).
-regfile HEN_t #(longint unsigned UMSB = 31, longint unsigned XMSB = 28) {
+regfile HEN_t #(longint unsigned UMSB = 31, longint unsigned XMSB = 27) {
     HENL_t                HENL @0x0;
     HENM_t                HENM @0x4;
     HENU_t #(.UMSB(UMSB)) HENU @0x8;
@@ -172,7 +171,7 @@ reg PENDU_t #(longint unsigned UMSB = 31) {
 };
 
 `ifndef VESTA_IRQR_NO_XWORDS
-reg PENDX_t #(longint unsigned XMSB = 28) {
+reg PENDX_t #(longint unsigned XMSB = 27) {
     regwidth = 32;
     desc = "Raw pending interrupt levels, vectors {VECTORS-1}:96 (bits {XMSB}:0, read-only; upper bits read as 0). Completes the raw-level readback for the fourth enable word (added with the peripheral-library program; before it, sources above 95 were routable and claimable but absent from the debug readback).";
     // Read-only raw deglitched source levels; bits above NUM_SRCS-1 read 0.
@@ -230,7 +229,7 @@ reg INSVCU_t #(longint unsigned UMSB = 31) {
 };
 
 `ifndef VESTA_IRQR_NO_XWORDS
-reg INSVCX_t #(longint unsigned XMSB = 28) {
+reg INSVCX_t #(longint unsigned XMSB = 27) {
     regwidth = 32;
     desc = "Under-service flags, vectors {VECTORS-1}:96 (bits {XMSB}:0, read-only; upper bits read as 0). Completes the under-service readback for the fourth enable word.";
     // Read-only in_service bits; a source leaves every hart's meip while its bit is set.
@@ -245,10 +244,10 @@ reg INSVCX_t #(longint unsigned XMSB = 28) {
 
 addrmap irq_router #(
     longint unsigned NHARTS  = 5,
-    longint unsigned VECTORS = 125,
+    longint unsigned VECTORS = 124,
     longint unsigned UMSB    = 31,
     longint unsigned UTOP    = 95,
-    longint unsigned XMSB    = 28
+    longint unsigned XMSB    = 27
 ) {
     name = "IRQROUTER";
     desc = "THE peripheral interrupt controller (M19): per-hart interrupt routing/enable rows plus a claim/complete delivery stage, programmable by any hart through the shared window";

@@ -55,7 +55,6 @@ entity MCU is
         --@GEN:a0-ports@
         --@GEN:dmi-ports@
         --@GEN:jtag-ports@
-        --@GEN:afe2-ports@
 
     );
 end entity;
@@ -447,7 +446,6 @@ architecture behav of MCU is
         --@GEN:evfab-decls@
         --@GEN:debug-decls@
         --@GEN:slot12-decls@
-        --@GEN:afe2-decls@
         --@GEN:sh-master-decl@
 
         -- Memory and RAM Control Signals
@@ -965,7 +963,6 @@ begin
     --@GEN:debug-instance@
 
     --@GEN:slot12-instances@
-    --@GEN:afe2-instance@
 
     -- Cold-gate reset: a gated or waking tile is held in reset, which is also what keeps it bus-silent at the arbiter, since sh_req is qualified by the tile's resetn.
     --@GEN:tile-rstn@

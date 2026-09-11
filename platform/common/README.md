@@ -105,7 +105,7 @@ make verify SUITE=full      # the whole regression instead of the smoke suite
 
 ### Which suite is the regression
 
-**`make verify SUITE=full CONFIG=config/penta_wound_afe.json`** is the standing
+**`make verify SUITE=full CONFIG=config/penta_wound.json`** is the standing
 tape-out regression. It stages `xcelium/riscv_test/verify_pentawound/`, selects
 its rows from the catalog against the resolved config, runs the matching
 `-DCORE_ENABLE_TRAPCSR` image set, and passes **157 / 157** (2026-09-05).

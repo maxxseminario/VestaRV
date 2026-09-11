@@ -10,25 +10,6 @@
       "note": "The pilot. Its .rdl is byte-equivalent to the UARTx PeripheralTemplate in generate.py, descriptions included.",
       "registerSource": "rdl"
     },
-    "AFEx": {
-      "rdl": true,
-      "source": "afe2.rdl",
-      "top": "afe2_site",
-      "registerPrefix": "AFEx",
-      "bitFieldPrefix": "AFE",
-      "note": "hdl/common/periph/AFE2.vhd, words 0 to 8 of a site's sub-slot. Present only when peripherals.afe2 is true.",
-      "registerSource": "rdl"
-    },
-    "AFExBIASG": {
-      "rdl": true,
-      "source": "biasg.rdl",
-      "top": "biasg",
-      "peripheral": "AFEx",
-      "registerPrefix": "AFEx",
-      "bitFieldPrefix": "AFE",
-      "note": "hdl/common/periph/BIASG.vhd, words 9 to 13 of AFE2 SITE 0's sub-slot. Present only when afeTopology is per_tile.",
-      "registerSource": "rdl"
-    },
     "GPIOx": {
       "rdl": true,
       "source": "gpio.rdl",

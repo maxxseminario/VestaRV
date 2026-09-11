@@ -1,5 +1,10 @@
 # Castalia tapeout plan, 2026-09-05
 
+> **Analog interfacing collateral lives outside the public tree.** The AFE2/BIASG RTL,
+> their `.rdl` descriptions and C headers, the AFE-bearing configurations, benches, ISA
+> tests and lab tools were removed on 2026-09-11 and kept in the gitignored
+> `private/analog/`, which mirrors their original paths. See `private/analog/README.md`.
+
 Consolidated from the nine-area review of 2026-09-05 (raw reports and the decision list:
 `~/chips/castalia/tapeout_review/`). Every claim below is traced to an executed artifact in
 those reports. Cut of record: `MCU_castalia_penta` wq22e (2026-09-02), tile `hart_tile`

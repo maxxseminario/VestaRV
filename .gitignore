@@ -409,3 +409,9 @@ sky130/runs/
 sky130/sim/sim_build/
 sky130/sim/results.xml
 sky130/sim/*.vcd
+
+# VestaRV: the analog interfacing overlay, kept outside the public tree.
+# private/analog/ mirrors the original paths of the AFE2/BIASG RTL, register
+# descriptions, configurations, benches and tools removed on 2026-09-11; the
+# local Genus and Xcelium flows read it from there. See private/analog/README.md.
+private/

@@ -1,5 +1,13 @@
 # maestro2tex
 
+> **Analog interfacing collateral lives outside the public tree.** The AFE2/BIASG RTL,
+> their `.rdl` descriptions and C headers, the AFE-bearing configurations, benches, ISA
+> tests and lab tools were removed on 2026-09-11 and kept in the gitignored
+> `private/analog/`, which mirrors their original paths. See `private/analog/README.md`.
+> **Every `configs/*.json` this tool consumes moved there too**; only `configs/guards.json`
+> is left here. The measured analog chapter it produces stays in
+> `implementations/asic/castalia/analog/`.
+
 Turns a Cadence Maestro (ADE Assembler) run into a directory of TikZ/pgfplots figures
 and booktabs tables that the LaTeX TRM `\input`s directly. No screenshots, no manual
 transcription of numbers — the characterisation in the manual is regenerated from the

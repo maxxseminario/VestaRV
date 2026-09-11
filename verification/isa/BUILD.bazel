@@ -70,7 +70,6 @@ _RV32UI_TESTS = [
     "shfault",
     "shpwr",
     "shafe",
-    "shafe2",
     "shorch",
     "shtcm",
     "shdma",

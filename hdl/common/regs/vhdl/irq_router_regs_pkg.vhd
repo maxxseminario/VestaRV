@@ -37,7 +37,7 @@ package irq_router_regs_pkg is
     constant IRQRH0ENU_LSB            : natural := 0;
     constant IRQRH0ENU_RESET          : std_logic_vector(31 downto 0) := "00000000000000000000000000000000";
 
-    -- H0ENX: Hart 0 interrupt routing register, vectors 124:96 (bits 28:0; upper bits read as 0)
+    -- H0ENX: Hart 0 interrupt routing register, vectors 123:96 (bits 27:0; upper bits read as 0)
     constant H0ENX_WORD               : natural := 3;
     constant H0ENX_ADDR               : natural := 12;
     constant H0ENX_RESET              : std_logic_vector(31 downto 0) := "00000000000000000000000000000000";
@@ -79,7 +79,7 @@ package irq_router_regs_pkg is
     constant IRQRPENDU_LSB            : natural := 0;
     constant IRQRPENDU_RESET          : std_logic_vector(31 downto 0) := "00000000000000000000000000000000";
 
-    -- PENDX: Raw pending interrupt levels, vectors 124:96 (bits 28:0, read-only; upper bits read as 0)
+    -- PENDX: Raw pending interrupt levels, vectors 123:96 (bits 27:0, read-only; upper bits read as 0)
     constant PENDX_WORD               : natural := 519;
     constant PENDX_ADDR               : natural := 2076;
     constant PENDX_RESET              : std_logic_vector(31 downto 0) := "00000000000000000000000000000000";
@@ -113,7 +113,7 @@ package irq_router_regs_pkg is
     constant IRQRINSVCU_LSB           : natural := 0;
     constant IRQRINSVCU_RESET         : std_logic_vector(31 downto 0) := "00000000000000000000000000000000";
 
-    -- INSVCX: Under-service flags, vectors 124:96 (bits 28:0, read-only; upper bits read as 0)
+    -- INSVCX: Under-service flags, vectors 123:96 (bits 27:0, read-only; upper bits read as 0)
     constant INSVCX_WORD              : natural := 523;
     constant INSVCX_ADDR              : natural := 2092;
     constant INSVCX_RESET             : std_logic_vector(31 downto 0) := "00000000000000000000000000000000";

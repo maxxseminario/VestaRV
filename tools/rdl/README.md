@@ -1,5 +1,10 @@
 # SystemRDL in this repo
 
+> **Analog interfacing collateral lives outside the public tree.** The AFE2/BIASG RTL,
+> their `.rdl` descriptions and C headers, the AFE-bearing configurations, benches, ISA
+> tests and lab tools were removed on 2026-09-11 and kept in the gitignored
+> `private/analog/`, which mirrors their original paths. See `private/analog/README.md`.
+
 The register map of a peripheral used to be written down in four places: the RTL
 that decodes it, `platform/common/python/generate.py`'s hand-written
 `PeripheralTemplate`, the TRM chapter and `MemoryMap.h`. Three of those four were
@@ -15,12 +20,10 @@ own. A width, an access code, a reset value or a field description is written on
 in `hdl/common/regs/rdl/`, and reaches the TRM table, the register index, `MemoryMap.h`,
 `MemoryMap.vhd`, the configurator and the register browser from there.
 
-The gate found a live defect on its first run. `AFE2.vhd` resets `CR.SAMPLESTEP`
-to 7 and `MUX.ATPSEL` to `0xF` (the second parks a site off the shared analog test
-pads: the `anatop_quad` ATP grant is `NOT(AND4(ATP_SEL))`). `generate.py` published
-both as 0, so the TRM's reset column and the firmware-facing header described a
-chip that does not exist. It found 82 more across the next twenty blocks (reports
-R2/R3), and one more on the way to single-sourcing: the per-template `Px*_MSB`
+The gate found a live defect on its first run: two registers whose RTL reset was
+non-zero and which `generate.py` published as 0, so the TRM's reset column and the
+firmware-facing header described a chip that does not exist. It found 82 more
+across the next twenty blocks (reports R2/R3), and one more on the way to single-sourcing: the per-template `Px*_MSB`
 constants published 8-pin GPIO registers as 32 bits wide, because the width
 correction had been applied to the instances and not to the template.
 
@@ -38,7 +41,7 @@ correction had been applied to the instances and not to the template.
 | `hdl/common/regs/README.md` | what the two register trees are and how to regenerate `regs/vhdl/` |
 | `platform/common/python/rdl_*.py` | the model loader, the four emitters and the gates |
 | `platform/common/config/rdl.json` | the per-peripheral `rdl: true` flag |
-| `hdl/common/regs/vhdl/{afe2,biasg}_regs_pkg.vhd` | GENERATED and TRACKED: the VHDL packages `AFE2.vhd` and `BIASG.vhd` `use` (level 3) |
+| `hdl/common/regs/vhdl/*_regs_pkg.vhd` | GENERATED and TRACKED: the VHDL packages the RTL `use`s (level 3) |
 | `software/include/regs/*.h` | GENERATED and TRACKED: the firmware register headers, through stock PeakRDL-cheader |
 
 Provisioning follows the repo's existing rule for an external tool: pinned
@@ -114,7 +117,7 @@ A `.rdl` BLOCK file describes a peripheral the way its RTL generics default. Two
 peripherals reset a register differently per INSTANCE, because the value arrives
 as a generic: GPIO's `RstValPx{OUT,DIR,SEL,REN,AFS}` and I2C's `default_SAD`.
 Those are dynamic assignments in the top addrmap
-(`hdl/common/regs/rdl/castalia_penta_wound_afe.rdl`) and only exist after
+(`hdl/common/regs/rdl/castalia_penta_wound.rdl`) and only exist after
 ELABORATION, so `rdl_vs_generator_test` loads the elaborated per-instance blocks
 through `rdl_chip.bind()` and grades the instance the generator side names. On
 the generator side the same values are applied to the INSTANCE registers
@@ -139,7 +142,7 @@ that read the source tree and not a build output:
 
 | module | output | regenerate |
 |---|---|---|
-| `rdl_vhdl_pkg.py` | `hdl/common/regs/vhdl/<x>_regs_pkg.vhd`, one per block, **24 of them** (level 3) | `bazel run //platform/common/python:rdl_vhdl_pkgs` |
+| `rdl_vhdl_pkg.py` | `hdl/common/regs/vhdl/<x>_regs_pkg.vhd`, one per block, **22 of them** (level 3) | `bazel run //platform/common/python:rdl_vhdl_pkgs` |
 | `rdl_cheader_regs.py` | `software/include/regs/*.h` — the firmware register headers, through stock PeakRDL-cheader | `bazel run //platform/common/python:rdl_regs_headers` |
 
 ## `config/rdl.json`: the registry, and `registerSource`
@@ -151,7 +154,7 @@ registered: which `.rdl` file, which `addrmap` in it, which `generate.py`
 
 | `registerSource` | meaning | who |
 |---|---|---|
-| `"rdl"` | `generate.py` BUILDS the template from the description and holds no register data | all 22: UARTx, SPIx, GPIOx, TIMERx, SYSTEM, NPU, QSPIx, I2Cx, I3Cx, NFCx, RTCx, PWMx, OWx, I2CTx, DMAx, TRNGx, EVFAB, AFEx (+ AFExBIASG), **CLINT, MUTEX, IRQROUTER, PWRCTRL** |
+| `"rdl"` | `generate.py` BUILDS the template from the description and holds no register data | all 22: UARTx, SPIx, GPIOx, TIMERx, SYSTEM, NPU, QSPIx, I2Cx, I3Cx, NFCx, RTCx, PWMx, OWx, I2CTx, DMAx, TRNGx, EVFAB, **CLINT, MUTEX, IRQROUTER, PWRCTRL** |
 | `"generator"` | the table is still hand-written — **no peripheral is, since 2026-09-10 (report R7)** | — |
 | `"none"` | not a memory-mapped peripheral at all | DEBUG |
 
@@ -279,12 +282,10 @@ chip with eighteen peripherals' registers missing.
 
 | target | what it proves |
 |---|---|
-| `//platform/common:rdl_vs_vhdl_afe2_test` | `afe2.rdl` vs the `W_*` word constants, `IMPL` table and `RSTVAL` table `AFE2.vhd` compiles against — since level 3 that is `afe2_regs_pkg.vhd`, and the gate first asserts `AFE2.vhd` carries the context clause |
-| `//platform/common:rdl_vs_vhdl_biasg_test` | the same for `biasg.rdl`, `BIASG.vhd` and `biasg_regs_pkg.vhd`: `WORD_BASE_DEFAULT`, `N_WORDS`, `IMPL`, `RSTVAL` |
-| `//platform/common:rdl_vhdl_pkg_test` | all 24 TRACKED packages are byte-identical to a fresh emission; a package flagged `migrated` is `use`d by its entity and one that is not is not (so the flag cannot rot); and an adopted package that re-declares `work.MemoryMap`'s slot constants has REPLACED that context clause rather than joined it |
-| `//platform/common:rdl_pkg_vs_legacy_test` | every value in those packages equals the hand-written constant it replaced. AFE2's and BIASG's are transcribed in the test; the other twenty-two are in `platform/common/python/rdl_legacy_constants.json`, frozen by `rdl_legacy_snapshot.py` before any of them migrated. **This is the one gate in the set that does not run through the `.rdl`**, and it is why level 3 is not circular (see below) |
+| `//platform/common:rdl_vhdl_pkg_test` | all 22 TRACKED packages are byte-identical to a fresh emission; a package flagged `migrated` is `use`d by its entity and one that is not is not (so the flag cannot rot); and an adopted package that re-declares `work.MemoryMap`'s slot constants has REPLACED that context clause rather than joined it |
+| `//platform/common:rdl_pkg_vs_legacy_test` | every value in those packages equals the hand-written constant it replaced, from `platform/common/python/rdl_legacy_constants.json`, frozen by `rdl_legacy_snapshot.py` before any of them migrated. **This is the one gate in the set that does not run through the `.rdl`**, and it is why level 3 is not circular (see below) |
 | `//platform/common:regs_headers_identity_test` | `software/include/regs/*.h` is byte-identical to a fresh emission, and no stale header is left behind |
-| `//platform/common:regs_headers_vs_memorymap_test` | every peripheral base (34) and every register address (359, plus the 5 BIASG overlay words) in those headers equals `MemoryMap.h`'s |
+| `//platform/common:regs_headers_vs_memorymap_test` | every peripheral base and every register address in those headers equals `MemoryMap.h`'s |
 | `//platform/common:regs_headers_compile_test` | a translation unit that USES every object-like macro the headers define (3182 of them) compiles freestanding at `-Wall -Wextra -Werror`, and `MemoryMap.h` + `castalia_regs.h` co-compile in one TU |
 | `//platform/common:rdl_vs_vhdl_uart_test` | `uart.rdl` vs the `RegSlotUARTx*` constants `UART.vhd` compiles against (`work.MemoryMap`'s before the migration, `uart_regs_pkg`'s after it; the reader follows the context clause), plus `UART.vhd`'s storage signals, reset branch and write-1-to-clear arm |
 | `//platform/common:rdl_vs_vhdl_<block>_test`, 20 more | the same, block by block, through `makeGenericReader`: slot constants and the reset branch of the register-write process |
@@ -294,9 +295,8 @@ chip with eighteen peripherals' registers missing.
 | `//tools/rdl:toolchain_smoke_test` | the wheels are there, at the pinned versions |
 | `//tools/rdl:peakrdl_export_test` | the descriptions are valid SystemRDL that stock PeakRDL exporters consume |
 
-`rdl_vs_generator_test` runs against `penta_wound_afe_pt`, the only configuration
-that instantiates every flagged peripheral: AFE2 needs `peripherals.afe2` and
-BIASG needs `afeTopology = per_tile`.
+`rdl_vs_generator_test` runs against `penta_wound`, the tape-out configuration,
+which instantiates every flagged peripheral.
 
 The identity gates are what prove a description change moves nothing it should
 not: `check_mcu_vhd_test`, `check_memorymap_vhd_test`, `check_memorymap_h_test`,
@@ -308,7 +308,7 @@ field spellings, because `generate.py` no longer writes most of them down.
 ## The three-level adoption plan
 
 **Level 1 — description plus gate. COMPLETE.** Every register-bearing block the
-`penta_wound_afe` configurations instantiate has an `.rdl` beside its RTL, an entry
+`penta_wound` configuration instantiates has an `.rdl` beside its RTL, an entry
 in `config/rdl.json`, and a `//platform/common:rdl_vs_vhdl_<block>_test` that
 re-derives its decode out of the VHDL and compares. 22 peripherals plus the Debug
 Module; 0 blocks at level 0. For the four parameterised blocks the gate also
@@ -323,32 +323,30 @@ peripheral. The last four — CLINT, MUTEX, IRQROUTER and PWRCTRL — followed t
 same day as parameterised components (report R7), deleting 225 more. The proof
 that neither changed anything is a before/after byte-diff across **all seven**
 configurations with a `chip_artifacts` target (`castalia`, `penta_wound`,
-`penta_wound_afe`, `penta_wound_afe_pt`, `argus`, `mcu_hart`, `fpga`) of
+`argus`, `mcu_hart`, `fpga`) of
 `config/MemoryMap.json`, `out/software/include/MemoryMap.h`, `out/hdl/MemoryMap.vhd`,
 `out/hdl/MCU.vhd` and the whole `latex/TRM/include` tree: identical, every file.
 
-**Level 3 — the RTL `use`s a generated package. DONE for AFE2 and BIASG**
-(2026-09-10, report R6). Both entities have deleted their local `W_*` / `NSTORED`
-/ `reg_arr_t` / `IMPL` / `RSTVAL` declarations and gained one context clause:
+**Level 3 — the RTL `use`s a generated package.** An entity deletes its local
+word-offset / `IMPL` / `RSTVAL` declarations and gains one context clause:
 
 ```vhdl
-use work.afe2_regs_pkg.all;     -- hdl/common/regs/vhdl/afe2_regs_pkg.vhd, generated
+use work.uart_regs_pkg.all;     -- hdl/common/regs/vhdl/uart_regs_pkg.vhd, generated
 ```
 
-The bodies are untouched, because the package exports those constants under the
-identifiers the decode already used; the field slices additionally moved from bit
+The body is untouched, because the package exports those constants under the
+identifiers the decode already used; the field slices additionally move from bit
 literals to `<FIELD>_MSB downto <FIELD>_LSB`. Proof that nothing changed:
-`ghdl --synth` of each entity before and after, through the same wrapper, is
-byte-identical once the source-location comments are stripped (2225 netlist lines
-for AFE2, 772 for BIASG); `AFE2_tb` still prints `ALL CHECKS PASSED` over 90 PASS
-lines; and the two elaboration gates still bind.
+`ghdl --synth` of the entity before and after, through the same wrapper, is
+byte-identical once the source-location comments are stripped, its bench still
+prints `ALL CHECKS PASSED`, and the elaboration gates still bind.
 
-**All twenty-four packages exist and every flow reads them** (2026-09-11, report
+**All twenty-two packages exist and every flow reads them** (2026-09-11, report
 R8a). `rdl_vhdl.RTL_PACKAGES` carries one entry per block, each with a `migrated`
 flag saying whether its entity has adopted it yet, and every flow that reads the
-RTL tree lists all twenty-four whether or not anything `use`s them: the tb source
-sets in `hdl/common/tb/BUILD.bazel`, `opensource_sim/mcu/defs.bzl` and the two
-`penta_wound_afe*` lists, `verify_stage.py`'s `REGS_PACKAGES` injection, the
+RTL tree lists all of them whether or not anything `use`s them: the tb source
+sets in `hdl/common/tb/BUILD.bazel`, `opensource_sim/mcu/defs.bzl`,
+`verify_stage.py`'s `REGS_PACKAGES` injection, the
 `genus/MCU_PENTA*` `read_hdl` order and the live Xcelium cell lists. **Adopting a
 peripheral is therefore an RTL edit and a flag, and touches no shared file.** An
 unread package costs one analysis and synthesises to nothing.
@@ -387,8 +385,7 @@ configuration list is in the block's `variants` entry and is the one
 the `.rdl` against a file generated FROM the `.rdl`: the decode no longer holds an
 independent copy to disagree with. `rdl_pkg_vs_legacy_test` is that independent
 copy, frozen — every offset, mask, reset and field range as the hand-written
-constants stated them, with the pre-migration file md5s recorded. AFE2's and
-BIASG's tables are transcribed in the test itself; the other twenty-two are
+constants stated them, with the pre-migration file md5s recorded, in
 `platform/common/python/rdl_legacy_constants.json`, written once by
 `rdl_legacy_snapshot.py` and never regenerated by a gate. Its two halves are not
 equally strong and the file says so: `decodeConstants` was read out of the RTL
@@ -402,8 +399,8 @@ list their RTL file by file. A package the RTL `use`s must be `read_hdl`-ed
 immediately before its entity, or synthesis fails at elaboration:
 
 ```tcl
-read_hdl -vhdl -library work [stg $MP/regs/vhdl/afe2_regs_pkg.vhd]
-read_hdl -vhdl -library work [stg $MP/periph/AFE2.vhd]
+read_hdl -vhdl -library work [stg $MP/regs/vhdl/uart_regs_pkg.vhd]
+read_hdl -vhdl -library work [stg $MP/periph/UART.vhd]
 ```
 
 All twenty-two lines were added on 2026-09-11 (report R8a), so nothing has to be
@@ -444,7 +441,7 @@ gate that checks it.
 
 `software/include/regs/` is a second C view of the same descriptions, emitted by
 `rdl_cheader_regs.py` from the chip addrmap
-(`hdl/common/regs/rdl/castalia_penta_wound_afe.rdl`):
+(`hdl/common/regs/rdl/castalia_penta_wound.rdl`):
 
     <block>_regs.h    23 of them, one per peripheral BLOCK. Straight
                       PeakRDL-cheader output: <REGTYPE>__<FIELD>_bm / _bp / _bw /
@@ -455,10 +452,10 @@ gate that checks it.
                       each of the 34 instances, plus the 12 per-instance reset
                       overrides the top addrmap assigns.
 
-So firmware writes `AFE0_REGS->AFExCR = ...` rather than computing an address.
-The struct member carries the TEMPLATE spelling (`AFExCR`) and the instance is in
+So firmware writes `UART0_REGS->UARTxCR = ...` rather than computing an address.
+The struct member carries the TEMPLATE spelling (`UARTxCR`) and the instance is in
 the pointer, which is the one place these differ from `MemoryMap.h`'s
-`AFE0CR_ADDRESS` convention.
+`UART0CR_ADDRESS` convention.
 
 **One addition to the stock exporter, and it is marked as one.** PeakRDL-cheader
 does not emit SystemRDL `encode` members, so TIMER's `DIV_1…DIV_32768`, SPI's
@@ -466,12 +463,11 @@ does not emit SystemRDL `encode` members, so TIMER's `DIV_1…DIV_32768`, SPI's
 exporter's own `<REGTYPE>__<FIELD>__<MEMBER>` spelling under a banner saying so.
 Nothing else in those files is touched.
 
-**BIASG is an overlay, not an instance.** SystemRDL cannot say that two addrmaps
-share one address range, so the top addrmap instantiates `afe2_site` at 0x6C00
-and `biasg.rdl` stands alone. `_OVERLAYS` in the emitter names the host, and
-`AFE0BIASG_REGS` is based at `AFE0_BASE_ADDR` — the overlay's registers are
-declared at their absolute offsets inside the sub-slot, so the pointer arithmetic
-works out.
+**An overlay block is not an instance.** SystemRDL cannot say that two addrmaps
+share one address range, so a block overlaid on another block's sub-slot stands
+alone and `_OVERLAYS` in the emitter names its host: its pointer is the host's
+base, because its registers are declared at their absolute offsets inside the
+sub-slot. No block in the public tree is an overlay today.
 
 **These do not replace `MemoryMap.h`.** The generator still emits it, the existing
 firmware is still written against it, and the two co-compile in one translation
@@ -517,8 +513,8 @@ of the RTL. **The RTL is the authority**: when the gate fires, the VHDL is right
 and the description moves, not the other way round.
 
 **A register change now moves tracked GENERATED files as well**, and the gates
-name them: `hdl/common/regs/vhdl/{afe2,biasg}_regs_pkg.vhd` for a change to AFE2 or
-BIASG, and `software/include/regs/*.h` for a change to anything. Regenerate both
+name them: `hdl/common/regs/vhdl/<block>_regs_pkg.vhd` for a change to a migrated
+block, and `software/include/regs/*.h` for a change to anything. Regenerate both
 in the same commit:
 
 ```sh
@@ -526,8 +522,8 @@ tools/bin/bazel run //platform/common/python:rdl_vhdl_pkgs
 tools/bin/bazel run //platform/common/python:rdl_regs_headers
 ```
 
-A change to AFE2's or BIASG's register geometry also moves
-`platform/common/python/rdl_pkg_vs_legacy_test.py`'s frozen table, deliberately:
+A change to a migrated block's register geometry also moves
+`platform/common/python/rdl_legacy_constants.json`, deliberately:
 that file is the record of what the decode said before it was generated, so the
 edit is the statement that the register really did change.
 

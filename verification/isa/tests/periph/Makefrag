@@ -8,13 +8,11 @@ periph_sc_tests = \
     GPIO1 \
     GPIO2 \
     SYSTEM \
-    SARADC \
     SPIEM \
     NPU \
     SPI \
     UART \
     TIMER \
-    AFE \
     
 
     

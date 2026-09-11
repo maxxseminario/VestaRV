@@ -18,7 +18,7 @@ generator emits and which R5 owns. MemoryMap.h is address-major -- one
 <INST><REG>_ADDRESS per register, plus the <FIELD>_MASK/_LSB defines the
 existing firmware is written against. These headers are type-major: a struct per
 peripheral and a pointer per instance, which is what lets firmware write
-    AFE0_REGS->AFExCR = ...
+    UART0_REGS->UARTxCR = ...
 instead of computing an address. The two describe the same chip, and
 //platform/common:regs_headers_vs_memorymap_test is the gate that says so: every
 base and every register address in these headers equals MemoryMap.h's.
@@ -33,7 +33,7 @@ peripherals' worth of difference.
 
 STOCK EXPORTER, ONE ADDITION. PeakRDL-cheader does not emit SystemRDL `encode`
 members, so the enumerated values -- TIMER's DIV_1..DIV_32768, SPI's SPIDL_*,
-AFE2's A_Dac_Vp select -- would be lost. They are appended by _enumLines() under
+SPI's clock-divider select -- would be lost. They are appended by _enumLines() under
 a banner that says they are this repo's addition, in the exporter's own
 <REGTYPE>__<FIELD>__<MEMBER> spelling. Everything else in those files is stock
 output and is not touched.
@@ -56,17 +56,13 @@ REPO = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
 OUT_REL = os.path.join('software', 'include', 'regs')
 UMBRELLA = 'castalia_regs.h'
 
-# Blocks that are real peripherals but cannot appear in the top addrmap.
-# BIASG overlays words 9-13 of AFE2 SITE 0's sub-slot and SystemRDL has no way
-# to say that two addrmaps share one address range (R2 section 1.6), so the top
-# addrmap instantiates afe2_site there and biasg.rdl stands alone. Firmware
-# still needs it: MemoryMap.h publishes AFE0BIASG0..CR at 0x6C24-0x6C34, and in
-# the per-tile topology that is the only way to trim the shared bias generator.
-# Its addrmap is BASED at the host's base -- its registers are declared at their
-# absolute byte offsets inside the sub-slot -- so the pointer is the host's.
-_OVERLAYS = (
-    {'key': 'AFExBIASG', 'host': 'AFE0', 'inst': 'AFE0BIASG'},
-)
+# Blocks that are real peripherals but cannot appear in the top addrmap: an
+# overlay block shares an address range with its host, and SystemRDL has no way
+# to say that two addrmaps do (R2 section 1.6). Such a block's addrmap is BASED
+# at the host's base -- its registers are declared at their absolute byte offsets
+# inside the sub-slot -- so the pointer is the host's. No block in the public
+# tree needs this today.
+_OVERLAYS = ()
 
 _REGEN = ('   Do not edit; regenerate with'
           ' `bazel run //platform/common/python:rdl_regs_headers`. */\n')
@@ -108,7 +104,7 @@ def _enumLines(root):
                 continue
             for member in enc:
                 name = member.name
-                # `AFESWAPEN_A_DAC_VP_VP` on field `AFESWAPEN` -> `A_DAC_VP_VP`
+                # `TDIV_DIV_1` on field `TDIV` -> `DIV_1`
                 if name.startswith(field.inst_name + '_'):
                     name = name[len(field.inst_name) + 1:]
                 rows.append(('%s__%s__%s' % (stem, field.inst_name, name),
@@ -175,9 +171,9 @@ def emitUmbrella(binding, headers, over=()):
     for (instName, base, flag, block, idx) in binding:
         L.append('#define %-22s %s' % (instName + '_BASE_ADDR', _fmthex(base)))
     L += ['',
-          '/* One typed pointer per instance. `AFE0_REGS->AFExCR = v;` writes site 0\'s',
+          '/* One typed pointer per instance. `UART0_REGS->UARTxCR = v;` writes UART0\'s',
           '   control register; the struct is the block\'s, so the member names carry the',
-          '   template spelling (AFExCR, not AFE0CR) and the instance is in the pointer. */']
+          '   template spelling (UARTxCR, not UART0CR) and the instance is in the pointer. */']
     for (instName, base, flag, block, idx) in binding:
         typ = flag['top'] + '_t'
         L.append('#define %-22s ((volatile %s *) %s)'
@@ -200,8 +196,8 @@ def emitUmbrella(binding, headers, over=()):
     if vectors:
         L += ['',
               '/* The interrupt vector each instance owns, from the top addrmap. A block with',
-              '   no vector (PWRCTRL, MUTEX, EVFAB, IRQROUTER) has no define here. The four',
-              '   AFE sites SHARE vector 124 and demultiplex it through their own SR. */']
+              '   no vector (PWRCTRL, MUTEX, EVFAB, IRQROUTER) has no define here. Instances',
+              '   that SHARE one vector demultiplex it through their own status register. */']
         for name, vec in vectors:
             L.append('#define %-22s %d' % (name + '_IRQ_VECTOR', vec))
     overrides = []

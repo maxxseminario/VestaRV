@@ -630,7 +630,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Offset": 4,
 					"RegisterMemorySlot": 1,
 					"Size": 8,
-					"ResetValue": 0,
+					"ResetValue": 1,
 					"Description": "GPIO output drive register. Each bit corresponds to the output logic state of the GPIO pin of the same number. Only has an effect if the pin is configured as an output in PxDIR and is set to GPIO (primary) mode in PxSEL. Write a 0 to the desired bit to make the corresponding pin output a logic low value; write a 1 to output a logic high value.",
 					"BitFields": [
 						{
@@ -638,7 +638,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"MSB": 7,
 							"LSB": 0,
 							"Accessibility": "rw",
-							"ResetValue": 0,
+							"ResetValue": 1,
 							"Unused": false,
 							"Description": "Output drive levels. Bit y is the level driven on pin y while the pin is an output (PxDIR bit y = 1) in GPIO mode (PxSEL bit y = 0). Resets to 0; bits 31:8 read 0 and ignore writes.",
 							"ValueDescriptions": []
@@ -692,13 +692,13 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Address": 16400,
 					"Offset": 16,
 					"RegisterMemorySlot": 4,
-					"Size": 32,
+					"Size": 8,
 					"ResetValue": 0,
 					"Description": "GPIO output drive toggle register. Each bit corresponds to the output logic state of the GPIO pin of the same number. Only has an effect if the pin is configured as an output in PxDIR and is in GPIO (primary) mode in PxSEL. Write a 1 to the desired bit to toggle the corresponding pin state. Writing a 0 has no effect. Reading this register is equivalent to reading the output drive register PxOUT.",
 					"BitFields": [
 						{
 							"BitFieldName": "P0OUTT",
-							"MSB": 31,
+							"MSB": 7,
 							"LSB": 0,
 							"Accessibility": "rw1",
 							"ResetValue": 0,
@@ -714,7 +714,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Offset": 20,
 					"RegisterMemorySlot": 5,
 					"Size": 8,
-					"ResetValue": 0,
+					"ResetValue": 65,
 					"Description": "GPIO pin direction register. Each bit corresponds to the GPIO pin of the same number. Only has an effect if the pin is configured in GPIO (primary) mode in PxSEL. Write a 0 to the desired bit to set the corresponding pin to input mode; write a 1 to set to output mode.",
 					"BitFields": [
 						{
@@ -722,7 +722,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"MSB": 7,
 							"LSB": 0,
 							"Accessibility": "rw",
-							"ResetValue": 0,
+							"ResetValue": 65,
 							"Unused": false,
 							"Description": "Pin direction. Bit y = 0 makes pin y an input and 1 makes it an output, effective only while the pin is in GPIO mode (PxSEL bit y = 0). Resets to 0 (all inputs); bits 31:8 read 0 and ignore writes.",
 							"ValueDescriptions": []
@@ -734,13 +734,13 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Address": 16408,
 					"Offset": 24,
 					"RegisterMemorySlot": 6,
-					"Size": 32,
+					"Size": 8,
 					"ResetValue": 0,
 					"Description": "GPIO interrupt flag register. Each bit corresponds to the GPIO pin of the same number. The register is latched on the falling edge of the memory enable signal. Reading a 0 in a bit indicates there is no pending interrupt for the corresponding pin; reading a 1 indicates there is a new interrupt pending for the corresponding pin. Write a 1 to each bit for which you wish to clear the interrupt flag. Writing 0 has no effect.",
 					"BitFields": [
 						{
 							"BitFieldName": "P0IF",
-							"MSB": 31,
+							"MSB": 7,
 							"LSB": 0,
 							"Accessibility": "rw1",
 							"ResetValue": 0,
@@ -798,7 +798,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Offset": 36,
 					"RegisterMemorySlot": 9,
 					"Size": 8,
-					"ResetValue": 0,
+					"ResetValue": 78,
 					"Description": "GPIO peripheral select register. Each bit corresponds to the GPIO pin of the same number. Write a 0 to the desired bit to set the corresponding pin to GPIO (primary) mode; write a 1 to set the pin to alternate function (peripheral) mode. When a pin is in alternate function (peripheral) mode, the governing peripheral takes control of the pin output, direction, and resistor enable states, and the PxOUT, PxDIR, and PxREN registers have no effect on the pin. WHICH alternate function governs the pin is selected by the pin's field in the PxAFS register: at reset all PxAFS fields are 0, selecting alternate function 0 (AF0). Pin interrupts remain available when in alternate function (peripheral) mode in addition to any interrupts the governing peripheral may generate. If a pin has no alternate function defined at the selected PxAFS plane, setting PxSEL to 1 will configure the pin as a high-impedance input.",
 					"BitFields": [
 						{
@@ -806,7 +806,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"MSB": 7,
 							"LSB": 0,
 							"Accessibility": "rw",
-							"ResetValue": 0,
+							"ResetValue": 78,
 							"Unused": false,
 							"Description": "Pin function select. Bit y = 0 gives pin y to the GPIO registers, 1 hands its output level, direction and resistor enable to the alternate function chosen by the PxAFS field of the pin. Resets to 0; bits 31:8 read 0 and ignore writes.",
 							"ValueDescriptions": []
@@ -819,7 +819,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Offset": 40,
 					"RegisterMemorySlot": 10,
 					"Size": 8,
-					"ResetValue": 0,
+					"ResetValue": 128,
 					"Description": "GPIO resistor enable register. Each bit corresponds to the GPIO pin of the same number. Only has an effect if the pin is configured in GPIO (primary) mode in PxSEL. Write a 0 to the desired bit to disable the pin pullup/pulldown resistor; write a 1 to enable the pin pullup/pulldown resistor.",
 					"BitFields": [
 						{
@@ -827,7 +827,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"MSB": 7,
 							"LSB": 0,
 							"Accessibility": "rw",
-							"ResetValue": 0,
+							"ResetValue": 128,
 							"Unused": false,
 							"Description": "Pull resistor enable. Bit y = 1 enables the pull resistor of pin y while the pin is in GPIO mode (PxSEL bit y = 0); in alternate function mode the peripheral controls the resistor. Resets to 0; bits 31:8 read 0 and ignore writes.",
 							"ValueDescriptions": []
@@ -1010,13 +1010,13 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Address": 16432,
 					"Offset": 48,
 					"RegisterMemorySlot": 12,
-					"Size": 32,
+					"Size": 8,
 					"ResetValue": 0,
 					"Description": "GPIO event-fabric task pin-select register. Each bit corresponds to the GPIO pin of the same number and selects whether that pin participates in the EVFAB0 event-fabric output tasks: when the fabric fires the port's OUT-SET task, every pin whose PxTASK bit is 1 has its PxOUT bit set; when it fires the OUT-CLR task, every selected pin has its PxOUT bit cleared. The two task pulses are applied AFTER the CPU register write in the same cycle (a task wins its own pins against a coincident PxOUT write) and CLR is applied after SET (a same-cycle set+clear on an overlapping pin resolves to CLEAR, the safe direction). A toggle task is deliberately not offered. Resets to 0, so no pin is fabric-driven out of reset. In a configuration WITHOUT the event fabric (peripherals.eventFabric false) the register is still readable and writable but has no effect, because both task inputs are tied inactive. Only the port's implemented pins have bits; the rest read 0.",
 					"BitFields": [
 						{
 							"BitFieldName": "P0TASK",
-							"MSB": 31,
+							"MSB": 7,
 							"LSB": 0,
 							"Accessibility": "rw",
 							"ResetValue": 0,
@@ -1126,13 +1126,13 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Address": 16656,
 					"Offset": 16,
 					"RegisterMemorySlot": 4,
-					"Size": 32,
+					"Size": 8,
 					"ResetValue": 0,
 					"Description": "GPIO output drive toggle register. Each bit corresponds to the output logic state of the GPIO pin of the same number. Only has an effect if the pin is configured as an output in PxDIR and is in GPIO (primary) mode in PxSEL. Write a 1 to the desired bit to toggle the corresponding pin state. Writing a 0 has no effect. Reading this register is equivalent to reading the output drive register PxOUT.",
 					"BitFields": [
 						{
 							"BitFieldName": "P1OUTT",
-							"MSB": 31,
+							"MSB": 7,
 							"LSB": 0,
 							"Accessibility": "rw1",
 							"ResetValue": 0,
@@ -1148,7 +1148,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Offset": 20,
 					"RegisterMemorySlot": 5,
 					"Size": 8,
-					"ResetValue": 0,
+					"ResetValue": 16,
 					"Description": "GPIO pin direction register. Each bit corresponds to the GPIO pin of the same number. Only has an effect if the pin is configured in GPIO (primary) mode in PxSEL. Write a 0 to the desired bit to set the corresponding pin to input mode; write a 1 to set to output mode.",
 					"BitFields": [
 						{
@@ -1156,7 +1156,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"MSB": 7,
 							"LSB": 0,
 							"Accessibility": "rw",
-							"ResetValue": 0,
+							"ResetValue": 16,
 							"Unused": false,
 							"Description": "Pin direction. Bit y = 0 makes pin y an input and 1 makes it an output, effective only while the pin is in GPIO mode (PxSEL bit y = 0). Resets to 0 (all inputs); bits 31:8 read 0 and ignore writes.",
 							"ValueDescriptions": []
@@ -1168,13 +1168,13 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Address": 16664,
 					"Offset": 24,
 					"RegisterMemorySlot": 6,
-					"Size": 32,
+					"Size": 8,
 					"ResetValue": 0,
 					"Description": "GPIO interrupt flag register. Each bit corresponds to the GPIO pin of the same number. The register is latched on the falling edge of the memory enable signal. Reading a 0 in a bit indicates there is no pending interrupt for the corresponding pin; reading a 1 indicates there is a new interrupt pending for the corresponding pin. Write a 1 to each bit for which you wish to clear the interrupt flag. Writing 0 has no effect.",
 					"BitFields": [
 						{
 							"BitFieldName": "P1IF",
-							"MSB": 31,
+							"MSB": 7,
 							"LSB": 0,
 							"Accessibility": "rw1",
 							"ResetValue": 0,
@@ -1232,7 +1232,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Offset": 36,
 					"RegisterMemorySlot": 9,
 					"Size": 8,
-					"ResetValue": 0,
+					"ResetValue": 48,
 					"Description": "GPIO peripheral select register. Each bit corresponds to the GPIO pin of the same number. Write a 0 to the desired bit to set the corresponding pin to GPIO (primary) mode; write a 1 to set the pin to alternate function (peripheral) mode. When a pin is in alternate function (peripheral) mode, the governing peripheral takes control of the pin output, direction, and resistor enable states, and the PxOUT, PxDIR, and PxREN registers have no effect on the pin. WHICH alternate function governs the pin is selected by the pin's field in the PxAFS register: at reset all PxAFS fields are 0, selecting alternate function 0 (AF0). Pin interrupts remain available when in alternate function (peripheral) mode in addition to any interrupts the governing peripheral may generate. If a pin has no alternate function defined at the selected PxAFS plane, setting PxSEL to 1 will configure the pin as a high-impedance input.",
 					"BitFields": [
 						{
@@ -1240,7 +1240,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"MSB": 7,
 							"LSB": 0,
 							"Accessibility": "rw",
-							"ResetValue": 0,
+							"ResetValue": 48,
 							"Unused": false,
 							"Description": "Pin function select. Bit y = 0 gives pin y to the GPIO registers, 1 hands its output level, direction and resistor enable to the alternate function chosen by the PxAFS field of the pin. Resets to 0; bits 31:8 read 0 and ignore writes.",
 							"ValueDescriptions": []
@@ -1444,13 +1444,13 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Address": 16688,
 					"Offset": 48,
 					"RegisterMemorySlot": 12,
-					"Size": 32,
+					"Size": 8,
 					"ResetValue": 0,
 					"Description": "GPIO event-fabric task pin-select register. Each bit corresponds to the GPIO pin of the same number and selects whether that pin participates in the EVFAB0 event-fabric output tasks: when the fabric fires the port's OUT-SET task, every pin whose PxTASK bit is 1 has its PxOUT bit set; when it fires the OUT-CLR task, every selected pin has its PxOUT bit cleared. The two task pulses are applied AFTER the CPU register write in the same cycle (a task wins its own pins against a coincident PxOUT write) and CLR is applied after SET (a same-cycle set+clear on an overlapping pin resolves to CLEAR, the safe direction). A toggle task is deliberately not offered. Resets to 0, so no pin is fabric-driven out of reset. In a configuration WITHOUT the event fabric (peripherals.eventFabric false) the register is still readable and writable but has no effect, because both task inputs are tied inactive. Only the port's implemented pins have bits; the rest read 0.",
 					"BitFields": [
 						{
 							"BitFieldName": "P1TASK",
-							"MSB": 31,
+							"MSB": 7,
 							"LSB": 0,
 							"Accessibility": "rw",
 							"ResetValue": 0,
@@ -4766,13 +4766,13 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Address": 18448,
 					"Offset": 16,
 					"RegisterMemorySlot": 4,
-					"Size": 32,
+					"Size": 8,
 					"ResetValue": 0,
 					"Description": "GPIO output drive toggle register. Each bit corresponds to the output logic state of the GPIO pin of the same number. Only has an effect if the pin is configured as an output in PxDIR and is in GPIO (primary) mode in PxSEL. Write a 1 to the desired bit to toggle the corresponding pin state. Writing a 0 has no effect. Reading this register is equivalent to reading the output drive register PxOUT.",
 					"BitFields": [
 						{
 							"BitFieldName": "P2OUTT",
-							"MSB": 31,
+							"MSB": 7,
 							"LSB": 0,
 							"Accessibility": "rw1",
 							"ResetValue": 0,
@@ -4808,13 +4808,13 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Address": 18456,
 					"Offset": 24,
 					"RegisterMemorySlot": 6,
-					"Size": 32,
+					"Size": 8,
 					"ResetValue": 0,
 					"Description": "GPIO interrupt flag register. Each bit corresponds to the GPIO pin of the same number. The register is latched on the falling edge of the memory enable signal. Reading a 0 in a bit indicates there is no pending interrupt for the corresponding pin; reading a 1 indicates there is a new interrupt pending for the corresponding pin. Write a 1 to each bit for which you wish to clear the interrupt flag. Writing 0 has no effect.",
 					"BitFields": [
 						{
 							"BitFieldName": "P2IF",
-							"MSB": 31,
+							"MSB": 7,
 							"LSB": 0,
 							"Accessibility": "rw1",
 							"ResetValue": 0,
@@ -5084,13 +5084,13 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Address": 18480,
 					"Offset": 48,
 					"RegisterMemorySlot": 12,
-					"Size": 32,
+					"Size": 8,
 					"ResetValue": 0,
 					"Description": "GPIO event-fabric task pin-select register. Each bit corresponds to the GPIO pin of the same number and selects whether that pin participates in the EVFAB0 event-fabric output tasks: when the fabric fires the port's OUT-SET task, every pin whose PxTASK bit is 1 has its PxOUT bit set; when it fires the OUT-CLR task, every selected pin has its PxOUT bit cleared. The two task pulses are applied AFTER the CPU register write in the same cycle (a task wins its own pins against a coincident PxOUT write) and CLR is applied after SET (a same-cycle set+clear on an overlapping pin resolves to CLEAR, the safe direction). A toggle task is deliberately not offered. Resets to 0, so no pin is fabric-driven out of reset. In a configuration WITHOUT the event fabric (peripherals.eventFabric false) the register is still readable and writable but has no effect, because both task inputs are tied inactive. Only the port's implemented pins have bits; the rest read 0.",
 					"BitFields": [
 						{
 							"BitFieldName": "P2TASK",
-							"MSB": 31,
+							"MSB": 7,
 							"LSB": 0,
 							"Accessibility": "rw",
 							"ResetValue": 0,
@@ -5928,7 +5928,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Offset": 64,
 					"RegisterMemorySlot": 16,
 					"Size": 16,
-					"ResetValue": 0,
+					"ResetValue": 2048,
 					"Description": "Digitally controlled oscillator 0 bias register. Controls DCO0 output frequency through bias voltage adjustment. Higher bias values generally produce higher frequencies.",
 					"BitFields": [
 						{
@@ -5946,7 +5946,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"MSB": 11,
 							"LSB": 0,
 							"Accessibility": "rw",
-							"ResetValue": 0,
+							"ResetValue": 2048,
 							"Unused": false,
 							"Description": "DCO0 bias adjustment value. 12-bit bias control for DCO0 frequency tuning. Default value loaded from constants on reset.",
 							"ValueDescriptions": []
@@ -5959,7 +5959,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Offset": 68,
 					"RegisterMemorySlot": 17,
 					"Size": 16,
-					"ResetValue": 0,
+					"ResetValue": 2048,
 					"Description": "Digitally controlled oscillator 1 bias register. Controls DCO1 output frequency through bias voltage adjustment. Higher bias values generally produce higher frequencies.",
 					"BitFields": [
 						{
@@ -5977,7 +5977,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"MSB": 11,
 							"LSB": 0,
 							"Accessibility": "rw",
-							"ResetValue": 0,
+							"ResetValue": 2048,
 							"Unused": false,
 							"Description": "DCO1 bias adjustment value. 12-bit bias control for DCO1 frequency tuning. Default value loaded from constants on reset.",
 							"ValueDescriptions": []
@@ -6143,7 +6143,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"BitFieldName": "NPUTHINK",
 							"MSB": 16,
 							"LSB": 16,
-							"Accessibility": "rw1",
+							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
 							"Description": "Computation start and busy flag. Writing 1 starts the NPU; the bit reads 1 until the computation completes, when hardware clears it. While it reads 1 the staging RAM belongs to the NPU.",
@@ -6649,6 +6649,47 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"ValueDescriptions": []
 						}
 					]
+				},
+				{
+					"RegisterName": "TASKWKM",
+					"Address": 19228,
+					"Offset": 28,
+					"RegisterMemorySlot": 7,
+					"Size": 32,
+					"ResetValue": 0,
+					"Description": "Event-fabric task-wake mask, one bit per gateable tile hart. A task_wake pulse from the event fabric clears the PWRCR gate bits selected here, waking those tiles through the same MTCMOS rail-up sequence a register-cleared gate uses; the tap never touches the boot-gate release logic. Byte-lane-0 qualified like PWRCR, and bit 0 (hart 0, always on) has no storage. Resets to 0, so task-wake is inert out of reset.",
+					"BitFields": [
+						{
+							"BitFieldName": "Unused",
+							"MSB": 31,
+							"LSB": 5,
+							"Accessibility": "r0",
+							"ResetValue": 0,
+							"Unused": true,
+							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PWRTASKWKM",
+							"MSB": 4,
+							"LSB": 1,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Task-wake mask, one bit per tile hart: bit h = 1 lets a fabric task_wake pulse clear PWRCR.PWRGATE[h] and power tile hart h back up.",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "Unused",
+							"MSB": 0,
+							"LSB": 0,
+							"Accessibility": "r0",
+							"ResetValue": 0,
+							"Unused": true,
+							"Description": "",
+							"ValueDescriptions": []
+						}
+					]
 				}
 			]
 		},
@@ -6750,13 +6791,13 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Address": 19728,
 					"Offset": 16,
 					"RegisterMemorySlot": 4,
-					"Size": 32,
+					"Size": 8,
 					"ResetValue": 0,
 					"Description": "GPIO output drive toggle register. Each bit corresponds to the output logic state of the GPIO pin of the same number. Only has an effect if the pin is configured as an output in PxDIR and is in GPIO (primary) mode in PxSEL. Write a 1 to the desired bit to toggle the corresponding pin state. Writing a 0 has no effect. Reading this register is equivalent to reading the output drive register PxOUT.",
 					"BitFields": [
 						{
 							"BitFieldName": "P3OUTT",
-							"MSB": 31,
+							"MSB": 7,
 							"LSB": 0,
 							"Accessibility": "rw1",
 							"ResetValue": 0,
@@ -6792,13 +6833,13 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Address": 19736,
 					"Offset": 24,
 					"RegisterMemorySlot": 6,
-					"Size": 32,
+					"Size": 8,
 					"ResetValue": 0,
 					"Description": "GPIO interrupt flag register. Each bit corresponds to the GPIO pin of the same number. The register is latched on the falling edge of the memory enable signal. Reading a 0 in a bit indicates there is no pending interrupt for the corresponding pin; reading a 1 indicates there is a new interrupt pending for the corresponding pin. Write a 1 to each bit for which you wish to clear the interrupt flag. Writing 0 has no effect.",
 					"BitFields": [
 						{
 							"BitFieldName": "P3IF",
-							"MSB": 31,
+							"MSB": 7,
 							"LSB": 0,
 							"Accessibility": "rw1",
 							"ResetValue": 0,
@@ -7068,13 +7109,13 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Address": 19760,
 					"Offset": 48,
 					"RegisterMemorySlot": 12,
-					"Size": 32,
+					"Size": 8,
 					"ResetValue": 0,
 					"Description": "GPIO event-fabric task pin-select register. Each bit corresponds to the GPIO pin of the same number and selects whether that pin participates in the EVFAB0 event-fabric output tasks: when the fabric fires the port's OUT-SET task, every pin whose PxTASK bit is 1 has its PxOUT bit set; when it fires the OUT-CLR task, every selected pin has its PxOUT bit cleared. The two task pulses are applied AFTER the CPU register write in the same cycle (a task wins its own pins against a coincident PxOUT write) and CLR is applied after SET (a same-cycle set+clear on an overlapping pin resolves to CLEAR, the safe direction). A toggle task is deliberately not offered. Resets to 0, so no pin is fabric-driven out of reset. In a configuration WITHOUT the event fabric (peripherals.eventFabric false) the register is still readable and writable but has no effect, because both task inputs are tied inactive. Only the port's implemented pins have bits; the rest read 0.",
 					"BitFields": [
 						{
 							"BitFieldName": "P3TASK",
-							"MSB": 31,
+							"MSB": 7,
 							"LSB": 0,
 							"Accessibility": "rw",
 							"ResetValue": 0,
@@ -8127,7 +8168,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Offset": 28,
 					"RegisterMemorySlot": 7,
 					"Size": 8,
-					"ResetValue": 0,
+					"ResetValue": 121,
 					"Description": "I2C this slave address register. When in slave mode, any master that sends an address frame containing this address will activate this slave.",
 					"BitFields": [
 						{
@@ -8145,7 +8186,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"MSB": 6,
 							"LSB": 0,
 							"Accessibility": "rw",
-							"ResetValue": 0,
+							"ResetValue": 121,
 							"Unused": false,
 							"Description": "Own 7-bit slave address. A received address frame that matches this value under the I2CxAMR mask addresses this slave. Resets to the default slave address of the instance (0x79 for I2C0, 0x23 for I2C1).",
 							"ValueDescriptions": []
@@ -9226,7 +9267,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Offset": 28,
 					"RegisterMemorySlot": 7,
 					"Size": 8,
-					"ResetValue": 0,
+					"ResetValue": 35,
 					"Description": "I2C this slave address register. When in slave mode, any master that sends an address frame containing this address will activate this slave.",
 					"BitFields": [
 						{
@@ -9244,7 +9285,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"MSB": 6,
 							"LSB": 0,
 							"Accessibility": "rw",
-							"ResetValue": 0,
+							"ResetValue": 35,
 							"Unused": false,
 							"Description": "Own 7-bit slave address. A received address frame that matches this value under the I2CxAMR mask addresses this slave. Resets to the default slave address of the instance (0x79 for I2C0, 0x23 for I2C1).",
 							"ValueDescriptions": []
@@ -9551,7 +9592,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Offset": 48,
 					"RegisterMemorySlot": 12,
 					"Size": 32,
-					"ResetValue": 0,
+					"ResetValue": 4294967295,
 					"Description": "Hart 0 timer compare register, lower 32 bits. The timer interrupt level for hart 0 (interrupt vector 84) is raised while mtime >= mtimecmp0. Resets to all-ones (no interrupt). To set a new compare value without a spurious interrupt, first write all-ones to MTIMECMP0H, then the new lower half, then the real upper half.",
 					"BitFields": [
 						{
@@ -9559,7 +9600,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"MSB": 31,
 							"LSB": 0,
 							"Accessibility": "rw",
-							"ResetValue": 0,
+							"ResetValue": 4294967295,
 							"Unused": false,
 							"Description": "mtimecmp0 bits 31:0.",
 							"ValueDescriptions": []
@@ -9572,7 +9613,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Offset": 52,
 					"RegisterMemorySlot": 13,
 					"Size": 32,
-					"ResetValue": 0,
+					"ResetValue": 4294967295,
 					"Description": "Hart 0 timer compare register, upper 32 bits.",
 					"BitFields": [
 						{
@@ -9580,7 +9621,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"MSB": 31,
 							"LSB": 0,
 							"Accessibility": "rw",
-							"ResetValue": 0,
+							"ResetValue": 4294967295,
 							"Unused": false,
 							"Description": "mtimecmp0 bits 63:32.",
 							"ValueDescriptions": []
@@ -9593,7 +9634,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Offset": 56,
 					"RegisterMemorySlot": 14,
 					"Size": 32,
-					"ResetValue": 0,
+					"ResetValue": 4294967295,
 					"Description": "Hart 1 timer compare register, lower 32 bits. The timer interrupt level for hart 1 (interrupt vector 84) is raised while mtime >= mtimecmp1. Resets to all-ones (no interrupt). To set a new compare value without a spurious interrupt, first write all-ones to MTIMECMP1H, then the new lower half, then the real upper half.",
 					"BitFields": [
 						{
@@ -9601,7 +9642,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"MSB": 31,
 							"LSB": 0,
 							"Accessibility": "rw",
-							"ResetValue": 0,
+							"ResetValue": 4294967295,
 							"Unused": false,
 							"Description": "mtimecmp1 bits 31:0.",
 							"ValueDescriptions": []
@@ -9614,7 +9655,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Offset": 60,
 					"RegisterMemorySlot": 15,
 					"Size": 32,
-					"ResetValue": 0,
+					"ResetValue": 4294967295,
 					"Description": "Hart 1 timer compare register, upper 32 bits.",
 					"BitFields": [
 						{
@@ -9622,7 +9663,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"MSB": 31,
 							"LSB": 0,
 							"Accessibility": "rw",
-							"ResetValue": 0,
+							"ResetValue": 4294967295,
 							"Unused": false,
 							"Description": "mtimecmp1 bits 63:32.",
 							"ValueDescriptions": []
@@ -9635,7 +9676,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Offset": 64,
 					"RegisterMemorySlot": 16,
 					"Size": 32,
-					"ResetValue": 0,
+					"ResetValue": 4294967295,
 					"Description": "Hart 2 timer compare register, lower 32 bits. The timer interrupt level for hart 2 (interrupt vector 84) is raised while mtime >= mtimecmp2. Resets to all-ones (no interrupt). To set a new compare value without a spurious interrupt, first write all-ones to MTIMECMP2H, then the new lower half, then the real upper half.",
 					"BitFields": [
 						{
@@ -9643,7 +9684,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"MSB": 31,
 							"LSB": 0,
 							"Accessibility": "rw",
-							"ResetValue": 0,
+							"ResetValue": 4294967295,
 							"Unused": false,
 							"Description": "mtimecmp2 bits 31:0.",
 							"ValueDescriptions": []
@@ -9656,7 +9697,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Offset": 68,
 					"RegisterMemorySlot": 17,
 					"Size": 32,
-					"ResetValue": 0,
+					"ResetValue": 4294967295,
 					"Description": "Hart 2 timer compare register, upper 32 bits.",
 					"BitFields": [
 						{
@@ -9664,7 +9705,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"MSB": 31,
 							"LSB": 0,
 							"Accessibility": "rw",
-							"ResetValue": 0,
+							"ResetValue": 4294967295,
 							"Unused": false,
 							"Description": "mtimecmp2 bits 63:32.",
 							"ValueDescriptions": []
@@ -9677,7 +9718,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Offset": 72,
 					"RegisterMemorySlot": 18,
 					"Size": 32,
-					"ResetValue": 0,
+					"ResetValue": 4294967295,
 					"Description": "Hart 3 timer compare register, lower 32 bits. The timer interrupt level for hart 3 (interrupt vector 84) is raised while mtime >= mtimecmp3. Resets to all-ones (no interrupt). To set a new compare value without a spurious interrupt, first write all-ones to MTIMECMP3H, then the new lower half, then the real upper half.",
 					"BitFields": [
 						{
@@ -9685,7 +9726,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"MSB": 31,
 							"LSB": 0,
 							"Accessibility": "rw",
-							"ResetValue": 0,
+							"ResetValue": 4294967295,
 							"Unused": false,
 							"Description": "mtimecmp3 bits 31:0.",
 							"ValueDescriptions": []
@@ -9698,7 +9739,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Offset": 76,
 					"RegisterMemorySlot": 19,
 					"Size": 32,
-					"ResetValue": 0,
+					"ResetValue": 4294967295,
 					"Description": "Hart 3 timer compare register, upper 32 bits.",
 					"BitFields": [
 						{
@@ -9706,7 +9747,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"MSB": 31,
 							"LSB": 0,
 							"Accessibility": "rw",
-							"ResetValue": 0,
+							"ResetValue": 4294967295,
 							"Unused": false,
 							"Description": "mtimecmp3 bits 63:32.",
 							"ValueDescriptions": []
@@ -9719,7 +9760,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Offset": 80,
 					"RegisterMemorySlot": 20,
 					"Size": 32,
-					"ResetValue": 0,
+					"ResetValue": 4294967295,
 					"Description": "Hart 4 timer compare register, lower 32 bits. The timer interrupt level for hart 4 (interrupt vector 84) is raised while mtime >= mtimecmp4. Resets to all-ones (no interrupt). To set a new compare value without a spurious interrupt, first write all-ones to MTIMECMP4H, then the new lower half, then the real upper half.",
 					"BitFields": [
 						{
@@ -9727,7 +9768,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"MSB": 31,
 							"LSB": 0,
 							"Accessibility": "rw",
-							"ResetValue": 0,
+							"ResetValue": 4294967295,
 							"Unused": false,
 							"Description": "mtimecmp4 bits 31:0.",
 							"ValueDescriptions": []
@@ -9740,7 +9781,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Offset": 84,
 					"RegisterMemorySlot": 21,
 					"Size": 32,
-					"ResetValue": 0,
+					"ResetValue": 4294967295,
 					"Description": "Hart 4 timer compare register, upper 32 bits.",
 					"BitFields": [
 						{
@@ -9748,7 +9789,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"MSB": 31,
 							"LSB": 0,
 							"Accessibility": "rw",
-							"ResetValue": 0,
+							"ResetValue": 4294967295,
 							"Unused": false,
 							"Description": "mtimecmp4 bits 63:32.",
 							"ValueDescriptions": []
@@ -9776,8 +9817,18 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Description": "Hardware mutex 0. Read to claim: a returned value of 0 means the mutex was free and the reading hart now holds it; a nonzero value is the current owner's marker (hartid+1). Write 0 to release.",
 					"BitFields": [
 						{
-							"BitFieldName": "MTXOWN0",
+							"BitFieldName": "Unused",
 							"MSB": 31,
+							"LSB": 4,
+							"Accessibility": "r0",
+							"ResetValue": 0,
+							"Unused": true,
+							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "MTXOWN0",
+							"MSB": 3,
 							"LSB": 0,
 							"Accessibility": "rw",
 							"ResetValue": 0,
@@ -9828,8 +9879,18 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Description": "Hardware mutex 1. Read to claim: a returned value of 0 means the mutex was free and the reading hart now holds it; a nonzero value is the current owner's marker (hartid+1). Write 0 to release.",
 					"BitFields": [
 						{
-							"BitFieldName": "MTXOWN1",
+							"BitFieldName": "Unused",
 							"MSB": 31,
+							"LSB": 4,
+							"Accessibility": "r0",
+							"ResetValue": 0,
+							"Unused": true,
+							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "MTXOWN1",
+							"MSB": 3,
 							"LSB": 0,
 							"Accessibility": "rw",
 							"ResetValue": 0,
@@ -9880,8 +9941,18 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Description": "Hardware mutex 2. Read to claim: a returned value of 0 means the mutex was free and the reading hart now holds it; a nonzero value is the current owner's marker (hartid+1). Write 0 to release.",
 					"BitFields": [
 						{
-							"BitFieldName": "MTXOWN2",
+							"BitFieldName": "Unused",
 							"MSB": 31,
+							"LSB": 4,
+							"Accessibility": "r0",
+							"ResetValue": 0,
+							"Unused": true,
+							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "MTXOWN2",
+							"MSB": 3,
 							"LSB": 0,
 							"Accessibility": "rw",
 							"ResetValue": 0,
@@ -9932,8 +10003,18 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Description": "Hardware mutex 3. Read to claim: a returned value of 0 means the mutex was free and the reading hart now holds it; a nonzero value is the current owner's marker (hartid+1). Write 0 to release.",
 					"BitFields": [
 						{
-							"BitFieldName": "MTXOWN3",
+							"BitFieldName": "Unused",
 							"MSB": 31,
+							"LSB": 4,
+							"Accessibility": "r0",
+							"ResetValue": 0,
+							"Unused": true,
+							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "MTXOWN3",
+							"MSB": 3,
 							"LSB": 0,
 							"Accessibility": "rw",
 							"ResetValue": 0,
@@ -9984,8 +10065,18 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Description": "Hardware mutex 4. Read to claim: a returned value of 0 means the mutex was free and the reading hart now holds it; a nonzero value is the current owner's marker (hartid+1). Write 0 to release.",
 					"BitFields": [
 						{
-							"BitFieldName": "MTXOWN4",
+							"BitFieldName": "Unused",
 							"MSB": 31,
+							"LSB": 4,
+							"Accessibility": "r0",
+							"ResetValue": 0,
+							"Unused": true,
+							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "MTXOWN4",
+							"MSB": 3,
 							"LSB": 0,
 							"Accessibility": "rw",
 							"ResetValue": 0,
@@ -10036,8 +10127,18 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Description": "Hardware mutex 5. Read to claim: a returned value of 0 means the mutex was free and the reading hart now holds it; a nonzero value is the current owner's marker (hartid+1). Write 0 to release.",
 					"BitFields": [
 						{
-							"BitFieldName": "MTXOWN5",
+							"BitFieldName": "Unused",
 							"MSB": 31,
+							"LSB": 4,
+							"Accessibility": "r0",
+							"ResetValue": 0,
+							"Unused": true,
+							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "MTXOWN5",
+							"MSB": 3,
 							"LSB": 0,
 							"Accessibility": "rw",
 							"ResetValue": 0,
@@ -10088,8 +10189,18 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Description": "Hardware mutex 6. Read to claim: a returned value of 0 means the mutex was free and the reading hart now holds it; a nonzero value is the current owner's marker (hartid+1). Write 0 to release.",
 					"BitFields": [
 						{
-							"BitFieldName": "MTXOWN6",
+							"BitFieldName": "Unused",
 							"MSB": 31,
+							"LSB": 4,
+							"Accessibility": "r0",
+							"ResetValue": 0,
+							"Unused": true,
+							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "MTXOWN6",
+							"MSB": 3,
 							"LSB": 0,
 							"Accessibility": "rw",
 							"ResetValue": 0,
@@ -10140,8 +10251,18 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Description": "Hardware mutex 7. Read to claim: a returned value of 0 means the mutex was free and the reading hart now holds it; a nonzero value is the current owner's marker (hartid+1). Write 0 to release.",
 					"BitFields": [
 						{
-							"BitFieldName": "MTXOWN7",
+							"BitFieldName": "Unused",
 							"MSB": 31,
+							"LSB": 4,
+							"Accessibility": "r0",
+							"ResetValue": 0,
+							"Unused": true,
+							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "MTXOWN7",
+							"MSB": 3,
 							"LSB": 0,
 							"Accessibility": "rw",
 							"ResetValue": 0,
@@ -10192,8 +10313,18 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Description": "Hardware mutex 8. Read to claim: a returned value of 0 means the mutex was free and the reading hart now holds it; a nonzero value is the current owner's marker (hartid+1). Write 0 to release.",
 					"BitFields": [
 						{
-							"BitFieldName": "MTXOWN8",
+							"BitFieldName": "Unused",
 							"MSB": 31,
+							"LSB": 4,
+							"Accessibility": "r0",
+							"ResetValue": 0,
+							"Unused": true,
+							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "MTXOWN8",
+							"MSB": 3,
 							"LSB": 0,
 							"Accessibility": "rw",
 							"ResetValue": 0,
@@ -10244,8 +10375,18 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Description": "Hardware mutex 9. Read to claim: a returned value of 0 means the mutex was free and the reading hart now holds it; a nonzero value is the current owner's marker (hartid+1). Write 0 to release.",
 					"BitFields": [
 						{
-							"BitFieldName": "MTXOWN9",
+							"BitFieldName": "Unused",
 							"MSB": 31,
+							"LSB": 4,
+							"Accessibility": "r0",
+							"ResetValue": 0,
+							"Unused": true,
+							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "MTXOWN9",
+							"MSB": 3,
 							"LSB": 0,
 							"Accessibility": "rw",
 							"ResetValue": 0,
@@ -10296,8 +10437,18 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Description": "Hardware mutex 10. Read to claim: a returned value of 0 means the mutex was free and the reading hart now holds it; a nonzero value is the current owner's marker (hartid+1). Write 0 to release.",
 					"BitFields": [
 						{
-							"BitFieldName": "MTXOWN10",
+							"BitFieldName": "Unused",
 							"MSB": 31,
+							"LSB": 4,
+							"Accessibility": "r0",
+							"ResetValue": 0,
+							"Unused": true,
+							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "MTXOWN10",
+							"MSB": 3,
 							"LSB": 0,
 							"Accessibility": "rw",
 							"ResetValue": 0,
@@ -10348,8 +10499,18 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Description": "Hardware mutex 11. Read to claim: a returned value of 0 means the mutex was free and the reading hart now holds it; a nonzero value is the current owner's marker (hartid+1). Write 0 to release.",
 					"BitFields": [
 						{
-							"BitFieldName": "MTXOWN11",
+							"BitFieldName": "Unused",
 							"MSB": 31,
+							"LSB": 4,
+							"Accessibility": "r0",
+							"ResetValue": 0,
+							"Unused": true,
+							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "MTXOWN11",
+							"MSB": 3,
 							"LSB": 0,
 							"Accessibility": "rw",
 							"ResetValue": 0,
@@ -10400,8 +10561,18 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Description": "Hardware mutex 12. Read to claim: a returned value of 0 means the mutex was free and the reading hart now holds it; a nonzero value is the current owner's marker (hartid+1). Write 0 to release.",
 					"BitFields": [
 						{
-							"BitFieldName": "MTXOWN12",
+							"BitFieldName": "Unused",
 							"MSB": 31,
+							"LSB": 4,
+							"Accessibility": "r0",
+							"ResetValue": 0,
+							"Unused": true,
+							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "MTXOWN12",
+							"MSB": 3,
 							"LSB": 0,
 							"Accessibility": "rw",
 							"ResetValue": 0,
@@ -10452,8 +10623,18 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Description": "Hardware mutex 13. Read to claim: a returned value of 0 means the mutex was free and the reading hart now holds it; a nonzero value is the current owner's marker (hartid+1). Write 0 to release.",
 					"BitFields": [
 						{
-							"BitFieldName": "MTXOWN13",
+							"BitFieldName": "Unused",
 							"MSB": 31,
+							"LSB": 4,
+							"Accessibility": "r0",
+							"ResetValue": 0,
+							"Unused": true,
+							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "MTXOWN13",
+							"MSB": 3,
 							"LSB": 0,
 							"Accessibility": "rw",
 							"ResetValue": 0,
@@ -10504,8 +10685,18 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Description": "Hardware mutex 14. Read to claim: a returned value of 0 means the mutex was free and the reading hart now holds it; a nonzero value is the current owner's marker (hartid+1). Write 0 to release.",
 					"BitFields": [
 						{
-							"BitFieldName": "MTXOWN14",
+							"BitFieldName": "Unused",
 							"MSB": 31,
+							"LSB": 4,
+							"Accessibility": "r0",
+							"ResetValue": 0,
+							"Unused": true,
+							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "MTXOWN14",
+							"MSB": 3,
 							"LSB": 0,
 							"Accessibility": "rw",
 							"ResetValue": 0,
@@ -10556,8 +10747,18 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Description": "Hardware mutex 15. Read to claim: a returned value of 0 means the mutex was free and the reading hart now holds it; a nonzero value is the current owner's marker (hartid+1). Write 0 to release.",
 					"BitFields": [
 						{
-							"BitFieldName": "MTXOWN15",
+							"BitFieldName": "Unused",
 							"MSB": 31,
+							"LSB": 4,
+							"Accessibility": "r0",
+							"ResetValue": 0,
+							"Unused": true,
+							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "MTXOWN15",
+							"MSB": 3,
 							"LSB": 0,
 							"Accessibility": "rw",
 							"ResetValue": 0,
@@ -10615,7 +10816,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Offset": 0,
 					"RegisterMemorySlot": 0,
 					"Size": 32,
-					"ResetValue": 0,
+					"ResetValue": 4096,
 					"Description": "NFC control register. Enables the protocol core, arms the tag to respond, selects the auto-answer path, and holds the interrupt enables and the carrier-division note. Resets to 0 except NFCAUTOREAD, which resets to 1. Program the identity and timing registers before setting NFCEN.",
 					"BitFields": [
 						{
@@ -10653,7 +10854,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"MSB": 12,
 							"LSB": 12,
 							"Accessibility": "rw",
-							"ResetValue": 0,
+							"ResetValue": 1,
 							"Unused": false,
 							"Description": "Auto-answer READ path (resets to 1). When set, hardware answers a Type-2 READ command directly from the payload window without firmware intervention. When clear, standard frames are surfaced to firmware through NFCxRXST and the RX buffer for a firmware-composed response.",
 							"ValueDescriptions": [
@@ -10767,7 +10968,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"BitFieldName": "NFCHALTCLR",
 							"MSB": 2,
 							"LSB": 2,
-							"Accessibility": "rw",
+							"Accessibility": "w1",
 							"ResetValue": 0,
 							"Unused": false,
 							"Description": "Halt-clear pulse. Writing 1 forces the transaction FSM from the HALT state back to IDLE (a self-clearing, write-1-style event pulse); it reads 0.",
@@ -11054,7 +11255,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Offset": 12,
 					"RegisterMemorySlot": 3,
 					"Size": 32,
-					"ResetValue": 0,
+					"ResetValue": 68,
 					"Description": "Tag identity response configuration: the ATQA answer-to-request word and the SAK select-acknowledge byte. Latched transaction-locally.",
 					"BitFields": [
 						{
@@ -11082,7 +11283,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"MSB": 15,
 							"LSB": 0,
 							"Accessibility": "rw",
-							"ResetValue": 0,
+							"ResetValue": 68,
 							"Unused": false,
 							"Description": "Answer To Request, Type A (resets to 0x0044). Bits 7:0 are the first byte on air.",
 							"ValueDescriptions": []
@@ -11095,7 +11296,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Offset": 16,
 					"RegisterMemorySlot": 4,
 					"Size": 32,
-					"ResetValue": 0,
+					"ResetValue": 142607572,
 					"Description": "Protocol timing divisors, all in rf_clk ticks, latched transaction-locally so a mid-count reload never glitches. The reset values are the real 13.56 MHz grid; a bench compresses all three for fast simulation.",
 					"BitFields": [
 						{
@@ -11103,7 +11304,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"MSB": 31,
 							"LSB": 24,
 							"Accessibility": "rw",
-							"ResetValue": 0,
+							"ResetValue": 8,
 							"Unused": false,
 							"Description": "Subcarrier half-period, in rf_clk ticks (resets to 8, giving the fc/16 load-modulation subcarrier).",
 							"ValueDescriptions": []
@@ -11113,7 +11314,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"MSB": 23,
 							"LSB": 16,
 							"Accessibility": "rw",
-							"ResetValue": 0,
+							"ResetValue": 128,
 							"Unused": false,
 							"Description": "Elementary Time Unit (bit period), in rf_clk ticks (resets to 128).",
 							"ValueDescriptions": []
@@ -11123,7 +11324,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"MSB": 15,
 							"LSB": 0,
 							"Accessibility": "rw",
-							"ResetValue": 0,
+							"ResetValue": 1236,
 							"Unused": false,
 							"Description": "Frame Delay Time, in rf_clk ticks (resets to approximately 1236, the ISO 14443A tag response grid). The composed response is released when the FDT down-counter reaches zero.",
 							"ValueDescriptions": []
@@ -11531,13 +11732,13 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Address": 25360,
 					"Offset": 16,
 					"RegisterMemorySlot": 4,
-					"Size": 32,
+					"Size": 8,
 					"ResetValue": 0,
 					"Description": "GPIO output drive toggle register. Each bit corresponds to the output logic state of the GPIO pin of the same number. Only has an effect if the pin is configured as an output in PxDIR and is in GPIO (primary) mode in PxSEL. Write a 1 to the desired bit to toggle the corresponding pin state. Writing a 0 has no effect. Reading this register is equivalent to reading the output drive register PxOUT.",
 					"BitFields": [
 						{
 							"BitFieldName": "P4OUTT",
-							"MSB": 31,
+							"MSB": 7,
 							"LSB": 0,
 							"Accessibility": "rw1",
 							"ResetValue": 0,
@@ -11573,13 +11774,13 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Address": 25368,
 					"Offset": 24,
 					"RegisterMemorySlot": 6,
-					"Size": 32,
+					"Size": 8,
 					"ResetValue": 0,
 					"Description": "GPIO interrupt flag register. Each bit corresponds to the GPIO pin of the same number. The register is latched on the falling edge of the memory enable signal. Reading a 0 in a bit indicates there is no pending interrupt for the corresponding pin; reading a 1 indicates there is a new interrupt pending for the corresponding pin. Write a 1 to each bit for which you wish to clear the interrupt flag. Writing 0 has no effect.",
 					"BitFields": [
 						{
 							"BitFieldName": "P4IF",
-							"MSB": 31,
+							"MSB": 7,
 							"LSB": 0,
 							"Accessibility": "rw1",
 							"ResetValue": 0,
@@ -11849,13 +12050,13 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Address": 25392,
 					"Offset": 48,
 					"RegisterMemorySlot": 12,
-					"Size": 32,
+					"Size": 8,
 					"ResetValue": 0,
 					"Description": "GPIO event-fabric task pin-select register. Each bit corresponds to the GPIO pin of the same number and selects whether that pin participates in the EVFAB0 event-fabric output tasks: when the fabric fires the port's OUT-SET task, every pin whose PxTASK bit is 1 has its PxOUT bit set; when it fires the OUT-CLR task, every selected pin has its PxOUT bit cleared. The two task pulses are applied AFTER the CPU register write in the same cycle (a task wins its own pins against a coincident PxOUT write) and CLR is applied after SET (a same-cycle set+clear on an overlapping pin resolves to CLEAR, the safe direction). A toggle task is deliberately not offered. Resets to 0, so no pin is fabric-driven out of reset. In a configuration WITHOUT the event fabric (peripherals.eventFabric false) the register is still readable and writable but has no effect, because both task inputs are tied inactive. Only the port's implemented pins have bits; the rest read 0.",
 					"BitFields": [
 						{
 							"BitFieldName": "P4TASK",
-							"MSB": 31,
+							"MSB": 7,
 							"LSB": 0,
 							"Accessibility": "rw",
 							"ResetValue": 0,
@@ -11965,13 +12166,13 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Address": 25616,
 					"Offset": 16,
 					"RegisterMemorySlot": 4,
-					"Size": 32,
+					"Size": 8,
 					"ResetValue": 0,
 					"Description": "GPIO output drive toggle register. Each bit corresponds to the output logic state of the GPIO pin of the same number. Only has an effect if the pin is configured as an output in PxDIR and is in GPIO (primary) mode in PxSEL. Write a 1 to the desired bit to toggle the corresponding pin state. Writing a 0 has no effect. Reading this register is equivalent to reading the output drive register PxOUT.",
 					"BitFields": [
 						{
 							"BitFieldName": "P5OUTT",
-							"MSB": 31,
+							"MSB": 7,
 							"LSB": 0,
 							"Accessibility": "rw1",
 							"ResetValue": 0,
@@ -12007,13 +12208,13 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Address": 25624,
 					"Offset": 24,
 					"RegisterMemorySlot": 6,
-					"Size": 32,
+					"Size": 8,
 					"ResetValue": 0,
 					"Description": "GPIO interrupt flag register. Each bit corresponds to the GPIO pin of the same number. The register is latched on the falling edge of the memory enable signal. Reading a 0 in a bit indicates there is no pending interrupt for the corresponding pin; reading a 1 indicates there is a new interrupt pending for the corresponding pin. Write a 1 to each bit for which you wish to clear the interrupt flag. Writing 0 has no effect.",
 					"BitFields": [
 						{
 							"BitFieldName": "P5IF",
-							"MSB": 31,
+							"MSB": 7,
 							"LSB": 0,
 							"Accessibility": "rw1",
 							"ResetValue": 0,
@@ -12092,7 +12293,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Offset": 40,
 					"RegisterMemorySlot": 10,
 					"Size": 8,
-					"ResetValue": 0,
+					"ResetValue": 192,
 					"Description": "GPIO resistor enable register. Each bit corresponds to the GPIO pin of the same number. Only has an effect if the pin is configured in GPIO (primary) mode in PxSEL. Write a 0 to the desired bit to disable the pin pullup/pulldown resistor; write a 1 to enable the pin pullup/pulldown resistor.",
 					"BitFields": [
 						{
@@ -12100,7 +12301,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"MSB": 7,
 							"LSB": 0,
 							"Accessibility": "rw",
-							"ResetValue": 0,
+							"ResetValue": 192,
 							"Unused": false,
 							"Description": "Pull resistor enable. Bit y = 1 enables the pull resistor of pin y while the pin is in GPIO mode (PxSEL bit y = 0); in alternate function mode the peripheral controls the resistor. Resets to 0; bits 31:8 read 0 and ignore writes.",
 							"ValueDescriptions": []
@@ -12113,7 +12314,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Offset": 44,
 					"RegisterMemorySlot": 11,
 					"Size": 32,
-					"ResetValue": 0,
+					"ResetValue": 1,
 					"Description": "GPIO alternate function select register. One 4-bit field per pin (pin y occupies bits 4y+3 downto 4y; only the low 3 bits of each field are implemented, the top bit is reserved and reads 0). When a pin is in alternate function (peripheral) mode (PxSEL bit = 1), the value of its PxAFS field selects WHICH alternate function (AF0-AF7) controls the pin. Each pin's available alternate functions are listed in the pin configuration table in Section \\ref{s:pinsConfig}. The register resets to 0, so every pin comes out of reset selecting its AF0 (legacy) function. Selecting an AF plane with no function defined for the pin configures the pin as a high-impedance input. While a pin is in GPIO (primary) mode its PxAFS field has no effect on the pad, but it still routes relocatable peripheral INPUTS: a peripheral input function relocated to this pin (e.g. a UART receiver or timer capture) observes the pin whenever the PxAFS field selects it, regardless of PxSEL.",
 					"BitFields": [
 						{
@@ -12271,7 +12472,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"MSB": 2,
 							"LSB": 0,
 							"Accessibility": "rw",
-							"ResetValue": 0,
+							"ResetValue": 1,
 							"Unused": false,
 							"Description": "Alternate function select for pin 0 (0 = AF0 ... 7 = AF7)",
 							"ValueDescriptions": []
@@ -12283,13 +12484,13 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"Address": 25648,
 					"Offset": 48,
 					"RegisterMemorySlot": 12,
-					"Size": 32,
+					"Size": 8,
 					"ResetValue": 0,
 					"Description": "GPIO event-fabric task pin-select register. Each bit corresponds to the GPIO pin of the same number and selects whether that pin participates in the EVFAB0 event-fabric output tasks: when the fabric fires the port's OUT-SET task, every pin whose PxTASK bit is 1 has its PxOUT bit set; when it fires the OUT-CLR task, every selected pin has its PxOUT bit cleared. The two task pulses are applied AFTER the CPU register write in the same cycle (a task wins its own pins against a coincident PxOUT write) and CLR is applied after SET (a same-cycle set+clear on an overlapping pin resolves to CLEAR, the safe direction). A toggle task is deliberately not offered. Resets to 0, so no pin is fabric-driven out of reset. In a configuration WITHOUT the event fabric (peripherals.eventFabric false) the register is still readable and writable but has no effect, because both task inputs are tied inactive. Only the port's implemented pins have bits; the rest read 0.",
 					"BitFields": [
 						{
 							"BitFieldName": "P5TASK",
-							"MSB": 31,
+							"MSB": 7,
 							"LSB": 0,
 							"Accessibility": "rw",
 							"ResetValue": 0,

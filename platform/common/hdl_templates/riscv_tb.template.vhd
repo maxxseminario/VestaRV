@@ -116,7 +116,6 @@ end component;
     signal clk, resetn : std_logic := '1';
     signal a0 : std_logic_vector(31 downto 0);
     --@GEN:tb-a0-signals@
-    --@GEN:tb-afe2-signals@
     signal spi_flash_din_sig, spi_flash_addr_sig : std_logic_vector(31 downto 0);
 
     signal clk_hfxt : std_logic;
@@ -581,7 +580,6 @@ end component;
     -- OW0 DQ bench level: the 1-Wire DQ sits on P4.7 (GPIO31 AF2), a real pad, so an undriven line floats X and only creeps weak-'1' after the pad model's 100 us PullTime.
     -- Weak 'L' gives the stuck-low bus the 1-Wire test expects (presence always, RX 0x00); never a strong '0' (it must yield to the pad's own driver) and never 'H' (that flips to NOPRES and 0xFF).
     prt4(7) <= 'L';
-    --@GEN:tb-afe2-models@
 
     -- Main test sequence
     test_sequence: process

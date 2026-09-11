@@ -15,7 +15,7 @@ The storage mask is the one that carries real information, because it is where a
 register map and its decode usually part company: a field added to the .rdl but
 not to IMPL is a field software can write and hardware never sees.
 
-    rdl_vs_vhdl_test.py --periph {afe2,biasg,uart} [--rdl-config <rdl.json>]
+    rdl_vs_vhdl_test.py --periph {uart,gpio,...} [--rdl-config <rdl.json>]
                         [--vhdl <file>] [--memorymap-vhd <file>]
 """
 
@@ -73,8 +73,8 @@ def _decodeText(vhdlPath):
        so the readers below follow the context clause instead of failing on
        constants that are no longer declared locally.
 
-       What that costs is the same thing it cost AFE2 and BIASG at level 2: for a
-       migrated block the constants read here came from the .rdl, so this gate
+       What that costs, for a migrated block: the constants read here came from
+       the .rdl, so this gate
        stops being .rdl-against-an-independent-copy for it. The independent copy
        is rdl_pkg_vs_legacy_test, which holds the package against the constants
        frozen before the migration. Both gates are needed."""
@@ -125,13 +125,13 @@ def _aggregatePairs(src, constName, arrayType):
 def _decodeSource(path, package):
     """The text the decode's constants live in.
 
-    SystemRDL level 2 (2026-09-10, report R6): AFE2.vhd and BIASG.vhd no longer
-    declare W_* / NSTORED / IMPL / RSTVAL themselves; they `use` a generated
+    SystemRDL level 2 (2026-09-10, report R6): a migrated entity no longer
+    declares its word offsets, IMPL or RSTVAL itself; it `use`s a generated
     package that exports them under those names. The entity is still checked --
     it must carry the context clause, or these constants are not the ones it
     compiles against -- but the values are read from the package.
 
-    Note what this costs: for these two peripherals the comparison below is no
+    Note what this costs: for such a peripheral the comparison below is no
     longer .rdl-against-an-independent-copy, because the package IS the .rdl.
     The independent copy moved to rdl_pkg_vs_legacy_test.py, which holds the
     package against the hand-written constants frozen at the migration. Both
@@ -147,50 +147,6 @@ def _decodeSource(path, package):
         raise Exception('rdl_vs_vhdl: %s is missing; regenerate with '
                         '`bazel run //platform/common/python:rdl_vhdl_pkgs`' % pkgPath)
     return _read(pkgPath)
-
-
-def readAfe2(path):
-    src = _decodeSource(path, 'afe2_regs_pkg')
-    words = dict((m.group(1), int(m.group(2)))
-                 for m in re.finditer(r'constant\s+W_(\w+)\s*:\s*natural\s*:=\s*(\d+);', src))
-    if not words:
-        raise Exception('rdl_vs_vhdl: no W_* word constants in afe2_regs_pkg')
-    impl = _aggregatePairs(src, 'IMPL', 'reg_arr_t')
-    rst = _aggregatePairs(src, 'RSTVAL', 'reg_arr_t')
-    nstored = int(re.search(r'constant\s+NSTORED\s*:\s*natural\s*:=\s*(\d+);', src).group(1))
-    if len(words) != nstored:
-        raise Exception('rdl_vs_vhdl: afe2_regs_pkg declares NSTORED = %d but %d W_* constants'
-                        % (nstored, len(words)))
-    out = {}
-    for key, word in words.items():
-        out['AFEx' + key] = {
-            'word': word,
-            'impl': impl.get('W_' + key, impl['__others__']),
-            'reset': rst.get('W_' + key, rst['__others__']),
-        }
-    return out
-
-
-def readBiasg(path):
-    src = _decodeSource(path, 'biasg_regs_pkg')
-    base = int(re.search(r'constant\s+WORD_BASE_DEFAULT\s*:\s*natural\s*:=\s*(\d+);', src).group(1))
-    n = int(re.search(r'constant\s+N_WORDS\s*:\s*natural\s*:=\s*(\d+);', src).group(1))
-    if ('WORD_BASE  : natural := WORD_BASE_DEFAULT' not in _read(path)):
-        raise Exception('rdl_vs_vhdl: BIASG.vhd no longer takes its WORD_BASE generic default '
-                        'from the package, so the base this gate reads is not the one it decodes.')
-    names = ['AFExBIASG0', 'AFExBIASG1', 'AFExBIASG2', 'AFExBIASG3', 'AFExBIASGCR'][:n]
-
-    def positional(constName):
-        m = re.search(r'constant\s+' + constName + r'\s*:\s*reg_array\s*:=\s*\((.*?)\);', src, re.S)
-        vals = [int(v, 16) for v in re.findall(r'x"([0-9A-Fa-f]+)"', m.group(1))]
-        if len(vals) != n:
-            raise Exception('rdl_vs_vhdl: BIASG.vhd %s has %d entries, N_WORDS is %d'
-                            % (constName, len(vals), n))
-        return vals
-
-    impl, rst = positional('IMPL'), positional('RSTVAL')
-    return dict((names[i], {'word': base + i, 'impl': impl[i], 'reset': rst[i]})
-                for i in range(n))
 
 
 def readUart(vhdlPath, memoryMapPath):
@@ -229,9 +185,8 @@ def readUart(vhdlPath, memoryMapPath):
 # ---------------------------------------------------------------------------
 # THE GENERIC READER (added by the 20-block sweep, R2 2026-09-10)
 #
-# The three readers above are bespoke because AFE2 and BIASG declare explicit
-# IMPL/RSTVAL tables and UART's decode is split across two files. The other
-# twenty blocks share ONE house style, so they share one reader:
+# The reader above is bespoke because UART's decode is split across two files.
+# The other twenty blocks share ONE house style, so they share one reader:
 #
 #   slots   either `constant SLOT_<KEY> : natural := N;` inside the block, or
 #           `constant RegSlot<PREFIX><KEY> : natural := N;` in the memory-map
@@ -246,8 +201,8 @@ def readUart(vhdlPath, memoryMapPath):
 #           A register whose storage this block does not name -- a status word
 #           assembled from per-flag flops, a staged value that lives in another
 #           clock domain -- is left as None and its reset is not compared.
-#   impl    NOT derived. Only AFE2 and BIASG state an implemented-bit table; for
-#           the rest the storage mask would have to be inferred from the case
+#   impl    NOT derived. No block in the public tree states an implemented-bit
+#           table; the storage mask would have to be inferred from the case
 #           arms, and an inference that is wrong in the safe direction is worse
 #           than no check. It stays None here, which the gate skips.
 #
@@ -569,16 +524,6 @@ def _wrapRequire(spec, reader):
 
 
 READERS = {
-    'afe2': {
-        'rdl': ('afe2.rdl', 'afe2_site'),
-        'vhdl': 'AFE2.vhd',
-        'read': lambda v, m: readAfe2(v),
-    },
-    'biasg': {
-        'rdl': ('biasg.rdl', 'biasg'),
-        'vhdl': 'BIASG.vhd',
-        'read': lambda v, m: readBiasg(v),
-    },
     'uart': {
         'rdl': ('uart.rdl', 'uart'),
         'vhdl': 'UART.vhd',

@@ -1,11 +1,16 @@
 # Register sources
 
+> **Analog interfacing collateral lives outside the public tree.** The AFE2/BIASG RTL,
+> their `.rdl` descriptions and C headers, the AFE-bearing configurations, benches, ISA
+> tests and lab tools were removed on 2026-09-11 and kept in the gitignored
+> `private/analog/`, which mirrors their original paths. See `private/analog/README.md`.
+
 One root for the register map: the descriptions and the VHDL generated from them.
 
 | path | what |
 |---|---|
-| `rdl/` | the SystemRDL descriptions, hand-written: one `<block>.rdl` per peripheral, `vesta_udp.rdl` (the user-defined properties every block includes) and `castalia_penta_wound_afe.rdl` (the chip addrmap) |
-| `vhdl/` | `<block>_regs_pkg.vhd`, one GENERATED package per block, 24 of them |
+| `rdl/` | the SystemRDL descriptions, hand-written: one `<block>.rdl` per peripheral, `vesta_udp.rdl` (the user-defined properties every block includes) and `castalia_penta_wound.rdl` (the chip addrmap) |
+| `vhdl/` | `<block>_regs_pkg.vhd`, one GENERATED package per block, 22 of them |
 
 `rdl/` is the authority. A width, an access code, a reset value or a field
 description is written once there and reaches the TRM tables, `MemoryMap.h`,

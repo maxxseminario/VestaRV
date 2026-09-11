@@ -32,9 +32,9 @@ extern "C" {
 #define HENU_T__IRQRHENU_reset 0x0
 
 // reg - HENX_t
-#define HENX_T__IRQRHENX_bm 0x1fffffff
+#define HENX_T__IRQRHENX_bm 0xfffffff
 #define HENX_T__IRQRHENX_bp 0
-#define HENX_T__IRQRHENX_bw 29
+#define HENX_T__IRQRHENX_bw 28
 #define HENX_T__IRQRHENX_reset 0x0
 
 // regfile - HEN_t
@@ -70,9 +70,9 @@ typedef struct __attribute__ ((__packed__)) {
 #define PENDU_T__IRQRPENDU_reset 0x0
 
 // reg - PENDX_t
-#define PENDX_T__IRQRPENDX_bm 0x1fffffff
+#define PENDX_T__IRQRPENDX_bm 0xfffffff
 #define PENDX_T__IRQRPENDX_bp 0
-#define PENDX_T__IRQRPENDX_bw 29
+#define PENDX_T__IRQRPENDX_bw 28
 #define PENDX_T__IRQRPENDX_reset 0x0
 
 // reg - INSVCL_t
@@ -94,9 +94,9 @@ typedef struct __attribute__ ((__packed__)) {
 #define INSVCU_T__IRQRINSVCU_reset 0x0
 
 // reg - INSVCX_t
-#define INSVCX_T__IRQRINSVCX_bm 0x1fffffff
+#define INSVCX_T__IRQRINSVCX_bm 0xfffffff
 #define INSVCX_T__IRQRINSVCX_bp 0
-#define INSVCX_T__IRQRINSVCX_bw 29
+#define INSVCX_T__IRQRINSVCX_bw 28
 #define INSVCX_T__IRQRINSVCX_reset 0x0
 
 // addrmap - irq_router

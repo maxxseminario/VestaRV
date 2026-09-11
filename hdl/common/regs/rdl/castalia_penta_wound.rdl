@@ -1,6 +1,6 @@
 // ===========================================================================
-// castalia_penta_wound_afe.rdl: the whole memory-mapped register space of the
-// tapeout configuration, platform/common/config/penta_wound_afe.json.
+// castalia_penta_wound.rdl: the whole memory-mapped register space of the
+// tapeout configuration, platform/common/config/penta_wound.json.
 //
 // One instance per peripheral the resolved configuration instantiates, at the
 // base address the generator computes, carrying its interrupt vector as
@@ -18,13 +18,8 @@
 //
 // NOT IN THIS MAP, and neither is a memory-mapped register:
 //   debug_module.vhd  -- DMI address space, described in debug_module.rdl.
-//   BIASG             -- biasg.rdl OVERLAYS words 9-13 of AFE2 site 0, and
-//                        SystemRDL has no way to say that two addrmaps share
-//                        one address range; instantiate biasg alone to render
-//                        it. AFE2 sites 1-3 have no flop at those words.
 // ===========================================================================
 
-`include "afe2.rdl"
 `include "clint.rdl"
 `include "dma.rdl"
 `include "evfab.rdl"
@@ -47,9 +42,9 @@
 `include "trng.rdl"
 `include "uart.rdl"
 
-addrmap castalia_penta_wound_afe {
+addrmap castalia_penta_wound {
     name = "Castalia PentaWound";
-    desc = "The memory-mapped register space of the five-hart PentaWound chip with the rev-2 analog front end (config penta_wound_afe.json): 34 peripherals in the shared window at 0x4000 and up.";
+    desc = "The memory-mapped register space of the five-hart PentaWound chip (config penta_wound.json): 30 peripherals in the shared window at 0x4000 and up.";
 
     default regwidth = 32;
 
@@ -82,8 +77,6 @@ addrmap castalia_penta_wound_afe {
     trng       TRNG0      @0x6900;
     i2ctarget  I2CT0      @0x6A00;
     evfab      EVFAB      @0x6B00;
-    // The four AFE2 sites, page-2 sub-slots 12-15; vector 124 is shared.
-    afe2_site  AFE[4] @0x6C00 += 0x100;
     irq_router IRQROUTER  @0x7000;
 
     // ---- interrupt vectors ------------------------------------------------
@@ -115,7 +108,6 @@ addrmap castalia_penta_wound_afe {
     DMA0       ->vesta_vector = 118;   // and 119 (DMA0_ERR); vector 118 above is DMA0_DONE
     TRNG0      ->vesta_vector = 121;
     I2CT0      ->vesta_vector = 122;
-    AFE        ->vesta_vector = 124;   // and the assignment covers all four sites; 124 is their OR
 
     // ---- per-instance reset values ----------------------------------------
     // GPIO0

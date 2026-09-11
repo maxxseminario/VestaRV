@@ -7,8 +7,6 @@
 
 #include <stdint.h>
 
-#include "afe2_regs.h"
-#include "biasg_regs.h"
 #include "clint_regs.h"
 #include "dma_regs.h"
 #include "evfab_regs.h"
@@ -64,15 +62,11 @@
 #define TRNG0_BASE_ADDR        0x6900u
 #define I2CT0_BASE_ADDR        0x6A00u
 #define EVFAB_BASE_ADDR        0x6B00u
-#define AFE0_BASE_ADDR         0x6C00u
-#define AFE1_BASE_ADDR         0x6D00u
-#define AFE2_BASE_ADDR         0x6E00u
-#define AFE3_BASE_ADDR         0x6F00u
 #define IRQROUTER_BASE_ADDR    0x7000u
 
-/* One typed pointer per instance. `AFE0_REGS->AFExCR = v;` writes site 0's
+/* One typed pointer per instance. `UART0_REGS->UARTxCR = v;` writes UART0's
    control register; the struct is the block's, so the member names carry the
-   template spelling (AFExCR, not AFE0CR) and the instance is in the pointer. */
+   template spelling (UARTxCR, not UART0CR) and the instance is in the pointer. */
 #define GPIO0_REGS             ((volatile gpio_t *) GPIO0_BASE_ADDR)
 #define GPIO1_REGS             ((volatile gpio_t *) GPIO1_BASE_ADDR)
 #define SPI0_REGS              ((volatile spi_t *) SPI0_BASE_ADDR)
@@ -102,22 +96,11 @@
 #define TRNG0_REGS             ((volatile trng_t *) TRNG0_BASE_ADDR)
 #define I2CT0_REGS             ((volatile i2ctarget_t *) I2CT0_BASE_ADDR)
 #define EVFAB_REGS             ((volatile evfab_t *) EVFAB_BASE_ADDR)
-#define AFE0_REGS              ((volatile afe2_site_t *) AFE0_BASE_ADDR)
-#define AFE1_REGS              ((volatile afe2_site_t *) AFE1_BASE_ADDR)
-#define AFE2_REGS              ((volatile afe2_site_t *) AFE2_BASE_ADDR)
-#define AFE3_REGS              ((volatile afe2_site_t *) AFE3_BASE_ADDR)
 #define IRQROUTER_REGS         ((volatile irq_router_t *) IRQROUTER_BASE_ADDR)
 
-/* OVERLAY BLOCKS: real registers that the top addrmap cannot carry, because
-   SystemRDL has no way to say two addrmaps share one address range. Each one
-   sits inside a host peripheral's sub-slot at its own word offsets, so its
-   struct is based at the HOST's base address. */
-#define AFE0BIASG_BASE_ADDR    0x6C00u   /* overlaid on AFE0 */
-#define AFE0BIASG_REGS         ((volatile biasg_t *) AFE0BIASG_BASE_ADDR)
-
 /* The interrupt vector each instance owns, from the top addrmap. A block with
-   no vector (PWRCTRL, MUTEX, EVFAB, IRQROUTER) has no define here. The four
-   AFE sites SHARE vector 124 and demultiplex it through their own SR. */
+   no vector (PWRCTRL, MUTEX, EVFAB, IRQROUTER) has no define here. Instances
+   that SHARE one vector demultiplex it through their own status register. */
 #define GPIO0_IRQ_VECTOR       1
 #define GPIO1_IRQ_VECTOR       28
 #define SPI0_IRQ_VECTOR        9
@@ -144,10 +127,6 @@
 #define DMA0_IRQ_VECTOR        118
 #define TRNG0_IRQ_VECTOR       121
 #define I2CT0_IRQ_VECTOR       122
-#define AFE0_IRQ_VECTOR        124
-#define AFE1_IRQ_VECTOR        124
-#define AFE2_IRQ_VECTOR        124
-#define AFE3_IRQ_VECTOR        124
 
 /* PER-INSTANCE RESET VALUES. These registers reset differently in different
    instances because the RTL takes the value as a GENERIC (GPIO's RstValPx*,

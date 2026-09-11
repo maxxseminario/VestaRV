@@ -1,5 +1,10 @@
 # Commit plan for the 2026-09-05/06 tape-out campaign
 
+> **Analog interfacing collateral lives outside the public tree.** The AFE2/BIASG RTL,
+> their `.rdl` descriptions and C headers, the AFE-bearing configurations, benches, ISA
+> tests and lab tools were removed on 2026-09-11 and kept in the gitignored
+> `private/analog/`, which mirrors their original paths. See `private/analog/README.md`.
+
 Working tree of `~/vestarv` on branch `docs/relocate-vesta-docs-pointers`, read at
 2026-09-06 14:20 America/Chicago. **Nothing here has been committed and nothing has been
 reverted.** This document is a proposal for the owner.
