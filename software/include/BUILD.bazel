@@ -1,0 +1,25 @@
+# GENERATED firmware register headers (report R6, tools/rdl/README.md).
+#
+# software/include/regs/*.h is emitted by
+# //platform/common/python:rdl_regs_headers from the SystemRDL descriptions in
+# hdl/common/periph/rdl/ -- per-block field masks, shifts, widths, reset values,
+# enumerated values and packed struct overlays through stock PeakRDL-cheader,
+# plus castalia_regs.h carrying one base address and one typed pointer per
+# instance. They are TRACKED rather than built, because firmware is compiled by
+# three paths (bazel, software/*/makefile and a developer's own gcc) and only a
+# tracked file is on all three. //platform/common:regs_headers_identity_test is
+# what keeps a tracked generated file honest.
+#
+# These do NOT replace MemoryMap.h, which the chip generator emits and which the
+# existing firmware is written against; //platform/common:regs_headers_vs_memorymap_test
+# proves the two describe the same addresses.
+
+package(default_visibility = ["//visibility:public"])
+
+filegroup(
+    name = "regs_headers",
+    srcs = glob(
+        ["regs/*.h"],
+        allow_empty = False,
+    ),
+)

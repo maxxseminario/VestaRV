@@ -183,6 +183,50 @@ py_library(
     deps = [":rdl_lib"],
 )
 
+# The two TRACKED VHDL register packages (level 2, report R6). They are sources
+# the RTL `use`s -- Genus, Xcelium and GHDL all read the tree, so a build output
+# would not do -- and //platform/common:rdl_vhdl_pkg_test is what keeps a tracked
+# generated file honest.
+# The firmware-facing register headers (report R6): per-block field macros and
+# struct overlays from STOCK PeakRDL-cheader, plus the castalia_regs.h umbrella
+# carrying one base and one typed pointer per instance.
+py_library(
+    name = "rdl_regs_lib",
+    testonly = True,
+    srcs = [
+        "rdl_cheader_regs.py",
+        "regs_headers_test.py",
+    ],
+    imports = ["."],
+    deps = [
+        ":rdl_chip_lib",
+        requirement("peakrdl-cheader"),
+    ],
+)
+
+py_binary(
+    name = "rdl_regs_headers",
+    srcs = ["rdl_cheader_regs.py"],
+    data = [
+        "//hdl:rdl_sources",
+        "//platform/common:rdl_config",
+    ],
+    main = "rdl_cheader_regs.py",
+    deps = [
+        ":rdl_lib",
+        ":rdl_chip_lib",
+        requirement("peakrdl-cheader"),
+    ],
+)
+
+py_binary(
+    name = "rdl_vhdl_pkgs",
+    srcs = ["rdl_vhdl_pkg.py"],
+    data = ["//hdl:rdl_sources"],
+    main = "rdl_vhdl_pkg.py",
+    deps = [":rdl_lib"],
+)
+
 py_binary(
     name = "rdl_emit",
     srcs = ["rdl_emit.py"],
