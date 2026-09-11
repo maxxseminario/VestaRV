@@ -51,7 +51,9 @@
 \begin{center}
 	\textbf{Technical Reference Manual for \AsicNameForUserGuide} \\
 	\vspace{2ex}
-	Revised \RevisionDateFull
+	Revised \RevisionDateFull \\
+	\vspace{1ex}
+	{\small Build \texttt{\BuildHash}}
 \end{center}
 
 \newpage
@@ -259,6 +261,14 @@ The \AsicNameForUserGuide{} microcontroller (MCU) is a \NumHartsWord-hart multip
 	\input{include/SystemConfigurationList_man.tex}
 	% Feature bullets are generated from the instantiated peripheral set (make chip)
 	\input{include/FeaturesList.tex}
+	% D-10 (2026-09-05): the analog front end is not a peripheral template, so the
+	% generated list above never mentioned it. Gated on the presence of the analog
+	% chapter, NOT on \ifcqanalog: the AFE register stubs and the analog IP are
+	% independent (penta_wound_afe.json ships the AFE with cqAfeStubs false), and
+	% this bullet describes the silicon, not the register block.
+	\IfFileExists{include/analog/AnalogChapter.tex}{%
+	\item 4$\times$ three-electrode bipolar potentiostat channels, each with a programmable transimpedance stage (320 gain codes, \SI{19.6}{\kilo\ohm} to \SI{1.93}{\mega\ohm}), a 10-bit SAR converter and a per-channel reference DAC; impedance spectroscopy is a firmware mode of the same channels
+	}{}
 \end{itemize}
 
 \section{Block diagram}
@@ -761,6 +771,47 @@ The per-class costs in Table~\ref{t:cpi-timing} come from paired micro-kernels: 
 \part{Analog front end}
 % ===========================================================================
 
+% ===========================================================================
+% PENDING: republish this manual from the penta_wound_afe configuration.
+% Raised by the 2026-09-05 tapeout review (reports/09_docs.md D-1, D-4, D-5).
+% These three cannot be fixed by editing text: they need the manual generated
+% from the configuration the physical chain is actually built from. Until then
+% the sections named below describe a different build.
+%
+% D-1  The manual is generated from ChipConfig.resolved.json (chipName Castalia,
+%      cqAfeStubs true, qspi false). The hardened, signed-off chain is built from
+%      penta_wound.json (cqAfeStubs false, qspi true), and slot 12 at 0x4C00 is
+%      mutually exclusive between the two: this manual documents four AFE register
+%      stubs there, the wq22e netlist has QSPI0. 0x7C00 and IRQ 55/56 are in the
+%      same position. Republish with CONFIG=config/penta_wound_afe.json once that
+%      config exists (make publish-chip), then delete this block.
+%      Sentence for whichever survives, in the AFE chapter:
+%        "Slot 12 at 0x4C00 carries the four AFE register stubs and the EIS stub in
+%         the castalia configuration and the QSPI0 controller in the penta_wound
+%         configuration; this manual documents the <name> build, and the two cannot
+%         coexist."
+%
+% D-4  The interrupt table (Chapter 9) lists sources 55 and 56 as Reserved; the RTL
+%      drives them (hdl/common/MCU.vhd, IRQB_RSVD55 <= the OR of the four AFE site
+%      IRQs, IRQB_RSVD56 <= afe_eis_irq(4)) and the AFE chapter documents them.
+%      Fix in python/generate.py's vector name/description list, conditional on
+%      afeStubs:
+%        ('IRQB_AFE', 'AFE shared interrupt: the OR of the four AFE site IF words;
+%          hart 0 demultiplexes by reading each site IF')
+%        ('IRQB_EIS', 'EIS sweep-controller interrupt')
+%      falling back to the present "Reserved" text when the stubs are off.
+%
+% D-5  Appendix B (the register index) omits the AFE and EIS register blocks, which
+%      the AFE chapter gives a 16-word map each. Emit the five blocks into the index
+%      with their bases (0x4C00, 0x4C40, 0x4C80, 0x4CC0, 0x7C00) and the eight named
+%      offsets, or state in Appendix B's preamble that the analog placeholder map is
+%      documented only in the AFE chapter. Index generation: LatexUserGuide.py.
+%
+% Also pending from the same review: decision D2 drops the RE2 pads (12 electrode
+% pads, CE/RE/WE x4, plus two analog test pads). The AFE chapter and the pinout
+% chapter currently bond four pads per site. Fix both when the pad ring is re-cut.
+% ===========================================================================
+
 % Analog front-end subsystem (CQ). Config-gated: \ifcqanalog is set true only
 % when the chip config declares AFE/EIS documentation sub-slot blocks (the CQ
 % package model). For every other config the branch is skipped, so both the
@@ -1038,7 +1089,7 @@ none & all & None known. & & & \\
 \caption{Revision history of this manual.} \label{t:revhistory} \\
 \hline \textbf{Revision} & \textbf{Date} & \textbf{Summary} \\ \hline \endfirsthead
 \hline \textbf{Revision} & \textbf{Date} & \textbf{Summary} \\ \hline \endhead
-1 & 2026-08-29 & Restructured into parts and chapters with a front matter chapter (conventions, access types, register anatomy, glossary). Register descriptions reformatted with summary tables, per-register reset values and field tables. Per-peripheral instance, signal and interrupt tables generated from the chip configuration. Reset, clocks and power consolidated into one chapter; the boot image format corrected from the ROM source; the hand-written instruction listing replaced by the ISA and CSR summary; software material moved to Appendix~\ref{s:software}. \\
+1 & \RevisionDateISO & Restructured into parts and chapters with a front matter chapter (conventions, access types, register anatomy, glossary). Register descriptions reformatted with summary tables, per-register reset values and field tables. Per-peripheral instance, signal and interrupt tables generated from the chip configuration. Reset, clocks and power consolidated into one chapter; the boot image format corrected from the ROM source; the hand-written instruction listing replaced by the ISA and CSR summary; software material moved to Appendix~\ref{s:software}. \\
 \hline
 \end{longtable}
 

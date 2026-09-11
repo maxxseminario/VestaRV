@@ -38,9 +38,9 @@
 %   v_top 2.2161 +- 0.0004 V -- compliance held throughout
 % seam_63 reproduces the 2026-08-21 run exactly (7424.4 / 504.0, same seed).
 
-Corners move every code by the same sheet-resistance factor, so matching ---
+Corners move every code by the same sheet-resistance factor, so matching,
 the property that decides whether a 64-unit thermometer segment can invert a
-step against 63 binary units --- is invisible to them. The Monte Carlo run
+step against 63 binary units, is invisible to them. The Monte Carlo run
 therefore grades the seam directly, per sample, alongside the absolute spread
 at four codes.
 
@@ -52,7 +52,7 @@ nearest limit sits \(14.2\sigma\) from the mean at \(N{=}0\), \(54\sigma\) at
 the worst seam sample is \(14.7\sigma\) above zero. Mismatch is therefore
 nowhere near yield-limiting for this block; the items that need engineering
 attention are the deterministic ones graded in
-Table~\ref{tab:tiarprog-spec} --- bottom-code linearity and slow-corner
+Table~\ref{tab:tiarprog-spec}: bottom-code linearity and slow-corner
 top-code compliance.
 
 \paragraph{All four seams, all 320 codes.} A second 200-sample run sweeps the
@@ -69,9 +69,9 @@ already in circuit, so its step is the smallest and its relative spread the
 largest.
 
 The ratio the seams rest on measures well. Sixty-four thermometer units against
-sixty-three binary units read \num{1.0197} against an ideal \num{1.015873} ---
-\SI{0.38}{\percent} high, which is switch resistance and does not cancel between
-the two differences --- with a spread of \SI{0.132}{\percent}, i.e.
+sixty-three binary units read \num{1.0197} against an ideal \num{1.015873}
+(\SI{0.38}{\percent} high, which is switch resistance and does not cancel between
+the two differences), with a spread of \SI{0.132}{\percent}, i.e.
 \SI{0.13}{\percent} on one thermometer segment. It is the spread and not the
 offset that decides monotonicity, and the offset calibrates out.
 

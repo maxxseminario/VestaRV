@@ -10,6 +10,12 @@
 % 4096 codes x 16 averages = 75 ms per channel, 302 ms as delivered. Droop fit and its 94 % / 931 uV
 % rms residual from sss:dacr2r12-supply; per-code table costs 4 KiB per channel
 % and buys 0.07 mV rms. No cell names in prose.
+%
+% UPDATED 2026-09-06: steps 3 and 4 said to fit the reference droop and to read
+% the supply node as delivered.  The two per-pixel supply regulators were deleted
+% from anatop_pixel on 2026-08-24, so both are now conditional on a regulator
+% being reinstated.  Nothing else in the procedure changes: the code sweep is
+% still where a broken ladder shows.
 
 \subsubsection{Measuring this block on chip}
 
@@ -23,17 +29,18 @@
 \item Sweep all 4096 codes into the converter with
   \texttt{AFE\_ADCSRCSEL}~=~2 (\SI{75}{\milli\second} per channel at sixteen
   averages and the design conversion rate, four times that on the clock
-  pattern as delivered --- Section~\ref{sss:adc-power}) and fit the
-  one-parameter droop of
-  Section~\ref{sss:dacr2r12-supply}: it removes \SI{94}{\percent} of the
-  \SI{25.8}{\milli\volt} reference movement. Do not store the per-code
-  residual table --- through this converter each entry carries as much
+  pattern as delivered, Section~\ref{sss:adc-power}). The supply regulators
+  were deleted from the cell (Section~\ref{sss:dacr2r12-supply}), so the ladder
+  reference is the \SI{2.5}{\volt} analog rail and the one-parameter droop fit
+  applies only if a regulator is reinstated. Do not store the per-code
+  residual table; through this converter each entry carries as much
   quantisation as the error it corrects (\SI{0.07}{\milli\volt}~rms for
-  4\,KiB per channel) --- but run the sweep regardless: it is where a broken
+  4\,KiB per channel), but run the sweep regardless: it is where a broken
   ladder shows.
-\item Chip-level slot 7 reads the DAC supply node directly --- the only place
-  the \SI{25.8}{\milli\volt} code-dependent excursion is confirmed or refuted
-  on silicon. Chip-level slot 6 reads the shared common-mode DAC, forceable
+\item Chip-level slot 7 reads the DAC supply node directly, which is the only
+  place a reinstated regulator's \SI{25.8}{\milli\volt} code-dependent
+  excursion could be confirmed or refuted on silicon. Chip-level slot 6 reads
+  the shared common-mode DAC, forceable
   through \texttt{AFE\_VCMISOEN}.
 \end{enumerate}
 This test fabric is design intent; it is not yet in the schematics.

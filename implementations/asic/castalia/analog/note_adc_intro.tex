@@ -45,7 +45,7 @@ converter's ready output is high at every step.
 
 \paragraph{The delivered stimulus converts four times too slowly.} The clock
 pattern the converter peripheral emits carries three pulse groups per
-\SI{1150}{\nano\second} --- clear, sample, convert --- but holds the convert
+\SI{1150}{\nano\second} (clear, sample, convert) but holds the convert
 phase statically high, so it presents a single falling edge where the ten bit
 trials need ten. The ten trials therefore consume the falling edges of the following three
 groups, and ready asserts every \SI{4.600}{\micro\second}: \SI{217.4}{kSa/s},
@@ -58,7 +58,7 @@ commented-out line of the peripheral's register-transfer source, and both
 protocols are reported separately throughout Section~\ref{sss:adc-power}.
 
 \paragraph{Coverage.} All data in this section comes from a \emph{post-extraction}
-netlist --- Quantus, C-only coupled parasitic extraction of the ADC macro ---
+netlist (Quantus, C-only coupled parasitic extraction of the ADC macro)
 and is, with the code-level impedance record of Section~\ref{ss:eis} that
 splices this same macro into the channel, the only extracted data in this
 chapter; every

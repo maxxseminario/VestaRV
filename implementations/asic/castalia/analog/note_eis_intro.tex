@@ -143,6 +143,25 @@
 % the pointer and the numbers that are this section's own.
 % Library cell names are deliberately kept OUT of the rendered prose (owner
 % request 2026-08-21); they live in these comments instead.
+%
+% ----------------------------------------------------------------------
+% CORRECTED 2026-09-05.  Two sentences added, nothing removed.
+%   (1) The conditions paragraph now says that the small-signal runs of this
+%       section carried NO 22 pF feedback capacitor.  The replica bench
+%       castalia/tb_anatop_eisdemo had no C_F instance until 2026-09-05;
+%       note_eis_accuracy's header carries the full before/after of adding it.
+%       Without this sentence the section's phase numbers read as channel
+%       measurements, which they are not.
+%   (2) The pinned-passive paragraph gains the measured corner spread of the
+%       reported current: -33.26 % (ff_all) to +35.71 % (ss_all) on the nominal
+%       R_f law, against a true current constant to 0.12 % and a settled
+%       impedance constant to 0.025 %, both MOS-skew corners showing none of it
+%       (+0.46 / +0.56 %).  Source ~/chips/castalia/simarchive/tb_anatop_eissq/
+%       20260905_sq_step/typ_10k_corners (five executed netlists, each with its
+%       own section=castalia_*), F17 report section 10.  It belongs here rather
+%       than in the accuracy note because it is the same claim the sigma =
+%       11.1 % sentence makes, measured on the transient path.
+% ----------------------------------------------------------------------
 
 \subsection{Impedance Spectroscopy}\label{ss:eis}
 
@@ -151,7 +170,7 @@ rides on the reference-DAC setpoint of Section~\ref{ss:dacr2r12}, A1 applies it
 at the reference electrode, A2 and the converter read the resulting current
 through the same programmable feedback resistor a dc measurement uses
 (Section~\ref{ss:tiarprog}), and firmware demodulates the two records in
-quadrature --- an I/Q multiply--accumulate over whole excitation
+quadrature, an I/Q multiply--accumulate over whole excitation
 periods. The excitation is a toggle between two DAC codes, so the
 mode adds a clock divider and an accumulate to the channel and nothing else.
 
@@ -166,10 +185,19 @@ throughout, with \(R_{\mathrm{ct}} \parallel C_{\mathrm{dl}}\) of
 \SI{1}{\mega\ohm} \(\parallel\) \SI{100}{\nano\farad},
 \SI{100}{\kilo\ohm} \(\parallel\) \SI{1}{\micro\farad} and
 \SI{10}{\kilo\ohm} \(\parallel\) \SI{10}{\micro\farad}. Sweeps carry \num{20}
-points per decade.
+points per decade. \textbf{The small-signal measurements were taken on a
+replica that carries no feedback capacitor}, so their phase numbers and the
+band edge that follows from them are optimistic; the transient campaign runs
+through the shipping channel with the \SI{22}{\pico\farad} present, and the
+accuracy note states both.
 
 \textbf{The pinned-passive caveat of page~\pageref{p:pinned-passives} governs
 every corner number in this section.} Neither the ladder that is \(R_f\) nor the
 capacitor that sets the feedback pole corners here. The Monte
 Carlo does vary the poly, and measures \(\sigma = \SI{11.1}{\percent}\) on
-\(R_f\) with process and mismatch together at the nominal corner.
+\(R_f\) with process and mismatch together at the nominal corner. Across the
+five-corner set the current the channel reports through the nominal feedback
+law spans \SIrange{-33.3}{+35.7}{\percent} while the current that actually
+flows is constant to \SI{0.12}{\percent} and the impedance derived from it to
+\SI{0.025}{\percent}, all of it the poly sheet: the ratiometric calibration is
+not a refinement of this mode but a condition of it.

@@ -26,7 +26,9 @@ Because MCLK clocks every hart and SMCLK clocks the peripheral engines, writing 
 
 \subsection{Memory block power} \label{ss:system-blockpwr}
 
+\begin{sloppypar}
 \register{BLOCKPWR} gates the supply of the ROM (\bitfield{SYSROMOFF}), the two per-hart memory blocks (\bitfield{SYSRAM0OFF}, \bitfield{SYSRAM1OFF}) and the first four shared RAM banks individually (\bitfield{SYSSHB0OFF} to \bitfield{SYSSHB3OFF}); banks beyond the fourth are permanently powered. A gated block reduces leakage and loses its contents, because the gate disconnects the array's supply rail and there is no retention; an access to a gated block returns undefined data. All blocks power up on at reset, and the contents of a block that has been gated are undefined until written.
+\end{sloppypar}
 
 \subsection{Hart sleep} \label{ss:sleep}
 

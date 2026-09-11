@@ -1,5 +1,6 @@
-# Castalia (4-hart multi-core VestaRV) chip generator Makefile
-# Source of truth: python/generate.py — everything else is generated from it.
+# Castalia (five-hart multi-core VestaRV: soft orchestrator hart 0 plus four
+# hardened tiles) chip generator Makefile
+# Source of truth: python/generate.py; everything else is generated from it.
 # All outputs stay inside platform/common/ (never touches ../../hdl, ../../software, ../../tools).
 
 .PHONY: all help chip generate pdf web web-copy publish check-publish publish-chip check-chip install-hook show config verify clean install-deps
@@ -185,8 +186,13 @@ trm-lint:
 	rm -f /tmp/trm-lint-$$$$.txt; \
 	if [ $$bad -ne 0 ]; then \
 		echo "   A LaTeX command leaked through as text, or a cross-reference is unresolved."; \
-		exit 1; fi; \
-	echo "✅ TRM text lint clean (no leaked LaTeX, no unresolved references)"
+		exit 1; fi
+	@if grep -q "There were undefined references" latex/TRM/TRM.log 2>/dev/null; then \
+		echo "❌ TRM: pdflatex reports undefined references —"; \
+		grep -o "Hyper reference \`[^']*'" latex/TRM/TRM.log | sort -u | head -10 | sed 's/^/     /'; \
+		grep -o "Reference \`[^']*' on page" latex/TRM/TRM.log | sort -u | head -10 | sed 's/^/     /'; \
+		exit 1; fi
+	@echo "✅ TRM text lint clean (no leaked LaTeX, no unresolved references)"
 
 # ---------------------------------------------------------------------------
 # Web data export (S2): out/web/chip_data.js is emitted by generate.py itself

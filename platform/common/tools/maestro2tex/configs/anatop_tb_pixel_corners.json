@@ -7,7 +7,7 @@
   "emit_corner_table": true,
   "points": ["81-85"],
   "corner_labels": { "pt81": "tt" },
-  "corner_table_caption": "Process, temperature and supply points simulated for the potentiostat pixel system (design point 17 of the archived Interactive.20 run: $R_f = \\SI{35}{\\kilo\\ohm}$, $R_{\\mathrm{ct}} = \\SI{10}{\\kilo\\ohm}$, $C_{\\mathrm{dl}} = \\SI{100}{\\nano\\farad}$). Point 1 is the typical statistical process point at \\SI{37}{\\celsius}; points 2--5 are the imported foundry skew corners at \\SI{25}{\\celsius}. Every figure and table in this section is schematic-level. These points move the sixteen transistor model rows only --- the resistor and capacitor rows stay at their typical sections --- so every corner spread in this section is a lower bound (pinned-passive caveat, page~\\pageref{p:pinned-passives}).",
+  "corner_table_caption": "Process, temperature and supply points simulated for the potentiostat pixel system (design point 17 of the archived Interactive.20 run: $R_f = \\SI{35}{\\kilo\\ohm}$, $R_{\\mathrm{ct}} = \\SI{10}{\\kilo\\ohm}$, $C_{\\mathrm{dl}} = \\SI{100}{\\nano\\farad}$). Point 1 is the typical statistical process point at \\SI{37}{\\celsius}; points 2--5 are the imported foundry skew corners at \\SI{25}{\\celsius}. Every figure and table in this section is schematic-level. These points move the sixteen transistor model rows only (the resistor and capacitor rows stay at their typical sections), so every corner spread in this section is a lower bound (pinned-passive caveat, page~\\pageref{p:pinned-passives}).",
   "tests": {
     "px_ctrl_dc": {
       "dir": "PotCtrlTB",

@@ -2,7 +2,11 @@
 %% Topology transcribed device-by-device from the netlist of
 %%   .simulation/castalia/tb_anatop_pixel_dacR2R12/maestro/results/maestro/
 %%   Interactive.34/1/DacNonlinTB/netlist/input.scs
-%% (subckt anatop_pixel_dacR2R12, 76 unit resistors + 12 AND2X8MA10TH drivers).
+%% (subckt anatop_pixel_dacR2R12, 76 unit resistors + 12 bit drivers).
+%% UPDATED 2026-09-06: the drivers are now castalia/anatop_and2_dac, a custom
+%% 2.5 V cell (F16); topology is unchanged, only the driver master and the two
+%% endpoint numbers in the caption, re-read from the 20260906_corners_driverfix
+%% run (tt: zero scale 20 nV, full scale 1.2 uV below the ideal 4095/4096).
 %% Device dimensions are proprietary: only unit counts and ratios appear here.
 \begin{figure}[htbp]
   \centering
@@ -88,10 +92,10 @@
    $R=2$ units (\texttt{RS1}$+$\texttt{RS2}),\\
    $2R=4$ units (\texttt{RP1}--\texttt{RP4})};
 \node[note, anchor=west] at (\xk+1.1,\yGo-1.0)
-  {\texttt{AND2X8MA10TH}\\bit drivers, supplied\\from \texttt{inh\_vdd}};
+  {\texttt{anatop\_and2\_dac}\\bit drivers, supplied\\from \texttt{inh\_vdd}};
 
 \end{circuitikz}
   }
-  \caption[{The 12-bit voltage-mode R-2R ladder.}]{The 12-bit voltage-mode R--2R ladder of \texttt{anatop\_pixel\_dacR2R12}, transcribed from the \texttt{DacNonlinTB} netlist. Bit $k$ drives tap \texttt{n}$\langle k{+}1\rangle$ through its own $2R$ branch, so the twelve taps are \texttt{n}$\langle 1\rangle$--\texttt{n}$\langle 11\rangle$ plus \texttt{Out}, and the MSB branch lands directly on \texttt{Out} at the top of the ladder; \texttt{n}$\langle 0\rangle$ carries no bit, its rung and \texttt{RTERM1,2} together forming the terminating $2R$. Bits 2--9 are elided: eight further sections identical to those drawn sit between \texttt{n}$\langle 2\rangle$ and \texttt{n}$\langle 11\rangle$. Every element is the same unit resistor, so the network itself is exact and gives $\mathrm{Out}=(\mathrm{code}/4096)\,V_{\mathrm{ref}}$; the reference is the \emph{output high level} of the \texttt{AND2X8MA10TH} drivers, which sit in series with each $2R$ branch and bound the ladder in place of the rails --- measured zero scale is \SI{90}{\micro\volt} above $V_{\mathrm{SS}}$ and full scale \SI{103}{\micro\volt} below the ideal $(4095/4096)\,V_{\mathrm{ref}}$ on a \SI{2.5}{\volt} rail. Device dimensions are proprietary and are not stated.}
+  \caption[{The 12-bit voltage-mode R-2R ladder.}]{The 12-bit voltage-mode R--2R ladder of \texttt{anatop\_pixel\_dacR2R12}, transcribed from the \texttt{DacNonlinTB} netlist. Bit $k$ drives tap \texttt{n}$\langle k{+}1\rangle$ through its own $2R$ branch, so the twelve taps are \texttt{n}$\langle 1\rangle$--\texttt{n}$\langle 11\rangle$ plus \texttt{Out}, and the MSB branch lands directly on \texttt{Out} at the top of the ladder; \texttt{n}$\langle 0\rangle$ carries no bit, its rung and \texttt{RTERM1,2} together forming the terminating $2R$. Bits 2--9 are elided: eight further sections identical to those drawn sit between \texttt{n}$\langle 2\rangle$ and \texttt{n}$\langle 11\rangle$. Every element is the same unit resistor, so the network itself is exact and gives $\mathrm{Out}=(\mathrm{code}/4096)\,V_{\mathrm{ref}}$; the reference is the \emph{output high level} of the \texttt{anatop\_and2\_dac} drivers, which sit in series with each $2R$ branch and bound the ladder in place of the rails: measured zero scale is \SI{20}{\nano\volt} above $V_{\mathrm{SS}}$ and full scale \SI{1.2}{\micro\volt} below the ideal $(4095/4096)\,V_{\mathrm{ref}}$ on a \SI{2.5}{\volt} rail. Device dimensions are proprietary and are not stated.}
   \label{fig:dacr2r12-ladder}
 \end{figure}

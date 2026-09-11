@@ -58,16 +58,16 @@ measured at the DAC output it arrives \SI{0.03}{\percent} to
 carry}: a pair that flips one or two bits delivers what it was told to within
 \SI{0.06}{\percent}, a pair that flips eight bits is out by \SI{1.5}{\percent},
 and at the \SI{4}{\milli\volt} excitation a carry at the most significant bit
-costs \SI{-3.5}{\percent}. It is frequency-flat --- the same pair delivers the
+costs \SI{-3.5}{\percent}. It is frequency-flat (the same pair delivers the
 same amplitude at \SI{100}{\hertz}, \SI{1}{\kilo\hertz} and
-\SI{10}{\kilo\hertz} in every printed digit --- so it is a static property of
+\SI{10}{\kilo\hertz} in every printed digit), so it is a static property of
 the code pair, removed either by choosing the pair or by calibrating it once.
 
 \paragraph{Two levels beat a synthesised sine, densely sampled.} For the same code excursion the
 two-level square delivers \(1.28\times\) the fundamental of a stepped sine,
 against \(4/\pi = \num{1.273}\) predicted, and the measured impedance is
-identical for both to five significant figures --- \SI{11003.45}{\ohm} against
-\SI{11003.52}{\ohm} at 8, 16 and 32 steps --- because the demodulator is
+identical for both to five significant figures (\SI{11003.45}{\ohm} against
+\SI{11003.52}{\ohm} at 8, 16 and 32 steps) because the demodulator is
 ratiometric and the excitation's shape cancels. The sine is also the less
 accurate excitation, \SI{-2.4}{\percent} of amplitude against the square's
 \SI{-1.5}{\percent}, since each of its steps visits a different code carrying its
@@ -96,7 +96,7 @@ and \(-\SI{0.56}{\percent}\) at the code that ranges the same load, where it is
 \num{275}. The current channel's quantisation is dithered by \num{3.4} codes of
 front-end noise and averages away; the potential channel carries no front-end
 noise, so its quantisation is periodic with the excitation and lands in the
-phasor as a bias. It cancels exactly in a ratio against a known impedance --- a
+phasor as a bias. It cancels exactly in a ratio against a known impedance, a
 third independent reason for the calibration impedance, after the feedback pole
 of Section~\ref{sss:eis-accuracy} and the code-pair error above.
 
@@ -105,8 +105,8 @@ of Section~\ref{sss:eis-accuracy} and the code-pair error above.
   \caption[{Delivered excitation against commanded, with and without a carry.}]{Delivered
   excitation against commanded, measured at the reference DAC output with the
   potential bus driven bit by bit. Both halves of the table ask for the same
-  \SI{19.531}{\milli\volt} peak to peak --- a \num{32}-code toggle at
-  \SI{610.35}{\micro\volt} per code --- and differ only in whether the two codes
+  \SI{19.531}{\milli\volt} peak to peak, a \num{32}-code toggle at
+  \SI{610.35}{\micro\volt} per code, and differ only in whether the two codes
   straddle a power-of-two boundary. The error is a static property of the code
   pair: it does not change with excitation frequency, and it is the reason a code
   pair is chosen rather than an amplitude.}

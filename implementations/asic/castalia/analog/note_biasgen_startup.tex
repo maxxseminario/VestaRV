@@ -45,9 +45,9 @@
 
 \subsubsection{Start-up}\label{sss:biasgen-startup}
 
-Start-up is verified across 101 corner points --- supply ramp rate over five
+Start-up is verified across 101 corner points (supply ramp rate over five
 decades, five process corners, four temperatures and three trim codes, plus a
-brown-out depth sweep and an enable cycle --- and all 101 start, none into the
+brown-out depth sweep and an enable cycle) and all 101 start, none into the
 degenerate state. The settled operating point is bit-identical across all five
 decades of ramp rate: the spread of \(V_{\mathrm{BNM}}\) and of \(I_{\mathrm{DD}}\) over
 the six ramp rates is zero to six digits at every process corner. Ramp rate
@@ -76,7 +76,7 @@ returned, at thirteen depths from \SI{2.0}{\volt} down to \SI{0}{\volt} and at
 three hold times. Every dip recovers exactly: the ratio of \(V_{\mathrm{BNM}}\)
 after to before is \num{1.000000} to six digits at every depth and every corner,
 and the supply current returns to its pre-dip value. How far the rails actually
-fall is the honest caveat --- at \SI{0}{\volt} the only discharge path for the
+fall is the honest caveat: at \SI{0}{\volt} the only discharge path for the
 rail decoupling is subthreshold leakage, so a short dip is not a power-down and
 \(V_{\mathrm{BNM}}\) sags only \SI{72}{\percent}. Held \SI{100}{\milli\second}
 at \SI{0}{\volt} the rails do collapse, to \SI{0.27}{\milli\volt} at the slow
@@ -85,7 +85,7 @@ hot corner, and recovery is still exact. A recovery edge slower than
 
 The enable input is the stronger test, and it passes. De-asserted, it pulls both
 NMOS rails to ground and holds the start-up node down, so the cell is forced
-into the true zero-current state --- \(V_{\mathrm{BNM}} =
+into the true zero-current state: \(V_{\mathrm{BNM}} =
 \SI{0.00000}{\volt}\), against the \SI{96.8}{\percent} collapse a
 \SI{100}{\milli\second} power-down manages. On re-assert both the rails and the
 supply current return to \num{1.000000} of their previous values at all six

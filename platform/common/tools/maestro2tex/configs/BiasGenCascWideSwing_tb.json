@@ -57,7 +57,7 @@
   "nominal_corner": "tt",
   "supply_var": "VDD25",
   "intro_tex": "\\subsection{Local Wide-Swing Cascode Bias Generator}\\label{ss:biasgen-local}\n\nThe local bias generator (schematic cell \\texttt{anatop\\_biasgen\\_local}, drawn from\n\\texttt{BiasGenCascWideSwing}) is the cell each analog block instantiates to develop\nits own cascode bias rails, as distinct from the single chip-level\n\\texttt{BiasGenCascWideSwingGlobal} that drives the global \\texttt{bn!}/\\texttt{bp!}\nnets. It presents four outputs, the NMOS mirror and cascode gates\n($V_{\\mathrm{BNM}}$, $V_{\\mathrm{BNC}}$) and the PMOS mirror and cascode gates\n($V_{\\mathrm{BPM}}$, $V_{\\mathrm{BPC}}$), generated from a resistor-degenerated\nreference core in the wide-swing cascode arrangement, so the cascode gates sit only\none saturation voltage away from the mirror gates and the mirrors keep their output\ndevices in saturation over a wide compliance range. An \\texttt{En} input gates the\ncell, and a start-up branch guarantees it leaves the degenerate zero-current state at\npower-up. A 6-bit trim word, \\texttt{BiasAdj\\textless5:0\\textgreater}, moves the\nreference current so the operating point can be corrected after silicon.\n\nThe characterisation below is from schematic-level simulation (no extracted\nparasitics) of the \\texttt{BiasGenCascWideSwing\\allowbreak\\_tb} testbench, over the process,\ntemperature and supply points of\nTable~\\ref{tab:BiasGenCascWideSwing-corners}. All rail voltages are referred to\n\\texttt{vss!}, and the cell is enabled throughout.\n",
-  "corner_table_caption": "Process, temperature and supply points simulated for the local bias generator. These points move the sixteen transistor model rows only --- the resistor and capacitor rows stay at their typical sections --- so every corner spread in this section is a lower bound (pinned-passive caveat, page~\\pageref{p:pinned-passives}).",
+  "corner_table_caption": "Process, temperature and supply points simulated for the local bias generator. These points move the sixteen transistor model rows only (the resistor and capacitor rows stay at their typical sections), so every corner spread in this section is a lower bound (pinned-passive caveat, page~\\pageref{p:pinned-passives}).",
   "signals": {
     "vbnm": {
       "expr": "v(\"/V_BNM\")",
@@ -350,7 +350,7 @@
         "vbpc",
         "idd"
       ],
-      "caption": "Typical-corner extremes over the simulated temperature range."
+      "caption": "Extremes of the four bias rails and of the quiescent supply current over the simulated temperature sweep: typical corner, nominal supply, 23 points from \\SI{20}{\\celsius} to \\SI{85}{\\celsius}. Spread is the maximum minus the minimum of that sweep and is neither a corner nor a mismatch figure; the corner temperature coefficients are Table~\\ref{tab:biasgen-tempco}. Nothing here bounds behaviour below \\SI{20}{\\celsius} or above \\SI{85}{\\celsius}."
     },
     {
       "id": "biasgen_startup_time",

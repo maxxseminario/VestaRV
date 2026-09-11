@@ -233,7 +233,7 @@
       "height": "6.0cm",
       "xlabel": "Worst-magnitude INL~[LSB]",
       "ylabel": "Samples",
-      "caption": "Integral nonlinearity of the \\(R\\)--\\(2R\\) ladder driven from an ideal \\SI{2.5}{\\volt} reference. \\textbf{Process and mismatch}, model section \\texttt{castalia\\_pm\\_25}, 200 samples, seed 12345, low-discrepancy sampling, \\SI{25}{\\celsius}, all 4096 codes. The dashed rule is the \\(1\\,\\mathrm{LSB}\\) limit entered on the test; 42 of 200 samples fall inside it and the worst reaches \\(3.453\\,\\mathrm{LSB}\\). The distribution is right-skewed (Fisher skew \\(+0.74\\)), so Table~\\ref{tab:dacr2r12-mc-ideal} quotes the median and percentiles rather than mean \\(\\pm\\,3\\sigma\\). LSB size, full scale and gain error are fixed to a part in \\(10^{6}\\) on this bench (Table~\\ref{tab:dacr2r12-mc-scale}), so the whole of this spread is resistor mismatch in the ladder and none of it is the reference."
+      "caption": "Integral nonlinearity of the \\(R\\)--\\(2R\\) ladder driven from an ideal \\SI{2.5}{\\volt} reference, with the custom \\SI{2.5}{\\volt} bit driver \\texttt{anatop\\_and2\\_dac} the tapeout cell carries. \\textbf{Process and mismatch}, model section \\texttt{castalia\\_pm\\_25}, 200 samples, seed 12345, low-discrepancy sampling, \\SI{25}{\\celsius}, all 4096 codes. The dashed rule is the \\(1\\,\\mathrm{LSB}\\) limit entered on the test; 41 of 200 samples fall inside it and the worst reaches \\(3.393\\,\\mathrm{LSB}\\). The distribution is right-skewed (Fisher skew \\(+0.74\\)), so Table~\\ref{tab:dacr2r12-mc-ideal} quotes the median and percentiles rather than mean \\(\\pm\\,3\\sigma\\). LSB size, full scale and gain error are fixed to a part in \\(10^{6}\\) on this bench (Table~\\ref{tab:dacr2r12-mc-scale}), so the whole of this spread is resistor mismatch in the ladder and none of it is the reference."
     },
     {
       "id": "dacr2r12_mc_dnl",
@@ -249,7 +249,7 @@
       "height": "6.0cm",
       "xlabel": "Most negative DNL~[LSB]",
       "ylabel": "Samples",
-      "caption": "Worst negative differential nonlinearity, same bench, samples and conditions as Figure~\\ref{fig:dacr2r12-mc-inl}. The dashed rule at \\(-1\\,\\mathrm{LSB}\\) is the monotonicity limit entered on the test: 80 of 200 samples clear it, so \\SI{40}{\\percent} of channels are monotonic and \\(0.40^4 = \\SI{2.6}{\\percent}\\) of four-channel chips are monotonic on all four. The distribution is left-skewed (skew \\(-1.11\\)) with a tail to \\(-6.608\\,\\mathrm{LSB}\\), so the median \\(-1.318\\,\\mathrm{LSB}\\) and the percentiles of Table~\\ref{tab:dacr2r12-mc-ideal} describe it and mean \\(\\pm\\,3\\sigma\\) does not."
+      "caption": "Worst negative differential nonlinearity, same bench, samples and bit driver as Figure~\\ref{fig:dacr2r12-mc-inl}. The dashed rule at \\(-1\\,\\mathrm{LSB}\\) is the monotonicity limit entered on the test: 84 of 200 samples clear it, so \\SI{42.0}{\\percent} of channels are monotonic and \\(0.420^4 = \\SI{3.1}{\\percent}\\) of four-channel chips are monotonic on all four. Graded on integral nonlinearity as well, 37 of 200 pass and the four-channel figure is \\SI{0.12}{\\percent}. The distribution is left-skewed (skew \\(-1.14\\)) with a tail to \\(-6.499\\,\\mathrm{LSB}\\), so the median \\(-1.287\\,\\mathrm{LSB}\\) and the percentiles of Table~\\ref{tab:dacr2r12-mc-ideal} describe it and mean \\(\\pm\\,3\\sigma\\) does not."
     },
     {
       "id": "dacr2r12_mc_vddacpp",
@@ -310,7 +310,7 @@
         "yield_chip"
       ],
       "channels": 4,
-      "caption": "Monte Carlo static linearity of the \\(R\\)--\\(2R\\) ladder on an ideal \\SI{2.5}{\\volt} reference. \\textbf{Process and mismatch}, model section \\texttt{castalia\\_pm\\_25}, 200 samples, seed 12345, low-discrepancy sampling, \\SI{25}{\\celsius}, all 4096 codes, \\texttt{reltol}~\\num{1e-6}; the yield columns are per cent of samples and of four independent channels. The ladder fails on its own: 42 of 200 samples hold INL below \\(1\\,\\mathrm{LSB}\\), 80 of 200 are monotonic, and both together on 34 of 200 --- \\SI{17.0}{\\percent} of channels and \\SI{0.08}{\\percent} of four-channel chips. Only the three worst-case rows carry limits entered on the test; \\texttt{inl\\_max}, \\texttt{inl\\_min} and \\texttt{dnl\\_max} were not graded and their spec, yield and worst-case cells are therefore empty. Worst-magnitude INL is the negative extreme on all 200 samples, so the first and third rows are one measurement with opposite sign, while \\texttt{inl\\_max} is the independent positive extreme. All three graded rows are skewed (Figures~\\ref{fig:dacr2r12-mc-inl} and~\\ref{fig:dacr2r12-mc-dnl}), so the median and percentiles are quoted and mean \\(\\pm\\,3\\sigma\\) is not."
+      "caption": "Monte Carlo static linearity of the \\(R\\)--\\(2R\\) ladder on an ideal \\SI{2.5}{\\volt} reference, with the custom \\SI{2.5}{\\volt} bit driver \\texttt{anatop\\_and2\\_dac}: \\textbf{process and mismatch}, model section \\texttt{castalia\\_pm\\_25}, 200 samples, seed 12345, low-discrepancy sampling, \\SI{25}{\\celsius}, all 4096 codes, \\texttt{reltol}~\\num{1e-6}, yield columns as per cent of samples and of four independent channels. The ladder fails on its own: 41 of 200 samples hold INL below \\(1\\,\\mathrm{LSB}\\), 84 of 200 are monotonic, and both together on 37 of 200, \\SI{18.5}{\\percent} of channels and \\SI{0.12}{\\percent} of four-channel chips. Only the three worst-case rows carry limits entered on the test; \\texttt{inl\\_max}, \\texttt{inl\\_min} and \\texttt{dnl\\_max} were not graded and their spec, yield and worst-case cells are therefore empty. Worst-magnitude INL is the negative extreme on all 200 samples, so the first and third rows are one measurement with opposite sign, while \\texttt{inl\\_max} is the independent positive extreme. All three graded rows are skewed (Figures~\\ref{fig:dacr2r12-mc-inl} and~\\ref{fig:dacr2r12-mc-dnl}), so the median and percentiles are quoted and mean \\(\\pm\\,3\\sigma\\) is not."
     },
     {
       "id": "dacr2r12_mc_scale",
@@ -329,7 +329,7 @@
         "min",
         "max"
       ],
-      "caption": "Monte Carlo scale factors, same bench and samples as Table~\\ref{tab:dacr2r12-mc-ideal}. \\textbf{Process and mismatch}, \\texttt{castalia\\_pm\\_25}, 200 samples, \\SI{25}{\\celsius}. On an ideal reference these four are set by the rail and by the ladder's attenuation ratio, not by matching: LSB size spreads \\SI{0.5}{\\nano\\volt} on \\SI{610.3}{\\micro\\volt}, full scale \\SI{1.8}{\\micro\\volt} on \\SI{2.5}{\\volt}, and gain error \\num{0.50}~ppm on \\num{-76.91}~ppm. All of the linearity spread of Table~\\ref{tab:dacr2r12-mc-ideal} is therefore ladder mismatch and none of it is a gain or offset term. No limit was entered on any of these outputs, so the spec, yield and worst-case columns are omitted rather than left blank; mean \\(\\pm\\,3\\sigma\\) is not quoted either, because at a part in \\(10^{6}\\) the distribution shapes are solver residue and not device statistics."
+      "caption": "Monte Carlo scale factors, same bench and samples as Table~\\ref{tab:dacr2r12-mc-ideal}. \\textbf{Process and mismatch}, \\texttt{castalia\\_pm\\_25}, 200 samples, \\SI{25}{\\celsius}. On an ideal reference these four are set by the rail and by the ladder's attenuation ratio, not by matching: LSB size spreads \\SI{0.31}{\\nano\\volt} on \\SI{610.35}{\\micro\\volt}, full scale \\SI{1.2}{\\micro\\volt} on \\SI{2.5}{\\volt}, and gain error \\num{0.50}~ppm about a \\num{-0.51}~ppm mean. All of the linearity spread of Table~\\ref{tab:dacr2r12-mc-ideal} is therefore ladder mismatch and none of it is a gain or offset term. No limit was entered on any of these outputs, so the spec, yield and worst-case columns are omitted rather than left blank; mean \\(\\pm\\,3\\sigma\\) is not quoted either, because at a part in \\(10^{6}\\) the distribution shapes are solver residue and not device statistics."
     },
     {
       "id": "dacr2r12_mc_wpsu",
@@ -355,7 +355,7 @@
         "yield_chip"
       ],
       "channels": 4,
-      "caption": "Monte Carlo linearity with the ladder referenced to \\texttt{VddDac} from the on-chip supply block: ratiometric rows first, raw rows below. \\textbf{Process and mismatch}, \\texttt{castalia\\_pm\\_25}, 200 samples, \\SI{25}{\\celsius}, all 4096 codes, no external load on \\texttt{VddDac}; yields are per cent of samples and of four channels. The ratiometric rows normalise each code to the reference at that code and so measure the ladder alone; they reproduce Table~\\ref{tab:dacr2r12-mc-ideal} sample for sample, at \\(r = 1.000\\) on both INL and DNL, and their yields are \\SI{20.5}{\\percent} and \\SI{40.0}{\\percent} against \\SI{21.0}{\\percent} and \\SI{40.0}{\\percent} there. The raw rows include the reference and are 24 and 6 times worse; the run's own \\texttt{inl\\_from\\_ref}, which is the INL predicted from the reference error alone, averages \\num{36.770}\\,LSB against the raw \\num{36.776}\\,LSB, so the reference accounts for essentially all of the difference and no second matching mechanism is needed to explain it. Raw \\texttt{inl\\_lsb} carries no entered limit and its spec, yield and worst-case cells are empty; raw \\texttt{dnl\\_min} was graded and no sample meets it. The three ratiometric rows are skewed (\\(+0.74\\), \\(-1.10\\), \\(+0.89\\)), so the median and percentiles are quoted throughout."
+      "caption": "Monte Carlo linearity with the ladder referenced to \\texttt{VddDac} from the on-chip supply block, ratiometric rows first and raw rows below: \\textbf{process and mismatch}, \\texttt{castalia\\_pm\\_25}, 200 samples, \\SI{25}{\\celsius}, all 4096 codes, no external load on \\texttt{VddDac}, yields as per cent of samples and of four channels. The ratiometric rows normalise each code to the reference at that code and so measure the ladder alone; they reproduce this campaign's own ideal-rail run sample for sample, at \\(r = 1.000\\) on both INL and DNL, and their \\SI{20.5}{\\percent} and \\SI{40.0}{\\percent} yields are that run's \\SI{21.0}{\\percent} and \\SI{40.0}{\\percent}, not the \\SI{20.5}{\\percent} and \\SI{42.0}{\\percent} Table~\\ref{tab:dacr2r12-mc-ideal} now reports from the replacement bit driver. The raw rows include the reference and are 24 and 6 times worse; the run's own \\texttt{inl\\_from\\_ref}, which is the INL predicted from the reference error alone, averages \\num{36.770}\\,LSB against the raw \\num{36.776}\\,LSB, so the reference accounts for essentially all of the difference and no second matching mechanism is needed to explain it. Raw \\texttt{inl\\_lsb} carries no entered limit and its spec, yield and worst-case cells are empty; raw \\texttt{dnl\\_min} was graded and no sample meets it. The three ratiometric rows are skewed (\\(+0.74\\), \\(-1.10\\), \\(+0.89\\)), so the median and percentiles are quoted throughout."
     },
     {
       "id": "dacr2r12_mc_reference",
@@ -380,7 +380,7 @@
         "yield_chip"
       ],
       "channels": 4,
-      "caption": "Monte Carlo behaviour of the \\texttt{VddDac} reference itself, same bench and samples as Table~\\ref{tab:dacr2r12-mc-wpsu}; only \\texttt{vddac\\_pp} carries an entered limit, so the other four rows have empty spec, yield and worst-case cells. \\textbf{Process and mismatch}, \\texttt{castalia\\_pm\\_25}, 200 samples, \\SI{25}{\\celsius}; yields are per cent of samples and of four channels. Full scale is \\SI{2.166}{\\volt} and the LSB \\SI{529.0}{\\micro\\volt} rather than \\SI{2.5}{\\volt} and \\SI{610.3}{\\micro\\volt}, because the supply block delivers about \\SI{2.15}{\\volt}; the reference then moves \\SI{25.8}{\\milli\\volt} peak to peak across the code sweep against the \\SI{133}{\\micro\\volt} quarter-LSB budget, which no sample meets. The excursion is not monotonic in code: in an \\(R\\)--\\(2R\\) ladder the binary weighting comes from attenuation, so every \\(2R\\) branch switched to the reference draws a comparable current and the reference current follows the bit pattern rather than the code value --- a nodal solve of this topology gives \\(I_\\mathrm{ref} = 0\\) at code 0, \\(0.250\\,V_\\mathrm{ref}/R\\) at 2048 and \\(0.333\\) at 4095, with a maximum of \\(1.444\\) at code 1365 (\\texttt{0b010101010101}), which is exactly where \\texttt{vddac\\_min} lands on all 200 samples, and a one-parameter fit \\(V = V_0 - R_\\mathrm{out} I_\\mathrm{ref}\\) accounts for \\SI{94}{\\percent} of the excursion. All five distributions are near-symmetric (skew \\(\\leq 0.13\\)), so mean \\(\\pm\\,3\\sigma\\) applies."
+      "caption": "Monte Carlo behaviour of the \\texttt{VddDac} reference itself, same bench and samples as Table~\\ref{tab:dacr2r12-mc-wpsu}; only \\texttt{vddac\\_pp} carries an entered limit, so the other four rows have empty spec, yield and worst-case cells. \\textbf{Process and mismatch}, \\texttt{castalia\\_pm\\_25}, 200 samples, \\SI{25}{\\celsius}; yields are per cent of samples and of four channels. Full scale is \\SI{2.166}{\\volt} and the LSB \\SI{529.0}{\\micro\\volt} rather than \\SI{2.5}{\\volt} and \\SI{610.3}{\\micro\\volt}, because the supply block delivers about \\SI{2.15}{\\volt}; the reference then moves \\SI{25.8}{\\milli\\volt} peak to peak across the code sweep against the \\SI{133}{\\micro\\volt} quarter-LSB budget, which no sample meets. The excursion is not monotonic in code: in an \\(R\\)--\\(2R\\) ladder the binary weighting comes from attenuation, so every \\(2R\\) branch switched to the reference draws a comparable current and the reference current follows the bit pattern rather than the code value: a nodal solve of this topology gives \\(I_\\mathrm{ref} = 0\\) at code 0, \\(0.250\\,V_\\mathrm{ref}/R\\) at 2048 and \\(0.333\\) at 4095, with a maximum of \\(1.444\\) at code 1365 (\\texttt{0b010101010101}), which is exactly where \\texttt{vddac\\_min} lands on all 200 samples, and a one-parameter fit \\(V = V_0 - R_\\mathrm{out} I_\\mathrm{ref}\\) accounts for \\SI{94}{\\percent} of the excursion. All five distributions are near-symmetric (skew \\(\\leq 0.13\\)), so mean \\(\\pm\\,3\\sigma\\) applies."
     },
     {
       "id": "dacr2r12_mc_psu_load",
@@ -404,7 +404,7 @@
         "yield_chip"
       ],
       "channels": 4,
-      "caption": "Monte Carlo load regulation of the DAC supply block. \\textbf{Process and mismatch}, \\texttt{castalia\\_pm\\_25}, 200 samples, \\SI{27}{\\celsius}, \\texttt{VddDac} loaded \\SI{0}{\\micro\\ampere} to \\SI{100}{\\micro\\ampere}, ADE default tolerances --- looser than the two DAC benches, which run \\SI{25}{\\celsius} and \\texttt{reltol}~\\num{1e-6}; yields are per cent of samples and of four channels. \\texttt{VddDac} droops \\SI{113.3}{\\milli\\volt} over that sweep, a chord output resistance of \\SI{1132.8}{\\ohm} against the \\SI{3}{\\ohm} limit entered on the test; no sample meets either graded limit, and the two reference-voltage rows were not graded. The last two rows are one measurement scaled by the load current, and both are near-symmetric (skew \\(+0.29\\)), so mean \\(\\pm\\,3\\sigma\\) applies. Together with the reference movement of Table~\\ref{tab:dacr2r12-mc-reference} and the small-signal impedance of Table~\\ref{tab:dacr2r12-mc-psu-zout} this is one defect measured three ways, not three problems."
+      "caption": "Monte Carlo load regulation of the DAC supply block. \\textbf{Process and mismatch}, \\texttt{castalia\\_pm\\_25}, 200 samples, \\SI{27}{\\celsius}, \\texttt{VddDac} loaded \\SI{0}{\\micro\\ampere} to \\SI{100}{\\micro\\ampere}, ADE default tolerances, looser than the two DAC benches, which run \\SI{25}{\\celsius} and \\texttt{reltol}~\\num{1e-6}; yields are per cent of samples and of four channels. \\texttt{VddDac} droops \\SI{113.3}{\\milli\\volt} over that sweep, a chord output resistance of \\SI{1132.8}{\\ohm} against the \\SI{3}{\\ohm} limit entered on the test; no sample meets either graded limit, and the two reference-voltage rows were not graded. The last two rows are one measurement scaled by the load current, and both are near-symmetric (skew \\(+0.29\\)), so mean \\(\\pm\\,3\\sigma\\) applies. Together with the reference movement of Table~\\ref{tab:dacr2r12-mc-reference} and the small-signal impedance of Table~\\ref{tab:dacr2r12-mc-psu-zout} this is one defect measured three ways, not three problems."
     },
     {
       "id": "dacr2r12_mc_psu_line",
@@ -466,17 +466,39 @@
     "Logical test names are prefixed dac_mc_ because data/raw/<test>__mc.csv is a",
     "namespace shared by every block rendering into one outdir.",
     "",
-    "SOURCE: .../tb_anatop_pixel_dacR2R12/maestro/results/maestro/Plan.2.Run.3",
-    "200 samples, seed=12345, sampling=lds, variations=all (PROCESS AND MISMATCH",
-    "together), donominal=no, numruns=20. Per-sample scalars are in",
-    "psf/<test>/monteCarlo/{mcdata,mcparam}; no OCEAN and no licence.",
+    "SOURCE: TWO RUNS, AND THEY ARE NOT THE SAME CELL.",
+    "  dac_mc_ideal -- the F16 bit-driver campaign of 2026-09-05, with the custom",
+    "    2.5 V driver castalia/anatop_and2_dac that the tapeout schematic carries.",
+    "    200 samples, seed=12345, sampling=lds, variations=all (PROCESS AND MISMATCH",
+    "    together), donominal=no, numruns=20 in ten spectre jobs of 20 (firstrun",
+    "    1/21/.../181), section castalia_pm_25, temp=25. It was driven by",
+    "    engine.py/stats.py straight against spectre rather than by Maestro, so it",
+    "    wrote no psf/<test>/monteCarlo/{mcdata,mcparam} for copy_mc() to read; the",
+    "    render-stage file data/raw/dac_mc_ideal__mc.csv was rebuilt from the 200",
+    "    per-sample DC sweeps by simarchive/tb_anatop_pixel_dacR2R12/",
+    "    20260905_driverfix/dac_mc/mc_to_maestro2tex.py, which recomputes every",
+    "    column from the endpoint-line definition the bench's own Maestro",
+    "    expressions use and copies the column order, the spec limits and the",
+    "    expression strings verbatim from the file it replaces. Its rows reproduce",
+    "    that wave's own mc_table.csv to every printed digit. AN EXTRACTION AGAINST",
+    "    Plan.2.Run.3 WOULD OVERWRITE IT with the old driver's numbers: re-extract",
+    "    only from a Maestro run of the current cell, otherwise pass --no-extract.",
+    "  every other test -- .../tb_anatop_pixel_dacR2R12/maestro/results/maestro/",
+    "    Plan.2.Run.3, the published 200-sample campaign, measured with the 1.0 V",
+    "    standard-cell bit driver the schematic no longer has and, on the four PSU",
+    "    tests, on a supply block deleted from anatop_pixel on 2026-08-24. Those",
+    "    fragments sit in the chapter's removed-block subsection and are history,",
+    "    not a specification of the tapeout cell. Per-sample scalars are in",
+    "    psf/<test>/monteCarlo/{mcdata,mcparam}; no OCEAN and no licence.",
     "",
     "READINESS GATE, verified from the netlist of the run that EXECUTED",
     "(psf/<test>/netlist/input.scs), not from the setup files. Two earlier MC attempts",
     "on this cell failed it silently.",
-    "  1. mismatchflag. DacNonlinTB and DacNonlinWPSUTB netlist 76 devices with",
-    "     mismatchflag=1 and ZERO with mismatchflag=0; 74 of those are the ladder",
-    "     (RS1/RS2/RP1..RP4 x 12 each, plus RTERM1/RTERM2). The four PSU-only benches",
+    "  1. mismatchflag. DacNonlinWPSUTB netlists 76 devices with mismatchflag=1 and",
+    "     ZERO with mismatchflag=0; 74 of those are the ladder (RS1/RS2/RP1..RP4 x 12",
+    "     each, plus RTERM1/RTERM2). The F16 dac_mc_ideal run netlists 82 at 1 and",
+    "     none at 0 -- the same 76 plus the six devices of the new driver's output",
+    "     stage -- and spectre reports 234 random variables. The four PSU-only benches",
     "     contain no ladder instance at all (0 matches for RS*/RP*/RTERM*) and carry 17",
     "     mismatchflag=1 devices each -- that is the PSU block, not a gap.",
     "  2. Model section. All six tests select section=castalia_pm_25, the section that",
@@ -499,11 +521,14 @@
     "no -1.11111e+36 and no NaN in any column. Nothing is held out of any statistic.",
     "",
     "THE TWO DEFECTS ARE INDEPENDENT, and the corner run sees neither.",
-    "  (a) The ladder is matching-limited and fails on an IDEAL rail: INL 1.490 +/-",
-    "      0.625 LSB against 1 LSB (42/200), monotonic on 80/200, joint 34/200 = 17.0 %",
-    "      of channels and 0.08 % of four-channel chips. lsb (sd 4.84e-10 V), v_fs",
-    "      (sd 1.84e-6 V) and gain_err (sd 0.50 ppm) are effectively fixed, so all of",
-    "      the linearity spread is resistor mismatch.",
+    "  (a) The ladder is matching-limited and fails on an IDEAL rail: INL 1.485 +/-",
+    "      0.620 LSB against 1 LSB (41/200), monotonic on 84/200, joint 37/200 = 18.5 %",
+    "      of channels and 0.12 % of four-channel chips. lsb (sd 3.05e-10 V), v_fs",
+    "      (sd 1.25e-6 V) and gain_err (sd 0.50 ppm about a -0.51 ppm mean) are",
+    "      effectively fixed, so all of the linearity spread is resistor mismatch.",
+    "      The same figures on the 1.0 V driver were 1.490 +/- 0.625 LSB, 42/200,",
+    "      80/200, 34/200 = 17.0 % and 0.08 %: the driver term is out of the",
+    "      distribution and the ladder is what is left.",
     "  (b) The supply block modulates the reference: vddac_pp 25.835 mV against the",
     "      133 uV quarter-LSB budget (0/200), which turns the ratiometric -1.747 LSB",
     "      DNL into a raw -10.816 LSB and the INL into 36.78 LSB.",
@@ -556,10 +581,10 @@
     "  DacNonlinTB v_zs / voff_dac / vfs_dac -- bit-identical duplicates: voff_dac == v_zs",
     "    and vfs_dac == v_fs on all 200 samples. Published once, as v_fs and voff_lsb.",
     "  DacNonlinTB dnl_msb -- the DNL at the mid-scale transition. It is not an",
-    "    independent quantity: |dnl_msb| equals dnl_lsb on 131 of 200 samples and",
+    "    independent quantity: |dnl_msb| equals dnl_lsb on 132 of 200 samples and",
     "    dnl_msb equals dnl_min on 83, i.e. the MSB transition IS the worst code about",
-    "    two thirds of the time. Its own distribution is bimodal (mean -0.495, sd 2.452,",
-    "    p1 -6.240, p99 +4.655) because it changes sign between samples, so a mean is",
+    "    two thirds of the time. Its own distribution is bimodal (mean -0.407, sd 2.450,",
+    "    p1 -6.161, p99 +4.760) because it changes sign between samples, so a mean is",
     "    meaningless. The information is already in dnl_min / dnl_max / dnl_lsb.",
     "  DacNonlinWPSUTB v_zs / voff_dac / vfs_dac -- same duplication as above.",
     "  DacNonlinWPSUTB n_zs / n_fs / lsb_n / voff_lsb / gain_err -- the ratiometric",
@@ -590,8 +615,8 @@
     "",
     "DISTRIBUTION SHAPES, Fisher skew over the 200 valid samples, computed here. This",
     "is what decides mean+/-3sigma against median/percentiles in each table.",
-    "  skewed, percentiles quoted: inl_lsb +0.74, inl_max +0.76, inl_min -0.74,",
-    "    dnl_min -1.11, dnl_max +1.53, dnl_lsb +0.89, inl_n_lsb +0.74, dnl_n_min -1.10,",
+    "  skewed, percentiles quoted: inl_lsb +0.74, inl_max +0.75, inl_min -0.74,",
+    "    dnl_min -1.14, dnl_max +1.52, dnl_lsb +0.89, inl_n_lsb +0.74, dnl_n_min -1.10,",
     "    dnl_n_lsb +0.89, zout_max -1.82, dvddac_line +0.58, line_reg +0.58, i_q +0.45,",
     "    p_psu +0.45, raw wpsu inl_lsb -0.39 and dnl_min +0.27 (kept on the percentile",
     "    table with their skewed neighbours rather than split off)",
@@ -605,7 +630,8 @@
     "",
     "MEDIAN CONVENTION. The engine's percentile() is linear-interpolated, so the",
     "median of an even sample count is the midpoint of the two middle values",
-    "(inl_lsb 1.363, inl_n_lsb 1.388). A brief circulated earlier quoted 1.390 and",
+    "(inl_lsb 1.364 on the F16 run, inl_n_lsb 1.388 on Plan.2.Run.3). A brief",
+    "circulated earlier quoted 1.390 and",
     "1.4166, which are the UPPER middle values. Captions quote the engine's numbers."
   ]
 }

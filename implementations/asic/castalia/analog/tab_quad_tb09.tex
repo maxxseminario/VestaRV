@@ -1,0 +1,48 @@
+%% HAND-WRITTEN table fragment (maestro2tex house style; nothing generated).
+%% ADDED 2026-09-05.  Source: F13 report and
+%% ~/chips/castalia/simruns/quad_20260905/<test>/eval_<test>.txt, read from the
+%% executed psf by skill/quad_eval.py.  note_quad_tb09.tex's header carries the
+%% per-test conditions and the two caveats (the disturbance column is not
+%% crosstalk; the peak supply current is a start-up inrush into an ideal
+%% source).  Codes are after the bit-9 inversion the converter macro needs.
+\par\addvspace{\intextsep}
+\noindent\parbox[b]{\textwidth}{%
+  \captionof{table}[{Four-channel macro, all sites running simultaneously.}]{The
+  four channels driven together at the nominal corner, \SI{37}{\celsius}, with
+  the converter as its extracted view and a \SI{20}{\mega\hertz} trigger clock
+  (\SI{1.150}{\micro\second} per conversion). The mixed-condition rows carry a
+  different current, polarity and gain code per site at the same instant. The
+  disturbance column is measured with only site~0 stepping, but the same figure
+  appears when no site steps at all, so it is each channel's own converter
+  sampling its own output and not coupling: this bench has ideal supplies and
+  per-site bias and therefore no coupling path. Nominal only; corners and Monte
+  Carlo live in the block sections.}%
+  \label{tab:quad-tb09}%
+  \par\nobreak
+  \centering
+  \begin{tabular}{lrrrr}
+    \toprule
+    & Site 0 & Site 1 & Site 2 & Site 3 \\
+    \midrule
+    \multicolumn{5}{l}{\emph{Identical drive, \SI{10}{\micro\ampere} at gain code 0}} \\
+    Code returned                   & 633 & 633 & 633 & 633 \\
+    Transimpedance output (\si{\volt}) & 1.449192 & 1.449195 & 1.449234 & 1.449195 \\
+    Applied-potential error (\si{\milli\volt}) & \(-0.56\) & \(-0.56\) & \(-0.56\) & \(-0.56\) \\
+    Working-electrode error (\si{\milli\volt}) & \(-0.59\) & \(-0.59\) & \(-0.59\) & \(-0.59\) \\
+    \midrule
+    \multicolumn{5}{l}{\emph{Mixed drive, simultaneous}} \\
+    Current forced (\si{\micro\ampere}) & \(+20\) & \(-20\) & \(+1\) & \(-0.2\) \\
+    Gain code                       & 0 & 0 & 63 & 319 \\
+    Code, referred to common mode   & \(+257\) & \(-247\) & \(+244\) & \(-245\) \\
+    \midrule
+    \multicolumn{5}{l}{\emph{Neighbour disturbance, site 0 stepping \SI{40}{\micro\ampere}}} \\
+    Quiet-site output (\si{\milli\volt} pp) & --- & 1.751 & 1.750 & 1.751 \\
+    \midrule
+    \multicolumn{5}{l}{\emph{Power, all four channels}} \\
+    \SI{2.5}{\volt} supply          & \multicolumn{4}{r}{\SI{1.815}{\milli\ampere}} \\
+    \SI{1.0}{\volt} supply          & \multicolumn{4}{r}{\SI{14.2}{\micro\ampere}} \\
+    Total                           & \multicolumn{4}{r}{\SI{4.55}{\milli\watt}, \SI{1.14}{\milli\watt} per channel} \\
+    \bottomrule
+  \end{tabular}%
+}
+\par\addvspace{\intextsep}

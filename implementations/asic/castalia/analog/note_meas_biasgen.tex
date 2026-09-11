@@ -28,13 +28,13 @@
   the four means the start-up branch did not fire; no measurement elsewhere on
   the die is meaningful until it does.
 \item Trim from the supply pin, not through the multiplexer: step the 6-bit
-  code and keep the one whose total analog supply current is nearest design
-  --- \SI{2.7}{\percent} per code over a \SI{39.9}{\micro\ampere} span
+  code and keep the one whose total analog supply current is nearest design,
+  \SI{2.7}{\percent} per code over a \SI{39.9}{\micro\ampere} span
   (Table~\ref{tab:biasgen-trim}), against a \SI{12.5}{\percent} Monte Carlo
   spread the corner runs do not show. The code is per die;
   \(\pm\tfrac{1}{2}\)~code leaves \(\pm1.4\,\%\).
 \item Recovery: chip-level slot 8 drives the reference-current node from
-  \texttt{atb\_d} with \texttt{AFE\_DBGDIREN}~=~1 --- the last path to a
+  \texttt{atb\_d} with \texttt{AFE\_DBGDIREN}~=~1, the last path to a
   working amplifier on a die whose generator did not start.
 \end{enumerate}
 This test fabric is design intent; it is not yet in the schematics.

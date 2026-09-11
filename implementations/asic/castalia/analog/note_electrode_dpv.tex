@@ -7,11 +7,15 @@
 
 \paragraph{Differential-pulse voltammetry through the channel.} The same bench
 runs a staircase-plus-pulse program at the published assay envelope
-(Figure~\ref{fig:electrode-dpv}), every \SI{4}{\milli\volt} tread quantised to the 14-bit DAC
-LSB of \SI{152.6}{\micro\volt} and current sampled \SI{5}{\milli\second} before
+(Figure~\ref{fig:electrode-dpv}), every \SI{4}{\milli\volt} tread quantised to
+\SI{152.6}{\micro\volt} and current sampled \SI{5}{\milli\second} before
 each edge. Four reporters give four resolved peaks, apexes within
-\SI{2}{\milli\volt} and \SI{1}{\percent} of the assay targets. Three findings
-bound how the numbers read:
+\SI{2}{\milli\volt} and \SI{1}{\percent} of the assay targets. The
+quantisation is not the shipped one: the reference DAC of
+Section~\ref{ss:dacr2r12} is 12-bit with a \SI{610.35}{\micro\volt} LSB, four
+times coarser, so a \SI{4}{\milli\volt} tread is 6 or 7 codes rather than 26
+and the \SI{2}{\milli\volt} apex figure is not a channel measurement. Three
+findings bound how the numbers read:
 
 \begin{itemize}[nosep]
   \item \emph{No residual charging baseline.} A blank gives under

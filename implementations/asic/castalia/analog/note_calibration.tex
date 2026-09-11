@@ -35,8 +35,8 @@ knobs: what each corrects, how it is measured, and when it is applied. The
 measurement itself is described in each block's section, under \emph{Measuring
 this block on chip}.
 
-Only two constants are absolute --- one voltage at the reference DAC output, one
-current forced at the working electrode --- and both need the production tester.
+Only two constants are absolute (one voltage at the reference DAC output, one
+current forced at the working electrode) and both need the production tester.
 The other eight are zeros and ratios the channel measures against itself through
 its own converter, which is what lets the power-up refresh run with no equipment.
 
@@ -52,14 +52,14 @@ Potential-axis corrections apply where the waveform is tabulated, not per sample
 \paragraph{Residual.} Each zero is the difference of two conversions, so its
 floor is \SI{0.65}{\milli\volt} rms, two quantisations of the converter's
 \SI{1.591}{\milli\volt} step; the common-mode DAC has to dither the input to
-reach it. On the potential axis the residual is \SI{1.38}{\milli\volt} rms ---
-that floor, the \SI{0.93}{\milli\volt} droop-fit residual and
-\SI{0.79}{\milli\volt} of uncorrected ladder INL in quadrature --- against
+reach it. On the potential axis the residual is \SI{1.38}{\milli\volt} rms
+(that floor, the \SI{0.93}{\milli\volt} droop-fit residual and
+\SI{0.79}{\milli\volt} of uncorrected ladder INL in quadrature) against
 \SI{5.71}{\milli\volt} of uncalibrated \(\sigma\). That holds over the
 specified \SIrange{0.4}{2.1}{\volt} window only: outside it the tracking error
 is no longer a constant and no stored constant removes it. On the current axis it is
-\SI{0.71}{\milli\volt} rms --- \SI{0.45}{LSB} on the converter's measured
-\SI{1.591}{\milli\volt} step (Table~\ref{tab:adc-transfer}) --- plus
+\SI{0.71}{\milli\volt} rms, \SI{0.45}{LSB} on the converter's measured
+\SI{1.591}{\milli\volt} step (Table~\ref{tab:adc-transfer}), plus
 \SIrange{0.1}{0.4}{\percent} of reading, against \SIrange{12.1}{167.3}{LSB}
 uncalibrated, which are on the nominal \SI{2.441}{\milli\volt} step.
 A constant removes the current zero only

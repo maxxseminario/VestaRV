@@ -65,14 +65,14 @@ cannot be taken at the bottom gain code, where the whole
 \SI{34.4}{\nano\ampere} offset is sub-LSB: measured there the code corresponds
 to \SI{-73}{\nano\ampere} of apparent current on a \SI{-34}{\nano\ampere}
 signal, which is quantisation and not a reading. It must be taken at a
-high-gain tap, where one LSB is smaller than the offset being measured --- which
+high-gain tap, where one LSB is smaller than the offset being measured, which
 the gain-independent zero of Section~\ref{sss:pixtop-zero} makes free.
 
 \paragraph{The multiplexer no longer disturbs the channel.} A unity-gain buffer
 stands between the multiplexer and the converter, so the sample switch draws its
 charge from the buffer and the multiplexer drives only a gate. Selecting the
 common-mode slot moves that rail by \SI{0.834}{\milli\volt} and the
-transimpedance output by \SI{1.75}{\milli\volt} --- \SI{1.1}{LSB} --- both
+transimpedance output by \SI{1.75}{\milli\volt}, \SI{1.1}{LSB}, both
 recovered inside one conversion, the output settling in
 \SI{0.54}{\micro\second} to a residual below \SI{1}{\nano\volt}. Without the
 buffer the same measurement dragged the common mode \SI{518}{\milli\volt} and
@@ -84,7 +84,7 @@ commanded-potential slot was broken the same way and worse on the residual
 (\SI{-99.9}{\milli\volt} at the end of the record) and now peaks at
 \SI{0.207}{\milli\volt}; the readout slot is \(51\times\) quieter as a side
 effect, its \SI{5.6}{\milli\volt} sampling kick now landing on the buffer's
-output where the channel does not see it. Both buffer loops are stable ---
+output where the channel does not see it. Both buffer loops are stable:
 \SI{78.4}{\degree} of phase margin with \SI{17.8}{\decibel} of gain margin at
 the converter, \SI{80.9}{\degree} and \SI{20.3}{\decibel} at the test port, and
 neither moves with the gain code.
@@ -98,13 +98,13 @@ subtracts out of a zero-referenced reading exactly and only its variation with
 input level survives. Over 100 Monte Carlo samples that residual is
 \SI{0.62}{\milli\volt} mean and \SI{2.07}{\milli\volt} worst across the full
 \(\pm\SI{0.8}{\volt}\) readout swing, and \SI{0.031}{\milli\volt} mean,
-\SI{0.11}{\milli\volt} worst over \(\pm\SI{150}{\milli\volt}\) --- against a
+\SI{0.11}{\milli\volt} worst over \(\pm\SI{150}{\milli\volt}\), against a
 \SI{5.58}{\milli\volt} \(\sigma\) on the offset itself.
 
 \paragraph{Bit 9 is inverted (firmware-critical).} The raw output bus carries
-its most significant bit inverted --- the two's-complement form of the
+its most significant bit inverted, the two's-complement form of the
 offset-binary code Section~\ref{ss:adc} describes. Every published converter
 number, including the transfer of Table~\ref{tab:adc-transfer}, is the
 corrected code \(\mathrm{raw} + 512 - 1024\,b_9\), so firmware must invert bit~9
 before using the bus. Read raw, the transfer is a plausible straight line that wraps at the
-common-mode code --- a silent 512-code error over half the range.
+common-mode code, a silent 512-code error over half the range.

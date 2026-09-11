@@ -69,13 +69,13 @@ one.
 The channel is \SI{319.6}{\micro\watt} cheaper than the revision before it, and
 the two effects cancel almost exactly: deleting the two reference-DAC supply
 regulators returned \SI{806.8}{\micro\watt} that drove nothing, and the two
-buffers cost \SI{487.1}{\micro\watt}. The regulators were dead load --- both
-ladders draw \SI{44.4113}{\micro\watt} before and after, to every printed digit
---- so the disturbance fix of Section~\ref{sss:pixtop-adc} was bought out of
+buffers cost \SI{487.1}{\micro\watt}. The regulators were dead load (both
+ladders draw \SI{44.4113}{\micro\watt} before and after, to every printed digit),
+so the disturbance fix of Section~\ref{sss:pixtop-adc} was bought out of
 waste rather than out of budget.
 
-All twenty dc-reachable specs --- reference tracking, the potential range, the
-common mode, the zero-current offsets and the gain-code sweep --- pass at all
+All twenty dc-reachable specs (reference tracking, the potential range, the
+common mode, the zero-current offsets and the gain-code sweep) pass at all
 five corners. Only one moved: the converter-input voltage now sits
 \SI{620}{\micro\volt} lower at every corner, the input buffer's own offset,
 leaving \SI{3.50}{\milli\volt} of margin to its window where there was

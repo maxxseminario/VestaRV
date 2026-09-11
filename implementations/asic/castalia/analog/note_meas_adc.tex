@@ -12,7 +12,7 @@
 
 \subsubsection{Measuring this block on chip}
 
-The converter is characterised end to end with no analog pad measurement ---
+The converter is characterised end to end with no analog pad measurement,
 and its gain has never been checked in system.
 \begin{enumerate}[nosep]
 \item Gain and intercept: set \texttt{AFE\_ADCSRCSEL}~=~4, drive an external
@@ -26,7 +26,7 @@ and its gain has never been checked in system.
   than per-lot.
 \item Zero code: set \texttt{AFE\_ADCSRCSEL}~=~1 and average the common-mode
   rail. That code is the origin of the current axis and carries the
-  converter's offset and the common-mode value together --- the combination a
+  converter's offset and the common-mode value together, the combination a
   current reading needs.
 \item Dither before averaging: with the electrode isolated the amplifier
   output noise is tens of microvolts, below one code, so step the common-mode

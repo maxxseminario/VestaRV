@@ -79,16 +79,16 @@
 precaution. Keep both excitation codes inside one octave: a pair straddling a
 major carry is out by \SI{1.5}{\percent} of commanded amplitude, and by
 \SI{3.5}{\percent} at the \SI{4}{\milli\volt} excitation, statically and at
-every frequency. Use the two-level square where the record is dense --- it
+every frequency. Use the two-level square where the record is dense (it
 delivers \(1.28\times\) the fundamental of a synthesised sine for the same
-interface excursion and measures the same impedance to five significant figures
---- and a sine where it is sparse, since at the \num{32} conversions per channel
+interface excursion and measures the same impedance to five significant figures),
+and a sine where it is sparse, since at the \num{32} conversions per channel
 per period a shared converter delivers, the square costs \SI{2.99}{\degree} of
 phase and the sine costs nothing. Start the record only after the electrode's
 own dc transient has decayed: the excess falls as \(\exp(-t/\tau)\) with
 \(\tau = C_{\mathrm{dl}}(R_u \parallel R_{\mathrm{ct}})\) and is a function of
-\(t/\tau\) alone, so wait \(5\tau\) for \SI{0.1}{\percent} ---
-\SIrange{99}{9900}{\micro\second} across the three electrodes --- and do not
+\(t/\tau\) alone, so wait \(5\tau\) for \SI{0.1}{\percent},
+\SIrange{99}{9900}{\micro\second} across the three electrodes, and do not
 substitute averaging, which attenuates the term only as \(1/T_{\mathrm{win}}\)
 and leaves \SI{1.2}{\percent} after sixteen cycles. Derive the converter strobe
 and the excitation from one divider, a grid \num{0.35} samples per period out of

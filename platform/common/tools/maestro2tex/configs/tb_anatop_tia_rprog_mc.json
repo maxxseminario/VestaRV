@@ -58,7 +58,7 @@
       "height": "6.0cm",
       "xlabel": "Seam step $R(64)-R(63)$~[\\si{\\kilo\\ohm}]",
       "ylabel": "Samples",
-      "caption": "Per-sample step across the first thermometer seam (code 63 to 64: one 64-unit segment switches in while all six binary segments switch out), the code transition most exposed to mismatch. \\textbf{Mismatch only}, model section \\texttt{castalia\\_pm\\_25}, nominal process, 200 samples, seed 12345, low-discrepancy sampling, \\SI{25}{\\celsius}. Mean \\SI{7.42}{\\kilo\\ohm}, \\(\\sigma=\\SI{504}{\\ohm}\\), worst sample \\SI{5.88}{\\kilo\\ohm} --- \\(14.7\\sigma\\) above the monotonicity limit at zero, so no realistic mismatch closes the seam."
+      "caption": "Per-sample step across the first thermometer seam (code 63 to 64: one 64-unit segment switches in while all six binary segments switch out), the code transition most exposed to mismatch. \\textbf{Mismatch only}, model section \\texttt{castalia\\_pm\\_25}, nominal process, 200 samples, seed 12345, low-discrepancy sampling, \\SI{25}{\\celsius}. Mean \\SI{7.42}{\\kilo\\ohm}, \\(\\sigma=\\SI{504}{\\ohm}\\), worst sample \\SI{5.88}{\\kilo\\ohm}, \\(14.7\\sigma\\) above the monotonicity limit at zero, so no realistic mismatch closes the seam."
     }
   ],
   "tables": [

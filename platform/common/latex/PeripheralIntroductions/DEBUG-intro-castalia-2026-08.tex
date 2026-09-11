@@ -215,7 +215,9 @@ Any other DMI address returns failed, which because \bitfield{dmistat} is sticky
 
 \register{dmcontrol} is where every session starts. \bitfield{dmactive} (bit 0) must be written 1 before the module does anything; writing 0 resets the module's own state but not the harts. \bitfield{hartsel} (bits \texttt{[25:16]}) selects the hart the status and command registers refer to; all ten bits are implemented, and an index that does not exist is reported as nonexistent rather than clamped, which is what makes hart-count discovery work. \bitfield{haltreq} (bit 31) is a level that asks the selected hart to halt while set. \bitfield{resumereq} (bit 30) is a write-one request that is queued rather than refused and ignored for a hart that is not halted or not reachable. \bitfield{setresethaltreq} and \bitfield{clrresethaltreq} (bits 3 and 2) arm and disarm halt-on-reset for the selected hart. \bitfield{ndmreset}, \bitfield{hartreset} and \bitfield{hasel} are not implemented; they read zero and ignore writes.
 
+\begin{sloppypar}
 \register{dmstatus} reports \bitfield{version} = 3 (specification 1.0), \bitfield{authenticated} = 1 (no authentication), \bitfield{hasresethaltreq} = 1 and \bitfield{impebreak} = 1. Hart state is reported through six pairs of bits, and because one hart is selected at a time both bits of each pair carry the same value:
+\end{sloppypar}
 \begin{itemize}
 	\item \bitfield{allhalted}, \bitfield{anyhalted}
 	\item \bitfield{allrunning}, \bitfield{anyrunning}

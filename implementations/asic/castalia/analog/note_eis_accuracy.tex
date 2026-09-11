@@ -180,6 +180,58 @@
 % C = "ratiometric against a known impedance measured at the same frequency";
 % D = "assuming the commanded potential reaches the electrode".
 % Library cell names are kept out of the rendered prose.
+%
+% ----------------------------------------------------------------------
+% CORRECTED 2026-09-05.  EVERY SMALL-SIGNAL NUMBER ABOVE WAS MEASURED WITHOUT
+% THE 22 pF FEEDBACK CAPACITOR.  The replica bench castalia/tb_anatop_eisdemo
+% had no C_F instance until 2026-09-05; the shipping transimpedance stage has
+% one, and it dominates the phase.  Re-running eis_ac and eis_stb_tia on that
+% bench with the capacitor added, nominal corner, everything else identical
+% (before -> after, ~/chips/castalia/simruns/eisdemo_20260825/maestro_verify
+% against the 2026-09-05 re-run, F17 report section 2):
+%     err_1hz    0.003225 % -> 0.003225 %      (unchanged)
+%     err_1k     0.30228 %  -> 0.30295 %       (+0.0007 pp)
+%     err_max_5k 0.31074 %  -> 0.32640 %       (+0.016 pp)
+%     ph_max_5k  0.26485 deg -> 1.04885 deg    (x3.96)
+%     aol_db     79.574 dB  -> 79.574 dB       (unchanged)
+%     pm         92.299 deg -> 83.988 deg
+%     gm         28.020 dB  -> 9.761 dB        (the bench's own spec is > 10 dB)
+%     fx         1.0642 MHz -> 22.154 MHz      (the loop now crosses at the
+%                                               amplifier's own bandwidth,
+%                                               because the feedback factor
+%                                               tends to 1 above the pole)
+% CONSEQUENCE FOR THIS FRAGMENT: the magnitude headline is unaffected (0.311 ->
+% 0.326 % at 5 kHz).  The PHASE headline and the band edge are not: the 0.573
+% deg gate is crossed a factor of four earlier than the section said, so the
+% uncorrected band edge is well below 5.3 kHz and not at it.  The sentence in
+% the prose now states the condition and the correction rather than the number
+% alone.  NOTHING IS DELETED: the 0.44 % / 1.04 deg and 0.33 % / 0.29 deg
+% envelopes stand as measured, with the condition attached.
+%
+% ADDED IN THE SAME PASS: the paragraph "Measured through the complete channel"
+% and tab_eis_pixel.tex, from the square-wave campaign through the real pixel
+% (six Maestro tests, 26 completed runs, F17 report,
+% ~/chips/castalia/simarchive/tb_anatop_eissq/).  What each number is:
+%   settled |Z| within 0.0068-0.15 % of the model on every non-railing load and
+%     gain code, 0.0147 % on the typical load (20260905_sq_step/
+%     table_sq_step.txt, 20260905_sq_rail/table_sq_rail.txt), and within
+%     0.025 % across the five-corner set (20260905_sq_step/typ_10k_corners).
+%   demodulator 0.01 % / 0.01 deg: err(z_cell) on the calibration load,
+%     0.002-0.007 % and under 0.06 deg at every frequency
+%     (20260905_sq_freq/demod_res.txt).
+%   converter +0.160 % / 0.063 deg and 0.305 LSB rms code residual
+%     (20260905_sq_code/table_sq_code.txt, codes_main.json); the 16-conversion
+%     control at twice the frequency gives +0.195 % / -0.150 deg.
+%   extraction within 0.15 % at 1 kHz and 0.40 % at 5 kHz, ratio-calibrated,
+%     R_s supplied (20260905_sq_freq/extract_variants.txt, rows "cal true").
+%     With R_s taken as Re(Z) at the top sweep frequency instead, that
+%     estimator alone carries a +9.92 % structural bias on this load and the
+%     extracted R_ct and C_dl degrade to -2.19 % and +4.86 %.
+% WHY THE -2.94 deg OF tab:eis-codelevel IS NOT CONTRADICTED: that record
+% interleaved two multiplexer slots, and the offset is the 180 f/f_s grid term
+% the table already attributes.  The square-wave record holds the slot static,
+% so the term is absent and the residual 0.063 deg is the converter alone.
+% ----------------------------------------------------------------------
 
 \textbf{The error is set by the noise gain \(1 + R_f/|Z|\) at the frequency
 being measured, not by the electrode's chemistry.} Gain-ranged to the lowest
@@ -195,7 +247,18 @@ fundamental; adjacent codes overlap by more than a decade, so there are no
 impedance seams. The usable band is \SI{0.1}{\hertz} to \SI{5.3}{\kilo\hertz},
 set by a \(\pm\SI{0.573}{\degree}\) phase gate at the feedback pole and not by
 magnitude; with the poly and the capacitor cornered as well it falls to
-\SI{2.5}{\kilo\hertz} on a worst-case die.
+\SI{2.5}{\kilo\hertz} on a worst-case die. \textbf{Every figure in this
+paragraph is a small-signal measurement on a replica that carries no feedback
+capacitor.} Adding the \SI{22}{\pico\farad} the shipping stage has, and
+changing nothing else, leaves the magnitude envelope alone
+(\num{0.311} to \SI{0.326}{\percent} at \SI{5}{\kilo\hertz}) and multiplies
+the phase error by four, \SI{0.265}{\degree} to \SI{1.049}{\degree}: the
+uncorrected band edge is therefore well below \SI{5.3}{\kilo\hertz}, not at
+it. The same capacitor moves the transimpedance loop crossing from
+\SI{1.06}{\mega\hertz} to the amplifier's own \SI{22.2}{\mega\hertz} and the
+gain margin from \SI{28.0}{\decibel} to \SI{9.76}{\decibel}, against a
+\SI{10}{\decibel} specification; phase margin \SI{84.0}{\degree} still
+passes.
 
 \paragraph{Measured through the converter.} An \SI{11.000}{\kilo\ohm} load at
 gain code 20, excited by the real reference ladder and read through the input
@@ -207,9 +270,37 @@ attribute the magnitude error completely, and \textbf{the converter's whole cost
 is one number}: a \(+0.636\,\%\) inter-channel gain mismatch, which two points
 of gain calibration remove. The phase term is the sampling grid and not the
 converter: one converter serving two channels samples them half a conversion
-apart, costing \(180\,f/f_s\) on a two-level excitation --- deterministic, so it
+apart, costing \(180\,f/f_s\) on a two-level excitation: deterministic, so it
 needs no calibration;
 uncorrected, the \(\pm\SI{0.573}{\degree}\) gate caps an interleaved read at
 \SI{2.77}{\kilo\hertz}.
 
 \input{include/analog/tab_eis_codelevel.tex}
+
+\paragraph{Measured through the complete channel.} A square-wave record taken
+through the shipping channel, with the excitation entering at the reference
+ladder and the true electrode current read in series with the working
+electrode, separates the demodulator from the instrument.
+\textbf{The demodulator, the two-code square and the boxcar contribute
+\SI{0.01}{\percent} of magnitude and \SI{0.01}{\degree}}; the settled
+impedance is within \SI{0.015}{\percent} of the model on the typical load,
+inside \SI{0.15}{\percent} at every gain code, and inside
+\SI{0.025}{\percent} across the corner set. The converter costs
+\(+0.160\,\%\) and \SI{0.063}{\degree}, reconstructing its analog
+input to \SI{0.305}{LSB} rms. What remains is the instrument, and it is two
+terms that do not overlap (Table~\ref{tab:eis-pixel}): the feedback pole, which
+is \(\arctan(2\pi f R_f C_F)\) and which the demodulator removes exactly by
+dividing by \(R_f/(1 + \mathrm{j}\omega R_f C_F)\) rather than by \(R_f\),
+and the control amplifier tracking the commanded potential, \SI{0.15}{\percent}
+and \SI{0.09}{\degree} at \SI{1}{\kilo\hertz} rising to \SI{2.1}{\percent}
+and \SI{8.4}{\degree} at \SI{50}{\kilo\hertz}. With the pole restored and the
+record taken ratiometrically against a known impedance, charge-transfer
+resistance and double-layer capacitance come out within
+\SI{0.15}{\percent} at \SI{1}{\kilo\hertz} and \SI{0.40}{\percent} at
+\SI{5}{\kilo\hertz}. \textbf{That last claim assumes the electrolyte
+resistance is supplied}: taken as the real part at the top sweep frequency, as
+the firmware note describes, it carries a \(+9.9\,\%\) bias on this load
+before any measurement error and degrades both extracted parameters by an order
+of magnitude.
+
+\input{include/analog/tab_eis_pixel.tex}

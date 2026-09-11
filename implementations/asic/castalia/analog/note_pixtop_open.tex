@@ -81,11 +81,11 @@
     Table~\ref{tab:pixtop-mc} was measured, and neither moves it: capacitor
     mismatch is invisible to a dc campaign by construction, and the divider that
     sets the converter's threshold is isolated from the readout by the
-    buffer. That divider is worth its own note --- with its matching disabled it
+    buffer. That divider is worth its own note: with its matching disabled it
     reported a threshold of exactly \SI{1.250000}{\volt} in all 200 samples,
     because process cancels in a ratio of identical resistors and a matched pair
     switched off reads as an ideal reference rather than a disabled one. Enabled
-    it carries \SI{0.968}{\milli\volt}, \num{0.607} of a converter code ---
+    it carries \SI{0.968}{\milli\volt}, \num{0.607} of a converter code,
     dormant while the array is unpopulated, and a converter offset as soon as a
     code is scored.
   \item \textbf{The converter at schematic level.} Its capacitor array exists
@@ -104,7 +104,7 @@
     stability or noise figure here carries its wiring parasitics: the stage has
     no extracted view.
   \item \textbf{Wiring.} All sixteen test-port multiplexer inputs are undriven,
-    so the debug path selects between floating nodes on demand --- and its
+    so the debug path selects between floating nodes on demand, and its
     output now carries a buffer, which spends \SI{243}{\micro\watt} of
     Section~\ref{sss:pixtop-power} driving them. Either the inputs get something
     to look at or the buffer goes; as built it is the second-largest consumer in

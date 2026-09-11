@@ -114,7 +114,7 @@ slot's sibling sits at a rail.
 appears in the answer: holding the other fourteen inputs at ground and at
 \SI{1.25}{\volt} gives \num{24.71} and \SI{24.86}{\pico\ampere} for the same
 slot, and every slot crosses the same four gates, so no slot is privileged. A
-flat sixteen-way star has no such structure --- every off switch faces the
+flat sixteen-way star has no such structure: every off switch faces the
 shared node, so a sense slot's leakage would be set by whichever slot is
 currently selected, a quantity the measurement itself changes. The costs are
 four gates in series and the switching behaviour below.
@@ -128,7 +128,7 @@ the multiplexer drives a gate, whose input capacitance measures
 \SI{23.4}{\femto\farad}, and a \SI{1.25}{\volt} slot change settles to half a
 converter code in \SI{2.36}{\nano\second}. Read at the test pad instead, into
 \SI{1.2}{\kilo\ohm} and \SI{50}{\pico\farad}, the same change takes
-\SI{1.42}{\micro\second} --- irrelevant for a meter, decisive for a procedure
+\SI{1.42}{\micro\second}, irrelevant for a meter, decisive for a procedure
 that assumes a settled node. Coupling from unselected slots simulates at
 \SI{114}{\nano\volt} peak-to-peak for a full-scale aggressor step, but that is a
 model floor: a cut-off device is given no source-to-drain path, so the physical
@@ -149,15 +149,15 @@ of skew between select bits swings the output the full \SI{1.25}{\volt} through
 a third, unintended slot and stretches settling from \num{2.4} to
 \SI{6.3}{\nano\second}; \SI{50}{\nano\second} of skew stretches it to
 \SI{51}{\nano\second}. A reading taken too soon after a slot change is not a
-noisy version of the right slot --- it is another slot's voltage. Removing this
+noisy version of the right slot; it is another slot's voltage. Removing this
 would need a decoder and a non-overlap generator, which is the device count the
 tree exists to avoid, so it is handled by procedure:
 
 \begin{enumerate}[nosep]
   \item \textbf{Keep every unselected slot near the common mode}, and in no case
     more than \SI{1}{\volt} from its level-1 sibling. Tying spares to local
-    ground satisfies neither. The level-1 pairs are fixed by the tree ---
-    \((0,1)\), \((2,3)\) and so on --- and the channel as drawn violates the
+    ground satisfies neither. The level-1 pairs are fixed by the tree,
+    \((0,1)\), \((2,3)\) and so on, and the channel as drawn violates the
     rule: the test-port tree has all sixteen inputs undriven and the converter
     tree eleven of sixteen, and one of those undriven slots is the level-1
     sibling of the commanded-potential output, into which it dumps its
@@ -171,7 +171,7 @@ tree exists to avoid, so it is handled by procedure:
 low below \SI{0.6}{\micro\volt}, threshold \numrange{0.52}{0.55} of the
 \SI{1.0}{\volt} rail, propagation \SIrange{1.2}{2.5}{\nano\second}. The figure
 to carry into the power budget is the crowbar: a select input parked at its own
-threshold --- a floating select bus, a half-driven pin, a slow ramp --- draws
+threshold (a floating select bus, a half-driven pin, a slow ramp) draws
 \SI{2.5}{\micro\ampere} per channel, and twenty select bits is
 \SI{51}{\micro\ampere}, on the analog rail rather than the digital one. With the
 \SI{1.0}{\volt} domain unpowered and the analog domain live, no select line
