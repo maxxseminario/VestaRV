@@ -315,6 +315,14 @@ The boot ROM zeroes \texttt{0x10000} to \texttt{0x107FF} at every boot, so every
 
 While a hart is halted, the single home of the interrupted program's \asminline{s0} and \asminline{s1} is the CSR pair \register{dscratch0} and \register{dscratch1}: a debugger that reads or writes \asminline{s0} reads or writes \register{dscratch0}, and a program-buffer change to \asminline{s0} survives to the next read because the exit sequence adopts the architectural pair into the CSRs first. The two words at \texttt{0x106F0} and \texttt{0x106F4} are the stub's own repair copies for a hart that re-enters debug mode from inside the page; the Debug Module writes them only when it authored a new value, and nothing else reads them. A plain halt and resume with no register writes leaves \asminline{s0} and \asminline{s1} as it found them.
 
+\subsection{DMI register map, field by field} \label{ss:debug-dmi-fields}
+
+Table \ref{t:debug-dmi} says what each Debug Module register is for; the field-level tables below carry the bits. They are generated from \texttt{hdl/common/periph/rdl/debug\_module.rdl}, the SystemRDL description that sits beside the RTL and is the single source for every register description in this manual. The Debug Module has no row in the register index (Chapter \ref{s:regMemMap}) because its registers answer on the DMI, not on the memory bus: no load or store reaches them.
+
+Two conventions differ from Table \ref{t:debug-dmi}. SystemRDL addresses in bytes, so each \textbf{Offset} below is the DMI address times four: \register{dmcontrol}, DMI \texttt{0x10}, prints \texttt{0x40}. Names carry the \texttt{DM} prefix the RTL uses, so \register{dmcontrol} appears as \texttt{DMCONTROL}.
+
+\IfFileExists{include/DEBUG-registers-rdl.tex}{\input{include/DEBUG-registers-rdl.tex}}{}
+
 \section{Interrupts and events}
 
 Not applicable. The debug system raises no interrupt vector; a halted hart is observed through \register{dmstatus}, and interrupts pending on a hart in debug mode are delivered after \asminline{DRET}.

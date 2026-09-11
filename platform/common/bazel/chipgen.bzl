@@ -68,7 +68,13 @@ def _chip_artifacts_impl(ctx):
     # A scratch tree beside the outputs, wiped by the action when it finishes.
     stageRoot = "{}/{}/{}_stage".format(ctx.bin_dir.path, ctx.label.package, name)
 
-    inputs = ctx.files.srcs + ctx.files.chip_root_srcs + ctx.files.out_of_tree_srcs
+    # The SystemRDL descriptions are generation INPUTS now, not documentation:
+    # generate.py builds most peripheral register maps out of them (report R5).
+    # They are attached by the rule rather than listed per target, because every
+    # configuration reads the same set and forgetting one would silently emit a
+    # chip with a missing register.
+    inputs = (ctx.files.srcs + ctx.files.chip_root_srcs +
+              ctx.files.out_of_tree_srcs + ctx.files._rdl_srcs)
     if ctx.file.config:
         inputs = inputs + [ctx.file.config]
 
@@ -140,6 +146,11 @@ chip_artifacts = rule(
         "chip_name": attr.string(default = ""),
         "chip_root": attr.string(default = "platform/common"),
         "epoch": attr.int(default = DEFAULT_EPOCH),
+        "_rdl_srcs": attr.label(
+            default = "//hdl:rdl_sources",
+            allow_files = True,
+            doc = "The SystemRDL register descriptions generate.py reads.",
+        ),
         "_stager": attr.label(
             default = "//platform/common/bazel:stage_generate",
             executable = True,

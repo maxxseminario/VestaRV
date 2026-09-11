@@ -108,12 +108,27 @@ help:
 # ---------------------------------------------------------------------------
 SYNC_MODE ?= --strict
 
+# THE GENERATOR NEEDS A SystemRDL-CAPABLE INTERPRETER.
+# python/generate.py reads hdl/common/periph/rdl/*.rdl for its register maps
+# (tools/rdl/README.md), and systemrdl-compiler needs Python >= 3.8 while several
+# hosts here ship a 3.6 as /usr/bin/python3. python/rdl_python.py returns this
+# shell's python3 when it can already import the compiler, and otherwise the
+# hermetic interpreter and pinned wheels bazel provisions -- the same ones
+# //platform/common:chip_artifacts_* uses, so make and bazel agree by
+# construction. It fails loudly rather than generating a chip with eighteen
+# peripherals' registers missing. Every OTHER python3 below is a self-contained
+# checker with no third-party dependency and is left alone.
+GEN_PYTHONPATH := $(shell python3 python/rdl_python.py --pythonpath)
+GEN_PYTHON := $(shell python3 python/rdl_python.py --python)
+
 generate:
 	@echo "Generating chip artifacts from python/generate.py..."
 	@if [ -n "$(CONFIG)" ]; then echo "  • using config file: $(CONFIG)"; fi
+	@if [ -z "$(GEN_PYTHON)" ]; then python3 python/rdl_python.py >/dev/null; exit 1; fi
+	@echo "  • SystemRDL interpreter: $(GEN_PYTHON)"
 	@echo "Checking every knob's two default literals agree (schema <-> _cfg)..."
 	@python3 python/check_config_defaults.py
-	@cd python && CHIP_NAME='$(CHIP_NAME)' CHIP_CONFIG='$(if $(CONFIG),$(abspath $(CONFIG)),)' python3 generate.py
+	@cd python && CHIP_NAME='$(CHIP_NAME)' CHIP_CONFIG='$(if $(CONFIG),$(abspath $(CONFIG)),)' PYTHONPATH='$(GEN_PYTHONPATH)' $(GEN_PYTHON) generate.py
 	@echo ""
 	@echo "C-compiling the emitted MemoryMap.h (riscv-none-elf-gcc -fsyntax-only)..."
 	@python3 python/check_memorymap_h.py out/software/include/MemoryMap.h

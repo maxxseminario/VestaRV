@@ -360,47 +360,47 @@ package MemoryMap is
 	---------- Bit Field Defines ----------
 	------ GPIOx
 	-- PxIN
-	constant PxIN_MSB				: natural := 31;
+	constant PxIN_MSB				: natural := 07;
 	constant PxIN_LSB				: natural := 00;
 
 	-- PxOUT
-	constant PxOUT_MSB				: natural := 31;
+	constant PxOUT_MSB				: natural := 07;
 	constant PxOUT_LSB				: natural := 00;
 
 	-- PxOUTS
-	constant PxOUTS_MSB				: natural := 31;
+	constant PxOUTS_MSB				: natural := 07;
 	constant PxOUTS_LSB				: natural := 00;
 
 	-- PxOUTC
-	constant PxOUTC_MSB				: natural := 31;
+	constant PxOUTC_MSB				: natural := 07;
 	constant PxOUTC_LSB				: natural := 00;
 
 	-- PxOUTT
-	constant PxOUTT_MSB				: natural := 31;
+	constant PxOUTT_MSB				: natural := 07;
 	constant PxOUTT_LSB				: natural := 00;
 
 	-- PxDIR
-	constant PxDIR_MSB				: natural := 31;
+	constant PxDIR_MSB				: natural := 07;
 	constant PxDIR_LSB				: natural := 00;
 
 	-- PxIF
-	constant PxIF_MSB				: natural := 31;
+	constant PxIF_MSB				: natural := 07;
 	constant PxIF_LSB				: natural := 00;
 
 	-- PxIES
-	constant PxIES_MSB				: natural := 31;
+	constant PxIES_MSB				: natural := 07;
 	constant PxIES_LSB				: natural := 00;
 
 	-- PxIE
-	constant PxIE_MSB				: natural := 31;
+	constant PxIE_MSB				: natural := 07;
 	constant PxIE_LSB				: natural := 00;
 
 	-- PxSEL
-	constant PxSEL_MSB				: natural := 31;
+	constant PxSEL_MSB				: natural := 07;
 	constant PxSEL_LSB				: natural := 00;
 
 	-- PxREN
-	constant PxREN_MSB				: natural := 31;
+	constant PxREN_MSB				: natural := 07;
 	constant PxREN_LSB				: natural := 00;
 
 	-- PxAFS
@@ -422,7 +422,7 @@ package MemoryMap is
 	constant PxAFS0_LSB				: natural := 00;
 
 	-- PxTASK
-	constant PxTASK_MSB				: natural := 31;
+	constant PxTASK_MSB				: natural := 07;
 	constant PxTASK_LSB				: natural := 00;
 
 
