@@ -1,0 +1,189 @@
+// ===========================================================================
+// rtc.rdl: the register map of hdl/common/periph/RTC.vhd.
+//
+// THE VHDL IS THE AUTHORITY: seven slots from the block's SLOT_* constants,
+// an all-zero reset branch, and every commit plus the SR write-1-to-clear
+// qualified by byte lane 0.
+//
+// RTCxSEC and RTCxSUB do not read back what was written: a write STAGES the
+// value (and, for SEC, commits {SEC,SUB} atomically into the 32 kHz domain)
+// while a read returns the synchronized live counter snapshot. RTCxSUB alone
+// never commits; the following RTCxSEC write is what commits it.
+//
+// RTCxTRIM (slot 6) is reserved: it reads 0 and ignores writes.
+// ===========================================================================
+
+`include "vesta_udp.rdl"
+
+enum rtcxcr_rtctickie_e {
+    INTERRUPT_DISABLED = 1'h0 { desc = "Interrupt disabled"; };
+    INTERRUPT_ENABLED = 1'h1 { desc = "Interrupt enabled"; };
+};
+enum rtcxcr_rtcalmie_e {
+    INTERRUPT_DISABLED = 1'h0 { desc = "Interrupt disabled"; };
+    INTERRUPT_ENABLED = 1'h1 { desc = "Interrupt enabled"; };
+};
+enum rtcxcr_rtcticken_e {
+    TICK_DISABLED = 1'h0 { desc = "Tick disabled"; };
+    TICK_ENABLED = 1'h1 { desc = "Tick enabled"; };
+};
+enum rtcxcr_rtcalmen_e {
+    ALARM_DISABLED = 1'h0 { desc = "Alarm disabled"; };
+    ALARM_ENABLED = 1'h1 { desc = "Alarm enabled"; };
+};
+enum rtcxcr_rtcen_e {
+    COUNTER_FROZEN = 1'h0 { desc = "Counter frozen"; };
+    COUNTING = 1'h1 { desc = "Counting"; };
+};
+enum rtcxsr_rtctickf_e {
+    NO_EVENT = 1'h0 { desc = "No event"; };
+    TICK_FIRED = 1'h1 { desc = "Tick fired"; };
+};
+enum rtcxsr_rtcalmf_e {
+    NO_EVENT = 1'h0 { desc = "No event"; };
+    ALARM_FIRED = 1'h1 { desc = "Alarm fired"; };
+};
+enum rtcxsr_rtcsync_e {
+    IDLE_SAFE_TO_COMMIT = 1'h0 { desc = "Idle (safe to commit)"; };
+    COMMIT_IN_FLIGHT = 1'h1 { desc = "Commit in flight"; };
+};
+
+reg RTCxCR_t {
+    regwidth = 32;
+    desc = "RTC control register. Enables the seconds/subsecond counter, the alarm compare, and the periodic-tick down-counter, and holds the two interrupt enables. The three enables cross into the LFXT domain as synchronized held levels; the interrupt enables stay in the bus/MCLK domain and gate the combined interrupt combinationally. Resets to 0. The reserved upper bits hold a future trim-enable field (RTC0TRIM, digital calibration, deferred).";
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = rtcxcr_rtctickie_e;
+        desc = "Periodic-tick interrupt enable. When set, RTC0SR.TICKF drives the combined RTC interrupt (vector 114).";
+    } RTCTICKIE[4:4];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = rtcxcr_rtcalmie_e;
+        desc = "Alarm interrupt enable. When set, RTC0SR.ALMF drives the combined RTC interrupt (vector 114).";
+    } RTCALMIE[3:3];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = rtcxcr_rtcticken_e;
+        desc = "Periodic-tick enable. When set, the independent subsecond down-counter reloaded from RTC0PER runs and sets the tick flag on each underflow; when clear no tick event is generated. The tick counter never disturbs the wall-clock prescaler.";
+    } RTCTICKEN[2:2];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = rtcxcr_rtcalmen_e;
+        desc = "Alarm-compare enable. When set, the alarm engine compares the seconds counter against RTC0ALM and sets the alarm flag on the match; when clear no alarm event is generated.";
+    } RTCALMEN[1:1];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = rtcxcr_rtcen_e;
+        desc = "Wall-clock enable. When set, the 47-bit {seconds, subsecond} counter advances on every LFXT edge; when clear the count is frozen (its value is preserved).";
+    } RTCEN[0:0];
+};
+
+reg RTCxSEC_t {
+    regwidth = 32;
+    desc = "Wall-clock seconds. READ returns a coherent double-buffered snapshot synchronized into the bus domain (up to ~1 LFXT period, ~30.5 us, behind the live count; no read side effects). WRITE stages the seconds value and atomically commits set-time {SEC, SUB} into the LFXT domain through the SR.SYNC handshake (write SUB first if subseconds are also being set); the loaded value takes priority over the increment on the applying LFXT edge.";
+    // Write stages and commits {SEC,SUB}; read returns snap_sync(46 downto 15), the live counter.
+    field {
+        sw = rw; hw = rw;
+        reset = 32'h0;
+        vesta_access = "rw";
+        desc = "Seconds counter (0 to 2^32-1).";
+    } RTCSEC[31:0];
+};
+
+reg RTCxSUB_t {
+    regwidth = 32;
+    desc = "Subsecond prescaler, 0 to 32767 (2^15 - 1). READ returns the coherent snapshot from the SAME instant as RTC0SEC (D7). WRITE only STAGES the subsecond value; it is committed by the following RTC0SEC write (to set subseconds alone, write SUB then SEC).";
+    // Write stages only -- the next RTCxSEC write commits it; read returns snap_sync(14 downto 0), the live sub-second counter.
+    field {
+        sw = rw; hw = rw;
+        reset = 15'h0;
+        vesta_access = "rw";
+        desc = "Subsecond prescaler count (0 to 32767); wraps at 32768, carrying seconds by exactly one (exact 1 Hz).";
+    } RTCSUB[14:0];
+};
+
+reg RTCxALM_t {
+    regwidth = 32;
+    desc = "Alarm compare value, in seconds. The alarm flag (RTC0SR.ALMF) sets once when the seconds counter first equals this value (one-shot, full 32-bit equality); re-arm by writing a new value past the current second. READ returns the last written value (bus-domain staging readback, no CDC). WRITE stages and commits the new compare through the SR.SYNC handshake.";
+    field {
+        sw = rw; hw = r;
+        reset = 32'h0;
+        vesta_access = "rw";
+        desc = "Alarm seconds compare value.";
+    } RTCALM[31:0];
+};
+
+reg RTCxPER_t {
+    regwidth = 32;
+    desc = "Periodic-tick reload, in subsecond (LFXT) ticks: a tick event fires every reload+1 LFXT ticks (~2 s max interval at 32.768 kHz, adjudication A4). READ returns the last written value (bus-domain staging readback). WRITE stages and commits the new reload through the SR.SYNC handshake.";
+    field {
+        sw = rw; hw = r;
+        reset = 16'h0;
+        vesta_access = "rw";
+        desc = "Periodic-tick reload in LFXT ticks (0 to 65535).";
+    } RTCPER[15:0];
+};
+
+// Lane-0 write-1-to-clear on ALMF and TICKF; RTCSYNC (bit 0) is a read-only busy level.
+reg RTCxSR_t {
+    regwidth = 32;
+    desc = "RTC status register. SYNC is read-only; the two event flags (ALMF, TICKF) are write-1-to-clear (write a 1 to a bit to clear it; writing 0 leaves it unchanged) and are never cleared by a read. The combined RTC interrupt (vector 114) is (ALMF and RTCALMIE) or (TICKF and RTCTICKIE).";
+    field {
+        sw = rw; hw = w; onwrite = woclr;
+        reset = 1'h0;
+        vesta_access = "rw1";
+        encode = rtcxsr_rtctickf_e;
+        desc = "Periodic-tick flag. Set on each periodic-tick underflow; drives vector 114 when RTCTICKIE is set. Write 1 to clear.";
+    } RTCTICKF[2:2];
+    field {
+        sw = rw; hw = w; onwrite = woclr;
+        reset = 1'h0;
+        vesta_access = "rw1";
+        encode = rtcxsr_rtcalmf_e;
+        desc = "Alarm flag. Set once when the seconds counter first matches RTC0ALM (one-shot); drives vector 114 when RTCALMIE is set. Write 1 to clear.";
+    } RTCALMF[1:1];
+    field {
+        sw = r; hw = w;
+        reset = 1'h0;
+        vesta_access = "r";
+        encode = rtcxsr_rtcsync_e;
+        desc = "Sync/busy. Reads 1 while a set-time / alarm / period commit is still crossing into the LFXT domain; software must poll this 0 before the next committing write (single outstanding commit).";
+    } RTCSYNC[0:0];
+};
+
+// Reserved slot: reads 0, writes ignored (`when others => null` covers slot 6).
+reg RTCxTRIM_t {
+    regwidth = 32;
+    desc = "Reserved for digital fractional-prescaler / ppm calibration (deferred). Reads 0, writes ignored. The slot and the RTC0CR trim-enable field are reserved so calibration bolts on without a register-map break.";
+    field {
+        sw = r;  hw = na;
+        reset = 32'h0;
+        desc = "Reserved.";
+    } RESERVED[31:0];
+};
+addrmap rtc {
+    name = "RTCx";
+    desc = "Real-Time Clock: a 32.768 kHz always-on wall clock (32-bit seconds + 15-bit subsecond prescaler) with a one-shot alarm compare and a recurring periodic tick, delivered on ONE combined interrupt (vector 114)";
+    vesta_peripheral = "RTCx";
+    vesta_word_base = 0;
+
+    default regwidth = 32;
+
+    RTCxCR_t   RTCxCR   @0x00;
+    RTCxSEC_t  RTCxSEC  @0x04;
+    RTCxSUB_t  RTCxSUB  @0x08;
+    RTCxALM_t  RTCxALM  @0x0C;
+    RTCxPER_t  RTCxPER  @0x10;
+    RTCxSR_t   RTCxSR   @0x14;
+    RTCxTRIM_t RTCxTRIM @0x18;
+};

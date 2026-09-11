@@ -1,0 +1,6 @@
+# Direct requirements of the SystemRDL toolchain (tools/rdl/README.md).
+# Pinned exactly; regenerate requirements_lock.txt with the recipe in the README
+# after changing anything here.
+systemrdl-compiler==1.32.2
+peakrdl-cheader==1.1.0
+peakrdl-markdown==1.0.3

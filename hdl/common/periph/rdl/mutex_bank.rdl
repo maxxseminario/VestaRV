@@ -1,0 +1,78 @@
+// ===========================================================================
+// mutex_bank.rdl: the register map of hdl/common/mutex_bank.vhd.
+//
+// THE VHDL IS THE AUTHORITY and this block does not fit the ordinary
+// read/write model, so read the notes before the properties:
+//   READ  claims the mutex for the reading master if it was free, and
+//         ALWAYS returns the PRE-transaction owner (0 = it was free, and is
+//         now yours; nonzero = the holder's hartid+1).
+//   WRITE 0 releases it, owner-unqualified.
+//   WRITE nonzero is IGNORED, so ownership can never be forged.
+//
+// PARAMETERISED (report R7). Both the register set and the field geometry
+// move with the configuration:
+//
+//     NMUTEX   the bank size (16 here, 32 on argus) -- mutex_bank's NMUTEX
+//     MW       mp_arbiter's granted-master width (3 here, 5 on argus), i.e.
+//              mcu_vhd.masterW(); the owner field is MW+1 bits at MW:0 and
+//              bits 31:MW+1 always read 0
+//     NHARTS   the hart count, which is how many owner markers exist
+//
+// The owner markers cannot be a plain SystemRDL enum: its member values must
+// fit the field, and one static enum covering 32 harts is 6 bits wide, which
+// the compiler rejects on a 4-bit field ("Field 'MTXOWN' is not wide enough
+// to encode as enum 'owner_e'"). `encode` therefore carries only the value
+// that does not repeat (0 = free) and vesta_values_* enumerate the NHARTS
+// per-hart markers above it.
+// ===========================================================================
+
+`include "vesta_udp.rdl"
+
+enum mutex_owner_free_e {
+    MTXOWN_FREE = 1'h0 {
+        name = "MTXOWN{i}_FREE";
+        desc = "Mutex free (a read returning this value claims the mutex)";
+    };
+};
+
+reg MUTEX_t #(longint unsigned MW = 3, longint unsigned NHARTS = 5) {
+    regwidth = 32;
+    vesta_name = "MUTEX{i}";
+    desc = "Hardware mutex {i}. Read to claim: a returned value of 0 means the mutex was free and the reading hart now holds it; a nonzero value is the current owner's marker (hartid+1). Write 0 to release.";
+    // Owner: 0 = free, otherwise hartid+1. MW+1 bits wide (mp_arbiter MW).
+    // A READ claims it; a write of 0 releases; a nonzero write is ignored.
+    field {
+        sw = rw; hw = rw;
+        reset = 0;
+        vesta_access = "rw";
+        encode = mutex_owner_free_e;
+        vesta_named_values = true;
+        vesta_values_count = NHARTS;
+        vesta_values_first = 1;
+        vesta_values_name = "MTXOWN{i}_H{v}";
+        vesta_values_desc = "Held by hart {v}";
+        vesta_name = "MTXOWN{i}";
+        desc = "Owner marker: 0 = free (and a read that returns 0 claims the mutex), h+1 = held by hart h.";
+    } MTXOWN[MW:0];
+};
+
+addrmap mutex_bank #(
+    longint unsigned NMUTEX = 16,
+    longint unsigned MW     = 3,
+    longint unsigned NHARTS = 5
+) {
+    name = "MUTEX";
+    desc = "Hardware mutex bank: sixteen word-mapped advisory locks providing single-instruction cross-hart mutual exclusion";
+    vesta_peripheral = "MUTEX";
+    vesta_word_base = 0;
+    vesta_indexed = true;
+
+    default regwidth = 32;
+
+    // The ARRAY instance is MTX, not MUTEX: the published register names come
+    // from vesta_name ("MUTEX{i}") and MemoryMap.h already defines a bare
+    // `MUTEX` macro for the block's typed pointer, which would macro-expand the
+    // struct member PeakRDL-cheader emits for the array
+    // (//platform/common:regs_headers_compile_test co-compiles the two).
+    MUTEX_t #(.MW(MW), .NHARTS(NHARTS)) MTX[NMUTEX] @0x00 += 0x4;
+};

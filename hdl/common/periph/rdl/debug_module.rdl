@@ -1,0 +1,258 @@
+// ===========================================================================
+// debug_module.rdl: the DMI register file of hdl/common/debug_module.vhd.
+//
+// THIS BLOCK IS NOT MEMORY-MAPPED, which is why it is absent from
+// castalia_penta_wound_afe.rdl and from the generator's peripheral table
+// entirely. Its registers live in the DMI address space the JTAG DTM drives
+// (dmi_req_addr, 7 bits, word-indexed), so they cannot be reached with a load
+// or a store and have no base address in the shared window.
+//
+// ADDRESS CONVENTION. SystemRDL addresses are bytes, DMI addresses are words,
+// so every register here sits at 4 * its DMI address: DMI 0x10 (dmcontrol) is
+// at byte offset 0x40. rdl_model divides the offset by 4 again, so the slot
+// number it reports IS the DMI address.
+//
+// THE VHDL IS THE AUTHORITY. Every address is one of the block's own A_*
+// constants (which the file says are debug_defines.h's), and every field below
+// is one the decode actually reads or writes -- the debug-spec fields this
+// implementation does not have (hasel, ndmreset, System Bus Access, triggers)
+// are NOT written here, because reading 0 from a bit nothing implements is a
+// fact about this DM, not a field.
+//
+// THREE REGISTERS ANSWER READ-ZERO-SUCCESS RATHER THAN FAILING, deliberately:
+// hartinfo (the null claim: no scratch registers, no shadowed data region, so
+// a debugger uses the program buffer), haltsum1 and sbcs ("no system bus
+// access"). DMI addresses 0x39-0x3F and every other unimplemented address
+// answer `failed` instead.
+// ===========================================================================
+
+`include "vesta_udp.rdl"
+
+reg DMDATA0_t {
+    regwidth = 32;
+    desc = "Abstract data register 0, datacount = 1. Not a flop in this Debug Module: every access is PROXIED to the backing word at DATA0_ADDR through the DM's own shared-bus master, so a read returns whatever the halted hart's abstract command left there. An access while the master engine is busy is refused with abstractcs.CMDERR = BUSY. When abstractauto.AUTOEXECDATA is set, both a read and a write re-issue the last command at the retire of this access.";
+    // Proxied through the master port, not stored here; the reset value is that
+    // of the backing word, not of a register in this block.
+    field {
+        sw = rw; hw = rw;
+        reset = 32'h0;
+        vesta_access = "rw";
+        desc = "Abstract command operand / result word.";
+    } DMDATA0[31:0];
+};
+
+reg DMCONTROL_t {
+    regwidth = 32;
+    desc = "Debug Module control. DMACTIVE is the DM's own reset: writing 0 clears haltreq, the reset-halt requests, the halt-group pending set, the resume pending set, busy, cmderr, the plant-owed bits and abstractauto, and the RISING edge of DMACTIVE re-arms the entry-page plant. HAVERESET is deliberately NOT cleared by a dmactive toggle, because its value is a claim about the harts rather than about the DM. NDMRESET is not implemented and reads 0 (WARL).";
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        desc = "Halt request for the selected hart, a level held until cleared.";
+    } DMHALTREQ[31:31];
+    // Write-1 request; there is no storage and the read mux never returns it.
+    field {
+        sw = w;  hw = r;
+        reset = 1'h0;
+        vesta_access = "w";
+        desc = "Resume request for the selected hart. Queued, never refused and never dropped, but it means something only for a hart that is halted, exists and is available. Reads 0.";
+    } DMRESUMEREQ[30:30];
+    // Write-1 acknowledge; a hart reset landing in the same cycle WINS, so the
+    // report of a reset the debugger has not read yet is never lost.
+    field {
+        sw = w;  hw = r;
+        reset = 1'h0;
+        vesta_access = "w";
+        desc = "Acknowledge the selected hart's HAVERESET report. A reset arriving in the same cycle as the acknowledge survives it. Reads 0.";
+    } DMACKHAVERESET[28:28];
+    field {
+        sw = rw; hw = r;
+        reset = 10'h0;
+        vesta_access = "rw";
+        desc = "Hart select. An index at or above the hart count selects a nonexistent hart, which dmstatus reports through ANYNONEXISTENT / ALLNONEXISTENT; the all-ones probe a debugger uses to size the array is handled without indexing the hart arrays.";
+    } DMHARTSEL[25:16];
+    field {
+        sw = rw; hw = rw;
+        reset = 1'h0;
+        vesta_access = "rw";
+        desc = "Set the selected hart's reset-halt request (halt it out of reset). Reads back the selected hart's current reset-halt state, so this one bit is a write-1 command in one direction and a status bit in the other.";
+    } DMSETRESETHALTREQ[3:3];
+    field {
+        sw = w;  hw = r;
+        reset = 1'h0;
+        vesta_access = "w";
+        desc = "Clear the selected hart's reset-halt request. SET (bit 3) is evaluated first, so a write with both bits set leaves the request set. Reads 0.";
+    } DMCLRRESETHALTREQ[2:2];
+    field {
+        sw = rw; hw = rw;
+        reset = 1'h0;
+        vesta_access = "rw";
+        desc = "Debug Module active. 0 resets the DM's own state (not the harts); the 0-to-1 edge re-arms the entry-page plant. Every dmstatus poll writes this register with DMACTIVE set, which is why the plant is armed on the EDGE and not on the level.";
+    } DMACTIVE[0:0];
+};
+
+reg DMSTATUS_t {
+    regwidth = 32;
+    desc = "Debug Module status, read only. With hasel dropped, both halves of every any/all pair mirror the selected hart and BOTH are driven, because OpenOCD misreads them otherwise. VERSION = 3 (debug spec 1.0), IMPEBREAK = 1 (the implicit third program-buffer word is an ebreak), HASRESETHALTREQ = 1 and AUTHENTICATED = 1.";
+    field { sw = r; hw = w; reset = 1'h0; vesta_access = "r";
+        desc = "Implicit ebreak after the program buffer. Constant 1."; } DMIMPEBREAK[22:22];
+    field { sw = r; hw = w; reset = 1'h0; vesta_access = "r";
+        desc = "Every selected hart has reset since the last acknowledge."; } DMALLHAVERESET[19:19];
+    field { sw = r; hw = w; reset = 1'h0; vesta_access = "r";
+        desc = "Any selected hart has reset since the last acknowledge."; } DMANYHAVERESET[18:18];
+    field { sw = r; hw = w; reset = 1'h0; vesta_access = "r";
+        desc = "Every selected hart has acknowledged its resume request."; } DMALLRESUMEACK[17:17];
+    field { sw = r; hw = w; reset = 1'h0; vesta_access = "r";
+        desc = "Any selected hart has acknowledged its resume request."; } DMANYRESUMEACK[16:16];
+    field { sw = r; hw = w; reset = 1'h0; vesta_access = "r";
+        desc = "Every selected hart does not exist."; } DMALLNONEXISTENT[15:15];
+    field { sw = r; hw = w; reset = 1'h0; vesta_access = "r";
+        desc = "Any selected hart does not exist."; } DMANYNONEXISTENT[14:14];
+    field { sw = r; hw = w; reset = 1'h0; vesta_access = "r";
+        desc = "Every selected hart is unavailable: it exists but the DM cannot reach it, because isolation or reset is holding it."; } DMALLUNAVAIL[13:13];
+    field { sw = r; hw = w; reset = 1'h0; vesta_access = "r";
+        desc = "Any selected hart is unavailable."; } DMANYUNAVAIL[12:12];
+    field { sw = r; hw = w; reset = 1'h0; vesta_access = "r";
+        desc = "Every selected hart is running."; } DMALLRUNNING[11:11];
+    field { sw = r; hw = w; reset = 1'h0; vesta_access = "r";
+        desc = "Any selected hart is running."; } DMANYRUNNING[10:10];
+    field { sw = r; hw = w; reset = 1'h0; vesta_access = "r";
+        desc = "Every selected hart is halted."; } DMALLHALTED[9:9];
+    field { sw = r; hw = w; reset = 1'h0; vesta_access = "r";
+        desc = "Any selected hart is halted."; } DMANYHALTED[8:8];
+    field { sw = r; hw = w; reset = 1'h0; vesta_access = "r";
+        desc = "Authenticated. Constant 1: this DM has no authentication."; } DMAUTHENTICATED[7:7];
+    field { sw = r; hw = w; reset = 1'h0; vesta_access = "r";
+        desc = "Reset-halt request supported. Constant 1: the wire exists."; } DMHASRESETHALTREQ[5:5];
+    field { sw = r; hw = w; reset = 4'h0; vesta_access = "r";
+        desc = "Debug Module version. Constant 3 = debug specification 1.0."; } DMVERSION[3:0];
+};
+
+reg DMHARTINFO_t {
+    regwidth = 32;
+    desc = "Hart information, read only. THE NULL CLAIM: all four fields (NSCRATCH, DATAACCESS, DATASIZE, DATAADDR) read 0, which says there are no scratch registers and no shadowed data region, so a debugger must use the program buffer. That is this design's only path. DATAADDR must NOT advertise DATA0_ADDR: the field is 12 bits and sign-extended, so 0x10680 would publish as 0x680, a resolvable wrong address inside the read-only boot ROM. Clearing DATAACCESS is what makes that unreachable; the DM's own master engine still targets DATA0_ADDR, it simply does not advertise it.";
+    field {
+        sw = r;  hw = na;
+        reset = 32'h0;
+        desc = "Reserved.";
+    } RESERVED[31:0];
+};
+
+reg DMHALTSUM1_t {
+    regwidth = 32;
+    desc = "Halt summary 1, read only. Reads 0 with SUCCESS: a debugger probes this address and must not see a failed transaction. One 32-bit haltsum0 covers every hart count this chip supports.";
+    field {
+        sw = r;  hw = na;
+        reset = 32'h0;
+        desc = "Reserved.";
+    } RESERVED[31:0];
+};
+
+reg DMABSTRACTCS_t {
+    regwidth = 32;
+    desc = "Abstract control and status. PROGBUFSIZE = 2 and DATACOUNT = 1 are constants. CMDERR is sticky and write-1-to-clear (`cmderr_r <= cmderr_r and not d(10 downto 8)`), and NO ABSTRACT COMMAND STARTS WHILE IT IS SET: a command write arriving with a standing error is ignored outright, error and all, so the diagnosis is never overwritten with BUSY.";
+    field { sw = r; hw = w; reset = 5'h0; vesta_access = "r";
+        desc = "Program buffer size in words. Constant 2, with an implicit third word that is an ebreak."; } DMPROGBUFSIZE[28:24];
+    field { sw = r; hw = w; reset = 1'h0; vesta_access = "r";
+        desc = "An abstract command is executing. The command WRITE itself completes immediately; this is what the debugger polls."; } DMBUSY[12:12];
+    field { sw = rw; hw = w; onwrite = woclr; reset = 3'h0; vesta_access = "rw1";
+        desc = "Sticky command error: 0 none, 1 busy, 2 not supported, 3 exception, 4 halt/resume state wrong. Write 1s to the bits to clear."; } DMCMDERR[10:8];
+    field { sw = r; hw = w; reset = 4'h0; vesta_access = "r";
+        desc = "Number of abstract data registers. Constant 1."; } DMDATACOUNT[3:0];
+};
+
+reg DMCOMMAND_t {
+    regwidth = 32;
+    desc = "Abstract command. Write-only: the read mux returns 0. Only cmdtype 0 (access register) with aarsize 2 (32-bit) is accepted; cmdtype 2 (access memory) answers CMDERR = NOT_SUPPORTED so the debugger falls back to program-buffer lw/sw through the hart, which is this design's memory path. A write is refused, with the reason in abstractcs.CMDERR, when a command error is already standing (ignored outright, no new error), when a command is already running (BUSY), when the selected hart is not halted (HALTRES), or when the DM's master engine is busy (BUSY).";
+    field {
+        sw = w;  hw = r;
+        reset = 32'h0;
+        vesta_access = "w";
+        desc = "Abstract command word: [31:24] cmdtype, [22:20] aarsize, [17] postexec, [16] transfer, [15:0] regno. Reads 0.";
+    } DMCOMMAND[31:0];
+};
+
+reg DMABSTRACTAUTO_t {
+    regwidth = 32;
+    desc = "Abstract command autoexec. AUTOEXECDATA is bit 0 and AUTOEXECPROGBUF is bits 17:16, because datacount is 1 and progbufsize is 2; every other bit is hardwired 0, so the register is WARL by construction and an all-ones write reads back 0x00030001. A write arriving while a command executes DOES NOT LAND and reports CMDERR = BUSY: re-arming the trigger under a running command is exactly the race that rule exists to refuse. Cleared by a DMCONTROL.DMACTIVE toggle.";
+    field { sw = rw; hw = r; reset = 2'h0; vesta_access = "rw";
+        desc = "Re-issue the last abstract command on any access to progbuf0 (bit 16) or progbuf1 (bit 17)."; } DMAUTOEXECPROGBUF[17:16];
+    field { sw = rw; hw = r; reset = 1'h0; vesta_access = "rw";
+        desc = "Re-issue the last abstract command on any access to data0, read or write: a read burst pulls results out and a write burst pushes operands in, and both need the command run once per access."; } DMAUTOEXECDATA[0:0];
+};
+
+reg DMPROGBUF0_t {
+    regwidth = 32;
+    desc = "Program buffer word 0. Proxied to the backing word like data0, and an access while the master engine is busy is refused with CMDERR = BUSY. A written word equal to the 32-bit ebreak encoding 0x00100073 is SUBSTITUTED with the position-correct jump to the epilogue, and a readback returns the substituted word because no shadow of the original is kept; that substitution does not touch the exception detector, so a program that genuinely traps still reports EXCEPTION.";
+    field {
+        sw = rw; hw = rw;
+        reset = 32'h0;
+        vesta_access = "rw";
+        desc = "Program buffer instruction word 0.";
+    } DMPROGBUF0[31:0];
+};
+
+reg DMPROGBUF1_t {
+    regwidth = 32;
+    desc = "Program buffer word 1. Same proxy, same busy refusal and same ebreak substitution as progbuf0. The implicit third word is an ebreak (dmstatus.IMPEBREAK = 1), so a two-word program needs no explicit terminator.";
+    field {
+        sw = rw; hw = rw;
+        reset = 32'h0;
+        vesta_access = "rw";
+        desc = "Program buffer instruction word 1.";
+    } DMPROGBUF1[31:0];
+};
+
+reg DMCS2_t {
+    regwidth = 32;
+    desc = "Halt-group assignment of the selected hart. HGSELECT must be 0 (harts, not external triggers) and HGWRITE commits GROUP for the SELECTED hart; grouptype is 0. A read returns the selected hart's current group in bits 6:2.";
+    field { sw = rw; hw = rw; reset = 5'h0; vesta_access = "rw";
+        desc = "Halt group of the selected hart. Read returns the group; a write commits it only when HGWRITE is 1 and HGSELECT is 0. The stored group is 3 bits, so bits 6:5 read 0."; } DMGROUP[6:2];
+    field { sw = w; hw = r; reset = 1'h0; vesta_access = "w";
+        desc = "Commit GROUP to the selected hart. Reads 0."; } DMHGWRITE[1:1];
+    field { sw = rw; hw = r; reset = 1'h0; vesta_access = "rw";
+        desc = "Halt-group selector: 0 = harts. Any other value makes the write a no-op."; } DMHGSELECT[0:0];
+};
+
+reg DMSBCS_t {
+    regwidth = 32;
+    desc = "System Bus Access control and status. READ-ZERO-SUCCESS and WRITES IGNORED-SUCCESS, both halves load-bearing. A debugger reads this address once per hart during examination and a FAILED read aborts examination outright, while it writes sbcs to clear sberror and a failed write is one more gratuitous sticky transport event. Zeros are the honest answer, not a placation: SBVERSION 0, SBASIZE 0 and every access-width bit clear is the debug specification's own encoding for no system bus access. DMI addresses 0x39-0x3F remain unimplemented and answer `failed`.";
+    field {
+        sw = r;  hw = na;
+        reset = 32'h0;
+        desc = "Reserved.";
+    } RESERVED[31:0];
+};
+
+reg DMHALTSUM0_t {
+    regwidth = 32;
+    desc = "Halt summary 0, read only. One bit per hart, set when that hart is halted AND reachable (halted and not unavailable). One 32-bit word covers every hart count this chip supports, which is why haltsum1 reads 0.";
+    field {
+        sw = r;  hw = w;
+        reset = 32'h0;
+        vesta_access = "r";
+        desc = "Halted-and-reachable bitmap, bit h = hart h.";
+    } DMHALTSUM0[31:0];
+};
+
+addrmap debug_module {
+    name = "DEBUG";
+    desc = "The chip's Debug Module: DMI register file, per-hart run control, access-register abstract commands, a two-word program buffer with an implicit third ebreak, and halt groups. One per chip, always-on mclk, never inside a tile.";
+
+    default regwidth = 32;
+
+    // Byte offset = 4 * DMI address, so the word slot IS the DMI address.
+    DMDATA0_t        DMDATA0        @0x010;   // DMI 0x04
+    DMCONTROL_t      DMCONTROL      @0x040;   // DMI 0x10
+    DMSTATUS_t       DMSTATUS       @0x044;   // DMI 0x11
+    DMHARTINFO_t     DMHARTINFO     @0x048;   // DMI 0x12
+    DMHALTSUM1_t     DMHALTSUM1     @0x04C;   // DMI 0x13
+    DMABSTRACTCS_t   DMABSTRACTCS   @0x058;   // DMI 0x16
+    DMCOMMAND_t      DMCOMMAND      @0x05C;   // DMI 0x17
+    DMABSTRACTAUTO_t DMABSTRACTAUTO @0x060;   // DMI 0x18
+    DMPROGBUF0_t     DMPROGBUF0     @0x080;   // DMI 0x20
+    DMPROGBUF1_t     DMPROGBUF1     @0x084;   // DMI 0x21
+    DMCS2_t          DMCS2          @0x0C8;   // DMI 0x32
+    DMSBCS_t         DMSBCS         @0x0E0;   // DMI 0x38
+    DMHALTSUM0_t     DMHALTSUM0     @0x100;   // DMI 0x40
+};

@@ -1,0 +1,133 @@
+// =============================================================================
+// biasg.rdl: the control registers of the ONE shared bias generator,
+// hdl/common/periph/BIASG.vhd (topology B, afeTopology = "per_tile", only).
+//
+// THE VHDL IS THE AUTHORITY: WORD_BASE = 9, the five-entry IMPL table and the
+// all-zero RSTVAL table in BIASG.vhd are what
+// //platform/common:rdl_vs_vhdl_biasg_test re-derives and compares against.
+//
+// These five words live at words 9-13 of AFE2 SITE 0's 256 B sub-slot
+// (0x6C24-0x6C34). They are a separate entity because AFE2 decodes words 0-8
+// and reads zero above them, so the block costs no address slot, no interrupt
+// vector and no edit to AFE2.vhd; MCU.vhd ORs its read word into site 0's,
+// which is exact because at most one of the two ever returns a non-zero word.
+// Sites 1-3 read these words as 0 and drop writes.
+//
+// EVERY RESET IS ZERO AND TWO OF THEM ARE POWER-UP DUTIES, NOT SAFE DEFAULTS.
+// The four codes are inert at reset by construction (EN = 0 and USEDAC = 0), but
+// BIASGCR.ADJ = 0 is the adj0 END of the trim range, not the nominal: at adj0
+// the generator draws 56.6 uA and bn sits at 0.678 V against a 0.6147 V nominal.
+// A power-up sequence must write a trim code before any channel is enabled.
+// =============================================================================
+
+`include "vesta_udp.rdl"
+
+enum afexbiasgcr_afebgen_e {
+    AFEBGEN_GENERATOR_OFF = 1'h0 { desc = "Generator off"; };
+    AFEBGEN_GENERATOR_ON = 1'h1 { desc = "Generator on"; };
+};
+enum afexbiasgcr_afebgenbufint_e {
+    AFEBGENBUFINT_INTERNAL_BUFFERS_OFF_SHIPPED = 1'h0 { desc = "Internal buffers off (shipped)"; };
+    AFEBGENBUFINT_INTERNAL_BUFFERS_ON = 1'h1 { desc = "Internal buffers on"; };
+};
+enum afexbiasgcr_afebgusedac_e {
+    AFEBGUSEDAC_GENERATOR_SETS_THE_RAILS = 1'h0 { desc = "Generator sets the rails (shipped)"; };
+    AFEBGUSEDAC_BIASG0_3_SET_THE = 1'h1 { desc = "BIASG0-3 set the rails"; };
+};
+
+reg AFExBIASG0_t {
+    regwidth = 32;
+    desc = "Shared bias generator (anatop_biasgen_g) R-2R code for rail bn, the NMOS cascode rail, driving the macro's code_bn pins. SITE 0 ONLY: sites 1-3 read 0 here and drop writes. The four rails are independent voltages from four independent ladders, so each carries its own code. Resets to 0, and the value is inert at reset by construction: BIASGCR resets with EN = 0 (generator off) and USEDAC = 0 (the generator core, not the ladders, sets the rails), so nothing reads this word until firmware writes it. The shipped mission mode is the generator path, which needs no DAC code at all. Present only in the per-tile AFE topology.";
+    field {
+        sw = rw; hw = r;
+        reset = 14'h0;
+        vesta_access = "rw";
+        desc = "14-bit R-2R code setting rail bn when BIASGCR.USEDAC is set. Bench value 4628 (0x1214) at 25 C, AVDD 2.5 V, which forces the rail onto its in-pixel target to better than 0.4 mV (B9); at 37 C the same target needs 4688. Reset 0; write all four before setting USEDAC, or the ladders drive every rail to 0 V and the macro holds 1.20 mA, 2.7x nominal, until USEDAC is cleared. The code moves 4.8 to 22.2 LSB per kelvin, so this value is a bench setting at room temperature, not a shipped constant.";
+    } AFEBGCODE0[13:0];
+};
+
+reg AFExBIASG1_t {
+    regwidth = 32;
+    desc = "Shared bias generator (anatop_biasgen_g) R-2R code for rail bnc, the NMOS cascode gate rail, driving the macro's code_bnc pins. SITE 0 ONLY: sites 1-3 read 0 here and drop writes. The four rails are independent voltages from four independent ladders, so each carries its own code. Resets to 0, and the value is inert at reset by construction: BIASGCR resets with EN = 0 (generator off) and USEDAC = 0 (the generator core, not the ladders, sets the rails), so nothing reads this word until firmware writes it. The shipped mission mode is the generator path, which needs no DAC code at all. Present only in the per-tile AFE topology.";
+    field {
+        sw = rw; hw = r;
+        reset = 14'h0;
+        vesta_access = "rw";
+        desc = "14-bit R-2R code setting rail bnc when BIASGCR.USEDAC is set. Bench value 5895 (0x1707) at 25 C, AVDD 2.5 V, which forces the rail onto its in-pixel target to better than 0.4 mV (B9); at 37 C the same target needs 5972. Reset 0; write all four before setting USEDAC, or the ladders drive every rail to 0 V and the macro holds 1.20 mA, 2.7x nominal, until USEDAC is cleared. The code moves 4.8 to 22.2 LSB per kelvin, so this value is a bench setting at room temperature, not a shipped constant.";
+    } AFEBGCODE1[13:0];
+};
+
+reg AFExBIASG2_t {
+    regwidth = 32;
+    desc = "Shared bias generator (anatop_biasgen_g) R-2R code for rail bp, the PMOS cascode rail, driving the macro's code_bp pins. SITE 0 ONLY: sites 1-3 read 0 here and drop writes. The four rails are independent voltages from four independent ladders, so each carries its own code. Resets to 0, and the value is inert at reset by construction: BIASGCR resets with EN = 0 (generator off) and USEDAC = 0 (the generator core, not the ladders, sets the rails), so nothing reads this word until firmware writes it. The shipped mission mode is the generator path, which needs no DAC code at all. Present only in the per-tile AFE topology.";
+    field {
+        sw = rw; hw = r;
+        reset = 14'h0;
+        vesta_access = "rw";
+        desc = "14-bit R-2R code setting rail bp when BIASGCR.USEDAC is set. Bench value 14058 (0x36EA) at 25 C, AVDD 2.5 V, which forces the rail onto its in-pixel target to better than 0.4 mV (B9); at 37 C the same target needs 14241. Reset 0; write all four before setting USEDAC, or the ladders drive every rail to 0 V and the macro holds 1.20 mA, 2.7x nominal, until USEDAC is cleared. The code moves 4.8 to 22.2 LSB per kelvin, so this value is a bench setting at room temperature, not a shipped constant.";
+    } AFEBGCODE2[13:0];
+};
+
+reg AFExBIASG3_t {
+    regwidth = 32;
+    desc = "Shared bias generator (anatop_biasgen_g) R-2R code for rail bpc, the PMOS cascode gate rail, driving the macro's code_bpc pins. SITE 0 ONLY: sites 1-3 read 0 here and drop writes. The four rails are independent voltages from four independent ladders, so each carries its own code. Resets to 0, and the value is inert at reset by construction: BIASGCR resets with EN = 0 (generator off) and USEDAC = 0 (the generator core, not the ladders, sets the rails), so nothing reads this word until firmware writes it. The shipped mission mode is the generator path, which needs no DAC code at all. Present only in the per-tile AFE topology.";
+    field {
+        sw = rw; hw = r;
+        reset = 14'h0;
+        vesta_access = "rw";
+        desc = "14-bit R-2R code setting rail bpc when BIASGCR.USEDAC is set. Bench value 12294 (0x3006) at 25 C, AVDD 2.5 V, which forces the rail onto its in-pixel target to better than 0.4 mV (B9); at 37 C the same target needs 12454. Reset 0; write all four before setting USEDAC, or the ladders drive every rail to 0 V and the macro holds 1.20 mA, 2.7x nominal, until USEDAC is cleared. The code moves 4.8 to 22.2 LSB per kelvin, so this value is a bench setting at room temperature, not a shipped constant.";
+    } AFEBGCODE3[13:0];
+};
+
+reg AFExBIASGCR_t {
+    regwidth = 32;
+    desc = "Shared bias generator mode, enables and trim. SITE 0 ONLY. The four mode bits are in the macro's own pin order (use_dac, en_gen, en_buf_int, en) so the register and the LEF can be compared by eye. Every bit resets to 0: the generator is off and its four rails undriven, so a chip that never writes this word has four dead channels rather than four mis-biased ones.";
+    field {
+        sw = rw; hw = r;
+        reset = 6'h0;
+        vesta_access = "rw";
+        desc = "Generator trim, moving all four rails together in 1.4 to 4.5 mV steps over 45 to 141 mV. RESET 0 IS THE adj0 END OF THE RANGE, NOT THE NOMINAL: at 0 the generator draws 56.6 uA and bn sits at 0.678 V against a 0.6147 V nominal, so the power-up sequence must write a trim code before any channel is enabled. WRITE 37 for operation at 37 C: measured, it holds all four buffered rails within 0.68 mV of the in-pixel targets with no DAC code at all, at 419.2 uA, and on the topology-A local generator it reproduces those rails to 0.01 mV (B9, firmware contract R15). Code 33 is the same generator at 27 C, where it reproduces the published standalone rails and their 24.46 uA reference current; the two codes are 4.7 percent apart in reference current and are not alternatives but two temperatures. The trim is temperature-specific: the in-pixel target set is itself a 37 C set.";
+    } AFEBGADJ[13:8];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = afexbiasgcr_afebgen_e;
+        desc = "Master enable for the generator and its four output buffers (macro pin en). 0 leaves all four rails undriven and every channel unusable.";
+    } AFEBGEN[3:3];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = afexbiasgcr_afebgenbufint_e;
+        desc = "Enable the macro's four INTERNAL buffers (macro pin en_buf_int). Ship 0: measured at nominal they move the rails by 0.3 mV and the offset by 2 uV behind the outer buffer, and cost four OTA bias currents.";
+    } AFEBGENBUFINT[2:2];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        desc = "Enable the wide-swing cascode generator core (macro pin en_gen).";
+    } AFEBGENGEN[1:1];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = afexbiasgcr_afebgusedac_e;
+        desc = "Rail source select (macro pin use_dac). 0 = the generator core sets all four rails and BIASG0-3 are inert; 1 = the four R-2R ladders set them from BIASG0-3. SHIP 0. The DAC path is a bench override valid only near nominal: with the 25 C codes applied the four output buffers rail to AVDD for T <= -25 C and for AVDD <= 2.275 V, the supply current reaches 1325 uA at 85 C and 2035 uA at AVDD 2.75 V against 435.8 uA in generator mode, and the transfer is non-monotonic at the LSB level so a step-and-keep firmware search will not converge on it (B9, firmware contract R15). There is no ordering constraint against ENGEN with valid codes; with any code at 0 there is.";
+    } AFEBGUSEDAC[0:0];
+};
+
+addrmap biasg {
+    name = "BIASG";
+    desc = "Shared bias generator (anatop_biasgen_g) control registers, overlaid on words 9 to 13 of AFE2 site 0's sub-slot.";
+    vesta_peripheral = "AFEx";
+    vesta_word_base = 9;
+
+    default regwidth = 32;
+
+    AFExBIASG0_t   AFExBIASG0   @0x24;
+    AFExBIASG1_t   AFExBIASG1   @0x28;
+    AFExBIASG2_t   AFExBIASG2   @0x2C;
+    AFExBIASG3_t   AFExBIASG3   @0x30;
+    AFExBIASGCR_t  AFExBIASGCR  @0x34;
+};

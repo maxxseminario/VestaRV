@@ -1,0 +1,237 @@
+// ===========================================================================
+// spi.rdl: the register map of hdl/common/periph/SPI.vhd.
+//
+// THE VHDL IS THE AUTHORITY. Storage widths come from the signal
+// declarations (SPIxCR 19:0, SPIxSR 2:0, SPIxRX/TX 31:0, SPIxFOS 23:0), the
+// slot numbers from MemoryMap.vhd's RegSlotSPIx* and the resets from the
+// reg_write reset branch, where CR, TX and FOS are all zeroed.
+//
+// SPI0 is built with ENABLE_EXTENDED_MEM = true and SPI1 with false; on SPI1
+// the flash FSM is compiled out, SPIxFOS ignores writes and reads 0, and
+// SPIxCR.SPIFEN is still writable storage but is forced to 0 internally.
+// ===========================================================================
+
+`include "vesta_udp.rdl"
+
+enum spixcr_spifen_e {
+    FLASH_EXTENDED_MEMORY_DISABLED = 1'h0 { desc = "Flash extended memory disabled"; };
+    FLASH_EXTENDED_MEMORY_ENABLED = 1'h1 { desc = "Flash extended memory enabled"; };
+};
+enum spixcr_spism_e {
+    MASTER_MODE = 1'h0 { desc = "Master mode"; };
+    SLAVE_MODE = 1'h1 { desc = "Slave mode"; };
+};
+enum spixcr_spitxsb_e {
+    BYTES_NOT_SWAPPED = 1'h0 { desc = "Bytes not swapped"; };
+    BYTES_SWAPPED = 1'h1 { desc = "Bytes swapped"; };
+};
+enum spixcr_spirxsb_e {
+    BYTES_NOT_SWAPPED = 1'h0 { desc = "Bytes not swapped"; };
+    BYTES_SWAPPED = 1'h1 { desc = "Bytes swapped"; };
+};
+enum spixcr_spien_e {
+    DISABLED = 1'h0 { desc = "Disabled"; };
+    ENABLED = 1'h1 { desc = "Enabled"; };
+};
+enum spixcr_spimsb_e {
+    LSB_FIRST = 1'h0 { desc = "LSB-first"; };
+    MSB_FIRST = 1'h1 { desc = "MSB-first"; };
+};
+enum spixcr_spitcie_e {
+    INTERRUPT_DISABLED = 1'h0 { desc = "Interrupt disabled"; };
+    INTERRUPT_ENABLED = 1'h1 { desc = "Interrupt enabled"; };
+};
+enum spixcr_spiteie_e {
+    INTERRUPT_DISABLED = 1'h0 { desc = "Interrupt disabled"; };
+    INTERRUPT_ENABLED = 1'h1 { desc = "Interrupt enabled"; };
+};
+enum spixcr_spidl_e {
+    SPIDL_8 = 2'h0 { desc = "8-bit transfers"; };
+    SPIDL_16 = 2'h1 { desc = "16-bit transfers"; };
+    SPIDL_32 = 2'h2 { desc = "32-bit transfers"; };
+    SPIDL_RES = 2'h3 { desc = "Reserved (do not use)"; };
+};
+enum spixcr_spicpol_e {
+    SCK_IDLES_LOW_SPIMODE0 = 1'h0 { desc = "SCK idles low (SPIMODE0 or SPIMODE1)"; };
+    SCK_IDLES_HIGH_SPIMODE2 = 1'h1 { desc = "SCK idles high (SPIMODE2 or SPIMODE3)"; };
+};
+enum spixcr_spicpha_e {
+    DATA_SAMPLED_ON_LEADING = 1'h0 { desc = "Data sampled on leading edge, shifted on trailing edge (SPIMODE0 or SPIMODE2)"; };
+    DATA_SHIFTED_ON_LEADING = 1'h1 { desc = "Data shifted on leading edge, sampled on trailing edge (SPIMODE1 or SPIMODE3)"; };
+};
+enum spixsr_spibusy_e {
+    SPI_IS_IDLE = 1'h0 { desc = "SPI is idle"; };
+    SPI_TRANSFER_IN_PROGRESS = 1'h1 { desc = "SPI transfer in progress"; };
+};
+enum spixsr_spitcif_e {
+    NO_TRANSFER_COMPLETED = 1'h0 { desc = "No transfer completed"; };
+    TRANSFER_COMPLETED = 1'h1 { desc = "Transfer completed"; };
+};
+enum spixsr_spiteif_e {
+    SPIXTX_NOT_EMPTY = 1'h0 { desc = "SPIxTX not empty"; };
+    SPIXTX_EMPTY_AND_READY = 1'h1 { desc = "SPIxTX empty and ready"; };
+};
+
+reg SPIxCR_t {
+    regwidth = 32;
+    desc = "SPI control register";
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = spixcr_spifen_e;
+        desc = "Flash extended memory enable. When set, reads of the extended flash address range are served by the SPI peripheral, which issues the flash read command and returns the data over the system bus. Implemented on SPI0 only; reads 0 on SPI1.";
+    } SPIFEN[19:19];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = spixcr_spism_e;
+        desc = "Slave mode select. Effective on SPI1 only: SPI0 is master only and ignores this bit.";
+    } SPISM[18:18];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = spixcr_spitxsb_e;
+        desc = "Transmit byte swap. When set, 32-bit transfers swap bytes 3 with 0 and 2 with 1, and 16-bit transfers swap bytes 1 and 0; 8-bit transfers are unaffected.";
+    } SPITXSB[17:17];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = spixcr_spirxsb_e;
+        desc = "Receive byte swap. When set, 32-bit receptions swap bytes 3 with 0 and 2 with 1, and 16-bit receptions swap bytes 1 and 0; 8-bit receptions are unaffected.";
+    } SPIRXSB[16:16];
+    field {
+        sw = rw; hw = r;
+        reset = 8'h0;
+        vesta_access = "rw";
+        desc = "SPI clock (SCK) baud rate control for master mode. Baud rate = SMCLK / (2 * (1 + SPIBR)). For example, with SMCLK at 24 MHz: SPIBR=0 gives 12 MHz, SPIBR=1 gives 8 MHz, SPIBR=2 gives 6 MHz, SPIBR=5 gives 4 MHz, SPIBR=11 gives 2 MHz, SPIBR=23 gives 1 MHz.";
+    } SPIBR[15:8];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = spixcr_spien_e;
+        desc = "SPI enable. When disabled, all SPI operations cease and the peripheral is held in reset state.";
+    } SPIEN[7:7];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = spixcr_spimsb_e;
+        desc = "Bit endianness select. Determines whether data is transmitted and received MSB-first or LSB-first.";
+    } SPIMSB[6:6];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = spixcr_spitcie_e;
+        desc = "SPI transmit complete interrupt enable. Interrupt triggers when a full SPI transfer (transmit and receive) completes.";
+    } SPITCIE[5:5];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = spixcr_spiteie_e;
+        desc = "SPI transmit register empty interrupt enable. Interrupt triggers when SPIxTX register is empty and ready to accept new data for the next transfer.";
+    } SPITEIE[4:4];
+    field {
+        sw = rw; hw = r;
+        reset = 2'h0;
+        vesta_access = "rw";
+        encode = spixcr_spidl_e;
+        vesta_named_values = true;
+        desc = "SPI transmission data length select. Determines the number of bits transferred per SPI transaction.";
+    } SPIDL[3:2];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = spixcr_spicpol_e;
+        desc = "SPI clock (SCK) polarity. Determines the idle state of the SCK line.";
+    } SPICPOL[1:1];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = spixcr_spicpha_e;
+        desc = "SPI clock (SCK) phase. Determines when data is sampled relative to the SCK edge. In slave mode, only SPICPHA=1 is supported.";
+    } SPICPHA[0:0];
+};
+
+// Lane-0 write only: bit 0 clears TEIF, bit 1 clears TCIF, BUSY ignores writes.
+reg SPIxSR_t {
+    regwidth = 8;
+    desc = "SPI status register. Provides real-time status of SPI transfer operations and interrupt flags.";
+    field {
+        sw = r; hw = w;
+        reset = 1'h0;
+        vesta_access = "r";
+        encode = spixsr_spibusy_e;
+        desc = "Indicates whether a SPI transfer is currently in progress. In master mode, set when a transfer starts and cleared when complete. In slave mode, set when chip select is asserted (driven low) and cleared when deasserted.";
+    } SPIBUSY[2:2];
+    field {
+        sw = rw; hw = w; onwrite = woclr;
+        reset = 1'h0;
+        vesta_access = "rw1";
+        encode = spixsr_spitcif_e;
+        desc = "SPI transfer complete interrupt flag. Set when a SPI transfer completes. Must be cleared by writing 1 to this bit or by reading SPIxRX register.";
+    } SPITCIF[1:1];
+    field {
+        sw = rw; hw = w; onwrite = woclr;
+        reset = 1'h0;
+        vesta_access = "rw1";
+        encode = spixsr_spiteif_e;
+        desc = "Transmit register empty interrupt flag, set when the transmitter has taken the SPIxTX contents so the register can accept the next word; a word written while a transfer is in progress is sent after it. Write 1 to clear.";
+    } SPITEIF[0:0];
+};
+
+reg SPIxTX_t {
+    regwidth = 32;
+    desc = "SPI transmit buffer register. In master mode, writing to this register initiates a new SPI transfer. In slave mode, writing to this register queues data to be transmitted during the next master-initiated transfer. Actual number of bits transmitted is determined by SPIDL setting.";
+    // Any enabled byte lane both loads the byte and raises start_tx (outside flash mode), so a write is a transfer launch.
+    field {
+        sw = rw; hw = rw;
+        reset = 32'h0;
+        vesta_access = "rw";
+        desc = "Transmit data. In master mode a write starts a transfer of the low 8, 16 or 32 bits as selected by SPIDL; in slave mode the write loads the data shifted out during the next master-driven transfer. Reads return the last value written; resets to 0.";
+    } SPITX[31:0];
+};
+
+reg SPIxRX_t {
+    regwidth = 32;
+    desc = "SPI receive buffer register. Contains the data received during the most recent SPI transfer. Reading this register also clears the SPITCIF flag. Valid data width depends on SPIDL setting; unused upper bits read as 0.";
+    // READ SIDE EFFECT: any access to this slot, read or write, raises clr_spi_tcif and clears SPIxSR.SPITCIF. The `RX register is read as 8-bit only` comment in the RTL is stale; the read mux returns all 32 bits.
+    field {
+        sw = r; hw = w;
+        reset = 32'h0;
+        vesta_access = "r";
+        desc = "Received data from the most recent transfer, right aligned in the width selected by SPIDL with the unused upper bits reading 0. Reading this register clears SPITCIF.";
+    } SPIRX[31:0];
+};
+
+reg SPIxFOS_t {
+    regwidth = 32;
+    desc = "SPI Flash memory address offset. This 24-bit value is added to memory access addresses when flash extended memory mode is enabled (SPIFEN=1). Allows remapping of flash memory to different virtual addresses. The addition wraps around at 0x00FFFFFF. Available only on SPI0; reads as 0 on SPI1.";
+    // Writes and readback are both inside `if ENABLE_EXTENDED_MEM`, so this register exists on SPI0 only; on SPI1 it reads 0.
+    field {
+        sw = rw; hw = r;
+        reset = 24'h0;
+        vesta_access = "rw";
+        desc = "Flash address offset, added to the bus address of every flash extended memory read while SPIFEN = 1; the 24-bit sum wraps. Resets to 0. Implemented on SPI0 only; on SPI1 the field reads 0.";
+    } SPIFOS[23:0];
+};
+addrmap spi {
+    name = "SPIx";
+    desc = "Serial Peripheral Interface";
+    vesta_peripheral = "SPIx";
+    vesta_word_base = 0;
+
+    SPIxCR_t  SPIxCR  @0x00;
+    SPIxSR_t  SPIxSR  @0x04;
+    SPIxTX_t  SPIxTX  @0x08;
+    SPIxRX_t  SPIxRX  @0x0C;
+    SPIxFOS_t SPIxFOS @0x10;
+};

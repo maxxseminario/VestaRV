@@ -1,0 +1,563 @@
+// ===========================================================================
+// i2c.rdl: the register map of hdl/common/periph/I2C.vhd.
+//
+// THE VHDL IS THE AUTHORITY, and the one non-zero reset in this block is
+// PER INSTANCE: `I2CxAR <= default_SAD`, the generic MCU.vhd binds to
+// i2c0_default_SAD = 0x79 and i2c1_default_SAD = 0x23 (constants.vhd). The
+// generator models both as resetting to 0. The per-instance values are
+// applied at the instances in castalia_penta_wound_afe.rdl.
+//
+// I2CxFCR is write-only flow control: a 1 raises the command and the
+// consuming FSM clears it, the register is absent from the read mux and
+// reads 0, and the stop and read-byte commands are additionally gated on
+// I2CMCB (this master owns the bus).
+// ===========================================================================
+
+`include "vesta_udp.rdl"
+
+enum i2cxcr_i2cmen_e {
+    DISABLED = 1'h0 { desc = "Disabled"; };
+    ENABLED = 1'h1 { desc = "Enabled"; };
+};
+enum i2cxcr_i2csen_e {
+    DISABLED = 1'h0 { desc = "Disabled"; };
+    ENABLED = 1'h1 { desc = "Enabled"; };
+};
+enum i2cxcr_i2csn_e {
+    ACK = 1'h0 { desc = "ACK"; };
+    NACK = 1'h1 { desc = "NACK"; };
+};
+enum i2cxcr_i2cscs_e {
+    DISABLED = 1'h0 { desc = "Disabled"; };
+    ENABLED = 1'h1 { desc = "Enabled"; };
+};
+enum i2cxcr_i2cgce_e {
+    DISABLED = 1'h0 { desc = "Disabled"; };
+    ENABLED = 1'h1 { desc = "Enabled"; };
+};
+enum i2cxcr_i2cmdiv_e {
+    I2CMDIV_1 = 4'h0 { desc = "/1 (no division)"; };
+    I2CMDIV_2 = 4'h1 { desc = "/2"; };
+    I2CMDIV_4 = 4'h2 { desc = "/4"; };
+    I2CMDIV_8 = 4'h3 { desc = "/8"; };
+    I2CMDIV_16 = 4'h4 { desc = "/16"; };
+    I2CMDIV_32 = 4'h5 { desc = "/32"; };
+    I2CMDIV_64 = 4'h6 { desc = "/64"; };
+    I2CMDIV_128 = 4'h7 { desc = "/128"; };
+    I2CMDIV_256 = 4'h8 { desc = "/256"; };
+    I2CMDIV_512 = 4'h9 { desc = "/512"; };
+    I2CMDIV_1024 = 4'hA { desc = "/1,024"; };
+    I2CMDIV_2048 = 4'hB { desc = "/2,048"; };
+    I2CMDIV_4096 = 4'hC { desc = "/4,096"; };
+    I2CMDIV_8192 = 4'hD { desc = "/8,192"; };
+    I2CMDIV_16384 = 4'hE { desc = "/16,384"; };
+    I2CMDIV_32768 = 4'hF { desc = "/32,768"; };
+};
+enum i2cxcr_i2csaie_e {
+    INTERRUPT_DISABLED = 1'h0 { desc = "Interrupt disabled"; };
+    INTERRUPT_ENABLED = 1'h1 { desc = "Interrupt enabled"; };
+};
+enum i2cxcr_i2cstxeie_e {
+    INTERRUPT_DISABLED = 1'h0 { desc = "Interrupt disabled"; };
+    INTERRUPT_ENABLED = 1'h1 { desc = "Interrupt enabled"; };
+};
+enum i2cxcr_i2csovfie_e {
+    INTERRUPT_DISABLED = 1'h0 { desc = "Interrupt disabled"; };
+    INTERRUPT_ENABLED = 1'h1 { desc = "Interrupt enabled"; };
+};
+enum i2cxcr_i2csnrie_e {
+    INTERRUPT_DISABLED = 1'h0 { desc = "Interrupt disabled"; };
+    INTERRUPT_ENABLED = 1'h1 { desc = "Interrupt enabled"; };
+};
+enum i2cxcr_i2csxcie_e {
+    INTERRUPT_DISABLED = 1'h0 { desc = "Interrupt disabled"; };
+    INTERRUPT_ENABLED = 1'h1 { desc = "Interrupt enabled"; };
+};
+enum i2cxcr_i2cmstsie_e {
+    INTERRUPT_DISABLED = 1'h0 { desc = "Interrupt disabled"; };
+    INTERRUPT_ENABLED = 1'h1 { desc = "Interrupt enabled"; };
+};
+enum i2cxcr_i2cmspsie_e {
+    INTERRUPT_DISABLED = 1'h0 { desc = "Interrupt disabled"; };
+    INTERRUPT_ENABLED = 1'h1 { desc = "Interrupt enabled"; };
+};
+enum i2cxcr_i2cmarbie_e {
+    INTERRUPT_DISABLED = 1'h0 { desc = "Interrupt disabled"; };
+    INTERRUPT_ENABLED = 1'h1 { desc = "Interrupt enabled"; };
+};
+enum i2cxcr_i2cmtxeie_e {
+    INTERRUPT_DISABLED = 1'h0 { desc = "Interrupt disabled"; };
+    INTERRUPT_ENABLED = 1'h1 { desc = "Interrupt enabled"; };
+};
+enum i2cxcr_i2cmnrie_e {
+    INTERRUPT_DISABLED = 1'h0 { desc = "Interrupt disabled"; };
+    INTERRUPT_ENABLED = 1'h1 { desc = "Interrupt enabled"; };
+};
+enum i2cxcr_i2cmxcie_e {
+    INTERRUPT_DISABLED = 1'h0 { desc = "Interrupt disabled"; };
+    INTERRUPT_ENABLED = 1'h1 { desc = "Interrupt enabled"; };
+};
+enum i2cxcr_i2cstrie_e {
+    INTERRUPT_DISABLED = 1'h0 { desc = "Interrupt disabled"; };
+    INTERRUPT_ENABLED = 1'h1 { desc = "Interrupt enabled"; };
+};
+enum i2cxcr_i2csprie_e {
+    INTERRUPT_DISABLED = 1'h0 { desc = "Interrupt disabled"; };
+    INTERRUPT_ENABLED = 1'h1 { desc = "Interrupt enabled"; };
+};
+enum i2cxfcr_i2csc_e {
+    NO_EFFECT = 1'h0 { desc = "No effect"; };
+    CONTINUE_RELEASE_SCL_FOR = 1'h1 { desc = "Continue: release SCL for the ACK/NACK phase"; };
+};
+enum i2cxfcr_i2cmst_e {
+    NO_EFFECT = 1'h0 { desc = "No effect"; };
+    SEND_A_START_CONDITION = 1'h1 { desc = "Send a start condition"; };
+};
+enum i2cxfcr_i2cmsp_e {
+    NO_EFFECT = 1'h0 { desc = "No effect"; };
+    SEND_A_STOP_CONDITION = 1'h1 { desc = "Send a stop condition"; };
+};
+enum i2cxfcr_i2cmrb_e {
+    NO_EFFECT = 1'h0 { desc = "No effect"; };
+    READ_NEXT_BYTE = 1'h1 { desc = "Read next byte"; };
+};
+enum i2cxsr_i2cbs_e {
+    THE_I2C_BUS_IS = 1'h0 { desc = "The I2C bus is idle"; };
+    THE_I2C_BUS_IS_2 = 1'h1 { desc = "The I2C bus is active"; };
+};
+enum i2cxsr_i2cmcb_e {
+    THIS_MASTER_DOES_NOT = 1'h0 { desc = "This master does not control the bus"; };
+    THIS_MASTER_CONTROLS_THE = 1'h1 { desc = "This master controls the bus"; };
+};
+enum i2cxsr_i2cstm_e {
+    SLAVE_RECEIVER_MODE = 1'h0 { desc = "Slave receiver mode"; };
+    SLAVE_TRANSMITTER_MODE = 1'h1 { desc = "Slave transmitter mode"; };
+};
+enum i2cxsr_i2csa_e {
+    NO_PENDING_INTERRUPT = 1'h0 { desc = "No pending interrupt"; };
+    PENDING_INTERRUPT = 1'h1 { desc = "Pending interrupt"; };
+};
+enum i2cxsr_i2cstxe_e {
+    NO_PENDING_INTERRUPT = 1'h0 { desc = "No pending interrupt"; };
+    PENDING_INTERRUPT = 1'h1 { desc = "Pending interrupt"; };
+};
+enum i2cxsr_i2csovf_e {
+    NO_PENDING_INTERRUPT = 1'h0 { desc = "No pending interrupt"; };
+    PENDING_INTERRUPT = 1'h1 { desc = "Pending interrupt"; };
+};
+enum i2cxsr_i2csnr_e {
+    NO_PENDING_INTERRUPT = 1'h0 { desc = "No pending interrupt"; };
+    PENDING_INTERRUPT = 1'h1 { desc = "Pending interrupt"; };
+};
+enum i2cxsr_i2csxc_e {
+    NO_PENDING_INTERRUPT = 1'h0 { desc = "No pending interrupt"; };
+    PENDING_INTERRUPT = 1'h1 { desc = "Pending interrupt"; };
+};
+enum i2cxsr_i2cmsts_e {
+    NO_PENDING_INTERRUPT = 1'h0 { desc = "No pending interrupt"; };
+    PENDING_INTERRUPT = 1'h1 { desc = "Pending interrupt"; };
+};
+enum i2cxsr_i2cmsps_e {
+    NO_PENDING_INTERRUPT = 1'h0 { desc = "No pending interrupt"; };
+    PENDING_INTERRUPT = 1'h1 { desc = "Pending interrupt"; };
+};
+enum i2cxsr_i2cmarb_e {
+    NO_PENDING_INTERRUPT = 1'h0 { desc = "No pending interrupt"; };
+    PENDING_INTERRUPT = 1'h1 { desc = "Pending interrupt"; };
+};
+enum i2cxsr_i2cmtxe_e {
+    NO_PENDING_INTERRUPT = 1'h0 { desc = "No pending interrupt"; };
+    PENDING_INTERRUPT = 1'h1 { desc = "Pending interrupt"; };
+};
+enum i2cxsr_i2cmnr_e {
+    NO_PENDING_INTERRUPT = 1'h0 { desc = "No pending interrupt"; };
+    PENDING_INTERRUPT = 1'h1 { desc = "Pending interrupt"; };
+};
+enum i2cxsr_i2cmxc_e {
+    NO_PENDING_INTERRUPT = 1'h0 { desc = "No pending interrupt"; };
+    PENDING_INTERRUPT = 1'h1 { desc = "Pending interrupt"; };
+};
+enum i2cxsr_i2cstr_e {
+    NO_PENDING_INTERRUPT = 1'h0 { desc = "No pending interrupt"; };
+    PENDING_INTERRUPT = 1'h1 { desc = "Pending interrupt"; };
+};
+enum i2cxsr_i2cspr_e {
+    NO_PENDING_INTERRUPT = 1'h0 { desc = "No pending interrupt"; };
+    PENDING_INTERRUPT = 1'h1 { desc = "Pending interrupt"; };
+};
+
+reg I2CxCR_t {
+    regwidth = 32;
+    desc = "I2C control register";
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = i2cxcr_i2cmen_e;
+        desc = "Master enable. When set, the device waits for I2CMST, acts as a master from that start condition until the stop condition commanded by I2CMSP, and then resumes slave operation if I2CSEN is also set.";
+    } I2CMEN[21:21];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = i2cxcr_i2csen_e;
+        desc = "Slave enable. When set, the device listens for its address as an I2C slave. If master mode is also enabled, the device acts as a slave until I2CMST starts a master transfer and returns to slave operation when that transfer completes.";
+    } I2CSEN[20:20];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = i2cxcr_i2csn_e;
+        desc = "Slave NACK select. When set, the slave answers its address and every received byte with a NACK instead of an ACK. With clock stretching enabled, software can change this bit before releasing SCL to choose the reply for the current byte.";
+    } I2CSN[19:19];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = i2cxcr_i2cscs_e;
+        desc = "I2C slave clock stretching enable. When enabled, this slave will hold the SCL line low during the ACK phase of the transmission to allow this slave more time. Note that the master will be left waiting for the ACK/NACK as long as this bit is set to 1.";
+    } I2CSCS[18:18];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = i2cxcr_i2cgce_e;
+        desc = "I2C slave general call enable. When enabled, this slave will be addressed if a global call is issued on the bus.";
+    } I2CGCE[17:17];
+    field {
+        sw = rw; hw = r;
+        reset = 4'h0;
+        vesta_access = "rw";
+        encode = i2cxcr_i2cmdiv_e;
+        vesta_named_values = true;
+        desc = "I2C master mode clock divider. The master mode finite state machine clock source is SMCLK, which is divided by a factor of 4 * 2**I2CMDIV.";
+    } I2CMDIV[16:13];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = i2cxcr_i2csaie_e;
+        desc = "I2C slave mode addressed interrupt enable";
+    } I2CSAIE[12:12];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = i2cxcr_i2cstxeie_e;
+        desc = "I2C slave transmit register empty interrupt enable";
+    } I2CSTXEIE[11:11];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = i2cxcr_i2csovfie_e;
+        desc = "I2C slave receive register overflow interrupt enable";
+    } I2CSOVFIE[10:10];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = i2cxcr_i2csnrie_e;
+        desc = "I2C slave mode NACK received from master interrupt enable";
+    } I2CSNRIE[9:9];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = i2cxcr_i2csxcie_e;
+        desc = "I2C slave mode transfer complete interrupt enable";
+    } I2CSXCIE[8:8];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = i2cxcr_i2cmstsie_e;
+        desc = "I2C master mode start condition sent interrupt enable";
+    } I2CMSTSIE[7:7];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = i2cxcr_i2cmspsie_e;
+        desc = "I2C master mode stop condition sent interrupt enable";
+    } I2CMSPSIE[6:6];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = i2cxcr_i2cmarbie_e;
+        desc = "I2C master mode arbitration error interrupt enable";
+    } I2CMARBIE[5:5];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = i2cxcr_i2cmtxeie_e;
+        desc = "I2C master transmit register empty interrupt enable";
+    } I2CMTXEIE[4:4];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = i2cxcr_i2cmnrie_e;
+        desc = "I2C master mode NACK received interrupt enable";
+    } I2CMNRIE[3:3];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = i2cxcr_i2cmxcie_e;
+        desc = "I2C master transfer complete interrupt enable";
+    } I2CMXCIE[2:2];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = i2cxcr_i2cstrie_e;
+        desc = "I2C start received interrupt enable";
+    } I2CSTRIE[1:1];
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = i2cxcr_i2csprie_e;
+        desc = "I2C stop received interrupt enable";
+    } I2CSPRIE[0:0];
+};
+
+// Write-1 command register, not in the read mux (reads 0). I2CMSP and I2CMRB are additionally qualified by I2CMCB, so a stop or read-byte command issued while this master does not hold the bus is dropped.
+reg I2CxFCR_t {
+    regwidth = 8;
+    desc = "I2C flow control register. Writing a 1 to a bit in this register initiates or queues the associated command. Writing a 0 to a bit does nothing. Reading this register always returns the value 0.";
+    field {
+        sw = w; hw = r; singlepulse;
+        reset = 1'h0;
+        vesta_access = "w1";
+        encode = i2cxfcr_i2csc_e;
+        desc = "I2C slave continue command. When clock stretching is enabled in slave mode, set this bit to tell the slave to continue with the ACK/NACK phase of the current byte by releasing SCL. This may only be set if clock stretching is enabled, slave mode is enabled, and the slave transfer complete flag has just been set.";
+    } I2CSC[3:3];
+    field {
+        sw = w; hw = r; singlepulse;
+        reset = 1'h0;
+        vesta_access = "w1";
+        encode = i2cxfcr_i2cmst_e;
+        desc = "Master send start command. Writing 1 sends a start condition, or a repeated start if this master already controls the bus, after which at least one address frame must be sent before the command is used again. If the bus is busy the start is sent once it becomes idle, and if this master is mid-transaction the repeated start follows the transaction.";
+    } I2CMST[2:2];
+    field {
+        sw = w; hw = r; singlepulse;
+        reset = 1'h0;
+        vesta_access = "w1";
+        encode = i2cxfcr_i2cmsp_e;
+        desc = "Master send stop command. Writing 1 sends a stop condition once this master has sent a start condition and at least one address frame. If this master is mid-transaction the stop follows the transaction.";
+    } I2CMSP[1:1];
+    field {
+        sw = w; hw = r; singlepulse;
+        reset = 1'h0;
+        vesta_access = "w1";
+        encode = i2cxfcr_i2cmrb_e;
+        desc = "I2C master read byte command. Set this bit to 1 while in master receiver mode to read one byte from the slave. This master is required to have already sent the slave address and received an ACK from the slave before initiating this command.";
+    } I2CMRB[0:0];
+};
+
+// Write-1-to-clear across TWO byte lanes: lane 0 clears bits 7:0, lane 1 clears bits 12:8. I2CBS/I2CMCB/I2CSTM (15:13) are read-only.
+reg I2CxSR_t {
+    regwidth = 16;
+    desc = "I2C status register";
+    field {
+        sw = r; hw = w;
+        reset = 1'h0;
+        vesta_access = "r";
+        encode = i2cxsr_i2cbs_e;
+        desc = "I2C bus state indicator. This bit cannot be cleared by writing to the status register.";
+    } I2CBS[15:15];
+    field {
+        sw = r; hw = w;
+        reset = 1'h0;
+        vesta_access = "r";
+        encode = i2cxsr_i2cmcb_e;
+        desc = "I2C master controls bus indicator. This bit cannot be cleared by writing to the status register.";
+    } I2CMCB[14:14];
+    field {
+        sw = r; hw = w;
+        reset = 1'h0;
+        vesta_access = "r";
+        encode = i2cxsr_i2cstm_e;
+        desc = "Slave transmitter mode indicator: the mode this slave was addressed for, valid only while I2CSA = 1. Read only; a status register write does not clear it.";
+    } I2CSTM[13:13];
+    field {
+        sw = rw; hw = w; onwrite = woclr;
+        reset = 1'h0;
+        vesta_access = "rw1";
+        encode = i2cxsr_i2csa_e;
+        desc = "I2C slave mode addressed interrupt flag. Indicates that this slave has been addressed by another master. Write a 1 to this bit to clear it.";
+    } I2CSA[12:12];
+    field {
+        sw = rw; hw = w; onwrite = woclr;
+        reset = 1'h0;
+        vesta_access = "rw1";
+        encode = i2cxsr_i2cstxe_e;
+        desc = "Slave transmit register empty interrupt flag, set when the slave latches the byte held in I2CxSTX for transmission, so the register can take the next byte. Write 1 to clear.";
+    } I2CSTXE[11:11];
+    field {
+        sw = rw; hw = w; onwrite = woclr;
+        reset = 1'h0;
+        vesta_access = "rw1";
+        encode = i2cxsr_i2csovf_e;
+        desc = "I2C slave receive register overflow interrupt flag. Indicates that this slave has failed to read one or more bytes from the I2CxSRX register before they were overwritten by another transmission. Write a 1 to this bit to clear it.";
+    } I2CSOVF[10:10];
+    field {
+        sw = rw; hw = w; onwrite = woclr;
+        reset = 1'h0;
+        vesta_access = "rw1";
+        encode = i2cxsr_i2csnr_e;
+        desc = "Slave NACK received interrupt flag, set in slave transmitter mode when the master answers a transmitted byte with a NACK; an ACK does not set it. Write 1 to clear.";
+    } I2CSNR[9:9];
+    field {
+        sw = rw; hw = w; onwrite = woclr;
+        reset = 1'h0;
+        vesta_access = "rw1";
+        encode = i2cxsr_i2csxc_e;
+        desc = "I2C slave mode transfer complete interrupt flag. This bit is set after this slave receives a byte of data from a master, but before this slave sends an ACK/NACK. Write a 1 to this bit to clear it.";
+    } I2CSXC[8:8];
+    field {
+        sw = rw; hw = w; onwrite = woclr;
+        reset = 1'h0;
+        vesta_access = "rw1";
+        encode = i2cxsr_i2cmsts_e;
+        desc = "I2C master mode start condition sent interrupt flag. This flag is set after this master sends a start condition or repeated start condition. Write a 1 to this bit to clear it.";
+    } I2CMSTS[7:7];
+    field {
+        sw = rw; hw = w; onwrite = woclr;
+        reset = 1'h0;
+        vesta_access = "rw1";
+        encode = i2cxsr_i2cmsps_e;
+        desc = "I2C master mode stop condition sent interrupt flag. This flag is set after this master sends a stop condition. Write a 1 to this bit to clear it.";
+    } I2CMSPS[6:6];
+    field {
+        sw = rw; hw = w; onwrite = woclr;
+        reset = 1'h0;
+        vesta_access = "rw1";
+        encode = i2cxsr_i2cmarb_e;
+        desc = "Master arbitration loss interrupt flag, set when the value this master drives on SDA is overridden by another master; this master then releases the bus. Write 1 to clear.";
+    } I2CMARB[5:5];
+    field {
+        sw = rw; hw = w; onwrite = woclr;
+        reset = 1'h0;
+        vesta_access = "rw1";
+        encode = i2cxsr_i2cmtxe_e;
+        desc = "I2C master transmit register empty interrupt flag. This bit is set when this master latches the data stored in the master transmit register to indicate that the master transmit register is ready to accept another byte and queue it for transmission. Write a 1 to this bit to clear it.";
+    } I2CMTXE[4:4];
+    field {
+        sw = rw; hw = w; onwrite = woclr;
+        reset = 1'h0;
+        vesta_access = "rw1";
+        encode = i2cxsr_i2cmnr_e;
+        desc = "Master NACK received interrupt flag, set in master transmitter mode when the slave answers with a NACK; an ACK does not set it. Write 1 to clear.";
+    } I2CMNR[3:3];
+    field {
+        sw = rw; hw = w; onwrite = woclr;
+        reset = 1'h0;
+        vesta_access = "rw1";
+        encode = i2cxsr_i2cmxc_e;
+        desc = "Master transfer complete interrupt flag, set in master transmitter mode after the data byte and the slave ACK/NACK, and in master receiver mode after the data byte and before this master sends its ACK/NACK. Write 1 to clear.";
+    } I2CMXC[2:2];
+    field {
+        sw = rw; hw = w; onwrite = woclr;
+        reset = 1'h0;
+        vesta_access = "rw1";
+        encode = i2cxsr_i2cstr_e;
+        desc = "I2C start condition received interrupt flag. This flag is set whenever a start condition or repeated start condition is detected on the bus, regardless of if this master or another sent it. Write a 1 to this bit to clear it.";
+    } I2CSTR[1:1];
+    field {
+        sw = rw; hw = w; onwrite = woclr;
+        reset = 1'h0;
+        vesta_access = "rw1";
+        encode = i2cxsr_i2cspr_e;
+        desc = "I2C stop condition received interrupt flag. This flag is set whenever a stop condition condition is detected on the bus, regardless of which device sent it. Write a 1 to this bit to clear it.";
+    } I2CSPR[0:0];
+};
+
+reg I2CxMTX_t {
+    regwidth = 8;
+    desc = "I2C master transmit register. Write the desired slave address and read/write bit to this register after sending a start condition to begin a transmission with a slave. Note that the desired slave address must occupy the upper seven bits and the read/write bit must occupy the least significant bit. If the read bit is 0, the master enters master transmitter mode. If the read bit is 1, the master enters master receiver mode. Write a byte of data to this register after sending the address frame or a data frame to send that byte of data to the slave. If this master is busy with a transmission when this register is written, it will send the byte after it finishes the transmission.";
+    // LAUNCH: a lane-0 write raises MasterWrite and loads the byte, but ONLY while I2CMEN = 1; with the master disabled the write is dropped entirely, byte included.
+    field {
+        sw = rw; hw = r;
+        reset = 8'h0;
+        vesta_access = "rw";
+        desc = "Master transmit data. While I2CMEN = 1 a write loads the byte and starts sending it: the first byte after a start condition is the 7-bit slave address in bits 7:1 with the read/write bit in bit 0, and later bytes are data. Reads return the last byte written; resets to 0.";
+    } I2CxMTX[7:0];
+};
+
+reg I2CxMRX_t {
+    regwidth = 8;
+    desc = "I2C master receive register. When in master receiver mode, read this register after the master transfer complete interrupt flag (I2CMXC) is set to get the received data byte.";
+    field {
+        sw = r; hw = w;
+        reset = 8'h0;
+        vesta_access = "r";
+        desc = "Master receive data. Hardware loads the byte received from the slave when I2CMXC is set in master receiver mode. Resets to 0.";
+    } I2CxMRX[7:0];
+};
+
+reg I2CxSTX_t {
+    regwidth = 8;
+    desc = "I2C slave transmit register. When in slave transmitter mode, write to this register after the slave addressed flag (I2CSA) or the slave transaction complete flag (I2CSXC) has been set to queue the next byte to send to the master.";
+    field {
+        sw = rw; hw = r;
+        reset = 8'h0;
+        vesta_access = "rw";
+        desc = "Slave transmit data. The byte written here is sent to the master during the next slave transmitter data phase, after which I2CSTXE is set. Resets to 0.";
+    } I2CxSTX[7:0];
+};
+
+reg I2CxSRX_t {
+    regwidth = 8;
+    desc = "I2C slave receive register. When in slave receiver mode, read this register after the slave transaction complete flag (I2CSXC) has been set to get the data byte sent from the master. Note that if this slave fails to clear the status register before another byte is received, the slave receive overflow flag (I2CSOVF) will be set.";
+    // Readback is un-inverted from the EnMemPeriph-edge pre-latch (I2CxSRXLat).
+    field {
+        sw = r; hw = w;
+        reset = 8'h0;
+        vesta_access = "r";
+        desc = "Slave receive data. Hardware loads the byte received from the master when I2CSXC is set in slave receiver mode; a new byte arriving before the previous one is read sets I2CSOVF. Resets to 0.";
+    } I2CxSRX[7:0];
+};
+
+reg I2CxAR_t {
+    regwidth = 8;
+    desc = "I2C this slave address register. When in slave mode, any master that sends an address frame containing this address will activate this slave.";
+    // Resets to the default_SAD generic: 0x79 on I2C0, 0x23 on I2C1.
+    field {
+        sw = rw; hw = r;
+        reset = 7'h0;
+        vesta_access = "rw";
+        desc = "Own 7-bit slave address. A received address frame that matches this value under the I2CxAMR mask addresses this slave. Resets to the default slave address of the instance (0x79 for I2C0, 0x23 for I2C1).";
+    } I2CxAR[6:0];
+};
+
+reg I2CxAMR_t {
+    regwidth = 8;
+    desc = "I2C this slave address mask register. Any bit set to 1 in this register indicates that the corresponding bit in the slave address register is a wildcard. Only the slave address register bits that correspond to 0s in this register will be compared to the received slave address.";
+    field {
+        sw = rw; hw = r;
+        reset = 7'h0;
+        vesta_access = "rw";
+        desc = "Slave address mask. A 1 in bit i makes bit i of I2CxAR a wildcard for address matching; a 0 compares the bit. Resets to 0 (every bit compared).";
+    } I2CxAMR[6:0];
+};
+addrmap i2c {
+    name = "I2Cx";
+    desc = "I2C serial port interface";
+    vesta_peripheral = "I2Cx";
+    vesta_word_base = 0;
+
+    I2CxCR_t  I2CxCR  @0x00;
+    I2CxFCR_t I2CxFCR @0x04;
+    I2CxSR_t  I2CxSR  @0x08;
+    I2CxMTX_t I2CxMTX @0x0C;
+    I2CxMRX_t I2CxMRX @0x10;
+    I2CxSTX_t I2CxSTX @0x14;
+    I2CxSRX_t I2CxSRX @0x18;
+    I2CxAR_t  I2CxAR  @0x1C;
+    I2CxAMR_t I2CxAMR @0x20;
+};

@@ -1,3 +1,4 @@
+load("@rdl_deps//:requirements.bzl", "requirement")
 load("@rules_python//python:defs.bzl", "py_binary", "py_library", "py_test")
 
 package(default_visibility = ["//visibility:public"])
@@ -100,4 +101,107 @@ py_test(
     srcs = ["check_config_defaults.py"],
     data = ["generate.py"],
     main = "check_config_defaults.py",
+)
+
+# ---------------------------------------------------------------------------
+# SystemRDL (tools/rdl/README.md). rdl_model.py compiles a .rdl description into
+# the generator's own RegisterTemplate/BitField objects, and every emitter below
+# consumes those, so an .rdl peripheral reaches the TRM, the C header, the RTL
+# and the configurator through the code paths that are already gated.
+#
+# :rdl_lib is NOT folded into :chipgen_lib, but generate.py now DEPENDS on it:
+# most peripheral register maps are loaded from the .rdl descriptions rather than
+# written out in generate.py (report R5). The hermetic generation action gets the
+# same closure through //platform/common/bazel:stage_generate, which puts it on
+# the generator subprocess's PYTHONPATH, and the .rdl files themselves through
+# chipgen.bzl's _rdl_srcs.
+# ---------------------------------------------------------------------------
+
+py_library(
+    name = "rdl_lib",
+    srcs = [
+        "rdl_cheader.py",
+        "rdl_configurator.py",
+        "rdl_latex.py",
+        "rdl_model.py",
+        "rdl_vhdl.py",
+        "rdl_vhdl_pkg.py",
+    ],
+    imports = ["."],
+    deps = [
+        ":chipgen_lib",
+        requirement("systemrdl-compiler"),
+    ],
+)
+
+# The .rdl descriptions vs the VHDL that implements them, and vs the generator's
+# own register data. Both are declared in //platform/common, next to the
+# generation rules whose artifacts they consume; only the sources live here.
+exports_files([
+    "check_regs_headers.py",
+    "rdl_negative_control_test.py",
+    "regs_headers_test.py",
+    "rdl_pkg_vs_legacy_test.py",
+    "rdl_vhdl_pkg_test.py",
+    "rdl_vs_generator_test.py",
+    "rdl_vs_vhdl_test.py",
+])
+
+# rdl_chip.py without the testonly tag: the whole-chip binding (instance names,
+# base addresses, per-instance reset values) is also what the firmware header
+# emitter needs, and that is a build tool, not a test.
+py_library(
+    name = "rdl_chip_lib",
+    srcs = [
+        "rdl_chip.py",
+        "rdl_emit.py",
+    ],
+    imports = ["."],
+    deps = [":rdl_lib"],
+)
+
+py_library(
+    name = "rdl_test_lib",
+    testonly = True,
+    srcs = [
+        "rdl_chip.py",
+        "rdl_emit.py",
+        "rdl_negative_control_test.py",
+        "rdl_pkg_vs_legacy_test.py",
+        "rdl_vhdl_pkg_test.py",
+        "rdl_vs_generator_test.py",
+        "rdl_vs_vhdl_test.py",
+    ],
+    imports = ["."],
+    deps = [":rdl_lib"],
+)
+
+py_binary(
+    name = "rdl_emit",
+    srcs = ["rdl_emit.py"],
+    data = [
+        "//hdl:rdl_sources",
+        "//platform/common:rdl_config",
+    ],
+    deps = [":rdl_lib"],
+)
+
+# The two WHOLE-CHIP artifacts, which rdl_emit cannot make because they are not
+# per-peripheral: the TRM's flat register index and MemoryMap.h's per-INSTANCE
+# address defines. Both need the instance names and base addresses, and those
+# are written down only in castalia_penta_wound_afe.rdl.
+py_binary(
+    name = "rdl_chip",
+    srcs = [
+        "rdl_chip.py",
+        "rdl_emit.py",
+    ],
+    data = [
+        "//hdl:rdl_sources",
+        "//platform/common:rdl_config",
+    ],
+    deps = [
+        ":rdl_lib",
+        requirement("systemrdl-compiler"),
+    ],
 )

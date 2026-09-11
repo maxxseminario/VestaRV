@@ -21,3 +21,16 @@ filegroup(
     srcs = ["common/periph/NPU.vhd"],
     visibility = ["//visibility:public"],
 )
+
+# The SystemRDL register descriptions (tools/rdl/README.md). They sit next to the
+# RTL they describe, deliberately: a register map and its decode drift the moment
+# they live in different trees. .rdl carries no VHDL extension, so
+# :vhdl_sources does not pick these up and no VHDL consumer sees them.
+filegroup(
+    name = "rdl_sources",
+    srcs = glob(
+        ["common/periph/rdl/*.rdl"],
+        allow_empty = False,
+    ),
+    visibility = ["//visibility:public"],
+)

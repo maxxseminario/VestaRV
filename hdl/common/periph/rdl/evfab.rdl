@@ -1,0 +1,559 @@
+// ===========================================================================
+// evfab.rdl: the register map of hdl/common/periph/EVFAB.vhd.
+//
+// THE VHDL IS THE AUTHORITY, and EVFCAP is a HARDWIRED CONSTANT, not a
+// zero-reset register: CAP_CONST = VER & N_TASK & N_EV & N_CH, which at this
+// chip's generics (VER 1, N_TASK 10, N_EV 16, N_CH 8, none overridden at the
+// instance) is 0x010A1008. The generator models all four fields as reading 0.
+//
+// Slots 7 to 11 are NON-IDEMPOTENT and are therefore decoded in the
+// free-running clk domain behind one shared write-level edge detector, so a
+// held select produces EXACTLY ONE action; slots 0, 4, 5, 6 and 15 are
+// idempotent stores handled on ClkMem. EVFCHENSET and EVFCHENCLR are write-
+// one-to-set and write-one-to-clear aliases of EVFCHEN and both READ EVFCHEN.
+//
+// EVFIE (slot 2) is reserved -- the block ties irq_evfab to '0' and spends
+// no vector -- and CH8CFG..CH15CFG (slots 24-31) are the register array's
+// dead upper half at N_CH = 8: all read 0 and ignore writes.
+// ===========================================================================
+
+`include "vesta_udp.rdl"
+
+enum evfcr_evfen_e {
+    FABRIC_DISABLED_NO_PULSES = 1'h0 { desc = "Fabric disabled (no pulses, no flags)"; };
+    FABRIC_ENABLED = 1'h1 { desc = "Fabric enabled"; };
+};
+enum evfsr_evfovrif_e {
+    NO_OVERRUN_RECORDED = 1'h0 { desc = "No overrun recorded"; };
+    AT_LEAST_ONE_OVERRUN = 1'h1 { desc = "At least one overrun recorded"; };
+};
+enum evfsr_evffiredif_e {
+    NO_CHANNEL_HAS_FIRED = 1'h0 { desc = "No channel has fired since the flags were cleared"; };
+    AT_LEAST_ONE_CHANNEL = 1'h1 { desc = "At least one channel has fired"; };
+};
+enum evfch0cfg_evfenr0_e {
+    CHANNEL_DISABLED = 1'h0 { desc = "Channel disabled"; };
+    CHANNEL_ENABLED = 1'h1 { desc = "Channel enabled"; };
+};
+enum evfch1cfg_evfenr1_e {
+    CHANNEL_DISABLED = 1'h0 { desc = "Channel disabled"; };
+    CHANNEL_ENABLED = 1'h1 { desc = "Channel enabled"; };
+};
+enum evfch2cfg_evfenr2_e {
+    CHANNEL_DISABLED = 1'h0 { desc = "Channel disabled"; };
+    CHANNEL_ENABLED = 1'h1 { desc = "Channel enabled"; };
+};
+enum evfch3cfg_evfenr3_e {
+    CHANNEL_DISABLED = 1'h0 { desc = "Channel disabled"; };
+    CHANNEL_ENABLED = 1'h1 { desc = "Channel enabled"; };
+};
+enum evfch4cfg_evfenr4_e {
+    CHANNEL_DISABLED = 1'h0 { desc = "Channel disabled"; };
+    CHANNEL_ENABLED = 1'h1 { desc = "Channel enabled"; };
+};
+enum evfch5cfg_evfenr5_e {
+    CHANNEL_DISABLED = 1'h0 { desc = "Channel disabled"; };
+    CHANNEL_ENABLED = 1'h1 { desc = "Channel enabled"; };
+};
+enum evfch6cfg_evfenr6_e {
+    CHANNEL_DISABLED = 1'h0 { desc = "Channel disabled"; };
+    CHANNEL_ENABLED = 1'h1 { desc = "Channel enabled"; };
+};
+enum evfch7cfg_evfenr7_e {
+    CHANNEL_DISABLED = 1'h0 { desc = "Channel disabled"; };
+    CHANNEL_ENABLED = 1'h1 { desc = "Channel enabled"; };
+};
+
+reg EVFCR_t {
+    regwidth = 32;
+    desc = "Event fabric control register. EN is the global kill switch: with EN clear NO channel can fire, no FIRED or OVR flag can set, and no task pulse can be emitted, whatever the channel enables and configuration words say (raw events are still recorded in EVFEVSTAT, which sits upstream of the gate). Resets to 0, so the fabric comes out of reset completely inert; configure the channels first, then set EN. Other bits reserved, read 0.";
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = evfcr_evfen_e;
+        desc = "Global fabric enable. Gates every channel together with its own EVFCHEN bit (both must be set for a channel to fire).";
+    } EVFEN[0:0];
+};
+
+// LIVE read-only reductions computed inside the read mux (`or_red(fired)`, `or_red(ovr)`), not stored state.
+reg EVFSR_t {
+    regwidth = 32;
+    desc = "Event fabric status register. Both bits are LIVE read-only reductions of the sticky words, not state of their own: firmware polls this one word to learn whether anything at all has fired or been degraded, then reads EVFFIRED / EVFOVR to find out which channels. There is no interrupt in this version of the fabric (EVFIE is reserved), so this register is the whole notification mechanism. Other bits reserved, read 0.";
+    field {
+        sw = r; hw = w;
+        reset = 1'h0;
+        vesta_access = "r";
+        encode = evfsr_evfovrif_e;
+        desc = "Set while ANY bit of EVFOVR is set (a logical OR of the sticky per-channel overrun flags).";
+    } EVFOVRIF[1:1];
+    field {
+        sw = r; hw = w;
+        reset = 1'h0;
+        vesta_access = "r";
+        encode = evfsr_evffiredif_e;
+        desc = "Set while ANY bit of EVFFIRED is set (a logical OR of the sticky per-channel fired flags). Clears only when every EVFFIRED bit has been written back to 0.";
+    } EVFFIREDIF[0:0];
+};
+
+// Reserved: the block's irq_evfab output is tied to '0', so no vector is spent and this slot reads 0.
+reg EVFIE_t {
+    regwidth = 32;
+    desc = "Reserved interrupt-enable register. This version of the event fabric is deliberately VECTORLESS: it spends no interrupt vector, its interrupt output is tied inactive, and this slot reads 0 and ignores writes. The slot is reserved so that a later revision can add per-flag interrupt enables without moving any other register.";
+    field {
+        sw = r;  hw = na;
+        reset = 32'h0;
+        desc = "Reserved.";
+    } RESERVED[31:0];
+};
+
+// Hardwired read-only constant CAP_CONST = 0x010A1008 at this chip's generics.
+reg EVFCAP_t {
+    regwidth = 32;
+    desc = "Capability register (read-only constant). Reports the LIVE line counts of this build so a driver can size its loops instead of hardcoding them: the number of channels, event lines and task lines actually implemented, plus a version number. At the Castalia configuration it reads 0x010A1008.";
+    field {
+        sw = r; hw = w;
+        reset = 8'h1;
+        vesta_access = "r";
+        desc = "Fabric version (1).";
+    } EVFVER[31:24];
+    field {
+        sw = r; hw = w;
+        reset = 8'hA;
+        vesta_access = "r";
+        desc = "Number of implemented task lines (10). A TASKSEL at or above this count still sets EVFFIRED but drives no task line and can never set EVFOVR.";
+    } EVFNTASK[23:16];
+    field {
+        sw = r; hw = w;
+        reset = 8'h10;
+        vesta_access = "r";
+        desc = "Number of implemented event lines (16). EVSEL codes at or above this count select nothing, which makes the channel inert (EVSEL 31 is the documented NONE encoding).";
+    } EVFNEV[15:8];
+    field {
+        sw = r; hw = w;
+        reset = 8'h8;
+        vesta_access = "r";
+        desc = "Number of implemented channels (8). Channel registers above this count read 0 and ignore writes.";
+    } EVFNCH[7:0];
+};
+
+reg EVFCHEN_t {
+    regwidth = 32;
+    desc = "Channel enable register. Bit n enables channel n; a channel fires only when this bit AND EVFCR.EN are both set, and a disabled channel is completely inert (no task pulse, no EVFFIRED, no EVFOVR). Resets to 0. Writing this register directly is safe only for a single owner: when several harts share the fabric, use the EVFCHENSET / EVFCHENCLR aliases instead, which set or clear individual bits without a read-modify-write. Bits above the implemented channel count read 0.";
+    field {
+        sw = rw; hw = r;
+        reset = 8'h0;
+        vesta_access = "rw";
+        desc = "Per-channel enable bits (bit n = channel n).";
+    } EVFCHEN[7:0];
+};
+
+reg EVFCHENSET_t {
+    regwidth = 32;
+    desc = "Channel enable SET alias. Writing a 1 to bit n sets EVFCHEN bit n; writing 0 leaves that bit alone, so a hart can enable its own channels without disturbing another hart's. Reading this address returns the current EVFCHEN value.";
+    // Write-one-to-SET alias of EVFCHEN (`chen <= chen or wdata`); a read returns EVFCHEN. Writing 0 to a bit is a no-op.
+    field {
+        sw = rw; hw = rw; onwrite = woset;
+        reset = 8'h0;
+        vesta_access = "rw1";
+        desc = "Write 1 to enable channel n (write 0 = no effect). Reads back EVFCHEN.";
+    } EVFCHENSET[7:0];
+};
+
+reg EVFCHENCLR_t {
+    regwidth = 32;
+    desc = "Channel enable CLEAR alias. Writing a 1 to bit n clears EVFCHEN bit n; writing 0 leaves that bit alone. Reading this address returns the current EVFCHEN value. Disable a channel through this register before changing its EVFCHnCFG selectors.";
+    // Write-one-to-CLEAR alias of EVFCHEN (`chen <= chen and not wdata`); a read returns EVFCHEN. Writing 0 to a bit is a no-op.
+    field {
+        sw = rw; hw = rw; onwrite = woclr;
+        reset = 8'h0;
+        vesta_access = "rw1";
+        desc = "Write 1 to disable channel n (write 0 = no effect). Reads back EVFCHEN.";
+    } EVFCHENCLR[7:0];
+};
+
+reg EVFCHTRIG_t {
+    regwidth = 32;
+    desc = "Channel trigger injection register. Writing a 1 to bit n makes channel n fire exactly once, as if its selected event had occurred: the task pulse, EVFFIRED and EVFOVR all behave identically to a hardware firing. The injection still honours the enables -- a trigger written to a disabled channel, or with EVFCR.EN clear, does nothing. However long the bus write is held, exactly one firing is injected. Reads 0.";
+    // Write-1 software channel trigger, one injection per bus access however long the select is held (clk-domain edge detector). Reads 0.
+    field {
+        sw = w; hw = r;
+        reset = 8'h0;
+        vesta_access = "w";
+        desc = "Write 1 to inject one firing on channel n.";
+    } EVFCHTRIG[7:0];
+};
+
+reg EVFFIRED_t {
+    regwidth = 32;
+    desc = "Sticky channel-fired flags. Bit n sets whenever channel n fires (from a hardware event or an EVFCHTRIG injection) and stays set until firmware writes a 1 to it. A firing arriving in the same cycle as the clearing write WINS -- the flag survives -- so no event can be lost between a read and a clear. Bits above the implemented channel count read 0.";
+    field {
+        sw = rw; hw = w; onwrite = woclr;
+        reset = 8'h0;
+        vesta_access = "rw1";
+        desc = "Channel n has fired. Write 1 to clear.";
+    } EVFFIRED[7:0];
+};
+
+reg EVFOVR_t {
+    regwidth = 32;
+    desc = "Sticky channel-overrun flags. Bit n sets when channel n fires but its task pulse was DEGRADED: either the target consumer was already busy at that moment, or another enabled channel fired onto the SAME task line in the same cycle (the two firings merge into one pulse and BOTH channels record an overrun -- the fabric cannot say which one won). An overrun never suppresses the pulse and never applies backpressure; it is a diagnostic. A channel whose TASKSEL selects a reserved code can never set this flag, since no task line exists to be busy. Set wins over a same-cycle clear. Bits above the implemented channel count read 0.";
+    field {
+        sw = rw; hw = w; onwrite = woclr;
+        reset = 8'h0;
+        vesta_access = "rw1";
+        desc = "Channel n fired while its task was busy, or merged with another channel onto the same task in the same cycle. Write 1 to clear.";
+    } EVFOVR[7:0];
+};
+
+reg EVFEVSTAT_t {
+    regwidth = 32;
+    desc = "Sticky raw-event record. Bit e sets whenever event line e is seen by the fabric front end, INDEPENDENTLY of EVFCR.EN and of any channel enable or configuration -- it is upstream of every gate. That makes it both a bring-up aid (does this producer actually pulse?) and a direct test of tap discipline: because every event is tapped from its source flag's SET condition rather than from a masked interrupt line, clearing a producer's interrupt enable must NOT stop its bit appearing here. Set wins over a same-cycle clear. Bits above the implemented event count read 0.";
+    field {
+        sw = rw; hw = w; onwrite = woclr;
+        reset = 16'h0;
+        vesta_access = "rw1";
+        desc = "Event line e has been seen. Write 1 to clear.";
+    } EVFEVSTAT[15:0];
+};
+
+reg EVFEVTRIG_t {
+    regwidth = 32;
+    desc = "Raw event injection register. Writing a 1 to bit e injects one occurrence of event line e exactly as if the producer had generated it: it is recorded in EVFEVSTAT and offered to every channel selecting that event. However long the bus write is held, exactly one event is injected. With this register the entire crossbar -- every event to every task, including events whose producer block is absent from the configuration -- is testable from firmware with no producer hardware at all. Reads 0.";
+    // Write-1 software event injection, one injection per bus access. Reads 0.
+    field {
+        sw = w; hw = r;
+        reset = 16'h0;
+        vesta_access = "w";
+        desc = "Write 1 to inject one occurrence of event line e.";
+    } EVFEVTRIG[15:0];
+};
+
+reg EVFGPIOMASK_t {
+    regwidth = 32;
+    desc = "GPIO0 edge-path mask. Event line 15 is generated inside the fabric from GPIO0's eight raw pad edges: each pad is synchronized, edge-detected, ANDed with its bit here, and the eight results are ORed into one event. A bit clear means that pad contributes nothing -- and, because the mask is applied BEFORE the OR, a masked-off pad also absorbs an undriven or unbonded pin instead of poisoning the event. The port's own PxIE interrupt enables are never consulted, so a pin can drive the fabric without ever raising an interrupt. Resets to 0, leaving the whole path inert. Other bits reserved, read 0.";
+    field {
+        sw = rw; hw = r;
+        reset = 8'h0;
+        vesta_access = "rw";
+        desc = "Per-pad enable for the GPIO0 edge path (bit i = GPIO0 pin i).";
+    } EVFGPIOMASK[7:0];
+};
+
+// ENR (bit 31) is a READ-ONLY mirror of EVFCHEN(n) inserted by the read mux; the write side only takes EVFEVSEL (4:0) and EVFTASKSEL (11:8).
+reg EVFCH0CFG_t {
+    regwidth = 32;
+    desc = "Channel 0 configuration. EVSEL picks which event line feeds the channel and TASKSEL picks which task line it drives; ENR is a read-only mirror of this channel's EVFCHEN bit, so one read shows a channel's whole state. Selector encoding is deliberately forgiving: EVSEL 31 is the documented NONE code, and any EVSEL or TASKSEL value with no line behind it simply makes the channel (or its output) inert rather than aliasing onto a real one. Change EVSEL or TASKSEL only while the channel is disabled -- the fabric does not interlock a live reconfiguration. Resets to 0, which is harmless because a channel is double-gated by EVFCR.EN and EVFCHEN.";
+    field {
+        sw = r; hw = w;
+        reset = 1'h0;
+        vesta_access = "r";
+        encode = evfch0cfg_evfenr0_e;
+        desc = "Read-only mirror of EVFCHEN bit 0 (this channel's enable).";
+    } EVFENR0[31:31];
+    field {
+        sw = rw; hw = r;
+        reset = 4'h0;
+        vesta_access = "rw";
+        desc = "Task select for channel 0: the task line this channel pulses. 0 = DMA0 channel-0 GO, 1 = DMA0 channel-1 GO, 2 = TIMER0 START, 3 = TIMER0 STOP, 4 = PWM0 fault trip, 5 = PWRCTRL tile wake, 6 = NPU0 THINK, 7 = GPIO0 output SET, 8 = GPIO0 output CLEAR. Codes 9 and above drive no line (the channel still records EVFFIRED). A task whose consumer block is absent from this configuration is left unconnected.";
+    } EVFTASKSEL0[11:8];
+    field {
+        sw = rw; hw = r;
+        reset = 5'h0;
+        vesta_access = "rw";
+        desc = "Event select for channel 0: the event line whose occurrence fires this channel. 0 = RTC0 tick, 1 = RTC0 alarm, 2 = PWM0 period, 3 = PWM0 fault, 4 = TIMER0 compare0, 5 = TIMER0 overflow, 6 = TIMER1 compare0, 7 = UART0 receive, 8 = NFC0 field-detect, 9 = NFC0 rx-frame, 10 = DMA0 channel-0 done, 11 = DMA0 channel-1 done, 12 = DMA0 error, 13 = TRNG0 data-ready, 14 = I2CT0 address-match, 15 = masked GPIO0 pad edge (see EVFGPIOMASK). 31 = NONE; other codes select nothing. An event whose producer block is absent from this configuration is tied inactive and simply never fires.";
+    } EVFEVSEL0[4:0];
+};
+
+// ENR (bit 31) is a READ-ONLY mirror of EVFCHEN(n) inserted by the read mux; the write side only takes EVFEVSEL (4:0) and EVFTASKSEL (11:8).
+reg EVFCH1CFG_t {
+    regwidth = 32;
+    desc = "Channel 1 configuration. EVSEL picks which event line feeds the channel and TASKSEL picks which task line it drives; ENR is a read-only mirror of this channel's EVFCHEN bit, so one read shows a channel's whole state. Selector encoding is deliberately forgiving: EVSEL 31 is the documented NONE code, and any EVSEL or TASKSEL value with no line behind it simply makes the channel (or its output) inert rather than aliasing onto a real one. Change EVSEL or TASKSEL only while the channel is disabled -- the fabric does not interlock a live reconfiguration. Resets to 0, which is harmless because a channel is double-gated by EVFCR.EN and EVFCHEN.";
+    field {
+        sw = r; hw = w;
+        reset = 1'h0;
+        vesta_access = "r";
+        encode = evfch1cfg_evfenr1_e;
+        desc = "Read-only mirror of EVFCHEN bit 1 (this channel's enable).";
+    } EVFENR1[31:31];
+    field {
+        sw = rw; hw = r;
+        reset = 4'h0;
+        vesta_access = "rw";
+        desc = "Task select for channel 1: the task line this channel pulses. 0 = DMA0 channel-0 GO, 1 = DMA0 channel-1 GO, 2 = TIMER0 START, 3 = TIMER0 STOP, 4 = PWM0 fault trip, 5 = PWRCTRL tile wake, 6 = NPU0 THINK, 7 = GPIO0 output SET, 8 = GPIO0 output CLEAR. Codes 9 and above drive no line (the channel still records EVFFIRED). A task whose consumer block is absent from this configuration is left unconnected.";
+    } EVFTASKSEL1[11:8];
+    field {
+        sw = rw; hw = r;
+        reset = 5'h0;
+        vesta_access = "rw";
+        desc = "Event select for channel 1: the event line whose occurrence fires this channel. 0 = RTC0 tick, 1 = RTC0 alarm, 2 = PWM0 period, 3 = PWM0 fault, 4 = TIMER0 compare0, 5 = TIMER0 overflow, 6 = TIMER1 compare0, 7 = UART0 receive, 8 = NFC0 field-detect, 9 = NFC0 rx-frame, 10 = DMA0 channel-0 done, 11 = DMA0 channel-1 done, 12 = DMA0 error, 13 = TRNG0 data-ready, 14 = I2CT0 address-match, 15 = masked GPIO0 pad edge (see EVFGPIOMASK). 31 = NONE; other codes select nothing. An event whose producer block is absent from this configuration is tied inactive and simply never fires.";
+    } EVFEVSEL1[4:0];
+};
+
+// ENR (bit 31) is a READ-ONLY mirror of EVFCHEN(n) inserted by the read mux; the write side only takes EVFEVSEL (4:0) and EVFTASKSEL (11:8).
+reg EVFCH2CFG_t {
+    regwidth = 32;
+    desc = "Channel 2 configuration. EVSEL picks which event line feeds the channel and TASKSEL picks which task line it drives; ENR is a read-only mirror of this channel's EVFCHEN bit, so one read shows a channel's whole state. Selector encoding is deliberately forgiving: EVSEL 31 is the documented NONE code, and any EVSEL or TASKSEL value with no line behind it simply makes the channel (or its output) inert rather than aliasing onto a real one. Change EVSEL or TASKSEL only while the channel is disabled -- the fabric does not interlock a live reconfiguration. Resets to 0, which is harmless because a channel is double-gated by EVFCR.EN and EVFCHEN.";
+    field {
+        sw = r; hw = w;
+        reset = 1'h0;
+        vesta_access = "r";
+        encode = evfch2cfg_evfenr2_e;
+        desc = "Read-only mirror of EVFCHEN bit 2 (this channel's enable).";
+    } EVFENR2[31:31];
+    field {
+        sw = rw; hw = r;
+        reset = 4'h0;
+        vesta_access = "rw";
+        desc = "Task select for channel 2: the task line this channel pulses. 0 = DMA0 channel-0 GO, 1 = DMA0 channel-1 GO, 2 = TIMER0 START, 3 = TIMER0 STOP, 4 = PWM0 fault trip, 5 = PWRCTRL tile wake, 6 = NPU0 THINK, 7 = GPIO0 output SET, 8 = GPIO0 output CLEAR. Codes 9 and above drive no line (the channel still records EVFFIRED). A task whose consumer block is absent from this configuration is left unconnected.";
+    } EVFTASKSEL2[11:8];
+    field {
+        sw = rw; hw = r;
+        reset = 5'h0;
+        vesta_access = "rw";
+        desc = "Event select for channel 2: the event line whose occurrence fires this channel. 0 = RTC0 tick, 1 = RTC0 alarm, 2 = PWM0 period, 3 = PWM0 fault, 4 = TIMER0 compare0, 5 = TIMER0 overflow, 6 = TIMER1 compare0, 7 = UART0 receive, 8 = NFC0 field-detect, 9 = NFC0 rx-frame, 10 = DMA0 channel-0 done, 11 = DMA0 channel-1 done, 12 = DMA0 error, 13 = TRNG0 data-ready, 14 = I2CT0 address-match, 15 = masked GPIO0 pad edge (see EVFGPIOMASK). 31 = NONE; other codes select nothing. An event whose producer block is absent from this configuration is tied inactive and simply never fires.";
+    } EVFEVSEL2[4:0];
+};
+
+// ENR (bit 31) is a READ-ONLY mirror of EVFCHEN(n) inserted by the read mux; the write side only takes EVFEVSEL (4:0) and EVFTASKSEL (11:8).
+reg EVFCH3CFG_t {
+    regwidth = 32;
+    desc = "Channel 3 configuration. EVSEL picks which event line feeds the channel and TASKSEL picks which task line it drives; ENR is a read-only mirror of this channel's EVFCHEN bit, so one read shows a channel's whole state. Selector encoding is deliberately forgiving: EVSEL 31 is the documented NONE code, and any EVSEL or TASKSEL value with no line behind it simply makes the channel (or its output) inert rather than aliasing onto a real one. Change EVSEL or TASKSEL only while the channel is disabled -- the fabric does not interlock a live reconfiguration. Resets to 0, which is harmless because a channel is double-gated by EVFCR.EN and EVFCHEN.";
+    field {
+        sw = r; hw = w;
+        reset = 1'h0;
+        vesta_access = "r";
+        encode = evfch3cfg_evfenr3_e;
+        desc = "Read-only mirror of EVFCHEN bit 3 (this channel's enable).";
+    } EVFENR3[31:31];
+    field {
+        sw = rw; hw = r;
+        reset = 4'h0;
+        vesta_access = "rw";
+        desc = "Task select for channel 3: the task line this channel pulses. 0 = DMA0 channel-0 GO, 1 = DMA0 channel-1 GO, 2 = TIMER0 START, 3 = TIMER0 STOP, 4 = PWM0 fault trip, 5 = PWRCTRL tile wake, 6 = NPU0 THINK, 7 = GPIO0 output SET, 8 = GPIO0 output CLEAR. Codes 9 and above drive no line (the channel still records EVFFIRED). A task whose consumer block is absent from this configuration is left unconnected.";
+    } EVFTASKSEL3[11:8];
+    field {
+        sw = rw; hw = r;
+        reset = 5'h0;
+        vesta_access = "rw";
+        desc = "Event select for channel 3: the event line whose occurrence fires this channel. 0 = RTC0 tick, 1 = RTC0 alarm, 2 = PWM0 period, 3 = PWM0 fault, 4 = TIMER0 compare0, 5 = TIMER0 overflow, 6 = TIMER1 compare0, 7 = UART0 receive, 8 = NFC0 field-detect, 9 = NFC0 rx-frame, 10 = DMA0 channel-0 done, 11 = DMA0 channel-1 done, 12 = DMA0 error, 13 = TRNG0 data-ready, 14 = I2CT0 address-match, 15 = masked GPIO0 pad edge (see EVFGPIOMASK). 31 = NONE; other codes select nothing. An event whose producer block is absent from this configuration is tied inactive and simply never fires.";
+    } EVFEVSEL3[4:0];
+};
+
+// ENR (bit 31) is a READ-ONLY mirror of EVFCHEN(n) inserted by the read mux; the write side only takes EVFEVSEL (4:0) and EVFTASKSEL (11:8).
+reg EVFCH4CFG_t {
+    regwidth = 32;
+    desc = "Channel 4 configuration. EVSEL picks which event line feeds the channel and TASKSEL picks which task line it drives; ENR is a read-only mirror of this channel's EVFCHEN bit, so one read shows a channel's whole state. Selector encoding is deliberately forgiving: EVSEL 31 is the documented NONE code, and any EVSEL or TASKSEL value with no line behind it simply makes the channel (or its output) inert rather than aliasing onto a real one. Change EVSEL or TASKSEL only while the channel is disabled -- the fabric does not interlock a live reconfiguration. Resets to 0, which is harmless because a channel is double-gated by EVFCR.EN and EVFCHEN.";
+    field {
+        sw = r; hw = w;
+        reset = 1'h0;
+        vesta_access = "r";
+        encode = evfch4cfg_evfenr4_e;
+        desc = "Read-only mirror of EVFCHEN bit 4 (this channel's enable).";
+    } EVFENR4[31:31];
+    field {
+        sw = rw; hw = r;
+        reset = 4'h0;
+        vesta_access = "rw";
+        desc = "Task select for channel 4: the task line this channel pulses. 0 = DMA0 channel-0 GO, 1 = DMA0 channel-1 GO, 2 = TIMER0 START, 3 = TIMER0 STOP, 4 = PWM0 fault trip, 5 = PWRCTRL tile wake, 6 = NPU0 THINK, 7 = GPIO0 output SET, 8 = GPIO0 output CLEAR. Codes 9 and above drive no line (the channel still records EVFFIRED). A task whose consumer block is absent from this configuration is left unconnected.";
+    } EVFTASKSEL4[11:8];
+    field {
+        sw = rw; hw = r;
+        reset = 5'h0;
+        vesta_access = "rw";
+        desc = "Event select for channel 4: the event line whose occurrence fires this channel. 0 = RTC0 tick, 1 = RTC0 alarm, 2 = PWM0 period, 3 = PWM0 fault, 4 = TIMER0 compare0, 5 = TIMER0 overflow, 6 = TIMER1 compare0, 7 = UART0 receive, 8 = NFC0 field-detect, 9 = NFC0 rx-frame, 10 = DMA0 channel-0 done, 11 = DMA0 channel-1 done, 12 = DMA0 error, 13 = TRNG0 data-ready, 14 = I2CT0 address-match, 15 = masked GPIO0 pad edge (see EVFGPIOMASK). 31 = NONE; other codes select nothing. An event whose producer block is absent from this configuration is tied inactive and simply never fires.";
+    } EVFEVSEL4[4:0];
+};
+
+// ENR (bit 31) is a READ-ONLY mirror of EVFCHEN(n) inserted by the read mux; the write side only takes EVFEVSEL (4:0) and EVFTASKSEL (11:8).
+reg EVFCH5CFG_t {
+    regwidth = 32;
+    desc = "Channel 5 configuration. EVSEL picks which event line feeds the channel and TASKSEL picks which task line it drives; ENR is a read-only mirror of this channel's EVFCHEN bit, so one read shows a channel's whole state. Selector encoding is deliberately forgiving: EVSEL 31 is the documented NONE code, and any EVSEL or TASKSEL value with no line behind it simply makes the channel (or its output) inert rather than aliasing onto a real one. Change EVSEL or TASKSEL only while the channel is disabled -- the fabric does not interlock a live reconfiguration. Resets to 0, which is harmless because a channel is double-gated by EVFCR.EN and EVFCHEN.";
+    field {
+        sw = r; hw = w;
+        reset = 1'h0;
+        vesta_access = "r";
+        encode = evfch5cfg_evfenr5_e;
+        desc = "Read-only mirror of EVFCHEN bit 5 (this channel's enable).";
+    } EVFENR5[31:31];
+    field {
+        sw = rw; hw = r;
+        reset = 4'h0;
+        vesta_access = "rw";
+        desc = "Task select for channel 5: the task line this channel pulses. 0 = DMA0 channel-0 GO, 1 = DMA0 channel-1 GO, 2 = TIMER0 START, 3 = TIMER0 STOP, 4 = PWM0 fault trip, 5 = PWRCTRL tile wake, 6 = NPU0 THINK, 7 = GPIO0 output SET, 8 = GPIO0 output CLEAR. Codes 9 and above drive no line (the channel still records EVFFIRED). A task whose consumer block is absent from this configuration is left unconnected.";
+    } EVFTASKSEL5[11:8];
+    field {
+        sw = rw; hw = r;
+        reset = 5'h0;
+        vesta_access = "rw";
+        desc = "Event select for channel 5: the event line whose occurrence fires this channel. 0 = RTC0 tick, 1 = RTC0 alarm, 2 = PWM0 period, 3 = PWM0 fault, 4 = TIMER0 compare0, 5 = TIMER0 overflow, 6 = TIMER1 compare0, 7 = UART0 receive, 8 = NFC0 field-detect, 9 = NFC0 rx-frame, 10 = DMA0 channel-0 done, 11 = DMA0 channel-1 done, 12 = DMA0 error, 13 = TRNG0 data-ready, 14 = I2CT0 address-match, 15 = masked GPIO0 pad edge (see EVFGPIOMASK). 31 = NONE; other codes select nothing. An event whose producer block is absent from this configuration is tied inactive and simply never fires.";
+    } EVFEVSEL5[4:0];
+};
+
+// ENR (bit 31) is a READ-ONLY mirror of EVFCHEN(n) inserted by the read mux; the write side only takes EVFEVSEL (4:0) and EVFTASKSEL (11:8).
+reg EVFCH6CFG_t {
+    regwidth = 32;
+    desc = "Channel 6 configuration. EVSEL picks which event line feeds the channel and TASKSEL picks which task line it drives; ENR is a read-only mirror of this channel's EVFCHEN bit, so one read shows a channel's whole state. Selector encoding is deliberately forgiving: EVSEL 31 is the documented NONE code, and any EVSEL or TASKSEL value with no line behind it simply makes the channel (or its output) inert rather than aliasing onto a real one. Change EVSEL or TASKSEL only while the channel is disabled -- the fabric does not interlock a live reconfiguration. Resets to 0, which is harmless because a channel is double-gated by EVFCR.EN and EVFCHEN.";
+    field {
+        sw = r; hw = w;
+        reset = 1'h0;
+        vesta_access = "r";
+        encode = evfch6cfg_evfenr6_e;
+        desc = "Read-only mirror of EVFCHEN bit 6 (this channel's enable).";
+    } EVFENR6[31:31];
+    field {
+        sw = rw; hw = r;
+        reset = 4'h0;
+        vesta_access = "rw";
+        desc = "Task select for channel 6: the task line this channel pulses. 0 = DMA0 channel-0 GO, 1 = DMA0 channel-1 GO, 2 = TIMER0 START, 3 = TIMER0 STOP, 4 = PWM0 fault trip, 5 = PWRCTRL tile wake, 6 = NPU0 THINK, 7 = GPIO0 output SET, 8 = GPIO0 output CLEAR. Codes 9 and above drive no line (the channel still records EVFFIRED). A task whose consumer block is absent from this configuration is left unconnected.";
+    } EVFTASKSEL6[11:8];
+    field {
+        sw = rw; hw = r;
+        reset = 5'h0;
+        vesta_access = "rw";
+        desc = "Event select for channel 6: the event line whose occurrence fires this channel. 0 = RTC0 tick, 1 = RTC0 alarm, 2 = PWM0 period, 3 = PWM0 fault, 4 = TIMER0 compare0, 5 = TIMER0 overflow, 6 = TIMER1 compare0, 7 = UART0 receive, 8 = NFC0 field-detect, 9 = NFC0 rx-frame, 10 = DMA0 channel-0 done, 11 = DMA0 channel-1 done, 12 = DMA0 error, 13 = TRNG0 data-ready, 14 = I2CT0 address-match, 15 = masked GPIO0 pad edge (see EVFGPIOMASK). 31 = NONE; other codes select nothing. An event whose producer block is absent from this configuration is tied inactive and simply never fires.";
+    } EVFEVSEL6[4:0];
+};
+
+// ENR (bit 31) is a READ-ONLY mirror of EVFCHEN(n) inserted by the read mux; the write side only takes EVFEVSEL (4:0) and EVFTASKSEL (11:8).
+reg EVFCH7CFG_t {
+    regwidth = 32;
+    desc = "Channel 7 configuration. EVSEL picks which event line feeds the channel and TASKSEL picks which task line it drives; ENR is a read-only mirror of this channel's EVFCHEN bit, so one read shows a channel's whole state. Selector encoding is deliberately forgiving: EVSEL 31 is the documented NONE code, and any EVSEL or TASKSEL value with no line behind it simply makes the channel (or its output) inert rather than aliasing onto a real one. Change EVSEL or TASKSEL only while the channel is disabled -- the fabric does not interlock a live reconfiguration. Resets to 0, which is harmless because a channel is double-gated by EVFCR.EN and EVFCHEN.";
+    field {
+        sw = r; hw = w;
+        reset = 1'h0;
+        vesta_access = "r";
+        encode = evfch7cfg_evfenr7_e;
+        desc = "Read-only mirror of EVFCHEN bit 7 (this channel's enable).";
+    } EVFENR7[31:31];
+    field {
+        sw = rw; hw = r;
+        reset = 4'h0;
+        vesta_access = "rw";
+        desc = "Task select for channel 7: the task line this channel pulses. 0 = DMA0 channel-0 GO, 1 = DMA0 channel-1 GO, 2 = TIMER0 START, 3 = TIMER0 STOP, 4 = PWM0 fault trip, 5 = PWRCTRL tile wake, 6 = NPU0 THINK, 7 = GPIO0 output SET, 8 = GPIO0 output CLEAR. Codes 9 and above drive no line (the channel still records EVFFIRED). A task whose consumer block is absent from this configuration is left unconnected.";
+    } EVFTASKSEL7[11:8];
+    field {
+        sw = rw; hw = r;
+        reset = 5'h0;
+        vesta_access = "rw";
+        desc = "Event select for channel 7: the event line whose occurrence fires this channel. 0 = RTC0 tick, 1 = RTC0 alarm, 2 = PWM0 period, 3 = PWM0 fault, 4 = TIMER0 compare0, 5 = TIMER0 overflow, 6 = TIMER1 compare0, 7 = UART0 receive, 8 = NFC0 field-detect, 9 = NFC0 rx-frame, 10 = DMA0 channel-0 done, 11 = DMA0 channel-1 done, 12 = DMA0 error, 13 = TRNG0 data-ready, 14 = I2CT0 address-match, 15 = masked GPIO0 pad edge (see EVFGPIOMASK). 31 = NONE; other codes select nothing. An event whose producer block is absent from this configuration is tied inactive and simply never fires.";
+    } EVFEVSEL7[4:0];
+};
+
+reg EVFCH8CFG_t {
+    regwidth = 32;
+    desc = "Reserved channel-8 configuration slot. This build implements 8 channels, so this address reads 0 and ignores writes; the map reserves 16 channel addresses so a wider fabric needs no register move.";
+    field {
+        sw = r;  hw = na;
+        reset = 32'h0;
+        desc = "Reserved.";
+    } RESERVED[31:0];
+};
+
+reg EVFCH9CFG_t {
+    regwidth = 32;
+    desc = "Reserved channel-9 configuration slot. This build implements 8 channels, so this address reads 0 and ignores writes; the map reserves 16 channel addresses so a wider fabric needs no register move.";
+    field {
+        sw = r;  hw = na;
+        reset = 32'h0;
+        desc = "Reserved.";
+    } RESERVED[31:0];
+};
+
+reg EVFCH10CFG_t {
+    regwidth = 32;
+    desc = "Reserved channel-10 configuration slot. This build implements 8 channels, so this address reads 0 and ignores writes; the map reserves 16 channel addresses so a wider fabric needs no register move.";
+    field {
+        sw = r;  hw = na;
+        reset = 32'h0;
+        desc = "Reserved.";
+    } RESERVED[31:0];
+};
+
+reg EVFCH11CFG_t {
+    regwidth = 32;
+    desc = "Reserved channel-11 configuration slot. This build implements 8 channels, so this address reads 0 and ignores writes; the map reserves 16 channel addresses so a wider fabric needs no register move.";
+    field {
+        sw = r;  hw = na;
+        reset = 32'h0;
+        desc = "Reserved.";
+    } RESERVED[31:0];
+};
+
+reg EVFCH12CFG_t {
+    regwidth = 32;
+    desc = "Reserved channel-12 configuration slot. This build implements 8 channels, so this address reads 0 and ignores writes; the map reserves 16 channel addresses so a wider fabric needs no register move.";
+    field {
+        sw = r;  hw = na;
+        reset = 32'h0;
+        desc = "Reserved.";
+    } RESERVED[31:0];
+};
+
+reg EVFCH13CFG_t {
+    regwidth = 32;
+    desc = "Reserved channel-13 configuration slot. This build implements 8 channels, so this address reads 0 and ignores writes; the map reserves 16 channel addresses so a wider fabric needs no register move.";
+    field {
+        sw = r;  hw = na;
+        reset = 32'h0;
+        desc = "Reserved.";
+    } RESERVED[31:0];
+};
+
+reg EVFCH14CFG_t {
+    regwidth = 32;
+    desc = "Reserved channel-14 configuration slot. This build implements 8 channels, so this address reads 0 and ignores writes; the map reserves 16 channel addresses so a wider fabric needs no register move.";
+    field {
+        sw = r;  hw = na;
+        reset = 32'h0;
+        desc = "Reserved.";
+    } RESERVED[31:0];
+};
+
+reg EVFCH15CFG_t {
+    regwidth = 32;
+    desc = "Reserved channel-15 configuration slot. This build implements 8 channels, so this address reads 0 and ignores writes; the map reserves 16 channel addresses so a wider fabric needs no register move.";
+    field {
+        sw = r;  hw = na;
+        reset = 32'h0;
+        desc = "Reserved.";
+    } RESERVED[31:0];
+};
+addrmap evfab {
+    name = "EVFAB";
+    desc = "Event/trigger fabric: a PPI-style crossbar that lets peripherals command each other with no processor in the loop";
+    vesta_peripheral = "EVFAB";
+    vesta_word_base = 0;
+
+    default regwidth = 32;
+
+    EVFCR_t       EVFCR       @0x00;
+    EVFSR_t       EVFSR       @0x04;
+    EVFIE_t       EVFIE       @0x08;
+    EVFCAP_t      EVFCAP      @0x0C;
+    EVFCHEN_t     EVFCHEN     @0x10;
+    EVFCHENSET_t  EVFCHENSET  @0x14;
+    EVFCHENCLR_t  EVFCHENCLR  @0x18;
+    EVFCHTRIG_t   EVFCHTRIG   @0x1C;
+    EVFFIRED_t    EVFFIRED    @0x20;
+    EVFOVR_t      EVFOVR      @0x24;
+    EVFEVSTAT_t   EVFEVSTAT   @0x28;
+    EVFEVTRIG_t   EVFEVTRIG   @0x2C;
+    EVFGPIOMASK_t EVFGPIOMASK @0x3C;
+    EVFCH0CFG_t   EVFCH0CFG   @0x40;
+    EVFCH1CFG_t   EVFCH1CFG   @0x44;
+    EVFCH2CFG_t   EVFCH2CFG   @0x48;
+    EVFCH3CFG_t   EVFCH3CFG   @0x4C;
+    EVFCH4CFG_t   EVFCH4CFG   @0x50;
+    EVFCH5CFG_t   EVFCH5CFG   @0x54;
+    EVFCH6CFG_t   EVFCH6CFG   @0x58;
+    EVFCH7CFG_t   EVFCH7CFG   @0x5C;
+    EVFCH8CFG_t   EVFCH8CFG   @0x60;
+    EVFCH9CFG_t   EVFCH9CFG   @0x64;
+    EVFCH10CFG_t  EVFCH10CFG  @0x68;
+    EVFCH11CFG_t  EVFCH11CFG  @0x6C;
+    EVFCH12CFG_t  EVFCH12CFG  @0x70;
+    EVFCH13CFG_t  EVFCH13CFG  @0x74;
+    EVFCH14CFG_t  EVFCH14CFG  @0x78;
+    EVFCH15CFG_t  EVFCH15CFG  @0x7C;
+};

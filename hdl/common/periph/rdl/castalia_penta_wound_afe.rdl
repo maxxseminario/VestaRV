@@ -1,0 +1,139 @@
+// ===========================================================================
+// castalia_penta_wound_afe.rdl: the whole memory-mapped register space of the
+// tapeout configuration, platform/common/config/penta_wound_afe.json.
+//
+// One instance per peripheral the resolved configuration instantiates, at the
+// base address the generator computes, carrying its interrupt vector as
+// vesta_vector. The addresses are the CPU byte addresses, so this addrmap is
+// based at 0 and the instances sit at 0x4000 and up.
+//
+// PER-INSTANCE RESET VALUES. Two blocks reset differently in different
+// instances because the RTL takes the value as a GENERIC, and those are
+// dynamically assigned at the bottom of this file:
+//   GPIO   RstValPxOUT / PxDIR / PxSEL / PxREN / PxAFS, one set per port
+//          (MemoryMap.vhd "GPIO Register Reset Values"; GPIO0 = P1 there).
+//   I2C    I2CxAR resets to the default_SAD generic: 0x79 on I2C0 and 0x23
+//          on I2C1 (constants.vhd i2c0_default_SAD / i2c1_default_SAD).
+// The generator models every one of them as resetting to 0.
+//
+// NOT IN THIS MAP, and neither is a memory-mapped register:
+//   debug_module.vhd  -- DMI address space, described in debug_module.rdl.
+//   BIASG             -- biasg.rdl OVERLAYS words 9-13 of AFE2 site 0, and
+//                        SystemRDL has no way to say that two addrmaps share
+//                        one address range; instantiate biasg alone to render
+//                        it. AFE2 sites 1-3 have no flop at those words.
+// ===========================================================================
+
+`include "afe2.rdl"
+`include "clint.rdl"
+`include "dma.rdl"
+`include "evfab.rdl"
+`include "gpio.rdl"
+`include "i2c.rdl"
+`include "i2ctarget.rdl"
+`include "i3c.rdl"
+`include "irq_router.rdl"
+`include "mutex_bank.rdl"
+`include "nfc.rdl"
+`include "npu.rdl"
+`include "onewire.rdl"
+`include "pwm.rdl"
+`include "pwr_ctrl.rdl"
+`include "qspi.rdl"
+`include "rtc.rdl"
+`include "spi.rdl"
+`include "system.rdl"
+`include "timer.rdl"
+`include "trng.rdl"
+`include "uart.rdl"
+
+addrmap castalia_penta_wound_afe {
+    name = "Castalia PentaWound";
+    desc = "The memory-mapped register space of the five-hart PentaWound chip with the rev-2 analog front end (config penta_wound_afe.json): 34 peripherals in the shared window at 0x4000 and up.";
+
+    default regwidth = 32;
+
+    gpio       GPIO0      @0x4000;
+    gpio       GPIO1      @0x4100;
+    spi        SPI0       @0x4200;
+    spi        SPI1       @0x4300;
+    uart       UART0      @0x4400;
+    uart       UART1      @0x4500;
+    timer      TIMER0     @0x4600;
+    timer      TIMER1     @0x4700;
+    gpio       GPIO2      @0x4800;
+    system     SYSTEM     @0x4900;
+    npu        NPU        @0x4A00;
+    pwr_ctrl   PWRCTRL    @0x4B00;
+    qspi       QSPI0      @0x4C00;
+    gpio       GPIO3      @0x4D00;
+    i2c        I2C0       @0x4E00;
+    i2c        I2C1       @0x4F00;
+    clint      CLINT      @0x5000;
+    mutex_bank MUTEX      @0x6000;
+    i3c        I3C0       @0x6100;
+    nfc        NFC0       @0x6200;
+    gpio       GPIO4      @0x6300;
+    gpio       GPIO5      @0x6400;
+    rtc        RTC0       @0x6500;
+    pwm        PWM0       @0x6600;
+    onewire    OW0        @0x6700;
+    dma        DMA0       @0x6800;
+    trng       TRNG0      @0x6900;
+    i2ctarget  I2CT0      @0x6A00;
+    evfab      EVFAB      @0x6B00;
+    // The four AFE2 sites, page-2 sub-slots 12-15; vector 124 is shared.
+    afe2_site  AFE[4] @0x6C00 += 0x100;
+    irq_router IRQROUTER  @0x7000;
+
+    // ---- interrupt vectors ------------------------------------------------
+    // The vector each instance owns, from the resolved configuration. A block
+    // with no vector (PWRCTRL, MUTEX, EVFAB, IRQROUTER) carries none.
+    GPIO0      ->vesta_vector = 1;
+    GPIO1      ->vesta_vector = 28;
+    SPI0       ->vesta_vector = 9;
+    SPI1       ->vesta_vector = 11;
+    UART0      ->vesta_vector = 13;
+    UART1      ->vesta_vector = 52;
+    TIMER0     ->vesta_vector = 16;
+    TIMER1     ->vesta_vector = 22;
+    GPIO2      ->vesta_vector = 36;
+    SYSTEM     ->vesta_vector = 0;
+    NPU        ->vesta_vector = 120;
+    QSPI0      ->vesta_vector = 55;
+    GPIO3      ->vesta_vector = 44;
+    I2C0       ->vesta_vector = 57;
+    I2C1       ->vesta_vector = 70;
+    CLINT      ->vesta_vector = 83;
+    I3C0       ->vesta_vector = 86;
+    NFC0       ->vesta_vector = 94;
+    GPIO4      ->vesta_vector = 98;
+    GPIO5      ->vesta_vector = 106;
+    RTC0       ->vesta_vector = 114;
+    PWM0       ->vesta_vector = 115;
+    OW0        ->vesta_vector = 117;
+    DMA0       ->vesta_vector = 118;   // and 119 (DMA0_ERR); vector 118 above is DMA0_DONE
+    TRNG0      ->vesta_vector = 121;
+    I2CT0      ->vesta_vector = 122;
+    AFE        ->vesta_vector = 124;   // and the assignment covers all four sites; 124 is their OR
+
+    // ---- per-instance reset values ----------------------------------------
+    // GPIO0
+    GPIO0.PxOUT.PxOUT->reset = 8'h01;
+    GPIO0.PxDIR.PxDIR->reset = 8'h41;
+    GPIO0.PxSEL.PxSEL->reset = 8'h4E;
+    GPIO0.PxREN.PxREN->reset = 8'h80;
+    // GPIO1
+    GPIO1.PxDIR.PxDIR->reset = 8'h10;
+    GPIO1.PxSEL.PxSEL->reset = 8'h30;
+    // GPIO2: every RstValP* generic is 0, so nothing to assign.
+    // GPIO3
+    GPIO3.PxREN.PxREN->reset = 8'h80;
+    // GPIO4
+    GPIO4.PxREN.PxREN->reset = 8'hC0;
+    // GPIO5
+    GPIO5.PxREN.PxREN->reset = 8'hC0;
+    GPIO5.PxAFS.PxAFS0->reset = 3'h1;
+    I2C0.I2CxAR.I2CxAR->reset = 7'h79;
+    I2C1.I2CxAR.I2CxAR->reset = 7'h23;
+};

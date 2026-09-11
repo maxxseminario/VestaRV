@@ -1,0 +1,132 @@
+// ===========================================================================
+// clint.rdl: the register map of hdl/common/clint.vhd.
+//
+// THE VHDL IS THE AUTHORITY, and the mtimecmp reset is NOT zero:
+// `mtimecmp <= (others => (others => '1'))` resets every compare to all-ones
+// so mtip starts low.
+//
+// PARAMETERISED (report R7). The register SET is per hart and the word layout
+// moves with the hart count, so this file is a SystemRDL component with a
+// parameter rather than a five-hart transcription:
+//
+//     NHARTS       the hart count (1..32)
+//     NHARTS_WORD  that count spelled ("five"), as generate.py's _spelled() prints it
+//     MTIME_W      word index of MTIMEL     = ceil(4*NHARTS/16)*4
+//     CMP_W        word index of MTIMECMP0L = MTIME_W + 4
+//
+// The two word bases default to the RTL's own layout formula (A0/A1; it must
+// match clint.vhd), and generate.py overrides them with the same numbers it
+// hands the RTL, so the formula and its use cannot drift apart. At NHARTS = 5
+// this is MTIME_W = 8 and CMP_W = 12, which is where the gap between MSIP4
+// (word 4) and MTIMEL (word 8) comes from.
+//
+// MTIMECMP is a REGFILE array, not two register arrays: the lo/hi halves
+// interleave on an 8-byte stride and two interleaved register arrays overlap
+// ("Instance 'MTIMECMPH' at offset +0x34:0x5B overlaps with 'MTIMECMPL'").
+//
+// mtime free-runs on the always-on mclk and a write to either half defines
+// the whole 64-bit value for that cycle, so both halves are hw=rw.
+// ===========================================================================
+
+`include "vesta_udp.rdl"
+
+enum clint_msip_e {
+    NO_SOFTWARE_INTERRUPT_PENDING = 1'h0 { desc = "No software interrupt pending"; };
+    SOFTWARE_INTERRUPT_RAISED = 1'h1 { desc = "Software interrupt raised"; };
+};
+
+reg MSIP_t {
+    regwidth = 32;
+    vesta_name = "MSIP{i}";
+    desc = "Hart {i} software interrupt (IPI) register. Any hart may write it through the shared window: writing 1 raises the software interrupt level into hart {i} (interrupt vector 83); writing 0 clears it. The interrupt is level-sensitive, so hart {i}'s service routine must write 0 here before returning.";
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = clint_msip_e;
+        vesta_name = "CLINTMSIPH{i}";
+        desc = "Software interrupt (IPI) level for hart {i}.";
+    } CLINTMSIPH[0:0];
+};
+
+reg MTIMEL_t {
+    regwidth = 32;
+    // The hart count is SPELLED here ("five", not "5"), as generate.py's
+    // _spelled() has always printed it, so the block carries it as a string
+    // parameter and the rendering reads it out of the addrmap's scope.
+    desc = "Machine time counter, lower 32 bits. mtime is a free-running 64-bit counter shared by all {NHARTS_WORD} harts that increments once per MCLK cycle. It is writable for initialization; a write merges only the addressed 32-bit half.";
+    // Free-running counter half; a lane-merged write wins the cycle and costs one tick.
+    field {
+        sw = rw; hw = rw;
+        reset = 32'h0;
+        vesta_access = "rw";
+        desc = "mtime bits 31:0.";
+    } CLINTMTIMEL[31:0];
+};
+
+reg MTIMEH_t {
+    regwidth = 32;
+    desc = "Machine time counter, upper 32 bits. Read MTIMEH, then MTIMEL, then MTIMEH again (retry if the two MTIMEH reads differ) to obtain a coherent 64-bit time value.";
+    // Free-running counter half; a lane-merged write wins the cycle and costs one tick.
+    field {
+        sw = rw; hw = rw;
+        reset = 32'h0;
+        vesta_access = "rw";
+        desc = "mtime bits 63:32.";
+    } CLINTMTIMEH[31:0];
+};
+
+reg MTIMECMPL_t {
+    regwidth = 32;
+    vesta_name = "MTIMECMP{i}L";
+    desc = "Hart {i} timer compare register, lower 32 bits. The timer interrupt level for hart {i} (interrupt vector 84) is raised while mtime >= mtimecmp{i}. Resets to all-ones (no interrupt). To set a new compare value without a spurious interrupt, first write all-ones to MTIMECMP{i}H, then the new lower half, then the real upper half.";
+    // Resets to all-ones so mtip starts low (clint.vhd reset branch).
+    field {
+        sw = rw; hw = r;
+        reset = 32'hFFFFFFFF;
+        vesta_access = "rw";
+        vesta_name = "CLINTMTIMECMP{i}L";
+        desc = "mtimecmp{i} bits 31:0.";
+    } CLINTMTIMECMPL[31:0];
+};
+
+reg MTIMECMPH_t {
+    regwidth = 32;
+    vesta_name = "MTIMECMP{i}H";
+    desc = "Hart {i} timer compare register, upper 32 bits.";
+    // Resets to all-ones so mtip starts low (clint.vhd reset branch).
+    field {
+        sw = rw; hw = r;
+        reset = 32'hFFFFFFFF;
+        vesta_access = "rw";
+        vesta_name = "CLINTMTIMECMP{i}H";
+        desc = "mtimecmp{i} bits 63:32.";
+    } CLINTMTIMECMPH[31:0];
+};
+
+// One hart's 64-bit compare, as a pair of words on an 8-byte stride.
+regfile MTIMECMP_t {
+    MTIMECMPL_t MTIMECMPL @0x0;
+    MTIMECMPH_t MTIMECMPH @0x4;
+};
+
+addrmap clint #(
+    longint unsigned NHARTS  = 5,
+    string           NHARTS_WORD = "five",
+    longint unsigned MTIME_W = ((4 * 5 + 15) / 16) * 4,
+    longint unsigned CMP_W   = ((4 * 5 + 15) / 16) * 4 + 4
+) {
+    name = "CLINT";
+    desc = "Core-local interruptor for the five harts";
+    vesta_peripheral = "CLINT";
+    vesta_vector = 83;
+    vesta_word_base = 0;
+    vesta_indexed = true;
+
+    default regwidth = 32;
+
+    MSIP_t                      MSIP[NHARTS]     @0x00 += 0x4;
+    MTIMEL_t                    MTIMEL           @(MTIME_W * 4);
+    MTIMEH_t                    MTIMEH           @(MTIME_W * 4 + 4);
+    MTIMECMP_t                  MTIMECMP[NHARTS] @(CMP_W * 4) += 0x8;
+};
