@@ -618,6 +618,48 @@ chip_artifacts(
     out_of_tree_srcs = OUT_OF_TREE_SRCS,
 )
 
+# penta_wound_afe_pt: penta_wound_afe + afeTopology = "per_tile" (topology B,
+# 2026-09-06). Same AFE2 peripheral, same register map, same vector; the four
+# sites' pins are internal nets to four `hart_tile_pt` channel tiles instead of
+# MCU entity ports, and the entity carries only biasg_code/biasg_en for the
+# shared anatop_biasgen_g. chipName is PentaWoundPt so it gets its own verify
+# stage rather than sharing verify_pentawound with the topology-A config.
+chip_artifacts(
+    name = "chip_artifacts_penta_wound_afe_pt",
+    srcs = ["//platform/common/python:generator_srcs"],
+    chip_root_srcs = CHIP_ROOT_SRCS,
+    config = "config/penta_wound_afe_pt.json",
+    out_of_tree_srcs = OUT_OF_TREE_SRCS,
+)
+
+[
+    py_test(
+        name = cfg + "_generation_test",
+        size = "small",
+        srcs = ["//platform/common/bazel:assert_artifacts.py"],
+        args = [
+            "platform/common/chip_artifacts_" + cfg + "/out/hdl/MCU.vhd",
+            "platform/common/chip_artifacts_" + cfg + "/out/hdl/MemoryMap.vhd",
+            "platform/common/chip_artifacts_" + cfg + "/out/hdl/riscv_tb.vhd",
+            "platform/common/chip_artifacts_" + cfg + "/out/software/include/MemoryMap.h",
+            "platform/common/chip_artifacts_" + cfg + "/out/software/include/periph.S",
+            "platform/common/chip_artifacts_" + cfg + "/out/pnr/chip_top_padring.tcl",
+            "platform/common/chip_artifacts_" + cfg + "/out/web/chip_data.js",
+            "platform/common/chip_artifacts_" + cfg + "/out/web/MemoryMap.json",
+            "platform/common/chip_artifacts_" + cfg + "/config/ChipConfig.resolved.json",
+            "platform/common/chip_artifacts_" + cfg + "/config/PadRing.json",
+            "platform/common/chip_artifacts_" + cfg + "/latex/TRM/",
+        ],
+        data = [":chip_artifacts_" + cfg],
+        main = "assert_artifacts.py",
+    )
+    for cfg in [
+        "penta_wound",
+        "penta_wound_afe",
+        "penta_wound_afe_pt",
+    ]
+]
+
 chip_artifact(
     name = "penta_wound_afe_mcu_vhd",
     rel_path = "out/hdl/MCU.vhd",
@@ -675,6 +717,84 @@ py_test(
     main = "check_runner.py",
 )
 
+chip_artifact(
+    name = "penta_wound_afe_pt_mcu_vhd",
+    rel_path = "out/hdl/MCU.vhd",
+    target = ":chip_artifacts_penta_wound_afe_pt",
+)
+
+chip_artifact(
+    name = "penta_wound_afe_pt_memorymap_vhd",
+    rel_path = "out/hdl/MemoryMap.vhd",
+    target = ":chip_artifacts_penta_wound_afe_pt",
+)
+
+chip_artifact(
+    name = "penta_wound_afe_pt_memorymap_h",
+    rel_path = "out/software/include/MemoryMap.h",
+    target = ":chip_artifacts_penta_wound_afe_pt",
+)
+
+chip_artifact(
+    name = "penta_wound_afe_pt_config_memorymap_json",
+    rel_path = "config/MemoryMap.json",
+    target = ":chip_artifacts_penta_wound_afe_pt",
+)
+
+chip_artifact(
+    name = "penta_wound_afe_pt_padring_tcl",
+    rel_path = "out/pnr/chip_top_padring.tcl",
+    target = ":chip_artifacts_penta_wound_afe_pt",
+)
+
+# The intro chapters' \\register{} names against what the per-tile configuration
+# emits. NOT manual: the nine wound-configuration chapters that blocked the
+# topology-A test were given the section skeleton in F15, and the per-tile config
+# adds exactly one generated name (AFE0BIASG's fields), which no chapter has to
+# mention for this gate to pass.
+py_test(
+    name = "penta_wound_afe_pt_intro_names_test",
+    size = "small",
+    srcs = [CHECK_RUNNER],
+    args = [
+        "--script=platform/common/python/check_intro_names.py",
+        "--stage=platform/common/python=platform/common/python",
+        "--stage=platform/common/latex/PeripheralIntroductions=platform/common/latex/PeripheralIntroductions",
+        # check_intro_names re-derives the template register/field spellings from
+        # hdl/common/periph/rdl/ now that generate.py no longer writes them out.
+        "--stage=hdl/common/periph/rdl=hdl/common/periph/rdl",
+        "--stage=$(rootpath :penta_wound_afe_pt_config_memorymap_json)=platform/common/config/MemoryMap.json",
+    ],
+    data = [
+        ":penta_wound_afe_pt_config_memorymap_json",
+        ":peripheral_intro_srcs",
+        "//hdl:rdl_sources",
+        "//platform/common/python:check_scripts",
+        "//platform/common/python:generate.py",
+    ],
+    main = "check_runner.py",
+)
+
+# The emitted C header for the per-tile AFE configuration must still be #include-able.
+py_test(
+    name = "penta_wound_afe_pt_memorymap_h_test",
+    size = "small",
+    srcs = [CHECK_RUNNER],
+    args = [
+        "--script=platform/common/python/check_memorymap_h.py",
+        "--env=RISCV_CC=abs:$(rootpath @xpack_riscv_gcc//:gcc)",
+        "--",
+        "abs:$(rootpath :penta_wound_afe_pt_memorymap_h)",
+    ],
+    data = [
+        ":penta_wound_afe_pt_memorymap_h",
+        "//platform/common/python:check_memorymap_h.py",
+        "@xpack_riscv_gcc//:gcc",
+        "@xpack_riscv_gcc//:toolchain",
+    ],
+    main = "check_runner.py",
+)
+
 # The emitted C header for the AFE configuration must still be #include-able.
 py_test(
     name = "penta_wound_afe_memorymap_h_test",
@@ -695,3 +815,12 @@ py_test(
     main = "check_runner.py",
 )
 
+# The generated TRM tree of the per-tile AFE configuration, as one directory.
+# latex/TRM is a declared DIRECTORY output, so a single file inside it has no
+# label of its own; the gate is handed the directory and reads
+# include/PeripheralSections.tex out of it.
+filegroup(
+    name = "penta_wound_afe_pt_trm_tree",
+    srcs = [":chip_artifacts_penta_wound_afe_pt"],
+    output_group = "trm",
+)

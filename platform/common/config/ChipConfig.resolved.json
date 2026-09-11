@@ -4,6 +4,7 @@
   "chipName": "Castalia",
   "numHarts": 5,
   "orchestrator": true,
+  "afeTopology": "top_ports",
   "numMutexes": 16,
   "registerFileDualPort": true,
   "core": {
@@ -59,6 +60,7 @@
     "timer1": true,
     "cqAfeStubs": true,
     "qspi": false,
+    "afe2": false,
     "i3c": false,
     "nfc": true,
     "rtc": false,

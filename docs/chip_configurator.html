@@ -740,6 +740,15 @@ const VESTA_DATA = {
       "type": "bool",
       "default": true
     },
+    "afeTopology": {
+      "description": "enum top_ports|per_tile: where the four AFE2 sites' analog pins leave the digital hierarchy (per_tile needs afe2 + 5 harts + orchestrator)",
+      "type": "enum",
+      "default": "top_ports",
+      "enum": [
+        "top_ports",
+        "per_tile"
+      ]
+    },
     "numMutexes": {
       "description": "int 1..1024: hardware mutex bank size, the number of MUTEXn registers",
       "type": "int",
@@ -976,6 +985,11 @@ const VESTA_DATA = {
       "type": "bool",
       "default": false
     },
+    "peripherals.afe2": {
+      "description": "bool: four AFE2 sites (anatop_pixel control + SAR sequencer) at 0x6C00-0x6F00; needs cqAfeStubs false",
+      "type": "bool",
+      "default": false
+    },
     "peripherals.i3c": {
       "description": "bool: I3C0 controller (MVP + DAA + IBI) at 0x6100",
       "type": "bool",
@@ -1049,7 +1063,8 @@ const VESTA_DATA = {
       "enum": [
         "myshkin-qfn44",
         "castalia-quad-qfn64",
-        "castalia-lqfp100"
+        "castalia-lqfp100",
+        "castalia-lqfp100-pt"
       ]
     },
     "package.preliminary": {
@@ -1062,6 +1077,7 @@ const VESTA_DATA = {
     "chipName": "Castalia",
     "numHarts": 5,
     "orchestrator": true,
+    "afeTopology": "top_ports",
     "numMutexes": 16,
     "registerFileDualPort": true,
     "core.fetchAhead": true,
@@ -1106,6 +1122,7 @@ const VESTA_DATA = {
     "peripherals.timer1": true,
     "peripherals.cqAfeStubs": true,
     "peripherals.qspi": false,
+    "peripherals.afe2": false,
     "peripherals.i3c": false,
     "peripherals.nfc": true,
     "peripherals.rtc": false,
@@ -3951,6 +3968,1262 @@ const VESTA_DATA = {
           "noConnect": true
         }
       ]
+    },
+    "castalia-lqfp100-pt": {
+      "_comment": "Derived pad ring \u2014 computed by make chip from the package model in generate.py (pin numbers, sides, power domains are single-sourced there; edit generate.py, not this file).",
+      "package": {
+        "type": "LQFP",
+        "pinCount": 100,
+        "dimensions": [
+          14,
+          14
+        ],
+        "units": "mm",
+        "pinPitch": 0.5,
+        "pinsOnEachSide": {
+          "W": 25,
+          "S": 25,
+          "E": 25,
+          "N": 25
+        }
+      },
+      "powerDomains": [
+        {
+          "name": "Digital Core",
+          "voltage": 1.0,
+          "positiveRail": {
+            "pin": 3,
+            "name": "VDD"
+          },
+          "negativeRail": {
+            "pin": 4,
+            "name": "VSS"
+          },
+          "positiveRailPins": [
+            {
+              "pin": 3,
+              "name": "VDD"
+            },
+            {
+              "pin": 39,
+              "name": "VDD"
+            },
+            {
+              "pin": 60,
+              "name": "VDD"
+            }
+          ],
+          "negativeRailPins": [
+            {
+              "pin": 4,
+              "name": "VSS"
+            },
+            {
+              "pin": 40,
+              "name": "VSS"
+            },
+            {
+              "pin": 61,
+              "name": "VSS"
+            }
+          ]
+        },
+        {
+          "name": "Digital I/O",
+          "voltage": 3.3,
+          "positiveRail": {
+            "pin": 13,
+            "name": "VDDPST"
+          },
+          "negativeRail": {
+            "pin": 14,
+            "name": "VSSPST"
+          },
+          "positiveRailPins": [
+            {
+              "pin": 13,
+              "name": "VDDPST"
+            },
+            {
+              "pin": 89,
+              "name": "VDDPST"
+            },
+            {
+              "pin": 70,
+              "name": "VDDPST"
+            },
+            {
+              "pin": 44,
+              "name": "VDDPST"
+            }
+          ],
+          "negativeRailPins": [
+            {
+              "pin": 14,
+              "name": "VSSPST"
+            },
+            {
+              "pin": 88,
+              "name": "VSSPST"
+            },
+            {
+              "pin": 71,
+              "name": "VSSPST"
+            },
+            {
+              "pin": 45,
+              "name": "VSSPST"
+            }
+          ]
+        },
+        {
+          "name": "Analog0",
+          "voltage": 2.5,
+          "positiveRail": {
+            "pin": 100,
+            "name": "AVDD_0"
+          },
+          "negativeRail": {
+            "pin": 99,
+            "name": "AVSS_0"
+          }
+        },
+        {
+          "name": "Analog1",
+          "voltage": 2.5,
+          "positiveRail": {
+            "pin": 76,
+            "name": "AVDD_1"
+          },
+          "negativeRail": {
+            "pin": 77,
+            "name": "AVSS_1"
+          }
+        },
+        {
+          "name": "Analog2",
+          "voltage": 2.5,
+          "positiveRail": {
+            "pin": 26,
+            "name": "AVDD_2"
+          },
+          "negativeRail": {
+            "pin": 27,
+            "name": "AVSS_2"
+          }
+        },
+        {
+          "name": "Analog3",
+          "voltage": 2.5,
+          "positiveRail": {
+            "pin": 50,
+            "name": "AVDD_3"
+          },
+          "negativeRail": {
+            "pin": 49,
+            "name": "AVSS_3"
+          }
+        },
+        {
+          "name": "AnalogBias",
+          "voltage": 2.5,
+          "positiveRail": {
+            "pin": 82,
+            "name": "AVDD_B"
+          },
+          "negativeRail": {
+            "pin": 83,
+            "name": "AVSS_B"
+          }
+        }
+      ],
+      "pins": [
+        {
+          "pin": 1,
+          "side": "W",
+          "name": "RESETN",
+          "io": "Input",
+          "powerDomain": "Digital I/O"
+        },
+        {
+          "pin": 2,
+          "side": "W",
+          "name": "POC",
+          "io": "Input",
+          "powerDomain": "Digital I/O"
+        },
+        {
+          "pin": 3,
+          "side": "W",
+          "name": "VDD",
+          "io": "Power Input",
+          "powerDomain": "Digital Core"
+        },
+        {
+          "pin": 4,
+          "side": "W",
+          "name": "VSS",
+          "io": "Power Input",
+          "powerDomain": "Digital Core"
+        },
+        {
+          "pin": 5,
+          "side": "W",
+          "name": "P0.0(GPIO0)/CS_FLASH",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P0.0",
+          "af0": "CS_FLASH",
+          "altFuncs": {
+            "AF1": "TX0",
+            "AF2": "TX1",
+            "AF3": "T0CMP0",
+            "AF4": "T0CMP1",
+            "AF5": "T1CMP0",
+            "AF6": "T1CMP1",
+            "AF7": "SCK1"
+          }
+        },
+        {
+          "pin": 6,
+          "side": "W",
+          "name": "P0.1(GPIO1)/MISO0",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P0.1",
+          "af0": "MISO0",
+          "altFuncs": {
+            "AF1": "TX1",
+            "AF2": "T0CMP0",
+            "AF3": "T0CMP1",
+            "AF4": "T1CMP0",
+            "AF5": "T1CMP1",
+            "AF6": "SCK1",
+            "AF7": "MOSI1"
+          }
+        },
+        {
+          "pin": 7,
+          "side": "W",
+          "name": "P0.2(GPIO2)/MOSI0",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P0.2",
+          "af0": "MOSI0",
+          "altFuncs": {
+            "AF1": "T0CMP0",
+            "AF2": "T0CMP1",
+            "AF3": "T1CMP0",
+            "AF4": "T1CMP1",
+            "AF5": "SCK1",
+            "AF6": "MOSI1",
+            "AF7": "TX0"
+          }
+        },
+        {
+          "pin": 8,
+          "side": "W",
+          "name": "P0.3(GPIO3)/SCK0",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P0.3",
+          "af0": "SCK0",
+          "altFuncs": {
+            "AF1": "T0CMP1",
+            "AF2": "T1CMP0",
+            "AF3": "T1CMP1",
+            "AF4": "SCK1",
+            "AF5": "MOSI1",
+            "AF6": "TX0",
+            "AF7": "TX1"
+          }
+        },
+        {
+          "pin": 9,
+          "side": "W",
+          "name": "P0.4(GPIO4)/LFXT",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P0.4",
+          "af0": "LFXT",
+          "altFuncs": {
+            "AF1": "T1CMP0",
+            "AF2": "T1CMP1",
+            "AF3": "SCK1",
+            "AF4": "MOSI1",
+            "AF5": "TX0",
+            "AF6": "TX1",
+            "AF7": "T0CMP0"
+          }
+        },
+        {
+          "pin": 10,
+          "side": "W",
+          "name": "P0.5(GPIO5)/HFXT",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P0.5",
+          "af0": "HFXT",
+          "altFuncs": {
+            "AF1": "T1CMP1",
+            "AF2": "SCK1",
+            "AF3": "MOSI1",
+            "AF4": "TX0",
+            "AF5": "TX1",
+            "AF6": "T0CMP0",
+            "AF7": "T0CMP1"
+          }
+        },
+        {
+          "pin": 11,
+          "side": "W",
+          "name": "P0.6(GPIO6)/TRAP",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P0.6",
+          "af0": "TRAP",
+          "altFuncs": {
+            "AF1": "SCK1",
+            "AF2": "MOSI1",
+            "AF3": "TX0",
+            "AF4": "TX1",
+            "AF5": "T0CMP0",
+            "AF6": "T0CMP1",
+            "AF7": "T1CMP0"
+          }
+        },
+        {
+          "pin": 12,
+          "side": "W",
+          "name": "P0.7(BOOT)",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P0.7",
+          "altFuncs": {
+            "AF1": "MOSI1",
+            "AF2": "TX0",
+            "AF3": "TX1",
+            "AF4": "T0CMP0",
+            "AF5": "T0CMP1",
+            "AF6": "T1CMP0",
+            "AF7": "T1CMP1"
+          }
+        },
+        {
+          "pin": 13,
+          "side": "W",
+          "name": "VDDPST",
+          "io": "Power Input",
+          "powerDomain": "Digital I/O"
+        },
+        {
+          "pin": 14,
+          "side": "W",
+          "name": "VSSPST",
+          "io": "Power Input",
+          "powerDomain": "Digital I/O"
+        },
+        {
+          "pin": 15,
+          "side": "W",
+          "name": "P1.0(GPIO8)/CS1",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P1.0",
+          "af0": "CS1",
+          "altFuncs": {
+            "AF1": "T0CMP0",
+            "AF2": "TX1",
+            "AF3": "T0CMP1",
+            "AF4": "T1CMP0",
+            "AF5": "T1CMP1",
+            "AF6": "SCK1",
+            "AF7": "MOSI1"
+          }
+        },
+        {
+          "pin": 16,
+          "side": "W",
+          "name": "P1.1(GPIO9)/MISO1",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P1.1",
+          "af0": "MISO1",
+          "altFuncs": {
+            "AF1": "T0CMP1",
+            "AF2": "T0CMP0",
+            "AF3": "T1CMP0",
+            "AF4": "T1CMP1",
+            "AF5": "SCK1",
+            "AF6": "MOSI1",
+            "AF7": "TX0"
+          }
+        },
+        {
+          "pin": 17,
+          "side": "W",
+          "name": "P1.2(GPIO10)/MOSI1",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P1.2",
+          "af0": "MOSI1",
+          "altFuncs": {
+            "AF1": "T1CMP0",
+            "AF2": "T1CMP1",
+            "AF3": "SCK1",
+            "AF4": "TX0",
+            "AF5": "TX1",
+            "AF6": "T0CMP0",
+            "AF7": "T0CMP1"
+          }
+        },
+        {
+          "pin": 18,
+          "side": "W",
+          "name": "P1.3(GPIO11)/SCK1",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P1.3",
+          "af0": "SCK1",
+          "altFuncs": {
+            "AF1": "T1CMP1",
+            "AF2": "MOSI1",
+            "AF3": "TX0",
+            "AF4": "TX1",
+            "AF5": "T0CMP0",
+            "AF6": "T0CMP1",
+            "AF7": "T1CMP0"
+          }
+        },
+        {
+          "pin": 19,
+          "side": "W",
+          "name": "P1.4(GPIO12)/TX0",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P1.4",
+          "af0": "TX0",
+          "altFuncs": {
+            "AF1": "SDA1",
+            "AF2": "SCK1",
+            "AF3": "MOSI1",
+            "AF4": "TX1",
+            "AF5": "T0CMP0",
+            "AF6": "T0CMP1",
+            "AF7": "T1CMP0"
+          }
+        },
+        {
+          "pin": 20,
+          "side": "W",
+          "name": "P1.5(GPIO13)/RX0",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P1.5",
+          "af0": "RX0",
+          "altFuncs": {
+            "AF1": "SCL1",
+            "AF2": "T1CMP1",
+            "AF3": "SCK1",
+            "AF4": "MOSI1",
+            "AF5": "TX0",
+            "AF6": "TX1",
+            "AF7": "T0CMP0"
+          }
+        },
+        {
+          "pin": 21,
+          "side": "W",
+          "name": "P1.6(GPIO14)/TX1",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P1.6",
+          "af0": "TX1",
+          "altFuncs": {
+            "AF1": "SDA0",
+            "AF2": "TX0",
+            "AF3": "T0CMP0",
+            "AF4": "T0CMP1",
+            "AF5": "T1CMP0",
+            "AF6": "T1CMP1",
+            "AF7": "SCK1"
+          }
+        },
+        {
+          "pin": 22,
+          "side": "W",
+          "name": "P1.7(GPIO15)/RX1",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P1.7",
+          "af0": "RX1",
+          "altFuncs": {
+            "AF1": "SCL0",
+            "AF2": "MOSI1",
+            "AF3": "TX0",
+            "AF4": "TX1",
+            "AF5": "T0CMP0",
+            "AF6": "T0CMP1",
+            "AF7": "T1CMP0"
+          }
+        },
+        {
+          "pin": 23,
+          "side": "W",
+          "name": "NC",
+          "io": "NC",
+          "noConnect": true
+        },
+        {
+          "pin": 24,
+          "side": "W",
+          "name": "NC",
+          "io": "NC",
+          "noConnect": true
+        },
+        {
+          "pin": 25,
+          "side": "W",
+          "name": "NC",
+          "io": "NC",
+          "noConnect": true
+        },
+        {
+          "pin": 26,
+          "side": "S",
+          "name": "AVDD_2",
+          "io": "Power Input",
+          "powerDomain": "Analog2"
+        },
+        {
+          "pin": 27,
+          "side": "S",
+          "name": "AVSS_2",
+          "io": "Power Input",
+          "powerDomain": "Analog2"
+        },
+        {
+          "pin": 28,
+          "side": "S",
+          "name": "CE_2",
+          "io": "Input/Output",
+          "powerDomain": "Analog2"
+        },
+        {
+          "pin": 29,
+          "side": "S",
+          "name": "WE_2",
+          "io": "Input/Output",
+          "powerDomain": "Analog2"
+        },
+        {
+          "pin": 30,
+          "side": "S",
+          "name": "RE_2",
+          "io": "Input/Output",
+          "powerDomain": "Analog2"
+        },
+        {
+          "pin": 31,
+          "side": "S",
+          "name": "P2.0(GPIO16)/T0CMP0",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P2.0",
+          "af0": "T0CMP0",
+          "altFuncs": {
+            "AF1": "TX1",
+            "AF2": "SCK1",
+            "AF3": "MOSI1",
+            "AF4": "TX0",
+            "AF5": "T0CMP1",
+            "AF6": "T1CMP0",
+            "AF7": "T1CMP1"
+          }
+        },
+        {
+          "pin": 32,
+          "side": "S",
+          "name": "P2.1(GPIO17)/T0CMP1",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P2.1",
+          "af0": "T0CMP1",
+          "altFuncs": {
+            "AF1": "RX1",
+            "AF2": "T1CMP0",
+            "AF3": "T1CMP1",
+            "AF4": "SCK1",
+            "AF5": "MOSI1",
+            "AF6": "TX0",
+            "AF7": "TX1"
+          }
+        },
+        {
+          "pin": 33,
+          "side": "S",
+          "name": "P2.2(GPIO18)/T0CAP0",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P2.2",
+          "af0": "T0CAP0",
+          "altFuncs": {
+            "AF1": "SDA1",
+            "AF2": "T0CMP0",
+            "AF3": "T0CMP1",
+            "AF4": "T1CMP0",
+            "AF5": "T1CMP1",
+            "AF6": "SCK1",
+            "AF7": "MOSI1"
+          }
+        },
+        {
+          "pin": 34,
+          "side": "S",
+          "name": "P2.3(GPIO19)/T0CAP1",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P2.3",
+          "af0": "T0CAP1",
+          "altFuncs": {
+            "AF1": "SCL1",
+            "AF2": "T0CMP1",
+            "AF3": "T1CMP0",
+            "AF4": "T1CMP1",
+            "AF5": "SCK1",
+            "AF6": "MOSI1",
+            "AF7": "TX0"
+          }
+        },
+        {
+          "pin": 35,
+          "side": "S",
+          "name": "P2.4(GPIO20)/T1CMP0",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P2.4",
+          "af0": "T1CMP0",
+          "altFuncs": {
+            "AF1": "TX0",
+            "AF2": "T0CMP1",
+            "AF3": "T1CMP1",
+            "AF4": "SCK1",
+            "AF5": "MOSI1",
+            "AF6": "TX1",
+            "AF7": "T0CMP0"
+          }
+        },
+        {
+          "pin": 36,
+          "side": "S",
+          "name": "P2.5(GPIO21)/T1CMP1",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P2.5",
+          "af0": "T1CMP1",
+          "altFuncs": {
+            "AF1": "RX0",
+            "AF2": "TX0",
+            "AF3": "TX1",
+            "AF4": "T0CMP0",
+            "AF5": "T0CMP1",
+            "AF6": "T1CMP0",
+            "AF7": "SCK1"
+          }
+        },
+        {
+          "pin": 37,
+          "side": "S",
+          "name": "P2.6(GPIO22)/T1CAP0",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P2.6",
+          "af0": "T1CAP0",
+          "altFuncs": {
+            "AF1": "SDA0",
+            "AF2": "SCK1",
+            "AF3": "MOSI1",
+            "AF4": "TX0",
+            "AF5": "TX1",
+            "AF6": "T0CMP0",
+            "AF7": "T0CMP1"
+          }
+        },
+        {
+          "pin": 38,
+          "side": "S",
+          "name": "P2.7(GPIO23)/T1CAP1",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P2.7",
+          "af0": "T1CAP1",
+          "altFuncs": {
+            "AF1": "SCL0",
+            "AF2": "MOSI1",
+            "AF3": "TX0",
+            "AF4": "TX1",
+            "AF5": "T0CMP0",
+            "AF6": "T0CMP1",
+            "AF7": "T1CMP0"
+          }
+        },
+        {
+          "pin": 39,
+          "side": "S",
+          "name": "VDD",
+          "io": "Power Input",
+          "powerDomain": "Digital Core"
+        },
+        {
+          "pin": 40,
+          "side": "S",
+          "name": "VSS",
+          "io": "Power Input",
+          "powerDomain": "Digital Core"
+        },
+        {
+          "pin": 41,
+          "side": "S",
+          "name": "P3.0(GPIO24)/SDA0",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P3.0",
+          "af0": "SDA0",
+          "altFuncs": {
+            "AF1": "T0CAP0",
+            "AF2": "TX0",
+            "AF3": "TX1",
+            "AF4": "T0CMP0",
+            "AF5": "T0CMP1",
+            "AF6": "T1CMP0",
+            "AF7": "T1CMP1"
+          }
+        },
+        {
+          "pin": 42,
+          "side": "S",
+          "name": "P3.1(GPIO25)/SCL0",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P3.1",
+          "af0": "SCL0",
+          "altFuncs": {
+            "AF1": "T0CAP1",
+            "AF2": "TX1",
+            "AF3": "T0CMP0",
+            "AF4": "T0CMP1",
+            "AF5": "T1CMP0",
+            "AF6": "T1CMP1",
+            "AF7": "SCK1"
+          }
+        },
+        {
+          "pin": 43,
+          "side": "S",
+          "name": "P3.2(GPIO26)/SDA1",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P3.2",
+          "af0": "SDA1",
+          "altFuncs": {
+            "AF1": "T1CAP0",
+            "AF2": "T0CMP0",
+            "AF3": "T0CMP1",
+            "AF4": "T1CMP0",
+            "AF5": "T1CMP1",
+            "AF6": "SCK1",
+            "AF7": "MOSI1"
+          }
+        },
+        {
+          "pin": 44,
+          "side": "S",
+          "name": "VDDPST",
+          "io": "Power Input",
+          "powerDomain": "Digital I/O"
+        },
+        {
+          "pin": 45,
+          "side": "S",
+          "name": "VSSPST",
+          "io": "Power Input",
+          "powerDomain": "Digital I/O"
+        },
+        {
+          "pin": 46,
+          "side": "S",
+          "name": "RE_3",
+          "io": "Input/Output",
+          "powerDomain": "Analog3"
+        },
+        {
+          "pin": 47,
+          "side": "S",
+          "name": "WE_3",
+          "io": "Input/Output",
+          "powerDomain": "Analog3"
+        },
+        {
+          "pin": 48,
+          "side": "S",
+          "name": "CE_3",
+          "io": "Input/Output",
+          "powerDomain": "Analog3"
+        },
+        {
+          "pin": 49,
+          "side": "S",
+          "name": "AVSS_3",
+          "io": "Power Input",
+          "powerDomain": "Analog3"
+        },
+        {
+          "pin": 50,
+          "side": "S",
+          "name": "AVDD_3",
+          "io": "Power Input",
+          "powerDomain": "Analog3"
+        },
+        {
+          "pin": 51,
+          "side": "E",
+          "name": "TRSTn",
+          "io": "Input",
+          "powerDomain": "Digital I/O"
+        },
+        {
+          "pin": 52,
+          "side": "E",
+          "name": "P4.0(GPIO32)",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P4.0"
+        },
+        {
+          "pin": 53,
+          "side": "E",
+          "name": "P4.1(GPIO33)",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P4.1"
+        },
+        {
+          "pin": 54,
+          "side": "E",
+          "name": "P4.2(GPIO34)",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P4.2"
+        },
+        {
+          "pin": 55,
+          "side": "E",
+          "name": "P4.3(GPIO35)",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P4.3"
+        },
+        {
+          "pin": 56,
+          "side": "E",
+          "name": "P4.4(GPIO36)",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P4.4"
+        },
+        {
+          "pin": 57,
+          "side": "E",
+          "name": "P4.5(GPIO37)",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P4.5"
+        },
+        {
+          "pin": 58,
+          "side": "E",
+          "name": "P4.6(GPIO38)",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P4.6"
+        },
+        {
+          "pin": 59,
+          "side": "E",
+          "name": "P4.7(GPIO39)",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P4.7"
+        },
+        {
+          "pin": 60,
+          "side": "E",
+          "name": "VDD",
+          "io": "Power Input",
+          "powerDomain": "Digital Core"
+        },
+        {
+          "pin": 61,
+          "side": "E",
+          "name": "VSS",
+          "io": "Power Input",
+          "powerDomain": "Digital Core"
+        },
+        {
+          "pin": 62,
+          "side": "E",
+          "name": "P5.0(GPIO40)",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P5.0",
+          "altFuncs": {
+            "AF1": "NFC_RF_CLK"
+          }
+        },
+        {
+          "pin": 63,
+          "side": "E",
+          "name": "P5.1(GPIO41)",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P5.1",
+          "altFuncs": {
+            "AF1": "NFC_RF_RX"
+          }
+        },
+        {
+          "pin": 64,
+          "side": "E",
+          "name": "P5.2(GPIO42)",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P5.2",
+          "altFuncs": {
+            "AF1": "NFC_FIELD_DETECT"
+          }
+        },
+        {
+          "pin": 65,
+          "side": "E",
+          "name": "P5.3(GPIO43)",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P5.3",
+          "altFuncs": {
+            "AF1": "NFC_RF_TXMOD"
+          }
+        },
+        {
+          "pin": 66,
+          "side": "E",
+          "name": "P5.4(GPIO44)",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P5.4",
+          "altFuncs": {
+            "AF1": "NFC_RF_TX_EN"
+          }
+        },
+        {
+          "pin": 67,
+          "side": "E",
+          "name": "P5.5(GPIO45)",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P5.5",
+          "altFuncs": {
+            "AF1": "NFC_AFE_EN"
+          }
+        },
+        {
+          "pin": 68,
+          "side": "E",
+          "name": "P5.6(GPIO46)",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P5.6"
+        },
+        {
+          "pin": 69,
+          "side": "E",
+          "name": "P5.7(GPIO47)",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P5.7"
+        },
+        {
+          "pin": 70,
+          "side": "E",
+          "name": "VDDPST",
+          "io": "Power Input",
+          "powerDomain": "Digital I/O"
+        },
+        {
+          "pin": 71,
+          "side": "E",
+          "name": "VSSPST",
+          "io": "Power Input",
+          "powerDomain": "Digital I/O"
+        },
+        {
+          "pin": 72,
+          "side": "E",
+          "name": "NC",
+          "io": "NC",
+          "noConnect": true
+        },
+        {
+          "pin": 73,
+          "side": "E",
+          "name": "NC",
+          "io": "NC",
+          "noConnect": true
+        },
+        {
+          "pin": 74,
+          "side": "E",
+          "name": "NC",
+          "io": "NC",
+          "noConnect": true
+        },
+        {
+          "pin": 75,
+          "side": "E",
+          "name": "NC",
+          "io": "NC",
+          "noConnect": true
+        },
+        {
+          "pin": 76,
+          "side": "N",
+          "name": "AVDD_1",
+          "io": "Power Input",
+          "powerDomain": "Analog1"
+        },
+        {
+          "pin": 77,
+          "side": "N",
+          "name": "AVSS_1",
+          "io": "Power Input",
+          "powerDomain": "Analog1"
+        },
+        {
+          "pin": 78,
+          "side": "N",
+          "name": "CE_1",
+          "io": "Input/Output",
+          "powerDomain": "Analog1"
+        },
+        {
+          "pin": 79,
+          "side": "N",
+          "name": "WE_1",
+          "io": "Input/Output",
+          "powerDomain": "Analog1"
+        },
+        {
+          "pin": 80,
+          "side": "N",
+          "name": "RE_1",
+          "io": "Input/Output",
+          "powerDomain": "Analog1"
+        },
+        {
+          "pin": 81,
+          "side": "N",
+          "name": "ATP_1",
+          "io": "Input/Output",
+          "powerDomain": "Analog1"
+        },
+        {
+          "pin": 82,
+          "side": "N",
+          "name": "AVDD_B",
+          "io": "Power Input",
+          "powerDomain": "AnalogBias"
+        },
+        {
+          "pin": 83,
+          "side": "N",
+          "name": "AVSS_B",
+          "io": "Power Input",
+          "powerDomain": "AnalogBias"
+        },
+        {
+          "pin": 84,
+          "side": "N",
+          "name": "TDO",
+          "io": "Output",
+          "powerDomain": "Digital I/O"
+        },
+        {
+          "pin": 85,
+          "side": "N",
+          "name": "TDI",
+          "io": "Input",
+          "powerDomain": "Digital I/O"
+        },
+        {
+          "pin": 86,
+          "side": "N",
+          "name": "TMS",
+          "io": "Input",
+          "powerDomain": "Digital I/O"
+        },
+        {
+          "pin": 87,
+          "side": "N",
+          "name": "TCK",
+          "io": "Input",
+          "powerDomain": "Digital I/O"
+        },
+        {
+          "pin": 88,
+          "side": "N",
+          "name": "VSSPST",
+          "io": "Power Input",
+          "powerDomain": "Digital I/O"
+        },
+        {
+          "pin": 89,
+          "side": "N",
+          "name": "VDDPST",
+          "io": "Power Input",
+          "powerDomain": "Digital I/O"
+        },
+        {
+          "pin": 90,
+          "side": "N",
+          "name": "P3.7(GPIO31)/DTP3",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P3.7",
+          "af0": "DTP3",
+          "altFuncs": {
+            "AF1": "T1CMP1",
+            "AF2": "T0CMP1",
+            "AF3": "T1CMP0",
+            "AF4": "SCK1",
+            "AF5": "MOSI1",
+            "AF6": "TX0",
+            "AF7": "TX1"
+          }
+        },
+        {
+          "pin": 91,
+          "side": "N",
+          "name": "P3.6(GPIO30)/DTP2",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P3.6",
+          "af0": "DTP2",
+          "altFuncs": {
+            "AF1": "T1CMP0",
+            "AF2": "T0CMP0",
+            "AF3": "T0CMP1",
+            "AF4": "T1CMP1",
+            "AF5": "SCK1",
+            "AF6": "MOSI1",
+            "AF7": "MISO1"
+          }
+        },
+        {
+          "pin": 92,
+          "side": "N",
+          "name": "P3.5(GPIO29)/DTP1",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P3.5",
+          "af0": "DTP1",
+          "altFuncs": {
+            "AF1": "T0CMP1",
+            "AF2": "RX0",
+            "AF3": "T0CMP0",
+            "AF4": "T1CMP0",
+            "AF5": "T1CMP1",
+            "AF6": "SCK1",
+            "AF7": "MOSI1"
+          }
+        },
+        {
+          "pin": 93,
+          "side": "N",
+          "name": "P3.4(GPIO28)/DTP0",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P3.4",
+          "af0": "DTP0",
+          "altFuncs": {
+            "AF1": "T0CMP0",
+            "AF2": "TX0",
+            "AF3": "TX1",
+            "AF4": "T0CMP1",
+            "AF5": "T1CMP0",
+            "AF6": "T1CMP1",
+            "AF7": "SCK1"
+          }
+        },
+        {
+          "pin": 94,
+          "side": "N",
+          "name": "P3.3(GPIO27)/SCL1",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P3.3",
+          "af0": "SCL1",
+          "altFuncs": {
+            "AF1": "T1CAP1",
+            "AF2": "T0CMP1",
+            "AF3": "T1CMP0",
+            "AF4": "T1CMP1",
+            "AF5": "SCK1",
+            "AF6": "MOSI1",
+            "AF7": "TX0"
+          }
+        },
+        {
+          "pin": 95,
+          "side": "N",
+          "name": "ATP_0",
+          "io": "Input/Output",
+          "powerDomain": "Analog0"
+        },
+        {
+          "pin": 96,
+          "side": "N",
+          "name": "RE_0",
+          "io": "Input/Output",
+          "powerDomain": "Analog0"
+        },
+        {
+          "pin": 97,
+          "side": "N",
+          "name": "WE_0",
+          "io": "Input/Output",
+          "powerDomain": "Analog0"
+        },
+        {
+          "pin": 98,
+          "side": "N",
+          "name": "CE_0",
+          "io": "Input/Output",
+          "powerDomain": "Analog0"
+        },
+        {
+          "pin": 99,
+          "side": "N",
+          "name": "AVSS_0",
+          "io": "Power Input",
+          "powerDomain": "Analog0"
+        },
+        {
+          "pin": 100,
+          "side": "N",
+          "name": "AVDD_0",
+          "io": "Power Input",
+          "powerDomain": "Analog0"
+        }
+      ]
     }
   },
   "derivedPresets": {
@@ -3976,7 +5249,7 @@ const VESTA_DATA = {
         "mtimecmpBaseAddress": "0x5030"
       },
       "bootromLoaderRowBase": "0x10500 + 0x10*hartid",
-      "stackPointerInit": "0xC000"
+      "stackPointerInit": "0xA000"
     },
     "argus": {
       "isaString": "rv32imac_zba_zbb_zbs_zbc",
@@ -4018,7 +5291,7 @@ const VESTA_DATA = {
         "mtimecmpBaseAddress": "0x5030"
       },
       "bootromLoaderRowBase": "0x10500 + 0x10*hartid",
-      "stackPointerInit": "0xC000"
+      "stackPointerInit": "0xA000"
     }
   },
   "verifiedHarts": {
@@ -4071,6 +5344,13 @@ const VESTA_DATA = {
       "end": "0x9FFF",
       "kind": "private",
       "description": "Per-hart private tightly-coupled memory (the only private address region)"
+    },
+    {
+      "name": "Private TCM (mirror)",
+      "start": "0xA000",
+      "end": "0xBFFF",
+      "kind": "private",
+      "description": "Alias of the private TCM: the band decodes 16 KiB and the array answers 8 KiB, so it repeats across the window"
     },
     {
       "name": "NPU staging RAM",
@@ -4155,6 +5435,7 @@ const VERIFIED_HARTS  = (VESTA_DATA.verifiedHarts && VESTA_DATA.verifiedHarts.va
    is its inverse and configObject() re-emits the same dotted keys. */
 const SCHEMA_TO_CFG = {
   "chipName":"chipName", "numHarts":"numHarts", "orchestrator":"orchestrator",
+  "afeTopology":"afeTopology",
   "numMutexes":"numMutexes",
   "registerFileDualPort":"ENABLE_REGS_DUALPORT",
   // Fetch-ahead (2026-08-23) — implemented in the RTL and ON by default: one
@@ -4194,7 +5475,7 @@ const SCHEMA_TO_CFG = {
   "memory.sharedBulkRamSize":"sharedRamSize", "memory.npuStagingRamSize":"npuRamSize",
   "peripherals.npu":"npu", "peripherals.i2c1":"i2c1",
   "peripherals.uart1":"uart1", "peripherals.spi1":"spi1", "peripherals.timer1":"timer1",
-  "peripherals.cqAfeStubs":"cqAfeStubs", "peripherals.qspi":"qspi", "peripherals.i3c":"i3c", "peripherals.nfc":"nfc",
+  "peripherals.cqAfeStubs":"cqAfeStubs", "peripherals.qspi":"qspi", "peripherals.afe2":"afe2", "peripherals.i3c":"i3c", "peripherals.nfc":"nfc",
   "peripherals.rtc":"rtc", "peripherals.pwm":"pwm", "peripherals.onewire":"onewire",
   "peripherals.fieldPower":"fieldPower",
   "peripherals.dma":"dma", "peripherals.dmaChannels":"dmaChannels",
@@ -4316,6 +5597,7 @@ function derived(){
     [cfg.npu, 1],        // 120 (NPU0 think-done, DP-SG — rides the npu knob)
     [cfg.trng, 1],       // 121 (TRNG0, DP-SG)
     [cfg.i2ctarget, 2],  // 122, 123
+    [cfg.afe2, 1],       // 124 (AFE0-3 combined, OR of the four sites)
   ];
   let vtail = 114, vhigh = 114;
   for (const [p, c] of tail){ vtail += c; if (p) vhigh = vtail; }
@@ -4516,6 +5798,21 @@ function render(){
                                 : `(dmaChannels = ${cfg.dmaChannels}, ignored while DMA is off)`;
     chLbl.style.opacity = cfg.dma ? "" : "0.55";
     cnt.append(chLbl);
+    el.append(cnt); pbox.append(el);
+  }
+  // AFE2 — REAL knob (2026-09-05): the rev-2 analog front end, four sites.
+  {
+    const el = document.createElement("div"); el.className="peri"+(cfg.afe2?" on":"");
+    el.innerHTML = `<div class="pt"><span class="pn">AFE0-3</span>
+      <span class="lockbadge" style="color:var(--ok);border-color:var(--ok)">applied</span></div>
+      <div class="pd">Rev-2 analog front end: four AFE2 sites in the MUTEX page, sub-slots 12-15 @0x6C00-0x6F00, one per channel tile (owner tile hart or hart 0). Each site drives the 50 anatop_pixel control bits (TIA ladder, two 12-bit DACs, bias trim, converter and test-port selects) and sequences the 10-bit SAR converter (MCLK/(2(CLKDIV+1)) trigger clock, 12 falling edges per conversion, READY-window capture with bit 9 corrected, 4-entry tagged FIFO, single-shot/continuous, shared simultaneous-sample trigger, two-code excitation swap). Vector 124 = OR of the four sites (the source list grows to 125; NUM_EN_WORDS stays 4). Mutually exclusive with cqAfeStubs. On castalia-lqfp100 the north band becomes 12 electrode pads + ATP0/ATP1.</div>`;
+    const cnt=document.createElement("div"); cnt.className="cnt";
+    const sw=document.createElement("label"); sw.className="sw";
+    const inp=document.createElement("input"); inp.type="checkbox"; inp.checked=cfg.afe2;
+    const tr=document.createElement("span"); tr.className="track";
+    inp.onchange=()=>{cfg.afe2=inp.checked; if(cfg.afe2) cfg.cqAfeStubs=false; render();};
+    sw.append(inp,tr); cnt.append(sw);
+    const lbl=document.createElement("span"); lbl.textContent = `peripherals.afe2 = ${cfg.afe2}`; cnt.append(lbl);
     el.append(cnt); pbox.append(el);
   }
   // TRNG0 — REAL knob (DP-SG Part B): a toggle PLUS a {4,8} ring-count
@@ -4897,6 +6194,7 @@ function outPython(){
   L.push(`<span class="k">dmaChannels</span> = <span class="v">${cfg.dmaChannels}</span>  <span class="c"># _cfg('peripherals.dmaChannels', 4) — NCH generic {2,4}, only when dma</span>`);
   L.push(`<span class="k">i2ctargetPresent</span> = ${b(cfg.i2ctarget)}  <span class="c"># _cfg('peripherals.i2ctarget', False) — I2CT0 target @0x6A00, vectors 122/123</span>`);
   L.push(`<span class="k">trngPresent</span> = ${b(cfg.trng)}  <span class="c"># _cfg('peripherals.trng', False) — TRNG0 @0x6900, vector 121</span>`);
+  L.push(`<span class="k">afe2Present</span> = ${b(cfg.afe2)}  <span class="c"># _cfg('peripherals.afe2', False) — AFE0-3 @0x6C00-0x6F00, vector 124, 14-pad north band</span>`);
   L.push(`<span class="k">trngRings</span> = <span class="v">${cfg.trngRings}</span>  <span class="c"># _cfg('peripherals.trngRings', 8) — NRO generic {4,8}, only when trng</span>`);
   L.push(`<span class="k">eventFabricPresent</span> = ${b(cfg.eventFabric)}  <span class="c"># _cfg('peripherals.eventFabric', False) — EVFAB0 @0x6B00, vectorless</span>`);
   L.push(`<span class="k">_regsDualPort</span> = ${b(cfg.ENABLE_REGS_DUALPORT)}`);
@@ -4928,6 +6226,15 @@ function configObject(){
     // channel tiles; it also selects memory map v2 (SH_AW >= 16, the read-only
     // TCM apertures, flash at 0x40000). Needs numHarts >= 2.
     orchestrator: cfg.orchestrator,
+    // TOPOLOGY B (2026-09-06): where the four AFE2 sites' analog pins leave the
+    // digital hierarchy. "top_ports" (default) = MCU entity ports to one
+    // anatop_quad macro; "per_tile" = internal nets to four hart_tile_pt
+    // channel tiles, each with its own anatop_ch macro, and only the shared bias
+    // generator's control group on the entity. Placement only: the register map,
+    // the vector and the 50 control bits per site are the same either way.
+    // No interactive toggle; DEFAULTS seeds it from VESTA_DATA.defaults and
+    // Import can set it to per_tile.
+    afeTopology: cfg.afeTopology,
     numMutexes: cfg.numMutexes,
     registerFileDualPort: cfg.ENABLE_REGS_DUALPORT,
     // Fetch-ahead — one flip-flop that holds the word a C-extension straddling
@@ -4975,7 +6282,7 @@ function configObject(){
       romSize: cfg.romSize, tcmSizePerHart: cfg.tcmSize,
       sharedBulkRamSize: cfg.sharedRamSize,
     },
-    peripherals: { npu: cfg.npu, i2c1: cfg.i2c1, uart1: cfg.uart1, spi1: cfg.spi1, timer1: cfg.timer1, cqAfeStubs: cfg.cqAfeStubs, qspi: cfg.qspi, i3c: cfg.i3c, nfc: cfg.nfc, rtc: cfg.rtc, pwm: cfg.pwm, onewire: cfg.onewire, fieldPower: cfg.fieldPower, dma: cfg.dma, dmaChannels: cfg.dmaChannels, i2ctarget: cfg.i2ctarget, trng: cfg.trng, trngRings: cfg.trngRings, eventFabric: cfg.eventFabric },
+    peripherals: { npu: cfg.npu, i2c1: cfg.i2c1, uart1: cfg.uart1, spi1: cfg.spi1, timer1: cfg.timer1, cqAfeStubs: cfg.cqAfeStubs, qspi: cfg.qspi, afe2: cfg.afe2, i3c: cfg.i3c, nfc: cfg.nfc, rtc: cfg.rtc, pwm: cfg.pwm, onewire: cfg.onewire, fieldPower: cfg.fieldPower, dma: cfg.dma, dmaChannels: cfg.dmaChannels, i2ctarget: cfg.i2ctarget, trng: cfg.trng, trngRings: cfg.trngRings, eventFabric: cfg.eventFabric },
     package: { model: cfg.packageModel, preliminary: cfg.packagePreliminary },
   };
   if(cfg.npu) o.memory.npuStagingRamSize = cfg.npuRamSize;

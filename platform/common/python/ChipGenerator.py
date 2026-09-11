@@ -911,9 +911,21 @@ class ChipGenerator():
 				# a0_1..a0_(N-1) tile monitors matching the generated MCU a0 ports),
 				# so it is generated from the same numHarts. Byte-identical to
 				# hdl/common/tb/riscv_tb.vhd at N=4 (check_riscv_tb_vhd.py).
+				# AFE2: with peripherals.afe2 the MCU entity grows four analog-macro
+				# port groups, so the tb declares them, associates them and hangs a
+				# behavioural converter (hdl/common/sim/sar_macro_model.vhd) on each.
+				# The knob comes from the same McuMpGeometry dict mcu_vhd.py reads, so
+				# entity and testbench cannot disagree about whether the ports exist.
+				# TOPOLOGY B (2026-09-06): afeTopology rides the same dict for the same
+				# reason. With 'per_tile' those four groups are internal to the MCU and
+				# the converter models live inside hart_tile_pt, so the tb declares only
+				# the shared bias-generator group and instantiates no model at all.
 				if (test is False) and os.path.isfile(riscvTbTemplatePath):
 					import tb_vhd
-					tb_vhd.generateRiscvTbVhd(self.NumHarts, riscvTbTemplatePath, riscvTbPath)
+					_geo = getattr(self, 'McuMpGeometry', None) or {}
+					tb_vhd.generateRiscvTbVhd(self.NumHarts, riscvTbTemplatePath, riscvTbPath,
+						afe2=_geo.get('afe2', False),
+						afeTopology=_geo.get('afeTopology', 'top_ports'))
 			
 			self.generateMemoryMapJson(chipConfigJsonPath)
 
