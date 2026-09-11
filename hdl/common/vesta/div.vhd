@@ -159,7 +159,8 @@ begin
     begin
         if resetn = '0' then
             result <= (others => '0');
-        elsif complete = '1' then
+        else
+            -- Was "elsif complete = '1'", which left result unassigned during WORK and inferred 32 latches; alu.vhd:388 reads result only while complete = '1', so a purely combinational mux is bit-identical at the read.
             -- Division-by-zero cases from the RISC-V spec, decided from the LATCHED operands a_lat and b_lat, never from the live a/b ports.
             if b_lat = DIV_ZERO_X then
                 if sel_rem = '1' then

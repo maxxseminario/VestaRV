@@ -2959,7 +2959,7 @@ begin
        The deglitched source vector TERMINATES here; delivery to harts 0-4 is the one registered meip wire each (IVT slot 85), and sh_master attributes claim reads (the mutex-bank idiom).
        It resets all-masked, so the block is a provable NO-OP until software routes an IRQ; the wdt_* hooks carry the watchdog contract into SYSTEM0 (source 0 routed/EOI state). */
     irtr0: entity work.irq_router
-        generic map (NHARTS => 5, NUM_SRCS => NUM_IRQ_SRCS, MW => 3)
+        generic map (NHARTS => 5, NUM_SRCS => NUM_IRQ_SRCS, MW => 3, CLINT_SIP => IRQB_CLINT_MSIP, CLINT_TIP => IRQB_CLINT_MTIP)
         port map (
             clk          => mclk,
             resetn       => resetn,

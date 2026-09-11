@@ -627,6 +627,7 @@ architecture struct of vesta is
     -- Compressed instruction signals.
     -- is_compressed is assigned in the reset branch and in four EXECUTE arms but is absent from the FSM's default list, so it HOLDS elsewhere and infers a latch; its only reader is qualified by EXECUTE with pc(1)='1' and repeat_if='0', so the held value is never read.
     -- Do not add it to the default list without proving the PMP instruction-access-fault arm, which does not assign it and can run with those same qualifiers.
+    -- F12 (2026-09-05): the default list therefore assigns it ONLY when ENABLE_PMP is false, where that arm is statically absent and every EXECUTE path assigns it; the synthesized cores (PMP off) have no latch, a PMP-on build keeps it.
     signal is_compressed          : std_logic;
     signal is_compressed_cdec     : std_logic;  -- From decompressor (unused)
     signal quadrant_upper         : std_logic_vector(1 downto 0);  -- Upper half instruction type
@@ -1165,6 +1166,8 @@ architecture struct of vesta is
 
     -- Zcmp/Zcmt sequencer registers: latch the sub-op, the embedded operand bits and the old sp ONCE at dispatch, on the edge from EXECUTE into the first ZCM state.
     -- zcm_idx counts list position, advancing one per completed element, in ZCM_PUSH_GAP or ZCM_POP_WB.
+    -- Guarded on the generics: with both off, zcm_op is '0' (maindec), no ZCM next_state is ever produced and these registers would hold their reset values forever. Genus then keeps the 43 flops behind an ICG whose enable it proves constant, so they synthesize as dead registers with no clock waveform (check_timing, hart_tile 2026-09-05). Tying them off here is bit-identical and removes the dead logic.
+    gen_zcm_seq: if ENABLE_ZCMP or ENABLE_ZCMT generate
     zcm_seq_proc: process(clk_cpu, resetn)
     begin
         if resetn = '0' then
@@ -1186,6 +1189,13 @@ architecture struct of vesta is
             end if;
         end if;
     end process;
+    end generate;
+    gen_zcm_seq_off: if not (ENABLE_ZCMP or ENABLE_ZCMT) generate
+        zcm_subop_r <= (others => '0');
+        zcm_i16_r   <= (others => '0');
+        zcm_sp0     <= (others => '0');
+        zcm_idx     <= 0;
+    end generate;
 
     zcm_subop <= instr_curr(14 downto 12);
     zcm_rlist <= zcm_i16_r(7 downto 4);
@@ -2008,7 +2018,9 @@ architecture struct of vesta is
                              dbg_halt_take, dbg_ebreak_take, dbg_exc_take, dret_op, debug_mode,
                              -- The commit tail reads these four. A same-process signal read returns the PREVIOUS delta's value, so without them a state can be driven from STALE intent, for instance a retiring instruction's ci_pc_advance leaking into the split-fetch bubble and advancing the PC mid-instruction.
                              -- No ci_* right-hand side is a function of the four owned outputs or of any ci_*, so there is no feedback and the extra evaluation settles in one delta.
-                             ci_rd_commit, ci_sp_commit, ci_st_lanes, ci_pc_advance)
+                             ci_rd_commit, ci_sp_commit, ci_st_lanes, ci_pc_advance,
+                             -- amo_wen is read by the AMO write-back arm (ci_st_lanes <= not amo_wen); it is listed so RTL sim cannot present stale byte-lane strobes that the netlist, which ignores sensitivity lists, never sees.
+                             amo_wen)
     begin
         if resetn = '0' then
             -- Reset all control signals.
@@ -2026,6 +2038,7 @@ architecture struct of vesta is
             is_compressed <= '0';
             trap_flag <= '0';
             wfi_enter <= '0';   -- standard-WFI entry marker
+            sp_write_data <= stack_pointer;  -- default: hold SP, so the net is combinational on every path (no inferred latch); sp_write_en is '0' here, so no consumer can observe it
             -- The reset branch drives the four owned nets ITSELF, and two of those drives are deliberately NOT the fail-safe intent values: wen takes wen_controller rather than all-ones, and pc_en takes '1' rather than hold.
             -- The commit block sits in the ELSE branch and cannot reach reset, so these four lines stay exactly as written; the intent defaults below are still fail-safe, so intent and the live nets differ during reset by construction.
             ci_rd_commit  <= '0';
@@ -2044,6 +2057,11 @@ architecture struct of vesta is
             irq_save_ack <= '0';
             trap_flag <= '0';
             wfi_enter <= '0';   -- only the WFI dispatch arms raise this
+            -- is_compressed default, F12 (2026-09-05): with ENABLE_PMP off every EXECUTE arm assigns it (the PMP instruction-access-fault arm, the one arm that does not, is then statically absent) and its only reader is EXECUTE-qualified, so '0' here is bit-identical and removes the inferred latch. With PMP on the latch is kept on purpose: see the declaration note.
+            if not ENABLE_PMP then
+                is_compressed <= '0';
+            end if;
+            sp_write_data <= stack_pointer;  -- default: hold SP, turning the 32 inferred latches into a 3-way mux; only ZCM_SP_COMMIT/IRQ_SV/IRQ_REST override it and those are exactly the states sp_commit_allowed gates sp_write_en on
             -- Commit-intent defaults, all fail-safe.
             ci_rd_commit  <= '0';
             ci_sp_commit  <= '0';

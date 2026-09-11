@@ -113,7 +113,10 @@ architecture rtl of jtag_dtm is
 
     -- ---- mclk domain (reset by system resetn) -------------------------
     signal req_s1, req_s2, req_s3 : std_logic;
+    signal trstn_s1, trstn_s2 : std_logic;
+    signal trstn_guard : std_logic_vector(2 downto 0);
     signal rst_guard : std_logic_vector(2 downto 0);
+    -- Mirror of rst_guard for the OTHER reset: trstn clears req_tgl and req_hold on the TCK side, so a trstn asserted while req_tgl was '1' presents this side a real toggle edge whose payload has already been zeroed. Gating the edge detect on a synchronised trstn discards it instead of issuing an unqualified op="00" transaction at address 0.
     signal m_state   : integer range 0 to 2;
     constant M_IDLE : integer := 0;
     constant M_REQ  : integer := 1;
@@ -319,6 +322,9 @@ begin
                 req_s2     <= '0';
                 req_s3     <= '0';
                 rst_guard  <= (others => '0');
+                trstn_s1   <= '0';
+                trstn_s2   <= '0';
+                trstn_guard <= (others => '0');
                 m_state    <= M_IDLE;
                 req_vld_r  <= '0';
                 rsp_op_h   <= (others => '0');
@@ -329,11 +335,18 @@ begin
                 req_s2 <= req_s1;
                 req_s3 <= req_s2;
                 rst_guard <= rst_guard(1 downto 0) & '1';
+                trstn_s1 <= trstn;
+                trstn_s2 <= trstn_s1;
+                if trstn_s2 = '0' then
+                    trstn_guard <= (others => '0');
+                else
+                    trstn_guard <= trstn_guard(1 downto 0) & '1';
+                end if;
 
-                -- M_IDLE: wait for a real request edge, held off until rst_guard says the synchroniser holds three post-reset samples.
+                -- M_IDLE: wait for a real request edge, held off until rst_guard AND trstn_guard say the synchroniser holds three samples clear of either reset.
                 -- Keep the guard: req_tgl is not reset by resetn, so a req_tgl of '1' at reset release would otherwise fake an edge and replay the hold register as a phantom DMI request.
                 if m_state = M_IDLE then
-                    if rst_guard(2) = '1' and (req_s2 /= req_s3) then
+                    if rst_guard(2) = '1' and trstn_guard(2) = '1' and (req_s2 /= req_s3) then
                         req_vld_r <= '1';
                         m_state   <= M_REQ;
                     end if;

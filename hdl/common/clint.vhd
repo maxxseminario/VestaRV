@@ -81,6 +81,7 @@ begin
         variable hidx   : integer range 0 to NHARTS-1;
         variable rd     : std_logic_vector(31 downto 0);
         variable mtime_next : std_logic_vector(63 downto 0);
+        variable mtime_wr   : boolean;  -- a write landed on either mtime word this cycle
     begin
         if resetn = '0' then
             msip_reg  <= (others => '0');
@@ -89,8 +90,10 @@ begin
             mtip_reg  <= (others => '0');
             rdata_reg <= (others => '0');
         elsif rising_edge(clk) then
-            -- mtime free-runs, but a same-cycle write to it wins (see the write section below)
-            mtime_next := mtime + 1;
+            -- mtime free-runs, but a same-cycle write to it wins (see the write section below).
+            -- The increment is NOT folded in here: with mtime_next pre-incremented, a write to the lo word kept the carry the increment had already pushed into hi, and a write to hi discarded the carry the lo increment produced. Both are 2^-32-per-write faults on a monotonic clock, worth 2^32 ticks each.
+            mtime_next := mtime;
+            mtime_wr   := false;
 
             if en = '1' then
                 widx := conv_integer(addr);
@@ -120,9 +123,11 @@ begin
                             msip_reg(widx) <= wdata(0);
                         end if;
                     elsif widx = MTIME_W then
+                        mtime_wr := true;
                         mtime_next(31 downto 0) :=
                             lane_merge(mtime(31 downto 0), wdata, we);
                     elsif widx = MTIME_W + 1 then
+                        mtime_wr := true;
                         mtime_next(63 downto 32) :=
                             lane_merge(mtime(63 downto 32), wdata, we);
                     elsif widx >= CMP_W and widx < CMP_W + 2*NHARTS then
@@ -138,7 +143,12 @@ begin
                 end if;
             end if;
 
-            mtime <= mtime_next;
+            -- A write defines the whole 64-bit value for this cycle and costs one tick; otherwise mtime increments as a single 64-bit counter, so no carry can be lost or duplicated.
+            if mtime_wr then
+                mtime <= mtime_next;
+            else
+                mtime <= mtime_next + 1;
+            end if;
 
             -- ---- Registered 64-bit timer compares driving the mtip levels ----
             for h in 0 to NHARTS-1 loop

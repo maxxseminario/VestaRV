@@ -3349,8 +3349,13 @@ class McuVhdEmitter():
 		lines.append('       The deglitched source vector TERMINATES here; delivery to ' + ('hart 0' if self.nHarts() == 1 else 'harts 0-' + nm1) + ' is the one registered meip wire each (IVT slot 85), and sh_master attributes claim reads (the mutex-bank idiom).')
 		lines.append('       It resets all-masked, so the block is a provable NO-OP until software routes an IRQ; the wdt_* hooks carry the watchdog contract into SYSTEM0 (source 0 routed/EOI state). */')
 		lines.append('    irtr0: entity work.irq_router')
+		# CLINT_SIP/CLINT_TIP are associated explicitly from MemoryMap: irq_router
+		# cannot see the package (it compiles standalone in run_irq_router.sh and
+		# //hdl/common/tb:irq_router_rtl), so its 83/84 declaration defaults only
+		# happen to match today's map. See irq_router.vhd:152.
 		lines.append('        generic map (NHARTS => ' + str(n) + ', NUM_SRCS => NUM_IRQ_SRCS'
-			+ ('' if mw == 2 else ', MW => ' + str(mw)) + ')')
+			+ ('' if mw == 2 else ', MW => ' + str(mw))
+			+ ', CLINT_SIP => IRQB_CLINT_MSIP, CLINT_TIP => IRQB_CLINT_MTIP)')
 		lines.append('        port map (')
 		lines.append('            clk          => mclk,')
 		lines.append('            resetn       => resetn,')

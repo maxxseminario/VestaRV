@@ -149,6 +149,11 @@ begin
         report "irq_router: COMPLETE bounds check assumes 7-bit source IDs"
         severity failure;
 
+    -- The two never-routed IDs must be real, distinct peripheral slots. This block cannot see MemoryMap (run_irq_router.sh and //hdl/common/tb:irq_router_rtl compile it with no other dependency), so the instantiation MUST associate CLINT_SIP => IRQB_CLINT_MSIP and CLINT_TIP => IRQB_CLINT_MTIP; the defaults above only happen to match today's map.
+    assert CLINT_SIP < NUM_SRCS and CLINT_TIP < NUM_SRCS and CLINT_SIP /= CLINT_TIP
+        report "irq_router: CLINT_SIP/CLINT_TIP must be distinct source IDs below NUM_SRCS, associated from MemoryMap's IRQB_CLINT_MSIP/IRQB_CLINT_MTIP"
+        severity failure;
+
     -- Registered per-hart meip reduction over the PERIPHERAL sources only.
     -- CLINT_SIP and CLINT_TIP are delivered on the hardwired msip and mtip wires; every other source 0..NUM_SRCS-1 is routable.
     meip_proc: process(clk, resetn)

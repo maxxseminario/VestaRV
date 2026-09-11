@@ -528,7 +528,7 @@ begin
 
     -- Second legality stage: with the opcode accepted, check funct3/funct7/funct12 for that opcode.
     -- valid_funct defaults to '1' and every arm below only ever narrows it, so an opcode with no encoding constraints needs no arm.
-    process(op, funct3, funct7, funct5, imm12, valid_opcode, is_custom_instr, is_mul_div, is_amo_instr, is_zba_instr, is_zbb_r_instr, is_zbb_i_instr, is_zbs_r_instr, is_zbs_i_instr, is_zbc_instr, is_zicond_instr, is_aes_instr, is_wrs_instr, is_csr_instr, is_zimop_instr, csr_addr_valid, is_std_amo_fn5, is_sha256_instr, is_sha512_instr, is_zbkb_new_r_instr, is_zbkb_new_i_instr, is_zbkb_shared_r_instr, is_zbkb_shared_i_instr, is_zbkx_instr, is_fp_single, is_fp_arith_mc, is_fp_fma_op, u_gate, u_csr_denied, csr_ro_denied, status_tw)
+    process(op, funct3, funct7, funct5, imm12, valid_opcode, is_custom_instr, is_mul_div, is_amo_instr, is_zba_instr, is_zbb_r_instr, is_zbb_i_instr, is_zbs_r_instr, is_zbs_i_instr, is_zbc_instr, is_zicond_instr, is_aes_instr, is_wrs_instr, is_csr_instr, is_zimop_instr, csr_addr_valid, is_std_amo_fn5, is_sha256_instr, is_sha512_instr, is_zbkb_new_r_instr, is_zbkb_new_i_instr, is_zbkb_shared_r_instr, is_zbkb_shared_i_instr, is_zbkx_instr, is_fp_single, is_fp_arith_mc, is_fp_fma_op, u_gate, u_csr_denied, csr_ro_denied, status_tw, dbg_csr_denied, debug_mode)  -- dbg_csr_denied (read at the 0x7Bx CSR arm) and debug_mode (read at the DRET arm) complete the list; without them RTL sim can hold a stale legality that the netlist does not
     begin
         valid_funct <= '1';
         

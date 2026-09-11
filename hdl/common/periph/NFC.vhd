@@ -655,6 +655,10 @@ begin
             end loop;
         elsif rising_edge(rf_clk) then
             tx_start <= '0'; -- 1-cycle launch pulse default
+            -- rxbuf_mem(9 to 63) is never written by the receive path (the de-framer writes k in 0 to 8 only), so those bytes see the reset write alone and Genus infers a latch per byte (CDFG2G-616 / CDFG-241 under hdl_error_on_latch) that it then collapses to zero. Holding them at zero on the clock edge makes that constant explicit: same netlist, reads of those indices still return 0, no latch.
+            for i in 9 to 63 loop rxbuf_mem(i) <= (others => '0'); end loop;
+            -- resp_bytes(16 to 63) likewise: the reply composer writes indices 0 to 15 only (the payload copy loop and the ATQA/SAK/UID arms), so the rest are the same reset-only latch class, held at zero here.
+            for i in 16 to 63 loop resp_bytes(i) <= (others => '0'); end loop;
 
             -- Transaction-local config latch and per-frame event-level clear.
             if rx_soc = '1' then
