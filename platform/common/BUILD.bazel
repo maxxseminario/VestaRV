@@ -910,6 +910,113 @@ py_binary(
     ]
 ]
 
+# SystemRDL LEVEL 2 (report R6). AFE2.vhd and BIASG.vhd no longer declare their
+# own word offsets, field ranges, IMPL masks or reset tables: those are generated
+# from the .rdl into hdl/common/periph/{afe2,biasg}_regs_pkg.vhd, which the two
+# entities `use`. Two gates hold that down, and they are deliberately different
+# kinds of gate:
+#
+#   rdl_vhdl_pkg_test       the TRACKED package is byte-identical to a fresh
+#                           emission -- the same role check_memorymap_vhd_test
+#                           plays for the generated memory-map package.
+#   rdl_pkg_vs_legacy_test  every value in the tracked package equals the
+#                           hand-written constant it replaced, transcribed from
+#                           the pre-migration revision. This is the leg of the
+#                           argument that does NOT run through the .rdl: with the
+#                           decode's independent copy gone, rdl_vs_vhdl_afe2_test
+#                           now reads the package, so something outside the
+#                           SystemRDL path has to hold the numbers.
+py_test(
+    name = "rdl_vhdl_pkg_test",
+    size = "small",
+    srcs = ["//platform/common/python:rdl_vhdl_pkg_test.py"],
+    data = [
+        "//hdl:rdl_sources",
+        "//hdl:vhdl_sources",
+    ],
+    main = "rdl_vhdl_pkg_test.py",
+    deps = ["//platform/common/python:rdl_test_lib"],
+)
+
+# No @rdl_deps: it parses the tracked package text, which is the artifact the RTL
+# compiles. Running the emitter here would grade the emitter against itself.
+py_test(
+    name = "rdl_pkg_vs_legacy_test",
+    size = "small",
+    srcs = ["//platform/common/python:rdl_pkg_vs_legacy_test.py"],
+    data = ["//hdl:vhdl_sources"],
+    main = "rdl_pkg_vs_legacy_test.py",
+)
+
+# ---------------------------------------------------------------------------
+# The firmware register headers (report R6): software/include/regs/*.h, emitted
+# from the chip addrmap through stock PeakRDL-cheader. Three gates.
+# ---------------------------------------------------------------------------
+
+# Identity + address consistency. The MemoryMap.h handed in is the per-tile AFE
+# configuration's: the only one that publishes AFE0BIASG0..CR, and its bases are
+# identical to the topology-A AFE configuration's.
+py_test(
+    name = "regs_headers_identity_test",
+    size = "small",
+    srcs = ["//platform/common/python:regs_headers_test.py"],
+    args = [
+        "--memorymap-h=$(rootpath :penta_wound_afe_pt_memorymap_h)",
+        "TestHeadersAreCurrent",
+    ],
+    data = [
+        ":penta_wound_afe_pt_memorymap_h",
+        ":rdl_config",
+        "//hdl:rdl_sources",
+        "//software/include:regs_headers",
+    ],
+    main = "regs_headers_test.py",
+    deps = ["//platform/common/python:rdl_regs_lib"],
+)
+
+py_test(
+    name = "regs_headers_vs_memorymap_test",
+    size = "small",
+    srcs = ["//platform/common/python:regs_headers_test.py"],
+    args = [
+        "--memorymap-h=$(rootpath :penta_wound_afe_pt_memorymap_h)",
+        "TestHeadersAgreeWithMemoryMapH",
+    ],
+    data = [
+        ":penta_wound_afe_pt_memorymap_h",
+        ":rdl_config",
+        "//hdl:rdl_sources",
+        "//software/include:regs_headers",
+    ],
+    main = "regs_headers_test.py",
+    deps = ["//platform/common/python:rdl_regs_lib"],
+)
+
+# The compile gate: a translation unit that USES every object-like macro the
+# headers define, compiled freestanding at -Wall -Wextra -Werror by the same
+# hermetic RISC-V gcc check_memorymap_h_test uses.
+py_test(
+    name = "regs_headers_compile_test",
+    size = "small",
+    srcs = [CHECK_RUNNER],
+    args = [
+        "--script=platform/common/python/check_regs_headers.py",
+        "--env=RISCV_CC=abs:$(rootpath @xpack_riscv_gcc//:gcc)",
+        "--",
+        "abs:software/include/regs",
+        "--memorymap-h",
+        "abs:$(rootpath :penta_wound_afe_pt_memorymap_h)",
+    ],
+    data = [
+        ":penta_wound_afe_pt_memorymap_h",
+        "//platform/common/python:check_regs_headers.py",
+        "//software/include:regs_headers",
+        "@xpack_riscv_gcc//:gcc",
+        "@xpack_riscv_gcc//:toolchain",
+    ],
+    main = "check_runner.py",
+)
+
 # The negative control: each gate is shown failing on a one-token mutation of the
 # .rdl it grades, and passing on the unmutated copy in the same run.
 py_test(
