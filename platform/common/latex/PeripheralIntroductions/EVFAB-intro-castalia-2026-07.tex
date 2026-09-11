@@ -1,3 +1,10 @@
+% Event fabric chapter. Section order is the per-peripheral template enforced by
+% python/check_intro_names.py (Overview / Functional description / Interrupts
+% and events / Programming / Usage notes). Restructured 2026-09-05; the prose
+% is unchanged apart from the headings it now sits under, and the two table
+% captions moved out of their tabular (they broke the List of Tables numbering).
+\section{Overview}
+
 The event/trigger fabric (\peripheral{EVFAB}) is a PPI-style crossbar that lets peripherals command each other with no processor in the loop. Eight independent channels each hold one \{EVSEL, TASKSEL\} pair; when the event a channel selects fires and the channel is enabled, the fabric emits a registered one-\texttt{MCLK} pulse on the task it selects, one \texttt{MCLK} after the event. The whole block (the event front end, the crossbar, the output register, and the sticky status words) rides the free-running fabric clock (\texttt{MCLK}) in the always-on shared domain: \texttt{WFI} keeps it alive, field-power mode only slows it down, and \peripheral{PWRCTRL} never gates it. A chain therefore keeps firing with every hart asleep and the bus completely idle, which is the entire point of the block. \peripheral{EVFAB} is never a bus master, never stalls, and never rate-limits: it only ever adds one \texttt{MCLK} of latency between an event and the task pulse it drives. The main features are listed below:
 
 \begin{itemize}
@@ -9,6 +16,8 @@ The event/trigger fabric (\peripheral{EVFAB}) is a PPI-style crossbar that lets 
 	\item Firmware injection of a channel firing (\register{EVFCHTRIG}) or a raw event (\register{EVFEVTRIG}) with no producer hardware required at all, for bring-up and self-test
 	\item Vectorless in this version: the interrupt output is a constant 0 and the \register{EVFIE} slot is reserved, so firmware polls \register{EVFSR}, whose two bits are live OR-reductions of \register{EVFFIRED} and \register{EVFOVR}
 \end{itemize}
+
+\section{Functional description}
 
 \subsection{Producers: the Event Lines}
 \label{s:evfab-events}
@@ -23,8 +32,8 @@ Table \ref{t:evfab-events} lists every wired \register{EVFEVSELn} code. Every ta
 
 \begin{table}[htb]
 	\centering
-	\begin{tabular}{ c l l l }
 	\caption{\register{EVFEVSELn} event lines} \label{t:evfab-events}
+	\begin{tabular}{ c l l l }
 	\textbf{EVSEL} & \textbf{Source} & \textbf{Mode} & \textbf{Notes} \\ \hline
 	0  & \peripheral{RTC0} tick               & P & one-second periodic tick \\
 	\rowcolor{tablehighlightcolor}
@@ -68,8 +77,8 @@ Table \ref{t:evfab-tasks} lists every wired \register{EVFTASKSELn} code. Every t
 
 \begin{table}[htb]
 	\centering
-	\begin{tabular}{ c l l }
 	\caption{\register{EVFTASKSELn} task lines} \label{t:evfab-tasks}
+	\begin{tabular}{ c l l }
 	\textbf{TASKSEL} & \textbf{Consumer} & \textbf{Action} \\ \hline
 	0  & \peripheral{DMA0} channel-0 GO   & launches channel 0 exactly like a \register{DMAGO} write \\
 	\rowcolor{tablehighlightcolor}
@@ -109,6 +118,12 @@ The fabric lives at \texttt{0x6B00} (Section \ref{s:evfab-shared}), decoded as s
 
 \register{EVFCAP} is a read-only word that reports the \textit{live} counts this build implements (8 channels, 16 events, 10 tasks, fabric version 1), so a driver can size its loops from the register instead of a compile-time constant, and instead of the wider \textit{encode spaces} that \register{EVFEVSELn}/\register{EVFTASKSELn} reserve for growth.
 
+\section{Interrupts and events}
+
+This version spends no interrupt vector at all: \texttt{irq\_evfab} is wired to a constant 0 and the \register{EVFIE} slot is reserved and reads 0, so \peripheral{EVFAB} never appears in the \peripheral{IRQROUTER}'s vector list and the frozen interrupt-vector numbering is completely undisturbed by this peripheral. Firmware polls \register{EVFSR}, whose two bits are live OR-reductions of \register{EVFFIRED} and \register{EVFOVR}. A future version that spends a vector for \register{EVFFIRED}/\register{EVFOVR} would be a purely additive change (implement \register{EVFIE}, drive \texttt{irq\_evfab}, and route the new vector) with no register-map break.
+
+\section{Programming}
+
 \subsection{Driver Contract}
 \label{s:evfab-contract}
 
@@ -135,7 +150,9 @@ From that point the hart executes nothing until the chain completes: \peripheral
 
 A companion pattern from the same design worth noting, though it is not shipped as a single test: \peripheral{RTC0}'s periodic tick (event 0) driving \peripheral{TIMER0} START (task 2), with a second channel wiring \peripheral{TIMER0}'s own compare event back to \peripheral{TIMER0} STOP (task 3), produces an autonomous, CPU-free sensing window (the real-time clock opens a timed measurement interval and the timer itself closes it) entirely inside the fabric.
 
+\section{Usage notes}
+
 \subsection{Shared Access on \AsicNameForUserGuide}
 \label{s:evfab-shared}
 
-In configurations that include it, \peripheral{EVFAB} lives in the shared peripheral window behind the multi-core arbiter (see Section \ref{s:multicore}) in the mutex-bank page, sub-slot 11 at \texttt{0x6B00}, so any hart can configure it and any hart's channels can drive any wired task. \peripheral{EVFAB} has no pins and, because its datapath and register file both ultimately ride the free-running fabric clock, its operation is immune to clock reconfiguration: software does \emph{not} need to write \register{\register{SYSCLKCR}} to 0 before using it, unlike the \texttt{SMCLK}-domain serial peripherals. This version spends no interrupt vector at all: \texttt{irq\_evfab} is wired to a constant 0 and the \register{EVFIE} slot is reserved and reads 0, so \peripheral{EVFAB} never appears in the \peripheral{IRQROUTER}'s vector list and the frozen interrupt-vector numbering is completely undisturbed by this peripheral. A future version that spends a vector for \register{EVFFIRED}/\register{EVFOVR} would be a purely additive change (implement \register{EVFIE}, drive \texttt{irq\_evfab}, and route the new vector) with no register-map break.
+In configurations that include it, \peripheral{EVFAB} lives in the shared peripheral window behind the multi-core arbiter (see Section \ref{s:multicore}) in the mutex-bank page, sub-slot 11 at \texttt{0x6B00}, so any hart can configure it and any hart's channels can drive any wired task. \peripheral{EVFAB} has no pins and, because its datapath and register file both ultimately ride the free-running fabric clock, its operation is immune to clock reconfiguration: software does \emph{not} need to write \register{\register{SYSCLKCR}} to 0 before using it, unlike the \texttt{SMCLK}-domain serial peripherals.
