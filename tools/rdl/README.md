@@ -6,13 +6,13 @@ that decodes it, `platform/common/python/generate.py`'s hand-written
 generated from the second, so they could not disagree with it. **Nothing tied any
 of them to the first.**
 
-Both halves of that are now closed. An `.rdl` description sits next to the RTL and
+Both halves of that are now closed. An `.rdl` description describes each block and
 a build-time gate re-derives the decode out of the VHDL and compares
 (`rdl_vs_vhdl_<block>_test`); and, since 2026-09-10, **the description IS the
 register map for all 22 peripherals** — `generate.py` builds every template by
 calling `rdl_model.registerTemplatesFor()` and carries no register data of its
 own. A width, an access code, a reset value or a field description is written once,
-beside the RTL, and reaches the TRM table, the register index, `MemoryMap.h`,
+in `hdl/common/regs/rdl/`, and reaches the TRM table, the register index, `MemoryMap.h`,
 `MemoryMap.vhd`, the configurator and the register browser from there.
 
 The gate found a live defect on its first run. `AFE2.vhd` resets `CR.SAMPLESTEP`
@@ -34,10 +34,11 @@ correction had been applied to the instances and not to the template.
 | `peakrdl_export_test.py` | the tracked descriptions export through stock PeakRDL |
 | `READY` | touched when the compiler and the emitters work, for the agent consuming this toolchain |
 | `platform/common/python/rdl_python.py` | finds an interpreter that can import the compiler, for the Makefile |
-| `hdl/common/periph/rdl/*.rdl` | the descriptions, next to the RTL they describe |
+| `hdl/common/regs/rdl/*.rdl` | the descriptions: one per block, plus `vesta_udp.rdl` and the chip addrmap |
+| `hdl/common/regs/README.md` | what the two register trees are and how to regenerate `regs/vhdl/` |
 | `platform/common/python/rdl_*.py` | the model loader, the four emitters and the gates |
 | `platform/common/config/rdl.json` | the per-peripheral `rdl: true` flag |
-| `hdl/common/periph/{afe2,biasg}_regs_pkg.vhd` | GENERATED and TRACKED: the VHDL packages `AFE2.vhd` and `BIASG.vhd` `use` (level 3) |
+| `hdl/common/regs/vhdl/{afe2,biasg}_regs_pkg.vhd` | GENERATED and TRACKED: the VHDL packages `AFE2.vhd` and `BIASG.vhd` `use` (level 3) |
 | `software/include/regs/*.h` | GENERATED and TRACKED: the firmware register headers, through stock PeakRDL-cheader |
 
 Provisioning follows the repo's existing rule for an external tool: pinned
@@ -65,7 +66,7 @@ TRM format is identical by construction rather than by imitation — and
 **byte-identical** to the ones the generation emitted.
 
 Two things SystemRDL does not say are carried as user-defined properties in
-`hdl/common/periph/rdl/vesta_udp.rdl`:
+`hdl/common/regs/rdl/vesta_udp.rdl`:
 
 - `vesta_access` — the generator's access code (`rw`, `r`, `rw1`, `w1`, …). It is
   redundant by design: `rdl_model.py` re-derives it from `sw`/`hw`/`onwrite`/
@@ -113,7 +114,7 @@ A `.rdl` BLOCK file describes a peripheral the way its RTL generics default. Two
 peripherals reset a register differently per INSTANCE, because the value arrives
 as a generic: GPIO's `RstValPx{OUT,DIR,SEL,REN,AFS}` and I2C's `default_SAD`.
 Those are dynamic assignments in the top addrmap
-(`hdl/common/periph/rdl/castalia_penta_wound_afe.rdl`) and only exist after
+(`hdl/common/regs/rdl/castalia_penta_wound_afe.rdl`) and only exist after
 ELABORATION, so `rdl_vs_generator_test` loads the elaborated per-instance blocks
 through `rdl_chip.bind()` and grades the instance the generator side names. On
 the generator side the same values are applied to the INSTANCE registers
@@ -138,7 +139,7 @@ that read the source tree and not a build output:
 
 | module | output | regenerate |
 |---|---|---|
-| `rdl_vhdl_pkg.py` | `hdl/common/periph/<x>_regs_pkg.vhd`, one per block, **24 of them** (level 3) | `bazel run //platform/common/python:rdl_vhdl_pkgs` |
+| `rdl_vhdl_pkg.py` | `hdl/common/regs/vhdl/<x>_regs_pkg.vhd`, one per block, **24 of them** (level 3) | `bazel run //platform/common/python:rdl_vhdl_pkgs` |
 | `rdl_cheader_regs.py` | `software/include/regs/*.h` — the firmware register headers, through stock PeakRDL-cheader | `bazel run //platform/common/python:rdl_regs_headers` |
 
 ## `config/rdl.json`: the registry, and `registerSource`
@@ -189,7 +190,7 @@ chips.
 
 ### What SystemRDL does not say, and how it is said
 
-Four user-defined properties in `hdl/common/periph/rdl/vesta_udp.rdl`, all inert
+Four user-defined properties in `hdl/common/regs/rdl/vesta_udp.rdl`, all inert
 unless the addrmap sets `vesta_indexed = true`. The other eighteen descriptions are
 therefore loaded character for character as before — which matters, because their
 prose contains braces of its own (`{SRC,DST,LEN,CFG}`, `{4,8}`, `{seconds, subsecond}`).
@@ -331,7 +332,7 @@ configurations with a `chip_artifacts` target (`castalia`, `penta_wound`,
 / `reg_arr_t` / `IMPL` / `RSTVAL` declarations and gained one context clause:
 
 ```vhdl
-use work.afe2_regs_pkg.all;     -- hdl/common/periph/afe2_regs_pkg.vhd, generated
+use work.afe2_regs_pkg.all;     -- hdl/common/regs/vhdl/afe2_regs_pkg.vhd, generated
 ```
 
 The bodies are untouched, because the package exports those constants under the
@@ -401,7 +402,7 @@ list their RTL file by file. A package the RTL `use`s must be `read_hdl`-ed
 immediately before its entity, or synthesis fails at elaboration:
 
 ```tcl
-read_hdl -vhdl -library work [stg $MP/periph/afe2_regs_pkg.vhd]
+read_hdl -vhdl -library work [stg $MP/regs/vhdl/afe2_regs_pkg.vhd]
 read_hdl -vhdl -library work [stg $MP/periph/AFE2.vhd]
 ```
 
@@ -443,7 +444,7 @@ gate that checks it.
 
 `software/include/regs/` is a second C view of the same descriptions, emitted by
 `rdl_cheader_regs.py` from the chip addrmap
-(`hdl/common/periph/rdl/castalia_penta_wound_afe.rdl`):
+(`hdl/common/regs/rdl/castalia_penta_wound_afe.rdl`):
 
     <block>_regs.h    23 of them, one per peripheral BLOCK. Straight
                       PeakRDL-cheader output: <REGTYPE>__<FIELD>_bm / _bp / _bw /
@@ -484,7 +485,7 @@ myshkin.h, which is why the boot ROM has no call site on the new headers yet
 
 ## Adding a peripheral
 
-1. Write `hdl/common/periph/rdl/<name>.rdl` next to the RTL, `` `include
+1. Write `hdl/common/regs/rdl/<name>.rdl`, `` `include
    "vesta_udp.rdl" ``, one `addrmap` with `vesta_peripheral` set to the
    generator's template name (`UARTx`, not `UART0`).
 2. Add an entry to `platform/common/config/rdl.json` with `"rdl": true`, the
@@ -516,7 +517,7 @@ of the RTL. **The RTL is the authority**: when the gate fires, the VHDL is right
 and the description moves, not the other way round.
 
 **A register change now moves tracked GENERATED files as well**, and the gates
-name them: `hdl/common/periph/{afe2,biasg}_regs_pkg.vhd` for a change to AFE2 or
+name them: `hdl/common/regs/vhdl/{afe2,biasg}_regs_pkg.vhd` for a change to AFE2 or
 BIASG, and `software/include/regs/*.h` for a change to anything. Regenerate both
 in the same commit:
 

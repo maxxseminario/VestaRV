@@ -17,7 +17,7 @@ and carries no register data of its own for them. config/rdl.json's registerSour
 field says which, and why the other four are still hand-written.
 
 Two properties are not inferred from SystemRDL semantics but read from
-hdl/common/periph/rdl/vesta_udp.rdl:
+hdl/common/regs/rdl/vesta_udp.rdl:
 
   vesta_access        the generator's access code (rw, r, rw1, w1, ...). It is
                       re-derived here from sw/hw/onwrite/singlepulse and a
@@ -44,7 +44,7 @@ from Register import RegisterTemplate
 
 RDL_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))),
-    'hdl', 'common', 'periph', 'rdl')
+    'hdl', 'common', 'regs', 'rdl')
 
 # The generator's access codes, as a function of the SystemRDL properties.
 # (sw, hw, onwrite, singlepulse) -> code. sw/hw are the AccessType names.
@@ -114,7 +114,7 @@ def _accessCode(field):
 # configuration, so they are written as SystemRDL components with parameters and
 # register arrays and elaborated here with the generator's own values. SystemRDL
 # carries the structure. It has no syntax for three things the generator's
-# published map needs, and hdl/common/periph/rdl/vesta_udp.rdl carries those:
+# published map needs, and hdl/common/regs/rdl/vesta_udp.rdl carries those:
 #
 #   vesta_name / desc {expression}   a register array is MSIP[0], not MSIP0, and
 #                                    has ONE desc; the published names are MSIP0

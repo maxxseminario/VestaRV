@@ -109,7 +109,7 @@ help:
 SYNC_MODE ?= --strict
 
 # THE GENERATOR NEEDS A SystemRDL-CAPABLE INTERPRETER.
-# python/generate.py reads hdl/common/periph/rdl/*.rdl for its register maps
+# python/generate.py reads hdl/common/regs/rdl/*.rdl for its register maps
 # (tools/rdl/README.md), and systemrdl-compiler needs Python >= 3.8 while several
 # hosts here ship a 3.6 as /usr/bin/python3. python/rdl_python.py returns this
 # shell's python3 when it can already import the compiler, and otherwise the

@@ -251,7 +251,7 @@ Keep the VHDL; adopt `.rdl` for documentation, headers and gates first, VHDL con
 packages for new blocks, no SystemVerilog register generator. R1 (done): hermetic
 toolchain under `tools/rdl/` (systemrdl-compiler 1.32.2 plus cheader and markdown
 exporters, pinned and hashed), `.rdl` for AFE2, BIASG and the UART pilot under
-`hdl/common/periph/rdl/`, emitters that reuse the generator's own table classes so the
+`hdl/common/regs/rdl/`, emitters that reuse the generator's own table classes so the
 TRM tables are identical by construction, `MemoryMap.h` fragments, VHDL constant
 packages, and five Bazel gates (`rdl_vs_vhdl_<periph>_test` with the VHDL decode as the
 authority, `rdl_vs_generator_test`, a three-mutation negative control); 43 of 43 green.

@@ -306,7 +306,7 @@ class Peripheral():
 		# every register and only passed because it ran BEFORE
 		# ChangeGPIOPortSize narrowed the others -- an ordering accident that
 		# broke the moment the register templates started arriving from
-		# hdl/common/periph/rdl/gpio.rdl already at their RTL width (report R5).
+		# hdl/common/regs/rdl/gpio.rdl already at their RTL width (report R5).
 		registerNames = []
 		registerSizes = []
 		for r in self.Registers:

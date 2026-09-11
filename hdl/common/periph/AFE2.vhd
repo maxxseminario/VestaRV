@@ -31,7 +31,7 @@ use ieee.numeric_std.all;
 
 -- SystemRDL level 2 (2026-09-10, report R6). The word offsets, the field ranges,
 -- the implemented-bit table and the reset table are no longer declared here: they
--- are GENERATED from hdl/common/periph/rdl/afe2.rdl into afe2_regs_pkg.vhd, which
+-- are GENERATED from hdl/common/regs/rdl/afe2.rdl into afe2_regs_pkg.vhd, which
 -- exports them under the same identifiers this decode always used (W_*, NSTORED,
 -- reg_arr_t, IMPL, RSTVAL) plus <FIELD>_MSB/_LSB. Nothing below moved; the block
 -- of constants that used to sit in the declarative part was deleted and this

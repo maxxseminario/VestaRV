@@ -22,7 +22,7 @@ library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.STD_LOGIC_ARITH.ALL;
 use IEEE.STD_LOGIC_UNSIGNED.ALL;
--- Word offsets, field ranges and resets, generated from hdl/common/periph/rdl/irq_router.rdl
+-- Word offsets, field ranges and resets, generated from hdl/common/regs/rdl/irq_router.rdl
 -- (tools/rdl/README.md); the former local constants moved there unchanged.
 use work.irq_router_regs_pkg.all;
 

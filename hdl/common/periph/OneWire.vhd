@@ -5,7 +5,7 @@ use ieee.std_logic_unsigned.all;
 
 -- Word slots inside this peripheral's 256B window (decoded from MABPart(7:2)),
 -- field ranges, resets and implemented-bit masks, generated from
--- hdl/common/periph/rdl/onewire.rdl (tools/rdl/README.md). OneWire is not in
+-- hdl/common/regs/rdl/onewire.rdl (tools/rdl/README.md). OneWire is not in
 -- MemoryMap.vhd; SLOT_CR .. SLOT_SPU were file-local constants until then.
 use work.onewire_regs_pkg.all;
 

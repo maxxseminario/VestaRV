@@ -6,7 +6,7 @@ a chapter's register tables and for a header fragment. Two artifacts are not
 per-template: the TRM's flat register index (the appendix) and MemoryMap.h's
 per-INSTANCE address defines. Both need the instance names and base addresses,
 and the only place those are written down in SystemRDL is
-hdl/common/periph/rdl/castalia_penta_wound_afe.rdl.
+hdl/common/regs/rdl/castalia_penta_wound_afe.rdl.
 
 So this walks that addrmap, binds each instance to the .rdl block its
 vesta_peripheral names, and emits:
@@ -128,7 +128,7 @@ def _index(binding):
 def _header(binding):
     """MemoryMap.h, from the addrmap: bases, per-instance register addresses, and
        rdl_cheader's per-template offset/field fragment for each template used."""
-    lines = ['/* MemoryMap_rdl.h -- generated from hdl/common/periph/rdl/, not from generate.py.',
+    lines = ['/* MemoryMap_rdl.h -- generated from hdl/common/regs/rdl/, not from generate.py.',
              '   Addresses come from the top addrmap; the field defines come from rdl_cheader. */',
              '']
     lines.append('/**** Peripheral base addresses ****/')

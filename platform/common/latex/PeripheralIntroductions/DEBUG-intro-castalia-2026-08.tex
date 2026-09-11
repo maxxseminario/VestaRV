@@ -317,7 +317,7 @@ While a hart is halted, the single home of the interrupted program's \asminline{
 
 \subsection{DMI register map, field by field} \label{ss:debug-dmi-fields}
 
-Table \ref{t:debug-dmi} says what each Debug Module register is for; the field-level tables below carry the bits. They are generated from \texttt{hdl/common/periph/rdl/debug\_module.rdl}, the SystemRDL description that sits beside the RTL and is the single source for every register description in this manual. The Debug Module has no row in the register index (Chapter \ref{s:regMemMap}) because its registers answer on the DMI, not on the memory bus: no load or store reaches them.
+Table \ref{t:debug-dmi} says what each Debug Module register is for; the field-level tables below carry the bits. They are generated from \texttt{hdl/common/regs/rdl/debug\_module.rdl}, the SystemRDL description that is the single source for every register description in this manual. The Debug Module has no row in the register index (Chapter \ref{s:regMemMap}) because its registers answer on the DMI, not on the memory bus: no load or store reaches them.
 
 Two conventions differ from Table \ref{t:debug-dmi}. SystemRDL addresses in bytes, so each \textbf{Offset} below is the DMI address times four: \register{dmcontrol}, DMI \texttt{0x10}, prints \texttt{0x40}. Names carry the \texttt{DM} prefix the RTL uses, so \register{dmcontrol} appears as \texttt{DMCONTROL}.
 

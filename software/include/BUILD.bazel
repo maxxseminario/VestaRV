@@ -2,7 +2,7 @@
 #
 # software/include/regs/*.h is emitted by
 # //platform/common/python:rdl_regs_headers from the SystemRDL descriptions in
-# hdl/common/periph/rdl/ -- per-block field masks, shifts, widths, reset values,
+# hdl/common/regs/rdl/ -- per-block field masks, shifts, widths, reset values,
 # enumerated values and packed struct overlays through stock PeakRDL-cheader,
 # plus castalia_regs.h carrying one base address and one typed pointer per
 # instance. They are TRACKED rather than built, because firmware is compiled by

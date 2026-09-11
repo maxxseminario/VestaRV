@@ -131,7 +131,7 @@ vhdl_source_set(
 vhdl_source_set(
     name = "debug_module_rtl",
     paths = [
-        "hdl/common/periph/debug_module_regs_pkg.vhd",
+        "hdl/common/regs/vhdl/debug_module_regs_pkg.vhd",
         "hdl/common/debug_module.vhd",
     ],
     pool = ["//hdl:vhdl_sources"],
@@ -230,7 +230,7 @@ ghdl_test(
 vhdl_source_set(
     name = "pwr_ctrl_rtl",
     paths = [
-        "hdl/common/periph/pwr_ctrl_regs_pkg.vhd",
+        "hdl/common/regs/vhdl/pwr_ctrl_regs_pkg.vhd",
         "hdl/common/pwr_ctrl.vhd",
     ],
     pool = ["//hdl:vhdl_sources"],
@@ -239,7 +239,7 @@ vhdl_source_set(
 vhdl_source_set(
     name = "irq_router_rtl",
     paths = [
-        "hdl/common/periph/irq_router_regs_pkg.vhd",
+        "hdl/common/regs/vhdl/irq_router_regs_pkg.vhd",
         "hdl/common/irq_router.vhd",
     ],
     pool = ["//hdl:vhdl_sources"],
@@ -250,7 +250,7 @@ vhdl_source_set(
     paths = [
         "hdl/common/constants.vhd",
         "hdl/common/MemoryMap.vhd",
-        "hdl/common/periph/clint_regs_pkg.vhd",
+        "hdl/common/regs/vhdl/clint_regs_pkg.vhd",
         "hdl/common/clint.vhd",
     ],
     pool = ["//hdl:vhdl_sources"],
@@ -261,7 +261,7 @@ vhdl_source_set(
     paths = [
         "hdl/common/mp_arbiter.vhd",
         "hdl/common/resv_unit.vhd",
-        "hdl/common/periph/mutex_bank_regs_pkg.vhd",
+        "hdl/common/regs/vhdl/mutex_bank_regs_pkg.vhd",
         "hdl/common/mutex_bank.vhd",
     ],
     pool = ["//hdl:vhdl_sources"],
@@ -285,7 +285,7 @@ vhdl_source_set(
         "hdl/common/sim/ClkGate.vhd",
         "hdl/common/sim/ClockMuxGlitchFree.vhd",
         "hdl/common/commune/CRC16.vhd",
-        "hdl/common/periph/system_regs_pkg.vhd",
+        "hdl/common/regs/vhdl/system_regs_pkg.vhd",
         "hdl/common/periph/SYSTEM.vhd",
     ],
     pool = ["//hdl:vhdl_sources"],
@@ -298,7 +298,7 @@ vhdl_source_set(
         "hdl/common/MemoryMap.vhd",
         "hdl/common/sim/ClkGate.vhd",
         "hdl/common/sim/ClockMuxGlitchFree.vhd",
-        "hdl/common/periph/timer_regs_pkg.vhd",
+        "hdl/common/regs/vhdl/timer_regs_pkg.vhd",
         "hdl/common/periph/TIMER.vhd",
     ],
     pool = ["//hdl:vhdl_sources"],
@@ -310,7 +310,7 @@ vhdl_source_set(
         "hdl/common/constants.vhd",
         "hdl/common/MemoryMap.vhd",
         "hdl/common/sim/ClkGate.vhd",
-        "hdl/common/periph/gpio_regs_pkg.vhd",
+        "hdl/common/regs/vhdl/gpio_regs_pkg.vhd",
         "hdl/common/periph/GPIO.vhd",
     ],
     pool = ["//hdl:vhdl_sources"],
@@ -322,7 +322,7 @@ vhdl_source_set(
         "hdl/common/constants.vhd",
         "hdl/common/MemoryMap.vhd",
         "hdl/common/sim/ClkGate.vhd",
-        "hdl/common/periph/uart_regs_pkg.vhd",
+        "hdl/common/regs/vhdl/uart_regs_pkg.vhd",
         "hdl/common/periph/UART.vhd",
     ],
     pool = ["//hdl:vhdl_sources"],
@@ -334,7 +334,7 @@ vhdl_source_set(
         "hdl/common/constants.vhd",
         "hdl/common/MemoryMap.vhd",
         "hdl/common/sim/ClkGate.vhd",
-        "hdl/common/periph/spi_regs_pkg.vhd",
+        "hdl/common/regs/vhdl/spi_regs_pkg.vhd",
         "hdl/common/periph/SPI.vhd",
     ],
     pool = ["//hdl:vhdl_sources"],
@@ -349,7 +349,7 @@ vhdl_source_set(
         "hdl/common/MemoryMap.vhd",
         "hdl/common/sim/ClkGate.vhd",
         "hdl/common/commune/ClkDivPower2.vhd",
-        "hdl/common/periph/i2c_regs_pkg.vhd",
+        "hdl/common/regs/vhdl/i2c_regs_pkg.vhd",
         "hdl/common/periph/I2C.vhd",
     ],
     pool = ["//hdl:vhdl_sources"],
@@ -561,7 +561,7 @@ vhdl_source_set(
     # the entity. The closure is still two files and still reads nothing from
     # constants/MemoryMap, so the bench still binds the entity alone.
     paths = [
-        "hdl/common/periph/afe2_regs_pkg.vhd",
+        "hdl/common/regs/vhdl/afe2_regs_pkg.vhd",
         "hdl/common/periph/AFE2.vhd",
     ],
     pool = ["//hdl:vhdl_sources"],

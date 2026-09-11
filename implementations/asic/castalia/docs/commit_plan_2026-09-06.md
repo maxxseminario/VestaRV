@@ -462,7 +462,7 @@ Commit message:
 Files (from git status at 2026-09-10; R1 + R2 waves):
 
     M MODULE.bazel
-    ?? hdl/common/periph/rdl/
+    ?? hdl/common/regs/rdl/
     ?? platform/common/python/rdl_cheader.py
     ?? platform/common/python/rdl_chip.py
     ?? platform/common/python/rdl_configurator.py
@@ -578,7 +578,7 @@ corrections). Land it after both: it deletes the tables C10 corrected.
 registers: make the .rdl descriptions the only source, and the generation hermetic
 
 All twenty-two peripherals build their PeripheralTemplate from
-hdl/common/periph/rdl/ through rdl_model.registerTemplatesFor(). generate.py
+hdl/common/regs/rdl/ through rdl_model.registerTemplatesFor(). generate.py
 holds no register data at all: a width, an access code, a reset value or a
 field description is written once, beside the RTL that implements it, and
 reaches the TRM table, the register index, MemoryMap.h, MemoryMap.vhd, the
@@ -683,7 +683,7 @@ Files:
     M hdl/common/MemoryMap.vhd          regenerated; 12 Px*_MSB constants 31 -> 07
     M hdl/BUILD.bazel                   (C9's :rdl_sources filegroup, already listed there)
     M platform/common/BUILD.bazel       generate.py + the .rdl into rdl_vs_generator_test;
-                                        hdl/common/periph/rdl staged into the 3 intro-name tests
+                                        hdl/common/regs/rdl staged into the 3 intro-name tests
     M platform/common/Makefile          GEN_PYTHON / GEN_PYTHONPATH for the generate target
     M platform/common/bazel/BUILD.bazel systemrdl-compiler on :stage_generate
     M platform/common/bazel/chipgen.bzl _rdl_srcs: //hdl:rdl_sources on every generation action
@@ -692,10 +692,10 @@ Files:
     M platform/common/python/generate.py  -1452 register-table lines, +_rdlRegisters
                                           (with parameters/defines), GPIO5 rstAFS,
                                           _emitRdlArtifacts rewritten
-    M hdl/common/periph/rdl/{clint,mutex_bank,irq_router,pwr_ctrl}.rdl
+    M hdl/common/regs/rdl/{clint,mutex_bank,irq_router,pwr_ctrl}.rdl
                                           parameterised components: register/regfile
                                           arrays, expressions in offsets and widths
-    M hdl/common/periph/rdl/vesta_udp.rdl  vesta_indexed / vesta_name / vesta_index /
+    M hdl/common/regs/rdl/vesta_udp.rdl  vesta_indexed / vesta_name / vesta_index /
                                           vesta_live / vesta_values_* (R7)
     M platform/common/python/rdl_model.py  parameters and defines on loadBlock() and
                                           registerTemplatesFor(); the {expression}
@@ -714,7 +714,7 @@ Files:
     ?? platform/common/python/rdl_model.py         (C9's - reads rdl.json, sources= filter, memoised)
     ?? platform/common/python/rdl_emit.py          (C9's - non-memory-mapped blocks)
     ?? platform/common/python/rdl_vs_generator_test.py (C9's - the registerSource cross-check)
-    ?? hdl/common/periph/rdl/debug_module.rdl      (C9's - three short title sentences)
+    ?? hdl/common/regs/rdl/debug_module.rdl      (C9's - three short title sentences)
     ?? tools/rdl/README.md                         (C9's - level 1 and 2 status, the registry)
 
 `platform/common/config/MemoryMap.json`, `platform/common/out/` and

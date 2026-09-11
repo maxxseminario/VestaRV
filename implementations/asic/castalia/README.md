@@ -89,8 +89,7 @@ wherever it happens to be invoked. The hermetic path is
 ### Register maps under SystemRDL
 
 Three peripherals — `UARTx` (the pilot), `AFEx` and the shared bias generator —
-also carry a SystemRDL description in `hdl/common/periph/rdl/`, next to the RTL
-that decodes them. Nothing in the generator depends on it: the descriptions are
+also carry a SystemRDL description in `hdl/common/regs/rdl/`. Nothing in the generator depends on it: the descriptions are
 additive, so every artifact of every configuration is byte-identical whether the
 SystemRDL toolchain is present or not, and the hermetic generation action
 deliberately carries no such dependency. What they buy is the one check the chip

@@ -5,7 +5,7 @@ use ieee.std_logic_unsigned.all;
 
 -- Word slots inside this peripheral's 256B window (decoded from MABPart(7:2)),
 -- field ranges, resets and implemented-bit masks, generated from
--- hdl/common/periph/rdl/pwm.rdl (tools/rdl/README.md). PWM is not in
+-- hdl/common/regs/rdl/pwm.rdl (tools/rdl/README.md). PWM is not in
 -- MemoryMap.vhd; SLOT_CR .. SLOT_SR were file-local constants until then.
 use work.pwm_regs_pkg.all;
 

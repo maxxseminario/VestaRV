@@ -3,8 +3,8 @@
 
 Two files, listed in rdl_vhdl.RTL_PACKAGES:
 
-    hdl/common/periph/afe2_regs_pkg.vhd     from afe2.rdl  (addrmap afe2_site)
-    hdl/common/periph/biasg_regs_pkg.vhd    from biasg.rdl (addrmap biasg)
+    hdl/common/regs/vhdl/afe2_regs_pkg.vhd     from afe2.rdl  (addrmap afe2_site)
+    hdl/common/regs/vhdl/biasg_regs_pkg.vhd    from biasg.rdl (addrmap biasg)
 
 They are TRACKED generated sources, not build outputs: Genus, Xcelium and GHDL
 all read the RTL tree directly, so a package the RTL `use`s has to be a file in
