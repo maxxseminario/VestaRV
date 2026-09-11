@@ -84,6 +84,28 @@ def template_names(path):
     return names
 
 
+def rdl_names(rdlDir):
+    '''Template spellings out of the SystemRDL descriptions.
+
+       generate.py is no longer where most register and field names are written
+       down: hdl/common/periph/rdl/*.rdl is (report R5). Parsed textually rather
+       than compiled, because this checker must run with no third-party package
+       and no generation behind it -- a register instantiation is
+       `TIMxCR_t TIMxCR @0x00;` and a field is `} CAP0IF[3:3];`.'''
+    names = set()
+    if not rdlDir or not os.path.isdir(rdlDir):
+        return names
+    for entry in sorted(os.listdir(rdlDir)):
+        if not entry.endswith('.rdl'):
+            continue
+        with open(os.path.join(rdlDir, entry)) as f:
+            src = f.read()
+        names.update(re.findall(r'^\s*\w+_t\s+(\w+)\s*@', src, re.M))       # register instances
+        names.update(re.findall(r'^\s*\}\s*(\w+)\s*\[\d+:\d+\]\s*;', src, re.M))  # fields
+    names.discard('RESERVED')
+    return names
+
+
 def expansions(tok):
     '''Every digit substitution of the placeholder letters in tok.'''
     out = {tok}
@@ -219,6 +241,9 @@ def main():
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     mmPath = os.path.join(root, 'config', 'MemoryMap.json')
     genPath = os.path.join(root, 'python', 'generate.py')
+    # The .rdl descriptions, three levels up from platform/common/python.
+    rdlDir = os.path.join(os.path.dirname(os.path.dirname(root)),
+                          'hdl', 'common', 'periph', 'rdl')
     introDir = os.path.join(root, 'latex', 'PeripheralIntroductions')
     if not os.path.isfile(mmPath):
         print('check_intro_names: %s missing — run `make generate` first.' % mmPath)
@@ -232,7 +257,7 @@ def main():
         with open(cfgPath) as f:
             numHarts = int(json.load(f).get('numHarts', 0) or 0)
 
-    known = concrete_names(mmPath) | template_names(genPath)
+    known = concrete_names(mmPath) | template_names(genPath) | rdl_names(rdlDir)
     # Placeholder-expanded closure, so a template name in the model also
     # matches a concrete spelling in prose and vice versa.
     knownAll = set()

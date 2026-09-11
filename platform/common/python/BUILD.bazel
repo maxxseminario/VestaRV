@@ -36,7 +36,14 @@ py_library(
 py_binary(
     name = "generate",
     srcs = ["generate.py"],
-    deps = [":chipgen_lib"],
+    data = [
+        "//hdl:rdl_sources",
+        "//platform/common:rdl_config",
+    ],
+    deps = [
+        ":chipgen_lib",
+        ":rdl_lib",
+    ],
 )
 
 # Every generator source, for staging into the hermetic generation action.

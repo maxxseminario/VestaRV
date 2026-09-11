@@ -1,3 +1,4 @@
+load("@rdl_deps//:requirements.bzl", "requirement")
 load("@rules_python//python:defs.bzl", "py_binary")
 
 package(default_visibility = ["//visibility:public"])
@@ -6,9 +7,14 @@ exports_files(["chipgen.bzl"])
 
 # Runs generate.py inside a staged copy of the tree so the source tree is never
 # written to. See the module docstring for the path arithmetic it works around.
+# systemrdl-compiler rides along because generate.py's register maps come out of
+# hdl/common/periph/rdl/*.rdl (report R5): the stager hands the closure to the
+# generator subprocess on an explicit PYTHONPATH. The .rdl FILES are attached to
+# the action by chipgen.bzl's _rdl_srcs, so the whole path is hermetic.
 py_binary(
     name = "stage_generate",
     srcs = ["stage_generate.py"],
+    deps = [requirement("systemrdl-compiler")],
 )
 
 # Shared launcher for the generator's check_* scripts as bazel tests.

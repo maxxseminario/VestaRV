@@ -64,6 +64,14 @@ def _childEnv(args, stageRoot, configPath):
     PYTHONUTF8 is mandatory, not cosmetic: the generator writes em-dashes and a
     bazel sandbox has no locale, so the default ASCII text encoding would abort
     the run on the first non-ASCII character.
+
+    The ONE exception to the scrub is the SystemRDL closure (_rdlPath below):
+    generate.py reads hdl/common/periph/rdl/*.rdl for its register maps, so
+    systemrdl-compiler has to be importable in the child. It is passed as an
+    explicit list of the runfiles directories that actually contain those
+    packages, not as the bootstrap's whole sys.path, and the child runs with
+    cwd=python/ so sys.path[0] is still the generator's own directory and
+    nothing on PYTHONPATH can shadow a generator module.
     """
     epoch = str(args.epoch)
     return {
@@ -82,7 +90,38 @@ def _childEnv(args, stageRoot, configPath):
         'PYTHONIOENCODING': 'utf-8',
         'LC_ALL': 'C.UTF-8',
         'LANG': 'C.UTF-8',
+        'PYTHONPATH': _rdlPath(),
     }
+
+
+# The third-party packages the SystemRDL compiler needs at run time. Named
+# explicitly so the child's PYTHONPATH is a known list rather than whatever the
+# py_binary bootstrap happened to put on sys.path.
+_RDL_PACKAGES = ('systemrdl', 'antlr4', 'colorama', 'typing_extensions')
+
+
+def _rdlPath():
+    """The sys.path entries holding the SystemRDL closure, as a PYTHONPATH.
+
+    Raises rather than returning empty: a generation that silently loses the
+    register descriptions would emit a chip with no peripheral registers at all,
+    and the failure has to name its cause at the point it happens."""
+    found = []
+    for entry in sys.path:
+        if not entry or not os.path.isdir(entry):
+            continue
+        for pkg in _RDL_PACKAGES:
+            if (os.path.isdir(os.path.join(entry, pkg)) or
+                    os.path.isfile(os.path.join(entry, pkg + '.py'))):
+                if entry not in found:
+                    found.append(entry)
+                break
+    if not any(os.path.isdir(os.path.join(e, 'systemrdl')) for e in found):
+        raise SystemExit(
+            'stage_generate: systemrdl-compiler is not in this action\'s runfiles, '
+            'so generate.py cannot read hdl/common/periph/rdl/*.rdl. Add '
+            'requirement("systemrdl-compiler") to //platform/common/bazel:stage_generate.')
+    return os.pathsep.join(found)
 
 
 def main(argv):

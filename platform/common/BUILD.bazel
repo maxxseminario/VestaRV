@@ -406,11 +406,15 @@ py_test(
         "--script=platform/common/python/check_intro_names.py",
         "--stage=platform/common/python=platform/common/python",
         "--stage=platform/common/latex/PeripheralIntroductions=platform/common/latex/PeripheralIntroductions",
+        # check_intro_names re-derives the template register/field spellings from
+        # hdl/common/periph/rdl/ now that generate.py no longer writes them out.
+        "--stage=hdl/common/periph/rdl=hdl/common/periph/rdl",
         "--stage=$(rootpath :castalia_config_memorymap_json)=platform/common/config/MemoryMap.json",
     ],
     data = [
         ":castalia_config_memorymap_json",
         ":peripheral_intro_srcs",
+        "//hdl:rdl_sources",
         "//platform/common/python:check_scripts",
         "//platform/common/python:generate.py",
     ],

@@ -3,6 +3,18 @@ from GpioConfigurator import GpioConfigurator
 
 import fnmatch
 
+# Every GPIO register whose width is num_pins in hdl/common/periph/GPIO.vhd: one
+# bit per pin, so the port size changes them together. P?OUTT, P?IF and P?TASK
+# were missing (their write side loops `for i in 0 to (num_pins/8)-1` and the
+# read mux returns `read_data_buff(num_pins-1 downto 0)`, exactly like the other
+# ten), so the map published them 32 bits wide -- 2026-09-10, caught by
+# //platform/common:rdl_vs_generator_test against gpio.rdl. P?IFG, P?RIF and
+# P?FIF name registers this GPIO does not have and are kept only so a port built
+# from an older template still narrows. P?AFS is deliberately absent: it is four
+# bits per pin, not one.
+GPIO_PIN_WIDTH_REGISTERS = ['P?IN', 'P?OUT', 'P?OUTS', 'P?OUTC', 'P?OUTT', 'P?DIR', 'P?IF', 'P?IFG', 'P?IES', 'P?IE', 'P?SEL', 'P?REN', 'P?TASK', 'P?RIE', 'P?FIE', 'P?RIF', 'P?FIF']	# 'P?OCEN'
+
+
 class PeripheralTemplate():
 	NameTemplate = None
 	Description = None
@@ -288,13 +300,21 @@ class Peripheral():
 			self.isGPIO = False
 			return self.isGPIO
 		
-		# Check the registers
+		# Check the registers. Only the PIN-WIDTH registers are size-checked:
+		# PxAFS is four bits per pin, so an 8-pin port makes it 32 bits while the
+		# rest are 8, and PxEN is not a pin map at all. The old check compared
+		# every register and only passed because it ran BEFORE
+		# ChangeGPIOPortSize narrowed the others -- an ordering accident that
+		# broke the moment the register templates started arriving from
+		# hdl/common/periph/rdl/gpio.rdl already at their RTL width (report R5).
 		registerNames = []
 		registerSizes = []
 		for r in self.Registers:
 			registerNames.append(r.Name)
-			if len(fnmatch.filter([r.Name], 'P?EN')) == 0:
-				registerSizes.append(r.Size)
+			for wildcardRegisterName in GPIO_PIN_WIDTH_REGISTERS:
+				if len(fnmatch.filter([r.Name], wildcardRegisterName)) > 0:
+					registerSizes.append(r.Size)
+					break
 		
 		neededRegisters = ['P?IN', 'P?OUT', 'P?DIR', 'P?SEL', 'P?REN']	# 'P?OCEN'
 		for neededRegister in neededRegisters:
