@@ -77,7 +77,15 @@ def _isMemSize(v, ceiling):
 # package model; a config SELECTS one by name. Free-form pin assignment in the
 # config is intentionally unsupported — a chip gets its own pinout by adding a
 # model here (Argus will, once its package is decided), never in JSON.
-_PACKAGE_MODELS = ('myshkin-qfn44', 'castalia-quad-qfn64', 'castalia-lqfp100')
+# 'castalia-lqfp100-pt' is the TOPOLOGY B (per-tile AFE) variant of the LQFP-100,
+# added 2026-09-06. Same 100 balls; what moves is the analog block. See the
+# _buildPackageData branch for the R1 resolution it implements.
+_PACKAGE_MODELS = ('myshkin-qfn44', 'castalia-quad-qfn64', 'castalia-lqfp100',
+                   'castalia-lqfp100-pt')
+
+# AFE placement topologies (topology B, 2026-09-06). See the 'afeTopology'
+# schema entry below for what each one builds.
+_AFE_TOPOLOGIES = ('top_ports', 'per_tile')
 
 _CONFIG_SCHEMA = {
 	'chipName':             ('non-empty string: renames the chip in the TRM and headers (CHIP_NAME env wins)',
@@ -110,6 +118,26 @@ _CONFIG_SCHEMA = {
 	# firmware must derive CLINT addresses from NHARTS)
 	'orchestrator':         ('bool: hart 0 is the always-on orchestrator; harts 1..N-1 are gateable tiles',
 	                         _isBool),
+	# TOPOLOGY B (per-tile AFE, 2026-09-06). WHERE the four AFE2 sites' analog
+	# pins leave the digital hierarchy. A PLACEMENT knob, not a feature knob:
+	# the register map, the vector, the sequencer and all 50 control bits per
+	# site are identical for both values.
+	#   top_ports  the four port groups (afe_ctl_h, afe_sar_clk/rst/rdy/d_h) are
+	#              MCU ENTITY PORTS and the chip wraps ONE anatop_quad macro in
+	#              the north-centre corridor. This is topology A, the default,
+	#              and the emission is byte-identical to the pre-knob generator.
+	#   per_tile   the four port groups are wired INTERNALLY to the four channel
+	#              tiles, which become `hart_tile_pt` (hart_tile plus the AFE
+	#              pass-through and the four bias pins) and carry one `anatop_ch`
+	#              macro each in their corner notch. The MCU entity then has NO
+	#              per-site analog ports at all — only the shared bias-generator
+	#              group biasg_code(13:0)/biasg_en for `anatop_biasgen_g`, which
+	#              software drives through word 9 of AFE2 site 0's sub-slot
+	#              (AFE0BIASG @0x6C24).
+	# per_tile requires peripherals.afe2 and exactly four channel tiles, i.e.
+	# numHarts = 5 with orchestrator = true.
+	'afeTopology':          ('enum top_ports|per_tile: where the four AFE2 sites\' analog pins leave the digital hierarchy (per_tile needs afe2 + 5 harts + orchestrator)',
+	                         lambda v: isinstance(v, str) and v in _AFE_TOPOLOGIES),
 	'numMutexes':           ('int 1..1024: hardware mutex bank size, the number of MUTEXn registers',
 	                         lambda v: _isInt(v) and 1 <= v <= 1024),
 	'registerFileDualPort': ('bool: docs-only, the register file is dual-port in the RTL either way',
@@ -537,6 +565,10 @@ _CONFIG_META = {
 	# the channel tiles. THE TWO-PLACES RULE: this default and the literal at
 	# the knob's _cfg site below must agree (check_config_defaults.py enforces).
 	'orchestrator':         {'type': 'bool', 'default': True},
+	# TOPOLOGY B (2026-09-06): placement of the AFE2 sites' analog pins.
+	# top_ports is topology A and the default, so every existing config emits
+	# byte-identically; per_tile is the four-notch build (hart_tile_pt).
+	'afeTopology':          {'type': 'enum', 'default': 'top_ports', 'enum': list(_AFE_TOPOLOGIES)},
 	'numMutexes':           {'type': 'int', 'default': 16, 'min': 1, 'max': 1024},
 	'registerFileDualPort': {'type': 'bool', 'default': True},
 	# Fetch-ahead. SHIPPED ON: the owner directed Castalia to carry it, and the
@@ -3847,6 +3879,251 @@ def _buildPackageData(model):
 		for _ncp in ([23, 24, 25] + [26] + [72, 73, 74, 75] + list(range(92 if afe2Present else 94, 101))):
 			package.AddPin(packagePinNumber=_ncp, name='NC', ioType='', noConnect=True)
 
+	elif model == 'castalia-lqfp100-pt':
+		# TOPOLOGY B (per-tile AFE, 2026-09-06), RESOLUTION R1.
+		#
+		# WHY A SECOND LQFP-100 MODEL EXISTS. Topology A puts all sixteen analog
+		# pads on the north edge, which carries no digital pad, so they cost
+		# nothing. Topology B puts one analog channel in each of the four CORNER
+		# tiles, and two of those corners are on the SOUTH edge -- which is full
+		# (24 digital fingers). Twelve analog pads need twelve south balls, and
+		# there are none. That is the structural reason topology A fits this
+		# package and topology B does not (report B3, finding B3-1).
+		#
+		# R1 IS THE RESOLUTION APPLIED HERE (coordinator default, 2026-09-06):
+		# keep the LQFP-100 and move eleven south digital signals to the north
+		# row, which topology B empties of its A-era 16-pad analog band.
+		#
+		# S1 RIDES ON TOP OF IT (coordinator, 2026-09-06, report B7 finding
+		# B7-1). R1 alone left the south pad-ring segment with thirteen I/O pads
+		# and NO VDDPST/VSSPST pair: the ten PRCUTA_G ring breaks cut both PST
+		# rails, the segment's only pair had gone north with the eleven, and
+		# PAD_VDD_1/PAD_VSS_1 are the 1.0 V CORE supply and do not substitute.
+		# Eleven of the thirteen are PDUW16SDGZ_G drivers whose output stage and
+		# ESD clamps run off VDDPST/VSSPST, so the segment was unsupplied - a
+		# blocker, not a QoR item, and unfixable inside the ball budget because
+		# both horizontal edges are 25 of 25.
+		# S1 buys the pair by UN-BONDING ATP_2 and ATP_3. The die pads stay (the
+		# padlist carries them at `pin 0`), so both south channels keep their
+		# analog test point for probe and chip-on-board work; what is spent is
+		# two package fingers. The two freed balls carry the new fourth I/O
+		# supply pair at the east end of the south digital run.
+		#
+		#   south, 25 balls : BL island 26-30 | GPIO2 31-38 | VDD 39 VSS 40 |
+		#                     GPIO3.0-2 41-43 | VDDPST 44 VSSPST 45 |
+		#                     BR island 46-50
+		#   north, 25 balls : TR island 76-81 | bias island 82-83 |
+		#                     the eleven relocated digital 84-94 | TL island 95-100
+		#   west / east     : UNCHANGED, name for name, from castalia-lqfp100.
+		#   unbonded die    : ATP_2, ATP_3 (present on the die, no finger)
+		# Every one of the 100 balls is assigned; the NC set is the seven that
+		# were already NC on the west and east edges (23-25, 72-75).
+		# The die geometry is unchanged by S1 - the BL and BR islands are still
+		# six pads each and the south digital block simply grows from thirteen
+		# placed pads to fifteen (padlist header: "BOTTOM is 15 pads under R1,
+		# x = 1157.5 + 25 i"), which is why no analog ball is renumbered: the
+		# freed balls 31 and 45 sit immediately inboard of the two islands.
+		#
+		# R2, THE ALTERNATIVE, NOT IMPLEMENTED: a 144-pin QFP is 36 balls a side,
+		# so the south edge takes its 24 digital plus 12 analog with no move at
+		# all and the electrode balls stay adjacent to their corners. It costs a
+		# new package and a new board, and it is the better answer if a package
+		# change is affordable. Implementing it is a new _PACKAGE_MODELS entry
+		# plus a branch here with pinsOnEachSide 36 and no relocation table --
+		# strictly less code than R1, because nothing moves.
+		#
+		# TWO DELIBERATE DEPARTURES from config/padring_pt.json (B3's geometry
+		# file), both recorded so they are decisions rather than drift:
+		#  1. ATP_2 and ATP_3 are KEPT. B3's R1 prose says to drop them and make
+		#     the south islands four-pad, but B3's own ball arithmetic gives the
+		#     islands six balls each (26-31 and 45-50); dropping the two ATP pads
+		#     would leave two south balls NC and halve the analog test-port
+		#     coverage for no gain.
+		#  2. The bias island moves from balls 87-88 to 82-83, i.e. its die x
+		#     moves east, next to the TR island's ring cut. At 87-88 it SPLITS
+		#     the eleven relocated digital pads into a 5-ball and a 6-ball run,
+		#     and only one of the two can hold the row's VDDPST/VSSPST pair --
+		#     the other would be a PRCUTA_G-bracketed digital island with no I/O
+		#     supply. Moved east, the digital run is contiguous and carries its
+		#     own supply pair. The pad-ring segment count is unchanged (five).
+		# The geometry (island membership, instance names, nets, cells) is read
+		# from config/padring_pt.json and CROSS-CHECKED below, so this branch
+		# owns only the ball numbers and cannot drift from B3's die row silently.
+		package = PackageData(
+			packageType='LQFP',
+			pinCount=100,
+			units='mm',
+			dimensions=[14, 14],
+			pinsOnEachSide={'W': 25, 'S': 25, 'E': 25, 'N': 25},
+			pinPitch=0.5,
+			pinWidth=0.22,
+			pinDepth=0.6
+		)
+
+		digitalCorePowerDomain = package.AddPowerDomain(
+			powerDomainName='Digital Core',
+			positiveVoltage=1.0,
+			negativeVoltage=0.0,
+			positiveRailPinNumber=3,
+			positiveRailPinName='VDD',
+			negativeRailPinNumber=4,
+			negativeRailPinName='VSS',
+			# The south core pair rides the south digital run: 35/36 on
+			# castalia-lqfp100, 39/40 here (R1 shifts it six balls east as the BL
+			# island takes 26-30, S1 shifts it one back west as ATP_2's freed ball
+			# extends the run). The east pair at 60/61 does not move.
+			positiveRailExtraPins=[(39, 'VDD'), (60, 'VDD')],
+			negativeRailExtraPins=[(40, 'VSS'), (61, 'VSS')]
+		)
+
+		digitalIOPowerDomain = package.AddPowerDomain(
+			powerDomainName='Digital I/O',
+			positiveVoltage=3.3,
+			negativeVoltage=0.0,
+			positiveRailPinNumber=13,
+			positiveRailPinName='VDDPST',
+			negativeRailPinNumber=14,
+			negativeRailPinName='VSSPST',
+			isGpioPowerDomain=True,
+			# FOUR pad pairs on this model, one per pad-ring segment that drives
+			# I/O, which is one more than castalia-lqfp100 has:
+			#   13/14  west edge   (the primary, above)
+			#   89/88  north row   the pair that moved with the eleven relocated
+			#                      digital pads, supplying that island
+			#   70/71  east edge   unmoved
+			#   44/45  south row   S1's new pair, on the two balls ATP_2 and
+			#                      ATP_3 gave up, supplying the fifteen-pad south
+			#                      digital segment that R1 alone left unsupplied
+			positiveRailExtraPins=[(89, 'VDDPST'), (70, 'VDDPST'), (44, 'VDDPST')],
+			negativeRailExtraPins=[(88, 'VSSPST'), (71, 'VSSPST'), (45, 'VSSPST')]
+		)
+
+		# FIVE analog domains, and topology B builds all five: the pad ring is
+		# five PRCUTA_G-bracketed islands, one per channel corner plus the
+		# north-centre bias island, each with its own AVDD/AVSS pair. This is the
+		# castalia-quad-qfn64 idiom, not castalia-lqfp100's single domain --
+		# whose comment refuses four domains precisely because THAT ring does not
+		# build the isolation. This one does.
+		# The fifth pair (AVDD_B/AVSS_B) is the shared bias generator's own
+		# supply (B3-8): without it anatop_biasgen_g has no 2.5 V rail within
+		# 1.3 mm and would borrow a channel's AVDD, coupling that channel's
+		# supply into the bias every other channel uses.
+		_ptAnalogDomains = {}
+		_ptDomainSpec = [
+			# (json powerDomains name, TRM name, AVDD ball, AVSS ball)
+			('Analog 0',    'Analog0',    100, 99),
+			('Analog 1',    'Analog1',     76, 77),
+			('Analog 2',    'Analog2',     26, 27),
+			('Analog 3',    'Analog3',     50, 49),
+			('Analog Bias', 'AnalogBias',  82, 83),
+		]
+		for (_jn, _tn, _vdd, _vss) in _ptDomainSpec:
+			_suffix = _tn[len('Analog'):]
+			_ptAnalogDomains[_jn] = package.AddPowerDomain(
+				powerDomainName=_tn, positiveVoltage=2.5, negativeVoltage=0.0,
+				positiveRailPinNumber=_vdd, positiveRailPinName='AVDD_' + (_suffix if _suffix != 'Bias' else 'B'),
+				negativeRailPinNumber=_vss, negativeRailPinName='AVSS_' + (_suffix if _suffix != 'Bias' else 'B'))
+
+		package.AddPin(packagePinNumber=1, name='RESETN', ioType='i', powerDomain=digitalIOPowerDomain)
+		package.AddPin(packagePinNumber=2, name='POC', ioType='i', powerDomain=digitalIOPowerDomain)
+
+		# ---- the 16 electrode / test-port balls, four channel islands --------
+		# Ball numbers are this file's; NAMES, CELLS and ISLAND MEMBERSHIP come
+		# from config/padring_pt.json, which is the die-row authority. The gate
+		# below fails the build if the two sets of net names disagree, so the
+		# 18-vs-10 drift that report 06b finding 2 records cannot repeat.
+		# S1: ATP_2 and ATP_3 have no entry here. They are die pads with no
+		# package finger, and `_ptUnbonded` below is what ties that fact to the
+		# die-row file so the two cannot drift apart.
+		_ptElectrodes = [
+			# (ball, net, json island tag)
+			(98, 'CE_0', 'TL'), (97, 'WE_0', 'TL'), (96, 'RE_0', 'TL'), (95, 'ATP_0', 'TL'),
+			(78, 'CE_1', 'TR'), (79, 'WE_1', 'TR'), (80, 'RE_1', 'TR'), (81, 'ATP_1', 'TR'),
+			(28, 'CE_2', 'BL'), (29, 'WE_2', 'BL'), (30, 'RE_2', 'BL'),
+			(48, 'CE_3', 'BR'), (47, 'WE_3', 'BR'), (46, 'RE_3', 'BR'),
+		]
+		_ptUnbonded = {'ATP_2', 'ATP_3'}
+		_ptIslandDomain = {'TL': 'Analog 0', 'TR': 'Analog 1', 'BL': 'Analog 2',
+			'BR': 'Analog 3', 'NB': 'Analog Bias'}
+		for (_epn, _enm, _tag) in _ptElectrodes:
+			package.AddPin(packagePinNumber=_epn, name=_enm, ioType='io',
+				powerDomain=_ptAnalogDomains[_ptIslandDomain[_tag]])
+
+		# GATE: this ball map against B3's die row. Both files describe the same
+		# 26 pads; a rename or an added pad on either side stops the build here
+		# rather than shipping a package model that does not match the padlist.
+		_ptRingPath = os.path.join(os.path.dirname(os.path.dirname(
+			os.path.abspath(__file__))), 'config', 'padring_pt.json')
+		if not os.path.isfile(_ptRingPath):
+			raise Exception('package model "castalia-lqfp100-pt" needs '
+				+ _ptRingPath + ' (the topology-B die-row geometry); it is missing.')
+		with open(_ptRingPath) as _prf:
+			_ptRing = json.load(_prf)
+		_jsonPads = [(_isl['tag'], _pad['net'], _pad['cell'], _pad.get('packagePin'))
+			for _isl in _ptRing['islands'] for _pad in _isl['pads']]
+		if len(_jsonPads) != 26:
+			raise Exception('padring_pt.json declares ' + str(len(_jsonPads))
+				+ ' analog DIE pads; topology B places 26 = 16 electrode/ATP + 10 supply '
+				+ '(five AVDD/AVSS pairs: four channels and the bias island). S1 un-bonds '
+				+ 'two of them, which removes package fingers, never die pads.')
+		# THE BONDED/UNBONDED SPLIT IS THE THING THAT MUST AGREE, not just the
+		# names: S1's whole content is that two die pads have no finger, and a
+		# package model that quietly bonded them (or a die row that quietly
+		# dropped them) would be a chip whose balls and pads disagree. The die
+		# row marks an unbonded pad with a null packagePin; the package model
+		# marks it by absence from _ptElectrodes. Compare the two derivations.
+		_jsonSignal = set(_n for (_t, _n, _c, _pp) in _jsonPads if _c == 'PDB3A_G')
+		_jsonUnbonded = set(_n for (_t, _n, _c, _pp) in _jsonPads
+			if _c == 'PDB3A_G' and _pp is None)
+		_mineSignal = set(_n for (_p, _n, _t) in _ptElectrodes)
+		if _jsonSignal - _jsonUnbonded != _mineSignal:
+			raise Exception('padring_pt.json and the castalia-lqfp100-pt ball map disagree '
+				+ 'on which electrode pads are BONDED: die row says bonded '
+				+ str(sorted(_jsonSignal - _jsonUnbonded)) + ', package bonds '
+				+ str(sorted(_mineSignal)) + '.')
+		if _jsonUnbonded != _ptUnbonded:
+			raise Exception('padring_pt.json marks ' + str(sorted(_jsonUnbonded))
+				+ ' as unbonded die pads; this model expects ' + str(sorted(_ptUnbonded))
+				+ ' (resolution S1). Changing the un-bonded set is a package decision, '
+				+ 'not a data edit: fix both files together.')
+		_jsonRails = set(_n for (_t, _n, _c, _pp) in _jsonPads if _c != 'PDB3A_G')
+		_mineRails = set()
+		for (_jn, _tn, _vdd, _vss) in _ptDomainSpec:
+			_sfx = _tn[len('Analog'):]
+			_sfx = _sfx if _sfx != 'Bias' else 'B'
+			_mineRails |= {'AVDD_' + _sfx, 'AVSS_' + _sfx}
+		if _jsonRails != _mineRails:
+			raise Exception('padring_pt.json and the castalia-lqfp100-pt ball map name '
+				+ 'different analog rails: die row ' + str(sorted(_jsonRails))
+				+ ' vs package ' + str(sorted(_mineRails)))
+		# GATE: no ISLAND may be wholly unbonded. R1 exists precisely to give the
+		# two south islands package fingers; an island still carrying
+		# `bonded: false` means the die row was not updated to R1 and the TRM
+		# would document a bond-out the padlist does not build. S1 un-bonds two
+		# PADS, never an island, so this stays a hard error rather than a note.
+		_unbondedIslands = [_isl['tag'] for _isl in _ptRing['islands']
+			if _isl.get('bonded') is False]
+		if _unbondedIslands:
+			raise Exception('config/padring_pt.json marks island(s) '
+				+ ', '.join(_unbondedIslands) + ' bonded=false, i.e. it is still the '
+				+ 'pre-R1 die row. Under R1 every island has package fingers and under '
+				+ 'S1 exactly two PADS (ATP_2, ATP_3) do not. Update the die row.')
+
+		# JTAG: the TAP moves to the north row with the rest of the relocated
+		# south block. TRSTn stays at 51, the foot of the EAST edge, unmoved.
+		# _checkDebugTransportBonded only asks that all five names are bonded.
+		package.AddPin(packagePinNumber=87, name='TCK', ioType='i', powerDomain=digitalIOPowerDomain)
+		package.AddPin(packagePinNumber=86, name='TMS', ioType='i', powerDomain=digitalIOPowerDomain)
+		package.AddPin(packagePinNumber=85, name='TDI', ioType='i', powerDomain=digitalIOPowerDomain)
+		package.AddPin(packagePinNumber=84, name='TDO', ioType='o', powerDomain=digitalIOPowerDomain)
+		package.AddPin(packagePinNumber=51, name='TRSTn', ioType='i', powerDomain=digitalIOPowerDomain)
+
+		# Explicit NC balls. Under R1 the north and south edges are FULL, so the
+		# only no-connects left are the west and east spares castalia-lqfp100
+		# already had.
+		for _ncp in [23, 24, 25, 72, 73, 74, 75]:
+			package.AddPin(packagePinNumber=_ncp, name='NC', ioType='', noConnect=True)
+
 	else:
 		raise Exception('package model "' + model + '" is declared but not implemented')
 	return package
@@ -3915,6 +4192,28 @@ _GPIO_PKG_PINS = {
 		(1, 0): 15, (1, 1): 16, (1, 2): 17, (1, 3): 18, (1, 4): 19, (1, 5): 20, (1, 6): 21, (1, 7): 22,
 		(2, 0): 27, (2, 1): 28, (2, 2): 29, (2, 3): 30, (2, 4): 31, (2, 5): 32, (2, 6): 33, (2, 7): 34,
 		(3, 0): 37, (3, 1): 38, (3, 2): 39, (3, 3): 40, (3, 4): 41, (3, 5): 42, (3, 6): 43, (3, 7): 44,
+		(4, 0): 52, (4, 1): 53, (4, 2): 54, (4, 3): 55, (4, 4): 56, (4, 5): 57, (4, 6): 58, (4, 7): 59,
+		(5, 0): 62, (5, 1): 63, (5, 2): 64, (5, 3): 65, (5, 4): 66, (5, 5): 67, (5, 6): 68, (5, 7): 69,
+	},
+	# TOPOLOGY B (2026-09-06), RESOLUTION R1 + S1. Identical to castalia-lqfp100
+	# on the WEST and EAST edges; the SOUTH edge gives up ten balls to the two
+	# south analog islands and eleven signals move to the NORTH row.
+	#   south kept  : GPIO2 bits 0-7 (31-38), VDD 39, VSS 40, GPIO3 bits 0-2 (41-43),
+	#                 VDDPST 44, VSSPST 45   -- fifteen balls, one contiguous run
+	#   south analog: BL island 26-30, BR island 46-50 (five balls each: S1 leaves
+	#                 ATP_2 and ATP_3 as UNBONDED die pads)
+	#   moved north : GPIO3 bits 3-7 (90-94), VDDPST 89, VSSPST 88, TCK 87,
+	#                 TMS 86, TDI 85, TDO 84  -- one contiguous eleven-ball run
+	#                 with its own I/O supply pair, which is what lets it be a
+	#                 single PRCUTA_G-bracketed digital island in an otherwise
+	#                 analog row.
+	# The GPIO map only carries the GPIO half of that; the supplies and the TAP
+	# are in the _buildPackageData branch.
+	'castalia-lqfp100-pt': {
+		(0, 0): 5, (0, 1): 6, (0, 2): 7, (0, 3): 8, (0, 4): 9, (0, 5): 10, (0, 6): 11, (0, 7): 12,
+		(1, 0): 15, (1, 1): 16, (1, 2): 17, (1, 3): 18, (1, 4): 19, (1, 5): 20, (1, 6): 21, (1, 7): 22,
+		(2, 0): 31, (2, 1): 32, (2, 2): 33, (2, 3): 34, (2, 4): 35, (2, 5): 36, (2, 6): 37, (2, 7): 38,
+		(3, 0): 41, (3, 1): 42, (3, 2): 43, (3, 3): 94, (3, 4): 93, (3, 5): 92, (3, 6): 91, (3, 7): 90,
 		(4, 0): 52, (4, 1): 53, (4, 2): 54, (4, 3): 55, (4, 4): 56, (4, 5): 57, (4, 6): 58, (4, 7): 59,
 		(5, 0): 62, (5, 1): 63, (5, 2): 64, (5, 3): 65, (5, 4): 66, (5, 5): 67, (5, 6): 68, (5, 7): 69,
 	},
@@ -4600,6 +4899,7 @@ m.McuMpGeometry = {
 	'nfc': nfcPresent,          # digperiphs #3: True = NFC0 in MUTEX-page sub-slot 2 (0x6200); tightens the mutex decode, vectors 94-97, 4th glitch filter
 	'qspi': qspiPresent,        # digperiphs #1: True = QSPI0 controller in slot 12 (0x4C00), vectors 55/56 (needs afeStubs=False)
 	'afe2': afe2Present,        # AFE2 (2026-09-05): True = four AFE2 sites in MUTEX-page sub-slots 12-15 (0x6C00-0x6F00), the 50 anatop_pixel control bits + SARADC clk/rst/rdy/d per site as MCU entity ports, vector 124 = OR of the sites, source list grows to 125 (needs afeStubs=False)
+	'afeTopology': afeTopology,  # TOPOLOGY B (2026-09-06): 'top_ports' (default, topology A) = the four AFE2 port groups are MCU ENTITY PORTS to one anatop_quad macro. 'per_tile' = they are internal nets to the four channel tiles, which become `hart_tile_pt` and each carry an anatop_ch macro; the entity then has no per-site analog ports, only biasg_code(13:0)/biasg_en for the shared anatop_biasgen_g, driven by AFE0BIASG (word 9 of site 0's sub-slot, a separate one-word slave on site 0's enable). Consumed identically by mcu_vhd.py and tb_vhd.py, so entity and testbench cannot disagree.
 	'rtc': rtcPresent,          # digperiphs #4: True = RTC0 in MUTEX-page sub-slot 5 (0x6500); raw-strobe shim, vector 114, source list grows to 115
 	'pwm': pwmPresent,          # digperiphs #5: True = PWM0 in MUTEX-page sub-slot 6 (0x6600); raw-strobe shim, vectors 115/116, source list grows to 117 (A5 global vector rule)
 	'onewire': onewirePresent,  # digperiphs #5: True = OW0 1-Wire master in MUTEX-page sub-slot 7 (0x6700); raw-strobe shim, DQ on P4.7/GPIO31 AF2 open-drain (replaced-spread-slot), vector 117, source list grows to 118 (A5 global vector rule)
@@ -4743,6 +5043,9 @@ _resolvedConfig = [
 	# hart 1..numHarts-1 is gateable in both shapes now, so the value was
 	# numHarts unconditionally and a second name for it could only rot.
 	('orchestrator', orchestrator),
+	# TOPOLOGY B (2026-09-06): recorded like every other knob, so the resolved dump
+	# and the TRM configuration table report which AFE placement was built.
+	('afeTopology', afeTopology),
 	('numMutexes', numMutexes),
 	('registerFileDualPort', _regsDualPort),
 	# Fetch-ahead. Recorded for the same reason the debug branch is: a build

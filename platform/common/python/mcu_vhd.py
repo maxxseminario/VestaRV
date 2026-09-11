@@ -4442,6 +4442,16 @@ class McuVhdEmitter():
 				rows.append(('tcm_ext_rdata(' + str(32 * h + 31) + ' downto ' + str(32 * h) + ')',
 					'tile' + hs + '_tcmrd_raw', "(others => '0')", True))
 				rows.append(('tcm_ext_done(' + hs + ')', 'tile' + hs + '_tcmdone_raw', "'0'", False))
+			# TOPOLOGY B: the channel tile's two INBOUND-to-fabric analog returns.
+			# They are clamped for the same reason dbg_halted is: a dark tile must
+			# not drive the always-on AFE2 sequencer. '0' is the correct clamp
+			# value here and is also unambiguous -- READY low is "no result", and
+			# AFE2's READY timeout is what turns a permanently dark channel into
+			# SR.TO instead of a silent hang.
+			if self.afePerTile:
+				site = str(h - 1)
+				rows.append(('afe_sar_rdy_' + site, 'tile' + hs + '_afe_rdy_raw', "'0'", False))
+				rows.append(('afe_sar_d_' + site, 'tile' + hs + '_afe_d_raw', "(others => '0')", True))
 			# golden-master columns: short lines pad the LHS to 24 and the RHS
 			# to 16; the long addr/wdata pair aligns to itself with 1 space
 			lhsPad, rhsPad, longPad = 24, 16, 0
@@ -4462,13 +4472,27 @@ class McuVhdEmitter():
 	def tileInstance(self, h):
 		hs = str(h)
 		lines = []
-		lines.append('    hart' + hs + ': entity work.hart_tile')
+		# TOPOLOGY B: the channel tile is `hart_tile_pt`, a pure-wiring wrapper
+		# around this same hart_tile plus the AFE pass-through and the anatop_ch
+		# macro in its notch. Same generics, same hart-side port map; the only
+		# additions are the five AFE associations at the end.
+		lines.append('    hart' + hs + ': entity work.' + ('hart_tile_pt' if self.afePerTile else 'hart_tile'))
 		lines.append('        generic map (')
 		lines.append('            PC_RST_VAL     => x"00000000",')
 		lines.append('            SH_AW          => SH_AW,')
 		lines.append('            -- Core ISA features (config-driven, work.MemoryMap; MUST be identical on ' + ('this one tile' if self.nHarts() == 1 else 'all ' + self.hartsWord() + ' tiles') + ', one hardened netlist)')
 		lines.append('            -- M and B come from TILE_ENABLE_*, NOT CORE_ENABLE_*: the corner tiles are the MINIMAL-ISA harts (rv32iac). Hart 0 / the orchestrator take the full CORE_ENABLE_* set.')
 		lines.extend(self.coreGenericLines(tile=True))
+		if self.afePerTile:
+			# TOPOLOGY B: which AFE2 site this tile carries. Documentation on the
+			# silicon arm; on the simulation arm it is what makes each channel's
+			# sar_macro_model return a distinct code (0x155 + SITE), so a DATA
+			# readback identifies the site it came from. LAST in the map, and an
+			# INTEGER: the MCU_PENTA_pt genus flow binds the tile to a verilog gate
+			# netlist and injects a matching dummy parameter, the same treatment
+			# PC_RST_VAL and SH_AW get.
+			lines[-1] = lines[-1] + ','
+			lines.append('            AFE_SITE          => ' + str(h - 1))
 		lines.append('        )')
 		lines.append('        port map (')
 		lines.append('            clk       => mclk,')
@@ -4508,7 +4532,27 @@ class McuVhdEmitter():
 		lines.append('            pd_sleep  => pd_sleep(' + hs + '),')
 		lines.append('            pd_iso_en => pd_iso_en(' + hs + '),')
 		lines.append('            trap_flag => open,')
-		lines.append('            a0        => a0_' + hs + '_raw')
+		if self.afePerTile:
+			site = str(h - 1)
+			lines.append('            a0        => a0_' + hs + '_raw,')
+			lines.append('            -- TOPOLOGY B: AFE2 site ' + site + '. Straight wires through the wrapper to the anatop_ch macro in this tile\'s notch; the two returns land on _raw and pass the iso clamps with every other tile output.')
+			lines.append('            -- bn/bnc/bp/bpc are the shared analog bias rails: ONE net each, the SAME four entity ports on all four tiles, undriven in RTL and connected to anatop_biasgen_g by the chip wrapper.')
+			lines.append('            -- CE/RE/WE/ATP are this channel\'s electrodes and test point: one net each, PER TILE, undriven in RTL and taken to their own pads at chip level.')
+			lines.append('            afe_ctl      => afe_ctl_' + site + ',')
+			lines.append('            afe_sar_clk  => afe_sar_clk_' + site + ',')
+			lines.append('            afe_sar_rst  => afe_sar_rst_' + site + ',')
+			lines.append('            afe_sar_rdy  => tile' + hs + '_afe_rdy_raw,')
+			lines.append('            afe_sar_d    => tile' + hs + '_afe_d_raw,')
+			lines.append('            bn           => bias_bn,')
+			lines.append('            bnc          => bias_bnc,')
+			lines.append('            bp           => bias_bp,')
+			lines.append('            bpc          => bias_bpc,')
+			lines.append('            CE           => ce_' + site + ',')
+			lines.append('            RE           => re_' + site + ',')
+			lines.append('            WE           => we_' + site + ',')
+			lines.append('            ATP          => atp_' + site + '')
+		else:
+			lines.append('            a0        => a0_' + hs + '_raw')
 		lines.append('        );')
 		return lines
 

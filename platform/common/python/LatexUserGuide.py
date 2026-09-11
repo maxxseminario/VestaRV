@@ -1450,7 +1450,7 @@ class LatexUserGuide():
 		# at the pre-X-series key set, so X-series ISA, priv, newer-peripheral and
 		# package knobs never appeared in the TRM config table). Keep in sync with
 		# generate.py _CONFIG_SCHEMA — grouped: core, isa, priv, memory, periph, pkg.
-		keyOrder = ['chipName', 'numHarts', 'orchestrator', 'numMutexes', 'registerFileDualPort',
+		keyOrder = ['chipName', 'numHarts', 'orchestrator', 'afeTopology', 'numMutexes', 'registerFileDualPort',
 			'core.fetchAhead',
 			'isa.mul', 'isa.fastMul', 'isa.div', 'isa.atomics', 'isa.compressed',
 			'isa.bitmanip', 'isa.minimalTiles', 'isa.counters', 'isa.counters64',
