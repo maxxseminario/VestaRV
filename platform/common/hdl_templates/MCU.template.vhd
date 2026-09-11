@@ -881,16 +881,12 @@ begin
         --@GEN:gpio3-af-spread@
 
 
-    /* =============================================================================
-       IRQ Signal Assignments
-       ============================================================================= */
+    -- IRQ signal assignments
         --@GEN:irq-comb@
 
 
 
-    /* =============================================================================
-       Component Instantiations
-       ============================================================================= */
+    -- Component instantiations
     --@GEN:npu-sleep-comment@
     sleep_cpu <= flash_ext_meming; -- Sleep while an external flash memory access is occurring
 
@@ -935,9 +931,7 @@ begin
             resv_valid_o => arb_resvvld   -- Zawrs: per-master reservation-valid level to the tiles
         );
 
-    -- =========================================================================
     --@GEN:shslv-banner@
-    -- =========================================================================
     --@GEN:shslv-subdecode@
 
     --@GEN:shslv-rd-sel@
@@ -1337,12 +1331,7 @@ begin
 
     --@GEN:analog-tie-offs@
 
-    /* =============================================================================
-       Memory Blocks
-       =============================================================================
-       The shared boot ROM based at 0x0 is an arbiter slave like the bulk banks: every hart resets to PC 0x0 and fetches its first instruction from here, and BLOCKPWR's ROMOFF bit gates the macro through pgen_mem(0).
-       Its extent is RomSize, not a page: the decode above stops at RomAddrBits, so the macro sees a zero on every address bit the map does not reach and its full bus can be driven straight from sh_addr.
-       CEN is sampled with the address at the s_en cycle's ending edge on the free-running mclk and Q is valid the next cycle, so the macro is the one-cycle registered read; with no WEN pin the page is read-only and a write completes at the arbiter and is discarded. */
+    -- Memory blocks. The shared boot ROM at 0x0 is an arbiter slave like the bulk banks (every hart resets to PC 0x0 and fetches its first instruction here, and BLOCKPWR's ROMOFF gates the macro through pgen_mem(0)); its extent is RomSize rather than a page, so the decode stops at RomAddrBits and sh_addr can drive the macro's full bus. CEN is sampled with the address at the s_en cycle's ending edge on mclk and Q is valid the next cycle, the one-cycle registered read; with no WEN pin the page is read-only and a write is discarded at the arbiter.
     rom0: entity work.rom2k_hvt_pg
         port map (
             Q    => rom_q,
@@ -1372,9 +1361,7 @@ begin
     --@GEN:npuram-instance@
 
 
-    /* =============================================================================
-       Abstract Blocks
-       ============================================================================= */
+    -- Abstract blocks
 
     -- Power-on resetn Circuit
 	por: entity work.PowerOnResetCheng

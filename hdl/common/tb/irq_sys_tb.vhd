@@ -1,10 +1,9 @@
-/* =============================================================================
-   irq_sys_tb.vhd: self-checking unit testbench for clint.vhd, the per-hart msip IPIs plus the 64-bit mtime/mtimecmp mtip levels.
-   The CLINT sits behind mp_arbiter in the real system, so here the tb drives its slave port directly with the shared-bus contract: a one-cycle active-high en strobe, four active-high byte-lane strobes, and a registered read with the address at T and rdata at T+1.
-   Checks: reset state (msip/mtip low, mtimecmp all-ones); msip set/clear with bit-0, lane-0-only write decode; mtime free-running, lo/hi writable, lane-merge; mtip not before and at the programmed count, the ISR clear contract, a lo-only write that must not fire, and a true 64-bit compare across the 2^32 boundary.
-   The interrupt router is a separate DUT with its own testbench, irq_router_tb.vhd.
-   The runner script greps the pass banner "ALL CHECKS PASSED".
-   ============================================================================= */
+-- VestaRV: interrupt system testbench
+-- self-checking unit testbench for clint.vhd, the per-hart msip IPIs plus the 64-bit mtime/mtimecmp mtip levels.
+-- The CLINT sits behind mp_arbiter in the real system, so here the tb drives its slave port directly with the shared-bus contract: a one-cycle active-high en strobe, four active-high byte-lane strobes, and a registered read with the address at T and rdata at T+1.
+-- Checks: reset state (msip/mtip low, mtimecmp all-ones); msip set/clear with bit-0, lane-0-only write decode; mtime free-running, lo/hi writable, lane-merge; mtip not before and at the programmed count, the ISR clear contract, a lo-only write that must not fire, and a true 64-bit compare across the 2^32 boundary.
+-- The interrupt router is a separate DUT with its own testbench, irq_router_tb.vhd.
+-- The runner script greps the pass banner "ALL CHECKS PASSED".
 
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
@@ -78,7 +77,6 @@ begin
         wait;
     end process;
 
-    -- ------------------------------------------------------------------------
     -- Single stimulus and checker process: phases A to D, then the banner
     stim: process
         variable errs : natural := 0;
@@ -137,9 +135,7 @@ begin
         wait until resetn = '1';
         wait until rising_edge(clk);
 
-        -- ==================================================================
         report "PHASE A: reset state";
-        -- ==================================================================
         check(msip = "0000", "A: msip not all-low out of reset");
         check(mtip = "0000", "A: mtip not all-low out of reset");
 
@@ -164,9 +160,7 @@ begin
         cwr(6, x"FFFFFFFF", "1111");   -- Writes to reserved words must be dead
         crd(6, rd);  check(rd = x"00000000", "A: CLINT reserved word 6 took a write");
 
-        -- ==================================================================
         report "PHASE B: CLINT msip IPIs";
-        -- ==================================================================
         cwr(CA_MSIP0 + 2, x"00000001", "1111");        -- IPI to hart 2
         wait_cycles(1);
         check(msip = "0100", "B: msip[2]=1 did not raise exactly msip(2)");
@@ -189,9 +183,7 @@ begin
         wait_cycles(1);
         check(msip = "0000", "B: msip not all-clear after clears");
 
-        -- ==================================================================
         report "PHASE C: mtime write + lane-merge";
-        -- ==================================================================
         cwr(CA_MTIME_LO, x"00000100", "1111");
         cwr(CA_MTIME_HI, x"00000000", "1111");
         crd(CA_MTIME_LO, rd);
@@ -206,9 +198,7 @@ begin
         check((rd and x"FFFFFF00") = x"0000AA00",
               "C: mtime lo lane-merge clobbered other lanes");
 
-        -- ==================================================================
         report "PHASE D: mtimecmp / mtip levels";
-        -- ==================================================================
         -- D1: program hart 1 about 300 ticks out, then check not-before, fires, and the ISR clear
         cwr(CA_MTIME_LO, x"00000000", "1111");
         cwr(CA_MTIME_HI, x"00000000", "1111");
@@ -254,7 +244,6 @@ begin
         wait_cycles(4);
         check(mtip = "0000", "D3: mtip not all-clear after cleanup");
 
-        -- ==================================================================
         -- Scoreboard and PASS banner
         wait_cycles(4);
         if errs = 0 then

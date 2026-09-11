@@ -1,26 +1,20 @@
------ VHDL Libraries
--- IEEE Standard Libraries
+-- VestaRV: neural-network accelerator
+-- Fixed-point MLP, CONV1D, XNOR/popcount and GEMM datapaths, selected by NPUCR.MODE. Fixed-point widths and the sigmoid RHO are generics; mode, shape, activation and the staging-RAM buffer addresses come from the MMRs.
+-- NPUCR.NPUWPK and NPUCR.NPUXPK select the packed operand formats, two 16-bit elements per 32-bit staging word. Both reset to 0, the one-element-per-word layout, bit for bit.
+-- NPUSR.THINKDONE sets on the completion pulse, once per THINK, sticky, W1C, set-dominant on a same-cycle collision. ThinkDoneIrq is THINKDONE and NPUCR.TDIE, one flop on the free-running Clk and not NpuClk, whose gate is off between THINKs.
+-- Constraint: MabMmrCLK and Clk must be the same clock, because the W1C decode is sampled on Clk.
+
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 library work;
 use work.constants.all;
--- Word offsets, field ranges, resets and implemented-bit masks, generated from
--- hdl/common/regs/rdl/npu.rdl (tools/rdl/README.md). It declares the same
--- MmrAddrNPU* constants work.MemoryMap did, so this REPLACES that clause:
--- using both would make every slot name an ambiguous homograph.
+-- Word offsets, field ranges, resets and implemented-bit masks: generated from hdl/common/regs/rdl/npu.rdl, which replaces the work.MemoryMap clause (both would make every MmrAddrNPU* name an ambiguous homograph).
 use work.npu_regs_pkg.all;
 -- Synthesizable Fixed Point libraries created by David Bishop for VHDL 2008 (Compatible with '93)
 use work.fixed_float_types.all;
 use work.fixed_pkg.all;
 
-
-/* Fixed-point neural-network peripheral: MLP, CONV1D, XNOR/popcount and GEMM datapaths, selected by NPUCR.MODE.
-   Fixed-point widths and the sigmoid RHO are generics; mode, shape, activation and the staging-RAM buffer addresses come from the MMRs.
-   NPUCR.NPUWPK (26) and NPUCR.NPUXPK (27) select the PACKED operand formats, two 16-bit elements per 32-bit staging word; both reset to 0, which is the historical one-element-per-word layout, bit for bit. See the packed-mode block in the declarations for the formats and why each is a bit rather than a silent change.
-   NPUSR bit 0 THINKDONE sets on the completion pulse (once per THINK), sticky, W1C by writing '1', set-dominant on a same-cycle collision.
-   ThinkDoneIrq is THINKDONE and NPUCR.TDIE, one flop on the free-running Clk, NOT NpuClk, whose gate is off between THINKs.
-   CONSTRAINT: MabMmrCLK and Clk must be the SAME clock, because the W1C decode is sampled on Clk. */
 entity NPU is
     generic(
 		-- Fixed-point M and N bits for inputs, weights and outputs; the Y bits also size the accumulator.
@@ -76,7 +70,6 @@ architecture behavioral of NPU is
 	-- Memory Assert/Deassert Constants (Active Low)
 	constant MEM_ASSERT			: std_logic	:= '0';	
 	constant MEM_DEASSERT		: std_logic	:= '1';
-
 
 	/* --- Memory Mapped Registers & Bits
 	   NPUCR also carries MODE [22:20] (0 = MLP, the reset default), ACTF [25:23] (activation select), NPUWPK [26] and NPUXPK [27] (packed operand formats, both 0 = legacy one element per word).
@@ -239,27 +232,12 @@ architecture behavioral of NPU is
 		return m;
 	end tail_mask;
 
-	/* --- Packed operand modes (NPUCR.NPUWPK bit 26, NPUCR.NPUXPK bit 27) --------------------------------
-	   Both modes halve a vector's staging-RAM footprint by storing TWO 16-bit elements per 32-bit word: element 2i in bits 15 downto 0, element 2i+1 in bits 31 downto 16.
-	   Addressing moves from one-element-per-word to base + (element >> 1), with element bit 0 selecting the half. Every walker below therefore counts ELEMENTS and the SRAM address is DERIVED, which is what keeps the MLP, CONV1D and GEMM walks coherent under packing without a second set of counters.
-	   Both bits reset to 0, and with both clear this block is inert: the address is base + element, the capture is the old full-width slice, and the design is bit-for-bit what it was.
-
-	   FORMATS. Fixed 16-bit formats, deliberately NOT derived from the generics, because they are a software contract:
-	     packed input  = Q0.15  -- 1 sign + 15 fraction, range [-1, +1), resolution 2^-15
-	     packed weight = Q3.12  -- 1 sign + 3 integer + 12 fraction, range [-8, +8), resolution 2^-12
-	   Unpacking is pure wiring: sign-extend to the datapath width, then shift left by the fraction-bit difference (X_PK_SHIFT / W_PK_SHIFT). Software owns the reverse direction and MUST SATURATE when it packs -- the hardware only ever sees the already-packed half and cannot.
-
-	   WHY Q3.12 FOR WEIGHTS.  At the MCU generics (W_M_BITS=7, N_BITS=24) the unpacked weight is Q7.24, so ANY 16-bit packed form is a genuine precision decision, and the two failure modes are not symmetric: dropping fraction bits degrades an inference smoothly, whereas clipping the RANGE saturates a weight to a rail and can flip the sign of a whole neuron's accumulation.
-	     - Keeping the full Q7.24 range (i.e. the top 16 bits, Q7.8) spends 7 integer bits on a +-128 span no trained layer uses and leaves resolution 2^-8 against weights whose median magnitude across this repo's own golden sets (verification/npu/{conv,gemm}_vectors) is about 0.1 -- roughly 5 effective bits, worse than plain int8 quantization.
-	     - Going the other way to Q1.14 (+-2) buys two more fraction bits but CLIPS. The repo's reference MLP weights (xcelium/NPU/behavioral/npu_fp_weights.txt) run up to 4.07 in magnitude: 8 of its 15 weights would saturate. The bias term rides the same weight stream and is routinely larger still.
-	   Q3.12 clips neither that network nor a typical bias and still leaves about 10 effective bits on a 0.1-magnitude weight.
-	   CONSEQUENCE, STATED PLAINLY: with NPUWPK set the weight range narrows from [-128, +128) to [-8, +8) and the resolution coarsens from 2^-24 to 2^-12. A weight outside [-8, +8) cannot be represented at all.
-
-	   WHY THE INPUT SIDE IS ALSO A BIT AND NOT UNCONDITIONAL.  Outputs stay one per word -- they are Q(Y_M).(N) accumulator or activation words, up to the full 32 bits -- so packing inputs unconditionally would break the NPU's documented multi-layer flow, in which one THINK's OUTPUT vector is the next THINK's INPUT vector. That is exactly what hdl/common/tb/NPU_tb.vhd does across its two layers, and what the TRM tells firmware to do. It would also silently reinterpret every already-staged vector and every golden vector set. Behind a bit, chaining still works untouched and a caller opts in per THINK.
-	   Nor is it lossless in general: at the MCU generics the unpacked input is Q0.24 (25 bits), so packing keeps the range but drops 9 fraction bits. It is exactly lossless only where the input is already at most 16 bits wide, e.g. the NPU_tb bench generics (X_M_BITS=0, N_BITS=15).
-
-	   XNOR MODE IGNORES BOTH BITS. It already packs 32 one-bit operands per word and walks whole words; reinterpreting those words as 16-bit halves would corrupt it. The run shadows below are forced to '0' for MODE_XNOR, so the two features cannot interact.
-	   The *_PACK_OK constants disable a mode outright on a generic configuration whose datapath the fixed format cannot serve, so an out-of-range instantiation degrades to today's behaviour instead of silently mangling operands. */
+	/* Packed operand modes (NPUCR.NPUXPK bit 27, NPUCR.NPUWPK bit 26). Each stores TWO 16-bit elements per 32-bit staging word, element 2i in bits 15 downto 0 and 2i+1 in bits 31 downto 16, halving a vector's staging-RAM footprint.
+	   Addressing becomes base + (element >> 1) with element bit 0 selecting the half, so every walker counts ELEMENTS and derives the SRAM address; that is what keeps the MLP, CONV1D and GEMM walks coherent under packing without a second set of counters. Both bits reset to 0, where this block is inert and the design is bit for bit what it was.
+	   Formats are fixed and deliberately NOT derived from the generics, because they are a software contract: packed input Q0.15, packed weight Q3.12. Unpacking is pure wiring, sign-extend then shift left by the fraction-bit difference (X_PK_SHIFT / W_PK_SHIFT). Software owns packing and MUST SATURATE; the hardware only ever sees the already-packed half.
+	   Q3.12 over the alternatives: Q7.8 spends 7 integer bits on a +-128 span no trained layer uses and leaves about 5 effective bits on this repo's median 0.1-magnitude weight, worse than int8; Q1.14 buys two fraction bits but clips, and 8 of the reference MLP's 15 weights exceed +-2. With NPUWPK set the weight range is [-8, +8) at resolution 2^-12, and a weight outside it cannot be represented at all.
+	   Input packing is a bit rather than unconditional because outputs stay one per word: one THINK's output vector is the next THINK's input vector, and packing inputs unconditionally would break that chain and silently reinterpret every already-staged and golden vector. It is exactly lossless only where the input is already at most 16 bits wide.
+	   XNOR mode ignores both bits: it already packs 32 one-bit operands per word and walks whole words. The run shadows below are forced to '0' for MODE_XNOR, and the *_PACK_OK constants disable a mode outright on a generic configuration whose datapath the fixed format cannot serve. */
 	constant XPK_N_BITS	: integer := 15;						-- packed input fraction bits (Q0.15)
 	constant WPK_M_BITS	: integer := 3;							-- packed weight integer bits (Q3.12)
 	constant WPK_N_BITS	: integer := 12;						-- packed weight fraction bits
@@ -305,11 +283,9 @@ architecture behavioral of NPU is
 
 begin
 
-	/* --------------------------------------------
-	   --- Muxed SRAM Memory Bus Multiplexer ------
-	   --------------------------------------------
-	   The select is NPUTHINK REGISTERED on the free-running Clk (NpuMuxSel), never raw NPUTHINK: any hart can set THINK while the CPU owning this SRAM port has an access in flight, and switching on the raw bit would eat it.
-	   NpuActive drives the owner CPU's sleep and is the raw bit ORed with the delayed one, so the CPU stops one full cycle BEFORE the port switches to the NPU and resumes one full cycle AFTER it switches back. */
+	/* Muxed SRAM memory-bus multiplexer.
+	   The select is NPUTHINK REGISTERED on the free-running Clk (NpuMuxSel), never the raw bit: any hart can set THINK while the CPU owning this SRAM port has an access in flight, and switching on the raw bit would eat it.
+	   NpuActive is the raw bit ORed with the delayed one, so the owner CPU stops one full cycle BEFORE the port switches to the NPU and resumes one full cycle AFTER it switches back. */
 	NpuSramA_out 	<= SramA_in when (NpuMuxSel = '0') else NpuSramA;
 	NpuSramD_out 	<= SramD_in when (NpuMuxSel = '0') else NpuSramD;
 	NpuSramCLK_out 	<= SramCLK_in when (NpuMuxSel = '0') else NpuSramCLK;
@@ -327,9 +303,8 @@ begin
 		end if;
 	end process;
 
-	/* -----------------------------------
+	/*
 	   --- Component Instantiations ------
-	   -----------------------------------
 	   NPU Clock Gate */
 	NPU_CLK_CG: entity work.ClkGate
 	port map(
@@ -379,9 +354,8 @@ begin
 		Y			=> Decision
 	);
 
-	/* ------------------------------------
+	/*
 	   --- NPU Internal Functionality -----
-	   ------------------------------------
 	   Raw ORed with delayed, so the owner CPU sleeps from the THINK write until one cycle AFTER the SRAM port has switched back. */
 	NpuActive <= NPUTHINK or NpuMuxSel;
 
@@ -405,7 +379,6 @@ begin
 	end process THINKDONE_SEQ;
 	ThinkDoneIrq <= ThinkDoneIrqQ;
 
-	
 	----- Sequential Logic
 	-- NPU Control FSM
 	NPU_FSM_SEQ: process(NpuClk, ResetN)
@@ -812,10 +785,7 @@ begin
 	xnor_value	<= signed(resize(xnor_total & '0', 32)) - signed(resize(K_run, 32));
 	xnor_fireword <= x"01000000" when (xnor_value >= signed(thresh_run)) else x"FF000000";
 
-	/* ------------------------------------------
-	   --- Memory Mapped Register Interface -----
-	   ------------------------------------------
-	   --- Memory Mapped Register - Bit-Field Mapping
+	/* Memory-mapped register interface.
 	   NPUCR(27 downto 0) also holds NPUXPK [27], NPUWPK [26], ACTF [25:23] and MODE [22:20], which the sequencer and activation muxes tap directly. */
 	NPUXPK		<= NPUCR(27);
 	NPUWPK		<= NPUCR(26);
@@ -912,5 +882,3 @@ begin
 					(others => '0')						when others;
 
 end behavioral;
-
-

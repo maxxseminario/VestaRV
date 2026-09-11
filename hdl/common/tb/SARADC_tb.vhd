@@ -1,4 +1,7 @@
--- NOT IN THE CASTALIA BUILD: MCU.vhd:3133-3153 instantiates afe_stub x5, not SARADC/AFE/AFE_FSM, so no harness compiles this bench. Kept as the starting point for the AFE2 peripheral (rev-2 anatop, SAR-only). SARADC.vhd:338 also references RegSlotSARADC_TPR, which hdl/common/MemoryMap.vhd does not declare, so the SARADC closure does not analyze at HEAD.
+-- VestaRV: SAR ADC rev-1 testbench
+-- NOT IN THE CASTALIA BUILD: MCU.vhd instantiates afe_stub, not SARADC/AFE/AFE_FSM, so no harness compiles this bench. Kept as the starting point for the AFE2 peripheral (rev-2 anatop, SAR-only).
+-- SARADC.vhd also references RegSlotSARADC_TPR, which hdl/common/MemoryMap.vhd does not declare, so the SARADC closure does not analyze at HEAD.
+
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;

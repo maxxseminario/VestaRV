@@ -1,10 +1,10 @@
-/* =============================================================================
-   fpu_tb.vhd: self-checking unit testbench driving fpu.vhd (multi-cycle) and fpu_simple.vhd (combinational) against the single-precision reference vectors from fpu_vec_gen.c.
-   Reads VECFILE (default fpu_vectors.txt) and checks BOTH result and flags on EVERY vector.
-   It also verifies per-op done latency and that fpu_done and the result hold stable until the next start.
-   Failures are bounded and named in a mismatch report, and the per-vector done watchdog means it never hangs.
-   The runner script greps the pass banner "ALL CHECKS PASSED"; compile is -V200X, so no VHDL-2008.
-   ============================================================================= */
+-- VestaRV: FPU testbench
+-- self-checking unit testbench driving fpu.vhd (multi-cycle) and fpu_simple.vhd (combinational) against the single-precision reference vectors from fpu_vec_gen.c.
+-- Reads VECFILE (default fpu_vectors.txt) and checks BOTH result and flags on EVERY vector.
+-- It also verifies per-op done latency and that fpu_done and the result hold stable until the next start.
+-- Failures are bounded and named in a mismatch report, and the per-vector done watchdog means it never hangs.
+-- The runner script greps the pass banner "ALL CHECKS PASSED"; compile is -V200X, so no VHDL-2008.
+
 library IEEE;
 use IEEE.STD_LOGIC_1164.all;
 use IEEE.NUMERIC_STD.all;
@@ -203,7 +203,7 @@ begin
 
             -- kind 1 is a fpu_simple vector: apply the operands and sample after settling
             if kind = 1 then
-                ------------------------------------------------ combinational
+                -- combinational
                 fp_s_op <= std_logic_vector(to_unsigned(opv, 4));
                 fp_s_a  <= av;
                 fp_s_b  <= bv;
@@ -224,7 +224,7 @@ begin
 
             -- Otherwise it is a multi-cycle vector: pulse start, count edges to done, then check stability
             else
-                ------------------------------------------------ multi-cycle
+                -- multi-cycle
                 fp_op <= std_logic_vector(to_unsigned(opv, 4));
                 rm    <= std_logic_vector(to_unsigned(rmv, 3));
                 fp_a  <= av; fp_b <= bv; fp_c <= cv;

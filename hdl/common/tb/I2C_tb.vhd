@@ -1,10 +1,9 @@
-/* -----------------------------------------------------------------------------
-   I2C_tb.vhd: standalone self-checking testbench for the I2C peripheral.
-   Coverage: register read/write and reset values, START/STOP detection, slave receive (address and data byte, ACK, flags, SRX capture), slave-not-addressed, interrupt flag/enable/clear, and a master transmit (START, byte, absent-slave NACK, STOP).
-   Support packages: periph_tb_pkg (scoreboard and register-bus BFM) and i2c_bfm_pkg (external-master driver).
-   SDA/SCL are modelled as a real open-drain wired-AND: a line reads '0' when either the DUT drives it (its *_DIR output is '1') or the master BFM pulls it (i2cm.*_low is '1'), and floats to '1' through the pull-up otherwise.
-   Bus contract: en_mem and the per-lane wen are active-low, and SR and SRX return a snapshot latched on the falling edge of en_mem.
-   ----------------------------------------------------------------------------- */
+-- VestaRV: I2C testbench
+-- standalone self-checking testbench for the I2C peripheral.
+-- Coverage: register read/write and reset values, START/STOP detection, slave receive (address and data byte, ACK, flags, SRX capture), slave-not-addressed, interrupt flag/enable/clear, and a master transmit (START, byte, absent-slave NACK, STOP).
+-- Support packages: periph_tb_pkg (scoreboard and register-bus BFM) and i2c_bfm_pkg (external-master driver).
+-- SDA/SCL are modelled as a real open-drain wired-AND: a line reads '0' when either the DUT drives it (its *_DIR output is '1') or the master BFM pulls it (i2cm.*_low is '1'), and floats to '1' through the pull-up otherwise.
+-- Bus contract: en_mem and the per-lane wen are active-low, and SR and SRX return a snapshot latched on the falling edge of en_mem.
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -83,7 +82,6 @@ begin
         variable rdw    : std_logic_vector(31 downto 0);
         variable ackbit : std_logic;
     begin
-        ----------------------------------------------------------------
         -- Reset
         resetn <= '0';
         pbus <= PERIPH_BUS_IDLE;
@@ -93,7 +91,6 @@ begin
         resetn <= '1';
         wait for 4 * PERIOD;
 
-        ----------------------------------------------------------------
         -- GROUP 1: reset / defaults
         report "=== GROUP 1: reset & defaults ===" severity note;
 
@@ -115,7 +112,6 @@ begin
         sb.check_bit("SCL_REN passthrough", SCL_REN, '1');
         SDA_REN_in <= '0'; SCL_REN_in <= '0';
 
-        ----------------------------------------------------------------
         -- GROUP 2: register read/write
         report "=== GROUP 2: register R/W ===" severity note;
 
@@ -137,7 +133,6 @@ begin
         sb.check_slv("AR readback", rdw(6 downto 0), SLAVE_ADDR);
         bus_write(smclk, pbus, RegSlotI2CxAMR, x"00000000");
 
-        ----------------------------------------------------------------
         -- GROUP 3: START / STOP detection
         report "=== GROUP 3: START/STOP detection ===" severity note;
 
@@ -156,7 +151,6 @@ begin
         sb.check_bit("STR cleared", rdw(1), '0');
         sb.check_bit("SPR cleared", rdw(0), '0');
 
-        ----------------------------------------------------------------
         -- GROUP 4: slave receive (address + data byte)
         report "=== GROUP 4: slave receive ===" severity note;
 
@@ -183,7 +177,6 @@ begin
         bus_write(smclk, pbus, RegSlotI2CxSR, x"00001100");           -- clears SXC (bit 8) and SA (bit 12)
         bus_write(smclk, pbus, RegSlotI2CxCR, x"00000000");
 
-        ----------------------------------------------------------------
         -- GROUP 5: slave NOT addressed (wrong address)
         report "=== GROUP 5: wrong address ===" severity note;
 
@@ -198,7 +191,6 @@ begin
         bus_write(smclk, pbus, RegSlotI2CxSR, x"00000003");
         bus_write(smclk, pbus, RegSlotI2CxCR, x"00000000");
 
-        ----------------------------------------------------------------
         -- GROUP 6: interrupt enable / flag / clear
         report "=== GROUP 6: interrupts ===" severity note;
 
@@ -212,7 +204,6 @@ begin
         bus_write(smclk, pbus, RegSlotI2CxSR, x"00000003");
         bus_write(smclk, pbus, RegSlotI2CxCR, x"00000000");
 
-        ----------------------------------------------------------------
         -- GROUP 7: master transmit (START, byte, NACK from empty bus, STOP)
         report "=== GROUP 7: master transmit ===" severity note;
 
@@ -237,7 +228,6 @@ begin
         sb.check_bit("master released bus (MCB=0)", rdw(14), '0');
         bus_write(smclk, pbus, RegSlotI2CxCR, x"00000000");
 
-        ----------------------------------------------------------------
         -- Final verdict
         wait for 1 us;
         sb.report_summary("I2C TB");

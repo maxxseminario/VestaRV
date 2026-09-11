@@ -1,4 +1,6 @@
+-- VestaRV: testbench definitions package
 -- Shared definitions and helper functions for the RISC-V testbenches.
+
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.std_logic_arith.all;

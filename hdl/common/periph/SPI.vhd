@@ -1,13 +1,14 @@
+-- VestaRV: SPI controller
+-- Master/slave SPI with CR/SR/TX/RX/FOS registers, a two-chained-ClkGate baud divider and one IRQ each for transfer-complete and transmit-empty.
+-- ENABLE_EXTENDED_MEM instantiates the SPI flash XIP core, which adds a second read port on en_mem_flash.
+
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.std_logic_arith.all;
 use ieee.std_logic_unsigned.all;
 library work;
 use work.constants.all;
--- Word offsets, field ranges, resets and implemented-bit masks, generated from
--- hdl/common/regs/rdl/spi.rdl (tools/rdl/README.md). It declares the same
--- RegSlotSPIx* constants work.MemoryMap did, so this REPLACES that clause:
--- using both would make every slot name an ambiguous homograph.
+-- Word offsets, field ranges, resets and implemented-bit masks: generated from hdl/common/regs/rdl/spi.rdl, which replaces the work.MemoryMap clause (both would make every slot name an ambiguous homograph).
 use work.spi_regs_pkg.all;
 
 entity SPI is
@@ -231,7 +232,7 @@ begin
                             (tx_in_progress or start_tx or StartTXFlash) and 
                             (not spi_mode);
 
-    ---------------------End Signal Routing ---------------------
+    --End Signal Routing ---------------------
 
     -- The `not clk` on both baud gates selects which edge of the smclk-domain peripheral clock the baud counter and the master shift FSM advance on; it is NOT the SPI clock polarity (spi_cpol sets the idle sck and the sck_slave xor, spi_cpha toggles sck at transfer start).
     -- Keep both gates on the same edge family: en_clk_baud is combinational off baud_counter=0 and must be stable before clk_baud's active edge, or the baud counter double-counts.
@@ -276,7 +277,7 @@ begin
     rx_order_sel <= spi_rx_sb & spi_msb & spi_dl; -- Rx Order Selection
  
 
-    ------------------  Align and Order Tx Data ------------------
+    --  Align and Order Tx Data ------------------
     process(tx_order_sel, SPIxTX, spi_tx_buf_rev, spi_fen, TXDataFlash_reversed)
     begin
         if spi_fen = '1' and ENABLE_EXTENDED_MEM then
@@ -552,7 +553,7 @@ begin
 
     
 
-    ---------- SPI Flash Extended Memory Core ----------
+    -- SPI Flash Extended Memory Core ----------
     -- Generate Flash logic only if ENABLE_EXTENDED_MEM is true
     gen_flash: if ENABLE_EXTENDED_MEM generate
         -- Synchronizer for ClearFlashActive from smclk to mclk domain
@@ -708,7 +709,7 @@ begin
         end if;
     end process;
 
-    --------------------------  Memory Logic ---------------------------
+    --  Memory Logic ---------------------------
     en_addr_periph <= slv2uint(addr_periph) when en_mem = '0' else 0; -- Enable Memory Peripheral based on address
 
     -- Register Write Process 

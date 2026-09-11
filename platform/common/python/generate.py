@@ -1059,7 +1059,6 @@ trngRings = _cfg('peripherals.trngRings', 8)
 # EVF* register block, no tap port-map lines on the existing instances) is byte-identical.
 eventFabricPresent = _cfg('peripherals.eventFabric', False)
 
-# ===========================================================================
 # digperiphs A5 — GLOBAL VECTOR RULE (BINDING, applies to every library block).
 # Beyond the 114 UNCONDITIONAL vectors (0-113: legacy + CLINT + meip placeholder +
 # I3C/NFC RSVD-or-real + GPIO4/5), each optional library block owns a FROZEN,
@@ -1101,7 +1100,6 @@ def _libraryTailVectorsCount():
 			_high = _v
 	return _high
 _vectorsCount = _libraryTailVectorsCount()
-# ===========================================================================
 
 # Package model selection (G4): which _PACKAGE_MODELS entry builds the pad
 # ring below, and whether the TRM package section carries the "Preliminary"

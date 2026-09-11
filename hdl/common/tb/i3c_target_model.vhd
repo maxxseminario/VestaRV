@@ -1,8 +1,9 @@
-/* Behavioral I3C/legacy-I2C TARGET responder for the I3C testbench: the TB states the shape of each transaction through cfg_* inputs held stable across one START..STOP frame.
-   Bus traffic is parsed as 9-edge groups off a single SCL rising-edge counter: group 0 is 7 address bits MSB-first plus RnW plus the ACK slot, and each later group is 8 data bits plus an ACK/T slot.
-   Sampling happens on the SCL rising edge and this model's drive setup on the falling edge; a START or repeated START always resets the counter and restarts the address group.
-   The model is open-drain throughout and NEVER drives an active high: a released bit relies on the bench's weak 'H' pull, and sda_oe/scl_oe = '1' means this model drives the matching *_out.
-   DAA and IBI are modelled, HDR modes are not, and the legacy-only SCL stretch after the address ACK is an illustrative fixed hold that exercises the scl_oe wiring, not a modelled processing delay. */
+-- VestaRV: I3C target model
+-- Behavioral I3C/legacy-I2C TARGET responder for the I3C testbench: the TB states the shape of each transaction through cfg_* inputs held stable across one START..STOP frame.
+-- Bus traffic is parsed as 9-edge groups off a single SCL rising-edge counter: group 0 is 7 address bits MSB-first plus RnW plus the ACK slot, and each later group is 8 data bits plus an ACK/T slot.
+-- Sampling happens on the SCL rising edge and this model's drive setup on the falling edge; a START or repeated START always resets the counter and restarts the address group.
+-- The model is open-drain throughout and NEVER drives an active high: a released bit relies on the bench's weak 'H' pull, and sda_oe/scl_oe = '1' means this model drives the matching *_out.
+-- DAA and IBI are modelled, HDR modes are not, and the legacy-only SCL stretch after the address ACK is an illustrative fixed hold that exercises the scl_oe wiring, not a modelled processing delay.
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -119,7 +120,6 @@ begin
         variable ibi_acked_v : boolean := false;
         variable ibi_cnt     : natural := 0;
     begin
-        ------------------------------------------------------------------
         -- IBI: initiate on a trigger edge and drive the frame off the controller's SCL, handled BEFORE the normal branches so the model's own START is not mis-parsed as an incoming transaction.
         if cfg_ibi_trigger'event and to_X01(cfg_ibi_trigger) = '1'
            and (not active) and (not in_ibi) and to_X01(scl) = '1' then
@@ -169,7 +169,7 @@ begin
                 scl_oe  <= '0'; scl_out <= '0';
             end if;
 
-        /* ----------------------------------------------------------------
+        /*
            START, repeated-START and STOP detection: SDA transitions while SCL is high.
            Every sda and scl sample is normalized through to_X01, so a released wired-AND 'H' reads as '1'. */
         elsif sda_in'event and to_X01(scl) = '1' then
@@ -210,7 +210,6 @@ begin
                 scl_out <= '0';
             end if;
 
-        ------------------------------------------------------------------
         -- SCL RISING edge: SAMPLE.
         elsif active and scl'event and to_X01(scl) = '1' and daa_round then
             -- DAA-round SAMPLE, where edge counts rising edges since this repeated START.
@@ -288,7 +287,6 @@ begin
 
             edge := edge + 1;
 
-        ------------------------------------------------------------------
         -- SCL FALLING edge: DRIVE, i.e. set up this model's output for the UPCOMING sample, using the just-incremented `edge`.
         elsif active and scl'event and to_X01(scl) = '0' then
             g  := edge / 9;

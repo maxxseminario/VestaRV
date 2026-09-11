@@ -1,20 +1,18 @@
+-- VestaRV: NFC controller
+-- ISO/IEC 14443-3 Type A tag and card emulation, digital protocol engine only; the analog front end is off-die, reached through the rf_* ports plus field_detect and afe_en, and rf_txmod is OOK-gated so the AFE needs no separate TX window.
+-- Three clock domains: ClkMem (gated bus, register file), clk (free-running smclk, the CDC synchronizers and the W1C retirement) and rf_clk (AFE carrier-derived, the whole protocol core). Hand-offs are held levels; there is no async FIFO.
+-- House style: registered read through a falling-edge EnMemPeriph pre-latch, W1C via a lane-0 write retired on EnMemPeriph = '1', and transaction-local config latching.
+-- Firmware arms the block with SYS_CLK_CR = 0 (SMCLK on HFXT), the identity in NFCxUID/NFCxCFG, a payload through NFCxIDX/NFCxDATA, then NFCxCR = NFCEN|LISTEN plus the IE bits; with AUTOREAD set, hardware answers a Type-2 READ with no firmware in the loop.
+
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.std_logic_arith.all;
 use ieee.std_logic_unsigned.all;
 library work;
 use work.constants.all;
--- Word slots inside this peripheral's 256B window (decoded from MABPart(7:2)),
--- field ranges, resets and implemented-bit masks, generated from
--- hdl/common/regs/rdl/nfc.rdl (tools/rdl/README.md). NFC is not in
--- MemoryMap.vhd; SLOT_CR .. SLOT_DBG were file-local constants until then.
+-- Word slots, field ranges, resets and implemented-bit masks: generated from hdl/common/regs/rdl/nfc.rdl.
 use work.nfc_regs_pkg.all;
 
-/* NFC: ISO/IEC 14443-3 Type A tag and card-emulation digital protocol engine, communications only (no energy harvesting on-die).
-   Three clock domains: ClkMem (gated bus, register file), clk (free-running smclk, hosting the CDC synchronizers and the W1C retirement) and rf_clk (AFE carrier-derived, the whole protocol core).
-   House style: registered read through a falling-edge EnMemPeriph pre-latch, W1C via a lane-0 write retired on EnMemPeriph='1', transaction-local config latching, and held-level CDC with no async FIFO.
-   The analog front end is off-die: the rf_* ports plus field_detect and afe_en are the only link, and rf_txmod is OOK-gated so the AFE needs no separate TX window.
-   Firmware arms the block with SYS_CLK_CR=0 (SMCLK on HFXT), the identity in NFCxUID/NFCxCFG, a payload streamed through NFCxIDX/NFCxDATA, then NFCxCR = NFCEN|LISTEN plus the IE bits; with AUTOREAD set, hardware answers a Type-2 READ with no firmware in the loop. */
 
 entity NFC is
     port (
@@ -215,7 +213,7 @@ architecture behavioral of NFC is
 
 begin
 
-    --------------------------- Signal Routing ------------------------------
+    -- Signal Routing ------------------------------
     nfcen        <= NFCxCR(0);
     listen_bit   <= NFCxCR(1);
     fieldie      <= NFCxCR(8);
@@ -261,7 +259,7 @@ begin
     irq_txdone  <= txdonef_flag and txie;
     irq_crcerr  <= (crcerrf_flag or parerrf_flag) and crcie;
 
-    ------------------------- End Signal Routing ----------------------------
+    -- End Signal Routing ----------------------------
 
     -- Registered-read pre-latch: capture the volatile snapshots inverted on falling_edge(EnMemPeriph); the read mux un-inverts them.
     reg_sync: process(EnMemPeriph, NFCxSR, rx_parok, rx_crcok, rx_len, rx_cmd,
@@ -277,7 +275,7 @@ begin
         end if;
     end process;
 
-    ---------------------------- Memory Logic -------------------------------
+    -- Memory Logic -------------------------------
     nfc_slot <= slv2uint(MABPart) when EnMemPeriph = '0' else 0;
 
     -- Register write: CR bit 2 (HALTCLR) is a self-clearing write pulse that reads back 0 and toggles halt_req_tgl into the rf domain, and the DATA slot auto-increments IDX on any access when IDXAINC=1.

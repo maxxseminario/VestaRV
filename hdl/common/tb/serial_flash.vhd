@@ -1,3 +1,7 @@
+-- VestaRV: serial flash model
+-- Behavioural AT45DB021E-class DataFlash on the SPI boot path: it serves the program image, re-read from the .rcf file on every flash reset, as binary ASCII words one per line.
+-- The device starts in DEEP POWER-DOWN, so boot code must issue a correctly framed ABh wake-up; ABh and B9h take effect only on the RISING edge of CSb after the opcode is shifted in.
+
 library ieee;
 use ieee.std_logic_1164.all;
 use std.standard.all;

@@ -1,17 +1,16 @@
+-- VestaRV: I3C controller
+-- MIPI I3C Basic controller, SDR private read/write plus legacy I2C: register file, baud generator, bit engine, framer FSM, dynamic-address engine with its DAT, in-band-interrupt monitor and the combinational pad-drive mux.
+-- House style: registered read, two chained ClkGates for the baud divider, W1C clear pulses, and a transaction descriptor latched at launch.
+
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.std_logic_arith.all;
 use ieee.std_logic_unsigned.all;
 library work;
 use work.constants.all;
--- Word offsets, field ranges, resets and implemented-bit masks, generated from
--- hdl/common/regs/rdl/i3c.rdl (tools/rdl/README.md). I3C is not in
--- MemoryMap.vhd; SLOT_CR .. SLOT_IBI were file-local constants until then.
+-- Word offsets, field ranges, resets and implemented-bit masks: generated from hdl/common/regs/rdl/i3c.rdl.
 use work.i3c_regs_pkg.all;
 
-/* I3C: MIPI I3C Basic controller peripheral, SDR private read/write plus legacy-I2C.
-   Contains the register file, baud generator, bit engine and framer FSM, the dynamic-address (DAA) engine with its DAT, the in-band-interrupt (IBI) monitor and the combinational pad-drive mux.
-   House style: registered read, two chained ClkGates for the baud divider, W1C clear pulses, and a transaction descriptor latched at launch. */
 
 entity I3C is
     port (
@@ -197,7 +196,7 @@ architecture behavioral of I3C is
 
 begin
 
-    ------------------------- Signal Routing --------------------------------
+    -- Signal Routing --------------------------------
     q_en  <= I3CxCR(0);
     ibien <= I3CxCR(3);
     tcie  <= I3CxCR(24);
@@ -262,7 +261,7 @@ begin
     -- BCR[2]=1 means the IBI carries a mandatory data byte (MDB).
     ibi_bcr2 <= ibi_dat_match and dat_bcr(ibi_dat_idx)(2);
 
-    ---------------------- End Signal Routing -------------------------------
+    -- End Signal Routing -------------------------------
 
     -- Registered-read pre-latch: the volatile registers are snapshotted (inverted) at deselect.
     reg_sync: process(EnMemPeriph, I3CxRX, I3CxSR)
@@ -273,7 +272,7 @@ begin
         end if;
     end process;
 
-    -------------------------- Memory Logic ---------------------------------
+    -- Memory Logic ---------------------------------
     i3c_slot <= slv2uint(MABPart) when EnMemPeriph = '0' else 0;
 
     -- Register write: a CMD lane-0 write is the sole launch trigger, and the content is always captured while the launch pulse is suppressed when I3CEN=0 or BUSY=1.
@@ -524,7 +523,6 @@ begin
             clr_ibi_req <= '0';
 
             case ph is
-                ------------------------------------------------------------
                 -- IDLE: bus released, waiting for a CMD launch or a target-driven IBI.
                 when P_IDLE =>
                     scl_r <= '1'; sda_release <= '1'; sda_pp <= '0'; sub <= 0;
@@ -579,7 +577,6 @@ begin
                         ph          <= P_IBI_HDR;
                     end if;
 
-                ------------------------------------------------------------
                 -- START: SDA falls while SCL high, then SCL falls.
                 when P_START =>
                     if sub = 0 then
@@ -601,7 +598,7 @@ begin
                         when others => scl_r <= '0'; sub <= 0; ph <= P_ADDR;
                     end case;
 
-                /* ----------------------------------------------------------
+                /*
                    Address header (7 address bits then RnW), open-drain: release on a 1, drive a 0.
                    The sub2 compare (drove a 1 but read a 0) is the arbitration-lost detect; with no competing controller it never fires. */
                 when P_ADDR =>
@@ -657,7 +654,6 @@ begin
                             end if;
                     end case;
 
-                ------------------------------------------------------------
                 -- Write-byte load: hold SCL low until a TX byte is armed, then consume it, set TXEIF (the register is now empty) and retire tx_arm.
                 when P_WLOAD =>
                     scl_r <= '0'; sda_release <= '1'; sda_pp <= '0';
@@ -708,7 +704,6 @@ begin
                                   end if;
                     end case;
 
-                ------------------------------------------------------------
                 -- Read data, 8 bits: the controller releases, the target drives push-pull, sampled MSB-first at sub2.
                 when P_RDATA =>
                     case sub is
@@ -766,7 +761,7 @@ begin
                         bitno <= 0; sub <= 0; ph <= P_RDATA;
                     end if;
 
-                /* ----------------------------------------------------------
+                /*
                    STOP: SDA driven low open-drain, SCL high, then SDA released so it rises to the wired-AND 'H', which is the STOP edge.
                    It relies on the target having released SDA after its final read T. */
                 when P_STOP =>
@@ -785,9 +780,8 @@ begin
                     dat_cap_req <= '0'; dat_dv_req <= '0';
                     ph <= P_IDLE;
 
-                /* ----------------------------------------------------------
+                /*
                    CCC/DAA sub-sequencer: drives the same bit engine and pad mux as the framer.
-                   ----------------------------------------------------------
                    CCC opcode byte: 8 bits push-pull SDR, the same shape as P_WDATA. */
                 when P_CCCOP =>
                     case sub is
@@ -838,11 +832,8 @@ begin
                             end if;
                     end case;
 
-                /* ----------------------------------------------------------
-                   ENTDAA rounds (CMD.DAARUN).
-                   Each round runs Sr, the 0x7E+R header, the ACK (a NACK means no more devices, so DAADONE), a 64-bit open-drain arbitration capture, the assignment of a 7-bit dynamic address plus parity (push-pull), and a final ACK.
-                   ----------------------------------------------------------
-                   Repeated START before the 0x7E+R header. */
+                /* ENTDAA rounds (CMD.DAARUN): Sr, the 0x7E+R header, the ACK (a NACK means no more devices, so DAADONE), a 64-bit open-drain arbitration capture, the assignment of a 7-bit dynamic address plus parity push-pull, then a final ACK.
+                   P_DAA_SR is the repeated START before the header. */
                 when P_DAA_SR =>
                     case sub is
                         when 0 => scl_r <= '0'; sda_pp <= '0'; sda_release <= '1'; sub <= 1;
@@ -941,11 +932,8 @@ begin
                             end if;
                     end case;
 
-                /* ----------------------------------------------------------
-                   SETDASA (CMD.DASA): direct CCC 0x87.
-                   After the opcode it runs Sr, the static address plus W, the ACK, then one data byte (dyn addr << 1) from the matching DAT entry, which is marked DYNVALID on that ACK.
-                   ----------------------------------------------------------
-                   Repeated START ahead of the static address. */
+                /* SETDASA (CMD.DASA), direct CCC 0x87: after the opcode it runs Sr, the static address plus W, the ACK, then one data byte (dyn addr << 1) from the matching DAT entry, which is marked DYNVALID on that ACK.
+                   P_DASA_SR is the repeated START ahead of the static address. */
                 when P_DASA_SR =>
                     case sub is
                         when 0 => scl_r <= '0'; sda_pp <= '0'; sda_release <= '1'; sub <= 1;
@@ -1014,11 +1002,8 @@ begin
                                   if t_stopen = '1' then ph <= P_STOP; else ph <= P_DONE; end if;
                     end case;
 
-                /* ----------------------------------------------------------
-                   IBI monitor, bus-available path only.
-                   The target has already driven the START, so the controller provides SCL, releases and samples the 7 address bits plus RnW, then ACKs or NACKs per IBIEN.
-                   ----------------------------------------------------------
-                   IBI header: 8 bits (addr[6:0] then RnW), sampled open-drain. */
+                /* IBI monitor, bus-available path only: the target has already driven the START, so the controller provides SCL, releases and samples the 7 address bits plus RnW, then ACKs or NACKs per IBIEN.
+                   P_IBI_HDR samples those 8 bits open-drain. */
                 when P_IBI_HDR =>
                     case sub is
                         when 0 => scl_r <= '0'; sda_release <= '1'; sda_pp <= '0'; sub <= 1;
@@ -1146,7 +1131,7 @@ begin
         end if;
     end process;
 
-    ---------- combinational pad-drive mux ----------------------------------
+    -- combinational pad-drive mux ----------------------------------
     -- SDA: release means high-Z (sampling, the target drives), push-pull means a strong drive, otherwise open-drain (drive only a 0, release a 1 to the wired-AND 'H').
     SDA_OUT <= sda_drv;
     SDA_DIR <= '0'         when sda_release = '1'
@@ -1157,7 +1142,7 @@ begin
     SCL_OUT <= '0'         when t_busmode = '1' else scl_r;
     SCL_DIR <= (not scl_r) when t_busmode = '1' else '1';
 
-    ---------- IRQ lines: combinational status AND enable -------------------
+    -- IRQ lines: combinational status AND enable -------------------
     irq_tc   <= tcif_flag    and tcie;
     irq_rxf  <= rxfull_flag  and rxfie;
     irq_txe  <= txeif_flag   and txeie;

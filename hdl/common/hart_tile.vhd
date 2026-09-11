@@ -1,12 +1,8 @@
-/* =============================================================================
-   hart_tile.vhd
-   =============================================================================
-   One self-contained hart: a vesta core, its own address decoder and its private TCM (RAM0, 0x8000-0xBFFF).
-   Everything except the TCM is reached through the shared-window master port below, behind mp_arbiter on the free-running mclk; the core resets to PC 0x0 and boots out of the shared ROM.
-   EVERY hart on the chip instantiates this entity and all instances are STRUCTURALLY IDENTICAL, one netlist for one hardened tile: the only per-instance differences are wiring (hart_id, the flash/XIP hookup, tcm_pgen, the power-domain controls).
-   The whole tile edge is registered at depth 1 on mclk, and the TCM carries a second, read-only slave port through which the management hart reads this tile's memory.
-   Each tile replicates the unchanged single-core core-to-adddec-to-RAM path, so there is no cross-hart grant-switching hazard on the fetch/load pipeline.
-   ============================================================================= */
+-- VestaRV: hart tile
+-- One self-contained hart: a vesta core, its own address decoder and its private TCM (RAM0, 0x8000-0xBFFF). Everything except the TCM is reached through the shared-window master port below, behind mp_arbiter on the free-running mclk; the core resets to PC 0x0 and boots out of the shared ROM.
+-- EVERY hart on the chip instantiates this entity and all instances are structurally identical, one netlist for one hardened tile: the only per-instance differences are wiring (hart_id, the flash/XIP hookup, tcm_pgen, the power-domain controls).
+-- The whole tile edge is registered at depth 1 on mclk, and the TCM carries a second, read-only slave port through which the management hart reads this tile's memory.
+-- Each tile replicates the unchanged single-core core-to-adddec-to-RAM path, so there is no cross-hart grant-switching hazard on the fetch/load pipeline.
 
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
@@ -126,13 +122,11 @@ entity hart_tile is
         -- An in-tile tie on the switched rail would die in sleep, crowbarring the macro and entering retention mode uncommanded.
         tcm_retn  : in  std_logic := '1';
 
-        /* =====================================================================
-           READ-ONLY EXTERNAL TCM SLAVE PORT: mclk domain, boundary-registered at the SAME depth 1 as the req/gnt set, but its OWN transaction set, since the one-depth rule is about skew between signals of ONE transaction.
-           PROTOCOL, deliberately the sh_done shape: tcm_ext_req is held until tcm_ext_done, a ONE-mclk PULSE with tcm_ext_rdata valid alongside it and holding until the next completion; tcm_ext_addr is a TCM WORD index (11 bits = the ram0 A bus = data_addr(12:2)), so word i is byte address 0x8000 + 4*i.
+        /* Read-only external TCM slave port: mclk domain, boundary-registered at the SAME depth 1 as the req/gnt set but its OWN transaction set, since the one-depth rule is about skew between signals of ONE transaction.
+           Protocol, deliberately the sh_done shape: tcm_ext_req is held until tcm_ext_done, a ONE-mclk PULSE with tcm_ext_rdata valid alongside it and holding until the next completion. tcm_ext_addr is a TCM WORD index (11 bits = the ram0 A bus = data_addr(12:2)), so word i is byte address 0x8000 + 4*i.
            THE PORT IS THE ARRAY'S WIDTH, NOT THE APERTURE'S: the MCU aperture is a 16 KiB window over this 8 KiB array, so the requester drops the window word index's top bit before it reaches this port, and that drop IS the documented mirroring of the array across the upper half of the window.
            AFTER done, tcm_ext_req MUST RETURN LOW FOR AT LEAST ONE mclk: the sequencer's one-shot rearms on req being low, so a requester holding req high across two transactions gets ONE done and then waits forever.
-           All three inputs default to the FAIL-SAFE direction, req = '0' being "nobody is asking", which leaves the stall term constant '0' and the ram0 mux constant on the core side, so a top naming none of these ports behaves bit-identically; the port is memory architecture, not a knob-gated feature.
-           ===================================================================== */
+           All three inputs default to the FAIL-SAFE direction, req = '0' being "nobody is asking", which leaves the stall term constant '0' and the ram0 mux constant on the core side, so a top naming none of these ports behaves bit-identically. */
         tcm_ext_req   : in  std_logic := '0';
         tcm_ext_addr  : in  std_logic_vector(10 downto 0) := (others => '0');
         tcm_ext_rdata : out std_logic_vector(31 downto 0);
@@ -321,11 +315,10 @@ architecture behav of hart_tile is
     signal mem_ready_sh   : std_logic;
     signal lr_sc_bus      : std_logic_vector(1 downto 0);
 
-    /* =========================================================================
+    /*
        REGISTERED TILE BOUNDARY (depth 1, mclk): outbound req/we/addr/wdata/lrsc/lock, inbound gnt/done/rdata/scfail plus msip/mtip/meip.
        ONE depth for ALL of them, and do not change one alone: skew between req and addr/wdata/lrsc corrupts the arbiter's IDLE sample, and rdata/scfail must stay aligned with done (value-with-pulse).
        NOT registered: sleep and the flash/XIP ports (gated clock, sleep race), hart_id (static strap), trap_flag/a0 (quasi-static observation).
-       =========================================================================
        Internal (pre-boundary) nets for signals that used to drive ports. */
     signal sh_req_int     : std_logic;
     signal sh_lrsc_int    : std_logic_vector(1 downto 0);
@@ -352,10 +345,9 @@ architecture behav of hart_tile is
     signal dbg_halted_int : std_logic;
     signal bnd_halted_r   : std_logic := '0';
 
-    /* =========================================================================
+    /*
        State for the external TCM slave port, all in the FREE-RUNNING mclk domain, which is the point: the requester must make progress while this tile's clk_cpu is gated off underneath it.
        No synchronisers here and none are wanted, since clk_cpu is a GATED SUBSET of clk and they are the same clock; NEVER put a set_clock_groups on the pair, which deletes real paths.
-       =========================================================================
        Depth-1 inbound boundary stage. */
     signal tx_req_r      : std_logic := '0';
     signal tx_addr_r     : std_logic_vector(10 downto 0) := (others => '0');
@@ -453,11 +445,9 @@ begin
         end if;
     end process;
 
-    /* =========================================================================
-       Debug boundary stage: SAME clock, SAME reset, SAME depth 1 as bnd_in/bnd_out, and its own transaction set, unrelated to req/gnt.
-       IN ITS OWN GENERATE PAIR because a boundary register has no ENABLE_ term to fold it away, so ungated these three flops would be the one part of the debug interface a knob-OFF build still paid for.
-       When OFF, dbg_halted is a hard constant '0': a chip with no debug interface never reports itself halted.
-       ========================================================================= */
+    --        Debug boundary stage: SAME clock, SAME reset, SAME depth 1 as bnd_in/bnd_out, and its own transaction set, unrelated to req/gnt.
+    --        IN ITS OWN GENERATE PAIR because a boundary register has no ENABLE_ term to fold it away, so ungated these three flops would be the one part of the debug interface a knob-OFF build still paid for.
+    --        When OFF, dbg_halted is a hard constant '0': a chip with no debug interface never reports itself halted.
     gen_dbg_bnd: if ENABLE_DEBUG generate
         -- dbg_resethaltreq crosses this flop too, so it is one mclk late at the tile reset edge, and that is fine: the core samples it ONCE at its own reset release, which cannot happen until the boot fetch has crossed the arbiter and landed, strictly after this flop has settled.
         bnd_dbg: process(clk, resetn)
@@ -481,11 +471,9 @@ begin
         bnd_halted_r  <= '0';
     end generate;
 
-    /* =========================================================================
-       External-TCM-port INBOUND boundary stage, same clock, reset and depth 1 as bnd_in/bnd_out, and its own transaction set: req/addr are one transaction, rdata/done are one value-with-pulse pair.
-       The OUTBOUND stage is tx_rdata_r/tx_done_r in tx_port_fsm below, which are the boundary registers AND the landing registers, deliberately the same flops.
-       Reset drives tx_req_r to '0', which makes "a request during reset is IGNORED" structural: the sequencer cannot see a request, and the SRAM is never clocked from this side, while resetn is low.
-       ========================================================================= */
+    -- External-TCM-port INBOUND boundary stage, same clock, reset and depth 1 as bnd_in/bnd_out, and its own transaction set: req/addr are one transaction, rdata/done are one value-with-pulse pair.
+    -- The OUTBOUND stage is tx_rdata_r/tx_done_r in tx_port_fsm below, which are the boundary registers AND the landing registers, deliberately the same flops.
+    -- Reset drives tx_req_r to '0', which makes "a request during reset is IGNORED" structural: the sequencer cannot see a request, and the SRAM is never clocked from this side, while resetn is low.
     bnd_tcm_ext: process(clk, resetn)
     begin
         if resetn = '0' then
@@ -624,9 +612,8 @@ begin
             flash_dout     => flash_dout
         );
 
-    /* =========================================================================
+    /*
        SHARED-WINDOW MASTER, tile-internal.
-       =========================================================================
        Everything in the window except the private TCM (0x8000-0xBFFF) is shared: the boot ROM, the peripheral window, the NPU staging RAM and the bulk RAM, i.e. 0x0 to 2**(SH_AW+2)-1 minus the TCM.
        The upper-bit qualification must stay EXACT: a loose decode aliases extended-flash addresses back into the window, and adddec asserts no enable for any shared region, so the two decoders can never double-claim an address. */
     sh_sel <= '1' when data_addr(31 downto SH_AW+2) = SH_WIN_ZERO
@@ -704,16 +691,12 @@ begin
     mem_dout(0) <= (others => '0');
     mem_dout(2) <= (others => '0');
 
-    /* =========================================================================
-       THE EXTERNAL TCM READ SEQUENCER: four states, one SRAM read, everything on the free-running mclk.
-       Timing from E, the mclk edge at which the inbound boundary register first sees the request: SETTLE at E+1 switches the mux, READ at E+2 holds CEN low, the read happens at E+3, and E+4 latches Q into tx_rdata_r with the done pulse and returns the mux.
-       Latency is therefore FIVE mclk from E to the requester sampling done, six from the requester's own drive edge, and the core loses seven clk_cpu edges per transaction.
-
+    /* The external TCM read sequencer: four states, one SRAM read, everything on the free-running mclk.
+       Timing from E, the mclk edge at which the inbound boundary register first sees the request: SETTLE at E+1 switches the mux, READ at E+2 holds CEN low, the read happens at E+3, and E+4 latches Q into tx_rdata_r with the done pulse and returns the mux. Latency is FIVE mclk from E to the requester sampling done, six from the requester's own drive edge, and the core loses seven clk_cpu edges per transaction.
        tx_busy is raw-OR-delayed rather than just tx_sel, which buys the LEAD and the LAG around the mux switch, and both are required: it rises a full cycle before tx_sel, so the core's last edge is strictly before the mux moves, and it stays high until tx_req_r falls, so the core's first edge back is well after the mux returned.
        NO DEADLOCK, including a tile reading its own aperture address while already stalled on the shared window, because NEITHER SIDE EVER WAITS ON THE CORE: tx_state, tx_sel and the SRAM clock are all on the free-running clk and reach LATCH in four edges regardless.
        A back-to-back request stream costs THROUGHPUT, not liveness: tx_busy must go low for a full cycle before tx_req_r can be re-registered high, so the core still gets one clk_cpu edge per request.
-       tx_served is the one-shot, set at LATCH and cleared whenever tx_req_r is low, because req is held until done and the sequencer must not re-trigger on the tail of the request it already answered.
-       ========================================================================= */
+       tx_served is the one-shot, set at LATCH and cleared whenever tx_req_r is low, because req is held until done and the sequencer must not re-trigger on the tail of the request it already answered. */
     tx_port_fsm: process(clk, resetn)
     begin
         if resetn = '0' then
@@ -769,11 +752,9 @@ begin
             ClkOut => tx_ext_clk
         );
 
-    /* -------------------------------------------------------------------------
-       THE 6-PIN ram0 MUX {CLK, CEN, WEN, GWEN, A, D}, selected by tx_sel, REGISTERED, never the raw request.
-       READ-ONLY IS ENFORCED HERE AND ONLY HERE, structurally: on the external side WEN is the all-inactive "1111" constant and GWEN the '1' constant, so no state of this port, no value of tcm_ext_addr and no fault on tcm_ext_req can produce a write.
-       D is a don't-care there and is driven to zeros rather than left on write_data, so a waveform shows unambiguously that nothing was offered to the array; the tool constant-folds these arms, which is fine, because the constants are the specification.
-       ------------------------------------------------------------------------- */
+    -- THE 6-PIN ram0 MUX {CLK, CEN, WEN, GWEN, A, D}, selected by tx_sel, REGISTERED, never the raw request.
+    -- READ-ONLY IS ENFORCED HERE AND ONLY HERE, structurally: on the external side WEN is the all-inactive "1111" constant and GWEN the '1' constant, so no state of this port, no value of tcm_ext_addr and no fault on tcm_ext_req can produce a write.
+    -- D is a don't-care there and is driven to zeros rather than left on write_data, so a waveform shows unambiguously that nothing was offered to the array; the tool constant-folds these arms, which is fine, because the constants are the specification.
     ram_clk  <= tx_ext_clk when tx_sel = '1' else clk_mem(1);
     ram_cen  <= tx_cen     when tx_sel = '1' else mem_en(1);
     ram_wen  <= "1111"     when tx_sel = '1' else wen_fe;      -- READ-ONLY
@@ -782,20 +763,12 @@ begin
     ram_a    <= tx_addr_r  when tx_sel = '1' else mem_addr(10 downto 0);
     ram_d    <= (others => '0') when tx_sel = '1' else write_data;
 
-    /* -------------------------------------------------------------------------
-       THE Q SHADOW, and why the mux above is not sufficient on its own.
-       The vendor SRAM's Q is not a per-access strobe but a CONTINUOUS function of the address latched by the last access, and the core relies on that: it issues a TCM read at clk_cpu edge k and consumes Q combinationally through adddec's out_buff at edge k+1.
-       Freezing the core is therefore not enough, because an external request is asynchronous and can land on edge k: the external read relatches the address, Q changes underneath the frozen core, and at its resume edge the core consumes THE EXTERNAL WORD as its own load result or instruction.
-
-       INVARIANT, the whole specification of this block: WHILE THE CORE IS FROZEN, mem_dout(1) MUST NOT CHANGE, which is what an undisturbed SRAM does on its own.
-       tcm_q_shadow tracks Q every mclk while the port is idle and tcm_q_hold selects it while the core is frozen with that word still owed to it; at the resume edge the core samples the pre-edge value, the shadow, and the same edge re-issues its own access and refreshes the real Q.
-
-       THE HOLD MUST BE RELEASED BY EVIDENCE THAT THE CORE TOOK AN EDGE, NEVER BY A COUNT: a hart reading its OWN TCM window stays frozen on mem_ready_sh for the whole arbiter transaction, strictly longer than tx_busy, and a timer would leave it staring at live Q holding the EXTERNAL address.
-       tcm_q_arm (mclk) toggles when tx_busy is seen and the hold is not already up, so re-arming while armed is a deliberate no-op, while tcm_q_ack (clk_cpu) copies it on every core edge and so disarms at the first core edge after the freeze, however long it was.
-       The two can never move on the same edge, which is what makes the handshake safe without a synchroniser: arming needs tx_busy = '1' in the cycle before the edge, which is exactly when the ClkGate has already killed that clk_cpu edge.
-
-       IT CANNOT WEDGE: tcm_q_hold feeds ONE mux on the core's read data and sits in no handshake, ready or request, so a core that never takes another edge simply keeps being shown the last word it read while the port keeps completing transactions out of tx_rdata_r.
-       ------------------------------------------------------------------------- */
+    /* The Q shadow, and why the mux above is not sufficient on its own.
+       The vendor SRAM's Q is not a per-access strobe but a CONTINUOUS function of the address latched by the last access, and the core relies on that: it issues a TCM read at clk_cpu edge k and consumes Q combinationally through adddec's out_buff at edge k+1. Freezing the core is not enough, because an external request is asynchronous and can land on edge k: the external read relatches the address, Q changes underneath the frozen core, and at its resume edge the core consumes THE EXTERNAL WORD as its own load result or instruction.
+       Invariant, the whole specification of this block: WHILE THE CORE IS FROZEN, mem_dout(1) MUST NOT CHANGE, which is what an undisturbed SRAM does on its own. tcm_q_shadow tracks Q every mclk while the port is idle and tcm_q_hold selects it while the core is frozen with that word still owed to it; at the resume edge the core samples the shadow, and the same edge re-issues its own access.
+       The hold must be released BY EVIDENCE THAT THE CORE TOOK AN EDGE, never by a count: a hart reading its OWN TCM window stays frozen on mem_ready_sh for the whole arbiter transaction, strictly longer than tx_busy, and a timer would leave it staring at live Q holding the external address.
+       tcm_q_arm (mclk) toggles when tx_busy is seen and the hold is not already up, so re-arming while armed is a deliberate no-op; tcm_q_ack (clk_cpu) copies it on every core edge and so disarms at the first core edge after the freeze, however long it was. The two can never move on the same edge, which is what makes the handshake safe without a synchroniser: arming needs tx_busy = '1' in the cycle before the edge, which is exactly when the ClkGate has already killed that clk_cpu edge.
+       It cannot wedge: tcm_q_hold feeds ONE mux on the core's read data and sits in no handshake, so a core that never takes another edge simply keeps being shown the last word it read while the port keeps completing transactions out of tx_rdata_r. */
     tcm_q_shadow_reg: process(clk, resetn)
     begin
         if resetn = '0' then
@@ -833,32 +806,18 @@ begin
     tcm_ext_rdata <= tx_rdata_r;
     tcm_ext_done  <= tx_done_r;
 
-    /* -------------------------------------------------------------------------
-       Private TCM (RAM0, based at RamStartAddress): IVT, code, data and stack, NOT preloaded.
-       Like silicon it powers up unknown and software owns write-before-read; every pin except EMA/RETN/PGEN arrives through the external read port's mux above, and Q leaves through the shadow.
-
-       THE MACRO IS SELECTED BY RamSize (MemoryMap.vhd), not hardcoded -- 2026-08-16, when the shipped default TCM dropped from 16 KiB to 8 KiB (USER directive: "make each tile as small as possible"). The two vendor macros are pin-identical apart from the address bus and, usefully, THE SAME WIDTH:
-           sram1p16k_hvt_pg  4096 x 32  A(11:0)  319.65 x 383.085 um
-           sram1p8k_hvt_pg   2048 x 32  A(10:0)  319.65 x 208.675 um
-       so the swap is 174.41 um of HEIGHT out of the tile and nothing off its X axis -- which is why the U-notch floorplan's width survives it.
-       Selecting on the constant rather than editing the entity name keeps ONE authority for the TCM size: memory.tcmSizePerHart -> RamSize -> this generate. Hardcoding the 8 KiB macro would have let a 16 KiB configuration emit a memory map promising 0x8000-0xBFFF over an array that answers only half of it.
-       A configuration that asks for neither size fails ELABORATION here rather than quietly picking one; the sizes the knob permits and the macros the kit provides are not the same set (the knob allows any 1 KiB multiple up to 0x4000), so this is a real guard, not a formality.
-
-       ADDRESS ALIASING, stated because the map depends on it: the decode still routes 16 KiB here and the array answers 8 KiB, so the array repeats twice across the window.
-       The repeat is built by DROPPING the word index's top bit, once on each side: the core's mem_addr(11) is dropped at the ram0 mux above, and the aperture requester drops sh_addr(11) before it drives tcm_ext_addr.
-       Both sides therefore land on the same physical word for the same byte address, which is what makes the 16 KiB read-only aperture at 0x20000 + 0x4000*h show an 8 KiB TCM MIRRORED, the behaviour generate.py documents and the TRM draws.
-       NO SIGNAL CARRIES THE DROPPED BIT: tx_addr_r, ram_a and the tcm_ext_addr port are all 11 bits, so the tile has no unloaded address bit for LVS to report as an extra top-cell pin.
-       ------------------------------------------------------------------------- */
-    -- THE INSTANCE NAME ram0 IS A FLOW CONTRACT, not a preference. It is named
-    -- EXPLICITLY, at THIS level of hierarchy, by: genus/hart_tile SDC
-    -- (`set_false_path -to pin:hart_tile/ram0/PGEN` and /RETN), the orch_tile SDC
-    -- (via its tile instance), the RAM setup/hold timing queries, and innovus
-    -- `placeInstance ram0` in the tile floorplan. A first version of this block
-    -- selected the macro with an if-generate on RamSize, which is tidier RTL and
-    -- BROKE SYNTHESIS OUTRIGHT: a VHDL generate adds a level to the instance path,
-    -- so `pin:hart_tile/ram0/PGEN` stopped resolving and genus died with TUI-61
-    -- (and still exited 0 -- the log was the only place it existed). Hence a plain
-    -- direct instantiation, with the size checked below instead of selected.
+    /* Private TCM (RAM0, based at RamStartAddress): IVT, code, data and stack, NOT preloaded. Like silicon it powers up unknown and software owns write-before-read; every pin except EMA/RETN/PGEN arrives through the external read port's mux above, and Q leaves through the shadow.
+       The macro is selected by RamSize (MemoryMap.vhd), not hardcoded. sram1p16k_hvt_pg is 4096 x 32, A(11:0), 319.65 x 383.085 um; sram1p8k_hvt_pg is 2048 x 32, A(10:0), 319.65 x 208.675 um. They are the same WIDTH, so the swap costs 174.41 um of height and nothing off the tile's X axis, which is why the U-notch floorplan survives it.
+       Selecting on the constant keeps ONE authority for the TCM size: memory.tcmSizePerHart -> RamSize -> this generate. A configuration that asks for neither size fails ELABORATION here rather than quietly picking one; the knob allows any 1 KiB multiple up to 0x4000 and the kit provides two macros, so this is a real guard.
+       Address aliasing, stated because the map depends on it: the decode routes 16 KiB here and the array answers 8 KiB, so the array repeats twice across the window. The repeat is built by DROPPING the word index's top bit once on each side, the core's mem_addr(11) at the ram0 mux above and the aperture requester's sh_addr(11) before it drives tcm_ext_addr.
+       Both sides therefore land on the same physical word for the same byte address, which is what makes the 16 KiB read-only aperture at 0x20000 + 0x4000*h show an 8 KiB TCM MIRRORED.
+       No signal carries the dropped bit: tx_addr_r, ram_a and the tcm_ext_addr port are all 11 bits, so the tile has no unloaded address bit for LVS to report as an extra top-cell pin. */
+    -- The instance name ram0 is a FLOW CONTRACT: it is named explicitly, at THIS level of
+    -- hierarchy, by the genus/hart_tile SDC (`set_false_path -to pin:hart_tile/ram0/PGEN`
+    -- and /RETN), the orch_tile SDC through its tile instance, the RAM setup/hold timing
+    -- queries, and innovus `placeInstance ram0`. Selecting the macro with an if-generate
+    -- adds a level to the instance path and breaks every one of those, so instantiate
+    -- directly and check the size below instead.
     ram0: entity work.sram1p8k_hvt_pg
         port map (
             Q     => tcm_q,

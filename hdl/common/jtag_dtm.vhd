@@ -1,8 +1,8 @@
-/* jtag_dtm.vhd: the JTAG TAP and Debug Transport Module, one per chip at assembly level beside the Debug Module and never inside a tile.
-   A 16-state IEEE 1149.1 TAP, a 5-bit IR, four DRs (IDCODE, dtmcs, the 41-bit dmi, BYPASS), the sticky/dmireset machine, and the TCK-to-mclk crossing that turns one DR scan into one DMI transaction.
-   Contract: any unsupported IR selects BYPASS; dtmcs.dmistat is driven and sticky for FAILED as well as BUSY; dtmcs.idle is truthful; an Update-DR of dmi is ignored while dmistat is nonzero; dmihardreset resets TCK-side DTM state but does not force Test-Logic-Reset.
-   TRSTn resets the whole TCK-side DTM, while Test-Logic-Reset resets only the FSM and IR: dmireset exists precisely to clear the sticky flag.
-   ENABLE_DEBUG defaults false and folds the block away; every JTAG input defaults '0' and trstn '0' holds the TAP in reset, so an unconnected DTM is inert and issues nothing. */
+-- VestaRV: JTAG TAP and Debug Transport Module
+-- One per chip at assembly level beside the Debug Module, never inside a tile: a 16-state IEEE 1149.1 TAP, a 5-bit IR, four DRs (IDCODE, dtmcs, the 41-bit dmi, BYPASS), the sticky/dmireset machine, and the TCK-to-mclk crossing that turns one DR scan into one DMI transaction.
+-- Contract: any unsupported IR selects BYPASS; dtmcs.dmistat is driven and sticky for FAILED as well as BUSY; dtmcs.idle is truthful; an Update-DR of dmi is ignored while dmistat is nonzero; dmihardreset resets TCK-side DTM state but does not force Test-Logic-Reset.
+-- TRSTn resets the whole TCK-side DTM, while Test-Logic-Reset resets only the FSM and IR: dmireset exists precisely to clear the sticky flag.
+-- ENABLE_DEBUG defaults false and folds the block away; every JTAG input defaults '0' and trstn '0' holds the TAP in reset, so an unconnected DTM is inert and issues nothing.
 
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;

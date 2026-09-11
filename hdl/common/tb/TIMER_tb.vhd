@@ -1,12 +1,9 @@
-/* -----------------------------------------------------------------------------
-   TIMER_tb.vhd
-   -----------------------------------------------------------------------------
-   Standalone, self-checking testbench for the TIMER peripheral, focused on its four event-fabric taps.
-   evt_compare0 / evt_overflow are toggle producers in the timer_clock domain: they flip ONCE per compare0 match or overflow and are never touched by the flags' W1C clears, so a background monitor counts flips from the exported ports only.
-   task_start / task_stop are one-clk_mem consumer pulses that set or clear control_reg(6) OUTSIDE the en_mem gate, so clk_mem is tied to the free-running reference here; a task beats a coincident CPU CR write, and a coincident start plus stop resolves to STOP.
-   TIMER's ClockMuxGlitchFree defaults to the smclk slice and needs 3 smclk edges to release it, so every group that selects a source polls TIMxVAL until it visibly counts instead of assuming a fixed edge count.
-   Exact-count checks poll until the flip tally reaches the expected value, then disable the timer to freeze timer_clock and confirm the tally did not overshoot.
-   ----------------------------------------------------------------------------- */
+-- VestaRV: TIMER testbench
+-- Standalone, self-checking testbench for the TIMER peripheral, focused on its four event-fabric taps.
+-- evt_compare0 / evt_overflow are toggle producers in the timer_clock domain: they flip ONCE per compare0 match or overflow and are never touched by the flags' W1C clears, so a background monitor counts flips from the exported ports only.
+-- task_start / task_stop are one-clk_mem consumer pulses that set or clear control_reg(6) OUTSIDE the en_mem gate, so clk_mem is tied to the free-running reference here; a task beats a coincident CPU CR write, and a coincident start plus stop resolves to STOP.
+-- TIMER's ClockMuxGlitchFree defaults to the smclk slice and needs 3 smclk edges to release it, so every group that selects a source polls TIMxVAL until it visibly counts instead of assuming a fixed edge count.
+-- Exact-count checks poll until the flip tally reaches the expected value, then disable the timer to freeze timer_clock and confirm the tally did not overshoot.
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -119,10 +116,8 @@ architecture sim of TIMER_tb is
 
 begin
 
-    /* --------------------------------------------------------------------------
-       One free-running reference drives every DUT clock input, the bus clock included.
-       clk_mem must free-run: task_start/task_stop act outside the en_mem gate and have to be observed with the bus idle.
-       -------------------------------------------------------------------------- */
+    -- One free-running reference drives every DUT clock input, the bus clock included.
+    -- clk_mem must free-run: task_start/task_stop act outside the en_mem gate and have to be observed with the bus idle.
     clk      <= not clk after PERIOD / 2;
     mclk     <= clk;
     smclk    <= clk;
@@ -130,9 +125,7 @@ begin
     clk_hfxt <= clk;
     clk_mem  <= clk;
 
-    /* --------------------------------------------------------------------------
-       Continuous flip monitor for the two producer taps.
-       -------------------------------------------------------------------------- */
+    -- Continuous flip monitor for the two producer taps.
     evt_mon_proc : process(clk)
         variable c_lvl, o_lvl : std_logic;
     begin
@@ -159,9 +152,7 @@ begin
         end if;
     end process;
 
-    /* --------------------------------------------------------------------------
-       DUT
-       -------------------------------------------------------------------------- */
+    -- DUT
     dut : component TIMER
         port map (
             mclk         => mclk,
@@ -203,10 +194,8 @@ begin
             task_stop    => task_stop
         );
 
-    /* --------------------------------------------------------------------------
-       Watchdog: abort with a FAIL banner if the stimulus ever hangs.
-       The whole run is a handful of microseconds, so 20 ms is a huge margin.
-       -------------------------------------------------------------------------- */
+    -- Watchdog: abort with a FAIL banner if the stimulus ever hangs.
+    -- The whole run is a handful of microseconds, so 20 ms is a huge margin.
     watchdog : process
     begin
         wait for 20 ms;
@@ -221,9 +210,7 @@ begin
         wait;
     end process;
 
-    /* --------------------------------------------------------------------------
-       stimulus
-       -------------------------------------------------------------------------- */
+    -- stimulus
     stim_proc : process
         variable rdw, rdw2 : std_logic_vector(31 downto 0);
         variable ok        : boolean;
@@ -358,15 +345,11 @@ begin
         end procedure;
 
     begin
-        /* ----------------------------------------------------------------
-           Reset
-           ---------------------------------------------------------------- */
+        -- Reset
         reset_pulse;
 
-        /* ----------------------------------------------------------------
-           GROUP G1: baseline.
-           Select a fast source (CR 9:8=01, mclk) and a small compare0, poll until counting, then confirm the compare0 flag sets.
-           ---------------------------------------------------------------- */
+        -- GROUP G1: baseline.
+        -- Select a fast source (CR 9:8=01, mclk) and a small compare0, poll until counting, then confirm the compare0 flag sets.
         report "=== GROUP G1: baseline (mux-release + compare0 flag) ===" severity note;
         bus_write(clk, pbus, RegSlotTIMxCMP0, x"00000020");   -- compare0 = 32
         bus_write(clk, pbus, RegSlotTIMxCR,   x"00000140");   -- enable(6) + src=01(9:8)=mclk
@@ -375,10 +358,8 @@ begin
         poll_sr_bit(0, '1', 80, ok);
         sb.check_true("G1: compare0 flag (SR bit0) sets (bounded poll)", ok);
 
-        /* ----------------------------------------------------------------
-           GROUP G2: evt_compare0, exactly N toggle flips across N compare events, then zero flips while stopped.
-           Uses the compare2 auto-reset feature (CR bit7) to make compare0 re-lap on a short, bounded period (33 clks) rather than a full 32-bit wrap.
-           ---------------------------------------------------------------- */
+        -- GROUP G2: evt_compare0, exactly N toggle flips across N compare events, then zero flips while stopped.
+        -- Uses the compare2 auto-reset feature (CR bit7) to make compare0 re-lap on a short, bounded period (33 clks) rather than a full 32-bit wrap.
         report "=== GROUP G2: evt_compare0 flip count ===" severity note;
         reset_pulse;
         bus_write(clk, pbus, RegSlotTIMxCMP0, x"00000010");   -- compare0 = 16
@@ -402,10 +383,8 @@ begin
         sb.check_true("G2b: STOPPED timer produces zero evt_overflow flips over the same window",
                       evt_ovf_flips = 0);
 
-        /* ----------------------------------------------------------------
-           GROUP G3: evt_overflow.
-           Set TIMxVAL near wrap through the VAL write path, run to wrap, then confirm exactly one flip and the overflow flag.
-           ---------------------------------------------------------------- */
+        -- GROUP G3: evt_overflow.
+        -- Set TIMxVAL near wrap through the VAL write path, run to wrap, then confirm exactly one flip and the overflow flag.
         report "=== GROUP G3: evt_overflow flip count ===" severity note;
         reset_pulse;
         -- compare0_reg resets to 0, which is exactly the wrap landing value, so leaving it there fires a spurious compare0 match one timer_clock after the wrap.
@@ -428,10 +407,8 @@ begin
         poll_sr_bit(3, '1', 20, ok);
         sb.check_true("G3b: overflow flag (SR bit3) sets", ok);
 
-        /* ----------------------------------------------------------------
-           GROUP G4: task_start / task_stop, the one-clk_mem consumer task pulses.
-           They act outside the en_mem gate, and clk_mem free-runs.
-           ---------------------------------------------------------------- */
+        -- GROUP G4: task_start / task_stop, the one-clk_mem consumer task pulses.
+        -- They act outside the en_mem gate, and clk_mem free-runs.
         report "=== GROUP G4: task_start / task_stop ===" severity note;
         reset_pulse;
         bus_write(clk, pbus, RegSlotTIMxCR, x"00000100");     -- src=01=mclk, enabled=0
@@ -473,10 +450,8 @@ begin
         sb.check_bit("G4e: coincident CPU write (bit6=1) + task_stop -> CR(6)=0 (task wins)",
                      to_X01(rdw(6)), '0');
 
-        /* ----------------------------------------------------------------
-           GROUP G5: discipline, evt_compare0 flips on a match even with the compare0 interrupt ENABLE masked.
-           Producer taps are derived from the flags' SET conditions, never from the post-mask IRQs.
-           ---------------------------------------------------------------- */
+        -- GROUP G5: discipline, evt_compare0 flips on a match even with the compare0 interrupt ENABLE masked.
+        -- Producer taps are derived from the flags' SET conditions, never from the post-mask IRQs.
         report "=== GROUP G5: evt_compare0 independent of the masked IRQ enable ===" severity note;
         reset_pulse;
         bus_write(clk, pbus, RegSlotTIMxCMP0, x"00000020");   -- compare0 = 32
@@ -494,10 +469,8 @@ begin
                      to_X01(rdw(0)), '1');
         bus_write(clk, pbus, RegSlotTIMxCR, x"00000000");     -- disable
 
-        /* ----------------------------------------------------------------
-           GROUP G-NEG: NEGATIVE CONTROL (mandatory, LAST).
-           Exactly ONE deliberately wrong expected value (a wrong compare0 flip count), so the scoreboard proves it can fail.
-           ---------------------------------------------------------------- */
+        -- GROUP G-NEG: NEGATIVE CONTROL (mandatory, LAST).
+        -- Exactly ONE deliberately wrong expected value (a wrong compare0 flip count), so the scoreboard proves it can fail.
         report "=== GROUP G-NEG: NEGATIVE CONTROL ===" severity note;
         reset_pulse;
         bus_write(clk, pbus, RegSlotTIMxCMP0, x"00000008");   -- compare0 = 8
@@ -508,9 +481,7 @@ begin
         sb.check_true("NEGATIVE CONTROL: wrong expected evt_compare0 flip count (must FAIL)",
                       ok and evt_cmp0_flips = 2);
 
-        /* ----------------------------------------------------------------
-           Final verdict: sb.errors must be EXACTLY 1 (the negative control).
-           ---------------------------------------------------------------- */
+        -- Final verdict: sb.errors must be EXACTLY 1 (the negative control).
         wait for 1 us;
         sb.report_summary("TIMER TB");
 

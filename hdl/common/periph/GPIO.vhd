@@ -1,3 +1,9 @@
+-- VestaRV: GPIO port
+-- One parameterised port of num_pins (8, 16 or 32) pins: output, direction, resistor-enable and alternate-function select registers, per-pin edge-select interrupt flags, and a set/clear/toggle alias of PxOUT.
+-- The pad polarity generics say what the pad library's OUT/DIR/REN terminals mean; the register bits are always in positive logic.
+-- PxAFS is 3 bits per pin and selects one of GPIO_NUM_AFS alternate-function planes, flattened so plane k, pin i lives at bit (k * num_pins + i).
+-- Register reset values arrive as 32-bit generics; on a narrower port only the low num_pins bits are used.
+
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;

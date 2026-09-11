@@ -1,9 +1,8 @@
-/* -----------------------------------------------------------------------------
-   dma_bfm_pkg.vhd: bench-support helpers for the DMA controller testbench, providing bus plumbing, register-map constants, config and CR packers, address helpers, bounded SR polls and an independent CRC16-CDMA2000 reference.
-   The slot numbers, CR/SR/CFG field positions and the modeled byte addresses here are LOCAL to this bench, not shared MemoryMap.vhd constants; DMA0 lives at 0x6800.
-   Checker independence: nothing in this package reads a DUT internal, and the CRC reference is built from the same LFSR math as work.CRC16 in SYSTEM0.
-   Bounded polls take (signal clk, signal b, signal read_data, [args], done_ok : out boolean), and the caller turns done_ok into a scoreboard check, so a poll that never satisfies its condition fails the run instead of hanging.
-   ----------------------------------------------------------------------------- */
+-- VestaRV: DMA bench support package
+-- bench-support helpers for the DMA controller testbench, providing bus plumbing, register-map constants, config and CR packers, address helpers, bounded SR polls and an independent CRC16-CDMA2000 reference.
+-- The slot numbers, CR/SR/CFG field positions and the modeled byte addresses here are LOCAL to this bench, not shared MemoryMap.vhd constants; DMA0 lives at 0x6800.
+-- Checker independence: nothing in this package reads a DUT internal, and the CRC reference is built from the same LFSR math as work.CRC16 in SYSTEM0.
+-- Bounded polls take (signal clk, signal b, signal read_data, [args], done_ok : out boolean), and the caller turns done_ok into a scoreboard check, so a poll that never satisfies its condition fails the run instead of hanging.
 
 library ieee;
 use ieee.std_logic_1164.all;

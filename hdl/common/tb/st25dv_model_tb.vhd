@@ -1,12 +1,9 @@
-/* -----------------------------------------------------------------------------
-   st25dv_model_tb.vhd
-   -----------------------------------------------------------------------------
-   Self-checking testbench for st25dv_model.vhd, the ST25DV64KC dynamic NFC tag model: the BENCH is the I2C controller and the MODEL is the slave.
-   The controller is bit-banged here rather than reusing i2c_host_model.vhd, whose 8-byte segment cap carries neither the 2 address + 17 data byte present-password frame nor a device-select-only ACK probe.
-   SCL, SDA and GPO are open-drain nets with a weak 'H' pull: nobody drives an active high, and every sample of a resolved net is to_X01-normalized.
-   Timing is T_HALF = 500 ns plus a T_Q = 125 ns tail after every SCL falling edge, so SDA never changes in the same delta as an SCL edge (a coincident change parses as START/STOP); one bit is 1.125 us, about 890 kHz.
-   G-NEG is the mandatory negative control, so a healthy run reports EXACTLY ONE failure; the RF/ISO-15693 side, memory-area protection and the FTM watchdog are not modelled and are not proven here.
-   ----------------------------------------------------------------------------- */
+-- VestaRV: ST25DV model testbench
+-- Self-checking testbench for st25dv_model.vhd, the ST25DV64KC dynamic NFC tag model: the BENCH is the I2C controller and the MODEL is the slave.
+-- The controller is bit-banged here rather than reusing i2c_host_model.vhd, whose 8-byte segment cap carries neither the 2 address + 17 data byte present-password frame nor a device-select-only ACK probe.
+-- SCL, SDA and GPO are open-drain nets with a weak 'H' pull: nobody drives an active high, and every sample of a resolved net is to_X01-normalized.
+-- Timing is T_HALF = 500 ns plus a T_Q = 125 ns tail after every SCL falling edge, so SDA never changes in the same delta as an SCL edge (a coincident change parses as START/STOP); one bit is 1.125 us, about 890 kHz.
+-- G-NEG is the mandatory negative control, so a healthy run reports EXACTLY ONE failure; the RF/ISO-15693 side, memory-area protection and the FTM watchdog are not modelled and are not proven here.
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -23,7 +20,6 @@ end entity st25dv_model_tb;
 
 architecture sim of st25dv_model_tb is
 
-    ---------------------------------------------------------------------------
     -- Bench-local byte container, deliberately not from i2ct_bfm_pkg: that package's I2CT_MODEL_MAX_BYTES=8 shape does not fit these frames.
     type byte_arr is array (natural range <>) of std_logic_vector(7 downto 0);
 
@@ -129,7 +125,6 @@ architecture sim of st25dv_model_tb is
 
 begin
 
-    ---------------------------------------------------------------------------
     -- Open-drain wired-AND with weak pull-ups.
     scl <= '0' when m_scl_oe = '1' else 'H';
     sda <= '0' when (m_sda_oe = '1' or d_sda_oe = '1') else 'H';
@@ -173,7 +168,6 @@ begin
             obs_rf_off      => obs_rf_off
         );
 
-    ---------------------------------------------------------------------------
     -- GPO falling-edge monitor: gpo_rst clears the count, every falling edge on the resolved net adds one.
     gpo_mon : process (gpo, gpo_rst)
     begin
@@ -184,7 +178,6 @@ begin
         end if;
     end process gpo_mon;
 
-    ---------------------------------------------------------------------------
     -- Stimulus and checks, one thread, groups in order.
     stim : process
         variable ak    : std_logic;
@@ -388,7 +381,6 @@ begin
         end procedure;
 
     begin
-        ------------------------------------------------------------------
         -- G-INIT: power-on and boot state.
         report "=== GROUP G-INIT: reset / boot ===" severity note;
         resetn <= '0';
@@ -404,7 +396,6 @@ begin
         sb.check_bit("G-INIT 5: GPO released (no pending interrupt)", to_X01(gpo), '1');
         sb.check_bit("G-INIT 6: SDA released by the model at idle", to_X01(sda), '1');
 
-        ------------------------------------------------------------------
         -- G-ADDR: both device select codes plus the near misses; the code layout is 1010 E2 E1 E0 R/notW.
         report "=== GROUP G-ADDR: device select codes ===" severity note;
 
@@ -427,7 +418,6 @@ begin
         dev_probe(x"50", okv);
         sb.check_true("G-ADDR 8: 50h (an unrelated EEPROM address) NACKs", not okv);
 
-        ------------------------------------------------------------------
         -- G-SYSRD: read-only device parameter registers; reads need no security session.
         report "=== GROUP G-SYSRD: system read-only registers ===" severity note;
 
@@ -459,7 +449,6 @@ begin
         sb.check_slv("G-SYSRD 11: I2C_CFG factory = 1Ah (code 1010b, E0=1, RFSW disabled)",
                      rd(0), x"1A");
 
-        ------------------------------------------------------------------
         -- G-PWD: system configuration writes and the security session.
         report "=== GROUP G-PWD: security session / configuration write ===" severity note;
 
@@ -520,7 +509,6 @@ begin
         mem_read(DS_SW, DS_SR, 16#0001#, 1, rd, okv);
         sb.check_slv("G-PWD 16: GPO2 unchanged (whole write discarded)", rd(0), x"0C");
 
-        ------------------------------------------------------------------
         -- G-EE: user EEPROM write, write cycle and read back.
         report "=== GROUP G-EE: user EEPROM ===" severity note;
 
@@ -566,7 +554,6 @@ begin
         mem_read(DS_UW, DS_UR, 16#3000#, 1, rd, okv);
         sb.check_slv("G-EE 15: unmapped address 3000h reads FFh", rd(0), x"FF");
 
-        ------------------------------------------------------------------
         -- G-MB: fast transfer mode mailbox.
         report "=== GROUP G-MB: fast transfer mode mailbox ===" severity note;
 
@@ -681,7 +668,6 @@ begin
         mem_read(DS_UW, DS_UR, 16#2006#, 1, rd, okv);
         sb.check_slv("G-MB 29: MB_CTRL_Dyn = 00h once FTM is disabled", rd(0), x"00");
 
-        ------------------------------------------------------------------
         -- G-GPO: GPO_CTRL_Dyn gating of the interrupt output.
         report "=== GROUP G-GPO: GPO output control ===" severity note;
 
@@ -757,7 +743,7 @@ begin
         poll_ready(DS_SW, 2000, tries, okv);
         wait for 400 us;
 
-        /* ----------------------------------------------------------------
+        /*
            G-EH: energy harvesting.
            V_EH has no digital level encoding, so veh_avail_ua only echoes the bench's cfg_veh_ua. */
         report "=== GROUP G-EH: energy harvesting ===" severity note;
@@ -819,7 +805,6 @@ begin
         mem_read(DS_UW, DS_UR, 16#0100#, 1, rd, okv);
         sb.check_slv("G-EE/POR: user EEPROM is nonvolatile across POR", rd(0), x"5A");
 
-        ------------------------------------------------------------------
         -- G-NEG: mandatory negative control, LAST: exactly ONE deliberately wrong expected value, so a healthy run ends with sb.errors = 1.
         report "=== GROUP G-NEG: NEGATIVE CONTROL ===" severity note;
         mem_read(DS_SW, DS_SR, 16#0017#, 1, rd, okv);
@@ -830,7 +815,6 @@ begin
                 severity warning;
         end if;
 
-        ------------------------------------------------------------------
         -- Final verdict: sb.errors must be EXACTLY 1, the negative control.
         wait for 2 us;
         sb.report_summary("ST25DV MODEL TB");

@@ -1,3 +1,7 @@
+-- VestaRV: hart address decoder
+-- Routes a hart's accesses to its private TCM (0x08000-0x0BFFF, RAM0, one per tile), to the peripheral and memory slots, or to extended flash; everything else is the shared window behind mp_arbiter, claimed by the master-side sh_sel.
+-- The extended-flash decode is the strict complement of that sh_sel window and the TCM decode is qualified by the same upper bits, so a wide window cannot alias onto the TCM.
+
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;

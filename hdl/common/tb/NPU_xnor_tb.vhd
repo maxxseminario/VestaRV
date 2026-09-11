@@ -1,9 +1,13 @@
------ VHDL Libraries
--- IEEE Standard Libraries
+-- VestaRV: NPU XNOR/popcount testbench
+-- XNOR/popcount mode (NPUCR.MODE = 2) for the NPU plus its staging-RAM model, at the chip generics (X_M=0, W_M=7, Y_M=7, N=24, RHO=2); the +/-1.0 output words are exact only there.
+-- Cases come from golden files npu_xnor_<case>_{cfg,in,w,exp}.txt, symlinked into the run directory. The cfg header order is fixed: K N THRESH IVSAR WVSAR OVSAR, and NW = ceil(K/32) is derived, not a header field.
+-- NEGCTRL=0 runs clean and banners ALL-PASS on 0 errors; NEGCTRL=1 corrupts one expected value and banners on exactly 1.
+
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 -- Standard libraries
+
 library std;
 use std.standard.all;
 use std.textio.all;
@@ -11,13 +15,6 @@ use std.env.all;
 library work;
 use work.periph_tb_pkg.all;
 
-/* -----------------------------------------------------------------------------
-   NPU_xnor_tb.vhd: XNOR/popcount mode (NPUCR.MODE=2) bench for the NPU plus its staging-RAM model.
-   Runs at the chip generics (X_M=0, W_M=7, Y_M=7, N=24, RHO=2); the +/-1.0 output words are exact only there.
-   Cases are driven from golden files npu_xnor_<case>_{cfg,in,w,exp}.txt, symlinked into the run directory.
-   cfg header order is fixed: K N THRESH IVSAR WVSAR OVSAR; NW = ceil(K/32) is derived, not a header field.
-   NEGCTRL=0 runs clean and banners ALL-PASS on 0 errors; NEGCTRL=1 corrupts one expected value and banners on exactly 1.
-   ----------------------------------------------------------------------------- */
 entity NPU_xnor_tb is
 	generic (
 		NEGCTRL : integer := 0
@@ -436,15 +433,11 @@ begin
 		wait for 1 us;
 		report "[NPU_XNOR_TB] Reset complete." severity note;
 
-		/* --------------------------------------------------------------
-		   Base case runs first after reset with no CFG pokes ahead of it, so its definedness check proves the XNOR registers cannot drive X on the SRAM interface out of cold reset.
-		   Keep it first; it is also the invocation NEGCTRL=1 corrupts.
-		   -------------------------------------------------------------- */
+		-- Base case runs first after reset with no CFG pokes ahead of it, so its definedness check proves the XNOR registers cannot drive X on the SRAM interface out of cold reset.
+		-- Keep it first; it is also the invocation NEGCTRL=1 corrupts.
 		run_xnor_case("base", corrupt_first => (NEGCTRL = 1), check_no_x => true);
 
-		/* --------------------------------------------------------------
-		   NPUCFG1(THRESH)/NPUCFG2(K) readback smoke: the contract is an exact full write/read.
-		   -------------------------------------------------------------- */
+		-- NPUCFG1(THRESH)/NPUCFG2(K) readback smoke: the contract is an exact full write/read.
 		report "[NPU_XNOR_TB] === NPUCFG1/NPUCFG2 readback ===" severity note;
 		mmr_write(MmrAddrNPUCFG1, std_logic_vector(to_signed(-12345, 32)));
 		mmr_read(MmrAddrNPUCFG1, rd);
@@ -456,9 +449,7 @@ begin
 		sb.check_slv("NPUCFG2 readback (K=4096 exact, full 16-bit write/read)", rd,
 		             std_logic_vector(to_unsigned(4096, 32)));
 
-		/* --------------------------------------------------------------
-		   Remaining groups: ordinary file-driven cases.
-		   -------------------------------------------------------------- */
+		-- Remaining groups: ordinary file-driven cases.
 		run_xnor_case("tail40");
 		run_xnor_case("tail40_tailalt");
 		run_xnor_case("tail33");

@@ -1,7 +1,7 @@
--- NOT IN THE CASTALIA BUILD: MCU.vhd:3133-3153 instantiates afe_stub x5, not SARADC/AFE/AFE_FSM, so no harness compiles this bench. Kept as the starting point for the AFE2 peripheral (rev-2 anatop, SAR-only).
-/* AFE_FSM_tb: directed bench for the dual-slope AFE conversion FSM.
-   It runs two conversions: one ended by the comparator (cmp_out) and one left to time out, so both exit paths are exercised.
-   There is no self-checking here; read done, count, sw and result_latch in the waveform. */
+-- VestaRV: AFE dual-slope FSM testbench
+-- NOT IN THE CASTALIA BUILD: MCU.vhd instantiates afe_stub, not SARADC/AFE/AFE_FSM, so no harness compiles this bench. Kept as the starting point for the AFE2 peripheral (rev-2 anatop, SAR-only).
+-- Directed bench for the dual-slope conversion FSM: two conversions, one ended by the comparator and one left to time out, so both exit paths are exercised.
+-- There is no self-checking here; read done, count, sw and result_latch in the waveform.
 
 library ieee;
 use ieee.std_logic_1164.all;

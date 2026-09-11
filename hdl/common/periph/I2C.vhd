@@ -1,17 +1,16 @@
+-- VestaRV: I2C controller
+-- Combined master/slave: memory-mapped registers, open-drain pads and one interrupt line per event.
+-- Bus specification: https://www.nxp.com/docs/en/user-guide/UM10204.pdf
+
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.std_logic_arith.all;
 use ieee.std_logic_unsigned.all;
 library work;
 use work.Constants.all;
--- Word offsets, field ranges, resets and implemented-bit masks, generated from
--- hdl/common/regs/rdl/i2c.rdl (tools/rdl/README.md). It declares the same
--- RegSlotI2Cx* constants work.MemoryMap did, so this REPLACES that clause:
--- using both would make every slot name an ambiguous homograph.
+-- Word offsets, field ranges, resets and implemented-bit masks: generated from hdl/common/regs/rdl/i2c.rdl, which replaces the work.MemoryMap clause (both would make every slot name an ambiguous homograph).
 use work.i2c_regs_pkg.all;
 
--- Combined I2C master/slave peripheral: memory-mapped registers, open-drain pads and one interrupt line per event.
--- I2C specification: https://www.nxp.com/docs/en/user-guide/UM10204.pdf
 
 entity I2C is
 	generic (
@@ -64,7 +63,7 @@ architecture behavioral of I2C is
 	constant mem_assert : std_logic := '0';
 
 
-	---------- Register and Bit Field Signal Declarations ----------
+	-- Register and Bit Field Signal Declarations ----------
 	-- Registers
 	signal I2CxCR		: std_logic_vector(21 downto 0);	-- I2C control register
 	signal I2CxSR		: std_logic_vector(15 downto 0);	-- I2C status register
@@ -129,13 +128,13 @@ architecture behavioral of I2C is
 	signal I2CBS		: std_logic;	-- I2C bus state ('0' = bus idle, '1' = bus active)
 
 
-	---------- Memory Bus Signal Declarations ----------
+	-- Memory Bus Signal Declarations ----------
 	signal MABPartInteger	: natural range 0 to 63;			-- Register slot number decoded from MABPart (0 when this peripheral is not selected)
 	signal rdataPart		: std_logic_vector(21 downto 0);	-- The part of rdata_out that the registers use
 	
 
 
-	---------- I2C Core Signal Declarations ----------
+	-- I2C Core Signal Declarations ----------
 	type MasterState_t is (MasterStateStart1, MasterStateStart2, MasterStateDataTransmitter1, MasterStateDataTransmitter2, MasterStateDataTransmitter3, MasterStateDataTransmitter4, MasterStateAckTransmitter1, MasterStateAckTransmitter2, MasterStateAckTransmitter3, MasterStateAckTransmitter4, MasterStateDataReceiver1, MasterStateDataReceiver2, MasterStateDataReceiver3, MasterStateDataReceiver4, MasterStateAckReceiver1, MasterStateAckReceiver2, MasterStateAckReceiver3, MasterStateAckReceiver4, MasterStateStop1, MasterStateStop2, MasterStateStop3);
 	type SlaveState_t is (SlaveStateAddr, SlaveStateAck, SlaveStateReceiver, SlaveStateTransmitter, SlaveStateNotAddressed);
 	
@@ -190,7 +189,7 @@ architecture behavioral of I2C is
 	
 begin
 
-	---------- Register Signal Routing ----------
+	-- Register Signal Routing ----------
 	-- I2CxCR
 	I2CSPRIE	<= I2CxCR(0);
 	I2CSTRIE	<= I2CxCR(1);
@@ -812,7 +811,7 @@ begin
 
 
 
-	---------- Register Memory Interface ----------
+	-- Register Memory Interface ----------
 	-- Decode the register slot only while this peripheral is selected; otherwise read slot 0.
 	MABPartInteger <= slv2uint(MABPart) when (EnMemPeriph = mem_assert) else 0;
 	

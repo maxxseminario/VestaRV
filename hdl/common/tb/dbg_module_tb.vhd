@@ -1,12 +1,9 @@
-/* =============================================================================
-   dbg_module_tb.vhd
-   =============================================================================
-   Debug Module UNIT bench: it binds entity work.debug_module directly and grades abstractauto (0x18) and the dmstatus havereset lifecycle.
-   The whole source closure is debug_module.vhd, so unlike the MCU-level dbg_dmi_tb this file needs no vendor macro, no boot image and no flash model, and it runs under GHDL.
-   Two models stand in for the rest of the chip: a 128-word shared-window RAM on the master port, and a token-protocol hart that plays the trampoline's half of the FLAGS handshake.
-   The hart model does NOT execute the synthesized abstract body; it publishes the tokens the Debug Module waits on and stamps a COMMAND COUNTER into data0, which is what makes "the command ran again" observable from the DMI side.
-   PASS iff the log prints "ALL CHECKS PASSED" and contains no "CHECK FAILED".
-   ============================================================================= */
+-- VestaRV: Debug Module unit testbench
+-- Debug Module UNIT bench: it binds entity work.debug_module directly and grades abstractauto (0x18) and the dmstatus havereset lifecycle.
+-- The whole source closure is debug_module.vhd, so unlike the MCU-level dbg_dmi_tb this file needs no vendor macro, no boot image and no flash model, and it runs under GHDL.
+-- Two models stand in for the rest of the chip: a 128-word shared-window RAM on the master port, and a token-protocol hart that plays the trampoline's half of the FLAGS handshake.
+-- The hart model does NOT execute the synthesized abstract body; it publishes the tokens the Debug Module waits on and stamps a COMMAND COUNTER into data0, which is what makes "the command ran again" observable from the DMI side.
+-- PASS iff the log prints "ALL CHECKS PASSED" and contains no "CHECK FAILED".
 
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
@@ -146,12 +143,10 @@ begin
             m_rdata => m_rdata
         );
 
-    /* ------------------------------------------------------------------
-       THE REST OF THE CHIP, in one process because the RAM and the hart share the same storage.
-       The bus half answers one master transaction per request with grant and done together, which is the fastest legal shape of the arbiter contract and the one that stresses the DM's own gap cycle.
-       The hart half plays the trampoline's side of the FLAGS handshake: it publishes HALTED after entering debug mode, turns a GO into a DONE, re-enters after the DM has read that DONE, and clears itself on RESUME.
-       Re-entry is triggered by the DM's OWN read of the DONE token rather than by a delay, so the bench cannot race the poll loop and cannot be tuned into passing.
-       ------------------------------------------------------------------ */
+    -- THE REST OF THE CHIP, in one process because the RAM and the hart share the same storage.
+    -- The bus half answers one master transaction per request with grant and done together, which is the fastest legal shape of the arbiter contract and the one that stresses the DM's own gap cycle.
+    -- The hart half plays the trampoline's side of the FLAGS handshake: it publishes HALTED after entering debug mode, turns a GO into a DONE, re-enters after the DM has read that DONE, and clears itself on RESUME.
+    -- Re-entry is triggered by the DM's OWN read of the DONE token rather than by a delay, so the bench cannot race the poll loop and cannot be tuned into passing.
     chip_model: process(clk, resetn)
         type mem_t is array (0 to BAND_W-1) of std_logic_vector(31 downto 0);
         type hstate_t is (H_RUN, H_ENTER, H_IDLE, H_EXEC, H_DONE, H_REENTER);
@@ -407,9 +402,7 @@ begin
         resetn <= '1';
         wait for clk_period * 10;
 
-        /* ==============================================================
-           G1-G3: the havereset lifecycle out of reset, graded BEFORE anything else touches dmcontrol.
-           ============================================================== */
+        -- G1-G3: the havereset lifecycle out of reset, graded BEFORE anything else touches dmcontrol.
         dmi_wr(A_DMCONTROL, dmcontrol_w(0, (others => '0')));
         dmi_rd(A_DMSTATUS, d, rop);
         chk(rop = RSP_OK, "G1a: dmstatus read returns op = success");
@@ -435,9 +428,7 @@ begin
         dmi_rd(A_DMSTATUS, d, rop);
         chk(fld(d, 19, 19) = 0, "G3b: hart 0 acks too, so the board is clean");
 
-        /* ==============================================================
-           A: the abstractauto register shape.
-           ============================================================== */
+        -- A: the abstractauto register shape.
         dmi_rd(A_ABSTAUTO, d, rop);
         chk(rop = RSP_OK and d = x"00000000",
             "A1: abstractauto reads zero out of reset");
@@ -456,10 +447,8 @@ begin
         dmi_rd(A_ABSTAUTO, d, rop);
         chk(d = x"00000000", "A4: abstractauto clears again");
 
-        /* ==============================================================
-           E1: with abstractauto armed but NO command ever accepted, an access must not run anything.
-           The DM has nothing to re-issue, and reporting NOT_SUPPORTED is the visible answer; silently doing nothing would look identical to a broken trigger.
-           ============================================================== */
+        -- E1: with abstractauto armed but NO command ever accepted, an access must not run anything.
+        -- The DM has nothing to re-issue, and reporting NOT_SUPPORTED is the visible answer; silently doing nothing would look identical to a broken trigger.
         dmi_wr(A_ABSTAUTO, x"00000001");
         g0 := go_count;
         dmi_rd(A_DATA0, d, rop);
@@ -471,9 +460,7 @@ begin
         clear_cmderr;
         dmi_wr(A_ABSTAUTO, x"00000000");
 
-        /* ==============================================================
-           Bring hart 0 into debug mode and run one ordinary abstract command, which is the precondition for every autoexec check below.
-           ============================================================== */
+        -- Bring hart 0 into debug mode and run one ordinary abstract command, which is the precondition for every autoexec check below.
         dmi_wr(A_DMCONTROL, dmcontrol_w(0, x"80000000"));   -- haltreq
         for i in 0 to N_BUSY loop
             dmi_rd(A_DMSTATUS, d, rop);
@@ -505,9 +492,7 @@ begin
             "B2: with abstractauto CLEAR, data0 reads trigger nothing -- the "
             & "trigger is the register and not the access");
 
-        /* ==============================================================
-           B3-B5: autoexecdata on data0, which is the burst-read idiom a debugger uses to pull memory out through the program buffer.
-           ============================================================== */
+        -- B3-B5: autoexecdata on data0, which is the burst-read idiom a debugger uses to pull memory out through the program buffer.
         dmi_wr(A_ABSTAUTO, x"00000001");
         g0 := go_count;
         dmi_rd(A_DATA0, d, rop);
@@ -538,9 +523,7 @@ begin
         chk(go_count = g0,
             "B6: clearing abstractauto disarms the trigger again");
 
-        /* ==============================================================
-           C: autoexecprogbuf, one bit per program-buffer word.
-           ============================================================== */
+        -- C: autoexecprogbuf, one bit per program-buffer word.
         dmi_wr(A_ABSTAUTO, x"00010000");
         g0 := go_count;
         dmi_rd(A_PROGBUF0, d, rop);
@@ -563,9 +546,7 @@ begin
         chk(go_count = g0 + 1, "C4: bit 17 arms progbuf1, and only bit 17 does");
         dmi_wr(A_ABSTAUTO, x"00000000");
 
-        /* ==============================================================
-           D: what happens when the debugger touches these registers while a command is still running.
-           ============================================================== */
+        -- D: what happens when the debugger touches these registers while a command is still running.
         dmi_wr(A_ABSTAUTO, x"00000001");
         g0 := go_count;
         -- The re-issue is hundreds of cycles long, so the very next transaction lands inside the busy window.
@@ -594,9 +575,7 @@ begin
             "D2b: ...and the refused access triggered NOTHING, so exactly one "
             & "command ran across the pair");
 
-        /* ==============================================================
-           E2: a standing cmderr suppresses the re-issue, because no abstract command starts while cmderr is set.
-           ============================================================== */
+        -- E2: a standing cmderr suppresses the re-issue, because no abstract command starts while cmderr is set.
         g0 := go_count;
         dmi_rd(A_DATA0, d, rop);
         wait_busy(d2);
@@ -605,9 +584,7 @@ begin
         clear_cmderr;
         dmi_wr(A_ABSTAUTO, x"00000000");
 
-        /* ==============================================================
-           F: abstractauto is DM state, so the DM's own reset must clear it.
-           ============================================================== */
+        -- F: abstractauto is DM state, so the DM's own reset must clear it.
         dmi_wr(A_ABSTAUTO, x"00030001");
         dmi_wr(A_DMCONTROL, x"00000000");        -- dmactive low: reset the DM
         wait for clk_period * 20;
@@ -621,10 +598,8 @@ begin
             "F2: ...and does NOT manufacture a havereset for a hart that "
             & "never reset, because this DM observes hart reset directly");
 
-        /* ==============================================================
-           G4-G8: a hart that resets while the debugger is attached.
-           hart_unavail is "isolated or held in reset", and the power controller un-isolates before it un-resets, so the falling edge of that wire is the reset release.
-           ============================================================== */
+        -- G4-G8: a hart that resets while the debugger is attached.
+        -- hart_unavail is "isolated or held in reset", and the power controller un-isolates before it un-resets, so the falling edge of that wire is the reset release.
         dmi_wr(A_DMCONTROL, dmcontrol_w(1, x"10000000"));   -- start clean on hart 1
         dmi_rd(A_DMSTATUS, d, rop);
         chk(fld(d, 19, 19) = 0, "G4a: hart 1 starts this leg with havereset clear");
@@ -694,9 +669,7 @@ begin
         dmi_rd(A_DMSTATUS, d, rop);
         chk(fld(d, 19, 19) = 0, "G7c: ...and a LATER acknowledge does clear it");
 
-        /* ==============================================================
-           H: the proxy path still behaves, which is the regression the autoexec arming rides on.
-           ============================================================== */
+        -- H: the proxy path still behaves, which is the regression the autoexec arming rides on.
         dmi_wr(A_DATA0, x"5EED0D2A");
         dmi_rd(A_DATA0, d, rop);
         chk(rop = RSP_OK and d = x"5EED0D2A",
@@ -705,10 +678,8 @@ begin
         dmi_rd(A_DATA0, d, rop);
         chk(d = x"A5A5F00D", "H1b: ...and a SECOND value, so H1a is no constant");
 
-        /* ==============================================================
-           I: the re-issue re-checks that the hart is STILL HALTED, which is the guard a burst left armed across a resume runs into.
-           Done last, because it ends with hart 0 running.
-           ============================================================== */
+        -- I: the re-issue re-checks that the hart is STILL HALTED, which is the guard a burst left armed across a resume runs into.
+        -- Done last, because it ends with hart 0 running.
         dmi_wr(A_DMCONTROL, dmcontrol_w(0, x"40000000"));   -- resumereq
         for i in 0 to N_BUSY loop
             dmi_rd(A_DMSTATUS, d, rop);

@@ -1,44 +1,16 @@
-/* =============================================================================
-   AFE2.vhd: one analog front-end site of the Castalia rev-2 AFE. Register file for the 50 control bits of anatop_pixel plus the SAR converter sequencer, one instance per site, page-2 sub-slots 12-15 (0x6C00 + 0x100*site).
-   Native arbiter slave (afe_stub shape): one-cycle active-high en, byte lanes we, word address addr(5:0), registered read, s_master ownership gate (OWNER_HART or MGMT_HART; a denied read returns 0, a denied write is dropped). Reads never mutate state: the result FIFO is popped by a write-1 to SR.DRDY.
-   The digital side presents 1.0 V CMOS; the 1.0 V to 2.5 V level shifters for ctl live inside the analog macro (anatop_quad). SARADC_clk/rst/rdy/d are 1.0 V pins of the converter and need none.
-
-   ctl(49:0), symbol order of anatop_pixel, MSB first:
-     49:44 ResEn<5:0>   43:40 ThEn<3:0>   39:28 A_Dac_Vp<11:0>   27 En_Dac_Vp   26:15 A_Dac_Vcm<11:0>   14 En_Dac_Vcm   13:8 Bias_Adj<5:0>   7:4 SARADC_SEL<3:0>   3:0 ATP_SEL<3:0>
-
-   Register map (word offset; addr(5:0) decoded, words 9-63 read 0):
-     0x0 CR     RW  [0] EN sequencer enable (SARADC_rst = not EN) [1] CONT continuous [2] START (W1, self-clearing) [3] SYNC broadcast trigger (W1, self-clearing) [4] SYNCEN start on trig_in [5] DRDYIE [6] ERRIE [7] SWAPEN [11:8] SAMPLESTEP (reset 7) [15:12] CLKDIV
-     0x1 SR     RW  [0] BUSY [1] DRDY FIFO not empty, W1 = pop [2] OVF W1C [3] REL converter released and quiet elapsed [4] TO missed READY, W1C [11:8] CNT FIFO occupancy
-     0x2 DATA   RO  [9:0] code, bit 9 already inverted (code = raw xor 0x200) [13:10] SARADC_SEL at the aperture [14] swap phase at the aperture [15] VALID
-     0x3 TIA    RW  [5:0] RESEN [9:6] THEN
-     0x4 DACVP  RW  [11:0] VP [12] EN
-     0x5 DACVCM RW  [11:0] VCM [12] EN
-     0x6 BIAS   RW  [5:0] BIASADJ
-     0x7 MUX    RW  [3:0] ADCSEL [7:4] ATPSEL
-     0x8 SWAP   RW  [11:0] VP2 [31:16] PERIOD half period in conversions minus 1
-   Reset: all zero except CR.SAMPLESTEP = 7 and SARADC_rst = 1.
-
-   Converter protocol (firmware contract section 4, SIM_STATUS 2.4): trigger clock f_sar = f_mclk / (2*(CLKDIV+1)); at CLKDIV = 0 a 40 MHz mclk gives the characterised 20 MHz, a 24 MHz mclk gives 12 MHz (slower is within the macro's synchronous design margin, faster than 20 MHz is uncharacterised). One conversion is 16 + SAMPLESTEP ticks: idle, clear (1 high tick), low, sample (1 + SAMPLESTEP high ticks), low, ten conversion pulses (one falling edge per bit trial), one low tick; 23 ticks = 1.150 us at 20 MHz with SAMPLESTEP = 7. Twelve falling edges per conversion. The output is a flop, so the gated clock is glitch-free by construction.
-   READY: the macro raises SARADC_rdy after the tenth conversion falling edge and the bus is valid for about 100 ns around it. Data is captured on the mclk edge after the one that first samples READY high, 1 to 2 mclk periods (25 to 50 ns at 40 MHz) after the rise. The macro's data hold after READY is unmeasured; the assumption coded here is hold >= 2 mclk periods (see the F7 report).
-   Release: SARADC_rst deasserts when CR.EN is set and the sequencer accepts a start only after QUIET_CYCLES of mclk (128 = 3.2 us at 40 MHz; the contract asks for 2 us).
-   Simultaneous sampling: CR.SYNC pulses trig_out for one mclk; MCU.vhd ORs the four trig_out lines into every site's trig_in, and a site with CR.SYNCEN set starts on it. Sites sharing CLKDIV then run tick-aligned.
-   Swap engine: with CR.SWAPEN and CR.CONT set, A_Dac_Vp alternates between DACVP.VP and SWAP.VP2 every PERIOD + 1 conversions, toggling at a conversion boundary, so the excitation and the converter strobe share one divider (contract rule R8). 45 flops.
-   ============================================================================= */
+-- VestaRV: AFE site controller
+-- Register file for the 50 anatop_pixel control bits and the SAR conversion sequencer; one instance per site at 0x6C00 + 0x100*site.
+-- Native arbiter slave (afe_stub shape), single mclk domain, s_master gated to OWNER_HART or MGMT_HART: a denied read returns 0, a denied write is dropped. Reads never mutate state; the result FIFO pops on a write-1 to SR.DRDY.
+-- Converter: f_sar = f_mclk / (2*(CLKDIV+1)), one conversion 16 + SAMPLESTEP ticks. Above 20 MHz is uncharacterised, and the capture timing assumes the macro holds its data bus for at least 2 mclk after READY.
+-- Sites sharing CLKDIV sample together: CR.SYNC pulses trig_out, MCU.vhd ORs the four trig_out lines into every trig_in, and CR.SYNCEN starts on it.
+-- ctl is 1.0 V CMOS; the 1.0 V to 2.5 V level shifters live inside anatop_quad.
 
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
--- SystemRDL level 2 (2026-09-10, report R6). The word offsets, the field ranges,
--- the implemented-bit table and the reset table are no longer declared here: they
--- are GENERATED from hdl/common/regs/rdl/afe2.rdl into afe2_regs_pkg.vhd, which
--- exports them under the same identifiers this decode always used (W_*, NSTORED,
--- reg_arr_t, IMPL, RSTVAL) plus <FIELD>_MSB/_LSB. Nothing below moved; the block
--- of constants that used to sit in the declarative part was deleted and this
--- context clause put in its place. The description is graded against this file by
--- //platform/common:rdl_vs_vhdl_afe2_test, the package against the constants it
--- replaced by //platform/common:rdl_pkg_vs_legacy_test.
--- ANY FLOW THAT READS THIS FILE MUST ANALYSE afe2_regs_pkg.vhd FIRST.
+-- Word offsets, field ranges, implemented-bit and reset tables: generated from
+-- hdl/common/regs/rdl/afe2.rdl; analyse afe2_regs_pkg.vhd before this file.
 use work.afe2_regs_pkg.all;
 
 entity AFE2 is
@@ -77,13 +49,11 @@ end entity;
 
 architecture rtl of AFE2 is
 
-    -- W_CR .. W_SWAP, NSTORED, reg_arr_t, IMPL and RSTVAL come from
-    -- afe2_regs_pkg (generated from afe2.rdl). IMPL is the implemented-bit mask
-    -- per stored word -- unimplemented bits hold no flop and read 0, and CR bits
-    -- 2 and 3 (START, SYNC) are pulses, so AFExCR_IMPL clears them and
-    -- AFExCR_SINGLEPULSE names them. RSTVAL carries MUX.ATPSEL = 0xF: the
-    -- anatop_quad ATP grant is NOT(AND4(ATP_SEL)), so 0xF parks every site off
-    -- the shared test pads at reset (F13, 2026-09-05).
+    -- IMPL is the implemented-bit mask per stored word; unimplemented bits hold no
+    -- flop and read 0. CR.START and CR.SYNC are pulses, so AFExCR_IMPL clears them
+    -- and AFExCR_SINGLEPULSE names them. RSTVAL carries MUX.ATPSEL = 0xF because
+    -- the anatop_quad ATP grant is NOT(AND4(ATP_SEL)): 0xF parks every site off
+    -- the shared test pads at reset.
 
     signal regs      : reg_arr_t;
     signal rdata_reg : std_logic_vector(31 downto 0);

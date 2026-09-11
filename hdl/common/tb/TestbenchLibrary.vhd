@@ -1,5 +1,6 @@
--- Shared testbench helper procedures: memory access, clock waiting, and UART character/string traffic.
--- Simulation only, never synthesized.
+-- VestaRV: testbench helper library
+-- Shared procedures for memory access, clock waiting and UART character/string traffic. Simulation only, never synthesized.
+
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.std_logic_arith.all;

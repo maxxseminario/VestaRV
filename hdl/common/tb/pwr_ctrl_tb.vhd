@@ -1,9 +1,8 @@
-/* Unit proof for the power controller: the per-tile MTCMOS sequencers plus the PGOOD/field boot gate and strap self-arm.
-   It drives the arbiter slave port directly: en is a one-cycle strobe, we is the active-high lane vector, addr is a word offset, and the registered read is valid the cycle after the strobe.
-   It also drives the three async pad inputs (pgood_pad, strap_pad, field_detect), which are 2-FF synchronized inside the DUT.
-   Self-checking: every check reports and keeps going, and the bench ends with ALL TESTS PASSED or TB FAILED.
-   Runs standalone against pwr_ctrl.vhd through xcelium/mp_test/run_pwr_ctrl.sh and under bazel as //hdl/common/tb:pwr_ctrl_tb.
-   Two shapes matter: the small-delay sweep (T_SEQ=2, T_RAIL=8, STRAP_SETTLE=8) that keeps the sim short, and the SHIPPED shape NHARTS=5, T_SEQ=4, T_RAIL=256 that MCU.vhd:3030 instantiates. The poll guard scales with the generics so both hold. */
+-- VestaRV: power controller testbench
+-- Unit proof for the per-tile MTCMOS sequencers plus the PGOOD/field boot gate and strap self-arm.
+-- It drives the arbiter slave port directly (en is a one-cycle strobe, we the active-high lane vector, addr a word offset, the registered read valid the cycle after the strobe) and the three async pad inputs pgood_pad, strap_pad and field_detect, which are 2-FF synchronized inside the DUT.
+-- Self-checking: every check reports and keeps going, and the bench ends with ALL TESTS PASSED or TB FAILED.
+-- Two shapes matter: the small-delay sweep (T_SEQ=2, T_RAIL=8, STRAP_SETTLE=8) that keeps the sim short, and the SHIPPED shape NHARTS=5, T_SEQ=4, T_RAIL=256 that MCU.vhd instantiates. The poll guard scales with the generics so both hold.
 
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;

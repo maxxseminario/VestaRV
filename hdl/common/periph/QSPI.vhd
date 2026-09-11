@@ -1,19 +1,17 @@
+-- VestaRV: quad-SPI controller
+-- One transaction at a time, CS0 only; a write to CMD is the sole transaction trigger.
+-- Transfer FSM is IDLE, CMD, ADDR, DUMMY, DATA, DONE, with zero-length phases skipped by construction.
+-- Registered read path, two-chained-ClkGate baud divider and write clear-pulse retirement follow SPI.vhd's idioms.
+
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.std_logic_arith.all;
 use ieee.std_logic_unsigned.all;
 library work;
 use work.constants.all;
--- Word slots inside this peripheral's 256B window (decoded from MABPart(7:2)),
--- field ranges, resets and implemented-bit masks, generated from
--- hdl/common/regs/rdl/qspi.rdl (tools/rdl/README.md). QSPI is not in
--- MemoryMap.vhd; SLOT_CR .. SLOT_SR were file-local constants until then.
+-- Word slots, field ranges, resets and implemented-bit masks: generated from hdl/common/regs/rdl/qspi.rdl.
 use work.qspi_regs_pkg.all;
 
-/* QSPI: quad-SPI controller peripheral, one transaction at a time, CS0 only.
-   Registers CR/CMD/ADR/TX/RX/SR occupy word slots 0 to 5 of this peripheral's 256B window; a write to CMD is the sole transaction trigger.
-   Transfer FSM is IDLE, CMD, ADDR, DUMMY, DATA, DONE, back to IDLE, with zero-length phases skipped by construction.
-   Registered read path, two-chained-ClkGate baud divider and write clear-pulse retirement follow the same idioms as SPI.vhd. */
 
 entity QSPI is
     port (
@@ -161,7 +159,7 @@ architecture behavioral of QSPI is
 
 begin
 
-    --------------------- Signal routing ---------------------
+    -- Signal routing ---------------------
     q_en    <= QSPIxCR(0);
     q_cmdw  <= QSPIxCR(2 downto 1);
     q_adrw  <= QSPIxCR(4 downto 3);
@@ -194,7 +192,7 @@ begin
     -- Baud clock gating: qspi_en and either busy or the launch pulse, because the launch must spin the baud clock up BEFORE busy itself transitions.
     en_clk_baud_src <= q_en and (busy or qspi_launch);
 
-    ---------------------End signal routing ---------------------
+    --End signal routing ---------------------
 
     -- First of the two chained ClkGates: the gated source clock the reload counter runs on.
     cg_clk_baud_src: entity work.ClkGate
@@ -235,7 +233,7 @@ begin
         end if;
     end process;
 
-    --------------------------  Memory logic ---------------------------
+    --  Memory logic ---------------------------
     qspi_slot <= slv2uint(MABPart) when EnMemPeriph = '0' else 0;
 
     -- Register write process, byte-lane qualified by WEn (active low).

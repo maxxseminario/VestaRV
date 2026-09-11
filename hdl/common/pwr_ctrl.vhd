@@ -1,32 +1,15 @@
-/* POWER CONTROLLER for the switchable hart-tile domains: an arbiter slave at page-0 slot 11 (0x4B00) holding one gate-request bit per tile hart plus a per-tile FSM that drives the tile's MTCMOS controls in the only legal order.
-   GATE (PWRCR bit h := 1) is iso_en=1, then rstn=0, then sleep=1 (rail off); WAKE (bit h := 0) is sleep=0, then T_RAIL settle, then iso_en=0, then rstn=1.
-   Hart 0, the management hart owning SPI boot, the console and the CLINT, is ALWAYS-ON: its PWRCR bit reads 0 and ignores writes, and its tile instance ties the pd_* ports inactive at the top level.
-   COLD-GATE CONTRACT, no retention: a gated tile loses ALL state and pd_rstn accompanies the power sequence on BOTH edges, so the domain is held in reset while unpowered and while its rail ramps; on wake the tile re-runs the ROM boot and the management hart relaunches it.
-   Bus contract: active-high one-cycle en strobe, 4 active-high byte-lane strobes we (resv-gated in MCU.vhd), 1-cycle registered read, free-running mclk; it resets all-ON, so the block is a NO-OP until software sets a PWRCR bit. */
-
--- SOFTWARE CONTRACT: gate only a PARKED or otherwise quiesced tile; a violation cannot deadlock the hardware (a clamped or reset req is a released req to the wait-for-release arbiter, and a pinned AMO lock drops the same way) but destroys the tile's in-flight work.
--- A gate request taken mid-sequence completes the sequence and only then honors the new request: no mid-sequence aborts, and PWRSR shows the state.
-
--- Reset values EQUAL the clamp values: the tile's outbound boundary registers reset to 0 and sh_req is qualified by the tile's resetn, so a reset-held tile is bus-silent, exactly like the isolation clamp-0 the arbiter sees when the domain is really off.
--- Reset is therefore the honest sim model of the power cycle; electrically the HEAD switch fabric and the isolation boundary clamps inserted by the CPF flow do the real work.
-
-/* REGISTERS (word offsets in the 256B slot; only addr(3:0) decoded):
-     +0x0   PWRCR    RW  bits NHARTS-1:1 GATE[h], 1 = power-gate tile h, 0 = run; bit 0 RO 0 (hart 0). Byte-lane-0-qualified, so use full-word stores; the gate bits are ONE field even when they span lanes.
-     +0x4.. PWRSR0..ceil(NHARTS/8)-1  RO  4-bit state nibble per hart, 8 harts per word: hart h in PWRSR(h/8) at (4*(h mod 8)+3 downto 4*(h mod 8)). 0=ON 1=ISO 2=RSTOFF 3=OFF 4=RAIL 5=UNISO; hart 0 nibble reads 0.
-     +0x14  PWRWAKE  RW  reset 0: bit 0 GATE_EN (arm the boot gate), 1 RLS_PGOOD, 2 RLS_FIELD, 3 SW_RELEASE, 4 REHOLD (re-hold on a release-condition drop; 0 = one-shot latched release). Byte-lane-0-qualified.
-     +0x18  PWRSTS   RO  bit 0 PGOOD_LIVE, 1 FIELD_LIVE, 2 STRAP (1 = harvested boot), 3 STRAP_VALID, 4 BOOT_HOLD, 5 RLS_LATCHED.
-     +0x1C  TASKWKM  RW  event-fabric task-wake mask, one bit per gateable tile.
-   PWRWAKE, PWRSTS and TASKWKM sit at FIXED words 5/6/7, above PWRSR's worst case (NSRW <= 4 at NHARTS <= 32), so the map is NHARTS-independent. */
-
--- FIELD-POWER BOOT GATE (hold-in-reset): pgood_rstn, reset value '1' meaning release, is ANDed into EVERY hart's outer reset at the top level, hart 0 included.
--- A held hart issues no sh_req, so the arbiter sees the bus silence pd_rstn already guarantees; tying pgood_pad='1', strap_pad='0' and field_detect='0' makes the whole gate a NO-OP.
+-- VestaRV: power controller
+-- Arbiter slave at page-0 slot 11 (0x4B00) holding one gate-request bit per tile hart, plus a per-tile FSM driving the tile's MTCMOS controls in the only legal order. GATE (PWRCR bit h := 1) is iso_en=1, then rstn=0, then sleep=1; WAKE (bit h := 0) is sleep=0, then T_RAIL settle, then iso_en=0, then rstn=1.
+-- Hart 0, the management hart owning SPI boot, the console and the CLINT, is ALWAYS-ON: its PWRCR bit reads 0 and ignores writes, and its tile instance ties the pd_* ports inactive at the top level.
+-- Cold gate, NO RETENTION: a gated tile loses all state, and pd_rstn accompanies the power sequence on BOTH edges, so the domain is held in reset while unpowered and while its rail ramps; on wake the tile re-runs the ROM boot and the management hart relaunches it. Software must gate only a parked or quiesced tile: a violation cannot deadlock the hardware but destroys the tile's in-flight work. A gate request taken mid-sequence completes the sequence first, and PWRSR shows the state.
+-- Reset values EQUAL the clamp values: the tile's outbound boundary registers reset to 0 and sh_req is qualified by the tile's resetn, so a reset-held tile is bus-silent, exactly like the isolation clamp the arbiter sees when the domain is really off. Reset is therefore the honest sim model of the power cycle; the HEAD switch fabric and the CPF-inserted boundary clamps do the electrical work.
+-- Field-power boot gate: pgood_rstn, reset '1' meaning release, is ANDed into EVERY hart's outer reset at the top level, hart 0 included; tying pgood_pad = '1', strap_pad = '0' and field_detect = '0' makes the whole gate a no-op. Bus is active-high one-cycle en, four resv-gated byte lanes, 1-cycle registered read on free-running mclk, and it resets all-ON, so the block is a no-op until software sets a PWRCR bit.
 
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.STD_LOGIC_ARITH.ALL;
 use IEEE.STD_LOGIC_UNSIGNED.ALL;
--- Word offsets, field ranges and resets, generated from hdl/common/regs/rdl/pwr_ctrl.rdl
--- (tools/rdl/README.md); the former local constants moved there unchanged.
+-- Word offsets, field ranges and resets: generated from hdl/common/regs/rdl/pwr_ctrl.rdl.
 use work.pwr_ctrl_regs_pkg.all;
 
 entity pwr_ctrl is
@@ -81,14 +64,10 @@ architecture behav of pwr_ctrl is
     constant NSRW : natural := (NHARTS + 7) / 8;
 
     /* PD_HI is the per-tile-row high index, FLOORED AT 1 so the range is never null.
-       At NHARTS = 1 there are no gateable rows and NHARTS-1 downto 1 is 0 downto 1, an empty range.
-       An empty range is legal VHDL and it SIMULATES, which is why the single-hart chip elaborates and boots; it is synthesis that rejects it, in two separate ways.
-       A PORT with an empty range is refused outright (Genus CDFG-235), and an `others` aggregate assigned to an empty-range target leaves the tool unable to infer the aggregate's bounds (Genus CDFG-252).
-       maximum() is the VHDL-2008 std.standard function and both toolchains here read 2008 (ghdl --std=08, genus hdl_vhdl_read_version 2008).
-       For every NHARTS >= 2 PD_HI is exactly NHARTS-1, so every declaration below is unchanged on every multi-hart configuration.
+       At NHARTS = 1 there are no gateable rows and NHARTS-1 downto 1 is an empty range: legal VHDL that SIMULATES, which is why the single-hart chip elaborates and boots, but synthesis rejects it two separate ways. A PORT with an empty range is refused outright (Genus CDFG-235), and an `others` aggregate assigned to an empty-range target leaves the tool unable to infer the aggregate's bounds (CDFG-252).
+       For every NHARTS >= 2 PD_HI is exactly NHARTS-1, so every declaration below is unchanged on every multi-hart configuration. maximum() is the VHDL-2008 std.standard function and both toolchains here read 2008.
        EVERY per-tile-row object below carries PD_HI, including the PWRCR gate_req and TASKWKM task_wkm vectors and the rdata_reg/wdata slices they exchange bits with, because Genus cannot bound a null slice of a constant either and a half-floored block does not elaborate.
-       THE ONE VISIBLE CONSEQUENCE, and it is at NHARTS = 1 only: PWRCR bit 1 and TASKWKM bit 1 become read/write scratch bits instead of reading back reserved zero.
-       No hardware acts on them, because every consumer is a `for h in 1 to NHARTS-1` loop that runs zero times, so the bits drive nothing and the always-on hart 0 is unaffected. */
+       The one visible consequence, at NHARTS = 1 only: PWRCR bit 1 and TASKWKM bit 1 become read/write scratch bits instead of reading back reserved zero. No hardware acts on them, because every consumer is a `for h in 1 to NHARTS-1` loop that runs zero times. */
     constant PD_HI : natural := maximum(NHARTS-1, 1);
 
     -- FSM state encodings, identical to the PWRSR nibble values documented above.

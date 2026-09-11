@@ -1,12 +1,9 @@
-/* -----------------------------------------------------------------------------
-   ptx30w_model_tb.vhd
-   -----------------------------------------------------------------------------
-   Self-checking testbench for ptx30w_model.vhd, the PTX30W NFC wireless-charging listener model.
-   The bench is the I2C master talking to the target at address 0x4B, and it also drives the analog environment (RF field, harvested power, loads, NTC) and the NFC poller behind the Transparent Data Channel.
-   Checker independence: master timing comes from this file's SCL_HALF, HIP frames are built and parsed byte by byte, and CRC_B is recomputed by the local crc_b_tb rather than the model's function.
-   SCL and SDA are single resolved nets with a weak 'H' pull-up: master and model are open drain and only ever pull low, and every sample is normalised through to_X01.
-   A healthy run ends with EXACTLY ONE failure, the mandatory negative control, and reports "PTX30W_TB PASS".
-   ----------------------------------------------------------------------------- */
+-- VestaRV: PTX30W model testbench
+-- Self-checking testbench for ptx30w_model.vhd, the PTX30W NFC wireless-charging listener model.
+-- The bench is the I2C master talking to the target at address 0x4B, and it also drives the analog environment (RF field, harvested power, loads, NTC) and the NFC poller behind the Transparent Data Channel.
+-- Checker independence: master timing comes from this file's SCL_HALF, HIP frames are built and parsed byte by byte, and CRC_B is recomputed by the local crc_b_tb rather than the model's function.
+-- SCL and SDA are single resolved nets with a weak 'H' pull-up: master and model are open drain and only ever pull low, and every sample is normalised through to_X01.
+-- A healthy run ends with EXACTLY ONE failure, the mandatory negative control, and reports "PTX30W_TB PASS".
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -23,27 +20,23 @@ end entity ptx30w_model_tb;
 
 architecture sim of ptx30w_model_tb is
 
-    ---------------------------------------------------------------------------
     -- Bench-owned timing, never derived from the model.
     constant SCL_HALF : time := 500 ns;                       -- 1 MHz, the fCLK_I2C max
     constant PWR_TICK : time := 20 us;                        -- must match the DUT generic
     constant DEV_ADDR : std_logic_vector(6 downto 0) := "1001011";  -- 0x4B
 
-    ---------------------------------------------------------------------------
     -- Resolved open-drain bus.
     signal sda, scl : std_logic;
     signal m_sda_oe : std_logic := '0';
     signal m_scl_oe : std_logic := '0';
     signal d_sda_oe, d_scl_oe, d_sda_out, d_scl_out : std_logic;
 
-    ---------------------------------------------------------------------------
     -- Device pins.
     signal irq     : std_logic;
     signal gpo0_oe : std_logic;
     signal gpo1_oe : std_logic;
     signal sm_n    : std_logic := '1';
 
-    ---------------------------------------------------------------------------
     -- Bench-driven environment: RF field, harvested power, rail loads and NTC.
     signal rf_field     : boolean := false;
     signal rf_mw        : natural := 0;
@@ -56,7 +49,6 @@ architecture sim of ptx30w_model_tb is
     signal bat_conn     : boolean := true;
     signal poller_ctl   : std_logic := '0';
 
-    ---------------------------------------------------------------------------
     -- Reported state.
     signal vdmcu_good : std_logic;
     signal vdmcu_mv   : natural;
@@ -69,7 +61,6 @@ architecture sim of ptx30w_model_tb is
     signal bod_reset  : std_logic;
     signal shipping   : std_logic;
 
-    ---------------------------------------------------------------------------
     -- TDC poller-side stimulus and observation.
     signal pol_go    : std_logic := '0';
     signal pol_len   : natural := 0;
@@ -87,7 +78,6 @@ architecture sim of ptx30w_model_tb is
 
     shared variable sb : scoreboard;
 
-    ---------------------------------------------------------------------------
     -- Independent CRC_B (ISO/IEC 14443-3 Type B), written from the standard and deliberately not shared with the model's ptx_crc_b.
     function crc_b_tb(d : ptx_byte_array; n : natural) return std_logic_vector is
         variable r : unsigned(15 downto 0) := x"FFFF";
@@ -121,12 +111,10 @@ architecture sim of ptx30w_model_tb is
 
 begin
 
-    ---------------------------------------------------------------------------
     -- Wired-AND bus with the board's weak I2C pull-ups.
     sda <= '0' when (m_sda_oe = '1' or d_sda_oe = '1') else 'H';
     scl <= '0' when (m_scl_oe = '1' or d_scl_oe = '1') else 'H';
 
-    ---------------------------------------------------------------------------
     -- DUT: battery capacity and power tick are scaled down from the physical values so a full trickle, CC, CV, done charge fits inside a simulation.
     dut : entity work.ptx30w_model
         generic map (
@@ -188,11 +176,9 @@ begin
         );
 
 
-    ---------------------------------------------------------------------------
     -- Single stimulus and checking thread: drives the I2C master, the analog environment and the poller side, scoring each group in order.
     stim : process
 
-        ----------------------------------------------------------------
         -- I2C master primitives, all open drain: pull low or release.
         procedure sda_low is begin m_sda_oe <= '1'; end procedure;
         procedure sda_rel is begin m_sda_oe <= '0'; end procedure;
@@ -371,7 +357,6 @@ begin
             rlen := n;
         end procedure;
 
-        ----------------------------------------------------------------
         -- Convenience wrappers used by several groups.
         variable pay  : ptx_msg_t := (others => (others => '0'));
         variable resp : ptx_msg_t := (others => (others => '0'));
@@ -427,9 +412,7 @@ begin
         report "=== ptx30w_model_tb start ===" severity note;
         wait for 2 us;
 
-        /* ----------------------------------------------------------------
-           G-STBY: with no RF field the part runs off the battery in standby, so the FIRST addressed transfer is address-NACKed but arms a 100 ms wake window.
-           ---------------------------------------------------------------- */
+        -- G-STBY: with no RF field the part runs off the battery in standby, so the FIRST addressed transfer is address-NACKed but arms a 100 ms wake window.
         report "=== G-STBY: standby address NACK + wake window ===" severity note;
         i2c_start;
         addr_phase(DEV_ADDR, '0', ack);
@@ -444,9 +427,7 @@ begin
         i2c_stop;
         sb.check_bit("G-STBY: retry inside the 100 ms wake window is ACKed", ack, '1');
 
-        /* ----------------------------------------------------------------
-           G-ADDR: 7-bit address match; from here on the RF field is present, so the part stays in normal mode.
-           ---------------------------------------------------------------- */
+        -- G-ADDR: 7-bit address match; from here on the RF field is present, so the part stays in normal mode.
         report "=== G-ADDR: I2C address match / NACK ===" severity note;
         rf_field <= true;
         rf_mw    <= 0;
@@ -467,9 +448,7 @@ begin
         i2c_stop;
         sb.check_bit("G-ADDR: address 0x4B with RnW=1 is ACKed", ack, '1');
 
-        /* ----------------------------------------------------------------
-           G-RSS: Read System Status, the reference HIP round trip S,AW,00,02,20,14,Sr,AR,00,15,20,...
-           ---------------------------------------------------------------- */
+        -- G-RSS: Read System Status, the reference HIP round trip S,AW,00,02,20,14,Sr,AR,00,15,20,...
         report "=== G-RSS: HIP Read System Status round trip ===" severity note;
         pay(0) := x"14";                        -- N = 20 bytes
         hip_cmd(PTX_OP_RSS, false, false, pay, 1, false, false, aack);
@@ -534,9 +513,7 @@ begin
         sb.check_slv("G-RSS: short frame stores NAK 0x02 (invalid length)",
                      obs_last_nak, PTX_NAK_LEN);
 
-        /* ----------------------------------------------------------------
-           G-CRC: the optional FCB.CRC field, CRC_B over LEN+FCB+payload, checked against this bench's own implementation.
-           ---------------------------------------------------------------- */
+        -- G-CRC: the optional FCB.CRC field, CRC_B over LEN+FCB+payload, checked against this bench's own implementation.
         report "=== G-CRC: FCB.CRC frames ===" severity note;
         pay(0) := x"04";                        -- N = 4
         hip_cmd(PTX_OP_RSS, false, true, pay, 1, false, false, aack);
@@ -557,9 +534,7 @@ begin
         sb.check_slv("G-CRC: corrupted command CRC stores NAK 0x03",
                      obs_last_nak, PTX_NAK_CRC);
 
-        /* ----------------------------------------------------------------
-           G-IRQ: a WMSG carrying an NSC command produces a response in the output buffer, IRQ rises, RML gives the length, RMSG reads it and IRQ falls.
-           ---------------------------------------------------------------- */
+        -- G-IRQ: a WMSG carrying an NSC command produces a response in the output buffer, IRQ rises, RML gives the length, RMSG reads it and IRQ falls.
         report "=== G-IRQ: IRQ assert / RML / RMSG / IRQ clear ===" severity note;
         sb.check_bit("G-IRQ: IRQ idle low before any message", irq, '0');
 
@@ -605,9 +580,7 @@ begin
         n := to_nat(resp(3)) * 256 + to_nat(resp(4));
         sb.check_true("G-IRQ: RML reports ML = 0 with nothing pending", n = 0);
 
-        /* ----------------------------------------------------------------
-           G-NSC: NSC_GET_PARAM_RSP contents against the model's own reported state, plus the ADC decode.
-           ---------------------------------------------------------------- */
+        -- G-NSC: NSC_GET_PARAM_RSP contents against the model's own reported state, plus the ADC decode.
         report "=== G-NSC: NSC_GET_PARAM RD parameter block ===" severity note;
         pay(0) := PTX_NSC_GET_PARAM;
         nsc_send(pay, 1, ack);
@@ -652,9 +625,7 @@ begin
         sb.check_slv("G-NSC: unknown WR parameter ID gives EC 0x02",
                      resp(1), PTX_EC_PARAM);
 
-        /* ----------------------------------------------------------------
-           G-TDCP: poller to host, 70 bytes into the 64-byte TDC_BUF_POL (H1 + 63 data), so it must chunk 63 + 7 and the second chunk may only appear once the host has read the first.
-           ---------------------------------------------------------------- */
+        -- G-TDCP: poller to host, 70 bytes into the 64-byte TDC_BUF_POL (H1 + 63 data), so it must chunk 63 + 7 and the second chunk may only appear once the host has read the first.
         report "=== G-TDCP: TDC poller -> host, 70 bytes, chunked ===" severity note;
         for i in 0 to 69 loop
             pol_data(i) <= u8(16#40# + i);
@@ -687,9 +658,7 @@ begin
         sb.check_bit("G-TDCP: IRQ clears when the whole message is delivered",
                      irq, '0');
 
-        /* ----------------------------------------------------------------
-           G-TDCL: the same 70 bytes host to poller as two NSC_DATA_MSGs of 63 + 7, with TDC_BUF_LIS[0][7] as the full flag, the write-buffer-full NAK 0x05, and NSC_DATA_ACK flow control.
-           ---------------------------------------------------------------- */
+        -- G-TDCL: the same 70 bytes host to poller as two NSC_DATA_MSGs of 63 + 7, with TDC_BUF_LIS[0][7] as the full flag, the write-buffer-full NAK 0x05, and NSC_DATA_ACK flow control.
         report "=== G-TDCL: TDC host -> poller, chunking + flow control ===" severity note;
         pay(0) := x"BF";                        -- NSC_DATA_MSG, length 63
         for i in 0 to 62 loop
@@ -754,9 +723,7 @@ begin
         nsc_recv(resp, rlen);
         sb.check_slv("G-TDCL: second NSC_DATA_ACK", resp(0), x"80");
 
-        /* ----------------------------------------------------------------
-           G-PWR: rails and charger, with BC_ICHG_CTRL/BC_VTERM_CTRL as programmed in G-NSC, so the decoded thresholds are ICHG code 0x32 = 99.92 mA, ITRICKLE = 10% = 9.99 mA, VTRICKLE = 3.00 V, VTERM code 0x11 = 4.18 V and ITERM code 0x0E = 19.12 mA.
-           ---------------------------------------------------------------- */
+        -- G-PWR: rails and charger, with BC_ICHG_CTRL/BC_VTERM_CTRL as programmed in G-NSC, so the decoded thresholds are ICHG code 0x32 = 99.92 mA, ITRICKLE = 10% = 9.99 mA, VTRICKLE = 3.00 V, VTERM code 0x11 = 4.18 V and ITERM code 0x0E = 19.12 mA.
         report "=== G-PWR: LDO + charger phase walk ===" severity note;
 
         -- 1. Power-limited trickle: 30 mW at a ~3.6 V VDDC is ~8.3 mA, under the 10 mA trickle target, so the harvest caps the charge current.
@@ -807,9 +774,7 @@ begin
         sb.check_slv("G-PWR: NSC_GET_PARAM reports BC_STATUS = 4",
                      resp(5), x"04");
 
-        /* ----------------------------------------------------------------
-           G-NTC: the NTC monitor thresholds and their VNTC_*_SET / VNTC_*_RESET hysteresis, where the NTC pin voltage FALLS as the cell heats up (constant 69 uA INTC into the thermistor).
-           ---------------------------------------------------------------- */
+        -- G-NTC: the NTC monitor thresholds and their VNTC_*_SET / VNTC_*_RESET hysteresis, where the NTC pin voltage FALLS as the cell heats up (constant 69 uA INTC into the thermistor).
         report "=== G-NTC: NTC thresholds and hysteresis ===" severity note;
         ntc_v <= 240;                            -- below VNTC_EHOT_SET (247 mV)
         wait for 4 * PWR_TICK;
@@ -884,9 +849,7 @@ begin
         wait for 8 * PWR_TICK;
         sb.check_bit("G-PWR: BOD released once VDDC recovers", bod_reset, '0');
 
-        /* ----------------------------------------------------------------
-           G-RST: HIP System Reset, where DFYS must be 0x01 and FCB.RAK makes the device answer with an acknowledge frame.
-           ---------------------------------------------------------------- */
+        -- G-RST: HIP System Reset, where DFYS must be 0x01 and FCB.RAK makes the device answer with an acknowledge frame.
         report "=== G-RST: HIP System Reset ===" severity note;
         pay(0) := x"02";                        -- invalid DFYS
         hip_cmd(PTX_OP_RST, true, false, pay, 1, false, true, aack);
@@ -906,16 +869,13 @@ begin
                      irq, '0');
         sb.check_bit("G-RST: reset cleared TDC_BUF_LIS", lis_valid, '0');
 
-        /* ----------------------------------------------------------------
-           G-NEG: mandatory negative control, LAST: one deliberately wrong expectation so a passing run proves the scoreboard can fail.
-           ---------------------------------------------------------------- */
+        -- G-NEG: mandatory negative control, LAST: one deliberately wrong expectation so a passing run proves the scoreboard can fail.
         report "=== G-NEG: NEGATIVE CONTROL ===" severity note;
         if NEGCTRL then
             sb.check_slv("NEGATIVE CONTROL: wrong expected HW_VERSION (must FAIL)",
                          neg_val, std_logic_vector(unsigned(neg_val) + 1));
         end if;
 
-        ------------------------------------------------------------------
         -- Verdict: exactly one failure, the negative control.
         wait for 2 us;
         sb.report_summary("PTX30W TB");

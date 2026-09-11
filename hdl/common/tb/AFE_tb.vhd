@@ -1,4 +1,6 @@
--- NOT IN THE CASTALIA BUILD: MCU.vhd:3133-3153 instantiates afe_stub x5, not SARADC/AFE/AFE_FSM, so no harness compiles this bench. Kept as the starting point for the AFE2 peripheral (rev-2 anatop, SAR-only).
+-- VestaRV: AFE rev-1 testbench
+-- NOT IN THE CASTALIA BUILD: MCU.vhd instantiates afe_stub, not SARADC/AFE/AFE_FSM, so no harness compiles this bench. Kept as the starting point for the AFE2 peripheral (rev-2 anatop, SAR-only).
+
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
