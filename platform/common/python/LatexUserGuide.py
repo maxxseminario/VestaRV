@@ -1463,7 +1463,7 @@ class LatexUserGuide():
 			'memory.npuStagingRamSize',
 			'peripherals.npu', 'peripherals.i2c1', 'peripherals.uart1',
 			'peripherals.spi1', 'peripherals.timer1', 'peripherals.cqAfeStubs',
-			'peripherals.qspi', 'peripherals.i3c', 'peripherals.nfc',
+			'peripherals.qspi', 'peripherals.afe2', 'peripherals.i3c', 'peripherals.nfc',
 			'peripherals.rtc', 'peripherals.pwm', 'peripherals.onewire',
 			'peripherals.fieldPower', 'peripherals.dma', 'peripherals.dmaChannels',
 			'peripherals.i2ctarget', 'peripherals.trng', 'peripherals.trngRings',
@@ -1623,6 +1623,7 @@ class LatexUserGuide():
 		'DMAx':      'engine',
 		'TRNGx':     'engine',
 		'EVFAB':     'engine',
+		'AFEx':      'afe',
 	}
 	_CHIP_FIG_ABOVE = ['io', 'spi', 'uart', 'i2c', 'nfc', 'ow', 'afe']
 	_CHIP_FIG_BELOW = ['timer', 'system', 'power', 'sync', 'mem', 'npu', 'engine']
@@ -1784,6 +1785,27 @@ class LatexUserGuide():
 			# re-assignment of an owner cannot move one figure and not the other.
 			above['afe']['sites'] = [(b['name'], b['base'], b['ownerHart'],
 				b.get('gate') or '') for b in blocks]
+		# AFE2 (2026-09-05): the rev-2 sites ARE peripherals (AFEx at 0x6C00 + 0x100*h),
+		# so they come through the bucket like every other block. The ownership row is
+		# derived the way mcu_vhd.emitAfe2Instance derives OWNER_HART (tile h+1 on an
+		# orchestrator configuration), and the electrode stubs from the package model.
+		ps = claim('afe')
+		if ps and not blocks:
+			sites = [p.Name for p in ps]
+			orch = bool(geo.get('orchestrator'))
+			stubs = [e for e in ('WE', 'RE', 'CE')
+				if all((e + '_' + str(i)) in padNames for i in range(len(sites)))]
+			e = ext('electrode cell', '$\\times$' + str(len(sites)) + ' measurement sites',
+				w=3.40, stubs=stubs) if stubs else None
+			above['afe'] = box('afe', 'analog front end', self._chipFigNames(sites),
+				'potentiostat $+$ SAR\\\\ per site', w=3.40, ext=e,
+				brief='$\\times$' + str(len(sites)) + ' potentiostat sites')
+			rows = []
+			for i, p in enumerate(ps):
+				owner = i + 1 if orch else i
+				gate = 's\\_master = 0' if owner == 0 else 's\\_master = ' + str(owner) + ' or s\\_master = 0'
+				rows.append((p.Name, p.BaseAddress, owner, gate))
+			above['afe']['sites'] = rows
 
 		# ---- below the bus: time, clocks, power, memory, engines -----------
 		ps = claim('timer')
@@ -3704,7 +3726,7 @@ class LatexUserGuide():
 			'I3Cx': 'I3C', 'NFCx': 'NFC', 'OWx': '1-Wire', 'TIMERx': 'TIMER', 'PWMx': 'PWM',
 			'RTCx': 'RTC', 'SYSTEM': 'SYSTEM', 'PWRCTRL': 'PWRCTRL', 'CLINT': 'CLINT',
 			'MUTEX': 'MUTEX', 'IRQROUTER': 'IRQROUTER', 'NPU': 'NPU', 'DMAx': 'DMA',
-			'TRNGx': 'TRNG', 'EVFAB': 'EVFAB'}
+			'TRNGx': 'TRNG', 'EVFAB': 'EVFAB', 'AFEx': 'AFE'}
 		groups = {}
 		for p in gen.Peripherals:
 			t = p.Template.NameTemplate

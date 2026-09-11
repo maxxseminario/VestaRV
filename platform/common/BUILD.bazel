@@ -586,3 +586,112 @@ filegroup(
     srcs = ["config/ChipConfig.resolved.json"],
     visibility = ["//visibility:public"],
 )
+
+# ---------------------------------------------------------------------------
+# The tape-out configurations (report 08 finding 4: the config the physical
+# lineage was hardened from had no target and no gate).
+#
+# penta_wound: config/penta_wound.json, the CPR3 wound chip. There is no
+# tracked RTL for it (genus/common/in/penta_wound_hdl is a flow input, not a
+# gate), so the bar is that it still generates and its outputs parse.
+#
+# penta_wound_afe: penta_wound + peripherals.afe2 (2026-09-05), the AFE-bearing
+# re-cut. Same generation bar, plus the hand-written AFE intro is checked
+# against the names this configuration emits (the default castalia config has
+# afe2 off, so :check_intro_names_test never sees the AFE chapter), and
+# //opensource_sim/penta_wound_afe:penta_wound_afe_elaborate elaborates the
+# generated MCU.vhd under GHDL.
+# ---------------------------------------------------------------------------
+chip_artifacts(
+    name = "chip_artifacts_penta_wound",
+    srcs = ["//platform/common/python:generator_srcs"],
+    chip_root_srcs = CHIP_ROOT_SRCS,
+    config = "config/penta_wound.json",
+    out_of_tree_srcs = OUT_OF_TREE_SRCS,
+)
+
+chip_artifacts(
+    name = "chip_artifacts_penta_wound_afe",
+    srcs = ["//platform/common/python:generator_srcs"],
+    chip_root_srcs = CHIP_ROOT_SRCS,
+    config = "config/penta_wound_afe.json",
+    out_of_tree_srcs = OUT_OF_TREE_SRCS,
+)
+
+chip_artifact(
+    name = "penta_wound_afe_mcu_vhd",
+    rel_path = "out/hdl/MCU.vhd",
+    target = ":chip_artifacts_penta_wound_afe",
+)
+
+chip_artifact(
+    name = "penta_wound_afe_memorymap_vhd",
+    rel_path = "out/hdl/MemoryMap.vhd",
+    target = ":chip_artifacts_penta_wound_afe",
+)
+
+chip_artifact(
+    name = "penta_wound_afe_memorymap_h",
+    rel_path = "out/software/include/MemoryMap.h",
+    target = ":chip_artifacts_penta_wound_afe",
+)
+
+chip_artifact(
+    name = "penta_wound_afe_config_memorymap_json",
+    rel_path = "config/MemoryMap.json",
+    target = ":chip_artifacts_penta_wound_afe",
+)
+
+chip_artifact(
+    name = "penta_wound_afe_padring_tcl",
+    rel_path = "out/pnr/chip_top_padring.tcl",
+    target = ":chip_artifacts_penta_wound_afe",
+)
+
+# The AFE intro chapter's \register{} names against what this configuration emits.
+# Was tagged manual while nine wound-configuration intros (DMA, EVFAB, I2CT, I3C,
+# OneWire, PWM, QSPI, RTC, TRNG) lacked the template's \section skeleton; those were
+# restructured on 2026-09-05 (F15), so the gate runs with //platform/... again.
+py_test(
+    name = "penta_wound_afe_intro_names_test",
+    size = "small",
+    srcs = [CHECK_RUNNER],
+    args = [
+        "--script=platform/common/python/check_intro_names.py",
+        "--stage=platform/common/python=platform/common/python",
+        "--stage=platform/common/latex/PeripheralIntroductions=platform/common/latex/PeripheralIntroductions",
+        # check_intro_names re-derives the template register/field spellings from
+        # hdl/common/periph/rdl/ now that generate.py no longer writes them out.
+        "--stage=hdl/common/periph/rdl=hdl/common/periph/rdl",
+        "--stage=$(rootpath :penta_wound_afe_config_memorymap_json)=platform/common/config/MemoryMap.json",
+    ],
+    data = [
+        ":penta_wound_afe_config_memorymap_json",
+        ":peripheral_intro_srcs",
+        "//hdl:rdl_sources",
+        "//platform/common/python:check_scripts",
+        "//platform/common/python:generate.py",
+    ],
+    main = "check_runner.py",
+)
+
+# The emitted C header for the AFE configuration must still be #include-able.
+py_test(
+    name = "penta_wound_afe_memorymap_h_test",
+    size = "small",
+    srcs = [CHECK_RUNNER],
+    args = [
+        "--script=platform/common/python/check_memorymap_h.py",
+        "--env=RISCV_CC=abs:$(rootpath @xpack_riscv_gcc//:gcc)",
+        "--",
+        "abs:$(rootpath :penta_wound_afe_memorymap_h)",
+    ],
+    data = [
+        ":penta_wound_afe_memorymap_h",
+        "//platform/common/python:check_memorymap_h.py",
+        "@xpack_riscv_gcc//:gcc",
+        "@xpack_riscv_gcc//:toolchain",
+    ],
+    main = "check_runner.py",
+)
+

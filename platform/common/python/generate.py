@@ -337,6 +337,16 @@ _CONFIG_SCHEMA = {
 	# claim slot 12). Default false
 	'peripherals.qspi':     ('bool: QSPI0 controller in slot 12 (0x4C00); needs cqAfeStubs false',
 	                         _isBool),
+	# AFE2 (2026-09-05): the rev-2 analog front end. True instantiates four AFE2 sites
+	# (hdl/common/periph/AFE2.vhd) in page-2 sub-slots 12-15 (0x6C00 + 0x100*h): the 50
+	# anatop_pixel control bits per site as MCU entity outputs, the SAR converter
+	# sequencer (SARADC_clk/rst out, SARADC_rdy/d in), the shared simultaneous-sample
+	# trigger, and IRQ vector 124 (A5 library tail) as the OR of the four sites. On the
+	# castalia-lqfp100 model it also re-cuts the north analog band to 12 electrode pads
+	# (CE/RE/WE x 4) + 2 analog test pads (ATP0/1) in place of the 16-pad RE2 variant.
+	# Mutually exclusive with peripherals.cqAfeStubs (two register files for one macro).
+	'peripherals.afe2':     ('bool: four AFE2 sites (anatop_pixel control + SAR sequencer) at 0x6C00-0x6F00; needs cqAfeStubs false',
+	                         _isBool),
 	# Long form, preserved from the pre-2026-08-15 schema (the TRM chapters and this file's
 	# own notes are where this detail belongs; the string below is the table cell): bool —
 	# True instantiates the I3C0 controller (MVP+DAA+IBI) at 0x6100: page-2 (MUTEX page) sub-
@@ -630,6 +640,7 @@ _CONFIG_META = {
 	'peripherals.timer1':   {'type': 'bool', 'default': True},
 	'peripherals.cqAfeStubs': {'type': 'bool', 'default': True},
 	'peripherals.qspi':     {'type': 'bool', 'default': False},
+	'peripherals.afe2':     {'type': 'bool', 'default': False},
 	'peripherals.i3c':      {'type': 'bool', 'default': False},
 	'peripherals.nfc':      {'type': 'bool', 'default': True},
 	'peripherals.rtc':      {'type': 'bool', 'default': False},
@@ -798,6 +809,36 @@ qspiPresent = _cfg('peripherals.qspi', False)
 if cqAfeStubsPresent and qspiPresent:
 	raise Exception('Chip-config conflict: peripherals.cqAfeStubs and peripherals.qspi '
 		'both claim page-0 slot 12 (0x4C00) — set cqAfeStubs=false to enable qspi.')
+
+# AFE2 (2026-09-05): the rev-2 analog front end, four AFE2 sites at 0x6C00 + 0x100*h
+# (page-2 sub-slots 12-15, free in every configuration). Replaces the afe_stub bank:
+# the two are mutually exclusive because both would claim the 50 anatop_pixel control
+# pins per site and IRQ vector 55. Default FALSE — the default emission is byte-identical.
+afe2Present = _cfg('peripherals.afe2', False)
+if cqAfeStubsPresent and afe2Present:
+	raise Exception('Chip-config conflict: peripherals.cqAfeStubs and peripherals.afe2 '
+		'both drive the analog front end — set cqAfeStubs=false to enable afe2.')
+
+# TOPOLOGY B (per-tile AFE, 2026-09-06). A PLACEMENT knob: it moves the four
+# AFE2 port groups off the MCU entity and onto the four channel tiles (which
+# become `hart_tile_pt`), and puts the shared bias-generator control group
+# (biasg_code(13:0)/biasg_en for anatop_biasgen_g) on the entity instead. The
+# register map, IRQ vector 124, the sequencer and all 50 control bits per site
+# are IDENTICAL in both topologies -- nothing about the AFE2 peripheral itself
+# changes, which is why this is one string knob and not a second afe2 knob.
+# DEFAULT 'top_ports' == topology A == the pre-knob generator, byte for byte.
+afeTopology = _cfg('afeTopology', 'top_ports')
+afePerTile = (afeTopology == 'per_tile')
+if afePerTile and not afe2Present:
+	raise Exception('Chip-config conflict: afeTopology="per_tile" needs peripherals.afe2 '
+		'— there are no AFE sites to place in the tiles.')
+if afePerTile and not (orchestrator and numHarts == 5):
+	# The four channel tiles ARE harts 1-4 of an orchestrator penta. Any other
+	# shape has no four-tile ring to put one anatop_ch macro in each corner of,
+	# so the wiring would be silently partial rather than wrong-and-loud.
+	raise Exception('Chip-config conflict: afeTopology="per_tile" needs numHarts=5 with '
+		'orchestrator=true (four channel tiles, one AFE site each); got numHarts='
+		+ str(numHarts) + ' orchestrator=' + str(orchestrator) + '.')
 
 # digperiphs #2 (I3C, 2026-07-18): the I3C0 controller (MVP+DAA+IBI) claims
 # page-2 (the MUTEX page, 0x6000-0x6FFF) SUB-SLOT 1 @0x6100. This carves the
@@ -1011,6 +1052,11 @@ _LIBRARY_TAIL_SPEC = [
 	('npu_thinkdone', npuPresent, 1),  # vector 120  (NPU0 think-done, DP-SG Part A)
 	('trng', trngPresent, 1),          # vector 121  (TRNG0 combined data-ready/alarm)
 	('i2ctarget', i2ctargetPresent, 2),  # vectors 122, 123  (I2CT0_AE, I2CT0_DATA)
+	# AFE2 (2026-09-05): ONE vector for the four sites (each site's SR demultiplexes it).
+	# 55/56 are QSPI0's on the tape-out configuration, so the ex-AFE gap is not usable, and
+	# irq_router caps NUM_SRCS at 127 (7-bit COMPLETE IDs), so four per-site vectors
+	# (124-127 = 128 sources) do not fit. NUM_EN_WORDS stays 4 (125 <= 128).
+	('afe2', afe2Present, 1),  # vector 124  (AFE0-3 combined result-ready / error, OR of the sites)
 ]
 def _libraryTailVectorsCount():
 	'''Total vector count = 114 + (last vector of the highest enabled tail block).
@@ -2301,12 +2347,13 @@ m.AddPeripheralTemplate(p)
 
 # Stage E rider (2026-07-21): the routing rows and the RO status readback are
 # vectorsCount-driven. Every current config has > 96 sources (114 default since
-# GPIO4/5 went unconditional; up to 120 wound), so the router carries FOUR
-# enable words per hart — the fourth (HhENX, row word 4h+3, the formerly
-# reserved slot) covers vectors (vectorsCount-1):96 — and the RO status
+# GPIO4/5 went unconditional; up to 125 wound), so the router carries FOUR
+# enable words per hart -- the fourth (HhENX, row word 4h+3, the formerly
+# reserved slot) covers vectors (vectorsCount-1):96 -- and the RO status
 # readback has the matching PENDX/INSVCX words at 0x781C/0x782C. The U words
 # are then fully live (vectors 95:64, bits 31:0). The historic 3-word form
-# (U = 84:64, bits 20:0, no X words) survives for <= 96-source configs.
+# (U = 84:64, bits 20:0, no X words) survives for <= 96-source configs, as the
+# two guards below.
 _irqrXWords = _vectorsCount > 96			# HhENX/PENDX/INSVCX exist
 _irqrXMsb   = _vectorsCount - 97			# live msb in the X words (when they exist)
 _irqrUMsb   = 31 if _vectorsCount >= 96 else _vectorsCount - 65
@@ -3441,6 +3488,16 @@ if eventFabricPresent:
 	# port-map lines on the existing instances are emitted by mcu_vhd.py under
 	# geo['eventFabric'], with every absent source tied '0' (D23).
 	m.CreatePeripheral(nameTemplate='EVFAB', nameIndex='', peripheralMemorySlot=None, interruptPriority=None, absoluteBaseAddress=0x6B00, sharedBus='native', clockDomain='mclk', strobeNote='page-2 sub-slot 11; registered read, no bridge, no CAPTURE_CLOCK pre-latch; free-running MCLK fabric in the always-on domain (never gated by PWRCTRL, alive through WFI); vectorless — poll EVFSR, there is no interrupt; a CHTRIG/EVTRIG/W1C write takes effect 3 MCLK after the access opens, so a read issued immediately after one (only possible from a faster master than the shared bus) can see stale state; disable a channel before changing its EVSEL/TASKSEL')	# EVFAB0 (digperiphs EVFAB). native page-2 sub-slot 11; mcu_vhd hand-emits the raw-strobe shim + evfab0 instance + every producer/consumer tap
+if afe2Present:
+	# AFE2 (2026-09-05): four sites at 0x6C00 + 0x100*h = page-2 sub-slots 12-15, free in
+	# every configuration. Same native page-2 shape as RTC0 (mcu_vhd.py hand-decodes the
+	# sub-slot and emits the instance); the slave is the afe_stub port shape (active-high
+	# en/we, sh_master ownership gate, registered read), so there is no en shim at all.
+	# One vector for the four sites, 124 (the A5 library tail): 55/56 belong to QSPI0 on
+	# the tape-out configuration and irq_router caps NUM_SRCS at 127, so four per-site
+	# vectors (124-127) would not fit. Site 0 carries the interruptPriority.
+	for _h in range(4):
+		m.CreatePeripheral(nameTemplate='AFEx', nameIndex=_h, peripheralMemorySlot=None, interruptPriority=(124 if _h == 0 else None), absoluteBaseAddress=0x6C00 + 0x100 * _h, sharedBus='native', clockDomain='mclk', strobeNote='page-2 sub-slot ' + str(12 + _h) + '; registered read, no side effects (FIFO popped by SR.DRDY write-1); owner hart ' + str(_h + 1 if orchestrator else _h) + ' or hart 0; free-running MCLK sequencer, vector 124 shared by the four sites (OR), demultiplexed by each site\'s SR')
 m.CreatePeripheral(nameTemplate='IRQROUTER', nameIndex='', peripheralMemorySlot=None, interruptPriority=None, absoluteBaseAddress=0x7000, sharedBus='native', clockDomain='mclk', registerSlotCount=_slotCountOverride(524))	# IRQ router at 0x7000 (M11: window page 3; M19: rows + the fixed-address CLAIM block; Stage E rider: through word 523 = 0x782C = INSVCX)
 
 
@@ -3749,11 +3806,23 @@ def _buildPackageData(model):
 		# ORDER WITHIN A SITE follows the QFN-64 model: the current-carrying pair
 		# (CE, WE) abut, then the sense pair (RE, RE2), so a site's four pads are
 		# four adjacent balls and a probe card lands on one contiguous block.
+		# AFE2 (2026-09-05, decision D2): with peripherals.afe2 the band is the 14-pad
+		# tapeout layout — 12 electrodes (CE/RE/WE per site, three adjacent balls per
+		# site, 78-89) + 2 analog test pads (ATP0/ATP1, 90-91) — because the RE2 Kelvin
+		# sense has no receiver on the die. 92-100 stay NC. Without afe2 the 16-pad
+		# RE2 layout below is unchanged.
 		_lqfpElectrodes = []
-		for _s in range(4):
-			_p0 = 78 + 4 * _s
-			_lqfpElectrodes += [(_p0, 'CE_' + str(_s)), (_p0 + 1, 'WE_' + str(_s)),
-				(_p0 + 2, 'RE_' + str(_s)), (_p0 + 3, 'RE2_' + str(_s))]
+		if afe2Present:
+			for _s in range(4):
+				_p0 = 78 + 3 * _s
+				_lqfpElectrodes += [(_p0, 'CE_' + str(_s)), (_p0 + 1, 'WE_' + str(_s)),
+					(_p0 + 2, 'RE_' + str(_s))]
+			_lqfpElectrodes += [(90, 'ATP0'), (91, 'ATP1')]
+		else:
+			for _s in range(4):
+				_p0 = 78 + 4 * _s
+				_lqfpElectrodes += [(_p0, 'CE_' + str(_s)), (_p0 + 1, 'WE_' + str(_s)),
+					(_p0 + 2, 'RE_' + str(_s)), (_p0 + 3, 'RE2_' + str(_s))]
 		for (_epn, _enm) in _lqfpElectrodes:
 			package.AddPin(packagePinNumber=_epn, name=_enm, ioType='io', powerDomain=analogPowerDomain)
 
@@ -3775,7 +3844,7 @@ def _buildPackageData(model):
 		# 47-51 LEFT this list at D3 -- see the JTAG block above.
 		# 78-93 LEFT this list at the electrode block above (they were 78-85 ARSV
 		# and 86-93 NC); 94-100 are the north band's remaining spare.
-		for _ncp in ([23, 24, 25] + [26] + [72, 73, 74, 75] + list(range(94, 101))):
+		for _ncp in ([23, 24, 25] + [26] + [72, 73, 74, 75] + list(range(92 if afe2Present else 94, 101))):
 			package.AddPin(packagePinNumber=_ncp, name='NC', ioType='', noConnect=True)
 
 	else:
@@ -4239,6 +4308,7 @@ _libraryTailEmit = [
 	(trngPresent, [('IRQB_TRNG0', 'TRNG0 combined data-ready/health-alarm Interrupt')]),
 	(i2ctargetPresent, [('IRQB_I2CT0_AE', 'I2CT0 combined address-match/error Interrupt'),
 		('IRQB_I2CT0_DATA', 'I2CT0 combined tx-ready/rx-full Interrupt')]),
+	(afe2Present, [('IRQB_AFE', 'AFE0-3 combined result-ready / error Interrupt (OR of the four sites)')]),
 ]
 _tailHigh = _libraryTailVectorsCount()	# vector count including the tail high-water mark
 _v = _LIB_TAIL_BASE
@@ -4270,6 +4340,8 @@ def _irqClearMethod(irqbName):
 	import re as _re
 	if irqbName == 'IRQB_SYS_WDT':
 		return 'Write 1 to WDTSR.SYSWDTIF'
+	if irqbName == 'IRQB_AFE':
+		return 'Per site: write 1 to AFExSR.AFEDRDY (pop) until AFECNT = 0, and to AFEOVF / AFETO'
 	_m = _re.match(r'^IRQB_GPIO(\d)_B(\d)$', irqbName)
 	if _m:
 		return 'Write 1 to P' + _m.group(1) + 'IF bit ' + _m.group(2)
@@ -4341,6 +4413,8 @@ if i2c1Present:
 	_mcuMpIrqFirstVector['I2C1'] = 'IRQB_I2C1_STR'
 if qspiPresent:
 	_mcuMpIrqFirstVector['QSPI0'] = 'IRQB_QSPI0_TC'
+if afe2Present:
+	_mcuMpIrqFirstVector['AFE0'] = 'IRQB_AFE'	# vector 124 (A5 library tail), shared by AFE0-3; interruptPriority sits on site 0 only
 if i3cPresent:
 	_mcuMpIrqFirstVector['I3C0'] = 'IRQB_I3C0_TC'	# vectors 86-93 (interruptPriority 86)
 if nfcPresent:
@@ -4525,6 +4599,7 @@ m.McuMpGeometry = {
 	'i3c': i3cPresent,          # digperiphs #2: True = I3C0 in MUTEX-page sub-slot 1 (0x6100); tightens the mutex decode, vectors 86-93
 	'nfc': nfcPresent,          # digperiphs #3: True = NFC0 in MUTEX-page sub-slot 2 (0x6200); tightens the mutex decode, vectors 94-97, 4th glitch filter
 	'qspi': qspiPresent,        # digperiphs #1: True = QSPI0 controller in slot 12 (0x4C00), vectors 55/56 (needs afeStubs=False)
+	'afe2': afe2Present,        # AFE2 (2026-09-05): True = four AFE2 sites in MUTEX-page sub-slots 12-15 (0x6C00-0x6F00), the 50 anatop_pixel control bits + SARADC clk/rst/rdy/d per site as MCU entity ports, vector 124 = OR of the sites, source list grows to 125 (needs afeStubs=False)
 	'rtc': rtcPresent,          # digperiphs #4: True = RTC0 in MUTEX-page sub-slot 5 (0x6500); raw-strobe shim, vector 114, source list grows to 115
 	'pwm': pwmPresent,          # digperiphs #5: True = PWM0 in MUTEX-page sub-slot 6 (0x6600); raw-strobe shim, vectors 115/116, source list grows to 117 (A5 global vector rule)
 	'onewire': onewirePresent,  # digperiphs #5: True = OW0 1-Wire master in MUTEX-page sub-slot 7 (0x6700); raw-strobe shim, DQ on P4.7/GPIO31 AF2 open-drain (replaced-spread-slot), vector 117, source list grows to 118 (A5 global vector rule)
@@ -4693,7 +4768,7 @@ _resolvedConfig = [
 	]),
 	('peripherals', [('npu', npuPresent), ('i2c1', i2c1Present), ('uart1', uart1Present),
 		('spi1', spi1Present), ('timer1', timer1Present),
-		('cqAfeStubs', cqAfeStubsPresent), ('qspi', qspiPresent), ('i3c', i3cPresent),
+		('cqAfeStubs', cqAfeStubsPresent), ('qspi', qspiPresent), ('afe2', afe2Present), ('i3c', i3cPresent),
 		('nfc', nfcPresent), ('rtc', rtcPresent), ('pwm', pwmPresent),
 		('onewire', onewirePresent),
 		# DP-S3: the field-power knob was declared in _CONFIG_SCHEMA and consumed

@@ -125,6 +125,7 @@ def _libraryTailVectorsCount(cfg):
 		(periph.get('npu', True), 1),   # vector 120 (NPU0 think-done, DP-SG Part A; npu defaults TRUE)
 		(periph.get('trng', False), 1),   # vector 121 (TRNG0 combined data-ready/health-alarm)
 		(periph.get('i2ctarget', False), 2),  # vectors 122, 123 (I2CT0_AE, I2CT0_DATA)
+		(periph.get('afe2', False), 1),  # vector 124 (AFE0-3 combined, OR of the four sites)
 	]
 	base = 114
 	v = base
@@ -176,7 +177,12 @@ def _derived(cfg):
 			'mtimecmpBaseAddress': _hx(0x5000 + 4 * mtimecmpSlot),
 		},
 		'bootromLoaderRowBase': '0x10500 + 0x10*hartid',
-		'stackPointerInit': _hx(0xC000),
+		# DERIVED, not literal (2026-09-05). This was the literal 0xC000, i.e.
+		# a second encoding of "the TCM is 16 KiB": correct for Argus
+		# (tcmSizePerHart 16384) and WRONG by 8 KiB for the castalia and cq
+		# presets, which have shipped an 8 KiB TCM since 2026-08-16. Same
+		# expression as generate.py's _stackPointerInit (_ramStart + _tcmSize).
+		'stackPointerInit': _hx(0x8000 + int(cfg['memory']['tcmSizePerHart'])),
 	}
 
 
@@ -236,6 +242,14 @@ def _memoryRegions(gen):
 		regions.append((nm, s, e, d, 'shared'))
 	regions.append(('Private TCM', 0x8000, 0x8000 + tcm - 1,
 		'Per-hart private tightly-coupled memory (the only private address region)', 'private'))
+	# The private band DECODES 16 KiB (adddec routes data_addr(13 downto 2))
+	# while the array answers tcm bytes, so the remainder of the band is the
+	# same array mirrored -- NOT unmapped space. It is where a stack pointer of
+	# 0xBFFC used to point.
+	if tcm < 0x4000:
+		regions.append(('Private TCM (mirror)', 0x8000 + tcm, 0x8000 + 0x4000 - 1,
+			'Alias of the private TCM: the band decodes 16 KiB and the array answers '
+			+ str(tcm // 1024) + ' KiB, so it repeats across the window', 'private'))
 	regions.append(('Extended flash (XIP)', flashBase, None,
 		'Hart-0 SPI flash execute-in-place window (decodes at the strict shared-window complement)', 'flash'))
 	regions.sort(key=lambda r: r[1])

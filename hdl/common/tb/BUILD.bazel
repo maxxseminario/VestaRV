@@ -188,3 +188,40 @@ ghdl_test(
     sim_timeout_s = 120,
     tags = ["ghdl"],
 )
+# ---------------------------------------------------------------------------
+# AFE2: the rev-2 analog front-end site (register file for the 50 anatop_pixel
+# control bits + the SAR converter sequencer). Two-file closure: AFE2.vhd and its
+# generated register package, and neither reads constants/MemoryMap, so the bench
+# still binds the entity alone.
+# The bench instantiates two sites on one mclk with a behavioural converter
+# model (12 falling edges per conversion, READY after the twelfth, bit 9
+# inverted inside a 100 ns window) and grades the protocol, the FIFO, both
+# interrupts, the shared simultaneous-sample trigger and the swap engine.
+# ---------------------------------------------------------------------------
+vhdl_source_set(
+    name = "afe2_rtl",
+    # afe2_regs_pkg.vhd first: AFE2.vhd `use work.afe2_regs_pkg.all` since the
+    # SystemRDL level-2 move (report R6), so the package must be analysed before
+    # the entity. The closure is still two files and still reads nothing from
+    # constants/MemoryMap, so the bench still binds the entity alone.
+    paths = [
+        "hdl/common/periph/afe2_regs_pkg.vhd",
+        "hdl/common/periph/AFE2.vhd",
+    ],
+    pool = ["//hdl:vhdl_sources"],
+)
+
+ghdl_test(
+    name = "AFE2_tb",
+    size = "small",
+    srcs = [
+        ":afe2_rtl",
+        "periph_tb_pkg.vhd",
+        "AFE2_tb.vhd",
+    ],
+    entity = "AFE2_tb",
+    pass_pattern = "ALL CHECKS PASSED",
+    sim_timeout_s = 180,
+    stop_time = "200us",
+    tags = ["ghdl"],
+)
