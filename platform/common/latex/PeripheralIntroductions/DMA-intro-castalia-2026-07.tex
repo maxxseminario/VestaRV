@@ -1,3 +1,9 @@
+% DMA chapter. Section order is the per-peripheral template enforced by
+% python/check_intro_names.py (Overview / Functional description / Interrupts
+% and events / Programming / Usage notes). Restructured 2026-09-05; the prose
+% is unchanged apart from the headings it now sits under.
+\section{Overview}
+
 The DMA controller (\peripheral{DMAx}) is a configurable multi-channel single-shot direct-memory-access engine. It moves words from a source to a destination over the shared multi-core arbiter as a stream of single-word transactions, either flat-out under software command (memory-to-memory) or paced one word per peripheral data-ready event, with per-channel source and destination auto-increment, a two-level priority with word-granular round-robin between channels, an optional \mbox{CRC16-CDMA2000} ride-along accumulated over the transferred data, and a hardware read-side-effect guard. The channel count is a build-time generic (\{2, 4\}); the register map is always the four-channel superset, so on a two-channel build the upper channel blocks and their status bits read 0. The whole transfer engine (the master-port state machine, the per-channel working counters, the round-robin picker, the CRC datapath, the pacing edge-detectors, the sticky event flags, and the two interrupt combiners) rides the free-running fabric clock (MCLK), while the register file rides the gated bus clock. It has \emph{no pins}. The main features are listed below:
 
 \begin{itemize}
@@ -10,13 +16,13 @@ The DMA controller (\peripheral{DMAx}) is a configurable multi-channel single-sh
 	\item A hardware read-side-effect guard that refuses engine reads of the mutex bank or the interrupt-router claim word, plus an at-launch check for a zero length, a misaligned or out-of-window pointer, or a pointer into the private-TCM hole
 \end{itemize}
 
-\subsection{Programming and Launching a Transfer}
+\section{Functional description}
 
-A channel is programmed by writing its source and destination byte addresses, its word length, and its configuration word, then launched by a byte-lane-0 write to \register{DMAxCR} that sets the channel's \register{DMAGO} command bit. \register{DMAGO} is a self-clearing command (it reads 0); the write captures the channel's programmed \{source, destination, length, configuration\} into the engine's working registers and starts it. The launch is suppressed (the content is still captured but no transfer begins) when the master enable \register{DMAEN} is clear or when that channel is already busy, so a stray second \register{DMAGO} cannot reload a channel mid-transfer. The rule is one outstanding \register{DMAGO} per channel: poll \register{DMABUSY} clear (or wait for the channel's \register{DMADONE}) before re-arming it.
-
-\register{DMABUSY} in \register{DMAxSR} covers the launch instant with no blind window: it reads 1 in the same cycle as the launching \register{DMAGO} write (any channel active \emph{or} a launch pending), and stays high through real engine activity, so firmware may write \register{DMAGO} and immediately spin on \register{DMABUSY} with no chance of falling through. \register{DMAACTIVECH} reports the index of the channel currently being serviced (0 when idle). Source and destination addresses read back the programmed values; \register{DMAxCnLEN} reads the current remaining word count, decrementing as the engine runs and reading 0 before the first launch, so after an abort the programmed pointers plus the remaining length show exactly where the transfer stopped.
+\subsection{Transaction Structure and Bus Behaviour}
 
 Each transferred word is a read transaction followed by a write transaction, issued as two separate single-word arbiter transactions with an observed idle gap between them. The engine never holds the arbiter grant and never bursts, so it can never pin the shared bus; it participates as one additional fair master and cannot starve the harts. A direct consequence, which firmware must respect, is that a DMA word copy is \emph{not} atomic: another master may write the source or destination word between the read and the write of the same word. While a channel is active, ownership of its source and destination buffers is a software contract: do not let another agent race the region the DMA is walking.
+
+\register{DMABUSY} in \register{DMAxSR} covers the launch instant with no blind window: it reads 1 in the same cycle as the launching \register{DMAGO} write (any channel active \emph{or} a launch pending), and stays high through real engine activity, so firmware may write \register{DMAGO} and immediately spin on \register{DMABUSY} with no chance of falling through. \register{DMAACTIVECH} reports the index of the channel currently being serviced (0 when idle). Source and destination addresses read back the programmed values; \register{DMAxCnLEN} reads the current remaining word count, decrementing as the engine runs and reading 0 before the first launch, so after an abort the programmed pointers plus the remaining length show exactly where the transfer stopped.
 
 \subsection{Peripheral-Paced Transfers}
 
@@ -42,12 +48,20 @@ The engine will not issue a read that would have a side effect. Before it would 
 
 A byte-lane-0 write to \register{DMAxCR} that sets a channel's \register{DMAABORT} command bit requests an orderly stop. If that channel owns an in-flight arbiter transaction the engine lets that single transaction complete normally (the handshake is never truncated), then drops the channel's busy \emph{without} setting \register{DMADONE} or \register{DMAERR} (an abort is neither a completion nor an error). \register{DMAABORT} is self-clearing (reads 0), and the programmed pointers plus the remaining \register{DMAxCnLEN} show where the transfer stopped.
 
-Both interrupts are combinational and never latched: the done interrupt (vector 118) is the OR of the \register{DMADONE} flags gated by \register{DMADONEIE}, and the error interrupt (vector 119) is the OR of the \register{DMAERR} flags gated by \register{DMAERRIE}. The service routine reads \register{DMAxSR}, discovers which channels' \register{DMADONE} or \register{DMAERR} bits are set, and clears them write-1-to-clear (a set arriving the same cycle as a clear survives). A separate note applies to the shared NPU staging RAM: while an NPU computation is running the NPU owns that RAM, so firmware must not aim a DMA source or destination into the NPU staging window until the NPU reports idle, a software contract, not a hardware guard.
+\section{Interrupts and events}
 
-\subsection{Shared Access on \AsicNameForUserGuide}
+Both interrupts are combinational and never latched: the done interrupt (vector 118) is the OR of the \register{DMADONE} flags gated by \register{DMADONEIE}, and the error interrupt (vector 119) is the OR of the \register{DMAERR} flags gated by \register{DMAERRIE}. The service routine reads \register{DMAxSR}, discovers which channels' \register{DMADONE} or \register{DMAERR} bits are set, and clears them write-1-to-clear (a set arriving the same cycle as a clear survives).
+
+The two interrupt sources occupy vectors 118 (combined channels-done) and 119 (error); the done source takes the lower identifier, and both are delivered through the interrupt router like every other shared-peripheral source. These sources sit above the external-interrupt (meip) delivery vector, which stays fixed at vector 85, above the I3C, NFC, \peripheral{GPIOx} port-4/port-5, RTC, PWM, and 1-Wire sources at vectors 86 through 117.
+
+\section{Programming}
+
+A channel is programmed by writing its source and destination byte addresses, its word length, and its configuration word, then launched by a byte-lane-0 write to \register{DMAxCR} that sets the channel's \register{DMAGO} command bit. \register{DMAGO} is a self-clearing command (it reads 0); the write captures the channel's programmed \{source, destination, length, configuration\} into the engine's working registers and starts it. The launch is suppressed (the content is still captured but no transfer begins) when the master enable \register{DMAEN} is clear or when that channel is already busy, so a stray second \register{DMAGO} cannot reload a channel mid-transfer. The rule is one outstanding \register{DMAGO} per channel: poll \register{DMABUSY} clear (or wait for the channel's \register{DMADONE}) before re-arming it.
+
+\section{Usage notes}
+
+A separate note applies to the shared NPU staging RAM: while an NPU computation is running the NPU owns that RAM, so firmware must not aim a DMA source or destination into the NPU staging window until the NPU reports idle, a software contract, not a hardware guard.
 
 In configurations that include it, \peripheral{DMA0} lives in the shared peripheral window behind the multi-core arbiter (see Section \ref{s:multicore}) in the mutex-bank page, sub-slot 8 at \texttt{0x6800}, so any hart can program and launch it. Because the engine clocks off the free-running fabric clock, its progress is immune to clock reconfiguration, and software must \emph{not} apply the ``write \register{\register{SYSCLKCR}} to 0 first'' rule that the SMCLK peripherals need.
 
 \peripheral{DMA0} is unique among the shared-window peripherals in also being an arbiter \emph{master}: its transfer engine is an additional bus master alongside the harts, so enabling the block widens the shared fabric by one master. It participates in the same fair round-robin as the harts, issuing single-word transactions with an idle gap between each, so it is starvation-safe by the arbiter's own fairness and cannot lock the bus.
-
-Its two interrupt sources occupy vectors 118 (combined channels-done) and 119 (error); the done source takes the lower identifier, and both are delivered through the interrupt router like every other shared-peripheral source. These sources sit above the external-interrupt (meip) delivery vector, which stays fixed at vector 85, above the I3C, NFC, \peripheral{GPIOx} port-4/port-5, RTC, PWM, and 1-Wire sources at vectors 86 through 117.

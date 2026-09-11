@@ -1,3 +1,9 @@
+% I3C chapter. Section order is the per-peripheral template enforced by
+% python/check_intro_names.py (Overview / Functional description / Interrupts
+% and events / Programming / Usage notes). Restructured 2026-09-05; the prose
+% is unchanged apart from the headings it now sits under.
+\section{Overview}
+
 The I3C controller (\peripheral{I3Cx}) is a single-controller MIPI I3C Basic interface for a two-wire (\pin{SDA}, \pin{SCL}) sensor bus. It acts as the active bus controller and interoperates with legacy I2C targets sharing the same wires. Transactions are described by the control and command registers and launched by a single register write; the registered read path returns snapshots with no read side effects. The serial core runs in the SMCLK domain (the \register{\register{SYSCLKCR}} $=$ 0 rule applies), with independent open-drain and push-pull baud dividers. The main features of the I3C controller are listed below:
 
 \begin{itemize}
@@ -11,11 +17,25 @@ The I3C controller (\peripheral{I3Cx}) is a single-controller MIPI I3C Basic int
 	\item Eight interrupt sources: transfer complete, receive full, transmit empty, address/byte NACK, early end-of-data, arbitration lost, DAA done, and IBI pending
 \end{itemize}
 
+\section{Functional description}
+
 \subsection{I3C Pins}
 
 The \peripheral{I3Cx} peripheral drives two open-drain / push-pull bidirectional pins: the serial data line \pin{SDA} and the serial clock \pin{SCL}. Each is a tri-state pad (an output value with a direction control and an input); the controller releases the line (high-impedance, pulled high by the bus) when it is not actively driving. The open-drain phases (the arbitrated address header, legacy-I2C data, and IBI arbitration) run at the \register{I3CODBR} rate; SDR data runs push-pull at the \register{I3CPPBR} rate once the bus is in push-pull mode.
 
-\subsection{Launching a Transaction}
+\subsection{Dynamic Address Assignment and In-Band Interrupts}
+
+For Dynamic Address Assignment, program the desired dynamic addresses into the Device Address Table entries (select an entry with \register{I3CIDX}, then write \register{I3CDYNADDR} / \register{I3CDYNVALID} in \register{I3CxDAT}), then issue an ENTDAA transaction (\register{I3CCCC} $=$ 1, \register{I3CCCCOP} $=$ \texttt{0x07}, \register{I3CDAARUN} $=$ 1). The controller runs the arbitrated discovery loop, captures each discovered device's provisional ID and characteristic registers into a DAT entry (\register{I3CxDATPID}, \register{I3CxDATINFO}), assigns the programmed dynamic address, and sets \register{I3CDAADONE}. SETDASA (\register{I3CDASA}) assigns a dynamic address to a device already known by its static address.
+
+When \register{I3CIBIEN} is set, the controller ACKs a target-initiated In-Band Interrupt, captures it into \register{I3CxIBI} (the requesting device's address, its optional mandatory data byte, and the ACK result), and sets \register{I3CIBIP}. The handler reads \register{I3CxIBI}, services the device, and clears \register{I3CIBIP} (write 1), which releases the snapshot for the next IBI.
+
+\section{Interrupts and events}
+
+The status flags \register{I3CTCIF}, \register{I3CRXFULL}, \register{I3CTXEIF}, \register{I3CANACK}, \register{I3CEODF}, \register{I3CARBLOST}, \register{I3CDAADONE}, \register{I3CDAAFULL}, and \register{I3CIBIP} are write-1-to-clear: write a 1 to a bit to clear it.
+
+The eight interrupt sources occupy vectors 86 through 93 (transfer complete, receive full, transmit empty, address/byte NACK, early end-of-data, arbitration lost, DAA done, and IBI pending, in that order), delivered through the interrupt router like every other shared-peripheral source. These sources sit above the external-interrupt (meip) delivery vector, which stays fixed at vector 85.
+
+\section{Programming}
 
 A transaction is fully described by the control and command registers. The launch sequence is:
 
@@ -26,14 +46,8 @@ A transaction is fully described by the control and command registers. The launc
 	\item Poll \register{I3CBUSY} (or wait for the transfer-complete interrupt). For a read, each captured byte appears in \register{I3CxRX} with \register{I3CRXFULL} set; reading \register{I3CxRX} has no side effects.
 \end{enumerate}
 
-The status flags \register{I3CTCIF}, \register{I3CRXFULL}, \register{I3CTXEIF}, \register{I3CANACK}, \register{I3CEODF}, \register{I3CARBLOST}, \register{I3CDAADONE}, \register{I3CDAAFULL}, and \register{I3CIBIP} are write-1-to-clear: write a 1 to a bit to clear it. Because the serial core runs in the SMCLK domain, software must set \register{\register{SYSCLKCR}} to 0 (SMCLK from HFXT) before using the controller, exactly as for the SPI, UART, and I2C peripherals.
+\section{Usage notes}
 
-\subsection{Dynamic Address Assignment and In-Band Interrupts}
+Because the serial core runs in the SMCLK domain, software must set \register{\register{SYSCLKCR}} to 0 (SMCLK from HFXT) before using the controller, exactly as for the SPI, UART, and I2C peripherals.
 
-For Dynamic Address Assignment, program the desired dynamic addresses into the Device Address Table entries (select an entry with \register{I3CIDX}, then write \register{I3CDYNADDR} / \register{I3CDYNVALID} in \register{I3CxDAT}), then issue an ENTDAA transaction (\register{I3CCCC} $=$ 1, \register{I3CCCCOP} $=$ \texttt{0x07}, \register{I3CDAARUN} $=$ 1). The controller runs the arbitrated discovery loop, captures each discovered device's provisional ID and characteristic registers into a DAT entry (\register{I3CxDATPID}, \register{I3CxDATINFO}), assigns the programmed dynamic address, and sets \register{I3CDAADONE}. SETDASA (\register{I3CDASA}) assigns a dynamic address to a device already known by its static address.
-
-When \register{I3CIBIEN} is set, the controller ACKs a target-initiated In-Band Interrupt, captures it into \register{I3CxIBI} (the requesting device's address, its optional mandatory data byte, and the ACK result), and sets \register{I3CIBIP}. The handler reads \register{I3CxIBI}, services the device, and clears \register{I3CIBIP} (write 1), which releases the snapshot for the next IBI.
-
-\subsection{Shared Access on \AsicNameForUserGuide}
-
-In configurations that include it, \peripheral{I3C0} lives in the shared peripheral window behind the multi-core arbiter (see Section \ref{s:multicore}) in the mutex-bank page, sub-slot 1 at \texttt{0x6100}, so any hart can use it. Its eight interrupt sources occupy vectors 86 through 93 (transfer complete, receive full, transmit empty, address/byte NACK, early end-of-data, arbitration lost, DAA done, and IBI pending, in that order), delivered through the interrupt router like every other shared-peripheral source. These sources sit above the external-interrupt (meip) delivery vector, which stays fixed at vector 85.
+In configurations that include it, \peripheral{I3C0} lives in the shared peripheral window behind the multi-core arbiter (see Section \ref{s:multicore}) in the mutex-bank page, sub-slot 1 at \texttt{0x6100}, so any hart can use it.
