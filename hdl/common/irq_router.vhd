@@ -22,6 +22,9 @@ library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.STD_LOGIC_ARITH.ALL;
 use IEEE.STD_LOGIC_UNSIGNED.ALL;
+-- Word offsets, field ranges and resets, generated from hdl/common/periph/rdl/irq_router.rdl
+-- (tools/rdl/README.md); the former local constants moved there unchanged.
+use work.irq_router_regs_pkg.all;
 
 entity irq_router is
     generic (
@@ -77,16 +80,6 @@ architecture behav of irq_router is
     signal meip_r     : std_logic_vector(NHARTS-1 downto 0);
     signal wdt_cpl_r  : std_logic;
 
-    -- Fixed word offsets, where the byte address is 0x7000 + 4*word.
-    constant W_CLAIM  : natural := 512;  -- 0x7800
-    constant W_PENDL  : natural := 516;  -- 0x7810
-    constant W_PENDM  : natural := 517;
-    constant W_PENDU  : natural := 518;
-    constant W_PENDX  : natural := 519;  -- 0x781C, sources 127:96, reads 0 below 97 sources.
-    constant W_INSVCL : natural := 520;  -- 0x7820
-    constant W_INSVCM : natural := 521;
-    constant W_INSVCU : natural := 522;
-    constant W_INSVCX : natural := 523;  -- 0x782C, sources 127:96, reads 0 below 97 sources.
 
     constant CLAIM_NONE : std_logic_vector(31 downto 0) := (others => '1');
     -- COMPLETE bounds check: a legal source ID fits in 7 bits, since NUM_SRCS is at most 127.

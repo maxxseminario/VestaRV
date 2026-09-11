@@ -6,7 +6,7 @@
 --   gates:       //platform/common:rdl_vhdl_pkg_test    tracked == regenerated
 --                //platform/common:rdl_pkg_vs_legacy_test  == the hand-written
 --                                                       constants it replaced
---                //platform/common:rdl_vs_vhdl_afe2_test / _biasg_test
+--                //platform/common:rdl_vs_vhdl_afe2_test
 --
 -- One analog front-end site: the digital half of one anatop_pixel channel.
 --

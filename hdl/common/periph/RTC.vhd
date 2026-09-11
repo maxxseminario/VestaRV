@@ -3,6 +3,12 @@ use ieee.std_logic_1164.all;
 use ieee.std_logic_arith.all;
 use ieee.std_logic_unsigned.all;
 
+-- Word slots inside this peripheral's 256B window (decoded from MABPart(7:2)),
+-- field ranges, resets and implemented-bit masks, generated from
+-- hdl/common/periph/rdl/rtc.rdl (tools/rdl/README.md). RTC is not in
+-- MemoryMap.vhd; SLOT_CR .. SLOT_TRIM were file-local constants until then.
+use work.rtc_regs_pkg.all;
+
 /* RTC: 32.768 kHz always-on wall clock with a one-shot alarm and a recurring periodic tick, behind one combined IRQ (vector 114).
    Three clocks: ungated lfxt_in (counter, alarm, tick, commit apply), free-running clk (LFXT-into-bus synchronizers, sticky flags, IRQ), gated ClkMem (register file).
    clk must free-run so ALMF, TICKF and irq_rtc set with no bus access in flight; lfxt_in is always on, and neither firmware nor PWRCTRL can stop it.
@@ -42,15 +48,6 @@ entity RTC is
 end RTC;
 
 architecture behavioral of RTC is
-
-    -- ---- word-slot map ---------------------------------------------------
-    constant SLOT_CR   : natural := 0;
-    constant SLOT_SEC  : natural := 1;
-    constant SLOT_SUB  : natural := 2;
-    constant SLOT_ALM  : natural := 3;
-    constant SLOT_PER  : natural := 4;
-    constant SLOT_SR   : natural := 5;
-    constant SLOT_TRIM : natural := 6;
 
     -- ---- register-file storage (ClkMem domain) ---------------------------
     signal rtc_cr      : std_logic_vector(4 downto 0);   -- RTCEN/ALMEN/TICKEN/ALMIE/TICKIE

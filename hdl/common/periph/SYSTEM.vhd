@@ -4,7 +4,11 @@ use ieee.std_logic_arith.all;
 use ieee.std_logic_unsigned.all;
 library work;
 use work.constants.all;
-use work.MemoryMap.all;
+-- Word offsets, field ranges, resets and implemented-bit masks, generated from
+-- hdl/common/periph/rdl/system.rdl (tools/rdl/README.md). It declares the same
+-- RegSlotSYS_* constants work.MemoryMap did, so this REPLACES that clause:
+-- using both would make every slot name an ambiguous homograph.
+use work.system_regs_pkg.all;
 
 entity SYSTEM is
     -- SYSTEM owns the clock, reset, CRC and watchdog monarchy; ALL peripheral IRQ routing and masking lives in the irq_router's per-hart rows at 0x7000.

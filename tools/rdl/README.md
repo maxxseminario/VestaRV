@@ -138,7 +138,7 @@ that read the source tree and not a build output:
 
 | module | output | regenerate |
 |---|---|---|
-| `rdl_vhdl_pkg.py` | `hdl/common/periph/afe2_regs_pkg.vhd`, `biasg_regs_pkg.vhd` — the packages `AFE2.vhd` and `BIASG.vhd` `use` (level 3) | `bazel run //platform/common/python:rdl_vhdl_pkgs` |
+| `rdl_vhdl_pkg.py` | `hdl/common/periph/<x>_regs_pkg.vhd`, one per block, **24 of them** (level 3) | `bazel run //platform/common/python:rdl_vhdl_pkgs` |
 | `rdl_cheader_regs.py` | `software/include/regs/*.h` — the firmware register headers, through stock PeakRDL-cheader | `bazel run //platform/common/python:rdl_regs_headers` |
 
 ## `config/rdl.json`: the registry, and `registerSource`
@@ -280,12 +280,12 @@ chip with eighteen peripherals' registers missing.
 |---|---|
 | `//platform/common:rdl_vs_vhdl_afe2_test` | `afe2.rdl` vs the `W_*` word constants, `IMPL` table and `RSTVAL` table `AFE2.vhd` compiles against — since level 3 that is `afe2_regs_pkg.vhd`, and the gate first asserts `AFE2.vhd` carries the context clause |
 | `//platform/common:rdl_vs_vhdl_biasg_test` | the same for `biasg.rdl`, `BIASG.vhd` and `biasg_regs_pkg.vhd`: `WORD_BASE_DEFAULT`, `N_WORDS`, `IMPL`, `RSTVAL` |
-| `//platform/common:rdl_vhdl_pkg_test` | the two TRACKED packages are byte-identical to a fresh emission, and each one's entity `use`s it |
-| `//platform/common:rdl_pkg_vs_legacy_test` | every value in those packages equals the hand-written constant it replaced, transcribed from the pre-migration revision. **This is the one gate in the set that does not run through the `.rdl`**, and it is why level 3 is not circular — see below |
+| `//platform/common:rdl_vhdl_pkg_test` | all 24 TRACKED packages are byte-identical to a fresh emission; a package flagged `migrated` is `use`d by its entity and one that is not is not (so the flag cannot rot); and an adopted package that re-declares `work.MemoryMap`'s slot constants has REPLACED that context clause rather than joined it |
+| `//platform/common:rdl_pkg_vs_legacy_test` | every value in those packages equals the hand-written constant it replaced. AFE2's and BIASG's are transcribed in the test; the other twenty-two are in `platform/common/python/rdl_legacy_constants.json`, frozen by `rdl_legacy_snapshot.py` before any of them migrated. **This is the one gate in the set that does not run through the `.rdl`**, and it is why level 3 is not circular (see below) |
 | `//platform/common:regs_headers_identity_test` | `software/include/regs/*.h` is byte-identical to a fresh emission, and no stale header is left behind |
 | `//platform/common:regs_headers_vs_memorymap_test` | every peripheral base (34) and every register address (359, plus the 5 BIASG overlay words) in those headers equals `MemoryMap.h`'s |
 | `//platform/common:regs_headers_compile_test` | a translation unit that USES every object-like macro the headers define (3182 of them) compiles freestanding at `-Wall -Wextra -Werror`, and `MemoryMap.h` + `castalia_regs.h` co-compile in one TU |
-| `//platform/common:rdl_vs_vhdl_uart_test` | `uart.rdl` vs the `RegSlotUARTx*` constants of the tracked memory-map package plus `UART.vhd`'s storage signals, reset branch and write-1-to-clear arm |
+| `//platform/common:rdl_vs_vhdl_uart_test` | `uart.rdl` vs the `RegSlotUARTx*` constants `UART.vhd` compiles against (`work.MemoryMap`'s before the migration, `uart_regs_pkg`'s after it; the reader follows the context clause), plus `UART.vhd`'s storage signals, reset branch and write-1-to-clear arm |
 | `//platform/common:rdl_vs_vhdl_<block>_test`, 20 more | the same, block by block, through `makeGenericReader`: slot constants and the reset branch of the register-write process |
 | the CLINT / MUTEX / IRQROUTER / PWRCTRL four of those | additionally re-elaborate the description at 1, 5, 18 and 32 harts (16 and 32 mutexes, 114–125 vectors) and check the layout against the generic formula parsed out of the VHDL — `MTIME_W = ((4*NHARTS+15)/16)*4`, `NUM_EN_WORDS = (NUM_SRCS+31)/32`, `NSRW = (NHARTS+7)/8`, `owner_t is array(0 to NMUTEX-1) of std_logic_vector(MW downto 0)`. A formula is not checked by checking one of its values |
 | `//platform/common:rdl_vs_generator_test` | the `.rdl` offsets equal the generated slot map, and then every register, field, reset value and description `config/MemoryMap.json` carries; plus the pilot's TRM tables byte-identically; plus `registerSource` and `generate.py` naming the same peripherals, with no hand-written table left for any of them |
@@ -342,33 +342,91 @@ byte-identical once the source-location comments are stripped (2225 netlist line
 for AFE2, 772 for BIASG); `AFE2_tb` still prints `ALL CHECKS PASSED` over 90 PASS
 lines; and the two elaboration gates still bind.
 
-**Level 3 costs a file dependency, and that is the thing to get right.** A
-package must be analysed before the entity that uses it, in EVERY flow that reads
-the RTL. `//hdl/common/tb:afe2_rtl`, the two `opensource_sim` analysis orders and
-`verify_stage.py`'s Xcelium cell list are updated; the Genus scripts under
-`genus/` are not, and cannot be from here — see the note at the end of this
-section.
+**All twenty-four packages exist and every flow reads them** (2026-09-11, report
+R8a). `rdl_vhdl.RTL_PACKAGES` carries one entry per block, each with a `migrated`
+flag saying whether its entity has adopted it yet, and every flow that reads the
+RTL tree lists all twenty-four whether or not anything `use`s them: the tb source
+sets in `hdl/common/tb/BUILD.bazel`, `opensource_sim/mcu/defs.bzl` and the two
+`penta_wound_afe*` lists, `verify_stage.py`'s `REGS_PACKAGES` injection, the
+`genus/MCU_PENTA*` `read_hdl` order and the live Xcelium cell lists. **Adopting a
+peripheral is therefore an RTL edit and a flag, and touches no shared file.** An
+unread package costs one analysis and synthesises to nothing.
 
-**Why it is not circular.** After the move, `rdl_vs_vhdl_afe2_test` compares the
-`.rdl` against a file generated FROM the `.rdl`: the decode no longer holds an
+The identifier convention is per block and is not negotiable, because the point is
+that no assignment in the body moves: `rdl_vhdl._DECODE` says whether a block
+spells its word offsets `SLOT_CR` (local, nine blocks), `RegSlotUARTxCR` /
+`MmrAddrNPUCR` (six blocks that read them from `work.MemoryMap` today) or
+`W_CLAIM` (irq_router, pwr_ctrl), and the package emits that spelling.
+
+**An entity that adopts its package SWAPS the memory-map context clause, it never
+adds to it.** The overlap is far wider than the slot constants: the generated
+memory-map package publishes a `<FIELD>_MSB` / `<FIELD>_LSB` pair for every field
+of every peripheral (`MemoryMap.vhd:422 PxAFS0_LSB`, `:485 BR_LSB`, and 900 more),
+which is exactly what these packages emit. Two directly visible declarations of one
+name are homographs, and VHDL LRM 12.4 then makes NEITHER visible, so the first
+reference stops compiling. `rdl_vhdl_pkg_test` computes the overlap from the two
+files and fails an adopted entity that kept the clause.
+
+**GPIO is parked for that reason.** Its entity ports are `GPIO_NUM_AFS * num_pins`
+wide and `GPIO_NUM_AFS` is a memory-map constant, so `GPIO.vhd` cannot drop the
+clause and cannot adopt `gpio_regs_pkg` (which therefore also omits `RegSlotPx*`).
+Give the entity a `NUM_AFS` generic, defaulted by its instantiator, and it unblocks.
+
+**The four configuration-dependent blocks publish only what does not depend on
+the configuration.** CLINT, MUTEX, IRQROUTER and PWRCTRL are emitted at every
+shipped configuration and the result is the INTERSECTION: a constant survives only
+where its name and value are the same everywhere. So `clint_regs_pkg` carries
+`MSIP0_WORD` but no `MTIMEL_WORD` (that word is `MTIME_W`, a function of NHARTS),
+and `pwr_ctrl_regs_pkg` carries `W_PWRWAKE`/`W_PWRSTS`/`W_TASKWKM` but no
+`PWRCR_IMPL` (the gate mask is one bit per hart). Nothing is hand-curated; the
+configuration list is in the block's `variants` entry and is the one
+`rdl_vs_vhdl_<block>_test` already elaborates.
+
+**Why it is not circular.** After the move, `rdl_vs_vhdl_<block>_test` compares
+the `.rdl` against a file generated FROM the `.rdl`: the decode no longer holds an
 independent copy to disagree with. `rdl_pkg_vs_legacy_test` is that independent
 copy, frozen — every offset, mask, reset and field range as the hand-written
-constants stated them, with the pre-migration file md5s recorded in its header. A
-deliberate register change moves that table, in the same commit, and nothing else
-may.
+constants stated them, with the pre-migration file md5s recorded. AFE2's and
+BIASG's tables are transcribed in the test itself; the other twenty-two are
+`platform/common/python/rdl_legacy_constants.json`, written once by
+`rdl_legacy_snapshot.py` and never regenerated by a gate. Its two halves are not
+equally strong and the file says so: `decodeConstants` was read out of the RTL
+text and is independent in SOURCE, while `registers` and `fields` were frozen from
+the emission on 2026-09-11, after reports R2/R3 had graded every `.rdl` against its
+decode, and are independent in TIME. A deliberate register change moves that
+table, in the same commit, and nothing else may.
 
-**Genus, when a block moves to level 3.** `genus/MCU_PENTA/tcl/*.genus.tcl` lists
-its RTL file by file. A package the RTL `use`s must be `read_hdl`-ed immediately
-before its entity, or synthesis fails at elaboration:
+**Genus.** `genus/MCU_PENTA/tcl/MCU_PENTA_hier.genus.tcl` and the `_pt` script
+list their RTL file by file. A package the RTL `use`s must be `read_hdl`-ed
+immediately before its entity, or synthesis fails at elaboration:
 
 ```tcl
 read_hdl -vhdl -library work [stg $MP/periph/afe2_regs_pkg.vhd]
 read_hdl -vhdl -library work [stg $MP/periph/AFE2.vhd]
 ```
 
-**Level 3 for a new peripheral.** Write the `.rdl` first, add the block to
-`rdl_vhdl.RTL_PACKAGES` (and, if its decode wants aggregate tables, an
-`_AGGREGATE` entry naming the identifiers it uses), run
+All twenty-two lines were added on 2026-09-11 (report R8a), so nothing has to be
+added there when a peripheral adopts its package. **`genus/` is gitignored**, like
+`xcelium/`: those edits live in the working tree only and no gate can see them.
+Whoever re-creates a Genus area from a fresh clone has to re-apply them, and the
+rule is the two lines above, one pair per peripheral.
+
+**Adopting an already-emitted package** (fourteen of the twenty-two are waiting;
+UART, TIMER and QSPI are done, and GPIO, DMA, CLINT, MUTEX and the debug module
+have no adoption path). Three steps, none of them in a shared file:
+
+1. delete the peripheral's local word constants, or its `use work.MemoryMap.all;`
+   where the package re-declares what it was reading from there;
+2. add `use work.<x>_regs_pkg.all;`;
+3. flip `migrated` to `True` in `rdl_vhdl.RTL_PACKAGES`.
+
+Then `bazel test //platform/common:rdl_vhdl_pkg_test
+//platform/common:rdl_pkg_vs_legacy_test //platform/common:rdl_vs_vhdl_<x>_test`
+and the block's GHDL bench. The flows already list the package.
+
+**Level 3 for a NEW peripheral.** Write the `.rdl` first, add the block to
+`rdl_vhdl.RTL_PACKAGES` (plus a `_DECODE` entry naming the spelling its decode
+uses, or an `_AGGREGATE` entry if it wants array tables), run
 `bazel run //platform/common/python:rdl_vhdl_pkgs`, and `use` the package from
 the entity's first commit. Add its file to every analysis order above in the same
 change.

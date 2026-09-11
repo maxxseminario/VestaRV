@@ -2,6 +2,11 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.std_logic_arith.all;
 use ieee.std_logic_unsigned.all;
+-- Word slots inside this peripheral's 256B window (decoded from MABPart(7:2)),
+-- field ranges, resets and implemented-bit masks, generated from
+-- hdl/common/periph/rdl/i2ctarget.rdl (tools/rdl/README.md). I2CTarget is not
+-- in MemoryMap.vhd; SLOT_CR .. SLOT_WDG were file-local constants until then.
+use work.i2ctarget_regs_pkg.all;
 
 /* I2CTarget: hardware-autonomous I2C target (slave), one instance I2CT0 at base 0x6A00, sharing the SDA0/SCL0 pad planes with I2C0 through a wired-AND DIR merge.
    7-bit address match with mask wildcard and general call, byte-at-a-time RX/TX with ready/empty status, optional clock stretching, START/STOP/repeated-START/NACK framing flags and a stuck-SCL watchdog.
@@ -40,11 +45,6 @@ architecture behavioral of I2CTarget is
          2 I2CTTX  : [7:0] next transmit byte, reads back the last value; a lane-0 write loads the buffer and clears TXE.
          3 I2CTRX  : [7:0] last received byte, side-effect-free read.
          4 I2CTWDG : [15:0] WDTO, the SCL-low watchdog timeout in units of 256 clk; 0 disables it, and that is the reset value. */
-    constant SLOT_CR  : natural := 0;   -- I2CTCR
-    constant SLOT_SR  : natural := 1;   -- I2CTSR
-    constant SLOT_TX  : natural := 2;   -- I2CTTX
-    constant SLOT_RX  : natural := 3;   -- I2CTRX
-    constant SLOT_WDG : natural := 4;   -- I2CTWDG
 
     -- ---- FSM states (plus a bit counter and a 2-bit ACK sub-phase) --------
     type t_i2ct_state is (T_IDLE, T_ADDR, T_ACK_ADDR, T_RX_DATA, T_ACK_RX,

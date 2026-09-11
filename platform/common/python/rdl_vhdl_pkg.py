@@ -51,7 +51,7 @@ def emitAll():
     out = {}
     for spec in rdl_vhdl.RTL_PACKAGES:
         block = rdl_model.loadBlock(spec['source'], spec['top'])
-        out[spec['file']] = rdl_vhdl.emitString(block, spec['package'])
+        out[spec['file']] = rdl_vhdl.emitString(block, spec['package'], spec)
     return out
 
 

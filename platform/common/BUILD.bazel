@@ -944,7 +944,12 @@ py_test(
     name = "rdl_pkg_vs_legacy_test",
     size = "small",
     srcs = ["//platform/common/python:rdl_pkg_vs_legacy_test.py"],
-    data = ["//hdl:vhdl_sources"],
+    data = [
+        # The frozen table for the twenty-two blocks of report R8a. AFE2's and
+        # BIASG's are transcribed inside the test itself (report R6).
+        "//platform/common/python:rdl_legacy_constants.json",
+        "//hdl:vhdl_sources",
+    ],
     main = "rdl_pkg_vs_legacy_test.py",
 )
 

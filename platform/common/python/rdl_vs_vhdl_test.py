@@ -58,6 +58,51 @@ def _defaultVhdl(name):
     return os.path.join(REPO, 'hdl', 'common', 'periph', name)
 
 
+PERIPH_DIR = os.path.join(REPO, 'hdl', 'common', 'periph')
+
+
+def _decodeText(vhdlPath):
+    """The entity's source plus the text of every generated register package it
+       `use`s.
+
+       Report R8a moved each peripheral's word-offset constants out of its
+       architecture (or out of work.MemoryMap) and into a tracked
+       hdl/common/periph/<x>_regs_pkg.vhd generated from the same .rdl. THE
+       VHDL STAYS THE AUTHORITY AND THIS GATE STILL READS IT: what changes is
+       that "the VHDL" is now the entity plus the package it compiles against,
+       so the readers below follow the context clause instead of failing on
+       constants that are no longer declared locally.
+
+       What that costs is the same thing it cost AFE2 and BIASG at level 2: for a
+       migrated block the constants read here came from the .rdl, so this gate
+       stops being .rdl-against-an-independent-copy for it. The independent copy
+       is rdl_pkg_vs_legacy_test, which holds the package against the constants
+       frozen before the migration. Both gates are needed."""
+    src = _read(vhdlPath)
+    parts = [src]
+    for m in re.finditer(r'use\s+work\.(\w+_regs_pkg)\.all\s*;', src):
+        path = os.path.join(PERIPH_DIR, m.group(1) + '.vhd')
+        if not os.path.isfile(path):
+            raise Exception('rdl_vs_vhdl: %s uses work.%s, which is not in the tree; '
+                            'regenerate with `bazel run //platform/common/python:rdl_vhdl_pkgs`'
+                            % (os.path.basename(vhdlPath), m.group(1)))
+        parts.append(_read(path))
+    return '\n'.join(parts)
+
+
+def _slotText(vhdlPath, memoryMapPath):
+    """Everything a slot constant could be declared in, for this entity.
+
+       The memory-map package is appended only where the entity still `use`s it:
+       a migrated peripheral has swapped that clause for its own package, and
+       reading the memory map anyway would let this gate pass on a constant the
+       entity can no longer see."""
+    text = _decodeText(vhdlPath)
+    if re.search(r'use\s+work\.MemoryMap\.all\s*;', text, re.I):
+        text += '\n' + _read(memoryMapPath)
+    return text
+
+
 # ---------------------------------------------------------------------------
 # The three decode readers. Each returns {registerName: {'word', 'reset', 'impl'}}
 # with `impl` None where the VHDL states no implemented-bit table.
@@ -149,13 +194,16 @@ def readBiasg(path):
 
 
 def readUart(vhdlPath, memoryMapPath):
-    """UART's decode is split: the slot numbers live in the generated memory-map
-       package the entity `use`s, the storage widths and resets in the entity."""
-    mmSrc = _read(memoryMapPath)
+    """UART's decode is split: the slot numbers live in the package the entity
+       `use`s -- work.MemoryMap before report R8a, work.uart_regs_pkg after it,
+       under the same RegSlotUARTx* identifiers -- and the storage widths and
+       resets in the entity."""
+    mmSrc = _slotText(vhdlPath, memoryMapPath)
     slots = dict((m.group(1), int(m.group(2)))
                  for m in re.finditer(r'constant\s+RegSlotUARTx(\w+)\s*:\s*natural\s*:=\s*(\d+);', mmSrc))
     if not slots:
-        raise Exception('rdl_vs_vhdl: no RegSlotUARTx* constants in ' + memoryMapPath)
+        raise Exception('rdl_vs_vhdl: no RegSlotUARTx* constants reachable from '
+                        + os.path.basename(vhdlPath))
     src = _read(vhdlPath)
     widths = dict((m.group(1), int(m.group(2)) + 1)
                   for m in re.finditer(r'signal\s+UART_(CR|SR|BR|RX|TX)\s*:\s*std_logic_vector\((\d+)\s+downto\s+0\);', src))
@@ -292,13 +340,18 @@ def makeGenericReader(spec):
 
     def read(vhdlPath, memoryMapPath):
         src = _read(vhdlPath)
+        # Reset values are read from the ENTITY only: they live in the reset
+        # branch of a process, which no package can hold. Slot constants are read
+        # from wherever the entity can see them -- itself, its generated register
+        # package, or the memory map while it still uses one.
+        slotSrc = _slotText(vhdlPath, memoryMapPath)
         consts = _namedConstants()
         if spec['slots'] == 'local':
-            raw = _slotsLocal(src)
+            raw = _slotsLocal(slotSrc)
         elif spec['slots'] == 'mmr':
-            raw = _slotsMmr(_read(memoryMapPath))
+            raw = _slotsMmr(slotSrc)
         elif spec['slots'].startswith('memmap:'):
-            raw = _slotsMemoryMap(_read(memoryMapPath), spec['slots'].split(':', 1)[1])
+            raw = _slotsMemoryMap(slotSrc, spec['slots'].split(':', 1)[1])
         else:
             raw = {}
         raw.update(spec.get('extraSlots', {}))
@@ -347,8 +400,11 @@ _GPIO_KEYS = ['IN', 'OUT', 'OUTS', 'OUTC', 'OUTT', 'DIR', 'IF', 'IES', 'IE', 'SE
 _SPI_KEYS = ['CR', 'SR', 'TX', 'RX', 'FOS']
 _TIM_KEYS = ['CR', 'SR', 'VAL', 'CMP0', 'CMP1', 'CMP2', 'CAP0', 'CAP1']
 _I2C_KEYS = ['CR', 'FCR', 'SR', 'MTX', 'MRX', 'STX', 'SRX', 'AR', 'AMR']
-_SYS_NAMES = dict((n, n) for n in ('SYSCLKCR', 'CLKDIVCR', 'BLOCKPWR', 'CRCDATA', 'CRCSTATE',
-                                   'WDTPASS', 'WDTCR', 'WDTSR', 'WDTVAL', 'DCO0BIAS', 'DCO1BIAS'))
+_SYS_NAMES = {'SYS_CLK_CR': 'SYSCLKCR', 'SYS_CLK_DIV_CR': 'CLKDIVCR',
+              'SYS_BLOCK_PWR': 'BLOCKPWR', 'SYS_CRC_DATA': 'CRCDATA',
+              'SYS_CRC_STATE': 'CRCSTATE', 'SYS_WDT_PASS': 'WDTPASS',
+              'SYS_WDT_CR': 'WDTCR', 'SYS_WDT_SR': 'WDTSR', 'SYS_WDT_VAL': 'WDTVAL',
+              'DCO0_BIAS': 'DCO0BIAS', 'DCO1_BIAS': 'DCO1BIAS'}
 _NPU_NAMES = dict((n, n) for n in ('NPUCR', 'NPUIVSAR', 'NPUWVSAR', 'NPUOVSAR', 'NPUSR',
                                    'NPUCFG1', 'NPUCFG2'))
 
@@ -441,9 +497,9 @@ GENERIC_BLOCKS = {
                                 r'constant NUM_EN_WORDS\s*:\s*natural\s*:=\s*\(NUM_SRCS \+ 31\) / 32;']),
     'pwr_ctrl': dict(vhdl=os.path.join('..', 'pwr_ctrl.vhd'), slots='none', name=lambda k: None,
                      literalSlots=_PWR_SLOTS, storage=_PWR_RESET,
-                     require=[r'constant W_PWRWAKE\s*:\s*integer\s*:=\s*5;',
-                              r'constant W_PWRSTS\s*:\s*integer\s*:=\s*6;',
-                              r'constant W_TASKWKM\s*:\s*integer\s*:=\s*7;',
+                     require=[r'constant W_PWRWAKE\s*:\s*(?:integer|natural)\s*:=\s*5;',
+                              r'constant W_PWRSTS\s*:\s*(?:integer|natural)\s*:=\s*6;',
+                              r'constant W_TASKWKM\s*:\s*(?:integer|natural)\s*:=\s*7;',
                               r'elsif widx = W_TASKWKM then']),
     'i3c': dict(vhdl='I3C.vhd', slots='local',
                 name=_prefixed('I3Cx', ['CR', 'CMD', 'TX', 'RX', 'SR', 'DAT', 'DATPID', 'DATINFO', 'IBI']),
@@ -498,7 +554,11 @@ GENERIC_BLOCKS = {
 
 def _wrapRequire(spec, reader):
     def read(vhdlPath, memoryMapPath):
-        src = _read(vhdlPath)
+        # Over the entity AND its register package: a `require` pattern names a
+        # declaration the reader's literal table depends on, and after report
+        # R8a that declaration may have moved into the package the entity uses.
+        # It is still a reading of what the entity compiles against.
+        src = _decodeText(vhdlPath)
         for pat in spec.get('require', []):
             if re.search(pat, src) is None:
                 raise Exception('rdl_vs_vhdl: %s no longer contains `%s`, so the slot table or a '
@@ -660,7 +720,7 @@ class RdlVsVhdlTest(unittest.TestCase):
         """Four words per hart at 4h, and the top word's live width."""
         if PERIPH != 'irq_router':
             self.skipTest('IRQROUTER-specific')
-        src = _read(self.vhdlPath)
+        src = _decodeText(self.vhdlPath)
         self.assertRegex(src, r'constant NUM_EN_WORDS\s*:\s*natural\s*:=\s*'
                               r'\(NUM_SRCS \+ 31\) / 32;')
         self.assertRegex(src, r'constant W_CLAIM\s*:\s*natural\s*:=\s*512;')

@@ -4,6 +4,10 @@ use ieee.std_logic_arith.all;
 use ieee.std_logic_unsigned.all;
 library work;
 use work.constants.all;
+-- Word offsets, field ranges, resets and implemented-bit masks, generated from
+-- hdl/common/periph/rdl/i3c.rdl (tools/rdl/README.md). I3C is not in
+-- MemoryMap.vhd; SLOT_CR .. SLOT_IBI were file-local constants until then.
+use work.i3c_regs_pkg.all;
 
 /* I3C: MIPI I3C Basic controller peripheral, SDR private read/write plus legacy-I2C.
    Contains the register file, baud generator, bit engine and framer FSM, the dynamic-address (DAA) engine with its DAT, the in-band-interrupt (IBI) monitor and the combinational pad-drive mux.
@@ -37,17 +41,6 @@ entity I3C is
 end I3C;
 
 architecture behavioral of I3C is
-
-    -- ---- register word-slot map ------------------------------------------
-    constant SLOT_CR      : natural := 0;
-    constant SLOT_CMD     : natural := 1;
-    constant SLOT_TX      : natural := 2;
-    constant SLOT_RX      : natural := 3;
-    constant SLOT_SR      : natural := 4;
-    constant SLOT_DAT     : natural := 5;  -- DAT window, entry selected by IDX
-    constant SLOT_DATPID  : natural := 6;  -- DAT provisional-ID low word
-    constant SLOT_DATINFO : natural := 7;  -- DAT PID high word, BCR, DCR
-    constant SLOT_IBI     : natural := 8;  -- IBI capture
 
     -- Framer and bit-engine phases.
     -- Each bit phase runs a 4-sub-state SCL cycle (sub0 setup, sub1 SCL rise, sub2 sample, sub3 SCL fall); never fold drive and sample onto one edge.

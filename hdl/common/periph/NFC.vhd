@@ -4,6 +4,11 @@ use ieee.std_logic_arith.all;
 use ieee.std_logic_unsigned.all;
 library work;
 use work.constants.all;
+-- Word slots inside this peripheral's 256B window (decoded from MABPart(7:2)),
+-- field ranges, resets and implemented-bit masks, generated from
+-- hdl/common/periph/rdl/nfc.rdl (tools/rdl/README.md). NFC is not in
+-- MemoryMap.vhd; SLOT_CR .. SLOT_DBG were file-local constants until then.
+use work.nfc_regs_pkg.all;
 
 /* NFC: ISO/IEC 14443-3 Type A tag and card-emulation digital protocol engine, communications only (no energy harvesting on-die).
    Three clock domains: ClkMem (gated bus, register file), clk (free-running smclk, hosting the CDC synchronizers and the W1C retirement) and rf_clk (AFE carrier-derived, the whole protocol core).
@@ -40,18 +45,6 @@ entity NFC is
 end NFC;
 
 architecture behavioral of NFC is
-
-    -- ---- register word-slot map ------------------------------------------
-    constant SLOT_CR    : natural := 0;
-    constant SLOT_SR    : natural := 1;
-    constant SLOT_UID   : natural := 2;
-    constant SLOT_CFG   : natural := 3;
-    constant SLOT_TIM   : natural := 4;
-    constant SLOT_RXST  : natural := 5;
-    constant SLOT_IDX   : natural := 6;
-    constant SLOT_DATA  : natural := 7;
-    constant SLOT_TXCTL : natural := 8;
-    constant SLOT_DBG   : natural := 9;
 
     /* ---- CRC_A per ISO/IEC 14443-3 (reflected 0x8408, init 0x6363) -------
        Bit-serial reflected LFSR, one data byte LSB-first at a time; this is NOT the house CRC16.

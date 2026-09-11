@@ -6,7 +6,7 @@
 --   gates:       //platform/common:rdl_vhdl_pkg_test    tracked == regenerated
 --                //platform/common:rdl_pkg_vs_legacy_test  == the hand-written
 --                                                       constants it replaced
---                //platform/common:rdl_vs_vhdl_afe2_test / _biasg_test
+--                //platform/common:rdl_vs_vhdl_biasg_test
 --
 -- Shared bias generator (anatop_biasgen_g) control registers, overlaid on words 9 to 13 of AFE2 site 0's sub-slot.
 --

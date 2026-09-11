@@ -45,6 +45,39 @@ BASE_CELL_LIST = os.path.join(RISCV_TEST, 'behavioral_mp', 'cell_list_behavioral
 TEMPLATE = os.path.join(PC_ROOT, 'verify', 'xrun_parallel.template.sh')
 RESOLVED = os.path.join(PC_ROOT, 'config', 'ChipConfig.resolved.json')
 
+# (package file, the cell-list entry it must precede). Transcribed from
+# rdl_vhdl.RTL_PACKAGES rather than imported, because this script runs under the
+# host /usr/bin/python3 with no third-party path set up and rdl_vhdl's neighbours
+# need the SystemRDL compiler. //platform/common:rdl_vhdl_pkg_test is what keeps
+# the package set honest; a package missing from here costs an elaboration error
+# in `make verify`, which is loud.
+REGS_PACKAGES = (
+    ('gpio_regs_pkg.vhd', 'periph/GPIO.vhd'),
+    ('spi_regs_pkg.vhd', 'periph/SPI.vhd'),
+    ('uart_regs_pkg.vhd', 'periph/UART.vhd'),
+    ('i2c_regs_pkg.vhd', 'periph/I2C.vhd'),
+    ('timer_regs_pkg.vhd', 'periph/TIMER.vhd'),
+    ('system_regs_pkg.vhd', 'periph/SYSTEM.vhd'),
+    ('npu_regs_pkg.vhd', 'periph/NPU.vhd'),
+    ('qspi_regs_pkg.vhd', 'periph/QSPI.vhd'),
+    ('i3c_regs_pkg.vhd', 'periph/I3C.vhd'),
+    ('nfc_regs_pkg.vhd', 'periph/NFC.vhd'),
+    ('rtc_regs_pkg.vhd', 'periph/RTC.vhd'),
+    ('pwm_regs_pkg.vhd', 'periph/PWM.vhd'),
+    ('onewire_regs_pkg.vhd', 'periph/OneWire.vhd'),
+    ('dma_regs_pkg.vhd', 'periph/DMA.vhd'),
+    ('i2ctarget_regs_pkg.vhd', 'periph/I2CTarget.vhd'),
+    ('trng_regs_pkg.vhd', 'periph/TRNG.vhd'),
+    ('evfab_regs_pkg.vhd', 'periph/EVFAB.vhd'),
+    ('clint_regs_pkg.vhd', 'clint.vhd'),
+    ('irq_router_regs_pkg.vhd', 'irq_router.vhd'),
+    ('mutex_bank_regs_pkg.vhd', 'mutex_bank.vhd'),
+    ('pwr_ctrl_regs_pkg.vhd', 'pwr_ctrl.vhd'),
+    ('debug_module_regs_pkg.vhd', 'debug_module.vhd'),
+    ('afe2_regs_pkg.vhd', 'periph/AFE2.vhd'),
+    ('biasg_regs_pkg.vhd', 'periph/BIASG.vhd'),
+)
+
 # ---------------------------------------------------------------------------
 # Test catalog -- the canonical behavioral_mp regression list (order kept),
 # each entry tagged with the config knobs it needs:
@@ -1371,17 +1404,21 @@ def main():
             raise SystemExit('DMA config but commune/CRC16.vhd not in %s (DMA.vhd needs it)'
                              % BASE_CELL_LIST)
         lines.insert(crc16_idx + 1, dma_cell)
-    # SystemRDL level 2 (report R6): AFE2.vhd and BIASG.vhd `use` a GENERATED
-    # register package -- hdl/common/periph/{afe2,biasg}_regs_pkg.vhd -- for their
-    # word offsets, field ranges, IMPL masks and reset tables. A package must be
+    # SystemRDL level 2 (reports R6 and R8a): every peripheral has a GENERATED
+    # register package -- hdl/common/periph/<x>_regs_pkg.vhd -- carrying its word
+    # offsets, field ranges, IMPL masks and reset constants. A package must be
     # analysed before the entity that uses it, so each one is inserted
     # immediately ahead of its entity WHEREVER that entity ended up: the base
     # list may already carry it, or one of the injections above may have placed
     # it. This runs LAST, after every other injection, so the index it reads is
     # off the finished list -- and so it cannot shift crc16_idx, which the DMA
     # injection above holds as a number taken from the base-list scan.
-    for pkg, entity in (('afe2_regs_pkg.vhd', 'periph/AFE2.vhd'),
-                        ('biasg_regs_pkg.vhd', 'periph/BIASG.vhd')):
+    #
+    # All twenty-four are injected, adopted or not: an unused package is one
+    # extra xmvhdl analysis and nothing else, and it means a peripheral's
+    # adoption never has to touch this file. An entity the configuration does not
+    # instantiate is absent from the list, and its package is skipped with it.
+    for pkg, entity in REGS_PACKAGES:
         pkg_cell = '../../../hdl/common/periph/' + pkg
         if pkg_cell in lines:
             continue

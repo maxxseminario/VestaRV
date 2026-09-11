@@ -3,6 +3,12 @@ use ieee.std_logic_1164.all;
 use ieee.std_logic_arith.all;
 use ieee.std_logic_unsigned.all;
 
+-- Word slots inside this peripheral's 256B window (decoded from MABPart(7:2)),
+-- field ranges, resets and implemented-bit masks, generated from
+-- hdl/common/periph/rdl/onewire.rdl (tools/rdl/README.md). OneWire is not in
+-- MemoryMap.vhd; SLOT_CR .. SLOT_SPU were file-local constants until then.
+use work.onewire_regs_pkg.all;
+
 /* OneWire: Dallas/Maxim 1-Wire master, one open-drain DQ pin, one combined IRQ, register base 0x6700.
    Link-layer primitives off a programmable time base: reset plus presence, write-bit, read-bit, write-byte, read-byte; ROM search and CRC-8 stay in firmware.
    Standard and overdrive speeds; strong-pullup is a register stub only, so DQ is released high and never driven high.
@@ -36,13 +42,6 @@ architecture behavioral of OneWire is
          4 OW0DIV : [15:0] time-base divisor, one tick every OW0DIV+1 clk cycles
          5 OW0SR  : [0]BUSY ro [1]TCIF W1C [2]PRES ro [3]NOPRES W1C [4]SHORT W1C
          6 OW0SPU : reserved, reads 0 and ignores writes; slots >=7 read 0 */
-    constant SLOT_CR  : natural := 0;
-    constant SLOT_CMD : natural := 1;
-    constant SLOT_TX  : natural := 2;
-    constant SLOT_RX  : natural := 3;
-    constant SLOT_DIV : natural := 4;
-    constant SLOT_SR  : natural := 5;
-    constant SLOT_SPU : natural := 6;
 
     -- OW0CMD OP encoding; any other code is reserved and does nothing.
     constant OP_RESET  : std_logic_vector(2 downto 0) := "000";
