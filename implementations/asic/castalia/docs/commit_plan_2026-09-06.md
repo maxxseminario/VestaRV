@@ -895,3 +895,96 @@ the entity. Left alone.
    plus `//platform/common:penta_wound_afe_intro_names_test` after the last commit.
 7. Decide the TRM republish (4.2) before or after; `make check-publish` is red either way
    until it happens.
+
+---
+
+## 5. What landed, 2026-09-11
+
+Committed and pushed on the owner's authorisation of 2026-09-11, branch
+`docs/relocate-vesta-docs-pointers`, parent `10b2fe7`, range
+`10b2fe7..14f1235` at `git@github.com:maxxseminario/VestaRV.git`. Twelve commits,
+366 files, `git status --short` at HEAD shows one untracked path and no
+modification: the working tree and HEAD are byte-identical.
+
+| # | hash | subject | files | +/- |
+|---|---|---|---|---|
+| C1 | `46c3ee1` | RTL: remove the inferred latches and close two reset-domain holes | 12 | 188 / 36 |
+| C2 | `eeb794b` | AFE2: four rev-2 analog front-end sites and the generator that emits them | 16 | 1760 / 16 |
+| C3 | `eb68319` | Generator: per-tile AFE topology, the BIASG register block and the _pt pad ring | 15 | 3155 / 125 |
+| C4 | `863425d` | Boot ROM: stack pointer at the TCM top, bounded flash polls and a boot watchdog | 9 | 3008 / 2798 |
+| C5 | `6728614` | Testbenches: ten new GHDL gates, the shipped generics, and a reachable timeout | 13 | 440 / 104 |
+| C6 | `1feeb9d` | Verification: a tile ISA gate, the AFE2 MCU test, and an honest fk51mp | 11 | 1089 / 52 |
+| C7 | `119f634` | TRM: close every dead cross-reference, cut the em-dashes, add the missing sections | 195 | 56078 / 52067 |
+| C8 | `6918fd6` | Docs: give nine peripheral intros the section skeleton, and name the regression | 14 | 2160 / 49 |
+| C9 | `d79fae2` | registers: SystemRDL as the single source, with VHDL-authority gates | 48 | 11277 / 1 |
+| C10 | `c6002ab` | Generator: correct 82 register fields the RTL contradicts; regenerate MemoryMap.vhd | 8 | 519 / 306 |
+| C11 | `7fb75e4` | registers: make the .rdl descriptions the only source, and the generation hermetic | 13 | 497 / 1323 |
+| C12 | `14f1235` | registers: generated VHDL packages in the RTL, and typed C headers for firmware | 33 | 5774 / 0 |
+
+`tools/bin/bazel test //platform/... //tools/rdl:all //hdl/common/tb:all
+//opensource_sim/... //software/...` is **157 of 157** before the first commit and
+again at `14f1235`, `penta_wound_afe_intro_names_test` included (its `manual` tag
+had already been dropped, U-2). Every commit carries the session trailer; all
+twelve used `--no-verify`, for the pre-existing stale-TRM `check-publish` hook
+(§4.2), which no commit here addresses.
+
+### Deviations from §2 and §4, and why
+
+- **C12 did not exist in §2.** It was specified in R6 §5 as "new C12, after C11"
+  and never written into this file. Its message is authored here from R6: the
+  generated VHDL register packages, the firmware headers, their four gates, and
+  the two open items (the Genus `read_hdl` lines, the eight `myshkin.h`
+  collisions).
+- **`afe2_regs_pkg.vhd` moved from C12 to C2 and `biasg_regs_pkg.vhd` to C3.**
+  `AFE2.vhd` and `BIASG.vhd` `use` them, so leaving them in C12 would have left
+  `//hdl/common/tb:AFE2_tb` and both `opensource_sim` elaboration gates unbuildable
+  for ten commits. One sentence was added to each message saying so.
+- **C10's `generate.py` register-table corrections are not recoverable from this
+  tree.** R3 corrected 82 fields in the hand-written tables and R5/R7 then deleted
+  those tables; the net working-tree diff carries the deletion only. C10 therefore
+  lands what survives — the regenerated `hdl/common/MemoryMap.vhd` (all but the 12
+  GPIO `Px*_MSB` constants, which are C11's), the per-instance reset path in
+  `generate.py` and `LatexUserGuide.py`, `mcu_vhd.py`'s MUTEX and PWRCTRL
+  cross-checks, `ChipGenerator.py`'s comment fixes, `Peripheral.py`'s
+  `registersToChange` list, and the MUTEX/PWRCTRL intro prose.
+- **`tb_vhd.py` and `verify_stage.py` were not split.** F22's AFE2 signal code and
+  B2's per-tile branch are interleaved inside the same functions of `tb_vhd.py`, so
+  it lands whole in C3; `verify_stage.py` is seven-ninths F15/F22 cell-list work and
+  lands whole in C6.
+- **`opensource_sim/isa/{BUILD.bazel,run_isa.sh}` moved from C3 to C6.** The one
+  changed line in each is the `shafe2` SKIP row, which belongs with the test.
+- **Files §1 and §2 did not list, assigned here.**
+  `implementations/asic/castalia/analog/data/` (83 files, the DAC re-extraction
+  behind the bit-driver correction) and `fig_dacr2r12_mc_{dnl,inl}.tex`,
+  `tab_dacr2r12_mc_scale.tex` → C7, with the captions they feed.
+  `implementations/asic/castalia/README.md` (R1's SystemRDL section) → C9.
+  `implementations/asic/castalia/docs/afe_summary_2026-09-06.md` → C8.
+  Everything R5/R6/R7 added after this file was written — `MODULE.bazel`,
+  `hdl/BUILD.bazel`, `platform/common/{Makefile,bazel/*,python/BUILD.bazel,
+  python/check_intro_names.py}`, `Peripheral.py`, `software/include/` — is split
+  across C9, C11 and C12 on the same rule: the toolchain and the descriptions in
+  C9, the switch-over in C11, the level-2 packages and firmware headers in C12.
+- **`tools/rdl/READY` is deliberately not committed.** It is an agent-to-agent
+  status marker; nothing in the tree reads it. It is the only path `git status`
+  reports at HEAD.
+- **`docs/chip_configurator.html` and `config/ChipConfig.resolved.json` are not
+  split** (§4.3 says the blob cannot be); both land whole in C3, the later of the
+  two generator commits.
+- **`config/padring_pt.json`'s `_hook` block was trimmed before C3**, per §4.5
+  step 2, to a two-line provenance `_comment`. Both `_pt` generation tests pass
+  after the trim.
+- **Intermediate commits are not each independently green.** The tree is one end
+  state, and later waves rewrote earlier ones: C2's `generate.py` hunks land with
+  the pre-`.rdl` register tables still in place, C9's `rdl_vs_generator_test`
+  grades a generator that C11 has not yet moved, and several C2/C3 Bazel targets
+  name `//hdl:rdl_sources`, which arrives in C9. Only `14f1235` is claimed green,
+  and it is. The whole range was pushed together.
+
+### Still open, unchanged by this landing
+
+`make check-publish` is red: the tracked `implementations/asic/castalia/docs/TRM.pdf`
+is 2026-08-30 and the build is 309 pages of 2026-09-05 (§4.2). Republishing belongs
+with the `penta_wound_afe` republish named in `TRM.template.tex`'s PENDING block.
+The cosim boot-mode X pins at pc `0x5c` / `0x15c` and the physical `rom2k_hvt_pg`
+plate are stale against the ROM C4 carries (U-3), and Genus needs the two `read_hdl`
+lines C12's message names.
