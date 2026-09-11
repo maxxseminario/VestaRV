@@ -70,6 +70,7 @@ _RV32UI_TESTS = [
     "shfault",
     "shpwr",
     "shafe",
+    "shafe2",
     "shorch",
     "shtcm",
     "shdma",
@@ -582,12 +583,34 @@ filegroup(
 #   * a flashed image opens with the 0x10adbeef vector-area header, ends with
 #     the 0xcafebabe execute word, and carries no second header,
 #   * the flashed file name is exactly 22 characters.
+#
+# It also carries the TILE ISA gate. Harts 1-4 are the hardened hart_tile macro
+# at rv32iac: MCU.vhd:3290-3294 passes TILE_ENABLE_MUL, TILE_ENABLE_DIV and
+# TILE_ENABLE_BITMANIP as false, and MemoryMap.vhd:1235-1237 states the same
+# contract. The images are nevertheless assembled -march=rv32imc / rv32imac
+# (see _CI_SUITES), so gas accepts a mul or a bseti in tile-executed code
+# silently, and the first evidence would be an illegal-instruction trap on a
+# tile in a licensed regression. :isa_dumps below is the disassembly of the
+# three suites whose tests ignite tiles; the gate rejects every M and Zb
+# mnemonic in them, with a named allowlist for the two hart-0-only sites.
+# rv32um and rv32uzb* are deliberately NOT in that group: their whole purpose
+# is those extensions and hart 0 executes them alone.
+filegroup(
+    name = "isa_dumps",
+    srcs = [
+        ":rv32ua_dumps",
+        ":rv32uc_dumps",
+        ":rv32ui_dumps",
+    ],
+)
+
 py_test(
     name = "image_contract_test",
     size = "small",
     srcs = ["tests_image_contract.py"],
     main = "tests_image_contract.py",
     data = [
+        ":isa_dumps",
         ":rv32uc_flashed",
         ":rv32uc_rcfs",
         ":rv32uzba_flashed",

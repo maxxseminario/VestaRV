@@ -23,6 +23,7 @@ rv32ui_sc_tests = \
 	shfault \
 	shpwr \
 	shafe \
+	shafe2 \
 	shorch \
 	shtcm \
 	shdma \
