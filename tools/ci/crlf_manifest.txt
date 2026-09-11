@@ -13,10 +13,7 @@
 # quietly dropped.
 hdl/common/adddec.vhd
 hdl/common/constants.vhd
-hdl/common/periph/AFE.vhd
-hdl/common/periph/AFE_FSM.vhd
 hdl/common/periph/GPIO.vhd
-hdl/common/periph/SARADC.vhd
 hdl/common/periph/SPI.vhd
 hdl/common/periph/SYSTEM.vhd
 hdl/common/periph/TIMER.vhd
@@ -40,10 +37,7 @@ hdl/myshkin/MCU.vhd
 hdl/myshkin/MemoryMap.vhd
 hdl/myshkin/adddec.vhd
 hdl/myshkin/constants.vhd
-hdl/myshkin/periph/AFE.vhd
-hdl/myshkin/periph/AFE_FSM.vhd
 hdl/myshkin/periph/GPIO.vhd
-hdl/myshkin/periph/SARADC.vhd
 hdl/myshkin/periph/SPI.vhd
 hdl/myshkin/periph/SYSTEM.vhd
 hdl/myshkin/periph/TIMER.vhd
@@ -77,7 +71,6 @@ software/bootrom_mp/src/uart.c
 software/commune/include/clocks.h
 software/commune/include/i2c_master.h
 software/commune/include/i2c_slave.h
-software/commune/include/myshkin.h
 software/commune/include/timing.h
 software/commune/src/DAC8162.c
 software/commune/src/i2c_master.c
@@ -87,11 +80,9 @@ software/commune/src/uart.c
 software/rv4th/src/uart.c
 tools/build/scripts/generate_test_globals.py
 tools/build/scripts/rcf_insert.py
-tools/python/Afe Terminals.txt
 verification/isa/macros/scalar/myshkin.h
 verification/isa/macros/scalar/myshkin_memmap.h
 verification/isa/tests/boot/boot.S
-verification/isa/tests/periph/AFE.S
 verification/isa/tests/periph/GPIO.S
 verification/isa/tests/periph/GPIO1.S
 verification/isa/tests/periph/GPIO2.S
@@ -100,7 +91,6 @@ verification/isa/tests/periph/NPU.S
 verification/isa/tests/periph/NPU_data/npu_expected_fp_outputs.txt
 verification/isa/tests/periph/NPU_data/npu_fp_inputs.txt
 verification/isa/tests/periph/NPU_data/npu_fp_weights.txt
-verification/isa/tests/periph/SARADC.S
 verification/isa/tests/periph/SPI.S
 verification/isa/tests/periph/SPIEM.S
 verification/isa/tests/periph/SPISR.S

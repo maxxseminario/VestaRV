@@ -58,6 +58,18 @@ architecture Behavioral of UART is
     constant BIT_COUNT_PARITY   : std_logic_vector(3 downto 0) := "0001";
     constant BIT_COUNT_STOP     : std_logic_vector(3 downto 0) := "0000";
 
+    -- The bus side is one periph_regs instance driven by uart_regs_pkg's tables;
+    -- see hdl/common/regs/REGFILE.md. UARTxCR, UARTxBR and UARTxTX are its
+    -- storage; UARTxSR and UARTxRX hold no flop there, because the hardware that
+    -- sets those flags owns them and their flag CDC lives below.
+    signal regs_q  : reg_arr_t;
+    signal hw_rd_s : reg_arr_t;
+    signal w1c_s   : reg_arr_t;                        -- a 1 written to a UARTxSR flag
+    signal acc_s   : std_logic_vector(0 to NWORDS-1);  -- combinational: this slot is addressed now
+    signal rd_str  : std_logic_vector(0 to NWORDS-1);
+    signal wr_str  : std_logic_vector(0 to NWORDS-1);
+    signal sr_rd, rx_rd : std_logic_vector(31 downto 0);
+
     -- Memory-Mapped Registers
     signal UART_CR : std_logic_vector(5 downto 0);
     signal UART_SR : std_logic_vector(7 downto 0);
@@ -85,8 +97,6 @@ architecture Behavioral of UART is
     signal USR_UTEIF   : std_logic; -- TX Empty Interrupt Flag
     signal USR_UTCIF   : std_logic; -- TX Complete Interrupt Flag
 
-    -- Memory Interface Signals
-    signal en_addr_periph : natural range 0 to 63; -- Decoded register slot index, valid while en_mem is low
 
     -- Clock Generation Signals
     signal en_baud_clk_src : std_logic;
@@ -143,23 +153,29 @@ begin
 
     -- Register Bit Assignments
     
+    -- The three stored words come out of the register file; the field positions
+    -- are uart_regs_pkg's, so no bit literal in this file describes a register.
+    UART_CR <= regs_q(RegSlotUARTxCR)(UEN_MSB downto TCIE_LSB);
+    UART_BR <= regs_q(RegSlotUARTxBR)(BR_MSB downto BR_LSB);
+    UART_TX <= regs_q(RegSlotUARTxTX)(TX_MSB downto TX_LSB);
+
     -- UART Control Register Bit Mapping
-    UCR_EN   <= UART_CR(5);  -- UART Enable
-    UCR_PEN  <= UART_CR(4);  -- Parity Enable
-    UCR_PSEL <= UART_CR(3);  -- Parity Select (0 = Even, 1 = Odd)
-    UCR_CIE  <= UART_CR(2);  -- RX Complete Interrupt Enable
-    UCR_TEIE <= UART_CR(1);  -- TX Empty Interrupt Enable
-    UCR_TCIE <= UART_CR(0);  -- TX Complete Interrupt Enable
+    UCR_EN   <= regs_q(RegSlotUARTxCR)(UEN_LSB);   -- UART Enable
+    UCR_PEN  <= regs_q(RegSlotUARTxCR)(UPEN_LSB);  -- Parity Enable
+    UCR_PSEL <= regs_q(RegSlotUARTxCR)(PSEL_LSB);  -- Parity Select (0 = Even, 1 = Odd)
+    UCR_CIE  <= regs_q(RegSlotUARTxCR)(CIE_LSB);   -- RX Complete Interrupt Enable
+    UCR_TEIE <= regs_q(RegSlotUARTxCR)(TEIE_LSB);  -- TX Empty Interrupt Enable
+    UCR_TCIE <= regs_q(RegSlotUARTxCR)(TCIE_LSB);  -- TX Complete Interrupt Enable
 
     -- UART Status Register Bit Mapping
-    UART_SR(7) <= rx_busy_s2;  -- RX Busy Flag (2-FF synced level)
-    UART_SR(6) <= tx_busy_s2;  -- TX Busy Flag (2-FF synced level)
-    UART_SR(5) <= USR_FEF;     -- Framing Error Flag
-    UART_SR(4) <= USR_PEF;     -- Parity Error Flag
-    UART_SR(3) <= USR_OVF;     -- RX Overflow Flag
-    UART_SR(2) <= USR_RCIF;    -- RX Complete Interrupt Flag
-    UART_SR(1) <= USR_UTEIF;   -- TX Empty Interrupt Flag
-    UART_SR(0) <= USR_UTCIF;   -- TX Complete Interrupt Flag
+    UART_SR(RXBF_LSB) <= rx_busy_s2;  -- RX Busy Flag (2-FF synced level)
+    UART_SR(TXBF_LSB) <= tx_busy_s2;  -- TX Busy Flag (2-FF synced level)
+    UART_SR(FEF_LSB)  <= USR_FEF;     -- Framing Error Flag
+    UART_SR(PEF_LSB)  <= USR_PEF;     -- Parity Error Flag
+    UART_SR(OVF_LSB)  <= USR_OVF;     -- RX Overflow Flag
+    UART_SR(RCIF_LSB) <= USR_RCIF;    -- RX Complete Interrupt Flag
+    UART_SR(TEIF_LSB) <= USR_UTEIF;   -- TX Empty Interrupt Flag
+    UART_SR(TCIF_LSB) <= USR_UTCIF;   -- TX Complete Interrupt Flag
 
     -- Interrupt Outputs
     irq_rc <= UCR_CIE and USR_RCIF;
@@ -449,7 +465,7 @@ begin
             tx_busy_s1 <= USR_TX_busy; tx_busy_s2 <= tx_busy_s1;
             rx_busy_s1 <= USR_RX_busy; rx_busy_s2 <= rx_busy_s1;
 
-            -- W1C / side-effect clears (clk_mem pulses from reg_write_proc)
+            -- W1C / side-effect clears (one-clk_mem pulses out of periph_regs)
             if clr_UTCIF = '1' then USR_UTCIF <= '0'; end if;
             if clr_UTEIF = '1' then USR_UTEIF <= '0'; end if;
             if clr_URCIF = '1' then USR_RCIF  <= '0'; end if;
@@ -498,7 +514,8 @@ begin
 
     /*
        Register Synchronization for Memory Interface
-       Latch SR and RX, stored inverted, at the end of a bus access so a read returns a stable snapshot. */
+       Latch SR and RX, stored inverted, at the end of a bus access so a read returns a stable snapshot.
+       This stays here: which of a peripheral's signals are asynchronous to clk_mem is a CDC judgement periph_regs cannot make. It feeds hw_rd below. */
     reg_sync: process(en_mem, UART_RX, UART_SR)
     begin
         if falling_edge(en_mem) then 
@@ -508,76 +525,63 @@ begin
     end process;
 
     --    Memory-Mapped Register Interface
-    
-    -- Address decoding
-    en_addr_periph <= slv2uint(addr_periph) when en_mem = '0' else 0;
 
-    -- Register Write Process 
-    reg_write_proc: process(resetn, clk_mem)
-    begin
-        if resetn = '0' then
-            UART_CR <= (others => '0');
-            UART_TX <= (others => '0');
-            UART_BR <= (others => '0');
-            clr_SR_RX <= '0';
-            clr_UTCIF <= '0';
-            clr_UTEIF <= '0';
-            clr_URCIF <= '0';
-        elsif rising_edge(clk_mem) then
-            -- Default values for one-cycle pulses
-            clr_SR_RX <= '0';
-            clr_UTCIF <= '0';
-            clr_UTEIF <= '0';
-            clr_URCIF <= '0';
-            
-            -- Handle register writes
-            if en_mem = '0' then 
-                case en_addr_periph is 
-                    -- CR: the six control bits, byte lane 0 only.
-                    when RegSlotUARTxCR =>
-                        if wen(0) = '0' then
-                            UART_CR(5 downto 0) <= write_data(5 downto 0); 
-                        end if;
-                    -- SR: write-1-to-clear on the three interrupt flags.
-                    when RegSlotUARTxSR =>
-                        if wen(0) = '0' then
-                            if write_data(0) = '1' then
-                                clr_UTCIF <= '1';
-                            end if;
-                            if write_data(1) = '1' then
-                                clr_UTEIF <= '1';
-                            end if;
-                            if write_data(2) = '1' then 
-                                clr_URCIF <= '1';
-                            end if;
-                        end if;
-                    -- BR: 12-bit baud divisor, split across two byte lanes.
-                    when RegSlotUARTxBR =>
-                        if wen(0) = '0' then
-                            UART_BR(7 downto 0) <= write_data(7 downto 0);
-                        end if;
-                        if wen(1) = '0' then
-                            UART_BR(11 downto 8) <= write_data(11 downto 8);
-                        end if;
-                    -- TX: load the transmit holding register.
-                    when RegSlotUARTxTX =>
-                        if wen(0) = '0' then
-                            UART_TX <= write_data(7 downto 0);
-                            -- start_tx is raised by start_tx_proc
-                        end if;
-                    -- RX: any access to this slot clears the RX status flags.
-                    when RegSlotUARTxRX =>
-                        clr_SR_RX <= '1';
-                    -- Unmapped slot: no register effect.
-                    when others =>
-                        null;
-                end case;
-            end if;
-        end if;
-    end process;
+    -- The two words the register file does not store: the status and receive
+    -- snapshots, re-inverted here.
+    sr_rd <= (31 downto UART_SR_ltch'high + 1 => '0') & (not UART_SR_ltch);
+    rx_rd <= (31 downto UART_RX_ltch'high + 1 => '0') & (not UART_RX_ltch);
+
+    hw_rd_s <= (RegSlotUARTxSR => sr_rd,
+                RegSlotUARTxRX => rx_rd,
+                others         => (others => '0'));
+
+    -- STROBE_HOLD is false: every strobe this block consumes is sampled on
+    -- clk_mem by the flag process above, so a one-clk_mem pulse is what it wants,
+    -- and that is exactly the clr_* pulses this instance replaces. No RDTHRU and
+    -- no WIDEWR: nothing here reads past its own storage or ignores a byte lane.
+    u_regs: entity work.periph_regs
+        generic map (
+            NWORDS      => NWORDS,
+            RSTVAL      => RSTVAL,
+            IMPL        => IMPL,
+            W1C         => W1C,
+            WOSET       => WOSET,
+            WOT         => WOT,
+            PULSE       => PULSE,
+            RCLR        => RCLR,
+            HWOWN       => HWOWN,
+            STROBE_HOLD => false)
+        port map (
+            ClkMem      => clk_mem,
+            resetn      => resetn,
+            EnMemPeriph => en_mem,
+            WEn         => wen,
+            MABPart     => addr_periph,
+            wdata       => write_data,
+            rdata_out   => read_data,
+            regs        => regs_q,
+            hw_rd       => hw_rd_s,
+            acc_hit     => acc_s,
+            rd_strobe   => rd_str,
+            wr_strobe   => wr_str,
+            wr_pulse    => open,
+            w1c_hit     => w1c_s,
+            woset_hit   => open,
+            wot_hit     => open,
+            rd_clr      => open);
+
+    -- The three write-1-to-clear flags, as one-clk_mem pulses into the flag process.
+    clr_UTCIF <= w1c_s(RegSlotUARTxSR)(TCIF_LSB);
+    clr_UTEIF <= w1c_s(RegSlotUARTxSR)(TEIF_LSB);
+    clr_URCIF <= w1c_s(RegSlotUARTxSR)(RCIF_LSB);
+
+    -- ANY access to UARTxRX retires the RX status flags, a read as much as a
+    -- write. That is a read side effect on a DIFFERENT register, so it is a hook
+    -- here rather than an onread property there.
+    clr_SR_RX <= rd_str(RegSlotUARTxRX) or wr_str(RegSlotUARTxRX);
 
     -- start_tx request/ACK handshake, fully clk_mem-synchronous: the TX FSM toggles tx_start_ack_tgl when it consumes the request, and the synced ACK edge clears the level here.
-    -- A TX write in the same cycle wins, which re-arms the request.
+    -- A TX write in the same cycle wins, which re-arms the request. The set term takes the COMBINATIONAL acc_hit, not the registered wr_strobe, so the launch still lands on the edge the write does.
     start_tx_proc: process(resetn, clk_mem)
     begin
         if resetn = '0' then
@@ -591,31 +595,10 @@ begin
                 start_tx <= '0'; -- request consumed by the TX FSM
             end if;
             -- Set start_tx when writing to TX register (set wins over the ACK clear)
-            if en_mem = '0' and en_addr_periph = RegSlotUARTxTX and wen(0) = '0' then
+            if acc_s(RegSlotUARTxTX) = '1' and wen(0) = '0' then
                 start_tx <= '1';
             end if;
         end if;
     end process;
 
-    -- Register Read Process 
-    reg_read_proc: process(clk_mem)
-    begin
-        if rising_edge(clk_mem) then
-            case en_addr_periph is
-                when RegSlotUARTxCR =>
-                    read_data <= (31 downto UART_CR'high + 1 => '0') & UART_CR;
-                when RegSlotUARTxBR =>
-                    read_data <= (31 downto UART_BR'high + 1 => '0') & UART_BR;
-                when RegSlotUARTxSR =>
-                    read_data <= (31 downto UART_SR'high + 1 => '0') & (not UART_SR_ltch);
-                when RegSlotUARTxRX =>
-                    read_data <= (31 downto UART_RX'high + 1 => '0') & (not UART_RX_ltch);
-                when RegSlotUARTxTX =>
-                    read_data <= (31 downto UART_TX'high + 1 => '0') & UART_TX;
-                when others =>
-                    read_data <= (others => '0'); -- Return zeros for unmapped addresses
-            end case;
-        end if;
-    end process;
-
-end Behavioral;
+end Behavioral;

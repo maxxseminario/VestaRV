@@ -6,6 +6,8 @@
 
 library ieee;
 use ieee.std_logic_1164.all;
+library work;
+use work.constants.all;
 
 package i3c_regs_pkg is
 
@@ -225,5 +227,116 @@ package i3c_regs_pkg is
     constant SLOT_DATPID              : natural := 6;
     constant SLOT_DATINFO             : natural := 7;
     constant SLOT_IBI                 : natural := 8;
+
+    -- periph_regs tables (hdl/common/periph_regs.vhd), one row per word in slot
+    -- order. Every mask below is a property of this description. RDTHRU, WIDEWR
+    -- and STROBE_HOLD are the entity's own and are set at the instance;
+    -- hdl/common/regs/REGFILE.md says why they cannot come from SystemRDL.
+    constant NWORDS                   : natural := 9;
+    subtype  reg_arr_t is word_array(0 to NWORDS-1);
+
+    -- reset word, loaded on the asynchronous resetn
+    constant RSTVAL   : reg_arr_t := (
+        x"00000004",   -- I3CxCR
+        x"00000000",   -- I3CxCMD
+        x"00000000",   -- I3CxTX
+        x"00000000",   -- I3CxRX
+        x"00000000",   -- I3CxSR
+        x"00000000",   -- I3CxDAT
+        x"00000000",   -- I3CxDATPID
+        x"00000000",   -- I3CxDATINFO
+        x"00000000"    -- I3CxIBI
+    );
+
+    -- bits that hold a software-written flop; periph_regs stores exactly these
+    constant IMPL     : reg_arr_t := (
+        x"3FFFFF0F",   -- I3CxCR
+        x"FFFF3FFF",   -- I3CxCMD
+        x"000000FF",   -- I3CxTX
+        x"00000000",   -- I3CxRX
+        x"00000000",   -- I3CxSR
+        x"000FFFFF",   -- I3CxDAT
+        x"FFFFFFFF",   -- I3CxDATPID
+        x"FFFFFFFF",   -- I3CxDATINFO
+        x"00000000"    -- I3CxIBI
+    );
+
+    -- a written 1 clears (onwrite = woclr): drives w1c_hit
+    constant W1C      : reg_arr_t := (
+        x"00000000",   -- I3CxCR
+        x"00000000",   -- I3CxCMD
+        x"00000000",   -- I3CxTX
+        x"00000000",   -- I3CxRX
+        x"000003FE",   -- I3CxSR
+        x"00000000",   -- I3CxDAT
+        x"00000000",   -- I3CxDATPID
+        x"00000000",   -- I3CxDATINFO
+        x"00000000"    -- I3CxIBI
+    );
+
+    -- a written 1 sets (onwrite = woset): drives woset_hit
+    constant WOSET    : reg_arr_t := (
+        x"00000000",   -- I3CxCR
+        x"00000000",   -- I3CxCMD
+        x"00000000",   -- I3CxTX
+        x"00000000",   -- I3CxRX
+        x"00000000",   -- I3CxSR
+        x"00000000",   -- I3CxDAT
+        x"00000000",   -- I3CxDATPID
+        x"00000000",   -- I3CxDATINFO
+        x"00000000"    -- I3CxIBI
+    );
+
+    -- a written 1 toggles (onwrite = wot): drives wot_hit
+    constant WOT      : reg_arr_t := (
+        x"00000000",   -- I3CxCR
+        x"00000000",   -- I3CxCMD
+        x"00000000",   -- I3CxTX
+        x"00000000",   -- I3CxRX
+        x"00000000",   -- I3CxSR
+        x"00000000",   -- I3CxDAT
+        x"00000000",   -- I3CxDATPID
+        x"00000000",   -- I3CxDATINFO
+        x"00000000"    -- I3CxIBI
+    );
+
+    -- self-clearing strobe (singlepulse): drives wr_pulse, stores nothing
+    constant PULSE    : reg_arr_t := (
+        x"00000000",   -- I3CxCR
+        x"00000000",   -- I3CxCMD
+        x"00000000",   -- I3CxTX
+        x"00000000",   -- I3CxRX
+        x"00000000",   -- I3CxSR
+        x"00000000",   -- I3CxDAT
+        x"00000000",   -- I3CxDATPID
+        x"00000000",   -- I3CxDATINFO
+        x"00000000"    -- I3CxIBI
+    );
+
+    -- a read retires (onread = rclr): drives rd_clr
+    constant RCLR     : reg_arr_t := (
+        x"00000000",   -- I3CxCR
+        x"00000000",   -- I3CxCMD
+        x"00000000",   -- I3CxTX
+        x"00000000",   -- I3CxRX
+        x"00000000",   -- I3CxSR
+        x"00000000",   -- I3CxDAT
+        x"00000000",   -- I3CxDATPID
+        x"00000000",   -- I3CxDATINFO
+        x"00000000"    -- I3CxIBI
+    );
+
+    -- bits hardware drives (hw = w or rw): what hw_we / hw_set / hw_clr may touch
+    constant HWOWN    : reg_arr_t := (
+        x"00000000",   -- I3CxCR
+        x"00000000",   -- I3CxCMD
+        x"00000000",   -- I3CxTX
+        x"000000FF",   -- I3CxRX
+        x"000007FF",   -- I3CxSR
+        x"00000000",   -- I3CxDAT
+        x"00000000",   -- I3CxDATPID
+        x"00000000",   -- I3CxDATINFO
+        x"0003FFFF"    -- I3CxIBI
+    );
 
 end package i3c_regs_pkg;

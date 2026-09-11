@@ -6,6 +6,8 @@
 
 library ieee;
 use ieee.std_logic_1164.all;
+library work;
+use work.constants.all;
 
 package i2ctarget_regs_pkg is
 
@@ -110,5 +112,84 @@ package i2ctarget_regs_pkg is
     constant SLOT_TX                  : natural := 2;
     constant SLOT_RX                  : natural := 3;
     constant SLOT_WDG                 : natural := 4;
+
+    -- periph_regs tables (hdl/common/periph_regs.vhd), one row per word in slot
+    -- order. Every mask below is a property of this description. RDTHRU, WIDEWR
+    -- and STROBE_HOLD are the entity's own and are set at the instance;
+    -- hdl/common/regs/REGFILE.md says why they cannot come from SystemRDL.
+    constant NWORDS                   : natural := 5;
+    subtype  reg_arr_t is word_array(0 to NWORDS-1);
+
+    -- reset word, loaded on the asynchronous resetn
+    constant RSTVAL   : reg_arr_t := (
+        x"00000000",   -- I2CTxCR
+        x"00000000",   -- I2CTxSR
+        x"00000000",   -- I2CTxTX
+        x"00000000",   -- I2CTxRX
+        x"00000000"    -- I2CTxWDG
+    );
+
+    -- bits that hold a software-written flop; periph_regs stores exactly these
+    constant IMPL     : reg_arr_t := (
+        x"007F7F1F",   -- I2CTxCR
+        x"00000000",   -- I2CTxSR
+        x"000000FF",   -- I2CTxTX
+        x"00000000",   -- I2CTxRX
+        x"0000FFFF"    -- I2CTxWDG
+    );
+
+    -- a written 1 clears (onwrite = woclr): drives w1c_hit
+    constant W1C      : reg_arr_t := (
+        x"00000000",   -- I2CTxCR
+        x"000007DC",   -- I2CTxSR
+        x"00000000",   -- I2CTxTX
+        x"00000000",   -- I2CTxRX
+        x"00000000"    -- I2CTxWDG
+    );
+
+    -- a written 1 sets (onwrite = woset): drives woset_hit
+    constant WOSET    : reg_arr_t := (
+        x"00000000",   -- I2CTxCR
+        x"00000000",   -- I2CTxSR
+        x"00000000",   -- I2CTxTX
+        x"00000000",   -- I2CTxRX
+        x"00000000"    -- I2CTxWDG
+    );
+
+    -- a written 1 toggles (onwrite = wot): drives wot_hit
+    constant WOT      : reg_arr_t := (
+        x"00000000",   -- I2CTxCR
+        x"00000000",   -- I2CTxSR
+        x"00000000",   -- I2CTxTX
+        x"00000000",   -- I2CTxRX
+        x"00000000"    -- I2CTxWDG
+    );
+
+    -- self-clearing strobe (singlepulse): drives wr_pulse, stores nothing
+    constant PULSE    : reg_arr_t := (
+        x"00000000",   -- I2CTxCR
+        x"00000000",   -- I2CTxSR
+        x"00000000",   -- I2CTxTX
+        x"00000000",   -- I2CTxRX
+        x"00000000"    -- I2CTxWDG
+    );
+
+    -- a read retires (onread = rclr): drives rd_clr
+    constant RCLR     : reg_arr_t := (
+        x"00000000",   -- I2CTxCR
+        x"00000000",   -- I2CTxSR
+        x"00000000",   -- I2CTxTX
+        x"00000000",   -- I2CTxRX
+        x"00000000"    -- I2CTxWDG
+    );
+
+    -- bits hardware drives (hw = w or rw): what hw_we / hw_set / hw_clr may touch
+    constant HWOWN    : reg_arr_t := (
+        x"00000000",   -- I2CTxCR
+        x"000007FF",   -- I2CTxSR
+        x"00000000",   -- I2CTxTX
+        x"000000FF",   -- I2CTxRX
+        x"00000000"    -- I2CTxWDG
+    );
 
 end package i2ctarget_regs_pkg;

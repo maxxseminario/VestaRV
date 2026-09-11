@@ -321,4 +321,7 @@ package evfab_regs_pkg is
     constant SLOT_GPIOMASK            : natural := 15;
     constant SLOT_CH0CFG              : natural := 16;
 
+    -- No periph_regs table section: its twenty-nine registers are not a contiguous run of words,
+    -- so its words are not a dense array. See hdl/common/regs/REGFILE.md.
+
 end package evfab_regs_pkg;

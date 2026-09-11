@@ -6,6 +6,8 @@
 
 library ieee;
 use ieee.std_logic_1164.all;
+library work;
+use work.constants.all;
 
 package timer_regs_pkg is
 
@@ -158,5 +160,108 @@ package timer_regs_pkg is
     constant RegSlotTIMxCMP2          : natural := 5;
     constant RegSlotTIMxCAP0          : natural := 6;
     constant RegSlotTIMxCAP1          : natural := 7;
+
+    -- periph_regs tables (hdl/common/periph_regs.vhd), one row per word in slot
+    -- order. Every mask below is a property of this description. RDTHRU, WIDEWR
+    -- and STROBE_HOLD are the entity's own and are set at the instance;
+    -- hdl/common/regs/REGFILE.md says why they cannot come from SystemRDL.
+    constant NWORDS                   : natural := 8;
+    subtype  reg_arr_t is word_array(0 to NWORDS-1);
+
+    -- reset word, loaded on the asynchronous resetn
+    constant RSTVAL   : reg_arr_t := (
+        x"00000000",   -- TIMxCR
+        x"00000000",   -- TIMxSR
+        x"00000000",   -- TIMxVAL
+        x"00000000",   -- TIMxCMP0
+        x"00000000",   -- TIMxCMP1
+        x"00000000",   -- TIMxCMP2
+        x"00000000",   -- TIMxCAP0
+        x"00000000"    -- TIMxCAP1
+    );
+
+    -- bits that hold a software-written flop; periph_regs stores exactly these
+    constant IMPL     : reg_arr_t := (
+        x"000FFFFF",   -- TIMxCR
+        x"00000000",   -- TIMxSR
+        x"FFFFFFFF",   -- TIMxVAL
+        x"FFFFFFFF",   -- TIMxCMP0
+        x"FFFFFFFF",   -- TIMxCMP1
+        x"FFFFFFFF",   -- TIMxCMP2
+        x"00000000",   -- TIMxCAP0
+        x"00000000"    -- TIMxCAP1
+    );
+
+    -- a written 1 clears (onwrite = woclr): drives w1c_hit
+    constant W1C      : reg_arr_t := (
+        x"00000000",   -- TIMxCR
+        x"0000003F",   -- TIMxSR
+        x"00000000",   -- TIMxVAL
+        x"00000000",   -- TIMxCMP0
+        x"00000000",   -- TIMxCMP1
+        x"00000000",   -- TIMxCMP2
+        x"00000000",   -- TIMxCAP0
+        x"00000000"    -- TIMxCAP1
+    );
+
+    -- a written 1 sets (onwrite = woset): drives woset_hit
+    constant WOSET    : reg_arr_t := (
+        x"00000000",   -- TIMxCR
+        x"00000000",   -- TIMxSR
+        x"00000000",   -- TIMxVAL
+        x"00000000",   -- TIMxCMP0
+        x"00000000",   -- TIMxCMP1
+        x"00000000",   -- TIMxCMP2
+        x"00000000",   -- TIMxCAP0
+        x"00000000"    -- TIMxCAP1
+    );
+
+    -- a written 1 toggles (onwrite = wot): drives wot_hit
+    constant WOT      : reg_arr_t := (
+        x"00000000",   -- TIMxCR
+        x"00000000",   -- TIMxSR
+        x"00000000",   -- TIMxVAL
+        x"00000000",   -- TIMxCMP0
+        x"00000000",   -- TIMxCMP1
+        x"00000000",   -- TIMxCMP2
+        x"00000000",   -- TIMxCAP0
+        x"00000000"    -- TIMxCAP1
+    );
+
+    -- self-clearing strobe (singlepulse): drives wr_pulse, stores nothing
+    constant PULSE    : reg_arr_t := (
+        x"00000000",   -- TIMxCR
+        x"00000000",   -- TIMxSR
+        x"00000000",   -- TIMxVAL
+        x"00000000",   -- TIMxCMP0
+        x"00000000",   -- TIMxCMP1
+        x"00000000",   -- TIMxCMP2
+        x"00000000",   -- TIMxCAP0
+        x"00000000"    -- TIMxCAP1
+    );
+
+    -- a read retires (onread = rclr): drives rd_clr
+    constant RCLR     : reg_arr_t := (
+        x"00000000",   -- TIMxCR
+        x"00000000",   -- TIMxSR
+        x"00000000",   -- TIMxVAL
+        x"00000000",   -- TIMxCMP0
+        x"00000000",   -- TIMxCMP1
+        x"00000000",   -- TIMxCMP2
+        x"00000000",   -- TIMxCAP0
+        x"00000000"    -- TIMxCAP1
+    );
+
+    -- bits hardware drives (hw = w or rw): what hw_we / hw_set / hw_clr may touch
+    constant HWOWN    : reg_arr_t := (
+        x"00000040",   -- TIMxCR
+        x"000000FF",   -- TIMxSR
+        x"FFFFFFFF",   -- TIMxVAL
+        x"00000000",   -- TIMxCMP0
+        x"00000000",   -- TIMxCMP1
+        x"00000000",   -- TIMxCMP2
+        x"FFFFFFFF",   -- TIMxCAP0
+        x"FFFFFFFF"    -- TIMxCAP1
+    );
 
 end package timer_regs_pkg;

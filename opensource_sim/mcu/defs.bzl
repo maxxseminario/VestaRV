@@ -62,6 +62,10 @@ _MCU_EXTRA = [
     # from its .rdl (report R8a): a package a peripheral `use`s must be analysed
     # before it, and listing all twenty-two now -- adopted or not -- means the
     # adoption of one is an RTL edit and not a change to this list.
+    # The shared peripheral register file (report R12a). An ENTITY, not a
+    # package, and `entity work.periph_regs` binds at analysis, so it precedes
+    # every peripheral that could instantiate it.
+    "hdl/common/periph_regs.vhd",
     "hdl/common/regs/vhdl/gpio_regs_pkg.vhd",
     "hdl/common/periph/GPIO.vhd",
     "hdl/common/regs/vhdl/spi_regs_pkg.vhd",

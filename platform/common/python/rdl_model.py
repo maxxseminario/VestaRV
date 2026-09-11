@@ -91,13 +91,27 @@ _ACCESS_FROM_RDL = {
 _RESERVED_RE = 'RESERVED'
 
 
+def _rdlAccess(field):
+    """(sw, hw, onwrite, onread, singlepulse) as SystemRDL spells them.
+
+       The generator access code below collapses this tuple: `rw` is the answer
+       for hw=r, hw=na AND hw=rw, and `rw1` for woclr, woset and wot alike. That
+       is right for a published access column and wrong for a decode, which has
+       to know which side owns the flop and which direction a written 1 acts in.
+       The tuple is carried on the BitField as RdlAccess so an emitter can ask.
+    """
+    onwrite = field.get_property('onwrite')
+    onread = field.get_property('onread')
+    return (field.get_property('sw').name,
+            field.get_property('hw').name,
+            onwrite.name if onwrite is not None else None,
+            onread.name if onread is not None else None,
+            bool(field.get_property('singlepulse')))
+
+
 def _accessCode(field):
     """The generator access code implied by a field's SystemRDL properties."""
-    sw = field.get_property('sw').name
-    hw = field.get_property('hw').name
-    onwrite = field.get_property('onwrite')
-    onwrite = onwrite.name if onwrite is not None else None
-    sp = bool(field.get_property('singlepulse'))
+    sw, hw, onwrite, _onread, sp = _rdlAccess(field)
     key = (sw, hw, onwrite, sp)
     if key not in _ACCESS_FROM_RDL:
         raise Exception('rdl_model: no generator access code for SystemRDL '
@@ -374,6 +388,9 @@ def registerTemplatesFromNode(node, wordBase=0):
                           description=fieldDesc,
                           accessibility=code,
                           resetValue=int(reset) if reset is not None else 0)
+            # The uncollapsed SystemRDL tuple, for emitters that need the half
+            # the access code drops; see _rdlAccess.
+            bf.RdlAccess = _rdlAccess(field)
             # see the docstring of _valueDescriptions
             bf.ValueDescriptions = _valueDescriptions(field, scope, where)
             rt.AddBitField(bf)

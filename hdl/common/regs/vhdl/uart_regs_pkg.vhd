@@ -6,6 +6,8 @@
 
 library ieee;
 use ieee.std_logic_1164.all;
+library work;
+use work.constants.all;
 
 package uart_regs_pkg is
 
@@ -98,5 +100,84 @@ package uart_regs_pkg is
     constant RegSlotUARTxBR           : natural := 2;
     constant RegSlotUARTxRX           : natural := 3;
     constant RegSlotUARTxTX           : natural := 4;
+
+    -- periph_regs tables (hdl/common/periph_regs.vhd), one row per word in slot
+    -- order. Every mask below is a property of this description. RDTHRU, WIDEWR
+    -- and STROBE_HOLD are the entity's own and are set at the instance;
+    -- hdl/common/regs/REGFILE.md says why they cannot come from SystemRDL.
+    constant NWORDS                   : natural := 5;
+    subtype  reg_arr_t is word_array(0 to NWORDS-1);
+
+    -- reset word, loaded on the asynchronous resetn
+    constant RSTVAL   : reg_arr_t := (
+        x"00000000",   -- UARTxCR
+        x"00000000",   -- UARTxSR
+        x"00000000",   -- UARTxBR
+        x"00000000",   -- UARTxRX
+        x"00000000"    -- UARTxTX
+    );
+
+    -- bits that hold a software-written flop; periph_regs stores exactly these
+    constant IMPL     : reg_arr_t := (
+        x"0000003F",   -- UARTxCR
+        x"00000000",   -- UARTxSR
+        x"00000FFF",   -- UARTxBR
+        x"00000000",   -- UARTxRX
+        x"000000FF"    -- UARTxTX
+    );
+
+    -- a written 1 clears (onwrite = woclr): drives w1c_hit
+    constant W1C      : reg_arr_t := (
+        x"00000000",   -- UARTxCR
+        x"00000007",   -- UARTxSR
+        x"00000000",   -- UARTxBR
+        x"00000000",   -- UARTxRX
+        x"00000000"    -- UARTxTX
+    );
+
+    -- a written 1 sets (onwrite = woset): drives woset_hit
+    constant WOSET    : reg_arr_t := (
+        x"00000000",   -- UARTxCR
+        x"00000000",   -- UARTxSR
+        x"00000000",   -- UARTxBR
+        x"00000000",   -- UARTxRX
+        x"00000000"    -- UARTxTX
+    );
+
+    -- a written 1 toggles (onwrite = wot): drives wot_hit
+    constant WOT      : reg_arr_t := (
+        x"00000000",   -- UARTxCR
+        x"00000000",   -- UARTxSR
+        x"00000000",   -- UARTxBR
+        x"00000000",   -- UARTxRX
+        x"00000000"    -- UARTxTX
+    );
+
+    -- self-clearing strobe (singlepulse): drives wr_pulse, stores nothing
+    constant PULSE    : reg_arr_t := (
+        x"00000000",   -- UARTxCR
+        x"00000000",   -- UARTxSR
+        x"00000000",   -- UARTxBR
+        x"00000000",   -- UARTxRX
+        x"00000000"    -- UARTxTX
+    );
+
+    -- a read retires (onread = rclr): drives rd_clr
+    constant RCLR     : reg_arr_t := (
+        x"00000000",   -- UARTxCR
+        x"00000000",   -- UARTxSR
+        x"00000000",   -- UARTxBR
+        x"00000000",   -- UARTxRX
+        x"00000000"    -- UARTxTX
+    );
+
+    -- bits hardware drives (hw = w or rw): what hw_we / hw_set / hw_clr may touch
+    constant HWOWN    : reg_arr_t := (
+        x"00000000",   -- UARTxCR
+        x"000000FF",   -- UARTxSR
+        x"00000000",   -- UARTxBR
+        x"000000FF",   -- UARTxRX
+        x"00000000"    -- UARTxTX
+    );
 
 end package uart_regs_pkg;

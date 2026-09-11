@@ -93,12 +93,21 @@ architecture rtl of TIMER is
         return b;
     end function;
 
+    -- The bus side is one periph_regs instance driven by timer_regs_pkg's tables;
+    -- see hdl/common/regs/REGFILE.md. What is left here is the datapath.
+    signal regs_q              : reg_arr_t;                      -- the stored words: CR, VAL staging, CMP0/1/2
+    signal hw_rd_s             : reg_arr_t;                      -- read source for the words this block owns
+    signal hw_set_s            : reg_arr_t;                      -- task_start on TIMxCR.TEN
+    signal hw_clr_s            : reg_arr_t;                      -- task_stop  on TIMxCR.TEN
+    signal wr_str              : std_logic_vector(0 to NWORDS-1);
+    signal w1c_s               : reg_arr_t;                      -- a 1 written to a TIMxSR flag
+    signal sr_rd, cap0_rd      : std_logic_vector(31 downto 0);  -- assembled read words
+    signal cap1_rd             : std_logic_vector(31 downto 0);
+
     -- Timer registers.
-    signal control_reg         : std_logic_vector(19 downto 0);  -- Timer control register
     signal status_reg          : std_logic_vector(7 downto 0);   -- Timer status register
     signal status_reg_latched  : std_logic_vector(7 downto 0);   -- Latched status for read
     signal timer_value         : std_logic_vector(31 downto 0);  -- Current timer count value
-    signal timer_value_latched : std_logic_vector(31 downto 0);  -- Latched timer value for read
     signal timer_value_next    : std_logic_vector(31 downto 0);  -- Counter increment, shared by the counter and its gray mirror
     -- TIMxVAL read CDC: timer_value lives in the timer_clock domain, which is asynchronous to clk_mem
     -- for every source but the one SYSTEM also uses for mclk. A gray mirror changes exactly one flop
@@ -109,9 +118,9 @@ architecture rtl of TIMER is
     signal timer_gray_s1       : std_logic_vector(31 downto 0);  -- CDC stage 1 (may go metastable)
     signal timer_gray_s2       : std_logic_vector(31 downto 0);  -- CDC stage 2 (settled)
     signal timer_value_mem     : std_logic_vector(31 downto 0);  -- Coherent count in the clk_mem domain
-    signal compare0_reg        : std_logic_vector(31 downto 0);  -- Compare 0 threshold
-    signal compare1_reg        : std_logic_vector(31 downto 0);  -- Compare 1 threshold
-    signal compare2_reg        : std_logic_vector(31 downto 0);  -- Compare 2 threshold (reset)
+    signal compare0_reg        : std_logic_vector(31 downto 0);  -- Compare 0 threshold (TIMxCMP0 storage)
+    signal compare1_reg        : std_logic_vector(31 downto 0);  -- Compare 1 threshold (TIMxCMP1 storage)
+    signal compare2_reg        : std_logic_vector(31 downto 0);  -- Compare 2 threshold (TIMxCMP2 storage)
     signal capture0_reg        : std_logic_vector(31 downto 0);  -- Capture 0 value
     signal capture1_reg        : std_logic_vector(31 downto 0);  -- Capture 1 value
     signal capture0_latched    : std_logic_vector(31 downto 0);  -- Latched capture 0 for read
@@ -171,39 +180,46 @@ architecture rtl of TIMER is
     signal capture1_clock      : std_logic;                      -- Edge-detected clock for capture 1
 
     -- Memory interface signals.
-    signal reg_address         : natural range 0 to 63;          -- Decoded register address
     signal timer_value_write   : std_logic_vector(31 downto 0);  -- Timer value from write bus
 
 begin
 
-    -- Control register field extraction.
-    clock_divider       <= control_reg(19 downto 16);
-    compare1_init_level <= control_reg(15);
-    compare0_init_level <= control_reg(14);
-    capture1_fall_edge  <= control_reg(13);
-    capture0_fall_edge  <= control_reg(12);
-    capture1_enable     <= control_reg(11);
-    capture0_enable     <= control_reg(10);
-    clock_source_select <= control_reg(9 downto 8);
-    compare2_reset_en   <= control_reg(7);
-    timer_enable        <= control_reg(6);
-    capture1_int_enable <= control_reg(5);
-    capture0_int_enable <= control_reg(4);
-    overflow_int_enable <= control_reg(3);
-    compare2_int_enable <= control_reg(2);
-    compare1_int_enable <= control_reg(1);
-    compare0_int_enable <= control_reg(0);
+    -- Control register field extraction, off the stored TIMxCR word. The ranges
+    -- are timer_regs_pkg's, so no bit literal in this file describes a register.
+    clock_divider       <= regs_q(RegSlotTIMxCR)(DIV_MSB downto DIV_LSB);
+    compare1_init_level <= regs_q(RegSlotTIMxCR)(CMP1IH_LSB);
+    compare0_init_level <= regs_q(RegSlotTIMxCR)(CMP0IH_LSB);
+    capture1_fall_edge  <= regs_q(RegSlotTIMxCR)(CAP1FE_LSB);
+    capture0_fall_edge  <= regs_q(RegSlotTIMxCR)(CAP0FE_LSB);
+    capture1_enable     <= regs_q(RegSlotTIMxCR)(CAP1EN_LSB);
+    capture0_enable     <= regs_q(RegSlotTIMxCR)(CAP0EN_LSB);
+    clock_source_select <= regs_q(RegSlotTIMxCR)(SSEL_MSB downto SSEL_LSB);
+    compare2_reset_en   <= regs_q(RegSlotTIMxCR)(CMP2RST_LSB);
+    timer_enable        <= regs_q(RegSlotTIMxCR)(TEN_LSB);
+    capture1_int_enable <= regs_q(RegSlotTIMxCR)(CAP1IE_LSB);
+    capture0_int_enable <= regs_q(RegSlotTIMxCR)(CAP0IE_LSB);
+    overflow_int_enable <= regs_q(RegSlotTIMxCR)(OVIE_LSB);
+    compare2_int_enable <= regs_q(RegSlotTIMxCR)(CMP2IE_LSB);
+    compare1_int_enable <= regs_q(RegSlotTIMxCR)(CMP1IE_LSB);
+    compare0_int_enable <= regs_q(RegSlotTIMxCR)(CMP0IE_LSB);
+
+    -- The compare thresholds and the TIMxVAL write staging word are plain
+    -- software storage, so periph_regs holds them.
+    compare0_reg      <= regs_q(RegSlotTIMxCMP0);
+    compare1_reg      <= regs_q(RegSlotTIMxCMP1);
+    compare2_reg      <= regs_q(RegSlotTIMxCMP2);
+    timer_value_write <= regs_q(RegSlotTIMxVAL);
 
     -- Status register assembly.
     status_reg <= (
-        7 => compare1_output,
-        6 => compare0_output,
-        5 => capture1_int_flag,
-        4 => capture0_int_flag,
-        3 => overflow_int_flag,
-        2 => compare2_int_flag,
-        1 => compare1_int_flag,
-        0 => compare0_int_flag
+        CMP1OUT_LSB => compare1_output,
+        CMP0OUT_LSB => compare0_output,
+        CAP1IF_LSB  => capture1_int_flag,
+        CAP0IF_LSB  => capture0_int_flag,
+        OVIF_LSB    => overflow_int_flag,
+        CMP2IF_LSB  => compare2_int_flag,
+        CMP1IF_LSB  => compare1_int_flag,
+        CMP0IF_LSB  => compare0_int_flag
     );
 
     -- Capture pins are always inputs
@@ -466,143 +482,89 @@ begin
     irq_cmp1 <= compare1_int_flag and compare1_int_enable;
     irq_cmp2 <= compare2_int_flag and compare2_int_enable;
 
-    -- Falling en_mem snapshots the free-running status/count/capture values for the read mux; they are stored inverted and re-inverted on read.
+    -- Falling en_mem snapshots the free-running status and capture values for the read mux; they are stored inverted and re-inverted on read.
+    -- This stays in the peripheral: which of its signals are asynchronous to clk_mem is a CDC judgement periph_regs cannot make. It feeds hw_rd below.
+    -- timer_value is NOT snapshotted here: TIMxVAL reads the gray-coded clk_mem copy built above, and the timer_value_latched flops this process used to write were read by nothing.
     reg_sync: process(en_mem)
     begin
         if falling_edge(en_mem) then
             status_reg_latched  <= not status_reg;
-            timer_value_latched <= not timer_value;
             capture0_latched    <= not capture0_reg;
             capture1_latched    <= not capture1_reg;
         end if;
     end process;
 
-    -- Register-slot decode, qualified by the en_mem level.
-    reg_address <= slv2uint(addr_periph) when en_mem = '0' else 0;
+    -- The words this block owns rather than stores: the status snapshot, the
+    -- clk_mem-domain count and the two capture snapshots, re-inverted here.
+    sr_rd   <= (31 downto status_reg_latched'high + 1 => '0') & (not status_reg_latched);
+    cap0_rd <= not capture0_latched;
+    cap1_rd <= not capture1_latched;
 
-    -- Register writes, plus the one-shot flag-clear and value-load strobes.
-    reg_write_proc: process(resetn, clk_mem, en_mem)
-    begin
-        if resetn = '0' then
-            control_reg <= (others => '0');
-            compare0_reg <= (others => '0');
-            compare1_reg <= (others => '0');
-            compare2_reg <= (others => '0');
-        elsif rising_edge(clk_mem) then
-            if en_mem = '0' then
-                case reg_address is
-                    -- Control register write
-                    when RegSlotTIMxCR =>
-                        if wen(0) = '0' then
-                            control_reg(7 downto 0) <= write_data(7 downto 0);
-                        end if;
-                        if wen(1) = '0' then
-                            control_reg(15 downto 8) <= write_data(15 downto 8);
-                        end if;
-                        if wen(2) = '0' then
-                            control_reg(19 downto 16) <= write_data(19 downto 16);
-                        end if;
-                    
-                    -- Status register write (clear flags)
-                    when RegSlotTIMxSR =>
-                        if wen(0) = '0' then
-                            if write_data(0) = '1' then clear_compare0_flag <= '1'; end if;
-                            if write_data(1) = '1' then clear_compare1_flag <= '1'; end if;
-                            if write_data(2) = '1' then clear_compare2_flag <= '1'; end if;
-                            if write_data(3) = '1' then clear_overflow_flag <= '1'; end if;
-                            if write_data(4) = '1' then clear_capture0_flag <= '1'; end if;
-                            if write_data(5) = '1' then clear_capture1_flag <= '1'; end if;
-                        end if;
-                    
-                    -- Timer value write
-                    when RegSlotTIMxVAL =>
-                        if wen /= "1111" then
-                            timer_value_write <= write_data;
-                            latch_timer_value <= '1';
-                        end if;
-                    
-                    -- Compare 0 register write
-                    when RegSlotTIMxCMP0 =>
-                        if wen(0) = '0' then compare0_reg(7 downto 0)   <= write_data(7 downto 0);   end if;
-                        if wen(1) = '0' then compare0_reg(15 downto 8)  <= write_data(15 downto 8);  end if;
-                        if wen(2) = '0' then compare0_reg(23 downto 16) <= write_data(23 downto 16); end if;
-                        if wen(3) = '0' then compare0_reg(31 downto 24) <= write_data(31 downto 24); end if;
-                    
-                    -- Compare 1 register write
-                    when RegSlotTIMxCMP1 =>
-                        if wen(0) = '0' then compare1_reg(7 downto 0)   <= write_data(7 downto 0);   end if;
-                        if wen(1) = '0' then compare1_reg(15 downto 8)  <= write_data(15 downto 8);  end if;
-                        if wen(2) = '0' then compare1_reg(23 downto 16) <= write_data(23 downto 16); end if;
-                        if wen(3) = '0' then compare1_reg(31 downto 24) <= write_data(31 downto 24); end if;
-                    
-                    -- Compare 2 register write
-                    when RegSlotTIMxCMP2 =>
-                        if wen(0) = '0' then compare2_reg(7 downto 0)   <= write_data(7 downto 0);   end if;
-                        if wen(1) = '0' then compare2_reg(15 downto 8)  <= write_data(15 downto 8);  end if;
-                        if wen(2) = '0' then compare2_reg(23 downto 16) <= write_data(23 downto 16); end if;
-                        if wen(3) = '0' then compare2_reg(31 downto 24) <= write_data(31 downto 24); end if;
-                    
-                    when others =>
-                        null;   -- unmapped slot: write ignored
-                end case;
-            end if;
+    hw_rd_s <= (RegSlotTIMxSR   => sr_rd,
+                RegSlotTIMxVAL  => timer_value_mem,   -- see the TIMxVAL read CDC above
+                RegSlotTIMxCAP0 => cap0_rd,
+                RegSlotTIMxCAP1 => cap1_rd,
+                others          => (others => '0'));
 
-            -- Consumer tasks: idempotent OR terms on CR(6), outside the en_mem gate because clk_mem free-runs, and after the register case so a task wins its bit on a coincident CPU write.
-            -- Stop is evaluated after start, so a same-cycle start and stop resolves to stop.
-            if task_start = '1' then
-                control_reg(6) <= '1';
-            end if;
-            if task_stop = '1' then
-                control_reg(6) <= '0';
-            end if;
-        end if;
+    -- The event-fabric consumer tasks, as hardware access to TIMxCR.TEN. They act
+    -- outside the en_mem gate, they beat a coincident CPU write, and a coincident
+    -- start and stop resolves to stop, because periph_regs applies hw_clr last.
+    hw_set_s <= (RegSlotTIMxCR => (TEN_LSB => task_start, others => '0'),
+                 others        => (others => '0'));
+    hw_clr_s <= (RegSlotTIMxCR => (TEN_LSB => task_stop,  others => '0'),
+                 others        => (others => '0'));
 
-        -- Drop the one-shot clear/load strobes whenever the peripheral is not selected.
-        if resetn = '0' or en_mem = '1' then
-            clear_compare0_flag <= '0';
-            clear_compare1_flag <= '0';
-            clear_compare2_flag <= '0';
-            clear_overflow_flag <= '0';
-            clear_capture0_flag <= '0';
-            clear_capture1_flag <= '0';
-            latch_timer_value <= '0';
-        end if;
-    end process;
+    -- STROBE_HOLD: every strobe this block consumes reaches an asynchronous clear
+    -- or load in the timer_clock domain (the flag processes, the counter's load),
+    -- so they must be held levels for the whole access, not one-clk_mem pulses.
+    -- RDTHRU / WIDEWR are TIMxVAL's: its storage is the write staging word while
+    -- the read is the CDC copy, and any enabled lane writes all 32 bits.
+    u_regs: entity work.periph_regs
+        generic map (
+            NWORDS      => NWORDS,
+            RSTVAL      => RSTVAL,
+            IMPL        => IMPL,
+            W1C         => W1C,
+            WOSET       => WOSET,
+            WOT         => WOT,
+            PULSE       => PULSE,
+            RCLR        => RCLR,
+            HWOWN       => HWOWN,
+            RDTHRU      => "00100000",
+            WIDEWR      => "00100000",
+            STROBE_HOLD => true)
+        port map (
+            ClkMem      => clk_mem,
+            resetn      => resetn,
+            EnMemPeriph => en_mem,
+            WEn         => wen,
+            MABPart     => addr_periph,
+            wdata       => write_data,
+            rdata_out   => read_data,
+            regs        => regs_q,
+            hw_rd       => hw_rd_s,
+            hw_set      => hw_set_s,
+            hw_clr      => hw_clr_s,
+            acc_hit     => open,
+            rd_strobe   => open,
+            wr_strobe   => wr_str,
+            wr_pulse    => open,
+            w1c_hit     => w1c_s,
+            woset_hit   => open,
+            wot_hit     => open,
+            rd_clr      => open);
 
-    -- Registered read mux over the decoded slot; SR and the capture/value snapshots come from the inverted latches.
-    reg_read_proc: process(clk_mem)
-    begin
-        if rising_edge(clk_mem) then
-            case reg_address is
-                when RegSlotTIMxCR =>
-                    read_data <= (31 downto 20 => '0') & control_reg;
-                
-                when RegSlotTIMxSR =>
-                    read_data <= (31 downto 8 => '0') & (not status_reg_latched);
-                
-                when RegSlotTIMxVAL =>
-                    read_data <= timer_value_mem;  -- clk_mem-domain copy, see the TIMxVAL read CDC above
-                
-                when RegSlotTIMxCAP0 =>
-                    read_data <= not capture0_latched;
-                
-                when RegSlotTIMxCAP1 =>
-                    read_data <= not capture1_latched;
-                
-                when RegSlotTIMxCMP0 =>
-                    read_data <= compare0_reg;
-                
-                when RegSlotTIMxCMP1 =>
-                    read_data <= compare1_reg;
-                
-                when RegSlotTIMxCMP2 =>
-                    read_data <= compare2_reg;
-                
-                when others =>
-                    read_data <= (others => '0');  -- Return zeros for unmapped addresses
-            end case;
-        end if;
-    end process;
+    -- A TIMxVAL write loads the counter asynchronously; the level is held for the
+    -- whole access, exactly as the hand-written latch_timer_value strobe was.
+    latch_timer_value <= wr_str(RegSlotTIMxVAL);
+
+    -- The TIMxSR flag clears: one per write-1-to-clear bit, in the timer_clock domain.
+    clear_compare0_flag <= w1c_s(RegSlotTIMxSR)(CMP0IF_LSB);
+    clear_compare1_flag <= w1c_s(RegSlotTIMxSR)(CMP1IF_LSB);
+    clear_compare2_flag <= w1c_s(RegSlotTIMxSR)(CMP2IF_LSB);
+    clear_overflow_flag <= w1c_s(RegSlotTIMxSR)(OVIF_LSB);
+    clear_capture0_flag <= w1c_s(RegSlotTIMxSR)(CAP0IF_LSB);
+    clear_capture1_flag <= w1c_s(RegSlotTIMxSR)(CAP1IF_LSB);
 
 end rtl;
 

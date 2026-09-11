@@ -573,6 +573,127 @@ def _aggregateLines(block):
     return L
 
 
+# ---------------------------------------------------------------------------
+# THE periph_regs TABLES (report R12a, 2026-09-11).
+#
+# hdl/common/periph_regs.vhd is the house bus protocol written once: a
+# peripheral instantiates it with one row per word and keeps only its datapath.
+# The rows are properties of THIS description, so they belong here and not in
+# the RTL. Design note and the property-to-mask table: hdl/common/regs/REGFILE.md.
+#
+# _REGFILE lists the blocks whose register set can be described as a dense array
+# of 32-bit words: a contiguous run of slots, at one elaboration. _REGFILE_SKIP
+# names the rest and says which of those two it fails, because a package that
+# silently lacks the tables reads like an oversight.
+#
+# The array type is work.Constants.word_array -- the ONE shared array-of-word
+# type, which has been in constants.vhd since the first commit. Each package
+# declares only `subtype reg_arr_t is word_array(0 to NWORDS-1)`, a constrained
+# subtype of it, so a table from one package and a port of another are the same
+# base type.
+# ---------------------------------------------------------------------------
+
+_REGFILE = ('uart', 'spi', 'timer', 'i2c', 'npu', 'gpio', 'qspi', 'i3c', 'nfc',
+            'rtc', 'pwm', 'onewire', 'trng', 'i2ctarget', 'dma')
+
+_REGFILE_SKIP = {
+    'system': 'its eleven registers are not a contiguous run of words',
+    'evfab': 'its twenty-nine registers are not a contiguous run of words',
+    'clint': 'the register set is a function of the hart count',
+    'mutex_bank': 'the register set is a function of the mutex count',
+    'irq_router': 'the register set is a function of the hart and vector counts',
+    'pwr_ctrl': 'the register set is a function of the hart count',
+    'debug_module': 'the Debug Module is not on the peripheral bus at all',
+}
+
+
+def _rdlMasks(rt):
+    """The periph_regs masks of one register, from the UNCOLLAPSED SystemRDL
+       tuple rdl_model carries on each BitField.
+
+       The generator access code cannot be used here: it spells hw=r, hw=na and
+       hw=rw all `rw`, and woclr, woset and wot all `rw1`, and a decode has to
+       know which side owns the flop and which direction a written 1 acts in."""
+    out = {'W1C': 0, 'WOSET': 0, 'WOT': 0, 'PULSE': 0, 'RCLR': 0, 'HWOWN': 0}
+    for bf in rt.BitFields:
+        if bf.Unused:
+            continue
+        acc = getattr(bf, 'RdlAccess', None)
+        if acc is None:
+            raise Exception('rdl_vhdl: %s.%s carries no RdlAccess tuple; rdl_model must '
+                            'attach one to every field it builds.'
+                            % (rt.NameTemplate, bf.Name))
+        _sw, hw, onwrite, onread, singlepulse = acc
+        if onwrite == 'woclr':
+            out['W1C'] |= bf.BitMask
+        elif onwrite == 'woset':
+            out['WOSET'] |= bf.BitMask
+        elif onwrite == 'wot':
+            out['WOT'] |= bf.BitMask
+        if singlepulse:
+            out['PULSE'] |= bf.BitMask
+        if onread == 'rclr':
+            out['RCLR'] |= bf.BitMask
+        if hw in ('w', 'rw'):
+            out['HWOWN'] |= bf.BitMask
+    return out
+
+
+_REGFILE_TABLES = (
+    ('RSTVAL', 'reset word, loaded on the asynchronous resetn'),
+    ('IMPL', 'bits that hold a software-written flop; periph_regs stores exactly these'),
+    ('W1C', 'a written 1 clears (onwrite = woclr): drives w1c_hit'),
+    ('WOSET', 'a written 1 sets (onwrite = woset): drives woset_hit'),
+    ('WOT', 'a written 1 toggles (onwrite = wot): drives wot_hit'),
+    ('PULSE', 'self-clearing strobe (singlepulse): drives wr_pulse, stores nothing'),
+    ('RCLR', 'a read retires (onread = rclr): drives rd_clr'),
+    ('HWOWN', 'bits hardware drives (hw = w or rw): what hw_we / hw_set / hw_clr may touch'),
+)
+
+
+def _regfileLines(block):
+    """NWORDS, reg_arr_t and the eight tables periph_regs is generic in."""
+    if block.Name in _REGFILE_SKIP:
+        return ['    -- No periph_regs table section: ' + _REGFILE_SKIP[block.Name] + ',',
+                '    -- so its words are not a dense array. See hdl/common/regs/REGFILE.md.',
+                '']
+    if block.Name not in _REGFILE:
+        return []
+    regs = list(block.RegisterTemplates)
+    words = [rt.Offset // 4 for rt in regs]
+    base = min(words)
+    if words != list(range(base, base + len(regs))):
+        raise Exception('rdl_vhdl: %s is in _REGFILE but its words %s are not a contiguous '
+                        'run; move it to _REGFILE_SKIP with the reason.' % (block.Name, words))
+    values = {'RSTVAL': [rt.ResetValue or 0 for rt in regs],
+              'IMPL': [storageMask(rt) for rt in regs]}
+    for name in ('W1C', 'WOSET', 'WOT', 'PULSE', 'RCLR', 'HWOWN'):
+        values[name] = [_rdlMasks(rt)[name] for rt in regs]
+
+    L = []
+    L.append('    -- periph_regs tables (hdl/common/periph_regs.vhd), one row per word in slot')
+    L.append('    -- order. Every mask below is a property of this description. RDTHRU, WIDEWR')
+    L.append('    -- and STROBE_HOLD are the entity\'s own and are set at the instance;')
+    L.append('    -- hdl/common/regs/REGFILE.md says why they cannot come from SystemRDL.')
+    L.append('    constant %-24s : natural := %d;' % ('NWORDS', len(regs)))
+    if base:
+        L.append('    constant %-24s : natural := %d;   -- first word inside the sub-slot'
+                 % ('WORD_BASE', base))
+    L.append('    subtype  reg_arr_t is word_array(0 to NWORDS-1);')
+    L.append('')
+    width = max(len(rt.NameTemplate) for rt in regs)
+    for name, note in _REGFILE_TABLES:
+        L.append('    -- ' + note)
+        L.append('    constant %-8s : reg_arr_t := (' % name)
+        rows = ['        %s%s   -- %s' % (_hex32(v, 32), ',' if k < len(regs) - 1 else ' ',
+                                          rt.NameTemplate.ljust(width))
+                for k, (rt, v) in enumerate(zip(regs, values[name]))]
+        L.extend(r.rstrip() for r in rows)
+        L.append('    );')
+        L.append('')
+    return L
+
+
 def _firstSentence(text):
     """The leading sentence of a description. Splitting on '.' alone cuts
        `610.35 uV per code` in half, so a period between two digits does not end
@@ -633,7 +754,7 @@ def _bodyLines(block):
     """The register groups plus the block's own decode identifiers, as they are
        emitted at ONE elaboration."""
     groups = _registerGroups(block)
-    tail = _aggregateLines(block) + _decodeLines(block)
+    tail = _aggregateLines(block) + _decodeLines(block) + _regfileLines(block)
     return groups, tail
 
 
@@ -710,6 +831,10 @@ def emitString(block, packageName=None, spec=None):
     L.append('')
     L.append('library ieee;')
     L.append('use ieee.std_logic_1164.all;')
+    if block.Name in _REGFILE:
+        # word_array, the one shared array-of-word type, for the tables below.
+        L.append('library work;')
+        L.append('use work.constants.all;')
     L.append('')
     L.append('package ' + pkg + ' is')
     L.append('')

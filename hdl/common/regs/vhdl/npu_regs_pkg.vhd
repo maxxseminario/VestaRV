@@ -6,6 +6,8 @@
 
 library ieee;
 use ieee.std_logic_1164.all;
+library work;
+use work.constants.all;
 
 package npu_regs_pkg is
 
@@ -109,5 +111,100 @@ package npu_regs_pkg is
     constant MmrAddrNPUSR             : natural := 4;
     constant MmrAddrNPUCFG1           : natural := 5;
     constant MmrAddrNPUCFG2           : natural := 6;
+
+    -- periph_regs tables (hdl/common/periph_regs.vhd), one row per word in slot
+    -- order. Every mask below is a property of this description. RDTHRU, WIDEWR
+    -- and STROBE_HOLD are the entity's own and are set at the instance;
+    -- hdl/common/regs/REGFILE.md says why they cannot come from SystemRDL.
+    constant NWORDS                   : natural := 7;
+    subtype  reg_arr_t is word_array(0 to NWORDS-1);
+
+    -- reset word, loaded on the asynchronous resetn
+    constant RSTVAL   : reg_arr_t := (
+        x"00000000",   -- NPUCR
+        x"00000000",   -- NPUIVSAR
+        x"00000000",   -- NPUWVSAR
+        x"00000000",   -- NPUOVSAR
+        x"00000000",   -- NPUSR
+        x"00000000",   -- NPUCFG1
+        x"00000000"    -- NPUCFG2
+    );
+
+    -- bits that hold a software-written flop; periph_regs stores exactly these
+    constant IMPL     : reg_arr_t := (
+        x"0FFFFFFF",   -- NPUCR
+        x"00000FFF",   -- NPUIVSAR
+        x"00000FFF",   -- NPUWVSAR
+        x"00000FFF",   -- NPUOVSAR
+        x"00000000",   -- NPUSR
+        x"FFFFFFFF",   -- NPUCFG1
+        x"0000FFFF"    -- NPUCFG2
+    );
+
+    -- a written 1 clears (onwrite = woclr): drives w1c_hit
+    constant W1C      : reg_arr_t := (
+        x"00000000",   -- NPUCR
+        x"00000000",   -- NPUIVSAR
+        x"00000000",   -- NPUWVSAR
+        x"00000000",   -- NPUOVSAR
+        x"00000001",   -- NPUSR
+        x"00000000",   -- NPUCFG1
+        x"00000000"    -- NPUCFG2
+    );
+
+    -- a written 1 sets (onwrite = woset): drives woset_hit
+    constant WOSET    : reg_arr_t := (
+        x"00000000",   -- NPUCR
+        x"00000000",   -- NPUIVSAR
+        x"00000000",   -- NPUWVSAR
+        x"00000000",   -- NPUOVSAR
+        x"00000000",   -- NPUSR
+        x"00000000",   -- NPUCFG1
+        x"00000000"    -- NPUCFG2
+    );
+
+    -- a written 1 toggles (onwrite = wot): drives wot_hit
+    constant WOT      : reg_arr_t := (
+        x"00000000",   -- NPUCR
+        x"00000000",   -- NPUIVSAR
+        x"00000000",   -- NPUWVSAR
+        x"00000000",   -- NPUOVSAR
+        x"00000000",   -- NPUSR
+        x"00000000",   -- NPUCFG1
+        x"00000000"    -- NPUCFG2
+    );
+
+    -- self-clearing strobe (singlepulse): drives wr_pulse, stores nothing
+    constant PULSE    : reg_arr_t := (
+        x"00000000",   -- NPUCR
+        x"00000000",   -- NPUIVSAR
+        x"00000000",   -- NPUWVSAR
+        x"00000000",   -- NPUOVSAR
+        x"00000000",   -- NPUSR
+        x"00000000",   -- NPUCFG1
+        x"00000000"    -- NPUCFG2
+    );
+
+    -- a read retires (onread = rclr): drives rd_clr
+    constant RCLR     : reg_arr_t := (
+        x"00000000",   -- NPUCR
+        x"00000000",   -- NPUIVSAR
+        x"00000000",   -- NPUWVSAR
+        x"00000000",   -- NPUOVSAR
+        x"00000000",   -- NPUSR
+        x"00000000",   -- NPUCFG1
+        x"00000000"    -- NPUCFG2
+    );
+
+    -- bits hardware drives (hw = w or rw): what hw_we / hw_set / hw_clr may touch
+    constant HWOWN    : reg_arr_t := (
+        x"00010000",   -- NPUCR
+        x"00000000",   -- NPUIVSAR
+        x"00000000",   -- NPUWVSAR
+        x"00000000",   -- NPUOVSAR
+        x"00000001",   -- NPUSR
+        x"00000000",   -- NPUCFG1
+        x"00000000"    -- NPUCFG2
+    );
 
 end package npu_regs_pkg;
