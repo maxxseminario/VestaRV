@@ -149,37 +149,66 @@ def _decodeSource(path, package):
     return _read(pkgPath)
 
 
-def readUart(vhdlPath, memoryMapPath):
-    """UART's decode is split: the slot numbers live in the package the entity
-       `use`s -- work.MemoryMap before report R8a, work.uart_regs_pkg after it,
-       under the same RegSlotUARTx* identifiers -- and the storage widths and
-       resets in the entity."""
-    mmSrc = _slotText(vhdlPath, memoryMapPath)
-    slots = dict((m.group(1), int(m.group(2)))
-                 for m in re.finditer(r'constant\s+RegSlotUARTx(\w+)\s*:\s*natural\s*:=\s*(\d+);', mmSrc))
-    if not slots:
-        raise Exception('rdl_vs_vhdl: no RegSlotUARTx* constants reachable from '
-                        + os.path.basename(vhdlPath))
-    src = _read(vhdlPath)
-    widths = dict((m.group(1), int(m.group(2)) + 1)
-                  for m in re.finditer(r'signal\s+UART_(CR|SR|BR|RX|TX)\s*:\s*std_logic_vector\((\d+)\s+downto\s+0\);', src))
-    # The reset branch of the register write process names every storage register.
-    wr = re.search(r'reg_write_proc\s*:\s*process.*?begin(.*?)elsif\s+rising_edge', src, re.S)
-    zeroed = set(re.findall(r"UART_(CR|SR|BR|RX|TX)\s*<=\s*\(\s*others\s*=>\s*'0'\s*\)", wr.group(1)))
-    # Registers software may write: those assigned from write_data in the case arms.
-    body = re.search(r'case en_addr_periph is(.*?)end case;', src, re.S).group(1)
-    written = set(re.findall(r'UART_(CR|SR|BR|RX|TX)\s*\([^)]*\)\s*<=\s*write_data', body))
-    written |= set(re.findall(r'UART_(CR|SR|BR|RX|TX)\s*<=\s*write_data', body))
-    out = {}
-    for key, slot in slots.items():
-        out['UARTx' + key] = {
-            'word': slot,
-            'width': widths.get(key),
-            'reset': 0 if key in zeroed else None,
-            'impl': ((1 << widths[key]) - 1) if key in written else 0,
-        }
-    return out
+# ---------------------------------------------------------------------------
+# THE periph_regs READER (report R12a, 2026-09-11)
+#
+# A block whose bus side is an instance of hdl/common/periph_regs.vhd no longer
+# has a case decode, a reset branch or a write-1-to-clear arm to read: its decode
+# IS the table its register package exports, and the entity's only statement
+# about it is the generic map. So this reader checks the two things that are
+# still statements of the RTL --
+#
+#   * the entity instantiates work.periph_regs, and
+#   * its generic map takes the PACKAGE's tables under the package's own names,
+#     not a local copy, so a hand-edited table in the entity is a mismatch here
+#
+# -- and then reads word, reset and IMPL out of that package's tables.
+#
+# What this costs is the same thing report R6 already paid at level 3: for such a
+# block the comparison below is no longer .rdl-against-an-independent-copy. The
+# independent copy is rdl_pkg_vs_legacy_test.py, which holds every value in the
+# package against the constant that was hand-written before the migration.
+# ---------------------------------------------------------------------------
 
+_REGFILE_TABLES = ('RSTVAL', 'IMPL', 'W1C', 'WOSET', 'WOT', 'PULSE', 'RCLR', 'HWOWN')
+
+
+def _regfileTable(pkgSrc, name):
+    """[(registerName, value)] of one `constant <name> : reg_arr_t := (...)` table,
+       in slot order. Each row carries its register's name as a comment, which is
+       what ties a word index to a register without a second table."""
+    m = re.search(r'constant\s+' + name + r'\s*:\s*reg_arr_t\s*:=\s*\(\n(.*?)\n\s*\);',
+                  pkgSrc, re.S)
+    if m is None:
+        raise Exception('rdl_vs_vhdl: the register package has no `constant %s : reg_arr_t` '
+                        'table; regenerate with `bazel run '
+                        '//platform/common/python:rdl_vhdl_pkgs`' % name)
+    rows = re.findall(r'x"([0-9A-Fa-f]+)"\s*[,);]*\s*--\s*(\w+)', m.group(1))
+    if not rows:
+        raise Exception('rdl_vs_vhdl: the %s table carries no `x"..." -- <register>` rows' % name)
+    return [(reg, int(val, 16)) for val, reg in rows]
+
+
+def makeRegfileReader(package):
+    def read(vhdlPath, memoryMapPath):
+        src = _read(vhdlPath)
+        if re.search(r'entity\s+work\.periph_regs', src) is None:
+            raise Exception('rdl_vs_vhdl: %s is registered as a periph_regs block but does not '
+                            'instantiate work.periph_regs.' % os.path.basename(vhdlPath))
+        for t in _REGFILE_TABLES:
+            if re.search(r'\b' + t + r'\s*=>\s*' + t + r'\b', src) is None:
+                raise Exception('rdl_vs_vhdl: %s does not pass `%s => %s` to periph_regs, so the '
+                                'table it decodes with is not %s\'s.'
+                                % (os.path.basename(vhdlPath), t, t, package))
+        pkgSrc = _decodeSource(vhdlPath, package)
+        rst = _regfileTable(pkgSrc, 'RSTVAL')
+        impl = dict(_regfileTable(pkgSrc, 'IMPL'))
+        out = {}
+        for word, (name, reset) in enumerate(rst):
+            out[name] = {'word': word, 'reset': reset, 'impl': impl[name]}
+        return out
+
+    return read
 
 
 # ---------------------------------------------------------------------------
@@ -408,11 +437,17 @@ GENERIC_BLOCKS = {
                 process='reg_write',
                 storage={'SPIxCR': 'SPIxCR', 'SPIxTX': 'SPIxTX', 'SPIxFOS': 'SPIxFOS'},
                 require=[r'signal SPIxCR : std_logic_vector\(19 downto 0\)']),
-    'timer': dict(vhdl='TIMER.vhd', slots='memmap:TIMx', name=_prefixed('TIMx', _TIM_KEYS),
-                  process='reg_write_proc',
-                  storage={'TIMxCR': 'control_reg', 'TIMxCMP0': 'compare0_reg',
-                           'TIMxCMP1': 'compare1_reg', 'TIMxCMP2': 'compare2_reg'},
-                  require=[r'if wen /= "1111" then']),
+    # TIMER is a periph_regs pilot (report R12a): no case decode, no reset
+    # branch, no write-1 arm to read. WIDEWR marks TIMxVAL, word 2 of 8, as the
+    # word any enabled lane writes whole, which is what `if wen /= "1111" then`
+    # used to say.
+    'timer': dict(vhdl='TIMER.vhd', regfile='timer_regs_pkg',
+                  require=[r'u_regs\s*:\s*entity work\.periph_regs',
+                           r'STROBE_HOLD => true',
+                           r'WIDEWR      => "00100000"',
+                           r'RDTHRU      => "00100000"',
+                           r'latch_timer_value <= wr_str\(RegSlotTIMxVAL\);',
+                           r'clear_compare0_flag <= w1c_s\(RegSlotTIMxSR\)\(CMP0IF_LSB\);']),
     'system': dict(vhdl='SYSTEM.vhd', slots='memmap:', name=_names(_SYS_NAMES),
                    process='reg_write_proc',
                    storage={'SYSCLKCR': 'SYS_CLK_CR', 'CLKDIVCR': 'SYS_CLK_DIV_CR',
@@ -523,11 +558,21 @@ def _wrapRequire(spec, reader):
     return read
 
 
+# UART and TIMER are the two periph_regs pilots (report R12a). The bespoke
+# readUart that read UART's hand-written case decode is gone with the decode; the
+# reading of the entity that replaced it is the `require` list below plus
+# test_uart_write_one_to_clear_bits.
+_UART_SPEC = dict(vhdl='UART.vhd', regfile='uart_regs_pkg',
+                  require=[r'u_regs\s*:\s*entity work\.periph_regs',
+                           r'STROBE_HOLD => false',
+                           r'clr_UTCIF <= w1c_s\(RegSlotUARTxSR\)\(TCIF_LSB\);',
+                           r'clr_SR_RX <= rd_str\(RegSlotUARTxRX\) or wr_str\(RegSlotUARTxRX\);'])
+
 READERS = {
     'uart': {
         'rdl': ('uart.rdl', 'uart'),
         'vhdl': 'UART.vhd',
-        'read': readUart,
+        'read': _wrapRequire(_UART_SPEC, makeRegfileReader('uart_regs_pkg')),
     },
 }
 
@@ -544,10 +589,12 @@ _RDL_FOR = {
     'i2ctarget': ('i2ctarget.rdl', 'i2ctarget'), 'evfab': ('evfab.rdl', 'evfab'),
 }
 for _k, _spec in GENERIC_BLOCKS.items():
+    _inner = (makeRegfileReader(_spec['regfile']) if _spec.get('regfile')
+              else makeGenericReader(_spec))
     READERS[_k] = {
         'rdl': _RDL_FOR[_k],
         'vhdl': _spec['vhdl'],
-        'read': _wrapRequire(_spec, makeGenericReader(_spec)),
+        'read': _wrapRequire(_spec, _inner),
     }
 
 
@@ -714,21 +761,42 @@ class RdlVsVhdlTest(unittest.TestCase):
                                  '%s must stay at the NHARTS-independent word %d' % (name, word))
 
     def test_uart_write_one_to_clear_bits(self):
-        """UART only: the three W1C flags sit where the write process clears them."""
+        """UART only: the three W1C flags the entity wires out of periph_regs are
+           the three the description marks woclr, at the same bit positions.
+
+           Before report R12a this read the SR arm of a hand-written case. The arm
+           is gone: the entity now takes `w1c_hit(RegSlotUARTxSR)(<FIELD>_LSB)`
+           per flag, and the bit position comes from the field constant rather
+           than from a literal. That is still a statement of the RTL -- it names
+           which flags this block retires on a written 1, and a flag the .rdl
+           stopped calling woclr would arm nothing."""
         if PERIPH != 'uart':
             self.skipTest('UART-specific')
         src = _read(self.vhdlPath)
-        arm = re.search(r'when RegSlotUARTxSR\s*=>(.*?)when RegSlotUARTxBR', src, re.S).group(1)
-        clears = dict((int(b), n) for (b, n) in
-                      re.findall(r"write_data\((\d+)\)\s*=\s*'1'\s*then\s*clr_(\w+)\s*<=\s*'1';", arm))
+        wired = re.findall(
+            r"clr_(\w+)\s*<=\s*w1c_s\(RegSlotUARTxSR\)\((\w+)_LSB\);", src)
+        self.assertEqual(len(wired), 3,
+                         'UART.vhd wires %d SR flags out of w1c_hit, expected 3' % len(wired))
+        pkg = _decodeSource(self.vhdlPath, 'uart_regs_pkg')
+        sr = self.rdl['UARTxSR']
+        clears = {}
+        for sig, field in wired:
+            m = re.search(r'constant\s+' + field + r'_LSB\s*:\s*natural\s*:=\s*(\d+);', pkg)
+            self.assertIsNotNone(m, 'uart_regs_pkg does not declare %s_LSB' % field)
+            clears[int(m.group(1))] = sig
         self.assertEqual(sorted(clears), [0, 1, 2],
                          'UART.vhd clears SR bits %s, expected 0, 1 and 2' % sorted(clears))
-        sr = self.rdl['UARTxSR']
         for bit in clears:
             bf = sr.GetBitFieldAt(bit)
             self.assertEqual(bf.Accessibility, 'rw1',
                              'UARTxSR bit %d is cleared by a write-1 in UART.vhd (clr_%s) but the '
                              '.rdl gives it access "%s"' % (bit, clears[bit], bf.Accessibility))
+        # And every woclr bit the description declares is wired to something.
+        declared = set(b.LSB for b in sr.BitFields
+                       if not b.Unused and b.Accessibility == 'rw1')
+        self.assertEqual(sorted(declared), sorted(clears),
+                         'the .rdl marks UARTxSR bits %s write-1-to-clear; UART.vhd retires %s'
+                         % (sorted(declared), sorted(clears)))
 
 
 if __name__ == '__main__':

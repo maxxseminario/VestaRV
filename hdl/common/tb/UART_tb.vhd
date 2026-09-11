@@ -142,6 +142,24 @@ begin
             bus_write(clk, pbus, slot, w);
         end procedure;
 
+        -- Write with only SOME byte lanes enabled. periph_tb_pkg.bus_write always
+        -- drives all four, so it cannot grade a lane at all; this is the same
+        -- access shape with WEn under the caller's control.
+        procedure bus_write_lanes(slot  : in natural;
+                                  lanes : in std_logic_vector(3 downto 0);
+                                  data  : in std_logic_vector(31 downto 0)) is
+        begin
+            wait until clk = '0';
+            pbus.addr_periph <= std_logic_vector(to_unsigned(slot, 6));
+            pbus.write_data  <= data;
+            pbus.wen         <= lanes;
+            pbus.en_mem      <= '0';
+            wait until clk = '1';
+            wait until clk = '0';
+            pbus.en_mem <= '1';
+            pbus.wen    <= (others => '1');
+        end procedure;
+
         -- ---- GROUP EV helper -----------------------------------------------
         -- Clear the evt_rx pulse monitor's accumulators; call only outside a timing-critical window.
         procedure evt_mon_reset is
@@ -204,6 +222,30 @@ begin
         sb.check_slv("CR readback honours 6-bit field", rdw(5 downto 0), CR_EN_RXIE);
         sb.check_slv("CR upper bits read as 0", rdw(31 downto 6), (31 downto 6 => '0'));
 
+        -- Byte lanes and the unimplemented bits. Added 2026-09-11 (R12a) BEFORE the
+        -- periph_regs migration: bus_write drives all four lanes, so nothing in this
+        -- bench had ever graded a lane, and nothing had written a 1 into a bit the
+        -- register does not implement.
+        bus_write_small(RegSlotUARTxBR, x"000");
+        bus_write_lanes(RegSlotUARTxBR, "1110", x"000000FF");
+        bus_read(clk, pbus, read_data, RegSlotUARTxBR, rdw);
+        sb.check_slv("BR lane 0 alone moves bits 7:0", rdw(11 downto 0), x"0FF");
+        bus_write_lanes(RegSlotUARTxBR, "1101", x"00000A00");
+        bus_read(clk, pbus, read_data, RegSlotUARTxBR, rdw);
+        sb.check_slv("BR lane 1 alone moves bits 11:8", rdw(11 downto 0), x"AFF");
+        bus_write_lanes(RegSlotUARTxBR, "1011", x"FFFF0000");
+        bus_read(clk, pbus, read_data, RegSlotUARTxBR, rdw);
+        sb.check_slv("BR ignores lane 2, which holds no BR bit", rdw(11 downto 0), x"AFF");
+
+        bus_write_small(RegSlotUARTxCR, "000000");
+        bus_write(clk, pbus, RegSlotUARTxCR, x"FFFFFFC0");
+        bus_read(clk, pbus, read_data, RegSlotUARTxCR, rdw);
+        sb.check_slv("CR drops a write to bits 31:6", rdw, x"00000000");
+
+        bus_write(clk, pbus, RegSlotUARTxRX, x"FFFFFFFF");
+        bus_read(clk, pbus, read_data, RegSlotUARTxRX, rdw);
+        sb.check_slv("RX is read-only: a write stores nothing", rdw, x"00000000");
+
         -- restore a sane baud and disable for a clean start
         bus_write_small(RegSlotUARTxBR, std_logic_vector(to_unsigned(BAUD_DIV, 12)));
         bus_write_small(RegSlotUARTxCR, "000000");
@@ -231,6 +273,16 @@ begin
         uart_capture_tx(BIT_PERIOD, TX_OUT, false, cap_data, cap_par, cap_stop);
         sb.check_slv("TX byte 0xA3 on the wire", cap_data, x"A3");
         sb.check_bit("TX stop bit high (0xA3)",  cap_stop, '1');
+
+        -- A TX write with every bit above 7 set: the register holds eight bits, so the
+        -- byte on the wire and the readback are the low byte alone. Added 2026-09-11
+        -- (R12a) with the GROUP 2 lane walk; the bench had never written outside a
+        -- register's implemented bits.
+        bus_write(clk, pbus, RegSlotUARTxTX, x"FFFFFF5A");
+        uart_capture_tx(BIT_PERIOD, TX_OUT, false, cap_data, cap_par, cap_stop);
+        sb.check_slv("TX byte 0x5A on the wire from a 0xFFFFFF5A write", cap_data, x"5A");
+        bus_read(clk, pbus, read_data, RegSlotUARTxTX, rdw);
+        sb.check_slv("TX stores 8 bits and drops the rest", rdw, x"0000005A");
 
         -- GROUP 4: TX-complete / TX-empty interrupt lines + flag clear
         report "=== GROUP 4: TX interrupts ===" severity note;

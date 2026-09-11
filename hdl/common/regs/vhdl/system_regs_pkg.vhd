@@ -174,4 +174,7 @@ package system_regs_pkg is
     constant RegSlotDCO0_BIAS         : natural := 16;
     constant RegSlotDCO1_BIAS         : natural := 17;
 
+    -- No periph_regs table section: its eleven registers are not a contiguous run of words,
+    -- so its words are not a dense array. See hdl/common/regs/REGFILE.md.
+
 end package system_regs_pkg;

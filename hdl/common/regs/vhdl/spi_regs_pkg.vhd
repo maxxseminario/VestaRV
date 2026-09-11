@@ -6,6 +6,8 @@
 
 library ieee;
 use ieee.std_logic_1164.all;
+library work;
+use work.constants.all;
 
 package spi_regs_pkg is
 
@@ -101,5 +103,84 @@ package spi_regs_pkg is
     constant RegSlotSPIxTX            : natural := 2;
     constant RegSlotSPIxRX            : natural := 3;
     constant RegSlotSPIxFOS           : natural := 4;
+
+    -- periph_regs tables (hdl/common/periph_regs.vhd), one row per word in slot
+    -- order. Every mask below is a property of this description. RDTHRU, WIDEWR
+    -- and STROBE_HOLD are the entity's own and are set at the instance;
+    -- hdl/common/regs/REGFILE.md says why they cannot come from SystemRDL.
+    constant NWORDS                   : natural := 5;
+    subtype  reg_arr_t is word_array(0 to NWORDS-1);
+
+    -- reset word, loaded on the asynchronous resetn
+    constant RSTVAL   : reg_arr_t := (
+        x"00000000",   -- SPIxCR
+        x"00000000",   -- SPIxSR
+        x"00000000",   -- SPIxTX
+        x"00000000",   -- SPIxRX
+        x"00000000"    -- SPIxFOS
+    );
+
+    -- bits that hold a software-written flop; periph_regs stores exactly these
+    constant IMPL     : reg_arr_t := (
+        x"000FFFFF",   -- SPIxCR
+        x"00000000",   -- SPIxSR
+        x"FFFFFFFF",   -- SPIxTX
+        x"00000000",   -- SPIxRX
+        x"00FFFFFF"    -- SPIxFOS
+    );
+
+    -- a written 1 clears (onwrite = woclr): drives w1c_hit
+    constant W1C      : reg_arr_t := (
+        x"00000000",   -- SPIxCR
+        x"00000003",   -- SPIxSR
+        x"00000000",   -- SPIxTX
+        x"00000000",   -- SPIxRX
+        x"00000000"    -- SPIxFOS
+    );
+
+    -- a written 1 sets (onwrite = woset): drives woset_hit
+    constant WOSET    : reg_arr_t := (
+        x"00000000",   -- SPIxCR
+        x"00000000",   -- SPIxSR
+        x"00000000",   -- SPIxTX
+        x"00000000",   -- SPIxRX
+        x"00000000"    -- SPIxFOS
+    );
+
+    -- a written 1 toggles (onwrite = wot): drives wot_hit
+    constant WOT      : reg_arr_t := (
+        x"00000000",   -- SPIxCR
+        x"00000000",   -- SPIxSR
+        x"00000000",   -- SPIxTX
+        x"00000000",   -- SPIxRX
+        x"00000000"    -- SPIxFOS
+    );
+
+    -- self-clearing strobe (singlepulse): drives wr_pulse, stores nothing
+    constant PULSE    : reg_arr_t := (
+        x"00000000",   -- SPIxCR
+        x"00000000",   -- SPIxSR
+        x"00000000",   -- SPIxTX
+        x"00000000",   -- SPIxRX
+        x"00000000"    -- SPIxFOS
+    );
+
+    -- a read retires (onread = rclr): drives rd_clr
+    constant RCLR     : reg_arr_t := (
+        x"00000000",   -- SPIxCR
+        x"00000000",   -- SPIxSR
+        x"00000000",   -- SPIxTX
+        x"00000000",   -- SPIxRX
+        x"00000000"    -- SPIxFOS
+    );
+
+    -- bits hardware drives (hw = w or rw): what hw_we / hw_set / hw_clr may touch
+    constant HWOWN    : reg_arr_t := (
+        x"00000000",   -- SPIxCR
+        x"00000007",   -- SPIxSR
+        x"FFFFFFFF",   -- SPIxTX
+        x"FFFFFFFF",   -- SPIxRX
+        x"00000000"    -- SPIxFOS
+    );
 
 end package spi_regs_pkg;

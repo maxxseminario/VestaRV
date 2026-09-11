@@ -6,6 +6,8 @@
 
 library ieee;
 use ieee.std_logic_1164.all;
+library work;
+use work.constants.all;
 
 package dma_regs_pkg is
 
@@ -254,5 +256,204 @@ package dma_regs_pkg is
     constant DMAxDESC_ADDR            : natural := 76;
     constant DMAxDESC_RESET           : std_logic_vector(31 downto 0) := "00000000000000000000000000000000";
     constant DMAxDESC_IMPL            : std_logic_vector(31 downto 0) := "00000000000000000000000000000000";
+
+    -- periph_regs tables (hdl/common/periph_regs.vhd), one row per word in slot
+    -- order. Every mask below is a property of this description. RDTHRU, WIDEWR
+    -- and STROBE_HOLD are the entity's own and are set at the instance;
+    -- hdl/common/regs/REGFILE.md says why they cannot come from SystemRDL.
+    constant NWORDS                   : natural := 20;
+    subtype  reg_arr_t is word_array(0 to NWORDS-1);
+
+    -- reset word, loaded on the asynchronous resetn
+    constant RSTVAL   : reg_arr_t := (
+        x"00000000",   -- DMAxCR
+        x"00000000",   -- DMAxSR
+        x"00000000",   -- DMAxC0SRC
+        x"00000000",   -- DMAxC0DST
+        x"00000000",   -- DMAxC0LEN
+        x"00000000",   -- DMAxC0CFG
+        x"00000000",   -- DMAxC1SRC
+        x"00000000",   -- DMAxC1DST
+        x"00000000",   -- DMAxC1LEN
+        x"00000000",   -- DMAxC1CFG
+        x"00000000",   -- DMAxC2SRC
+        x"00000000",   -- DMAxC2DST
+        x"00000000",   -- DMAxC2LEN
+        x"00000000",   -- DMAxC2CFG
+        x"00000000",   -- DMAxC3SRC
+        x"00000000",   -- DMAxC3DST
+        x"00000000",   -- DMAxC3LEN
+        x"00000000",   -- DMAxC3CFG
+        x"0000FFFF",   -- DMAxCRC
+        x"00000000"    -- DMAxDESC
+    );
+
+    -- bits that hold a software-written flop; periph_regs stores exactly these
+    constant IMPL     : reg_arr_t := (
+        x"000031FF",   -- DMAxCR
+        x"00000000",   -- DMAxSR
+        x"FFFFFFFF",   -- DMAxC0SRC
+        x"FFFFFFFF",   -- DMAxC0DST
+        x"FFFFFFFF",   -- DMAxC0LEN
+        x"000000FF",   -- DMAxC0CFG
+        x"FFFFFFFF",   -- DMAxC1SRC
+        x"FFFFFFFF",   -- DMAxC1DST
+        x"FFFFFFFF",   -- DMAxC1LEN
+        x"000000FF",   -- DMAxC1CFG
+        x"FFFFFFFF",   -- DMAxC2SRC
+        x"FFFFFFFF",   -- DMAxC2DST
+        x"FFFFFFFF",   -- DMAxC2LEN
+        x"000000FF",   -- DMAxC2CFG
+        x"FFFFFFFF",   -- DMAxC3SRC
+        x"FFFFFFFF",   -- DMAxC3DST
+        x"FFFFFFFF",   -- DMAxC3LEN
+        x"000000FF",   -- DMAxC3CFG
+        x"0000FFFF",   -- DMAxCRC
+        x"00000000"    -- DMAxDESC
+    );
+
+    -- a written 1 clears (onwrite = woclr): drives w1c_hit
+    constant W1C      : reg_arr_t := (
+        x"00000000",   -- DMAxCR
+        x"000001FE",   -- DMAxSR
+        x"00000000",   -- DMAxC0SRC
+        x"00000000",   -- DMAxC0DST
+        x"00000000",   -- DMAxC0LEN
+        x"00000000",   -- DMAxC0CFG
+        x"00000000",   -- DMAxC1SRC
+        x"00000000",   -- DMAxC1DST
+        x"00000000",   -- DMAxC1LEN
+        x"00000000",   -- DMAxC1CFG
+        x"00000000",   -- DMAxC2SRC
+        x"00000000",   -- DMAxC2DST
+        x"00000000",   -- DMAxC2LEN
+        x"00000000",   -- DMAxC2CFG
+        x"00000000",   -- DMAxC3SRC
+        x"00000000",   -- DMAxC3DST
+        x"00000000",   -- DMAxC3LEN
+        x"00000000",   -- DMAxC3CFG
+        x"00000000",   -- DMAxCRC
+        x"00000000"    -- DMAxDESC
+    );
+
+    -- a written 1 sets (onwrite = woset): drives woset_hit
+    constant WOSET    : reg_arr_t := (
+        x"00000000",   -- DMAxCR
+        x"00000000",   -- DMAxSR
+        x"00000000",   -- DMAxC0SRC
+        x"00000000",   -- DMAxC0DST
+        x"00000000",   -- DMAxC0LEN
+        x"00000000",   -- DMAxC0CFG
+        x"00000000",   -- DMAxC1SRC
+        x"00000000",   -- DMAxC1DST
+        x"00000000",   -- DMAxC1LEN
+        x"00000000",   -- DMAxC1CFG
+        x"00000000",   -- DMAxC2SRC
+        x"00000000",   -- DMAxC2DST
+        x"00000000",   -- DMAxC2LEN
+        x"00000000",   -- DMAxC2CFG
+        x"00000000",   -- DMAxC3SRC
+        x"00000000",   -- DMAxC3DST
+        x"00000000",   -- DMAxC3LEN
+        x"00000000",   -- DMAxC3CFG
+        x"00000000",   -- DMAxCRC
+        x"00000000"    -- DMAxDESC
+    );
+
+    -- a written 1 toggles (onwrite = wot): drives wot_hit
+    constant WOT      : reg_arr_t := (
+        x"00000000",   -- DMAxCR
+        x"00000000",   -- DMAxSR
+        x"00000000",   -- DMAxC0SRC
+        x"00000000",   -- DMAxC0DST
+        x"00000000",   -- DMAxC0LEN
+        x"00000000",   -- DMAxC0CFG
+        x"00000000",   -- DMAxC1SRC
+        x"00000000",   -- DMAxC1DST
+        x"00000000",   -- DMAxC1LEN
+        x"00000000",   -- DMAxC1CFG
+        x"00000000",   -- DMAxC2SRC
+        x"00000000",   -- DMAxC2DST
+        x"00000000",   -- DMAxC2LEN
+        x"00000000",   -- DMAxC2CFG
+        x"00000000",   -- DMAxC3SRC
+        x"00000000",   -- DMAxC3DST
+        x"00000000",   -- DMAxC3LEN
+        x"00000000",   -- DMAxC3CFG
+        x"00000000",   -- DMAxCRC
+        x"00000000"    -- DMAxDESC
+    );
+
+    -- self-clearing strobe (singlepulse): drives wr_pulse, stores nothing
+    constant PULSE    : reg_arr_t := (
+        x"00000000",   -- DMAxCR
+        x"00000000",   -- DMAxSR
+        x"00000000",   -- DMAxC0SRC
+        x"00000000",   -- DMAxC0DST
+        x"00000000",   -- DMAxC0LEN
+        x"00000000",   -- DMAxC0CFG
+        x"00000000",   -- DMAxC1SRC
+        x"00000000",   -- DMAxC1DST
+        x"00000000",   -- DMAxC1LEN
+        x"00000000",   -- DMAxC1CFG
+        x"00000000",   -- DMAxC2SRC
+        x"00000000",   -- DMAxC2DST
+        x"00000000",   -- DMAxC2LEN
+        x"00000000",   -- DMAxC2CFG
+        x"00000000",   -- DMAxC3SRC
+        x"00000000",   -- DMAxC3DST
+        x"00000000",   -- DMAxC3LEN
+        x"00000000",   -- DMAxC3CFG
+        x"00000000",   -- DMAxCRC
+        x"00000000"    -- DMAxDESC
+    );
+
+    -- a read retires (onread = rclr): drives rd_clr
+    constant RCLR     : reg_arr_t := (
+        x"00000000",   -- DMAxCR
+        x"00000000",   -- DMAxSR
+        x"00000000",   -- DMAxC0SRC
+        x"00000000",   -- DMAxC0DST
+        x"00000000",   -- DMAxC0LEN
+        x"00000000",   -- DMAxC0CFG
+        x"00000000",   -- DMAxC1SRC
+        x"00000000",   -- DMAxC1DST
+        x"00000000",   -- DMAxC1LEN
+        x"00000000",   -- DMAxC1CFG
+        x"00000000",   -- DMAxC2SRC
+        x"00000000",   -- DMAxC2DST
+        x"00000000",   -- DMAxC2LEN
+        x"00000000",   -- DMAxC2CFG
+        x"00000000",   -- DMAxC3SRC
+        x"00000000",   -- DMAxC3DST
+        x"00000000",   -- DMAxC3LEN
+        x"00000000",   -- DMAxC3CFG
+        x"00000000",   -- DMAxCRC
+        x"00000000"    -- DMAxDESC
+    );
+
+    -- bits hardware drives (hw = w or rw): what hw_we / hw_set / hw_clr may touch
+    constant HWOWN    : reg_arr_t := (
+        x"00000000",   -- DMAxCR
+        x"00000FFF",   -- DMAxSR
+        x"00000000",   -- DMAxC0SRC
+        x"00000000",   -- DMAxC0DST
+        x"FFFFFFFF",   -- DMAxC0LEN
+        x"00000000",   -- DMAxC0CFG
+        x"00000000",   -- DMAxC1SRC
+        x"00000000",   -- DMAxC1DST
+        x"FFFFFFFF",   -- DMAxC1LEN
+        x"00000000",   -- DMAxC1CFG
+        x"00000000",   -- DMAxC2SRC
+        x"00000000",   -- DMAxC2DST
+        x"FFFFFFFF",   -- DMAxC2LEN
+        x"00000000",   -- DMAxC2CFG
+        x"00000000",   -- DMAxC3SRC
+        x"00000000",   -- DMAxC3DST
+        x"FFFFFFFF",   -- DMAxC3LEN
+        x"00000000",   -- DMAxC3CFG
+        x"0000FFFF",   -- DMAxCRC
+        x"00000000"    -- DMAxDESC
+    );
 
 end package dma_regs_pkg;

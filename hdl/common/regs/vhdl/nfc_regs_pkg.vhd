@@ -6,6 +6,8 @@
 
 library ieee;
 use ieee.std_logic_1164.all;
+library work;
+use work.constants.all;
 
 package nfc_regs_pkg is
 
@@ -193,5 +195,124 @@ package nfc_regs_pkg is
     constant SLOT_DATA                : natural := 7;
     constant SLOT_TXCTL               : natural := 8;
     constant SLOT_DBG                 : natural := 9;
+
+    -- periph_regs tables (hdl/common/periph_regs.vhd), one row per word in slot
+    -- order. Every mask below is a property of this description. RDTHRU, WIDEWR
+    -- and STROBE_HOLD are the entity's own and are set at the instance;
+    -- hdl/common/regs/REGFILE.md says why they cannot come from SystemRDL.
+    constant NWORDS                   : natural := 10;
+    subtype  reg_arr_t is word_array(0 to NWORDS-1);
+
+    -- reset word, loaded on the asynchronous resetn
+    constant RSTVAL   : reg_arr_t := (
+        x"00001000",   -- NFCxCR
+        x"00000000",   -- NFCxSR
+        x"00000000",   -- NFCxUID
+        x"00000044",   -- NFCxCFG
+        x"088004D4",   -- NFCxTIM
+        x"00000000",   -- NFCxRXST
+        x"00000000",   -- NFCxIDX
+        x"00000000",   -- NFCxDATA
+        x"00000000",   -- NFCxTXCTL
+        x"00000000"    -- NFCxDBG
+    );
+
+    -- bits that hold a software-written flop; periph_regs stores exactly these
+    constant IMPL     : reg_arr_t := (
+        x"000F1F03",   -- NFCxCR
+        x"00000000",   -- NFCxSR
+        x"FFFFFFFF",   -- NFCxUID
+        x"00FFFFFF",   -- NFCxCFG
+        x"FFFFFFFF",   -- NFCxTIM
+        x"00000000",   -- NFCxRXST
+        x"0000017F",   -- NFCxIDX
+        x"000000FF",   -- NFCxDATA
+        x"000003FF",   -- NFCxTXCTL
+        x"00000000"    -- NFCxDBG
+    );
+
+    -- a written 1 clears (onwrite = woclr): drives w1c_hit
+    constant W1C      : reg_arr_t := (
+        x"00000000",   -- NFCxCR
+        x"0000003E",   -- NFCxSR
+        x"00000000",   -- NFCxUID
+        x"00000000",   -- NFCxCFG
+        x"00000000",   -- NFCxTIM
+        x"00000000",   -- NFCxRXST
+        x"00000000",   -- NFCxIDX
+        x"00000000",   -- NFCxDATA
+        x"00000000",   -- NFCxTXCTL
+        x"00000000"    -- NFCxDBG
+    );
+
+    -- a written 1 sets (onwrite = woset): drives woset_hit
+    constant WOSET    : reg_arr_t := (
+        x"00000000",   -- NFCxCR
+        x"00000000",   -- NFCxSR
+        x"00000000",   -- NFCxUID
+        x"00000000",   -- NFCxCFG
+        x"00000000",   -- NFCxTIM
+        x"00000000",   -- NFCxRXST
+        x"00000000",   -- NFCxIDX
+        x"00000000",   -- NFCxDATA
+        x"00000000",   -- NFCxTXCTL
+        x"00000000"    -- NFCxDBG
+    );
+
+    -- a written 1 toggles (onwrite = wot): drives wot_hit
+    constant WOT      : reg_arr_t := (
+        x"00000000",   -- NFCxCR
+        x"00000000",   -- NFCxSR
+        x"00000000",   -- NFCxUID
+        x"00000000",   -- NFCxCFG
+        x"00000000",   -- NFCxTIM
+        x"00000000",   -- NFCxRXST
+        x"00000000",   -- NFCxIDX
+        x"00000000",   -- NFCxDATA
+        x"00000000",   -- NFCxTXCTL
+        x"00000000"    -- NFCxDBG
+    );
+
+    -- self-clearing strobe (singlepulse): drives wr_pulse, stores nothing
+    constant PULSE    : reg_arr_t := (
+        x"00000004",   -- NFCxCR
+        x"00000000",   -- NFCxSR
+        x"00000000",   -- NFCxUID
+        x"00000000",   -- NFCxCFG
+        x"00000000",   -- NFCxTIM
+        x"00000000",   -- NFCxRXST
+        x"00000000",   -- NFCxIDX
+        x"00000000",   -- NFCxDATA
+        x"00000000",   -- NFCxTXCTL
+        x"00000000"    -- NFCxDBG
+    );
+
+    -- a read retires (onread = rclr): drives rd_clr
+    constant RCLR     : reg_arr_t := (
+        x"00000000",   -- NFCxCR
+        x"00000000",   -- NFCxSR
+        x"00000000",   -- NFCxUID
+        x"00000000",   -- NFCxCFG
+        x"00000000",   -- NFCxTIM
+        x"00000000",   -- NFCxRXST
+        x"00000000",   -- NFCxIDX
+        x"00000000",   -- NFCxDATA
+        x"00000000",   -- NFCxTXCTL
+        x"00000000"    -- NFCxDBG
+    );
+
+    -- bits hardware drives (hw = w or rw): what hw_we / hw_set / hw_clr may touch
+    constant HWOWN    : reg_arr_t := (
+        x"00000000",   -- NFCxCR
+        x"00000FFF",   -- NFCxSR
+        x"00000000",   -- NFCxUID
+        x"00000000",   -- NFCxCFG
+        x"00000000",   -- NFCxTIM
+        x"0003FFFF",   -- NFCxRXST
+        x"00000000",   -- NFCxIDX
+        x"00000000",   -- NFCxDATA
+        x"00000000",   -- NFCxTXCTL
+        x"FFFFFFFF"    -- NFCxDBG
+    );
 
 end package nfc_regs_pkg;

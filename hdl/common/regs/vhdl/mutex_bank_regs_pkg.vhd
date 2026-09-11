@@ -106,4 +106,7 @@ package mutex_bank_regs_pkg is
     constant MUTEX15_RESET            : std_logic_vector(31 downto 0) := "00000000000000000000000000000000";
     constant MTXOWN15_LSB             : natural := 0;
 
+    -- No periph_regs table section: the register set is a function of the mutex count,
+    -- so its words are not a dense array. See hdl/common/regs/REGFILE.md.
+
 end package mutex_bank_regs_pkg;

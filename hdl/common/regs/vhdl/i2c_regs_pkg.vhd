@@ -6,6 +6,8 @@
 
 library ieee;
 use ieee.std_logic_1164.all;
+library work;
+use work.constants.all;
 
 package i2c_regs_pkg is
 
@@ -210,5 +212,116 @@ package i2c_regs_pkg is
     constant RegSlotI2CxSRX           : natural := 6;
     constant RegSlotI2CxAR            : natural := 7;
     constant RegSlotI2CxAMR           : natural := 8;
+
+    -- periph_regs tables (hdl/common/periph_regs.vhd), one row per word in slot
+    -- order. Every mask below is a property of this description. RDTHRU, WIDEWR
+    -- and STROBE_HOLD are the entity's own and are set at the instance;
+    -- hdl/common/regs/REGFILE.md says why they cannot come from SystemRDL.
+    constant NWORDS                   : natural := 9;
+    subtype  reg_arr_t is word_array(0 to NWORDS-1);
+
+    -- reset word, loaded on the asynchronous resetn
+    constant RSTVAL   : reg_arr_t := (
+        x"00000000",   -- I2CxCR
+        x"00000000",   -- I2CxFCR
+        x"00000000",   -- I2CxSR
+        x"00000000",   -- I2CxMTX
+        x"00000000",   -- I2CxMRX
+        x"00000000",   -- I2CxSTX
+        x"00000000",   -- I2CxSRX
+        x"00000000",   -- I2CxAR
+        x"00000000"    -- I2CxAMR
+    );
+
+    -- bits that hold a software-written flop; periph_regs stores exactly these
+    constant IMPL     : reg_arr_t := (
+        x"003FFFFF",   -- I2CxCR
+        x"00000000",   -- I2CxFCR
+        x"00000000",   -- I2CxSR
+        x"000000FF",   -- I2CxMTX
+        x"00000000",   -- I2CxMRX
+        x"000000FF",   -- I2CxSTX
+        x"00000000",   -- I2CxSRX
+        x"0000007F",   -- I2CxAR
+        x"0000007F"    -- I2CxAMR
+    );
+
+    -- a written 1 clears (onwrite = woclr): drives w1c_hit
+    constant W1C      : reg_arr_t := (
+        x"00000000",   -- I2CxCR
+        x"00000000",   -- I2CxFCR
+        x"00001FFF",   -- I2CxSR
+        x"00000000",   -- I2CxMTX
+        x"00000000",   -- I2CxMRX
+        x"00000000",   -- I2CxSTX
+        x"00000000",   -- I2CxSRX
+        x"00000000",   -- I2CxAR
+        x"00000000"    -- I2CxAMR
+    );
+
+    -- a written 1 sets (onwrite = woset): drives woset_hit
+    constant WOSET    : reg_arr_t := (
+        x"00000000",   -- I2CxCR
+        x"00000000",   -- I2CxFCR
+        x"00000000",   -- I2CxSR
+        x"00000000",   -- I2CxMTX
+        x"00000000",   -- I2CxMRX
+        x"00000000",   -- I2CxSTX
+        x"00000000",   -- I2CxSRX
+        x"00000000",   -- I2CxAR
+        x"00000000"    -- I2CxAMR
+    );
+
+    -- a written 1 toggles (onwrite = wot): drives wot_hit
+    constant WOT      : reg_arr_t := (
+        x"00000000",   -- I2CxCR
+        x"00000000",   -- I2CxFCR
+        x"00000000",   -- I2CxSR
+        x"00000000",   -- I2CxMTX
+        x"00000000",   -- I2CxMRX
+        x"00000000",   -- I2CxSTX
+        x"00000000",   -- I2CxSRX
+        x"00000000",   -- I2CxAR
+        x"00000000"    -- I2CxAMR
+    );
+
+    -- self-clearing strobe (singlepulse): drives wr_pulse, stores nothing
+    constant PULSE    : reg_arr_t := (
+        x"00000000",   -- I2CxCR
+        x"0000000F",   -- I2CxFCR
+        x"00000000",   -- I2CxSR
+        x"00000000",   -- I2CxMTX
+        x"00000000",   -- I2CxMRX
+        x"00000000",   -- I2CxSTX
+        x"00000000",   -- I2CxSRX
+        x"00000000",   -- I2CxAR
+        x"00000000"    -- I2CxAMR
+    );
+
+    -- a read retires (onread = rclr): drives rd_clr
+    constant RCLR     : reg_arr_t := (
+        x"00000000",   -- I2CxCR
+        x"00000000",   -- I2CxFCR
+        x"00000000",   -- I2CxSR
+        x"00000000",   -- I2CxMTX
+        x"00000000",   -- I2CxMRX
+        x"00000000",   -- I2CxSTX
+        x"00000000",   -- I2CxSRX
+        x"00000000",   -- I2CxAR
+        x"00000000"    -- I2CxAMR
+    );
+
+    -- bits hardware drives (hw = w or rw): what hw_we / hw_set / hw_clr may touch
+    constant HWOWN    : reg_arr_t := (
+        x"00000000",   -- I2CxCR
+        x"00000000",   -- I2CxFCR
+        x"0000FFFF",   -- I2CxSR
+        x"00000000",   -- I2CxMTX
+        x"000000FF",   -- I2CxMRX
+        x"00000000",   -- I2CxSTX
+        x"000000FF",   -- I2CxSRX
+        x"00000000",   -- I2CxAR
+        x"00000000"    -- I2CxAMR
+    );
 
 end package i2c_regs_pkg;

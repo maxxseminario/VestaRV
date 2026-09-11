@@ -1327,6 +1327,15 @@ def main():
         if not at:
             continue        # the entity is not in this configuration; neither is its package
         lines.insert(at[0], pkg_cell)
+    # The shared register file (report R12a). It is an ENTITY, not a package, but
+    # `entity work.periph_regs` binds at ANALYSIS, so it goes ahead of the first
+    # thing that could instantiate it -- which, after the loop above, is the first
+    # register package in the list.
+    regs_cell = '../../../hdl/common/periph_regs.vhd'
+    if regs_cell not in lines:
+        at = [i for i, ln in enumerate(lines) if '/regs/vhdl/' in ln]
+        if at:
+            lines.insert(at[0], regs_cell)
     with open(os.path.join(stage, 'cell_list_behavioral.txt'), 'w') as f:
         f.write('\n'.join(lines) + '\n')
 

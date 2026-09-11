@@ -6,6 +6,8 @@
 
 library ieee;
 use ieee.std_logic_1164.all;
+library work;
+use work.constants.all;
 
 package qspi_regs_pkg is
 
@@ -120,5 +122,92 @@ package qspi_regs_pkg is
     constant SLOT_TX                  : natural := 3;
     constant SLOT_RX                  : natural := 4;
     constant SLOT_SR                  : natural := 5;
+
+    -- periph_regs tables (hdl/common/periph_regs.vhd), one row per word in slot
+    -- order. Every mask below is a property of this description. RDTHRU, WIDEWR
+    -- and STROBE_HOLD are the entity's own and are set at the instance;
+    -- hdl/common/regs/REGFILE.md says why they cannot come from SystemRDL.
+    constant NWORDS                   : natural := 6;
+    subtype  reg_arr_t is word_array(0 to NWORDS-1);
+
+    -- reset word, loaded on the asynchronous resetn
+    constant RSTVAL   : reg_arr_t := (
+        x"00000000",   -- QSPIxCR
+        x"00000000",   -- QSPIxCMD
+        x"00000000",   -- QSPIxADR
+        x"00000000",   -- QSPIxTX
+        x"00000000",   -- QSPIxRX
+        x"00000000"    -- QSPIxSR
+    );
+
+    -- bits that hold a software-written flop; periph_regs stores exactly these
+    constant IMPL     : reg_arr_t := (
+        x"1FFFFFFF",   -- QSPIxCR
+        x"000007FF",   -- QSPIxCMD
+        x"FFFFFFFF",   -- QSPIxADR
+        x"FFFFFFFF",   -- QSPIxTX
+        x"00000000",   -- QSPIxRX
+        x"00000000"    -- QSPIxSR
+    );
+
+    -- a written 1 clears (onwrite = woclr): drives w1c_hit
+    constant W1C      : reg_arr_t := (
+        x"00000000",   -- QSPIxCR
+        x"00000000",   -- QSPIxCMD
+        x"00000000",   -- QSPIxADR
+        x"00000000",   -- QSPIxTX
+        x"00000000",   -- QSPIxRX
+        x"0000000E"    -- QSPIxSR
+    );
+
+    -- a written 1 sets (onwrite = woset): drives woset_hit
+    constant WOSET    : reg_arr_t := (
+        x"00000000",   -- QSPIxCR
+        x"00000000",   -- QSPIxCMD
+        x"00000000",   -- QSPIxADR
+        x"00000000",   -- QSPIxTX
+        x"00000000",   -- QSPIxRX
+        x"00000000"    -- QSPIxSR
+    );
+
+    -- a written 1 toggles (onwrite = wot): drives wot_hit
+    constant WOT      : reg_arr_t := (
+        x"00000000",   -- QSPIxCR
+        x"00000000",   -- QSPIxCMD
+        x"00000000",   -- QSPIxADR
+        x"00000000",   -- QSPIxTX
+        x"00000000",   -- QSPIxRX
+        x"00000000"    -- QSPIxSR
+    );
+
+    -- self-clearing strobe (singlepulse): drives wr_pulse, stores nothing
+    constant PULSE    : reg_arr_t := (
+        x"00000000",   -- QSPIxCR
+        x"00000000",   -- QSPIxCMD
+        x"00000000",   -- QSPIxADR
+        x"00000000",   -- QSPIxTX
+        x"00000000",   -- QSPIxRX
+        x"00000000"    -- QSPIxSR
+    );
+
+    -- a read retires (onread = rclr): drives rd_clr
+    constant RCLR     : reg_arr_t := (
+        x"00000000",   -- QSPIxCR
+        x"00000000",   -- QSPIxCMD
+        x"00000000",   -- QSPIxADR
+        x"00000000",   -- QSPIxTX
+        x"00000000",   -- QSPIxRX
+        x"00000000"    -- QSPIxSR
+    );
+
+    -- bits hardware drives (hw = w or rw): what hw_we / hw_set / hw_clr may touch
+    constant HWOWN    : reg_arr_t := (
+        x"00000000",   -- QSPIxCR
+        x"00000000",   -- QSPIxCMD
+        x"00000000",   -- QSPIxADR
+        x"00000000",   -- QSPIxTX
+        x"FFFFFFFF",   -- QSPIxRX
+        x"0000000F"    -- QSPIxSR
+    );
 
 end package qspi_regs_pkg;

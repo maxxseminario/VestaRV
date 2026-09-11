@@ -133,4 +133,7 @@ package irq_router_regs_pkg is
     constant W_INSVCU                 : natural := 522;
     constant W_INSVCX                 : natural := 523;
 
+    -- No periph_regs table section: the register set is a function of the hart and vector counts,
+    -- so its words are not a dense array. See hdl/common/regs/REGFILE.md.
+
 end package irq_router_regs_pkg;

@@ -469,6 +469,59 @@ begin
                      to_X01(rdw(0)), '1');
         bus_write(clk, pbus, RegSlotTIMxCR, x"00000000");     -- disable
 
+        -- GROUP G6: the three registers no other group touches.
+        -- TIMxCMP1, TIMxCAP0 and TIMxCAP1 were never read or written by this bench, so
+        -- nothing here graded their decode. Added 2026-09-11 (R12a) BEFORE the periph_regs
+        -- migration, so the migration has an oracle for them rather than an assumption.
+        report "=== GROUP G6: TIMxCMP1 / TIMxCAP0 / TIMxCAP1 ===" severity note;
+        reset_pulse;
+
+        bus_write(clk, pbus, RegSlotTIMxCMP1, x"0000ABCD");
+        bus_read(clk, pbus, read_data, RegSlotTIMxCMP1, rdw);
+        sb.check_slv("G6a: TIMxCMP1 readback", rdw, x"0000ABCD");
+        bus_write(clk, pbus, RegSlotTIMxCMP1, x"FFFFFFFF");
+        bus_read(clk, pbus, read_data, RegSlotTIMxCMP1, rdw);
+        sb.check_slv("G6b: TIMxCMP1 stores all four byte lanes", rdw, x"FFFFFFFF");
+
+        bus_read(clk, pbus, read_data, RegSlotTIMxCAP0, rdw);
+        sb.check_slv("G6c: TIMxCAP0 reads 0 before any capture", rdw, x"00000000");
+        bus_read(clk, pbus, read_data, RegSlotTIMxCAP1, rdw);
+        sb.check_slv("G6d: TIMxCAP1 reads 0 before any capture", rdw, x"00000000");
+
+        -- Enable the timer on mclk with both captures armed on the rising edge, let it
+        -- count, then present one edge per input.
+        bus_write(clk, pbus, RegSlotTIMxCR, x"00000D40");   -- TEN(6) + SSEL=01(9:8) + CAP0EN(10) + CAP1EN(11)
+        poll_val_counting(60, ok);
+        sb.check_true("G6e: TIMxVAL visibly counting before the capture edge", ok);
+        wait_edges(20);
+
+        cap0_in <= '1';
+        poll_sr_bit(4, '1', 80, ok);
+        sb.check_true("G6f: a cap0 rising edge sets CAP0IF (SR bit 4)", ok);
+        bus_read(clk, pbus, read_data, RegSlotTIMxCAP0, rdw);
+        sb.check_true("G6g: TIMxCAP0 holds a non-zero snapshot of the counter",
+                      rdw /= x"00000000");
+
+        cap1_in <= '1';
+        poll_sr_bit(5, '1', 80, ok);
+        sb.check_true("G6h: a cap1 rising edge sets CAP1IF (SR bit 5)", ok);
+        bus_read(clk, pbus, read_data, RegSlotTIMxCAP1, rdw2);
+        sb.check_true("G6i: TIMxCAP1 holds a non-zero snapshot of the counter",
+                      rdw2 /= x"00000000");
+
+        -- The two capture flags are the write-1-to-clear bits no other group retires.
+        bus_write(clk, pbus, RegSlotTIMxSR, x"00000030");   -- W1C on CAP0IF + CAP1IF
+        poll_sr_bit(4, '0', 20, ok);
+        sb.check_true("G6j: a written 1 clears CAP0IF", ok);
+        poll_sr_bit(5, '0', 20, ok);
+        sb.check_true("G6k: a written 1 clears CAP1IF", ok);
+        bus_read(clk, pbus, read_data, RegSlotTIMxCAP0, rdw);
+        sb.check_true("G6l: clearing the flag leaves TIMxCAP0 standing", rdw /= x"00000000");
+
+        bus_write(clk, pbus, RegSlotTIMxCR, x"00000000");   -- disable
+        cap0_in <= '0';
+        cap1_in <= '0';
+
         -- GROUP G-NEG: NEGATIVE CONTROL (mandatory, LAST).
         -- Exactly ONE deliberately wrong expected value (a wrong compare0 flip count), so the scoreboard proves it can fail.
         report "=== GROUP G-NEG: NEGATIVE CONTROL ===" severity note;

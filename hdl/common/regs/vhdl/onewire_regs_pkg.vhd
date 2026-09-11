@@ -6,6 +6,8 @@
 
 library ieee;
 use ieee.std_logic_1164.all;
+library work;
+use work.constants.all;
 
 package onewire_regs_pkg is
 
@@ -106,5 +108,100 @@ package onewire_regs_pkg is
     constant SLOT_DIV                 : natural := 4;
     constant SLOT_SR                  : natural := 5;
     constant SLOT_SPU                 : natural := 6;
+
+    -- periph_regs tables (hdl/common/periph_regs.vhd), one row per word in slot
+    -- order. Every mask below is a property of this description. RDTHRU, WIDEWR
+    -- and STROBE_HOLD are the entity's own and are set at the instance;
+    -- hdl/common/regs/REGFILE.md says why they cannot come from SystemRDL.
+    constant NWORDS                   : natural := 7;
+    subtype  reg_arr_t is word_array(0 to NWORDS-1);
+
+    -- reset word, loaded on the asynchronous resetn
+    constant RSTVAL   : reg_arr_t := (
+        x"00000000",   -- OWxCR
+        x"00000000",   -- OWxCMD
+        x"00000000",   -- OWxTX
+        x"00000000",   -- OWxRX
+        x"00000000",   -- OWxDIV
+        x"00000000",   -- OWxSR
+        x"00000000"    -- OWxSPU
+    );
+
+    -- bits that hold a software-written flop; periph_regs stores exactly these
+    constant IMPL     : reg_arr_t := (
+        x"0000001F",   -- OWxCR
+        x"00000107",   -- OWxCMD
+        x"000000FF",   -- OWxTX
+        x"00000000",   -- OWxRX
+        x"0000FFFF",   -- OWxDIV
+        x"00000000",   -- OWxSR
+        x"00000000"    -- OWxSPU
+    );
+
+    -- a written 1 clears (onwrite = woclr): drives w1c_hit
+    constant W1C      : reg_arr_t := (
+        x"00000000",   -- OWxCR
+        x"00000000",   -- OWxCMD
+        x"00000000",   -- OWxTX
+        x"00000000",   -- OWxRX
+        x"00000000",   -- OWxDIV
+        x"0000001A",   -- OWxSR
+        x"00000000"    -- OWxSPU
+    );
+
+    -- a written 1 sets (onwrite = woset): drives woset_hit
+    constant WOSET    : reg_arr_t := (
+        x"00000000",   -- OWxCR
+        x"00000000",   -- OWxCMD
+        x"00000000",   -- OWxTX
+        x"00000000",   -- OWxRX
+        x"00000000",   -- OWxDIV
+        x"00000000",   -- OWxSR
+        x"00000000"    -- OWxSPU
+    );
+
+    -- a written 1 toggles (onwrite = wot): drives wot_hit
+    constant WOT      : reg_arr_t := (
+        x"00000000",   -- OWxCR
+        x"00000000",   -- OWxCMD
+        x"00000000",   -- OWxTX
+        x"00000000",   -- OWxRX
+        x"00000000",   -- OWxDIV
+        x"00000000",   -- OWxSR
+        x"00000000"    -- OWxSPU
+    );
+
+    -- self-clearing strobe (singlepulse): drives wr_pulse, stores nothing
+    constant PULSE    : reg_arr_t := (
+        x"00000000",   -- OWxCR
+        x"00000000",   -- OWxCMD
+        x"00000000",   -- OWxTX
+        x"00000000",   -- OWxRX
+        x"00000000",   -- OWxDIV
+        x"00000000",   -- OWxSR
+        x"00000000"    -- OWxSPU
+    );
+
+    -- a read retires (onread = rclr): drives rd_clr
+    constant RCLR     : reg_arr_t := (
+        x"00000000",   -- OWxCR
+        x"00000000",   -- OWxCMD
+        x"00000000",   -- OWxTX
+        x"00000000",   -- OWxRX
+        x"00000000",   -- OWxDIV
+        x"00000000",   -- OWxSR
+        x"00000000"    -- OWxSPU
+    );
+
+    -- bits hardware drives (hw = w or rw): what hw_we / hw_set / hw_clr may touch
+    constant HWOWN    : reg_arr_t := (
+        x"00000000",   -- OWxCR
+        x"00000000",   -- OWxCMD
+        x"00000000",   -- OWxTX
+        x"000000FF",   -- OWxRX
+        x"00000000",   -- OWxDIV
+        x"0000001F",   -- OWxSR
+        x"00000000"    -- OWxSPU
+    );
 
 end package onewire_regs_pkg;

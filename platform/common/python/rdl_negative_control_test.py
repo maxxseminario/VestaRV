@@ -84,8 +84,16 @@ class NegativeControlTest(unittest.TestCase):
                                 + ' in ' + fileName)
 
     def _uart(self):
-        return gate.readUart(os.path.join(REPO, 'hdl', 'common', 'periph', 'UART.vhd'),
-                             os.path.join(REPO, 'hdl', 'common', 'MemoryMap.vhd'))
+        """The UART decode as the gate reads it today.
+
+           Since report R12a that is the periph_regs reader: UART.vhd's bus side
+           is an instance, and the tables it decodes with are uart_regs_pkg's.
+           The mutation still has to be caught, because the mutated description
+           is compiled in a temp directory while the TRACKED package -- the file
+           the entity compiles against -- is unchanged."""
+        return gate.READERS['uart']['read'](
+            os.path.join(REPO, 'hdl', 'common', 'periph', 'UART.vhd'),
+            os.path.join(REPO, 'hdl', 'common', 'MemoryMap.vhd'))
 
     def test_reset_value_mutation_is_caught(self):
         vhdl = self._uart()
@@ -108,8 +116,7 @@ class NegativeControlTest(unittest.TestCase):
         self._run('uart.rdl', 'uart', '} BR[11:0];', '} BR[10:0];', check)
 
     def test_offset_mutation_is_caught(self):
-        vhdl = gate.readUart(os.path.join(REPO, 'hdl', 'common', 'periph', 'UART.vhd'),
-                             os.path.join(REPO, 'hdl', 'common', 'MemoryMap.vhd'))
+        vhdl = self._uart()
 
         def check(block):
             return [rt.NameTemplate for rt in block.RegisterTemplates

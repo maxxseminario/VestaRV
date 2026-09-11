@@ -6,6 +6,8 @@
 
 library ieee;
 use ieee.std_logic_1164.all;
+library work;
+use work.constants.all;
 
 package gpio_regs_pkg is
 
@@ -146,5 +148,148 @@ package gpio_regs_pkg is
     constant PxTASK_MSB               : natural := 7;
     constant PxTASK_LSB               : natural := 0;
     -- PxTASK_RESET is the register constant above; this field carries the register name.
+
+    -- periph_regs tables (hdl/common/periph_regs.vhd), one row per word in slot
+    -- order. Every mask below is a property of this description. RDTHRU, WIDEWR
+    -- and STROBE_HOLD are the entity's own and are set at the instance;
+    -- hdl/common/regs/REGFILE.md says why they cannot come from SystemRDL.
+    constant NWORDS                   : natural := 13;
+    subtype  reg_arr_t is word_array(0 to NWORDS-1);
+
+    -- reset word, loaded on the asynchronous resetn
+    constant RSTVAL   : reg_arr_t := (
+        x"00000000",   -- PxIN
+        x"00000000",   -- PxOUT
+        x"00000000",   -- PxOUTS
+        x"00000000",   -- PxOUTC
+        x"00000000",   -- PxOUTT
+        x"00000000",   -- PxDIR
+        x"00000000",   -- PxIF
+        x"00000000",   -- PxIES
+        x"00000000",   -- PxIE
+        x"00000000",   -- PxSEL
+        x"00000000",   -- PxREN
+        x"00000000",   -- PxAFS
+        x"00000000"    -- PxTASK
+    );
+
+    -- bits that hold a software-written flop; periph_regs stores exactly these
+    constant IMPL     : reg_arr_t := (
+        x"00000000",   -- PxIN
+        x"000000FF",   -- PxOUT
+        x"00000000",   -- PxOUTS
+        x"00000000",   -- PxOUTC
+        x"00000000",   -- PxOUTT
+        x"000000FF",   -- PxDIR
+        x"00000000",   -- PxIF
+        x"000000FF",   -- PxIES
+        x"000000FF",   -- PxIE
+        x"000000FF",   -- PxSEL
+        x"000000FF",   -- PxREN
+        x"77777777",   -- PxAFS
+        x"000000FF"    -- PxTASK
+    );
+
+    -- a written 1 clears (onwrite = woclr): drives w1c_hit
+    constant W1C      : reg_arr_t := (
+        x"00000000",   -- PxIN
+        x"00000000",   -- PxOUT
+        x"00000000",   -- PxOUTS
+        x"000000FF",   -- PxOUTC
+        x"00000000",   -- PxOUTT
+        x"00000000",   -- PxDIR
+        x"000000FF",   -- PxIF
+        x"00000000",   -- PxIES
+        x"00000000",   -- PxIE
+        x"00000000",   -- PxSEL
+        x"00000000",   -- PxREN
+        x"00000000",   -- PxAFS
+        x"00000000"    -- PxTASK
+    );
+
+    -- a written 1 sets (onwrite = woset): drives woset_hit
+    constant WOSET    : reg_arr_t := (
+        x"00000000",   -- PxIN
+        x"00000000",   -- PxOUT
+        x"000000FF",   -- PxOUTS
+        x"00000000",   -- PxOUTC
+        x"00000000",   -- PxOUTT
+        x"00000000",   -- PxDIR
+        x"00000000",   -- PxIF
+        x"00000000",   -- PxIES
+        x"00000000",   -- PxIE
+        x"00000000",   -- PxSEL
+        x"00000000",   -- PxREN
+        x"00000000",   -- PxAFS
+        x"00000000"    -- PxTASK
+    );
+
+    -- a written 1 toggles (onwrite = wot): drives wot_hit
+    constant WOT      : reg_arr_t := (
+        x"00000000",   -- PxIN
+        x"00000000",   -- PxOUT
+        x"00000000",   -- PxOUTS
+        x"00000000",   -- PxOUTC
+        x"000000FF",   -- PxOUTT
+        x"00000000",   -- PxDIR
+        x"00000000",   -- PxIF
+        x"00000000",   -- PxIES
+        x"00000000",   -- PxIE
+        x"00000000",   -- PxSEL
+        x"00000000",   -- PxREN
+        x"00000000",   -- PxAFS
+        x"00000000"    -- PxTASK
+    );
+
+    -- self-clearing strobe (singlepulse): drives wr_pulse, stores nothing
+    constant PULSE    : reg_arr_t := (
+        x"00000000",   -- PxIN
+        x"00000000",   -- PxOUT
+        x"00000000",   -- PxOUTS
+        x"00000000",   -- PxOUTC
+        x"00000000",   -- PxOUTT
+        x"00000000",   -- PxDIR
+        x"00000000",   -- PxIF
+        x"00000000",   -- PxIES
+        x"00000000",   -- PxIE
+        x"00000000",   -- PxSEL
+        x"00000000",   -- PxREN
+        x"00000000",   -- PxAFS
+        x"00000000"    -- PxTASK
+    );
+
+    -- a read retires (onread = rclr): drives rd_clr
+    constant RCLR     : reg_arr_t := (
+        x"00000000",   -- PxIN
+        x"00000000",   -- PxOUT
+        x"00000000",   -- PxOUTS
+        x"00000000",   -- PxOUTC
+        x"00000000",   -- PxOUTT
+        x"00000000",   -- PxDIR
+        x"00000000",   -- PxIF
+        x"00000000",   -- PxIES
+        x"00000000",   -- PxIE
+        x"00000000",   -- PxSEL
+        x"00000000",   -- PxREN
+        x"00000000",   -- PxAFS
+        x"00000000"    -- PxTASK
+    );
+
+    -- bits hardware drives (hw = w or rw): what hw_we / hw_set / hw_clr may touch
+    constant HWOWN    : reg_arr_t := (
+        x"000000FF",   -- PxIN
+        x"000000FF",   -- PxOUT
+        x"000000FF",   -- PxOUTS
+        x"000000FF",   -- PxOUTC
+        x"000000FF",   -- PxOUTT
+        x"00000000",   -- PxDIR
+        x"000000FF",   -- PxIF
+        x"00000000",   -- PxIES
+        x"00000000",   -- PxIE
+        x"00000000",   -- PxSEL
+        x"00000000",   -- PxREN
+        x"00000000",   -- PxAFS
+        x"00000000"    -- PxTASK
+    );
 
 end package gpio_regs_pkg;

@@ -290,6 +290,18 @@ vhdl_source_set(
     pool = ["//hdl:vhdl_sources"],
 )
 
+# The shared peripheral register file and its unit bench (report R12a). The
+# bench needs nothing but constants.vhd, because periph_regs has no datapath:
+# every table it decodes with is a generic.
+vhdl_source_set(
+    name = "periph_regs_rtl",
+    paths = [
+        "hdl/common/constants.vhd",
+        "hdl/common/periph_regs.vhd",
+    ],
+    pool = ["//hdl:vhdl_sources"],
+)
+
 vhdl_source_set(
     name = "timer_rtl",
     paths = [
@@ -297,6 +309,7 @@ vhdl_source_set(
         "hdl/common/MemoryMap.vhd",
         "hdl/common/sim/ClkGate.vhd",
         "hdl/common/sim/ClockMuxGlitchFree.vhd",
+        "hdl/common/periph_regs.vhd",
         "hdl/common/regs/vhdl/timer_regs_pkg.vhd",
         "hdl/common/periph/TIMER.vhd",
     ],
@@ -321,6 +334,7 @@ vhdl_source_set(
         "hdl/common/constants.vhd",
         "hdl/common/MemoryMap.vhd",
         "hdl/common/sim/ClkGate.vhd",
+        "hdl/common/periph_regs.vhd",
         "hdl/common/regs/vhdl/uart_regs_pkg.vhd",
         "hdl/common/periph/UART.vhd",
     ],
@@ -455,6 +469,20 @@ ghdl_test(
     ],
     pass_pattern = "ALL CHECKS PASSED",
     sim_timeout_s = 180,
+    tags = ["ghdl"],
+)
+
+ghdl_test(
+    name = "periph_regs_tb",
+    size = "small",
+    srcs = [
+        ":periph_regs_rtl",
+        "periph_tb_pkg.vhd",
+        "periph_regs_tb.vhd",
+    ],
+    entity = "periph_regs_tb",
+    pass_pattern = "ALL CHECKS PASSED",
+    sim_timeout_s = 120,
     tags = ["ghdl"],
 )
 
