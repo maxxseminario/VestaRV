@@ -20,6 +20,53 @@
 #define FLASH_SLAVE_PU_DELAY    4000 // loop count; must cover AT45DB021E tRDPD = 35 us max from CS deassertion (4000 x 2-insn loop >= 40 us at 100MHz)
 #define FLASH_SLAVE_PD          0xB9 // Flash Slave Power Down Command
 
+// =============================================================================
+// BOOT WATCHDOG AND BOUNDED FLASH POLLS (2026-09-05, report 08 finding 6).
+//
+// Before this, every SPI poll in the flash path spun forever and nothing in
+// the ROM ever touched the watchdog, so a dead, missing or mis-wired flash
+// hung hart 0 in a two-instruction loop with no observable at all -- and the
+// unstrapped board takes the flash path by default (MemoryMap.vhd:263
+// RstValP1REN = 0x80 pulls BOOT high).
+//
+// WDT register semantics, read from hdl/common/periph/SYSTEM.vhd:
+//   WDTPASS (0x30) takes one of two FULL-WORD passwords (:602-610, wen="0000"
+//     only): WDT_UNLOCK_PASSWD opens a 64-mclk window in which the 8-bit
+//     WDTCR may be written (:588-591), WDT_CLEAR_PASSWD asynchronously zeroes
+//     the counter and needs NO window (:215-219). Both are one-shot strobes,
+//     cleared when the block is deselected (:632-637).
+//   WDTCR (0x34) = EN(7) | CDIV(5:2) | IE(1) | HWRST(0) (:172-175).
+//   HWRST IS NOT A TIMEOUT SELECTOR. It drives resetn_sys low the instant it
+//     is written (:187-190), so the arm below leaves it 0.
+//   With IE = 0 the timeout is undeliverable anywhere, so it becomes a system
+//     reset (:287-291) -- which is what a boot backstop wants.
+//   clk_wdt is mclk (:205-212) and the event is the rising edge of
+//     WDTVAL(CDIV) (:242), so CDIV = 15 fires 32768 mclk after a clear:
+//     1.37 ms at the HFXT mclk this ROM boots on (SYS_CLK_CR resets to 0 =
+//     MCLKSEL_HFXT).
+//
+// DIVISION OF LABOUR, and it is deliberate: the COUNTER owns the SPI polls and
+// the WATCHDOG owns everything else. A watchdog reset on a dead flash would
+// reboot straight back into the same dead flash forever, so the polls fall
+// through to the ROM-resident Forth monitor instead, which is observable on
+// UART0 and can be talked to. The watchdog then covers the case the counter
+// structurally cannot see -- a wedge in which no instruction retires at all
+// (arbiter or SRAM stall), because then the kick does not execute either.
+// Every poll iteration kicks, so a merely SLOW flash can never trip the
+// watchdog however the SPI divider is set.
+#define WDT_UNLOCK_PASSWD   0x5F3759DF  // constants.vhd:21 WDT_UNLCK_PASSWD
+#define WDT_CLEAR_PASSWD    0xA0C8A620  // constants.vhd:22 WDT_CLR_PASSWD
+#define WDT_ARM_CR          (SYS_WDT_EN_MASK | SYS_WDT_CDIV_MASK) // EN, CDIV=15, IE=0, HWRST=0
+
+// Poll bound. One iteration is 5 instructions including a peripheral load, so
+// 0x40000 iterations is at least 1.3 M mclk = 55 ms at 24 MHz -- four orders
+// of magnitude longer than the 32-clock frame it waits for, and short enough
+// that a board with no flash reaches the monitor before a human lets go of
+// the reset button.
+#define SPI_POLL_LIMIT      0x00040000
+#define BOOT_STS_TXEMPTY    0xB0071E01  // SPI0SR SPITEIF never set
+#define BOOT_STS_TXDONE     0xB0071E02  // SPI0SR SPITCIF never set
+
 # For dir, '1' means input on xcelium, write '1' in assembly for output 
 #define P1_SEL_BOOT             (GPIO0_MISO_MASK | GPIO0_MOSI_MASK | GPIO0_SCK_MASK | GPIO0_TRAP_MASK) // Set GPIO Select Register for boot mode (MISO and BOOT to alt function, rest to GPIO)
 #define SPI0_DIR_MASK           GPIO0_MISO_MASK  
@@ -78,7 +125,11 @@
 #define NFC_DATA            0x1C        // payload byte window (lane 0)
 #define IVT_MSIP_SLOT       (IVT_BASE_ADDR + 4*83)  // IVT slot 83 (CLINT msip) = 0x814C
 #define RET_INSN            0x00008067  // 'jalr x0,0(ra)' — parked tile's IVT slot 83
-#define TILE_SP_INIT        0xBFFC      // tile sp: top word of its own TCM
+// Tile sp: one past the top of its own 8 KiB TCM array, the same value hart 0
+// uses (myshkin_s.h SP_INIT_VAL) and the same value every generated authority
+// publishes as STACK_POINTER_INIT. WAS 0xBFFC (2026-09-05), which lives in the
+// mirrored half of the 16 KiB decode window and aliases to 0x9FF8.
+#define TILE_SP_INIT        SP_INIT_VAL // tile sp = 0xA000, top of its own TCM
 
 // vesta custom instructions (opcode 0x0b; encodings match the test env's
 // riscv_test.h: iret = funct3 0, extinguish/ignite = funct3 1, funct7 0/1)
@@ -156,6 +207,24 @@ check_boot_mode:
 
 
 SPI_FlashSetup: 
+    // Arm the boot watchdog. This is the FIRST thing on the flash path and
+    // after check_boot_mode, so the strap-selected Forth entry and the
+    // harvested-boot branch never run with it armed. s4 (SYSTEM base) and s6
+    // (the clear password) stay live for the kicks in the poll loops below;
+    // both are dead everywhere else in this ROM and clear_regs zeroes them
+    // before any loaded image runs.
+    li   s4, PERIPH_SYSTEM0_BASE
+    li   s6, WDT_CLEAR_PASSWD
+    li   s5, 0                  // "image not loaded yet" -- MUST be explicit:
+                                // the register file powers up UNKNOWN on
+                                // silicon, and boot_flash_timeout branches on
+                                // s5. executeProgram sets it to 1.
+    li   t1, WDT_UNLOCK_PASSWD
+    sw   t1, SYS_WDT_PASS(s4)   // open the 64-mclk write window
+    li   t1, WDT_ARM_CR
+    sw   t1, SYS_WDT_CR(s4)     // EN=1, CDIV=15, IE=0, HWRST=0 -> reset on timeout
+    sw   s6, SYS_WDT_PASS(s4)   // start the flash path from a zeroed counter
+
     jal ra, clr_spi0sr // Clear SPI Flash Status Register
 
     //Setup SPI Mode 
@@ -299,6 +368,8 @@ eraseSegmentFromRAM:
     jal ra, spi0_complete_read_init_read // Read next word from SPI Flash
     
 eraseWord: 
+    sw   s6, SYS_WDT_PASS(s4) // kick: this loop has no SPI poll, and a 64 KiB
+                              // erase is 30x the watchdog period
     sw t0, 0(a2) // Store the word to RAM at address a2
     addi a2, a2, 4 // Increment address by 4 bytes (next word)
     bltu a2, a3, eraseWord // If not reached end address, continue erasing words
@@ -312,28 +383,77 @@ clr_spi0sr:
     ret
 
 
+// Both polls are BOUNDED (2026-09-05). t1 is the iteration counter and is dead
+// at every call site; the kick keeps a slow-but-alive flash from tripping the
+// watchdog, and the counter, not the watchdog, is what ends a dead one.
 spi0_complete_read_init_read:
     //a0 has spibase
     //Wait for SPIO0TX register to be empty
+    li   t1, SPI_POLL_LIMIT
+spi0_poll_tx_empty:
     lw s9, SPI_SR(a0) // Read SPI0SR
     andi a7, s9, SPITEIF_MASK // Check if SPITXEMT is set
-    beqz a7, spi0_complete_read_init_read // If SPITXEMT is not set, loop back
+    bnez a7, spi0_tx_empty_done // SPITXEMT set: go
+    sw   s6, SYS_WDT_PASS(s4)   // kick: the core is alive, the flash is just slow
+    addi t1, t1, -1
+    bnez t1, spi0_poll_tx_empty
+    li   t1, BOOT_STS_TXEMPTY
+    j    boot_flash_timeout
+spi0_tx_empty_done:
 
     //Get next word for transmission (dont care about the value)
     sw zero, SPI_TX(a0) // Write 0x00000000 to SPI Flash Transmit Register
 
     //Wait for the transmission to complete
 spi0_wait_until_tx_complete:
+    li   t1, SPI_POLL_LIMIT
+spi0_poll_tx_complete:
 	lw a7, SPI_SR(a0)	// (a0 = SPI_BASE) Read SPI0SR and store in a7
 	andi a7, a7, SPI_TCIF_MASK	// Zero everything except SPITCIF
-	beqz a7, spi0_wait_until_tx_complete	// Loop back again to read SPI0SR if SPITCIF is a 0 (aka wait until SPITCIF == 1, meaning the SPI transfer is complete)
+	bnez a7, spi0_tx_complete_done	// SPITCIF set: the 32-bit frame landed
+	sw   s6, SYS_WDT_PASS(s4)	// kick
+	addi t1, t1, -1
+	bnez t1, spi0_poll_tx_complete
+	li   t1, BOOT_STS_TXDONE
+	j    boot_flash_timeout
+spi0_tx_complete_done:
 
 	// Load the received word to register t0
 	lw t0, SPI_RX(a0)	// (a0 = SPI_BASE) Read SPI0RX and store in t0. Reading SPI0RX also clears SPITCIF
 	ret // pop return address and jump to it
 
+// Disarm the boot watchdog. Called on EVERY exit from the flash path
+// (executeProgram, the poll fall-through, force_trap): a watchdog left running
+// would reset the chip out from under the loaded image at 1.37 ms, and at
+// force_trap it would turn the terminal trap the harness watches into a reboot
+// loop. EN=0 holds the counter at 0 and gates clk_wdt (SYSTEM.vhd:205,222-226).
+wdt_disarm:
+    li   t1, WDT_UNLOCK_PASSWD
+    sw   t1, SYS_WDT_PASS(s4)
+    sw   zero, SYS_WDT_CR(s4)
+    ret
+
+// Bounded-poll fall-through. t1 carries the status code. The flash never
+// answered, so publish why and hand the chip to the ROM-resident Forth monitor
+// instead of spinning with no observable. If the image is ALREADY LOADED (s5
+// set at executeProgram) the timeout came from the power-down handshake, and
+// the right answer is to enter the image anyway: it is in RAM and complete.
+boot_flash_timeout:
+    li   t2, BOOT_STATUS_VEC
+    sw   t1, 0(t2)              // reads 0 otherwise: zeroed at zero_mailboxes
+    li   t2, GPIO0_CS_MASK
+    sw   t2, GPIO_PxOUTS(a1)    // deassert CS: leave the flash idle, not mid-frame
+    sw   zero, SPI_CR(a0)       // spi_en = spi_fen = 0, FlashActive held 0
+    jal  ra, wdt_disarm
+    bnez s5, exec_after_powerdown   // image loaded: finish the handover
+    j    main
+
 // Function to delay for FLASH_SLAVE_PU_DELAY cycles
 flash_slave_power_up_delay:
+    // Kick first: this loop is the one stretch of the flash path with no SPI
+    // poll in it. 4000 iterations x 2 instructions is well inside the 32768
+    // mclk watchdog period, but only from a zeroed counter.
+    sw   s6, SYS_WDT_PASS(s4)
     // Delay loop for FLASH_SLAVE_PU_DELAY cycles
     li a6, FLASH_SLAVE_PU_DELAY // Load delay count
 delay_loop:
@@ -352,11 +472,17 @@ executeProgram:
 
     li a6, FLASH_SLAVE_PD // Load Flash Slave Power Down Command
 
+    // The image is in RAM from here, so a poll timeout in the power-down
+    // handshake below must NOT throw it away for the monitor.
+    li s5, 1
+
     //assert CS
     sw a2, GPIO_PxOUTC(a1) // Set GPIO Output Register to clear (assert) CS bit
 
     sw a6, SPI_TX(a0) // Write to SPI Flash Transmit Register
     jal ra, spi0_wait_until_tx_complete // Wait until SPI transfer is complete
+
+exec_after_powerdown:
 
     // M19c bootrom fix (a): quiesce SPI0 across the PxSEL pin flip, then restore
     // the CR byte-identical. The flip releases GPIO0's SPI pads; the flip-instant
@@ -410,6 +536,10 @@ executeProgram:
 #     bnez t2, wait_clk_settle
 
     //Jump to the start of the program in RAM
+
+    // Disarm the boot watchdog: the image owns the WDT from here, and one
+    // left armed resets the chip 1.37 ms into the application.
+    jal ra, wdt_disarm
 
     clear_regs:
 	li x1, 0
@@ -471,6 +601,10 @@ boot_default_entry:
 
 # Invalid intstruction that will induce trap state in the core.
 force_trap:
+	// Disarm first: with the boot watchdog armed this terminal trap becomes a
+	// reset loop, and the terminal condition the harness and the board watch
+	// is the GPIO0 trap pin, not a reboot.
+	jal ra, wdt_disarm
 	.word 0xFFFFFFFF
 
 

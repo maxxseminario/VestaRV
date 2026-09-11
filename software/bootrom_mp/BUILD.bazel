@@ -127,6 +127,25 @@ rv32_firmware(
 # alongside it as rom2k_hvt_pg.pre_noinit_fix.  Same 156.525 x 181.41 um
 # footprint, same 51 pins, byte-identical .dat timing.
 #     cab1bbe82d67d959d514dda9e338e3f9 -> d177e8314f2de080150070762b3d80f7
+#
+# RE-CUT A FOURTH TIME ON 2026-09-05, and this one moved the PHYSICAL PLATE
+# again. Two source changes, both in src/start.S (report 08 findings 2 and 6):
+#   * the stack pointer reset value went 0xBFFC -> 0xA000 at all three sites.
+#     0xBFFC is in the MIRRORED half of the 16 KiB private decode window and
+#     aliases to 0x9FF8; 0xA000 is the TCM array top + 1, which is what
+#     MemoryMap.h STACK_POINTER_INIT, ChipConfig.resolved.json
+#     derived.stackPointerInit, periph.S StackPointerInit and the linker
+#     script's __StackPointerInit have always published.
+#   * the two SPI flash polls became bounded (fall through to the Forth
+#     monitor with a status word at 0x10644) and the boot path now arms the
+#     watchdog. An unresponsive flash used to hang hart 0 forever.
+# The image is 7,532 bytes of 8,192 (was 7,376) and the FIRST CHANGED WORD IS
+# AT 0x004 -- the mhartid dispatch branch offset -- so unlike the 2026-08-23
+# cut nothing before 0x304 is preserved. The cosim boot-mode X pins in
+# xrun_cosim.sh (pc 0x5c and 0x15c) MUST be re-measured.
+#     d177e8314f2de080150070762b3d80f7 -> 99b0c95dfb3fc0da52a49d1a68efa904
+# ~/chips/myshkin/ip/rom2k_hvt_pg HAS NOT BEEN RECOMPILED YET; that is a
+# signoff_mp job and the plate is stale until it is done.
 filegroup(
     name = "rom_rcf_golden",
     srcs = ["testdata/rom_rcf_golden.txt"],

@@ -340,6 +340,13 @@ GATE_FILES = [
     # cab1bbe82d67d959d514dda9e338e3f9 -> d177e8314f2de080150070762b3d80f7.
     # The first 0x304 bytes are unchanged, so the boot-mode X pins in
     # xrun_cosim.sh (pc 0x5c and 0x15c) were re-measured and still hold.
+    #
+    # AND A FOURTH TIME, 2026-09-05 (report 08 findings 2 and 6): sp 0xBFFC ->
+    # 0xA000, bounded SPI polls, boot watchdog.  md5
+    # d177e8314f2de080150070762b3d80f7 -> 99b0c95dfb3fc0da52a49d1a68efa904.
+    # THIS CUT MOVED THE FIRST WORD (0x004, the mhartid dispatch branch), so
+    # the pc 0x5c / 0x15c boot-mode X pins above are STALE and must be
+    # re-measured before the cosim reference is trusted again.
     ('bootrom_mp_rom.rcf',
      'software/bootrom_mp/bin/rom.rcf',
      'the boot ROM image the COSIM_BOOT reference and the behavioural ROM '

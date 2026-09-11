@@ -46,6 +46,11 @@ py_binary(
 # re-cut in the same change.  Five files, one md5:
 #     d177e8314f2de080150070762b3d80f7   (was cab1bbe82d67d959d514dda9e338e3f9)
 #
+# RE-CUT AGAIN 2026-09-05 (report 08 findings 2 and 6: sp 0xBFFC -> 0xA000,
+# bounded flash polls, boot watchdog). Same five files, one md5:
+#     99b0c95dfb3fc0da52a49d1a68efa904   (was d177e8314f2de080150070762b3d80f7)
+# EXCEPT the fifth: the physical rom2k_hvt_pg plate is NOT yet recompiled.
+#
 # The six MCU.ld firmware images were unaffected: they link against either set,
 # and were built both ways on 2026-08-23 with every .rcf and .hex byte identical.
 # Only the .elf symbol table moves, because periph.x contributes absolute symbols.
