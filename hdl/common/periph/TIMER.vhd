@@ -68,12 +68,44 @@ end TIMER;
 
 architecture rtl of TIMER is
 
+    -- Reflected-binary conversions for the TIMxVAL read CDC.
+    function bin2gray(b : std_logic_vector) return std_logic_vector is
+        variable g : std_logic_vector(b'range);
+    begin
+        g(b'high) := b(b'high);
+        for i in b'high - 1 downto b'low loop
+            g(i) := b(i + 1) xor b(i);
+        end loop;
+        return g;
+    end function;
+
+    function gray2bin(g : std_logic_vector) return std_logic_vector is
+        variable b : std_logic_vector(g'range);
+    begin
+        b(g'high) := g(g'high);
+        for i in g'high - 1 downto g'low loop
+            b(i) := b(i + 1) xor g(i);
+        end loop;
+        return b;
+    end function;
+
     -- Timer registers.
     signal control_reg         : std_logic_vector(19 downto 0);  -- Timer control register
     signal status_reg          : std_logic_vector(7 downto 0);   -- Timer status register
     signal status_reg_latched  : std_logic_vector(7 downto 0);   -- Latched status for read
     signal timer_value         : std_logic_vector(31 downto 0);  -- Current timer count value
     signal timer_value_latched : std_logic_vector(31 downto 0);  -- Latched timer value for read
+    signal timer_value_next    : std_logic_vector(31 downto 0);  -- Counter increment, shared by the counter and its gray mirror
+    -- TIMxVAL read CDC. timer_value lives in the timer_clock domain; clock_source_select can pick clk_lfxt,
+    -- and smclk/mclk/clk_hfxt are asynchronous to clk_mem whenever SYSTEM sources mclk from a different
+    -- root. A gray mirror of the counter changes exactly one flop per increment, so the 2-FF capture below
+    -- can only return the pre- or post-increment count, never a torn one. The two multi-bit jumps (a TIMxVAL
+    -- write and the compare2 auto-clear) are not covered and do not need to be: both are software-visible
+    -- events, and the write is followed by its read-back several clk_mem cycles later.
+    signal timer_gray          : std_logic_vector(31 downto 0);  -- Gray mirror of timer_value, timer_clock domain
+    signal timer_gray_s1       : std_logic_vector(31 downto 0);  -- CDC stage 1 (may go metastable)
+    signal timer_gray_s2       : std_logic_vector(31 downto 0);  -- CDC stage 2 (settled)
+    signal timer_value_mem     : std_logic_vector(31 downto 0);  -- Coherent count in the clk_mem domain
     signal compare0_reg        : std_logic_vector(31 downto 0);  -- Compare 0 threshold
     signal compare1_reg        : std_logic_vector(31 downto 0);  -- Compare 1 threshold
     signal compare2_reg        : std_logic_vector(31 downto 0);  -- Compare 2 threshold (reset)
@@ -260,8 +292,40 @@ begin
             if clear_timer_value = '1' then
                 timer_value <= (others => '0');
             else
-                timer_value <= timer_value + 1;
+                timer_value <= timer_value_next;
             end if;
+        end if;
+    end process;
+
+    timer_value_next <= timer_value + 1;
+
+    -- Gray mirror of the counter: structurally identical to timer_counter, so timer_gray = bin2gray(timer_value) on every path.
+    timer_gray_mirror: process(resetn, timer_clock, latch_timer_value, timer_value_write)
+    begin
+        if resetn = '0' then
+            timer_gray <= (others => '0');
+        elsif latch_timer_value = '1' then
+            timer_gray <= bin2gray(timer_value_write);
+        elsif rising_edge(timer_clock) then
+            if clear_timer_value = '1' then
+                timer_gray <= (others => '0');
+            else
+                timer_gray <= bin2gray(timer_value_next);
+            end if;
+        end if;
+    end process;
+
+    -- 2-FF capture into clk_mem, then one decode register so the read mux still sees a flop.
+    timer_value_cdc: process(resetn, clk_mem)
+    begin
+        if resetn = '0' then
+            timer_gray_s1   <= (others => '0');
+            timer_gray_s2   <= (others => '0');
+            timer_value_mem <= (others => '0');
+        elsif rising_edge(clk_mem) then
+            timer_gray_s1   <= timer_gray;
+            timer_gray_s2   <= timer_gray_s1;
+            timer_value_mem <= gray2bin(timer_gray_s2);
         end if;
     end process;
 
@@ -337,7 +401,7 @@ begin
 
     -- Compare 0/1 match flags plus their toggling outputs; the outputs return to their configured init level on reset, on a timer clear and on overflow.
     compare_process: process(resetn, timer_clock, clear_compare0_flag, clear_compare1_flag, 
-                           timer_value, timer_enable, compare0_init_level)
+                           timer_value, timer_enable, compare0_init_level, compare1_init_level)  -- compare1_init_level is read in the async-init branch; without it RTL sim can hold a stale compare1 init level
     begin
         if resetn = '0' or timer_enable = '0' then
             -- Initialize outputs to configured levels
@@ -514,7 +578,7 @@ begin
                     read_data <= (31 downto 8 => '0') & (not status_reg_latched);
                 
                 when RegSlotTIMxVAL =>
-                    read_data <= timer_value;
+                    read_data <= timer_value_mem;  -- clk_mem-domain copy, see the TIMxVAL read CDC above
                 
                 when RegSlotTIMxCAP0 =>
                     read_data <= not capture0_latched;

@@ -537,6 +537,23 @@ begin
             pmp_addr        <= (others => (others => '0'));
 
         elsif rising_edge(clk) then
+            -- Registers owned by an extension whose generic is off. Every clocked-branch write to them is then a constant-false arm, the reset-branch write is the only one left, and Genus infers a latch (CDFG2G-616 / CDFG-241 under hdl_error_on_latch) that it later collapses to the reset constant. Writing that constant here on the clock edge makes the collapse explicit: the netlist is unchanged (a constant flop is swept), the guarded arms below still win when a generic is on, and no latch is inferred.
+            if not ENABLE_ZIHPM then
+                hpm3 <= (others => '0'); hpm4 <= (others => '0');
+                mhpmevent3 <= (others => '0'); mhpmevent4 <= (others => '0');
+                mcountinhibit <= (others => '0');
+            end if;
+            if not ENABLE_ZCMT  then jvt    <= (others => '0'); end if;
+            if not ENABLE_ZFINX then fp_csr <= (others => '0'); end if;
+            if not ENABLE_UMODE then
+                priv_m <= '1'; mst_tw <= '0'; mst_mprv <= '0';
+                mcounteren_r <= (others => '0'); dcsr_ebreaku_r <= '0';
+            end if;
+            if not ENABLE_PMP then
+                pmp_cfg  <= (others => (others => '0'));
+                pmp_addr <= (others => (others => '0'));
+            end if;
+
             -- Zfinx: sticky-OR the completing FP op's flags into fflags, driven INDEPENDENT of rd, since rd=x0 must still set flags.
             -- A same-cycle CSR write to fflags/frm/fcsr overrides this because the later assignment wins; the two cannot in fact collide, since a CSR-write instruction is never itself an FP op, but the precedence is defined anyway.
             if ENABLE_ZFINX and fp_flags_we = '1' then

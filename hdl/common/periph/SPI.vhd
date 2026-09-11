@@ -126,7 +126,8 @@ architecture behavioral of SPI is
     signal s_tx_sreg : std_logic_vector(31 downto 0); -- Slave Tx Shift Reg
     signal s_rx_sreg : std_logic_vector(31 downto 0); -- Slave Rx Shift Reg
     signal s_SPIxRX : std_logic_vector(31 downto 0); -- Slave Receive Register
-    signal s_rx_sreg_rev : std_logic_vector(31 downto 0); -- Slave Rx Shift Reg Reversed
+    signal s_rx_hold_rev : std_logic_vector(31 downto 0); -- Slave Rx Hold Reg Reversed
+    signal s_rx_hold : std_logic_vector(31 downto 0); -- Slave Rx Hold Reg: the completed word, captured on the sck_slave falling edge that wraps s_counter
     signal sck_slave : std_logic; -- SPI Clock for Slave. May be inverted sck depending on cpol and cpha
 
     -- GP Signals 
@@ -265,7 +266,7 @@ begin
     -- Reverse Register Order 
     spi_tx_buf_rev <= reverse_slv_order(SPIxTX);
     m_rx_sreg_rev <= reverse_slv_order(m_rx_sreg);
-    s_rx_sreg_rev <= reverse_slv_order(s_rx_sreg);
+    s_rx_hold_rev <= reverse_slv_order(s_rx_hold);
 
     tx_order_sel <= spi_tx_sb & spi_msb & spi_dl; -- Tx Order Selection
     rx_order_sel <= spi_rx_sb & spi_msb & spi_dl; -- Rx Order Selection
@@ -322,22 +323,22 @@ begin
         
         with rx_order_sel select
             s_rx_data_align <=
-                x"000000" & s_rx_sreg(31 downto 24)                                         when "0000", -- 8-bit Rx. LSB first, No byte swap
-                x"0000" & s_rx_sreg(31 downto 16)                                           when "0001", -- 16-bit Rx. LSB first, No byte swap
-                s_rx_sreg(31 downto 0)                                                      when "0010", -- 32-bit Rx. LSB first, No byte swap
-                s_rx_sreg(31 downto 0)                                                      when "0011", -- 32-bit Rx. MSB first, No byte swap. Datalength of 11 is dont care
-                x"000000" & s_rx_sreg_rev(7 downto 0)                                       when "0100", -- 8-bit Rx. MSB first, No byte swap
-                x"0000" & s_rx_sreg_rev(15 downto 0)                                        when "0101", -- 16-bit Rx. MSB first, No byte swap
-                s_rx_sreg_rev(31 downto 0)                                                  when "0110", -- 32-bit Rx. MSB first, No byte swap
-                s_rx_sreg_rev(31 downto 0)                                                  when "0111", -- 32-bit Rx. LSB first, No byte swap. Datalength of 11 is dont care
-                x"000000" & s_rx_sreg(31 downto 24)                                         when "1000", -- 8-bit Rx. LSB first, Byte swap
-                x"0000" & s_rx_sreg(23 downto 16) & s_rx_sreg(31 downto 24)                 when "1001", -- 16-bit Rx. LSB first, Byte swap
-                s_rx_sreg(7 downto 0) & s_rx_sreg(15 downto 8) & s_rx_sreg(23 downto 16) & s_rx_sreg(31 downto 24) when "1010", -- 32-bit Rx. LSB first, Byte swap
-                s_rx_sreg(7 downto 0) & s_rx_sreg(15 downto 8) & s_rx_sreg(23 downto 16) & s_rx_sreg(31 downto 24) when "1011", -- 32-bit Rx. LSB first, Byte swap
-                x"000000" & s_rx_sreg_rev(7 downto 0)                                       when "1100", -- 8-bit Rx. MSB first, Byte swap
-                x"0000" & s_rx_sreg_rev(7 downto 0) & s_rx_sreg_rev(15 downto 8)            when "1101", -- 16-bit Rx. MSB first, Byte swap
-                s_rx_sreg_rev(7 downto 0) & s_rx_sreg_rev(15 downto 8) & s_rx_sreg_rev(23 downto 16) & s_rx_sreg_rev(31 downto 24) when "1110", -- Byte swap, MSB first, 32-bit
-                s_rx_sreg_rev(7 downto 0) & s_rx_sreg_rev(15 downto 8) & s_rx_sreg_rev(23 downto 16) & s_rx_sreg_rev(31 downto 24) when others; -- Byte swap, MSB first, 32-bit
+                x"000000" & s_rx_hold(31 downto 24)                                         when "0000", -- 8-bit Rx. LSB first, No byte swap
+                x"0000" & s_rx_hold(31 downto 16)                                           when "0001", -- 16-bit Rx. LSB first, No byte swap
+                s_rx_hold(31 downto 0)                                                      when "0010", -- 32-bit Rx. LSB first, No byte swap
+                s_rx_hold(31 downto 0)                                                      when "0011", -- 32-bit Rx. MSB first, No byte swap. Datalength of 11 is dont care
+                x"000000" & s_rx_hold_rev(7 downto 0)                                       when "0100", -- 8-bit Rx. MSB first, No byte swap
+                x"0000" & s_rx_hold_rev(15 downto 0)                                        when "0101", -- 16-bit Rx. MSB first, No byte swap
+                s_rx_hold_rev(31 downto 0)                                                  when "0110", -- 32-bit Rx. MSB first, No byte swap
+                s_rx_hold_rev(31 downto 0)                                                  when "0111", -- 32-bit Rx. LSB first, No byte swap. Datalength of 11 is dont care
+                x"000000" & s_rx_hold(31 downto 24)                                         when "1000", -- 8-bit Rx. LSB first, Byte swap
+                x"0000" & s_rx_hold(23 downto 16) & s_rx_hold(31 downto 24)                 when "1001", -- 16-bit Rx. LSB first, Byte swap
+                s_rx_hold(7 downto 0) & s_rx_hold(15 downto 8) & s_rx_hold(23 downto 16) & s_rx_hold(31 downto 24) when "1010", -- 32-bit Rx. LSB first, Byte swap
+                s_rx_hold(7 downto 0) & s_rx_hold(15 downto 8) & s_rx_hold(23 downto 16) & s_rx_hold(31 downto 24) when "1011", -- 32-bit Rx. LSB first, Byte swap
+                x"000000" & s_rx_hold_rev(7 downto 0)                                       when "1100", -- 8-bit Rx. MSB first, Byte swap
+                x"0000" & s_rx_hold_rev(7 downto 0) & s_rx_hold_rev(15 downto 8)            when "1101", -- 16-bit Rx. MSB first, Byte swap
+                s_rx_hold_rev(7 downto 0) & s_rx_hold_rev(15 downto 8) & s_rx_hold_rev(23 downto 16) & s_rx_hold_rev(31 downto 24) when "1110", -- Byte swap, MSB first, 32-bit
+                s_rx_hold_rev(7 downto 0) & s_rx_hold_rev(15 downto 8) & s_rx_hold_rev(23 downto 16) & s_rx_hold_rev(31 downto 24) when others; -- Byte swap, MSB first, 32-bit
 
     -- SPI Master FSM: loads tx_data_align, toggles sck and shifts one bit per clk_baud edge
     process(resetn, clk_baud, spi_en, spi_mode, tx_in_progress, start_tx, StartTXFlash, clr_spi_teif, clr_spi_tcif, spi_cpol, spi_fen)
@@ -466,7 +467,7 @@ begin
 
     -- SPI Slave FSM, update phase on the leading edge of sck_slave
     sck_slave <= sck_in xor spi_cpol; -- Invert SCK for Slave if CPOL is set
-    process(resetn, spi_mode, spi_en, cs_in, sck_slave, clr_spi_teif, tx_data_align, s_counter)
+    process(resetn, spi_mode, spi_en, cs_in, sck_slave, tx_data_align, s_counter)
     begin
         if resetn = '0' or spi_en = '0' or spi_mode = '0' then
             -- Reset State
@@ -474,19 +475,26 @@ begin
         elsif s_counter = "000000" then
             -- Asynchronously reload the slave shift register between transfers
             s_tx_sreg <= tx_data_align; -- Load Tx Data
-            s_spi_teif <= '1'; -- Set Transmit Empty Interrupt Flag
-
         elsif rising_edge(sck_slave) then -- Leading edge of sck_slave: update phase
                 -- Shift Data 
                 s_tx_sreg <= '0' & s_tx_sreg(31 downto 1); -- Shift out data
         end if;
-        -- Check if spi_teif flag clear condtion is met
+    end process;
+
+    -- Slave transmit-empty flag, F12 (2026-09-05). Was set inside the process above by the LEVEL s_counter = 0 and cleared by a trailing if: an SR latch by construction (Genus CDFG-241; 2 LATQX1 cells in every cut). Sampled on clk instead: s_counter = 0 holds for the whole inter-transfer gap, so the flag rises at the first clk edge of that gap and stays until the bus clears it; its readers (the SR shadow, the irq) are clk-domain, and the clear keeps its priority exactly as before.
+    process(clk, resetn, clr_spi_teif, spi_en, spi_mode)
+    begin
         if resetn = '0' or clr_spi_teif = '1' or spi_en = '0' or spi_mode = '0' then
             s_spi_teif <= '0'; -- Clear Transmit Empty Interrupt Flag
+        elsif rising_edge(clk) then
+            if s_counter = "000000" then
+                s_spi_teif <= '1'; -- Set Transmit Empty Interrupt Flag
+            end if;
         end if;
     end process;
 
-    s_SPIxRX <= s_rx_data_align when s_counter = "000000" else s_SPIxRX; -- Assign Slave Receive Register
+    -- Was a self-feedback latch ("... when s_counter = 0 else s_SPIxRX") whose enable is an unconstrained level in the external sck_slave pad domain; the capture is now the s_rx_hold register below, matching the master-side m_SPIxRX idiom.
+    s_SPIxRX <= s_rx_data_align; -- Assign Slave Receive Register
 
     -- SPI Slave FSM, sample phase on the trailing edge of sck_slave
     process(resetn, sck_slave, spi_en, spi_mode, cs_in, clr_spi_tcif)
@@ -505,16 +513,19 @@ begin
                     if s_counter = "000111" then
                         s_spi_tcif <= '1'; -- Set Transmit Complete Interrupt Flag
                         s_counter <= (others => '0'); -- Reset counter
+                        s_rx_hold <= mosi_in & s_rx_sreg(31 downto 1); -- Capture the completed word, including the bit shifted in on this same edge
                     end if;
                 when "01" => -- 16-bit transfer
                     if s_counter = "001111" then
                         s_spi_tcif <= '1'; -- Set Transmit Complete Interrupt Flag
                         s_counter <= (others => '0'); -- Reset counter
+                        s_rx_hold <= mosi_in & s_rx_sreg(31 downto 1); -- Capture the completed word, including the bit shifted in on this same edge
                     end if;
                 when "10" => -- 32-bit transfer
                     if s_counter = "011111" then
                         s_spi_tcif <= '1'; -- Set Transmit Complete Interrupt Flag
                         s_counter <= (others => '0'); -- Reset counter
+                        s_rx_hold <= mosi_in & s_rx_sreg(31 downto 1); -- Capture the completed word, including the bit shifted in on this same edge
                     end if;
                 when others =>
                     null; -- Reserved or unsupported data length, do nothing
@@ -525,6 +536,10 @@ begin
            
         end if;
 
+        -- The receive hold register survives cs_in deassertion, unlike the shift register; only a disable or reset clears it.
+        if resetn = '0' or spi_en = '0' or spi_mode = '0' then
+            s_rx_hold <= (others => '0');
+        end if;
         -- Check if spi_tcif flag clear condition is met
         if resetn = '0' or clr_spi_tcif = '1' or spi_en = '0' or spi_mode = '0' then
             s_spi_tcif <= '0'; -- Clear Transmit Complete Interrupt Flag
