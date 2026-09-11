@@ -25,7 +25,7 @@ library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.STD_LOGIC_ARITH.ALL;
 use IEEE.STD_LOGIC_UNSIGNED.ALL;
--- Word offsets, field ranges and resets, generated from hdl/common/periph/rdl/pwr_ctrl.rdl
+-- Word offsets, field ranges and resets, generated from hdl/common/regs/rdl/pwr_ctrl.rdl
 -- (tools/rdl/README.md); the former local constants moved there unchanged.
 use work.pwr_ctrl_regs_pkg.all;
 

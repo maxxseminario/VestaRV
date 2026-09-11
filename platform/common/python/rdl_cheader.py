@@ -78,7 +78,7 @@ def emitString(block, peripheralName=None):
     name = peripheralName or block.PeripheralTemplateName
     s = ''
     t = TabbedTable()
-    t.AddLine('/** ' + name + ' (generated from hdl/common/periph/rdl/, not from generate.py) **/')
+    t.AddLine('/** ' + name + ' (generated from hdl/common/regs/rdl/, not from generate.py) **/')
     s += t.ToString()
     for rt in block.RegisterTemplates:
         s += registerTex(rt, name)

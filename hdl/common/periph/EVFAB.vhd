@@ -3,7 +3,7 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 -- Word slots inside this peripheral's 256B window (decoded from MABPart(7:2)),
 -- field ranges, resets and implemented-bit masks, generated from
--- hdl/common/periph/rdl/evfab.rdl (tools/rdl/README.md). EVFAB is not in
+-- hdl/common/regs/rdl/evfab.rdl (tools/rdl/README.md). EVFAB is not in
 -- MemoryMap.vhd; SLOT_CR .. SLOT_CH0CFG were file-local constants until then.
 -- CHCFG_SLOTS stays local: it is the register-array size, not a word slot.
 use work.evfab_regs_pkg.all;

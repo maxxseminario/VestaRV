@@ -4,7 +4,7 @@ use ieee.numeric_std.all;
 library work;
 use work.constants.all;
 -- Word offsets, field ranges, resets and implemented-bit masks, generated from
--- hdl/common/periph/rdl/uart.rdl (tools/rdl/README.md). It declares the same
+-- hdl/common/regs/rdl/uart.rdl (tools/rdl/README.md). It declares the same
 -- RegSlotUARTx* constants work.MemoryMap did, so this REPLACES that clause:
 -- using both would make every slot name an ambiguous homograph.
 use work.uart_regs_pkg.all;

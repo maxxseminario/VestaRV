@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """rdl_python.py -- find an interpreter that can import systemrdl-compiler.
 
-The chip generator reads hdl/common/periph/rdl/*.rdl for its register maps
+The chip generator reads hdl/common/regs/rdl/*.rdl for its register maps
 (tools/rdl/README.md, report R5), so `make generate` needs a Python that can
 import `systemrdl`. That is not a given: systemrdl-compiler needs Python 3.8 or
 newer and several hosts here carry a 3.6 as /usr/bin/python3, which is why the
@@ -109,7 +109,7 @@ def resolve():
         return found
     sys.stderr.write(
         'rdl_python: no interpreter on this machine can import systemrdl-compiler,\n'
-        '  and the chip generator reads hdl/common/periph/rdl/*.rdl for its register\n'
+        '  and the chip generator reads hdl/common/regs/rdl/*.rdl for its register\n'
         '  maps. Fetch the pinned wheels once with\n\n'
         '      tools/bin/bazel build //tools/rdl:all\n\n'
         '  or generate through the hermetic action, which carries them itself:\n\n'

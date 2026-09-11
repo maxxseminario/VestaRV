@@ -27,14 +27,14 @@ _MCU = "hdl/common/MCU.vhd"
 _HART_TILE = "hdl/common/hart_tile.vhd"
 
 _WOUND_EXTRA = [
-    "hdl/common/periph/dma_regs_pkg.vhd",
+    "hdl/common/regs/vhdl/dma_regs_pkg.vhd",
     "hdl/common/periph/DMA.vhd",
     "hdl/common/periph/TrngRoEnsemble_sim.vhd",
-    "hdl/common/periph/trng_regs_pkg.vhd",
+    "hdl/common/regs/vhdl/trng_regs_pkg.vhd",
     "hdl/common/periph/TRNG.vhd",
-    "hdl/common/periph/afe2_regs_pkg.vhd",
+    "hdl/common/regs/vhdl/afe2_regs_pkg.vhd",
     "hdl/common/periph/AFE2.vhd",
-    "hdl/common/periph/biasg_regs_pkg.vhd",
+    "hdl/common/regs/vhdl/biasg_regs_pkg.vhd",
     "hdl/common/periph/BIASG.vhd",
     "hdl/common/sim/sar_macro_model.vhd",
     "hdl/common/hart_tile_pt.vhd",

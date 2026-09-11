@@ -39,6 +39,7 @@ sys.path.insert(0, HERE)
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
 PERIPH = os.path.join(REPO, 'hdl', 'common', 'periph')
+REGS_VHDL = os.path.join(REPO, 'hdl', 'common', 'regs', 'vhdl')
 
 # ---------------------------------------------------------------------------
 # The frozen tables. AFE2.vhd, pre-migration:
@@ -165,7 +166,7 @@ class TestAfe2Package(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.src = _read(os.path.join(PERIPH, 'afe2_regs_pkg.vhd'))
+        cls.src = _read(os.path.join(REGS_VHDL, 'afe2_regs_pkg.vhd'))
         cls.nat = _naturals(cls.src)
         cls.vec = _vectors(cls.src)
 
@@ -216,7 +217,7 @@ class TestBiasgPackage(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.src = _read(os.path.join(PERIPH, 'biasg_regs_pkg.vhd'))
+        cls.src = _read(os.path.join(REGS_VHDL, 'biasg_regs_pkg.vhd'))
         cls.nat = _naturals(cls.src)
         cls.vec = _vectors(cls.src)
 
@@ -310,8 +311,8 @@ class TestFrozenSnapshotIsPresent(unittest.TestCase):
         self.assertEqual(len(blocks), 22,
                          'the snapshot must carry all twenty-two peripherals')
         for name, entry in sorted(blocks.items()):
-            self.assertTrue(os.path.isfile(os.path.join(PERIPH, name + '.vhd')),
-                            name + '.vhd is not in hdl/common/periph')
+            self.assertTrue(os.path.isfile(os.path.join(REGS_VHDL, name + '.vhd')),
+                            name + '.vhd is not in hdl/common/regs/vhdl')
             self.assertTrue(os.path.isfile(os.path.join(REPO, entry['rtl'])),
                             entry['rtl'] + ' is not in the tree')
 
@@ -327,7 +328,7 @@ class LegacyBlockTest(unittest.TestCase):
         if cls.PACKAGE is None:
             raise unittest.SkipTest('base class')
         cls.entry = _legacy()['blocks'][cls.PACKAGE]
-        cls.src = _read(os.path.join(PERIPH, cls.PACKAGE + '.vhd'))
+        cls.src = _read(os.path.join(REGS_VHDL, cls.PACKAGE + '.vhd'))
         cls.nat = _naturals(cls.src)
         cls.vec = _vectors(cls.src)
 

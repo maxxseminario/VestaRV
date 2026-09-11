@@ -12,7 +12,7 @@ local ones by //platform/common:rdl_vs_vhdl_afe2_test, so the swap is provably
 inert.
 
 Level 2 (2026-09-10): the two packages the RTL actually `use`s are TRACKED, at
-hdl/common/periph/afe2_regs_pkg.vhd and hdl/common/periph/biasg_regs_pkg.vhd,
+hdl/common/regs/vhdl/afe2_regs_pkg.vhd and hdl/common/regs/vhdl/biasg_regs_pkg.vhd,
 and AFE2.vhd / BIASG.vhd have deleted their local copies. Those two carry an
 extra AGGREGATE section -- the array type, the word-offset constants and the
 IMPL / RSTVAL tables under the identifiers the decode already used -- so the
@@ -144,7 +144,7 @@ def _pwrVariants():
 RTL_PACKAGES = (
     {
         'package': 'afe2_regs_pkg',
-        'file': 'hdl/common/periph/afe2_regs_pkg.vhd',
+        'file': 'hdl/common/regs/vhdl/afe2_regs_pkg.vhd',
         'source': 'afe2.rdl',
         'top': 'afe2_site',
         'rtl': 'hdl/common/periph/AFE2.vhd',
@@ -153,7 +153,7 @@ RTL_PACKAGES = (
     },
     {
         'package': 'biasg_regs_pkg',
-        'file': 'hdl/common/periph/biasg_regs_pkg.vhd',
+        'file': 'hdl/common/regs/vhdl/biasg_regs_pkg.vhd',
         'source': 'biasg.rdl',
         'top': 'biasg',
         'rtl': 'hdl/common/periph/BIASG.vhd',
@@ -169,7 +169,7 @@ RTL_PACKAGES = (
     # not a silent wrong value. rdl_vhdl_pkg_test enforces the swap.
     {
         'package': 'uart_regs_pkg',
-        'file': 'hdl/common/periph/uart_regs_pkg.vhd',
+        'file': 'hdl/common/regs/vhdl/uart_regs_pkg.vhd',
         'source': 'uart.rdl',
         'top': 'uart',
         'rtl': 'hdl/common/periph/UART.vhd',
@@ -179,7 +179,7 @@ RTL_PACKAGES = (
     },
     {
         'package': 'spi_regs_pkg',
-        'file': 'hdl/common/periph/spi_regs_pkg.vhd',
+        'file': 'hdl/common/regs/vhdl/spi_regs_pkg.vhd',
         'source': 'spi.rdl',
         'top': 'spi',
         'rtl': 'hdl/common/periph/SPI.vhd',
@@ -189,7 +189,7 @@ RTL_PACKAGES = (
     },
     {
         'package': 'timer_regs_pkg',
-        'file': 'hdl/common/periph/timer_regs_pkg.vhd',
+        'file': 'hdl/common/regs/vhdl/timer_regs_pkg.vhd',
         'source': 'timer.rdl',
         'top': 'timer',
         'rtl': 'hdl/common/periph/TIMER.vhd',
@@ -199,7 +199,7 @@ RTL_PACKAGES = (
     },
     {
         'package': 'i2c_regs_pkg',
-        'file': 'hdl/common/periph/i2c_regs_pkg.vhd',
+        'file': 'hdl/common/regs/vhdl/i2c_regs_pkg.vhd',
         'source': 'i2c.rdl',
         'top': 'i2c',
         'rtl': 'hdl/common/periph/I2C.vhd',
@@ -209,7 +209,7 @@ RTL_PACKAGES = (
     },
     {
         'package': 'system_regs_pkg',
-        'file': 'hdl/common/periph/system_regs_pkg.vhd',
+        'file': 'hdl/common/regs/vhdl/system_regs_pkg.vhd',
         'source': 'system.rdl',
         'top': 'system',
         'rtl': 'hdl/common/periph/SYSTEM.vhd',
@@ -219,7 +219,7 @@ RTL_PACKAGES = (
     },
     {
         'package': 'npu_regs_pkg',
-        'file': 'hdl/common/periph/npu_regs_pkg.vhd',
+        'file': 'hdl/common/regs/vhdl/npu_regs_pkg.vhd',
         'source': 'npu.rdl',
         'top': 'npu',
         'rtl': 'hdl/common/periph/NPU.vhd',
@@ -239,7 +239,7 @@ RTL_PACKAGES = (
     # the clause. Its RegSlotPx* constants are omitted for the same reason.
     {
         'package': 'gpio_regs_pkg',
-        'file': 'hdl/common/periph/gpio_regs_pkg.vhd',
+        'file': 'hdl/common/regs/vhdl/gpio_regs_pkg.vhd',
         'source': 'gpio.rdl',
         'top': 'gpio',
         'rtl': 'hdl/common/periph/GPIO.vhd',
@@ -249,7 +249,7 @@ RTL_PACKAGES = (
     # --- the local-SLOT_ convention --------------------------------------
     {
         'package': 'qspi_regs_pkg',
-        'file': 'hdl/common/periph/qspi_regs_pkg.vhd',
+        'file': 'hdl/common/regs/vhdl/qspi_regs_pkg.vhd',
         'source': 'qspi.rdl',
         'top': 'qspi',
         'rtl': 'hdl/common/periph/QSPI.vhd',
@@ -258,7 +258,7 @@ RTL_PACKAGES = (
     },
     {
         'package': 'i3c_regs_pkg',
-        'file': 'hdl/common/periph/i3c_regs_pkg.vhd',
+        'file': 'hdl/common/regs/vhdl/i3c_regs_pkg.vhd',
         'source': 'i3c.rdl',
         'top': 'i3c',
         'rtl': 'hdl/common/periph/I3C.vhd',
@@ -267,7 +267,7 @@ RTL_PACKAGES = (
     },
     {
         'package': 'nfc_regs_pkg',
-        'file': 'hdl/common/periph/nfc_regs_pkg.vhd',
+        'file': 'hdl/common/regs/vhdl/nfc_regs_pkg.vhd',
         'source': 'nfc.rdl',
         'top': 'nfc',
         'rtl': 'hdl/common/periph/NFC.vhd',
@@ -276,7 +276,7 @@ RTL_PACKAGES = (
     },
     {
         'package': 'rtc_regs_pkg',
-        'file': 'hdl/common/periph/rtc_regs_pkg.vhd',
+        'file': 'hdl/common/regs/vhdl/rtc_regs_pkg.vhd',
         'source': 'rtc.rdl',
         'top': 'rtc',
         'rtl': 'hdl/common/periph/RTC.vhd',
@@ -285,7 +285,7 @@ RTL_PACKAGES = (
     },
     {
         'package': 'pwm_regs_pkg',
-        'file': 'hdl/common/periph/pwm_regs_pkg.vhd',
+        'file': 'hdl/common/regs/vhdl/pwm_regs_pkg.vhd',
         'source': 'pwm.rdl',
         'top': 'pwm',
         'rtl': 'hdl/common/periph/PWM.vhd',
@@ -294,7 +294,7 @@ RTL_PACKAGES = (
     },
     {
         'package': 'onewire_regs_pkg',
-        'file': 'hdl/common/periph/onewire_regs_pkg.vhd',
+        'file': 'hdl/common/regs/vhdl/onewire_regs_pkg.vhd',
         'source': 'onewire.rdl',
         'top': 'onewire',
         'rtl': 'hdl/common/periph/OneWire.vhd',
@@ -303,7 +303,7 @@ RTL_PACKAGES = (
     },
     {
         'package': 'trng_regs_pkg',
-        'file': 'hdl/common/periph/trng_regs_pkg.vhd',
+        'file': 'hdl/common/regs/vhdl/trng_regs_pkg.vhd',
         'source': 'trng.rdl',
         'top': 'trng',
         'rtl': 'hdl/common/periph/TRNG.vhd',
@@ -312,7 +312,7 @@ RTL_PACKAGES = (
     },
     {
         'package': 'i2ctarget_regs_pkg',
-        'file': 'hdl/common/periph/i2ctarget_regs_pkg.vhd',
+        'file': 'hdl/common/regs/vhdl/i2ctarget_regs_pkg.vhd',
         'source': 'i2ctarget.rdl',
         'top': 'i2ctarget',
         'rtl': 'hdl/common/periph/I2CTarget.vhd',
@@ -321,7 +321,7 @@ RTL_PACKAGES = (
     },
     {
         'package': 'evfab_regs_pkg',
-        'file': 'hdl/common/periph/evfab_regs_pkg.vhd',
+        'file': 'hdl/common/regs/vhdl/evfab_regs_pkg.vhd',
         'source': 'evfab.rdl',
         'top': 'evfab',
         'rtl': 'hdl/common/periph/EVFAB.vhd',
@@ -334,7 +334,7 @@ RTL_PACKAGES = (
     # packages are emitted and gated like the rest; nothing `use`s them yet.
     {
         'package': 'dma_regs_pkg',
-        'file': 'hdl/common/periph/dma_regs_pkg.vhd',
+        'file': 'hdl/common/regs/vhdl/dma_regs_pkg.vhd',
         'source': 'dma.rdl',
         'top': 'dma',
         'rtl': 'hdl/common/periph/DMA.vhd',
@@ -344,7 +344,7 @@ RTL_PACKAGES = (
     # --- the four configuration-dependent blocks -------------------------
     {
         'package': 'clint_regs_pkg',
-        'file': 'hdl/common/periph/clint_regs_pkg.vhd',
+        'file': 'hdl/common/regs/vhdl/clint_regs_pkg.vhd',
         'source': 'clint.rdl',
         'top': 'clint',
         'rtl': 'hdl/common/clint.vhd',
@@ -355,7 +355,7 @@ RTL_PACKAGES = (
     },
     {
         'package': 'mutex_bank_regs_pkg',
-        'file': 'hdl/common/periph/mutex_bank_regs_pkg.vhd',
+        'file': 'hdl/common/regs/vhdl/mutex_bank_regs_pkg.vhd',
         'source': 'mutex_bank.rdl',
         'top': 'mutex_bank',
         'rtl': 'hdl/common/mutex_bank.vhd',
@@ -368,7 +368,7 @@ RTL_PACKAGES = (
     },
     {
         'package': 'irq_router_regs_pkg',
-        'file': 'hdl/common/periph/irq_router_regs_pkg.vhd',
+        'file': 'hdl/common/regs/vhdl/irq_router_regs_pkg.vhd',
         'source': 'irq_router.rdl',
         'top': 'irq_router',
         'rtl': 'hdl/common/irq_router.vhd',
@@ -379,7 +379,7 @@ RTL_PACKAGES = (
     },
     {
         'package': 'pwr_ctrl_regs_pkg',
-        'file': 'hdl/common/periph/pwr_ctrl_regs_pkg.vhd',
+        'file': 'hdl/common/regs/vhdl/pwr_ctrl_regs_pkg.vhd',
         'source': 'pwr_ctrl.rdl',
         'top': 'pwr_ctrl',
         'rtl': 'hdl/common/pwr_ctrl.vhd',
@@ -394,7 +394,7 @@ RTL_PACKAGES = (
     # emitted for completeness and has no adoption path; see the report.
     {
         'package': 'debug_module_regs_pkg',
-        'file': 'hdl/common/periph/debug_module_regs_pkg.vhd',
+        'file': 'hdl/common/regs/vhdl/debug_module_regs_pkg.vhd',
         'source': 'debug_module.rdl',
         'top': 'debug_module',
         'rtl': 'hdl/common/debug_module.vhd',
@@ -740,7 +740,7 @@ def emitString(block, packageName=None, spec=None):
         groups, tail = _intersect(groups, tail, bodies)
     L = []
     L.append('-- =============================================================================')
-    L.append('-- ' + pkg + '.vhd: GENERATED from hdl/common/periph/rdl/ by')
+    L.append('-- ' + pkg + '.vhd: GENERATED from hdl/common/regs/rdl/ by')
     L.append('-- platform/common/python/rdl_vhdl.py. DO NOT EDIT THIS FILE.')
     L.append('--')
     L.append('--   regenerate:  tools/bin/bazel run //platform/common/python:rdl_vhdl_pkgs')

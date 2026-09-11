@@ -39,7 +39,7 @@ def _registerDict(rt):
 def emitObject(block, sourceFile):
     return {
         'PeripheralTemplateName': block.PeripheralTemplateName,
-        'Source': 'hdl/common/periph/rdl/' + sourceFile,
+        'Source': 'hdl/common/regs/rdl/' + sourceFile,
         'AddrMap': block.Name,
         'WordBase': block.WordBase,
         'InterruptVector': block.Vector,

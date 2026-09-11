@@ -1405,7 +1405,7 @@ def main():
                              % BASE_CELL_LIST)
         lines.insert(crc16_idx + 1, dma_cell)
     # SystemRDL level 2 (reports R6 and R8a): every peripheral has a GENERATED
-    # register package -- hdl/common/periph/<x>_regs_pkg.vhd -- carrying its word
+    # register package -- hdl/common/regs/vhdl/<x>_regs_pkg.vhd -- carrying its word
     # offsets, field ranges, IMPL masks and reset constants. A package must be
     # analysed before the entity that uses it, so each one is inserted
     # immediately ahead of its entity WHEREVER that entity ended up: the base
@@ -1419,7 +1419,7 @@ def main():
     # adoption never has to touch this file. An entity the configuration does not
     # instantiate is absent from the list, and its package is skipped with it.
     for pkg, entity in REGS_PACKAGES:
-        pkg_cell = '../../../hdl/common/periph/' + pkg
+        pkg_cell = '../../../hdl/common/regs/vhdl/' + pkg
         if pkg_cell in lines:
             continue
         at = [i for i, ln in enumerate(lines) if ln.endswith(entity)]

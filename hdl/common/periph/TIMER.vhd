@@ -5,7 +5,7 @@ use ieee.std_logic_unsigned.all;
 library work;
 use work.Constants.all;
 -- Word offsets, field ranges, resets and implemented-bit masks, generated from
--- hdl/common/periph/rdl/timer.rdl (tools/rdl/README.md). It declares the same
+-- hdl/common/regs/rdl/timer.rdl (tools/rdl/README.md). It declares the same
 -- RegSlotTIMx* constants work.MemoryMap did, so this REPLACES that clause:
 -- using both would make every slot name an ambiguous homograph.
 use work.timer_regs_pkg.all;

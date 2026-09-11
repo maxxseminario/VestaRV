@@ -22,14 +22,15 @@ filegroup(
     visibility = ["//visibility:public"],
 )
 
-# The SystemRDL register descriptions (tools/rdl/README.md). They sit next to the
-# RTL they describe, deliberately: a register map and its decode drift the moment
-# they live in different trees. .rdl carries no VHDL extension, so
-# :vhdl_sources does not pick these up and no VHDL consumer sees them.
+# The SystemRDL register descriptions (tools/rdl/README.md, hdl/common/regs/README.md).
+# They and the VHDL packages generated from them share one root, hdl/common/regs/.
+# .rdl carries no VHDL extension, so :vhdl_sources does not pick these up and no
+# VHDL consumer sees them; the generated packages under regs/vhdl/ do carry it and
+# are in :vhdl_sources, which is what every VHDL consumer reads.
 filegroup(
     name = "rdl_sources",
     srcs = glob(
-        ["common/periph/rdl/*.rdl"],
+        ["common/regs/rdl/*.rdl"],
         allow_empty = False,
     ),
     visibility = ["//visibility:public"],

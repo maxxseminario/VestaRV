@@ -58,7 +58,7 @@ def _defaultVhdl(name):
     return os.path.join(REPO, 'hdl', 'common', 'periph', name)
 
 
-PERIPH_DIR = os.path.join(REPO, 'hdl', 'common', 'periph')
+REGS_VHDL_DIR = os.path.join(REPO, 'hdl', 'common', 'regs', 'vhdl')
 
 
 def _decodeText(vhdlPath):
@@ -67,7 +67,7 @@ def _decodeText(vhdlPath):
 
        Report R8a moved each peripheral's word-offset constants out of its
        architecture (or out of work.MemoryMap) and into a tracked
-       hdl/common/periph/<x>_regs_pkg.vhd generated from the same .rdl. THE
+       hdl/common/regs/vhdl/<x>_regs_pkg.vhd generated from the same .rdl. THE
        VHDL STAYS THE AUTHORITY AND THIS GATE STILL READS IT: what changes is
        that "the VHDL" is now the entity plus the package it compiles against,
        so the readers below follow the context clause instead of failing on
@@ -81,7 +81,7 @@ def _decodeText(vhdlPath):
     src = _read(vhdlPath)
     parts = [src]
     for m in re.finditer(r'use\s+work\.(\w+_regs_pkg)\.all\s*;', src):
-        path = os.path.join(PERIPH_DIR, m.group(1) + '.vhd')
+        path = os.path.join(REGS_VHDL_DIR, m.group(1) + '.vhd')
         if not os.path.isfile(path):
             raise Exception('rdl_vs_vhdl: %s uses work.%s, which is not in the tree; '
                             'regenerate with `bazel run //platform/common/python:rdl_vhdl_pkgs`'
@@ -142,7 +142,7 @@ def _decodeSource(path, package):
         raise Exception('rdl_vs_vhdl: %s does not `use work.%s.all`, so the generated package '
                         'is not what its decode compiles against.'
                         % (os.path.basename(path), package))
-    pkgPath = os.path.join(os.path.dirname(path), package + '.vhd')
+    pkgPath = os.path.join(REGS_VHDL_DIR, package + '.vhd')
     if not os.path.isfile(pkgPath):
         raise Exception('rdl_vs_vhdl: %s is missing; regenerate with '
                         '`bazel run //platform/common/python:rdl_vhdl_pkgs`' % pkgPath)

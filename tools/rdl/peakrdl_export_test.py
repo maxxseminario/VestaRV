@@ -17,7 +17,7 @@ import unittest
 REPO = os.environ.get('TEST_SRCDIR')
 RDL_DIR = None
 for base in filter(None, [os.path.join(REPO, '_main') if REPO else None, os.getcwd()]):
-    cand = os.path.join(base, 'hdl', 'common', 'periph', 'rdl')
+    cand = os.path.join(base, 'hdl', 'common', 'regs', 'rdl')
     if os.path.isdir(cand):
         RDL_DIR = cand
         break
@@ -39,7 +39,7 @@ def _compile(fileName, top):
 class PeakRdlExportTest(unittest.TestCase):
 
     def setUp(self):
-        self.assertIsNotNone(RDL_DIR, 'could not locate hdl/common/periph/rdl in the runfiles')
+        self.assertIsNotNone(RDL_DIR, 'could not locate hdl/common/regs/rdl in the runfiles')
 
     def test_markdown_export(self):
         from peakrdl_markdown.exporter import MarkdownExporter

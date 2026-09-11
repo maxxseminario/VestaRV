@@ -32,7 +32,7 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
 -- SystemRDL level 2 (2026-09-10, report R6). N_WORDS, the array type and the
--- IMPL / RSTVAL tables are GENERATED from hdl/common/periph/rdl/biasg.rdl into
+-- IMPL / RSTVAL tables are GENERATED from hdl/common/regs/rdl/biasg.rdl into
 -- biasg_regs_pkg.vhd, under the identifiers this decode already used, together
 -- with WORD_BASE_DEFAULT (the generic's default) and the <FIELD>_MSB/_LSB
 -- ranges. The tables are POSITIONAL here -- the decode indexes them by

@@ -66,7 +66,7 @@ def _childEnv(args, stageRoot, configPath):
     the run on the first non-ASCII character.
 
     The ONE exception to the scrub is the SystemRDL closure (_rdlPath below):
-    generate.py reads hdl/common/periph/rdl/*.rdl for its register maps, so
+    generate.py reads hdl/common/regs/rdl/*.rdl for its register maps, so
     systemrdl-compiler has to be importable in the child. It is passed as an
     explicit list of the runfiles directories that actually contain those
     packages, not as the bootstrap's whole sys.path, and the child runs with
@@ -119,7 +119,7 @@ def _rdlPath():
     if not any(os.path.isdir(os.path.join(e, 'systemrdl')) for e in found):
         raise SystemExit(
             'stage_generate: systemrdl-compiler is not in this action\'s runfiles, '
-            'so generate.py cannot read hdl/common/periph/rdl/*.rdl. Add '
+            'so generate.py cannot read hdl/common/regs/rdl/*.rdl. Add '
             'requirement("systemrdl-compiler") to //platform/common/bazel:stage_generate.')
     return os.pathsep.join(found)
 

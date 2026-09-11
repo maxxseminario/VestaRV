@@ -6,7 +6,7 @@ library work;
 use work.constants.all;
 -- Word slots inside this peripheral's 256B window (decoded from MABPart(7:2)),
 -- field ranges, resets and implemented-bit masks, generated from
--- hdl/common/periph/rdl/nfc.rdl (tools/rdl/README.md). NFC is not in
+-- hdl/common/regs/rdl/nfc.rdl (tools/rdl/README.md). NFC is not in
 -- MemoryMap.vhd; SLOT_CR .. SLOT_DBG were file-local constants until then.
 use work.nfc_regs_pkg.all;
 

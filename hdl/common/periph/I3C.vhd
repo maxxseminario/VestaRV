@@ -5,7 +5,7 @@ use ieee.std_logic_unsigned.all;
 library work;
 use work.constants.all;
 -- Word offsets, field ranges, resets and implemented-bit masks, generated from
--- hdl/common/periph/rdl/i3c.rdl (tools/rdl/README.md). I3C is not in
+-- hdl/common/regs/rdl/i3c.rdl (tools/rdl/README.md). I3C is not in
 -- MemoryMap.vhd; SLOT_CR .. SLOT_IBI were file-local constants until then.
 use work.i3c_regs_pkg.all;
 

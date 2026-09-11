@@ -88,7 +88,7 @@ def rdl_names(rdlDir):
     '''Template spellings out of the SystemRDL descriptions.
 
        generate.py is no longer where most register and field names are written
-       down: hdl/common/periph/rdl/*.rdl is (report R5). Parsed textually rather
+       down: hdl/common/regs/rdl/*.rdl is (report R5). Parsed textually rather
        than compiled, because this checker must run with no third-party package
        and no generation behind it -- a register instantiation is
        `TIMxCR_t TIMxCR @0x00;` and a field is `} CAP0IF[3:3];`.'''
@@ -243,7 +243,7 @@ def main():
     genPath = os.path.join(root, 'python', 'generate.py')
     # The .rdl descriptions, three levels up from platform/common/python.
     rdlDir = os.path.join(os.path.dirname(os.path.dirname(root)),
-                          'hdl', 'common', 'periph', 'rdl')
+                          'hdl', 'common', 'regs', 'rdl')
     introDir = os.path.join(root, 'latex', 'PeripheralIntroductions')
     if not os.path.isfile(mmPath):
         print('check_intro_names: %s missing — run `make generate` first.' % mmPath)

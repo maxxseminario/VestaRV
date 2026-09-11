@@ -1716,8 +1716,8 @@ for _h, _w in enumerate(tcmWindows):
 #
 # Each peripheral below declares its identity -- name, prose, register/bit-field
 # prefixes, intro chapter, feature summary -- and then loads its REGISTERS from
-# hdl/common/periph/rdl/<block>.rdl, the description that sits next to the RTL
-# and that //platform/common:rdl_vs_vhdl_<block>_test re-derives out of the VHDL.
+# hdl/common/regs/rdl/<block>.rdl, the description that
+# //platform/common:rdl_vs_vhdl_<block>_test re-derives out of the VHDL.
 # There is no second copy of a register, a width, an access code, a reset value
 # or a field description in this file; a correction is made in the .rdl and
 # reaches the TRM table, MemoryMap.h, the configurator and the register browser
@@ -1892,7 +1892,7 @@ _clintAliasBytes = 4 << _clog2(clintSlotCount)
 p = PeripheralTemplate(nameTemplate='CLINT', description='Core-local interruptor for the ' + _spelled(numHarts) + ' harts. Provides per-hart software interrupts (msip, the inter-processor interrupt mechanism) and a shared free-running 64-bit mtime counter with one 64-bit mtimecmp compare register per hart (timer interrupts). Lives in the shared window behind the multi-core arbiter, so any hart can raise or clear any hart\'s interrupts. The msip and mtip outputs are level interrupts into each hart\'s interrupt vector (vectors 83 and 84); the interrupt service routine must clear the level (write 0 to its MSIP register, or advance its MTIMECMP past mtime) before returning, or the interrupt re-triggers. The block decodes only its low address bits, so its registers alias every ' + str(_clintAliasBytes) + ' bytes throughout 0x5000-0x5FFF.', bitFieldPrefix='CLINT', latexIntroFileName='CLINT-intro-castalia-2026-07.tex')
 m.AddPeripheralTemplate(p)
 
-# The register table comes from hdl/common/periph/rdl/clint.rdl, elaborated for
+# The register table comes from hdl/common/regs/rdl/clint.rdl, elaborated for
 # THIS configuration: MSIPh is a register array over numHarts, the MTIMECMPhL/H
 # pair is a regfile array on an 8-byte stride, and the two word bases are the
 # A0/A1 layout formula above -- passed in rather than recomputed, so the .rdl and
@@ -1930,7 +1930,7 @@ m.AddPeripheralTemplate(p)
 # exactly 0 frees a mutex either way.
 _mtxOwnerMsb = max(2, _clog2(numHarts + (1 if dmaPresent else 0) + (1 if _debug['enable'] else 0)))
 
-# The register table comes from hdl/common/periph/rdl/mutex_bank.rdl: NMUTEX
+# The register table comes from hdl/common/regs/rdl/mutex_bank.rdl: NMUTEX
 # registers as one array, the owner field MW+1 bits wide, and one owner marker
 # enumerated per hart (a run of value descriptions whose count is a parameter,
 # because a SystemRDL enum is a static type whose member values must fit the
@@ -1961,7 +1961,7 @@ _irqrXMsb   = _vectorsCount - 97			# live msb in the X words (when they exist)
 _irqrUMsb   = 31 if _vectorsCount >= 96 else _vectorsCount - 65
 _irqrUTop   = min(_vectorsCount, 96) - 1	# top vector covered by the U words
 
-# The register table comes from hdl/common/periph/rdl/irq_router.rdl: one
+# The register table comes from hdl/common/regs/rdl/irq_router.rdl: one
 # four-word routing row per hart as a regfile array, and the U/X field widths as
 # parameters. The two shapes SystemRDL cannot parameterise -- a register that
 # does not exist, and a description that reads differently -- are preprocessor
@@ -1993,7 +1993,7 @@ _pwrOrchNote = (' The orchestrator sits outside the MTCMOS fabric entirely (ther
 p = PeripheralTemplate(nameTemplate='PWRCTRL', description='Power controller for the switchable hart-tile power domains (M17 MTCMOS cold-gating). Each tile hart (1-' + str(numHarts - 1) + ') sits in its own header-switched power domain; setting that hart\'s gate bit walks a hardware sequencer through the only legal order: isolation clamps on, tile reset asserted, header switches opened (rail off). Clearing the bit reverses it: switches closed, a rail-settle delay, clamps released, reset released, at which point the tile COLD-BOOTS through the shared boot ROM (all state was lost), parks in WFI, and can be relaunched through the boot-ROM loader rows and a CLINT msip exactly as at chip power-on. ' + _pwrHart0Clause + _pwrOrchNote + ' Gate only a parked or otherwise quiesced tile: the hardware cannot deadlock (a clamped request looks released to the arbiter), but any in-flight work on the tile is destroyed; that is what cold-gating means.', bitFieldPrefix='PWR', latexIntroFileName='PWRCTRL-intro-castalia-2026-07.tex', latexFeatureSummary='Per-tile MTCMOS power gating with hardware gate/wake sequencing (cold-boot wake)')
 m.AddPeripheralTemplate(p)
 
-# The register table comes from hdl/common/periph/rdl/pwr_ctrl.rdl, elaborated
+# The register table comes from hdl/common/regs/rdl/pwr_ctrl.rdl, elaborated
 # for THIS configuration. Only NHARTS moves: PWRCR.PWRGATE and TASKWKM.PWRTASKWKM
 # span harts numHarts-1 downto 1 (a range that is EMPTY at numHarts = 1, where
 # the .rdl's vesta_live removes the field and leaves its bits reserved), and
@@ -3755,7 +3755,7 @@ m.McuMpCompat = {
 # so the template (and therefore //platform/common:rdl_vs_generator_test, which
 # grades templates) is untouched and the per-instance values reach the emitted
 # artifacts. The .rdl side assigns exactly these at the top addrmap
-# (hdl/common/periph/rdl/castalia_penta_wound_afe.rdl).
+# (hdl/common/regs/rdl/castalia_penta_wound_afe.rdl).
 i2cDefaultSad = {'0': 0x79, '1': 0x23}	# hdl/common/constants.vhd: i2c{0,1}_default_SAD
 
 def _setInstanceReset(peripheralName, registerName, value):
@@ -4158,7 +4158,7 @@ m.Generate(test=False, force=True, saveHardware=True, saveSoftware=True)
 # SystemRDL SIDE artifacts (tools/rdl/README.md, reports R1 and R5).
 #
 # The register maps themselves are already in: _rdlRegisters() built most of the
-# peripheral templates above out of hdl/common/periph/rdl/, so the TRM tables,
+# peripheral templates above out of hdl/common/regs/rdl/, so the TRM tables,
 # MemoryMap.h, MemoryMap.vhd and the configurator data that m.Generate() has just
 # written ARE the descriptions. What is emitted here is the rest of what the
 # descriptions can produce and the generator does not otherwise write:
@@ -4174,7 +4174,7 @@ m.Generate(test=False, force=True, saveHardware=True, saveSoftware=True)
 # and ONE file the TRM actually inputs: DEBUG-registers-rdl.tex. The Debug Module
 # is not memory-mapped -- its registers live in the DMI address space, reachable
 # only through the JTAG DTM -- so it has no PeripheralTemplate, no register-index
-# row and no place in MemoryMap.h, and hdl/common/periph/rdl/debug_module.rdl is
+# row and no place in MemoryMap.h, and hdl/common/regs/rdl/debug_module.rdl is
 # the only machine-readable description of it. The debug chapter inputs the table.
 #
 # systemrdl-compiler is NOT optional any more: the chip's register map comes out
@@ -4203,7 +4203,7 @@ def _emitRdlArtifacts():
 				_tex = _rf.read()
 			with open(os.path.join(trmInclude, name), 'w') as _wf:
 				_wf.write(_tex)
-		print('[generate] SystemRDL: ' + flag['name'] + ' from hdl/common/periph/rdl/'
+		print('[generate] SystemRDL: ' + flag['name'] + ' from hdl/common/regs/rdl/'
 			+ flag['source'] + ' (' + str(len(block.RegisterTemplates)) + ' registers, '
 			+ str(len(written)) + ' files)')
 	return
