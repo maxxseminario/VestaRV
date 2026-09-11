@@ -24,7 +24,7 @@ The \SI{2}{\milli\volt} tracking specification is written over the
 Section~\ref{sss:pixtop-mc} gives the reason and the full-range figure is
 reported alongside it throughout. The reference electrode follows the commanded
 DAC output to \SI{0.672}{\milli\volt} over that window, and to
-\SI{1.419}{\milli\volt} over the full \SIrange{0}{2.42}{\volt} code range ---
+\SI{1.419}{\milli\volt} over the full \SIrange{0}{2.42}{\volt} code range:
 \(+\SI{0.402}{\milli\volt}\) at code 0, \SI{-1.419}{\milli\volt} at code 3968.
 The ideal-source measurement is
 \SI{0.814}{\milli\volt} over the same window. Two terms make it up, both
@@ -32,7 +32,7 @@ static: the ladder's own error on a \SI{610.35}{\micro\volt} step, which is
 \SI{-181}{\micro\volt} at the top code, and A1's \SI{-620}{\micro\volt} input
 offset, which is constant across the range. A two-point fit per channel over
 the potential code axis absorbs the pair and leaves a residual well inside the
-\SI{2}{\milli\volt} budget of Section~\ref{ss:ampab} --- inside the window; at
+\SI{2}{\milli\volt} budget of Section~\ref{ss:ampab}, inside the window; at
 the ends of the code range A1's input pair leaves its common-mode range and the
 error stops being a constant any fit can absorb
 (Section~\ref{sss:pixtop-mc}). The offset-and-slope
@@ -47,5 +47,5 @@ carries no reference-DAC supply regulator. The \SI{25.8}{\milli\volt} of
 code-dependent reference movement measured in
 Section~\ref{sss:dacr2r12-supply} is therefore absent from every potential
 number here. It is \(40\times\) the tracking error above and would dominate the
-potential axis if a regulator were ever put in the path --- the reason
+potential axis if a regulator were ever put in the path, the reason
 to read \SI{0.672}{\milli\volt} as a missing stimulus rather than a result.

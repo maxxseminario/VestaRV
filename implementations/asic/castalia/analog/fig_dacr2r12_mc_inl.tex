@@ -24,7 +24,7 @@
       scaled y ticks=false, scaled x ticks=false,
       y tick label style={/pgf/number format/fixed,
                           /pgf/number format/precision=0},
-      ymin=0, ymax=27.3,
+      ymin=0, ymax=24.7,
       enlarge x limits=0.04, enlarge y limits=false,
       area legend
     ]
@@ -34,6 +34,6 @@
         node[above, font=\footnotesize, inner sep=1pt] {1\,LSB limit};
     \end{axis}
   \end{tikzpicture}}
-  \caption[{Integral nonlinearity of the \(R\)--\(2R\) ladder driven from an ideal \SI{2.5}{\volt} reference.}]{Integral nonlinearity of the \(R\)--\(2R\) ladder driven from an ideal \SI{2.5}{\volt} reference. \textbf{Process and mismatch}, model section \texttt{castalia\_pm\_25}, 200 samples, seed 12345, low-discrepancy sampling, \SI{25}{\celsius}, all 4096 codes. The dashed rule is the \(1\,\mathrm{LSB}\) limit entered on the test; 42 of 200 samples fall inside it and the worst reaches \(3.453\,\mathrm{LSB}\). The distribution is right-skewed (Fisher skew \(+0.74\)), so Table~\ref{tab:dacr2r12-mc-ideal} quotes the median and percentiles rather than mean \(\pm\,3\sigma\). LSB size, full scale and gain error are fixed to a part in \(10^{6}\) on this bench (Table~\ref{tab:dacr2r12-mc-scale}), so the whole of this spread is resistor mismatch in the ladder and none of it is the reference.}
+  \caption[{Integral nonlinearity of the \(R\)--\(2R\) ladder driven from an ideal \SI{2.5}{\volt} reference, with the\,\dots}]{Integral nonlinearity of the \(R\)--\(2R\) ladder driven from an ideal \SI{2.5}{\volt} reference, with the custom \SI{2.5}{\volt} bit driver \texttt{anatop\_and2\_dac} the tapeout cell carries. \textbf{Process and mismatch}, model section \texttt{castalia\_pm\_25}, 200 samples, seed 12345, low-discrepancy sampling, \SI{25}{\celsius}, all 4096 codes. The dashed rule is the \(1\,\mathrm{LSB}\) limit entered on the test; 41 of 200 samples fall inside it and the worst reaches \(3.393\,\mathrm{LSB}\). The distribution is right-skewed (Fisher skew \(+0.74\)), so Table~\ref{tab:dacr2r12-mc-ideal} quotes the median and percentiles rather than mean \(\pm\,3\sigma\). LSB size, full scale and gain error are fixed to a part in \(10^{6}\) on this bench (Table~\ref{tab:dacr2r12-mc-scale}), so the whole of this spread is resistor mismatch in the ladder and none of it is the reference.}
   \label{fig:dacr2r12-mc-inl}
 \end{figure}

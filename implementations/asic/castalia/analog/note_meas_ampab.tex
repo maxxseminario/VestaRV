@@ -20,7 +20,7 @@ it.
 \item Select per-channel slot 5 (the amplifier output, inboard of the
   counter-electrode isolation switch). Read it on \texttt{atb\_d} with
   \texttt{AFE\_DBGDIREN}~=~1, or on-chip with \texttt{AFE\_ADCSRCSEL}~=~4 and
-  averaging --- unbuffered either way: a test buffer built from the same
+  averaging; unbuffered either way: a test buffer built from the same
   devices carries an offset of the same class.
 \item Repeat at three reference codes across the working window. The intercept
   is the input offset, \(\sigma = \SI{5.20}{\milli\volt}\)

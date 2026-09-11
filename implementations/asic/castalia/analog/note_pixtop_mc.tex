@@ -70,13 +70,13 @@ Section~\ref{sss:pixtop-power} cannot show it: they hold the resistor and
 capacitor models typical, and every quantity here is set by matching.
 
 Mismatch is the whole of it. A process-only run leaves \SI{0.68}{\percent} of
-\(\sigma\) on the zero-current output --- \SI{0.005}{\percent} of the variance
---- and under \SI{1.5}{\percent} on every other quantity, and the two runs add
+\(\sigma\) on the zero-current output, \SI{0.005}{\percent} of the variance,
+and under \SI{1.5}{\percent} on every other quantity, and the two runs add
 in quadrature to the combined \(\sigma\) within \SI{0.4}{\percent}. Six further
 mismatch-only runs, each suppressing one matched structure, locate it: the
-transimpedance amplifier A2 alone sets the current axis --- suppressing it
+transimpedance amplifier A2 alone sets the current axis (suppressing it
 collapses \(\sigma\) of the zero-current output to
-\SI{0.034}{\milli\volt} --- and the control amplifier A1 alone sets the
+\SI{0.034}{\milli\volt}), and the control amplifier A1 alone sets the
 potential axis, \SI{0.042}{\milli\volt}. The two R-2R ladders move only the
 common mode and the DAC gain; the 320-code feedback ladder and the local bias
 generator move no dc quantity by more than the sampling error of a 100-sample
@@ -107,7 +107,7 @@ agrees to five significant figures at \(N = 0\), 63 and 319 and its mean to
 \SI{4}{\micro\volt}, and within one sample the three taps agree to at worst
 \SI{5.4}{\micro\volt}. One stored constant
 therefore calibrates all 320 gain codes on a real channel, not only at the
-typical point where Section~\ref{sss:pixtop-zero} measured it --- the premise
+typical point where Section~\ref{sss:pixtop-zero} measured it, the premise
 the whole current-axis calibration rests on.
 
 \paragraph{Calibration.} Every spread above is a per-channel additive constant,
@@ -126,7 +126,7 @@ pure constant per channel: after the mid-code value is removed the residual is
 \SI{0.36}{\milli\volt} at \SI{0.63}{\volt} and falls further toward mid-code
 (Figure~\ref{fig:pixtop-mc}). Outside it A1's input pair is running out of
 common-mode range, the error stops being a constant, and the same residual is
-\SI{3.4}{\milli\volt} at \SI{0.31}{\volt} --- which no stored constant reaches.
+\SI{3.4}{\milli\volt} at \SI{0.31}{\volt}, which no stored constant reaches.
 On the same samples and the same calibration the worst tracking error averages
 \SI{0.885}{\milli\volt} over the window and \SI{5.78}{\milli\volt} over the
 full sweep. The difference is a choice of range, not a circuit difference, and
@@ -136,7 +136,7 @@ the electrochemistry does not use the outermost \SI{0.4}{\volt} at the bottom or
 Stability is the one axis that needs nothing. A separate 200-sample run at the
 worst electrode-by-gain point of Section~\ref{sss:pixtop-stability} gives
 \SI{74.11}{\degree} of transimpedance phase margin,
-\(\sigma = \SI{3.07}{\degree}\) and a worst sample of \SI{64.35}{\degree} ---
+\(\sigma = \SI{3.07}{\degree}\) and a worst sample of \SI{64.35}{\degree},
 \num{9.5} standard deviations above the \SI{45}{\degree} limit. Gain margins are
 \(21.57 \pm \SI{0.88}{\decibel}\) and \(38.17 \pm \SI{0.64}{\decibel}\). The
 compensation capacitor is not a marginal fix that mismatch undoes. That run is

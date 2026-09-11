@@ -67,6 +67,12 @@ class LatexUserGuide():
 	# measured analog data is an explicit, per-chip decision.
 	AnalogChapterLineage = {
 		'castaliapenta': 'castalia',
+		# 2026-09-05: penta_wound.json / penta_wound_afe.json set chipName
+		# "PentaWound", which has no implementations/asic/pentawound/analog, so
+		# generating from either config silently dropped the entire 60-page
+		# analog chapter (CopyAnalogChapter rmtree's include/analog and takes the
+		# empty branch). Same physical chip, same analog IP: inherit Castalia's.
+		'pentawound': 'castalia',
 	}
 
 	def __init__(self, gen, outDirectoryPath):
@@ -387,6 +393,9 @@ class LatexUserGuide():
 			'AsicName': self.Gen.AsicName,
 			'AsicNameForUserGuide': self.Gen.AsicNameForUserGuide,
 			'RevisionDateFull': revisionDateFullStr,
+			# ISO form of the SAME instant, so a hand-written revision-history row
+			# cannot drift from the title page (D-17, 2026-09-05).
+			'RevisionDateISO': dt.strftime('%Y-%m-%d'),
 			'ProgaddrIrq': fmthex(self.Gen.PROGADDR_IRQ),
 			'VectorsStartAddress': fmthex(self.Gen.VectorsStartAddress),
 			'RamProgramStartAddress': fmthex(self.Gen.RamProgramStartAddress),
@@ -978,17 +987,20 @@ class LatexUserGuide():
 
 		s = '% Generated from ChipGenerator.DocSubSlotBlocks, do not edit. Rendered only under \\ifcqanalog.\n'
 		s += '\\section{Analog Front-End Subsystem} \\label{s:cqanalog}\n\n'
-		s += ('This chip carries a bipolar-potentiostat analog front-end (AFE) for '
-			'electrochemical impedance measurement, organised as four per-quadrant '
-			'measurement \\emph{sites} plus one shared electrochemical-impedance-'
-			'spectroscopy (EIS) sweep engine. Each site drives its own electrode group '
-			'(counter/working/reference/RE2) brought out on the package (Section '
-			'\\ref{s:pinsConfig}). The analog blocks themselves (the potentiostat, '
-			'the transimpedance ADC path, and the shared EIS engine + analog multiplexer'
-			') are analog IP that is not yet integrated; what \\emph{is} present is the '
-			'complete \\emph{digital access path}: a register stub for each site and for '
-			'the EIS engine, each a fully-functional shared-window arbiter slave with the '
-			'ownership gate and interrupt path described below. Software (and the '
+		s += ('This chip carries a four-channel bipolar-potentiostat analog front end (AFE) '
+			'for amperometric and voltammetric electrochemical sensing, organised as four '
+			'per-quadrant measurement \\emph{sites}. Impedance spectroscopy is a firmware '
+			'mode of those same channels and not a separate block: the reference DAC drives '
+			'a square-wave excitation and firmware demodulates the converter record in '
+			'quadrature, so no impedance hardware exists. Each site drives its own electrode '
+			'group (counter/working/reference/RE2) brought out on the package (Section '
+			'\\ref{s:pinsConfig}). The analog blocks themselves (the potentiostat and the '
+			'transimpedance ADC path) are analog IP that is not yet integrated; what '
+			'\\emph{is} present is the complete \\emph{digital access path}: a register stub '
+			'for each site and for the EIS sweep controller, each a fully-functional '
+			'shared-window arbiter slave with the ownership gate and interrupt path described '
+			'below. The \\texttt{0x7C00} site remains allocated for that sweep controller and '
+			'its I/Q accumulator; no analog stage sits behind it. Software (and the '
 			'verification suite) programs and reads these exactly as it will the final '
 			'analog blocks; the stubs hold placeholder storage and drive their interrupt '
 			'from a software-settable flag until the analog IP replaces them.\n\n')
@@ -1004,13 +1016,15 @@ class LatexUserGuide():
 		# carries the same hart band and the same arbiter bar.
 		s += ('Figure \\ref{fig:afe-system-diagram} is the arrangement: the five analog register '
 			'sites in one rank under the shared-window arbiter of Figure \\ref{fig:chip-system-flat-diagram}, '
-			'the three electrode pads that leave the die under each AFE site, and the analog stages '
-			'that are not yet integrated.\n\n')
+			'the electrode pads that leave the die under each AFE site, and the analog stages '
+			'that are not yet integrated. Each site bonds four electrode pads; the figure draws '
+			'three and omits RE2.\n\n')
 		# A portrait figure at natural size: the emitter fits the rank to the text block at 8 pt.
 		s += '\\begin{figure}[htpb]\n\t\\centering\n'
 		s += '\t\\input{include/AfeSystemDiagram.tex}\n'
 		s += ('\t\\caption{Analog front-end connectivity: each AFE site answers its owning hart and hart 0, '
-			'the EIS site answers hart 0 only, and three electrode pads per site leave the die.}\n')
+			'and the EIS site answers hart 0 only. Each site bonds four electrode pads; the figure '
+			'draws three and omits RE2.}\n')
 		s += '\t\\label{fig:afe-system-diagram}\n\\end{figure}\n\n'
 
 		# --- Address map + ownership table -------------------------------------
@@ -1018,7 +1032,7 @@ class LatexUserGuide():
 		s += ('The five blocks live in otherwise-reserved shared-window space, so they '
 			'do not disturb the peripheral memory map: the four AFE sites occupy the four '
 			'64-byte sub-slots of the reserved page-0 slot 12 at \\texttt{0x4C00}, and the '
-			'EIS engine occupies the top quarter of the IRQ-router page at \\texttt{0x7C00}. '
+			'EIS sweep controller occupies the top quarter of the IRQ-router page at \\texttt{0x7C00}. '
 			'Every block is a 16-word (64-byte) register file reached through the multi-core '
 			'arbiter like any other shared slave; access is qualified by the '
 			'\\emph{ownership gate} (Section \\ref{ss:cqanalog-gate}).\n\n')
@@ -1048,7 +1062,7 @@ class LatexUserGuide():
 			'answers only when \\texttt{s\\_master} is that hart \\emph{or} \\texttt{s\\_master} = 0. '
 			'Hart 0 is the management hart, so it reaches every site (this is what lets it '
 			'demultiplex the shared interrupt, below); every other hart sees only its own '
-			'site. The EIS engine is instantiated hart-0-only (\\texttt{s\\_master} = 0), so '
+			'site. The EIS sweep controller is instantiated hart-0-only (\\texttt{s\\_master} = 0), so '
 			'other harts request a sweep through a software mailbox convention rather than '
 			'touching it directly. The gate is hardware-enforced inside the slave and keys '
 			'off \\texttt{s\\_master} alone: there is no way to forge ownership, and no '
@@ -1096,7 +1110,7 @@ class LatexUserGuide():
 		s += ('The AFE/EIS interrupts reuse two vector numbers that the digital-only '
 			'respin left reserved, so nothing is renumbered: the four AFE sites are '
 			'OR-combined onto a single shared interrupt at source ' + str(afeSrc)
-			+ ' (formerly the AFE0 vector), and the EIS engine drives source '
+			+ ' (formerly the AFE0 vector), and the EIS sweep controller drives source '
 			+ str(eisSrc) + ' (formerly the SARADC0 vector). Both are delivered through '
 			'the IRQ router (Section \\ref{peripheralIRQROUTER}) like any other peripheral '
 			'source, and both are routed, by software convention in the routing rows, '
@@ -1210,6 +1224,10 @@ class LatexUserGuide():
 		# on this chip (one slot per used SRAM), and it is the only private
 		# region in the map.
 		firstRamSlot = min(gen.RamMemorySlotsAvailable)	# same formula as generateMemoryX; the old hardcoded (ramSlot - 2) drew the RAM at the wrong addresses
+		# The private band's decode width, for the mirror row below. Read from
+		# the generator's own geometry record, never restated.
+		_geo = getattr(gen, 'McuMpGeometry', None)
+		geoTcm = _geo.get('tcmApertureSize') if _geo else None
 		multiSlot = len(gen.RamMemorySlotsUsed) > 1
 		for i, ramSlot in enumerate(gen.RamMemorySlotsUsed):
 			if i == (len(gen.RamMemorySlotsUsed) - 1):
@@ -1227,6 +1245,24 @@ class LatexUserGuide():
 					muxNote += ' with ' + gen.RamMemorySlotsMuxed[ramSlot]
 				lines.append(muxNote + '}')
 			regions.append((addr, addr + thisSlotSize - 1, self._ADDR_GROUP_PRIVATE, lines))
+			# THE MIRROR ROW (2026-09-05). The private band DECODES 16 KiB --
+			# adddec routes data_addr(13 downto 2) (hdl/common/adddec.vhd:147)
+			# and hart_tile drops the word index's top bit at the ram0 mux
+			# (hdl/common/hart_tile.vhd:781) -- while the array answers
+			# thisSlotSize, so the rest of the band is THE SAME ARRAY REPEATED.
+			# Without this row the gap-filler below labelled 0xA000-0xBFFF
+			# "Unmapped (reads zero)", which is false, and false in the one
+			# place it matters: it is where a stack pointer of 0xBFFC pointed.
+			# The band width is the aperture stride, which is the same 0x4000
+			# decode granularity (generate.py:4517).
+			if geoTcm and thisSlotSize < geoTcm and (i == len(gen.RamMemorySlotsUsed) - 1):
+				repeats = geoTcm // thisSlotSize
+				regions.append((addr + thisSlotSize, addr + geoTcm - 1, self._ADDR_GROUP_PRIVATE,
+					[title + ' (mirror)',
+					 'Size = ' + self._AddressSpaceSizeString(geoTcm - thisSlotSize) + ' per hart',
+					 'Alias: the band decodes ' + self._AddressSpaceSizeString(geoTcm)
+						+ ' and the array answers ' + self._AddressSpaceSizeString(thisSlotSize)
+						+ ', so it repeats ' + str(repeats) + ' times']))
 
 		# --- the window top and the flash base, both from SH_AW ------------
 		flashRead = bool(gen.NativeSpiFlashMemoryReadAccess)

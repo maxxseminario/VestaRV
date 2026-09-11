@@ -18,7 +18,7 @@
 \item Force \(\pm\)~full-scale current into the working-electrode pin with no
   cell present; read the transimpedance output at per-channel slot 4 on
   \texttt{atb\_d}, one gain code at a time. Scale the drive per gain code or
-  the high-gain codes rail; skip the bottom code --- its drive nonlinearity is
+  the high-gain codes rail; skip the bottom code: its drive nonlinearity is
   1.26~LSB typical and no two-point slope sees it.
 \item Read at the pad, not through the converter: the converter window
   truncates samples that rail, and the two-point slope wanted here is the

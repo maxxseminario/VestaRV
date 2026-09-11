@@ -24,8 +24,14 @@
 \AsicNameForUserGuide{} carries a mixed-signal front end alongside the digital
 subsystem documented in the preceding chapters. This chapter describes the analog
 blocks themselves and reports their simulated performance; the memory-mapped
-registers through which software reaches them are documented with the peripherals
-in Section~\ref{ss:cqanalog-regs}, a placeholder map until the analog IP is integrated.
+registers through which software reaches them are documented with the
+peripherals\ifcqanalog{} in Section~\ref{ss:cqanalog-regs}, a placeholder map until
+the analog IP is integrated\fi.
+% \ifcqanalog guard added 2026-09-05: ss:cqanalog-regs lives in the generated
+% CqAnalog chapter, which the master template inputs only under \ifcqanalog. A
+% config that ships the analog IP with cqAfeStubs false (penta_wound_afe.json)
+% renders this chapter without that one, and the bare \ref was then undefined,
+% which the new trm-lint gate turns into a build failure.
 
 Unless stated otherwise, every figure and table in this chapter is taken from
 schematic-level simulation of the block's own testbench (pre-layout, with no
@@ -72,9 +78,10 @@ Impedance spectroscopy & \ref{ss:eis}          & 1 & \checkmark$^{\dagger}$ & \c
 SAR ADC               & \ref{ss:adc}          & 2 & \checkmark & \checkmark \\
 Feedback resistor     & \ref{ss:tiarprog}      & 5 & \checkmark & \checkmark \\
 Reference DAC         & \ref{ss:dacr2r12}      & 6 & \checkmark$^{\dagger}$ & \checkmark \\
+Four-channel macro    & \ref{ss:quad}          & 1 &            &            \\
 \bottomrule
 \multicolumn{5}{l}{\footnotesize $^{\dagger}$\,Corner run with the passive model
-  rows pinned at typical --- a lower bound. See below.} \\
+  rows pinned at typical: a lower bound. See below.} \\
 \end{tabular}
 \end{center}
 
@@ -83,6 +90,10 @@ claim in every row: the five rows marked \(\dagger\) are cornered over the
 transistors alone, for the reason set out immediately below. The impedance row is
 not a block but a mode that adds no devices, and its corner and Monte Carlo runs
 cover the small-signal measurement only.
+The four-channel row is nominal only:
+the macro adds no device the block rows do not already corner, and its own claim
+is that the four channels are independent, which a corner shifts equally on all
+four.
 \emph{n/a} marks a block whose
 section reports no Monte Carlo because the devices at issue carry no
 per-instance mismatch terms: the bias generator's start-up branch sits on model
@@ -121,8 +132,8 @@ reports the measurement.
 \paragraph{The pinned-passive caveat.}\label{p:pinned-passives}
 The corner set that serves this chapter moves the sixteen transistor model rows
 only. The resistor, capacitor and metal-capacitor rows hold their typical
-sections in every corner, so poly sheet resistance --- a
-\(\pm\SI{35}{\percent}\) quantity --- does not move at all. It sets the
+sections in every corner, so poly sheet resistance, a
+\(\pm\SI{35}{\percent}\) quantity, does not move at all. It sets the
 programmable feedback resistor of Section~\ref{ss:tiarprog} directly, and it
 sets the reference resistor of the local bias generator, and through that the
 tail current, transconductance, bandwidth and supply current of every amplifier
@@ -142,8 +153,8 @@ against \SIrange{10.90}{11.32}{\kilo\hertz}, \(18\times\); and worst-case loop
 phase margin falls from \SI{71.69}{\degree} to \SI{61.52}{\degree}.
 
 The two mixed corners cannot be repaired. The foundry ships the passive families
-with fast, slow and typical sections only --- there is no mixed-corner section
-for a resistor or a capacitor --- so fs and sf had to pin those rows, and the
+with fast, slow and typical sections only (there is no mixed-corner section
+for a resistor or a capacitor), so fs and sf had to pin those rows, and the
 pinned table was then cloned into ff and ss, where a real section does exist.
 That is why the tables look partly right: the bias generator's fs and sf columns
 agree with the freed matrix to three digits while its ff and ss columns diverge
@@ -154,7 +165,7 @@ carry the true spread.
 \textbf{The Monte Carlo has been the only honest process bound in this chapter
 all along.} Its statistical model section varies the resistors, and the
 \SI{11.45}{\percent} process \(\sigma\) it measures on the feedback resistance is
-\(3\sigma \approx \SI{34}{\percent}\) --- the box the corner set was missing.
+\(3\sigma \approx \SI{34}{\percent}\): the box the corner set was missing.
 Every Monte Carlo table and figure in this chapter therefore stands as published.
 So does the converter of Section~\ref{ss:adc}, whose extracted array carries no
 capacitor model card and whose poly strips are fill with no dc path; the
@@ -170,7 +181,7 @@ pinned or freed.
 \paragraph{The corrected corner set.} Define it once as a file rather than as a
 table typed into each setup, so that a corrected table cannot be cloned with its
 defects: one section per corner, each a complete model-row list. Five sections,
-named so that the pin is visible from a corner label ---
+named so that the pin is visible from a corner label:
 \texttt{castalia\_tt}, \texttt{castalia\_ff\_all} and \texttt{castalia\_ss\_all}
 with every row moved, plus \texttt{castalia\_fs\_mos} and
 \texttt{castalia\_sf\_mos}, which cannot move the passives and never will.
@@ -182,7 +193,7 @@ Verify from the netlist that executed, never from the setup:
 
 \noindent must show the corner letter on the passive rows. One gap survives the
 fix: the statistical model section omits the MIM statistics, so MIM capacitor
-variation is bounded by neither the corner set nor the Monte Carlo today --- the
+variation is bounded by neither the corner set nor the Monte Carlo today; the
 \SI{22}{\pico\farad} compensation capacitor of Section~\ref{ss:ampab} is the
 device that makes that matter.
 
@@ -357,6 +368,17 @@ device that makes that matter.
 \input{include/analog/DacR2R12.tex}
 \input{include/analog/note_meas_dacr2r12.tex}
 
+% Four-channel macro -- HAND-WRITTEN (no maestro2tex config; the numbers are
+% read from the executed psf of four transient Maestro tests by
+% skill/quad_eval.py).  ADDED 2026-09-05, from the F13 build wave.  Placed last
+% among the measured sections and before the calibration section because it is
+% the assembly of every block above it, and because the calibration section
+% refers to per-channel constants that only mean something once the channels
+% are shown to be independent.  Runs ~/chips/castalia/simruns/quad_20260905/,
+% wrapper netlist and CDL ~/chips/castalia/simarchive/anatop_quad/.
+\FloatBarrier
+\input{include/analog/note_quad_tb09.tex}
+
 % ---------------------------------------------------------------------
 % Per-chip calibration. HAND-WRITTEN, and last on purpose: it is a system
 % statement built on every block section above and refers to all of them by
@@ -367,3 +389,29 @@ device that makes that matter.
 \FloatBarrier
 \input{include/analog/note_calibration.tex}
 \FloatBarrier
+
+% ===========================================================================
+% ORPHANS -- the fragments in this directory that no \input reaches (D-18,
+% 2026-09-05). 227 .tex files here, 193 reachable from this file, 34 not. They
+% are kept, unedited, with their own provenance headers; restoring any of them
+% is putting an \input back. Recompute with a transitive \input walk from this
+% file, not by eye.
+%
+%   Assembled channel, 17 (cut 2026-08-26, see the commented-out block above):
+%     note_pixtop_{intro,potential,zero,cv,adc,mux,comp,noise,power,mc,open}
+%     tab_pixtop_{summary,mc}  fig_pixtop_{cv,noise,mc}  note_meas_pixtop
+%   Impedance spectroscopy, 9 (cut 2026-08-26/27, see the block above):
+%     note_eis_{coverage,excitation,open,rules}
+%     fig_eis_{error,settling,mccal,nyquist,codelevel}
+%     fig_eis_codelevel was replaced by tab_eis_codelevel on 2026-08-27.
+%     fig_eis_nyquist is NOT input either, so the comment above that says the
+%     Nyquist figure was the one kept is stale: the section renders no figure.
+%   Build helpers, 7: preview_{Adc,AmpAB,BiasGenCascWideSwing,DacR2R12,
+%     Electrode,Pixel,TiaRprog} -- standalone wrappers for compiling one block
+%     section on its own; never part of the manual.
+%   Unused schematic, 1: sch_tb_slew (the slew bench, never written up).
+%
+% Nothing here is superseded by a rewrite: every number in these fragments is
+% still traceable to the run named in its header. They are out of the manual
+% because the owner shortened the chapter, not because they are wrong.
+% ===========================================================================

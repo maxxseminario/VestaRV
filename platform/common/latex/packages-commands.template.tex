@@ -35,7 +35,13 @@
 \usepackage{relsize}
 
 % Extra packages
-\usepackage{acronym}                % Glossary of terms and abbreviations (chapter 1)
+% [noforwardlinks]: the list entry otherwise emits \hyperref[acro:XXX] to the
+% acronym's FIRST \ac{} use in the body. Nothing in this manual calls \ac{},
+% so all 39 of those forward links were dead and every build printed "There
+% were undefined references" (D-11, 2026-09-05). The option drops only the
+% forward link; the \hypertarget on each list entry stays, so a future \ac{}
+% still jumps into the glossary.
+\usepackage[noforwardlinks]{acronym} % Glossary of terms and abbreviations (chapter 1)
 \usepackage{titlesec}               % Compact chapter and part headings (report class)
 \usepackage{verbatim}
 \usepackage{fancyhdr}

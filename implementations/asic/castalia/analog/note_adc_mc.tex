@@ -39,7 +39,7 @@ reproduces the process-only run to every printed digit.
 Three structures account for it, and none is fixable in post-processing.
 Extraction flattens away the inline model wrappers in which the kit's
 per-instance mismatch parameters are declared, so the converter's transistors
-sit on raw model cards that the statistical block has no path to --- the
+sit on raw model cards that the statistical block has no path to: the
 simulator reports five of its six mismatch parameters as non-referenced. The
 capacitor array is extracted linear capacitors with no statistical model of any
 kind, so the matching that actually sets a charge-redistribution converter's
@@ -56,7 +56,7 @@ in every sample.
 
 Forcing the reference divider's mismatch on bounds the one contribution the
 netlist can express: \SI{0.821}{\milli\volt}, \(0.52\) LSB of \(1\sigma\) on the
-converter zero, \(\pm 1\) code, and \SI{0.012}{\percent} on gain --- the divider
+converter zero, \(\pm 1\) code, and \SI{0.012}{\percent} on gain: the divider
 moves the comparison threshold, not the array's charge balance. That is small
 against the three-code offset the nominal converter already carries and smaller
 still than the channel's own loop offset. Measuring the array itself needs a

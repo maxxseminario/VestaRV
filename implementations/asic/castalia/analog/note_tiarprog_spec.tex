@@ -22,15 +22,15 @@ The two exceptions are honest and bounded. \texttt{v\_top} exceeds its
 (\SI{2.553}{\volt} at \texttt{ss-res}, \SI{2.518}{\volt} at \texttt{ss 125C}):
 at \(+35\,\%\) resistance the fixed \SI{500}{\nano\ampere} test current rails
 the \SI{2.5}{\volt} supply at the top codes. That is the measurement drive
-running out of compliance at the slow corner, not a device defect --- the same
+running out of compliance at the slow corner, not a device defect (the same
 compliance ceiling already documented as the \(\sim\SI{0.65}{\micro\ampere}\)
-top-code operating limit --- and the \SI{250}{\nano\ampere} control run bounds
+top-code operating limit), and the \SI{250}{\nano\ampere} control run bounds
 its effect on the reported resistances at \(\le 0.036\,\%\)
 (Table~\ref{tab:tiarprog-corners}). \texttt{lsb\_err} fails its 0.5-LSB budget
 at four of five corners (1.24 typical, 3.60 worst at \texttt{ss 125C}, passing
 only at \texttt{ff -40C} with 0.41): this is the bottom-code switch-Ron bowl of
 Figure~\ref{fig:tiarprog-lin-n0}, largest where the gates are slowest and
-hottest. It is accepted as documented --- the chord-resistance error
+hottest. It is accepted as documented: the chord-resistance error
 \texttt{r\_lin\_err\_pct} stays below \(1\,\%\) everywhere
 (0.12--0.53\,\%), and the fix, if bottom-code linearity ever matters, is wider
 bypass gates. One bench note: the linearity sweep's drive source includes the
@@ -137,8 +137,8 @@ power in the dc-amperometric band, four to five orders below the amplifier
 single ideal resistor of the measured value changes the answer by
 \SI{0.02}{\percent} at the worst code. The roughly three hundred open bypass
 switches contribute nothing measurable. Loop stability is unchanged by the noise
-run --- phase margin \SIrange{74.9}{92.9}{\degree}, gain margin
-\SIrange{21.65}{21.79}{\decibel} --- so these are the operating points the
+run (phase margin \SIrange{74.9}{92.9}{\degree}, gain margin
+\SIrange{21.65}{21.79}{\decibel}), so these are the operating points the
 stability grid already reports.
 
 \textbf{No noise figure for this block is meaningful without its band.} Over
@@ -148,12 +148,12 @@ stability grid already reports.
 \emph{every} code, and over \SI{0.1}{\hertz}--\SI{10}{\kilo\hertz}
 \SI{26.7}{\nano\ampere} at every code. That is not a ladder defect: above the frequency at which the feedback
 impedance exceeds the electrode impedance the noise gain is set by the electrode
-capacitance, so the input-referred noise becomes independent of \(R_f\) --- which
+capacitance, so the input-referred noise becomes independent of \(R_f\), which
 is what the identical \(\SI{132}{\femto\ampere}/\sqrt{\si{\hertz}}\) spot
 noise at \SI{1}{\kilo\hertz} across six decades of \(R_f\) shows. The same design is
 \SI{49}{\pico\ampere} or \SI{27}{\nano\ampere} according to where the integral
 stops, so the band edges are fixed design variables rather than tracked to each
-code's own bandwidth --- letting them follow would make the slow, high-gain
+code's own bandwidth: letting them follow would make the slow, high-gain
 codes report less noise merely for being slower.
 
 Against the \SI{2}{\nano\ampere} input-referred budget in the amperometric band,

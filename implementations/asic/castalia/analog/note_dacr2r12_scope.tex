@@ -9,7 +9,7 @@
 
 All data in this section is schematic-level. Layout and \texttt{av\_extracted} views
 exist for both cells and have not been simulated, so no number here carries interconnect
-parasitics --- which matter for an R-2R ladder, whose accuracy is a ratio of resistances
+parasitics, which matter for an R-2R ladder, whose accuracy is a ratio of resistances
 that layout can degrade.
 
 \textbf{Settling time and glitch impulse were not measured.} The code bus is driven by a
@@ -39,7 +39,8 @@ of Section~\ref{sss:dacr2r12-supply} and needs re-measuring.
 
 Which supply the ladder was referenced to is stated on every table and figure: the
 \texttt{DacTB} results are against an ideal \SI{2.5}{\volt} rail and characterise the
-ladder, and the \texttt{DacWPSUTB} results are against \texttt{VddDac} and characterise
-the block as delivered. The corner run carries no mismatch information and the Monte
+ladder, which is the tapeout arrangement, and the \texttt{DacWPSUTB} results are against
+\texttt{VddDac} and characterise the block as it stood before the supply regulator was
+deleted. The corner run carries no mismatch information and the Monte
 Carlo run varies process and mismatch together; the two are different quantities and are
 never totalled.

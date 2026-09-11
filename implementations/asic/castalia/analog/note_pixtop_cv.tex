@@ -31,8 +31,8 @@ measured through the whole assembled channel: the potential program is a real
 12-bit code sequence, the applied potential is servo'd by A1, and the current
 is read back through the programmable resistor at gain code~3. The programme is
 a triangle staircase, \(\pm\SI{0.5}{\volt}\) about the common mode in
-\SI{4}{\milli\volt} treads of 6 or 7 codes, \SI{2}{\milli\second} per tread ---
-\SI{2}{\volt\per\second} --- 501 treads over one cycle, sampled once per tread
+\SI{4}{\milli\volt} treads of 6 or 7 codes, \SI{2}{\milli\second} per tread,
+\SI{2}{\volt\per\second}, 501 treads over one cycle, sampled once per tread
 \SI{50}{\micro\second} before the next code change.
 
 \paragraph{Potential.} The peaks land within \SI{0.3}{\milli\volt} (forward) and
@@ -40,7 +40,7 @@ a triangle staircase, \(\pm\SI{0.5}{\volt}\) about the common mode in
 The potential axis therefore survives \SI{610}{\micro\volt} quantisation, the
 ladder's own error, the common-mode DAC's \SI{-262}{\micro\volt} and A1's
 \SI{-620}{\micro\volt} offset and still puts the redox features where an ideal
-source puts them --- which is what identifies an analyte.
+source puts them, which is what identifies an analyte.
 
 \paragraph{Current.} Sampled peak heights are \SI{11.2}{\percent} and
 \SI{13.9}{\percent} below the ideal-source run. A tread sampled at its end has
@@ -55,13 +55,13 @@ feedback branch makes \(R_f\) a measurement rather than an assumption:
 \((v_{\mathrm{out}} - v_{\mathrm{we}})/i_f = \SI{37.16}{\kilo\ohm}\) median over
 124\,921 points, p10--p90 \SIrange{36.95}{37.44}{\kilo\ohm}, against
 \SI{36.0}{\kilo\ohm} from the nominal law and \SI{37.62}{\kilo\ohm} measured
-two-terminal at \SI{25}{\celsius} (Section~\ref{ss:tiarprog}) ---
+two-terminal at \SI{25}{\celsius} (Section~\ref{ss:tiarprog}),
 \SI{1.2}{\percent} below the latter at \SI{37}{\celsius}.
 
 \paragraph{Readout.} Over the 331 treads carrying more than
 \SI{100}{\nano\ampere} the voltage readout
-\((v_{\mathrm{out}} - V_{\mathrm{CM}} - V_{\mathrm{os}})/R_f\) --- the
-arithmetic firmware performs --- reproduces the probe current to within
+\((v_{\mathrm{out}} - V_{\mathrm{CM}} - V_{\mathrm{os}})/R_f\), the
+arithmetic firmware performs, reproduces the probe current to within
 \SI{39.4}{\nano\ampere} on \SI{7.7}{\micro\ampere} peaks, \SI{0.5}{\percent},
 inside the \(\pm\SI{0.65}{\percent}\) spread of \(R_f\) itself. No systematic
 term is left over. \(V_{\mathrm{os}}\) has to be supplied from a genuine

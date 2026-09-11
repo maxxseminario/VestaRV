@@ -26,6 +26,27 @@
 \input{\MaestroRoot fig_dacr2r12_inl_ideal.tex}
 \input{\MaestroRoot fig_dacr2r12_dnl_ideal.tex}
 \input{\MaestroRoot tab_dacr2r12_ideal.tex}
+% note_dacr2r12_driver: HAND-WRITTEN. The bit driver was replaced on
+% 2026-09-05 (1.0 V standard cell on the 2.5 V rail -> custom 2.5 V cell).
+% Both the corner tables above and the Monte Carlo fragments below now
+% read the new cell, so the fragment is the record of the change and of
+% its mechanism, not a correction. Sources: F16 report, simarchive/
+% tb_anatop_pixel_dacR2R12/20260905_driverfix/ and, for the five corner
+% points, .../20260906_corners_driverfix/.
+\input{\MaestroRoot note_dacr2r12_driver.tex}
+\input{\MaestroRoot note_dacr2r12_mc.tex}
+\input{\MaestroRoot fig_dacr2r12_mc_inl.tex}
+\input{\MaestroRoot fig_dacr2r12_mc_dnl.tex}
+\input{\MaestroRoot tab_dacr2r12_mc_ideal.tex}
+\input{\MaestroRoot tab_dacr2r12_mc_scale.tex}
+% EVERYTHING FROM HERE TO note_dacr2r12_scope CHARACTERISES THE DAC SUPPLY
+% BLOCK anatop_pixel_dac_psu, WHICH WAS DELETED FROM anatop_pixel ON
+% 2026-08-24; both ladders now run from the 2.5 V analog rail directly.
+% The fragments are kept and moved behind note_dacr2r12_supply, which was
+% retitled as the removed-block subsection and carries the deletion note, so
+% that every \ref into them stays live and no reader takes a VddDac number
+% for the tapeout channel. Ordering change 2026-09-06; the fragments and
+% their labels are untouched.
 \input{\MaestroRoot note_dacr2r12_supply.tex}
 \input{\MaestroRoot sch_dacr2r12_psu.tex}
 \input{\MaestroRoot fig_dacr2r12_vddac.tex}
@@ -33,11 +54,6 @@
 \input{\MaestroRoot fig_dacr2r12_inl_wpsu.tex}
 \input{\MaestroRoot fig_dacr2r12_dnl_ratio.tex}
 \input{\MaestroRoot tab_dacr2r12_wpsu.tex}
-\input{\MaestroRoot note_dacr2r12_mc.tex}
-\input{\MaestroRoot fig_dacr2r12_mc_inl.tex}
-\input{\MaestroRoot fig_dacr2r12_mc_dnl.tex}
-\input{\MaestroRoot tab_dacr2r12_mc_ideal.tex}
-\input{\MaestroRoot tab_dacr2r12_mc_scale.tex}
 \input{\MaestroRoot tab_dacr2r12_mc_wpsu.tex}
 \input{\MaestroRoot fig_dacr2r12_mc_vddacpp.tex}
 \input{\MaestroRoot tab_dacr2r12_mc_reference.tex}

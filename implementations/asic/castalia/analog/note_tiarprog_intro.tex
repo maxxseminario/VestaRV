@@ -22,9 +22,9 @@ N = \mathrm{bin}(\texttt{ResEn<5:0>}) + 64\cdot\mathrm{popcount}(\texttt{ThEn<3:
 \]
 \(N = 0\ldots 319\), so every \SI{6}{\kilo\ohm} value from \SI{18}{\kilo\ohm} to
 \SI{1.932}{\mega\ohm} is reachable and the map is monotonic by construction. The
-ladder is a series chain of identical poly units --- a three-unit fixed base, six
+ladder is a series chain of identical poly units (a three-unit fixed base, six
 binary-weighted segments of 1 to 32 units, and four thermometer segments of 64
-units --- each switched segment shunted by a CMOS bypass transmission gate
+units), each switched segment shunted by a CMOS bypass transmission gate
 (the thermometer gates at twice the binary gates' width;
 Figure~\ref{fig:tiarprog-switch}). A control bit at 1
 opens its gate and inserts the segment; terminals are \texttt{A}, \texttt{B} and
@@ -41,7 +41,7 @@ current quantum of \SI{0.82}{\nano\ampere}, an order above the
 \SI{49}{\pico\ampere} the loop actually delivers in the amperometric band
 (Section~\ref{sss:tiarprog-noise}), so at maximum gain the resolution floor is
 quantisation rather than noise. Larger \(R_F\) would buy nothing: the noise
-floor does not shrink with \(R_F\), and headroom does --- at
+floor does not shrink with \(R_F\), and headroom does: at
 \(V_{\mathrm{CM}}=\SI{1.25}{\volt}\) on \SI{2.5}{\volt} the top code can carry at
 most \(\approx\SI{0.65}{\micro\ampere}\) before the terminal voltage rails.
 

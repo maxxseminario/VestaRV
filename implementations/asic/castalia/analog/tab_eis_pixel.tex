@@ -1,0 +1,80 @@
+%% HAND-WRITTEN table fragment (maestro2tex house style; nothing here is
+%% generated -- six transient records demodulated by script, not a Maestro
+%% results database, and there is no maestro2tex config for any *_eis_*
+%% fragment).  ADDED 2026-09-05.
+%%
+%% WHY IT EXISTS.  Every other impedance number in this section comes from a
+%% small-signal replica bench that carried NO feedback capacitor, and from a
+%% single code-level record.  This table is the same measurement taken through
+%% the complete channel with the 22 pF present: one square-wave record per
+%% frequency, the true electrode current read from a series 0 V source, and
+%% three demodulations of each record so the error sources separate instead of
+%% summing.  It is what tells the reader that the demodulator is exact and the
+%% band edge is instrument, not algorithm.
+%%
+%% SOURCE OF EVERY NUMBER: ~/chips/castalia/simarchive/tb_anatop_eissq/
+%%   20260905_sq_freq/demod_arc.txt (and demod_arc.json) -- the arc load,
+%%     R_s 1 kOhm, R_ct 10 kOhm, C_dl 3.18 nF (corner 5.0 kHz), gain code 20,
+%%     one recorded excitation period per frequency, converter idle.  The four
+%%     demodulations of each record are z_cell (potential and current both
+%%     taken at the cell), z_iwe (commanded potential over true current),
+%%     z_raw (the firmware nominal-R_f law) and z_cf (the same with the
+%%     feedback pole restored, Z_t = R_f/(1 + j w R_f C_F)).
+%%   20260905_sq_freq/demod_res.txt -- the 11.000 kOhm calibration load at the
+%%     same gain code: err(z_cell) 0.002 to 0.007 % and under 0.06 deg at every
+%%     frequency, which is the check that the demodulator carries no bias.
+%%   20260905_sq_code/table_sq_code.txt, codes_main.json -- the converter row:
+%%     32 conversions per period at 27 173.913 Hz through the extracted
+%%     converter, static multiplexer slot, code residual 0.305 LSB rms.
+%%   20260905_sq_step/table_sq_step.txt -- the settled-impedance row.
+%% The nominal-law phase column is atan(2 pi f R_f C_F) with R_f = 138 kOhm at
+%% gain code 20 and C_F = 22 pF: 1.093 deg predicted against 1.159 measured at
+%% 1 kHz, 5.45 against 5.69 at 5 kHz, 10.80 against 11.47 at 10 kHz.
+%% Rendered prose and caption carry no em or en dashes.
+\par\addvspace{\intextsep}
+\noindent\parbox[b]{\textwidth}{%
+  \captionof{table}[{Impedance error through the complete channel, by source.}]{Error
+  of one square-wave record per frequency, demodulated four ways so the sources
+  separate: at the cell, at the commanded potential, through the nominal
+  feedback-resistance law, and through that law with the feedback pole
+  restored. Conditions are the linear cell model at
+  \(R_u = \SI{1}{\kilo\ohm}\), \(R_{\mathrm{ct}} = \SI{10}{\kilo\ohm}\),
+  \(C_{\mathrm{dl}} = \SI{3.18}{\nano\farad}\), gain code 20, typical corner,
+  \SI{37}{\celsius}, one recorded excitation period, converter idle. The
+  nominal-law column is \(\arctan(2\pi f R_f C_F)\) to within \SI{6}{\percent}
+  at every frequency, so it is the feedback pole and nothing else; what
+  survives the correction is the control amplifier tracking the commanded
+  potential, which is why the band edge exists at all.}%
+  \label{tab:eis-pixel}%
+  \par\nobreak
+  \centering
+  \begin{tabular}{lrrrrr}
+    \toprule
+    & \multicolumn{1}{c}{True \(|Z|\)}
+    & \multicolumn{1}{c}{At the cell}
+    & \multicolumn{1}{c}{\(+\) tracking}
+    & \multicolumn{1}{c}{\(+\) nominal law}
+    & \multicolumn{1}{c}{\(+\) law, pole restored} \\
+    \midrule
+    \multicolumn{6}{l}{\emph{Magnitude error}} \\
+    \SI{1}{\kilo\hertz}  & \SI{10788.6}{\ohm} & \(+0.034\,\%\) & \(+0.179\,\%\) & \(-0.238\,\%\) & \(-0.256\,\%\) \\
+    \SI{2}{\kilo\hertz}  & \SI{10221.4}{\ohm} & \(+0.049\,\%\) & \(+0.171\,\%\) & \(-0.235\,\%\) & \(-0.307\,\%\) \\
+    \SI{5}{\kilo\hertz}  & \SI{7814.0}{\ohm}  & \(+0.031\,\%\) & \(-0.011\,\%\) & \(-0.108\,\%\) & \(-0.559\,\%\) \\
+    \SI{10}{\kilo\hertz} & \SI{5003.7}{\ohm}  & \(-0.007\,\%\) & \(-0.568\,\%\) & \(+0.647\,\%\) & \(-1.135\,\%\) \\
+    \SI{20}{\kilo\hertz} & \SI{2841.1}{\ohm}  & \(-0.011\,\%\) & \(-1.821\,\%\) & \(+4.488\,\%\) & \(-2.376\,\%\) \\
+    \SI{50}{\kilo\hertz} & \SI{1480.0}{\ohm}  & \(+0.003\,\%\) & \(+2.123\,\%\) & \(+40.61\,\%\)  & \(+1.751\,\%\) \\
+    \midrule
+    \multicolumn{6}{l}{\emph{Phase error}} \\
+    \SI{1}{\kilo\hertz}  & \SI{-10.259}{\degree} & \(+0.078\) & \(+0.170\) & \(+1.159\) & \(+0.066\) \\
+    \SI{2}{\kilo\hertz}  & \SI{-19.702}{\degree} & \(+0.061\) & \(+0.195\) & \(+2.274\) & \(+0.089\) \\
+    \SI{5}{\kilo\hertz}  & \SI{-39.783}{\degree} & \(+0.015\) & \(+0.294\) & \(+5.692\) & \(+0.244\) \\
+    \SI{10}{\kilo\hertz} & \SI{-53.118}{\degree} & \(-0.007\) & \(+0.641\) & \(+11.472\) & \(+0.672\) \\
+    \SI{20}{\kilo\hertz} & \SI{-55.985}{\degree} & \(-0.005\) & \(+2.078\) & \(+23.088\) & \(+2.206\) \\
+    \SI{50}{\kilo\hertz} & \SI{-42.038}{\degree} & \(+0.002\) & \(+8.385\) & \(+52.348\) & \(+8.703\) \\
+    \bottomrule
+  \end{tabular}%
+  \par\smallskip
+  {\footnotesize Phase errors in degrees. Gain code 20 puts the feedback pole
+  at \SI{52.4}{\kilo\hertz}.}%
+}
+\par\addvspace{\intextsep}

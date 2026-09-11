@@ -30,7 +30,7 @@ volt against the ideal \num{409.60}, so the effective full-scale input span is
 LSB is \SI{1.591}{\milli\volt} rather than \SI{2.441}{\milli\volt}
 (Table~\ref{tab:adc-transfer}). Extrapolating that fit puts code 0 at
 \SI{0.441}{\volt} and code 1023 at \SI{2.068}{\volt}, a window centred on
-\SI{1.255}{\volt} --- the \SI{1.25}{\volt} channel common mode. The converter
+\SI{1.255}{\volt}, the \SI{1.25}{\volt} channel common mode. The converter
 clips outside that window, losing \SI{34.9}{\percent} of the intended input
 range, split between the two ends rather than concentrated at one: a
 full-scale transimpedance swing about $V_{\mathrm{CM}}$ is truncated
@@ -39,8 +39,8 @@ symmetrically.
 \paragraph{Mechanism.} The 1.535 factor is a product of two, and the smaller of
 them is the parasitic. The array is a \emph{differencing} capacitor DAC: each bit
 drives two plates in antiphase, so the charge it injects is proportional to the
-difference of the two, and it is that difference which is binary --- to four
-figures over the 512:1 weight range --- while the physical plates are not; the
+difference of the two, and it is that difference which is binary, to four
+figures over the 512:1 weight range, while the physical plates are not; the
 positive and negative segments of each bit row are visible in
 Figure~\ref{fig:adc-capdac}. Building the sub-LSB weights as small differences of
 much larger plates is what makes them matchable, and the price is that all of
@@ -61,7 +61,7 @@ top plate predict the perturbed slope from one fitted \(C_{\mathrm{top}}\) to
 better than \SI{0.03}{\percent}, with nothing else in the converter changed.
 Lowering the analog supply scales the slope by exactly the reference ratio and
 moves the window centre with it, while forcing the comparator's reference alone
-moves the centre and leaves the slope unchanged to \SI{0.003}{\percent} --- so
+moves the centre and leaves the slope unchanged to \SI{0.003}{\percent}, so
 the span is set by the reference and the centre by the comparator's own
 supply-halving resistor divider, and the \SI{1.25}{\volt} centre is that divider
 rather than an offset. Halving and then removing the antiphase plates moves the

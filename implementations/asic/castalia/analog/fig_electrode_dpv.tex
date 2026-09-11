@@ -74,15 +74,18 @@
   Differential-pulse voltammetry through the rev-2 channel, four-reporter
   immunoassay panel, one electrode parameter set per reporter
   (\(R_f = \SI{560}{\kilo\ohm}\), \(C_{\mathrm{dl}} = \SI{200}{\nano\farad}\),
-  \SI{37}{\celsius}). Top: a \SI{2}{\second} excerpt of the excitation ---
-  \SI{4}{\milli\volt} treads, \SI{50}{\milli\volt} / \SI{50}{\milli\second}
-  pulses at a \SI{200}{\milli\second} period, every level quantised to the
-  14-bit DAC LSB --- with the two current-sampling instants \SI{5}{\milli\second}
-  before each edge. Bottom: the differential current over the full
+  \SI{37}{\celsius}). Top: a \SI{2}{\second} excerpt of the excitation
+  (\SI{4}{\milli\volt} treads, \SI{50}{\milli\volt} / \SI{50}{\milli\second}
+  pulses at a \SI{200}{\milli\second} period, every level quantised to
+  \SI{152.6}{\micro\volt}), with the two current-sampling instants
+  \SI{5}{\milli\second} before each edge. Bottom: the differential current over the full
   \SIrange{-0.300}{0.548}{\volt} scan (213 steps, \SI{42.6}{\second});
   peak potential separates the reporters, peak height carries concentration
   (circles mark the apexes: \SIlist{855;1300;1666;938}{\nano\ampere}).
   Reporter kinetics as in the cyclic-voltammetry runs; the panel differs from
-  Figure~\ref{fig:electrode-panel} in readout, gain tap and reporter set.}
+  Figure~\ref{fig:electrode-panel} in readout, gain tap and reporter set. The
+  \SI{152.6}{\micro\volt} step is finer than the \SI{610.35}{\micro\volt} LSB of
+  the shipped 12-bit reference DAC (Section~\ref{ss:dacr2r12}), so the apex
+  accuracy read off this panel is a lower bound on the channel's.}
   \label{fig:electrode-dpv}
 \end{figure}
