@@ -1,12 +1,9 @@
-/* -----------------------------------------------------------------------------
-   PWM_tb.vhd
-   -----------------------------------------------------------------------------
-   Standalone, self-checking testbench for the PWM buffered-generator peripheral (hdl/common/periph/PWM.vhd), built on tb/periph_tb_pkg.vhd (scoreboard plus register-bus BFM) and tb/pwm_bfm_pkg.vhd (slot/CR/POL/SR constants, packers, bounded SR polls, and the pwm_wait_transition measurement primitive).
-   The DUT is declared as a COMPONENT rather than an entity instantiation so this bench compiles standalone; default binding resolves it to the entity of the same name once PWM.vhd is in the work library.
-   ONE clock family: `clk` (free-running MCLK engine reference) and `ClkMem` (bus clock, gated off while the bus is idle) are driven from the same mclk net, so no CDC synchronizer is exercised here.
-   CHECKER INDEPENDENCE is mandatory: period and per-channel duty are measured by counting `clk` RISING edges between observed pwm_out transitions and compared against values hand-computed from the PER/DTY/PSC the bench programmed, never read from a DUT internal, and to_X01 normalizes every sampled level except the full reset-default word reads, which are compared RAW so an uninitialized X is caught.
-   Timing is compressed (PSC=0, PER in {0,7,15,31}) so the whole run is far under 1 ms of sim time, and a top-level watchdog aborts with a FAIL banner if the stimulus ever hangs.
-   ----------------------------------------------------------------------------- */
+-- VestaRV: PWM testbench
+-- Standalone, self-checking testbench for the PWM buffered-generator peripheral (hdl/common/periph/PWM.vhd), built on tb/periph_tb_pkg.vhd (scoreboard plus register-bus BFM) and tb/pwm_bfm_pkg.vhd (slot/CR/POL/SR constants, packers, bounded SR polls, and the pwm_wait_transition measurement primitive).
+-- The DUT is declared as a COMPONENT rather than an entity instantiation so this bench compiles standalone; default binding resolves it to the entity of the same name once PWM.vhd is in the work library.
+-- ONE clock family: `clk` (free-running MCLK engine reference) and `ClkMem` (bus clock, gated off while the bus is idle) are driven from the same mclk net, so no CDC synchronizer is exercised here.
+-- CHECKER INDEPENDENCE is mandatory: period and per-channel duty are measured by counting `clk` RISING edges between observed pwm_out transitions and compared against values hand-computed from the PER/DTY/PSC the bench programmed, never read from a DUT internal, and to_X01 normalizes every sampled level except the full reset-default word reads, which are compared RAW so an uninitialized X is caught.
+-- Timing is compressed (PSC=0, PER in {0,7,15,31}) so the whole run is far under 1 ms of sim time, and a top-level watchdog aborts with a FAIL banner if the stimulus ever hangs.
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -91,15 +88,11 @@ architecture sim of PWM_tb is
 
 begin
 
-    /* --------------------------------------------------------------------------
-       clock / gated register-bus clock (same mclk net, periph_tb_pkg idiom)
-       -------------------------------------------------------------------------- */
+    -- clock / gated register-bus clock (same mclk net, periph_tb_pkg idiom)
     clk    <= not clk after PERIOD / 2;
     ClkMem <= clk when pbus.en_mem = '0' else '0';
 
-    /* --------------------------------------------------------------------------
-       Continuous glitch-freedom monitor: shortest COMPLETED high run and low run per channel since the last mon_clear pulse, taken purely from the pwm_out port.
-       -------------------------------------------------------------------------- */
+    -- Continuous glitch-freedom monitor: shortest COMPLETED high run and low run per channel since the last mon_clear pulse, taken purely from the pwm_out port.
     mon_proc : process(clk)
         variable lvl : std_logic;
     begin
@@ -137,9 +130,7 @@ begin
         end if;
     end process;
 
-    /* --------------------------------------------------------------------------
-       Event-tap pulse monitor: samples evt_period and evt_fault, to_X01-normalized, on every clk rising edge, windowed via evt_mon_clear.
-       -------------------------------------------------------------------------- */
+    -- Event-tap pulse monitor: samples evt_period and evt_fault, to_X01-normalized, on every clk rising edge, windowed via evt_mon_clear.
     evt_mon_proc : process(clk)
         variable p_lvl, f_lvl : std_logic;
     begin
@@ -172,9 +163,7 @@ begin
         end if;
     end process;
 
-    /* --------------------------------------------------------------------------
-       DUT
-       -------------------------------------------------------------------------- */
+    -- DUT
     dut : component PWM
         port map (
             clk          => clk,
@@ -193,10 +182,8 @@ begin
             task_flttrig => task_flttrig
         );
 
-    /* --------------------------------------------------------------------------
-       Watchdog: abort with a FAIL banner if the stimulus ever hangs.
-       Expected sim time is well under 1 ms, so this fires only on a true hang.
-       -------------------------------------------------------------------------- */
+    -- Watchdog: abort with a FAIL banner if the stimulus ever hangs.
+    -- Expected sim time is well under 1 ms, so this fires only on a true hang.
     watchdog : process
     begin
         wait for 20 ms;
@@ -211,9 +198,7 @@ begin
         wait;
     end process;
 
-    /* --------------------------------------------------------------------------
-       stimulus
-       -------------------------------------------------------------------------- */
+    -- stimulus
     stim_proc : process
         variable rdw, sw     : std_logic_vector(31 downto 0);
         variable ok, ok2     : boolean;
@@ -380,14 +365,10 @@ begin
         end procedure;
 
     begin
-        /* ----------------------------------------------------------------
-           Reset (resetn low for a few PERIODs at t=0)
-           ---------------------------------------------------------------- */
+        -- Reset (resetn low for a few PERIODs at t=0)
         reset_pulse;
 
-        /* ----------------------------------------------------------------
-           GROUP G0: reset defaults
-           ---------------------------------------------------------------- */
+        -- GROUP G0: reset defaults
         report "=== GROUP G0: reset defaults ===" severity note;
         bus_read(clk, pbus, rdata_out, PWM_SLOT_CR, rdw);
         sb.check_slv("G0: CR resets to 0", rdw, x"00000000");
@@ -414,10 +395,8 @@ begin
         sb.check_bit("G0: irq_fault = 0 out of reset", to_X01(irq_fault), '0');
         sb.check_bit("G0: irq_evt = 0 out of reset", to_X01(irq_evt), '0');
 
-        /* ----------------------------------------------------------------
-           GROUP G1: basic PWM shape, measured.
-           Two settings (PSC=0 and PSC=1) separated by a fresh resetn pulse, so each starts from the "per_active=0 self-commits on the first psc_tick" corner and the elapsed-edge arithmetic stays unambiguous.
-           ---------------------------------------------------------------- */
+        -- GROUP G1: basic PWM shape, measured.
+        -- Two settings (PSC=0 and PSC=1) separated by a fresh resetn pulse, so each starts from the "per_active=0 self-commits on the first psc_tick" corner and the elapsed-edge arithmetic stays unambiguous.
         report "=== GROUP G1: basic PWM shape (measured) ===" severity note;
 
         -- Setting A: PSC=0 (/1), PER=15 (period=16 clks), DTY0=4, DTY1=8.
@@ -446,11 +425,9 @@ begin
         sb.check_true("G1b: CH1 measured duty = DTY1*2^PSC = 10", hi = 10);
         sb.check_true("G1b: CH1 measured period = (PER+1)*2^PSC = 16", hi + lo = 16);
 
-        /* ----------------------------------------------------------------
-           GROUP G2: buffered-update glitch-freedom, the HEADLINE check.
-           Deliberately NO reset inside the group: the mid-period-change legs run WHILE the engine keeps running, which is the whole point.
-           PACING: a bus_write issued at a synced rising edge is captured one clk edge later (the BFM's falling/rising handshake), hence the "OLD_DTY - 1" arithmetic, and NOTHING may be interposed between the sync/write and the four transition catches, or the measurement starts after the real edge and catches the next, wrong-polarity one.
-           ---------------------------------------------------------------- */
+        -- GROUP G2: buffered-update glitch-freedom, the HEADLINE check.
+        -- Deliberately NO reset inside the group: the mid-period-change legs run WHILE the engine keeps running, which is the whole point.
+        -- PACING: a bus_write issued at a synced rising edge is captured one clk edge later (the BFM's falling/rising handshake), hence the "OLD_DTY - 1" arithmetic, and NOTHING may be interposed between the sync/write and the four transition catches, or the measurement starts after the real edge and catches the next, wrong-polarity one.
         report "=== GROUP G2: buffered-update glitch-freedom ===" severity note;
         reset_pulse;
         stage_waveform(31, 12, 16);
@@ -545,10 +522,8 @@ begin
         pwm_wait_updf_clear(clk, pbus, rdata_out, ok);
         sb.check_true("G2b-prime: UPDF clears once the boundary absorbs the PER write (bounded poll)", ok);
 
-        /* ----------------------------------------------------------------
-           GROUP G3: polarity.
-           POL0=1 inverts CH0 while POL1=0 leaves CH1 unchanged, so CH0's LOW run now equals the duty instead of its HIGH run while the active-tick COUNT (DTY0=4) is untouched.
-           ---------------------------------------------------------------- */
+        -- GROUP G3: polarity.
+        -- POL0=1 inverts CH0 while POL1=0 leaves CH1 unchanged, so CH0's LOW run now equals the duty instead of its HIGH run while the active-tick COUNT (DTY0=4) is untouched.
         report "=== GROUP G3: polarity ===" severity note;
         reset_pulse;
         stage_waveform(15, 4, 8);
@@ -567,9 +542,7 @@ begin
         sb.check_true("G3: CH1 duty unaffected (=DTY1=8)", hi = 8);
         sb.check_true("G3: CH1 period unaffected (=16)", hi + lo = 16);
 
-        /* ----------------------------------------------------------------
-           GROUP G4: corner cases
-           ---------------------------------------------------------------- */
+        -- GROUP G4: corner cases
         report "=== GROUP G4: corner cases (D10) ===" severity note;
 
         -- duty=0 gives a constant inactive level, duty>=PER+1 a constant active level.
@@ -606,10 +579,8 @@ begin
         sb.check_true("G4b: PEVF re-fires almost immediately (recurring, every tick)", ok);
         w1c(x"00000002");
 
-        /* ----------------------------------------------------------------
-           GROUP G5: enable/disable safe level.
-           POL0=0 with SAFE0=1, and POL1=1 with SAFE1=0, put SAFE opposite the polarity-derived inactive value, which makes this the decisive test that SAFE is an ABSOLUTE field and not a polarity-derived level.
-           ---------------------------------------------------------------- */
+        -- GROUP G5: enable/disable safe level.
+        -- POL0=0 with SAFE0=1, and POL1=1 with SAFE1=0, put SAFE opposite the polarity-derived inactive value, which makes this the decisive test that SAFE is an ABSOLUTE field and not a polarity-derived level.
         report "=== GROUP G5: enable/disable safe level (D11 absolute) ===" severity note;
         reset_pulse;
         stage_waveform(15, 4, 8);
@@ -649,9 +620,7 @@ begin
         sb.check_true("G5d: CH1 tracks reprogrammed SAFE1", ok);
         sb.check_bit("G5d: CH1 now = SAFE1 = 1", lvl_b, '1');
 
-        /* ----------------------------------------------------------------
-           GROUP G6: fault
-           ---------------------------------------------------------------- */
+        -- GROUP G6: fault
         report "=== GROUP G6: fault ===" severity note;
         reset_pulse;
         stage_waveform(15, 4, 8);
@@ -691,11 +660,9 @@ begin
         sb.check_true("G6c: CH0 still running normally (no safe force)", ok);
         sb.check_true("G6c: CH0 duty still DTY0=4", hi = 4);
 
-        /* ----------------------------------------------------------------
-           GROUP G7: period event.
-           PACING: the period must stay long against the several clk each PEVF SR read plus W1C costs, and every loop iteration must re-sync via sync_rising.
-           Chaining pwm_wait_transition across interposed bus ops instead aliases the cadence: a D-tick drift makes e_a+e_b measure period minus D, which looks like a DUT defect and is not one.
-           ---------------------------------------------------------------- */
+        -- GROUP G7: period event.
+        -- PACING: the period must stay long against the several clk each PEVF SR read plus W1C costs, and every loop iteration must re-sync via sync_rising.
+        -- Chaining pwm_wait_transition across interposed bus ops instead aliases the cadence: a D-tick drift makes e_a+e_b measure period minus D, which looks like a DUT defect and is not one.
         report "=== GROUP G7: period event ===" severity note;
         reset_pulse;
         stage_waveform(31, 10, 16);   -- PER=31 (period=32), DTY0=10, DTY1=16
@@ -742,9 +709,7 @@ begin
         sb.check_true("G7: CH0 duty still DTY0=10", hi = 10);
         sb.check_true("G7: CH0 period still 32", hi + lo = 32);
 
-        /* ----------------------------------------------------------------
-           GROUP G8: combined-IRQ demux/masking
-           ---------------------------------------------------------------- */
+        -- GROUP G8: combined-IRQ demux/masking
         report "=== GROUP G8: combined-IRQ demux/masking ===" severity note;
         reset_pulse;
         stage_waveform(7, 3, 4);
@@ -786,11 +751,9 @@ begin
         sb.check_bit("G8d: irq_evt masked (PEVIE=0) despite PEVF=1", to_X01(irq_evt), '0');
         w1c(x"00000003");
 
-        /* ----------------------------------------------------------------
-           GROUP G-EV: event-fabric taps.
-           evt_period is the period boundary, pulsing only while PWMEN=1; evt_fault is THE fault SET condition (a register FLTTRIG edge or the task_flttrig pulse, both FLTEN-gated), so it fires identically for either source.
-           Pulse counts come from the continuous evt_mon_proc monitor, which samples only the exported ports and is windowed via evt_mon_reset.
-           ---------------------------------------------------------------- */
+        -- GROUP G-EV: event-fabric taps.
+        -- evt_period is the period boundary, pulsing only while PWMEN=1; evt_fault is THE fault SET condition (a register FLTTRIG edge or the task_flttrig pulse, both FLTEN-gated), so it fires identically for either source.
+        -- Pulse counts come from the continuous evt_mon_proc monitor, which samples only the exported ports and is windowed via evt_mon_reset.
         report "=== GROUP G-EV: EVFAB taps (evt_period/evt_fault/task_flttrig) ===" severity note;
 
         -- G-EV-a: evt_period with the engine running, PER=15 (period=16 clk).
@@ -886,10 +849,8 @@ begin
         sb.check_true("G-EV d3: CH0 output unaffected by the inert task pulse (still running, duty=4)",
                       ok and hi = 4);
 
-        /* ----------------------------------------------------------------
-           GROUP G-NEG: NEGATIVE CONTROL, mandatory and LAST: exactly ONE deliberately-wrong expected value so the scoreboard proves it can fail.
-           It compares a freshly-measured CH0 duty against a wrong literal.
-           ---------------------------------------------------------------- */
+        -- GROUP G-NEG: NEGATIVE CONTROL, mandatory and LAST: exactly ONE deliberately-wrong expected value so the scoreboard proves it can fail.
+        -- It compares a freshly-measured CH0 duty against a wrong literal.
         report "=== GROUP G-NEG: NEGATIVE CONTROL ===" severity note;
         reset_pulse;
         stage_waveform(15, 4, 8);
@@ -897,9 +858,7 @@ begin
         measure_cycle(0, hi, lo, ok);
         sb.check_true("NEGATIVE CONTROL: wrong expected CH0 duty (must FAIL)", ok and hi = 4 + 1);
 
-        /* ----------------------------------------------------------------
-           Final verdict: sb.errors must be EXACTLY 1 (the negative control).
-           ---------------------------------------------------------------- */
+        -- Final verdict: sb.errors must be EXACTLY 1 (the negative control).
         wait for 1 us;
         sb.report_summary("PWM TB");
 

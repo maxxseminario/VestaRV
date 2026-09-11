@@ -1,3 +1,6 @@
+-- VestaRV: AFE control peripheral (rev-1)
+-- Holds the memory-mapped control/status/bias registers, gates the AFE clock, drives the dual-slope conversion FSM, and muxes internal signals out to the digital test ports.
+
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.std_logic_arith.all;
@@ -6,8 +9,6 @@ library work;
 use work.constants.all;
 use work.MemoryMap.all;
 
--- AFE.vhd: the analog front end control peripheral.
--- It holds the memory-mapped control/status/bias registers, gates the AFE clock, drives the DSADC conversion FSM, and muxes internal signals out to the digital test ports.
 entity AFE is
     port
     (
@@ -227,9 +228,7 @@ begin
     -- Intermediate Reset Signal
     rst_int <= not resetn;
 
-    /* =============================================================================
-       Analog Front End Interface Core
-       ============================================================================= */
+    -- Analog Front End Interface Core
 
 
     -- Register synchronization: latch the inverted status register at the end of a bus access so a read returns a stable snapshot.
@@ -346,9 +345,7 @@ begin
 
 
 
-    /* =============================================================================
-       Memory-Mapped Register Interface
-       ============================================================================= */
+    -- Memory-Mapped Register Interface
     
     -- Address decoding: the register slot is only presented while the bus enable is active low.
     en_addr_periph <= slv2uint(addr_periph) when en_mem = '0' else 0;

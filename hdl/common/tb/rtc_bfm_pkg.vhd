@@ -1,12 +1,9 @@
-/* -----------------------------------------------------------------------------
-   rtc_bfm_pkg.vhd
-   -----------------------------------------------------------------------------
-   Bench-support helpers for the RTC peripheral testbench (tb/RTC_tb.vhd).
-   The slot numbers, CR/SR field positions and packing helper are LOCAL to this bench: RTC0 sits at 0x6500 and MemoryMap.vhd carries no RTC constants.
-   Bus plumbing plus TB-side reference helpers (rtc_combined, rtc_within) only; no DUT internal is ever read.
-   The bench keeps its own wall-clock reference by counting lfxt_in edges and hand-computes the expected alarm and tick instants; these helpers only compare that reference against the DUT's coherent snapshot read.
-   Bounded polls end with done_ok, which the caller turns into a scoreboard check, so a poll that never satisfies its condition fails the run instead of hanging.
-   ----------------------------------------------------------------------------- */
+-- VestaRV: RTC bench support package
+-- Bench-support helpers for the RTC peripheral testbench (tb/RTC_tb.vhd).
+-- The slot numbers, CR/SR field positions and packing helper are LOCAL to this bench: RTC0 sits at 0x6500 and MemoryMap.vhd carries no RTC constants.
+-- Bus plumbing plus TB-side reference helpers (rtc_combined, rtc_within) only; no DUT internal is ever read.
+-- The bench keeps its own wall-clock reference by counting lfxt_in edges and hand-computes the expected alarm and tick instants; these helpers only compare that reference against the DUT's coherent snapshot read.
+-- Bounded polls end with done_ok, which the caller turns into a scoreboard check, so a poll that never satisfies its condition fails the run instead of hanging.
 
 library ieee;
 use ieee.std_logic_1164.all;

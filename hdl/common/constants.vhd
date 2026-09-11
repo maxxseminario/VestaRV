@@ -1,3 +1,7 @@
+-- VestaRV: shared constants package
+-- Core widths, clock and timing constants, the watchdog passwords and the common subtypes and array types.
+-- Only XLEN = 32 is implemented: the SoC fabric is a fixed 32-bit bus, so XLEN is a starting point, not a knob.
+
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.std_logic_unsigned.all;
@@ -137,9 +141,8 @@ package constants is
     constant CBOZ_BLOCK_SIZE : natural := 64;                    -- bytes (16 words)
     constant CBOZ_WORDS      : natural := CBOZ_BLOCK_SIZE / 4;   -- word stores per cbo.zero
 
-    /* ==========================================================================
+    /*
        Zcmp / Zcmt (compressed push/pop + table jump)
-       ==========================================================================
        These live in the C2 quadrant funct3=101 slot (the c.fsdsp slot, free on this no-F/D core); c_dec.vhd emits the fixed-shape 32-bit SENTINEL word below for a LEGAL cm.*, while an illegal pattern or generic-off leaves dec=0 (illegal).
        maindec turns op = ZCM_SENTINEL_OP into zcm_op plus valid for vesta's push/pop/move/jump SEQUENCER: all six push/pop/move insns and cm.jt/cm.jalt need multiple register writes, a memory burst or a control-flow redirect, so none can be a single expanded 32-bit instruction. */
 
@@ -247,9 +250,8 @@ package constants is
     constant AES32ESMI_FN5 : std_logic_vector(4 downto 0) := "10011";   -- aes32esmi (encrypt, SubBytes + MixColumns)
     constant AES32DSI_FN5  : std_logic_vector(4 downto 0) := "10101";   -- aes32dsi  (decrypt, inv-SubBytes)
     constant AES32DSMI_FN5 : std_logic_vector(4 downto 0) := "10111";   -- aes32dsmi (decrypt, inv-SubBytes + inv-MixColumns)
-    /* ==========================================
+    /*
        RV32 Zknh (SHA-256 / SHA-512) scalar-crypto constants
-       ==========================================
        SHA-256 sigma/sum: UNARY, OP-IMM opcode (I_ARITH_OPCODE), funct3=001, bits[31:25]=0001000 (SHA256_FN7), and the rs2-field (imm12[4:0]) selects the op.
        Encoded here as the full 12-bit funct12 (imm12 = 0001000_<rs2field>) so the alu_control emitter can match it exactly and take priority over SLLI. */
     constant SHA256_FN3       : std_logic_vector(2 downto 0)  := "001";           -- OP-IMM funct3 for sha256*
@@ -325,9 +327,8 @@ package constants is
     -- WARL: mode = bits(5:0) pinned 0 (Jump Table Mode only), base = bits(31:6) writable (64-byte aligned table); routed through the csr_valid map so a read or write is illegal when ENABLE_ZCMT is off.
     constant CSR_JVT           : std_logic_vector(11 downto 0) := x"017"; -- Zcmt jump-vector-table base (URW)
 
-    /* ==========================================================================
+    /*
        Privileged architecture: standard M-mode trap CSRs (ENABLE_TRAPCSR)
-       ==========================================================================
        LEGAL only when ENABLE_TRAPCSR (maindec csr_addr_valid gates all ten); otherwise every one of these addresses is an unknown CSR and traps illegal instruction.
        Field and WARL behaviour is implemented in csr_unit.vhd; mtrapctl is the custom M-mode R/W CSR selecting legacy (irq_handler/IVT) against standard (mtvec) trap delivery. */
     constant CSR_MSTATUS   : std_logic_vector(11 downto 0) := x"300"; -- MIE(3)/MPIE(7)/MPP(12:11) WARL {11}; other bits read 0
@@ -341,9 +342,8 @@ package constants is
     constant CSR_MTVAL     : std_logic_vector(11 downto 0) := x"343"; -- trap value (32-bit R/W; hardware-written on entry)
     constant CSR_MTRAPCTL  : std_logic_vector(11 downto 0) := x"7C0"; -- custom: bit0 LEGACY (reset 1); bits 31:1 WARL 0
 
-    /* ==========================================================================
+    /*
        Debug mode: the Debug-Mode CSR block 0x7B0-0x7B3 (ENABLE_DEBUG)
-       ==========================================================================
        ACCESSIBLE ONLY IN DEBUG MODE, enforced by two deliberately asymmetric and purely combinational rules:
          ADMIT NARROW: maindec's csr_addr_valid names these FOUR addresses as explicit equalities under ENABLE_DEBUG, so 0x7B4-0x7BF keep trapping in every build.
          DENY WIDE: maindec's dbg_csr_denied blocks the WHOLE imm12(11:4)=0x7B nibble whenever debug_mode = '0', UNGATED by ENABLE_DEBUG, so a future fifth debug CSR cannot be admitted without also being denied. */
@@ -352,9 +352,8 @@ package constants is
     constant CSR_DSCRATCH0 : std_logic_vector(11 downto 0) := x"7B2"; -- full 32-bit R/W scratch (debug mode only)
     constant CSR_DSCRATCH1 : std_logic_vector(11 downto 0) := x"7B3"; -- full 32-bit R/W scratch (debug mode only)
 
-    /* ==========================================================================
+    /*
        PMP (Smpmp) CSR bank (ENABLE_PMP)
-       ==========================================================================
        LEGAL only when ENABLE_PMP (maindec csr_addr_valid admits 0x3A0-0x3A3 and 0x3B0-0x3BF as one gated range pair); otherwise every one of these twenty addresses is an unknown CSR and traps illegal instruction.
        With PMP_ENTRIES = 8 the upper half (pmpcfg2/3, pmpaddr8-15) stays LEGAL but has no storage: WARL all-zero, write-ignore. */
 
@@ -404,9 +403,8 @@ package constants is
     -- NOTE the funct12 0x7B2 collides numerically with the dscratch0 CSR ADDRESS above: the two never meet, because a CSR instruction has funct3 /= PRIV_FN3 by construction (is_csr_instr).
     constant DRET_IMM12    : std_logic_vector(11 downto 0) := x"7B2"; -- DRET   (0x7B200073)
 
-    /* ==========================================================================
+    /*
        Zfinx (single-precision FP in x-registers) constants
-       ==========================================================================
        FP status CSRs, LEGAL only when ENABLE_ZFINX (csr_addr_valid gates them); otherwise these three addresses are unknown CSRs and trap illegal instruction. */
     constant CSR_FFLAGS  : std_logic_vector(11 downto 0) := x"001"; -- accrued flags {NV,DZ,OF,UF,NX}
     constant CSR_FRM     : std_logic_vector(11 downto 0) := x"002"; -- dynamic rounding mode [2:0]
@@ -501,9 +499,7 @@ end constants;
 
 package body constants is
 
-   /* --------------------------------------------------------------------------
-      Finds the MSbit index required to represent a given positive number.
-      -------------------------------------------------------------------------- */
+   --       Finds the MSbit index required to represent a given positive number.
 	function ceil_log2 (value : positive) return natural is
 		variable result : natural;
 	begin
@@ -514,41 +510,31 @@ package body constants is
 		return result;
 	end function ceil_log2;
 
-	/* --------------------------------------------------------------------------
-	   Converts a signed integer into a standard logic vector (uses numeric_std)
-	   -------------------------------------------------------------------------- */
+	-- Converts a signed integer into a standard logic vector (uses numeric_std)
 	function int2slv(x : integer; num_bits : integer) return std_logic_vector is
 	begin
 		return std_logic_vector(to_signed(x, num_bits));
 	end int2slv;
 
-	/* --------------------------------------------------------------------------
-	   Converts an unsigned integer into a standard logic vector (uses numeric_std)
-	   -------------------------------------------------------------------------- */
+	-- Converts an unsigned integer into a standard logic vector (uses numeric_std)
 	function uint2slv(x : integer; num_bits : integer) return std_logic_vector is
 	begin
 		return std_logic_vector(to_unsigned(x, num_bits));
 	end uint2slv;
 
-	/* --------------------------------------------------------------------------
-	   Converts a standard logic vector into a signed integer (uses numeric_std)
-	   -------------------------------------------------------------------------- */
+	-- Converts a standard logic vector into a signed integer (uses numeric_std)
 	function slv2int(x: slv) return integer is
 	begin
 		return to_integer(signed(x));
 	end slv2int;
 
-	/* --------------------------------------------------------------------------
-	   Converts a standard logic vector into an unsigned integer (uses numeric_std)
-	   -------------------------------------------------------------------------- */
+	-- Converts a standard logic vector into an unsigned integer (uses numeric_std)
 	function slv2uint(x: slv) return integer is
 	begin
 		return to_integer(unsigned(x));
 	end slv2uint;
 
-	/* --------------------------------------------------------------------------
-	   Converts a boolean into a std_logic
-	   -------------------------------------------------------------------------- */
+	-- Converts a boolean into a std_logic
 	function bool2sl(x : boolean) return sl is
 	begin
 		if x then
@@ -558,9 +544,7 @@ package body constants is
 		end if;
 	end bool2sl;
 	
-	/* --------------------------------------------------------------------------
-	   ORs all bits in a std_logic_vector together
-	   -------------------------------------------------------------------------- */
+	-- ORs all bits in a std_logic_vector together
 	function or_reduct(x : slv) return sl is
 		variable ret_val : sl := '0';
 	begin
@@ -571,9 +555,7 @@ package body constants is
 	
 	end or_reduct;
 	
-	/* --------------------------------------------------------------------------
-	   ANDs all bits in a std_logic_vector together
-	   -------------------------------------------------------------------------- */
+	-- ANDs all bits in a std_logic_vector together
 	function and_reduct(x : slv) return sl is
 		variable ret_val : sl := '1';
 	begin
@@ -583,9 +565,7 @@ package body constants is
 		return ret_val;
 	end and_reduct;
 	
-	/* --------------------------------------------------------------------------
-	   Reverses the ordering of the bits in a standard logic vector
-	   -------------------------------------------------------------------------- */
+	-- Reverses the ordering of the bits in a standard logic vector
 	function reverse_slv_order(x : slv) return slv is
 		variable result : slv(x'high downto x'low);
 	begin

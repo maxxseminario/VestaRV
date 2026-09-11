@@ -1,9 +1,15 @@
------ VHDL Libraries
--- IEEE Standard Libraries
+-- VestaRV: NPU packed-operand testbench
+-- Bench for NPUCR.NPUWPK and NPUCR.NPUXPK at the MCU/chip generics (X_M=0, W_M=7, Y_M=7, N=24, RHO=2), where the unpacked input is Q0.24 and the unpacked weight Q7.24.
+-- Method is DIFFERENTIAL, no golden files: every case runs twice over the same numbers, once with both mode bits clear over one-element-per-word staging and once with the bits under test set over packed staging, and the two output vectors must be BIT-IDENTICAL.
+-- That is a fair demand only because the test data is exactly representable in both formats: each input is a 16-bit Q0.15 value scaled to Q0.24 and each weight a 16-bit Q3.12 value scaled to Q7.24. Magnitudes are bounded to +-0.5 and +-4.0 so no accumulator saturates, which would compare equal for the wrong reason.
+-- Coverage is every mode with a packed walker: MLP with an odd input count, MLP with NPUBEN, MLP with the activation on, GEMM with odd K, CONV1D with its per-filter reload, plus XNOR, which must IGNORE both bits, plus the NPUCR readback of the two new bits.
+-- NEGCTRL=0 is a clean run whose ALL-PASS banner needs a zero error tally; NEGCTRL=1 perturbs one packed weight half in the wpk-only MLP case, reaching exactly one neuron, so its banner needs a tally of exactly 1.
+
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 -- Standard libraries
+
 library std;
 use std.standard.all;
 use std.textio.all;
@@ -11,17 +17,6 @@ use std.env.all;
 library work;
 use work.periph_tb_pkg.all;
 
-/* -----------------------------------------------------------------------------
-   NPU_pack_tb.vhd : packed-operand bench for NPUCR.NPUWPK (bit 26) and NPUCR.NPUXPK (bit 27).
-   Instantiated at the MCU/chip generics (X_M=0, W_M=7, Y_M=7, N=24, RHO=2), i.e. the silicon configuration, where the unpacked input is Q0.24 (25 bits) and the unpacked weight is Q7.24 (32 bits).
-
-   METHOD: DIFFERENTIAL, no golden files.  Every case is run TWICE over the same numbers -- once with both mode bits clear over one-element-per-word staging, once with the bits under test set over the packed staging -- and the two output vectors must be BIT-IDENTICAL.
-   That is a fair demand only because the test data is chosen to be EXACTLY representable in both formats: each input is a 16-bit Q0.15 value scaled to Q0.24 (low 9 bits zero) and each weight a 16-bit Q3.12 value scaled to Q7.24 (low 12 bits zero).  Any addressing, half-select, sign-extension or scaling error in the packed path therefore shows up as a mismatch, with no rounding noise to hide behind.
-   Magnitudes are bounded to +-0.5 (inputs) and +-4.0 (weights) so no accumulator saturates: a saturating case would compare equal for the wrong reason.
-
-   COVERAGE: the packed walkers are exercised in every mode that has one -- MLP (odd input count, so neurons restart mid-word), MLP with NPUBEN (odd 1+K weight block, so each neuron's block starts in the other half), MLP with the activation on, GEMM (odd K, so each A row base straddles), CONV1D (per-filter weight-block reload plus the channel/tap/stride walkers, odd 1+Cin*K block) -- plus XNOR, which must IGNORE both bits, plus the NPUCR readback of the two new bits and a re-check that NPUTHINK still reads back at bit 16.
-   NEGCTRL=0 is a clean run whose ALL-PASS banner needs a zero error tally; NEGCTRL=1 perturbs exactly one packed weight half in the wpk-only MLP case, which reaches exactly one neuron, so its banner needs a tally of exactly 1.
-   ----------------------------------------------------------------------------- */
 entity NPU_pack_tb is
 	generic (
 		NEGCTRL : integer := 0
@@ -474,10 +469,8 @@ begin
 			rand_operand(lfsr, ws(j));
 		end loop;
 
-		/* --------------------------------------------------------------
-		   NPUCR readback: the two new bits must be readable, the bits above them must still read 0, and NPUTHINK must still appear at bit 16.
-		   That last check is a standing regression guard: NPUTHINK is a separate flop re-inserted into the readback word, and widening that word is exactly the edit that could drop it again.
-		   -------------------------------------------------------------- */
+		-- NPUCR readback: the two new bits must be readable, the bits above them must still read 0, and NPUTHINK must still appear at bit 16.
+		-- That last check is a standing regression guard: NPUTHINK is a separate flop re-inserted into the readback word, and widening that word is exactly the edit that could drop it again.
 		report "[NPU_PACK_TB] === NPUCR readback ===" severity note;
 		mmr_write(MmrAddrNPUCR, cr_word(0, 0, 0, 0, 0, 1, 1, 16#5A#, 16#3C#));
 		mmr_read(MmrAddrNPUCR, rd);
@@ -491,9 +484,7 @@ begin
 		mmr_read(MmrAddrNPUCR, rd);
 		sb.check_slv("NPUCR pack bits clear again", rd(27 downto 26), "00");
 
-		/* --------------------------------------------------------------
-		   MLP, K=7 (ODD): the input walk crosses packed-word boundaries inside a neuron and restarts at element 0 for the next neuron, so a walker that packed the ADDRESS rather than the ELEMENT index would drift on the second neuron.
-		   -------------------------------------------------------------- */
+		-- MLP, K=7 (ODD): the input walk crosses packed-word boundaries inside a neuron and restarts at element 0 for the next neuron, so a walker that packed the ADDRESS rather than the ELEMENT index would drift on the second neuron.
 		cfg1_v := (others => '0');
 		cfg2_v := (others => '0');
 		run_case("mlp_xpk", 0, 0, 0, 0, 6, 4, cfg1_v, cfg2_v, 7, 35, 5, 0, 1);
@@ -501,10 +492,8 @@ begin
 		         corrupt_w => corrupt_idx);
 		run_case("mlp_both", 0, 0, 0, 0, 6, 4, cfg1_v, cfg2_v, 7, 35, 5, 1, 1);
 
-		/* --------------------------------------------------------------
-		   MLP with NPUBEN: each neuron's weight block is 1+K = 5 elements, an ODD count, so neuron n's block starts in the low half for even n and the high half for odd n.
-		   The bias element is fetched from the weight stream with no input fetch, which is the one place the two walkers advance at different rates.
-		   -------------------------------------------------------------- */
+		-- MLP with NPUBEN: each neuron's weight block is 1+K = 5 elements, an ODD count, so neuron n's block starts in the low half for even n and the high half for odd n.
+		-- The bias element is fetched from the weight stream with no input fetch, which is the one place the two walkers advance at different rates.
 		run_case("mlp_ben", 0, 1, 0, 0, 3, 2, cfg1_v, cfg2_v, 4, 15, 3, 1, 1);
 
 		-- Activation on (sigmoid): proves the packed operands reach the activation path unchanged.
@@ -512,18 +501,14 @@ begin
 		-- ReLU, whose output word shape differs from the sigmoid's.
 		run_case("mlp_aen_relu", 0, 0, 1, 1, 6, 4, cfg1_v, cfg2_v, 7, 35, 5, 1, 1);
 
-		/* --------------------------------------------------------------
-		   GEMM, M=3 x K=3 x N=2 with an ODD K: the input row base mK advances by 3 elements per row, so rows 0/1/2 start in the low, high and low halves respectively -- the straddle a word-domain row pointer could not express.
-		   The weight walk reloads to element 0 of the B block once per row.
-		   -------------------------------------------------------------- */
+		-- GEMM, M=3 x K=3 x N=2 with an ODD K: the input row base mK advances by 3 elements per row, so rows 0/1/2 start in the low, high and low halves respectively -- the straddle a word-domain row pointer could not express.
+		-- The weight walk reloads to element 0 of the B block once per row.
 		cfg1_v := std_logic_vector(to_unsigned(2, 32));		-- M-1
 		cfg2_v := (others => '0');
 		run_case("gemm_odd_k", 3, 0, 0, 0, 2, 1, cfg1_v, cfg2_v, 9, 6, 6, 1, 1);
 
-		/* --------------------------------------------------------------
-		   CONV1D: Cin=2, L=8, taps K=3, S=1, D=1, Lout=6, Cout=2, bias on.
-		   This is the walker-heavy case: the input address is the four-term sum IVSAR + c*L + j*S + k*D (all in the ELEMENT domain under packing), and the weight offset RELOADS to the filter base for every output j, then snapshots the next filter's base at the filter boundary.  The per-filter block is 1 + Cin*K = 7 elements, ODD, so filter 1 starts in the other half.
-		   -------------------------------------------------------------- */
+		-- CONV1D: Cin=2, L=8, taps K=3, S=1, D=1, Lout=6, Cout=2, bias on.
+		-- This is the walker-heavy case: the input address is the four-term sum IVSAR + c*L + j*S + k*D (all in the ELEMENT domain under packing), and the weight offset RELOADS to the filter base for every output j, then snapshots the next filter's base at the filter boundary.  The per-filter block is 1 + Cin*K = 7 elements, ODD, so filter 1 starts in the other half.
 		cfg1_v := std_logic_vector(to_unsigned(1, 8)) &		-- 31:24 Cin-1
 		          std_logic_vector(to_unsigned(8, 16)) &	-- 23:8  L
 		          x"1" &									-- 7:4   D
@@ -531,11 +516,9 @@ begin
 		cfg2_v := std_logic_vector(to_unsigned(6, 32));		-- Lout
 		run_case("conv_c2", 1, 1, 0, 0, 2, 1, cfg1_v, cfg2_v, 16, 14, 12, 1, 1);
 
-		/* --------------------------------------------------------------
-		   XNOR must IGNORE both bits: it already packs 32 one-bit operands per word and walks whole words, so the run shadows are forced off for MODE 2.
-		   Same problem run with the bits clear and with both set; the two output vectors must agree.
-		   K=40 over 2 words per neuron (NPUNI=1), 3 neurons, THRESH=0.
-		   -------------------------------------------------------------- */
+		-- XNOR must IGNORE both bits: it already packs 32 one-bit operands per word and walks whole words, so the run shadows are forced off for MODE 2.
+		-- Same problem run with the bits clear and with both set; the two output vectors must agree.
+		-- K=40 over 2 words per neuron (NPUNI=1), 3 neurons, THRESH=0.
 		report "[NPU_PACK_TB] === case: xnor_bits_inert ===" severity note;
 		sram_burst_start;
 		MabSramWEN <= (others => MEM_ASSERT);

@@ -1,33 +1,18 @@
+-- VestaRV: PWM generator
+-- Buffered 2-channel generator with a software fault trip and a period-event tick: pwm_out(1 downto 0), irq_fault (vector 115), irq_evt (vector 116).
+-- The engine (prescaler, counter, compare, output stage, sticky flags) runs on the free-running clk and the register file on the gated ClkMem. They are the same mclk net at integration, so every hand-off is a held level or a single-clock toggle and needs no synchronizer.
+-- PER and the duty registers are buffered: a read returns the staging readback, a write stages the value and arms UPDF. POL and SAFE are immediate.
+-- EnMemPeriph is an active-low level qualifier, never a clock and never an edge; the prescaler makes a tick enable, never a clock gate.
+
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.std_logic_arith.all;
 use ieee.std_logic_unsigned.all;
 
--- Word slots inside this peripheral's 256B window (decoded from MABPart(7:2)),
--- field ranges, resets and implemented-bit masks, generated from
--- hdl/common/regs/rdl/pwm.rdl (tools/rdl/README.md). PWM is not in
--- MemoryMap.vhd; SLOT_CR .. SLOT_SR were file-local constants until then.
+-- Word slots, field ranges, resets and implemented-bit masks: generated from hdl/common/regs/rdl/pwm.rdl.
 use work.pwm_regs_pkg.all;
 
-/* PWM: buffered 2-channel generator with a software fault trip and a period-event tick.
-   Interface: pwm_out(1 downto 0) channel outputs, irq_fault (vector 115), irq_evt (vector 116).
-   The engine (prescaler, counter, compare, output stage, sticky flags) runs on the free-running clk; the register file runs on the gated bus clock ClkMem.
-   clk and ClkMem are the same mclk net at integration, so every hand-off is a held level or a single-clock toggle and needs no 2-FF synchronizer.
-   EnMemPeriph is an active-low level qualifier only, never a clock and never an edge; the prescaler makes a tick enable, never a clock gate. */
 
-/* Register map (base 0x6600, slot n at 0x6600 + 4n, decoded off MABPart(7:2)):
-     0 PWM0CR   : [0]PWMEN [1]CH0EN [2]CH1EN [7]PEVIE [8]FLTIE [12]FLTEN
-                  [14]FLTTRIG (w1, self-clearing command, reads 0) [19:16]PSC;
-                  all other bits reserved.
-     1 PWM0PER  : [15:0] period modulus, BUFFERED; read returns the staging
-                  readback, write stages the value and arms UPDF.
-     2 PWM0DTY0 : [15:0] CH0 duty, BUFFERED; read/write as PER.
-     3 PWM0DTY1 : [15:0] CH1 duty, BUFFERED; read/write as PER.
-     4 PWM0DTY2 : reserved (4-channel bolt-on): reads 0, writes ignored.
-     5 PWM0DTY3 : reserved (4-channel bolt-on): reads 0, writes ignored.
-     6 PWM0POL  : [0]POL0 [1]POL1 [4]SAFE0 [5]SAFE1, immediate, NOT buffered.
-     7 PWM0DT   : reserved (deadtime bolt-on): reads 0, writes ignored.
-     8 PWM0SR   : [0]FLTF W1C [1]PEVF W1C [2]UPDF ro. Slots 9 and above read 0. */
 
 entity PWM is
     port (

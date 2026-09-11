@@ -1,25 +1,19 @@
+-- VestaRV: true random number generator
+-- Ring-oscillator entropy source plus harvest engine at base 0x6900, no pins, one combined data-ready/health-alarm IRQ (vector 121).
+-- The decimator, word assembler, RCT health test, DRDY lifecycle, sticky ALMF and IRQ combiner ride the free-running clk; the register file rides the gated ClkMem, the same mclk net at integration. Every hand-off between them is a toggle or a held level, never an async clear crossing a domain.
+-- The one genuine metastability CDC is the ring tap ro_raw, 2-FF synchronized into clk before any use and never used as a clock.
+-- TRNG0DR read-consumes: an empty read (DRDY = 0) returns 0, with no consume and no toggle.
+-- EnMemPeriph is consumed only as an active-low level, so the TRNG SDC has no EnMemPeriph clock.
+
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.std_logic_arith.all;
 use ieee.std_logic_unsigned.all;
 
--- Word slots inside this peripheral's 256B window (decoded from MABPart(7:2)),
--- field ranges, resets and implemented-bit masks, generated from
--- hdl/common/regs/rdl/trng.rdl (tools/rdl/README.md). TRNG is not in
--- MemoryMap.vhd; SLOT_CR .. SLOT_HT were file-local constants until then.
+-- Word slots, field ranges, resets and implemented-bit masks: generated from hdl/common/regs/rdl/trng.rdl.
 use work.trng_regs_pkg.all;
 
-/* TRNG: ring-oscillator entropy source plus harvest engine at base 0x6900, zero pins, one combined data-ready/health-alarm IRQ (vector 121).
-   The decimator, word assembler, RCT health test, DRDY lifecycle, sticky ALMF and IRQ combiner all ride the free-running `clk`; the register file rides the gated `ClkMem`, the same mclk net at integration.
-   Every hand-off between the two domains is a toggle or a held/quasi-static level, NEVER an async clear crossing a domain, and the ONE genuine metastability CDC is the ring tap `ro_raw`, 2-FF synchronized into `clk` before any use and never a clock: no async FIFO, no clock gate in the harvest datapath, no flop clocked by a pad or async bit.
-   EnMemPeriph is consumed ONLY as an active-low LEVEL (address decode, write enable, read-mux gate, DR-read-consume qualifier), never as a clock or an edge, and the TRNG SDC has no EnMemPeriph clock.
-   -V200X only: no VHDL-2008, no reading of out ports, every process infers exactly ONE rising edge of ONE clock, no falling_edge anywhere, and resetn (async, active-low) is applied directly in both domains. */
 
-/* Register map: base 0x6900, slot n at 0x6900 + 4n, decoded off MABPart(7:2); slots 4 and above read 0.
-     0 TRNG0CR : [0]EN [1]DRDYIE [2]ALMIE [7:4]ROSEL [11:8]DECIM, 31:12 rsvd.
-     1 TRNG0SR : [0]DRDY ro (blind-window-corrected) [1]ALMF W1C [2]RUN ro, 31:3 rsvd read 0.
-     2 TRNG0DR : [31:0] entropy word, ro, READ-CONSUMES. An empty read (DRDY=0) returns 0, with no consume and no toggle.
-     3 TRNG0HT : [7:0] RCTC rw (0 selects the hardware default 32) plus [21:16] RUNLEN ro diagnostic (saturating), other bits reserved read 0. */
 
 entity TRNG is
     generic (

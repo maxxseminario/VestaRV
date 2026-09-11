@@ -1,13 +1,13 @@
+-- VestaRV: timer
+-- 16-bit timer with a selectable source (mclk, smclk, LFXT, HFXT), three compare channels with pin outputs, two capture inputs and one IRQ per event.
+
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.std_logic_arith.all;
 use ieee.std_logic_unsigned.all;
 library work;
 use work.Constants.all;
--- Word offsets, field ranges, resets and implemented-bit masks, generated from
--- hdl/common/regs/rdl/timer.rdl (tools/rdl/README.md). It declares the same
--- RegSlotTIMx* constants work.MemoryMap did, so this REPLACES that clause:
--- using both would make every slot name an ambiguous homograph.
+-- Word offsets, field ranges, resets and implemented-bit masks: generated from hdl/common/regs/rdl/timer.rdl, which replaces the work.MemoryMap clause (both would make every slot name an ambiguous homograph).
 use work.timer_regs_pkg.all;
 
 entity TIMER is
@@ -100,12 +100,11 @@ architecture rtl of TIMER is
     signal timer_value         : std_logic_vector(31 downto 0);  -- Current timer count value
     signal timer_value_latched : std_logic_vector(31 downto 0);  -- Latched timer value for read
     signal timer_value_next    : std_logic_vector(31 downto 0);  -- Counter increment, shared by the counter and its gray mirror
-    -- TIMxVAL read CDC. timer_value lives in the timer_clock domain; clock_source_select can pick clk_lfxt,
-    -- and smclk/mclk/clk_hfxt are asynchronous to clk_mem whenever SYSTEM sources mclk from a different
-    -- root. A gray mirror of the counter changes exactly one flop per increment, so the 2-FF capture below
-    -- can only return the pre- or post-increment count, never a torn one. The two multi-bit jumps (a TIMxVAL
-    -- write and the compare2 auto-clear) are not covered and do not need to be: both are software-visible
-    -- events, and the write is followed by its read-back several clk_mem cycles later.
+    -- TIMxVAL read CDC: timer_value lives in the timer_clock domain, which is asynchronous to clk_mem
+    -- for every source but the one SYSTEM also uses for mclk. A gray mirror changes exactly one flop
+    -- per increment, so the 2-FF capture below can only return the pre- or post-increment count, never
+    -- a torn one. The two multi-bit jumps, a TIMxVAL write and the compare2 auto-clear, are not covered
+    -- and need not be: both are software-visible events.
     signal timer_gray          : std_logic_vector(31 downto 0);  -- Gray mirror of timer_value, timer_clock domain
     signal timer_gray_s1       : std_logic_vector(31 downto 0);  -- CDC stage 1 (may go metastable)
     signal timer_gray_s2       : std_logic_vector(31 downto 0);  -- CDC stage 2 (settled)

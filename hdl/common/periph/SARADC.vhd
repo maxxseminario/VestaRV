@@ -1,8 +1,7 @@
-/* -----------------------------------------------------------------------------
-   SARADC.vhd: memory-mapped controller for the off-die 10-bit SAR ADC: it generates the trigger clock, latches ADC_data_i on the rising edge of ADC_ready_i (a capture into a still-full result sets overflow), and raises irq while data is valid and its enable bit is set.
-   The trigger clock is a 16-bit one-hot shift register clocked on the falling edge of clk: bit 14 is the clear phase, bit 12 the sample phase stretched by the SARADC_CR sample-step countdown, and bits 11 down to 1 the conversion phase. The three phase flags are re-registered on the falling edge of clk to keep the shift-register bits off the output path, and the conversion clock is gated with clk combinationally after those registers, so one trigger period carries twelve falling edges: clear, sample, and ten conversion pulses.
-   Registers: SARADC_CR control, SARADC_SR status (stored inverted in SARADC_SR_ltch, re-inverted on read, data-valid and overflow are write-1-to-clear), SARADC_DATA result, SARADC_TPR debug test-port select.
-   ----------------------------------------------------------------------------- */
+-- VestaRV: SAR ADC controller
+-- Memory-mapped controller for the off-die 10-bit SAR ADC: it generates the trigger clock, latches ADC_data_i on the rising edge of ADC_ready_i, and raises irq while data is valid and its enable bit is set. A capture into a still-full result sets overflow.
+-- The trigger clock is a 16-bit one-hot shift register on the falling edge of clk: bit 14 is the clear phase, bit 12 the sample phase stretched by the SARADC_CR sample-step countdown, bits 11 downto 1 the conversion phase. The phase flags are re-registered on the falling edge to keep the shift-register bits off the output path, so one trigger period carries twelve falling edges.
+-- SARADC_SR is stored inverted in SARADC_SR_ltch and re-inverted on read; data-valid and overflow are write-1-to-clear.
 
 library ieee;
 use ieee.std_logic_1164.all;

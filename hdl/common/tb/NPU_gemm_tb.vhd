@@ -1,9 +1,15 @@
------ VHDL Libraries
--- IEEE Standard Libraries
+-- VestaRV: NPU GEMM testbench
+-- GEMM mode (NPUCR.MODE = 3), a separate leg from the mode-1 and mode-2 fixtures NPU_conv_tb and NPU_xnor_tb.
+-- Instantiates the NPU and staging-RAM model at the MCU/chip generics (X_M=0, W_M=7, Y_M=7, N=24, RHO=2), NOT the entity's own bench defaults, which would diverge from silicon and from gen_gemm_vectors.py's golden model.
+-- Golden files npu_gemm_<case>_{cfg,in,w,exp}.txt come from verification/npu/gen_gemm_vectors.py as symlinks; each case also writes npu_gemm_<case>_act.txt, one actual per line in exp.txt order.
+-- File layout: cfg is M K N BEN AEN ACTF IVSAR WVSAR OVSAR in that FROZEN order; in.txt is A row-major (A[m][k] at line m*K+k, Q0.24 signed); w.txt is B COLUMN-MAJOR (B[k][n] at line n*K+k, Q7.24 signed) so one column's K weights are contiguous; exp.txt is C row-major. Every value fits the 32-bit signed range exactly, so a plain `read` into INTEGER is safe.
+-- NEGCTRL=0 is a clean run whose ALL-PASS banner needs a zero error tally; NEGCTRL=1 corrupts the mid-position word of the index/transpose-discriminant "asym" case, and its banner needs a tally of exactly 1.
+
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 -- Standard libraries
+
 library std;
 use std.standard.all;
 use std.textio.all;
@@ -11,13 +17,6 @@ use std.env.all;
 library work;
 use work.periph_tb_pkg.all;
 
-/* -----------------------------------------------------------------------------
-   NPU_gemm_tb.vhd : GEMM mode (NPUCR.MODE=3) bench, a separate leg from the mode-1 and mode-2 fixtures NPU_conv_tb and NPU_xnor_tb.
-   Instantiates the NPU and staging-RAM model at the MCU/chip generics (X_M=0, W_M=7, Y_M=7, N=24, RHO=2), NOT the entity's own bench defaults, which would diverge from silicon and from gen_gemm_vectors.py's golden model.
-   Golden files npu_gemm_<case>_{cfg,in,w,exp}.txt come from verification/npu/gen_gemm_vectors.py and reach this run directory as symlinks; each case also writes npu_gemm_<case>_act.txt, one actual per line in exp.txt order, for post-mortem.
-   File layout: cfg is M K N BEN AEN ACTF IVSAR WVSAR OVSAR in that FROZEN order; in.txt is A row-major (A[m][k] at line m*K+k, Q0.24 signed); w.txt is B COLUMN-MAJOR (B[k][n] at line n*K+k, Q7.24 signed) so one column's K weights are contiguous; exp.txt is C row-major (C[m][n] at line m*N+n, Q7.24, or Q0.24 if AEN), and every value fits the 32-bit signed VHDL INTEGER range exactly, so a plain `read` into INTEGER is safe.
-   NEGCTRL=0 is a clean run whose ALL-PASS banner needs a zero error tally; NEGCTRL=1 corrupts exactly one expected value, the mid-position word (index (M*N)/2) of the index/transpose-discriminant "asym" case, and its banner needs a tally of exactly 1.
-   ----------------------------------------------------------------------------- */
 entity NPU_gemm_tb is
 	generic (
 		NEGCTRL : integer := 0
@@ -436,16 +435,12 @@ begin
 		wait for 1 us;
 		report "[NPU_GEMM_TB] Reset complete." severity note;
 
-		/* --------------------------------------------------------------
-		   The base case runs FIRST after reset, with no other CFG pokes ahead of it and every output checked for definedness.
-		   That proves the GEMM registers (gemm_m, mK, gemm_yptr, M_m1_run) resolve to defined outputs from a cold, X-filled staging RAM once CFG is written.
-		   -------------------------------------------------------------- */
+		-- The base case runs FIRST after reset, with no other CFG pokes ahead of it and every output checked for definedness.
+		-- That proves the GEMM registers (gemm_m, mK, gemm_yptr, M_m1_run) resolve to defined outputs from a cold, X-filled staging RAM once CFG is written.
 		run_gemm_case("base", check_no_x => true);
 
-		/* --------------------------------------------------------------
-		   NPUCFG1 and reserved-offset readback smoke: GEMM reuses NPUCFG1[7:0] only, and offsets 7 (NPUCFG3, no storage) and 8 (reserved) must read 0.
-		   Placed after base so base stays the first bus transaction, and harmless to any case since think_start fully overwrites NPUCFG1/NPUCR every time.
-		   -------------------------------------------------------------- */
+		-- NPUCFG1 and reserved-offset readback smoke: GEMM reuses NPUCFG1[7:0] only, and offsets 7 (NPUCFG3, no storage) and 8 (reserved) must read 0.
+		-- Placed after base so base stays the first bus transaction, and harmless to any case since think_start fully overwrites NPUCFG1/NPUCR every time.
 		report "[NPU_GEMM_TB] === NPUCFG1/reserved-offset readback ===" severity note;
 		mmr_write(MmrAddrNPUCFG1, std_logic_vector(to_signed(-12345, 32)));
 		mmr_read(MmrAddrNPUCFG1, rd);
@@ -460,10 +455,8 @@ begin
 		mmr_read(8, rd);
 		sb.check_slv("offset 8 (reserved) reads 0", rd, x"00000000");
 
-		/* --------------------------------------------------------------
-		   Remaining groups: ordinary file-driven cases.
-		   NEGCTRL=1 corrupts the MID-POSITION expected value of "asym", the index/transpose/order-discriminant case, which is a stronger single-error target than base's output 0.
-		   -------------------------------------------------------------- */
+		-- Remaining groups: ordinary file-driven cases.
+		-- NEGCTRL=1 corrupts the MID-POSITION expected value of "asym", the index/transpose/order-discriminant case, which is a stronger single-error target than base's output 0.
 		run_gemm_case("asym", corrupt_mid => (NEGCTRL = 1));
 		run_gemm_case("sat");
 		run_gemm_case("degen_m1");

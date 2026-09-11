@@ -1,20 +1,16 @@
+-- VestaRV: event/trigger fabric
+-- PPI-style crossbar wiring event lines to task lines; one instance, EVFAB0 at 0x6B00, no pins and no vector (irq_evfab is a hard '0').
+-- Free-running clk hosts the front-ends, the crossbar, the output register, the stickies and the action path; ClkMem hosts only the register storage and the registered read mux. ClkMem's edges are a subset of clk's at the same phase, so every hand-off is a bare held level, never a toggle and never a 2-FF sync.
+-- EVFAB0 sits in the always-on shared domain: WFI keeps mclk alive, field power only slows it and the power controller never gates it, so chains fire with the bus idle.
+-- VHDL-93 only: one edge of one clock per process, no latch, no clock gate, no falling_edge, and no async clear other than resetn.
+
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
--- Word slots inside this peripheral's 256B window (decoded from MABPart(7:2)),
--- field ranges, resets and implemented-bit masks, generated from
--- hdl/common/regs/rdl/evfab.rdl (tools/rdl/README.md). EVFAB is not in
--- MemoryMap.vhd; SLOT_CR .. SLOT_CH0CFG were file-local constants until then.
--- CHCFG_SLOTS stays local: it is the register-array size, not a word slot.
+-- Word slots, field ranges, resets and implemented-bit masks: generated from hdl/common/regs/rdl/evfab.rdl.
+-- CHCFG_SLOTS stays local; it is the register-array size, not a word slot.
 use work.evfab_regs_pkg.all;
 
-/* ===========================================================================
-   EVFAB: event/trigger fabric, a PPI-style crossbar; ONE instance, EVFAB0 @ 0x6B00, zero pins, vectorless (irq_evfab is a hard constant '0').
-   TWO CLOCKS, ONE FAMILY: free-running `clk` (mclk) hosts the front-ends, the crossbar, the output register, the stickies and the action path, while `ClkMem` hosts ONLY the register-file storage and the registered read mux.
-   ClkMem's edges are a SUBSET of clk's at the same phase (they are the same net at integration), so every hand-off between the two is a bare held level, never a toggle and never a 2-FF sync.
-   EVFAB0 sits in the always-on shared domain: WFI keeps mclk alive, field power only slows it and the power controller never gates it, so chains fire with the bus idle, which is the point of the block.
-   -V200X only: no VHDL-2008, every process infers exactly ONE edge of ONE clock, no latch, no clock gate, no falling_edge of anything (least of all EnMemPeriph), and no async clear other than `resetn`.
-   =========================================================================== */
 
 entity EVFAB is
     generic (
@@ -60,24 +56,6 @@ architecture behavioral of EVFAB is
     constant EVSEL_W   : natural := 5;
     constant TASKSEL_W : natural := 4;
 
-    /* ---- word-slot map (base 0x6B00, slot n @ 0x6B00 + 4n, off MABPart(7:2))
-          0 EVFCR       rw  [0] EN global kill (reset 0); 31:1 reserved r0
-          1 EVFSR       ro  [0] FIREDIF = OR(FIRED); [1] OVRIF = OR(OVR); 31:2 r0
-          2 EVFIE       reserved: reads 0, writes ignored (vectorless)
-          3 EVFCAP      ro  [7:0] N_CH [15:8] N_EV [23:16] N_TASK [31:24] VER
-          4 EVFCHEN     rw  [N_CH-1:0] channel enables (reset 0)
-          5 EVFCHENSET  w1s, READS CHEN     6 EVFCHENCLR  w1c, READS CHEN
-          7 EVFCHTRIG   w1-inject at the CHANNEL, honors EN+CHEN; reads 0
-          8 EVFFIRED    W1C sticky "channel n fired"            (set wins)
-          9 EVFOVR      W1C sticky overrun                      (set wins)
-         10 EVFEVSTAT   W1C sticky raw-event record, UNGATED by EN/CHEN
-         11 EVFEVTRIG   w1-inject a RAW EVENT; reads 0
-         12-14 reserved r0 (earmarked TKSTAT / FIREDIE / OVRIE)
-         15 EVFGPIOMASK rw  [7:0] per-bit enable for the GPIO0 edge path
-         16+n EVFCHnCFG rw  [4:0] EVSEL (31 = NONE); [11:8] TASKSEL;
-                            [31] ENR = RO mirror of CHEN(n); other bits r0
-         32-63 reserved r0
-       Every write is lane-0 qualified (WEn(0)='0'); reserved bits ignore writes and read 0; CHnCFG slots with n >= N_CH read 0 and ignore writes; EVSTAT bits >= N_EV read 0. */
     constant CHCFG_SLOTS   : natural := 16;   -- register-array size, NOT N_CH
 
     -- EVFCAP RO constant: VER & N_TASK & N_EV & N_CH, LIVE line counts.
@@ -322,10 +300,8 @@ begin
     gp_event <= or_red(gp_masked);
 
     /* Mode select, elaboration-static: EV_MODE_TGL(e)/EV_MODE_LVL(e) with `e` a generate constant is a globally static condition, so exactly one arm survives per index at synthesis.
-         T: one pulse per FLIP, both directions (XOR of the last two samples)
-         L: one pulse on the RISING edge only; a level that stays high forever fires exactly once
-         P: pass-through, NO flop, latency 1 preserved; a P input MUST be a ONE-mclk pulse in the clk domain, because a 2-cycle P input fires its channels twice by design
-       TGL wins over LVL if a bit is set in both, which is an illegal configuration and is not checked; index EV_GPIO_IDX is overridden by the GPIO0 path above and its ev_in bit is ignored entirely. */
+       T fires one pulse per flip, L one pulse on the rising edge only, P passes through with no flop. A P input MUST be a one-mclk pulse in the clk domain: a 2-cycle P input fires its channels twice.
+       TGL wins over LVL if a bit is set in both, which is illegal and unchecked; index EV_GPIO_IDX is overridden by the GPIO0 path above and its ev_in bit is ignored. */
     gen_front : for e in 0 to N_EV-1 generate
         -- The internally generated GPIO0 event replaces its tap entirely.
         gen_gpio_ev : if e = EV_GPIO_IDX generate

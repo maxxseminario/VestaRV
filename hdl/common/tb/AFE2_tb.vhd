@@ -1,9 +1,8 @@
-/* -----------------------------------------------------------------------------
-   AFE2_tb.vhd: self-checking bench for hdl/common/periph/AFE2.vhd, two sites on one 40 MHz mclk.
-   The converter is a behavioural model of the anatop_pixel_adc protocol, from SIM_STATUS 2.4 and the firmware contract section 4: one bit trial per falling edge of SARADC_clk, twelve falling edges per conversion (clear, sample, ten trials), READY raised right after the twelfth and held 100 ns, the raw bus valid only inside READY with bit 9 inverted (all ones outside it), and a 2 us quiet after reset release.
-   Checks: reset state, register read/write and the ctl bit map, the ownership gate, single conversion (12 falling edges, 50 ns period, code, tag), continuous mode and the FIFO, overflow, both interrupts, the simultaneous trigger across two sites, the READY timeout, the swap engine, CLKDIV, and EN = 0 abort.
-   Verdict: the periph_tb_pkg scoreboard banner, ALL CHECKS PASSED.
-   ----------------------------------------------------------------------------- */
+-- VestaRV: AFE2 testbench
+-- self-checking bench for hdl/common/periph/AFE2.vhd, two sites on one 40 MHz mclk.
+-- The converter is a behavioural model of the anatop_pixel_adc protocol, from SIM_STATUS 2.4 and the firmware contract section 4: one bit trial per falling edge of SARADC_clk, twelve falling edges per conversion (clear, sample, ten trials), READY raised right after the twelfth and held 100 ns, the raw bus valid only inside READY with bit 9 inverted (all ones outside it), and a 2 us quiet after reset release.
+-- Checks: reset state, register read/write and the ctl bit map, the ownership gate, single conversion (12 falling edges, 50 ns period, code, tag), continuous mode and the FIFO, overflow, both interrupts, the simultaneous trigger across two sites, the READY timeout, the swap engine, CLKDIV, and EN = 0 abort.
+-- Verdict: the periph_tb_pkg scoreboard banner, ALL CHECKS PASSED.
 
 library ieee;
 use ieee.std_logic_1164.all;

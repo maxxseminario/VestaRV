@@ -1,37 +1,14 @@
+-- VestaRV: DMA controller
+-- Multi-channel single-shot DMA with peripheral pacing and a CRC16-CDMA2000 ride-along, at base 0x6800; no pins.
+-- Two peripherals fused: an arbiter slave (register file, gated ClkMem) and an arbiter master (transfer engine, free-running clk, arb_* slice 4). The engine cannot ride ClkMem, which ticks only during a bus access; it must advance while the bus is idle.
+-- Master-port handshake, binding: raise m_req with m_we/m_addr/m_wdata stable, hold all of them through the m_done cycle, capture m_rdata on m_done, then drop m_req one clk later. A continuously high m_req across two words is a stale ghost that corrupts the arbiter IDLE pick.
+-- CHnERR (W1C) sets on a deny hit mid-flight, or at GO on LEN=0, a misaligned or out-of-window SRC/DST, or one inside the tile-private TCM hole. A rejected channel never runs; an abort sets neither CHnDONE nor CHnERR.
+-- VHDL-93 only: every process infers exactly one edge of one clock, and nothing uses falling_edge of EnMemPeriph.
+
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.std_logic_arith.all;
 use ieee.std_logic_unsigned.all;
-
-/* ===========================================================================
-   DMA: configurable multi-channel single-shot DMA controller with peripheral pacing and a CRC16-CDMA2000 ride-along, at base 0x6800. Zero pins.
-   Two peripherals fused: an arbiter SLAVE (the register file, on gated ClkMem) and an arbiter MASTER (the transfer engine, on free-running clk = MCLK, slice 4 of arb_*).
-   The engine CANNOT ride ClkMem, which ticks only during a bus access: it must advance autonomously while the bus is idle.
-   clk and ClkMem are the SAME mclk net at integration, so the only true metastability CDC is the three trigger inputs; every other ClkMem-to-clk hand-off is a toggle or a held quasi-static level, so the block stays correct even under a bench clk/ClkMem skew.
-   -V200X only (no VHDL-2008); every process infers exactly ONE edge of ONE clock, there are no clock gates or generated clocks, and nothing ever uses falling_edge of EnMemPeriph.
-   =========================================================================== */
-
-/* MASTER-PORT HANDSHAKE, binding: raise m_req with m_we/m_addr/m_wdata stable, HOLD all of them through the m_done cycle, capture m_rdata ON the m_done cycle, then drop m_req via an acked flop ONE clk after m_done.
-   At least one arbiter-observed m_req-low cycle must pass before any re-request; a continuously-high m_req across two words is a stale ghost that corrupts the arbiter IDLE pick.
-   Boundary depth 0: the DMA lives inside MCU fabric on mclk, not behind a tile boundary. */
-
--- ERROR MODEL: CHnERR (W1C) sets on a deny hit (mid-flight abort), or at GO on LEN=0, SRC/DST misaligned (bits 1:0 /= "00"), SRC/DST out of window (byte 0x20000 or above, bits 31:17 /= 0), or SRC/DST inside the tile-private TCM hole 0x8000-0xBFFF (bits 16:14 = "010").
--- A reject-at-GO channel never runs (busy never rises); irq_err asserts if ERRIE=1; an abort sets NEITHER CHnDONE nor CHnERR.
-
-/* Register map: base 0x6800, slot n at 0x6800 + 4n, decoded off MABPart(7:2).
-   The map is the 4-channel SUPERSET; absent channels (ch>=NCH) read 0 and ignore writes.
-     0  DMA0CR  : [0]DMAEN [4:1]CHnGO(w1 self-clearing, rd0) [8:5]CHnABORT(w1
-                  self-clearing, rd0) [12]DONEIE [13]ERRIE, rest rsvd rd0.
-     1  DMA0SR  : [0]BUSY ro [4:1]CHnDONE W1C [8:5]CHnERR W1C [11:9]ACTIVECH ro.
-     2..5   CH0 {SRC,DST,LEN,CFG};  6..9 CH1; 10..13 CH2; 14..17 CH3.
-       DMA0CnSRC/DST rw byte addr [16:0] (word-aligned), full written value
-         read back. DMA0CnLEN rw words, reads CURRENT REMAINING (the working
-         counter, 0 until the first GO). DMA0CnCFG: [0]SINC [1]DINC [5:2]TRIG
-         (0 mem2mem/1 UART0-RC/2 QSPI0-RXFULL/3 NFC0-frame) [6]PRIO [7]CRCEN.
-     18 DMA0CRC : rw [15:0] CRC16-CDMA2000 accumulator, reset 0xFFFF (seed by
-                  write before GO, result read after DONE; the engine folds it in clk).
-     19 DMA0DESC: reserved, reads 0 and writes ignored. Slots >=20 read 0.
-   =========================================================================== */
 
 entity DMA is
     generic (

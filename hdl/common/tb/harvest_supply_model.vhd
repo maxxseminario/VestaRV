@@ -1,8 +1,9 @@
-/* harvest_supply_model: behavioral bq25570-class energy-harvesting PMIC, with cold-start and boost charger, one storage node, the buck rail, a companion regulator rail and the VBAT_OK flag.
-   Engineering-units lumped-energy model, not an analog simulation: ports are natural mV/uA/uJ, internal state is a real storage voltage stepped by explicit Euler every TICK_PERIOD.
-   The part has exactly ONE buck, programmable only over 1.3 V to VSTOR-0.2 V, so a dual-rail chip needs a companion regulator; both rails hang off the one storage node modelled here.
-   Drive BOTH load_ua (rail A, the buck) and load_aux_ua (rail B, the companion) so the whole chip draw lands on that node; two instances of this model would double-count the storage element.
-   Not modelled: switching node, control loop, MPPT, thermal shutdown, ship mode, input-voltage regulation, and the VSTOR/VBAT pass PFET (the two are one node here). */
+-- VestaRV: harvesting PMIC model
+-- behavioral bq25570-class energy-harvesting PMIC, with cold-start and boost charger, one storage node, the buck rail, a companion regulator rail and the VBAT_OK flag.
+-- Engineering-units lumped-energy model, not an analog simulation: ports are natural mV/uA/uJ, internal state is a real storage voltage stepped by explicit Euler every TICK_PERIOD.
+-- The part has exactly ONE buck, programmable only over 1.3 V to VSTOR-0.2 V, so a dual-rail chip needs a companion regulator; both rails hang off the one storage node modelled here.
+-- Drive BOTH load_ua (rail A, the buck) and load_aux_ua (rail B, the companion) so the whole chip draw lands on that node; two instances of this model would double-count the storage element.
+-- Not modelled: switching node, control loop, MPPT, thermal shutdown, ship mode, input-voltage regulation, and the VSTOR/VBAT pass PFET (the two are one node here).
 
 library ieee;
 use ieee.std_logic_1164.all;

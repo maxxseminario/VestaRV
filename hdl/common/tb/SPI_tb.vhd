@@ -1,10 +1,9 @@
-/* -----------------------------------------------------------------------------
-   SPI_tb.vhd: standalone self-checking testbench for the SPI peripheral in its base configuration (ENABLE_EXTENDED_MEM = false), with the flash-side ports tied off inactive.
-   Coverage: register read/write, master transfers at 8/16/32 bits checked by MISO-driven-from-MOSI loopback, MSB-first and LSB-first ordering, CPOL idle level, busy/TC/TE flags with their interrupt lines and clear paths, and a basic slave-mode receive.
-   Support packages: periph_tb_pkg (scoreboard and register-bus BFM) and spi_bfm_pkg (external-master byte driver).
-   One free-running smclk drives both the SPI core and the gated register bus (clk_mem is smclk while en_mem is low).
-   Bus contract: en_mem and the per-lane wen are active-low, SR and RX return a snapshot latched on the falling edge of en_mem, and reading RX also clears the transmit-complete flag.
-   ----------------------------------------------------------------------------- */
+-- VestaRV: SPI testbench
+-- standalone self-checking testbench for the SPI peripheral in its base configuration (ENABLE_EXTENDED_MEM = false), with the flash-side ports tied off inactive.
+-- Coverage: register read/write, master transfers at 8/16/32 bits checked by MISO-driven-from-MOSI loopback, MSB-first and LSB-first ordering, CPOL idle level, busy/TC/TE flags with their interrupt lines and clear paths, and a basic slave-mode receive.
+-- Support packages: periph_tb_pkg (scoreboard and register-bus BFM) and spi_bfm_pkg (external-master byte driver).
+-- One free-running smclk drives both the SPI core and the gated register bus (clk_mem is smclk while en_mem is low).
+-- Bus contract: en_mem and the per-lane wen are active-low, SR and RX return a snapshot latched on the falling edge of en_mem, and reading RX also clears the transmit-complete flag.
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -128,7 +127,6 @@ begin
         end procedure;
 
     begin
-        ----------------------------------------------------------------
         -- Reset
         resetn <= '0';
         pbus   <= PERIPH_BUS_IDLE;
@@ -140,7 +138,6 @@ begin
         resetn <= '1';
         wait for 4 * PERIOD;
 
-        ----------------------------------------------------------------
         -- GROUP 1: reset / defaults / pad directions
         report "=== GROUP 1: reset & defaults ===" severity note;
 
@@ -164,7 +161,6 @@ begin
         sb.check_bit("miso_ren passthrough", miso_ren, '1');
         sck_ren_in <= '0'; mosi_ren_in <= '0'; miso_ren_in <= '0';
 
-        ----------------------------------------------------------------
         -- GROUP 2: control register read/write
         report "=== GROUP 2: control register ===" severity note;
 
@@ -174,7 +170,6 @@ begin
         sb.check_slv("CR upper bits read 0", rdw(31 downto 20), x"000");
         bus_write(smclk, pbus, RegSlotSPIxCR, x"00000000");
 
-        ----------------------------------------------------------------
         -- GROUP 3: master 8-bit transfer (loopback)
         report "=== GROUP 3: master 8-bit ===" severity note;
 
@@ -196,7 +191,6 @@ begin
         bus_read(smclk, pbus, read_data, RegSlotSPIxRX, rdw);
         sb.check_slv("RX == TX via loopback (0xA5)", rdw(7 downto 0), x"A5");
 
-        ----------------------------------------------------------------
         -- GROUP 4: master 16-bit and 32-bit transfers (loopback)
         report "=== GROUP 4: master 16/32-bit ===" severity note;
 
@@ -212,7 +206,6 @@ begin
         bus_read(smclk, pbus, read_data, RegSlotSPIxRX, rdw);
         sb.check_slv("RX == TX 32-bit (0xDEADBEEF)", rdw, x"DEADBEEF");
 
-        ----------------------------------------------------------------
         -- GROUP 5: MSB-first ordering (loopback should still echo)
         report "=== GROUP 5: MSB-first ===" severity note;
 
@@ -222,7 +215,6 @@ begin
         bus_read(smclk, pbus, read_data, RegSlotSPIxRX, rdw);
         sb.check_slv("RX == TX MSB-first (0x5A)", rdw(7 downto 0), x"5A");
 
-        ----------------------------------------------------------------
         -- GROUP 6: CPOL idle level
         report "=== GROUP 6: CPOL ===" severity note;
 
@@ -233,7 +225,6 @@ begin
         wait for 4 * PERIOD;
         sb.check_bit("SCK idles low (CPOL=0)", sck_out, '0');
 
-        ----------------------------------------------------------------
         -- GROUP 7: interrupt lines + flag clearing
         report "=== GROUP 7: interrupts ===" severity note;
 
@@ -254,7 +245,6 @@ begin
         bus_write(smclk, pbus, RegSlotSPIxCR, x"00000000");
         mloop <= '0';
 
-        ----------------------------------------------------------------
         -- GROUP 8: slave-mode receive
         report "=== GROUP 8: slave receive ===" severity note;
 
@@ -280,7 +270,6 @@ begin
         sb.check_bit("slave not busy while CS high", rdw(2), '0');
         bus_write(smclk, pbus, RegSlotSPIxCR, x"00000000");
 
-        ----------------------------------------------------------------
         -- Final verdict
         wait for 1 us;
         sb.report_summary("SPI TB");

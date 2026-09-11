@@ -1,12 +1,9 @@
-/* -----------------------------------------------------------------------------
-   OneWire_tb.vhd
-   -----------------------------------------------------------------------------
-   Self-checking testbench for the 1-Wire master peripheral (periph/OneWire.vhd), declared here as a COMPONENT so the bench compiles standalone; VHDL default binding resolves it once OneWire.vhd is analyzed into the work library.
-   One clock family: clk, bound to MCLK at integration, hosts the whole protocol engine, and ClkMem is the gated register-bus clock (clk while pbus.en_mem = '0', else '0').
-   dq_bus is open-drain wired-AND: the DUT pulls low through OW_DQ_DIR (OW_DQ_OUT is fixed '0'), the model through its own dq_oe/dq_out, and a weak 'H' pull idles the net high.
-   The target model times the master's driven-low pulses off OW_DQ_DIR (its mon_dir input), never off the resolved net: in a READ slot the model may also be driving, so the net cannot say who pulled it low.
-   Groups run in order and end with the mandatory negative control, so a healthy run reports EXACTLY ONE failure.
-   ----------------------------------------------------------------------------- */
+-- VestaRV: 1-Wire testbench
+-- Self-checking testbench for the 1-Wire master peripheral (periph/OneWire.vhd), declared here as a COMPONENT so the bench compiles standalone; VHDL default binding resolves it once OneWire.vhd is analyzed into the work library.
+-- One clock family: clk, bound to MCLK at integration, hosts the whole protocol engine, and ClkMem is the gated register-bus clock (clk while pbus.en_mem = '0', else '0').
+-- dq_bus is open-drain wired-AND: the DUT pulls low through OW_DQ_DIR (OW_DQ_OUT is fixed '0'), the model through its own dq_oe/dq_out, and a weak 'H' pull idles the net high.
+-- The target model times the master's driven-low pulses off OW_DQ_DIR (its mon_dir input), never off the resolved net: in a READ slot the model may also be driving, so the net cannot say who pulled it low.
+-- Groups run in order and end with the mandatory negative control, so a healthy run reports EXACTLY ONE failure.
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -109,21 +106,17 @@ architecture sim of OneWire_tb is
 
 begin
 
-    ----------------------------------------------------------------------------
     -- Free-running clock and the gated register-bus clock.
     clk    <= not clk after PERIOD / 2;
     ClkMem <= clk when pbus.en_mem = '0' else '0';
 
-    /* --------------------------------------------------------------------------
-       dq_bus resolution: the DUT drives when OW_DQ_DIR='1' (OW_DQ_OUT is fixed '0'), the model when its own dq_oe='1', otherwise a weak 'H' pull holds the net (any '0' wins).
-       -------------------------------------------------------------------------- */
+    -- dq_bus resolution: the DUT drives when OW_DQ_DIR='1' (OW_DQ_OUT is fixed '0'), the model when its own dq_oe='1', otherwise a weak 'H' pull holds the net (any '0' wins).
     dq_bus <= dut_dq_out   when dut_dq_dir = '1' else 'Z';
     dq_bus <= model_dq_out when model_dq_oe = '1' else 'Z';
     dq_bus <= 'H';
     -- The DUT samples the resolved node to_X01-normalized; without this the idle weak 'H' is stored verbatim into rx_shift, where it fails an exact std_logic '1' compare.
     dq_bus_x01 <= to_X01(dq_bus);
 
-    ----------------------------------------------------------------------------
     -- DUT.
     dut : component OneWire
         port map (
@@ -141,9 +134,7 @@ begin
             OW_DQ_DIR   => dut_dq_dir
         );
 
-    /* --------------------------------------------------------------------------
-       1-Wire target model: its pulse-width reference is the DUT's own OW_DQ_DIR (mon_dir), never the resolved bus.
-       -------------------------------------------------------------------------- */
+    -- 1-Wire target model: its pulse-width reference is the DUT's own OW_DQ_DIR (mon_dir), never the resolved bus.
     model : component OneWire_target_model
         port map (
             mon_dir            => dut_dq_dir,
@@ -165,9 +156,7 @@ begin
             obs_viol_rl   => obs_viol_rl
         );
 
-    /* --------------------------------------------------------------------------
-       Watchdog: abort with a FAIL banner if the stimulus hangs; the expected sim time is a small fraction of this budget, so it fires only on a true hang.
-       -------------------------------------------------------------------------- */
+    -- Watchdog: abort with a FAIL banner if the stimulus hangs; the expected sim time is a small fraction of this budget, so it fires only on a true hang.
     watchdog : process
     begin
         wait for 20 ms;
@@ -182,9 +171,7 @@ begin
         wait;
     end process;
 
-    /* --------------------------------------------------------------------------
-       Stimulus and checks: one thread, groups in order.
-       -------------------------------------------------------------------------- */
+    -- Stimulus and checks: one thread, groups in order.
     stim_proc : process
         variable rdw     : std_logic_vector(31 downto 0);
         variable ok      : boolean;
@@ -230,7 +217,6 @@ begin
         end procedure;
 
     begin
-        ------------------------------------------------------------------
         -- Reset.
         resetn <= '0';
         pbus   <= PERIPH_BUS_IDLE;
@@ -239,7 +225,6 @@ begin
         resetn <= '1';
         wait for 8 * PERIOD;
 
-        ------------------------------------------------------------------
         report "=== GROUP G0: reset defaults ===" severity note;
         bus_read(clk, pbus, rdata_out, OW_SLOT_CR, rdw);
         sb.check_slv("G0: CR resets to 0", rdw, x"00000000");
@@ -258,9 +243,7 @@ begin
         -- Program the compression divisor, after the reset-default checks that need DIV at 0 and before any protocol op, so every tick below is OW0DIV_VAL+1 clk and the DQ sync stays sub-tick even in overdrive.
         bus_write(clk, pbus, OW_SLOT_DIV, std_logic_vector(to_unsigned(OW0DIV_VAL, 32)));
 
-        /* ----------------------------------------------------------------
-           Also proves the launch-suppress contract: command content is always captured, but launch (BUSY) is suppressed while OWEN=0.
-           ---------------------------------------------------------------- */
+        -- Also proves the launch-suppress contract: command content is always captured, but launch (BUSY) is suppressed while OWEN=0.
         report "=== GROUP G1: reset / presence ===" severity note;
 
         -- OWEN=0: launch a distinctive WRBIT(1) command; the content is captured but nothing launches, so no BUSY and no bus activity.
@@ -303,9 +286,7 @@ begin
         sb.check_bit("G1: TCIF=1 at completion (no-device leg)", to_X01(rdw(OW_SR_TCIF)), '1');
         ow_w1c(x"0000000A");   -- W1C TCIF|NOPRES
 
-        /* ----------------------------------------------------------------
-           The asymmetric byte 0x0F proves LSB-first order: a reversed capture would read back 0xF0.
-           ---------------------------------------------------------------- */
+        -- The asymmetric byte 0x0F proves LSB-first order: a reversed capture would read back 0xF0.
         report "=== GROUP G2: write byte ===" severity note;
         bus_write(clk, pbus, OW_SLOT_TX, x"0000000F");
         ow_arm(OW_OP_WRBYTE, '0', true, false, x"00", false);
@@ -321,9 +302,7 @@ begin
         sb.check_bit("G2: TCIF=1 at completion", to_X01(rdw(OW_SR_TCIF)), '1');
         ow_w1c(x"00000002");
 
-        /* ----------------------------------------------------------------
-           The asymmetric pattern 0x3C proves LSB-first assembly.
-           ---------------------------------------------------------------- */
+        -- The asymmetric pattern 0x3C proves LSB-first assembly.
         report "=== GROUP G3: read byte ===" severity note;
         ow_arm(OW_OP_RDBYTE, '0', true, false, x"3C", false);
         ow_launch(OW_OP_RDBYTE, '0');
@@ -336,7 +315,6 @@ begin
         sb.check_bit("G3: TCIF=1 at completion", to_X01(rdw(OW_SR_TCIF)), '1');
         ow_w1c(x"00000002");
 
-        ------------------------------------------------------------------
         report "=== GROUP G4: bit ops ===" severity note;
 
         -- WRBIT 0 then WRBIT 1.
@@ -373,7 +351,6 @@ begin
         sb.check_bit("G4: RDBIT result 1", to_X01(rdw(0)), '1');
         ow_w1c(x"00000002");
 
-        ------------------------------------------------------------------
         report "=== GROUP G5: overdrive re-run ===" severity note;
         ow_set_cr('1', '1', '0', '0');   -- ODS=1, latched at the next launch
 
@@ -407,7 +384,6 @@ begin
 
         ow_set_cr('1', '0', '0', '0');   -- back to STD for the remaining groups
 
-        ------------------------------------------------------------------
         report "=== GROUP G6: error / short ===" severity note;
 
         -- SHORT: stuck-low onset after the tPRES sample window closes but before tRSTH's recovery check, so SHORT sets and NOPRES is suppressed.
@@ -434,9 +410,7 @@ begin
                      to_X01(rdw(OW_SR_SHORT)), '0');
         ow_w1c(x"00000002");
 
-        /* ----------------------------------------------------------------
-           irq_ow = (TCIF & TCIE) or ((NOPRES|SHORT) & ERRIE), combinational.
-           ---------------------------------------------------------------- */
+        -- irq_ow = (TCIF & TCIE) or ((NOPRES|SHORT) & ERRIE), combinational.
         report "=== GROUP G7: IRQ demux / W1C ===" severity note;
 
         -- TCIE only.
@@ -488,9 +462,7 @@ begin
                      to_X01(irq_ow), '0');
         ow_w1c(x"0000000A");
 
-        /* ----------------------------------------------------------------
-           Mandatory negative control, LAST: exactly ONE deliberately wrong expected value, PRES at the wrong polarity after a clean, present RESET.
-           ---------------------------------------------------------------- */
+        -- Mandatory negative control, LAST: exactly ONE deliberately wrong expected value, PRES at the wrong polarity after a clean, present RESET.
         report "=== GROUP G-NEG: NEGATIVE CONTROL ===" severity note;
         ow_set_cr('1', '0', '0', '0');
         ow_arm(OW_OP_RESET, '0', true, false, x"00", false);
@@ -501,7 +473,6 @@ begin
                      to_X01(rdw(OW_SR_PRES)), '0');
         ow_w1c(x"00000002");
 
-        ------------------------------------------------------------------
         -- Final verdict: sb.errors must be EXACTLY 1, the negative control.
         wait for 1 us;
         sb.report_summary("ONEWIRE TB");

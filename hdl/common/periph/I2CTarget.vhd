@@ -1,18 +1,17 @@
+-- VestaRV: I2C target
+-- Hardware-autonomous I2C slave, one instance I2CT0 at base 0x6A00, sharing the SDA0/SCL0 pad planes with I2C0 through a wired-AND DIR merge.
+-- 7-bit address match with mask wildcard and general call, byte-at-a-time RX/TX with ready/empty status, optional clock stretching, START/STOP/repeated-START/NACK framing flags and a stuck-SCL watchdog.
+-- Two open-drain pins, DIR only: the MCU ties SDA/SCL OUT to '0', so DIR '1' pulls the line low and '0' releases it, and the lines are never driven high.
+-- Two combined IRQs, each (status AND enable) and never latched: vector 122 address/error, vector 123 tx-ready/rx-full.
+-- One clock family: the whole engine is mclk-synchronous, SDA_IN/SCL_IN are pure data through 2-FF syncs, and nothing uses falling_edge.
+
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.std_logic_arith.all;
 use ieee.std_logic_unsigned.all;
--- Word slots inside this peripheral's 256B window (decoded from MABPart(7:2)),
--- field ranges, resets and implemented-bit masks, generated from
--- hdl/common/regs/rdl/i2ctarget.rdl (tools/rdl/README.md). I2CTarget is not
--- in MemoryMap.vhd; SLOT_CR .. SLOT_WDG were file-local constants until then.
+-- Word slots, field ranges, resets and implemented-bit masks: generated from hdl/common/regs/rdl/i2ctarget.rdl.
 use work.i2ctarget_regs_pkg.all;
 
-/* I2CTarget: hardware-autonomous I2C target (slave), one instance I2CT0 at base 0x6A00, sharing the SDA0/SCL0 pad planes with I2C0 through a wired-AND DIR merge.
-   7-bit address match with mask wildcard and general call, byte-at-a-time RX/TX with ready/empty status, optional clock stretching, START/STOP/repeated-START/NACK framing flags and a stuck-SCL watchdog.
-   Two open-drain pins, DIR-only: the MCU ties SDA/SCL OUT to '0', so DIR '1' pulls the line low and '0' releases it, and the lines are NEVER driven high.
-   Two combined IRQs, each (status AND enable) and never latched: vector 122 I2CT0_AE (address/error) and vector 123 I2CT0_DATA (tx-ready/rx-full).
-   ONE clock family: the whole engine is mclk-synchronous, every process infers exactly one edge of one clock, SDA_IN/SCL_IN are PURE DATA through 2-FF syncs, and nothing anywhere uses falling_edge, least of all of EnMemPeriph. */
 
 entity I2CTarget is
     port (
@@ -39,12 +38,6 @@ end I2CTarget;
 
 architecture behavioral of I2CTarget is
 
-    /* ---- word-slot map (slot n at base + 4n, decoded off MABPart(7:2); slots >=5 read 0) ----
-         0 I2CTCR  : [0]EN [1]GCEN [2]CSEN [3]AEIE [4]DATAIE [14:8]SAD[6:0] [22:16]SADM[6:0]; rest reserved read 0.
-         1 I2CTSR  : [0]BUSY r [1]TM r [2]AMF [3]GCF [4]RXF [5]TXE r [6]OVF [7]NACKF [8]STOPF [9]RSTARTF [10]ERRF; W1C unless marked r, 31:11 reserved read 0.
-         2 I2CTTX  : [7:0] next transmit byte, reads back the last value; a lane-0 write loads the buffer and clears TXE.
-         3 I2CTRX  : [7:0] last received byte, side-effect-free read.
-         4 I2CTWDG : [15:0] WDTO, the SCL-low watchdog timeout in units of 256 clk; 0 disables it, and that is the reset value. */
 
     -- ---- FSM states (plus a bit counter and a 2-bit ACK sub-phase) --------
     type t_i2ct_state is (T_IDLE, T_ADDR, T_ACK_ADDR, T_RX_DATA, T_ACK_RX,

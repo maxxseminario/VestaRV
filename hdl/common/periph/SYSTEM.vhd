@@ -1,13 +1,15 @@
+-- VestaRV: system controller
+-- Clock, reset, CRC and watchdog monarchy: selects and divides mclk/smclk from LFXT, HFXT and the two DCOs, owns resetn_sys, trims the DCO bias, and gates the memory banks.
+-- Gating a memory bank loses its contents; there is no retention, so running software must keep its stack and payload bank on.
+-- IRQ routing and masking live in the irq_router rows at 0x7000, not here: the SYS_IRQ_EN/PRI/CR slots are reserved, writes ignored and reads 0.
+
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.std_logic_arith.all;
 use ieee.std_logic_unsigned.all;
 library work;
 use work.constants.all;
--- Word offsets, field ranges, resets and implemented-bit masks, generated from
--- hdl/common/regs/rdl/system.rdl (tools/rdl/README.md). It declares the same
--- RegSlotSYS_* constants work.MemoryMap did, so this REPLACES that clause:
--- using both would make every slot name an ambiguous homograph.
+-- Word offsets, field ranges, resets and implemented-bit masks: generated from hdl/common/regs/rdl/system.rdl, which replaces the work.MemoryMap clause (both would make every slot name an ambiguous homograph).
 use work.system_regs_pkg.all;
 
 entity SYSTEM is

@@ -1,31 +1,19 @@
+-- VestaRV: real-time clock
+-- 32.768 kHz always-on wall clock with a one-shot alarm and a recurring periodic tick, behind one combined IRQ (vector 114).
+-- Three clocks: ungated lfxt_in (counter, alarm, tick, commit apply), free-running clk (LFXT-into-bus synchronizers, sticky flags, IRQ) and gated ClkMem (register file). clk must free-run so ALMF, TICKF and irq_rtc set with no bus access in flight; lfxt_in is always on and neither firmware nor PWRCTRL can stop it.
+-- Every domain hand-off is a toggle or a held quasi-static level: no async clear crosses a domain, and no clock is gated, divided or generated here.
+-- SEC and SUB read one coherent snapshot of the same instant; a SEC write commits the staged SEC/SUB pair atomically, with SR.SYNC busy meanwhile.
+-- EnMemPeriph is an active-low level qualifier, never a clock and never an edge.
+
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.std_logic_arith.all;
 use ieee.std_logic_unsigned.all;
 
--- Word slots inside this peripheral's 256B window (decoded from MABPart(7:2)),
--- field ranges, resets and implemented-bit masks, generated from
--- hdl/common/regs/rdl/rtc.rdl (tools/rdl/README.md). RTC is not in
--- MemoryMap.vhd; SLOT_CR .. SLOT_TRIM were file-local constants until then.
+-- Word slots, field ranges, resets and implemented-bit masks: generated from hdl/common/regs/rdl/rtc.rdl.
 use work.rtc_regs_pkg.all;
 
-/* RTC: 32.768 kHz always-on wall clock with a one-shot alarm and a recurring periodic tick, behind one combined IRQ (vector 114).
-   Three clocks: ungated lfxt_in (counter, alarm, tick, commit apply), free-running clk (LFXT-into-bus synchronizers, sticky flags, IRQ), gated ClkMem (register file).
-   clk must free-run so ALMF, TICKF and irq_rtc set with no bus access in flight; lfxt_in is always on, and neither firmware nor PWRCTRL can stop it.
-   Every domain hand-off is a toggle or a held quasi-static level: no async clear ever crosses a domain, and no clock is gated, divided or generated in this block.
-   EnMemPeriph is an active-low level qualifier only, never a clock and never an edge; reads are registered on rising ClkMem over already-synchronized data, so no read bridge is needed. */
 
-/* Register map (base 0x6500, slot n at 0x6500 + 4n, decoded off MABPart(7:2)):
-     0 RTC0CR   : [0]RTCEN [1]ALMEN [2]TICKEN [3]ALMIE [4]TICKIE, 31:5 rsvd read 0.
-     1 RTC0SEC  : read returns the coherent snapshot snap_sync[46:15]; write stages SEC and
-                  commits {SEC,SUB} atomically (SR.SYNC busy), lane-0 qualified.
-     2 RTC0SUB  : read returns snap_sync[14:0] zero-extended, the SAME instant as SEC; write
-                  stages only and is committed by the following SEC write, lane-0 qualified.
-     3 RTC0ALM  : read returns the mclk staging readback (no CDC); write stages and commits ALM.
-     4 RTC0PER  : [15:0] reload; read returns the staging readback, write stages and commits PER.
-                  Tick every per_live+1 lfxt ticks, so about 2 s maximum interval.
-     5 RTC0SR   : [0]SYNC ro, [1]ALMF W1C, [2]TICKF W1C, 31:3 rsvd read 0.
-     6 RTC0TRIM : reserved: reads 0, writes ignored. Slots 7 and above read 0. */
 
 entity RTC is
     port (

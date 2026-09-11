@@ -1,11 +1,8 @@
-/* -----------------------------------------------------------------------------
-   periph_tb_pkg.vhd
-   -----------------------------------------------------------------------------
-   Shared support for the peripheral testbenches: img / crc16_byte formatting and reference models, a self-checking scoreboard, and the peripheral register-bus record with its BFM.
-   The bus is narrow and active-low: b.en_mem selects, b.wen writes, b.addr_periph is the word-slot index, and read_data is observed directly off the DUT.
-   Each bench keeps its own gated memory-bus clock, since it depends on that bench's reference clock: clk_mem gets clk while b.en_mem is '0', else '0'.
-   Sharp edges of this bus: the gated clk_mem, SR reads that snapshot on select, and clear pulses that stick until the next access.
-   ----------------------------------------------------------------------------- */
+-- VestaRV: peripheral bench support package
+-- Shared support for the peripheral testbenches: img / crc16_byte formatting and reference models, a self-checking scoreboard, and the peripheral register-bus record with its BFM.
+-- The bus is narrow and active-low: b.en_mem selects, b.wen writes, b.addr_periph is the word-slot index, and read_data is observed directly off the DUT.
+-- Each bench keeps its own gated memory-bus clock, since it depends on that bench's reference clock: clk_mem gets clk while b.en_mem is '0', else '0'.
+-- Sharp edges of this bus: the gated clk_mem, SR reads that snapshot on select, and clear pulses that stick until the next access.
 
 library ieee;
 use ieee.std_logic_1164.all;

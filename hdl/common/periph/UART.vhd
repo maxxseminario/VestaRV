@@ -1,16 +1,15 @@
+-- VestaRV: UART
+-- 16x oversampled receiver, optional parity, memory-mapped CR/SR/BR/TX/RX.
+-- The serial side runs on gated baud clocks; every firmware-visible flag is a sticky W1C bit in the clk_mem domain.
+
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 library work;
 use work.constants.all;
--- Word offsets, field ranges, resets and implemented-bit masks, generated from
--- hdl/common/regs/rdl/uart.rdl (tools/rdl/README.md). It declares the same
--- RegSlotUARTx* constants work.MemoryMap did, so this REPLACES that clause:
--- using both would make every slot name an ambiguous homograph.
+-- Word offsets, field ranges, resets and implemented-bit masks: generated from hdl/common/regs/rdl/uart.rdl, which replaces the work.MemoryMap clause (both would make every slot name an ambiguous homograph).
 use work.uart_regs_pkg.all;
 
--- UART with a 16x oversampled receiver, optional parity, and memory-mapped CR/SR/BR/TX/RX registers.
--- The serial side runs on gated baud clocks; every firmware-visible flag is a sticky W1C bit in the clk_mem domain.
 entity UART is
     port
     (
@@ -48,9 +47,7 @@ end entity UART;
 
 architecture Behavioral of UART is
 
-    /* =============================================================================
-       Constants
-       ============================================================================= */
+    -- Constants
     constant BAUD_COUNTER_RESET : std_logic_vector(11 downto 0) := (others => '0');
     constant TX_CLOCK_RESET     : std_logic_vector(3 downto 0) := (others => '0');
     constant TX_CLOCK_MAX       : std_logic_vector(3 downto 0) := (others => '1');
@@ -61,9 +58,7 @@ architecture Behavioral of UART is
     constant BIT_COUNT_PARITY   : std_logic_vector(3 downto 0) := "0001";
     constant BIT_COUNT_STOP     : std_logic_vector(3 downto 0) := "0000";
 
-    /* =============================================================================
-       Memory-Mapped Registers
-       ============================================================================= */
+    -- Memory-Mapped Registers
     signal UART_CR : std_logic_vector(5 downto 0);
     signal UART_SR : std_logic_vector(7 downto 0);
     signal UART_RX : std_logic_vector(7 downto 0);
@@ -72,9 +67,7 @@ architecture Behavioral of UART is
     signal UART_SR_ltch : std_logic_vector(7 downto 0); -- Latched version for reading
     signal UART_RX_ltch : std_logic_vector(7 downto 0); -- Latched version for reading
 
-    /* =============================================================================
-       UART Control Register Bit Definitions
-       ============================================================================= */
+    -- UART Control Register Bit Definitions
     signal UCR_EN   : std_logic; -- UART Enable
     signal UCR_PEN  : std_logic; -- Parity Enable
     signal UCR_PSEL : std_logic; -- Parity Select (0 = Even, 1 = Odd)
@@ -82,9 +75,7 @@ architecture Behavioral of UART is
     signal UCR_TEIE : std_logic; -- TX Empty Interrupt Enable
     signal UCR_TCIE : std_logic; -- TX Complete Interrupt Enable
 
-    /* =============================================================================
-       UART Status Register Bit Definitions
-       ============================================================================= */
+    -- UART Status Register Bit Definitions
     signal USR_RX_busy : std_logic; -- RX Busy Flag
     signal USR_TX_busy : std_logic; -- TX Busy Flag
     signal USR_FEF     : std_logic; -- Framing Error Flag
@@ -94,14 +85,10 @@ architecture Behavioral of UART is
     signal USR_UTEIF   : std_logic; -- TX Empty Interrupt Flag
     signal USR_UTCIF   : std_logic; -- TX Complete Interrupt Flag
 
-    /* =============================================================================
-       Memory Interface Signals
-       ============================================================================= */
+    -- Memory Interface Signals
     signal en_addr_periph : natural range 0 to 63; -- Decoded register slot index, valid while en_mem is low
 
-    /* =============================================================================
-       Clock Generation Signals
-       ============================================================================= */
+    -- Clock Generation Signals
     signal en_baud_clk_src : std_logic;
     signal baud_clk_src : std_logic;
     signal en_clk_baud : std_logic;
@@ -110,9 +97,7 @@ architecture Behavioral of UART is
     signal clk_tx : std_logic;
     signal baud_cntr : std_logic_vector(11 downto 0);
 
-    /* =============================================================================
-       UART Transmitter Signals
-       ============================================================================= */
+    -- UART Transmitter Signals
     signal tx_sr : std_logic_vector(8 downto 0); -- TX Shift Register 
     signal tx_in_progress : std_logic;
     signal start_tx : std_logic;
@@ -121,9 +106,7 @@ architecture Behavioral of UART is
     signal tx_bit_cntr : std_logic_vector(3 downto 0);
     signal tx_parity : std_logic;
 
-    /* =============================================================================
-       UART Receiver Signals
-       ============================================================================= */
+    -- UART Receiver Signals
     signal rx_sr : std_logic_vector(8 downto 0); -- RX Shift Register
     signal rx_in_progress : std_logic;
     signal clr_rx_in_progress : std_logic;
@@ -134,18 +117,14 @@ architecture Behavioral of UART is
     signal ud_cntr_next : std_logic_vector(5 downto 0);
     signal rx_in_prev : std_logic; -- Previous RX input state
 
-    /* =============================================================================
-       Control and Status Signals
-       ============================================================================= */
+    -- Control and Status Signals
     signal clr_SR_RX : std_logic; -- Clear RX flags in Status Register
     signal clr_UTEIF : std_logic; -- Clear TX Empty Interrupt Flag
     signal clr_UTCIF : std_logic; -- Clear TX Complete Interrupt Flag
     signal clr_URCIF : std_logic; -- Clear RX Complete Interrupt Flag
 
-    /* =============================================================================
-       Flag CDC: the USR_* flags are STICKY W1C registers in the clk_mem domain and must never be asynchronously cleared from a gated serial clock (an async-clear release racing a gated edge is a metastability / lost-clear window).
-       Serial-side events cross as toggles through 2-FF synchronizers, frame status (FEF/PEF) rides as a payload stable while its toggle is in flight, and start_tx is consumed through a toggle-ACK handshake.
-       ============================================================================= */
+    -- Flag CDC: the USR_* flags are STICKY W1C registers in the clk_mem domain and must never be asynchronously cleared from a gated serial clock (an async-clear release racing a gated edge is a metastability / lost-clear window).
+    -- Serial-side events cross as toggles through 2-FF synchronizers, frame status (FEF/PEF) rides as a payload stable while its toggle is in flight, and start_tx is consumed through a toggle-ACK handshake.
     signal tx_done_tgl     : std_logic; -- clk_tx domain: TX-complete event toggle
     signal tx_empty_tgl    : std_logic; -- clk_tx domain: TX-empty event toggle
     signal tx_start_ack_tgl: std_logic; -- clk_tx domain: start_tx consumed toggle
@@ -162,9 +141,7 @@ architecture Behavioral of UART is
 
 begin
 
-    /* =============================================================================
-       Register Bit Assignments
-       ============================================================================= */
+    -- Register Bit Assignments
     
     -- UART Control Register Bit Mapping
     UCR_EN   <= UART_CR(5);  -- UART Enable
@@ -184,16 +161,12 @@ begin
     UART_SR(1) <= USR_UTEIF;   -- TX Empty Interrupt Flag
     UART_SR(0) <= USR_UTCIF;   -- TX Complete Interrupt Flag
 
-    /* =============================================================================
-       Interrupt Outputs
-       ============================================================================= */
+    -- Interrupt Outputs
     irq_rc <= UCR_CIE and USR_RCIF;
     irq_te <= UCR_TEIE and USR_UTEIF;
     irq_tc <= UCR_TCIE and USR_UTCIF;
 
-    /* =============================================================================
-       Baud Rate Clock Generation
-       ============================================================================= */
+    -- Baud Rate Clock Generation
     
     -- Enable baud clock source when UART is active
     en_baud_clk_src <= UCR_EN and (tx_in_progress or rx_in_progress or start_tx or clr_rx_in_progress);
@@ -233,9 +206,7 @@ begin
         ClkOut => clk_baud
     );
 
-    /* =============================================================================
-       UART Transmitter Section
-       ============================================================================= */
+    -- UART Transmitter Section
     
     -- TX Clock Generation Process
     tx_clock_gen_proc: process(resetn, clk_baud, UCR_EN)
@@ -352,9 +323,7 @@ begin
         end if;     
     end process;
 
-    /* =============================================================================
-       UART Receiver Section
-       ============================================================================= */
+    -- UART Receiver Section
 
 
     -- RX start-bit detection, synchronous on the FALLING edge of clk; do not re-time it.
@@ -451,16 +420,12 @@ begin
 
     end process;
 
-    /* =============================================================================
-       Status Signal Assignments
-       ============================================================================= */
+    -- Status Signal Assignments
     USR_RX_busy <= rx_in_progress;
     USR_TX_busy <= tx_in_progress or start_tx;
 
-    /* =============================================================================
-       Bus-domain flag block: toggle synchronizers plus sticky W1C flags, all clk_mem-synchronous, so the clr_* pulses are consumed in the SAME domain that generates them.
-       Ordering inside the process is clears first, event sets last, so a set coinciding with a clear WINS and an event is never lost.
-       ============================================================================= */
+    -- Bus-domain flag block: toggle synchronizers plus sticky W1C flags, all clk_mem-synchronous, so the clr_* pulses are consumed in the SAME domain that generates them.
+    -- Ordering inside the process is clears first, event sets last, so a set coinciding with a clear WINS and an event is never lost.
     flags_cdc_proc: process(resetn, clk_mem)
     begin
         if resetn = '0' then
@@ -524,18 +489,15 @@ begin
     -- One clk_mem pulse per received frame; it fires even when RCIF was already set (overrun), and no IRQ enable ever touches it.
     evt_rx <= '1' when rx_done_s2 /= rx_done_s3 else '0';
 
-    /* =============================================================================
-       Pad Control Assignments
-       ============================================================================= */
+    -- Pad Control Assignments
     TX_DIR <= '1'; -- TX pad in output mode
     TX_REN <= '0'; -- Disable pull resistor
     RX_OUT <= '0'; -- RX_OUT not used
     RX_DIR <= '0'; -- RX pad in input mode
     RX_REN <= '0'; -- Disable pull resistor
 
-    /* =============================================================================
+    /*
        Register Synchronization for Memory Interface
-       =============================================================================
        Latch SR and RX, stored inverted, at the end of a bus access so a read returns a stable snapshot. */
     reg_sync: process(en_mem, UART_RX, UART_SR)
     begin
@@ -545,9 +507,7 @@ begin
         end if;
     end process;
 
-    /* =============================================================================
-       Memory-Mapped Register Interface
-       ============================================================================= */
+    --    Memory-Mapped Register Interface
     
     -- Address decoding
     en_addr_periph <= slv2uint(addr_periph) when en_mem = '0' else 0;

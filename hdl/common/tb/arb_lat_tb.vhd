@@ -1,8 +1,9 @@
-/* arb_lat_tb: proves the shared-bus protocol is LATENCY-INSENSITIVE, i.e. that it still holds with every master-side signal piped through N_DELAY boundary registers each way, as a hardened tile boundary does.
-   Wires mp_arbiter, resv_unit, mutex_bank and a 1-cycle shared-RAM model behind those pipes: req/we/addr/wdata/lock/lrsc outbound, gnt/done/rdata/scfail inbound, ALL at ONE depth.
-   Masters are tile-accurate BFMs (req held THROUGH the done cycle, dropped one clock later); checkers are per-master scoreboards, grant mutual exclusion, locked-pair critical section, ghost-done and final counter totals.
-   Negative controls via BREAK_MODE: 1 drops the AMO lock early on master 0, so the counter check must FAIL; 2 pipes req one stage SHALLOWER than addr/wdata (needs N_DELAY>0) so the pick edge samples stale context and the scoreboard must FAIL.
-   Skewing the other way, addr early and req on time, is provably benign and proves nothing: the master holds addr stable across the whole transaction. Only BREAK_MODE=0 is PASS-eligible, and the banner is "ALL CHECKS PASSED". */
+-- VestaRV: latency-insensitive shared-bus testbench
+-- proves the shared-bus protocol is LATENCY-INSENSITIVE, i.e. that it still holds with every master-side signal piped through N_DELAY boundary registers each way, as a hardened tile boundary does.
+-- Wires mp_arbiter, resv_unit, mutex_bank and a 1-cycle shared-RAM model behind those pipes: req/we/addr/wdata/lock/lrsc outbound, gnt/done/rdata/scfail inbound, ALL at ONE depth.
+-- Masters are tile-accurate BFMs (req held THROUGH the done cycle, dropped one clock later); checkers are per-master scoreboards, grant mutual exclusion, locked-pair critical section, ghost-done and final counter totals.
+-- Negative controls via BREAK_MODE: 1 drops the AMO lock early on master 0, so the counter check must FAIL; 2 pipes req one stage SHALLOWER than addr/wdata (needs N_DELAY>0) so the pick edge samples stale context and the scoreboard must FAIL.
+-- Skewing the other way, addr early and req on time, is provably benign and proves nothing: the master holds addr stable across the whole transaction. Only BREAK_MODE=0 is PASS-eligible, and the banner is "ALL CHECKS PASSED".
 
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
@@ -258,6 +259,7 @@ end architecture;
 
 -- Testbench top, outbound: BFMs, N_DELAY boundary registers, mp_arbiter plus resv_unit, then either the shared RAM or mutex_bank.
 -- Inbound: the same path back through N_DELAY registers to the BFMs.
+
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.STD_LOGIC_ARITH.ALL;
