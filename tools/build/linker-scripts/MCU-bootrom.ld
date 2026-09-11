@@ -113,8 +113,12 @@ SECTIONS
 	} > RAM
 	
 	/* The stack is not an output section: start.S loads sp directly with
-	   SP_INIT_VAL, the top word of the private TCM.  Reserve the top of RAM for
-	   it so that the ASSERT below can catch anything growing up into it. */
+	   SP_INIT_VAL, which is _stack_top -- ORIGIN(RAM) + LENGTH(RAM) = 0xA000,
+	   ONE PAST the top of the private TCM, because the push convention (and
+	   vesta's IRQ_SV) stores at sp-4 and then decrements.  Reserve the top of
+	   RAM for it so that the ASSERT below can catch anything growing up into
+	   it.  Until 2026-09-05 start.S used 0xBFFC instead, which is the same
+	   array seen through the mirror and put the first push at 0x9FF8. */
 	_stack_size  = 1K;
 	_stack_top   = ORIGIN(RAM) + LENGTH(RAM);
 	_stack_limit = _stack_top - _stack_size;

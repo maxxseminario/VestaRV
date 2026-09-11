@@ -43,20 +43,36 @@ extern "C" {
 #define PERIPH_GPIO2_BASE       0x4800   
 #define PERIPH_SYSTEM0_BASE     0x4900
 #define PERIPH_NPU0_BASE        0x4A00
-#define PERIPH_SARADC0_BASE     0x4B00
-#define PERIPH_AFE0_BASE        0x4C00
+// PERIPH_SARADC0_BASE IS GONE (2026-09-05, report 08 finding 8). It named
+// 0x4B00, which on this chip is PWRCTRL (MemoryMap.vhd:1020 PeriphSlotPWRCTRL
+// = 11, start.S:63 PWRCTRL_BASE), so a firmware author's "SARADC" write landed
+// on PWRCR and blind-gated the tiles. Castalia emits no SARADC registers at all
+// (generate.py:2186 "SARADC removed from Castalia") and vectors 55/56 are
+// IRQB_RSVD55/56; the converter is inside the analog macro and reaches software
+// through the new AFE2 peripheral, not through this slot.
+// 0x4C00 is the four 64 B afe_stub sub-slots of page-0 slot 12 (MCU.vhd:2714,
+// :3133-3151), one per site on sh_addr(5:4), each ownership-gated on s_master.
+// TODO(AFE2): when the AFE2 peripheral lands (four sites at 0x6C00 + 0x100*h,
+// 256 B each, plus the shared block), add its bases here and retire
+// PERIPH_AFE0_BASE with the afe_stub bank it names.
+#define PERIPH_AFE0_BASE        0x4C00  // rev-1 afe_stub site 0 (64 B sub-slot)
 #define PERIPH_GPIO3_BASE       0x4D00
 
-// M11/M12 Castalia memory map: the boot ROM (0x0) is SHARED by all four
-// harts (M12 single-ROM boot); each hart's private RAM is ONLY the 16 KB
-// TCM at 0x8000-0xBFFF. 0xC000-0xFFFF is the shared NPU staging RAM and
-// 0x10000-0x1FFFF the shared bulk RAM (both behind the arbiter). The boot
-// LOAD WINDOW (flash segments) is still 0x8000-0xFFFC: TCM + staging RAM.
+// M11/M12 Castalia memory map: the boot ROM (0x0) is SHARED by all five
+// harts (M12 single-ROM boot); each hart's private RAM is ONLY its own TCM.
+// THE TCM ARRAY IS 8 KiB (0x8000-0x9FFF) AND THE DECODE WINDOW IS 16 KiB:
+// adddec routes data_addr(13 downto 2) here (hdl/common/adddec.vhd:147) while
+// hart_tile drops the word index's top bit at the ram0 mux
+// (hdl/common/hart_tile.vhd:781), so 0xA000-0xBFFF is the SAME ARRAY MIRRORED,
+// not extra memory. MemoryMap.vhd:29 RamSize = 0x2000 is the one authority.
+// 0xC000-0xFFFF is the shared NPU staging RAM and 0x10000-0x1FFFF the shared
+// bulk RAM (both behind the arbiter).
 #define ROM_BASE_ADDR           0x00000
 #define IVT_BASE_ADDR           0x08000
 #define RAM0_BASE_ADDR          0x08000
 #define PROG_BASE_ADDR          0x08200
-#define TCM_END_ADDR            0x0BFFF  // private TCM end (M11: RAM0 is the only private RAM)
+#define TCM_END_ADDR            0x09FFF  // private TCM array end (8 KiB; 0xA000-0xBFFF mirrors it)
+#define TCM_WINDOW_END_ADDR     0x0BFFF  // private TCM DECODE window end (the mirror's top)
 #define RAM1_BASE_ADDR          0x0C000  // M11: the shared NPU staging RAM (legacy name kept)
 // LOAD WINDOW WIDENED 2026-08-16 to include the shared bulk RAM. This bound is
 // the loader's only address check (`bltu s3, a3, force_trap` in start.S, the
@@ -100,8 +116,24 @@ extern "C" {
 // may publish here) -> bootrom reads it. Non-zero = jump there; zero = the
 // historical PROG_BASE_ADDR path, bit-identical, all registers still cleared.
 #define BOOT_ENTRY_VEC          0x10640  // published entry address; 0 = use PROG_BASE_ADDR
+// BOOT STATUS WORD (2026-09-05). Written by the boot ROM only when the flash
+// path is abandoned on a bounded-poll timeout; 0 otherwise, because hart 0
+// zeroes 0x10000-0x107FF before any flash work. Sits in the same gap as
+// BOOT_ENTRY_VEC, between the loader rows (up to 0x1061F at N=18) and the
+// Debug Module program page (0x10680).
+#define BOOT_STATUS_VEC         0x10644  // 0 = flash boot completed or was not taken
 #define SHARED_RAM_BASE_ADDR    0x10000  // 64 KB shared bulk RAM (mailboxes at 0x10000+)
-#define SP_INIT_VAL             0x0BFFC  // Initial Stack Pointer Value (top of the private TCM)
+// Stack pointer reset value. The RISC-V push convention (and vesta's IRQ_SV,
+// which stores the return PC at sp-4 and then decrements sp) makes sp a
+// ONE-PAST-THE-TOP pointer, so the correct value is the TCM array's top + 1,
+// not its top word. WAS 0x0BFFC (2026-09-05): that address sits in the
+// mirrored half of the decode window and aliases to 0x9FF8, one word BELOW
+// the array top, while every generated authority
+// (platform/common/out/software/include/MemoryMap.h STACK_POINTER_INIT,
+// ChipConfig.resolved.json derived.stackPointerInit, periph.S
+// StackPointerInit, the linker script's __StackPointerInit) published 0xA000.
+// generate.py:1227 derives 0xA000 from memory.tcmSizePerHart; this now agrees.
+#define SP_INIT_VAL             0x0A000  // sp reset value = RAM0_BASE_ADDR + 8 KiB TCM
 
 //  ---------- GPIO Register Offsets ----------
 #define GPIO_PxIN               0x00      //  offset = 0 bytes
@@ -190,7 +222,12 @@ extern "C" {
 #define BIAS_RIN_DSADC          0x44      //  offset = 68 bytes
 #define BIAS_RFB_DSADC          0x48      //  offset = 72 bytes
 
-//  ---------- SARADC Register Offsets ----------
+//  ---------- SARADC Register Offsets (STALE, myshkin-only) ----------
+// Kept as the rev-1 reference for the AFE2 sequencer work and nothing else.
+// hdl/common/periph/SARADC.vhd does not analyze against hdl/common/MemoryMap.vhd
+// (its RegSlotSARADC_TPR exists only in hdl/myshkin/MemoryMap.vhd:163), and no
+// Castalia configuration instantiates it. THESE OFFSETS HAVE NO BASE ADDRESS ON
+// THIS CHIP -- see the note where PERIPH_SARADC0_BASE used to be.
 #define SARADC_CR               0x00      //  offset = 0 bytes
 #define SARADC_CDIV             0x04      //  offset = 4 bytes
 #define SARADC_SR               0x08      //  offset = 8 bytes
@@ -374,7 +411,7 @@ extern "C" {
 // SYSTEM Watchdog Control Register (SYS_WDT_CR) bit masks
 #define SYS_WDT_CR_MASK         (0xFF)  // 8 bits total
 #define SYS_WDT_EN_MASK         (0x80)  // Bit 7: Watchdog Enable
-#define SYS_WDT_CDIV_MASK       (0x7C)  // Bits 6-2: Watchdog Clock Divider
+#define SYS_WDT_CDIV_MASK       (0x3C)  // Bits 5-2: Watchdog Clock Divider (SYSTEM.vhd:173 wdt_cdiv <= SYS_WDT_CR(5 downto 2); bit 6 is unimplemented)
 #define SYS_WDT_IE_MASK         (0x02)  // Bit 1: Watchdog Interrupt Enable
 #define SYS_WDT_HWRST_MASK      (0x01)  // Bit 0: Watchdog Hardware Reset
 
