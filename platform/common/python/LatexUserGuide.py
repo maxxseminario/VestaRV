@@ -7707,9 +7707,15 @@ class LatexUserGuide():
 				size = self._BlockSize(pt, block)
 				if row % 2 == 1:
 					s += '\\rowcolor{tablehighlightcolor} '
+				# The reset comes off the INSTANCE, not the template: GPIO's
+				# RstValPx{OUT,DIR,SEL,REN,AFS} and I2C's default_SAD arrive as RTL
+				# generics and differ per port / per controller, so a template reset
+				# published 0x00 on every one of them. Same rule as _BlockSize, which
+				# already takes the instance width. The per-peripheral chapter tables
+				# stay on the template, because one chapter covers every instance.
 				s += ('\\hyperref[' + self._BlockLabel(pt, block) + ']{\\texttt{' + fmttex(name) + '}} & \\texttt{' + addr + '} & \\texttt{' + off
 					+ '} & ' + str(size // 8) + ' & \\texttt{' + self._AccessSummary([f[0] for f in block['fields']]) + '} & \\texttt{'
-					+ self._RegisterResetString(first, size) + '} \\\\\n')
+					+ self._RegisterResetString(reg, size) + '} \\\\\n')
 				row += 1
 			s += '\\hline\n'
 		s += '\\end{tabularx}\n}\n'

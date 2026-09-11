@@ -4299,6 +4299,25 @@ class McuVhdEmitter():
 			raise Exception('MCU.vhd emitter: MUTEX register count ' + str(nMutex)
 				+ ' must be a power of two (exact word alias, mutex_bank AW)')
 		mw = self.masterW()
+		# The description's owner-marker field must be exactly MW+1 bits wide:
+		# mutex_bank.vhd:70-71 zeroes rdata_reg and then drives only
+		# rdata_reg(MW downto 0), so bits 31:MW+1 read 0 and a wider published
+		# field describes a register the chip does not have. generate.py sizes
+		# MTXOWNn from the same expression as masterW(); this is the guard that
+		# they cannot drift apart -- and it raises rather than emitting VHDL,
+		# so it changes no line of MCU.vhd.
+		ownerMsb = None
+		for bf in self.periph('MUTEX').Registers[0].BitFields:
+			if not bf.Unused:
+				ownerMsb = bf.MSB
+				break
+		if ownerMsb is None:
+			raise Exception('MCU.vhd emitter: MUTEX register 0 publishes no owner-marker field')
+		if ownerMsb != mw:
+			raise Exception('MCU.vhd emitter: mutex_bank MW => ' + str(mw)
+				+ ' makes the owner marker bits ' + str(mw) + ':0, but the description'
+				+ ' publishes MTXOWN0 with msb=' + str(ownerMsb)
+				+ ' (generate.py _mtxOwnerMsb must equal mcu_vhd masterW())')
 		gm = 'generic map (NMUTEX => ' + str(nMutex)
 		if aw != 4:
 			gm += ', AW => ' + str(aw)
@@ -4344,10 +4363,15 @@ class McuVhdEmitter():
 			raise Exception('MCU.vhd emitter: PWRSR nibble array (ceil(N/8) words) collides '
 				+ 'with the DP-S3 PWRWAKE/PWRSTS words 5/6 ' + EMDASH + ' N > 32 unsupported')
 		slots = sorted(r.RegisterMemorySlot for r in self.periph('PWRCTRL').Registers)
-		expected = [0] + list(range(1, nsrw + 1)) + [5, 6]
+		# Word 7 is TASKWKM, the event-fabric task-wake mask (pwr_ctrl.vhd
+		# W_TASKWKM = 7). It was decoded by the RTL and absent from the
+		# description until 2026-09-10; this cross-check now requires it, so a
+		# description that drops it again raises here rather than silently
+		# publishing a register map missing a register.
+		expected = [0] + list(range(1, nsrw + 1)) + [5, 6, 7]
 		if slots != expected:
 			raise Exception('MCU.vhd emitter: PWRCTRL register layout does not match the A2 '
-				+ 'PWRSR nibble-array formula + DP-S3 PWRWAKE/PWRSTS (expected slots '
+				+ 'PWRSR nibble-array formula + DP-S3 PWRWAKE/PWRSTS + TASKWKM (expected slots '
 				+ str(expected) + ', got ' + str(slots) + ') '
 				+ EMDASH + ' generate.py and pwr_ctrl.vhd must agree')
 		gm = 'generic map ('

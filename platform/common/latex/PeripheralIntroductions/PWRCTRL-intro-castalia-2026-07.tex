@@ -15,6 +15,7 @@ The power controller (\peripheral{PWRCTRL}) switches the power domains of the ch
 	\item Read-only sequencer state per tile in \register{PWRSR}, one nibble per hart
 	\item Cold gating: a gated tile loses all state and cold-boots through the shared ROM on wake
 	\item Boot gate configuration in \register{PWRWAKE} and live status in \register{PWRSTS}
+	\item An event-fabric wake mask in \register{TASKWKM}: a task-wake pulse clears the \register{PWRCR} gate bits it selects
 	\item All domains power up on at reset; the controller is inert until written
 \end{itemize}
 
@@ -25,6 +26,10 @@ The power controller (\peripheral{PWRCTRL}) switches the power domains of the ch
 Setting bit $h$ of \register{PWRCR} starts tile $h$'s power-down sequence: the isolation clamps assert on the always-on side of the boundary, the tile is held in reset, and only then do the header switches open, so that no floating signal ever reaches the shared fabric. Clearing the bit runs the sequence in the other order, with a rail-settle delay sized for the tile's header-switch chain before the reset is released. The sequencer never aborts a transition: a gate-bit change made mid-sequence takes effect when the current sequence completes. Bit 0 (\bitfield{PWRH0}) is reserved, reads 0 and ignores writes, because hart 0 is always on; a write of \texttt{\PwrGateMask} therefore gates every channel tile and leaves hart 0 running. The write is qualified by byte lane 0 only, so full-word stores are used.
 
 \register{PWRSR} reports the sequencer state of each tile as a 4-bit code in nibble $h$ (\bitfield{PWRST0} to \bitfield{PWRST4}); 0 is on and 3 is off, with the intermediate codes marking the sequence in progress. Software polls the nibble after a write to \register{PWRCR}, because the transition takes several cycles and the tile must not be relaunched before its nibble reads 0.
+
+\subsection{Task wake}
+
+\register{TASKWKM} selects which tiles the event fabric may wake. A \peripheral{EVFAB} task-wake pulse clears the \register{PWRCR}.\bitfield{PWRGATE} bits that \bitfield{PWRTASKWKM} selects, so those tiles run the same rail-up sequence a software gate-clear runs, with no hart awake to write \register{PWRCR}. The pulse is applied per bit after the bus writes of the same cycle, so a coincident \register{PWRCR} write merges and the task wins its own bits. The mask is qualified by byte lane 0 like \register{PWRCR}, bit 0 has no storage, and it resets to 0, so task wake is inert until software selects a tile. The tap never reaches the boot-gate release logic: a held boot gate stays held.
 
 \subsection{Boot gate}
 
