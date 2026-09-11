@@ -173,6 +173,7 @@ declare -A SKIP=(
     [rv32ui/shafe]="AFE analog-front-end peripheral — MCU analog block absent"
     [rv32ui/afsel]="AFE peripheral select + IRQ routing (0x7000) — MCU peripheral absent"
     [rv32ui/afselv2]="AFE peripheral slot (0x4100) + IRQ routing (0x7000/0x7201) — MCU peripheral absent"
+    [rv32ui/shafe2]="AFE2 sites (0x6C00-0x6F00) + the SAR converter models and vector 124 — MCU peripheral absent"
     # rv32ua — cross-hart atomic/coordination signature tests (all need >1 hart)
     [rv32ua/shamo]="cross-hart AMO grant-locking (M8) via the mp_arbiter — needs >1 hart"
     [rv32ua/shlrsc]="cross-hart LR/SC (M4b) via the global resv_unit — needs >1 hart"

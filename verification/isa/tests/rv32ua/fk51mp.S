@@ -24,9 +24,18 @@
 # HALF (a) IS NOT FIXED and this file asserts it UNCHANGED.  R-K5-7 (2) ruled it
 # INERT-AS-MEASURED: the funct3=001 ORC.B/REV8 rows in is_zbb_i_instr are dead,
 # shadowed by is_zbs_i_instr, and real orc.b/rev8 work through the fall-through.
-# The two rows below therefore keep RETIRING and keep computing their Zbs
-# results, in both polarities -- which is what makes them the control that says
-# a half-(b) verdict moved for the half-(b) reason.
+# The two rows therefore keep RETIRING and keep computing their Zbs results, in
+# both polarities.
+#
+# HALF (a) RUNS ON HART 0, NOT ON A VICTIM (2026-09-05).  It used to be victim
+# 1's preamble.  Since b1c39da the four hart_tile instances take
+# TILE_ENABLE_MUL/DIV/BITMANIP = false (MemoryMap.vhd), so an rv32iac tile traps
+# the two Zbs-shaped forms, PROGRESS1 stuck at 1 and hart 0 reported
+# 0xF5100004 -- a bitmanip verdict wearing a half-(b) label.  The tiles now
+# carry ONLY reserved shamt[5]=1 shift forms, which trap identically at both
+# ENABLE_BITMANIP polarities, so every VICTIM preamble is plain rv32i and a
+# stall means what it says.  Hart 0 keeps CORE_ENABLE_BITMANIP and executes
+# half (a) itself; that is the one remaining bitmanip dependence in the file.
 #
 # THE FINDING, IN ITS OWN TERMS (maindec.vhd + constants.vhd)
 #   half (a)  `is_zbb_i_instr` groups ORC.B and REV8 under funct3 = "001".
@@ -62,6 +71,8 @@
 #   value AFTER it, so the two states are unambiguous:
 #       PROGRESS stuck below the end value  -> that encoding TRAPPED
 #       PROGRESS reached the end value      -> every encoding RETIRED
+#   Every instruction in a victim's preamble is plain rv32i, so a stall can only
+#   be the suspect encoding and never the tile's narrowed ISA.
 #   and each victim also STORES THE COMPUTED RESULT of every encoding, so the
 #   verdict is not merely "it ran" but "it ran and produced exactly this".
 #
@@ -83,11 +94,12 @@
 # suspects are raw `.word`s.  The comparison is therefore between what the
 # assembler says the architecture means and what the decoder actually did.
 #
-# BITMANIP DEPENDENCE, stated: both halves live inside `ENABLE_BITMANIP` arms,
-# so this detector is meaningful only on a bitmanip-ON build.  The default
-# Castalia config is bitmanip-ON, which is the build R-K5-5 (2) is about.  On a
-# bitmanip-OFF build every suspect encoding traps and hart 1/2 would stick --
-# hart 0 then FAILs with a distinguishing a1 code rather than passing vacuously.
+# BITMANIP DEPENDENCE, stated: half (a) lives inside `ENABLE_BITMANIP` arms, so
+# it is meaningful only on a build whose HART 0 is bitmanip-ON.  The default
+# Castalia config is CORE_ENABLE_BITMANIP = true on hart 0, which is the build
+# R-K5-5 (2) is about.  Half (b) has NO bitmanip dependence: the three reserved
+# shamt[5]=1 forms trap at both polarities (proven by decode, not inferred), so
+# the victim arms run unchanged on the rv32iac tiles.
 #
 # NOTE: `RVTEST_CODE_END` is `unimp` in this env (it TRAPS since F10) -- every
 # path below ends in an explicit PASS or FAIL spin and never falls through.
@@ -180,27 +192,10 @@ fk_arm_next:
 
 fk_armed:
     # ==================================================================
-    # HALF (a) MUST RUN THROUGH.  Victim 1 executes the two funct3=001
-    # ORC.B/REV8 forms and reaches PROGRESS1 = 3; they are ruled inert and
-    # must keep retiring in BOTH polarities.  A stall here is not a half-(b)
-    # verdict and must not be reported as one.
-    # ==================================================================
-    li   t6, ARM_BUDGET
-    li   t5, 3
-fk_run_wait:
-    lw   t2, 0(s1)
-    bge  t2, t5, fk_ran
-    addi t6, t6, -1
-    bnez t6, fk_run_wait
-    li   a1, 0xF5100004                 # half (a) did NOT retire -- see above
-    j    fk_fail
-
-fk_ran:
-    # ==================================================================
     # THE OBSERVATION WINDOW.  Every reserved encoding must STAY trapped for
     # the whole window; if any victim ever advances past its encoding, the
     # reserved form retired and that is the defect.
-    #   PROGRESS1 must never reach 4  -- victim 1's trailing `srai x,x,35`
+    #   PROGRESS1 must never reach 2  -- victim 1's `srai x,x,35`
     #                                    (SRL arm, funct7(6:5) = "01")
     #   PROGRESS2 must never reach 2  -- victim 2's `slli x,x,35`
     #                                    (SLL arm, funct7(6:5) = "00")
@@ -210,11 +205,10 @@ fk_ran:
     # ==================================================================
     li   t6, WATCH_ITERS
 fk_watch:
+    li   t5, 2
     lw   t2, 0(s1)
-    li   t5, 4
     bge  t2, t5, fk_h1_ran
     lw   t3, 0(s2)
-    li   t5, 2
     bge  t3, t5, fk_h2_ran
     lw   t4, 0(s3)
     bge  t4, t5, fk_h3_ran
@@ -224,6 +218,19 @@ fk_watch:
     # ==================================================================
     # half (a): the wrong-funct3 ORC.B/REV8 forms are ordinary Zbs ops
     # ==================================================================
+    # These two raw words run HERE, on hart 0.  They are Zbs encodings, and the
+    # tiles are rv32iac (TILE_ENABLE_BITMANIP = false), so on a victim they trap
+    # and say nothing about half (b).  Hart 0 keeps CORE_ENABLE_BITMANIP, so it
+    # retires them and the observation words carry real results.
+    li   x5, SEED
+    .word 0x28729313                    # funct3=001 imm12=ORC_B_IMM12 -> x6
+    li   s5, SH_VAL1A
+    sw   x6, 0(s5)
+    li   x5, SEED
+    .word 0x69829313                    # funct3=001 imm12=REV8_IMM12  -> x6
+    li   s5, SH_VAL1B
+    sw   x6, 0(s5)
+
     # The rv32ua group builds -march=rv32imac, which has no Zbs, so the
     # architectural reference instructions need their extension enabled
     # locally.  `.option arch, +zbs` is march-INDEPENDENT (the X1/X3 directed
@@ -287,30 +294,18 @@ fk_tile_entry:
 fk_park:
     j    fk_park
 
-    # ---- victim 1: half (a), the two wrong-funct3 forms -------------------
+    # ---- victim 1: half (b) on the SRL arm --------------------------------
+    # Every instruction here is rv32i.  The preamble carries no bitmanip, so
+    # PROGRESS1 = 1 is reached on a tile of any ISA width and a stall at 1 can
+    # only mean the reserved form trapped, which is the verdict this file wants.
 fk_h1:
     li   s1, SH_PROG1
     li   x5, SEED
     li   t2, 1
-    sw   t2, 0(s1)                      # armed: about to execute encoding A1
-    .word 0x28729313                    # funct3=001 imm12=ORC_B_IMM12 -> x6
-    addi t2, x0, 2                      # never a store: F8 cannot fire here
-    li   s5, SH_VAL1A
-    sw   x6, 0(s5)
-    sw   t2, 0(s1)                      # reached ONLY if A1 did not trap
-    li   x5, SEED
-    .word 0x69829313                    # funct3=001 imm12=REV8_IMM12  -> x6
-    addi t2, x0, 3                      # never a store
-    li   s5, SH_VAL1B
-    sw   x6, 0(s5)
-    sw   t2, 0(s1)                      # PROGRESS1 = 3: half (a) both retired
-    # ...and now the half-(b) form from the OTHER decode arm the fix touches.
-    # Post-fix this traps and PROGRESS1 stays at 3, which is what the observer
-    # requires; pre-fix it retired and PROGRESS1 reached 4.
-    li   x5, SEED
+    sw   t2, 0(s1)                      # armed: about to execute the reserved form
     .word 0x4232D313                    # srai x6, x5, 35   (RV32-reserved)
-    addi t2, x0, 4                      # never a store: F8 cannot fire here
-    sw   t2, 0(s1)
+    addi t2, x0, 2                      # never a store: F8 cannot fire here
+    sw   t2, 0(s1)                      # PROGRESS1 = 2 ONLY if the form retired
 fk_h1_park:
     j    fk_h1_park
 

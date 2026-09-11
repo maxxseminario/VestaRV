@@ -338,6 +338,7 @@ def riscv_isa_suite(
     rcfs = []
     flashed = []
     elfs = []
+    dumps = []
     for test in tests:
         base = "%s-p-%s" % (suite, test)
         target = name_prefix + base
@@ -357,6 +358,7 @@ def riscv_isa_suite(
         rcfs.append(":" + outdir + base + ".rcf")
         flashed.append(":" + outdir + FLASH_SUBDIR + flashed_rcf_name(base))
         elfs.append(":" + outdir + base + ".elf")
+        dumps.append(":" + outdir + base + ".dump")
 
     # The linked images themselves, for checks that read section headers rather
     # than image words. //tools/build:verification_image_map_test is the one:
@@ -365,6 +367,18 @@ def riscv_isa_suite(
     native.filegroup(
         name = name_prefix + suite + "_elfs",
         srcs = elfs,
+        tags = tags,
+        visibility = visibility,
+    )
+
+    # The disassembly listings, for checks that read MNEMONICS. The tile ISA
+    # gate in tests_image_contract.py is the one: harts 1-4 are hardened
+    # rv32iac (MCU.vhd:3290-3294 passes TILE_ENABLE_MUL/DIV/BITMANIP false),
+    # while these images are assembled -march=rv32imc / rv32imac, so gas
+    # accepts an M or Zb instruction in tile-executed code without a word.
+    native.filegroup(
+        name = name_prefix + suite + "_dumps",
+        srcs = dumps,
         tags = tags,
         visibility = visibility,
     )

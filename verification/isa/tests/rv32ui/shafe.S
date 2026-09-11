@@ -1,7 +1,21 @@
 # See LICENSE for license details.
 
 #*****************************************************************************
-# shafe.S  (CQ2b — Castalia-Quad AFE / EIS digital-stub test)
+# shafe.S  (CQ2b - Castalia-Quad AFE / EIS digital-stub test)
+#
+#   RETIRED, 2026-09-05 (F22). THIS FILE TARGETS THE RETIRED afe_stub BANK.
+#   It drives the four AFE stubs at 0x4C00 + 0x40*h and the hart-0-only EIS
+#   stub at 0x7C00, plus irq_router sources 55 and 56. None of those exist on
+#   the tape-out configuration: penta_wound sets `cqAfeStubs: false` and
+#   penta_wound_afe replaces the bank with four AFE2 sites at 0x6C00 + 0x100*h
+#   on an entirely different register map, with one shared vector 124. On that
+#   configuration this image exercises the wrong addresses and would pass or
+#   fail on whatever else answers there.
+#   SUCCESSOR: rv32ui-p-shafe2 (tests/rv32ui/shafe2.S), the MCU-level AFE2 test.
+#   It is selected by the `afe2` tag; this file keeps `cqAfeStubs harts_le4`, so
+#   the two can never be staged together. Kept, not deleted, because the stub
+#   bank is still a supported configuration (the Castalia golden master) and
+#   this is its only end-to-end ownership-gate test.
 #-----------------------------------------------------------------------------
 # HART-GENERIC test of the four per-hart AFE register stubs (0x4C00/40/80/C0)
 # + the shared EIS engine stub (0x7C00), and the hart-0-relay IRQ scheme that

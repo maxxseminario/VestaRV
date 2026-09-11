@@ -58,6 +58,12 @@ RESOLVED = os.path.join(PC_ROOT, 'config', 'ChipConfig.resolved.json')
 #   i2c1/uart1/spi1/timer1  the G1a/G1b droppable second instances (shi2c,
 #              shperiph, shlock and shtimer exercise them by name)
 #   cqAfeStubs peripherals.cqAfeStubs (shafe drives the four AFE stubs + EIS)
+#   afe2       peripherals.afe2 (the four AFE2 sites; gates periph/AFE2.vhd,
+#              mutually exclusive with cqAfeStubs)
+#   afe2pt     afeTopology = "per_tile" (topology B): the same four sites wired
+#              to four hart_tile_pt channel tiles. A CELL tag only -- it gates
+#              hart_tile_pt.vhd, periph/BIASG.vhd and the earlier placement of
+#              sim/sar_macro_model.vhd, and selects no test of its own
 #   zicond zcb zimop zihint zihpm zawrs zabha zacas zicboz zcmp zcmt
 #   zbkb zbkc zbkx zkn zfinx          the 16 X-series isa.* knobs   (K2/G1)
 #   trapCsr umode pmp                 the 3 P-series priv.* knobs   (K2/G1)
@@ -118,7 +124,19 @@ CATALOG = [
     # Castalia golden master keeps them; a qspi config takes slot 12 instead).
     # `harts_le4` because the stub bank is FOUR instances at any numHarts while
     # the test addresses AFE0 + 0x40*h -- see config_tags.
+    # RETIRED with the stub bank it addresses. shafe.S drives afe_stub at
+    # 0x4C00 + 0x40*h and the hart-0-only EIS stub at 0x7C00, neither of which
+    # exists on an afe2 configuration; `cqAfeStubs` already keeps it off those,
+    # and `harts_le4` keeps it off the five-hart chip. Its successor for the
+    # tape-out configuration is rv32ui-p-shafe2 below.
     T('rv32ui-p-shafe', 'tiles cqAfeStubs harts_le4'),
+    # AFE2 (F22, 2026-09-05): THE MCU-level test of the four analog front-end
+    # sites at 0x6C00-0x6F00 -- register reset values and widths, one conversion,
+    # the simultaneous trigger, FIFO overflow, vector 124 to hart 0, and the 50
+    # ctl pins read back through the bench converter model. Hart 0 reaches every
+    # site as MGMT_HART, so it needs no tiles; it needs the `afe2` sites and the
+    # sar_macro_model instances the generated riscv_tb.vhd carries with them.
+    T('rv32ui-p-shafe2', 'afe2', True),
     # CP3 (Castalia-Penta): shafe's SUCCESSOR at N>=5, REWRITTEN AND RESTORED at
     # CPR4. The CPR3 deferral (tag `orchLegacy`, which no config_tags() produces)
     # is retired: shorch.S no longer carries the CP2 shape (`MGMT = NHARTS-1`,
@@ -957,6 +975,22 @@ def config_tags(cfg):
     # stubs); a qspi config sets it false and shafe must not be staged there.
     if cfg.get('peripherals', {}).get('cqAfeStubs', True):
         tags.add('cqAfeStubs')
+    # AFE2 (2026-09-05): the four hardened analog front-end sites at
+    # 0x6C00-0x6F00, default FALSE and mutually exclusive with cqAfeStubs
+    # (mcu_vhd.py raises if both are set). It gates the periph/AFE2.vhd and
+    # sim/sar_macro_model.vhd cells and selects rv32ui-p-shafe2, shafe.S's
+    # successor against the 0x6C00 map (F22).
+    if cfg.get('peripherals', {}).get('afe2', False):
+        tags.add('afe2')
+    # TOPOLOGY B (per-tile AFE, 2026-09-06): the same four sites, wired to four
+    # `hart_tile_pt` channel tiles instead of to MCU entity ports. It gates three
+    # more cells -- hart_tile_pt.vhd, periph/BIASG.vhd, and sim/sar_macro_model.vhd
+    # at an EARLIER point in the list, because in this topology the converter
+    # models live inside the tiles rather than in the testbench. It selects no
+    # extra tests: rv32ui-p-shafe2 keys on `afe2` and is topology-blind by
+    # construction (it drives registers and reads codes, both identical here).
+    if cfg.get('afeTopology', 'top_ports') == 'per_tile':
+        tags.add('afe2pt')
     # K2: `harts_le4` is a STRUCTURAL bound, not a knob -- "this row's addresses
     # are only correct while 4*numHarts <= 16". ONE test needs it now:
     #   * the AFE stub bank. mcu_vhd.py emits exactly FOUR afe_stub instances
@@ -1108,6 +1142,18 @@ def main():
         'hdl/common/MCU.vhd': 'hdl/MCU.vhd',
         'hdl/common/tb/riscv_tb.vhd': 'hdl/riscv_tb.vhd',
     }
+    # ALREADY-SWAPPED ANCHORS (2026-09-05). behavioral_mp's own cell list may
+    # already point at the generated pair -- `hdl/MCU.vhd` / `hdl/MemoryMap.vhd`
+    # as symlinks into bazel-bin -- instead of the tracked `hdl/common/` drop-in
+    # copies. Staging read that list as a template and required all three
+    # `hdl/common/...` spellings verbatim, so a repointed base list aborted with
+    #     cell list swap points not all found in ...: got ['hdl/common/tb/riscv_tb.vhd']
+    # even though the line it was looking for was present in its POST-swap form.
+    # A line already in the destination spelling satisfies its anchor and is
+    # passed through unchanged: the stage copies out/hdl/{MCU,MemoryMap,
+    # riscv_tb}.vhd into <stage>/hdl/ regardless, so `hdl/MCU.vhd` resolves to
+    # the file this run generated, exactly as the swap would have made it.
+    already = dict((repl, suffix) for suffix, repl in swaps.items())
     seen = set()
     lines = []
     dma_seen = False
@@ -1115,6 +1161,9 @@ def main():
     dm_seen = False          # D2: debug_module.vhd was present in the base list
     orch_seen = False        # CP2: orch_tile.vhd was present in the base list
     dtm_seen = False         # D3: jtag_dtm.vhd was present in the base list
+    afe2_seen = False        # AFE2: periph/AFE2.vhd was present in the base list
+    sar_model_seen = False   # AFE2: sim/sar_macro_model.vhd was present in the base list
+    afe_stub_seen = False    # AFE: hdl/common/afe_stub.vhd was present in the base list
     mcu_idx = None           # D2: where the staged MCU.vhd landed
     crc16_idx = None
     uart0_idx = None
@@ -1122,6 +1171,13 @@ def main():
         for raw in f:
             p = raw.strip()
             if not p:
+                continue
+            if p in already:
+                # the base list already carries the post-swap spelling
+                if p == 'hdl/MCU.vhd':
+                    mcu_idx = len(lines)
+                lines.append(p)
+                seen.add(already[p])
                 continue
             swapped = False
             for suffix, repl in swaps.items():
@@ -1174,6 +1230,36 @@ def main():
                 if 'orch' not in have:
                     continue    # no orchestrator -> MCU.vhd has no orch_tile instance
                 orch_seen = True
+            # AFE (2026-09-05). The two analog front-end cells are mutually
+            # exclusive by construction: mcu_vhd.py raises if `afe2` and
+            # `cqAfeStubs` are both set, and it emits `entity work.afe_stub` x5
+            # for one and `entity work.AFE2` x4 for the other. Gate each on its
+            # own knob (the NPU.vhd / DMA.vhd pattern) so neither an unused
+            # entity nor a missing one reaches xmvhdl: an ungated AFE2.vhd on a
+            # stub config compiles dead code, and an ungated afe_stub.vhd on the
+            # tape-out config does the same in the other direction.
+            if p.endswith('hdl/common/afe_stub.vhd'):
+                if 'cqAfeStubs' not in have:
+                    continue    # stubs off -> MCU.vhd has no afe0..3/eis0 instance
+                afe_stub_seen = True
+            if p.endswith('periph/AFE2.vhd'):
+                if 'afe2' not in have:
+                    continue    # AFE2 off -> MCU.vhd has no AFE2 site
+                afe2_seen = True
+            # The behavioural converter the generated riscv_tb.vhd instantiates
+            # once per AFE2 site. Same knob as AFE2.vhd, and it must not be
+            # compiled without it: with afe2 off the tb has no such instance.
+            if p.endswith('sim/sar_macro_model.vhd'):
+                if 'afe2' not in have:
+                    continue
+                # TOPOLOGY B: the model's consumer moves from riscv_tb.vhd to
+                # hart_tile_pt.vhd, which is compiled BEFORE MCU.vhd -- i.e.
+                # before the point the base list puts the model at. Drop the
+                # base-list line and let the injection below place it correctly;
+                # keeping both would compile the entity twice.
+                if 'afe2pt' in have:
+                    continue
+                sar_model_seen = True
             if p.endswith('periph/TrngRoEnsemble.vhd'):
                 continue    # the rtl (real-ring) architecture NEVER enters verify staging
             if p.endswith('periph/TrngRoEnsemble_sim.vhd') or p.endswith('periph/TRNG.vhd'):
@@ -1186,8 +1272,12 @@ def main():
                 uart0_idx = len(lines)
             lines.append(p)  # common cells: same ../../../ depth as behavioral_mp
     if len(seen) != 3:
-        raise SystemExit('cell list swap points not all found in %s: got %s'
-                         % (BASE_CELL_LIST, sorted(seen)))
+        raise SystemExit(
+            'cell list swap points not all found in %s: got %s\n'
+            '  Each of hdl/common/MemoryMap.vhd, hdl/common/MCU.vhd and\n'
+            '  hdl/common/tb/riscv_tb.vhd must appear either in that spelling or\n'
+            '  already swapped to hdl/MemoryMap.vhd / hdl/MCU.vhd / hdl/riscv_tb.vhd.'
+            % (BASE_CELL_LIST, sorted(seen)))
     # digperiphs (TRNG): inject TrngRoEnsemble_sim.vhd then TRNG.vhd (dependency
     # order -- TRNG.vhd instantiates TrngRoEnsemble as a component) when the config
     # enables TRNG but the base list lacks them. Anchored just before UART.vhd (the
@@ -1228,12 +1318,77 @@ def main():
         if 'hdl/MCU.vhd' not in lines:
             raise SystemExit('orchestrator config but hdl/MCU.vhd not in the staged list')
         lines.insert(lines.index('hdl/MCU.vhd'), '../../../hdl/common/orch_tile.vhd')
+    # AFE2: inject periph/AFE2.vhd immediately before MCU.vhd (its only
+    # consumer; the entity depends on nothing but ieee) when the config enables
+    # the AFE2 sites but the base list lacks them. Same injection point and same
+    # reasoning as the DM/DTM/orch_tile blocks above, and done after them so the
+    # index is recomputed from the list it lands in.
+    if 'afe2' in have and not afe2_seen:
+        if 'hdl/MCU.vhd' not in lines:
+            raise SystemExit('AFE2 config but hdl/MCU.vhd not in the staged list')
+        lines.insert(lines.index('hdl/MCU.vhd'), '../../../hdl/common/periph/AFE2.vhd')
+    # ...and the mirror case: inject afe_stub.vhd at the same point when the
+    # config keeps the stub bank but the base list lacks it. behavioral_mp's list
+    # dropped afe_stub.vhd on 2026-09-05 when it was repointed at the tape-out
+    # (afe2) pair, so without this a cqAfeStubs config staged from that list would
+    # elaborate MCU.vhd against five missing afe_stub instances.
+    if 'cqAfeStubs' in have and not afe_stub_seen:
+        if 'hdl/MCU.vhd' not in lines:
+            raise SystemExit('cqAfeStubs config but hdl/MCU.vhd not in the staged list')
+        lines.insert(lines.index('hdl/MCU.vhd'), '../../../hdl/common/afe_stub.vhd')
+    # TOPOLOGY B: three more cells, all before MCU.vhd and in this order, which
+    # is their dependency order --
+    #   periph/BIASG.vhd        the one-word shared-bias-generator register that
+    #                           sits on AFE2 site 0's enable (AFE0BIASG @0x6C24)
+    #   sim/sar_macro_model.vhd the behavioural converter, now instantiated by
+    #                           hart_tile_pt rather than by the testbench
+    #   hart_tile_pt.vhd        the channel-tile wrapper MCU.vhd instantiates in
+    #                           place of hart_tile; it names both hart_tile (in
+    #                           the base list, earlier) and sar_macro_model
+    # Each insert goes immediately before MCU.vhd, so calling them in this order
+    # leaves them in this order.
+    if 'afe2pt' in have:
+        if 'hdl/MCU.vhd' not in lines:
+            raise SystemExit('per-tile AFE config but hdl/MCU.vhd not in the staged list')
+        for cell in ('../../../hdl/common/periph/BIASG.vhd',
+                     '../../../hdl/common/sim/sar_macro_model.vhd',
+                     '../../../hdl/common/hart_tile_pt.vhd'):
+            if cell not in lines:
+                lines.insert(lines.index('hdl/MCU.vhd'), cell)
+    # AFE2: the generated riscv_tb.vhd instantiates one sar_macro_model per site,
+    # so the model must be compiled BEFORE it. Injected immediately before
+    # hdl/riscv_tb.vhd (its only consumer) when the base list lacks it. NOT in
+    # the per-tile topology: there the tb instantiates no model at all and the
+    # block above has already placed it.
+    if 'afe2' in have and 'afe2pt' not in have and not sar_model_seen:
+        if 'hdl/riscv_tb.vhd' not in lines:
+            raise SystemExit('AFE2 config but hdl/riscv_tb.vhd not in the staged list')
+        lines.insert(lines.index('hdl/riscv_tb.vhd'),
+                     '../../../hdl/common/sim/sar_macro_model.vhd')
     if 'dma' in have and not dma_seen:
         dma_cell = '../../../hdl/common/periph/DMA.vhd'
         if crc16_idx is None:
             raise SystemExit('DMA config but commune/CRC16.vhd not in %s (DMA.vhd needs it)'
                              % BASE_CELL_LIST)
         lines.insert(crc16_idx + 1, dma_cell)
+    # SystemRDL level 2 (report R6): AFE2.vhd and BIASG.vhd `use` a GENERATED
+    # register package -- hdl/common/periph/{afe2,biasg}_regs_pkg.vhd -- for their
+    # word offsets, field ranges, IMPL masks and reset tables. A package must be
+    # analysed before the entity that uses it, so each one is inserted
+    # immediately ahead of its entity WHEREVER that entity ended up: the base
+    # list may already carry it, or one of the injections above may have placed
+    # it. This runs LAST, after every other injection, so the index it reads is
+    # off the finished list -- and so it cannot shift crc16_idx, which the DMA
+    # injection above holds as a number taken from the base-list scan.
+    for pkg, entity in (('afe2_regs_pkg.vhd', 'periph/AFE2.vhd'),
+                        ('biasg_regs_pkg.vhd', 'periph/BIASG.vhd')):
+        pkg_cell = '../../../hdl/common/periph/' + pkg
+        if pkg_cell in lines:
+            continue
+        at = [i for i, ln in enumerate(lines) if ln.endswith(entity)]
+        if not at:
+            continue        # the entity is not in this configuration; neither is its package
+        lines.insert(at[0], pkg_cell)
     with open(os.path.join(stage, 'cell_list_behavioral.txt'), 'w') as f:
         f.write('\n'.join(lines) + '\n')
 
