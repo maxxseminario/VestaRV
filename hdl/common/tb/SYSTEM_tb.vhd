@@ -114,7 +114,7 @@ begin
         bus_read(clk, pbus, read_data, RegSlotSYS_CLK_DIV_CR, rdw);
         sb.check_slv("SYS_CLK_DIV_CR resets to 0", rdw(5 downto 0), (5 downto 0 => '0'));
         bus_read(clk, pbus, read_data, RegSlotSYS_BLOCK_PWR, rdw);
-        sb.check_slv("SYS_BLOCK_PWR resets to 0", rdw(2 downto 0), "000");
+        sb.check_slv("SYS_BLOCK_PWR resets to 0", rdw(6 downto 0), "0000000");
         bus_read(clk, pbus, read_data, RegSlotSYS_WDT_CR, rdw);
         sb.check_slv("SYS_WDT_CR resets to 0", rdw(7 downto 0), x"00");
         bus_read(clk, pbus, read_data, RegSlotSYS_WDT_SR, rdw);
@@ -129,7 +129,7 @@ begin
         -- Outputs driven straight from the reset values of their registers.
         sb.check_slv("DCO0_BIAS pad = default 0x800", DCO0_BIAS, x"800");
         sb.check_slv("DCO1_BIAS pad = default 0x800", DCO1_BIAS, x"800");
-        sb.check_slv("PGEN_mem = 0 at reset (all on)", PGEN_mem, "000");
+        sb.check_slv("PGEN_mem = 0 at reset (all on)", PGEN_mem, "0000000");
         sb.check_bit("irq_sys_wdt low at reset (wdt_ie=0)", irq_sys_wdt, '0');
 
         -- GROUP 2: register read/write and pad routing.
@@ -147,13 +147,17 @@ begin
         sb.check_slv("SYS_CLK_DIV_CR 6-bit readback", rdw(5 downto 0), "101010");
         bus_write(clk, pbus, RegSlotSYS_CLK_DIV_CR, x"00000000");
 
-        -- BLOCK_PWR drives PGEN_mem (ram_off and rom_off).
+        -- BLOCK_PWR drives PGEN_mem (rom_off, ram_off and the four shared-bank off bits).
         bus_write(clk, pbus, RegSlotSYS_BLOCK_PWR, x"00000005");        -- ram_off=10, rom_off=1
         bus_read(clk, pbus, read_data, RegSlotSYS_BLOCK_PWR, rdw);
-        sb.check_slv("SYS_BLOCK_PWR readback", rdw(2 downto 0), "101");
-        sb.check_slv("PGEN_mem tracks BLOCK_PWR", PGEN_mem, "101");
+        sb.check_slv("SYS_BLOCK_PWR readback", rdw(6 downto 0), "0000101");
+        sb.check_slv("PGEN_mem tracks BLOCK_PWR", PGEN_mem, "0000101");
+        bus_write(clk, pbus, RegSlotSYS_BLOCK_PWR, x"00000078");        -- shb_off = 1111
+        bus_read(clk, pbus, read_data, RegSlotSYS_BLOCK_PWR, rdw);
+        sb.check_slv("SYS_BLOCK_PWR shbank readback", rdw(6 downto 0), "1111000");
+        sb.check_slv("PGEN_mem tracks shbank off bits", PGEN_mem, "1111000");
         bus_write(clk, pbus, RegSlotSYS_BLOCK_PWR, x"00000000");
-        sb.check_slv("PGEN_mem back to 0", PGEN_mem, "000");
+        sb.check_slv("PGEN_mem back to 0", PGEN_mem, "0000000");
 
         -- DCO bias registers, and the dco_on bits that drive en_dco*_out.
         bus_write(clk, pbus, RegSlotDCO0_BIAS, x"00000ABC");

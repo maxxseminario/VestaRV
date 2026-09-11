@@ -137,7 +137,13 @@ end component;
 
     -- Simulation control
     signal stop_clock : boolean := false;
-    signal simulation_timeout_flag : boolean := true;
+    -- MUST initialise false. `wait until` resumes only on an EVENT on a signal
+    -- in its condition, so an already-true flag that is only ever assigned true
+    -- never produces one, and test_sequence's "TEST TIMED OUT" branch is dead.
+    -- Three graders classify a run by that exact string -- run_isa.sh:409,
+    -- xrun_cosim.sh:1504 and toolchains/ghdl/defs.bzl:236 -- so a timeout was
+    -- reported to all three as an unclassified failure.
+    signal simulation_timeout_flag : boolean := false;
 
     signal a0_reached_fail : boolean := false;
     signal a0_reached_pass : boolean := false;
@@ -581,6 +587,18 @@ end component;
     -- The weak high resolves against the DUT's strong open-drain lows and the pad model cleans it to '1' at the MCU input; only these two pads carry it, and a strong GPIO output still overrides 'H'.
     prt4(0) <= 'H';
     prt4(1) <= 'H';
+
+    -- UART0/UART1 RX bench level: the two RX pins P2.5 (RX0) and P2.7 (RX1) are real chip
+    -- INPUTS that no test other than a "uart" one drives, and the UART disables their pad
+    -- pull resistors, so they float X. That X is not inert: report F21 measured it poison
+    -- rx_in_progress in the synthesized UART (VHDL's rx_in_prev = '1' and RX_IN = '0' is
+    -- false on a metavalue, so the RTL start detector never fires and the gate netlist
+    -- propagates instead), then the shared baud-clock gate, UTCIF, irq_comb(15), gf_out(15)
+    -- and finally meip on all five harts -- the gate-level shirq hang of report F20 finding 1.
+    -- Weak 'H' is the idle mark of a real serial line, resolves against the pad model, and
+    -- yields to the strong drive the uart_test shorting logic applies during a UART test.
+    prt2(pnum_gpio1_rx0) <= 'H';
+    prt2(pnum_gpio1_rx1) <= 'H';
 
     -- OW0 DQ bench level: the 1-Wire DQ sits on P4.7 (GPIO31 AF2), a real pad, so an undriven line floats X and only creeps weak-'1' after the pad model's 100 us PullTime.
     -- Weak 'L' gives the stuck-low bus the 1-Wire test expects (presence always, RX 0x00); never a strong '0' (it must yield to the pad's own driver) and never 'H' (that flips to NOPRES and 0xFF).

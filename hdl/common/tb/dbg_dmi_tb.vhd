@@ -390,13 +390,19 @@ begin
         chk(fld(d, 22, 22) = 1,
             "C4: dmstatus.impebreak = 1 (the third progbuf word, free)");
 
-        -- C5: hartinfo, the advertised data window.
+        -- C5: hartinfo, the null claim. debug_module.vhd:1156-1160 publishes all
+        -- four fields as zero on purpose: dataaddr is 12 bits and sign-extended,
+        -- so DATA0_ADDR 0x10680 would be advertised as 0x680, a resolvable wrong
+        -- address inside the read-only boot ROM. Clearing dataaccess makes
+        -- dataaddr unreachable, since a debugger reads it only when dataaccess
+        -- is 1. The DM's own master engine still targets DATA0_ADDR.
         dmi_rd(A_HARTINFO, d, rop);
         chk(rop = RSP_SUCCESS, "C5a: hartinfo read returns op = success");
-        chk(fld(d, 11, 0) = 16#680#,
-            "C5b: hartinfo.dataaddr = 0x680 (the low 12 bits of 0x10680)");
-        chk(fld(d, 16, 16) = 1, "C5c: hartinfo.dataaccess = 1 (memory-mapped)");
-        chk(fld(d, 15, 12) = 1, "C5d: hartinfo.datasize = 1");
+        chk(fld(d, 11, 0) = 0,
+            "C5b: hartinfo.dataaddr = 0 (null claim; 0x680 would alias the boot ROM)");
+        chk(fld(d, 16, 16) = 0, "C5c: hartinfo.dataaccess = 0 (no shadowed data region)");
+        chk(fld(d, 15, 12) = 0, "C5d: hartinfo.datasize = 0");
+        chk(fld(d, 23, 20) = 0, "C5e: hartinfo.nscratch = 0 (use the program buffer)");
 
         -- C6: abstractcs shape, clean before anything is asked of it.
         dmi_rd(A_ABSTRACTCS, d, rop);
