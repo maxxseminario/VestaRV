@@ -2,25 +2,20 @@
 """rdl_vhdl.py -- a VHDL package of one .rdl block's offsets, field ranges and
 reset constants.
 
-The package a peripheral could `use` WITHOUT CHANGING BEHAVIOUR. AFE2.vhd and
-BIASG.vhd today declare their word offsets, their implemented-bit masks and their
-reset tables as file-local constants, deliberately, so each keeps a single-file
-closure for its bench. This package emits exactly those constants under exactly
-those meanings, so adopting it is a one-line `use work.AFEx_reg_pkg.all;` plus
-deleting the local copies -- and the constants it emits are checked against the
-local ones by //platform/common:rdl_vs_vhdl_afe2_test, so the swap is provably
-inert.
+The package a peripheral could `use` WITHOUT CHANGING BEHAVIOUR. A peripheral
+that declares its word offsets, its implemented-bit masks and its reset tables as
+file-local constants keeps a single-file closure for its bench. This package emits
+exactly those constants under exactly those meanings, so adopting it is a one-line
+`use work.<block>_regs_pkg.all;` plus deleting the local copies -- and the
+constants it emits are checked against the local ones by
+//platform/common:rdl_vs_vhdl_<periph>_test, so the swap is provably inert.
 
-Level 2 (2026-09-10): the two packages the RTL actually `use`s are TRACKED, at
-hdl/common/regs/vhdl/afe2_regs_pkg.vhd and hdl/common/regs/vhdl/biasg_regs_pkg.vhd,
-and AFE2.vhd / BIASG.vhd have deleted their local copies. Those two carry an
-extra AGGREGATE section -- the array type, the word-offset constants and the
-IMPL / RSTVAL tables under the identifiers the decode already used -- so the
-migration is a context clause plus a deletion and the bodies are untouched.
-RTL_PACKAGES below is the table that drives it; //platform/common:rdl_vhdl_pkg_test
-regenerates both and fails if the tracked file differs by one byte, and
-//platform/common:rdl_pkg_vs_legacy_test compares every emitted value against the
-hand-written constants as they stood before the migration.
+Level 2 (2026-09-10): the packages the RTL actually `use`s are TRACKED, under
+hdl/common/regs/vhdl/. RTL_PACKAGES below is the table that drives it;
+//platform/common:rdl_vhdl_pkg_test regenerates each and fails if the tracked file
+differs by one byte, and //platform/common:rdl_pkg_vs_legacy_test compares every
+emitted value against the hand-written constants as they stood before the
+migration.
 
 What is emitted per register:
     <REG>_WORD    natural, the word offset inside the peripheral's sub-slot
@@ -33,8 +28,8 @@ and per field:
 
 `_IMPL` is the mask of bits that hold a software-written flop: a field counts
 when software may write it (`sw` includes w), hardware does not drive it
-(`hw = r`), and it is not a single-pulse strobe. That is the definition AFE2.vhd
-and BIASG.vhd use for their IMPL tables, which is why the two agree bit for bit.
+(`hw = r`), and it is not a single-pulse strobe. That is the definition the RTL
+uses for its IMPL tables, which is why the two agree bit for bit.
 """
 
 import os
@@ -75,24 +70,22 @@ def _isSinglePulse(bf):
 # The TRACKED packages, and the aggregate section that lets the RTL adopt them
 # without touching its body.
 #
-# AFE2.vhd and BIASG.vhd used to declare, file-locally, a word-offset constant
-# per register, an array type over those words and two tables indexed by it
-# (IMPL, the software-writable storage mask, and RSTVAL, the reset word). The
-# scalar constants above already carry every value in those tables; what the
-# aggregate section adds is the SHAPE -- the same type under the same name, and
-# the same table under the same name -- so the migration is a `use` clause and a
-# deletion, with no edit to a single assignment.
+# An entity that declares, file-locally, a word-offset constant per register, an
+# array type over those words and two tables indexed by it (IMPL, the
+# software-writable storage mask, and RSTVAL, the reset word) needs more than the
+# scalar constants above: it needs the SHAPE -- the same type under the same name,
+# and the same table under the same name -- so that migration is a `use` clause
+# and a deletion, with no edit to a single assignment.
 #
-# Two spellings, because the two decodes index differently and neither was going
-# to be bent to suit a generator:
-#   keyed      AFE2: `IMPL(W_MUX)`, a named-association aggregate over absolute
-#              word offsets, which is what a nine-register file with a sparse
-#              reset table reads best as.
-#   positional BIASG: `IMPL(sel)` where `sel = idx - WORD_BASE`, so the table is
-#              five entries in slot order and the index is RELATIVE. Its word
-#              constants are therefore emitted as IDX_* (relative, what indexes
-#              the array) and never as W_* (absolute, what the bus decodes) --
-#              one identifier per meaning, so the two cannot be confused.
+# Two spellings are supported, because a decode may index absolutely or relatively:
+#   keyed      `IMPL(W_MUX)`, a named-association aggregate over absolute word
+#              offsets, which is what a sparse reset table reads best as.
+#   positional `IMPL(sel)` where `sel = idx - WORD_BASE`, so the table is in slot
+#              order and the index is RELATIVE. Such a block's word constants are
+#              emitted as IDX_* (relative, what indexes the array) and never as
+#              W_* (absolute, what the bus decodes) -- one identifier per meaning.
+#
+# No block in the public tree needs the aggregate section today.
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
@@ -142,24 +135,6 @@ def _pwrVariants():
 
 
 RTL_PACKAGES = (
-    {
-        'package': 'afe2_regs_pkg',
-        'file': 'hdl/common/regs/vhdl/afe2_regs_pkg.vhd',
-        'source': 'afe2.rdl',
-        'top': 'afe2_site',
-        'rtl': 'hdl/common/periph/AFE2.vhd',
-        'periph': 'afe2',
-        'migrated': True,
-    },
-    {
-        'package': 'biasg_regs_pkg',
-        'file': 'hdl/common/regs/vhdl/biasg_regs_pkg.vhd',
-        'source': 'biasg.rdl',
-        'top': 'biasg',
-        'rtl': 'hdl/common/periph/BIASG.vhd',
-        'periph': 'biasg',
-        'migrated': True,
-    },
     # --- the memory-map-package convention -------------------------------
     # These six read their word offsets from work.MemoryMap's RegSlot* /
     # MmrAddr* constants. Their package re-declares the SAME identifiers, so
@@ -405,33 +380,14 @@ RTL_PACKAGES = (
 
 # Keyed by the .rdl addrmap (block.Name). A block with no entry gets the scalar
 # constants only, which is what every out/rdl/ emission has always been.
-_AGGREGATE = {
-    'afe2_site': {
-        'shortPrefix': 'AFEx',
-        'indexPrefix': 'W_',
-        'countName': 'NSTORED',
-        'arrayType': 'reg_arr_t',
-        'keyed': True,
-        'wordBaseName': None,
-        'rtl': 'AFE2.vhd',
-    },
-    'biasg': {
-        'shortPrefix': 'AFEx',
-        'indexPrefix': 'IDX_',
-        'countName': 'N_WORDS',
-        'arrayType': 'reg_array',
-        'keyed': False,
-        'wordBaseName': 'WORD_BASE_DEFAULT',
-        'rtl': 'BIASG.vhd',
-    },
-}
+_AGGREGATE = {}
 
 
 # ---------------------------------------------------------------------------
 # THE DECODE IDENTIFIERS, per block.
 #
-# _AGGREGATE above covers the two blocks that declare an array type and two
-# tables indexed by it. The other twenty-two declare, at most, one natural
+# _AGGREGATE above covers blocks that declare an array type and two tables
+# indexed by it. The twenty-two below declare, at most, one natural
 # constant per register, and the spelling is the block's own: a local `SLOT_CR`,
 # the memory-map package's `RegSlotUARTxCR`, NPU's `MmrAddrNPUCR`, irq_router's
 # `W_CLAIM`. This table says which, so the emitted package can be adopted by a

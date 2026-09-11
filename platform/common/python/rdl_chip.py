@@ -6,7 +6,7 @@ a chapter's register tables and for a header fragment. Two artifacts are not
 per-template: the TRM's flat register index (the appendix) and MemoryMap.h's
 per-INSTANCE address defines. Both need the instance names and base addresses,
 and the only place those are written down in SystemRDL is
-hdl/common/regs/rdl/castalia_penta_wound_afe.rdl.
+hdl/common/regs/rdl/castalia_penta_wound.rdl.
 
 So this walks that addrmap, binds each instance to the .rdl block its
 vesta_peripheral names, and emits:
@@ -37,7 +37,7 @@ import rdl_model
 
 from LatexUserGuide import fmthex, fmttex
 
-DEFAULT_TOP = os.path.join(rdl_model.RDL_DIR, 'castalia_penta_wound_afe.rdl')
+DEFAULT_TOP = os.path.join(rdl_model.RDL_DIR, 'castalia_penta_wound.rdl')
 
 
 class _InstanceBlock(object):
@@ -153,8 +153,8 @@ def _header(binding):
 
 
 def bind(topPath, configPath, topName=None):
-    # Two rdl.json entries may name the same peripheral (AFEx is described by
-    # afe2.rdl and, on a per-tile chip, ALSO by biasg.rdl overlaying words 9-13).
+    # Two rdl.json entries may name the same peripheral, which is how a block
+    # overlaid on another block's sub-slot is described.
     # The PRIMARY block is the one whose rdl.json key IS the peripheral name;
     # an overlay would need its own instantiation and is not one here.
     flags = {}

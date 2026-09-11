@@ -77,16 +77,7 @@ def _isMemSize(v, ceiling):
 # package model; a config SELECTS one by name. Free-form pin assignment in the
 # config is intentionally unsupported — a chip gets its own pinout by adding a
 # model here (Argus will, once its package is decided), never in JSON.
-# 'castalia-lqfp100-pt' is the TOPOLOGY B (per-tile AFE) variant of the LQFP-100,
-# added 2026-09-06. Same 100 balls; what moves is the analog block. See the
-# _buildPackageData branch for the R1 resolution it implements.
-_PACKAGE_MODELS = ('myshkin-qfn44', 'castalia-quad-qfn64', 'castalia-lqfp100',
-                   'castalia-lqfp100-pt')
-
-# AFE placement topologies (topology B, 2026-09-06). See the 'afeTopology'
-# schema entry below for what each one builds.
-_AFE_TOPOLOGIES = ('top_ports', 'per_tile')
-
+_PACKAGE_MODELS = ('myshkin-qfn44', 'castalia-quad-qfn64', 'castalia-lqfp100')
 _CONFIG_SCHEMA = {
 	'chipName':             ('non-empty string: renames the chip in the TRM and headers (CHIP_NAME env wins)',
 	                         lambda v: isinstance(v, str) and len(v.strip()) > 0),
@@ -118,26 +109,6 @@ _CONFIG_SCHEMA = {
 	# firmware must derive CLINT addresses from NHARTS)
 	'orchestrator':         ('bool: hart 0 is the always-on orchestrator; harts 1..N-1 are gateable tiles',
 	                         _isBool),
-	# TOPOLOGY B (per-tile AFE, 2026-09-06). WHERE the four AFE2 sites' analog
-	# pins leave the digital hierarchy. A PLACEMENT knob, not a feature knob:
-	# the register map, the vector, the sequencer and all 50 control bits per
-	# site are identical for both values.
-	#   top_ports  the four port groups (afe_ctl_h, afe_sar_clk/rst/rdy/d_h) are
-	#              MCU ENTITY PORTS and the chip wraps ONE anatop_quad macro in
-	#              the north-centre corridor. This is topology A, the default,
-	#              and the emission is byte-identical to the pre-knob generator.
-	#   per_tile   the four port groups are wired INTERNALLY to the four channel
-	#              tiles, which become `hart_tile_pt` (hart_tile plus the AFE
-	#              pass-through and the four bias pins) and carry one `anatop_ch`
-	#              macro each in their corner notch. The MCU entity then has NO
-	#              per-site analog ports at all — only the shared bias-generator
-	#              group biasg_code(13:0)/biasg_en for `anatop_biasgen_g`, which
-	#              software drives through word 9 of AFE2 site 0's sub-slot
-	#              (AFE0BIASG @0x6C24).
-	# per_tile requires peripherals.afe2 and exactly four channel tiles, i.e.
-	# numHarts = 5 with orchestrator = true.
-	'afeTopology':          ('enum top_ports|per_tile: where the four AFE2 sites\' analog pins leave the digital hierarchy (per_tile needs afe2 + 5 harts + orchestrator)',
-	                         lambda v: isinstance(v, str) and v in _AFE_TOPOLOGIES),
 	'numMutexes':           ('int 1..1024: hardware mutex bank size, the number of MUTEXn registers',
 	                         lambda v: _isInt(v) and 1 <= v <= 1024),
 	'registerFileDualPort': ('bool: docs-only, the register file is dual-port in the RTL either way',
@@ -365,16 +336,6 @@ _CONFIG_SCHEMA = {
 	# claim slot 12). Default false
 	'peripherals.qspi':     ('bool: QSPI0 controller in slot 12 (0x4C00); needs cqAfeStubs false',
 	                         _isBool),
-	# AFE2 (2026-09-05): the rev-2 analog front end. True instantiates four AFE2 sites
-	# (hdl/common/periph/AFE2.vhd) in page-2 sub-slots 12-15 (0x6C00 + 0x100*h): the 50
-	# anatop_pixel control bits per site as MCU entity outputs, the SAR converter
-	# sequencer (SARADC_clk/rst out, SARADC_rdy/d in), the shared simultaneous-sample
-	# trigger, and IRQ vector 124 (A5 library tail) as the OR of the four sites. On the
-	# castalia-lqfp100 model it also re-cuts the north analog band to 12 electrode pads
-	# (CE/RE/WE x 4) + 2 analog test pads (ATP0/1) in place of the 16-pad RE2 variant.
-	# Mutually exclusive with peripherals.cqAfeStubs (two register files for one macro).
-	'peripherals.afe2':     ('bool: four AFE2 sites (anatop_pixel control + SAR sequencer) at 0x6C00-0x6F00; needs cqAfeStubs false',
-	                         _isBool),
 	# Long form, preserved from the pre-2026-08-15 schema (the TRM chapters and this file's
 	# own notes are where this detail belongs; the string below is the table cell): bool —
 	# True instantiates the I3C0 controller (MVP+DAA+IBI) at 0x6100: page-2 (MUTEX page) sub-
@@ -565,10 +526,6 @@ _CONFIG_META = {
 	# the channel tiles. THE TWO-PLACES RULE: this default and the literal at
 	# the knob's _cfg site below must agree (check_config_defaults.py enforces).
 	'orchestrator':         {'type': 'bool', 'default': True},
-	# TOPOLOGY B (2026-09-06): placement of the AFE2 sites' analog pins.
-	# top_ports is topology A and the default, so every existing config emits
-	# byte-identically; per_tile is the four-notch build (hart_tile_pt).
-	'afeTopology':          {'type': 'enum', 'default': 'top_ports', 'enum': list(_AFE_TOPOLOGIES)},
 	'numMutexes':           {'type': 'int', 'default': 16, 'min': 1, 'max': 1024},
 	'registerFileDualPort': {'type': 'bool', 'default': True},
 	# Fetch-ahead. SHIPPED ON: the owner directed Castalia to carry it, and the
@@ -672,7 +629,6 @@ _CONFIG_META = {
 	'peripherals.timer1':   {'type': 'bool', 'default': True},
 	'peripherals.cqAfeStubs': {'type': 'bool', 'default': True},
 	'peripherals.qspi':     {'type': 'bool', 'default': False},
-	'peripherals.afe2':     {'type': 'bool', 'default': False},
 	'peripherals.i3c':      {'type': 'bool', 'default': False},
 	'peripherals.nfc':      {'type': 'bool', 'default': True},
 	'peripherals.rtc':      {'type': 'bool', 'default': False},
@@ -841,36 +797,6 @@ qspiPresent = _cfg('peripherals.qspi', False)
 if cqAfeStubsPresent and qspiPresent:
 	raise Exception('Chip-config conflict: peripherals.cqAfeStubs and peripherals.qspi '
 		'both claim page-0 slot 12 (0x4C00) — set cqAfeStubs=false to enable qspi.')
-
-# AFE2 (2026-09-05): the rev-2 analog front end, four AFE2 sites at 0x6C00 + 0x100*h
-# (page-2 sub-slots 12-15, free in every configuration). Replaces the afe_stub bank:
-# the two are mutually exclusive because both would claim the 50 anatop_pixel control
-# pins per site and IRQ vector 55. Default FALSE — the default emission is byte-identical.
-afe2Present = _cfg('peripherals.afe2', False)
-if cqAfeStubsPresent and afe2Present:
-	raise Exception('Chip-config conflict: peripherals.cqAfeStubs and peripherals.afe2 '
-		'both drive the analog front end — set cqAfeStubs=false to enable afe2.')
-
-# TOPOLOGY B (per-tile AFE, 2026-09-06). A PLACEMENT knob: it moves the four
-# AFE2 port groups off the MCU entity and onto the four channel tiles (which
-# become `hart_tile_pt`), and puts the shared bias-generator control group
-# (biasg_code(13:0)/biasg_en for anatop_biasgen_g) on the entity instead. The
-# register map, IRQ vector 124, the sequencer and all 50 control bits per site
-# are IDENTICAL in both topologies -- nothing about the AFE2 peripheral itself
-# changes, which is why this is one string knob and not a second afe2 knob.
-# DEFAULT 'top_ports' == topology A == the pre-knob generator, byte for byte.
-afeTopology = _cfg('afeTopology', 'top_ports')
-afePerTile = (afeTopology == 'per_tile')
-if afePerTile and not afe2Present:
-	raise Exception('Chip-config conflict: afeTopology="per_tile" needs peripherals.afe2 '
-		'— there are no AFE sites to place in the tiles.')
-if afePerTile and not (orchestrator and numHarts == 5):
-	# The four channel tiles ARE harts 1-4 of an orchestrator penta. Any other
-	# shape has no four-tile ring to put one anatop_ch macro in each corner of,
-	# so the wiring would be silently partial rather than wrong-and-loud.
-	raise Exception('Chip-config conflict: afeTopology="per_tile" needs numHarts=5 with '
-		'orchestrator=true (four channel tiles, one AFE site each); got numHarts='
-		+ str(numHarts) + ' orchestrator=' + str(orchestrator) + '.')
 
 # digperiphs #2 (I3C, 2026-07-18): the I3C0 controller (MVP+DAA+IBI) claims
 # page-2 (the MUTEX page, 0x6000-0x6FFF) SUB-SLOT 1 @0x6100. This carves the
@@ -1083,11 +1009,6 @@ _LIBRARY_TAIL_SPEC = [
 	('npu_thinkdone', npuPresent, 1),  # vector 120  (NPU0 think-done, DP-SG Part A)
 	('trng', trngPresent, 1),          # vector 121  (TRNG0 combined data-ready/alarm)
 	('i2ctarget', i2ctargetPresent, 2),  # vectors 122, 123  (I2CT0_AE, I2CT0_DATA)
-	# AFE2 (2026-09-05): ONE vector for the four sites (each site's SR demultiplexes it).
-	# 55/56 are QSPI0's on the tape-out configuration, so the ex-AFE gap is not usable, and
-	# irq_router caps NUM_SRCS at 127 (7-bit COMPLETE IDs), so four per-site vectors
-	# (124-127 = 128 sources) do not fit. NUM_EN_WORDS stays 4 (125 <= 128).
-	('afe2', afe2Present, 1),  # vector 124  (AFE0-3 combined result-ready / error, OR of the sites)
 ]
 def _libraryTailVectorsCount():
 	'''Total vector count = 114 + (last vector of the highest enabled tail block).
@@ -1736,9 +1657,9 @@ import rdl_model
 def _rdlRegisters(peripheralTemplateName, template, sources=None, parameters=None, defines=None):
 	'''Load a peripheral\'s register templates from its SystemRDL description.
 
-	   `sources` restricts which .rdl blocks feed the template, for the one
-	   peripheral whose register file is assembled conditionally (AFEx = afe2.rdl
-	   always, plus biasg.rdl on a per-tile chip).
+	   `sources` restricts which .rdl blocks feed the template, for a peripheral
+	   whose register file is assembled from more than one description. No
+	   peripheral in the public tree uses it today.
 
 	   `parameters` and `defines` are for the four PARAMETERISED blocks (CLINT,
 	   MUTEX, IRQROUTER, PWRCTRL), whose register SET and field GEOMETRY are
@@ -2063,23 +1984,6 @@ if rtcPresent:
 	m.AddPeripheralTemplate(rtc)
 
 	_rdlRegisters('RTCx', rtc)
-
-# AFE2 (2026-09-05): the per-site register template. Word map and semantics are
-# hdl/common/periph/AFE2.vhd's header; the two are kept in step by hand (the RTL uses
-# local constants, not MemoryMap, so its bench keeps a single-file closure).
-if afe2Present:
-	afe = PeripheralTemplate(nameTemplate='AFEx', description='Analog front-end site: the digital half of one anatop_pixel channel (bipolar potentiostat, programmable transimpedance ladder, two 12-bit DACs, local bias trim, 16:1 converter and test-port multiplexers, 10-bit SAR converter). The register file drives the 50 control bits of the analog macro directly, and a sequencer generates the converter trigger clock (f_mclk / (2 (CLKDIV + 1)), 12 falling edges per conversion, 16 + SAMPLESTEP ticks), captures the result inside the READY window with bit 9 already corrected, and queues it in a four-entry FIFO tagged with the converter input slot and the excitation phase. Single-shot and continuous conversion, a simultaneous-sample trigger shared by the four sites, and a two-code excitation swap engine for square-wave impedance records. Each site answers its owner hart or the management hart (the afe_stub ownership gate); a denied read returns 0 and a denied write is dropped. Reads have no side effects: the FIFO is popped by writing 1 to SR.DRDY.', registerPrefix='AFEx', bitFieldPrefix='AFE', latexIntroFileName='AFE-intro-castalia-2026-09.tex', latexFeatureSummary='{count} analog front-end sites (potentiostat control, SAR sequencer with result FIFO, simultaneous-sample trigger, excitation swap engine)')
-	m.AddPeripheralTemplate(afe)
-
-	_rdlRegisters('AFEx', afe, sources=['afe2.rdl'])
-	# BIASG is a SECOND .rdl block, overlaid on AFE2 site 0's words 9-13, and it
-	# exists only on a per-tile chip: hdl/common/periph/BIASG.vhd is instantiated
-	# once, beside site 0. rdl.json calls it AFExBIASG and gives it the same
-	# vesta_peripheral, so the two blocks assemble into one template here.
-	if afePerTile:
-		_rdlRegisters('AFEx', afe, sources=['biasg.rdl'])
-
-
 # digperiphs #5 (2026-07-20): PWM0 register template (design doc D5, 9 word slots
 # @0x6600). Added only when pwmPresent CreatePeripheral()s it; with PWM off it is
 # never instanced (byte-identical default). The register read path is REGISTERED on
@@ -2379,16 +2283,6 @@ if eventFabricPresent:
 	# port-map lines on the existing instances are emitted by mcu_vhd.py under
 	# geo['eventFabric'], with every absent source tied '0' (D23).
 	m.CreatePeripheral(nameTemplate='EVFAB', nameIndex='', peripheralMemorySlot=None, interruptPriority=None, absoluteBaseAddress=0x6B00, sharedBus='native', clockDomain='mclk', strobeNote='page-2 sub-slot 11; registered read, no bridge, no CAPTURE_CLOCK pre-latch; free-running MCLK fabric in the always-on domain (never gated by PWRCTRL, alive through WFI); vectorless — poll EVFSR, there is no interrupt; a CHTRIG/EVTRIG/W1C write takes effect 3 MCLK after the access opens, so a read issued immediately after one (only possible from a faster master than the shared bus) can see stale state; disable a channel before changing its EVSEL/TASKSEL')	# EVFAB0 (digperiphs EVFAB). native page-2 sub-slot 11; mcu_vhd hand-emits the raw-strobe shim + evfab0 instance + every producer/consumer tap
-if afe2Present:
-	# AFE2 (2026-09-05): four sites at 0x6C00 + 0x100*h = page-2 sub-slots 12-15, free in
-	# every configuration. Same native page-2 shape as RTC0 (mcu_vhd.py hand-decodes the
-	# sub-slot and emits the instance); the slave is the afe_stub port shape (active-high
-	# en/we, sh_master ownership gate, registered read), so there is no en shim at all.
-	# One vector for the four sites, 124 (the A5 library tail): 55/56 belong to QSPI0 on
-	# the tape-out configuration and irq_router caps NUM_SRCS at 127, so four per-site
-	# vectors (124-127) would not fit. Site 0 carries the interruptPriority.
-	for _h in range(4):
-		m.CreatePeripheral(nameTemplate='AFEx', nameIndex=_h, peripheralMemorySlot=None, interruptPriority=(124 if _h == 0 else None), absoluteBaseAddress=0x6C00 + 0x100 * _h, sharedBus='native', clockDomain='mclk', strobeNote='page-2 sub-slot ' + str(12 + _h) + '; registered read, no side effects (FIFO popped by SR.DRDY write-1); owner hart ' + str(_h + 1 if orchestrator else _h) + ' or hart 0; free-running MCLK sequencer, vector 124 shared by the four sites (OR), demultiplexed by each site\'s SR')
 m.CreatePeripheral(nameTemplate='IRQROUTER', nameIndex='', peripheralMemorySlot=None, interruptPriority=None, absoluteBaseAddress=0x7000, sharedBus='native', clockDomain='mclk', registerSlotCount=_slotCountOverride(524))	# IRQ router at 0x7000 (M11: window page 3; M19: rows + the fixed-address CLAIM block; Stage E rider: through word 523 = 0x782C = INSVCX)
 
 
@@ -2697,23 +2591,12 @@ def _buildPackageData(model):
 		# ORDER WITHIN A SITE follows the QFN-64 model: the current-carrying pair
 		# (CE, WE) abut, then the sense pair (RE, RE2), so a site's four pads are
 		# four adjacent balls and a probe card lands on one contiguous block.
-		# AFE2 (2026-09-05, decision D2): with peripherals.afe2 the band is the 14-pad
-		# tapeout layout — 12 electrodes (CE/RE/WE per site, three adjacent balls per
-		# site, 78-89) + 2 analog test pads (ATP0/ATP1, 90-91) — because the RE2 Kelvin
-		# sense has no receiver on the die. 92-100 stay NC. Without afe2 the 16-pad
-		# RE2 layout below is unchanged.
+		# The 16-pad RE2 layout: four electrodes per site on 78-93, 94-100 NC.
 		_lqfpElectrodes = []
-		if afe2Present:
-			for _s in range(4):
-				_p0 = 78 + 3 * _s
-				_lqfpElectrodes += [(_p0, 'CE_' + str(_s)), (_p0 + 1, 'WE_' + str(_s)),
-					(_p0 + 2, 'RE_' + str(_s))]
-			_lqfpElectrodes += [(90, 'ATP0'), (91, 'ATP1')]
-		else:
-			for _s in range(4):
-				_p0 = 78 + 4 * _s
-				_lqfpElectrodes += [(_p0, 'CE_' + str(_s)), (_p0 + 1, 'WE_' + str(_s)),
-					(_p0 + 2, 'RE_' + str(_s)), (_p0 + 3, 'RE2_' + str(_s))]
+		for _s in range(4):
+			_p0 = 78 + 4 * _s
+			_lqfpElectrodes += [(_p0, 'CE_' + str(_s)), (_p0 + 1, 'WE_' + str(_s)),
+				(_p0 + 2, 'RE_' + str(_s)), (_p0 + 3, 'RE2_' + str(_s))]
 		for (_epn, _enm) in _lqfpElectrodes:
 			package.AddPin(packagePinNumber=_epn, name=_enm, ioType='io', powerDomain=analogPowerDomain)
 
@@ -2735,252 +2618,7 @@ def _buildPackageData(model):
 		# 47-51 LEFT this list at D3 -- see the JTAG block above.
 		# 78-93 LEFT this list at the electrode block above (they were 78-85 ARSV
 		# and 86-93 NC); 94-100 are the north band's remaining spare.
-		for _ncp in ([23, 24, 25] + [26] + [72, 73, 74, 75] + list(range(92 if afe2Present else 94, 101))):
-			package.AddPin(packagePinNumber=_ncp, name='NC', ioType='', noConnect=True)
-
-	elif model == 'castalia-lqfp100-pt':
-		# TOPOLOGY B (per-tile AFE, 2026-09-06), RESOLUTION R1.
-		#
-		# WHY A SECOND LQFP-100 MODEL EXISTS. Topology A puts all sixteen analog
-		# pads on the north edge, which carries no digital pad, so they cost
-		# nothing. Topology B puts one analog channel in each of the four CORNER
-		# tiles, and two of those corners are on the SOUTH edge -- which is full
-		# (24 digital fingers). Twelve analog pads need twelve south balls, and
-		# there are none. That is the structural reason topology A fits this
-		# package and topology B does not (report B3, finding B3-1).
-		#
-		# R1 IS THE RESOLUTION APPLIED HERE (coordinator default, 2026-09-06):
-		# keep the LQFP-100 and move eleven south digital signals to the north
-		# row, which topology B empties of its A-era 16-pad analog band.
-		#
-		# S1 RIDES ON TOP OF IT (coordinator, 2026-09-06, report B7 finding
-		# B7-1). R1 alone left the south pad-ring segment with thirteen I/O pads
-		# and NO VDDPST/VSSPST pair: the ten PRCUTA_G ring breaks cut both PST
-		# rails, the segment's only pair had gone north with the eleven, and
-		# PAD_VDD_1/PAD_VSS_1 are the 1.0 V CORE supply and do not substitute.
-		# Eleven of the thirteen are PDUW16SDGZ_G drivers whose output stage and
-		# ESD clamps run off VDDPST/VSSPST, so the segment was unsupplied - a
-		# blocker, not a QoR item, and unfixable inside the ball budget because
-		# both horizontal edges are 25 of 25.
-		# S1 buys the pair by UN-BONDING ATP_2 and ATP_3. The die pads stay (the
-		# padlist carries them at `pin 0`), so both south channels keep their
-		# analog test point for probe and chip-on-board work; what is spent is
-		# two package fingers. The two freed balls carry the new fourth I/O
-		# supply pair at the east end of the south digital run.
-		#
-		#   south, 25 balls : BL island 26-30 | GPIO2 31-38 | VDD 39 VSS 40 |
-		#                     GPIO3.0-2 41-43 | VDDPST 44 VSSPST 45 |
-		#                     BR island 46-50
-		#   north, 25 balls : TR island 76-81 | bias island 82-83 |
-		#                     the eleven relocated digital 84-94 | TL island 95-100
-		#   west / east     : UNCHANGED, name for name, from castalia-lqfp100.
-		#   unbonded die    : ATP_2, ATP_3 (present on the die, no finger)
-		# Every one of the 100 balls is assigned; the NC set is the seven that
-		# were already NC on the west and east edges (23-25, 72-75).
-		# The die geometry is unchanged by S1 - the BL and BR islands are still
-		# six pads each and the south digital block simply grows from thirteen
-		# placed pads to fifteen (padlist header: "BOTTOM is 15 pads under R1,
-		# x = 1157.5 + 25 i"), which is why no analog ball is renumbered: the
-		# freed balls 31 and 45 sit immediately inboard of the two islands.
-		#
-		# R2, THE ALTERNATIVE, NOT IMPLEMENTED: a 144-pin QFP is 36 balls a side,
-		# so the south edge takes its 24 digital plus 12 analog with no move at
-		# all and the electrode balls stay adjacent to their corners. It costs a
-		# new package and a new board, and it is the better answer if a package
-		# change is affordable. Implementing it is a new _PACKAGE_MODELS entry
-		# plus a branch here with pinsOnEachSide 36 and no relocation table --
-		# strictly less code than R1, because nothing moves.
-		#
-		# TWO DELIBERATE DEPARTURES from config/padring_pt.json (B3's geometry
-		# file), both recorded so they are decisions rather than drift:
-		#  1. ATP_2 and ATP_3 are KEPT. B3's R1 prose says to drop them and make
-		#     the south islands four-pad, but B3's own ball arithmetic gives the
-		#     islands six balls each (26-31 and 45-50); dropping the two ATP pads
-		#     would leave two south balls NC and halve the analog test-port
-		#     coverage for no gain.
-		#  2. The bias island moves from balls 87-88 to 82-83, i.e. its die x
-		#     moves east, next to the TR island's ring cut. At 87-88 it SPLITS
-		#     the eleven relocated digital pads into a 5-ball and a 6-ball run,
-		#     and only one of the two can hold the row's VDDPST/VSSPST pair --
-		#     the other would be a PRCUTA_G-bracketed digital island with no I/O
-		#     supply. Moved east, the digital run is contiguous and carries its
-		#     own supply pair. The pad-ring segment count is unchanged (five).
-		# The geometry (island membership, instance names, nets, cells) is read
-		# from config/padring_pt.json and CROSS-CHECKED below, so this branch
-		# owns only the ball numbers and cannot drift from B3's die row silently.
-		package = PackageData(
-			packageType='LQFP',
-			pinCount=100,
-			units='mm',
-			dimensions=[14, 14],
-			pinsOnEachSide={'W': 25, 'S': 25, 'E': 25, 'N': 25},
-			pinPitch=0.5,
-			pinWidth=0.22,
-			pinDepth=0.6
-		)
-
-		digitalCorePowerDomain = package.AddPowerDomain(
-			powerDomainName='Digital Core',
-			positiveVoltage=1.0,
-			negativeVoltage=0.0,
-			positiveRailPinNumber=3,
-			positiveRailPinName='VDD',
-			negativeRailPinNumber=4,
-			negativeRailPinName='VSS',
-			# The south core pair rides the south digital run: 35/36 on
-			# castalia-lqfp100, 39/40 here (R1 shifts it six balls east as the BL
-			# island takes 26-30, S1 shifts it one back west as ATP_2's freed ball
-			# extends the run). The east pair at 60/61 does not move.
-			positiveRailExtraPins=[(39, 'VDD'), (60, 'VDD')],
-			negativeRailExtraPins=[(40, 'VSS'), (61, 'VSS')]
-		)
-
-		digitalIOPowerDomain = package.AddPowerDomain(
-			powerDomainName='Digital I/O',
-			positiveVoltage=3.3,
-			negativeVoltage=0.0,
-			positiveRailPinNumber=13,
-			positiveRailPinName='VDDPST',
-			negativeRailPinNumber=14,
-			negativeRailPinName='VSSPST',
-			isGpioPowerDomain=True,
-			# FOUR pad pairs on this model, one per pad-ring segment that drives
-			# I/O, which is one more than castalia-lqfp100 has:
-			#   13/14  west edge   (the primary, above)
-			#   89/88  north row   the pair that moved with the eleven relocated
-			#                      digital pads, supplying that island
-			#   70/71  east edge   unmoved
-			#   44/45  south row   S1's new pair, on the two balls ATP_2 and
-			#                      ATP_3 gave up, supplying the fifteen-pad south
-			#                      digital segment that R1 alone left unsupplied
-			positiveRailExtraPins=[(89, 'VDDPST'), (70, 'VDDPST'), (44, 'VDDPST')],
-			negativeRailExtraPins=[(88, 'VSSPST'), (71, 'VSSPST'), (45, 'VSSPST')]
-		)
-
-		# FIVE analog domains, and topology B builds all five: the pad ring is
-		# five PRCUTA_G-bracketed islands, one per channel corner plus the
-		# north-centre bias island, each with its own AVDD/AVSS pair. This is the
-		# castalia-quad-qfn64 idiom, not castalia-lqfp100's single domain --
-		# whose comment refuses four domains precisely because THAT ring does not
-		# build the isolation. This one does.
-		# The fifth pair (AVDD_B/AVSS_B) is the shared bias generator's own
-		# supply (B3-8): without it anatop_biasgen_g has no 2.5 V rail within
-		# 1.3 mm and would borrow a channel's AVDD, coupling that channel's
-		# supply into the bias every other channel uses.
-		_ptAnalogDomains = {}
-		_ptDomainSpec = [
-			# (json powerDomains name, TRM name, AVDD ball, AVSS ball)
-			('Analog 0',    'Analog0',    100, 99),
-			('Analog 1',    'Analog1',     76, 77),
-			('Analog 2',    'Analog2',     26, 27),
-			('Analog 3',    'Analog3',     50, 49),
-			('Analog Bias', 'AnalogBias',  82, 83),
-		]
-		for (_jn, _tn, _vdd, _vss) in _ptDomainSpec:
-			_suffix = _tn[len('Analog'):]
-			_ptAnalogDomains[_jn] = package.AddPowerDomain(
-				powerDomainName=_tn, positiveVoltage=2.5, negativeVoltage=0.0,
-				positiveRailPinNumber=_vdd, positiveRailPinName='AVDD_' + (_suffix if _suffix != 'Bias' else 'B'),
-				negativeRailPinNumber=_vss, negativeRailPinName='AVSS_' + (_suffix if _suffix != 'Bias' else 'B'))
-
-		package.AddPin(packagePinNumber=1, name='RESETN', ioType='i', powerDomain=digitalIOPowerDomain)
-		package.AddPin(packagePinNumber=2, name='POC', ioType='i', powerDomain=digitalIOPowerDomain)
-
-		# ---- the 16 electrode / test-port balls, four channel islands --------
-		# Ball numbers are this file's; NAMES, CELLS and ISLAND MEMBERSHIP come
-		# from config/padring_pt.json, which is the die-row authority. The gate
-		# below fails the build if the two sets of net names disagree, so the
-		# 18-vs-10 drift that report 06b finding 2 records cannot repeat.
-		# S1: ATP_2 and ATP_3 have no entry here. They are die pads with no
-		# package finger, and `_ptUnbonded` below is what ties that fact to the
-		# die-row file so the two cannot drift apart.
-		_ptElectrodes = [
-			# (ball, net, json island tag)
-			(98, 'CE_0', 'TL'), (97, 'WE_0', 'TL'), (96, 'RE_0', 'TL'), (95, 'ATP_0', 'TL'),
-			(78, 'CE_1', 'TR'), (79, 'WE_1', 'TR'), (80, 'RE_1', 'TR'), (81, 'ATP_1', 'TR'),
-			(28, 'CE_2', 'BL'), (29, 'WE_2', 'BL'), (30, 'RE_2', 'BL'),
-			(48, 'CE_3', 'BR'), (47, 'WE_3', 'BR'), (46, 'RE_3', 'BR'),
-		]
-		_ptUnbonded = {'ATP_2', 'ATP_3'}
-		_ptIslandDomain = {'TL': 'Analog 0', 'TR': 'Analog 1', 'BL': 'Analog 2',
-			'BR': 'Analog 3', 'NB': 'Analog Bias'}
-		for (_epn, _enm, _tag) in _ptElectrodes:
-			package.AddPin(packagePinNumber=_epn, name=_enm, ioType='io',
-				powerDomain=_ptAnalogDomains[_ptIslandDomain[_tag]])
-
-		# GATE: this ball map against B3's die row. Both files describe the same
-		# 26 pads; a rename or an added pad on either side stops the build here
-		# rather than shipping a package model that does not match the padlist.
-		_ptRingPath = os.path.join(os.path.dirname(os.path.dirname(
-			os.path.abspath(__file__))), 'config', 'padring_pt.json')
-		if not os.path.isfile(_ptRingPath):
-			raise Exception('package model "castalia-lqfp100-pt" needs '
-				+ _ptRingPath + ' (the topology-B die-row geometry); it is missing.')
-		with open(_ptRingPath) as _prf:
-			_ptRing = json.load(_prf)
-		_jsonPads = [(_isl['tag'], _pad['net'], _pad['cell'], _pad.get('packagePin'))
-			for _isl in _ptRing['islands'] for _pad in _isl['pads']]
-		if len(_jsonPads) != 26:
-			raise Exception('padring_pt.json declares ' + str(len(_jsonPads))
-				+ ' analog DIE pads; topology B places 26 = 16 electrode/ATP + 10 supply '
-				+ '(five AVDD/AVSS pairs: four channels and the bias island). S1 un-bonds '
-				+ 'two of them, which removes package fingers, never die pads.')
-		# THE BONDED/UNBONDED SPLIT IS THE THING THAT MUST AGREE, not just the
-		# names: S1's whole content is that two die pads have no finger, and a
-		# package model that quietly bonded them (or a die row that quietly
-		# dropped them) would be a chip whose balls and pads disagree. The die
-		# row marks an unbonded pad with a null packagePin; the package model
-		# marks it by absence from _ptElectrodes. Compare the two derivations.
-		_jsonSignal = set(_n for (_t, _n, _c, _pp) in _jsonPads if _c == 'PDB3A_G')
-		_jsonUnbonded = set(_n for (_t, _n, _c, _pp) in _jsonPads
-			if _c == 'PDB3A_G' and _pp is None)
-		_mineSignal = set(_n for (_p, _n, _t) in _ptElectrodes)
-		if _jsonSignal - _jsonUnbonded != _mineSignal:
-			raise Exception('padring_pt.json and the castalia-lqfp100-pt ball map disagree '
-				+ 'on which electrode pads are BONDED: die row says bonded '
-				+ str(sorted(_jsonSignal - _jsonUnbonded)) + ', package bonds '
-				+ str(sorted(_mineSignal)) + '.')
-		if _jsonUnbonded != _ptUnbonded:
-			raise Exception('padring_pt.json marks ' + str(sorted(_jsonUnbonded))
-				+ ' as unbonded die pads; this model expects ' + str(sorted(_ptUnbonded))
-				+ ' (resolution S1). Changing the un-bonded set is a package decision, '
-				+ 'not a data edit: fix both files together.')
-		_jsonRails = set(_n for (_t, _n, _c, _pp) in _jsonPads if _c != 'PDB3A_G')
-		_mineRails = set()
-		for (_jn, _tn, _vdd, _vss) in _ptDomainSpec:
-			_sfx = _tn[len('Analog'):]
-			_sfx = _sfx if _sfx != 'Bias' else 'B'
-			_mineRails |= {'AVDD_' + _sfx, 'AVSS_' + _sfx}
-		if _jsonRails != _mineRails:
-			raise Exception('padring_pt.json and the castalia-lqfp100-pt ball map name '
-				+ 'different analog rails: die row ' + str(sorted(_jsonRails))
-				+ ' vs package ' + str(sorted(_mineRails)))
-		# GATE: no ISLAND may be wholly unbonded. R1 exists precisely to give the
-		# two south islands package fingers; an island still carrying
-		# `bonded: false` means the die row was not updated to R1 and the TRM
-		# would document a bond-out the padlist does not build. S1 un-bonds two
-		# PADS, never an island, so this stays a hard error rather than a note.
-		_unbondedIslands = [_isl['tag'] for _isl in _ptRing['islands']
-			if _isl.get('bonded') is False]
-		if _unbondedIslands:
-			raise Exception('config/padring_pt.json marks island(s) '
-				+ ', '.join(_unbondedIslands) + ' bonded=false, i.e. it is still the '
-				+ 'pre-R1 die row. Under R1 every island has package fingers and under '
-				+ 'S1 exactly two PADS (ATP_2, ATP_3) do not. Update the die row.')
-
-		# JTAG: the TAP moves to the north row with the rest of the relocated
-		# south block. TRSTn stays at 51, the foot of the EAST edge, unmoved.
-		# _checkDebugTransportBonded only asks that all five names are bonded.
-		package.AddPin(packagePinNumber=87, name='TCK', ioType='i', powerDomain=digitalIOPowerDomain)
-		package.AddPin(packagePinNumber=86, name='TMS', ioType='i', powerDomain=digitalIOPowerDomain)
-		package.AddPin(packagePinNumber=85, name='TDI', ioType='i', powerDomain=digitalIOPowerDomain)
-		package.AddPin(packagePinNumber=84, name='TDO', ioType='o', powerDomain=digitalIOPowerDomain)
-		package.AddPin(packagePinNumber=51, name='TRSTn', ioType='i', powerDomain=digitalIOPowerDomain)
-
-		# Explicit NC balls. Under R1 the north and south edges are FULL, so the
-		# only no-connects left are the west and east spares castalia-lqfp100
-		# already had.
-		for _ncp in [23, 24, 25, 72, 73, 74, 75]:
+		for _ncp in ([23, 24, 25] + [26] + [72, 73, 74, 75] + list(range(94, 101))):
 			package.AddPin(packagePinNumber=_ncp, name='NC', ioType='', noConnect=True)
 
 	else:
@@ -3051,28 +2689,6 @@ _GPIO_PKG_PINS = {
 		(1, 0): 15, (1, 1): 16, (1, 2): 17, (1, 3): 18, (1, 4): 19, (1, 5): 20, (1, 6): 21, (1, 7): 22,
 		(2, 0): 27, (2, 1): 28, (2, 2): 29, (2, 3): 30, (2, 4): 31, (2, 5): 32, (2, 6): 33, (2, 7): 34,
 		(3, 0): 37, (3, 1): 38, (3, 2): 39, (3, 3): 40, (3, 4): 41, (3, 5): 42, (3, 6): 43, (3, 7): 44,
-		(4, 0): 52, (4, 1): 53, (4, 2): 54, (4, 3): 55, (4, 4): 56, (4, 5): 57, (4, 6): 58, (4, 7): 59,
-		(5, 0): 62, (5, 1): 63, (5, 2): 64, (5, 3): 65, (5, 4): 66, (5, 5): 67, (5, 6): 68, (5, 7): 69,
-	},
-	# TOPOLOGY B (2026-09-06), RESOLUTION R1 + S1. Identical to castalia-lqfp100
-	# on the WEST and EAST edges; the SOUTH edge gives up ten balls to the two
-	# south analog islands and eleven signals move to the NORTH row.
-	#   south kept  : GPIO2 bits 0-7 (31-38), VDD 39, VSS 40, GPIO3 bits 0-2 (41-43),
-	#                 VDDPST 44, VSSPST 45   -- fifteen balls, one contiguous run
-	#   south analog: BL island 26-30, BR island 46-50 (five balls each: S1 leaves
-	#                 ATP_2 and ATP_3 as UNBONDED die pads)
-	#   moved north : GPIO3 bits 3-7 (90-94), VDDPST 89, VSSPST 88, TCK 87,
-	#                 TMS 86, TDI 85, TDO 84  -- one contiguous eleven-ball run
-	#                 with its own I/O supply pair, which is what lets it be a
-	#                 single PRCUTA_G-bracketed digital island in an otherwise
-	#                 analog row.
-	# The GPIO map only carries the GPIO half of that; the supplies and the TAP
-	# are in the _buildPackageData branch.
-	'castalia-lqfp100-pt': {
-		(0, 0): 5, (0, 1): 6, (0, 2): 7, (0, 3): 8, (0, 4): 9, (0, 5): 10, (0, 6): 11, (0, 7): 12,
-		(1, 0): 15, (1, 1): 16, (1, 2): 17, (1, 3): 18, (1, 4): 19, (1, 5): 20, (1, 6): 21, (1, 7): 22,
-		(2, 0): 31, (2, 1): 32, (2, 2): 33, (2, 3): 34, (2, 4): 35, (2, 5): 36, (2, 6): 37, (2, 7): 38,
-		(3, 0): 41, (3, 1): 42, (3, 2): 43, (3, 3): 94, (3, 4): 93, (3, 5): 92, (3, 6): 91, (3, 7): 90,
 		(4, 0): 52, (4, 1): 53, (4, 2): 54, (4, 3): 55, (4, 4): 56, (4, 5): 57, (4, 6): 58, (4, 7): 59,
 		(5, 0): 62, (5, 1): 63, (5, 2): 64, (5, 3): 65, (5, 4): 66, (5, 5): 67, (5, 6): 68, (5, 7): 69,
 	},
@@ -3466,7 +3082,6 @@ _libraryTailEmit = [
 	(trngPresent, [('IRQB_TRNG0', 'TRNG0 combined data-ready/health-alarm Interrupt')]),
 	(i2ctargetPresent, [('IRQB_I2CT0_AE', 'I2CT0 combined address-match/error Interrupt'),
 		('IRQB_I2CT0_DATA', 'I2CT0 combined tx-ready/rx-full Interrupt')]),
-	(afe2Present, [('IRQB_AFE', 'AFE0-3 combined result-ready / error Interrupt (OR of the four sites)')]),
 ]
 _tailHigh = _libraryTailVectorsCount()	# vector count including the tail high-water mark
 _v = _LIB_TAIL_BASE
@@ -3571,8 +3186,6 @@ if i2c1Present:
 	_mcuMpIrqFirstVector['I2C1'] = 'IRQB_I2C1_STR'
 if qspiPresent:
 	_mcuMpIrqFirstVector['QSPI0'] = 'IRQB_QSPI0_TC'
-if afe2Present:
-	_mcuMpIrqFirstVector['AFE0'] = 'IRQB_AFE'	# vector 124 (A5 library tail), shared by AFE0-3; interruptPriority sits on site 0 only
 if i3cPresent:
 	_mcuMpIrqFirstVector['I3C0'] = 'IRQB_I3C0_TC'	# vectors 86-93 (interruptPriority 86)
 if nfcPresent:
@@ -3753,7 +3366,7 @@ m.McuMpCompat = {
 # so the template (and therefore //platform/common:rdl_vs_generator_test, which
 # grades templates) is untouched and the per-instance values reach the emitted
 # artifacts. The .rdl side assigns exactly these at the top addrmap
-# (hdl/common/regs/rdl/castalia_penta_wound_afe.rdl).
+# (hdl/common/regs/rdl/castalia_penta_wound.rdl).
 i2cDefaultSad = {'0': 0x79, '1': 0x23}	# hdl/common/constants.vhd: i2c{0,1}_default_SAD
 
 def _setInstanceReset(peripheralName, registerName, value):
@@ -3806,8 +3419,6 @@ m.McuMpGeometry = {
 	'i3c': i3cPresent,          # digperiphs #2: True = I3C0 in MUTEX-page sub-slot 1 (0x6100); tightens the mutex decode, vectors 86-93
 	'nfc': nfcPresent,          # digperiphs #3: True = NFC0 in MUTEX-page sub-slot 2 (0x6200); tightens the mutex decode, vectors 94-97, 4th glitch filter
 	'qspi': qspiPresent,        # digperiphs #1: True = QSPI0 controller in slot 12 (0x4C00), vectors 55/56 (needs afeStubs=False)
-	'afe2': afe2Present,        # AFE2 (2026-09-05): True = four AFE2 sites in MUTEX-page sub-slots 12-15 (0x6C00-0x6F00), the 50 anatop_pixel control bits + SARADC clk/rst/rdy/d per site as MCU entity ports, vector 124 = OR of the sites, source list grows to 125 (needs afeStubs=False)
-	'afeTopology': afeTopology,  # TOPOLOGY B (2026-09-06): 'top_ports' (default, topology A) = the four AFE2 port groups are MCU ENTITY PORTS to one anatop_quad macro. 'per_tile' = they are internal nets to the four channel tiles, which become `hart_tile_pt` and each carry an anatop_ch macro; the entity then has no per-site analog ports, only biasg_code(13:0)/biasg_en for the shared anatop_biasgen_g, driven by AFE0BIASG (word 9 of site 0's sub-slot, a separate one-word slave on site 0's enable). Consumed identically by mcu_vhd.py and tb_vhd.py, so entity and testbench cannot disagree.
 	'rtc': rtcPresent,          # digperiphs #4: True = RTC0 in MUTEX-page sub-slot 5 (0x6500); raw-strobe shim, vector 114, source list grows to 115
 	'pwm': pwmPresent,          # digperiphs #5: True = PWM0 in MUTEX-page sub-slot 6 (0x6600); raw-strobe shim, vectors 115/116, source list grows to 117 (A5 global vector rule)
 	'onewire': onewirePresent,  # digperiphs #5: True = OW0 1-Wire master in MUTEX-page sub-slot 7 (0x6700); raw-strobe shim, DQ on P4.7/GPIO31 AF2 open-drain (replaced-spread-slot), vector 117, source list grows to 118 (A5 global vector rule)
@@ -3951,9 +3562,6 @@ _resolvedConfig = [
 	# hart 1..numHarts-1 is gateable in both shapes now, so the value was
 	# numHarts unconditionally and a second name for it could only rot.
 	('orchestrator', orchestrator),
-	# TOPOLOGY B (2026-09-06): recorded like every other knob, so the resolved dump
-	# and the TRM configuration table report which AFE placement was built.
-	('afeTopology', afeTopology),
 	('numMutexes', numMutexes),
 	('registerFileDualPort', _regsDualPort),
 	# Fetch-ahead. Recorded for the same reason the debug branch is: a build
@@ -3979,7 +3587,7 @@ _resolvedConfig = [
 	]),
 	('peripherals', [('npu', npuPresent), ('i2c1', i2c1Present), ('uart1', uart1Present),
 		('spi1', spi1Present), ('timer1', timer1Present),
-		('cqAfeStubs', cqAfeStubsPresent), ('qspi', qspiPresent), ('afe2', afe2Present), ('i3c', i3cPresent),
+		('cqAfeStubs', cqAfeStubsPresent), ('qspi', qspiPresent), ('i3c', i3cPresent),
 		('nfc', nfcPresent), ('rtc', rtcPresent), ('pwm', pwmPresent),
 		('onewire', onewirePresent),
 		# DP-S3: the field-power knob was declared in _CONFIG_SCHEMA and consumed

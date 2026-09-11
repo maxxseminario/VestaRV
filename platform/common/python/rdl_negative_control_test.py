@@ -8,12 +8,14 @@ asserts that the comparison rdl_vs_vhdl_test performs on that thing now reports
 a mismatch -- and that the same comparison on the UNCHANGED copy passes, so the
 failure is attributable to the mutation and not to the copying.
 
-Three mutations, one per class of thing the gates check:
+Three mutations, one per class of thing the gates check. All three are on
+uart.rdl, the pilot block, because it is the one whose reader states a word
+offset, a reset AND a storage mask:
 
-    reset value    afe2.rdl AFExCR.AFESAMPLESTEP 7 -> 6, against AFE2.vhd's
-                   RSTVAL(W_CR) = x"00000700"
-    storage mask   biasg.rdl AFExBIASG0.AFEBGCODE0 [13:0] -> [12:0], against
-                   BIASG.vhd's IMPL(0) = x"00003FFF"
+    reset value    uart.rdl UARTxBR.BR reset 0 -> 1, against UART.vhd's reset
+                   branch, which clears UART_BR
+    storage mask   uart.rdl UARTxBR.BR [11:0] -> [10:0], against UART.vhd's
+                   signal UART_BR : std_logic_vector(11 downto 0)
     word offset    uart.rdl UARTxBR 0x08 -> 0x0C, against RegSlotUARTxBR
 """
 
@@ -81,26 +83,29 @@ class NegativeControlTest(unittest.TestCase):
                                 'the gate did NOT notice ' + repr(old) + ' -> ' + repr(new)
                                 + ' in ' + fileName)
 
+    def _uart(self):
+        return gate.readUart(os.path.join(REPO, 'hdl', 'common', 'periph', 'UART.vhd'),
+                             os.path.join(REPO, 'hdl', 'common', 'MemoryMap.vhd'))
+
     def test_reset_value_mutation_is_caught(self):
-        vhdl = gate.readAfe2(os.path.join(REPO, 'hdl', 'common', 'periph', 'AFE2.vhd'))
+        vhdl = self._uart()
 
         def check(block):
             return [rt.NameTemplate for rt in block.RegisterTemplates
-                    if rt.ResetValue != vhdl[rt.NameTemplate]['reset']]
+                    if vhdl[rt.NameTemplate]['reset'] is not None
+                    and rt.ResetValue != vhdl[rt.NameTemplate]['reset']]
 
-        self._run('afe2.rdl', 'afe2_site',
-                  "reset = 4'h7;\n        vesta_access = \"rw\";\n        desc = \"Extra sample-phase",
-                  "reset = 4'h6;\n        vesta_access = \"rw\";\n        desc = \"Extra sample-phase",
-                  check)
+        self._run('uart.rdl', 'uart', "reset = 12'h0;", "reset = 12'h1;", check)
 
     def test_field_width_mutation_is_caught(self):
-        vhdl = gate.readBiasg(os.path.join(REPO, 'hdl', 'common', 'periph', 'BIASG.vhd'))
+        vhdl = self._uart()
 
         def check(block):
             return [rt.NameTemplate for rt in block.RegisterTemplates
-                    if rdl_vhdl.storageMask(rt) != vhdl[rt.NameTemplate]['impl']]
+                    if vhdl[rt.NameTemplate]['impl'] is not None
+                    and rdl_vhdl.storageMask(rt) != vhdl[rt.NameTemplate]['impl']]
 
-        self._run('biasg.rdl', 'biasg', '} AFEBGCODE0[13:0];', '} AFEBGCODE0[12:0];', check)
+        self._run('uart.rdl', 'uart', '} BR[11:0];', '} BR[10:0];', check)
 
     def test_offset_mutation_is_caught(self):
         vhdl = gate.readUart(os.path.join(REPO, 'hdl', 'common', 'periph', 'UART.vhd'),

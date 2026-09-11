@@ -388,15 +388,11 @@ layout = html.Div(
             
             # Potentiostat Tab (first)
             dcc.Tab(label='Potentiostat', value='tab-potentiostat', children=[
+                # The analog block diagrams and schematics this tab used to show
+                # are kept outside the public tree (private/analog/, see its
+                # README). Restore the overlay to get the figures back.
                 create_peripheral_tab(
-                    'POTENTIOSTAT',
-                    figure_path='figures/afe_block_acquisition_focus.png',
-                    figure_caption='AFE block diagram showing acquisition signal path with potentiostat and DSADC',
-                    side_figures=[
-                        {'path': 'figures/bias-generator.png', 'caption': 'Bias generator circuit providing reference voltages'},
-                        {'path': 'figures/dualslope_schem.png', 'caption': 'Dual-slope ADC schematic'},
-                        {'path': 'figures/dualslopewave.png', 'caption': 'Dual-slope conversion waveform showing analog-to-digital conversion over time'},
-                    ]
+                    'POTENTIOSTAT'
                 )
             ]),
             
@@ -404,9 +400,7 @@ layout = html.Div(
             dcc.Tab(label='SARADC', value='tab-saradc', children=[
                 html.Div(className='peripheral-tab-content', children=[
                     *create_peripheral_tab(
-                        'SARADC',
-                        figure_path='figures/CDAC_layout.png',
-                        figure_caption='Capacitive DAC (CDAC) layout used in the SAR ADC architecture'
+                        'SARADC'
                     ).children,
                     
                     # Data Acquisition Section

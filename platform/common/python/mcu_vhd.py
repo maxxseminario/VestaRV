@@ -806,34 +806,6 @@ class McuVhdEmitter():
 		# (its rd-sel, rdata-mux and enable are emitted in explicit self.i3c blocks,
 		# the AFE-stub precedent). Default false => every one of those is inert.
 		self.i3c = geo.get('i3c', False)
-		# AFE2 (2026-09-05): four AFE2 sites in MUTEX-page (page 2) sub-slots 12-15
-		# @0x6C00-0x6F00. Native slaves in the afe_stub port shape (active-high en/we,
-		# sh_master ownership gate inside, registered read): hand-decoded sub-slot, no
-		# shim, and three entity regions of their own (afe2-ports/-decls/-instance) for
-		# the 50 control bits + SARADC pins per site. Mutually exclusive with the AFE
-		# stubs (both claim the macro and vector 55). Default false => every AFE2
-		# region is empty and the a0/jtag trailing-separator logic is unchanged.
-		self.afe2 = geo.get('afe2', False)
-		if self.afe2 and self.afeStubs:
-			raise Exception('MCU.vhd emitter: afe2 and afeStubs both drive the analog front end')
-		# TOPOLOGY B (per-tile AFE, 2026-09-06). PLACEMENT of the same four sites:
-		#   top_ports  the four groups are ENTITY PORTS; one anatop_quad macro sits
-		#              outside the MCU. Default, and byte-identical to the pre-knob
-		#              emission.
-		#   per_tile   the four groups are INTERNAL nets to the four channel tiles,
-		#              which become `hart_tile_pt` and carry one anatop_ch macro each.
-		#              The entity keeps only biasg_code/biasg_en for the shared
-		#              anatop_biasgen_g, and word 9 of site 0's sub-slot becomes
-		#              AFE0BIASG -- a separate one-word BIASG slave on site 0's OWN
-		#              enable, whose read data is OR'd into afe0's (AFE2.vhd reads 0
-		#              above word 8, so the OR is exact and AFE2.vhd is untouched).
-		self.afeTopology = geo.get('afeTopology', 'top_ports')
-		if self.afeTopology not in ('top_ports', 'per_tile'):
-			raise Exception('MCU.vhd emitter: unknown afeTopology "' + str(self.afeTopology) + '"')
-		self.afePerTile = self.afe2 and self.afeTopology == 'per_tile'
-		if self.afePerTile and self.tileTop() != 5:
-			raise Exception('MCU.vhd emitter: afeTopology="per_tile" needs four channel tiles '
-				'(harts 1-4); this configuration has ' + str(self.tileTop() - 1))
 		# digperiphs #3: NFC0 in MUTEX-page (page 2) sub-slot 2 @0x6200. Same shape
 		# as I3C0 (native slave outside the page-0 shim fabric; hand-emitted
 		# sub-decode + shim/instance under self.nfc). When either I3C or NFC is
@@ -1085,20 +1057,6 @@ class McuVhdEmitter():
 		if self.eventFabric:
 			self.shslv = dict(self.shslv)
 			self.shslv['EVFAB'] = {'sel': 'evfab0', 'shim': None, 'rdata': 'evfab0_sh_rdata'}
-		# AFE2: the four sites join the native-slave fabric (MUTEX-page sub-slots 12-15).
-		# SELs hand-decoded in emitShslvSubdecode; shim=None puts them through the
-		# standard enable / registered rd-sel / rdata-mux loops; no en shim (the entity
-		# takes the raw active-high strobe, like afe_stub).
-		if self.afe2:
-			self.shslv = dict(self.shslv)
-			for _h in range(4):
-				self.shslv['AFE' + str(_h)] = {'sel': 'afe' + str(_h), 'shim': None, 'rdata': 'afe' + str(_h) + '_rdata'}
-			# TOPOLOGY B: site 0's sub-slot carries TWO slaves -- afe0 (words 0-8)
-			# and biasg0 (word 9) -- so the read mux takes their OR, not afe0's
-			# raw output. One net name changes; every loop that reads shslv is
-			# untouched.
-			if self.afePerTile:
-				self.shslv['AFE0'] = {'sel': 'afe0', 'shim': None, 'rdata': 'afe0_mux_rdata'}
 		# Mission B: GPIO4/GPIO5 are UNCONDITIONAL native slaves on the MUTEX page
 		# (sub-slots 3/4 @0x6300/0x6400). Same native-fabric membership as I3C0/NFC0
 		# (shim=None, hand-decoded SEL, own en_n shim inside the instance emitter),
@@ -1115,8 +1073,7 @@ class McuVhdEmitter():
 			+ (['DMA0'] if self.dma else []) \
 			+ (['I2CT0'] if self.i2ctarget else []) \
 			+ (['TRNG0'] if self.trng else []) \
-			+ (['EVFAB'] if self.eventFabric else []) \
-			+ (['AFE0', 'AFE1', 'AFE2', 'AFE3'] if self.afe2 else [])
+			+ (['EVFAB'] if self.eventFabric else [])
 		self.enOrder = ['rom'] \
 			+ (['npuram'] if self.npu else []) \
 			+ ['bank' + str(b) for b in range(self.banks)] \
@@ -1392,11 +1349,6 @@ class McuVhdEmitter():
 		if self.eventFabric:
 			# digperiphs (EVFAB): EVFAB0 = page-2 sub-slot 11 (0x6B00).
 			lines.append(ind + 'shslv_evfab0_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + mtxBits + '" and sh_addr(9 downto 6) = "1011" else \'0\';')
-		if self.afe2:
-			# AFE2: sites 0-3 = page-2 sub-slots 12-15 (0x6C00-0x6F00).
-			lines.append(ind + '-- AFE2 sites 0-3 take page-2 sub-slots 12-15 (0x6C00-0x6F00); the s_master ownership gate is inside AFE2.')
-			for h in range(4):
-				lines.append(ind + ('shslv_afe' + str(h) + '_sel').ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + mtxBits + '" and sh_addr(9 downto 6) = "' + format(12 + h, '04b') + '" else \'0\';')
 		if self.afeStubs:
 			lines.append(ind + '-- Page-3 sub-decode: irq_router keeps 0x7000-0x7BFF and the shared EIS engine stub owns the top quarter 0x7C00-0x7FFF (the router ADDR_W=10 decode is inert above word 522, so only aliased space is taken).')
 			lines.append(ind + 'shslv_irtr_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + irtrBits + '" and sh_addr(9 downto 8) /= "11" else \'0\';')
@@ -2759,7 +2711,7 @@ class McuVhdEmitter():
 		n = self.nHarts()
 		# When the DMI ports follow (debug.enable), the last port emitted here is
 		# no longer the last port in the entity and needs its separator (D2).
-		last = ';' if (self.debug or self.afe2) else ''
+		last = ';' if self.debug else ''
 		lines = [' ' * 8 + '-- Testing Purposes Only',
 			' ' * 8 + 'a0  : out std_logic_vector(31 downto 0)' + (';' if n > 1 else last)]
 		if n == 1:
@@ -3095,167 +3047,8 @@ class McuVhdEmitter():
 			' ' * 8 + "tms   : in  std_logic := '0';",
 			' ' * 8 + "tdi   : in  std_logic := '0';",
 			' ' * 8 + 'tdo   : out std_logic;',
-			' ' * 8 + "trstn : in  std_logic := '0'" + (';' if self.afe2 else ''),
+			' ' * 8 + "trstn : in  std_logic := '0'",
 		]
-
-	def emitAfe2Ports(self):
-		'''AFE2: the analog-macro port group on the MCU entity, one set per site.
-		Emitted only with peripherals.afe2, after the JTAG group, so it is the
-		LAST entity port group and carries the no-trailing-`;` responsibility
-		(emitA0Ports and emitJtagPorts add theirs when self.afe2). Inputs carry
-		defaults so riscv_tb.vhd and the chip wrappers elaborate unchanged.'''
-		if not self.afe2:
-			return []
-		if self.afePerTile:
-			# TOPOLOGY B: the four sites' pins never reach this boundary -- they are
-			# internal nets to the hart_tile_pt instances, each of which carries its
-			# own anatop_ch macro. What DOES reach it is the one shared bias
-			# generator's control group: anatop_biasgen_g sits at chip level and
-			# drives all four tiles' bn/bnc/bp/bpc rails, so its 14-bit code and
-			# enable are chip state, written through AFE0BIASG (word 9 of site 0's
-			# sub-slot). 1.0 V CMOS; the level shift to 2.5 V is inside the macro.
-			# The four bias RAILS cross this boundary too (owner decision,
-			# 2026-09-06), as INOUT std_logic: they are 2.5 V analog voltages from
-			# anatop_biasgen_g, one net each, fanned out to the SAME pin of all four
-			# hart_tile_pt instances. Nothing in the RTL drives or reads them and
-			# they have no default, so no tie-off is ever synthesized onto an analog
-			# net; the chip wrapper connects them to the generator. They are carried
-			# HERE rather than only on the tiles because the MCU block is the
-			# boundary the rails must physically cross to reach the four notches.
-			# THE NAMES ARE THE MACRO'S LEF PIN NAMES, VERBATIM (report B7-9,
-			# innovus/common/shared/anatop_biasgen_g/anatop_biasgen_g.lef, 74
-			# pins). The wrapper that instantiates both blocks can then connect
-			# them name to name, with nothing to translate and nothing to get
-			# backwards -- which is the whole reason not to invent a prettier
-			# spelling here. 66 static digital inputs: four INDEPENDENT 14-bit
-			# codes (one shared code drives all four ladders to the same voltage,
-			# which is not a cascode bias set), the 6-bit generator trim, and the
-			# four mode/enable bits in the LEF's own order.
-			lines = ['',
-				' ' * 8 + '/* ANALOG FRONT END (per-tile topology): the ONE shared bias generator, anatop_biasgen_g.',
-				' ' * 8 + '   code_bn / code_bnc / code_bp / code_bpc / bias_adj / use_dac / en_gen / en_buf_int / en are its 66 STATIC digital inputs, 1.0 V CMOS, named exactly as its LEF pins and written through AFE0BIASG0-3 and AFE0BIASGCR (words 9-13 of AFE2 site 0\'s sub-slot). The level shift to 2.5 V is inside the macro. They are written once and held, so the chip SDC must false-path every one of them; the macro\'s .lib deliberately carries no timing arcs.',
-				' ' * 8 + '   bias_bn / bias_bnc / bias_bp / bias_bpc are the macro\'s four buffered wide-swing cascode RAILS (its bn_o / bnc_o / bp_o / bpc_o outputs): 2.5 V ANALOG, carried as inout std_logic for port-list completeness only. Each is one net fanned out to the same pin of all four hart_tile_pt instances, and no RTL drives or reads it -- the chip wrapper connects them to the generator.',
-				' ' * 8 + '   The four AFE2 sites\' 50 control bits and converter pins are INTERNAL to this entity in this topology: each goes to its channel tile, which carries the anatop_ch macro in its notch. */',
-				' ' * 8 + 'code_bn       : out std_logic_vector(13 downto 0);',
-				' ' * 8 + 'code_bnc      : out std_logic_vector(13 downto 0);',
-				' ' * 8 + 'code_bp       : out std_logic_vector(13 downto 0);',
-				' ' * 8 + 'code_bpc      : out std_logic_vector(13 downto 0);',
-				' ' * 8 + 'bias_adj      : out std_logic_vector(5 downto 0);',
-				' ' * 8 + 'use_dac       : out std_logic;',
-				' ' * 8 + 'en_gen        : out std_logic;',
-				' ' * 8 + 'en_buf_int    : out std_logic;',
-				' ' * 8 + 'en            : out std_logic;',
-				' ' * 8 + 'bias_bn       : inout std_logic;',
-				' ' * 8 + 'bias_bnc      : inout std_logic;',
-				' ' * 8 + 'bias_bp       : inout std_logic;',
-				' ' * 8 + 'bias_bpc      : inout std_logic;',
-				'',
-				' ' * 8 + '/* ELECTRODES: the four channels\' three-terminal cells (counter, reference, working) plus their analog test points, sixteen 2.5 V ANALOG nets carried as inout std_logic for port-list completeness only.',
-				' ' * 8 + '   One-to-one with the tiles: ce_h/re_h/we_h/atp_h are channel tile h+1\'s CE/RE/WE/ATP pins, which its own anatop_ch macro drives onto the tile\'s die-facing edge. No RTL reads or drives any of them; at chip level each goes to its own pad and nothing else.',
-				' ' * 8 + '   They are declared HERE, rather than left to the block netlist, so this entity\'s boundary matches the abstract the tile flow publishes -- a port in the LEF and not in the Verilog is an LVS failure at chip level (report B6-2). */']
-			for _e in ('ce', 're', 'we', 'atp'):
-				for _h in range(4):
-					_last = (_e == 'atp' and _h == 3)
-					lines.append(' ' * 8 + (_e + '_' + str(_h)).ljust(13) + ' : inout std_logic'
-						+ ('' if _last else ';'))
-			return lines
-		lines = ['',
-			' ' * 8 + '/* ANALOG FRONT END: four AFE2 sites (0x6C00 + 0x100*h) to the anatop_quad macro, 1.0 V CMOS both ways; the 1.0 V to 2.5 V shifters for afe_ctl_h live inside the macro (D3).',
-			' ' * 8 + '   afe_ctl_h is the anatop_pixel symbol order: 49:44 ResEn<5:0>, 43:40 ThEn<3:0>, 39:28 A_Dac_Vp<11:0>, 27 En_Dac_Vp, 26:15 A_Dac_Vcm<11:0>, 14 En_Dac_Vcm, 13:8 Bias_Adj<5:0>, 7:4 SARADC_SEL<3:0>, 3:0 ATP_SEL<3:0>.',
-			' ' * 8 + '   afe_sar_clk_h / afe_sar_rst_h drive the converter (SARADC_clk, SARADC_rst; rst resets high), afe_sar_rdy_h / afe_sar_d_h are SARADC_rdy / SARADC_d<9:0>. The electrode pads connect to the macro only, never to this entity. */']
-		for h in range(4):
-			hh = str(h)
-			lines.append(' ' * 8 + ('afe_ctl_' + hh).ljust(13) + ' : out std_logic_vector(49 downto 0);')
-			lines.append(' ' * 8 + ('afe_sar_clk_' + hh).ljust(13) + ' : out std_logic;')
-			lines.append(' ' * 8 + ('afe_sar_rst_' + hh).ljust(13) + ' : out std_logic;')
-			lines.append(' ' * 8 + ('afe_sar_rdy_' + hh).ljust(13) + " : in  std_logic := '0';")
-			lines.append(' ' * 8 + ('afe_sar_d_' + hh).ljust(13) + " : in  std_logic_vector(9 downto 0) := (others => '0')" + (';' if h != 3 else ''))
-		return lines
-
-	def emitAfe2Decls(self):
-		'''AFE2: fabric nets for the four sites; nothing when afe2 is off.'''
-		if not self.afe2:
-			return []
-		lines = [
-			'        /* AFE2 sites 0-3 (rev-2 analog front end: the 50 anatop_pixel control bits + the SAR converter sequencer per site), page-2 (MUTEX page) sub-slots 12-15 @0x6C00/0x6D00/0x6E00/0x6F00.',
-			'           Native slaves in the afe_stub port shape: raw active-high en and we, the sh_master ownership gate inside the entity (owner tile hart or hart 0), a REGISTERED read and no shim.',
-			'           irq_afe (vector 124) is the OR of the four sites\' level interrupts; afe2_trig is the shared simultaneous-sample trigger, the OR of every site\'s trig_out fed back to every site. */',
-		]
-		for h in range(4):
-			hh = str(h)
-			lines.append('        signal shslv_afe' + hh + '_sel, shslv_afe' + hh + '_en : std_logic;')
-		for h in range(4):
-			lines.append("        signal shslv_rd_afe" + str(h) + "    : std_logic := '0';")
-		for h in range(4):
-			lines.append('        signal afe' + str(h) + '_rdata       : std_logic_vector(31 downto 0);')
-		lines.append('        signal afe2_irq         : std_logic_vector(3 downto 0);')
-		lines.append('        signal afe2_trig_out    : std_logic_vector(3 downto 0);')
-		lines.append('        signal afe2_trig        : std_logic;')
-		if self.afePerTile:
-			# TOPOLOGY B: what were entity ports are nets between site h and channel
-			# tile h+1. The tile is a power-gated domain, so its two OUTBOUND analog
-			# signals land on _raw and pass the same iso clamps every other tile
-			# output does (emitIsoClamps): a dark tile must not drive READY or a data
-			# bus into the always-on AFE2 sequencer, which would be read as a
-			# conversion result.
-			lines.append('')
-			lines.append('        /* TOPOLOGY B (per-tile AFE): the site-to-tile nets. afe_ctl_h is the anatop_pixel symbol order (49:44 ResEn, 43:40 ThEn, 39:28 A_Dac_Vp, 27 En_Dac_Vp, 26:15 A_Dac_Vcm, 14 En_Dac_Vcm, 13:8 Bias_Adj, 7:4 SARADC_SEL, 3:0 ATP_SEL).')
-			lines.append('           Site h drives channel tile h+1: the tile passes all 63 bits straight through to its anatop_ch macro and returns the converter READY/data, clamped like every other output of a gateable tile. */')
-			for h in range(4):
-				hh = str(h)
-				lines.append('        signal afe_ctl_' + hh + '      : std_logic_vector(49 downto 0);')
-			for h in range(4):
-				hh = str(h)
-				lines.append('        signal afe_sar_clk_' + hh + ', afe_sar_rst_' + hh + ' : std_logic;')
-			for h in range(4):
-				hh = str(h)
-				lines.append('        signal afe_sar_rdy_' + hh + '  : std_logic;')
-				lines.append('        signal afe_sar_d_' + hh + '    : std_logic_vector(9 downto 0);')
-			for h in range(1, 5):
-				hs = str(h)
-				lines.append('        signal tile' + hs + '_afe_rdy_raw : std_logic;')
-				lines.append('        signal tile' + hs + '_afe_d_raw   : std_logic_vector(9 downto 0);')
-			lines.append('')
-			lines.append('        /* TOPOLOGY B: the shared bias generator\'s register. AFE2.vhd decodes words 0-8 of a site and reads ZERO above them, so word 9 of SITE 0 is free space inside site 0\'s own sub-slot.')
-			lines.append('           biasg0 is a one-word slave on site 0\'s SAME enable, and its read data is OR\'d into afe0\'s: exact, because exactly one of the two ever drives a non-zero word. That is what makes AFE0BIASG cost no address slot and leave AFE2.vhd untouched. */')
-			lines.append('        signal biasg_rdata      : std_logic_vector(31 downto 0);')
-			lines.append('        signal afe0_mux_rdata   : std_logic_vector(31 downto 0);')
-		return lines
-
-	def emitAfe2Instance(self):
-		'''AFE2: the four site instances. OWNER_HART follows the tile (h+1 on an
-		orchestrator configuration, the afeStubsOrchOwners rule), MGMT_HART keeps
-		its entity default 0.'''
-		if not self.afe2:
-			return []
-		lines = [
-			'',
-			'    -- AFE2: four analog front-end sites, MUTEX-page sub-slots 12-15 @0x6C00-0x6F00, one per channel tile; each drives 50 anatop_pixel control bits plus a converter clock/reset at 1.0 V CMOS and answers only its owner tile hart or hart 0. irq_afe (vector 124) is the OR of the four sites, demultiplexed by reading each SR, and afe2_trig is the simultaneous-sample trigger a CR.SYNC write pulses.',
-			'    afe2_trig <= afe2_trig_out(0) or afe2_trig_out(1) or afe2_trig_out(2) or afe2_trig_out(3);',
-			'    irq_afe   <= afe2_irq(0) or afe2_irq(1) or afe2_irq(2) or afe2_irq(3);',
-		]
-		for h in range(4):
-			hh = str(h)
-			owner = h + 1 if self.orch else h
-			lines.append('    afe' + hh + ': entity work.AFE2')
-			lines.append('        generic map (SITE => ' + hh + ', OWNER_HART => ' + str(owner) + ')   -- 0x' + format(0x6C00 + 0x100 * h, 'X') + ': ' + ('tile hart ' + str(owner) + ' or hart 0' if owner != 0 else 'hart 0 only'))
-			lines.append('        port map (clk => mclk, resetn => resetn, en => shslv_afe' + hh + '_en, we => sh_we, addr => sh_addr(5 downto 0), wdata => sh_wdata,')
-			lines.append('            master => sh_master, rdata => afe' + hh + '_rdata, irq => afe2_irq(' + hh + '), trig_out => afe2_trig_out(' + hh + '), trig_in => afe2_trig,')
-			lines.append('            ctl => afe_ctl_' + hh + ', sar_clk => afe_sar_clk_' + hh + ', sar_rst => afe_sar_rst_' + hh + ', sar_rdy => afe_sar_rdy_' + hh + ', sar_d => afe_sar_d_' + hh + ');')
-		if self.afePerTile:
-			lines.append('')
-			lines.append('    /* TOPOLOGY B: the shared bias generator\'s five control words, AFE0BIASG0-3 and AFE0BIASGCR @0x6C24-0x6C34 = words 9-13 of SITE 0\'s sub-slot.')
-			lines.append('       biasg0 sits on site 0\'s OWN enable and decodes words 9-13 only; AFE2.vhd reads zero above word 8, so OR-ing the two read words is exact and neither entity had to change.')
-			lines.append('       Five words because the macro has 66 static digital inputs, not two: four INDEPENDENT 14-bit R-2R codes (one per rail -- the four rails are independent voltages and one shared code cannot set them), the 6-bit generator trim, and four mode/enable bits.')
-			lines.append('       Hart 0 only (OWNER_HART = MGMT_HART = 0): one generator serves all four channels, so its trim is chip state, not a channel\'s. */')
-			lines.append('    afe0_mux_rdata <= afe0_rdata or biasg_rdata;')
-			lines.append('    biasg0: entity work.BIASG')
-			lines.append('        generic map (OWNER_HART => 0, MGMT_HART => 0, WORD_BASE => 9)')
-			lines.append('        port map (clk => mclk, resetn => resetn, en_bus => shslv_afe0_en, we => sh_we, addr => sh_addr(5 downto 0), wdata => sh_wdata,')
-			lines.append('            master => sh_master, rdata => biasg_rdata,')
-			lines.append('            code_bn => code_bn, code_bnc => code_bnc, code_bp => code_bp, code_bpc => code_bpc,')
-			lines.append('            bias_adj => bias_adj, use_dac => use_dac, en_gen => en_gen, en_buf_int => en_buf_int, en => en);')
-		return lines
 
 	def emitDebugDecls(self):
 		'''D2: the declarative half of the Debug Module hookup.'''
@@ -4395,16 +4188,6 @@ class McuVhdEmitter():
 				rows.append(('tcm_ext_rdata(' + str(32 * h + 31) + ' downto ' + str(32 * h) + ')',
 					'tile' + hs + '_tcmrd_raw', "(others => '0')", True))
 				rows.append(('tcm_ext_done(' + hs + ')', 'tile' + hs + '_tcmdone_raw', "'0'", False))
-			# TOPOLOGY B: the channel tile's two INBOUND-to-fabric analog returns.
-			# They are clamped for the same reason dbg_halted is: a dark tile must
-			# not drive the always-on AFE2 sequencer. '0' is the correct clamp
-			# value here and is also unambiguous -- READY low is "no result", and
-			# AFE2's READY timeout is what turns a permanently dark channel into
-			# SR.TO instead of a silent hang.
-			if self.afePerTile:
-				site = str(h - 1)
-				rows.append(('afe_sar_rdy_' + site, 'tile' + hs + '_afe_rdy_raw', "'0'", False))
-				rows.append(('afe_sar_d_' + site, 'tile' + hs + '_afe_d_raw', "(others => '0')", True))
 			# golden-master columns: short lines pad the LHS to 24 and the RHS
 			# to 16; the long addr/wdata pair aligns to itself with 1 space
 			lhsPad, rhsPad, longPad = 24, 16, 0
@@ -4425,27 +4208,13 @@ class McuVhdEmitter():
 	def tileInstance(self, h):
 		hs = str(h)
 		lines = []
-		# TOPOLOGY B: the channel tile is `hart_tile_pt`, a pure-wiring wrapper
-		# around this same hart_tile plus the AFE pass-through and the anatop_ch
-		# macro in its notch. Same generics, same hart-side port map; the only
-		# additions are the five AFE associations at the end.
-		lines.append('    hart' + hs + ': entity work.' + ('hart_tile_pt' if self.afePerTile else 'hart_tile'))
+		lines.append('    hart' + hs + ': entity work.hart_tile')
 		lines.append('        generic map (')
 		lines.append('            PC_RST_VAL     => x"00000000",')
 		lines.append('            SH_AW          => SH_AW,')
 		lines.append('            -- Core ISA features (config-driven, work.MemoryMap; MUST be identical on ' + ('this one tile' if self.nHarts() == 1 else 'all ' + self.hartsWord() + ' tiles') + ', one hardened netlist)')
 		lines.append('            -- M and B come from TILE_ENABLE_*, NOT CORE_ENABLE_*: the corner tiles are the MINIMAL-ISA harts (rv32iac). Hart 0 / the orchestrator take the full CORE_ENABLE_* set.')
 		lines.extend(self.coreGenericLines(tile=True))
-		if self.afePerTile:
-			# TOPOLOGY B: which AFE2 site this tile carries. Documentation on the
-			# silicon arm; on the simulation arm it is what makes each channel's
-			# sar_macro_model return a distinct code (0x155 + SITE), so a DATA
-			# readback identifies the site it came from. LAST in the map, and an
-			# INTEGER: the MCU_PENTA_pt genus flow binds the tile to a verilog gate
-			# netlist and injects a matching dummy parameter, the same treatment
-			# PC_RST_VAL and SH_AW get.
-			lines[-1] = lines[-1] + ','
-			lines.append('            AFE_SITE          => ' + str(h - 1))
 		lines.append('        )')
 		lines.append('        port map (')
 		lines.append('            clk       => mclk,')
@@ -4485,27 +4254,7 @@ class McuVhdEmitter():
 		lines.append('            pd_sleep  => pd_sleep(' + hs + '),')
 		lines.append('            pd_iso_en => pd_iso_en(' + hs + '),')
 		lines.append('            trap_flag => open,')
-		if self.afePerTile:
-			site = str(h - 1)
-			lines.append('            a0        => a0_' + hs + '_raw,')
-			lines.append('            -- TOPOLOGY B: AFE2 site ' + site + '. Straight wires through the wrapper to the anatop_ch macro in this tile\'s notch; the two returns land on _raw and pass the iso clamps with every other tile output.')
-			lines.append('            -- bn/bnc/bp/bpc are the shared analog bias rails: ONE net each, the SAME four entity ports on all four tiles, undriven in RTL and connected to anatop_biasgen_g by the chip wrapper.')
-			lines.append('            -- CE/RE/WE/ATP are this channel\'s electrodes and test point: one net each, PER TILE, undriven in RTL and taken to their own pads at chip level.')
-			lines.append('            afe_ctl      => afe_ctl_' + site + ',')
-			lines.append('            afe_sar_clk  => afe_sar_clk_' + site + ',')
-			lines.append('            afe_sar_rst  => afe_sar_rst_' + site + ',')
-			lines.append('            afe_sar_rdy  => tile' + hs + '_afe_rdy_raw,')
-			lines.append('            afe_sar_d    => tile' + hs + '_afe_d_raw,')
-			lines.append('            bn           => bias_bn,')
-			lines.append('            bnc          => bias_bnc,')
-			lines.append('            bp           => bias_bp,')
-			lines.append('            bpc          => bias_bpc,')
-			lines.append('            CE           => ce_' + site + ',')
-			lines.append('            RE           => re_' + site + ',')
-			lines.append('            WE           => we_' + site + ',')
-			lines.append('            ATP          => atp_' + site + '')
-		else:
-			lines.append('            a0        => a0_' + hs + '_raw')
+		lines.append('            a0        => a0_' + hs + '_raw')
 		lines.append('        );')
 		return lines
 
@@ -4766,12 +4515,6 @@ class McuVhdEmitter():
 			return self.emitDmiPorts()
 		if name == 'jtag-ports':
 			return self.emitJtagPorts()
-		if name == 'afe2-ports':
-			return self.emitAfe2Ports()
-		if name == 'afe2-decls':
-			return self.emitAfe2Decls()
-		if name == 'afe2-instance':
-			return self.emitAfe2Instance()
 		if name == 'debug-decls':
 			return self.emitDebugDecls()
 		if name == 'debug-instance':
@@ -4902,9 +4645,6 @@ def generateMcuVhd(gen, templatePath, outPath):
 		# no-trailing-`;` responsibility); the DTM instance and the OR-merge
 		# ride the debug-instance marker beside dm0, on the same knob.
 		'dmi-ports', 'jtag-ports', 'debug-decls', 'debug-instance',
-		# AFE2 (2026-09-05): four analog front-end sites in MUTEX-page sub-slots 12-15
-		# @0x6C00-0x6F00 + the analog-macro port group (the LAST entity port group).
-		'afe2-ports', 'afe2-decls', 'afe2-instance',
 		# digperiphs (I2CT): I2CT0 in MUTEX-page (page 2) sub-slot 10 @0x6A00
 		'i2ct-decls', 'i2ct-instance',
 		# digperiphs (TRNG): TRNG0 in MUTEX-page (page 2) sub-slot 9 @0x6900

@@ -478,8 +478,8 @@ def loadBlock(fileName, top, parameters=None, defines=None):
 # ONE registry of them: which .rdl file, which addrmap, which generate.py
 # PeripheralTemplate its registers belong to, and whether that template is BUILT
 # from the description (registerSource "rdl") or still hand-written in generate.py
-# (registerSource "generator"). Two blocks may name the same peripheral (AFE2 and
-# BIASG both land in AFEx, because BIASG is overlaid on AFE2 site 0's sub-slot).
+# (registerSource "generator"). Two blocks may name the same peripheral, which is
+# how a block overlaid on another block's sub-slot is described.
 CONFIG_PATH = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'config', 'rdl.json')
 
@@ -521,8 +521,7 @@ def registerTemplatesFor(peripheralTemplateName, sources=None, configPath=None,
        slot-ordered -- the shape generate.py's PeripheralTemplate carries.
 
        `sources` restricts the blocks to the named .rdl files, which is how a
-       peripheral whose register file is assembled CONDITIONALLY is built: AFEx
-       is afe2.rdl always and biasg.rdl only when afeTopology is per_tile.
+       peripheral whose register file is assembled CONDITIONALLY is built.
 
        `parameters` / `defines` are the configuration a PARAMETERISED block is
        elaborated for -- generate.py passes its OWN numHarts, numMutexes,

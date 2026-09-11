@@ -32,7 +32,7 @@ property vesta_named_values {
     default = false;
 };
 
-// The generator's peripheral TEMPLATE name (`UARTx`, `AFEx`), i.e. the name with
+// The generator's peripheral TEMPLATE name (`UARTx`, `GPIOx`), i.e. the name with
 // the instance index still written as a literal `x`. This is the key that ties an
 // .rdl file to a PeripheralTemplate in generate.py.
 property vesta_peripheral {
@@ -47,8 +47,7 @@ property vesta_vector {
 };
 
 // Word offset of the first register inside the owning peripheral's sub-slot.
-// Only needed by a block that is overlaid on another block's address range, as
-// BIASG is on AFE2 site 0's.
+// Only needed by a block that is overlaid on another block's address range.
 property vesta_word_base {
     type = number;
     component = addrmap;

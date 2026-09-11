@@ -259,7 +259,7 @@ py_binary(
 # The two WHOLE-CHIP artifacts, which rdl_emit cannot make because they are not
 # per-peripheral: the TRM's flat register index and MemoryMap.h's per-INSTANCE
 # address defines. Both need the instance names and base addresses, and those
-# are written down only in castalia_penta_wound_afe.rdl.
+# are written down only in castalia_penta_wound.rdl.
 py_binary(
     name = "rdl_chip",
     srcs = [

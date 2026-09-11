@@ -47,7 +47,6 @@ The six apps, package and target name:
 | `//software/looptest` | `looptest` | `//software/looptest:looptest_flashed_rcf`, `//software/looptest:looptest_flashed_rcf_test` |
 | `//software/slowblink` | `slowblink` | `//software/slowblink:slowblink_flashed_rcf`, `//software/slowblink:slowblink_flashed_rcf_test` |
 | `//software/traptest` | `traptest` | `//software/traptest:traptest_flashed_rcf`, `//software/traptest:traptest_flashed_rcf_test` |
-| `//software/afetest` | `afetest` | `//software/afetest:afetest_flashed_rcf`, `//software/afetest:afetest_flashed_rcf_test` |
 
 ### Boot ROM and debug trampoline
 

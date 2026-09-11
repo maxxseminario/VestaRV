@@ -1,8 +1,0 @@
-{
-  "_comment": "Castalia-Penta WOUND + AFE2 (2026-09-05): config/penta_wound.json VERBATIM (5 harts, orchestrator, the wound peripheral set, castalia-lqfp100) PLUS peripherals.afe2=true: four AFE2 sites (hdl/common/periph/AFE2.vhd) at 0x6C00/0x6D00/0x6E00/0x6F00 (page-2 sub-slots 12-15, free in every configuration), the 50 anatop_pixel control bits + SARADC clk/rst/rdy/d per site as MCU entity ports (afe_ctl_h, afe_sar_*_h), IRQ vector 124 = OR of the four sites (source list 125; irq_router caps NUM_SRCS at 127), and the 14-pad north analog band (CE/WE/RE x 4 on pins 78-89 + ATP0/ATP1 on 90-91, AVDD 76 / AVSS 77; decision D2) in place of the 16-pad RE2 layout. cqAfeStubs stays false (afe2 and the stub bank are mutually exclusive). This is the configuration the AFE-bearing re-cut of the penta chip is generated from; gate it with //platform/common:penta_wound_afe_generation_test, :penta_wound_afe_intro_names_test and //opensource_sim/penta_wound_afe:penta_wound_afe_elaborate. Build with: tools/bin/bazel build //platform/common:chip_artifacts_penta_wound_afe",
-  "chipName": "PentaWound",
-  "numHarts": 5,
-  "orchestrator": true,
-  "peripherals": { "cqAfeStubs": false, "afe2": true, "qspi": true, "i3c": true, "nfc": true, "rtc": true, "pwm": true, "onewire": true, "fieldPower": true, "dma": true, "dmaChannels": 4, "i2ctarget": true, "trng": true, "eventFabric": true },
-  "package": { "model": "castalia-lqfp100", "preliminary": true }
-}

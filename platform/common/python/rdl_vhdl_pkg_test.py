@@ -2,8 +2,7 @@
 """rdl_vhdl_pkg_test.py -- the tracked VHDL register packages are what the
 emitter produces today, byte for byte.
 
-hdl/common/regs/vhdl/afe2_regs_pkg.vhd and biasg_regs_pkg.vhd are TRACKED generated
-sources: Genus, Xcelium and GHDL all read the RTL tree, so a package the RTL
+The packages under hdl/common/regs/vhdl/ are TRACKED generated sources: Genus, Xcelium and GHDL all read the RTL tree, so a package the RTL
 `use`s cannot be a build output. This is the gate that keeps a tracked generated
 file from being hand-edited or left behind by an .rdl change, the same role
 check_memorymap_vhd_test plays for hdl/common/MemoryMap.vhd.

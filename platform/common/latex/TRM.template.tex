@@ -264,8 +264,7 @@ The \AsicNameForUserGuide{} microcontroller (MCU) is a \NumHartsWord-hart multip
 	% D-10 (2026-09-05): the analog front end is not a peripheral template, so the
 	% generated list above never mentioned it. Gated on the presence of the analog
 	% chapter, NOT on \ifcqanalog: the AFE register stubs and the analog IP are
-	% independent (penta_wound_afe.json ships the AFE with cqAfeStubs false), and
-	% this bullet describes the silicon, not the register block.
+	% independent, and this bullet describes the silicon, not the register block.
 	\IfFileExists{include/analog/AnalogChapter.tex}{%
 	\item 4$\times$ three-electrode bipolar potentiostat channels, each with a programmable transimpedance stage (320 gain codes, \SI{19.6}{\kilo\ohm} to \SI{1.93}{\mega\ohm}), a 10-bit SAR converter and a per-channel reference DAC; impedance spectroscopy is a firmware mode of the same channels
 	}{}
@@ -772,7 +771,7 @@ The per-class costs in Table~\ref{t:cpi-timing} come from paired micro-kernels: 
 % ===========================================================================
 
 % ===========================================================================
-% PENDING: republish this manual from the penta_wound_afe configuration.
+% PENDING: republish this manual from the penta_wound configuration.
 % Raised by the 2026-09-05 tapeout review (reports/09_docs.md D-1, D-4, D-5).
 % These three cannot be fixed by editing text: they need the manual generated
 % from the configuration the physical chain is actually built from. Until then
@@ -783,8 +782,8 @@ The per-class costs in Table~\ref{t:cpi-timing} come from paired micro-kernels: 
 %      penta_wound.json (cqAfeStubs false, qspi true), and slot 12 at 0x4C00 is
 %      mutually exclusive between the two: this manual documents four AFE register
 %      stubs there, the wq22e netlist has QSPI0. 0x7C00 and IRQ 55/56 are in the
-%      same position. Republish with CONFIG=config/penta_wound_afe.json once that
-%      config exists (make publish-chip), then delete this block.
+%      same position. Republish with CONFIG=config/penta_wound.json
+%      (make publish-chip), then delete this block.
 %      Sentence for whichever survives, in the AFE chapter:
 %        "Slot 12 at 0x4C00 carries the four AFE register stubs and the EIS stub in
 %         the castalia configuration and the QSPI0 controller in the penta_wound

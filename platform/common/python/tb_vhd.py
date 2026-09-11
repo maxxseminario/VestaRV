@@ -18,10 +18,8 @@ import re
 REGION_NAMES = [
     'tb-a0-component-ports',
     'tb-a0-signals',
-    'tb-afe2-signals',
     'tb-hart-passfail-signals',
     'tb-a0-portmap',
-    'tb-afe2-models',
     'tb-hart-report',
     'tb-monitor-reset',
     'tb-monitor-edge',
@@ -49,33 +47,14 @@ class TbVhdEmitter():
     # Each region now folds away at N = 1, and the two regions that follow a
     # separator-carrying line -- the component port list and the DUT port map --
     # own that line so the separator can follow the hart count.
-    # AFE2 (2026-09-05). With peripherals.afe2 the MCU entity carries four
-    # analog-macro port groups (afe_ctl_h/afe_sar_clk_h/afe_sar_rst_h out,
-    # afe_sar_rdy_h/afe_sar_d_h in, mcu_vhd.emitAfe2Ports). The tb declares and
-    # associates them and hangs one behavioural converter model on each, so a
-    # directed test can run real conversions and read the 50 control bits back.
-    # With afe2 off every AFE region emits nothing and the file is unchanged --
-    # which is what check_riscv_tb_vhd.py grades on the default configuration.
-    # TOPOLOGY B (per-tile AFE, 2026-09-06). afeTopology = 'per_tile' moves the
-    # four port groups off the MCU entity and into the four hart_tile_pt
-    # instances, which carry their own converter models. The tb then declares
-    # and associates only the shared bias-generator group biasg_code/biasg_en
-    # and instantiates NO sar_macro_model at top level -- the models the
-    # directed tests drive are the ones inside the tiles.
-    def __init__(self, nHarts, afe2=False, afeTopology='top_ports'):
+    def __init__(self, nHarts):
         if nHarts < 1:
             raise Exception('tb_vhd: numHarts must be >= 1 (got ' + str(nHarts) + ')')
-        if afeTopology not in ('top_ports', 'per_tile'):
-            raise Exception('tb_vhd: unknown afeTopology "' + str(afeTopology) + '"')
         self.n = nHarts
-        self.afe2 = bool(afe2)
-        self.perTile = self.afe2 and afeTopology == 'per_tile'
 
     def emitRegion(self, name):
         if name == 'tb-a0-component-ports':    return self.emitComponentPorts()
         if name == 'tb-a0-signals':            return self.emitA0Signals()
-        if name == 'tb-afe2-signals':          return self.emitAfe2Signals()
-        if name == 'tb-afe2-models':           return self.emitAfe2Models()
         if name == 'tb-hart-passfail-signals': return self.emitPassFailSignals()
         if name == 'tb-a0-portmap':            return self.emitPortMap()
         if name == 'tb-hart-report':           return self.emitReport()
@@ -91,73 +70,14 @@ class TbVhdEmitter():
         n = self.n
         lines = [' ' * 12 + '-- Test Port',
                  ' ' * 12 + 'a0  : out std_logic_vector(31 downto 0)'
-                 + (';' if (n > 1 or self.afe2) else '')]
+                 + (';' if n > 1 else '')]
         if n > 1:
             lines.append('')
             lines.append(' ' * 12 + '-- Per-hart pass/fail observation (a0 of the '
                          + str(n - 1) + ' private-memory harts)')
             for h in range(1, n):
-                term = ';' if (h != n - 1 or self.afe2) else ''
+                term = ';' if h != n - 1 else ''
                 lines.append(' ' * 12 + 'a0_' + str(h) + ' : out std_logic_vector(31 downto 0)' + term)
-        lines.extend(self._afe2PortLines(12, ' : ', True))
-        return lines
-
-    # -- the four AFE2 analog-macro port groups, entity-order ------------------
-    # Names and widths are mcu_vhd.emitAfe2Ports's, which is the entity these
-    # associate with. The last line carries no terminator (this group is always
-    # last in both the component declaration and the DUT port map).
-    def _afe2PortLines(self, indent, sep, decl):
-        if not self.afe2:
-            return []
-        if self.perTile:
-            # TOPOLOGY B: the ONLY analog group on the entity is the shared bias
-            # generator's -- its digital control pair plus its four analog rails
-            # (owner decision 2026-09-06: the rails cross the MCU boundary as
-            # inout std_logic, one net each, fanned out to all four tiles). The
-            # per-site pins are internal nets between the AFE2 sites and the
-            # hart_tile_pt instances (mcu_vhd.emitAfe2Ports).
-            grp = [('code_bn', 'out std_logic_vector(13 downto 0)'),
-                   ('code_bnc', 'out std_logic_vector(13 downto 0)'),
-                   ('code_bp', 'out std_logic_vector(13 downto 0)'),
-                   ('code_bpc', 'out std_logic_vector(13 downto 0)'),
-                   ('bias_adj', 'out std_logic_vector(5 downto 0)'),
-                   ('use_dac', 'out std_logic'),
-                   ('en_gen', 'out std_logic'),
-                   ('en_buf_int', 'out std_logic'),
-                   ('en', 'out std_logic'),
-                   ('bias_bn', 'inout std_logic'),
-                   ('bias_bnc', 'inout std_logic'),
-                   ('bias_bp', 'inout std_logic'),
-                   ('bias_bpc', 'inout std_logic')]
-            grp += [(_e + '_' + str(_h), 'inout std_logic')
-                    for _e in ('ce', 're', 'we', 'atp') for _h in range(4)]
-            lines = ['',
-                     ' ' * indent + '-- ANALOG FRONT END (per-tile topology): the shared bias generator\'s'
-                     ' 66 static digital inputs (LEF pin names), its four analog rails, and the four'
-                     ' channels\' sixteen electrode nets. The four sites\' converter and control pins'
-                     ' are internal to the MCU.']
-            for i, (nm, ty) in enumerate(grp):
-                last = (i == len(grp) - 1)
-                body = nm.ljust(14) + sep + (ty if decl else nm)
-                lines.append(' ' * indent + body + ('' if last else (';' if decl else ',')))
-            return lines
-        lines = ['',
-                 ' ' * indent + '-- ANALOG FRONT END: the four AFE2 sites\' converter and control pins '
-                 + ('(mcu_vhd.emitAfe2Ports).' if decl else 'to the behavioural macro models.')]
-        for h in range(4):
-            hh = str(h)
-            grp = [('afe_ctl_' + hh, 'out std_logic_vector(49 downto 0)'),
-                   ('afe_sar_clk_' + hh, 'out std_logic'),
-                   ('afe_sar_rst_' + hh, 'out std_logic'),
-                   ('afe_sar_rdy_' + hh, 'in  std_logic'),
-                   ('afe_sar_d_' + hh, 'in  std_logic_vector(9 downto 0)')]
-            for i, (nm, ty) in enumerate(grp):
-                last = (h == 3 and i == len(grp) - 1)
-                if decl:
-                    body = nm.ljust(14) + sep + ty
-                else:
-                    body = nm.ljust(14) + sep + nm
-                lines.append(' ' * indent + body + ('' if last else (';' if decl else ',')))
         return lines
 
     # -- signal decl: signal a0_1, a0_2, ... : std_logic_vector(31 downto 0); ---
@@ -170,79 +90,6 @@ class TbVhdEmitter():
             ' ' * 4 + '-- a0 of the ' + str(n - 1) + ' private-memory harts',
             ' ' * 4 + 'signal ' + names + ' : std_logic_vector(31 downto 0);',
         ]
-
-    # -- AFE2 site signals: the DUT-side handles a directed test observes ------
-    def emitAfe2Signals(self):
-        if not self.afe2:
-            return []
-        if self.perTile:
-            return [
-                '',
-                ' ' * 4 + '-- TOPOLOGY B: the shared bias generator (anatop_biasgen_g). Its 66 static'
-                ' digital inputs carry the macro\'s own LEF pin names and are written through'
-                ' AFE0BIASG0-3 and AFE0BIASGCR. The four channels\' 50 control bits and converter'
-                ' pins never reach this level: they are internal nets to the hart_tile_pt instances,'
-                ' whose own sar_macro_model returns them through the converter code.',
-                ' ' * 4 + 'signal code_bn, code_bnc, code_bp, code_bpc : std_logic_vector(13 downto 0);',
-                ' ' * 4 + 'signal bias_adj : std_logic_vector(5 downto 0);',
-                ' ' * 4 + 'signal use_dac, en_gen, en_buf_int, en : std_logic;',
-                ' ' * 4 + '-- The four channels\' electrodes and test points. 2.5 V analog on silicon,'
-                ' driven by no RTL at either end, so they sit at \'U\' for the whole simulation; they'
-                ' exist here so the entity\'s port list is fully associated.',
-                ' ' * 4 + 'signal ce_0, ce_1, ce_2, ce_3 : std_logic;',
-                ' ' * 4 + 'signal re_0, re_1, re_2, re_3 : std_logic;',
-                ' ' * 4 + 'signal we_0, we_1, we_2, we_3 : std_logic;',
-                ' ' * 4 + 'signal atp_0, atp_1, atp_2, atp_3 : std_logic;',
-                ' ' * 4 + '-- The generator\'s four analog rails. 2.5 V on silicon and driven by no'
-                ' RTL at either end, so they sit at \'U\' for the whole simulation; they exist here'
-                ' so the entity\'s port list is fully associated.',
-                ' ' * 4 + 'signal bias_bn, bias_bnc, bias_bp, bias_bpc : std_logic;',
-            ]
-        ctl = ', '.join('afe_ctl_' + str(h) for h in range(4))
-        clk = ', '.join('afe_sar_clk_' + str(h) for h in range(4))
-        rst = ', '.join('afe_sar_rst_' + str(h) for h in range(4))
-        rdy = ', '.join('afe_sar_rdy_' + str(h) for h in range(4))
-        dat = ', '.join('afe_sar_d_' + str(h) for h in range(4))
-        return [
-            '',
-            ' ' * 4 + '-- AFE2 sites 0-3. afe_ctl_h is the anatop_pixel symbol order:'
-            ' 49:44 ResEn, 43:40 ThEn, 39:28 A_Dac_Vp, 27 En_Dac_Vp, 26:15 A_Dac_Vcm,'
-            ' 14 En_Dac_Vcm, 13:8 Bias_Adj, 7:4 SARADC_SEL, 3:0 ATP_SEL.',
-            ' ' * 4 + '-- These leave the MCU for the analog macro and never come back, so they are'
-            ' the only place a control bit can be observed; sar_macro_model echoes them into the'
-            ' converter code so software can read them too.',
-            ' ' * 4 + 'signal ' + ctl + ' : std_logic_vector(49 downto 0);',
-            ' ' * 4 + 'signal ' + clk + ' : std_logic;',
-            ' ' * 4 + 'signal ' + rst + ' : std_logic;',
-            ' ' * 4 + 'signal ' + rdy + ' : std_logic;',
-            ' ' * 4 + 'signal ' + dat + ' : std_logic_vector(9 downto 0);',
-        ]
-
-    # -- one behavioural converter per site ------------------------------------
-    def emitAfe2Models(self):
-        if not self.afe2 or self.perTile:
-            # TOPOLOGY B: one sar_macro_model per channel lives inside
-            # hart_tile_pt, beside the anatop_ch macro it stands in for, so the
-            # tb hangs nothing here.
-            return []
-        lines = [
-            '',
-            '    -- Behavioural anatop_pixel SAR converters, one per AFE2 site'
-            ' (hdl/common/sim/sar_macro_model.vhd).',
-            '    -- Site h returns code 0x155 + h, so a DATA readback is an exact word; with'
-            ' SARADC_SEL = 14 the model returns the 10-bit ctl window ATP_SEL selects instead,'
-            ' which is how a directed test proves the control bits reach the pins.',
-        ]
-        for h in range(4):
-            hh = str(h)
-            lines.append('    afe_sar_model_' + hh + ' : entity work.sar_macro_model')
-            lines.append('        generic map (SITE => ' + hh + ')')
-            lines.append('        port map (ctl => afe_ctl_' + hh
-                         + ', sar_clk => afe_sar_clk_' + hh
-                         + ', sar_rst => afe_sar_rst_' + hh
-                         + ', sar_rdy => afe_sar_rdy_' + hh
-                         + ', sar_d => afe_sar_d_' + hh + ');')
-        return lines
 
     # -- latched per-tile pass/fail booleans -----------------------------------
     def emitPassFailSignals(self):
@@ -263,14 +110,13 @@ class TbVhdEmitter():
     def emitPortMap(self):
         n = self.n
         lines = [' ' * 8 + '-- Test Port',
-                 ' ' * 8 + 'a0          => a0' + (',' if (n > 1 or self.afe2) else '')]
+                 ' ' * 8 + 'a0          => a0' + (',' if n > 1 else '')]
         if n > 1:
             lines.append('')
             lines.append(' ' * 8 + '-- Private-memory harts 1-' + str(n - 1))
             for h in range(1, n):
-                term = ',' if (h != n - 1 or self.afe2) else ''
+                term = ',' if h != n - 1 else ''
                 lines.append(' ' * 8 + ('a0_' + str(h)).ljust(12) + '=> a0_' + str(h) + term)
-        lines.extend(self._afe2PortLines(8, ' => ', False))
         return lines
 
     # -- end-of-test report + fail/parked/pass verdict over all tiles ----------
@@ -322,9 +168,8 @@ class TbVhdEmitter():
         return lines
 
 
-def generateRiscvTbVhd(nHarts, templatePath, outPath, withHeader=True, afe2=False,
-                       afeTopology='top_ports'):
-    emitter = TbVhdEmitter(nHarts, afe2, afeTopology)
+def generateRiscvTbVhd(nHarts, templatePath, outPath, withHeader=True):
+    emitter = TbVhdEmitter(nHarts)
     with open(templatePath, 'r', newline='') as f:
         templateLines = f.read().split('\n')
     out = list(_header(nHarts)) if withHeader else []
@@ -354,8 +199,5 @@ if __name__ == '__main__':
     n = int(sys.argv[1]) if len(sys.argv) > 1 else 4
     tpl = sys.argv[2] if len(sys.argv) > 2 else here + '/../hdl_templates/riscv_tb.template.vhd'
     outp = sys.argv[3] if len(sys.argv) > 3 else here + '/../out/hdl/riscv_tb.vhd'
-    afe2 = (len(sys.argv) > 4) and (sys.argv[4] not in ('0', 'false', 'False'))
-    topo = sys.argv[5] if len(sys.argv) > 5 else 'top_ports'
-    generateRiscvTbVhd(n, tpl, outp, afe2=afe2, afeTopology=topo)
-    print('tb_vhd: wrote ' + outp + ' (numHarts=' + str(n) + ', afe2=' + str(afe2)
-          + ', afeTopology=' + topo + ')')
+    generateRiscvTbVhd(n, tpl, outp)
+    print('tb_vhd: wrote ' + outp + ' (numHarts=' + str(n) + ')')

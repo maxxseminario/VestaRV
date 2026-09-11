@@ -5,7 +5,7 @@
 // PER INSTANCE: `I2CxAR <= default_SAD`, the generic MCU.vhd binds to
 // i2c0_default_SAD = 0x79 and i2c1_default_SAD = 0x23 (constants.vhd). The
 // generator models both as resetting to 0. The per-instance values are
-// applied at the instances in castalia_penta_wound_afe.rdl.
+// applied at the instances in castalia_penta_wound.rdl.
 //
 // I2CxFCR is write-only flow control: a 1 raises the command and the
 // consuming FSM clears it, the register is absent from the read mux and

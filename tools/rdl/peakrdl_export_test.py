@@ -24,8 +24,6 @@ for base in filter(None, [os.path.join(REPO, '_main') if REPO else None, os.getc
 
 BLOCKS = (
     ('uart.rdl', 'uart', ['UARTxCR', 'UARTxSR', 'UARTxBR', 'UARTxRX', 'UARTxTX']),
-    ('afe2.rdl', 'afe2_site', ['AFExCR', 'AFExSR', 'AFExDATA', 'AFExSWAP']),
-    ('biasg.rdl', 'biasg', ['AFExBIASG0', 'AFExBIASGCR']),
 )
 
 

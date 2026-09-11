@@ -2,7 +2,7 @@
 // debug_module.rdl: the DMI register file of hdl/common/debug_module.vhd.
 //
 // THIS BLOCK IS NOT MEMORY-MAPPED, which is why it is absent from
-// castalia_penta_wound_afe.rdl and from the generator's peripheral table
+// castalia_penta_wound.rdl and from the generator's peripheral table
 // entirely. Its registers live in the DMI address space the JTAG DTM drives
 // (dmi_req_addr, 7 bits, word-indexed), so they cannot be reached with a load
 // or a store and have no base address in the shared window.

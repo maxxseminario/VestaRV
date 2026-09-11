@@ -187,8 +187,7 @@ Neither is used by anything VestaRV runs, and neither is ours to fix:
 
 `tools/debug/` also holds the **Myshkin bench tooling**, which is VestaRV's
 own and is unrelated to this suite: `forth_dashboard/`, `forth_dashboard_v2/`,
-`fast_dsadc/`, `fast_saradc/`, `module_dash/`, `rv4th_terminal.py`,
-`plot_saradc_log.py`, `test_flash_spi.py`, `RPI_SETUP.md`,
+`module_dash/`, `rv4th_terminal.py`, `test_flash_spi.py`, `RPI_SETUP.md`,
 `requirements-rpi.txt`. Before D5 those files sat in the *same directory* as
 this suite, so an `rsync --delete` or `rm -rf` re-vendor would have destroyed
 them. That hazard is what this directory exists to remove — **keep the two
