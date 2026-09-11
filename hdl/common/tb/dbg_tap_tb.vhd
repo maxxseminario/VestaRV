@@ -514,8 +514,14 @@ begin
           & "DM expects them (d2_spec 3; Spike's 2 is the deviation)");
 
         tap_dmi(OP_READ, A_HARTINFO, x"00000000", rop, rdat);
-        chk(rop = RSP_SUCCESS and rdat(11 downto 0) = x"680",
-            "J7: hartinfo.dataaddr reads 0x680 over the TAP");
+        -- 2026-09-05: was `rdat(11 downto 0) = x"680"`, written 4bac764 (2026-08-06) and left
+        -- behind by 2352054 (2026-08-10, "stops claiming an address it never had"), which made
+        -- hartinfo THE NULL CLAIM -- all four fields zero (debug_module.vhd:1156-1162). 0x680 is
+        -- now precisely the wrong answer: the field is 12 bits and sign-extended, so publishing
+        -- DATA0_ADDR = 0x10680 would resolve to 0x680 inside the read-only boot ROM. The check
+        -- therefore asserts the whole word is zero, which also covers nscratch/dataaccess/datasize.
+        chk(rop = RSP_SUCCESS and rdat = x"00000000",
+            "J7: hartinfo is the null claim -- all four fields zero over the TAP");
 
         tap_dmi(OP_READ, A_UNIMPL, x"00000000", rop, rdat);
         chk(rop = RSP_FAILED,

@@ -2,7 +2,8 @@
    It drives the arbiter slave port directly: en is a one-cycle strobe, we is the active-high lane vector, addr is a word offset, and the registered read is valid the cycle after the strobe.
    It also drives the three async pad inputs (pgood_pad, strap_pad, field_detect), which are 2-FF synchronized inside the DUT.
    Self-checking: every check reports and keeps going, and the bench ends with ALL TESTS PASSED or TB FAILED.
-   Runs standalone against pwr_ctrl.vhd through xcelium/mp_test/run_pwr_ctrl.sh, with small delay generics (T_SEQ=2, T_RAIL=8, STRAP_SETTLE=8) to keep the sim short. */
+   Runs standalone against pwr_ctrl.vhd through xcelium/mp_test/run_pwr_ctrl.sh and under bazel as //hdl/common/tb:pwr_ctrl_tb.
+   Two shapes matter: the small-delay sweep (T_SEQ=2, T_RAIL=8, STRAP_SETTLE=8) that keeps the sim short, and the SHIPPED shape NHARTS=5, T_SEQ=4, T_RAIL=256 that MCU.vhd:3030 instantiates. The poll guard scales with the generics so both hold. */
 
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
@@ -74,6 +75,18 @@ architecture tb of pwr_ctrl_tb is
 
     -- Number of live PWRSR words: 8 tile nibbles per 32-bit word.
     constant NSRW : natural := (NHARTS + 7) / 8;
+
+    -- Poll budget for poll_nibble, in bus reads.
+    -- Each read is 3 mclk cycles, and the slowest transition polled for is the
+    -- wake path S_OFF -> S_RAIL (T_RAIL cycles) -> S_UNISO (T_SEQ cycles) ->
+    -- S_ON, so the guard MUST scale with the generics. It was a fixed 61 reads
+    -- = 183 cycles, which covers T_RAIL=8 but not the shipped T_RAIL=256
+    -- (MCU.vhd:3030 instantiates NHARTS=5, T_SEQ=4, T_RAIL=256): at that shape
+    -- the wake landed outside the window and 12 checks failed for want of
+    -- budget, with the RTL correct. The 192-cycle term is slack for the
+    -- register-strobe and synchronizer latency around each transition.
+    constant POLL_CYCLES : natural := T_RAIL + 4 * T_SEQ + 192;
+    constant POLL_READS  : natural := (POLL_CYCLES + 2) / 3;
 
 begin
 
@@ -174,7 +187,7 @@ begin
             tick(STRAP_SETTLE + 6);
         end procedure;
 
-        -- Poll PWRSR until that hart's nibble reaches the target, giving up after a bounded number of reads.
+        -- Poll PWRSR until that hart's nibble reaches the target, giving up after POLL_READS reads (a bound that scales with T_RAIL and T_SEQ).
         procedure poll_nibble(hart : natural;
                               target : std_logic_vector(3 downto 0);
                               variable ok : out boolean) is
@@ -185,7 +198,7 @@ begin
             wword := PWRSR0 + hart / 8;
             boff  := 4 * (hart mod 8);
             ok := false;
-            for i in 0 to 60 loop
+            for i in 1 to POLL_READS loop
                 bus_read(wword, rd);
                 if rd(boff + 3 downto boff) = target then
                     ok := true;

@@ -188,6 +188,339 @@ ghdl_test(
     sim_timeout_s = 120,
     tags = ["ghdl"],
 )
+
+# ---------------------------------------------------------------------------
+# The rest of the single-file-closure benches, ported 2026-09-05.
+#
+# Same criterion as the three above: a bench is ported when its ENTIRE source
+# closure is tracked VHDL in this repository, with no vendor macro and no
+# generated image. That is what excludes dbg_iface_tb, dbg_dmi_tb, riscv_tb,
+# NPU_pack_tb and the SPI flash bench, all of which reach a vendor RAM/ROM
+# macro, a pad cell or an .rcf.
+#
+# What this closes, measured against the last evidence each bench had before
+# today (report 08a, tables 1 and 3):
+#   pwr_ctrl_tb   xcelium 2026-07-24 at NHARTS=4, T_SEQ=2, T_RAIL=8 only. The
+#                 chip instantiates NHARTS=5, T_SEQ=4, T_RAIL=256 (MCU.vhd:3030)
+#                 and that shape had NEVER been run; it failed 12 checks on the
+#                 bench's fixed poll budget until the guard was scaled.
+#   irq_router_tb xcelium 2026-07-22, five shapes, none of them the shipped
+#                 NHARTS=5, MW=3, NUM_SRCS=125 (the tape-out config's generated
+#                 MemoryMap.vhd:1990; 121 was the pre-AFE2 default-config count).
+#   irq_sys_tb    xcelium 2026-07-12, compiled from the pre-restructure
+#                 hdl/MCU_MP path that no longer exists.
+#   arb_lat_tb    xcelium 2026-07-06 at N_MASTERS=4; the arbiter ships with
+#                 N=6 (MCU.vhd:2627).
+#   SYSTEM_tb     last hdl/common run 2026-07-16, before PGEN_mem widened to
+#                 7 bits; the xcelium peripheral suite compiles the FROZEN
+#                 hdl/myshkin copies of SYSTEM/I2C/SPI and their benches, which
+#                 differ from hdl/common by 227/213/52 lines, so these five
+#                 targets are the first standing proof of the castalia RTL.
+#   I2C_tb        no standalone run on record at all before 2026-09-05.
+#
+# The generics are the SHIPPED shapes, not the fast ones. The xcelium runners
+# keep the multi-shape sweeps (pwr_ctrl 4/18, irq_router five shapes, arb_lat
+# N_DELAY 0/1/2 and the BREAK_MODE negative controls); this tier proves the one
+# shape the chip actually contains, on every commit, without a license.
+# ---------------------------------------------------------------------------
+
+vhdl_source_set(
+    name = "pwr_ctrl_rtl",
+    paths = ["hdl/common/pwr_ctrl.vhd"],
+    pool = ["//hdl:vhdl_sources"],
+)
+
+vhdl_source_set(
+    name = "irq_router_rtl",
+    paths = ["hdl/common/irq_router.vhd"],
+    pool = ["//hdl:vhdl_sources"],
+)
+
+vhdl_source_set(
+    name = "clint_rtl",
+    paths = [
+        "hdl/common/constants.vhd",
+        "hdl/common/MemoryMap.vhd",
+        "hdl/common/clint.vhd",
+    ],
+    pool = ["//hdl:vhdl_sources"],
+)
+
+vhdl_source_set(
+    name = "arb_lat_rtl",
+    paths = [
+        "hdl/common/mp_arbiter.vhd",
+        "hdl/common/resv_unit.vhd",
+        "hdl/common/mutex_bank.vhd",
+    ],
+    pool = ["//hdl:vhdl_sources"],
+)
+
+# The peripheral closures. constants and MemoryMap come first, then the
+# behavioural clock cells the peripheral instantiates, then the peripheral.
+# hdl/common/sim/ClkGate.vhd is the behavioural model; the ARM cell of the same
+# entity name in commune/ is the synthesis view and must NOT be in these lists.
+vhdl_source_set(
+    name = "system_rtl",
+    paths = [
+        "hdl/common/constants.vhd",
+        "hdl/common/MemoryMap.vhd",
+        "hdl/common/sim/ClkGate.vhd",
+        "hdl/common/sim/ClockMuxGlitchFree.vhd",
+        "hdl/common/commune/CRC16.vhd",
+        "hdl/common/periph/SYSTEM.vhd",
+    ],
+    pool = ["//hdl:vhdl_sources"],
+)
+
+vhdl_source_set(
+    name = "timer_rtl",
+    paths = [
+        "hdl/common/constants.vhd",
+        "hdl/common/MemoryMap.vhd",
+        "hdl/common/sim/ClkGate.vhd",
+        "hdl/common/sim/ClockMuxGlitchFree.vhd",
+        "hdl/common/periph/TIMER.vhd",
+    ],
+    pool = ["//hdl:vhdl_sources"],
+)
+
+vhdl_source_set(
+    name = "gpio_rtl",
+    paths = [
+        "hdl/common/constants.vhd",
+        "hdl/common/MemoryMap.vhd",
+        "hdl/common/sim/ClkGate.vhd",
+        "hdl/common/periph/GPIO.vhd",
+    ],
+    pool = ["//hdl:vhdl_sources"],
+)
+
+vhdl_source_set(
+    name = "uart_rtl",
+    paths = [
+        "hdl/common/constants.vhd",
+        "hdl/common/MemoryMap.vhd",
+        "hdl/common/sim/ClkGate.vhd",
+        "hdl/common/periph/UART.vhd",
+    ],
+    pool = ["//hdl:vhdl_sources"],
+)
+
+vhdl_source_set(
+    name = "spi_rtl",
+    paths = [
+        "hdl/common/constants.vhd",
+        "hdl/common/MemoryMap.vhd",
+        "hdl/common/sim/ClkGate.vhd",
+        "hdl/common/periph/SPI.vhd",
+    ],
+    pool = ["//hdl:vhdl_sources"],
+)
+
+# I2C's clock divider is commune/ClkDivPower2, which itself instantiates
+# ClkGate, so the behavioural ClkGate has to precede it.
+vhdl_source_set(
+    name = "i2c_rtl",
+    paths = [
+        "hdl/common/constants.vhd",
+        "hdl/common/MemoryMap.vhd",
+        "hdl/common/sim/ClkGate.vhd",
+        "hdl/common/commune/ClkDivPower2.vhd",
+        "hdl/common/periph/I2C.vhd",
+    ],
+    pool = ["//hdl:vhdl_sources"],
+)
+
+# xcelium/mp_test/run_pwr_ctrl.sh, at the SHIPPED generics.
+ghdl_test(
+    name = "pwr_ctrl_tb",
+    size = "small",
+    srcs = [
+        ":pwr_ctrl_rtl",
+        "pwr_ctrl_tb.vhd",
+    ],
+    entity = "pwr_ctrl_tb",
+    generics = {
+        "NHARTS": "5",
+        "T_SEQ": "4",
+        "T_RAIL": "256",
+        "STRAP_SETTLE": "8",
+    },
+    pass_pattern = "ALL TESTS PASSED",
+    sim_timeout_s = 180,
+    tags = ["ghdl"],
+)
+
+# xcelium/mp_test/run_irq_router.sh, at the shipped PLIC-lite shape.
+# NUM_SRCS tracks NUM_IRQ_SRCS in the TAPE-OUT config's generated MemoryMap
+# (bazel-bin/platform/common/chip_artifacts_penta_wound_afe/out/hdl/MemoryMap.vhd:1990
+# = 125 with peripherals.afe2 on: IRQB_AFE = 124 is the last source). Take the
+# number from that file, never from a report.
+ghdl_test(
+    name = "irq_router_tb",
+    size = "small",
+    srcs = [
+        ":irq_router_rtl",
+        "irq_router_tb.vhd",
+    ],
+    entity = "irq_router_tb",
+    generics = {
+        "NHARTS": "5",
+        "MW": "3",
+        "NUM_SRCS": "125",
+    },
+    pass_pattern = "ALL CHECKS PASSED",
+    sim_timeout_s = 180,
+    tags = ["ghdl"],
+)
+
+# xcelium/mp_test/run_irq_sys.sh. The bench fixes NHARTS itself (a constant in
+# its architecture, not a generic), so there is nothing to override here.
+ghdl_test(
+    name = "irq_sys_tb",
+    size = "small",
+    srcs = [
+        ":clint_rtl",
+        "irq_sys_tb.vhd",
+    ],
+    entity = "irq_sys_tb",
+    pass_pattern = "ALL CHECKS PASSED",
+    sim_timeout_s = 180,
+    tags = ["ghdl"],
+)
+
+# xcelium/mp_test/run_arb_lat.sh at the shipped master count (mp_arbiter N=6).
+# N_DELAY=0 is the shape the MCU builds; run_arb_lat.sh keeps the 0/1/2 sweep
+# and BREAK_MODE 1/2, which are seen-to-FAIL negative controls and therefore
+# cannot be graded by this pass_pattern.
+ghdl_test(
+    name = "arb_lat_tb",
+    size = "small",
+    srcs = [
+        ":arb_lat_rtl",
+        "arb_lat_tb.vhd",
+    ],
+    entity = "arb_lat_tb",
+    generics = {
+        "N_DELAY": "0",
+        "BREAK_MODE": "0",
+        "N_MASTERS": "6",
+    },
+    pass_pattern = "ALL CHECKS PASSED",
+    sim_timeout_s = 180,
+    tags = ["ghdl"],
+)
+
+# xcelium/mp_test/run_system.sh. -frelaxed is REQUIRED and is not cosmetic:
+# SYSTEM.vhd:465 writes `ClkEn(1) => open` in an individual association, which
+# GHDL rejects outright at --std=08 without it ("individual association with
+# open"). xcelium accepts it under -relax, which is the same waiver.
+ghdl_test(
+    name = "SYSTEM_tb",
+    size = "small",
+    srcs = [
+        ":system_rtl",
+        "periph_tb_pkg.vhd",
+        "SYSTEM_tb.vhd",
+    ],
+    entity = "SYSTEM_tb",
+    flags = [
+        "-fsynopsys",
+        "-frelaxed",
+    ],
+    pass_pattern = "ALL CHECKS PASSED",
+    sim_timeout_s = 180,
+    tags = ["ghdl"],
+)
+
+ghdl_test(
+    name = "UART_tb",
+    size = "small",
+    srcs = [
+        ":uart_rtl",
+        "periph_tb_pkg.vhd",
+        "uart_bfm_pkg.vhd",
+        "UART_tb.vhd",
+    ],
+    entity = "UART_tb",
+    pass_pattern = "ALL CHECKS PASSED",
+    sim_timeout_s = 300,
+    tags = ["ghdl"],
+)
+
+ghdl_test(
+    name = "SPI_tb",
+    size = "small",
+    srcs = [
+        ":spi_rtl",
+        "periph_tb_pkg.vhd",
+        "spi_bfm_pkg.vhd",
+        "SPI_tb.vhd",
+    ],
+    entity = "SPI_tb",
+    pass_pattern = "ALL CHECKS PASSED",
+    sim_timeout_s = 300,
+    tags = ["ghdl"],
+)
+
+ghdl_test(
+    name = "I2C_tb",
+    size = "small",
+    srcs = [
+        ":i2c_rtl",
+        "periph_tb_pkg.vhd",
+        "i2c_bfm_pkg.vhd",
+        "I2C_tb.vhd",
+    ],
+    entity = "I2C_tb",
+    pass_pattern = "ALL CHECKS PASSED",
+    sim_timeout_s = 300,
+    tags = ["ghdl"],
+)
+
+# ---------------------------------------------------------------------------
+# TIMER_tb and GPIO_tb carry a DELIBERATE negative control as their last check
+# (TIMER_tb.vhd:508, GPIO_tb.vhd:~350), so a passing run ends with the
+# scoreboard reporting exactly one failure. Both benches grade that themselves
+# -- `if sb.errors = 1` -- and print a banner naming the count.
+#
+# pass_pattern is therefore that banner, NOT "ALL CHECKS PASSED": the benches
+# print the generic banner inside the same guarded report, so grepping for it
+# alone would pass, but it would no longer be the criterion the bench states.
+# Grepping the count makes a second, unintended failure red -- which grepping
+# "ALL CHECKS PASSED" would also do here, and which grepping the absence of
+# "CHECK(S) FAILED" would NOT, because the scoreboard summary prints that line
+# on every passing run.
+# ---------------------------------------------------------------------------
+ghdl_test(
+    name = "TIMER_tb",
+    size = "small",
+    srcs = [
+        ":timer_rtl",
+        "periph_tb_pkg.vhd",
+        "TIMER_tb.vhd",
+    ],
+    entity = "TIMER_tb",
+    pass_pattern = "TIMER_TB PASS (1 expected negative-control failure)",
+    sim_timeout_s = 300,
+    tags = ["ghdl"],
+)
+
+ghdl_test(
+    name = "GPIO_tb",
+    size = "small",
+    srcs = [
+        ":gpio_rtl",
+        "periph_tb_pkg.vhd",
+        "GPIO_tb.vhd",
+    ],
+    entity = "GPIO_tb",
+    pass_pattern = "GPIO_TB PASS (1 expected negative-control failure)",
+    sim_timeout_s = 300,
+    tags = ["ghdl"],
+)
+
 # ---------------------------------------------------------------------------
 # AFE2: the rev-2 analog front-end site (register file for the 50 anatop_pixel
 # control bits + the SAR converter sequencer). Two-file closure: AFE2.vhd and its

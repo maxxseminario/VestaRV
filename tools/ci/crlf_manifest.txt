@@ -23,7 +23,6 @@ hdl/common/periph/TIMER.vhd
 hdl/common/periph/UART.vhd
 hdl/common/tb/rv4th_tb.vhd
 hdl/common/tb/tb_defs.vhd
-hdl/common/tb/testbench.vhd
 hdl/common/vesta/alu.vhd
 hdl/common/vesta/aludec.vhd
 hdl/common/vesta/c_dec.vhd
