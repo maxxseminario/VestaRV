@@ -456,7 +456,9 @@ GENERIC_BLOCKS = {
                           r'NUM_AFS\s+:\s+natural := 8;']),
     # SPI is a periph_regs block (report R12d): no case decode, no reset branch,
     # no write-1 arm to read. RDTHRU is a function of ENABLE_EXTENDED_MEM, since
-    # SPIxFOS exists on SPI0 only and must read 0 on SPI1.
+    # SPIxFOS exists on SPI0 only and must read 0 on SPI1. The SPIxTX launch
+    # takes the module's combinational wr_hit, which carries the old decode's
+    # `wen /= "1111"` qualifier itself (report R12f).
     'spi': dict(vhdl='SPI.vhd', regfile='spi_regs_pkg',
                 require=[r'u_regs\s*:\s*entity work\.periph_regs',
                          r'STROBE_HOLD => true',
@@ -464,7 +466,7 @@ GENERIC_BLOCKS = {
                          r'r\(RegSlotSPIxFOS\) := \x271\x27;',
                          r'clr_spi_teif <= w1c_s\(RegSlotSPIxSR\)\(SPITEIF_LSB\);',
                          r'or rd_str\(RegSlotSPIxRX\) or wr_str\(RegSlotSPIxRX\);',
-                         r'acc_s\(RegSlotSPIxTX\)']),
+                         r"if wrh_s\(RegSlotSPIxTX\) = '1'"]),
     # TIMER is a periph_regs pilot (report R12a): no case decode, no reset
     # branch, no write-1 arm to read. WIDEWR marks TIMxVAL, word 2 of 8, as the
     # word any enabled lane writes whole, which is what `if wen /= "1111" then`
@@ -618,16 +620,19 @@ GENERIC_BLOCKS = {
                          r'r\(wLen\(ch\)\) := \x271\x27;',
                          r'crc_acc\s*<=\s*X"FFFF";']),
     # TRNG is a periph_regs block (report R12c) and the tree's one onread=rclr
-    # register lives here. The read-consume stays qualified on WEn = "1111",
-    # which is what dr_read_acc spells, but it takes the COMBINATIONAL acc_hit
-    # and not the module's rd_clr: this block's ClkMem is gated by EnMemPeriph,
-    # so a strobe flop set on the access edge is only sampled by the NEXT bus
-    # access. TRNGxCR is the one WIDEWR word (TRNGDECIM sits at 11:8, lane 1,
-    # under a WEn(0) qualifier).
+    # register lives here. The read-consume stays qualified on WEn = "1111", but
+    # that qualifier is now the module's own: rd_hit is acc_hit ANDed with
+    # WEn = "1111", combinational, so dr_read_acc is one indexing and no
+    # hand-written direction test (report R12f). It is rd_hit and not the
+    # module's rd_clr because this block's ClkMem is gated by EnMemPeriph, so a
+    # strobe flop set on the access edge is only sampled by the NEXT bus access.
+    # TRNGxCR is the one WIDEWR word (TRNGDECIM sits at 11:8, lane 1, under a
+    # WEn(0) qualifier).
     'trng': dict(vhdl='TRNG.vhd', regfile='trng_regs_pkg',
                  require=[r'u_regs\s*:\s*entity work\.periph_regs',
                           r'WIDEWR      => "1000"',
-                          r"dr_read_acc <= '1' when \(acc_s\(SLOT_DR\) = '1' and WEn = \"1111\"\)",
+                          r'rd_hit      => rdh_s,',
+                          r'dr_read_acc <= rdh_s\(SLOT_DR\);',
                           r"wdata\(TRNGALMF_LSB\) = '1'"]),
     # I2CTarget is a periph_regs block (report R12c). I2CTxCR and I2CTxWDG are
     # the two WIDEWR words (SAD at 14:8, SADM at 22:16 and WDTO at 15:0 all
@@ -643,13 +648,18 @@ GENERIC_BLOCKS = {
     # ACTION half (slots 7-11) is untouched and still decodes in the free-running
     # clk domain, because exactly-one-action-per-write is not a ClkMem property.
     # EVFCHENSET / EVFCHENCLR are the tree's first HWALIAS: software set and clear
-    # aliases of EVFCHEN, which the description rightly calls hw=r.
+    # aliases of EVFCHEN, which the description rightly calls hw=r. They take the
+    # module's combinational wr_hit (report R12f); because wr_inh is WEn(0) on
+    # every word here, wr_hit IS "addressed and WEn(0) = '0'", which is what the
+    # hand-written qualifier spelled.
     'evfab': dict(vhdl='EVFAB.vhd', regfile='evfab_regs_pkg',
                   require=[r'u_regs\s*:\s*entity work\.periph_regs',
                            r'HWALIAS     => HWALIAS_EVF',
                            r'RDTHRU      => RDTHRU_EVF',
                            r'WIDEWR      => WIDEWR_EVF',
                            r"wr_inh <= \(others => WEn\(0\)\);",
+                           r"when wrh_s\(SLOT_CHENSET\) = '1' else",
+                           r"when wrh_s\(SLOT_CHENCLR\) = '1' else",
                            r'hw_set_s <= \(SLOT_CHEN => set_word, others => \(others => .0.\)\);',
                            r'hw_clr_s <= \(SLOT_CHEN => clr_word, others => \(others => .0.\)\);',
                            r'constant CAP_CONST\s*:\s*std_logic_vector\(31 downto 0\)',

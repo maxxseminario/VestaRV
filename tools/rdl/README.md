@@ -434,8 +434,33 @@ SystemVerilog. This is a VHDL chip synthesised by Genus out of a tracked RTL tre
 that four identity gates hold byte-identical; introducing a generated SV module
 into that flow would mean a mixed-language elaboration in every simulator and
 tool the project uses, for a register file that is 40 lines of VHDL. The register
-decode stays hand-written; what is generated is the *description* of it and the
-gate that checks it.
+decode stays in VHDL, hand-written or -- since level 4 below -- one hand-written
+module parameterised by the emitted tables; what is generated is the *description*
+and the gate that checks it, never a language boundary.
+
+### Level 4 -- one VHDL module decodes the tables (`periph_regs`)
+
+The eight per-word table constants a package emits (`IMPL`, `RSTVAL`, `W1C`,
+`WOSET`, `WOT`, `PULSE`, `RCLR`, `HWOWN`) are enough to DECODE with, not just to
+check against. `hdl/common/periph_regs.vhd` is the house bus protocol written
+once -- slot decode, byte-lane merge, registered read mux, write-1 arms, strobe
+retirement -- and a peripheral instantiates it with its own package's tables and
+keeps only its datapath. The description is then load-bearing in the netlist, not
+merely audited against it. Design note and migration recipe:
+`hdl/common/regs/REGFILE.md`; unit bench `hdl/common/tb/periph_regs_tb.vhd`.
+
+**Seventeen blocks are at level 4**: DMA, EVFAB, GPIO, I2C, I2CTarget, I3C, NFC,
+NPU, OneWire, PWM, QSPI, RTC, SPI, SYSTEM, TIMER, TRNG, UART. Each block's
+`rdl_vs_vhdl_<block>_test` entry carries `regfile=<package>`, so the gate reads
+the instance instead of the `case` decode it no longer has.
+
+**Five are not, and are blocked rather than pending.** CLINT, MUTEX, IRQROUTER and
+PWRCTRL are the parameterised blocks of the section above: their register SET is a
+function of the hart, mutex or vector count, so there is no constant table to pass
+as a generic, and they decode a bare integer index rather than a peripheral slot.
+DEBUG is not on the peripheral bus at all -- it is reached over the DMI, not
+`EnMemPeriph` / `WEn` / `MABPart` -- and has no adoption path. All five keep their
+packages, which stay tracked and gated.
 
 ## The firmware register headers
 

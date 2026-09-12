@@ -75,6 +75,8 @@ entity periph_regs is
         hw_clr    : in  word_array(0 to NWORDS-1) := (others => (others => '0'));
 
         acc_hit   : out std_logic_vector(0 to NWORDS-1);  -- combinational: selected now
+        rd_hit    : out std_logic_vector(0 to NWORDS-1);  -- ... and WEn = "1111"
+        wr_hit    : out std_logic_vector(0 to NWORDS-1);  -- ... and a lane write that lands
         rd_strobe : out std_logic_vector(0 to NWORDS-1);  -- per word
         wr_strobe : out std_logic_vector(0 to NWORDS-1);
         wr_pulse  : out word_array(0 to NWORDS-1);        -- per bit
@@ -163,9 +165,11 @@ What stays in the peripheral:
 - read side effects beyond `rclr`: a FIFO pop, a claim, a consume. `rd_strobe` is
   the hook. `rd_strobe or wr_strobe` is the hook for "any access to this slot",
   which is what `UARTxRX` and `SPIxRX` mean today.
-  `acc_hit` is the one unregistered hook: a write that LAUNCHES a transaction on
-  the edge it lands (`QSPIxCMD`, `UARTxTX`, `OWxCMD`) qualifies it with its own
-  `WEn(0)`, exactly as the raw decode did, and so does not slip a cycle.
+  `acc_hit`, `rd_hit` and `wr_hit` are the unregistered hooks: a write that
+  LAUNCHES a transaction on the edge it lands (`QSPIxCMD`, `UARTxTX`, `OWxCMD`)
+  qualifies `acc_hit` with its own `WEn(0)`, exactly as the raw decode did, and so
+  does not slip a cycle; where the direction is the whole qualifier, `rd_hit` and
+  `wr_hit` carry it already. See "Which hook" below.
 
 On a stored bit the module resolves a coincident software write and hardware hook
 in this order: lane write, `hw_we`, `hw_set`, `hw_clr`. Hardware beats a coincident
@@ -260,6 +264,30 @@ by the select there may be no edge after the access at all, and the write would
 be lost: EVFAB is that case, and its aliases take `acc_hit` qualified with their
 own lane instead, which lands on the access edge exactly as the case arm did.
 
+## Which hook: `rd_hit` / `wr_hit`, the registered strobes, or `acc_hit`
+
+Three hooks report the same access. They differ in when they are valid and in how
+much of the decode they carry.
+
+| hook | timing | qualifier | use it when |
+|---|---|---|---|
+| `acc_hit(i)` | combinational, valid during the access | selected and addressed, nothing else | the side effect is direction-blind (NFC's `NFCxDATA` index auto-increment fires on a read as much as a write), or the block adds a qualifier the module does not have: a byte lane other than "any" (`WEn(0)`, `WEn(1)`), or a `wdata` bit |
+| `rd_hit(i)` / `wr_hit(i)` | combinational, valid during the access | `rd_hit`: `WEn = "1111"`. `wr_hit`: a lane write that survives `FULLWR` and `wr_inhibit` | the side effect must land on the access edge AND the direction is the whole test. Mandatory where `ClkMem` is GATED by `EnMemPeriph`: the access is one rising edge, so a registered strobe is sampled a whole bus access late |
+| `rd_strobe(i)` / `wr_strobe(i)` | flop set on the access edge, retired per `STROBE_HOLD` | the same as `rd_hit` / `wr_hit` | the consumer is downstream of the access edge and `ClkMem` free-runs: a `ClkMem`-synchronous flag process, or a level into another clock domain (`STROBE_HOLD = true`) |
+
+`rd_hit` and `wr_hit` are `rd_strobe` and `wr_strobe` BEFORE the flop, so the
+condition is bit for bit the same and only the timing differs. `acc_hit` is their
+OR, minus the `FULLWR` and `wr_inhibit` refusals - which is the one place the
+three genuinely disagree, and why `wr_hit` is not `acc_hit and not WEn(0)`:
+a FULLWR partial write and an inhibited write both raise `acc_hit` and neither
+raises `wr_hit`.
+
+A block whose hand-written test is a LANE test rather than a direction test
+(`acc_hit(i) and not WEn(0)`, which is most of the tree) keeps `acc_hit`: `wr_hit`
+is any-lane, so substituting it would accept a lane-3-only write the old decode
+dropped. The exception is a block that already makes every write lane-0 through
+`wr_inhibit` - EVFAB - where the two are the same signal.
+
 ## Strobe retirement: two idioms, one generic
 
 Every strobe (`rd_strobe`, `wr_strobe`, `wr_pulse`, `w1c_hit`, `woset_hit`,
@@ -300,12 +328,31 @@ event is lost; a synchronous pulse on an async clear is a wider pulse than today
 
 ### Blocks whose description and RTL disagree, and where that lands
 
-Three registers are `sw=rw` in the `.rdl` and stored by nothing in the RTL, so the
-module holds storage for them and `RDTHRU` keeps the read at 0: SYSTEM's
-`WDTPASS` (32 bits, a password port), EVFAB's `EVFCHTRIG` (8) and `EVFEVTRIG`
-(16, both action slots decoded in another clock domain). That is 56 flops nothing
-reads. Correcting the description rather than the RTL is the fix, and it is a
-`.rdl` change with its own gate sweep, not a migration edit.
+Three registers cost storage the RTL never reads: SYSTEM's `WDTPASS` (32 bits, a
+password port), EVFAB's `EVFCHTRIG` (8) and `EVFEVTRIG` (16, both action slots
+decoded in another clock domain). 56 flops. `RDTHRU` keeps their read at 0 and
+each block's RTL consumes the RAW BUS `wdata`, not the storage, so the flops are
+unobservable from either side.
+
+**The `.rdl` is not what is wrong** (audited 2026-09-11). All three already say
+`sw = w; hw = r;` -- `system.rdl:300`, `evfab.rdl:180`, `evfab.rdl:225` -- which
+is the truth about software access. The storage comes from the EMITTER:
+`rdl_vhdl.storageMask` puts a `sw=w` field in `IMPL` unless it is `singlepulse`,
+and SystemRDL 2.0 restricts `singlepulse` to a ONE-BIT field, so the repo's only
+vocabulary for "write-only, no storage" cannot reach a field 8, 16 or 32 bits
+wide. The compiler says so outright: `Field 'EVFCHTRIG' marked as 'singlepulse'
+shall have width of 1`.
+
+**And the fix is a frozen-constant change, so it is not a wave-edit.**
+`WDTPASS_IMPL`, `EVFCHTRIG_IMPL` and `EVFEVTRIG_IMPL` are all three carried in
+`platform/common/python/rdl_legacy_constants.json` at their present values
+(`0xFFFFFFFF`, `0xFF`, `0xFFFF`), and `rdl_pkg_vs_legacy_test` grades the emitted
+`<REG>_IMPL` against them. Any correction that deletes the storage fails that
+gate until the frozen file is edited in the same commit, which is the owner's
+call and nobody else's. Measured cost of the correction, for that decision:
+EVFAB 380 -> 356 flop bits (`ghdl --synth`, 0 latches), SYSTEM -32 by the module's
+accounting -- or only -2 if the correction is spelled as a 32-bit `PULSE` mask,
+because `ACT_ANY` would then grow `sw1_q` from 2 bits to 32.
 
 Shared files a per-block migration must NOT touch: `hdl/common/periph_regs.vhd`,
 `hdl/common/constants.vhd`, `hdl/common/tb/periph_regs_tb.vhd`, this file,

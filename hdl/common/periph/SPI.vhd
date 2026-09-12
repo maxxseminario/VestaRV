@@ -81,7 +81,7 @@ architecture behavioral of SPI is
     signal regs_q  : reg_arr_t;
     signal hw_rd_s : reg_arr_t;
     signal w1c_s   : reg_arr_t;                        -- a 1 written to a SPIxSR flag
-    signal acc_s   : std_logic_vector(0 to NWORDS-1);  -- combinational: this slot is addressed now
+    signal wrh_s   : std_logic_vector(0 to NWORDS-1);  -- ... and the access is a lane write
     signal rd_str  : std_logic_vector(0 to NWORDS-1);
     signal wr_str  : std_logic_vector(0 to NWORDS-1);
     signal sr_rd, rx_rd : std_logic_vector(31 downto 0);
@@ -781,7 +781,9 @@ begin
             rdata_out   => read_data,
             regs        => regs_q,
             hw_rd       => hw_rd_s,
-            acc_hit     => acc_s,
+            acc_hit     => open,
+            rd_hit      => open,
+            wr_hit      => wrh_s,
             rd_strobe   => rd_str,
             wr_strobe   => wr_str,
             wr_pulse    => open,
@@ -800,8 +802,9 @@ begin
                     or rd_str(RegSlotSPIxRX) or wr_str(RegSlotSPIxRX);
 
     -- A write to SPIxTX launches a transfer on the edge it lands, so the set term
-    -- takes the COMBINATIONAL acc_hit qualified by this block's own wen, exactly as
-    -- the raw decode did; the registered wr_strobe would slip the launch a cycle.
+    -- takes the module's COMBINATIONAL wr_hit, which is acc_hit qualified by the
+    -- lanes exactly as the raw decode's wen /= "1111" was; the registered
+    -- wr_strobe would slip the launch a cycle.
     -- Any enabled lane arms it, and in flash mode the launch belongs to the flash
     -- FSM instead. clr_start_tx is asynchronous and wins over a coincident set,
     -- which is the order the deleted reg_write process wrote its two branches in.
@@ -810,7 +813,7 @@ begin
         if resetn = '0' or clr_start_tx = '1' then
             start_tx <= '0'; -- Clear Start Transmit Signal
         elsif rising_edge(clk_mem) then
-            if acc_s(RegSlotSPIxTX) = '1' and wen /= "1111"
+            if wrh_s(RegSlotSPIxTX) = '1'
                and (spi_fen = '0' or not ENABLE_EXTENDED_MEM) then
                 start_tx <= '1';
             end if;

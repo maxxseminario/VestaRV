@@ -1,5 +1,5 @@
 -- VestaRV: periph_regs testbench
--- Self-checking unit bench for the shared peripheral register file. It exercises every mask class the .rdl can produce (IMPL, W1C, WOSET, WOT, PULSE, RCLR, HWOWN) and the three RTL-side generics (RDTHRU, WIDEWR, STROBE_HOLD), each byte lane on its own, and the two strobe retirements side by side.
+-- Self-checking unit bench for the shared peripheral register file. It exercises every mask class the .rdl can produce (IMPL, W1C, WOSET, WOT, PULSE, RCLR, HWOWN) and the three RTL-side generics (RDTHRU, WIDEWR, STROBE_HOLD), each byte lane on its own, the two strobe retirements side by side, and the three unregistered hooks (acc_hit, rd_hit, wr_hit) against a negative control that raises acc_hit and neither of the other two.
 -- Two instances run off one bus with one synthetic table: dut_p at STROBE_HOLD false, dut_h at true. Everything but the strobe width is checked on dut_p, because the two differ in nothing else.
 -- The bus is driven here rather than through periph_tb_pkg.bus_write, which always asserts all four lanes and therefore cannot test a lane at all.
 
@@ -88,6 +88,7 @@ architecture sim of periph_regs_tb is
 
     signal p_rdata : word;
     signal p_regs  : tab_t;
+    signal p_acc, p_rdh, p_wrh : std_logic_vector(0 to NW-1);
     signal p_rds, p_wrs : std_logic_vector(0 to NW-1);
     signal p_pulse, p_w1c, p_woset, p_wot, p_rdclr : tab_t;
 
@@ -124,6 +125,7 @@ begin
             MABPart => addr, wdata => wdata, rdata_out => p_rdata, regs => p_regs,
             wr_inhibit => inh, hw_rd => hw_rd, hw_we => hw_we, hw_wdata => hw_wdata,
             hw_set => hw_set, hw_clr => hw_clr,
+            acc_hit => p_acc, rd_hit => p_rdh, wr_hit => p_wrh,
             rd_strobe => p_rds, wr_strobe => p_wrs, wr_pulse => p_pulse,
             w1c_hit => p_w1c, woset_hit => p_woset, wot_hit => p_wot, rd_clr => p_rdclr);
 
@@ -481,6 +483,65 @@ begin
         sb.check_slv("combinational read: collapses to word 0 on deselect",
                      c_rdata, x"00001234");
         sb.check_slv("registered read: holds word 0 on deselect too", p_rdata, x"00001234");
+
+        -- GROUP 12: rd_hit / wr_hit, the unregistered direction-split hooks.
+        -- They are what a block whose ClkMem is GATED by EnMemPeriph must use:
+        -- one access is one rising edge, so a strobe flopped on it is sampled a
+        -- whole bus access late. Every check below is taken BEFORE or ON the
+        -- capture edge, where the registered strobe is still down.
+        report "=== GROUP 12: rd_hit / wr_hit ===" severity note;
+        wait until clk = '0';
+        addr <= std_logic_vector(to_unsigned(W_WIDE, 6));
+        wen  <= (others => '1');
+        en_n <= '0';
+        wait for PERIOD / 4;   -- decode settled, still before the capture edge
+        sb.check_bit("rd_hit is up on a read BEFORE the capture edge", p_rdh(W_WIDE), '1');
+        sb.check_bit("wr_hit stays down on a read",                   p_wrh(W_WIDE), '0');
+        sb.check_bit("acc_hit is up in either direction",             p_acc(W_WIDE), '1');
+        sb.check_bit("the registered rd_strobe is still down",        p_rds(W_WIDE), '0');
+        sb.check_bit("a neighbouring word is not hit",                p_rdh(W_CTRL), '0');
+        wait until clk = '1';
+        wait for 1 ns;
+        sb.check_bit("rd_hit holds across the capture edge",     p_rdh(W_WIDE), '1');
+        sb.check_bit("and the registered strobe has caught up",  p_rds(W_WIDE), '1');
+        release_bus;
+        wait until clk = '1';
+        wait for 1 ns;
+
+        access_word(W_WIDE, "1110", x"000000C3");
+        sb.check_bit("wr_hit is up on a one-lane write", p_wrh(W_WIDE), '1');
+        sb.check_bit("rd_hit stays down on a write",     p_rdh(W_WIDE), '0');
+        release_bus;
+
+        -- NEGATIVE CONTROL, both halves: an access that acc_hit reports and that
+        -- is NEITHER a read nor a write. Wiring rd_hit or wr_hit to acc_hit, or
+        -- forgetting either qualifier, fails exactly here.
+        access_word(W_PASS, "1110", x"11111111");
+        sb.check_bit("negative control: a FULLWR partial write raises acc_hit",
+                     p_acc(W_PASS), '1');
+        sb.check_bit("negative control: but not wr_hit", p_wrh(W_PASS), '0');
+        sb.check_bit("negative control: and not rd_hit either", p_rdh(W_PASS), '0');
+        release_bus;
+        access_word(W_PASS, "0000", x"0BADF00D");
+        sb.check_bit("FULLWR: the four-lane write does raise wr_hit", p_wrh(W_PASS), '1');
+        release_bus;
+
+        inh <= (W_WIDE => '1', others => '0');
+        wait until clk = '1';
+        access_word(W_WIDE, "0000", x"5EADC0DE");
+        sb.check_bit("negative control: an inhibited write raises acc_hit",
+                     p_acc(W_WIDE), '1');
+        sb.check_bit("negative control: but not wr_hit", p_wrh(W_WIDE), '0');
+        sb.check_bit("negative control: and not rd_hit either", p_rdh(W_WIDE), '0');
+        release_bus;
+        inh <= (others => '0');
+        wait until clk = '1';
+
+        wait until clk = '0';
+        wait for 1 ns;
+        sb.check_bit("deselected: acc_hit is down", p_acc(W_WIDE), '0');
+        sb.check_bit("deselected: rd_hit is down",  p_rdh(W_WIDE), '0');
+        sb.check_bit("deselected: wr_hit is down",  p_wrh(W_WIDE), '0');
 
         wait for 2 * PERIOD;
         sb.report_summary("PERIPH_REGS TB");

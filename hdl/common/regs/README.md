@@ -37,4 +37,28 @@ grades every emitted value against the constants frozen before the migration; an
 `//platform/common:rdl_vs_vhdl_<periph>_test` re-derives each decode out of the
 VHDL and compares it against the description.
 
+## `periph_regs`: the module that decodes the tables
+
+`hdl/common/periph_regs.vhd` is the house peripheral bus protocol written once:
+the slot decode, the byte-lane write merge, the registered read mux, the write-1
+arms and the strobe retirement. A peripheral instantiates it with the tables its
+`<block>_regs_pkg` already carries (`NWORDS`, `RSTVAL`, `IMPL`, `W1C`, `WOSET`,
+`WOT`, `PULSE`, `RCLR`, `HWOWN`) and keeps only its datapath. That is the whole
+point of the eight table constants in `vhdl/`: they are not documentation, they
+are the decode. Design note, property-to-mask table, hook table and migration
+recipe: `REGFILE.md`. Unit bench: `hdl/common/tb/periph_regs_tb.vhd`.
+
+**Seventeen blocks use it**, one instance each: DMA, EVFAB, GPIO, I2C, I2CTarget,
+I3C, NFC, NPU, OneWire, PWM, QSPI, RTC, SPI, SYSTEM, TIMER, TRNG and UART.
+
+**Five do not, and will not without a change of scope:**
+
+| block | why |
+|---|---|
+| CLINT, MUTEX, IRQROUTER, PWRCTRL | parameterised. The register SET is a function of the hart, mutex or vector count, so there is no constant table to pass; they also decode a bare integer index rather than a slot. Blocked until the tables can be emitted per configuration |
+| DEBUG | not on the peripheral bus at all (DMI, not `EnMemPeriph` / `WEn` / `MABPart`). No adoption path |
+
+Their packages are still emitted, tracked and gated; an unread package costs one
+analysis and synthesises to nothing.
+
 Full toolchain documentation: `tools/rdl/README.md`.
