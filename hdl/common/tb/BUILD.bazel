@@ -137,6 +137,18 @@ vhdl_source_set(
     pool = ["//hdl:vhdl_sources"],
 )
 
+# The JTAG Debug Transport Module and the one block it instantiates.  sync.vhd
+# must precede it: jtag_dtm binds work.sync directly, and GHDL analysis order is
+# load bearing (//toolchains/ghdl:defs.bzl module docstring).
+vhdl_source_set(
+    name = "jtag_dtm_rtl",
+    paths = [
+        "hdl/common/sync.vhd",
+        "hdl/common/jtag_dtm.vhd",
+    ],
+    pool = ["//hdl:vhdl_sources"],
+)
+
 # xcelium/mp_test/run_arbiter.sh (M3c): four synthetic masters contending for
 # one shared single-port RAM.
 ghdl_test(
@@ -192,6 +204,73 @@ ghdl_test(
     tags = ["ghdl"],
 )
 
+# The JTAG debug transport bench: TAP state-machine scans on tck/tms/tdi
+# (IDCODE, dtmcs, BYPASS, the 41-bit dmi DR) against a bench-written DMI slave
+# model, with tck and mclk at an INCOMMENSURATE ratio (37 ns against 10 ns) so
+# the four-phase toggle handshake is not exercised at one fixed edge phase.
+#
+# 104 checks in one run.  It carries its own seen-to-fail record, measured by
+# mutating the DUT in a scratch copy (report P3):
+#   * rsp_tgl held instead of toggled in M_RSP: 35 checks fail, from E1 on.
+#   * the request-side synchroniser bypassed (req_s2 driven from req_tgl):
+#     D10 and J3b fail on the crossing latency, and nothing else does.  That
+#     pair is the ONLY instrument here that can see a missing sync stage --
+#     removing a stage changes no value, only latency, so an event-driven
+#     simulation is blind to it unless the latency itself is asserted.
+#   * the response-side synchroniser bypassed: NOT caught, and the bench does
+#     not claim to.  The response chain's depth is not observable at the
+#     ports; it shows up only as a shift in when a capture stops reading BUSY,
+#     which is not a bound worth pinning.
+#
+# STRICT_TRSTN_GUARD selects which contract section H grades; see the bench
+# header and the jtag_dtm_trstn_guard_strict_tb target below.
+ghdl_test(
+    name = "jtag_dtm_tb",
+    size = "small",
+    srcs = [
+        ":jtag_dtm_rtl",
+        "jtag_dtm_tb.vhd",
+    ],
+    entity = "jtag_dtm_tb",
+    pass_pattern = "ALL CHECKS PASSED",
+    sim_timeout_s = 120,
+    tags = ["ghdl"],
+)
+
+# OPEN DEFECT P3-1, held as a MANUAL target so it is out of the wildcard suite
+# and cannot be mistaken for a regression somebody else introduced.
+#
+# jtag_dtm.vhd:~470 gates the mclk edge detect on `trstn_guard(2)`, a REGISTERED
+# function of trstn_s2.  trstn and req_tgl both fall at the TRSTn edge and both
+# cross on DEPTH-2 chains, so trstn_s2 and req_s2 change on the SAME mclk edge:
+# the guard still reads high on the very edge that detects the toggle TRSTn
+# manufactured, and one unqualified op = "00" request at address 0 escapes to
+# the Debug Module.  Measured, not inferred -- the default target pins the
+# escape's bound (one request, zeroed payload), this one states the contract
+# the RTL's own comment claims and is RED until the guard is fixed.
+#
+# The fix is one line, and with it applied this target runs GREEN (measured):
+#   if rst_guard(2) = '1' and trstn_s2 = '1' and trstn_guard(2) = '1'
+#      and (req_s2 /= req_s3) then
+#
+#   tools/bin/bazel test //hdl/common/tb:jtag_dtm_trstn_guard_strict_tb
+ghdl_test(
+    name = "jtag_dtm_trstn_guard_strict_tb",
+    size = "small",
+    srcs = [
+        ":jtag_dtm_rtl",
+        "jtag_dtm_tb.vhd",
+    ],
+    entity = "jtag_dtm_tb",
+    generics = {"STRICT_TRSTN_GUARD": "true"},
+    pass_pattern = "ALL CHECKS PASSED",
+    sim_timeout_s = 120,
+    tags = [
+        "ghdl",
+        
+    ],
+)
+
 # ---------------------------------------------------------------------------
 # The rest of the single-file-closure benches, ported 2026-09-05.
 #
@@ -229,7 +308,9 @@ ghdl_test(
 vhdl_source_set(
     name = "pwr_ctrl_rtl",
     paths = [
+        "hdl/common/constants.vhd",
         "hdl/common/sync.vhd",
+        "hdl/common/periph_regs.vhd",
         "hdl/common/regs/vhdl/pwr_ctrl_regs_pkg.vhd",
         "hdl/common/pwr_ctrl.vhd",
     ],
@@ -250,6 +331,7 @@ vhdl_source_set(
     paths = [
         "hdl/common/constants.vhd",
         "hdl/common/MemoryMap.vhd",
+        "hdl/common/periph_regs.vhd",
         "hdl/common/regs/vhdl/clint_regs_pkg.vhd",
         "hdl/common/clint.vhd",
     ],
@@ -259,8 +341,10 @@ vhdl_source_set(
 vhdl_source_set(
     name = "arb_lat_rtl",
     paths = [
+        "hdl/common/constants.vhd",
         "hdl/common/mp_arbiter.vhd",
         "hdl/common/resv_unit.vhd",
+        "hdl/common/periph_regs.vhd",
         "hdl/common/regs/vhdl/mutex_bank_regs_pkg.vhd",
         "hdl/common/mutex_bank.vhd",
     ],

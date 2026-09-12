@@ -408,7 +408,8 @@ rather than to report.
 # incomplete `if` that infers a latch, and a constant index outside its array
 # bound -- the three mistakes that used to reach Genus, which needs a license,
 # takes minutes, and does not run on every commit.  Synthesis of the largest
-# block here (NFC) measures at 1.9 s.
+# block here (the generated chip top, MCU) measures at 3.7 s; all 39 targets
+# together run in about 6 s with every action re-executed.
 #
 # TWO ARTIFACTS, ONE BUILD ACTION.  The action analyzes, synthesizes to a raw
 # netlist, and writes a JSON census; the test reads the census and decides.
@@ -432,6 +433,17 @@ rather than to report.
 # Patterns match GHDL's synthesis module name, "<entity>_B<architecture>"
 # lowercased with a generic/hash suffix, so they are written as globs:
 # "clkgate_B*", not "clkgate_Bbehavioral".
+#
+# BLACK BOXES.  Three targets synthesize a block that instantiates a cell GHDL
+# must not look inside: a compiled memory macro, an analog cell, or SYSTEM,
+# which crashes ghdl --synth 6.0.0.  `blackbox_srcs` takes port-compatible
+# stubs and analyzes them AHEAD of `srcs`, because a direct `entity work.<name>`
+# association binds at ANALYSIS and the stub has to be in the library first.
+# The stub file basenames become part of the frozen census, so black-boxing a
+# block out of a graded hierarchy is a visible act rather than a quiet one,
+# and every stub architecture is named `blackbox`, which is how
+# //toolchains/ghdl:synth_coverage_test refuses a stub as coverage for the
+# entity it stands in for.
 
 def _synth_action(ctx, srcs, lib_root, netlist, census, log):
     args = ctx.actions.args()
@@ -441,6 +453,10 @@ def _synth_action(ctx, srcs, lib_root, netlist, census, log):
     args.add("--std", ctx.attr.std)
     args.add_all(ctx.attr.flags, format_each = "--flag=%s")
     args.add_all(srcs, format_each = "--src=%s")
+    args.add_all(
+        [f.basename for f in ctx.files.blackbox_srcs],
+        format_each = "--blackbox=%s",
+    )
     for k, v in ctx.attr.generics.items():
         args.add("--generic", "%s=%s" % (k, v))
     args.add_all(ctx.attr.allow_latches, format_each = "--allow-latch=%s")
@@ -496,7 +512,11 @@ def _ghdl_synth_test_impl(ctx):
             skip_reason = ctx.attr.skip_reason,
         )) + "\n")
     else:
-        srcs = _resolve_srcs(ctx)
+        # Black boxes lead the analysis order, always.  Every one of them
+        # stands in for a cell instantiated by direct `entity work.<name>`
+        # association, which binds at ANALYSIS, so the stub has to be a design
+        # unit in the library before the unit that names it is read.
+        srcs = ctx.files.blackbox_srcs + _resolve_srcs(ctx)
         lib_root = _lib_root(ctx.files.vhdl_libs, ctx.attr.std, runfiles = False)
         if lib_root == None:
             fail("ghdl_synth_test %s: no std-obj%s.cf in vhdl_libs" %
@@ -556,6 +576,19 @@ netlist (gzipped), the census JSON, and the GHDL log.
                   "are intended.  A latch anywhere else is fatal.  The only " +
                   "legitimate entries in this tree are the clock cells: " +
                   "\"clkgate_B*\", \"preicg_B*\", \"clockmuxglitchfree_B*\".",
+        ),
+        "blackbox_srcs": attr.label_list(
+            allow_files = [".vhd", ".vhdl"],
+            doc = "Port-compatible synthesis STUBS, analyzed before `srcs`.  " +
+                  "For a cell ghdl --synth must not look inside: a compiled " +
+                  "memory macro, an analog cell, or a block that crashes the " +
+                  "tool.  The stubs live in hdl/common/synth/*_blackbox.vhd, " +
+                  "outside //hdl:vhdl_sources so no simulation list can pick " +
+                  "one up by accident, and every stub architecture is named " +
+                  "`blackbox` -- //toolchains/ghdl:synth_coverage_test keys " +
+                  "on that name to refuse a stub as coverage.  The FILE " +
+                  "BASENAMES are part of the frozen census, so a cell cannot " +
+                  "be black-boxed out of a graded hierarchy quietly.",
         ),
         "entity": attr.string(
             mandatory = True,

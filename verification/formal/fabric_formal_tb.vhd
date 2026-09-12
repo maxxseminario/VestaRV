@@ -54,17 +54,57 @@ architecture tb of fabric_formal_tb is
 begin
     clk <= not clk after 5 ns when not stopc else '0';
 
-    mtx : entity work.mutex_bank generic map (NMUTEX => 16, AW => 4, MW => 2)
-        port map (clk, resetn, mx_en, mx_we, mx_addr, mx_wdata, mx_master, mx_rdata);
+    -- NAMED association throughout, deliberately. These three were positional,
+    -- and mp_arbiter's later `s_stall` port (mp_arbiter.vhd:41, defaulted, so
+    -- adding it broke no named caller) slid every argument after s_en one place
+    -- along: the bench stopped analyzing altogether, which is how a formal
+    -- harness rots silently while its runner still exists.
+    mtx : entity work.mutex_bank
+        generic map (NMUTEX => 16, AW => 4, MW => 2)
+        port map (
+            clk    => clk,
+            resetn => resetn,
+            en     => mx_en,
+            we     => mx_we,
+            addr   => mx_addr,
+            wdata  => mx_wdata,
+            master => mx_master,
+            rdata  => mx_rdata);
 
-    arb : entity work.mp_arbiter generic map (N => N, ADDR_WIDTH => 12, DATA_WIDTH => 32, MW => 2)
-        port map (clk, resetn, ab_req, ab_we, ab_addr, ab_wdata, ab_lock,
-                  ab_gnt, ab_done, ab_rdata,
-                  ab_sen, ab_smst, ab_swe, ab_saddr, ab_swdat, x"DEADBEEF");
+    arb : entity work.mp_arbiter
+        generic map (N => N, ADDR_WIDTH => 12, DATA_WIDTH => 32, MW => 2)
+        port map (
+            clk      => clk,
+            resetn   => resetn,
+            req      => ab_req,
+            we       => ab_we,
+            addr     => ab_addr,
+            wdata    => ab_wdata,
+            lock     => ab_lock,
+            gnt      => ab_gnt,
+            done     => ab_done,
+            rdata    => ab_rdata,
+            s_en     => ab_sen,
+            s_stall  => '0',
+            s_master => ab_smst,
+            s_we     => ab_swe,
+            s_addr   => ab_saddr,
+            s_wdata  => ab_swdat,
+            s_rdata  => x"DEADBEEF");
 
-    rsv : entity work.resv_unit generic map (N => N, ADDR_WIDTH => AW)
-        port map (clk, resetn, rv_lrsc, rv_gnt, rv_sen, rv_we, rv_addr,
-                  rv_weg, rv_scfail, rv_valid);
+    rsv : entity work.resv_unit
+        generic map (N => N, ADDR_WIDTH => AW)
+        port map (
+            clk          => clk,
+            resetn       => resetn,
+            lr_sc        => rv_lrsc,
+            gnt          => rv_gnt,
+            s_en         => rv_sen,
+            s_we         => rv_we,
+            s_addr       => rv_addr,
+            s_we_gated   => rv_weg,
+            sc_fail      => rv_scfail,
+            resv_valid_o => rv_valid);
 
     stim : process
         procedure tick is begin wait until rising_edge(clk); end procedure;

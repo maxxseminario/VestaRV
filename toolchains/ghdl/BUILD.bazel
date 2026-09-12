@@ -38,6 +38,7 @@ py_binary(
 exports_files([
     "synth_census.py",
     "synth_census.json",
+    "synth_coverage.py",
 ])
 
 # The file list the census comparator reads, one path per line.  Same shape
@@ -104,4 +105,55 @@ py_binary(
         ":census_manifest",
     ],
     main = "synth_census.py",
+)
+
+# ---------------------------------------------------------------------------
+# The coverage gate: no RTL file may dodge the census
+# ---------------------------------------------------------------------------
+
+# Every VHDL file under hdl/, one path per line, for the same reason
+# //tools/ci:vhdl_source_manifest exists: $(SRCS) expanded into an args list is
+# shell-tokenized, and a two-thousand-entry command line is unreadable in a
+# failure message.  $(SRCS) rather than $(rootpaths) because these are SOURCE
+# files, whose exec path is already the workspace-relative path.
+genrule(
+    name = "vhdl_source_manifest",
+    testonly = True,
+    srcs = ["//hdl:vhdl_sources"],
+    outs = ["vhdl_source_manifest.txt"],
+    cmd = "for f in $(SRCS); do echo $$f; done > $@",
+)
+
+# PROVES that every entity declared under hdl/common/ is synthesized by
+# something: it is either the top of a ghdl_synth_test (a documented skip
+# counts, because a skip is a recorded decision) or it appears in the
+# elaborated hierarchy of one, which the census records module by module.
+#
+# WHY THE CENSUS TEST IS NOT ENOUGH.  synth_census_test grades the blocks that
+# HAVE a target.  Nothing graded the list itself, so a new .vhd under
+# hdl/common/ that no target names and no graded block instantiates was simply
+# never synthesized, and both gates stayed green while the coverage shrank as
+# a fraction of the tree.  This is the gate a new RTL file trips on the commit
+# that adds it.
+#
+# The exclusion list, one documented reason per entry, is EXCLUSIONS in
+# synth_coverage.py.  An exclusion that matches no file is a FAILURE, not a
+# no-op, so a licence to skip cannot outlive the file it was written for.
+py_test(
+    name = "synth_coverage_test",
+    size = "small",
+    srcs = ["synth_coverage.py"],
+    args = [
+        "--sources-from",
+        "$(rootpath :vhdl_source_manifest)",
+        "--census-from",
+        "$(rootpath :census_manifest)",
+    ],
+    data = [
+        "//hdl:vhdl_sources",
+        "//hdl/common/synth:synth_censuses",
+        ":census_manifest",
+        ":vhdl_source_manifest",
+    ],
+    main = "synth_coverage.py",
 )

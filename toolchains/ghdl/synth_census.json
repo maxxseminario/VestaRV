@@ -59,6 +59,19 @@
         "clkgate_Bbehavioral"
       ]
     },
+    "MCU": {
+      "blackboxes": [
+        "macro_blackbox.vhd",
+        "system_blackbox.vhd"
+      ],
+      "cells": 124609,
+      "flop_bits": 29222,
+      "latch_bits": 188,
+      "latch_modules": [
+        "clkgate_Bbehavioral",
+        "preicg_Bbehavioral"
+      ]
+    },
     "NFC": {
       "cells": 58765,
       "flop_bits": 3030,
@@ -125,6 +138,12 @@
       "latch_bits": 0,
       "latch_modules": []
     },
+    "TrngRoEnsemble": {
+      "cells": 456,
+      "flop_bits": 0,
+      "latch_bits": 0,
+      "latch_modules": []
+    },
     "UART": {
       "cells": 549,
       "flop_bits": 184,
@@ -133,9 +152,29 @@
         "clkgate_Bbehavioral"
       ]
     },
+    "adddec": {
+      "cells": 147,
+      "flop_bits": 141,
+      "latch_bits": 20,
+      "latch_modules": [
+        "clkgate_Bbehavioral"
+      ]
+    },
+    "afe_stub": {
+      "cells": 277,
+      "flop_bits": 544,
+      "latch_bits": 0,
+      "latch_modules": []
+    },
+    "aludec": {
+      "cells": 23,
+      "flop_bits": 0,
+      "latch_bits": 0,
+      "latch_modules": []
+    },
     "clint": {
-      "cells": 178,
-      "flop_bits": 426,
+      "cells": 1745,
+      "flop_bits": 470,
       "latch_bits": 0,
       "latch_modules": []
     },
@@ -145,9 +184,38 @@
       "latch_bits": 0,
       "latch_modules": []
     },
+    "fpu": {
+      "cells": 5186,
+      "flop_bits": 837,
+      "latch_bits": 0,
+      "latch_modules": []
+    },
+    "fpu_simple": {
+      "cells": 142,
+      "flop_bits": 0,
+      "latch_bits": 0,
+      "latch_modules": []
+    },
+    "hart_tile": {
+      "blackboxes": [
+        "macro_blackbox.vhd"
+      ],
+      "cells": 7394,
+      "flop_bits": 3264,
+      "latch_bits": 22,
+      "latch_modules": [
+        "clkgate_Bbehavioral"
+      ]
+    },
     "irq_router": {
       "cells": 5363,
       "flop_bits": 803,
+      "latch_bits": 0,
+      "latch_modules": []
+    },
+    "jtag_dtm": {
+      "cells": 215,
+      "flop_bits": 194,
       "latch_bits": 0,
       "latch_modules": []
     },
@@ -158,10 +226,21 @@
       "latch_modules": []
     },
     "mutex_bank": {
-      "cells": 119,
-      "flop_bits": 96,
+      "cells": 820,
+      "flop_bits": 128,
       "latch_bits": 0,
       "latch_modules": []
+    },
+    "orch_tile": {
+      "blackboxes": [
+        "macro_blackbox.vhd"
+      ],
+      "cells": 9405,
+      "flop_bits": 3598,
+      "latch_bits": 22,
+      "latch_modules": [
+        "clkgate_Bbehavioral"
+      ]
     },
     "periph_regs": {
       "skipped": "eleven word_array generics have no default, so GHDL refuses periph_regs as a top level; it is graded through the sixteen peripheral targets that instantiate it"
@@ -172,9 +251,21 @@
       "latch_bits": 0,
       "latch_modules": []
     },
+    "pulse_extender": {
+      "cells": 4,
+      "flop_bits": 1,
+      "latch_bits": 0,
+      "latch_modules": []
+    },
     "pwr_ctrl": {
-      "cells": 309,
-      "flop_bits": 163,
+      "cells": 562,
+      "flop_bits": 179,
+      "latch_bits": 0,
+      "latch_modules": []
+    },
+    "resv_unit": {
+      "cells": 179,
+      "flop_bits": 108,
       "latch_bits": 0,
       "latch_modules": []
     },

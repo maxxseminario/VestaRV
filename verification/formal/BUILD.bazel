@@ -1,0 +1,446 @@
+# The PSL property sets, wired into the open-source simulation tier.
+#
+# ---------------------------------------------------------------------------
+# WHY THERE IS A GENERATOR IN THE MIDDLE
+# ---------------------------------------------------------------------------
+# These .psl files were written for `xrun -assert_vhdl -propfile_vhdl`, which
+# binds a vunit to an entity/architecture externally. GHDL 6.0.0 (mcode) does
+# NOT do that, and the failure mode is silent:
+#
+#   * `ghdl -a foo.psl` accepts the file and registers the vunit in the work
+#     library ("vunit pmp_grant_props at 30(1509)" in work-obj08.cf).
+#   * The vunit is then never elaborated. `ghdl --elab-order` does not list it,
+#     and a vunit holding a deliberately FALSE property over the bench's own
+#     signals produces ZERO fires -- in a separate -a/-r pair and in a single
+#     `ghdl -c ... -r` process alike.
+#   * The identical property written as a `-- psl` comment inside the
+#     architecture fires ten times over the same stimulus.
+#
+# A target that analyzed the .psl and ran the bench would therefore be green
+# and hollow. psl_inline.py moves the directives, mechanically and from the
+# tracked .psl file, into the one form GHDL's simulator evaluates. The .psl
+# files stay the single source; nothing is transcribed by hand.
+#
+# ---------------------------------------------------------------------------
+# HOW EACH TARGET IS GRADED
+# ---------------------------------------------------------------------------
+# props   `--assert-level=error` makes the FIRST psl assertion abort the run
+#         with rc 1 (measured; without it GHDL prints the violation and still
+#         exits 0). pass_pattern is the bench's own end-of-stimulus banner, so
+#         a run that died early is red too. Each directive carries
+#         `report "PSL ASSERT <name>"`, which is the only way to tell which
+#         property fired -- GHDL's message names a file and line, not a label.
+#
+# witness Every witness is `assert never {trigger}` and MUST fire; a silent one
+#         means the shadowed property passed vacuously. ghdl_test decides on
+#         one fixed string, and "all N fired" is not a string GHDL prints, so
+#         psl_inline --tally also emits a plain VHDL process sampling the same
+#         booleans on the same clock, which reports ALL N WITNESSES HIT the
+#         first time every one has been seen. The PSL directives are emitted
+#         as well and evaluated independently; their fires are in the run log
+#         that ghdl_test copies into test.outputs/.
+#
+# The witness targets are also what keeps the props targets honest: both go
+# through the same generator, the same -fpsl flag and the same generated file
+# shape, so a pipeline that stopped inlining anything turns the witness
+# targets red rather than turning the props targets quietly vacuous. On top of
+# that psl_inline refuses to write a bench with zero directives.
+#
+# ---------------------------------------------------------------------------
+# MEASURED RESULT, 2026-09-12 (report P3)
+# ---------------------------------------------------------------------------
+#   pmp_grant       16 properties, 0 fires   16/16 witnesses hit
+#   fabric_formal    6 properties, 0 fires    8/8   witnesses hit
+#   fabric           12 properties, 0 fires  13/13  witnesses hit  (N_DELAY 0/1/2)
+#   core_pmp         2 properties, 0 fires    3/3   witnesses hit  (both IF_AHEAD)
+#
+# SEEN TO FAIL, so the green is not taken on trust. `return priv_m` ->
+# `return '1'` in pmp_unit.vhd's no-match arm (pmp_unit.vhd:137), the U-mode
+# privilege escape, turns :pmp_grant_props red with rc 1 at 3700 ps naming
+# P_DUT8_UPPER_DEAD_DATA.  That is the whole chain exercised end to end: the
+# generator, -fpsl, --assert-level=error and the report string.
+#
+# The .sh runners beside this file are the Cadence path and are untouched.
+# They remain the only way to run these sets under xrun, which is a different
+# PSL engine with a different report format.
+
+load("@rules_python//python:defs.bzl", "py_binary")
+load("//opensource_sim/pmp:defs.bzl", "VESTA_PMP_RTL")
+load("//toolchains/ghdl:defs.bzl", "ghdl_test", "vhdl_source_set")
+
+package(default_visibility = ["//visibility:public"])
+
+py_binary(
+    name = "psl_inline",
+    srcs = ["psl_inline.py"],
+)
+
+# ---------------------------------------------------------------------------
+# Source handles.
+#
+# The benches that live in OTHER packages are picked out of //hdl:vhdl_sources
+# with vhdl_source_set, which yields exactly one file and so can be named with
+# $(location). That avoids adding exports_files entries to packages this one
+# does not own.
+# ---------------------------------------------------------------------------
+vhdl_source_set(
+    name = "arb_lat_tb_src",
+    paths = ["hdl/common/tb/arb_lat_tb.vhd"],
+    pool = ["//hdl:vhdl_sources"],
+)
+
+vhdl_source_set(
+    name = "vesta_src",
+    paths = ["hdl/common/vesta/vesta.vhd"],
+    pool = ["//hdl:vhdl_sources"],
+)
+
+# The fabric RTL both fabric benches bind. constants.vhd leads: the generated
+# mutex_bank register package `use work.constants.all` for word_array, so the
+# four-file list //hdl/common/tb:arb_lat_rtl still carries does not analyze.
+vhdl_source_set(
+    name = "fabric_rtl",
+    paths = [
+        "hdl/common/constants.vhd",
+        "hdl/common/periph_regs.vhd",
+        "hdl/common/mp_arbiter.vhd",
+        "hdl/common/resv_unit.vhd",
+        "hdl/common/regs/vhdl/mutex_bank_regs_pkg.vhd",
+        "hdl/common/mutex_bank.vhd",
+    ],
+    pool = ["//hdl:vhdl_sources"],
+)
+
+vhdl_source_set(
+    name = "pmp_rtl",
+    paths = [
+        "hdl/common/constants.vhd",
+        "hdl/common/vesta/pmp_unit.vhd",
+    ],
+    pool = ["//hdl:vhdl_sources"],
+)
+
+# The //opensource_sim/pmp core list with vesta.vhd removed: the generated copy
+# carrying the inlined directives takes its place, at the end, which is where
+# vesta.vhd sits in VESTA_PMP_RTL (it instantiates everything before it and is
+# instantiated only by the testbench that follows).
+_VESTA = "hdl/common/vesta/vesta.vhd"
+
+vhdl_source_set(
+    name = "vesta_pmp_rtl_no_top",
+    paths = [f for f in VESTA_PMP_RTL if f != _VESTA],
+    pool = ["//hdl:vhdl_sources"],
+)
+
+# ---------------------------------------------------------------------------
+# Generated benches.
+# ---------------------------------------------------------------------------
+genrule(
+    name = "gen_pmp_grant_props_tb",
+    srcs = [
+        "pmp_formal_tb.vhd",
+        "pmp_grant_props.psl",
+    ],
+    outs = ["generated/pmp_grant_props_tb.vhd"],
+    cmd = "$(execpath :psl_inline) --vhdl $(execpath pmp_formal_tb.vhd) " +
+          "--psl $(execpath pmp_grant_props.psl) --out $@",
+    tools = [":psl_inline"],
+)
+
+genrule(
+    name = "gen_pmp_grant_witness_tb",
+    srcs = [
+        "pmp_formal_tb.vhd",
+        "pmp_grant_witness.psl",
+    ],
+    outs = ["generated/pmp_grant_witness_tb.vhd"],
+    cmd = "$(execpath :psl_inline) --vhdl $(execpath pmp_formal_tb.vhd) " +
+          "--psl $(execpath pmp_grant_witness.psl) --out $@ --tally",
+    tools = [":psl_inline"],
+)
+
+genrule(
+    name = "gen_fabric_formal_props_tb",
+    srcs = [
+        "fabric_formal_tb.vhd",
+        "fabric_formal_props.psl",
+    ],
+    outs = ["generated/fabric_formal_props_tb.vhd"],
+    cmd = "$(execpath :psl_inline) --vhdl $(execpath fabric_formal_tb.vhd) " +
+          "--psl $(execpath fabric_formal_props.psl) --out $@",
+    tools = [":psl_inline"],
+)
+
+genrule(
+    name = "gen_fabric_formal_witness_tb",
+    srcs = [
+        "fabric_formal_tb.vhd",
+        "fabric_formal_witness.psl",
+    ],
+    outs = ["generated/fabric_formal_witness_tb.vhd"],
+    cmd = "$(execpath :psl_inline) --vhdl $(execpath fabric_formal_tb.vhd) " +
+          "--psl $(execpath fabric_formal_witness.psl) --out $@ --tally",
+    tools = [":psl_inline"],
+)
+
+genrule(
+    name = "gen_fabric_props_tb",
+    srcs = [
+        ":arb_lat_tb_src",
+        "fabric_props.psl",
+    ],
+    outs = ["generated/fabric_props_tb.vhd"],
+    cmd = "$(execpath :psl_inline) --vhdl $(execpath :arb_lat_tb_src) " +
+          "--psl $(execpath fabric_props.psl) --out $@",
+    tools = [":psl_inline"],
+)
+
+genrule(
+    name = "gen_fabric_witness_tb",
+    srcs = [
+        ":arb_lat_tb_src",
+        "fabric_witness.psl",
+    ],
+    outs = ["generated/fabric_witness_tb.vhd"],
+    cmd = "$(execpath :psl_inline) --vhdl $(execpath :arb_lat_tb_src) " +
+          "--psl $(execpath fabric_witness.psl) --out $@ --tally",
+    tools = [":psl_inline"],
+)
+
+genrule(
+    name = "gen_core_pmp_props_vesta",
+    srcs = [
+        ":vesta_src",
+        "core_pmp_props.psl",
+    ],
+    outs = ["generated/core_pmp_props_vesta.vhd"],
+    cmd = "$(execpath :psl_inline) --vhdl $(execpath :vesta_src) " +
+          "--psl $(execpath core_pmp_props.psl) --out $@",
+    tools = [":psl_inline"],
+)
+
+genrule(
+    name = "gen_core_pmp_witness_vesta",
+    srcs = [
+        ":vesta_src",
+        "core_pmp_witness.psl",
+    ],
+    outs = ["generated/core_pmp_witness_vesta.vhd"],
+    cmd = "$(execpath :psl_inline) --vhdl $(execpath :vesta_src) " +
+          "--psl $(execpath core_pmp_witness.psl) --out $@ --tally",
+    tools = [":psl_inline"],
+)
+
+_PSL_FLAGS = [
+    "-fsynopsys",
+    "-fpsl",
+]
+
+# ---------------------------------------------------------------------------
+# pmp_unit grant function -- pmp_formal_tb(tb), unclocked properties sampled on
+# the bench's own `sample` strobe.
+# ---------------------------------------------------------------------------
+ghdl_test(
+    name = "pmp_grant_props",
+    size = "small",
+    srcs = [
+        ":pmp_rtl",
+        ":gen_pmp_grant_props_tb",
+    ],
+    entity = "pmp_formal_tb",
+    flags = _PSL_FLAGS,
+    pass_pattern = "pmp_formal_tb: stimulus complete",
+    run_options = ["--assert-level=error"],
+    sim_timeout_s = 90,
+    tags = ["ghdl"],
+)
+
+ghdl_test(
+    name = "pmp_grant_witness",
+    size = "small",
+    srcs = [
+        ":pmp_rtl",
+        ":gen_pmp_grant_witness_tb",
+    ],
+    entity = "pmp_formal_tb",
+    flags = _PSL_FLAGS,
+    pass_pattern = "ALL 16 WITNESSES HIT",
+    sim_timeout_s = 90,
+    tags = ["ghdl"],
+)
+
+# ---------------------------------------------------------------------------
+# mutex_bank / resv_unit / mp_arbiter directed shapes -- fabric_formal_tb(tb).
+# ---------------------------------------------------------------------------
+ghdl_test(
+    name = "fabric_formal_props",
+    size = "small",
+    srcs = [
+        ":fabric_rtl",
+        ":gen_fabric_formal_props_tb",
+    ],
+    entity = "fabric_formal_tb",
+    flags = _PSL_FLAGS,
+    pass_pattern = "fabric_formal_tb: stimulus complete",
+    run_options = ["--assert-level=error"],
+    sim_timeout_s = 90,
+    tags = ["ghdl"],
+)
+
+ghdl_test(
+    name = "fabric_formal_witness",
+    size = "small",
+    srcs = [
+        ":fabric_rtl",
+        ":gen_fabric_formal_witness_tb",
+    ],
+    entity = "fabric_formal_tb",
+    flags = _PSL_FLAGS,
+    pass_pattern = "ALL 8 WITNESSES HIT",
+    sim_timeout_s = 90,
+    tags = ["ghdl"],
+)
+
+# ---------------------------------------------------------------------------
+# The shared-fabric set over arb_lat_tb's contended stimulus.
+#
+# N_MASTERS is 4, not the 6 //hdl/common/tb:arb_lat_tb runs: the properties
+# name arb_gnt(0..3) and a two-bit s_master, so the shape is part of the
+# property set. N_DELAY sweeps the registered tile boundary 0/1/2 exactly as
+# run_fabric_props.sh does, because a latency-insensitivity property that only
+# ran at one depth would not be one.
+# ---------------------------------------------------------------------------
+[
+    ghdl_test(
+        name = "fabric_props_d%d" % d,
+        size = "small",
+        srcs = [
+            ":fabric_rtl",
+            ":gen_fabric_props_tb",
+        ],
+        entity = "arb_lat_tb",
+        flags = _PSL_FLAGS,
+        generics = {
+            "N_DELAY": str(d),
+            "BREAK_MODE": "0",
+            "N_MASTERS": "4",
+        },
+        pass_pattern = "ALL CHECKS PASSED",
+        run_options = ["--assert-level=error"],
+        sim_timeout_s = 300,
+        tags = ["ghdl"],
+    )
+    for d in [
+        0,
+        1,
+        2,
+    ]
+]
+
+# One depth is enough for the witness: it asks whether the stimulus REACHES
+# each antecedent, and the boundary depth does not change which shapes occur.
+ghdl_test(
+    name = "fabric_witness",
+    size = "small",
+    srcs = [
+        ":fabric_rtl",
+        ":gen_fabric_witness_tb",
+    ],
+    entity = "arb_lat_tb",
+    flags = _PSL_FLAGS,
+    generics = {
+        "N_DELAY": "0",
+        "BREAK_MODE": "0",
+        "N_MASTERS": "4",
+    },
+    pass_pattern = "ALL 13 WITNESSES HIT",
+    sim_timeout_s = 300,
+    tags = ["ghdl"],
+)
+
+# ---------------------------------------------------------------------------
+# The core-level D5 suppression set -- vesta(struct).
+#
+# run_core_pmp_props.sh needs a staged `make verify` configuration under
+# Cadence. It does not have to: //opensource_sim/pmp is an ENABLE_PMP=true
+# GHDL elaboration of the same core with the same rv32ua-p-pmpfq image, so the
+# set runs here with the core's own testbench and the tracked image.
+#
+# BOTH ENABLE_IF_AHEAD polarities, for the reason //opensource_sim/pmp states
+# at length: fetch-ahead is the one thing that can break the invariant that
+# pmp_f_deny_r describes the fetch the immediately preceding cycle issued, so
+# a PMP property run only with fetch-ahead off cannot see a fetch-ahead
+# regression.
+# ---------------------------------------------------------------------------
+[
+    ghdl_test(
+        name = "core_pmp_props_ifahead_%s" % suffix,
+        size = "small",
+        srcs = [
+            ":vesta_pmp_rtl_no_top",
+            ":gen_core_pmp_props_vesta",
+            "//opensource_sim/pmp:vesta_pmp_tb.vhd",
+        ],
+        entity = "vesta_pmp_tb",
+        flags = _PSL_FLAGS,
+        generics = {"IF_AHEAD": value},
+        image = "//verification/isa:pmp/rv32ua-p-pmpfq.rcf",
+        pass_pattern = "TEST PASSED",
+        run_options = ["--assert-level=error"],
+        sim_timeout_s = 180,
+        tags = ["ghdl"],
+    )
+    for suffix, value in [
+        ("off", "false"),
+        ("on", "true"),
+    ]
+]
+
+[
+    ghdl_test(
+        name = "core_pmp_witness_ifahead_%s" % suffix,
+        size = "small",
+        srcs = [
+            ":vesta_pmp_rtl_no_top",
+            ":gen_core_pmp_witness_vesta",
+            "//opensource_sim/pmp:vesta_pmp_tb.vhd",
+        ],
+        entity = "vesta_pmp_tb",
+        flags = _PSL_FLAGS,
+        generics = {"IF_AHEAD": value},
+        image = "//verification/isa:pmp/rv32ua-p-pmpfq.rcf",
+        pass_pattern = "ALL 3 WITNESSES HIT",
+        sim_timeout_s = 180,
+        tags = ["ghdl"],
+    )
+    for suffix, value in [
+        ("off", "false"),
+        ("on", "true"),
+    ]
+]
+
+test_suite(
+    name = "psl_props",
+    tags = ["ghdl"],
+    tests = [
+        ":core_pmp_props_ifahead_off",
+        ":core_pmp_props_ifahead_on",
+        ":fabric_formal_props",
+        ":fabric_props_d0",
+        ":fabric_props_d1",
+        ":fabric_props_d2",
+        ":pmp_grant_props",
+    ],
+)
+
+test_suite(
+    name = "psl_witness",
+    tags = ["ghdl"],
+    tests = [
+        ":core_pmp_witness_ifahead_off",
+        ":core_pmp_witness_ifahead_on",
+        ":fabric_formal_witness",
+        ":fabric_witness",
+        ":pmp_grant_witness",
+    ],
+)
