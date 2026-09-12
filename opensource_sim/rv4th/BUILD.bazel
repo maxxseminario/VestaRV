@@ -147,7 +147,12 @@ ghdl_test(
     # `moderate` 300 s bucket would leave no room for it. sim_timeout_s below
     # cuts in first, so a hang is reported by this rule with a log tail rather
     # than by bazel killing the test with none.
-    size = "large",
+    # 2026-09-12: a GitHub-hosted run of the sim job took 1433 s against 1016 s
+    # for the identical RTL one commit earlier and failed with no test change,
+    # which is this bench (411 s on the local host) crossing 750 s on a slow
+    # runner. The budget is 1500 s of simulation inside bazel's enormous bucket;
+    # a hang still reports through sim_timeout_s with a log tail.
+    size = "enormous",
     srcs = _SRCS,
     # The image itself, named nowhere on the GHDL command line: the ROM model
     # opens it by the path :rv4th_rom_image carries, so it has to be in
@@ -161,7 +166,7 @@ ghdl_test(
     # the header: with --assert-level=failure the closing `severity error`
     # report no longer stops GHDL.
     run_options = ["--assert-level=failure"],
-    sim_timeout_s = 750,
+    sim_timeout_s = 1500,
     # 42.43 ms is where the last check lands with test 1.3 off; the rest is
     # slack, not budget.
     stop_time = "45ms",
