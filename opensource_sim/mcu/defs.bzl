@@ -58,6 +58,11 @@ _MCU_EXTRA = [
     "hdl/common/commune/CRC16.vhd",
     "hdl/common/sim/GlitchFilter_behav.vhd",
     "hdl/common/commune/ClkDivPower2.vhd",
+    # The reusable CDC synchroniser (report R13). An ENTITY, not a package, and
+    # `entity work.sync` binds at ANALYSIS, so it precedes every block that
+    # could instantiate it. Nothing does yet; it costs one analysis until one
+    # does, and a wave that adopts it then has no source list to edit.
+    "hdl/common/sync.vhd",
     # The peripheral slots. Each is preceded by the register package generated
     # from its .rdl (report R8a): a package a peripheral `use`s must be analysed
     # before it, and listing all twenty-two now -- adopted or not -- means the
