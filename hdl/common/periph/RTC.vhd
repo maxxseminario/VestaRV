@@ -59,21 +59,28 @@ architecture behavioral of RTC is
     signal almie, tickie                 : std_logic;    -- IRQ enables, stay in the mclk domain
 
     -- ---- clk (mclk ref) domain: synchronizers + sticky flags -------------
-    signal cap_s1, cap_s2, cap_prev      : std_logic;    -- cap_tgl sync + edge
+    signal cap_s2, cap_prev              : std_logic;    -- cap_tgl sync q + edge
+    signal cap_sync_d, cap_sync_q        : std_logic_vector(0 downto 0);
     signal snap_sync   : std_logic_vector(46 downto 0);  -- bus-domain snapshot
-    signal wrack_c1, wrack_c2            : std_logic;     -- wr_ack into clk
+    signal wrack_c2                      : std_logic;     -- wr_ack into clk
+    signal wrack_sync_d, wrack_sync_q    : std_logic_vector(0 downto 0);
     signal sync_busy   : std_logic;                      -- SR.SYNC (held level)
-    signal almt_c1, almt_c2, almt_prev   : std_logic;    -- alm_tgl sync + edge
-    signal tickt_c1, tickt_c2, tickt_prev: std_logic;    -- tick_tgl sync + edge
-    signal clra_c1, clra_c2, clra_prev   : std_logic;    -- W1C ALMF sync + edge
-    signal clrt_c1, clrt_c2, clrt_prev   : std_logic;    -- W1C TICKF sync + edge
+    -- The four event/W1C toggles cross into clk in ONE work.sync: bit 3 alm, 2 tick, 1 clr_alm, 0 clr_tick. The *_prev edge flops stay local.
+    signal evt_sync_d, evt_sync_q        : std_logic_vector(3 downto 0);
+    signal almt_c2, almt_prev            : std_logic;    -- alm_tgl sync q + edge
+    signal tickt_c2, tickt_prev          : std_logic;    -- tick_tgl sync q + edge
+    signal clra_c2, clra_prev            : std_logic;    -- W1C ALMF sync q + edge
+    signal clrt_c2, clrt_prev            : std_logic;    -- W1C TICKF sync q + edge
     signal almf_flag, tickf_flag         : std_logic;    -- mclk-domain sticky flags
 
     -- ---- reset sync plus the bus-into-LFXT enable syncs (lfxt domain) ----
-    signal rtc_rst_meta, rtc_lfxt_rstn   : std_logic;    -- reset synchronizer
-    signal rtcen_s1, rtcen_sync          : std_logic;    -- RTCEN into lfxt
-    signal almen_s1, almen_sync          : std_logic;    -- ALMEN into lfxt
-    signal ticken_s1, ticken_sync        : std_logic;    -- TICKEN into lfxt
+    signal rtc_lfxt_rstn                 : std_logic;    -- reset synchronizer q
+    signal rst_sync_d, rst_sync_q        : std_logic_vector(0 downto 0);
+    -- RTCEN/ALMEN/TICKEN cross into lfxt in ONE work.sync: bit 2 RTCEN, 1 ALMEN, 0 TICKEN.
+    signal en_sync_d, en_sync_q          : std_logic_vector(2 downto 0);
+    signal rtcen_sync                    : std_logic;    -- RTCEN into lfxt
+    signal almen_sync                    : std_logic;    -- ALMEN into lfxt
+    signal ticken_sync                   : std_logic;    -- TICKEN into lfxt
 
     -- ---- wall clock (lfxt domain) ----------------------------------------
     signal sec_cnt     : std_logic_vector(31 downto 0);  -- seconds (carry of sub_cnt)
@@ -82,7 +89,8 @@ architecture behavioral of RTC is
     signal cap_tgl     : std_logic;                      -- snapshot toggle
 
     -- ---- write-commit apply (lfxt domain) --------------------------------
-    signal wrreq_s1, wrreq_s2, wrreq_prev: std_logic;    -- wr_req into lfxt
+    signal wrreq_s2, wrreq_prev          : std_logic;    -- wr_req into lfxt, sync q + edge
+    signal wrreq_sync_d, wrreq_sync_q    : std_logic_vector(0 downto 0);
     signal wr_apply    : std_logic;                      -- 1-lfxt apply pulse (comb)
     signal wr_ack_tgl  : std_logic;                      -- commit ack toggle
 
@@ -214,34 +222,52 @@ begin
     /* ------------------------- clk (mclk ref) CDC -----------------------------
        Free-running clk hosts every LFXT-into-bus synchronizer plus the sticky flags, so ALMF/TICKF and irq_rtc set autonomously while the bus is idle.
        A metastable sample can only DELAY a flag or snapshot by one clk edge. */
+    -- Read side: cap_tgl into clk, edge-detected in clk_cdc, then snap_lfxt is sampled into snap_sync.
+    -- snap_lfxt settles about 1 lfxt period before its toggle crosses (data before flag), so the multi-bit sample is glitch-free.
+    cap_sync_d(0) <= cap_tgl;
+    u_sync_cap_tgl : entity work.sync
+        generic map (WIDTH => 1, DEPTH => 2)
+        port map (clk => clk, areset => resetn, d => cap_sync_d, q => cap_sync_q);
+    cap_s2 <= cap_sync_q(0);
+
+    -- Write handshake: the ack toggle into clk; sync_busy compares it against the raw wr_req_tgl.
+    wrack_sync_d(0) <= wr_ack_tgl;
+    u_sync_wr_ack_tgl : entity work.sync
+        generic map (WIDTH => 1, DEPTH => 2)
+        port map (clk => clk, areset => resetn, d => wrack_sync_d, q => wrack_sync_q);
+    wrack_c2 <= wrack_sync_q(0);
+
+    -- Event toggles from lfxt and W1C request toggles from ClkMem: four independent lines in one chain, each edge-detected in clk_cdc.
+    evt_sync_d <= alm_tgl & tick_tgl & clr_alm_tgl & clr_tick_tgl;
+    u_sync_evt_tgl : entity work.sync
+        generic map (WIDTH => 4, DEPTH => 2)
+        port map (clk => clk, areset => resetn, d => evt_sync_d, q => evt_sync_q);
+    almt_c2  <= evt_sync_q(3);
+    tickt_c2 <= evt_sync_q(2);
+    clra_c2  <= evt_sync_q(1);
+    clrt_c2  <= evt_sync_q(0);
+
     clk_cdc: process(resetn, clk)
     begin
         if resetn = '0' then
-            cap_s1 <= '0'; cap_s2 <= '0'; cap_prev <= '0';
+            cap_prev <= '0';
             snap_sync <= (others => '0');
-            wrack_c1 <= '0'; wrack_c2 <= '0';
-            almt_c1 <= '0'; almt_c2 <= '0'; almt_prev <= '0';
-            tickt_c1 <= '0'; tickt_c2 <= '0'; tickt_prev <= '0';
-            clra_c1 <= '0'; clra_c2 <= '0'; clra_prev <= '0';
-            clrt_c1 <= '0'; clrt_c2 <= '0'; clrt_prev <= '0';
+            almt_prev <= '0';
+            tickt_prev <= '0';
+            clra_prev <= '0';
+            clrt_prev <= '0';
             almf_flag <= '0'; tickf_flag <= '0';
         elsif rising_edge(clk) then
-            -- Read side: 2-FF cap_tgl, edge-detect, then sample snap_lfxt into snap_sync.
-            -- snap_lfxt settles about 1 lfxt period before its toggle crosses (data before flag), so the multi-bit sample is glitch-free.
-            cap_s1 <= cap_tgl; cap_s2 <= cap_s1; cap_prev <= cap_s2;
+            cap_prev <= cap_s2;
             if cap_s2 /= cap_prev then
                 snap_sync <= snap_lfxt;
             end if;
 
-            -- Write handshake: 2-FF the ack toggle into clk; sync_busy compares it against the raw wr_req_tgl.
-            wrack_c1 <= wr_ack_tgl; wrack_c2 <= wrack_c1;
-
-            -- Event toggles: 2-FF and edge-detect each into clk.
-            almt_c1  <= alm_tgl;      almt_c2  <= almt_c1;  almt_prev  <= almt_c2;
-            tickt_c1 <= tick_tgl;     tickt_c2 <= tickt_c1; tickt_prev <= tickt_c2;
-            -- W1C request toggles from ClkMem: 2-FF and edge-detect each into clk.
-            clra_c1  <= clr_alm_tgl;  clra_c2  <= clra_c1;  clra_prev  <= clra_c2;
-            clrt_c1  <= clr_tick_tgl; clrt_c2  <= clrt_c1;  clrt_prev  <= clrt_c2;
+            -- Edge-detect flops for the four synchronized toggles.
+            almt_prev  <= almt_c2;
+            tickt_prev <= tickt_c2;
+            clra_prev  <= clra_c2;
+            clrt_prev  <= clrt_c2;
 
             -- Sticky ALMF: a SET (event edge) WINS over a CLEAR (W1C edge) in the same cycle.
             if (almt_c2 /= almt_prev) then
@@ -265,43 +291,39 @@ begin
 
     -- ------------------------- LFXT reset synchronizer ------------------------
     -- ASYNC assert on resetn='0' clears both flops; de-assert is synchronous, clocked by lfxt_in, so the always-on domain leaves reset with no metastable release.
-    rst_sync: process(resetn, lfxt_in)
-    begin
-        if resetn = '0' then
-            rtc_rst_meta  <= '0';
-            rtc_lfxt_rstn <= '0';
-        elsif rising_edge(lfxt_in) then
-            rtc_rst_meta  <= '1';
-            rtc_lfxt_rstn <= rtc_rst_meta;
-        end if;
-    end process;
+    rst_sync_d(0) <= '1';
+    u_sync_rtc_lfxt_rstn : entity work.sync
+        generic map (WIDTH => 1, DEPTH => 2)
+        port map (clk => lfxt_in, areset => resetn, d => rst_sync_d, q => rst_sync_q);
+    rtc_lfxt_rstn <= rst_sync_q(0);
 
     /* ------------------------- Bus into LFXT: enable held-level syncs ---------
        RTCEN/ALMEN/TICKEN cross as held levels, 2-FF synchronized on lfxt_in.
        They gate the D-input logic of the counter, compare and tick engines, never a clock. */
-    en_sync: process(rtc_lfxt_rstn, lfxt_in)
-    begin
-        if rtc_lfxt_rstn = '0' then
-            rtcen_s1 <= '0'; rtcen_sync <= '0';
-            almen_s1 <= '0'; almen_sync <= '0';
-            ticken_s1 <= '0'; ticken_sync <= '0';
-        elsif rising_edge(lfxt_in) then
-            rtcen_s1  <= rtcen_cr;  rtcen_sync  <= rtcen_s1;
-            almen_s1  <= almen_cr;  almen_sync  <= almen_s1;
-            ticken_s1 <= ticken_cr; ticken_sync <= ticken_s1;
-        end if;
-    end process;
+    en_sync_d <= rtcen_cr & almen_cr & ticken_cr;
+    u_sync_en_cr : entity work.sync
+        generic map (WIDTH => 3, DEPTH => 2)
+        port map (clk => lfxt_in, areset => rtc_lfxt_rstn, d => en_sync_d, q => en_sync_q);
+    rtcen_sync  <= en_sync_q(2);
+    almen_sync  <= en_sync_q(1);
+    ticken_sync <= en_sync_q(0);
 
     /* ------------------------- Bus into LFXT: write-commit apply --------------
        2-FF wr_req_tgl into lfxt, then edge-detect it to form wr_apply, a 1-lfxt pulse; wr_ack_tgl flips on that same edge to hand the acknowledge back.
        The wall-clock, alarm and tick engines co-sample wr_apply with the quasi-static commit_mask and stage_* to load atomically. */
+    wrreq_sync_d(0) <= wr_req_tgl;
+    u_sync_wr_req_tgl : entity work.sync
+        generic map (WIDTH => 1, DEPTH => 2)
+        port map (clk => lfxt_in, areset => rtc_lfxt_rstn, d => wrreq_sync_d, q => wrreq_sync_q);
+    wrreq_s2 <= wrreq_sync_q(0);
+
     wrsync: process(rtc_lfxt_rstn, lfxt_in)
     begin
         if rtc_lfxt_rstn = '0' then
-            wrreq_s1 <= '0'; wrreq_s2 <= '0'; wrreq_prev <= '0';
+            wrreq_prev <= '0';
             wr_ack_tgl <= '0';
         elsif rising_edge(lfxt_in) then
-            wrreq_s1 <= wr_req_tgl; wrreq_s2 <= wrreq_s1; wrreq_prev <= wrreq_s2;
+            wrreq_prev <= wrreq_s2;
             if wrreq_s2 /= wrreq_prev then
                 wr_ack_tgl <= not wr_ack_tgl;
             end if;

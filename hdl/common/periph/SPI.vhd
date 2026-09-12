@@ -193,13 +193,14 @@ architecture behavioral of SPI is
     signal en_mem_flash_d1 : std_logic;
     signal en_mem_flash_falling : std_logic;
     signal flash_access_request : std_logic;
-    signal flash_access_request_sync : std_logic_vector(1 downto 0);
     signal flash_complete : std_logic;
-    signal flash_complete_sync : std_logic_vector(1 downto 0);
 
     -- New signals for mclk domain synchronization
     signal ClearFlashActive_smclk : std_logic;
-    signal ClearFlashActive_sync : std_logic_vector(2 downto 0);
+    -- The old 3-bit shift was a 2-FF synchroniser plus one edge-detect delay flop. work.sync at DEPTH 2 reproduces stages 0 and 1 exactly, so ClearFlashActive_s2 is the old sync(1) and ClearFlashActive_s3 the old sync(2): same latency, same pulse cycle.
+    signal cfa_sync_d, cfa_sync_q : std_logic_vector(0 downto 0);
+    signal ClearFlashActive_s2 : std_logic;
+    signal ClearFlashActive_s3 : std_logic;
     signal ClearFlashActive_pulse : std_logic;
 
 begin
@@ -588,18 +589,23 @@ begin
     -- SPI Flash Extended Memory Core ----------
     -- Generate Flash logic only if ENABLE_EXTENDED_MEM is true
     gen_flash: if ENABLE_EXTENDED_MEM generate
-        -- Synchronizer for ClearFlashActive from smclk to mclk domain
-        -- Creates a single mclk cycle pulse when ClearFlashActive_smclk is asserted
+        -- ClearFlashActive crosses smclk to mclk, then a single mclk-cycle pulse on its rising edge.
+        cfa_sync_d(0) <= ClearFlashActive_smclk;
+        u_sync_ClearFlashActive_smclk : entity work.sync
+            generic map (WIDTH => 1, DEPTH => 2)
+            port map (clk => mclk, areset => resetn, d => cfa_sync_d, q => cfa_sync_q);
+        ClearFlashActive_s2 <= cfa_sync_q(0);
+
         process(mclk, resetn)
         begin
             if resetn = '0' then
-                ClearFlashActive_sync <= (others => '0');
+                ClearFlashActive_s3 <= '0';
                 ClearFlashActive_pulse <= '0';
             elsif rising_edge(mclk) then
-                -- Synchronize the signal
-                ClearFlashActive_sync <= ClearFlashActive_sync(1 downto 0) & ClearFlashActive_smclk;
+                -- Edge-detect delay flop, the old third shift stage.
+                ClearFlashActive_s3 <= ClearFlashActive_s2;
                 -- Generate single cycle pulse on rising edge
-                ClearFlashActive_pulse <= ClearFlashActive_sync(1) and not ClearFlashActive_sync(2);
+                ClearFlashActive_pulse <= ClearFlashActive_s2 and not ClearFlashActive_s3;
             end if;
         end process;
 

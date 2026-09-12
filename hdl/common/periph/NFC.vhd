@@ -123,18 +123,30 @@ architecture behavioral of NFC is
     signal halt_req_tgl : std_logic;  -- toggle-CDC for the HALTCLR W-pulse (event)
 
     -- ---- clk (smclk) domain: CDC synchronizers + sticky W1C flags --------
-    signal field_s1, field_s2, field_live, field_prev : std_logic;
+    -- Every chain flop lives inside a work.sync instance; what is declared here
+    -- is a chain OUTPUT (*_s2) or a local edge-detect copy (*_prev).
+    signal field_s2   : std_logic_vector(0 downto 0);   -- q of u_sync_field_detect
+    signal field_live, field_prev                      : std_logic;
     signal fieldf_flag, rxframef_flag, txdonef_flag    : std_logic;
     signal evt_field_tgl, evt_rxf_tgl                  : std_logic;  -- event-fabric toggles
     signal crcerrf_flag, parerrf_flag                  : std_logic;
-    -- 2-FF synchronizers of the rf-domain held event levels, plus their edge detectors.
-    signal rxframe_s1, rxframe_s2, rxframe_prev         : std_logic;
-    signal txdone_s1, txdone_s2, txdone_prev            : std_logic;
-    signal crcerr_s1, crcerr_s2, crcerr_prev            : std_logic;
-    signal parerr_s1, parerr_s2, parerr_prev            : std_logic;
-    -- 2-FF synchronizers of the rf-domain status levels for SR readback.
-    signal busy_s1, busy_s2, halted_s1, halted_s2       : std_logic;
-    signal state_s1, state_s2 : std_logic_vector(3 downto 0);
+    -- The four rf-domain held event levels are independent single-bit lines, so one WIDTH=4 chain carries them; the edge detectors stay local.
+    signal evt_lvl_d, evt_lvl_q : std_logic_vector(3 downto 0); -- 3:parerr 2:crcerr 1:txdone 0:rxframe
+    signal rxframe_s2, rxframe_prev                     : std_logic;
+    signal txdone_s2, txdone_prev                       : std_logic;
+    signal crcerr_s2, crcerr_prev                       : std_logic;
+    signal parerr_s2, parerr_prev                       : std_logic;
+    -- rf-domain status levels for SR readback: BUSY and HALTED are single bits and cross directly.
+    signal stat_lvl_d, stat_lvl_q : std_logic_vector(1 downto 0); -- 1:rf_halted 0:rf_busy
+    signal busy_s2, halted_s2                           : std_logic;
+    -- STATE is a 4-bit BINARY word and must NOT cross bit by bit; see the MCP handshake below.
+    signal state_s2      : std_logic_vector(3 downto 0);  -- the SR STATE field itself
+    signal state_cap     : std_logic_vector(3 downto 0);  -- rf-domain hold of rf_state
+    signal state_req     : std_logic;                     -- rf: flips when state_cap is refreshed
+    signal state_ack     : std_logic;                     -- clk: flips when state_cap is taken
+    signal state_req_q   : std_logic_vector(0 downto 0);  -- state_req in clk
+    signal state_req_prev: std_logic;                     -- clk edge-detect copy
+    signal state_ack_q   : std_logic_vector(0 downto 0);  -- state_ack in rf_clk
 
     -- ---- rf_clk domain: synchronized clk/config levels -------------------
     signal nfcen_r1, nfcen_r2, listen_r1, listen_r2     : std_logic;
@@ -150,7 +162,9 @@ architecture behavioral of NFC is
     signal rf_state             : std_logic_vector(3 downto 0);
 
     -- ---- rf-domain RX Miller decoder -------------------------------------
-    signal rx_s1, rx_s2, rx_prev  : std_logic;
+    signal rx_s2   : std_logic_vector(0 downto 0);  -- q of u_sync_rf_rx
+    signal rx_prev : std_logic;                     -- local pause edge-detect copy
+    signal rx_rstn : std_logic;                     -- resetn and nfcen_r2, the decoder's async reset
     signal rx_active, soc_period  : std_logic;
     signal etu_cnt      : std_logic_vector(15 downto 0);
     signal pause_seen, pause_second, prev_nopause : std_logic;
@@ -387,50 +401,66 @@ begin
 
     /* -------- clk (smclk) domain synchronizers + W1C flags -----------------
        All CDC lives on the free-running smclk: ClkMem is gated and cannot host synchronizers.
-       The rf-domain held event levels are 2-FF synchronized and rising-edge-detected to set the sticky W1C flags, and the rf side lowers each level at rx_soc so every frame gives a fresh edge; a metastable sample only delays a flag by one clk edge.
+       The chains themselves are work.sync instances; the rf-domain held event levels are synchronized and rising-edge-detected to set the sticky W1C flags, and the rf side lowers each level at rx_soc so every frame gives a fresh edge; a metastable sample only delays a flag by one clk edge.
+       Each sync bundles INDEPENDENT single-bit lines only. The 4-bit STATE word is not one of them: it crosses through the MCP handshake below.
        The clr_* pulses retire the sticky flags asynchronously, so a clear dominates a coincident set. */
+    u_sync_field_detect : entity work.sync
+        generic map (WIDTH => 1, DEPTH => 2)
+        port map (clk => clk, areset => resetn, d(0) => field_detect, q => field_s2);
+
+    evt_lvl_d <= rf_parerr_lvl & rf_crcerr_lvl & rf_txdone_lvl & rf_rxframe_lvl;
+
+    u_sync_rf_evt_lvl : entity work.sync
+        generic map (WIDTH => 4, DEPTH => 2)
+        port map (clk => clk, areset => resetn, d => evt_lvl_d, q => evt_lvl_q);
+
+    rxframe_s2 <= evt_lvl_q(0);
+    txdone_s2  <= evt_lvl_q(1);
+    crcerr_s2  <= evt_lvl_q(2);
+    parerr_s2  <= evt_lvl_q(3);
+
+    stat_lvl_d <= rf_halted & rf_busy;
+
+    u_sync_rf_status : entity work.sync
+        generic map (WIDTH => 2, DEPTH => 2)
+        port map (clk => clk, areset => resetn, d => stat_lvl_d, q => stat_lvl_q);
+
+    busy_s2   <= stat_lvl_q(0);
+    halted_s2 <= stat_lvl_q(1);
+
     bcdc: process(clk, resetn, clr_fieldf, clr_rxframef, clr_txdonef,
                   clr_crcerrf, clr_parerrf)
     begin
         if resetn = '0' then
-            field_s1 <= '0'; field_s2 <= '0'; field_live <= '0'; field_prev <= '0';
+            field_live <= '0'; field_prev <= '0';
             fieldf_flag <= '0'; rxframef_flag <= '0'; txdonef_flag <= '0';
             crcerrf_flag <= '0'; parerrf_flag <= '0';
-            rxframe_s1 <= '0'; rxframe_s2 <= '0'; rxframe_prev <= '0';
-            txdone_s1  <= '0'; txdone_s2  <= '0'; txdone_prev  <= '0';
-            crcerr_s1  <= '0'; crcerr_s2  <= '0'; crcerr_prev  <= '0';
-            parerr_s1  <= '0'; parerr_s2  <= '0'; parerr_prev  <= '0';
-            busy_s1 <= '0'; busy_s2 <= '0'; halted_s1 <= '0'; halted_s2 <= '0';
-            state_s1 <= (others => '0'); state_s2 <= (others => '0');
+            rxframe_prev <= '0';
+            txdone_prev  <= '0';
+            crcerr_prev  <= '0';
+            parerr_prev  <= '0';
             evt_field_tgl <= '0'; evt_rxf_tgl <= '0';
         elsif rising_edge(clk) then
-            -- field_detect double-flop into FIELD_LIVE, whose rising edge sets FIELDF.
-            field_s1 <= field_detect;
-            field_s2 <= field_s1;
-            field_live <= field_s2;
+            -- field_detect arrives synchronized; FIELD_LIVE and its prev copy are the local pipeline whose rising edge sets FIELDF.
+            field_live <= field_s2(0);
             field_prev <= field_live;
             if field_live = '1' and field_prev = '0' then
                 fieldf_flag   <= '1';
                 evt_field_tgl <= not evt_field_tgl;   -- event-fabric toggle; the fabric does the smclk to mclk CDC
             end if;
 
-            -- rf-domain event levels: 2-FF synchronize, then a rising edge sets the sticky flag.
-            rxframe_s1 <= rf_rxframe_lvl; rxframe_s2 <= rxframe_s1; rxframe_prev <= rxframe_s2;
+            -- rf-domain event levels: synchronized above, a rising edge here sets the sticky flag.
+            rxframe_prev <= rxframe_s2;
             if rxframe_s2 = '1' and rxframe_prev = '0' then
                 rxframef_flag <= '1';
                 evt_rxf_tgl   <= not evt_rxf_tgl;     -- event-fabric toggle
             end if;
-            txdone_s1  <= rf_txdone_lvl;  txdone_s2  <= txdone_s1;  txdone_prev  <= txdone_s2;
+            txdone_prev  <= txdone_s2;
             if txdone_s2  = '1' and txdone_prev  = '0' then txdonef_flag <= '1'; end if;
-            crcerr_s1  <= rf_crcerr_lvl;  crcerr_s2  <= crcerr_s1;  crcerr_prev  <= crcerr_s2;
+            crcerr_prev  <= crcerr_s2;
             if crcerr_s2  = '1' and crcerr_prev  = '0' then crcerrf_flag <= '1'; end if;
-            parerr_s1  <= rf_parerr_lvl;  parerr_s2  <= parerr_s1;  parerr_prev  <= parerr_s2;
+            parerr_prev  <= parerr_s2;
             if parerr_s2  = '1' and parerr_prev  = '0' then parerrf_flag <= '1'; end if;
-
-            -- rf status levels double-flopped for SR readback (BUSY, HALTED, STATE).
-            busy_s1 <= rf_busy; busy_s2 <= busy_s1;
-            halted_s1 <= rf_halted; halted_s2 <= halted_s1;
-            state_s1 <= rf_state; state_s2 <= state_s1;
         end if;
 
         -- W1C tail-clear (async, level-sensitive, and a clear dominates a coincident set).
@@ -439,6 +469,49 @@ begin
         if resetn = '0' or clr_txdonef  = '1' then txdonef_flag  <= '0'; end if;
         if resetn = '0' or clr_crcerrf  = '1' then crcerrf_flag  <= '0'; end if;
         if resetn = '0' or clr_parerrf  = '1' then parerrf_flag  <= '0'; end if;
+    end process;
+
+    /* -------- STATE readback: four-phase MCP handshake, NOT a 4-bit chain --
+       rf_state is a BINARY encoding of iso_t, so it must never be double-flopped bit by bit: its bits would resolve on different clk edges and SR.STATE would read a word the FSM never held.
+       Gray coding the encoding is not available. Field loss drives POWER_OFF from every state (the field_r2 = '0' arm of bfsm), POWER_OFF steps to ISO_IDLE the next rf_clk, and ISO_IDLE steps to ISO_READY on a REQA, so POWER_OFF, ISO_IDLE and ISO_READY are mutually adjacent. Three mutually adjacent codes form an odd cycle; a hypercube of any width is bipartite and has none, so no 4-bit (or wider) assignment gives every transition a one-bit change.
+       So the WORD stays put and only a toggle crosses. The rf side loads state_cap and flips state_req; the clk side captures state_cap when the synchronized state_req flips and answers with state_ack; the rf side reloads only once that ack has come back. state_cap is therefore constant from before the capture edge until after it, whatever the clk to rf_clk ratio, and the only signal crossing unsynchronized is the single bit state_req.
+       Cost of the handshake: a change that arrives while the previous one is still in flight waits, so SR.STATE can lag by one transition. It never shows an illegal word, and it converges as soon as the channel goes idle. With rf_clk stopped mid-handshake the field holds the previous LEGAL state until the carrier returns. */
+    u_sync_state_tgl : entity work.sync
+        generic map (WIDTH => 1, DEPTH => 2)
+        port map (clk => clk, areset => resetn, d(0) => state_req, q => state_req_q);
+
+    u_sync_state_ack : entity work.sync
+        generic map (WIDTH => 1, DEPTH => 2)
+        port map (clk => rf_clk, areset => resetn, d(0) => state_ack, q => state_ack_q);
+
+    -- rf side: load and request, only while the channel is idle (req = acked req).
+    state_mcp_src: process(rf_clk, resetn)
+    begin
+        if resetn = '0' then
+            state_cap <= (others => '0');
+            state_req <= '0';
+        elsif rising_edge(rf_clk) then
+            if state_req = state_ack_q(0) and rf_state /= state_cap then
+                state_cap <= rf_state;
+                state_req <= not state_req;
+            end if;
+        end if;
+    end process;
+
+    -- clk side: take the whole word on the synchronized request edge, then acknowledge.
+    state_mcp_dst: process(clk, resetn)
+    begin
+        if resetn = '0' then
+            state_s2      <= (others => '0');   -- POWER_OFF, the FSM's own reset state
+            state_req_prev <= '0';
+            state_ack      <= '0';
+        elsif rising_edge(clk) then
+            state_req_prev <= state_req_q(0);
+            if state_req_q(0) /= state_req_prev then
+                state_s2  <= state_cap;
+                state_ack <= not state_ack;
+            end if;
+        end if;
     end process;
 
     /* -------- CDC into rf_clk: config / field / HALTCLR synchronizers ------
@@ -464,6 +537,13 @@ begin
        rf_rx is the raw pause envelope ('0' = pause), 2-FF synchronized and classified once per bit period on a free-running ETU grid started at the first pause (SOC, which emits no data bit): a pause in the second half is a 1, a pause in the first half or none at all is a 0.
        A single no-pause period is deferred one period and flushed as a 0 only if a pause-bearing period follows; two consecutive no-pause periods are the EOC, flushing the deferred 0 as the last bit.
        Bits land LSB-first in rx_raw, all timing is register-programmed (t_etu latched at SOC), and field loss quiesces the decoder. */
+    -- The decoder's asynchronous reset is resetn AND nfcen_r2, so the sync chain on rf_rx takes it as one active-low line and resets to '1', the no-pause idle level.
+    rx_rstn <= resetn and nfcen_r2;
+
+    u_sync_rf_rx : entity work.sync
+        generic map (WIDTH => 1, DEPTH => 2, RST_VAL => "1")
+        port map (clk => rf_clk, areset => rx_rstn, d(0) => rf_rx, q => rx_s2);
+
     rx_decode: process(rf_clk, resetn, nfcen_r2)
         variable nb    : natural range 0 to 256;
         variable pedge : boolean;
@@ -471,7 +551,7 @@ begin
         variable half  : std_logic_vector(15 downto 0);
     begin
         if resetn = '0' or nfcen_r2 = '0' then
-            rx_s1 <= '1'; rx_s2 <= '1'; rx_prev <= '1';
+            rx_prev <= '1';
             rx_active <= '0'; soc_period <= '0'; prev_nopause <= '0';
             etu_cnt <= (others => '0'); pause_seen <= '0'; pause_second <= '0';
             since_pause <= (others => '0'); rx_nbits <= 0;
@@ -480,14 +560,14 @@ begin
         elsif rising_edge(rf_clk) then
             rx_soc <= '0';
             rx_eoc <= '0';
-            rx_s1  <= rf_rx;  rx_s2 <= rx_s1;  rx_prev <= rx_s2;
+            rx_prev <= rx_s2(0);   -- local edge-detect copy of the synchronized envelope
 
             if field_r2 = '0' then
                 rx_active <= '0'; soc_period <= '0'; prev_nopause <= '0';
                 etu_cnt <= (others => '0'); pause_seen <= '0'; pause_second <= '0';
                 since_pause <= (others => '0');
             else
-                pedge := (rx_prev = '1' and rx_s2 = '0'); -- pause falling edge
+                pedge := (rx_prev = '1' and rx_s2(0) = '0'); -- pause falling edge
 
                 if rx_active = '0' then
                     if pedge then          -- the first pause out of idle is the SOC

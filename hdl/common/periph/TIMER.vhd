@@ -115,8 +115,7 @@ architecture rtl of TIMER is
     -- a torn one. The two multi-bit jumps, a TIMxVAL write and the compare2 auto-clear, are not covered
     -- and need not be: both are software-visible events.
     signal timer_gray          : std_logic_vector(31 downto 0);  -- Gray mirror of timer_value, timer_clock domain
-    signal timer_gray_s1       : std_logic_vector(31 downto 0);  -- CDC stage 1 (may go metastable)
-    signal timer_gray_s2       : std_logic_vector(31 downto 0);  -- CDC stage 2 (settled)
+    signal timer_gray_s2       : std_logic_vector(31 downto 0);  -- work.sync output, settled
     signal timer_value_mem     : std_logic_vector(31 downto 0);  -- Coherent count in the clk_mem domain
     signal compare0_reg        : std_logic_vector(31 downto 0);  -- Compare 0 threshold (TIMxCMP0 storage)
     signal compare1_reg        : std_logic_vector(31 downto 0);  -- Compare 1 threshold (TIMxCMP1 storage)
@@ -335,15 +334,19 @@ begin
     end process;
 
     -- 2-FF capture into clk_mem, then one decode register so the read mux still sees a flop.
+    -- WIDTH=32 is legitimate here ONLY because timer_gray is GRAY CODED: the mirror at
+    -- timer_gray_mirror above changes exactly one bit per timer_clock edge, so a bit
+    -- caught mid-transition yields the value before or after, never a third word. A
+    -- binary bus through the same instance would be the bug work.sync's header forbids.
+    u_sync_timer_gray : entity work.sync
+        generic map (WIDTH => 32, DEPTH => 2)
+        port map (clk => clk_mem, areset => resetn, d => timer_gray, q => timer_gray_s2);
+
     timer_value_cdc: process(resetn, clk_mem)
     begin
         if resetn = '0' then
-            timer_gray_s1   <= (others => '0');
-            timer_gray_s2   <= (others => '0');
             timer_value_mem <= (others => '0');
         elsif rising_edge(clk_mem) then
-            timer_gray_s1   <= timer_gray;
-            timer_gray_s2   <= timer_gray_s1;
             timer_value_mem <= gray2bin(timer_gray_s2);
         end if;
     end process;

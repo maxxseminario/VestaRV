@@ -79,24 +79,29 @@ architecture behavioral of I2CTarget is
     signal clr_errf_tgl    : std_logic;
 
     -- ---- clk-domain sync and CDC -----------------------------------------
-    signal sda_s1, sda_s2, sda_prev : std_logic;         -- SDA 2-FF sync + prev
-    signal scl_s1, scl_s2, scl_prev : std_logic;         -- SCL 2-FF sync + prev
+    -- The chain flops live inside the work.sync instances below; only their
+    -- outputs (*_s2 / *_c2) and the edge-detect copies are signals here.
+    signal pad_d, pad_q             : std_logic_vector(1 downto 0); -- 1: SCL_IN, 0: SDA_IN
+    signal sda_s2, sda_prev         : std_logic;         -- SDA sync out + prev
+    signal scl_s2, scl_prev         : std_logic;         -- SCL sync out + prev
     signal sda_sync, scl_sync       : std_logic;         -- synchronized levels (= s2)
     signal scl_rise, scl_fall       : std_logic;         -- SCL edges (comb)
     signal sda_rise, sda_fall       : std_logic;         -- SDA edges (comb)
     signal start_evt, stop_evt      : std_logic;         -- framing events (comb)
-    signal txl_c1, txl_c2, txl_prev : std_logic;         -- tx_load_tgl sync + edge
+    signal txl_c2                   : std_logic_vector(0 downto 0); -- q of u_sync_tx_load_tgl
+    signal txl_prev                 : std_logic;         -- tx_load_tgl edge copy
     signal tx_load_pulse            : std_logic;         -- one-clk launch pulse (comb)
     signal tx_load_pending          : std_logic;         -- ClkMem-read TXE mask (comb)
-    -- W1C toggle syncs (ClkMem into clk, 2-FF plus prev)
-    signal camf_c1, camf_c2, camf_p         : std_logic;
-    signal cgcf_c1, cgcf_c2, cgcf_p         : std_logic;
-    signal crxf_c1, crxf_c2, crxf_p         : std_logic;
-    signal covf_c1, covf_c2, covf_p         : std_logic;
-    signal cnackf_c1, cnackf_c2, cnackf_p   : std_logic;
-    signal cstopf_c1, cstopf_c2, cstopf_p   : std_logic;
-    signal crstf_c1, crstf_c2, crstf_p      : std_logic;
-    signal cerrf_c1, cerrf_c2, cerrf_p      : std_logic;
+    -- W1C toggle syncs (ClkMem into clk): eight independent lines, one WIDTH=8 chain
+    signal clr_tgl_d, clr_tgl_q     : std_logic_vector(7 downto 0);
+    signal camf_c2, camf_p         : std_logic;
+    signal cgcf_c2, cgcf_p         : std_logic;
+    signal crxf_c2, crxf_p         : std_logic;
+    signal covf_c2, covf_p         : std_logic;
+    signal cnackf_c2, cnackf_p     : std_logic;
+    signal cstopf_c2, cstopf_p     : std_logic;
+    signal crstf_c2, crstf_p       : std_logic;
+    signal cerrf_c2, cerrf_p       : std_logic;
     -- per-flag one-clk clear pulses (comb)
     signal camf_pulse, cgcf_pulse, crxf_pulse, covf_pulse       : std_logic;
     signal cnackf_pulse, cstopf_pulse, crstf_pulse, cerrf_pulse : std_logic;
@@ -155,7 +160,7 @@ begin
     stop_evt  <= '1' when (sda_rise = '1' and scl_sync = '1' and scl_prev = '1') else '0';
 
     -- TX launch pulse: edge of the 2-FF-synced tx_load_tgl.
-    tx_load_pulse <= '1' when (txl_c2 /= txl_prev) else '0';
+    tx_load_pulse <= '1' when (txl_c2(0) /= txl_prev) else '0';
     -- The RAW ClkMem-domain tx_load_tgl compared against its deepest clk-synced stage, so it is high from the I2CTTX write until the FSM consumes the launch.
     -- Read by the ClkMem SR mux only, where it masks TXE so a poll right after an I2CTTX write never reads stale-empty.
     tx_load_pending <= '1' when (tx_load_tgl /= txl_prev) else '0';
@@ -275,37 +280,60 @@ begin
     end process reg_req;
 
     /* ------------------------- clk-domain sync and CDC ------------------------
-       Two independent SDA/SCL 2-FF synchronizers plus one-clk prev copies for edge detect, and a 2-FF plus prev of the tx_load_tgl launch toggle and of every W1C clr_<flag>_tgl.
+       Three work.sync chains: the SDA/SCL pads, the tx_load_tgl launch toggle and the eight W1C clr_<flag>_tgl toggles, each a bundle of INDEPENDENT single-bit lines and never a bus.
+       The one-clk prev copies that turn a chain output into an edge stay in the process below: they are local edge detect, not part of the crossing.
        Single edge (rising clk) only, reset from resetn; SDA and SCL are PURE DATA here, never a clock. */
+    pad_d <= SCL_IN & SDA_IN;
+
+    -- Idle-high open-drain bus, so the chain resets to "11" and no false START appears out of reset.
+    u_sync_sda_scl : entity work.sync
+        generic map (WIDTH => 2, DEPTH => 2, RST_VAL => "11")
+        port map (clk => clk, areset => resetn, d => pad_d, q => pad_q);
+
+    sda_s2 <= pad_q(0);
+    scl_s2 <= pad_q(1);
+
+    u_sync_tx_load_tgl : entity work.sync
+        generic map (WIDTH => 1, DEPTH => 2)
+        port map (clk => clk, areset => resetn, d(0) => tx_load_tgl, q => txl_c2);
+
+    clr_tgl_d <= clr_errf_tgl & clr_rstartf_tgl & clr_stopf_tgl & clr_nackf_tgl &
+                 clr_ovf_tgl & clr_rxf_tgl & clr_gcf_tgl & clr_amf_tgl;
+
+    u_sync_clr_tgl : entity work.sync
+        generic map (WIDTH => 8, DEPTH => 2)
+        port map (clk => clk, areset => resetn, d => clr_tgl_d, q => clr_tgl_q);
+
+    camf_c2   <= clr_tgl_q(0);
+    cgcf_c2   <= clr_tgl_q(1);
+    crxf_c2   <= clr_tgl_q(2);
+    covf_c2   <= clr_tgl_q(3);
+    cnackf_c2 <= clr_tgl_q(4);
+    cstopf_c2 <= clr_tgl_q(5);
+    crstf_c2  <= clr_tgl_q(6);
+    cerrf_c2  <= clr_tgl_q(7);
+
     bus_sync: process(resetn, clk)
     begin
         if resetn = '0' then
-            sda_s1 <= '1'; sda_s2 <= '1'; sda_prev <= '1';   -- idle-high open-drain bus
-            scl_s1 <= '1'; scl_s2 <= '1'; scl_prev <= '1';
-            txl_c1 <= '0'; txl_c2 <= '0'; txl_prev <= '0';
-            camf_c1 <= '0'; camf_c2 <= '0'; camf_p <= '0';
-            cgcf_c1 <= '0'; cgcf_c2 <= '0'; cgcf_p <= '0';
-            crxf_c1 <= '0'; crxf_c2 <= '0'; crxf_p <= '0';
-            covf_c1 <= '0'; covf_c2 <= '0'; covf_p <= '0';
-            cnackf_c1 <= '0'; cnackf_c2 <= '0'; cnackf_p <= '0';
-            cstopf_c1 <= '0'; cstopf_c2 <= '0'; cstopf_p <= '0';
-            crstf_c1 <= '0'; crstf_c2 <= '0'; crstf_p <= '0';
-            cerrf_c1 <= '0'; cerrf_c2 <= '0'; cerrf_p <= '0';
+            sda_prev <= '1';   -- idle-high open-drain bus
+            scl_prev <= '1';
+            txl_prev <= '0';
+            camf_p <= '0'; cgcf_p <= '0'; crxf_p <= '0'; covf_p <= '0';
+            cnackf_p <= '0'; cstopf_p <= '0'; crstf_p <= '0'; cerrf_p <= '0';
         elsif rising_edge(clk) then
-            -- Pad synchronizers plus prev, so edge detect runs off the SYNCHRONIZED nets.
-            sda_s1 <= SDA_IN; sda_s2 <= sda_s1; sda_prev <= sda_s2;
-            scl_s1 <= SCL_IN; scl_s2 <= scl_s1; scl_prev <= scl_s2;
-            -- TX launch toggle, 2-FF plus prev
-            txl_c1 <= tx_load_tgl; txl_c2 <= txl_c1; txl_prev <= txl_c2;
-            -- W1C toggles, 2-FF plus prev
-            camf_c1   <= clr_amf_tgl;     camf_c2   <= camf_c1;   camf_p   <= camf_c2;
-            cgcf_c1   <= clr_gcf_tgl;     cgcf_c2   <= cgcf_c1;   cgcf_p   <= cgcf_c2;
-            crxf_c1   <= clr_rxf_tgl;     crxf_c2   <= crxf_c1;   crxf_p   <= crxf_c2;
-            covf_c1   <= clr_ovf_tgl;     covf_c2   <= covf_c1;   covf_p   <= covf_c2;
-            cnackf_c1 <= clr_nackf_tgl;   cnackf_c2 <= cnackf_c1; cnackf_p <= cnackf_c2;
-            cstopf_c1 <= clr_stopf_tgl;   cstopf_c2 <= cstopf_c1; cstopf_p <= cstopf_c2;
-            crstf_c1  <= clr_rstartf_tgl; crstf_c2  <= crstf_c1;  crstf_p  <= crstf_c2;
-            cerrf_c1  <= clr_errf_tgl;    cerrf_c2  <= cerrf_c1;  cerrf_p  <= cerrf_c2;
+            -- prev copies of the SYNCHRONIZED nets, so edge detect never sees a raw pad.
+            sda_prev <= sda_s2;
+            scl_prev <= scl_s2;
+            txl_prev <= txl_c2(0);
+            camf_p   <= camf_c2;
+            cgcf_p   <= cgcf_c2;
+            crxf_p   <= crxf_c2;
+            covf_p   <= covf_c2;
+            cnackf_p <= cnackf_c2;
+            cstopf_p <= cstopf_c2;
+            crstf_p  <= crstf_c2;
+            cerrf_p  <= cerrf_c2;
         end if;
     end process;
 

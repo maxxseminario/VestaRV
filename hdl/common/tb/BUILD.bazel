@@ -229,6 +229,7 @@ ghdl_test(
 vhdl_source_set(
     name = "pwr_ctrl_rtl",
     paths = [
+        "hdl/common/sync.vhd",
         "hdl/common/regs/vhdl/pwr_ctrl_regs_pkg.vhd",
         "hdl/common/pwr_ctrl.vhd",
     ],
@@ -317,6 +318,7 @@ vhdl_source_set(
     name = "timer_rtl",
     paths = [
         "hdl/common/constants.vhd",
+        "hdl/common/sync.vhd",
         "hdl/common/MemoryMap.vhd",
         "hdl/common/sim/ClkGate.vhd",
         "hdl/common/sim/ClockMuxGlitchFree.vhd",
@@ -335,6 +337,7 @@ vhdl_source_set(
     name = "trng_rtl",
     paths = [
         "hdl/common/constants.vhd",
+        "hdl/common/sync.vhd",
         "hdl/common/periph_regs.vhd",
         "hdl/common/regs/vhdl/trng_regs_pkg.vhd",
         "hdl/common/periph/TrngRoEnsemble_sim.vhd",
@@ -358,6 +361,7 @@ vhdl_source_set(
     name = "onewire_rtl",
     paths = [
         "hdl/common/constants.vhd",
+        "hdl/common/sync.vhd",
         "hdl/common/periph_regs.vhd",
         "hdl/common/regs/vhdl/onewire_regs_pkg.vhd",
         "hdl/common/periph/OneWire.vhd",
@@ -369,6 +373,7 @@ vhdl_source_set(
     name = "i2ctarget_rtl",
     paths = [
         "hdl/common/constants.vhd",
+        "hdl/common/sync.vhd",
         "hdl/common/periph_regs.vhd",
         "hdl/common/regs/vhdl/i2ctarget_regs_pkg.vhd",
         "hdl/common/periph/I2CTarget.vhd",
@@ -392,6 +397,7 @@ vhdl_source_set(
 vhdl_source_set(
     name = "uart_rtl",
     paths = [
+        "hdl/common/sync.vhd",
         "hdl/common/constants.vhd",
         "hdl/common/MemoryMap.vhd",
         "hdl/common/sim/ClkGate.vhd",
@@ -405,6 +411,7 @@ vhdl_source_set(
 vhdl_source_set(
     name = "spi_rtl",
     paths = [
+        "hdl/common/sync.vhd",
         "hdl/common/constants.vhd",
         "hdl/common/MemoryMap.vhd",
         "hdl/common/sim/ClkGate.vhd",
@@ -539,6 +546,7 @@ vhdl_source_set(
     name = "evfab_rtl",
     paths = [
         "hdl/common/constants.vhd",
+        "hdl/common/sync.vhd",
         "hdl/common/periph_regs.vhd",
         "hdl/common/regs/vhdl/evfab_regs_pkg.vhd",
         "hdl/common/periph/EVFAB.vhd",
@@ -802,6 +810,7 @@ vhdl_source_set(
 vhdl_source_set(
     name = "rtc_rtl",
     paths = [
+        "hdl/common/sync.vhd",
         "hdl/common/constants.vhd",
         "hdl/common/periph_regs.vhd",
         "hdl/common/regs/vhdl/rtc_regs_pkg.vhd",
@@ -877,6 +886,7 @@ vhdl_source_set(
     name = "dma_rtl",
     paths = [
         "hdl/common/constants.vhd",
+        "hdl/common/sync.vhd",
         "hdl/common/commune/CRC16.vhd",
         "hdl/common/periph_regs.vhd",
         "hdl/common/regs/vhdl/dma_regs_pkg.vhd",
@@ -889,6 +899,7 @@ vhdl_source_set(
     name = "nfc_rtl",
     paths = [
         "hdl/common/constants.vhd",
+        "hdl/common/sync.vhd",
         "hdl/common/periph_regs.vhd",
         "hdl/common/regs/vhdl/nfc_regs_pkg.vhd",
         "hdl/common/periph/NFC.vhd",

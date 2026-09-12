@@ -120,7 +120,7 @@ architecture behavioral of EVFAB is
     signal bus_wr_lvl  : std_logic;                       -- comb, pure DATA (never a clock)
     signal bus_wdata_q : std_logic_vector(31 downto 0);   -- payload snapshot
     signal bus_slot_q  : std_logic_vector(7 downto 2);    -- slot snapshot (SLV: X-safe compare)
-    signal wr_s1, wr_s2, wr_prev : std_logic;
+    signal wr_s2, wr_prev : std_logic;                    -- wr_s2 is work.sync's q, wr_prev the edge flop
     signal wr_pulse    : std_logic;                       -- ONE clk pulse per select window
 
     signal act_chtrig, act_evtrig  : std_logic;
@@ -134,12 +134,12 @@ architecture behavioral of EVFAB is
 
     -- ---- event front-end (clk domain) --------------------------------------
     -- Uniform 3-flop chain for EVERY event input; the mode select downstream is elaboration-static, so the P-mode chains lose their reader and are constant-folded away by synthesis.
-    signal ev_s1, ev_s2, ev_prev : std_logic_vector(N_EV-1 downto 0);
+    signal ev_s2, ev_prev        : std_logic_vector(N_EV-1 downto 0);
     signal ev_front              : std_logic_vector(N_EV-1 downto 0);
     signal ev_eff                : std_logic_vector(N_EV-1 downto 0);
 
     -- ---- GPIO0 front-end (clk domain) --------------------------------------
-    signal gp_s1, gp_s2, gp_prev : std_logic_vector(7 downto 0);
+    signal gp_s2, gp_prev        : std_logic_vector(7 downto 0);
     signal gp_masked             : std_logic_vector(7 downto 0);   -- edge AND mask, PER BIT
     signal gp_event              : std_logic;             -- OR-reduced, drives event EV_GPIO_IDX
 
@@ -313,19 +313,20 @@ begin
         if resetn = '0' then
             bus_wdata_q <= (others => '0');
             bus_slot_q  <= (others => '0');
-            wr_s1       <= '0';
-            wr_s2       <= '0';
             wr_prev     <= '0';
         elsif rising_edge(clk) then
             if bus_wr_lvl = '1' then
                 bus_wdata_q <= wdata;             -- payload snapshot
                 bus_slot_q  <= MABPart;           -- slot snapshot, kept as SLV
             end if;
-            wr_s1   <= bus_wr_lvl;
-            wr_s2   <= wr_s1;
             wr_prev <= wr_s2;
         end if;
     end process action_path;
+
+    -- The 2-FF half of the detector; wr_prev above is the edge flop and stays here.
+    u_sync_bus_wr_lvl : entity work.sync
+        generic map (WIDTH => 1, DEPTH => 2)
+        port map (clk => clk, areset => resetn, d(0) => bus_wr_lvl, q(0) => wr_s2);
 
     -- The one-clk action strobe: the rising edge of the synchronized write level.
     wr_pulse <= wr_s2 and not wr_prev;
@@ -353,21 +354,25 @@ begin
     /* ------------------------- input front-ends (clk) -----------------------
        ONE uniform 3-flop chain per event input AND per GPIO0 pad bit, with no if-generate on mode; ev_in/gpio0_evin are PURE DATA here, never a clock and never an async clear.
        All chains reset to 0, so a T input already HIGH at reset release produces NO phantom pulse: s2 = prev = 0 makes the XOR 0, and the first genuine flip fires. */
+    -- N_EV INDEPENDENT lines, which is what WIDTH is for: bit k never touches bit j,
+    -- so no event can be carried by another's settling.
+    u_sync_ev_in : entity work.sync
+        generic map (WIDTH => N_EV, DEPTH => 2)
+        port map (clk => clk, areset => resetn, d => ev_in, q => ev_s2);
+
+    -- The eight GPIO0 pad bits are likewise unrelated lines, not a word.
+    u_sync_gpio0_evin : entity work.sync
+        generic map (WIDTH => 8, DEPTH => 2)
+        port map (clk => clk, areset => resetn, d => gpio0_evin, q => gp_s2);
+
+    -- The third flop of each chain is the edge reference and stays local.
     front_end : process(resetn, clk)
     begin
         if resetn = '0' then
-            ev_s1   <= (others => '0');
-            ev_s2   <= (others => '0');
             ev_prev <= (others => '0');
-            gp_s1   <= (others => '0');
-            gp_s2   <= (others => '0');
             gp_prev <= (others => '0');
         elsif rising_edge(clk) then
-            ev_s1   <= ev_in;
-            ev_s2   <= ev_s1;
             ev_prev <= ev_s2;
-            gp_s1   <= gpio0_evin;
-            gp_s2   <= gp_s1;
             gp_prev <= gp_s2;
         end if;
     end process front_end;

@@ -103,16 +103,20 @@ architecture behavioral of OneWire is
     signal clr_short_tgl : std_logic;                     -- W1C SHORT request toggle
 
     -- busy_sync: the one crossing with a real 2-FF (clk into ClkMem).
-    signal busy_c1, busy_c2 : std_logic;
-    signal busy_sync        : std_logic;
+    signal busy_c2   : std_logic_vector(0 downto 0);      -- q of u_sync_busy
+    signal busy_sync : std_logic;
 
-    -- clk-domain CDC: toggle syncs plus edge detect.
-    signal lnch_c1, lnch_c2, lnch_prev             : std_logic;
-    signal clrtcif_c1, clrtcif_c2, clrtcif_prev     : std_logic;
-    signal clrnopres_c1, clrnopres_c2, clrnopres_prev : std_logic;
-    signal clrshort_c1, clrshort_c2, clrshort_prev  : std_logic;
-    signal dq_s1, dq_s2 : std_logic;                      -- DQ 2-FF sync
-    signal dq_sync      : std_logic;
+    -- clk-domain CDC: work.sync chains plus local edge detect.
+    -- The chain flops live inside the sync instances; the *_prev copies are
+    -- edge-detect logic and stay here.
+    signal req_tgl_d : std_logic_vector(3 downto 0);      -- 3:short 2:nopres 1:tcif 0:launch
+    signal req_tgl_q : std_logic_vector(3 downto 0);
+    signal lnch_c2, lnch_prev                      : std_logic;
+    signal clrtcif_c2, clrtcif_prev                : std_logic;
+    signal clrnopres_c2, clrnopres_prev            : std_logic;
+    signal clrshort_c2, clrshort_prev              : std_logic;
+    signal dq_s2   : std_logic_vector(0 downto 0);        -- q of u_sync_ow_dq_in
+    signal dq_sync : std_logic;
     signal launch_pulse, clr_tcif_pulse, clr_nopres_pulse, clr_short_pulse : std_logic;
     signal launch_pending : std_logic;                    -- covers the SR.BUSY assert window
 
@@ -255,31 +259,40 @@ begin
     end process reg_req;
 
     -- BUSY 2-FF sync into ClkMem; used only to qualify launches.
-    busy_sync_proc: process(resetn, ClkMem)
-    begin
-        if resetn = '0' then
-            busy_c1 <= '0'; busy_c2 <= '0';
-        elsif rising_edge(ClkMem) then
-            busy_c1 <= busy; busy_c2 <= busy_c1;
-        end if;
-    end process;
-    busy_sync <= busy_c2;
+    u_sync_busy : entity work.sync
+        generic map (WIDTH => 1, DEPTH => 2)
+        port map (clk => ClkMem, areset => resetn, d(0) => busy, q => busy_c2);
+    busy_sync <= busy_c2(0);
 
     -- 2-FF plus edge detect turns launch_tgl into launch_pulse and each clr_*_tgl into a one-cycle clear pulse; OW_DQ_IN is 2-FF synced into dq_sync as pure data.
+    -- The four request toggles are independent single-bit lines, so they share one WIDTH=4 chain; the *_prev edge flops below are local logic, not part of the crossing.
+    req_tgl_d <= clr_short_tgl & clr_nopres_tgl & clr_tcif_tgl & launch_tgl;
+
+    u_sync_req_tgl : entity work.sync
+        generic map (WIDTH => 4, DEPTH => 2)
+        port map (clk => clk, areset => resetn, d => req_tgl_d, q => req_tgl_q);
+
+    lnch_c2      <= req_tgl_q(0);
+    clrtcif_c2   <= req_tgl_q(1);
+    clrnopres_c2 <= req_tgl_q(2);
+    clrshort_c2  <= req_tgl_q(3);
+
+    u_sync_ow_dq_in : entity work.sync
+        generic map (WIDTH => 1, DEPTH => 2)
+        port map (clk => clk, areset => resetn, d(0) => OW_DQ_IN, q => dq_s2);
+
     clk_cdc: process(resetn, clk)
     begin
         if resetn = '0' then
-            lnch_c1 <= '0'; lnch_c2 <= '0'; lnch_prev <= '0';
-            clrtcif_c1 <= '0'; clrtcif_c2 <= '0'; clrtcif_prev <= '0';
-            clrnopres_c1 <= '0'; clrnopres_c2 <= '0'; clrnopres_prev <= '0';
-            clrshort_c1 <= '0'; clrshort_c2 <= '0'; clrshort_prev <= '0';
-            dq_s1 <= '0'; dq_s2 <= '0';
+            lnch_prev <= '0';
+            clrtcif_prev <= '0';
+            clrnopres_prev <= '0';
+            clrshort_prev <= '0';
         elsif rising_edge(clk) then
-            lnch_c1 <= launch_tgl; lnch_c2 <= lnch_c1; lnch_prev <= lnch_c2;
-            clrtcif_c1   <= clr_tcif_tgl;   clrtcif_c2   <= clrtcif_c1;   clrtcif_prev   <= clrtcif_c2;
-            clrnopres_c1 <= clr_nopres_tgl; clrnopres_c2 <= clrnopres_c1; clrnopres_prev <= clrnopres_c2;
-            clrshort_c1  <= clr_short_tgl;  clrshort_c2  <= clrshort_c1;  clrshort_prev  <= clrshort_c2;
-            dq_s1 <= OW_DQ_IN; dq_s2 <= dq_s1;
+            lnch_prev      <= lnch_c2;
+            clrtcif_prev   <= clrtcif_c2;
+            clrnopres_prev <= clrnopres_c2;
+            clrshort_prev  <= clrshort_c2;
         end if;
     end process;
     launch_pulse     <= '1' when (lnch_c2 /= lnch_prev) else '0';
@@ -289,7 +302,7 @@ begin
     clr_tcif_pulse   <= '1' when (clrtcif_c2 /= clrtcif_prev) else '0';
     clr_nopres_pulse <= '1' when (clrnopres_c2 /= clrnopres_prev) else '0';
     clr_short_pulse  <= '1' when (clrshort_c2 /= clrshort_prev) else '0';
-    dq_sync <= dq_s2;
+    dq_sync <= dq_s2(0);
 
     -- Time base: a free-running reload down-counter giving a one-cycle tick every OW0DIV+1 clk cycles.
     -- Counter-compare only, no clock gate and no generated clock; ow_div is read directly as a quasi-static level.

@@ -81,6 +81,28 @@ architecture behavioral of DMA is
     type slv8_arr  is array(0 to 3) of std_logic_vector(7 downto 0);
     type sl_arr    is array(0 to 3) of std_logic;
 
+    /* sl_arr is the per-channel container everywhere in this file, and work.sync's
+       ports are std_logic_vector, so one pair of converters serves every crossing
+       below instead of a hand-written bit map per instance. Index i maps to bit i
+       in both directions, so channel n stays bit n at the instance boundary. */
+    function to_slv(a : sl_arr) return std_logic_vector is
+        variable v : std_logic_vector(3 downto 0);
+    begin
+        for i in 0 to 3 loop
+            v(i) := a(i);
+        end loop;
+        return v;
+    end function;
+
+    function to_arr(v : std_logic_vector) return sl_arr is
+        variable a : sl_arr;
+    begin
+        for i in 0 to 3 loop
+            a(i) := v(v'low + i);
+        end loop;
+        return a;
+    end function;
+
     -- ---- master-port FSM states: REQ holds the txn, CAP is the one stale-req cycle, GAP is the one observed-low cycle. No counters, distinct states instead.
     type t_dma_state is (M_IDLE, M_RD_REQ, M_RD_CAP, M_RD_GAP,
                          M_WR_REQ, M_WR_CAP, M_WR_GAP, M_CLR);
@@ -158,18 +180,23 @@ architecture behavioral of DMA is
                                    others        => '0');
 
     -- ---- busy 2-FF into ClkMem (launch suppress) --------------------------
-    signal busy_c1, busy_c2 : sl_arr;
+    signal busy_slv, busy_sync_slv : std_logic_vector(3 downto 0);  -- sync port glue
     signal busy_sync        : sl_arr;
 
     -- ---- clk-domain CDC: toggle syncs + trigger syncs ---------------------
-    signal go_c1, go_c2, go_prev       : sl_arr;           -- go_tgl sync + edge
-    signal ab_c1, ab_c2, ab_prev       : sl_arr;           -- abort_tgl sync + edge
-    signal cd_c1, cd_c2, cd_prev       : sl_arr;           -- W1C done sync + edge
-    signal ce_c1, ce_c2, ce_prev       : sl_arr;           -- W1C err sync + edge
-    signal crcw_c1, crcw_c2, crcw_prev : std_logic;        -- crc seed commit sync + edge
-    signal tu1, tu2, tu_prev           : std_logic;        -- UART trigger 2-FF + edge
-    signal tq1, tq2, tq_prev           : std_logic;        -- QSPI trigger 2-FF + edge
-    signal tn1, tn2, tn_prev           : std_logic;        -- NFC  trigger 2-FF + edge
+    -- Glue to work.sync's std_logic_vector ports, one pair per toggle kind.
+    signal go_slv, go_sync_slv         : std_logic_vector(3 downto 0);
+    signal ab_slv, ab_sync_slv         : std_logic_vector(3 downto 0);
+    signal cd_slv, cd_sync_slv         : std_logic_vector(3 downto 0);
+    signal ce_slv, ce_sync_slv         : std_logic_vector(3 downto 0);
+    signal go_c2, go_prev              : sl_arr;           -- go_tgl sync + edge
+    signal ab_c2, ab_prev              : sl_arr;           -- abort_tgl sync + edge
+    signal cd_c2, cd_prev              : sl_arr;           -- W1C done sync + edge
+    signal ce_c2, ce_prev              : sl_arr;           -- W1C err sync + edge
+    signal crcw_c2, crcw_prev          : std_logic;        -- crc seed commit sync + edge
+    signal tu2, tu_prev                : std_logic;        -- UART trigger sync + edge
+    signal tq2, tq_prev                : std_logic;        -- QSPI trigger sync + edge
+    signal tn2, tn_prev                : std_logic;        -- NFC  trigger sync + edge
     signal go_pulse, abort_pulse       : sl_arr;           -- one-clk launch/abort pulses
     signal clr_done_pulse, clr_err_pulse : sl_arr;         -- one-clk W1C pulses
     signal crc_wr_pulse                : std_logic;        -- one-clk seed-commit pulse
@@ -372,41 +399,85 @@ begin
 
     -- ------------------------- busy 2-FF into ClkMem --------------------------
     -- Per-channel engine busy synchronized into ClkMem: the launch-suppress qualifier in reg_write, since a GO to a busy channel must not flip go_tgl.
-    busy_sync_proc: process(resetn, ClkMem)
-    begin
-        if resetn = '0' then
-            busy_c1 <= (others => '0');
-            busy_c2 <= (others => '0');
-        elsif rising_edge(ClkMem) then
-            busy_c1 <= busy;
-            busy_c2 <= busy_c1;
-        end if;
-    end process;
-    busy_sync <= busy_c2;
+    -- ONE WIDTH=4 instance, not four WIDTH=1 ones: the four channel busy levels are
+    -- independent single-bit chains, which is exactly what WIDTH is, and the whole
+    -- crossing then carries one name for the timing exception.
+    busy_slv <= to_slv(busy);
+    u_sync_busy : entity work.sync
+        generic map (WIDTH => 4, DEPTH => 2)
+        port map (clk => ClkMem, areset => resetn, d => busy_slv, q => busy_sync_slv);
+    busy_sync <= to_arr(busy_sync_slv);
 
     /* ------------------------- clk-domain CDC ---------------------------------
        2-FF plus edge-detect on every ClkMem toggle crossing into clk (go, abort, W1C done, W1C err, crc seed commit).
-       2-FF plus rising-edge on every trigger input, the ONLY true metastability CDC here. */
+       2-FF plus rising-edge on every trigger input, the ONLY true metastability CDC here.
+       ONE work.sync INSTANCE PER TOGGLE KIND, not one fused WIDTH=17 chain. Same flop
+       count either way; what differs is that each instance carries exactly one named
+       signal, so the instance is u_sync_<signal> and the Genus exception names the
+       crossing it constrains. A fused instance would need a hand-maintained bit-offset
+       map over five unrelated signals, the kind of table that goes wrong silently when
+       a channel count changes. */
+    go_slv <= to_slv(go_tgl);
+    u_sync_go_tgl : entity work.sync
+        generic map (WIDTH => 4, DEPTH => 2)
+        port map (clk => clk, areset => resetn, d => go_slv, q => go_sync_slv);
+    go_c2 <= to_arr(go_sync_slv);
+
+    ab_slv <= to_slv(abort_tgl);
+    u_sync_abort_tgl : entity work.sync
+        generic map (WIDTH => 4, DEPTH => 2)
+        port map (clk => clk, areset => resetn, d => ab_slv, q => ab_sync_slv);
+    ab_c2 <= to_arr(ab_sync_slv);
+
+    cd_slv <= to_slv(clr_done_tgl);
+    u_sync_clr_done_tgl : entity work.sync
+        generic map (WIDTH => 4, DEPTH => 2)
+        port map (clk => clk, areset => resetn, d => cd_slv, q => cd_sync_slv);
+    cd_c2 <= to_arr(cd_sync_slv);
+
+    ce_slv <= to_slv(clr_err_tgl);
+    u_sync_clr_err_tgl : entity work.sync
+        generic map (WIDTH => 4, DEPTH => 2)
+        port map (clk => clk, areset => resetn, d => ce_slv, q => ce_sync_slv);
+    ce_c2 <= to_arr(ce_sync_slv);
+
+    u_sync_crc_wr_tgl : entity work.sync
+        generic map (WIDTH => 1, DEPTH => 2)
+        port map (clk => clk, areset => resetn, d(0) => crc_wr_tgl, q(0) => crcw_c2);
+
+    /* The three pacing trigger inputs are the block's only true metastability
+       crossing: they arrive from UART, QSPI and NFC with no relation to clk.
+       ONE WIDTH=3 instance, because the three are independent single-bit chains
+       that the trigger mux and the event decoders read one at a time, never as a
+       word. Bit order is UART 0, QSPI 1, NFC 2, stated once by partial formal
+       association so there is no glue vector to keep in step with it. */
+    u_sync_trig : entity work.sync
+        generic map (WIDTH => 3, DEPTH => 2)
+        port map (clk  => clk,           areset => resetn,
+                  d(0) => trig_uart0_rc, d(1) => trig_qspi0_rxf, d(2) => trig_nfc0_rxf,
+                  q(0) => tu2,           q(1) => tq2,            q(2) => tn2);
+
+    -- What is left here is the edge-detect tail of the five toggle crossings and of the three triggers.
     clk_cdc: process(resetn, clk)
     begin
         if resetn = '0' then
-            go_c1 <= (others => '0'); go_c2 <= (others => '0'); go_prev <= (others => '0');
-            ab_c1 <= (others => '0'); ab_c2 <= (others => '0'); ab_prev <= (others => '0');
-            cd_c1 <= (others => '0'); cd_c2 <= (others => '0'); cd_prev <= (others => '0');
-            ce_c1 <= (others => '0'); ce_c2 <= (others => '0'); ce_prev <= (others => '0');
-            crcw_c1 <= '0'; crcw_c2 <= '0'; crcw_prev <= '0';
-            tu1 <= '0'; tu2 <= '0'; tu_prev <= '0';
-            tq1 <= '0'; tq2 <= '0'; tq_prev <= '0';
-            tn1 <= '0'; tn2 <= '0'; tn_prev <= '0';
+            go_prev <= (others => '0');
+            ab_prev <= (others => '0');
+            cd_prev <= (others => '0');
+            ce_prev <= (others => '0');
+            crcw_prev <= '0';
+            tu_prev <= '0';
+            tq_prev <= '0';
+            tn_prev <= '0';
         elsif rising_edge(clk) then
-            go_c1 <= go_tgl;       go_c2 <= go_c1;       go_prev <= go_c2;
-            ab_c1 <= abort_tgl;    ab_c2 <= ab_c1;       ab_prev <= ab_c2;
-            cd_c1 <= clr_done_tgl; cd_c2 <= cd_c1;       cd_prev <= cd_c2;
-            ce_c1 <= clr_err_tgl;  ce_c2 <= ce_c1;       ce_prev <= ce_c2;
-            crcw_c1 <= crc_wr_tgl; crcw_c2 <= crcw_c1;   crcw_prev <= crcw_c2;
-            tu1 <= trig_uart0_rc;  tu2 <= tu1;           tu_prev <= tu2;
-            tq1 <= trig_qspi0_rxf; tq2 <= tq1;           tq_prev <= tq2;
-            tn1 <= trig_nfc0_rxf;  tn2 <= tn1;           tn_prev <= tn2;
+            go_prev <= go_c2;
+            ab_prev <= ab_c2;
+            cd_prev <= cd_c2;
+            ce_prev <= ce_c2;
+            crcw_prev <= crcw_c2;
+            tu_prev <= tu2;
+            tq_prev <= tq2;
+            tn_prev <= tn2;
         end if;
     end process;
 
