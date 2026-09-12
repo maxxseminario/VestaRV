@@ -291,6 +291,16 @@ vhdl_source_set(
     pool = ["//hdl:vhdl_sources"],
 )
 
+# The reusable CDC synchroniser and its unit bench (report R13). Its closure is
+# one file: sync.vhd uses nothing but ieee.std_logic_1164, which is what lets it
+# be instantiated from any clock domain in the tree without dragging a package
+# in behind it.
+vhdl_source_set(
+    name = "sync_rtl",
+    paths = ["hdl/common/sync.vhd"],
+    pool = ["//hdl:vhdl_sources"],
+)
+
 # The shared peripheral register file and its unit bench (report R12a). The
 # bench needs nothing but constants.vhd, because periph_regs has no datapath:
 # every table it decodes with is a generic.
@@ -549,6 +559,25 @@ ghdl_test(
         "EVFAB_tb.vhd",
     ],
     entity = "EVFAB_tb",
+    pass_pattern = "ALL CHECKS PASSED",
+    sim_timeout_s = 120,
+    tags = ["ghdl"],
+)
+
+# Four DUTs in one run cover the generic matrix (WIDTH 1 and 4 against DEPTH 2
+# and 3, one of them with a non-zero RST_VAL), and a hand-rolled ONE-flop chain
+# beside the DEPTH=2 DUT is the negative control: the bench grades the latency
+# predicate on both and records that it fails on the shortened chain, so a
+# passing run is "ALL CHECKS PASSED" with no expected failure.
+ghdl_test(
+    name = "sync_tb",
+    size = "small",
+    srcs = [
+        ":sync_rtl",
+        "periph_tb_pkg.vhd",
+        "sync_tb.vhd",
+    ],
+    entity = "sync_tb",
     pass_pattern = "ALL CHECKS PASSED",
     sim_timeout_s = 120,
     tags = ["ghdl"],
