@@ -1,5 +1,5 @@
 #!/usr/bin/python3.6
-"""d5_wire_order.py -- grade an OpenOCD `-d3` DMI trace against the D5 clauses
+"""VestaRV: grade an OpenOCD `-d3` DMI trace against the D5 clauses
 that only the debugger's own wire can answer.
 
 D5 acceptance instrument, blind-authored 2026-08-10 against d5_spec.md 5.4
@@ -209,10 +209,8 @@ def selfcheck():
     return ok
 
 
-# ===========================================================================
 # W5 -- havereset / ackhavereset.  Everything below this line is the D5
 # validation wave's addition and is reached ONLY when --w5 is passed.
-# ===========================================================================
 
 def _w5_scan(line, op, data, addr, st, rdata, raddr):
     return ("Debug: %d riscv-013.c:390 scan(): 41b %s %08x @%02x -> %s %08x @%02x"

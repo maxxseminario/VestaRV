@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-# =============================================================================
-# d5_sessdrv.py -- THE D5 SESSION DRIVER: it runs a real OpenOCD + gdb session
+# VestaRV: THE D5 SESSION DRIVER: it runs a real OpenOCD + gdb session
 # against the in-simulator remote_bitbang bridge, and it takes the graders'
 # snapshots at the instants only a driver can know about.
 #
@@ -63,7 +62,6 @@
 #   OpenOCD is therefore SIGKILLed too.  The bridge does not need the `Q`: its
 #   service loop treats EOF on the adapter socket as end-of-session
 #   ("RBBINFO debugger closed the connection"), which is what runs the graders.
-# =============================================================================
 import argparse
 import os
 import re

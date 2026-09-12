@@ -1,5 +1,4 @@
-# =============================================================================
-# dbg_rbbunit.tcl -- unit proof for the BRIDGE'S DECODE SHADOW (the TAP FSM,
+# VestaRV: unit proof for the BRIDGE'S DECODE SHADOW (the TAP FSM,
 # the IR, and the request/response DR that give the heartbeat its `dmiresets`
 # and its TARGET-WEDGE observable).
 #
@@ -35,7 +34,6 @@
 # A third defect was found in THIS FILE rather than in the bridge -- a walk
 # from UPDATE_DR that lands in SHIFT_IR, not SHIFT_DR -- and is recorded in
 # place below rather than silently corrected.
-# =============================================================================
 proc force args {}; proc value args {return '0'}; proc run args {}; proc tap_run {ns} {}
 proc tap_bit {v} { return 0 }
 set ::TAP_NAMES {TEST_LOGIC_RESET RUN_TEST_IDLE SELECT_DR_SCAN CAPTURE_DR SHIFT_DR EXIT1_DR PAUSE_DR EXIT2_DR UPDATE_DR SELECT_IR_SCAN CAPTURE_IR SHIFT_IR EXIT1_IR PAUSE_IR EXIT2_IR UPDATE_IR}
@@ -85,7 +83,6 @@ edge 1 [expr {($d2 >> 31) & 1}]
 edge 1
 chk {$::RBB_DMIRESETS == 1} "dmireset (dtmcs bit 16) DETECTED -- the known-nonzero leg (got $::RBB_DMIRESETS)"
 
-# =============================================================================
 # THE RE-ENTRANCY LEG (added 2026-08-10, ordered by Fable after the defect it
 # proves was found on the chip).  THE THIRD REAL DEFECT THIS FILE HAS CAUGHT,
 # and the only one that had already reached silicon-facing measurements.
@@ -124,7 +121,6 @@ chk {$::RBB_DMIRESETS == 1} "dmireset (dtmcs bit 16) DETECTED -- the known-nonze
 # leg measured reentry=0 and a corrupted DR -- i.e. it reported the FIX as
 # broken when the TEST was.  R4's nonzero assertion is what exposed it; a leg
 # asserting only "the DR reassembled" would have been a silent false alarm.
-# =============================================================================
 proc fakech {cmd args} {
     switch -- $cmd {
         initialize { return {initialize finalize watch read write configure cget cgetall blocking} }

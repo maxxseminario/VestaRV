@@ -1,5 +1,4 @@
-# =============================================================================
-# dbg_taphalt.tcl -- D3 instrument T5: THE END-TO-END PROOF.
+# VestaRV: D3 instrument T5: THE END-TO-END PROOF.
 # Halt a RUNNING hart, read one of its registers, and resume it -- all of it
 # through the JTAG pins, on a chip whose other harts are doing real work.
 # This is the D2 headline (dbg_dmi.tcl) driven from the pads instead of from a
@@ -52,7 +51,6 @@
 # fail its own way -- both halves of the two-part FAIL leg in one run.
 #
 # NEVER pipe the runner through `head`.
-# =============================================================================
 source ../../disable_x_warnings.tcl
 if {[file exists dbg_bfm.tcl]} { source dbg_bfm.tcl } else { source ../behavioral_mp/dbg_bfm.tcl }
 if {[file exists dbg_tap.tcl]} { source dbg_tap.tcl } else { source ../behavioral_mp/dbg_tap.tcl }

@@ -1,5 +1,4 @@
-# =============================================================================
-# dbg_rbbsmoke.tcl -- the BRIDGE's own smoke leg.  Stands the remote_bitbang
+# VestaRV: the BRIDGE's own smoke leg.  Stands the remote_bitbang
 # server up, serves ONE client, and reports.  No OpenOCD, no gdb: the client is
 # a 60-line python script that speaks the real byte protocol, so this leg
 # separates "the bridge works" from "the debugger stack works" -- which are two
@@ -18,7 +17,6 @@
 #      returns the whole stream shifted by one bit -- 0x0E52BF77 -- which looks
 #      structured and reads as an RTL problem.  The client prints BOTH the
 #      value and the shifted-by-one value so the failure names itself.
-# =============================================================================
 
 if {[llength [info procs rbb_session]] == 0} {
     if {[file exists dbg_rbb_bridge.tcl]} {

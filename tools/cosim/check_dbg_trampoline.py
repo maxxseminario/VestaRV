@@ -1,6 +1,5 @@
 #!/usr/bin/python3.6
-# =============================================================================
-# check_dbg_trampoline.py -- THE D4 DUAL-TRUTH GATE (d4_spec section 2).
+# VestaRV: THE D4 DUAL-TRUTH GATE (d4_spec section 2).
 #
 #   /usr/bin/python3.6 tools/cosim/check_dbg_trampoline.py
 #   /usr/bin/python3.6 tools/cosim/check_dbg_trampoline.py --vhdl X --words Y
@@ -44,7 +43,6 @@
 # the repository root derived from this file's own location (the
 # check_mcu_vhd.py idiom), so a copy of this checker dropped into a mirror tree
 # checks THAT tree.
-# =============================================================================
 from __future__ import print_function
 import os
 import re

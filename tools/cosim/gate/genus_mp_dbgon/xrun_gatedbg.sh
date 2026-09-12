@@ -1,6 +1,5 @@
 #!/bin/bash
-# =============================================================================
-# xrun_gatedbg.sh -- THE D5 SECTION-6 BOUNDED GATE LEG runner (DD16).
+# VestaRV: THE D5 SECTION-6 BOUNDED GATE LEG runner (DD16).
 #
 #   ./xrun_gatedbg.sh <harness.tcl> [test-pattern]
 #   ./xrun_gatedbg.sh gate_m7probe.tcl
@@ -46,7 +45,6 @@
 #
 # OUTPUT: xrun_gatedbg.log.  NEVER pipe this through `head` (SIGPIPE kills the
 # sim and leaves a stale log that parses perfectly).
-# =============================================================================
 cd "$(dirname "$0")"
 source ~/vestarv/cdspaths.sh
 

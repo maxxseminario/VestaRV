@@ -1,6 +1,5 @@
 #!/bin/bash
-# =============================================================================
-# run_dbg_dmi.sh -- D2 acceptance instrument J1: the DM register-map
+# VestaRV: D2 acceptance instrument J1: the DM register-map
 # conformance bench (hdl/common/tb/dbg_dmi_tb.vhd).
 #
 #   ./run_dbg_dmi.sh [<rcf-basename>]
@@ -30,7 +29,6 @@
 # (hdl/common/tb/dbg_dmi_tb.vhd).  Precedent: run_dbg_iface.sh.
 #
 # NEVER pipe this through `head` (SIGPIPE kills the sim, leaving a stale log).
-# =============================================================================
 source ~/vestarv/cdspaths.sh
 
 BASE_DIR="$(cd "$(dirname "$0")" && pwd)"

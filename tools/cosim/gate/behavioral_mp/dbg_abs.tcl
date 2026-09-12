@@ -1,5 +1,4 @@
-# =============================================================================
-# dbg_abs.tcl -- the D2 ABSTRACT-COMMAND harness (the DMI face of dbgabsmp.S).
+# VestaRV: the D2 ABSTRACT-COMMAND harness (the DMI face of dbgabsmp.S).
 #
 #   ./xrun_dbg.sh rv32ua-p-dbgabsmp dbg_abs.tcl
 #
@@ -29,7 +28,6 @@
 #
 # AT UNIMPLEMENTED HEAD dmi_present reports INSTRUMENT_DEAD, every check is
 # skipped and the image is still run to its own verdict (a1 = 0x0D220003).
-# =============================================================================
 source ../../disable_x_warnings.tcl
 # dbg_bfm.tcl lives beside this file in behavioral_mp/, but a harness is also
 # run from the mutation scratch dir (d2mut/), whose CWD is one level across.

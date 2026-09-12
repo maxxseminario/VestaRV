@@ -1,5 +1,4 @@
-# =============================================================================
-# dbg_trpsess.tcl -- THE D4 END-TO-END NO-FORCE SESSION.  d4_spec 6, bullet 5,
+# VestaRV: THE D4 END-TO-END NO-FORCE SESSION.  d4_spec 6, bullet 5,
 # and d4_spec 3's "both tile states".
 #
 #   ./xrun_dbg_verify.sh verify_castaliadebug ../rcf/xxxxrv32ua-p-dbgtrpmp.rcf dbg_trpsess.tcl
@@ -55,7 +54,6 @@
 # that proves S7-S10 are answerable at all -- whether a ROM-parked hart can be
 # halted and driven is a CORE question, independent of D4, and the control arm
 # answers it separately from the plant question.
-# =============================================================================
 source ../../disable_x_warnings.tcl
 if {[file exists dbg_bfm.tcl]} { source dbg_bfm.tcl } else { source ../behavioral_mp/dbg_bfm.tcl }
 if {[file exists dbg_tramp_lib.tcl]} { source dbg_tramp_lib.tcl } else { source ../behavioral_mp/dbg_tramp_lib.tcl }
@@ -99,9 +97,7 @@ if {$PRESENT && $ready} {
     run 200 us
     d4_control_plant
 
-    # =====================================================================
     # PART 1 -- the loader-launched, RUNNING tile
-    # =====================================================================
     dm_select $RUNNER
     dm_haltreq $RUNNER
     set s [dm_poll_status $RUNNER dms_allhalted 400 $::HALTREQ_BIT]
@@ -170,10 +166,8 @@ if {$PRESENT && $ready} {
             "S6: the tile resumes and its counter moves again ($ran0 -> $ran1)"
     }
 
-    # =====================================================================
     # PART 2 -- the ROM-PARKED tile.  Never launched, never executed a word
     # of the test image; it is exactly where the boot ROM left it.
-    # =====================================================================
     dm_select $PARKED
     set sp [dmi_read $::DM_DMSTATUS]
     d2_chk [expr {$sp >= 0 && [dms_allrunning $sp] == 1 && [dms_anyunavail $sp] == 0 &&

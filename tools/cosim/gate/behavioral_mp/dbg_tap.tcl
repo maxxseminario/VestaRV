@@ -1,5 +1,4 @@
-# =============================================================================
-# dbg_tap.tcl -- the D3 harness library: a TCK-LEVEL JTAG TAP bus-functional
+# VestaRV: the D3 harness library: a TCK-LEVEL JTAG TAP bus-functional
 # model over the MCU's five new d3_spec-0 JTAG ports, plus a TAP-backed
 # `dmi_xact` that lets any D2 harness be REPLAYED THROUGH THE TAP unmodified.
 # SOURCED by every D3 tcl harness; it is not a harness itself.
@@ -59,7 +58,6 @@
 # EVERY LOOP IN THIS FILE IS BOUNDED.  A poll that never satisfies its
 # condition must FAIL the run, never hang it (the dbg_bfm.tcl rule, and the
 # 1-minute rule).
-# =============================================================================
 
 # ---------------------------------------------------------------------------
 # The five JTAG pins, and the ONE place their existence is decided.

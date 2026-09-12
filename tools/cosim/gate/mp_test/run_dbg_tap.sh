@@ -1,6 +1,5 @@
 #!/bin/bash
-# =============================================================================
-# run_dbg_tap.sh -- D3 acceptance instrument J3: the JTAG PORT bench
+# VestaRV: D3 acceptance instrument J3: the JTAG PORT bench
 # (hdl/common/tb/dbg_tap_tb.vhd).
 #
 #   ./run_dbg_tap.sh [<rcf-basename>]
@@ -31,7 +30,6 @@
 # (hdl/common/tb/dbg_tap_tb.vhd).  Precedent: run_dbg_dmi.sh, run_dbg_iface.sh.
 #
 # NEVER pipe this through `head` (SIGPIPE kills the sim, leaving a stale log).
-# =============================================================================
 source ~/vestarv/cdspaths.sh
 
 BASE_DIR="$(cd "$(dirname "$0")" && pwd)"

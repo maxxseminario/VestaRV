@@ -1,6 +1,5 @@
 #!/bin/bash
-# =============================================================================
-# build_one_rcf.sh -- build ONE rv32ua test image out of tree, without touching
+# VestaRV: build ONE rv32ua test image out of tree, without touching
 # verification/isa/build/ or its .imgset.
 #
 #   ./tools/build_one_rcf.sh <src.S> <basename> [extra -D flags ...]
@@ -25,7 +24,6 @@
 #   opts:    -static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles
 #   image:   MEM_SIZE 0x14000 -> 20480 words, BIN_OFFSET 0
 #   header:  flash_prepend.sh, applied ONCE, name padded to 22 chars
-# =============================================================================
 set -e
 
 SRC="${1:?usage: build_one_rcf.sh <src.S> <basename> [extra -D ...]}"

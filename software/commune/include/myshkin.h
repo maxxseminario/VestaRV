@@ -29,6 +29,30 @@ extern "C" {
 #define MMR_32_PTR(_peripheralBaseAddress, _registerOffset)	MMR_32_BIT_MACRO(((uint32_t)_peripheralBaseAddress) + ((uint32_t)_registerOffset))
 
 
+/** Legacy bare SYSTEM register macros - mutual exclusion with the generated structs **/
+// Eight SYSTEM registers are published here as object-like macros whose names
+// the generated headers in software/include/regs/ also use as struct MEMBERS:
+// SYSCLKCR, CLKDIVCR, CRCDATA, CRCSTATE, WDTPASS, WDTCR, WDTSR, WDTVAL. An
+// object-like macro of a member name expands inside the struct declaration, so
+// system_t does not parse and every later use of SYSTEM_REGS->SYSCLKCR is
+// corrupted (report R6-2). The two views are therefore mutually exclusive per
+// translation unit, and this is the switch:
+//
+//   default                     the bare macros, exactly as before
+//   -DVESTA_REGS_STRUCTS        the generated structs; the bare macros are
+//                               suppressed whatever the include order
+//   regs header included first  suppressed automatically (SYSTEM_REGS_H is set)
+//
+// Nothing else is gated. The <REG>_ADDRESS constants and the <REG>_PTR(base)
+// forms further down stay available in both modes, so a file migrating one
+// call site at a time still has an address for the ones it has not moved.
+#if defined(VESTA_REGS_STRUCTS) || defined(SYSTEM_REGS_H)
+#define VESTA_LEGACY_SYSTEM_MMR	0
+#else
+#define VESTA_LEGACY_SYSTEM_MMR	1
+#endif
+
+
 //  ---------- Peripheral Base Addresses ----------
 #define PERIPH_GPIO0_BASE       (0x4000)    
 #define PERIPH_GPIO1_BASE       (0x4100)
@@ -450,9 +474,11 @@ extern "C" {
 #define TIM1CR_ADDRESS		(PERIPH_TIMER1_BASE + TIMER_CR)
 #define TIM1CR				MMR_32_BIT_MACRO(TIM1CR_ADDRESS)
 #define CRCSTATE_ADDRESS	(PERIPH_SYSTEM0_BASE + SYS_CRC_STATE)
-#define CRCSTATE			MMR_16_BIT_MACRO(CRCSTATE_ADDRESS)
 #define CRCDATA_ADDRESS		(PERIPH_SYSTEM0_BASE + SYS_CRC_DATA)
+#if VESTA_LEGACY_SYSTEM_MMR
+#define CRCSTATE			MMR_16_BIT_MACRO(CRCSTATE_ADDRESS)
 #define CRCDATA				MMR_08_BIT_MACRO(CRCDATA_ADDRESS)
+#endif
 
 // uart.h level -------------------------------------------------------------
 
@@ -960,27 +986,33 @@ typedef struct
 #define SYSTEM_BASE			(PERIPH_SYSTEM0_BASE))
 
 #define SYSCLKCR_ADDRESS	(PERIPH_SYSTEM0_BASE + SYS_CLK_CR)
-#define SYSCLKCR			MMR_16_BIT_MACRO(SYSCLKCR_ADDRESS)
 #define CLKDIVCR_ADDRESS	(PERIPH_SYSTEM0_BASE + SYS_CLK_DIV_CR)
-#define CLKDIVCR			MMR_08_BIT_MACRO(CLKDIVCR_ADDRESS)
 #define MEMPWRCR_ADDRESS	(PERIPH_SYSTEM0_BASE + SYS_BLOCK_PWR)
 #define MEMPWRCR			MMR_16_BIT_MACRO(MEMPWRCR_ADDRESS)
 #define CRCDATA_ADDRESS		(PERIPH_SYSTEM0_BASE + SYS_CRC_DATA)
-#define CRCDATA				MMR_08_BIT_MACRO(CRCDATA_ADDRESS)
 #define CRCSTATE_ADDRESS	(PERIPH_SYSTEM0_BASE + SYS_CRC_STATE)
-#define CRCSTATE			MMR_16_BIT_MACRO(CRCSTATE_ADDRESS)
 #define IRQEN_ADDRESS		(PERIPH_SYSTEM0_BASE + SYS_IRQ_EN)
 #define IRQEN				MMR_32_BIT_MACRO(IRQEN_ADDRESS)
 #define IRQPRI_ADDRESS		(PERIPH_SYSTEM0_BASE + SYS_IRQ_PRI)
 #define IRQPRI			MMR_32_BIT_MACRO(IRQPRI_ADDRESS)
 #define WDTPASS_ADDRESS		(PERIPH_SYSTEM0_BASE + SYS_WDT_PASS)
-#define WDTPASS			MMR_32_BIT_MACRO(WDTPASS_ADDRESS)
 #define WDTCR_ADDRESS		(PERIPH_SYSTEM0_BASE + SYS_WDT_CR)
-#define WDTCR				MMR_08_BIT_MACRO(WDTCR_ADDRESS)
 #define WDTSR_ADDRESS		(PERIPH_SYSTEM0_BASE + SYS_WDT_SR)
-#define WDTSR				MMR_08_BIT_MACRO(WDTSR_ADDRESS)
 #define WDTVAL_ADDRESS		(PERIPH_SYSTEM0_BASE + SYS_WDT_VAL)
+
+// The eight names the generated structs also use as members; see
+// VESTA_LEGACY_SYSTEM_MMR at the top of this file. The _ADDRESS constants
+// above and the _PTR(base) forms below are not gated.
+#if VESTA_LEGACY_SYSTEM_MMR
+#define SYSCLKCR			MMR_16_BIT_MACRO(SYSCLKCR_ADDRESS)
+#define CLKDIVCR			MMR_08_BIT_MACRO(CLKDIVCR_ADDRESS)
+#define CRCDATA				MMR_08_BIT_MACRO(CRCDATA_ADDRESS)
+#define CRCSTATE			MMR_16_BIT_MACRO(CRCSTATE_ADDRESS)
+#define WDTPASS			MMR_32_BIT_MACRO(WDTPASS_ADDRESS)
+#define WDTCR				MMR_08_BIT_MACRO(WDTCR_ADDRESS)
+#define WDTSR				MMR_08_BIT_MACRO(WDTSR_ADDRESS)
 #define WDTVAL				MMR_32_BIT_MACRO(WDTVAL_ADDRESS)
+#endif
 // #define DCO0FREQ_ADDRESS	(0x402C)
 // #define DCO0FREQ			MMR_16_BIT_MACRO(DCO0FREQ_ADDRESS)
 // #define DCO1FREQ_ADDRESS	(0x4030)

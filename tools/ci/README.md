@@ -73,9 +73,19 @@ that infers a latch, and a constant index outside its array bound - the three
 mistakes that previously reached Genus, which needs a license, takes minutes,
 and does not run on every commit. The census catches what no bench can see: a
 register bank that doubles, a reset that stops reaching a flop, a clock gate
-that grows a second latch. All 27 targets together run in about 1.4 s.
+that grows a second latch. All 39 targets together run in about 6 s.
 
-    tools/bin/bazel test //hdl/common/synth:synth //toolchains/ghdl:synth_census_test
+`//toolchains/ghdl:synth_coverage_test` is the third of the set and grades the
+LIST rather than the blocks: it parses every entity declared under
+`hdl/common/` and asserts each one is either the top of a `ghdl_synth_test` or
+present in the elaborated hierarchy of one. A new RTL file that no target
+names and no graded block instantiates fails there, on the commit that adds
+it. Its exclusion list, one documented reason per entry, is `EXCLUSIONS` in
+`toolchains/ghdl/synth_coverage.py`, and an exclusion that matches no file is
+itself a failure.
+
+    tools/bin/bazel test //hdl/common/synth:synth //toolchains/ghdl:synth_census_test \
+                        //toolchains/ghdl:synth_coverage_test
 
 A count that moved on purpose is blessed by regenerating the table **in the
 same commit** as the RTL change, which is the same discipline the CRLF
@@ -88,3 +98,10 @@ Two blocks are documented skips, and the reason is itself frozen: `SYSTEM`
 association) and `periph_regs` (its eleven `word_array` generics have no
 default, so it cannot be a top level; it is graded through the sixteen
 peripherals that instantiate it). Details in `hdl/common/synth/BUILD.bazel`.
+
+Three targets carry `blackbox_srcs`: `hart_tile`, `orch_tile` and `MCU`
+substitute port-compatible stubs for the compiled memory macros, the analog
+cells and (for `MCU` only) SYSTEM, which is the same GHDL crash its own skip
+row records. The stub files live in `hdl/common/synth/`, their basenames are
+part of the frozen census so a block cannot be black-boxed out of coverage
+quietly, and the coverage gate refuses a `blackbox` architecture as coverage.

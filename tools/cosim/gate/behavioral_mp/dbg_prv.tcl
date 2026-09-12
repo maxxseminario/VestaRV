@@ -1,5 +1,4 @@
-# =============================================================================
-# dbg_prv.tcl -- the D2 dcsr.prv harness (carryover 3, R-D1-3(2)).
+# VestaRV: the D2 dcsr.prv harness (carryover 3, R-D1-3(2)).
 #
 #   ./xrun_dbg.sh rv32ua-p-dbgprvmp dbg_prv.tcl
 #
@@ -31,7 +30,6 @@
 #
 # AT UNIMPLEMENTED HEAD dmi_present prints INSTRUMENT_DEAD and the image is
 # still run to its own verdict (a1 = 0x0D240003, the victim never released).
-# =============================================================================
 source ../../disable_x_warnings.tcl
 # dbg_bfm.tcl lives beside this file in behavioral_mp/, but a harness is also
 # run from the mutation scratch dir (d2mut/), whose CWD is one level across.

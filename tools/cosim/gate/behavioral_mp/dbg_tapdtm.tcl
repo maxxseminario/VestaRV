@@ -1,5 +1,4 @@
-# =============================================================================
-# dbg_tapdtm.tcl -- D3 instrument T3: DTM REGISTER AND CROSSING SEMANTICS.
+# VestaRV: D3 instrument T3: DTM REGISTER AND CROSSING SEMANTICS.
 # Everything in d3_spec section 2 and d3_cdc_spec sections 2-4 that is
 # observable from the four pins: dtmcs fields, the sticky machine in both of
 # its flavours, dmireset, dmihardreset with its discard clause, the Capture-DR
@@ -81,7 +80,6 @@
 # and every check is skipped -- the part-1 seen-to-FAIL leg.
 #
 # NEVER pipe the runner through `head`.
-# =============================================================================
 source ../../disable_x_warnings.tcl
 if {[file exists dbg_bfm.tcl]} { source dbg_bfm.tcl } else { source ../behavioral_mp/dbg_bfm.tcl }
 if {[file exists dbg_tap.tcl]} { source dbg_tap.tcl } else { source ../behavioral_mp/dbg_tap.tcl }

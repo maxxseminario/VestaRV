@@ -1,5 +1,4 @@
-# =============================================================================
-# dbg_grp.tcl -- the D2 HALT-GROUP harness (d2_spec 3 `dmcs2`, grouptype 0).
+# VestaRV: the D2 HALT-GROUP harness (d2_spec 3 `dmcs2`, grouptype 0).
 #
 #   ./xrun_dbg.sh rv32ua-p-dbggrpmp dbg_grp.tcl
 #
@@ -25,7 +24,6 @@
 #
 # The image measures forward progress (see dbggrpmp.S); this file measures the
 # DM's own reporting.  Both are required.
-# =============================================================================
 source ../../disable_x_warnings.tcl
 # dbg_bfm.tcl lives beside this file in behavioral_mp/, but a harness is also
 # run from the mutation scratch dir (d2mut/), whose CWD is one level across.

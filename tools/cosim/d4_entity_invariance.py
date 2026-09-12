@@ -1,6 +1,5 @@
 #!/usr/bin/env python3.6
-# =============================================================================
-# d4_entity_invariance.py -- the D4 FAIL-SAFE clause, mechanised.
+# VestaRV: the D4 FAIL-SAFE clause, mechanised.
 #
 # BLIND-AUTHORED 2026-08-07 against d4_spec.md 1.6 (FROZEN) by an agent that
 # has not seen and will never see the D4 implementation.
@@ -31,7 +30,6 @@
 # NONZERO on every run -- it re-parses a deliberately mutated copy of the
 # entity in memory and requires itself to notice.  A parser that silently
 # matched nothing would otherwise report "0 differences" forever.
-# =============================================================================
 from __future__ import print_function
 import os
 import re

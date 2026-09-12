@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-# ===========================================================================
-# gen_directed.py  --  X4 Stage 2c: softfloat-referenced directed FP vectors.
+# VestaRV: X4 Stage 2c: softfloat-referenced directed FP vectors.
 #
 # REFERENCE DISCIPLINE (gatekeeper correction C4):
 #   The oracle for every ROUNDED result + fflags is a REAL IEEE-754 single-
@@ -34,7 +33,6 @@
 #
 # Categories (one .S each): dround dsubnrm dnan dpmzero dfcvttab daccum
 #                           drdx0 dsgnj    (see per-emitter comments)
-# ===========================================================================
 import ctypes, struct, sys, os, tempfile, difflib
 
 # ---- glibc single-precision engine via ctypes ----------------------------

@@ -1,6 +1,5 @@
 #!/bin/bash
-# =============================================================================
-# xrun_gui.sh  -- open SimVision on ONE already-elaborated MCU_MP test snapshot.
+# VestaRV: open SimVision on ONE already-elaborated MCU_MP test snapshot.
 #
 # xrun_parallel.sh (compile + elaborate) must have run first for the test you
 # want to open -- e.g. to debug the shared-window (0x10000) hang:
@@ -19,7 +18,6 @@
 #
 # In SimVision, add the signals listed in SHMEM_DEBUG_NOTES.txt (they live under
 # :uut:dut:  for the MCU, and :uut:dut:core:  for the vesta FSM) and Run.
-# =============================================================================
 
 source ~/vestarv/cdspaths.sh
 

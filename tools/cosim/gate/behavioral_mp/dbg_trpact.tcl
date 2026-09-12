@@ -1,5 +1,4 @@
-# =============================================================================
-# dbg_trpact.tcl -- THE D4 PLANT-ON-DMACTIVE LEG, and the poison leg.
+# VestaRV: THE D4 PLANT-ON-DMACTIVE LEG, and the poison leg.
 # d4_spec 1.1, and the named-optional "poison pattern standing in for silicon
 # power-up garbage" of d4_spec 6 -- TAKEN, and taken IN BAND.
 #
@@ -50,7 +49,6 @@
 # LIVENESS CONTROL (D4_CONTROL=1): the trampoline is force-planted after the
 # poison and before dmactive, standing in for the dmactive plant.  Every check
 # must pass.
-# =============================================================================
 source ../../disable_x_warnings.tcl
 if {[file exists dbg_bfm.tcl]} { source dbg_bfm.tcl } else { source ../behavioral_mp/dbg_bfm.tcl }
 if {[file exists dbg_tramp_lib.tcl]} { source dbg_tramp_lib.tcl } else { source ../behavioral_mp/dbg_tramp_lib.tcl }

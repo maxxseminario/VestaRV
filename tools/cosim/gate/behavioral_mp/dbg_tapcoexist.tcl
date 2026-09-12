@@ -1,5 +1,4 @@
-# =============================================================================
-# dbg_tapcoexist.tcl -- D3 instrument T6: THE COEXISTENCE REGRESSION.
+# VestaRV: D3 instrument T6: THE COEXISTENCE REGRESSION.
 # Proves d3_cdc_spec section 7's OR-merge design: the DTM lives inside the MCU
 # beside dm0, the external dmi_* ports are RETAINED, and BOTH masters reach the
 # Debug Module -- family A's forces at the unassociated formals AND the TAP.
@@ -47,7 +46,6 @@
 # file on a debug-ON D2 tree measures the "before" of the regression.
 #
 # NEVER pipe the runner through `head`.
-# =============================================================================
 source ../../disable_x_warnings.tcl
 if {[file exists dbg_bfm.tcl]} { source dbg_bfm.tcl } else { source ../behavioral_mp/dbg_bfm.tcl }
 if {[file exists dbg_tap.tcl]} { source dbg_tap.tcl } else { source ../behavioral_mp/dbg_tap.tcl }

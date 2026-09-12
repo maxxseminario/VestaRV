@@ -1,5 +1,4 @@
-# =============================================================================
-# dbg_s0coh.tcl -- the BLIND DETECTOR for F-D5-2 (R-DD9): the coherent-dscratch
+# VestaRV: the BLIND DETECTOR for F-D5-2 (R-DD9): the coherent-dscratch
 # contract.  During a halt, dscratch0/1 is the SINGLE home of the debuggee's
 # s0/s1.
 #
@@ -99,7 +98,6 @@
 # used at either N.  N=18 is RUN to prove that rather than to assume it.
 #
 # NEVER pipe the runner through `head`.
-# =============================================================================
 source ../../disable_x_warnings.tcl
 if {[file exists dbg_bfm.tcl]} { source dbg_bfm.tcl } else { source ../behavioral_mp/dbg_bfm.tcl }
 if {[file exists dbg_tramp_lib.tcl]} { source dbg_tramp_lib.tcl } else { source ../behavioral_mp/dbg_tramp_lib.tcl }
@@ -171,11 +169,9 @@ d2_chk [expr {$s >= 0}] "P1: hart $VICTIM halted on haltreq (dmstatus [format 0x
 dm_clr_haltreq $VICTIM
 d4_settle
 
-# ===========================================================================
 # (d) THE a6-CLASS CONTROL, FIRST.  It is also this file's method validation
 # (rule 4): if an ordinary GPR does not round-trip, then "s0 did not round-trip"
 # below would say nothing about s0.
-# ===========================================================================
 set wa [d4_abs_write $::R_A6 $::VAL_A6]
 d4_settle
 set ra [d4_abs_read $::R_A6]
@@ -194,10 +190,8 @@ if {!$d_ok} {
 puts "DMILOG METHOD_VALIDATED -- the ordinary abstract-GPR path works, so s0/s1 failures below are about s0/s1."
 flush stdout
 
-# ===========================================================================
 # (c) THE ROUND-TRIP ACROSS A COMMAND BOUNDARY.  Graded before (a)/(b) because
 # it is the simplest statement of the same contract and localises the rest.
-# ===========================================================================
 d4_settle
 set ws [d4_abs_write $::R_S0 $::VAL_S0]
 d4_settle
@@ -218,12 +212,10 @@ puts "DMILOG C (c)-PROGBUF-VISIBLE: after `addi s0,s0,4` cmderr=$ce_c2, s0 reads
 d2_chk [expr {[lindex $rs2 0] == $::VAL_S0 + 4}] \
     "C2: (c) a progbuf program's modification of s0 is visible to the following abstract read ([format 0x%08X [expr {[lindex $rs2 0] < 0 ? 0 : [lindex $rs2 0]}]] vs [format 0x%08X [expr {$::VAL_S0 + 4}]]).  Both directions of the boundary, not just the one OpenOCD happens to exercise first"
 
-# ===========================================================================
 # (a) OpenOCD's EXACT two-command memory-READ idiom.
 #     Plant the truth through the (d)-class a6/a7 path and CONFIRM it with the
 #     peek oracle, so the value (a) must return is established independently of
 #     everything under test.
-# ===========================================================================
 d4_settle
 d4_abs_write $::R_A6 $::MEM_R
 d4_settle
@@ -253,11 +245,9 @@ puts "DMILOG A (a)-READ-IDIOM: postexec cmderr=$ce_a ([d4_cmderr_name $ce_a]); a
 d2_chk [expr {$ce_a == 0 && $got_a == $::VAL_TRUE}] \
     "A1: (a) OpenOCD's exact two-command memory-READ idiom returns the TRUE memory value -- got [format 0x%08X [expr {$got_a < 0 ? 0 : $got_a}]], the word really holds [format 0x%08X $::VAL_TRUE] (peek oracle).  THE FAILURE SHAPE IS THE POINT: pre-fix this completes with cmderr=0 and hands gdb a WRONG ANSWER, so nothing anywhere reports an error"
 
-# ===========================================================================
 # (b) OpenOCD's EXACT two-command memory-WRITE idiom.
 #     s0 = address and s1 = value are set by SEPARATE abstract commands and
 #     must both survive to the postexec.  The oracle is the peek, again.
-# ===========================================================================
 d4_settle
 set pre_w [coh_tcm $VICTIM $::MEM_W]
 d4_abs_write $::R_S0 $::MEM_W
@@ -272,14 +262,12 @@ puts "DMILOG B (b)-WRITE-IDIOM: postexec cmderr=$ce_b ([d4_cmderr_name $ce_b]); 
 d2_chk [expr {$ce_b == 0 && $pre_w ne "" && $pre_w != $::VAL_STORE && $post_w == $::VAL_STORE}] \
     "B1: (b) OpenOCD's exact two-command memory-WRITE idiom lands the value at the intended word ([format 0x%08X [expr {$pre_w eq {} ? -1 : $pre_w}]] -> [format 0x%08X [expr {$post_w eq {} ? -1 : $post_w}]], peek oracle; the absent-before half is what stops a stale word passing).  Pre-fix s0 holds the wrong address when the store executes, so the write lands somewhere else entirely -- also silently"
 
-# ===========================================================================
 # (e) DEBUGGEE PRESERVATION -- passes at HEAD and MUST KEEP PASSING.
 #     See the header: this is the leg that catches serve-architectural-directly,
 #     the wrong fix that makes (a),(b),(c) green while corrupting the program.
 #     NOTE the boundary being tested is HALT+RESUME, and no debugger register
 #     write happens inside it.  The magic is installed BEFORE, through a resume
 #     -- a different boundary, and one that works in both worlds.
-# ===========================================================================
 #     WHAT THE WITNESS IS, AND WHY IT IS THE DEBUGGEE'S OWN VALUE.
 #     Two setup routes were tried and BOTH are recorded because both taught
 #     something:
@@ -406,10 +394,8 @@ if {!$e_setup} {
         "E1: (e) A PLAIN HALT+RESUME WITH NO DEBUGGER REGISTER WRITES LEAVES THE DEBUGGEE'S s0/s1 INTACT ([format 0x%08X [expr {$after_s0 eq {} ? -1 : $after_s0}]]/[format 0x%08X [expr {$after_s1 eq {} ? -1 : $after_s1}]], unchanged from its pre-halt [format 0x%08X $live_s0]/[format 0x%08X $live_s1]).  PASSES AT HEAD AND MUST KEEP PASSING -- it is the ONLY leg that fails on the natural wrong fix (serve the architectural registers directly), which turns (a),(b),(c) green while handing the resumed program corrupted registers.  A wave that sees a-c go green and E1 go red has found the wrong fix, not a flaky test"
 }
 
-# ===========================================================================
 # (f) EXCEPTION PRESERVATION.  Graded on the DM's own cmderr and never on a
 #     token word -- section 1.5's rider leaves the token mechanism OPEN.
-# ===========================================================================
 d4_settle
 dm_haltreq $VICTIM
 dm_poll_status $VICTIM dms_allhalted 400 $::HALTREQ_BIT

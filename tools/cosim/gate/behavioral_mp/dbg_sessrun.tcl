@@ -1,5 +1,4 @@
-# =============================================================================
-# dbg_sessrun.tcl -- THE GRADED OpenOCD/gdb SESSION.  This is dbg_sessgrade.tcl
+# VestaRV: THE GRADED OpenOCD/gdb SESSION.  This is dbg_sessgrade.tcl
 # (the acceptance author's FAIL leg, and their stated wiring template) with the
 # one difference that file names: where it calls `run`, this calls the bridge's
 # service loop.
@@ -7,7 +6,6 @@
 #   D5_PORTFILE=<path> D5_PROFILE=d5sess ./xrun_dbg_verify.sh \
 #       verify_castaliadebug ../kba/xrv32ua-p-d5sessmp.rcf dbg_sessrun.tcl
 #
-# =============================================================================
 # THE DRIVER CONTRACT -- READ THIS BEFORE WRITING A GDB SCRIPT.
 #
 # Every grader below is an ORDERING BETWEEN SNAPSHOTS, and the snapshots are
@@ -39,7 +37,6 @@
 # A0 is taken by THIS FILE before the bridge starts listening, so there is
 # always a pre-session baseline even if the driver never connects.
 #
-# =============================================================================
 # FOUR WIRING DEFECTS IN THE FIRST DRAFT OF THIS FILE, FOUND BY READING IT
 # AGAINST THE GRADERS' OWN ARGUMENT LISTS AT THE T4 HANDOFF, AND FIXED HERE.
 # They are recorded rather than quietly corrected, because every one of them
@@ -77,7 +74,6 @@
 #      independent witnesses it needs.  Hart 1 takes the power-cycle legs
 #      because the recovery lever exists FOR HARTS 1..N-1 ONLY -- PWRCR bit 0
 #      is RO-0 and hart 0 has no lever at all.
-# =============================================================================
 #
 # WHY THE LABELS ARE FIXED AND NOT DISCOVERED.  A grader called with a label
 # that was never snapped reports NOT-GRADED, which is counted separately and is
@@ -92,7 +88,6 @@
 # there would make the session non-reproducible for the RUNNING tiles (the
 # clause-5 argument), and anything that drove the DM would put a SECOND MASTER
 # on the very port the debugger is using, which changes what is being measured.
-# =============================================================================
 
 if {[llength [info procs sess_snap]] == 0} {
     if {[file exists dbg_sess_lib.tcl]} {

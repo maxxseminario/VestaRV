@@ -1,6 +1,5 @@
 #!/bin/bash
-# =============================================================================
-# xrun_cosim.sh — V2 of the VestaRV Spike lockstep co-simulation program.
+# VestaRV: V2 of the VestaRV Spike lockstep co-simulation program.
 #
 # Per test: locate/build the ELF, elaborate + run the TRACED RTL sim, run Spike
 # on the same ELF, hand both streams to tools/cosim/compare.py, and report
@@ -97,7 +96,6 @@
 # bare one — and the bare names are exactly what a stale-artifact bug would
 # reuse. Per-TEST artifacts (elab/sim log, image log, make log) keep their old
 # unsuffixed names: there is one elaboration and one simulation per test.
-# =============================================================================
 
 source ~/vestarv/cdspaths.sh
 
@@ -763,9 +761,7 @@ if [ "$RTL_ON_CMP" != "$IMG_ON_CMP" ]; then
 fi
 [ -f "$SPIKE_ENV" ] || die "$SPIKE_ENV missing (V0 deliverable)"
 
-# =============================================================================
 # helpers
-# =============================================================================
 
 # strip the leading x-padding run (the Makefile's own rule, v2_test_set.md §1)
 strip_pad() { local s="$1"; echo "${s#"${s%%[!x]*}"}"; }
@@ -1015,7 +1011,6 @@ LIB
     return 0
 }
 
-# =============================================================================
 # V4 THE TWO FREE AUDITS (v4_design.md §4.7). Both are cheap text passes over
 # files that already exist, and NEITHER may abort a run: they classify, they
 # never veto. They exist because the a0 contract cannot see either failure —
@@ -1023,7 +1018,6 @@ LIB
 # awk has no hex literal parsing in POSIX and strtonum() is a gawk extension, so
 # both passes carry their own h2d(). The trace's cycle field is token 3 and HEX;
 # a record's kind is token 1; comment/diagnostic lines start with '#'.
-# =============================================================================
 
 # participation_of <trace>  ->  PARTICIPATED | PARKED-ONLY | NO-TRACE
 # PARTICIPATED = at least one R record retired OUTSIDE the shared boot-ROM
@@ -1962,9 +1956,7 @@ emit_result_all() {
     done
 }
 
-# =============================================================================
 # main
-# =============================================================================
 mkdir -p "$COSIM/runs" || die "cannot create $COSIM/runs"
 migrate_flat_layout
 mkdir -p "$TRACE_DIR" "$SPIKE_DIR" "$LOG_DIR" "$INJECT_DIR" || die "cannot create $RUN_DIR"

@@ -1,6 +1,5 @@
 #!/bin/bash
-# ===========================================================================
-# THE MANDATORY STAGE-2 MISSING-PLANT NEGATIVE CONTROL — Fable's re-run recipe.
+# VestaRV: the mandatory stage-2 missing-plant negative control, re-run recipe.
 #
 #   tools/cosim/gate/negctrl_RERUN.sh   (artifacts -> $NEGCTRL_WORKDIR, below)
 #
@@ -41,7 +40,6 @@
 #   divergent record yields a FALSE PASS: with --max-records 50154 this very
 #   control exits 0, because the divergence is AT compared record #50154 and the
 #   bound stops one record before it. With the real count (86320) it exits 1.
-# ===========================================================================
 set -u
 MP="$HOME/vestarv/xcelium/riscv_test/behavioral_mp"
 # ARTIFACTS. This file is TRACKED, so it must not write beside itself. HERE is

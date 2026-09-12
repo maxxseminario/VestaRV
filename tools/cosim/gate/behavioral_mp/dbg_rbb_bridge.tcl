@@ -1,5 +1,4 @@
-# =============================================================================
-# dbg_rbb_bridge.tcl -- THE D5 TRANSPORT.  xmsim's OWN Tcl interpreter listens
+# VestaRV: THE D5 TRANSPORT.  xmsim's OWN Tcl interpreter listens
 # on the OpenOCD `remote_bitbang` TCP port and drives the five JTAG formals.
 # No co-process.  No DPI.  SOURCED as a library; `dbg_sessrun.tcl` is the
 # harness that uses it.
@@ -113,7 +112,6 @@
 # "OpenOCD hangs" and the investigation goes to the Debug Module.
 #
 # A session emitting this heartbeat is DISPENSED from the 1-minute rule.
-# =============================================================================
 
 # --- dependencies -----------------------------------------------------------
 # CWD is the staged verify dir (xrun_dbg_verify.sh does `cd "$VABS"`), so the
@@ -480,7 +478,6 @@ proc rbb_state {desc} {
 }
 
 
-# ===========================================================================
 # THE SERVICE MODEL -- EVENT-DRIVEN ON TWO CHANNELS.
 #
 # The first draft of this file blocked on `read $S 1` at the top of a serve
@@ -520,7 +517,6 @@ proc rbb_state {desc} {
 # REJECTED BY NAME with a reply saying so, and counted.  No force, no run, no
 # DMI ever reaches it.  Its traffic appears in the heartbeat (ctl_in /
 # ctl_snaps / ctl_rejected) so a transcript shows what it did.
-# ===========================================================================
 
 set ::RBB_BUSY      0
 set ::RBB_CTLQ      {}

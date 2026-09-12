@@ -1,5 +1,4 @@
-# =============================================================================
-# dbg_sess_lib.tcl -- THE D5 SESSION GRADERS: what marks an OpenOCD/gdb
+# VestaRV: THE D5 SESSION GRADERS: what marks an OpenOCD/gdb
 # session's chip-side effects as PROVEN.  SOURCED; not a harness itself.
 #
 # BLIND-AUTHORED 2026-08-10 against d5_spec.md sections 5.2 and 5.4 (FROZEN) by
@@ -73,7 +72,6 @@
 #                (missing probe, missing image word, missing snapshot).
 #                NOT-GRADED is counted separately and is NEVER a pass -- the
 #                R-D3-4(5) minimum-check lesson, one level up.
-# =============================================================================
 
 # dbg_bfm.tcl FIRST and explicitly.  MEASURED DEFECT, first run of this file
 # 2026-08-10: dbg_tramp_lib.tcl does NOT source dbg_bfm.tcl -- every D4 harness
@@ -280,7 +278,6 @@ proc sess_have {args} {
     return 1
 }
 
-# ===========================================================================
 # SG-A  ATTACH.  d5_spec 5.2 "read the IDCODE / the hart list" -- the chip-side
 #       half.  The witness is the ENTRY PAGE: since D4 the DM plants 40 words
 #       out of its own constant table at every dmactive 0->1, so a page that
@@ -291,7 +288,6 @@ proc sess_have {args} {
 #       ORDERING, not a duration: page(before) < 40 AND page(after) == 40.
 #       The "before" clause is load-bearing -- without it the grader would pass
 #       on a run where the page was already planted by something else.
-# ===========================================================================
 proc sess_grade_attach {before after} {
     global SNAP
     if {$SNAP($before,page) eq "" || $SNAP($after,page) eq ""} {
@@ -301,7 +297,6 @@ proc sess_grade_attach {before after} {
       "ATTACH -- the entry page went from UNPLANTED to the built 40-word deliverable across the attach window ($SNAP($before,page)/40 -> $SNAP($after,page)/40).  Since D4 only the DM's own dmactive-rise plant writes those words, so this is a chip-side witness that a debugger attached, and it needs no probe inside the DM"
 }
 
-# ===========================================================================
 # SG-B  HART CENSUS.  "the hart list (4 and 18 threads, distinct mhartid)" is a
 #       DEBUGGER-side observable and is graded by reading gdb's own output --
 #       see sess_oracle_dump, which prints the chip-side truth to diff against.
@@ -314,7 +309,6 @@ proc sess_grade_attach {before after} {
 #
 #       N=18 FIRST-CLASS: the grader takes the list of harts the session was
 #       supposed to touch, so an 18-hart session is graded over 18 rows.
-# ===========================================================================
 proc sess_grade_hartcensus {after harts} {
     global SNAP
     set silent {}
@@ -326,7 +320,6 @@ proc sess_grade_hartcensus {after harts} {
       "HART CENSUS -- every hart the session halted published TOK_HALTED in its own FLAGS\[h\] word ([llength $harts] harts asked, [llength $silent] silent: {$silent}).  A silent hart either was never halted or halted into a page it could not execute -- the F-D4-1 signature"
 }
 
-# ===========================================================================
 # SG-C  HALT ONE WHILE THE OTHERS RUN.  THE HEADLINE ORDERING of d5_spec 5.2,
 #       and it is written exactly as the spec words it: the others' liveness
 #       counters ADVANCE ACROSS THE HALT WINDOW.
@@ -344,7 +337,6 @@ proc sess_grade_hartcensus {after harts} {
 #       fail and demonstrates that the counter probe is live and moving.  A
 #       grader whose every clause fails in its FAIL leg has proved only that
 #       the instrument noticed the chip was idle.
-# ===========================================================================
 #       THE `pre` SNAPSHOT IS NOT OPTIONAL AND IT IS NOT COSMETIC.  Measured
 #       defect, first FAIL-leg run of dbg_sessgrade 2026-08-10: with only two
 #       snapshots, "the victim's counter is UNCHANGED across the halt window"
@@ -382,10 +374,8 @@ proc sess_grade_halt_one {pre before after victim others} {
     }
 }
 
-# ===========================================================================
 # SG-D  GPR WRITE and SG-E CSR WRITE.  A cookie must be ABSENT before and
 #       PRESENT after.  Absence-before is what stops a stale value passing.
-# ===========================================================================
 proc sess_grade_gpr_write {before after victim} {
     global SNAP
     set b [sess_peek_int [sess_p_gpr $victim $::D5_GPR_INDEX]]
@@ -401,12 +391,10 @@ proc sess_grade_csr_write {before after victim} {
       "CSR WRITE -- mscratch on hart $victim went from [format 0x%08X $SNAP($before,mscr)] to [format 0x%08X $b] (cookie [format 0x%08X $::D5_CSR_COOKIE]).  mscratch is chosen because the image never touches it, so the debugger is the only possible author"
 }
 
-# ===========================================================================
 # SG-F  MEMORY WRITE THROUGH PROGBUF.  The image pre-seeds MEMW with a
 #       known-nonzero SEED and never touches it again; gdb writes the cookie.
 #       Graded as seed-before AND cookie-after: two nonzero values, so neither
 #       "it was already zero" nor "everything is zero" can pass.
-# ===========================================================================
 proc sess_grade_mem_write {before after} {
     global SNAP
     set ma [sess_memw_addr] ; set sa [sess_seed_addr]
@@ -416,7 +404,6 @@ proc sess_grade_mem_write {before after} {
       "MEMORY WRITE (progbuf) -- the shared word [format 0x%05X $ma] held the image's known-nonzero seed [format 0x%08X $seed] before the write and the session cookie [format 0x%08X $::D5_MEM_COOKIE] after (measured [format 0x%08X $SNAP($before,memw)] -> [format 0x%08X $b])"
 }
 
-# ===========================================================================
 # SG-G  SOFTWARE BREAKPOINT.  Three clauses, and the third is the one that
 #       makes it a BREAKPOINT rather than an asynchronous halt.
 #
@@ -431,7 +418,6 @@ proc sess_grade_mem_write {before after} {
 #         (3) its liveness counter ADVANCED between the resume snapshot and
 #             the hit snapshot -- it RAN into the breakpoint.  Without (3) a
 #             chip that simply re-asserted haltreq would satisfy (2).
-# ===========================================================================
 proc sess_grade_swbp {prevword resumed hit victim bpaddr origword} {
     global SNAP
     set wa [sess_tcm_word $victim $bpaddr]
@@ -459,11 +445,9 @@ proc sess_grade_swbp {prevword resumed hit victim bpaddr origword} {
     }
 }
 
-# ===========================================================================
 # SG-H  STEPI.  Graded against the STRUCTURALLY NEXT address, which the caller
 #       reads off objdump.  "dpc changed" would also pass on a chip that took
 #       an exception; "dpc == next" cannot.
-# ===========================================================================
 proc sess_grade_step {before after victim nextaddr} {
     global SNAP
     set b $SNAP($before,dpc,$victim) ; set a $SNAP($after,dpc,$victim)
@@ -472,10 +456,8 @@ proc sess_grade_step {before after victim nextaddr} {
       "STEPI -- hart $victim is still halted and dpc advanced from [format 0x%08X $b] to [format 0x%08X $a], which is the objdump-derived NEXT instruction address [format 0x%08X $nextaddr].  Equality with a structurally determined successor is what makes this 'exactly one instruction' without counting anything"
 }
 
-# ===========================================================================
 # SG-I  RESUME.  Two clauses; the counter clause is what separates "reports
 #       running" from "is running".
-# ===========================================================================
 proc sess_grade_resume {before after victim} {
     global SNAP
     sess_grade "SG-I1" [expr {$SNAP($before,halted,$victim) == 1 && $SNAP($after,halted,$victim) == 0}] \
@@ -491,7 +473,6 @@ proc sess_grade_resume {before after victim} {
     }
 }
 
-# ===========================================================================
 # SG-J  HALT-ON-RESET VIA THE PER-TILE PWRCTRL PATH, driven gdb-side (5.2 /
 #       5.4-1 / C53).  The D4 N1/N2 shape, kept:
 #         (1) the tile really was gated: dbg_unavail bit h was 0, then 1
@@ -503,7 +484,6 @@ proc sess_grade_resume {before after victim} {
 #             UNPLANTED page pc reads 0x00010780 exactly, and on a correct
 #             chip the trampoline RUNS and pc is further in.  The equality
 #             form passes on the broken chip and fails on the good one.
-# ===========================================================================
 proc sess_grade_reset_halt {before gated after victim} {
     global SNAP
     set ug $SNAP($gated,unav) ; set ub $SNAP($before,unav)
@@ -533,7 +513,6 @@ proc sess_grade_reset_halt {before gated after victim} {
     }
 }
 
-# ===========================================================================
 # SG-K  THE R-D2-12 msip WEDGE: walk-in and procedural rescue (5.4-3).
 #       Two signatures, defined here so the implementer measures rather than
 #       argues.  The bound is expressed in SNAPSHOTS -- i.e. in the session's
@@ -549,7 +528,6 @@ proc sess_grade_reset_halt {before gated after victim} {
 #                NOT in TRAP_STATE and its pc is inside the boot ROM
 #                (0x0-0x3FFF) or it has reached the ROM's WFI park -- i.e. it
 #                walked into the bootrom instead of into unarmed IVT slot 83.
-# ===========================================================================
 proc sess_grade_msip_wedge {afterresume later victim} {
     global SNAP
     set st $SNAP($afterresume,state,$victim)
@@ -587,11 +565,9 @@ proc sess_grade_msip_rescue {pending cleared after victim wedged} {
       "msip RESCUE (it worked) -- hart $victim had wedged, and after the rescued resume it is in state '$st', pc [format 0x%08X [expr {$pc eq {} ? -1 : $pc}]].  Not TRAP_STATE = the procedural disposition holds; TRAP_STATE = the procedure does NOT rescue the flow, which d5_spec 5.4-3 makes a STOP"
 }
 
-# ===========================================================================
 # SG-L  THE F1 / sticky-gate observation (5.4-0).  Passive read of the DTM's
 #       own sticky field.  A session that ended with sticky nonzero is a
 #       deafened transport whether or not anything else looks fine.
-# ===========================================================================
 proc sess_grade_sticky {label} {
     set s [sess_peek ":dut:dtm0:sticky"]
     if {$s eq ""} { return [sess_ng "SG-L" "dtm0 sticky probe absent (name may differ; declare it in sess_probe_report before relying on this)"] }
@@ -600,11 +576,9 @@ proc sess_grade_sticky {label} {
       "STICKY CLEAR at $label -- the DTM's dmistat reads '$v' (want 00).  Nonzero means every subsequent non-NOP Update-DR of dmi is being silently DROPPED (jtag_dtm.vhd DEVIATION 4) until OpenOCD issues dtmcs.dmireset -- which it does automatically, so a session that ENDS nonzero has a live problem"
 }
 
-# ===========================================================================
 # sess_oracle_dump -- THE CHIP-SIDE TRUTH, printed for the implementer to diff
 # against what gdb printed.  READS are the one family of verbs whose observable
 # is on the DEBUGGER side; this is how they stop being graded against a guess.
-# ===========================================================================
 proc sess_oracle_dump {victim {memaddrs {}}} {
     puts "DMILOG ---- D5 ORACLE (chip-side truth for hart $victim; diff gdb's output against THIS) ----"
     puts "DMILOG   pc      = [format 0x%08X [expr {[set v [sess_peek_int [sess_p_pc $victim]]] eq {} ? -1 : $v}]]"
@@ -618,7 +592,6 @@ proc sess_oracle_dump {victim {memaddrs {}}} {
     flush stdout
 }
 
-# ===========================================================================
 proc sess_grade_summary {tag {min 1}} {
     puts "DMILOG ---- D5 GRADER SUMMARY ($tag) ----"
     puts "DMILOG   graded=$::D2_CHECKS  failed=$::D2_FAILS  NOT-GRADED=$::D5_NG"

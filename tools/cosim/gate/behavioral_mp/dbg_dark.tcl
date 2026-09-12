@@ -1,5 +1,4 @@
-# =============================================================================
-# dbg_dark.tcl -- the D2 DARK-HART harness: dmstatus.unavail against PWRCTRL,
+# VestaRV: the D2 DARK-HART harness: dmstatus.unavail against PWRCTRL,
 # and halt-on-power-up under a held resethaltreq (d2_spec section 5).
 #
 #   ./xrun_dbg.sh rv32ua-p-dbgdarkmp dbg_dark.tcl
@@ -48,7 +47,6 @@
 # AT UNIMPLEMENTED HEAD dmi_present prints INSTRUMENT_DEAD, the ACK and RACK
 # words are still planted so the image completes its power sequence, and the
 # image fails on 0x0D250006 -- the tile parked, took the msip and ran.
-# =============================================================================
 source ../../disable_x_warnings.tcl
 # dbg_bfm.tcl lives beside this file in behavioral_mp/, but a harness is also
 # run from the mutation scratch dir (d2mut/), whose CWD is one level across.

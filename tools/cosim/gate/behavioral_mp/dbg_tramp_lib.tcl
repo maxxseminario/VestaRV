@@ -1,5 +1,4 @@
-# =============================================================================
-# dbg_tramp_lib.tcl -- the D4 acceptance library: expected-page arithmetic, the
+# VestaRV: the D4 acceptance library: expected-page arithmetic, the
 # DM-VISIBILITY readback, the page census, and the NO-FORCE GUARD.
 #
 # SOURCED by every D4 harness AFTER dbg_bfm.tcl.  It is not a harness itself.
@@ -56,7 +55,6 @@
 # has a defined, quotable answer (cmderr = OTHER = 7).  That is the SS9a class
 # -- a budget that expires before the subject exists.  Every wait in this file
 # uses D4_BUSY_BUDGET, sized to outlast the DM's own bound.
-# =============================================================================
 
 # ---------------------------------------------------------------------------
 # the no-force guard

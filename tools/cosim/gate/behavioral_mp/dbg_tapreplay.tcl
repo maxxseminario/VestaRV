@@ -1,5 +1,4 @@
-# =============================================================================
-# dbg_tapreplay.tcl -- D3 instrument T4: THE WHOLE-STACK PROOF.
+# VestaRV: D3 instrument T4: THE WHOLE-STACK PROOF.
 # The D2 conformance list -- dbg_conf.tcl's 38 checks -- REPLAYED THROUGH THE
 # JTAG TAP.  Same file, same checks, same order, same expected answers; the
 # only thing that changes is that every DM access now travels TCK/TMS/TDI/TDO
@@ -55,7 +54,6 @@
 # leg for this instrument.
 #
 # NEVER pipe the runner through `head`.
-# =============================================================================
 source ../../disable_x_warnings.tcl
 if {[file exists dbg_bfm.tcl]} { source dbg_bfm.tcl } else { source ../behavioral_mp/dbg_bfm.tcl }
 if {[file exists dbg_tap.tcl]} { source dbg_tap.tcl } else { source ../behavioral_mp/dbg_tap.tcl }

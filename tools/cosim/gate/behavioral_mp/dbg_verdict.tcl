@@ -1,5 +1,4 @@
-# =============================================================================
-# dbg_verdict.tcl -- run a test to its verdict and print hart 0's a0/a1/a2/a3.
+# VestaRV: run a test to its verdict and print hart 0's a0/a1/a2/a3.
 #
 # riscv_tb reports only a0 (PASS/FAIL).  Every D1 instrument encodes WHICH
 # assertion failed in a1 (and detail in a2/a3), exactly as idcsrmp and rocsrw
@@ -11,7 +10,6 @@
 # testbench watchdog (the live-progress convention).  60 ms of budget: a
 # healthy MP test verdicts at ~25 ms sim, and the SPI boot copy alone is
 # ~9.6 ms of that.
-# =============================================================================
 source ../../disable_x_warnings.tcl
 
 set dead_q "\"11011110101011011011111011101111\""
