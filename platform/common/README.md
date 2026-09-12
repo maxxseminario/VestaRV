@@ -106,8 +106,8 @@ make verify SUITE=full      # the whole regression instead of the smoke suite
 ### Which suite is the regression
 
 **`make verify SUITE=full CONFIG=config/castalia.json`** is the standing
-tape-out regression. It stages `xcelium/riscv_test/verify_pentawound/` (the stage directory follows
-`chipName`, which stays `PentaWound`), selects
+tape-out regression. It stages `xcelium/riscv_test/verify_castalia/` (the stage directory follows
+`chipName`; runs before 2026-09-12 live under `verify_pentawound/`), selects
 its rows from the catalog against the resolved config, runs the matching
 `-DCORE_ENABLE_TRAPCSR` image set, and passes **157 / 157** (2026-09-05).
 `make verify` with no `CONFIG` is the same machinery on the shipped Castalia

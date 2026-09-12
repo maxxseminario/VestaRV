@@ -194,7 +194,7 @@ is `platform/common/config/ChipConfig.resolved.json`.
 database written 2026-08-17 22:39.** It *is* post-penta: the layout carries a
 soft `orch_tile` as hart 0 and four hardened `hart_tile` macros as harts 1-4.
 But it was hardened from `platform/common/config/castalia.json`
-(`chipName = PentaWound`), **not** from the golden-master Castalia
+(then `chipName = PentaWound`, `Castalia` since 2026-09-12), **not** from the golden-master Castalia
 configuration the rest of this README describes. Nothing physical has run since
 2026-08-18.
 

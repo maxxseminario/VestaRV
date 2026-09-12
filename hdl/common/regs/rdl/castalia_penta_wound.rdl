@@ -43,8 +43,8 @@
 `include "uart.rdl"
 
 addrmap castalia_penta_wound {
-    name = "Castalia PentaWound";
-    desc = "The memory-mapped register space of the five-hart PentaWound chip (config penta_wound.json): 30 peripherals in the shared window at 0x4000 and up.";
+    name = "Castalia";
+    desc = "The memory-mapped register space of the five-hart Castalia chip (config castalia.json): 30 peripherals in the shared window at 0x4000 and up.";
 
     default regwidth = 32;
 

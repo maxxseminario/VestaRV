@@ -67,8 +67,9 @@ class LatexUserGuide():
 	# measured analog data is an explicit, per-chip decision.
 	AnalogChapterLineage = {
 		'castaliapenta': 'castalia',
-		# 2026-09-05: castalia.json sets chipName
-		# "PentaWound", which has no implementations/asic/pentawound/analog, so
+		# 2026-09-05: the private overlay configs set chipName
+		# "PentaWound" (castalia.json said so until 2026-09-12), which has no
+		# implementations/asic/pentawound/analog, so
 		# generating from that config silently dropped the entire 60-page
 		# analog chapter (CopyAnalogChapter rmtree's include/analog and takes the
 		# empty branch). Same physical chip, same analog IP: inherit Castalia's.
