@@ -400,13 +400,13 @@ i2ct_dh_ret:
     .org 0x14C
     jal  zero, 0x0BB00               # 83 msip -> park
     jal  zero, 0x0BB00               # 84 mtip -> park
-    jal  zero, 0x0B100               # 85 meip -> env dispatcher (.isr_meip)
+    jal  zero, 0x09100               # 85 meip -> env dispatcher (.isr_meip)
     .org 4*122                       # slot 122 @ 0x1E8
     jal  zero, i2ct_ae_h             # 122 = IRQB_I2CT0_AE
     jal  zero, i2ct_data_h           # 123 = IRQB_I2CT0_DATA
     .previous
 
-    # ---- env meip dispatcher (.isr_meip @0xB100) --------------------------
+    # ---- env meip dispatcher (.isr_meip @0x9100) --------------------------
     MEIP_DISPATCHER()
 
     RVTEST_CODE_END                  # unimp (traps) — never reached

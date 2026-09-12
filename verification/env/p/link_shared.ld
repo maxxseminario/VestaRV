@@ -29,6 +29,9 @@
  *               MP_STAGE_BASE 0x18000.
  *   ISR/NPU     STAY at their TCM/staging addresses. They are fixed hardware
  *               contracts, and they are empty in an image that needs this file.
+ *               (The ISR bank and .npu0_yhat moved 0xB000-0xBDFF -> 0x9000-
+ *               0x9DFF on 2026-09-12, onto the same physical words; see the
+ *               body comment at the bank.)
  *
  * The 0x8200-0x10800 hole costs nothing: flash_prepend.sh scans for non-zero
  * regions and emits one 0x10adbeef segment per region (GAP_MIN=8), so the hole
@@ -91,12 +94,12 @@ SECTIONS
 
 
   /* NPU sections (M11 map).
-   * .npu0_yhat is the TEST's expected-output copy: private TCM (0xB000).
+   * .npu0_yhat is the TEST's expected-output copy: private TCM (0x9000).
    * .npu0_x / .npu0_w are the NPU's live vectors: the shared NPU staging
    * RAM at 0xC000-0xFFFF (was hart 0's private RAM1 -- same addresses; the
    * flash bootrom copy loop reaches them THROUGH the arbiter now). */
 
-  . = 0xB000;  /* NPU 0 - Ideal Output Vector (TCM) */
+  . = 0x09000;  /* NPU 0 - Ideal Output Vector (TCM) */
   .npu0_yhat : {
     KEEP(*(.npu0_yhat))
     . = ALIGN(4);
@@ -116,66 +119,84 @@ SECTIONS
 
   /* M11 ISR bank: every ISR lives INSIDE the private TCM (RAM1 is gone --
    * 0xC000-0xFFFF is the shared NPU staging RAM). 256 bytes per ISR,
-   * 0xB200-0xBAFF; 0xBB00 is the unused-slot parking target (DEFINE_IVT).
-   * The linker errors on overlap if an ISR outgrows its 256-byte slot. */
+   * 0x9200-0x9AFF; 0x9B00 is the unused-slot parking target (DEFINE_IVT).
+   * The linker errors on overlap if an ISR outgrows its 256-byte slot.
+   *
+   * THE BANK MOVED DOWN 0x2000 ON 2026-09-12, and it moved onto the same
+   * physical words it already occupied. The 2026-08-16 TCM halving left this
+   * bank, and .npu0_yhat above it, at 0xB000-0xBDFF: the tile decodes 16 KiB
+   * to a private array that answers 8 KiB, so every address in 0xA000-0xBFFF
+   * is the array's own upper mirror (hdl/common/hart_tile.vhd drops the word
+   * index's top bit on both the core and the aperture side). The bank
+   * therefore already lived at 0x9000-0x9DFF in silicon and in simulation; it
+   * simply said so nowhere a tool could read, which is what
+   * //tools/build:verification_image_map_test reported.
+   *
+   * Subtracting 0x2000 is the whole change, so every ISR keeps the physical
+   * word it had. The gain is that the addresses are now real: the linker can
+   * see an overlap between a growing .data/.bss and this bank (the largest
+   * image reaches 0x8FDF, 32 bytes below .npu0_yhat), and an image can no
+   * longer be built that addresses memory the part does not have.
+   * riscv_test.h's DEFINE_IVT holds the same addresses as literals and moved
+   * with it. */
 
   /* M19: the meip (IVT slot 85) claim/complete dispatcher -- riscv_test.h
    * MEIP_DISPATCHER(). Empty unless the test invokes the macro. */
-  . = 0x0B100;
+  . = 0x09100;
   .isr_meip : {
     KEEP(*(.isr_meip))
     . = ALIGN(4);
   }
 
-  . = 0x0B200;  /* IRQ 52 - UART1_RC */
+  . = 0x09200;  /* IRQ 52 - UART1_RC */
   .isr_uart1_rc : {
     KEEP(*(.isr_uart1_rc))
     . = ALIGN(4);
   }
 
-  . = 0x0B300;  /* IRQ 53 - UART1_TE */
+  . = 0x09300;  /* IRQ 53 - UART1_TE */
   .isr_uart1_te : {
     KEEP(*(.isr_uart1_te))
     . = ALIGN(4);
   }
 
-  . = 0x0B400;  /* IRQ 54 - UART1_TC */
+  . = 0x09400;  /* IRQ 54 - UART1_TC */
   .isr_uart1_tc : {
     KEEP(*(.isr_uart1_tc))
     . = ALIGN(4);
   }
 
-  . = 0x0B500;  /* IRQ 13 - UART0_RC */
+  . = 0x09500;  /* IRQ 13 - UART0_RC */
   .isr_uart0_rc : {
     KEEP(*(.isr_uart0_rc))
     . = ALIGN(4);
   }
 
-  . = 0x0B600;  /* IRQ 14 - UART0_TE */
+  . = 0x09600;  /* IRQ 14 - UART0_TE */
   .isr_uart0_te : {
     KEEP(*(.isr_uart0_te))
     . = ALIGN(4);
   }
 
-  . = 0x0B700;  /* IRQ 15 - UART0_TC */
+  . = 0x09700;  /* IRQ 15 - UART0_TC */
   .isr_uart0_tc : {
     KEEP(*(.isr_uart0_tc))
     . = ALIGN(4);
   }
 
-  . = 0x0B800;  /* IRQ 0 - SYSTEM WDT */
+  . = 0x09800;  /* IRQ 0 - SYSTEM WDT */
   .isr_sys_wdt : {
     KEEP(*(.isr_sys_wdt))
     . = ALIGN(4);
   }
 
-  . = 0x0B900;  /* IRQ 9 - SPI0_TC */
+  . = 0x09900;  /* IRQ 9 - SPI0_TC */
   .isr_spi0_tc : {
     KEEP(*(.isr_spi0_tc))
     . = ALIGN(4);
   }
 
-  . = 0x0BA00;  /* IRQ 10 - SPI0_TE */
+  . = 0x09A00;  /* IRQ 10 - SPI0_TE */
   .isr_spi0_te : {
     KEEP(*(.isr_spi0_te))
     . = ALIGN(4);
@@ -185,13 +206,13 @@ SECTIONS
    * slots ABOVE the 0xBB00 parking word (still inside the private TCM, inside
    * the uniform 4096-word tile stage/copy). Empty unless a test (shafe.S)
    * invokes the source-55/56 handlers; DEFINE_IVT points slots 55/56 here. */
-  . = 0x0BC00;  /* IRQ 55 - AFE_SHARED (OR of the four AFE IF levels) */
+  . = 0x09C00;  /* IRQ 55 - AFE_SHARED (OR of the four AFE IF levels) */
   .isr_afe_shared : {
     KEEP(*(.isr_afe_shared))
     . = ALIGN(4);
   }
 
-  . = 0x0BD00;  /* IRQ 56 - EIS engine level */
+  . = 0x09D00;  /* IRQ 56 - EIS engine level */
   .isr_eis : {
     KEEP(*(.isr_eis))
     . = ALIGN(4);

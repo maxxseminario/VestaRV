@@ -142,14 +142,14 @@ gpio5_b7_h:
     .org 0x14C
     jal  zero, 0x0BB00           # 83 msip  -> park
     jal  zero, 0x0BB00           # 84 mtip  -> park
-    jal  zero, 0x0B100           # 85 meip  -> env dispatcher (.isr_meip)
+    jal  zero, 0x09100           # 85 meip  -> env dispatcher (.isr_meip)
     .org 0x188
     jal  zero, gpio4_b0_h        # 98  (0x8188)
     .org 0x1C4
     jal  zero, gpio5_b7_h        # 113 (0x81C4)
     .previous
 
-    # ---- env meip dispatcher (.isr_meip @0xB100) --------------------------
+    # ---- env meip dispatcher (.isr_meip @0x9100) --------------------------
     MEIP_DISPATCHER()
 
     RVTEST_CODE_END              # unimp (traps) — never reached

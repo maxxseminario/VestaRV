@@ -506,7 +506,7 @@ npu0_conv_td_isr:
     sw   t1, 0(t0)
     ret
 
-    # ---- env meip dispatcher (.isr_meip @0xB100) + IVT slot 85 ----------
+    # ---- env meip dispatcher (.isr_meip @0x9100) + IVT slot 85 ----------
     MEIP_DISPATCHER()
     IVT_ARM_MEIP()
 

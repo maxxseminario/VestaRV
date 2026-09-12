@@ -216,11 +216,12 @@ _NOC_BENCHMARKS = [
 
 # Every linked benchmark and micro-kernel image, as one label.
 #
-# Consumed by //tools/build:verification_image_map_test. link_bmark.ld places
-# .text at a fixed 0x8200 and lets the benchmark's own working set run on from
-# there, so a benchmark whose arrays outgrow the private TCM overruns it
-# silently: the link succeeds, the .rcf has the right word count, and only the
-# runtime is wrong.
+# Consumed by //tools/build:verification_image_map_test. link_bmark.ld pins
+# .text at 0x8200 in the TCM window and bases the working set at 0x10000, the
+# shared-RAM window; before 2026-09-12 it let the working set run on from .text,
+# so a benchmark whose arrays outgrew the private TCM overran it silently (the
+# link succeeds, the .rcf has the right word count, and only the runtime is
+# wrong) and nine of them did.
 filegroup(
     name = "cpi_elfs",
     srcs = ["%s.elf" % k for k in _MICRO_KERNELS] +

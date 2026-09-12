@@ -122,13 +122,13 @@ i3c0_nack_h:
     .org 0x14C
     jal  zero, 0x0BB00           # 83 msip  -> park
     jal  zero, 0x0BB00           # 84 mtip  -> park
-    jal  zero, 0x0B100           # 85 meip  -> env dispatcher (.isr_meip)
+    jal  zero, 0x09100           # 85 meip  -> env dispatcher (.isr_meip)
     jal  zero, i3c0_tc_h         # 86 (0x8158)
     .org 0x164
     jal  zero, i3c0_nack_h       # 89 (0x8164)
     .previous
 
-    # ---- env meip dispatcher (.isr_meip @0xB100) --------------------------
+    # ---- env meip dispatcher (.isr_meip @0x9100) --------------------------
     MEIP_DISPATCHER()
 
     RVTEST_CODE_END              # unimp (traps) — never reached
