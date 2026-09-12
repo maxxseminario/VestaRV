@@ -99,7 +99,7 @@ package system_regs_pkg is
     constant WDTPASS_WORD             : natural := 12;
     constant WDTPASS_ADDR             : natural := 48;
     constant WDTPASS_RESET            : std_logic_vector(31 downto 0) := "00000000000000000000000000000000";
-    constant WDTPASS_IMPL             : std_logic_vector(31 downto 0) := "11111111111111111111111111111111";
+    constant WDTPASS_IMPL             : std_logic_vector(31 downto 0) := "00000000000000000000000000000000";
     constant SYSWDTPASS_MSB           : natural := 31;
     constant SYSWDTPASS_LSB           : natural := 0;
     constant SYSWDTPASS_RESET         : std_logic_vector(31 downto 0) := "00000000000000000000000000000000";
@@ -222,7 +222,7 @@ package system_regs_pkg is
         x"00000000",   -- _reserved_9
         x"00000000",   -- _reserved_10
         x"00000000",   -- _reserved_11
-        x"FFFFFFFF",   -- WDTPASS
+        x"00000000",   -- WDTPASS
         x"000000BF",   -- WDTCR
         x"00000000",   -- WDTSR
         x"00000000",   -- WDTVAL

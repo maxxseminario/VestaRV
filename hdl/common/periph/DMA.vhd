@@ -151,7 +151,7 @@ architecture behavioral of DMA is
     constant DMA_WIDEWR : std_logic_vector(0 to NWORDS-1) := (others => '1');
 
     -- The DMA0CR bits a read returns: the enable and the two IE bits. GO and ABORT
-    -- are software storage the description declares, and they read 0.
+    -- are sw=w commands, so IMPL gives them no storage and they read 0.
     constant CR_RD_MASK : word := (DMAERRIE_LSB  => '1',
                                    DMADONEIE_LSB => '1',
                                    DMAEN_LSB     => '1',

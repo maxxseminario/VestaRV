@@ -110,9 +110,9 @@ architecture behavioral of EVFAB is
     -- TASKSEL at bits 11:8 as well as EVSEL at 4:0).
     constant WIDEWR_EVF : std_logic_vector(0 to NWORDS-1) := (others => '1');
 
-    -- EVFCHTRIG and EVFEVTRIG are sw=rw in the description and stored by nothing
-    -- here: they are ACTION slots, decoded in the clk domain below, and they read
-    -- 0. RDTHRU with no hw_rd row is that read.
+    -- EVFCHTRIG and EVFEVTRIG are sw=w in the description, so IMPL gives them no
+    -- storage: they are ACTION slots, decoded in the clk domain below, and they
+    -- read 0. RDTHRU with no hw_rd row says the same thing at the read mux.
     constant RDTHRU_EVF : std_logic_vector(0 to NWORDS-1) :=
         (SLOT_CHTRIG => '1', SLOT_EVTRIG => '1', others => '0');
 
@@ -185,7 +185,7 @@ begin
        produces exactly one injection or clear however long the select is held,
        which no ClkMem-domain strobe can promise. Those five words hold no
        storage here (EVFFIRED / EVFOVR / EVFEVSTAT are hardware's stickies, and
-       EVFCHTRIG / EVFEVTRIG are RDTHRU), so the module and the action path never
+       EVFCHTRIG / EVFEVTRIG are sw=w and outside IMPL), so the module and the action path never
        touch the same flop.
 
        STROBE_HOLD is false and no strobe output is used: the only bus hook this

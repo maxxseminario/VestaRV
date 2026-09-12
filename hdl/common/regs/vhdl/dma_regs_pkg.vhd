@@ -15,7 +15,7 @@ package dma_regs_pkg is
     constant DMAxCR_WORD              : natural := 0;
     constant DMAxCR_ADDR              : natural := 0;
     constant DMAxCR_RESET             : std_logic_vector(31 downto 0) := "00000000000000000000000000000000";
-    constant DMAxCR_IMPL              : std_logic_vector(31 downto 0) := "00000000000000000011000111111111";
+    constant DMAxCR_IMPL              : std_logic_vector(31 downto 0) := "00000000000000000011000000000001";
     constant DMAERRIE_MSB             : natural := 13;
     constant DMAERRIE_LSB             : natural := 13;
     constant DMAERRIE_RESET           : std_logic_vector(0 downto 0) := "0";
@@ -290,7 +290,7 @@ package dma_regs_pkg is
 
     -- bits that hold a software-written flop; periph_regs stores exactly these
     constant IMPL     : reg_arr_t := (
-        x"000031FF",   -- DMAxCR
+        x"00003001",   -- DMAxCR
         x"00000000",   -- DMAxSR
         x"FFFFFFFF",   -- DMAxC0SRC
         x"FFFFFFFF",   -- DMAxC0DST
