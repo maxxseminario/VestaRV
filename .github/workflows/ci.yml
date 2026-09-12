@@ -238,6 +238,10 @@ jobs:
       # standing mechanism; the rule is that the tag comes off in the same
       # commit that adjudicates the failure - see BAZEL.md "Known red".
       #
+      # //hdl/common/synth is excluded for the same reason: it is the
+      # `ghdl --synth` synthesizability gate, so every one of its 27 targets
+      # runs the simulator.  It runs in sim.yml, beside the benches.
+      #
       # //verification/cpi is excluded for the same reason as
       # //opensource_sim and //hdl/common/tb: its tests run GHDL, and pulling
       # @ghdl into this job would make it build the simulator from source. It
@@ -254,7 +258,7 @@ jobs:
             --test_output=errors \
             --test_summary=detailed \
             -- //... -//opensource_sim/... -//hdl/common/tb/... -//toolchains/... \
-               -//verification/cpi/... \
+               -//hdl/common/synth/... -//verification/cpi/... \
             2>&1 | tee bazel_ci.log
 
       # BAZEL.md's central claim: everything under `bazel build`/`bazel test`

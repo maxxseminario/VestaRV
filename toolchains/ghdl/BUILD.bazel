@@ -3,6 +3,8 @@
 # The patch below is referenced from MODULE.bazel's single_version_override for
 # the ghdl module, so it has to be an exported source file of a real package.
 
+load("@rules_python//python:defs.bzl", "py_binary", "py_test")
+
 package(default_visibility = ["//visibility:public"])
 
 exports_files(["ghdl_system_ld.patch"])
@@ -17,4 +19,89 @@ alias(
 alias(
     name = "vhdl_libs_v08",
     actual = "@ghdl//:vhdl_libs_v08",
+)
+
+# ---------------------------------------------------------------------------
+# The synthesizability gate and its frozen census
+# ---------------------------------------------------------------------------
+
+# Three roles in one script (run / gate / freeze), so the raw-netlist parser
+# has exactly one definition.  It is a build TOOL for ghdl_synth_test's synth
+# action, the test BINARY that reads the census that action wrote, and the
+# comparator behind the frozen table.
+py_binary(
+    name = "synth_census",
+    srcs = ["synth_census.py"],
+    main = "synth_census.py",
+)
+
+exports_files([
+    "synth_census.py",
+    "synth_census.json",
+])
+
+# The file list the census comparator reads, one path per line.  Same shape
+# and same reason as //tools/ci:vhdl_source_manifest: args built out of
+# $(rootpaths ...) are shell-tokenized, which quietly loses any path
+# containing a space, and a 25-entry list on a command line is unreadable in
+# a failure message.  $(rootpaths) rather than $(SRCS) because these are
+# GENERATED files, whose exec path and runfiles path differ.
+genrule(
+    name = "census_manifest",
+    testonly = True,
+    srcs = ["//hdl/common/synth:synth_censuses"],
+    outs = ["census_manifest.txt"],
+    cmd = "for f in $(rootpaths //hdl/common/synth:synth_censuses); do echo $$f; done > $@",
+)
+
+# PROVES that no block's flop count, latch count, cell count or latch-module
+# list moved since the table was last blessed.  A behavioural bench does not
+# see a register bank that doubles, a reset that stops reaching a flop, or a
+# clock gate that grows a second latch: all three keep the same waveform on
+# the stimulus the bench drives and change the silicon.  This is the
+# instrument for that class.
+#
+# A change that is intended is blessed by regenerating the table IN THE SAME
+# COMMIT as the RTL change:
+#
+#     tools/bin/bazel run //toolchains/ghdl:synth_census_update
+py_test(
+    name = "synth_census_test",
+    size = "small",
+    srcs = ["synth_census.py"],
+    args = [
+        "freeze",
+        "--frozen",
+        "$(rootpath synth_census.json)",
+        "--census-from",
+        "$(rootpath :census_manifest)",
+    ],
+    data = [
+        "synth_census.json",
+        "//hdl/common/synth:synth_censuses",
+        ":census_manifest",
+    ],
+    main = "synth_census.py",
+)
+
+# The blessing half of the pair.  It reads the same manifest the test reads
+# and writes through BUILD_WORKSPACE_DIRECTORY, which only `bazel run` sets --
+# running it any other way is refused rather than writing into the sandbox.
+py_binary(
+    name = "synth_census_update",
+    testonly = True,
+    srcs = ["synth_census.py"],
+    args = [
+        "freeze",
+        "--update",
+        "--frozen",
+        "toolchains/ghdl/synth_census.json",
+        "--census-from",
+        "$(rootpath :census_manifest)",
+    ],
+    data = [
+        "//hdl/common/synth:synth_censuses",
+        ":census_manifest",
+    ],
+    main = "synth_census.py",
 )

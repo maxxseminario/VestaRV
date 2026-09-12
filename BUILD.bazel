@@ -6,10 +6,29 @@
 # test, so it is exported here rather than read off the source tree.
 exports_files([".bazelignore"])
 
+load("@rules_shell//shell:sh_binary.bzl", "sh_binary")
+
 # Convenience entry point: bazel run //:generate
 alias(
     name = "generate",
     actual = "//platform/common/python:generate",
+)
+
+# Everything derived from the register descriptions, in dependency order:
+# .rdl -> VHDL packages -> C headers -> chip generator. bazel run //:regs
+sh_binary(
+    name = "regs",
+    srcs = ["//tools/build:regs.sh"],
+    args = [
+        "$(rootpath //platform/common/python:rdl_vhdl_pkgs)",
+        "$(rootpath //platform/common/python:rdl_regs_headers)",
+        "$(rootpath //platform/common/python:generate)",
+    ],
+    data = [
+        "//platform/common/python:rdl_vhdl_pkgs",
+        "//platform/common/python:rdl_regs_headers",
+        "//platform/common/python:generate",
+    ],
 )
 
 # The measured analog chapter, spliced into the TRM by

@@ -97,10 +97,16 @@ jobs:
       # slowest test in this job at about 4 minutes, and it is the fast half of
       # its bench: :rv4th_forth_full adds the 131 ms clock-frequency
       # measurement and is `manual`. Named explicitly, same rule as above.
+      # //hdl/common/synth:synth is the `ghdl --synth` synthesizability gate
+      # and //toolchains/ghdl:synth_census_test the frozen flop/latch/cell
+      # table it feeds.  They live here, not in ci.yml's `//...` job, because
+      # they run the simulator: ci.yml excludes them for the same reason it
+      # excludes //hdl/common/tb.  All 28 together add under 4 s.
       - name: Run ISA regression + GHDL unit benches
         run: |
           set -o pipefail
           tools/bin/bazel test //opensource_sim:isa_regression //hdl/common/tb:all \
+            //hdl/common/synth:synth //toolchains/ghdl:synth_census_test \
             //verification/cpi:cpi_default \
             //opensource_sim/pmp:pmp \
             //opensource_sim/mcu:mcu_elaborate \

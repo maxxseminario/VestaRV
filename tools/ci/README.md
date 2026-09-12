@@ -60,3 +60,31 @@ ceiling, and nothing tracked sits under a `.bazelignore`'d tree.
 
     python3 tools/ci/check_repo_hygiene.py              # whole tree
     python3 tools/ci/check_repo_hygiene.py --base main  # only a branch's adds
+
+## The synthesis census - flop, latch and cell counts (bazel test)
+
+Not in this directory, but in the same family of gates and easy to miss:
+`//toolchains/ghdl:synth_census_test` grades every block in `hdl/common/`
+against the frozen table `toolchains/ghdl/synth_census.json`, and
+`//hdl/common/synth:synth` runs `ghdl --synth` on each of them.
+
+The synth suite refuses a `wait` statement in a process, an incomplete `if`
+that infers a latch, and a constant index outside its array bound - the three
+mistakes that previously reached Genus, which needs a license, takes minutes,
+and does not run on every commit. The census catches what no bench can see: a
+register bank that doubles, a reset that stops reaching a flop, a clock gate
+that grows a second latch. All 27 targets together run in about 1.4 s.
+
+    tools/bin/bazel test //hdl/common/synth:synth //toolchains/ghdl:synth_census_test
+
+A count that moved on purpose is blessed by regenerating the table **in the
+same commit** as the RTL change, which is the same discipline the CRLF
+manifest is under:
+
+    tools/bin/bazel run //toolchains/ghdl:synth_census_update
+
+Two blocks are documented skips, and the reason is itself frozen: `SYSTEM`
+(GHDL 6.0.0 raises CONSTRAINT_ERROR on the `ClkEn(1) => open` individual
+association) and `periph_regs` (its eleven `word_array` generics have no
+default, so it cannot be a top level; it is graded through the sixteen
+peripherals that instantiate it). Details in `hdl/common/synth/BUILD.bazel`.
