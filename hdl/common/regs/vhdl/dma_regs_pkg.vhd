@@ -258,8 +258,8 @@ package dma_regs_pkg is
     constant DMAxDESC_IMPL            : std_logic_vector(31 downto 0) := "00000000000000000000000000000000";
 
     -- periph_regs tables (hdl/common/periph_regs.vhd), one row per word in slot
-    -- order. Every mask below is a property of this description. RDTHRU, WIDEWR
-    -- and STROBE_HOLD are the entity's own and are set at the instance;
+    -- order. Every mask below is a property of this description. RDTHRU, WIDEWR,
+    -- FULLWR and STROBE_HOLD are the entity's own and are set at the instance;
     -- hdl/common/regs/REGFILE.md says why they cannot come from SystemRDL.
     constant NWORDS                   : natural := 20;
     subtype  reg_arr_t is word_array(0 to NWORDS-1);

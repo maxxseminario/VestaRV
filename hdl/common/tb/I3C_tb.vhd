@@ -301,6 +301,24 @@ begin
             end if;
         end procedure;
 
+        -- Byte-lane write. periph_tb_pkg.bus_write always drives WEn = "0000", so a
+        -- per-lane write cannot be expressed through the shared BFM; GROUP 0b below needs
+        -- one to prove that each lane reaches exactly the bits the register map says.
+        procedure bus_write_lanes(slot  : in natural;
+                                  lanes : in std_logic_vector(3 downto 0);
+                                  data  : in std_logic_vector(31 downto 0)) is
+        begin
+            wait until clk = '0';
+            pbus.addr_periph <= std_logic_vector(to_unsigned(slot, 6));
+            pbus.write_data  <= data;
+            pbus.wen         <= lanes;
+            pbus.en_mem      <= '0';
+            wait until clk = '1';
+            wait until clk = '0';
+            pbus.en_mem <= '1';
+            pbus.wen    <= (others => '1');
+        end procedure;
+
         -- Program one DAT entry (slot 5 write: IDX also selects the entry).
         procedure prog_dat(idx       : natural;
                            evalid    : std_logic;
@@ -340,6 +358,74 @@ begin
         sb.check_slv("GROUP0: RX resets to 0", rdw, x"00000000");
         bus_read(clk, pbus, rdata_out, SlotI3CxCR, rdw);
         sb.check_slv("GROUP0: CR resets to 0 except SDAPP=1", rdw, x"00000004");
+        bus_read(clk, pbus, rdata_out, SlotI3CxCMD, rdw);
+        sb.check_slv("GROUP0: CMD resets to 0", rdw, x"00000000");
+        bus_read(clk, pbus, rdata_out, SlotI3CxTX, rdw);
+        sb.check_slv("GROUP0: TX resets to 0", rdw, x"00000000");
+        bus_read(clk, pbus, rdata_out, 9, rdw);
+        sb.check_slv("GROUP0: slot 9, outside the nine-word window, reads 0", rdw, x"00000000");
+
+        -- GROUP 0b: the register file itself -- readback, implemented-bit masks, byte
+        -- lanes and the read-only register. I3CEN is 0 for the whole group (CR resets to
+        -- SDAPP alone and is restored to it at the end), so a CMD write is storage here:
+        -- the launch guard suppresses the transaction.
+        report "=== GROUP 0b: register file ===" severity note;
+
+        -- CR[7:4] and CMD[15:14] carry no field in i3c.rdl. The hand-written decode
+        -- stored them anyway and read back whatever had been written; the register file
+        -- holds exactly the implemented bits, so they now read 0. Nothing in the block
+        -- ever consumed either range. These two checks were added AFTER the migration
+        -- and pin that change; every other check in this group predates it.
+        bus_write(clk, pbus, SlotI3CxCR, x"000000F0");
+        bus_read(clk, pbus, rdata_out, SlotI3CxCR, rdw);
+        sb.check_slv("GROUP0b: CR[7:4] is reserved and reads 0", rdw, x"00000000");
+        bus_write(clk, pbus, SlotI3CxCMD, x"0000C000");
+        bus_read(clk, pbus, rdata_out, SlotI3CxCMD, rdw);
+        sb.check_slv("GROUP0b: CMD[15:14] is reserved and reads 0", rdw, x"00000000");
+
+        bus_write(clk, pbus, SlotI3CxCMD, x"7FFF3FFF");
+        bus_read(clk, pbus, rdata_out, SlotI3CxCMD, rdw);
+        sb.check_slv("GROUP0b: CMD holds every field bit written", rdw, x"7FFF3FFF");
+        bus_write(clk, pbus, SlotI3CxCMD, x"00000000");
+        bus_write_lanes(SlotI3CxCMD, "1011", x"00FF0000");
+        bus_read(clk, pbus, rdata_out, SlotI3CxCMD, rdw);
+        sb.check_slv("GROUP0b: CMD lane 2 alone moves bits 23:16", rdw, x"00FF0000");
+        bus_write(clk, pbus, SlotI3CxCMD, x"00000000");
+        bus_read(clk, pbus, rdata_out, SlotI3CxCMD, rdw);
+        sb.check_slv("GROUP0b: CMD back to 0", rdw, x"00000000");
+
+        bus_write(clk, pbus, SlotI3CxTX, x"7FFFFFA5");
+        bus_read(clk, pbus, rdata_out, SlotI3CxTX, rdw);
+        sb.check_slv("GROUP0b: TX implements bits 7:0 only", rdw, x"000000A5");
+        bus_write(clk, pbus, SlotI3CxTX, x"00000000");
+
+        bus_write(clk, pbus, SlotI3CxRX, x"7FFFFFFF");
+        bus_read(clk, pbus, rdata_out, SlotI3CxRX, rdw);
+        sb.check_slv("GROUP0b: RX is read-only", rdw, x"00000000");
+
+        bus_write(clk, pbus, SlotI3CxCR, x"3FFFFF0E");   -- every field bit but I3CEN
+        bus_read(clk, pbus, rdata_out, SlotI3CxCR, rdw);
+        sb.check_slv("GROUP0b: CR holds every field bit written", rdw, x"3FFFFF0E");
+        bus_write(clk, pbus, SlotI3CxCR, x"00000000");
+        bus_write_lanes(SlotI3CxCR, "0111", x"7F000000");
+        bus_read(clk, pbus, rdata_out, SlotI3CxCR, rdw);
+        sb.check_slv("GROUP0b: CR lane 3 alone moves bits 29:24", rdw, x"3F000000");
+        bus_write(clk, pbus, SlotI3CxCR, x"00000004");   -- back to the reset value
+        bus_read(clk, pbus, rdata_out, SlotI3CxCR, rdw);
+        sb.check_slv("GROUP0b: CR back to its reset value", rdw, x"00000004");
+
+        -- The DAT window holds four entries, so an IDX of 4 to 7 selects none: the
+        -- write stores nothing and all three slots read back the IDX field alone.
+        -- GROUP12 onwards only ever uses entries 0 to 2, so this is the one place
+        -- the out-of-range arm of the DAT read is exercised.
+        prog_dat(5, '1', "1111111", '1', "1111111", '1');
+        bus_read(clk, pbus, rdata_out, SlotI3CxDAT, rdw);
+        sb.check_slv("GROUP0b: DAT at IDX 5 reads the index alone", rdw, x"00000005");
+        bus_read(clk, pbus, rdata_out, SlotI3CxDATPID, rdw);
+        sb.check_slv("GROUP0b: DATPID at IDX 5 reads 0", rdw, x"00000000");
+        bus_read(clk, pbus, rdata_out, SlotI3CxDATINFO, rdw);
+        sb.check_slv("GROUP0b: DATINFO at IDX 5 reads 0", rdw, x"00000000");
+        prog_dat(0, '0', "0000000", '0', "0000000", '0');   -- IDX back to 0
 
         -- GROUP 1: SDR write (obs_wdata + parity-ok)
         report "=== GROUP 1: SDR write ===" severity note;

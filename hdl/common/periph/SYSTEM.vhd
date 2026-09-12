@@ -104,7 +104,24 @@ architecture rtl of SYSTEM is
     signal wdt_if             : std_logic;
 
     -- Memory Interface Signals
-    signal en_addr_periph     : natural range 0 to 63;
+    -- The bus side is one periph_regs instance driven by system_regs_pkg's SPARSE
+    -- tables: eleven registers over eighteen words, with the seven retired
+    -- SYS_IRQ slots emitted as all-zero _reserved_ rows that store nothing and
+    -- read 0. See hdl/common/regs/REGFILE.md.
+    signal regs_q             : reg_arr_t;                       -- the stored words
+    signal hw_rd_s            : reg_arr_t;                       -- the read source for the words this module does not store
+    signal w1c_s              : reg_arr_t;                       -- a 1 written to a WDT_SR flag
+    signal acc_s              : std_logic_vector(0 to NWORDS-1); -- combinational: this slot is addressed now
+    signal wr_str             : std_logic_vector(0 to NWORDS-1);
+    signal wr_inh             : std_logic_vector(0 to NWORDS-1); -- per word: refuse the write
+
+    -- Zero-extend a register field to a bus word.
+    function pad(v : std_logic_vector) return word is
+        variable r : word := (others => '0');
+    begin
+        r(v'length - 1 downto 0) := v;
+        return r;
+    end function;
 
     -- Core Signal Declarations 
     signal resetn_sync        : std_logic;
@@ -158,31 +175,40 @@ architecture rtl of SYSTEM is
 
 begin
 
-    -- Register Routing 
+    -- Register Routing
+    -- The six stored registers are periph_regs' storage; every field slice below
+    -- is the package's, so no bit literal in this file describes a register.
+    SYS_CLK_CR     <= regs_q(RegSlotSYS_CLK_CR)(SYS_CLK_CR'range);
+    SYS_CLK_DIV_CR <= regs_q(RegSlotSYS_CLK_DIV_CR)(SYS_CLK_DIV_CR'range);
+    SYS_BLOCK_PWR  <= regs_q(RegSlotSYS_BLOCK_PWR)(SYS_BLOCK_PWR'range);
+    SYS_CRC_DATA   <= regs_q(RegSlotSYS_CRC_DATA)(SYS_CRC_DATA'range);
+    SYS_WDT_CR     <= regs_q(RegSlotSYS_WDT_CR)(SYS_WDT_CR'range);
+    DCO0_BIAS      <= regs_q(RegSlotDCO0_BIAS)(SYSDCO0BIAS_MSB downto SYSDCO0BIAS_LSB);
+    DCO1_BIAS      <= regs_q(RegSlotDCO1_BIAS)(SYSDCO1BIAS_MSB downto SYSDCO1BIAS_LSB);
 
-    dco1_on       <= SYS_CLK_CR(8);
-    dco0_on       <= SYS_CLK_CR(7);
-    clk_hfxt_off  <= SYS_CLK_CR(6);
-    clk_lfxt_off  <= SYS_CLK_CR(5);
-    smclk_off     <= SYS_CLK_CR(4);
-    smclk_sel     <= SYS_CLK_CR(3 downto 2);
-    mclk_sel      <= SYS_CLK_CR(1 downto 0);
-   
-    smclk_div     <= SYS_CLK_DIV_CR(5 downto 3);
-    mclk_div      <= SYS_CLK_DIV_CR(2 downto 0);
+    dco1_on       <= SYS_CLK_CR(DCO1ON_LSB);
+    dco0_on       <= SYS_CLK_CR(DCO0ON_LSB);
+    clk_hfxt_off  <= SYS_CLK_CR(HFXTOFF_LSB);
+    clk_lfxt_off  <= SYS_CLK_CR(LFXTOFF_LSB);
+    smclk_off     <= SYS_CLK_CR(SMCLKOFF_LSB);
+    smclk_sel     <= SYS_CLK_CR(SMCLKSEL_MSB downto SMCLKSEL_LSB);
+    mclk_sel      <= SYS_CLK_CR(MCLKSEL_MSB downto MCLKSEL_LSB);
 
-    ram_off       <= SYS_BLOCK_PWR(2 downto 1);
-    rom_off       <= SYS_BLOCK_PWR(0);
-    shb_off       <= SYS_BLOCK_PWR(6 downto 3);  -- shared bulk-RAM banks
+    smclk_div     <= SYS_CLK_DIV_CR(SYSSMCLKDIV_MSB downto SYSSMCLKDIV_LSB);
+    mclk_div      <= SYS_CLK_DIV_CR(SYSMCLKDIV_MSB downto SYSMCLKDIV_LSB);
 
-    wdt_en        <= SYS_WDT_CR(7);
-    wdt_cdiv      <= SYS_WDT_CR(5 downto 2);
-    wdt_ie        <= SYS_WDT_CR(1);
-    wdt_hwrst     <= SYS_WDT_CR(0);
+    ram_off       <= SYS_BLOCK_PWR(SYSRAM1OFF_MSB downto SYSRAM0OFF_LSB);
+    rom_off       <= SYS_BLOCK_PWR(SYSROMOFF_LSB);
+    shb_off       <= SYS_BLOCK_PWR(SYSSHB3OFF_MSB downto SYSSHB0OFF_LSB);  -- shared bulk-RAM banks
+
+    wdt_en        <= SYS_WDT_CR(SYSWDTEN_LSB);
+    wdt_cdiv      <= SYS_WDT_CR(SYSWDTCDIV_MSB downto SYSWDTCDIV_LSB);
+    wdt_ie        <= SYS_WDT_CR(SYSWDTIE_LSB);
+    wdt_hwrst     <= SYS_WDT_CR(SYSWDTHWRST_LSB);
 
     SYS_WDT_SR    <= (
-        0 => wdt_rf, 
-        1 => wdt_if
+        SYSWDTRF_LSB => wdt_rf,
+        SYSWDTIF_LSB => wdt_if
     );
 
     -- Assign Outputs 
@@ -536,156 +562,107 @@ begin
     );
 
     -- Memory-Mapped Register Interface
-    en_addr_periph <= slv2uint(addr_periph) when en_mem = '0' else 0;
+    -- One periph_regs instance replaces the slot decode, the byte-lane write case,
+    -- the write-1-to-clear arm and the registered read mux. The tables are
+    -- SPARSE: words 5-11, the retired SYS_IRQ_EN/PRI/CR slots, are all-zero
+    -- _reserved_ rows, which is the `when others` arm this deletes.
+    --
+    -- Two per-word write qualifiers the description cannot state:
+    --   FULLWR on WDT_PASS, because a password compared a byte at a time is a
+    --   password guessed a byte at a time;
+    --   wr_inhibit on WDT_CR, because its write is live state -- it lands only
+    --   inside the 64-cycle window a correct password opens.
+    --
+    -- STROBE_HOLD is TRUE: unlock, clr_wdt and the two flag clears are level
+    -- inputs to processes on clk_wdt and clk_unlock and must last the whole
+    -- select window, which is what `if en_mem = '1' then <strobe> <= '0'` said.
+    u_regs: entity work.periph_regs
+        generic map (
+            NWORDS      => NWORDS,
+            RSTVAL      => RSTVAL,
+            IMPL        => IMPL,
+            W1C         => W1C,
+            WOSET       => WOSET,
+            WOT         => WOT,
+            PULSE       => PULSE,
+            RCLR        => RCLR,
+            HWOWN       => HWOWN,
+            -- CRC_STATE is the CRC engine's output and WDT_PASS reads 0; both are
+            -- sw=rw in the description, so both hold storage here and read through.
+            RDTHRU      => "000010000000100000",
+            FULLWR      => "000000000000100000",
+            STROBE_HOLD => true)
+        port map (
+            ClkMem      => clk_mem,
+            resetn      => resetn_sys,
+            EnMemPeriph => en_mem,
+            WEn         => wen,
+            MABPart     => addr_periph,
+            wdata       => write_data,
+            rdata_out   => read_data,
+            regs        => regs_q,
+            wr_inhibit  => wr_inh,
+            hw_rd       => hw_rd_s,
+            acc_hit     => acc_s,
+            rd_strobe   => open,
+            wr_strobe   => wr_str,
+            wr_pulse    => open,
+            w1c_hit     => w1c_s,
+            woset_hit   => open,
+            wot_hit     => open,
+            rd_clr      => open);
 
-    -- Register Write Process: byte-lane-enabled writes on clk_mem, plus the one-shot WDT command strobes cleared whenever the block is deselected.
-    reg_write_proc: process(resetn_sys, clk_mem, en_mem)
+    -- The four words whose read value is not this module's storage. WDT_PASS is
+    -- absent on purpose: it reads 0, which an RDTHRU word with no hw_rd row does.
+    hw_rd_s <= (RegSlotSYS_CRC_STATE => pad(SYS_CRC_STATE),
+                RegSlotSYS_WDT_SR    => pad(SYS_WDT_SR),
+                RegSlotSYS_WDT_VAL   => pad(SYS_WDT_VAL),
+                others               => (others => '0'));
+
+    -- WDT_CR takes a write only while the unlock window is open.
+    wr_inh <= (RegSlotSYS_WDT_CR => not unlocked, others => '0');
+
+    -- The two passwords. wr_strobe is already qualified on the full-word write by
+    -- FULLWR above, and write_data holds for the select window, so this level is
+    -- exactly the flop the case arm used to set and deselect used to clear.
+    unlock  <= '1' when wr_str(RegSlotSYS_WDT_PASS) = '1'
+                    and write_data = WDT_UNLCK_PASSWD else '0';
+    clr_wdt <= '1' when wr_str(RegSlotSYS_WDT_PASS) = '1'
+                    and write_data = WDT_CLR_PASSWD   else '0';
+
+    -- The two status flags are hardware's, so their flops stay with the hardware
+    -- that sets them and periph_regs only reports the written 1.
+    clr_wdt_rf <= w1c_s(RegSlotSYS_WDT_SR)(SYSWDTRF_LSB);
+    clr_wdt_if <= w1c_s(RegSlotSYS_WDT_SR)(SYSWDTIF_LSB);
+
+    -- The CRC chain: a data-byte write advances it, a state write restarts it.
+    -- Both are write side effects on the ENGINE, not on storage, so they take the
+    -- unregistered hook with their own lanes, exactly as the case arms did.
+    crc_proc: process(resetn_sys, clk_mem)
     begin
         if resetn_sys = '0' then
             crc_prev        <= (others => '1');
             first_crc_flag  <= '0';
-
-            SYS_CLK_CR      <= (others => '0');
-            SYS_CLK_DIV_CR  <= (others => '0');
-            SYS_BLOCK_PWR   <= (others => '0');
-            SYS_WDT_CR      <= (others => '0');
-            DCO0_BIAS       <= DCO0_BIAS_DEFAULT;
-            DCO1_BIAS       <= DCO1_BIAS_DEFAULT;
-            
         elsif rising_edge(clk_mem) then
-            if en_mem = '0' then
-                case en_addr_periph is
-                   when RegSlotSYS_CLK_CR =>
-                        if wen(0) = '0' then
-                            SYS_CLK_CR(7 downto 0) <= write_data(7 downto 0);
-                        end if;
-                        if wen(1) = '0' then
-                            SYS_CLK_CR(SYS_CLK_CR'high downto 8) <= write_data(SYS_CLK_CR'high downto 8);
-                        end if;
-                    when RegSlotSYS_CLK_DIV_CR =>
-                        if wen(0) = '0' then
-                            SYS_CLK_DIV_CR(5 downto 0) <= write_data(5 downto 0);
-                        end if;
-                    when RegSlotSYS_BLOCK_PWR =>
-                        if wen(0) = '0' then
-                            SYS_BLOCK_PWR <= write_data(SYS_BLOCK_PWR'high downto 0);
-                        end if;
-                    when RegSlotSYS_CRC_DATA =>
-                        -- Feeding a data byte advances the CRC; the first byte after a seed write starts from the seed instead of the running state.
-                        if wen(0) = '0' then
-                            SYS_CRC_DATA <= write_data(7 downto 0);
-                            crc_prev <= (others => '1');
-                            if first_crc_flag = '0' then
-                                crc_prev <= SYS_CRC_STATE;
-                            end if;
-                            first_crc_flag <= '0';
-                        end if;
-                    when RegSlotSYS_CRC_STATE =>
-                        -- Writing the state seeds the CRC for the next data byte.
-                        if wen(0) = '0' then
-                            crc_prev(7 downto 0) <= write_data(7 downto 0);
-                            first_crc_flag <= '1';
-                        end if;
-                        if wen(1) = '0' then
-                            crc_prev(15 downto 8) <= write_data(15 downto 8);
-                            first_crc_flag <= '1';
-                        end if;
-                    -- The SYS_IRQ_ENL/ENM/ENU, PRIL/PRIM/PRIU and IRQ_CR slots are reserved: their writes fall through to 'others' and they read 0.
-                    when RegSlotSYS_WDT_CR =>
-                        if unlocked = '1' and wen(0) = '0' then
-                            SYS_WDT_CR(SYS_WDT_CR'high downto 0) <= write_data(SYS_WDT_CR'high downto 0);
-                        end if;
-                    when RegSlotSYS_WDT_SR =>
-                        -- Writing to SR clears flags
-                        if wen(0) = '0' then
-                            if write_data(0) = '1' then
-                                clr_wdt_rf <= '1';
-                            end if;
-                            if write_data(1) = '1' then
-                                clr_wdt_if <= '1';
-                            end if;
-                        end if;
-                    when RegSlotSYS_WDT_PASS =>
-                        -- Password slot, full-word writes only: one password opens the 64-cycle unlock window, the other clears the counter.
-                        if wen = "0000" then
-                            if write_data = WDT_UNLCK_PASSWD then
-                                unlock <= '1';
-                            end if;
-                            if write_data = WDT_CLR_PASSWD then
-                                clr_wdt <= '1';
-                            end if;
-                        end if;
-                    when RegSlotDCO0_BIAS =>
-                        if wen(0) = '0' then
-                            DCO0_BIAS(7 downto 0) <= write_data(7 downto 0);
-                        end if;
-                        if wen(1) = '0' then
-                            DCO0_BIAS(DCO0_BIAS'high downto 8) <= write_data(DCO0_BIAS'high downto 8);
-                        end if;
-                    when RegSlotDCO1_BIAS =>
-                        if wen(0) = '0' then
-                            DCO1_BIAS(7 downto 0) <= write_data(7 downto 0);
-                        end if;
-                        if wen(1) = '0' then
-                            DCO1_BIAS(DCO1_BIAS'high downto 8) <= write_data(DCO1_BIAS'high downto 8);
-                        end if;
-                    when others =>
-                        null;
-                end case;
+            -- Feeding a data byte advances the CRC; the first byte after a seed write starts from the seed instead of the running state.
+            if acc_s(RegSlotSYS_CRC_DATA) = '1' and wen(0) = '0' then
+                crc_prev <= (others => '1');
+                if first_crc_flag = '0' then
+                    crc_prev <= SYS_CRC_STATE;
+                end if;
+                first_crc_flag <= '0';
             end if;
-        end if;
-
-        if resetn_sys = '0' or en_mem = '1' then
-            unlock <= '0';
-            clr_wdt <= '0';
-            clr_wdt_rf <= '0';
-            clr_wdt_if <= '0';
-        end if;
-    end process;
-
-
-
-
-    -- Register Read Process: registered reads, one case arm per implemented slot, everything else reads 0.
-    -- TODO: Fix this process for register sizing
-    reg_read_proc: process(clk_mem)
-    begin
-        if rising_edge(clk_mem) then
-            case en_addr_periph is
-                when RegSlotSYS_CLK_CR =>
-                    read_data <= (others => '0');
-                    read_data(SYS_CLK_CR'high downto SYS_CLK_CR'low) <= SYS_CLK_CR;
-                when RegSlotSYS_CLK_DIV_CR =>
-                    read_data <= (others => '0');
-                    read_data(SYS_CLK_DIV_CR'high downto SYS_CLK_DIV_CR'low) <= SYS_CLK_DIV_CR;
-                when RegSlotSYS_BLOCK_PWR =>
-                    read_data <= (others => '0');
-                    read_data(SYS_BLOCK_PWR'high downto SYS_BLOCK_PWR'low) <= SYS_BLOCK_PWR;
-                when RegSlotSYS_CRC_DATA =>
-                    read_data <= (others => '0');
-                    read_data(SYS_CRC_DATA'high downto SYS_CRC_DATA'low) <= SYS_CRC_DATA;
-                when RegSlotSYS_CRC_STATE =>
-                    read_data <= (others => '0');
-                    read_data(SYS_CRC_STATE'high downto SYS_CRC_STATE'low) <= SYS_CRC_STATE;
-                -- The SYS_IRQ_* slots fall through to 'others' and read 0.
-                when RegSlotSYS_WDT_CR =>
-                    read_data <= (others => '0');
-                    read_data(SYS_WDT_CR'high downto SYS_WDT_CR'low) <= SYS_WDT_CR;
-                when RegSlotSYS_WDT_SR =>
-                    read_data <= (others => '0');
-                    read_data(SYS_WDT_SR'high downto SYS_WDT_SR'low) <= SYS_WDT_SR;
-                when RegSlotSYS_WDT_VAL =>
-                    read_data <= (others => '0');
-                    read_data(SYS_WDT_VAL'high downto SYS_WDT_VAL'low) <= SYS_WDT_VAL;
-                when RegSlotDCO0_BIAS =>
-                    read_data <= (others => '0');
-                    read_data(DCO0_BIAS'high downto DCO0_BIAS'low) <= DCO0_BIAS;
-                when RegSlotDCO1_BIAS =>
-                    read_data <= (others => '0');
-                    read_data(DCO1_BIAS'high downto DCO1_BIAS'low) <= DCO1_BIAS;
-                when others =>
-                    read_data <= (others => '0');
-            end case;
+            -- Writing the state seeds the CRC for the next data byte.
+            if acc_s(RegSlotSYS_CRC_STATE) = '1' then
+                if wen(0) = '0' then
+                    crc_prev(7 downto 0) <= write_data(7 downto 0);
+                    first_crc_flag <= '1';
+                end if;
+                if wen(1) = '0' then
+                    crc_prev(15 downto 8) <= write_data(15 downto 8);
+                    first_crc_flag <= '1';
+                end if;
+            end if;
         end if;
     end process;
 

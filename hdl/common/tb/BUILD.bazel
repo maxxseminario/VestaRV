@@ -284,6 +284,7 @@ vhdl_source_set(
         "hdl/common/sim/ClkGate.vhd",
         "hdl/common/sim/ClockMuxGlitchFree.vhd",
         "hdl/common/commune/CRC16.vhd",
+        "hdl/common/periph_regs.vhd",
         "hdl/common/regs/vhdl/system_regs_pkg.vhd",
         "hdl/common/periph/SYSTEM.vhd",
     ],
@@ -316,12 +317,62 @@ vhdl_source_set(
     pool = ["//hdl:vhdl_sources"],
 )
 
+# TRNG: the entropy source model TrngRoEnsemble_sim.vhd is a SIBLING of the DUT
+# in the bench, so it is in this list; TrngRoEnsemble.vhd, the real ring
+# architecture of the same entity, must NEVER be (its combinational rings
+# delta-loop a behavioural simulator into zero-time oscillation).
+vhdl_source_set(
+    name = "trng_rtl",
+    paths = [
+        "hdl/common/constants.vhd",
+        "hdl/common/periph_regs.vhd",
+        "hdl/common/regs/vhdl/trng_regs_pkg.vhd",
+        "hdl/common/periph/TrngRoEnsemble_sim.vhd",
+        "hdl/common/periph/TRNG.vhd",
+    ],
+    pool = ["//hdl:vhdl_sources"],
+)
+
+vhdl_source_set(
+    name = "pwm_rtl",
+    paths = [
+        "hdl/common/constants.vhd",
+        "hdl/common/periph_regs.vhd",
+        "hdl/common/regs/vhdl/pwm_regs_pkg.vhd",
+        "hdl/common/periph/PWM.vhd",
+    ],
+    pool = ["//hdl:vhdl_sources"],
+)
+
+vhdl_source_set(
+    name = "onewire_rtl",
+    paths = [
+        "hdl/common/constants.vhd",
+        "hdl/common/periph_regs.vhd",
+        "hdl/common/regs/vhdl/onewire_regs_pkg.vhd",
+        "hdl/common/periph/OneWire.vhd",
+    ],
+    pool = ["//hdl:vhdl_sources"],
+)
+
+vhdl_source_set(
+    name = "i2ctarget_rtl",
+    paths = [
+        "hdl/common/constants.vhd",
+        "hdl/common/periph_regs.vhd",
+        "hdl/common/regs/vhdl/i2ctarget_regs_pkg.vhd",
+        "hdl/common/periph/I2CTarget.vhd",
+    ],
+    pool = ["//hdl:vhdl_sources"],
+)
+
 vhdl_source_set(
     name = "gpio_rtl",
     paths = [
         "hdl/common/constants.vhd",
         "hdl/common/MemoryMap.vhd",
         "hdl/common/sim/ClkGate.vhd",
+        "hdl/common/periph_regs.vhd",
         "hdl/common/regs/vhdl/gpio_regs_pkg.vhd",
         "hdl/common/periph/GPIO.vhd",
     ],
@@ -347,6 +398,7 @@ vhdl_source_set(
         "hdl/common/constants.vhd",
         "hdl/common/MemoryMap.vhd",
         "hdl/common/sim/ClkGate.vhd",
+        "hdl/common/periph_regs.vhd",
         "hdl/common/regs/vhdl/spi_regs_pkg.vhd",
         "hdl/common/periph/SPI.vhd",
     ],
@@ -362,6 +414,7 @@ vhdl_source_set(
         "hdl/common/MemoryMap.vhd",
         "hdl/common/sim/ClkGate.vhd",
         "hdl/common/commune/ClkDivPower2.vhd",
+        "hdl/common/periph_regs.vhd",
         "hdl/common/regs/vhdl/i2c_regs_pkg.vhd",
         "hdl/common/periph/I2C.vhd",
     ],
@@ -472,6 +525,35 @@ ghdl_test(
     tags = ["ghdl"],
 )
 
+vhdl_source_set(
+    name = "evfab_rtl",
+    paths = [
+        "hdl/common/constants.vhd",
+        "hdl/common/periph_regs.vhd",
+        "hdl/common/regs/vhdl/evfab_regs_pkg.vhd",
+        "hdl/common/periph/EVFAB.vhd",
+    ],
+    pool = ["//hdl:vhdl_sources"],
+)
+
+# EVFAB is analysed and elaborated by //opensource_sim/mcu:mcu_elaborate but is
+# instantiated in no tracked configuration, so its register file had no oracle
+# until this bench (report R12e). Scope: the register file plus one path through
+# the crossbar; see the header of EVFAB_tb.vhd.
+ghdl_test(
+    name = "EVFAB_tb",
+    size = "small",
+    srcs = [
+        ":evfab_rtl",
+        "periph_tb_pkg.vhd",
+        "EVFAB_tb.vhd",
+    ],
+    entity = "EVFAB_tb",
+    pass_pattern = "ALL CHECKS PASSED",
+    sim_timeout_s = 120,
+    tags = ["ghdl"],
+)
+
 ghdl_test(
     name = "periph_regs_tb",
     size = "small",
@@ -570,5 +652,248 @@ ghdl_test(
     entity = "GPIO_tb",
     pass_pattern = "GPIO_TB PASS (1 expected negative-control failure)",
     sim_timeout_s = 300,
+    tags = ["ghdl"],
+)
+
+# ---------------------------------------------------------------------------
+# The four Xcelium-only peripheral benches, ported to GHDL 2026-09-11 (report
+# R12c) as the oracle for the periph_regs migration of TRNG, PWM, OneWire and
+# I2CTarget. Same criterion as the block above: every file in the closure is
+# tracked VHDL, with no vendor macro and no generated image.
+#
+# Each was run GREEN against the UNMIGRATED RTL before its block was rewritten,
+# so the oracle is not hollow.
+#
+# TRNG_tb and I2CTarget_tb each end with a deliberate negative control, so a
+# passing run reports exactly one failure and the pass_pattern is that bench's
+# own banner rather than "ALL CHECKS PASSED"; PWM_tb and OneWire_tb have none.
+# ---------------------------------------------------------------------------
+ghdl_test(
+    name = "TRNG_tb",
+    size = "small",
+    srcs = [
+        ":trng_rtl",
+        "periph_tb_pkg.vhd",
+        "trng_bfm_pkg.vhd",
+        "TRNG_tb.vhd",
+    ],
+    entity = "TRNG_tb",
+    pass_pattern = "TRNG_TB PASS (1 expected negative-control failure)",
+    sim_timeout_s = 600,
+    tags = ["ghdl"],
+)
+
+ghdl_test(
+    name = "PWM_tb",
+    size = "small",
+    srcs = [
+        ":pwm_rtl",
+        "periph_tb_pkg.vhd",
+        "pwm_bfm_pkg.vhd",
+        "PWM_tb.vhd",
+    ],
+    entity = "PWM_tb",
+    pass_pattern = "PWM_TB PASS (1 expected negative-control failure)",
+    sim_timeout_s = 600,
+    tags = ["ghdl"],
+)
+
+# OneWire_target_model.vhd is the bench-side 1-Wire device; it lives beside the
+# bench, not in //hdl, so it is a plain file in this list.
+ghdl_test(
+    name = "OneWire_tb",
+    size = "small",
+    srcs = [
+        ":onewire_rtl",
+        "periph_tb_pkg.vhd",
+        "onewire_bfm_pkg.vhd",
+        "onewire_target_model.vhd",
+        "OneWire_tb.vhd",
+    ],
+    entity = "OneWire_tb",
+    pass_pattern = "ONEWIRE_TB PASS (1 expected negative-control failure)",
+    sim_timeout_s = 600,
+    tags = ["ghdl"],
+)
+
+ghdl_test(
+    name = "I2CTarget_tb",
+    size = "small",
+    srcs = [
+        ":i2ctarget_rtl",
+        "periph_tb_pkg.vhd",
+        "i2ct_bfm_pkg.vhd",
+        "i2c_host_model.vhd",
+        "I2CTarget_tb.vhd",
+    ],
+    entity = "I2CTarget_tb",
+    pass_pattern = "I2CTARGET_TB PASS (1 expected negative-control failure)",
+    sim_timeout_s = 600,
+    tags = ["ghdl"],
+)
+
+# ---------------------------------------------------------------------------
+# QSPI, I3C and RTC: the three benches ported for the periph_regs wave-2
+# migration (report R12b). Same criterion as every target above -- the entire
+# source closure is tracked VHDL. Each bench carries its own deliberate
+# negative control as its last check, so a passing run ends with the scoreboard
+# reporting exactly one failure and the pass_pattern is the bench's own banner,
+# not "ALL CHECKS PASSED".
+#
+# Before this they were Xcelium-only (xcelium/mp_test), which is why report
+# R12a's survey listed mcu_elaborate as the only available oracle for all
+# three. It is not the only one any more: these three targets are the oracle
+# the migration is graded against, and each was run GREEN on the unmigrated
+# RTL first.
+# ---------------------------------------------------------------------------
+vhdl_source_set(
+    name = "qspi_rtl",
+    paths = [
+        "hdl/common/constants.vhd",
+        "hdl/common/sim/ClkGate.vhd",
+        "hdl/common/periph_regs.vhd",
+        "hdl/common/regs/vhdl/qspi_regs_pkg.vhd",
+        "hdl/common/periph/QSPI.vhd",
+    ],
+    pool = ["//hdl:vhdl_sources"],
+)
+
+vhdl_source_set(
+    name = "i3c_rtl",
+    paths = [
+        "hdl/common/constants.vhd",
+        "hdl/common/sim/ClkGate.vhd",
+        "hdl/common/periph_regs.vhd",
+        "hdl/common/regs/vhdl/i3c_regs_pkg.vhd",
+        "hdl/common/periph/I3C.vhd",
+    ],
+    pool = ["//hdl:vhdl_sources"],
+)
+
+vhdl_source_set(
+    name = "rtc_rtl",
+    paths = [
+        "hdl/common/constants.vhd",
+        "hdl/common/periph_regs.vhd",
+        "hdl/common/regs/vhdl/rtc_regs_pkg.vhd",
+        "hdl/common/periph/RTC.vhd",
+    ],
+    pool = ["//hdl:vhdl_sources"],
+)
+
+ghdl_test(
+    name = "QSPI_tb",
+    size = "small",
+    srcs = [
+        ":qspi_rtl",
+        "periph_tb_pkg.vhd",
+        "qspi_bfm_pkg.vhd",
+        "qspi_flash_model.vhd",
+        "QSPI_tb.vhd",
+    ],
+    entity = "QSPI_tb",
+    pass_pattern = "QSPI_TB PASS (1 expected negative-control failure)",
+    sim_timeout_s = 300,
+    tags = ["ghdl"],
+)
+
+ghdl_test(
+    name = "I3C_tb",
+    size = "small",
+    srcs = [
+        ":i3c_rtl",
+        "periph_tb_pkg.vhd",
+        "i3c_bfm_pkg.vhd",
+        "i3c_target_model.vhd",
+        "I3C_tb.vhd",
+    ],
+    entity = "I3C_tb",
+    pass_pattern = "I3C_TB PASS (1 expected negative-control failure)",
+    sim_timeout_s = 600,
+    tags = ["ghdl"],
+)
+
+ghdl_test(
+    name = "RTC_tb",
+    size = "small",
+    srcs = [
+        ":rtc_rtl",
+        "periph_tb_pkg.vhd",
+        "rtc_bfm_pkg.vhd",
+        "RTC_tb.vhd",
+    ],
+    entity = "RTC_tb",
+    pass_pattern = "RTC_TB PASS (1 expected negative-control failure)",
+    sim_timeout_s = 600,
+    tags = ["ghdl"],
+)
+
+# ---------------------------------------------------------------------------
+# DMA and NFC: two more Xcelium-only peripheral benches ported to GHDL
+# 2026-09-11 (report R12d), as the oracle for their periph_regs migration. Every
+# file in either closure is tracked VHDL, with no vendor macro and no generated
+# image, which is the same criterion the blocks above were admitted under.
+#
+# Both were run GREEN against the UNMIGRATED RTL first, and both report the same
+# check list after the rewrite: DMA 206 passes, NFC 103, each plus the one
+# deliberate negative control its pass_pattern accounts for.
+#
+# NPU's benches are NOT here: every one of them instantiates the sram1p16k_hvt_pg
+# macro and reads its vectors from files it opens by a bare name, so the closure
+# needs hdl/common/sim/ARM_IP_RAM.vhd and a working directory holding
+# verification/npu/conv_vectors. NPU_conv_tb does run that way, and did, but it
+# is not a target until those vectors can be placed at the runfiles root.
+# ---------------------------------------------------------------------------
+vhdl_source_set(
+    name = "dma_rtl",
+    paths = [
+        "hdl/common/constants.vhd",
+        "hdl/common/commune/CRC16.vhd",
+        "hdl/common/periph_regs.vhd",
+        "hdl/common/regs/vhdl/dma_regs_pkg.vhd",
+        "hdl/common/periph/DMA.vhd",
+    ],
+    pool = ["//hdl:vhdl_sources"],
+)
+
+vhdl_source_set(
+    name = "nfc_rtl",
+    paths = [
+        "hdl/common/constants.vhd",
+        "hdl/common/periph_regs.vhd",
+        "hdl/common/regs/vhdl/nfc_regs_pkg.vhd",
+        "hdl/common/periph/NFC.vhd",
+    ],
+    pool = ["//hdl:vhdl_sources"],
+)
+
+ghdl_test(
+    name = "DMA_tb",
+    size = "small",
+    srcs = [
+        ":dma_rtl",
+        "periph_tb_pkg.vhd",
+        "dma_bfm_pkg.vhd",
+        "DMA_tb.vhd",
+    ],
+    entity = "DMA_tb",
+    pass_pattern = "DMA_TB PASS (1 expected negative-control failure)",
+    sim_timeout_s = 600,
+    tags = ["ghdl"],
+)
+
+ghdl_test(
+    name = "NFC_tb",
+    size = "small",
+    srcs = [
+        ":nfc_rtl",
+        "periph_tb_pkg.vhd",
+        "nfc_bfm_pkg.vhd",
+        "nfc_reader_model.vhd",
+        "NFC_tb.vhd",
+    ],
+    entity = "NFC_tb",
+    pass_pattern = "NFC_TB PASS (1 expected negative-control failure)",
+    sim_timeout_s = 600,
     tags = ["ghdl"],
 )

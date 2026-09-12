@@ -1,6 +1,6 @@
 -- VestaRV: I3C controller
 -- MIPI I3C Basic controller, SDR private read/write plus legacy I2C: register file, baud generator, bit engine, framer FSM, dynamic-address engine with its DAT, in-band-interrupt monitor and the combinational pad-drive mux.
--- House style: registered read, two chained ClkGates for the baud divider, W1C clear pulses, and a transaction descriptor latched at launch.
+-- The bus side is one work.periph_regs instance driven by i3c_regs_pkg's tables (hdl/common/regs/REGFILE.md). The DAT window (slots 5-7) and the IBI capture are NOT register storage: they are an indexed side table and a capture snapshot, so they stay here behind acc_hit and feed hw_rd.
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -55,10 +55,18 @@ architecture behavioral of I3C is
                   P_IBI_HDR, P_IBI_ACK, P_IBI_MDB, P_IBI_MDBT, P_IBI_CAP);
     signal ph : ph_t;
 
-    -- ---- register storage ------------------------------------------------
-    signal I3CxCR  : std_logic_vector(29 downto 0); -- reset 0 except SDAPP=1
-    signal I3CxCMD : std_logic_vector(31 downto 0);
-    signal I3CxTX  : std_logic_vector(7 downto 0);
+    -- ---- register file ---------------------------------------------------
+    -- I3CxCR, I3CxCMD and I3CxTX are periph_regs storage, read out of regs_q.
+    -- I3CxRX and I3CxSR hold no flop there, because the serial core owns the
+    -- data byte and the flags. The DAT and IBI words read through hw_rd.
+    signal regs_q  : reg_arr_t;                        -- the stored words
+    signal hw_rd_s : reg_arr_t;                        -- read source for every word this block owns
+    signal w1c_s   : reg_arr_t;                        -- a 1 written to an I3CxSR flag
+    signal acc_s   : std_logic_vector(0 to NWORDS-1);  -- combinational: this slot is addressed now
+    signal sr_rd, rx_rd   : std_logic_vector(31 downto 0);
+    signal dat_rd, pid_rd : std_logic_vector(31 downto 0);
+    signal info_rd, ibi_rd: std_logic_vector(31 downto 0);
+
     signal I3CxRX  : std_logic_vector(7 downto 0);  -- volatile (FSM-written)
     signal I3CxSR  : std_logic_vector(10 downto 0); -- assembled status word
 
@@ -69,9 +77,6 @@ architecture behavioral of I3C is
     -- ---- CR field taps (live, combinational) -----------------------------
     signal q_en  : std_logic;
     signal tcie, errie, daaie, ibiie, rxfie, txeie : std_logic;
-
-    -- ---- memory-map decode -----------------------------------------------
-    signal i3c_slot : natural range 0 to 63;
 
     -- ---- launch / handshake / W1C clear pulses ---------------------------
     signal i3c_launch  : std_logic;  -- held level, retired by clr_launch (FSM)
@@ -197,30 +202,32 @@ architecture behavioral of I3C is
 begin
 
     -- Signal Routing --------------------------------
-    q_en  <= I3CxCR(0);
-    ibien <= I3CxCR(3);
-    tcie  <= I3CxCR(24);
-    errie <= I3CxCR(25);
-    daaie <= I3CxCR(26);
-    ibiie <= I3CxCR(27);
-    rxfie <= I3CxCR(28);
-    txeie <= I3CxCR(29);
+    -- Control-register field taps off the stored I3CxCR word. The ranges are
+    -- i3c_regs_pkg's, so no bit literal in this file describes a register.
+    q_en  <= regs_q(SLOT_CR)(I3CEN_LSB);
+    ibien <= regs_q(SLOT_CR)(I3CIBIEN_LSB);
+    tcie  <= regs_q(SLOT_CR)(I3CTCIE_LSB);
+    errie <= regs_q(SLOT_CR)(I3CERRIE_LSB);
+    daaie <= regs_q(SLOT_CR)(I3CDAAIE_LSB);
+    ibiie <= regs_q(SLOT_CR)(I3CIBIIE_LSB);
+    rxfie <= regs_q(SLOT_CR)(I3CRXFIE_LSB);
+    txeie <= regs_q(SLOT_CR)(I3CTXEIE_LSB);
 
     busy <= '0' when ph = P_IDLE else '1';
 
     -- I3CxSR assembly: bits 7-10 are DAADONE, DAAFULL, IBIP and the live IBIWON.
-    I3CxSR(0)  <= busy;
-    I3CxSR(1)  <= tcif_flag;
-    I3CxSR(2)  <= rxfull_flag;
-    I3CxSR(3)  <= txeif_flag;
-    I3CxSR(4)  <= anack_flag;
-    I3CxSR(5)  <= eodf_flag;
-    I3CxSR(6)  <= arblost_flag;
-    I3CxSR(7)  <= daadone_flag;
-    I3CxSR(8)  <= daafull_flag;
-    I3CxSR(9)  <= ibip_flag;
+    I3CxSR(I3CBUSY_LSB)     <= busy;
+    I3CxSR(I3CTCIF_LSB)     <= tcif_flag;
+    I3CxSR(I3CRXFULL_LSB)   <= rxfull_flag;
+    I3CxSR(I3CTXEIF_LSB)    <= txeif_flag;
+    I3CxSR(I3CANACK_LSB)    <= anack_flag;
+    I3CxSR(I3CEODF_LSB)     <= eodf_flag;
+    I3CxSR(I3CARBLOST_LSB)  <= arblost_flag;
+    I3CxSR(I3CDAADONE_LSB)  <= daadone_flag;
+    I3CxSR(I3CDAAFULL_LSB)  <= daafull_flag;
+    I3CxSR(I3CIBIP_LSB)     <= ibip_flag;
     -- IBIWON (live): high across the whole IBI service window (header..capture).
-    I3CxSR(10) <= '1' when (ph = P_IBI_HDR or ph = P_IBI_ACK or ph = P_IBI_MDB or
+    I3CxSR(I3CIBIWON_LSB) <= '1' when (ph = P_IBI_HDR or ph = P_IBI_ACK or ph = P_IBI_MDB or
                             ph = P_IBI_MDBT or ph = P_IBI_CAP) else '0';
 
     -- Odd-parity T of the latched write byte: T is the inverted xor of the data bits, so the byte plus T carries an odd number of ones.
@@ -272,119 +279,120 @@ begin
         end if;
     end process;
 
-    -- Memory Logic ---------------------------------
-    i3c_slot <= slv2uint(MABPart) when EnMemPeriph = '0' else 0;
+    -- The words this block owns rather than stores: the status and receive
+    -- snapshots re-inverted out of the pre-latch above, the DAT window read
+    -- through the persisted IDX, and the IBI capture. All four are read
+    -- combinationally here and registered by periph_regs' read flop on the same
+    -- ClkMem edge the hand-written read mux used.
+    sr_rd <= (31 downto I3CxSR_ltch'high + 1 => '0') & (not I3CxSR_ltch);
+    rx_rd <= (31 downto I3CxRX_ltch'high + 1 => '0') & (not I3CxRX_ltch);
 
-    -- Register write: a CMD lane-0 write is the sole launch trigger, and the content is always captured while the launch pulse is suppressed when I3CEN=0 or BUSY=1.
-    -- clr_launch, clr_tx_arm and the clr_* flag pulses retire asynchronously (level-sensitive) so the gated ClkMem never has to consume an FSM pulse.
-    reg_write: process(resetn, ClkMem, EnMemPeriph, clr_launch, clr_tx_arm, q_en)
+    -- DAT window, entry selected by the persisted IDX.
+    -- Only 4 entries exist, so indices 4-7 read back the IDX field alone.
+    dat_rd <= x"000" & dat_statvalid(dat_idx) & dat_stataddr(dat_idx) &
+                       dat_dynvalid(dat_idx)  & dat_dynaddr(dat_idx)  &
+                       dat_evalid(dat_idx)    & conv_std_logic_vector(dat_idx, 3)
+              when dat_idx < 4 else
+              (31 downto 3 => '0') & conv_std_logic_vector(dat_idx, 3);
+
+    pid_rd  <= dat_pid(dat_idx)(31 downto 0) when dat_idx < 4 else (others => '0');
+
+    info_rd <= dat_dcr(dat_idx) & dat_bcr(dat_idx) & dat_pid(dat_idx)(47 downto 32)
+               when dat_idx < 4 else (others => '0');
+
+    -- IBI capture: [17]IBIACKED [16]IBIHASDATA [15:8]IBIMDB [7]IBIVALID [6:0]IBIADDR.
+    -- Read straight from the capture registers, which are written only while BUSY and read only while idle.
+    ibi_rd <= (31 downto 18 => '0') &
+              ibi_acked & ibi_hasdata & ibi_mdb & ibi_valid & ibi_addr;
+
+    hw_rd_s <= (SLOT_RX      => rx_rd,
+                SLOT_SR      => sr_rd,
+                SLOT_DAT     => dat_rd,
+                SLOT_DATPID  => pid_rd,
+                SLOT_DATINFO => info_rd,
+                SLOT_IBI     => ibi_rd,
+                others       => (others => '0'));
+
+    -- RDTHRU names the three DAT words: the description gives them IMPL bits,
+    -- because a write to one of them is software storage, but the storage is a
+    -- FOUR-ENTRY table indexed by IDX and lives in the clk domain below, so the
+    -- read cannot come from a single word. periph_regs' copy of those words is
+    -- therefore unloaded and Genus sweeps it; ghdl --synth counts it.
+    -- I3CxIBI needs no RDTHRU: it holds no IMPL bit, so it reads hw_rd anyway.
+    -- STROBE_HOLD: the nine SR clears reach level-sensitive tail clears in the
+    -- clk_baud domain, so they are held for the whole selection, which is what
+    -- the hand-written clr_* pulses were.
+    u_regs: entity work.periph_regs
+        generic map (
+            NWORDS      => NWORDS,
+            RSTVAL      => RSTVAL,
+            IMPL        => IMPL,
+            W1C         => W1C,
+            WOSET       => WOSET,
+            WOT         => WOT,
+            PULSE       => PULSE,
+            RCLR        => RCLR,
+            HWOWN       => HWOWN,
+            RDTHRU      => "000001110",
+            STROBE_HOLD => true)
+        port map (
+            ClkMem      => ClkMem,
+            resetn      => resetn,
+            EnMemPeriph => EnMemPeriph,
+            WEn         => WEn,
+            MABPart     => MABPart,
+            wdata       => wdata,
+            rdata_out   => rdata_out,
+            regs        => regs_q,
+            hw_rd       => hw_rd_s,
+            acc_hit     => acc_s,
+            rd_strobe   => open,
+            wr_strobe   => open,
+            wr_pulse    => open,
+            w1c_hit     => w1c_s,
+            woset_hit   => open,
+            wot_hit     => open,
+            rd_clr      => open);
+
+    -- The nine write-1-to-clear flags, as held levels into the asynchronous
+    -- clears in fsm_proc. BUSY and IBIWON are hardware-driven and outside W1C,
+    -- so a 1 written to either reaches nothing, exactly as before.
+    clr_tcif    <= w1c_s(SLOT_SR)(I3CTCIF_LSB);
+    clr_rxfull  <= w1c_s(SLOT_SR)(I3CRXFULL_LSB);
+    clr_txeif   <= w1c_s(SLOT_SR)(I3CTXEIF_LSB);
+    clr_anack   <= w1c_s(SLOT_SR)(I3CANACK_LSB);
+    clr_eodf    <= w1c_s(SLOT_SR)(I3CEODF_LSB);
+    clr_arblost <= w1c_s(SLOT_SR)(I3CARBLOST_LSB);
+    clr_daadone <= w1c_s(SLOT_SR)(I3CDAADONE_LSB);
+    clr_daafull <= w1c_s(SLOT_SR)(I3CDAAFULL_LSB);
+    clr_ibip    <= w1c_s(SLOT_SR)(I3CIBIP_LSB);
+
+    -- The two held request levels the serial core retires itself, so neither can
+    -- be a periph_regs strobe: a lane-0 CMD write is the sole launch trigger,
+    -- and a lane-0 TX write arms the byte-pending handshake. Both take the
+    -- COMBINATIONAL acc_hit qualified by their own WEn(0), exactly as the raw
+    -- decode did, so the launch still lands on the edge the write does.
+    -- The launch is suppressed (a no-op, no corruption) when I3CEN = 0 or BUSY = 1.
+    -- tx_arm is deliberately NOT gated on q_en: a TX byte armed before I3CEN is
+    -- raised must survive to be consumed by P_WLOAD, so only reset or the FSM
+    -- consume-pulse retires it.
+    req_proc: process(resetn, ClkMem, clr_launch, clr_tx_arm)
     begin
-        if resetn = '0' then
-            I3CxCR  <= (2 => '1', others => '0'); -- SDAPP=1 reset default
-            I3CxCMD <= (others => '0');
-            I3CxTX  <= (others => '0');
-        elsif rising_edge(ClkMem) then
-            if EnMemPeriph = '0' then
-                case i3c_slot is
-                    when SLOT_CR =>
-                        if WEn(0) = '0' then I3CxCR(7 downto 0)   <= wdata(7 downto 0);   end if;
-                        if WEn(1) = '0' then I3CxCR(15 downto 8)  <= wdata(15 downto 8);  end if;
-                        if WEn(2) = '0' then I3CxCR(23 downto 16) <= wdata(23 downto 16); end if;
-                        if WEn(3) = '0' then I3CxCR(29 downto 24) <= wdata(29 downto 24); end if;
-                    when SLOT_CMD =>
-                        if WEn(0) = '0' then
-                            I3CxCMD(7 downto 0) <= wdata(7 downto 0);
-                            if q_en = '1' and busy = '0' then
-                                i3c_launch <= '1'; -- launch guard
-                            end if;
-                        end if;
-                        if WEn(1) = '0' then I3CxCMD(15 downto 8)  <= wdata(15 downto 8);  end if;
-                        if WEn(2) = '0' then I3CxCMD(23 downto 16) <= wdata(23 downto 16); end if;
-                        if WEn(3) = '0' then I3CxCMD(31 downto 24) <= wdata(31 downto 24); end if;
-                    when SLOT_TX =>
-                        if WEn(0) = '0' then
-                            I3CxTX <= wdata(7 downto 0);
-                            tx_arm <= '1'; -- arm the byte-pending handshake
-                        end if;
-                    when SLOT_SR =>
-                        if WEn(0) = '0' then -- W1C: writing a 1 clears, and BUSY(0) is read-only
-                            if wdata(1) = '1' then clr_tcif    <= '1'; end if;
-                            if wdata(2) = '1' then clr_rxfull  <= '1'; end if;
-                            if wdata(3) = '1' then clr_txeif   <= '1'; end if;
-                            if wdata(4) = '1' then clr_anack   <= '1'; end if;
-                            if wdata(5) = '1' then clr_eodf    <= '1'; end if;
-                            if wdata(6) = '1' then clr_arblost <= '1'; end if;
-                            if wdata(7) = '1' then clr_daadone <= '1'; end if;
-                            if wdata(8) = '1' then clr_daafull <= '1'; end if;
-                            if wdata(9) = '1' then clr_ibip    <= '1'; end if;
-                        end if;
-                    when others =>
-                        null; -- RX is read-only, and the DAT and IBI slots are written elsewhere
-                end case;
+        if rising_edge(ClkMem) then
+            if acc_s(SLOT_CMD) = '1' and WEn(0) = '0'
+               and q_en = '1' and busy = '0' then
+                i3c_launch <= '1';
+            end if;
+            if acc_s(SLOT_TX) = '1' and WEn(0) = '0' then
+                tx_arm <= '1';
             end if;
         end if;
 
-        -- Async clear-pulse retirement.
         if resetn = '0' or clr_launch = '1' then
             i3c_launch <= '0';
         end if;
-        -- Do not gate tx_arm on q_en: a TX byte armed before I3CEN is raised must survive to be consumed by P_WLOAD, so only reset or the FSM consume-pulse retires it.
         if resetn = '0' or clr_tx_arm = '1' then
             tx_arm <= '0';
-        end if;
-        if resetn = '0' or EnMemPeriph = '1' then
-            clr_tcif    <= '0';
-            clr_rxfull  <= '0';
-            clr_txeif   <= '0';
-            clr_anack   <= '0';
-            clr_eodf    <= '0';
-            clr_arblost <= '0';
-            clr_daadone <= '0';
-            clr_daafull <= '0';
-            clr_ibip    <= '0';
-        end if;
-    end process;
-
-    -- Synchronous register read: the volatile SR and RX come from the pre-latch (un-inverted), reserved slots read 0.
-    reg_read: process(ClkMem)
-    begin
-        if rising_edge(ClkMem) then
-            case i3c_slot is
-                when SLOT_CR      => rdata_out <= (31 downto 30 => '0') & I3CxCR;
-                when SLOT_CMD     => rdata_out <= I3CxCMD;
-                when SLOT_TX      => rdata_out <= (31 downto 8 => '0') & I3CxTX;
-                when SLOT_RX      => rdata_out <= (31 downto 8 => '0') & (not I3CxRX_ltch);
-                when SLOT_SR      => rdata_out <= (31 downto 11 => '0') & (not I3CxSR_ltch);
-                -- DAT window, entry selected by the persisted IDX.
-                -- Only 4 entries exist, so indices 4-7 read back the IDX field alone.
-                when SLOT_DAT     =>
-                    if dat_idx < 4 then
-                        rdata_out <= x"000" &
-                            dat_statvalid(dat_idx) & dat_stataddr(dat_idx) &
-                            dat_dynvalid(dat_idx)  & dat_dynaddr(dat_idx)  &
-                            dat_evalid(dat_idx)    &
-                            conv_std_logic_vector(dat_idx, 3);
-                    else
-                        rdata_out <= (31 downto 3 => '0') &
-                            conv_std_logic_vector(dat_idx, 3);
-                    end if;
-                when SLOT_DATPID  =>
-                    if dat_idx < 4 then rdata_out <= dat_pid(dat_idx)(31 downto 0);
-                    else                rdata_out <= (others => '0'); end if;
-                when SLOT_DATINFO =>
-                    if dat_idx < 4 then
-                        rdata_out <= dat_dcr(dat_idx) & dat_bcr(dat_idx) &
-                                     dat_pid(dat_idx)(47 downto 32);
-                    else
-                        rdata_out <= (others => '0');
-                    end if;
-                -- IBI capture: [17]IBIACKED [16]IBIHASDATA [15:8]IBIMDB [7]IBIVALID [6:0]IBIADDR.
-                -- Read straight from the capture registers, which are written only while BUSY and read only while idle.
-                when SLOT_IBI     =>
-                    rdata_out <= (31 downto 18 => '0') &
-                        ibi_acked & ibi_hasdata & ibi_mdb & ibi_valid & ibi_addr;
-                when others       => rdata_out <= (others => '0');
-            end case;
         end if;
     end process;
 
@@ -400,31 +408,31 @@ begin
             dat_statvalid <= (others => '0');
             dat_idx       <= 0;
         elsif rising_edge(clk) then
-            -- Firmware register writes (the gated-select equivalent of reg_write).
-            if EnMemPeriph = '0' and WEn(0) = '0' then
-                case i3c_slot is
-                    when SLOT_DAT =>
-                        idx_sel := slv2uint(wdata(2 downto 0));
-                        dat_idx <= idx_sel;
-                        if idx_sel < 4 then
-                            dat_evalid(idx_sel)    <= wdata(3);
-                            dat_dynaddr(idx_sel)   <= wdata(10 downto 4);
-                            dat_dynvalid(idx_sel)  <= wdata(11);
-                            dat_stataddr(idx_sel)  <= wdata(18 downto 12);
-                            dat_statvalid(idx_sel) <= wdata(19);
-                        end if;
-                    when SLOT_DATPID =>
-                        if dat_idx < 4 then
-                            dat_pid(dat_idx)(31 downto 0) <= wdata;
-                        end if;
-                    when SLOT_DATINFO =>
-                        if dat_idx < 4 then
-                            dat_pid(dat_idx)(47 downto 32) <= wdata(15 downto 0);
-                            dat_bcr(dat_idx)               <= wdata(23 downto 16);
-                            dat_dcr(dat_idx)               <= wdata(31 downto 24);
-                        end if;
-                    when others => null;
-                end case;
+            -- Firmware writes to slots 5/6/7, off the register file's combinational
+            -- acc_hit (EnMemPeriph-qualified, exactly what the raw decode was) and
+            -- this block's own WEn(0). The field ranges are i3c_regs_pkg's.
+            if WEn(0) = '0' then
+                if acc_s(SLOT_DAT) = '1' then
+                    idx_sel := slv2uint(wdata(I3CIDX_MSB downto I3CIDX_LSB));
+                    dat_idx <= idx_sel;
+                    if idx_sel < 4 then
+                        dat_evalid(idx_sel)    <= wdata(I3CEVALID_LSB);
+                        dat_dynaddr(idx_sel)   <= wdata(I3CDYNADDR_MSB downto I3CDYNADDR_LSB);
+                        dat_dynvalid(idx_sel)  <= wdata(I3CDYNVALID_LSB);
+                        dat_stataddr(idx_sel)  <= wdata(I3CSTATADDR_MSB downto I3CSTATADDR_LSB);
+                        dat_statvalid(idx_sel) <= wdata(I3CSTATVALID_LSB);
+                    end if;
+                elsif acc_s(SLOT_DATPID) = '1' then
+                    if dat_idx < 4 then
+                        dat_pid(dat_idx)(31 downto 0) <= wdata;
+                    end if;
+                elsif acc_s(SLOT_DATINFO) = '1' then
+                    if dat_idx < 4 then
+                        dat_pid(dat_idx)(47 downto 32) <= wdata(15 downto 0);
+                        dat_bcr(dat_idx)               <= wdata(23 downto 16);
+                        dat_dcr(dat_idx)               <= wdata(31 downto 24);
+                    end if;
+                end if;
             end if;
 
             -- DAA capture commit (rising edge of the held request only).
@@ -531,31 +539,33 @@ begin
                         clr_launch <= '1';
                         eod <= '0';
                         -- Latch the transaction descriptor (frozen at launch).
-                        t_addr    <= I3CxCMD(6 downto 0);
-                        t_rnw     <= I3CxCMD(7);
-                        t_stopen  <= I3CxCMD(9);
-                        t_dlen    <= slv2uint(I3CxCMD(23 downto 16));
-                        t_busmode <= I3CxCR(1);
-                        t_ppdata  <= I3CxCR(2) and (not I3CxCR(1));
-                        t_odbr    <= I3CxCR(15 downto 8);
-                        t_ppbr    <= I3CxCR(23 downto 16);
+                        t_addr    <= regs_q(SLOT_CMD)(I3CADDR_MSB downto I3CADDR_LSB);
+                        t_rnw     <= regs_q(SLOT_CMD)(I3CRNW_LSB);
+                        t_stopen  <= regs_q(SLOT_CMD)(I3CSTOPEN_LSB);
+                        t_dlen    <= slv2uint(regs_q(SLOT_CMD)(I3CDLEN_MSB downto I3CDLEN_LSB));
+                        t_busmode <= regs_q(SLOT_CR)(I3CBUSMODE_LSB);
+                        t_ppdata  <= regs_q(SLOT_CR)(I3CSDAPP_LSB) and (not regs_q(SLOT_CR)(I3CBUSMODE_LSB));
+                        t_odbr    <= regs_q(SLOT_CR)(I3CODBR_MSB downto I3CODBR_LSB);
+                        t_ppbr    <= regs_q(SLOT_CR)(I3CPPBR_MSB downto I3CPPBR_LSB);
                         -- CCC/DAA descriptor fields.
-                        t_ccc     <= I3CxCMD(10);
-                        t_cccdir  <= I3CxCMD(11);
-                        t_daarun  <= I3CxCMD(12);
-                        t_dasa    <= I3CxCMD(13);
-                        t_cccop   <= I3CxCMD(31 downto 24);
+                        t_ccc     <= regs_q(SLOT_CMD)(I3CCCC_LSB);
+                        t_cccdir  <= regs_q(SLOT_CMD)(I3CCCCDIR_LSB);
+                        t_daarun  <= regs_q(SLOT_CMD)(I3CDAARUN_LSB);
+                        t_dasa    <= regs_q(SLOT_CMD)(I3CDASA_LSB);
+                        t_cccop   <= regs_q(SLOT_CMD)(I3CCCCOP_MSB downto I3CCCCOP_LSB);
                         bitno     <= 0;
                         -- CCC/ENTDAA/SETDASA prepend the 0x7E broadcast plus W header; private transfers do not.
                         -- in_ccc_hdr routes that header ACK into the CCC/DAA sub-sequencer.
-                        if (I3CxCMD(10) or I3CxCMD(12) or I3CxCMD(13)) = '1' then
+                        if (regs_q(SLOT_CMD)(I3CCCC_LSB) or regs_q(SLOT_CMD)(I3CDAARUN_LSB)
+                            or regs_q(SLOT_CMD)(I3CDASA_LSB)) = '1' then
                             shift      <= "1111110" & '0';   -- 0x7E + W
                             in_ccc_hdr <= '1';
                         else
-                            shift      <= I3CxCMD(6 downto 0) & I3CxCMD(7); -- {addr,RnW}
+                            shift      <= regs_q(SLOT_CMD)(I3CADDR_MSB downto I3CADDR_LSB)
+                                          & regs_q(SLOT_CMD)(I3CRNW_LSB); -- {addr,RnW}
                             in_ccc_hdr <= '0';
                         end if;
-                        if I3CxCMD(8) = '1' then   -- CMD.SR: repeated-START entry
+                        if regs_q(SLOT_CMD)(I3CREPSTART_LSB) = '1' then   -- CMD.SR: repeated-START entry
                             ph <= P_SR;
                         else
                             ph <= P_START;
@@ -566,8 +576,8 @@ begin
                         clr_ibi_req <= '1';
                         t_busmode   <= '0';
                         t_ppdata    <= '0';
-                        t_odbr      <= I3CxCR(15 downto 8);
-                        t_ppbr      <= I3CxCR(23 downto 16);
+                        t_odbr      <= regs_q(SLOT_CR)(I3CODBR_MSB downto I3CODBR_LSB);
+                        t_ppbr      <= regs_q(SLOT_CR)(I3CPPBR_MSB downto I3CPPBR_LSB);
                         t_ibien     <= ibien;
                         pp_rate     <= '0';
                         ibi_acc     <= (others => '0');
@@ -658,7 +668,8 @@ begin
                 when P_WLOAD =>
                     scl_r <= '0'; sda_release <= '1'; sda_pp <= '0';
                     if tx_arm = '1' then
-                        shift <= I3CxTX; tx_byte <= I3CxTX;
+                        shift <= regs_q(SLOT_TX)(I3CTX_MSB downto I3CTX_LSB);
+                        tx_byte <= regs_q(SLOT_TX)(I3CTX_MSB downto I3CTX_LSB);
                         clr_tx_arm <= '1'; txeif_flag <= '1';
                         bitno <= 0; sub <= 0; ph <= P_WDATA;
                     end if;

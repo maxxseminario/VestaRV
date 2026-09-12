@@ -6,6 +6,8 @@
 
 library ieee;
 use ieee.std_logic_1164.all;
+library work;
+use work.constants.all;
 
 package system_regs_pkg is
 
@@ -174,7 +176,190 @@ package system_regs_pkg is
     constant RegSlotDCO0_BIAS         : natural := 16;
     constant RegSlotDCO1_BIAS         : natural := 17;
 
-    -- No periph_regs table section: its eleven registers are not a contiguous run of words,
-    -- so its words are not a dense array. See hdl/common/regs/REGFILE.md.
+    -- periph_regs tables (hdl/common/periph_regs.vhd), one row per word in slot
+    -- order. Every mask below is a property of this description. RDTHRU, WIDEWR,
+    -- FULLWR and STROBE_HOLD are the entity's own and are set at the instance;
+    -- hdl/common/regs/REGFILE.md says why they cannot come from SystemRDL.
+    -- The table is SPARSE: words 5-11 carry no register here, and the
+    -- all-zero _reserved_<word> row is what makes it read 0, store nothing
+    -- and take no hook, which is the `when others` arm it replaces.
+    constant NWORDS                   : natural := 18;
+    subtype  reg_arr_t is word_array(0 to NWORDS-1);
+
+    -- reset word, loaded on the asynchronous resetn
+    constant RSTVAL   : reg_arr_t := (
+        x"00000000",   -- SYSCLKCR
+        x"00000000",   -- CLKDIVCR
+        x"00000000",   -- BLOCKPWR
+        x"00000000",   -- CRCDATA
+        x"00000000",   -- CRCSTATE
+        x"00000000",   -- _reserved_5
+        x"00000000",   -- _reserved_6
+        x"00000000",   -- _reserved_7
+        x"00000000",   -- _reserved_8
+        x"00000000",   -- _reserved_9
+        x"00000000",   -- _reserved_10
+        x"00000000",   -- _reserved_11
+        x"00000000",   -- WDTPASS
+        x"00000000",   -- WDTCR
+        x"00000000",   -- WDTSR
+        x"00000000",   -- WDTVAL
+        x"00000800",   -- DCO0BIAS
+        x"00000800"    -- DCO1BIAS
+    );
+
+    -- bits that hold a software-written flop; periph_regs stores exactly these
+    constant IMPL     : reg_arr_t := (
+        x"000001FF",   -- SYSCLKCR
+        x"0000003F",   -- CLKDIVCR
+        x"0000007F",   -- BLOCKPWR
+        x"000000FF",   -- CRCDATA
+        x"0000FFFF",   -- CRCSTATE
+        x"00000000",   -- _reserved_5
+        x"00000000",   -- _reserved_6
+        x"00000000",   -- _reserved_7
+        x"00000000",   -- _reserved_8
+        x"00000000",   -- _reserved_9
+        x"00000000",   -- _reserved_10
+        x"00000000",   -- _reserved_11
+        x"FFFFFFFF",   -- WDTPASS
+        x"000000BF",   -- WDTCR
+        x"00000000",   -- WDTSR
+        x"00000000",   -- WDTVAL
+        x"00000FFF",   -- DCO0BIAS
+        x"00000FFF"    -- DCO1BIAS
+    );
+
+    -- a written 1 clears (onwrite = woclr): drives w1c_hit
+    constant W1C      : reg_arr_t := (
+        x"00000000",   -- SYSCLKCR
+        x"00000000",   -- CLKDIVCR
+        x"00000000",   -- BLOCKPWR
+        x"00000000",   -- CRCDATA
+        x"00000000",   -- CRCSTATE
+        x"00000000",   -- _reserved_5
+        x"00000000",   -- _reserved_6
+        x"00000000",   -- _reserved_7
+        x"00000000",   -- _reserved_8
+        x"00000000",   -- _reserved_9
+        x"00000000",   -- _reserved_10
+        x"00000000",   -- _reserved_11
+        x"00000000",   -- WDTPASS
+        x"00000000",   -- WDTCR
+        x"00000003",   -- WDTSR
+        x"00000000",   -- WDTVAL
+        x"00000000",   -- DCO0BIAS
+        x"00000000"    -- DCO1BIAS
+    );
+
+    -- a written 1 sets (onwrite = woset): drives woset_hit
+    constant WOSET    : reg_arr_t := (
+        x"00000000",   -- SYSCLKCR
+        x"00000000",   -- CLKDIVCR
+        x"00000000",   -- BLOCKPWR
+        x"00000000",   -- CRCDATA
+        x"00000000",   -- CRCSTATE
+        x"00000000",   -- _reserved_5
+        x"00000000",   -- _reserved_6
+        x"00000000",   -- _reserved_7
+        x"00000000",   -- _reserved_8
+        x"00000000",   -- _reserved_9
+        x"00000000",   -- _reserved_10
+        x"00000000",   -- _reserved_11
+        x"00000000",   -- WDTPASS
+        x"00000000",   -- WDTCR
+        x"00000000",   -- WDTSR
+        x"00000000",   -- WDTVAL
+        x"00000000",   -- DCO0BIAS
+        x"00000000"    -- DCO1BIAS
+    );
+
+    -- a written 1 toggles (onwrite = wot): drives wot_hit
+    constant WOT      : reg_arr_t := (
+        x"00000000",   -- SYSCLKCR
+        x"00000000",   -- CLKDIVCR
+        x"00000000",   -- BLOCKPWR
+        x"00000000",   -- CRCDATA
+        x"00000000",   -- CRCSTATE
+        x"00000000",   -- _reserved_5
+        x"00000000",   -- _reserved_6
+        x"00000000",   -- _reserved_7
+        x"00000000",   -- _reserved_8
+        x"00000000",   -- _reserved_9
+        x"00000000",   -- _reserved_10
+        x"00000000",   -- _reserved_11
+        x"00000000",   -- WDTPASS
+        x"00000000",   -- WDTCR
+        x"00000000",   -- WDTSR
+        x"00000000",   -- WDTVAL
+        x"00000000",   -- DCO0BIAS
+        x"00000000"    -- DCO1BIAS
+    );
+
+    -- self-clearing strobe (singlepulse): drives wr_pulse, stores nothing
+    constant PULSE    : reg_arr_t := (
+        x"00000000",   -- SYSCLKCR
+        x"00000000",   -- CLKDIVCR
+        x"00000000",   -- BLOCKPWR
+        x"00000000",   -- CRCDATA
+        x"00000000",   -- CRCSTATE
+        x"00000000",   -- _reserved_5
+        x"00000000",   -- _reserved_6
+        x"00000000",   -- _reserved_7
+        x"00000000",   -- _reserved_8
+        x"00000000",   -- _reserved_9
+        x"00000000",   -- _reserved_10
+        x"00000000",   -- _reserved_11
+        x"00000000",   -- WDTPASS
+        x"00000000",   -- WDTCR
+        x"00000000",   -- WDTSR
+        x"00000000",   -- WDTVAL
+        x"00000000",   -- DCO0BIAS
+        x"00000000"    -- DCO1BIAS
+    );
+
+    -- a read retires (onread = rclr): drives rd_clr
+    constant RCLR     : reg_arr_t := (
+        x"00000000",   -- SYSCLKCR
+        x"00000000",   -- CLKDIVCR
+        x"00000000",   -- BLOCKPWR
+        x"00000000",   -- CRCDATA
+        x"00000000",   -- CRCSTATE
+        x"00000000",   -- _reserved_5
+        x"00000000",   -- _reserved_6
+        x"00000000",   -- _reserved_7
+        x"00000000",   -- _reserved_8
+        x"00000000",   -- _reserved_9
+        x"00000000",   -- _reserved_10
+        x"00000000",   -- _reserved_11
+        x"00000000",   -- WDTPASS
+        x"00000000",   -- WDTCR
+        x"00000000",   -- WDTSR
+        x"00000000",   -- WDTVAL
+        x"00000000",   -- DCO0BIAS
+        x"00000000"    -- DCO1BIAS
+    );
+
+    -- bits hardware drives (hw = w or rw): what hw_we / hw_set / hw_clr may touch
+    constant HWOWN    : reg_arr_t := (
+        x"00000000",   -- SYSCLKCR
+        x"00000000",   -- CLKDIVCR
+        x"00000000",   -- BLOCKPWR
+        x"00000000",   -- CRCDATA
+        x"0000FFFF",   -- CRCSTATE
+        x"00000000",   -- _reserved_5
+        x"00000000",   -- _reserved_6
+        x"00000000",   -- _reserved_7
+        x"00000000",   -- _reserved_8
+        x"00000000",   -- _reserved_9
+        x"00000000",   -- _reserved_10
+        x"00000000",   -- _reserved_11
+        x"00000000",   -- WDTPASS
+        x"00000000",   -- WDTCR
+        x"00000003",   -- WDTSR
+        x"00FFFFFF",   -- WDTVAL
+        x"00000000",   -- DCO0BIAS
+        x"00000000"    -- DCO1BIAS
+    );
 
 end package system_regs_pkg;

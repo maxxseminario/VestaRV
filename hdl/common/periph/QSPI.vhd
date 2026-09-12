@@ -1,7 +1,7 @@
 -- VestaRV: quad-SPI controller
 -- One transaction at a time, CS0 only; a write to CMD is the sole transaction trigger.
 -- Transfer FSM is IDLE, CMD, ADDR, DUMMY, DATA, DONE, with zero-length phases skipped by construction.
--- Registered read path, two-chained-ClkGate baud divider and write clear-pulse retirement follow SPI.vhd's idioms.
+-- The bus side is one work.periph_regs instance driven by qspi_regs_pkg's tables (hdl/common/regs/REGFILE.md); the two-chained-ClkGate baud divider and the serial core are what is left here.
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -86,11 +86,16 @@ architecture behavioral of QSPI is
         return ST_DONE;
     end function;
 
-    -- Register signals.
-    signal QSPIxCR  : std_logic_vector(28 downto 0); -- control register (bits 31:29 unused)
-    signal QSPIxCMD : std_logic_vector(10 downto 0); -- [7:0] CMD, [9:8] DLEN, [10] DIR
-    signal QSPIxADR : std_logic_vector(31 downto 0);
-    signal QSPIxTX  : std_logic_vector(31 downto 0);
+    -- Register file. QSPIxCR, QSPIxCMD, QSPIxADR and QSPIxTX are periph_regs
+    -- storage, read out of regs_q; QSPIxRX and QSPIxSR hold no flop there,
+    -- because the serial core owns the data word and the flags.
+    signal regs_q   : reg_arr_t;                        -- the stored words
+    signal hw_rd_s  : reg_arr_t;                        -- read source for RX and SR
+    signal w1c_s    : reg_arr_t;                        -- a 1 written to a QSPIxSR flag
+    signal acc_s    : std_logic_vector(0 to NWORDS-1);  -- combinational: this slot is addressed now
+    signal sr_rd    : std_logic_vector(31 downto 0);    -- assembled SR read word
+    signal rx_rd    : std_logic_vector(31 downto 0);    -- assembled RX read word
+
     signal QSPIxRX  : std_logic_vector(31 downto 0);
     signal QSPIxSR  : std_logic_vector(3 downto 0);  -- [0]BUSY [1]TXEIF [2]RXFULL [3]TCIF
 
@@ -112,9 +117,6 @@ architecture behavioral of QSPI is
     signal q_br    : std_logic_vector(7 downto 0);
     signal q_tcie  : std_logic;
     signal q_rxfie : std_logic;
-
-    -- Memory-map decode.
-    signal qspi_slot : natural range 0 to 63;
 
     -- Write-side clear pulses: each is asserted for one ClkMem edge on a qualifying write and retired on resetn='0' or EnMemPeriph='1', so a one-cycle pulse never straddles two selections.
     -- qspi_launch instead retires on clr_qspi_launch, set by the clk_baud-domain FSM once it accepts the launch.
@@ -160,23 +162,25 @@ architecture behavioral of QSPI is
 begin
 
     -- Signal routing ---------------------
-    q_en    <= QSPIxCR(0);
-    q_cmdw  <= QSPIxCR(2 downto 1);
-    q_adrw  <= QSPIxCR(4 downto 3);
-    q_datw  <= QSPIxCR(6 downto 5);
-    q_cpol  <= QSPIxCR(7);
-    q_cpha  <= QSPIxCR(8);
-    q_awid  <= QSPIxCR(10 downto 9);
-    q_dummy <= QSPIxCR(15 downto 11);
-    -- QSPIxCR(18 downto 16) = CSSEL, reserved and ignored in the MVP (CS0 only).
-    q_br    <= QSPIxCR(26 downto 19);
-    q_tcie  <= QSPIxCR(27);
-    q_rxfie <= QSPIxCR(28);
+    -- Control-register field taps off the stored QSPIxCR word. The ranges are
+    -- qspi_regs_pkg's, so no bit literal in this file describes a register.
+    q_en    <= regs_q(SLOT_CR)(QSPIEN_LSB);
+    q_cmdw  <= regs_q(SLOT_CR)(QSPICMDW_MSB  downto QSPICMDW_LSB);
+    q_adrw  <= regs_q(SLOT_CR)(QSPIADRW_MSB  downto QSPIADRW_LSB);
+    q_datw  <= regs_q(SLOT_CR)(QSPIDATW_MSB  downto QSPIDATW_LSB);
+    q_cpol  <= regs_q(SLOT_CR)(QSPICPOL_LSB);
+    q_cpha  <= regs_q(SLOT_CR)(QSPICPHA_LSB);
+    q_awid  <= regs_q(SLOT_CR)(QSPIAWID_MSB  downto QSPIAWID_LSB);
+    q_dummy <= regs_q(SLOT_CR)(QSPIDUMMY_MSB downto QSPIDUMMY_LSB);
+    -- QSPICSSEL is reserved and ignored in the MVP (CS0 only); it is stored for readback.
+    q_br    <= regs_q(SLOT_CR)(QSPIBR_MSB downto QSPIBR_LSB);
+    q_tcie  <= regs_q(SLOT_CR)(QSPITCIE_LSB);
+    q_rxfie <= regs_q(SLOT_CR)(QSPIRXFIE_LSB);
 
-    QSPIxSR(0) <= busy;
-    QSPIxSR(1) <= txeif_flag;
-    QSPIxSR(2) <= rxfull_flag;
-    QSPIxSR(3) <= tcif_flag;
+    QSPIxSR(QSPIBUSY_LSB)   <= busy;
+    QSPIxSR(QSPITXEIF_LSB)  <= txeif_flag;
+    QSPIxSR(QSPIRXFULL_LSB) <= rxfull_flag;
+    QSPIxSR(QSPITCIF_LSB)   <= tcif_flag;
 
     busy <= '0' when state = ST_IDLE else '1';
 
@@ -233,124 +237,78 @@ begin
         end if;
     end process;
 
-    --  Memory logic ---------------------------
-    qspi_slot <= slv2uint(MABPart) when EnMemPeriph = '0' else 0;
+    -- The words this block owns rather than stores: the status snapshot and the
+    -- receive word, both re-inverted out of the pre-latch above.
+    sr_rd <= (31 downto QSPIxSR_ltch'high + 1 => '0') & (not QSPIxSR_ltch);
+    rx_rd <= not QSPIxRX_ltch;
 
-    -- Register write process, byte-lane qualified by WEn (active low).
-    reg_write: process(resetn, ClkMem, EnMemPeriph, clr_qspi_launch)
+    hw_rd_s <= (SLOT_RX => rx_rd,
+                SLOT_SR => sr_rd,
+                others  => (others => '0'));
+
+    -- STROBE_HOLD: the three SR clears reach the level-sensitive tail clears of
+    -- fsm_proc, in the clk_baud domain, so they must be held for the whole
+    -- selection rather than pulsed for one ClkMem cycle. That is byte for byte
+    -- what the hand-written clr_* pulses were: set on the ClkMem edge of the
+    -- write, retired on resetn = '0' or EnMemPeriph = '1'.
+    -- No RDTHRU and no WIDEWR: QSPIxRX and QSPIxSR hold no IMPL bit, so they
+    -- read hw_rd without having to be named, and every other word merges per lane.
+    u_regs: entity work.periph_regs
+        generic map (
+            NWORDS      => NWORDS,
+            RSTVAL      => RSTVAL,
+            IMPL        => IMPL,
+            W1C         => W1C,
+            WOSET       => WOSET,
+            WOT         => WOT,
+            PULSE       => PULSE,
+            RCLR        => RCLR,
+            HWOWN       => HWOWN,
+            STROBE_HOLD => true)
+        port map (
+            ClkMem      => ClkMem,
+            resetn      => resetn,
+            EnMemPeriph => EnMemPeriph,
+            WEn         => WEn,
+            MABPart     => MABPart,
+            wdata       => wdata,
+            rdata_out   => rdata_out,
+            regs        => regs_q,
+            hw_rd       => hw_rd_s,
+            acc_hit     => acc_s,
+            rd_strobe   => open,
+            wr_strobe   => open,
+            wr_pulse    => open,
+            w1c_hit     => w1c_s,
+            woset_hit   => open,
+            wot_hit     => open,
+            rd_clr      => open);
+
+    -- The three write-1-to-clear flags, as held levels into the asynchronous
+    -- clears in fsm_proc. BUSY is hardware-driven and outside W1C, so a 1
+    -- written to it reaches nothing, exactly as before.
+    clr_txeif  <= w1c_s(SLOT_SR)(QSPITXEIF_LSB);
+    clr_rxfull <= w1c_s(SLOT_SR)(QSPIRXFULL_LSB);
+    clr_tcif   <= w1c_s(SLOT_SR)(QSPITCIF_LSB);
+
+    -- The SOLE transaction trigger: a lane-0 write to QSPIxCMD. periph_regs
+    -- captures the register content whatever happens; the launch is suppressed
+    -- (a no-op, no corruption) when QSPIEN = 0 or BUSY = 1.
+    -- It takes the COMBINATIONAL acc_hit and qualifies it with its own WEn(0),
+    -- exactly as the raw decode did, so the launch still lands on the edge the
+    -- write does. qspi_launch retires on clr_qspi_launch, set by the clk_baud
+    -- FSM once it accepts the launch, and not on deselect.
+    launch_proc: process(resetn, ClkMem, clr_qspi_launch)
     begin
-        if resetn = '0' then
-            QSPIxCR  <= (others => '0');
-            QSPIxCMD <= (others => '0');
-            QSPIxADR <= (others => '0');
-            QSPIxTX  <= (others => '0');
-        elsif rising_edge(ClkMem) then
-            if EnMemPeriph = '0' then
-                case qspi_slot is
-                    when SLOT_SR =>
-                        if WEn(0) = '0' then
-                            -- W1C: writing a 1 to a bit clears it.
-                            -- BUSY (bit 0) is read-only and hardware-driven, so writes to it are ignored.
-                            if wdata(1) = '1' then
-                                clr_txeif <= '1';
-                            end if;
-                            if wdata(2) = '1' then
-                                clr_rxfull <= '1';
-                            end if;
-                            if wdata(3) = '1' then
-                                clr_tcif <= '1';
-                            end if;
-                        end if;
-                    when SLOT_CR =>
-                        if WEn(0) = '0' then
-                            QSPIxCR(7 downto 0) <= wdata(7 downto 0);
-                        end if;
-                        if WEn(1) = '0' then
-                            QSPIxCR(15 downto 8) <= wdata(15 downto 8);
-                        end if;
-                        if WEn(2) = '0' then
-                            QSPIxCR(23 downto 16) <= wdata(23 downto 16);
-                        end if;
-                        if WEn(3) = '0' then
-                            QSPIxCR(28 downto 24) <= wdata(28 downto 24);
-                        end if;
-                    when SLOT_CMD =>
-                        -- The SOLE trigger: a write with WEn(0)='0' launches the transaction, and TX/ADR/CR writes never launch.
-                        -- Register content is always captured, but the launch pulse is suppressed (a no-op, no corruption) when QSPIEN=0 or BUSY=1.
-                        if WEn(0) = '0' then
-                            QSPIxCMD(7 downto 0) <= wdata(7 downto 0);
-                            if q_en = '1' and busy = '0' then
-                                qspi_launch <= '1';
-                            end if;
-                        end if;
-                        if WEn(1) = '0' then
-                            QSPIxCMD(10 downto 8) <= wdata(10 downto 8);
-                        end if;
-                    when SLOT_ADR =>
-                        if WEn(0) = '0' then
-                            QSPIxADR(7 downto 0) <= wdata(7 downto 0);
-                        end if;
-                        if WEn(1) = '0' then
-                            QSPIxADR(15 downto 8) <= wdata(15 downto 8);
-                        end if;
-                        if WEn(2) = '0' then
-                            QSPIxADR(23 downto 16) <= wdata(23 downto 16);
-                        end if;
-                        if WEn(3) = '0' then
-                            QSPIxADR(31 downto 24) <= wdata(31 downto 24);
-                        end if;
-                    when SLOT_TX =>
-                        if WEn(0) = '0' then
-                            QSPIxTX(7 downto 0) <= wdata(7 downto 0);
-                        end if;
-                        if WEn(1) = '0' then
-                            QSPIxTX(15 downto 8) <= wdata(15 downto 8);
-                        end if;
-                        if WEn(2) = '0' then
-                            QSPIxTX(23 downto 16) <= wdata(23 downto 16);
-                        end if;
-                        if WEn(3) = '0' then
-                            QSPIxTX(31 downto 24) <= wdata(31 downto 24);
-                        end if;
-                    when SLOT_RX =>
-                        null; -- RX is read-only: writes are ignored and have no side effect
-                    when others =>
-                        null;
-                end case;
+        if rising_edge(ClkMem) then
+            if acc_s(SLOT_CMD) = '1' and WEn(0) = '0'
+               and q_en = '1' and busy = '0' then
+                qspi_launch <= '1';
             end if;
         end if;
 
-        -- Clear-pulse retirement, level-sensitive so no pulse outlives its selection.
         if resetn = '0' or clr_qspi_launch = '1' then
             qspi_launch <= '0';
-        end if;
-        if resetn = '0' or EnMemPeriph = '1' then
-            clr_txeif  <= '0';
-            clr_rxfull <= '0';
-            clr_tcif   <= '0';
-        end if;
-    end process;
-
-    -- Register read process, synchronous on ClkMem.
-    process(ClkMem)
-    begin
-        if rising_edge(ClkMem) then
-            case qspi_slot is
-                when SLOT_SR =>
-                    rdata_out <= (31 downto QSPIxSR_ltch'high + 1 => '0') & (not QSPIxSR_ltch);
-                when SLOT_RX =>
-                    rdata_out <= not QSPIxRX_ltch;
-                when SLOT_CR =>
-                    rdata_out <= (31 downto QSPIxCR'high + 1 => '0') & QSPIxCR;
-                when SLOT_CMD =>
-                    rdata_out <= (31 downto QSPIxCMD'high + 1 => '0') & QSPIxCMD;
-                when SLOT_ADR =>
-                    rdata_out <= QSPIxADR;
-                when SLOT_TX =>
-                    rdata_out <= QSPIxTX;
-                when others =>
-                    rdata_out <= (others => '0');
-            end case;
         end if;
     end process;
 
@@ -383,9 +341,9 @@ begin
                         -- WRITE: QSPIxTX is read LIVE here, deliberately not latched at launch like the CMD/ADDR fields.
                         -- MSB-first with no byte swap: the low DLEN bits of the 32-bit register are the significant field.
                         case t_dlen is
-                            when "01"   => t_sreg <= QSPIxTX(7 downto 0) & x"000000";
-                            when "10"   => t_sreg <= QSPIxTX(15 downto 0) & x"0000";
-                            when others => t_sreg <= QSPIxTX; -- "11" (32-bit)
+                            when "01"   => t_sreg <= regs_q(SLOT_TX)(7 downto 0) & x"000000";
+                            when "10"   => t_sreg <= regs_q(SLOT_TX)(15 downto 0) & x"0000";
+                            when others => t_sreg <= regs_q(SLOT_TX); -- "11" (32-bit)
                         end case;
                     else
                         rx_sreg <= (others => '0');
@@ -424,12 +382,12 @@ begin
                         t_datw      <= q_datw;
                         t_awid      <= q_awid;
                         t_dummy_val <= slv2uint(q_dummy);
-                        t_dlen      <= QSPIxCMD(9 downto 8);
-                        t_dir       <= QSPIxCMD(10);
-                        t_cmd       <= QSPIxCMD(7 downto 0);
-                        t_addr      <= QSPIxADR;
+                        t_dlen      <= regs_q(SLOT_CMD)(QSPIDLEN_MSB downto QSPIDLEN_LSB);
+                        t_dir       <= regs_q(SLOT_CMD)(QSPIDIR_LSB);
+                        t_cmd       <= regs_q(SLOT_CMD)(QSPICMD_MSB downto QSPICMD_LSB);
+                        t_addr      <= regs_q(SLOT_ADR);
                         -- CMD phase is never zero-length: always entered first.
-                        t_sreg      <= QSPIxCMD(7 downto 0) & x"000000";
+                        t_sreg      <= regs_q(SLOT_CMD)(QSPICMD_MSB downto QSPICMD_LSB) & x"000000";
                         edge_cnt    <= 2 * (8 / width_bits(q_cmdw));
                         state       <= ST_CMD;
                     end if;

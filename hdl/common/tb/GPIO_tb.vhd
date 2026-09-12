@@ -225,6 +225,24 @@ begin
             task_outclr <= '0';
         end procedure;
 
+        -- periph_tb_pkg.bus_write always asserts all four lanes, so it cannot
+        -- express a byte lane, and PxAFS is the one GPIO register wide enough to
+        -- have four of them.
+        procedure bus_write_lanes(slot  : in natural;
+                                  lanes : in std_logic_vector(3 downto 0);
+                                  data  : in std_logic_vector(31 downto 0)) is
+        begin
+            wait until clk = '0';
+            pbus.addr_periph <= std_logic_vector(to_unsigned(slot, 6));
+            pbus.write_data  <= data;
+            pbus.wen         <= lanes;
+            pbus.en_mem      <= '0';
+            wait until clk = '1';
+            wait until clk = '0';
+            pbus.en_mem <= '1';
+            pbus.wen    <= (others => '1');
+        end procedure;
+
     begin
         -- Reset
         reset_pulse;
@@ -339,6 +357,94 @@ begin
         bus_write(clk, pbus, RegSlotPxIES, x"00000000");
         prt_in <= (others => '0');
         wait for 2 * PERIOD;
+
+        -- GROUP G7: the three PxOUT ALIAS words, the remaining storage registers
+        -- and the PxIF flag. Added before the periph_regs migration (report
+        -- R12e): PxOUTS, PxOUTC, PxOUTT, PxSEL, PxREN, PxAFS and PxIF were not
+        -- touched anywhere in this bench, and the alias words are the whole
+        -- reason the module carries WOSET, W1C and WOT arms.
+        report "=== GROUP G7: PxOUT aliases, PxSEL/PxREN/PxAFS, PxIF ===" severity note;
+
+        bus_write(clk, pbus, RegSlotPxOUT, x"00000000");
+        bus_write(clk, pbus, RegSlotPxOUTS, x"0000000F");
+        bus_read(clk, pbus, read_data, RegSlotPxOUT, rdw);
+        sb.check_slv("G7a: PxOUTS sets the bits a 1 was written to", rdw(7 downto 0), x"0F");
+        bus_write(clk, pbus, RegSlotPxOUTS, x"00000000");
+        bus_read(clk, pbus, read_data, RegSlotPxOUT, rdw);
+        sb.check_slv("G7a: a 0 written to PxOUTS is a no-op", rdw(7 downto 0), x"0F");
+        bus_read(clk, pbus, read_data, RegSlotPxOUTS, rdw);
+        sb.check_slv("G7a: PxOUTS reads PxOUT", rdw(7 downto 0), x"0F");
+
+        bus_write(clk, pbus, RegSlotPxOUTC, x"00000003");
+        bus_read(clk, pbus, read_data, RegSlotPxOUT, rdw);
+        sb.check_slv("G7b: PxOUTC clears the bits a 1 was written to", rdw(7 downto 0), x"0C");
+        bus_read(clk, pbus, read_data, RegSlotPxOUTC, rdw);
+        sb.check_slv("G7b: PxOUTC reads PxOUT INVERTED", rdw(7 downto 0), x"F3");
+
+        bus_write(clk, pbus, RegSlotPxOUTT, x"000000FF");
+        bus_read(clk, pbus, read_data, RegSlotPxOUT, rdw);
+        sb.check_slv("G7c: PxOUTT toggles every bit a 1 was written to",
+                     rdw(7 downto 0), x"F3");
+        bus_write(clk, pbus, RegSlotPxOUTT, x"00000000");
+        bus_read(clk, pbus, read_data, RegSlotPxOUT, rdw);
+        sb.check_slv("G7c: a 0 written to PxOUTT is a no-op", rdw(7 downto 0), x"F3");
+        bus_read(clk, pbus, read_data, RegSlotPxOUTT, rdw);
+        sb.check_slv("G7c: PxOUTT reads PxOUT", rdw(7 downto 0), x"F3");
+        sb.check_slv("G7c: PxOUT_out follows the alias writes", PxOUT_out, x"F3");
+        bus_write(clk, pbus, RegSlotPxOUT, x"00000000");
+
+        bus_write(clk, pbus, RegSlotPxSEL, x"0000005A");
+        bus_read(clk, pbus, read_data, RegSlotPxSEL, rdw);
+        sb.check_slv("G7d: PxSEL write/readback", rdw(7 downto 0), x"5A");
+        sb.check_slv("G7d: PxSEL_out mirrors PxSEL", PxSEL_out, x"5A");
+        bus_write(clk, pbus, RegSlotPxSEL, x"00000000");
+        bus_write(clk, pbus, RegSlotPxREN, x"000000C3");
+        bus_read(clk, pbus, read_data, RegSlotPxREN, rdw);
+        sb.check_slv("G7d: PxREN write/readback", rdw(7 downto 0), x"C3");
+        sb.check_slv("G7d: PxREN_out mirrors PxREN", PxREN_out, x"C3");
+        bus_write(clk, pbus, RegSlotPxREN, x"00000000");
+
+        -- PxAFS is a nibble per pin, low three bits used and nibble bit 3 reserved.
+        bus_write(clk, pbus, RegSlotPxAFS, x"FFFFFFFF");
+        bus_read(clk, pbus, read_data, RegSlotPxAFS, rdw);
+        sb.check_slv("G7e: PxAFS drops nibble bit 3 on every pin", rdw, x"77777777");
+        sb.check_slv("G7e: PxAFS_out is the 3-bit-per-pin packing", PxAFS_out,
+                     (23 downto 0 => '1'));
+        bus_write(clk, pbus, RegSlotPxAFS, x"00000000");
+        bus_write_lanes(RegSlotPxAFS, "1110", x"FFFFFFFF");
+        bus_read(clk, pbus, read_data, RegSlotPxAFS, rdw);
+        sb.check_slv("G7e: PxAFS lane 0 alone moves pins 0 and 1", rdw, x"00000077");
+        bus_write_lanes(RegSlotPxAFS, "0111", x"FFFFFFFF");
+        bus_read(clk, pbus, read_data, RegSlotPxAFS, rdw);
+        sb.check_slv("G7e: PxAFS lane 3 alone moves pins 6 and 7", rdw, x"77000077");
+        bus_write(clk, pbus, RegSlotPxAFS, x"00000000");
+
+        -- PxIF: a pin edge with the interrupt enabled sets the flag, and a
+        -- written 1 retires it. This is the block's only write-1-to-clear word.
+        prt_in <= (others => '0');
+        bus_write(clk, pbus, RegSlotPxIES, x"00000000");   -- rising-edge select
+        bus_write(clk, pbus, RegSlotPxIE,  x"00000005");   -- pins 0 and 2 enabled
+        wait for 2 * PERIOD;
+        prt_in <= x"0F";                                   -- rising edge on pins 0-3
+        wait for 4 * PERIOD;
+        bus_read(clk, pbus, read_data, RegSlotPxIF, rdw);
+        sb.check_slv("G7f: PxIF sets only on the ENABLED pins", rdw(7 downto 0), x"05");
+        sb.check_slv("G7f: irq is PxIF itself", irq, x"05");
+        bus_write(clk, pbus, RegSlotPxIF, x"00000001");    -- retire pin 0 only
+        bus_read(clk, pbus, read_data, RegSlotPxIF, rdw);
+        sb.check_slv("G7f: a written 1 retires that flag and leaves the others",
+                     rdw(7 downto 0), x"04");
+        bus_write(clk, pbus, RegSlotPxIF, x"000000FF");
+        bus_read(clk, pbus, read_data, RegSlotPxIF, rdw);
+        sb.check_slv("G7f: the rest retire too", rdw(7 downto 0), x"00");
+        bus_write(clk, pbus, RegSlotPxIE, x"00000000");
+        prt_in <= (others => '0');
+        wait for 2 * PERIOD;
+
+        -- An unmapped slot stores nothing and reads 0.
+        bus_write(clk, pbus, 13, x"FFFFFFFF");
+        bus_read(clk, pbus, read_data, 13, rdw);
+        sb.check_slv("G7g: an unmapped slot reads 0 and ignores writes", rdw, x"00000000");
 
         -- GROUP G-NEG: NEGATIVE CONTROL, mandatory and LAST.
         -- Exactly ONE deliberately wrong expected value, so the scoreboard proves it can fail.

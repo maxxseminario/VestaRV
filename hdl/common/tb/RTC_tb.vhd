@@ -180,6 +180,25 @@ begin
         variable delta   : integer;
         variable tickcnt : natural;
 
+        -- Byte-lane write. periph_tb_pkg.bus_write always drives WEn = "0000", so a
+        -- per-lane write cannot be expressed through the shared BFM; GROUP G0b below needs
+        -- one, because every write in this block is qualified on lane 0 and nothing else
+        -- proves it.
+        procedure bus_write_lanes(slot  : in natural;
+                                  lanes : in std_logic_vector(3 downto 0);
+                                  data  : in std_logic_vector(31 downto 0)) is
+        begin
+            wait until clk = '0';
+            pbus.addr_periph <= std_logic_vector(to_unsigned(slot, 6));
+            pbus.write_data  <= data;
+            pbus.wen         <= lanes;
+            pbus.en_mem      <= '0';
+            wait until clk = '1';
+            wait until clk = '0';
+            pbus.en_mem <= '1';
+            pbus.wen    <= (others => '1');
+        end procedure;
+
         -- W1C the given SR mask, then a dummy CR read to retire the gated-ClkMem write pulse before the next SR read.
         procedure w1c(mask : std_logic_vector(31 downto 0)) is
             variable r : std_logic_vector(31 downto 0);
@@ -281,6 +300,60 @@ begin
         bus_read(clk, pbus, rdata_out, 7, rdw);
         sb.check_slv("G0: slot 7 reads 0", rdw, x"00000000");
         sb.check_bit("G0: irq_rtc = 0 out of reset", to_X01(irq_rtc), '0');
+
+        -- GROUP G0b: the register file itself -- readback, implemented-bit masks and the
+        -- lane-0 write qualifier. RTCEN stays 0 throughout and SEC/SUB are never written,
+        -- so the wall clock is still exactly 0 when GROUP G1 anchors its reference.
+        report "=== GROUP G0b: register file ===" severity note;
+
+        bus_write(clk, pbus, RTC_SLOT_CR, x"7FFFFFE0");
+        bus_read (clk, pbus, rdata_out, RTC_SLOT_CR, rdw);
+        sb.check_slv("G0b: CR implements bits 4:0 only", rdw, x"00000000");
+        bus_write(clk, pbus, RTC_SLOT_CR, x"00000018");   -- ALMIE|TICKIE, no engine enabled
+        bus_read (clk, pbus, rdata_out, RTC_SLOT_CR, rdw);
+        sb.check_slv("G0b: CR holds the two IE bits", rdw, x"00000018");
+        bus_write_lanes(RTC_SLOT_CR, "1101", x"0000FF00");
+        bus_read (clk, pbus, rdata_out, RTC_SLOT_CR, rdw);
+        sb.check_slv("G0b: a CR write without lane 0 changes nothing", rdw, x"00000018");
+        bus_write(clk, pbus, RTC_SLOT_CR, x"00000000");
+        bus_read (clk, pbus, rdata_out, RTC_SLOT_CR, rdw);
+        sb.check_slv("G0b: CR back to 0", rdw, x"00000000");
+
+        -- ALM reads back its STAGED value, so it is the register that shows the write
+        -- qualifier directly: a write enabling lane 0 replaces all 32 bits whatever the
+        -- other three lanes say, and a write that does not enable lane 0 is ignored whole.
+        bus_write(clk, pbus, RTC_SLOT_ALM, x"5AC3961E");
+        rtc_wait_sync_clear(clk, pbus, rdata_out, ok);
+        sb.check_true("G0b: ALM commit SR.SYNC cleared", ok);
+        bus_read (clk, pbus, rdata_out, RTC_SLOT_ALM, rdw);
+        sb.check_slv("G0b: ALM holds all 32 bits", rdw, x"5AC3961E");
+        bus_write_lanes(RTC_SLOT_ALM, "1110", x"000000A7");
+        rtc_wait_sync_clear(clk, pbus, rdata_out, ok);
+        bus_read (clk, pbus, rdata_out, RTC_SLOT_ALM, rdw);
+        sb.check_slv("G0b: a lane-0 ALM write replaces all 32 bits", rdw, x"000000A7");
+        bus_write_lanes(RTC_SLOT_ALM, "0111", x"3B000000");
+        bus_read (clk, pbus, rdata_out, RTC_SLOT_ALM, rdw);
+        sb.check_slv("G0b: an ALM write without lane 0 is ignored", rdw, x"000000A7");
+        bus_write(clk, pbus, RTC_SLOT_ALM, x"00000000");
+        rtc_wait_sync_clear(clk, pbus, rdata_out, ok);
+        bus_read (clk, pbus, rdata_out, RTC_SLOT_ALM, rdw);
+        sb.check_slv("G0b: ALM back to 0", rdw, x"00000000");
+
+        bus_write(clk, pbus, RTC_SLOT_PER, x"7FFFFFFF");
+        rtc_wait_sync_clear(clk, pbus, rdata_out, ok);
+        bus_read (clk, pbus, rdata_out, RTC_SLOT_PER, rdw);
+        sb.check_slv("G0b: PER implements bits 15:0 only", rdw, x"0000FFFF");
+        bus_write(clk, pbus, RTC_SLOT_PER, x"00000000");
+        rtc_wait_sync_clear(clk, pbus, rdata_out, ok);
+        bus_read (clk, pbus, rdata_out, RTC_SLOT_PER, rdw);
+        sb.check_slv("G0b: PER back to 0", rdw, x"00000000");
+
+        -- TRIM is reserved: a write lands nowhere at all.
+        bus_write(clk, pbus, RTC_SLOT_TRIM, x"7FFFFFFF");
+        bus_read (clk, pbus, rdata_out, RTC_SLOT_TRIM, rdw);
+        sb.check_slv("G0b: a TRIM write does not make TRIM readable", rdw, x"00000000");
+        bus_read (clk, pbus, rdata_out, RTC_SLOT_CR, rdw);
+        sb.check_slv("G0b: a TRIM write does not reach CR", rdw, x"00000000");
 
         -- GROUP G1: wall-clock advance
         -- Enable RTCEN, start the TB reference at the SAME moment, then confirm the DUT snapshot advances monotonically and tracks the reference within the staleness bound, never AHEAD of it.

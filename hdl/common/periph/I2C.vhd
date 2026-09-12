@@ -129,9 +129,30 @@ architecture behavioral of I2C is
 
 
 	-- Memory Bus Signal Declarations ----------
-	signal MABPartInteger	: natural range 0 to 63;			-- Register slot number decoded from MABPart (0 when this peripheral is not selected)
-	signal rdataPart		: std_logic_vector(21 downto 0);	-- The part of rdata_out that the registers use
-	
+	-- The bus side is one periph_regs instance driven by i2c_regs_pkg's tables; see hdl/common/regs/REGFILE.md.
+	signal regs_q	: reg_arr_t;						-- the stored words
+	signal hw_rd_s	: reg_arr_t;						-- the read source for every word this module does not store
+	signal w1c_s	: reg_arr_t;						-- a 1 written to an I2CxSR flag
+	signal acc_s	: std_logic_vector(0 to NWORDS-1);	-- combinational: this slot is addressed now
+	signal wr_inh	: std_logic_vector(0 to NWORDS-1);	-- per word: refuse the write
+	signal fcr_wr	: std_logic;						-- a lane-0 write to I2CxFCR, this cycle
+	signal mtx_wr	: std_logic;						-- a lane-0 write to I2CxMTX, this cycle
+
+	-- Zero-extend a register field to a bus word.
+	function pad(v : std_logic_vector) return word is
+		variable r : word := (others => '0');
+	begin
+		r(v'length - 1 downto 0) := v;
+		return r;
+	end function;
+
+	-- I2CxAR resets to default_SAD, a GENERIC of this entity, so the reset is not
+	-- a property of the description and the .rdl cannot carry it. RSTVAL_OR is
+	-- the one table the instance supplies rather than the package; every other
+	-- word takes the package's RSTVAL unchanged.
+	constant RSTVAL_OR_I2C : reg_arr_t := (RegSlotI2CxAR => pad(default_SAD),
+	                                       others        => (others => '0'));
+
 
 
 	-- I2C Core Signal Declarations ----------
@@ -190,26 +211,34 @@ architecture behavioral of I2C is
 begin
 
 	-- Register Signal Routing ----------
+	-- The five stored registers are periph_regs' storage; the field slices below
+	-- are the package's, so no bit literal in this file describes a register.
+	I2CxCR	<= regs_q(RegSlotI2CxCR)(I2CxCR'range);
+	I2CxMTX	<= regs_q(RegSlotI2CxMTX)(I2CxMTX'range);
+	I2CxSTX	<= regs_q(RegSlotI2CxSTX)(I2CxSTX'range);
+	I2CxAR	<= regs_q(RegSlotI2CxAR)(I2CxAR'range);
+	I2CxAMR	<= regs_q(RegSlotI2CxAMR)(I2CxAMR'range);
+
 	-- I2CxCR
-	I2CSPRIE	<= I2CxCR(0);
-	I2CSTRIE	<= I2CxCR(1);
-	I2CMXCIE	<= I2CxCR(2);
-	I2CMNRIE	<= I2CxCR(3);
-	I2CMTXEIE	<= I2CxCR(4);
-	I2CMARBIE	<= I2CxCR(5);
-	I2CMSPSIE	<= I2CxCR(6);
-	I2CMSTSIE	<= I2CxCR(7);
-	I2CSXCIE	<= I2CxCR(8);
-	I2CSNRIE	<= I2CxCR(9);
-	I2CSOVFIE	<= I2CxCR(10);
-	I2CSTXEIE	<= I2CxCR(11);
-	I2CSAIE		<= I2CxCR(12);
-	I2CMDIV		<= I2CxCR(16 downto 13);
-	I2CGCE		<= I2CxCR(17);
-	I2CSCS		<= I2CxCR(18);
-	I2CSN		<= I2CxCR(19);
-	I2CSEN		<= I2CxCR(20);
-	I2CMEN		<= I2CxCR(21);
+	I2CSPRIE	<= I2CxCR(I2CSPRIE_LSB);
+	I2CSTRIE	<= I2CxCR(I2CSTRIE_LSB);
+	I2CMXCIE	<= I2CxCR(I2CMXCIE_LSB);
+	I2CMNRIE	<= I2CxCR(I2CMNRIE_LSB);
+	I2CMTXEIE	<= I2CxCR(I2CMTXEIE_LSB);
+	I2CMARBIE	<= I2CxCR(I2CMARBIE_LSB);
+	I2CMSPSIE	<= I2CxCR(I2CMSPSIE_LSB);
+	I2CMSTSIE	<= I2CxCR(I2CMSTSIE_LSB);
+	I2CSXCIE	<= I2CxCR(I2CSXCIE_LSB);
+	I2CSNRIE	<= I2CxCR(I2CSNRIE_LSB);
+	I2CSOVFIE	<= I2CxCR(I2CSOVFIE_LSB);
+	I2CSTXEIE	<= I2CxCR(I2CSTXEIE_LSB);
+	I2CSAIE		<= I2CxCR(I2CSAIE_LSB);
+	I2CMDIV		<= I2CxCR(I2CMDIV_MSB downto I2CMDIV_LSB);
+	I2CGCE		<= I2CxCR(I2CGCE_LSB);
+	I2CSCS		<= I2CxCR(I2CSCS_LSB);
+	I2CSN		<= I2CxCR(I2CSN_LSB);
+	I2CSEN		<= I2CxCR(I2CSEN_LSB);
+	I2CMEN		<= I2CxCR(I2CMEN_LSB);
 	
 
 	-- I2CxFCR
@@ -812,86 +841,114 @@ begin
 
 
 	-- Register Memory Interface ----------
-	-- Decode the register slot only while this peripheral is selected; otherwise read slot 0.
-	MABPartInteger <= slv2uint(MABPart) when (EnMemPeriph = mem_assert) else 0;
-	
-	-- Register Write
-	process(resetn, ClkMem, EnMemPeriph, I2CMEN, I2CMCB, ClearI2CMST, ClearI2CMSP, ClearI2CMRB, ClearMasterWrite, ClearI2CSC, I2CSCS)
-	begin
-		if resetn = '0' then
-			-- No clear signals need resetting here.
+	-- One periph_regs instance replaces the slot decode, the byte-lane write case,
+	-- the write-1-to-clear arm and the read mux. What stays here is the datapath:
+	-- the flow-control command flops, which the consuming FSM clears, and the two
+	-- falling-EnMemPeriph snapshot latches, which are a CDC judgement.
+	--
+	-- REGISTERED_READ is FALSE. I2C's read has always been combinational and
+	-- MCU.vhd's i2c_rdata_bridge is the flop that captures it at the access edge;
+	-- registering it here as well would land the data a cycle after the arbiter
+	-- samples it. See hdl/common/regs/REGFILE.md, "The read path".
+	--
+	-- STROBE_HOLD is TRUE: the status clear requests are asynchronous clears in
+	-- the smclk and pin-edge domains and must last the whole select window, which
+	-- is what `if EnMemPeriph /= mem_assert then Clear* <= '0'` used to say.
+	u_regs: entity work.periph_regs
+		generic map (
+			NWORDS          => NWORDS,
+			RSTVAL          => RSTVAL,
+			RSTVAL_OR       => RSTVAL_OR_I2C,
+			IMPL            => IMPL,
+			W1C             => W1C,
+			WOSET           => WOSET,
+			WOT             => WOT,
+			PULSE           => PULSE,
+			RCLR            => RCLR,
+			HWOWN           => HWOWN,
+			STROBE_HOLD     => true,
+			REGISTERED_READ => false)
+		port map (
+			ClkMem      => ClkMem,
+			resetn      => resetn,
+			EnMemPeriph => EnMemPeriph,
+			WEn         => WEn,
+			MABPart     => MABPart,
+			wdata       => wdata,
+			rdata_out   => rdata_out,
+			regs        => regs_q,
+			wr_inhibit  => wr_inh,
+			hw_rd       => hw_rd_s,
+			acc_hit     => acc_s,
+			rd_strobe   => open,
+			wr_strobe   => open,
+			wr_pulse    => open,
+			w1c_hit     => w1c_s,
+			woset_hit   => open,
+			wot_hit     => open,
+			rd_clr      => open);
 
-			-- Set registers to their default values
-			I2CxCR <= (others => '0');
-			I2CxMTX <= (others => '0');
-			I2CxSTX <= (others => '0');
-			I2CxAR <= default_SAD; -- Default address for the I2C slave
-			I2CxAMR <= (others => '0');
-		elsif rising_edge(ClkMem) then
-			-- No clear signals need initializing here.
-			
-			-- Memory writes
-			if EnMemPeriph = mem_assert then
-				case MABPartInteger is
-				when RegSlotI2CxCR =>
-					if WEn(0) = mem_assert then I2CxCR(07 downto 00) <= wdata(07 downto 00); end if;
-					if WEn(1) = mem_assert then I2CxCR(15 downto 08) <= wdata(15 downto 08); end if;
-					if WEn(2) = mem_assert then I2CxCR(21 downto 16) <= wdata(21 downto 16); end if;
-				when RegSlotI2CxFCR =>
-					-- Flow control is write-1-only: a '1' raises the command, and the consuming FSM clears it.
-					-- The stop and read-byte commands are accepted only while this master controls the bus.
-					if WEn(0) = mem_assert then
-						if wdata(3) = '1' then
-							I2CSC <= '1';
-						end if;
-						if wdata(2) = '1' then
-							I2CMST <= '1';
-						end if;
-						if wdata(1) = '1' and I2CMCB = '1' then
-							I2CMSP <= '1';
-						end if;
-						if wdata(0) = '1' and I2CMCB = '1' then
-							I2CMRB <= '1';
-						end if;
-					end if;
-				when RegSlotI2CxSR =>
-					-- Status flags are write-1-to-clear; each bit raises the matching clear request below.
-					if WEn(0) = mem_assert then
-						if wdata(0) = '1' then ClearI2CSPR <= '1'; end if;
-						if wdata(1) = '1' then ClearI2CSTR <= '1'; end if;
-						if wdata(2) = '1' then ClearI2CMXC <= '1'; end if;
-						if wdata(3) = '1' then ClearI2CMNR <= '1'; end if;
-						if wdata(4) = '1' then ClearI2CMTXE <= '1'; end if;
-						if wdata(5) = '1' then ClearI2CMARB <= '1'; end if;
-						if wdata(6) = '1' then ClearI2CMSPS <= '1'; end if;
-						if wdata(7) = '1' then ClearI2CMSTS <= '1'; end if;
-					end if;
-					if WEn(1) = mem_assert then
-						if wdata(8) = '1'  then ClearI2CSXC <= '1'; end if;
-						if wdata(9) = '1'  then ClearI2CSNR <= '1'; end if;
-						if wdata(10) = '1' then ClearI2CSOVF <= '1'; end if;
-						if wdata(11) = '1' then ClearI2CSTXE <= '1'; end if;
-						if wdata(12) = '1' then ClearI2CSA <= '1'; end if;
-					end if;
-				when RegSlotI2CxMTX =>
-					if WEn(0) = mem_assert and I2CMEN = '1' then
-						-- Issue the command to send the byte written to I2CxMTX
-						MasterWrite <= '1';
-						I2CxMTX <= wdata(07 downto 00);
-					end if;
-				when RegSlotI2CxSTX =>
-					if WEn(0) = mem_assert then I2CxSTX <= wdata(07 downto 00); end if;
-				when RegSlotI2CxAR =>
-					if WEn(0) = mem_assert then I2CxAR <= wdata(06 downto 00); end if;
-				when RegSlotI2CxAMR =>
-					if WEn(0) = mem_assert then I2CxAMR <= wdata(06 downto 00); end if;
-				when others =>
-					-- Unmapped register slots ignore writes.
-					null;
-				end case;
+	-- The three words that hold no flop here: I2CxSR and I2CxSRX come back through
+	-- their inverted snapshot latches and are re-inverted, I2CxMRX is the master
+	-- receive byte. I2CxFCR is write-1-only and reads 0, which it does by holding
+	-- no storage and no hw_rd row.
+	hw_rd_s <= (RegSlotI2CxSR  => pad(not I2CxSRLat),
+	            RegSlotI2CxMRX => pad(I2CxMRX),
+	            RegSlotI2CxSRX => pad(not I2CxSRXLat),
+	            others         => (others => '0'));
+
+	-- I2CxMTX is the one storage word whose write is conditional: it lands only
+	-- while the master is enabled, because the same write launches a byte.
+	wr_inh <= (RegSlotI2CxMTX => not I2CMEN, others => '0');
+
+	-- The thirteen status clear requests, held for the select window.
+	ClearI2CSPR		<= w1c_s(RegSlotI2CxSR)(I2CSPR_LSB);
+	ClearI2CSTR		<= w1c_s(RegSlotI2CxSR)(I2CSTR_LSB);
+	ClearI2CMXC		<= w1c_s(RegSlotI2CxSR)(I2CMXC_LSB);
+	ClearI2CMNR		<= w1c_s(RegSlotI2CxSR)(I2CMNR_LSB);
+	ClearI2CMTXE	<= w1c_s(RegSlotI2CxSR)(I2CMTXE_LSB);
+	ClearI2CMARB	<= w1c_s(RegSlotI2CxSR)(I2CMARB_LSB);
+	ClearI2CMSPS	<= w1c_s(RegSlotI2CxSR)(I2CMSPS_LSB);
+	ClearI2CMSTS	<= w1c_s(RegSlotI2CxSR)(I2CMSTS_LSB);
+	ClearI2CSXC		<= w1c_s(RegSlotI2CxSR)(I2CSXC_LSB);
+	ClearI2CSNR		<= w1c_s(RegSlotI2CxSR)(I2CSNR_LSB);
+	ClearI2CSOVF	<= w1c_s(RegSlotI2CxSR)(I2CSOVF_LSB);
+	ClearI2CSTXE	<= w1c_s(RegSlotI2CxSR)(I2CSTXE_LSB);
+	ClearI2CSA		<= w1c_s(RegSlotI2CxSR)(I2CSA_LSB);
+
+	-- A write that LAUNCHES something on the edge it lands takes the unregistered
+	-- hook, qualified with its own lane exactly as the raw decode was: a registered
+	-- strobe would raise the command one ClkMem edge late.
+	fcr_wr <= acc_s(RegSlotI2CxFCR) and not WEn(0);
+	mtx_wr <= acc_s(RegSlotI2CxMTX) and not WEn(0);
+
+	-- The flow-control commands: a written 1 raises one, and the FSM that consumes
+	-- it clears it asynchronously. The stop and read-byte commands are accepted
+	-- only while this master controls the bus.
+	cmd_proc: process(resetn, ClkMem, I2CMEN, I2CMCB, ClearI2CMST, ClearI2CMSP, ClearI2CMRB, ClearMasterWrite, ClearI2CSC, I2CSCS)
+	begin
+		if rising_edge(ClkMem) then
+			if fcr_wr = '1' then
+				if wdata(I2CSC_LSB) = '1' then
+					I2CSC <= '1';
+				end if;
+				if wdata(I2CMST_LSB) = '1' then
+					I2CMST <= '1';
+				end if;
+				if wdata(I2CMSP_LSB) = '1' and I2CMCB = '1' then
+					I2CMSP <= '1';
+				end if;
+				if wdata(I2CMRB_LSB) = '1' and I2CMCB = '1' then
+					I2CMRB <= '1';
+				end if;
+			end if;
+			if mtx_wr = '1' and I2CMEN = '1' then
+				-- Issue the command to send the byte written to I2CxMTX; the byte
+				-- itself is periph_regs' storage, gated by the same enable.
+				MasterWrite <= '1';
 			end if;
 		end if;
-		
+
 		-- Latch clear signal(s)
 		if (resetn = '0') or (ClearI2CMST = '1') or (I2CMEN = '0') then
 			I2CMST <= '0';
@@ -904,7 +961,7 @@ begin
 		if (resetn = '0') or (ClearI2CMRB = '1') or (I2CMCB = '0') then
 			I2CMRB <= '0';
 		end if;
-		
+
 		if (resetn = '0') or (ClearMasterWrite = '1') or (I2CMEN = '0') then
 			MasterWrite <= '0';
 		end if;
@@ -912,38 +969,6 @@ begin
 		if (resetn = '0') or (ClearI2CSC = '1') or (I2CSCS = '0') then
 			I2CSC <= '0';
 		end if;
-
-		-- The status clear requests last only as long as the memory access that raised them.
-		if (resetn = '0') or (EnMemPeriph /= mem_assert) then
-			ClearI2CSPR		<= '0';
-			ClearI2CSTR		<= '0';
-			ClearI2CMXC		<= '0';
-			ClearI2CMNR		<= '0';
-			ClearI2CMTXE	<= '0';
-			ClearI2CMARB	<= '0';
-			ClearI2CMSPS	<= '0';
-			ClearI2CMSTS	<= '0';
-			ClearI2CSXC		<= '0';
-			ClearI2CSNR		<= '0';
-			ClearI2CSOVF	<= '0';
-			ClearI2CSTXE	<= '0';
-			ClearI2CSA		<= '0';
-		end if;
 	end process;
-	
-	-- Register Read
-	-- I2CxSR and I2CxSRX come back through their inverted latches, so they are re-inverted here.
-	with MABPartInteger select rdataPart <=
-								I2CxCR				when RegSlotI2CxCR,
-		(21 downto 16 => '0') &	(not I2CxSRLat)		when RegSlotI2CxSR,
-		(21 downto 8 => '0') &	I2CxMTX				when RegSlotI2CxMTX,
-		(21 downto 8 => '0') &	I2CxMRX				when RegSlotI2CxMRX,
-		(21 downto 8 => '0') &	I2CxSTX				when RegSlotI2CxSTX,
-		(21 downto 8 => '0') &	(not I2CxSRXLat)	when RegSlotI2CxSRX,
-		(21 downto 7 => '0') &	I2CxAR				when RegSlotI2CxAR,
-		(21 downto 7 => '0') &	I2CxAMR				when RegSlotI2CxAMR,
-		(others => '0') when others;
-	
-	rdata_out <= "00000000" & "00" & rdataPart;
 
 end behavioral;

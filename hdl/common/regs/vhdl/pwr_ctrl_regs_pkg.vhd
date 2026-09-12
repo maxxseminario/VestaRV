@@ -81,6 +81,7 @@ package pwr_ctrl_regs_pkg is
     constant W_TASKWKM                : natural := 7;
 
     -- No periph_regs table section: the register set is a function of the hart count,
-    -- so its words are not a dense array. See hdl/common/regs/REGFILE.md.
+    -- so its register set is not fixed at elaboration.
+    -- See hdl/common/regs/REGFILE.md.
 
 end package pwr_ctrl_regs_pkg;

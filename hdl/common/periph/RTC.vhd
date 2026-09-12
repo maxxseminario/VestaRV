@@ -1,6 +1,6 @@
 -- VestaRV: real-time clock
 -- 32.768 kHz always-on wall clock with a one-shot alarm and a recurring periodic tick, behind one combined IRQ (vector 114).
--- Three clocks: ungated lfxt_in (counter, alarm, tick, commit apply), free-running clk (LFXT-into-bus synchronizers, sticky flags, IRQ) and gated ClkMem (register file). clk must free-run so ALMF, TICKF and irq_rtc set with no bus access in flight; lfxt_in is always on and neither firmware nor PWRCTRL can stop it.
+-- Three clocks: ungated lfxt_in (counter, alarm, tick, commit apply), free-running clk (LFXT-into-bus synchronizers, sticky flags, IRQ) and gated ClkMem (one work.periph_regs instance driven by rtc_regs_pkg's tables, hdl/common/regs/REGFILE.md). clk must free-run so ALMF, TICKF and irq_rtc set with no bus access in flight; lfxt_in is always on and neither firmware nor PWRCTRL can stop it.
 -- Every domain hand-off is a toggle or a held quasi-static level: no async clear crosses a domain, and no clock is gated, divided or generated here.
 -- SEC and SUB read one coherent snapshot of the same instant; a SEC write commits the staged SEC/SUB pair atomically, with SR.SYNC busy meanwhile.
 -- EnMemPeriph is an active-low level qualifier, never a clock and never an edge.
@@ -37,17 +37,22 @@ end RTC;
 
 architecture behavioral of RTC is
 
-    -- ---- register-file storage (ClkMem domain) ---------------------------
-    signal rtc_cr      : std_logic_vector(4 downto 0);   -- RTCEN/ALMEN/TICKEN/ALMIE/TICKIE
-    signal stage_sec   : std_logic_vector(31 downto 0);  -- staging: seconds
+    -- ---- register file (ClkMem domain) -----------------------------------
+    -- CR and the four staging words are periph_regs storage, read out of regs_q;
+    -- SEC and SUB read the coherent counter snapshot instead (RDTHRU), and SR
+    -- holds no flop here at all.
+    signal regs_q      : reg_arr_t;                        -- the stored words
+    signal hw_rd_s     : reg_arr_t;                        -- read source for SEC, SUB and SR
+    signal acc_s       : std_logic_vector(0 to NWORDS-1);  -- combinational: this slot is addressed now
+    signal wen_eff     : std_logic_vector(3 downto 0);     -- see the instance below
+    signal sec_rd, sub_rd, sr_rd : std_logic_vector(31 downto 0);
+
     signal stage_sub   : std_logic_vector(14 downto 0);  -- staging: subseconds
-    signal stage_alm   : std_logic_vector(31 downto 0);  -- staging + ALM readback
     signal stage_per   : std_logic_vector(15 downto 0);  -- staging + PER readback
     signal commit_mask : std_logic_vector(2 downto 0);   -- [0]time{sec,sub} [1]alm [2]per
     signal wr_req_tgl  : std_logic;                      -- write-commit request toggle
     signal clr_alm_tgl : std_logic;                      -- W1C ALMF request toggle
     signal clr_tick_tgl: std_logic;                      -- W1C TICKF request toggle
-    signal rtc_slot    : natural range 0 to 63;          -- decoded word slot
 
     -- ---- CR field taps (combinational; quasi-static) ---------------------
     signal rtcen_cr, almen_cr, ticken_cr : std_logic;    -- engine enables, crossed into lfxt
@@ -95,11 +100,15 @@ begin
 
     -- ------------------------- Signal Routing ---------------------------------
     -- CR field taps, so the engines read named bits rather than slices.
-    rtcen_cr  <= rtc_cr(0);
-    almen_cr  <= rtc_cr(1);
-    ticken_cr <= rtc_cr(2);
-    almie     <= rtc_cr(3);
-    tickie    <= rtc_cr(4);
+    rtcen_cr  <= regs_q(SLOT_CR)(RTCEN_LSB);
+    almen_cr  <= regs_q(SLOT_CR)(RTCALMEN_LSB);
+    ticken_cr <= regs_q(SLOT_CR)(RTCTICKEN_LSB);
+    almie     <= regs_q(SLOT_CR)(RTCALMIE_LSB);
+    tickie    <= regs_q(SLOT_CR)(RTCTICKIE_LSB);
+
+    -- The two narrow staging words, sliced out of their stored words.
+    stage_sub <= regs_q(SLOT_SUB)(RTCSUB_MSB downto RTCSUB_LSB);
+    stage_per <= regs_q(SLOT_PER)(RTCPER_MSB downto RTCPER_LSB);
 
     -- SR.SYNC (BUSY): the RAW request toggle compared against the synced ack.
     -- Keep it raw, so SYNC is visible to the very next SR read after a committing write with no blind window.
@@ -108,92 +117,97 @@ begin
     -- irq_rtc: status and enable, combinational, never latched.
     irq_rtc   <= (almf_flag and almie) or (tickf_flag and tickie);
 
-    -- slot decode: EnMemPeriph-qualified level, never an edge.
-    rtc_slot  <= conv_integer(MABPart) when EnMemPeriph = '0' else 0;
+    -- The words this block owns rather than stores: the coherent SEC/SUB snapshot
+    -- already synchronized into the bus domain, and the status word.
+    sec_rd <= snap_sync(snap_sync'high downto RTCSUB_MSB + 1);
+    sub_rd <= (31 downto RTCSUB_MSB + 1 => '0') & snap_sync(RTCSUB_MSB downto 0);
+    sr_rd  <= (31 downto RTCTICKF_MSB + 1 => '0') & tickf_flag & almf_flag & sync_busy;
 
-    /* ------------------------- register write (ClkMem) ------------------------
-       Rising ClkMem, qualified by EnMemPeriph='0'; every commit and the SR W1C require lane 0.
-       A committing write stages its value, marks commit_mask and flips wr_req_tgl; a SUB write stages only and is committed by the following SEC write. */
-    reg_write: process(resetn, ClkMem)
+    hw_rd_s <= (SLOT_SEC => sec_rd,
+                SLOT_SUB => sub_rd,
+                SLOT_SR  => sr_rd,
+                others   => (others => '0'));
+
+    /* EVERY write in this block is qualified on lane 0: the hand-written decode
+       tested WEn(0) = '0' in all six of its arms and ignored a write that did
+       not enable byte 0, whatever the other three lanes said. periph_regs has no
+       per-word write qualifier, so the qualifier is applied to the lane vector
+       instead: an access that does not enable lane 0 is handed to the register
+       file as a read, which is exactly what it was. */
+    wen_eff <= WEn when WEn(0) = '0' else "1111";
+
+    -- RDTHRU is SEC and SUB: their storage is the write staging pair while the
+    -- read is the counter's coherent snapshot. WIDEWR is SEC, SUB, ALM and PER:
+    -- a qualifying write replaces the whole word rather than merging per lane,
+    -- which with wen_eff above is byte for byte `stage_x <= wdata`. CR merges per
+    -- lane, and its five implemented bits are all inside lane 0, so the two are
+    -- the same thing there.
+    -- STROBE_HOLD is left at false and no strobe is used: every action a write
+    -- triggers here is a toggle taken on the ClkMem edge of the write itself,
+    -- through acc_hit, because SR.SYNC must be visible to the very next SR read
+    -- and a registered strobe would defer the request by an edge.
+    u_regs: entity work.periph_regs
+        generic map (
+            NWORDS      => NWORDS,
+            RSTVAL      => RSTVAL,
+            IMPL        => IMPL,
+            W1C         => W1C,
+            WOSET       => WOSET,
+            WOT         => WOT,
+            PULSE       => PULSE,
+            RCLR        => RCLR,
+            HWOWN       => HWOWN,
+            RDTHRU      => "0110000",
+            WIDEWR      => "0111100")
+        port map (
+            ClkMem      => ClkMem,
+            resetn      => resetn,
+            EnMemPeriph => EnMemPeriph,
+            WEn         => wen_eff,
+            MABPart     => MABPart,
+            wdata       => wdata,
+            rdata_out   => rdata_out,
+            regs        => regs_q,
+            hw_rd       => hw_rd_s,
+            acc_hit     => acc_s,
+            rd_strobe   => open,
+            wr_strobe   => open,
+            wr_pulse    => open,
+            w1c_hit     => open,
+            woset_hit   => open,
+            wot_hit     => open,
+            rd_clr      => open);
+
+    /* ------------------------- commit and W1C requests (ClkMem) ---------------
+       Rising ClkMem, on the same edge as the write that causes it, off the
+       register file's combinational acc_hit and this block's own WEn(0).
+       A SEC, ALM or PER write marks commit_mask and flips wr_req_tgl; a SUB write
+       stages only and is committed by the following SEC write. SR.SYNC is the raw
+       request toggle against the synced ack, so the request must not slip an edge. */
+    req_proc: process(resetn, ClkMem)
     begin
         if resetn = '0' then
-            rtc_cr       <= (others => '0');
-            stage_sec    <= (others => '0');
-            stage_sub    <= (others => '0');
-            stage_alm    <= (others => '0');
-            stage_per    <= (others => '0');
             commit_mask  <= (others => '0');
             wr_req_tgl   <= '0';
             clr_alm_tgl  <= '0';
             clr_tick_tgl <= '0';
         elsif rising_edge(ClkMem) then
-            if EnMemPeriph = '0' then
-                case rtc_slot is
-                    when SLOT_CR =>
-                        if WEn(0) = '0' then
-                            rtc_cr <= wdata(4 downto 0);      -- bits 31:5 reserved
-                        end if;
-                    when SLOT_SEC =>
-                        -- Stage SEC and commit {SEC,SUB} atomically, lane-0 qualified.
-                        if WEn(0) = '0' then
-                            stage_sec   <= wdata;
-                            commit_mask <= "001";
-                            wr_req_tgl  <= not wr_req_tgl;
-                        end if;
-                    when SLOT_SUB =>
-                        -- Stage only; the following SEC write is what commits it.
-                        if WEn(0) = '0' then
-                            stage_sub <= wdata(14 downto 0);
-                        end if;
-                    when SLOT_ALM =>
-                        -- Stage the alarm compare value and request its commit.
-                        if WEn(0) = '0' then
-                            stage_alm   <= wdata;
-                            commit_mask <= "010";
-                            wr_req_tgl  <= not wr_req_tgl;
-                        end if;
-                    when SLOT_PER =>
-                        -- Stage the tick reload and request its commit.
-                        if WEn(0) = '0' then
-                            stage_per   <= wdata(15 downto 0);
-                            commit_mask <= "100";
-                            wr_req_tgl  <= not wr_req_tgl;
-                        end if;
-                    when SLOT_SR =>
-                        -- W1C: writing 1 clears; SYNC (bit 0) is read-only, ignored.
-                        if WEn(0) = '0' then
-                            if wdata(1) = '1' then clr_alm_tgl  <= not clr_alm_tgl;  end if;
-                            if wdata(2) = '1' then clr_tick_tgl <= not clr_tick_tgl; end if;
-                        end if;
-                    when others =>
-                        null;   -- TRIM (slot 6) and slots 7 and above: writes ignored
-                end case;
+            if WEn(0) = '0' then
+                if acc_s(SLOT_SEC) = '1' then
+                    commit_mask <= "001";
+                    wr_req_tgl  <= not wr_req_tgl;
+                elsif acc_s(SLOT_ALM) = '1' then
+                    commit_mask <= "010";
+                    wr_req_tgl  <= not wr_req_tgl;
+                elsif acc_s(SLOT_PER) = '1' then
+                    commit_mask <= "100";
+                    wr_req_tgl  <= not wr_req_tgl;
+                elsif acc_s(SLOT_SR) = '1' then
+                    -- W1C: writing a 1 clears; SYNC is read-only and ignored.
+                    if wdata(RTCALMF_LSB)  = '1' then clr_alm_tgl  <= not clr_alm_tgl;  end if;
+                    if wdata(RTCTICKF_LSB) = '1' then clr_tick_tgl <= not clr_tick_tgl; end if;
+                end if;
             end if;
-        end if;
-    end process;
-
-    /* ------------------------- register read (ClkMem) -------------------------
-       Registered read mux on rising ClkMem over data already synchronized into the bus domain, so no pre-latch and no read bridge.
-       Reserved bits, TRIM, and slots 7 and above read 0. */
-    reg_read: process(ClkMem)
-    begin
-        if rising_edge(ClkMem) then
-            case rtc_slot is
-                when SLOT_CR =>
-                    rdata_out <= (31 downto 5 => '0') & rtc_cr;
-                when SLOT_SEC =>
-                    rdata_out <= snap_sync(46 downto 15);
-                when SLOT_SUB =>
-                    rdata_out <= (31 downto 15 => '0') & snap_sync(14 downto 0);
-                when SLOT_ALM =>
-                    rdata_out <= stage_alm;
-                when SLOT_PER =>
-                    rdata_out <= (31 downto 16 => '0') & stage_per;
-                when SLOT_SR =>
-                    rdata_out <= (31 downto 3 => '0') & tickf_flag & almf_flag & sync_busy;
-                when others =>
-                    rdata_out <= (others => '0');   -- TRIM and out-of-range slots read 0
-            end case;
         end if;
     end process;
 
@@ -309,7 +323,7 @@ begin
             cap_tgl   <= '0';
         elsif rising_edge(lfxt_in) then
             if wr_apply = '1' and commit_mask(0) = '1' then
-                nsec := stage_sec;                    -- atomic set-time load (priority)
+                nsec := regs_q(SLOT_SEC);             -- atomic set-time load (priority)
                 nsub := stage_sub;
             elsif rtcen_sync = '1' then
                 if sub_cnt = "111111111111111" then   -- prescaler wrap at 32768
@@ -342,7 +356,7 @@ begin
             alm_tgl        <= '0';
         elsif rising_edge(lfxt_in) then
             if wr_apply = '1' and commit_mask(1) = '1' then
-                alm_live <= stage_alm;
+                alm_live <= regs_q(SLOT_ALM);
             end if;
             if sec_cnt = alm_live then match_v := '1'; else match_v := '0'; end if;
             if match_v = '1' and alm_match_prev = '0' and almen_sync = '1' then

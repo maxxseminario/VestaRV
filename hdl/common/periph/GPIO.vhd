@@ -1,7 +1,7 @@
 -- VestaRV: GPIO port
 -- One parameterised port of num_pins (8, 16 or 32) pins: output, direction, resistor-enable and alternate-function select registers, per-pin edge-select interrupt flags, and a set/clear/toggle alias of PxOUT.
 -- The pad polarity generics say what the pad library's OUT/DIR/REN terminals mean; the register bits are always in positive logic.
--- PxAFS is 3 bits per pin and selects one of GPIO_NUM_AFS alternate-function planes, flattened so plane k, pin i lives at bit (k * num_pins + i).
+-- PxAFS is 3 bits per pin and selects one of NUM_AFS alternate-function planes, flattened so plane k, pin i lives at bit (k * num_pins + i).
 -- Register reset values arrive as 32-bit generics; on a narrower port only the low num_pins bits are used.
 
 library ieee;
@@ -9,13 +9,18 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 library work;
 use work.constants.all;
-use work.MemoryMap.all;
+-- Word offsets, field ranges, resets and implemented-bit masks: generated from hdl/common/regs/rdl/gpio.rdl, which replaces the work.MemoryMap clause (both would make every slot name and every PxAFS<n>_LSB an ambiguous homograph).
+-- The plane count that used to come from MemoryMap's NUM_AFS is the NUM_AFS generic below; MCU.vhd passes it.
+use work.gpio_regs_pkg.all;
 
 entity GPIO is
 	generic
 	(
 		-- Number of pins.
-		num_pins		:		natural;	-- The number of pins on this GPIO port. Allowed values: 8, 16 or 32.
+		num_pins		:		natural;	-- The number of pins on this GPIO port. The register description is the 8-pin port; see the assertion below.
+
+		-- Number of alternate-function planes. This was the work.MemoryMap constant NUM_AFS; it is a generic so this entity can take its slot names from gpio_regs_pkg instead.
+		NUM_AFS			:		natural := 8;
 
 		-- Pad logic levels.
 		PadOUTPosLogic	:		boolean;	-- True if driving the I/O pad's OUT terminal high makes the pad output a logic high level, false otherwise.
@@ -55,11 +60,11 @@ entity GPIO is
 		PxSEL_out		: out	std_logic_vector(num_pins - 1 downto 0);	-- Exported so the SoC can route relocated peripheral INPUTS.
 		PxAFS_out		: out	std_logic_vector(3 * num_pins - 1 downto 0);	-- Exported AF select, 3 bits per pin, packed with no reserved nibble bit.
 
-        -- Alternate function pin signals: GPIO_NUM_AFS planes, flattened so plane k, pin i lives at bit (k * num_pins + i).
+        -- Alternate function pin signals: NUM_AFS planes, flattened so plane k, pin i lives at bit (k * num_pins + i).
         -- A pin in alternate mode (PxSEL(i)='1') drives the plane selected by its PxAFS field; plane 0 (AF0) is the plain single alternate function.
-		alt_func_out_in		: in	std_logic_vector(GPIO_NUM_AFS * num_pins - 1 downto 0);	-- The alt functions' desired output signals.
-		alt_func_dir_in		: in	std_logic_vector(GPIO_NUM_AFS * num_pins - 1 downto 0);	-- The alt functions' desired data direction.
-		alt_func_ren_in		: in	std_logic_vector(GPIO_NUM_AFS * num_pins - 1 downto 0);	-- The alt functions' desired resistor enable state.
+		alt_func_out_in		: in	std_logic_vector(NUM_AFS * num_pins - 1 downto 0);	-- The alt functions' desired output signals.
+		alt_func_dir_in		: in	std_logic_vector(NUM_AFS * num_pins - 1 downto 0);	-- The alt functions' desired data direction.
+		alt_func_ren_in		: in	std_logic_vector(NUM_AFS * num_pins - 1 downto 0);	-- The alt functions' desired resistor enable state.
 
         -- Event-fabric taps: evt_edge_raw is the PRE-MASK edge-select comb vector (prt_in xor PxIES) and PxIE is NEVER consulted, since GPIO's own IF applies the mask at the set; the fabric does the per-bit 2-FF sync, rising-edge detect and mask selection.
         -- task_outset and task_outclr are one-clk fabric pulses setting or clearing the PxTASK-selected output pins, and CLR wins a same-cycle overlap.
@@ -78,10 +83,9 @@ architecture behavioral of GPIO is
 	signal PxSEL	: std_logic_vector(num_pins - 1 downto 0);	-- Peripheral select register. '0' = GPIO, '1' = alternate function.
 	signal PxREN	: std_logic_vector(num_pins - 1 downto 0);	-- Resistor enable register. '0' = disabled, '1' = enabled.
 	signal PxAFS	: std_logic_vector(3 * num_pins - 1 downto 0);	-- Alternate function select register, 3 bits per pin: which AF plane drives the pad when PxSEL = '1'.
-	signal PxAFS_nib : std_logic_vector(31 downto 0);	-- Nibble-per-pin readback image of PxAFS; bit 3 of each nibble is reserved and reads '0'.
 
 	-- Plane-muxed alternate function signals.
-	-- The pin's PxAFS field selects which of the GPIO_NUM_AFS planes reaches the PxSEL pad mux below.
+	-- The pin's PxAFS field selects which of the NUM_AFS planes reaches the PxSEL pad mux below.
 	signal af_out	: std_logic_vector(num_pins - 1 downto 0);
 	signal af_dir	: std_logic_vector(num_pins - 1 downto 0);
 	signal af_ren	: std_logic_vector(num_pins - 1 downto 0);
@@ -94,15 +98,50 @@ architecture behavioral of GPIO is
 
     signal clk_if_comb : std_logic_vector(num_pins - 1 downto 0);	-- Combinational interrupt flag clock.
     signal PxTASK      : std_logic_vector(num_pins - 1 downto 0);	-- Task pin-select: which pins task_outset and task_outclr act on.
-    -- Task pin-select slot, a LOCAL constant in the first free GPIO slot.
-    constant RegSlotPxTASK : natural := 12;
     signal clk_if : std_logic_vector(num_pins - 1 downto 0);	-- Enabled interrupt flag clock.
     signal clr_if : std_logic_vector(num_pins - 1 downto 0);	-- Clear interrupt flag signal, active high.
 
     constant zero_vector : std_logic_vector(num_pins - 1 downto 0) := (others => '0');
 
-    signal read_data_buff : std_logic_vector(31 downto 0);	-- Buffer for read data.
-    signal en_addr_periph : natural;	-- The peripheral register address being read or written.
+    -- The bus side is one periph_regs instance driven by gpio_regs_pkg's tables; see hdl/common/regs/REGFILE.md.
+    -- PxOUT is the interesting case in the whole tree: THREE alias words act on
+    -- ONE storage word through hooks, which is what WOSET, W1C and WOT exist for.
+    signal regs_q     : reg_arr_t;   -- the stored words
+    signal hw_rd_s    : reg_arr_t;   -- the read source for the words this module does not store
+    signal hw_we_s    : reg_arr_t;
+    signal hw_wdata_s : reg_arr_t;
+    signal hw_set_s   : reg_arr_t;
+    signal hw_clr_s   : reg_arr_t;
+    signal w1c_s      : reg_arr_t;   -- a 1 written to PxOUTC or PxIF
+    signal woset_s    : reg_arr_t;   -- a 1 written to PxOUTS
+    signal wot_s      : reg_arr_t;   -- a 1 written to PxOUTT
+    signal task_set   : word;        -- the fabric task, masked to its PxTASK pins
+    signal task_clr   : word;
+
+    -- Zero-extend a register field to a bus word.
+    function pad(v : std_logic_vector) return word is
+        variable r : word := (others => '0');
+    begin
+        r(v'length - 1 downto 0) := v;
+        return r;
+    end function;
+
+    -- The five registers whose reset is a GENERIC of this entity rather than a
+    -- property of the description; the .rdl cannot say that, so they arrive
+    -- through RSTVAL_OR, masked to the implemented bits the table declares.
+    -- PxAFS's reset is nibble-packed exactly like its storage image.
+    function rstValOr return reg_arr_t is
+        variable r : reg_arr_t := (others => (others => '0'));
+    begin
+        r(RegSlotPxOUT) := RstValPxOUT and IMPL(RegSlotPxOUT);
+        r(RegSlotPxDIR) := RstValPxDIR and IMPL(RegSlotPxDIR);
+        r(RegSlotPxSEL) := RstValPxSEL and IMPL(RegSlotPxSEL);
+        r(RegSlotPxREN) := RstValPxREN and IMPL(RegSlotPxREN);
+        r(RegSlotPxAFS) := RstValPxAFS and IMPL(RegSlotPxAFS);
+        return r;
+    end function;
+
+    constant RSTVAL_OR_GPIO : reg_arr_t := rstValOr;
 begin
 
     PxIN <= prt_in;
@@ -114,13 +153,17 @@ begin
 
 	-- The nibble-per-pin PxAFS register layout only fits 8 pins in one 32-bit register.
 	-- Larger ports would need a second AFS register, which is not needed since every port in the SoC is 8 pins.
-	assert num_pins <= 8
-		report "GPIO: PxAFS multi-AF support requires num_pins <= 8 (one nibble per pin in a 32-bit register)"
+	-- gpio.rdl describes the EIGHT-pin port, and its implemented-bit masks are
+	-- what periph_regs decodes with, so the two agree only at eight. PxAFS is also
+	-- the one register wider than the pin count, at a nibble per pin, and eight
+	-- nibbles is the whole 32-bit word.
+	assert num_pins = 8
+		report "GPIO: the register description (hdl/common/regs/rdl/gpio.rdl) is the 8-pin port; num_pins must be 8"
 		severity failure;
 
-	-- Alternate-function plane mux: each pin's PxAFS field picks which of the GPIO_NUM_AFS flattened planes reaches the PxSEL pad mux below.
+	-- Alternate-function plane mux: each pin's PxAFS field picks which of the NUM_AFS flattened planes reaches the PxSEL pad mux below.
 	af_plane_mux: process(PxAFS, alt_func_out_in, alt_func_dir_in, alt_func_ren_in)
-		variable k : natural range 0 to GPIO_NUM_AFS - 1;
+		variable k : natural range 0 to NUM_AFS - 1;
 	begin
 		for i in 0 to num_pins - 1 loop
 			k := to_integer(unsigned(PxAFS((3 * i) + 2 downto 3 * i)));
@@ -130,14 +173,23 @@ begin
 		end loop;
 	end process;
 
-	-- Nibble-per-pin readback image of PxAFS; bit 3 of each nibble is reserved.
-	gen_afs_nib: for i in 0 to num_pins - 1 generate
-		PxAFS_nib((4 * i) + 2 downto 4 * i) <= PxAFS((3 * i) + 2 downto 3 * i);
-		PxAFS_nib((4 * i) + 3) <= '0';
+	-- PxAFS is STORED in the nibble-per-pin readback image, with bit 3 of each
+	-- nibble outside IMPL so it stores nothing and reads 0; the 3-bit-per-pin
+	-- packing the plane mux and the port want is cut out of it here. The byte
+	-- lanes then land where they always did: lane n covers pins 2n and 2n+1.
+	gen_afs: for i in 0 to num_pins - 1 generate
+		PxAFS((3 * i) + 2 downto 3 * i) <=
+			regs_q(RegSlotPxAFS)((4 * i) + 2 downto 4 * i);
 	end generate;
-	gen_afs_nib_msbs: if (4 * num_pins) < 32 generate
-		PxAFS_nib(31 downto 4 * num_pins) <= (others => '0');
-	end generate;
+
+	-- The six plain storage registers.
+	PxOUT  <= regs_q(RegSlotPxOUT)(num_pins - 1 downto 0);
+	PxDIR  <= regs_q(RegSlotPxDIR)(num_pins - 1 downto 0);
+	PxSEL  <= regs_q(RegSlotPxSEL)(num_pins - 1 downto 0);
+	PxREN  <= regs_q(RegSlotPxREN)(num_pins - 1 downto 0);
+	PxIES  <= regs_q(RegSlotPxIES)(num_pins - 1 downto 0);
+	PxIE   <= regs_q(RegSlotPxIE)(num_pins - 1 downto 0);
+	PxTASK <= regs_q(RegSlotPxTASK)(num_pins - 1 downto 0);
 
     -- Drive the pads, inverting where the pad terminal uses negative logic.
     gen_port_logic: for i in 0 to num_pins - 1 generate
@@ -207,181 +259,87 @@ begin
         end if;
     end process;
 
-    -- Register write process, plus the fabric output tasks.
-    reg_write: process(clk_mem, resetn, en)
-    begin
-        if resetn = '0' then -- Asynchronous reset.
-            PxOUT <= RstValPxOUT(num_pins - 1 downto 0);
-            PxDIR <= RstValPxDIR(num_pins - 1 downto 0);
-            PxSEL <= RstValPxSEL(num_pins - 1 downto 0);
-            PxREN <= RstValPxREN(num_pins - 1 downto 0);
-            for i in 0 to num_pins - 1 loop -- RstValPxAFS is nibble-packed like the register image.
-                PxAFS((3 * i) + 2 downto 3 * i) <= RstValPxAFS((4 * i) + 2 downto 4 * i);
-            end loop;
-            PxIES <= (others => '0');
-            PxIE  <= (others => '0');
-            PxTASK <= (others => '0');   -- Task pin-select is inert out of reset.
-        elsif rising_edge(clk_mem) then
-            if en = '0' then -- Peripheral selected, active low.
-                case en_addr_periph is
-                    when RegSlotPxOUT  => -- Output logic level.
-                        
-                        for i in 0 to (num_pins / 8) - 1 loop
-                            if wen(i) = '0' then 
-                                PxOUT((i * 8) + 7 downto (i * 8)) <= write_data((i * 8) + 7 downto (i * 8)); 
-                            end if;
-                        end loop;
-                    when RegSlotPxOUTS => -- Set: writing '1' sets the output, writing '0' has no effect.
-                        for i in 0 to (num_pins / 8) - 1 loop
-                            if wen(i) = '0' then 
-                                for j in (i * 8) to (i * 8) + 7 loop
-                                    if write_data(j) = '1' 
-                                        then PxOUT(j) <= '1'; 
-                                    end if;
-                                end loop;
-                            end if;
-					    end loop;
-                    when RegSlotPxOUTC => -- Clear: writing '1' clears the output, writing '0' has no effect.
-                        for i in 0 to (num_pins / 8) - 1 loop
-                            if wen(i) = '0' then 
-                                for j in (i * 8) to (i * 8) + 7 loop
-                                    if write_data(j) = '1' then 
-                                        PxOUT(j) <= '0'; 
-                                    end if;
-                                end loop;
-                            end if;
-                        end loop;
-                    when RegSlotPxOUTT => -- Toggle: writing '1' toggles the output, writing '0' has no effect.
-                        for i in 0 to (num_pins / 8) - 1 loop
-                            if wen(i) = '0' then 
-                                for j in (i * 8) to (i * 8) + 7 loop
-                                    if write_data(j) = '1' then 
-                                        PxOUT(j) <= not PxOUT(j); 
-                                    end if;
-                                end loop;
-                            end if;
-                        end loop;
-                    when RegSlotPxDIR  => -- Pin direction.
-                        for i in 0 to (num_pins / 8) - 1 loop
-                            if wen(i) = '0' then 
-                                PxDIR((i * 8) + 7 downto (i * 8)) <= write_data((i * 8) + 7 downto (i * 8)); 
-                            end if;
-                        end loop;
-                    when RegSlotPxSEL => -- GPIO or alternate function per pin.
-                        for i in 0 to (num_pins / 8) - 1 loop
-                            if wen(i) = '0' then 
-                                PxSEL((i * 8) + 7 downto (i * 8)) <= write_data((i * 8) + 7 downto (i * 8)); 
-                            end if;
-                        end loop;
-                    when RegSlotPxREN  => -- Resistor enable. TODO: confirm the polarity, the note here claims '1' disables and '0' enables the resistor.
-                        for i in 0 to (num_pins / 8) - 1 loop
-                            if wen(i) = '0' then
-                                PxREN((i * 8) + 7 downto (i * 8)) <= write_data((i * 8) + 7 downto (i * 8));
-                            end if;
-                        end loop;
-                    when RegSlotPxAFS => -- Alternate function select, one nibble per pin: low 3 bits used, nibble bit 3 reserved.
-                        for i in 0 to num_pins - 1 loop
-                            if wen(i / 2) = '0' then -- Byte lane i/2 covers pins 2i and 2i+1.
-                                PxAFS((3 * i) + 2 downto 3 * i) <= write_data((4 * i) + 2 downto 4 * i);
-                            end if;
-                        end loop;
-                    when RegSlotPxIF => -- Interrupt flags.
-                        -- Writing a '1' to a flag bit clears that flag.
-                        for i in 0 to (num_pins / 8) - 1 loop
-                            if wen(i) = '0' then 
-                                clr_if((i * 8) + 7 downto (i * 8)) <= write_data((i * 8) + 7 downto (i * 8));
-                            end if;
-                        end loop;
-                    when RegSlotPxIES => -- Interrupt edge select.
-                        for i in 0 to (num_pins / 8) - 1 loop
-                            if wen(i) = '0' then 
-                                PxIES((i * 8) + 7 downto (i * 8)) <= write_data((i * 8) + 7 downto (i * 8)); 
-                            end if;
-                        end loop;
-                    when RegSlotPxIE => -- Interrupt enable.
-                        for i in 0 to (num_pins / 8) - 1 loop
-                            if wen(i) = '0' then 
-                                PxIE((i * 8) + 7 downto (i * 8)) <= write_data((i * 8) + 7 downto (i * 8)); 
-                            end if;
-                        end loop;
-                    when RegSlotPxTASK => -- Task pin-select.
-                        for i in 0 to (num_pins / 8) - 1 loop
-                            if wen(i) = '0' then
-                                PxTASK((i * 8) + 7 downto (i * 8)) <= write_data((i * 8) + 7 downto (i * 8));
-                            end if;
-                        end loop;
-                    when others => -- Unmapped slot: the write is ignored.
-                        null;
-                end case;
-            end if;
+    -- Register Memory Interface ----------
+    -- One periph_regs instance replaces the slot decode, the byte-lane write case,
+    -- the three alias arms, the flag-clear strobe and the registered read mux.
+    -- PxOUT is the whole point of the alias hooks: PxOUTS' write-1-to-SET,
+    -- PxOUTC's write-1-to-CLEAR and PxOUTT's write-1-to-TOGGLE are three separate
+    -- WORDS acting on one storage word, and each arrives here as a mask.
+    --
+    -- STROBE_HOLD is FALSE: clk_mem free-runs (task_outset and task_outclr act
+    -- outside the en gate and need it to), and an alias write must be sampled by
+    -- a storage edge AFTER the access, which the one-cycle retirement guarantees
+    -- and the held one would not inside a single-edge select window.
+    --
+    -- The fabric tasks are NOT strobes: they are already one-clk_mem pulses in
+    -- this clock domain, so they join the same hw_set / hw_clr masks
+    -- combinationally and still land on the edge they arrive, which is what makes
+    -- a task win its pins over a coincident CPU write (hardware beats the CPU in
+    -- periph_regs' resolution order) and a clear win over a set.
+    u_regs: entity work.periph_regs
+        generic map (
+            NWORDS      => NWORDS,
+            RSTVAL      => RSTVAL,
+            RSTVAL_OR   => RSTVAL_OR_GPIO,
+            IMPL        => IMPL,
+            W1C         => W1C,
+            WOSET       => WOSET,
+            WOT         => WOT,
+            PULSE       => PULSE,
+            RCLR        => RCLR,
+            HWOWN       => HWOWN,
+            STROBE_HOLD => false)
+        port map (
+            ClkMem      => clk_mem,
+            resetn      => resetn,
+            EnMemPeriph => en,
+            WEn         => wen,
+            MABPart     => addr_periph,
+            wdata       => write_data,
+            rdata_out   => read_data,
+            regs        => regs_q,
+            hw_rd       => hw_rd_s,
+            hw_we       => hw_we_s,
+            hw_wdata    => hw_wdata_s,
+            hw_set      => hw_set_s,
+            hw_clr      => hw_clr_s,
+            acc_hit     => open,
+            rd_strobe   => open,
+            wr_strobe   => open,
+            wr_pulse    => open,
+            w1c_hit     => w1c_s,
+            woset_hit   => woset_s,
+            wot_hit     => wot_s,
+            rd_clr      => open);
 
-            -- Consumer tasks: one-clk fabric pulses acting on the PxTASK-selected pins, OUTSIDE the en gate because clk_mem free-runs, and AFTER the register case so a task wins its pins on a coincident CPU write.
-            -- CLR is evaluated after SET, so a same-cycle set and clear on an overlapping pin resolves to CLR, the safe direction; TOGGLE is deliberately NOT offered.
-            if task_outset = '1' then
-                for j in 0 to num_pins - 1 loop
-                    if PxTASK(j) = '1' then PxOUT(j) <= '1'; end if;
-                end loop;
-            end if;
-            if task_outclr = '1' then
-                for j in 0 to num_pins - 1 loop
-                    if PxTASK(j) = '1' then PxOUT(j) <= '0'; end if;
-                end loop;
-            end if;
-        end if;
+    -- The five words that hold no flop here. The three aliases read PxOUT, and
+    -- PxOUTC reads it INVERTED, which is what the readback mux has always done.
+    -- PxIN and PxIF come back through their falling-en snapshot latches, which
+    -- are a CDC judgement and stay in this file.
+    hw_rd_s <= (RegSlotPxIN   => pad(not PxINLat),
+                RegSlotPxOUTS => pad(PxOUT),
+                RegSlotPxOUTC => pad(not PxOUT),
+                RegSlotPxOUTT => pad(PxOUT),
+                RegSlotPxIF   => pad(not PxIF_ltch),
+                others        => (others => '0'));
 
+    -- Consumer tasks: one-clk_mem fabric pulses acting on the PxTASK-selected pins.
+    task_set <= pad(PxTASK) when task_outset = '1' else (others => '0');
+    task_clr <= pad(PxTASK) when task_outclr = '1' else (others => '0');
 
-        -- The flag-clear strobes last only while the access is live.
-        if resetn = '0' or en = '1' then
-            clr_if <= (others => '0');
-        end if;
+    -- The three alias words and the two tasks, onto PxOUT's storage. periph_regs
+    -- resolves a coincident access as lane write, then hw_we, then hw_set, then
+    -- hw_clr, so a toggle loses to a set, a set loses to a clear, and any of them
+    -- beats a CPU write landing on the same edge.
+    hw_we_s    <= (RegSlotPxOUT => wot_s(RegSlotPxOUTT), others => (others => '0'));
+    hw_wdata_s <= (RegSlotPxOUT => pad(not PxOUT),       others => (others => '0'));
+    hw_set_s   <= (RegSlotPxOUT => woset_s(RegSlotPxOUTS) or task_set,
+                   others       => (others => '0'));
+    hw_clr_s   <= (RegSlotPxOUT => w1c_s(RegSlotPxOUTC) or task_clr,
+                   others       => (others => '0'));
 
-
-    end process;
-
-
-    
-
-    en_addr_periph <= to_integer(unsigned(addr_periph)); -- Register slot number as an integer.
-
-
-    -- Register read mux.
-    -- TODO: consider rewriting this as a process statement.
-    with en_addr_periph select 
-        read_data_buff(num_pins - 1 downto 0) <= 
-            (not PxINLat)	when RegSlotPxIN,
-            PxOUT			when RegSlotPxOUT,
-            PxOUT			when RegSlotPxOUTS,
-            (not PxOUT)		when RegSlotPxOUTC,
-            PxOUT			when RegSlotPxOUTT,
-            PxDIR			when RegSlotPxDIR,
-            PxREN			when RegSlotPxREN,
-            PxSEL			when RegSlotPxSEL,
-            (not PxIF_ltch)	when RegSlotPxIF,
-            PxIES			when RegSlotPxIES,
-            PxIE			when RegSlotPxIE,
-            PxAFS_nib(num_pins - 1 downto 0)	when RegSlotPxAFS,
-            PxTASK			when RegSlotPxTASK,
-            (others => '0') when others;
-
-
-    -- Latch the selected read data onto the bus.
-    process(clk_mem, resetn, en)
-    begin
-        if rising_edge(clk_mem) then
-            if resetn = '0' then
-                read_data <= (others => '0');
-            elsif en = '0' then
-                read_data <= read_data_buff;
-            end if;
-        end if;
-    end process;
-
-
-    gen_read_data_MSBs : if num_pins /= 32 generate
-		-- PxAFS is the one register wider than the pin count, at a nibble per pin, so its upper readback bits ride the otherwise-zero MSB lanes.
-		read_data_buff(31 downto num_pins) <=
-			PxAFS_nib(31 downto num_pins) when en_addr_periph = RegSlotPxAFS
-			else (others => '0');
-	end generate;
+    -- PxIF's flops are the pin domain's, one gated flag clock per pin, so they
+    -- stay here and periph_regs only reports which flag a 1 was written to.
+    clr_if <= w1c_s(RegSlotPxIF)(num_pins - 1 downto 0);
 
 end behavioral;

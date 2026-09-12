@@ -325,6 +325,24 @@ begin
             bus_write(clk, pbus, TRNG_SLOT_HT, (31 downto 8 => '0') & rctc);
         end procedure;
 
+        -- A write with an explicit byte-lane pattern. The shared BFM always
+        -- drives WEn = "0000" (a full-word write), so a lane is inexpressible
+        -- through it and GROUP G-LANE needs this local copy.
+        procedure bus_write_lanes(slot  : in natural;
+                                  lanes : in std_logic_vector(3 downto 0);
+                                  data  : in std_logic_vector(31 downto 0)) is
+        begin
+            wait until clk = '0';
+            pbus.addr_periph <= std_logic_vector(to_unsigned(slot, 6));
+            pbus.write_data  <= data;
+            pbus.wen         <= lanes;
+            pbus.en_mem      <= '0';
+            wait until clk = '1';
+            wait until clk = '0';
+            pbus.en_mem <= '1';
+            pbus.wen    <= (others => '1');
+        end procedure;
+
         -- W1C the ALMF bit, then wait out the clr_almf_tgl 2-FF sync and edge detect before the caller relies on the flag being clear.
         procedure w1c_almf is
         begin
@@ -386,6 +404,50 @@ begin
         bus_read(clk, pbus, rdata_out, 4, rdw);
         sb.check_slv("G0: slot 4 (>=4) reads 0", rdw, x"00000000");
         sb.check_bit("G0: irq_trng = 0 out of reset", to_X01(irq_trng), '0');
+
+        /* GROUP G-LANE: byte lanes and reserved bits on the two writable words.
+           No other group in this bench ever drives a lane: every bus_write is a
+           full-word WEn = "0000".
+
+           TRNG0CR is a WIDEWR word. The decode this bench graded qualified the
+           whole 12-bit write on WEn(0) alone, so a lane-0 write moves TRNGDECIM
+           at bits 11:8 -- which is LANE 1 -- and a write with lane 0 masked off
+           moved nothing at all. periph_regs spells that "any enabled lane writes
+           the word whole", which is identical for lane 0 and for any write that
+           includes it, and differs only for a write that excludes lane 0. The
+           last two checks in this group therefore FAIL against the pre-migration
+           RTL by design; every other check in this bench passes against both.
+
+           TRNG0HT needs no such row: its one stored field, TRNGRCTC, is inside
+           lane 0, and TRNGRUNLEN is a read-only diagnostic.
+
+           EN is held 0 throughout, so nothing here starts the harvest engine. */
+        report "=== GROUP G-LANE: byte lanes and reserved bits ===" severity note;
+        bus_write_lanes(TRNG_SLOT_CR, "1110", x"00000FF6");
+        bus_read(clk, pbus, rdata_out, TRNG_SLOT_CR, rdw);
+        sb.check_slv("G-LANE: a lane-0 CR write moves TRNGDECIM at 11:8 too (WIDEWR)",
+                     rdw, x"00000FF6");
+        bus_write(clk, pbus, TRNG_SLOT_CR, x"00000008");
+        bus_read(clk, pbus, rdata_out, TRNG_SLOT_CR, rdw);
+        sb.check_slv("G-LANE: CR bit 3 is reserved, holds no flop and reads 0",
+                     rdw, x"00000000");
+
+        bus_write_lanes(TRNG_SLOT_HT, "1110", x"0000005A");
+        bus_read(clk, pbus, rdata_out, TRNG_SLOT_HT, rdw);
+        sb.check_slv("G-LANE: a lane-0 HT write moves TRNGRCTC", rdw, x"0000005A");
+        bus_write_lanes(TRNG_SLOT_HT, "1101", x"00FF0000");
+        bus_read(clk, pbus, rdata_out, TRNG_SLOT_HT, rdw);
+        sb.check_slv("G-LANE: HT ignores lane 1, which holds no stored bit "
+                     & "(TRNGRUNLEN is read-only)", rdw, x"0000005A");
+
+        bus_write_lanes(TRNG_SLOT_CR, "1101", x"00000226");
+        bus_read(clk, pbus, rdata_out, TRNG_SLOT_CR, rdw);
+        sb.check_slv("G-LANE: a lane-1 CR write moves the whole word (WIDEWR; "
+                     & "the old decode dropped it)", rdw, x"00000226");
+        bus_write_lanes(TRNG_SLOT_CR, "1011", x"00000000");
+        bus_read(clk, pbus, rdata_out, TRNG_SLOT_CR, rdw);
+        sb.check_slv("G-LANE: a lane-2 CR write also moves the whole word (WIDEWR)",
+                     rdw, x"00000000");
 
         -- GROUP G1: harvest / DRDY
         report "=== GROUP G1: harvest / DRDY ===" severity note;

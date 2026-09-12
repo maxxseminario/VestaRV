@@ -209,6 +209,22 @@ begin
             bus_write(clk, pbus, OW_SLOT_CR, ow_mk_cr(owen, ods, '0', tcie, errie));
         end procedure;
 
+        -- A write with an explicit byte-lane pattern. The shared BFM always drives WEn = "0000" (a full-word write), so a lane is inexpressible through it and GROUP G-LANE needs this local copy.
+        procedure bus_write_lanes(slot  : in natural;
+                                  lanes : in std_logic_vector(3 downto 0);
+                                  data  : in std_logic_vector(31 downto 0)) is
+        begin
+            wait until clk = '0';
+            pbus.addr_periph <= std_logic_vector(to_unsigned(slot, 6));
+            pbus.write_data  <= data;
+            pbus.wen         <= lanes;
+            pbus.en_mem      <= '0';
+            wait until clk = '1';
+            wait until clk = '0';
+            pbus.en_mem <= '1';
+            pbus.wen    <= (others => '1');
+        end procedure;
+
         -- W1C the given SR mask, then wait out the clr_*_tgl 2-FF sync and edge detect before the caller relies on the flag being clear.
         procedure ow_w1c(mask : std_logic_vector(31 downto 0)) is
         begin
@@ -240,8 +256,39 @@ begin
         sb.check_slv("G0: slot 7 reads 0", rdw, x"00000000");
         sb.check_bit("G0: irq_ow = 0 out of reset", to_X01(irq_ow), '0');
 
+        /* GROUP G-LANE: byte lanes on the four writable words. No other group in this bench ever drives a lane: every bus_write is a full-word WEn = "0000". OWEN stays 0 throughout, so no CMD write here launches.
+
+           OWxCMD and OWxDIV are WIDEWR words. The decode this bench graded qualified every write on WEn(0) alone and then wrote OWBITVAL at bit 8 and OWDIV at 15:0, both of which reach lane 1, so a lane-0 write moved them and a write with lane 0 masked off moved nothing at all. periph_regs spells that "any enabled lane writes the word whole": identical for lane 0 and any write including it, different only for a write that excludes it. The last two checks here therefore FAIL against the pre-migration RTL by design. */
+        report "=== GROUP G-LANE: byte lanes ===" severity note;
+        bus_write_lanes(OW_SLOT_CMD, "1110", x"00000102");
+        bus_read(clk, pbus, rdata_out, OW_SLOT_CMD, rdw);
+        sb.check_slv("G-LANE: a lane-0 CMD write moves OWBITVAL at bit 8 too (WIDEWR)",
+                     rdw, x"00000102");
+        bus_write_lanes(OW_SLOT_CR, "1110", x"0000001E");
+        bus_read(clk, pbus, rdata_out, OW_SLOT_CR, rdw);
+        sb.check_slv("G-LANE: a lane-0 CR write moves OWERRIE..OWODS (OWEN left 0)",
+                     rdw, x"0000001E");
+        bus_write_lanes(OW_SLOT_CR, "1101", x"0000FF00");
+        bus_read(clk, pbus, rdata_out, OW_SLOT_CR, rdw);
+        sb.check_slv("G-LANE: CR ignores lane 1, which holds no stored bit", rdw, x"0000001E");
+        -- Kept small (256, not a full lane-1 pattern) on purpose: OWxDIV feeds a
+        -- FREE-RUNNING reload down-counter, so whatever is written here has to
+        -- drain before the protocol groups get their time base back, and the
+        -- drain is waited out below.
+        bus_write_lanes(OW_SLOT_DIV, "1101", x"00000100");
+        bus_read(clk, pbus, rdata_out, OW_SLOT_DIV, rdw);
+        sb.check_slv("G-LANE: a lane-1 DIV write moves the whole OWDIV field (WIDEWR; "
+                     & "the old decode dropped it)", rdw, x"00000100");
+        bus_write_lanes(OW_SLOT_CMD, "1011", x"00000000");
+        bus_read(clk, pbus, rdata_out, OW_SLOT_CMD, rdw);
+        sb.check_slv("G-LANE: a lane-2 CMD write also moves the whole word (WIDEWR)",
+                     rdw, x"00000000");
+        ow_set_cr('0', '0', '0', '0');   -- back to the reset CR before the protocol groups
+
         -- Program the compression divisor, after the reset-default checks that need DIV at 0 and before any protocol op, so every tick below is OW0DIV_VAL+1 clk and the DQ sync stays sub-tick even in overdrive.
         bus_write(clk, pbus, OW_SLOT_DIV, std_logic_vector(to_unsigned(OW0DIV_VAL, 32)));
+        -- Drain the 256-count the lane check above left in the free-running time base, so the first protocol tick is already the programmed one.
+        wait for 300 * PERIOD;
 
         -- Also proves the launch-suppress contract: command content is always captured, but launch (BUSY) is suppressed while OWEN=0.
         report "=== GROUP G1: reset / presence ===" severity note;

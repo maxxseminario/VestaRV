@@ -81,6 +81,23 @@ begin
     stim_proc : process
         variable rdw    : std_logic_vector(31 downto 0);
         variable ackbit : std_logic;
+
+        -- periph_tb_pkg.bus_write always asserts all four lanes, so it cannot
+        -- express a byte lane. This is that procedure with the lanes exposed.
+        procedure bus_write_lanes(slot  : in natural;
+                                  lanes : in std_logic_vector(3 downto 0);
+                                  data  : in std_logic_vector(31 downto 0)) is
+        begin
+            wait until smclk = '0';
+            pbus.addr_periph <= std_logic_vector(to_unsigned(slot, 6));
+            pbus.write_data  <= data;
+            pbus.wen         <= lanes;
+            pbus.en_mem      <= '0';
+            wait until smclk = '1';
+            wait until smclk = '0';
+            pbus.en_mem <= '1';
+            pbus.wen    <= (others => '1');
+        end procedure;
     begin
         -- Reset
         resetn <= '0';
@@ -132,6 +149,53 @@ begin
         bus_read(smclk, pbus, rdata_out, RegSlotI2CxAR, rdw);
         sb.check_slv("AR readback", rdw(6 downto 0), SLAVE_ADDR);
         bus_write(smclk, pbus, RegSlotI2CxAMR, x"00000000");
+
+        -- GROUP 2b: byte lanes, the implemented-bit mask, and the two words a
+        -- write does not simply store. Added before the periph_regs migration
+        -- (report R12e): nothing here was covered, and the shared BFM cannot
+        -- drive a lane at all.
+        report "=== GROUP 2b: lanes, masks and gated writes ===" severity note;
+
+        bus_write(smclk, pbus, RegSlotI2CxCR, x"00000000");
+        bus_write_lanes(RegSlotI2CxCR, "1110", x"00FFFFFF");
+        bus_read(smclk, pbus, rdata_out, RegSlotI2CxCR, rdw);
+        sb.check_slv("CR lane 0 alone moves bits 7:0", rdw(21 downto 0),
+                     (21 downto 8 => '0') & x"FF");
+        bus_write_lanes(RegSlotI2CxCR, "1101", x"00FFFFFF");
+        bus_read(smclk, pbus, rdata_out, RegSlotI2CxCR, rdw);
+        sb.check_slv("CR lane 1 alone moves bits 15:8", rdw(21 downto 0),
+                     (21 downto 16 => '0') & x"FFFF");
+        bus_write_lanes(RegSlotI2CxCR, "1011", x"00FFFFFF");
+        bus_read(smclk, pbus, rdata_out, RegSlotI2CxCR, rdw);
+        sb.check_slv("CR lane 2 alone moves bits 21:16", rdw(21 downto 0),
+                     (21 downto 0 => '1'));
+        bus_write_lanes(RegSlotI2CxCR, "0111", x"00000000");
+        bus_read(smclk, pbus, rdata_out, RegSlotI2CxCR, rdw);
+        sb.check_slv("CR lane 3 implements nothing and changes nothing",
+                     rdw(21 downto 0), (21 downto 0 => '1'));
+        bus_write(smclk, pbus, RegSlotI2CxCR, x"FFFFFFFF");
+        bus_read(smclk, pbus, rdata_out, RegSlotI2CxCR, rdw);
+        sb.check_slv("CR drops the write above bit 21", rdw, x"003FFFFF");
+        bus_write(smclk, pbus, RegSlotI2CxCR, x"00000000");
+
+        bus_read(smclk, pbus, rdata_out, RegSlotI2CxFCR, rdw);
+        sb.check_slv("FCR is write-1-only and reads 0", rdw, x"00000000");
+        bus_read(smclk, pbus, rdata_out, RegSlotI2CxMRX, rdw);
+        sb.check_slv("MRX reads 0 before any master receive", rdw, x"00000000");
+
+        bus_write(smclk, pbus, RegSlotI2CxAMR, x"FFFFFFFF");
+        bus_read(smclk, pbus, rdata_out, RegSlotI2CxAMR, rdw);
+        sb.check_slv("AMR readback, seven bits wide", rdw, x"0000007F");
+        bus_write(smclk, pbus, RegSlotI2CxAMR, x"00000000");
+
+        -- MTX is the one storage word whose write is CONDITIONAL: it lands only
+        -- while the master is enabled, because the write also launches a byte.
+        bus_write(smclk, pbus, RegSlotI2CxMTX, x"000000A5");
+        bus_read(smclk, pbus, rdata_out, RegSlotI2CxMTX, rdw);
+        sb.check_slv("MTX write is dropped while MEN = 0", rdw(7 downto 0), x"99");
+
+        bus_write(smclk, pbus, RegSlotI2CxSR, x"00001FFF");
+        bus_write(smclk, pbus, RegSlotI2CxAR, (31 downto 7 => '0') & SLAVE_ADDR);
 
         -- GROUP 3: START / STOP detection
         report "=== GROUP 3: START/STOP detection ===" severity note;

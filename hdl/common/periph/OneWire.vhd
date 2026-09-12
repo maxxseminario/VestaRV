@@ -9,7 +9,8 @@ use ieee.std_logic_1164.all;
 use ieee.std_logic_arith.all;
 use ieee.std_logic_unsigned.all;
 
--- Word slots, field ranges, resets and implemented-bit masks: generated from hdl/common/regs/rdl/onewire.rdl.
+-- Word slots, field ranges, resets and implemented-bit masks, and the periph_regs
+-- tables the bus side is an instance of: generated from hdl/common/regs/rdl/onewire.rdl.
 use work.onewire_regs_pkg.all;
 
 
@@ -71,21 +72,35 @@ architecture behavioral of OneWire is
                          OW_DONE);
     signal ow_state : t_ow_state;
 
-    -- Register-file storage (ClkMem domain).
+    /* Register file (ClkMem domain). The bus side is one work.periph_regs
+       instance driven by onewire_regs_pkg's tables; see
+       hdl/common/regs/REGFILE.md. The five per-field flops this block used to
+       keep are the IMPL bits of four stored words -- OWxCR, OWxCMD (whose
+       stored bits ARE the last-written OP/BITVAL readback), OWxTX and OWxDIV --
+       sliced back out below. OWxRX and OWxSR hold no flop there: the protocol
+       FSM owns the receive byte and the flags, and they reach the read mux
+       through hw_rd. OWxSPU is a stub and reads 0. */
+    signal regs_q   : reg_arr_t;                          -- the stored words
+    signal hw_rd_s  : reg_arr_t;                          -- read source for everything else
+    signal acc_s    : std_logic_vector(0 to NWORDS-1);    -- combinational: this slot, now
+    signal sr_rd    : std_logic_vector(31 downto 0);
+    signal cmd_wr   : std_logic;                          -- an OWxCMD lane-0 write, this access
+
+    -- Field taps out of the stored words, quasi-static.
     signal ow_cr        : std_logic_vector(4 downto 0);   -- OWEN/ODS/SPUEN/TCIE/ERRIE
-    signal ow_cmd_op    : std_logic_vector(2 downto 0);   -- CMD readback: last-written OP
-    signal ow_cmd_bitval: std_logic;                      -- CMD readback: last-written BITVAL
-    signal ow_tx        : std_logic_vector(7 downto 0);   -- OW0TX
-    signal ow_div       : std_logic_vector(15 downto 0);  -- OW0DIV
+    signal ow_tx        : std_logic_vector(7 downto 0);   -- OWxTX
+    signal ow_div       : std_logic_vector(15 downto 0);  -- OWxDIV
     signal desc_op      : std_logic_vector(2 downto 0);   -- launch descriptor: OP
     signal desc_bitval  : std_logic;                      -- launch descriptor: BITVAL
+
+    -- What the CMD write SNAPSHOTS rather than stores: the ODS and TX byte in
+    -- force at the write, which the live registers may have moved on from.
     signal desc_ods     : std_logic;                      -- launch descriptor: ODS
     signal desc_tx      : std_logic_vector(7 downto 0);   -- launch descriptor: TX byte
     signal launch_tgl   : std_logic;                      -- launch request toggle
     signal clr_tcif_tgl  : std_logic;                     -- W1C TCIF request toggle
     signal clr_nopres_tgl: std_logic;                     -- W1C NOPRES request toggle
     signal clr_short_tgl : std_logic;                     -- W1C SHORT request toggle
-    signal ow_slot       : natural range 0 to 63;         -- decoded word slot
 
     -- busy_sync: the one crossing with a real 2-FF (clk into ClkMem).
     signal busy_c1, busy_c2 : std_logic;
@@ -122,8 +137,16 @@ architecture behavioral of OneWire is
 
 begin
 
-    -- Slot decode, qualified by the EnMemPeriph level only.
-    ow_slot <= conv_integer(MABPart) when EnMemPeriph = '0' else 0;
+    -- Field taps out of the register file. The positions are onewire_regs_pkg's,
+    -- so no bit literal in this file describes a register. OWxCMD's two stored
+    -- fields are both the software readback and the launch descriptor's OP and
+    -- BITVAL: they are written on the same edge and hold until the next CMD
+    -- write, which is exactly what the separate desc_op/desc_bitval flops did.
+    ow_cr       <= regs_q(SLOT_CR)(OWERRIE_MSB downto OWEN_LSB);
+    ow_tx       <= regs_q(SLOT_TX)(OWTX_MSB downto OWTX_LSB);
+    ow_div      <= regs_q(SLOT_DIV)(OWDIV_MSB downto OWDIV_LSB);
+    desc_op     <= regs_q(SLOT_CMD)(OWOP_MSB downto OWOP_LSB);
+    desc_bitval <= regs_q(SLOT_CMD)(OWBITVAL_LSB);
 
     -- Bit written this iteration: WRBIT uses latched_bitval, WRBYTE shifts latched_tx out LSB-first via bit_idx.
     wr_bit_val <= latched_bitval when latched_op = OP_WRBIT else latched_tx(bit_idx);
@@ -135,18 +158,79 @@ begin
     OW_DQ_OUT <= '0';
     OW_DQ_DIR <= dq_drive_low;
 
-    -- Register write: rising ClkMem, EnMemPeriph='0', lane 0 (WEn(0)='0') only.
-    -- OW0CMD always captures the descriptor but only flips launch_tgl when OWEN=1 and busy_sync=0; SR writes of 1 flip the W1C clear toggles.
-    reg_write: process(resetn, ClkMem)
+    /* ------------------------- register file (ClkMem) -------------------------
+       One periph_regs instance replaces the case decode, the byte-lane merge,
+       the reset branch and the registered read mux.
+
+       WIDEWR marks OWxCMD and OWxDIV as the two words any enabled lane writes
+       whole: the decode this replaces qualified every write on WEn(0) alone and
+       then wrote OWBITVAL at bit 8 and OWDIV at bits 15:0, both of which reach
+       lane 1. OWxCR (bits 4:0) and OWxTX (bits 7:0) are inside lane 0 either
+       way and need no row. STROBE_HOLD is immaterial and left false, because
+       this block uses no registered strobe; see cmd_wr below. */
+    hw_rd_s <= (SLOT_RX => (31 downto OWRX_MSB + 1 => '0') & rx_shift,
+                SLOT_SR => sr_rd,
+                others  => (others => '0'));
+
+    /* OWxSR: the flags are clk-domain quasi-static levels, sampled directly.
+       BUSY must read the RAW clk-domain busy level ORed with launch_pending and
+       not busy_sync: the gated ClkMem supplies the very edges that shift busy
+       in, so a busy_sync read right after a launch returns a stale 0. */
+    sr_rd <= (31 downto OWSHORT_MSB + 1 => '0') & short_flag & nopres_flag &
+             pres_flag & tcif_flag & (busy or launch_pending);
+
+    u_regs: entity work.periph_regs
+        generic map (
+            NWORDS      => NWORDS,
+            RSTVAL      => RSTVAL,
+            IMPL        => IMPL,
+            W1C         => W1C,
+            WOSET       => WOSET,
+            WOT         => WOT,
+            PULSE       => PULSE,
+            RCLR        => RCLR,
+            HWOWN       => HWOWN,
+            WIDEWR      => "0100100",
+            STROBE_HOLD => false)
+        port map (
+            ClkMem      => ClkMem,
+            resetn      => resetn,
+            EnMemPeriph => EnMemPeriph,
+            WEn         => WEn,
+            MABPart     => MABPart,
+            wdata       => wdata,
+            rdata_out   => rdata_out,
+            regs        => regs_q,
+            hw_rd       => hw_rd_s,
+            acc_hit     => acc_s,
+            rd_strobe   => open,
+            wr_strobe   => open,
+            wr_pulse    => open,
+            w1c_hit     => open,
+            woset_hit   => open,
+            wot_hit     => open,
+            rd_clr      => open);
+
+    /* An OWxCMD lane-0 write, this access: the descriptor snapshot and the
+       launch.
+
+       This and the W1C arms below take the COMBINATIONAL acc_hit and not the
+       module's registered wr_strobe / w1c_hit, because ClkMem is gated by
+       EnMemPeriph in this block: one bus access presents exactly ONE rising
+       ClkMem edge, so a strobe flop SET on that edge is sampled a whole bus
+       access late, and STROBE_HOLD = true retires it asynchronously at deselect
+       before any edge can see it at all. acc_hit reproduces the old decode's
+       condition exactly and launches on the edge the write does. */
+    cmd_wr <= '1' when (acc_s(SLOT_CMD) = '1' and WEn(0) = '0') else '0';
+
+    /* ------------------------- descriptor + toggles (ClkMem) ------------------
+       What is left of the old register-write process. An OWxCMD write always
+       snapshots the ODS and TX byte in force at the write, launch or no launch;
+       the launch itself is suppressed on OWEN=0 or BUSY=1. An SR write of 1
+       flips the matching W1C clear toggle. */
+    reg_req: process(resetn, ClkMem)
     begin
         if resetn = '0' then
-            ow_cr         <= (others => '0');
-            ow_cmd_op     <= (others => '0');
-            ow_cmd_bitval <= '0';
-            ow_tx         <= (others => '0');
-            ow_div        <= (others => '0');
-            desc_op       <= (others => '0');
-            desc_bitval   <= '0';
             desc_ods      <= '0';
             desc_tx       <= (others => '0');
             launch_tgl    <= '0';
@@ -154,73 +238,21 @@ begin
             clr_nopres_tgl <= '0';
             clr_short_tgl  <= '0';
         elsif rising_edge(ClkMem) then
-            if EnMemPeriph = '0' then
-                case ow_slot is
-                    when SLOT_CR =>
-                        if WEn(0) = '0' then
-                            ow_cr <= wdata(4 downto 0);   -- bits 31:5 reserved
-                        end if;
-                    when SLOT_CMD =>
-                        if WEn(0) = '0' then
-                            -- Content is always captured, launch or no launch.
-                            desc_op       <= wdata(2 downto 0);
-                            desc_bitval   <= wdata(8);
-                            desc_ods      <= ow_cr(1);   -- current ODS at write time
-                            desc_tx       <= ow_tx;      -- current TX byte at write time
-                            ow_cmd_op     <= wdata(2 downto 0);
-                            ow_cmd_bitval <= wdata(8);
-                            -- Launch suppressed on OWEN=0 or BUSY=1.
-                            if ow_cr(0) = '1' and busy_sync = '0' then
-                                launch_tgl <= not launch_tgl;
-                            end if;
-                        end if;
-                    when SLOT_TX =>
-                        if WEn(0) = '0' then
-                            ow_tx <= wdata(7 downto 0);   -- a TX write never launches
-                        end if;
-                    when SLOT_DIV =>
-                        if WEn(0) = '0' then
-                            ow_div <= wdata(15 downto 0);
-                        end if;
-                    when SLOT_SR =>
-                        -- W1C: writing 1 clears; BUSY(0)/PRES(2) are read-only, ignored.
-                        if WEn(0) = '0' then
-                            if wdata(1) = '1' then clr_tcif_tgl   <= not clr_tcif_tgl;   end if;
-                            if wdata(3) = '1' then clr_nopres_tgl <= not clr_nopres_tgl; end if;
-                            if wdata(4) = '1' then clr_short_tgl  <= not clr_short_tgl;  end if;
-                        end if;
-                    when others =>
-                        null;   -- SPU (slot 6) writes ignored; slots >=7 no effect
-                end case;
+            if cmd_wr = '1' then
+                desc_ods <= ow_cr(OWODS_LSB);   -- current ODS at write time
+                desc_tx  <= ow_tx;              -- current TX byte at write time
+                if ow_cr(OWEN_LSB) = '1' and busy_sync = '0' then
+                    launch_tgl <= not launch_tgl;
+                end if;
+            end if;
+            if acc_s(SLOT_SR) = '1' and WEn(0) = '0' then
+                -- W1C: BUSY (0) and PRES (2) are read-only, ignored.
+                if wdata(OWTCIF_LSB)   = '1' then clr_tcif_tgl   <= not clr_tcif_tgl;   end if;
+                if wdata(OWNOPRES_LSB) = '1' then clr_nopres_tgl <= not clr_nopres_tgl; end if;
+                if wdata(OWSHORT_LSB)  = '1' then clr_short_tgl  <= not clr_short_tgl;  end if;
             end if;
         end if;
-    end process;
-
-    -- Registered read mux on rising ClkMem; status bits are clk-domain quasi-static levels sampled directly, with no pre-latch or bridge.
-    -- SR.BUSY must read the RAW clk-domain busy level, not busy_sync: the gated ClkMem supplies the very edges that shift busy in, so a busy_sync read right after a launch returns a stale 0.
-    reg_read: process(ClkMem)
-    begin
-        if rising_edge(ClkMem) then
-            case ow_slot is
-                when SLOT_CR =>
-                    rdata_out <= (31 downto 5 => '0') & ow_cr;
-                when SLOT_CMD =>
-                    rdata_out <= (31 downto 9 => '0') & ow_cmd_bitval &
-                                 (7 downto 3 => '0') & ow_cmd_op;
-                when SLOT_TX =>
-                    rdata_out <= (31 downto 8 => '0') & ow_tx;
-                when SLOT_RX =>
-                    rdata_out <= (31 downto 8 => '0') & rx_shift;
-                when SLOT_DIV =>
-                    rdata_out <= (31 downto 16 => '0') & ow_div;
-                when SLOT_SR =>
-                    rdata_out <= (31 downto 5 => '0') & short_flag & nopres_flag &
-                                 pres_flag & tcif_flag & (busy or launch_pending);
-                when others =>
-                    rdata_out <= (others => '0');   -- SPU slot 6 and slots >=7 read 0
-            end case;
-        end if;
-    end process;
+    end process reg_req;
 
     -- BUSY 2-FF sync into ClkMem; used only to qualify launches.
     busy_sync_proc: process(resetn, ClkMem)

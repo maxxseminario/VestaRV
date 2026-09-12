@@ -7,7 +7,9 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
--- Word slots, field ranges, resets and implemented-bit masks: generated from hdl/common/regs/rdl/evfab.rdl.
+library work;
+use work.constants.all;   -- word, word_array
+-- Word slots, field ranges, resets, implemented-bit masks and the periph_regs tables: generated from hdl/common/regs/rdl/evfab.rdl.
 -- CHCFG_SLOTS stays local; it is the register-array size, not a word slot.
 use work.evfab_regs_pkg.all;
 
@@ -75,7 +77,44 @@ architecture behavioral of EVFAB is
     signal cfg_evsel   : evsel_arr_t;
     signal cfg_tasksel : tasksel_arr_t;
 
-    signal slot : natural range 0 to 63;                  -- decoded word slot (level)
+    -- ---- register file (ClkMem domain) -------------------------------------
+    -- The bus side is one periph_regs instance driven by evfab_regs_pkg's SPARSE
+    -- tables: twenty-nine registers over thirty-two words, with words 12-14
+    -- emitted as all-zero _reserved_ rows. See hdl/common/regs/REGFILE.md.
+    signal regs_q   : reg_arr_t;                       -- the stored words
+    signal hw_rd_s  : reg_arr_t;                       -- the read source for every word this file does not store
+    signal hw_set_s : reg_arr_t;
+    signal hw_clr_s : reg_arr_t;
+    signal acc_s    : std_logic_vector(0 to NWORDS-1);  -- combinational: this slot is addressed now
+    signal wr_inh   : std_logic_vector(0 to NWORDS-1);  -- per word: refuse the write
+    signal set_word, clr_word : word;                   -- the CHENSET / CHENCLR payload
+
+    -- Zero-extend a register field to a bus word.
+    function pad(v : std_logic_vector) return word is
+        variable r : word := (others => '0');
+    begin
+        r(v'length - 1 downto 0) := v;
+        return r;
+    end function;
+
+    -- EVFCHEN's set and clear aliases are SOFTWARE writes to other WORDS, not
+    -- hardware, so the description calls EVFCHEN hw=r and periph_regs would drop
+    -- the hooks. HWALIAS is where the RTL says otherwise; REGFILE.md says why.
+    constant HWALIAS_EVF : reg_arr_t := (SLOT_CHEN => IMPL(SLOT_CHEN),
+                                         others    => (others => '0'));
+
+    -- Every word takes a whole-word write from any enabled lane, and wr_inhibit
+    -- below refuses the access unless lane 0 is one of them: together they are
+    -- `if EnMemPeriph = '0' and WEn(0) = '0'`, which is what this file's write
+    -- arm has always said and which CHnCFG depends on (a lane-0 write moves
+    -- TASKSEL at bits 11:8 as well as EVSEL at 4:0).
+    constant WIDEWR_EVF : std_logic_vector(0 to NWORDS-1) := (others => '1');
+
+    -- EVFCHTRIG and EVFEVTRIG are sw=rw in the description and stored by nothing
+    -- here: they are ACTION slots, decoded in the clk domain below, and they read
+    -- 0. RDTHRU with no hw_rd row is that read.
+    constant RDTHRU_EVF : std_logic_vector(0 to NWORDS-1) :=
+        (SLOT_CHTRIG => '1', SLOT_EVTRIG => '1', others => '0');
 
     -- ---- ACTION path (clk domain) ------------------------------------------
     signal bus_wr_lvl  : std_logic;                       -- comb, pure DATA (never a clock)
@@ -127,95 +166,134 @@ architecture behavioral of EVFAB is
 begin
 
     -- ------------------------- Signal Routing -------------------------------
-    -- Slot decode: an EnMemPeriph-qualified LEVEL, never an edge, parked at 0 while deselected so no stale slot can leak into either domain.
-    slot <= to_integer(unsigned(MABPart)) when EnMemPeriph = '0' else 0;
-
     -- Vectorless: the IRQ net is a hard constant; spending a vector later means implementing slot 2 (IE), driving this net and sweeping the router.
     irq_evfab <= '0';
 
-    /* ------------------------- register write (ClkMem) ----------------------
-       Rising ClkMem, EnMemPeriph='0' AND lane-0 qualified; EVERY slot handled here is IDEMPOTENT (plain store / w1s / w1c), so the repeated edges of a held select window are harmless, and that is the whole reason these stay out of the clk action path.
-       Slots 7-11 (the action set) and 1/2/3/12/13/14/32-63 fall through as no-ops here; CHnCFG slots with n >= N_CH match nothing and are ignored. */
-    reg_write : process(resetn, ClkMem)
-    begin
-        if resetn = '0' then
-            cr_en    <= '0';                    -- global kill asserted out of reset
-            chen     <= (others => '0');        -- second, independent gate
-            gpiomask <= (others => '0');        -- GPIO0 path inert AND X-absorbing
-            for n in 0 to N_CH-1 loop
-                cfg_evsel(n)   <= (others => '0');   -- harmless: double-gated
-                cfg_tasksel(n) <= (others => '0');
-            end loop;
-        elsif rising_edge(ClkMem) then
-            if EnMemPeriph = '0' and WEn(0) = '0' then
-                case slot is
-                    when SLOT_CR =>
-                        cr_en <= wdata(0);                          -- 31:1 reserved
-                    when SLOT_CHEN =>
-                        chen <= wdata(N_CH-1 downto 0);
-                    when SLOT_CHENSET =>
-                        chen <= chen or wdata(N_CH-1 downto 0);     -- w1s; write 0 = no-op
-                    when SLOT_CHENCLR =>
-                        chen <= chen and not wdata(N_CH-1 downto 0);-- w1c; write 0 = no-op
-                    when SLOT_GPIOMASK =>
-                        gpiomask <= wdata(7 downto 0);
-                    when others =>
-                        -- CHnCFG array: equality decode per channel, never an integer index.
-                        -- ENR(31) is a RO mirror and is NOT writable; bits 7:5 and 30:12 are reserved.
-                        for n in 0 to N_CH-1 loop
-                            if slot = SLOT_CH0CFG + n then
-                                cfg_evsel(n)   <= wdata(EVSEL_W-1 downto 0);
-                                cfg_tasksel(n) <= wdata(8+TASKSEL_W-1 downto 8);
-                            end if;
-                        end loop;
-                end case;
-            end if;
-        end if;
-    end process reg_write;
+    -- The register description is elaborated at EIGHT channels and SIXTEEN event
+    -- lines, and its implemented-bit masks are what periph_regs decodes with, so
+    -- the two agree only there. N_TASK and VER are free: they reach the bus only
+    -- through CAP_CONST, which this file assembles.
+    assert N_CH = 8 and N_EV = 16
+        report "EVFAB: the register description (hdl/common/regs/rdl/evfab.rdl) is the "
+             & "8-channel, 16-event elaboration; N_CH must be 8 and N_EV 16"
+        severity failure;
 
-    /* ------------------------- register read (ClkMem) -----------------------
-       Registered read mux on rising ClkMem; the clk-domain flags (FIRED / OVR / EVSTAT and the SR reductions) are sampled BARE, which is a plain timed path and not a CDC because ClkMem and clk are the same net at integration.
-       Reserved slots and bits read 0; CHENSET/CHENCLR both mirror CHEN; CHTRIG/EVTRIG read 0; no read has any side effect. */
-    reg_read : process(resetn, ClkMem)
-        variable rd : std_logic_vector(31 downto 0);
-    begin
-        if resetn = '0' then
-            rdata_out <= (others => '0');
-        elsif rising_edge(ClkMem) then
-            rd := (others => '0');
-            case slot is
-                when SLOT_CR =>
-                    rd(0) := cr_en;
-                when SLOT_SR =>
-                    -- LIVE RO reductions so firmware polls ONE word; neither FIREDIF nor OVRIF is state.
-                    -- Reduced HERE inside the read mux rather than through an intermediate net, which keeps SR bit-consistent with the FIRED/OVR words sampled by this same edge however ClkMem is derived from clk.
-                    rd(0) := or_red(fired);
-                    rd(1) := or_red(ovr);
-                when SLOT_CAP =>
-                    rd := CAP_CONST;
-                when SLOT_CHEN | SLOT_CHENSET | SLOT_CHENCLR =>
-                    rd(N_CH-1 downto 0) := chen;
-                when SLOT_FIRED =>
-                    rd(N_CH-1 downto 0) := fired;
-                when SLOT_OVR =>
-                    rd(N_CH-1 downto 0) := ovr;
-                when SLOT_EVSTAT =>
-                    rd(N_EV-1 downto 0) := evstat;
-                when SLOT_GPIOMASK =>
-                    rd(7 downto 0) := gpiomask;
-                when others =>
-                    -- CHnCFG array read, same equality decode as the write side.
-                    for n in 0 to N_CH-1 loop
-                        if slot = SLOT_CH0CFG + n then
-                            rd(EVSEL_W-1 downto 0)          := cfg_evsel(n);
-                            rd(8+TASKSEL_W-1 downto 8)      := cfg_tasksel(n);
-                            rd(31)                          := chen(n);   -- ENR mirror
-                        end if;
-                    end loop;
-            end case;
-            rdata_out <= rd;
-        end if;
-    end process reg_read;
+    /* ------------------------- register file (ClkMem) -----------------------
+       One periph_regs instance replaces the slot decode, the write case and the
+       registered read mux. What stays below is the ACTION path: slots 7-11 are
+       NON-IDEMPOTENT and are decoded in the free-running clk domain so one write
+       produces exactly one injection or clear however long the select is held,
+       which no ClkMem-domain strobe can promise. Those five words hold no
+       storage here (EVFFIRED / EVFOVR / EVFEVSTAT are hardware's stickies, and
+       EVFCHTRIG / EVFEVTRIG are RDTHRU), so the module and the action path never
+       touch the same flop.
+
+       STROBE_HOLD is false and no strobe output is used: the only bus hook this
+       file takes is acc_hit, which is combinational, so the one asynchronous
+       clear in the instance is resetn and this file stays inside its own
+       VHDL-93 rule. */
+    u_regs: entity work.periph_regs
+        generic map (
+            NWORDS      => NWORDS,
+            RSTVAL      => RSTVAL,
+            IMPL        => IMPL,
+            W1C         => W1C,
+            WOSET       => WOSET,
+            WOT         => WOT,
+            PULSE       => PULSE,
+            RCLR        => RCLR,
+            HWOWN       => HWOWN,
+            HWALIAS     => HWALIAS_EVF,
+            RDTHRU      => RDTHRU_EVF,
+            WIDEWR      => WIDEWR_EVF,
+            STROBE_HOLD => false)
+        port map (
+            ClkMem      => ClkMem,
+            resetn      => resetn,
+            EnMemPeriph => EnMemPeriph,
+            WEn         => WEn,
+            MABPart     => MABPart,
+            wdata       => wdata,
+            rdata_out   => rdata_out,
+            regs        => regs_q,
+            wr_inhibit  => wr_inh,
+            hw_rd       => hw_rd_s,
+            hw_we       => open,
+            hw_wdata    => open,
+            hw_set      => hw_set_s,
+            hw_clr      => hw_clr_s,
+            acc_hit     => acc_s,
+            rd_strobe   => open,
+            wr_strobe   => open,
+            wr_pulse    => open,
+            w1c_hit     => open,
+            woset_hit   => open,
+            wot_hit     => open,
+            rd_clr      => open);
+
+    -- A write reaches the register file only with lane 0 enabled, as it always did.
+    wr_inh <= (others => WEn(0));
+
+    -- The stored words, sliced into the shapes the crossbar wants.
+    cr_en    <= regs_q(SLOT_CR)(EVFEN_LSB);
+    chen     <= regs_q(SLOT_CHEN)(N_CH-1 downto 0);
+    gpiomask <= regs_q(SLOT_GPIOMASK)(EVFNCH_MSB downto EVFNCH_LSB);
+
+    gen_cfg : for n in 0 to N_CH-1 generate
+        cfg_evsel(n)   <= regs_q(SLOT_CH0CFG + n)(EVSEL_W-1 downto 0);
+        cfg_tasksel(n) <= regs_q(SLOT_CH0CFG + n)(8+TASKSEL_W-1 downto 8);
+    end generate;
+
+    /* ------------------------- register read source -------------------------
+       Every word whose read value is not this module's storage. The clk-domain
+       flags (FIRED / OVR / EVSTAT and the SR reductions) are sampled BARE by the
+       instance's read register, which is a plain timed path and not a CDC because
+       ClkMem and clk are the same net at integration; the SR reductions are taken
+       here rather than through an intermediate flop so SR stays bit-consistent
+       with the FIRED/OVR words the same edge samples.
+       CHENSET and CHENCLR mirror CHEN; CHTRIG and EVTRIG read 0 (RDTHRU, no row);
+       reserved words and reserved bits read 0; no read has any side effect. */
+    hw_rd_s(SLOT_CR)       <= (others => '0');
+    hw_rd_s(SLOT_SR)       <= (EVFFIREDIF_LSB => or_red(fired),
+                               EVFOVRIF_LSB   => or_red(ovr),
+                               others         => '0');
+    hw_rd_s(SLOT_IE)       <= (others => '0');
+    hw_rd_s(SLOT_CAP)      <= CAP_CONST;
+    hw_rd_s(SLOT_CHEN)     <= (others => '0');
+    hw_rd_s(SLOT_CHENSET)  <= pad(chen);
+    hw_rd_s(SLOT_CHENCLR)  <= pad(chen);
+    hw_rd_s(SLOT_CHTRIG)   <= (others => '0');
+    hw_rd_s(SLOT_FIRED)    <= pad(fired);
+    hw_rd_s(SLOT_OVR)      <= pad(ovr);
+    hw_rd_s(SLOT_EVSTAT)   <= pad(evstat);
+    hw_rd_s(SLOT_EVTRIG)   <= (others => '0');
+    hw_rd_s(12 to 14)      <= (others => (others => '0'));
+    hw_rd_s(SLOT_GPIOMASK) <= (others => '0');
+
+    -- CHnCFG bit 31 is the ENR read-only mirror of that channel's enable; the
+    -- rest of the word is storage, so only this bit comes from here.
+    gen_cfg_rd : for n in 0 to CHCFG_SLOTS-1 generate
+        live : if n < N_CH generate
+            hw_rd_s(SLOT_CH0CFG + n) <= (31 => chen(n), others => '0');
+        end generate live;
+        dead : if n >= N_CH generate
+            hw_rd_s(SLOT_CH0CFG + n) <= (others => '0');
+        end generate dead;
+    end generate;
+
+    /* ------------------------- the CHEN aliases -----------------------------
+       CHENSET and CHENCLR are set/clear aliases of CHEN, idempotent, and they act
+       on the ClkMem edge the write lands on exactly as the case arms did. That is
+       why they take acc_hit, the module's one UNREGISTERED hook, qualified with
+       their own lane: a registered arm would land a cycle later, and ClkMem is a
+       gated bus clock, so the cycle after a select window may not exist. */
+    set_word <= (wdata and IMPL(SLOT_CHEN))
+                when (acc_s(SLOT_CHENSET) = '1' and WEn(0) = '0') else (others => '0');
+    clr_word <= (wdata and IMPL(SLOT_CHEN))
+                when (acc_s(SLOT_CHENCLR) = '1' and WEn(0) = '0') else (others => '0');
+
+    hw_set_s <= (SLOT_CHEN => set_word, others => (others => '0'));
+    hw_clr_s <= (SLOT_CHEN => clr_word, others => (others => '0'));
 
     /* ------------------------- ACTION path (clk) ----------------------------
        Slots 7-11 are NON-IDEMPOTENT, so one write must produce EXACTLY ONE injection or clear however long the select is held, which is why they are decoded here in the free-running clk domain instead of on ClkMem.

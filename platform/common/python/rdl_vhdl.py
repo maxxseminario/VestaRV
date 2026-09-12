@@ -202,16 +202,15 @@ RTL_PACKAGES = (
         'migrated': True,
         'replacesMemoryMap': True,
     },
-    # GPIO IS PARKED AND CANNOT BE ADOPTED AS THINGS STAND. Its ENTITY PORTS are
-    # GPIO_NUM_AFS * num_pins wide and GPIO_NUM_AFS is a work.MemoryMap constant,
-    # so GPIO.vhd cannot drop that context clause -- and the memory-map package
-    # also publishes a <FIELD>_MSB / <FIELD>_LSB pair for every GPIO field
-    # (MemoryMap.vhd:422 PxAFS0_LSB and its neighbours), which is exactly what
-    # this package emits. Using both would make every one of those names an
-    # ambiguous homograph. The package is emitted and gated like the rest; the
-    # unblocking move is to give GPIO.vhd a NUM_AFS generic (defaulted by its
-    # instantiator, which already `use`s the memory map) so the entity can drop
-    # the clause. Its RegSlotPx* constants are omitted for the same reason.
+    # GPIO was parked until 2026-09-11 (report R12e). Its ENTITY PORTS are
+    # NUM_AFS * num_pins wide, and NUM_AFS used to be the work.MemoryMap constant
+    # GPIO_NUM_AFS, so GPIO.vhd could not drop that context clause -- and the
+    # memory-map package also publishes a <FIELD>_MSB / <FIELD>_LSB pair for every
+    # GPIO field (MemoryMap.vhd:422 PxAFS0_LSB and its neighbours), which is
+    # exactly what this package emits, so using both made every one of those names
+    # an ambiguous homograph. The unblocking move was the one named here: NUM_AFS
+    # is now a GENERIC, passed GPIO_NUM_AFS by MCU.vhd, which `use`s the memory map
+    # anyway. GPIO now takes its slots and its periph_regs tables from here.
     {
         'package': 'gpio_regs_pkg',
         'file': 'hdl/common/regs/vhdl/gpio_regs_pkg.vhd',
@@ -219,7 +218,7 @@ RTL_PACKAGES = (
         'top': 'gpio',
         'rtl': 'hdl/common/periph/GPIO.vhd',
         'periph': 'gpio',
-        'migrated': False,
+        'migrated': True,
     },
     # --- the local-SLOT_ convention --------------------------------------
     {
@@ -305,8 +304,8 @@ RTL_PACKAGES = (
     },
     # --- decodes with no named slot constants ----------------------------
     # DMA, CLINT and MUTEX decode a bare integer word index, so there is no
-    # local constant to delete and adoption would be a body edit. Their
-    # packages are emitted and gated like the rest; nothing `use`s them yet.
+    # local constant to delete and adoption is a body edit. DMA took that edit
+    # (report R12d) and now `use`s its package; CLINT and MUTEX have not.
     {
         'package': 'dma_regs_pkg',
         'file': 'hdl/common/regs/vhdl/dma_regs_pkg.vhd',
@@ -314,7 +313,7 @@ RTL_PACKAGES = (
         'top': 'dma',
         'rtl': 'hdl/common/periph/DMA.vhd',
         'periph': 'dma',
-        'migrated': False,
+        'migrated': True,
     },
     # --- the four configuration-dependent blocks -------------------------
     {
@@ -445,9 +444,10 @@ _DECODE = {
     'i2c': {'rtl': 'I2C.vhd', 'style': 'strip', 'strip': '', 'prefix': 'RegSlot'},
     'system': {'rtl': 'SYSTEM.vhd', 'style': 'map', 'names': _SYSTEM_RTL_SPELLING},
     'npu': {'rtl': 'NPU.vhd', 'style': 'strip', 'strip': '', 'prefix': 'MmrAddr'},
-    # GPIO gets none: see the RTL_PACKAGES note. Its entity keeps
-    # `use work.MemoryMap.all` for GPIO_NUM_AFS, so a RegSlotPx* here would be an
-    # ambiguous homograph rather than a constant.
+    # GPIO joined them once its plane count became the NUM_AFS generic (report
+    # R12e) and the entity could drop `use work.MemoryMap.all`, which is what made
+    # RegSlotPx* and every <FIELD>_MSB/_LSB an ambiguous homograph before.
+    'gpio': {'rtl': 'GPIO.vhd', 'style': 'strip', 'strip': '', 'prefix': 'RegSlot'},
     #
     # The two blocks that name only their configuration-independent words. The
     # per-hart rows (irq_router) and the PWRSR words (pwr_ctrl) are computed
@@ -581,10 +581,21 @@ def _aggregateLines(block):
 # The rows are properties of THIS description, so they belong here and not in
 # the RTL. Design note and the property-to-mask table: hdl/common/regs/REGFILE.md.
 #
-# _REGFILE lists the blocks whose register set can be described as a dense array
-# of 32-bit words: a contiguous run of slots, at one elaboration. _REGFILE_SKIP
-# names the rest and says which of those two it fails, because a package that
-# silently lacks the tables reads like an oversight.
+# _REGFILE lists the blocks whose register set can be described as an array of
+# 32-bit words at one elaboration. The run need NOT be contiguous: a block whose
+# words have gaps (SYSTEM, EVFAB) gets a SPARSE table, one row per word from the
+# first to the last, with an all-zero row named `_reserved_<word>` for each gap.
+# _REGFILE_SKIP names the blocks that fail the one remaining precondition -- a
+# register set fixed at elaboration -- because a package that silently lacks the
+# tables reads like an oversight.
+#
+# Sparse rather than a second instance, for SYSTEM's two runs and EVFAB's three:
+# a gap row costs no storage (IMPL = 0 gives the bit no flop and the word no
+# hook logic) and reads 0, which is exactly what the hand-written `when others`
+# arm of each block does today, whereas a second instance would need a second
+# read mux, a second strobe set and an rdata merge in the peripheral -- the
+# decode this module exists to delete. The gaps' only cost is the per-word
+# rd_strobe / wr_strobe pair, 2 flops per gap word: 14 in SYSTEM, 6 in EVFAB.
 #
 # The array type is work.Constants.word_array -- the ONE shared array-of-word
 # type, which has been in constants.vhd since the first commit. Each package
@@ -594,11 +605,9 @@ def _aggregateLines(block):
 # ---------------------------------------------------------------------------
 
 _REGFILE = ('uart', 'spi', 'timer', 'i2c', 'npu', 'gpio', 'qspi', 'i3c', 'nfc',
-            'rtc', 'pwm', 'onewire', 'trng', 'i2ctarget', 'dma')
+            'rtc', 'pwm', 'onewire', 'trng', 'i2ctarget', 'dma', 'system', 'evfab')
 
 _REGFILE_SKIP = {
-    'system': 'its eleven registers are not a contiguous run of words',
-    'evfab': 'its twenty-nine registers are not a contiguous run of words',
     'clint': 'the register set is a function of the hart count',
     'mutex_bank': 'the register set is a function of the mutex count',
     'irq_router': 'the register set is a function of the hart and vector counts',
@@ -651,43 +660,83 @@ _REGFILE_TABLES = (
 )
 
 
+def _runs(words):
+    """`5-11, 15` for a sorted list of word indices."""
+    out, i = [], 0
+    while i < len(words):
+        j = i
+        while j + 1 < len(words) and words[j + 1] == words[j] + 1:
+            j += 1
+        out.append(str(words[i]) if j == i else '%d-%d' % (words[i], words[j]))
+        i = j + 1
+    return ', '.join(out)
+
+
+# A gap row's name. VHDL identifiers cannot begin with an underscore, so this
+# can never collide with a register, and rdl_vs_vhdl_test's regfile reader skips
+# exactly this spelling when it maps a table row back onto a register.
+def _reservedRow(word):
+    return '_reserved_%d' % word
+
+
 def _regfileLines(block):
-    """NWORDS, reg_arr_t and the eight tables periph_regs is generic in."""
+    """NWORDS, reg_arr_t and the eight tables periph_regs is generic in.
+
+       One row per WORD from the first register's slot to the last, not one row
+       per register: a block with gaps in its slots (SYSTEM, EVFAB) gets an
+       all-zero `_reserved_<word>` row for each, which periph_regs decodes as a
+       word that stores nothing, reads 0 and takes no hook."""
     if block.Name in _REGFILE_SKIP:
         return ['    -- No periph_regs table section: ' + _REGFILE_SKIP[block.Name] + ',',
-                '    -- so its words are not a dense array. See hdl/common/regs/REGFILE.md.',
+                '    -- so its register set is not fixed at elaboration.',
+                '    -- See hdl/common/regs/REGFILE.md.',
                 '']
     if block.Name not in _REGFILE:
         return []
     regs = list(block.RegisterTemplates)
-    words = [rt.Offset // 4 for rt in regs]
-    base = min(words)
-    if words != list(range(base, base + len(regs))):
-        raise Exception('rdl_vhdl: %s is in _REGFILE but its words %s are not a contiguous '
-                        'run; move it to _REGFILE_SKIP with the reason.' % (block.Name, words))
-    values = {'RSTVAL': [rt.ResetValue or 0 for rt in regs],
-              'IMPL': [storageMask(rt) for rt in regs]}
+    byWord = dict((rt.Offset // 4, rt) for rt in regs)
+    if len(byWord) != len(regs):
+        raise Exception('rdl_vhdl: %s has two registers at one word offset' % block.Name)
+    base, top = min(byWord), max(byWord)
+    nwords = top - base + 1
+    if nwords > 64:
+        raise Exception('rdl_vhdl: %s spans %d words, past the 64-word peripheral slot; '
+                        'move it to _REGFILE_SKIP with the reason.' % (block.Name, nwords))
+    gaps = [w for w in range(base, top + 1) if w not in byWord]
+
+    def rowsOf(valueOf):
+        return [(byWord[w].NameTemplate, valueOf(byWord[w])) if w in byWord
+                else (_reservedRow(w), 0) for w in range(base, top + 1)]
+
+    values = {'RSTVAL': rowsOf(lambda rt: rt.ResetValue or 0),
+              'IMPL': rowsOf(storageMask)}
     for name in ('W1C', 'WOSET', 'WOT', 'PULSE', 'RCLR', 'HWOWN'):
-        values[name] = [_rdlMasks(rt)[name] for rt in regs]
+        values[name] = rowsOf(lambda rt, _n=name: _rdlMasks(rt)[_n])
 
     L = []
     L.append('    -- periph_regs tables (hdl/common/periph_regs.vhd), one row per word in slot')
-    L.append('    -- order. Every mask below is a property of this description. RDTHRU, WIDEWR')
-    L.append('    -- and STROBE_HOLD are the entity\'s own and are set at the instance;')
+    L.append('    -- order. Every mask below is a property of this description. RDTHRU, WIDEWR,')
+    L.append('    -- FULLWR and STROBE_HOLD are the entity\'s own and are set at the instance;')
     L.append('    -- hdl/common/regs/REGFILE.md says why they cannot come from SystemRDL.')
-    L.append('    constant %-24s : natural := %d;' % ('NWORDS', len(regs)))
+    if gaps:
+        L.append('    -- The table is SPARSE: word%s %s carr%s no register here, and the'
+                 % ('s' if len(gaps) > 1 else '', _runs(gaps),
+                    'y' if len(gaps) > 1 else 'ies'))
+        L.append('    -- all-zero _reserved_<word> row is what makes it read 0, store nothing')
+        L.append('    -- and take no hook, which is the `when others` arm it replaces.')
+    L.append('    constant %-24s : natural := %d;' % ('NWORDS', nwords))
     if base:
         L.append('    constant %-24s : natural := %d;   -- first word inside the sub-slot'
                  % ('WORD_BASE', base))
     L.append('    subtype  reg_arr_t is word_array(0 to NWORDS-1);')
     L.append('')
-    width = max(len(rt.NameTemplate) for rt in regs)
+    width = max(len(n) for n, _ in values['RSTVAL'])
     for name, note in _REGFILE_TABLES:
         L.append('    -- ' + note)
         L.append('    constant %-8s : reg_arr_t := (' % name)
-        rows = ['        %s%s   -- %s' % (_hex32(v, 32), ',' if k < len(regs) - 1 else ' ',
-                                          rt.NameTemplate.ljust(width))
-                for k, (rt, v) in enumerate(zip(regs, values[name]))]
+        rows = ['        %s%s   -- %s' % (_hex32(v, 32), ',' if k < nwords - 1 else ' ',
+                                          n.ljust(width))
+                for k, (n, v) in enumerate(values[name])]
         L.extend(r.rstrip() for r in rows)
         L.append('    );')
         L.append('')

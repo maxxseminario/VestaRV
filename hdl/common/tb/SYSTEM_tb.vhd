@@ -95,6 +95,24 @@ begin
         variable rdw        : std_logic_vector(31 downto 0);
         variable crc        : std_logic_vector(15 downto 0);
         variable v1, v2, r1, r2 : natural;
+
+        -- periph_tb_pkg.bus_write always asserts all four lanes, so it cannot
+        -- express a byte lane, and SYSTEM has one register (WDT_PASS) that
+        -- accepts NOTHING ELSE.
+        procedure bus_write_lanes(slot  : in natural;
+                                  lanes : in std_logic_vector(3 downto 0);
+                                  data  : in std_logic_vector(31 downto 0)) is
+        begin
+            wait until clk = '0';
+            pbus.addr_periph <= std_logic_vector(to_unsigned(slot, 6));
+            pbus.write_data  <= data;
+            pbus.wen         <= lanes;
+            pbus.en_mem      <= '0';
+            wait until clk = '1';
+            wait until clk = '0';
+            pbus.en_mem <= '1';
+            pbus.wen    <= (others => '1');
+        end procedure;
     begin
         -- Hold resetn_por low while the clock primes the glitch-free muxes, then release and let resetn_sys propagate.
         resetn_por <= '0';
@@ -175,16 +193,62 @@ begin
         sb.check_bit("en_dco0_out clears", en_dco0_out, '0');
         sb.check_bit("en_dco1_out clears", en_dco1_out, '0');
 
+        -- GROUP 2b: byte lanes and the implemented-bit mask. Added before the
+        -- periph_regs migration (report R12e): no lane was exercised anywhere in
+        -- this bench, and no write outside a register's implemented bits.
+        report "=== GROUP 2b: byte lanes and implemented bits ===" severity note;
+
+        bus_write(clk, pbus, RegSlotSYS_CLK_CR, x"00000000");
+        bus_write_lanes(RegSlotSYS_CLK_CR, "1110", x"000001FF");
+        bus_read(clk, pbus, read_data, RegSlotSYS_CLK_CR, rdw);
+        sb.check_slv("CLK_CR lane 0 alone moves bits 7:0", rdw(8 downto 0), '0' & x"FF");
+        bus_write_lanes(RegSlotSYS_CLK_CR, "1101", x"000001FF");
+        bus_read(clk, pbus, read_data, RegSlotSYS_CLK_CR, rdw);
+        sb.check_slv("CLK_CR lane 1 alone moves bit 8", rdw(8 downto 0), '1' & x"FF");
+        bus_write(clk, pbus, RegSlotSYS_CLK_CR, x"FFFFFFFF");
+        bus_read(clk, pbus, read_data, RegSlotSYS_CLK_CR, rdw);
+        sb.check_slv("CLK_CR drops the write above bit 8", rdw, x"000001FF");
+        bus_write(clk, pbus, RegSlotSYS_CLK_CR, x"00000000");
+
+        bus_write(clk, pbus, RegSlotDCO0_BIAS, x"00000000");
+        bus_write_lanes(RegSlotDCO0_BIAS, "1110", x"00000FFF");
+        bus_read(clk, pbus, read_data, RegSlotDCO0_BIAS, rdw);
+        sb.check_slv("DCO0_BIAS lane 0 alone moves bits 7:0", rdw(11 downto 0), x"0FF");
+        sb.check_slv("DCO0_BIAS pad follows the lane write", DCO0_BIAS, x"0FF");
+        bus_write_lanes(RegSlotDCO0_BIAS, "1101", x"00000FFF");
+        bus_read(clk, pbus, read_data, RegSlotDCO0_BIAS, rdw);
+        sb.check_slv("DCO0_BIAS lane 1 alone moves bits 11:8", rdw(11 downto 0), x"FFF");
+        bus_write(clk, pbus, RegSlotDCO0_BIAS, x"FFFFFFFF");
+        bus_read(clk, pbus, read_data, RegSlotDCO0_BIAS, rdw);
+        sb.check_slv("DCO0_BIAS drops the write above bit 11", rdw, x"00000FFF");
+        bus_write(clk, pbus, RegSlotDCO0_BIAS, (31 downto 12 => '0') & DCO0_BIAS_DEFAULT);
+        bus_write(clk, pbus, RegSlotDCO1_BIAS, (31 downto 12 => '0') & DCO1_BIAS_DEFAULT);
+
         -- GROUP 3: slots 5-11 are reserved gaps, reads return 0 and writes are ignored; slot 5 stands in for the block.
         report "=== GROUP 3: retired IRQ register slots ===" severity note;
 
         bus_write(clk, pbus, 5, x"FFFFFFFF");
         bus_read(clk, pbus, read_data, 5, rdw);
         sb.check_slv("retired slot 5 reads 0 and ignores writes", rdw, x"00000000");
+        bus_write(clk, pbus, 11, x"FFFFFFFF");
+        bus_read(clk, pbus, read_data, 11, rdw);
+        sb.check_slv("retired slot 11 reads 0 and ignores writes", rdw, x"00000000");
 
         -- GROUP 4: CRC16 engine.
         -- Writing SYS_CRC_STATE sets first_crc_flag, then bytes go through SYS_CRC_DATA and the accumulated state is compared.
         report "=== GROUP 4: CRC16 ===" severity note;
+
+        -- A CRC_STATE write restarts the chain, and a lane-1-only write does it
+        -- as much as a four-lane one. It is the RESTART that is observable, not
+        -- the seed value: SYSTEM.vhd's CRC arm loads crc_prev with 0xFFFF on the
+        -- first byte after a seed write and only then follows the running state,
+        -- so a seed other than 0xFFFF never reaches the engine. Pre-existing, and
+        -- unchanged by the periph_regs migration.
+        bus_write_lanes(RegSlotSYS_CRC_STATE, "1101", x"0000FF00");
+        bus_write(clk, pbus, RegSlotSYS_CRC_DATA, x"00000077");
+        bus_read(clk, pbus, read_data, RegSlotSYS_CRC_STATE, rdw);
+        sb.check_slv("a lane-1 CRC_STATE write restarts the chain from 0xFFFF",
+                     rdw(15 downto 0), crc16_byte(x"77", x"FFFF"));
 
         bus_write(clk, pbus, RegSlotSYS_CRC_STATE, x"0000FFFF");        -- initial value
         crc := x"FFFF";
@@ -201,6 +265,20 @@ begin
         bus_write(clk, pbus, RegSlotSYS_WDT_CR, x"000000FC");
         bus_read(clk, pbus, read_data, RegSlotSYS_WDT_CR, rdw);
         sb.check_slv("WDT_CR write blocked while locked", rdw(7 downto 0), x"00");
+
+        -- The password slot takes FULL-WORD writes only: a lane-gated write of
+        -- the right value must not open the window.
+        bus_write_lanes(RegSlotSYS_WDT_PASS, "1110", WDT_UNLCK_PASSWD);
+        bus_write(clk, pbus, RegSlotSYS_WDT_CR, x"000000FC");
+        bus_read(clk, pbus, read_data, RegSlotSYS_WDT_CR, rdw);
+        sb.check_slv("a lane-gated password write does not unlock", rdw(7 downto 0), x"00");
+        -- and a full-word write of the WRONG value does not either.
+        bus_write(clk, pbus, RegSlotSYS_WDT_PASS, x"DEADBEEF");
+        bus_write(clk, pbus, RegSlotSYS_WDT_CR, x"000000FC");
+        bus_read(clk, pbus, read_data, RegSlotSYS_WDT_CR, rdw);
+        sb.check_slv("a wrong password does not unlock", rdw(7 downto 0), x"00");
+        bus_read(clk, pbus, read_data, RegSlotSYS_WDT_PASS, rdw);
+        sb.check_slv("WDT_PASS reads 0", rdw, x"00000000");
 
         -- (b) Unlock, then write WDT_CR within the 64-cycle window.
         -- cdiv=5 watches WDT_VAL(5), which rises at count 32 and re-rises only every 64 counts, wide enough to see the flag set then cleared.

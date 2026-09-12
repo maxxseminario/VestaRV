@@ -16,7 +16,7 @@ end entity periph_regs_tb;
 architecture sim of periph_regs_tb is
 
     constant PERIOD : time := 20 ns;
-    constant NW     : natural := 6;
+    constant NW     : natural := 7;
 
     subtype tab_t is word_array(0 to NW-1);
 
@@ -27,25 +27,39 @@ architecture sim of periph_regs_tb is
     --   3 DATA   no storage, read-consume (onread = rclr)
     --   4 VAL    storage that does not read back (RDTHRU) and has no byte lanes (WIDEWR)
     --   5 WIDE   plain 32-bit storage, byte lanes
+    --   6 PASS   plain 32-bit storage that only a FOUR-LANE write reaches (FULLWR)
+    constant W_WIDE_C : natural := 5;
+
     constant T_RSTVAL : tab_t := (x"00001234", x"00000000", x"00000000",
-                                  x"00000000", x"00000000", x"00000000");
+                                  x"00000000", x"00000000", x"00000000", x"00000000");
     constant T_IMPL   : tab_t := (x"0000FFFF", x"00000000", x"00000000",
-                                  x"00000000", x"FFFFFFFF", x"FFFFFFFF");
+                                  x"00000000", x"FFFFFFFF", x"FFFFFFFF", x"FFFFFFFF");
     constant T_W1C    : tab_t := (x"00000000", x"0000000F", x"00000000",
-                                  x"00000000", x"00000000", x"00000000");
+                                  x"00000000", x"00000000", x"00000000", x"00000000");
     constant T_WOSET  : tab_t := (x"00000000", x"00000000", x"00000010",
-                                  x"00000000", x"00000000", x"00000000");
+                                  x"00000000", x"00000000", x"00000000", x"00000000");
     constant T_WOT    : tab_t := (x"00000000", x"00000000", x"00000020",
-                                  x"00000000", x"00000000", x"00000000");
+                                  x"00000000", x"00000000", x"00000000", x"00000000");
     constant T_PULSE  : tab_t := (x"00000000", x"00000000", x"00000003",
-                                  x"00000000", x"00000000", x"00000000");
+                                  x"00000000", x"00000000", x"00000000", x"00000000");
     constant T_RCLR   : tab_t := (x"00000000", x"00000000", x"00000000",
-                                  x"FFFFFFFF", x"00000000", x"00000000");
+                                  x"FFFFFFFF", x"00000000", x"00000000", x"00000000");
     constant T_HWOWN  : tab_t := (x"00000003", x"000000FF", x"00000000",
-                                  x"FFFFFFFF", x"FFFFFFFF", x"00000000");
+                                  x"FFFFFFFF", x"FFFFFFFF", x"00000000", x"00000000");
     -- Word 4 reads its hardware copy and takes a whole word from any enabled lane.
-    constant T_RDTHRU : std_logic_vector(0 to NW-1) := "000010";
-    constant T_WIDEWR : std_logic_vector(0 to NW-1) := "000010";
+    constant T_RDTHRU : std_logic_vector(0 to NW-1) := "0000100";
+    constant T_WIDEWR : std_logic_vector(0 to NW-1) := "0000100";
+    -- CTRL bit 2 is software storage that the description does not call hardware
+    -- owned (T_HWOWN(0) = 0x3) but which an ALIAS WORD of this same block drives.
+    -- Without this row the hook on it would reach no logic at all, so GROUP 8b is
+    -- the whole proof that HWALIAS is load-bearing.
+    constant T_HWALIAS : tab_t := (0 => x"00000004", others => (others => '0'));
+
+    -- Word 5's reset is the table's 0 OR-ed with a per-instance generic, which is
+    -- how I2C's default slave address and GPIO's RstValPxOUT reach their flops.
+    constant T_RSTOR  : tab_t := (W_WIDE_C => x"000000F0", others => (others => '0'));
+    -- Word 6 takes a write only from WEn = "0000".
+    constant T_FULLWR : std_logic_vector(0 to NW-1) := "0000001";
 
     constant W_CTRL  : natural := 0;
     constant W_FLAGS : natural := 1;
@@ -53,6 +67,7 @@ architecture sim of periph_regs_tb is
     constant W_DATA  : natural := 3;
     constant W_VAL   : natural := 4;
     constant W_WIDE  : natural := 5;
+    constant W_PASS  : natural := 6;
 
     constant ZEROW : word := (others => '0');
 
@@ -81,6 +96,13 @@ architecture sim of periph_regs_tb is
     signal h_rds, h_wrs : std_logic_vector(0 to NW-1);
     signal h_pulse, h_w1c, h_woset, h_wot, h_rdclr : tab_t;
 
+    -- The third instance differs from dut_p in ONE generic, REGISTERED_READ, so
+    -- a difference between c_rdata and p_rdata is that generic and nothing else.
+    signal c_rdata : word;
+
+    -- Per-word write inhibit, driven by the bench.
+    signal inh : std_logic_vector(0 to NW-1) := (others => '0');
+
     signal tb_done : boolean := false;
 
     shared variable sb : scoreboard;
@@ -91,31 +113,53 @@ begin
 
     dut_p : entity work.periph_regs
         generic map (
-            NWORDS => NW, RSTVAL => T_RSTVAL, IMPL => T_IMPL, W1C => T_W1C,
+            NWORDS => NW, RSTVAL => T_RSTVAL, RSTVAL_OR => T_RSTOR,
+            IMPL => T_IMPL, W1C => T_W1C,
             WOSET => T_WOSET, WOT => T_WOT, PULSE => T_PULSE, RCLR => T_RCLR,
-            HWOWN => T_HWOWN, RDTHRU => T_RDTHRU, WIDEWR => T_WIDEWR,
-            STROBE_HOLD => false)
+            HWOWN => T_HWOWN, HWALIAS => T_HWALIAS,
+            RDTHRU => T_RDTHRU, WIDEWR => T_WIDEWR,
+            FULLWR => T_FULLWR, STROBE_HOLD => false)
         port map (
             ClkMem => clk, resetn => resetn, EnMemPeriph => en_n, WEn => wen,
             MABPart => addr, wdata => wdata, rdata_out => p_rdata, regs => p_regs,
-            hw_rd => hw_rd, hw_we => hw_we, hw_wdata => hw_wdata,
+            wr_inhibit => inh, hw_rd => hw_rd, hw_we => hw_we, hw_wdata => hw_wdata,
             hw_set => hw_set, hw_clr => hw_clr,
             rd_strobe => p_rds, wr_strobe => p_wrs, wr_pulse => p_pulse,
             w1c_hit => p_w1c, woset_hit => p_woset, wot_hit => p_wot, rd_clr => p_rdclr);
 
     dut_h : entity work.periph_regs
         generic map (
-            NWORDS => NW, RSTVAL => T_RSTVAL, IMPL => T_IMPL, W1C => T_W1C,
+            NWORDS => NW, RSTVAL => T_RSTVAL, RSTVAL_OR => T_RSTOR,
+            IMPL => T_IMPL, W1C => T_W1C,
             WOSET => T_WOSET, WOT => T_WOT, PULSE => T_PULSE, RCLR => T_RCLR,
-            HWOWN => T_HWOWN, RDTHRU => T_RDTHRU, WIDEWR => T_WIDEWR,
-            STROBE_HOLD => true)
+            HWOWN => T_HWOWN, HWALIAS => T_HWALIAS,
+            RDTHRU => T_RDTHRU, WIDEWR => T_WIDEWR,
+            FULLWR => T_FULLWR, STROBE_HOLD => true)
         port map (
             ClkMem => clk, resetn => resetn, EnMemPeriph => en_n, WEn => wen,
             MABPart => addr, wdata => wdata, rdata_out => h_rdata, regs => h_regs,
-            hw_rd => hw_rd, hw_we => hw_we, hw_wdata => hw_wdata,
+            wr_inhibit => inh, hw_rd => hw_rd, hw_we => hw_we, hw_wdata => hw_wdata,
             hw_set => hw_set, hw_clr => hw_clr,
             rd_strobe => h_rds, wr_strobe => h_wrs, wr_pulse => h_pulse,
             w1c_hit => h_w1c, woset_hit => h_woset, wot_hit => h_wot, rd_clr => h_rdclr);
+
+    -- REGISTERED_READ = false: rdata_out is the read mux itself. Everything else
+    -- is dut_p's.
+    dut_c : entity work.periph_regs
+        generic map (
+            NWORDS => NW, RSTVAL => T_RSTVAL, RSTVAL_OR => T_RSTOR,
+            IMPL => T_IMPL, W1C => T_W1C,
+            WOSET => T_WOSET, WOT => T_WOT, PULSE => T_PULSE, RCLR => T_RCLR,
+            HWOWN => T_HWOWN, HWALIAS => T_HWALIAS,
+            RDTHRU => T_RDTHRU, WIDEWR => T_WIDEWR,
+            FULLWR => T_FULLWR, STROBE_HOLD => false, REGISTERED_READ => false)
+        port map (
+            ClkMem => clk, resetn => resetn, EnMemPeriph => en_n, WEn => wen,
+            MABPart => addr, wdata => wdata, rdata_out => c_rdata, regs => open,
+            wr_inhibit => inh, hw_rd => hw_rd, hw_we => hw_we, hw_wdata => hw_wdata,
+            hw_set => hw_set, hw_clr => hw_clr,
+            rd_strobe => open, wr_strobe => open, wr_pulse => open,
+            w1c_hit => open, woset_hit => open, wot_hit => open, rd_clr => open);
 
     watchdog : process
     begin
@@ -183,14 +227,15 @@ begin
         rdw(W_CTRL, rd);
         sb.check_slv("CTRL reads its reset word", rd, x"00001234");
         rdw(W_WIDE, rd);
-        sb.check_slv("WIDE resets to 0", rd, ZEROW);
+        sb.check_slv("RSTVAL_OR: WIDE resets to the OR of the table and the generic",
+                     rd, x"000000F0");
         rdw(W_FLAGS, rd);
         sb.check_slv("FLAGS holds no flop and reads hw_rd", rd, x"000000A5");
         rdw(W_DATA, rd);
         sb.check_slv("DATA holds no flop and reads hw_rd", rd, x"DEADBEEF");
         rdw(W_VAL, rd);
         sb.check_slv("VAL is RDTHRU and reads hw_rd, not its storage", rd, x"CAFEBABE");
-        access_word(6, "1111", ZEROW);
+        access_word(7, "1111", ZEROW);
         sb.check_slv("a slot past the window reads 0", p_rdata, ZEROW);
         release_bus;
 
@@ -335,9 +380,107 @@ begin
         resetn <= '1';
         wait for 2 * PERIOD;
         rdw(W_WIDE, rd);
-        sb.check_slv("reset returns WIDE to its reset word", rd, ZEROW);
+        sb.check_slv("reset returns WIDE to its reset word, generic included",
+                     rd, x"000000F0");
         rdw(W_CTRL, rd);
         sb.check_slv("reset returns CTRL to its reset word", rd, x"00001234");
+
+        -- GROUP 8b: HWALIAS, the hook mask beyond HWOWN.
+        report "=== GROUP 8b: HWALIAS ===" severity note;
+        wr(W_CTRL, "0000", x"00000000");
+        hw_set <= (W_CTRL => x"00000004", others => (others => '0'));
+        wait until clk = '1';
+        wait for 1 ns;
+        hw_set <= (others => (others => '0'));
+        rdw(W_CTRL, rd);
+        sb.check_slv("HWALIAS: a bit outside HWOWN takes the hook once it is aliased",
+                     rd, x"00000004");
+        hw_clr <= (W_CTRL => x"00000004", others => (others => '0'));
+        wait until clk = '1';
+        wait for 1 ns;
+        hw_clr <= (others => (others => '0'));
+        rdw(W_CTRL, rd);
+        sb.check_slv("HWALIAS: and the same bit takes the clear", rd, ZEROW);
+        wr(W_CTRL, "0000", x"00001234");   -- back to the reset word for GROUP 11
+
+        -- GROUP 9: FULLWR, the full-word-writes-only mask.
+        report "=== GROUP 9: FULLWR ===" severity note;
+        wr(W_PASS, "1110", x"2ABBCCDD");
+        rdw(W_PASS, rd);
+        sb.check_slv("FULLWR: a one-lane write is dropped whole", rd, ZEROW);
+        access_word(W_PASS, "1110", x"2ABBCCDD");
+        sb.check_bit("FULLWR: a partial write raises no wr_strobe", p_wrs(W_PASS), '0');
+        sb.check_bit("FULLWR: a partial write is not a read either", p_rds(W_PASS), '0');
+        release_bus;
+        wr(W_PASS, "0000", x"2ABBCCDD");
+        rdw(W_PASS, rd);
+        sb.check_slv("FULLWR: a four-lane write stores all 32 bits", rd, x"2ABBCCDD");
+        access_word(W_PASS, "0000", x"12345678");
+        sb.check_bit("FULLWR: a four-lane write raises wr_strobe", p_wrs(W_PASS), '1');
+        release_bus;
+        rdw(W_PASS, rd);
+        sb.check_slv("FULLWR: and stored the second four-lane write", rd, x"12345678");
+        -- The mask is per word: its neighbour still takes a single lane.
+        wr(W_WIDE, "0000", x"00000000");
+        wr(W_WIDE, "1110", x"000000AB");
+        rdw(W_WIDE, rd);
+        sb.check_slv("FULLWR is per word: WIDE still takes one lane", rd, x"000000AB");
+
+        -- GROUP 10: wr_inhibit, the per-word write qualifier.
+        report "=== GROUP 10: wr_inhibit ===" severity note;
+        inh <= (W_WIDE => '1', others => '0');
+        wait until clk = '1';
+        wr(W_WIDE, "0000", x"5EADC0DE");
+        rdw(W_WIDE, rd);
+        sb.check_slv("wr_inhibit: the write is refused", rd, x"000000AB");
+        access_word(W_WIDE, "0000", x"5EADC0DE");
+        sb.check_bit("wr_inhibit: an inhibited write raises no wr_strobe", p_wrs(W_WIDE), '0');
+        sb.check_bit("wr_inhibit: and is not a read either", p_rds(W_WIDE), '0');
+        release_bus;
+        access_word(W_WIDE, "1111", ZEROW);
+        sb.check_bit("wr_inhibit: a read of the same word is unaffected", p_rds(W_WIDE), '1');
+        sb.check_slv("wr_inhibit: and returns the stored word", p_rdata, x"000000AB");
+        release_bus;
+
+        -- The arms go with the write: a refused write arms nothing.
+        inh <= (W_FLAGS => '1', others => '0');
+        wait until clk = '1';
+        access_word(W_FLAGS, "1110", x"0000000F");
+        sb.check_slv("wr_inhibit: the W1C arm is suppressed with the write",
+                     p_w1c(W_FLAGS), ZEROW);
+        release_bus;
+        inh <= (others => '0');
+        wait until clk = '1';
+        access_word(W_FLAGS, "1110", x"0000000F");
+        sb.check_slv("wr_inhibit released: the W1C arm arms again",
+                     p_w1c(W_FLAGS), x"0000000F");
+        release_bus;
+        wr(W_WIDE, "0000", x"5EADC0DE");
+        rdw(W_WIDE, rd);
+        sb.check_slv("wr_inhibit released: the write lands", rd, x"5EADC0DE");
+
+        -- GROUP 11: REGISTERED_READ. dut_c differs from dut_p in that generic
+        -- alone, so the two read paths can be compared on one access.
+        report "=== GROUP 11: REGISTERED_READ ===" severity note;
+        wr(W_WIDE, "0000", x"40FFEE01");
+        wait until clk = '0';
+        addr <= std_logic_vector(to_unsigned(W_WIDE, 6));
+        wen  <= (others => '1');
+        en_n <= '0';
+        wait for PERIOD / 4;   -- decode settled, still before the capture edge
+        sb.check_slv("combinational read: the word is on the bus BEFORE the capture edge",
+                     c_rdata, x"40FFEE01");
+        rd := c_rdata;
+        wait until clk = '1';
+        wait for 1 ns;
+        sb.check_slv("registered read: the SAME word one edge later", p_rdata, rd);
+        sb.check_slv("combinational read: unchanged across the capture edge", c_rdata, rd);
+        release_bus;
+        wait until clk = '1';
+        wait for 1 ns;
+        sb.check_slv("combinational read: collapses to word 0 on deselect",
+                     c_rdata, x"00001234");
+        sb.check_slv("registered read: holds word 0 on deselect too", p_rdata, x"00001234");
 
         wait for 2 * PERIOD;
         sb.report_summary("PERIPH_REGS TB");
