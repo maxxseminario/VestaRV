@@ -108,12 +108,17 @@ architecture rtl of jtag_dtm is
     signal req_tgl   : std_logic;
     signal req_hold  : std_logic_vector(DR_HI downto 0);
     signal shadow    : std_logic_vector(DR_HI downto 0);  -- the DMI result
-    signal rsp_s1, rsp_s2, rsp_s3 : std_logic;
+    -- rsp_tgl crosses into tck through work.sync; rsp_s3 is the edge-detect flop and stays here.
+    signal rsp_sync_d, rsp_sync_q : std_logic_vector(0 downto 0);
+    signal rsp_s2, rsp_s3 : std_logic;
     signal tdo_r     : std_logic;                      -- updated on TCK FALLING
 
     -- ---- mclk domain (reset by system resetn) -------------------------
-    signal req_s1, req_s2, req_s3 : std_logic;
-    signal trstn_s1, trstn_s2 : std_logic;
+    -- req_tgl and trstn each cross into mclk through their own work.sync; req_s3 is the edge-detect flop and stays here.
+    signal req_sync_d, req_sync_q     : std_logic_vector(0 downto 0);
+    signal trstn_sync_d, trstn_sync_q : std_logic_vector(0 downto 0);
+    signal req_s2, req_s3 : std_logic;
+    signal trstn_s2 : std_logic;
     signal trstn_guard : std_logic_vector(2 downto 0);
     signal rst_guard : std_logic_vector(2 downto 0);
     -- Mirror of rst_guard for the OTHER reset: trstn clears req_tgl and req_hold on the TCK side, so a trstn asserted while req_tgl was '1' presents this side a real toggle edge whose payload has already been zeroed. Gating the edge detect on a synchronised trstn discards it instead of issuing an unqualified op="00" transaction at address 0.
@@ -184,16 +189,12 @@ begin
                 req_tgl   <= '0';
                 req_hold  <= (others => '0');
                 shadow    <= (others => '0');
-                rsp_s1    <= '0';
-                rsp_s2    <= '0';
                 rsp_s3    <= '0';
             elsif rising_edge(tck) then
 
                 /* ---- response crossing: 2-FF synchroniser plus edge detect ---
                    The payload is HELD in the mclk domain and sampled at the detected edge; never synchronise a bus per bit.
                    The `pending` qualifier drops responses to abandoned transactions and absorbs the phantom edge a TRSTn-reset chain manufactures when rsp_tgl is '1'. */
-                rsp_s1 <= rsp_tgl;
-                rsp_s2 <= rsp_s1;
                 rsp_s3 <= rsp_s2;
                 if (rsp_s2 /= rsp_s3) and pending = '1' then
                     -- Address bits are preserved from the request: a captured word carries the previous op's address verbatim.
@@ -313,17 +314,33 @@ begin
 
         tdo <= tdo_r;
 
+        -- The response crossing proper: 2-FF into tck, reset by the TAP's trstn like the rest of this side. The payload is held in the mclk domain and sampled at the edge rsp_s3 detects.
+        rsp_sync_d(0) <= rsp_tgl;
+        u_sync_rsp_tgl : entity work.sync
+            generic map (WIDTH => 1, DEPTH => 2)
+            port map (clk => tck, areset => trstn, d => rsp_sync_d, q => rsp_sync_q);
+        rsp_s2 <= rsp_sync_q(0);
+
+        -- The request crossing and the synchronised TAP reset, both into mclk and both reset by the system resetn, so a debugger stays attachable while the chip is held in reset.
+        req_sync_d(0) <= req_tgl;
+        u_sync_req_tgl : entity work.sync
+            generic map (WIDTH => 1, DEPTH => 2)
+            port map (clk => clk, areset => resetn, d => req_sync_d, q => req_sync_q);
+        req_s2 <= req_sync_q(0);
+
+        trstn_sync_d(0) <= trstn;
+        u_sync_trstn : entity work.sync
+            generic map (WIDTH => 1, DEPTH => 2)
+            port map (clk => clk, areset => resetn, d => trstn_sync_d, q => trstn_sync_q);
+        trstn_s2 <= trstn_sync_q(0);
+
         -- The mclk side: request synchroniser, the one-shot master, and the response hold.
         -- Reset by system resetn and deliberately not by the TAP's, so a debugger stays attachable while the chip is held in reset.
         mst_proc: process(clk, resetn)
         begin
             if resetn = '0' then
-                req_s1     <= '0';
-                req_s2     <= '0';
                 req_s3     <= '0';
                 rst_guard  <= (others => '0');
-                trstn_s1   <= '0';
-                trstn_s2   <= '0';
                 trstn_guard <= (others => '0');
                 m_state    <= M_IDLE;
                 req_vld_r  <= '0';
@@ -331,12 +348,8 @@ begin
                 rsp_data_h <= (others => '0');
                 rsp_tgl    <= '0';
             elsif rising_edge(clk) then
-                req_s1 <= req_tgl;
-                req_s2 <= req_s1;
                 req_s3 <= req_s2;
                 rst_guard <= rst_guard(1 downto 0) & '1';
-                trstn_s1 <= trstn;
-                trstn_s2 <= trstn_s1;
                 if trstn_s2 = '0' then
                     trstn_guard <= (others => '0');
                 else

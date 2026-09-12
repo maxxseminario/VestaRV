@@ -32,14 +32,15 @@ end entity sync;
 architecture rtl of sync is
 
     -- RST_VAL defaults to the null vector; normalise it to WIDTH bits indexed
-    -- from WIDTH-1 downto 0, so the caller may pass any bounds it likes.
+    -- from WIDTH-1 downto 0, so the caller may pass any bounds or a literal.
     function normRst(v : std_logic_vector) return std_logic_vector is
         variable r : std_logic_vector(WIDTH - 1 downto 0) := (others => '0');
     begin
+        -- Positional, leftmost to leftmost, whatever the caller's bounds: a
+        -- bare literal binds with ascending bounds, so "100" must still mean
+        -- bit 2 set. Indexing from v'low would reverse it.
         if v'length = WIDTH then
-            for i in 0 to WIDTH - 1 loop
-                r(i) := v(v'low + i);
-            end loop;
+            r := v;
         end if;
         return r;
     end function;

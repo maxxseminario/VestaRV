@@ -141,13 +141,21 @@ architecture Behavioral of UART is
     signal rx_done_tgl     : std_logic; -- clk_baud domain: RX-complete event toggle
     signal fef_val         : std_logic; -- clk_baud payload: frame's framing-error
     signal pef_val         : std_logic; -- clk_baud payload: frame's parity-error
-    signal tx_done_s1, tx_done_s2, tx_done_s3    : std_logic; -- clk_mem syncs
-    signal tx_empty_s1, tx_empty_s2, tx_empty_s3 : std_logic;
-    signal rx_done_s1, rx_done_s2, rx_done_s3    : std_logic;
-    signal tx_ack_s1, tx_ack_s2, tx_ack_s3       : std_logic;
-    signal tx_busy_s1, tx_busy_s2 : std_logic;   -- clk_mem 2-FF of the busy levels
-    signal rx_busy_s1, rx_busy_s2 : std_logic;
-    signal start_tx_s1, start_tx_s2 : std_logic; -- clk_tx 2-FF of start_tx
+    -- The three event toggles cross into clk_mem in ONE work.sync: bit 2 tx_done, 1 tx_empty, 0 rx_done. The *_s3 edge-detect flops stay here.
+    signal evt_sync_d, evt_sync_q  : std_logic_vector(2 downto 0);
+    signal tx_done_s2, tx_done_s3  : std_logic; -- clk_mem sync q + edge
+    signal tx_empty_s2, tx_empty_s3 : std_logic;
+    signal rx_done_s2, rx_done_s3   : std_logic;
+    signal ack_sync_d, ack_sync_q   : std_logic_vector(0 downto 0);
+    signal tx_ack_s2, tx_ack_s3     : std_logic;
+    -- The two busy levels cross into clk_mem in ONE work.sync: bit 1 TX, bit 0 RX.
+    signal busy_sync_d, busy_sync_q : std_logic_vector(1 downto 0);
+    signal tx_busy_s2 : std_logic;   -- clk_mem 2-FF of the busy levels
+    signal rx_busy_s2 : std_logic;
+    signal starttx_sync_d, starttx_sync_q : std_logic_vector(0 downto 0);
+    signal start_tx_s2 : std_logic; -- clk_tx 2-FF of start_tx
+    -- TX_FSM's asynchronous reset is resetn OR NOT UCR_EN; the synchroniser takes the same term as one active-low net so its chain clears with the FSM it feeds.
+    signal tx_sync_rstn : std_logic;
 
 begin
 
@@ -267,13 +275,7 @@ begin
             tx_done_tgl <= '0';
             tx_empty_tgl <= '0';
             tx_start_ack_tgl <= '0';
-            start_tx_s1 <= '0';
-            start_tx_s2 <= '0';
         elsif rising_edge(clk_tx) then
-            -- start_tx level synchronizer: the level is held until ACKed, so a 2-FF sync is safe
-            start_tx_s1 <= start_tx;
-            start_tx_s2 <= start_tx_s1;
-
             if tx_in_progress = '0' then
                 -- Idle: not transmitting
                 if start_tx_s2 = '1' then
@@ -440,16 +442,46 @@ begin
     USR_RX_busy <= rx_in_progress;
     USR_TX_busy <= tx_in_progress or start_tx;
 
+    -- The three TX/RX event toggles into clk_mem, three independent lines in one chain; flags_cdc_proc edge-detects each.
+    evt_sync_d <= tx_done_tgl & tx_empty_tgl & rx_done_tgl;
+    u_sync_evt_tgl : entity work.sync
+        generic map (WIDTH => 3, DEPTH => 2)
+        port map (clk => clk_mem, areset => resetn, d => evt_sync_d, q => evt_sync_q);
+    tx_done_s2  <= evt_sync_q(2);
+    tx_empty_s2 <= evt_sync_q(1);
+    rx_done_s2  <= evt_sync_q(0);
+
+    -- The two busy levels into clk_mem for the SR reads.
+    busy_sync_d <= USR_TX_busy & USR_RX_busy;
+    u_sync_busy : entity work.sync
+        generic map (WIDTH => 2, DEPTH => 2)
+        port map (clk => clk_mem, areset => resetn, d => busy_sync_d, q => busy_sync_q);
+    tx_busy_s2 <= busy_sync_q(1);
+    rx_busy_s2 <= busy_sync_q(0);
+
+    -- The TX FSM's ACK toggle into clk_mem; start_tx_proc edge-detects it.
+    ack_sync_d(0) <= tx_start_ack_tgl;
+    u_sync_tx_start_ack_tgl : entity work.sync
+        generic map (WIDTH => 1, DEPTH => 2)
+        port map (clk => clk_mem, areset => resetn, d => ack_sync_d, q => ack_sync_q);
+    tx_ack_s2 <= ack_sync_q(0);
+
+    -- start_tx into clk_tx: the level is held until ACKed, so a 2-FF sync is safe.
+    tx_sync_rstn <= resetn and UCR_EN;
+    starttx_sync_d(0) <= start_tx;
+    u_sync_start_tx : entity work.sync
+        generic map (WIDTH => 1, DEPTH => 2)
+        port map (clk => clk_tx, areset => tx_sync_rstn, d => starttx_sync_d, q => starttx_sync_q);
+    start_tx_s2 <= starttx_sync_q(0);
+
     -- Bus-domain flag block: toggle synchronizers plus sticky W1C flags, all clk_mem-synchronous, so the clr_* pulses are consumed in the SAME domain that generates them.
     -- Ordering inside the process is clears first, event sets last, so a set coinciding with a clear WINS and an event is never lost.
     flags_cdc_proc: process(resetn, clk_mem)
     begin
         if resetn = '0' then
-            tx_done_s1 <= '0'; tx_done_s2 <= '0'; tx_done_s3 <= '0';
-            tx_empty_s1 <= '0'; tx_empty_s2 <= '0'; tx_empty_s3 <= '0';
-            rx_done_s1 <= '0'; rx_done_s2 <= '0'; rx_done_s3 <= '0';
-            tx_busy_s1 <= '0'; tx_busy_s2 <= '0';
-            rx_busy_s1 <= '0'; rx_busy_s2 <= '0';
+            tx_done_s3 <= '0';
+            tx_empty_s3 <= '0';
+            rx_done_s3 <= '0';
             USR_UTCIF <= '0';
             USR_UTEIF <= '0';
             USR_RCIF  <= '0';
@@ -457,13 +489,10 @@ begin
             USR_FEF   <= '0';
             USR_PEF   <= '0';
         elsif rising_edge(clk_mem) then
-            -- 2-FF synchronizers (+1 edge-detect stage) for the event toggles
-            tx_done_s1 <= tx_done_tgl;   tx_done_s2 <= tx_done_s1;   tx_done_s3 <= tx_done_s2;
-            tx_empty_s1 <= tx_empty_tgl; tx_empty_s2 <= tx_empty_s1; tx_empty_s3 <= tx_empty_s2;
-            rx_done_s1 <= rx_done_tgl;   rx_done_s2 <= rx_done_s1;   rx_done_s3 <= rx_done_s2;
-            -- busy levels for SR reads
-            tx_busy_s1 <= USR_TX_busy; tx_busy_s2 <= tx_busy_s1;
-            rx_busy_s1 <= USR_RX_busy; rx_busy_s2 <= rx_busy_s1;
+            -- Edge-detect stage for the three synchronized event toggles.
+            tx_done_s3  <= tx_done_s2;
+            tx_empty_s3 <= tx_empty_s2;
+            rx_done_s3  <= rx_done_s2;
 
             -- W1C / side-effect clears (one-clk_mem pulses out of periph_regs)
             if clr_UTCIF = '1' then USR_UTCIF <= '0'; end if;
@@ -586,10 +615,8 @@ begin
     begin
         if resetn = '0' then
             start_tx <= '0';
-            tx_ack_s1 <= '0'; tx_ack_s2 <= '0'; tx_ack_s3 <= '0';
+            tx_ack_s3 <= '0';
         elsif rising_edge(clk_mem) then
-            tx_ack_s1 <= tx_start_ack_tgl;
-            tx_ack_s2 <= tx_ack_s1;
             tx_ack_s3 <= tx_ack_s2;
             if tx_ack_s2 /= tx_ack_s3 then
                 start_tx <= '0'; -- request consumed by the TX FSM

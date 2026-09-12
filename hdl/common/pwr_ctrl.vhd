@@ -93,9 +93,14 @@ architecture behav of pwr_ctrl is
     signal rdata_reg : std_logic_vector(31 downto 0);         -- One-cycle registered read.
 
     -- Boot-gate and wake-source state, all on the always-on domain; word offsets as in the header map.
-    signal pgood_s1, pgood_s2 : std_logic;   -- 2-FF sync, pgood_pad.
-    signal field_s1, field_s2 : std_logic;   -- 2-FF sync, field_detect.
-    signal strap_s1, strap_s2 : std_logic;   -- 2-FF sync, strap_pad.
+    -- The three async pad inputs cross into mclk through one work.sync instance; bit 2 is pgood, bit 1 field, bit 0 strap, and PAD_RST keeps the boot gate released out of reset.
+    -- PAD_RST carries explicit downto bounds on purpose: sync normalises RST_VAL from v'low upward, so a bare string literal, whose bounds are ascending, would land reversed.
+    constant PAD_RST : std_logic_vector(2 downto 0) := "100";
+    signal pad_sync_d : std_logic_vector(2 downto 0);
+    signal pad_sync_q : std_logic_vector(2 downto 0);
+    signal pgood_s2 : std_logic;   -- Synchronized pgood_pad.
+    signal field_s2 : std_logic;   -- Synchronized field_detect.
+    signal strap_s2 : std_logic;   -- Synchronized strap_pad.
     signal strap_sampled : std_logic;        -- One-shot latched strap ('1' = harvest).
     signal strap_valid   : std_logic;        -- Strap sample complete.
     signal strap_cnt     : natural range 0 to 65535;   -- Counts out STRAP_SETTLE.
@@ -130,6 +135,15 @@ begin
     -- Registered, glitch-free boot gate; reset value '1' releases.
     pgood_rstn <= not boot_hold_r;
 
+    -- Boot-gate wake sources: the pad-side inputs are asynchronous to mclk, so all three cross through the house synchroniser.
+    pad_sync_d <= pgood_pad & field_detect & strap_pad;
+    u_sync_pads : entity work.sync
+        generic map (WIDTH => 3, DEPTH => 2, RST_VAL => PAD_RST)
+        port map (clk => clk, areset => resetn, d => pad_sync_d, q => pad_sync_q);
+    pgood_s2 <= pad_sync_q(2);
+    field_s2 <= pad_sync_q(1);
+    strap_s2 <= pad_sync_q(0);
+
     -- Register file, per-tile MTCMOS sequencers and the boot gate, all on mclk.
     pwr_proc: process(clk, resetn)
         -- sr is the concatenated PWRSR word array, hart h's nibble at 4h, 8 harts per 32-bit word.
@@ -153,14 +167,8 @@ begin
             state     <= (others => S_ON);
             cnt       <= (others => 0);
             rdata_reg <= (others => '0');
-            -- The boot gate is released at reset so normal boots are unperturbed.
+            -- The boot gate is released at reset so normal boots are unperturbed (RST_VAL on u_sync_pads).
             -- A harvested board self-arms within the strap settle window, and the re-hold is a clean cold boot.
-            pgood_s1      <= '1';
-            pgood_s2      <= '1';
-            field_s1      <= '0';
-            field_s2      <= '0';
-            strap_s1      <= '0';
-            strap_s2      <= '0';
             strap_sampled <= '0';
             strap_valid   <= '0';
             strap_cnt     <= 0;
@@ -281,14 +289,6 @@ begin
 
                 end case;
             end loop;
-
-            -- Boot-gate wake sources: 2-FF synchronizers, since the pad-side inputs are async.
-            pgood_s1 <= pgood_pad;
-            pgood_s2 <= pgood_s1;
-            field_s1 <= field_detect;
-            field_s2 <= field_s1;
-            strap_s1 <= strap_pad;
-            strap_s2 <= strap_s1;
 
             -- One-shot strap sample, STRAP_SETTLE cycles after reset release.
             if strap_valid = '0' then

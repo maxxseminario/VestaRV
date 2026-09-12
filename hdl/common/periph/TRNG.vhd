@@ -72,11 +72,15 @@ architecture behavioral of TRNG is
     signal rosel_cr : std_logic_vector(3 downto 0);
     signal decim_cr : std_logic_vector(3 downto 0);
 
-    -- ---- clk-domain CDC: 2-FF sync + edge-detect --------------------------
-    signal ro_s1, ro_s2   : std_logic;
+    -- ---- clk-domain CDC: work.sync chains + local edge-detect -------------
+    -- The chain flops live inside the sync instances; only their outputs and
+    -- the edge-detect copies are signals here.
+    signal ro_s2          : std_logic_vector(0 downto 0);   -- q of u_sync_ro_raw
     signal ro_sync        : std_logic;
-    signal cnstgl_c1, cnstgl_c2, cnstgl_prev   : std_logic;
-    signal clralm_c1, clralm_c2, clralm_prev   : std_logic;
+    signal req_tgl_d      : std_logic_vector(1 downto 0);   -- 1: clr_almf_tgl, 0: dr_consume_tgl
+    signal req_tgl_q      : std_logic_vector(1 downto 0);
+    signal cnstgl_c2, cnstgl_prev              : std_logic;
+    signal clralm_c2, clralm_prev              : std_logic;
     signal consume_pulse, clr_almf_pulse       : std_logic;
 
     -- ---- decimator + assembler (clk domain) -------------------------------
@@ -247,22 +251,33 @@ begin
     end process reg_side;
 
     /* ------------------------- clk-domain CDC ----------------------------------
-       2-FF sync of the async RO tap ro_raw, the ONE genuine metastability CDC in this block, plus 2-FF and edge-detect on the two ClkMem-domain request toggles (dr_consume_tgl, clr_almf_tgl).
-       Single edge (rising clk) only, reset via resetn. */
+       Two work.sync chains: the async RO tap ro_raw, the ONE genuine metastability CDC in this block, and the two ClkMem-domain request toggles (dr_consume_tgl, clr_almf_tgl) bundled as independent lines.
+       The edge-detect copies stay here, one clk behind the chain output, because they are local logic and not part of the crossing. */
+    u_sync_ro_raw : entity work.sync
+        generic map (WIDTH => 1, DEPTH => 2)
+        port map (clk => clk, areset => resetn, d(0) => ro_raw, q => ro_s2);
+
+    req_tgl_d <= clr_almf_tgl & dr_consume_tgl;
+
+    u_sync_req_tgl : entity work.sync
+        generic map (WIDTH => 2, DEPTH => 2)
+        port map (clk => clk, areset => resetn, d => req_tgl_d, q => req_tgl_q);
+
+    cnstgl_c2 <= req_tgl_q(0);
+    clralm_c2 <= req_tgl_q(1);
+
     clk_cdc: process(resetn, clk)
     begin
         if resetn = '0' then
-            ro_s1 <= '0'; ro_s2 <= '0';
-            cnstgl_c1 <= '0'; cnstgl_c2 <= '0'; cnstgl_prev <= '0';
-            clralm_c1 <= '0'; clralm_c2 <= '0'; clralm_prev <= '0';
+            cnstgl_prev <= '0';
+            clralm_prev <= '0';
         elsif rising_edge(clk) then
-            ro_s1 <= ro_raw; ro_s2 <= ro_s1;
-            cnstgl_c1 <= dr_consume_tgl; cnstgl_c2 <= cnstgl_c1; cnstgl_prev <= cnstgl_c2;
-            clralm_c1 <= clr_almf_tgl;   clralm_c2 <= clralm_c1;   clralm_prev <= clralm_c2;
+            cnstgl_prev <= cnstgl_c2;
+            clralm_prev <= clralm_c2;
         end if;
     end process clk_cdc;
     -- Synchronized RO sample, and the two edge-detected request pulses.
-    ro_sync <= ro_s2;
+    ro_sync <= ro_s2(0);
     consume_pulse  <= '1' when (cnstgl_c2 /= cnstgl_prev) else '0';
     clr_almf_pulse <= '1' when (clralm_c2 /= clralm_prev) else '0';
 

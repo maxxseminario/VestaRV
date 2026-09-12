@@ -36,6 +36,8 @@ architecture sim of sync_tb is
 
     signal q1_d2, q1_d3 : std_logic_vector(0 downto 0);
     signal q4_d2, q4_d3 : std_logic_vector(3 downto 0);
+    -- A bare literal RST_VAL binds with ascending bounds; "100" must still set bit 2.
+    signal q3_lit : std_logic_vector(2 downto 0);
 
     -- Negative control: the DEPTH=2 chain with one stage removed.
     signal nc_q : std_logic;
@@ -66,6 +68,10 @@ begin
     dut_w4_d3 : entity work.sync
         generic map (WIDTH => 4, DEPTH => 3)
         port map (clk => clk, areset => areset, d => d4, q => q4_d3);
+
+    dut_w3_lit : entity work.sync
+        generic map (WIDTH => 3, DEPTH => 2, RST_VAL => "100")
+        port map (clk => clk, areset => areset, d => d4(2 downto 0), q => q3_lit);
 
     -- The negative control. Identical to dut_w1_d2 in clock, reset and data;
     -- it differs in exactly one thing, the missing second stage.
@@ -175,6 +181,7 @@ begin
         sb.check_slv("G1 w1 d2 holds RST_VAL 0 under areset", q1_d2, "0");
         sb.check_slv("G1 w1 d3 holds RST_VAL 1 under areset", q1_d3, "1");
         sb.check_slv("G1 w4 d2 holds RST_VAL 1010 under areset", q4_d2, RSTV4);
+        sb.check_slv("G1 w3 literal RST_VAL 100 is positional, bit 2 set", q3_lit, "100");
         sb.check_slv("G1 w4 d3 holds RST_VAL 0000 under areset", q4_d3, "0000");
 
         /* ---- GROUP 2: release, and the first data takes exactly DEPTH -----
