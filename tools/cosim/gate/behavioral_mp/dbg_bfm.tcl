@@ -1,5 +1,4 @@
-# =============================================================================
-# dbg_bfm.tcl -- the D2 harness library: a DMI bus-functional model over the
+# VestaRV: the D2 harness library: a DMI bus-functional model over the
 # MCU's frozen d2_spec-2 port, a shared-bulk-RAM window, and the trampoline
 # plant.  SOURCED by every D2 tcl harness; it is not a harness itself.
 #
@@ -45,7 +44,6 @@
 # EVERY LOOP IN THIS FILE IS BOUNDED.  A poll that never satisfies its
 # condition must FAIL the run, never hang it (the dma_bfm_pkg rule, and the
 # 1-minute rule).  A harness that can hang promises evidence that cannot occur.
-# =============================================================================
 
 # ---------------------------------------------------------------------------
 # DM register map (DMI word addresses; debug_defines.h, quoted in d2_probe P6)

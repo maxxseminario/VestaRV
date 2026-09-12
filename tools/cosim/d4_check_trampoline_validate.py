@@ -1,6 +1,5 @@
 #!/usr/bin/env python3.6
-# =============================================================================
-# d4_check_trampoline_validate.py -- the VALIDATION INSTRUMENT for the D4
+# VestaRV: the VALIDATION INSTRUMENT for the D4
 # dual-truth gate `tools/cosim/check_dbg_trampoline.py` (d4_spec section 2).
 #
 # BLIND-AUTHORED 2026-08-07 against d4_spec.md (FROZEN) by an agent that has
@@ -53,7 +52,6 @@
 #       mechanism is coupled to 40 (W_ABST = W_ENTRY + 40).
 #   V6  the checker's interpreter is /usr/bin/python3.6 (d4_spec 2), because
 #       this machine's bare `python3` is Calibre's quote-stripping wrapper.
-# =============================================================================
 from __future__ import print_function
 import hashlib
 import os

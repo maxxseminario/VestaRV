@@ -1,5 +1,4 @@
-# =============================================================================
-# dbg_halt.tcl -- the D1 halt harness for rv32ua-p-dbghaltmp.
+# VestaRV: the D1 halt harness for rv32ua-p-dbghaltmp.
 #
 #   ./xrun_dbg.sh rv32ua-p-dbghaltmp dbg_halt.tcl
 #
@@ -61,7 +60,6 @@
 #   HALTLOG STATE_TIMEOUT   a victim never reached its absorbing state (the
 #                           test image is wrong, not the RTL)
 # The a0 verdict remains the instrument; the harness log explains it.
-# =============================================================================
 source ../../disable_x_warnings.tcl
 
 set HARTS {1 2 3}

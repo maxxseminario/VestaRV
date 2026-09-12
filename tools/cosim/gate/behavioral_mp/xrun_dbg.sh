@@ -1,6 +1,5 @@
 #!/bin/bash
-# =============================================================================
-# xrun_dbg.sh -- D1 acceptance runner: ONE MCU_MP test, headless, with WRITE
+# VestaRV: D1 acceptance runner: ONE MCU_MP test, headless, with WRITE
 # access so a tcl harness can FORCE the core-side debug request ports.
 #
 #   ./xrun_dbg.sh <test-pattern> <harness.tcl>
@@ -24,7 +23,6 @@
 #   shared log is how a stale file gets quoted as a fresh result).
 #
 # NEVER pipe this through `head` (SIGPIPE kills the sim and leaves a stale log).
-# =============================================================================
 cd "$(dirname "$0")"
 source ~/vestarv/cdspaths.sh
 

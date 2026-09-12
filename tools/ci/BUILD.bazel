@@ -19,9 +19,17 @@ exports_files([
 # shape as //tools/python:docs_page_manifest, and for the same reason: args
 # built out of $(rootpaths ...) are shell-tokenized, which quietly loses any
 # path containing a space.
+# //hdl/common/synth:synth_vhdl_sources is named separately because it is
+# DELIBERATELY not in //hdl:vhdl_sources: hdl/common/synth is a bazel package,
+# so that glob does not descend into it, which is what keeps the synthesis
+# black boxes out of every simulation source pool. They are still hand-written
+# VHDL under hdl/ and still have to be pure ASCII, so they are added here.
 genrule(
     name = "vhdl_source_manifest",
-    srcs = ["//hdl:vhdl_sources"],
+    srcs = [
+        "//hdl:vhdl_sources",
+        "//hdl/common/synth:synth_vhdl_sources",
+    ],
     outs = ["vhdl_source_manifest.txt"],
     cmd = "for f in $(SRCS); do echo $$f; done > $@",
 )
@@ -42,8 +50,8 @@ genrule(
 # today: hdl/argus/ (133 characters) and hdl/myshkin/ (41). Neither is
 # editable - CONTRIBUTING.md's frozen-trees table marks hdl/myshkin/ "do not
 # touch" and hdl/argus/ a regenerable snapshot - so EXCLUDED_TREES in
-# check_vhdl_style.py skips them, with the reason on each line. Of the 227
-# files this filegroup stages, 154 are graded and 73 are excluded. Live
+# check_vhdl_style.py skips them, with the reason on each line. Of the 225
+# files this filegroup stages, 152 are graded and 73 are excluded. Live
 # hdl/common/ and hdl/castalia/ are both graded and both clean.
 #
 # Un-freezing either tree means deleting its line from EXCLUDED_TREES in the
@@ -60,6 +68,7 @@ py_test(
     data = [
         ":vhdl_source_manifest",
         "//hdl:vhdl_sources",
+        "//hdl/common/synth:synth_vhdl_sources",
     ],
     main = "check_vhdl_style.py",
 )

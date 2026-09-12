@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-# =============================================================================
-# zfinx_convert.py  --  X4 Stage 2c: mechanical rv32uf -> Zfinx conversion.
+# VestaRV: X4 Stage 2c: mechanical rv32uf -> Zfinx conversion.
 #
 # Zfinx runs the F operation set on the X (integer) register file: there is NO
 # separate f-register file, so
@@ -43,7 +42,6 @@
 #   (no args) : (re)generate tests/rv32uzf/*.S + test_macros_zfinx.h
 #   --check   : regenerate into a temp area and diff against the committed
 #               suite; non-zero exit if they differ (CI determinism gate).
-# =============================================================================
 import os, re, sys, difflib, tempfile
 
 HERE      = os.path.dirname(os.path.abspath(__file__))

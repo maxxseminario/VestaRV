@@ -1,6 +1,6 @@
 #!/usr/bin/python3.6
 # -*- coding: utf-8 -*-
-"""Standalone self-tests for tools/cosim/compare.py (phase V2, Agent A).
+"""VestaRV: standalone self-tests for tools/cosim/compare.py (phase V2, Agent A).
 
     /usr/bin/python3.6 tools/cosim/test_compare.py
 
@@ -1209,7 +1209,6 @@ def main():
         print("SKIP  A13/A6 sub-word plant lane select (no built vesta_ref)")
 
 
-    # ======================================================================
     # K2b AMENDMENT 1 -- `zfinx-fflags` (isa.zfinx)
     #
     # MEASURED SHAPE (k0 oracle probe §1.3m + this wave's own re-measurement on
@@ -1223,7 +1222,6 @@ def main():
     #     that the reference is not presenting the record here.
     # The one fixture below carries all three shapes in order, so a single
     # stream exercises the DROP arm, the ordinary-compare arm and the KEPT arm.
-    # ======================================================================
     ZF_RTL = """\
 R 00 00000100 00008200 00c5f553 0a 00000000
 C 00 00000100 001 00000000
@@ -1332,7 +1330,6 @@ core   0: 3 0x00008200 (0x00c5f553) c1_fflags 0x00000000 x10 0x00000000
            5, ZF_RTL, ZF_SPIKE, extra=["--amend", "zfinx-fflags,zfnix-typo"],
            expect_in_stderr=["unknown amendment 'zfnix-typo'"])
 
-    # ======================================================================
     # A17 acceptance fallout: --count feeds --max-records, and a WALK-LEVEL
     # amendment breaks the identity the two used to share.
     #
@@ -1357,7 +1354,6 @@ core   0: 3 0x00008200 (0x00c5f553) c1_fflags 0x00000000 x10 0x00000000
     # runner runs the reference for `<rtl retires> + 2000` instructions and it
     # spins in RVTEST_PASS for the remainder. ZF_TAIL_SPIKE reproduces exactly
     # that: two extra retires past the end of the RTL window.
-    # ======================================================================
     ZF_TAIL_SPIKE = ZF_SPIKE + """\
 core   0: 3 0x0000820c (0x0000a001)
 core   0: 3 0x0000820c (0x0000a001)
@@ -1402,7 +1398,6 @@ core   0: 3 0x0000820c (0x0000a001)
     h.case("A17: ungated, --count's number as the bound is unchanged (exit 0)",
            0, MEM_RTL, MEM_SPIKE, extra=["--max-records", "4"])
 
-    # ======================================================================
     # K2b AMENDMENT 2 -- `cboz-stores` (isa.zicboz) and `cmjt-load` (isa.zcmt)
     #
     # MEASURED SHAPE (k0 oracle probe §1.3d/§1.3e):
@@ -1419,7 +1414,6 @@ core   0: 3 0x0000820c (0x0000a001)
     # The `cbo.zero` fixture uses the SHARED-window block `shcboz.S` actually
     # zeroes (0x11400) and gas 2.41's real encoding of `cbo.zero (a1)`
     # (0x0045a00f -- measured this wave; note it does NOT end `200f`, R-K2-5).
-    # ======================================================================
     CBOZ_RTL = ["R 00 00000100 00008200 0045a00f 00 00000000\n"] + [
         "M 00 %08x S %08x 4 00000000\n" % (0x101 + k, 0x11400 + 4 * k)
         for k in range(16)] + ["R 00 00000120 00008204 00000013 00 00000000\n"]
@@ -1545,7 +1539,6 @@ core   0: 3 0x00008300 (0x00000013)
            1, CMJT_NOJVT_RTL, CMJT_NOJVT_SPIKE, extra=["--amend", "cmjt-load"],
            expect_in_stderr=["at jvt+4*index = 00000014"])
 
-    # ======================================================================
     # K2b AMENDMENT 3 -- `mret-csr` + `mtrap-t` (priv.trapCsr) and `fcsr-split`
     # (isa.zfinx).
     #
@@ -1560,7 +1553,6 @@ core   0: 3 0x00008300 (0x00000013)
     #     handler, so only the `T` misaligns. Ruled in by R-K2b-2 (2).
     #   * `csrw fcsr,t0` with t0=7 logs `c1_fflags 0x7 c2_frm 0x0` on the
     #     reference and a single `C 003 00000007` on the RTL side (§1.3h).
-    # ======================================================================
     MRET_RTL = """\
 R 00 00000100 00008200 30200073 00 00000000
 C 00 00000100 300 00001880
@@ -1723,7 +1715,6 @@ core   0: 3 0x00008204 (0x00000013)
            1, FCSR_READ_RTL, FCSR_READ_SPIKE, extra=["--amend", "fcsr-split"],
            expect_in_stderr=["is not an explicit fcsr write -- left alone"])
 
-    # ======================================================================
     # K2b AMENDMENT 4 -- `hpm-warl` (isa.zihpm), TWO TIERS, and the second is
     # deliberately smaller than the first.
     #
@@ -1736,7 +1727,6 @@ core   0: 3 0x00008204 (0x00000013)
     #     csrr 0xb03          reference: 0   RTL: a real event count  <-- F1
     # Tier 1 drops the WRITE record on BOTH sides; tier 2 relaxes `rdval` on the
     # CONFIGURATION registers' read-backs ONLY.
-    # ======================================================================
     HPM_RTL = """\
 R 00 00000100 00008200 32329073 00 00000000
 C 00 00000100 323 00000001
@@ -1842,7 +1832,6 @@ core   0: 3 0x00008200 (0x34002373) x6  0x00000002
            1, HPM_NONHPM_RD_RTL, HPM_NONHPM_RD_SPIKE, extra=["--amend", "hpm-warl"],
            expect_in_stdout=["rdval: rtl=00000001 spike=00000002"])
 
-    # ======================================================================
     # K5 AMENDMENT 5 -- `zacas-failwrite` (isa.zacas), from ledger K4-L4a.
     #
     # MEASURED SHAPE (K4 session 3, `rv32ua-p-casgrant` + the two B8 cells).
@@ -1862,7 +1851,6 @@ core   0: 3 0x00008200 (0x34002373) x6  0x00000002
     # FIRST load instead of the second would be INVISIBLE to the comparison.
     # That mutation is therefore NOT offered as a control; the discriminating
     # ones are the ones below, which change WHICH RECORDS SURVIVE.
-    # ======================================================================
     ZCAS_RTL = """\
 R 00 00000100 00008200 28d5a62f 0c 0000cafe
 M 00 00000100 L 00008410 4 0000cafe
@@ -2051,7 +2039,6 @@ R 00 00000102 00008204 0000d337 06 0000d000
            1, ZCAS_RTL, ZCAS_SPIKE, extra=["--amend", "cboz-stores"],
            expect_in_stdout=["record KIND differs: rtl=M spike=R"])
 
-    # ======================================================================
     # K5 AMENDMENT 6 -- `zcmp-frame-order` (isa.zcmp), from ledger K4-L3.
     #
     # MEASURED SHAPE (`rv32ua-p-extzcmp`, K4 row B10).  For
@@ -2064,7 +2051,6 @@ R 00 00000102 00008204 0000d337 06 0000d000
     # R-K4-2 (4) filed, obtained without giving up a compared field.  The
     # negative cases below are therefore about what an ORDER-BLIND compare must
     # still catch: a wrong address, a wrong value, a missing record.
-    # ======================================================================
     ZCMP_RTL = """\
 R 00 00000100 00008200 b852 02 000083c0
 M 00 00000100 S 000083c8 4 1234abcd

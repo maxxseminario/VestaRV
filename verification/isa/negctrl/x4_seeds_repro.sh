@@ -1,7 +1,5 @@
 #!/bin/bash
-# =========================================================================
-# X4 Zfinx negative-control repro (all three seeds)            Stage 3 (final)
-# =========================================================================
+# VestaRV: X4 Zfinx negative-control repro (all three seeds)            Stage 3 (final)
 # FINALIZED at integration: the three seed patches now apply cleanly to the
 # merged 2a/2b RTL (fpu.vhd / csr_unit.vhd / vesta.vhd). Each seed injects the
 # spec-frozen bug and is caught by its detecting rv32uzf test as a BOUNDED
@@ -27,7 +25,6 @@
 #
 # Each run: clean PASS (precondition) -> apply seed -> seeded FAIL -> revert ->
 # reverted PASS.  NEVER leaves a seed applied (reverts even on error).
-# =========================================================================
 set -u
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 RUN="$ROOT/xcelium/riscv_test/behavioral_mp"

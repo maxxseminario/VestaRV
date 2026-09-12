@@ -1,5 +1,4 @@
-# =============================================================================
-# dbg_gateidc.tcl -- THE D5 SECTION-6 BOUNDED GATE LEG, and the grader for it.
+# VestaRV: THE D5 SECTION-6 BOUNDED GATE LEG, and the grader for it.
 #
 # BEHAVIOURAL (the liveness control, and it must PASS):
 #   ./xrun_dbg_verify.sh verify_castaliadebug ../kba/xrv32ua-p-dbgtrpmp.rcf dbg_gateidc.tcl
@@ -57,7 +56,6 @@
 #   to call it a pass.
 #
 # NEVER pipe the runner through `head`.
-# =============================================================================
 source ../../disable_x_warnings.tcl
 if {[file exists dbg_bfm.tcl]} { source dbg_bfm.tcl } else { source ../behavioral_mp/dbg_bfm.tcl }
 if {[file exists dbg_tap.tcl]} { source dbg_tap.tcl } else { source ../behavioral_mp/dbg_tap.tcl }

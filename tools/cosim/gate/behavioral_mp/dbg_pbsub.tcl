@@ -1,5 +1,4 @@
-# =============================================================================
-# dbg_pbsub.tcl -- the BLIND DETECTOR for F-D5-1 (R-DD8): the progbuf
+# VestaRV: the BLIND DETECTOR for F-D5-1 (R-DD8): the progbuf
 # ebreak -> jal-to-epilogue substitution.
 #
 #   ./xrun_dbg_verify.sh verify_castaliadebug ../kba/xrv32ua-p-dbgtrpmp.rcf dbg_pbsub.tcl
@@ -139,7 +138,6 @@
 # because the obvious alternative silently does not trap.
 #
 # NEVER pipe the runner through `head`.
-# =============================================================================
 source ../../disable_x_warnings.tcl
 if {[file exists dbg_bfm.tcl]} { source dbg_bfm.tcl } else { source ../behavioral_mp/dbg_bfm.tcl }
 if {[file exists dbg_tramp_lib.tcl]} { source dbg_tramp_lib.tcl } else { source ../behavioral_mp/dbg_tramp_lib.tcl }
@@ -257,7 +255,6 @@ puts "DMILOG S0-CTRL (never graded): abstract write of s0 cmderr=$s0w; s0 reads 
 d4_settle
 flush stdout
 
-# ===========================================================================
 # LEG A -- OpenOCD's EXACT memory-access byte shape.
 #
 # riscv-013's write_memory_progbuf, reproduced transaction for transaction:
@@ -265,7 +262,6 @@ flush stdout
 #   progbuf0 = sw s1,0(s0)
 #   progbuf1 = EXPLICIT 32-bit ebreak            <-- the F-D5-1 trigger
 #   command: regno=s1, write=1, transfer=1, postexec=1   (value rides in data0)
-# ===========================================================================
 set pre_mem [pb_tcm_word $VICTIM $::PB_MEM]
 set wr_s0 [d4_abs_write $::R_A6 $::PB_MEM]
 d4_settle
@@ -317,9 +313,7 @@ d2_chk [expr {$ceB == 0}] \
 d2_chk [expr {$rdv == $::PB_COOKIE}] \
     "A5: ...and the value read back through the hart equals what was written ([format 0x%08X [expr {$rdv < 0 ? 0 : $rdv}]] vs [format 0x%08X $::PB_COOKIE]).  Also EXPECTED TO PASS PRE-FIX: the lw lands in a7 before the ebreak traps"
 
-# ===========================================================================
 # LEG B -- the substitution is VISIBLE and POSITION-CORRECT.
-# ===========================================================================
 d4_settle
 dmi_write $::DM_PROGBUF0 $::PB_EBREAK
 dmi_write $::DM_PROGBUF1 $::PB_EBREAK
@@ -348,12 +342,10 @@ puts "DMILOG B POSITION: off(progbuf0)-off(progbuf1) = $delta (want exactly 4)"
 d2_chk $posok \
     "B3: THE POSITION-CORRECTNESS CHECK -- progbuf0's and progbuf1's substituted jals resolve to the SAME absolute target (their offsets differ by exactly 4, the one word between them; measured $delta).  This is what 'position-correct' means, expressed without hard-coding where the epilogue is.  A FIXED, position-BLIND offset -- the natural wrong implementation -- passes B1 and B2 and fails ONLY here"
 
-# ===========================================================================
 # LEG C -- a genuinely-trapping program still reports EXCEPTION.
 # Graded on the DM's own cmderr and NOT on any token/FLAGS word: section
 # 1.5's rule-12 rider (as reworded 2026-08-10) leaves the general token
 # mechanism OPEN, and a detector must not assert what is open.
-# ===========================================================================
 d4_settle
 dmi_write $::DM_PROGBUF0 $::PB_ILLEGAL
 dmi_write $::DM_PROGBUF1 $::PB_EBREAK
@@ -364,9 +356,7 @@ puts "DMILOG C TRAPPING-PROGRAM: progbuf0=[format 0x%08X $::PB_ILLEGAL] (illegal
 d2_chk [expr {$ceC == $::CMDERR_EXCEPTION}] \
     "C1: a GENUINELY-trapping progbuf program still reports cmderr=EXCEPTION(3) -- got $ceC ([d4_cmderr_name $ceC]).  PASSES PRE-FIX TOO, declared in advance: this leg exists to prove the fix did not buy cmderr=0 by disabling exception reporting.  It grades the DM's own cmderr, never a token word -- the token mechanism is OPEN per the reworded 1.5 rider and a detector must not assert what is open"
 
-# ===========================================================================
 # LEG D -- data0 is OUT of scope and must stay verbatim.
-# ===========================================================================
 d4_settle
 dmi_write $::DM_DATA0 $::PB_EBREAK
 set dd [dmi_read $::DM_DATA0]
@@ -374,9 +364,7 @@ puts "DMILOG D DATA0: wrote [format 0x%08X $::PB_EBREAK] read [format 0x%08X $dd
 d2_chk [expr {$dd == $::PB_EBREAK}] \
     "D1: a write of 0x00100073 to DATA0 is stored VERBATIM ([format 0x%08X $dd]) -- the substitution is scoped to progbuf0/1 proxy writes and must not leak to the data register.  Passes pre-fix; it is the scope guard, and it is the only check that would catch a substitution applied at the wrong place in the proxy path"
 
-# ===========================================================================
 # LEGS E/F -- EXACT-encoding match only.
-# ===========================================================================
 d4_settle
 dmi_write $::DM_PROGBUF0 $::PB_LW
 set e0 [dmi_read $::DM_PROGBUF0]

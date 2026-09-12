@@ -1,5 +1,4 @@
-# =============================================================================
-# dbg_exc.tcl -- the F-D2-0 harness: a synchronous exception taken IN DEBUG
+# VestaRV: the F-D2-0 harness: a synchronous exception taken IN DEBUG
 # MODE must re-enter debug mode, in BOTH delivery polarities.
 #
 #   ./xrun_dbg.sh rv32ua-p-dbgexcmp dbg_exc.tcl
@@ -39,7 +38,6 @@
 # the image's a1.
 #
 # NEVER pipe the runner through `head`.
-# =============================================================================
 source ../../disable_x_warnings.tcl
 if {[file exists dbg_bfm.tcl]} { source dbg_bfm.tcl } else { source ../behavioral_mp/dbg_bfm.tcl }
 

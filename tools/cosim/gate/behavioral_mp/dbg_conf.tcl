@@ -1,5 +1,4 @@
-# =============================================================================
-# dbg_conf.tcl -- the DM REGISTER-MAP CONFORMANCE checks of d2_spec section 3,
+# VestaRV: the DM REGISTER-MAP CONFORMANCE checks of d2_spec section 3,
 # run over the PROVEN riscv_tb flow.
 #
 #   ./xrun_dbg.sh xxxxxxrv32ui-p-add dbg_conf.tcl
@@ -57,7 +56,6 @@
 #
 # AT UNIMPLEMENTED HEAD dmi_present prints PORT_ABSENT / INSTRUMENT_DEAD and
 # every check is skipped -- the part-1 seen-to-FAIL leg.
-# =============================================================================
 source ../../disable_x_warnings.tcl
 # dbg_bfm.tcl lives beside this file in behavioral_mp/, but a harness is also
 # run from the mutation scratch dir (d2mut/), whose CWD is one level across.

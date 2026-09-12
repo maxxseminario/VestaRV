@@ -1,5 +1,4 @@
-# =============================================================================
-# dbg_tramp.tcl -- THE D4 PLANT DETECTOR.  d4_spec 1.2 and 6, bullet 1.
+# VestaRV: THE D4 PLANT DETECTOR.  d4_spec 1.2 and 6, bullet 1.
 #
 #   ./xrun_dbg_verify.sh verify_castaliadebug ../rcf/xxxxrv32ua-p-dbgtrpmp.rcf dbg_tramp.tcl
 #
@@ -103,7 +102,6 @@
 # -- after the poison, before the halt -- and every check must PASS.  That arm
 # proves the instrument is capable of passing; it is not a graded leg and says
 # so in its own log.
-# =============================================================================
 source ../../disable_x_warnings.tcl
 if {[file exists dbg_bfm.tcl]} { source dbg_bfm.tcl } else { source ../behavioral_mp/dbg_bfm.tcl }
 if {[file exists dbg_tramp_lib.tcl]} { source dbg_tramp_lib.tcl } else { source ../behavioral_mp/dbg_tramp_lib.tcl }

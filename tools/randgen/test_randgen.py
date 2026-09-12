@@ -1,5 +1,5 @@
 #!/usr/bin/python3.6
-"""test_randgen.py -- unit tests for the K3 generator and its census.
+"""VestaRV: unit tests for the K3 generator and its census.
 
     /usr/bin/python3.6 tools/randgen/test_randgen.py
 
@@ -202,9 +202,7 @@ def _compile_stream(text, march='rv32imac_zba_zbb_zbc_zbs_zfinx'):
     return e
 
 
-# ==========================================================================
 # RNG
-# ==========================================================================
 @test
 def test_rng_is_deterministic():
     a = [k3rng.Rng(12345).next_u64() for _ in range(5)]
@@ -256,9 +254,7 @@ def test_rng_weighted_choice_respects_zero_weight():
     eq(sorted(seen), ['a', 'c'], 'zero-weight item never picked')
 
 
-# ==========================================================================
 # config gate
-# ==========================================================================
 @test
 def test_sparse_config_is_refused():
     try:
@@ -284,9 +280,7 @@ def test_unlockstepable_config_is_refused_at_load():
         raise AssertionError('div-without-mul was accepted')
 
 
-# ==========================================================================
 # class gating -- the two gates of isa_model
-# ==========================================================================
 @test
 def test_config_gate_removes_classes():
     avail, blocked = isa_model.available_classes(_fake_cfg().isa)
@@ -396,9 +390,7 @@ def test_verdict_c_is_admitted_and_verdict_b_is_not():
        'verdict C is admitted -- the V3 BRACKET_ISR channel exists')
 
 
-# ==========================================================================
 # stream discipline
-# ==========================================================================
 def _rd_of(text):
     """Destination register number, or None for stores/branches/fence."""
     parts = text.split(None, 1)
@@ -551,9 +543,7 @@ def test_irq_arms_never_precede_an_lrsc():
                     break
 
 
-# ==========================================================================
 # reproducibility -- R-DK5
-# ==========================================================================
 @test
 def test_reproducible():
     cfg = _cfg()
@@ -606,9 +596,7 @@ def test_name_length_contract_is_enforced_at_the_source():
         raise AssertionError('an over-long stream name was accepted')
 
 
-# ==========================================================================
 # THE CENSUS INSTRUMENT
-# ==========================================================================
 @test
 def test_decoder_agrees_with_objdump():
     rows = _one_of_each()
@@ -770,9 +758,7 @@ def test_census_refuses_a_compressed_encoding_in_the_range():
         raise AssertionError('a compressed encoding in the range went unnoticed')
 
 
-# ==========================================================================
 # the negative controls for the STREAM's own runtime detector
-# ==========================================================================
 @test
 def test_negative_controls_are_constructible():
     """The epilogue guard checks must be seen to FAIL, which needs a stream
@@ -788,14 +774,12 @@ def test_negative_controls_are_constructible():
         _compile_stream(text)
 
 
-# ==========================================================================
 # K5 queue item 4 -- the five emitter-less state-bearing Z rows.
 #
 # The ORDER of these tests is the order of the argument they make: first that
 # the two instruments (encoder, decoder) agree with a third party that is not
 # either of them; then that each emitter's SAFETY claim holds on real streams;
 # then that the oracle bookkeeping says what the manifests will carry.
-# ==========================================================================
 def _cfg_knob(knob):
     """A complete synthetic resolved config with `knob` (and its dependants) on."""
     over = {knob: True}

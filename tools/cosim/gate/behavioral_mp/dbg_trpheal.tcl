@@ -1,5 +1,4 @@
-# =============================================================================
-# dbg_trpheal.tcl -- THE D4 SELF-HEAL LEG.  d4_spec 1.2's promise, graded.
+# VestaRV: THE D4 SELF-HEAL LEG.  d4_spec 1.2's promise, graded.
 #
 #   ./xrun_dbg_verify.sh verify_castaliadebug ../rcf/xxxxrv32ua-p-dbgtrpmp.rcf dbg_trpheal.tcl
 #
@@ -108,7 +107,6 @@
 # each corruption and re-force before each subsequent halt -- a forced word is
 # read-only, so a live force would silently drop the very store being graded.
 # Every check must pass.
-# =============================================================================
 source ../../disable_x_warnings.tcl
 if {[file exists dbg_bfm.tcl]} { source dbg_bfm.tcl } else { source ../behavioral_mp/dbg_bfm.tcl }
 if {[file exists dbg_tramp_lib.tcl]} { source dbg_tramp_lib.tcl } else { source ../behavioral_mp/dbg_tramp_lib.tcl }
@@ -149,14 +147,12 @@ if {$PRESENT && $ready} {
     set s2 [dm_poll_status $VICTIM dms_allrunning 400]
     d2_chk [expr {$s2 >= 0}] "H2: the victim resumes"
 
-    # =====================================================================
     # PHASE A -- the RESUME-PATH discriminator, graded off the CLEAN page
     # H0-H2 have just proven intact.  This phase runs FIRST on purpose; see
     # the header.  Word 34 is `dret`: a hart halting into damage there still
     # reaches the token store at word 16, so it can still publish TOK_HALTED,
     # which is the premise the discrimination needs and which any earlier
     # word-2 damage would destroy for good.
-    # =====================================================================
     d4_control_unplant
 
     d4_cmd $::DBGTRP_CMD_CORRUPT $RESUME_WORD
@@ -197,14 +193,12 @@ if {$PRESENT && $ready} {
     d2_chk [expr {$s4 >= 0 && $ran1 > $ran0}] \
         "H6: ...and the repaired `dret` resumes the hart, which an unhealed word $RESUME_WORD could not ($ran0 -> $ran1)"
 
-    # =====================================================================
     # PHASE B -- the SELF-HEAL headline and the ORDERING clause.  Word 2 is
     # executed on every entry, so a page broken here cannot publish a token
     # at all: a plant that FOLLOWS the token wait deadlocks and the DM
     # answers cmderr = OTHER on its own bound.  Two values, no duration.
     # This phase goes last because it can leave the hart wedged on any chip
     # that gets the ordering wrong, and nothing may be graded after that.
-    # =====================================================================
     d4_control_unplant
 
     d4_cmd $::DBGTRP_CMD_CORRUPT $ENTRY_WORD

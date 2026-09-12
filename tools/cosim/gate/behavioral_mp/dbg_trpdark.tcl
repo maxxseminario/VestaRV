@@ -1,5 +1,4 @@
-# =============================================================================
-# dbg_trpdark.tcl -- THE D4 HALT-ON-RESET IN-BAND LEG.  d4_spec 3, in full.
+# VestaRV: THE D4 HALT-ON-RESET IN-BAND LEG.  d4_spec 3, in full.
 # THE BACKBONE: neither I6 nor J6 has ever graded a halt into an UNPLANTED
 # page (d4_probe P6), and neither has ever proved that the hart which halts at
 # reset release goes on to execute REAL entry code.
@@ -67,7 +66,6 @@
 #
 # LIVENESS CONTROL (D4_CONTROL=1): the page is force-planted at the top, which
 # is where the dmactive plant would have put it; N1-N5 must all pass.
-# =============================================================================
 source ../../disable_x_warnings.tcl
 if {[file exists dbg_bfm.tcl]} { source dbg_bfm.tcl } else { source ../behavioral_mp/dbg_bfm.tcl }
 if {[file exists dbg_tramp_lib.tcl]} { source dbg_tramp_lib.tcl } else { source ../behavioral_mp/dbg_tramp_lib.tcl }

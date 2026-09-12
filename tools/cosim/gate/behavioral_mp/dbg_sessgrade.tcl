@@ -1,5 +1,4 @@
-# =============================================================================
-# dbg_sessgrade.tcl -- THE FAIL LEG OF THE D5 SESSION GRADERS, and the file
+# VestaRV: THE FAIL LEG OF THE D5 SESSION GRADERS, and the file
 # the implementer copies when they wire the graders around a real session.
 #
 #   ./xrun_dbg_verify.sh verify_castaliadebug ../kba/xrv32ua-p-dbgtrpmp.rcf dbg_sessgrade.tcl
@@ -75,7 +74,6 @@
 # direction where it is supposed to succeed.
 #
 # NEVER pipe the runner through `head`.
-# =============================================================================
 source ../../disable_x_warnings.tcl
 if {[file exists dbg_sess_lib.tcl]} { source dbg_sess_lib.tcl } else { source ../behavioral_mp/dbg_sess_lib.tcl }
 

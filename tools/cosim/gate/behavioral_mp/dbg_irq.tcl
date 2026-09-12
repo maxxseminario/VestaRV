@@ -1,5 +1,4 @@
-# =============================================================================
-# dbg_irq.tcl -- the F-D2-1 harness: a hart in debug mode takes NO interrupt,
+# VestaRV: the F-D2-1 harness: a hart in debug mode takes NO interrupt,
 # in BOTH delivery polarities.
 #
 #   ./xrun_dbg.sh rv32ua-p-dbgirqmp dbg_irq.tcl
@@ -30,7 +29,6 @@
 # to report findings alongside the image's a1.  That is the seen-to-FAIL leg.
 #
 # NEVER pipe the runner through `head`.
-# =============================================================================
 source ../../disable_x_warnings.tcl
 if {[file exists dbg_bfm.tcl]} { source dbg_bfm.tcl } else { source ../behavioral_mp/dbg_bfm.tcl }
 

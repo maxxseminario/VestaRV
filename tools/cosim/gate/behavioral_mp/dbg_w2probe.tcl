@@ -1,5 +1,4 @@
-# =============================================================================
-# dbg_w2probe.tcl -- the D5 section-5.4-5 provocation shape, measured on the
+# VestaRV: the D5 section-5.4-5 provocation shape, measured on the
 # CHIP side so the implementer knows exactly what OpenOCD is about to meet.
 #
 #   ./xrun_dbg_verify.sh verify_castaliadebug ../kba/xrv32ua-p-dbgtrpmp.rcf dbg_w2probe.tcl
@@ -43,7 +42,6 @@
 # would stop covering anything the moment the DM's timing moved.
 #
 # NEVER pipe the runner through `head`.
-# =============================================================================
 source ../../disable_x_warnings.tcl
 if {[file exists dbg_bfm.tcl]} { source dbg_bfm.tcl } else { source ../behavioral_mp/dbg_bfm.tcl }
 if {[file exists dbg_tramp_lib.tcl]} { source dbg_tramp_lib.tcl } else { source ../behavioral_mp/dbg_tramp_lib.tcl }

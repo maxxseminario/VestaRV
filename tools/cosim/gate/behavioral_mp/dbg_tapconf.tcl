@@ -1,5 +1,4 @@
-# =============================================================================
-# dbg_tapconf.tcl -- D3 instrument T2: TAP GRAPH, IR AND DR CONFORMANCE.
+# VestaRV: D3 instrument T2: TAP GRAPH, IR AND DR CONFORMANCE.
 # Everything in d3_spec section 1 that can be observed from the four pins,
 # checked WITHOUT any DMI transaction.
 #
@@ -62,7 +61,6 @@
 # and every check is skipped -- the part-1 seen-to-FAIL leg.
 #
 # NEVER pipe the runner through `head`.
-# =============================================================================
 source ../../disable_x_warnings.tcl
 if {[file exists dbg_bfm.tcl]} { source dbg_bfm.tcl } else { source ../behavioral_mp/dbg_bfm.tcl }
 if {[file exists dbg_tap.tcl]} { source dbg_tap.tcl } else { source ../behavioral_mp/dbg_tap.tcl }

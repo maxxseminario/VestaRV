@@ -1,5 +1,4 @@
-# =============================================================================
-# dbg_dmreg.tcl -- the D5 section-1 RTL DETECTOR: the two zero-flop
+# VestaRV: the D5 section-1 RTL DETECTOR: the two zero-flop
 # debug_module.vhd edits R-DD6(1) approved, graded on the RAW DMI PORT.
 #
 #   ./xrun_dbg_verify.sh verify_castaliadebug ../kba/xrv32ua-p-dbgtrpmp.rcf dbg_dmreg.tcl
@@ -61,7 +60,6 @@
 # hold, the file says INSTRUMENT_DEAD and grades nothing.
 #
 # NEVER pipe the runner through `head`.
-# =============================================================================
 source ../../disable_x_warnings.tcl
 if {[file exists dbg_bfm.tcl]} { source dbg_bfm.tcl } else { source ../behavioral_mp/dbg_bfm.tcl }
 

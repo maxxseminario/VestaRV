@@ -1,5 +1,4 @@
-# =============================================================================
-# dbg_step.tcl -- the D1 step harness for rv32ua-p-dbgstepmp.
+# VestaRV: the D1 step harness for rv32ua-p-dbgstepmp.
 #
 #   ./xrun_dbg.sh rv32ua-p-dbgstepmp dbg_step.tcl
 #
@@ -33,7 +32,6 @@
 #                             PASSED.  BENIGN, never counted as a failure.
 #   STEPLOG NO_HALTED         no sample caught it high AND the test FAILED.
 #   STEPLOG SPIN_TIMEOUT      hart 1 never settled into a loop (image, not RTL)
-# =============================================================================
 source ../../disable_x_warnings.tcl
 
 set REQ ":dut:hart1:dbg_haltreq"

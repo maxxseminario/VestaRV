@@ -1,5 +1,4 @@
-# =============================================================================
-# dbg_trprep.tcl -- THE D4 RE-PLANT-ON-TOGGLE LEG.  d4_spec 1.3 and 6.
+# VestaRV: THE D4 RE-PLANT-ON-TOGGLE LEG.  d4_spec 1.3 and 6.
 #
 #   ./xrun_dbg_verify.sh verify_castaliadebug ../rcf/xxxxrv32ua-p-dbgtrpmp.rcf dbg_trprep.tcl
 #
@@ -58,7 +57,6 @@
 # LIVENESS CONTROL (D4_CONTROL=1): force-plant before R0, release before the
 # corruption, re-force after the toggle -- each step standing in for the RTL
 # step it names.  Every check must pass.
-# =============================================================================
 source ../../disable_x_warnings.tcl
 if {[file exists dbg_bfm.tcl]} { source dbg_bfm.tcl } else { source ../behavioral_mp/dbg_bfm.tcl }
 if {[file exists dbg_tramp_lib.tcl]} { source dbg_tramp_lib.tcl } else { source ../behavioral_mp/dbg_tramp_lib.tcl }

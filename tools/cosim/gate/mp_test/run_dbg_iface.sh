@@ -1,6 +1,5 @@
 #!/bin/bash
-# =============================================================================
-# run_dbg_iface.sh -- D1 acceptance instrument I2: the port-conformance bench.
+# VestaRV: D1 acceptance instrument I2: the port-conformance bench.
 #
 # Compiles + elaborates + simulates hdl/common/tb/dbg_iface_tb.vhd against the
 # real hart_tile (two instances: debug ports connected / omitted).  See the
@@ -14,7 +13,6 @@
 #
 # This dir is under xcelium/ (gitignored); the BENCH is tracked
 # (hdl/common/tb/dbg_iface_tb.vhd).  Precedent: run_pmp_unit.sh.
-# =============================================================================
 source ~/vestarv/cdspaths.sh
 
 # D1MUT_HDL lets the D1 validation pass point this bench at the mutation

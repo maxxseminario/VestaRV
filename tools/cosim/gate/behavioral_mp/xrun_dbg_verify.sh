@@ -1,6 +1,5 @@
 #!/bin/bash
-# =============================================================================
-# xrun_dbg_verify.sh -- run ONE tcl debug harness against a GENERATOR-STAGED
+# VestaRV: run ONE tcl debug harness against a GENERATOR-STAGED
 # knob-ON tree (verify_castaliadebug at N=4, verify_argusdebug at N=18).
 #
 #   ./xrun_dbg_verify.sh <verifydir> <rcf-path-relative-to-it> <harness.tcl>
@@ -34,7 +33,6 @@
 #
 # OUTPUT: <verifydir>/xrun_dbg.log
 # NEVER pipe this through `head` (SIGPIPE kills the sim, leaving a stale log).
-# =============================================================================
 cd "$(dirname "$0")"
 source ~/vestarv/cdspaths.sh
 

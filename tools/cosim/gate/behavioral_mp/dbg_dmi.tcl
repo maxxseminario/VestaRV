@@ -1,5 +1,4 @@
-# =============================================================================
-# dbg_dmi.tcl -- THE HEADLINE D2 harness: halt ONE hart through the Debug
+# VestaRV: THE HEADLINE D2 harness: halt ONE hart through the Debug
 # Module while the others keep running, then resume it.
 #
 #   ./xrun_dbg.sh rv32ua-p-dbgdmimp dbg_dmi.tcl
@@ -48,7 +47,6 @@
 # stopped).  Both halves of the D1 two-part FAIL leg, in one run.
 #
 # NEVER pipe the runner through `head`.
-# =============================================================================
 source ../../disable_x_warnings.tcl
 # dbg_bfm.tcl lives beside this file in behavioral_mp/, but a harness is also
 # run from the mutation scratch dir (d2mut/), whose CWD is one level across.

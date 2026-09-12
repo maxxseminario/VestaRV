@@ -1,5 +1,4 @@
-# =============================================================================
-# gate_m7probe.tcl -- THE M7 QUESTION, ASKED BEFORE ANYTHING ELSE.
+# VestaRV: THE M7 QUESTION, ASKED BEFORE ANYTHING ELSE.
 #
 # d5_spec section 6: "The tb `component MCU` ends at `a0_3` -- the M7 question
 # (does a hierarchical force reach the Verilog top's unconnected JTAG inputs?)
@@ -20,7 +19,6 @@
 #   FORCE    <path> <literal> -> <read>  -- did the force take
 # and ends with a one-line M7 VERDICT naming the spelling that works, or
 # M7 VERDICT = UNREACHABLE, which is a STOP-AND-REPORT per the spec.
-# =============================================================================
 source ../../disable_x_warnings.tcl
 
 proc m7_try_resolve {p} {

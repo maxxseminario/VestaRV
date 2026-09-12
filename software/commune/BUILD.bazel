@@ -1,3 +1,5 @@
+load("@rules_python//python:defs.bzl", "py_test")
+
 # Shared chip headers used by the firmware builds.
 #
 # The list is explicit rather than a glob on purpose. commune/include also
@@ -25,4 +27,27 @@ filegroup(
         "include/uart.h",
         "include/uart_irq.h",
     ],
+)
+
+# PROVES that myshkin.h and the generated register headers can share one
+# translation unit. Eight SYSTEM registers are object-like macros here and
+# struct members there; VESTA_LEGACY_SYSTEM_MMR in myshkin.h is the mutual
+# exclusion, and this compiles the legacy, flagged and regs-first cases plus
+# the unguarded control that must still fail. Report R6-2.
+py_test(
+    name = "myshkin_h_coexist_test",
+    size = "small",
+    srcs = ["check_myshkin_h_coexist.py"],
+    args = [
+        "--cc=$(rootpath @xpack_riscv_gcc//:gcc)",
+        "--commune=software/commune/include",
+        "--regs=software/include/regs",
+    ],
+    data = [
+        ":chip_headers",
+        "//software/include:regs_headers",
+        "@xpack_riscv_gcc//:gcc",
+        "@xpack_riscv_gcc//:toolchain",
+    ],
+    main = "check_myshkin_h_coexist.py",
 )

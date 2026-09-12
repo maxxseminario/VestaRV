@@ -1,6 +1,5 @@
 #!/bin/bash
-# =============================================================================
-# xrun.sh — compile + elaborate + simulate ONE MCU_MP test in SimVision (GUI).
+# VestaRV: compile + elaborate + simulate ONE MCU_MP test in SimVision (GUI).
 #
 #   ./xrun.sh                 # default test: shmem (the shared-window test)
 #   ./xrun.sh add             # partial match on ../rcf/*.rcf  -> rv32ui-p-add
@@ -12,7 +11,6 @@
 # TEST_FILE is the riscv_tb generic: a FIXED 29-char string, "../rcf/" + a
 # 22-char x-padded filename — the files in ../rcf/ are already padded, so the
 # match below just picks one and passes its full path.
-# =============================================================================
 
 source ~/vestarv/cdspaths.sh
 

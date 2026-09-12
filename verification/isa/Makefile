@@ -1,6 +1,5 @@
-# #=======================================================================
-# Makefile for riscv-tests/isa
-#-----------------------------------------------------------------------
+# VestaRV: riscv-tests/isa image build
+# Builds the ISA test ELFs, dumps and .rcf images the benches load.
 
 XLEN ?= 32
 
@@ -154,7 +153,6 @@ boot-p-boot.rcf: boot-p-boot_padded.bin
 	$(RISCV_SIM) --isa=rv32gc_zfh_zicboz_svnapot_zicntr_zba_zbb_zbc_zbs --misaligned $< 2> $@
 
 
-#=======================================================================
 # RCF generation rules
 # Maxx Seminario 06/17/2025
 #-----------------------------------------------------------------------
@@ -460,7 +458,6 @@ periph_group = $(periph_elfs) $(periph_dumps) $(periph_rcfs)
 periph-clean:
 	rm -f $(periph_group)
 
-#=======================================================================
 # 
 #-----------------------------------------------------------------------
 .PHONY: all-rcf

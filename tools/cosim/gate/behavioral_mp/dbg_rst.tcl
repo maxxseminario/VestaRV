@@ -1,5 +1,4 @@
-# =============================================================================
-# dbg_rst.tcl -- the D1 HALT-ON-RESET instrument.  Structural, graded by grep,
+# VestaRV: the D1 HALT-ON-RESET instrument.  Structural, graded by grep,
 # and it needs NO test software of its own.
 #
 #   ./xrun_dbg.sh xxxxxxrv32ui-p-add dbg_rst.tcl
@@ -57,7 +56,6 @@
 #
 # Grade by grep: PASS iff RSTLOG VERDICT=PASS.  At unimplemented HEAD it prints
 # RSTLOG PORT_ABSENT and VERDICT=INSTRUMENT_DEAD -- the part-1 seen-to-FAIL leg.
-# =============================================================================
 source ../../disable_x_warnings.tcl
 
 set RRQ ":dut:hart1:dbg_resethaltreq"
