@@ -92,14 +92,21 @@ writes wherever it runs; the hermetic path is `chip_artifacts_castalia`.
   `testdata/*_golden.txt` files (`*.rcf` is globally gitignored, hence the
   extension). Changing firmware means regenerating the golden in the same
   commit — the test diff shows exactly what moved.
-- **Known red**: one target carries the `known_red` tag today,
-  `//tools/build:verification_image_map_test`. It sweeps the 595
-  `//verification/isa` and `//verification/cpi` images for sections that fall
-  outside the chip's declared memory regions, and 47 of them do: the
-  2026-08-16 TCM halving left `verification/env/p/link.ld`'s ISR bank pinned in
-  the 0xA000-0xBFFF hole, and nine CPI benchmark working sets run past the end
-  of the TCM. The tag comes off in the commit that repoints those scripts. The
-  product-firmware half of the same check,
+- **Known red**: `//tools/build:verification_image_map_test` still carries the
+  `known_red` tag, but the failure it named is ADJUDICATED and the target is
+  GREEN (2026-09-12): all 595 `//verification/isa` and `//verification/cpi`
+  images fit the regions the generated map declares. The tag line in
+  `tools/build/BUILD.bazel` is the last thing left to delete. What the 47 red
+  images were, and what fixed them:
+  - The ISR bank and `.npu0_yhat` sat at 0xB000-0xBDFF, which the 2026-08-16
+    TCM halving turned into the 8 KiB array's own upper mirror. They moved down
+    0x2000, onto the same physical words (`verification/env/p/link.ld`,
+    `link_shared.ld`, and the DEFINE_IVT literals in `riscv_test.h`).
+  - Nine CPI benchmark working sets ran on from `.text` past the end of the
+    TCM. `verification/cpi/link_bmark.ld` now bases `.rodata`/`.data`/`.bss` at
+    0x10000, the shared-RAM window, which is flat RAM on the CPI harness; all
+    58 recorded cycle and instruction counts are unchanged.
+  The product-firmware half of the same check,
   `//tools/build:firmware_image_map_test`, is untagged and green.
   The tag and CI's `--test_tag_filters=-known_red` are the standing mechanism
   for a red that is understood but not yet adjudicated; the rule is that the

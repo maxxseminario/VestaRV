@@ -249,7 +249,6 @@ py_test(
         "//verification/cpi:cpi_elfs",
     ],
     main = "scripts/check_image_regions.py",
-    tags = ["known_red"],
 )
 
 exports_files(["regs.sh"])

@@ -24,8 +24,16 @@
 // whole test/mailbox ledger at 0x100xx-0x106xx (loader rows 0x10500-0x1061F at
 // N=18, still inside the bootrom zero range). A full-TCM stage/copy (4096
 // words) is the uniform safe choice: it carries the IVT, the ISR bank
-// (0xB200-0xBAFF) and the 0xBB00 parking word, so tile-side interrupts work
-// exactly as they did with the preload.
+// (0x9200-0x9AFF) and the 0x9B00/0xBB00 parking word, so tile-side interrupts
+// work exactly as they did with the preload.
+//
+// 4096 words spans 0x8000-0xBFFF, which is the tile's 16 KiB DECODE window and
+// twice its 8 KiB array (hdl/common/hart_tile.vhd): the stage reads the array
+// twice and the tile copy writes it back twice, to the same physical words, so
+// the count is harmless rather than meaningful. Since the ISR bank moved off
+// the 0xA000-0xBFFF mirror on 2026-09-12 no image has content above 0x9FFF in
+// this window, and 2048 would carry everything; the call sites are left at
+// 4096 because the extra pass is a copy of what it already wrote.
 //
 // Both macros clobber t0-t3 only. Loads/stores are all through the arbiter.
 // -----------------------------------------------------------------------------

@@ -475,7 +475,7 @@ deny_probe:
 
     # ---- source-55 handler: AFE_SHARED. Runs ONLY on hart 0 (the only hart
     # ---- whose router row enables 55/56) — plain-ret under the meip
-    # ---- dispatcher, reached via IVT slot 55 -> 0xBC00. Reads ALL FOUR AFE
+    # ---- dispatcher, reached via IVT slot 55 -> 0x9C00. Reads ALL FOUR AFE
     # ---- IF words to demux — THE management privilege in the IRQ path —
     # ---- W1C-clears the fired AFE's IF (drops the LEVEL before the
     # ---- dispatcher COMPLETEs), and msips the OWNER (hart = site + 1).
@@ -505,7 +505,7 @@ ai_next:
     .previous
 
     # ---- source-56 handler: EIS (hart 0; plain-ret under the dispatcher,
-    # ---- IVT slot 56 -> 0xBD00). W1C-clears EIS IF and sets the private wake
+    # ---- IVT slot 56 -> 0x9D00). W1C-clears EIS IF and sets the private wake
     # ---- flag. Clears the LEVEL before COMPLETE. --------------------------
     .section .isr_eis, "ax"
 eis_isr:
@@ -535,7 +535,7 @@ msip_isr:
     addi sp, sp, 8
     iret
 
-    # ---- env meip dispatcher (.isr_meip @0xB100) --------------------------
+    # ---- env meip dispatcher (.isr_meip @0x9100) --------------------------
     MEIP_DISPATCHER()
 
     # ---- extend the env IVT: DEFINE_IVT emitted slots 0-82 (slots 55/56
@@ -547,7 +547,7 @@ msip_isr:
     .org 0x14C
     jal  zero, msip_isr         # slot 83 = IRQB_CLINT_MSIP
     jal  zero, shorch_fail      # slot 84 = IRQB_CLINT_MTIP (must never fire)
-    jal  zero, 0x0B100          # slot 85 = IRQB_EXT_MEIP -> dispatcher
+    jal  zero, 0x09100          # slot 85 = IRQB_EXT_MEIP -> dispatcher
     .previous
 
     # NOTE: RVTEST_CODE_END is 'unimp' in this env (traps!) — never fall

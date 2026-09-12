@@ -110,11 +110,18 @@
 #define DEFINE_IVT()                                                           \
 .section .ivt, "ax";                                                          \ 
   /* M11 memory-map rework: every ISR target lives INSIDE the private TCM   */ \
-  /* (0x8000-0xBFFF). Slots with a real linker section point at the ISR     */ \
-  /* bank 0xB200-0xBAFF (256 B each, env/p/link.ld); every UNUSED slot      */ \
-  /* parks at 0xBB00 (dead TCM word) -- a spuriously taken IRQ can no       */ \
-  /* longer execute from the shared window or masquerade as a restart.     */ \
-  jal zero, 0x0B800;   /* IRQ 0  - SYS_WDT     - ISR bank 0x0B800 (.isr_sys_wdt) */ \
+  /* ARRAY, 0x8000-0x9FFF. Slots with a real linker section point at the    */ \
+  /* ISR bank 0x9200-0x9AFF (256 B each, env/p/link.ld); every UNUSED slot  */ \
+  /* parks at 0xBB00 -- a spuriously taken IRQ can no longer execute from   */ \
+  /* the shared window or masquerade as a restart.                         */ \
+  /* The bank moved down 0x2000 on 2026-09-12, onto the words it already    */ \
+  /* occupied: the tile decodes 16 KiB to an 8 KiB array, so 0xA000-0xBFFF  */ \
+  /* is that array's own mirror (hdl/common/hart_tile.vhd). The PARK target */ \
+  /* deliberately did NOT move. 0xBB00 and 0x9B00 are the same dead word,   */ \
+  /* it is not a linker section so no image-map gate reads it, and leaving  */ \
+  /* it alone keeps tools/randgen/emit.py's generated streams (and their    */ \
+  /* campaign pins) byte-identical.                                        */ \
+  jal zero, 0x09800;   /* IRQ 0  - SYS_WDT     - ISR bank 0x09800 (.isr_sys_wdt) */ \
   jal zero, 0x0BB00;   /* IRQ 1  - GPIO0_B0    - unused -> TCM parking */ \
   jal zero, 0x0BB00;   /* IRQ 2  - GPIO0_B1    - unused -> TCM parking */ \
   jal zero, 0x0BB00;   /* IRQ 3  - GPIO0_B2    - unused -> TCM parking */ \
@@ -123,13 +130,13 @@
   jal zero, 0x0BB00;   /* IRQ 6  - GPIO0_B5    - unused -> TCM parking */ \
   jal zero, 0x0BB00;   /* IRQ 7  - GPIO0_B6    - unused -> TCM parking */ \
   jal zero, 0x0BB00;   /* IRQ 8  - GPIO0_B7    - unused -> TCM parking */ \
-  jal zero, 0x0B900;   /* IRQ 9  - SPI0_TC     - ISR bank 0x0B900 (.isr_spi0_tc) */ \
-  jal zero, 0x0BA00;   /* IRQ 10 - SPI0_TE     - ISR bank 0x0BA00 (.isr_spi0_te) */ \
+  jal zero, 0x09900;   /* IRQ 9  - SPI0_TC     - ISR bank 0x09900 (.isr_spi0_tc) */ \
+  jal zero, 0x09A00;   /* IRQ 10 - SPI0_TE     - ISR bank 0x09A00 (.isr_spi0_te) */ \
   jal zero, 0x0BB00;   /* IRQ 11 - SPI1_TC     - unused -> TCM parking */ \
   jal zero, 0x0BB00;   /* IRQ 12 - SPI1_TE     - unused -> TCM parking */ \
-  jal zero, 0x0B500;   /* IRQ 13 - UART0_RC    - ISR bank 0x0B500 (.isr_uart0_rc) */ \
-  jal zero, 0x0B600;   /* IRQ 14 - UART0_TE    - ISR bank 0x0B600 (.isr_uart0_te) */ \
-  jal zero, 0x0B700;   /* IRQ 15 - UART0_TC    - ISR bank 0x0B700 (.isr_uart0_tc) */ \
+  jal zero, 0x09500;   /* IRQ 13 - UART0_RC    - ISR bank 0x09500 (.isr_uart0_rc) */ \
+  jal zero, 0x09600;   /* IRQ 14 - UART0_TE    - ISR bank 0x09600 (.isr_uart0_te) */ \
+  jal zero, 0x09700;   /* IRQ 15 - UART0_TC    - ISR bank 0x09700 (.isr_uart0_tc) */ \
   jal zero, 0x0BB00;   /* IRQ 16 - TIM0_CAP0   - unused -> TCM parking */ \
   jal zero, 0x0BB00;   /* IRQ 17 - TIM0_CAP1   - unused -> TCM parking */ \
   jal zero, 0x0BB00;   /* IRQ 18 - TIM0_OVF    - unused -> TCM parking */ \
@@ -166,11 +173,11 @@
   jal zero, 0x0BB00;   /* IRQ 49 - GPIO3_B5    - unused -> TCM parking */ \
   jal zero, 0x0BB00;   /* IRQ 50 - GPIO3_B6    - unused -> TCM parking */ \
   jal zero, 0x0BB00;   /* IRQ 51 - GPIO3_B7    - unused -> TCM parking */ \
-  jal zero, 0x0B200;   /* IRQ 52 - UART1_RC    - ISR bank 0x0B200 (.isr_uart1_rc) */ \
-  jal zero, 0x0B300;   /* IRQ 53 - UART1_TE    - ISR bank 0x0B300 (.isr_uart1_te) */ \
-  jal zero, 0x0B400;   /* IRQ 54 - UART1_TC    - ISR bank 0x0B400 (.isr_uart1_tc) */ \
-  jal zero, 0x0BC00;   /* IRQ 55 - AFE_SHARED  - ISR bank 0x0BC00 (.isr_afe_shared) */ \
-  jal zero, 0x0BD00;   /* IRQ 56 - EIS         - ISR bank 0x0BD00 (.isr_eis) */ \
+  jal zero, 0x09200;   /* IRQ 52 - UART1_RC    - ISR bank 0x09200 (.isr_uart1_rc) */ \
+  jal zero, 0x09300;   /* IRQ 53 - UART1_TE    - ISR bank 0x09300 (.isr_uart1_te) */ \
+  jal zero, 0x09400;   /* IRQ 54 - UART1_TC    - ISR bank 0x09400 (.isr_uart1_tc) */ \
+  jal zero, 0x09C00;   /* IRQ 55 - AFE_SHARED  - ISR bank 0x09C00 (.isr_afe_shared) */ \
+  jal zero, 0x09D00;   /* IRQ 56 - EIS         - ISR bank 0x09D00 (.isr_eis) */ \
   jal zero, 0x0BB00;   /* IRQ 57 - I2C0_STR    - unused -> TCM parking */ \
   jal zero, 0x0BB00;   /* IRQ 58 - I2C0_SPR    - unused -> TCM parking */ \
   jal zero, 0x0BB00;   /* IRQ 59 - I2C0_MSTS   - unused -> TCM parking */ \
@@ -228,7 +235,7 @@
 #define IRQR_CLAIM_ADDR  0x7800
 #define IRQB_EXT_MEIP_N  85
 
-/* The slot-85 dispatcher, in its own 256 B TCM section (link.ld: 0xB100).
+/* The slot-85 dispatcher, in its own 256 B TCM section (link.ld: 0x9100).
  * The claimed id is stashed ON THE STACK across the handler call — handlers
  * are allowed to clobber t0/t1/t2, so nothing live may stay in them (the
  * first cut kept id in t1 and COMPLETEd garbage; the out-of-range write was
@@ -265,13 +272,13 @@ meip_dispatch:                                                                 \
 /* Arm IVT slot 85 -> the dispatcher, for tests that did NOT emit their own
  * slots 83/84 (parks them; gap-free .org from the DEFINE_IVT end). Tests
  * with their own CLINT ISRs at .org 0x14C instead add a third jal:
- *     jal zero, 0x0B100    # slot 85 = meip -> dispatcher            */
+ *     jal zero, 0x09100    # slot 85 = meip -> dispatcher            */
 #define IVT_ARM_MEIP()                                                         \
   .section .ivt, "ax";                                                         \
   .org 0x14C;                                                                  \
   jal zero, 0x0BB00;           /* 83 msip: parked (test uses none) */          \
   jal zero, 0x0BB00;           /* 84 mtip: parked */                           \
-  jal zero, 0x0B100;           /* 85 meip -> dispatcher (.isr_meip) */         \
+  jal zero, 0x09100;           /* 85 meip -> dispatcher (.isr_meip) */         \
   .previous;
 
 #define INIT_XREG                                                       \

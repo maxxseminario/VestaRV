@@ -23,8 +23,8 @@
 #   irq_tc  (55) = TCIF & TCIE ;  irq_rxf (56) = RXFULL & RXFIE  (QSPI.vhd:219-220)
 #
 # Router row 0 (hart 0, LIVE): HhENM @0x7004, sources 55/56 -> bits 23/24.
-# IVT: env DEFINE_IVT already points slot 55 -> .isr_afe_shared (0xBC00) and
-# slot 56 -> .isr_eis (0xBD00); we drop our plain-ret handlers there and arm
+# IVT: env DEFINE_IVT already points slot 55 -> .isr_afe_shared (0x9C00) and
+# slot 56 -> .isr_eis (0x9D00); we drop our plain-ret handlers there and arm
 # the meip slot 85 with IVT_ARM_MEIP(). Zero env change.
 #
 # SMCLK RULE: the serial core is SMCLK-domain; the bootrom parks SMCLK on LFXT,
@@ -122,7 +122,7 @@ wqspi_check:
 wqspi_fail:
     RVTEST_FAIL
 
-    # ---- QSPI TC handler (vec 55) — DEFINE_IVT slot 55 -> 0xBC00.
+    # ---- QSPI TC handler (vec 55) — DEFINE_IVT slot 55 -> 0x9C00.
     # Plain-ret ABI: clear the LEVEL (TCIF W1C) before returning; only
     # t0/t1 (dispatcher-saved scratch) touched; ra survives. ----------------
     .section .isr_afe_shared, "ax"
@@ -136,7 +136,7 @@ qspi_tc_h:
     ret
     .previous
 
-    # ---- QSPI RXFULL handler (vec 56) — DEFINE_IVT slot 56 -> 0xBD00 -------
+    # ---- QSPI RXFULL handler (vec 56) — DEFINE_IVT slot 56 -> 0x9D00 -------
     .section .isr_eis, "ax"
 qspi_rxf_h:
     li   t0, QSPI_SR
@@ -148,7 +148,7 @@ qspi_rxf_h:
     ret
     .previous
 
-    # ---- env meip dispatcher (.isr_meip @0xB100) + arm IVT slot 85 --------
+    # ---- env meip dispatcher (.isr_meip @0x9100) + arm IVT slot 85 --------
     MEIP_DISPATCHER()
     IVT_ARM_MEIP()
 

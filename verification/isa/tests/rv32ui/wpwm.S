@@ -215,13 +215,13 @@ pwm0_evt_h:
     .org 0x14C
     jal  zero, 0x0BB00               # 83 msip  -> park
     jal  zero, 0x0BB00               # 84 mtip  -> park
-    jal  zero, 0x0B100               # 85 meip  -> env dispatcher (.isr_meip)
+    jal  zero, 0x09100               # 85 meip  -> env dispatcher (.isr_meip)
     .org 4*115                       # slot 115 @ 0x1CC
     jal  zero, pwm0_fault_h          # 115 = IRQB_PWM0_FAULT
     jal  zero, pwm0_evt_h            # 116 = IRQB_PWM0_EVT (next word 0x1D0)
     .previous
 
-    # ---- env meip dispatcher (.isr_meip @0xB100) --------------------------
+    # ---- env meip dispatcher (.isr_meip @0x9100) --------------------------
     MEIP_DISPATCHER()
 
     RVTEST_CODE_END                  # unimp (traps) — never reached

@@ -209,7 +209,7 @@ shirq_fail:
     RVTEST_FAIL                 # a0 = 0xDEADBEEF, spin
 
     # ---- UART0_TC HANDLER (M19 plain-ret ABI; reached via CLAIM=15 ->
-    # ---- dispatcher jalr through IVT slot 15 -> 0xB700). Clears the UART
+    # ---- dispatcher jalr through IVT slot 15 -> 0x9700). Clears the UART
     # ---- LEVEL through the arbiter BEFORE returning (complete follows in
     # ---- the dispatcher), un-routes itself, ignites (the dispatcher's iret
     # ---- must resume MAINLINE, not sleep). t0/t1 are dispatcher-saved
@@ -228,7 +228,7 @@ uart0_tc_isr:
     ret
     .previous
 
-    # ---- env meip dispatcher (.isr_meip @0xB100) + IVT slot 85 -------------
+    # ---- env meip dispatcher (.isr_meip @0x9100) + IVT slot 85 -------------
     MEIP_DISPATCHER()
     IVT_ARM_MEIP()
 

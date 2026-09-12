@@ -186,12 +186,12 @@ ow0_tc_h:
     .org 0x14C
     jal  zero, 0x0BB00               # 83 msip  -> park
     jal  zero, 0x0BB00               # 84 mtip  -> park
-    jal  zero, 0x0B100               # 85 meip  -> env dispatcher (.isr_meip)
+    jal  zero, 0x09100               # 85 meip  -> env dispatcher (.isr_meip)
     .org 4*117                       # slot 117 @ 0x1D4
     jal  zero, ow0_tc_h              # 117 = IRQB_OW0
     .previous
 
-    # ---- env meip dispatcher (.isr_meip @0xB100) --------------------------
+    # ---- env meip dispatcher (.isr_meip @0x9100) --------------------------
     MEIP_DISPATCHER()
 
     RVTEST_CODE_END                  # unimp (traps) — never reached

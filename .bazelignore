@@ -54,3 +54,8 @@ verification/isa/rcf_ked
 verification/isa/rcf_kf0
 verification/isa/rcf_kf8
 opensource_sim/.venv
+
+# Analog interfacing collateral kept outside the public tree (2026-09-11). Its
+# BUILD files name chip artifacts the public tree no longer defines, so it is
+# not part of the bazel graph; the Genus and Xcelium flows read it directly.
+private
