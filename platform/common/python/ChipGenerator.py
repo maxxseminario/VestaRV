@@ -911,9 +911,13 @@ class ChipGenerator():
 				# a0_1..a0_(N-1) tile monitors matching the generated MCU a0 ports),
 				# so it is generated from the same numHarts. Byte-identical to
 				# hdl/common/tb/riscv_tb.vhd at N=4 (check_riscv_tb_vhd.py).
+				# The tb reads the SAME McuMpGeometry dict mcu_vhd.py does, so an
+				# overlay that added entity ports declares and associates them
+				# here too. With no overlay the dict changes nothing.
 				if (test is False) and os.path.isfile(riscvTbTemplatePath):
 					import tb_vhd
-					tb_vhd.generateRiscvTbVhd(self.NumHarts, riscvTbTemplatePath, riscvTbPath)
+					tb_vhd.generateRiscvTbVhd(self.NumHarts, riscvTbTemplatePath, riscvTbPath,
+						geo=(getattr(self, 'McuMpGeometry', None) or {}))
 			
 			self.generateMemoryMapJson(chipConfigJsonPath)
 

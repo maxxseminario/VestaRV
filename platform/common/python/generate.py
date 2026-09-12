@@ -36,6 +36,24 @@ if _cfgPath:
 		_CHIP_CONFIG = json.load(_f)
 	print('[generate] loaded chip configuration from ' + _cfgPath)
 
+# ---------------------------------------------------------------------------
+# OVERLAY (2026-09-12). A chip whose blocks cannot live in the public tree
+# names an out-of-tree directory that contributes extra configurations,
+# register descriptions, package models, peripheral definitions and emitter
+# fragments. `overlay` is a GENERATOR DIRECTIVE, not a schema knob: it is
+# consumed and removed here, so it never reaches _validateChipConfig, the
+# resolved-config record, the configurator or the TRM tables -- the same
+# treatment CHIP_NAME gets. A relative path resolves against the configuration
+# file's own directory; VESTA_OVERLAY in the environment wins over both.
+# With neither set every overlay entry point below is inert.
+# See platform/common/python/overlay.py for the contract.
+# ---------------------------------------------------------------------------
+import overlay
+overlay.setRoot(_CHIP_CONFIG.pop('overlay', ''),
+	relativeTo=(os.path.dirname(os.path.abspath(_cfgPath)) if _cfgPath else None))
+if overlay.has():
+	print('[generate] overlay: ' + overlay.root())
+
 def _cfg(dottedKey, default):
 	'''Dotted-path lookup into the loaded JSON config, e.g. _cfg('isa.mul', True).
 	   Returns `default` for any missing key so partial configs are fine.'''
@@ -78,6 +96,10 @@ def _isMemSize(v, ceiling):
 # config is intentionally unsupported — a chip gets its own pinout by adding a
 # model here (Argus will, once its package is decided), never in JSON.
 _PACKAGE_MODELS = ('myshkin-qfn44', 'castalia-quad-qfn64', 'castalia-lqfp100')
+# An overlay may add package models of its own (a ring whose pad map is not
+# distributable); _buildPackageData's `packageData` stage builds them.
+_PACKAGE_MODELS = tuple(overlay.call('packageModels', default=_PACKAGE_MODELS,
+	models=_PACKAGE_MODELS))
 _CONFIG_SCHEMA = {
 	'chipName':             ('non-empty string: renames the chip in the TRM and headers (CHIP_NAME env wins)',
 	                         lambda v: isinstance(v, str) and len(v.strip()) > 0),
@@ -687,6 +709,11 @@ def _checkConfigMeta():
 					raise Exception('_CONFIG_META["' + k + '"].max is loose: ' + repr(hi + step) + ' also passes')
 	return True
 
+# An overlay's knobs join the schema HERE, before the consistency gate, so they
+# are held to the same standard as the tree's own: a validator lambda, matching
+# metadata, and a default that passes its own validator.
+overlay.call('configSchema', schema=_CONFIG_SCHEMA, meta=_CONFIG_META)
+
 _checkConfigMeta()
 
 def _validateChipConfig(node, path=''):
@@ -797,6 +824,14 @@ qspiPresent = _cfg('peripherals.qspi', False)
 if cqAfeStubsPresent and qspiPresent:
 	raise Exception('Chip-config conflict: peripherals.cqAfeStubs and peripherals.qspi '
 		'both claim page-0 slot 12 (0x4C00) — set cqAfeStubs=false to enable qspi.')
+
+# The overlay derives its own knobs and raises its own conflicts here, with the
+# chip shape already resolved. `_overlayVals` is the ONE channel from this point
+# to every later stage: whatever the overlay puts in it, it reads back. The
+# public tree neither writes nor reads its contents.
+_overlayVals = {'numHarts': numHarts, 'orchestrator': orchestrator,
+	'cqAfeStubs': cqAfeStubsPresent}
+overlay.call('configResolve', cfg=_cfg, vals=_overlayVals)
 
 # digperiphs #2 (I3C, 2026-07-18): the I3C0 controller (MVP+DAA+IBI) claims
 # page-2 (the MUTEX page, 0x6000-0x6FFF) SUB-SLOT 1 @0x6100. This carves the
@@ -1010,6 +1045,10 @@ _LIBRARY_TAIL_SPEC = [
 	('trng', trngPresent, 1),          # vector 121  (TRNG0 combined data-ready/alarm)
 	('i2ctarget', i2ctargetPresent, 2),  # vectors 122, 123  (I2CT0_AE, I2CT0_DATA)
 ]
+# An overlay's blocks take the vectors above the tree's own, in the same
+# (name, present, count) shape; with no overlay the list is unchanged.
+_LIBRARY_TAIL_SPEC = list(overlay.call('libraryTailVectors', default=_LIBRARY_TAIL_SPEC,
+	rows=_LIBRARY_TAIL_SPEC, vals=_overlayVals))
 def _libraryTailVectorsCount():
 	'''Total vector count = 114 + (last vector of the highest enabled tail block).
 	Returns 114 when the whole tail is off (byte-identical default).'''
@@ -1984,6 +2023,13 @@ if rtcPresent:
 	m.AddPeripheralTemplate(rtc)
 
 	_rdlRegisters('RTCx', rtc)
+
+# An overlay's peripheral templates are built here, with the same two calls the
+# tree's own blocks use: AddPeripheralTemplate and _rdlRegisters. Its register
+# descriptions come from its own rdl/ and rdl.json (rdl_model.addOverlay), so a
+# private block is described in SystemRDL exactly like a public one.
+overlay.call('peripheralTemplates', m=m, vals=_overlayVals,
+	PeripheralTemplate=PeripheralTemplate, rdlRegisters=_rdlRegisters)
 # digperiphs #5 (2026-07-20): PWM0 register template (design doc D5, 9 word slots
 # @0x6600). Added only when pwmPresent CreatePeripheral()s it; with PWM off it is
 # never instanced (byte-identical default). The register read path is REGISTERED on
@@ -2283,6 +2329,7 @@ if eventFabricPresent:
 	# port-map lines on the existing instances are emitted by mcu_vhd.py under
 	# geo['eventFabric'], with every absent source tied '0' (D23).
 	m.CreatePeripheral(nameTemplate='EVFAB', nameIndex='', peripheralMemorySlot=None, interruptPriority=None, absoluteBaseAddress=0x6B00, sharedBus='native', clockDomain='mclk', strobeNote='page-2 sub-slot 11; registered read, no bridge, no CAPTURE_CLOCK pre-latch; free-running MCLK fabric in the always-on domain (never gated by PWRCTRL, alive through WFI); vectorless — poll EVFSR, there is no interrupt; a CHTRIG/EVTRIG/W1C write takes effect 3 MCLK after the access opens, so a read issued immediately after one (only possible from a faster master than the shared bus) can see stale state; disable a channel before changing its EVSEL/TASKSEL')	# EVFAB0 (digperiphs EVFAB). native page-2 sub-slot 11; mcu_vhd hand-emits the raw-strobe shim + evfab0 instance + every producer/consumer tap
+overlay.call('peripheralInstances', m=m, vals=_overlayVals)	# an overlay's CreatePeripheral calls; page-2 sub-slots 12-15 are free in every public configuration
 m.CreatePeripheral(nameTemplate='IRQROUTER', nameIndex='', peripheralMemorySlot=None, interruptPriority=None, absoluteBaseAddress=0x7000, sharedBus='native', clockDomain='mclk', registerSlotCount=_slotCountOverride(524))	# IRQ router at 0x7000 (M11: window page 3; M19: rows + the fixed-address CLAIM block; Stage E rider: through word 523 = 0x782C = INSVCX)
 
 
@@ -2622,6 +2669,17 @@ def _buildPackageData(model):
 			package.AddPin(packagePinNumber=_ncp, name='NC', ioType='', noConnect=True)
 
 	else:
+		package = None
+	# The overlay gets the last word on the ball map: it BUILDS a model it
+	# declared itself (nothing above matched), and it may RE-CUT a public
+	# model's analog band when a block only it knows about changes which pads
+	# the die carries. package.Pins is a plain list, so a re-cut is a filter
+	# plus its own AddPin calls; the cross-check against its die-row file lives
+	# with the overlay. Returns the package to use, or None for a model nobody
+	# implements.
+	package = overlay.call('packageData', default=package, model=model, package=package,
+		PackageData=PackageData, vals=_overlayVals)
+	if package is None:
 		raise Exception('package model "' + model + '" is declared but not implemented')
 	return package
 
@@ -2693,6 +2751,9 @@ _GPIO_PKG_PINS = {
 		(5, 0): 62, (5, 1): 63, (5, 2): 64, (5, 3): 65, (5, 4): 66, (5, 5): 67, (5, 6): 68, (5, 7): 69,
 	},
 }
+# A model an overlay declared brings its own ball map; the overlay adds it here
+# so the lookup below stays one table.
+overlay.call('gpioPinMap', maps=_GPIO_PKG_PINS)
 def _gpioPkgPin(gpioIndex, bitNumber):
 	'''Package pin number for objGPIO<gpioIndex> bit <bitNumber> under the
 	   selected model, or None (unbonded — Peripheral.AddGpio skips the pad).'''
@@ -3083,6 +3144,10 @@ _libraryTailEmit = [
 	(i2ctargetPresent, [('IRQB_I2CT0_AE', 'I2CT0 combined address-match/error Interrupt'),
 		('IRQB_I2CT0_DATA', 'I2CT0 combined tx-ready/rx-full Interrupt')]),
 ]
+# The emission rows for an overlay's tail blocks, in lockstep with the
+# _LIBRARY_TAIL_SPEC rows it added above.
+_libraryTailEmit = list(overlay.call('irqNames', default=_libraryTailEmit,
+	rows=_libraryTailEmit, vals=_overlayVals))
 _tailHigh = _libraryTailVectorsCount()	# vector count including the tail high-water mark
 _v = _LIB_TAIL_BASE
 for _present, _names in _libraryTailEmit:
@@ -3186,6 +3251,7 @@ if i2c1Present:
 	_mcuMpIrqFirstVector['I2C1'] = 'IRQB_I2C1_STR'
 if qspiPresent:
 	_mcuMpIrqFirstVector['QSPI0'] = 'IRQB_QSPI0_TC'
+overlay.call('irqFirstVector', firstVector=_mcuMpIrqFirstVector, vals=_overlayVals)
 if i3cPresent:
 	_mcuMpIrqFirstVector['I3C0'] = 'IRQB_I3C0_TC'	# vectors 86-93 (interruptPriority 86)
 if nfcPresent:
@@ -3432,6 +3498,10 @@ m.McuMpGeometry = {
 	'chipNameConfigured': (_cfg('chipName', None) or ''),  # D3: the CONFIG FILE's chip name -- NEVER the CHIP_NAME env override, which is documentation-only. One half of the JTAG IDCODE chip-identity discriminator (mcu_vhd.isArgusFamily; the other half is numHarts == 18, which is what the acceptance instruments key on). A docs-only switch must never be able to change an RTL constant.
 	'debug': _debug['enable'],  # D2: True = the Debug Module (dm0) + the eight MCU-entity dmi_* ports + the per-tile dbg_* hookup + DEBUG_ENTRY_ADDR => 0x00010780. dm0 is the SECOND new arbiter MASTER after the DMA (index nMasters-1, i.e. numHarts when the DMA is off and numHarts+1 when it is on), so it drags the same fabric widening the DMA documents. OFF (the default) emits NO TRACE: no ports, no decls, no instance, no clamp row -- check_mcu_vhd.py STRICT is the bar. D3 RIDES THE SAME KNOB (no debug.jtag sub-knob): it adds the five JTAG pins (tck/tms/tdi/tdo/trstn, the LAST entity port group), the dtm0 jtag_dtm instance beside dm0, and the valid-gated OR-merge that keeps the raw dmi_* ports reaching the DM with the DTM present-and-inert.
 }
+# The emitters' knob dictionary is the ONE channel to mcu_vhd.py and tb_vhd.py,
+# so an overlay's placement knobs ride it too and entity and testbench cannot
+# disagree about what was built.
+overlay.call('mcuGeometry', geo=m.McuMpGeometry, vals=_overlayVals)
 
 
 ''' Check for errors '''
@@ -3627,6 +3697,10 @@ _resolvedConfig = [
 		('peripheralCount', len(m.Peripherals)),
 	]),
 ]
+# An overlay's knobs are recorded like every other, so the resolved dump reports
+# the shape that was actually built. With no overlay the record is unchanged.
+_resolvedConfig = list(overlay.call('resolvedConfig', default=_resolvedConfig,
+	rows=_resolvedConfig, vals=_overlayVals))
 
 def _od(pairs):
 	'''Recursively turn ('key', value) pair lists into dicts (py3.6 dicts keep

@@ -382,7 +382,10 @@ where its name and value are the same everywhere. So `clint_regs_pkg` carries
 and `pwr_ctrl_regs_pkg` carries `W_PWRWAKE`/`W_PWRSTS`/`W_TASKWKM` but no
 `PWRCR_IMPL` (the gate mask is one bit per hart). Nothing is hand-curated; the
 configuration list is in the block's `variants` entry and is the one
-`rdl_vs_vhdl_<block>_test` already elaborates.
+`rdl_vs_vhdl_<block>_test` already elaborates. What the intersection DROPS is not
+lost: the `periph_regs` tables of CLINT, MUTEX and PWRCTRL are emitted as
+functions of the same generics instead, so the configuration-dependent half of
+the description reaches the netlist after all. See level 4 below.
 
 **Why it is not circular.** After the move, `rdl_vs_vhdl_<block>_test` compares
 the `.rdl` against a file generated FROM the `.rdl`: the decode no longer holds an
@@ -452,18 +455,29 @@ keeps only its datapath. The description is then load-bearing in the netlist, no
 merely audited against it. Design note and migration recipe:
 `hdl/common/regs/REGFILE.md`; unit bench `hdl/common/tb/periph_regs_tb.vhd`.
 
-**Seventeen blocks are at level 4**: DMA, EVFAB, GPIO, I2C, I2CTarget, I3C, NFC,
-NPU, OneWire, PWM, QSPI, RTC, SPI, SYSTEM, TIMER, TRNG, UART. Each block's
-`rdl_vs_vhdl_<block>_test` entry carries `regfile=<package>`, so the gate reads
-the instance instead of the `case` decode it no longer has.
+**Twenty blocks are at level 4**: CLINT, DMA, EVFAB, GPIO, I2C, I2CTarget, I3C,
+MUTEX, NFC, NPU, OneWire, PWM, PWRCTRL, QSPI, RTC, SPI, SYSTEM, TIMER, TRNG,
+UART. Each block's `rdl_vs_vhdl_<block>_test` entry carries `regfile=<package>`,
+or, for the three whose tables are functions, the generic map that calls them.
 
-**Five are not, and are blocked rather than pending.** CLINT, MUTEX, IRQROUTER and
-PWRCTRL are the parameterised blocks of the section above: their register SET is a
-function of the hart, mutex or vector count, so there is no constant table to pass
-as a generic, and they decode a bare integer index rather than a peripheral slot.
-DEBUG is not on the peripheral bus at all -- it is reached over the DMI, not
-`EnMemPeriph` / `WEn` / `MABPart` -- and has no adoption path. All five keep their
-packages, which stay tracked and gated.
+**CLINT, MUTEX and PWRCTRL take their tables as FUNCTIONS of their generics**
+(report P4), because their register SET is a function of the configuration and a
+constant aggregate cannot be. `<block>_regs_pkg` gains a package BODY with
+`NWORDS`, `RSTVAL`, `IMPL`, `W1C`, `WOSET`, `WOT`, `PULSE`, `RCLR` and `HWOWN` as
+functions of `(NHARTS, MTIME_W, CMP_W)`, `(NMUTEX, MW)` and `(NHARTS)`, and the
+entity calls them in its `periph_regs` generic map. VHDL-2008 folds the call at
+elaboration, so it costs no hardware. The layout recipe lives in
+`rdl_vhdl._REGFILE_FN` and `_checkRegfileFn` grades it against the description at
+every configuration in the block's `variants` entry, so a recipe that drifts from
+the `.rdl` fails the emission. Design note: `hdl/common/regs/REGFILE.md`.
+
+**Two are not, and are blocked rather than pending.** IRQROUTER puts CLAIM at word
+512 and its status words at 516-523, so its decode window is 524 words wide while
+`periph_regs` decodes 64 (`MABPart` is six bits, and `WORD_BASE + NWORDS <= 64` is
+an elaboration assertion): no table fits the module at any hart or source count,
+whatever the tables are made of. DEBUG is not on the peripheral bus at all -- it is
+reached over the DMI, not `EnMemPeriph` / `WEn` / `MABPart` -- and has no adoption
+path. Both keep their packages, which stay tracked and gated.
 
 ## The firmware register headers
 
@@ -569,3 +583,19 @@ intro chapter, its feature-summary line) and everything about where a peripheral
 is INSTANTIATED (slot or absolute base, interrupt vector, clock domain, per-port
 pin configuration, and the per-instance reset values GPIO and I2C take from RTL
 generics). Those are chip assembly, not register description.
+
+An out-of-tree OVERLAY (`VESTA_OVERLAY`, or `"overlay"` in the `CONFIG=` json;
+see `platform/common/README.md`) contributes register descriptions the same way
+this tree does: `<overlay>/hdl/common/regs/rdl/*.rdl` is searched after
+`hdl/common/regs/rdl/`, and `<overlay>/platform/common/config/rdl.json` adds rows
+to the registry. `rdl_model.loadConfig()` is the one reader of that registry and
+`rdl_model.rdlPath()/rdlDirs()` the one search path, so a block an overlay adds
+is visible to every consumer at once: the chip umbrella, the C headers, the
+generated VHDL packages and the TRM tables. Regenerate an overlay's own
+artifacts by pointing the emitters at it, for example
+
+    VESTA_OVERLAY=<overlay> tools/bin/bazel run //platform/common/python:rdl_vhdl_pkgs -- --out <overlay>
+    VESTA_OVERLAY=<overlay> tools/bin/bazel run //platform/common/python:rdl_regs_headers -- \
+        --top <overlay>/hdl/common/regs/rdl/<chip>.rdl --out <overlay>
+
+Both write the tree's own blocks too; keep only the overlay's.

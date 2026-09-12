@@ -18,8 +18,14 @@ import re
 REGION_NAMES = [
     'tb-a0-component-ports',
     'tb-a0-signals',
+    # OVERLAY (2026-09-12): two generic extension markers -- extra signal
+    # declarations and extra models in the architecture body. Both emit nothing
+    # with no overlay, so the file is unchanged and check_riscv_tb_vhd.py still
+    # grades the golden master.
+    'tb-overlay-signals',
     'tb-hart-passfail-signals',
     'tb-a0-portmap',
+    'tb-overlay-models',
     'tb-hart-report',
     'tb-monitor-reset',
     'tb-monitor-edge',
@@ -47,14 +53,22 @@ class TbVhdEmitter():
     # Each region now folds away at N = 1, and the two regions that follow a
     # separator-carrying line -- the component port list and the DUT port map --
     # own that line so the separator can follow the hart count.
-    def __init__(self, nHarts):
+    # OVERLAY (2026-09-12): `geo` is the SAME McuMpGeometry dict mcu_vhd.py
+    # reads, so whatever an overlay put on the entity it also declares and
+    # associates here -- entity and testbench cannot disagree about the port
+    # list. Default {} => every overlay entry point below is inert.
+    def __init__(self, nHarts, geo=None):
         if nHarts < 1:
             raise Exception('tb_vhd: numHarts must be >= 1 (got ' + str(nHarts) + ')')
         self.n = nHarts
+        import overlay as _ovl
+        self.overlay = _ovl
+        _ovl.call('tbInit', emitter=self, geo=dict(geo or {}))
 
     def emitRegion(self, name):
         if name == 'tb-a0-component-ports':    return self.emitComponentPorts()
         if name == 'tb-a0-signals':            return self.emitA0Signals()
+        if name.startswith('tb-overlay-'):     return self.overlay.lines('tbRegion', emitter=self, region=name)
         if name == 'tb-hart-passfail-signals': return self.emitPassFailSignals()
         if name == 'tb-a0-portmap':            return self.emitPortMap()
         if name == 'tb-hart-report':           return self.emitReport()
@@ -68,16 +82,18 @@ class TbVhdEmitter():
     # character as the template carried it, so N >= 2 is unchanged.
     def emitComponentPorts(self):
         n = self.n
+        extra = self.overlay.lines('tbPorts', emitter=self, indent=12, decl=True)
         lines = [' ' * 12 + '-- Test Port',
                  ' ' * 12 + 'a0  : out std_logic_vector(31 downto 0)'
-                 + (';' if n > 1 else '')]
+                 + (';' if (n > 1 or extra) else '')]
         if n > 1:
             lines.append('')
             lines.append(' ' * 12 + '-- Per-hart pass/fail observation (a0 of the '
                          + str(n - 1) + ' private-memory harts)')
             for h in range(1, n):
-                term = ';' if h != n - 1 else ''
+                term = ';' if (h != n - 1 or extra) else ''
                 lines.append(' ' * 12 + 'a0_' + str(h) + ' : out std_logic_vector(31 downto 0)' + term)
+        lines.extend(extra)
         return lines
 
     # -- signal decl: signal a0_1, a0_2, ... : std_logic_vector(31 downto 0); ---
@@ -109,14 +125,16 @@ class TbVhdEmitter():
     # its trailing comma can follow the hart count.
     def emitPortMap(self):
         n = self.n
+        extra = self.overlay.lines('tbPorts', emitter=self, indent=8, decl=False)
         lines = [' ' * 8 + '-- Test Port',
-                 ' ' * 8 + 'a0          => a0' + (',' if n > 1 else '')]
+                 ' ' * 8 + 'a0          => a0' + (',' if (n > 1 or extra) else '')]
         if n > 1:
             lines.append('')
             lines.append(' ' * 8 + '-- Private-memory harts 1-' + str(n - 1))
             for h in range(1, n):
-                term = ',' if h != n - 1 else ''
+                term = ',' if (h != n - 1 or extra) else ''
                 lines.append(' ' * 8 + ('a0_' + str(h)).ljust(12) + '=> a0_' + str(h) + term)
+        lines.extend(extra)
         return lines
 
     # -- end-of-test report + fail/parked/pass verdict over all tiles ----------
@@ -168,8 +186,8 @@ class TbVhdEmitter():
         return lines
 
 
-def generateRiscvTbVhd(nHarts, templatePath, outPath, withHeader=True):
-    emitter = TbVhdEmitter(nHarts)
+def generateRiscvTbVhd(nHarts, templatePath, outPath, withHeader=True, geo=None):
+    emitter = TbVhdEmitter(nHarts, geo)
     with open(templatePath, 'r', newline='') as f:
         templateLines = f.read().split('\n')
     out = list(_header(nHarts)) if withHeader else []

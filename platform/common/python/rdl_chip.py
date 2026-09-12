@@ -61,7 +61,7 @@ def instances(topPath, topName=None):
     """[(instanceName, baseAddress, vestaPeripheral, node)] from the top addrmap."""
     from systemrdl import RDLCompiler
     rdlc = RDLCompiler()
-    rdlc.compile_file(topPath, incl_search_paths=[rdl_model.RDL_DIR, os.path.dirname(topPath)])
+    rdlc.compile_file(topPath, incl_search_paths=rdl_model.rdlDirs() + [os.path.dirname(topPath)])
     name = topName or os.path.splitext(os.path.basename(topPath))[0]
     root = rdlc.elaborate(top_def_name=name).top
     out = []

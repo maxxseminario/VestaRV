@@ -126,6 +126,10 @@ def _libraryTailVectorsCount(cfg):
 		(periph.get('trng', False), 1),   # vector 121 (TRNG0 combined data-ready/health-alarm)
 		(periph.get('i2ctarget', False), 2),  # vectors 122, 123 (I2CT0_AE, I2CT0_DATA)
 	]
+	# OVERLAY: an overlay's tail blocks take the vectors above these, from the
+	# same (present, count) rows it gave generate.py. Empty with no overlay.
+	import overlay
+	tail = list(overlay.call('webTailVectors', default=tail, rows=tail, peripherals=periph))
 	base = 114
 	v = base
 	high = base
