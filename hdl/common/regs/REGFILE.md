@@ -306,6 +306,67 @@ foreign clock domain, `false` when it is sampled on `ClkMem`. Getting it wrong i
 not subtle: a held strobe never spans the consumer's next `ClkMem` edge and the
 event is lost; a synchronous pulse on an async clear is a wider pulse than today.
 
+## A register set that is a function of a generic
+
+CLINT, MUTEX and PWRCTRL have a register SET, not just a register value, that
+moves with the configuration: CLINT has one `MSIP` and one 64-bit `MTIMECMP` per
+hart and its `mtime` word base is `ceil(4*NHARTS/16)*4`, MUTEX has `NMUTEX`
+identical words whose owner field is `MW` bits wide, PWRCTRL has one `PWRCR` gate
+bit and one `TASKWKM` bit per tile hart and `ceil(NHARTS/8)` `PWRSR` words. A
+constant aggregate cannot say any of that, so **their eight tables are FUNCTIONS
+of the block's own generics**, declared in `<block>_regs_pkg` and defined in a
+package body in the same file:
+
+```vhdl
+    constant NW : natural := NWORDS(NHARTS, MTIME_W, CMP_W);
+    ...
+    u_regs: entity work.periph_regs
+        generic map (NWORDS => NW,
+                     RSTVAL => RSTVAL(NHARTS, MTIME_W, CMP_W),
+                     IMPL   => IMPL(NHARTS, MTIME_W, CMP_W), ...)
+```
+
+VHDL-2008 allows a constant array built by a function of a generic at
+elaboration, so the call is folded before synthesis and **costs no hardware**:
+the `ghdl --synth` flop delta of all three migrations is exactly `2 * NWORDS`,
+which is `periph_regs`' per-word `rd_strobe` / `wr_strobe` pair that none of the
+three connects, and the storage bit count is unchanged.
+
+**Chosen over emitting one package per configuration.** That would have made the
+package a function of the chip config: `vhdl/` would carry N files per block, the
+generator would have to select one, and `rdl_vhdl_pkg_test`'s byte-compare would
+need a configuration to compare at. A function keeps ONE tracked package per
+block, which is the invariant the whole toolchain rests on.
+
+**What keeps the layout recipe honest.** The recipe -- which word holds which
+register, and what each of the eight rows is -- lives in `rdl_vhdl._REGFILE_FN`,
+which is Python beside the `.rdl` rather than in it. Two things stop it drifting:
+
+- every row value is either a constant the package ALREADY emits (`MSIP0_RESET`,
+  `PWRWAKE_IMPL`, `MTXOWN0_LSB`) or a `bitRun` of the function's arguments, so
+  the numbers still come from the description;
+- `_checkRegfileFn` re-elaborates the `.rdl` at EVERY configuration in the
+  block's `variants` entry -- the same list `rdl_vs_vhdl_<block>_test`
+  elaborates -- and compares the recipe's rows against the description's, word by
+  word and table by table. A recipe that disagrees fails the emission, and
+  therefore `//platform/common:rdl_vhdl_pkg_test`.
+
+The entity side is read by `rdl_vs_vhdl_<block>_test`'s `require` list, which
+carries `<TABLE> => <TABLE>(<generics>)` for all eight: the decode the block runs
+on is the package's, not a hand-written copy.
+
+**IRQROUTER cannot adopt the module at all**, whatever the tables are made of.
+`CLAIM` is at word 512 and the status words at 516-523, so its decode window is
+524 words wide, while `periph_regs` decodes 64: `MABPart` is six bits and
+`WORD_BASE + NWORDS <= 64` is an elaboration assertion. A second instance does
+not help, because `WORD_BASE` is inside the same 64-word slot. Widening the
+module's window is a change to the shared file and a brief of its own.
+
+**CLINT's hart count is capped at 20 by that same window.** Its file is
+`CMP_W + 2*NHARTS` words, which crosses 64 at `NHARTS = 21`; `clint.vhd` asserts
+it. Every shipped configuration is at or below 18 harts (argus, 60 words), and
+the `.rdl` still describes 1 to 32.
+
 ## Migration recipe
 
 1. Read the block's decode and write down, per word: which bits software stores,
@@ -314,7 +375,10 @@ event is lost; a synchronous pulse on an async clear is a wider pulse than today
 2. Add the block to `rdl_vhdl._REGFILE` and regenerate:
    `tools/bin/bazel run //platform/common/python:rdl_vhdl_pkgs`. The package gains
    `NWORDS`, `reg_arr_t` and the eight tables. Nothing existing moves, so
-   `rdl_vhdl_pkg_test` and `rdl_pkg_vs_legacy_test` stay green.
+   `rdl_vhdl_pkg_test` and `rdl_pkg_vs_legacy_test` stay green. A block whose
+   register SET is a function of a generic goes in `_REGFILE_FN` with a layout
+   recipe instead, and declares `subtype reg_arr_t` itself off `NWORDS(...)`; see
+   the section above.
 3. Replace the `case` decode, the read mux and the strobe retirement with one
    `periph_regs` instance. Keep the `reg_sync` pre-latch and feed `hw_rd`.
 4. Replace each `SIGNAL_REG(a downto b)` field read with

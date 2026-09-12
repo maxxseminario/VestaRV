@@ -523,6 +523,79 @@ begin
         check(rd(B_RLS_LATCHED) = '0', "9f: RLS_LATCHED disturbed by task_wake pulses");
         bus_write(TASKWKM, x"00000000", "1111");       -- clean up
 
+        -- === 10. PWRCR readback and the byte-lane qualifier ==================
+        -- Section 9a proves TASKWKM; PWRCR is the same field and had no readback
+        -- case at all. The lane cases are the other half of "every write in this
+        -- block is byte-lane-0 qualified, so software uses full-word stores":
+        -- a write that lane 0 does not carry is DROPPED whatever the other lanes
+        -- say, and a lane-0-only write lands the WHOLE gate mask even where it
+        -- spans lanes (argus, 18 harts).
+        strap_pad    <= '0';
+        pgood_pad    <= '1';
+        field_detect <= '0';
+        do_reset;
+
+        -- --- 10a. PWRCR RW readback: reset 0, bit 0 and the out-of-range bit read-only 0.
+        bus_read(PWRCR, rd);
+        check(rd = x"00000000", "10a: PWRCR not 0 at reset");
+        bus_write(PWRCR, x"00000001", "1111");
+        bus_read(PWRCR, rd);
+        check(rd = x"00000000", "10a: PWRCR bit 0 not RO 0");
+        wv := (others => '0');
+        wv(NHARTS) := '1';
+        bus_write(PWRCR, wv, "1111");
+        bus_read(PWRCR, rd);
+        check(rd = x"00000000", "10a: PWRCR out-of-range bit not RO 0");
+        bus_write(PWRCR, x"FFFFFFFF", "1111");
+        exp := (others => '0');
+        exp(NHARTS-1 downto 1) := (others => '1');
+        bus_read(PWRCR, rd);
+        check(rd = exp, "10a: PWRCR all-ones write did not mask to NHARTS-1:1");
+        bus_write(PWRCR, x"00000000", "1111");         -- wake everything again
+        for h in 1 to NHARTS-1 loop
+            poll_nibble(h, N_ON, ok);
+            check(ok, "10a: tile did not wake after the all-ones probe");
+        end loop;
+
+        -- --- 10b. A write without lane 0 is dropped, on all three written words.
+        bus_write(PWRWAKE, x"0000001F", "1111");
+        bus_write(PWRWAKE, x"00000000", "1110");
+        bus_read(PWRWAKE, rd);
+        check(rd = x"0000001F", "10b: PWRWAKE took a write lane 0 did not carry");
+        bus_write(PWRWAKE, x"00000000", "1111");
+        wv := (others => '0');
+        wv(1) := '1';
+        bus_write(TASKWKM, wv, "1111");
+        bus_write(TASKWKM, x"00000000", "1110");
+        bus_read(TASKWKM, rd);
+        check(rd = wv, "10b: TASKWKM took a write lane 0 did not carry");
+        bus_write(TASKWKM, x"00000000", "1111");
+        bus_write(PWRCR, wv, "0001");                  -- lane 0 alone is a full-field write
+        bus_read(PWRCR, rd);
+        check(rd = wv, "10b: PWRCR did not take a lane-0-only write");
+        bus_write(PWRCR, x"00000000", "1110");
+        bus_read(PWRCR, rd);
+        check(rd = wv, "10b: PWRCR took a write lane 0 did not carry");
+        bus_write(PWRCR, x"00000000", "1111");
+        poll_nibble(1, N_ON, ok);
+        check(ok, "10b: tile 1 did not wake on cleanup");
+
+        -- --- 10c. A lane-0-only write reaches the gate bits ABOVE lane 0, which
+        -- is the case the lane merge would get wrong and only a chip with more
+        -- than nine harts can see.
+        if NHARTS > 9 then
+            exp := (others => '0');
+            exp(NHARTS-1 downto 8) := (others => '1');
+            bus_write(PWRCR, exp, "0001");
+            bus_read(PWRCR, rd);
+            check(rd = exp, "10c: a lane-0 write did not reach the gate bits above lane 0");
+            bus_write(PWRCR, x"00000000", "0001");
+            for h in 8 to NHARTS-1 loop
+                poll_nibble(h, N_ON, ok);
+                check(ok, "10c: a high tile did not wake on cleanup");
+            end loop;
+        end if;
+
         -- === verdict =========================================================
         tick(2);
         if fails = 0 then

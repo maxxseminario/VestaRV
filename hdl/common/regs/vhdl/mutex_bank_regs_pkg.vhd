@@ -7,6 +7,8 @@
 
 library ieee;
 use ieee.std_logic_1164.all;
+library work;
+use work.constants.all;
 
 package mutex_bank_regs_pkg is
 
@@ -106,8 +108,130 @@ package mutex_bank_regs_pkg is
     constant MUTEX15_RESET            : std_logic_vector(31 downto 0) := "00000000000000000000000000000000";
     constant MTXOWN15_LSB             : natural := 0;
 
-    -- No periph_regs table section: the register set is a function of the mutex count,
-    -- so its register set is not fixed at elaboration.
-    -- See hdl/common/regs/REGFILE.md.
+    -- periph_regs tables (hdl/common/periph_regs.vhd), built AT ELABORATION from
+    -- this block's own generics: the register set is a function of the
+    -- configuration, so the rows are a function and not a constant aggregate.
+    -- Layout: NMUTEX identical owner words, the owner field MW downto MTXOWN0_LSB.
+    -- The entity passes NWORDS(NMUTEX, MW) and each table below straight
+    -- into its periph_regs generic map. RDTHRU, WIDEWR, FULLWR and STROBE_HOLD
+    -- are the entity's own; hdl/common/regs/REGFILE.md says why.
+    function NWORDS (NMUTEX, MW : natural) return natural;
+    -- reset word, loaded on the asynchronous resetn
+    function RSTVAL (NMUTEX, MW : natural) return word_array;
+    -- bits that hold a software-written flop; periph_regs stores exactly these
+    function IMPL   (NMUTEX, MW : natural) return word_array;
+    -- a written 1 clears (onwrite = woclr): drives w1c_hit
+    function W1C    (NMUTEX, MW : natural) return word_array;
+    -- a written 1 sets (onwrite = woset): drives woset_hit
+    function WOSET  (NMUTEX, MW : natural) return word_array;
+    -- a written 1 toggles (onwrite = wot): drives wot_hit
+    function WOT    (NMUTEX, MW : natural) return word_array;
+    -- self-clearing strobe (singlepulse): drives wr_pulse, stores nothing
+    function PULSE  (NMUTEX, MW : natural) return word_array;
+    -- a read retires (onread = rclr): drives rd_clr
+    function RCLR   (NMUTEX, MW : natural) return word_array;
+    -- bits hardware drives (hw = w or rw): what hw_we / hw_set / hw_clr may touch
+    function HWOWN  (NMUTEX, MW : natural) return word_array;
 
 end package mutex_bank_regs_pkg;
+
+
+library ieee;
+use ieee.std_logic_1164.all;
+library work;
+use work.constants.all;
+
+package body mutex_bank_regs_pkg is
+
+    -- Bits hi downto lo, all zero when the range is EMPTY (hi < lo, which is
+    -- the per-hart mask of a single-hart chip) and saturating at bit 31.
+    function bitRun (hi, lo : integer) return word is
+        variable r : word := (others => '0');
+    begin
+        for b in 0 to 31 loop
+            if b >= lo and b <= hi then
+                r(b) := '1';
+            end if;
+        end loop;
+        return r;
+    end function bitRun;
+
+    function NWORDS (NMUTEX, MW : natural) return natural is
+    begin
+        return NMUTEX;
+    end function NWORDS;
+
+    -- reset word, loaded on the asynchronous resetn
+    function RSTVAL (NMUTEX, MW : natural) return word_array is
+        variable r : word_array(0 to NWORDS(NMUTEX, MW) - 1) := (others => (others => '0'));
+    begin
+        -- MUTEX{i}: the owner marker, hardware written by the claim read
+        for k in 0 to NMUTEX - 1 loop
+            r(0 + k) := MUTEX0_RESET;   -- MUTEX{i}
+        end loop;
+        return r;
+    end function RSTVAL;
+
+    -- bits that hold a software-written flop; periph_regs stores exactly these
+    function IMPL   (NMUTEX, MW : natural) return word_array is
+        variable r : word_array(0 to NWORDS(NMUTEX, MW) - 1) := (others => (others => '0'));
+    begin
+        -- MUTEX{i}: the owner marker, hardware written by the claim read
+        for k in 0 to NMUTEX - 1 loop
+            r(0 + k) := bitRun(MW, MTXOWN0_LSB);   -- MUTEX{i}
+        end loop;
+        return r;
+    end function IMPL;
+
+    -- a written 1 clears (onwrite = woclr): drives w1c_hit
+    function W1C    (NMUTEX, MW : natural) return word_array is
+        variable r : word_array(0 to NWORDS(NMUTEX, MW) - 1) := (others => (others => '0'));
+    begin
+        -- The description declares none of these in this block.
+        return r;
+    end function W1C;
+
+    -- a written 1 sets (onwrite = woset): drives woset_hit
+    function WOSET  (NMUTEX, MW : natural) return word_array is
+        variable r : word_array(0 to NWORDS(NMUTEX, MW) - 1) := (others => (others => '0'));
+    begin
+        -- The description declares none of these in this block.
+        return r;
+    end function WOSET;
+
+    -- a written 1 toggles (onwrite = wot): drives wot_hit
+    function WOT    (NMUTEX, MW : natural) return word_array is
+        variable r : word_array(0 to NWORDS(NMUTEX, MW) - 1) := (others => (others => '0'));
+    begin
+        -- The description declares none of these in this block.
+        return r;
+    end function WOT;
+
+    -- self-clearing strobe (singlepulse): drives wr_pulse, stores nothing
+    function PULSE  (NMUTEX, MW : natural) return word_array is
+        variable r : word_array(0 to NWORDS(NMUTEX, MW) - 1) := (others => (others => '0'));
+    begin
+        -- The description declares none of these in this block.
+        return r;
+    end function PULSE;
+
+    -- a read retires (onread = rclr): drives rd_clr
+    function RCLR   (NMUTEX, MW : natural) return word_array is
+        variable r : word_array(0 to NWORDS(NMUTEX, MW) - 1) := (others => (others => '0'));
+    begin
+        -- The description declares none of these in this block.
+        return r;
+    end function RCLR;
+
+    -- bits hardware drives (hw = w or rw): what hw_we / hw_set / hw_clr may touch
+    function HWOWN  (NMUTEX, MW : natural) return word_array is
+        variable r : word_array(0 to NWORDS(NMUTEX, MW) - 1) := (others => (others => '0'));
+    begin
+        -- MUTEX{i}: the owner marker, hardware written by the claim read
+        for k in 0 to NMUTEX - 1 loop
+            r(0 + k) := bitRun(MW, MTXOWN0_LSB);   -- MUTEX{i}
+        end loop;
+        return r;
+    end function HWOWN;
+
+end package body mutex_bank_regs_pkg;

@@ -43,8 +43,13 @@ enum pwrcr_pwrgate_e {
 reg PWRCR_t #(longint unsigned NHARTS = 5) {
     regwidth = 32;
     desc = "Power gate control. Setting PWRGATE bit h powers tile hart h down (isolation, reset, rail off); clearing it powers the tile back up and cold-boots it. A request made while the sequencer is mid-sequence is honored when the sequence completes. Bit 0 (hart 0) is always on: it reads 0 and ignores writes.";
+    // hw = rw, not hw = r: the event fabric's task_wake pulse CLEARS the bits
+    // TASKWKM selects (`gate_req(h) <= '0'` in pwr_ctrl.vhd's task-wake tap),
+    // so hardware really does drive this field and the periph_regs HWOWN mask
+    // has to say so. Software access is unchanged, so vesta_access, the
+    // generator access code and _IMPL are all untouched.
     field {
-        sw = rw; hw = r;
+        sw = rw; hw = rw;
         reset = 0;
         vesta_access = "rw";
         encode = pwrcr_pwrgate_e;

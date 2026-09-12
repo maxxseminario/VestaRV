@@ -194,6 +194,14 @@ def _regfileTable(pkgSrc, name):
 _RESERVED_ROW = re.compile(r'^_reserved_\d+$')
 
 
+# A configuration-dependent block passes its package's table FUNCTIONS, called on
+# the block's own generics, where a fixed block passes the table constants. Same
+# statement about the entity, one call away: the decode it runs on is the
+# package's and not a hand-written copy.
+def _FN_TABLE_REQUIRE(call):
+    return [r'%s\s*=>\s*%s\(%s\)' % (t, t, call) for t in _REGFILE_TABLES]
+
+
 def makeRegfileReader(package):
     def read(vhdlPath, memoryMapPath):
         src = _read(vhdlPath)
@@ -527,27 +535,65 @@ GENERIC_BLOCKS = {
                          r'RegSlotI2CxAR => pad\(default_SAD\)',
                          r"wr_inh <= \(RegSlotI2CxMTX => not I2CMEN, others => '0'\);",
                          r'ClearI2CSTR\s*<=\s*w1c_s\(RegSlotI2CxSR\)\(I2CSTR_LSB\);']),
+    # CLINT is a periph_regs block (report P4). Its register SET is a function of
+    # NHARTS and its layout of MTIME_W / CMP_W, so clint_regs_pkg carries the eight
+    # tables as FUNCTIONS of all three; rdl_vhdl._checkRegfileFn grades them
+    # against this .rdl at every hart count below. mtimecmp's all-ones reset is now
+    # the RSTVAL row and not a reset branch, which is why the pattern that read the
+    # branch is gone. What stayed in the entity is the mtime tick and the compares.
     'clint': dict(vhdl=os.path.join('..', 'clint.vhd'), slots='none', name=lambda k: None,
-                  literalSlots=_CLINT_SLOTS, storage=_CLINT_RESET, process='clint_proc',
-                  require=[r"mtimecmp\s*<=\s*\(others\s*=>\s*\(others\s*=>\s*'1'\)\)",
+                  literalSlots=_CLINT_SLOTS, storage=_CLINT_RESET,
+                  require=[r'u_regs\s*:\s*entity work\.periph_regs',
+                           r'constant NW\s*:\s*natural\s*:=\s*NWORDS\(NHARTS, MTIME_W, CMP_W\);',
+                           r'NWORDS      => NW',
                            r'constant MTIME_W\s*:\s*natural\s*:=\s*\(\(4\*NHARTS \+ 15\) / 16\) \* 4;',
-                           r'constant CMP_W\s*:\s*natural\s*:=\s*MTIME_W \+ 4;']),
+                           r'constant CMP_W\s*:\s*natural\s*:=\s*MTIME_W \+ 4;',
+                           r'assert CMP_W \+ 2\*NHARTS <= 64',
+                           r'mtime      <= regs_q\(MTIME_W \+ 1\) & regs_q\(MTIME_W\);',
+                           r'mtime_wr   <= wr_hit_s\(MTIME_W\) or wr_hit_s\(MTIME_W \+ 1\);',
+                           r'regs_q\(CMP_W \+ 2\*h \+ 1\) & regs_q\(CMP_W \+ 2\*h\)',
+                           r'msip\(h\) <= regs_q\(MSIP0_WORD \+ h\)\(CLINTMSIPH0_LSB\);']
+                          + _FN_TABLE_REQUIRE('NHARTS, MTIME_W, CMP_W')),
+    # MUTEX is a periph_regs block (report P4). Its register SET is a function of
+    # NMUTEX and its owner field of MW, so mutex_bank_regs_pkg carries the eight
+    # tables as FUNCTIONS of both; rdl_vhdl._checkRegfileFn grades them against
+    # this .rdl at every shipped (NMUTEX, MW) pair. The claim rule is what stayed
+    # in the entity: a read of a free word writes the granted master's marker.
     'mutex_bank': dict(vhdl=os.path.join('..', 'mutex_bank.vhd'), slots='none', name=lambda k: None,
-                       literalSlots=_MUTEX_SLOTS, storage=_MUTEX_RESET, process='mutex_proc',
-                       require=[r"owner\s*<=\s*\(others\s*=>\s*\(others\s*=>\s*'0'\)\)",
-                                r'assert 2\*\*AW = NMUTEX']),
+                       literalSlots=_MUTEX_SLOTS, storage=_MUTEX_RESET,
+                       require=[r'u_regs\s*:\s*entity work\.periph_regs',
+                                r'constant NW\s*:\s*natural\s*:=\s*NWORDS\(NMUTEX, MW\);',
+                                r'NWORDS      => NW',
+                                r'WIDEWR      => ALL_WIDE',
+                                r'assert 2\*\*AW = NMUTEX',
+                                r'constant OWNER_MASK\s*:\s*word\s*:=\s*IMPL\(NMUTEX, MW\)\(0\);',
+                                r'inhib_s <= \(others => \'0\'\) when wdata = x"00000000"',
+                                r"rd_hit_s\(idx\) = '1' and regs_q\(idx\)\(MW downto 0\) = OWNER_FREE"]
+                               + _FN_TABLE_REQUIRE('NMUTEX, MW')),
     'irq_router': dict(vhdl=os.path.join('..', 'irq_router.vhd'), slots='none', name=lambda k: None,
                        literalSlots=_IRQR_SLOTS, storage=_IRQR_RESET,
                        require=[r'constant W_CLAIM\s*:\s*natural\s*:=\s*512;',
                                 r'constant W_PENDL\s*:\s*natural\s*:=\s*516;',
                                 r'constant W_INSVCL\s*:\s*natural\s*:=\s*520;',
                                 r'constant NUM_EN_WORDS\s*:\s*natural\s*:=\s*\(NUM_SRCS \+ 31\) / 32;']),
+    # PWRCTRL is a periph_regs block (report P4). Its register SET is a function of
+    # NHARTS, so pwr_ctrl_regs_pkg carries the eight tables as FUNCTIONS of it and
+    # the entity calls them in its generic map; rdl_vhdl._checkRegfileFn grades
+    # those functions against this .rdl at every shipped hart count, which is the
+    # leg of the argument the require list below cannot carry.
     'pwr_ctrl': dict(vhdl=os.path.join('..', 'pwr_ctrl.vhd'), slots='none', name=lambda k: None,
                      literalSlots=_PWR_SLOTS, storage=_PWR_RESET,
-                     require=[r'constant W_PWRWAKE\s*:\s*(?:integer|natural)\s*:=\s*5;',
+                     require=[r'u_regs\s*:\s*entity work\.periph_regs',
+                              r'constant NW\s*:\s*natural\s*:=\s*NWORDS\(NHARTS\);',
+                              r'NWORDS      => NW',
+                              r'WIDEWR      => "10000101"',
+                              r'constant W_PWRWAKE\s*:\s*(?:integer|natural)\s*:=\s*5;',
                               r'constant W_PWRSTS\s*:\s*(?:integer|natural)\s*:=\s*6;',
                               r'constant W_TASKWKM\s*:\s*(?:integer|natural)\s*:=\s*7;',
-                              r'elsif widx = W_TASKWKM then']),
+                              r'gate_req <= regs_q\(PWRCR_WORD\)\(PD_HI downto 1\);',
+                              r'task_wkm <= regs_q\(W_TASKWKM\)\(PD_HI downto 1\);',
+                              r'hw_clr_s\(PWRCR_WORD\)\(PD_HI downto 1\) <= task_wkm;']
+                             + _FN_TABLE_REQUIRE('NHARTS')),
     # I3C is a periph_regs block (report R12b). The DAT window is an indexed
     # four-entry side table, not register storage, so its three words are RDTHRU
     # and their writes stay in the clk domain behind acc_hit. I3CxCR's reset
@@ -821,10 +867,13 @@ class RdlVsVhdlTest(unittest.TestCase):
         """NMUTEX registers and an MW+1-bit owner, at the two shipped shapes."""
         if PERIPH != 'mutex_bank':
             self.skipTest('MUTEX-specific')
-        src = _read(self.vhdlPath)
-        self.assertRegex(src, r'type owner_t is array\(0 to NMUTEX-1\) of '
-                              r'std_logic_vector\(MW downto 0\);',
-                         'mutex_bank.vhd no longer declares the owner array this test reads')
+        src = _decodeText(self.vhdlPath)
+        # The owner array IS periph_regs' storage now, so what states the bank's
+        # shape in the RTL is the table call and the owner mask taken off row 0.
+        self.assertRegex(src, r'constant NW\s*:\s*natural\s*:=\s*NWORDS\(NMUTEX, MW\);',
+                         'mutex_bank.vhd no longer sizes its register file from NMUTEX and MW')
+        self.assertRegex(src, r'constant OWNER_MASK\s*:\s*word\s*:=\s*IMPL\(NMUTEX, MW\)\(0\);',
+                         'mutex_bank.vhd no longer takes the owner mask out of the package IMPL table')
         for (nmutex, mw, nharts) in ((16, 3, 5), (32, 5, 18), (16, 2, 1)):
             regs = self._elaborate(NMUTEX=nmutex, MW=mw, NHARTS=nharts)
             self.assertEqual(sorted(regs), sorted('MUTEX%d' % i for i in range(nmutex)))

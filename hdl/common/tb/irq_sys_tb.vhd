@@ -82,6 +82,9 @@ begin
         variable errs : natural := 0;
         variable rd   : word_t;
         variable t1   : word_t;
+        variable t2   : word_t;
+        variable d1   : word_t;
+        variable d2   : word_t;
 
         procedure check(cond : boolean; msg : string) is
         begin
@@ -197,6 +200,35 @@ begin
         crd(CA_MTIME_LO, rd);
         check((rd and x"FFFFFF00") = x"0000AA00",
               "C: mtime lo lane-merge clobbered other lanes");
+
+        -- A write to ONE half defines the whole 64-bit value for that cycle and
+        -- COSTS ONE TICK, so the half it did not name does not increment either.
+        -- Measured as a difference of two identically long windows, one of which
+        -- carries a write to the hi word: the lo count must come out exactly one
+        -- tick short. Anything else is a lost or duplicated carry, which is a
+        -- 2^-32-per-write fault on a monotonic clock and worth 2^32 ticks.
+        crd(CA_MTIME_LO, t1);
+        cwr(CA_MTIME_HI, x"00000000", "1111");
+        crd(CA_MTIME_LO, t2);
+        d1 := t2 - t1;
+        crd(CA_MTIME_LO, t1);
+        wait_cycles(1);
+        crd(CA_MTIME_LO, t2);
+        d2 := t2 - t1;
+        check(d1 + 1 = d2,
+              "C: a write to mtime hi did not cost the lo half exactly one tick");
+
+        -- A READ of mtime costs nothing: the tick is suppressed by a WRITE, not
+        -- by an access. Same measurement, with a read where the write was.
+        crd(CA_MTIME_LO, t1);
+        crd(CA_MTIME_HI, rd);
+        crd(CA_MTIME_LO, t2);
+        d1 := t2 - t1;
+        crd(CA_MTIME_LO, t1);
+        wait_cycles(2);
+        crd(CA_MTIME_LO, t2);
+        d2 := t2 - t1;
+        check(d1 = d2, "C: a read of mtime cost the counter a tick");
 
         report "PHASE D: mtimecmp / mtip levels";
         -- D1: program hart 1 about 300 ticks out, then check not-before, fires, and the ISR clear

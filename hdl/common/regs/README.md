@@ -48,14 +48,20 @@ point of the eight table constants in `vhdl/`: they are not documentation, they
 are the decode. Design note, property-to-mask table, hook table and migration
 recipe: `REGFILE.md`. Unit bench: `hdl/common/tb/periph_regs_tb.vhd`.
 
-**Seventeen blocks use it**, one instance each: DMA, EVFAB, GPIO, I2C, I2CTarget,
-I3C, NFC, NPU, OneWire, PWM, QSPI, RTC, SPI, SYSTEM, TIMER, TRNG and UART.
+**Twenty blocks use it**, one instance each: CLINT, DMA, EVFAB, GPIO, I2C,
+I2CTarget, I3C, MUTEX, NFC, NPU, OneWire, PWM, PWRCTRL, QSPI, RTC, SPI, SYSTEM,
+TIMER, TRNG and UART.
 
-**Five do not, and will not without a change of scope:**
+CLINT, MUTEX and PWRCTRL take their tables as FUNCTIONS of their generics, from a
+package body beside the declarations, because their register set is a function of
+the configuration. `REGFILE.md` section "A register set that is a function of a
+generic" is the design note.
+
+**Two do not, and will not without a change of scope:**
 
 | block | why |
 |---|---|
-| CLINT, MUTEX, IRQROUTER, PWRCTRL | parameterised. The register SET is a function of the hart, mutex or vector count, so there is no constant table to pass; they also decode a bare integer index rather than a slot. Blocked until the tables can be emitted per configuration |
+| IRQROUTER | CLAIM is at word 512 and the status words at 516-523, so the window is 524 words while `periph_regs` decodes 64. No table fits the module at any hart or source count |
 | DEBUG | not on the peripheral bus at all (DMI, not `EnMemPeriph` / `WEn` / `MABPart`). No adoption path |
 
 Their packages are still emitted, tracked and gated; an unread package costs one
@@ -63,11 +69,11 @@ analysis and synthesises to nothing.
 
 `periph_regs` itself cannot be synthesised as a top level - its eleven
 `word_array` generics have no default, because each one is a per-peripheral
-table generated from a `.rdl` - so it is graded through the sixteen peripheral
-targets that instantiate it. Each carries its own `periph_regs` instance as a
+table generated from a `.rdl` - so it is graded through the peripheral targets
+that instantiate it. Each carries its own `periph_regs` instance as a
 separate module in `toolchains/ghdl/synth_census.json`, which means a change to
-the shared register file, or to any table in `vhdl/`, moves sixteen frozen flop
-and cell counts at once. See `//hdl/common/synth:synth` and
+the shared register file, or to any table in `vhdl/`, moves every one of those
+frozen flop and cell counts at once. See `//hdl/common/synth:synth` and
 `//toolchains/ghdl:synth_census_test`.
 
 Full toolchain documentation: `tools/rdl/README.md`.

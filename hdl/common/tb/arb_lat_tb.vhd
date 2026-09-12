@@ -79,6 +79,7 @@ begin
         variable scf      : std_logic;
         variable attempts : natural;
         variable got      : natural;
+        variable mlane    : std_logic_vector(3 downto 0);
 
         -- One full transaction, tile-accurate: raise req with its context, wait for the piped done, capture rdata/scfail ON the done cycle, hold req through it, drop it one clock later, then leave one idle re-request gap.
         procedure txn(
@@ -247,8 +248,33 @@ begin
             -- Mutex-protected UNLOCKED RMW on PROT_ADDR: the mutex IS the lock here.
             txn(PROT_ADDR, "0000", x"00000000", "00", rd, scf);
             txn(PROT_ADDR, "1111", rd + 1,      "00", rd, scf);
-            -- Release the mutex by writing zero to it.
-            txn(MTX_ADDR, "1111", x"00000000", "00", rd, scf);
+            -- A NONZERO write is IGNORED, so ownership can never be forged; it is
+            -- still an access, so it returns the pre-transaction owner like any
+            -- other. Safe to probe here: this master holds the mutex, so no other
+            -- master can change it underneath the check.
+            txn(MTX_ADDR, "1111", x"DEADBEEF", "00", rd, scf);
+            if conv_integer(rd(7 downto 0)) /= INDEX + 1 then
+                err <= '1';
+                report "master " & integer'image(INDEX) &
+                       " MUTEX nonzero write did not return the owner" severity error;
+            end if;
+            txn(MTX_ADDR, "0000", x"00000000", "00", rd, scf);
+            if conv_integer(rd(7 downto 0)) /= INDEX + 1 then
+                err <= '1';
+                report "master " & integer'image(INDEX) &
+                       " MUTEX nonzero write FORGED an owner" severity error;
+            end if;
+            -- Release by writing zero on ONE byte lane: the release is a write of
+            -- 0 whatever its lanes, and the owner marker does not live in all of
+            -- them. Rotating the lane covers all four across the pass.
+            -- The release is PROVED by the next iteration: a mutex this master
+            -- failed to release is one it can never re-acquire, and the claim
+            -- storm above exhausts its 4096-attempt budget and reports. Probing
+            -- it here instead would be a race, since any other master may claim
+            -- between the release and the probe.
+            mlane := (others => '0');
+            mlane((INDEX + k) mod 4) := '1';
+            txn(MTX_ADDR, mlane, x"00000000", "00", rd, scf);
         end loop;
 
         finished <= '1';
