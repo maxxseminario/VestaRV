@@ -7,6 +7,8 @@
 
 library ieee;
 use ieee.std_logic_1164.all;
+library work;
+use work.constants.all;
 
 package pwr_ctrl_regs_pkg is
 
@@ -80,8 +82,142 @@ package pwr_ctrl_regs_pkg is
     constant W_PWRSTS                 : natural := 6;
     constant W_TASKWKM                : natural := 7;
 
-    -- No periph_regs table section: the register set is a function of the hart count,
-    -- so its register set is not fixed at elaboration.
-    -- See hdl/common/regs/REGFILE.md.
+    -- periph_regs tables (hdl/common/periph_regs.vhd), built AT ELABORATION from
+    -- this block's own generics: the register set is a function of the
+    -- configuration, so the rows are a function and not a constant aggregate.
+    -- Layout: eight words at every hart count; only the per-hart masks move.
+    -- The entity passes NWORDS(NHARTS) and each table below straight
+    -- into its periph_regs generic map. RDTHRU, WIDEWR, FULLWR and STROBE_HOLD
+    -- are the entity's own; hdl/common/regs/REGFILE.md says why.
+    function NWORDS (NHARTS : natural) return natural;
+    -- reset word, loaded on the asynchronous resetn
+    function RSTVAL (NHARTS : natural) return word_array;
+    -- bits that hold a software-written flop; periph_regs stores exactly these
+    function IMPL   (NHARTS : natural) return word_array;
+    -- a written 1 clears (onwrite = woclr): drives w1c_hit
+    function W1C    (NHARTS : natural) return word_array;
+    -- a written 1 sets (onwrite = woset): drives woset_hit
+    function WOSET  (NHARTS : natural) return word_array;
+    -- a written 1 toggles (onwrite = wot): drives wot_hit
+    function WOT    (NHARTS : natural) return word_array;
+    -- self-clearing strobe (singlepulse): drives wr_pulse, stores nothing
+    function PULSE  (NHARTS : natural) return word_array;
+    -- a read retires (onread = rclr): drives rd_clr
+    function RCLR   (NHARTS : natural) return word_array;
+    -- bits hardware drives (hw = w or rw): what hw_we / hw_set / hw_clr may touch
+    function HWOWN  (NHARTS : natural) return word_array;
 
 end package pwr_ctrl_regs_pkg;
+
+
+library ieee;
+use ieee.std_logic_1164.all;
+library work;
+use work.constants.all;
+
+package body pwr_ctrl_regs_pkg is
+
+    -- Bits hi downto lo, all zero when the range is EMPTY (hi < lo, which is
+    -- the per-hart mask of a single-hart chip) and saturating at bit 31.
+    function bitRun (hi, lo : integer) return word is
+        variable r : word := (others => '0');
+    begin
+        for b in 0 to 31 loop
+            if b >= lo and b <= hi then
+                r(b) := '1';
+            end if;
+        end loop;
+        return r;
+    end function bitRun;
+
+    function NWORDS (NHARTS : natural) return natural is
+    begin
+        return 8;
+    end function NWORDS;
+
+    -- reset word, loaded on the asynchronous resetn
+    function RSTVAL (NHARTS : natural) return word_array is
+        variable r : word_array(0 to NWORDS(NHARTS) - 1) := (others => (others => '0'));
+    begin
+        -- PWRCR: one gate bit per tile hart, and hart 0 always-on at bit 0
+        r(0) := PWRCR_RESET;   -- PWRCR
+        -- PWRWAKE: the boot-gate and wake-source control, at a fixed word
+        r(PWRWAKE_WORD) := PWRWAKE_RESET;   -- PWRWAKE
+        -- PWRSTS: read-only pad and gate status, every bit hardware driven
+        r(PWRSTS_WORD) := PWRSTS_RESET;   -- PWRSTS
+        -- TASKWKM: the event-fabric task-wake mask, PWRCR bit for bit
+        r(TASKWKM_WORD) := TASKWKM_RESET;   -- TASKWKM
+        return r;
+    end function RSTVAL;
+
+    -- bits that hold a software-written flop; periph_regs stores exactly these
+    function IMPL   (NHARTS : natural) return word_array is
+        variable r : word_array(0 to NWORDS(NHARTS) - 1) := (others => (others => '0'));
+    begin
+        -- PWRCR: one gate bit per tile hart, and hart 0 always-on at bit 0
+        r(0) := bitRun(NHARTS-1, 1);   -- PWRCR
+        -- PWRWAKE: the boot-gate and wake-source control, at a fixed word
+        r(PWRWAKE_WORD) := PWRWAKE_IMPL;   -- PWRWAKE
+        -- PWRSTS: read-only pad and gate status, every bit hardware driven
+        r(PWRSTS_WORD) := PWRSTS_IMPL;   -- PWRSTS
+        -- TASKWKM: the event-fabric task-wake mask, PWRCR bit for bit
+        r(TASKWKM_WORD) := bitRun(NHARTS-1, 1);   -- TASKWKM
+        return r;
+    end function IMPL;
+
+    -- a written 1 clears (onwrite = woclr): drives w1c_hit
+    function W1C    (NHARTS : natural) return word_array is
+        variable r : word_array(0 to NWORDS(NHARTS) - 1) := (others => (others => '0'));
+    begin
+        -- The description declares none of these in this block.
+        return r;
+    end function W1C;
+
+    -- a written 1 sets (onwrite = woset): drives woset_hit
+    function WOSET  (NHARTS : natural) return word_array is
+        variable r : word_array(0 to NWORDS(NHARTS) - 1) := (others => (others => '0'));
+    begin
+        -- The description declares none of these in this block.
+        return r;
+    end function WOSET;
+
+    -- a written 1 toggles (onwrite = wot): drives wot_hit
+    function WOT    (NHARTS : natural) return word_array is
+        variable r : word_array(0 to NWORDS(NHARTS) - 1) := (others => (others => '0'));
+    begin
+        -- The description declares none of these in this block.
+        return r;
+    end function WOT;
+
+    -- self-clearing strobe (singlepulse): drives wr_pulse, stores nothing
+    function PULSE  (NHARTS : natural) return word_array is
+        variable r : word_array(0 to NWORDS(NHARTS) - 1) := (others => (others => '0'));
+    begin
+        -- The description declares none of these in this block.
+        return r;
+    end function PULSE;
+
+    -- a read retires (onread = rclr): drives rd_clr
+    function RCLR   (NHARTS : natural) return word_array is
+        variable r : word_array(0 to NWORDS(NHARTS) - 1) := (others => (others => '0'));
+    begin
+        -- The description declares none of these in this block.
+        return r;
+    end function RCLR;
+
+    -- bits hardware drives (hw = w or rw): what hw_we / hw_set / hw_clr may touch
+    function HWOWN  (NHARTS : natural) return word_array is
+        variable r : word_array(0 to NWORDS(NHARTS) - 1) := (others => (others => '0'));
+    begin
+        -- PWRCR: one gate bit per tile hart, and hart 0 always-on at bit 0
+        r(0) := bitRun(NHARTS-1, 1) or bitRun(PWRH0_MSB, PWRH0_LSB);   -- PWRCR
+        -- PWRSR: ceil(NHARTS/8) read-only words of one 4-bit state nibble per hart
+        for k in 0 to (NHARTS + 7) / 8 - 1 loop
+            r(1 + k) := bitRun(4*(NHARTS - 8*k) - 1, 0);   -- PWRSR{k}
+        end loop;
+        -- PWRSTS: read-only pad and gate status, every bit hardware driven
+        r(PWRSTS_WORD) := bitRun(PWRRLSLATCH_MSB, PWPGOODLIV_LSB);   -- PWRSTS
+        return r;
+    end function HWOWN;
+
+end package body pwr_ctrl_regs_pkg;

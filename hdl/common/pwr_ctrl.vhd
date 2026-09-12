@@ -9,7 +9,10 @@ library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.STD_LOGIC_ARITH.ALL;
 use IEEE.STD_LOGIC_UNSIGNED.ALL;
--- Word offsets, field ranges and resets: generated from hdl/common/regs/rdl/pwr_ctrl.rdl.
+library work;
+use work.Constants.all;   -- word_array, the one shared array-of-word type
+-- Word offsets, field ranges, resets and the periph_regs tables: generated from hdl/common/regs/rdl/pwr_ctrl.rdl.
+-- The tables are FUNCTIONS of NHARTS, not constants, because the register set is: see hdl/common/regs/REGFILE.md.
 use work.pwr_ctrl_regs_pkg.all;
 
 entity pwr_ctrl is
@@ -67,7 +70,7 @@ architecture behav of pwr_ctrl is
        At NHARTS = 1 there are no gateable rows and NHARTS-1 downto 1 is an empty range: legal VHDL that SIMULATES, which is why the single-hart chip elaborates and boots, but synthesis rejects it two separate ways. A PORT with an empty range is refused outright (Genus CDFG-235), and an `others` aggregate assigned to an empty-range target leaves the tool unable to infer the aggregate's bounds (CDFG-252).
        For every NHARTS >= 2 PD_HI is exactly NHARTS-1, so every declaration below is unchanged on every multi-hart configuration. maximum() is the VHDL-2008 std.standard function and both toolchains here read 2008.
        EVERY per-tile-row object below carries PD_HI, including the PWRCR gate_req and TASKWKM task_wkm vectors and the rdata_reg/wdata slices they exchange bits with, because Genus cannot bound a null slice of a constant either and a half-floored block does not elaborate.
-       The one visible consequence, at NHARTS = 1 only: PWRCR bit 1 and TASKWKM bit 1 become read/write scratch bits instead of reading back reserved zero. No hardware acts on them, because every consumer is a `for h in 1 to NHARTS-1` loop that runs zero times. */
+       Since the register file became periph_regs (report P4) the floor costs nothing software can see: the IMPL table is `bitRun(NHARTS-1, 1)`, which is EMPTY at NHARTS = 1, so PWRCR bit 1 and TASKWKM bit 1 hold no flop and read back reserved zero as the register map says. PD_HI survives only as the slice bound the pd_* ports and the per-tile arrays need. */
     constant PD_HI : natural := maximum(NHARTS-1, 1);
 
     -- FSM state encodings, identical to the PWRSR nibble values documented above.
@@ -82,6 +85,20 @@ architecture behav of pwr_ctrl is
     type state_arr_t is array(1 to PD_HI) of std_logic_vector(3 downto 0);
     type cnt_arr_t   is array(1 to PD_HI) of natural range 0 to 65535;
 
+    -- The bus side is one periph_regs instance carrying pwr_ctrl_regs_pkg's tables;
+    -- see hdl/common/regs/REGFILE.md. What is left in this file is the sequencers,
+    -- the strap sampler and the boot gate.
+    constant NW : natural := NWORDS(NHARTS);
+    subtype  reg_arr_t is word_array(0 to NW-1);
+    signal regs_q    : reg_arr_t;                        -- PWRCR, PWRWAKE and TASKWKM storage
+    signal hw_rd_s   : reg_arr_t;                        -- PWRSR and PWRSTS, which hold no flop here
+    signal hw_clr_s  : reg_arr_t;                        -- the event fabric's task-wake clear on PWRCR
+    signal inhib_s   : std_logic_vector(0 to NW-1);      -- every write in this block is byte-lane-0 qualified
+    signal sr_words  : reg_arr_t;                        -- the PWRSR nibble words, assembled from state
+    signal en_n      : std_logic;                        -- the module's select and lanes are ACTIVE LOW
+    signal wen_n     : std_logic_vector(3 downto 0);
+    signal mab       : std_logic_vector(7 downto 2);     -- the 4-bit word offset in the module's 6-bit slot
+
     signal state     : state_arr_t;
     signal cnt       : cnt_arr_t;
     signal gate_req  : std_logic_vector(PD_HI downto 1);   -- PWRCR gate bits.
@@ -90,7 +107,6 @@ architecture behav of pwr_ctrl is
     signal iso_r     : std_logic_vector(PD_HI downto 1);   -- Registered pd_iso_en.
     signal sleep_r   : std_logic_vector(PD_HI downto 1);   -- Registered pd_sleep.
     signal rstn_r    : std_logic_vector(PD_HI downto 1);   -- Registered pd_rstn.
-    signal rdata_reg : std_logic_vector(31 downto 0);         -- One-cycle registered read.
 
     -- Boot-gate and wake-source state, all on the always-on domain; word offsets as in the header map.
     -- The three async pad inputs cross into mclk through one work.sync instance; bit 2 is pgood, bit 1 field, bit 0 strap, and PAD_RST keeps the boot gate released out of reset.
@@ -104,36 +120,126 @@ architecture behav of pwr_ctrl is
     signal strap_sampled : std_logic;        -- One-shot latched strap ('1' = harvest).
     signal strap_valid   : std_logic;        -- Strap sample complete.
     signal strap_cnt     : natural range 0 to 65535;   -- Counts out STRAP_SETTLE.
-    signal wake_cr       : std_logic_vector(4 downto 0);  -- PWRWAKE bits 4:0.
-    signal task_wkm      : std_logic_vector(PD_HI downto 1);  -- Task-wake mask.
+    signal wake_cr       : std_logic_vector(4 downto 0);  -- PWRWAKE bits 4:0, read out of the register file.
+    signal task_wkm      : std_logic_vector(PD_HI downto 1);  -- Task-wake mask, likewise.
     signal rls_latch     : std_logic;        -- Sticky release, one-shot mode.
     signal boot_hold_r   : std_logic;        -- Registered gate state ('1' = hold).
 
 begin
 
     -- Coverage asserts on elaboration-time constants, so no hardware is built.
-    -- The PWRCR gate bits must fit one 32-bit word, and PWRCR plus the PWRSR array must fit the 16 decoded words of addr(3:0).
+    -- The PWRCR gate bits must fit one 32-bit word, and PWRCR plus the PWRSR array must fit the eight decoded words of the register file.
     -- NHARTS = 1 IS LEGAL and is the single-hart MCU_hart shape: there are no gateable tiles, so every per-tile object here is a null range and every per-tile loop runs zero times.
     -- The block is still instantiated at NHARTS = 1 because the FIELD-POWER BOOT GATE above it (PWRWAKE, PWRSTS, pgood_rstn) is not per-tile hardware and every configuration has it.
     -- PWRCR then degenerates to its reserved always-on bit 0, and PWRSR0 to the all-zero hart-0 nibble, which is what the register map says a single-hart chip has.
     assert NHARTS >= 1 and NHARTS <= 32
         report "pwr_ctrl: NHARTS out of range (PWRCR is one 32-bit word)"
         severity failure;
-    assert 1 + NSRW <= 16
-        report "pwr_ctrl: PWRSR array outgrows the 16-word decode"
+    assert 1 + NSRW <= NW
+        report "pwr_ctrl: PWRSR array outgrows the register file"
         severity failure;
     -- PWRWAKE and PWRSTS sit at fixed words 5 and 6, so PWRSR must stay below them.
     assert NSRW < 5
         report "pwr_ctrl: PWRSR array collides with PWRWAKE/PWRSTS (words 5/6)"
         severity failure;
 
-    -- Registered outputs straight out to the bus and the MTCMOS controls.
-    rdata     <= rdata_reg;
+    -- Registered outputs straight out to the MTCMOS controls; rdata comes out of
+    -- the register file below.
     pd_iso_en <= iso_r;
     pd_sleep  <= sleep_r;
     pd_rstn   <= rstn_r;
     -- Registered, glitch-free boot gate; reset value '1' releases.
     pgood_rstn <= not boot_hold_r;
+
+    -- ---- Register file -------------------------------------------------------
+    -- The eight-word decode, the byte-lane merge and the one-cycle registered read
+    -- are periph_regs', driven by the tables pwr_ctrl_regs_pkg builds from NHARTS.
+    -- This block's bus is ACTIVE HIGH (arbiter slave), the module's is active low.
+    -- Every write here is byte-lane-0 qualified and writes the WHOLE field even
+    -- where the gate mask spans lanes (argus, 18 harts), which is WIDEWR on the
+    -- three written words plus wr_inhibit off lane 0: WIDEWR widens the write to
+    -- 32 bits and the inhibit refuses a write that lane 0 does not carry, which
+    -- together are `if widx = 0 and we(0) = '1' then gate_req <= wdata(...)`.
+    en_n    <= not en;
+    wen_n   <= not we;
+    mab     <= "00" & addr;
+    inhib_s <= (others => not we(0));
+
+    -- PWRSR is one read-only 4-bit state nibble per hart, 8 harts to a word, at
+    -- words 1 .. NSRW; every other word above PWRCR reads 0 or its own storage.
+    sr_proc: process(state)
+    begin
+        sr_words <= (others => (others => '0'));
+        for h in 1 to NHARTS-1 loop
+            sr_words(1 + h/8)(4*(h mod 8) + 3 downto 4*(h mod 8)) <= state(h);
+        end loop;
+    end process;
+
+    rd_proc: process(sr_words, pgood_s2, field_s2, strap_sampled, strap_valid,
+                     boot_hold_r, rls_latch)
+    begin
+        hw_rd_s <= (others => (others => '0'));
+        for w in 1 to NSRW loop
+            hw_rd_s(w) <= sr_words(w);
+        end loop;
+        hw_rd_s(W_PWRSTS)(PWPGOODLIV_LSB)  <= pgood_s2;
+        hw_rd_s(W_PWRSTS)(PWFIELDLIV_LSB)  <= field_s2;
+        hw_rd_s(W_PWRSTS)(PWSTRAP_LSB)     <= strap_sampled;
+        hw_rd_s(W_PWRSTS)(PWSTRAPVLD_LSB)  <= strap_valid;
+        hw_rd_s(W_PWRSTS)(PWBOOTHOLD_LSB)  <= boot_hold_r;
+        hw_rd_s(W_PWRSTS)(PWRRLSLATCH_LSB) <= rls_latch;
+    end process;
+
+    -- The event fabric's task-wake tap CLEARS the gate bits TASKWKM selects. It is
+    -- a hook and not a write, so periph_regs resolves it AFTER a coincident CPU
+    -- write, which is the order the hand-written process had.
+    clr_proc: process(task_wake, task_wkm)
+    begin
+        hw_clr_s <= (others => (others => '0'));
+        if task_wake = '1' then
+            hw_clr_s(PWRCR_WORD)(PD_HI downto 1) <= task_wkm;
+        end if;
+    end process;
+
+    u_regs: entity work.periph_regs
+        generic map (
+            NWORDS      => NW,
+            RSTVAL      => RSTVAL(NHARTS),
+            IMPL        => IMPL(NHARTS),
+            W1C         => W1C(NHARTS),
+            WOSET       => WOSET(NHARTS),
+            WOT         => WOT(NHARTS),
+            PULSE       => PULSE(NHARTS),
+            RCLR        => RCLR(NHARTS),
+            HWOWN       => HWOWN(NHARTS),
+            WIDEWR      => "10000101")
+        port map (
+            ClkMem      => clk,
+            resetn      => resetn,
+            EnMemPeriph => en_n,
+            WEn         => wen_n,
+            MABPart     => mab,
+            wdata       => wdata,
+            rdata_out   => rdata,
+            regs        => regs_q,
+            wr_inhibit  => inhib_s,
+            hw_rd       => hw_rd_s,
+            hw_clr      => hw_clr_s,
+            acc_hit     => open,
+            rd_hit      => open,
+            wr_hit      => open,
+            rd_strobe   => open,
+            wr_strobe   => open,
+            wr_pulse    => open,
+            w1c_hit     => open,
+            woset_hit   => open,
+            wot_hit     => open,
+            rd_clr      => open);
+
+    -- The three stored words, sliced out for the datapath. No bit literal survives.
+    gate_req <= regs_q(PWRCR_WORD)(PD_HI downto 1);
+    task_wkm <= regs_q(W_TASKWKM)(PD_HI downto 1);
+    wake_cr  <= regs_q(W_PWRWAKE)(PWREHOLD_MSB downto PWGATEEN_LSB);
 
     -- Boot-gate wake sources: the pad-side inputs are asynchronous to mclk, so all three cross through the house synchroniser.
     pad_sync_d <= pgood_pad & field_detect & strap_pad;
@@ -144,11 +250,9 @@ begin
     field_s2 <= pad_sync_q(1);
     strap_s2 <= pad_sync_q(0);
 
-    -- Register file, per-tile MTCMOS sequencers and the boot gate, all on mclk.
+    -- Per-tile MTCMOS sequencers, the strap sampler and the boot gate, all on mclk.
+    -- The register file is the periph_regs instance above.
     pwr_proc: process(clk, resetn)
-        -- sr is the concatenated PWRSR word array, hart h's nibble at 4h, 8 harts per 32-bit word.
-        variable sr   : std_logic_vector(NSRW*32-1 downto 0);
-        variable widx : integer range 0 to 15;   -- Decoded word offset.
         -- Effective-policy terms: strap ORed with the software override.
         variable strap_harvest : std_logic;
         variable eff_arm       : std_logic;
@@ -160,77 +264,20 @@ begin
         if resetn = '0' then
             -- Reset leaves every tile ON: iso off, switches on, reset released.
             -- Chip boot is untouched and the block is a provable NO-OP until software gates a tile.
-            gate_req  <= (others => '0');
+            -- PWRCR, PWRWAKE and TASKWKM reset inside periph_regs, on the RSTVAL table.
             iso_r     <= (others => '0');
             sleep_r   <= (others => '0');
             rstn_r    <= (others => '1');
             state     <= (others => S_ON);
             cnt       <= (others => 0);
-            rdata_reg <= (others => '0');
             -- The boot gate is released at reset so normal boots are unperturbed (RST_VAL on u_sync_pads).
             -- A harvested board self-arms within the strap settle window, and the re-hold is a clean cold boot.
             strap_sampled <= '0';
             strap_valid   <= '0';
             strap_cnt     <= 0;
-            wake_cr       <= (others => '0');
-            task_wkm      <= (others => '0');   -- Task-wake is inert out of reset.
             rls_latch     <= '0';
             boot_hold_r   <= '0';
         elsif rising_edge(clk) then
-
-            -- Register access, with a one-cycle registered read.
-            if en = '1' then
-                sr := (others => '0');
-                for h in 1 to NHARTS-1 loop
-                    sr(4*h + 3 downto 4*h) := state(h);
-                end loop;
-
-                widx := conv_integer(addr);
-                rdata_reg <= (others => '0');
-                if widx = 0 then
-                    rdata_reg(PD_HI downto 1) <= gate_req;
-                elsif widx <= NSRW then
-                    -- PWRSR0..NSRW-1 from +0x4 up.
-                    rdata_reg <= sr(32*widx - 1 downto 32*(widx-1));
-                elsif widx = W_TASKWKM then
-                    rdata_reg(PD_HI downto 1) <= task_wkm;
-                elsif widx = W_PWRWAKE then
-                    -- PWRWAKE readback.
-                    rdata_reg(4 downto 0) <= wake_cr;
-                elsif widx = W_PWRSTS then
-                    -- PWRSTS, read-only.
-                    rdata_reg(0) <= pgood_s2;
-                    rdata_reg(1) <= field_s2;
-                    rdata_reg(2) <= strap_sampled;
-                    rdata_reg(3) <= strap_valid;
-                    rdata_reg(4) <= boot_hold_r;
-                    rdata_reg(5) <= rls_latch;
-                end if;                        -- Reserved words read 0.
-
-                -- PWRCR write, qualified by byte lane 0.
-                -- The gate bits are ONE field even when NHARTS-1:1 spans lanes, so software uses full-word stores; bit 0, hart 0, has no storage and can never be gated.
-                if widx = 0 and we(0) = '1' then
-                    gate_req <= wdata(PD_HI downto 1);
-                end if;
-                -- PWRWAKE write, byte-lane-0-qualified like PWRCR.
-                if widx = W_PWRWAKE and we(0) = '1' then
-                    wake_cr <= wdata(4 downto 0);
-                end if;
-                -- Task-wake mask write, byte-lane-0-qualified like PWRCR.
-                if widx = W_TASKWKM and we(0) = '1' then
-                    task_wkm <= wdata(PD_HI downto 1);
-                end if;
-            end if;
-
-            -- Task wake sits OUTSIDE the bus qualifier so it fires with the bus idle, and acts per bit AFTER the writes above: the CPU lands the word, then the task clears its masked bits.
-            -- FSM rail-up sequencing is identical to a register-cleared gate.
-            if task_wake = '1' then
-                for h in 1 to NHARTS-1 loop
-                    if task_wkm(h) = '1' then
-                        gate_req(h) <= '0';
-                    end if;
-                end loop;
-            end if;
 
             -- Per-tile MTCMOS sequencers, one FSM per gateable tile.
             for h in 1 to NHARTS-1 loop

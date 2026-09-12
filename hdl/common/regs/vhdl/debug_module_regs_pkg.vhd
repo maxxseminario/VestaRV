@@ -198,8 +198,8 @@ package debug_module_regs_pkg is
     constant DMHALTSUM0_LSB           : natural := 0;
     -- DMHALTSUM0_RESET is the register constant above; this field carries the register name.
 
-    -- No periph_regs table section: the Debug Module is not on the peripheral bus at all,
-    -- so its register set is not fixed at elaboration.
+    -- No periph_regs table section: the Debug Module is not on the peripheral bus at all (DMI, not
+    -- EnMemPeriph / WEn / MABPart), so there is no adoption path.
     -- See hdl/common/regs/REGFILE.md.
 
 end package debug_module_regs_pkg;

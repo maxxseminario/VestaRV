@@ -133,8 +133,10 @@ package irq_router_regs_pkg is
     constant W_INSVCU                 : natural := 522;
     constant W_INSVCX                 : natural := 523;
 
-    -- No periph_regs table section: the register set is a function of the hart and vector counts,
-    -- so its register set is not fixed at elaboration.
+    -- No periph_regs table section: CLAIM sits at word 512 and the status words at 516-523, so the
+    -- window is 524 words wide while periph_regs decodes 64 (MABPart is
+    -- six bits, and WORD_BASE + NWORDS <= 64 is an elaboration assertion).
+    -- No table fits the module at any hart or source count.
     -- See hdl/common/regs/REGFILE.md.
 
 end package irq_router_regs_pkg;

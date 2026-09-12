@@ -117,6 +117,10 @@ def _isSinglePulse(bf):
 # same value, in all of them. So the file carries exactly the config-independent
 # half and nothing has to be hand-curated. The configurations are the ones
 # //platform/common:rdl_vs_vhdl_<block>_test already elaborates.
+#
+# The half the intersection drops is not lost: `variants` is also the list
+# _checkRegfileFn grades _REGFILE_FN's table recipes against, and those tables
+# are emitted as FUNCTIONS of the same generics. See _REGFILE_FN below.
 # ---------------------------------------------------------------------------
 
 
@@ -317,7 +321,7 @@ RTL_PACKAGES = (
     # --- decodes with no named slot constants ----------------------------
     # DMA, CLINT and MUTEX decode a bare integer word index, so there is no
     # local constant to delete and adoption is a body edit. DMA took that edit
-    # (report R12d) and now `use`s its package; CLINT and MUTEX have not.
+    # (report R12d) and now `use`s its package, as do CLINT and MUTEX (report P4).
     {
         'package': 'dma_regs_pkg',
         'file': 'hdl/common/regs/vhdl/dma_regs_pkg.vhd',
@@ -335,7 +339,7 @@ RTL_PACKAGES = (
         'top': 'clint',
         'rtl': 'hdl/common/clint.vhd',
         'periph': 'clint',
-        'migrated': False,
+        'migrated': True,
         'variants': tuple((p, None) for p in _clintVariants()),
         'variantNote': 'NHARTS 1, 4, 5, 18, 32 (MTIME_W = ceil(4*NHARTS/16)*4, CMP_W = MTIME_W + 4)',
     },
@@ -346,7 +350,7 @@ RTL_PACKAGES = (
         'top': 'mutex_bank',
         'rtl': 'hdl/common/mutex_bank.vhd',
         'periph': 'mutex_bank',
-        'migrated': False,
+        'migrated': True,
         'variants': (({'NMUTEX': 16, 'MW': 3, 'NHARTS': 5}, None),
                      ({'NMUTEX': 32, 'MW': 5, 'NHARTS': 18}, None),
                      ({'NMUTEX': 16, 'MW': 2, 'NHARTS': 1}, None)),
@@ -389,9 +393,22 @@ RTL_PACKAGES = (
     },
 )
 
+# An overlay's generated packages join the table, in the same row shape and with
+# `file` at the overlay's own mirrored path, so `rdl_vhdl_pkgs --out <overlay>`
+# regenerates them exactly the way the tree's own are regenerated. Empty with no
+# overlay, and //platform/common:rdl_vhdl_pkg_test then grades the same set it
+# always has.
+import overlay as _overlay
+
+RTL_PACKAGES = tuple(_overlay.call('rtlPackages', default=RTL_PACKAGES, rows=RTL_PACKAGES))
+
 # Keyed by the .rdl addrmap (block.Name). A block with no entry gets the scalar
-# constants only, which is what every out/rdl/ emission has always been.
+# constants only, which is what every out/rdl/ emission has always been. No
+# public block needs one today; an overlay's rows ride its `aggregate` key.
 _AGGREGATE = {}
+for _spec in RTL_PACKAGES:
+    if _spec.get('aggregate'):
+        _AGGREGATE[_spec['top']] = _spec['aggregate']
 
 
 # ---------------------------------------------------------------------------
@@ -619,12 +636,15 @@ def _aggregateLines(block):
 _REGFILE = ('uart', 'spi', 'timer', 'i2c', 'npu', 'gpio', 'qspi', 'i3c', 'nfc',
             'rtc', 'pwm', 'onewire', 'trng', 'i2ctarget', 'dma', 'system', 'evfab')
 
+# CLINT, MUTEX and PWRCTRL are NOT here: their register set is a function of a
+# generic, and _REGFILE_FN below emits their rows as functions of it instead.
 _REGFILE_SKIP = {
-    'clint': 'the register set is a function of the hart count',
-    'mutex_bank': 'the register set is a function of the mutex count',
-    'irq_router': 'the register set is a function of the hart and vector counts',
-    'pwr_ctrl': 'the register set is a function of the hart count',
-    'debug_module': 'the Debug Module is not on the peripheral bus at all',
+    'irq_router': ('CLAIM sits at word 512 and the status words at 516-523, so the',
+                   'window is 524 words wide while periph_regs decodes 64 (MABPart is',
+                   'six bits, and WORD_BASE + NWORDS <= 64 is an elaboration assertion).',
+                   'No table fits the module at any hart or source count.'),
+    'debug_module': ('the Debug Module is not on the peripheral bus at all (DMI, not',
+                     'EnMemPeriph / WEn / MABPart), so there is no adoption path.'),
 }
 
 
@@ -691,7 +711,7 @@ def _reservedRow(word):
     return '_reserved_%d' % word
 
 
-def _regfileLines(block):
+def _regfileLines(block, pkgSpec=None):
     """NWORDS, reg_arr_t and the eight tables periph_regs is generic in.
 
        One row per WORD from the first register's slot to the last, not one row
@@ -699,10 +719,20 @@ def _regfileLines(block):
        all-zero `_reserved_<word>` row for each, which periph_regs decodes as a
        word that stores nothing, reads 0 and takes no hook."""
     if block.Name in _REGFILE_SKIP:
-        return ['    -- No periph_regs table section: ' + _REGFILE_SKIP[block.Name] + ',',
-                '    -- so its register set is not fixed at elaboration.',
-                '    -- See hdl/common/regs/REGFILE.md.',
-                '']
+        why = _REGFILE_SKIP[block.Name]
+        return (['    -- No periph_regs table section: ' + why[0]]
+                + ['    -- ' + line for line in why[1:]]
+                + ['    -- See hdl/common/regs/REGFILE.md.', ''])
+    if block.Name in _REGFILE_FN:
+        spec = _REGFILE_FN[block.Name]
+        # The recipe is graded against the description at every configuration the
+        # TRACKED package lists. The untracked out/rdl/ emission passes no spec and
+        # names no configurations, so there is nothing to grade it against there;
+        # the text it emits is the same, because the recipe does not depend on the
+        # elaboration in hand.
+        if pkgSpec:
+            _checkRegfileFn(block.Name, spec, pkgSpec)
+        return _regfileFnDecls(block.Name, spec)
     if block.Name not in _REGFILE:
         return []
     regs = list(block.RegisterTemplates)
@@ -753,6 +783,348 @@ def _regfileLines(block):
         L.append('    );')
         L.append('')
     return L
+
+
+# ---------------------------------------------------------------------------
+# THE CONFIGURATION-DEPENDENT TABLES (report P4, 2026-09-12).
+#
+# CLINT, MUTEX and PWRCTRL have a register SET that is a function of a generic,
+# so their rows cannot be a constant aggregate. They are emitted as FUNCTIONS of
+# the block's own generics instead, in a package body beside the declarations:
+# the entity calls NWORDS(NHARTS, ...) / RSTVAL(NHARTS, ...) in its generic map
+# and periph_regs sees the same eight tables it sees from every other block.
+# VHDL-2008 allows a constant array built by a function of a generic at
+# elaboration, so this costs no hardware -- the call is folded before synthesis,
+# and the ghdl --synth counts in the report are the proof.
+#
+# Chosen over emitting one package per configuration, which would have made the
+# package a function of the chip config: `hdl/common/regs/vhdl/` would carry
+# N files per block, the generator would have to select one, and
+# rdl_vhdl_pkg_test's byte-compare would need a configuration to compare at.
+# A function keeps ONE tracked package per block, which is the invariant the
+# whole toolchain is built on.
+#
+# A recipe below says, per block, how a word index maps onto a register and what
+# each of the eight rows is. Two things keep it honest:
+#   * every row value is either a CONSTANT THIS PACKAGE ALREADY EMITS
+#     (`MSIP0_RESET`, `PWRWAKE_IMPL`, `MTXOWN0_LSB`) or a `bitRun` of the
+#     generics, so the numbers still come from the .rdl and not from here;
+#   * _checkRegfileFn re-elaborates the .rdl at EVERY configuration in
+#     `variants` and compares the recipe's rows against the description's, word
+#     by word and table by table. A recipe that drifts from the .rdl fails the
+#     emission, and therefore //platform/common:rdl_vhdl_pkg_test.
+#
+# IRQROUTER is not here: its CLAIM word is at word 512 and its status words at
+# 516-520, so its window is 521 words wide, and periph_regs decodes a 64-word
+# slot (MABPart is 6 bits, and `WORD_BASE + NWORDS <= 64` is an elaboration
+# assertion). No table can be handed to the module, at any hart count.
+# ---------------------------------------------------------------------------
+
+# A row value: either a constant this package emits for one register, or an
+# expression over the function's arguments.
+def _ref(reg, kind):
+    """`<REG>_RESET` / `<REG>_IMPL`, whose value is read back out of the .rdl."""
+    return ('ref', reg, kind)
+
+
+def _ex(vhdl, fn):
+    """A VHDL expression over the function arguments, with its Python twin."""
+    return ('expr', vhdl, fn)
+
+
+# `bitRun(hi, lo)` is emitted into every such package body: bits hi downto lo
+# set, all zero when the range is empty (hi < lo, which is NHARTS = 1's gate
+# mask) and saturating at bit 31 (which is what lets the last PWRSR word be
+# written as one expression whatever the hart count).
+def _bitRun(hi, lo):
+    if hi < lo:
+        return 0
+    hi = min(hi, 31)
+    return ((1 << (hi - lo + 1)) - 1) << lo
+
+
+_REGFILE_FN = {
+    'clint': {
+        'args': ('NHARTS', 'MTIME_W', 'CMP_W'),
+        'note': 'MSIP[NHARTS] at word 0, mtime at MTIME_W, mtimecmp[NHARTS] at CMP_W',
+        'nwords': ('CMP_W + 2*NHARTS', lambda p: p['CMP_W'] + 2 * p['NHARTS']),
+        'segments': (
+            {'note': 'MSIP{h}: one word per hart, bit 0 only',
+             'first': ('0', lambda p: 0),
+             'count': ('NHARTS', lambda p: p['NHARTS']),
+             'rows': ({'name': 'MSIP{h}',
+                       'RSTVAL': _ref('MSIP0', 'RESET'),
+                       'IMPL': _ref('MSIP0', 'IMPL')},)},
+            {'note': 'mtime, a free-running counter both halves of which hardware drives',
+             'first': ('MTIME_W', lambda p: p['MTIME_W']),
+             'count': ('1', lambda p: 1),
+             'rows': ({'name': 'MTIMEL',
+                       'RSTVAL': _ref('MTIMEL', 'RESET'),
+                       'IMPL': _ref('MTIMEL', 'IMPL'),
+                       'HWOWN': _ref('MTIMEL', 'IMPL')},
+                      {'name': 'MTIMEH',
+                       'RSTVAL': _ref('MTIMEH', 'RESET'),
+                       'IMPL': _ref('MTIMEH', 'IMPL'),
+                       'HWOWN': _ref('MTIMEH', 'IMPL')})},
+            {'note': 'mtimecmp{h}, lo then hi on an 8-byte stride; resets all-ones',
+             'first': ('CMP_W', lambda p: p['CMP_W']),
+             'count': ('NHARTS', lambda p: p['NHARTS']),
+             'rows': ({'name': 'MTIMECMP{h}L',
+                       'RSTVAL': _ref('MTIMECMP0L', 'RESET'),
+                       'IMPL': _ref('MTIMECMP0L', 'IMPL')},
+                      {'name': 'MTIMECMP{h}H',
+                       'RSTVAL': _ref('MTIMECMP0H', 'RESET'),
+                       'IMPL': _ref('MTIMECMP0H', 'IMPL')})},
+        ),
+    },
+    'mutex_bank': {
+        'args': ('NMUTEX', 'MW'),
+        'note': 'NMUTEX identical owner words, the owner field MW downto MTXOWN0_LSB',
+        'nwords': ('NMUTEX', lambda p: p['NMUTEX']),
+        'segments': (
+            {'note': 'MUTEX{i}: the owner marker, hardware written by the claim read',
+             'first': ('0', lambda p: 0),
+             'count': ('NMUTEX', lambda p: p['NMUTEX']),
+             'rows': ({'name': 'MUTEX{i}',
+                       'RSTVAL': _ref('MUTEX0', 'RESET'),
+                       'IMPL': _ex('bitRun(MW, MTXOWN0_LSB)',
+                                   lambda p, k: _bitRun(p['MW'], 0)),
+                       'HWOWN': _ex('bitRun(MW, MTXOWN0_LSB)',
+                                    lambda p, k: _bitRun(p['MW'], 0))},)},
+        ),
+    },
+    'pwr_ctrl': {
+        'args': ('NHARTS',),
+        'note': 'eight words at every hart count; only the per-hart masks move',
+        'nwords': ('8', lambda p: 8),
+        'segments': (
+            {'note': 'PWRCR: one gate bit per tile hart, and hart 0 always-on at bit 0',
+             'first': ('0', lambda p: 0),
+             'count': ('1', lambda p: 1),
+             'rows': ({'name': 'PWRCR',
+                       'RSTVAL': _ref('PWRCR', 'RESET'),
+                       'IMPL': _ex('bitRun(NHARTS-1, 1)',
+                                   lambda p, k: _bitRun(p['NHARTS'] - 1, 1)),
+                       'HWOWN': _ex('bitRun(NHARTS-1, 1) or bitRun(PWRH0_MSB, PWRH0_LSB)',
+                                    lambda p, k: _bitRun(p['NHARTS'] - 1, 1) | 1)},)},
+            {'note': 'PWRSR: ceil(NHARTS/8) read-only words of one 4-bit state nibble per hart',
+             'first': ('1', lambda p: 1),
+             'count': ('(NHARTS + 7) / 8', lambda p: (p['NHARTS'] + 7) // 8),
+             'rows': ({'name': 'PWRSR{k}',
+                       'HWOWN': _ex('bitRun(4*(NHARTS - 8*k) - 1, 0)',
+                                    lambda p, k: _bitRun(4 * (p['NHARTS'] - 8 * k) - 1, 0))},)},
+            {'note': 'PWRWAKE: the boot-gate and wake-source control, at a fixed word',
+             'first': ('PWRWAKE_WORD', lambda p: 5),
+             'count': ('1', lambda p: 1),
+             'rows': ({'name': 'PWRWAKE',
+                       'RSTVAL': _ref('PWRWAKE', 'RESET'),
+                       'IMPL': _ref('PWRWAKE', 'IMPL')},)},
+            {'note': 'PWRSTS: read-only pad and gate status, every bit hardware driven',
+             'first': ('PWRSTS_WORD', lambda p: 6),
+             'count': ('1', lambda p: 1),
+             'rows': ({'name': 'PWRSTS',
+                       'RSTVAL': _ref('PWRSTS', 'RESET'),
+                       'IMPL': _ref('PWRSTS', 'IMPL'),
+                       'HWOWN': _ex('bitRun(PWRRLSLATCH_MSB, PWPGOODLIV_LSB)',
+                                    lambda p, k: _bitRun(5, 0))},)},
+            {'note': 'TASKWKM: the event-fabric task-wake mask, PWRCR bit for bit',
+             'first': ('TASKWKM_WORD', lambda p: 7),
+             'count': ('1', lambda p: 1),
+             'rows': ({'name': 'TASKWKM',
+                       'RSTVAL': _ref('TASKWKM', 'RESET'),
+                       'IMPL': _ex('bitRun(NHARTS-1, 1)',
+                                   lambda p, k: _bitRun(p['NHARTS'] - 1, 1))},)},
+        ),
+    },
+}
+
+
+def _fnArgs(spec):
+    return '(' + ', '.join(spec['args']) + ' : natural)'
+
+
+def _rowValue(cell, block, params, k):
+    """The Python value of one row cell, for the self-check."""
+    if cell is None:
+        return 0
+    if cell[0] == 'ref':
+        _, reg, kind = cell
+        for rt in block.RegisterTemplates:
+            if rt.NameTemplate == reg:
+                return (rt.ResetValue or 0) if kind == 'RESET' else storageMask(rt)
+        raise Exception('rdl_vhdl: the table recipe names register %r, which this '
+                        'elaboration does not have' % reg)
+    return cell[2](params, k)
+
+
+def _recipeRows(spec, block, params):
+    """{table: [value per word]} the recipe produces at one configuration."""
+    n = spec['nwords'][1](params)
+    out = dict((t, [0] * n) for t, _ in _REGFILE_TABLES)
+    for seg in spec['segments']:
+        first = seg['first'][1](params)
+        count = seg['count'][1](params)
+        stride = len(seg['rows'])
+        for k in range(count):
+            for j, row in enumerate(seg['rows']):
+                w = first + stride * k + j
+                if w >= n:
+                    raise Exception('rdl_vhdl: the table recipe writes word %d of %d' % (w, n))
+                for table, _ in _REGFILE_TABLES:
+                    out[table][w] = _rowValue(row.get(table), block, params, k)
+    return out
+
+
+def _checkRegfileFn(name, spec, pkgSpec):
+    """The recipe against the description, at every shipped configuration.
+
+       This is the whole argument that a hand-written layout recipe is safe: it
+       is graded against the .rdl at each configuration //platform/common's
+       rdl_vs_vhdl_<block>_test already elaborates, so a recipe that drifts
+       fails the emission before it can reach a package."""
+    import rdl_model
+    variants = list(pkgSpec.get('variants') or ())
+    if not variants:
+        raise Exception('rdl_vhdl: %s has a table recipe but no `variants` to grade it '
+                        'against' % name)
+    for params, defines in variants:
+        block = rdl_model.loadBlock(pkgSpec['source'], pkgSpec['top'], params, defines)
+        p = dict(params or {})
+        missing = [a for a in spec['args'] if a not in p]
+        if missing:
+            raise Exception('rdl_vhdl: %s variant %r does not supply %s, which the table '
+                            'recipe takes as an argument' % (name, params, ', '.join(missing)))
+        want = _tableRows(block)
+        have = _recipeRows(spec, block, p)
+        if len(want['RSTVAL']) != len(have['RSTVAL']):
+            raise Exception('rdl_vhdl: %s at %r: the recipe makes %d words, the .rdl %d'
+                            % (name, p, len(have['RSTVAL']), len(want['RSTVAL'])))
+        for table, _ in _REGFILE_TABLES:
+            for w in range(len(want[table])):
+                if want[table][w] != have[table][w]:
+                    raise Exception('rdl_vhdl: %s at %r: word %d %s is 0x%08X in the recipe '
+                                    'and 0x%08X in the description'
+                                    % (name, p, w, table, have[table][w], want[table][w]))
+
+
+def _tableRows(block):
+    """{table: [value per word]} the description says, one row per word."""
+    regs = list(block.RegisterTemplates)
+    byWord = dict((rt.Offset // 4, rt) for rt in regs)
+    if len(byWord) != len(regs):
+        raise Exception('rdl_vhdl: %s has two registers at one word offset' % block.Name)
+    base, top = min(byWord), max(byWord)
+    if base != 0:
+        raise Exception('rdl_vhdl: %s does not start at word 0' % block.Name)
+    out = {}
+    for table, _ in _REGFILE_TABLES:
+        row = []
+        for w in range(base, top + 1):
+            rt = byWord.get(w)
+            if rt is None:
+                row.append(0)
+            elif table == 'RSTVAL':
+                row.append(rt.ResetValue or 0)
+            elif table == 'IMPL':
+                row.append(storageMask(rt))
+            else:
+                row.append(_rdlMasks(rt)[table])
+        out[table] = row
+    return out
+
+
+def _regfileFnDecls(name, spec):
+    """The function declarations the package exports."""
+    args = _fnArgs(spec)
+    L = []
+    L.append('    -- periph_regs tables (hdl/common/periph_regs.vhd), built AT ELABORATION from')
+    L.append('    -- this block\'s own generics: the register set is a function of the')
+    L.append('    -- configuration, so the rows are a function and not a constant aggregate.')
+    L.append('    -- Layout: ' + spec['note'] + '.')
+    L.append('    -- The entity passes NWORDS' + args.replace(' : natural', '')
+             + ' and each table below straight')
+    L.append('    -- into its periph_regs generic map. RDTHRU, WIDEWR, FULLWR and STROBE_HOLD')
+    L.append('    -- are the entity\'s own; hdl/common/regs/REGFILE.md says why.')
+    L.append('    function NWORDS ' + args + ' return natural;')
+    for table, note in _REGFILE_TABLES:
+        L.append('    -- ' + note)
+        L.append('    function %-6s %s return word_array;' % (table, args))
+    L.append('')
+    return L
+
+
+def _regfileFnBody(pkg, name, spec):
+    """The package body: bitRun, then one function per table."""
+    args = _fnArgs(spec)
+    call = '(' + ', '.join(spec['args']) + ')'
+    L = []
+    L.append('package body ' + pkg + ' is')
+    L.append('')
+    L.append('    -- Bits hi downto lo, all zero when the range is EMPTY (hi < lo, which is')
+    L.append('    -- the per-hart mask of a single-hart chip) and saturating at bit 31.')
+    L.append('    function bitRun (hi, lo : integer) return word is')
+    L.append('        variable r : word := (others => \'0\');')
+    L.append('    begin')
+    L.append('        for b in 0 to 31 loop')
+    L.append('            if b >= lo and b <= hi then')
+    L.append('                r(b) := \'1\';')
+    L.append('            end if;')
+    L.append('        end loop;')
+    L.append('        return r;')
+    L.append('    end function bitRun;')
+    L.append('')
+    L.append('    function NWORDS ' + args + ' return natural is')
+    L.append('    begin')
+    L.append('        return ' + spec['nwords'][0] + ';')
+    L.append('    end function NWORDS;')
+    L.append('')
+    for table, note in _REGFILE_TABLES:
+        lines = []
+        for seg in spec['segments']:
+            cells = [(j, row) for j, row in enumerate(seg['rows']) if row.get(table)]
+            if not cells:
+                continue
+            stride = len(seg['rows'])
+            if not lines:
+                pass
+            lines.append('        -- ' + seg['note'])
+            if seg['count'][0] == '1':
+                for j, row in cells:
+                    idx = seg['first'][0] + (' + %d' % j if j else '')
+                    lines.append('        r(%s) := %s;   -- %s'
+                                 % (idx, _cellVhdl(row[table]), row['name'].replace('{k}', '0')))
+            else:
+                lines.append('        for k in 0 to ' + seg['count'][0] + ' - 1 loop')
+                for j, row in cells:
+                    if stride == 1:
+                        idx = seg['first'][0] + ' + k'
+                    else:
+                        idx = '%s + %d*k%s' % (seg['first'][0], stride,
+                                               (' + %d' % j) if j else '')
+                    lines.append('            r(%s) := %s;   -- %s'
+                                 % (idx, _cellVhdl(row[table]), row['name']))
+                lines.append('        end loop;')
+        L.append('    -- ' + note)
+        L.append('    function %-6s %s return word_array is' % (table, args))
+        L.append('        variable r : word_array(0 to NWORDS%s - 1) := '
+                 '(others => (others => \'0\'));' % call)
+        L.append('    begin')
+        if lines:
+            L.extend(lines)
+        else:
+            L.append('        -- The description declares none of these in this block.')
+        L.append('        return r;')
+        L.append('    end function ' + table + ';')
+        L.append('')
+    L.append('end package body ' + pkg + ';')
+    L.append('')
+    return L
+
+
+def _cellVhdl(cell):
+    if cell[0] == 'ref':
+        return cell[1] + '_' + cell[2]
+    return cell[1]
 
 
 def _firstSentence(text):
@@ -811,11 +1183,11 @@ def _registerGroups(block):
     return groups
 
 
-def _bodyLines(block):
+def _bodyLines(block, pkgSpec=None):
     """The register groups plus the block's own decode identifiers, as they are
        emitted at ONE elaboration."""
     groups = _registerGroups(block)
-    tail = _aggregateLines(block) + _decodeLines(block) + _regfileLines(block)
+    tail = _aggregateLines(block) + _decodeLines(block) + _regfileLines(block, pkgSpec)
     return groups, tail
 
 
@@ -867,14 +1239,14 @@ def emitString(block, packageName=None, spec=None):
     # which is the file stem for every house-style block.
     source = spec.get('source') or (block.Name + '.rdl')
     short = re.sub(r'_regs?_pkg$', '', pkg).upper()
-    groups, tail = _bodyLines(block)
+    groups, tail = _bodyLines(block, spec)
     variants = spec.get('variants')
     if variants:
         bodies = []
         for params, defines in variants:
             import rdl_model
             bodies.append(_bodyLines(rdl_model.loadBlock(spec['source'], spec['top'],
-                                                         params, defines)))
+                                                         params, defines), spec))
         groups, tail = _intersect(groups, tail, bodies)
     L = []
     L.append('-- VestaRV: ' + short + ' register package')
@@ -892,7 +1264,7 @@ def emitString(block, packageName=None, spec=None):
     L.append('')
     L.append('library ieee;')
     L.append('use ieee.std_logic_1164.all;')
-    if block.Name in _REGFILE:
+    if block.Name in _REGFILE or block.Name in _REGFILE_FN:
         # word_array, the one shared array-of-word type, for the tables below.
         L.append('library work;')
         L.append('use work.constants.all;')
@@ -907,6 +1279,17 @@ def emitString(block, packageName=None, spec=None):
     L.extend(tail)
     L.append('end package ' + pkg + ';')
     L.append('')
+    # The tables of a configuration-dependent block are FUNCTIONS of its
+    # generics, so the package has a body; it goes in the same file, because a
+    # second file is a second thing every flow's read list has to learn.
+    if block.Name in _REGFILE_FN:
+        L.append('')
+        L.append('library ieee;')
+        L.append('use ieee.std_logic_1164.all;')
+        L.append('library work;')
+        L.append('use work.constants.all;')
+        L.append('')
+        L.extend(_regfileFnBody(pkg, block.Name, _REGFILE_FN[block.Name]))
     return '\n'.join(L)
 
 
