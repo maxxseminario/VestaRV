@@ -587,8 +587,9 @@ begin
             PULSE       => PULSE,
             RCLR        => RCLR,
             HWOWN       => HWOWN,
-            -- CRC_STATE is the CRC engine's output and WDT_PASS reads 0; both are
-            -- sw=rw in the description, so both hold storage here and read through.
+            -- CRC_STATE is sw=rw storage whose READ is the CRC engine's output.
+            -- WDT_PASS is sw=w, so IMPL already gives it no storage and no read;
+            -- its row is kept because RDTHRU is where this file states the intent.
             RDTHRU      => "000010000000100000",
             FULLWR      => "000000000000100000",
             STROBE_HOLD => true)
@@ -642,11 +643,17 @@ begin
     begin
         if resetn_sys = '0' then
             crc_prev        <= (others => '1');
-            first_crc_flag  <= '0';
+            -- Reset is the 0xFFFF seed write the documented sequence opens with, so
+            -- the flag resets SET: the first byte after reset folds against crc_prev
+            -- and not against the reset CRCDATA of 0x00, which the running arm would
+            -- otherwise drag in.
+            first_crc_flag  <= '1';
         elsif rising_edge(clk_mem) then
-            -- Feeding a data byte advances the CRC; the first byte after a seed write starts from the seed instead of the running state.
+            -- Feeding a data byte advances the CRC. On the FIRST byte after a seed
+            -- write crc_prev already holds the seed, so it is HELD: the running arm
+            -- would fold in the previous CRCDATA byte, which is not part of this
+            -- message. Every later byte takes the running arm.
             if acc_s(RegSlotSYS_CRC_DATA) = '1' and wen(0) = '0' then
-                crc_prev <= (others => '1');
                 if first_crc_flag = '0' then
                     crc_prev <= SYS_CRC_STATE;
                 end if;

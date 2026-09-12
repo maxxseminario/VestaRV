@@ -36,7 +36,7 @@ Each hart can stop its own clock with the \asminline{sleep} instruction, which r
 
 \subsection{CRC accumulator}
 
-The CRC module computes CRC16-CDMA2000 over a byte sequence: width 16, polynomial \texttt{0xC857}, initial value \texttt{0xFFFF}, no input or output reflection, no output XOR. \register{CRCSTATE} holds the running value and \register{CRCDATA} accepts one byte per write.
+The CRC module computes CRC16-CDMA2000 over a byte sequence: width 16, polynomial \texttt{0xC857}, initial value \texttt{0xFFFF}, no input or output reflection, no output XOR. \register{CRCSTATE} holds the running value and \register{CRCDATA} accepts one byte per write. \register{CRCSTATE} is a true seed register: the value written to it is what the next \register{CRCDATA} byte folds against, so a partial state read out mid-message can be written back later and the chain resumes, and a protocol whose initial value is not \texttt{0xFFFF} is computed by seeding that value instead. Reset behaves as a \texttt{0xFFFF} seed write, so the first byte after reset needs no seed at all.
 
 \subsection{Watchdog}
 
@@ -75,7 +75,7 @@ Table \ref{t:system-irq} lists the one vector.
 \subsection{Computing a CRC}
 
 \begin{enumerate}
-	\item Write \texttt{0xFFFF} to \register{CRCSTATE}.
+	\item Write \texttt{0xFFFF} to \register{CRCSTATE}, or the protocol's initial value, or a partial state saved earlier.
 	\item Write each byte, in order, to \register{CRCDATA}.
 	\item Read the result from \register{CRCSTATE}.
 \end{enumerate}

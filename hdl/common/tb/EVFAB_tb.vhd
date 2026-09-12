@@ -265,6 +265,42 @@ begin
         sb.check_slv("but EVSTAT still records, being upstream of the gate", rdw,
                      std_logic_vector(to_unsigned(2 ** EV_P, 32)));
 
+        -- GROUP 5: the two ACTION slots, CHTRIG and EVTRIG. Neither holds storage
+        -- (both are sw=w, so IMPL gives them none: hdl/common/regs/REGFILE.md, "A
+        -- write-only field holds nothing"); each is decoded from the raw bus word
+        -- in the clk domain, so this group is the proof that the consumer still
+        -- fires with the flops gone.
+        report "=== GROUP 5: CHTRIG / EVTRIG injection ===" severity note;
+        bus_write(clk, pbus, SLOT_CR, x"00000001");          -- re-enable
+        bus_write(clk, pbus, SLOT_FIRED,  x"000000FF");
+        bus_write(clk, pbus, SLOT_EVSTAT, x"0000FFFF");
+        wait for 6 * PERIOD;
+
+        arm_observer;
+        bus_write(clk, pbus, SLOT_CHTRIG, x"00000001");      -- inject on channel 0
+        wait for 6 * PERIOD;
+        sb.check_bit("CHTRIG injects a firing on channel 0's task", task_seen(3), '1');
+        sb.check_bit("and on no other task", task_seen(5), '0');
+        bus_read(clk, pbus, rdata_out, SLOT_FIRED, rdw);
+        sb.check_slv("an injected firing is recorded in FIRED", rdw, x"00000001");
+        bus_read(clk, pbus, rdata_out, SLOT_EVSTAT, rdw);
+        sb.check_slv("and no event line is claimed to have occurred", rdw, x"00000000");
+        bus_read(clk, pbus, rdata_out, SLOT_CHTRIG, rdw);
+        sb.check_slv("CHTRIG still reads 0 with no storage behind it", rdw, x"00000000");
+
+        bus_write(clk, pbus, SLOT_FIRED, x"000000FF");
+        wait for 6 * PERIOD;
+        arm_observer;
+        bus_write(clk, pbus, SLOT_EVTRIG,
+                  std_logic_vector(to_unsigned(2 ** EV_P, 32)));   -- inject event EV_P
+        wait for 6 * PERIOD;
+        sb.check_bit("EVTRIG injects the event into the crossbar", task_seen(3), '1');
+        bus_read(clk, pbus, rdata_out, SLOT_EVSTAT, rdw);
+        sb.check_slv("and EVSTAT records it as a real occurrence", rdw,
+                     std_logic_vector(to_unsigned(2 ** EV_P, 32)));
+        bus_read(clk, pbus, rdata_out, SLOT_EVTRIG, rdw);
+        sb.check_slv("EVTRIG still reads 0 with no storage behind it", rdw, x"00000000");
+
         wait for 4 * PERIOD;
         sb.report_summary("EVFAB TB");
         tb_done <= true;

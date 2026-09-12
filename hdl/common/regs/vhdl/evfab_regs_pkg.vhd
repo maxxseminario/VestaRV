@@ -87,7 +87,7 @@ package evfab_regs_pkg is
     constant EVFCHTRIG_WORD           : natural := 7;
     constant EVFCHTRIG_ADDR           : natural := 28;
     constant EVFCHTRIG_RESET          : std_logic_vector(31 downto 0) := "00000000000000000000000000000000";
-    constant EVFCHTRIG_IMPL           : std_logic_vector(31 downto 0) := "00000000000000000000000011111111";
+    constant EVFCHTRIG_IMPL           : std_logic_vector(31 downto 0) := "00000000000000000000000000000000";
     constant EVFCHTRIG_MSB            : natural := 7;
     constant EVFCHTRIG_LSB            : natural := 0;
     -- EVFCHTRIG_RESET is the register constant above; this field carries the register name.
@@ -123,7 +123,7 @@ package evfab_regs_pkg is
     constant EVFEVTRIG_WORD           : natural := 11;
     constant EVFEVTRIG_ADDR           : natural := 44;
     constant EVFEVTRIG_RESET          : std_logic_vector(31 downto 0) := "00000000000000000000000000000000";
-    constant EVFEVTRIG_IMPL           : std_logic_vector(31 downto 0) := "00000000000000001111111111111111";
+    constant EVFEVTRIG_IMPL           : std_logic_vector(31 downto 0) := "00000000000000000000000000000000";
     constant EVFEVTRIG_MSB            : natural := 15;
     constant EVFEVTRIG_LSB            : natural := 0;
     -- EVFEVTRIG_RESET is the register constant above; this field carries the register name.
@@ -378,11 +378,11 @@ package evfab_regs_pkg is
         x"000000FF",   -- EVFCHEN
         x"00000000",   -- EVFCHENSET
         x"00000000",   -- EVFCHENCLR
-        x"000000FF",   -- EVFCHTRIG
+        x"00000000",   -- EVFCHTRIG
         x"00000000",   -- EVFFIRED
         x"00000000",   -- EVFOVR
         x"00000000",   -- EVFEVSTAT
-        x"0000FFFF",   -- EVFEVTRIG
+        x"00000000",   -- EVFEVTRIG
         x"00000000",   -- _reserved_12
         x"00000000",   -- _reserved_13
         x"00000000",   -- _reserved_14

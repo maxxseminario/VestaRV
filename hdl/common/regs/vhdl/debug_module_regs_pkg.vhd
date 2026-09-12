@@ -22,7 +22,7 @@ package debug_module_regs_pkg is
     constant DMCONTROL_WORD           : natural := 16;
     constant DMCONTROL_ADDR           : natural := 64;
     constant DMCONTROL_RESET          : std_logic_vector(31 downto 0) := "00000000000000000000000000000000";
-    constant DMCONTROL_IMPL           : std_logic_vector(31 downto 0) := "11010011111111110000000000001101";
+    constant DMCONTROL_IMPL           : std_logic_vector(31 downto 0) := "10000011111111110000000000001001";
     constant DMHALTREQ_MSB            : natural := 31;
     constant DMHALTREQ_LSB            : natural := 31;
     constant DMHALTREQ_RESET          : std_logic_vector(0 downto 0) := "0";
@@ -133,7 +133,7 @@ package debug_module_regs_pkg is
     constant DMCOMMAND_WORD           : natural := 23;
     constant DMCOMMAND_ADDR           : natural := 92;
     constant DMCOMMAND_RESET          : std_logic_vector(31 downto 0) := "00000000000000000000000000000000";
-    constant DMCOMMAND_IMPL           : std_logic_vector(31 downto 0) := "11111111111111111111111111111111";
+    constant DMCOMMAND_IMPL           : std_logic_vector(31 downto 0) := "00000000000000000000000000000000";
     constant DMCOMMAND_MSB            : natural := 31;
     constant DMCOMMAND_LSB            : natural := 0;
     -- DMCOMMAND_RESET is the register constant above; this field carries the register name.
@@ -172,7 +172,7 @@ package debug_module_regs_pkg is
     constant DMCS2_WORD               : natural := 50;
     constant DMCS2_ADDR               : natural := 200;
     constant DMCS2_RESET              : std_logic_vector(31 downto 0) := "00000000000000000000000000000000";
-    constant DMCS2_IMPL               : std_logic_vector(31 downto 0) := "00000000000000000000000001111111";
+    constant DMCS2_IMPL               : std_logic_vector(31 downto 0) := "00000000000000000000000001111101";
     constant DMGROUP_MSB              : natural := 6;
     constant DMGROUP_LSB              : natural := 2;
     constant DMGROUP_RESET            : std_logic_vector(4 downto 0) := "00000";

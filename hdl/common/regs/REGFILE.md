@@ -109,7 +109,7 @@ per block inside the module.
 |---|---|---|---|
 | `sw=rw`, `hw=r`/`na` | 393 / - | `IMPL` | holds the flop; lane write replaces, read returns it |
 | `sw=r`, `hw=w` | 146 | none (outside `IMPL`) | holds nothing; the read comes from `hw_rd` |
-| `sw=w` | 17 | `IMPL` | holds the flop; add the word to `RDTHRU` with `hw_rd = 0` where the register reads 0 |
+| `sw=w` | 17 | none | a COMMAND, not a register: holds nothing whatever its width, reads 0 (`IMPL = 0` already sources the read from `hw_rd`), and the peripheral consumes it on the access that carries it - `wr_pulse` where the field is `singlepulse`, `wr_hit` / `wr_strobe` plus the raw bus `wdata` where it is wider |
 | `hw=w` / `hw=rw` | 194 / 32 | `HWOWN` | permits `hw_we`/`hw_set`/`hw_clr` on that bit. A bit outside `IMPL and HWOWN` gets no hook logic at all, so a hook wired to one would be dropped; the assertion in section "Ownership" says so instead |
 | `hw=na` | 19 | - | software-only; hardware hooks on such a bit assert |
 | `onwrite=woclr` | 69 | `W1C` | `w1c_hit` pulses the bit a 1 was written to; the flag's flop stays with the hardware that sets it |
@@ -124,8 +124,10 @@ express them:
 
 - **`RDTHRU`**, per word. The read value does not come from the module's storage.
   `TIMxVAL` is `sw=rw hw=rw` and stored here as the write staging word, while the
-  read comes from the counter's clock-domain-crossing copy. `DMAxCR`'s
-  `GO`/`ABORT` are `sw=w` and read 0.
+  read comes from the counter's clock-domain-crossing copy. A word that is
+  write-only in its ENTIRETY does not need it: `IMPL = 0` sources the read from
+  `hw_rd` already, and `WDTPASS` / `EVFCHTRIG` / `EVFEVTRIG` keep their `RDTHRU`
+  row only as the file's statement of intent.
 - **`WIDEWR`**, per word. Any enabled lane writes all 32 bits. `TIMxVAL` has no
   byte lanes (`config/rdl.json` says so); every other word merges per lane.
 - **`FULLWR`**, per word. Only a four-lane write (`WEn = "0000"`) is a write to
@@ -326,33 +328,35 @@ event is lost; a synchronous pulse on an async clear is a wider pulse than today
 7. The bench is the oracle. If it does not cover a register, add the case BEFORE
    the migration, so the proof is not hollow.
 
-### Blocks whose description and RTL disagree, and where that lands
+### A write-only field holds nothing (owner decision, 2026-09-11)
 
-Three registers cost storage the RTL never reads: SYSTEM's `WDTPASS` (32 bits, a
-password port), EVFAB's `EVFCHTRIG` (8) and `EVFEVTRIG` (16, both action slots
-decoded in another clock domain). 56 flops. `RDTHRU` keeps their read at 0 and
-each block's RTL consumes the RAW BUS `wdata`, not the storage, so the flops are
-unobservable from either side.
+`rdl_vhdl.storageMask` used to put a `sw=w` field in `IMPL` unless it was
+`singlepulse`, and SystemRDL restricts `singlepulse` to a ONE-BIT field
+(`Field 'EVFCHTRIG' marked as 'singlepulse' shall have width of 1`), so every
+write-only field 2 bits or wider carried a flop software wrote, nobody read and
+nothing drove. The rule is now width-blind: **`sw = w` never reaches `IMPL`.**
 
-**The `.rdl` is not what is wrong** (audited 2026-09-11). All three already say
-`sw = w; hw = r;` -- `system.rdl:300`, `evfab.rdl:180`, `evfab.rdl:225` -- which
-is the truth about software access. The storage comes from the EMITTER:
-`rdl_vhdl.storageMask` puts a `sw=w` field in `IMPL` unless it is `singlepulse`,
-and SystemRDL 2.0 restricts `singlepulse` to a ONE-BIT field, so the repo's only
-vocabulary for "write-only, no storage" cannot reach a field 8, 16 or 32 bits
-wide. The compiler says so outright: `Field 'EVFCHTRIG' marked as 'singlepulse'
-shall have width of 1`.
+It lands in no mask at all rather than in `PULSE`. `PULSE` stays exactly the
+`singlepulse` mask, so the one-bit behaviour is untouched, and spelling a wide
+field as `PULSE` would cost more than it saves: `ACT_ANY` is the union of `W1C`,
+`WOSET`, `WOT` and `PULSE` over every word and sizes the shared `sw1_q` register,
+so a 32-bit `PULSE` row on `WDTPASS` would grow SYSTEM's `sw1_q` from 2 bits to 32
+and turn a 32-flop saving into a 2-flop one. Every consumer in the tree already
+reads the RAW BUS `wdata` on the access that carries it, so no RTL behaviour
+changes.
 
-**And the fix is a frozen-constant change, so it is not a wave-edit.**
-`WDTPASS_IMPL`, `EVFCHTRIG_IMPL` and `EVFEVTRIG_IMPL` are all three carried in
-`platform/common/python/rdl_legacy_constants.json` at their present values
-(`0xFFFFFFFF`, `0xFF`, `0xFFFF`), and `rdl_pkg_vs_legacy_test` grades the emitted
-`<REG>_IMPL` against them. Any correction that deletes the storage fails that
-gate until the frozen file is edited in the same commit, which is the owner's
-call and nobody else's. Measured cost of the correction, for that decision:
-EVFAB 380 -> 356 flop bits (`ghdl --synth`, 0 latches), SYSTEM -32 by the module's
-accounting -- or only -2 if the correction is spelled as a 32-bit `PULSE` mask,
-because `ACT_ANY` would then grow `sw1_q` from 2 bits to 32.
+Seven `_IMPL` values move, each one line in the frozen
+`platform/common/python/rdl_legacy_constants.json`: `WDTPASS` `0xFFFFFFFF -> 0x0`,
+`EVFCHTRIG` `0xFF -> 0x0`, `EVFEVTRIG` `0xFFFF -> 0x0`, `DMAxCR`
+`0x31FF -> 0x3001` (`DMAGO`, `DMAABORT`), and in the unmigrated `debug_module`
+package `DMCONTROL` `0xD3FF000D -> 0x83FF0009`, `DMCOMMAND` `0xFFFFFFFF -> 0x0`,
+`DMCS2` `0x7F -> 0x7D`. Measured with `ghdl --synth --std=08 -fsynopsys
+--latches`, 0 latches throughout: **EVFAB 380 -> 356 flop bits, SYSTEM's register
+file 179 -> 147, DMA 1040 -> 1032; -64 in total.** (SYSTEM is measured on a
+wrapper around `periph_regs` carrying `system_regs_pkg`'s tables, because
+`ghdl --synth` on the whole block aborts with a GHDL bug, before and after alike.)
+`debug_module` does not `use` its package, so its three rows cost no flops today
+and exist so that it cannot adopt one that is wrong.
 
 Shared files a per-block migration must NOT touch: `hdl/common/periph_regs.vhd`,
 `hdl/common/constants.vhd`, `hdl/common/tb/periph_regs_tb.vhd`, this file,

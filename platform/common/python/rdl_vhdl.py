@@ -27,9 +27,11 @@ and per field:
     <FIELD>_RESET               std_logic_vector of the field's own width
 
 `_IMPL` is the mask of bits that hold a software-written flop: a field counts
-when software may write it (`sw` includes w), hardware does not drive it
-(`hw = r`), and it is not a single-pulse strobe. That is the definition the RTL
-uses for its IMPL tables, which is why the two agree bit for bit.
+when software may READ AND write it (`sw = rw`) and hardware does not drive it
+(`hw = r` or `hw = na`). A write-only field (`sw = w`) is a command, not a
+register, and holds nothing whatever its width; see `storageMask` below. That is
+the definition the RTL uses for its IMPL tables, which is why the two agree bit
+for bit.
 """
 
 import os
@@ -38,11 +40,21 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-# The generator access codes whose bits are software-written storage.
-_STORED_ACCESS = ('rw', 'rw0', 'rw1', 'w', 'w0')
+# The generator access codes software may write.
+_STORED_ACCESS = ('rw', 'rw0', 'rw1', 'w', 'w0', 'w1')
 # ... minus the ones hardware owns. A write-1-to-clear flag is set by hardware,
 # so its bit is not a software register bit even though software writes it.
 _HW_OWNED_ACCESS = ('rw0', 'rw1')
+# ... and minus the write-only ones. A `sw = w` field is a COMMAND, not a
+# register: the written pattern is consumed on the access that carries it and a
+# read returns 0, so a flop would be written by software, read by nobody and
+# driven by nothing. SystemRDL already says exactly this for a one-bit field
+# through `singlepulse` ('w1' here), and restricts that property to ONE BIT
+# ("Field 'EVFCHTRIG' marked as 'singlepulse' shall have width of 1"), so width
+# cannot be what decides. The peripheral consumes the field through wr_pulse
+# where the description is `singlepulse`, and through wr_hit / wr_strobe plus the
+# raw bus wdata where it is wider. Owner decision, 2026-09-11.
+_WRITE_ONLY_ACCESS = ('w', 'w0', 'w1')
 
 
 def storageMask(rt):
@@ -55,7 +67,7 @@ def storageMask(rt):
             continue
         if bf.Accessibility in _HW_OWNED_ACCESS:
             continue
-        if bf.Accessibility in ('w', 'w0') and _isSinglePulse(bf):
+        if bf.Accessibility in _WRITE_ONLY_ACCESS:
             continue
         mask |= bf.BitMask
     return mask

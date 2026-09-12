@@ -55,6 +55,28 @@ architecture sim of SYSTEM_tb is
 
     shared variable sb : scoreboard;
 
+    /* ---- independent CRC16 reference values --------------------------------
+       CRC16-CDMA2000 as hdl/myshkin/commune/CRC16.vhd implements it: the LFSR is
+       seeded `(CrcOld(15 downto 8) xor DataIn) & CrcOld(7 downto 0)` (CRC16.vhd:30)
+       and takes eight shift-and-conditional-xor steps against POLYNOMIAL
+       (CRC16.vhd:32-38), with POLYNOMIAL = 0xC857 bound at SYSTEM.vhd:555. MSB
+       first, no input or output reflection, no final xor.
+
+       These three are computed in PYTHON from that description, not by
+       crc16_byte below, so the seed checks are not the bench proving the bench:
+
+           def crc16_byte(b, crc, poly=0xC857):
+               lfsr = ((((crc >> 8) ^ b) & 0xFF) << 8) | (crc & 0xFF)
+               for _ in range(8):
+                   lfsr = ((lfsr << 1) & 0xFFFF) ^ (poly if lfsr & 0x8000 else 0)
+               return lfsr
+           crc16_byte(0xB1, 0xFFFF)                       -> 0x9985
+           crc16_byte(0x77, 0xFF00)                       -> 0xE3C9
+           reduce(crc16_byte, [0x12,0x34,0x56], 0xFFFF)   -> 0xBD38          */
+    constant CRC_B1_FROM_FFFF   : std_logic_vector(15 downto 0) := x"9985";
+    constant CRC_77_FROM_FF00   : std_logic_vector(15 downto 0) := x"E3C9";
+    constant CRC_123456_FROM_FFFF : std_logic_vector(15 downto 0) := x"BD38";
+
 begin
 
     -- Reference clock and oscillators, all free-running from t=0.
@@ -235,21 +257,44 @@ begin
         sb.check_slv("retired slot 11 reads 0 and ignores writes", rdw, x"00000000");
 
         -- GROUP 4: CRC16 engine.
-        -- Writing SYS_CRC_STATE sets first_crc_flag, then bytes go through SYS_CRC_DATA and the accumulated state is compared.
+        -- CRCSTATE is a SEED register: a value written to it is what the next
+        -- CRCDATA byte folds against, and reading it returns the running result.
+        -- Until 2026-09-11 the RTL overwrote the seed with 0xFFFF on that very
+        -- byte, so only a 0xFFFF seed ever reached the engine and no partial CRC
+        -- could be resumed. These checks are the defect's negative: (a) an
+        -- arbitrary seed is used, (b) the no-seed default is still 0xFFFF,
+        -- (c) a second seed mid-stream restarts.
         report "=== GROUP 4: CRC16 ===" severity note;
 
-        -- A CRC_STATE write restarts the chain, and a lane-1-only write does it
-        -- as much as a four-lane one. It is the RESTART that is observable, not
-        -- the seed value: SYSTEM.vhd's CRC arm loads crc_prev with 0xFFFF on the
-        -- first byte after a seed write and only then follows the running state,
-        -- so a seed other than 0xFFFF never reaches the engine. Pre-existing, and
-        -- unchanged by the periph_regs migration.
-        bus_write_lanes(RegSlotSYS_CRC_STATE, "1101", x"0000FF00");
+        -- (b) FIRST, because it is the only point in the run at which no CRCSTATE
+        -- write has yet happened: reset must behave exactly like a 0xFFFF seed,
+        -- and must NOT fold in the reset CRCDATA byte of 0x00.
+        bus_write(clk, pbus, RegSlotSYS_CRC_DATA, x"000000B1");
+        bus_read(clk, pbus, read_data, RegSlotSYS_CRC_STATE, rdw);
+        sb.check_slv("no seed write since reset: the chain starts from 0xFFFF",
+                     rdw(15 downto 0), CRC_B1_FROM_FFFF);
+
+        -- (a) a seed other than 0xFFFF reaches the engine.
+        bus_write(clk, pbus, RegSlotSYS_CRC_STATE, x"0000FF00");
         bus_write(clk, pbus, RegSlotSYS_CRC_DATA, x"00000077");
         bus_read(clk, pbus, read_data, RegSlotSYS_CRC_STATE, rdw);
-        sb.check_slv("a lane-1 CRC_STATE write restarts the chain from 0xFFFF",
-                     rdw(15 downto 0), crc16_byte(x"77", x"FFFF"));
+        sb.check_slv("a 0xFF00 seed is what the next byte folds against",
+                     rdw(15 downto 0), CRC_77_FROM_FF00);
+        -- the negative control: the discarded-seed RTL returned this instead.
+        sb.check_true("... and not the 0xFFFF chain the old RTL forced",
+                      rdw(15 downto 0) /= crc16_byte(x"77", x"FFFF"));
 
+        -- A lane-gated seed write loads only its own byte and still arms the seed.
+        -- crc_prev is left at 0x0000 by the full-word write, so the lane-1 write
+        -- makes it exactly 0xAA00.
+        bus_write(clk, pbus, RegSlotSYS_CRC_STATE, x"00000000");
+        bus_write_lanes(RegSlotSYS_CRC_STATE, "1101", x"0000AA00");
+        bus_write(clk, pbus, RegSlotSYS_CRC_DATA, x"00000077");
+        bus_read(clk, pbus, read_data, RegSlotSYS_CRC_STATE, rdw);
+        sb.check_slv("a lane-1 seed write loads the high byte and seeds with it",
+                     rdw(15 downto 0), crc16_byte(x"77", x"AA00"));
+
+        -- The running chain from the documented 0xFFFF seed, against the Python value.
         bus_write(clk, pbus, RegSlotSYS_CRC_STATE, x"0000FFFF");        -- initial value
         crc := x"FFFF";
         bus_write(clk, pbus, RegSlotSYS_CRC_DATA, x"00000012"); crc := crc16_byte(x"12", crc);
@@ -257,6 +302,40 @@ begin
         bus_write(clk, pbus, RegSlotSYS_CRC_DATA, x"00000056"); crc := crc16_byte(x"56", crc);
         bus_read(clk, pbus, read_data, RegSlotSYS_CRC_STATE, rdw);
         sb.check_slv("CRC16 over {12,34,56} matches model", rdw(15 downto 0), crc);
+        sb.check_slv("CRC16 over {12,34,56} matches the Python reference",
+                     rdw(15 downto 0), CRC_123456_FROM_FFFF);
+
+        -- What the seed is FOR: the same message CRC'd in two chunks, the partial
+        -- state saved and reloaded between them, gives the unsplit answer.
+        bus_write(clk, pbus, RegSlotSYS_CRC_STATE, x"0000FFFF");
+        bus_write(clk, pbus, RegSlotSYS_CRC_DATA, x"00000012");
+        bus_write(clk, pbus, RegSlotSYS_CRC_DATA, x"00000034");
+        bus_read(clk, pbus, read_data, RegSlotSYS_CRC_STATE, rdw);
+        crc := rdw(15 downto 0);                                   -- save the partial state
+        bus_write(clk, pbus, RegSlotSYS_CRC_STATE, x"0000FFFF");   -- an unrelated chain between the chunks
+        bus_write(clk, pbus, RegSlotSYS_CRC_DATA, x"000000EE");
+        bus_write(clk, pbus, RegSlotSYS_CRC_STATE, (31 downto 16 => '0') & crc);   -- reload
+        bus_write(clk, pbus, RegSlotSYS_CRC_DATA, x"00000056");
+        bus_read(clk, pbus, read_data, RegSlotSYS_CRC_STATE, rdw);
+        sb.check_slv("a partial state reloaded mid-message resumes the chain",
+                     rdw(15 downto 0), CRC_123456_FROM_FFFF);
+
+        -- (c) a second seed write mid-stream restarts: the result depends on the
+        -- new seed and on nothing before it.
+        bus_write(clk, pbus, RegSlotSYS_CRC_STATE, x"00001D0F");
+        bus_write(clk, pbus, RegSlotSYS_CRC_DATA, x"000000A5");
+        bus_write(clk, pbus, RegSlotSYS_CRC_DATA, x"0000005A");
+        bus_read(clk, pbus, read_data, RegSlotSYS_CRC_STATE, rdw);
+        crc := rdw(15 downto 0);
+        sb.check_true("a mid-stream chain is not already the restarted value",
+                      crc /= crc16_byte(x"A5", x"3C5A"));
+        bus_write(clk, pbus, RegSlotSYS_CRC_STATE, x"00003C5A");   -- restart mid-stream
+        bus_write(clk, pbus, RegSlotSYS_CRC_DATA, x"000000A5");
+        bus_read(clk, pbus, read_data, RegSlotSYS_CRC_STATE, rdw);
+        sb.check_slv("a second seed write restarts the chain from the new seed",
+                     rdw(15 downto 0), crc16_byte(x"A5", x"3C5A"));
+        sb.check_true("... and carries nothing over from the bytes before it",
+                      rdw(15 downto 0) /= crc16_byte(x"A5", crc));
 
         -- GROUP 5: watchdog timer.
         report "=== GROUP 5: watchdog ===" severity note;

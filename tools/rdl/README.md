@@ -104,7 +104,10 @@ tuple onto these, and raises naming the field when a description declares a
 knowing: `onwrite = woset`/`woclr`/`wot` all reach the generator as `rw1`,
 because the generator's `rw1` says "a written 1 acts", not which direction; and
 `singlepulse` is a ONE-BIT property in SystemRDL 2.0, so a multi-bit command
-field (`DMAGO[4:1]`) is written `sw = w` without it.
+field (`DMAGO[4:1]`) is written `sw = w` without it. Since 2026-09-11 that costs
+nothing: `sw = w` never reaches `_IMPL` whatever the field's width, so a
+write-only field holds no flop and the peripheral consumes it on the access that
+carries it (`hdl/common/regs/REGFILE.md`, "A write-only field holds nothing").
 
 The one place the vocabulary is genuinely short is the register-level *summary*:
 `_AccessSummary` joins the distinct codes of a register's fields with `/`, so
