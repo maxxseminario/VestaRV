@@ -58,6 +58,7 @@ architecture behavioral of TRNG is
     signal regs_q   : reg_arr_t;                        -- the stored words
     signal hw_rd_s  : reg_arr_t;                        -- read source for everything else
     signal acc_s    : std_logic_vector(0 to NWORDS-1);  -- combinational: this slot, now
+    signal rdh_s    : std_logic_vector(0 to NWORDS-1);  -- ... and the access is a read
     signal sr_rd, dr_rd, ht_rd : std_logic_vector(31 downto 0);
 
     signal rct_cutoff: std_logic_vector(7 downto 0);    -- HT.RCTC, sliced out of regs_q
@@ -183,6 +184,8 @@ begin
             regs        => regs_q,
             hw_rd       => hw_rd_s,
             acc_hit     => acc_s,
+            rd_hit      => rdh_s,
+            wr_hit      => open,
             rd_strobe   => open,
             wr_strobe   => open,
             wr_pulse    => open,
@@ -193,7 +196,7 @@ begin
 
     /* A qualifying TRNGxDR read: selected, addressed at DR, WEn = "1111".
 
-       This is the COMBINATIONAL acc_hit and NOT the module's rd_strobe or its
+       This is the module's COMBINATIONAL rd_hit and NOT its rd_strobe or its
        RCLR hook rd_clr, and the reason is the gated bus clock. ClkMem is gated
        by EnMemPeriph in this block's bench and in the myshkin peripheral
        integration, so the access presents exactly ONE rising ClkMem edge and
@@ -201,9 +204,10 @@ begin
        are flops SET on that edge, so a ClkMem-synchronous consumer of either
        lands the consume one whole bus access late, and STROBE_HOLD = true only
        makes it worse by retiring the strobe asynchronously at deselect, before
-       any edge can sample it. acc_hit reproduces the old decode's condition
-       exactly and lands the consume on the edge the read does. */
-    dr_read_acc <= '1' when (acc_s(SLOT_DR) = '1' and WEn = "1111") else '0';
+       any edge can sample it. rd_hit is acc_hit with the module's own
+       WEn = "1111" qualifier, which is the old decode's condition exactly, and
+       it lands the consume on the edge the read does. */
+    dr_read_acc <= rdh_s(SLOT_DR);
 
     /* ------------------------- read-consume + W1C (ClkMem) --------------------
        What is left of the old register-write process: the blind-window mask, the

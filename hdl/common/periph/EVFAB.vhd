@@ -85,7 +85,7 @@ architecture behavioral of EVFAB is
     signal hw_rd_s  : reg_arr_t;                       -- the read source for every word this file does not store
     signal hw_set_s : reg_arr_t;
     signal hw_clr_s : reg_arr_t;
-    signal acc_s    : std_logic_vector(0 to NWORDS-1);  -- combinational: this slot is addressed now
+    signal wrh_s    : std_logic_vector(0 to NWORDS-1);  -- ... and the access is a write that survives wr_inhibit
     signal wr_inh   : std_logic_vector(0 to NWORDS-1);  -- per word: refuse the write
     signal set_word, clr_word : word;                   -- the CHENSET / CHENCLR payload
 
@@ -189,7 +189,7 @@ begin
        touch the same flop.
 
        STROBE_HOLD is false and no strobe output is used: the only bus hook this
-       file takes is acc_hit, which is combinational, so the one asynchronous
+       file takes is wr_hit, which is combinational, so the one asynchronous
        clear in the instance is resetn and this file stays inside its own
        VHDL-93 rule. */
     u_regs: entity work.periph_regs
@@ -222,7 +222,9 @@ begin
             hw_wdata    => open,
             hw_set      => hw_set_s,
             hw_clr      => hw_clr_s,
-            acc_hit     => acc_s,
+            acc_hit     => open,
+            rd_hit      => open,
+            wr_hit      => wrh_s,
             rd_strobe   => open,
             wr_strobe   => open,
             wr_pulse    => open,
@@ -284,13 +286,15 @@ begin
     /* ------------------------- the CHEN aliases -----------------------------
        CHENSET and CHENCLR are set/clear aliases of CHEN, idempotent, and they act
        on the ClkMem edge the write lands on exactly as the case arms did. That is
-       why they take acc_hit, the module's one UNREGISTERED hook, qualified with
-       their own lane: a registered arm would land a cycle later, and ClkMem is a
-       gated bus clock, so the cycle after a select window may not exist. */
+       why they take wr_hit, one of the module's UNREGISTERED hooks: a registered
+       arm would land a cycle later, and ClkMem is a gated bus clock, so the cycle
+       after a select window may not exist. wr_hit already carries the lane rule
+       this block wants, because wr_inh above is WEn(0) on every word, so
+       wr_hit = addressed and WEn(0) = '0' and nothing else. */
     set_word <= (wdata and IMPL(SLOT_CHEN))
-                when (acc_s(SLOT_CHENSET) = '1' and WEn(0) = '0') else (others => '0');
+                when wrh_s(SLOT_CHENSET) = '1' else (others => '0');
     clr_word <= (wdata and IMPL(SLOT_CHEN))
-                when (acc_s(SLOT_CHENCLR) = '1' and WEn(0) = '0') else (others => '0');
+                when wrh_s(SLOT_CHENCLR) = '1' else (others => '0');
 
     hw_set_s <= (SLOT_CHEN => set_word, others => (others => '0'));
     hw_clr_s <= (SLOT_CHEN => clr_word, others => (others => '0'));

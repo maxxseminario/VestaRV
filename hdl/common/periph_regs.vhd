@@ -90,6 +90,16 @@ entity periph_regs is
         -- decode today, and a registered strobe would delay them a cycle.
         acc_hit     : out std_logic_vector(0 to NWORDS-1);
 
+        -- Combinational and DIRECTION-SPLIT, the same cycle: acc_hit further
+        -- qualified by the lanes, exactly as the registered strobes below are
+        -- before they are flopped. rd_hit is the access with WEn = "1111";
+        -- wr_hit is a lane write that survives FULLWR and wr_inhibit. They are
+        -- the hook for a block whose ClkMem is GATED by EnMemPeriph, where the
+        -- access presents one rising edge and no registered strobe is ever
+        -- sampled in time. See REGFILE.md, "Which hook".
+        rd_hit      : out std_logic_vector(0 to NWORDS-1);
+        wr_hit      : out std_logic_vector(0 to NWORDS-1);
+
         rd_strobe   : out std_logic_vector(0 to NWORDS-1);
         wr_strobe   : out std_logic_vector(0 to NWORDS-1);
         wr_pulse    : out word_array(0 to NWORDS-1);   -- PULSE bits written 1
@@ -225,8 +235,8 @@ architecture rtl of periph_regs is
     -- in the tree does.
     signal slot     : natural range 0 to 63;
     signal sel_hit  : std_logic_vector(0 to NWORDS-1);   -- selected and addressed
-    signal wr_hit   : std_logic_vector(0 to NWORDS-1);   -- ... with a lane enabled
-    signal rd_hit   : std_logic_vector(0 to NWORDS-1);   -- ... with WEn = "1111"
+    signal wr_hit_i : std_logic_vector(0 to NWORDS-1);   -- ... with a lane enabled
+    signal rd_hit_i : std_logic_vector(0 to NWORDS-1);   -- ... with WEn = "1111"
     signal lane_en  : word;                              -- per-bit lane enable
     signal any_lane : std_logic;                         -- at least one lane enabled
     signal all_lane : std_logic;                         -- all four enabled, WEn = "0000"
@@ -300,12 +310,12 @@ begin
     dec: for i in 0 to NWORDS-1 generate
         sel_hit(i) <= '1' when EnMemPeriph = '0' and slot = WORD_BASE + i else '0';
         wide: if FULLWR_N(i) = '0' generate
-            wr_hit(i) <= sel_hit(i) and any_lane and not wr_inhibit(i);
+            wr_hit_i(i) <= sel_hit(i) and any_lane and not wr_inhibit(i);
         end generate wide;
         fullw: if FULLWR_N(i) = '1' generate
-            wr_hit(i) <= sel_hit(i) and all_lane and not wr_inhibit(i);
+            wr_hit_i(i) <= sel_hit(i) and all_lane and not wr_inhibit(i);
         end generate fullw;
-        rd_hit(i)  <= sel_hit(i) and not any_lane;
+        rd_hit_i(i) <= sel_hit(i) and not any_lane;
     end generate;
 
     ------------------------------------------------------------------------
@@ -377,10 +387,10 @@ begin
 
         -- The bits this access writes: the enabled lanes, or all 32 on a WIDEWR word.
         gen_lane: if WIDEWR_N(i) = '0' generate
-            wmask(i) <= lane_en when wr_hit(i) = '1' else ZERO32;
+            wmask(i) <= lane_en when wr_hit_i(i) = '1' else ZERO32;
         end generate gen_lane;
         gen_wide: if WIDEWR_N(i) = '1' generate
-            wmask(i) <= ONES32 when wr_hit(i) = '1' else ZERO32;
+            wmask(i) <= ONES32 when wr_hit_i(i) = '1' else ZERO32;
         end generate gen_wide;
 
         sw_nxt(i) <= (stored(i) and not wmask(i)) or (wdata and wmask(i));
@@ -432,7 +442,7 @@ begin
     ------------------------------------------------------------------------
     strobe_clr <= '1' when resetn = '0' or (HOLDB = '1' and EnMemPeriph = '1') else '0';
 
-    wr_any <= '0' when wr_hit = (wr_hit'range => '0') else '1';
+    wr_any <= '0' when wr_hit_i = (wr_hit_i'range => '0') else '1';
 
     strobe_proc: process(ClkMem, strobe_clr)
     begin
@@ -445,8 +455,8 @@ begin
                 wr_q <= (others => '0');
             end if;
             for i in 0 to NWORDS-1 loop
-                if rd_hit(i) = '1' then rd_q(i) <= '1'; end if;
-                if wr_hit(i) = '1' then wr_q(i) <= '1'; end if;
+                if rd_hit_i(i) = '1' then rd_q(i) <= '1'; end if;
+                if wr_hit_i(i) = '1' then wr_q(i) <= '1'; end if;
             end loop;
         end if;
     end process;
@@ -478,6 +488,8 @@ begin
     end generate act;
 
     acc_hit   <= sel_hit;
+    rd_hit    <= rd_hit_i;
+    wr_hit    <= wr_hit_i;
     rd_strobe <= rd_q;
     wr_strobe <= wr_q;
 
