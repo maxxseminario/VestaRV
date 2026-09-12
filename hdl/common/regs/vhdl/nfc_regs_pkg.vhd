@@ -197,8 +197,8 @@ package nfc_regs_pkg is
     constant SLOT_DBG                 : natural := 9;
 
     -- periph_regs tables (hdl/common/periph_regs.vhd), one row per word in slot
-    -- order. Every mask below is a property of this description. RDTHRU, WIDEWR
-    -- and STROBE_HOLD are the entity's own and are set at the instance;
+    -- order. Every mask below is a property of this description. RDTHRU, WIDEWR,
+    -- FULLWR and STROBE_HOLD are the entity's own and are set at the instance;
     -- hdl/common/regs/REGFILE.md says why they cannot come from SystemRDL.
     constant NWORDS                   : natural := 10;
     subtype  reg_arr_t is word_array(0 to NWORDS-1);
@@ -309,7 +309,7 @@ package nfc_regs_pkg is
         x"00000000",   -- NFCxCFG
         x"00000000",   -- NFCxTIM
         x"0003FFFF",   -- NFCxRXST
-        x"00000000",   -- NFCxIDX
+        x"0000003F",   -- NFCxIDX
         x"00000000",   -- NFCxDATA
         x"00000000",   -- NFCxTXCTL
         x"FFFFFFFF"    -- NFCxDBG

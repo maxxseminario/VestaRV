@@ -73,14 +73,44 @@ end entity SPI;
 architecture behavioral of SPI is
 
 
+    -- The bus side is one periph_regs instance driven by spi_regs_pkg's tables;
+    -- see hdl/common/regs/REGFILE.md. SPIxCR, SPIxTX and SPIxFOS are its storage;
+    -- SPIxSR and SPIxRX hold no flop there, because the hardware that sets those
+    -- flags and that fills the receive register owns them, and their pre-latch
+    -- CDC lives below.
+    signal regs_q  : reg_arr_t;
+    signal hw_rd_s : reg_arr_t;
+    signal w1c_s   : reg_arr_t;                        -- a 1 written to a SPIxSR flag
+    signal acc_s   : std_logic_vector(0 to NWORDS-1);  -- combinational: this slot is addressed now
+    signal rd_str  : std_logic_vector(0 to NWORDS-1);
+    signal wr_str  : std_logic_vector(0 to NWORDS-1);
+    signal sr_rd, rx_rd : std_logic_vector(31 downto 0);
+
+    -- SPI1 is built with ENABLE_EXTENDED_MEM = false, where SPIxFOS ignores writes
+    -- and reads 0. The word stays in the table and RDTHRU with hw_rd = 0 is the
+    -- read half; the write half is inert because the only reader of that storage,
+    -- the flash address adder, is inside the ENABLE_EXTENDED_MEM generate and is
+    -- not elaborated. The other option the survey named, holding the word at 0
+    -- through hw_we, is not available: spi.rdl gives SPIxFOS hw = r, so its HWOWN
+    -- row is zero and a hook wired to it would be dropped.
+    function fosRdThru return std_logic_vector is
+        variable r : std_logic_vector(0 to NWORDS-1) := (others => '0');
+    begin
+        if not ENABLE_EXTENDED_MEM then
+            r(RegSlotSPIxFOS) := '1';
+        end if;
+        return r;
+    end function;
+
+    constant SPI_RDTHRU : std_logic_vector(0 to NWORDS-1) := fosRdThru;
+
     -- Register Signals 
-    signal SPIxCR : std_logic_vector(19 downto 0); -- Control Register (extended to 19 for SPIFEN)
     signal SPIxSR : std_logic_vector(2 downto 0); -- Status Register
     signal SPIxSR_ltch : std_logic_vector(2 downto 0); -- Status Register Latched
     signal SPIxRX : std_logic_vector(31 downto 0); -- Receive Register
     signal SPIxRX_ltch : std_logic_vector(31 downto 0); -- Receive Register Latched
-    signal SPIxTX : std_logic_vector(31 downto 0); -- Transmit Register
-    signal SPIxFOS : std_logic_vector(23 downto 0); -- SPI Flash memory address offset (for extended memory)
+    signal SPIxTX : std_logic_vector(31 downto 0); -- Transmit Register (tap of the register file)
+    signal SPIxFOS : std_logic_vector(23 downto 0); -- SPI Flash memory address offset (tap of the register file)
 
 
     -- Register Bit Field Declarations
@@ -102,9 +132,6 @@ architecture behavioral of SPI is
     signal spi_busy : std_logic; -- SPI Busy. '0' = not busy, '1' = busy
     signal spi_tcif : std_logic; -- Transmit Complete Interrupt Flag. '0' = not completed transmission, '1' = completed transmission
     signal spi_txeif : std_logic; -- Transmit Buffer Empty. '0' = not empty, '1' = empty
-
-    -- Memory Map Signals 
-    signal en_addr_periph : natural range 0 to 63; -- Enable Memory Peripheral
 
     -- SPI Master Internal Signals
     signal en_clk_baud_src : std_logic; -- Enable Clock Baud Rate Source
@@ -180,24 +207,29 @@ begin
 
     /* ------------------- Signal Routing ---------------------
        Register Signal Routing
-       SPIxCR Bit Field Assignments */
-        spi_fen     <= SPIxCR(19) when ENABLE_EXTENDED_MEM else '0';
-        spi_mode    <= SPIxCR(18);
-        spi_tx_sb   <= SPIxCR(17);
-        spi_rx_sb   <= SPIxCR(16);
-        spi_br      <= SPIxCR(15 downto 8);
-        spi_en      <= SPIxCR(7);
-        spi_msb     <= SPIxCR(6);
-        spi_tcie    <= SPIxCR(5);
-        spi_teie    <= SPIxCR(4);
-        spi_dl      <= SPIxCR(3 downto 2);
-        spi_cpol    <= SPIxCR(1);
-        spi_cpha    <= SPIxCR(0);
+       SPIxCR, SPIxTX and SPIxFOS come out of the register file; the field
+       positions are spi_regs_pkg's, so no bit literal in this file describes a
+       register. */
+        spi_fen     <= regs_q(RegSlotSPIxCR)(SPIFEN_LSB) when ENABLE_EXTENDED_MEM else '0';
+        spi_mode    <= regs_q(RegSlotSPIxCR)(SPISM_LSB);
+        spi_tx_sb   <= regs_q(RegSlotSPIxCR)(SPITXSB_LSB);
+        spi_rx_sb   <= regs_q(RegSlotSPIxCR)(SPIRXSB_LSB);
+        spi_br      <= regs_q(RegSlotSPIxCR)(SPIBR_MSB downto SPIBR_LSB);
+        spi_en      <= regs_q(RegSlotSPIxCR)(SPIEN_LSB);
+        spi_msb     <= regs_q(RegSlotSPIxCR)(SPIMSB_LSB);
+        spi_tcie    <= regs_q(RegSlotSPIxCR)(SPITCIE_LSB);
+        spi_teie    <= regs_q(RegSlotSPIxCR)(SPITEIE_LSB);
+        spi_dl      <= regs_q(RegSlotSPIxCR)(SPIDL_MSB downto SPIDL_LSB);
+        spi_cpol    <= regs_q(RegSlotSPIxCR)(SPICPOL_LSB);
+        spi_cpha    <= regs_q(RegSlotSPIxCR)(SPICPHA_LSB);
+
+        SPIxTX      <= regs_q(RegSlotSPIxTX)(SPITX_MSB downto SPITX_LSB);
+        SPIxFOS     <= regs_q(RegSlotSPIxFOS)(SPIFOS_MSB downto SPIFOS_LSB);
 
         -- SPIxSR Bit Field Assignments
-        SPIxSR(2) <= spi_busy; -- Busy
-        SPIxSR(1) <= spi_tcif; -- Transmit Complete Interrupt Flag
-        SPIxSR(0) <= spi_txeif; -- Transmit Buffer Empty
+        SPIxSR(SPIBUSY_LSB) <= spi_busy; -- Busy
+        SPIxSR(SPITCIF_LSB) <= spi_tcif; -- Transmit Complete Interrupt Flag
+        SPIxSR(SPITEIF_LSB) <= spi_txeif; -- Transmit Buffer Empty
 
         -- Pad Routing 
         sck_out <= sck; -- SPI Clock Output
@@ -710,117 +742,78 @@ begin
     end process;
 
     --  Memory Logic ---------------------------
-    en_addr_periph <= slv2uint(addr_periph) when en_mem = '0' else 0; -- Enable Memory Peripheral based on address
 
-    -- Register Write Process 
-    reg_write: process(resetn, clk_mem, en_mem, clr_start_tx)
+    -- The two words the register file does not store: the status and receive
+    -- snapshots, re-inverted here.
+    sr_rd <= (31 downto SPIxSR_ltch'high + 1 => '0') & (not SPIxSR_ltch);
+    rx_rd <= not SPIxRX_ltch;
+
+    hw_rd_s <= (RegSlotSPIxSR => sr_rd,
+                RegSlotSPIxRX => rx_rd,
+                others        => (others => '0'));
+
+    -- STROBE_HOLD is true: every strobe this block consumes reaches an
+    -- ASYNCHRONOUS clear in a gated baud or slave-sck domain (the four flag
+    -- processes below), so it has to be a level held for the whole access and not
+    -- a one-clk_mem pulse -- which is byte for byte what the clr_spi_* signals of
+    -- the deleted reg_write process were, retired on `en_mem = '1'`.
+    -- No WIDEWR: every word here merges per byte lane, as the case decode did.
+    u_regs: entity work.periph_regs
+        generic map (
+            NWORDS      => NWORDS,
+            RSTVAL      => RSTVAL,
+            IMPL        => IMPL,
+            W1C         => W1C,
+            WOSET       => WOSET,
+            WOT         => WOT,
+            PULSE       => PULSE,
+            RCLR        => RCLR,
+            HWOWN       => HWOWN,
+            RDTHRU      => SPI_RDTHRU,
+            STROBE_HOLD => true)
+        port map (
+            ClkMem      => clk_mem,
+            resetn      => resetn,
+            EnMemPeriph => en_mem,
+            WEn         => wen,
+            MABPart     => addr_periph,
+            wdata       => write_data,
+            rdata_out   => read_data,
+            regs        => regs_q,
+            hw_rd       => hw_rd_s,
+            acc_hit     => acc_s,
+            rd_strobe   => rd_str,
+            wr_strobe   => wr_str,
+            wr_pulse    => open,
+            w1c_hit     => w1c_s,
+            woset_hit   => open,
+            wot_hit     => open,
+            rd_clr      => open);
+
+    -- The transmit-empty flag retires only on a written 1 to its own SR bit.
+    clr_spi_teif <= w1c_s(RegSlotSPIxSR)(SPITEIF_LSB);
+
+    -- The transmit-complete flag retires on a written 1 to its SR bit OR on ANY
+    -- access to SPIxRX, a read as much as a write. That is a read side effect on a
+    -- DIFFERENT register, so it is a hook here rather than an onread property there.
+    clr_spi_tcif <= w1c_s(RegSlotSPIxSR)(SPITCIF_LSB)
+                    or rd_str(RegSlotSPIxRX) or wr_str(RegSlotSPIxRX);
+
+    -- A write to SPIxTX launches a transfer on the edge it lands, so the set term
+    -- takes the COMBINATIONAL acc_hit qualified by this block's own wen, exactly as
+    -- the raw decode did; the registered wr_strobe would slip the launch a cycle.
+    -- Any enabled lane arms it, and in flash mode the launch belongs to the flash
+    -- FSM instead. clr_start_tx is asynchronous and wins over a coincident set,
+    -- which is the order the deleted reg_write process wrote its two branches in.
+    start_tx_proc: process(resetn, clk_mem, clr_start_tx)
     begin
-        if resetn = '0' then
-            SPIxCR <= (others => '0'); -- Reset Control Register
-            SPIxTX <= (others => '0'); -- Reset Transmit Register
-            SPIxFOS <= (others => '0'); -- Reset Flash Offset Register
-        elsif rising_edge(clk_mem) then
-            if en_mem = '0' then 
-                case en_addr_periph is 
-                    when RegSlotSPIxSR =>
-                        if wen(0) = '0' then
-                            if write_data(0) = '1' then 
-                                clr_spi_teif <= '1'; -- Clear Transmit Empty Interrupt Flag
-                            end if;
-                            if write_data(1) = '1' then 
-                                clr_spi_tcif <= '1'; -- Clear Transmit Complete Interrupt Flag
-                            end if;
-                        end if;
-                    when RegSlotSPIxCR =>
-                        if wen(0) = '0' then
-                            SPIxCR(7 downto 0) <= write_data(7 downto 0); 
-                        end if;
-                        if wen(1) = '0' then
-                            SPIxCR(15 downto 8) <= write_data(15 downto 8);
-                        end if;
-                        if wen(2) = '0' then
-                            SPIxCR(19 downto 16) <= write_data(19 downto 16);
-                        end if;
-                    when RegSlotSPIxTX =>
-                        -- Writing to TX register only starts normal transmission when not in flash mode
-                        if wen(0) = '0' then
-                            SPIxTX(7 downto 0) <= write_data(7 downto 0);
-                            if spi_fen = '0' or not ENABLE_EXTENDED_MEM then
-                                start_tx <= '1';
-                            end if;
-                        end if;
-                        if wen(1) = '0' then
-                            SPIxTX(15 downto 8) <= write_data(15 downto 8);
-                            if spi_fen = '0' or not ENABLE_EXTENDED_MEM then
-                                start_tx <= '1';
-                            end if;
-                        end if;
-                        if wen(2) = '0' then
-                            SPIxTX(23 downto 16) <= write_data(23 downto 16);
-                            if spi_fen = '0' or not ENABLE_EXTENDED_MEM then
-                                start_tx <= '1';
-                            end if;
-                        end if;
-                        if wen(3) = '0' then
-                            SPIxTX(31 downto 24) <= write_data(31 downto 24);
-                            if spi_fen = '0' or not ENABLE_EXTENDED_MEM then
-                                start_tx <= '1';
-                            end if;
-                        end if;
-                    when RegSlotSPIxRX =>
-                        clr_spi_tcif <= '1'; -- Clear Transmit Complete Interrupt Flag when reading RX register
-                    when RegSlotSPIxFOS =>
-                        if ENABLE_EXTENDED_MEM then
-                            if wen(0) = '0' then
-                                SPIxFOS(7 downto 0) <= write_data(7 downto 0);
-                            end if;
-                            if wen(1) = '0' then
-                                SPIxFOS(15 downto 8) <= write_data(15 downto 8);
-                            end if;
-                            if wen(2) = '0' then
-                                SPIxFOS(23 downto 16) <= write_data(23 downto 16);
-                            end if;
-                        end if;
-                    when others =>
-                        null; -- No action for other addresses
-                end case;
-            end if;
-        end if;
-
-        -- Latch signals 
         if resetn = '0' or clr_start_tx = '1' then
             start_tx <= '0'; -- Clear Start Transmit Signal
-        end if;
-        if resetn = '0' or en_mem = '1' then
-            clr_spi_teif <= '0'; -- Clear Transmit Empty Interrupt Flag
-            clr_spi_tcif <= '0'; -- Clear Transmit Complete Interrupt Flag
-        end if;
-    end process;
-
-
-    -- Register Read Process (Synchronous Read)
-    process(clk_mem)
-    begin
-        if rising_edge(clk_mem) then
-            -- Latch Status Register
-            case en_addr_periph is
-                when RegSlotSPIxSR =>
-                    read_data <= (31 downto SPIxSR'high + 1 => '0') & (not SPIxSR_ltch);
-                when RegSlotSPIxRX =>
-                    read_data <= (not SPIxRX_ltch); -- RX register is read as 8-bit only, upper bits are 0
-                when RegSlotSPIxTX =>
-                    read_data <= SPIxTX;
-                when RegSlotSPIxCR =>
-                    read_data <= (31 downto SPIxCR'high + 1 => '0') & SPIxCR;
-                when RegSlotSPIxFOS =>
-                    if ENABLE_EXTENDED_MEM then
-                        read_data <= (31 downto SPIxFOS'high + 1 => '0') & SPIxFOS;
-                    else
-                        read_data <= (others => '0');
-                    end if;
-                when others =>
-                    read_data <= (others => '0');
-            end case;
+        elsif rising_edge(clk_mem) then
+            if acc_s(RegSlotSPIxTX) = '1' and wen /= "1111"
+               and (spi_fen = '0' or not ENABLE_EXTENDED_MEM) then
+                start_tx <= '1';
+            end if;
         end if;
     end process;
 

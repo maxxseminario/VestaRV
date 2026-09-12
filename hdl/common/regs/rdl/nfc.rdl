@@ -341,11 +341,15 @@ reg NFCxIDX_t {
         encode = nfcxidx_nfcidxainc_e;
         desc = "Auto-increment. When set, NFCIDX increments after each NFCxDATA access (streaming).";
     } NFCIDXAINC[6:6];
+    // hw = rw, and it is not decoration: the auto-increment is a HARDWARE write to
+    // this field. The decode used to hold the flop and increment it in its own
+    // process; periph_regs holds it now and takes the increment on hw_we, which it
+    // permits only on a bit that is both software storage and hardware owned.
     field {
-        sw = rw; hw = r;
+        sw = rw; hw = rw;
         reset = 6'h0;
         vesta_access = "rw";
-        desc = "Byte index (0 to 63) into the selected window.";
+        desc = "Byte index (0 to 63) into the selected window. Hardware advances it by one modulo 64 after every NFCxDATA access while NFCIDXAINC = 1.";
     } NFCIDX[5:0];
 };
 

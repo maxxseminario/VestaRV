@@ -114,6 +114,7 @@ architecture behav of MCU is
     component GPIO
         generic (
             num_pins        : natural;
+            NUM_AFS         : natural := 8;   -- alternate-function planes; GPIO.vhd takes this as a generic so it can drop `use work.MemoryMap.all`
             PadOUTPosLogic  : boolean;
             PadDIRPosLogic  : boolean;
             PadRENPosLogic  : boolean;
@@ -1014,6 +1015,7 @@ begin
     gpio0: GPIO
         generic map (
             num_pins        => 8,
+            NUM_AFS         => GPIO_NUM_AFS,
             PadOUTPosLogic  => true, -- Configured such that setting PxOUT to '1' will drive the output of the pad HIGH
             PadDIRPosLogic  => false, -- Configured such that setting PxDIR to '1' will set the pad to OUTPUT mode
             PadRENPosLogic  => false, -- Configured such that setting PxREN to '1' will enable the pad pullup/pulldown resistor
@@ -1051,6 +1053,7 @@ begin
     gpio1: GPIO
         generic map (
             num_pins        => 8,
+            NUM_AFS         => GPIO_NUM_AFS,
             PadOUTPosLogic  => true, -- Configured such that setting PxOUT to '1' will drive the output of the pad HIGH
             PadDIRPosLogic  => false, -- Configured such that setting PxDIR to '1' will set the pad to OUTPUT mode
             PadRENPosLogic  => false, -- Configured such that setting PxREN to '1' will enable the pad pullup/pulldown resistor
@@ -1087,6 +1090,7 @@ begin
     gpio2: GPIO 
         generic map (
             num_pins        => 8,
+            NUM_AFS         => GPIO_NUM_AFS,
             PadOUTPosLogic  => true, -- Configured such that setting PxOUT to '1' will drive the output of the pad HIGH
             PadDIRPosLogic  => false, -- Configured such that setting PxDIR to '1' will set the pad to OUTPUT mode
             PadRENPosLogic  => false, -- Configured such that setting PxREN to '1' will enable the pad pullup/pulldown resistor
@@ -1123,6 +1127,7 @@ begin
     gpio3: GPIO 
         generic map (
             num_pins        => 8,
+            NUM_AFS         => GPIO_NUM_AFS,
             PadOUTPosLogic  => true, -- Configured such that setting PxOUT to '1' will drive the output of the pad HIGH
             PadDIRPosLogic  => false, -- Configured such that setting PxDIR to '1' will set the pad to OUTPUT mode
             PadRENPosLogic  => false, -- Configured such that setting PxREN to '1' will enable the pad pullup/pulldown resistor

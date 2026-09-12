@@ -149,9 +149,26 @@ package gpio_regs_pkg is
     constant PxTASK_LSB               : natural := 0;
     -- PxTASK_RESET is the register constant above; this field carries the register name.
 
+    -- GPIO.vhd's own decode identifiers: the word each register is
+    -- decoded at, spelled the way that file already spells it, so adopting this
+    -- package is a context clause plus a deletion and no assignment moves.
+    constant RegSlotPxIN              : natural := 0;
+    constant RegSlotPxOUT             : natural := 1;
+    constant RegSlotPxOUTS            : natural := 2;
+    constant RegSlotPxOUTC            : natural := 3;
+    constant RegSlotPxOUTT            : natural := 4;
+    constant RegSlotPxDIR             : natural := 5;
+    constant RegSlotPxIF              : natural := 6;
+    constant RegSlotPxIES             : natural := 7;
+    constant RegSlotPxIE              : natural := 8;
+    constant RegSlotPxSEL             : natural := 9;
+    constant RegSlotPxREN             : natural := 10;
+    constant RegSlotPxAFS             : natural := 11;
+    constant RegSlotPxTASK            : natural := 12;
+
     -- periph_regs tables (hdl/common/periph_regs.vhd), one row per word in slot
-    -- order. Every mask below is a property of this description. RDTHRU, WIDEWR
-    -- and STROBE_HOLD are the entity's own and are set at the instance;
+    -- order. Every mask below is a property of this description. RDTHRU, WIDEWR,
+    -- FULLWR and STROBE_HOLD are the entity's own and are set at the instance;
     -- hdl/common/regs/REGFILE.md says why they cannot come from SystemRDL.
     constant NWORDS                   : natural := 13;
     subtype  reg_arr_t is word_array(0 to NWORDS-1);

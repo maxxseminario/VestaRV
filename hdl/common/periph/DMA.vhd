@@ -9,6 +9,10 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.std_logic_arith.all;
 use ieee.std_logic_unsigned.all;
+library work;
+use work.constants.all;
+-- Word offsets, field ranges, resets and implemented-bit masks: generated from hdl/common/regs/rdl/dma.rdl. This block decoded a bare integer word index, so adopting the package is a body rewrite and not a context clause.
+use work.dma_regs_pkg.all;
 
 entity DMA is
     generic (
@@ -82,10 +86,24 @@ architecture behavioral of DMA is
                          M_WR_REQ, M_WR_CAP, M_WR_GAP, M_CLR);
     signal dstate : t_dma_state;
 
-    -- ---- register-file storage (ClkMem domain) ----------------------------
-    signal dmaen       : std_logic;                       -- DMA0CR[0]
-    signal doneie      : std_logic;                       -- DMA0CR[12]
-    signal errie       : std_logic;                       -- DMA0CR[13]
+    /* ---- register file (ClkMem domain) ------------------------------------
+       The bus side is one periph_regs instance driven by dma_regs_pkg's tables; see
+       hdl/common/regs/REGFILE.md. Twenty words: the DMA0CR enable and IE bits, the
+       four {SRC,DST,LEN,CFG} stores and the DMA0CRC seed are its storage; DMA0SR
+       holds no flop there, and DMA0CR's GO/ABORT, the four LEN readbacks and
+       DMA0CRC read through hw_rd rather than out of it. */
+    signal regs_q      : reg_arr_t;
+    signal hw_rd_s     : reg_arr_t;
+    signal acc_s       : std_logic_vector(0 to NWORDS-1);  -- combinational: this word is addressed now
+    signal cr_hit      : std_logic;                        -- lane-0 write of DMA0CR
+    signal sr_hit      : std_logic;                        -- lane-0 write of DMA0SR
+    signal crc_hit     : std_logic;                        -- lane-0 write of DMA0CRC
+    signal cr_rd, sr_rd, crc_rd : std_logic_vector(31 downto 0);
+
+    -- Taps of the stored words, so the engine below reads the same names it always did.
+    signal dmaen       : std_logic;                       -- DMA0CR.DMAEN
+    signal doneie      : std_logic;                       -- DMA0CR.DMADONEIE
+    signal errie       : std_logic;                       -- DMA0CR.DMAERRIE
     signal src_reg     : slv32_arr;                        -- programmed SRC (full readback)
     signal dst_reg     : slv32_arr;                        -- programmed DST (full readback)
     signal len_reg     : slv32_arr;                        -- programmed LEN seed
@@ -96,7 +114,48 @@ architecture behavioral of DMA is
     signal clr_done_tgl: sl_arr;                           -- W1C CHnDONE toggles
     signal clr_err_tgl : sl_arr;                           -- W1C CHnERR toggles
     signal crc_wr_tgl  : std_logic;                        -- DMA0CRC seed-commit toggle
-    signal dma_slot    : natural range 0 to 63;            -- decoded word slot
+
+    -- Word indices of one channel's four registers, from the package's own constants.
+    function wSrc(ch : natural) return natural is begin return DMAxC0SRC_WORD + 4 * ch; end function;
+    function wDst(ch : natural) return natural is begin return DMAxC0DST_WORD + 4 * ch; end function;
+    function wLen(ch : natural) return natural is begin return DMAxC0LEN_WORD + 4 * ch; end function;
+    function wCfg(ch : natural) return natural is begin return DMAxC0CFG_WORD + 4 * ch; end function;
+
+    /* RDTHRU, per word. DMA0CR's GO and ABORT are commands and read 0; the four LEN
+       words read the engine's REMAINING counter, not the seed; DMA0CRC reads the
+       accumulator, whose single owner is the engine. And every register of a channel
+       above NCH reads 0, which is what the deleted read mux's `if ch < NCH` said:
+       periph_regs has no per-word write inhibit, so those words still take a write,
+       but nothing reads the storage and the read is forced to zero here. */
+    function dmaRdThru return std_logic_vector is
+        variable r : std_logic_vector(0 to NWORDS-1) := (others => '0');
+    begin
+        r(DMAxCR_WORD)  := '1';
+        r(DMAxCRC_WORD) := '1';
+        for ch in 0 to 3 loop
+            r(wLen(ch)) := '1';
+            if ch >= NCH then
+                r(wSrc(ch)) := '1';
+                r(wDst(ch)) := '1';
+                r(wCfg(ch)) := '1';
+            end if;
+        end loop;
+        return r;
+    end function;
+
+    constant DMA_RDTHRU : std_logic_vector(0 to NWORDS-1) := dmaRdThru;
+
+    -- Every word takes a write from any enabled lane and takes it whole, which is
+    -- what the deleted decode's one `if WEn(0) = '0'` per slot plus a full-word
+    -- assignment said for every access that carries lane 0.
+    constant DMA_WIDEWR : std_logic_vector(0 to NWORDS-1) := (others => '1');
+
+    -- The DMA0CR bits a read returns: the enable and the two IE bits. GO and ABORT
+    -- are software storage the description declares, and they read 0.
+    constant CR_RD_MASK : word := (DMAERRIE_LSB  => '1',
+                                   DMADONEIE_LSB => '1',
+                                   DMAEN_LSB     => '1',
+                                   others        => '0');
 
     -- ---- busy 2-FF into ClkMem (launch suppress) --------------------------
     signal busy_c1, busy_c2 : sl_arr;
@@ -156,8 +215,20 @@ architecture behavioral of DMA is
 begin
 
     -- ------------------------- Signal Routing ---------------------------------
-    -- slot decode: an EnMemPeriph-qualified LEVEL, never an edge.
-    dma_slot <= conv_integer(MABPart) when EnMemPeriph = '0' else 0;
+    -- The stored words, as the names the engine below already reads. The field
+    -- positions are dma_regs_pkg's, so no bit literal in this file describes a
+    -- register.
+    dmaen        <= regs_q(DMAxCR_WORD)(DMAEN_LSB);
+    doneie       <= regs_q(DMAxCR_WORD)(DMADONEIE_LSB);
+    errie        <= regs_q(DMAxCR_WORD)(DMAERRIE_LSB);
+    crc_seed_reg <= regs_q(DMAxCRC_WORD)(DMACRC_MSB downto DMACRC_LSB);
+
+    chan_taps: for ch in 0 to 3 generate
+        src_reg(ch) <= regs_q(wSrc(ch));
+        dst_reg(ch) <= regs_q(wDst(ch));
+        len_reg(ch) <= regs_q(wLen(ch));
+        cfg_reg(ch) <= regs_q(wCfg(ch))(DMAC0CRCEN_MSB downto DMAC0SINC_LSB);
+    end generate;
 
     -- master-port registered outputs (depth-0 slice 4)
     m_req   <= m_req_r;
@@ -187,121 +258,114 @@ begin
     u_crc2: CRC16 port map (DataIn => m_rdata(23 downto 16), CrcOld => crc2,    CrcOut => crc3);
     u_crc3: CRC16 port map (DataIn => m_rdata(31 downto 24), CrcOld => crc3,    CrcOut => crc4);
 
-    /* ------------------------- register write (ClkMem) ------------------------
-       Rising ClkMem, qualified by EnMemPeriph='0'; every write is lane-0 qualified, since a normal word or low store asserts lane 0.
-       CHnGO flips go_tgl(ch) unless DMAEN=0 or the channel is already busy; CHnABORT, the SR W1C bits and the CRC seed commit flip their own toggles, and writes to ch>=NCH are dropped. */
-    reg_write: process(resetn, ClkMem)
-        variable ch  : integer;
-        variable fld : integer;
+    /* ------------------------- register file (ClkMem) -------------------------
+       The case decode, the reset branch and the registered read mux are one
+       periph_regs instance. What is left here is the four words it cannot serve
+       from storage. */
+    cr_rd  <= regs_q(DMAxCR_WORD) and CR_RD_MASK;
+    sr_rd  <= (31 downto DMAACTIVECH_MSB + 1 => '0') & activech
+              & err_flag(3) & err_flag(2) & err_flag(1) & err_flag(0)
+              & done_flag(3) & done_flag(2) & done_flag(1) & done_flag(0)
+              & busy_any;
+    crc_rd <= (31 downto DMACRC_MSB + 1 => '0') & crc_acc;
+
+    -- LEN reads the engine's remaining counter; a channel above NCH reads 0 in
+    -- every one of its four words, which DMA_RDTHRU forces with this all-zero row.
+    hw_rd_map: process(cr_rd, sr_rd, crc_rd, len_work)
+    begin
+        hw_rd_s <= (others => (others => '0'));
+        hw_rd_s(DMAxCR_WORD)  <= cr_rd;
+        hw_rd_s(DMAxSR_WORD)  <= sr_rd;
+        hw_rd_s(DMAxCRC_WORD) <= crc_rd;
+        for ch in 0 to 3 loop
+            if ch < NCH then
+                hw_rd_s(wLen(ch)) <= len_work(ch);
+            end if;
+        end loop;
+    end process;
+
+    -- STROBE_HOLD is true: ClkMem is GATED and ticks once per access, so a strobe
+    -- that retired on the next ClkMem edge would sit asserted until the next bus
+    -- cycle. Nothing here consumes one, though: every command below flips a toggle
+    -- and therefore needs the edge the write lands on, which is acc_hit's.
+    u_regs: entity work.periph_regs
+        generic map (
+            NWORDS      => NWORDS,
+            RSTVAL      => RSTVAL,
+            IMPL        => IMPL,
+            W1C         => W1C,
+            WOSET       => WOSET,
+            WOT         => WOT,
+            PULSE       => PULSE,
+            RCLR        => RCLR,
+            HWOWN       => HWOWN,
+            RDTHRU      => DMA_RDTHRU,
+            WIDEWR      => DMA_WIDEWR,
+            STROBE_HOLD => true)
+        port map (
+            ClkMem      => ClkMem,
+            resetn      => resetn,
+            EnMemPeriph => EnMemPeriph,
+            WEn         => WEn,
+            MABPart     => MABPart,
+            wdata       => wdata,
+            rdata_out   => rdata_out,
+            regs        => regs_q,
+            hw_rd       => hw_rd_s,
+            acc_hit     => acc_s,
+            rd_strobe   => open,
+            wr_strobe   => open,
+            wr_pulse    => open,
+            w1c_hit     => open,
+            woset_hit   => open,
+            wot_hit     => open,
+            rd_clr      => open);
+
+    /* ------------------------- commands (ClkMem) ------------------------------
+       The five toggles the register file cannot hold: CHnGO, CHnABORT, the two SR
+       write-1-to-clear requests and the CRC seed commit. Each has to FLIP on the
+       ClkMem edge the write lands on, and ClkMem is gated to one edge per access,
+       so a registered wr_pulse or w1c_hit would reach no second edge to flip on and
+       the event would be lost. They take the combinational acc_hit qualified by
+       this block's own WEn(0) and wdata instead, which is the deleted decode
+       verbatim: CHnGO is suppressed on DMAEN = 0 in the SAME written word or on a
+       busy channel, and writes to a channel above NCH are dropped. */
+    cr_hit  <= acc_s(DMAxCR_WORD)  and not WEn(0);
+    sr_hit  <= acc_s(DMAxSR_WORD)  and not WEn(0);
+    crc_hit <= acc_s(DMAxCRC_WORD) and not WEn(0);
+
+    commands: process(resetn, ClkMem)
     begin
         if resetn = '0' then
-            dmaen        <= '0';
-            doneie       <= '0';
-            errie        <= '0';
-            src_reg      <= (others => (others => '0'));
-            dst_reg      <= (others => (others => '0'));
-            len_reg      <= (others => (others => '0'));
-            cfg_reg      <= (others => (others => '0'));
-            crc_seed_reg <= X"FFFF";
             go_tgl       <= (others => '0');
             abort_tgl    <= (others => '0');
             clr_done_tgl <= (others => '0');
             clr_err_tgl  <= (others => '0');
             crc_wr_tgl   <= '0';
         elsif rising_edge(ClkMem) then
-            if EnMemPeriph = '0' then
-                if dma_slot = 0 then
-                    -- DMA0CR (lane-0 qualified; bits up to 13 read under a word store)
-                    if WEn(0) = '0' then
-                        dmaen  <= wdata(0);
-                        doneie <= wdata(12);
-                        errie  <= wdata(13);
-                        for ch in 0 to 3 loop
-                            if ch < NCH then
-                                -- CHnGO[4:1]: launch suppressed on DMAEN=0 or busy
-                                if wdata(1 + ch) = '1' and wdata(0) = '1'
-                                   and busy_sync(ch) = '0' then
-                                    go_tgl(ch) <= not go_tgl(ch);
-                                end if;
-                                -- CHnABORT[8:5]: orderly-stop request
-                                if wdata(5 + ch) = '1' then
-                                    abort_tgl(ch) <= not abort_tgl(ch);
-                                end if;
-                            end if;
-                        end loop;
-                    end if;
-                elsif dma_slot = 1 then
-                    -- DMA0SR W1C: CHnDONE[4:1], CHnERR[8:5]; BUSY/ACTIVECH ro.
-                    if WEn(0) = '0' then
-                        for ch in 0 to 3 loop
-                            if ch < NCH then
-                                if wdata(1 + ch) = '1' then
-                                    clr_done_tgl(ch) <= not clr_done_tgl(ch);
-                                end if;
-                                if wdata(5 + ch) = '1' then
-                                    clr_err_tgl(ch) <= not clr_err_tgl(ch);
-                                end if;
-                            end if;
-                        end loop;
-                    end if;
-                elsif dma_slot >= 2 and dma_slot <= 17 then
-                    -- per-channel {SRC,DST,LEN,CFG} stores (full word, lane-0 qual)
-                    ch  := (dma_slot - 2) / 4;
-                    fld := (dma_slot - 2) mod 4;
-                    if ch < NCH and WEn(0) = '0' then
-                        case fld is
-                            when 0      => src_reg(ch) <= wdata;
-                            when 1      => dst_reg(ch) <= wdata;
-                            when 2      => len_reg(ch) <= wdata;
-                            when others => cfg_reg(ch) <= wdata(7 downto 0);
-                        end case;
-                    end if;
-                elsif dma_slot = 18 then
-                    -- DMA0CRC seed: stage the value and flip the commit toggle
-                    if WEn(0) = '0' then
-                        crc_seed_reg <= wdata(15 downto 0);
-                        crc_wr_tgl   <= not crc_wr_tgl;
-                    end if;
-                else
-                    null;   -- DESC (slot 19) writes ignored; slots >=20 no effect
-                end if;
-            end if;
-        end if;
-    end process;
-
-    /* ------------------------- register read (ClkMem) -------------------------
-       Registered read mux on rising ClkMem over data already in the mclk domain: no pre-latch, no bridge.
-       CHnGO/CHnABORT read 0 (self-clearing commands), LEN reads the WORKING remaining counter, and channel slots for ch>=NCH, DESC and slots >=20 read 0. */
-    reg_read: process(ClkMem)
-        variable ch  : integer;
-        variable fld : integer;
-    begin
-        if rising_edge(ClkMem) then
-            if dma_slot = 0 then
-                rdata_out <= (31 downto 14 => '0') & errie & doneie
-                             & "00000000000" & dmaen;
-            elsif dma_slot = 1 then
-                rdata_out <= (31 downto 12 => '0') & activech
-                             & err_flag(3) & err_flag(2) & err_flag(1) & err_flag(0)
-                             & done_flag(3) & done_flag(2) & done_flag(1) & done_flag(0)
-                             & busy_any;
-            elsif dma_slot >= 2 and dma_slot <= 17 then
-                ch  := (dma_slot - 2) / 4;
-                fld := (dma_slot - 2) mod 4;
+            for ch in 0 to 3 loop
                 if ch < NCH then
-                    case fld is
-                        when 0      => rdata_out <= src_reg(ch);
-                        when 1      => rdata_out <= dst_reg(ch);
-                        when 2      => rdata_out <= len_work(ch);
-                        when others => rdata_out <= (31 downto 8 => '0') & cfg_reg(ch);
-                    end case;
-                else
-                    rdata_out <= (others => '0');
+                    -- CHnGO: launch suppressed on DMAEN=0 or busy
+                    if cr_hit = '1' and wdata(DMAGO_LSB + ch) = '1'
+                       and wdata(DMAEN_LSB) = '1' and busy_sync(ch) = '0' then
+                        go_tgl(ch) <= not go_tgl(ch);
+                    end if;
+                    -- CHnABORT: orderly-stop request
+                    if cr_hit = '1' and wdata(DMAABORT_LSB + ch) = '1' then
+                        abort_tgl(ch) <= not abort_tgl(ch);
+                    end if;
+                    -- DMA0SR W1C: CHnDONE, CHnERR; BUSY and ACTIVECH ignore writes
+                    if sr_hit = '1' and wdata(DMADONE_LSB + ch) = '1' then
+                        clr_done_tgl(ch) <= not clr_done_tgl(ch);
+                    end if;
+                    if sr_hit = '1' and wdata(DMAERR_LSB + ch) = '1' then
+                        clr_err_tgl(ch) <= not clr_err_tgl(ch);
+                    end if;
                 end if;
-            elsif dma_slot = 18 then
-                rdata_out <= (31 downto 16 => '0') & crc_acc;
-            else
-                rdata_out <= (others => '0');   -- DESC (19) and slots >=20 read 0
+            end loop;
+            -- DMA0CRC: the register file stages the seed, this flips the commit toggle
+            if crc_hit = '1' then
+                crc_wr_tgl <= not crc_wr_tgl;
             end if;
         end if;
     end process;

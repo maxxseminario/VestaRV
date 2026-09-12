@@ -26,11 +26,31 @@ entity periph_regs is
         RCLR        : word_array;   -- a read retires      (onread = rclr)
         HWOWN       : word_array;   -- bits hardware drives (hw = w or rw)
 
-        -- The RTL's own three, which SystemRDL cannot express. Either may be
-        -- left at "" for all-zero; see REGFILE.md.
+        -- In ADDITION to HWOWN: stored bits this block's own RTL may drive
+        -- through the hooks because the driver is ANOTHER WORD of the same
+        -- register file -- a set/clear/toggle alias -- and not hardware.
+        -- SystemRDL has no way to say that, so it is the RTL's. EVFAB's
+        -- EVFCHENSET/EVFCHENCLR onto EVFCHEN are the case; GPIO's PxOUT needs
+        -- none only because the event fabric really does drive that word.
+        HWALIAS     : word_array := (0 to 0 => (others => '0'));
+
+        -- The RTL's own, which SystemRDL cannot express. Any of the three
+        -- per-word vectors may be left at "" for all-zero; see REGFILE.md.
+        -- OR-ed onto RSTVAL, for the one thing a reset value can be that
+        -- SystemRDL cannot say: a GENERIC of the peripheral. I2C's slave address
+        -- resets to default_SAD and GPIO's PxOUT to RstValPxOUT, both per
+        -- instance. Left at its one-row default it is all zero and RSTVAL stands.
+        RSTVAL_OR   : word_array := (0 to 0 => (others => '0'));
+
         RDTHRU      : std_logic_vector := "";  -- per word: read hw_rd, not storage
         WIDEWR      : std_logic_vector := "";  -- per word: any enabled lane writes 32 bits
-        STROBE_HOLD : boolean := false         -- true: strobes retire on deselect, not on the next edge
+        FULLWR      : std_logic_vector := "";  -- per word: only WEn = "0000" is a write at all
+        STROBE_HOLD : boolean := false;        -- true: strobes retire on deselect, not on the next edge
+
+        -- false: rdata_out is the combinational read mux, not a flop. For a
+        -- block whose read the FABRIC registers (I2C, whose MCU.vhd bridge
+        -- captures rdata at the access edge); see REGFILE.md.
+        REGISTERED_READ : boolean := true
     );
     port (
         ClkMem      : in  std_logic;
@@ -43,6 +63,13 @@ entity periph_regs is
 
         -- The stored words, for the peripheral's datapath.
         regs        : out word_array(0 to NWORDS-1);
+
+        -- Per-word write qualifier, active high: while it is '1' the word is not
+        -- writable and the access is neither a write nor a read of it. Storage,
+        -- wr_strobe and every write-1 arm are suppressed together, because a
+        -- refused write is not half an access. SYSTEM's WDTCR takes the inverse
+        -- of its unlock window here.
+        wr_inhibit  : in  std_logic_vector(0 to NWORDS-1) := (others => '0');
 
         -- Read source for every bit the module does not store, and for RDTHRU words.
         hw_rd       : in  word_array(0 to NWORDS-1) := (others => (others => '0'));
@@ -113,6 +140,7 @@ architecture rtl of periph_regs is
     constant HOLDB    : std_logic := slBool(STROBE_HOLD);
     constant RDTHRU_N : std_logic_vector(0 to NWORDS-1) := normBits(RDTHRU);
     constant WIDEWR_N : std_logic_vector(0 to NWORDS-1) := normBits(WIDEWR);
+    constant FULLWR_N : std_logic_vector(0 to NWORDS-1) := normBits(FULLWR);
 
     -- The table generics are unconstrained, so the actual decides their index
     -- range. Normalise to 0 .. NWORDS-1 once, here, rather than writing
@@ -126,6 +154,22 @@ architecture rtl of periph_regs is
         return r;
     end function;
 
+    -- RSTVAL_OR is optional, so it is normalised to all-zero unless it carries a
+    -- row per word: `norm` would raise on a length mismatch, and the point of the
+    -- default is that a block that does not need it says nothing.
+    function normOpt(t : word_array) return word_array is
+        variable r : word_array(0 to NWORDS - 1) := (others => (others => '0'));
+    begin
+        if t'length = NWORDS then
+            for i in r'range loop
+                r(i) := t(t'low + i);
+            end loop;
+        end if;
+        return r;
+    end function;
+
+    constant RSTOR_N : word_array(0 to NWORDS-1) := normOpt(RSTVAL_OR);
+    constant ALIAS_N : word_array(0 to NWORDS-1) := normOpt(HWALIAS);
     constant RST_N   : word_array(0 to NWORDS-1) := norm(RSTVAL);
     constant IMPL_N  : word_array(0 to NWORDS-1) := norm(IMPL);
     constant W1C_N   : word_array(0 to NWORDS-1) := norm(W1C);
@@ -134,6 +178,31 @@ architecture rtl of periph_regs is
     constant PULSE_N : word_array(0 to NWORDS-1) := norm(PULSE);
     constant RCLR_N  : word_array(0 to NWORDS-1) := norm(RCLR);
     constant HWOWN_N : word_array(0 to NWORDS-1) := norm(HWOWN);
+
+    -- The reset the flops actually take.
+    function rstEff return word_array is
+        variable r : word_array(0 to NWORDS-1);
+    begin
+        for i in r'range loop
+            r(i) := RST_N(i) or RSTOR_N(i);
+        end loop;
+        return r;
+    end function;
+
+    constant RST_EFF : word_array(0 to NWORDS-1) := rstEff;
+
+    -- The bits a hook may drive: software storage, owned by hardware or aliased
+    -- from another word. Everything else gets no hook logic and asserts.
+    function hookMask return word_array is
+        variable r : word_array(0 to NWORDS-1);
+    begin
+        for i in r'range loop
+            r(i) := IMPL_N(i) and (HWOWN_N(i) or ALIAS_N(i));
+        end loop;
+        return r;
+    end function;
+
+    constant HOOK_N : word_array(0 to NWORDS-1) := hookMask;
 
     -- Every bit any write-1 arm can act on, over all words. The written pattern
     -- is registered ONCE, masked to this, and the per-word arms are cut out of it
@@ -160,6 +229,8 @@ architecture rtl of periph_regs is
     signal rd_hit   : std_logic_vector(0 to NWORDS-1);   -- ... with WEn = "1111"
     signal lane_en  : word;                              -- per-bit lane enable
     signal any_lane : std_logic;                         -- at least one lane enabled
+    signal all_lane : std_logic;                         -- all four enabled, WEn = "0000"
+    signal rd_comb  : word;                              -- the read mux, before the flop
 
     signal stored     : word_array(0 to NWORDS-1);
     signal wmask      : word_array(0 to NWORDS-1);   -- bits this access writes
@@ -187,9 +258,24 @@ begin
     assert WIDEWR'length = 0 or WIDEWR'length = NWORDS
         report "periph_regs: WIDEWR must be the null vector or NWORDS bits"
         severity failure;
+    assert FULLWR'length = 0 or FULLWR'length = NWORDS
+        report "periph_regs: FULLWR must be the null vector or NWORDS bits"
+        severity failure;
+    assert RSTVAL_OR'length = 0 or RSTVAL_OR'length = 1 or RSTVAL_OR'length = NWORDS
+        report "periph_regs: RSTVAL_OR must be left at its default or carry NWORDS rows"
+        severity failure;
+    assert HWALIAS'length = 0 or HWALIAS'length = 1 or HWALIAS'length = NWORDS
+        report "periph_regs: HWALIAS must be left at its default or carry NWORDS rows"
+        severity failure;
     assert WORD_BASE + NWORDS <= 64
         report "periph_regs: the window runs past the 64-word peripheral slot"
         severity failure;
+    ovrchk: for i in 0 to NWORDS-1 generate
+        assert (RSTOR_N(i) and not IMPL_N(i)) = ZERO32
+            report "periph_regs: RSTVAL_OR sets a bit outside IMPL, which holds no "
+                 & "software flop; the generic reset would not be readable"
+            severity failure;
+    end generate;
 
     ------------------------------------------------------------------------
     -- Decode
@@ -200,15 +286,25 @@ begin
     -- word or per bit inside a generate they are correct and eight or thirty-two
     -- times over, because a netlist writer is under no obligation to notice.
     any_lane <= not (WEn(0) and WEn(1) and WEn(2) and WEn(3));
+    all_lane <= not (WEn(0) or  WEn(1) or  WEn(2) or  WEn(3));
 
     lane_en(7 downto 0)   <= (others => not WEn(0));
     lane_en(15 downto 8)  <= (others => not WEn(1));
     lane_en(23 downto 16) <= (others => not WEn(2));
     lane_en(31 downto 24) <= (others => not WEn(3));
 
+    -- A FULLWR word takes a write only from a four-lane access; a partial write
+    -- to one is dropped whole, which is what `if wen = "0000"` says at SYSTEM's
+    -- password slot. wr_inhibit refuses the write on top of that. Neither turns
+    -- the access into a read: rd_hit still needs WEn = "1111".
     dec: for i in 0 to NWORDS-1 generate
         sel_hit(i) <= '1' when EnMemPeriph = '0' and slot = WORD_BASE + i else '0';
-        wr_hit(i)  <= sel_hit(i) and any_lane;
+        wide: if FULLWR_N(i) = '0' generate
+            wr_hit(i) <= sel_hit(i) and any_lane and not wr_inhibit(i);
+        end generate wide;
+        fullw: if FULLWR_N(i) = '1' generate
+            wr_hit(i) <= sel_hit(i) and all_lane and not wr_inhibit(i);
+        end generate fullw;
         rd_hit(i)  <= sel_hit(i) and not any_lane;
     end generate;
 
@@ -234,17 +330,32 @@ begin
         end generate part;
     end generate;
 
-    read_proc: process(ClkMem)
+    -- One read mux, then either a flop on it or the bare mux. The registered arm
+    -- is the flop every hand-written decode in the tree has; the combinational
+    -- arm exists because I2C's read is combinational and MCU.vhd's bridge is the
+    -- flop, and registering it here as well would land the data a cycle late.
+    read_mux: process(slot, rdsrc)
     begin
-        if rising_edge(ClkMem) then
-            rdata_out <= (others => '0');
-            for i in 0 to NWORDS-1 loop
-                if slot = WORD_BASE + i then
-                    rdata_out <= rdsrc(i);
-                end if;
-            end loop;
-        end if;
+        rd_comb <= (others => '0');
+        for i in 0 to NWORDS-1 loop
+            if slot = WORD_BASE + i then
+                rd_comb <= rdsrc(i);
+            end if;
+        end loop;
     end process;
+
+    rdreg: if REGISTERED_READ generate
+        read_proc: process(ClkMem)
+        begin
+            if rising_edge(ClkMem) then
+                rdata_out <= rd_comb;
+            end if;
+        end process;
+    end generate rdreg;
+
+    rdcomb: if not REGISTERED_READ generate
+        rdata_out <= rd_comb;
+    end generate rdcomb;
 
     ------------------------------------------------------------------------
     -- Storage. A bit outside IMPL is a CONSTANT, not a register loaded with a
@@ -277,14 +388,14 @@ begin
         -- The hooks, masked to what the description says hardware may touch. A
         -- word no hook can reach gets none of this logic at all, rather than four
         -- 32-bit mask operations that every bit ties off.
-        hooked: if (IMPL_N(i) and HWOWN_N(i)) /= ZERO32 generate
-            we_m(i)  <= hw_we(i)  and IMPL_N(i) and HWOWN_N(i);
-            set_m(i) <= hw_set(i) and IMPL_N(i) and HWOWN_N(i);
-            clr_m(i) <= hw_clr(i) and IMPL_N(i) and HWOWN_N(i);
+        hooked: if HOOK_N(i) /= ZERO32 generate
+            we_m(i)  <= hw_we(i)  and HOOK_N(i);
+            set_m(i) <= hw_set(i) and HOOK_N(i);
+            clr_m(i) <= hw_clr(i) and HOOK_N(i);
             nxt_w(i) <= ((((sw_nxt(i) and not we_m(i)) or (hw_wdata(i) and we_m(i)))
                           or set_m(i)) and not clr_m(i));
         end generate hooked;
-        swonly: if (IMPL_N(i) and HWOWN_N(i)) = ZERO32 generate
+        swonly: if HOOK_N(i) = ZERO32 generate
             nxt_w(i) <= sw_nxt(i);
         end generate swonly;
 
@@ -297,7 +408,7 @@ begin
                 process(ClkMem, resetn)
                 begin
                     if resetn = '0' then
-                        stored(i)(b) <= RST_N(i)(b);
+                        stored(i)(b) <= RST_EFF(i)(b);
                     elsif rising_edge(ClkMem) then
                         stored(i)(b) <= nxt_w(i)(b);
                     end if;
@@ -305,7 +416,7 @@ begin
             end generate held;
 
             tied: if IMPL_N(i)(b) = '0' generate
-                stored(i)(b) <= RST_N(i)(b);
+                stored(i)(b) <= RST_EFF(i)(b);
             end generate tied;
 
         end generate bits;
@@ -416,11 +527,11 @@ begin
     ------------------------------------------------------------------------
     -- pragma translate_off
     hwchk: for i in 0 to NWORDS-1 generate
-        assert not anyOne((hw_we(i) or hw_set(i) or hw_clr(i))
-                          and not (IMPL_N(i) and HWOWN_N(i)))
-            report "periph_regs: a hardware hook drives a bit that is not both "
-                 & "software storage (IMPL) and hardware owned (HWOWN); the .rdl "
-                 & "and the RTL disagree about who owns it"
+        assert not anyOne((hw_we(i) or hw_set(i) or hw_clr(i)) and not HOOK_N(i))
+            report "periph_regs: a hardware hook drives a bit that is not "
+                 & "software storage (IMPL) and is neither hardware owned (HWOWN) "
+                 & "nor declared an alias (HWALIAS); the .rdl and the RTL disagree "
+                 & "about who owns it"
             severity error;
     end generate;
     -- pragma translate_on

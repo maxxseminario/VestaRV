@@ -6,6 +6,8 @@
 
 library ieee;
 use ieee.std_logic_1164.all;
+library work;
+use work.constants.all;
 
 package evfab_regs_pkg is
 
@@ -321,7 +323,302 @@ package evfab_regs_pkg is
     constant SLOT_GPIOMASK            : natural := 15;
     constant SLOT_CH0CFG              : natural := 16;
 
-    -- No periph_regs table section: its twenty-nine registers are not a contiguous run of words,
-    -- so its words are not a dense array. See hdl/common/regs/REGFILE.md.
+    -- periph_regs tables (hdl/common/periph_regs.vhd), one row per word in slot
+    -- order. Every mask below is a property of this description. RDTHRU, WIDEWR,
+    -- FULLWR and STROBE_HOLD are the entity's own and are set at the instance;
+    -- hdl/common/regs/REGFILE.md says why they cannot come from SystemRDL.
+    -- The table is SPARSE: words 12-14 carry no register here, and the
+    -- all-zero _reserved_<word> row is what makes it read 0, store nothing
+    -- and take no hook, which is the `when others` arm it replaces.
+    constant NWORDS                   : natural := 32;
+    subtype  reg_arr_t is word_array(0 to NWORDS-1);
+
+    -- reset word, loaded on the asynchronous resetn
+    constant RSTVAL   : reg_arr_t := (
+        x"00000000",   -- EVFCR
+        x"00000000",   -- EVFSR
+        x"00000000",   -- EVFIE
+        x"010A1008",   -- EVFCAP
+        x"00000000",   -- EVFCHEN
+        x"00000000",   -- EVFCHENSET
+        x"00000000",   -- EVFCHENCLR
+        x"00000000",   -- EVFCHTRIG
+        x"00000000",   -- EVFFIRED
+        x"00000000",   -- EVFOVR
+        x"00000000",   -- EVFEVSTAT
+        x"00000000",   -- EVFEVTRIG
+        x"00000000",   -- _reserved_12
+        x"00000000",   -- _reserved_13
+        x"00000000",   -- _reserved_14
+        x"00000000",   -- EVFGPIOMASK
+        x"00000000",   -- EVFCH0CFG
+        x"00000000",   -- EVFCH1CFG
+        x"00000000",   -- EVFCH2CFG
+        x"00000000",   -- EVFCH3CFG
+        x"00000000",   -- EVFCH4CFG
+        x"00000000",   -- EVFCH5CFG
+        x"00000000",   -- EVFCH6CFG
+        x"00000000",   -- EVFCH7CFG
+        x"00000000",   -- EVFCH8CFG
+        x"00000000",   -- EVFCH9CFG
+        x"00000000",   -- EVFCH10CFG
+        x"00000000",   -- EVFCH11CFG
+        x"00000000",   -- EVFCH12CFG
+        x"00000000",   -- EVFCH13CFG
+        x"00000000",   -- EVFCH14CFG
+        x"00000000"    -- EVFCH15CFG
+    );
+
+    -- bits that hold a software-written flop; periph_regs stores exactly these
+    constant IMPL     : reg_arr_t := (
+        x"00000001",   -- EVFCR
+        x"00000000",   -- EVFSR
+        x"00000000",   -- EVFIE
+        x"00000000",   -- EVFCAP
+        x"000000FF",   -- EVFCHEN
+        x"00000000",   -- EVFCHENSET
+        x"00000000",   -- EVFCHENCLR
+        x"000000FF",   -- EVFCHTRIG
+        x"00000000",   -- EVFFIRED
+        x"00000000",   -- EVFOVR
+        x"00000000",   -- EVFEVSTAT
+        x"0000FFFF",   -- EVFEVTRIG
+        x"00000000",   -- _reserved_12
+        x"00000000",   -- _reserved_13
+        x"00000000",   -- _reserved_14
+        x"000000FF",   -- EVFGPIOMASK
+        x"00000F1F",   -- EVFCH0CFG
+        x"00000F1F",   -- EVFCH1CFG
+        x"00000F1F",   -- EVFCH2CFG
+        x"00000F1F",   -- EVFCH3CFG
+        x"00000F1F",   -- EVFCH4CFG
+        x"00000F1F",   -- EVFCH5CFG
+        x"00000F1F",   -- EVFCH6CFG
+        x"00000F1F",   -- EVFCH7CFG
+        x"00000000",   -- EVFCH8CFG
+        x"00000000",   -- EVFCH9CFG
+        x"00000000",   -- EVFCH10CFG
+        x"00000000",   -- EVFCH11CFG
+        x"00000000",   -- EVFCH12CFG
+        x"00000000",   -- EVFCH13CFG
+        x"00000000",   -- EVFCH14CFG
+        x"00000000"    -- EVFCH15CFG
+    );
+
+    -- a written 1 clears (onwrite = woclr): drives w1c_hit
+    constant W1C      : reg_arr_t := (
+        x"00000000",   -- EVFCR
+        x"00000000",   -- EVFSR
+        x"00000000",   -- EVFIE
+        x"00000000",   -- EVFCAP
+        x"00000000",   -- EVFCHEN
+        x"00000000",   -- EVFCHENSET
+        x"000000FF",   -- EVFCHENCLR
+        x"00000000",   -- EVFCHTRIG
+        x"000000FF",   -- EVFFIRED
+        x"000000FF",   -- EVFOVR
+        x"0000FFFF",   -- EVFEVSTAT
+        x"00000000",   -- EVFEVTRIG
+        x"00000000",   -- _reserved_12
+        x"00000000",   -- _reserved_13
+        x"00000000",   -- _reserved_14
+        x"00000000",   -- EVFGPIOMASK
+        x"00000000",   -- EVFCH0CFG
+        x"00000000",   -- EVFCH1CFG
+        x"00000000",   -- EVFCH2CFG
+        x"00000000",   -- EVFCH3CFG
+        x"00000000",   -- EVFCH4CFG
+        x"00000000",   -- EVFCH5CFG
+        x"00000000",   -- EVFCH6CFG
+        x"00000000",   -- EVFCH7CFG
+        x"00000000",   -- EVFCH8CFG
+        x"00000000",   -- EVFCH9CFG
+        x"00000000",   -- EVFCH10CFG
+        x"00000000",   -- EVFCH11CFG
+        x"00000000",   -- EVFCH12CFG
+        x"00000000",   -- EVFCH13CFG
+        x"00000000",   -- EVFCH14CFG
+        x"00000000"    -- EVFCH15CFG
+    );
+
+    -- a written 1 sets (onwrite = woset): drives woset_hit
+    constant WOSET    : reg_arr_t := (
+        x"00000000",   -- EVFCR
+        x"00000000",   -- EVFSR
+        x"00000000",   -- EVFIE
+        x"00000000",   -- EVFCAP
+        x"00000000",   -- EVFCHEN
+        x"000000FF",   -- EVFCHENSET
+        x"00000000",   -- EVFCHENCLR
+        x"00000000",   -- EVFCHTRIG
+        x"00000000",   -- EVFFIRED
+        x"00000000",   -- EVFOVR
+        x"00000000",   -- EVFEVSTAT
+        x"00000000",   -- EVFEVTRIG
+        x"00000000",   -- _reserved_12
+        x"00000000",   -- _reserved_13
+        x"00000000",   -- _reserved_14
+        x"00000000",   -- EVFGPIOMASK
+        x"00000000",   -- EVFCH0CFG
+        x"00000000",   -- EVFCH1CFG
+        x"00000000",   -- EVFCH2CFG
+        x"00000000",   -- EVFCH3CFG
+        x"00000000",   -- EVFCH4CFG
+        x"00000000",   -- EVFCH5CFG
+        x"00000000",   -- EVFCH6CFG
+        x"00000000",   -- EVFCH7CFG
+        x"00000000",   -- EVFCH8CFG
+        x"00000000",   -- EVFCH9CFG
+        x"00000000",   -- EVFCH10CFG
+        x"00000000",   -- EVFCH11CFG
+        x"00000000",   -- EVFCH12CFG
+        x"00000000",   -- EVFCH13CFG
+        x"00000000",   -- EVFCH14CFG
+        x"00000000"    -- EVFCH15CFG
+    );
+
+    -- a written 1 toggles (onwrite = wot): drives wot_hit
+    constant WOT      : reg_arr_t := (
+        x"00000000",   -- EVFCR
+        x"00000000",   -- EVFSR
+        x"00000000",   -- EVFIE
+        x"00000000",   -- EVFCAP
+        x"00000000",   -- EVFCHEN
+        x"00000000",   -- EVFCHENSET
+        x"00000000",   -- EVFCHENCLR
+        x"00000000",   -- EVFCHTRIG
+        x"00000000",   -- EVFFIRED
+        x"00000000",   -- EVFOVR
+        x"00000000",   -- EVFEVSTAT
+        x"00000000",   -- EVFEVTRIG
+        x"00000000",   -- _reserved_12
+        x"00000000",   -- _reserved_13
+        x"00000000",   -- _reserved_14
+        x"00000000",   -- EVFGPIOMASK
+        x"00000000",   -- EVFCH0CFG
+        x"00000000",   -- EVFCH1CFG
+        x"00000000",   -- EVFCH2CFG
+        x"00000000",   -- EVFCH3CFG
+        x"00000000",   -- EVFCH4CFG
+        x"00000000",   -- EVFCH5CFG
+        x"00000000",   -- EVFCH6CFG
+        x"00000000",   -- EVFCH7CFG
+        x"00000000",   -- EVFCH8CFG
+        x"00000000",   -- EVFCH9CFG
+        x"00000000",   -- EVFCH10CFG
+        x"00000000",   -- EVFCH11CFG
+        x"00000000",   -- EVFCH12CFG
+        x"00000000",   -- EVFCH13CFG
+        x"00000000",   -- EVFCH14CFG
+        x"00000000"    -- EVFCH15CFG
+    );
+
+    -- self-clearing strobe (singlepulse): drives wr_pulse, stores nothing
+    constant PULSE    : reg_arr_t := (
+        x"00000000",   -- EVFCR
+        x"00000000",   -- EVFSR
+        x"00000000",   -- EVFIE
+        x"00000000",   -- EVFCAP
+        x"00000000",   -- EVFCHEN
+        x"00000000",   -- EVFCHENSET
+        x"00000000",   -- EVFCHENCLR
+        x"00000000",   -- EVFCHTRIG
+        x"00000000",   -- EVFFIRED
+        x"00000000",   -- EVFOVR
+        x"00000000",   -- EVFEVSTAT
+        x"00000000",   -- EVFEVTRIG
+        x"00000000",   -- _reserved_12
+        x"00000000",   -- _reserved_13
+        x"00000000",   -- _reserved_14
+        x"00000000",   -- EVFGPIOMASK
+        x"00000000",   -- EVFCH0CFG
+        x"00000000",   -- EVFCH1CFG
+        x"00000000",   -- EVFCH2CFG
+        x"00000000",   -- EVFCH3CFG
+        x"00000000",   -- EVFCH4CFG
+        x"00000000",   -- EVFCH5CFG
+        x"00000000",   -- EVFCH6CFG
+        x"00000000",   -- EVFCH7CFG
+        x"00000000",   -- EVFCH8CFG
+        x"00000000",   -- EVFCH9CFG
+        x"00000000",   -- EVFCH10CFG
+        x"00000000",   -- EVFCH11CFG
+        x"00000000",   -- EVFCH12CFG
+        x"00000000",   -- EVFCH13CFG
+        x"00000000",   -- EVFCH14CFG
+        x"00000000"    -- EVFCH15CFG
+    );
+
+    -- a read retires (onread = rclr): drives rd_clr
+    constant RCLR     : reg_arr_t := (
+        x"00000000",   -- EVFCR
+        x"00000000",   -- EVFSR
+        x"00000000",   -- EVFIE
+        x"00000000",   -- EVFCAP
+        x"00000000",   -- EVFCHEN
+        x"00000000",   -- EVFCHENSET
+        x"00000000",   -- EVFCHENCLR
+        x"00000000",   -- EVFCHTRIG
+        x"00000000",   -- EVFFIRED
+        x"00000000",   -- EVFOVR
+        x"00000000",   -- EVFEVSTAT
+        x"00000000",   -- EVFEVTRIG
+        x"00000000",   -- _reserved_12
+        x"00000000",   -- _reserved_13
+        x"00000000",   -- _reserved_14
+        x"00000000",   -- EVFGPIOMASK
+        x"00000000",   -- EVFCH0CFG
+        x"00000000",   -- EVFCH1CFG
+        x"00000000",   -- EVFCH2CFG
+        x"00000000",   -- EVFCH3CFG
+        x"00000000",   -- EVFCH4CFG
+        x"00000000",   -- EVFCH5CFG
+        x"00000000",   -- EVFCH6CFG
+        x"00000000",   -- EVFCH7CFG
+        x"00000000",   -- EVFCH8CFG
+        x"00000000",   -- EVFCH9CFG
+        x"00000000",   -- EVFCH10CFG
+        x"00000000",   -- EVFCH11CFG
+        x"00000000",   -- EVFCH12CFG
+        x"00000000",   -- EVFCH13CFG
+        x"00000000",   -- EVFCH14CFG
+        x"00000000"    -- EVFCH15CFG
+    );
+
+    -- bits hardware drives (hw = w or rw): what hw_we / hw_set / hw_clr may touch
+    constant HWOWN    : reg_arr_t := (
+        x"00000000",   -- EVFCR
+        x"00000003",   -- EVFSR
+        x"00000000",   -- EVFIE
+        x"FFFFFFFF",   -- EVFCAP
+        x"00000000",   -- EVFCHEN
+        x"000000FF",   -- EVFCHENSET
+        x"000000FF",   -- EVFCHENCLR
+        x"00000000",   -- EVFCHTRIG
+        x"000000FF",   -- EVFFIRED
+        x"000000FF",   -- EVFOVR
+        x"0000FFFF",   -- EVFEVSTAT
+        x"00000000",   -- EVFEVTRIG
+        x"00000000",   -- _reserved_12
+        x"00000000",   -- _reserved_13
+        x"00000000",   -- _reserved_14
+        x"00000000",   -- EVFGPIOMASK
+        x"80000000",   -- EVFCH0CFG
+        x"80000000",   -- EVFCH1CFG
+        x"80000000",   -- EVFCH2CFG
+        x"80000000",   -- EVFCH3CFG
+        x"80000000",   -- EVFCH4CFG
+        x"80000000",   -- EVFCH5CFG
+        x"80000000",   -- EVFCH6CFG
+        x"80000000",   -- EVFCH7CFG
+        x"00000000",   -- EVFCH8CFG
+        x"00000000",   -- EVFCH9CFG
+        x"00000000",   -- EVFCH10CFG
+        x"00000000",   -- EVFCH11CFG
+        x"00000000",   -- EVFCH12CFG
+        x"00000000",   -- EVFCH13CFG
+        x"00000000",   -- EVFCH14CFG
+        x"00000000"    -- EVFCH15CFG
+    );
 
 end package evfab_regs_pkg;

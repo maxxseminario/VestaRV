@@ -74,10 +74,20 @@ architecture behavioral of NPU is
 	/* --- Memory Mapped Registers & Bits
 	   NPUCR also carries MODE [22:20] (0 = MLP, the reset default), ACTF [25:23] (activation select), NPUWPK [26] and NPUXPK [27] (packed operand formats, both 0 = legacy one element per word).
 	   MMR word offsets: NPUCFG1 at 5 and NPUCFG2 at 6 (per-mode configuration); offsets 7-15 are reserved and read 0. */
-	signal NPUCR		: std_logic_vector(27 downto 0);		-- NPU Control Register
+	/* The bus side is one periph_regs instance driven by npu_regs_pkg's tables; see
+	   hdl/common/regs/REGFILE.md. Every NPUCR bit including NPUTHINK is its storage,
+	   and so is NPUCFG1/2 and the three staging-RAM base registers; NPUSR holds no
+	   flop there, because THINKDONE is set by hardware on the free-running Clk.
+	   REGISTERED_READ is false: MabMmrQ is COMBINATIONAL and MCU.vhd's bridge is the
+	   flop that captures it, so a second flop here would land the read a cycle late. */
+	signal regs_q		: reg_arr_t;
+	signal hw_rd_s		: reg_arr_t;
+	signal hw_set_s		: reg_arr_t;							-- task_think on NPUCR.NPUTHINK
+	signal hw_clr_s		: reg_arr_t;							-- NpuDone    on NPUCR.NPUTHINK
+	signal acc_s		: std_logic_vector(0 to NWORDS-1);		-- combinational: this word is addressed now
 		signal NPUBEN	: std_logic;								-- NPU Bias Input Enable Bit (Enabled For First Layer)
 		signal NPUAEN	: std_logic;								-- NPU Activation Function Enable Bit (Disabled for Last Layer)
-		signal NPUTHINK	: std_logic;								-- NPU Start/Status Bit
+		signal NPUTHINK	: std_logic;								-- NPU Start/Status Bit (tap of NPUCR.NPUTHINK in the register file)
 		signal NPUWPK	: std_logic;								-- NPU Packed-Weight Enable Bit (NPUCR.26)
 		signal NPUXPK	: std_logic;								-- NPU Packed-Input Enable Bit (NPUCR.27)
 		signal TDIE		: std_logic;								-- NPU Think-Done Interrupt Enable Bit (NPUCR.19)
@@ -133,7 +143,6 @@ architecture behavioral of NPU is
 	signal MacOut 		: std_logic_vector
 			((Y_M_BITS+N_BITS) downto 0);						-- MAC Combinational Output
 	signal Decision		: std_logic_vector(N_BITS downto 0); 	-- Decision Signal (Output Of Activation Function)
-	signal MabMmrAInt	: natural range 0 to 63;			-- MMR word offset as an integer (0 when the block is not selected)
 	signal NpuMuxSel	: std_logic;							-- SRAM-port mux select = NPUTHINK registered on Clk
 
 	/* --- CONV1D mode -----
@@ -367,8 +376,12 @@ begin
 			THINKDONE		<= '0';
 			ThinkDoneIrqQ	<= '0';
 		elsif (rising_edge(Clk)) then
-			if ((MabMmrCEN = MEM_ASSERT) and (MabMmrAInt = MmrAddrNPUSR) and
-				(MabMmrWEN(0) = MEM_ASSERT) and (MabMmrD(0) = '1')) then
+			-- W1C on NPUSR.THINKDONE. This takes the COMBINATIONAL acc_hit, not the
+			-- registered w1c_hit: the flag is sampled on Clk, and a strobe that arrives
+			-- one edge later would retire a completion set at this very edge, which is
+			-- the loss the set-last ordering below exists to prevent.
+			if ((acc_s(MmrAddrNPUSR) = '1') and
+				(MabMmrWEN(0) = MEM_ASSERT) and (MabMmrD(NPUTHINKDONE_LSB) = '1')) then
 				THINKDONE	<= '0';
 			end if;
 			if (NpuDone = '1') then
@@ -437,11 +450,11 @@ begin
 					CurrYIndex	<= (others =>'0');
 					CurrWOff	<= (others =>'0');
 					-- Latch the run shadows (mode, activation and conv shape) at the first NpuClk edge of every THINK, and reset the walkers.
-					mode_run	<= NPUCR(22 downto 20);
-					actf_run	<= NPUCR(25 downto 23);
+					mode_run	<= regs_q(MmrAddrNPUCR)(NPUMODE_MSB downto NPUMODE_LSB);
+					actf_run	<= regs_q(MmrAddrNPUCR)(NPUACTF_MSB downto NPUACTF_LSB);
 					/* Packed-operand shadows, frozen for the run exactly like mode_run.
 					   XNOR walks whole 32-bit words, so both are forced off there and the two features can never interact; the *_PACK_EN constants kill a mode this instantiation's datapath cannot represent. */
-					if (NPUCR(22 downto 20) = MODE_XNOR) then
+					if (regs_q(MmrAddrNPUCR)(NPUMODE_MSB downto NPUMODE_LSB) = MODE_XNOR) then
 						wpack_run	<= '0';
 						xpack_run	<= '0';
 					else
@@ -471,7 +484,7 @@ begin
 					mK			<= (others => '0');
 					gemm_yptr	<= unsigned(NPUOVSAR);
 					-- Conv with Lout=0 produces zero outputs and finishes immediately: it never hangs and never touches the RAM.
-					if ((NPUCR(22 downto 20) = MODE_CONV) and (unsigned(NPUCFG2) = 0)) then
+					if ((regs_q(MmrAddrNPUCR)(NPUMODE_MSB downto NPUMODE_LSB) = MODE_CONV) and (unsigned(NPUCFG2) = 0)) then
 						NpuState	<= NPU_FINISH;
 					else
 						NpuState	<= NPU_GET_WEIGHT;
@@ -787,98 +800,85 @@ begin
 
 	/* Memory-mapped register interface.
 	   NPUCR(27 downto 0) also holds NPUXPK [27], NPUWPK [26], ACTF [25:23] and MODE [22:20], which the sequencer and activation muxes tap directly. */
-	NPUXPK		<= NPUCR(27);
-	NPUWPK		<= NPUCR(26);
-	TDIE		<= NPUCR(19);
-	NPUBEN		<= NPUCR(18);
-	NPUAEN		<= NPUCR(17);
-	NPUNI		<= NPUCR(15 downto 8);
-	NPUNN		<= NPUCR(7 downto 0);
-	-- NPUIVSAR, NPUWVSAR and NPUOVSAR are 12-bit registers of their own and need no bit routing.
+	NPUXPK		<= regs_q(MmrAddrNPUCR)(NPUXPK_LSB);
+	NPUWPK		<= regs_q(MmrAddrNPUCR)(NPUWPK_LSB);
+	TDIE		<= regs_q(MmrAddrNPUCR)(NPUTDIE_LSB);
+	NPUBEN		<= regs_q(MmrAddrNPUCR)(NPUBEN_LSB);
+	NPUAEN		<= regs_q(MmrAddrNPUCR)(NPUAEN_LSB);
+	NPUNI		<= regs_q(MmrAddrNPUCR)(NPUNI_MSB downto NPUNI_LSB);
+	NPUNN		<= regs_q(MmrAddrNPUCR)(NPUNN_MSB downto NPUNN_LSB);
+	-- NPUTHINK is no longer a flop of this file: the register file holds it, the
+	-- event-fabric task sets it through hw_set and NpuDone clears it through hw_clr,
+	-- so NPUCR reads back its live value with no splice at bit 16.
+	NPUTHINK	<= regs_q(MmrAddrNPUCR)(NPUTHINK_LSB);
+	-- NPUCFG1/2 and the three staging-RAM base registers are whole-register taps.
+	NPUCFG1		<= regs_q(MmrAddrNPUCFG1)(NPUCFG1_MSB downto NPUCFG1_LSB);
+	NPUCFG2		<= regs_q(MmrAddrNPUCFG2)(NPUCFG2_MSB downto NPUCFG2_LSB);
+	NPUIVSAR	<= regs_q(MmrAddrNPUIVSAR)(NPUIVSAR_MSB downto NPUIVSAR_LSB);
+	NPUWVSAR	<= regs_q(MmrAddrNPUWVSAR)(NPUWVSAR_MSB downto NPUWVSAR_LSB);
+	NPUOVSAR	<= regs_q(MmrAddrNPUOVSAR)(NPUOVSAR_MSB downto NPUOVSAR_LSB);
 
-	----- MMR Writes
-	MabMmrAInt	<= to_integer(unsigned(MabMmrA)) when (MabMmrCEN = MEM_ASSERT) else
-				   0;
-	MMR_WRITE: process(ResetN, MabMmrCLK, NpuDone)
-	begin
-		if (ResetN = '0') then
-			-- Set MMRs To Default State
-			NPUCR		<= (others => '0');
-			NPUCFG1		<= (others => '0');
-			NPUCFG2		<= (others => '0');
-			NPUIVSAR	<= (others => '0');
-			NPUWVSAR	<= (others => '0');
-			NPUOVSAR	<= (others => '0');
-		elsif (rising_edge(MabMmrCLK)) then
-			if (MabMmrCEN = MEM_ASSERT) then
-				case MabMmrAInt is
-					when MmrAddrNPUCR =>
-						-- NPUTHINK is a separate flop, so byte lane 2 splits around bit 16.
-						if MabMmrWEN(0) = MEM_ASSERT then NPUCR(7 downto 0) <= MabMmrD(7 downto 0); end if;
-						if MabMmrWEN(1) = MEM_ASSERT then NPUCR(15 downto 8) <= MabMmrD(15 downto 8); end if;
-						if MabMmrWEN(2) = MEM_ASSERT then
-							NPUCR(23 downto 17) <= MabMmrD(23 downto 17);
-							NPUTHINK <= MabMmrD(16);
-						end if;
-						if MabMmrWEN(3) = MEM_ASSERT then NPUCR(27 downto 24) <= MabMmrD(27 downto 24); end if;
-					when MmrAddrNPUCFG1 =>
-						if MabMmrWEN(0) = MEM_ASSERT then NPUCFG1(7 downto 0) <= MabMmrD(7 downto 0); end if;
-						if MabMmrWEN(1) = MEM_ASSERT then NPUCFG1(15 downto 8) <= MabMmrD(15 downto 8); end if;
-						if MabMmrWEN(2) = MEM_ASSERT then NPUCFG1(23 downto 16) <= MabMmrD(23 downto 16); end if;
-						if MabMmrWEN(3) = MEM_ASSERT then NPUCFG1(31 downto 24) <= MabMmrD(31 downto 24); end if;
-					when MmrAddrNPUCFG2 =>
-						-- Only 16 bits are implemented, so the upper two byte lanes are dropped.
-						if MabMmrWEN(0) = MEM_ASSERT then NPUCFG2(7 downto 0) <= MabMmrD(7 downto 0); end if;
-						if MabMmrWEN(1) = MEM_ASSERT then NPUCFG2(15 downto 8) <= MabMmrD(15 downto 8); end if;
-						if MabMmrWEN(2) = MEM_ASSERT then null; end if;
-						if MabMmrWEN(3) = MEM_ASSERT then null; end if;
-					when MmrAddrNPUIVSAR =>
-						-- 12-bit staging-RAM word index; the upper two byte lanes are dropped (same for WVSAR and OVSAR below).
-						if MabMmrWEN(0) = MEM_ASSERT then NPUIVSAR(7 downto 0) <= MabMmrD(7 downto 0); end if;
-						if MabMmrWEN(1) = MEM_ASSERT then NPUIVSAR(11 downto 8) <= MabMmrD(11 downto 8); end if;
-						if MabMmrWEN(2) = MEM_ASSERT then null; end if;
-						if MabMmrWEN(3) = MEM_ASSERT then null; end if;
-					when MmrAddrNPUWVSAR =>
-						if MabMmrWEN(0) = MEM_ASSERT then NPUWVSAR(7 downto 0) <= MabMmrD(7 downto 0); end if;
-						if MabMmrWEN(1) = MEM_ASSERT then NPUWVSAR(11 downto 8) <= MabMmrD(11 downto 8); end if;
-						if MabMmrWEN(2) = MEM_ASSERT then null; end if;
-						if MabMmrWEN(3) = MEM_ASSERT then null; end if;
-					when MmrAddrNPUOVSAR =>
-						if MabMmrWEN(0) = MEM_ASSERT then NPUOVSAR(7 downto 0) <= MabMmrD(7 downto 0); end if;
-						if MabMmrWEN(1) = MEM_ASSERT then NPUOVSAR(11 downto 8) <= MabMmrD(11 downto 8); end if;
-						if MabMmrWEN(2) = MEM_ASSERT then null; end if;
-						if MabMmrWEN(3) = MEM_ASSERT then null; end if;
-					when others =>
-						-- Reserved word offsets 7-15: writes are ignored.
-						null;
-				end case;
-			end if;
+	----- MMR register file
+	/* The whole slave port is one periph_regs instance: the case decode, the four
+	   byte-lane branches per register, the reset branch and the read mux are gone.
+	   MabMmrA is the 4-bit word index, zero-extended onto MABPart; MabMmrCEN and
+	   MabMmrWEN are already the active-low select and byte lanes this bus wants.
+	   STROBE_HOLD is false: MabMmrCLK is the free-running mclk, and nothing here
+	   consumes a strobe anyway -- the two decodes that must land on the access edge
+	   itself (the NPUSR W1C above, and nothing else) take acc_hit.
+	   REGISTERED_READ is false because MabMmrQ is combinational by contract: the
+	   MCU.vhd read bridge is the flop that captures it at the access edge. */
+	hw_rd_s <= (MmrAddrNPUSR => (NPUTHINKDONE_LSB => THINKDONE, others => '0'),
+				others		 => (others => '0'));
 
-			/* Event-fabric THINK start: pulse-only, OUTSIDE the CEN qualifier so it fires with the bus idle, and AFTER the register case so a task wins a coincident NPUCR write of bit 16.
-			   The trailing NpuDone and reset clear below still wins over BOTH paths, and a task THINK is otherwise indistinguishable from a register THINK.
-			   SOFTWARE CONTRACT: no hart touches the staging RAM 0xC000-0xFFFF while a fabric THINK may fire. */
-			if task_think = '1' then
-				NPUTHINK <= '1';
-			end if;
-		end if;
+	/* NPUTHINK is set by the event-fabric task and cleared by the completion pulse,
+	   both as hardware access to NPUCR.NPUTHINK. periph_regs applies hw_set after the
+	   software lane write and hw_clr after that, which is the order the deleted
+	   MMR_WRITE process wrote its three branches in: a task wins a coincident NPUCR
+	   write, and NpuDone wins over both.
+	   ONE TIMING CHANGE: the old clear was ASYNCHRONOUS (the trailing `if NpuDone = '1'`
+	   sat outside the clocked branch), so NPUTHINK fell the instant NpuDone rose;
+	   hw_clr retires it on the next MabMmrCLK edge instead. NpuDone is one mclk wide
+	   and NpuClkEn is `NpuThink or NpuDone`, so the gated clock still runs through the
+	   clear; what moves is that NPUTHINK, and with it NpuMuxSel and NpuActive, fall
+	   one mclk later. That lengthens the owning hart's sleep, the safe direction. */
+	hw_set_s <= (MmrAddrNPUCR => (NPUTHINK_LSB => task_think, others => '0'),
+				 others		  => (others => '0'));
+	hw_clr_s <= (MmrAddrNPUCR => (NPUTHINK_LSB => NpuDone,    others => '0'),
+				 others		  => (others => '0'));
 
-		if (NpuDone = '1') or (resetn = '0') then
-			-- Clear NPUTHINK to indicate the NPU is done.
-			NPUTHINK	<= '0';
-		end if;
-	end process MMR_WRITE;
-
-	/* --- MMR Reads
-	   NPUTHINK is a separate flop (set from MabMmrD(16), cleared by NpuDone), so it must be re-inserted at bit 16 of the NPUCR readback.
-	   Otherwise bit 16 reads the dead NPUCR(16) and nothing can observe NPUTHINK falling when the NPU finishes. */
-	with MabMmrAInt select
-		MabMmrQ <=	(31 downto 28 => '0') & NPUCR(27 downto 17) & NPUTHINK & NPUCR(15 downto 0)	when MmrAddrNPUCR,
-					(31 downto 12 => '0') & NPUIVSAR	when MmrAddrNPUIVSAR,
-					(31 downto 12 => '0') & NPUWVSAR	when MmrAddrNPUWVSAR,
-					(31 downto 12 => '0') & NPUOVSAR	when MmrAddrNPUOVSAR,
-					(31 downto 1  => '0') & THINKDONE	when MmrAddrNPUSR,
-					NPUCFG1								when MmrAddrNPUCFG1,
-					(31 downto 16 => '0') & NPUCFG2		when MmrAddrNPUCFG2,
-					(others => '0')						when others;
+	u_regs: entity work.periph_regs
+		generic map (
+			NWORDS			=> NWORDS,
+			RSTVAL			=> RSTVAL,
+			IMPL			=> IMPL,
+			W1C				=> W1C,
+			WOSET			=> WOSET,
+			WOT				=> WOT,
+			PULSE			=> PULSE,
+			RCLR			=> RCLR,
+			HWOWN			=> HWOWN,
+			STROBE_HOLD		=> false,
+			REGISTERED_READ	=> false)
+		port map (
+			ClkMem		=> MabMmrCLK,
+			resetn		=> ResetN,
+			EnMemPeriph	=> MabMmrCEN,
+			WEn			=> MabMmrWEN,
+			MABPart		=> "00" & MabMmrA,
+			wdata		=> MabMmrD,
+			rdata_out	=> MabMmrQ,
+			regs		=> regs_q,
+			hw_rd		=> hw_rd_s,
+			hw_set		=> hw_set_s,
+			hw_clr		=> hw_clr_s,
+			acc_hit		=> acc_s,
+			rd_strobe	=> open,
+			wr_strobe	=> open,
+			wr_pulse	=> open,
+			w1c_hit		=> open,
+			woset_hit	=> open,
+			wot_hit		=> open,
+			rd_clr		=> open);
 
 end behavioral;

@@ -114,8 +114,8 @@ package i2ctarget_regs_pkg is
     constant SLOT_WDG                 : natural := 4;
 
     -- periph_regs tables (hdl/common/periph_regs.vhd), one row per word in slot
-    -- order. Every mask below is a property of this description. RDTHRU, WIDEWR
-    -- and STROBE_HOLD are the entity's own and are set at the instance;
+    -- order. Every mask below is a property of this description. RDTHRU, WIDEWR,
+    -- FULLWR and STROBE_HOLD are the entity's own and are set at the instance;
     -- hdl/common/regs/REGFILE.md says why they cannot come from SystemRDL.
     constant NWORDS                   : natural := 5;
     subtype  reg_arr_t is word_array(0 to NWORDS-1);

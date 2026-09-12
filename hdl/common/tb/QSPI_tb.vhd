@@ -61,7 +61,10 @@ architecture sim of QSPI_tb is
 
     -- flash-model drive + config
     signal model_io_out, model_io_oe : std_logic_vector(3 downto 0);
-    signal cfg_cmd_lanes, cfg_addr_lanes, cfg_data_lanes : natural := 1;
+    -- Constrained to the flash model's own port subtype: an unconstrained `natural` here
+    -- analyses under Xcelium but is a bounds mismatch on the port association in strict VHDL,
+    -- which GHDL rejects (and -frelaxed does not waive).
+    signal cfg_cmd_lanes, cfg_addr_lanes, cfg_data_lanes : natural range 1 to 4 := 1;
     signal cfg_cmd_edges  : natural := 8;
     signal cfg_addr_edges : natural := 0;
     signal cfg_dummy_edges: natural := 0;
@@ -204,6 +207,24 @@ begin
             bus_write(clk, pbus, SlotQSPIxCMD, qspi_mk_cmd(opcode, dlen, dir));  -- LAUNCH
         end procedure;
 
+        -- Byte-lane write. periph_tb_pkg.bus_write always drives WEn = "0000", so a
+        -- per-lane write cannot be expressed through the shared BFM; GROUP 0 below needs
+        -- one to prove that each lane reaches exactly the bits the register map says.
+        procedure bus_write_lanes(slot  : in natural;
+                                  lanes : in std_logic_vector(3 downto 0);
+                                  data  : in std_logic_vector(31 downto 0)) is
+        begin
+            wait until clk = '0';
+            pbus.addr_periph <= std_logic_vector(to_unsigned(slot, 6));
+            pbus.write_data  <= data;
+            pbus.wen         <= lanes;
+            pbus.en_mem      <= '0';
+            wait until clk = '1';
+            wait until clk = '0';
+            pbus.en_mem <= '1';
+            pbus.wen    <= (others => '1');
+        end procedure;
+
         -- W1C-clear the given SR bits, then retire the gated-ClkMem clear pulse with a dummy CR read before SR is re-read.
         procedure qspi_w1c_clear(mask : std_logic_vector(31 downto 0)) is
             variable r : std_logic_vector(31 downto 0);
@@ -228,6 +249,61 @@ begin
         sb.check_slv("SR resets to 0", rdw, x"00000000");
         bus_read(clk, pbus, rdata_out, SlotQSPIxRX, rdw);
         sb.check_slv("RX resets to 0", rdw, x"00000000");
+        bus_read(clk, pbus, rdata_out, SlotQSPIxCR, rdw);
+        sb.check_slv("CR resets to 0", rdw, x"00000000");
+        bus_read(clk, pbus, rdata_out, SlotQSPIxCMD, rdw);
+        sb.check_slv("CMD resets to 0", rdw, x"00000000");
+        bus_read(clk, pbus, rdata_out, SlotQSPIxADR, rdw);
+        sb.check_slv("ADR resets to 0", rdw, x"00000000");
+        bus_read(clk, pbus, rdata_out, SlotQSPIxTX, rdw);
+        sb.check_slv("TX resets to 0", rdw, x"00000000");
+        bus_read(clk, pbus, rdata_out, 6, rdw);
+        sb.check_slv("slot 6, outside the six-word window, reads 0", rdw, x"00000000");
+
+        -- GROUP 0b: the register file itself -- readback, implemented-bit masks, byte
+        -- lanes and the read-only register. QSPIEN is still 0 here, which is what lets a
+        -- CMD write be exercised as storage: the launch guard suppresses the transaction.
+        report "=== GROUP 0b: register file ===" severity note;
+
+        bus_write(clk, pbus, SlotQSPIxADR, x"5AC3961E");
+        bus_read(clk, pbus, rdata_out, SlotQSPIxADR, rdw);
+        sb.check_slv("GROUP0b: ADR holds all 32 bits", rdw, x"5AC3961E");
+        bus_write_lanes(SlotQSPIxADR, "1110", x"000000A7");
+        bus_read(clk, pbus, rdata_out, SlotQSPIxADR, rdw);
+        sb.check_slv("GROUP0b: ADR lane 0 alone moves bits 7:0", rdw, x"5AC396A7");
+        bus_write_lanes(SlotQSPIxADR, "0111", x"3B000000");
+        bus_read(clk, pbus, rdata_out, SlotQSPIxADR, rdw);
+        sb.check_slv("GROUP0b: ADR lane 3 alone moves bits 31:24", rdw, x"3BC396A7");
+        bus_write(clk, pbus, SlotQSPIxADR, x"00000000");
+
+        bus_write(clk, pbus, SlotQSPIxTX, x"12345678");
+        bus_read(clk, pbus, rdata_out, SlotQSPIxTX, rdw);
+        sb.check_slv("GROUP0b: TX holds all 32 bits", rdw, x"12345678");
+        bus_write(clk, pbus, SlotQSPIxTX, x"00000000");
+
+        bus_write(clk, pbus, SlotQSPIxCMD, x"7FFFFFFF");
+        bus_read(clk, pbus, rdata_out, SlotQSPIxCMD, rdw);
+        sb.check_slv("GROUP0b: CMD implements bits 10:0 only", rdw, x"000007FF");
+        bus_write(clk, pbus, SlotQSPIxCMD, x"00000000");
+        bus_write_lanes(SlotQSPIxCMD, "1101", x"00000700");
+        bus_read(clk, pbus, rdata_out, SlotQSPIxCMD, rdw);
+        sb.check_slv("GROUP0b: CMD lane 1 alone moves bits 10:8", rdw, x"00000700");
+        bus_write(clk, pbus, SlotQSPIxCMD, x"00000000");
+
+        bus_write(clk, pbus, SlotQSPIxRX, x"7FFFFFFF");
+        bus_read(clk, pbus, rdata_out, SlotQSPIxRX, rdw);
+        sb.check_slv("GROUP0b: RX is read-only", rdw, x"00000000");
+
+        bus_write(clk, pbus, SlotQSPIxCR, x"7FFFFFFF");
+        bus_read(clk, pbus, rdata_out, SlotQSPIxCR, rdw);
+        sb.check_slv("GROUP0b: CR implements bits 28:0 only", rdw, x"1FFFFFFF");
+        bus_write(clk, pbus, SlotQSPIxCR, x"00000000");
+        bus_write_lanes(SlotQSPIxCR, "0111", x"3F000000");
+        bus_read(clk, pbus, rdata_out, SlotQSPIxCR, rdw);
+        sb.check_slv("GROUP0b: CR lane 3 alone moves bits 28:24", rdw, x"1F000000");
+        bus_write(clk, pbus, SlotQSPIxCR, x"00000000");
+        bus_read(clk, pbus, rdata_out, SlotQSPIxCR, rdw);
+        sb.check_slv("GROUP0b: CR back to 0", rdw, x"00000000");
 
         -- GROUP 1: single-mode (1-1-1) 8-bit READ, AWID=24, DUMMY=0
         report "=== GROUP 1: single-mode 8-bit READ ===" severity note;

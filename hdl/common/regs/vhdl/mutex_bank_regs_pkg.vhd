@@ -107,6 +107,7 @@ package mutex_bank_regs_pkg is
     constant MTXOWN15_LSB             : natural := 0;
 
     -- No periph_regs table section: the register set is a function of the mutex count,
-    -- so its words are not a dense array. See hdl/common/regs/REGFILE.md.
+    -- so its register set is not fixed at elaboration.
+    -- See hdl/common/regs/REGFILE.md.
 
 end package mutex_bank_regs_pkg;

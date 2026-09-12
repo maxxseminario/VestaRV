@@ -219,6 +219,22 @@ begin
         end procedure;
 
         -- W1C the given SR mask, then a dummy CR read to retire the gated-ClkMem write pulse before the next SR read.
+        -- A write with an explicit byte-lane pattern. The shared BFM always drives WEn = "0000" (a full-word write), so a lane is inexpressible through it and GROUP G-LANE needs this local copy.
+        procedure bus_write_lanes(slot  : in natural;
+                                  lanes : in std_logic_vector(3 downto 0);
+                                  data  : in std_logic_vector(31 downto 0)) is
+        begin
+            wait until clk = '0';
+            pbus.addr_periph <= std_logic_vector(to_unsigned(slot, 6));
+            pbus.write_data  <= data;
+            pbus.wen         <= lanes;
+            pbus.en_mem      <= '0';
+            wait until clk = '1';
+            wait until clk = '0';
+            pbus.en_mem <= '1';
+            pbus.wen    <= (others => '1');
+        end procedure;
+
         procedure w1c(mask : std_logic_vector(31 downto 0)) is
             variable r : std_logic_vector(31 downto 0);
         begin
@@ -394,6 +410,40 @@ begin
         sb.check_bit("G0: pwm_out(1) = 0 (safe/low) out of reset", to_X01(pwm_out(1)), '0');
         sb.check_bit("G0: irq_fault = 0 out of reset", to_X01(irq_fault), '0');
         sb.check_bit("G0: irq_evt = 0 out of reset", to_X01(irq_evt), '0');
+
+        /* GROUP G-LANE: byte lanes on PWMxCR and PWMxPOL. No other group in this bench ever drives a lane: every bus_write is a full-word WEn = "0000".
+
+           PWM is the one block in this wave with NO WIDEWR row, because its decode already merged per byte lane by hand -- enables and PEVIE from lane 0, FLTIE/FLTEN/FLTTRIG from lane 1, PSC from lane 2 -- and that is what periph_regs does by default. Every check here therefore passes against the pre-migration RTL too; this group is a pure regression on the lane merge.
+
+           PWMEN is left 0 and no buffered word is written, so nothing arms UPDF and nothing starts the engine. Bit 14 of the CR pattern is 0, so no FLTTRIG is issued. */
+        report "=== GROUP G-LANE: byte lanes ===" severity note;
+        bus_write_lanes(PWM_SLOT_CR, "1110", x"000F1186");
+        bus_read(clk, pbus, rdata_out, PWM_SLOT_CR, rdw);
+        sb.check_slv("G-LANE: a lane-0 CR write moves only the enables and PEVIE",
+                     rdw, x"00000086");
+        bus_write_lanes(PWM_SLOT_CR, "1101", x"000F1186");
+        bus_read(clk, pbus, rdata_out, PWM_SLOT_CR, rdw);
+        sb.check_slv("G-LANE: a lane-1 CR write adds FLTIE and FLTEN only",
+                     rdw, x"00001186");
+        bus_write_lanes(PWM_SLOT_CR, "1011", x"000F1186");
+        bus_read(clk, pbus, rdata_out, PWM_SLOT_CR, rdw);
+        sb.check_slv("G-LANE: a lane-2 CR write adds PSC only", rdw, x"000F1186");
+        bus_write_lanes(PWM_SLOT_CR, "0111", x"00000000");
+        bus_read(clk, pbus, rdata_out, PWM_SLOT_CR, rdw);
+        sb.check_slv("G-LANE: CR ignores lane 3, which holds no stored bit",
+                     rdw, x"000F1186");
+
+        bus_write_lanes(PWM_SLOT_POL, "1110", x"00000033");
+        bus_read(clk, pbus, rdata_out, PWM_SLOT_POL, rdw);
+        sb.check_slv("G-LANE: a lane-0 POL write moves POL0/POL1 and SAFE0/SAFE1",
+                     rdw, x"00000033");
+        bus_write_lanes(PWM_SLOT_POL, "1101", x"0000FF00");
+        bus_read(clk, pbus, rdata_out, PWM_SLOT_POL, rdw);
+        sb.check_slv("G-LANE: POL ignores lane 1, which holds no stored bit",
+                     rdw, x"00000033");
+
+        bus_write(clk, pbus, PWM_SLOT_CR, x"00000000");
+        bus_write(clk, pbus, PWM_SLOT_POL, x"00000000");
 
         -- GROUP G1: basic PWM shape, measured.
         -- Two settings (PSC=0 and PSC=1) separated by a fresh resetn pulse, so each starts from the "per_active=0 self-commits on the first psc_tick" corner and the elapsed-edge arithmetic stays unambiguous.

@@ -51,9 +51,13 @@ entity periph_regs is
         WORD_BASE   : natural := 0;         -- first word inside the sub-slot
         RSTVAL, IMPL, W1C, WOSET, WOT,
         PULSE, RCLR, HWOWN : word_array;    -- from <block>_regs_pkg, one row per word
+        RSTVAL_OR   : word_array := ...;    -- OR-ed onto RSTVAL: a reset that is a generic
+        HWALIAS     : word_array := ...;    -- hookable beyond HWOWN: an alias word of this block
         RDTHRU      : std_logic_vector := "";   -- per word: read from hw_rd, not storage
         WIDEWR      : std_logic_vector := "";   -- per word: any enabled lane writes all 32 bits
-        STROBE_HOLD : boolean := false          -- strobe retirement, see below
+        FULLWR      : std_logic_vector := "";   -- per word: only WEn = "0000" is a write at all
+        STROBE_HOLD : boolean := false;         -- strobe retirement, see below
+        REGISTERED_READ : boolean := true       -- false: rdata_out is the read mux itself
     );
     port (
         ClkMem, resetn, EnMemPeriph : in std_logic;
@@ -63,6 +67,7 @@ entity periph_regs is
         rdata_out : out word;
 
         regs      : out word_array(0 to NWORDS-1);   -- the stored words, for the datapath
+        wr_inhibit : in std_logic_vector(0 to NWORDS-1) := (others => '0');  -- refuse the write
         hw_rd     : in  word_array(0 to NWORDS-1) := (others => (others => '0'));
         hw_we     : in  word_array(0 to NWORDS-1) := (others => (others => '0'));
         hw_wdata  : in  word_array(0 to NWORDS-1) := (others => (others => '0'));
@@ -121,8 +126,23 @@ express them:
   `GO`/`ABORT` are `sw=w` and read 0.
 - **`WIDEWR`**, per word. Any enabled lane writes all 32 bits. `TIMxVAL` has no
   byte lanes (`config/rdl.json` says so); every other word merges per lane.
+- **`FULLWR`**, per word. Only a four-lane write (`WEn = "0000"`) is a write to
+  the word at all; a partial write is dropped whole and is not a read either.
+  It is the inverse of `WIDEWR`, not its complement: `WIDEWR` widens a partial
+  write to 32 bits, `FULLWR` refuses it. SYSTEM's `WDTPASS` is the one word in
+  the tree that needs it, because a password compared against half a word is a
+  password guessed a byte at a time.
 - **`STROBE_HOLD`**, per block. Which of the two strobe retirements the peripheral
   needs; see below. It is a property of who CONSUMES the strobe.
+- **`REGISTERED_READ`**, per block. See "The read path" below.
+- **`RSTVAL_OR`**, per bit, OR-ed onto `RSTVAL`. The one thing a reset value can
+  be that SystemRDL cannot describe: a GENERIC of the peripheral. I2C's slave
+  address resets to `default_SAD` (0x79 on I2C0, 0x23 on I2C1) and GPIO's `PxOUT`,
+  `PxDIR`, `PxSEL`, `PxREN` and `PxAFS` to the `RstValPx*` generics, all per
+  instance. Left at its one-row default it is all zero and `RSTVAL` stands; an
+  elaboration assertion refuses a bit outside `IMPL`, which would set a flop that
+  does not exist.
+- **`HWALIAS`**, per bit, in ADDITION to `HWOWN`. See "Alias words" below.
 
 ## Ownership: a flop lives with whoever sets it
 
@@ -157,6 +177,88 @@ path for such a bit is not built. A concurrent assertion, fenced with
 `-- pragma translate_off` so it costs no gate, reports that instead of leaving the
 drop silent: the `.rdl` and the RTL disagree about who owns the bit, and one of
 them has to change.
+
+## The read path: registered here, or registered by the fabric
+
+`REGISTERED_READ` defaults to `true` and is the flop every hand-written decode in
+the tree has: `rdata_out` is loaded from the read mux on every `ClkMem` edge.
+
+`false` makes `rdata_out` the read mux itself, unregistered. It exists for one
+reason: `I2C.vhd`'s read has always been combinational (`with MABPartInteger
+select rdataPart <=`), and `MCU.vhd` carries an `i2c_rdata_bridge` that registers
+it on the mclk edge while the access strobe is high. Two flops in series would
+land the data a cycle after the arbiter captures it. Either the module offers the
+combinational path or the bridge is deleted, and the bridge is in generated
+`MCU.vhd`, guarded by a `combinationalRead` metadata check in
+`platform/common/python/mcu_vhd.py`; the generic is the change that is local to
+the block. The two paths are timing-equivalent at the bus by construction, and
+`periph_regs_tb` GROUP 11 proves it on one access: the value the combinational
+instance presents BEFORE the capture edge is bit for bit the value the registered
+instance presents AFTER it, so a flop clocked on that edge sees the same word
+either way.
+
+Both paths park on `WORD_BASE` while deselected, so a combinational `rdata_out`
+collapses to word 0 on deselect - which is exactly what `I2C.vhd` does today, and
+what the bridge exists to catch.
+
+## `wr_inhibit`: a write the peripheral refuses
+
+`wr_inhibit(i) = '1'` makes the access neither a write nor a read of word `i`.
+Storage, `wr_strobe(i)` and every write-1 arm on that word are suppressed
+together, because a refused write is not half an access; `acc_hit(i)` still
+reports that the word is addressed, and a read (`WEn = "1111"`) is unaffected.
+
+It is a PORT and not a mask because the qualifier is live state: SYSTEM's
+`WDTCR` takes writes only inside the 64-cycle window a correct `WDTPASS` opens,
+so the inhibit is `not unlocked`, not a property of the description. A condition
+that IS a property of the description belongs in the tables.
+
+## Sparse tables: a register set with gaps
+
+The tables are indexed by WORD, not by register. A block whose registers do not
+occupy a contiguous run of slots - SYSTEM (words 0-4 and 12-17), EVFAB (0-11, 15
+and 16-31) - gets a row for every word from the first to the last, with an
+all-zero row named `_reserved_<word>` for each gap. `IMPL = 0` gives such a word
+no flop, no hook logic and no arm; it reads 0, which is what the `when others`
+arm of each hand-written decode returns today.
+
+Sparse rather than a second instance per run. A gap costs the two per-word strobe
+flops and nothing else (14 in SYSTEM, 6 in EVFAB), while a second instance would
+need a second read mux, a second strobe set and an `rdata_out` merge inside the
+peripheral - the decode this module exists to delete. `WORD_BASE` moves the whole
+window instead, and is for a block that sits at an offset inside someone else's
+256 B slot, not for a gap.
+
+`rdl_vs_vhdl_test`'s regfile reader skips exactly the `_reserved_<word>` spelling
+when it maps a row back to a register; a VHDL identifier cannot begin with an
+underscore, so the name can never collide with one.
+
+## Alias words: one storage word, several addresses
+
+A set/clear/toggle alias is a separate WORD that acts on another word's storage:
+GPIO's `PxOUTS` / `PxOUTC` / `PxOUTT` onto `PxOUT`, EVFAB's `EVFCHENSET` /
+`EVFCHENCLR` onto `EVFCHEN`. The module already expresses it - the alias word
+holds no storage, its `WOSET` / `W1C` / `WOT` mask arms `woset_hit` / `w1c_hit` /
+`wot_hit`, and the peripheral wires that to the storage word's `hw_set` /
+`hw_clr` / `hw_we` - with one catch.
+
+**The catch is `HWOWN`.** An alias write is SOFTWARE writing, so the description
+correctly says `hw=r` on the target, and a hook on a bit outside
+`IMPL and HWOWN` reaches no logic and asserts. GPIO needs nothing extra only
+because its `PxOUT` really is hardware-driven (the event fabric's `task_outset` /
+`task_outclr`). EVFAB's `EVFCHEN` is not. `HWALIAS` is where the RTL says so:
+the hook mask is `IMPL and (HWOWN or HWALIAS)`, and the ownership assertion uses
+the same mask, so it still catches a hook on a bit nobody claims. Use it ONLY for
+a cross-word alias inside the block; a hook that really is hardware's belongs in
+the `.rdl`.
+
+**Which hook, registered or not, is a timing question.** The arms are flops set on
+the access edge, so a storage word takes an alias write one `ClkMem` edge later
+than a hand-written decode did. That is correct where `ClkMem` free-runs (GPIO:
+its fabric tasks act outside the `en` gate, so it must). Where `ClkMem` is GATED
+by the select there may be no edge after the access at all, and the write would
+be lost: EVFAB is that case, and its aliases take `acc_hit` qualified with their
+own lane instead, which lands on the access edge exactly as the case arm did.
 
 ## Strobe retirement: two idioms, one generic
 
@@ -195,6 +297,15 @@ event is lost; a synchronous pulse on an async clear is a wider pulse than today
    has.
 7. The bench is the oracle. If it does not cover a register, add the case BEFORE
    the migration, so the proof is not hollow.
+
+### Blocks whose description and RTL disagree, and where that lands
+
+Three registers are `sw=rw` in the `.rdl` and stored by nothing in the RTL, so the
+module holds storage for them and `RDTHRU` keeps the read at 0: SYSTEM's
+`WDTPASS` (32 bits, a password port), EVFAB's `EVFCHTRIG` (8) and `EVFEVTRIG`
+(16, both action slots decoded in another clock domain). That is 56 flops nothing
+reads. Correcting the description rather than the RTL is the fix, and it is a
+`.rdl` change with its own gate sweep, not a migration edit.
 
 Shared files a per-block migration must NOT touch: `hdl/common/periph_regs.vhd`,
 `hdl/common/constants.vhd`, `hdl/common/tb/periph_regs_tb.vhd`, this file,

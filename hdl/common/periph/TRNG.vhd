@@ -10,7 +10,8 @@ use ieee.std_logic_1164.all;
 use ieee.std_logic_arith.all;
 use ieee.std_logic_unsigned.all;
 
--- Word slots, field ranges, resets and implemented-bit masks: generated from hdl/common/regs/rdl/trng.rdl.
+-- Word slots, field ranges, resets and implemented-bit masks, and the periph_regs
+-- tables the bus side is an instance of: generated from hdl/common/regs/rdl/trng.rdl.
 use work.trng_regs_pkg.all;
 
 
@@ -48,13 +49,22 @@ end TRNG;
 
 architecture behavioral of TRNG is
 
-    -- ---- register-file storage (ClkMem domain) -----------------------------
-    signal trng_cr   : std_logic_vector(11 downto 0);   -- EN/DRDYIE/ALMIE/ROSEL/DECIM
-    signal rct_cutoff: std_logic_vector(7 downto 0);    -- HT.RCTC
+    /* ---- register file (ClkMem domain) -------------------------------------
+       The bus side is one work.periph_regs instance driven by trng_regs_pkg's
+       tables; see hdl/common/regs/REGFILE.md. It holds the IMPL bits, i.e.
+       TRNGxCR[11:0] and TRNGxHT.RCTC. TRNGxSR and TRNGxDR hold no flop there:
+       the harvest engine owns ALMF, DRDY, RUN and the entropy word, and they
+       reach the read mux through hw_rd. */
+    signal regs_q   : reg_arr_t;                        -- the stored words
+    signal hw_rd_s  : reg_arr_t;                        -- read source for everything else
+    signal acc_s    : std_logic_vector(0 to NWORDS-1);  -- combinational: this slot, now
+    signal sr_rd, dr_rd, ht_rd : std_logic_vector(31 downto 0);
+
+    signal rct_cutoff: std_logic_vector(7 downto 0);    -- HT.RCTC, sliced out of regs_q
+    signal dr_read_acc        : std_logic;              -- qualifying TRNGxDR read, this access
     signal dr_consume_pending : std_logic;              -- blind-window mask
     signal dr_consume_tgl     : std_logic;              -- consume request toggle
     signal clr_almf_tgl       : std_logic;              -- W1C ALMF request toggle
-    signal trng_slot          : natural range 0 to 63;  -- decoded word slot
 
     -- ---- CR field taps (combinational, quasi-static) ----------------------
     signal en_cr, drdyie_cr, almie_cr : std_logic;
@@ -93,15 +103,15 @@ architecture behavioral of TRNG is
 begin
 
     -- ------------------------- Signal Routing ---------------------------------
-    -- slot decode (EnMemPeriph-qualified LEVEL, never an edge).
-    trng_slot <= conv_integer(MABPart) when EnMemPeriph = '0' else 0;
-
-    -- CR field taps (quasi-static, coincident nets at integration).
-    en_cr     <= trng_cr(0);
-    drdyie_cr <= trng_cr(1);
-    almie_cr  <= trng_cr(2);
-    rosel_cr  <= trng_cr(7 downto 4);
-    decim_cr  <= trng_cr(11 downto 8);
+    -- CR field taps (quasi-static, coincident nets at integration). The field
+    -- positions are trng_regs_pkg's, so no bit literal in this file describes a
+    -- register.
+    en_cr     <= regs_q(SLOT_CR)(TRNGEN_LSB);
+    drdyie_cr <= regs_q(SLOT_CR)(TRNGDRDYIE_LSB);
+    almie_cr  <= regs_q(SLOT_CR)(TRNGALMIE_LSB);
+    rosel_cr  <= regs_q(SLOT_CR)(TRNGROSEL_MSB downto TRNGROSEL_LSB);
+    decim_cr  <= regs_q(SLOT_CR)(TRNGDECIM_MSB downto TRNGDECIM_LSB);
+    rct_cutoff <= regs_q(SLOT_HT)(TRNGRCTC_MSB downto TRNGRCTC_LSB);
 
     -- RCT cutoff: RCTC=0 selects the hardware default 32.
     cutoff_eff <= rct_cutoff when rct_cutoff /= x"00" else x"20";
@@ -119,79 +129,118 @@ begin
     ro_sel    <= rosel_cr;
     ro_sclk   <= clk;
 
-    /* ------------------------- register write + consume (ClkMem) -------------
-       Rising ClkMem, EnMemPeriph='0' qualified writes: the CR/HT stores, an SR lane-0 write of 1 to ALMF flipping clr_almf_tgl (W1C across domains), and a qualifying DR READ (slot=DR, WEn="1111") launching the consume when word_valid='1' and nothing is already pending.
-       dr_consume_pending's teardown, independent of EnMemPeriph, clears once word_valid=0 has been observed, i.e. the old word is truly gone. */
-    reg_write: process(resetn, ClkMem)
+    /* ------------------------- register file (ClkMem) -------------------------
+       One periph_regs instance replaces the case decode, the byte-lane merge,
+       the reset branch and the registered read mux. It stores TRNGxCR[11:0] and
+       TRNGxHT.RCTC; TRNGxSR, TRNGxDR and TRNGxHT.RUNLEN read through hw_rd.
+
+       WIDEWR marks TRNGxCR, word 0 of 4, as the word any enabled lane writes
+       whole: the decode this replaces qualified the write on WEn(0) alone and
+       then wrote TRNGDECIM at bits 11:8, which is lane 1. TRNGxHT needs no such
+       row -- its only stored field is RCTC[7:0], inside lane 0 either way.
+
+       STROBE_HOLD is immaterial here and left false, because this block uses no
+       registered strobe at all; see dr_read_acc below. */
+    hw_rd_s <= (SLOT_SR => sr_rd,
+                SLOT_DR => dr_rd,
+                SLOT_HT => ht_rd,
+                others  => (others => '0'));
+
+    -- TRNGxSR: DRDY, ALMF and RUN are clk-domain levels, read raw.
+    sr_rd <= (31 downto TRNGRUN_MSB + 1 => '0') & run_level & almf_flag & drdy_level;
+
+    /* TRNGxDR: the entropy word ONLY while a valid, not-yet-retired word is
+       there, which is the same condition that gates the consume below, so the
+       read and the pop stay atomic. Otherwise 0: an empty read, no consume. */
+    dr_rd <= dr_word when (word_valid = '1' and dr_consume_pending = '0')
+             else (others => '0');
+
+    -- TRNGxHT: RUNLEN is the read-only diagnostic half; RCTC is storage.
+    ht_rd <= (31 downto TRNGRUNLEN_MSB + 1 => '0') & runlen_diag
+             & (TRNGRUNLEN_LSB - 1 downto 0 => '0');
+
+    u_regs: entity work.periph_regs
+        generic map (
+            NWORDS      => NWORDS,
+            RSTVAL      => RSTVAL,
+            IMPL        => IMPL,
+            W1C         => W1C,
+            WOSET       => WOSET,
+            WOT         => WOT,
+            PULSE       => PULSE,
+            RCLR        => RCLR,
+            HWOWN       => HWOWN,
+            WIDEWR      => "1000",
+            STROBE_HOLD => false)
+        port map (
+            ClkMem      => ClkMem,
+            resetn      => resetn,
+            EnMemPeriph => EnMemPeriph,
+            WEn         => WEn,
+            MABPart     => MABPart,
+            wdata       => wdata,
+            rdata_out   => rdata_out,
+            regs        => regs_q,
+            hw_rd       => hw_rd_s,
+            acc_hit     => acc_s,
+            rd_strobe   => open,
+            wr_strobe   => open,
+            wr_pulse    => open,
+            w1c_hit     => open,
+            woset_hit   => open,
+            wot_hit     => open,
+            rd_clr      => open);
+
+    /* A qualifying TRNGxDR read: selected, addressed at DR, WEn = "1111".
+
+       This is the COMBINATIONAL acc_hit and NOT the module's rd_strobe or its
+       RCLR hook rd_clr, and the reason is the gated bus clock. ClkMem is gated
+       by EnMemPeriph in this block's bench and in the myshkin peripheral
+       integration, so the access presents exactly ONE rising ClkMem edge and
+       there is no further edge until the NEXT bus access. rd_strobe and rd_clr
+       are flops SET on that edge, so a ClkMem-synchronous consumer of either
+       lands the consume one whole bus access late, and STROBE_HOLD = true only
+       makes it worse by retiring the strobe asynchronously at deselect, before
+       any edge can sample it. acc_hit reproduces the old decode's condition
+       exactly and lands the consume on the edge the read does. */
+    dr_read_acc <= '1' when (acc_s(SLOT_DR) = '1' and WEn = "1111") else '0';
+
+    /* ------------------------- read-consume + W1C (ClkMem) --------------------
+       What is left of the old register-write process: the blind-window mask, the
+       consume toggle and the ALMF write-1-to-clear toggle. Order is the old
+       one -- the pending teardown reads the pre-edge value, so a consume
+       arriving in the same cycle as a teardown is correctly suppressed.
+       dr_consume_pending's teardown is independent of EnMemPeriph and lifts once
+       word_valid = 0 has been observed, i.e. the old word is truly gone. */
+    reg_side: process(resetn, ClkMem)
     begin
         if resetn = '0' then
-            trng_cr            <= (others => '0');
-            rct_cutoff          <= (others => '0');
             dr_consume_pending  <= '0';
             dr_consume_tgl      <= '0';
             clr_almf_tgl        <= '0';
         elsif rising_edge(ClkMem) then
 
-            -- Pending teardown: once the clk engine has torn down word_valid the mask lifts (coincident nets, read directly with no crossing needed).
             if dr_consume_pending = '1' and word_valid = '0' then
                 dr_consume_pending <= '0';
             end if;
 
-            if EnMemPeriph = '0' then
-                case trng_slot is
-                    when SLOT_CR =>
-                        if WEn(0) = '0' then
-                            trng_cr <= wdata(11 downto 0);   -- bits 31:12 reserved
-                        end if;
-                    when SLOT_SR =>
-                        -- W1C: writing 1 clears ALMF; DRDY(0)/RUN(2) are read-only, ignored.
-                        if WEn(0) = '0' then
-                            if wdata(1) = '1' then clr_almf_tgl <= not clr_almf_tgl; end if;
-                        end if;
-                    when SLOT_DR =>
-                        -- Read-consume: qualifying READ only (WEn="1111"), gated on a valid, not-already-consumed word (no double-pop on a repeat edge).
-                        if WEn = "1111" then
-                            if word_valid = '1' and dr_consume_pending = '0' then
-                                dr_consume_pending <= '1';
-                                dr_consume_tgl      <= not dr_consume_tgl;
-                            end if;
-                        end if;
-                    when SLOT_HT =>
-                        -- RCTC (rw) only; RUNLEN (ro diagnostic) ignores writes.
-                        if WEn(0) = '0' then
-                            rct_cutoff <= wdata(7 downto 0);
-                        end if;
-                    when others =>
-                        null;   -- slots >=4 no effect
-                end case;
+            -- Read-consume, gated on a valid, not-already-consumed word so a
+            -- repeated internal edge inside one access cannot double-pop.
+            if dr_read_acc = '1' then
+                if word_valid = '1' and dr_consume_pending = '0' then
+                    dr_consume_pending <= '1';
+                    dr_consume_tgl      <= not dr_consume_tgl;
+                end if;
+            end if;
+
+            -- W1C: a 1 written to TRNGxSR.ALMF, lane 0. DRDY and RUN are
+            -- read-only and ignored.
+            if acc_s(SLOT_SR) = '1' and WEn(0) = '0'
+               and wdata(TRNGALMF_LSB) = '1' then
+                clr_almf_tgl <= not clr_almf_tgl;
             end if;
         end if;
-    end process reg_write;
-
-    /* ------------------------- register read (ClkMem) -------------------------
-       Registered read mux on rising ClkMem over data already in, or coincident with, the mclk domain: no pre-latch, no bridge.
-       DR returns dr_word ONLY on a currently-valid, not-yet-consumed word, the SAME condition that gates the consume above, so the read and the pop are atomic; otherwise it returns 0, an empty read with no consume and no toggle. */
-    reg_read: process(ClkMem)
-    begin
-        if rising_edge(ClkMem) then
-            case trng_slot is
-                when SLOT_CR =>
-                    rdata_out <= (31 downto 12 => '0') & trng_cr;
-                when SLOT_SR =>
-                    rdata_out <= (31 downto 3 => '0') & run_level & almf_flag & drdy_level;
-                when SLOT_DR =>
-                    if word_valid = '1' and dr_consume_pending = '0' then
-                        rdata_out <= dr_word;
-                    else
-                        rdata_out <= (others => '0');
-                    end if;
-                when SLOT_HT =>
-                    rdata_out <= (31 downto 22 => '0') & runlen_diag & (15 downto 8 => '0') & rct_cutoff;
-                when others =>
-                    rdata_out <= (others => '0');   -- slots >=4 read 0
-            end case;
-        end if;
-    end process reg_read;
+    end process reg_side;
 
     /* ------------------------- clk-domain CDC ----------------------------------
        2-FF sync of the async RO tap ro_raw, the ONE genuine metastability CDC in this block, plus 2-FF and edge-detect on the two ClkMem-domain request toggles (dr_consume_tgl, clr_almf_tgl).

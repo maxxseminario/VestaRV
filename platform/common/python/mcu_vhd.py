@@ -2394,6 +2394,10 @@ class McuVhdEmitter():
 		lines.append('    gpio%d: GPIO' % gi)
 		lines.append('        generic map (')
 		lines.append('            num_pins        => 8,')
+		# NUM_AFS was MemoryMap.GPIO_NUM_AFS read from inside GPIO.vhd; it is a
+		# generic now so that entity can drop the memory-map clause (report R12e).
+		# MCU.vhd `use`s the memory map anyway, so the constant is passed from here.
+		lines.append('            NUM_AFS         => GPIO_NUM_AFS,')
 		lines.append('            PadOUTPosLogic  => true,')
 		lines.append('            PadDIRPosLogic  => false,')
 		lines.append('            PadRENPosLogic  => false,')

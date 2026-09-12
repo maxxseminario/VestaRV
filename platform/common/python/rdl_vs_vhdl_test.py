@@ -189,6 +189,11 @@ def _regfileTable(pkgSrc, name):
     return [(reg, int(val, 16)) for val, reg in rows]
 
 
+# The gap rows of a sparse periph_regs table. A VHDL identifier cannot start
+# with an underscore, so this can never be a register name.
+_RESERVED_ROW = re.compile(r'^_reserved_\d+$')
+
+
 def makeRegfileReader(package):
     def read(vhdlPath, memoryMapPath):
         src = _read(vhdlPath)
@@ -205,6 +210,12 @@ def makeRegfileReader(package):
         impl = dict(_regfileTable(pkgSrc, 'IMPL'))
         out = {}
         for word, (name, reset) in enumerate(rst):
+            # A SPARSE table (SYSTEM, EVFAB) carries an all-zero `_reserved_<word>`
+            # row for every word its register set skips, so that the row index is
+            # still the word offset. Those rows are not registers; the row index
+            # is what they exist to keep honest.
+            if _RESERVED_ROW.match(name):
+                continue
             out[name] = {'word': word, 'reset': reset, 'impl': impl[name]}
         return out
 
@@ -427,16 +438,33 @@ _PWR_SLOTS = {'PWRCR': 0, 'PWRSR': 1, 'PWRWAKE': 5, 'PWRSTS': 6, 'TASKWKM': 7}
 _PWR_RESET = {'PWRCR': 0, 'PWRWAKE': 0, 'TASKWKM': 0}
 
 GENERIC_BLOCKS = {
-    'gpio': dict(vhdl='GPIO.vhd', slots='memmap:Px', name=_prefixed('Px', _GPIO_KEYS),
-                 process='reg_write',
-                 storage={'PxIES': 'PxIES', 'PxIE': 'PxIE', 'PxTASK': 'PxTASK'},
-                 require=[r"PxIES\s*<=\s*\(others\s*=>\s*'0'\)",
-                          r'PxOUT\s*<=\s*RstValPxOUT',
-                          r'constant\s+RegSlotPxTASK\s*:\s*natural\s*:=\s*12;']),
-    'spi': dict(vhdl='SPI.vhd', slots='memmap:SPIx', name=_prefixed('SPIx', _SPI_KEYS),
-                process='reg_write',
-                storage={'SPIxCR': 'SPIxCR', 'SPIxTX': 'SPIxTX', 'SPIxFOS': 'SPIxFOS'},
-                require=[r'signal SPIxCR : std_logic_vector\(19 downto 0\)']),
+    # GPIO is on periph_regs (report R12e). It was parked until NUM_AFS became a
+    # generic and the entity could drop `use work.MemoryMap.all`; its slots and
+    # its tables now both come from gpio_regs_pkg. The three PxOUT ALIAS words
+    # are the point: PxOUTS -> hw_set, PxOUTC -> hw_clr, PxOUTT -> hw_we with a
+    # complemented hw_wdata, all onto PxOUT's one storage word, alongside the
+    # event-fabric tasks on the same two masks.
+    'gpio': dict(vhdl='GPIO.vhd', regfile='gpio_regs_pkg',
+                 require=[r'u_regs\s*:\s*entity work\.periph_regs',
+                          r'STROBE_HOLD => false',
+                          r'RSTVAL_OR   => RSTVAL_OR_GPIO',
+                          r'r\(RegSlotPxOUT\) := RstValPxOUT and IMPL\(RegSlotPxOUT\);',
+                          r'hw_set_s   <= \(RegSlotPxOUT => woset_s\(RegSlotPxOUTS\) or task_set,',
+                          r'hw_clr_s   <= \(RegSlotPxOUT => w1c_s\(RegSlotPxOUTC\) or task_clr,',
+                          r'hw_we_s    <= \(RegSlotPxOUT => wot_s\(RegSlotPxOUTT\),',
+                          r'clr_if <= w1c_s\(RegSlotPxIF\)\(num_pins - 1 downto 0\);',
+                          r'NUM_AFS\s+:\s+natural := 8;']),
+    # SPI is a periph_regs block (report R12d): no case decode, no reset branch,
+    # no write-1 arm to read. RDTHRU is a function of ENABLE_EXTENDED_MEM, since
+    # SPIxFOS exists on SPI0 only and must read 0 on SPI1.
+    'spi': dict(vhdl='SPI.vhd', regfile='spi_regs_pkg',
+                require=[r'u_regs\s*:\s*entity work\.periph_regs',
+                         r'STROBE_HOLD => true',
+                         r'RDTHRU      => SPI_RDTHRU',
+                         r'r\(RegSlotSPIxFOS\) := \x271\x27;',
+                         r'clr_spi_teif <= w1c_s\(RegSlotSPIxSR\)\(SPITEIF_LSB\);',
+                         r'or rd_str\(RegSlotSPIxRX\) or wr_str\(RegSlotSPIxRX\);',
+                         r'acc_s\(RegSlotSPIxTX\)']),
     # TIMER is a periph_regs pilot (report R12a): no case decode, no reset
     # branch, no write-1 arm to read. WIDEWR marks TIMxVAL, word 2 of 8, as the
     # word any enabled lane writes whole, which is what `if wen /= "1111" then`
@@ -448,28 +476,55 @@ GENERIC_BLOCKS = {
                            r'RDTHRU      => "00100000"',
                            r'latch_timer_value <= wr_str\(RegSlotTIMxVAL\);',
                            r'clear_compare0_flag <= w1c_s\(RegSlotTIMxSR\)\(CMP0IF_LSB\);']),
-    'system': dict(vhdl='SYSTEM.vhd', slots='memmap:', name=_names(_SYS_NAMES),
-                   process='reg_write_proc',
-                   storage={'SYSCLKCR': 'SYS_CLK_CR', 'CLKDIVCR': 'SYS_CLK_DIV_CR',
-                            'BLOCKPWR': 'SYS_BLOCK_PWR', 'WDTCR': 'SYS_WDT_CR',
-                            'DCO0BIAS': 'DCO0_BIAS', 'DCO1BIAS': 'DCO1_BIAS'},
-                   require=[r'DCO0_BIAS\s*<=\s*DCO0_BIAS_DEFAULT;',
-                            r'DCO1_BIAS\s*<=\s*DCO1_BIAS_DEFAULT;',
-                            r"if unlocked = '1' and wen\(0\) = '0' then"]),
-    'npu': dict(vhdl='NPU.vhd', slots='mmr', name=_names(_NPU_NAMES), process='MMR_WRITE',
-                storage={'NPUCR': 'NPUCR', 'NPUIVSAR': 'NPUIVSAR', 'NPUWVSAR': 'NPUWVSAR',
-                         'NPUOVSAR': 'NPUOVSAR', 'NPUCFG1': 'NPUCFG1', 'NPUCFG2': 'NPUCFG2'},
-                require=[r'NPUTHINK\s*<=\s*MabMmrD\(16\);']),
-    'qspi': dict(vhdl='QSPI.vhd', slots='local', name=_prefixed('QSPIx', ['CR', 'CMD', 'ADR', 'TX', 'RX', 'SR']),
-                 process='reg_write',
-                 storage={'QSPIxCR': 'QSPIxCR', 'QSPIxCMD': 'QSPIxCMD',
-                          'QSPIxADR': 'QSPIxADR', 'QSPIxTX': 'QSPIxTX'},
-                 require=[r'constant SLOT_SR\s*:\s*natural\s*:=\s*5;']),
-    'i2c': dict(vhdl='I2C.vhd', slots='memmap:I2Cx', name=_prefixed('I2Cx', _I2C_KEYS),
-                process='reg_write',
-                storage={'I2CxCR': 'I2CxCR', 'I2CxMTX': 'I2CxMTX', 'I2CxSTX': 'I2CxSTX',
-                         'I2CxAMR': 'I2CxAMR'},
-                require=[r'I2CxAR\s*<=\s*default_SAD;']),
+    # SYSTEM is on periph_regs (report R12e), and is the first block whose table
+    # is SPARSE: eleven registers over eighteen words, the seven retired SYS_IRQ
+    # slots emitted as all-zero _reserved_ rows so a row index is still a word
+    # offset. Its two per-word write qualifiers are the module's new ones:
+    # FULLWR on WDT_PASS, wr_inhibit on WDT_CR.
+    'system': dict(vhdl='SYSTEM.vhd', regfile='system_regs_pkg',
+                   require=[r'u_regs\s*:\s*entity work\.periph_regs',
+                            r'STROBE_HOLD => true',
+                            r'FULLWR      => "000000000000100000"',
+                            r'RDTHRU      => "000010000000100000"',
+                            r"wr_inh <= \(RegSlotSYS_WDT_CR => not unlocked, others => '0'\);",
+                            r'and write_data = WDT_UNLCK_PASSWD else',
+                            r'and write_data = WDT_CLR_PASSWD   else',
+                            r'clr_wdt_if <= w1c_s\(RegSlotSYS_WDT_SR\)\(SYSWDTIF_LSB\);']),
+    # NPU is a periph_regs block (report R12d): no MMR_WRITE case, no reset branch,
+    # and no read splice -- NPUTHINK is NPUCR bit 16 of the register file's own
+    # storage, set by the fabric task through hw_set and cleared by NpuDone through
+    # hw_clr. REGISTERED_READ is false because MabMmrQ is combinational by contract
+    # and MCU.vhd's bridge is the flop.
+    'npu': dict(vhdl='NPU.vhd', regfile='npu_regs_pkg',
+                require=[r'u_regs\s*:\s*entity work\.periph_regs',
+                         r'REGISTERED_READ\t=> false',
+                         r'STROBE_HOLD\t\t=> false',
+                         r'NPUTHINK\s*<=\s*regs_q\(MmrAddrNPUCR\)\(NPUTHINK_LSB\);',
+                         r'NPUTHINK_LSB => task_think',
+                         r'NPUTHINK_LSB => NpuDone',
+                         r'acc_s\(MmrAddrNPUSR\)']),
+    # QSPI is a periph_regs block (report R12b). Its decode IS qspi_regs_pkg's
+    # table; what is left to read in the entity is the instance, the strobe
+    # retirement its clk_baud consumers need, the three SR clears and the launch
+    # guard that still takes the combinational acc_hit plus its own WEn(0).
+    'qspi': dict(vhdl='QSPI.vhd', regfile='qspi_regs_pkg',
+                 require=[r'u_regs\s*:\s*entity work\.periph_regs',
+                          r'STROBE_HOLD => true',
+                          r'clr_tcif\s+<= w1c_s\(SLOT_SR\)\(QSPITCIF_LSB\);',
+                          r"acc_s\(SLOT_CMD\) = '1' and WEn\(0\) = '0'",
+                          r'constant SLOT_SR\s*:\s*natural\s*:=\s*5;']),
+    # I2C is on periph_regs (report R12e). Its read stays COMBINATIONAL and
+    # MCU.vhd's i2c_rdata_bridge stays the flop, which is what REGISTERED_READ =>
+    # false buys; I2CxAR's reset is the default_SAD generic, which reaches the
+    # storage through RSTVAL_OR because the .rdl cannot describe a generic.
+    'i2c': dict(vhdl='I2C.vhd', regfile='i2c_regs_pkg',
+                require=[r'u_regs\s*:\s*entity work\.periph_regs',
+                         r'REGISTERED_READ => false',
+                         r'STROBE_HOLD     => true',
+                         r'RSTVAL_OR       => RSTVAL_OR_I2C',
+                         r'RegSlotI2CxAR => pad\(default_SAD\)',
+                         r"wr_inh <= \(RegSlotI2CxMTX => not I2CMEN, others => '0'\);",
+                         r'ClearI2CSTR\s*<=\s*w1c_s\(RegSlotI2CxSR\)\(I2CSTR_LSB\);']),
     'clint': dict(vhdl=os.path.join('..', 'clint.vhd'), slots='none', name=lambda k: None,
                   literalSlots=_CLINT_SLOTS, storage=_CLINT_RESET, process='clint_proc',
                   require=[r"mtimecmp\s*<=\s*\(others\s*=>\s*\(others\s*=>\s*'1'\)\)",
@@ -491,52 +546,113 @@ GENERIC_BLOCKS = {
                               r'constant W_PWRSTS\s*:\s*(?:integer|natural)\s*:=\s*6;',
                               r'constant W_TASKWKM\s*:\s*(?:integer|natural)\s*:=\s*7;',
                               r'elsif widx = W_TASKWKM then']),
-    'i3c': dict(vhdl='I3C.vhd', slots='local',
-                name=_prefixed('I3Cx', ['CR', 'CMD', 'TX', 'RX', 'SR', 'DAT', 'DATPID', 'DATINFO', 'IBI']),
-                process='reg_write',
-                storage={'I3CxCR': 'I3CxCR', 'I3CxCMD': 'I3CxCMD', 'I3CxTX': 'I3CxTX'},
-                require=[r"I3CxCR\s*<=\s*\(2 => '1', others => '0'\)"]),
-    'nfc': dict(vhdl='NFC.vhd', slots='local',
-                name=_prefixed('NFCx', ['CR', 'SR', 'UID', 'CFG', 'TIM', 'RXST', 'IDX', 'DATA', 'TXCTL', 'DBG']),
-                process='reg_write',
-                storage={'NFCxCR': 'NFCxCR', 'NFCxUID': 'NFCxUID', 'NFCxCFG': 'NFCxCFG',
-                         'NFCxTIM': 'NFCxTIM', 'NFCxIDX': 'NFCxIDX', 'NFCxTXCTL': 'NFCxTXCTL'},
-                require=[r'NFCxCFG\s*<=\s*x"000044";', r'NFCxTIM\s*<=\s*x"088004D4";']),
-    'rtc': dict(vhdl='RTC.vhd', slots='local',
-                name=_prefixed('RTCx', ['CR', 'SEC', 'SUB', 'ALM', 'PER', 'SR', 'TRIM']),
-                process='reg_write',
-                storage={'RTCxCR': 'rtc_cr', 'RTCxSEC': 'stage_sec', 'RTCxSUB': 'stage_sub',
-                         'RTCxALM': 'stage_alm', 'RTCxPER': 'stage_per'},
-                require=[r'constant SLOT_TRIM\s*:\s*natural\s*:=\s*6;']),
-    'pwm': dict(vhdl='PWM.vhd', slots='local',
-                name=_prefixed('PWMx', ['CR', 'PER', 'DTY0', 'DTY1', 'DTY2', 'DTY3', 'POL', 'DT', 'SR']),
-                process='reg_write', storage={},
-                require=[r'constant SLOT_DT\s*:\s*natural\s*:=\s*7;']),
-    'onewire': dict(vhdl='OneWire.vhd', slots='local',
-                    name=_prefixed('OWx', ['CR', 'CMD', 'TX', 'RX', 'DIV', 'SR', 'SPU']),
-                    process='reg_write',
-                    storage={'OWxCR': 'ow_cr', 'OWxTX': 'ow_tx', 'OWxDIV': 'ow_div'},
-                    require=[r'constant SLOT_SPU\s*:\s*natural\s*:=\s*6;']),
-    'dma': dict(vhdl='DMA.vhd', slots='none', name=lambda k: None, literalSlots=_DMA_SLOTS,
-                storage={'DMAxCRC': 0xFFFF},
-                require=[r'crc_acc\s*<=\s*X"FFFF";',
-                         r'elsif dma_slot >= 2 and dma_slot <= 17 then',
-                         r'elsif dma_slot = 18 then']),
-    'trng': dict(vhdl='TRNG.vhd', slots='local',
-                 name=_prefixed('TRNGx', ['CR', 'SR', 'DR', 'HT']), process='reg_write',
-                 storage={'TRNGxCR': 'trng_cr', 'TRNGxHT': 'rct_cutoff'},
-                 require=[r'if WEn = "1111" then']),
-    'i2ctarget': dict(vhdl='I2CTarget.vhd', slots='local',
-                      name=_prefixed('I2CTx', ['CR', 'SR', 'TX', 'RX', 'WDG']), process='reg_write',
-                      storage={'I2CTxTX': 'tx_byte', 'I2CTxWDG': 'wdg'},
-                      require=[r'constant SLOT_WDG\s*:\s*natural\s*:=\s*4;']),
-    'evfab': dict(vhdl='EVFAB.vhd', slots='local',
-                  name=_prefixed('EVF', ['CR', 'SR', 'IE', 'CAP', 'CHEN', 'CHENSET', 'CHENCLR',
-                                         'CHTRIG', 'FIRED', 'OVR', 'EVSTAT', 'EVTRIG',
-                                         'GPIOMASK', 'CH0CFG']),
-                  literalSlots=_EVF_SLOTS, process='reg_write',
-                  storage={'EVFCHEN': 'chen', 'EVFGPIOMASK': 'gpiomask', 'EVFCAP': 0x010A1008},
-                  require=[r'constant CAP_CONST\s*:\s*std_logic_vector\(31 downto 0\)',
+    # I3C is a periph_regs block (report R12b). The DAT window is an indexed
+    # four-entry side table, not register storage, so its three words are RDTHRU
+    # and their writes stay in the clk domain behind acc_hit. I3CxCR's reset
+    # (SDAPP = 1) is now the package's RSTVAL row, which is what the reader reads.
+    'i3c': dict(vhdl='I3C.vhd', regfile='i3c_regs_pkg',
+                require=[r'u_regs\s*:\s*entity work\.periph_regs',
+                         r'STROBE_HOLD => true',
+                         r'RDTHRU      => "000001110"',
+                         r'clr_ibip\s+<= w1c_s\(SLOT_SR\)\(I3CIBIP_LSB\);',
+                         r"acc_s\(SLOT_TX\) = '1' and WEn\(0\) = '0'",
+                         r"acc_s\(SLOT_DAT\) = '1'"]),
+    # NFC is a periph_regs block (report R12d). RDTHRU marks NFCxDATA, word 7 of
+    # 10: the description gives it eight bits of storage, but the byte a read
+    # returns comes from one of the two 64-byte windows, which stay in the
+    # peripheral. The index auto-increment is a hardware write to NFCxIDX.NFCIDX,
+    # which is why nfc.rdl gives that field hw = rw.
+    'nfc': dict(vhdl='NFC.vhd', regfile='nfc_regs_pkg',
+                require=[r'u_regs\s*:\s*entity work\.periph_regs',
+                         r'STROBE_HOLD => true',
+                         r'RDTHRU      => "0000000100"',
+                         r'idx_inc  <= acc_s\(SLOT_DATA\) and idx_ainc;',
+                         r'NFCIDX_MSB downto NFCIDX_LSB => idx_inc',
+                         r'clr_fieldf   <= w1c_s\(SLOT_SR\)\(NFCFIELDF_LSB\);',
+                         r'payload_mem\(idx\) <= wdata\(NFCDATA_MSB downto NFCDATA_LSB\);']),
+    # RTC is a periph_regs block (report R12b). SEC and SUB store the write
+    # staging pair and read the counter's coherent snapshot (RDTHRU); the four
+    # staging words take a whole-word write (WIDEWR); and because every write in
+    # the block is lane-0 qualified, the lane vector handed to the register file
+    # is forced to a read when lane 0 is not enabled.
+    'rtc': dict(vhdl='RTC.vhd', regfile='rtc_regs_pkg',
+                require=[r'u_regs\s*:\s*entity work\.periph_regs',
+                         r'RDTHRU      => "0110000"',
+                         r'WIDEWR      => "0111100"',
+                         r'wen_eff <= WEn when WEn\(0\) = \'0\' else "1111";',
+                         r'constant SLOT_TRIM\s*:\s*natural\s*:=\s*6;']),
+    # PWM is a periph_regs block (report R12c): the fourteen per-field flops are
+    # the IMPL bits of four stored words, and there is no case decode, reset
+    # branch or write-1 arm left to read. No WIDEWR row: the decode it replaced
+    # already merged per byte lane. The hooks take the COMBINATIONAL acc_hit,
+    # because this block's ClkMem is gated by EnMemPeriph and a registered strobe
+    # would be sampled a whole bus access late.
+    'pwm': dict(vhdl='PWM.vhd', regfile='pwm_regs_pkg',
+                require=[r'u_regs\s*:\s*entity work\.periph_regs',
+                         r'STROBE_HOLD => false',
+                         r"acc_s\(SLOT_PER\) = '1' or acc_s\(SLOT_DTY0\) = '1'",
+                         r"wdata\(FLTTRIG_LSB\) = '1'",
+                         r"if wdata\(FLTF_LSB\) = '1' then clr_flt_tgl <= not clr_flt_tgl;"]),
+    # OneWire is a periph_regs block (report R12c). OWxCMD and OWxDIV are the
+    # two WIDEWR words: the decode it replaced qualified every write on WEn(0)
+    # alone and then wrote OWBITVAL at bit 8 and OWDIV at 15:0, both in lane 1.
+    # The OWxCMD write snapshots OWODS and OWxTX and launches, off acc_hit.
+    'onewire': dict(vhdl='OneWire.vhd', regfile='onewire_regs_pkg',
+                    require=[r'u_regs\s*:\s*entity work\.periph_regs',
+                             r'WIDEWR      => "0100100"',
+                             r"cmd_wr <= '1' when \(acc_s\(SLOT_CMD\) = '1' and WEn\(0\) = '0'\)",
+                             r"if wdata\(OWTCIF_LSB\)   = '1' then clr_tcif_tgl"]),
+    # DMA is a periph_regs block (report R12d). It decoded a bare integer word
+    # index, so the migration was a body rewrite: twenty words, WIDEWR everywhere
+    # (the old decode qualified every write on WEn(0) and then wrote the full
+    # word), RDTHRU on DMAxCR, the four LEN words, DMAxCRC and on every register
+    # of a channel above NCH. ClkMem is gated to one edge per access, so the five
+    # command toggles take acc_hit and not the registered wr_pulse / w1c_hit.
+    'dma': dict(vhdl='DMA.vhd', regfile='dma_regs_pkg',
+                require=[r'u_regs\s*:\s*entity work\.periph_regs',
+                         r'STROBE_HOLD => true',
+                         r'RDTHRU      => DMA_RDTHRU',
+                         r'WIDEWR      => DMA_WIDEWR',
+                         r'cr_hit  <= acc_s\(DMAxCR_WORD\)  and not WEn\(0\);',
+                         r'sr_hit  <= acc_s\(DMAxSR_WORD\)  and not WEn\(0\);',
+                         r'r\(wLen\(ch\)\) := \x271\x27;',
+                         r'crc_acc\s*<=\s*X"FFFF";']),
+    # TRNG is a periph_regs block (report R12c) and the tree's one onread=rclr
+    # register lives here. The read-consume stays qualified on WEn = "1111",
+    # which is what dr_read_acc spells, but it takes the COMBINATIONAL acc_hit
+    # and not the module's rd_clr: this block's ClkMem is gated by EnMemPeriph,
+    # so a strobe flop set on the access edge is only sampled by the NEXT bus
+    # access. TRNGxCR is the one WIDEWR word (TRNGDECIM sits at 11:8, lane 1,
+    # under a WEn(0) qualifier).
+    'trng': dict(vhdl='TRNG.vhd', regfile='trng_regs_pkg',
+                 require=[r'u_regs\s*:\s*entity work\.periph_regs',
+                          r'WIDEWR      => "1000"',
+                          r"dr_read_acc <= '1' when \(acc_s\(SLOT_DR\) = '1' and WEn = \"1111\"\)",
+                          r"wdata\(TRNGALMF_LSB\) = '1'"]),
+    # I2CTarget is a periph_regs block (report R12c). I2CTxCR and I2CTxWDG are
+    # the two WIDEWR words (SAD at 14:8, SADM at 22:16 and WDTO at 15:0 all
+    # reach past lane 0 under a WEn(0) qualifier). An I2CTxTX write loads the
+    # buffer, which the module now holds, and launches off acc_hit.
+    'i2ctarget': dict(vhdl='I2CTarget.vhd', regfile='i2ctarget_regs_pkg',
+                      require=[r'u_regs\s*:\s*entity work\.periph_regs',
+                               r'WIDEWR      => "10001"',
+                               r"if acc_s\(SLOT_TX\) = '1' and WEn\(0\) = '0' then",
+                               r"if wdata\(I2CTAMF_LSB\)     = '1' then clr_amf_tgl"]),
+    # EVFAB is on periph_regs (report R12e), on a SPARSE table: twenty-nine
+    # registers over thirty-two words, words 12-14 all-zero _reserved_ rows. The
+    # ACTION half (slots 7-11) is untouched and still decodes in the free-running
+    # clk domain, because exactly-one-action-per-write is not a ClkMem property.
+    # EVFCHENSET / EVFCHENCLR are the tree's first HWALIAS: software set and clear
+    # aliases of EVFCHEN, which the description rightly calls hw=r.
+    'evfab': dict(vhdl='EVFAB.vhd', regfile='evfab_regs_pkg',
+                  require=[r'u_regs\s*:\s*entity work\.periph_regs',
+                           r'HWALIAS     => HWALIAS_EVF',
+                           r'RDTHRU      => RDTHRU_EVF',
+                           r'WIDEWR      => WIDEWR_EVF',
+                           r"wr_inh <= \(others => WEn\(0\)\);",
+                           r'hw_set_s <= \(SLOT_CHEN => set_word, others => \(others => .0.\)\);',
+                           r'hw_clr_s <= \(SLOT_CHEN => clr_word, others => \(others => .0.\)\);',
+                           r'constant CAP_CONST\s*:\s*std_logic_vector\(31 downto 0\)',
                            r'N_CH\s*:\s*natural\s*:=\s*8;', r'N_EV\s*:\s*natural\s*:=\s*16;',
                            r'N_TASK\s*:\s*natural\s*:=\s*10;', r'VER\s*:\s*natural\s*:=\s*1']),
 }

@@ -250,6 +250,22 @@ begin
             bus_write(clk, pbus, I2CT_SLOT_CR, i2ct_mk_cr(en, gcen, csen, aeie, dataie, sad, sadm));
         end procedure;
 
+        -- A write with an explicit byte-lane pattern. The shared BFM always drives WEn = "0000" (a full-word write), so a lane is inexpressible through it and GROUP G-LANE needs this local copy.
+        procedure bus_write_lanes(slot  : in natural;
+                                  lanes : in std_logic_vector(3 downto 0);
+                                  data  : in std_logic_vector(31 downto 0)) is
+        begin
+            wait until clk = '0';
+            pbus.addr_periph <= std_logic_vector(to_unsigned(slot, 6));
+            pbus.write_data  <= data;
+            pbus.wen         <= lanes;
+            pbus.en_mem      <= '0';
+            wait until clk = '1';
+            wait until clk = '0';
+            pbus.en_mem <= '1';
+            pbus.wen    <= (others => '1');
+        end procedure;
+
         -- W1C the given SR mask, then wait out the clr_*_tgl 2-FF sync and edge detect before the caller relies on the flag being clear.
         procedure w1c(mask : std_logic_vector(31 downto 0)) is
         begin
@@ -335,6 +351,40 @@ begin
         sb.check_slv("G0: slot 5 (>=5) reads 0", rdw, x"00000000");
         sb.check_bit("G0: irq_ae = 0 out of reset", to_X01(irq_ae), '0');
         sb.check_bit("G0: irq_data = 0 out of reset", to_X01(irq_data), '0');
+
+        /* GROUP G-LANE: byte lanes and reserved bits on the three writable words.
+           No other group in this bench ever drives a lane: every bus_write is a full-word WEn = "0000".
+
+           I2CTxCR and I2CTxWDG are WIDEWR words. The decode this bench graded qualified the whole write on WEn(0) alone, so a lane-0 CR write moves I2CTSAD at 14:8 and I2CTSADM at 22:16 -- lanes 1 and 2 -- and a write with lane 0 masked off moved nothing at all. periph_regs spells that "any enabled lane writes the word whole", which is identical for lane 0 and for any write including it, and differs only for a write that excludes it. The last two checks here therefore FAIL against the pre-migration RTL by design.
+
+           I2CTxTX needs no such row: its one stored field is inside lane 0.
+           EN is held 0 throughout, so the target never responds to the bus during this group. */
+        report "=== GROUP G-LANE: byte lanes and reserved bits ===" severity note;
+        bus_write_lanes(I2CT_SLOT_CR, "1110", x"007F7F1E");
+        bus_read(clk, pbus, rdata_out, I2CT_SLOT_CR, rdw);
+        sb.check_slv("G-LANE: a lane-0 CR write moves SAD at 14:8 and SADM at 22:16 too (WIDEWR)",
+                     rdw, x"007F7F1E");
+        bus_write(clk, pbus, I2CT_SLOT_CR, x"00807FE0");
+        bus_read(clk, pbus, rdata_out, I2CT_SLOT_CR, rdw);
+        sb.check_slv("G-LANE: CR bits 7:5 and 15 are reserved, hold no flop and read 0",
+                     rdw, x"00007F00");
+
+        bus_write_lanes(I2CT_SLOT_TX, "1110", x"0000005A");
+        bus_read(clk, pbus, rdata_out, I2CT_SLOT_TX, rdw);
+        sb.check_slv("G-LANE: a lane-0 TX write moves the transmit byte", rdw, x"0000005A");
+        bus_write_lanes(I2CT_SLOT_TX, "1101", x"0000FF00");
+        bus_read(clk, pbus, rdata_out, I2CT_SLOT_TX, rdw);
+        sb.check_slv("G-LANE: TX ignores lane 1, which holds no stored bit", rdw, x"0000005A");
+
+        bus_write_lanes(I2CT_SLOT_WDG, "1101", x"0000A5A5");
+        bus_read(clk, pbus, rdata_out, I2CT_SLOT_WDG, rdw);
+        sb.check_slv("G-LANE: a lane-1 WDG write moves the whole WDTO field (WIDEWR; "
+                     & "the old decode dropped it)", rdw, x"0000A5A5");
+        bus_write_lanes(I2CT_SLOT_CR, "1011", x"00000000");
+        bus_read(clk, pbus, rdata_out, I2CT_SLOT_CR, rdw);
+        sb.check_slv("G-LANE: a lane-2 CR write also moves the whole word (WIDEWR)",
+                     rdw, x"00000000");
+        bus_write(clk, pbus, I2CT_SLOT_WDG, x"00000000");
 
         -- GROUP G1: address match / mask / mismatch
         report "=== GROUP G1: address match / mask / mismatch ===" severity note;

@@ -9,7 +9,8 @@ use ieee.std_logic_1164.all;
 use ieee.std_logic_arith.all;
 use ieee.std_logic_unsigned.all;
 
--- Word slots, field ranges, resets and implemented-bit masks: generated from hdl/common/regs/rdl/pwm.rdl.
+-- Word slots, field ranges, resets and implemented-bit masks, and the periph_regs
+-- tables the bus side is an instance of: generated from hdl/common/regs/rdl/pwm.rdl.
 use work.pwm_regs_pkg.all;
 
 
@@ -38,21 +39,36 @@ end PWM;
 
 architecture behavioral of PWM is
 
-    -- ---- register-file storage (ClkMem domain) ---------------------------
-    signal pwmen_r, ch0en_r, ch1en_r : std_logic;        -- CR[2:0]
-    signal pevie_r, fltie_r          : std_logic;        -- CR[7],CR[8]
-    signal flten_r                   : std_logic;        -- CR[12]
-    signal psc_r        : std_logic_vector(3 downto 0);  -- CR[19:16]
+    /* ---- register file (ClkMem domain) -----------------------------------
+       The bus side is one work.periph_regs instance driven by pwm_regs_pkg's
+       tables; see hdl/common/regs/REGFILE.md. The fourteen per-field flops this
+       block used to keep are now the IMPL bits of four stored words -- PWMxCR,
+       PWMxPER, PWMxDTY0/1 and PWMxPOL -- sliced back out below. PWMxSR holds no
+       flop there: the engine owns FLTF, PEVF and UPDF and they reach the read
+       mux through hw_rd; PWMxDTY2/3 and PWMxDT are reserved and read 0. */
+    signal regs_q   : reg_arr_t;                         -- the stored words
+    signal hw_rd_s  : reg_arr_t;                         -- read source for everything else
+    signal acc_s    : std_logic_vector(0 to NWORDS-1);   -- combinational: this slot, now
+    signal sr_rd    : std_logic_vector(31 downto 0);
+    signal wr_stage : std_logic;                         -- a PER/DTY0/DTY1 write, this access
+
+    -- Field taps out of the stored words, quasi-static.
+    signal pwmen_r, ch0en_r, ch1en_r : std_logic;        -- CR.PWMEN/CH0EN/CH1EN
+    signal pevie_r, fltie_r          : std_logic;        -- CR.PEVIE/FLTIE
+    signal flten_r                   : std_logic;        -- CR.FLTEN
+    signal psc_r        : std_logic_vector(3 downto 0);  -- CR.PSC
+    signal stage_per    : std_logic_vector(15 downto 0); -- staging: period
+    signal stage_dty0   : std_logic_vector(15 downto 0); -- staging: CH0 duty
+    signal stage_dty1   : std_logic_vector(15 downto 0); -- staging: CH1 duty
+    signal pol0_r, pol1_r   : std_logic;                 -- POL.POL0/POL1, immediate
+    signal safe0_r, safe1_r : std_logic;                 -- POL.SAFE0/SAFE1, immediate
+
+    -- Request toggles into the clk domain; these are all that is left of the
+    -- old register-write process.
     signal upd_req_tgl  : std_logic;                     -- stage-write request toggle
     signal flt_req_tgl  : std_logic;                     -- FLTTRIG request toggle
     signal clr_flt_tgl  : std_logic;                     -- W1C FLTF request toggle
     signal clr_pev_tgl  : std_logic;                     -- W1C PEVF request toggle
-    signal stage_per    : std_logic_vector(15 downto 0); -- staging: period
-    signal stage_dty0   : std_logic_vector(15 downto 0); -- staging: CH0 duty
-    signal stage_dty1   : std_logic_vector(15 downto 0); -- staging: CH1 duty
-    signal pol0_r, pol1_r   : std_logic;                 -- POL[1:0], immediate
-    signal safe0_r, safe1_r : std_logic;                 -- POL[5:4], immediate
-    signal pwm_slot     : natural range 0 to 63;         -- decoded word slot
 
     -- ---- prescaler (clk domain) -------------------------------------------
     signal psc_cnt  : std_logic_vector(14 downto 0);     -- 15-bit prescale counter
@@ -82,8 +98,22 @@ architecture behavioral of PWM is
 begin
 
     -- ------------------------- Signal Routing ---------------------------------
-    -- slot decode: EnMemPeriph-qualified level, never an edge.
-    pwm_slot <= conv_integer(MABPart) when EnMemPeriph = '0' else 0;
+    -- Field taps out of the register file. The positions are pwm_regs_pkg's, so
+    -- no bit literal in this file describes a register.
+    pwmen_r  <= regs_q(SLOT_CR)(PWMEN_LSB);
+    ch0en_r  <= regs_q(SLOT_CR)(CH0EN_LSB);
+    ch1en_r  <= regs_q(SLOT_CR)(CH1EN_LSB);
+    pevie_r  <= regs_q(SLOT_CR)(PEVIE_LSB);
+    fltie_r  <= regs_q(SLOT_CR)(FLTIE_LSB);
+    flten_r  <= regs_q(SLOT_CR)(FLTEN_LSB);
+    psc_r    <= regs_q(SLOT_CR)(PSC_MSB downto PSC_LSB);
+    stage_per  <= regs_q(SLOT_PER)(PWMPER_MSB downto PWMPER_LSB);
+    stage_dty0 <= regs_q(SLOT_DTY0)(PWMDTY0_MSB downto PWMDTY0_LSB);
+    stage_dty1 <= regs_q(SLOT_DTY1)(PWMDTY1_MSB downto PWMDTY1_LSB);
+    pol0_r   <= regs_q(SLOT_POL)(POL0_LSB);
+    pol1_r   <= regs_q(SLOT_POL)(POL1_LSB);
+    safe0_r  <= regs_q(SLOT_POL)(SAFE0_LSB);
+    safe1_r  <= regs_q(SLOT_POL)(SAFE1_LSB);
 
     -- Prescaler top: psc_top = 2^PSC - 1, decoded directly.
     -- No shifter or subtractor is needed because 2^PSC-1 is exactly PSC ones in the low bits.
@@ -132,126 +162,97 @@ begin
     evt_period <= period_boundary;
     evt_fault  <= flt_set;
 
-    /* ------------------------- register write (ClkMem) ------------------------
-       Rising ClkMem, qualified by EnMemPeriph='0', per byte lane via WEn: buffered waveform writes (PER/DTY0/DTY1) only stage the value and arm upd_req_tgl, while POL is immediate.
-       FLTTRIG (CR[14]) and the SR W1C bits flip request toggles; the FLTEN gate is applied in the clk domain, not at the write. */
-    reg_write: process(resetn, ClkMem)
+    /* ------------------------- register file (ClkMem) -------------------------
+       One periph_regs instance replaces the case decode, the byte-lane merge,
+       the reset branch and the registered read mux. PWMxPER/DTY0/DTY1 are the
+       STAGING words: the module holds them and a read returns them, exactly as
+       the staging flops did, and the engine commits them at the next period
+       boundary.
+
+       No WIDEWR and no RDTHRU. The decode this replaces already merged per byte
+       lane (CR takes its enables from lane 0, FLTIE/FLTEN/FLTTRIG from lane 1
+       and PSC from lane 2; PER and the duties take each half from its own lane),
+       which is what the module does by default. STROBE_HOLD is immaterial and
+       left false, because this block uses no registered strobe; see below. */
+    hw_rd_s <= (SLOT_SR => sr_rd, others => (others => '0'));
+
+    -- PWMxSR: FLTF, PEVF and UPDF are clk-domain levels, read raw. DIR (bit 3)
+    -- is reserved and reads 0.
+    sr_rd <= (31 downto UPDF_MSB + 1 => '0') & upd_pending & pevf_flag & fltf_flag;
+
+    u_regs: entity work.periph_regs
+        generic map (
+            NWORDS      => NWORDS,
+            RSTVAL      => RSTVAL,
+            IMPL        => IMPL,
+            W1C         => W1C,
+            WOSET       => WOSET,
+            WOT         => WOT,
+            PULSE       => PULSE,
+            RCLR        => RCLR,
+            HWOWN       => HWOWN,
+            STROBE_HOLD => false)
+        port map (
+            ClkMem      => ClkMem,
+            resetn      => resetn,
+            EnMemPeriph => EnMemPeriph,
+            WEn         => WEn,
+            MABPart     => MABPart,
+            wdata       => wdata,
+            rdata_out   => rdata_out,
+            regs        => regs_q,
+            hw_rd       => hw_rd_s,
+            acc_hit     => acc_s,
+            rd_strobe   => open,
+            wr_strobe   => open,
+            wr_pulse    => open,
+            w1c_hit     => open,
+            woset_hit   => open,
+            wot_hit     => open,
+            rd_clr      => open);
+
+    /* A write to any of the three buffered waveform words, this access.
+
+       Every hook below takes the COMBINATIONAL acc_hit and not the module's
+       registered wr_strobe / wr_pulse / w1c_hit, and the reason is the gated bus
+       clock: ClkMem is gated by EnMemPeriph here, so one bus access presents
+       exactly ONE rising ClkMem edge and the next edge belongs to the NEXT
+       access. A strobe flop SET on the access edge is therefore sampled a whole
+       bus access late by a ClkMem-synchronous consumer, and STROBE_HOLD = true
+       only retires it asynchronously at deselect, before any edge can see it at
+       all. acc_hit reproduces the old decode's condition exactly and the request
+       toggles flip on the edge the write does. */
+    wr_stage <= '1' when ((acc_s(SLOT_PER) = '1' or acc_s(SLOT_DTY0) = '1'
+                           or acc_s(SLOT_DTY1) = '1')
+                          and (WEn(0) = '0' or WEn(1) = '0')) else '0';
+
+    /* ------------------------- request toggles (ClkMem) -----------------------
+       What is left of the old register-write process: the UPDF arm, the
+       FLTTRIG self-clearing trip command (PWMxCR.FLTTRIG is `singlepulse`, so it
+       stores nothing and is not in IMPL) and the two SR write-1-to-clear arms.
+       The FLTEN gate stays in the clk domain, not at the write. */
+    reg_req: process(resetn, ClkMem)
     begin
         if resetn = '0' then
-            pwmen_r <= '0'; ch0en_r <= '0'; ch1en_r <= '0';
-            pevie_r <= '0'; fltie_r <= '0'; flten_r <= '0';
-            psc_r   <= (others => '0');
             upd_req_tgl <= '0';
             flt_req_tgl <= '0';
             clr_flt_tgl <= '0';
             clr_pev_tgl <= '0';
-            stage_per  <= (others => '0');
-            stage_dty0 <= (others => '0');
-            stage_dty1 <= (others => '0');
-            pol0_r <= '0'; pol1_r <= '0';
-            safe0_r <= '0'; safe1_r <= '0';
         elsif rising_edge(ClkMem) then
-            if EnMemPeriph = '0' then
-                case pwm_slot is
-                    when SLOT_CR =>
-                        -- Control: enables and IE bits in lane 0/1, prescale in lane 2.
-                        if WEn(0) = '0' then
-                            pwmen_r <= wdata(0);
-                            ch0en_r <= wdata(1);
-                            ch1en_r <= wdata(2);
-                            pevie_r <= wdata(7);
-                        end if;
-                        if WEn(1) = '0' then
-                            fltie_r <= wdata(8);
-                            flten_r <= wdata(12);
-                            if wdata(14) = '1' then
-                                flt_req_tgl <= not flt_req_tgl;   -- self-clearing trip command
-                            end if;
-                        end if;
-                        if WEn(2) = '0' then
-                            psc_r <= wdata(19 downto 16);
-                        end if;
-                    when SLOT_PER =>
-                        -- Period modulus: staged only, committed at the next boundary.
-                        if WEn(0) = '0' then
-                            stage_per(7 downto 0) <= wdata(7 downto 0);
-                        end if;
-                        if WEn(1) = '0' then
-                            stage_per(15 downto 8) <= wdata(15 downto 8);
-                        end if;
-                        if WEn(0) = '0' or WEn(1) = '0' then
-                            upd_req_tgl <= not upd_req_tgl;       -- arm UPDF
-                        end if;
-                    when SLOT_DTY0 =>
-                        -- CH0 duty: staged like PER, same UPDF arming.
-                        if WEn(0) = '0' then
-                            stage_dty0(7 downto 0) <= wdata(7 downto 0);
-                        end if;
-                        if WEn(1) = '0' then
-                            stage_dty0(15 downto 8) <= wdata(15 downto 8);
-                        end if;
-                        if WEn(0) = '0' or WEn(1) = '0' then
-                            upd_req_tgl <= not upd_req_tgl;
-                        end if;
-                    when SLOT_DTY1 =>
-                        -- CH1 duty: staged like PER, same UPDF arming.
-                        if WEn(0) = '0' then
-                            stage_dty1(7 downto 0) <= wdata(7 downto 0);
-                        end if;
-                        if WEn(1) = '0' then
-                            stage_dty1(15 downto 8) <= wdata(15 downto 8);
-                        end if;
-                        if WEn(0) = '0' or WEn(1) = '0' then
-                            upd_req_tgl <= not upd_req_tgl;
-                        end if;
-                    when SLOT_POL =>
-                        -- Polarity and safe-state bits: immediate, never staged.
-                        if WEn(0) = '0' then
-                            pol0_r  <= wdata(0);
-                            pol1_r  <= wdata(1);
-                            safe0_r <= wdata(4);
-                            safe1_r <= wdata(5);
-                        end if;
-                    when SLOT_SR =>
-                        -- W1C: writing 1 clears; UPDF/DIR (bits 2/3) are read-only, ignored.
-                        if WEn(0) = '0' then
-                            if wdata(0) = '1' then clr_flt_tgl <= not clr_flt_tgl; end if;
-                            if wdata(1) = '1' then clr_pev_tgl <= not clr_pev_tgl; end if;
-                        end if;
-                    when others =>
-                        null;   -- reserved slots 4/5/7 and slots 9 and above: writes ignored
-                end case;
+            if wr_stage = '1' then
+                upd_req_tgl <= not upd_req_tgl;           -- arm UPDF
+            end if;
+            if acc_s(SLOT_CR) = '1' and WEn(1) = '0'
+               and wdata(FLTTRIG_LSB) = '1' then
+                flt_req_tgl <= not flt_req_tgl;           -- self-clearing trip command
+            end if;
+            if acc_s(SLOT_SR) = '1' and WEn(0) = '0' then
+                -- W1C: UPDF (bit 2) and DIR (bit 3) are read-only, ignored.
+                if wdata(FLTF_LSB) = '1' then clr_flt_tgl <= not clr_flt_tgl; end if;
+                if wdata(PEVF_LSB) = '1' then clr_pev_tgl <= not clr_pev_tgl; end if;
             end if;
         end if;
-    end process;
-
-    /* ------------------------- register read (ClkMem) -------------------------
-       Registered read mux on rising ClkMem over data already in the mclk domain, so no pre-latch and no read bridge is needed.
-       Reserved slots and bits, and slots 9 and above, read 0. */
-    reg_read: process(ClkMem)
-    begin
-        if rising_edge(ClkMem) then
-            case pwm_slot is
-                when SLOT_CR =>
-                    rdata_out <= (31 downto 20 => '0') & psc_r & '0' & '0' & '0' & flten_r
-                                 & "000" & fltie_r & pevie_r & '0' & '0' & '0' & '0'
-                                 & ch1en_r & ch0en_r & pwmen_r;
-                when SLOT_PER =>
-                    rdata_out <= (31 downto 16 => '0') & stage_per;
-                when SLOT_DTY0 =>
-                    rdata_out <= (31 downto 16 => '0') & stage_dty0;
-                when SLOT_DTY1 =>
-                    rdata_out <= (31 downto 16 => '0') & stage_dty1;
-                when SLOT_POL =>
-                    rdata_out <= (31 downto 8 => '0') & '0' & '0' & safe1_r & safe0_r
-                                 & '0' & '0' & pol1_r & pol0_r;
-                when SLOT_SR =>
-                    rdata_out <= (31 downto 4 => '0') & '0' & upd_pending & pevf_flag & fltf_flag;
-                when others =>
-                    rdata_out <= (others => '0');   -- reserved and out-of-range slots read 0
-            end case;
-        end if;
-    end process;
+    end process reg_req;
 
     /* ------------------------- prescaler (clk) --------------------------------
        Free-running 15-bit counter-compare, reloading on PWMEN=0 (clean restart) or on reaching psc_top.

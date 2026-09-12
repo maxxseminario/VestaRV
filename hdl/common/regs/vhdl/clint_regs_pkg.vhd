@@ -48,6 +48,7 @@ package clint_regs_pkg is
     constant CLINTMTIMECMP0H_RESET    : std_logic_vector(31 downto 0) := "11111111111111111111111111111111";
 
     -- No periph_regs table section: the register set is a function of the hart count,
-    -- so its words are not a dense array. See hdl/common/regs/REGFILE.md.
+    -- so its register set is not fixed at elaboration.
+    -- See hdl/common/regs/REGFILE.md.
 
 end package clint_regs_pkg;

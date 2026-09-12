@@ -109,7 +109,7 @@ begin
             cs_flash_ren    => cs_flash_ren
         );
 
-    -- Directed stimulus: eight check groups, then the scoreboard verdict
+    -- Directed stimulus: nine check groups, then the scoreboard verdict
     stim_proc : process
         variable rdw : std_logic_vector(31 downto 0);
 
@@ -124,6 +124,31 @@ begin
                 guard := guard + 1;
                 exit when guard > 200;
             end loop;
+        end procedure;
+
+        -- Write with only SOME byte lanes enabled. periph_tb_pkg.bus_write always
+        -- drives all four, so it cannot grade a lane at all; this is the same
+        -- access shape with WEn under the caller's control.
+        procedure bus_write_lanes(slot  : in natural;
+                                  lanes : in std_logic_vector(3 downto 0);
+                                  data  : in std_logic_vector(31 downto 0)) is
+        begin
+            wait until smclk = '0';
+            pbus.addr_periph <= std_logic_vector(to_unsigned(slot, 6));
+            pbus.write_data  <= data;
+            pbus.wen         <= lanes;
+            pbus.en_mem      <= '0';
+            wait until smclk = '1';
+            wait until smclk = '0';
+            pbus.en_mem <= '1';
+            pbus.wen    <= (others => '1');
+        end procedure;
+
+        -- One 8-bit master transfer in loopback, to arm SPITCIF / SPITEIF.
+        procedure arm_flags(d : in std_logic_vector(7 downto 0)) is
+        begin
+            bus_write(smclk, pbus, RegSlotSPIxTX, x"000000" & d);
+            wait_master_done;
         end procedure;
 
     begin
@@ -269,6 +294,90 @@ begin
         bus_read(smclk, pbus, read_data, RegSlotSPIxSR, rdw);
         sb.check_bit("slave not busy while CS high", rdw(2), '0');
         bus_write(smclk, pbus, RegSlotSPIxCR, x"00000000");
+
+        -- GROUP 9: byte lanes, unimplemented bits and the access side effects.
+        -- Added 2026-09-11 (R12d) BEFORE the periph_regs migration: bus_write
+        -- drives all four lanes, so nothing here had ever graded a lane; nothing
+        -- had written a 1 into a bit a register does not implement; nothing had
+        -- touched SPIxFOS, which SPI1 must ignore; and the SPITCIF clear had only
+        -- ever been exercised by a READ of SPIxRX, not by a write, although the
+        -- decode retires it on ANY access to that slot.
+        report "=== GROUP 9: lanes, unimplemented bits, access side effects ===" severity note;
+
+        mloop <= '1';
+        bus_write(smclk, pbus, RegSlotSPIxCR, x"00000080");   -- en, master, 8-bit, mode0, LSB
+
+        -- SPIxTX is the only 32-bit-wide store here; grade every lane on it.
+        arm_flags(x"00");
+        bus_write(smclk, pbus, RegSlotSPIxTX, x"00000000");
+        wait_master_done;
+        bus_write_lanes(RegSlotSPIxTX, "1110", x"FFFFFF11");
+        wait_master_done;
+        bus_read(smclk, pbus, read_data, RegSlotSPIxTX, rdw);
+        sb.check_slv("TX lane 0 alone moves bits 7:0", rdw, x"00000011");
+        bus_write_lanes(RegSlotSPIxTX, "1011", x"FF22FFFF");
+        wait_master_done;
+        bus_read(smclk, pbus, read_data, RegSlotSPIxTX, rdw);
+        sb.check_slv("TX lane 2 alone moves bits 23:16", rdw, x"00220011");
+        bus_write_lanes(RegSlotSPIxTX, "0111", x"33FFFFFF");
+        wait_master_done;
+        bus_read(smclk, pbus, read_data, RegSlotSPIxTX, rdw);
+        sb.check_slv("TX lane 3 alone moves bits 31:24", rdw, x"33220011");
+
+        -- Writing SPIxRX retires SPITCIF exactly as reading it does.
+        arm_flags(x"6B");
+        bus_read(smclk, pbus, read_data, RegSlotSPIxSR, rdw);
+        sb.check_bit("TC flag set before the RX write", rdw(1), '1');
+        bus_write(smclk, pbus, RegSlotSPIxRX, x"00000000");
+        bus_read(smclk, pbus, read_data, RegSlotSPIxSR, rdw);
+        sb.check_bit("a WRITE to RX clears the TC flag too", rdw(1), '0');
+        bus_read(smclk, pbus, read_data, RegSlotSPIxRX, rdw);
+        sb.check_slv("RX is read-only: the write stored nothing", rdw(7 downto 0), x"6B");
+
+        -- The SPIxSR write-1-to-clear arm is lane-0 qualified, and SPIBUSY ignores writes.
+        arm_flags(x"7C");
+        bus_write_lanes(RegSlotSPIxSR, "1101", x"00000002");
+        bus_read(smclk, pbus, read_data, RegSlotSPIxSR, rdw);
+        sb.check_bit("SR write without lane 0 does not clear TC", rdw(1), '1');
+        bus_write_lanes(RegSlotSPIxSR, "1110", x"00000004");
+        bus_read(smclk, pbus, read_data, RegSlotSPIxSR, rdw);
+        sb.check_bit("writing SPIBUSY is inert", rdw(1), '1');
+        bus_write_lanes(RegSlotSPIxSR, "1110", x"00000003");
+        bus_read(smclk, pbus, read_data, RegSlotSPIxSR, rdw);
+        sb.check_bit("SR lane-0 write clears TC", rdw(1), '0');
+        sb.check_bit("SR lane-0 write clears TE", rdw(0), '0');
+
+        bus_write(smclk, pbus, RegSlotSPIxCR, x"00000000");
+        mloop <= '0';
+
+        -- SPIxCR byte lanes and the bits above SPIFEN.
+        bus_write_lanes(RegSlotSPIxCR, "1110", x"FFFFFF5A");
+        bus_read(smclk, pbus, read_data, RegSlotSPIxCR, rdw);
+        sb.check_slv("CR lane 0 alone moves bits 7:0", rdw, x"0000005A");
+        bus_write_lanes(RegSlotSPIxCR, "1101", x"FFFFA5FF");
+        bus_read(smclk, pbus, read_data, RegSlotSPIxCR, rdw);
+        sb.check_slv("CR lane 1 alone moves bits 15:8", rdw, x"0000A55A");
+        bus_write_lanes(RegSlotSPIxCR, "1011", x"FFFDFFFF");
+        bus_read(smclk, pbus, read_data, RegSlotSPIxCR, rdw);
+        sb.check_slv("CR lane 2 moves only bits 19:16", rdw, x"000DA55A");
+        bus_write_lanes(RegSlotSPIxCR, "0111", x"FFFFFFFF");
+        bus_read(smclk, pbus, read_data, RegSlotSPIxCR, rdw);
+        sb.check_slv("CR lane 3 holds no CR bit", rdw, x"000DA55A");
+        bus_write(smclk, pbus, RegSlotSPIxCR, x"FFFFFFFF");
+        bus_read(smclk, pbus, read_data, RegSlotSPIxCR, rdw);
+        sb.check_slv("CR implements exactly bits 19:0", rdw, x"000FFFFF");
+        bus_write(smclk, pbus, RegSlotSPIxCR, x"00000000");
+
+        -- SPIxFOS exists on SPI0 only; this DUT is ENABLE_EXTENDED_MEM = false.
+        bus_read(smclk, pbus, read_data, RegSlotSPIxFOS, rdw);
+        sb.check_slv("FOS reads 0 without extended memory", rdw, x"00000000");
+        bus_write(smclk, pbus, RegSlotSPIxFOS, x"00ABCDEF");
+        bus_read(smclk, pbus, read_data, RegSlotSPIxFOS, rdw);
+        sb.check_slv("FOS still reads 0 after a write", rdw, x"00000000");
+
+        -- A slot past the register set reads 0.
+        bus_read(smclk, pbus, read_data, 17, rdw);
+        sb.check_slv("an unmapped slot reads 0", rdw, x"00000000");
 
         -- Final verdict
         wait for 1 us;

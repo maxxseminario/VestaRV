@@ -77,13 +77,24 @@ architecture behavioral of NFC is
                    ACT_FDT, ACT_COMPOSE, ACT_TX, ACT_TXWAIT);
     signal act : act_t;
 
-    -- ---- register storage (ClkMem domain) --------------------------------
-    signal NFCxCR    : std_logic_vector(19 downto 0); -- reset AUTOREAD(12)=1
+    -- ---- register file (ClkMem domain) -----------------------------------
+    -- The bus side is one periph_regs instance driven by nfc_regs_pkg's tables;
+    -- see hdl/common/regs/REGFILE.md. NFCxCR, NFCxUID, NFCxCFG, NFCxTIM, NFCxIDX
+    -- and NFCxTXCTL are its storage. NFCxSR, NFCxRXST, NFCxDATA and NFCxDBG hold
+    -- no flop there: they are volatile values read through the pre-latch below.
+    signal regs_q     : reg_arr_t;
+    signal hw_rd_s    : reg_arr_t;
+    signal hw_we_s    : reg_arr_t;                       -- the NFCxDATA index auto-increment
+    signal hw_wdata_s : reg_arr_t;
+    signal w1c_s      : reg_arr_t;                       -- a 1 written to an NFCxSR flag
+    signal acc_s      : std_logic_vector(0 to NWORDS-1); -- combinational: this slot is addressed now
+    signal idx_inc    : std_logic;                       -- an NFCxDATA access with IDXAINC set
+    signal idx_next   : std_logic_vector(5 downto 0);
+
+    -- Whole-register taps of the register file, for the rf-domain datapath.
     signal NFCxUID   : std_logic_vector(31 downto 0);
     signal NFCxCFG   : std_logic_vector(23 downto 0); -- [15:0]ATQA [23:16]SAK
     signal NFCxTIM   : std_logic_vector(31 downto 0); -- [15:0]FDT [23:16]ETU [31:24]SUBCDIV
-    signal NFCxIDX   : std_logic_vector(8 downto 0);  -- [5:0]IDX [6]AINC [8]SEL
-    signal NFCxTXCTL : std_logic_vector(9 downto 0);  -- software-only, no hardware consumer
 
     -- Assembled status word (volatile, read through the pre-latch).
     signal NFCxSR    : std_logic_vector(11 downto 0);
@@ -105,7 +116,6 @@ architecture behavioral of NFC is
     signal idx     : natural range 0 to 63;
     signal idx_ainc, idx_sel                         : std_logic;
 
-    signal nfc_slot : natural range 0 to 63;
 
     -- ---- W1C clear pulses + HALTCLR toggle (ClkMem set, retired) ----------
     signal clr_fieldf, clr_rxframef, clr_txdonef     : std_logic;
@@ -214,28 +224,34 @@ architecture behavioral of NFC is
 begin
 
     -- Signal Routing ------------------------------
-    nfcen        <= NFCxCR(0);
-    listen_bit   <= NFCxCR(1);
-    fieldie      <= NFCxCR(8);
-    rxfie        <= NFCxCR(9);
-    txie         <= NFCxCR(10);
-    crcie        <= NFCxCR(11);
-    autoread_bit <= NFCxCR(12);
+    -- The stored words come out of the register file; the field positions are
+    -- nfc_regs_pkg's, so no bit literal in this file describes a register.
+    nfcen        <= regs_q(SLOT_CR)(NFCEN_LSB);
+    listen_bit   <= regs_q(SLOT_CR)(NFCLISTEN_LSB);
+    fieldie      <= regs_q(SLOT_CR)(NFCFIELDIE_LSB);
+    rxfie        <= regs_q(SLOT_CR)(NFCRXFIE_LSB);
+    txie         <= regs_q(SLOT_CR)(NFCTXIE_LSB);
+    crcie        <= regs_q(SLOT_CR)(NFCCRCIE_LSB);
+    autoread_bit <= regs_q(SLOT_CR)(NFCAUTOREAD_LSB);
 
-    idx      <= slv2uint(NFCxIDX(5 downto 0));
-    idx_ainc <= NFCxIDX(6);
-    idx_sel  <= NFCxIDX(8);
+    idx      <= slv2uint(regs_q(SLOT_IDX)(NFCIDX_MSB downto NFCIDX_LSB));
+    idx_ainc <= regs_q(SLOT_IDX)(NFCIDXAINC_LSB);
+    idx_sel  <= regs_q(SLOT_IDX)(NFCIDXSEL_LSB);
+
+    NFCxUID  <= regs_q(SLOT_UID)(NFCUID_MSB downto NFCUID_LSB);
+    NFCxCFG  <= regs_q(SLOT_CFG)(NFCSAK_MSB downto NFCATQA_LSB);
+    NFCxTIM  <= regs_q(SLOT_TIM)(NFCSUBCDIV_MSB downto NFCFDT_LSB);
 
     -- SR assembly: every volatile and rf-status bit arrives pre-synchronized.
-    NFCxSR(0)          <= busy_s2;
-    NFCxSR(1)          <= fieldf_flag;
-    NFCxSR(2)          <= rxframef_flag;
-    NFCxSR(3)          <= txdonef_flag;
-    NFCxSR(4)          <= crcerrf_flag;
-    NFCxSR(5)          <= parerrf_flag;
-    NFCxSR(6)          <= field_live;
-    NFCxSR(7)          <= halted_s2;
-    NFCxSR(11 downto 8) <= state_s2;
+    NFCxSR(NFCBUSY_LSB)      <= busy_s2;
+    NFCxSR(NFCFIELDF_LSB)    <= fieldf_flag;
+    NFCxSR(NFCRXFRAMEF_LSB)  <= rxframef_flag;
+    NFCxSR(NFCTXDONEF_LSB)   <= txdonef_flag;
+    NFCxSR(NFCCRCERRF_LSB)   <= crcerrf_flag;
+    NFCxSR(NFCPARERRF_LSB)   <= parerrf_flag;
+    NFCxSR(NFCFIELDLIVE_LSB) <= field_live;
+    NFCxSR(NFCHALTED_LSB)    <= halted_s2;
+    NFCxSR(NFCSTATE_MSB downto NFCSTATE_LSB) <= state_s2;
 
     -- rf-domain status levels (combinational, synchronized into clk for SR).
     rf_busy   <= '1' when (rx_active = '1' or tx_active = '1' or act /= ACT_LISTEN) else '0';
@@ -276,100 +292,96 @@ begin
     end process;
 
     -- Memory Logic -------------------------------
-    nfc_slot <= slv2uint(MABPart) when EnMemPeriph = '0' else 0;
 
-    -- Register write: CR bit 2 (HALTCLR) is a self-clearing write pulse that reads back 0 and toggles halt_req_tgl into the rf domain, and the DATA slot auto-increments IDX on any access when IDXAINC=1.
-    -- Payload-window writes commit here; RX-buffer writes are ignored because that buffer is hardware-owned.
-    reg_write: process(resetn, ClkMem, EnMemPeriph)
+    -- The four words the register file does not store: the status, receive-status,
+    -- window-byte and debug snapshots, re-inverted here. NFCxDATA is RDTHRU: its
+    -- description gives it eight bits of storage, but the byte a read returns comes
+    -- from one of the two 64-byte windows, which stay in this file.
+    hw_rd_s <= (SLOT_SR   => (31 downto NFCxSR_ltch'high + 1 => '0') & (not NFCxSR_ltch),
+                SLOT_RXST => (31 downto rxst_ltch'high + 1   => '0') & (not rxst_ltch),
+                SLOT_DATA => (31 downto data_ltch'high + 1   => '0') & (not data_ltch),
+                SLOT_DBG  => not dbg_ltch,
+                others    => (others => '0'));
+
+    -- The NFCxDATA index auto-increment, as a HARDWARE write to NFCxIDX.NFCIDX. It
+    -- fires on ANY access to that slot, a read as much as a write, which is why it
+    -- takes the combinational acc_hit and not wr_strobe. nfc.rdl gives NFCIDX
+    -- hw = rw for exactly this: periph_regs permits hw_we only on a bit that is both
+    -- software storage and hardware owned, and a hook outside that mask is dropped.
+    idx_inc  <= acc_s(SLOT_DATA) and idx_ainc;
+    idx_next <= uint2slv((idx + 1) mod 64, 6);
+
+    hw_we_s    <= (SLOT_IDX => (NFCIDX_MSB downto NFCIDX_LSB => idx_inc, others => '0'),
+                   others   => (others => '0'));
+    hw_wdata_s <= (SLOT_IDX => (31 downto NFCIDX_MSB + 1 => '0') & idx_next,
+                   others   => (others => '0'));
+
+    -- STROBE_HOLD is true: the five clr_* levels reach ASYNCHRONOUS clears in the
+    -- smclk flag process below, so they must be held for the whole access and not be
+    -- one-ClkMem pulses -- which is what the deleted reg_write process's trailing
+    -- `if resetn = '0' or EnMemPeriph = '1'` retirement said.
+    u_regs: entity work.periph_regs
+        generic map (
+            NWORDS      => NWORDS,
+            RSTVAL      => RSTVAL,
+            IMPL        => IMPL,
+            W1C         => W1C,
+            WOSET       => WOSET,
+            WOT         => WOT,
+            PULSE       => PULSE,
+            RCLR        => RCLR,
+            HWOWN       => HWOWN,
+            RDTHRU      => "0000000100",
+            STROBE_HOLD => true)
+        port map (
+            ClkMem      => ClkMem,
+            resetn      => resetn,
+            EnMemPeriph => EnMemPeriph,
+            WEn         => WEn,
+            MABPart     => MABPart,
+            wdata       => wdata,
+            rdata_out   => rdata_out,
+            regs        => regs_q,
+            hw_rd       => hw_rd_s,
+            hw_we       => hw_we_s,
+            hw_wdata    => hw_wdata_s,
+            acc_hit     => acc_s,
+            rd_strobe   => open,
+            wr_strobe   => open,
+            wr_pulse    => open,
+            w1c_hit     => w1c_s,
+            woset_hit   => open,
+            wot_hit     => open,
+            rd_clr      => open);
+
+    -- The five NFCxSR write-1-to-clear flags, as held levels into the smclk flag
+    -- process, where a clear dominates a coincident set.
+    clr_fieldf   <= w1c_s(SLOT_SR)(NFCFIELDF_LSB);
+    clr_rxframef <= w1c_s(SLOT_SR)(NFCRXFRAMEF_LSB);
+    clr_txdonef  <= w1c_s(SLOT_SR)(NFCTXDONEF_LSB);
+    clr_crcerrf  <= w1c_s(SLOT_SR)(NFCCRCERRF_LSB);
+    clr_parerrf  <= w1c_s(SLOT_SR)(NFCPARERRF_LSB);
+
+    /* The payload TX window and the NFCxCR.HALTCLR write pulse: the two things the
+       register file cannot hold. The window is 64 bytes of memory, not a register;
+       HALTCLR is a toggle into the rf domain and must flip on the edge the write
+       lands, so both take the COMBINATIONAL acc_hit qualified by this block's own
+       WEn, exactly as the deleted case decode did. ClkMem is gated and ticks once
+       per access, so a registered strobe would reach no second edge to flip on.
+       RX-buffer writes are ignored because that window is hardware-owned. */
+    reg_write: process(resetn, ClkMem)
     begin
         if resetn = '0' then
-            NFCxCR    <= (12 => '1', others => '0'); -- AUTOREAD reset default
-            NFCxUID   <= (others => '0');
-            NFCxCFG   <= x"000044";                  -- ATQA=0x0044, SAK=0x00
-            NFCxTIM   <= x"088004D4";                -- SUBCDIV=8, ETU=128, FDT=1236
-            NFCxIDX   <= (others => '0');
-            NFCxTXCTL <= (others => '0');
             halt_req_tgl <= '0';
             for i in 0 to 63 loop payload_mem(i) <= (others => '0'); end loop;
         elsif rising_edge(ClkMem) then
-            if EnMemPeriph = '0' then
-                case nfc_slot is
-                    when SLOT_CR =>
-                        if WEn(0) = '0' then
-                            NFCxCR(1 downto 0) <= wdata(1 downto 0);
-                            NFCxCR(3 downto 2) <= "00"; -- bit2 is self-clearing, bit3 is reserved
-                            if wdata(2) = '1' then halt_req_tgl <= not halt_req_tgl; end if;
-                        end if;
-                        if WEn(1) = '0' then NFCxCR(13 downto 8)  <= wdata(13 downto 8);  end if;
-                        if WEn(2) = '0' then NFCxCR(19 downto 16) <= wdata(19 downto 16); end if;
-                    when SLOT_UID =>
-                        if WEn(0) = '0' then NFCxUID(7 downto 0)   <= wdata(7 downto 0);   end if;
-                        if WEn(1) = '0' then NFCxUID(15 downto 8)  <= wdata(15 downto 8);  end if;
-                        if WEn(2) = '0' then NFCxUID(23 downto 16) <= wdata(23 downto 16); end if;
-                        if WEn(3) = '0' then NFCxUID(31 downto 24) <= wdata(31 downto 24); end if;
-                    when SLOT_CFG =>
-                        if WEn(0) = '0' then NFCxCFG(7 downto 0)   <= wdata(7 downto 0);   end if;
-                        if WEn(1) = '0' then NFCxCFG(15 downto 8)  <= wdata(15 downto 8);  end if;
-                        if WEn(2) = '0' then NFCxCFG(23 downto 16) <= wdata(23 downto 16); end if;
-                    when SLOT_TIM =>
-                        if WEn(0) = '0' then NFCxTIM(7 downto 0)   <= wdata(7 downto 0);   end if;
-                        if WEn(1) = '0' then NFCxTIM(15 downto 8)  <= wdata(15 downto 8);  end if;
-                        if WEn(2) = '0' then NFCxTIM(23 downto 16) <= wdata(23 downto 16); end if;
-                        if WEn(3) = '0' then NFCxTIM(31 downto 24) <= wdata(31 downto 24); end if;
-                    when SLOT_IDX =>
-                        if WEn(0) = '0' then NFCxIDX(7 downto 0) <= wdata(7 downto 0); end if;
-                        if WEn(1) = '0' then NFCxIDX(8)          <= wdata(8);          end if;
-                    when SLOT_DATA =>
-                        if WEn(0) = '0' and idx_sel = '0' then
-                            payload_mem(idx) <= wdata(7 downto 0);
-                        end if;
-                        if idx_ainc = '1' then
-                            NFCxIDX(5 downto 0) <= uint2slv((idx + 1) mod 64, 6);
-                        end if;
-                    when SLOT_TXCTL =>
-                        if WEn(0) = '0' then NFCxTXCTL(7 downto 0) <= wdata(7 downto 0); end if;
-                        if WEn(1) = '0' then NFCxTXCTL(9 downto 8) <= wdata(9 downto 8); end if;
-                    when SLOT_SR =>
-                        if WEn(0) = '0' then -- W1C: writing a 1 clears, read-only bits are ignored
-                            if wdata(1) = '1' then clr_fieldf   <= '1'; end if;
-                            if wdata(2) = '1' then clr_rxframef <= '1'; end if;
-                            if wdata(3) = '1' then clr_txdonef  <= '1'; end if;
-                            if wdata(4) = '1' then clr_crcerrf  <= '1'; end if;
-                            if wdata(5) = '1' then clr_parerrf  <= '1'; end if;
-                        end if;
-                    when others =>
-                        null; -- RXST and DBG are read-only
-                end case;
+            if acc_s(SLOT_CR) = '1' and WEn(0) = '0'
+               and wdata(NFCHALTCLR_LSB) = '1' then
+                halt_req_tgl <= not halt_req_tgl;
             end if;
-        end if;
-
-        -- Async clear-pulse retirement.
-        if resetn = '0' or EnMemPeriph = '1' then
-            clr_fieldf   <= '0';
-            clr_rxframef <= '0';
-            clr_txdonef  <= '0';
-            clr_crcerrf  <= '0';
-            clr_parerrf  <= '0';
-        end if;
-    end process;
-
-    -- Synchronous register read: SR/RXST/DATA/DBG are un-inverted from the pre-latch, plain software registers read straight, reserved slots read 0.
-    reg_read: process(ClkMem)
-    begin
-        if rising_edge(ClkMem) then
-            case nfc_slot is
-                when SLOT_CR    => rdata_out <= (31 downto 20 => '0') & NFCxCR;
-                when SLOT_SR    => rdata_out <= (31 downto 12 => '0') & (not NFCxSR_ltch);
-                when SLOT_UID   => rdata_out <= NFCxUID;
-                when SLOT_CFG   => rdata_out <= (31 downto 24 => '0') & NFCxCFG;
-                when SLOT_TIM   => rdata_out <= NFCxTIM;
-                when SLOT_RXST  => rdata_out <= (31 downto 24 => '0') & (not rxst_ltch);
-                when SLOT_IDX   => rdata_out <= (31 downto 9 => '0') & NFCxIDX;
-                when SLOT_DATA  => rdata_out <= (31 downto 8 => '0') & (not data_ltch);
-                when SLOT_TXCTL => rdata_out <= (31 downto 10 => '0') & NFCxTXCTL;
-                when SLOT_DBG   => rdata_out <= not dbg_ltch;
-                when others     => rdata_out <= (others => '0');
-            end case;
+            if acc_s(SLOT_DATA) = '1' and WEn(0) = '0' and idx_sel = '0' then
+                payload_mem(idx) <= wdata(NFCDATA_MSB downto NFCDATA_LSB);
+            end if;
         end if;
     end process;
 
@@ -479,8 +491,8 @@ begin
 
                 if rx_active = '0' then
                     if pedge then          -- the first pause out of idle is the SOC
-                        etu16 := x"00" & NFCxTIM(23 downto 16);
-                        half  := "000000000" & NFCxTIM(23 downto 17);
+                        etu16 := x"00" & NFCxTIM(NFCETU_MSB downto NFCETU_LSB);
+                        half  := "000000000" & NFCxTIM(NFCETU_MSB downto NFCETU_LSB + 1);
                         rx_active <= '1'; soc_period <= '1'; rx_soc <= '1';
                         -- Seed etu_cnt=4 so the bit-period boundary lands in the inter-symbol dead zone with balanced margin for first-half and second-half pauses.
                         -- Do not seed 0: the pause edge is seen about 2 rf_clk late, which would put the boundary on every first-half pause and misclassify its position.
@@ -558,7 +570,7 @@ begin
                 when TXP_IDLE =>
                     tx_active <= '0';
                     if tx_start = '1' then
-                        t_subc   <= NFCxTIM(31 downto 24);
+                        t_subc   <= NFCxTIM(NFCSUBCDIV_MSB downto NFCSUBCDIV_LSB);
                         tx_bidx  <= 0; tx_half <= 0; tx_tick <= (others => '0');
                         subc_cnt <= (others => '0'); subc_lvl <= '0';
                         tx_active <= '1'; txph <= TXP_SOF;
@@ -656,9 +668,9 @@ begin
                 rf_rxframe_lvl <= '0'; rf_txdone_lvl <= '0';
                 rf_crcerr_lvl <= '0'; rf_parerr_lvl <= '0';
                 t_uid  <= NFCxUID;
-                t_atqa <= NFCxCFG(15 downto 0);
-                t_sak  <= NFCxCFG(23 downto 16);
-                t_fdt  <= NFCxTIM(15 downto 0);
+                t_atqa <= NFCxCFG(NFCATQA_MSB downto NFCATQA_LSB);
+                t_sak  <= NFCxCFG(NFCSAK_MSB downto NFCSAK_LSB);
+                t_fdt  <= NFCxTIM(NFCFDT_MSB downto NFCFDT_LSB);
                 t_autoread <= autoread_bit;
             end if;
 
