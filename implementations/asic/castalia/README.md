@@ -186,15 +186,14 @@ configuration boots. Key knobs for this build: `numHarts = 5`, `orchestrator = t
 `isa.minimalTiles = true`, `numMutexes = 16`, `memory.tcmSizePerHart = 8 KiB`,
 `memory.sharedBulkRamSize = 64 KiB`, `memory.npuStagingRamSize = 16 KiB`,
 `peripherals.npu = true`, `package.model = castalia-lqfp100`. The tracked resolved form
-is `platform/common/config/ChipConfig.resolved.json`; `config/castalia4.json` keeps the
-historical four-identical-tiles shape as a standing matrix row.
+is `platform/common/config/ChipConfig.resolved.json`.
 
 ## Silicon Status
 
 **The last physical cut is `MCU_castalia_penta`, tag `cpr6`, Innovus signoff
 database written 2026-08-17 22:39.** It *is* post-penta: the layout carries a
 soft `orch_tile` as hart 0 and four hardened `hart_tile` macros as harts 1-4.
-But it was hardened from `platform/common/config/penta_wound.json`
+But it was hardened from `platform/common/config/castalia.json`
 (`chipName = PentaWound`), **not** from the golden-master Castalia
 configuration the rest of this README describes. Nothing physical has run since
 2026-08-18.
@@ -240,7 +239,7 @@ The core shape of that build matches this README: `numHarts = 5`,
 shared bulk + 16 KiB NPU staging, 16 mutexes, `castalia-lqfp100`,
 `debug.enable = true`, NPU and NFC on.
 
-The **peripheral set does not match**. `penta_wound.json` turns on the wound
+The **peripheral set does not match**. `castalia.json` turns on the wound
 set — DMA, event fabric, I2C target, I3C, 1-Wire, PWM, QSPI, RTC, TRNG — which
 the golden master leaves off, and it leaves `peripherals.cqAfeStubs` off, which
 the golden master turns on. **No hardened netlist anywhere in the tree contains

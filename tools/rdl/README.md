@@ -298,7 +298,7 @@ chip with eighteen peripherals' registers missing.
 | `//tools/rdl:toolchain_smoke_test` | the wheels are there, at the pinned versions |
 | `//tools/rdl:peakrdl_export_test` | the descriptions are valid SystemRDL that stock PeakRDL exporters consume |
 
-`rdl_vs_generator_test` runs against `penta_wound`, the tape-out configuration,
+`rdl_vs_generator_test` runs against `config/castalia.json`, the tape-out configuration,
 which instantiates every flagged peripheral.
 
 The identity gates are what prove a description change moves nothing it should
@@ -311,7 +311,7 @@ field spellings, because `generate.py` no longer writes most of them down.
 ## The three-level adoption plan
 
 **Level 1 — description plus gate. COMPLETE.** Every register-bearing block the
-`penta_wound` configuration instantiates has an `.rdl` beside its RTL, an entry
+tape-out configuration instantiates has an `.rdl` beside its RTL, an entry
 in `config/rdl.json`, and a `//platform/common:rdl_vs_vhdl_<block>_test` that
 re-derives its decode out of the VHDL and compares. 22 peripherals plus the Debug
 Module; 0 blocks at level 0. For the four parameterised blocks the gate also
@@ -325,7 +325,7 @@ calls deleted from `generate.py` and replaced by one `_rdlRegisters()` call per
 peripheral. The last four — CLINT, MUTEX, IRQROUTER and PWRCTRL — followed the
 same day as parameterised components (report R7), deleting 225 more. The proof
 that neither changed anything is a before/after byte-diff across **all seven**
-configurations with a `chip_artifacts` target (`castalia`, `penta_wound`,
+configurations with a `chip_artifacts` target (`castalia`, `castalia_tapeout`,
 `argus`, `mcu_hart`, `fpga`) of
 `config/MemoryMap.json`, `out/software/include/MemoryMap.h`, `out/hdl/MemoryMap.vhd`,
 `out/hdl/MCU.vhd` and the whole `latex/TRM/include` tree: identical, every file.

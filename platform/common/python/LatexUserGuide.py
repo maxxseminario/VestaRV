@@ -67,7 +67,7 @@ class LatexUserGuide():
 	# measured analog data is an explicit, per-chip decision.
 	AnalogChapterLineage = {
 		'castaliapenta': 'castalia',
-		# 2026-09-05: penta_wound.json sets chipName
+		# 2026-09-05: castalia.json sets chipName
 		# "PentaWound", which has no implementations/asic/pentawound/analog, so
 		# generating from that config silently dropped the entire 60-page
 		# analog chapter (CopyAnalogChapter rmtree's include/analog and takes the
@@ -2619,7 +2619,7 @@ class LatexUserGuide():
 		nfcChip['ext']['title'] = 'NFC antenna'
 		# Broken by hand, and short: this partner is the one box in the drawing
 		# whose subtitle is a sentence, and on the narrow branch (maxw = 2.30,
-		# config/penta_wound.json) a line the box cannot hold is a line set in
+		# config/castalia.json) a line the box cannot hold is a line set in
 		# two -- which the height now counts, but which reads as "RF front / end,
 		# off-die" and is nobody's idea of a caption.
 		# The `field-powered builds' clause is GONE by user directive (2026-08-16):
@@ -2767,7 +2767,7 @@ class LatexUserGuide():
 		# it already says is not free, it is 4% off every letter. Two rules, and
 		# each names its own reason:
 		#   * a glued box of four or more compartments keeps its NAMES and drops
-		#     its subtitle lines (MEASURED on config/penta_wound.json, whose
+		#     its subtitle lines (MEASURED on config/castalia.json, whose
 		#     serial group is five blocks wide: with a subtitle each it is 12 cm
 		#     of a rank that now has to hold every peripheral on the chip);
 		#   * the serial blocks drop them at any size -- "asynchronous serial"
@@ -2921,7 +2921,7 @@ class LatexUserGuide():
 			'''Minimum displacement under a separation constraint, the standard
 			   two passes, then a third: a partner pushed left by the forward
 			   sweep must not be shifted again (MEASURED on
-			   config/penta_wound.json, eight partners: one sweep plus a global
+			   config/castalia.json, eight partners: one sweep plus a global
 			   shift piled the left three on top of each other).'''
 			exts.sort(key=lambda c: c['tx'])
 			sep = [0.0] + [(exts[i - 1]['ext']['dw'] + exts[i]['ext']['dw']) / 2.0 + gapExt
@@ -2964,7 +2964,7 @@ class LatexUserGuide():
 			# UNDER-RELAXED, and it has to be. Every partner's miss is measured
 			# with all the OTHER partners still missing too, so paying each one
 			# in full double-counts the same shortfall down a run of them:
-			# MEASURED on config/penta_wound.json (eight partners, five of them
+			# MEASURED on config/castalia.json (eight partners, five of them
 			# on one glued box) a full-payment step overshot 33.4 cm to 44.2 in
 			# ONE pass and then converged there. Paying a fraction per pass and
 			# iterating approaches the same fixed point from below.
@@ -2983,7 +2983,7 @@ class LatexUserGuide():
 		W, xs = solve(3.40)
 		# PAST A POINT THE PARTNERS GIVE INSTEAD. A one-line partner title is
 		# worth its width until the drawing is so wide that every letter in it is
-		# unreadable: MEASURED on config/penta_wound.json, whose rank carries
+		# unreadable: MEASURED on config/castalia.json, whose rank carries
 		# five serial blocks and eight partners, one-line titles put the figure
 		# at 45.5 cm -- resized to the text width that is 2.5 pt type. Wrapping
 		# the partner titles costs one line of height, once, and takes it to

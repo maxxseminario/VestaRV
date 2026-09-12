@@ -524,7 +524,6 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
     <span class="spacer"></span>
     <button class="btn preset" data-preset="castalia">Castalia</button>
     <button class="btn preset" data-preset="argus">Argus (18-hart)</button>
-    <button class="btn preset" data-preset="cq">CQ (QFN-64)</button>
     <button class="btn preset" data-preset="single">Single-core</button>
     <button class="btn" id="importBtn" title="Load a config.json exported earlier (or written by hand)">⭱ Import</button>
     <input type="file" id="importFile" accept=".json,application/json" style="display:none">
@@ -3995,30 +3994,6 @@ const VESTA_DATA = {
       },
       "bootromLoaderRowBase": "0x10500 + 0x10*hartid",
       "stackPointerInit": "0xC000"
-    },
-    "cq": {
-      "isaString": "rv32imac_zba_zbb_zbs_zbc",
-      "sharedWindowAddrWidth": 16,
-      "sharedRamBanks": 4,
-      "flashBaseAddress": "0x40000",
-      "sharedRamEndAddress": "0x1FFFF",
-      "tcmWindowAddresses": [
-        "0x20000",
-        "0x24000",
-        "0x28000",
-        "0x2C000",
-        "0x30000"
-      ],
-      "vectorsCount": 121,
-      "clintMsipVector": 83,
-      "clintMtipVector": 84,
-      "clintLayout": {
-        "msipAddress": "0x5000 + 4*hartid",
-        "mtimeAddress": "0x5020",
-        "mtimecmpBaseAddress": "0x5030"
-      },
-      "bootromLoaderRowBase": "0x10500 + 0x10*hartid",
-      "stackPointerInit": "0xA000"
     }
   },
   "verifiedHarts": {
@@ -4027,7 +4002,7 @@ const VESTA_DATA = {
       4,
       5
     ],
-    "note": "Only 1 (the single-hart DRC/LVS vehicle, the named matrix row config/mcu_hart.json), 4 (the pre-CPR8 four-hart shape, kept as the named matrix row config/castalia4.json) and 5 (Castalia-Penta golden master since CPR8, the shipped default, byte-identical drop-in RTL) are verified hart counts. Other values emit well-formed but unproven RTL. 18 (Argus) was a verified count until 2026-08-16 and is not one now: hdl/common/hart_tile.vhd asserts RamSize = 8192 with severity failure, and every Argus configuration asks for memory.tcmSizePerHart = 16384, so an 18-hart build still generates but no longer elaborates."
+    "note": "Only 1 (the single-hart DRC/LVS vehicle, the named matrix row config/mcu_hart.json), 4 (the pre-CPR8 four-hart shape, orchestrator=false) and 5 (Castalia-Penta golden master since CPR8, the shipped default, byte-identical drop-in RTL) are verified hart counts. Other values emit well-formed but unproven RTL. 18 (Argus) was a verified count until 2026-08-16 and is not one now: hdl/common/hart_tile.vhd asserts RamSize = 8192 with severity failure, and every Argus configuration asks for memory.tcmSizePerHart = 16384, so an 18-hart build still generates but no longer elaborates."
   },
   "memoryRegions": [
     {
@@ -4151,7 +4126,7 @@ const VESTA_DATA = {
 const SCHEMA          = VESTA_DATA.schema;          // per-key {type,default,min,max,step,enum}
 const VDEFAULTS       = VESTA_DATA.defaults;        // dotted schema keys -> default value
 const PACKAGES        = VESTA_DATA.packages;        // pad rings, keyed by package model
-const DERIVED_PRESETS = VESTA_DATA.derivedPresets;  // castalia / argus / cq geometry
+const DERIVED_PRESETS = VESTA_DATA.derivedPresets;  // castalia / argus geometry
 /* Empty fallback, never a literal list: this used to read `|| [4, 18]`, a third
    hand-maintained copy of a fact that had already gone stale in the other two.
    If the bundle ever lacks the key, badge nothing as proven rather than badge
@@ -4224,7 +4199,6 @@ const PRESETS = {
   castalia: {},          // = DEFAULTS
   argus: { chipName: "Argus", numHarts: 18, numMutexes: 32, sharedRamSize: 131072, npu: false },
   single: { numHarts: 1 },
-  cq: { packageModel: "castalia-quad-qfn64", packagePreliminary: false },  // = config/cq.json
 };
 
 const ISA_EXTS = [
@@ -4998,15 +4972,14 @@ function renderOutputs(){
 }
 
 /* Self-test (runs on load): cross-check the local derived() geometry math
-   against VESTA_DATA.derivedPresets for castalia / argus / cq. console.assert
+   against VESTA_DATA.derivedPresets for castalia / argus. console.assert
    fires (and console.warn names the field) if the JS math ever drifts from the
-   generator's resolved geometry. Returns true when all three agree. */
+   generator's resolved geometry. Returns true when both agree. */
 function selfTestDerived(){
   if(!DERIVED_PRESETS) return true;
   const cases = {
     castalia: clone(DEFAULTS),
     argus:    Object.assign(clone(DEFAULTS), PRESETS.argus),
-    cq:       Object.assign(clone(DEFAULTS), PRESETS.cq),
   };
   const saved = cfg;
   let ok = true;
@@ -5032,7 +5005,7 @@ function selfTestDerived(){
     });
   }
   cfg = saved;
-  if(ok) console.log("[configurator self-test] derived() matches VESTA_DATA.derivedPresets for castalia, argus, cq");
+  if(ok) console.log("[configurator self-test] derived() matches VESTA_DATA.derivedPresets for castalia, argus");
   return ok;
 }
 

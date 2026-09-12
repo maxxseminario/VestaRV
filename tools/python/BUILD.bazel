@@ -32,7 +32,7 @@ genrule(
 )
 
 # SCANS docs/ pages, with the published TRM PDFs staged as link targets.
-# The root README/CHANGELOG/CONTRIBUTING link to assets and per-package
+# The root README and CHANGELOG link to assets and per-package
 # READMEs scattered across many bazel packages, so staging their target set
 # is not worth it here; the standalone git-mode default (CI) still covers
 # them.

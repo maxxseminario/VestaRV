@@ -20,7 +20,7 @@ Two gates in one file, because they grade the same artifact from two directions:
 
     regs_headers_test.py --memorymap-h <MemoryMap.h> [--regs <dir>]
 
-The MemoryMap.h handed in is the tape-out configuration's (penta_wound), the
+The MemoryMap.h handed in is the tape-out configuration's (config/castalia.json), the
 one that instantiates every peripheral these headers describe.
 """
 
