@@ -48,8 +48,8 @@ genrule(
 # WHAT IT DOES NOT GRADE. This filegroup is every VHDL file under hdl/, which
 # includes the two frozen trees, and both of them carry banned characters
 # today: hdl/argus/ (133 characters) and hdl/myshkin/ (41). Neither is
-# editable - CONTRIBUTING.md's frozen-trees table marks hdl/myshkin/ "do not
-# touch" and hdl/argus/ a regenerable snapshot - so EXCLUDED_TREES in
+# editable - hdl/myshkin/ is frozen tape-out RTL and hdl/argus/ a regenerable
+# snapshot - so EXCLUDED_TREES in
 # check_vhdl_style.py skips them, with the reason on each line. Of the 225
 # files this filegroup stages, 152 are graded and 73 are excluded. Live
 # hdl/common/ and hdl/castalia/ are both graded and both clean.

@@ -600,20 +600,23 @@ filegroup(
 )
 
 # ---------------------------------------------------------------------------
-# The tape-out configurations (report 08 finding 4: the config the physical
+# The tape-out configuration (report 08 finding 4: the config the physical
 # lineage was hardened from had no target and no gate).
 #
-# penta_wound: config/penta_wound.json, the CPR3 wound chip. There is no
-# tracked RTL for it (genus/common/in/penta_wound_hdl is a flow input, not a
-# gate), so the bar is that it still generates and its outputs parse. It is also
-# the configuration the REGISTER gates are handed, because it is the one that
-# instantiates every peripheral config/rdl.json flags.
+# config/castalia.json, the wound chip the Genus and Innovus lineage is built
+# from. It was called config/castalia.json until 2026-09-12; the target family
+# carries the _tapeout suffix because the unsuffixed `castalia` targets above are
+# the DEFAULT-knob generation, the one the tracked-RTL identity gates grade.
+# There is no tracked RTL for this configuration (genus/common/in/penta_wound_hdl
+# is a flow input, not a gate), so the bar is that it still generates and its
+# outputs parse. It is also the configuration the REGISTER gates are handed,
+# because it is the one that instantiates every peripheral config/rdl.json flags.
 # ---------------------------------------------------------------------------
 chip_artifacts(
-    name = "chip_artifacts_penta_wound",
+    name = "chip_artifacts_castalia_tapeout",
     srcs = ["//platform/common/python:generator_srcs"],
     chip_root_srcs = CHIP_ROOT_SRCS,
-    config = "config/penta_wound.json",
+    config = "config/castalia.json",
     out_of_tree_srcs = OUT_OF_TREE_SRCS,
 )
 
@@ -639,26 +642,26 @@ chip_artifacts(
         main = "assert_artifacts.py",
     )
     for cfg in [
-        "penta_wound",
+        "castalia_tapeout",
     ]
 ]
 
 chip_artifact(
-    name = "penta_wound_memorymap_h",
+    name = "castalia_tapeout_memorymap_h",
     rel_path = "out/software/include/MemoryMap.h",
-    target = ":chip_artifacts_penta_wound",
+    target = ":chip_artifacts_castalia_tapeout",
 )
 
 chip_artifact(
-    name = "penta_wound_config_memorymap_json",
+    name = "castalia_tapeout_config_memorymap_json",
     rel_path = "config/MemoryMap.json",
-    target = ":chip_artifacts_penta_wound",
+    target = ":chip_artifacts_castalia_tapeout",
 )
 
 chip_artifact(
-    name = "penta_wound_padring_tcl",
+    name = "castalia_tapeout_padring_tcl",
     rel_path = "out/pnr/chip_top_padring.tcl",
-    target = ":chip_artifacts_penta_wound",
+    target = ":chip_artifacts_castalia_tapeout",
 )
 
 # The generated TRM tree of the tape-out configuration, as one directory.
@@ -666,8 +669,8 @@ chip_artifact(
 # label of its own; the gate is handed the directory and reads
 # include/PeripheralSections.tex out of it.
 filegroup(
-    name = "penta_wound_trm_tree",
-    srcs = [":chip_artifacts_penta_wound"],
+    name = "castalia_tapeout_trm_tree",
+    srcs = [":chip_artifacts_castalia_tapeout"],
     output_group = "trm",
 )
 
@@ -677,7 +680,7 @@ filegroup(
 # skeleton; those were restructured on 2026-09-05 (F15), so the gate runs with
 # //platform/... again.
 py_test(
-    name = "penta_wound_intro_names_test",
+    name = "castalia_tapeout_intro_names_test",
     size = "small",
     srcs = [CHECK_RUNNER],
     args = [
@@ -687,10 +690,10 @@ py_test(
         # check_intro_names re-derives the template register/field spellings from
         # hdl/common/regs/rdl/ now that generate.py no longer writes them out.
         "--stage=hdl/common/regs/rdl=hdl/common/regs/rdl",
-        "--stage=$(rootpath :penta_wound_config_memorymap_json)=platform/common/config/MemoryMap.json",
+        "--stage=$(rootpath :castalia_tapeout_config_memorymap_json)=platform/common/config/MemoryMap.json",
     ],
     data = [
-        ":penta_wound_config_memorymap_json",
+        ":castalia_tapeout_config_memorymap_json",
         ":peripheral_intro_srcs",
         "//hdl:rdl_sources",
         "//platform/common/python:check_scripts",
@@ -701,17 +704,17 @@ py_test(
 
 # The emitted C header for the tape-out configuration must still be #include-able.
 py_test(
-    name = "penta_wound_memorymap_h_test",
+    name = "castalia_tapeout_memorymap_h_test",
     size = "small",
     srcs = [CHECK_RUNNER],
     args = [
         "--script=platform/common/python/check_memorymap_h.py",
         "--env=RISCV_CC=abs:$(rootpath @xpack_riscv_gcc//:gcc)",
         "--",
-        "abs:$(rootpath :penta_wound_memorymap_h)",
+        "abs:$(rootpath :castalia_tapeout_memorymap_h)",
     ],
     data = [
-        ":penta_wound_memorymap_h",
+        ":castalia_tapeout_memorymap_h",
         "//platform/common/python:check_memorymap_h.py",
         "@xpack_riscv_gcc//:gcc",
         "@xpack_riscv_gcc//:toolchain",
@@ -737,8 +740,8 @@ py_test(
 # configuration, it remains the original cross-check. It also holds
 # config/rdl.json's registerSource flags and generate.py to the same story, which
 # is what stops a deleted table from quietly coming back. It runs against
-# penta_wound, the tape-out configuration, which instantiates every peripheral
-# config/rdl.json flags.
+# config/castalia.json, the tape-out configuration, which instantiates every
+# peripheral config/rdl.json flags.
 # ---------------------------------------------------------------------------
 
 # The SystemRDL emission as a runnable target: the same code generate.py calls,
@@ -854,11 +857,11 @@ py_test(
     size = "small",
     srcs = ["//platform/common/python:regs_headers_test.py"],
     args = [
-        "--memorymap-h=$(rootpath :penta_wound_memorymap_h)",
+        "--memorymap-h=$(rootpath :castalia_tapeout_memorymap_h)",
         "TestHeadersAreCurrent",
     ],
     data = [
-        ":penta_wound_memorymap_h",
+        ":castalia_tapeout_memorymap_h",
         ":rdl_config",
         "//hdl:rdl_sources",
         "//software/include:regs_headers",
@@ -872,11 +875,11 @@ py_test(
     size = "small",
     srcs = ["//platform/common/python:regs_headers_test.py"],
     args = [
-        "--memorymap-h=$(rootpath :penta_wound_memorymap_h)",
+        "--memorymap-h=$(rootpath :castalia_tapeout_memorymap_h)",
         "TestHeadersAgreeWithMemoryMapH",
     ],
     data = [
-        ":penta_wound_memorymap_h",
+        ":castalia_tapeout_memorymap_h",
         ":rdl_config",
         "//hdl:rdl_sources",
         "//software/include:regs_headers",
@@ -898,10 +901,10 @@ py_test(
         "--",
         "abs:software/include/regs",
         "--memorymap-h",
-        "abs:$(rootpath :penta_wound_memorymap_h)",
+        "abs:$(rootpath :castalia_tapeout_memorymap_h)",
     ],
     data = [
-        ":penta_wound_memorymap_h",
+        ":castalia_tapeout_memorymap_h",
         "//platform/common/python:check_regs_headers.py",
         "//software/include:regs_headers",
         "@xpack_riscv_gcc//:gcc",
@@ -929,14 +932,14 @@ py_test(
     size = "small",
     srcs = ["//platform/common/python:rdl_vs_generator_test.py"],
     args = [
-        "$(rootpath :penta_wound_config_memorymap_json)",
+        "$(rootpath :castalia_tapeout_config_memorymap_json)",
         "$(rootpath :rdl_config)",
-        "$(rootpath :penta_wound_trm_tree)",
+        "$(rootpath :castalia_tapeout_trm_tree)",
         "$(rootpath //platform/common/python:generate.py)",
     ],
     data = [
-        ":penta_wound_config_memorymap_json",
-        ":penta_wound_trm_tree",
+        ":castalia_tapeout_config_memorymap_json",
+        ":castalia_tapeout_trm_tree",
         ":rdl_config",
         "//hdl:rdl_sources",
         "//platform/common/python:generate.py",

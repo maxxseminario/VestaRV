@@ -265,9 +265,8 @@ def main(argv):
         sys.stderr.write("ERROR: the census manifest is empty.\n")
         return 2
 
-    # Only hdl/common/ is in scope.  hdl/argus/ and hdl/myshkin/ are the
-    # frozen trees CONTRIBUTING.md marks do-not-touch, and hdl/ has no other
-    # RTL of its own.
+    # Only hdl/common/ is in scope.  hdl/argus/ and hdl/myshkin/ are frozen
+    # do-not-touch trees, and hdl/ has no other RTL of its own.
     in_scope = []
     for path in source_paths:
         rel = workspace_relative(path)

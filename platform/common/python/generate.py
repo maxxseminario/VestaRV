@@ -426,7 +426,7 @@ _CONFIG_SCHEMA = {
 	# absent). The PWRCTRL PWRWAKE/PWRSTS registers and the pgood_rstn HOLD-IN-RESET boot gate
 	# exist in the RTL unconditionally; this knob only controls the pad-side ties, so False
 	# leaves the feature a provable NO-OP (gate stuck released). Default true (the Castalia
-	# golden master and castalia_dp carry the live wiring)
+	# golden master carries the live wiring)
 	'peripherals.fieldPower': ('bool: wires the field-power pins (PGOOD, harvest strap) into PWRCTRL',
 	                         _isBool),
 	# Long form, preserved from the pre-2026-08-15 schema (the TRM chapters and this file's
@@ -542,8 +542,7 @@ _CONFIG_SCHEMA = {
 _CONFIG_META = {
 	'chipName':             {'type': 'string', 'default': 'Castalia'},
 	'numHarts':             {'type': 'int', 'default': 5, 'min': 1, 'max': 32},
-	# CPR3/R1: false = no orchestrator (the historical 4-hart shape, kept as a
-	# standing matrix row by config/castalia4.json). true (the DEFAULT since
+	# CPR3/R1: false = no orchestrator (the historical 4-hart shape). true (the DEFAULT since
 	# CPR8/R7) = hart 0 is the always-on soft orchestrator and harts 1..N-1 are
 	# the channel tiles. THE TWO-PLACES RULE: this default and the literal at
 	# the knob's _cfg site below must agree (check_config_defaults.py enforces).
@@ -610,8 +609,8 @@ _CONFIG_META = {
 	# balls committed, so an enabled TAP there is on-die but unreachable, which
 	# is what _checkDebugTransportBonded below now refuses to ship silently.
 	# The D-series inertness claim (a knob-OFF build is bit-identical to a
-	# pre-D1 chip) is NOT retired -- it is now proven by the named back-compat
-	# row config/castalia_nodbgnfc.json, the castalia4.json precedent.
+	# pre-D1 chip) is NOT retired, but no shipped configuration exercises the
+	# knob-OFF arm any more: prove it by setting the knob in a scratch config.
 	# NOTE, as above: this literal is the SCHEMA default; the OPERATIVE one is
 	# the _cfg() fallback in _debug below, and check_config_defaults.py is what
 	# keeps the two in step.
@@ -666,7 +665,7 @@ _CONFIG_META = {
 	# DEFAULT MOVED qfn64 -> lqfp100 2026-08-16, as the pad-side half of the
 	# debug.enable flip: castalia-lqfp100 is the only model that bonds the TAP
 	# (47-51, carved from NC balls at D3), and it is already the tape-out
-	# product's package (penta_wound.json). See _checkDebugTransportBonded.
+	# product's package (castalia.json). See _checkDebugTransportBonded.
 	'package.model':        {'type': 'enum', 'default': 'castalia-lqfp100', 'enum': list(_PACKAGE_MODELS)},
 	'package.preliminary':  {'type': 'bool', 'default': True},
 }
@@ -863,8 +862,8 @@ i3cPresent = _cfg('peripherals.i3c', False)
 # does NOT move vectorsCount (121 both ways) -- 94-97 are already RESERVED GAPS in
 # the vector space, not new entries appended above it, so none of the
 # vectorsCount-drift class applies. peripheralCount goes 20 -> 21. The
-# byte-identical default-emission claim in the note above is now carried by the
-# named back-compat row config/castalia_nodbgnfc.json, not by the default.
+# byte-identical default-emission claim in the note above is not carried by any
+# shipped configuration: the default has NFC on.
 nfcPresent = _cfg('peripherals.nfc', True)
 
 # digperiphs #4 (RTC, 2026-07-20): the RTC0 real-time clock (32.768 kHz always-on
@@ -1230,10 +1229,9 @@ _debug = {
 # lockstep and leaves DRET's legality arm behind. Same shape and same placement
 # as the umode/pmp ladder above; vesta.vhd carries a concurrent assert for
 # anyone instantiating the core outside the generator.
-# CONSEQUENCE, verified rather than assumed: config/castalia_notrapcsr.json --
-# the 28th matrix row and the ONLY one exercising the trapCsr-OFF RTL arm --
-# names no `debug` key, so it takes this default (false) and is a debug-OFF row
-# by construction. It does not need editing and must not be given a debug key.
+# CONSEQUENCE, verified rather than assumed: a configuration that sets
+# priv.trapCsr=false and names no `debug` key takes this default (false) and is
+# a debug-OFF row by construction, which is what keeps the two knobs consistent.
 if _debug['enable'] and not _priv['trapCsr']:
 	raise Exception('debug.enable requires priv.trapCsr (ebreak and the SYSTEM PRIV decode arm do not exist without it, so a software breakpoint could never be recognised)')
 
@@ -1350,7 +1348,7 @@ if (not _isa['atomics']) and numHarts > 1:
 # ---------------------------------------------------------------------------
 _VERIFIED_HART_COUNTS = [
 	(1, 'the single-hart DRC/LVS vehicle, the named matrix row config/mcu_hart.json'),
-	(4, 'the pre-CPR8 four-hart shape, kept as the named matrix row config/castalia4.json'),
+	(4, 'the pre-CPR8 four-hart shape, orchestrator=false'),
 	(5, 'Castalia-Penta golden master since CPR8, the shipped default, byte-identical drop-in RTL'),
 ]
 

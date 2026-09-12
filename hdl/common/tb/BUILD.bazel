@@ -547,7 +547,7 @@ ghdl_test(
 # NUM_IRQ_SRCS. It is kept at 125 deliberately: that is the shape the router was
 # proved at, and it is the one that needs four enable words, so it covers the
 # shipped shape rather than sitting under it. Take the shipped number from
-# bazel-bin/platform/common/chip_artifacts_penta_wound/out/hdl/MemoryMap.vhd,
+# bazel-bin/platform/common/chip_artifacts_castalia_tapeout/out/hdl/MemoryMap.vhd,
 # never from a report.
 ghdl_test(
     name = "irq_router_tb",

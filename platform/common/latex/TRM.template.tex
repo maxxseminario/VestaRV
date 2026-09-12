@@ -771,7 +771,7 @@ The per-class costs in Table~\ref{t:cpi-timing} come from paired micro-kernels: 
 % ===========================================================================
 
 % ===========================================================================
-% PENDING: republish this manual from the penta_wound configuration.
+% PENDING: republish this manual from the config/castalia.json configuration.
 % Raised by the 2026-09-05 tapeout review (reports/09_docs.md D-1, D-4, D-5).
 % These three cannot be fixed by editing text: they need the manual generated
 % from the configuration the physical chain is actually built from. Until then
@@ -779,15 +779,16 @@ The per-class costs in Table~\ref{t:cpi-timing} come from paired micro-kernels: 
 %
 % D-1  The manual is generated from ChipConfig.resolved.json (chipName Castalia,
 %      cqAfeStubs true, qspi false). The hardened, signed-off chain is built from
-%      penta_wound.json (cqAfeStubs false, qspi true), and slot 12 at 0x4C00 is
+%      castalia.json (cqAfeStubs false, qspi true), and slot 12 at 0x4C00 is
 %      mutually exclusive between the two: this manual documents four AFE register
 %      stubs there, the wq22e netlist has QSPI0. 0x7C00 and IRQ 55/56 are in the
-%      same position. Republish with CONFIG=config/penta_wound.json
+%      same position. Republish with CONFIG=config/castalia.json
 %      (make publish-chip), then delete this block.
 %      Sentence for whichever survives, in the AFE chapter:
 %        "Slot 12 at 0x4C00 carries the four AFE register stubs and the EIS stub in
-%         the castalia configuration and the QSPI0 controller in the penta_wound
-%         configuration; this manual documents the <name> build, and the two cannot
+%         the DEFAULT configuration and the QSPI0 controller in the
+%         config/castalia.json configuration; this manual documents the <name>
+%         build, and the two cannot
 %         coexist."
 %
 % D-4  The interrupt table (Chapter 9) lists sources 55 and 56 as Reserved; the RTL

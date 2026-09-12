@@ -7,8 +7,8 @@
 # its N<=4 ancestor and is deselected on this config by the `harts_le4`
 # structural tag (its per-hart stub addressing has no site for a fifth hart).
 # This file is NOT the tape-out-config orchestrator test: the AFE/EIS stub bank
-# is dropped on penta_wound, so `shtcm` — which keys on the TCM apertures, and
-# those exist wherever the orchestrator does — carries that duty.
+# is dropped on the tape-out configuration, so `shtcm` -- which keys on the TCM
+# apertures, and those exist wherever the orchestrator does -- carries that duty.
 #
 # WHAT CPR3/R2 INVERTED, AND WHY THE CP3 VERSION HAD TO BE REWRITTEN RATHER
 # THAN RE-TAGGED. The CP2/CP3 shape put the orchestrator at hart NHARTS-1, made

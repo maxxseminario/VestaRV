@@ -161,14 +161,14 @@ CATALOG = [
     # is correct everywhere), EIS is hart-0-owned, and the NEGATIVE CONTROL
     # INVERTS: a TILE is the denied prober now, and hart 0 is the master that can
     # look. Still `cqAfeStubs`-gated -- the stub bank does not exist on
-    # penta_wound, which is why CPR4's `shtcm` (below) and not this file is the
-    # tape-out-config orchestrator test.
+    # the tape-out configuration, which is why CPR4's `shtcm` (below) and not this
+    # file is the tape-out-config orchestrator test.
     T('rv32ui-p-shorch', 'tiles cqAfeStubs orch', True),
     # CPR4/R6: the TCM-aperture test, and THE orchestrator row that survives onto
     # the tape-out configuration. It keys on `orch` alone because the five
     # read-only TCM windows at 0x20000 + 0x4000*h are the memory architecture of
-    # an orchestrator chip (R4: not knob-gated), so they exist on penta AND
-    # penta_wound -- unlike the AFE/EIS stubs shorch needs. smoke=True by the
+    # an orchestrator chip (R4: not knob-gated), so they exist on every
+    # orchestrator config -- unlike the AFE/EIS stubs shorch needs. smoke=True by the
     # R-DK2 knobs-on rule: this row appears ONLY where the orchestrator knob is
     # on, and there it is the cheapest proof that the apertures were built.
     T('rv32ui-p-shtcm', 'tiles orch', True),

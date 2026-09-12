@@ -5,10 +5,10 @@
 #           apertures, CPR3/R3 + amendments A1/A2/A3)
 #-----------------------------------------------------------------------------
 # THE ONE ORCHESTRATOR TEST THAT RUNS ON THE TAPE-OUT CONFIGURATION. `shorch`
-# keys on the AFE/EIS stub bank and is therefore penta-only (wound drops
-# cqAfeStubs); the TCM apertures exist wherever the ORCHESTRATOR does, so this
-# file's CATALOG tag is `tiles orch` and it is selected on penta AND
-# penta_wound. It is the rehearsed successor of the CPR3 scratch file `zztcmw.S`
+# keys on the AFE/EIS stub bank and is therefore selected only where cqAfeStubs
+# is on; the TCM apertures exist wherever the ORCHESTRATOR does, so this
+# file's CATALOG tag is `tiles orch` and it is selected on every orchestrator
+# configuration, the tape-out one included. It is the rehearsed successor of the CPR3 scratch file `zztcmw.S`
 # (parked in ~/work/chip_docs/castalia/castalia_penta/): leg A below is that
 # file's graded self-read leg, absorbed verbatim, because it is the ONLY
 # chip-level coverage of the A3 fix.

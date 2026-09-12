@@ -6,7 +6,7 @@
 #   RETIRED, 2026-09-05 (F22). THIS FILE TARGETS THE RETIRED afe_stub BANK.
 #   It drives the four AFE stubs at 0x4C00 + 0x40*h and the hart-0-only EIS
 #   stub at 0x7C00, plus irq_router sources 55 and 56. None of those exist on
-#   the tape-out configuration: penta_wound sets `cqAfeStubs: false` and
+#   the tape-out configuration: config/castalia.json sets `cqAfeStubs: false` and
 #   penta_wound_afe replaces the bank with four AFE2 sites at 0x6C00 + 0x100*h
 #   on an entirely different register map, with one shared vector 124. On that
 #   configuration this image exercises the wrong addresses and would pass or

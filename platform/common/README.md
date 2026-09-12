@@ -105,13 +105,14 @@ make verify SUITE=full      # the whole regression instead of the smoke suite
 
 ### Which suite is the regression
 
-**`make verify SUITE=full CONFIG=config/penta_wound.json`** is the standing
-tape-out regression. It stages `xcelium/riscv_test/verify_pentawound/`, selects
+**`make verify SUITE=full CONFIG=config/castalia.json`** is the standing
+tape-out regression. It stages `xcelium/riscv_test/verify_pentawound/` (the stage directory follows
+`chipName`, which stays `PentaWound`), selects
 its rows from the catalog against the resolved config, runs the matching
 `-DCORE_ENABLE_TRAPCSR` image set, and passes **157 / 157** (2026-09-05).
 `make verify` with no `CONFIG` is the same machinery on the shipped Castalia
 defaults and is the only suite that selects `shorch` (the AFE/EIS stub bank it
-probes does not exist on `penta_wound`).
+probes does not exist on `config/castalia.json`).
 
 `xcelium/riscv_test/behavioral_mp/` is a **fast smoke, not the regression**: it
 compiles the same generated tape-out RTL but has no polarity gate and runs the
@@ -134,7 +135,7 @@ documented in the generated TRM's "Chip Configuration" section):
 |-----|---------|
 | `chipName` | Docs-only rename (TRM, headers) |
 | `numHarts` | Hart/tile count — 5 = Castalia golden master, 18 = Argus (sim-proven) |
-| `orchestrator` | `true` (the default) = hart 0 is the always-on soft orchestrator (`orch_tile`) and harts 1..N-1 are gateable channel tiles, on memory map v2; `false` = the historical shape, every hart a hardened `hart_tile` (kept as a standing row by `config/castalia4.json`) |
+| `orchestrator` | `true` (the default) = hart 0 is the always-on soft orchestrator (`orch_tile`) and harts 1..N-1 are gateable channel tiles, on memory map v2; `false` = the historical shape, every hart a hardened `hart_tile` |
 | `numMutexes` | HW mutex bank size (16 = Castalia, 32 = Argus) |
 | `registerFileDualPort` | Dual-port regfile (ASIC) vs single-port (FPGA) |
 | `isa.*` | `mul fastMul div atomics compressed bitmanip minimalTiles counters counters64` plus the X-series extension knobs |
@@ -159,8 +160,9 @@ figure is generated from the same model. The peripheral *set* is otherwise fixed
 template content — the NPU and every second instance (I²C1, UART1, SPI1, TIMER1) are
 real drop knobs (G1a/G1b): a dropped instance's window reads zero, its vectors become
 reserved gaps (the numbering is frozen), and its pins revert to plain GPIO. Working
-configurations live in `config/` (`argus.json` = the 18-hart Argus chip;
-`castalia_no{i2c1,uart1,spi1,timer1}.json` = the G1a/G1b proof configs).
+configurations live in `config/`: `castalia.json` (the tape-out chip), `argus.json`
+(the 18-hart Argus chip), `mcu_hart.json` (the single-hart signoff vehicle) and
+`fpga.json` (the FPGA bring-up cut).
 
 Generation produces the complete Technical Reference Manual for exactly the generated
 configuration: the feature list, peripheral chapters (intro LaTeX snippets + register

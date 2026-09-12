@@ -29,8 +29,8 @@ or non-breaking space, reporting `path:line:col` with the codepoint and name.
 
 Bazel target `//tools/ci:check_vhdl_style_test`, over `//hdl:vhdl_sources`.
 **Out of scope**, by `EXCLUDED_TREES` at the top of the script:
-`hdl/myshkin/` and `hdl/argus/` (frozen per CONTRIBUTING.md's frozen-trees
-table) and `tools/cosim/gate/` (vendored and generated netlists). All three
+`hdl/myshkin/` and `hdl/argus/` (frozen: tape-out RTL and a regenerable
+snapshot) and `tools/cosim/gate/` (vendored and generated netlists). All three
 carry banned characters today and none is editable, so grading them would be a
 permanent red with no legal repair. Live `hdl/common/` and `hdl/castalia/` are
 graded and clean.

@@ -16,7 +16,7 @@ with top-level keys:
     defaults       schema key -> default value (flat, dotted keys)
     packages       every _PACKAGE_MODELS model -> its full pad ring (pin, side,
                    name, io type, power domain, gpio/af table)
-    derivedPresets castalia / argus / cq derived geometry (isa string, shared-
+    derivedPresets castalia / argus derived geometry (isa string, shared-
                    window width, banks, flash base, CLINT layout, ...)
     verifiedHarts  {values:[...], note:...} -- the hart counts this tree can
                    still build AND elaborate, from generate.py's
@@ -42,7 +42,7 @@ import os
 
 # ---------------------------------------------------------------------------
 # Pure derived-geometry math (mirrors generate.py's A2/A0 formulas). Used ONLY
-# for the argus/cq presets; a cross-check against the authoritative
+# for the argus preset; a cross-check against the authoritative
 # gen.ResolvedConfig['derived'] guards it from drifting.
 # ---------------------------------------------------------------------------
 def _clog2(n):
@@ -283,15 +283,12 @@ def buildWebData(gen):
 	defaults = dict(gen.ConfigDefaults)
 	defaultsNested = _nest(defaults)
 
-	# Derived presets: castalia = the defaults; argus/cq = defaults + their JSON.
+	# Derived presets: castalia = the defaults; argus = defaults + its JSON.
 	configDir = os.path.join(gen.ChipRootDirectory, 'config')
 	presets = {'castalia': _derived(defaultsNested)}
 	argus = _loadPreset(configDir, 'argus.json', defaultsNested)
 	if argus is not None:
 		presets['argus'] = _derived(argus)
-	cq = _loadPreset(configDir, 'cq.json', defaultsNested)
-	if cq is not None:
-		presets['cq'] = _derived(cq)
 
 	# Cross-check the pure formula against generate.py's authoritative derived
 	# block for THIS build (so _derived() can never silently drift from it).

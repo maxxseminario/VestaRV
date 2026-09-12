@@ -56,14 +56,13 @@ ALLOWED_CONTROL = ("\t", "\n", "\r")
 # NOT excluded, deliberately:
 #   hdl/common/    the live shared RTL, where the ASCII rule is binding, and
 #                  which is clean today - this is the tree the gate is for.
-#   hdl/castalia/  absent from the frozen-trees table in CONTRIBUTING.md, so
-#                  it is live and stays graded. It is clean today.
+#   hdl/castalia/  not a frozen tree, so it is live and stays graded. It is
+#                  clean today.
 # ---------------------------------------------------------------------------
 EXCLUDED_TREES = (
-    # FROZEN - do not touch, per the frozen-trees table in CONTRIBUTING.md.
-    # Single-core Myshkin tape-out RTL.
+    # FROZEN - do not touch. Single-core Myshkin tape-out RTL.
     "hdl/myshkin/",
-    # Frozen snapshot, per the same table. 18-hart Argus RTL, regenerable
+    # Frozen snapshot, for the same reason. 18-hart Argus RTL, regenerable
     # from config/argus.json rather than hand-edited.
     "hdl/argus/",
     # Vendored and generated gate netlists. Synthesis and P&R write these;
