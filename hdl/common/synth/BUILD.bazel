@@ -1,0 +1,504 @@
+# The hermetic synthesizability gate for hdl/common.
+#
+# WHY THIS IS ITS OWN PACKAGE, AND NOT hdl/common/BUILD.bazel.
+# ---------------------------------------------------------------------------
+# The test_suite would read better as //hdl/common:synth, but hdl/common
+# cannot become a bazel package.  //hdl:vhdl_sources is a `glob(["**/*.vhd"])`
+# rooted at hdl/, and a glob does not descend into a subpackage -- that is why
+# hdl/common/tb re-exports :tb_vhdl_sources and //hdl:vhdl_sources appends it
+# by hand.  A BUILD file at hdl/common/ would carve out the ENTIRE RTL tree at
+# once, and it would also break //hdl:npu_vhd ("common/periph/NPU.vhd") and
+# //hdl:rdl_sources (glob "common/regs/rdl/*.rdl"), both of which name files
+# across that boundary.  This directory holds no VHDL, so making it a package
+# carves out nothing.  The suite is //hdl/common/synth:synth.
+#
+# WHY THE SOURCE LISTS ARE NOT REPEATED HERE.
+# ---------------------------------------------------------------------------
+# Every block's analysis order is already curated once, in
+# //hdl/common/tb/BUILD.bazel, and a second copy would drift.  These targets
+# reuse those vhdl_source_set targets directly.  The two lists that have no
+# bench, and therefore no existing source set -- NPU and the vesta hart -- are
+# defined below.
+#
+# WHAT A RED TARGET HERE MEANS.
+# ---------------------------------------------------------------------------
+# `ghdl --synth` refuses a `wait` statement in a process, an incomplete `if`
+# that infers a latch, and a constant index outside its array bound.  Before
+# this suite, all three reached Genus, which needs a license, takes minutes,
+# and does not run on every commit.  The whole suite measures under 10 s.
+#
+# The counts each target produces are frozen in
+# toolchains/ghdl/synth_census.json and graded by
+# //toolchains/ghdl:synth_census_test, which is the half that catches a change
+# no bench can see: a register bank that doubles, a reset that stops reaching
+# a flop, a clock gate that grows a second latch.
+
+load("//toolchains/ghdl:defs.bzl", "ghdl_synth_test", "vhdl_source_set")
+
+package(default_visibility = ["//visibility:public"])
+
+# The clock cells that hold a latch on purpose.  ClkGate's ClkSync is the
+# behavioural integrated clock gate (hdl/common/sim/ClkGate.vhd:20); PreICG and
+# ClockMuxGlitchFree are the glitch-free mux pair
+# (hdl/common/sim/ClockMuxGlitchFree.vhd).  Patterns, not names, because GHDL
+# appends the generic set to the module name
+# ("clockmuxglitchfree_Bbehavioral_4_2_0").
+ICG_LATCHES = [
+    "clkgate_B*",
+    "preicg_B*",
+    "clockmuxglitchfree_B*",
+]
+
+# ---------------------------------------------------------------------------
+# Infrastructure blocks
+# ---------------------------------------------------------------------------
+
+# The shipped arbiter is N=6 (MCU.vhd:2615), not the entity default of 4, and
+# ADDR_WIDTH is SH_AW = 16 (MCU.vhd:519), not 12.
+ghdl_synth_test(
+    name = "mp_arbiter",
+    size = "small",
+    srcs = ["//hdl/common/tb:mp_arbiter_rtl"],
+    entity = "mp_arbiter",
+    generics = {
+        "N": "6",
+        "ADDR_WIDTH": "16",
+        "DATA_WIDTH": "32",
+        "MW": "3",
+    },
+    tags = ["ghdl"],
+)
+
+# ENABLE_PMP defaults FALSE, and at that setting the whole unit folds to
+# constants -- there would be nothing to census.  The chip ships PMP off
+# (CORE_ENABLE_PMP false, MemoryMap.vhd:1314), so this target grades the
+# BUILDABLE shape at CORE_PMP_ENTRIES = 16, which is the one pmp_unit_tb
+# proves and the one a later chip turning PMP on would get.
+ghdl_synth_test(
+    name = "pmp_unit",
+    size = "small",
+    srcs = ["//hdl/common/tb:pmp_unit_rtl"],
+    entity = "pmp_unit",
+    generics = {
+        "ENABLE_PMP": "true",
+        "PMP_ENTRIES": "16",
+    },
+    tags = ["ghdl"],
+)
+
+# ENABLE_DEBUG defaults FALSE and folds the entire Debug Module away (its own
+# header says so: "no master requests, no halt requests, no reachable flops"),
+# which would census as 0 flops and grade nothing.  The chip sets it TRUE
+# (CORE_ENABLE_DEBUG, MemoryMap.vhd:1316) at NHARTS=5, SH_AW=16
+# (MCU.vhd:3041).
+ghdl_synth_test(
+    name = "debug_module",
+    size = "small",
+    srcs = ["//hdl/common/tb:debug_module_rtl"],
+    entity = "debug_module",
+    generics = {
+        "ENABLE_DEBUG": "true",
+        "NHARTS": "5",
+        "SH_AW": "16",
+    },
+    tags = ["ghdl"],
+)
+
+# The shipped shapes, matching //hdl/common/tb's bench generics one for one.
+ghdl_synth_test(
+    name = "pwr_ctrl",
+    size = "small",
+    srcs = ["//hdl/common/tb:pwr_ctrl_rtl"],
+    entity = "pwr_ctrl",
+    generics = {
+        "NHARTS": "5",
+        "T_SEQ": "4",
+        "T_RAIL": "256",
+        "STRAP_SETTLE": "8",
+    },
+    tags = ["ghdl"],
+)
+
+ghdl_synth_test(
+    name = "irq_router",
+    size = "small",
+    srcs = ["//hdl/common/tb:irq_router_rtl"],
+    entity = "irq_router",
+    generics = {
+        "NHARTS": "5",
+        "MW": "3",
+        "NUM_SRCS": "125",
+    },
+    tags = ["ghdl"],
+)
+
+ghdl_synth_test(
+    name = "clint",
+    size = "small",
+    srcs = ["//hdl/common/tb:clint_rtl"],
+    entity = "clint",
+    generics = {
+        "NHARTS": "5",
+        "ADDR_W": "5",
+    },
+    tags = ["ghdl"],
+)
+
+# arb_lat_rtl is the mutex_bank closure (mp_arbiter + resv_unit + the register
+# package); MCU.vhd:2967 instantiates it at NMUTEX=16, MW=3.
+ghdl_synth_test(
+    name = "mutex_bank",
+    size = "small",
+    srcs = ["//hdl/common/tb:arb_lat_rtl"],
+    entity = "mutex_bank",
+    generics = {
+        "NMUTEX": "16",
+        "MW": "3",
+    },
+    tags = ["ghdl"],
+)
+
+# The reusable CDC synchroniser at its default shape.  Every peripheral that
+# instantiates it censuses its own widths; this target is the cell itself, and
+# it is the one place a change to the two-flop chain shows up alone.
+ghdl_synth_test(
+    name = "sync",
+    size = "small",
+    srcs = ["//hdl/common/tb:sync_rtl"],
+    entity = "sync",
+    tags = ["ghdl"],
+)
+
+# SKIPPED.  periph_regs takes eleven word_array generics (RSTVAL, IMPL, W1C,
+# WOSET, WOT, PULSE, RCLR, ...) that have NO DEFAULT, because every one of
+# them is a per-peripheral table generated from the .rdl.  GHDL refuses:
+# "entity \"periph_regs\" cannot be at the top of a design (generic \"RSTVAL\"
+# has no default value)", and there is no command-line spelling for an
+# unconstrained array generic.
+#
+# It is not ungraded.  Every peripheral target below synthesizes its OWN
+# periph_regs instance at its OWN table, and the census records each one as a
+# separate module ("periph_regs_Brtl_20_0_<hash>"), so a change to the shared
+# register file moves sixteen frozen numbers at once.
+ghdl_synth_test(
+    name = "periph_regs",
+    size = "small",
+    entity = "periph_regs",
+    skip_reason = "eleven word_array generics have no default, so GHDL " +
+                  "refuses periph_regs as a top level; it is graded through " +
+                  "the sixteen peripheral targets that instantiate it",
+    tags = ["ghdl"],
+)
+
+# ---------------------------------------------------------------------------
+# The hart
+# ---------------------------------------------------------------------------
+
+# The curated analysis order of opensource_sim/isa/run_isa.sh, minus the
+# testbench and plus pmp_unit, which datapath instantiates as a component: at
+# ENABLE_PMP false the generate that binds it is dead, but leaving the file out
+# makes the binding UNBOUND rather than absent, and an unbound component in a
+# synthesis run is exactly the class of defect this gate exists to catch.
+# THREE conflicting `regfile` entities exist in the tree and only
+# regfile_sbirq.vhd is correct; ClkGate must come from hdl/common/sim/, not the
+# ARM cell of the same entity name in commune/.  Keep this list in step with
+# run_isa.sh, sky130/synth.sh and sky130/sim/Makefile.
+vhdl_source_set(
+    name = "vesta_rtl",
+    paths = [
+        "hdl/common/constants.vhd",
+        "hdl/common/MemoryMap.vhd",
+        "hdl/common/vesta/extend.vhd",
+        "hdl/common/vesta/loadext.vhd",
+        "hdl/common/vesta/store_ext.vhd",
+        "hdl/common/vesta/branch_valid.vhd",
+        "hdl/common/vesta/pulse_extender.vhd",
+        "hdl/common/vesta/aludec.vhd",
+        "hdl/common/vesta/maindec.vhd",
+        "hdl/common/vesta/div.vhd",
+        "hdl/common/vesta/alu.vhd",
+        "hdl/common/vesta/regfile_sbirq.vhd",
+        "hdl/common/vesta/c_dec.vhd",
+        "hdl/common/vesta/csr_unit.vhd",
+        "hdl/common/vesta/irq_handler.vhd",
+        "hdl/common/vesta/pmp_unit.vhd",
+        "hdl/common/vesta/fpu_simple.vhd",
+        "hdl/common/vesta/fpu.vhd",
+        "hdl/common/vesta/controller.vhd",
+        "hdl/common/vesta/datapath.vhd",
+        "hdl/common/sim/ClkGate.vhd",
+        "hdl/common/vesta/vesta.vhd",
+    ],
+    pool = ["//hdl:vhdl_sources"],
+)
+
+# THE GENERICS ARE LOAD BEARING, AND THIS IS THE MEASUREMENT THAT SAYS SO.
+# At the entity defaults (ENABLE_TRAPCSR false, ENABLE_DEBUG false) the hart
+# synthesizes with 22 INFERRED LATCHES: csr_unit declares mst_mie, mst_mpie,
+# mst_mpp, mtvec_base, mie_*, mscratch, mepc_r, mcause_*, mtval_r,
+# mtrapctl_legacy and the whole dcsr/dpc/dscratch group as signals whose only
+# writers live inside `if ENABLE_TRAPCSR generate` / `if ENABLE_DEBUG
+# generate`, so with the generic off nothing drives them and the reads become
+# latches.  At the SHIPPED settings (both true, MemoryMap.vhd:1312 and 1316,
+# plus ENABLE_IF_AHEAD true at 1317) the count is ONE, and that one is
+# ClkGate's.  Synthesizing this block at its defaults would have manufactured
+# a 22-latch finding about a configuration the chip does not build.
+ghdl_synth_test(
+    name = "vesta",
+    size = "small",
+    srcs = [":vesta_rtl"],
+    allow_latches = ICG_LATCHES,
+    entity = "vesta",
+    generics = {
+        "ENABLE_TRAPCSR": "true",
+        "ENABLE_DEBUG": "true",
+        "ENABLE_IF_AHEAD": "true",
+    },
+    tags = ["ghdl"],
+)
+
+# ---------------------------------------------------------------------------
+# The seventeen peripherals
+# ---------------------------------------------------------------------------
+
+# SKIPPED, and the only target here that is skipped for a TOOL defect rather
+# than a design one.  SYSTEM.vhd:497 writes `ClkEn(1) => open` in an
+# individual association.  `ghdl -a -frelaxed` accepts it (warning
+# -Wopen-assoc, the same waiver xcelium's -relax gives, and the reason
+# SYSTEM_tb carries -frelaxed), but `ghdl --synth` then dies inside its own
+# front end:
+#
+#     Exception CONSTRAINT_ERROR raised
+#     raised CONSTRAINT_ERROR : vhdl-nodes.adb:407 index check failed
+#
+# Two synth-side workarounds were tried and both crash identically: --out=none
+# instead of --out=raw, and the file-list form (`--synth FILES -e SYSTEM`)
+# instead of a pre-analysed library.  Fixing it on the RTL side means editing
+# SYSTEM.vhd, which is out of scope here.  SYSTEM's synthesizability rests on
+# Genus, as it did before this suite.
+ghdl_synth_test(
+    name = "SYSTEM",
+    size = "small",
+    entity = "SYSTEM",
+    skip_reason = "ghdl --synth 6.0.0 raises CONSTRAINT_ERROR at " +
+                  "vhdl-nodes.adb:407 on the `ClkEn(1) => open` individual " +
+                  "association at SYSTEM.vhd:497; --out=none and the " +
+                  "file-list form crash identically",
+    tags = ["ghdl"],
+)
+
+ghdl_synth_test(
+    name = "TIMER",
+    size = "small",
+    srcs = ["//hdl/common/tb:timer_rtl"],
+    allow_latches = ICG_LATCHES,
+    entity = "TIMER",
+    tags = ["ghdl"],
+)
+
+ghdl_synth_test(
+    name = "TRNG",
+    size = "small",
+    srcs = ["//hdl/common/tb:trng_rtl"],
+    entity = "TRNG",
+    tags = ["ghdl"],
+)
+
+ghdl_synth_test(
+    name = "PWM",
+    size = "small",
+    srcs = ["//hdl/common/tb:pwm_rtl"],
+    entity = "PWM",
+    tags = ["ghdl"],
+)
+
+ghdl_synth_test(
+    name = "OneWire",
+    size = "small",
+    srcs = ["//hdl/common/tb:onewire_rtl"],
+    entity = "OneWire",
+    tags = ["ghdl"],
+)
+
+ghdl_synth_test(
+    name = "I2CTarget",
+    size = "small",
+    srcs = ["//hdl/common/tb:i2ctarget_rtl"],
+    entity = "I2CTarget",
+    tags = ["ghdl"],
+)
+
+# num_pins has NO default and GPIO.vhd:160 asserts it is 8, because the .rdl
+# the register package is generated from describes the 8-pin port.  All five
+# instances in MCU.vhd pass 8.
+ghdl_synth_test(
+    name = "GPIO",
+    size = "small",
+    srcs = ["//hdl/common/tb:gpio_rtl"],
+    allow_latches = ICG_LATCHES,
+    entity = "GPIO",
+    generics = {"num_pins": "8"},
+    tags = ["ghdl"],
+)
+
+ghdl_synth_test(
+    name = "UART",
+    size = "small",
+    srcs = ["//hdl/common/tb:uart_rtl"],
+    allow_latches = ICG_LATCHES,
+    entity = "UART",
+    tags = ["ghdl"],
+)
+
+ghdl_synth_test(
+    name = "SPI",
+    size = "small",
+    srcs = ["//hdl/common/tb:spi_rtl"],
+    allow_latches = ICG_LATCHES,
+    entity = "SPI",
+    tags = ["ghdl"],
+)
+
+ghdl_synth_test(
+    name = "I2C",
+    size = "small",
+    srcs = ["//hdl/common/tb:i2c_rtl"],
+    allow_latches = ICG_LATCHES,
+    entity = "I2C",
+    tags = ["ghdl"],
+)
+
+ghdl_synth_test(
+    name = "EVFAB",
+    size = "small",
+    srcs = ["//hdl/common/tb:evfab_rtl"],
+    entity = "EVFAB",
+    tags = ["ghdl"],
+)
+
+ghdl_synth_test(
+    name = "QSPI",
+    size = "small",
+    srcs = ["//hdl/common/tb:qspi_rtl"],
+    allow_latches = ICG_LATCHES,
+    entity = "QSPI",
+    tags = ["ghdl"],
+)
+
+ghdl_synth_test(
+    name = "I3C",
+    size = "small",
+    srcs = ["//hdl/common/tb:i3c_rtl"],
+    allow_latches = ICG_LATCHES,
+    entity = "I3C",
+    tags = ["ghdl"],
+)
+
+ghdl_synth_test(
+    name = "RTC",
+    size = "small",
+    srcs = ["//hdl/common/tb:rtc_rtl"],
+    entity = "RTC",
+    tags = ["ghdl"],
+)
+
+ghdl_synth_test(
+    name = "DMA",
+    size = "small",
+    srcs = ["//hdl/common/tb:dma_rtl"],
+    entity = "DMA",
+    tags = ["ghdl"],
+)
+
+ghdl_synth_test(
+    name = "NFC",
+    size = "small",
+    srcs = ["//hdl/common/tb:nfc_rtl"],
+    entity = "NFC",
+    tags = ["ghdl"],
+)
+
+# NPU is the one peripheral with no bench in //hdl/common/tb (its benches all
+# instantiate the sram1p16k_hvt_pg macro and read vectors from files opened by
+# a bare name), so its closure is declared here.  It needs the VHDL-2008 fixed
+# point packages, which live in commune/ as .vhdl, and the two arithmetic
+# blocks FPMac and FPSigmoid.
+vhdl_source_set(
+    name = "npu_rtl",
+    paths = [
+        "hdl/common/constants.vhd",
+        "hdl/common/sim/ClkGate.vhd",
+        "hdl/common/commune/fixed_float_types_c.vhdl",
+        "hdl/common/commune/fixed_pkg_c.vhdl",
+        "hdl/common/commune/FPMac.vhd",
+        "hdl/common/commune/FPSigmoid.vhd",
+        "hdl/common/periph_regs.vhd",
+        "hdl/common/regs/vhdl/npu_regs_pkg.vhd",
+        "hdl/common/periph/NPU.vhd",
+    ],
+    pool = ["//hdl:vhdl_sources"],
+)
+
+# The first standing synthesis check NPU has ever had in this tier: it is
+# analyzed and elaborated by //opensource_sim/mcu:mcu_elaborate and nothing
+# else.
+ghdl_synth_test(
+    name = "NPU",
+    size = "small",
+    srcs = [":npu_rtl"],
+    allow_latches = ICG_LATCHES,
+    entity = "NPU",
+    tags = ["ghdl"],
+)
+
+# ---------------------------------------------------------------------------
+# The suite
+# ---------------------------------------------------------------------------
+
+SYNTH_TARGETS = [
+    ":DMA",
+    ":EVFAB",
+    ":GPIO",
+    ":I2C",
+    ":I2CTarget",
+    ":I3C",
+    ":NFC",
+    ":NPU",
+    ":OneWire",
+    ":PWM",
+    ":QSPI",
+    ":RTC",
+    ":SPI",
+    ":SYSTEM",
+    ":TIMER",
+    ":TRNG",
+    ":UART",
+    ":clint",
+    ":debug_module",
+    ":irq_router",
+    ":mp_arbiter",
+    ":mutex_bank",
+    ":periph_regs",
+    ":pmp_unit",
+    ":pwr_ctrl",
+    ":sync",
+    ":vesta",
+]
+
+test_suite(
+    name = "synth",
+    tags = ["ghdl"],
+    tests = SYNTH_TARGETS,
+)
+
+# Every target's census JSON, pulled out of the "census" output group that
+# ghdl_synth_test declares alongside its test executable.  This is what lets
+# //toolchains/ghdl:synth_census_test grade all 27 blocks without re-running a
+# single synthesis: the counts are already on disk as build outputs of the
+# same actions the tests read.
+filegroup(
+    name = "synth_censuses",
+    testonly = True,
+    srcs = SYNTH_TARGETS,
+    output_group = "census",
+)

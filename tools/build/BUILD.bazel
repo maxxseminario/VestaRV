@@ -251,3 +251,5 @@ py_test(
     main = "scripts/check_image_regions.py",
     tags = ["known_red"],
 )
+
+exports_files(["regs.sh"])

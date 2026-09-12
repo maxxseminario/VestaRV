@@ -1,0 +1,196 @@
+{
+  "_comment": [
+    "toolchains/ghdl/synth_census.json -- the FROZEN synthesis census.",
+    "",
+    "One row per //hdl/common:synth target: the flop bits, latch bits and",
+    "cell count ghdl --synth produces for that entity at its shipped",
+    "generics.  //toolchains/ghdl:synth_census_test fails when any of them",
+    "moves, so a register bank that silently doubles, a reset that stops",
+    "reaching a flop, or a new latch is caught on the commit that does it.",
+    "",
+    "Regenerating this file is a DELIBERATE ACT.",
+    "Run  tools/bin/bazel run //toolchains/ghdl:synth_census_update",
+    "and commit the result in the SAME commit as the change it blesses, so",
+    "the review sees the blessing next to the thing being blessed.",
+    "",
+    "A 'skipped' row records a block this tier cannot synthesize, with the",
+    "reason; it is graded only on the reason still matching the BUILD file."
+  ],
+  "entities": {
+    "DMA": {
+      "cells": 3105,
+      "flop_bits": 1032,
+      "latch_bits": 0,
+      "latch_modules": []
+    },
+    "EVFAB": {
+      "cells": 2872,
+      "flop_bits": 356,
+      "latch_bits": 0,
+      "latch_modules": []
+    },
+    "GPIO": {
+      "cells": 973,
+      "flop_bits": 170,
+      "latch_bits": 8,
+      "latch_modules": [
+        "clkgate_Bbehavioral"
+      ]
+    },
+    "I2C": {
+      "cells": 976,
+      "flop_bits": 202,
+      "latch_bits": 2,
+      "latch_modules": [
+        "clkgate_Bbehavioral"
+      ]
+    },
+    "I2CTarget": {
+      "cells": 782,
+      "flop_bits": 217,
+      "latch_bits": 0,
+      "latch_modules": []
+    },
+    "I3C": {
+      "cells": 2061,
+      "flop_bits": 736,
+      "latch_bits": 2,
+      "latch_modules": [
+        "clkgate_Bbehavioral"
+      ]
+    },
+    "NFC": {
+      "cells": 58765,
+      "flop_bits": 3030,
+      "latch_bits": 0,
+      "latch_modules": []
+    },
+    "NPU": {
+      "cells": 1320,
+      "flop_bits": 597,
+      "latch_bits": 3,
+      "latch_modules": [
+        "clkgate_Bbehavioral"
+      ]
+    },
+    "OneWire": {
+      "cells": 712,
+      "flop_bits": 179,
+      "latch_bits": 0,
+      "latch_modules": []
+    },
+    "PWM": {
+      "cells": 605,
+      "flop_bits": 207,
+      "latch_bits": 0,
+      "latch_modules": []
+    },
+    "QSPI": {
+      "cells": 1059,
+      "flop_bits": 355,
+      "latch_bits": 2,
+      "latch_modules": [
+        "clkgate_Bbehavioral"
+      ]
+    },
+    "RTC": {
+      "cells": 712,
+      "flop_bits": 394,
+      "latch_bits": 0,
+      "latch_modules": []
+    },
+    "SPI": {
+      "cells": 786,
+      "flop_bits": 375,
+      "latch_bits": 2,
+      "latch_modules": [
+        "clkgate_Bbehavioral"
+      ]
+    },
+    "SYSTEM": {
+      "skipped": "ghdl --synth 6.0.0 raises CONSTRAINT_ERROR at vhdl-nodes.adb:407 on the `ClkEn(1) => open` individual association at SYSTEM.vhd:497; --out=none and the file-list form crash identically"
+    },
+    "TIMER": {
+      "cells": 1128,
+      "flop_bits": 535,
+      "latch_bits": 6,
+      "latch_modules": [
+        "clkgate_Bbehavioral",
+        "preicg_Bbehavioral"
+      ]
+    },
+    "TRNG": {
+      "cells": 368,
+      "flop_bits": 170,
+      "latch_bits": 0,
+      "latch_modules": []
+    },
+    "UART": {
+      "cells": 549,
+      "flop_bits": 184,
+      "latch_bits": 3,
+      "latch_modules": [
+        "clkgate_Bbehavioral"
+      ]
+    },
+    "clint": {
+      "cells": 178,
+      "flop_bits": 426,
+      "latch_bits": 0,
+      "latch_modules": []
+    },
+    "debug_module": {
+      "cells": 1485,
+      "flop_bits": 340,
+      "latch_bits": 0,
+      "latch_modules": []
+    },
+    "irq_router": {
+      "cells": 5363,
+      "flop_bits": 803,
+      "latch_bits": 0,
+      "latch_modules": []
+    },
+    "mp_arbiter": {
+      "cells": 336,
+      "flop_bits": 118,
+      "latch_bits": 0,
+      "latch_modules": []
+    },
+    "mutex_bank": {
+      "cells": 119,
+      "flop_bits": 96,
+      "latch_bits": 0,
+      "latch_modules": []
+    },
+    "periph_regs": {
+      "skipped": "eleven word_array generics have no default, so GHDL refuses periph_regs as a top level; it is graded through the sixteen peripheral targets that instantiate it"
+    },
+    "pmp_unit": {
+      "cells": 707,
+      "flop_bits": 0,
+      "latch_bits": 0,
+      "latch_modules": []
+    },
+    "pwr_ctrl": {
+      "cells": 309,
+      "flop_bits": 163,
+      "latch_bits": 0,
+      "latch_modules": []
+    },
+    "sync": {
+      "cells": 4,
+      "flop_bits": 2,
+      "latch_bits": 0,
+      "latch_modules": []
+    },
+    "vesta": {
+      "cells": 6333,
+      "flop_bits": 3080,
+      "latch_bits": 1,
+      "latch_modules": [
+        "clkgate_Bbehavioral"
+      ]
+    }
+  }
+}

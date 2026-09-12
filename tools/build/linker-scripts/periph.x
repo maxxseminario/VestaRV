@@ -113,6 +113,7 @@ __PWRCR						= 0x4B00;
 __PWRSR						= 0x4B04;
 __PWRWAKE					= 0x4B14;
 __PWRSTS					= 0x4B18;
+__TASKWKM					= 0x4B1C;
 __P3IN						= 0x4D00;
 __P3OUT						= 0x4D04;
 __P3OUTS					= 0x4D08;

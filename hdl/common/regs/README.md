@@ -61,4 +61,13 @@ I3C, NFC, NPU, OneWire, PWM, QSPI, RTC, SPI, SYSTEM, TIMER, TRNG and UART.
 Their packages are still emitted, tracked and gated; an unread package costs one
 analysis and synthesises to nothing.
 
+`periph_regs` itself cannot be synthesised as a top level - its eleven
+`word_array` generics have no default, because each one is a per-peripheral
+table generated from a `.rdl` - so it is graded through the sixteen peripheral
+targets that instantiate it. Each carries its own `periph_regs` instance as a
+separate module in `toolchains/ghdl/synth_census.json`, which means a change to
+the shared register file, or to any table in `vhdl/`, moves sixteen frozen flop
+and cell counts at once. See `//hdl/common/synth:synth` and
+`//toolchains/ghdl:synth_census_test`.
+
 Full toolchain documentation: `tools/rdl/README.md`.
