@@ -333,3 +333,26 @@ Known TODOs:
   same day (no RTL logic read them). Generation is warning-free and
   `check_memorymap_vhd.py` is drop-in clean. (The matching GPIO pin-reset-attribute
   discrepancy was FIXED 2026-07-09 with the multi-AF work.)
+
+## The overlay hook
+
+Some chips in the family carry blocks whose register descriptions, RTL, package
+model and testbench models are not distributable with this tree. `VESTA_OVERLAY`
+in the environment, or an `"overlay"` path in the `CONFIG=` json (resolved
+against that file's own directory, and overridden by the environment), names an
+out-of-tree directory that MIRRORS the repository layout and contributes a hook
+module (`platform/common/python/vesta_overlay.py`), extra configurations, extra
+SystemRDL descriptions and registry rows, extra intro chapters and the emitter
+fragments that place them. `platform/common/python/overlay.py` carries the whole
+contract: one `stage_<name>` function per fixed point, the stage list in
+`OVERLAY_STAGES`, and `overlay.call()` at each of those points in `generate.py`,
+`mcu_vhd.py`, `tb_vhd.py`, `rdl_model.py`, `rdl_vhdl.py`, `rdl_cheader_regs.py`,
+`LatexUserGuide.py` and `web_export.py`. `MCU.template.vhd` carries three generic
+extension markers (`overlay-ports`, `overlay-decls`, `overlay-instance`) and
+`riscv_tb.template.vhd` two (`tb-overlay-signals`, `tb-overlay-models`). With no
+overlay every one of them is inert and this tree generates exactly what it
+generates today, which is what the identity gates hold: `overlay` is a generator
+directive, never a schema knob, so it reaches neither the resolved configuration,
+the configurator nor the TRM tables. What a stage DOES is entirely the overlay's
+business; no block name, port name or pad number of a private block appears on
+this side of the boundary.

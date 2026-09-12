@@ -46,6 +46,29 @@ RDL_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))),
     'hdl', 'common', 'regs', 'rdl')
 
+# OVERLAY (2026-09-12). An out-of-tree overlay mirrors the repository layout, so
+# its register descriptions sit at <overlay>/hdl/common/regs/rdl and its extra
+# registry rows at <overlay>/platform/common/config/rdl.json. Both are searched
+# AFTER the tree's own -- a fallback, never an override -- and both are empty
+# with no overlay, so blocks() and loadBlock() are unchanged.
+import overlay as _overlay
+
+
+def rdlDirs():
+    dirs = [RDL_DIR]
+    d = _overlay.dir('hdl', 'common', 'regs', 'rdl')
+    if d:
+        dirs.append(d)
+    return dirs
+
+
+def rdlPath(fileName):
+    for d in rdlDirs():
+        p = os.path.join(d, fileName)
+        if os.path.isfile(p):
+            return p
+    return os.path.join(RDL_DIR, fileName)
+
 # The generator's access codes, as a function of the SystemRDL properties.
 # (sw, hw, onwrite, singlepulse) -> code. sw/hw are the AccessType names.
 _ACCESS_FROM_RDL = {
@@ -451,7 +474,7 @@ def compileFiles(paths, top=None, incdirs=None, parameters=None, defines=None):
             MessagePrinter.emit_message(self, lines)
 
     dirs = list(incdirs) if incdirs else []
-    dirs.append(RDL_DIR)
+    dirs.extend(rdlDirs())
     for p in paths:
         d = os.path.dirname(os.path.abspath(p))
         if d not in dirs:
@@ -486,7 +509,7 @@ def loadBlock(fileName, top, parameters=None, defines=None):
            tuple(sorted((parameters or {}).items())),
            tuple(sorted((defines or {}).items())))
     if key not in _COMPILE_CACHE:
-        _COMPILE_CACHE[key] = compileFiles([os.path.join(RDL_DIR, fileName)], top=top,
+        _COMPILE_CACHE[key] = compileFiles([rdlPath(fileName)], top=top,
                                            parameters=parameters, defines=defines)[0]
     return _COMPILE_CACHE[key]
 
@@ -504,6 +527,31 @@ _BLOCKS_CACHE = {}
 _COMPILE_CACHE = {}
 
 
+def loadConfig(path=None):
+    """rdl.json, with the overlay's registry rows merged in.
+
+       THE one reader of the registry, because there were two and an overlay
+       that reached only one of them emitted a block's header but left it out of
+       the chip umbrella. The overlay's names are its own namespace; a collision
+       with a public block is a mistake on the overlay's side and stops the
+       build here rather than silently shadowing one."""
+    path = path or CONFIG_PATH
+    with open(path) as f:
+        cfg = json.load(f)
+    if os.path.abspath(path) != os.path.abspath(CONFIG_PATH):
+        return cfg
+    extra = _overlay.file('platform', 'common', 'config', 'rdl.json')
+    if extra:
+        with open(extra) as f:
+            more = json.load(f).get('peripherals', {})
+        clash = sorted(set(more) & set(cfg.get('peripherals', {})))
+        if clash:
+            raise Exception('rdl_model: overlay rdl.json redefines public block(s) '
+                            + ', '.join(clash) + '; an overlay adds blocks, it does not replace them.')
+        cfg.setdefault('peripherals', {}).update(more)
+    return cfg
+
+
 def blocks(configPath=None):
     """[{file, top, peripheral, registerSource, name}] for every rdl:true entry.
 
@@ -512,8 +560,7 @@ def blocks(configPath=None):
        exists to remove."""
     path = configPath or CONFIG_PATH
     if path not in _BLOCKS_CACHE:
-        with open(path) as f:
-            cfg = json.load(f)
+        cfg = loadConfig(path)
         out = []
         for name, entry in sorted(cfg.get('peripherals', {}).items()):
             if not entry.get('rdl', False):

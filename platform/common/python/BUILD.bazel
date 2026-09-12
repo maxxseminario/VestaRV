@@ -22,6 +22,7 @@ py_library(
         "Register.py",
         "TabbedTable.py",
         "mcu_vhd.py",
+        "overlay.py",
         "tb_vhd.py",
         "web_export.py",
     ],

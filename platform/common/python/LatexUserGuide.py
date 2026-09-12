@@ -201,6 +201,13 @@ class LatexUserGuide():
 				continue
 			path = self.LatexSourceDirectory + '/PeripheralIntroductions/' + pt.LatexIntroFileName
 			if not os.path.isfile(path):
+				# OVERLAY: a peripheral an overlay contributed brings its own
+				# intro chapter, at the mirrored path. Fallback only.
+				import overlay
+				alt = overlay.file('platform', 'common', 'latex', 'PeripheralIntroductions', pt.LatexIntroFileName)
+				if alt:
+					path = alt
+			if not os.path.isfile(path):
 				raise Exception('The latex introduction for peripheral ' + pt.NameTemplate + ' does not exist at path ' + path)
 			copyfile(path, self.SaveDirectory + '/include/' + pt.LatexIntroFileName)
 
@@ -1505,6 +1512,12 @@ class LatexUserGuide():
 			'peripherals.i2ctarget', 'peripherals.trng', 'peripherals.trngRings',
 			'peripherals.eventFabric',
 			'package.model', 'package.preliminary']
+
+		# OVERLAY: a knob an overlay added to the schema takes its place in the
+		# table here, so the gate below still holds -- the schema is the
+		# authority for both sides, overlay or not.
+		import overlay
+		keyOrder = list(overlay.call('trmKeyOrder', default=keyOrder, keyOrder=keyOrder))
 
 		# K2 (inventory probe §1.3): the list above is HAND-MAINTAINED and had
 		# already silently drifted once -- it stayed frozen at the pre-X-series

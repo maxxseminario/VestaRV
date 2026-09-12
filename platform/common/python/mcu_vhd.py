@@ -806,6 +806,14 @@ class McuVhdEmitter():
 		# (its rd-sel, rdata-mux and enable are emitted in explicit self.i3c blocks,
 		# the AFE-stub precedent). Default false => every one of those is inert.
 		self.i3c = geo.get('i3c', False)
+		# OVERLAY (2026-09-12): an out-of-tree overlay reads its own knobs out of
+		# the SAME geometry dict every emitter here reads, so entity, memory map
+		# and testbench cannot disagree about what was built. With no overlay
+		# every overlay entry point below returns nothing and this emitter is
+		# byte-for-byte the one that shipped. See python/overlay.py.
+		import overlay as _ovl
+		self.overlay = _ovl
+		_ovl.call('mcuInit', emitter=self, geo=geo)
 		# digperiphs #3: NFC0 in MUTEX-page (page 2) sub-slot 2 @0x6200. Same shape
 		# as I3C0 (native slave outside the page-0 shim fabric; hand-emitted
 		# sub-decode + shim/instance under self.nfc). When either I3C or NFC is
@@ -1074,6 +1082,12 @@ class McuVhdEmitter():
 			+ (['I2CT0'] if self.i2ctarget else []) \
 			+ (['TRNG0'] if self.trng else []) \
 			+ (['EVFAB'] if self.eventFabric else [])
+		# An overlay's native slaves join the fabric here: it appends to
+		# self.shslv and to the order list, and every enable / rd-sel / rdata
+		# loop below then covers them with no further change.
+		self.nativeOrder = nativeOrder
+		self.overlay.call('mcuSlaves', emitter=self)
+		nativeOrder = self.nativeOrder
 		self.enOrder = ['rom'] \
 			+ (['npuram'] if self.npu else []) \
 			+ ['bank' + str(b) for b in range(self.banks)] \
@@ -1349,6 +1363,9 @@ class McuVhdEmitter():
 		if self.eventFabric:
 			# digperiphs (EVFAB): EVFAB0 = page-2 sub-slot 11 (0x6B00).
 			lines.append(ind + 'shslv_evfab0_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + mtxBits + '" and sh_addr(9 downto 6) = "1011" else \'0\';')
+		# An overlay's page-2 sub-slot decodes. It is handed the indent and the
+		# page's own address bits so its lines match the shape of the tree's.
+		lines.extend(self.overlay.lines('mcuSubdecode', emitter=self, indent=ind, pageBits=mtxBits))
 		if self.afeStubs:
 			lines.append(ind + '-- Page-3 sub-decode: irq_router keeps 0x7000-0x7BFF and the shared EIS engine stub owns the top quarter 0x7C00-0x7FFF (the router ADDR_W=10 decode is inert above word 522, so only aliased space is taken).')
 			lines.append(ind + 'shslv_irtr_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + irtrBits + '" and sh_addr(9 downto 8) /= "11" else \'0\';')
@@ -2715,7 +2732,10 @@ class McuVhdEmitter():
 		n = self.nHarts()
 		# When the DMI ports follow (debug.enable), the last port emitted here is
 		# no longer the last port in the entity and needs its separator (D2).
-		last = ';' if self.debug else ''
+		# An overlay's port group is emitted after the JTAG group, i.e. LAST in
+		# the entity, so when there is one the groups before it keep their
+		# separators.
+		last = ';' if (self.debug or self.overlay.call('mcuEntityTail', default=False, emitter=self)) else ''
 		lines = [' ' * 8 + '-- Testing Purposes Only',
 			' ' * 8 + 'a0  : out std_logic_vector(31 downto 0)' + (';' if n > 1 else last)]
 		if n == 1:
@@ -3051,7 +3071,8 @@ class McuVhdEmitter():
 			' ' * 8 + "tms   : in  std_logic := '0';",
 			' ' * 8 + "tdi   : in  std_logic := '0';",
 			' ' * 8 + 'tdo   : out std_logic;',
-			' ' * 8 + "trstn : in  std_logic := '0'",
+			' ' * 8 + "trstn : in  std_logic := '0'"
+				+ (';' if self.overlay.call('mcuEntityTail', default=False, emitter=self) else ''),
 		]
 
 	def emitDebugDecls(self):
@@ -4192,6 +4213,11 @@ class McuVhdEmitter():
 				rows.append(('tcm_ext_rdata(' + str(32 * h + 31) + ' downto ' + str(32 * h) + ')',
 					'tile' + hs + '_tcmrd_raw', "(others => '0')", True))
 				rows.append(('tcm_ext_done(' + hs + ')', 'tile' + hs + '_tcmdone_raw', "'0'", False))
+			# An overlay that puts hardware inside the channel tiles adds its
+			# outbound signals' clamp rows here, so they get the same treatment
+			# every other tile output does: a dark tile drives nothing into the
+			# always-on fabric.
+			rows.extend(self.overlay.call('mcuIsoClamps', default=[], emitter=self, hart=h))
 			# golden-master columns: short lines pad the LHS to 24 and the RHS
 			# to 16; the long addr/wdata pair aligns to itself with 1 space
 			lhsPad, rhsPad, longPad = 24, 16, 0
@@ -4212,13 +4238,20 @@ class McuVhdEmitter():
 	def tileInstance(self, h):
 		hs = str(h)
 		lines = []
-		lines.append('    hart' + hs + ': entity work.hart_tile')
+		# An overlay may bind the channel tile to its own pure-wiring wrapper
+		# around this same hart_tile (extra macro, extra pins, same hart).
+		lines.append('    hart' + hs + ': entity work.'
+			+ self.overlay.call('mcuTileEntity', default='hart_tile', emitter=self))
 		lines.append('        generic map (')
 		lines.append('            PC_RST_VAL     => x"00000000",')
 		lines.append('            SH_AW          => SH_AW,')
 		lines.append('            -- Core ISA features (config-driven, work.MemoryMap; MUST be identical on ' + ('this one tile' if self.nHarts() == 1 else 'all ' + self.hartsWord() + ' tiles') + ', one hardened netlist)')
 		lines.append('            -- M and B come from TILE_ENABLE_*, NOT CORE_ENABLE_*: the corner tiles are the MINIMAL-ISA harts (rv32iac). Hart 0 / the orchestrator take the full CORE_ENABLE_* set.')
 		lines.extend(self.coreGenericLines(tile=True))
+		_ovlGen = self.overlay.lines('mcuTileGenerics', emitter=self, hart=h)
+		if _ovlGen:
+			lines[-1] = lines[-1] + ','
+			lines.extend(_ovlGen)
 		lines.append('        )')
 		lines.append('        port map (')
 		lines.append('            clk       => mclk,')
@@ -4258,7 +4291,9 @@ class McuVhdEmitter():
 		lines.append('            pd_sleep  => pd_sleep(' + hs + '),')
 		lines.append('            pd_iso_en => pd_iso_en(' + hs + '),')
 		lines.append('            trap_flag => open,')
-		lines.append('            a0        => a0_' + hs + '_raw')
+		_ovlPorts = self.overlay.lines('mcuTilePorts', emitter=self, hart=h)
+		lines.append('            a0        => a0_' + hs + '_raw' + (',' if _ovlPorts else ''))
+		lines.extend(_ovlPorts)
 		lines.append('        );')
 		return lines
 
@@ -4519,6 +4554,11 @@ class McuVhdEmitter():
 			return self.emitDmiPorts()
 		if name == 'jtag-ports':
 			return self.emitJtagPorts()
+		if name.startswith('overlay-'):
+			# The three generic extension markers in MCU.template.vhd. Empty
+			# with no overlay, which is what keeps the template's own marker-set
+			# gate satisfied either way.
+			return self.overlay.lines('mcuRegion', emitter=self, region=name)
 		if name == 'debug-decls':
 			return self.emitDebugDecls()
 		if name == 'debug-instance':
@@ -4649,6 +4689,10 @@ def generateMcuVhd(gen, templatePath, outPath):
 		# no-trailing-`;` responsibility); the DTM instance and the OR-merge
 		# ride the debug-instance marker beside dm0, on the same knob.
 		'dmi-ports', 'jtag-ports', 'debug-decls', 'debug-instance',
+		# OVERLAY (2026-09-12): three generic extension markers -- an entity port
+		# group (LAST in the entity, after jtag-ports), architecture declarations
+		# and architecture body. All three emit nothing with no overlay.
+		'overlay-ports', 'overlay-decls', 'overlay-instance',
 		# digperiphs (I2CT): I2CT0 in MUTEX-page (page 2) sub-slot 10 @0x6A00
 		'i2ct-decls', 'i2ct-instance',
 		# digperiphs (TRNG): TRNG0 in MUTEX-page (page 2) sub-slot 9 @0x6900

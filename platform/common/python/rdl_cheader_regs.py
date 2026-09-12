@@ -62,6 +62,10 @@ UMBRELLA = 'castalia_regs.h'
 # at the host's base -- its registers are declared at their absolute byte offsets
 # inside the sub-slot -- so the pointer is the host's. No block in the public
 # tree needs this today.
+# Blocks whose registers are OVERLAID on another block's sub-slot: they have no
+# instantiation of their own in the chip addrmap, so the binding walk cannot see
+# them and each needs a host instance named here. The public tree has none; an
+# overlay contributes its own through the `cheaderOverlays` stage below.
 _OVERLAYS = ()
 
 _REGEN = ('   Do not edit; regenerate with'
@@ -137,8 +141,10 @@ def emitBlockHeader(flag, outPath):
     from peakrdl_cheader.exporter import CHeaderExporter
     from systemrdl import RDLCompiler
     rdlc = RDLCompiler()
-    rdlc.compile_file(os.path.join(rdl_model.RDL_DIR, flag['source']),
-                      incl_search_paths=[rdl_model.RDL_DIR])
+    # rdl_model.rdlPath / rdlDirs, not RDL_DIR: an overlay's descriptions live
+    # at its own mirrored path and are searched after the tree's own.
+    rdlc.compile_file(rdl_model.rdlPath(flag['source']),
+                      incl_search_paths=rdl_model.rdlDirs())
     root = rdlc.elaborate(top_def_name=flag['top']).top
     with tempfile.TemporaryDirectory() as tmp:
         # The exporter derives its include guard from the file NAME, so it is
@@ -227,9 +233,11 @@ def emitUmbrella(binding, headers, over=()):
 
 def overlays(configPath):
     """[(entry, flag, block)] for the blocks _OVERLAYS names."""
+    import overlay as _ovl
+    entries = list(_ovl.call('cheaderOverlays', default=_OVERLAYS, rows=_OVERLAYS))
     flags = dict((f['name'], f) for f in rdl_emit.loadFlags(configPath))
     out = []
-    for entry in _OVERLAYS:
+    for entry in entries:
         flag = flags.get(entry['key'])
         if flag is None:
             continue

@@ -43,8 +43,10 @@ def _defaultOut():
 
 
 def loadFlags(path):
-    with open(path) as f:
-        cfg = json.load(f)
+    # rdl_model.loadConfig is THE reader of the registry (it merges an overlay's
+    # rows); this used to open the file itself, which made an overlay's blocks
+    # visible to one consumer and invisible to the other.
+    cfg = rdl_model.loadConfig(path)
     out = []
     for name, entry in sorted(cfg.get('peripherals', {}).items()):
         if not entry.get('rdl', False):
