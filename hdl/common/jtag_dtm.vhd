@@ -357,9 +357,12 @@ begin
                 end if;
 
                 -- M_IDLE: wait for a real request edge, held off until rst_guard AND trstn_guard say the synchroniser holds three samples clear of either reset.
+                -- trstn_s2 itself is in the term because trstn and req_tgl fall together and cross on equal chains: on the edge that
+                -- detects the toggle TRSTn manufactured, trstn_guard still reads high (it is registered one edge behind) and only the
+                -- raw synchronised level says the request is void.
                 -- Keep the guard: req_tgl is not reset by resetn, so a req_tgl of '1' at reset release would otherwise fake an edge and replay the hold register as a phantom DMI request.
                 if m_state = M_IDLE then
-                    if rst_guard(2) = '1' and trstn_guard(2) = '1' and (req_s2 /= req_s3) then
+                    if rst_guard(2) = '1' and trstn_guard(2) = '1' and trstn_s2 = '1' and (req_s2 /= req_s3) then
                         req_vld_r <= '1';
                         m_state   <= M_REQ;
                     end if;

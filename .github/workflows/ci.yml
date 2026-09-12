@@ -242,7 +242,7 @@ jobs:
       # commit that adjudicates the failure - see BAZEL.md "Known red".
       #
       # //hdl/common/synth is excluded for the same reason: it is the
-      # `ghdl --synth` synthesizability gate, so every one of its 27 targets
+      # `ghdl --synth` synthesizability gate, so every one of its 39 targets
       # runs the simulator.  It runs in sim.yml, beside the benches.
       #
       # //verification/cpi is excluded for the same reason as

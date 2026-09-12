@@ -317,6 +317,7 @@ def cmd_run(args):
         "target": args.target,
         "generics": sorted(args.generic),
         "allow_latches": sorted(args.allow_latch),
+        "blackboxes": sorted(args.blackbox),
         "analyze_rc": arc,
         "synth_rc": src,
         "fatal": fatals,
@@ -464,12 +465,19 @@ def load_censuses(paths):
 def census_row(census):
     if census.get("status") == "skipped":
         return {"skipped": census["skip_reason"]}
-    return {
+    row = {
         "cells": census["cells"],
         "flop_bits": census["flop_bits"],
         "latch_bits": census["latch_bits"],
         "latch_modules": census["latch_modules"],
     }
+    # Emitted only when the target has black boxes, so the twenty-odd rows
+    # that have none carry no empty field.  A black box hides real hierarchy
+    # from the gate, which is exactly why the list is frozen: adding one is a
+    # visible act.
+    if census.get("blackboxes"):
+        row["blackboxes"] = sorted(census["blackboxes"])
+    return row
 
 
 UPDATE_CMD = "tools/bin/bazel run //toolchains/ghdl:synth_census_update"
@@ -535,10 +543,11 @@ def cmd_freeze(args):
             if want.get(field) != got.get(field):
                 failures.append("%s: %s %s -> %s"
                                 % (name, field, want.get(field), got.get(field)))
-        if sorted(want.get("latch_modules", [])) != sorted(got.get("latch_modules", [])):
-            failures.append("%s: latch modules %s -> %s"
-                            % (name, want.get("latch_modules"),
-                               got.get("latch_modules")))
+        for field in ("latch_modules", "blackboxes"):
+            if sorted(want.get(field, [])) != sorted(got.get(field, [])):
+                failures.append("%s: %s %s -> %s"
+                                % (name, field, want.get(field, []),
+                                   got.get(field, [])))
 
     if failures:
         print("FAIL: the synthesis census moved.")
@@ -568,6 +577,9 @@ def main(argv):
     run.add_argument("--src", action="append", default=[])
     run.add_argument("--generic", action="append", default=[])
     run.add_argument("--allow-latch", action="append", default=[])
+    run.add_argument("--blackbox", action="append", default=[],
+                     help="basename of a synthesis black-box stub analyzed "
+                          "ahead of --src; recorded in the frozen census")
     run.add_argument("--entity", required=True)
     run.add_argument("--target", default="")
     run.add_argument("--netlist", required=True)

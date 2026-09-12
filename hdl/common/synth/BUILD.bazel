@@ -33,9 +33,25 @@
 # no bench can see: a register bank that doubles, a reset that stops reaching
 # a flop, a clock gate that grows a second latch.
 
+load("//opensource_sim/mcu:defs.bzl", "VESTA_MCU_RTL")
 load("//toolchains/ghdl:defs.bzl", "ghdl_synth_test", "vhdl_source_set")
 
 package(default_visibility = ["//visibility:public"])
+
+# The synthesis-only VHDL this package owns: the black-box stubs and the
+# afe_stub width wrapper.  It is NOT added to //hdl:vhdl_sources -- that glob
+# is rooted at hdl/ and does not descend into a subpackage, which is exactly
+# what keeps a stub out of every simulation source pool.  The filegroup exists
+# so //tools/ci:vhdl_style_test still holds these files to the 7-bit ASCII
+# rule; the ghdl_synth_test targets below name them by path, not through it.
+filegroup(
+    name = "synth_vhdl_sources",
+    srcs = [
+        "afe_stub_top.vhd",
+        "macro_blackbox.vhd",
+        "system_blackbox.vhd",
+    ],
+)
 
 # The clock cells that hold a latch on purpose.  ClkGate's ClkSync is the
 # behavioural integrated clock gate (hdl/common/sim/ClkGate.vhd:20); PreICG and
@@ -203,32 +219,34 @@ ghdl_synth_test(
 # regfile_sbirq.vhd is correct; ClkGate must come from hdl/common/sim/, not the
 # ARM cell of the same entity name in commune/.  Keep this list in step with
 # run_isa.sh, sky130/synth.sh and sky130/sim/Makefile.
+VESTA_RTL_PATHS = [
+    "hdl/common/constants.vhd",
+    "hdl/common/MemoryMap.vhd",
+    "hdl/common/vesta/extend.vhd",
+    "hdl/common/vesta/loadext.vhd",
+    "hdl/common/vesta/store_ext.vhd",
+    "hdl/common/vesta/branch_valid.vhd",
+    "hdl/common/vesta/pulse_extender.vhd",
+    "hdl/common/vesta/aludec.vhd",
+    "hdl/common/vesta/maindec.vhd",
+    "hdl/common/vesta/div.vhd",
+    "hdl/common/vesta/alu.vhd",
+    "hdl/common/vesta/regfile_sbirq.vhd",
+    "hdl/common/vesta/c_dec.vhd",
+    "hdl/common/vesta/csr_unit.vhd",
+    "hdl/common/vesta/irq_handler.vhd",
+    "hdl/common/vesta/pmp_unit.vhd",
+    "hdl/common/vesta/fpu_simple.vhd",
+    "hdl/common/vesta/fpu.vhd",
+    "hdl/common/vesta/controller.vhd",
+    "hdl/common/vesta/datapath.vhd",
+    "hdl/common/sim/ClkGate.vhd",
+    "hdl/common/vesta/vesta.vhd",
+]
+
 vhdl_source_set(
     name = "vesta_rtl",
-    paths = [
-        "hdl/common/constants.vhd",
-        "hdl/common/MemoryMap.vhd",
-        "hdl/common/vesta/extend.vhd",
-        "hdl/common/vesta/loadext.vhd",
-        "hdl/common/vesta/store_ext.vhd",
-        "hdl/common/vesta/branch_valid.vhd",
-        "hdl/common/vesta/pulse_extender.vhd",
-        "hdl/common/vesta/aludec.vhd",
-        "hdl/common/vesta/maindec.vhd",
-        "hdl/common/vesta/div.vhd",
-        "hdl/common/vesta/alu.vhd",
-        "hdl/common/vesta/regfile_sbirq.vhd",
-        "hdl/common/vesta/c_dec.vhd",
-        "hdl/common/vesta/csr_unit.vhd",
-        "hdl/common/vesta/irq_handler.vhd",
-        "hdl/common/vesta/pmp_unit.vhd",
-        "hdl/common/vesta/fpu_simple.vhd",
-        "hdl/common/vesta/fpu.vhd",
-        "hdl/common/vesta/controller.vhd",
-        "hdl/common/vesta/datapath.vhd",
-        "hdl/common/sim/ClkGate.vhd",
-        "hdl/common/vesta/vesta.vhd",
-    ],
+    paths = VESTA_RTL_PATHS,
     pool = ["//hdl:vhdl_sources"],
 )
 
@@ -452,6 +470,346 @@ ghdl_synth_test(
 )
 
 # ---------------------------------------------------------------------------
+# The orphans: entities no graded block reaches
+# ---------------------------------------------------------------------------
+#
+# //toolchains/ghdl:synth_coverage_test is what found these.  aludec and
+# pulse_extender are instantiated by NOTHING in hdl/common -- they arrive in
+# every source list (VESTA_ISA_RTL, run_isa.sh, sky130/synth.sh) and are
+# analyzed on every run, and until now nothing had ever synthesized either.
+# fpu and fpu_simple are components of datapath that only ENABLE_ZFINX binds,
+# and the chip ships Zfinx off (CORE_ENABLE_ZFINX false, MemoryMap.vhd:1311),
+# so the vesta target's netlist contains neither.  Each therefore gets its own
+# target rather than an exclusion: they are real RTL, and an entity nobody
+# instantiates is exactly the one whose rot goes unnoticed.
+
+ghdl_synth_test(
+    name = "aludec",
+    size = "small",
+    srcs = [":aludec_rtl"],
+    entity = "aludec",
+    tags = ["ghdl"],
+)
+
+vhdl_source_set(
+    name = "aludec_rtl",
+    paths = [
+        "hdl/common/constants.vhd",
+        "hdl/common/vesta/aludec.vhd",
+    ],
+    pool = ["//hdl:vhdl_sources"],
+)
+
+ghdl_synth_test(
+    name = "pulse_extender",
+    size = "small",
+    srcs = [":pulse_extender_rtl"],
+    entity = "pulse_extender",
+    tags = ["ghdl"],
+)
+
+vhdl_source_set(
+    name = "pulse_extender_rtl",
+    paths = ["hdl/common/vesta/pulse_extender.vhd"],
+    pool = ["//hdl:vhdl_sources"],
+)
+
+# The single-cycle FP unit, and the multi-cycle one.  Both at entity defaults:
+# datapath binds them inside `if ENABLE_ZFINX generate`, and neither has a
+# generic the chip overrides.
+ghdl_synth_test(
+    name = "fpu_simple",
+    size = "small",
+    srcs = [":fpu_simple_rtl"],
+    entity = "fpu_simple",
+    tags = ["ghdl"],
+)
+
+vhdl_source_set(
+    name = "fpu_simple_rtl",
+    paths = [
+        "hdl/common/constants.vhd",
+        "hdl/common/vesta/fpu_simple.vhd",
+    ],
+    pool = ["//hdl:vhdl_sources"],
+)
+
+ghdl_synth_test(
+    name = "fpu",
+    size = "small",
+    srcs = [":fpu_rtl"],
+    entity = "fpu",
+    tags = ["ghdl"],
+)
+
+vhdl_source_set(
+    name = "fpu_rtl",
+    paths = [
+        "hdl/common/constants.vhd",
+        "hdl/common/vesta/fpu.vhd",
+    ],
+    pool = ["//hdl:vhdl_sources"],
+)
+
+# ---------------------------------------------------------------------------
+# The fabric blocks the MCU wires together
+# ---------------------------------------------------------------------------
+
+# The per-tile address decoder.  ENABLE_FLASH_EXTENDED_MEM is TRUE in every
+# tile (hart_tile.vhd:581, "enabled in every tile so the netlists match") and
+# FALSE at the entity default, so the default would grade the wrong decode;
+# SH_AW = 16 is the penta shared-window width (MCU.vhd:519) and must stay the
+# strict complement of the tile's sh_sel window.  adddec instantiates
+# nineteen ClkGates, which is where its 20 latch bits come from.
+ghdl_synth_test(
+    name = "adddec",
+    size = "small",
+    srcs = [":adddec_rtl"],
+    allow_latches = ICG_LATCHES,
+    entity = "adddec",
+    generics = {
+        "ENABLE_FLASH_EXTENDED_MEM": "true",
+        "SH_AW": "16",
+    },
+    tags = ["ghdl"],
+)
+
+vhdl_source_set(
+    name = "adddec_rtl",
+    paths = [
+        "hdl/common/constants.vhd",
+        "hdl/common/MemoryMap.vhd",
+        "hdl/common/sim/ClkGate.vhd",
+        "hdl/common/adddec.vhd",
+    ],
+    pool = ["//hdl:vhdl_sources"],
+)
+
+# The global LR/SC reservation unit.  N = 6 MASTERS, not 5 harts: the debug
+# module is the sixth (MCU.vhd:2639, and MCU.vhd:3071 spells out why a DM
+# write must kill a matching reservation).  ADDR_WIDTH is SH_AW.
+ghdl_synth_test(
+    name = "resv_unit",
+    size = "small",
+    srcs = [":resv_unit_rtl"],
+    entity = "resv_unit",
+    generics = {
+        "N": "6",
+        "ADDR_WIDTH": "16",
+    },
+    tags = ["ghdl"],
+)
+
+vhdl_source_set(
+    name = "resv_unit_rtl",
+    paths = ["hdl/common/resv_unit.vhd"],
+    pool = ["//hdl:vhdl_sources"],
+)
+
+# The JTAG Debug Transport Module.  ENABLE_DEBUG defaults FALSE "fail-safe at
+# every declaration site" and folds the TAP away; the chip sets it true
+# (CORE_ENABLE_DEBUG), with Castalia's IDCODE and IDLE_CYCLES = 7
+# (MCU.vhd:3078).  IDCODE IS SPELLED IN BINARY, thirty-two characters: GHDL's
+# -g parses a std_logic_vector generic as a bit-string with no radix prefix,
+# so x"1CA57EEF" comes back as eight `incorrect character in string` errors.
+ghdl_synth_test(
+    name = "jtag_dtm",
+    size = "small",
+    srcs = [":jtag_dtm_rtl"],
+    entity = "jtag_dtm",
+    generics = {
+        "ENABLE_DEBUG": "true",
+        "IDCODE": "00011100101001010111111011101111",
+        "IDLE_CYCLES": "7",
+    },
+    tags = ["ghdl"],
+)
+
+vhdl_source_set(
+    name = "jtag_dtm_rtl",
+    paths = [
+        "hdl/common/sync.vhd",
+        "hdl/common/jtag_dtm.vhd",
+    ],
+    pool = ["//hdl:vhdl_sources"],
+)
+
+# The AFE register stub, one per site.  THE TOP IS A WRAPPER, not the entity:
+# afe_stub.vhd:32 declares `master : in std_logic_vector` unconstrained so one
+# entity serves any master-index width, and GHDL refuses an unconstrained port
+# on a top level while -g reaches generics only.  afe_stub_top.vhd adds the
+# width (MW = 3, MCU.vhd:827) and nothing else, so the counts frozen here are
+# afe_stub's own.  OWNER_HART = 1 is afe0 (MCU.vhd:3111); the four sites
+# differ only in that constant.
+ghdl_synth_test(
+    name = "afe_stub",
+    size = "small",
+    srcs = [
+        ":afe_stub_rtl",
+        "afe_stub_top.vhd",
+    ],
+    entity = "afe_stub_top",
+    tags = ["ghdl"],
+)
+
+vhdl_source_set(
+    name = "afe_stub_rtl",
+    paths = ["hdl/common/afe_stub.vhd"],
+    pool = ["//hdl:vhdl_sources"],
+)
+
+# The TRNG entropy source, `rtl` architecture -- the REAL ring ensemble, the
+# one genus and the gate cell lists compile.  Its combinational ring feedback
+# delta-loops a behavioural simulator into zero-time oscillation, which is why
+# it has no bench and why TrngRoEnsemble_sim.vhd (the other architecture of
+# this same entity) must never be co-listed with it.  Synthesis is the ONLY
+# tier that can look at this file, so this target is its only gate.  It
+# censuses 0 flop bits because a ring oscillator is pure combinational
+# feedback; the number to watch is the cell count.
+ghdl_synth_test(
+    name = "TrngRoEnsemble",
+    size = "small",
+    srcs = [":trng_ro_rtl"],
+    entity = "TrngRoEnsemble",
+    tags = ["ghdl"],
+)
+
+vhdl_source_set(
+    name = "trng_ro_rtl",
+    paths = ["hdl/common/periph/TrngRoEnsemble.vhd"],
+    pool = ["//hdl:vhdl_sources"],
+)
+
+# ---------------------------------------------------------------------------
+# The tiles and the chip top
+# ---------------------------------------------------------------------------
+#
+# All three need BLACK BOXES, because all three instantiate cells that are not
+# RTL in the physical flow.  See hdl/common/synth/macro_blackbox.vhd for the
+# contract; the short version is that genus reads these from timing libraries
+# and elaborates them as blackboxes (`set_db hdl_error_on_blackbox false`,
+# genus/MCU_WOUND/tcl/MCU_WOUND_hier.genus.tcl:163), the only HDL that exists
+# for them is behavioural, and an 8 KiB array modelled as RTL would census as
+# 65536 flop bits of silicon that does not exist.
+
+vhdl_source_set(
+    name = "hart_tile_rtl",
+    paths = VESTA_RTL_PATHS + [
+        "hdl/common/adddec.vhd",
+        "hdl/common/hart_tile.vhd",
+    ],
+    pool = ["//hdl:vhdl_sources"],
+)
+
+# THE GENERICS ARE THE ONES genus/hart_tile/tcl/hart_tile.genus.tcl NAMES, and
+# that file explains at length why each is named rather than defaulted: a
+# generic left to its entity default while MCU.vhd passes something else is
+# the M14 hw_clint_en defect, which this flow already reproduced once --
+# measured, byte-for-byte, when ENABLE_DEBUG defaulted false and the assembly
+# wired it true.  SH_AW = 16 is the penta shared-window width; ENABLE_DEBUG is
+# true; and harts 1-4 are the MINIMAL-ISA tiles, rv32iac, so M and B come off
+# (TILE_ENABLE_MUL / _DIV / _BITMANIP, MemoryMap.vhd:1322-1324).  A and C stay
+# on: the tiles run the shared-fabric LR/SC locking and C shrinks code at an
+# 8 KiB TCM.  Everything else keeps hart_tile.vhd's defaults, which is what a
+# bare `elaborate hart_tile` takes.
+ghdl_synth_test(
+    name = "hart_tile",
+    size = "small",
+    srcs = [":hart_tile_rtl"],
+    allow_latches = ICG_LATCHES,
+    blackbox_srcs = ["macro_blackbox.vhd"],
+    entity = "hart_tile",
+    generics = {
+        "SH_AW": "16",
+        "ENABLE_DEBUG": "true",
+        "ENABLE_MUL": "false",
+        "ENABLE_DIV": "false",
+        "ENABLE_BITMANIP": "false",
+    },
+    tags = ["ghdl"],
+)
+
+vhdl_source_set(
+    name = "orch_tile_rtl",
+    paths = VESTA_RTL_PATHS + [
+        "hdl/common/adddec.vhd",
+        "hdl/common/hart_tile.vhd",
+        "hdl/common/orch_tile.vhd",
+    ],
+    pool = ["//hdl:vhdl_sources"],
+)
+
+# Hart 0, the orchestrator: a thin wrapper holding one bare
+# `entity work.hart_tile`.  ONLY SH_AW IS OVERRIDDEN, exactly as
+# genus/orch_tile/tcl/orch_tile.genus.tcl does it -- hart 0 keeps the FULL
+# ISA, and it keeps it by inheriting hart_tile.vhd's `:= true` defaults
+# through orch_tile's own.  That is correct but implicit, which is why the
+# genus flow asserts the divider is present after elaboration; the census
+# here is the same assertion by other means, since a tile that lost M would
+# drop several hundred flop bits and several thousand cells at once.  The
+# orch_tile row is deliberately the full-ISA twin of the hart_tile row above:
+# the pair is the measurement that the two tiles are different on purpose.
+ghdl_synth_test(
+    name = "orch_tile",
+    size = "small",
+    srcs = [":orch_tile_rtl"],
+    allow_latches = ICG_LATCHES,
+    blackbox_srcs = ["macro_blackbox.vhd"],
+    entity = "orch_tile",
+    generics = {"SH_AW": "16"},
+    tags = ["ghdl"],
+)
+
+# The cells the MCU reaches that are not RTL, dropped from the analysis list
+# and replaced by hdl/common/synth/*_blackbox.vhd.  Three are analog or
+# compiled cells whose only HDL is a behavioural model; the fourth is SYSTEM,
+# which is here for a TOOL defect and not a design one -- ghdl --synth 6.0.0
+# crashes on its `ClkEn(1) => open` individual association, which is why
+# //hdl/common/synth:SYSTEM is already a documented skip.  Without that stub
+# the crash propagates to the chip top and 29130 flop bits of coverage are
+# lost to protect one block that is ungraded either way.
+MCU_BLACKBOXED = [
+    "hdl/common/sim/PowerOnResetCheng_behav.vhd",
+    "hdl/common/sim/OscillatorCurrentStarved_simulation.vhd",
+    "hdl/common/sim/GlitchFilter_behav.vhd",
+    "hdl/common/periph/SYSTEM.vhd",
+]
+
+# The analysis order comes from //opensource_sim/mcu, not from a copy here.
+# That list is DERIVED from VESTA_ISA_RTL and guarded by
+# //opensource_sim/isa:source_list_sync_test, so the gate that elaborates the
+# MCU and the gate that synthesizes it cannot drift apart.  The memory macro
+# models are not in it -- //opensource_sim/mcu prepends its own behavioural
+# stand-in, and this package prepends black boxes instead.
+vhdl_source_set(
+    name = "mcu_rtl",
+    paths = [p for p in VESTA_MCU_RTL if p not in MCU_BLACKBOXED],
+    pool = ["//hdl:vhdl_sources"],
+)
+
+# THE GENERATED CHIP TOP, at the castalia config the tree ships.  MCU.vhd has
+# no generics at all: every knob reaches it through work.MemoryMap, which
+# platform/common/python/mcu_vhd.py regenerates from the config, so "the
+# shipped generics" for this block are whatever MemoryMap.vhd says today and
+# the census moves when a knob moves.  That is the point -- MCU.vhd is
+# GENERATED, it changes on every knob move, and until now the only thing
+# catching a generated MCU that does not SYNTHESIZE was Genus.
+# //opensource_sim/mcu:mcu_elaborate proves it elaborates and that its size
+# asserts hold; this proves it is still hardware.
+ghdl_synth_test(
+    name = "MCU",
+    size = "small",
+    srcs = [":mcu_rtl"],
+    allow_latches = ICG_LATCHES,
+    blackbox_srcs = [
+        "macro_blackbox.vhd",
+        "system_blackbox.vhd",
+    ],
+    entity = "MCU",
+    tags = ["ghdl"],
+)
+
+# ---------------------------------------------------------------------------
 # The suite
 # ---------------------------------------------------------------------------
 
@@ -462,6 +820,7 @@ SYNTH_TARGETS = [
     ":I2C",
     ":I2CTarget",
     ":I3C",
+    ":MCU",
     ":NFC",
     ":NPU",
     ":OneWire",
@@ -472,15 +831,26 @@ SYNTH_TARGETS = [
     ":SYSTEM",
     ":TIMER",
     ":TRNG",
+    ":TrngRoEnsemble",
     ":UART",
+    ":adddec",
+    ":afe_stub",
+    ":aludec",
     ":clint",
     ":debug_module",
+    ":fpu",
+    ":fpu_simple",
+    ":hart_tile",
     ":irq_router",
+    ":jtag_dtm",
     ":mp_arbiter",
     ":mutex_bank",
+    ":orch_tile",
     ":periph_regs",
     ":pmp_unit",
+    ":pulse_extender",
     ":pwr_ctrl",
+    ":resv_unit",
     ":sync",
     ":vesta",
 ]
@@ -493,7 +863,7 @@ test_suite(
 
 # Every target's census JSON, pulled out of the "census" output group that
 # ghdl_synth_test declares alongside its test executable.  This is what lets
-# //toolchains/ghdl:synth_census_test grade all 27 blocks without re-running a
+# //toolchains/ghdl:synth_census_test grade all 39 blocks without re-running a
 # single synthesis: the counts are already on disk as build outputs of the
 # same actions the tests read.
 filegroup(
