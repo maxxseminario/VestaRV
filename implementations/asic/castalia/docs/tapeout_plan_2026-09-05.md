@@ -356,3 +356,85 @@ Next cut, in order: the derived gating-check exception (one 2 h cut closes hold)
 tile VIA5 repair and one re-harden, then the geometric fix for the tie-net shorts, then
 chip LVS. `chipdrc` on pt9 is 2,369 = 1,518 pad-kit ESD + 320 `PO.R.8` + 429 tile VIA5 +
 58 density + 44 real; `ant25` is clean at 2 (12) `MIM_SWITCH.WARN.1`.
+
+## 4.7 castalia_b on topology B, 2026-09-13 (P15). Cut b1 is TIMING-CLOSED.
+
+Owner decision of 2026-09-12: take `castalia_b` (hart 0 with every ISA and privilege
+extension, tiles `rv32iac_zicntr`) through Genus and Innovus on the per-tile-AFE
+topology. Done. **b1 closes timing where pt9 parked**, and it closes it because
+B-PT9-3's fix works. Full report:
+`<scratchpad>/reports/P15_castalia_b_physical.md`. Lineage: the new flows are
+`genus/MCU_PENTA_pt_b`, `innovus/common/MCU_castalia_penta_pt_b` and
+`signoff_mp` block `mcu_castalia_penta_pt_b`; the castalia `_pt` lineage and
+topology A are untouched (`make -n` on both diffs to zero).
+
+Delivered:
+
+- Config `private/analog/platform/common/config/castalia_b_afe_pt.json` (pt config
+  verbatim plus castalia_b's `isa`/`priv`/`debug`/`core` blocks, `chipName`
+  `CastaliaBPt`). **`MCU.vhd` is byte-identical to the pt generation apart from the
+  timestamp**; the ISA is 20 constants in `MemoryMap.vhd` and **zero `TILE_` lines**,
+  so the hardened macro is reused unchanged and the MCU entity's port list -- and with
+  it the chip wrapper, the padlist and `padring_pt.json` -- does not move.
+- Genus `MCU_PENTA_pt_b`, 30:07, every gate at `GATE_STRICT=1`, drift 0 of 75.
+  130,734 -> **153,155** cells, 1,946,667 -> **2,023,125** um2 (+3.93 %), 24,404 ->
+  26,196 flops, setup WNS +3.547 -> **+2.454 ns** at 40 ns. **All of it is hart0**:
+  `orch_tile` 15,475 / 131,507 -> 37,896 / 207,982 um2, the four `hart_tile_pt`
+  instances unchanged at 9,570 / 219,058 each, the rest of the design within 16 um2.
+  The assembly reproduces P10/P12's standalone `orch_tile` number exactly. The one
+  latch is the documented PMP-on `is_compressed_reg`, caught by P12's `LATCH_ALLOW`
+  pattern -- the first assembly cut to exercise it.
+- **The floorplan absorbs the orchestrator.** hart0's soft region (455,135 um2 less
+  128,139 of TCM+halo = 326,996 free) goes from **19.8 % to 43.2 %** utilisation;
+  Innovus module density `mcu0/hart0` 0.177 -> **0.391**, design density 0.109 ->
+  0.129, and **containment IMPROVES, 99.07 % -> 99.15 %**. The pad rows absorb
+  nothing because nothing changed. The north-centre corridor is not needed: B holds
+  426,200 um2 of it that A spends on `anatop_quad`, and the growth is 17.9 % of that.
+- Innovus cut b1: routed, legally placed, **signoff setup +0.051 ns / 0 violating of
+  36,007 paths, signoff hold 0.000 ns**, four coupled-SI views, 50 ps hold
+  uncertainty, scoped routing, no `ecoPlace`, legality-gated ECO. Closed through the
+  out-of-flow incremental hold ECO, the path pt7 closed from.
+- Signoff: `chipdrc` **2,344** (1,506 ESD + 310 `PO.R.8` + 429 tile VIA5 + 62 density
+  + **37 real**) against pt9's 2,369 / 44 real; `ant25` **clean**; LVS MISMATCH with
+  496 / 224 unmatched devices and `FOOTBUF32MA10TH` 0 : 69, and **the negative
+  control discriminates** (one deleted `BUFX1MA10TH` moved unmatched devices 496 ->
+  500 and unmatched nets 165 -> 166, exactly its four transistors and one net).
+- Viewing library `signoff_mp/castalia_B_b1`, README first line TIMING-CLOSED, NOT
+  SIGNED OFF.
+
+Blocker state on b1:
+
+| # | state |
+|---|---|
+| **B-PT9-1** | carried unchanged, 429 VIA5. b1 pinned tile attempt 31; the repair cut `pt10` landed 01:13 on 2026-09-13, after the pin, and is not in this layout. |
+| **B-PT9-2** | carried, Short 19 against pt9's 18. The C16 cap binds at all four sites and the corrected census passes (0 above M4), confirming from the other side that a layer cap is not the fix. **No attempt spent**: the brief's condition was "if the floorplan step naturally touches that pad-row track", and it does not -- the pad ring is byte-identical to pt9's. **PARKED.** Next thing to try is still section 9's routing blockage on those nets over the pad band. |
+| **B-PT9-3** | **CLOSED.** Exceptions derived from `mcu0/timer<n>/clock_source`, 14 of 14 targets resolved; hold -9.310 -> -0.042 ns pre-ECO, 0.000 ns closed. The mux is `g9191` here and `g9195` on pt9, which is why no literal could have worked. |
+| **B-PT9-4** | carried and reproduced on a cut with 22,421 more cells, so it is not a castalia_b effect. Now bounded by a working negative control. Needs its own wave. |
+
+Four flow defects found, all fixed in the `_b` copies only and **all four still live in
+the castalia lineages**:
+
+- **P15-1** the assembly `MCU.vhd` generic strip covers `=> CORE_` with any suffix but
+  only `=> TILE_ENABLE_`. P12's widening added `PMP_ENTRIES => TILE_PMP_ENTRIES`, which
+  is emitted last of the `TILE_` block and survives carrying its comma. **Any assembly
+  re-staged from a post-P12 generation will not parse**, `MCU_PENTA` included. One-word
+  fix: `=> TILE_`.
+- **P15-2** the WQ25 extraction census reports DID NOT COMPLETE on pt9 as well as b1;
+  P6's pt9 table records COMPLETE. Only the net-count criterion fails, and the Innovus
+  net count doubled between pt7 and pt9 on a 0.3 % instance change, which points at
+  `dbGet -e top.nets` rather than at Quantus. **No timing number on either cut is a
+  signoff until the gate and the extraction agree.**
+- **P15-3** P6's C16 census correction was never ported to
+  `MCU_castalia_penta_pt_hold_eco.tcl`, which still fails on the correct answer (68
+  wires outside the core box, all M1-M3).
+- **P15-4** the hold ECO re-finds each net by name with `dbGet -p top.nets.name`, which
+  glob-matches, so **every bussed endpoint is silently dropped** (`[0]` is read as a
+  character class). pt7 closed only because its endpoints sat on bracket-free `FE_OFN*`
+  nets. Fixed by keeping the net pointer.
+
+One workspace hazard worth the register: another agent re-hardened `hart_tile_pt` at
+01:13 during the b1 route and regenerated `pvs/hart_tile_pt.lvs.v` from it, and attempt
+31's tile database is gone. The chip LAYOUT is safe -- the CPR9 tile pinning held and
+the GDS merged the pinned tile -- but **b1's LVS pairs a pt9-era tile layout with a
+pt10-era tile netlist**. The port-width gate passes; the device-level pairing is not
+one-cut.
