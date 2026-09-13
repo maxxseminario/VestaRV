@@ -2870,34 +2870,55 @@ class McuVhdEmitter():
 		   minimal rv32iac tiles, for area and power) broke that identity ON
 		   PURPOSE. It is still ONE list, PARAMETERISED -- not a forked copy --
 		   precisely because a forked copy is the F-K7-4 shape this docstring
-		   warns about. Exactly three associations differ, and only M and B: A
-		   and C are never dropped on a tile (the tiles run the shared-fabric
-		   LR/SC + AMO locking, and C is decoder-only but shrinks code).'''
-		mul  = 'TILE_ENABLE_MUL' if tile else 'CORE_ENABLE_MUL'
-		div  = 'TILE_ENABLE_DIV' if tile else 'CORE_ENABLE_DIV'
-		bman = 'TILE_ENABLE_BITMANIP' if tile else 'CORE_ENABLE_BITMANIP'
+		   warns about.
+
+		   WIDENED 2026-09-12 (P12). The parameterisation used to cover THREE
+		   associations, M and B, and every other ISA and privilege generic on a
+		   tile was the same CORE_ENABLE_* hart 0 takes -- so an orchestrator
+		   configured with Zfinx, Zkn or PMP put them inside the hardened macro
+		   too (P10 finding F1, measured on config/castalia_b.json). The whole
+		   of isa.* and priv.* is now per-class, and which class keeps what is
+		   decided in ONE place, ChipGenerator.py's TILE_ENABLE_* emission.
+		   Read it there; this method only chooses the constant PREFIX, so the
+		   policy cannot fork between the constant and the association.
+
+		   A and C are still never dropped on a tile (the tiles run the
+		   shared-fabric LR/SC + AMO locking, and C is decoder-only but shrinks
+		   code) and neither are the trap CSRs (ENABLE_DEBUG requires them); the
+		   TILE_ constants carry that, so the two flavours differ here by prefix
+		   alone.
+
+		   ENABLE_IF_AHEAD and ENABLE_DEBUG stay CORE_ENABLE_* on BOTH flavours:
+		   the first is microarchitecture rather than ISA, and the second is
+		   identical on both classes by construction and is the oracle
+		   tools/python/check_entity_defaults.py grades the hart_tile and
+		   orch_tile entity defaults against.'''
+		pfx = 'TILE_' if tile else 'CORE_'
+		def _g(generic):
+			return ('            ' + ('ENABLE_' + generic).ljust(17) + ' => '
+				+ pfx + 'ENABLE_' + generic + ',')
 		lines = []
-		lines.append('            ENABLE_MUL        => ' + mul + ',')
-		lines.append('            ENABLE_DIV        => ' + div + ',')
-		lines.append('            ENABLE_ATOMICS    => CORE_ENABLE_ATOMICS,')
-		lines.append('            ENABLE_COMPRESSED => CORE_ENABLE_COMPRESSED,')
-		lines.append('            ENABLE_BITMANIP   => ' + bman + ',')
-		lines.append('            ENABLE_ZICOND     => CORE_ENABLE_ZICOND,')
-		lines.append('            ENABLE_ZCB        => CORE_ENABLE_ZCB,')
-		lines.append('            ENABLE_ZIMOP      => CORE_ENABLE_ZIMOP,')
-		lines.append('            ENABLE_ZIHINT     => CORE_ENABLE_ZIHINT,')
-		lines.append('            ENABLE_ZIHPM      => CORE_ENABLE_ZIHPM,')
-		lines.append('            ENABLE_ZAWRS      => CORE_ENABLE_ZAWRS,')
-		lines.append('            ENABLE_ZABHA      => CORE_ENABLE_ZABHA,')
-		lines.append('            ENABLE_ZACAS      => CORE_ENABLE_ZACAS,')
-		lines.append('            ENABLE_ZICBOZ     => CORE_ENABLE_ZICBOZ,')
-		lines.append('            ENABLE_ZCMP       => CORE_ENABLE_ZCMP,')
-		lines.append('            ENABLE_ZCMT       => CORE_ENABLE_ZCMT,')
-		lines.append('            ENABLE_ZBKB       => CORE_ENABLE_ZBKB,')
-		lines.append('            ENABLE_ZBKC       => CORE_ENABLE_ZBKC,')
-		lines.append('            ENABLE_ZBKX       => CORE_ENABLE_ZBKX,')
-		lines.append('            ENABLE_ZKN        => CORE_ENABLE_ZKN,')
-		lines.append('            ENABLE_ZFINX      => CORE_ENABLE_ZFINX,')
+		lines.append(_g('MUL'))
+		lines.append(_g('DIV'))
+		lines.append(_g('ATOMICS'))
+		lines.append(_g('COMPRESSED'))
+		lines.append(_g('BITMANIP'))
+		lines.append(_g('ZICOND'))
+		lines.append(_g('ZCB'))
+		lines.append(_g('ZIMOP'))
+		lines.append(_g('ZIHINT'))
+		lines.append(_g('ZIHPM'))
+		lines.append(_g('ZAWRS'))
+		lines.append(_g('ZABHA'))
+		lines.append(_g('ZACAS'))
+		lines.append(_g('ZICBOZ'))
+		lines.append(_g('ZCMP'))
+		lines.append(_g('ZCMT'))
+		lines.append(_g('ZBKB'))
+		lines.append(_g('ZBKC'))
+		lines.append(_g('ZBKX'))
+		lines.append(_g('ZKN'))
+		lines.append(_g('ZFINX'))
 		# Fetch-ahead. Passed UNCONDITIONALLY, on every tile, on both flavours:
 		# the constant carries the value, so there is no knob branch here and no
 		# way for one instance to end up on a different fetch behaviour than its
@@ -2908,10 +2929,10 @@ class McuVhdEmitter():
 		lines.append('            -- Microarchitecture')
 		lines.append('            ENABLE_IF_AHEAD   => CORE_ENABLE_IF_AHEAD,')
 		lines.append('            -- Privileged-architecture features')
-		lines.append('            ENABLE_TRAPCSR    => CORE_ENABLE_TRAPCSR,')
-		lines.append('            ENABLE_UMODE      => CORE_ENABLE_UMODE,')
-		lines.append('            ENABLE_PMP        => CORE_ENABLE_PMP,')
-		lines.append('            PMP_ENTRIES       => CORE_PMP_ENTRIES,')
+		lines.append(_g('TRAPCSR'))
+		lines.append(_g('UMODE'))
+		lines.append(_g('PMP'))
+		lines.append('            ' + 'PMP_ENTRIES'.ljust(17) + ' => ' + pfx + 'PMP_ENTRIES,')
 		# D1/D2 core-side debug mode.
 		#   knob OFF: DEBUG_ENTRY_ADDR is NOT named -- the hart_tile/vesta entity
 		#     default (0xBE00) stands, and the three dbg_* PORTS are left
@@ -4246,7 +4267,7 @@ class McuVhdEmitter():
 		lines.append('            PC_RST_VAL     => x"00000000",')
 		lines.append('            SH_AW          => SH_AW,')
 		lines.append('            -- Core ISA features (config-driven, work.MemoryMap; MUST be identical on ' + ('this one tile' if self.nHarts() == 1 else 'all ' + self.hartsWord() + ' tiles') + ', one hardened netlist)')
-		lines.append('            -- M and B come from TILE_ENABLE_*, NOT CORE_ENABLE_*: the corner tiles are the MINIMAL-ISA harts (rv32iac). Hart 0 / the orchestrator take the full CORE_ENABLE_* set.')
+		lines.append('            -- The ISA and privilege set comes from TILE_ENABLE_*, NOT CORE_ENABLE_*: the corner tiles are the MINIMAL-ISA harts (rv32iac plus the trap CSRs the debug module needs). Hart 0 / the orchestrator take the full CORE_ENABLE_* set.')
 		lines.extend(self.coreGenericLines(tile=True))
 		_ovlGen = self.overlay.lines('mcuTileGenerics', emitter=self, hart=h)
 		if _ovlGen:

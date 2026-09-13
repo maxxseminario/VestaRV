@@ -103,7 +103,7 @@
           "debug"
         ],
         "implementation": "Hardened hart_tile macro",
-        "note": "M and Zb dropped (TILE_ENABLE_*); A and C kept"
+        "note": "Every selectable extension dropped, plus U-mode and PMP (TILE_ENABLE_*); A, C and the trap CSRs kept"
       }
     ],
     "sharedWindowAddrWidth": 16,

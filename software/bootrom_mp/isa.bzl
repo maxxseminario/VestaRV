@@ -21,11 +21,11 @@ The makefile's sed patterns are anchored to them.
 # The C extension is a pure encoding change, adding no architectural state and
 # no new arithmetic, so it is safe for all five harts that reset into this one
 # ROM.
-# Harts 1 through 4 are rv32iac and lack M, DIV and Zb*: the generator publishes
-# that as derived.hartClasses in config/ChipConfig.resolved.json, and emits it as
-# TILE_ENABLE_MUL / TILE_ENABLE_DIV / TILE_ENABLE_BITMANIP in MemoryMap.vhd.
-# This string must therefore stay free of any extension that would emit those
-# instructions. rv32ic is narrower still (the ROM needs no atomics), which is
+# Harts 1 through 4 are rv32iac: no M, no Zb*, and no Z-series extension at all.
+# The generator publishes that as derived.hartClasses in
+# config/ChipConfig.resolved.json and emits it as the TILE_ENABLE_* constants in
+# MemoryMap.vhd, one per knob under isa.* and priv.*.
+# This string must therefore stay free of any extension outside rv32iac. rv32ic is narrower still (the ROM needs no atomics), which is
 # inside the tile subset rather than at it.
 # //software/testtools:tile_isa_test grades the linked ELF against that subset,
 # so a widened string here goes red before it reaches a tile.

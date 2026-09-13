@@ -5,21 +5,29 @@
 # WHY THIS PACKAGE EXISTS
 # ---------------------------------------------------------------------------
 # isa.minimalTiles builds harts 1..N-1 rv32iac while hart 0 keeps the full chip
-# ISA, and the generator implements that split with exactly three constants:
-# TILE_ENABLE_MUL, TILE_ENABLE_DIV, TILE_ENABLE_BITMANIP (mcu_vhd.py
-# coreGenericLines). Every other ISA and privilege knob reaches the tiles
-# through the single CORE_ENABLE_* set. So the tile core is hart 0 minus M and
-# B, and until this package existed nothing in the test estate ran an image
-# against a core in that shape: //opensource_sim/isa runs M and B ON, and the
+# ISA. The generator implements that split with a TILE_ENABLE_<X> constant for
+# every knob under isa.* and priv.* (ChipGenerator.py's TILE_ENABLE_* emission,
+# handed to the tile instances by mcu_vhd.py coreGenericLines), and a minimal
+# tile takes the whole set at false: M, Zb, every Z-series extension, U-mode and
+# PMP. A and C stay (the 'a' and 'c' of rv32iac) and so do the trap CSRs, which
+# ENABLE_DEBUG requires. So the tile core is hart 0 minus every selectable
+# extension, and until this package existed nothing in the test estate ran an
+# image against a core in that shape: //opensource_sim/isa runs them ON, and the
 # genus tile flow asserts the divider is ABSENT but never executes an
 # instruction.
 #
+# WIDENED 2026-09-12 (P12), with the generator split. The first version of this
+# package dropped M and B only, because that was the whole of the split; P10
+# finding F1 was that the split was too narrow, and this file follows it.
+#
 # CastaliaB (config/castalia_b.json) is what made that gap worth closing. Its
-# hart 0 turns on every selectable extension, so its TILES inherit every one of
-# them too, and combinations that do not occur anywhere else become real: Zcb
-# with M off is the sharp one, because c.mul expands to a base MUL that maindec
-# then has to trap (c_dec.vhd:438). That trap is a decode path, and a decode
-# path wants a run.
+# hart 0 turns on every selectable extension, and before F1 was fixed its TILES
+# inherited every one of them; now the tiles subtract them, and this package is
+# what proves the subtracted core still executes the shared images. One
+# combination the widening REMOVES, named so nobody looks for it here: Zcb with
+# M off, where c.mul expands to a base MUL that maindec traps (c_dec.vhd:438).
+# Zcb is off on a minimal tile now, so c.mul does not decode at all and that arm
+# is reachable only on a non-minimal build.
 #
 # ---------------------------------------------------------------------------
 # POLARITY, AND WHAT IT COSTS
@@ -54,19 +62,43 @@ vhdl_source_set(
     pool = ["//hdl:vhdl_sources"],
 )
 
-# The tile ISA: hart 0's set minus M and B. Written as the three generics the
-# generator's split actually moves, so this list and TILE_ENABLE_* in a
-# generated MemoryMap.vhd are the same statement.
+# The tile ISA: hart 0's set minus every selectable extension. Written as the
+# generics the generator's split actually moves, so this list and TILE_ENABLE_*
+# in a generated MemoryMap.vhd are the same statement.
+#
+# ABSENT ON PURPOSE, and each absence is the tile-class policy rather than an
+# omission: ENABLE_ATOMICS and ENABLE_COMPRESSED (the 'a' and 'c' of rv32iac,
+# never dropped), ENABLE_TRAPCSR (kept -- ENABLE_DEBUG requires it) and
+# ENABLE_IF_AHEAD (microarchitecture, identical on both classes). Zihpm and
+# Zawrs are listed even though this bench already defaults them false, so the
+# list reads as the tile subset and not as a diff against the bench.
 _TILE_GENERICS = {
     "ENABLE_MUL": "false",
     "ENABLE_DIV": "false",
     "ENABLE_BITMANIP": "false",
+    "ENABLE_ZICOND": "false",
+    "ENABLE_ZCB": "false",
+    "ENABLE_ZIMOP": "false",
+    "ENABLE_ZIHINT": "false",
+    "ENABLE_ZIHPM": "false",
+    "ENABLE_ZAWRS": "false",
+    "ENABLE_ZABHA": "false",
+    "ENABLE_ZACAS": "false",
+    "ENABLE_ZICBOZ": "false",
+    "ENABLE_ZCMP": "false",
+    "ENABLE_ZCMT": "false",
+    "ENABLE_ZBKB": "false",
+    "ENABLE_ZBKC": "false",
+    "ENABLE_ZBKX": "false",
+    "ENABLE_ZKN": "false",
+    "ENABLE_ZFINX": "false",
 }
 
-# The live rv32ui set of //opensource_sim/isa, minus any test that needs M or B
-# to reach its own check. MEASURED EMPTY: all 42 were run at this polarity and
-# all 42 passed, so nothing is excluded. The map stays as the mechanism, and an
-# entry added here must carry the observed failure, never an assumption.
+# The live rv32ui set of //opensource_sim/isa, minus any test that needs a
+# dropped extension to reach its own check. MEASURED EMPTY, twice: all 42 passed
+# at the M-and-B-only polarity (P10) and all 42 passed again at the full
+# subtraction above (P12). The map stays as the mechanism, and an entry added
+# here must carry the observed failure, never an assumption.
 _SKIP = {}
 
 # Transcribed from //opensource_sim/isa's _LIVE. A test added there and not

@@ -373,9 +373,10 @@ def riscv_isa_suite(
 
     # The disassembly listings, for checks that read MNEMONICS. The tile ISA
     # gate in tests_image_contract.py is the one: harts 1-4 are hardened
-    # rv32iac (MCU.vhd:3290-3294 passes TILE_ENABLE_MUL/DIV/BITMANIP false),
-    # while these images are assembled -march=rv32imc / rv32imac, so gas
-    # accepts an M or Zb instruction in tile-executed code without a word.
+    # rv32iac (MCU.vhd:3264-3291 passes the TILE_ENABLE_* set, all of it false
+    # except A, C and the trap CSRs), while these images are assembled
+    # -march=rv32imc / rv32imac, so gas accepts an M or Zb instruction in
+    # tile-executed code without a word.
     native.filegroup(
         name = name_prefix + suite + "_dumps",
         srcs = dumps,

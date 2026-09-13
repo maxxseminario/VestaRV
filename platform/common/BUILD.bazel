@@ -624,13 +624,14 @@ chip_artifacts(
 # CastaliaB (owner decision 2026-09-12): config/castalia.json with hart 0 turned
 # all the way up. Same chip shape, peripheral set, memory map and package; the
 # orchestrator carries every selectable isa.* extension plus U-mode and PMP at 16
-# entries, and isa.minimalTiles still drops M and B from harts 1-4.
+# entries, and isa.minimalTiles holds harts 1-4 at rv32iac.
 #
-# READ THIS BEFORE QUOTING A TILE ISA: the generator's tile split is exactly three
-# constants (TILE_ENABLE_MUL/DIV/BITMANIP, mcu_vhd.py coreGenericLines). Every
-# other ISA and privilege knob reaches the corner tiles through the single
-# CORE_ENABLE_* set, so a knob turned on for hart 0 here is also on in the
-# hardened tile netlist. The tiles are rv32iac at their M/B seam, not overall.
+# THE TILE ISA, since 2026-09-12: the generator's split covers every knob under
+# isa.* and priv.* (the TILE_ENABLE_* set, mcu_vhd.py coreGenericLines), so a
+# knob turned on for hart 0 here is OFF in the hardened tile netlist. This
+# configuration is what found the older, three-constant split (P10 finding F1,
+# where the tiles inherited Zfinx, Zkn and PMP) and it is the regression test
+# for the wider one: its tile class must stay rv32iac however loud hart 0 is.
 #
 # There is no tracked RTL for this configuration, so the bar is the same as the
 # tape-out family's: it generates, its outputs parse, and the register gates hold.

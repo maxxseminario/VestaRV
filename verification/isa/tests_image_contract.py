@@ -19,9 +19,9 @@ it is the contract a stale or double-staged image breaks first:
     29-character TEST_FILE generic of riscv_tb requires.
 
 It also carries the TILE ISA gate, which is about the chip and not the staging.
-Harts 1-4 are the hardened hart_tile macro at rv32iac: MCU.vhd:3290-3294 passes
-TILE_ENABLE_MUL / TILE_ENABLE_DIV / TILE_ENABLE_BITMANIP as false, and
-MemoryMap.vhd:1235-1237 states the same contract.  The images are assembled
+Harts 1-4 are the hardened hart_tile macro at rv32iac: MCU.vhd:3264-3291 passes
+the per-hart-class TILE_ENABLE_* set, every member of it false but A, C and the
+trap CSRs, and MemoryMap.vhd:1324-1348 states the same contract.  The images are assembled
 -march=rv32imc / rv32imac all the same, so gas accepts a `mul` or a `bseti` in
 tile-executed code without a word and the first evidence is an
 illegal-instruction trap on a tile inside a licensed regression.  The gate reads
