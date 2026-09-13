@@ -620,6 +620,57 @@ chip_artifacts(
     out_of_tree_srcs = OUT_OF_TREE_SRCS,
 )
 
+# ---------------------------------------------------------------------------
+# CastaliaB (owner decision 2026-09-12): config/castalia.json with hart 0 turned
+# all the way up. Same chip shape, peripheral set, memory map and package; the
+# orchestrator carries every selectable isa.* extension plus U-mode and PMP at 16
+# entries, and isa.minimalTiles still drops M and B from harts 1-4.
+#
+# READ THIS BEFORE QUOTING A TILE ISA: the generator's tile split is exactly three
+# constants (TILE_ENABLE_MUL/DIV/BITMANIP, mcu_vhd.py coreGenericLines). Every
+# other ISA and privilege knob reaches the corner tiles through the single
+# CORE_ENABLE_* set, so a knob turned on for hart 0 here is also on in the
+# hardened tile netlist. The tiles are rv32iac at their M/B seam, not overall.
+#
+# There is no tracked RTL for this configuration, so the bar is the same as the
+# tape-out family's: it generates, its outputs parse, and the register gates hold.
+# It additionally gets its own determinism pair, because an all-on ISA walks
+# emitter paths (Zfinx, Zkn, the PMP CSR bank) the default generation never does.
+# ---------------------------------------------------------------------------
+chip_artifacts(
+    name = "chip_artifacts_castalia_b",
+    srcs = ["//platform/common/python:generator_srcs"],
+    chip_root_srcs = CHIP_ROOT_SRCS,
+    config = "config/castalia_b.json",
+    out_of_tree_srcs = OUT_OF_TREE_SRCS,
+)
+
+# The second, identical generation :castalia_b_generation_determinism_test byte-
+# compares against, exactly as :chip_artifacts_castalia_repro does for the
+# default-knob generation.
+chip_artifacts(
+    name = "chip_artifacts_castalia_b_repro",
+    srcs = ["//platform/common/python:generator_srcs"],
+    chip_root_srcs = CHIP_ROOT_SRCS,
+    config = "config/castalia_b.json",
+    out_of_tree_srcs = OUT_OF_TREE_SRCS,
+)
+
+py_test(
+    name = "castalia_b_generation_determinism_test",
+    size = "small",
+    srcs = ["//platform/common/bazel:compare_trees.py"],
+    args = [
+        "platform/common/chip_artifacts_castalia_b",
+        "platform/common/chip_artifacts_castalia_b_repro",
+    ],
+    data = [
+        ":chip_artifacts_castalia_b",
+        ":chip_artifacts_castalia_b_repro",
+    ],
+    main = "compare_trees.py",
+)
+
 [
     py_test(
         name = cfg + "_generation_test",
@@ -643,6 +694,7 @@ chip_artifacts(
     )
     for cfg in [
         "castalia_tapeout",
+        "castalia_b",
     ]
 ]
 
@@ -715,6 +767,85 @@ py_test(
     ],
     data = [
         ":castalia_tapeout_memorymap_h",
+        "//platform/common/python:check_memorymap_h.py",
+        "@xpack_riscv_gcc//:gcc",
+        "@xpack_riscv_gcc//:toolchain",
+    ],
+    main = "check_runner.py",
+)
+
+# ---------------------------------------------------------------------------
+# The CastaliaB artifacts the gates below and //opensource_sim/castalia_b consume.
+# ---------------------------------------------------------------------------
+chip_artifact(
+    name = "castalia_b_memorymap_h",
+    rel_path = "out/software/include/MemoryMap.h",
+    target = ":chip_artifacts_castalia_b",
+)
+
+chip_artifact(
+    name = "castalia_b_config_memorymap_json",
+    rel_path = "config/MemoryMap.json",
+    target = ":chip_artifacts_castalia_b",
+)
+
+# The generated RTL pair, as the two labels //opensource_sim/castalia_b splices
+# into the MCU analysis order in place of the tracked default-knob pair.
+chip_artifact(
+    name = "castalia_b_mcu_vhd",
+    rel_path = "out/hdl/MCU.vhd",
+    target = ":chip_artifacts_castalia_b",
+)
+
+chip_artifact(
+    name = "castalia_b_memorymap_vhd",
+    rel_path = "out/hdl/MemoryMap.vhd",
+    target = ":chip_artifacts_castalia_b",
+)
+
+filegroup(
+    name = "castalia_b_trm_tree",
+    srcs = [":chip_artifacts_castalia_b"],
+    output_group = "trm",
+)
+
+# The register gates the tape-out family carries, handed the CastaliaB artifacts.
+# The peripheral set is identical to the tape-out configuration's, so these grade
+# the same register tree; what they add is that the ISA/privilege knobs do not
+# move a peripheral offset or a register name out from under it.
+py_test(
+    name = "castalia_b_intro_names_test",
+    size = "small",
+    srcs = [CHECK_RUNNER],
+    args = [
+        "--script=platform/common/python/check_intro_names.py",
+        "--stage=platform/common/python=platform/common/python",
+        "--stage=platform/common/latex/PeripheralIntroductions=platform/common/latex/PeripheralIntroductions",
+        "--stage=hdl/common/regs/rdl=hdl/common/regs/rdl",
+        "--stage=$(rootpath :castalia_b_config_memorymap_json)=platform/common/config/MemoryMap.json",
+    ],
+    data = [
+        ":castalia_b_config_memorymap_json",
+        ":peripheral_intro_srcs",
+        "//hdl:rdl_sources",
+        "//platform/common/python:check_scripts",
+        "//platform/common/python:generate.py",
+    ],
+    main = "check_runner.py",
+)
+
+py_test(
+    name = "castalia_b_memorymap_h_test",
+    size = "small",
+    srcs = [CHECK_RUNNER],
+    args = [
+        "--script=platform/common/python/check_memorymap_h.py",
+        "--env=RISCV_CC=abs:$(rootpath @xpack_riscv_gcc//:gcc)",
+        "--",
+        "abs:$(rootpath :castalia_b_memorymap_h)",
+    ],
+    data = [
+        ":castalia_b_memorymap_h",
         "//platform/common/python:check_memorymap_h.py",
         "@xpack_riscv_gcc//:gcc",
         "@xpack_riscv_gcc//:toolchain",
@@ -940,6 +1071,31 @@ py_test(
     data = [
         ":castalia_tapeout_config_memorymap_json",
         ":castalia_tapeout_trm_tree",
+        ":rdl_config",
+        "//hdl:rdl_sources",
+        "//platform/common/python:generate.py",
+    ],
+    main = "rdl_vs_generator_test.py",
+    deps = ["//platform/common/python:rdl_test_lib"],
+)
+
+# The same .rdl-versus-generator comparison against CastaliaB. It runs because the
+# ISA and privilege knobs are the one axis the tape-out copy holds fixed, and the
+# emitters those knobs reach (the CSR chapter, core_features.h, the misa string)
+# share code with the register tables this gate grades.
+py_test(
+    name = "rdl_vs_generator_castalia_b_test",
+    size = "small",
+    srcs = ["//platform/common/python:rdl_vs_generator_test.py"],
+    args = [
+        "$(rootpath :castalia_b_config_memorymap_json)",
+        "$(rootpath :rdl_config)",
+        "$(rootpath :castalia_b_trm_tree)",
+        "$(rootpath //platform/common/python:generate.py)",
+    ],
+    data = [
+        ":castalia_b_config_memorymap_json",
+        ":castalia_b_trm_tree",
         ":rdl_config",
         "//hdl:rdl_sources",
         "//platform/common/python:generate.py",

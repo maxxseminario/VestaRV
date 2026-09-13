@@ -78,6 +78,34 @@
   },
   "derived": {
     "isaString": "rv32imac_zba_zbb_zbs_zbc",
+    "hartClasses": [
+      {
+        "name": "Orchestrator",
+        "harts": "0",
+        "hartCount": 1,
+        "isaString": "rv32imac_zba_zbb_zbs_zbc",
+        "priv": [
+          "M-mode",
+          "trap CSRs",
+          "debug"
+        ],
+        "implementation": "Soft core",
+        "note": "The full chip ISA (CORE_ENABLE_*)"
+      },
+      {
+        "name": "Tile",
+        "harts": "1-4",
+        "hartCount": 4,
+        "isaString": "rv32iac",
+        "priv": [
+          "M-mode",
+          "trap CSRs",
+          "debug"
+        ],
+        "implementation": "Hardened hart_tile macro",
+        "note": "M and Zb dropped (TILE_ENABLE_*); A and C kept"
+      }
+    ],
     "sharedWindowAddrWidth": 16,
     "sharedRamBanks": 4,
     "flashBaseAddress": "0x40000",

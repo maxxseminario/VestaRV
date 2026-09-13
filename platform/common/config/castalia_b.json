@@ -1,0 +1,64 @@
+{
+  "_comment": "CastaliaB: config/castalia.json with hart 0 turned all the way up. The chip shape, peripheral set, memory map and package are byte-for-byte Castalia's; the only difference is the orchestrator's ISA and privilege set, which carries every selectable isa.* extension plus U-mode and PMP at the shipped 16 entries, so the soft centre hart is the one that runs anything the tiles cannot. isa.minimalTiles stays true, so harts 1-4 keep dropping M and B and stay rv32iac at their M/B seam -- note that the generator's tile split covers ONLY M and B, so the Z extensions and the privilege knobs below reach the hardened tiles too (TILE_ENABLE_* has three members; everything else is CORE_ENABLE_*). Build with: make chip CONFIG=config/castalia_b.json ; prove with: make verify CONFIG=config/castalia_b.json",
+  "chipName": "CastaliaB",
+  "numHarts": 5,
+  "orchestrator": true,
+  "isa": {
+    "mul": true,
+    "fastMul": true,
+    "div": true,
+    "atomics": true,
+    "compressed": true,
+    "bitmanip": true,
+    "minimalTiles": true,
+    "counters": true,
+    "counters64": true,
+    "zicond": true,
+    "zcb": true,
+    "zimop": true,
+    "zihint": true,
+    "zihpm": true,
+    "zawrs": true,
+    "zabha": true,
+    "zacas": true,
+    "zicboz": true,
+    "zcmp": true,
+    "zcmt": true,
+    "zbkb": true,
+    "zbkc": true,
+    "zbkx": true,
+    "zkn": true,
+    "zfinx": true
+  },
+  "priv": {
+    "trapCsr": true,
+    "umode": true,
+    "pmp": true,
+    "pmpEntries": 16
+  },
+  "debug": {
+    "enable": true
+  },
+  "core": {
+    "fetchAhead": true
+  },
+  "peripherals": {
+    "cqAfeStubs": false,
+    "qspi": true,
+    "i3c": true,
+    "nfc": true,
+    "rtc": true,
+    "pwm": true,
+    "onewire": true,
+    "fieldPower": true,
+    "dma": true,
+    "dmaChannels": 4,
+    "i2ctarget": true,
+    "trng": true,
+    "eventFabric": true
+  },
+  "package": {
+    "model": "castalia-lqfp100",
+    "preliminary": true
+  }
+}

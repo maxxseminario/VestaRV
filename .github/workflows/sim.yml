@@ -97,6 +97,23 @@ jobs:
       # slowest test in this job at about 4 minutes, and it is the fast half of
       # its bench: :rv4th_forth_full adds the 131 ms clock-frequency
       # measurement and is `manual`. Named explicitly, same rule as above.
+      #
+      # //opensource_sim/castalia_b:castalia_b_elaborate is :mcu_elaborate for
+      # config/castalia_b.json, whose hart 0 turns on every selectable isa.*
+      # extension plus U-mode and PMP. It is the only target anywhere that binds
+      # the generate arms those knobs open -- the Zfinx FPU, the Zkn round units,
+      # pmp_unit.vhd and the pmpcfg/pmpaddr bank -- into a whole MCU, and its RTL
+      # is a build output of //platform/common:chip_artifacts_castalia_b, so it
+      # also catches an all-on generation that emits an MCU.vhd which does not
+      # elaborate. Same 1 ns run and the same reason as :mcu_elaborate above.
+      #
+      # //opensource_sim/tile_isa:tile_rv32ui is the CORNER-TILE polarity of the
+      # rv32ui suite: the same bare core with M and B off, which is what
+      # isa.minimalTiles builds harts 1-4 as. The regression above runs M and B
+      # ON and the genus tile flow only asserts the divider is absent, so without
+      # this the shipped tile ISA executed no instruction in any gate. 42 targets,
+      # about 6.6 s each.
+      #
       # //hdl/common/synth:synth is the `ghdl --synth` synthesizability gate,
       # //toolchains/ghdl:synth_census_test the frozen flop/latch/cell table it
       # feeds, and //toolchains/ghdl:synth_coverage_test the gate on the LIST --
@@ -113,6 +130,8 @@ jobs:
             //verification/cpi:cpi_default \
             //opensource_sim/pmp:pmp \
             //opensource_sim/mcu:mcu_elaborate \
+            //opensource_sim/castalia_b:castalia_b_elaborate \
+            //opensource_sim/tile_isa:tile_rv32ui \
             //opensource_sim/rv4th:rv4th_forth \
             --repository_cache=~/.cache/bazel-repo-cache \
             --test_tag_filters=-known_red \

@@ -20,7 +20,13 @@ entity vesta_isa_tb is
         CLK_PERIOD_NS : time    := 10 ns;
         -- Watchdog in clock cycles: 300,000 is about 8x the longest passing test here, and short enough to fire inside the runner's per-test wall timeout.
         -- A hung test then ends as a reported sim timeout with a nonzero exit rather than as a wall kill.
-        WATCHDOG_CYCLES : natural := 300_000
+        WATCHDOG_CYCLES : natural := 300_000;
+        -- M and B, hoisted to the bench boundary so the CORNER-TILE polarity can be run on this harness (P10, 2026-09-12).
+        -- These three are the WHOLE of the chip's asymmetric-ISA split: isa.minimalTiles drives TILE_ENABLE_MUL/DIV/BITMANIP and nothing else, so a tile is hart 0 minus exactly these.
+        -- Defaults TRUE, which is what the vesta entity defaults to and therefore what every pre-existing target of this bench already elaborated; overriding them is opt-in and changes nothing else.
+        ENABLE_MUL      : boolean := true;
+        ENABLE_DIV      : boolean := true;
+        ENABLE_BITMANIP : boolean := true
     );
 end entity vesta_isa_tb;
 
@@ -156,6 +162,10 @@ begin
     dut : entity work.vesta
         generic map (
             PC_RST_VAL    => x"00008200",
+            -- M and B come from this bench's own generics (default true), so a corner-tile polarity is a -g override and not an edit here.
+            ENABLE_MUL    => ENABLE_MUL,
+            ENABLE_DIV    => ENABLE_DIV,
+            ENABLE_BITMANIP => ENABLE_BITMANIP,
             ENABLE_ZICOND => true,   -- Zicond  : czero.eqz/nez
             ENABLE_ZCB    => true,   -- Zcb     : extra compressed (c.mul/c.zext/...)
             ENABLE_ZIMOP  => true,   -- Zimop   : may-be-operation placeholders
