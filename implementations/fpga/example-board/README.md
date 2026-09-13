@@ -22,7 +22,7 @@ tools/bin/bazel test //...       # first run downloads all toolchains
 | `//platform/common:chip_artifacts_castalia` | The chip artifact tree your port instantiates: `MCU.vhd`, `MemoryMap.vhd`, `MemoryMap.h`, `periph.S`, linker scripts, pad-ring JSON/TCL. |
 | `//platform/common:castalia_hdl` | Just the generated RTL half of that tree. |
 | `//platform/common:castalia_software_include`, `//platform/common:castalia_linker_scripts` | The firmware-facing half. |
-| `//platform/common:chip_artifacts_fpga` | The same tree generated from `config/fpga.json` - the cut-down bring-up configuration. **Start here, not from Castalia** (see below). |
+| `//platform/common:chip_artifacts_fpga_default` | The same tree generated from `config/fpga_default.json` - the cut-down bring-up configuration. **Start here, not from Castalia** (see below). |
 | `//hdl:vhdl_sources` | Every tracked VHDL source in the repo, as one filegroup. This is a POOL to pick from, **not** a file list to hand a synthesis tool as-is - see "Picking the file set" below. |
 | `//software/bootrom_mp:rom_rcf` | The mask-ROM image to preload into block RAM. |
 | `//software/blinky:blinky_rcf` (also `gpiotoggle`, `looptest`, `slowblink`, `traptest`) | Demo firmware images, built with the hermetic RISC-V cross-compiler. |
@@ -32,14 +32,14 @@ tools/bin/bazel test //...       # first run downloads all toolchains
 `chip_artifacts_castalia` is the ASIC: five harts, an orchestrator, the AFE and
 NPU, a package that bonds a JTAG TAP. It is not the place to start on a board.
 
-`config/fpga.json` is the bring-up cut - one hart, no orchestrator, and every
+`config/fpga_default.json` is the bring-up cut - one hart, no orchestrator, and every
 optional peripheral off, chosen so that nothing in the design lacks an FPGA
 counterpart. Its `_comment` fields explain why each knob is pinned rather than
 inherited, which matters because several generator defaults changed after the
 ASIC taped out. Generate it with:
 
 ```sh
-make -C platform/common generate CONFIG=config/fpga.json
+make -C platform/common generate CONFIG=config/fpga_default.json
 # then, to put out/ and the tracked resolved config back to Castalia:
 make -C platform/common generate
 ```
@@ -99,7 +99,7 @@ Full map of the Bazel build: [`BAZEL.md`](../../../BAZEL.md).
 
 ## Configuration
 
-- **Core**: VestaRV32. `config/fpga.json` builds RV32IMA - M and A stay on
+- **Core**: VestaRV32. `config/fpga_default.json` builds RV32IMA - M and A stay on
   because every firmware image in `software/` is compiled `-march=rv32ima`;
   C and Zb are off because rv32ima uses neither.
 - **ROM Size**: [e.g., 16 KiB, implemented in block RAM]

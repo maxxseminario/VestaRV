@@ -1,0 +1,39 @@
+{
+  "_comment": "asic_default: the minimal ASIC starting point and the single-hart DRC/LVS signoff vehicle, the smallest assembly that still carries one hardened hart_tile macro, the shared fabric, the memory macros, the pad ring and the AFE stub bank. Build with: make -C platform/common generate CONFIG=config/asic_default.json ; prove with: tools/bin/bazel test //platform/common:asic_default_generation_test //opensource_sim/asic_default:all",
+
+  "chipName": "asic_default",
+  "numHarts": 1,
+  "orchestrator": false,
+
+  "isa": {
+    "minimalTiles": false
+  },
+
+  "peripherals": {
+    "npu": false,
+    "nfc": false,
+    "i2c1": false,
+    "uart1": false,
+    "spi1": false,
+    "timer1": false,
+    "fieldPower": false,
+    "cqAfeStubs": true,
+    "qspi": false,
+    "i3c": false,
+    "rtc": false,
+    "pwm": false,
+    "onewire": false,
+    "dma": false,
+    "i2ctarget": false,
+    "trng": false,
+    "eventFabric": false
+  },
+
+  "debug": {
+    "enable": false
+  },
+
+  "package": {
+    "model": "myshkin-qfn44"
+  }
+}
