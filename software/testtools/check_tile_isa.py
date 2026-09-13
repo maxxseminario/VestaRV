@@ -5,9 +5,11 @@ tile ISA subset the chip configuration declares.
 WHY THIS EXISTS. Castalia is asymmetric: hart 0 is the soft orchestrator and
 carries the full chip ISA, harts 1..N-1 are four instances of one hardened
 hart_tile macro built rv32iac. The generator states that in exactly one place
-(ChipGenerator.py emits TILE_ENABLE_MUL / TILE_ENABLE_DIV / TILE_ENABLE_BITMANIP
-as `ENABLE_<X> and not MINIMAL_TILES`, MCU.vhd hands those three and only those
-three to the tile instances), and it publishes it as derived.hartClasses in
+(ChipGenerator.py emits a TILE_ENABLE_<X> constant for every knob under isa.*
+and priv.*, and MCU.vhd hands the tile instances those rather than the
+CORE_ENABLE_* set hart 0 takes; a minimal tile drops M, Zb, every Z-series
+extension, U-mode and PMP, and keeps A, C and the trap CSRs), and it publishes
+it as derived.hartClasses in
 config/ChipConfig.resolved.json. Nothing connected that statement to the
 firmware. A shared image compiled -march=rv32imac assembles a `mul` without a
 word, and the first evidence is an illegal-instruction trap on a tile, in
@@ -26,8 +28,8 @@ exemption is reviewable rather than implicit, and a name may not appear in both
 tables.
 
 The tile subset is read from the resolved configuration, never hardcoded: a
-build whose tiles keep M and Zb (isa.minimalTiles false, or a one-hart chip)
-degenerates to a single hart class and this gate accepts the full ISA.
+build whose tiles keep the full ISA (isa.minimalTiles false, or a one-hart chip)
+degenerates to a single hart class and this gate accepts it.
 
 Plain runner, no pytest: exit 0 is a pass.
 """

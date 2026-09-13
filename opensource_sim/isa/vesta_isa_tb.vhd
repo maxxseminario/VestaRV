@@ -21,12 +21,29 @@ entity vesta_isa_tb is
         -- Watchdog in clock cycles: 300,000 is about 8x the longest passing test here, and short enough to fire inside the runner's per-test wall timeout.
         -- A hung test then ends as a reported sim timeout with a nonzero exit rather than as a wall kill.
         WATCHDOG_CYCLES : natural := 300_000;
-        -- M and B, hoisted to the bench boundary so the CORNER-TILE polarity can be run on this harness (P10, 2026-09-12).
-        -- These three are the WHOLE of the chip's asymmetric-ISA split: isa.minimalTiles drives TILE_ENABLE_MUL/DIV/BITMANIP and nothing else, so a tile is hart 0 minus exactly these.
-        -- Defaults TRUE, which is what the vesta entity defaults to and therefore what every pre-existing target of this bench already elaborated; overriding them is opt-in and changes nothing else.
+        -- The selectable ISA set, hoisted to the bench boundary so the CORNER-TILE polarity can be run on this harness (P10, 2026-09-12; widened by P12 the same day).
+        -- EVERY DEFAULT BELOW IS THE VALUE THIS BENCH PREVIOUSLY HARD-CODED ON THE `vesta` INSTANCE, so every pre-existing target elaborates exactly what it did before and overriding them is opt-in.
+        -- That includes the two that are FALSE (Zihpm, Zawrs) and are false for harness reasons, not chip reasons; the comments at the instance say why.
+        -- The set is wider than M and B because isa.minimalTiles is: from 2026-09-12 the generator emits a TILE_ENABLE_<X> for every isa.* and priv.* knob, and a minimal tile drops all of them (A and C excepted, which are the 'a' and 'c' of rv32iac and are not hoisted here at all -- a tile never drops them).
         ENABLE_MUL      : boolean := true;
         ENABLE_DIV      : boolean := true;
-        ENABLE_BITMANIP : boolean := true
+        ENABLE_BITMANIP : boolean := true;
+        ENABLE_ZICOND   : boolean := true;
+        ENABLE_ZCB      : boolean := true;
+        ENABLE_ZIMOP    : boolean := true;
+        ENABLE_ZIHINT   : boolean := true;
+        ENABLE_ZIHPM    : boolean := false;
+        ENABLE_ZAWRS    : boolean := false;
+        ENABLE_ZABHA    : boolean := true;
+        ENABLE_ZACAS    : boolean := true;
+        ENABLE_ZICBOZ   : boolean := true;
+        ENABLE_ZCMP     : boolean := true;
+        ENABLE_ZCMT     : boolean := true;
+        ENABLE_ZBKB     : boolean := true;
+        ENABLE_ZBKC     : boolean := true;
+        ENABLE_ZBKX     : boolean := true;
+        ENABLE_ZKN      : boolean := true;
+        ENABLE_ZFINX    : boolean := true
     );
 end entity vesta_isa_tb;
 
@@ -162,26 +179,26 @@ begin
     dut : entity work.vesta
         generic map (
             PC_RST_VAL    => x"00008200",
-            -- M and B come from this bench's own generics (default true), so a corner-tile polarity is a -g override and not an edit here.
+            -- Every selectable extension comes from this bench's own generics, so a corner-tile polarity is a -g override and not an edit here; the generic DEFAULTS carry the values that used to be written on this instance, and the reasons are kept beside them.
             ENABLE_MUL    => ENABLE_MUL,
             ENABLE_DIV    => ENABLE_DIV,
             ENABLE_BITMANIP => ENABLE_BITMANIP,
-            ENABLE_ZICOND => true,   -- Zicond  : czero.eqz/nez
-            ENABLE_ZCB    => true,   -- Zcb     : extra compressed (c.mul/c.zext/...)
-            ENABLE_ZIMOP  => true,   -- Zimop   : may-be-operation placeholders
-            ENABLE_ZIHINT => true,   -- Zihint  : hint NOPs (pause/ntl)
-            ENABLE_ZIHPM  => false,  -- Zihpm   : hpm counters; OFF because the probe dispatches on an mhpmcounter advancing, which a bare core does not do
-            ENABLE_ZAWRS  => false,  -- Zawrs   : OFF because wrs.nto/sto block until another master clears the reservation, so a single hart never retires them
-            ENABLE_ZABHA  => true,   -- Zabha   : byte/halfword AMOs
-            ENABLE_ZACAS  => true,   -- Zacas   : amocas.w/b/h compare-and-swap
-            ENABLE_ZICBOZ => true,   -- Zicboz  : cbo.zero block-zero
-            ENABLE_ZCMP   => true,   -- Zcmp    : cm.push/pop/mv
-            ENABLE_ZCMT   => true,   -- Zcmt    : cm.jt table jump + jvt CSR
-            ENABLE_ZBKB   => true,   -- Zbkb    : crypto bit-manip (pack/brev8/...)
-            ENABLE_ZBKC   => true,   -- Zbkc    : carry-less multiply (clmul/clmulh)
-            ENABLE_ZBKX   => true,   -- Zbkx    : crossbar permute (xperm8/xperm4)
-            ENABLE_ZKN    => true,   -- Zkn     : scalar crypto AES + SHA
-            ENABLE_ZFINX  => true    -- Zfinx   : single-precision FP in x-registers; needs fpu.vhd and fpu_simple.vhd in the source list, or the unbound component floats fpu_done and every FP op hangs
+            ENABLE_ZICOND => ENABLE_ZICOND,   -- Zicond  : czero.eqz/nez
+            ENABLE_ZCB    => ENABLE_ZCB,      -- Zcb     : extra compressed (c.mul/c.zext/...)
+            ENABLE_ZIMOP  => ENABLE_ZIMOP,    -- Zimop   : may-be-operation placeholders
+            ENABLE_ZIHINT => ENABLE_ZIHINT,   -- Zihint  : hint NOPs (pause/ntl)
+            ENABLE_ZIHPM  => ENABLE_ZIHPM,    -- Zihpm   : hpm counters; default OFF because the probe dispatches on an mhpmcounter advancing, which a bare core does not do
+            ENABLE_ZAWRS  => ENABLE_ZAWRS,    -- Zawrs   : default OFF because wrs.nto/sto block until another master clears the reservation, so a single hart never retires them
+            ENABLE_ZABHA  => ENABLE_ZABHA,    -- Zabha   : byte/halfword AMOs
+            ENABLE_ZACAS  => ENABLE_ZACAS,    -- Zacas   : amocas.w/b/h compare-and-swap
+            ENABLE_ZICBOZ => ENABLE_ZICBOZ,   -- Zicboz  : cbo.zero block-zero
+            ENABLE_ZCMP   => ENABLE_ZCMP,     -- Zcmp    : cm.push/pop/mv
+            ENABLE_ZCMT   => ENABLE_ZCMT,     -- Zcmt    : cm.jt table jump + jvt CSR
+            ENABLE_ZBKB   => ENABLE_ZBKB,     -- Zbkb    : crypto bit-manip (pack/brev8/...)
+            ENABLE_ZBKC   => ENABLE_ZBKC,     -- Zbkc    : carry-less multiply (clmul/clmulh)
+            ENABLE_ZBKX   => ENABLE_ZBKX,     -- Zbkx    : crossbar permute (xperm8/xperm4)
+            ENABLE_ZKN    => ENABLE_ZKN,      -- Zkn     : scalar crypto AES + SHA
+            ENABLE_ZFINX  => ENABLE_ZFINX     -- Zfinx   : single-precision FP in x-registers; needs fpu.vhd and fpu_simple.vhd in the source list, or the unbound component floats fpu_done and every FP op hangs
         )
         port map (
             clk              => clk,

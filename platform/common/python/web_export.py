@@ -149,50 +149,73 @@ def _libraryTailVectorsCount(cfg):
 # the README cannot disagree with the RTL the same build emitted.
 #
 # WHAT THE ASYMMETRY ACTUALLY IS, read off the generator rather than assumed:
-# ChipGenerator.py emits TILE_ENABLE_MUL / TILE_ENABLE_DIV / TILE_ENABLE_BITMANIP
-# as `ENABLE_<X> and not MINIMAL_TILES`, and MCU.vhd hands those three, and only
-# those three, to the hart_tile instances it emits for harts 1..N-1. Every other
-# generic a tile takes is the CORE_ENABLE_* the orchestrator takes. So:
-#   * M (mul + div) and Zb are the WHOLE difference,
+# ChipGenerator.py emits a TILE_ENABLE_<X> constant for every knob under isa.*
+# and priv.*, and MCU.vhd hands the hart_tile instances it emits for harts
+# 1..N-1 THOSE rather than the CORE_ENABLE_* set hart 0 takes. So, with
+# minimalTiles on:
+#   * M, Zb and every Z-series extension are dropped,
+#   * U-mode and PMP are dropped (no tile code leaves M-mode),
 #   * A and C are never dropped (the tiles run the shared-fabric LR/SC + AMO
 #     locking, and C is decode-only),
-#   * the Z-series extensions and the entire privilege set reach the tiles
-#     unchanged,
+#   * the trap CSRs and debug are never dropped: the Debug Module halts tiles
+#     and vesta.vhd asserts ENABLE_DEBUG requires ENABLE_TRAPCSR,
+#   * Zicntr/the 64-bit halves are never dropped either, and NOT because they
+#     are needed: isa.counters gates no hart_tile generic at all (cycle and
+#     instret exist on every hart unconditionally; the knob moves the march
+#     suffix and the C defines). Dropping the suffix would make the tile
+#     advertise less than it implements and would save nothing.
 #   * at numHarts < 2, or with minimalTiles off, there is no tile class at all
 #     and the table degenerates to one row.
+# WIDENED 2026-09-12 (P12). The split used to be exactly three constants, M and
+# B, so a chip whose orchestrator enabled Zfinx, Zkn or PMP put them inside the
+# hardened macro as well (P10 finding F1).
 # ---------------------------------------------------------------------------
-def _privFeatures(cfg):
+def _privFeatures(cfg, tile=False):
 	"""The privilege-architecture feature list, in the order the TRM prints it.
 
-	Identical on every hart class by construction (see the block comment above):
-	MCU.vhd hands the tiles CORE_ENABLE_TRAPCSR / CORE_ENABLE_UMODE /
-	CORE_ENABLE_PMP / CORE_ENABLE_DEBUG. The column exists so the table states
-	that, rather than leaving a reader to infer it."""
+	tile=True is the MINIMAL corner-tile class: U-mode and PMP fall away with
+	every other selectable knob, and the trap CSRs and debug stay (the Debug
+	Module halts tiles, and vesta.vhd:1699 asserts ENABLE_DEBUG requires
+	ENABLE_TRAPCSR). Mirrors ChipGenerator.py's TILE_ENABLE_* emission; keep the
+	two in step."""
 	priv = cfg.get('priv') or {}
 	dbg = cfg.get('debug') or {}
 	out = ['M-mode']
 	if priv.get('trapCsr'):
 		out.append('trap CSRs')
-	if priv.get('umode'):
+	if priv.get('umode') and not tile:
 		out.append('U-mode')
-	if priv.get('pmp'):
+	if priv.get('pmp') and not tile:
 		out.append('PMP (' + str(int(priv.get('pmpEntries') or 0)) + ' entries)')
 	if dbg.get('enable'):
 		out.append('debug')
 	return out
 
 
+# The isa.* knobs a MINIMAL tile drops. Every selectable extension: the three
+# that were always dropped (M and Zb) plus the Z-series, which reached the tiles
+# unchanged until 2026-09-12. What is ABSENT from this tuple is the point:
+#   atomics, compressed  the 'a' and 'c' of rv32iac, never dropped
+#   counters, counters64 docs-only, gate no hart_tile generic (see the header)
+#   minimalTiles         the knob itself
+_TILE_DROPPED_ISA = (
+	'mul', 'div', 'bitmanip',
+	'zicond', 'zcb', 'zimop', 'zihint', 'zihpm', 'zawrs', 'zabha', 'zacas',
+	'zicboz', 'zcmp', 'zcmt', 'zbkb', 'zbkc', 'zbkx', 'zkn', 'zfinx',
+)
+
+
 def _tileIsa(isa):
-	"""The isa{} the hardened tiles are built with: the chip's, minus M and Zb.
+	"""The isa{} the hardened tiles are built with: the chip's, minus every
+	selectable extension.
 
 	Mirrors ChipGenerator.py's TILE_ENABLE_* expressions exactly. Returns the
 	SAME dict object contents as the input when the tiles are not minimal."""
 	if not isa.get('minimalTiles'):
 		return dict(isa)
 	out = dict(isa)
-	out['mul'] = False
-	out['div'] = False
-	out['bitmanip'] = False
+	for k in _TILE_DROPPED_ISA:
+		out[k] = False
 	return out
 
 
@@ -232,9 +255,9 @@ def hartClasses(cfg):
 			'harts': '1-' + str(numHarts - 1),
 			'hartCount': numHarts - 1,
 			'isaString': _isaString(_tileIsa(isa)),
-			'priv': priv,
+			'priv': _privFeatures(cfg, tile=True),
 			'implementation': 'Hardened hart_tile macro',
-			'note': 'M and Zb dropped (TILE_ENABLE_*); A and C kept',
+			'note': 'Every selectable extension dropped, plus U-mode and PMP (TILE_ENABLE_*); A, C and the trap CSRs kept',
 		},
 	]
 

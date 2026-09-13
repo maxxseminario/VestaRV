@@ -131,10 +131,13 @@ class ChipGenerator():
 	# instruction, no memory-map change, so there is no C-header define for it
 	# (nothing in software can or should dispatch on it).
 	ENABLE_IF_AHEAD = None		# C-extension straddling-fetch elision (one flip-flop)
-	# ASYMMETRIC ISA (2026-08-16). True = the hardened corner tiles (harts 1..N-1)
-	# are built rv32iac -- M and B dropped -- while hart 0, the soft orchestrator,
-	# keeps the full ISA above. Drives the TILE_ENABLE_* constants, which are what
-	# MCU.vhd hands the tile instances (hart 0 still gets CORE_ENABLE_*).
+	# ASYMMETRIC ISA (2026-08-16; widened to the whole selectable set 2026-09-12).
+	# True = the hardened corner tiles (harts 1..N-1) are built rv32iac -- EVERY
+	# selectable ISA extension dropped, U-mode and PMP dropped -- while hart 0, the
+	# soft orchestrator, keeps the full ISA above. Drives the TILE_ENABLE_* /
+	# TILE_PMP_ENTRIES constants, which are what MCU.vhd hands the tile instances
+	# (hart 0 still gets CORE_ENABLE_*). The knob-by-knob policy, and the reason for
+	# each entry, is in the TILE-CLASS POLICY block at the emission site below.
 	MINIMAL_TILES = None
 	ENABLE_IRQ_QREGS = None		# Enables/disables the four IRQ registers, which help speed IRQ calls
 	ENABLE_IRQ_TIMER = None		# Enables/disables the "timer" custom instruction. For chips up to pingora2, this was always True
@@ -2467,8 +2470,39 @@ class ChipGenerator():
 		# see genus/hart_tile/tcl/hart_tile.genus.tcl, which names them and guards that
 		# they took (the ENABLE_DEBUG lesson: a generic default silently wins over a
 		# memory-map constant in a tile-only elaborate).
-		# Only M and B differ. A and C are NEVER dropped on a tile: the tiles run the
-		# shared-fabric LR/SC + AMO locking, and C is decoder-only but shrinks code.
+		#
+		# WIDENED 2026-09-12 (P12). Until then the split was THREE constants -- M and B
+		# -- and every other ISA and privilege knob reached the tiles as the SAME
+		# CORE_ENABLE_* hart 0 takes, so a configuration that turned Zfinx, Zkn or PMP
+		# on for the orchestrator silently turned them on inside the hardened macro too
+		# (measured on config/castalia_b.json; P10 finding F1). The owner's intent is
+		# and was "tiles at rv32iac and nothing more", so the per-class set is now the
+		# WHOLE of isa.* and priv.*, and the table below is the authority for it.
+		#
+		# THE TILE-CLASS POLICY, knob by knob:
+		#   KEPT  ATOMICS    the 'a' of rv32iac. The tiles run the shared-fabric LR/SC
+		#                    and AMO locking; dropping it breaks the boot mailboxes.
+		#   KEPT  COMPRESSED the 'c' of rv32iac. Decode-only, and it shrinks code,
+		#                    which matters at an 8 KiB TCM.
+		#   KEPT  TRAPCSR    the tile must be DEBUGGABLE, and vesta.vhd asserts
+		#                    ENABLE_DEBUG requires ENABLE_TRAPCSR (ebreak and the whole
+		#                    SYSTEM PRIV legality arm are TRAPCSR-gated in maindec).
+		#                    debug.enable is a shipped default, so this is not optional.
+		#   DROP  UMODE      no tile code leaves M-mode: the boot ROM's tile path and
+		#                    the debug trampoline are M-mode throughout.
+		#   DROP  PMP        requires UMODE, so it cannot stand once U-mode is gone;
+		#                    it is also what infers vesta's is_compressed latch.
+		#   DROP  M, B, and every Z extension: no image a tile executes emits one.
+		#   Not per-class: ENABLE_DEBUG (kept identical on both classes by
+		#   construction -- CORE_ENABLE_DEBUG is also the oracle
+		#   tools/python/check_entity_defaults.py grades the hart_tile and orch_tile
+		#   entity defaults against) and ENABLE_IF_AHEAD (microarchitecture, not ISA:
+		#   it changes cycle counts only and never an architectural result).
+		#   Not here at all: isa.counters / isa.counters64. They gate NO hart_tile
+		#   generic -- cycle and instret exist on every hart unconditionally and the
+		#   knobs move only the march suffix and the C defines -- so dropping Zicntr on
+		#   the tile class would make the tile advertise less than it implements and
+		#   would save nothing. The tile class keeps them; see web_export._tileIsa.
 		_tmin = bool(self.MINIMAL_TILES)
 		# The emitted comment carries the generic-default warning, not just the value
 		# rule: it was hand-added to hdl/common/MemoryMap.vhd under its do-not-edit
@@ -2477,11 +2511,44 @@ class ChipGenerator():
 		# memory-map constant in a tile-only elaborate -- and it is config-independent.
 		t.AddLine('-- Corner-tile ISA (harts 1..N-1). MCU.vhd hands the hardened hart_tile instances THESE and hands hart 0 / the', prefixTabs=1)
 		t.AddLine('-- orchestrator the CORE_ENABLE_* set above; equal to CORE_ENABLE_* unless the tiles are minimal.', prefixTabs=1)
+		t.AddLine('-- MINIMAL tiles are rv32iac and nothing more: A, C and the trap CSRs are KEPT (the tiles run the shared-fabric', prefixTabs=1)
+		t.AddLine('-- LR/SC + AMO locking, and ENABLE_DEBUG requires ENABLE_TRAPCSR); M, B, every Z extension, U-mode and PMP are DROPPED.', prefixTabs=1)
 		t.AddLine("-- hart_tile's own generics still default to the FULL ISA, so a tile-only `elaborate hart_tile` must override", prefixTabs=1)
 		t.AddLine('-- them by name -- see genus/hart_tile/tcl/hart_tile.genus.tcl.', prefixTabs=1)
-		t.AddRow(['constant TILE_ENABLE_MUL', ': boolean := ' + str(bool(self.ENABLE_MUL) and not _tmin).lower() + ';', '-- M on the corner tiles'], prefixTabs=1)
-		t.AddRow(['constant TILE_ENABLE_DIV', ': boolean := ' + str(bool(self.ENABLE_DIV) and not _tmin).lower() + ';', '-- M on the corner tiles'], prefixTabs=1)
-		t.AddRow(['constant TILE_ENABLE_BITMANIP', ': boolean := ' + str(bool(self.ENABLE_BITMANIP) and not _tmin).lower() + ';', '-- Zba/Zbb/Zbs/Zbc on the corner tiles'], prefixTabs=1)
+		# (knob name, chip value, kept-on-a-minimal-tile?, trailing comment)
+		_tileKnobs = [
+			('MUL',        self.ENABLE_MUL,        False, 'M: MUL/MULH/MULHU/MULHSU'),
+			('DIV',        self.ENABLE_DIV,        False, 'M: DIV/DIVU/REM/REMU + the iterative divider'),
+			('ATOMICS',    self.ENABLE_ATOMICS,    True,  "A: KEPT -- the 'a' of rv32iac, and the shared-fabric LR/SC + AMO locking"),
+			('COMPRESSED', self.COMPRESSED_ISA,    True,  "C: KEPT -- the 'c' of rv32iac, decode-only and it shrinks code"),
+			('BITMANIP',   self.ENABLE_BITMANIP,   False, 'Zba/Zbb/Zbs/Zbc'),
+			('ZICOND',     self.ENABLE_ZICOND,     False, 'Zicond czero.eqz/nez'),
+			('ZCB',        self.ENABLE_ZCB,        False, 'Zcb extra compressed insns'),
+			('ZIMOP',      self.ENABLE_ZIMOP,      False, 'Zimop+Zcmop may-be-ops'),
+			('ZIHINT',     self.ENABLE_ZIHINT,     False, 'Zihintpause+Zihintntl'),
+			('ZIHPM',      self.ENABLE_ZIHPM,      False, 'Zihpm hw perf counters'),
+			('ZAWRS',      self.ENABLE_ZAWRS,      False, 'Zawrs wait-on-reservation'),
+			('ZABHA',      self.ENABLE_ZABHA,      False, 'Zabha byte/half AMOs'),
+			('ZACAS',      self.ENABLE_ZACAS,      False, 'Zacas amocas.w'),
+			('ZICBOZ',     self.ENABLE_ZICBOZ,     False, 'Zicboz cbo.zero block-zero'),
+			('ZCMP',       self.ENABLE_ZCMP,       False, 'Zcmp push/pop + reg-moves'),
+			('ZCMT',       self.ENABLE_ZCMT,       False, 'Zcmt table jump + jvt CSR'),
+			('ZBKB',       self.ENABLE_ZBKB,       False, 'Zbkb crypto bit-manip'),
+			('ZBKC',       self.ENABLE_ZBKC,       False, 'Zbkc carryless multiply'),
+			('ZBKX',       self.ENABLE_ZBKX,       False, 'Zbkx crossbar permute'),
+			('ZKN',        self.ENABLE_ZKN,        False, 'Zkn AES+SHA (Zknd+Zkne+Zknh)'),
+			('ZFINX',      self.ENABLE_ZFINX,      False, 'Zfinx single-prec FP in x-regs'),
+			('TRAPCSR',    self.ENABLE_TRAPCSR,    True,  'KEPT -- ENABLE_DEBUG requires it (vesta.vhd), and the tile is debuggable'),
+			('UMODE',      self.ENABLE_UMODE,      False, 'U-mode: no tile code leaves M-mode'),
+			('PMP',        self.ENABLE_PMP,        False, 'PMP / Smpmp (needs UMODE, so it falls with it)'),
+		]
+		for _nm, _val, _keep, _cmt in _tileKnobs:
+			_tv = bool(_val) if _keep else (bool(_val) and not _tmin)
+			t.AddRow(['constant TILE_ENABLE_' + _nm, ': boolean := ' + str(_tv).lower() + ';', '-- ' + _cmt], prefixTabs=1)
+		# PMP_ENTRIES is a SIZE, not a switch: it is inert when ENABLE_PMP is false, so
+		# the tile class carries the chip's number rather than a second one to keep in
+		# step. It is per-class only so the tile generic map reads from one block.
+		t.AddRow(['constant TILE_PMP_ENTRIES', ': natural := ' + str(int(self.PMP_ENTRIES)) + ';', '-- PMP entry count, inert while TILE_ENABLE_PMP is false'], prefixTabs=1)
 		t.AddBlankLine()
 
 		# GPIO pin-number constants in the RTL's pnum_* spelling. AF-plane names

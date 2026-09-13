@@ -707,11 +707,12 @@ vhdl_source_set(
 # the M14 hw_clint_en defect, which this flow already reproduced once --
 # measured, byte-for-byte, when ENABLE_DEBUG defaulted false and the assembly
 # wired it true.  SH_AW = 16 is the penta shared-window width; ENABLE_DEBUG is
-# true; and harts 1-4 are the MINIMAL-ISA tiles, rv32iac, so M and B come off
-# (TILE_ENABLE_MUL / _DIV / _BITMANIP, MemoryMap.vhd:1322-1324).  A and C stay
-# on: the tiles run the shared-fabric LR/SC locking and C shrinks code at an
-# 8 KiB TCM.  Everything else keeps hart_tile.vhd's defaults, which is what a
-# bare `elaborate hart_tile` takes.
+# true; and harts 1-4 are the MINIMAL-ISA tiles, rv32iac, so M, B, every
+# Z-series extension, U-mode and PMP come off (the TILE_ENABLE_* set,
+# MemoryMap.vhd:1324-1348).  A, C and the trap CSRs stay on: the tiles run the
+# shared-fabric LR/SC locking, C shrinks code at an 8 KiB TCM, and ENABLE_DEBUG
+# requires ENABLE_TRAPCSR.  Everything else keeps hart_tile.vhd's defaults,
+# which is what a bare `elaborate hart_tile` takes.
 ghdl_synth_test(
     name = "hart_tile",
     size = "small",
