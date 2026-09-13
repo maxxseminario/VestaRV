@@ -1,0 +1,59 @@
+# VestaRV: the skeleton peripheral and the gate that keeps it working.
+# skel_smoke emits skel_regs_pkg.vhd from skel.rdl with the real emitter, then analyses
+# SKEL.vhd against it and runs SKEL_tb under GHDL, so a change to rdl_vhdl.py or to
+# periph_regs that the skeleton does not survive fails here rather than in the next new
+# peripheral. The skeleton is registered in no real table; skel_emit.py supplies the two
+# rows for one emission. Copy recipe: docs/new_chip.md.
+
+load("@rules_python//python:defs.bzl", "py_binary")
+load("//toolchains/ghdl:defs.bzl", "ghdl_test", "vhdl_source_set")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files([
+    "SKEL.vhd",
+    "SKEL_tb.vhd",
+    "skel.rdl",
+])
+
+py_binary(
+    name = "skel_emit",
+    srcs = ["skel_emit.py"],
+    data = ["//hdl:rdl_sources"],
+    main = "skel_emit.py",
+    deps = ["//platform/common/python:rdl_lib"],
+)
+
+genrule(
+    name = "skel_regs_pkg_gen",
+    srcs = ["skel.rdl"],
+    outs = ["skel_regs_pkg.vhd"],
+    cmd = "$(location :skel_emit) --rdl $(location skel.rdl) --out $@",
+    tools = [":skel_emit"],
+)
+
+# The shared closure the skeleton sits on, in analysis order. periph_tb_pkg carries the
+# bus BFM and the scoreboard SKEL_tb uses.
+vhdl_source_set(
+    name = "skel_base_rtl",
+    paths = [
+        "hdl/common/constants.vhd",
+        "hdl/common/periph_regs.vhd",
+        "hdl/common/tb/periph_tb_pkg.vhd",
+    ],
+    pool = ["//hdl:vhdl_sources"],
+)
+
+ghdl_test(
+    name = "skel_smoke",
+    size = "small",
+    srcs = [
+        ":skel_base_rtl",
+        ":skel_regs_pkg_gen",
+        "SKEL.vhd",
+        "SKEL_tb.vhd",
+    ],
+    entity = "SKEL_tb",
+    pass_pattern = "SKEL_TB PASS (1 expected negative-control failure)",
+    tags = ["ghdl"],
+)
