@@ -1,10 +1,10 @@
-"""Analysis order for the FPGA bring-up cut, config/fpga.json.
+"""Analysis order for the FPGA bring-up cut, config/fpga_default.json.
 
 The RTL these lists name is not the tracked hdl/common/MCU.vhd. MCU.vhd and
 MemoryMap.vhd are GENERATED per configuration and the tracked pair is the
 default-knob Castalia; the one-hart FPGA pair comes out of
-//platform/common:chip_artifacts_fpga. So the spine is spliced rather than
-appended to, exactly as //opensource_sim/mcu_hart and //opensource_sim/
+//platform/common:chip_artifacts_fpga_default. So the spine is spliced rather
+than appended to, exactly as //opensource_sim/asic_default and //opensource_sim/
 castalia_b do it: MemoryMap.vhd is the SECOND file analyzed (everything below it
 reads the package) and MCU.vhd is the LAST.
 
@@ -20,16 +20,16 @@ in that directory which stays: it is ordinary synthesizable RTL, SYSTEM.vhd
 instantiates it, and hdl/fpga/ does not replace it.
 
 WHAT IS DROPPED. hdl/common/periph/NPU.vhd, for the configuration and not for
-convenience: fpga.json sets peripherals.npu false, so the generated
+convenience: fpga_default.json sets peripherals.npu false, so the generated
 MemoryMap.vhd declares no MmrAddrNPU* constants and NPU.vhd does not ANALYZE
 against it. _FPGA_DROP carries it, alongside the DMA and TRNG sources, which
-fpga.json pins off the same way and which the shared spine does not carry
+fpga_default.json pins off the same way and which the shared spine does not carry
 today. That half of the set is TOLERANT of absence on purpose: the spine
 follows the tracked MCU.vhd, so a block arriving there later must not silently
 arrive in a design that pins it off.
 
 NOTHING IS ADDED. //opensource_sim/castalia_b has to splice in DMA.vhd and
-TRNG.vhd because its configuration turns those blocks on; fpga.json pins every
+TRNG.vhd because its configuration turns those blocks on; fpga_default.json pins every
 optional peripheral false, so its MCU.vhd instantiates a subset of the shared
 spine and never a superset.
 """
@@ -40,7 +40,7 @@ _MEMORY_MAP = "hdl/common/MemoryMap.vhd"
 _MCU = "hdl/common/MCU.vhd"
 _NPU = "hdl/common/periph/NPU.vhd"
 
-# Sources for blocks fpga.json pins false. _NPU is checked for presence below
+# Sources for blocks fpga_default.json pins false. _NPU is checked for presence below
 # because it is in the spine today and its drop is load bearing; the rest are
 # dropped only if they appear, since the spine tracks a generation that does
 # not carry them yet.
@@ -69,27 +69,27 @@ _FPGA_SUBS = {
 # MCU.vhd instantiates them by name and each consumer supplies its own model.
 # These are hdl/fpga/'s, so the arrays that elaborate here are the ones a
 # synthesis run would infer block RAM from.
-FPGA_MACROS = [
+FPGA_DEFAULT_MACROS = [
     "hdl/fpga/ARM_IP_ROM.vhd",
     "hdl/fpga/ARM_IP_RAM.vhd",
 ]
 
 def _split():
     if VESTA_MCU_RTL[1] != _MEMORY_MAP:
-        fail("opensource_sim/fpga/defs.bzl: VESTA_MCU_RTL[1] is %s, not %s. " %
+        fail("opensource_sim/fpga_default/defs.bzl: VESTA_MCU_RTL[1] is %s, not %s. " %
              (VESTA_MCU_RTL[1], _MEMORY_MAP) +
              "The generated memory-map package has to be spliced in at that " +
              "position; re-anchor this file.")
     if VESTA_MCU_RTL[-1] != _MCU:
-        fail("opensource_sim/fpga/defs.bzl: VESTA_MCU_RTL no longer ends at %s, " % _MCU +
+        fail("opensource_sim/fpga_default/defs.bzl: VESTA_MCU_RTL no longer ends at %s, " % _MCU +
              "so the generated MCU top can no longer simply replace the last " +
              "entry; re-anchor this file.")
     if _NPU not in VESTA_MCU_RTL:
-        fail("opensource_sim/fpga/defs.bzl: %s is no longer in VESTA_MCU_RTL, " % _NPU +
+        fail("opensource_sim/fpga_default/defs.bzl: %s is no longer in VESTA_MCU_RTL, " % _NPU +
              "so this list's reason for dropping it is stale. Delete the drop.")
     for sim in _FPGA_SUBS:
         if sim not in VESTA_MCU_RTL[2:-1]:
-            fail("opensource_sim/fpga/defs.bzl: %s is no longer in VESTA_MCU_RTL " % sim +
+            fail("opensource_sim/fpga_default/defs.bzl: %s is no longer in VESTA_MCU_RTL " % sim +
                  "between MemoryMap.vhd and MCU.vhd, so the hdl/fpga/ cell that " +
                  "replaces it would be analyzed on top of nothing; re-anchor this " +
                  "file against hdl/fpga/README.md.")
@@ -106,4 +106,4 @@ def _split():
         mid.append(f)
     return VESTA_MCU_RTL[:1], mid
 
-FPGA_HEAD, FPGA_MID = _split()
+FPGA_DEFAULT_HEAD, FPGA_DEFAULT_MID = _split()

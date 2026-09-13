@@ -1,7 +1,7 @@
-/* mcu_hart_boot_tb: boots the SINGLE-HART MCU (config/mcu_hart.json) out of the real mask-ROM image and grades the boot banner it prints on UART0.
-   It is rv4th_tb reduced to its first check, against an MCU whose entity has no a0_1..a0_N-1 ports because the chip has no tile harts.
-   BOOT (P1.7) is held low, which selects the ROM-resident Forth monitor, so the run needs no SPI flash image and nothing but the ROM is executed.
-   WHAT A PASS PROVES, which is the reason this bench exists rather than an elaboration: reset release, the boot fetch from the shared ROM through the one-master arbiter, the tile's adddec and TCM (the monitor's stack lives there), the SYSTEM block's clock tree, and UART0 -- on a chip built with numHarts = 1. */
+-- VestaRV: single-hart boot testbench (config/asic_default.json)
+-- Boots the MCU out of the real mask-ROM image and grades the boot banner it prints on UART0. It is rv4th_tb reduced to its first check, against an MCU whose entity has no a0_1..a0_N-1 ports because the chip has no tile harts.
+-- BOOT (P1.7) is held low, which selects the ROM-resident Forth monitor, so the run needs no SPI flash image and executes nothing but the ROM.
+-- A pass proves reset release, the boot fetch from the shared ROM through the one-master arbiter, the tile's adddec and TCM (the monitor's stack lives there), the SYSTEM block's clock tree and UART0, on a chip built with numHarts = 1.
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
@@ -12,10 +12,10 @@ use work.MemoryMap.all;
 use work.tb_defs.all;
 use work.TestBenchLibrary.all;
 
-entity mcu_hart_boot_tb is
-end mcu_hart_boot_tb;
+entity asic_default_boot_tb is
+end asic_default_boot_tb;
 
-architecture behavior of mcu_hart_boot_tb is
+architecture behavior of asic_default_boot_tb is
 
     -- Clock parameters
     constant clk_hfxt_delay : time := (0.5 sec) / 24000000;	-- 24 MHz
@@ -201,9 +201,9 @@ begin
 
         wait for 10 * clk_hfxt_period;
         if AllTestsPassed then
-            report "===== MCU_HART BOOT PASSED =====";
+            report "===== ASIC_DEFAULT BOOT PASSED =====";
         else
-            report "===== MCU_HART BOOT FAILED =====" severity error;
+            report "===== ASIC_DEFAULT BOOT FAILED =====" severity error;
         end if;
         wait;
     end process;

@@ -1,18 +1,18 @@
-# The FPGA BRING-UP CUT, config/fpga.json, elaborated against the synthesizable
-# stand-in cells in hdl/fpga/.
+# The FPGA BRING-UP CUT, config/fpga_default.json, elaborated against the
+# synthesizable stand-in cells in hdl/fpga/.
 #
 # ---------------------------------------------------------------------------
 # WHY THIS PACKAGE EXISTS
 # ---------------------------------------------------------------------------
-# //platform/common:fpga_generation_test sets the bar that the configuration
-# still generates and its JSON still parses. Nothing above that bar was checked
+# //platform/common:fpga_default_generation_test sets the bar that the
+# configuration still generates and its JSON still parses. Nothing above that bar was checked
 # by the build: hdl/fpga/README.md's elaboration recipe needs xrun, which this
 # build does not provision, so the four substitution cells had only ever been
 # proven by hand, once, before they were committed.
 #
-# :fpga_elaborate is that recipe under GHDL. It analyzes the generated one-hart
-# MCU.vhd and MemoryMap.vhd out of //platform/common:chip_artifacts_fpga with
-# hdl/fpga/ substituted for hdl/common/sim/, and runs it for 1 ns -- MCU.vhd's
+# :fpga_default_elaborate is that recipe under GHDL. It analyzes the generated
+# one-hart MCU.vhd and MemoryMap.vhd out of
+# //platform/common:chip_artifacts_fpga_default with hdl/fpga/ substituted for hdl/common/sim/, and runs it for 1 ns -- MCU.vhd's
 # `assert RomAddrBits = RomMacroAddrBits` and hart_tile.vhd's
 # `assert RamSize = 8192` are CONCURRENT assertions, so they need a simulation
 # and not an elaboration. A pass means the generated RTL binds every stand-in by
@@ -26,37 +26,37 @@
 load("//platform/common/bazel:chipgen.bzl", "chip_artifact")
 load("//toolchains/ghdl:defs.bzl", "ghdl_test", "vhdl_source_set")
 load("//opensource_sim/mcu:defs.bzl", "rom_image_pkg")
-load(":defs.bzl", "FPGA_HEAD", "FPGA_MACROS", "FPGA_MID")
+load(":defs.bzl", "FPGA_DEFAULT_HEAD", "FPGA_DEFAULT_MACROS", "FPGA_DEFAULT_MID")
 
 package(default_visibility = ["//visibility:public"])
 
 # The generated pair, as single-file handles on the FPGA chip artifacts.
 chip_artifact(
-    name = "fpga_mcu_vhd",
+    name = "fpga_default_mcu_vhd",
     rel_path = "out/hdl/MCU.vhd",
-    target = "//platform/common:chip_artifacts_fpga",
+    target = "//platform/common:chip_artifacts_fpga_default",
 )
 
 chip_artifact(
-    name = "fpga_memorymap_vhd",
+    name = "fpga_default_memorymap_vhd",
     rel_path = "out/hdl/MemoryMap.vhd",
-    target = "//platform/common:chip_artifacts_fpga",
+    target = "//platform/common:chip_artifacts_fpga_default",
 )
 
 # No image: the elaboration gate reads no memory contents. hdl/fpga/'s ROM
 # opens its InitFile generic and warns when it cannot, so an absent image is a
 # warning and an all-zero array, not a failure.
-rom_image_pkg(name = "fpga_rom_image_empty")
+rom_image_pkg(name = "fpga_default_rom_image_empty")
 
 vhdl_source_set(
-    name = "fpga_head_srcs",
-    paths = FPGA_HEAD,
+    name = "fpga_default_head_srcs",
+    paths = FPGA_DEFAULT_HEAD,
     pool = ["//hdl:vhdl_sources"],
 )
 
 vhdl_source_set(
-    name = "fpga_mid_srcs",
-    paths = FPGA_MID,
+    name = "fpga_default_mid_srcs",
+    paths = FPGA_DEFAULT_MID,
     pool = ["//hdl:vhdl_sources"],
 )
 
@@ -65,8 +65,8 @@ vhdl_source_set(
 # arrays; this one takes the arrays a bitstream would be built from, which is
 # half the point of the target.
 vhdl_source_set(
-    name = "fpga_macro_srcs",
-    paths = FPGA_MACROS,
+    name = "fpga_default_macro_srcs",
+    paths = FPGA_DEFAULT_MACROS,
     pool = ["//hdl:vhdl_sources"],
 )
 
@@ -75,10 +75,10 @@ vhdl_source_set(
 # precede hart_tile.vhd and MCU.vhd; and the GENERATED MemoryMap.vhd has to sit
 # where the tracked one sat, because every unit below it reads that package.
 _RTL = [
-    ":fpga_head_srcs",
-    ":fpga_memorymap_vhd",
-    ":fpga_mid_srcs",
-    ":fpga_mcu_vhd",
+    ":fpga_default_head_srcs",
+    ":fpga_default_memorymap_vhd",
+    ":fpga_default_mid_srcs",
+    ":fpga_default_mcu_vhd",
 ]
 
 _FLAGS = [
@@ -90,11 +90,11 @@ _FLAGS = [
 ]
 
 ghdl_test(
-    name = "fpga_elaborate",
+    name = "fpga_default_elaborate",
     size = "small",
     srcs = [
-        ":fpga_rom_image_empty",
-        ":fpga_macro_srcs",
+        ":fpga_default_rom_image_empty",
+        ":fpga_default_macro_srcs",
     ] + _RTL,
     entity = "MCU",
     flags = _FLAGS,

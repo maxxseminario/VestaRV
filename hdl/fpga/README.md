@@ -7,7 +7,8 @@ generated `MCU.vhd` binds them without a single edit to generated RTL.
 
 ## The bring-up cut at a glance
 
-The configuration is [`platform/common/config/fpga.json`](../../platform/common/config/fpga.json):
+The configuration is
+[`platform/common/config/fpga_default.json`](../../platform/common/config/fpga_default.json):
 the smallest VestaRV that still runs the boot ROM, cut down for an FPGA rather
 than for area.
 
@@ -21,8 +22,8 @@ than for area.
 | TCM | 8192 B for the one hart, one `sram1p8k_hvt_pg`. |
 | Shared RAM | 65536 B, four `sram1p16k_hvt_pg` (4096 x 32 each). |
 | Pin constraints | **None is tracked.** `config/PadRing.json` in the generated artifacts is the 44-pin QFN-44 signal list an `.xdc` or `.sdc` is written from; it names every pin, its alternate functions and its power domain. |
-| Generate | `tools/bin/bazel build //platform/common:chip_artifacts_fpga` |
-| Gates | `//platform/common:fpga_generation_test`, `//opensource_sim/fpga:fpga_elaborate` |
+| Generate | `tools/bin/bazel build //platform/common:chip_artifacts_fpga_default` |
+| Gates | `//platform/common:fpga_default_generation_test`, `//opensource_sim/fpga_default:fpga_default_elaborate` |
 
 The ROM and TCM depths are contracts, not suggestions: the generated `MCU.vhd`
 asserts `RomAddrBits = RomMacroAddrBits` and `hart_tile.vhd:839` asserts
@@ -45,7 +46,7 @@ For a synthesis or implementation run, take all of `hdl/common/`, plus all of
   six files in that directory are the ones this one supersedes.
 - **Leave out the peripheral sources your configuration disables.** A disabled
   block's RTL refers to `MemoryMap` constants that are only emitted when the block
-  is enabled, so compiling it fails outright. With `fpga.json` that means
+  is enabled, so compiling it fails outright. With `fpga_default.json` that means
   `common/periph/NPU.vhd`.
 
 One further split, and it runs the other way: `common/periph/TrngRoEnsemble.vhd`
@@ -102,17 +103,17 @@ external wiring for the SPI flash the boot sequence expects.
 
 ## Checking the set without a synthesis tool
 
-`tools/bin/bazel test //opensource_sim/fpga:fpga_elaborate` is the check, and it
-needs no FPGA tool and no license. It analyzes the generated one-hart `MCU.vhd`
-and `MemoryMap.vhd` out of `//platform/common:chip_artifacts_fpga` with this
-directory substituted for `hdl/common/sim/`, and runs the result for 1 ns. A
+`tools/bin/bazel test //opensource_sim/fpga_default:fpga_default_elaborate` is
+the check, and it needs no FPGA tool and no license. It analyzes the generated one-hart `MCU.vhd`
+and `MemoryMap.vhd` out of `//platform/common:chip_artifacts_fpga_default` with
+this directory substituted for `hdl/common/sim/`, and runs the result for 1 ns. A
 pass means every stand-in binds by name and the three memory depths above hold.
 It runs in about a second and is wired into
 [`.github/workflows/sim.yml`](../../.github/workflows/sim.yml).
 
-`//platform/common:fpga_generation_test` sits one layer below it and is what
-keeps `config/fpga.json` from rotting against a knob rename: the configuration
-still generates and its machine-readable outputs still parse. There is no
+`//platform/common:fpga_default_generation_test` sits one layer below it and is
+what keeps `config/fpga_default.json` from rotting against a knob rename: the
+configuration still generates and its machine-readable outputs still parse. There is no
 determinism gate for this configuration; `:generation_determinism_test` and
 `:castalia_b_generation_determinism_test` cover the default and all-on
 generations only.
@@ -122,7 +123,7 @@ these arrays. The equivalent check under a commercial elaborator, for when one
 is available:
 
 ```sh
-tools/bin/bazel build //platform/common:chip_artifacts_fpga
+tools/bin/bazel build //platform/common:chip_artifacts_fpga_default
 source cdspaths.sh
 xrun -64bit -V200X -licqueue -elaborate -top MCU -f <file list>
 ```

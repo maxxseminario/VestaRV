@@ -107,8 +107,8 @@ jobs:
       # also catches an all-on generation that emits an MCU.vhd which does not
       # elaborate. Same 1 ns run and the same reason as :mcu_elaborate above.
       #
-      # //opensource_sim/fpga:fpga_elaborate is :mcu_elaborate for
-      # config/fpga.json bound against hdl/fpga/ instead of hdl/common/sim/. It
+      # //opensource_sim/fpga_default:fpga_default_elaborate is :mcu_elaborate for
+      # config/fpga_default.json bound against hdl/fpga/ instead of hdl/common/sim/. It
       # is the only gate anywhere that analyzes the synthesizable stand-in cells
       # a bitstream is built from, and the only one that proves the FPGA
       # bring-up cut's generated MCU.vhd binds them by name.
@@ -137,7 +137,7 @@ jobs:
             //opensource_sim/pmp:pmp \
             //opensource_sim/mcu:mcu_elaborate \
             //opensource_sim/castalia_b:castalia_b_elaborate \
-            //opensource_sim/fpga:fpga_elaborate \
+            //opensource_sim/fpga_default:fpga_default_elaborate \
             //opensource_sim/tile_isa:tile_rv32ui \
             //opensource_sim/rv4th:rv4th_forth \
             --repository_cache=~/.cache/bazel-repo-cache \
