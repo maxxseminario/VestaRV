@@ -64,7 +64,7 @@
         "macro_blackbox.vhd",
         "system_blackbox.vhd"
       ],
-      "cells": 136109,
+      "cells": 136113,
       "flop_bits": 30225,
       "latch_bits": 192,
       "latch_modules": [
@@ -99,7 +99,7 @@
       "latch_modules": []
     },
     "QSPI": {
-      "cells": 1059,
+      "cells": 1063,
       "flop_bits": 355,
       "latch_bits": 2,
       "latch_modules": [

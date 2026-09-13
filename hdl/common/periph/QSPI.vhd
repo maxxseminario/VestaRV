@@ -184,7 +184,11 @@ begin
 
     busy <= '0' when state = ST_IDLE else '1';
 
-    sck_out <= sck;
+    -- SCK idles at the live CPOL while the block is reset or disabled: the flop
+    -- resets to a constant (a non-constant in an asynchronous reset branch is not
+    -- synthesizable) and the pad follows CPOL through this mux until the first
+    -- clk_baud edge in ST_IDLE loads it.
+    sck_out <= q_cpol when (resetn = '0' or q_en = '0') else sck;
     sck_dir <= '1'; -- SCK is always an output
     cs_dir  <= '1'; -- CS is always an output
     cs_out  <= '0' when state /= ST_IDLE else '1'; -- low only while a transaction is active
@@ -360,7 +364,7 @@ begin
         if resetn = '0' or q_en = '0' then
             state         <= ST_IDLE;
             edge_cnt      <= 0;
-            sck           <= q_cpol;
+            sck           <= '0';
             clr_qspi_launch <= '0';
         elsif rising_edge(clk_baud) then
             clr_qspi_launch <= '0';
