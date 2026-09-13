@@ -1,0 +1,79 @@
+# VestaRV: the hermetic CDC manifest gate.
+# The suite is //hdl/common/cdc and not //hdl/common for the reason
+# //hdl/common/synth:synth states: a BUILD file at hdl/common/ would carve the whole RTL
+# tree out of //hdl:vhdl_sources' glob. This package holds no VHDL, so the glob loses
+# nothing by stopping here. Counts are frozen in cdc_manifest.json.
+
+load("@rules_python//python:defs.bzl", "py_binary", "py_test")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files([
+    "cdc_manifest.py",
+    "cdc_manifest.json",
+    "cdc_waivers.tcl",
+])
+
+# The file list the scanner reads, one path per line. Same shape and same reason as
+# //tools/ci:vhdl_source_manifest: args built out of $(rootpaths ...) are
+# shell-tokenized, which quietly loses any path containing a space, and a 260-entry
+# list on a command line is unreadable in a failure message.
+genrule(
+    name = "cdc_source_manifest",
+    testonly = True,
+    srcs = ["//hdl:vhdl_sources"],
+    outs = ["cdc_source_manifest.txt"],
+    cmd = "for f in $(rootpaths //hdl:vhdl_sources); do echo $$f; done > $@",
+)
+
+# PROVES that no clock-domain crossing left the RTL unannounced: that every `sync`
+# instance the tree had is still there with the same generics and the same actuals, that
+# a clock no process used before arrives with a sync instance on it, and that every
+# instance is named u_sync_<signal>. It reads text, so it cannot see a hand-rolled chain
+# on the block's main clock; the structural check is the Genus census in
+# genus/common/tcl/cdc_census.tcl.
+#
+# A change that is intended is blessed by regenerating the manifest IN THE SAME COMMIT
+# as the RTL change:
+#
+#     tools/bin/bazel run //hdl/common/cdc:cdc_manifest_update
+py_test(
+    name = "cdc_manifest_test",
+    size = "small",
+    srcs = ["cdc_manifest.py"],
+    args = [
+        "--frozen",
+        "$(rootpath cdc_manifest.json)",
+        "--files-from",
+        "$(rootpath :cdc_source_manifest)",
+        "--waivers",
+        "$(rootpath cdc_waivers.tcl)",
+    ],
+    data = [
+        "cdc_manifest.json",
+        "cdc_waivers.tcl",
+        "//hdl:vhdl_sources",
+        ":cdc_source_manifest",
+    ],
+    main = "cdc_manifest.py",
+)
+
+# The blessing half of the pair. It reads the same manifest the test reads and writes
+# through BUILD_WORKSPACE_DIRECTORY, which only `bazel run` sets.
+py_binary(
+    name = "cdc_manifest_update",
+    testonly = True,
+    srcs = ["cdc_manifest.py"],
+    args = [
+        "--update",
+        "--frozen",
+        "hdl/common/cdc/cdc_manifest.json",
+        "--files-from",
+        "$(rootpath :cdc_source_manifest)",
+    ],
+    data = [
+        "//hdl:vhdl_sources",
+        ":cdc_source_manifest",
+    ],
+    main = "cdc_manifest.py",
+)

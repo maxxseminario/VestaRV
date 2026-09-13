@@ -476,7 +476,7 @@ begin
        Gray coding the encoding is not available. Field loss drives POWER_OFF from every state (the field_r2 = '0' arm of bfsm), POWER_OFF steps to ISO_IDLE the next rf_clk, and ISO_IDLE steps to ISO_READY on a REQA, so POWER_OFF, ISO_IDLE and ISO_READY are mutually adjacent. Three mutually adjacent codes form an odd cycle; a hypercube of any width is bipartite and has none, so no 4-bit (or wider) assignment gives every transition a one-bit change.
        So the WORD stays put and only a toggle crosses. The rf side loads state_cap and flips state_req; the clk side captures state_cap when the synchronized state_req flips and answers with state_ack; the rf side reloads only once that ack has come back. state_cap is therefore constant from before the capture edge until after it, whatever the clk to rf_clk ratio, and the only signal crossing unsynchronized is the single bit state_req.
        Cost of the handshake: a change that arrives while the previous one is still in flight waits, so SR.STATE can lag by one transition. It never shows an illegal word, and it converges as soon as the channel goes idle. With rf_clk stopped mid-handshake the field holds the previous LEGAL state until the carrier returns. */
-    u_sync_state_tgl : entity work.sync
+    u_sync_state_req : entity work.sync
         generic map (WIDTH => 1, DEPTH => 2)
         port map (clk => clk, areset => resetn, d(0) => state_req, q => state_req_q);
 

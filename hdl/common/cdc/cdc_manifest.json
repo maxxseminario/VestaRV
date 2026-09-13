@@ -1,0 +1,1539 @@
+{
+  "_comment": [
+    "hdl/common/cdc/cdc_manifest.json -- the FROZEN CDC manifest.",
+    "",
+    "One row per live VHDL file: the block's clocked-process clocks and every",
+    "`entity work.sync` instance with its generics and its clk/areset/d/q actuals.",
+    "//hdl/common/cdc:cdc_manifest_test fails when a sync instance disappears or",
+    "changes shape, when a clock appears that no process used before and no sync",
+    "instance carries it, or when an instance name does not read u_sync_<signal>.",
+    "",
+    "LIMITS. This gate reads text, not a netlist. It cannot see a hand-rolled",
+    "two-flop chain written on the block's main clock, it does not know which",
+    "clocks are asynchronous to each other, and a clock listed here with",
+    "sync=false is a domain the RTL crosses by some other means. The structural",
+    "check is the Genus census, genus/common/tcl/cdc_census.tcl.",
+    "",
+    "Regenerating this file is a DELIBERATE ACT.",
+    "Run  tools/bin/bazel run //hdl/common/cdc:cdc_manifest_update",
+    "and commit the result in the SAME commit as the RTL change it blesses."
+  ],
+  "files": {
+    "hdl/common/MCU.vhd": {
+      "clocks": {
+        "enmemperiph": {
+          "main": true,
+          "port": false,
+          "processes": 7,
+          "sync": false
+        },
+        "mclk": {
+          "main": false,
+          "port": false,
+          "processes": 6,
+          "sync": false
+        }
+      },
+      "main_clock": "enmemperiph",
+      "syncs": []
+    },
+    "hdl/common/adddec.vhd": {
+      "clocks": {
+        "clk": {
+          "main": true,
+          "port": true,
+          "processes": 3,
+          "sync": false
+        }
+      },
+      "main_clock": "clk",
+      "syncs": []
+    },
+    "hdl/common/afe_stub.vhd": {
+      "clocks": {
+        "clk": {
+          "main": true,
+          "port": true,
+          "processes": 1,
+          "sync": false
+        }
+      },
+      "main_clock": "clk",
+      "syncs": []
+    },
+    "hdl/common/clint.vhd": {
+      "clocks": {
+        "clk": {
+          "main": true,
+          "port": true,
+          "processes": 1,
+          "sync": false
+        }
+      },
+      "main_clock": "clk",
+      "syncs": []
+    },
+    "hdl/common/commune/ARM_IP_RAM.vhd": {
+      "clocks": {
+        "clk": {
+          "main": true,
+          "port": true,
+          "processes": 1,
+          "sync": false
+        }
+      },
+      "main_clock": "clk",
+      "syncs": []
+    },
+    "hdl/common/commune/ARM_IP_ROM.vhd": {
+      "clocks": {
+        "clk": {
+          "main": true,
+          "port": true,
+          "processes": 1,
+          "sync": false
+        }
+      },
+      "main_clock": "clk",
+      "syncs": []
+    },
+    "hdl/common/commune/ClkDivPower2.vhd": {
+      "clocks": {
+        "clk": {
+          "main": true,
+          "port": false,
+          "processes": 1,
+          "sync": false
+        }
+      },
+      "main_clock": "clk",
+      "syncs": []
+    },
+    "hdl/common/commune/FPMac.vhd": {
+      "clocks": {
+        "clk": {
+          "main": true,
+          "port": true,
+          "processes": 1,
+          "sync": false
+        }
+      },
+      "main_clock": "clk",
+      "syncs": []
+    },
+    "hdl/common/commune/Synchronizer.vhd": {
+      "clocks": {
+        "clk": {
+          "main": true,
+          "port": true,
+          "processes": 1,
+          "sync": false
+        }
+      },
+      "main_clock": "clk",
+      "syncs": []
+    },
+    "hdl/common/debug_module.vhd": {
+      "clocks": {
+        "clk": {
+          "main": true,
+          "port": true,
+          "processes": 2,
+          "sync": false
+        }
+      },
+      "main_clock": "clk",
+      "syncs": []
+    },
+    "hdl/common/hart_tile.vhd": {
+      "clocks": {
+        "clk": {
+          "main": true,
+          "port": true,
+          "processes": 8,
+          "sync": false
+        },
+        "clk_cpu": {
+          "main": false,
+          "port": false,
+          "processes": 2,
+          "sync": false
+        }
+      },
+      "main_clock": "clk",
+      "syncs": []
+    },
+    "hdl/common/irq_router.vhd": {
+      "clocks": {
+        "clk": {
+          "main": true,
+          "port": true,
+          "processes": 2,
+          "sync": false
+        }
+      },
+      "main_clock": "clk",
+      "syncs": []
+    },
+    "hdl/common/jtag_dtm.vhd": {
+      "clocks": {
+        "clk": {
+          "main": false,
+          "port": true,
+          "processes": 1,
+          "sync": true
+        },
+        "tck": {
+          "main": true,
+          "port": true,
+          "processes": 2,
+          "sync": true
+        }
+      },
+      "main_clock": "tck",
+      "syncs": [
+        {
+          "areset": "resetn",
+          "clk": "clk",
+          "d": [
+            "req_sync_d"
+          ],
+          "depth": "2",
+          "line": 326,
+          "name": "u_sync_req_tgl",
+          "q": [
+            "req_sync_q"
+          ],
+          "rst_val": "",
+          "width": "1"
+        },
+        {
+          "areset": "trstn",
+          "clk": "tck",
+          "d": [
+            "rsp_sync_d"
+          ],
+          "depth": "2",
+          "line": 319,
+          "name": "u_sync_rsp_tgl",
+          "q": [
+            "rsp_sync_q"
+          ],
+          "rst_val": "",
+          "width": "1"
+        },
+        {
+          "areset": "resetn",
+          "clk": "clk",
+          "d": [
+            "trstn_sync_d"
+          ],
+          "depth": "2",
+          "line": 332,
+          "name": "u_sync_trstn",
+          "q": [
+            "trstn_sync_q"
+          ],
+          "rst_val": "",
+          "width": "1"
+        }
+      ]
+    },
+    "hdl/common/mp_arbiter.vhd": {
+      "clocks": {
+        "clk": {
+          "main": true,
+          "port": true,
+          "processes": 1,
+          "sync": false
+        }
+      },
+      "main_clock": "clk",
+      "syncs": []
+    },
+    "hdl/common/periph/DMA.vhd": {
+      "clocks": {
+        "clk": {
+          "main": true,
+          "port": true,
+          "processes": 2,
+          "sync": true
+        },
+        "clkmem": {
+          "main": false,
+          "port": true,
+          "processes": 1,
+          "sync": true
+        }
+      },
+      "main_clock": "clk",
+      "syncs": [
+        {
+          "areset": "resetn",
+          "clk": "clk",
+          "d": [
+            "ab_slv"
+          ],
+          "depth": "2",
+          "line": 427,
+          "name": "u_sync_abort_tgl",
+          "q": [
+            "ab_sync_slv"
+          ],
+          "rst_val": "",
+          "width": "4"
+        },
+        {
+          "areset": "resetn",
+          "clk": "ClkMem",
+          "d": [
+            "busy_slv"
+          ],
+          "depth": "2",
+          "line": 406,
+          "name": "u_sync_busy",
+          "q": [
+            "busy_sync_slv"
+          ],
+          "rst_val": "",
+          "width": "4"
+        },
+        {
+          "areset": "resetn",
+          "clk": "clk",
+          "d": [
+            "cd_slv"
+          ],
+          "depth": "2",
+          "line": 433,
+          "name": "u_sync_clr_done_tgl",
+          "q": [
+            "cd_sync_slv"
+          ],
+          "rst_val": "",
+          "width": "4"
+        },
+        {
+          "areset": "resetn",
+          "clk": "clk",
+          "d": [
+            "ce_slv"
+          ],
+          "depth": "2",
+          "line": 439,
+          "name": "u_sync_clr_err_tgl",
+          "q": [
+            "ce_sync_slv"
+          ],
+          "rst_val": "",
+          "width": "4"
+        },
+        {
+          "areset": "resetn",
+          "clk": "clk",
+          "d": [
+            "crc_wr_tgl"
+          ],
+          "depth": "2",
+          "line": 444,
+          "name": "u_sync_crc_wr_tgl",
+          "q": [
+            "crcw_c2"
+          ],
+          "rst_val": "",
+          "width": "1"
+        },
+        {
+          "areset": "resetn",
+          "clk": "clk",
+          "d": [
+            "go_slv"
+          ],
+          "depth": "2",
+          "line": 421,
+          "name": "u_sync_go_tgl",
+          "q": [
+            "go_sync_slv"
+          ],
+          "rst_val": "",
+          "width": "4"
+        },
+        {
+          "areset": "resetn",
+          "clk": "clk",
+          "d": [
+            "trig_uart0_rc",
+            "trig_qspi0_rxf",
+            "trig_nfc0_rxf"
+          ],
+          "depth": "2",
+          "line": 454,
+          "name": "u_sync_trig",
+          "q": [
+            "tu2",
+            "tq2",
+            "tn2"
+          ],
+          "rst_val": "",
+          "width": "3"
+        }
+      ]
+    },
+    "hdl/common/periph/EVFAB.vhd": {
+      "clocks": {
+        "clk": {
+          "main": true,
+          "port": true,
+          "processes": 4,
+          "sync": true
+        }
+      },
+      "main_clock": "clk",
+      "syncs": [
+        {
+          "areset": "resetn",
+          "clk": "clk",
+          "d": [
+            "bus_wr_lvl"
+          ],
+          "depth": "2",
+          "line": 327,
+          "name": "u_sync_bus_wr_lvl",
+          "q": [
+            "wr_s2"
+          ],
+          "rst_val": "",
+          "width": "1"
+        },
+        {
+          "areset": "resetn",
+          "clk": "clk",
+          "d": [
+            "ev_in"
+          ],
+          "depth": "2",
+          "line": 359,
+          "name": "u_sync_ev_in",
+          "q": [
+            "ev_s2"
+          ],
+          "rst_val": "",
+          "width": "N_EV"
+        },
+        {
+          "areset": "resetn",
+          "clk": "clk",
+          "d": [
+            "gpio0_evin"
+          ],
+          "depth": "2",
+          "line": 364,
+          "name": "u_sync_gpio0_evin",
+          "q": [
+            "gp_s2"
+          ],
+          "rst_val": "",
+          "width": "8"
+        }
+      ]
+    },
+    "hdl/common/periph/GPIO.vhd": {
+      "clocks": {
+        "en": {
+          "main": true,
+          "port": true,
+          "processes": 1,
+          "sync": false
+        }
+      },
+      "main_clock": "en",
+      "syncs": []
+    },
+    "hdl/common/periph/I2C.vhd": {
+      "clocks": {
+        "clkmaster": {
+          "main": false,
+          "port": false,
+          "processes": 1,
+          "sync": false
+        },
+        "clkmem": {
+          "main": false,
+          "port": true,
+          "processes": 1,
+          "sync": false
+        },
+        "enmemperiph": {
+          "main": false,
+          "port": true,
+          "processes": 2,
+          "sync": false
+        },
+        "scl_in": {
+          "main": true,
+          "port": true,
+          "processes": 3,
+          "sync": false
+        },
+        "sda_in": {
+          "main": false,
+          "port": true,
+          "processes": 2,
+          "sync": false
+        }
+      },
+      "main_clock": "scl_in",
+      "syncs": []
+    },
+    "hdl/common/periph/I2CTarget.vhd": {
+      "clocks": {
+        "clk": {
+          "main": true,
+          "port": true,
+          "processes": 2,
+          "sync": true
+        },
+        "clkmem": {
+          "main": false,
+          "port": true,
+          "processes": 1,
+          "sync": false
+        }
+      },
+      "main_clock": "clk",
+      "syncs": [
+        {
+          "areset": "resetn",
+          "clk": "clk",
+          "d": [
+            "clr_tgl_d"
+          ],
+          "depth": "2",
+          "line": 303,
+          "name": "u_sync_clr_tgl",
+          "q": [
+            "clr_tgl_q"
+          ],
+          "rst_val": "",
+          "width": "8"
+        },
+        {
+          "areset": "resetn",
+          "clk": "clk",
+          "d": [
+            "pad_d"
+          ],
+          "depth": "2",
+          "line": 289,
+          "name": "u_sync_sda_scl",
+          "q": [
+            "pad_q"
+          ],
+          "rst_val": "\"11\"",
+          "width": "2"
+        },
+        {
+          "areset": "resetn",
+          "clk": "clk",
+          "d": [
+            "tx_load_tgl"
+          ],
+          "depth": "2",
+          "line": 296,
+          "name": "u_sync_tx_load_tgl",
+          "q": [
+            "txl_c2"
+          ],
+          "rst_val": "",
+          "width": "1"
+        }
+      ]
+    },
+    "hdl/common/periph/I3C.vhd": {
+      "clocks": {
+        "clk": {
+          "main": true,
+          "port": true,
+          "processes": 2,
+          "sync": false
+        },
+        "clk_baud": {
+          "main": false,
+          "port": false,
+          "processes": 1,
+          "sync": false
+        },
+        "clk_baud_src": {
+          "main": false,
+          "port": false,
+          "processes": 1,
+          "sync": false
+        },
+        "clkmem": {
+          "main": false,
+          "port": true,
+          "processes": 1,
+          "sync": false
+        },
+        "enmemperiph": {
+          "main": false,
+          "port": true,
+          "processes": 1,
+          "sync": false
+        },
+        "sda_in": {
+          "main": false,
+          "port": true,
+          "processes": 2,
+          "sync": false
+        }
+      },
+      "main_clock": "clk",
+      "syncs": []
+    },
+    "hdl/common/periph/NFC.vhd": {
+      "clocks": {
+        "clk": {
+          "main": false,
+          "port": true,
+          "processes": 2,
+          "sync": true
+        },
+        "clkmem": {
+          "main": false,
+          "port": true,
+          "processes": 1,
+          "sync": false
+        },
+        "enmemperiph": {
+          "main": false,
+          "port": true,
+          "processes": 1,
+          "sync": false
+        },
+        "rf_clk": {
+          "main": true,
+          "port": true,
+          "processes": 5,
+          "sync": true
+        }
+      },
+      "main_clock": "rf_clk",
+      "syncs": [
+        {
+          "areset": "resetn",
+          "clk": "clk",
+          "d": [
+            "field_detect"
+          ],
+          "depth": "2",
+          "line": 407,
+          "name": "u_sync_field_detect",
+          "q": [
+            "field_s2"
+          ],
+          "rst_val": "",
+          "width": "1"
+        },
+        {
+          "areset": "resetn",
+          "clk": "clk",
+          "d": [
+            "evt_lvl_d"
+          ],
+          "depth": "2",
+          "line": 413,
+          "name": "u_sync_rf_evt_lvl",
+          "q": [
+            "evt_lvl_q"
+          ],
+          "rst_val": "",
+          "width": "4"
+        },
+        {
+          "areset": "rx_rstn",
+          "clk": "rf_clk",
+          "d": [
+            "rf_rx"
+          ],
+          "depth": "2",
+          "line": 543,
+          "name": "u_sync_rf_rx",
+          "q": [
+            "rx_s2"
+          ],
+          "rst_val": "\"1\"",
+          "width": "1"
+        },
+        {
+          "areset": "resetn",
+          "clk": "clk",
+          "d": [
+            "stat_lvl_d"
+          ],
+          "depth": "2",
+          "line": 424,
+          "name": "u_sync_rf_status",
+          "q": [
+            "stat_lvl_q"
+          ],
+          "rst_val": "",
+          "width": "2"
+        },
+        {
+          "areset": "resetn",
+          "clk": "rf_clk",
+          "d": [
+            "state_ack"
+          ],
+          "depth": "2",
+          "line": 483,
+          "name": "u_sync_state_ack",
+          "q": [
+            "state_ack_q"
+          ],
+          "rst_val": "",
+          "width": "1"
+        },
+        {
+          "areset": "resetn",
+          "clk": "clk",
+          "d": [
+            "state_req"
+          ],
+          "depth": "2",
+          "line": 479,
+          "name": "u_sync_state_req",
+          "q": [
+            "state_req_q"
+          ],
+          "rst_val": "",
+          "width": "1"
+        }
+      ]
+    },
+    "hdl/common/periph/NPU.vhd": {
+      "clocks": {
+        "clk": {
+          "main": true,
+          "port": true,
+          "processes": 2,
+          "sync": false
+        },
+        "npuclk": {
+          "main": false,
+          "port": false,
+          "processes": 2,
+          "sync": false
+        }
+      },
+      "main_clock": "clk",
+      "syncs": []
+    },
+    "hdl/common/periph/OneWire.vhd": {
+      "clocks": {
+        "clk": {
+          "main": true,
+          "port": true,
+          "processes": 3,
+          "sync": true
+        },
+        "clkmem": {
+          "main": false,
+          "port": true,
+          "processes": 1,
+          "sync": true
+        }
+      },
+      "main_clock": "clk",
+      "syncs": [
+        {
+          "areset": "resetn",
+          "clk": "ClkMem",
+          "d": [
+            "busy"
+          ],
+          "depth": "2",
+          "line": 262,
+          "name": "u_sync_busy",
+          "q": [
+            "busy_c2"
+          ],
+          "rst_val": "",
+          "width": "1"
+        },
+        {
+          "areset": "resetn",
+          "clk": "clk",
+          "d": [
+            "OW_DQ_IN"
+          ],
+          "depth": "2",
+          "line": 280,
+          "name": "u_sync_ow_dq_in",
+          "q": [
+            "dq_s2"
+          ],
+          "rst_val": "",
+          "width": "1"
+        },
+        {
+          "areset": "resetn",
+          "clk": "clk",
+          "d": [
+            "req_tgl_d"
+          ],
+          "depth": "2",
+          "line": 271,
+          "name": "u_sync_req_tgl",
+          "q": [
+            "req_tgl_q"
+          ],
+          "rst_val": "",
+          "width": "4"
+        }
+      ]
+    },
+    "hdl/common/periph/PWM.vhd": {
+      "clocks": {
+        "clk": {
+          "main": true,
+          "port": true,
+          "processes": 4,
+          "sync": false
+        },
+        "clkmem": {
+          "main": false,
+          "port": true,
+          "processes": 1,
+          "sync": false
+        }
+      },
+      "main_clock": "clk",
+      "syncs": []
+    },
+    "hdl/common/periph/QSPI.vhd": {
+      "clocks": {
+        "clk_baud": {
+          "main": false,
+          "port": false,
+          "processes": 1,
+          "sync": false
+        },
+        "clk_baud_src": {
+          "main": false,
+          "port": false,
+          "processes": 1,
+          "sync": false
+        },
+        "clkmem": {
+          "main": true,
+          "port": true,
+          "processes": 1,
+          "sync": false
+        },
+        "enmemperiph": {
+          "main": false,
+          "port": true,
+          "processes": 1,
+          "sync": false
+        }
+      },
+      "main_clock": "clkmem",
+      "syncs": []
+    },
+    "hdl/common/periph/RTC.vhd": {
+      "clocks": {
+        "clk": {
+          "main": false,
+          "port": true,
+          "processes": 1,
+          "sync": true
+        },
+        "clkmem": {
+          "main": false,
+          "port": true,
+          "processes": 1,
+          "sync": false
+        },
+        "lfxt_in": {
+          "main": true,
+          "port": true,
+          "processes": 4,
+          "sync": true
+        }
+      },
+      "main_clock": "lfxt_in",
+      "syncs": [
+        {
+          "areset": "resetn",
+          "clk": "clk",
+          "d": [
+            "cap_sync_d"
+          ],
+          "depth": "2",
+          "line": 228,
+          "name": "u_sync_cap_tgl",
+          "q": [
+            "cap_sync_q"
+          ],
+          "rst_val": "",
+          "width": "1"
+        },
+        {
+          "areset": "rtc_lfxt_rstn",
+          "clk": "lfxt_in",
+          "d": [
+            "en_sync_d"
+          ],
+          "depth": "2",
+          "line": 304,
+          "name": "u_sync_en_cr",
+          "q": [
+            "en_sync_q"
+          ],
+          "rst_val": "",
+          "width": "3"
+        },
+        {
+          "areset": "resetn",
+          "clk": "clk",
+          "d": [
+            "evt_sync_d"
+          ],
+          "depth": "2",
+          "line": 242,
+          "name": "u_sync_evt_tgl",
+          "q": [
+            "evt_sync_q"
+          ],
+          "rst_val": "",
+          "width": "4"
+        },
+        {
+          "areset": "resetn",
+          "clk": "lfxt_in",
+          "d": [
+            "rst_sync_d"
+          ],
+          "depth": "2",
+          "line": 295,
+          "name": "u_sync_rtc_lfxt_rstn",
+          "q": [
+            "rst_sync_q"
+          ],
+          "rst_val": "",
+          "width": "1"
+        },
+        {
+          "areset": "resetn",
+          "clk": "clk",
+          "d": [
+            "wrack_sync_d"
+          ],
+          "depth": "2",
+          "line": 235,
+          "name": "u_sync_wr_ack_tgl",
+          "q": [
+            "wrack_sync_q"
+          ],
+          "rst_val": "",
+          "width": "1"
+        },
+        {
+          "areset": "rtc_lfxt_rstn",
+          "clk": "lfxt_in",
+          "d": [
+            "wrreq_sync_d"
+          ],
+          "depth": "2",
+          "line": 315,
+          "name": "u_sync_wr_req_tgl",
+          "q": [
+            "wrreq_sync_q"
+          ],
+          "rst_val": "",
+          "width": "1"
+        }
+      ]
+    },
+    "hdl/common/periph/SPI.vhd": {
+      "clocks": {
+        "clk": {
+          "main": false,
+          "port": true,
+          "processes": 1,
+          "sync": false
+        },
+        "clk_baud": {
+          "main": false,
+          "port": false,
+          "processes": 1,
+          "sync": false
+        },
+        "clk_baud_src": {
+          "main": false,
+          "port": false,
+          "processes": 1,
+          "sync": false
+        },
+        "clk_mem": {
+          "main": false,
+          "port": true,
+          "processes": 1,
+          "sync": false
+        },
+        "clk_mem_flash": {
+          "main": false,
+          "port": true,
+          "processes": 1,
+          "sync": false
+        },
+        "clkflash": {
+          "main": false,
+          "port": false,
+          "processes": 1,
+          "sync": false
+        },
+        "en_mem": {
+          "main": false,
+          "port": true,
+          "processes": 1,
+          "sync": false
+        },
+        "mclk": {
+          "main": false,
+          "port": true,
+          "processes": 1,
+          "sync": true
+        },
+        "sck_slave": {
+          "main": true,
+          "port": false,
+          "processes": 2,
+          "sync": false
+        }
+      },
+      "main_clock": "sck_slave",
+      "syncs": [
+        {
+          "areset": "resetn",
+          "clk": "mclk",
+          "d": [
+            "cfa_sync_d"
+          ],
+          "depth": "2",
+          "line": 594,
+          "name": "u_sync_ClearFlashActive_smclk",
+          "q": [
+            "cfa_sync_q"
+          ],
+          "rst_val": "",
+          "width": "1"
+        }
+      ]
+    },
+    "hdl/common/periph/SYSTEM.vhd": {
+      "clocks": {
+        "clk_mem": {
+          "main": false,
+          "port": true,
+          "processes": 1,
+          "sync": false
+        },
+        "clk_unlock": {
+          "main": false,
+          "port": false,
+          "processes": 1,
+          "sync": false
+        },
+        "clk_wdt": {
+          "main": true,
+          "port": false,
+          "processes": 2,
+          "sync": false
+        },
+        "mclk": {
+          "main": false,
+          "port": false,
+          "processes": 2,
+          "sync": false
+        },
+        "mclk_undiv": {
+          "main": false,
+          "port": false,
+          "processes": 1,
+          "sync": false
+        },
+        "resetn_wdt": {
+          "main": false,
+          "port": false,
+          "processes": 1,
+          "sync": false
+        },
+        "smclk_undiv": {
+          "main": false,
+          "port": false,
+          "processes": 1,
+          "sync": false
+        }
+      },
+      "main_clock": "clk_wdt",
+      "syncs": []
+    },
+    "hdl/common/periph/TIMER.vhd": {
+      "clocks": {
+        "capture0_clock": {
+          "main": false,
+          "port": false,
+          "processes": 1,
+          "sync": false
+        },
+        "capture1_clock": {
+          "main": false,
+          "port": false,
+          "processes": 1,
+          "sync": false
+        },
+        "clk_mem": {
+          "main": false,
+          "port": true,
+          "processes": 1,
+          "sync": true
+        },
+        "divider_input": {
+          "main": false,
+          "port": false,
+          "processes": 1,
+          "sync": false
+        },
+        "en_mem": {
+          "main": false,
+          "port": true,
+          "processes": 1,
+          "sync": false
+        },
+        "timer_clock": {
+          "main": true,
+          "port": false,
+          "processes": 6,
+          "sync": false
+        }
+      },
+      "main_clock": "timer_clock",
+      "syncs": [
+        {
+          "areset": "resetn",
+          "clk": "clk_mem",
+          "d": [
+            "timer_gray"
+          ],
+          "depth": "2",
+          "line": 341,
+          "name": "u_sync_timer_gray",
+          "q": [
+            "timer_gray_s2"
+          ],
+          "rst_val": "",
+          "width": "32"
+        }
+      ]
+    },
+    "hdl/common/periph/TRNG.vhd": {
+      "clocks": {
+        "clk": {
+          "main": true,
+          "port": true,
+          "processes": 4,
+          "sync": true
+        },
+        "clkmem": {
+          "main": false,
+          "port": true,
+          "processes": 1,
+          "sync": false
+        }
+      },
+      "main_clock": "clk",
+      "syncs": [
+        {
+          "areset": "resetn",
+          "clk": "clk",
+          "d": [
+            "req_tgl_d"
+          ],
+          "depth": "2",
+          "line": 262,
+          "name": "u_sync_req_tgl",
+          "q": [
+            "req_tgl_q"
+          ],
+          "rst_val": "",
+          "width": "2"
+        },
+        {
+          "areset": "resetn",
+          "clk": "clk",
+          "d": [
+            "ro_raw"
+          ],
+          "depth": "2",
+          "line": 256,
+          "name": "u_sync_ro_raw",
+          "q": [
+            "ro_s2"
+          ],
+          "rst_val": "",
+          "width": "1"
+        }
+      ]
+    },
+    "hdl/common/periph/TrngRoEnsemble_sim.vhd": {
+      "clocks": {
+        "sclk": {
+          "main": true,
+          "port": true,
+          "processes": 1,
+          "sync": false
+        }
+      },
+      "main_clock": "sclk",
+      "syncs": []
+    },
+    "hdl/common/periph/UART.vhd": {
+      "clocks": {
+        "baud_clk_src": {
+          "main": false,
+          "port": false,
+          "processes": 1,
+          "sync": false
+        },
+        "clk": {
+          "main": false,
+          "port": true,
+          "processes": 1,
+          "sync": false
+        },
+        "clk_baud": {
+          "main": false,
+          "port": false,
+          "processes": 2,
+          "sync": false
+        },
+        "clk_mem": {
+          "main": true,
+          "port": true,
+          "processes": 2,
+          "sync": true
+        },
+        "clk_tx": {
+          "main": false,
+          "port": false,
+          "processes": 1,
+          "sync": true
+        },
+        "en_mem": {
+          "main": false,
+          "port": true,
+          "processes": 1,
+          "sync": false
+        }
+      },
+      "main_clock": "clk_mem",
+      "syncs": [
+        {
+          "areset": "resetn",
+          "clk": "clk_mem",
+          "d": [
+            "busy_sync_d"
+          ],
+          "depth": "2",
+          "line": 456,
+          "name": "u_sync_busy",
+          "q": [
+            "busy_sync_q"
+          ],
+          "rst_val": "",
+          "width": "2"
+        },
+        {
+          "areset": "resetn",
+          "clk": "clk_mem",
+          "d": [
+            "evt_sync_d"
+          ],
+          "depth": "2",
+          "line": 447,
+          "name": "u_sync_evt_tgl",
+          "q": [
+            "evt_sync_q"
+          ],
+          "rst_val": "",
+          "width": "3"
+        },
+        {
+          "areset": "tx_sync_rstn",
+          "clk": "clk_tx",
+          "d": [
+            "starttx_sync_d"
+          ],
+          "depth": "2",
+          "line": 472,
+          "name": "u_sync_start_tx",
+          "q": [
+            "starttx_sync_q"
+          ],
+          "rst_val": "",
+          "width": "1"
+        },
+        {
+          "areset": "resetn",
+          "clk": "clk_mem",
+          "d": [
+            "ack_sync_d"
+          ],
+          "depth": "2",
+          "line": 464,
+          "name": "u_sync_tx_start_ack_tgl",
+          "q": [
+            "ack_sync_q"
+          ],
+          "rst_val": "",
+          "width": "1"
+        }
+      ]
+    },
+    "hdl/common/periph_regs.vhd": {
+      "clocks": {
+        "clkmem": {
+          "main": true,
+          "port": true,
+          "processes": 4,
+          "sync": false
+        }
+      },
+      "main_clock": "clkmem",
+      "syncs": []
+    },
+    "hdl/common/pwr_ctrl.vhd": {
+      "clocks": {
+        "clk": {
+          "main": true,
+          "port": true,
+          "processes": 1,
+          "sync": true
+        }
+      },
+      "main_clock": "clk",
+      "syncs": [
+        {
+          "areset": "resetn",
+          "clk": "clk",
+          "d": [
+            "pad_sync_d"
+          ],
+          "depth": "2",
+          "line": 246,
+          "name": "u_sync_pads",
+          "q": [
+            "pad_sync_q"
+          ],
+          "rst_val": "PAD_RST",
+          "width": "3"
+        }
+      ]
+    },
+    "hdl/common/resv_unit.vhd": {
+      "clocks": {
+        "clk": {
+          "main": true,
+          "port": true,
+          "processes": 1,
+          "sync": false
+        }
+      },
+      "main_clock": "clk",
+      "syncs": []
+    },
+    "hdl/common/sync.vhd": {
+      "clocks": {
+        "clk": {
+          "main": true,
+          "port": true,
+          "processes": 1,
+          "sync": false
+        }
+      },
+      "main_clock": "clk",
+      "syncs": []
+    },
+    "hdl/common/vesta/alu.vhd": {
+      "clocks": {
+        "clk": {
+          "main": true,
+          "port": true,
+          "processes": 1,
+          "sync": false
+        }
+      },
+      "main_clock": "clk",
+      "syncs": []
+    },
+    "hdl/common/vesta/csr_unit.vhd": {
+      "clocks": {
+        "clk": {
+          "main": true,
+          "port": true,
+          "processes": 1,
+          "sync": false
+        }
+      },
+      "main_clock": "clk",
+      "syncs": []
+    },
+    "hdl/common/vesta/datapath.vhd": {
+      "clocks": {
+        "clk": {
+          "main": true,
+          "port": true,
+          "processes": 2,
+          "sync": false
+        }
+      },
+      "main_clock": "clk",
+      "syncs": []
+    },
+    "hdl/common/vesta/div.vhd": {
+      "clocks": {
+        "clk": {
+          "main": true,
+          "port": true,
+          "processes": 1,
+          "sync": false
+        }
+      },
+      "main_clock": "clk",
+      "syncs": []
+    },
+    "hdl/common/vesta/fpu.vhd": {
+      "clocks": {
+        "clk": {
+          "main": true,
+          "port": true,
+          "processes": 1,
+          "sync": false
+        }
+      },
+      "main_clock": "clk",
+      "syncs": []
+    },
+    "hdl/common/vesta/irq_handler.vhd": {
+      "clocks": {
+        "clk": {
+          "main": true,
+          "port": true,
+          "processes": 1,
+          "sync": false
+        }
+      },
+      "main_clock": "clk",
+      "syncs": []
+    },
+    "hdl/common/vesta/loadext.vhd": {
+      "clocks": {
+        "clk": {
+          "main": true,
+          "port": true,
+          "processes": 1,
+          "sync": false
+        }
+      },
+      "main_clock": "clk",
+      "syncs": []
+    },
+    "hdl/common/vesta/pulse_extender.vhd": {
+      "clocks": {
+        "clk": {
+          "main": true,
+          "port": true,
+          "processes": 1,
+          "sync": false
+        }
+      },
+      "main_clock": "clk",
+      "syncs": []
+    },
+    "hdl/common/vesta/regfile.vhd": {
+      "clocks": {
+        "clk": {
+          "main": true,
+          "port": true,
+          "processes": 1,
+          "sync": false
+        }
+      },
+      "main_clock": "clk",
+      "syncs": []
+    },
+    "hdl/common/vesta/regfile_firq.vhd": {
+      "clocks": {
+        "clk": {
+          "main": true,
+          "port": true,
+          "processes": 1,
+          "sync": false
+        },
+        "irq_save": {
+          "main": false,
+          "port": true,
+          "processes": 1,
+          "sync": false
+        }
+      },
+      "main_clock": "clk",
+      "syncs": []
+    },
+    "hdl/common/vesta/regfile_sbirq.vhd": {
+      "clocks": {
+        "clk": {
+          "main": true,
+          "port": true,
+          "processes": 1,
+          "sync": false
+        }
+      },
+      "main_clock": "clk",
+      "syncs": []
+    },
+    "hdl/common/vesta/vesta.vhd": {
+      "clocks": {
+        "clk": {
+          "main": false,
+          "port": true,
+          "processes": 5,
+          "sync": false
+        },
+        "clk_cpu": {
+          "main": true,
+          "port": true,
+          "processes": 17,
+          "sync": false
+        }
+      },
+      "main_clock": "clk_cpu",
+      "syncs": []
+    },
+    "hdl/common/vesta/vesta_tracer.vhd": {
+      "clocks": {
+        "clk_cpu": {
+          "main": true,
+          "port": true,
+          "processes": 1,
+          "sync": false
+        }
+      },
+      "main_clock": "clk_cpu",
+      "syncs": []
+    }
+  }
+}
