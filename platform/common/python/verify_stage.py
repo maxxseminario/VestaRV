@@ -1,32 +1,10 @@
 #!/usr/bin/env python3
-"""verify_stage.py -- stage the generated RTL into a self-contained Xcelium
-behavioral smoke flow (the staging half of `make verify`).
+"""VestaRV: stage the generated RTL into a self-contained Xcelium behavioral smoke flow.
 
-Reads config/ChipConfig.resolved.json (written by the `make generate` step that
-the Makefile runs first) and produces, under ../xcelium/riscv_test/:
-
-  verify_<chipname>/           the runner dir (regenerated every run)
-    hdl/MCU.vhd                copies of out/hdl/* -- the CONFIG's RTL
-    hdl/MemoryMap.vhd
-    hdl/riscv_tb.vhd
-    cell_list_behavioral.txt   behavioral_mp's list with the three generated
-                               files swapped for the staged copies and NPU.vhd
-                               dropped when the config has no NPU
-    xrun_parallel.sh           from verify/xrun_parallel.template.sh, with the
-                               TEST_FILES list filtered by the config's knobs
-    smoke.txt                  the ~26-test smoke subset, same filtering
-    batch_run.tcl
-  <link> -> ../../verification/isa/<dest>   the 3-char rcf symlink (the
-                               riscv_tb TEST_FILE generic is a FIXED 29-char
-                               string: "../" + 3-char dir + "/" + 22-char
-                               x-padded filename -- the link name MUST be
-                               exactly 3 characters)
-
-It never touches hdl/myshkin/ or hdl/common/ and never writes outside
-xcelium/riscv_test/. Prints KEY=VALUE lines consumed by ../verify.sh.
-
-This is the A3 Argus hand-staging pattern (hdl/argus +
-behavioral_mp_argus), productized. Python 3.6 compatible.
+Reads config/ChipConfig.resolved.json and writes ../xcelium/riscv_test/verify_<chipname>/
+with the staged hdl, a cell list, a knob-filtered xrun_parallel.sh and smoke.txt. The rcf
+symlink name must be exactly 3 characters: riscv_tb's TEST_FILE generic is a fixed 29-char
+string. Never writes outside xcelium/riscv_test/. Prints KEY=VALUE for ../verify.sh.
 """
 
 import json
@@ -39,11 +17,16 @@ PC_ROOT = os.path.dirname(HERE)                    # platform/common/
 REPO = os.path.dirname(os.path.dirname(PC_ROOT))    # vestarv/
 RISCV_TEST = os.path.join(REPO, 'xcelium', 'riscv_test')
 # Where image sets live. rcf_mapping() reads the `.imgset` stamps under here to
-# probe past a slot collision (K7/F-K7-5).
+# probe past a slot collision.
 ISA_ROOT = os.path.join(REPO, 'verification', 'isa')
 BASE_CELL_LIST = os.path.join(RISCV_TEST, 'behavioral_mp', 'cell_list_behavioral.txt')
 TEMPLATE = os.path.join(PC_ROOT, 'verify', 'xrun_parallel.template.sh')
-RESOLVED = os.path.join(PC_ROOT, 'config', 'ChipConfig.resolved.json')
+# The record of the last generation. generate.py always writes out/config/ and refreshes
+# the tracked config/ copy only for the default configuration, so a CONFIG= build is
+# found here and never in config/.
+RESOLVED = os.path.join(PC_ROOT, 'out', 'config', 'ChipConfig.resolved.json')
+if not os.path.isfile(RESOLVED):
+    RESOLVED = os.path.join(PC_ROOT, 'config', 'ChipConfig.resolved.json')
 
 # (package file, the cell-list entry it must precede). Transcribed from
 # rdl_vhdl.RTL_PACKAGES rather than imported, because this script runs under the
@@ -76,52 +59,37 @@ REGS_PACKAGES = (
     ('debug_module_regs_pkg.vhd', 'debug_module.vhd'),
 )
 
-# ---------------------------------------------------------------------------
-# Test catalog -- the canonical behavioral_mp regression list (order kept),
-# each entry tagged with the config knobs it needs:
-#   tiles      needs numHarts >= 2 (sh protocol: tiles launched via the
-#              bootrom msip loader)
-#   atomics    isa.atomics (rv32ua; LR/SC / AMO instructions)
+# Test catalog: the canonical behavioral_mp regression list, order kept, each entry tagged
+# with the config knobs it needs:
+#   tiles      numHarts >= 2; tiles are launched through the bootrom msip loader
+#   atomics    isa.atomics (rv32ua: LR/SC and AMO)
 #   mul/div    isa.mul / isa.div
 #   compressed isa.compressed
 #   bitmanip   isa.bitmanip (Zba/Zbb/Zbc/Zbs)
-#   npu        peripherals.npu (shnpu is CASTALIA ONLY -- no NPU, no test)
-#   i2c1/uart1/spi1/timer1  the G1a/G1b droppable second instances (shi2c,
-#              shperiph, shlock and shtimer exercise them by name)
-#   cqAfeStubs peripherals.cqAfeStubs (shafe drives the four AFE stubs + EIS)
+#   npu        peripherals.npu
+#   i2c1/uart1/spi1/timer1  the droppable second instances
+#   cqAfeStubs peripherals.cqAfeStubs (shafe drives the four AFE stubs and EIS)
 #   zicond zcb zimop zihint zihpm zawrs zabha zacas zicboz zcmp zcmt
-#   zbkb zbkc zbkx zkn zfinx          the 16 X-series isa.* knobs   (K2/G1)
-#   trapCsr umode pmp                 the 3 P-series priv.* knobs   (K2/G1)
-# The ext* probes are ADAPTIVE (misa-driven; double as the stripped-build trap
-# controls) and run on every configuration.
-#
-# K2 (2026-08-03) — WHICH ROWS CARRY A KNOB TAG, AND WHY IT IS NOT "every row
-# that mentions the knob". Two populations, and conflating them is exactly the
-# defect this CATALOG had:
-#   * BOTH-POLARITY tests (`sh*`, `ext*`, `zbk`) dispatch at BUILD TIME on
-#     `#ifdef CORE_ENABLE_<K>` and carry a real `#else` arm. They must run on
-#     EVERY configuration -- the OFF arm is the trap/no-op control and the ON
-#     arm is the functional check -- so they carry NO knob tag. Which arm gets
-#     compiled is decided by the image build's `-DCORE_ENABLE_*`, not by
-#     selection. All twenty of them are in the standing 136-test suite and were
-#     absent from this CATALOG entirely until K2.
-#   * ON-POLARITY-ONLY suites (rv32uzicond/zabha/zacas/zkne/zknd/zknh/zf) emit
-#     encodings that take an illegal-instruction trap on an OFF build. They have
-#     no OFF arm at all, so each is tagged with the knob that makes it legal and
-#     appears ONLY in a knobs-on row. THIS is what "selection is evidence"
-#     means: a zabha row that does not select rv32uzabha-p-* has not been shown
-#     to exercise Zabha.
-# rv32ua-suite convention, unchanged: every rv32ua row except the adaptive
-# `ext*` family carries `atomics` (the whole group builds -march=rv32imac and
-# is dropped wholesale in an atomics-off world; R-DK1 excludes atomics=false
-# from the supported set in writing).
-# smoke=True marks the smoke subset `make verify` runs by default (31 tests on
-# the default Castalia config, 26 on Argus). The twenty both-polarity additions
-# are deliberately smoke=False -- they join SUITE=full only, so the default
-# smoke number does not move. Every ON-polarity row IS smoke=True: it appears
-# only where its knob is on, and there it is the cheapest proof the knob is on
-# (R-DK2's knobs-on canary).
-# ---------------------------------------------------------------------------
+#   zbkb zbkc zbkx zkn zfinx          the 16 X-series isa.* knobs
+#   trapCsr umode pmp                 the 3 P-series priv.* knobs
+# The ext* probes are adaptive, misa-driven, and double as the stripped-build trap controls,
+# so they run on every configuration.
+# Which rows carry a knob tag, and why it is not every row that mentions the knob:
+#   * both-polarity tests (sh*, ext*, zbk) dispatch at build time on
+#     #ifdef CORE_ENABLE_<K> and carry a real #else arm, so they must run on every
+#     configuration, with the OFF arm the trap or no-op control and the ON arm the
+#     functional check. They carry no knob tag; which arm is compiled is decided by the
+#     image build's -DCORE_ENABLE_*, not by selection.
+#   * on-polarity-only suites (rv32uzicond, zabha, zacas, zkne, zknd, zknh, zf) emit
+#     encodings that take an illegal-instruction trap on an OFF build. They have no OFF arm,
+#     so each is tagged with the knob that makes it legal and appears only in a knobs-on row.
+#     A zabha row that does not select rv32uzabha-p-* has not been shown to exercise Zabha.
+# Every rv32ua row except the adaptive ext* family carries `atomics`: the whole group builds
+# -march=rv32imac and is dropped wholesale in an atomics-off world.
+# smoke=True marks the subset `make verify` runs by default, 31 tests on the default
+# configuration and 26 on Argus. The both-polarity additions are smoke=False and join
+# SUITE=full only. Every on-polarity row is smoke=True: it appears only where its knob is on,
+# and there it is the cheapest proof the knob is on.
 T = lambda name, tags='', smoke=False: (name, set(tags.split()) if tags else set(), smoke)
 
 CATALOG = [
@@ -172,12 +140,12 @@ CATALOG = [
     # R-DK2 knobs-on rule: this row appears ONLY where the orchestrator knob is
     # on, and there it is the cheapest proof that the apertures were built.
     T('rv32ui-p-shtcm', 'tiles orch', True),
-    # digperiphs #6: shdma proves DMA0 inside the full MCU. DMA0 exists ONLY in
+    # shdma proves DMA0 inside the full MCU. DMA0 exists ONLY in
     # dma-enabled configs (castalia_dma NCH=2, wound NCH=4) -> tag 'dma' gates it
     # into ONLY those verify runs (filtered out of the default/non-dma configs).
     # Hart-0 directed (tiles parked), so no 'tiles' tag needed.
     T('rv32ui-p-shdma', 'dma', True),
-    # digperiphs (EVFAB) Stage 5: shevfab is THE flagship event-fabric smoke --
+    # shevfab is the flagship event-fabric smoke:
     # TIMER0 compare0 (EV4) -> EVFAB0 CH0 -> DMA0 CH0 GO (T0) -> DMA writes
     # UART0 TX through the arbiter -> DMA0_DONE (vector 118) -> meip -> wake,
     # with hart 0 in `extinguish` for the whole chain. Needs BOTH the fabric
@@ -185,7 +153,7 @@ CATALOG = [
     # ONLY in configs carrying both (config/castalia_evfab.json today); TIMER0
     # and UART0 are unconditional. Hart-0 directed (tiles parked) -> no 'tiles'.
     T('rv32ui-p-shevfab', 'eventFabric dma', True),
-    # digperiphs Stage E firmware smoke companions (wound-config additions).
+    # Firmware smoke companions (wound-config additions).
     # Each is single-hart directed (hart 0; tiles parked) and hardcodes its
     # peripheral's FROZEN library-tail vectors (A5 GLOBAL VECTOR RULE): RTC0=114,
     # PWM0=115/116, OW0=117, DMA0=118/119. Gated by the peripheral knob so they
@@ -196,20 +164,20 @@ CATALOG = [
     T('rv32ui-p-wpwm', 'pwm', True),
     T('rv32ui-p-wow', 'onewire', True),
     T('rv32ui-p-wdma', 'dma', True),
-    # digperiphs (I2CT): wi2ct proves I2CT0 (hardware-autonomous I2C target) inside
+    # wi2ct proves I2CT0 (hardware-autonomous I2C target) inside
     # the full MCU via an I2C0-as-host loopback on the shared SDA0/SCL0 pads; it
     # hardcodes the FROZEN vectors 122 (I2CT0_AE) / 123 (I2CT0_DATA). Gated by the
     # 'i2ctarget' knob so it appears ONLY where I2CT0 is instantiated. The test .S is
     # written by a later stage -- this CATALOG row is inert at make-chip time (tags only
     # matter when `make verify` selects/stages tests) and tolerates a not-yet-built test.
     T('rv32ui-p-wi2ct', 'i2ctarget', True),
-    # digperiphs (TRNG): wtrng proves TRNG0 (ring-oscillator entropy harvest engine)
+    # wtrng proves TRNG0 (ring-oscillator entropy harvest engine)
     # inside the full MCU -- register resets, the DR read-CONSUME contract, two
     # successive words (LFSR-stub movement), and the combined data-ready/health-
     # alarm IRQ (vector 121) through the real meip path. Gated by the 'trng' knob
     # so it appears ONLY where TRNG0 is instantiated (castalia_trng.json + wound).
     T('rv32ui-p-wtrng', 'trng', True),
-    # digperiphs P4.1 (NPU CONV1D, S6): wnpuconv proves NPU MODE=1 (conv) inside
+    # wnpuconv proves NPU MODE=1 (conv) inside
     # the full MCU at the MCU/silicon generics (Q0.24 in / Q7.24 weight+acc+out) --
     # NPUCFG1/2 config + 4-bit MabMmrA readback smoke, an exact Q7.24 output check
     # (K=4 Cin=2 Cout=2 Lout=4 S=1 D=1 BEN=1), and the vector-120 think-done IRQ
@@ -217,7 +185,7 @@ CATALOG = [
     # (tiles parked), so no 'tiles' tag; gated by 'npu' so NPU-less configs (Argus)
     # drop it, identically to shnpu.
     T('rv32ui-p-wnpuconv', 'npu', True),
-    # digperiphs P4.2 (NPU XNOR/popcount, S5): wxnpu proves NPU MODE=2 (xnor)
+    # wxnpu proves NPU MODE=2 (xnor)
     # inside the full MCU -- NPUCFG1/2 reinterpreted as THRESH/K, K=40 with
     # ADVERSARIAL tail garbage staged in the partial last word (proven
     # load-bearing: an unmasked-tail DUT would flip 2 of 4 neurons -- see
@@ -226,7 +194,7 @@ CATALOG = [
     # Hart-0 directed (tiles parked), so no 'tiles' tag; gated by 'npu' so
     # NPU-less configs (Argus) drop it, identically to shnpu/wnpuconv.
     T('rv32ui-p-wxnpu', 'npu', True),
-    # digperiphs P4.3 (NPU GEMM, S5): wgemm proves NPU MODE=3 (GEMM) inside the
+    # wgemm proves NPU MODE=3 (GEMM) inside the
     # full MCU -- NPUCFG1[7:0] reinterpreted as M-1, two CHAINED THINKs (layer 1
     # AEN=1 sigmoid so its row-major Q0.24 C feeds layer 2's A in place at the
     # same staging-RAM words, the D2 zero-repack proof), exact Q7.24/Q0.24
@@ -236,7 +204,7 @@ CATALOG = [
     # 'tiles' tag; gated by 'npu' so NPU-less configs (Argus) drop it,
     # identically to shnpu/wnpuconv/wxnpu.
     T('rv32ui-p-wgemm', 'npu', True),
-    # digperiphs P4.4 (NPU ACTF, S5): wactf proves the activation mux inside
+    # wactf proves the activation mux inside
     # the full MCU -- a 7-THINK MLP sweep (sigmoid/ReLU/tanh/clamp/exp/
     # reserved-as-sigmoid/AEN-0-passthrough) with exact 32-bit word checks
     # from the validated golden (verification/npu/gen_wactf_golden.py) and
@@ -258,26 +226,16 @@ CATALOG = [
     T('rv32ua-p-shmixw', 'tiles atomics'),
     T('rv32ua-p-shcboz', 'atomics'),
     T('rv32ua-p-shcmp', 'atomics'),
-    # K5: THE ARGUS-PORT DEBT IS PAID (R-K2-4). shcmppush and shpause used to
-    # hardcode the N=4 CLINT layout ("mtime lo=0x5010; mtimecmp0 lo/hi =
-    # 0x5020/0x5024"), which at N=18 addresses msip[4] and msip[8]/msip[9] --
-    # OTHER HARTS' software-interrupt registers -- because the layout is
-    # N-parameterised: MTIME = 0x5000 + roundup16(4*NHARTS). Both now DERIVE the
-    # offset from NHARTS exactly as `extzawrs.S` does, so `harts_le4` is gone
-    # from both rows and neither is deselected on Argus any more.
-    #
-    # WHAT EACH ROW IS ON ARGUS AFTER THE FIX, stated because they differ and
-    # because R-K2-4's reason for shcmppush was measured WRONG at K5:
-    #   * shpause -- REAL coverage. Argus has `zihint` off, so it runs the #else
-    #     forward-progress arm: both bursts timed against real mtime, every one
-    #     of the 17 tiles reporting DONE. That arm was what FAILED at N=18 (the
-    #     bogus mtime read back 0 and `beqz s4` fired).
-    #   * shcmppush -- an OFF-ARM cell, and it always was. Argus has `zcmp` off,
-    #     so `CORE_ENABLE_ZCMP` is undefined and the whole ON body -- timer arm
-    #     included -- is preprocessed away. Its Argus pass was NEVER "an mtip
-    #     that can never have armed"; no mtip code was compiled at all. The CLINT
-    #     literal was real debt but INERT on this config. It joins shcboz/shcmp/
-    #     shcmt, which are untagged and OFF-arm on Argus for the same reason.
+    # shcmppush and shpause derive the CLINT offset from NHARTS, as extzawrs.S does, rather
+    # than hardcoding the N=4 layout: MTIME = 0x5000 + roundup16(4*NHARTS), so at N=18 the old
+    # literals addressed other harts' msip registers. Neither is deselected on Argus.
+    # What each row is on Argus:
+    #   * shpause is real coverage. Argus has zihint off, so it runs the #else forward-progress
+    #     arm: both bursts timed against real mtime, all 17 tiles reporting DONE. That arm is
+    #     what failed at N=18, where the bogus mtime read back 0 and `beqz s4` fired.
+    #   * shcmppush is an off-arm cell. Argus has zcmp off, so CORE_ENABLE_ZCMP is undefined and
+    #     the whole ON body, timer arm included, is preprocessed away. It joins shcboz, shcmp
+    #     and shcmt, which are untagged and off-arm on Argus for the same reason.
     T('rv32ua-p-shcmppush', 'atomics'),
     T('rv32ua-p-shcmt', 'atomics'),
     T('rv32ua-p-shpause', 'tiles atomics'),
@@ -295,77 +253,49 @@ CATALOG = [
     T('rv32ua-p-amoor_w', 'atomics'),
     T('rv32ua-p-shlrsc', 'tiles atomics', True),
     T('rv32ua-p-lrsc', 'atomics'),
-    # K2 acceptance C (R-K1-2 (2)) -- THE F10 PAIR, and the two rows are tagged
-    # DIFFERENTLY on purpose, because they cover the two POLARITIES of one
-    # ruling ("a write form aimed at a read-only CSR traps in EVERY build").
-    #
-    #   rocsrw    ON-POLARITY-ONLY. Its `#else` arm is `li a1, 0x5E10BAD0; j
-    #             roc_fail` -- it FAILs loudly on a build without the knob, by
-    #             design, because it needs a RECOVERABLE trap to assert
-    #             mcause/mepc/mtval. So it carries `trapCsr` and is selected
-    #             only by a trapCsr row. It also writes `mtrapctl` (0x7C0) to 0
-    #             and asserts the read-back, so its PASS is a statement about
-    #             STANDARD delivery (vesta.vhd: std_mode <= '1' when
-    #             (ENABLE_TRAPCSR and trap_legacy_mode = '0')), not merely about
-    #             a trap having happened.
-    #   rocsrwmp  DEFAULT-BUILD, and therefore UNTAGGED and in the smoke set.
-    #             This is the row that retires the F-series residue item "F10's
-    #             trap has no standing regression coverage" (fixpass w5_report
-    #             §4): the ruling changes the DEFAULT build, so the standing
-    #             coverage has to be on the default build. It has no build-time
-    #             dispatch at all (no CORE_ENABLE_* outside its comments), so it
-    #             is polarity-neutral and runs on every configuration.
-    #             Its victims (harts 1 and 2) wedge in the terminal TRAP_STATE
-    #             by design and never write a0_1/a0_2, so riscv_tb reports
-    #             "tile hart(s) silent/parked" -- a NOTE, not a failure; hart 0
-    #             is the observer and the a0 gate, the trapstor.S (W1) pattern.
-    #             ITS OWN HEADER SAYS "keep this file OUT of xrun_parallel.sh's
-    #             TEST_FILES array (floor stays 136)" and that instruction is
-    #             HONOURED: this CATALOG is a different list, the hand-built
-    #             standing runner is untouched, and the 136/136 floor does not
-    #             move. What moves is `make verify`'s selection (140 -> 141).
+    # The F10 pair, tagged differently on purpose, because the two rows cover the two polarities
+    # of one ruling: a write form aimed at a read-only CSR traps in every build.
+    #   rocsrw    on-polarity only. Its #else arm is `li a1, 0x5E10BAD0; j roc_fail`, so it
+    #             fails loudly on a build without the knob by design, because it needs a
+    #             recoverable trap to assert mcause, mepc and mtval. It carries trapCsr and is
+    #             selected only by a trapCsr row. It also writes mtrapctl (0x7C0) to 0 and
+    #             asserts the read-back, so its pass is a statement about standard delivery
+    #             (vesta.vhd: std_mode <= '1' when ENABLE_TRAPCSR and trap_legacy_mode = '0'),
+    #             not merely about a trap having happened.
+    #   rocsrwmp  default build, so untagged and in the smoke set: the ruling changes the
+    #             default build, so the standing coverage has to be on the default build. It has
+    #             no build-time dispatch at all, so it is polarity-neutral and runs everywhere.
+    #             Its victims, harts 1 and 2, wedge in the terminal TRAP_STATE by design and
+    #             never write a0_1 or a0_2, so riscv_tb reports "tile hart(s) silent/parked",
+    #             which is a note and not a failure; hart 0 is the observer and the a0 gate.
+    #             It stays out of xrun_parallel.sh's TEST_FILES array, as its own header asks,
+    #             so the 136-test floor does not move; this catalog is a different list.
     T('rv32ua-p-rocsrw', 'atomics trapCsr', True),
     T('rv32ua-p-rocsrwmp', 'atomics', True),
-    # ID4 (R-ID0-3): the ID-series detector for the identity-CSR hole, which
-    # ID3 fixed at 5d7e2cc (mvendorid/marchid/mimpid/mconfigptr were absent
-    # from csr_addr_valid, so reading a REQUIRED read-only M-mode CSR wedged
-    # the hart in the terminal TrapState). It joins BOTH standing lists --
-    # xrun_parallel.sh's TEST_FILES (141 -> 142) AND this CATALOG -- because
-    # unlike rocsrwmp its own header asks for exactly that.
-    #
-    # UNTAGGED in the knob sense and therefore in the smoke set: the file has
-    # no CORE_ENABLE_* dispatch at all, every encoding hart 0 executes is
-    # unconditionally legal on all 28 matrix rows, and it must run on
-    # castalia_notrapcsr -- the ONE row exercising the trapCsr-OFF arm.
-    #
-    # `atomics` is a GROUP tag here, not a claim that the test executes an
-    # AMO: it executes none, and neither do rocsrwmp, trapstor or packalias,
-    # which all carry it. On an rv32ua-p-* row the tag says "this row's image
-    # comes from the rv32ua group" (test_groups() derives the build set from
-    # the selected names). isa.atomics defaults true and no matrix config
-    # turns it off, so the row is selected on every row either way.
+    # idcsrmp is the detector for the identity-CSR hole: mvendorid, marchid, mimpid and
+    # mconfigptr were absent from csr_addr_valid, so reading a required read-only M-mode CSR
+    # wedged the hart in the terminal TrapState. It joins both standing lists,
+    # xrun_parallel.sh's TEST_FILES and this catalog, because its own header asks for that.
+    # Untagged in the knob sense and therefore in the smoke set: the file has no CORE_ENABLE_*
+    # dispatch, every encoding hart 0 executes is unconditionally legal on all matrix rows, and
+    # it must run on castalia_notrapcsr, the one row exercising the trapCsr-OFF arm.
+    # `atomics` here is a group tag, not a claim that the test executes an AMO: on an rv32ua-p-*
+    # row the tag says the row's image comes from the rv32ua group, since test_groups() derives
+    # the build set from the selected names.
     T('rv32ua-p-idcsrmp', 'atomics', True),
-    # DD11-N1 (R-D3-1(2)): the D-series detector for the `time` CSR hole.
-    # 0xC01/0xC81 were admitted by csr_addr_valid with no read arm behind
-    # them, so `rdtime` retired a constant zero -- a stopped clock software
-    # could not detect. DD11-N1 drops both from the map and they now raise
-    # illegal-instruction in every build; the file also guards the fix
-    # against being over-wide (0xC00/0xC02/0xC03 and, because 0xC81 shared a
-    # source line with them, 0xC80/0xC82 must all still retire). Like
-    # idcsrmp it joins BOTH standing lists -- TEST_FILES (142 -> 143) and
-    # this CATALOG (143 -> 144) -- because its own header asks for that.
-    #
-    # UNTAGGED, for the idcsrmp reason verbatim: no CORE_ENABLE_* dispatch
-    # anywhere in the file, and the only encodings hart 0 (the observer and
-    # a0 gate) executes are base ISA plus `csrr mhartid`, which is the first
-    # ungated term of csr_addr_valid. So it is valid on all 28+ matrix rows
-    # including castalia_notrapcsr and the debug-OFF rows. `atomics` is the
-    # GROUP tag (rv32ua image set), not an AMO claim -- it executes none.
-    #
-    # Its three victims wedge in the terminal TrapState BY DESIGN (correct
-    # RTL = the read traps), so "tile hart(s) silent/parked" is the expected
-    # NOTE. Deliberately NOT in either cosim list: trap-poison class, and the
-    # oracle --isa always carries _zicntr, so Spike retires what must trap.
+    # rdtimemp is the detector for the `time` CSR hole: 0xC01 and 0xC81 were admitted by
+    # csr_addr_valid with no read arm behind them, so rdtime retired a constant zero, a stopped
+    # clock software could not detect. Both are now out of the map and raise
+    # illegal-instruction in every build; the file also guards the fix against being over-wide,
+    # since 0xC00, 0xC02, 0xC03 and, because 0xC81 shared a source line with them, 0xC80 and
+    # 0xC82 must all still retire. Like idcsrmp it joins both standing lists.
+    # Untagged for the idcsrmp reason: no CORE_ENABLE_* dispatch anywhere in the file, and the
+    # only encodings hart 0, the observer and a0 gate, executes are base ISA plus csrr mhartid,
+    # the first ungated term of csr_addr_valid. `atomics` is the group tag, not an AMO claim.
+    # Its three victims wedge in the terminal TrapState by design, correct RTL being that the
+    # read traps, so "tile hart(s) silent/parked" is the expected note. Deliberately not in
+    # either cosim list: trap-poison class, and the oracle --isa always carries _zicntr, so
+    # Spike retires what must trap.
     T('rv32ua-p-rdtimemp', 'atomics', True),
     T('rv32ui-p-add', '', True),
     T('rv32ui-p-lb'), T('rv32ui-p-lh'),
@@ -439,7 +369,7 @@ CATALOG = [
     T('rv32ua-p-extzihint'), T('rv32ua-p-extzawrs'),
     T('rv32ua-p-shwrs', 'tiles atomics'),
     T('rv32ua-p-extzfinx'),
-    # K4 session 3: the K4-L4 / D-2026-08-03-2 discriminator. NOT an adaptive
+    # The HPM discriminator. NOT an adaptive
     # probe and NOT a both-polarity test -- it reads `mhpmcounter4` (needs
     # ENABLE_ZIHPM) around a shared-window `amocas.w` (needs ENABLE_ZACAS), so
     # it is tagged with BOTH knobs and is selected only by a config that sets
@@ -447,41 +377,28 @@ CATALOG = [
     # header. `atomics` rides along per the rv32ua-group convention.
     T('rv32ua-p-casgrant', 'zacas zihpm atomics', True),
 
-    # -----------------------------------------------------------------------
-    # K7 (R-K7-2(4)) -- THE FIVE STANDING DETECTORS.
-    # These joined the standing 141-test suite at K7 item 2 and had NO CATALOG
-    # row, which meant the per-config matrix never selected them -- and after
-    # the F-K7-4 supersession the standing ARGUS gate IS this CATALOG, so they
-    # would not have run on Argus at all. Each is the regression form of a real
-    # finding; none is polarity-sensitive at build time (measured: byte-identical
-    # images across the trapCsr polarities), so they carry only the tags their
-    # ARCHITECTURE requires.
-    #   trapstor  -- the S-series residue item; it had never run in ANY gate
-    #                until K7. `atomics` per the rv32ua-group convention.
-    #   packalias -- F-BV1: the zext.h decode was not qualified on rs2=0, so the
-    #                Zbkb `pack` space aliased onto it and RETIRED on every
-    #                shipped config. `bitmanip` because zext.h IS a Zbb
-    #                instruction: on a bitmanip-off build the whole encoding is
-    #                illegal and the test's own pass-control cannot run.
-    #                MEASURED, not reasoned: it FAILED on the C1 row (113/115)
-    #                before this tag existed.
-    #   fk51mp    -- F-K5-1 half (b): RV32 reserves shamt[5]. Its victims are
-    #                OP-IMM shift forms decoded under ENABLE_BITMANIP, so it is
-    #                `bitmanip`-tagged and correctly drops on the C1 row. It
-    #                ALSO needs `nozkn` -- Zknh allocates encodings in exactly
-    #                the reserved space this test polices (see config_tags).
-    #   dvintmin  -- K4-L6 defect A (the signed-magnitude wrap). `div` for the
-    #                same reason every rv32um divide row carries it: the C2
-    #                divider-off row must drop it by set-diff, not fail it.
-    #   dvbubble  -- K4-L6 defect B (the split-fetch bubble re-arming the
-    #                previous divide's selects). `div` likewise -- AND
-    #                `compressed`, because the bubble only exists at a divide
-    #                sitting at pc = 2 (mod 4), which a no-C build cannot
-    #                construct. MEASURED: it FAILED on the C3 row (144/146)
-    #                before this tag existed.
+    # The five standing detectors. Each is the regression form of a real finding; none is
+    # polarity-sensitive at build time (measured: byte-identical images across the trapCsr
+    # polarities), so they carry only the tags their architecture requires.
+    #   trapstor  the S-series residue item. `atomics` per the rv32ua-group convention.
+    #   packalias the zext.h decode was not qualified on rs2=0, so the Zbkb pack space aliased
+    #             onto it and retired on every shipped config. `bitmanip` because zext.h is a
+    #             Zbb instruction: on a bitmanip-off build the whole encoding is illegal and
+    #             the test's own pass-control cannot run. Measured: it failed on the C1 row,
+    #             113 of 115, before this tag existed.
+    #   fk51mp    RV32 reserves shamt[5]. Its victims are OP-IMM shift forms decoded under
+    #             ENABLE_BITMANIP, so it is bitmanip-tagged and drops on the C1 row. It also
+    #             needs `nozkn`: Zknh allocates encodings in exactly the reserved space this
+    #             test polices (see config_tags).
+    #   dvintmin  the signed-magnitude divide wrap. `div` for the reason every rv32um divide
+    #             row carries it: the divider-off row must drop it by set difference, not fail.
+    #   dvbubble  the split-fetch bubble re-arming the previous divide's selects. `div`, and
+    #             also `compressed`, because the bubble exists only at a divide sitting at
+    #             pc = 2 (mod 4), which a no-C build cannot construct. Measured: it failed on
+    #             the C3 row, 144 of 146, before this tag existed.
     T('rv32ua-p-trapstor', 'atomics', True),
     T('rv32ua-p-packalias', 'atomics bitmanip', True),
-    # RETAGGED bitmanip -> tilebitmanip (2026-08-16): this is the MP variant, and
+    # RETAGGED bitmanip -> tilebitmanip: this is the MP variant, and
     # its tile arm executes the reserved-shamt encodings on harts 1..N-1. Those
     # harts are rv32iac now, so the encoding is illegal there for a SECOND,
     # unrelated reason and the test cannot distinguish the two -- measured: the
@@ -490,24 +407,16 @@ CATALOG = [
     T('rv32um-p-dvintmin', 'div', True),
     T('rv32um-p-dvbubble', 'div compressed', True),
 
-    # -----------------------------------------------------------------------
-    # K2 (G1) -- THE ON-POLARITY-ONLY SUITES.
-    # Seven suites that have existed in verification/isa/tests/ since the X
-    # series and that NO runner has ever selected (each Makefrag says so in
-    # those words: "NOT wired into the default (off) suite runner"). Every test
-    # here emits an encoding that takes an illegal-instruction trap on a build
-    # without its knob, so each row is tagged with that knob and is selected
-    # ONLY by a knobs-on config -- which is the whole point: it is the
-    # difference between a config that BOOTS with the knob on and a config that
-    # has been shown to EXECUTE the knob's instructions.
-    # These need their image group built (rv32uzicond, rv32uzabha, ...) and the
-    # matching -DCORE_ENABLE_* in RISCV_GCC_OPTS; verify_stage prints GROUPS=
-    # and DEFINES= for verify.sh so both follow the config automatically.
-    # (K2 stages 1-2 emit those two lines; the image build that CONSUMES them is
-    # the G3 commit -- until then a knobs-on row prints them and still uses the
-    # default image set, which is loud rather than silent because the ON-only
-    # images simply are not there.)
-    # -----------------------------------------------------------------------
+    # The on-polarity-only suites. Every test here emits an encoding that takes an
+    # illegal-instruction trap on a build without its knob, so each row is tagged with that
+    # knob and is selected only by a knobs-on config. That is the difference between a config
+    # that boots with the knob on and one that has been shown to execute the knob's
+    # instructions.
+    # These need their image group built (rv32uzicond, rv32uzabha and the rest) and the matching
+    # -DCORE_ENABLE_* in RISCV_GCC_OPTS; verify_stage prints GROUPS= and DEFINES= for verify.sh
+    # so both follow the config automatically. Until the image build consumes those lines a
+    # knobs-on row prints them and still uses the default image set, which is loud rather than
+    # silent, because the on-only images simply are not there.
     T('rv32uzicond-p-cz', 'zicond', True),
     # Basenames renamed at K2 (amoops_b/amoops_h/amomis -> ops_b/ops_h/mis):
     # the old ones were 25/25/23 characters and could not fit the 22-char
@@ -545,33 +454,9 @@ def padded_rcf(name):
 
 
 def rcf_mapping(nharts, defines=(), march=None, tcm=None):
-    """(3-char link name under xcelium/riscv_test/, dest dir under
-    verification/isa/) for an image set built at this NHARTS and this ON-knob
-    polarity. rcf/rca are the pre-existing Castalia/Argus sets -- reuse, never
-    rebuild their symlinks.
-
-    K2/G3. The link name MUST be exactly 3 characters (the riscv_tb TEST_FILE
-    generic is a fixed 29-char string), which is the whole reason the polarity
-    cannot simply be spelled out in the path. So:
-
-      defines EMPTY and march None
-                     -> today's mapping, unchanged, bit for bit. Every existing
-                        flow, image set and stamp keeps working and no image is
-                        rebuilt. This is the ONLY case any config had before K2.
-      defines SET    -> link `k<XX>`, dir `rcf_k<XX>`, where XX is two hex
-                        digits of a digest of the FULL identity (NHARTS + the
-                        sorted -D list). 256 slots, 1:1 with the directory, so a
-                        digest collision is a collision of BOTH and is caught by
-                        the `.imgset` identity stored in the directory -- see
-                        verify.sh. A silent collision would be the worst
-                        possible failure here (two polarities sharing one image
-                        set), so it is checked rather than made unlikely.
-
-    K4: `march is None` joins the `not defines` condition for the canonical
-    sets, and that is a FAIL-SAFE, not a formality -- a config with a norvc
-    march and NO -D flags would otherwise be aimed straight at the canonical
-    `rcf/`, poisoning the 136-test suite and both lockstep gates with images
-    the default RTL cannot execute.
+    """(3-char link name, dest dir) for an image set built at this NHARTS and this ON-knob polarity.
+    The link name must be exactly 3 characters, so a polarity becomes two hex digits of a digest
+    of the full identity. Empty defines with no march keeps today's mapping bit for bit.
     """
     if not defines and march is None:
         if nharts == 4:
@@ -579,29 +464,19 @@ def rcf_mapping(nharts, defines=(), march=None, tcm=None):
         if nharts == 18:
             return 'rca', 'rcf_argus'
         return 'r%02d' % nharts, 'rcf_n%02d' % nharts
-    # K7/F-K7-5 (2026-08-04, R-K7-2(1)): the 2-hex tag COLLIDES in practice, and
-    # the collision is not hypothetical -- R-DK3 added -DCORE_ENABLE_TRAPCSR to
-    # nineteen configurations at once, re-rolling every identity, and three rows
-    # aborted on the `.imgset` guard. Two of those were STALE pre-flip
-    # directories squatting on slots (fixed by garbage collection); the third,
-    # `zimop` vs `zihint` at `k04`, is a TRUE sha1-prefix collision between two
-    # LIVE configurations, which no amount of cleanup can resolve.
-    #
-    # The tag cannot simply widen: the link name must be exactly 3 characters
-    # (the riscv_tb TEST_FILE generic is a fixed 29-char string), and 'k' costs
-    # one of them.
-    #
-    # So: DETERMINISTIC LINEAR PROBING over the 256 slots. The primary slot is
-    # the digest as before -- every existing directory keeps its name and no
-    # image set is rebuilt -- and a config whose primary slot is held by a
-    # DIFFERENT identity walks forward until it finds its own identity (reuse)
-    # or a free slot. That makes a collision impossible rather than unlikely,
-    # which is the property the `.imgset` check was written to police and could
-    # only ever report on.
-    #
-    # The `.imgset` guard STAYS and is still the authority: probing chooses a
-    # directory, the stamp proves it is the right one. A probe that landed
-    # wrongly would still be caught.
+    # The 2-hex tag collides in practice: adding -DCORE_ENABLE_TRAPCSR to nineteen
+    # configurations at once re-rolled every identity and three rows aborted on the .imgset
+    # guard. Two were stale pre-flip directories squatting on slots; the third, zimop against
+    # zihint at k04, is a true sha1-prefix collision between two live configurations, which no
+    # cleanup can resolve.
+    # The tag cannot widen: the link name must be exactly 3 characters, because the riscv_tb
+    # TEST_FILE generic is a fixed 29-character string, and 'k' costs one of them.
+    # So the slot is chosen by deterministic linear probing over the 256 slots. The primary slot
+    # is the digest, so every existing directory keeps its name and no image set is rebuilt, and
+    # a config whose primary slot is held by a different identity walks forward until it finds
+    # its own identity (reuse) or a free slot. That makes a collision impossible rather than
+    # unlikely. The .imgset guard stays and is still the authority: probing chooses a directory,
+    # the stamp proves it is the right one.
     tag = imgset_tag(nharts, defines, march, tcm)
     want = imgset_identity(nharts, defines, march, tcm)
     base = int(tag, 16)
@@ -617,44 +492,17 @@ def rcf_mapping(nharts, defines=(), march=None, tcm=None):
         '  Garbage-collect the sets no configuration claims before adding more.')
 
 
-# The TCM size every image set built before 2026-08-16 was linked against.
+# The historical TCM size every earlier image set was linked against.
 # An identity only mentions the TCM when it DIFFERS from this, which is what
 # keeps every pre-existing set's identity string byte-identical.
 _TCM_HISTORICAL = 16384
 
 
 def imgset_identity(nharts, defines, march=None, tcm=None):
-    """The EXACT string that identifies an image set's polarity. Stored in the
-    set's `.imgset` stamp and compared on every reuse: this is the record the
-    K0 probes found missing entirely (`rcf/`'s 260 images were rebuildable
-    'only if the exact RISCV_GCC_OPTS polarity is known, which is nowhere
-    recorded').
-
-    K4: a non-default `-march` (see image_march) is PART of that polarity and
-    joins the identity. It is APPENDED, and only when present, so every image
-    set built before K4 keeps a byte-identical identity string -- and therefore
-    a byte-identical digest, tag and `rcf_k<XX>` directory. No pinned row moves.
-
-    2026-08-16: memory.tcmSizePerHart JOINS the identity, appended and only when
-    it differs from the historical 16 KiB -- the SAME back-compat device K4 used
-    for march, so every image set built before today keeps a byte-identical
-    identity string, digest, tag and rcf_k<XX> directory, and no pinned row moves.
-
-    THE BLINDNESS THIS CLOSES, caught the hard way: the TCM size is not a
-    -D define and not a -march, so halving it to 8 KiB changed the LINKER
-    SCRIPT under the images (RAM 0x3E1C -> 0x1E1C, __stack_top 0xC000 ->
-    0xA000) while leaving the identity string untouched. `make verify` then
-    reused a 16 KiB image set against an 8 KiB chip and reported 42/43 -- a
-    number that looked like a real capacity failure and was in fact a stale
-    image. Memory layout is part of an image's polarity, exactly as the
-    compiler flags are.
-
-    The blindness K4 closed is specific, and it was predicted before it bit:
-    row C3's `image_defines()` is exactly `['-DCORE_ENABLE_TRAPCSR']`, the SAME
-    list as row A1 (`castalia_trapcsr`), so without the march clause a norvc
-    image set and A1's compressed one would be directed at the SAME `rcf_k17`
-    directory AND would compare EQUAL on reuse -- the collision the `.imgset`
-    check exists to make impossible."""
+    """The exact string identifying an image set's polarity, stored in its `.imgset` stamp and
+    compared on every reuse. A non-default -march or tcmSizePerHart is appended only when present,
+    so every earlier set keeps a byte-identical identity: memory layout is part of the polarity.
+    """
     s = 'NHARTS=%d DEFINES=%s' % (nharts, ' '.join(defines) if defines else '(none)')
     if march:
         s += ' MARCH=%s' % march
@@ -685,140 +533,96 @@ ISA_KNOBS = (
 )
 PRIV_KNOBS = ('trapCsr', 'umode', 'pmp')
 
-# The five base-ISA knobs default TRUE and the twenty X/P knobs default FALSE.
-# Only the ON direction needs a -D on the image build: the tests' `#ifdef
-# CORE_ENABLE_<K>` idiom is presence-based (generate.py emits the #define only
-# when the generic is true), so the ON set is exactly the -D set.
-#
-# THE FIVE BASE KNOBS ARE DELIBERATELY EXCLUDED, and the reason is measured, not
-# assumed. Sweeping every test source and the env for a real preprocessor
-# conditional (not a comment) on a base knob --
+# The five base-ISA knobs default true and the twenty X and P knobs default false. Only the
+# ON direction needs a -D on the image build: the tests' #ifdef CORE_ENABLE_<K> idiom is
+# presence-based, since generate.py emits the #define only when the generic is true, so the
+# ON set is exactly the -D set.
+# The five base knobs are deliberately excluded, and the reason is measured. Sweeping every
+# test source and the env for a real preprocessor conditional on a base knob,
 #   grep -rnE '^\s*#\s*(if|ifdef|ifndef|elif).*CORE_ENABLE_(MUL|DIV|ATOMICS|COMPRESSED|BITMANIP)\b'
-# -- returns exactly ONE hit in the whole tree: `rv32ua/extzimop.S:93`, whose
-# `#ifdef CORE_ENABLE_COMPRESSED` guards a two-instruction Zcmop tail INSIDE its
-# already-Zimop-gated ON arm. The misa-adaptive probes (extmul/extdiv/extamo/
-# extrvc/extzb) dispatch at RUNTIME and need no define at all, and zbk.S names
-# CORE_ENABLE_BITMANIP only in prose.
-# Admitting COMPRESSED to this set would therefore buy that one tail -- in a
-# test no runner selects today (it is in neither the standing 136 nor this
-# CATALOG) -- at the price of putting `-DCORE_ENABLE_COMPRESSED` on EVERY image
-# of EVERY config (compressed defaults true), i.e. rebuilding the entire
-# canonical 260-image set at a new polarity and re-pinning the lockstep gate.
-# Named and deferred, not overlooked: if extzimop is ever wired in, it needs
-# either that decision taken deliberately or its own explicit -D.
+# returns exactly one hit in the whole tree: rv32ua/extzimop.S:93, whose
+# #ifdef CORE_ENABLE_COMPRESSED guards a two-instruction Zcmop tail inside its already
+# Zimop-gated ON arm. The misa-adaptive probes dispatch at run time and need no define, and
+# zbk.S names CORE_ENABLE_BITMANIP only in prose.
+# Admitting COMPRESSED would buy that one tail, in a test no runner selects today, at the
+# price of putting -DCORE_ENABLE_COMPRESSED on every image of every config, since compressed
+# defaults true: rebuilding the entire canonical 260-image set at a new polarity and
+# re-pinning the lockstep gate. If extzimop is ever wired in it needs either that decision
+# taken deliberately or its own explicit -D.
 DEFINE_KNOBS = ISA_KNOBS[5:] + PRIV_KNOBS
 
-# ---------------------------------------------------------------------------
-# THE OTHER HALF OF THE SAME CLASSIFICATION (2026-08-23).
-#
-# `DEFINE_KNOBS` above is a list of SCHEMA KEYS; what a polarity comparison
-# actually holds is a set of RTL CONSTANT SUFFIXES read out of MemoryMap.vhd.
-# The two are not the same alphabet, and for a year they only looked the same
-# because every stampable knob happened to satisfy
-# `CORE_ENABLE_<key.upper()> == <constant name>`.
-#
-# WHAT MAKES A KNOB STAMPABLE. Three properties, all of them required:
-#   1. the generator emits a matching C `#define CORE_ENABLE_<X>` (MemoryMap.h
-#      and the assembly-safe core_features.h companion), so an image CAN be
-#      built at a polarity;
-#   2. some test source dispatches on that define at BUILD time, so the two
-#      polarities produce DIFFERENT images -- that is the whole content of the
-#      "OFF-arm software against ON-polarity hardware, and the failure mode is
-#      a PASS" defect the stamp exists to catch;
-#   3. the RTL polarity is observable as `constant CORE_ENABLE_<X> : boolean`
-#      in the one staged MemoryMap.vhd, so the hardware half can be read back
-#      rather than recomputed.
-# Property 3 alone is NOT enough, and reading the guard as though it were is
-# exactly the defect repaired here.
-#
-# A knob that fails any of the three can never appear in an `.imgset` stamp,
-# so a guard that compares the raw RTL ON-set against the stamp REFUSES EVERY
-# ROW THAT EXISTS the moment such a knob is declared true. That is what
-# happened: CORE_ENABLE_DEBUG went true at the D-series merge (2026-08-15) and
-# CORE_ENABLE_IF_AHEAD at the fetch-ahead merge (2026-08-23), and boot-mode
-# cosim could not run at all for the eight days in between, with the guard
-# reporting a POLARITY MISMATCH that was an artefact of its own arithmetic.
-#
-# So the exempt set is now WRITTEN DOWN instead of being five names inlined in
-# a shell `case`, and `memorymap_on_knobs` REFUSES a constant that is in
-# neither list. A new CORE_ENABLE_* must be classified in the commit that adds
-# it; it can no longer arrive unclassified and take the lockstep gate down.
-#
-# Each entry carries the measurement that put it here, not an assertion.
+# The other half of the same classification. DEFINE_KNOBS above is a list of schema keys;
+# what a polarity comparison holds is a set of RTL constant suffixes read out of
+# MemoryMap.vhd. The two are not the same alphabet, and they looked the same only because
+# every stampable knob happened to satisfy CORE_ENABLE_<key.upper()> == <constant name>.
+# What makes a knob stampable, all three required:
+#   1. the generator emits a matching C #define CORE_ENABLE_<X>, in MemoryMap.h and the
+#      assembly-safe core_features.h companion, so an image can be built at a polarity;
+#   2. some test source dispatches on that define at build time, so the two polarities
+#      produce different images. That is the whole content of the defect the stamp catches:
+#      OFF-arm software against ON-polarity hardware, whose failure mode is a pass;
+#   3. the RTL polarity is observable as constant CORE_ENABLE_<X> : boolean in the one
+#      staged MemoryMap.vhd, so the hardware half can be read back rather than recomputed.
+# Property 3 alone is not enough. A knob that fails any of the three can never appear in an
+# .imgset stamp, so a guard that compares the raw RTL ON-set against the stamp refuses every
+# row that exists the moment such a knob is declared true: that is what took boot-mode cosim
+# down for eight days between the debug merge and the fetch-ahead merge, reporting a polarity
+# mismatch that was an artefact of its own arithmetic.
+# The exempt set is therefore written down rather than inlined in a shell case, and
+# memorymap_on_knobs refuses a constant that is in neither list, so a new CORE_ENABLE_* must
+# be classified in the commit that adds it. Each entry carries the measurement that put it
+# here.
 NON_DEFINE_KNOBS = (
     # The five base-ISA knobs, for the reasons measured in the DEFINE_KNOBS
     # comment above. They fail property 2 (one #ifdef, in a test no runner
     # selects) at a price of rebuilding the whole canonical image set.
     'MUL', 'DIV', 'ATOMICS', 'COMPRESSED', 'BITMANIP',
-    # IF_AHEAD fails property 1 OUTRIGHT and by design. ChipGenerator.py emits
-    # no `#define CORE_ENABLE_IF_AHEAD` in either header -- its own comment on
-    # ENABLE_IF_AHEAD says why: "Microarchitecture only: no CSR, no
-    # instruction, no memory-map change, so there is no C-header define for it
-    # (nothing in software can or should dispatch on it)."
-    # Measured against the same sweep the base knobs got: `IF_AHEAD` does not
-    # occur in verification/isa or software/ at all, in any form, let alone in
-    # a preprocessor conditional. It is a straddling-fetch stall elision worth
-    # one flip-flop; verification/cpi records it as a CYCLE-COUNT difference
-    # with identical retired-instruction counts either way.
-    # A knob that cannot change any retired value cannot make the reference and
-    # the DUT execute different arms of anything, which is the only thing the
-    # stamp is for. PERMANENTLY exempt: this one is not deferred, it is
-    # unstampable by construction, and it should be deleted from this list only
-    # if fetch-ahead ever grows a CSR or an instruction.
+    # IF_AHEAD fails property 1 outright and by design: ChipGenerator.py emits no
+    # #define CORE_ENABLE_IF_AHEAD in either header, because it is microarchitecture only, with
+    # no CSR, no instruction and no memory-map change, so nothing in software can dispatch on
+    # it. Measured against the same sweep the base knobs got, IF_AHEAD does not occur in
+    # verification/isa or software/ at all. It is a straddling-fetch stall elision worth one
+    # flip-flop, and verification/cpi records it as a cycle-count difference with identical
+    # retired-instruction counts either way. A knob that cannot change a retired value cannot
+    # make the reference and the DUT execute different arms, which is the only thing the stamp
+    # is for. Permanently exempt: delete it from this list only if fetch-ahead ever grows a CSR
+    # or an instruction.
     'IF_AHEAD',
-    # DEBUG fails property 2, and it is DEFERRED here rather than permanently
-    # exempt -- the distinction matters, so it is stated.
-    # Property 1 it DOES satisfy: ChipGenerator.py:1188 emits `#define
-    # CORE_ENABLE_DEBUG` into MemoryMap.h and the core_features.h list carries
-    # it, so an image COULD be built at a debug polarity.
-    # Property 2 it does not. The same sweep run over the whole tree --
+    # DEBUG fails property 2, and is deferred rather than permanently exempt.
+    # Property 1 it satisfies: ChipGenerator.py emits #define CORE_ENABLE_DEBUG into
+    # MemoryMap.h and the core_features.h list carries it, so an image could be built at a debug
+    # polarity. Property 2 it does not: the sweep
     #   grep -rnE '^\s*#\s*(if|ifdef|ifndef|elif).*CORE_ENABLE_DEBUG\b'
-    # -- returns ZERO hits, and `CORE_ENABLE_DEBUG` does not appear anywhere in
-    # verification/ or software/ in any form. That is not an accident of
-    # coverage: config_tags() explains it directly. Every D-series debug
-    # instrument needs a tcl harness to force dbg_haltreq or the DMI port, so
-    # NO CATALOG ROW CARRIES THE `debug` TAG AND NONE CAN; the Debug Module is
-    # proven by xrun_dbg.sh and the dbg_*.tcl harnesses instead of by an image
-    # in the lockstep set.
-    # Admitting DEBUG to DEFINE_KNOBS today would therefore buy ZERO #ifdef
-    # arms -- strictly less than the one tail COMPRESSED would buy -- at a
-    # HIGHER price: debug.enable defaults TRUE, so every image of every config
-    # gains `-DCORE_ENABLE_DEBUG`, every one of the 28 `.imgset` stamps on disk
-    # changes, every rcf_* directory moves to a new tag digit, and the whole
-    # canonical set is rebuilt at a new polarity. Paying that for a define
-    # nothing reads is the opposite of what the stamp is for.
-    # THE TRIGGER IS WRITTEN DOWN, so this stays a decision and not an
-    # oversight: the first `#ifdef CORE_ENABLE_DEBUG` in a test source that a
-    # runner actually selects moves 'debug' into DEFINE_KNOBS (as a third
-    # section alongside isa.* and priv.*, since the schema key is `debug.enable`
-    # and `'CORE_ENABLE_' + key.upper()` does not name the constant) and pays
-    # the rebuild deliberately. tools/cosim/check_knob_classes.py FAILS on that
-    # day rather than leaving it to be noticed.
+    # returns zero hits, and CORE_ENABLE_DEBUG appears nowhere in verification/ or software/.
+    # That is structural, not a coverage accident: every debug instrument needs a tcl harness to
+    # force dbg_haltreq or the DMI port, so no catalog row carries the `debug` tag and none can;
+    # the Debug Module is proven by xrun_dbg.sh and the dbg_*.tcl harnesses instead.
+    # Admitting DEBUG to DEFINE_KNOBS would buy zero #ifdef arms at a high price: debug.enable
+    # defaults true, so every image of every config gains -DCORE_ENABLE_DEBUG, every .imgset
+    # stamp changes, every rcf_* directory moves to a new tag digit, and the whole canonical set
+    # is rebuilt at a new polarity.
+    # The trigger is written down: the first #ifdef CORE_ENABLE_DEBUG in a test source a runner
+    # selects moves 'debug' into DEFINE_KNOBS, as a third section alongside isa.* and priv.*,
+    # since the schema key is debug.enable and 'CORE_ENABLE_' + key.upper() does not name the
+    # constant, and pays the rebuild deliberately. tools/cosim/check_knob_classes.py fails on
+    # that day rather than leaving it to be noticed.
     'DEBUG',
 )
 
 
 def knob_classes():
-    """(stampable, exempt) as the RTL CONSTANT SUFFIXES a MemoryMap.vhd holds.
-
-    The one place that maps schema keys onto `CORE_ENABLE_<X>` names, so the
-    shell half of the polarity guard (tools/cosim/gate/xrun_cosim.sh) can read
-    the classification instead of carrying its own copy of half of it.
+    """(stampable, exempt) as the RTL constant suffixes a MemoryMap.vhd holds. The one place that
+    maps schema keys onto CORE_ENABLE_<X> names, so the shell half of the polarity guard reads
+    the classification instead of carrying its own copy.
     """
     stampable = tuple(k.upper() for k in DEFINE_KNOBS)
     return stampable, tuple(NON_DEFINE_KNOBS)
 
 
 def image_defines(cfg):
-    """The -DCORE_ENABLE_* list this configuration's images must be built with.
-
-    K2/G3. This is the SOFTWARE half of the switch whose HARDWARE half is the
-    staged MemoryMap.vhd's `CORE_ENABLE_<K> : boolean := true`. The ISA
-    Makefile deliberately refuses to auto-derive these from the gitignored
-    make-chip header (verification/isa/Makefile: "a stale header would silently
-    compile the ON arm against OFF RTL and hang the suite") and that refusal
-    STAYS -- what K2 changes is that the explicit pairing is now produced from
-    ONE resolved config and CHECKED, instead of typed by hand.
+    """The -DCORE_ENABLE_* list this configuration's images must be built with, the software half of
+    the switch whose hardware half is the staged MemoryMap.vhd. The ISA Makefile still refuses to
+    auto-derive these; what is new is that the explicit pairing is produced once and checked.
     """
     isa = cfg.get('isa', {})
     priv = cfg.get('priv', {})
@@ -830,38 +634,28 @@ def image_defines(cfg):
     return out
 
 
-# K4 (R-DK1 row C3): THE ONE PLACE WHERE THE IMAGE BUILD'S `-march` IS WRONG
-# FOR THE CONFIGURATION.
-#
-# verification/isa/Makefile fixes a per-GROUP march (`rv32imc`, `rv32imac`,
-# `rv32gc_zba`, ...) and emits `$(RISCV_GCC_OPTS)` AFTER it on the gcc command
-# line, so a `-march=` carried in RISCV_GCC_OPTS wins (last one wins). That is
-# the only lever, and exactly one supported configuration needs it: with
-# `isa.compressed` false the core cannot decode a 16-bit instruction, and gas
-# AUTO-COMPRESSES under a `c` march (measured: `addi a0,a0,1` assembles to the
-# 16-bit `0505`), so the default image set is full of encodings that build's
-# RTL traps on.
-#
-# DELIBERATELY NARROW, and it must not grow into "derive the march from the
-# config":
-#   * the five base knobs stay excluded from DEFINE_KNOBS for the reasons
-#     measured in that comment; this changes none of it;
-#   * a `mul=div=false` row CANNOT drop `m` from the march -- the rv32um
-#     sources would stop assembling -- so C1/C2's images stay byte-identical to
-#     the default set. That is a KNOWN and DIFFERENT gap (ledger K4-L5 names
-#     it) and it is NOT fixed here;
-#   * one global march has to cover every group a selection builds, so it is a
-#     SUPERSET of what any of them asks for. Measured at K4 session 4: all 232
-#     sources across the seven groups a C3 selection needs assemble under it,
-#     and 149 of those 232 images differ from their default-march twins.
+# The one place where the image build's -march is wrong for the configuration.
+# verification/isa/Makefile fixes a per-group march (rv32imc, rv32imac, rv32gc_zba and so
+# on) and emits $(RISCV_GCC_OPTS) after it on the gcc command line, so a -march= carried in
+# RISCV_GCC_OPTS wins. Exactly one supported configuration needs it: with isa.compressed
+# false the core cannot decode a 16-bit instruction, and gas auto-compresses under a `c`
+# march (measured: addi a0,a0,1 assembles to the 16-bit 0505), so the default image set is
+# full of encodings that build's RTL traps on.
+# Deliberately narrow, and it must not grow into deriving the march from the config:
+#   * the five base knobs stay excluded from DEFINE_KNOBS for the reasons measured there;
+#   * a mul=div=false row cannot drop `m` from the march, because the rv32um sources would
+#     stop assembling, so those rows' images stay byte-identical to the default set. That is
+#     a known and different gap and is not fixed here;
+#   * one global march has to cover every group a selection builds, so it is a superset of
+#     what any of them asks for. Measured: all 232 sources across the seven groups a
+#     compressed-off selection needs assemble under it, and 149 of those 232 images differ
+#     from their default-march twins.
 NORVC_MARCH = 'rv32ima_zicsr_zifencei_zba_zbb_zbc_zbs'
 
 
 def image_march(cfg):
-    """The `-march` override this configuration's images need, or None.
-
-    None means "use the ISA Makefile's per-group march", which is every
-    configuration that has ever been built except C3.
+    """The -march override this configuration's images need, or None, which means the ISA Makefile's
+    per-group march.
     """
     isa = cfg.get('isa', {})
     if isa.get('compressed', True):
@@ -878,18 +672,9 @@ def image_march(cfg):
 
 
 def memorymap_on_knobs(path):
-    """The CORE_ENABLE_* knobs a MemoryMap.vhd actually declares TRUE.
-
-    K2/G3, the HARDWARE half of the polarity pair. The K0 harness probe's §3.4
-    is the reason this is a one-file read: every knob that changes core
-    behaviour reaches the RTL as a VHDL constant in MemoryMap.vhd -- NOT as a
-    generic -- so a per-config simulation needs exactly one substituted file,
-    and that file is the whole truth about the build's polarity.
-
-    Read from the STAGED file, never recomputed from the config, so that a
-    generator that failed to emit a constant is caught rather than agreed with.
-    Deliberately literal: `constant CORE_ENABLE_<K> : boolean := true;` with any
-    spacing. VHDL is case-insensitive, hence the lowercasing.
+    """The CORE_ENABLE_* knobs a MemoryMap.vhd actually declares true, the hardware half of the
+    polarity pair. Read from the staged file, never recomputed from the config, so a generator
+    that failed to emit a constant is caught rather than agreed with. VHDL is case-insensitive.
     """
     import re
     pat = re.compile(r'constant\s+CORE_ENABLE_([A-Z0-9_]+)\s*:\s*boolean\s*:=\s*(\w+)',
@@ -930,10 +715,9 @@ def memorymap_on_knobs(path):
 
 
 def test_groups(names):
-    """The verification/isa test groups the selected tests live in, in the
-    order build_mp_images.sh wants them (base groups first, ON-polarity suites
-    after -- the extprobe_template build-order trap: base images FIRST, then
-    the ON suites on top)."""
+    """The verification/isa test groups the selected tests live in, ordered as build_mp_images.sh
+    wants them: base groups first, then the ON-polarity suites on top.
+    """
     base = ['rv32ui', 'rv32ua', 'rv32um', 'rv32uc',
             'rv32uzba', 'rv32uzbb', 'rv32uzbc', 'rv32uzbs']
     need = set(n.split('-p-')[0] for n in names)
@@ -961,17 +745,17 @@ def config_tags(cfg):
     for k in PRIV_KNOBS:
         if priv.get(k):
             tags.add(k)
-    # ASYMMETRIC ISA (2026-08-16). `bitmanip` above answers "does THE CHIP have
+    # ASYMMETRIC ISA. `bitmanip` above answers "does THE CHIP have
     # B?", which since the minimal-tiles decision is no longer the same question
     # as "does a TILE have B?": harts 1..N-1 are built rv32iac while hart 0 keeps
     # the full ISA. An MP test whose TILE ARM executes B needs this tag, not
-    # `bitmanip`. Same shape as `nozkn` below and NOT the R-K2-4 "tag a real
+    # `bitmanip`. Same shape as `nozkn` below and NOT the "tag a real
     # constraint away" anti-pattern: the tiles genuinely do not implement B, so
     # the property the test asserts is false BY DESIGN on them, and no edit
     # inside the test can make it true.
     if isa.get('bitmanip') and not isa.get('minimalTiles'):
         tags.add('tilebitmanip')
-    # K7 (R-K7-2(4)) -- `nozkn` is a NEGATIVE structural predicate, and the only
+    # `nozkn` is a NEGATIVE structural predicate, and the only
     # one in this table. It exists because Zknh ALLOCATES ENCODINGS IN THE SPACE
     # RV32 RESERVES for shamt[5]=1, which is exactly the space `fk51mp` exists to
     # prove still traps. `fk51mp`'s own control encoding is annotated in its
@@ -981,12 +765,12 @@ def config_tags(cfg):
     # rows before this tag existed (152/153 and 176/177, both failing exactly
     # fk51mp).
     #
-    # This is NOT the R-K2-4 "tag a real constraint away" anti-pattern: the
+    # This is NOT the "tag a real constraint away" anti-pattern: the
     # constraint is architectural and unfixable inside the test, and the tag
     # states it rather than hiding it. If Zkn's encodings ever move, delete this.
     if not isa.get('zkn'):
         tags.add('nozkn')
-    # cqAfeStubs defaults FALSE since 2026-09-12: the tape-out chip became the
+    # cqAfeStubs defaults FALSE: the tape-out chip became the
     # generator's built-in default and it ships QSPI0 in page-0 slot 12 instead
     # of the AFE/EIS stub bank, so shafe/shorch must not be staged there. The
     # fallback is belt and braces -- this reads the RESOLVED config, which
@@ -1003,7 +787,7 @@ def config_tags(cfg):
     # The SECOND reason this tag used to carry -- the CLINT mtime/mtimecmp
     # offset, which sits at `0x5000 + roundup16(4*NHARTS)` and is only 0x5010/
     # 0x5020 at N<=4 -- is GONE at K5: shpause and shcmppush now derive it from
-    # NHARTS (R-K2-4's Argus-port debt, paid; see their rows above). If a future
+    # NHARTS (see their rows above). If a future
     # test hardcodes 0x5010 again, PORT IT rather than tagging it away -- the tag
     # is for structure the GENERATOR does not parameterise, not for a literal a
     # test could simply compute.
@@ -1023,7 +807,7 @@ def config_tags(cfg):
     for knob in ('uart1', 'spi1', 'timer1'):
         if cfg.get('peripherals', {}).get(knob, True):
             tags.add(knob)
-    # digperiphs #6: DMA0 is a config-gated ADDED instance (default off). Its
+    # DMA0 is a config-gated ADDED instance (default off). Its
     # DMA.vhd is compiled only when the config enables it (the NPU.vhd pattern);
     # no sh-test tags change (shdma.S is a follow-up).
     if cfg.get('peripherals', {}).get('dma'):
@@ -1048,20 +832,20 @@ def config_tags(cfg):
     # while shafe.S addresses AFE0 + 0x40*h, and h=4 would land on GPIO3.
     if cfg.get('orchestrator'):
         tags.add('orch')
-    # digperiphs (TRNG): TRNG0 is a config-gated ADDED instance (default off), same
+    # TRNG0 is a config-gated ADDED instance (default off), same
     # shape as DMA0. TrngRoEnsemble_sim.vhd + TRNG.vhd are compiled only when the
     # config enables it (below). No sh-test tags change yet -- no shared-suite test
     # uses TRNG0 (this tag exists solely to drive the cell-list injection).
     if cfg.get('peripherals', {}).get('trng'):
         tags.add('trng')
-    # digperiphs (EVFAB): EVFAB0 is a config-gated ADDED instance (default off),
+    # EVFAB0 is a config-gated ADDED instance (default off),
     # same shape as DMA0/TRNG0 -- but EVFAB.vhd is UNCONDITIONALLY in the base
     # cell list (it needs no config-gated MemoryMap constants), so this tag
     # drives ONLY test selection: shevfab.S touches 0x6B00 and the DMA task
     # port, so it must never be staged into a fabric-less configuration.
     if cfg.get('peripherals', {}).get('eventFabric'):
         tags.add('eventFabric')
-    # digperiphs Stage E: firmware smoke companions gated by their peripheral
+    # Firmware smoke companions gated by their peripheral
     # knob (wrtc/wpwm/wow join only the config(s) that instantiate the block).
     for knob in ('rtc', 'pwm', 'onewire', 'i2ctarget'):
         if cfg.get('peripherals', {}).get(knob):
@@ -1072,12 +856,9 @@ def config_tags(cfg):
 
 
 def _print_knob_classes():
-    """`verify_stage.py --knob-classes` -- the classification, for the shell.
-
-    Two lines of RTL constant suffixes, shell-word-safe by construction (the
-    names are [A-Z0-9_]). tools/cosim/gate/xrun_cosim.sh reads this instead of
-    hardcoding half of it, so the two halves of the polarity comparison cannot
-    drift apart again. Needs no resolved config and touches nothing.
+    """The classification, for the shell: two lines of RTL constant suffixes, shell-word-safe by
+    construction. xrun_cosim.sh reads this instead of hardcoding half of it, so the two halves of
+    the polarity comparison cannot drift apart. Needs no resolved config and touches nothing.
     """
     stampable, exempt = knob_classes()
     print('STAMPABLE_KNOBS=%s' % ' '.join(stampable))
@@ -1098,7 +879,7 @@ def main():
     have = config_tags(cfg)
     defines = image_defines(cfg)
     march = image_march(cfg)
-    # 2026-08-16: the memory layout is the fourth half of the polarity. The
+    # The memory layout is the fourth half of the polarity. The
     # images are LINKED against memory.x, so the TCM size decides __stack_top
     # and the RAM region length; reusing another size's images is reusing a
     # different chip's binaries.
@@ -1118,7 +899,7 @@ def main():
             shutil.rmtree(d)
     os.makedirs(os.path.join(stage, 'hdl'))
 
-    # --- staged RTL: the generated MCU + MemoryMap + testbench --------------
+    # staged RTL: the generated MCU + MemoryMap + testbench
     out_hdl = os.path.join(PC_ROOT, 'out', 'hdl')
     for fn in ('MCU.vhd', 'MemoryMap.vhd', 'riscv_tb.vhd'):
         src = os.path.join(out_hdl, fn)
@@ -1126,7 +907,7 @@ def main():
             raise SystemExit('missing %s -- run make generate first' % src)
         shutil.copy(src, os.path.join(stage, 'hdl', fn))
 
-    # --- cell list: behavioral_mp's, with the generated files swapped -------
+    # cell list: behavioral_mp's, with the generated files swapped
     if not os.path.isfile(BASE_CELL_LIST):
         # K2 TRUTH FIX. This message used to read "(tracked in git -- checkout?)"
         # and that was FALSE: `.gitignore:312`'s bare `xcelium/` covers this file,
@@ -1144,7 +925,7 @@ def main():
         'hdl/common/MCU.vhd': 'hdl/MCU.vhd',
         'hdl/common/tb/riscv_tb.vhd': 'hdl/riscv_tb.vhd',
     }
-    # ALREADY-SWAPPED ANCHORS (2026-09-05). behavioral_mp's own cell list may
+    # ALREADY-SWAPPED ANCHORS. behavioral_mp's own cell list may
     # already point at the generated pair -- `hdl/MCU.vhd` / `hdl/MemoryMap.vhd`
     # as symlinks into bazel-bin -- instead of the tracked `hdl/common/` drop-in
     # copies. Staging read that list as a template and required all three
@@ -1192,7 +973,7 @@ def main():
                 continue
             if p.endswith('periph/NPU.vhd') and 'npu' not in have:
                 continue    # NPU.vhd needs the MmrAddrNPU* constants -- NPU-less
-            # digperiphs #6: DMA.vhd is compiled only when the config enables the
+            # DMA.vhd is compiled only when the config enables the
             # DMA (the NPU.vhd gate pattern). It depends on CRC16.vhd (already in the
             # base list, before the periph block); if the base list ever carries
             # DMA.vhd it is passed through when dma is on and dropped otherwise.
@@ -1200,7 +981,7 @@ def main():
                 if 'dma' not in have:
                     continue    # DMA off -> MCU.vhd has no dma0 instance
                 dma_seen = True
-            # digperiphs (TRNG): TrngRoEnsemble_sim.vhd + TRNG.vhd are compiled only
+            # TrngRoEnsemble_sim.vhd and TRNG.vhd are compiled only
             # when the config enables TRNG (the NPU.vhd/DMA.vhd gate pattern). The
             # RTL ensemble file (TrngRoEnsemble.vhd, the genus/gate-only `rtl` arch)
             # must NEVER be referenced here -- if the base list ever carries it, drop
@@ -1254,10 +1035,10 @@ def main():
             '  hdl/common/tb/riscv_tb.vhd must appear either in that spelling or\n'
             '  already swapped to hdl/MemoryMap.vhd / hdl/MCU.vhd / hdl/riscv_tb.vhd.'
             % (BASE_CELL_LIST, sorted(seen)))
-    # digperiphs (TRNG): inject TrngRoEnsemble_sim.vhd then TRNG.vhd (dependency
+    # Inject TrngRoEnsemble_sim.vhd then TRNG.vhd (dependency
     # order -- TRNG.vhd instantiates TrngRoEnsemble as a component) when the config
     # enables TRNG but the base list lacks them. Anchored just before UART.vhd (the
-    # rest of the digperiphs periph family -- RTC/PWM/OneWire/I2CTarget -- already
+    # rest of the periph family, RTC/PWM/OneWire/I2CTarget, already
     # sits there in the base list); NEVER TrngRoEnsemble.vhd (the rtl arch, D6). Done
     # BEFORE the DMA injection below: uart0_idx/crc16_idx were both captured against
     # the ORIGINAL (pre-insertion) `lines`, and uart0_idx > crc16_idx in that base
@@ -1272,7 +1053,7 @@ def main():
                              % BASE_CELL_LIST)
         lines.insert(uart0_idx, trng_cell)
         lines.insert(uart0_idx, sim_cell)
-    # digperiphs #6: inject DMA.vhd (after CRC16.vhd, its only dependency, and well
+    # Inject DMA.vhd (after CRC16.vhd, its only dependency, and well
     # before MCU.vhd) when the config enables the DMA but the base list lacks it.
     # D2: inject debug_module.vhd (immediately before MCU.vhd, its only
     # consumer) when the config enables debug but the base list lacks it.
@@ -1308,7 +1089,7 @@ def main():
             raise SystemExit('DMA config but commune/CRC16.vhd not in %s (DMA.vhd needs it)'
                              % BASE_CELL_LIST)
         lines.insert(crc16_idx + 1, dma_cell)
-    # SystemRDL level 2 (reports R6 and R8a): every peripheral has a GENERATED
+    # SystemRDL level 2: every peripheral has a GENERATED
     # register package -- hdl/common/regs/vhdl/<x>_regs_pkg.vhd -- carrying its word
     # offsets, field ranges, IMPL masks and reset constants. A package must be
     # analysed before the entity that uses it, so each one is inserted
@@ -1330,7 +1111,7 @@ def main():
         if not at:
             continue        # the entity is not in this configuration; neither is its package
         lines.insert(at[0], pkg_cell)
-    # The shared register file (report R12a). It is an ENTITY, not a package, but
+    # The shared register file. It is an ENTITY, not a package, but
     # `entity work.periph_regs` binds at ANALYSIS, so it goes ahead of the first
     # thing that could instantiate it -- which, after the loop above, is the first
     # register package in the list.
@@ -1342,7 +1123,7 @@ def main():
     with open(os.path.join(stage, 'cell_list_behavioral.txt'), 'w') as f:
         f.write('\n'.join(lines) + '\n')
 
-    # --- runner script from the template -------------------------------------
+    # runner script from the template
     with open(TEMPLATE) as f:
         tpl = f.read()
     test_lines = '\n'.join('    "%s"' % rel(name) for (name, _s) in sel)
@@ -1367,7 +1148,7 @@ def main():
                 'Everything here is regenerable -- do not hand-edit.\n'
                 % (cfg['chipName'], nharts, 'npu' in have))
 
-    # --- the 3-char rcf symlink ----------------------------------------------
+    # the 3-char rcf symlink
     link_path = os.path.join(RISCV_TEST, link)
     target = os.path.join('..', '..', 'verification', 'isa', dest)
     if os.path.islink(link_path):
@@ -1379,7 +1160,7 @@ def main():
     else:
         os.symlink(target, link_path)
 
-    # --- hand off to verify.sh ------------------------------------------------
+    # hand off to verify.sh
     print('CHIP=%s' % cfg['chipName'])
     print('STAGE_DIR=%s' % stage)
     print('NHARTS=%d' % nharts)

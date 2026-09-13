@@ -1,73 +1,65 @@
-# Castalia (five-hart multi-core VestaRV: soft orchestrator hart 0 plus four
-# hardened tiles) chip generator Makefile
-# Source of truth: python/generate.py; everything else is generated from it.
-# All outputs stay inside platform/common/ (never touches ../../hdl, ../../software, ../../tools).
+# VestaRV: chip generator for Castalia, the five-hart part with a soft
+# orchestrator at hart 0 and four hardened tiles.
+# python/generate.py is the source of truth; everything else is generated from it.
+# Every output stays inside platform/common/: this Makefile never writes to
+# ../../hdl, ../../software or ../../tools.
 
 .PHONY: all help chip generate pdf web web-copy publish check-publish publish-chip check-chip install-hook show config verify clean install-deps
 
-# Which implementations/asic/<CHIP>/docs/TRM.pdf the publish/check targets act on.
-# The default build ('make chip') is Castalia; a non-default chip also needs its CONFIG,
-# so use the publish-chip / check-chip convenience targets (they build the requested chip
-# then regenerate the default Castalia artifacts so out/ and the tracked resolved-config
-# JSON go back to HEAD).
+# Which implementations/asic/<CHIP>/docs/TRM.pdf the publish and check targets act
+# on. `make chip` builds Castalia; a non-default chip also needs its CONFIG, so use
+# publish-chip or check-chip, which build the requested chip and then regenerate
+# the default artifacts so out/ and the tracked resolved-config JSON return to HEAD.
 CHIP ?= castalia
 PUBLISH_PDF = ../../implementations/asic/$(CHIP)/docs/TRM.pdf
 
 # pdflatex: PATH first, then any user-local TeX Live install
 PDFLATEX := $(shell command -v pdflatex 2>/dev/null || ls $(HOME)/texlive/*/bin/*/pdflatex 2>/dev/null | head -1)
 
-# Reproducible-PDF anchor: with SOURCE_DATE_EPOCH set, pdfTeX (>=1.40.17) pins the
-# embedded /CreationDate, /ModDate AND the trailer /ID, so identical TRM.tex -> byte-
-# identical TRM.pdf. This is what makes 'make check-publish' a meaningful byte-diff.
-# It is an ARBITRARY FIXED instant (2025-01-01 UTC), not the build time — every TRM
-# content date is config-driven, so this only affects otherwise-nondeterministic PDF
-# metadata. Do not derive it from HEAD/now, or rebuilds stop being reproducible.
+# Reproducible-PDF anchor. With SOURCE_DATE_EPOCH set, pdfTeX 1.40.17 and later pins
+# the embedded /CreationDate, /ModDate and the trailer /ID, so identical TRM.tex
+# gives a byte-identical TRM.pdf, which is what makes check-publish a meaningful
+# byte diff. It is an arbitrary fixed instant, not the build time: every TRM content
+# date is config driven, so this affects only otherwise-nondeterministic PDF
+# metadata. Deriving it from HEAD or from now would end reproducibility.
 SOURCE_DATE_EPOCH ?= 1735689600
-# K5 (F-K5-2). The TRM's VISIBLE revision date, derived from the newest commit
-# date of the TRM's own input set instead of from the wall clock.
-#
-# It used to be `datetime.now()` inside LatexUserGuide.py, and because
-# `verify: generate` below, EVERY `make verify` restamped it. `check-publish`
-# -- a byte-diff of a deterministic rebuild against the published PDF, and a
-# pre-commit hook -- therefore could not pass on any day but the publish day,
-# with zero content change. It trained three waves to bypass it.
-#
-# Deliberately NOT SOURCE_DATE_EPOCH above: that is an arbitrary fixed instant
-# for PDF byte-reproducibility, and putting it on the title page would print
-# "Revised January 1st, 2025" on every TRM forever. This one MEANS something
-# and is still identical for every checkout of the same tree.
-# The `?=` lets a caller override it; the fallback keeps a git-less export
-# building (LatexUserGuide.py then falls through to SOURCE_DATE_EPOCH/now()).
+# The TRM's visible revision date, taken from the newest commit date of the TRM's
+# own input set rather than from the wall clock. A wall-clock date would be
+# restamped by every `make verify`, since verify depends on generate, and
+# check-publish could then pass only on the publish day. It is deliberately not
+# SOURCE_DATE_EPOCH: that fixed instant would print the same date on every TRM
+# forever. This one means something and is still identical for every checkout of
+# the same tree. `?=` lets a caller override it, and the fallback keeps a git-less
+# export building, where LatexUserGuide.py falls through to SOURCE_DATE_EPOCH.
 VESTA_TRM_DATE_EPOCH ?= $(shell git -C $(CURDIR) log -1 --format=%ct -- \
     python latex config 2>/dev/null)
 export VESTA_TRM_DATE_EPOCH
-# The TRM title page also prints a BUILD HASH: the abbreviated hash of the
-# same commit the revision date comes from (the newest commit touching the
-# TRM's own input set), so the two agree and both are identical for every
-# checkout of the same tree. It is written to latex/TRM/buildhash.tex by the
-# pdf target as a \BuildHash define; the template falls back to "unversioned"
-# when the file is missing (a git-less export). Deliberately NOT a dirty-tree
-# indicator: that would make check-publish unpassable on any edited tree.
+# The title page also prints a build hash: the abbreviated hash of the same commit
+# the revision date comes from, so the two agree. The pdf target writes it to
+# latex/TRM/buildhash.tex as a \BuildHash define and the template falls back to
+# "unversioned" when that file is missing, as in a git-less export. It is not a
+# dirty-tree indicator: that would make check-publish unpassable on any edited tree.
 VESTA_TRM_BUILD_HASH ?= $(shell git -C $(CURDIR) log -1 --format=%h --abbrev=8 -- \
     python latex config 2>/dev/null)
 export VESTA_TRM_BUILD_HASH
 
-# Optional chip-name override for the whole configuration (TRM title page/prose,
-# generated file headers): make chip CHIP_NAME=MyChip
+# Chip-name override for the whole configuration, covering the TRM title page and
+# prose and the generated file headers: make chip CHIP_NAME=MyChip
 CHIP_NAME ?=
 
-# Optional configuration file (JSON) produced by docs/chip_configurator.html or
-# written by hand: make chip CONFIG=path/to/config.json
-# Knobs: chipName, numHarts, numMutexes, registerFileDualPort, isa.*,
-# memory.*, peripherals.npu — every key optional, unknown keys are a hard
-# error (typo protection), and the resolved result is written to
-# config/ChipConfig.resolved.json. CHIP_NAME still wins over the file's
-# chipName. Schema reference: docs/chip_configurator.html (interactive),
-# the generated TRM's "Chip Configuration" section, or generate.py's
-# _CONFIG_SCHEMA (the authority).
+# Configuration file, written by hand or exported by docs/chip_configurator.html:
+# make chip CONFIG=path/to/config.json
+# Knobs: chipName, numHarts, numMutexes, registerFileDualPort, isa.*, memory.*,
+# peripherals.npu. Every key is optional and an unknown key is a hard error, which
+# is the typo protection. This reaches generate.py as CHIP_CONFIG, the environment
+# form of its --config flag, and CHIP_NAME still wins over the file's chipName.
+# generate.py's _CONFIG_SCHEMA is the authority on the schema. The resolved result
+# is written to out/config/ChipConfig.resolved.json on every run; the TRACKED
+# config/ pair is refreshed only by a default build, so a CONFIG= build leaves the
+# working tree clean and needs no restoring run.
 CONFIG ?=
 
-# Default: 'make chip' regenerates the artifacts AND builds the TRM PDF
+# `make chip` regenerates the artifacts and builds the TRM PDF.
 all: chip
 
 help:
@@ -103,21 +95,18 @@ help:
 	@echo "Documentation:   README.md (and CLAUDE.md for AI sessions)"
 	@echo "=========================================="
 
-# ---------------------------------------------------------------------------
-# Chip artifact generation (memory map -> headers, linker scripts, HDL, JSON, TRM LaTeX)
-# ---------------------------------------------------------------------------
+# Chip artifacts: memory map to headers, linker scripts, HDL, JSON, TRM LaTeX.
 SYNC_MODE ?= --strict
 
-# THE GENERATOR NEEDS A SystemRDL-CAPABLE INTERPRETER.
-# python/generate.py reads hdl/common/regs/rdl/*.rdl for its register maps
-# (tools/rdl/README.md), and systemrdl-compiler needs Python >= 3.8 while several
-# hosts here ship a 3.6 as /usr/bin/python3. python/rdl_python.py returns this
-# shell's python3 when it can already import the compiler, and otherwise the
-# hermetic interpreter and pinned wheels bazel provisions -- the same ones
-# //platform/common:chip_artifacts_* uses, so make and bazel agree by
-# construction. It fails loudly rather than generating a chip with eighteen
-# peripherals' registers missing. Every OTHER python3 below is a self-contained
-# checker with no third-party dependency and is left alone.
+# The generator needs a SystemRDL-capable interpreter: generate.py reads
+# hdl/common/regs/rdl/*.rdl for its register maps, systemrdl-compiler needs Python
+# 3.8 or newer, and several hosts here ship 3.6 as /usr/bin/python3.
+# python/rdl_python.py returns this shell's python3 when it can already import the
+# compiler, and otherwise the hermetic interpreter and pinned wheels bazel
+# provisions, which are the ones //platform/common:chip_artifacts_* uses, so make
+# and bazel agree by construction. It fails loudly rather than generating a chip
+# with eighteen peripherals' registers missing. Every other python3 below is a
+# self-contained checker with no third-party dependency.
 GEN_PYTHONPATH := $(shell python3 python/rdl_python.py --pythonpath)
 GEN_PYTHON := $(shell python3 python/rdl_python.py --python)
 
@@ -143,21 +132,19 @@ generate:
 	@echo "  • out/software/include/MemoryMap.h, periph.S"
 	@echo "  • out/linker-scripts/memory.x, periph.x, *.txt"
 	@echo "  • out/hdl/MCU.vhd, MemoryMap.vhd, riscv_tb.vhd, MCU_routing_template.vhd"
-	@echo "  • config/MemoryMap.json, ChipConfig.resolved.json, PadRing.json"
+	@echo "  • out/config/ChipConfig.resolved.json, PadRing.json (this build), config/MemoryMap.json"
 	@echo "  • latex/TRM/  (LaTeX sources incl. generated block/boot/sync/pinout diagrams)"
 
-# The full chip: artifacts + the Technical Reference Manual PDF for exactly this
-# configuration (chapters, register tables, memory map, and feature list are all
-# derived from what python/generate.py instantiates)
+# The full chip: artifacts plus the Technical Reference Manual PDF for exactly this
+# configuration. Chapters, register tables, memory map and feature list all derive
+# from what python/generate.py instantiates.
 chip: generate
 	@$(MAKE) --no-print-directory pdf
 	@$(MAKE) --no-print-directory web-copy
 	@echo ""
 	@echo "✅ Chip generation complete — RTL in out/hdl/, TRM at latex/TRM/TRM.pdf, web data in out/web/"
 
-# ---------------------------------------------------------------------------
-# TRM PDF (requires pdflatex; auto-detected from PATH or ~/texlive)
-# ---------------------------------------------------------------------------
+# TRM PDF. Needs pdflatex, auto-detected from PATH or ~/texlive.
 pdf:
 	@if [ -z "$(PDFLATEX)" ]; then \
 		echo "❌ pdflatex not found on PATH or in ~/texlive."; \
@@ -181,11 +168,10 @@ pdf:
 	@echo "✅ latex/TRM/TRM.pdf (reproducible; SOURCE_DATE_EPOCH=$(SOURCE_DATE_EPOCH))"
 
 # Read the rendered text back and look for LaTeX that leaked through as literal
-# characters. pdflatex exits 0 on these: a mangled command such as `\\texttt{X}`
-# (line break followed by the letters "texttt") compiles cleanly and ships wrong
-# text, and an unresolved \ref renders as "??". The log cannot catch either, so
-# the built PDF is the only place to check. Skipped, not failed, where pdftotext
-# is unavailable.
+# characters. pdflatex exits 0 on these: a mangled command compiles cleanly and
+# ships wrong text, and an unresolved \ref renders as "??". The log catches
+# neither, so the built PDF is the only place to check. Skipped, not failed, where
+# pdftotext is unavailable.
 trm-lint:
 	@if ! command -v pdftotext >/dev/null 2>&1; then \
 		echo "⚠️  pdftotext not found — skipping TRM text lint."; exit 0; fi
@@ -209,22 +195,17 @@ trm-lint:
 		exit 1; fi
 	@echo "✅ TRM text lint clean (no leaked LaTeX, no unresolved references)"
 
-# ---------------------------------------------------------------------------
-# Web data export (S2): out/web/chip_data.js is emitted by generate.py itself
-# (writer wired into ChipGenerator.Generate() next to generateMemoryMapJson).
-# 'make web' regenerates it and ALSO copies config/MemoryMap.json alongside it
-# for WP S8's register browser. Both outputs stay under platform/common/out/web/
-# (golden rule). 'web-copy' is the copy-only step the 'chip' chain reuses so a
-# full 'make chip' doesn't regenerate twice.
-# ---------------------------------------------------------------------------
-# K7/F-K7-2 (2026-08-04): `web` USED TO DEPEND ON A STRICT `generate`, so the
-# moment the schema moved, `make web` failed on the very drift it exists to
-# repair -- and there was no documented way forward. That is the F-K5-2 class: a
-# gate that cannot be satisfied by the tool the project tells you to run. Now the
-# inner generate runs NON-strict (SYNC_MODE empty -> WARN), the splice happens,
-# and the strict check runs AFTER it, so `make web` still ends red if the splice
-# did not actually fix the drift. The default `make generate` is unchanged and
-# still a hard gate.
+# Web data export. generate.py emits out/web/chip_data.js itself; `make web`
+# regenerates it and copies config/MemoryMap.json alongside for the register
+# browser. Both outputs stay under platform/common/out/web/. web-copy is the
+# copy-only step the chip chain reuses so a full `make chip` does not regenerate
+# twice.
+#
+# The inner generate here runs non-strict, SYNC_MODE empty, and the strict check
+# runs after the splice. A strict inner generate would make `make web` fail on the
+# very drift it exists to repair, while running the check afterwards still ends the
+# target red if the splice did not fix it. The default `make generate` is unchanged
+# and still a hard gate.
 web:
 	@$(MAKE) --no-print-directory generate SYNC_MODE=
 	@$(MAKE) --no-print-directory web-copy
@@ -252,8 +233,8 @@ web-copy:
 	@echo "  • out/web/chip_data.js   (VESTA_DATA: schema, defaults, packages, presets, memory map)"
 	@echo "  • out/web/MemoryMap.json (full peripheral→register→bitfield tree, for the register browser)"
 
-# Publish the built TRM to the repo's implementations tree (committing is left to you,
-# so a stale or broken PDF never gets pushed by accident)
+# Publish the built TRM to the implementations tree. Committing is left to the
+# caller, so a stale or broken PDF is never pushed by accident.
 publish:
 	@if [ ! -f latex/TRM/TRM.pdf ]; then \
 		echo "❌ latex/TRM/TRM.pdf not built. Run 'make pdf' first."; \
@@ -263,11 +244,11 @@ publish:
 	@echo "✅ Published to $(PUBLISH_PDF)"
 	@echo "   Review and commit it: git add $(PUBLISH_PDF) && git commit"
 
-# Drift gate (the check_mcu_vhd.py analog for the TRM): rebuild the PDF deterministically
-# from the CURRENT generated latex/TRM/TRM.tex and byte-compare it to the committed copy.
-# Exit 0 = the published TRM matches what the generator produces; exit 1 = STALE.
-# Assumes the TeX is current — run 'make generate' (or 'make chip') first if generate.py,
-# the templates, or intro tex changed. Used by the pre-commit hook (see install-hook).
+# Drift gate for the TRM, the analogue of check_mcu_vhd.py: rebuild the PDF
+# deterministically from the current latex/TRM/TRM.tex and byte-compare it to the
+# committed copy. Exit 0 means the published TRM matches the generator, exit 1
+# means stale. It assumes the TeX is current, so run `make generate` first if
+# generate.py, the templates or the intro tex changed. The pre-commit hook runs it.
 check-publish: pdf
 	@if [ ! -f $(PUBLISH_PDF) ]; then \
 		echo "❌ No published TRM at $(PUBLISH_PDF) — run 'make publish' to create it."; \
@@ -279,11 +260,11 @@ check-publish: pdf
 		echo "   Refresh it:  make publish   (then: git add $(PUBLISH_PDF))"; \
 		exit 1; fi
 
-# Build + publish one chip's TRM in a single step, then restore the default (Castalia)
-# artifacts. Use for non-default chips, which need their CONFIG:
+# Build and publish one chip's TRM, then restore the default artifacts. For
+# non-default chips, which need their CONFIG:
 #   make publish-chip CHIP=argus CONFIG=config/argus.json
-# The trailing 'generate' returns out/ and the tracked config/*.resolved.json to Castalia
-# (the CLAUDE.md "re-run plain make chip after any Argus-config run" idiom, baked in).
+# The trailing generate returns out/ to the default chip; the tracked config/ pair
+# never left it.
 publish-chip:
 	@$(MAKE) --no-print-directory generate CONFIG=$(CONFIG)
 	@$(MAKE) --no-print-directory pdf
@@ -291,8 +272,8 @@ publish-chip:
 	@$(MAKE) --no-print-directory generate CONFIG= >/dev/null
 	@echo "↩  restored default (Castalia) artifacts"
 
-# Non-default-chip drift check (manual; the pre-commit hook only gates the default
-# Castalia TRM to avoid churning the tracked resolved-config JSON):
+# Drift check for a non-default chip. Manual: the pre-commit hook gates only the
+# default TRM, so it does not churn the tracked resolved-config JSON.
 #   make check-chip CHIP=argus CONFIG=config/argus.json
 check-chip:
 	@$(MAKE) --no-print-directory generate CONFIG=$(CONFIG)
@@ -301,8 +282,8 @@ check-chip:
 	 echo "↩  restored default (Castalia) artifacts"; \
 	 exit $$rc
 
-# Install the pre-commit hook that runs check-publish so a stale TRM can't be committed.
-# The hook SOURCE is tracked at hooks/pre-commit; this copies it into the repo's .git.
+# Install the pre-commit hook that runs check-publish, so a stale TRM cannot be
+# committed. The hook source is tracked at hooks/pre-commit and copied into .git.
 install-hook:
 	@hookdir="$$(cd ../.. && git rev-parse --absolute-git-dir)/hooks"; \
 	 mkdir -p "$$hookdir"; \
@@ -313,17 +294,16 @@ install-hook:
 show config:
 	@./show_config.sh
 
-# ---------------------------------------------------------------------------
-# Config -> RTL -> proof: stage out/hdl into an Xcelium behavioral flow and run
-# the smoke suite (the A3 Argus hand-staging pattern, productized). Needs the
-# Cadence tools (verify.sh's runner sources ~/vestarv/cdspaths.sh itself) and
-# the riscv-none-elf- toolchain if the image set for this NHARTS isn't built.
-# ---------------------------------------------------------------------------
+# Config to RTL to proof: stage out/hdl into an Xcelium behavioral flow and run the
+# smoke suite. Needs the Cadence tools, which verify.sh's runner reaches by sourcing
+# cdspaths.sh itself, and the riscv-none-elf- toolchain if the image set for this
+# NHARTS is not built.
 verify: generate
 	@./verify.sh
 
-# Clean generated files (Castalia outputs only — NEVER touches the Myshkin toolchain
-# files in ../../software or ../../tools, and keeps latex/TRM/include/*_man.tex wrappers)
+# Clean the generated Castalia outputs only. It never touches the Myshkin toolchain
+# files under ../../software or ../../tools, and keeps the
+# latex/TRM/include/*_man.tex wrappers.
 clean:
 	@echo "⚠️  This removes generated Castalia outputs: out/, config/*.json,"
 	@echo "    and LaTeX build artifacts in latex/TRM/ (not the _man.tex wrappers)."

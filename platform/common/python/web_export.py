@@ -1,50 +1,19 @@
 #!/usr/bin/env python3
-"""web_export.py -- emit out/web/chip_data.js, a single machine-readable bundle
-of everything docs/chip_configurator.html (and the register browser) needs to
-SELF-CONFIGURE from the generator instead of re-transcribing it (WP S2,
-2026-07-16; audit_findings.md sec 4.1-4.4).
+"""VestaRV: emit out/web/chip_data.js, the bundle the configurator and register browser read.
 
-`ChipGenerator.Generate()` calls `writeWebData(self, out/web/chip_data.js)` on a
-real build (next to generateMemoryMapJson). The output is:
-
-    const VESTA_DATA = { ...one JSON object... };
-
-with top-level keys:
-    meta           provenance (chip name, source config, generator note)
-    schema         every _CONFIG_SCHEMA key: description + machine-readable
-                   constraints (type, min/max/step, enum, default)
-    defaults       schema key -> default value (flat, dotted keys)
-    packages       every _PACKAGE_MODELS model -> its full pad ring (pin, side,
-                   name, io type, power domain, gpio/af table)
-    derivedPresets castalia / argus derived geometry (isa string, shared-
-                   window width, banks, flash base, CLINT layout, ...)
-    verifiedHarts  {values:[...], note:...} -- the hart counts this tree can
-                   still build AND elaborate, from generate.py's
-                   _VERIFIED_HART_COUNTS record (NOT a second copy: see below)
-    memoryRegions  region-level address map (ROM, peripheral window, shared
-                   window sections, TCM, flash)
-
-Everything is read from the generator objects that generate.py already builds
-(gen.ConfigMeta / ConfigDefaults / ConfigSchemaDoc / PackageModels /
-ResolvedConfig / SharedWindowSections) -- NO pin numbers, ranges, or formulas
-are transcribed a second time. The one exception is the derived-geometry math
-for the OTHER preset configs (argus/cq), which is computed here by `_derived()`
-and CROSS-CHECKED against gen.ResolvedConfig['derived'] for the current build so
-it can never silently drift from generate.py's authoritative computation.
-
-Python 3.6 compatible. Deterministic (no timestamps) so the file byte-diffs
-cleanly across identical builds.
+Writes `const VESTA_DATA = {...}` with meta, schema, defaults, packages, derivedPresets,
+verifiedHarts and memoryRegions. Everything comes from the generator objects generate.py
+already built, so no pin number or formula is transcribed twice; the one exception is
+_derived() for the other presets, cross-checked against gen.ResolvedConfig for this build.
 """
 
 import json
 import os
 
 
-# ---------------------------------------------------------------------------
 # Pure derived-geometry math (mirrors generate.py's A2/A0 formulas). Used ONLY
 # for the argus preset; a cross-check against the authoritative
 # gen.ResolvedConfig['derived'] guards it from drifting.
-# ---------------------------------------------------------------------------
 def _clog2(n):
 	w = 0
 	while (1 << w) < n:
@@ -64,7 +33,7 @@ def _isaString(isa):
 		s += '_zba_zbb_zbs_zbc'
 	if isa.get('counters'):
 		s += '_zicntr'
-	# X1 extensions (2026-07-17). Keep IDENTICAL to generate.py._isaString().
+	# X1 extensions. Keep IDENTICAL to generate.py._isaString().
 	if isa.get('zihpm'):
 		s += '_zihpm'
 	if isa.get('zicond'):
@@ -112,10 +81,10 @@ def _hx(v):
 
 
 def _libraryTailVectorsCount(cfg):
-	"""A5 GLOBAL VECTOR RULE — mirror of generate.py._libraryTailVectorsCount().
-	The library tail beyond the 114 unconditional vectors extends to the last vector
-	of the HIGHEST enabled block; 114 when the whole tail is off. Keep the (present,
-	count) rows IN STEP with generate.py's _LIBRARY_TAIL_SPEC."""
+	"""Mirror of generate.py's _libraryTailVectorsCount(). The library tail beyond the 114
+	unconditional vectors extends to the last vector of the highest enabled block, and is 114 when
+	the whole tail is off. Keep the (present, count) rows in step with _LIBRARY_TAIL_SPEC.
+	"""
 	periph = cfg.get('peripherals', {})
 	tail = [
 		(periph.get('rtc', False), 1),   # vector 114
@@ -140,7 +109,6 @@ def _libraryTailVectorsCount(cfg):
 	return high
 
 
-# ---------------------------------------------------------------------------
 # THE PER-HART-CLASS ISA RECORD (asymmetric ISA, isa.minimalTiles).
 #
 # ONE authority for a fact that is published in four places: the resolved-config
@@ -166,18 +134,14 @@ def _libraryTailVectorsCount(cfg):
 #     advertise less than it implements and would save nothing.
 #   * at numHarts < 2, or with minimalTiles off, there is no tile class at all
 #     and the table degenerates to one row.
-# WIDENED 2026-09-12 (P12). The split used to be exactly three constants, M and
+# The split used to be exactly three constants, M and
 # B, so a chip whose orchestrator enabled Zfinx, Zkn or PMP put them inside the
-# hardened macro as well (P10 finding F1).
-# ---------------------------------------------------------------------------
+# hardened macro as well.
 def _privFeatures(cfg, tile=False):
-	"""The privilege-architecture feature list, in the order the TRM prints it.
-
-	tile=True is the MINIMAL corner-tile class: U-mode and PMP fall away with
-	every other selectable knob, and the trap CSRs and debug stay (the Debug
-	Module halts tiles, and vesta.vhd:1699 asserts ENABLE_DEBUG requires
-	ENABLE_TRAPCSR). Mirrors ChipGenerator.py's TILE_ENABLE_* emission; keep the
-	two in step."""
+	"""The privilege-architecture feature list, in the order the TRM prints it. tile=True is the
+	minimal corner-tile class: U-mode and PMP fall away with every other selectable knob, and the
+	trap CSRs and debug stay, since ENABLE_DEBUG requires ENABLE_TRAPCSR.
+	"""
 	priv = cfg.get('priv') or {}
 	dbg = cfg.get('debug') or {}
 	out = ['M-mode']
@@ -194,7 +158,7 @@ def _privFeatures(cfg, tile=False):
 
 # The isa.* knobs a MINIMAL tile drops. Every selectable extension: the three
 # that were always dropped (M and Zb) plus the Z-series, which reached the tiles
-# unchanged until 2026-09-12. What is ABSENT from this tuple is the point:
+# unchanged until the tuple was widened. What is ABSENT from it is the point:
 #   atomics, compressed  the 'a' and 'c' of rv32iac, never dropped
 #   counters, counters64 docs-only, gate no hart_tile generic (see the header)
 #   minimalTiles         the knob itself
@@ -206,11 +170,10 @@ _TILE_DROPPED_ISA = (
 
 
 def _tileIsa(isa):
-	"""The isa{} the hardened tiles are built with: the chip's, minus every
-	selectable extension.
-
-	Mirrors ChipGenerator.py's TILE_ENABLE_* expressions exactly. Returns the
-	SAME dict object contents as the input when the tiles are not minimal."""
+	"""The isa{} the hardened tiles are built with: the chip's, minus every selectable extension.
+	Mirrors ChipGenerator.py's TILE_ENABLE_* expressions, and returns the same contents as the
+	input when the tiles are not minimal.
+	"""
 	if not isa.get('minimalTiles'):
 		return dict(isa)
 	out = dict(isa)
@@ -220,11 +183,10 @@ def _tileIsa(isa):
 
 
 def hartClasses(cfg):
-	"""Per-hart-class ISA rows for a resolved-shape config dict.
-
-	One row per class that exists in the built chip: [orchestrator/hart 0, tile]
-	when the tiles are minimal and there is more than one hart, otherwise a
-	single row covering every hart."""
+	"""Per-hart-class ISA rows for a resolved-shape config dict: one row per class that exists in the
+	built chip, which is orchestrator and tile when the tiles are minimal and there is more than
+	one hart, and otherwise a single row covering every hart.
+	"""
 	isa = cfg['isa']
 	numHarts = int(cfg['numHarts'])
 	orch = bool(cfg.get('orchestrator'))
@@ -263,10 +225,10 @@ def hartClasses(cfg):
 
 
 def _derived(cfg):
-	"""Derived geometry for a resolved-shape config dict (numHarts / isa{} /
-	memory{}). Keys + hex formatting match generate.py's _resolvedConfig
-	'derived' section exactly (minus peripheralCount, which is peripheral-set
-	dependent)."""
+	"""Derived geometry for a resolved-shape config dict. Keys and hex formatting match generate.py's
+	_resolvedConfig 'derived' section exactly, minus peripheralCount, which is peripheral-set
+	dependent.
+	"""
 	numHarts = int(cfg['numHarts'])
 	sharedRam = int(cfg['memory']['sharedBulkRamSize'])
 	shAw = _clog2(0x10000 + sharedRam) - 2
@@ -292,8 +254,8 @@ def _derived(cfg):
 		'flashBaseAddress': _hx(flash),
 		'sharedRamEndAddress': _hx(0x10000 + sharedRam - 1),
 		'tcmWindowAddresses': [_hx(w) for w in tcmWindows],
-		# digperiphs Mission B: GPIO4/5 unconditional -> 114; digperiphs #4/#5: the
-		# library tail extends the count per the A5 GLOBAL VECTOR RULE — up to the last
+		# GPIO4/5 are unconditional, giving 114; the
+		# library tail then extends the count to the last
 		# vector of the highest enabled block (RTC 114, PWM 115/116, ...). Mirrors
 		# generate.py's _libraryTailVectorsCount(); keep the (present, count) rows in step.
 		'vectorsCount': _libraryTailVectorsCount(cfg),
@@ -305,18 +267,16 @@ def _derived(cfg):
 			'mtimecmpBaseAddress': _hx(0x5000 + 4 * mtimecmpSlot),
 		},
 		'bootromLoaderRowBase': '0x10500 + 0x10*hartid',
-		# DERIVED, not literal (2026-09-05). This was the literal 0xC000, i.e.
+		# DERIVED, not literal. This was the literal 0xC000, i.e.
 		# a second encoding of "the TCM is 16 KiB": correct for Argus
 		# (tcmSizePerHart 16384) and WRONG by 8 KiB for the castalia and cq
-		# presets, which have shipped an 8 KiB TCM since 2026-08-16. Same
+		# presets, which ship an 8 KiB TCM. Same
 		# expression as generate.py's _stackPointerInit (_ramStart + _tcmSize).
 		'stackPointerInit': _hx(0x8000 + int(cfg['memory']['tcmSizePerHart'])),
 	}
 
 
-# ---------------------------------------------------------------------------
 # Config merge helpers (defaults overlaid with a shipped preset JSON).
-# ---------------------------------------------------------------------------
 def _nest(flatDefaults):
 	"""Flat dotted defaults -> nested dict (resolved shape)."""
 	out = {}
@@ -351,9 +311,7 @@ def _loadPreset(configDir, name, defaultsNested):
 	return _deepMerge(defaultsNested, cfg)
 
 
-# ---------------------------------------------------------------------------
 # Region-level memory map (from the resolved config + gen.SharedWindowSections).
-# ---------------------------------------------------------------------------
 def _memoryRegions(gen):
 	resolved = gen.ResolvedConfig
 	mem = resolved['memory']
@@ -393,7 +351,6 @@ def _memoryRegions(gen):
 	return out
 
 
-# ---------------------------------------------------------------------------
 def buildWebData(gen):
 	"""Assemble the VESTA_DATA dict from the generator's own objects."""
 	resolved = gen.ResolvedConfig
@@ -423,7 +380,7 @@ def buildWebData(gen):
 		'orchestrator': resolved.get('orchestrator', False),	# CPR3/R3: shAw's second input
 		'isa': resolved['isa'],
 		'memory': resolved['memory'],
-		'peripherals': resolved['peripherals'],	# digperiphs #4: RTC grows vectorsCount 114 -> 115
+		'peripherals': resolved['peripherals'],	# RTC grows vectorsCount 114 -> 115
 		'priv': resolved.get('priv', {}),	# hartClasses' privilege column
 		'debug': resolved.get('debug', {}),	# hartClasses' privilege column
 	})
