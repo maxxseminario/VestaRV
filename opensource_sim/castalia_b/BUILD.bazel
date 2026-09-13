@@ -1,0 +1,92 @@
+# GHDL MCU elaboration gate for CastaliaB, config/castalia_b.json.
+#
+# //opensource_sim/mcu elaborates the TRACKED hdl/common/MCU.vhd, the
+# default-knob pair and the only generated RTL the tree keeps on disk.
+# CastaliaB is a different configuration of the same generator, so its MCU.vhd
+# and MemoryMap.vhd exist only as build outputs of
+# //platform/common:chip_artifacts_castalia_b. The two labels are spliced into
+# the shared analysis order at the two positions defs.bzl names, and nothing in
+# the source tree holds a second copy of the RTL. This is the //opensource_sim/
+# mcu_hart pattern, applied to the other end of the knob space.
+#
+# WHAT IT ADDS OVER :mcu_elaborate. CastaliaB turns on every selectable isa.*
+# extension plus U-mode and PMP, so the generate arms this design binds are not
+# the ones the tracked pair binds: fpu.vhd/fpu_simple.vhd behind ENABLE_ZFINX,
+# the Zkn round units, pmp_unit.vhd and the pmpcfg/pmpaddr CSR bank, the U-mode
+# privilege register. //opensource_sim/mcu:defs.bzl records that pmp_unit.vhd is
+# in the analysis list only so that "a chip that does turn PMP on" still builds;
+# this target is that chip.
+#
+# It is a RUN and not an elaboration for the same reason :mcu_elaborate is:
+# MCU.vhd's `assert RomAddrBits = RomMacroAddrBits` and hart_tile.vhd's
+# `assert RamSize = 8192` are CONCURRENT assertions, which execute once at time
+# zero and therefore need a simulation. The ROM is empty; the run reads no
+# memory contents.
+#
+# NO BOOT TEST HERE. //opensource_sim/mcu_hart:mcu_hart_boot grades a banner out
+# of a hand-written single-hart bench (mcu_hart_boot_tb.vhd); the five-hart
+# equivalent does not exist, and the tracked five-hart boot path is graded by the
+# cosim tier instead. The bar this package sets is the same one
+# //platform/common:castalia_b_generation_test sets one layer down, carried
+# further: the all-on RTL binds a hierarchy and its size contracts hold.
+
+load("//opensource_sim/mcu:defs.bzl", "rom_image_pkg")
+load("//toolchains/ghdl:defs.bzl", "ghdl_test", "vhdl_source_set")
+load(":defs.bzl", "CASTALIA_B_EXTRA", "CASTALIA_B_HEAD", "CASTALIA_B_MID")
+
+package(default_visibility = ["//visibility:public"])
+
+# No image: this gate elaborates and runs 1 ns, and reads no memory contents.
+rom_image_pkg(name = "castalia_b_rom_image_empty")
+
+vhdl_source_set(
+    name = "castalia_b_head_srcs",
+    paths = CASTALIA_B_HEAD,
+    pool = ["//hdl:vhdl_sources"],
+)
+
+vhdl_source_set(
+    name = "castalia_b_mid_srcs",
+    paths = CASTALIA_B_MID,
+    pool = ["//hdl:vhdl_sources"],
+)
+
+# DMA0 and TRNG0: instantiated by this configuration and by no tracked pair.
+vhdl_source_set(
+    name = "castalia_b_extra_srcs",
+    paths = CASTALIA_B_EXTRA,
+    pool = ["//hdl:vhdl_sources"],
+)
+
+# Order is analysis order, and it is load bearing twice over: a direct
+# `entity work.x` instantiation binds at ANALYSIS, so the macro model has to
+# precede hart_tile.vhd and MCU.vhd; and the GENERATED MemoryMap.vhd has to sit
+# where the tracked one sat, because every unit below it reads that package.
+_RTL = [
+    ":castalia_b_head_srcs",
+    "//platform/common:castalia_b_memorymap_vhd",
+    ":castalia_b_mid_srcs",
+    ":castalia_b_extra_srcs",
+    "//platform/common:castalia_b_mcu_vhd",
+]
+
+_FLAGS = [
+    "-fsynopsys",
+    # hdl/common/periph/SYSTEM.vhd:465 associates one element of a port array
+    # with `open`, which is an error under plain --std=08.
+    "-frelaxed",
+]
+
+ghdl_test(
+    name = "castalia_b_elaborate",
+    size = "small",
+    srcs = [
+        ":castalia_b_rom_image_empty",
+        "//opensource_sim/mcu:mem_macros_sim.vhd",
+    ] + _RTL,
+    entity = "MCU",
+    flags = _FLAGS,
+    sim_timeout_s = 120,
+    stop_time = "1ns",
+    tags = ["ghdl"],
+)

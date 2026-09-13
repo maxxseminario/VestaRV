@@ -1,0 +1,143 @@
+# GHDL ISA regression at the CORNER-TILE polarity: the same bare core as
+# //opensource_sim/isa with M and B turned off, which is what harts 1-4 are.
+#
+# ---------------------------------------------------------------------------
+# WHY THIS PACKAGE EXISTS
+# ---------------------------------------------------------------------------
+# isa.minimalTiles builds harts 1..N-1 rv32iac while hart 0 keeps the full chip
+# ISA, and the generator implements that split with exactly three constants:
+# TILE_ENABLE_MUL, TILE_ENABLE_DIV, TILE_ENABLE_BITMANIP (mcu_vhd.py
+# coreGenericLines). Every other ISA and privilege knob reaches the tiles
+# through the single CORE_ENABLE_* set. So the tile core is hart 0 minus M and
+# B, and until this package existed nothing in the test estate ran an image
+# against a core in that shape: //opensource_sim/isa runs M and B ON, and the
+# genus tile flow asserts the divider is ABSENT but never executes an
+# instruction.
+#
+# CastaliaB (config/castalia_b.json) is what made that gap worth closing. Its
+# hart 0 turns on every selectable extension, so its TILES inherit every one of
+# them too, and combinations that do not occur anywhere else become real: Zcb
+# with M off is the sharp one, because c.mul expands to a base MUL that maindec
+# then has to trap (c_dec.vhd:438). That trap is a decode path, and a decode
+# path wants a run.
+#
+# ---------------------------------------------------------------------------
+# POLARITY, AND WHAT IT COSTS
+# ---------------------------------------------------------------------------
+# The images are //verification/isa's CI-polarity rv32ui set, the same ones
+# //opensource_sim/isa consumes, for the same reason given in that file: one
+# rv32ui source reads a CORE_ENABLE_* define (zbk.S) and the rest are
+# polarity-independent. The images are NOT rebuilt without -march M: an rv32ui
+# riscv-tests source is hand-written assembly and emits no compiler-chosen
+# multiply, which is why the suite runs at all on a core with no multiplier.
+#
+# The bench generics are the only difference from //opensource_sim/isa's
+# targets. vesta_isa_tb.vhd carries ENABLE_MUL/ENABLE_DIV/ENABLE_BITMANIP at
+# its own boundary, defaulted true, so every other consumer of that bench is
+# untouched and this package is a -g override.
+#
+# SUITE SCOPE: rv32ui, mirroring //opensource_sim/isa's pilot. The suites that
+# a tile could also run (rv32ua for the LR/SC + AMO locking the tiles own,
+# rv32uc for C) have no per-test targets anywhere yet; when the per-test port
+# reaches them, add them here with the same generics.
+
+load("//toolchains/ghdl:defs.bzl", "ghdl_test", "vhdl_source_set")
+load("//opensource_sim/isa:defs.bzl", "VESTA_ISA_RTL")
+
+package(default_visibility = ["//visibility:public"])
+
+_IMAGE_PACKAGE = "//verification/isa"
+
+vhdl_source_set(
+    name = "vesta_tile_srcs",
+    paths = VESTA_ISA_RTL,
+    pool = ["//hdl:vhdl_sources"],
+)
+
+# The tile ISA: hart 0's set minus M and B. Written as the three generics the
+# generator's split actually moves, so this list and TILE_ENABLE_* in a
+# generated MemoryMap.vhd are the same statement.
+_TILE_GENERICS = {
+    "ENABLE_MUL": "false",
+    "ENABLE_DIV": "false",
+    "ENABLE_BITMANIP": "false",
+}
+
+# The live rv32ui set of //opensource_sim/isa, minus any test that needs M or B
+# to reach its own check. MEASURED EMPTY: all 42 were run at this polarity and
+# all 42 passed, so nothing is excluded. The map stays as the mechanism, and an
+# entry added here must carry the observed failure, never an assumption.
+_SKIP = {}
+
+# Transcribed from //opensource_sim/isa's _LIVE. A test added there and not
+# here shows up as an absent target rather than as silent loss of coverage,
+# which is why the list is spelled out.
+_TESTS = [
+    "add",
+    "addi",
+    "and",
+    "andi",
+    "auipc",
+    "beq",
+    "bge",
+    "bgeu",
+    "blt",
+    "bltu",
+    "bne",
+    "jal",
+    "jalr",
+    "lb",
+    "lbu",
+    "ld_st",
+    "lh",
+    "lhu",
+    "lui",
+    "lw",
+    "or",
+    "ori",
+    "sb",
+    "sh",
+    "shmem",
+    "simple",
+    "sll",
+    "slli",
+    "slt",
+    "slti",
+    "sltiu",
+    "sltu",
+    "sra",
+    "srai",
+    "srl",
+    "srli",
+    "st_ld",
+    "sub",
+    "sw",
+    "xor",
+    "xori",
+    "zbk",
+]
+
+_LIVE = [t for t in _TESTS if t not in _SKIP]
+
+[
+    ghdl_test(
+        name = "tile-rv32ui-p-%s" % test,
+        size = "medium",
+        srcs = [
+            ":vesta_tile_srcs",
+            "//opensource_sim/isa:vesta_isa_tb.vhd",
+        ],
+        entity = "vesta_isa_tb",
+        generics = _TILE_GENERICS,
+        image = "%s:rv32ui-p-%s.rcf" % (_IMAGE_PACKAGE, test),
+        sim_timeout_s = 90,
+        tags = ["ghdl"],
+    )
+    for test in _LIVE
+]
+
+test_suite(
+    name = "tile_rv32ui",
+    tags = ["ghdl"],
+    tests = ["tile-rv32ui-p-%s" % t for t in _LIVE],
+)
