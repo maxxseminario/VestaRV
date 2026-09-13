@@ -1,0 +1,104 @@
+# The FPGA BRING-UP CUT, config/fpga.json, elaborated against the synthesizable
+# stand-in cells in hdl/fpga/.
+#
+# ---------------------------------------------------------------------------
+# WHY THIS PACKAGE EXISTS
+# ---------------------------------------------------------------------------
+# //platform/common:fpga_generation_test sets the bar that the configuration
+# still generates and its JSON still parses. Nothing above that bar was checked
+# by the build: hdl/fpga/README.md's elaboration recipe needs xrun, which this
+# build does not provision, so the four substitution cells had only ever been
+# proven by hand, once, before they were committed.
+#
+# :fpga_elaborate is that recipe under GHDL. It analyzes the generated one-hart
+# MCU.vhd and MemoryMap.vhd out of //platform/common:chip_artifacts_fpga with
+# hdl/fpga/ substituted for hdl/common/sim/, and runs it for 1 ns -- MCU.vhd's
+# `assert RomAddrBits = RomMacroAddrBits` and hart_tile.vhd's
+# `assert RamSize = 8192` are CONCURRENT assertions, so they need a simulation
+# and not an elaboration. A pass means the generated RTL binds every stand-in by
+# name and the macro depths the FPGA block RAMs must be built to agree with the
+# memory map. The ROM is empty; it reads no memory contents.
+#
+# GHDL is not a synthesis tool and this target does not claim to be one: it says
+# the file set binds and its size contracts hold, not that Vivado infers block
+# RAM from it.
+
+load("//platform/common/bazel:chipgen.bzl", "chip_artifact")
+load("//toolchains/ghdl:defs.bzl", "ghdl_test", "vhdl_source_set")
+load("//opensource_sim/mcu:defs.bzl", "rom_image_pkg")
+load(":defs.bzl", "FPGA_HEAD", "FPGA_MACROS", "FPGA_MID")
+
+package(default_visibility = ["//visibility:public"])
+
+# The generated pair, as single-file handles on the FPGA chip artifacts.
+chip_artifact(
+    name = "fpga_mcu_vhd",
+    rel_path = "out/hdl/MCU.vhd",
+    target = "//platform/common:chip_artifacts_fpga",
+)
+
+chip_artifact(
+    name = "fpga_memorymap_vhd",
+    rel_path = "out/hdl/MemoryMap.vhd",
+    target = "//platform/common:chip_artifacts_fpga",
+)
+
+# No image: the elaboration gate reads no memory contents. hdl/fpga/'s ROM
+# opens its InitFile generic and warns when it cannot, so an absent image is a
+# warning and an all-zero array, not a failure.
+rom_image_pkg(name = "fpga_rom_image_empty")
+
+vhdl_source_set(
+    name = "fpga_head_srcs",
+    paths = FPGA_HEAD,
+    pool = ["//hdl:vhdl_sources"],
+)
+
+vhdl_source_set(
+    name = "fpga_mid_srcs",
+    paths = FPGA_MID,
+    pool = ["//hdl:vhdl_sources"],
+)
+
+# hdl/fpga/'s memory macro models, in place of //opensource_sim/mcu:
+# mem_macros_sim.vhd. Every other GHDL gate in the tree takes the simulation
+# arrays; this one takes the arrays a bitstream would be built from, which is
+# half the point of the target.
+vhdl_source_set(
+    name = "fpga_macro_srcs",
+    paths = FPGA_MACROS,
+    pool = ["//hdl:vhdl_sources"],
+)
+
+# Order is analysis order, and it is load bearing twice over: a direct
+# `entity work.x` instantiation binds at ANALYSIS, so the macro models have to
+# precede hart_tile.vhd and MCU.vhd; and the GENERATED MemoryMap.vhd has to sit
+# where the tracked one sat, because every unit below it reads that package.
+_RTL = [
+    ":fpga_head_srcs",
+    ":fpga_memorymap_vhd",
+    ":fpga_mid_srcs",
+    ":fpga_mcu_vhd",
+]
+
+_FLAGS = [
+    # hdl/fpga/ARM_IP_ROM.vhd and ARM_IP_RAM.vhd use ieee.std_logic_arith.
+    "-fsynopsys",
+    # hdl/common/periph/SYSTEM.vhd:497 associates one element of a port array
+    # with `open`, which is an error under plain --std=08.
+    "-frelaxed",
+]
+
+ghdl_test(
+    name = "fpga_elaborate",
+    size = "small",
+    srcs = [
+        ":fpga_rom_image_empty",
+        ":fpga_macro_srcs",
+    ] + _RTL,
+    entity = "MCU",
+    flags = _FLAGS,
+    sim_timeout_s = 45,
+    stop_time = "1ns",
+    tags = ["ghdl"],
+)
