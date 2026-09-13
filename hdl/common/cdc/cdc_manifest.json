@@ -73,30 +73,6 @@
       "main_clock": "clk",
       "syncs": []
     },
-    "hdl/common/commune/ARM_IP_RAM.vhd": {
-      "clocks": {
-        "clk": {
-          "main": true,
-          "port": true,
-          "processes": 1,
-          "sync": false
-        }
-      },
-      "main_clock": "clk",
-      "syncs": []
-    },
-    "hdl/common/commune/ARM_IP_ROM.vhd": {
-      "clocks": {
-        "clk": {
-          "main": true,
-          "port": true,
-          "processes": 1,
-          "sync": false
-        }
-      },
-      "main_clock": "clk",
-      "syncs": []
-    },
     "hdl/common/commune/ClkDivPower2.vhd": {
       "clocks": {
         "clk": {
