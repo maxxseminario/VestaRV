@@ -1,24 +1,19 @@
 #!/bin/bash
-# verify.sh -- `make verify` orchestrator: prove the CURRENT generated
-# configuration boots and passes the behavioral smoke suite.
-#
-#   make verify                       # Castalia defaults
+# VestaRV: the `make verify` orchestrator. Proves the currently generated
+# configuration boots and passes the behavioural smoke suite.
+#   make verify
 #   make verify CONFIG=config/argus.json
-#   SUITE=full make verify            # full config-filtered regression instead
+#   SUITE=full make verify            # the config-filtered regression instead
 #   MAX_PARALLEL=8 FORCE_IMAGES=1 make verify
-#
-# Steps (the Makefile runs `make generate` first, so out/ + the resolved
-# config JSON already match the requested CONFIG):
-#   1. python/verify_stage.py  -- stage out/hdl RTL + generated cell/test
-#      lists into xcelium/riscv_test/verify_<chip>/ (A3 pattern, productized)
-#   2. build the ISA/sh test images at the config's NHARTS if the stamped
-#      image set is missing/stale (verification/isa/build_mp_images.sh)
-#   3. run the smoke suite through the staged runner (sources cdspaths.sh
-#      itself; per-sim timeout enforces the 1-minute rule at 10x margin)
-#
-# Never touches hdl/myshkin/ or hdl/common/, never overwrites
+# The Makefile runs `make generate` first, so out/ and the resolved config JSON
+# already match CONFIG. Three steps follow: verify_stage.py stages the out/hdl RTL
+# and the generated cell and test lists into xcelium/riscv_test/verify_<chip>/;
+# build_mp_images.sh builds the ISA and sh images at the config's NHARTS if the
+# stamped set is missing or stale; the staged runner runs the suite, sourcing
+# cdspaths.sh itself, under a per-sim timeout at 10x the one-minute rule.
+# It never touches hdl/myshkin/ or hdl/common/, never overwrites
 # software/bootrom/bin/rom.rcf, and stages only under the untracked
-# xcelium/riscv_test/ + verification/isa/rcf_* image dirs.
+# xcelium/riscv_test/ and verification/isa/rcf_* directories.
 set -uo pipefail
 cd "$(dirname "$0")"
 PC_DIR=$(pwd)
@@ -33,44 +28,34 @@ echo "$INFO" | sed 's/^/  /'
 val() { sed -n "s/^$1=//p" <<<"$INFO"; }
 CHIP=$(val CHIP); STAGE_DIR=$(val STAGE_DIR); NHARTS=$(val NHARTS)
 RCF_DEST=$(val RCF_DEST); NTESTS_SMOKE=$(val NTESTS_SMOKE); NTESTS_FULL=$(val NTESTS_FULL)
-# K2/G3: the image half of the configuration.
-# NOT `GROUPS` -- that is a BASH SPECIAL ARRAY (the current user's group ids).
-# Assignments to it are SILENTLY IGNORED and `$GROUPS` then expands to
-# ${GROUPS[0]}, i.e. the primary GID. This cost a run: the build was invoked as
-# `build_mp_images.sh 4 <dest> 100` and died on `No rule to make target
-# '100-flash'`. It failed loudly only by luck -- had the empty/garbage list
-# fallen through to build_mp_images.sh's default group list, the row would have
-# built the WRONG set of images and said nothing.
+# The image half of the configuration. The variable must not be named GROUPS:
+# that is a bash special array holding the current user's group ids, assignments
+# to it are silently ignored, and $GROUPS then expands to the primary GID. The
+# build would be invoked with that number as a group name, and a fallthrough to
+# build_mp_images.sh's default list would build the wrong images in silence.
 IMG_GROUPS=$(val GROUPS); DEFINES=$(val DEFINES)
 case "$IMG_GROUPS" in
     ''|*[!a-z0-9\ ]*) echo "❌ IMG_GROUPS is empty or malformed: '$IMG_GROUPS'"; exit 1 ;;
 esac
 IMGSET=$(val IMGSET); RTL_ON=$(val RTL_ON)
-# K4 (row C3): the `-march` the images must be built with, or empty for "use
-# the ISA Makefile's per-group march" -- which is every configuration but C3.
-# It is part of the image-set IDENTITY (verify_stage.imgset_identity), so a
-# norvc set can never be reused as, or overwrite, a compressed one.
+# The -march the images must be built with, or empty to use the ISA Makefile's
+# per-group march, which is every configuration but the uncompressed one. It is
+# part of the image-set identity, so a norvc set can never be reused as, or
+# overwrite, a compressed one.
 IMG_MARCH=$(val MARCH)
 
-# ---------------------------------------------------------------------------
-# K2/G3 -- THE POLARITY GATE. Run BEFORE any image is built or reused.
-#
-# Every knob that changes core behaviour has TWO halves that must agree:
-#   HARDWARE -- a `CORE_ENABLE_<K> : boolean := true` constant in the staged
-#               MemoryMap.vhd (RTL_ON, read back out of the file just staged);
-#   SOFTWARE -- a `-DCORE_ENABLE_<K>` on the image build's RISCV_GCC_OPTS
-#               (DEFINES, derived from the same resolved config).
-# Until K2 the software half did not exist at all: build_mp_images.sh's only
-# define was -DNHARTS, so `make verify CONFIG=<knob ON>` staged ON-polarity RTL
-# and ran OFF-polarity images -- and the failure mode was a PASS, because the
-# tests' #else arms are written to pass. That is has-a-bench != has-coverage,
-# wired in at programme scale, and it is the defect K2 exists to close.
-#
-# The ISA Makefile's REFUSAL to auto-derive these from the gitignored make-chip
-# header STAYS (verification/isa/Makefile: "a stale header would silently
-# compile the ON arm against OFF RTL and hang the suite"). What changes is that
-# the explicit pairing is now produced from ONE resolved config AND CHECKED.
-# ---------------------------------------------------------------------------
+# The polarity gate. It runs before any image is built or reused.
+# Every knob that changes core behaviour has two halves that must agree: the
+# hardware half is a `CORE_ENABLE_<K> : boolean := true` constant in the staged
+# MemoryMap.vhd, read back out of the file just staged; the software half is a
+# -DCORE_ENABLE_<K> on the image build's RISCV_GCC_OPTS, derived from the same
+# resolved config. Without the software half, a knob-ON config stages ON-polarity
+# RTL and runs OFF-polarity images, and the failure mode is a PASS, because the
+# tests' #else arms are written to pass.
+# The ISA Makefile still refuses to auto-derive these from the gitignored
+# make-chip header, because a stale header would compile the ON arm against OFF
+# RTL and hang the suite. The pairing here is explicit, from one resolved config,
+# and checked.
 want_from_defines=$(echo "$DEFINES" | tr ' ' '\n' | sed -n 's/^-DCORE_ENABLE_//p' | sort | tr '\n' ' ')
 have_from_rtl=$(echo "$RTL_ON" | tr ' ' '\n' | grep -v '^$' | sort | tr '\n' ' ')
 if [ "$want_from_defines" != "$have_from_rtl" ]; then
@@ -89,23 +74,20 @@ echo "=== [verify 2/3] Test images (NHARTS=$NHARTS) ==="
 STAMP="$RCF_DEST/.nharts"
 ISTAMP="$RCF_DEST/.imgset"
 RCF_COUNT=$(ls "$RCF_DEST"/*.rcf 2>/dev/null | wc -l)
-# The two pre-existing canonical sets carry no stamp -- seed it (rcf/ is the
-# Castalia N=4 set the behavioral_mp regression runs; rcf_argus is A3's N=18).
+# The two canonical sets predate the stamp, so seed it. rcf/ is the set the
+# behavioral_mp regression runs; rcf_argus is the wide-hart set.
 if [ ! -f "$STAMP" ] && [ "$RCF_COUNT" -gt 0 ]; then
     case "$RCF_DEST" in
         */verification/isa/rcf)       echo 4  > "$STAMP" ;;
         */verification/isa/rcf_argus) echo 18 > "$STAMP" ;;
     esac
 fi
-# K2/G3: the same seeding for the POLARITY stamp, and it deserves a warning
-# label. `.nharts` seeding is a deduction (the dir name says which set it is);
-# `.imgset` seeding is an ASSERTION -- that the pre-existing canonical sets were
-# built with no -DCORE_ENABLE_*. The assertion is well-founded (the standing
-# suite passes, and every both-polarity test's OFF arm is what passes on those
-# images) but it is not proven by the seed itself. It is proven by the K2
-# acceptance-D census: the OFF control counts ZERO cbo.zero encodings in
-# rcf/'s shcboz image, which is exactly this claim measured. Anything OTHER
-# than these two directories must carry a real stamp written by the build.
+# The same seeding for the polarity stamp, with one caveat. Seeding .nharts is a
+# deduction, since the directory name says which set it is. Seeding .imgset is an
+# assertion: that the two canonical sets were built with no -DCORE_ENABLE_*.
+# That is measured elsewhere, by the census counting zero cbo.zero encodings in
+# rcf/'s shcboz image, not proven by the seed. Every other directory must carry a
+# real stamp written by the build.
 if [ ! -f "$ISTAMP" ] && [ "$RCF_COUNT" -gt 0 ]; then
     case "$RCF_DEST" in
         */verification/isa/rcf)       echo "NHARTS=4 DEFINES=(none)"  > "$ISTAMP" ;;
@@ -114,12 +96,11 @@ if [ ! -f "$ISTAMP" ] && [ "$RCF_COUNT" -gt 0 ]; then
 fi
 HAVE=$(cat "$STAMP" 2>/dev/null || echo none)
 IHAVE=$(cat "$ISTAMP" 2>/dev/null || echo none)
-# A digest COLLISION would be the worst failure this design can have: two
-# different polarities silently sharing one image set. The link name is 2 hex
-# digits because the riscv_tb TEST_FILE generic gives us exactly 3 characters,
-# so collisions are possible by construction -- and therefore CHECKED, not made
-# unlikely. The full identity lives in the directory; if it disagrees with the
-# one this config wants, stop.
+# A digest collision is the worst failure this design can have: two polarities
+# silently sharing one image set. The link name is two hex digits because the
+# riscv_tb TEST_FILE generic allows exactly three characters, so collisions are
+# possible by construction and are therefore checked rather than made unlikely.
+# The full identity lives in the directory; a disagreement stops the run.
 if [ "$RCF_COUNT" -gt 0 ] && [ "$IHAVE" != none ] && [ "$IHAVE" != "$IMGSET" ]; then
     echo "❌ IMAGE-SET IDENTITY COLLISION in $RCF_DEST"
     echo "   the directory holds : $IHAVE"
@@ -128,20 +109,14 @@ if [ "$RCF_COUNT" -gt 0 ] && [ "$IHAVE" != none ] && [ "$IHAVE" != "$IMGSET" ]; 
     echo "   directory to rebuild, or widen the tag in verify_stage.rcf_mapping."
     exit 1
 fi
-# A fresh stamp is not enough: a test ADDED to the catalog since the set was
-# built has no rcf yet (afselv2 burned this on the Argus set, 2026-07-12) --
-# scan the staged runner/smoke lists and rebuild if any staged rcf is missing.
-#
-# K4 (ledger K4-L8): the pattern used to be `\.\./r[a-z0-9][a-z0-9]/`, i.e. it
-# required the 3-character link to START WITH `r`. That matches the canonical
-# sets (rcf / rca / r18) and NOTHING ELSE -- every knobs-on set is `k<XX>` by
-# construction (verify_stage.rcf_mapping prefixes the digest tag with `k`), so
-# on every knob-bearing configuration MISSING was structurally pinned at 0 and
-# this check could not fire. It stayed latent from K2/G3 until the first
-# CATALOG row landed on a knobs-on config; then A3 and the D2 canary aborted at
-# 40 NS with "Test file not found" while the detector built for exactly that
-# said nothing. The link contract is "exactly 3 characters", so the pattern is
-# now exactly that and no narrower.
+# A fresh stamp is not enough: a test added to the catalog since the set was built
+# has no rcf yet, so scan the staged runner and smoke lists and rebuild if any
+# staged rcf is missing.
+# The link-name pattern below must be exactly three characters and no narrower.
+# An earlier form required the link to start with `r`, which matches the canonical
+# sets and nothing else: every knobs-on set is `k<XX>` by construction, so MISSING
+# was structurally pinned at 0 and the check could not fire on any knob-bearing
+# configuration.
 MISSING=0
 for f in $(grep -hoE '\.\./[a-z0-9]{3}/[^" ]*\.rcf' \
         "$STAGE_DIR"/smoke.txt "$STAGE_DIR"/xrun_parallel.sh 2>/dev/null \
@@ -155,11 +130,11 @@ if [ "$FORCE_IMAGES" = 1 ] || [ "$HAVE" != "$NHARTS" ] || [ "$RCF_COUNT" -eq 0 ]
     echo "    defines: ${DEFINES:-(none -- default OFF polarity)}"
     echo "    march  : ${IMG_MARCH:-(per-group, from verification/isa/Makefile)}"
     command -v riscv-none-elf-gcc >/dev/null || { echo "❌ riscv-none-elf- toolchain not on PATH"; exit 1; }
-    # K2/G3: GROUPS follows the selection (the ON-polarity suites are NOT in
-    # build_mp_images.sh's default group list, so a knobs-on row would otherwise
-    # select tests whose images were never built) and EXTRA_GCC_DEFINES carries
-    # the polarity. The build writes BOTH stamps itself; the two lines below are
-    # belt-and-braces for the in-tree case and are asserted by the read-back.
+    # The group list follows the selection, because the ON-polarity suites are not
+    # in build_mp_images.sh's default list and a knobs-on row would otherwise
+    # select tests whose images were never built. EXTRA_GCC_DEFINES carries the
+    # polarity. The build writes both stamps itself; the two lines below cover the
+    # in-tree case and are asserted by the read-back.
     EXTRA_GCC_DEFINES="$DEFINES" EXTRA_GCC_MARCH="$IMG_MARCH" IMGSET_IDENTITY="$IMGSET" \
         ../../verification/isa/build_mp_images.sh "$NHARTS" "$RCF_DEST" $IMG_GROUPS \
         || { echo "❌ image build failed"; exit 1; }
@@ -186,9 +161,10 @@ if [ $RC -eq 0 ]; then
 else
     echo "❌ make verify: $CHIP (NHARTS=$NHARTS) FAILED -- logs in $STAGE_DIR/log/"
 fi
-# Post-Argus rule: if this was a non-default config, out/ now holds ITS
-# artifacts; regenerate the defaults before relying on out/ again.
-if grep -q '"configFile": *null' "$PC_DIR/config/ChipConfig.resolved.json" 2>/dev/null; then :; else
+# After a non-default config, out/ holds that config's artifacts: regenerate the
+# defaults before relying on out/ again. The tracked config/ pair is untouched by a
+# CONFIG= run, so the record of what was built is out/config/.
+if grep -q '"configFile": *null' "$PC_DIR/out/config/ChipConfig.resolved.json" 2>/dev/null; then :; else
     echo "ℹ️  out/ holds a non-default config -- run plain 'make chip' (or make generate)"
     echo "    afterward and re-verify check_mcu_vhd.py exits 0 (post-Argus rule)."
 fi

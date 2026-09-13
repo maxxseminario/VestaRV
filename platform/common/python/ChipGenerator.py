@@ -1,3 +1,9 @@
+# VestaRV: the chip generator core.
+# ChipGenerator holds the whole chip description (peripherals, registers, package, memory
+# regions, core generics), validates it, and writes every generated artifact: MemoryMap.h,
+# core_features.h, the linker scripts, MemoryMap.vhd, MCU.vhd, riscv_tb.vhd, the TRM
+# sources and the web bundle. generate.py builds the description; nothing here writes
+# outside platform/common/.
 import pathlib, os, json, datetime, re
 from shutil import ExecError
 
@@ -18,6 +24,10 @@ class ChipGenerator():
 	ThisFileDirectory = str(pathlib.Path(__file__).parent.absolute())
 
 	ChipRootDirectory = None
+	# Where the generated tree is written. Equal to ChipRootDirectory unless the caller passed
+	# generate.py's --out: inputs (hdl_templates/, latex/, config/rdl.json) always come from
+	# the chip root, outputs (out/, config/*.json, latex/TRM/) always go here.
+	OutputRootDirectory = None
 
 	AsicName = None
 	AsicNameForUserGuide = None
@@ -49,25 +59,25 @@ class ChipGenerator():
 	RamMemorySlotsUsed = None
 	RamMemorySlotsMuxed = None
 	RamEndAddress = None	# The address of the last address in the RAM memory
-	SpiFlashProgramAddress = None	# The address that the program is written to / read from the SPI flash. This can be different from the location the program is inserted into RAM when booting to SPI flash mode
+	SpiFlashProgramAddress = None	# The address the program is written to and read from on the SPI flash. It may differ from the location the program is loaded to in RAM when booting from SPI flash
 	NativeSpiFlashMemoryReadAccess = None
 	NativeSpiFlashMemoryWriteAccess = None
 	
 	VectorsStartAddress = None	# Address of the interrupt vector table
 	VectorsSize = None	# The size of the interrupt vector table in bytes
 	VectorsCount = None	# The number of entries in the interrupt vector table
-	MeipVector = None	# digperiphs #2: the FROZEN external-interrupt (meip) IVT slot. None => VectorsCount (the historic M19 assumption: meip sits immediately above the sources). Set to a fixed slot to keep meip pinned while the SOURCE count (VectorsCount) grows ABOVE it (I3C vectors 86-93 with meip frozen at 85).
+	MeipVector = None	# The frozen external-interrupt (meip) IVT slot. None puts meip immediately above the sources at VectorsCount; a fixed slot keeps meip pinned while the source count grows above it
 	VectorsEndAddress = None	# The end address of the interrupt vector table (inclusive)
 	RamProgramStartAddress = None	# The initial execution point of the program stored on RAM
 	ProgramCounterInit = None	# The program counter value on reset
-	StackPointerInit = None	# The stack pointer initial value (this is not a reset value, it must be done in software)
+	StackPointerInit = None	# The stack pointer initial value. Not a reset value: software must set it
 	BootloaderUsesSpiFlashCommands = None	# Determines what format the bootloader expects the program to be in on the SPI flash
-	NumHarts = None	# Number of RISC-V harts (cores). 1 = single-core; > 1 enables the multi-core defines/bullets in the TRM
+	NumHarts = None	# Number of RISC-V harts. 1 is single-core; more than 1 enables the multi-core defines and bullets in the TRM
 	ExtraMemorySections = None	# [(SECTION_NAME (rwx), ORIGIN = 0x?, LENGTH = 0x?, notes), ...]
-	SharedWindowSections = None	# [(name, startAddress, endAddress, description), ...] — multi-core shared window regions drawn in the address space diagram
-	ExtraLatexIntroFiles = None	# [filename, ...] — extra PeripheralIntroductions tex files input by the master template itself (e.g. the multi-core architecture chapter)
-	DocSubSlotBlocks = None	# [dict, ...] — DOCUMENTATION-ONLY sub-slot register blocks (CQ AFE/EIS). These document RTL slaves that sit at SUB-SLOT / page-carved base addresses which the whole-slot native-slave cross-checks in Peripheral deliberately forbid, so they are NOT Peripherals: they never enter self.Peripherals, the register address table, the interrupt-priority table, MemoryMap.vhd, or MCU.vhd. They are validated by CheckDocSubSlotBlocks() (its OWN sub-slot alignment/containment/non-overlap rules) and feed only the TRM (a config-gated generated chapter). None (default) = the whole mechanism is absent → default TRM is byte-identical.
-	McuMpCompat = None	# dict of MCU_MP drop-in compatibility facts (see generate.py) — when set, generateMemoryMapVHD emits an "MCU_MP compatibility" section and RTL-numbered GPIO reset values so the generated package drops into the hdl/common build
+	SharedWindowSections = None	# [(name, startAddress, endAddress, description), ...]: shared window regions drawn in the address space diagram
+	ExtraLatexIntroFiles = None	# [filename, ...]: extra PeripheralIntroductions tex files input by the master template itself
+	DocSubSlotBlocks = None	# [dict, ...]: documentation-only sub-slot register blocks. They document RTL slaves at sub-slot or page-carved base addresses that the whole-slot native-slave cross-checks in Peripheral forbid, so they are not Peripherals and never enter self.Peripherals, the register address table, the interrupt-priority table, MemoryMap.vhd or MCU.vhd. CheckDocSubSlotBlocks() validates them under its own alignment, containment and non-overlap rules, and they feed only a config-gated generated TRM chapter. None means the mechanism is absent
+	McuMpCompat = None	# dict of drop-in compatibility facts; when set, generateMemoryMapVHD emits a compatibility section and RTL-numbered GPIO reset values so the generated package drops into the hdl/common build
 
 	NeedToCheckPeripheralTemplates = None
 	NeedToCheckPeripherals = None
@@ -75,15 +85,14 @@ class ChipGenerator():
 	PadOUTPosLogic = None
 	PadDIRPosLogic = None
 	PadRENPosLogic = None
-	#PadOCENPosLogic = None
 
 	GpioNumAfs = 8	# Alternate-function planes per GPIO pin (AF0..AF7, selected per pin by the 3-bit PxAFS field; fixed by the PxAFS register layout)
 
-	ENABLE_IRQ_FAST_CONTEXT_SWITCHING = None	# Enables/disables fast IRQ context switching. When enabled, entering interrupt-handling mode will automatically save the CPU registers to a register file. When the retirq instruction is called, the CPU registers will be restored to their saved values
+	ENABLE_IRQ_FAST_CONTEXT_SWITCHING = None	# Fast IRQ context switching. When enabled, entering interrupt-handling mode saves the CPU registers to a register file and retirq restores them
 	ENABLE_COUNTERS = None		# Enables/disables support for the RDCYCLE[H], RDTIME[H], and RDINSTRET[H] instructions. If disabled, these instructions will cause a hardware trap like any other unsupported instruction
 	ENABLE_COUNTERS64 = None	# Enables/disables support for RDCYCLEH, RDTIMEH, and RDINSTRETH instructions.
 	ENABLE_REGS_DUALPORT = None	# Enables/disables dual access to general purpose registers
-	LATCHED_MEM_RDATA = None	# If picorv32/mem_rdata is kept stable by the AD after a memory transaction, set this to 1. For chips up to pingora2, this was always False
+	LATCHED_MEM_RDATA = None	# Set to 1 if picorv32/mem_rdata is kept stable by the address decoder after a memory transaction
 	TWO_STAGE_SHIFT = None		# Enables/disables a two-stage bit shift operation. When enabled, this is a medium-speed shift. When disabled, it is slow
 	BARREL_SHIFTER = None		# Enables/disables the fast barrel bit shift operation. Overrides TWO_STAGE_SHIFT when enabled
 	COMPRESSED_ISA = None		# Enables/disables the compressed ISA extension RV32IC
@@ -92,9 +101,8 @@ class ChipGenerator():
 	ENABLE_DIV = None			# Enables/disables the hardware divider and remainder calculator
 	ENABLE_ATOMICS = None		# Enables/disables the RV32A atomic extension (LR/SC + AMOs) in the vesta core
 	ENABLE_BITMANIP = None		# Enables/disables the Zba/Zbb/Zbs/Zbc bit-manipulation extensions in the vesta core
-	# X-series ISA-extension generics (scaffolded X0 2026-07-16, all default false).
-	# Decode/logic landed X1-X4 — every one is implemented since X4 (Zfinx,
-	# 2026-07-18). Drive CORE_ENABLE_Z* in MemoryMap.vhd + the C-header #defines.
+	# ISA-extension generics, all default false. They drive CORE_ENABLE_Z* in MemoryMap.vhd
+	# and the C-header defines.
 	ENABLE_ZICOND = None		# X1: Zicond czero.eqz/nez
 	ENABLE_ZCB = None			# X1: Zcb extra compressed instructions
 	ENABLE_ZIMOP = None			# X1: Zimop+Zcmop may-be-operations
@@ -111,38 +119,32 @@ class ChipGenerator():
 	ENABLE_ZBKX = None			# X3: Zbkx crossbar permute
 	ENABLE_ZKN = None			# X3: Zkn AES+SHA (Zknd+Zkne+Zknh)
 	ENABLE_ZFINX = None			# X4: Zfinx single-precision FP in x-registers
-	# P-series privileged-architecture generics (scaffolded P0 2026-07-28, all
-	# default false / 16 entries). IMPLEMENTED — P1 trapCsr and P2 umode
-	# graduated 2026-07-28, P3 pmp 2026-07-29, and generate.py's
-	# _SCAFFOLDED_PRIV is now empty; what it enforces on a true is the priv
-	# ladder (umode requires trapCsr, pmp requires umode), not a hard error.
-	# Drive CORE_ENABLE_TRAPCSR/UMODE/PMP + CORE_PMP_ENTRIES in
-	# MemoryMap.vhd and the C-header/core_features.h defines.
-	ENABLE_TRAPCSR = None		# P1: standard M-mode trap architecture (mstatus/mtvec/mepc/...)
+	# Privileged-architecture generics, default false with 16 PMP entries. They drive
+	# CORE_ENABLE_TRAPCSR, CORE_ENABLE_UMODE, CORE_ENABLE_PMP and CORE_PMP_ENTRIES in
+	# MemoryMap.vhd and the C-header and core_features.h defines. generate.py enforces the
+	# ladder: umode requires trapCsr, and pmp requires umode.
+	ENABLE_TRAPCSR = None		# standard M-mode trap architecture: mstatus, mtvec, mepc and the rest
 	ENABLE_UMODE = None			# P2: user mode (privilege register + MPP/MPIE stack)
 	ENABLE_PMP = None			# P3: physical memory protection (Smpmp)
-	PMP_ENTRIES = None			# P3: PMP entry count {8, 16} (consulted only when ENABLE_PMP)
-	# D-series core-side debug (D1, 2026-08-05). Drives CORE_ENABLE_DEBUG in
-	# MemoryMap.vhd and the C-header/core_features.h define. REQUIRES
-	# ENABLE_TRAPCSR -- generate.py raises, and the vesta entity asserts.
-	ENABLE_DEBUG = None			# D1: debug mode (dcsr/dpc/dscratch0-1, dret, halt, single-step)
-	# Fetch-ahead. Drives CORE_ENABLE_IF_AHEAD in MemoryMap.vhd, which is what
-	# the generated MCU.vhd hands every tile. Microarchitecture only: no CSR, no
-	# instruction, no memory-map change, so there is no C-header define for it
-	# (nothing in software can or should dispatch on it).
+	PMP_ENTRIES = None			# PMP entry count, 8 or 16, consulted only when ENABLE_PMP
+	# Core-side debug. Drives CORE_ENABLE_DEBUG in MemoryMap.vhd and the C-header and
+	# core_features.h define. Requires ENABLE_TRAPCSR: generate.py raises and the vesta entity
+	# asserts.
+	ENABLE_DEBUG = None			# debug mode: dcsr, dpc, dscratch0-1, dret, halt, single-step
+	# Fetch-ahead. Drives CORE_ENABLE_IF_AHEAD in MemoryMap.vhd, which is what the generated
+	# MCU.vhd hands every tile. Microarchitecture only: no CSR, no instruction, no memory-map
+	# change, so there is no C-header define and nothing in software can dispatch on it.
 	ENABLE_IF_AHEAD = None		# C-extension straddling-fetch elision (one flip-flop)
-	# ASYMMETRIC ISA (2026-08-16; widened to the whole selectable set 2026-09-12).
-	# True = the hardened corner tiles (harts 1..N-1) are built rv32iac -- EVERY
-	# selectable ISA extension dropped, U-mode and PMP dropped -- while hart 0, the
-	# soft orchestrator, keeps the full ISA above. Drives the TILE_ENABLE_* /
-	# TILE_PMP_ENTRIES constants, which are what MCU.vhd hands the tile instances
-	# (hart 0 still gets CORE_ENABLE_*). The knob-by-knob policy, and the reason for
-	# each entry, is in the TILE-CLASS POLICY block at the emission site below.
+	# Asymmetric ISA. True builds the hardened corner tiles (harts 1..N-1) rv32iac, dropping
+	# every selectable ISA extension along with U-mode and PMP, while hart 0, the soft
+	# orchestrator, keeps the full ISA above. It drives the TILE_ENABLE_* and TILE_PMP_ENTRIES
+	# constants, which are what MCU.vhd hands the tile instances; hart 0 still gets
+	# CORE_ENABLE_*. The knob-by-knob policy is at the emission site below.
 	MINIMAL_TILES = None
 	ENABLE_IRQ_QREGS = None		# Enables/disables the four IRQ registers, which help speed IRQ calls
-	ENABLE_IRQ_TIMER = None		# Enables/disables the "timer" custom instruction. For chips up to pingora2, this was always True
+	ENABLE_IRQ_TIMER = None		# the "timer" custom instruction
 	MASKED_IRQ = None			# Any '1' bit corresponds to a permenantely disabled IRQ
-	PROGADDR_IRQ = None			# The address of the master IRQ handling function (this is NOT the interrupt vector table!!! This is the function that is called whenever ANY interrupt occurs)
+	PROGADDR_IRQ = None			# the address of the master IRQ handling function, which is not the interrupt vector table
 
 	Package = PackageData
 
@@ -191,8 +193,8 @@ class ChipGenerator():
 		numHarts:int=1,
 		ENABLE_ATOMICS:bool=True,
 		ENABLE_BITMANIP:bool=True,
-		# X0 scaffolded ISA extensions — default False so every existing caller
-		# (and testbench) keeps its RV32IMAC+Zb* core with the extensions OFF.
+		# Scaffolded ISA extensions, default False so every existing caller and testbench keeps
+		# its RV32IMAC+Zb* core with the extensions off.
 		ENABLE_ZICOND:bool=False,
 		ENABLE_ZCB:bool=False,
 		ENABLE_ZIMOP:bool=False,
@@ -209,20 +211,20 @@ class ChipGenerator():
 		ENABLE_ZBKX:bool=False,
 		ENABLE_ZKN:bool=False,
 		ENABLE_ZFINX:bool=False,
-		# P0 scaffolded privileged architecture — default False / 16 so every
-		# existing caller (and testbench) keeps today's M-mode-only core with
-		# the legacy IVT trap path and no PMP.
+		# Scaffolded privileged architecture, default False with 16 PMP entries, so every existing
+		# caller and testbench keeps an M-mode-only core on the legacy IVT trap path with no PMP.
 		ENABLE_TRAPCSR:bool=False,
 		ENABLE_UMODE:bool=False,
 		ENABLE_PMP:bool=False,
 		PMP_ENTRIES:int=16,
-		# D1 core-side debug mode — default False so every existing caller
-		# (and testbench) keeps a chip with no debug interface at all.
+		# Core-side debug, default False so every existing caller and testbench keeps a chip with
+		# no debug interface.
 		ENABLE_DEBUG:bool=False,
-		# Fetch-ahead — default False so every existing caller (and testbench)
-		# keeps the fetch behaviour it had before the knob existed.
+		# Fetch-ahead, default False so every existing caller and testbench keeps the fetch
+		# behaviour it had before the knob existed.
 		ENABLE_IF_AHEAD:bool=False,
-		MINIMAL_TILES:bool=False):
+		MINIMAL_TILES:bool=False,
+		outputRootDirectory:str=None):
 		# Initialize lists
 		self.PeripheralTemplates = []
 		self.Peripherals = []
@@ -235,6 +237,17 @@ class ChipGenerator():
 			self.ChipRootDirectory.replace('//', '/')
 		if self.ChipRootDirectory.count('/') > 1 and self.ChipRootDirectory.endswith('/'):
 			self.ChipRootDirectory = self.ChipRootDirectory[:-1]
+
+		# Output root. None means the chip root, which is the layout every gate byte-compares
+		# against. A different directory is created on demand, so --out can name a fresh one.
+		if outputRootDirectory is None:
+			self.OutputRootDirectory = self.ChipRootDirectory
+		else:
+			self.OutputRootDirectory = os.path.abspath(outputRootDirectory).replace('\\', '/')
+			if self.OutputRootDirectory.count('/') > 1 and self.OutputRootDirectory.endswith('/'):
+				self.OutputRootDirectory = self.OutputRootDirectory[:-1]
+			if not os.path.isdir(self.OutputRootDirectory):
+				os.makedirs(self.OutputRootDirectory)
 
 		# Check Name
 		if len(asicName) < 1:
@@ -416,8 +429,6 @@ class ChipGenerator():
 			raise Exception('vectorsCount must be an int >= 0')
 		if vectorsCount < 0:
 			raise Exception('vectorsCount must be an int >= 0')
-		# if vectorsCount > 0 and not self.isPower2(vectorsCount):
-		# 	raise Exception('vectorsCount must be a power of 2')
 		
 		self.VectorsCount = vectorsCount
 		self.VectorsSize = vectorsCount * 4
@@ -441,16 +452,12 @@ class ChipGenerator():
 		RamMemorySlotsMuxedMin = max(self.RamMemorySlotsUsed) + 1
 		if len(self.RamMemorySlotsMuxed) > 0:
 			RamMemorySlotsMuxedMin = min(self.RamMemorySlotsMuxed)
-		# `RamMemorySlotSize * slotIndex` is a BYTE ADDRESS only when the RAM
-		# region starts at 0 -- it silently assumes slot n begins at n*slotSize
-		# from address zero. Castalia's TCM is based at RamStartAddress 0x8000,
-		# so the identity held only by the coincidence that slotSize*3 == 0xC000
-		# when slotSize was 0x4000. Halving the TCM to 0x2000 broke the
-		# coincidence (0x2000*3 = 0x6000) and this fired on a build whose stack
-		# pointer was exactly right, which is a false alarm, i.e. the failure
-		# mode that teaches readers to ignore the warning. Anchor it to the
-		# region's real end instead; the slot arithmetic is kept for the
-		# muxed-slot case it was actually written for.
+		# Anchor the stack-pointer check to the RAM region's real end, not to
+		# RamMemorySlotSize * slotIndex: that product is a byte address only when the RAM region
+		# starts at 0, and it held for a 0x8000-based TCM only by the coincidence that
+		# slotSize*3 == 0xC000 at slotSize 0x4000. Halving the TCM broke the coincidence and the
+		# check fired on a build whose stack pointer was exactly right. The slot arithmetic is kept
+		# for the muxed-slot case it was written for.
 		expectedTop = self.RamStartAddress + (self.RamMemorySlotSize * (RamMemorySlotsMuxedMin - min(self.RamMemorySlotsUsed)))
 		if self.StackPointerInit != expectedTop:
 			print('***')
@@ -465,7 +472,6 @@ class ChipGenerator():
 		self.PadOUTPosLogic = padOutPosLogic
 		self.PadDIRPosLogic = padDIRPosLogic
 		self.PadRENPosLogic = padRENPosLogic
-		#self.PadOCENPosLogic = padOCENPosLogic
 
 		# Set the picorv32 defines
 		self.ENABLE_COUNTERS = ENABLE_COUNTERS
@@ -480,7 +486,7 @@ class ChipGenerator():
 		self.ENABLE_DIV = ENABLE_DIV
 		self.ENABLE_ATOMICS = ENABLE_ATOMICS
 		self.ENABLE_BITMANIP = ENABLE_BITMANIP
-		# X0 scaffolded ISA extensions (default false)
+		# Scaffolded ISA extensions, default false
 		self.ENABLE_ZICOND = ENABLE_ZICOND
 		self.ENABLE_ZCB = ENABLE_ZCB
 		self.ENABLE_ZIMOP = ENABLE_ZIMOP
@@ -497,7 +503,7 @@ class ChipGenerator():
 		self.ENABLE_ZBKX = ENABLE_ZBKX
 		self.ENABLE_ZKN = ENABLE_ZKN
 		self.ENABLE_ZFINX = ENABLE_ZFINX
-		# P0 scaffolded privileged architecture (default false / 16 entries)
+		# Scaffolded privileged architecture, default false with 16 PMP entries
 		self.ENABLE_DEBUG = ENABLE_DEBUG
 		self.ENABLE_IF_AHEAD = ENABLE_IF_AHEAD
 		self.MINIMAL_TILES = MINIMAL_TILES
@@ -682,7 +688,6 @@ class ChipGenerator():
 						pinNames.append(pin.PrimaryPxIEName)
 						pinNames.append(pin.PrimaryPxSELName)
 						pinNames.append(pin.PrimaryPxRENName)
-						#pinNames.append(pin.PrimaryPxOCENName)
 					if len(pin.FuncName) > 0:
 						pinNames.append(pin.FuncBitName)
 						pinNames.append(pin.FuncPxSELName)
@@ -732,15 +737,13 @@ class ChipGenerator():
 		return
 
 	def CheckDocSubSlotBlocks(self):
-		# Validate the DOCUMENTATION-ONLY sub-slot blocks (CQ AFE/EIS) with rules
-		# of their OWN — deliberately SEPARATE from CheckPeripherals so the
-		# whole-slot native-slave cross-checks that govern real Peripherals are
-		# never touched or weakened. These blocks are docs-only; the guarantee we
-		# enforce is that what the TRM documents is self-consistent and lands in
-		# genuinely reserved address space (no real register is shadowed).
-		#
-		# Each block is a dict: name, base, sizeBytes, parent=(label, lo, hi),
-		# gate, ownerHart, irqSource, registers=[(wordOffset, name, access, desc)].
+		# Validate the documentation-only sub-slot blocks under rules of their own, deliberately
+		# separate from CheckPeripherals so the whole-slot native-slave cross-checks that govern
+		# real Peripherals are never weakened. These blocks are documentation: what is enforced is
+		# that what the TRM documents is self-consistent and lands in genuinely reserved address
+		# space, shadowing no real register.
+		# Each block is a dict: name, base, sizeBytes, parent=(label, lo, hi), gate, ownerHart,
+		# irqSource, registers=[(wordOffset, name, access, desc)].
 		blocks = self.DocSubSlotBlocks
 		if not blocks:
 			return
@@ -771,7 +774,7 @@ class ChipGenerator():
 				if not (blkHi < olo or blkLo > ohi):
 					raise Exception('DocSubSlotBlock "' + name + '" (' + hex(blkLo) + '-' + hex(blkHi)
 						+ ') overlaps "' + oname + '" (' + hex(olo) + '-' + hex(ohi) + ')')
-			# the block must sit in RESERVED space — never shadow a real register
+			# the block must sit in reserved space and never shadow a real register
 			for a in range(blkLo, blkHi + 1, 4):
 				if a in peripheralAddrs:
 					raise Exception('DocSubSlotBlock "' + name + '": word address ' + hex(a)
@@ -811,9 +814,8 @@ class ChipGenerator():
 			if pin.NoConnect:
 				continue
 
-			# A power rail may be bonded out on several pads sharing ONE net name
-			# (multi-pad domains); count each rail net name once so the duplicate
-			# is not flagged as a symbol collision.
+			# A power rail may be bonded out on several pads sharing one net name, so count each rail
+			# net name once rather than flagging the duplicate as a symbol collision.
 			if not (pin.IsPowerDomainPin and pin.Name in names):
 				names.append(pin.Name)
 			if pin.PrimaryName is not None:
@@ -852,26 +854,27 @@ class ChipGenerator():
 
 	
 	def Generate(self, test=True, force=False, saveHardware=True, saveSoftware=True):
-		# Make the paths for each file
-		# CASTALIA: ALL outputs stay inside this chip's own directory tree (platform/common/).
-		# Nothing here may write into hdl/common/, software/, or tools/ — the generated HDL goes
-		# to out/hdl/ so the hand-maintained MCU_MP RTL is never touched.
-		cHeaderPath = self.ChipRootDirectory + '/out/software/include/MemoryMap.h'
-		memoryXPath =  self.ChipRootDirectory + '/out/linker-scripts/memory.x'
-		periphXPath =  self.ChipRootDirectory + '/out/linker-scripts/periph.x'
-		periphSPath =  self.ChipRootDirectory + '/out/software/include/periph.S'
-		memoryMapVHDPath =  self.ChipRootDirectory + '/out/hdl/MemoryMap.vhd'
-		latexUserGuidePath =  self.ChipRootDirectory + '/latex/TRM'
-		signalRoutingVHDPath =  self.ChipRootDirectory + '/out/hdl/MCU_routing_template.vhd'
+		# Make the paths for each file. Outputs hang off OutputRootDirectory, which is the chip
+		# root unless generate.py was given --out; the two TEMPLATE paths below are inputs and
+		# stay on the chip root. Nothing here may write into hdl/common/, software/ or tools/,
+		# and the generated HDL goes to out/hdl/ so the hand-maintained RTL is never touched.
+		outRoot = self.OutputRootDirectory
+		cHeaderPath = outRoot + '/out/software/include/MemoryMap.h'
+		memoryXPath =  outRoot + '/out/linker-scripts/memory.x'
+		periphXPath =  outRoot + '/out/linker-scripts/periph.x'
+		periphSPath =  outRoot + '/out/software/include/periph.S'
+		memoryMapVHDPath =  outRoot + '/out/hdl/MemoryMap.vhd'
+		latexUserGuidePath =  outRoot + '/latex/TRM'
+		signalRoutingVHDPath =  outRoot + '/out/hdl/MCU_routing_template.vhd'
 		mcuVHDTemplatePath =  self.ChipRootDirectory + '/hdl_templates/MCU.template.vhd'
-		mcuVHDPath =  self.ChipRootDirectory + '/out/hdl/MCU.vhd'
+		mcuVHDPath =  outRoot + '/out/hdl/MCU.vhd'
 		riscvTbTemplatePath =  self.ChipRootDirectory + '/hdl_templates/riscv_tb.template.vhd'
-		riscvTbPath =  self.ChipRootDirectory + '/out/hdl/riscv_tb.vhd'
-		ramRomSizeDir =  self.ChipRootDirectory + '/out/linker-scripts'
-		chipConfigJsonPath =  self.ChipRootDirectory + '/config/MemoryMap.json'
+		riscvTbPath =  outRoot + '/out/hdl/riscv_tb.vhd'
+		ramRomSizeDir =  outRoot + '/out/linker-scripts'
+		chipConfigJsonPath =  outRoot + '/config/MemoryMap.json'
 
 		# Make sure the output directories exist
-		for d in [os.path.dirname(cHeaderPath), os.path.dirname(memoryXPath), os.path.dirname(memoryMapVHDPath), latexUserGuidePath, os.path.dirname(chipConfigJsonPath)]:
+		for d in [os.path.dirname(cHeaderPath), os.path.dirname(memoryXPath), os.path.dirname(memoryMapVHDPath), latexUserGuidePath, latexUserGuidePath + '/include', os.path.dirname(chipConfigJsonPath)]:
 			if not os.path.isdir(d):
 				os.makedirs(d)
 		
@@ -901,22 +904,20 @@ class ChipGenerator():
 			
 			if saveHardware is True:
 				self.generateMemoryMapVHD(memoryMapVHDPath)
-				# editFile=False: write a fresh routing template into out/hdl/ instead of
-				# editing an existing MCU.vhd in place (keeps hdl/common/ untouched)
+				# editFile=False writes a fresh routing template into out/hdl/ instead of editing an
+				# existing MCU.vhd in place, which keeps hdl/common/ untouched
 				self.generateSignalRoutingVHD(signalRoutingVHDPath, editFile=False)
 				self.generateRamRomSizeFiles(ramRomSizeDir)
-				# RTL-generation track Phase 2: golden-master-templated MCU.vhd (drop-in
-				# for hdl/common/MCU.vhd; verify with python/check_mcu_vhd.py)
+				# Golden-master-templated MCU.vhd, a drop-in for hdl/common/MCU.vhd; verify with
+				# python/check_mcu_vhd.py
 				if (test is False) and (self.McuMpCompat is not None) and os.path.isfile(mcuVHDTemplatePath):
 					import mcu_vhd
 					mcu_vhd.generateMcuVhd(self, mcuVHDTemplatePath, mcuVHDPath)
-				# Argus A3: the multi-hart testbench is numHarts-dependent (distinct
-				# a0_1..a0_(N-1) tile monitors matching the generated MCU a0 ports),
-				# so it is generated from the same numHarts. Byte-identical to
-				# hdl/common/tb/riscv_tb.vhd at N=4 (check_riscv_tb_vhd.py).
-				# The tb reads the SAME McuMpGeometry dict mcu_vhd.py does, so an
-				# overlay that added entity ports declares and associates them
-				# here too. With no overlay the dict changes nothing.
+				# The multi-hart testbench is numHarts-dependent, with distinct a0_1..a0_(N-1) tile
+				# monitors matching the generated MCU a0 ports, so it is generated from the same numHarts
+				# and is byte-identical to hdl/common/tb/riscv_tb.vhd at N=4 (check_riscv_tb_vhd.py).
+				# The testbench reads the same McuMpGeometry dict mcu_vhd.py does, so an overlay that
+				# added entity ports declares and associates them here too.
 				if (test is False) and os.path.isfile(riscvTbTemplatePath):
 					import tb_vhd
 					tb_vhd.generateRiscvTbVhd(self.NumHarts, riscvTbTemplatePath, riscvTbPath,
@@ -924,15 +925,14 @@ class ChipGenerator():
 			
 			self.generateMemoryMapJson(chipConfigJsonPath)
 
-			# WP S2: machine-readable web bundle (out/web/chip_data.js) — schema
-			# constraints, defaults, ALL package pad tables, derived presets and
-			# the memory map, single-sourced from this generator so
-			# docs/chip_configurator.html can consume rather than transcribe.
-			# Only on a real build (test is False) that carries the S2 objects
-			# generate.py attaches before calling Generate().
+			# Machine-readable web bundle (out/web/chip_data.js): schema constraints, defaults, all
+			# package pad tables, derived presets and the memory map, single-sourced from this
+			# generator so docs/chip_configurator.html consumes rather than transcribes. Only on a
+			# real build, test False, that carries the objects generate.py attaches before calling
+			# Generate().
 			if (test is False) and (getattr(self, 'PackageModels', None) is not None) and (getattr(self, 'ResolvedConfig', None) is not None):
 				import web_export
-				web_export.writeWebData(self, self.ChipRootDirectory + '/out/web/chip_data.js')
+				web_export.writeWebData(self, outRoot + '/out/web/chip_data.js')
 		else:
 
 			if os.path.exists(latexUserGuidePath):
@@ -1111,10 +1111,9 @@ class ChipGenerator():
 		
 		t = TabbedTable()
 		if self.NativeSpiFlashMemoryReadAccess or self.NativeSpiFlashMemoryReadAccess:
-			# Memory-mapped SPI-flash (XIP) read window. In the multi-core map this
-			# is hart 0's extended-flash decode base (the strict complement of the
-			# shared window, 2^(shAw+2)) — config-driven, not the Myshkin-era
-			# hardcoded 0x01000000. 0x20000 (Castalia) / 0x40000 (Argus).
+			# Memory-mapped SPI-flash (XIP) read window. In the multi-core map this is hart 0's
+			# extended-flash decode base, the strict complement of the shared window at 2^(shAw+2):
+			# 0x20000 at SH_AW 15, 0x40000 at 16. Config-driven, not a hardcoded 0x01000000.
 			_spiFlashMemBase = 1 << (self.McuMpGeometry['shAw'] + 2)
 			t.AddRow(['#define SPI_FLASH_MEM_ADDRESS', '(' + self.fmthex(_spiFlashMemBase, minDigits=5) + ')'])
 			t.AddRow(['#define SPI_FLASH_MEM', '((volatile uint32_t *) (SPI_FLASH_MEM_ADDRESS))'])
@@ -1134,8 +1133,8 @@ class ChipGenerator():
 			t.AddRow(['#define ENABLE_COUNTERS'])
 		if self.ENABLE_COUNTERS64:
 			t.AddRow(['#define ENABLE_COUNTERS64'])
-		# Core ISA features (the vesta core's ENABLE_* generics; also readable at
-		# run time through the read-only misa CSR, 0x301)
+		# Core ISA features, the vesta core's ENABLE_* generics, also readable at run time through
+		# the read-only misa CSR at 0x301
 		if self.ENABLE_MUL:
 			t.AddRow(['#define CORE_ENABLE_MUL'])
 		if self.ENABLE_DIV:
@@ -1146,8 +1145,8 @@ class ChipGenerator():
 			t.AddRow(['#define CORE_ENABLE_COMPRESSED'])
 		if self.ENABLE_BITMANIP:
 			t.AddRow(['#define CORE_ENABLE_BITMANIP'])
-		# X0 scaffolded ISA extensions (default off; the ext-probe .S tests
-		# dispatch on these CORE_ENABLE_Z* defines — Z-extensions have no misa bit).
+		# Scaffolded ISA extensions, default off. The ext-probe .S tests dispatch on these
+		# CORE_ENABLE_Z* defines, because Z extensions have no misa bit.
 		if self.ENABLE_ZICOND:
 			t.AddRow(['#define CORE_ENABLE_ZICOND'])
 		if self.ENABLE_ZCB:
@@ -1180,8 +1179,8 @@ class ChipGenerator():
 			t.AddRow(['#define CORE_ENABLE_ZKN'])
 		if self.ENABLE_ZFINX:
 			t.AddRow(['#define CORE_ENABLE_ZFINX'])
-		# P0 scaffolded privileged architecture (the priv* tests dispatch on
-		# these; absent = today's legacy-IVT-only, no-U-mode, no-PMP core).
+		# Scaffolded privileged architecture. The priv* tests dispatch on these; absent means a
+		# legacy-IVT-only core with no U-mode and no PMP.
 		if self.ENABLE_TRAPCSR:
 			t.AddRow(['#define CORE_ENABLE_TRAPCSR'])
 		if self.ENABLE_UMODE:
@@ -1189,8 +1188,8 @@ class ChipGenerator():
 		if self.ENABLE_PMP:
 			t.AddRow(['#define CORE_ENABLE_PMP'])
 			t.AddRow(['#define CORE_PMP_ENTRIES', str(self.PMP_ENTRIES)])
-		# D1 core-side debug mode (the dbg* tests dispatch on this; absent =
-		# no dcsr/dpc/dscratch, no dret, no halt request).
+		# Core-side debug mode. The dbg* tests dispatch on this; absent means no dcsr, dpc or
+		# dscratch, no dret and no halt request.
 		if self.ENABLE_DEBUG:
 			t.AddRow(['#define CORE_ENABLE_DEBUG'])
 
@@ -1240,7 +1239,7 @@ class ChipGenerator():
 					if bf.Size == 1:
 						if bf.SameNameAsRegister:
 							continue
-						# Changed: Add _BIT suffix to avoid conflicts with struct bitfield names
+						# _BIT suffix avoids conflicts with struct bitfield names
 						t.AddRow(['#define ' + bf.Name + '_BIT', '(' + self.fmthex(bf.BitMask, minDigits=hexDigits) + ')', '// bit ' + str(bf.MSB)])
 						t.AddRow(['#define ' + bf.Name + '_LSB', '(' + self.fmtint(bf.LSB, minDigits=1) + ')'])
 						bfDefines += 1
@@ -1276,16 +1275,8 @@ class ChipGenerator():
 			
 			for r in p.Registers:
 				t.AddRow(['#define ' + r.Name + '_ADDRESS', '(' + self.fmthex(r.Address) + ')'])
-				# NOTE: Register access macros disabled to avoid conflicts with struct field names
-				# Users should use peripheral structs instead: PERIPHERAL->REGISTER.value
-				# macroStr = None
-				# if r.Size == 8:
-				# 	macroStr = 'MMR_08_BIT_MACRO'
-				# elif r.Size == 16:
-				# 	macroStr = 'MMR_16_BIT_MACRO'
-				# else:
-				# 	macroStr = 'MMR_32_BIT_MACRO'
-				# t.AddRow(['#define ' + r.Name, macroStr + '(' + r.Name + '_ADDRESS)'])
+				# No register access macros: they conflict with struct field names. Use the peripheral
+				# structs instead, PERIPHERAL->REGISTER.value.
 			t.AddBlankLines(3)
 		
 		s += t.ToString()
@@ -1412,12 +1403,9 @@ class ChipGenerator():
 					s += '} ' + rt.NameTemplate + '_Register_t;\n'
 					s += '\n'
 				else:
-					# A fully-reserved register (no named bit fields, e.g. RTC0TRIM) has
-					# no bit-field union to emit; alias its register type to a bare word
-					# so the peripheral struct member below still resolves. Reads 0 /
-					# writes ignored in hardware. (Only reached for all-reserved slots —
-					# every existing peripheral has at least one named field, so this is a
-					# no-op for their headers.)
+					# A fully-reserved register with no named bit fields has no bit-field union to emit, so
+					# alias its register type to a bare word and the peripheral struct member below still
+					# resolves. Hardware reads 0 and ignores writes. Only reached for all-reserved slots.
 					s += 'typedef uint' + str(rt.Size) + '_t ' + rt.NameTemplate + '_Register_t;\n'
 					s += '\n'
 
@@ -1526,7 +1514,6 @@ class ChipGenerator():
 						t.AddRow(['#define ' + pin.PrimaryPxIEName, '(P' + p.GetGPIOPortLabel() + 'IE)'])
 						t.AddRow(['#define ' + pin.PrimaryPxSELName, '(P' + p.GetGPIOPortLabel() + 'SEL)'])
 						t.AddRow(['#define ' + pin.PrimaryPxRENName, '(P' + p.GetGPIOPortLabel() + 'REN)'])
-						#t.AddRow(['#define ' + pin.PrimaryPxOCENName, '(P' + p.GetGPIOPortLabel() + 'OCEN)'])
 						t.AddBlankLine()
 					
 					if len(pin.FuncName) > 0:
@@ -1542,9 +1529,8 @@ class ChipGenerator():
 						t.AddRow(['#define ' + pin.FuncPxIFGName, '(P' + p.GetGPIOPortLabel() + 'IFG)'])
 						t.AddBlankLine()
 
-					# Additional alternate functions (AF1..AF7): location-qualified
-					# names, since a relocated function also keeps its home-pin
-					# defines (which stay unqualified for compatibility)
+					# Additional alternate functions AF1..AF7 get location-qualified names, because a
+					# relocated function also keeps its home-pin defines, which stay unqualified.
 					for af in pin.AltFuncs:
 						locName = af.Name + '_P' + p.GetGPIOPortLabel() + '_' + str(pin.BitNumber)
 						t.AddLine('// P' + p.GetGPIOPortLabel() + '.' + str(pin.BitNumber) + ' alternate function ' + str(af.Index) + ' (when P' + p.GetGPIOPortLabel() + 'SEL(' + str(pin.BitNumber) + ') = \'1\' and the pin\'s P' + p.GetGPIOPortLabel() + 'AFS field = ' + str(af.Index) + '): ' + af.Name)
@@ -1615,11 +1601,10 @@ class ChipGenerator():
 
 		print('C Header file saved to ' + outPath)
 
-		# X0/X1: a tiny ASSEMBLY-SAFE companion carrying ONLY the CORE_ENABLE_*
-		# feature #defines. MemoryMap.h itself pulls in <stdint.h> and C
-		# register-struct typedefs, so it cannot be #included from an .S; the
-		# ext-probe / directed .S tests dispatch on these feature switches
-		# (Z-extensions have no misa bit) by #including "core_features.h".
+		# An assembly-safe companion header carrying only the CORE_ENABLE_* feature defines.
+		# MemoryMap.h pulls in <stdint.h> and C register-struct typedefs, so it cannot be included
+		# from an .S; the ext-probe and directed .S tests dispatch on these feature switches, since
+		# Z extensions have no misa bit, by including "core_features.h".
 		cf = '/**\n **\tcore_features.h  (generated companion to MemoryMap.h)\n'
 		cf += ' **\tAssembly-safe CORE_ENABLE_* feature switches. Do not edit;\n'
 		cf += ' **\tuse the generate.py chip generator.\n **/\n'
@@ -1636,10 +1621,10 @@ class ChipGenerator():
 			('ZBKB', self.ENABLE_ZBKB),
 			('ZBKC', self.ENABLE_ZBKC), ('ZBKX', self.ENABLE_ZBKX),
 			('ZKN', self.ENABLE_ZKN), ('ZFINX', self.ENABLE_ZFINX),
-			# P0 privileged-architecture scaffolding (P1/P2/P3)
+			# Privileged-architecture scaffolding
 			('TRAPCSR', self.ENABLE_TRAPCSR), ('UMODE', self.ENABLE_UMODE),
 			('PMP', self.ENABLE_PMP),
-			# D1 core-side debug mode
+			# Core-side debug mode
 			('DEBUG', self.ENABLE_DEBUG)]:
 			if _flag:
 				cf += '#define CORE_ENABLE_' + _name + '\n'
@@ -1919,7 +1904,7 @@ class ChipGenerator():
 					if bf.Size == 1:
 						if bf.SameNameAsRegister:
 							continue
-						# Changed: Add _BIT suffix to avoid conflicts with struct bitfield names
+						# _BIT suffix avoids conflicts with struct bitfield names
 						t.AddRow(['#define ' + bf.Name + '_BIT', self.fmthex(bf.BitMask, minDigits=hexDigits), '// bit ' + str(bf.MSB)])
 						t.AddRow(['#define ' + bf.Name + '_LSB', self.fmtint(bf.LSB, minDigits=1)])
 						bfDefines += 1
@@ -1951,12 +1936,6 @@ class ChipGenerator():
 		
 		s += t.ToString()
 		
-		## Add the register addresses
-		#t.AddLine('// All registers')
-		#for tup in self.AddressTable:
-		#	t.AddRow(['#define ' + tup[0], self.fmthex(tup[1])])
-		#
-		#s += t.ToString()
 		
 		# Save the file
 		f = open(outPath, 'w', newline='\n')
@@ -2001,23 +1980,20 @@ class ChipGenerator():
 		t.AddRow(['constant PadOUTLogicLevel', ': boolean := ' + str(self.PadOUTPosLogic).lower() + ';', '-- Configured such that setting PxOUT to \'1\' will drive the output of the pad HIGH'], prefixTabs=1)
 		t.AddRow(['constant PadDIRLogicLevel', ': boolean := ' + str(self.PadDIRPosLogic).lower() + ';', '-- Configured such that setting PxDIR to \'1\' will set the pad to OUTPUT mode'], prefixTabs=1)
 		t.AddRow(['constant PadRENLogicLevel', ': boolean := ' + str(self.PadRENPosLogic).lower() + ';', '-- Configured such that setting PxREN to \'1\' will enable the pad pullup/pulldown resistor'], prefixTabs=1)
-		#t.AddRow(['constant PadOCENLogicLevel', ': boolean := ' + str(self.PadOCENPosLogic).lower() + ';', '-- Configured such that setting PxOCEN to \'1\' will enable the pad open collector/open drain mode'], prefixTabs=1)
 		
 		t.AddBlankLines(3)
 		
 		# Add the pad logic levels
 		t.AddLine('---------- Memory Information ----------', prefixTabs=1)
-		# RomSize is the ONE authority the RTL reads for the boot ROM: MCU.vhd
-		# sizes the ROM decode from it and asserts it against the width of the
-		# rom2k_hvt_pg macro it instantiates, so a romSize that no macro can answer
-		# fails elaboration instead of shipping a map the array does not honour.
+		# RomSize is the one authority the RTL reads for the boot ROM: MCU.vhd sizes the ROM decode
+		# from it and asserts it against the width of the rom2k_hvt_pg macro it instantiates, so a
+		# romSize no macro can answer fails elaboration instead of shipping a map the array does
+		# not honour.
 		t.AddRow(['constant RomSize', ': natural := ' + str(self.RomSize) + ';', '-- ' + self.fmthex(self.RomSize) + ' (the shared boot ROM at ' + self.fmthex(self.RomStartAddress) + '; MCU.vhd sizes its ROM decode on THIS constant and asserts it against the macro it instantiates)'], prefixTabs=1)
 		t.AddRow(['constant RamStartAddress', ': natural := ' + str(self.RamStartAddress) + ';', '-- ' + self.fmthex(self.RamStartAddress)], prefixTabs=1)
-		# The RAM comment carries the same 'THIS constant is the authority' clause the
-		# ROM one does. Both were hand-added to hdl/common/MemoryMap.vhd under its
-		# do-not-edit banner and would be lost on a verbatim regeneration; both are
-		# generically true, because hart_tile.vhd asserts its SRAM macro depth against
-		# RamSize exactly as MCU.vhd asserts its ROM macro depth against RomSize.
+		# The RAM comment carries the same authority clause the ROM one does, and both are
+		# generically true: hart_tile.vhd asserts its SRAM macro depth against RamSize exactly as
+		# MCU.vhd asserts its ROM macro depth against RomSize.
 		t.AddRow(['constant RamSize', ': natural := ' + str(self.RamSize) + ';', '-- ' + self.fmthex(self.RamSize) + ' (per-hart private TCM; hart_tile selects and asserts its SRAM macro on THIS constant)'], prefixTabs=1)
 		
 		t.AddBlankLines(3)
@@ -2035,18 +2011,12 @@ class ChipGenerator():
 		
 		t.AddBlankLine()
 		
-		# Add the SRAM slot enables.
-		# `slotIndex * RamMemorySlotSize` is a BYTE ADDRESS only when the RAM
-		# region starts at 0 -- the same assumption the StackPointerInit check
-		# above documents. Castalia's TCM is based at RamStartAddress 0x8000 and
-		# occupies slot 2, so that form printed 2 * 0x2000 = 0x4000: the address
-		# of the PERIPHERAL page, in a comment naming the TCM. It was corrected
-		# by hand in hdl/common/MemoryMap.vhd (a file headed "Do not edit"),
-		# which is how it was found. Anchor to the region's real base instead:
-		# slot `min(RamMemorySlotsUsed)` sits at RamStartAddress and the slots
-		# are contiguous (enforced at construction), so each later slot is one
-		# RamMemorySlotSize further up. This is byte-identical wherever the old
-		# form was accidentally right (Argus: 0x8000 base, 0x4000 slots, slot 2).
+		# Add the SRAM slot enables. Anchor to the region's real base rather than
+		# slotIndex * RamMemorySlotSize, which is a byte address only when the RAM region starts
+		# at 0: at a 0x8000-based TCM in slot 2 that form printed 2 * 0x2000 = 0x4000, the address
+		# of the peripheral page, in a comment naming the TCM. Slot min(RamMemorySlotsUsed) sits
+		# at RamStartAddress and the slots are contiguous, enforced at construction, so each later
+		# slot is one RamMemorySlotSize further up.
 		t.AddLine('-- SRAM Slot Enables/Disables', prefixTabs=1)
 		ramSlotZero = min(self.RamMemorySlotsUsed)
 		for i in self.RamMemorySlotsAvailable:
@@ -2059,10 +2029,9 @@ class ChipGenerator():
 		
 		t.AddBlankLines(3)
 		
-		# Add the peripheral memory slot assignments. Slots no peripheral claims
-		# under the description's own name are simply omitted; the RTL spelling of
-		# every slot (moved peripherals included) is emitted by the MCU_MP
-		# compatibility section further down.
+		# Add the peripheral memory slot assignments. Slots no peripheral claims under the
+		# description's own name are omitted; the RTL spelling of every slot, moved peripherals
+		# included, is emitted by the compatibility section further down.
 		slotRows = []
 		for i in range(self.PeripheralMemorySlotCount):
 			name = None
@@ -2126,10 +2095,9 @@ class ChipGenerator():
 		t = TabbedTable()
 		t.AddLine('---------- GPIO Register Reset Values ----------', prefixTabs=1)
 		if self.McuMpCompat is not None:
-			# MCU_MP drop-in mode: emit the values transcribed from the RTL package, with
-			# the RTL's port numbering (GPIO0 = P1 ... GPIO3 = P4). The description's
-			# per-pin reset attributes are cross-checked below and produce warnings when
-			# they disagree with the RTL (the RTL wins; see generate.py).
+			# Drop-in mode: emit the values transcribed from the RTL package, with the RTL's port
+			# numbering (GPIO0 = P1 ... GPIO3 = P4). The description's per-pin reset attributes are
+			# cross-checked below and warn when they disagree with the RTL, which wins.
 			t.AddLine('-- Transcribed from ' + self.McuMpCompat['sourceFile'] + ' (RTL port numbering: GPIO0 = P1)', prefixTabs=1)
 			for gpioName, entries in self.McuMpCompat['rstVals']:
 				t.AddLine('-- ' + gpioName, prefixTabs=1)
@@ -2167,7 +2135,6 @@ class ChipGenerator():
 					rstValPxDIR = 0
 					rstValPxSEL = 0
 					rstValPxREN = 0
-					#rstValPxOCEN = 0
 
 					for pin in p.Pins:
 						if pin.NoConnect:
@@ -2176,13 +2143,11 @@ class ChipGenerator():
 						rstValPxDIR |= pin.RstDIR << pin.BitNumber
 						rstValPxSEL |= pin.RstSEL << pin.BitNumber
 						rstValPxREN |= pin.RstREN << pin.BitNumber
-						#rstValPxOCEN |= pin.RstOCEN << pin.BitNumber
 
 					t.AddRow(['constant RstValP' + p.GetGPIOPortLabel() + 'OUT', ': slv(31 downto 0) := X"' + self.fmthex(rstValPxOUT, 8)[2:] + '";'], prefixTabs=1)
 					t.AddRow(['constant RstValP' + p.GetGPIOPortLabel() + 'DIR', ': slv(31 downto 0) := X"' + self.fmthex(rstValPxDIR, 8)[2:] + '";'], prefixTabs=1)
 					t.AddRow(['constant RstValP' + p.GetGPIOPortLabel() + 'SEL', ': slv(31 downto 0) := X"' + self.fmthex(rstValPxSEL, 8)[2:] + '";'], prefixTabs=1)
 					t.AddRow(['constant RstValP' + p.GetGPIOPortLabel() + 'REN', ': slv(31 downto 0) := X"' + self.fmthex(rstValPxREN, 8)[2:] + '";'], prefixTabs=1)
-					#t.AddRow(['constant RstValP' + p.GetGPIOPortLabel() + 'OCEN', ': slv(31 downto 0) := X"' + self.fmthex(rstValPxOCEN, 8)[2:] + '";'], prefixTabs=1)
 
 					t.AddBlankLine()
 
@@ -2211,15 +2176,15 @@ class ChipGenerator():
 		t.AddRow(["constant picorv32_ENABLE_COUNTERS64", ": sl", ":= '" + str(int(self.ENABLE_COUNTERS64 and self.ENABLE_COUNTERS)) + "';"], prefixTabs=1)	# Doesn't cost too much, and is the standard
 		t.AddRow(["constant picorv32_ENABLE_REGS_16_31", ": sl", ":= '1';"], prefixTabs=1)	# Required for RV32I ISA
 		t.AddRow(["constant picorv32_ENABLE_REGS_DUALPORT", ": sl", ":= '" + str(int(self.ENABLE_REGS_DUALPORT)) + "';"], prefixTabs=1)	# Enables/disables dual access to general purpose registers
-		t.AddRow(["constant picorv32_LATCHED_MEM_RDATA", ": sl", ":= '" + str(int(self.LATCHED_MEM_RDATA)) + "';"], prefixTabs=1)	# The address decoder only guarantees the correct data to be output on rdata for one cycle, so this needs to be disabled
+		t.AddRow(["constant picorv32_LATCHED_MEM_RDATA", ": sl", ":= '" + str(int(self.LATCHED_MEM_RDATA)) + "';"], prefixTabs=1)	# the address decoder guarantees correct rdata for one cycle only, so this must be disabled
 		t.AddRow(["constant picorv32_TWO_STAGE_SHIFT", ": sl", ":= '" + str(int(self.TWO_STAGE_SHIFT)) + "';"], prefixTabs=1)	# Enables/disables a two-stage bit shift operation. When enabled, this is a medium-speed shift. When disabled, it is slow
 		t.AddRow(["constant picorv32_BARREL_SHIFTER", ": sl", ":= '" + str(int(self.BARREL_SHIFTER)) + "';"], prefixTabs=1)	# Enables/disables the fast barrel bit shift operation. Overrides TWO_STAGE_SHIFT when enabled
 		t.AddRow(["constant picorv32_TWO_CYCLE_COMPARE", ": sl", ":= '0';"], prefixTabs=1)	# We want compares to be fast, so this needs to be disabled
-		t.AddRow(["constant picorv32_TWO_CYCLE_ALU", ": sl", ":= '0';"], prefixTabs=1)	# We want ALU operations to be fast, so this needs to be disabled
+		t.AddRow(["constant picorv32_TWO_CYCLE_ALU", ": sl", ":= '0';"], prefixTabs=1)	# ALU operations must be fast, so this is disabled
 		t.AddRow(["constant picorv32_COMPRESSED_ISA", ": sl", ":= '" + str(int(self.COMPRESSED_ISA)) + "';"], prefixTabs=1)	# Enables/disables the compressed ISA extension RV32IC
-		t.AddRow(["constant picorv32_CATCH_MISALIGN", ": sl", ":= '1';"], prefixTabs=1)	# Enable catching misaligned memory addresses (disabling this does NOT help bad compressed ISA problems)
-		t.AddRow(["constant picorv32_CATCH_ILLINSN", ": sl", ":= '1';"], prefixTabs=1)	# Enable catching illegal instructions (disabling this does NOT help bad compressed ISA problems)
-		t.AddRow(["constant picorv32_ENABLE_PCPI", ": sl", ":= '0';"], prefixTabs=1)	# Don't need the pico co-proessor interface, except for the internal multiplier/divider, which this setting does not control
+		t.AddRow(["constant picorv32_CATCH_MISALIGN", ": sl", ":= '1';"], prefixTabs=1)	# catch misaligned memory addresses; disabling this does not help bad compressed-ISA problems
+		t.AddRow(["constant picorv32_CATCH_ILLINSN", ": sl", ":= '1';"], prefixTabs=1)	# catch illegal instructions; disabling this does not help bad compressed-ISA problems
+		t.AddRow(["constant picorv32_ENABLE_PCPI", ": sl", ":= '0';"], prefixTabs=1)	# the pico coprocessor interface is unused; it does not control the internal multiplier and divider
 		t.AddRow(["constant picorv32_ENABLE_MUL", ": sl", ":= '" + str(int(self.ENABLE_MUL)) + "';"], prefixTabs=1)	# Enables/disables the hardware multiplier
 		t.AddRow(["constant picorv32_ENABLE_FAST_MUL", ": sl", ":= '" + str(int(self.ENABLE_FAST_MUL)) + "';"], prefixTabs=1)	# Enables/disables the fast hardware multiplier. If both ENABLE_FAST_MUL and ENABLE_MUL are enabled, the ENABLE_MUL is ignored and the fast hardware multiplier is instantiated
 		t.AddRow(["constant picorv32_ENABLE_DIV", ": sl", ":= '" + str(int(self.ENABLE_DIV)) + "';"], prefixTabs=1)	# Enables/disables the hardware divider and remainder calculator
@@ -2230,7 +2195,6 @@ class ChipGenerator():
 		t.AddRow(["constant picorv32_ENABLE_TRACE", ": sl", ":= '0';"], prefixTabs=1)
 		t.AddRow(["constant picorv32_REGS_INIT_ZERO", ": sl", ":= '0';"], prefixTabs=1)	# Don't initialize registers to zero. While this would be convenient for simulation, it could be detrimental for synthesis
 		t.AddRow(["constant picorv32_MASKED_IRQ", ": slv(31 downto 0)", ":= X\"{:08x}".format(self.MASKED_IRQ) + "\";"], prefixTabs=1)	# Any '1' bit corresponds to a permenantely disabled IRQ
-		#t.AddRow(["constant picorv32_LATCHED_IRQ", "32'hFFFF_FFFF"])	# All interrupts are "edge sensitive". This means the interrupt is initiated on a low to high transition of the corresponding IRQ signal and stays pending until the interrupt handler is called
 		t.AddRow(["constant picorv32_LATCHED_IRQ", ": slv(31 downto 0)", ":= X\"00000000\";"], prefixTabs=1)	# All interrupts are "level sensitive". This means the interrupt is initiated whenever the IRQ bit is high, and peripherals are responsible for setting their IRQ bit low again. This was done because using edge sensitive interrupts makes the interrupt handler execute twice in a row, since the CPU does not update the next_irq_pending signal at the appropriate time
 		t.AddRow(["constant picorv32_PROGADDR_RESET", ": slv(31 downto 0)", ":= X\"{:08x}\";".format(self.ProgramCounterInit)], prefixTabs=1)	# The reset value of the program counter, which must be the start of the program. This MUST be the beginning of your program, which MUST be set to the start of the ROM
 		t.AddRow(["constant picorv32_PROGADDR_IRQ", ": slv(31 downto 0)", ":= X\"{:08x}\";".format(self.PROGADDR_IRQ)], prefixTabs=1)	# The address of the master IRQ handling function (this is NOT the interrupt vector table!!! This is the function that is called whenever ANY interrupt occurs)
@@ -2284,12 +2248,10 @@ class ChipGenerator():
 		return
 	
 	def generateMcuMpCompatSection(self):
-		'''Emit the constants that the hand-written hdl/common/MemoryMap.vhd package defines
-		beyond the generic sections above, so the generated package is a DROP-IN replacement
-		for it in the MCU_MP build. Name spellings and transcribed values come from
-		generate.py's McuMpCompat block (source: the RTL package — the RTL wins). Facts the
-		description already knows are cross-checked: interrupt priorities raise on mismatch,
-		register-slot disagreements print warnings.'''
+		'''Emit the constants the hand-written MemoryMap.vhd package defines beyond the generic sections
+		above, so the generated package is a drop-in replacement. The RTL package is the authority;
+		facts the description knows are cross-checked, priorities raising and slots warning.
+		'''
 		c = self.McuMpCompat
 		t = TabbedTable()
 		t.AddLine('---------- MCU_MP Compatibility ----------', prefixTabs=1)
@@ -2302,10 +2264,10 @@ class ChipGenerator():
 			t.AddRow(['constant ' + name, ': natural := ' + self.fmtint(value, 2) + ';', '-- ' + comment], prefixTabs=1)
 		t.AddBlankLine()
 
-		# Legacy peripheral slot numbers for ALL peripherals, in the RTL's spelling. The
-		# main "Peripheral Memory Slot Assignments" section above only covers peripherals
-		# still living in the 0x4000 page under the description's own name; the RTL also
-		# indexes the moved (shared-window) peripherals' dead legacy windows by slot number.
+		# Legacy peripheral slot numbers for all peripherals, in the RTL's spelling. The
+		# "Peripheral Memory Slot Assignments" section above covers only peripherals still living
+		# in the 0x4000 page under the description's own name; the RTL also indexes the moved
+		# shared-window peripherals' dead legacy windows by slot number.
 		periphBySlot = {}
 		for p in self.Peripherals:
 			if p.LegacySlot is not None:
@@ -2345,8 +2307,8 @@ class ChipGenerator():
 			t.AddRow(['constant ' + name, ": std_logic := '" + value + "';", '-- ' + comment], prefixTabs=1)
 		t.AddBlankLine()
 
-		# SYSTEM register slots in the RTL's RegSlotSYS_* spelling (values transcribed from
-		# the RTL, which SYSTEM.vhd decodes against; cross-checked against the description)
+		# SYSTEM register slots in the RTL's RegSlotSYS_* spelling. The values are transcribed from
+		# the RTL, which SYSTEM.vhd decodes against, and are cross-checked against the description.
 		t.AddLine('-- SYSTEM register slots (RTL spelling; slot values from ' + c['sourceFile'] + ')', prefixTabs=1)
 		sysP = self.FindPeripheral('SYSTEM')
 		sysSlotByName = {}
@@ -2364,9 +2326,9 @@ class ChipGenerator():
 			t.AddRow(['constant ' + name, ': natural := ' + self.fmtint(slot, 2) + ';', '-- offset = ' + str(slot * 4) + ' bytes'], prefixTabs=1)
 		t.AddBlankLine()
 
-		# NPU register slots in the RTL's MmrAddrNPU* spelling (values from the
-		# description). A2: skipped entirely for configurations that drop the
-		# NPU (Argus) — the generated MCU.vhd has no consumer for them there.
+		# NPU register slots in the RTL's MmrAddrNPU* spelling, with values from the description.
+		# Skipped entirely for configurations that drop the NPU: the generated MCU.vhd has no
+		# consumer for them there.
 		npuPresent = any(p.Name == 'NPU' for p in self.Peripherals)
 		if npuPresent:
 			t.AddLine('-- NPU register slots (RTL spelling)', prefixTabs=1)
@@ -2405,14 +2367,12 @@ class ChipGenerator():
 		for i, entry in enumerate(c['irqVectors']):
 			name, description = entry
 			t.AddRow(['constant ' + name, ': natural := ' + self.fmtint(i, 2) + ';', '-- ' + description + ', IVT address = ' + self.fmthex(self.VectorsStartAddress + i * 4)], prefixTabs=1)
-		# M19: the SOURCE count (deglitch/irq_router width) and the core's IVT
-		# slot count split — the meip external-IRQ vector is delivered by the
-		# irq_router's claim/complete stage, not a deglitched peripheral source.
-		# digperiphs #2: the meip slot is FROZEN at self.MeipVector when set (85
-		# for Castalia/wound), so I3C's sources can grow ABOVE it (86-93) without
-		# sliding meip; the historic default (MeipVector=None) keeps meip at
-		# VectorsCount = immediately above the sources. NUM_IRQS is the IVT slot
-		# count = max(source count, meip slot + 1).
+		# The source count, which is the deglitch and irq_router width, and the core's IVT slot
+		# count are different numbers: the meip external-IRQ vector is delivered by the irq_router's
+		# claim and complete stage, not by a deglitched peripheral source. The meip slot is frozen
+		# at self.MeipVector when set, so peripheral sources can grow above it without sliding meip;
+		# with MeipVector None, meip sits immediately above the sources. NUM_IRQS is the IVT slot
+		# count, max(source count, meip slot + 1).
 		meipVector = self.MeipVector if self.MeipVector is not None else self.VectorsCount
 		numIrqs = max(self.VectorsCount, meipVector + 1)
 		t.AddRow(['constant IRQB_EXT_MEIP', ': natural := ' + self.fmtint(meipVector, 2) + ';', '-- External (peripheral) interrupt via IRQROUTER claim/complete, IVT address = ' + self.fmthex(self.VectorsStartAddress + meipVector * 4)], prefixTabs=1)
@@ -2421,10 +2381,9 @@ class ChipGenerator():
 		t.AddRow(['constant NUM_GF_INSTANCES', ': natural := (NUM_IRQ_SRCS + 31) / 32;', '-- glitch-filter instance count'], prefixTabs=1)
 		t.AddBlankLine()
 
-		# Core ISA feature switches (config-driven): consumed by MCU.vhd's hart_tile
-		# generic maps and threaded down to the vesta core (decode gating + hardware
-		# pruning + the read-only misa CSR). All four tiles MUST get the same values —
-		# the tile is hardened once (M14, one netlist).
+		# Core ISA feature switches, config-driven, consumed by MCU.vhd's hart_tile generic maps
+		# and threaded down to the vesta core for decode gating, hardware pruning and the read-only
+		# misa CSR. Every tile must get the same values: the tile is hardened once, as one netlist.
 		t.AddLine('-- Core ISA Features (drive the hart_tile/vesta ENABLE_* generics; every tile identical)', prefixTabs=1)
 		t.AddRow(['constant CORE_ENABLE_MUL', ': boolean := ' + str(bool(self.ENABLE_MUL)).lower() + ';', '-- M: MUL/MULH/MULHU/MULHSU'], prefixTabs=1)
 		t.AddRow(['constant CORE_ENABLE_DIV', ': boolean := ' + str(bool(self.ENABLE_DIV)).lower() + ';', '-- M: DIV/DIVU/REM/REMU + the iterative divider'], prefixTabs=1)
@@ -2448,67 +2407,49 @@ class ChipGenerator():
 		t.AddRow(['constant CORE_ENABLE_ZBKX', ': boolean := ' + str(bool(self.ENABLE_ZBKX)).lower() + ';', '-- Zbkx crossbar permute'], prefixTabs=1)
 		t.AddRow(['constant CORE_ENABLE_ZKN', ': boolean := ' + str(bool(self.ENABLE_ZKN)).lower() + ';', '-- Zkn AES+SHA (Zknd+Zkne+Zknh)'], prefixTabs=1)
 		t.AddRow(['constant CORE_ENABLE_ZFINX', ': boolean := ' + str(bool(self.ENABLE_ZFINX)).lower() + ';', '-- Zfinx single-prec FP in x-regs'], prefixTabs=1)
-		# P0 privileged-architecture scaffolding (P1/P2/P3; no logic consumes
-		# these yet — generate.py hard-errors if any boolean is configured true)
+		# Privileged-architecture scaffolding; generate.py enforces the ladder on a true.
 		t.AddRow(['constant CORE_ENABLE_TRAPCSR', ': boolean := ' + str(bool(self.ENABLE_TRAPCSR)).lower() + ';', '-- Standard M-mode trap CSRs + MRET'], prefixTabs=1)
 		t.AddRow(['constant CORE_ENABLE_UMODE', ': boolean := ' + str(bool(self.ENABLE_UMODE)).lower() + ';', '-- U-mode (needs TRAPCSR)'], prefixTabs=1)
 		t.AddRow(['constant CORE_ENABLE_PMP', ': boolean := ' + str(bool(self.ENABLE_PMP)).lower() + ';', '-- PMP / Smpmp (needs UMODE)'], prefixTabs=1)
 		t.AddRow(['constant CORE_PMP_ENTRIES', ': natural := ' + str(int(self.PMP_ENTRIES)) + ';', '-- PMP entry count {8,16} (only with PMP)'], prefixTabs=1)
-		# D1 core-side debug mode (needs TRAPCSR; generate.py enforces)
+		# Core-side debug mode; requires TRAPCSR, which generate.py enforces
 		t.AddRow(['constant CORE_ENABLE_DEBUG', ': boolean := ' + str(bool(self.ENABLE_DEBUG)).lower() + ';', '-- Debug mode (dcsr/dpc/dscratch, dret, halt)'], prefixTabs=1)
-		# Fetch-ahead. This constant is the SHIPPED VALUE and the single
-		# authority for it: MCU.vhd hands it to every tile, and
-		# tools/python/check_entity_defaults.py reads it here to derive what the
-		# hart_tile and orch_tile entity defaults must be, so a bare genus
-		# elaborate cannot harden a tile the assembly then wires the other way.
+		# Fetch-ahead. This constant is the shipped value and the single authority for it: MCU.vhd
+		# hands it to every tile, and tools/python/check_entity_defaults.py reads it here to derive
+		# what the hart_tile and orch_tile entity defaults must be, so a bare genus elaborate
+		# cannot harden a tile the assembly then wires the other way.
 		t.AddRow(['constant CORE_ENABLE_IF_AHEAD', ': boolean := ' + str(bool(self.ENABLE_IF_AHEAD)).lower() + ';', '-- C-ext fetch-ahead (straddle, 1 flop)'], prefixTabs=1)
-		# ASYMMETRIC ISA: what the HARDENED CORNER TILES get, as opposed to hart 0.
-		# These exist so the asymmetry has ONE authority. MCU.vhd hands hart 0 (and the
-		# orchestrator) the CORE_ENABLE_* values above and hands hart_tile instances
-		# these; hart_tile's own generics still DEFAULT to the full ISA, so a bare
-		# `elaborate hart_tile` for macro hardening must override them explicitly --
-		# see genus/hart_tile/tcl/hart_tile.genus.tcl, which names them and guards that
-		# they took (the ENABLE_DEBUG lesson: a generic default silently wins over a
-		# memory-map constant in a tile-only elaborate).
-		#
-		# WIDENED 2026-09-12 (P12). Until then the split was THREE constants -- M and B
-		# -- and every other ISA and privilege knob reached the tiles as the SAME
-		# CORE_ENABLE_* hart 0 takes, so a configuration that turned Zfinx, Zkn or PMP
-		# on for the orchestrator silently turned them on inside the hardened macro too
-		# (measured on config/castalia_b.json; P10 finding F1). The owner's intent is
-		# and was "tiles at rv32iac and nothing more", so the per-class set is now the
-		# WHOLE of isa.* and priv.*, and the table below is the authority for it.
-		#
-		# THE TILE-CLASS POLICY, knob by knob:
-		#   KEPT  ATOMICS    the 'a' of rv32iac. The tiles run the shared-fabric LR/SC
-		#                    and AMO locking; dropping it breaks the boot mailboxes.
-		#   KEPT  COMPRESSED the 'c' of rv32iac. Decode-only, and it shrinks code,
-		#                    which matters at an 8 KiB TCM.
-		#   KEPT  TRAPCSR    the tile must be DEBUGGABLE, and vesta.vhd asserts
-		#                    ENABLE_DEBUG requires ENABLE_TRAPCSR (ebreak and the whole
-		#                    SYSTEM PRIV legality arm are TRAPCSR-gated in maindec).
-		#                    debug.enable is a shipped default, so this is not optional.
-		#   DROP  UMODE      no tile code leaves M-mode: the boot ROM's tile path and
-		#                    the debug trampoline are M-mode throughout.
-		#   DROP  PMP        requires UMODE, so it cannot stand once U-mode is gone;
-		#                    it is also what infers vesta's is_compressed latch.
-		#   DROP  M, B, and every Z extension: no image a tile executes emits one.
-		#   Not per-class: ENABLE_DEBUG (kept identical on both classes by
-		#   construction -- CORE_ENABLE_DEBUG is also the oracle
-		#   tools/python/check_entity_defaults.py grades the hart_tile and orch_tile
-		#   entity defaults against) and ENABLE_IF_AHEAD (microarchitecture, not ISA:
-		#   it changes cycle counts only and never an architectural result).
-		#   Not here at all: isa.counters / isa.counters64. They gate NO hart_tile
-		#   generic -- cycle and instret exist on every hart unconditionally and the
-		#   knobs move only the march suffix and the C defines -- so dropping Zicntr on
-		#   the tile class would make the tile advertise less than it implements and
-		#   would save nothing. The tile class keeps them; see web_export._tileIsa.
+		# Asymmetric ISA: what the hardened corner tiles get, as opposed to hart 0. This table is
+		# the one authority for the asymmetry. MCU.vhd hands hart 0 and the orchestrator the
+		# CORE_ENABLE_* values above and hands hart_tile instances these. hart_tile's own generics
+		# still default to the full ISA, so a bare `elaborate hart_tile` for macro hardening must
+		# override them explicitly: genus/hart_tile/tcl/hart_tile.genus.tcl names them and guards
+		# that they took, because a generic default silently wins over a memory-map constant in a
+		# tile-only elaborate.
+		# The per-class set is the whole of isa.* and priv.*. Knob by knob:
+		#   KEPT  ATOMICS    the 'a' of rv32iac. The tiles run the shared-fabric LR/SC and AMO
+		#                    locking; dropping it breaks the boot mailboxes.
+		#   KEPT  COMPRESSED the 'c' of rv32iac. Decode-only, and it shrinks code, which matters
+		#                    at an 8 KiB TCM.
+		#   KEPT  TRAPCSR    the tile must be debuggable, and vesta.vhd asserts that ENABLE_DEBUG
+		#                    requires ENABLE_TRAPCSR: ebreak and the whole SYSTEM PRIV legality
+		#                    arm are TRAPCSR-gated in maindec. debug.enable is a shipped default.
+		#   DROP  UMODE      no tile code leaves M-mode: the boot ROM's tile path and the debug
+		#                    trampoline are M-mode throughout.
+		#   DROP  PMP        requires UMODE, so it cannot stand once U-mode is gone; it is also
+		#                    what infers vesta's is_compressed latch.
+		#   DROP  M, B and every Z extension: no image a tile executes emits one.
+		# Not per-class: ENABLE_DEBUG, identical on both classes by construction and the value
+		# tools/python/check_entity_defaults.py grades the hart_tile and orch_tile entity defaults
+		# against, and ENABLE_IF_AHEAD, which is microarchitecture and changes cycle counts only.
+		# Not here at all: isa.counters and isa.counters64. They gate no hart_tile generic, since
+		# cycle and instret exist on every hart unconditionally and the knobs move only the march
+		# suffix and the C defines, so dropping Zicntr on the tile class would make the tile
+		# advertise less than it implements and would save nothing. See web_export._tileIsa.
 		_tmin = bool(self.MINIMAL_TILES)
-		# The emitted comment carries the generic-default warning, not just the value
-		# rule: it was hand-added to hdl/common/MemoryMap.vhd under its do-not-edit
-		# banner and a verbatim regeneration would drop it. It is the ENABLE_DEBUG
-		# lesson in one line -- a hart_tile generic default silently wins over a
-		# memory-map constant in a tile-only elaborate -- and it is config-independent.
+		# The emitted comment carries the generic-default warning as well as the value rule: a
+		# hart_tile generic default silently wins over a memory-map constant in a tile-only
+		# elaborate. It is config-independent, and a verbatim regeneration would otherwise drop it.
 		t.AddLine('-- Corner-tile ISA (harts 1..N-1). MCU.vhd hands the hardened hart_tile instances THESE and hands hart 0 / the', prefixTabs=1)
 		t.AddLine('-- orchestrator the CORE_ENABLE_* set above; equal to CORE_ENABLE_* unless the tiles are minimal.', prefixTabs=1)
 		t.AddLine('-- MINIMAL tiles are rv32iac and nothing more: A, C and the trap CSRs are KEPT (the tiles run the shared-fabric', prefixTabs=1)
@@ -2545,17 +2486,17 @@ class ChipGenerator():
 		for _nm, _val, _keep, _cmt in _tileKnobs:
 			_tv = bool(_val) if _keep else (bool(_val) and not _tmin)
 			t.AddRow(['constant TILE_ENABLE_' + _nm, ': boolean := ' + str(_tv).lower() + ';', '-- ' + _cmt], prefixTabs=1)
-		# PMP_ENTRIES is a SIZE, not a switch: it is inert when ENABLE_PMP is false, so
-		# the tile class carries the chip's number rather than a second one to keep in
-		# step. It is per-class only so the tile generic map reads from one block.
+		# PMP_ENTRIES is a size, not a switch: it is inert when ENABLE_PMP is false, so the tile
+		# class carries the chip's number rather than a second one to keep in step. It is per-class
+		# only so the tile generic map reads from one block.
 		t.AddRow(['constant TILE_PMP_ENTRIES', ': natural := ' + str(int(self.PMP_ENTRIES)) + ';', '-- PMP entry count, inert while TILE_ENABLE_PMP is false'], prefixTabs=1)
 		t.AddBlankLine()
 
 		# GPIO pin-number constants in the RTL's pnum_* spelling. AF-plane names
-		# (pnum_gpio<N>_af<K>_<func>) are cross-checked against the description's
-		# altFuncs metadata: the named GPIO's pin at that bit must declare an
-		# alternate function at plane K whose name matches <func> (both sides
-		# lowercased with underscores stripped). Build fails on disagreement.
+		# (pnum_gpio<N>_af<K>_<func>) are cross-checked against the description's altFuncs metadata:
+		# the named GPIO's pin at that bit must declare an alternate function at plane K whose name
+		# matches <func>, both sides lowercased with underscores stripped. The build fails on
+		# disagreement.
 		afPnumKeys = set()
 		for groupComment, portNumber, pins in c['pnums']:
 			t.AddLine('-- ' + groupComment, prefixTabs=1)
@@ -2589,9 +2530,9 @@ class ChipGenerator():
 				if pin.NoConnect:
 					continue
 				for af in pin.AltFuncs:
-					# Output-spread altFuncs (v1) are wired in the RTL with literal pin
-					# indices and emit no pnum_* reverse constant (their function names
-					# repeat across pins, which would collide), so they are exempt here.
+					# Output-spread altFuncs are wired in the RTL with literal pin indices and emit no pnum_*
+					# reverse constant, because their function names repeat across pins and would collide, so
+					# they are exempt here.
 					if getattr(af, 'FromSpread', False):
 						continue
 					key = (gpioIndex, af.Index, pin.BitNumber, af.Name.replace('_', '').lower())
@@ -2890,7 +2831,7 @@ class ChipGenerator():
 		chip['ENABLE_DIV'] = self.ENABLE_DIV
 		chip['ENABLE_ATOMICS'] = self.ENABLE_ATOMICS
 		chip['ENABLE_BITMANIP'] = self.ENABLE_BITMANIP
-		# X0 scaffolded ISA extensions
+		# Scaffolded ISA extensions
 		chip['ENABLE_ZICOND'] = self.ENABLE_ZICOND
 		chip['ENABLE_ZCB'] = self.ENABLE_ZCB
 		chip['ENABLE_ZIMOP'] = self.ENABLE_ZIMOP
@@ -2907,7 +2848,7 @@ class ChipGenerator():
 		chip['ENABLE_ZBKX'] = self.ENABLE_ZBKX
 		chip['ENABLE_ZKN'] = self.ENABLE_ZKN
 		chip['ENABLE_ZFINX'] = self.ENABLE_ZFINX
-		# P0 scaffolded privileged architecture
+		# Scaffolded privileged architecture
 		chip['ENABLE_TRAPCSR'] = self.ENABLE_TRAPCSR
 		chip['ENABLE_UMODE'] = self.ENABLE_UMODE
 		chip['ENABLE_PMP'] = self.ENABLE_PMP
@@ -2926,7 +2867,7 @@ class ChipGenerator():
 		return chip
 	
 	def generateMemoryMapJson(self, outPath):
-		# Create a dictionary 
+		# Create a dictionary
 		memoryMapDict = self.ToDict()
 
 		# Write it as a JSON file
