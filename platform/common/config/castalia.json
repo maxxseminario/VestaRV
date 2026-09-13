@@ -1,25 +1,4 @@
 {
-  "_comment": "Castalia: the tape-out product configuration, and the chip the Genus and Innovus lineage (genus/MCU_WOUND_PENTA, innovus/common/MCU_castalia_penta) is built from. Five harts with orchestrator=true: hart 0 is the always-on soft `orch_tile` in the centre band, keeping the flash/XIP + boot + trap + a0 wiring, and harts 1-4 are uniform hardened corner tiles, all four power-gateable. The peripheral set is the wound-monitoring set (QSPI/I3C/NFC/RTC/PWM/OneWire/DMA/I2CTarget/TRNG/EVFAB, cqAfeStubs dropped, fieldPower/PGOOD live, castalia-lqfp100 package), which makes this the one configuration that instantiates every peripheral config/rdl.json flags, so the register gates run against it. MEMORY MAP v2 rides the hart knobs: SH_AW=16, five read-only TCM apertures at 0x20000 + 0x4000*h, extended flash at 0x40000, so the QSPI/XIP software must use the new flash base. cqAfeStubs=false means the AFE/EIS stub bank does not exist here and the `shorch` catalog row is not selected; `shtcm` is the tape-out-config-capable orchestrator test. numHarts=5 + dma=true means nMasters = 5 harts + DMA = 6 (MW=3). Renamed from config/penta_wound.json on 2026-09-12 and the chip named Castalia; the private analog overlay configs keep their own chipName and the Xcelium verify stage directory follows this one. Build with: make chip CONFIG=config/castalia.json ; prove with: make verify CONFIG=config/castalia.json",
-  "chipName": "Castalia",
-  "numHarts": 5,
-  "orchestrator": true,
-  "peripherals": {
-    "cqAfeStubs": false,
-    "qspi": true,
-    "i3c": true,
-    "nfc": true,
-    "rtc": true,
-    "pwm": true,
-    "onewire": true,
-    "fieldPower": true,
-    "dma": true,
-    "dmaChannels": 4,
-    "i2ctarget": true,
-    "trng": true,
-    "eventFabric": true
-  },
-  "package": {
-    "model": "castalia-lqfp100",
-    "preliminary": true
-  }
+  "_comment": "Castalia: the tape-out product configuration, and the chip the Genus and Innovus lineage (genus/MCU_WOUND_PENTA, innovus/common/MCU_castalia_penta) is built from. Since 2026-09-12 it is also THE GENERATOR'S BUILT-IN DEFAULT (owner decision: one default silicon chip), so every knob this file used to set now lives in _CONFIG_SCHEMA / _CONFIG_META / the _cfg call sites in platform/common/python/generate.py, and a build with no CONFIG resolves to exactly this chip. The file is kept because it is the explicit, named form of that configuration: it is what //platform/common:chip_artifacts_castalia_tapeout, the register gates and `make verify CONFIG=config/castalia.json` name, and it is what the private analog overlay configs document themselves against. It therefore states only chipName, and its resolved record differs from a no-CONFIG build in the provenance field `configFile` alone. THE CHIP: five harts with orchestrator=true, hart 0 the always-on soft `orch_tile` in the centre band keeping the flash/XIP + boot + trap + a0 wiring, harts 1-4 uniform hardened corner tiles, all four power-gateable. The peripheral set is the wound-monitoring set (QSPI/I3C/NFC/RTC/PWM/OneWire/DMA/I2CTarget/TRNG/EVFAB, cqAfeStubs dropped, fieldPower/PGOOD live, castalia-lqfp100 package), which makes this the one configuration that instantiates every peripheral config/rdl.json flags, so the register gates run against it. MEMORY MAP v2 rides the hart knobs: SH_AW=16, five read-only TCM apertures at 0x20000 + 0x4000*h, extended flash at 0x40000, so the QSPI/XIP software must use the new flash base. cqAfeStubs=false means the AFE/EIS stub bank does not exist here and the `shorch` catalog row is not selected; `shtcm` is the tape-out-config-capable orchestrator test. numHarts=5 + dma=true means nMasters = 5 harts + DMA = 6 (MW=3). Renamed from config/penta_wound.json on 2026-09-12 and the chip named Castalia; the private analog overlay configs keep their own chipName and the Xcelium verify stage directory follows this one. Build with: make chip (no CONFIG needed) or make chip CONFIG=config/castalia.json ; prove with: make verify CONFIG=config/castalia.json",
+  "chipName": "Castalia"
 }

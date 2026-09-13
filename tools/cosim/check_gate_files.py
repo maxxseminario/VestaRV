@@ -347,6 +347,14 @@ GATE_FILES = [
     # THIS CUT MOVED THE FIRST WORD (0x004, the mhartid dispatch branch), so
     # the pc 0x5c / 0x15c boot-mode X pins above are STALE and must be
     # re-measured before the cosim reference is trusted again.
+    #
+    # AND A FIFTH TIME, 2026-09-12, with no source change: the default chip
+    # became config/castalia.json (one default silicon chip), NUM_IRQ_SRCS went
+    # 121 -> 124, the vector table grew 484 -> 496 bytes and RAM moved to
+    # 0x081F0.  md5 99b0c95dfb3fc0da52a49d1a68efa904 ->
+    # cea7e60f4723f63acfd92c5883716f1e.  The first changed word is 0x39C, so
+    # this cut does not disturb the pc 0x5c / 0x15c pins any further; they are
+    # still stale from the fourth cut.
     ('bootrom_mp_rom.rcf',
      'software/bootrom_mp/bin/rom.rcf',
      'the boot ROM image the COSIM_BOOT reference and the behavioural ROM '

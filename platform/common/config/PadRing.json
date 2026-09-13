@@ -514,7 +514,7 @@
       "af0": "T0CAP0",
       "altFuncs": {
         "AF1": "SDA1",
-        "AF2": "T0CMP0",
+        "AF2": "PWM0",
         "AF3": "T0CMP1",
         "AF4": "T1CMP0",
         "AF5": "T1CMP1",
@@ -532,7 +532,7 @@
       "af0": "T0CAP1",
       "altFuncs": {
         "AF1": "SCL1",
-        "AF2": "T0CMP1",
+        "AF2": "PWM1",
         "AF3": "T1CMP0",
         "AF4": "T1CMP1",
         "AF5": "SCK1",
@@ -762,7 +762,7 @@
       "af0": "DTP3",
       "altFuncs": {
         "AF1": "T1CMP1",
-        "AF2": "T0CMP1",
+        "AF2": "OW_DQ",
         "AF3": "T1CMP0",
         "AF4": "SCK1",
         "AF5": "MOSI1",
@@ -825,7 +825,10 @@
       "name": "P4.0(GPIO32)",
       "io": "Input/Output",
       "powerDomain": "Digital I/O",
-      "gpio": "P4.0"
+      "gpio": "P4.0",
+      "altFuncs": {
+        "AF1": "QSPI_SCK"
+      }
     },
     {
       "pin": 53,
@@ -833,7 +836,10 @@
       "name": "P4.1(GPIO33)",
       "io": "Input/Output",
       "powerDomain": "Digital I/O",
-      "gpio": "P4.1"
+      "gpio": "P4.1",
+      "altFuncs": {
+        "AF1": "QSPI_CS"
+      }
     },
     {
       "pin": 54,
@@ -841,7 +847,10 @@
       "name": "P4.2(GPIO34)",
       "io": "Input/Output",
       "powerDomain": "Digital I/O",
-      "gpio": "P4.2"
+      "gpio": "P4.2",
+      "altFuncs": {
+        "AF1": "QSPI_IO0"
+      }
     },
     {
       "pin": 55,
@@ -849,7 +858,10 @@
       "name": "P4.3(GPIO35)",
       "io": "Input/Output",
       "powerDomain": "Digital I/O",
-      "gpio": "P4.3"
+      "gpio": "P4.3",
+      "altFuncs": {
+        "AF1": "QSPI_IO1"
+      }
     },
     {
       "pin": 56,
@@ -857,7 +869,10 @@
       "name": "P4.4(GPIO36)",
       "io": "Input/Output",
       "powerDomain": "Digital I/O",
-      "gpio": "P4.4"
+      "gpio": "P4.4",
+      "altFuncs": {
+        "AF1": "QSPI_IO2"
+      }
     },
     {
       "pin": 57,
@@ -865,7 +880,10 @@
       "name": "P4.5(GPIO37)",
       "io": "Input/Output",
       "powerDomain": "Digital I/O",
-      "gpio": "P4.5"
+      "gpio": "P4.5",
+      "altFuncs": {
+        "AF1": "QSPI_IO3"
+      }
     },
     {
       "pin": 58,
@@ -873,7 +891,10 @@
       "name": "P4.6(GPIO38)",
       "io": "Input/Output",
       "powerDomain": "Digital I/O",
-      "gpio": "P4.6"
+      "gpio": "P4.6",
+      "altFuncs": {
+        "AF1": "I3C_SDA"
+      }
     },
     {
       "pin": 59,
@@ -881,7 +902,10 @@
       "name": "P4.7(GPIO39)",
       "io": "Input/Output",
       "powerDomain": "Digital I/O",
-      "gpio": "P4.7"
+      "gpio": "P4.7",
+      "altFuncs": {
+        "AF1": "I3C_SCL"
+      }
     },
     {
       "pin": 60,

@@ -29,7 +29,7 @@ tools/bin/bazel test //...       # first run downloads all toolchains
 
 | Target | What it is / what it proves |
 |--------|-----------------------------|
-| `//platform/common:chip_artifacts_castalia` | The full generated tree for the default Castalia configuration (`out/hdl/`, `out/software/`, `out/web/`, `out/pnr/`, `config/`, `latex/TRM/`). This is the artifact generation; the TRM PDF is a separate target |
+| `//platform/common:chip_artifacts_castalia` | The full generated tree for the default configuration, which since 2026-09-12 is the tape-out chip `config/castalia.json` (`out/hdl/`, `out/software/`, `out/web/`, `out/pnr/`, `config/`, `latex/TRM/`). This is the artifact generation; the TRM PDF is a separate target |
 | `//platform/common:chip_artifacts_argus` | The same tree for the 18-hart Argus configuration |
 | `//platform/common:chip_artifacts_castalia_repro` | A second, independent generation of the Castalia configuration; exists only to be byte-compared by the determinism test |
 | `//platform/common:trm_latex_tree` | The generated LaTeX TRM tree alone |
@@ -105,14 +105,18 @@ make verify SUITE=full      # the whole regression instead of the smoke suite
 
 ### Which suite is the regression
 
-**`make verify SUITE=full CONFIG=config/castalia.json`** is the standing
-tape-out regression. It stages `xcelium/riscv_test/verify_castalia/` (the stage directory follows
+**`make verify SUITE=full`** is the standing tape-out regression, and since
+2026-09-12 it needs no `CONFIG`: the generator's built-in defaults are
+`config/castalia.json`, so the bare command and
+`make verify SUITE=full CONFIG=config/castalia.json` stage the same chip. It
+stages `xcelium/riscv_test/verify_castalia/` (the stage directory follows
 `chipName`; runs before 2026-09-12 live under `verify_pentawound/`), selects
 its rows from the catalog against the resolved config, runs the matching
-`-DCORE_ENABLE_TRAPCSR` image set, and passes **157 / 157** (2026-09-05).
-`make verify` with no `CONFIG` is the same machinery on the shipped Castalia
-defaults and is the only suite that selects `shorch` (the AFE/EIS stub bank it
-probes does not exist on `config/castalia.json`).
+`-DCORE_ENABLE_TRAPCSR` image set, and passes **157 / 157** (2026-09-12).
+No shipped configuration selects the `shorch` row any more: it needs
+`cqAfeStubs` true with an orchestrator, and the AFE/EIS stub bank is off on the
+tape-out chip. `config/mcu_hart.json` is the only configuration that still
+carries the stub bank, and it is a one-hart generation vehicle.
 
 `xcelium/riscv_test/behavioral_mp/` is a **fast smoke, not the regression**: it
 compiles the same generated tape-out RTL but has no polarity gate and runs the
@@ -126,9 +130,13 @@ The whole configuration is one small JSON file in `config/` - produced interacti
 **`../docs/chip_configurator.html`** or written by hand. A configuration is built by giving
 it a `chip_artifacts` target in `BUILD.bazel` with `config = "config/<name>.json"`, the way
 `chip_artifacts_argus` names `config/argus.json`.
-Every key is optional (missing keys keep the Castalia defaults) and the schema is
-**validated**: an unknown key or out-of-range value is a hard error, never a silent
-fallback. The knobs (authoritative list: `_CONFIG_SCHEMA` in `python/generate.py`, also
+Every key is optional and the schema is **validated**: an unknown key or
+out-of-range value is a hard error, never a silent fallback. **A missing key
+takes the Castalia default, and since 2026-09-12 the full set of defaults IS
+`config/castalia.json`, the tape-out chip** (owner decision: one default
+silicon chip). A configuration that wants something else has to say so: the
+four rows below that predate the promotion each pin the ten peripheral knobs it
+moved, with a `_peripheralsPinNote` saying why. The knobs (authoritative list: `_CONFIG_SCHEMA` in `python/generate.py`, also
 documented in the generated TRM's "Chip Configuration" section):
 
 | Key | Meaning |
@@ -160,9 +168,11 @@ figure is generated from the same model. The peripheral *set* is otherwise fixed
 template content — the NPU and every second instance (I²C1, UART1, SPI1, TIMER1) are
 real drop knobs (G1a/G1b): a dropped instance's window reads zero, its vectors become
 reserved gaps (the numbering is frozen), and its pins revert to plain GPIO. Working
-configurations live in `config/`: `castalia.json` (the tape-out chip), `argus.json`
-(the 18-hart Argus chip), `mcu_hart.json` (the single-hart signoff vehicle) and
-`fpga.json` (the FPGA bring-up cut).
+configurations live in `config/`: `castalia.json` (the tape-out chip, and the
+generator's built-in defaults, so it now states only `chipName`),
+`castalia_b.json` (the same chip with hart 0's ISA turned all the way up),
+`argus.json` (the 18-hart Argus chip), `mcu_hart.json` (the single-hart signoff
+vehicle) and `fpga.json` (the FPGA bring-up cut).
 
 Generation produces the complete Technical Reference Manual for exactly the generated
 configuration: the feature list, peripheral chapters (intro LaTeX snippets + register

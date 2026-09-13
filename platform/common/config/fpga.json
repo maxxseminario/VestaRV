@@ -19,9 +19,18 @@
     "i2c1": false,
     "uart1": false,
     "spi1": false,
-    "timer1": false
+    "timer1": false,
+    "qspi": false,
+    "i3c": false,
+    "rtc": false,
+    "pwm": false,
+    "onewire": false,
+    "dma": false,
+    "i2ctarget": false,
+    "trng": false,
+    "eventFabric": false
   },
-  "_peripheralsNote": "Everything optional is off. The NPU goes first: NPU.vhd uses ieee.fixed_pkg, the likeliest single source of Vivado grief, and its 16 KiB staging RAM is the largest block on the die. NFC and the AFE stub bank model analog front ends that have no FPGA counterpart, and fieldPower is pad-side wiring only. The four SECOND instances i2c1/uart1/spi1/timer1 are duplicates of blocks this chip still carries as instance 0. WHAT CANNOT BE TURNED OFF, and is not meant to be: UART0, SPI0, TIMER0, I2C0 and the GPIO ports are unconditional, and the boot sequence needs UART0 for the console and SPI0 for the flash. trng, dma, qspi, i3c, rtc, pwm, onewire, i2ctarget and eventFabric are all default-false already and are left to their defaults.",
+  "_peripheralsNote": "Everything optional is off. The NPU goes first: NPU.vhd uses ieee.fixed_pkg, the likeliest single source of Vivado grief, and its 16 KiB staging RAM is the largest block on the die. NFC and the AFE stub bank model analog front ends that have no FPGA counterpart, and fieldPower is pad-side wiring only. The four SECOND instances i2c1/uart1/spi1/timer1 are duplicates of blocks this chip still carries as instance 0. WHAT CANNOT BE TURNED OFF, and is not meant to be: UART0, SPI0, TIMER0, I2C0 and the GPIO ports are unconditional, and the boot sequence needs UART0 for the console and SPI0 for the flash. trng, dma, qspi, i3c, rtc, pwm, onewire, i2ctarget and eventFabric are PINNED false: they became default-TRUE on 2026-09-12, when config/castalia.json collapsed into the generator built-in defaults, and an unpinned row would inherit the tape-out chip\u0027s wound peripheral set. cqAfeStubs above is the tenth knob of that move and was already explicit here. Pinned, not changed: this is the shape fpga.json already resolved to.",
 
   "debug": { "enable": false },
   "_debugNote": "FALSE, and pinned rather than inherited: debug.enable became the SHIPPED DEFAULT on 2026-08-16. Off, the fabric stays single-master, which is one less thing to bring up first. Turn it ON, with a TAP-bearing package such as castalia-lqfp100, only for the OpenOCD stretch goal: _checkDebugTransportBonded() is a hard error if the package bonds no JTAG TAP.",
