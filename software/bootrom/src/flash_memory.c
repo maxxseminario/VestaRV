@@ -1,12 +1,15 @@
-/** Includes **/
-// #include <MemoryMap.h>
+// VestaRV: SPI dataflash driver for the boot ROM (Adesto/Atmel DataFlash opcode set).
+// Chip select is asserted and deasserted explicitly around each command: a read is opened by
+// flash_memory_beginRead and stays open, so the caller streams words with spi_transfer and must
+// call deassert_CS_FLASH to end it. Page writes are 256 bytes and the device must be configured
+// for the 256-byte page size once (SPI_FLASH_OPCODE_256B_PAGE), which is a one-time, permanent
+// setting. flash_memory_busy polls the status register; a write or erase must complete before the next command.
 #include <myshkin.h>
 #include <spi.h>
 #include <flash_memory.h>
 
 
 
-/** Defines **/
 // SPI Flash Opcodes
 #define SPI_FLASH_OPCODE_WAKE		(0xAB)
 #define SPI_FLASH_OPCODE_UNPROTECT	(0x3D2A80A6)
@@ -19,7 +22,6 @@
 
 
 
-/** Function Declarations **/
 void flash_memory_init();
 void flash_memory_beginRead(uint32_t start_address);
 void flash_memory_writePage(uint32_t page_address, uint8_t *data_256bytes);
@@ -30,7 +32,6 @@ void deassert_CS_FLASH();
 
 
 
-/** Function Definitions **/
 void flash_memory_init()
 {
 	// Initializes the SPI flash memory for reading and writing

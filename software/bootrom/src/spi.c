@@ -1,17 +1,17 @@
-/** Includes **/
-// #include <MemoryMap.h>
+// VestaRV: SPI0 driver for the boot ROM.
+// Transfers are polled on SPIBUSY, not interrupt-driven, so no vector is needed in the ROM.
+// spi_init leaves the transmit-complete and register-empty interrupts disabled and takes over
+// the MISO0/MOSI0/SCK0 pins through MISO0_PxSEL; chip select is the caller's to drive.
 #include <myshkin.h>
 
 
 
-/** Function Declarations **/
 void spi_init(uint8_t spi_mode, uint8_t data_length);
 void spi_setDataLength(uint8_t data_length);
 uint32_t spi_transfer(uint32_t data);
 
 
 
-/** Function Definitions **/
 void spi_init(uint8_t spi_mode, uint8_t data_length)
 {
 	// Initializes the SPI0 peripheral

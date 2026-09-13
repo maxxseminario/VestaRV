@@ -1,62 +1,55 @@
-# Name of target (without file extension, must be in SRC_DIR)
+# VestaRV: the single-hart boot ROM image.
+# EXTENSIONS below is the ISA the ROM is compiled for; the multi-hart ROM at
+# ../bootrom_mp reads its own from isa.bzl instead.
+# Name of the target, without extension; it must exist in SRC_DIR.
 TARGET      = flashboot
 
-# Project Sources (file names to use in SRC_DIR) and Global Library Sources (file names to use from LIB_DIR/src)
-# WARNING: start.S must be first in the SRC_SOURCES list. This is to ensure it is placed in the appropriate memory location
+# Project sources from SRC_DIR and shared library sources from LIB_DIR/src.
+# start.S must be first in SRC_SOURCES so it lands at the reset address.
 SRC_SOURCES	= start.S main.c rv4th.c uart.c spi.c flash_memory.c
 LIB_SOURCES	= 
 EXTENSIONS	= ic
 
-# Chip Global Libraries and Linker Script
+# Shared libraries and the linker script.
 LIB_DIR		= ../commune
 LD_DIR		= ../../tools/build/linker-scripts
 LD_SCRIPT	= $(LD_DIR)/MCU-bootrom.ld
 
-# MCU Libraries
+# The MCU library tree.
 LIB_SRC_DIR = $(LIB_DIR)/src
 LIB_INC_DIR = $(LIB_DIR)/include
 
-# Project Files Source
+# Project directories.
 SRC_DIR		= ./src
 INC_DIR		= ./include
 OBJ_DIR		= ./obj
 BIN_DIR		= ./bin
 
-# RAM and ROM Sizes
+# RAM and ROM extents, read from the linker-script directory at recipe time.
 RAM_START	= `cat $(LD_DIR)/RAM_START.txt`
 RAM_SIZE	= `cat $(LD_DIR)/RAM_SIZE.txt`
 ROM_START	= `cat $(LD_DIR)/ROM_START.txt`
 ROM_SIZE	= `cat $(LD_DIR)/ROM_SIZE.txt`
 
-# Compiler flags
-# Unused: Generate assembly listings for each C file: -Wa,-ahls=$*.lst
-# Note: the -flto flag initiates link time optimization. It seems to force the compiler/linker to include only the functions explicitly used by the main function in the final output file. It also seems to require interrupts to have the __attribute__ prefix. This means that only the functions that are called by the main function and the interrupts will be added to the final binary file.
+# Compiler flags. -flto drops every function the main path and the interrupts do
+# not reach, which is what keeps the image inside the ROM; an interrupt handler
+# must therefore carry its __attribute__ or it is discarded.
 OPTIMIZATION_FLAGS = -Os -flto
 #OPTIMIZATION_FLAGS = -flto
 ARCH	= rv32$(EXTENSIONS)
 
-# -fno-tree-loop-distribute-patterns declines gcc's transform of ordinary loops
-# in rv4th.c into calls to memset and memmove.
-# Neither routine is called by name anywhere in this program, so declining the
-# transform is behaviour-preserving by construction and keeps the libgcc string
-# routines out of the image.
-# It has to appear on the link line too, because with -flto the loop passes run
-# during link-time codegen.
+# -fno-tree-loop-distribute-patterns declines gcc's transform of ordinary loops in
+# rv4th.c into calls to memset and memmove. Neither is called by name anywhere in
+# this program, so declining the transform preserves behaviour by construction and
+# keeps the libgcc string routines out of the image. It must appear on the link
+# line too: with -flto the loop passes run during link-time codegen.
 SIZE_FLAGS	= -fno-tree-loop-distribute-patterns
 
 CFLAGS	= -Werror -Wall -Wunused -march=$(ARCH) $(OPTIMIZATION_FLAGS) $(SIZE_FLAGS) -D__nostdlib__ -I $(GCC_INC_DIR) -I $(INC_DIR) -I $(LIB_INC_DIR) -g
 LFLAGS	= -lgcc -march=$(ARCH) $(OPTIMIZATION_FLAGS) $(SIZE_FLAGS) -nostartfiles -Wl,-Bstatic,-T,$(LD_SCRIPT),-Map,$(BIN_DIR)/$(TARGET).map,--cref -L $(LD_DIR) -g
 
-##################################################
-### TOOLCHAIN DIRECTORIES
-##################################################
-# ifdef RISCV
-# 	RISCV_DIR = ${RISCV}
-# else
-# 	RISCV_DIR = /opt/riscv
-# endif
+# Toolchain. The path below is the openSUSE VM on poseidon.
 
-# For openSUSE VM on Poseidon
 RISCV_DIR	= ~/riscv-toolchain/xpack-riscv-none-elf-gcc-13.2.0-2
 
 RISCV_TOOLCHAIN_DIR	= $(RISCV_DIR)
@@ -82,7 +75,6 @@ MV			= mv
 MKDIR		= mkdir
 RCF			= $(PYTHON_DIR)/ihex2rcf.py
 
-# Dependencies
 SRC_OBJECTS	= $(patsubst %,%.src.o,$(SRC_SOURCES))
 LIB_OBJECTS	= $(patsubst %,%.lib.o,$(LIB_SOURCES))
 
@@ -91,48 +83,40 @@ OBJECTS     = $(patsubst %,$(OBJ_DIR)/%,$(SRC_OBJECTS)) $(patsubst %,$(OBJ_DIR)/
 
 HEADERS     =  $(wildcard $(GCC_INC_DIR)/*.h) $(wildcard $(LIB_INC_DIR)/*.h) $(wildcard $(INC_DIR)/*.h)
 
-##################################################
-### COMPILATION RULES
-##################################################
+# Compilation rules.
 
-# Make the entire project
 .PHONY: all
 all: $(BIN_DIR)/$(TARGET).hex $(BIN_DIR)/$(TARGET).lst $(BIN_DIR)/$(TARGET).dump $(BIN_DIR)/rom.rcf
 
-# Step 1: Src files to object files 
-# Compile project source files from the project source directory into object files
+# Project source files to object files.
 $(OBJ_DIR)/%.src.o: $(SRC_DIR)/% $(HEADERS)
 	@echo ""
 	@echo "> Compiling project source file $<"
 	@echo ""
 	$(CC) -c $(CFLAGS) $< -o $@
 	
-# Step 1b: Lib files to object files
-# Compile library source files from the library source directory into object files
+# Library source files to object files.
 $(OBJ_DIR)/%.lib.o: $(LIB_SRC_DIR)/% $(HEADERS)
 	@echo ""
 	@echo "> Compiling library source file $<"
 	@echo ""
 	$(CC) -c $(CFLAGS) $< -o $@
 
-# Step 2: Object files to elf / binary files
-# Link object files together to create binary elf output file, show memory usage
+# Link the objects into the ELF.
 $(BIN_DIR)/$(TARGET).elf: $(OBJECTS)
 	@echo ""
 	@echo "> Linking $@"
 	@echo ""
 	$(CC) $(LFLAGS) $(OBJECTS) -o $@
 
-# Step 3: elf to hex file
-# Convert elf file into Intel hex file
+# ELF to Intel hex.
 $(BIN_DIR)/%.hex: $(BIN_DIR)/%.elf
 	@echo ""
 	@echo "> Creating output hex file $@"
 	@echo ""
 	$(OBJCOPY) -O ihex $< $@
 
-# Step 4: elf to lst file (list of data)
-# Create assembly lst file
+# ELF to the C-to-assembly listing.
 $(BIN_DIR)/%.lst: $(BIN_DIR)/%.elf
 	@echo ""
 	@echo "> Creating C-to-assembly lst file $@"
@@ -140,22 +124,14 @@ $(BIN_DIR)/%.lst: $(BIN_DIR)/%.elf
 	$(OBJDUMP) --prefix-addresses --show-raw-insn -SrlD $< > $@
 	@make memory -s
 
-# Step 4b: Create HDL memory initialization file
-# Create ROM RCF file
+# The HDL memory initialisation file.
 $(BIN_DIR)/rom.rcf: $(BIN_DIR)/$(TARGET).hex
 	@echo ""
 	@echo "> Creating boot ROM RCF file $@"
 	@echo ""
 	$(RCF) $< $@ $(ROM_START) $(ROM_SIZE) 32 --default 0x00000000
 
-# Step 5: elf to dump file (for debugging purposes)
-# Create disassembly dump file - Maxx Seminario 09/27/2025
-# $(BIN_DIR)/$(TARGET).dump: $(BIN_DIR)/$(TARGET).elf
-# 	@echo ""
-# 	@echo "> Creating disassembly dump file $@"
-# 	@echo ""
-# 	$(OBJDUMP) -D -S --prefix-addresses --show-raw-insn $< > $@
-# Create disassembly dump file (explicit rule)
+# ELF to the disassembly dump, for debugging.
 $(BIN_DIR)/$(TARGET).dump: $(BIN_DIR)/$(TARGET).elf
 	@echo ""
 	@echo "> Creating disassembly dump file $@"
@@ -167,9 +143,8 @@ $(BIN_DIR)/$(TARGET).dump: $(BIN_DIR)/$(TARGET).elf
 		$< > $@
 
 
-# Added rule to dump just the 4th interpreter object file - Maxx Seminario 09/27/2025
-# Run as: make bin/rv4th.dump
-# Special compilation of rv4th.c without LTO for clean disassembly
+# rv4th.c compiled without LTO, so `make bin/rv4th.dump` gives a disassembly in
+# which every word is still present.
 $(OBJ_DIR)/rv4th_for_dump.o: $(SRC_DIR)/rv4th.c $(HEADERS)
 	@echo ""
 	@echo "> Compiling rv4th.c without LTO for disassembly"
@@ -178,7 +153,7 @@ $(OBJ_DIR)/rv4th_for_dump.o: $(SRC_DIR)/rv4th.c $(HEADERS)
 		-I $(GCC_INC_DIR) -I $(INC_DIR) -I $(LIB_INC_DIR) \
 		-g $(SRC_DIR)/rv4th.c -o $@
 
-# Create clean rv4th dump with only executable code
+# The rv4th dump, executable sections only.
 $(BIN_DIR)/rv4th.dump: $(OBJ_DIR)/rv4th_for_dump.o
 	@echo ""
 	@echo "> Creating rv4th executable code dump"
@@ -189,11 +164,8 @@ $(BIN_DIR)/rv4th.dump: $(OBJ_DIR)/rv4th_for_dump.o
 	@echo "rv4th dump created with `grep -c '^[0-9a-f]* <' $@` functions"
 
 	
-##################################################
-### HELPER RULES
-##################################################
+# Helper rules.
 
-# Remove junk
 .PHONY: tidy
 tidy:
 	@echo ""
@@ -202,7 +174,7 @@ tidy:
 	find $(OBJ_DIR) -type f -regextype posix-extended -iregex '.*\.(o)' -delete
 	find $(BIN_DIR) -type f -regextype posix-extended -iregex '.*\.(map|xout|out|d|lst|map)' -delete
 
-# Remove all non-source compilation artifacts
+# Remove every non-source compilation artifact.
 .PHONY: clean
 clean: tidy
 	@echo ""
@@ -210,7 +182,6 @@ clean: tidy
 	@echo ""
 	find $(BIN_DIR) -type f -regextype posix-extended -iregex '.*\.(hex|elf|rcf|hdlmem|dump)' -delete
 
-# Print the memory usage of the target
 .PHONY: memory
 memory:
 	@echo ""
@@ -222,7 +193,7 @@ memory:
 	@echo ""
 	$(SIZE) $(BIN_DIR)/$(TARGET).elf --format=berkeley --radix=10
 
-# Set up the folder hierarchy
+# Create the directory hierarchy a fresh checkout does not carry.
 .PHONY: setup
 setup:
 	@if [ ! -d $(SRC_DIR) ] ; then $(MKDIR) $(SRC_DIR) ; fi

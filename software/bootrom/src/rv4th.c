@@ -1,32 +1,11 @@
-/*
- *  rv4th
- *
- *  forth-like interpreter for the msp430
- *
- *  Source originally from Mark Bauer, beginning life in the z80 and earlier.
- *  Nathan Schemm used and modified for use in his series of msp430-compatible
- *  processors.
- *
- *  This version by Dan White (2013).  Cleaned-up, expanded, and given
- *  capabilities to allow live re-configuration and directly calling user C
- *  functions.
- *
- *  * Used in Dan's "atoi" chip loaded from flash into RAM.
- *  * Fabbed in ROM as part of the Gharzai/Schmitz "piranha" imager chip.
- *  * Fabbed in ROM as part of the Schmitz/Gharzai "cheetah" chip.
- *  * Fabbed in ROM as part of the Schmitz/Murray "War Bonnet" chip.
- *
- *  If cpp symbol "MSP430" is not defined, it compiles to a version for testing
- *  on PC as a console program via the setup and main() in "test430.c".
- *
- * TODO ideas:
- *  - use enum/symbols for VM opcodes (?builtins tagged as negative numbers?)
- *
- */
+// VestaRV: rv4th, the ROM-resident Forth-like monitor, reached over UART0 when the BOOT pin is low.
+// Originally by Mark Bauer, adapted for the msp430 by Nathan Schemm, then reworked by Dan White (2013).
+// All seven mutable arrays live in .noinit at the top of the private 8 KiB TCM and must fit the
+// 6684 bytes between the 484-byte vector table and the reserved 1 KiB stack; the ASSERT at the
+// bottom of MCU-bootrom.ld fails the link if they stop fitting, so raising a size is a decision.
+// The only bounds checks are math-stack underflow, line-buffer overflow and word-buffer overflow.
 
 
-/** Includes **/
-// #include <MemoryMap.h>
 #include <myshkin.h>
 #include <rv4th.h>
 #include <uart.h>
@@ -35,38 +14,14 @@
 
 
 
-/** Defines **/
 /*
- * THE TCM BUDGET.  Read this before raising any size below.
- *
- * The seven arrays declared further down are the whole of the interpreter's
- * mutable state, and they all live in .noinit, which MCU-bootrom.ld places at
- * the top of the private TCM.
- * The TCM is 8 KiB (MemoryMap RamSize), its first 484 bytes are the interrupt
- * vector table, and MCU-bootrom.ld reserves the top 1 KiB for the C stack.
- * Everything here has to fit in the 6684 bytes between those two.
- * The sizes below use 5696 bytes of that, plus 48 bytes of scalars.
- *
- * These were 512, 512, 4096, 128, 2048, 1024 and 64, which is 23872 bytes of
- * array against 7708 bytes of usable TCM.
- * Nothing complained, for two reasons.
- * .noinit is NOBITS, so the oversize never reached the ROM image and no size
- * check ever saw it.
- * And the boot image was linked against a frozen 2026/04 copy of memory.x that
- * still described a 16 KiB TCM behind a 32436 byte RAM window, so the link had
- * room for it.
- *
- * On the real part the overflow ran past 0x9FFF into 0xA000-0xBFFF, which is
- * not empty space.
- * That range is the TCM's own upper mirror: the 8 KiB array answers a 16 KiB
- * decode with its top address bit unconnected, so a write at 0xA000 lands at
- * 0x8000, on the vector table, on the interpreter's own scalars, and on the C
- * stack.
- * Past 0xC000 the writes left the tile altogether and landed in the shared NPU
- * staging RAM, which is neither private to this hart nor free.
- *
- * The ASSERT at the bottom of MCU-bootrom.ld now fails the link if the total
- * stops fitting, so raising a size here is a decision and not an accident.
+ * THE TCM BUDGET. The sizes below use 5696 bytes of array plus 48 bytes of
+ * scalars, against the 6684 bytes .noinit has between the 484-byte vector table
+ * and the reserved 1 KiB stack. An overflow is not caught by any size check
+ * (.noinit is NOBITS and never reaches the ROM image): 0xA000-0xBFFF is the TCM's
+ * own upper mirror, so a write there lands back on the vector table, these
+ * scalars and the C stack, and past 0xC000 it leaves the tile for the shared NPU
+ * staging RAM. The ASSERT at the bottom of MCU-bootrom.ld is what fails the link.
  */
 
 //math and address stack depths, in 32-bit cells
@@ -93,14 +48,7 @@
 #define dirMemory ((int32_t *) 0)
 
 
-
-/** Global Variables **/
-
-/****************************************************************************
- *
- * Module-level global variables (in RAM)
- *
- ***************************************************************************/
+// Module-level global variables (in RAM).
 __attribute__ ((section(".noinit"))) int16_t xit;  // set to 1 to kill program
 __attribute__ ((section(".noinit"))) int16_t echo; // boolean: false -> no interactive echo/prompt
 
@@ -158,13 +106,7 @@ __attribute__ ((section(".noinit"))) char *wordBuffer;	// the currently-parsed w
 __attribute__ ((section(".noinit"))) uint8_t flash_is_initialized;	// A boolean value if the SPI flash has been initialized or not
 
 
-
-
-/****************************************************************************
- *
- * Module-level global constants (in ROM)
- *
- ***************************************************************************/
+// Module-level global constants (in ROM).
 
 // The order matches the execVM function and determines the opcode value.
 // NOTE: must end in a space !!!!
@@ -400,17 +342,8 @@ const int16_t progBi[] = { // address actually start at 10000
 
 
 
-/****************************************************************************
- *
- * Local function prototypes
- *
- * xFunc() are closely related to opcodes
- *
- * Note: push/pop and such may be candidates for making non-static (public)
- ***************************************************************************/
-/****************************************************************************
- * Stack implementation
- ***************************************************************************/
+// Local function prototypes. The xFunc() names are the ones tied to VM opcodes.
+// Stack implementation.
 static void pushMathStack(int32_t n);
 static int32_t popMathStack();
 static void ndrop(int32_t n);
@@ -419,32 +352,24 @@ static void pushAddrStack(int32_t n);
 static int32_t popAddrStack();
 static void ndropAddr(int32_t n);
 
-/****************************************************************************
- * Line input handling
- ***************************************************************************/
+// Line input handling.
 static char getKeyB(void);
 static void getLine(void);
 static char nextPrintableChar(void);
 static char skipStackComment(void);
 
-/****************************************************************************
- * Word buffer usage
- ***************************************************************************/
+// Word buffer usage.
 static int16_t lookupToken(char *x, char *l);
 static void dfnFunc(void);
 static void getWordFunc(void);
 static void luFunc(void);
 static void numFunc(void);
 
-/****************************************************************************
- * Terminal output effects
- ***************************************************************************/
+// Terminal output effects.
 static void listFunc(void);
 static void opcode2wordFunc(void);
 
-/****************************************************************************
- * Other helpers
- ***************************************************************************/
+// Other helpers.
 static void execFunc(void);
 static void ifFunc(int16_t x);
 static void loopFunc(int16_t n);
@@ -461,14 +386,10 @@ static void memoryReadFunc(uint32_t start_address, uint32_t length, int32_t mode
 static void memoryWriteFunc(uint32_t start_address, uint32_t length, uint32_t bin_payload);
 static void memorySetFunc(uint32_t start_address, uint32_t length, uint8_t set_byte);
 
-/****************************************************************************
- * VM opcode execution
- ***************************************************************************/
+// VM opcode execution.
 static void execVM(int16_t opcode);
 
-/****************************************************************************
- * Stack implementation
- ***************************************************************************/
+// Stack implementation.
 #define TOS (*mathStackPtr)
 #define NOS (*(mathStackPtr + 1))
 #define STACK(n) (*(mathStackPtr + n))
@@ -535,9 +456,7 @@ void ndropAddr(int32_t n)
 }
 
 
-/****************************************************************************
- * Line input handling
- ***************************************************************************/
+// Line input handling.
 char getKeyB(void)
 {
 	char c;
@@ -625,9 +544,7 @@ char skipStackComment(void)
 }
 
 
-/****************************************************************************
- * Word buffer usage
- ***************************************************************************/
+// Word buffer usage.
 int16_t lookupToken(char *word, char *list)
 {
 	// looking for word in list
@@ -808,9 +725,7 @@ void numFunc(void)
 }
 
 
-/****************************************************************************
- * Terminal output effects
- ***************************************************************************/
+// Terminal output effects.
 
 void listFunc(void)
 {
@@ -866,9 +781,7 @@ void opcode2wordFunc(void)
 }
 
 
-/****************************************************************************
- * Other helpers
- ***************************************************************************/
+// Other helpers.
 void execFunc(void) {
 	int16_t opcode;
 
@@ -1283,11 +1196,7 @@ void memorySetFunc(uint32_t start_address, uint32_t length, uint8_t set_byte)
 }
 
 
-/****************************************************************************
- *
- * VM opcode execution
- *
- ***************************************************************************/
+// VM opcode execution.
 void execVM(int16_t opcode)
 {
 	int32_t i,j,k,m,n;
@@ -1843,11 +1752,7 @@ GCC_DIAG_ON(int-to-pointer-cast);
 
 
 
-/****************************************************************************
- *
- * Public functions
- *
- ***************************************************************************/
+// Public functions.
 void rv4th_init()
 {
 	// Initialize the pointers to the buffers

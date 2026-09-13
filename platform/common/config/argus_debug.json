@@ -1,16 +1,28 @@
 {
-  "_comment": "D2 (2026-08-06): the 30th matrix row, and the ONLY N=18 proof of the Debug Module. The standing Argus gate (config/argus.json) is debug-OFF BY OMISSION and always will be -- running it proves the DM is ABSENT at 18 harts, not that it works there (d2_probe P2 correction). This row is argus.json plus debug.enable, so it elaborates the generator-driven 18-hart MCU.vhd WITH dm0: hartsel widens to 5 implemented bits, haltsum0 still fits one 32-bit word (18 <= 32), halt-group membership is 3 b x 18, the iso clamps gain an 18th dbg_halted row, and the arbiter master count goes 18 -> 19 (MW stays 5, so Argus pays LESS fabric widening than Castalia, where MW goes 2 -> 3). priv is INHERITED, deliberately: J5's dcsr.prv U-mode instrument is a Castalia obligation and has no N=18 counterpart (R-D2-2(2)), so this row stays minimal. NOTE hdl/argus/ is a FROZEN snapshot and is NOT touched by this row -- it is not the Argus gate any more (F-K7-4) and the DM must never be added to it. Prove with: SUITE=full MAX_PARALLEL=6 make verify CONFIG=config/argus_debug.json",
+  "_comment": "ArgusDebug: config/argus.json plus the Debug Module, the only 18-hart proof that the DM elaborates; it wears castalia-lqfp100 because that is the one package model bonding the JTAG TAP. Prove with: SUITE=full MAX_PARALLEL=6 make verify CONFIG=config/argus_debug.json",
+
   "chipName": "ArgusDebug",
   "numHarts": 18,
-  "_orchestratorNote": "CPR8/R7 PIN, added when numHarts=5 + orchestrator=true became the SHIPPED DEFAULT. Argus is the frozen 18-hart teaching chip and has NO orchestrator: hart 0 is a plain hart_tile like the other seventeen, SH_AW is 16 for its 128 KiB shared RAM (not for TCM apertures), and extended flash stays where the Argus map puts it. Without this explicit false the row would INHERIT the new default (the R-DK3 inheritance trap: only the penta/castalia4 configs name this knob), silently turning the teaching chip into an 18-hart orchestrator. Pinned, not changed -- this is the shape argus.json already resolved to before the promotion.",
   "orchestrator": false,
   "numMutexes": 32,
-  "_romSizeNote": "ROM DEPTH FOLLOWS THE MACRO, 2026-08-23. This was 16384 and is now 8192, because the single ROM macro the generated MCU.vhd instantiates at rom0 is rom2k_hvt_pg, 2048 x 32. MCU.vhd's concurrent assert binds RomAddrBits to RomMacroAddrBits, so a 16384 here no longer elaborates -- and the Argus rows are elaboration rows (make verify CONFIG=...). The boot image is 7,376 bytes and every Argus hart resets into the same one, so 8 KiB is not a squeeze. tcmSizePerHart is untouched: the TCM is a different macro and Argus keeps its 16 KiB one. hdl/argus/ is a FROZEN snapshot with its own 16 KiB rom_hvt_pg and is NOT touched by this.",
+
   "memory": {
     "romSize": 8192,
     "tcmSizePerHart": 16384,
     "sharedBulkRamSize": 131072
   },
+
+  "isa": {
+    "compressed": true,
+    "mul": true,
+    "fastMul": true,
+    "div": true,
+    "atomics": true,
+    "bitmanip": true,
+    "counters": false,
+    "counters64": false
+  },
+
   "peripherals": {
     "npu": false,
     "cqAfeStubs": true,
@@ -24,18 +36,12 @@
     "trng": false,
     "eventFabric": false
   },
-  "_peripheralsPinNote": "2026-09-12 PIN, the peripheral-set sibling of the orchestrator, package and debug pins above. The wound peripheral set became the SHIPPED DEFAULT when config/castalia.json collapsed into the generator's built-in defaults (owner decision: ONE default silicon chip). Ten knobs moved: cqAfeStubs true to false, and qspi, i3c, rtc, pwm, onewire, dma, i2ctarget, trng and eventFabric false to true. Without these pins this row would INHERIT the tape-out chip's peripheral set: an 18-hart teaching chip carrying QSPI, I3C, RTC, PWM, OneWire, a DMA master that widens the arbiter, an I2C target, a TRNG and the event fabric, and losing the AFE stub bank. Pinned, not changed: this is the shape this row already resolved to before the promotion.",
-  "isa": {
-    "compressed": true,
-    "mul": true,
-    "fastMul": true,
-    "div": true,
-    "atomics": true,
-    "bitmanip": true,
-    "counters": false,
-    "counters64": false
+
+  "debug": {
+    "enable": true
   },
-  "debug": { "enable": true },
-  "_packageNote": "2026-08-17, and DELIBERATELY NOT argus.json's pin. The other three Argus rows pin myshkin-qfn44 and pin debug OFF; this row exists to prove the Debug Module AT N=18, so its package must be the one that bonds the transport. Commit 00535af made debug.enable=true the shipped default, and generate.py's _checkDebugTransportBonded() then made this row a HARD ERROR: myshkin-qfn44 bonds no TCK/TMS/TDI/TDO/TRSTn, so the DTM would be on-die and unreachable -- the row was unbuildable from 00535af until this change. castalia-lqfp100 is the only model in _PACKAGE_MODELS that bonds the TAP (pins 47-51); it is a 5-hart chip's 100-pin pinout worn by an 18-hart die, which is exactly as provisional as the myshkin-qfn44 it replaces (Argus has no package of its own -- replace both when one is decided). The package is documentation plus PnR pad-list data; MCU.vhd and MemoryMap.vhd are package-agnostic, so the 18-hart-with-dm0 RTL this row exists to elaborate is unchanged by it.",
-  "package": { "model": "castalia-lqfp100" }
+
+  "package": {
+    "model": "castalia-lqfp100"
+  }
 }

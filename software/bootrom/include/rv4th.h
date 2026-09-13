@@ -1,10 +1,14 @@
+// VestaRV: rv4th monitor interface for the boot ROM.
+// rv4th_processLoop runs until the `bye` word sets the exit flag, then returns the top of the
+// math stack; main() re-enters it. The GCC_DIAG_OFF/ON macros below exist because the callX
+// words dispatch through function pointers, which the compiler warns about at the call sites.
+
 #pragma once
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/** External Function Declarations **/
 void rv4th_init();
 int16_t rv4th_processLoop();
 
