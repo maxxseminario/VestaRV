@@ -90,7 +90,7 @@ Everything in this manual is generated from one chip configuration, the same one
 	\item[Part III, Peripherals] One chapter per peripheral, each with a functional description, a programming sequence, usage notes and the complete register description.
 	\item[Part IV, Analog front end] The mixed-signal front end and its characterisation.
 	\item[Part V, Boot ROM and software] The ROM monitor and the boot image format the boot ROM loads.
-	\item[Appendices] A software development quick start, the register index, errata, and the revision history of this document.
+	\item[Appendices] Getting started and software development, the register index, errata, and the revision history of this document.
 \end{description}
 
 \section{Related documents} \label{ss:related}
@@ -106,8 +106,9 @@ RISC-V Instruction Set Manual, Volume I: Unprivileged ISA, version 20191213, wit
 RISC-V External Debug Support, version 1.0 & Normative for the debug transport and debug module (Chapter~\ref{s:debug}). \\
 \rowcolor{tablehighlightcolor} \texttt{platform/common/out/} \texttt{software/include/MemoryMap.h}, \texttt{core\_features.h}, \texttt{periph.S} & Generated C and assembly headers: every base address, register offset, field mask and vector number in this manual under the header symbol names. \\
 \texttt{platform/common/out/} \texttt{linker-scripts/memory.x}, \texttt{periph.x} & Generated linker script fragments for the memory map of this build. \\
-\rowcolor{tablehighlightcolor} \texttt{docs/register\_browser.html} & Interactive register browser built from the same memory map. \\
-\texttt{docs/chip\_configurator.html} & Interactive editor for the chip configuration file. \\
+\rowcolor{tablehighlightcolor} \texttt{software/include/regs/} \texttt{castalia\_regs.h} and one header per block & Register headers emitted from the SystemRDL descriptions: field masks, positions, widths, reset values and enumerated values, plus a base address and a typed pointer per instance (Section~\ref{ss:swnew}). \\
+\texttt{docs/register\_browser.html} & Interactive register browser built from the same memory map. \\
+\rowcolor{tablehighlightcolor} \texttt{docs/chip\_configurator.html} & Interactive editor for the chip configuration file. \\
 \hline
 \end{tabularx}
 
@@ -862,9 +863,9 @@ Words are transferred most-significant byte first: the flash byte at offset $4k$
 
 A standard image, as produced by the build scripts, consists of a fill or load segment that zeroes the vector table region \texttt{\RamStartAddress} to \texttt{\SpiFlashProgramAddress}, one load segment per contiguous run of nonzero program words (a run of eight or more zero words separates segments, and each segment is padded by two trailing zero words), and the execute word. The image's first instruction is at \texttt{\SpiFlashProgramAddress} in the TCM unless it publishes an entry address; an image larger than the TCM executes from the shared RAM and publishes its entry there. The vector table itself is written by the image's startup code.
 
-\section{Programming the flash from the ROM monitor}
+\section{Programming the flash from the ROM monitor} \label{ss:flashprog}
 
-The ROM monitor (Chapter~\ref{s:forth}) writes, erases and reads the flash in 256-byte pages, and the provided \texttt{forthprog.py} script (Appendix~\ref{s:software}) drives it to program a whole image from an Intel hex file. The image occupies flash pages from offset \texttt{0x000000} upward, as many as its length requires.
+The ROM monitor (Chapter~\ref{s:forth}) writes, erases and reads the flash in 256-byte pages, and \texttt{tools/flash\_programmer/forthprog.py} in the repository (Appendix~\ref{s:software}) drives it to program a whole image from an Intel hex file. The image occupies flash pages from offset \texttt{0x000000} upward, as many as its length requires.
 
 \begin{description}[style=nextline, leftmargin=0pt, itemsep=2pt]
 	\item[\texttt{bin addr fw}] Writes one page at flash address \forthinline{addr}, which must be a multiple of 256. If \forthinline{bin} is nonzero the monitor expects 256 bytes of binary data; if zero, a 512-character ASCII hex string. After the line feed the monitor prints \forthinline{\$} when it is ready for the data. When the data has arrived it prints the CRC of the page as four hex characters (CRC16/CDMA2000: polynomial \texttt{0xC857}, initial value \texttt{0xFFFF}, no final XOR, no reflection). The host answers with a single \forthinline{Y} to commit the write; any other character aborts it and leaves the flash unchanged.
@@ -884,88 +885,198 @@ After the image is written, the chip runs it after a reset with the \pin{P0.7} s
 
 \appendix
 
-\chapter{Software development quick start} \label{s:software}
+\chapter{Getting started and software development} \label{s:software}
 
-This appendix lists the commands needed to build a program for the \AsicNameForUserGuide{} MCU and load it into the SPI flash. The memory map header, the linker script fragments and the startup code are generated by \texttt{make chip} (Section~\ref{ss:related}).
+The RTL of this chip, its boot ROM, its firmware applications, the generated headers and this manual are one repository, \url{https://github.com/maxxseminario/VestaRV}. Every command in this appendix is run from the root of a clone of it and needs nothing installed first: the build provisions its own Python, its host and RISC-V compilers, its VHDL simulator and its \TeX{} distribution. Synthesis, place-and-route and physical signoff run on licensed tools that are not part of the repository and are not described here.
 
-\section{Toolchain} \label{ss:linuxinstall}
-
-The RISC-V GNU toolchain is required. The prebuilt xPack distribution supports every extension the core implements and is the quickest route on Linux; Windows users run the same steps under the Windows Subsystem for Linux.
+\section{First run} \label{ss:swfirstrun}
 
 \begin{enumerate}[itemsep=1pt]
-	\item Download the current release archive (\texttt{xpack-riscv-none-elf-gcc-*-linux-x64.tar.gz}) from \url{https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack/releases}.
-	\item Extract it and export its location; the version number in the path is the one downloaded:
+	\item Clone the repository.
 \begin{lstlisting}[language=bash]
-mkdir -p ~/riscv-toolchain
-tar -xf xpack-riscv-none-elf-gcc-*.tar.gz -C ~/riscv-toolchain/
-export RISCV_TOOLCHAIN_DIR=~/riscv-toolchain/xpack-riscv-none-elf-gcc-13.2.0-2
-export PATH=$RISCV_TOOLCHAIN_DIR/bin:$PATH
+git clone https://github.com/maxxseminario/VestaRV.git
+cd VestaRV
 \end{lstlisting}
-	The two \texttt{export} lines belong in the shell profile (\texttt{\~{}/.bashrc} or \texttt{\~{}/.profile}). The build system requires \texttt{RISCV\_TOOLCHAIN\_DIR}.
-	\item Check the installation with \bashinline{riscv-none-elf-gcc --version}.
+	\item Fetch the build driver. The script writes one launcher, \texttt{tools/bin/bazel}, and touches nothing outside the clone.
+\begin{lstlisting}[language=bash]
+sh tools/get_bazel.sh
+\end{lstlisting}
+	\item Run the gate set.
+\begin{lstlisting}[language=bash]
+tools/bin/bazel test //...
+\end{lstlisting}
+	That is 337 tests: the generated RTL against the tracked RTL, the register descriptions against both the VHDL and the C headers, every firmware image against its tracked golden, and a license-free simulation regression of the instruction set. The first run fetches about 1 GB of toolchains and builds the VHDL simulator from source, 10 to 20 minutes; every later run is served from the cache.
+	\item Emit the artifacts of this configuration.
+\begin{lstlisting}[language=bash]
+make -C platform/common generate
+\end{lstlisting}
+	The run writes the RTL to \texttt{platform/common/out/hdl/}, the C headers to \texttt{out/software/include/}, the linker script fragments to \texttt{out/linker-scripts/}, the pad ring to \texttt{out/config/PadRing.json} and the sources of this manual to \texttt{platform/common/latex/TRM/}. \bashinline{CONFIG=config/<name>.json} selects another configuration. The hermetic equivalent, which writes only into \texttt{bazel-bin}, is \bashinline{tools/bin/bazel build //platform/common:chip_artifacts_<name>}, one target per tracked configuration.
 \end{enumerate}
 
-Building the toolchain from source is an alternative when a specific version is needed. On Ubuntu or Linux Mint:
+\noindent Table~\ref{t:sw-toolchain} lists what the build fetches. None of it is installed on the host, and none of it has to be on \texttt{PATH}.
+
+\begin{tabularx}{\textwidth}{p{4.4cm} X}
+\caption{Tools the build provisions on first use.} \label{t:sw-toolchain} \\
+\hline \textbf{Tool} & \textbf{Version and origin} \\ \hline \endfirsthead
+\hline \textbf{Tool} & \textbf{Version and origin} \\ \hline \endhead
+RISC-V C compiler & \texttt{riscv-none-elf-gcc} 13.2.0, fetched and hash-pinned in \texttt{MODULE.bazel}. The mask-ROM image has to reproduce byte for byte, so this compiler is never substituted. \\
+\rowcolor{tablehighlightcolor} Build driver & Bazel 9.2.0, run through the \texttt{bazelisk} launcher that \texttt{tools/get\_bazel.sh} installs. \\
+Python & 3.11, provisioned by \texttt{rules\_python} for every generator and test. \\
+\rowcolor{tablehighlightcolor} Host C/C++ compiler & Hermetic \texttt{zig}-based toolchain, so a host with no system compiler still builds. \\
+VHDL simulator & GHDL 6.0.0, built from source with the mcode backend. \\
+\rowcolor{tablehighlightcolor} \TeX{} & TeX Live 2022, for this manual. \\
+\hline
+\end{tabularx}
+
+\section{Building a firmware image} \label{ss:swimages}
+
+Every application under \texttt{software/} is built by one macro, \texttt{myshkin\_app} in \texttt{toolchains/riscv/defs.bzl}: the sources are compiled \bashinline{-march=rv32ima -mabi=ilp32 -O2}, linked against \texttt{tools/build/linker-scripts/MCU.ld} and the generated memory-map fragments, and imaged. One application builds the whole artifact set of Table~\ref{t:sw-artifacts}.
 
 \begin{lstlisting}[language=bash]
-sudo apt install autoconf automake autotools-dev curl libmpc-dev libmpfr-dev libgmp-dev gawk build-essential bison flex texinfo gperf libtool patchutils bc zlib1g-dev libexpat-dev
-git clone --recursive https://github.com/riscv/riscv-gnu-toolchain
-cd riscv-gnu-toolchain && mkdir build && cd build
-../configure --with-arch=rv32imac_zba_zbb_zbc_zbs --prefix=/opt/riscv
-sudo make
+tools/bin/bazel build //software/blinky:blinky_flashed_rcf
+tools/bin/bazel build //software/...
+tools/bin/bazel build //software/bootrom_mp:rom_rcf
 \end{lstlisting}
 
-\noindent The tools are then installed under \texttt{/opt/riscv/bin} with the prefix \texttt{riscv32-unknown-elf-}; the commands below use the xPack prefix \texttt{riscv-none-elf-}, and the two are interchangeable.
+\begin{tabularx}{\textwidth}{p{4.4cm} X}
+\caption{Artifacts of one firmware target, for a package \texttt{//software/NAME}.} \label{t:sw-artifacts} \\
+\hline \textbf{Target} & \textbf{What it is} \\ \hline \endfirsthead
+\hline \textbf{Target} & \textbf{What it is} \\ \hline \endhead
+\texttt{:NAME\_elf} & Linked ELF with debug symbols, and the map file beside it. The file a debugger loads. \\
+\rowcolor{tablehighlightcolor} \texttt{:NAME\_bin} & Raw binary of the loaded image. \\
+\texttt{:NAME\_hex} & Intel hex image, the input to the flash programmer of Section~\ref{ss:swload}. \\
+\rowcolor{tablehighlightcolor} \texttt{:NAME\_dump} & Disassembly listing. \\
+\texttt{:NAME\_rcf} & One 32-bit word of the RAM image per line, for the VHDL benches. \\
+\rowcolor{tablehighlightcolor} \texttt{:NAME\_flashed\_rcf} & The same image as the boot-image stream of Chapter~\ref{s:programming}, command words and all, ready for the SPI flash. \\
+\texttt{:NAME\_flashed\_rcf\_test} & Gate: the built image is byte-identical to the tracked golden under \texttt{NAME/testdata/}. A firmware change is committed with its regenerated golden, so the diff shows which bytes moved. \\
+\hline
+\end{tabularx}
 
-\section{Compiling}
+\noindent The applications in the repository are \texttt{blinky} (\peripheral{TIMER0} drives \pin{P3.0} at 1 Hz with no processor in the loop), \texttt{gpiotoggle} (the same pad toggled from a CPU loop), \texttt{slowblink} (a CPU delay loop at a human-visible rate), \texttt{looptest} (an infinite loop that traps on nothing, which is how a load that worked is told from one that did not) and \texttt{traptest} (an all-zeros word, which traps). \texttt{//software/bootrom\_mp:rom\_rcf} is the mask-ROM content of the fabricated part; \texttt{:rom\_rcf\_reproducibility\_test} is the gate that it cannot drift.
 
-Each source file is compiled to an object file:
+\section{A program of your own} \label{ss:swnew}
+
+\begin{enumerate}[itemsep=1pt]
+	\item Create the package and take the startup file from an existing one.
+\begin{lstlisting}[language=bash]
+mkdir -p software/myapp/src
+cp software/blinky/src/start.S software/myapp/src/start.S
+\end{lstlisting}
+	\texttt{start.S} must be the first source in link order: the linker script places its first instruction at \texttt{\SpiFlashProgramAddress}, the address the boot loader enters (Chapter~\ref{s:programming}). It sets the stack pointer, clears \texttt{.bss} and calls \texttt{main}.
+	\item Write \texttt{src/main.c} against the generated headers. \texttt{software/include/regs/} holds one header per peripheral block, emitted from the SystemRDL descriptions in \texttt{hdl/common/regs/rdl/}, and \texttt{castalia\_regs.h} includes all of them and adds, for each instance of this build, a base address \texttt{<INST>\_BASE\_ADDR}, a typed pointer \texttt{<INST>\_REGS} and, where the instance owns one, an interrupt vector \texttt{<INST>\_IRQ\_VECTOR}. Within a block the names are \texttt{<REG>\_T\_\_<FIELD>\_bm} for the mask, \texttt{\_bp} for the position, \texttt{\_bw} for the width, \texttt{\_reset} for the reset value, and \texttt{<REG>\_T\_\_<FIELD>\_\_<VALUE>} for an enumerated field value. Every number in Part~III is in these headers under those names.
+\begin{lstlisting}[language=C]
+#include "castalia_regs.h"
+
+#define HFXT_HZ   24000000u
+#define BAUD      115200u
+
+static void uart0_putc(char c)
+{
+    while (UART0_REGS->UARTxSR & UARTXSR_T__TXBF_bm) { }
+    UART0_REGS->UARTxTX = (uint8_t)c;
+}
+
+int main(void)
+{
+    SYSTEM_REGS->SYSCLKCR =
+        (SYSCLKCR_T__MCLKSEL__HFXT  << SYSCLKCR_T__MCLKSEL_bp) |
+        (SYSCLKCR_T__SMCLKSEL__HFXT << SYSCLKCR_T__SMCLKSEL_bp);
+
+    UART0_REGS->UARTxBR = (HFXT_HZ / (16u * BAUD)) - 1u;
+    UART0_REGS->UARTxCR = UARTXCR_T__UEN_bm;
+
+    GPIO2_REGS->PxSEL = 0x00;
+    GPIO2_REGS->PxDIR = 0x01;
+
+    for (;;) {
+        uart0_putc('.');
+        GPIO2_REGS->PxOUTT = 0x01;
+    }
+    return 0;
+}
+\end{lstlisting}
+	The block struct carries the template spelling of the register, not the instance spelling: the instance is in the pointer, so \texttt{UART0\_REGS->UARTxCR} is \peripheral{UART0}'s control register. The boot ROM leaves the clock system in a state of its own (Section~\ref{ss:bootmode}), which is why the first write selects the SMCLK source before the baud divider is programmed. The \pin{TX0} pad is already at its alternate function after reset (Table~\ref{t:gpio-pins}), so the program configures no pin for the UART and only the GPIO pad it drives itself.
+	\item Add \texttt{software/myapp/BUILD.bazel}. The \texttt{hdrs} and \texttt{copts} lines are what put the generated headers inside the sandbox; without them the build fails rather than silently compiling against a stale copy.
+\begin{lstlisting}[language=bash]
+load("//toolchains/riscv:defs.bzl", "myshkin_app")
+
+package(default_visibility = ["//visibility:public"])
+
+myshkin_app(
+    name = "myapp",
+    copts = ["-Isoftware/include/regs"],
+    hdrs = ["//software/include:regs_headers"],
+)
+\end{lstlisting}
+	\item Build the image.
+\begin{lstlisting}[language=bash]
+tools/bin/bazel build //software/myapp:myapp_flashed_rcf
+\end{lstlisting}
+	\item Lock it against drift by adding a \texttt{firmware\_image\_test} beside the application, as \texttt{software/blinky/BUILD.bazel} does, and committing the golden it grades.
+\end{enumerate}
+
+\noindent \texttt{myshkin\_app} compiles for \texttt{rv32ima}, which harts 1 to \MaxHartIndex{} do not implement: this build's tiles are \texttt{rv32iac} (Section~\ref{ss:isa}), and the multiply instructions trap there. An image that runs on a tile is built with \texttt{rv32\_firmware} directly and \bashinline{march = "rv32iac"}, which is the same macro one level down with every flag exposed.
+
+\section{Simulating the image before silicon} \label{ss:swsim}
+
+The simulation tier needs no license: the simulator is built from source by the same command that runs the test. Table~\ref{t:sw-sim} lists the targets.
+
+\begin{tabularx}{\textwidth}{p{6.2cm} X}
+\caption{Simulation targets, all license-free.} \label{t:sw-sim} \\
+\hline \textbf{Target} & \textbf{What it proves} \\ \hline \endfirsthead
+\hline \textbf{Target} & \textbf{What it proves} \\ \hline \endhead
+\texttt{//opensource\_sim:isa\_regression} & The whole nine-suite instruction-set regression on the core. Run it after any change to the core or to the extensions a program compiles for. \\
+\rowcolor{tablehighlightcolor} \texttt{//opensource\_sim/isa:} \texttt{rv32ui-p-add} & One image on the bare-core bench, which is the per-image debug loop. That bench is one hart, one flat RAM at \texttt{\RamStartAddress} and no peripherals, so an image of your own runs there only if it touches no peripheral window; the rule to copy is the \texttt{ghdl\_test} in \texttt{opensource\_sim/isa/BUILD.bazel}, with \texttt{image} naming your \texttt{:NAME\_rcf}. \\
+\texttt{//opensource\_sim/asic\_default:} \texttt{asic\_default\_elaborate} & The generated MCU binds and its memory-size assertions hold. \\
+\rowcolor{tablehighlightcolor} \texttt{//opensource\_sim/asic\_default:} \texttt{asic\_default\_boot} & Reset is released on the real mask-ROM image and the banner the ROM monitor prints on \peripheral{UART0} is graded. It proves the part fetched through the arbiter, ran C out of its TCM and drove a pad. \\
+\texttt{//opensource\_sim/rv4th:} \texttt{rv4th\_forth} & The ROM monitor answers its own bench over \peripheral{UART0}, word by word. \\
+\hline
+\end{tabularx}
+
+\section{Loading a program onto a chip} \label{ss:swload}
+
+Both host paths talk to the ROM monitor (Chapter~\ref{s:forth}) over \peripheral{UART0} at 115,200 baud, 8N1, with the \pin{P0.7} strap low at reset (Section~\ref{ss:bootmode}). The scripts are in \texttt{tools/flash\_programmer/} and need \texttt{pyserial}; \texttt{forthprog.py} also needs \texttt{IntelHex} and \texttt{progressbar2}.
+
+\paragraph{Into the SPI flash, which survives a power cycle.} Program the flash through the monitor, then strap \pin{P0.7} high and reset. The boot loader reads the image from flash offset \texttt{0x000000}, copies its segments into RAM and enters it (Chapter~\ref{s:programming}). The monitor's \forthinline{rst} word restarts hart 0 without a pin reset, so a host that controls the strap needs no power cycle.
 
 \begin{lstlisting}[language=bash]
-riscv-none-elf-gcc -c \
-  -march=rv32imac_zba_zbb_zbc_zbs \
-  -mabi=ilp32 -O2 -Wall -Wextra \
-  -I./include -g \
-  main.c -o main.o
+python3 tools/flash_programmer/forthprog.py -p /dev/ttyUSB0 -v \
+    bazel-bin/software/myapp/myapp.hex
 \end{lstlisting}
 
-\begin{itemize}[itemsep=1pt]
-	\item \bashinline{-march=...} names the extensions the compiler may use and must match this build's ISA string (Table~\ref{t:chip-config-derived}); the value above is the full VestaRV set. An extension can be omitted from the string for compatibility testing or size comparison.
-	\item \bashinline{-mabi=ilp32} selects the integer calling convention of Table~\ref{t:cpu-registers}.
-	\item \bashinline{-O2} is the recommended optimisation level; \bashinline{-Os} minimises size, \bashinline{-Og} favours debugging.
-	\item \bashinline{-I} adds an include directory, such as the generated \texttt{MemoryMap.h} location.
-	\item \bashinline{-g} keeps debugging symbols, which the disassembly listing and the debugger use.
-\end{itemize}
-
-The provided \texttt{start.S} must be the first object given to the linker: its first instruction is placed at \texttt{\SpiFlashProgramAddress}, the address the boot loader enters (Chapter~\ref{s:programming}), and it initialises the vector table and calls \texttt{main}. A C++ project declares \cinline{extern "C" int main()} so the entry symbol is not mangled, and may pass \bashinline{-fno-exceptions -fno-unwind-tables -fno-asynchronous-unwind-tables} to shrink or remove the \texttt{.eh\_frame} section.
-
-\section{Linking}
-
-The objects are linked with the provided linker script, which defines the ROM and RAM regions, the vector table, the entry address and the interrupt handler symbol from the generated fragments:
+\paragraph{Straight into RAM, which does not touch the flash.} The image is written word by word through the monitor's memory-write word and entered with \forthinline{call0}. This is the path when the flash is unpopulated or its boot path is under suspicion, and it is the faster edit-and-run loop. The image's basename is padded with leading \texttt{x} to 22 characters, which is a fixed-length path contract of the VHDL benches and not a typing error.
 
 \begin{lstlisting}[language=bash]
-riscv-none-elf-gcc -march=rv32imac_zba_zbb_zbc_zbs -mabi=ilp32 \
-  -T MCU.ld -L linkerfiles_dir -Wl,-Map=program.map -g \
-  start.o main.o -o program.elf
+python3 tools/flash_programmer/forthram.py -p /dev/ttyUSB0 --verify \
+    bazel-bin/software/myapp/xxxxxxxxxxxxxmyapp.rcf
 \end{lstlisting}
 
-\begin{itemize}[itemsep=1pt]
-	\item \bashinline{-T MCU.ld} names the linker script and \bashinline{-L} the directory of the fragments it includes (\texttt{memory.x}, \texttt{periph.x}).
-	\item \bashinline{-Wl,-Map=} writes the map file with every symbol's address.
-	\item \bashinline{-flto} enables link-time optimisation.
-	\item \bashinline{-nostdlib} drops the C library; it also drops its software integer and floating-point routines and its initialisation code, so it is used only when size demands it.
-\end{itemize}
+\noindent \texttt{rcf2forth.py} turns either image into a plain list of monitor commands with no hardware attached, \texttt{forthrun.py} streams such a list, and \texttt{tools/debug/rv4th\_terminal.py} is an interactive terminal on the same port. The page-write handshake and the flash words those scripts drive are described in Section~\ref{ss:flashprog}.
 
-\section{Loading the program}
+\section{Debugging on the part} \label{ss:swdebug}
 
-An Intel hex file is produced from the ELF and written to the SPI flash through the ROM monitor by the provided script, which also switches the strap and resets the chip on boards that support it:
+The debug port is a 5-pin JTAG TAP in front of a RISC-V Debug Module; Chapter~\ref{s:debug} is the reference and Section~\ref{ss:debug-limits} is the list of behaviours that will surprise a debugger. The part has been brought up against unmodified OpenOCD 0.12.0 and \texttt{riscv-none-elf-gdb} 13.2, which are host tools and are not provisioned by the build.
 
+\begin{enumerate}[itemsep=1pt]
+	\item Start OpenOCD on \texttt{tools/debug/riscv-tests-debug/targets/VestaRV/} \texttt{vesta\_castalia.cfg}. It declares the TAP (IDCODE \texttt{0x1CA57EEF}, 5-bit IR), creates one target per hart, and forces every memory access through the program buffer, which is required because the module implements no system bus access. The file's transport lines drive a simulation bridge; on silicon replace them with the adapter's own driver and \bashinline{adapter speed 3000} or slower, for the reason in Section~\ref{ss:debug-limits}.
+	\item Attach the debugger to the port OpenOCD reports, and raise its timeout: a memory read through the program buffer is far slower than the 2-second default assumes.
 \begin{lstlisting}[language=bash]
-riscv-none-elf-objcopy -O ihex program.elf program.hex
-python3 forthprog.py program.hex --port /dev/ttyUSB0 --verify
+riscv-none-elf-gdb bazel-bin/software/myapp/myapp.elf
+(gdb) set remotetimeout 120
+(gdb) target extended-remote localhost:3333
 \end{lstlisting}
+	\item Halt, step, read state, resume. Registers follow the selected thread; memory follows the connection's target, which is hart 0, so per-tile memory work uses the independent-target configuration \texttt{vesta\_castalia\_nosmp.cfg} and one debugger per hart.
+\begin{lstlisting}[language=bash]
+(gdb) monitor halt
+(gdb) info registers pc mstatus mcause
+(gdb) x/8xw 0x10640
+(gdb) stepi
+(gdb) continue
+\end{lstlisting}
+	\item Set breakpoints with \texttt{break}, never \texttt{hbreak}: there are no hardware triggers, so a breakpoint is an \asminline{EBREAK} written over the instruction and cannot be placed in the boot ROM or any other read-only region.
+\end{enumerate}
 
-\noindent The script needs the \texttt{IntelHex} Python package. Its \texttt{-{}-skipBlank} option skips erasing pages the image does not use, and \texttt{-{}-verify} reads the flash back after writing. The byte order and page handshake it implements are those of Chapter~\ref{s:programming}.
+\noindent A program image cannot be loaded over the debug port. \register{abstractauto} is unimplemented, so a burst write lands only its first word; use the ROM monitor of Section~\ref{ss:swload} to load, and the debug port to inspect.
 
 \clearpage
 

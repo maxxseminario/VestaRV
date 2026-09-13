@@ -46,7 +46,12 @@ py_binary(
     data = [
         "//hdl:rdl_sources",
         "//platform/common:rdl_config",
-    ],
+        "//platform/common:config_srcs",
+        "//platform/common:hdl_template_srcs",
+        "//platform/common:latex_srcs",
+        "//hdl:vhdl_sources",
+        "//:castalia_analog_chapter",
+],
     deps = [
         ":chipgen_lib",
         ":rdl_lib",
