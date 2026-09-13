@@ -376,6 +376,9 @@ def repo_path(staged):
 # hdl/common/tb and hdl/common/sim are benches and behavioural clock cells whose
 # processes are not design logic, and hdl/fpga has no ASIC clock story.
 EXCLUDED = (
+    # Vendor memory models, present on this host and ignored by git (.gitignore
+    # matches *ARM*), so a manifest that counted them would fail in any clone.
+    "hdl/common/commune/ARM_IP_",
     "hdl/myshkin/",
     "hdl/argus/",
     "hdl/castalia/",
