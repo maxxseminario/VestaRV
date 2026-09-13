@@ -146,6 +146,20 @@ rv32_firmware(
 #     d177e8314f2de080150070762b3d80f7 -> 99b0c95dfb3fc0da52a49d1a68efa904
 # ~/chips/myshkin/ip/rom2k_hvt_pg HAS NOT BEEN RECOMPILED YET; that is a
 # signoff_mp job and the plate is stale until it is done.
+#
+# RE-CUT A FIFTH TIME ON 2026-09-12, and this one is a MAP move, not a source
+# move: no file under src/ changed. config/castalia.json collapsed into the
+# generator's built-in defaults (owner decision: one default silicon chip), so
+# the default chip is now the wound peripheral set. NUM_IRQ_SRCS went 121 -> 124,
+# the vector table grew 484 -> 496 bytes, and RAM therefore starts at 0x081F0
+# instead of 0x081E4. Every absolute data address in the image moved with it.
+# The image is 7,532 bytes of 8,192, unchanged in size; 87 of the 2,048 words
+# differ, the first at 0x39C, so bytes 0x000 through 0x39B are preserved and the
+# cosim boot-mode X pins in xrun_cosim.sh (pc 0x5c and 0x15c) hold through this
+# cut. The two mirrors moved with it and the three are one md5.
+#     99b0c95dfb3fc0da52a49d1a68efa904 -> cea7e60f4723f63acfd92c5883716f1e
+# ~/chips/myshkin/ip/rom2k_hvt_pg IS STILL NOT RECOMPILED; the plate was already
+# stale from the fourth cut and is now two cuts behind.
 filegroup(
     name = "rom_rcf_golden",
     srcs = ["testdata/rom_rcf_golden.txt"],

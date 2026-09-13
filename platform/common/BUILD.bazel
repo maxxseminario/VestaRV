@@ -600,25 +600,22 @@ filegroup(
 )
 
 # ---------------------------------------------------------------------------
-# The tape-out configuration (report 08 finding 4: the config the physical
-# lineage was hardened from had no target and no gate).
+# THE TAPE-OUT CONFIGURATION HAS NO TARGET FAMILY OF ITS OWN (2026-09-12).
 #
-# config/castalia.json, the wound chip the Genus and Innovus lineage is built
-# from. It was called config/castalia.json until 2026-09-12; the target family
-# carries the _tapeout suffix because the unsuffixed `castalia` targets above are
-# the DEFAULT-knob generation, the one the tracked-RTL identity gates grade.
-# There is no tracked RTL for this configuration (genus/common/in/penta_wound_hdl
-# is a flow input, not a gate), so the bar is that it still generates and its
-# outputs parse. It is also the configuration the REGISTER gates are handed,
-# because it is the one that instantiates every peripheral config/rdl.json flags.
+# It used to: `chip_artifacts_castalia_tapeout` plus castalia_tapeout_memorymap_h,
+# _config_memorymap_json, _padring_tcl, _trm_tree and three tests, built from
+# config/castalia.json while the unsuffixed `castalia` targets above were the
+# default-knob generation. Owner decision: ONE default silicon chip. The
+# generator's built-in defaults ARE config/castalia.json now, so the two
+# generations are byte-identical apart from the provenance field `configFile`,
+# and the suffixed family was a second build of the same chip. It is gone, and
+# every consumer -- the register gates below included -- reads the default
+# family. config/castalia.json stays on disk as the explicit, named form of the
+# configuration (`make verify CONFIG=config/castalia.json`, and what the private
+# analog overlay configs document themselves against), and it now states only
+# chipName. Nothing in the build grades that file; the identity between it and
+# the defaults is a migration-time result, not a standing gate.
 # ---------------------------------------------------------------------------
-chip_artifacts(
-    name = "chip_artifacts_castalia_tapeout",
-    srcs = ["//platform/common/python:generator_srcs"],
-    chip_root_srcs = CHIP_ROOT_SRCS,
-    config = "config/castalia.json",
-    out_of_tree_srcs = OUT_OF_TREE_SRCS,
-)
 
 # ---------------------------------------------------------------------------
 # CastaliaB (owner decision 2026-09-12): config/castalia.json with hart 0 turned
@@ -633,8 +630,8 @@ chip_artifacts(
 # where the tiles inherited Zfinx, Zkn and PMP) and it is the regression test
 # for the wider one: its tile class must stay rv32iac however loud hart 0 is.
 #
-# There is no tracked RTL for this configuration, so the bar is the same as the
-# tape-out family's: it generates, its outputs parse, and the register gates hold.
+# There is no tracked RTL for this configuration -- the tracked pair is the
+# default generation -- so the bar is that it generates and its outputs parse.
 # It additionally gets its own determinism pair, because an all-on ISA walks
 # emitter paths (Zfinx, Zkn, the PMP CSR bank) the default generation never does.
 # ---------------------------------------------------------------------------
@@ -694,86 +691,9 @@ py_test(
         main = "assert_artifacts.py",
     )
     for cfg in [
-        "castalia_tapeout",
         "castalia_b",
     ]
 ]
-
-chip_artifact(
-    name = "castalia_tapeout_memorymap_h",
-    rel_path = "out/software/include/MemoryMap.h",
-    target = ":chip_artifacts_castalia_tapeout",
-)
-
-chip_artifact(
-    name = "castalia_tapeout_config_memorymap_json",
-    rel_path = "config/MemoryMap.json",
-    target = ":chip_artifacts_castalia_tapeout",
-)
-
-chip_artifact(
-    name = "castalia_tapeout_padring_tcl",
-    rel_path = "out/pnr/chip_top_padring.tcl",
-    target = ":chip_artifacts_castalia_tapeout",
-)
-
-# The generated TRM tree of the tape-out configuration, as one directory.
-# latex/TRM is a declared DIRECTORY output, so a single file inside it has no
-# label of its own; the gate is handed the directory and reads
-# include/PeripheralSections.tex out of it.
-filegroup(
-    name = "castalia_tapeout_trm_tree",
-    srcs = [":chip_artifacts_castalia_tapeout"],
-    output_group = "trm",
-)
-
-# Every intro chapter's \\register{} names against what the tape-out configuration
-# emits. Was tagged manual while nine wound-configuration intros (DMA, EVFAB,
-# I2CT, I3C, OneWire, PWM, QSPI, RTC, TRNG) lacked the template's \\section
-# skeleton; those were restructured on 2026-09-05 (F15), so the gate runs with
-# //platform/... again.
-py_test(
-    name = "castalia_tapeout_intro_names_test",
-    size = "small",
-    srcs = [CHECK_RUNNER],
-    args = [
-        "--script=platform/common/python/check_intro_names.py",
-        "--stage=platform/common/python=platform/common/python",
-        "--stage=platform/common/latex/PeripheralIntroductions=platform/common/latex/PeripheralIntroductions",
-        # check_intro_names re-derives the template register/field spellings from
-        # hdl/common/regs/rdl/ now that generate.py no longer writes them out.
-        "--stage=hdl/common/regs/rdl=hdl/common/regs/rdl",
-        "--stage=$(rootpath :castalia_tapeout_config_memorymap_json)=platform/common/config/MemoryMap.json",
-    ],
-    data = [
-        ":castalia_tapeout_config_memorymap_json",
-        ":peripheral_intro_srcs",
-        "//hdl:rdl_sources",
-        "//platform/common/python:check_scripts",
-        "//platform/common/python:generate.py",
-    ],
-    main = "check_runner.py",
-)
-
-# The emitted C header for the tape-out configuration must still be #include-able.
-py_test(
-    name = "castalia_tapeout_memorymap_h_test",
-    size = "small",
-    srcs = [CHECK_RUNNER],
-    args = [
-        "--script=platform/common/python/check_memorymap_h.py",
-        "--env=RISCV_CC=abs:$(rootpath @xpack_riscv_gcc//:gcc)",
-        "--",
-        "abs:$(rootpath :castalia_tapeout_memorymap_h)",
-    ],
-    data = [
-        ":castalia_tapeout_memorymap_h",
-        "//platform/common/python:check_memorymap_h.py",
-        "@xpack_riscv_gcc//:gcc",
-        "@xpack_riscv_gcc//:toolchain",
-    ],
-    main = "check_runner.py",
-)
 
 # ---------------------------------------------------------------------------
 # The CastaliaB artifacts the gates below and //opensource_sim/castalia_b consume.
@@ -981,19 +901,20 @@ py_test(
 # from the chip addrmap through stock PeakRDL-cheader. Three gates.
 # ---------------------------------------------------------------------------
 
-# Identity + address consistency. The MemoryMap.h handed in is the tape-out
-# configuration's, the one that instantiates every peripheral these headers
+# Identity + address consistency. The MemoryMap.h handed in is the DEFAULT
+# generation's, which since 2026-09-12 IS the tape-out configuration and is
+# therefore still the one that instantiates every peripheral these headers
 # describe.
 py_test(
     name = "regs_headers_identity_test",
     size = "small",
     srcs = ["//platform/common/python:regs_headers_test.py"],
     args = [
-        "--memorymap-h=$(rootpath :castalia_tapeout_memorymap_h)",
+        "--memorymap-h=$(rootpath :castalia_memorymap_h)",
         "TestHeadersAreCurrent",
     ],
     data = [
-        ":castalia_tapeout_memorymap_h",
+        ":castalia_memorymap_h",
         ":rdl_config",
         "//hdl:rdl_sources",
         "//software/include:regs_headers",
@@ -1007,11 +928,11 @@ py_test(
     size = "small",
     srcs = ["//platform/common/python:regs_headers_test.py"],
     args = [
-        "--memorymap-h=$(rootpath :castalia_tapeout_memorymap_h)",
+        "--memorymap-h=$(rootpath :castalia_memorymap_h)",
         "TestHeadersAgreeWithMemoryMapH",
     ],
     data = [
-        ":castalia_tapeout_memorymap_h",
+        ":castalia_memorymap_h",
         ":rdl_config",
         "//hdl:rdl_sources",
         "//software/include:regs_headers",
@@ -1033,10 +954,10 @@ py_test(
         "--",
         "abs:software/include/regs",
         "--memorymap-h",
-        "abs:$(rootpath :castalia_tapeout_memorymap_h)",
+        "abs:$(rootpath :castalia_memorymap_h)",
     ],
     data = [
-        ":castalia_tapeout_memorymap_h",
+        ":castalia_memorymap_h",
         "//platform/common/python:check_regs_headers.py",
         "//software/include:regs_headers",
         "@xpack_riscv_gcc//:gcc",
@@ -1064,14 +985,14 @@ py_test(
     size = "small",
     srcs = ["//platform/common/python:rdl_vs_generator_test.py"],
     args = [
-        "$(rootpath :castalia_tapeout_config_memorymap_json)",
+        "$(rootpath :castalia_config_memorymap_json)",
         "$(rootpath :rdl_config)",
-        "$(rootpath :castalia_tapeout_trm_tree)",
+        "$(rootpath :trm_latex_tree)",
         "$(rootpath //platform/common/python:generate.py)",
     ],
     data = [
-        ":castalia_tapeout_config_memorymap_json",
-        ":castalia_tapeout_trm_tree",
+        ":castalia_config_memorymap_json",
+        ":trm_latex_tree",
         ":rdl_config",
         "//hdl:rdl_sources",
         "//platform/common/python:generate.py",

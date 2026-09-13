@@ -86,6 +86,16 @@ def _cfg(dottedKey, default):
 # Every key is optional (missing = the Castalia default). Unknown keys RAISE:
 # a typo that silently falls back to the default is worse than an error.
 #
+# ONE DEFAULT SILICON CHIP (owner decision, 2026-09-12). The defaults below ARE
+# config/castalia.json, the tape-out product: a build with no CONFIG resolves to
+# the same record as that file, byte for byte, except the provenance field
+# `configFile`. Ten peripheral knobs moved in that promotion -- cqAfeStubs true
+# to false, and qspi, i3c, rtc, pwm, onewire, dma, i2ctarget, trng and
+# eventFabric false to true -- and the tracked hdl/common/MCU.vhd and
+# MemoryMap.vhd are that chip. Every configuration that wants the OLD default
+# peripheral set now pins it: argus.json, argus_debug.json, fpga.json and
+# mcu_hart.json each carry the ten knobs explicitly, with a note saying why.
+#
 # THE DESCRIPTION STRING IS A TABLE CELL, SO WRITE IT AS ONE (2026-08-15, USER
 # review of TRM table 1). Each description is rendered THREE ways — the TRM's
 # "Meaning / valid values" column, the configurator's help text, and the
@@ -662,20 +672,20 @@ _CONFIG_META = {
 	'peripherals.uart1':    {'type': 'bool', 'default': True},
 	'peripherals.spi1':     {'type': 'bool', 'default': True},
 	'peripherals.timer1':   {'type': 'bool', 'default': True},
-	'peripherals.cqAfeStubs': {'type': 'bool', 'default': True},
-	'peripherals.qspi':     {'type': 'bool', 'default': False},
-	'peripherals.i3c':      {'type': 'bool', 'default': False},
+	'peripherals.cqAfeStubs': {'type': 'bool', 'default': False},
+	'peripherals.qspi':     {'type': 'bool', 'default': True},
+	'peripherals.i3c':      {'type': 'bool', 'default': True},
 	'peripherals.nfc':      {'type': 'bool', 'default': True},
-	'peripherals.rtc':      {'type': 'bool', 'default': False},
-	'peripherals.pwm':      {'type': 'bool', 'default': False},
-	'peripherals.onewire':  {'type': 'bool', 'default': False},
+	'peripherals.rtc':      {'type': 'bool', 'default': True},
+	'peripherals.pwm':      {'type': 'bool', 'default': True},
+	'peripherals.onewire':  {'type': 'bool', 'default': True},
 	'peripherals.fieldPower': {'type': 'bool', 'default': True},
-	'peripherals.dma':      {'type': 'bool', 'default': False},
+	'peripherals.dma':      {'type': 'bool', 'default': True},
 	'peripherals.dmaChannels': {'type': 'int', 'default': 4, 'min': 2, 'max': 4, 'step': 2},
-	'peripherals.i2ctarget': {'type': 'bool', 'default': False},
-	'peripherals.trng':      {'type': 'bool', 'default': False},
+	'peripherals.i2ctarget': {'type': 'bool', 'default': True},
+	'peripherals.trng':      {'type': 'bool', 'default': True},
 	'peripherals.trngRings': {'type': 'int', 'default': 8, 'min': 4, 'max': 8, 'step': 4},
-	'peripherals.eventFabric': {'type': 'bool', 'default': False},
+	'peripherals.eventFabric': {'type': 'bool', 'default': True},
 	# DEFAULT MOVED qfn64 -> lqfp100 2026-08-16, as the pad-side half of the
 	# debug.enable flip: castalia-lqfp100 is the only model that bonds the TAP
 	# (47-51, carved from NC balls at D3), and it is already the tape-out
@@ -824,16 +834,19 @@ timer1Present = _cfg('peripherals.timer1', True)
 # digperiphs #1 (QSPI, 2026-07-18): page-0 slot 12 (0x4C00) real estate. The
 # Castalia-Quad respin's four AFE register stubs + the shared EIS engine stub
 # (afe_stub.vhd instances, wired in the generated MCU.vhd) occupy slot 12 and
-# the IRQ-router page top quarter (0x7C00) by DEFAULT — the committed golden
-# master and the shafe mp-suite test depend on them, so cqAfeStubs defaults
-# TRUE. The QSPI0 controller is the ALTERNATE occupant of slot 12 (default
-# FALSE): enabling it claims 0x4C00 and drives IRQ vectors 55 (transfer
-# complete) / 56 (RX full). The two are mutually exclusive — both decode slot
-# 12. The EIS stub is tied to the SAME cqAfeStubs knob: in the RTL it shares
-# the afe_eis_irq(4:0) vector and the AFE sub-decode/read-mux emitters with the
-# four AFE sites (fully entangled), so it lives and dies with them.
-cqAfeStubsPresent = _cfg('peripherals.cqAfeStubs', True)
-qspiPresent = _cfg('peripherals.qspi', False)
+# the IRQ-router page top quarter (0x7C00); the QSPI0 controller is the
+# ALTERNATE occupant of the same slot, claiming 0x4C00 and driving IRQ vectors
+# 55 (transfer complete) / 56 (RX full). The two are mutually exclusive (both
+# decode slot 12) and the raise below is what keeps a configuration from
+# asking for both. THE POLARITY REVERSED ON 2026-09-12: the tape-out chip drops
+# the stub bank and ships QSPI0, so cqAfeStubs now defaults FALSE and qspi TRUE.
+# The stub bank is still real RTL and still selectable (mcu_hart.json carries
+# it, and the shafe mp-suite row goes with it), it is simply no longer the
+# default. The EIS stub is tied to the SAME cqAfeStubs knob: in the RTL it
+# shares the afe_eis_irq(4:0) vector and the AFE sub-decode/read-mux emitters
+# with the four AFE sites (fully entangled), so it lives and dies with them.
+cqAfeStubsPresent = _cfg('peripherals.cqAfeStubs', False)
+qspiPresent = _cfg('peripherals.qspi', True)
 if cqAfeStubsPresent and qspiPresent:
 	raise Exception('Chip-config conflict: peripherals.cqAfeStubs and peripherals.qspi '
 		'both claim page-0 slot 12 (0x4C00) — set cqAfeStubs=false to enable qspi.')
@@ -856,9 +869,11 @@ overlay.call('configResolve', cfg=_cfg, vals=_overlayVals)
 # the meip external-interrupt slot stays FROZEN at IVT slot 85 (m.MeipVector),
 # a reserved never-pending placeholder sits at source index 85, and the eight
 # I3C sources (tc/rxf/txe/nack/eod/arb/daa/ibi) sit ABOVE it at 86-93, reached
-# through the existing meip dispatcher. Default FALSE — the default emission
-# (mutex aliasing, 85-entry vector list, no page-2 sub-decode) is unchanged.
-i3cPresent = _cfg('peripherals.i3c', False)
+# through the existing meip dispatcher. DEFAULT FLIPPED TO TRUE 2026-09-12 with
+# the one-default-chip promotion. The knob-OFF emission (mutex aliasing, 85-entry
+# vector list, no page-2 sub-decode) is still what a config that sets false gets;
+# it is no longer what a config that sets nothing gets.
+i3cPresent = _cfg('peripherals.i3c', True)
 
 # digperiphs #3 (NFC, 2026-07-18): the NFC0 ISO 14443A tag / card-emulation
 # engine claims page-2 (the MUTEX page) SUB-SLOT 2 @0x6200, joining I3C's gated
@@ -893,10 +908,11 @@ nfcPresent = _cfg('peripherals.nfc', True)
 # (the GPIO4/5 native-slave idiom). Enabling RTC GROWS the IRQ SOURCE list from 114
 # to 115: vector 114 = RTC0 (single combined alarm/tick source), ABOVE GPIO5's
 # 106-113 (the I3C/NFC conditional-growth pattern, NOT the GPIO4/5 unconditional
-# one). NUM_EN_WORDS stays 4 (ceil(115/32) = 4, 115 <= 128). Default FALSE — the
-# default emission (114-source vector list, no page-2 sub-slot 5, no MmrAddrRTC0)
-# is byte-identical.
-rtcPresent = _cfg('peripherals.rtc', False)
+# one). NUM_EN_WORDS stays 4 (ceil(115/32) = 4, 115 <= 128). DEFAULT FLIPPED TO
+# TRUE 2026-09-12 with the one-default-chip promotion; the knob-OFF emission
+# (114-source vector list, no page-2 sub-slot 5, no MmrAddrRTC0) is what a config
+# that sets false gets.
+rtcPresent = _cfg('peripherals.rtc', True)
 
 # digperiphs #5 (PWM, 2026-07-20): the PWM0 buffered PWM generator (2 channels,
 # glitch-free double-buffered update, software/mask-only fault, period-event tick)
@@ -911,10 +927,11 @@ rtcPresent = _cfg('peripherals.rtc', False)
 # combinationalRead NOR in mcu_vhd.py's CAPTURE_CLOCK set. Enabling PWM extends the
 # IRQ source list per the GLOBAL VECTOR RULE (A5, see the library-tail machinery
 # below): vectors 115 = PWM0_FAULT (lower id -> router priority), 116 = PWM0_EVT.
-# NUM_EN_WORDS stays 4 (ceil(117/32) = 4, 117 <= 128). Default FALSE — the default
-# emission (no page-2 sub-slot 6, no MmrAddrPWM0, the two spread slots keep their
-# original T0CMP0/T0CMP1 copies) is byte-identical.
-pwmPresent = _cfg('peripherals.pwm', False)
+# NUM_EN_WORDS stays 4 (ceil(117/32) = 4, 117 <= 128). DEFAULT FLIPPED TO TRUE
+# 2026-09-12 with the one-default-chip promotion; the knob-OFF emission (no page-2
+# sub-slot 6, no MmrAddrPWM0, the two spread slots keep their original
+# T0CMP0/T0CMP1 copies) is what a config that sets false gets.
+pwmPresent = _cfg('peripherals.pwm', True)
 
 # digperiphs #5 (OneWire, 2026-07-20): the OW0 Dallas/Maxim 1-Wire master (reset+
 # presence, write/read bit + byte link-layer primitives off a programmable time base;
@@ -932,10 +949,11 @@ pwmPresent = _cfg('peripherals.pwm', False)
 # IRQ source list per the GLOBAL VECTOR RULE (A4/A5, see the library-tail machinery
 # below): vector 117 = OW0 (single combined transaction-complete/error source), with
 # 114/115/116 backfilling as IRQB_RSVD per their own rtc/pwm knobs. NUM_EN_WORDS stays
-# 4 (ceil(118/32) = 4, 118 <= 128). Default FALSE — the default emission (no page-2
-# sub-slot 7, no MmrAddrOW0, P4.7/GPIO31 AF2 keeps its T0CMP1 spread copy) is
-# byte-identical.
-onewirePresent = _cfg('peripherals.onewire', False)
+# 4 (ceil(118/32) = 4, 118 <= 128). DEFAULT FLIPPED TO TRUE 2026-09-12 with the
+# one-default-chip promotion; the knob-OFF emission (no page-2 sub-slot 7, no
+# MmrAddrOW0, P4.7/GPIO31 AF2 keeps its T0CMP1 spread copy) is what a config that
+# sets false gets.
+onewirePresent = _cfg('peripherals.onewire', True)
 
 # DP-S3 (field-powered NFC mode, 2026-07-24): PWRCTRL supervision-input wiring.
 # PGOOD on P6.7/GPIO47, harvested-boot strap on P6.6/GPIO46 — plain-GPIO direct
@@ -965,10 +983,12 @@ fieldPowerPresent = _cfg('peripherals.fieldPower', True)
 # channels-done), 119 = DMA0_ERR, with 114/115/116/117 backfilling as IRQB_RSVD per their
 # own rtc/pwm/onewire knobs. NUM_EN_WORDS stays 4 (ceil(119/32) = 4, 119 <= 128).
 # dmaChannels (the NCH generic, {2,4}) is consulted only when dma is true; the register
-# map is the 4-channel SUPERSET regardless (absent channels read 0, A19/D6). Default
-# FALSE — the default emission (no page-2 sub-slot 8, no MmrAddrDMA, arbiter stays
-# N=4/MW=2, sh_master 2 bits, no vectors 118/119) is byte-identical.
-dmaPresent = _cfg('peripherals.dma', False)
+# map is the 4-channel SUPERSET regardless (absent channels read 0, A19/D6). DEFAULT
+# FLIPPED TO TRUE 2026-09-12 with the one-default-chip promotion, so the SHIPPED
+# fabric now carries the fifth master: nMasters = numHarts + DMA = 6 at numHarts=5,
+# MW=3. The knob-OFF emission (no page-2 sub-slot 8, no MmrAddrDMA, arbiter stays
+# N=numHarts, no vectors 118/119) is what a config that sets false gets.
+dmaPresent = _cfg('peripherals.dma', True)
 dmaChannels = _cfg('peripherals.dmaChannels', 4)
 
 # digperiphs (I2CT, 2026-07-22): the I2CT0 hardware-autonomous I2C TARGET (slave)
@@ -985,10 +1005,11 @@ dmaChannels = _cfg('peripherals.dmaChannels', 4)
 # rx-full). Vectors 120/121 belong to the DP-SG blocks (npu-thinkdone / TRNG0, landed
 # 2026-07-22 — gated on npuPresent/trngPresent in _LIBRARY_TAIL_SPEC), so 122/123 hold
 # under the frozen-numbering rule; an absent block's row backfills as IRQB_RSVD120/121
-# when I2CT0 is the highest enabled block. NUM_EN_WORDS stays 4 (124 <= 128). Default FALSE —
-# the default emission (no page-2 sub-slot 10, no MmrAddrI2CT0, no vectors 122/123, merged
-# planes at their golden-master text) is byte-identical.
-i2ctargetPresent = _cfg('peripherals.i2ctarget', False)
+# when I2CT0 is the highest enabled block. NUM_EN_WORDS stays 4 (124 <= 128). DEFAULT
+# FLIPPED TO TRUE 2026-09-12 with the one-default-chip promotion, and 123 is now the top
+# live vector: NUM_IRQ_SRCS is 124 in the shipped map. The knob-OFF emission (no page-2
+# sub-slot 10, no MmrAddrI2CT0, no vectors 122/123) is what a config that sets false gets.
+i2ctargetPresent = _cfg('peripherals.i2ctarget', True)
 
 # digperiphs (TRNG, 2026-07-22): the TRNG0 ring-oscillator entropy source + harvest
 # engine claims page-2 (the MUTEX page) SUB-SLOT 9 @0x6900, joining the
@@ -1005,11 +1026,12 @@ i2ctargetPresent = _cfg('peripherals.i2ctarget', False)
 # extends the IRQ source list per the GLOBAL VECTOR RULE (A5, the library-tail
 # machinery below): vector 121 = TRNG0 (single combined data-ready | health-alarm
 # source); vector 120 (npu-thinkdone) is gated by the EXISTING peripherals.npu knob,
-# not a new one. NUM_EN_WORDS stays 4 (ceil(122/32) = 4, 122 <= 128). Default FALSE —
-# the default emission (no page-2 sub-slot 9, no MmrAddrTRNG0, no vector 121) is
-# byte-identical. Bring-up-grade entropy ONLY (THE ENTROPY CAVEAT, D16): no
+# not a new one. NUM_EN_WORDS stays 4 (ceil(122/32) = 4, 122 <= 128). DEFAULT FLIPPED
+# TO TRUE 2026-09-12 with the one-default-chip promotion; the knob-OFF emission (no
+# page-2 sub-slot 9, no MmrAddrTRNG0, no vector 121) is what a config that sets false
+# gets. Bring-up-grade entropy ONLY (THE ENTROPY CAVEAT, D16): no
 # certification, no HW conditioner — firmware MUST DRBG the output and honor ALMF.
-trngPresent = _cfg('peripherals.trng', False)
+trngPresent = _cfg('peripherals.trng', True)
 trngRings = _cfg('peripherals.trngRings', 8)
 
 # digperiphs (EVFAB, 2026-07-24): the EVFAB0 event/trigger fabric claims page-2 (the
@@ -1029,9 +1051,10 @@ trngRings = _cfg('peripherals.trngRings', 8)
 # therefore UNTOUCHED by this knob (spending a vector later is purely additive).
 # CROSS-KNOB DEGRADE (D23): every producer/consumer whose source block is absent is
 # tied '0' at the MCU level, never left open, so the fabric composes with every other
-# peripherals.* knob. Default FALSE — the default emission (no page-2 sub-slot 11, no
-# EVF* register block, no tap port-map lines on the existing instances) is byte-identical.
-eventFabricPresent = _cfg('peripherals.eventFabric', False)
+# peripherals.* knob. DEFAULT FLIPPED TO TRUE 2026-09-12 with the one-default-chip
+# promotion; the knob-OFF emission (no page-2 sub-slot 11, no EVF* register block, no
+# tap port-map lines on the existing instances) is what a config that sets false gets.
+eventFabricPresent = _cfg('peripherals.eventFabric', True)
 
 # digperiphs A5 — GLOBAL VECTOR RULE (BINDING, applies to every library block).
 # Beyond the 114 UNCONDITIONAL vectors (0-113: legacy + CLINT + meip placeholder +

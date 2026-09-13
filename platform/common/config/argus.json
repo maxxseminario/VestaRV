@@ -11,8 +11,19 @@
     "sharedBulkRamSize": 131072
   },
   "peripherals": {
-    "npu": false
+    "npu": false,
+    "cqAfeStubs": true,
+    "qspi": false,
+    "i3c": false,
+    "rtc": false,
+    "pwm": false,
+    "onewire": false,
+    "dma": false,
+    "i2ctarget": false,
+    "trng": false,
+    "eventFabric": false
   },
+  "_peripheralsPinNote": "2026-09-12 PIN, the peripheral-set sibling of the orchestrator, package and debug pins above. The wound peripheral set became the SHIPPED DEFAULT when config/castalia.json collapsed into the generator's built-in defaults (owner decision: ONE default silicon chip). Ten knobs moved: cqAfeStubs true to false, and qspi, i3c, rtc, pwm, onewire, dma, i2ctarget, trng and eventFabric false to true. Without these pins this row would INHERIT the tape-out chip's peripheral set: an 18-hart teaching chip carrying QSPI, I3C, RTC, PWM, OneWire, a DMA master that widens the arbiter, an I2C target, a TRNG and the event fabric, and losing the AFE stub bank. Pinned, not changed: this is the shape this row already resolved to before the promotion.",
   "isa": {
     "compressed": true,
     "mul": true,

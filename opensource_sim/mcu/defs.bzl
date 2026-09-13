@@ -91,6 +91,14 @@ _MCU_EXTRA = [
     "hdl/common/periph/I2CTarget.vhd",
     "hdl/common/regs/vhdl/evfab_regs_pkg.vhd",
     "hdl/common/periph/EVFAB.vhd",
+    "hdl/common/regs/vhdl/dma_regs_pkg.vhd",
+    "hdl/common/periph/DMA.vhd",
+    "hdl/common/regs/vhdl/trng_regs_pkg.vhd",
+    # The behavioural ring-ensemble architecture. TrngRoEnsemble.vhd carries the
+    # real rtl architecture of the same entity and the two must NEVER co-list;
+    # genus and gate flows compile that one and never see this.
+    "hdl/common/periph/TrngRoEnsemble_sim.vhd",
+    "hdl/common/periph/TRNG.vhd",
     "hdl/common/regs/vhdl/uart_regs_pkg.vhd",
     "hdl/common/periph/UART.vhd",
     "hdl/common/regs/vhdl/i2c_regs_pkg.vhd",

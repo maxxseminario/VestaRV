@@ -12,7 +12,7 @@ MEMORY
 	ROM (rx)			: ORIGIN = 0x00000, LENGTH = 0x02000	/* END = 0x01FFF, SIZE = 8 KiB */
 	PERIPHERAL (rw)		: ORIGIN = 0x04000, LENGTH = 0x01000	/* END = 0x04FFF, SIZE = 4 KiB */
 
-	vectors				: ORIGIN = 0x08000, LENGTH = 0x001E4	/* END = 0x081E3, SIZE = 484 bytes */
+	vectors				: ORIGIN = 0x08000, LENGTH = 0x001F0	/* END = 0x081EF, SIZE = 496 bytes */
 
 	VECT0				: ORIGIN = 0x08000, LENGTH = 0x00004
 	VECT1				: ORIGIN = 0x08004, LENGTH = 0x00004
@@ -47,10 +47,10 @@ MEMORY
 	VECT30				: ORIGIN = 0x08078, LENGTH = 0x00004
 	VECT31				: ORIGIN = 0x0807C, LENGTH = 0x00004
 
-	RAM (rwx)			: ORIGIN = 0x081E4, LENGTH = 0x01E1C	/* END = 0x09FFF, SIZE = 7708 bytes */
-	RAM_NOT_MUXED (rwx)	: ORIGIN = 0x081E4, LENGTH = 0x01E1C	/* END = 0x09FFF, SIZE = 7708 bytes */
+	RAM (rwx)			: ORIGIN = 0x081F0, LENGTH = 0x01E10	/* END = 0x09FFF, SIZE = 7696 bytes */
+	RAM_NOT_MUXED (rwx)	: ORIGIN = 0x081F0, LENGTH = 0x01E10	/* END = 0x09FFF, SIZE = 7696 bytes */
 
-	SRAM02 (rwx)		: ORIGIN = 0x081E4, LENGTH = 0x01E1C	/* END = 0x09FFF, SIZE = 7708 bytes */
+	SRAM02 (rwx)		: ORIGIN = 0x081F0, LENGTH = 0x01E10	/* END = 0x09FFF, SIZE = 7696 bytes */
 
 	NPU_RAM (rwx)		: ORIGIN = 0x0C000, LENGTH = 0x4000		/* NPU staging RAM (arbitrated; NPU-port-muxed during a THINK) */
 	SHARED_RAM (rwx)	: ORIGIN = 0x10000, LENGTH = 0x10000	/* arbitrated shared RAM (mailbox region 0x10000-0x107FF zeroed by the bootrom; loader rows at 0x10400) */

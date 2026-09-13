@@ -51,6 +51,20 @@ py_binary(
 #     99b0c95dfb3fc0da52a49d1a68efa904   (was d177e8314f2de080150070762b3d80f7)
 # EXCEPT the fifth: the physical rom2k_hvt_pg plate is NOT yet recompiled.
 #
+# REFRESHED AGAIN 2026-09-12, and this time the chip moved under the plate
+# rather than the source under the chip. config/castalia.json collapsed into the
+# generator's built-in defaults (owner decision: one default silicon chip), so
+# the default generation is the wound peripheral set: NUM_IRQ_SRCS 121 -> 124,
+# the vector table 484 -> 496 bytes, RAM start 0x081E4 -> 0x081F0, and periph.x
+# gained the QSPI0/I3C0/RTC0/PWM0/OW0/DMA0/TRNG0/I2CT0/EVFAB symbol blocks.
+# The six files here were refreshed from //platform/common:castalia_linker_scripts,
+# so the recorded divergence stays empty, and the boot image was re-cut with them:
+#     cea7e60f4723f63acfd92c5883716f1e   (was 99b0c95dfb3fc0da52a49d1a68efa904)
+# The physical rom2k_hvt_pg plate is now TWO cuts stale. Refreshing this
+# directory is what makes the boot ROM link against the chip that is actually
+# being taped out; before it, the plate was linked against a 21-peripheral map
+# no configuration ships.
+#
 # The six MCU.ld firmware images were unaffected: they link against either set,
 # and were built both ways on 2026-08-23 with every .rcf and .hex byte identical.
 # Only the .elf symbol table moves, because periph.x contributes absolute symbols.

@@ -986,9 +986,12 @@ def config_tags(cfg):
     # states it rather than hiding it. If Zkn's encodings ever move, delete this.
     if not isa.get('zkn'):
         tags.add('nozkn')
-    # cqAfeStubs defaults TRUE (the Castalia golden master keeps the AFE/EIS
-    # stubs); a qspi config sets it false and shafe must not be staged there.
-    if cfg.get('peripherals', {}).get('cqAfeStubs', True):
+    # cqAfeStubs defaults FALSE since 2026-09-12: the tape-out chip became the
+    # generator's built-in default and it ships QSPI0 in page-0 slot 12 instead
+    # of the AFE/EIS stub bank, so shafe/shorch must not be staged there. The
+    # fallback is belt and braces -- this reads the RESOLVED config, which
+    # always states every knob.
+    if cfg.get('peripherals', {}).get('cqAfeStubs', False):
         tags.add('cqAfeStubs')
     # K2: `harts_le4` is a STRUCTURAL bound, not a knob -- "this row's addresses
     # are only correct while 4*numHarts <= 16". ONE test needs it now:

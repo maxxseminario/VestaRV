@@ -32,7 +32,7 @@
 
 load("//opensource_sim/mcu:defs.bzl", "rom_image_pkg")
 load("//toolchains/ghdl:defs.bzl", "ghdl_test", "vhdl_source_set")
-load(":defs.bzl", "CASTALIA_B_EXTRA", "CASTALIA_B_HEAD", "CASTALIA_B_MID")
+load(":defs.bzl", "CASTALIA_B_HEAD", "CASTALIA_B_MID")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -51,13 +51,6 @@ vhdl_source_set(
     pool = ["//hdl:vhdl_sources"],
 )
 
-# DMA0 and TRNG0: instantiated by this configuration and by no tracked pair.
-vhdl_source_set(
-    name = "castalia_b_extra_srcs",
-    paths = CASTALIA_B_EXTRA,
-    pool = ["//hdl:vhdl_sources"],
-)
-
 # Order is analysis order, and it is load bearing twice over: a direct
 # `entity work.x` instantiation binds at ANALYSIS, so the macro model has to
 # precede hart_tile.vhd and MCU.vhd; and the GENERATED MemoryMap.vhd has to sit
@@ -66,7 +59,6 @@ _RTL = [
     ":castalia_b_head_srcs",
     "//platform/common:castalia_b_memorymap_vhd",
     ":castalia_b_mid_srcs",
-    ":castalia_b_extra_srcs",
     "//platform/common:castalia_b_mcu_vhd",
 ]
 
