@@ -311,3 +311,48 @@ closure has zero foreign masters in schematic and layout.
 
 Dummy fill (metal, OD, PO) and its post-fill DRC/LVS; seal-ring assembly; fab deliverable
 checks (`wb`, `mim25`, re-stream chipdrc, waiver document); reclaim of superseded libraries.
+
+## 4.6 Topology B on the regenerated RTL, 2026-09-12 (P6). Parked at the chip cut.
+
+Genus and the tile close; the chip does not. Cut of record for topology B is still
+**pt7** (timing-closed, not signed off). **pt9** is the new-RTL cut: routed, legally
+placed, streamed and measured, but NOT timing-closed and NOT signed off. Viewing library
+`signoff_mp/castalia_B_pt9` (its README states both). Full report:
+`<scratchpad>/reports/P6_topology_B_physical.md`.
+
+Closed this wave:
+
+- pt RTL regenerated through the overlay and staged; the diff against the 2026-09-06
+  stage is 131 comment lines plus 7 `NUM_AFS` lines and nothing else. Every read list
+  already covered `sync.vhd`, `periph_regs.vhd` and all 24 register packages; none
+  needed a fix. Stage manifests 26 (tile) and 75 (assembly) files, drift 0 on both.
+- Genus `hart_tile_pt` (4:45) and `MCU_PENTA_pt` (28:37), every gate passed at
+  `GATE_STRICT=1`: 0 latches, 0 unwaived unconstrained clock pins, the 7 allowed
+  unresolved references, 0 soft-logic design-rule violations. The new RTL costs **+813
+  flops** and +0.85 % area at the assembly; 45 `sync` modules (349 stage flops) and 29
+  `periph_regs` modules (4,331 flops) are in the netlist where the 2026-09-06 one had
+  none, with `u_sync_*` instance names and `stage_reg[*][*]` flops preserved.
+- Innovus tile attempt 31 reproduces attempt 30 exactly on every gate and both timing
+  numbers (setup +0.372 ns, hold +0.035 ns, 0 violating). Tile LVS 356:356, one open
+  (`W-PT1-1`), `ant25` clean.
+
+Blockers found, all new, all with evidence:
+
+| # | finding |
+|---|---|
+| **B-PT9-1** | The tile of record carries **429 real VIA5 DRC results** (`VIA5.W.1` 165, `S.1` 202, `S.2` 62) at the two `T5b-4` M5-plate contacts, and always has. The runbook's "16 results, zero spacing violations" row was measured 15 minutes BEFORE attempt 30 started; re-running blockdrc on attempt 30's own GDS today reproduces 444 exactly. Innovus `verifyGeometry` cannot see it. The class arrives four times at chip level. |
+| **B-PT9-2** | **Delta C16 does not fix `O-PT7-1`.** With the cap binding on all 18 tie nets at M4, pt9 carries **eight** real `TIE_TOP` shorts on M3 (pt7 one on M7, pt8 three). The hi-vs-lo pairs are 254 to 255 um of co-linear M3 on one track in the pad rows. The layer is incidental; the fix has to keep constant nets out of the pad-row track. Mark C16 "measured, does not close the defect". |
+| **B-PT9-3** | The flow's two timer clock-gating exceptions name `mcu0/timer*/g11710`, **which does not exist in the netlist**, and Innovus accepts such a name silently. Those two checks are the entire -9.310 ns hold failure that parks pt9. Fixed at source (derived from `mcu0/timer*/clock_source`, every target existence-checked); **not yet exercised by a cut**. |
+| **B-PT9-4** | First chip LVS ever run for topology B: **MISMATCH**, 503 / 191 unmatched devices, 171 / 21 unmatched nets, 984 device terminals with no connection, and 71 `FOOTBUF32MA10TH` in the schematic netlist with no layout counterpart. Needs its own wave. |
+
+Flow defects fixed at source this wave (all `_pt`-owned, sidecars beside each file):
+`setAttribute -net -top_routing_layer` does not exist in Innovus 20.12 (the hard cap is
+`-top_preferred_routing_layer` plus `-preferred_routing_layer_effort hard`); the C16
+census criterion "0 wires outside the core box" is unreachable and now counts only wires
+above the cap layer; `MCU_castalia_penta_pt_lvs_netlist.tcl` named topology A's top cell;
+`post_eco.tcl` gained an `ECODB` knob so a parked database can be streamed and measured.
+
+Next cut, in order: the derived gating-check exception (one 2 h cut closes hold), then the
+tile VIA5 repair and one re-harden, then the geometric fix for the tie-net shorts, then
+chip LVS. `chipdrc` on pt9 is 2,369 = 1,518 pad-kit ESD + 320 `PO.R.8` + 429 tile VIA5 +
+58 density + 44 real; `ant25` is clean at 2 (12) `MIM_SWITCH.WARN.1`.
